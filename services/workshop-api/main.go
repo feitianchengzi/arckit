@@ -2,15 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 
 	"todo/router"
 )
 
 func main() {
-	r := router.SetupRouter()
-
 	// 从环境变量读取端口，如果不存在则报错退出
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -21,10 +18,20 @@ func main() {
 	if host == "" {
 		log.Fatal("环境变量 HOST 未设置")
 	}
+	// 从环境变量读取服务名称，如果不存在则报错退出
+	serviceName := os.Getenv("SERVICE_NAME")
+	if serviceName == "" {
+		log.Fatal("环境变量 SERVICE_NAME 未设置")
+	}
+
+	r := router.SetupRouter(serviceName)
 
 	addr := host + ":" + port
 	log.Printf("Server starting on %s", addr)
-	if err := http.ListenAndServe(addr, r); err != nil {
+	log.Printf("Gateway route format: /{service}/{version}/{auth_level}/{path}")
+	log.Printf("Available auth levels: public, user, apikey")
+
+	if err := r.Run(addr); err != nil {
 		log.Fatal("Server failed to start:", err)
 	}
 }

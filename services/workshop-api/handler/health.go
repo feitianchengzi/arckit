@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // HealthResponse 健康检查响应结构
@@ -15,13 +16,10 @@ type HealthResponse struct {
 }
 
 // HealthCheck 健康检查接口处理函数
-func HealthCheck(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// 从环境变量读取服务名称，默认todo
+// 网关路由: GET /todo-service/v1/public/health
+// 认证级别: public (无需认证)
+func HealthCheck(c *gin.Context) {
+	// 从环境变量读取服务名称，默认todo-service
 	serviceName := os.Getenv("SERVICE_NAME")
 	if serviceName == "" {
 		serviceName = "todo"
@@ -33,11 +31,5 @@ func HealthCheck(w http.ResponseWriter, r *http.Request) {
 		Service:   serviceName,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
-		return
-	}
+	c.JSON(http.StatusOK, response)
 }
