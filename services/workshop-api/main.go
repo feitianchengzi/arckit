@@ -4,10 +4,16 @@ import (
 	"log"
 	"os"
 
+	"todo/database"
 	"todo/router"
 )
 
 func main() {
+	// 初始化数据库连接
+	if err := database.InitDB(); err != nil {
+		log.Fatal("数据库初始化失败:", err)
+	}
+
 	// 从环境变量读取端口，如果不存在则报错退出
 	port := os.Getenv("PORT")
 	if port == "" {

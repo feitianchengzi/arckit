@@ -14,8 +14,9 @@ import (
 func SetupRouter(serviceName string) *gin.Engine {
 	r := gin.Default()
 
-	// 全局中间件：提取header信息（所有请求都需要提取，即使没有header信息）
+	// 全局中间件：提取header信息和注入数据库连接
 	r.Use(middleware.ExtractHeaderInfo())
+	r.Use(middleware.InjectDB())
 
 	// v1接口组
 	// 路由格式: /{service}/v1/{auth_level}/{path}
@@ -34,6 +35,7 @@ func SetupRouter(serviceName string) *gin.Engine {
 		userGroup := v1.Group("/user")
 		{
 			userGroup.GET("/header-info", handler.GetHeaderInfo)
+			userGroup.POST("/projects", handler.CreateProject) // 创建新项目
 		}
 
 		// apikey级别路由 - 需要API密钥认证
