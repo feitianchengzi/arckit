@@ -10,14 +10,14 @@ type Project struct {
 	ID        uint      `json:"id" gorm:"primaryKey;autoIncrement"`              // 主键
 	Name      string    `json:"name" gorm:"type:varchar(200);not null;index"`    // 项目名称
 	GitURL    string    `json:"git_url" gorm:"type:varchar(500);not null;index"` // 项目Git地址
-	CreatorID uint      `json:"creator_id" gorm:"not null;index"`                // 外键：创建者ID（⚠️ 保留历史记录，即使用户离职也不级联删除）
+	CreatorID uint      `json:"creator_id" gorm:"not null;index"`                // 外键：创建者ID（保留历史记录，不级联删除）
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`                // 创建时间
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`                // 更新时间
 
-	// 关联关系
-	Creator User            `json:"creator,omitempty" gorm:"foreignKey:CreatorID"` // 创建者（⚠️ 注意：即使创建者离职，该关联仍然保留，用于历史记录追踪）
-	Members []ProjectMember `json:"members,omitempty" gorm:"foreignKey:ProjectID"` // 项目成员列表
-	Tasks   []Task          `json:"tasks,omitempty" gorm:"foreignKey:ProjectID"`   // 项目下的任务
+	// has many：由子表定义级联删除约束
+	Creator User            `json:"creator,omitempty" gorm:"foreignKey:CreatorID;references:ID"`
+	Members []ProjectMember `json:"members,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
+	Tasks   []Task          `json:"tasks,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
 }
 
 // TableName 指定表名
@@ -36,9 +36,9 @@ type ProjectMember struct {
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`                       // 加入时间
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`                       // 更新时间
 
-	// 关联关系
-	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID"`
-	User    User    `json:"user,omitempty" gorm:"foreignKey:UserID"`
+	// belongs to：由fixForeignKeyConstraints函数创建正确的外键约束
+	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
+	User    User    `json:"user,omitempty" gorm:"foreignKey:UserID;references:ID"`
 }
 
 // TableName 指定表名
@@ -72,7 +72,7 @@ func IsValidProjectRole(role string) bool {
 // 用于存储项目邀请信息，生成邀请码供用户加入项目
 type ProjectInvitation struct {
 	ID         uint       `json:"id" gorm:"primaryKey;autoIncrement"`                       // 主键
-	ProjectID  uint       `json:"project_id" gorm:"not null;index"`                         // 外键：项目ID
+	ProjectID  uint       `json:"project_id" gorm:"not null;index"`                         // 外键：项目ID（constraint在关联字段上定义）
 	InviteCode string     `json:"invite_code" gorm:"type:varchar(64);uniqueIndex;not null"` // 邀请码（唯一）
 	Role       string     `json:"role" gorm:"type:varchar(50);not null;default:'member'"`   // 邀请的角色（默认member）
 	InviterID  uint       `json:"inviter_id" gorm:"not null;index"`                         // 外键：邀请者ID
@@ -81,9 +81,9 @@ type ProjectInvitation struct {
 	CreatedAt  time.Time  `json:"created_at" gorm:"autoCreateTime"`                         // 创建时间
 	UpdatedAt  time.Time  `json:"updated_at" gorm:"autoUpdateTime"`                         // 更新时间
 
-	// 关联关系
-	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID"`
-	Inviter User    `json:"inviter,omitempty" gorm:"foreignKey:InviterID"`
+	// 关联关系：由fixForeignKeyConstraints函数创建正确的外键约束
+	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
+	Inviter User    `json:"inviter,omitempty" gorm:"foreignKey:InviterID;references:ID"`
 }
 
 // TableName 指定表名

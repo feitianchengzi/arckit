@@ -57,12 +57,19 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
     fi
 fi
 
-# 清理旧镜像（可选，如果需要强制重建）
-# docker rmi ${IMAGE_NAME} 2>/dev/null || true
-
-# 构建并启动容器
+# 构建并启动容器（先尝试使用缓存构建）
 echo -e "${YELLOW}构建并启动容器...${NC}"
-docker-compose -f ${COMPOSE_FILE} up -d --build
+if docker-compose -f ${COMPOSE_FILE} build; then
+    # 构建成功，启动容器
+    docker-compose -f ${COMPOSE_FILE} up -d
+else
+    # 构建失败，可能是缓存问题，清理缓存后重新构建
+    echo -e "${YELLOW}构建失败，清理 Docker 构建缓存后重试...${NC}"
+    docker builder prune -f
+    echo -e "${YELLOW}使用 --no-cache 强制重新构建...${NC}"
+    docker-compose -f ${COMPOSE_FILE} build --no-cache
+    docker-compose -f ${COMPOSE_FILE} up -d
+fi
 
 # 等待服务启动
 echo -e "${YELLOW}等待服务启动...${NC}"

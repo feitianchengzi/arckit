@@ -773,7 +773,8 @@ func buildInviteLink(inviteCode string) string {
 // 1. 从请求获取用户ID
 // 2. 查询项目
 // 3. 验证用户是项目所有者
-// 4. 删除项目（会级联删除项目成员和任务）
+// 4. 删除项目（数据库会自动级联删除：项目成员、任务、邀请）
+// 注意：依赖数据库外键约束的 ON DELETE CASCADE 实现级联删除
 func DeleteProject(c *gin.Context) {
 	// 1. 获取项目ID
 	projectID := c.Param("id")

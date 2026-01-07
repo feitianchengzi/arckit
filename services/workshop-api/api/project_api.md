@@ -6,11 +6,30 @@
 
 ## 通用说明
 
-- 所有接口通过中间件自动获取用户ID，无需手动查询用户表
-- 项目成员角色：
-  - `owner` - 所有者（项目创建者），拥有所有权限
-  - `admin` - 管理员，可以管理项目成员和任务
-  - `member` - 成员，可以创建任务，只能修改/删除自己创建或分配给自己执行的任务
+### 用户ID获取方式
+
+所有接口通过中间件 `ExtractUserID` 自动获取用户ID，获取优先级如下：
+
+1. **优先从查询参数获取**：如果请求URL中包含 `user_id` 查询参数，直接使用该值
+2. **从Header UUID查询**：如果没有查询参数，则从请求头 `X-User-ID` 获取用户UUID，然后查询用户表获取对应的用户ID
+
+**推荐方式**：在请求URL中添加 `user_id` 查询参数，避免额外的数据库查询。
+
+**示例**：
+```bash
+# 推荐：使用查询参数
+GET /todo/v1/user/projects?user_id=3
+
+# 备选：仅使用Header（会查询用户表）
+GET /todo/v1/user/projects
+# Header: X-User-ID: 11111111-1111-1111-1111-111111111111
+```
+
+### 项目成员角色
+
+- `owner` - 所有者（项目创建者），拥有所有权限
+- `admin` - 管理员，可以管理项目成员和任务
+- `member` - 成员，可以创建任务，只能修改/删除自己创建或分配给自己执行的任务
 
 ---
 
@@ -21,6 +40,12 @@
 **认证级别**: `user`（需要JWT认证）
 
 **描述**: 创建新项目，创建者自动成为项目所有者（owner）
+
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
 
 **请求体**:
 
@@ -84,7 +109,11 @@
 
 **描述**: 查询当前登录用户参与的所有项目，每个项目包含完整的成员列表
 
-**查询参数**: 无（自动使用当前登录用户）
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
 
 **响应示例** (`200 OK`):
 
@@ -150,6 +179,12 @@
 |------|------|------|
 | id | uint | 项目ID |
 
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+
 **请求体**（所有字段均为可选，但至少提供一个）:
 
 ```json
@@ -205,6 +240,12 @@
 |------|------|------|
 | id | uint | 项目ID |
 
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+
 **响应示例** (`200 OK`):
 
 ```json
@@ -240,6 +281,12 @@
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | id | uint | 项目ID |
+
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
 
 **请求体**:
 
@@ -295,6 +342,12 @@
 **认证级别**: `user`（需要JWT认证）
 
 **描述**: 使用邀请码加入项目
+
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
 
 **请求体**:
 
@@ -363,6 +416,12 @@
 |------|------|------|
 | id | uint | 项目ID |
 
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+
 **请求体**:
 
 ```json
@@ -415,6 +474,12 @@
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | id | uint | 项目ID |
+
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
 
 **请求体**:
 
@@ -474,11 +539,16 @@
 
 ## 使用示例
 
+以下示例使用测试用户信息（参考 `README.md`）：
+- **Alice**: `user_id=3`, `UUID=11111111-1111-1111-1111-111111111111`, `username=alice`
+- **Bob**: `user_id=4`, `UUID=22222222-2222-2222-2222-222222222222`, `username=bob`
+
 ### 创建项目
 
 ```bash
-curl -X POST "https://api.example.com/todo-service/v1/user/projects" \
-  -H "Authorization: Bearer <token>" \
+curl -X POST "http://localhost:8081/todo/v1/user/projects?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "电商平台开发",
@@ -489,27 +559,38 @@ curl -X POST "https://api.example.com/todo-service/v1/user/projects" \
 ### 查询用户参与的项目
 
 ```bash
-curl -X GET "https://api.example.com/todo-service/v1/user/projects?user_id=10" \
-  -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:8081/todo/v1/user/projects?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
 ```
 
 ### 更新项目
 
 ```bash
-curl -X PUT "https://api.example.com/todo-service/v1/user/projects/1" \
-  -H "Authorization: Bearer <token>" \
+curl -X PUT "http://localhost:8081/todo/v1/user/projects/2?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "新项目名称",
-    "git_url": "https://github.com/team/new-repo.git"
+    "name": "新项目名称-电商平台V2",
+    "git_url": "https://github.com/team/ecommerce-v2.git"
   }'
+```
+
+### 删除项目
+
+```bash
+curl -X DELETE "http://localhost:8081/todo/v1/user/projects/2?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
 ```
 
 ### 邀请项目成员
 
 ```bash
-curl -X POST "https://api.example.com/todo-service/v1/user/projects/1/invitations" \
-  -H "Authorization: Bearer <token>" \
+curl -X POST "http://localhost:8081/todo/v1/user/projects/2/invitations?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
   -d '{
     "role": "member",
@@ -520,33 +601,36 @@ curl -X POST "https://api.example.com/todo-service/v1/user/projects/1/invitation
 ### 加入项目
 
 ```bash
-curl -X POST "https://api.example.com/todo-service/v1/user/projects/join" \
-  -H "Authorization: Bearer <token>" \
+curl -X POST "http://localhost:8081/todo/v1/user/projects/join?user_id=4" \
+  -H "X-User-ID: 22222222-2222-2222-2222-222222222222" \
+  -H "X-User-Username: bob" \
   -H "Content-Type: application/json" \
   -d '{
-    "invite_code": "ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234"
+    "invite_code": "0D32A295A83D41D5A6F15DA32050268F"
   }'
 ```
 
 ### 删除项目成员
 
 ```bash
-curl -X DELETE "https://api.example.com/todo-service/v1/user/projects/1/members" \
-  -H "Authorization: Bearer <token>" \
+curl -X DELETE "http://localhost:8081/todo/v1/user/projects/2/members?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
   -d '{
-    "target_user_id": 123
+    "target_user_id": 4
   }'
 ```
 
 ### 设置成员角色
 
 ```bash
-curl -X PUT "https://api.example.com/todo-service/v1/user/projects/1/members/role" \
-  -H "Authorization: Bearer <token>" \
+curl -X PUT "http://localhost:8081/todo/v1/user/projects/2/members/role?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
   -d '{
-    "target_user_id": 123,
+    "target_user_id": 4,
     "role": "admin"
   }'
 ```

@@ -17,12 +17,16 @@ type Task struct {
 	UpdatedAt    time.Time  `json:"updated_at" gorm:"autoUpdateTime"`                               // 更新时间
 	CompletionAt *time.Time `json:"completion_at,omitempty"`                                        // 完成时间（可为空）
 
-	// 关联关系
-	Project  Project `json:"project,omitempty" gorm:"foreignKey:ProjectID"`   // 所属项目
-	Parent   *Task   `json:"parent,omitempty" gorm:"foreignKey:FatherID"`     // 父任务
-	Children []Task  `json:"children,omitempty" gorm:"foreignKey:FatherID"`   // 子任务列表
-	Creator  User    `json:"creator,omitempty" gorm:"foreignKey:CreatorID"`   // 创建者（⚠️ 注意：即使创建者离职，该关联仍然保留，用于历史记录追踪）
-	Executor *User   `json:"executor,omitempty" gorm:"foreignKey:ExecutorID"` // 执行者（⚠️ 注意：即使执行者离职，该关联仍然保留，用于历史记录追踪）
+	// belongs to：由fixForeignKeyConstraints函数创建正确的外键约束
+	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
+
+	// self-referencing：任务层级
+	Parent   *Task  `json:"parent,omitempty" gorm:"foreignKey:FatherID;references:ID"`
+	Children []Task `json:"children,omitempty" gorm:"foreignKey:FatherID;references:ID"`
+
+	// 用户关联（不级联删除，保留历史）
+	Creator  User  `json:"creator,omitempty" gorm:"foreignKey:CreatorID;references:ID"`
+	Executor *User `json:"executor,omitempty" gorm:"foreignKey:ExecutorID;references:ID"`
 }
 
 // TableName 指定表名

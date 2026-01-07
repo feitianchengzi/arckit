@@ -82,6 +82,85 @@ Todo Service 是一个团队共享任务管理系统，提供项目管理和任�
 | admin | 管理员 | 可以管理项目成员和任务 |
 | member | 成员 | 可以创建任务，只能修改/删除自己创建或分配给自己执行的任务 |
 
+## 测试用户
+
+以下测试用户已创建，可用于 API 测试：
+
+### 用户 1: Alice
+```json
+{
+  "id": 3,
+  "uuid": "11111111-1111-1111-1111-111111111111",
+  "username": "alice",
+  "avatar": "https://example.com/avatars/alice.png",
+  "created_at": "2026-01-07T08:44:24Z",
+  "updated_at": "2026-01-07T08:44:24Z"
+}
+```
+
+**测试 Header:**
+```bash
+-H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+-H "X-User-Username: alice"
+```
+
+### 用户 2: Bob
+```json
+{
+  "id": 4,
+  "uuid": "22222222-2222-2222-2222-222222222222",
+  "username": "bob",
+  "avatar": "https://example.com/avatars/bob.png",
+  "created_at": "2026-01-07T08:44:26Z",
+  "updated_at": "2026-01-07T08:44:26Z"
+}
+```
+
+**测试 Header:**
+```bash
+-H "X-User-ID: 22222222-2222-2222-2222-222222222222" \
+-H "X-User-Username: bob"
+```
+
+### 用户 3: Charlie
+```json
+{
+  "id": 5,
+  "uuid": "33333333-3333-3333-3333-333333333333",
+  "username": "charlie",
+  "avatar": "https://example.com/avatars/charlie.png",
+  "created_at": "2026-01-07T08:44:29Z",
+  "updated_at": "2026-01-07T08:44:29Z"
+}
+```
+
+**测试 Header:**
+```bash
+-H "X-User-ID: 33333333-3333-3333-3333-333333333333" \
+-H "X-User-Username: charlie"
+```
+
+### 使用示例
+
+在测试 API 时，可以使用以下方式设置测试用户：
+
+```bash
+# 使用 Alice 测试
+curl -X GET "http://127.0.0.1:8081/todo/v1/user/users/11111111-1111-1111-1111-111111111111" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
+
+# 使用 Bob 测试
+curl -X GET "http://127.0.0.1:8081/todo/v1/user/users/22222222-2222-2222-2222-222222222222" \
+  -H "X-User-ID: 22222222-2222-2222-2222-222222222222" \
+  -H "X-User-Username: bob"
+
+# 使用 Charlie 测试
+curl -X GET "http://127.0.0.1:8081/todo/v1/user/users/33333333-3333-3333-3333-333333333333" \
+  -H "X-User-ID: 33333333-3333-3333-3333-333333333333" \
+  -H "X-User-Username: charlie"
+```
+
 ## 注意事项
 
 1. **用户识别**: 系统使用网关提供的用户UUID（`X-User-ID`）进行用户识别，通过中间件自动转换为数据库用户ID
