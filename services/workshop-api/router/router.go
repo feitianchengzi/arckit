@@ -33,9 +33,24 @@ func SetupRouter(serviceName string) *gin.Engine {
 		// 网关已经验证了认证，如果请求到达这里，说明认证通过
 		// 示例：GET /todo-service/v1/user/header-info
 		userGroup := v1.Group("/user")
+		userGroup.Use(middleware.ExtractUserID()) // 提取用户ID中间件
 		{
 			userGroup.GET("/header-info", handler.GetHeaderInfo)
-			userGroup.POST("/projects", handler.CreateProject) // 创建新项目
+			userGroup.POST("/users", handler.CreateUser)                                 // 根据网关UUID创建用户
+			userGroup.GET("/users/:uuid", handler.GetUser)                               // 根据UUID查询用户
+			userGroup.PUT("/users/:uuid", handler.UpdateUser)                            // 更新用户信息
+			userGroup.POST("/projects", handler.CreateProject)                           // 创建新项目
+			userGroup.GET("/projects", handler.GetUserProjects)                          // 根据用户UUID查询所有参与的项目
+			userGroup.PUT("/projects/:id", handler.UpdateProject)                        // 更新项目信息
+			userGroup.DELETE("/projects/:id", handler.DeleteProject)                     // 删除项目（仅所有者）
+			userGroup.POST("/projects/:id/invitations", handler.InviteProjectMember)     // 邀请项目成员（生成邀请码）
+			userGroup.POST("/projects/join", handler.JoinProject)                        // 加入项目（使用邀请码）
+			userGroup.DELETE("/projects/:id/members", handler.DeleteProjectMember)       // 删除项目成员
+			userGroup.PUT("/projects/:id/members/role", handler.UpdateProjectMemberRole) // 设置成员角色（仅所有者）
+			userGroup.POST("/tasks", handler.CreateTask)                                 // 创建新任务
+			userGroup.PUT("/tasks/:id", handler.UpdateTask)                              // 更新任务
+			userGroup.GET("/tasks", handler.GetTasks)                                    // 查询项目的所有任务
+			userGroup.DELETE("/tasks", handler.DeleteTasks)                              // 删除任务（支持批量）
 		}
 
 		// apikey级别路由 - 需要API密钥认证

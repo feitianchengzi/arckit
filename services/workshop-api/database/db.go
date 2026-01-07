@@ -56,6 +56,7 @@ func InitDB() error {
 		&models.User{},
 		&models.Project{},
 		&models.ProjectMember{},
+		&models.ProjectInvitation{},
 		&models.Task{},
 	)
 	if err != nil {
@@ -70,4 +71,3 @@ func InitDB() error {
 func GetDB() *gorm.DB {
 	return DB
 }
-

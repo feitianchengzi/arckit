@@ -67,3 +67,39 @@ func IsValidProjectRole(role string) bool {
 	}
 	return false
 }
+
+// ProjectInvitation 项目邀请表
+// 用于存储项目邀请信息，生成邀请码供用户加入项目
+type ProjectInvitation struct {
+	ID         uint       `json:"id" gorm:"primaryKey;autoIncrement"`                       // 主键
+	ProjectID  uint       `json:"project_id" gorm:"not null;index"`                         // 外键：项目ID
+	InviteCode string     `json:"invite_code" gorm:"type:varchar(64);uniqueIndex;not null"` // 邀请码（唯一）
+	Role       string     `json:"role" gorm:"type:varchar(50);not null;default:'member'"`   // 邀请的角色（默认member）
+	InviterID  uint       `json:"inviter_id" gorm:"not null;index"`                         // 外键：邀请者ID
+	ExpiresAt  *time.Time `json:"expires_at,omitempty" gorm:"index"`                        // 过期时间（可选）
+	UsedAt     *time.Time `json:"used_at,omitempty"`                                        // 使用时间（已使用则不为空）
+	CreatedAt  time.Time  `json:"created_at" gorm:"autoCreateTime"`                         // 创建时间
+	UpdatedAt  time.Time  `json:"updated_at" gorm:"autoUpdateTime"`                         // 更新时间
+
+	// 关联关系
+	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID"`
+	Inviter User    `json:"inviter,omitempty" gorm:"foreignKey:InviterID"`
+}
+
+// TableName 指定表名
+func (ProjectInvitation) TableName() string {
+	return "project_invitations"
+}
+
+// IsExpired 检查邀请是否过期
+func (pi *ProjectInvitation) IsExpired() bool {
+	if pi.ExpiresAt == nil {
+		return false // 没有设置过期时间，永不过期
+	}
+	return time.Now().After(*pi.ExpiresAt)
+}
+
+// IsUsed 检查邀请是否已被使用
+func (pi *ProjectInvitation) IsUsed() bool {
+	return pi.UsedAt != nil
+}
