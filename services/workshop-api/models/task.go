@@ -20,9 +20,9 @@ type Task struct {
 	// belongs to：由fixForeignKeyConstraints函数创建正确的外键约束
 	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
 
-	// self-referencing：任务层级
+	// self-referencing：任务层级（级联删除）
 	Parent   *Task  `json:"parent,omitempty" gorm:"foreignKey:FatherID;references:ID"`
-	Children []Task `json:"children,omitempty" gorm:"foreignKey:FatherID;references:ID"`
+	Children []Task `json:"children,omitempty" gorm:"foreignKey:FatherID;references:ID;constraint:OnDelete:CASCADE"`
 
 	// 用户关联（不级联删除，保留历史）
 	Creator  User  `json:"creator,omitempty" gorm:"foreignKey:CreatorID;references:ID"`

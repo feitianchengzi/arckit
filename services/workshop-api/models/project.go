@@ -14,10 +14,10 @@ type Project struct {
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`                // 创建时间
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`                // 更新时间
 
-	// has many：由子表定义级联删除约束
+	// has many：级联删除约束
 	Creator User            `json:"creator,omitempty" gorm:"foreignKey:CreatorID;references:ID"`
-	Members []ProjectMember `json:"members,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
-	Tasks   []Task          `json:"tasks,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
+	Members []ProjectMember `json:"members,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:OnDelete:CASCADE"`
+	Tasks   []Task          `json:"tasks,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName 指定表名
@@ -36,7 +36,6 @@ type ProjectMember struct {
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`                       // 加入时间
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`                       // 更新时间
 
-	// belongs to：由fixForeignKeyConstraints函数创建正确的外键约束
 	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
 	User    User    `json:"user,omitempty" gorm:"foreignKey:UserID;references:ID"`
 }
@@ -81,8 +80,7 @@ type ProjectInvitation struct {
 	CreatedAt  time.Time  `json:"created_at" gorm:"autoCreateTime"`                         // 创建时间
 	UpdatedAt  time.Time  `json:"updated_at" gorm:"autoUpdateTime"`                         // 更新时间
 
-	// 关联关系：由fixForeignKeyConstraints函数创建正确的外键约束
-	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
+	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:OnDelete:CASCADE"`
 	Inviter User    `json:"inviter,omitempty" gorm:"foreignKey:InviterID;references:ID"`
 }
 
