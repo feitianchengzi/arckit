@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>待办管理系统 - 完整功能演示</title>
+    <style>
+        :root {
+            /* DesignTokens - Colors */
+            --primary: #2563EB;
+            --primary-hover: #1d4ed8;
+            --secondary: #64748B;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --error: #EF4444;
+            --info: #3B82F6;
+            
+            --bg-primary: #FFFFFF;
+            --bg-secondary: #F8FAFC;
+            --bg-tertiary: #F1F5F9;
+            
+            --text-primary: #0F172A;
+            --text-secondary: #64748B;
+            --text-disabled: #CBD5E1;
+            
+            --border-primary: #E2E8F0;
+            --border-secondary: #CBD5E1;
+            
+            /* DesignTokens - Spacing */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+            --spacing-2xl: 48px;
+            
+            /* DesignTokens - Typography */
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            --font-size-display: 48px;
+            --font-size-title1: 32px;
+            --font-size-title2: 24px;
+            --font-size-title3: 20px;
+            --font-size-body: 16px;
+            --font-size-small: 14px;
+            --font-size-caption: 12px;
+            
+            /* DesignTokens - CornerRadius */
+            --radius-small: 4px;
+            --radius-medium: 8px;
+            --radius-large: 12px;
+            --radius-xlarge: 16px;
+            
+            /* DesignTokens - Shadows */
+            --shadow-light: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-medium: 0 4px 6px rgba(0,0,0,0.1);
+            --shadow-heavy: 0 10px 15px rgba(0,0,0,0.15);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: var(--font-family);
+            font-size: var(--font-size-body);
+            line-height: 1.5;
+            color: var(--text-primary);
+            background-color: var(--bg-secondary);
+        }
+        
+        /* 导航栏 */
+        .navbar {
+            background-color: var(--bg-primary);
+            border-bottom: 1px solid var(--border-primary);
+            padding: var(--spacing-md) var(--spacing-xl);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--shadow-light);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .navbar-brand {
+            font-size: var(--font-size-title3);
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+        }
+        
+        .navbar-actions {
+            display: flex;
+            gap: var(--spacing-md);
+            align-items: center;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-md);
+        }
+        
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+        
+        /* 主容器 */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: var(--spacing-xl);
+        }
+        
+        /* 页面视图 */
+        .page {
+            display: none;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        .page.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 按钮 */
+        .btn {
+            padding: var(--spacing-sm) var(--spacing-lg);
+            border: none;
+            border-radius: var(--radius-medium);
+            font-size: var(--font-size-body);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+            box-shadow: var(--shadow-medium);
+        }
+        
+        .btn-secondary {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-primary);
+        }
+        
+        .btn-secondary:hover {
+            background-color: var(--bg-secondary);
+        }
+        
+        .btn-danger {
+            background-color: var(--error);
+            color: white;
+        }
+        
+        /* 卡片 */
+        .card {
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-large);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-md);
+            box-shadow: var(--shadow-light);
+            transition: all 0.2s ease;
+        }
+        
+        .card:hover {
+            box-shadow: var(--shadow-medium);
+            transform: translateY(-2px);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-md);
+        }
+        
+        .card-title {
+            font-size: var(--font-size-title3);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        /* 表单 */
+        .form-group {
+            margin-bottom: var(--spacing-lg);
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: var(--spacing-sm);
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .form-label .required {
+            color: var(--error);
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: var(--spacing-sm) var(--spacing-md);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-medium);
+            font-size: var(--font-size-body);
+            font-family: var(--font-family);
+            transition: all 0.2s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .form-textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        
+        .form-select {
+            cursor: pointer;
+        }
+        
+        .error-message {
+            color: var(--error);
+            font-size: var(--font-size-small);
+            margin-top: var(--spacing-xs);
+        }
+        
+        /* 徽章 */
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: var(--font-size-caption);
+            font-weight: 600;
+        }
+        
+        .badge-pending {
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+        
+        .badge-in-progress {
+            background-color: var(--info);
+            color: white;
+        }
+        
+        .badge-completed {
+            background-color: var(--success);
+            color: white;
+        }
+        
+        .badge-p1 {
+            background-color: #FEE2E2;
+            color: #DC2626;
+        }
+        
+        .badge-p2 {
+            background-color: #FEF3C7;
+            color: #D97706;
+        }
+        
+        /* 列表 */
+        .list-item {
+            padding: var(--spacing-md);
+            border-bottom: 1px solid var(--border-primary);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .list-item:hover {
+            background-color: var(--bg-secondary);
+        }
+        
+        .list-item:last-child {
+            border-bottom: none;
+        }
+        
+        /* 网格布局 */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: var(--spacing-lg);
+        }
+        
+        /* 空状态 */
+        .empty-state {
+            text-align: center;
+            padding: var(--spacing-2xl);
+            color: var(--text-secondary);
+        }
+        
+        .empty-state-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto var(--spacing-lg);
+            border: 2px solid var(--border-secondary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+        }
+        
+        /* 工具提示 */
+        .tooltip {
+            position: relative;
+        }
+        
+        .tooltip:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: var(--spacing-xs) var(--spacing-sm);
+            background-color: var(--text-primary);
+            color: white;
+            border-radius: var(--radius-small);
+            font-size: var(--font-size-small);
+            white-space: nowrap;
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        /* 页面特定样式 */
+        .login-container {
+            max-width: 400px;
+            margin: var(--spacing-2xl) auto;
+        }
+        
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--spacing-xl);
+        }
+        
+        .page-title {
+            font-size: var(--font-size-title1);
+            font-weight: 700;
+        }
+        
+        .meta-info {
+            display: flex;
+            gap: var(--spacing-md);
+            color: var(--text-secondary);
+            font-size: var(--font-size-small);
+        }
+        
+        .todo-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: var(--spacing-md);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-medium);
+            margin-bottom: var(--spacing-sm);
+            background-color: var(--bg-primary);
+        }
+        
+        .todo-content {
+            flex: 1;
+        }
+        
+        .todo-title {
+            font-weight: 600;
+            margin-bottom: var(--spacing-xs);
+        }
+        
+        .todo-description {
+            color: var(--text-secondary);
+            font-size: var(--font-size-small);
+            margin-bottom: var(--spacing-sm);
+        }
+        
+        .todo-meta {
+            display: flex;
+            gap: var(--spacing-md);
+            font-size: var(--font-size-small);
+            color: var(--text-secondary);
+        }
+        
+        .todo-actions {
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+        
+        .btn-icon {
+            padding: var(--spacing-xs);
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+            font-size: var(--font-size-body);
+        }
+        
+        .btn-icon:hover {
+            color: var(--primary);
+        }
+        
+        /* 成员列表样式 */
+        .member-item {
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            padding: var(--spacing-sm);
+            border-radius: var(--radius-medium);
+            margin-bottom: var(--spacing-xs);
+            cursor: pointer;
+            position: relative;
+            transition: background-color 0.2s;
+        }
+        
+        .member-item:hover {
+            background-color: var(--bg-secondary);
+        }
+        
+        .popover-todo-item {
+            padding: var(--spacing-sm);
+            border-bottom: 1px solid var(--border-primary);
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .popover-todo-item:hover {
+            background-color: var(--bg-secondary);
+        }
+        
+        .popover-todo-item:last-child {
+            border-bottom: none;
+        }
+        
+        /* 成员项选中状态 */
+        .member-item.active {
+            background-color: var(--bg-secondary);
+        }
+        
+        .todo-item {
+            transition: background-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .todo-item:hover {
+            background-color: var(--bg-secondary);
+            box-shadow: var(--shadow-light);
+        }
+        
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .container {
+                padding: var(--spacing-md);
+            }
+            
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .navbar {
+                padding: var(--spacing-md);
+            }
+            
+            .navbar-actions {
+                flex-direction: column;
+                gap: var(--spacing-sm);
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar" id="navbar" style="display: none;">
+        <a href="#" class="navbar-brand" onclick="showPage('project-list'); return false;">待办管理系统</a>
+        <div class="navbar-actions">
+            <div class="user-info">
+                <div class="avatar" id="userAvatar">张</div>
+                <span id="userName">张三</span>
+            </div>
+            <button class="btn btn-secondary" onclick="showPage('login'); logout();">退出登录</button>
+        </div>
+    </nav>
+
+    <!-- 登录页面 -->
+    <div id="login-page" class="page active">
+        <div class="container">
+            <div class="login-container">
+                <h1 class="page-title" style="text-align: center; margin-bottom: var(--spacing-xl);">登录</h1>
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label class="form-label">邮箱</label>
+                        <input type="email" class="form-input" id="login-email" placeholder="请输入邮箱" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">密码</label>
+                        <input type="password" class="form-input" id="login-password" placeholder="请输入密码" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: var(--spacing-md);">登录</button>
+                    <div style="text-align: center;">
+                        <a href="#" onclick="showPage('register'); return false;" style="color: var(--primary); text-decoration: none;">还没有账号？立即注册</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 注册页面 -->
+    <div id="register-page" class="page">
+        <div class="container">
+            <div class="login-container">
+                <h1 class="page-title" style="text-align: center; margin-bottom: var(--spacing-xl);">注册</h1>
+                <form onsubmit="handleRegister(event)">
+                    <div class="form-group">
+                        <label class="form-label">用户名 <span class="required">*</span></label>
+                        <input type="text" class="form-input" id="register-username" placeholder="请输入用户名" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">邮箱 <span class="required">*</span></label>
+                        <input type="email" class="form-input" id="register-email" placeholder="请输入邮箱" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">密码 <span class="required">*</span></label>
+                        <input type="password" class="form-input" id="register-password" placeholder="请输入密码" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">确认密码 <span class="required">*</span></label>
+                        <input type="password" class="form-input" id="register-confirm" placeholder="请再次输入密码" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: var(--spacing-md);">注册</button>
+                    <div style="text-align: center;">
+                        <a href="#" onclick="showPage('login'); return false;" style="color: var(--primary); text-decoration: none;">已有账号？立即登录</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 项目列表页面 -->
+    <div id="project-list-page" class="page">
+        <div class="container">
+            <div class="page-header">
+                <h1 class="page-title">我的项目</h1>
+                <button class="btn btn-primary" onclick="showPage('create-project')">+ 创建项目</button>
+            </div>
+            <div class="grid" id="project-list">
+                <!-- 项目卡片将通过JavaScript动态生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建项目页面 -->
+    <div id="create-project-page" class="page">
+        <div class="container">
+            <div style="max-width: 600px; margin: 0 auto;">
+                <div class="page-header">
+                    <h1 class="page-title">创建项目</h1>
+                    <button class="btn btn-secondary" onclick="showPage('project-list')">取消</button>
+                </div>
+                <form onsubmit="handleCreateProject(event)">
+                    <div class="form-group">
+                        <label class="form-label">项目名称 <span class="required">*</span></label>
+                        <input type="text" class="form-input" id="project-name" placeholder="请输入项目名称" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">项目描述</label>
+                        <textarea class="form-input form-textarea" id="project-description" placeholder="请输入项目描述（可选）"></textarea>
+                    </div>
+                    <div style="display: flex; gap: var(--spacing-md); justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="showPage('project-list')">取消</button>
+                        <button type="submit" class="btn btn-primary">创建</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 项目详情页面 -->
+    <div id="project-detail-page" class="page">
+        <div class="container">
+            <div style="display: flex; gap: var(--spacing-xl);">
+                <div style="flex: 1;">
+                    <div class="page-header">
+                        <div>
+                            <button class="btn btn-secondary" onclick="showPage('project-list')" style="margin-bottom: var(--spacing-md);">← 返回</button>
+                            <h1 class="page-title" id="project-detail-title">项目详情</h1>
+                            <div class="meta-info" id="project-detail-meta"></div>
+                        </div>
+                        <div style="display: flex; gap: var(--spacing-md);">
+                            <button class="btn btn-primary" onclick="showPage('create-todo')">+ 创建待办</button>
+                            <button class="btn btn-secondary" onclick="showPage('invite-member')">邀请成员</button>
+                        </div>
+                    </div>
+                    
+                    <div class="card" style="margin-bottom: var(--spacing-xl);">
+                        <div id="project-info">
+                            <!-- 项目信息将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <div class="page-header">
+                        <h2 style="font-size: var(--font-size-title2);">待办事项</h2>
+                        <button class="btn btn-primary" onclick="showPage('create-todo')">+ 创建待办</button>
+                    </div>
+                    
+                    <div id="todo-list">
+                        <!-- 待办列表将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+                
+                <!-- 侧边栏成员列表 -->
+                <div style="width: 280px; background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: var(--radius-large); padding: var(--spacing-md); height: fit-content; position: sticky; top: var(--spacing-xl);">
+                    <h3 style="font-size: var(--font-size-small); font-weight: 600; margin-bottom: var(--spacing-md);">项目成员</h3>
+                    <div id="member-list">
+                        <!-- 成员列表将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建待办页面 -->
+    <div id="create-todo-page" class="page">
+        <div class="container">
+            <div style="max-width: 600px; margin: 0 auto;">
+                <div class="page-header">
+                    <h1 class="page-title">创建待办</h1>
+                    <button class="btn btn-secondary" onclick="goBackToProjectDetail()">取消</button>
+                </div>
+                <form onsubmit="handleCreateTodo(event)">
+                    <div class="form-group">
+                        <label class="form-label">标题 <span class="required">*</span></label>
+                        <input type="text" class="form-input" id="todo-title" placeholder="请输入待办标题" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">内容</label>
+                        <textarea class="form-input form-textarea" id="todo-content" placeholder="请输入待办详细内容（可选）"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">执行人</label>
+                        <select class="form-input form-select" id="todo-assignee">
+                            <option value="">请选择执行人</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">状态</label>
+                        <select class="form-input form-select" id="todo-status">
+                            <option value="pending">待处理</option>
+                            <option value="in-progress">进行中</option>
+                            <option value="completed">已完成</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: var(--spacing-md); justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="goBackToProjectDetail()">取消</button>
+                        <button type="submit" class="btn btn-primary">创建</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑待办页面 -->
+    <div id="edit-todo-page" class="page">
+        <div class="container">
+            <div style="max-width: 600px; margin: 0 auto;">
+                <div class="page-header">
+                    <h1 class="page-title">编辑待办</h1>
+                    <button class="btn btn-secondary" onclick="goBackToProjectDetail()">取消</button>
+                </div>
+                <form onsubmit="handleEditTodo(event)">
+                    <div class="form-group">
+                        <label class="form-label">标题 <span class="required">*</span></label>
+                        <input type="text" class="form-input" id="edit-todo-title" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">内容</label>
+                        <textarea class="form-input form-textarea" id="edit-todo-content"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">执行人</label>
+                        <select class="form-input form-select" id="edit-todo-assignee">
+                            <option value="">请选择执行人</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">状态</label>
+                        <select class="form-input form-select" id="edit-todo-status">
+                            <option value="pending">待处理</option>
+                            <option value="in-progress">进行中</option>
+                            <option value="completed">已完成</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: var(--spacing-md); justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="goBackToProjectDetail()">取消</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- 邀请成员页面 -->
+    <div id="invite-member-page" class="page">
+        <div class="container">
+            <div style="max-width: 600px; margin: 0 auto;">
+                <div class="page-header">
+                    <h1 class="page-title">邀请成员</h1>
+                    <button class="btn btn-secondary" onclick="showPage('project-detail')">取消</button>
+                </div>
+                <form onsubmit="handleInviteMember(event)">
+                    <div class="form-group">
+                        <label class="form-label">邮箱或用户名</label>
+                        <input type="text" class="form-input" id="invite-input" placeholder="请输入邮箱或用户名" required>
+                        <div style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: var(--spacing-xs);">
+                            输入用户的邮箱地址或用户名
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: var(--spacing-md); justify-content: flex-end; margin-bottom: var(--spacing-xl);">
+                        <button type="button" class="btn btn-secondary" onclick="showPage('project-detail')">取消</button>
+                        <button type="submit" class="btn btn-primary">发送邀请</button>
+                    </div>
+                </form>
+                
+                <h2 style="font-size: var(--font-size-title3); margin-bottom: var(--spacing-md);">已邀请成员</h2>
+                <div id="invited-members-list">
+                    <!-- 已邀请成员列表将通过JavaScript动态生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 待办详情页面 -->
+    <div id="todo-detail-page" class="page">
+        <div class="container">
+            <div style="display: flex; gap: var(--spacing-xl);">
+                <div style="flex: 1;">
+                    <div class="page-header">
+                        <div>
+                            <button class="btn btn-secondary" onclick="showPage('project-detail')" style="margin-bottom: var(--spacing-md);">← 返回</button>
+                            <h1 class="page-title" id="todo-detail-title">待办详情</h1>
+                            <div class="meta-info" id="todo-detail-meta"></div>
+                        </div>
+                        <button class="btn btn-secondary" onclick="editCurrentTodo()">编辑</button>
+                    </div>
+                    
+                    <div class="card" style="margin-bottom: var(--spacing-lg);">
+                        <div id="todo-detail-content">
+                            <!-- 待办详情内容将通过JavaScript动态生成 -->
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2 style="font-size: var(--font-size-title3); margin-bottom: var(--spacing-md);">评论 (<span id="comment-count">0</span>)</h2>
+                        <div id="comment-list">
+                            <!-- 评论列表将通过JavaScript动态生成 -->
+                        </div>
+                        <div style="margin-top: var(--spacing-lg); padding-top: var(--spacing-lg); border-top: 1px solid var(--border-primary);">
+                            <textarea class="form-input form-textarea" id="comment-input" placeholder="添加评论..." style="margin-bottom: var(--spacing-md);"></textarea>
+                            <div style="display: flex; justify-content: flex-end; gap: var(--spacing-sm);">
+                                <button class="btn btn-secondary" onclick="clearComment()">取消</button>
+                                <button class="btn btn-primary" onclick="submitComment()">发布</button>
+                            </div>
+                            <div style="font-size: var(--font-size-small); color: var(--text-secondary); margin-top: var(--spacing-xs);">
+                                按 Ctrl+Enter 快速发布
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 侧边栏成员列表 -->
+                <div style="width: 280px; background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: var(--radius-large); padding: var(--spacing-md); height: fit-content; position: sticky; top: var(--spacing-xl);">
+                    <h3 style="font-size: var(--font-size-small); font-weight: 600; margin-bottom: var(--spacing-md);">项目成员</h3>
+                    <div id="todo-detail-member-list">
+                        <!-- 成员列表将通过JavaScript动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 假数据
+        const mockData = {
+            currentUser: {
+                id: 1,
+                username: '张三',
+                email: 'zhangsan@example.com',
+                avatar: '张'
+            },
+            projects: [
+                {
+                    id: 1,
+                    name: '产品开发项目',
+                    description: '负责新产品的开发和迭代，包括前端、后端和移动端开发',
+                    creator: '张三',
+                    creatorId: 1,
+                    members: [
+                        { id: 1, username: '张三', email: 'zhangsan@example.com', avatar: '张' },
+                        { id: 2, username: '李四', email: 'lisi@example.com', avatar: '李' },
+                        { id: 3, username: '王五', email: 'wangwu@example.com', avatar: '王' }
+                    ],
+                    createdAt: '2024-12-01',
+                    todos: [
+                        {
+                            id: 1,
+                            title: '设计登录页面',
+                            content: '完成登录页面的UI设计和交互逻辑',
+                            creator: '张三',
+                            creatorId: 1,
+                            assignee: '李四',
+                            assigneeId: 2,
+                            status: 'in-progress',
+                            createdAt: '2024-12-15 10:00'
+                        },
+                        {
+                            id: 2,
+                            title: '实现用户认证功能',
+                            content: '开发用户注册、登录、退出等认证功能',
+                            creator: '张三',
+                            creatorId: 1,
+                            assignee: '王五',
+                            assigneeId: 3,
+                            status: 'pending',
+                            createdAt: '2024-12-16 09:00'
+                        },
+                        {
+                            id: 3,
+                            title: '数据库设计',
+                            content: '设计用户、项目、待办事项的数据表结构',
+                            creator: '李四',
+                            creatorId: 2,
+                            assignee: '张三',
+                            assigneeId: 1,
+                            status: 'completed',
+                            createdAt: '2024-12-10 14:00'
+                        }
+                    ],
+                    invitations: [
+                        { id: 1, email: 'user@example.com', status: 'pending', createdAt: '2024-12-19 10:00' },
+                        { id: 2, username: '赵六', status: 'accepted', createdAt: '2024-12-18 09:00' }
+                    ]
+                },
+                {
+                    id: 2,
+                    name: '营销推广项目',
+                    description: '负责产品营销和推广活动策划',
+                    creator: '张三',
+                    creatorId: 1,
+                    members: [
+                        { id: 1, username: '张三', email: 'zhangsan@example.com', avatar: '张' },
+                        { id: 4, username: '赵六', email: 'zhaoliu@example.com', avatar: '赵' }
+                    ],
+                    createdAt: '2024-11-20',
+                    todos: [
+                        {
+                            id: 4,
+                            title: '制定营销策略',
+                            content: '分析市场，制定Q1季度营销策略',
+                            creator: '张三',
+                            creatorId: 1,
+                            assignee: '赵六',
+                            assigneeId: 4,
+                            status: 'in-progress',
+                            createdAt: '2024-12-17 11:00'
+                        }
+                    ],
+                    invitations: []
+                },
+                {
+                    id: 3,
+                    name: '客户支持项目',
+                    description: '处理客户反馈和问题，提供技术支持',
+                    creator: '李四',
+                    creatorId: 2,
+                    members: [
+                        { id: 2, username: '李四', email: 'lisi@example.com', avatar: '李' },
+                        { id: 1, username: '张三', email: 'zhangsan@example.com', avatar: '张' }
+                    ],
+                    createdAt: '2024-12-05',
+                    todos: [],
+                    invitations: []
+                }
+            ],
+            currentProjectId: null,
+            currentTodoId: null
+        };
+
+        // 页面切换函数
+        function showPage(pageName) {
+            // 隐藏所有页面
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            
+            // 显示目标页面
+            const targetPage = document.getElementById(pageName + '-page');
+            if (targetPage) {
+                targetPage.classList.add('active');
+            }
+            
+            // 根据页面显示/隐藏导航栏
+            if (pageName === 'login' || pageName === 'register') {
+                document.getElementById('navbar').style.display = 'none';
+            } else {
+                document.getElementById('navbar').style.display = 'flex';
+                // 更新用户信息
+                document.getElementById('userName').textContent = mockData.currentUser.username;
+                document.getElementById('userAvatar').textContent = mockData.currentUser.avatar;
+            }
+            
+            // 加载页面数据
+            loadPageData(pageName);
+        }
+
+        // 加载页面数据
+        function loadPageData(pageName) {
+            switch(pageName) {
+                case 'project-list':
+                    renderProjectList();
+                    break;
+                case 'project-detail':
+                    renderProjectDetail();
+                    break;
+                case 'create-todo':
+                    loadCreateTodoForm();
+                    break;
+                case 'invite-member':
+                    renderInvitedMembers();
+                    break;
+                case 'todo-detail':
+                    renderTodoDetail();
+                    break;
+            }
+        }
+        
+        // 渲染待办详情
+        function renderTodoDetail() {
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) {
+                showPage('project-detail');
+                return;
+            }
+            
+            const todo = project.todos.find(t => t.id === mockData.currentTodoId);
+            if (!todo) {
+                showPage('project-detail');
+                return;
+            }
+            
+            document.getElementById('todo-detail-title').textContent = todo.title;
+            
+            const statusClass = {
+                'pending': 'badge-pending',
+                'in-progress': 'badge-in-progress',
+                'completed': 'badge-completed'
+            }[todo.status];
+            
+            const statusText = {
+                'pending': '待处理',
+                'in-progress': '进行中',
+                'completed': '已完成'
+            }[todo.status];
+            
+            document.getElementById('todo-detail-meta').innerHTML = `
+                <span class="badge ${statusClass}">${statusText}</span>
+                <span>创建人: ${todo.creator}</span>
+                <span>执行人: ${todo.assignee}</span>
+                <span>创建时间: ${todo.createdAt}</span>
+            `;
+            
+            document.getElementById('todo-detail-content').innerHTML = `
+                <h2 style="font-size: var(--font-size-title2); margin-bottom: var(--spacing-sm);">${todo.title}</h2>
+                <div class="meta-info" style="margin-bottom: var(--spacing-md);">
+                    <span class="badge ${statusClass}">${statusText}</span>
+                    <span>创建人: ${todo.creator}</span>
+                    <span>执行人: ${todo.assignee}</span>
+                    <span>创建时间: ${todo.createdAt}</span>
+                </div>
+                <div>
+                    <h3 style="font-size: var(--font-size-title3); margin-bottom: var(--spacing-sm);">详细内容</h3>
+                    <p style="color: var(--text-secondary); line-height: 1.6;">${todo.content || '暂无详细内容'}</p>
+                </div>
+            `;
+            
+            // 渲染评论列表
+            const comments = (todo.comments || []).map(comment => ({
+                id: comment.id || Math.random(),
+                author: comment.author || '张三',
+                authorId: comment.authorId || 1,
+                content: comment.content,
+                createdAt: comment.createdAt || '2024-12-15 14:30'
+            }));
+            
+            renderCommentList(comments);
+            renderMemberList(project.members, project.todos, 'todo-detail-member-list');
+        }
+        
+        // 渲染评论列表
+        function renderCommentList(comments) {
+            const container = document.getElementById('comment-list');
+            if (!container) return;
+            
+            document.getElementById('comment-count').textContent = comments.length;
+            
+            if (comments.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: var(--spacing-xl); color: var(--text-secondary);">
+                        <p>还没有评论</p>
+                        <p style="font-size: var(--font-size-small); margin-top: var(--spacing-sm);">成为第一个评论的人</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = comments.map(comment => {
+                const canEdit = comment.authorId === mockData.currentUser.id;
+                return `
+                    <div class="comment-item" style="padding: var(--spacing-md); border-bottom: 1px solid var(--border-primary);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-xs);">
+                            <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.875rem;">${comment.author[0]}</div>
+                                <span style="font-weight: 600;">${comment.author}</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                <span style="color: var(--text-secondary); font-size: 0.75rem;">${comment.createdAt}</span>
+                                ${canEdit ? `
+                                    <button class="btn-icon" onclick="editComment(${comment.id})" style="padding: var(--spacing-xs); background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 0.875rem;">✏️</button>
+                                    <button class="btn-icon" onclick="deleteComment(${comment.id})" style="padding: var(--spacing-xs); background: none; border: none; cursor: pointer; color: var(--text-secondary); font-size: 0.875rem;">🗑️</button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <p style="color: var(--text-primary); margin-top: var(--spacing-xs);">${comment.content}</p>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        // 提交评论
+        function submitComment() {
+            const input = document.getElementById('comment-input');
+            if (!input || !input.value.trim()) return;
+            
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) return;
+            
+            const todo = project.todos.find(t => t.id === mockData.currentTodoId);
+            if (!todo) return;
+            
+            if (!todo.comments) {
+                todo.comments = [];
+            }
+            
+            todo.comments.push({
+                id: Date.now(),
+                author: mockData.currentUser.username,
+                authorId: mockData.currentUser.id,
+                content: input.value.trim(),
+                createdAt: new Date().toLocaleString('zh-CN')
+            });
+            
+            input.value = '';
+            renderTodoDetail();
+        }
+        
+        // 清空评论
+        function clearComment() {
+            const input = document.getElementById('comment-input');
+            if (input) input.value = '';
+        }
+        
+        // 编辑评论
+        function editComment(commentId) {
+            // 实现编辑评论逻辑
+            alert('编辑评论功能待实现');
+        }
+        
+        // 删除评论
+        function deleteComment(commentId) {
+            if (!confirm('确定要删除这条评论吗？')) return;
+            
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) return;
+            
+            const todo = project.todos.find(t => t.id === mockData.currentTodoId);
+            if (!todo || !todo.comments) return;
+            
+            todo.comments = todo.comments.filter(c => c.id !== commentId);
+            renderTodoDetail();
+        }
+        
+        // 编辑当前待办
+        function editCurrentTodo() {
+            showPage('edit-todo');
+        }
+
+        // 渲染项目列表
+        function renderProjectList() {
+            const container = document.getElementById('project-list');
+            container.innerHTML = '';
+            
+            mockData.projects.forEach(project => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.onclick = () => {
+                    mockData.currentProjectId = project.id;
+                    showPage('project-detail');
+                };
+                
+                card.innerHTML = `
+                    <div class="card-header">
+                        <h3 class="card-title">${project.name}</h3>
+                        <span class="badge badge-p1">P1</span>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: var(--spacing-md);">${project.description}</p>
+                    <div class="meta-info">
+                        <span>创建人: ${project.creator}</span>
+                        <span>成员: ${project.members.length}人</span>
+                        <span>待办: ${project.todos.length}个</span>
+                        <span>创建时间: ${project.createdAt}</span>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+
+        // 渲染项目详情
+        function renderProjectDetail() {
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) {
+                showPage('project-list');
+                return;
+            }
+            
+            document.getElementById('project-detail-title').textContent = project.name;
+            document.getElementById('project-detail-meta').innerHTML = `
+                <span>创建人: ${project.creator}</span>
+                <span>成员: ${project.members.length}人</span>
+                <span>创建时间: ${project.createdAt}</span>
+            `;
+            
+            document.getElementById('project-info').innerHTML = `
+                <h2 style="font-size: var(--font-size-title2); margin-bottom: var(--spacing-sm);">${project.name}</h2>
+                <p style="color: var(--text-secondary); margin-bottom: var(--spacing-md);">${project.description}</p>
+                <div class="meta-info">
+                    <span>创建人: ${project.creator}</span>
+                    <span>成员: ${project.members.map(m => m.username).join(', ')}</span>
+                </div>
+            `;
+            
+            renderTodoList(project.todos);
+            renderMemberList(project.members, project.todos, 'member-list');
+        }
+        
+        // 渲染成员列表
+        function renderMemberList(members, todos, containerId = 'member-list') {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            members.forEach(member => {
+                const memberItem = document.createElement('div');
+                memberItem.className = 'member-item';
+                memberItem.style.cssText = 'display: flex; align-items: center; gap: var(--spacing-sm); padding: var(--spacing-sm); border-radius: var(--radius-medium); margin-bottom: var(--spacing-xs); cursor: pointer; position: relative;';
+                memberItem.onclick = (e) => {
+                    e.stopPropagation();
+                    // 如果气泡已显示，则隐藏；否则显示
+                    const existingPopover = document.getElementById('member-popover');
+                    if (existingPopover && existingPopover.dataset.memberId == member.id) {
+                        hideMemberPopover();
+                        memberItem.classList.remove('active');
+                    } else {
+                        // 移除其他成员项的active状态
+                        container.querySelectorAll('.member-item').forEach(item => {
+                            item.classList.remove('active');
+                        });
+                        showMemberPopover(memberItem, member, todos);
+                        memberItem.classList.add('active');
+                    }
+                };
+                
+                memberItem.innerHTML = `
+                    <div style="width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 600; font-size: 0.75rem;">${member.avatar}</div>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600; font-size: 0.875rem;">${member.username}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.75rem;">${member.email}</div>
+                    </div>
+                `;
+                
+                container.appendChild(memberItem);
+            });
+        }
+        
+        // 显示成员气泡
+        function showMemberPopover(memberItem, member, todos) {
+            // 移除已存在的气泡
+            const existingPopover = document.getElementById('member-popover');
+            if (existingPopover) {
+                existingPopover.remove();
+            }
+            
+            // 获取该成员参与的待办
+            const memberTodos = todos.filter(todo => todo.assigneeId === member.id || todo.creatorId === member.id);
+            
+            if (memberTodos.length === 0) {
+                // 即使没有待办，也显示一个提示
+                const popover = document.createElement('div');
+                popover.id = 'member-popover';
+                popover.dataset.memberId = member.id;
+                popover.style.cssText = 'position: fixed; background-color: white; border: 1px solid var(--border-primary); border-radius: var(--radius-large); box-shadow: 0 10px 15px rgba(0,0,0,0.15); padding: var(--spacing-md); z-index: 10000; min-width: 300px; max-width: 400px; max-height: 400px; overflow-y: auto;';
+                
+                // 计算位置
+                const rect = memberItem.getBoundingClientRect();
+                popover.style.left = (rect.right + 10) + 'px';
+                popover.style.top = rect.top + 'px';
+                
+                popover.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm); padding-bottom: var(--spacing-sm); border-bottom: 1px solid var(--border-primary);">
+                        <div style="font-weight: 600; font-size: 0.875rem;">${member.username}参与的待办</div>
+                        <button onclick="hideMemberPopover()" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: var(--text-secondary); padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">×</button>
+                    </div>
+                    <div style="text-align: center; padding: var(--spacing-xl); color: var(--text-secondary);">
+                        <p>该成员还没有参与的待办事项</p>
+                    </div>
+                `;
+                
+                document.body.appendChild(popover);
+                return;
+            }
+            
+            const popover = document.createElement('div');
+            popover.id = 'member-popover';
+            popover.dataset.memberId = member.id;
+            popover.style.cssText = 'position: fixed; background-color: white; border: 1px solid var(--border-primary); border-radius: var(--radius-large); box-shadow: 0 10px 15px rgba(0,0,0,0.15); padding: var(--spacing-md); z-index: 10000; min-width: 300px; max-width: 400px; max-height: 400px; overflow-y: auto;';
+            
+            // 计算位置，确保不超出视口
+            const rect = memberItem.getBoundingClientRect();
+            const popoverWidth = 350; // 预估宽度
+            const popoverHeight = Math.min(400, memberTodos.length * 80 + 100); // 预估高度
+            
+            let left = rect.right + 10;
+            let top = rect.top;
+            
+            // 如果右侧空间不足，显示在左侧
+            if (left + popoverWidth > window.innerWidth) {
+                left = rect.left - popoverWidth - 10;
+            }
+            
+            // 如果下方空间不足，调整顶部位置
+            if (top + popoverHeight > window.innerHeight) {
+                top = window.innerHeight - popoverHeight - 10;
+            }
+            
+            popover.style.left = left + 'px';
+            popover.style.top = top + 'px';
+            
+            let todoListHTML = memberTodos.map(todo => {
+                const statusClass = {
+                    'pending': 'badge-pending',
+                    'in-progress': 'badge-in-progress',
+                    'completed': 'badge-completed'
+                }[todo.status];
+                
+                const statusText = {
+                    'pending': '待处理',
+                    'in-progress': '进行中',
+                    'completed': '已完成'
+                }[todo.status];
+                
+                return `
+                    <div class="popover-todo-item" onclick="event.stopPropagation(); showTodoDetail(${todo.id}); hideMemberPopover();" style="padding: var(--spacing-sm); border-bottom: 1px solid var(--border-primary); cursor: pointer;">
+                        <div style="font-weight: 600; font-size: 0.875rem; margin-bottom: var(--spacing-xs);">${todo.title}</div>
+                        <div style="display: flex; gap: var(--spacing-sm); font-size: 0.75rem; color: var(--text-secondary); align-items: center;">
+                            <span class="badge ${statusClass}">${statusText}</span>
+                            <span>${todo.assigneeId === member.id ? '执行人' : '创建人'}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
+            popover.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-sm); padding-bottom: var(--spacing-sm); border-bottom: 1px solid var(--border-primary);">
+                    <div style="font-weight: 600; font-size: 0.875rem;">${member.username}参与的待办</div>
+                    <button onclick="hideMemberPopover()" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: var(--text-secondary); padding: 0; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;" onmouseover="this.style.color='var(--text-primary)'" onmouseout="this.style.color='var(--text-secondary)'">×</button>
+                </div>
+                ${todoListHTML}
+                <div style="padding-top: var(--spacing-sm); border-top: 1px solid var(--border-primary);">
+                    <button class="btn btn-secondary" onclick="event.stopPropagation(); quickComment(${member.id}); hideMemberPopover();" style="width: 100%; font-size: 0.75rem; padding: var(--spacing-xs) var(--spacing-sm);">💬 快速评论</button>
+                </div>
+            `;
+            
+            document.body.appendChild(popover);
+            
+            // 点击外部区域关闭气泡
+            setTimeout(() => {
+                const closeOnOutsideClick = (e) => {
+                    if (!popover.contains(e.target) && !memberItem.contains(e.target)) {
+                        hideMemberPopover();
+                        document.removeEventListener('click', closeOnOutsideClick);
+                    }
+                };
+                // 延迟添加事件监听，避免立即触发
+                setTimeout(() => {
+                    document.addEventListener('click', closeOnOutsideClick);
+                }, 100);
+            }, 0);
+        }
+        
+        // 隐藏成员气泡
+        function hideMemberPopover() {
+            const popover = document.getElementById('member-popover');
+            if (popover) {
+                popover.remove();
+            }
+            // 移除所有成员项的active状态
+            document.querySelectorAll('.member-item').forEach(item => {
+                item.classList.remove('active');
+            });
+        }
+        
+        // 快速评论
+        function quickComment(memberId) {
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) return;
+            
+            const member = project.members.find(m => m.id === memberId);
+            if (!member) return;
+            
+            // 找到该成员的第一个待办
+            const memberTodo = project.todos.find(todo => todo.assigneeId === memberId || todo.creatorId === memberId);
+            if (memberTodo) {
+                showTodoDetail(memberTodo.id);
+                // 聚焦评论输入框并填充@成员
+                setTimeout(() => {
+                    const commentInput = document.getElementById('comment-input');
+                    if (commentInput) {
+                        commentInput.value = `@${member.username} `;
+                        commentInput.focus();
+                        commentInput.setSelectionRange(commentInput.value.length, commentInput.value.length);
+                    }
+                }, 100);
+            }
+        }
+        
+        // 显示待办详情
+        function showTodoDetail(todoId) {
+            mockData.currentTodoId = todoId;
+            showPage('todo-detail');
+        }
+
+        // 渲染待办列表
+        function renderTodoList(todos) {
+            const container = document.getElementById('todo-list');
+            container.innerHTML = '';
+            
+            if (todos.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <h3>还没有待办事项</h3>
+                        <p style="margin-bottom: var(--spacing-lg);">创建你的第一个待办事项，开始管理任务</p>
+                        <button class="btn btn-primary" onclick="showPage('create-todo')">创建待办</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            todos.forEach(todo => {
+                const item = document.createElement('div');
+                item.className = 'todo-item';
+                
+                const statusClass = {
+                    'pending': 'badge-pending',
+                    'in-progress': 'badge-in-progress',
+                    'completed': 'badge-completed'
+                }[todo.status];
+                
+                const statusText = {
+                    'pending': '待处理',
+                    'in-progress': '进行中',
+                    'completed': '已完成'
+                }[todo.status];
+                
+                item.onclick = (e) => {
+                    // 如果点击的是操作按钮，不触发跳转
+                    if (e.target.closest('.todo-actions')) {
+                        return;
+                    }
+                    showTodoDetail(todo.id);
+                };
+                item.style.cursor = 'pointer';
+                
+                item.innerHTML = `
+                    <div class="todo-content">
+                        <div class="todo-title">${todo.title}</div>
+                        <div class="todo-description">${todo.content}</div>
+                        <div class="todo-meta">
+                            <span class="badge ${statusClass}">${statusText}</span>
+                            <span>创建人: ${todo.creator}</span>
+                            <span>执行人: ${todo.assignee}</span>
+                            <span>${todo.createdAt}</span>
+                        </div>
+                    </div>
+                    <div class="todo-actions">
+                        <button class="btn-icon" onclick="event.stopPropagation(); editTodo(${todo.id})" title="编辑">✏️</button>
+                        <button class="btn-icon" onclick="event.stopPropagation(); deleteTodo(${todo.id})" title="删除">🗑️</button>
+                    </div>
+                `;
+                
+                container.appendChild(item);
+            });
+        }
+
+        // 加载创建待办表单
+        function loadCreateTodoForm() {
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) return;
+            
+            const assigneeSelect = document.getElementById('todo-assignee');
+            assigneeSelect.innerHTML = '<option value="">请选择执行人</option>';
+            project.members.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.textContent = member.username;
+                assigneeSelect.appendChild(option);
+            });
+        }
+
+        // 渲染已邀请成员
+        function renderInvitedMembers() {
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) return;
+            
+            const container = document.getElementById('invited-members-list');
+            container.innerHTML = '';
+            
+            if (project.invitations.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>还没有邀请成员</p></div>';
+                return;
+            }
+            
+            project.invitations.forEach(invitation => {
+                const item = document.createElement('div');
+                item.className = 'list-item';
+                
+                const statusClass = invitation.status === 'accepted' ? 'badge-completed' : 'badge-pending';
+                const statusText = invitation.status === 'accepted' ? '已接受' : '待接受';
+                
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <strong>${invitation.email || invitation.username}</strong>
+                            <div style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: var(--spacing-xs);">
+                                邀请时间: ${invitation.createdAt}
+                            </div>
+                        </div>
+                        <span class="badge ${statusClass}">${statusText}</span>
+                    </div>
+                `;
+                
+                container.appendChild(item);
+            });
+        }
+
+        // 返回项目详情
+        function goBackToProjectDetail() {
+            showPage('project-detail');
+        }
+
+        // 处理登录
+        function handleLogin(event) {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            
+            // 模拟登录
+            if (email && password) {
+                showPage('project-list');
+            }
+        }
+
+        // 处理注册
+        function handleRegister(event) {
+            event.preventDefault();
+            const username = document.getElementById('register-username').value;
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+            const confirm = document.getElementById('register-confirm').value;
+            
+            if (password !== confirm) {
+                alert('两次输入的密码不一致');
+                return;
+            }
+            
+            // 模拟注册
+            if (username && email && password) {
+                mockData.currentUser.username = username;
+                mockData.currentUser.email = email;
+                mockData.currentUser.avatar = username[0];
+                showPage('project-list');
+            }
+        }
+
+        // 处理创建项目
+        function handleCreateProject(event) {
+            event.preventDefault();
+            const name = document.getElementById('project-name').value;
+            const description = document.getElementById('project-description').value;
+            
+            const newProject = {
+                id: mockData.projects.length + 1,
+                name: name,
+                description: description || '暂无描述',
+                creator: mockData.currentUser.username,
+                creatorId: mockData.currentUser.id,
+                members: [mockData.currentUser],
+                createdAt: new Date().toISOString().split('T')[0],
+                todos: [],
+                invitations: []
+            };
+            
+            mockData.projects.push(newProject);
+            mockData.currentProjectId = newProject.id;
+            showPage('project-detail');
+        }
+
+        // 处理创建待办
+        function handleCreateTodo(event) {
+            event.preventDefault();
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) return;
+            
+            const title = document.getElementById('todo-title').value;
+            const content = document.getElementById('todo-content').value;
+            const assigneeId = parseInt(document.getElementById('todo-assignee').value);
+            const status = document.getElementById('todo-status').value;
+            
+            const assignee = project.members.find(m => m.id === assigneeId);
+            
+            const newTodo = {
+                id: project.todos.length + 1,
+                title: title,
+                content: content || '',
+                creator: mockData.currentUser.username,
+                creatorId: mockData.currentUser.id,
+                assignee: assignee ? assignee.username : '未分配',
+                assigneeId: assigneeId || null,
+                status: status,
+                createdAt: new Date().toLocaleString('zh-CN')
+            };
+            
+            project.todos.push(newTodo);
+            showPage('project-detail');
+        }
+
+        // 编辑待办
+        function editTodo(todoId) {
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) return;
+            
+            const todo = project.todos.find(t => t.id === todoId);
+            if (!todo) return;
+            
+            mockData.currentTodoId = todoId;
+            
+            document.getElementById('edit-todo-title').value = todo.title;
+            document.getElementById('edit-todo-content').value = todo.content;
+            document.getElementById('edit-todo-status').value = todo.status;
+            
+            const assigneeSelect = document.getElementById('edit-todo-assignee');
+            assigneeSelect.innerHTML = '<option value="">请选择执行人</option>';
+            project.members.forEach(member => {
+                const option = document.createElement('option');
+                option.value = member.id;
+                option.textContent = member.username;
+                if (member.id === todo.assigneeId) {
+                    option.selected = true;
+                }
+                assigneeSelect.appendChild(option);
+            });
+            
+            showPage('edit-todo');
+        }
+
+        // 处理编辑待办
+        function handleEditTodo(event) {
+            event.preventDefault();
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) return;
+            
+            const todo = project.todos.find(t => t.id === mockData.currentTodoId);
+            if (!todo) return;
+            
+            todo.title = document.getElementById('edit-todo-title').value;
+            todo.content = document.getElementById('edit-todo-content').value;
+            todo.status = document.getElementById('edit-todo-status').value;
+            
+            const assigneeId = parseInt(document.getElementById('edit-todo-assignee').value);
+            const assignee = project.members.find(m => m.id === assigneeId);
+            todo.assignee = assignee ? assignee.username : '未分配';
+            todo.assigneeId = assigneeId || null;
+            
+            showPage('project-detail');
+        }
+
+        // 删除待办
+        function deleteTodo(todoId) {
+            if (!confirm('确定要删除这个待办事项吗？')) return;
+            
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) return;
+            
+            project.todos = project.todos.filter(t => t.id !== todoId);
+            renderTodoList(project.todos);
+        }
+
+        // 处理邀请成员
+        function handleInviteMember(event) {
+            event.preventDefault();
+            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
+            if (!project) return;
+            
+            const input = document.getElementById('invite-input').value;
+            const isEmail = input.includes('@');
+            
+            const newInvitation = {
+                id: project.invitations.length + 1,
+                [isEmail ? 'email' : 'username']: input,
+                status: 'pending',
+                createdAt: new Date().toLocaleString('zh-CN')
+            };
+            
+            project.invitations.push(newInvitation);
+            document.getElementById('invite-input').value = '';
+            renderInvitedMembers();
+            
+            // 显示成功提示
+            alert('邀请已发送！');
+        }
+
+        // 退出登录
+        function logout() {
+            mockData.currentProjectId = null;
+            mockData.currentTodoId = null;
+            showPage('login');
+        }
+
+        // 评论输入框快捷键
+        document.addEventListener('keydown', (e) => {
+            const commentInput = document.getElementById('comment-input');
+            if (commentInput && commentInput === document.activeElement && e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                submitComment();
+            }
+        });
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 默认显示登录页面
+            showPage('login');
+        });
+    </script>
+</body>
+</html>
+

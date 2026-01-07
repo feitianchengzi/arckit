@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目详情页面 - 线框图</title>
+    <style>
+        :root {
+            --gray-0: #000000; --gray-1: #333333; --gray-2: #666666; --gray-3: #999999;
+            --gray-4: #cccccc; --gray-5: #e5e5e5; --gray-6: #f5f5f5; --white: #ffffff;
+            --border-width: 1px; --border-radius: 4px;
+            --spacing-xs: 0.25rem; --spacing-sm: 0.5rem; --spacing-md: 1rem;
+            --spacing-lg: 1.5rem; --spacing-xl: 2rem;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            font-size: 16px; line-height: 1.6; color: var(--gray-1);
+            background-color: var(--gray-6); padding: var(--spacing-xl);
+        }
+        .wireframe-container {
+            max-width: 1200px; margin: 0 auto; background-color: var(--white);
+            border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius);
+            padding: var(--spacing-xl);
+        }
+        header {
+            border-bottom: 2px solid var(--gray-4); padding-bottom: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+        }
+        h1 { font-size: 2rem; font-weight: 600; color: var(--gray-0); margin-bottom: var(--spacing-sm); }
+        .meta-info {
+            display: flex; gap: var(--spacing-lg); flex-wrap: wrap;
+            color: var(--gray-2); font-size: 0.9rem;
+        }
+        .meta-info code {
+            background-color: var(--gray-6); padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--border-radius); font-family: "SF Mono", Monaco, monospace;
+            font-size: 0.85rem;
+        }
+        details {
+            margin-bottom: var(--spacing-lg); border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius); overflow: hidden;
+        }
+        details[open] { border-color: var(--gray-1); }
+        summary {
+            cursor: pointer; padding: var(--spacing-md); background-color: var(--gray-6);
+            font-weight: 600; font-size: 1.1rem; color: var(--gray-1);
+            user-select: none; transition: background-color 0.2s;
+        }
+        summary:hover { background-color: var(--gray-5); }
+        details[open] summary { background-color: var(--gray-1); color: var(--white); }
+        .state-content { padding: var(--spacing-lg); }
+        .state-description {
+            color: var(--gray-2); margin-bottom: var(--spacing-lg); padding: var(--spacing-md);
+            background-color: var(--gray-6); border-left: 3px solid var(--gray-3);
+            border-radius: var(--border-radius);
+        }
+        .wireframe-canvas {
+            border: 2px solid var(--gray-1); border-radius: var(--border-radius);
+            padding: var(--spacing-lg); background-color: var(--white); min-height: 400px;
+        }
+        .device-frame.desktop { max-width: 100%; border-radius: 8px; }
+        .nav-bar {
+            background-color: var(--gray-6); border-bottom: var(--border-width) solid var(--gray-4);
+            padding: var(--spacing-md); display: flex; align-items: center;
+            justify-content: space-between;
+        }
+        .nav-title { font-weight: 600; color: var(--gray-0); }
+        .nav-button {
+            width: 60px; height: 32px; border: var(--border-width) solid var(--gray-3);
+            border-radius: var(--border-radius); background-color: var(--white);
+        }
+        .content-area { padding: var(--spacing-md); }
+        .project-header {
+            padding: var(--spacing-lg); border-bottom: var(--border-width) solid var(--gray-4);
+            margin-bottom: var(--spacing-lg);
+        }
+        .project-header h2 { margin-bottom: var(--spacing-sm); }
+        .project-header p { color: var(--gray-2); margin-bottom: var(--spacing-md); }
+        .project-meta {
+            display: flex; gap: var(--spacing-lg); color: var(--gray-2);
+            font-size: 0.875rem;
+        }
+        .todo-list-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: var(--spacing-md); padding: var(--spacing-md);
+        }
+        .button {
+            display: inline-block; padding: var(--spacing-sm) var(--spacing-lg);
+            border: 2px solid var(--gray-1); border-radius: var(--border-radius);
+            background-color: var(--white); color: var(--gray-1);
+            text-align: center; font-weight: 600; cursor: pointer;
+        }
+        .button.primary { background-color: var(--gray-1); color: var(--white); }
+        .project-detail-container {
+            display: flex; gap: var(--spacing-lg);
+        }
+        .project-main {
+            flex: 1;
+        }
+        .project-sidebar {
+            width: 280px; background-color: var(--gray-6);
+            border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius); padding: var(--spacing-md);
+            height: fit-content; position: sticky; top: var(--spacing-xl);
+        }
+        .member-list {
+            margin-bottom: var(--spacing-lg);
+        }
+        .member-item {
+            display: flex; align-items: center; gap: var(--spacing-sm);
+            padding: var(--spacing-sm); border-radius: var(--border-radius);
+            margin-bottom: var(--spacing-xs); cursor: pointer;
+            position: relative;
+        }
+        .member-item:hover {
+            background-color: var(--gray-5);
+        }
+        .member-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 600; font-size: 0.75rem;
+        }
+        .member-info {
+            flex: 1;
+        }
+        .member-name {
+            font-weight: 600; font-size: 0.875rem;
+        }
+        .member-email {
+            color: var(--gray-2); font-size: 0.75rem;
+        }
+        .popover {
+            position: absolute; background-color: var(--white);
+            border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 15px rgba(0,0,0,0.15);
+            padding: var(--spacing-md); z-index: 1000;
+            min-width: 300px; max-width: 400px; max-height: 400px;
+            overflow-y: auto; right: -320px; top: 0;
+        }
+        .popover-title {
+            font-weight: 600; margin-bottom: var(--spacing-sm);
+            font-size: 0.875rem; padding-bottom: var(--spacing-sm);
+            border-bottom: var(--border-width) solid var(--gray-4);
+        }
+        .popover-todo-item {
+            padding: var(--spacing-sm); border-bottom: var(--border-width) solid var(--gray-4);
+            cursor: pointer;
+        }
+        .popover-todo-item:hover {
+            background-color: var(--gray-6);
+        }
+        .popover-todo-item:last-child {
+            border-bottom: none;
+        }
+        .popover-todo-title {
+            font-weight: 600; font-size: 0.875rem;
+            margin-bottom: var(--spacing-xs);
+        }
+        .popover-todo-meta {
+            display: flex; gap: var(--spacing-sm); font-size: 0.75rem;
+            color: var(--gray-2); align-items: center;
+        }
+        .quick-comment-btn {
+            margin-top: var(--spacing-sm); padding: var(--spacing-xs) var(--spacing-sm);
+            background-color: var(--gray-6); border: none;
+            border-radius: var(--border-radius); cursor: pointer;
+            font-size: 0.75rem; color: var(--gray-1); width: 100%;
+        }
+        .quick-comment-btn:hover {
+            background-color: var(--gray-5);
+        }
+        .todo-item {
+            border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius);
+            padding: var(--spacing-md); margin-bottom: var(--spacing-sm);
+            background-color: var(--white); cursor: pointer;
+        }
+        .todo-item:hover {
+            background-color: var(--gray-6);
+        }
+        .todo-item h4 { margin-bottom: var(--spacing-xs); }
+        .todo-item p { color: var(--gray-2); font-size: 0.9rem; margin-bottom: var(--spacing-xs); }
+        .todo-meta {
+            display: flex; gap: var(--spacing-md); color: var(--gray-2);
+            font-size: 0.875rem;
+        }
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 12px;
+            font-size: 0.75rem; font-weight: 600;
+        }
+        .badge.pending { background-color: var(--gray-5); color: var(--gray-1); }
+        .badge.in-progress { background-color: #3B82F6; color: white; }
+        .badge.completed { background-color: #10B981; color: white; }
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid var(--gray-5);
+            border-top-color: var(--gray-1); border-radius: 50%; display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .component-list, .interactions {
+            margin-top: var(--spacing-lg); padding: var(--spacing-md);
+            background-color: var(--gray-6); border-radius: var(--border-radius);
+        }
+        .component-list h3, .interactions h3 {
+            font-size: 1rem; margin-bottom: var(--spacing-sm); color: var(--gray-1);
+        }
+        .component-list ul { list-style: none; padding-left: 0; }
+        .component-list li {
+            padding: var(--spacing-xs) 0; color: var(--gray-2); font-size: 0.9rem;
+        }
+        .component-list li::before { content: "▸ "; color: var(--gray-3); }
+        .interaction-item {
+            padding: var(--spacing-sm); margin-bottom: var(--spacing-xs);
+            background-color: var(--white); border-left: 3px solid var(--gray-3);
+            border-radius: var(--border-radius); font-size: 0.9rem;
+        }
+        .interaction-item code {
+            background-color: var(--gray-6); padding: 2px 6px;
+            border-radius: 3px; font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
+                <a href="index.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: var(--gray-6); border-radius: var(--border-radius); text-decoration: none; color: var(--gray-1); font-weight: 600;">← 返回首页</a>
+                <div style="display: flex; gap: var(--spacing-sm);">
+                    <a href="create-todo-view.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: #2563EB; color: white; border-radius: var(--border-radius); text-decoration: none; font-weight: 600;">创建待办</a>
+                    <a href="invite-member-view.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: var(--gray-6); border-radius: var(--border-radius); text-decoration: none; color: var(--gray-1); font-weight: 600;">邀请成员</a>
+                    <a href="project-list-view.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: var(--gray-6); border-radius: var(--border-radius); text-decoration: none; color: var(--gray-1); font-weight: 600;">项目列表</a>
+                </div>
+            </div>
+            <h1>项目详情页面</h1>
+            <div class="meta-info">
+                <div>View: <code>ProjectDetailView</code></div>
+                <div>平台: <strong>Web</strong></div>
+                <div>导航层级: <strong>二级页面</strong></div>
+            </div>
+        </header>
+
+        <details open>
+            <summary>加载中</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>页面首次加载或数据刷新时
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="nav-bar">
+                            <div class="nav-button">←</div>
+                            <div class="nav-title">项目详情</div>
+                            <div class="nav-button">⋯</div>
+                        </div>
+                        <div class="content-area">
+                            <div style="text-align: center; padding: var(--spacing-xl);">
+                                <div class="spinner"></div>
+                                <p style="margin-top: 1rem; color: var(--gray-2);">加载中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>LoadingView</li>
+                        <li>导航栏</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>页面加载</code> → 显示加载指示器
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>成功 - 项目详情和待办列表</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>数据加载成功，显示项目信息和待办列表
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="nav-bar">
+                            <div class="nav-button">←</div>
+                            <div class="nav-title">项目详情</div>
+                            <div class="nav-button">⋯</div>
+                        </div>
+                        <div class="content-area">
+                            <div class="project-detail-container">
+                                <div class="project-main">
+                                    <div class="project-header">
+                                        <h2>项目名称</h2>
+                                        <p>项目描述信息，这里显示项目的详细描述内容...</p>
+                                        <div class="project-meta">
+                                            <span>创建人: 张三</span>
+                                            <span>成员: 5人</span>
+                                            <span>创建时间: 2024-12-19</span>
+                                        </div>
+                                    </div>
+                                    <div class="todo-list-header">
+                                        <h3>待办事项</h3>
+                                        <a href="create-todo-view.html"><button class="button primary">+ 创建待办</button></a>
+                                    </div>
+                                    <a href="todo-detail-view.html" style="text-decoration: none; color: inherit; display: block;">
+                                    <div class="todo-item">
+                                        <h4>待办事项标题 1</h4>
+                                        <p>待办事项的详细内容描述...</p>
+                                        <div class="todo-meta">
+                                            <span class="badge pending">待处理</span>
+                                            <span>创建人: 张三</span>
+                                            <span>执行人: 李四</span>
+                                            <span>创建时间: 2024-12-19 10:00</span>
+                                        </div>
+                                    </div>
+                                    </a>
+                                    <a href="todo-detail-view.html" style="text-decoration: none; color: inherit; display: block;">
+                                    <div class="todo-item">
+                                        <h4>待办事项标题 2</h4>
+                                        <p>待办事项的详细内容描述...</p>
+                                        <div class="todo-meta">
+                                            <span class="badge in-progress">进行中</span>
+                                            <span>创建人: 王五</span>
+                                            <span>执行人: 赵六</span>
+                                            <span>创建时间: 2024-12-19 11:00</span>
+                                        </div>
+                                    </div>
+                                    </a>
+                                    <a href="todo-detail-view.html" style="text-decoration: none; color: inherit; display: block;">
+                                    <div class="todo-item">
+                                        <h4>待办事项标题 3</h4>
+                                        <p>待办事项的详细内容描述...</p>
+                                        <div class="todo-meta">
+                                            <span class="badge completed">已完成</span>
+                                            <span>创建人: 张三</span>
+                                            <span>执行人: 李四</span>
+                                            <span>创建时间: 2024-12-19 09:00</span>
+                                        </div>
+                                    </div>
+                                    </a>
+                                </div>
+                                <div class="project-sidebar">
+                                    <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: var(--spacing-md);">项目成员</h3>
+                                    <div class="member-list">
+                                        <div class="member-item">
+                                            <div class="member-avatar">张</div>
+                                            <div class="member-info">
+                                                <div class="member-name">张三</div>
+                                                <div class="member-email">zhangsan@example.com</div>
+                                            </div>
+                                        </div>
+                                        <div class="member-item">
+                                            <div class="member-avatar">李</div>
+                                            <div class="member-info">
+                                                <div class="member-name">李四</div>
+                                                <div class="member-email">lisi@example.com</div>
+                                            </div>
+                                        </div>
+                                        <div class="member-item">
+                                            <div class="member-avatar">王</div>
+                                            <div class="member-info">
+                                                <div class="member-name">王五</div>
+                                                <div class="member-email">wangwu@example.com</div>
+                                            </div>
+                                        </div>
+                                        <div class="member-item">
+                                            <div class="member-avatar">赵</div>
+                                            <div class="member-info">
+                                                <div class="member-name">赵六</div>
+                                                <div class="member-email">zhaoliu@example.com</div>
+                                            </div>
+                                        </div>
+                                        <div class="member-item">
+                                            <div class="member-avatar">钱</div>
+                                            <div class="member-info">
+                                                <div class="member-name">钱七</div>
+                                                <div class="member-email">qianqi@example.com</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>项目信息卡片</li>
+                        <li>TodoItem (待办列表项)</li>
+                        <li>StatusBadge (状态徽章)</li>
+                        <li>Button (创建待办按钮)</li>
+                        <li>MemberList (成员列表 - 侧边栏)</li>
+                        <li>MemberItem (成员项)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>点击待办项</code> → 进入待办详情页面
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击创建待办</code> → 打开创建待办表单
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击返回</code> → 返回项目列表
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击菜单</code> → 显示项目操作菜单（邀请成员、设置等）
+                    </div>
+                    <div class="interaction-item">
+                        <code>悬停成员</code> → 显示气泡，展示该成员参与的待办事项
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击待办项</code> → 跳转到待办详情页面
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>空状态 - 无待办</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>项目中还没有待办事项
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="nav-bar">
+                            <div class="nav-button">←</div>
+                            <div class="nav-title">项目详情</div>
+                            <div class="nav-button">⋯</div>
+                        </div>
+                        <div class="content-area">
+                            <div class="project-header">
+                                <h2>项目名称</h2>
+                                <p>项目描述信息...</p>
+                                <div class="project-meta">
+                                    <span>创建人: 张三</span>
+                                    <span>成员: 5人</span>
+                                </div>
+                            </div>
+                            <div class="todo-list-header">
+                                <h3>待办事项</h3>
+                                <a href="create-todo-view.html"><button class="button primary">+ 创建待办</button></a>
+                            </div>
+                            <div style="text-align: center; padding: var(--spacing-xl);">
+                                <div style="width: 64px; height: 64px; border: 2px solid var(--gray-3); border-radius: 50%; margin: 0 auto var(--spacing-md); background-color: var(--gray-6);"></div>
+                                <h3 style="margin-bottom: var(--spacing-sm);">还没有待办事项</h3>
+                                <p style="color: var(--gray-2); margin-bottom: var(--spacing-lg);">创建你的第一个待办事项，开始管理任务</p>
+                                <a href="create-todo-view.html"><button class="button primary">创建待办</button></a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>EmptyStateView</li>
+                        <li>Button (创建待办按钮)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>点击创建待办</code> → 打开创建待办表单
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>交互 - 成员悬停气泡</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>鼠标悬停在成员项上，显示该成员参与的待办事项气泡
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="nav-bar">
+                            <div class="nav-button">←</div>
+                            <div class="nav-title">项目详情</div>
+                            <div class="nav-button">⋯</div>
+                        </div>
+                        <div class="content-area">
+                            <div class="project-detail-container">
+                                <div class="project-main">
+                                    <div class="project-header">
+                                        <h2>项目名称</h2>
+                                        <p>项目描述信息...</p>
+                                        <div class="project-meta">
+                                            <span>创建人: 张三</span>
+                                            <span>成员: 5人</span>
+                                        </div>
+                                    </div>
+                                    <div class="todo-list-header">
+                                        <h3>待办事项</h3>
+                                        <a href="create-todo-view.html"><button class="button primary">+ 创建待办</button></a>
+                                    </div>
+                                    <div class="todo-item">
+                                        <h4>待办事项标题 1</h4>
+                                        <p>待办事项的详细内容描述...</p>
+                                        <div class="todo-meta">
+                                            <span class="badge pending">待处理</span>
+                                            <span>创建人: 张三</span>
+                                            <span>执行人: 李四</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="project-sidebar" style="position: relative;">
+                                    <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: var(--spacing-md);">项目成员</h3>
+                                    <div class="member-list">
+                                        <div class="member-item">
+                                            <div class="member-avatar">张</div>
+                                            <div class="member-info">
+                                                <div class="member-name">张三</div>
+                                                <div class="member-email">zhangsan@example.com</div>
+                                            </div>
+                                        </div>
+                                        <div class="member-item" style="background-color: var(--gray-5);">
+                                            <div class="member-avatar">李</div>
+                                            <div class="member-info">
+                                                <div class="member-name">李四</div>
+                                                <div class="member-email">lisi@example.com</div>
+                                            </div>
+                                            <!-- 气泡提示 -->
+                                            <div class="popover">
+                                                <div class="popover-title">李四参与的待办</div>
+                                                <a href="todo-detail-view.html" style="text-decoration: none; color: inherit;">
+                                                <div class="popover-todo-item">
+                                                    <div class="popover-todo-title">待办事项标题 1</div>
+                                                    <div class="popover-todo-meta">
+                                                        <span class="badge pending">待处理</span>
+                                                        <span>执行人</span>
+                                                    </div>
+                                                </div>
+                                                </a>
+                                                <a href="todo-detail-view.html" style="text-decoration: none; color: inherit;">
+                                                <div class="popover-todo-item">
+                                                    <div class="popover-todo-title">待办事项标题 2</div>
+                                                    <div class="popover-todo-meta">
+                                                        <span class="badge in-progress">进行中</span>
+                                                        <span>执行人</span>
+                                                    </div>
+                                                </div>
+                                                </a>
+                                                <div style="padding-top: var(--spacing-sm); border-top: var(--border-width) solid var(--gray-4);">
+                                                    <button class="quick-comment-btn">💬 快速评论</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="member-item">
+                                            <div class="member-avatar">王</div>
+                                            <div class="member-info">
+                                                <div class="member-name">王五</div>
+                                                <div class="member-email">wangwu@example.com</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>MemberList (成员列表)</li>
+                        <li>MemberItem (成员项 - 悬停状态)</li>
+                        <li>Popover (气泡提示)</li>
+                        <li>TodoItem (气泡中的待办项)</li>
+                        <li>Button (快速评论按钮)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>悬停成员</code> → 延迟300ms后显示气泡，展示该成员参与的待办列表
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击气泡中的待办</code> → 跳转到待办详情页面
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击快速评论</code> → 跳转到待办详情页面，自动填充@成员并聚焦评论输入框
+                    </div>
+                    <div class="interaction-item">
+                        <code>移出成员或气泡</code> → 隐藏气泡
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>错误 - 加载失败</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>数据加载失败，显示错误提示
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="nav-bar">
+                            <div class="nav-button">←</div>
+                            <div class="nav-title">项目详情</div>
+                            <div class="nav-button">⋯</div>
+                        </div>
+                        <div class="content-area">
+                            <div style="text-align: center; padding: var(--spacing-xl);">
+                                <div style="width: 64px; height: 64px; border: 2px solid #EF4444; border-radius: 50%; margin: 0 auto var(--spacing-md); background-color: #FEE2E2;"></div>
+                                <h3 style="margin-bottom: var(--spacing-sm); color: #EF4444;">加载失败</h3>
+                                <p style="color: var(--gray-2); margin-bottom: var(--spacing-lg);">无法加载项目信息，请检查网络连接</p>
+                                <button class="button primary">重试</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>ErrorView</li>
+                        <li>Button (重试按钮)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>点击重试</code> → 重新加载数据
+                    </div>
+                </div>
+            </div>
+        </details>
+
+    </div>
+</body>
+</html>
+

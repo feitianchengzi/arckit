@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>待办管理系统 - 原型导航</title>
+    <style>
+        :root {
+            --gray-0: #000000; --gray-1: #333333; --gray-2: #666666; --gray-3: #999999;
+            --gray-4: #cccccc; --gray-5: #e5e5e5; --gray-6: #f5f5f5; --white: #ffffff;
+            --primary: #2563EB; --primary-hover: #1d4ed8;
+            --border-width: 1px; --border-radius: 8px;
+            --spacing-xs: 0.25rem; --spacing-sm: 0.5rem; --spacing-md: 1rem;
+            --spacing-lg: 1.5rem; --spacing-xl: 2rem;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            font-size: 16px; line-height: 1.6; color: var(--gray-1);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: var(--spacing-xl);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px; margin: 0 auto;
+            background-color: var(--white);
+            border-radius: var(--border-radius);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: var(--spacing-xl);
+        }
+        header {
+            text-align: center; margin-bottom: var(--spacing-xl);
+            padding-bottom: var(--spacing-lg);
+            border-bottom: 2px solid var(--gray-5);
+        }
+        h1 {
+            font-size: 2.5rem; font-weight: 700;
+            color: var(--gray-0); margin-bottom: var(--spacing-sm);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            color: var(--gray-2); font-size: 1.1rem;
+        }
+        .flow-section {
+            margin-bottom: var(--spacing-xl);
+        }
+        .flow-title {
+            font-size: 1.5rem; font-weight: 600;
+            color: var(--gray-0); margin-bottom: var(--spacing-lg);
+            padding-bottom: var(--spacing-sm);
+            border-bottom: 2px solid var(--primary);
+        }
+        .flow-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: var(--spacing-lg);
+            margin-bottom: var(--spacing-lg);
+        }
+        .page-card {
+            border: 2px solid var(--gray-4);
+            border-radius: var(--border-radius);
+            padding: var(--spacing-lg);
+            background-color: var(--white);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+        .page-card:hover {
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+            transform: translateY(-2px);
+        }
+        .page-card h3 {
+            font-size: 1.2rem; font-weight: 600;
+            color: var(--gray-0); margin-bottom: var(--spacing-sm);
+        }
+        .page-card .priority {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: var(--spacing-sm);
+        }
+        .priority.p1 {
+            background-color: #FEE2E2;
+            color: #DC2626;
+        }
+        .priority.p2 {
+            background-color: #FEF3C7;
+            color: #D97706;
+        }
+        .priority.p3 {
+            background-color: #DBEAFE;
+            color: #2563EB;
+        }
+        .page-card .description {
+            color: var(--gray-2);
+            font-size: 0.9rem;
+            margin-bottom: var(--spacing-md);
+        }
+        .page-card .states {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-xs);
+            margin-top: var(--spacing-md);
+        }
+        .state-badge {
+            padding: 2px 6px;
+            background-color: var(--gray-6);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: var(--gray-2);
+        }
+        .flow-arrow {
+            text-align: center;
+            font-size: 1.5rem;
+            color: var(--primary);
+            margin: var(--spacing-md) 0;
+        }
+        .user-journey {
+            background-color: var(--gray-6);
+            border-radius: var(--border-radius);
+            padding: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+        }
+        .user-journey h3 {
+            font-size: 1.2rem;
+            margin-bottom: var(--spacing-md);
+            color: var(--gray-0);
+        }
+        .journey-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-md);
+            align-items: center;
+        }
+        .journey-step {
+            flex: 1;
+            min-width: 150px;
+            text-align: center;
+            padding: var(--spacing-md);
+            background-color: var(--white);
+            border-radius: var(--border-radius);
+            border: 2px solid var(--gray-4);
+        }
+        .journey-step a {
+            text-decoration: none;
+            color: var(--primary);
+            font-weight: 600;
+        }
+        .journey-step a:hover {
+            text-decoration: underline;
+        }
+        .journey-arrow {
+            color: var(--primary);
+            font-size: 1.2rem;
+        }
+        .info-box {
+            background-color: #EFF6FF;
+            border-left: 4px solid var(--primary);
+            padding: var(--spacing-md);
+            border-radius: var(--border-radius);
+            margin-bottom: var(--spacing-xl);
+        }
+        .info-box p {
+            color: var(--gray-1);
+            margin-bottom: var(--spacing-xs);
+        }
+        .info-box code {
+            background-color: var(--white);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: "SF Mono", Monaco, monospace;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>待办管理系统</h1>
+            <p class="subtitle">完整功能原型导航</p>
+        </header>
+
+        <div class="info-box">
+            <p><strong>使用说明：</strong></p>
+            <p>点击下方页面卡片进入对应的线框图页面。每个页面包含多个状态，可以展开查看。</p>
+            <p>所有页面之间已添加导航链接，可以模拟完整的用户流程。</p>
+        </div>
+
+        <!-- 用户注册和登录流程 -->
+        <div class="flow-section">
+            <h2 class="flow-title">1. 用户注册和登录 (P1)</h2>
+            <div class="flow-grid">
+                <a href="register-view.html" class="page-card">
+                    <span class="priority p1">P1</span>
+                    <h3>注册页面</h3>
+                    <p class="description">用户创建新账户</p>
+                    <div class="states">
+                        <span class="state-badge">加载中</span>
+                        <span class="state-badge">注册表单</span>
+                        <span class="state-badge">错误</span>
+                        <span class="state-badge">成功</span>
+                    </div>
+                </a>
+                <a href="login-view.html" class="page-card">
+                    <span class="priority p1">P1</span>
+                    <h3>登录页面</h3>
+                    <p class="description">用户登录系统</p>
+                    <div class="states">
+                        <span class="state-badge">加载中</span>
+                        <span class="state-badge">登录表单</span>
+                        <span class="state-badge">错误</span>
+                        <span class="state-badge">空状态</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 项目管理流程 -->
+        <div class="flow-section">
+            <h2 class="flow-title">2. 项目管理 (P1)</h2>
+            <div class="flow-grid">
+                <a href="project-list-view.html" class="page-card">
+                    <span class="priority p1">P1</span>
+                    <h3>项目列表</h3>
+                    <p class="description">查看所有项目</p>
+                    <div class="states">
+                        <span class="state-badge">加载中</span>
+                        <span class="state-badge">项目列表</span>
+                        <span class="state-badge">空状态</span>
+                        <span class="state-badge">错误</span>
+                    </div>
+                </a>
+                <a href="create-project-view.html" class="page-card">
+                    <span class="priority p1">P1</span>
+                    <h3>创建项目</h3>
+                    <p class="description">创建新项目</p>
+                    <div class="states">
+                        <span class="state-badge">加载中</span>
+                        <span class="state-badge">创建表单</span>
+                        <span class="state-badge">错误</span>
+                        <span class="state-badge">成功</span>
+                    </div>
+                </a>
+                <a href="project-detail-view.html" class="page-card">
+                    <span class="priority p1">P1</span>
+                    <h3>项目详情</h3>
+                    <p class="description">查看项目信息和待办列表</p>
+                    <div class="states">
+                        <span class="state-badge">加载中</span>
+                        <span class="state-badge">详情和列表</span>
+                        <span class="state-badge">空状态</span>
+                        <span class="state-badge">错误</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 待办管理流程 -->
+        <div class="flow-section">
+            <h2 class="flow-title">3. 待办管理 (P1-P2)</h2>
+            <div class="flow-grid">
+                <a href="create-todo-view.html" class="page-card">
+                    <span class="priority p1">P1</span>
+                    <h3>创建待办</h3>
+                    <p class="description">创建新的待办事项</p>
+                    <div class="states">
+                        <span class="state-badge">加载中</span>
+                        <span class="state-badge">创建表单</span>
+                        <span class="state-badge">错误</span>
+                        <span class="state-badge">成功</span>
+                    </div>
+                </a>
+                <a href="edit-todo-view.html" class="page-card">
+                    <span class="priority p2">P2</span>
+                    <h3>编辑待办</h3>
+                    <p class="description">编辑待办事项信息</p>
+                    <div class="states">
+                        <span class="state-badge">加载中</span>
+                        <span class="state-badge">编辑表单</span>
+                        <span class="state-badge">权限错误</span>
+                        <span class="state-badge">成功</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 协作功能 -->
+        <div class="flow-section">
+            <h2 class="flow-title">4. 协作功能 (P2)</h2>
+            <div class="flow-grid">
+                <a href="invite-member-view.html" class="page-card">
+                    <span class="priority p2">P2</span>
+                    <h3>邀请成员</h3>
+                    <p class="description">邀请用户加入项目</p>
+                    <div class="states">
+                        <span class="state-badge">加载中</span>
+                        <span class="state-badge">邀请表单</span>
+                        <span class="state-badge">错误</span>
+                        <span class="state-badge">成功</span>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <!-- 用户流程示例 -->
+        <div class="user-journey">
+            <h3>典型用户流程</h3>
+            <div class="journey-steps">
+                <div class="journey-step">
+                    <a href="register-view.html">1. 注册账户</a>
+                </div>
+                <div class="journey-arrow">→</div>
+                <div class="journey-step">
+                    <a href="project-list-view.html">2. 查看项目</a>
+                </div>
+                <div class="journey-arrow">→</div>
+                <div class="journey-step">
+                    <a href="create-project-view.html">3. 创建项目</a>
+                </div>
+                <div class="journey-arrow">→</div>
+                <div class="journey-step">
+                    <a href="project-detail-view.html">4. 项目详情</a>
+                </div>
+                <div class="journey-arrow">→</div>
+                <div class="journey-step">
+                    <a href="create-todo-view.html">5. 创建待办</a>
+                </div>
+                <div class="journey-arrow">→</div>
+                <div class="journey-step">
+                    <a href="invite-member-view.html">6. 邀请成员</a>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: var(--spacing-xl); padding-top: var(--spacing-lg); border-top: 2px solid var(--gray-5); color: var(--gray-2);">
+            <p>所有页面已添加导航链接，可以模拟完整的用户交互流程</p>
+            <p style="margin-top: var(--spacing-sm); font-size: 0.9rem;">点击任意页面卡片开始体验</p>
+        </div>
+    </div>
+</body>
+</html>
+

@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>待办详情页面 - 线框图</title>
+    <style>
+        :root {
+            --gray-0: #000000; --gray-1: #333333; --gray-2: #666666; --gray-3: #999999;
+            --gray-4: #cccccc; --gray-5: #e5e5e5; --gray-6: #f5f5f5; --white: #ffffff;
+            --border-width: 1px; --border-radius: 4px;
+            --spacing-xs: 0.25rem; --spacing-sm: 0.5rem; --spacing-md: 1rem;
+            --spacing-lg: 1.5rem; --spacing-xl: 2rem;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            font-size: 16px; line-height: 1.6; color: var(--gray-1);
+            background-color: var(--gray-6); padding: var(--spacing-xl);
+        }
+        .wireframe-container {
+            max-width: 1200px; margin: 0 auto; background-color: var(--white);
+            border: var(--border-width) solid var(--gray-4); border-radius: var(--border-radius);
+            padding: var(--spacing-xl);
+        }
+        header {
+            border-bottom: 2px solid var(--gray-4); padding-bottom: var(--spacing-lg);
+            margin-bottom: var(--spacing-xl);
+        }
+        h1 { font-size: 2rem; font-weight: 600; color: var(--gray-0); margin-bottom: var(--spacing-sm); }
+        .meta-info {
+            display: flex; gap: var(--spacing-lg); flex-wrap: wrap;
+            color: var(--gray-2); font-size: 0.9rem;
+        }
+        .meta-info code {
+            background-color: var(--gray-6); padding: var(--spacing-xs) var(--spacing-sm);
+            border-radius: var(--border-radius); font-family: "SF Mono", Monaco, monospace;
+            font-size: 0.85rem;
+        }
+        details {
+            margin-bottom: var(--spacing-lg); border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius); overflow: hidden;
+        }
+        details[open] { border-color: var(--gray-1); }
+        summary {
+            cursor: pointer; padding: var(--spacing-md); background-color: var(--gray-6);
+            font-weight: 600; font-size: 1.1rem; color: var(--gray-1);
+            user-select: none; transition: background-color 0.2s;
+        }
+        summary:hover { background-color: var(--gray-5); }
+        details[open] summary { background-color: var(--gray-1); color: var(--white); }
+        .state-content { padding: var(--spacing-lg); }
+        .state-description {
+            color: var(--gray-2); margin-bottom: var(--spacing-lg); padding: var(--spacing-md);
+            background-color: var(--gray-6); border-left: 3px solid var(--gray-3);
+            border-radius: var(--border-radius);
+        }
+        .wireframe-canvas {
+            border: 2px solid var(--gray-1); border-radius: var(--border-radius);
+            padding: var(--spacing-lg); background-color: var(--white); min-height: 400px;
+        }
+        .device-frame.desktop { max-width: 100%; border-radius: 8px; }
+        .nav-bar {
+            background-color: var(--gray-6); border-bottom: var(--border-width) solid var(--gray-4);
+            padding: var(--spacing-md); display: flex; align-items: center;
+            justify-content: space-between;
+        }
+        .nav-title { font-weight: 600; color: var(--gray-0); }
+        .nav-button {
+            width: 60px; height: 32px; border: var(--border-width) solid var(--gray-3);
+            border-radius: var(--border-radius); background-color: var(--white);
+        }
+        .content-area { padding: var(--spacing-md); }
+        .todo-detail-container {
+            display: flex; gap: var(--spacing-lg);
+        }
+        .todo-main {
+            flex: 1;
+        }
+        .todo-sidebar {
+            width: 280px; background-color: var(--gray-6);
+            border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius); padding: var(--spacing-md);
+        }
+        .todo-header {
+            padding: var(--spacing-lg); border-bottom: var(--border-width) solid var(--gray-4);
+            margin-bottom: var(--spacing-lg);
+        }
+        .todo-title {
+            font-size: var(--font-size-title2, 24px);
+            font-weight: 600; margin-bottom: var(--spacing-sm);
+        }
+        .todo-meta {
+            display: flex; gap: var(--spacing-md); color: var(--gray-2);
+            font-size: 0.875rem; margin-bottom: var(--spacing-md);
+        }
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 12px;
+            font-size: 0.75rem; font-weight: 600;
+        }
+        .badge.pending { background-color: var(--gray-5); color: var(--gray-1); }
+        .badge.in-progress { background-color: #3B82F6; color: white; }
+        .badge.completed { background-color: #10B981; color: white; }
+        .todo-content {
+            padding: var(--spacing-lg); background-color: var(--white);
+            border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius); margin-bottom: var(--spacing-lg);
+        }
+        .comment-section {
+            padding: var(--spacing-lg); background-color: var(--white);
+            border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius);
+        }
+        .comment-item {
+            padding: var(--spacing-md); border-bottom: var(--border-width) solid var(--gray-4);
+        }
+        .comment-item:last-child { border-bottom: none; }
+        .comment-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: var(--spacing-xs);
+        }
+        .comment-author {
+            display: flex; align-items: center; gap: var(--spacing-sm);
+        }
+        .avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 600; font-size: 0.875rem;
+        }
+        .comment-time {
+            color: var(--gray-2); font-size: 0.75rem;
+        }
+        .comment-actions {
+            display: flex; gap: var(--spacing-sm);
+        }
+        .btn-icon {
+            padding: var(--spacing-xs); background: none; border: none;
+            cursor: pointer; color: var(--gray-2); font-size: 0.875rem;
+        }
+        .btn-icon:hover { color: var(--gray-1); }
+        .comment-input {
+            margin-top: var(--spacing-lg); padding-top: var(--spacing-lg);
+            border-top: var(--border-width) solid var(--gray-4);
+        }
+        .form-textarea {
+            width: 100%; padding: var(--spacing-sm);
+            border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius);
+            min-height: 80px; resize: vertical;
+            margin-bottom: var(--spacing-sm);
+        }
+        .button {
+            display: inline-block; padding: var(--spacing-sm) var(--spacing-lg);
+            border: 2px solid var(--gray-1); border-radius: var(--border-radius);
+            background-color: var(--white); color: var(--gray-1);
+            text-align: center; font-weight: 600; cursor: pointer;
+        }
+        .button.primary { background-color: var(--gray-1); color: var(--white); }
+        .member-list {
+            margin-bottom: var(--spacing-lg);
+        }
+        .member-item {
+            display: flex; align-items: center; gap: var(--spacing-sm);
+            padding: var(--spacing-sm); border-radius: var(--border-radius);
+            margin-bottom: var(--spacing-xs); cursor: pointer;
+        }
+        .member-item:hover {
+            background-color: var(--gray-5);
+        }
+        .member-avatar {
+            width: 32px; height: 32px; border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: 600; font-size: 0.75rem;
+        }
+        .member-info {
+            flex: 1;
+        }
+        .member-name {
+            font-weight: 600; font-size: 0.875rem;
+        }
+        .member-email {
+            color: var(--gray-2); font-size: 0.75rem;
+        }
+        .popover {
+            position: absolute; background-color: var(--white);
+            border: var(--border-width) solid var(--gray-4);
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 15px rgba(0,0,0,0.15);
+            padding: var(--spacing-md); z-index: 1000;
+            min-width: 300px; max-width: 400px;
+        }
+        .popover-title {
+            font-weight: 600; margin-bottom: var(--spacing-sm);
+            font-size: 0.875rem;
+        }
+        .popover-todo-item {
+            padding: var(--spacing-sm); border-bottom: var(--border-width) solid var(--gray-4);
+            cursor: pointer;
+        }
+        .popover-todo-item:hover {
+            background-color: var(--gray-6);
+        }
+        .popover-todo-item:last-child {
+            border-bottom: none;
+        }
+        .popover-todo-title {
+            font-weight: 600; font-size: 0.875rem;
+            margin-bottom: var(--spacing-xs);
+        }
+        .popover-todo-meta {
+            display: flex; gap: var(--spacing-sm); font-size: 0.75rem;
+            color: var(--gray-2);
+        }
+        .quick-comment-btn {
+            margin-top: var(--spacing-sm); padding: var(--spacing-xs) var(--spacing-sm);
+            background-color: var(--gray-6); border: none;
+            border-radius: var(--border-radius); cursor: pointer;
+            font-size: 0.75rem; color: var(--gray-1);
+        }
+        .quick-comment-btn:hover {
+            background-color: var(--gray-5);
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid var(--gray-5);
+            border-top-color: var(--gray-1); border-radius: 50%;
+            display: inline-block; animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .component-list, .interactions {
+            margin-top: var(--spacing-lg); padding: var(--spacing-md);
+            background-color: var(--gray-6); border-radius: var(--border-radius);
+        }
+        .component-list h3, .interactions h3 {
+            font-size: 1rem; margin-bottom: var(--spacing-sm); color: var(--gray-1);
+        }
+        .component-list ul { list-style: none; padding-left: 0; }
+        .component-list li {
+            padding: var(--spacing-xs) 0; color: var(--gray-2); font-size: 0.9rem;
+        }
+        .component-list li::before { content: "▸ "; color: var(--gray-3); }
+        .interaction-item {
+            padding: var(--spacing-sm); margin-bottom: var(--spacing-xs);
+            background-color: var(--white); border-left: 3px solid var(--gray-3);
+            border-radius: var(--border-radius); font-size: 0.9rem;
+        }
+        .interaction-item code {
+            background-color: var(--gray-6); padding: 2px 6px;
+            border-radius: 3px; font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="wireframe-container">
+        <header>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
+                <a href="index.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: var(--gray-6); border-radius: var(--border-radius); text-decoration: none; color: var(--gray-1); font-weight: 600;">← 返回首页</a>
+                <div style="display: flex; gap: var(--spacing-sm);">
+                    <a href="project-detail-view.html" style="padding: var(--spacing-sm) var(--spacing-md); background-color: var(--gray-6); border-radius: var(--border-radius); text-decoration: none; color: var(--gray-1); font-weight: 600;">项目详情</a>
+                </div>
+            </div>
+            <h1>待办详情页面</h1>
+            <div class="meta-info">
+                <div>View: <code>TodoDetailView</code></div>
+                <div>平台: <strong>Web</strong></div>
+                <div>导航层级: <strong>三级页面</strong></div>
+            </div>
+        </header>
+
+        <details open>
+            <summary>加载中</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>页面首次加载，正在获取待办详情数据
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="nav-bar">
+                            <div class="nav-button">←</div>
+                            <div class="nav-title">待办详情</div>
+                            <div class="nav-button">⋯</div>
+                        </div>
+                        <div class="content-area">
+                            <div style="text-align: center; padding: var(--spacing-xl);">
+                                <div class="spinner"></div>
+                                <p style="margin-top: 1rem; color: var(--gray-2);">加载中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>LoadingView</li>
+                        <li>导航栏</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>页面加载</code> → 显示加载指示器
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>成功 - 待办详情和评论</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>数据加载成功，显示待办详情和评论列表
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="nav-bar">
+                            <div class="nav-button">←</div>
+                            <div class="nav-title">待办详情</div>
+                            <div class="nav-button">⋯</div>
+                        </div>
+                        <div class="content-area">
+                            <div class="todo-detail-container">
+                                <div class="todo-main">
+                                    <div class="todo-header">
+                                        <div class="todo-title">设计登录页面</div>
+                                        <div class="todo-meta">
+                                            <span class="badge in-progress">进行中</span>
+                                            <span>创建人: 张三</span>
+                                            <span>执行人: 李四</span>
+                                            <span>创建时间: 2024-12-15 10:00</span>
+                                        </div>
+                                    </div>
+                                    <div class="todo-content">
+                                        <h3 style="margin-bottom: var(--spacing-md);">详细内容</h3>
+                                        <p style="color: var(--gray-2); line-height: 1.6;">
+                                            完成登录页面的UI设计和交互逻辑，包括表单验证、错误提示、成功跳转等功能。
+                                            需要确保界面美观、交互流畅，符合设计规范。
+                                        </p>
+                                    </div>
+                                    <div class="comment-section">
+                                        <h3 style="margin-bottom: var(--spacing-md);">评论 (3)</h3>
+                                        <div class="comment-item">
+                                            <div class="comment-header">
+                                                <div class="comment-author">
+                                                    <div class="avatar">张</div>
+                                                    <span style="font-weight: 600;">张三</span>
+                                                </div>
+                                                <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                                    <span class="comment-time">2024-12-15 14:30</span>
+                                                    <div class="comment-actions">
+                                                        <button class="btn-icon">✏️</button>
+                                                        <button class="btn-icon">🗑️</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <p style="color: var(--gray-1); margin-top: var(--spacing-xs);">
+                                                这个设计需要参考一下现有的设计系统，确保风格一致。
+                                            </p>
+                                        </div>
+                                        <div class="comment-item">
+                                            <div class="comment-header">
+                                                <div class="comment-author">
+                                                    <div class="avatar">李</div>
+                                                    <span style="font-weight: 600;">李四</span>
+                                                </div>
+                                                <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                                    <span class="comment-time">2024-12-15 15:00</span>
+                                                </div>
+                                            </div>
+                                            <p style="color: var(--gray-1); margin-top: var(--spacing-xs);">
+                                                好的，我会按照设计规范来实现。预计明天可以完成初稿。
+                                            </p>
+                                        </div>
+                                        <div class="comment-item">
+                                            <div class="comment-header">
+                                                <div class="comment-author">
+                                                    <div class="avatar">王</div>
+                                                    <span style="font-weight: 600;">王五</span>
+                                                </div>
+                                                <div style="display: flex; align-items: center; gap: var(--spacing-sm);">
+                                                    <span class="comment-time">2024-12-15 16:20</span>
+                                                </div>
+                                            </div>
+                                            <p style="color: var(--gray-1); margin-top: var(--spacing-xs);">
+                                                建议添加记住密码功能，提升用户体验。
+                                            </p>
+                                        </div>
+                                        <div class="comment-input">
+                                            <textarea class="form-textarea" placeholder="添加评论..."></textarea>
+                                            <div style="display: flex; justify-content: flex-end; gap: var(--spacing-sm);">
+                                                <button class="button">取消</button>
+                                                <button class="button primary">发布</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="todo-sidebar">
+                                    <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: var(--spacing-md);">项目成员</h3>
+                                    <div class="member-list">
+                                        <div class="member-item">
+                                            <div class="member-avatar">张</div>
+                                            <div class="member-info">
+                                                <div class="member-name">张三</div>
+                                                <div class="member-email">zhangsan@example.com</div>
+                                            </div>
+                                        </div>
+                                        <div class="member-item">
+                                            <div class="member-avatar">李</div>
+                                            <div class="member-info">
+                                                <div class="member-name">李四</div>
+                                                <div class="member-email">lisi@example.com</div>
+                                            </div>
+                                        </div>
+                                        <div class="member-item">
+                                            <div class="member-avatar">王</div>
+                                            <div class="member-info">
+                                                <div class="member-name">王五</div>
+                                                <div class="member-email">wangwu@example.com</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>TodoDetailHeader (待办详情头部)</li>
+                        <li>CommentSection (评论区域)</li>
+                        <li>CommentItem (评论项)</li>
+                        <li>MemberList (成员列表)</li>
+                        <li>TextField (评论输入框)</li>
+                        <li>Button (发布按钮)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>点击评论输入框</code> → 聚焦输入框，可以输入评论
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击发布</code> → 提交评论，更新评论列表
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击编辑评论</code> → 进入编辑模式（仅自己的评论）
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击删除评论</code> → 确认后删除评论（仅自己的评论）
+                    </div>
+                    <div class="interaction-item">
+                        <code>悬停成员项</code> → 显示气泡，展示该成员参与的待办
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>空状态 - 无评论</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>待办还没有任何评论
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="nav-bar">
+                            <div class="nav-button">←</div>
+                            <div class="nav-title">待办详情</div>
+                            <div class="nav-button">⋯</div>
+                        </div>
+                        <div class="content-area">
+                            <div class="todo-detail-container">
+                                <div class="todo-main">
+                                    <div class="todo-header">
+                                        <div class="todo-title">设计登录页面</div>
+                                        <div class="todo-meta">
+                                            <span class="badge in-progress">进行中</span>
+                                            <span>创建人: 张三</span>
+                                            <span>执行人: 李四</span>
+                                        </div>
+                                    </div>
+                                    <div class="todo-content">
+                                        <h3 style="margin-bottom: var(--spacing-md);">详细内容</h3>
+                                        <p style="color: var(--gray-2); line-height: 1.6;">
+                                            完成登录页面的UI设计和交互逻辑...
+                                        </p>
+                                    </div>
+                                    <div class="comment-section">
+                                        <h3 style="margin-bottom: var(--spacing-md);">评论 (0)</h3>
+                                        <div style="text-align: center; padding: var(--spacing-xl); color: var(--gray-2);">
+                                            <p>还没有评论</p>
+                                            <p style="font-size: 0.875rem; margin-top: var(--spacing-sm);">成为第一个评论的人</p>
+                                        </div>
+                                        <div class="comment-input">
+                                            <textarea class="form-textarea" placeholder="添加评论..."></textarea>
+                                            <div style="display: flex; justify-content: flex-end; gap: var(--spacing-sm);">
+                                                <button class="button">取消</button>
+                                                <button class="button primary">发布</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="todo-sidebar">
+                                    <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: var(--spacing-md);">项目成员</h3>
+                                    <div class="member-list">
+                                        <div class="member-item">
+                                            <div class="member-avatar">张</div>
+                                            <div class="member-info">
+                                                <div class="member-name">张三</div>
+                                                <div class="member-email">zhangsan@example.com</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>EmptyStateView (空评论状态)</li>
+                        <li>CommentSection (评论区域)</li>
+                        <li>TextField (评论输入框)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>显示空状态</code> → 提示用户添加第一条评论
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>交互 - 成员悬停气泡</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>鼠标悬停在成员项上，显示该成员参与的待办事项气泡
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="nav-bar">
+                            <div class="nav-button">←</div>
+                            <div class="nav-title">待办详情</div>
+                            <div class="nav-button">⋯</div>
+                        </div>
+                        <div class="content-area">
+                            <div class="todo-detail-container">
+                                <div class="todo-main">
+                                    <!-- 待办详情内容 -->
+                                    <div class="todo-header">
+                                        <div class="todo-title">设计登录页面</div>
+                                    </div>
+                                </div>
+                                <div class="todo-sidebar" style="position: relative;">
+                                    <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: var(--spacing-md);">项目成员</h3>
+                                    <div class="member-list">
+                                        <div class="member-item" style="background-color: var(--gray-5);">
+                                            <div class="member-avatar">李</div>
+                                            <div class="member-info">
+                                                <div class="member-name">李四</div>
+                                                <div class="member-email">lisi@example.com</div>
+                                            </div>
+                                        </div>
+                                        <!-- 气泡提示 -->
+                                        <div class="popover" style="position: absolute; right: -320px; top: 0;">
+                                            <div class="popover-title">李四参与的待办</div>
+                                            <div class="popover-todo-item">
+                                                <div class="popover-todo-title">设计登录页面</div>
+                                                <div class="popover-todo-meta">
+                                                    <span class="badge in-progress">进行中</span>
+                                                    <span>执行人</span>
+                                                </div>
+                                            </div>
+                                            <div class="popover-todo-item">
+                                                <div class="popover-todo-title">实现用户认证功能</div>
+                                                <div class="popover-todo-meta">
+                                                    <span class="badge pending">待处理</span>
+                                                    <span>执行人</span>
+                                                </div>
+                                            </div>
+                                            <div style="padding-top: var(--spacing-sm); border-top: var(--border-width) solid var(--gray-4);">
+                                                <button class="quick-comment-btn">💬 快速评论</button>
+                                            </div>
+                                        </div>
+                                        <div class="member-item">
+                                            <div class="member-avatar">王</div>
+                                            <div class="member-info">
+                                                <div class="member-name">王五</div>
+                                                <div class="member-email">wangwu@example.com</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>MemberItem (成员项 - 悬停状态)</li>
+                        <li>Popover (气泡提示)</li>
+                        <li>TodoItem (气泡中的待办项)</li>
+                        <li>Button (快速评论按钮)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>悬停成员</code> → 延迟300ms后显示气泡，展示该成员参与的待办列表
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击气泡中的待办</code> → 跳转到待办详情页面
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击快速评论</code> → 在评论输入框中自动填充@成员，并聚焦输入框
+                    </div>
+                    <div class="interaction-item">
+                        <code>移出成员或气泡</code> → 隐藏气泡
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>交互 - 快速评论</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>从成员气泡中点击快速评论，自动填充@成员并聚焦输入框
+                </div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="nav-bar">
+                            <div class="nav-button">←</div>
+                            <div class="nav-title">待办详情</div>
+                            <div class="nav-button">⋯</div>
+                        </div>
+                        <div class="content-area">
+                            <div class="todo-detail-container">
+                                <div class="todo-main">
+                                    <div class="comment-section">
+                                        <h3 style="margin-bottom: var(--spacing-md);">评论 (3)</h3>
+                                        <!-- 已有评论 -->
+                                        <div class="comment-item">
+                                            <div class="comment-header">
+                                                <div class="comment-author">
+                                                    <div class="avatar">张</div>
+                                                    <span style="font-weight: 600;">张三</span>
+                                                </div>
+                                                <span class="comment-time">2024-12-15 14:30</span>
+                                            </div>
+                                            <p style="color: var(--gray-1); margin-top: var(--spacing-xs);">
+                                                这个设计需要参考一下现有的设计系统。
+                                            </p>
+                                        </div>
+                                        <div class="comment-input" style="background-color: #EFF6FF; border: 2px solid #2563EB;">
+                                            <textarea class="form-textarea" style="border-color: #2563EB;">@李四 </textarea>
+                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                <span style="font-size: 0.75rem; color: var(--gray-2);">按 Ctrl+Enter 快速发布</span>
+                                                <div style="display: flex; gap: var(--spacing-sm);">
+                                                    <button class="button">取消</button>
+                                                    <button class="button primary">发布</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="todo-sidebar">
+                                    <h3 style="font-size: 0.875rem; font-weight: 600; margin-bottom: var(--spacing-md);">项目成员</h3>
+                                    <div class="member-list">
+                                        <div class="member-item">
+                                            <div class="member-avatar">李</div>
+                                            <div class="member-info">
+                                                <div class="member-name">李四</div>
+                                                <div class="member-email">lisi@example.com</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>CommentSection (评论区域 - 聚焦状态)</li>
+                        <li>TextField (评论输入框 - 已填充@成员)</li>
+                        <li>Button (发布按钮)</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>快速评论触发</code> → 自动填充@成员，聚焦输入框，高亮显示
+                    </div>
+                    <div class="interaction-item">
+                        <code>输入评论</code> → 实时显示输入内容
+                    </div>
+                    <div class="interaction-item">
+                        <code>Ctrl+Enter</code> → 快速发布评论
+                    </div>
+                    <div class="interaction-item">
+                        <code>点击发布</code> → 提交评论，@成员会收到通知
+                    </div>
+                </div>
+            </div>
+        </details>
+
+    </div>
+</body>
+</html>
+
