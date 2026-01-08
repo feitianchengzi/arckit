@@ -1,21 +1,42 @@
 # 任务相关接口
 
 基础路径：`/{service}/v1/user/tasks`  
-认证：JWT；中间件已注入当前用户 ID  
+认证：JWT；中间件 `ExtractUserID` 已注入当前用户 ID  
 权限：必须是项目成员；`owner/admin` 可操作任意任务，`member` 仅可操作自己创建或分配给自己的任务
 
 ## 通用说明
 
-- 所有接口通过中间件自动获取用户ID，直接查询项目成员表验证权限
-- 任务状态可选值：
-  - `pending` - 待处理（默认）
-  - `in_progress` - 进行中
-  - `completed` - 已完成
-  - `cancelled` - 已取消
-  - `blocked` - 已阻塞
-- 权限规则：
-  - `owner` / `admin`: 可以修改/删除任意任务
-  - `member`: 只能修改/删除自己创建或分配给自己执行的任务
+### 用户ID获取方式
+
+所有接口通过中间件 `ExtractUserID` 自动获取用户ID，获取优先级如下：
+
+1. **优先从查询参数获取**：如果请求URL中包含 `user_id` 查询参数，直接使用该值
+2. **从Header UUID查询**：如果没有查询参数，则从请求头 `X-User-ID` 获取用户UUID，然后查询用户表获取对应的用户ID
+
+**推荐方式**：在请求URL中添加 `user_id` 查询参数，避免额外的数据库查询。
+
+**示例**：
+```bash
+# 推荐：使用查询参数
+POST /todo/v1/user/tasks?user_id=3
+
+# 备选：仅使用Header（会查询用户表）
+POST /todo/v1/user/tasks
+# Header: X-User-ID: 11111111-1111-1111-1111-111111111111
+```
+
+### 任务状态
+
+- `pending` - 待处理（默认）
+- `in_progress` - 进行中
+- `completed` - 已完成
+- `cancelled` - 已取消
+- `blocked` - 已阻塞
+
+### 权限规则
+
+- `owner` / `admin`: 可以修改/删除任意任务
+- `member`: 只能修改/删除自己创建或分配给自己执行的任务
 
 ---
 
@@ -26,6 +47,12 @@
 **认证级别**: `user`（需要JWT认证）
 
 **权限要求**: 用户必须是项目成员
+
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 否 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
 
 **请求体**:
 
@@ -106,6 +133,12 @@
 |------|------|------|
 | id | uint | 任务ID |
 
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 否 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+
 **请求体**（所有字段均为可选，但至少提供一个）:
 
 ```json
@@ -174,6 +207,7 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | project_id | uint | 是 | 项目ID |
+| user_id | uint | 否 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
 
 **响应示例** (`200 OK`):
 
@@ -236,6 +270,12 @@
 
 **描述**: 批量删除任务，使用事务处理，所有任务要么全部删除成功，要么全部失败回滚
 
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| user_id | uint | 否 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+
 **请求体**:
 
 ```json
@@ -283,44 +323,93 @@
 
 ## 使用示例
 
+以下示例使用测试用户信息（参考 `README.md`）：
+- **Alice**: `user_id=3`, `UUID=11111111-1111-1111-1111-111111111111`, `username=alice`
+- **Bob**: `user_id=4`, `UUID=22222222-2222-2222-2222-222222222222`, `username=bob`
+
 ### 创建任务
 
 ```bash
-curl -X POST "https://api.example.com/todo-service/v1/user/tasks" \
-  -H "Authorization: Bearer <token>" \
+curl -X POST "http://localhost:8081/todo/v1/user/tasks?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
   -d '{
     "project_id": 1,
-    "content": "完成任务设计",
+    "content": "完成任务设计文档",
+    "state": "pending"
+  }'
+```
+
+### 创建任务（分配给执行者）
+
+```bash
+curl -X POST "http://localhost:8081/todo/v1/user/tasks?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": 1,
+    "content": "实现用户登录功能",
+    "state": "in_progress",
+    "executor_id": 4
+  }'
+```
+
+### 创建子任务
+
+```bash
+curl -X POST "http://localhost:8081/todo/v1/user/tasks?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": 1,
+    "content": "子任务：设计数据库表结构",
     "state": "pending",
-    "executor_id": 2
+    "father_id": 1
   }'
 ```
 
 ### 更新任务
 
 ```bash
-curl -X PUT "https://api.example.com/todo-service/v1/user/tasks/1" \
-  -H "Authorization: Bearer <token>" \
+curl -X PUT "http://localhost:8081/todo/v1/user/tasks/1?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
   -d '{
-    "content": "更新后的任务内容",
+    "content": "完成任务设计文档（已更新）",
     "state": "in_progress"
+  }'
+```
+
+### 更新任务状态为已完成
+
+```bash
+curl -X PUT "http://localhost:8081/todo/v1/user/tasks/2?user_id=4" \
+  -H "X-User-ID: 22222222-2222-2222-2222-222222222222" \
+  -H "X-User-Username: bob" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "state": "completed"
   }'
 ```
 
 ### 查询任务列表
 
 ```bash
-curl -X GET "https://api.example.com/todo-service/v1/user/tasks?project_id=1" \
-  -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:8081/todo/v1/user/tasks?project_id=1&user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
 ```
 
-### 删除任务（批量）
+### 批量删除任务
 
 ```bash
-curl -X DELETE "https://api.example.com/todo-service/v1/user/tasks" \
-  -H "Authorization: Bearer <token>" \
+curl -X DELETE "http://localhost:8081/todo/v1/user/tasks?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
   -d '{
     "task_ids": [1, 2, 3]
