@@ -21,9 +21,11 @@ description: "Design system overview template"
   - button.md
   - text-field.md
   - label.md
+  - select.md
   - loading-view.md
   - error-view.md
   - empty-state-view.md
+  - sidebar.md
   - project-card.md
   - todo-item.md
   - status-badge.md

@@ -102,6 +102,7 @@ description: "Design summary template for tasks generation"
 | Button | 基础 | 简单 | 5 | 无 | components/button.md |
 | TextField | 基础 | 中等 | 6 | Label, ErrorView | components/text-field.md |
 | Label | 基础 | 简单 | 3 | 无 | components/label.md |
+| Select | 基础 | 中等 | 6 | Label, Icon | components/select.md |
 | LoadingView | 基础 | 简单 | 3 | 无 | components/loading-view.md |
 | ErrorView | 基础 | 简单 | 2 | Button, Icon | components/error-view.md |
 | EmptyStateView | 基础 | 简单 | 1 | Button, Icon | components/empty-state-view.md |
@@ -116,10 +117,10 @@ description: "Design summary template for tasks generation"
 | Avatar | 基础 | 简单 | 3 | 无 | components/avatar.md |
 
 **统计**:
-- 基础组件: 11 个
+- 基础组件: 12 个
 - 复合组件: 4 个
 - 页面组件: 0 个
-- **总计**: 15 个
+- **总计**: 16 个
 
 ---
 
@@ -134,7 +135,7 @@ description: "Design summary template for tasks generation"
 | 项目详情页面 | ProjectDetailView | 4 | 6 | 复杂 | P1 | wireframes/project-detail-view.html |
 | 创建待办页面 | CreateTodoView | 4 | 6 | 中等 | P1 | wireframes/create-todo-view.html |
 | 编辑待办页面 | EditTodoView | 4 | 6 | 中等 | P2 | wireframes/edit-todo-view.html |
-| 邀请成员页面 | InviteMemberView | 4 | 6 | 中等 | P2 | wireframes/invite-member-view.html |
+| 邀请成员页面 | InviteMemberView | 5 | 8 | 中等 | P2 | wireframes/invite-member-view.html |
 | 待办详情页面 | TodoDetailView | 5 | 8 | 复杂 | P1 | wireframes/todo-detail-view.html |
 
 **统计**:
@@ -171,7 +172,7 @@ description: "Design summary template for tasks generation"
 - **项目详情页面**: 加载中、成功（项目详情和待办列表）、空状态（无待办）、错误（加载失败）、交互（成员悬停气泡）
 - **创建待办页面**: 加载中、成功（创建表单）、错误（验证失败）、成功（创建完成）
 - **编辑待办页面**: 加载中、成功（编辑表单）、错误（权限不足）、成功（保存完成）
-- **邀请成员页面**: 加载中、成功（邀请表单和成员列表）、错误（邀请失败）、成功（邀请发送成功）
+- **邀请成员页面**: 加载中、成功（邀请表单生成前）、成功（邀请码生成后）、错误（生成邀请码失败）、成功（复制成功提示）
 - **待办详情页面**: 加载中、成功（待办详情和评论）、空状态（无评论）、交互（成员悬停气泡）、交互（快速评论）
 
 **详细定义**: 参见各页面线框图文档

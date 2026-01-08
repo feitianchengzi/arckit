@@ -122,6 +122,118 @@
             padding: var(--spacing-xl);
         }
         
+        /* 应用布局 - 侧边栏布局 */
+        .app-layout {
+            display: flex;
+            min-height: calc(100vh - 80px);
+            background-color: var(--bg-primary);
+        }
+        
+        /* 侧边栏 */
+        .sidebar {
+            width: 256px;
+            background-color: var(--bg-secondary);
+            border-right: 1px solid var(--border-primary);
+            padding: var(--spacing-lg) var(--spacing-md);
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-light);
+        }
+        
+        .sidebar-profile {
+            padding: var(--spacing-md);
+            background-color: var(--bg-primary);
+            border-radius: var(--radius-medium);
+            margin-bottom: var(--spacing-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+        }
+        
+        .sidebar-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: var(--font-size-small);
+        }
+        
+        .sidebar-username {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: var(--font-size-small);
+        }
+        
+        .sidebar-settings {
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-medium);
+            margin-bottom: var(--spacing-md);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        
+        .sidebar-settings:hover {
+            background-color: var(--bg-tertiary);
+        }
+        
+        .sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
+        .sidebar-nav-item {
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-medium);
+            margin-bottom: var(--spacing-xs);
+            display: flex;
+            align-items: center;
+            gap: var(--spacing-sm);
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+            font-size: var(--font-size-body);
+        }
+        
+        .sidebar-nav-item:hover {
+            background-color: var(--bg-tertiary);
+        }
+        
+        .sidebar-nav-item.active {
+            background-color: rgba(37, 99, 235, 0.1);
+            color: var(--primary);
+            font-weight: 600;
+        }
+        
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .main-content-header {
+            background-color: var(--bg-primary);
+            border-bottom: 1px solid var(--border-primary);
+            padding: var(--spacing-md) var(--spacing-xl);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .main-content-body {
+            flex: 1;
+            padding: var(--spacing-xl);
+            overflow-y: auto;
+        }
+        
         /* 页面视图 */
         .page {
             display: none;
@@ -559,13 +671,41 @@
 
     <!-- 项目列表页面 -->
     <div id="project-list-page" class="page">
-        <div class="container">
-            <div class="page-header">
-                <h1 class="page-title">我的项目</h1>
-                <button class="btn btn-primary" onclick="showPage('create-project')">+ 创建项目</button>
+        <div class="app-layout">
+            <div class="sidebar">
+                <div class="sidebar-profile">
+                    <div class="sidebar-avatar">张</div>
+                    <div class="sidebar-username" id="sidebar-username">张三</div>
+                </div>
+                <div class="sidebar-settings" onclick="showSettings()">
+                    <span>⚙️</span>
+                    <span>设置</span>
+                </div>
+                <div class="sidebar-nav">
+                    <div class="sidebar-nav-item active" onclick="showPage('project-list')">
+                        <span>📁</span>
+                        <span>项目列表</span>
+                    </div>
+                    <div class="sidebar-nav-item" onclick="showPage('todo-list')">
+                        <span>✓</span>
+                        <span>待办事项</span>
+                    </div>
+                    <div class="sidebar-nav-item" onclick="showPage('member-management')">
+                        <span>👥</span>
+                        <span>成员管理</span>
+                    </div>
+                </div>
             </div>
-            <div class="grid" id="project-list">
-                <!-- 项目卡片将通过JavaScript动态生成 -->
+            <div class="main-content">
+                <div class="main-content-header">
+                    <h1 class="page-title">我的项目</h1>
+                    <button class="btn btn-primary" onclick="showPage('create-project')">+ 创建项目</button>
+                </div>
+                <div class="main-content-body">
+                    <div class="grid" id="project-list">
+                        <!-- 项目卡片将通过JavaScript动态生成 -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -598,42 +738,69 @@
 
     <!-- 项目详情页面 -->
     <div id="project-detail-page" class="page">
-        <div class="container">
-            <div style="display: flex; gap: var(--spacing-xl);">
-                <div style="flex: 1;">
-                    <div class="page-header">
-                        <div>
-                            <button class="btn btn-secondary" onclick="showPage('project-list')" style="margin-bottom: var(--spacing-md);">← 返回</button>
-                            <h1 class="page-title" id="project-detail-title">项目详情</h1>
-                            <div class="meta-info" id="project-detail-meta"></div>
-                        </div>
-                        <div style="display: flex; gap: var(--spacing-md);">
-                            <button class="btn btn-primary" onclick="showPage('create-todo')">+ 创建待办</button>
-                            <button class="btn btn-secondary" onclick="showPage('invite-member')">邀请成员</button>
-                        </div>
+        <div class="app-layout">
+            <div class="sidebar">
+                <div class="sidebar-profile">
+                    <div class="sidebar-avatar">张</div>
+                    <div class="sidebar-username" id="sidebar-username-detail">张三</div>
+                </div>
+                <div class="sidebar-settings" onclick="showSettings()">
+                    <span>⚙️</span>
+                    <span>设置</span>
+                </div>
+                <div class="sidebar-nav">
+                    <div class="sidebar-nav-item active" onclick="showPage('project-list')">
+                        <span>📁</span>
+                        <span>项目列表</span>
                     </div>
-                    
-                    <div class="card" style="margin-bottom: var(--spacing-xl);">
-                        <div id="project-info">
-                            <!-- 项目信息将通过JavaScript动态生成 -->
-                        </div>
+                    <div class="sidebar-nav-item" onclick="showPage('todo-list')">
+                        <span>✓</span>
+                        <span>待办事项</span>
                     </div>
-                    
-                    <div class="page-header">
-                        <h2 style="font-size: var(--font-size-title2);">待办事项</h2>
-                        <button class="btn btn-primary" onclick="showPage('create-todo')">+ 创建待办</button>
-                    </div>
-                    
-                    <div id="todo-list">
-                        <!-- 待办列表将通过JavaScript动态生成 -->
+                    <div class="sidebar-nav-item" onclick="showPage('member-management')">
+                        <span>👥</span>
+                        <span>成员管理</span>
                     </div>
                 </div>
-                
-                <!-- 侧边栏成员列表 -->
-                <div style="width: 280px; background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: var(--radius-large); padding: var(--spacing-md); height: fit-content; position: sticky; top: var(--spacing-xl);">
-                    <h3 style="font-size: var(--font-size-small); font-weight: 600; margin-bottom: var(--spacing-md);">项目成员</h3>
-                    <div id="member-list">
-                        <!-- 成员列表将通过JavaScript动态生成 -->
+            </div>
+            <div class="main-content">
+                <div class="main-content-header">
+                    <div>
+                        <button class="btn btn-secondary" onclick="showPage('project-list')" style="margin-bottom: var(--spacing-md);">← 返回</button>
+                        <h1 class="page-title" id="project-detail-title">项目详情</h1>
+                        <div class="meta-info" id="project-detail-meta"></div>
+                    </div>
+                    <div style="display: flex; gap: var(--spacing-md);">
+                        <button class="btn btn-primary" onclick="showPage('create-todo')">+ 创建待办</button>
+                        <button class="btn btn-secondary" onclick="showPage('invite-member')">邀请成员</button>
+                    </div>
+                </div>
+                <div class="main-content-body">
+                    <div style="display: flex; gap: var(--spacing-xl);">
+                        <div style="flex: 1;">
+                            <div class="card" style="margin-bottom: var(--spacing-xl);">
+                                <div id="project-info">
+                                    <!-- 项目信息将通过JavaScript动态生成 -->
+                                </div>
+                            </div>
+                            
+                            <div class="page-header">
+                                <h2 style="font-size: var(--font-size-title2);">待办事项</h2>
+                                <button class="btn btn-primary" onclick="showPage('create-todo')">+ 创建待办</button>
+                            </div>
+                            
+                            <div id="todo-list">
+                                <!-- 待办列表将通过JavaScript动态生成 -->
+                            </div>
+                        </div>
+                        
+                        <!-- 右侧成员列表 -->
+                        <div style="width: 280px; background-color: var(--bg-secondary); border: 1px solid var(--border-primary); border-radius: var(--radius-large); padding: var(--spacing-md); height: fit-content; position: sticky; top: var(--spacing-xl);">
+                            <h3 style="font-size: var(--font-size-small); font-weight: 600; margin-bottom: var(--spacing-md);">项目成员</h3>
+                            <div id="member-list">
+                                <!-- 成员列表将通过JavaScript动态生成 -->
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -722,29 +889,84 @@
 
     <!-- 邀请成员页面 -->
     <div id="invite-member-page" class="page">
-        <div class="container">
-            <div style="max-width: 600px; margin: 0 auto;">
-                <div class="page-header">
-                    <h1 class="page-title">邀请成员</h1>
+        <div class="app-layout">
+            <div class="sidebar">
+                <div class="sidebar-profile">
+                    <div class="sidebar-avatar">张</div>
+                    <div class="sidebar-username" id="sidebar-username-invite">张三</div>
+                </div>
+                <div class="sidebar-settings" onclick="showSettings()">
+                    <span>⚙️</span>
+                    <span>设置</span>
+                </div>
+                <div class="sidebar-nav">
+                    <div class="sidebar-nav-item" onclick="showPage('project-list')">
+                        <span>📁</span>
+                        <span>项目列表</span>
+                    </div>
+                    <div class="sidebar-nav-item" onclick="showPage('todo-list')">
+                        <span>✓</span>
+                        <span>待办事项</span>
+                    </div>
+                    <div class="sidebar-nav-item active" onclick="showPage('invite-member')">
+                        <span>👥</span>
+                        <span>成员管理</span>
+                    </div>
+                </div>
+            </div>
+            <div class="main-content">
+                <div class="main-content-header">
+                    <h1 class="page-title">生成邀请链接</h1>
                     <button class="btn btn-secondary" onclick="showPage('project-detail')">取消</button>
                 </div>
-                <form onsubmit="handleInviteMember(event)">
-                    <div class="form-group">
-                        <label class="form-label">邮箱或用户名</label>
-                        <input type="text" class="form-input" id="invite-input" placeholder="请输入邮箱或用户名" required>
-                        <div style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: var(--spacing-xs);">
-                            输入用户的邮箱地址或用户名
+                <div class="main-content-body">
+                    <div style="max-width: 800px; margin: 0 auto;">
+                        <form onsubmit="handleGenerateInviteCode(event)">
+                            <div class="form-group">
+                                <label class="form-label">角色</label>
+                                <select class="form-input form-select" id="invite-role">
+                                    <option value="member">成员</option>
+                                    <option value="admin">管理员</option>
+                                </select>
+                                <div style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: var(--spacing-xs);">
+                                    选择即将邀请成员的角色
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">过期时间（小时，0表示永不过期）</label>
+                                <input type="number" class="form-input" id="invite-expiry" placeholder="24" value="24" min="0">
+                                <div style="color: var(--text-secondary); font-size: var(--font-size-small); margin-top: var(--spacing-xs);">
+                                    设置邀请链接的有效期，0 表示永不过期
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: var(--spacing-md); justify-content: flex-end; margin-bottom: var(--spacing-xl);">
+                                <button type="button" class="btn btn-secondary" onclick="showPage('project-detail')">取消</button>
+                                <button type="submit" class="btn btn-primary">生成邀请码</button>
+                            </div>
+                        </form>
+                        
+                        <!-- 邀请码和链接显示区域 -->
+                        <div id="invite-code-section" style="display: none; margin-top: var(--spacing-xl); padding: var(--spacing-lg); background-color: var(--bg-secondary); border-radius: var(--radius-large);">
+                            <div class="form-group" style="margin-bottom: var(--spacing-lg);">
+                                <label class="form-label">邀请码：</label>
+                                <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
+                                    <code id="invite-code-display" style="flex: 1; padding: var(--spacing-sm); background-color: var(--bg-primary); border: 1px solid var(--border-primary); border-radius: var(--radius-medium); font-family: 'SF Mono', Monaco, monospace; font-size: var(--font-size-small); word-break: break-all;"></code>
+                                    <button class="btn btn-secondary" onclick="copyInviteCode()">复制</button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom: var(--spacing-lg);">
+                                <label class="form-label">邀请链接：</label>
+                                <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
+                                    <code id="invite-link-display" style="flex: 1; padding: var(--spacing-sm); background-color: var(--bg-primary); border: 1px solid var(--border-primary); border-radius: var(--radius-medium); font-family: 'SF Mono', Monaco, monospace; font-size: var(--font-size-small); word-break: break-all;"></code>
+                                    <button class="btn btn-secondary" onclick="copyInviteLink()">复制</button>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">过期时间：</label>
+                                <div id="invite-expiry-display" style="padding: var(--spacing-sm); color: var(--text-primary); font-size: var(--font-size-body);"></div>
+                            </div>
                         </div>
                     </div>
-                    <div style="display: flex; gap: var(--spacing-md); justify-content: flex-end; margin-bottom: var(--spacing-xl);">
-                        <button type="button" class="btn btn-secondary" onclick="showPage('project-detail')">取消</button>
-                        <button type="submit" class="btn btn-primary">发送邀请</button>
-                    </div>
-                </form>
-                
-                <h2 style="font-size: var(--font-size-title3); margin-bottom: var(--spacing-md);">已邀请成员</h2>
-                <div id="invited-members-list">
-                    <!-- 已邀请成员列表将通过JavaScript动态生成 -->
                 </div>
             </div>
         </div>
@@ -929,8 +1151,40 @@
                 document.getElementById('userAvatar').textContent = mockData.currentUser.avatar;
             }
             
+            // 更新侧边栏激活状态
+            updateSidebarActiveState(pageName);
+            
             // 加载页面数据
             loadPageData(pageName);
+        }
+        
+        // 更新侧边栏激活状态
+        function updateSidebarActiveState(pageName) {
+            // 移除所有激活状态
+            document.querySelectorAll('.sidebar-nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // 根据页面设置激活状态
+            const navMap = {
+                'project-list': 0,
+                'project-detail': 0,
+                'create-project': 0,
+                'todo-list': 1,
+                'todo-detail': 1,
+                'create-todo': 1,
+                'edit-todo': 1,
+                'invite-member': 2,
+                'member-management': 2
+            };
+            
+            const activeIndex = navMap[pageName];
+            if (activeIndex !== undefined) {
+                const navItems = document.querySelectorAll('.sidebar-nav-item');
+                if (navItems[activeIndex]) {
+                    navItems[activeIndex].classList.add('active');
+                }
+            }
         }
 
         // 加载页面数据
@@ -946,7 +1200,7 @@
                     loadCreateTodoForm();
                     break;
                 case 'invite-member':
-                    renderInvitedMembers();
+                    // 新流程不需要渲染已邀请成员列表
                     break;
                 case 'todo-detail':
                     renderTodoDetail();
@@ -1636,28 +1890,146 @@
             renderTodoList(project.todos);
         }
 
-        // 处理邀请成员
-        function handleInviteMember(event) {
+        // 生成邀请码
+        function handleGenerateInviteCode(event) {
             event.preventDefault();
-            const project = mockData.projects.find(p => p.id === mockData.currentProjectId);
-            if (!project) return;
+            const role = document.getElementById('invite-role').value;
+            const expiryHours = parseInt(document.getElementById('invite-expiry').value) || 0;
             
-            const input = document.getElementById('invite-input').value;
-            const isEmail = input.includes('@');
+            // 生成32位十六进制邀请码
+            const inviteCode = generateInviteCode();
+            const baseUrl = window.location.origin;
+            const inviteLink = `${baseUrl}/join.html?code=${inviteCode}`;
             
-            const newInvitation = {
-                id: project.invitations.length + 1,
-                [isEmail ? 'email' : 'username']: input,
-                status: 'pending',
-                createdAt: new Date().toLocaleString('zh-CN')
-            };
+            // 计算过期时间
+            let expiryDate = null;
+            if (expiryHours > 0) {
+                const expiryDateObj = new Date();
+                expiryDateObj.setHours(expiryDateObj.getHours() + expiryHours);
+                expiryDate = expiryDateObj.toLocaleString('zh-CN', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } else {
+                expiryDate = '永不过期';
+            }
             
-            project.invitations.push(newInvitation);
-            document.getElementById('invite-input').value = '';
-            renderInvitedMembers();
+            // 显示邀请码和链接
+            document.getElementById('invite-code-display').textContent = inviteCode;
+            document.getElementById('invite-link-display').textContent = inviteLink;
+            document.getElementById('invite-expiry-display').textContent = expiryDate;
+            document.getElementById('invite-code-section').style.display = 'block';
             
-            // 显示成功提示
-            alert('邀请已发送！');
+            // 保存邀请码信息（用于演示）
+            if (!window.inviteCodes) {
+                window.inviteCodes = [];
+            }
+            window.inviteCodes.push({
+                code: inviteCode,
+                role: role,
+                expiryHours: expiryHours,
+                createdAt: new Date()
+            });
+        }
+        
+        // 生成32位十六进制邀请码
+        function generateInviteCode() {
+            const chars = '0123456789ABCDEF';
+            let code = '';
+            for (let i = 0; i < 32; i++) {
+                code += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            return code;
+        }
+        
+        // 复制邀请码
+        function copyInviteCode() {
+            const code = document.getElementById('invite-code-display').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                showToast('邀请码已复制到剪贴板', 'success');
+            }).catch(() => {
+                // 降级方案
+                const textarea = document.createElement('textarea');
+                textarea.value = code;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast('邀请码已复制到剪贴板', 'success');
+            });
+        }
+        
+        // 复制邀请链接
+        function copyInviteLink() {
+            const link = document.getElementById('invite-link-display').textContent;
+            navigator.clipboard.writeText(link).then(() => {
+                showToast('邀请链接已复制到剪贴板', 'success');
+            }).catch(() => {
+                // 降级方案
+                const textarea = document.createElement('textarea');
+                textarea.value = link;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast('邀请链接已复制到剪贴板', 'success');
+            });
+        }
+        
+        // 显示设置（占位函数）
+        function showSettings() {
+            alert('设置功能开发中...');
+        }
+        
+        // 显示 Toast 提示
+        function showToast(message, type = 'info') {
+            // 创建 Toast 元素
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: var(--spacing-md) var(--spacing-lg);
+                background-color: ${type === 'success' ? 'var(--success)' : type === 'error' ? 'var(--error)' : 'var(--info)'};
+                color: white;
+                border-radius: var(--radius-medium);
+                box-shadow: var(--shadow-medium);
+                z-index: 10000;
+                animation: slideIn 0.3s ease-out;
+            `;
+            toast.textContent = message;
+            
+            // 添加动画样式
+            if (!document.getElementById('toast-styles')) {
+                const style = document.createElement('style');
+                style.id = 'toast-styles';
+                style.textContent = `
+                    @keyframes slideIn {
+                        from {
+                            transform: translateX(100%);
+                            opacity: 0;
+                        }
+                        to {
+                            transform: translateX(0);
+                            opacity: 1;
+                        }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            document.body.appendChild(toast);
+            
+            // 3秒后自动移除
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease-out reverse';
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
         }
 
         // 退出登录
