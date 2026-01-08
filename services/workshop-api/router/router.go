@@ -1,9 +1,12 @@
 package router
 
 import (
+	"os"
+	"strings"
 	"todo/handler"
 	"todo/middleware"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -13,6 +16,10 @@ import (
 // serviceName: 服务名称，用于路由前缀
 func SetupRouter(serviceName string) *gin.Engine {
 	r := gin.Default()
+
+	// CORS 配置：从环境变量读取允许的来源
+	corsConfig := getCORSConfig()
+	r.Use(cors.New(corsConfig))
 
 	// 全局中间件：提取header信息和注入数据库连接
 	r.Use(middleware.ExtractHeaderInfo())
@@ -63,4 +70,60 @@ func SetupRouter(serviceName string) *gin.Engine {
 	}
 
 	return r
+}
+
+// getCORSConfig 从环境变量读取 CORS 配置
+func getCORSConfig() cors.Config {
+	// 从环境变量读取允许的来源列表
+	allowOriginsEnv := os.Getenv("CORS_ALLOW_ORIGINS")
+
+	var allowedOrigins []string
+	var allowOriginFunc func(origin string) bool
+
+	if allowOriginsEnv != "" {
+		// 解析环境变量中的来源列表（逗号分隔）
+		origins := strings.Split(allowOriginsEnv, ",")
+		for _, origin := range origins {
+			origin = strings.TrimSpace(origin)
+			if origin != "" {
+				allowedOrigins = append(allowedOrigins, origin)
+			}
+		}
+
+		// 如果配置了具体来源，支持精确匹配和前缀匹配
+		if len(allowedOrigins) > 0 {
+			allowOriginFunc = func(origin string) bool {
+				for _, allowedOrigin := range allowedOrigins {
+					// 精确匹配
+					if origin == allowedOrigin {
+						return true
+					}
+					// 前缀匹配：如果配置的是基础 URL（如 http://localhost），匹配所有端口
+					// 例如：http://localhost 匹配 http://localhost:8000, http://localhost:3000 等
+					if strings.HasPrefix(origin, allowedOrigin+":") {
+						return true
+					}
+				}
+				return false
+			}
+		}
+	}
+
+	// 如果没有配置或配置为空，使用默认策略（允许所有 localhost 和 127.0.0.1）
+	if allowOriginFunc == nil {
+		allowOriginFunc = func(origin string) bool {
+			return strings.HasPrefix(origin, "http://localhost") ||
+				strings.HasPrefix(origin, "http://127.0.0.1") ||
+				strings.HasPrefix(origin, "https://localhost") ||
+				strings.HasPrefix(origin, "https://127.0.0.1")
+		}
+	}
+
+	return cors.Config{
+		AllowOriginFunc:  allowOriginFunc,
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Content-Length", "Accept-Encoding", "Authorization", "X-User-ID", "X-User-Username", "X-User-AppID", "X-User-SessionID"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+	}
 }
