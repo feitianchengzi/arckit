@@ -1,39 +1,15 @@
 # Todo Service
 
-一个基于 Go 和 Gin 框架的微服务项目，采用网关统一认证架构，支持多级别路由权限控制。
+一个基于 Go 和 Gin 框架的微服务项目，提供团队协作的任务管理功能，支持项目管理和任务管理。采用网关统一认证架构，支持多级别路由权限控制。
 
 ## 📋 项目简介
 
-Todo Service 是一个标准的微服务应用，设计用于与 API 网关配合工作。网关负责统一认证和路由转发，本服务专注于业务逻辑处理。服务支持三种认证级别：public、user、apikey。
+Todo Service 是一个团队共享任务管理系统，提供以下核心功能：
 
-## 💡 项目使用说明
-
-**本项目是一个样板工程（Template Project）**，旨在为微服务开发提供标准化的基础架构和代码模板。
-
-### 二次开发指南
-
-1. **从路由配置开始**：二次开发时，请从 `router/router.go` 文件开始，这是添加新 API 的入口点。
-
-2. **在对应权限级别下编写 API**：
-   - 根据业务需求，在 `router/router.go` 中找到对应的权限级别路由组（public/user/apikey）
-   - 在相应的路由组下添加你的业务路由
-   - 创建对应的 handler 处理函数
-
-3. **示例**：
-```go
-// 在 router/router.go 的 userGroup 下添加新路由
-userGroup := v1.Group("/user")
-{
-    userGroup.GET("/todos", handler.GetTodos)        // 获取待办列表
-    userGroup.POST("/todos", handler.CreateTodo)    // 创建待办
-    userGroup.PUT("/todos/:id", handler.UpdateTodo) // 更新待办
-}
-```
-
-4. **生产部署**：
-   - 当前提供的 `deploy.sh` 是开发/测试环境的部署脚本
-   - **正式部署时，请根据自己的实际情况编写生产环境的部署脚本**
-   - 考虑因素包括：容器编排（K8s/Docker Swarm）、服务发现、配置管理、监控告警、日志收集等
+- **用户管理**：基于网关 UUID 的用户创建、查询、更新
+- **项目管理**：创建、更新、删除项目，支持 Git 地址关联
+- **成员管理**：支持三种角色（owner/admin/member），邀请码机制
+- **任务管理**：创建、更新、查询、批量删除任务，支持任务层级和状态管理
 
 ## 🏗️ 架构特点
 
@@ -44,9 +20,9 @@ userGroup := v1.Group("/user")
 
 ### 2. **多级别路由权限**
 服务支持三种认证级别的路由：
-- **public**: 无需认证，公开访问
-- **user**: 需要 JWT 认证
-- **apikey**: 需要 API 密钥认证
+- **public**: 无需认证，公开访问（健康检查）
+- **user**: 需要 JWT 认证（业务接口）
+- **apikey**: 需要 API 密钥认证（系统接口）
 
 ### 3. **统一路由格式**
 ```
@@ -54,18 +30,24 @@ userGroup := v1.Group("/user")
 ```
 示例：
 - `GET /todo/v1/public/health` - 健康检查
-- `GET /todo/v1/user/header-info` - 用户信息
-- `GET /todo/v1/apikey/header-info` - API Key 信息
+- `POST /todo/v1/user/projects` - 创建项目
+- `GET /todo/v1/user/tasks?project_id=1` - 查询任务
 
-### 4. **Header 信息提取中间件**
-- 全局中间件自动从请求头提取用户信息
-- 提取的信息包括：UserID、Username、AppID、SessionID
-- 信息存储在 Gin Context 中，方便 handler 使用
+### 4. **数据库模型**
+- **User**: 用户表，使用网关提供的 UUID 作为唯一标识
+- **Project**: 项目表，关联 Git 地址
+- **ProjectMember**: 项目成员表，支持 owner/admin/member 三种角色
+- **ProjectInvitation**: 项目邀请表，支持邀请码机制
+- **Task**: 任务表，支持任务层级和多种状态
 
-### 5. **环境变量配置**
-- 所有配置通过环境变量管理
-- 必需的环境变量：PORT、HOST、SERVICE_NAME
-- 支持 Docker 容器化部署
+### 5. **权限控制**
+- **项目权限**：
+  - `owner`: 拥有所有权限，可以删除项目、设置成员角色
+  - `admin`: 可以管理成员和任务
+  - `member`: 可以创建任务，只能修改/删除自己创建或分配给自己执行的任务
+- **任务权限**：
+  - owner/admin 可以操作任意任务
+  - member 只能操作自己创建或分配给自己执行的任务
 
 ## 📁 项目结构
 
@@ -74,23 +56,40 @@ todo/
 ├── main.go                    # 应用入口
 ├── router/
 │   └── router.go              # 路由配置
-├── handler/
+├── handler/                   # 业务处理器
 │   ├── health.go              # 健康检查处理器
-│   └── header_info.go         # Header 信息处理器
-├── middleware/
-│   └── extract_header_info.go # Header 提取中间件
-├── docker-compose.yml          # Docker Compose 配置
-├── Dockerfile                  # Docker 镜像构建文件
-├── deploy.sh                   # 部署脚本
-├── go.mod                      # Go 模块依赖
-└── README.md                   # 项目文档
+│   ├── header_info.go         # Header 信息处理器
+│   ├── user.go                # 用户处理器
+│   ├── project.go             # 项目处理器
+│   └── task.go                # 任务处理器
+├── middleware/                # 中间件
+│   ├── extract_header_info.go # Header 提取中间件
+│   ├── user_id.go             # 用户ID提取中间件
+│   └── database.go            # 数据库连接中间件
+├── models/                    # 数据模型
+│   ├── user.go                # 用户模型
+│   ├── project.go             # 项目模型
+│   └── task.go                # 任务模型
+├── database/                  # 数据库配置
+│   └── db.go                  # 数据库初始化
+├── api/                       # API 文档
+│   ├── README.md              # API 文档索引
+│   ├── common_api.md          # 公共接口文档
+│   ├── user_api.md            # 用户接口文档
+│   ├── project_api.md         # 项目接口文档
+│   └── task_api.md            # 任务接口文档
+├── docker-compose.yml         # Docker Compose 配置
+├── Dockerfile                 # Docker 镜像构建文件
+├── deploy.sh                  # 部署脚本
+├── go.mod                     # Go 模块依赖
+└── README.md                  # 项目文档
 ```
 
 ## 🔧 环境要求
 
 - Go 1.24+
-- Docker & Docker Compose
-- 环境变量配置文件 `.env`
+- PostgreSQL 12+（或其他 GORM 支持的数据库）
+- Docker & Docker Compose（可选，用于容器化部署）
 
 ## ⚙️ 配置说明
 
@@ -101,6 +100,14 @@ todo/
 PORT=8081                    # 服务端口
 HOST=0.0.0.0                 # 服务监听地址
 SERVICE_NAME=todo            # 服务名称（用于路由前缀）
+
+# 数据库配置
+DB_HOST=localhost            # 数据库主机
+DB_PORT=5432                 # 数据库端口
+DB_USER=postgres             # 数据库用户
+DB_PASSWORD=postgres         # 数据库密码
+DB_NAME=todo                 # 数据库名称
+DB_SSLMODE=disable           # SSL 模式
 
 # 服务URL（本地开发）
 BASE_URL=http://localhost:8081
@@ -137,6 +144,23 @@ docker-compose up -d
 docker logs -f todo-service
 ```
 
+### 方式三：本地运行
+
+```bash
+# 1. 确保 PostgreSQL 已启动
+# 2. 设置环境变量（或使用 .env 文件）
+export PORT=8081
+export HOST=0.0.0.0
+export SERVICE_NAME=todo
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USER=postgres
+export DB_PASSWORD=postgres
+export DB_NAME=todo
+
+# 3. 运行服务
+go run main.go
+```
 
 ## 🧪 测试方法
 
@@ -155,105 +179,125 @@ curl http://localhost:8081/todo/v1/public/health
 }
 ```
 
-### 2. User 级别接口
+### 2. 创建用户
 
 ```bash
-curl http://localhost:8081/todo/v1/user/header-info \
-  -H "X-User-ID: test-user-123" \
-  -H "X-User-Username: testuser" \
-  -H "X-User-AppID: app-123" \
-  -H "X-User-SessionID: session-456"
+curl -X POST "http://localhost:8081/todo/v1/user/users" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "alice",
+    "avatar": "https://example.com/avatar.png"
+  }'
 ```
 
-**响应示例：**
-```json
-{
-  "method": "user",
-  "userID": "test-user-123",
-  "username": "testuser",
-  "appID": "app-123",
-  "sessionID": "session-456"
-}
-```
-
-### 3. Apikey 级别接口
+### 3. 创建项目
 
 ```bash
-curl http://localhost:8081/todo/v1/apikey/header-info \
-  -H "X-User-ID: api-user-789" \
-  -H "X-User-Username: apiuser" \
-  -H "X-User-AppID: app-456" \
-  -H "X-User-SessionID: session-789"
+curl -X POST "http://localhost:8081/todo/v1/user/projects" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "电商平台开发",
+    "git_url": "https://github.com/team/ecommerce.git"
+  }'
 ```
 
-**响应示例：**
-```json
-{
-  "method": "apikey",
-  "userID": "api-user-789",
-  "username": "apiuser",
-  "appID": "app-456",
-  "sessionID": "session-789"
-}
-```
-
-### 4. 测试无 Header 情况
+### 4. 创建任务
 
 ```bash
-curl http://localhost:8081/todo/v1/user/header-info
+curl -X POST "http://localhost:8081/todo/v1/user/tasks" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": 1,
+    "content": "完成任务设计",
+    "state": "pending"
+  }'
 ```
 
-**响应示例：**
-```json
-{
-  "method": "user",
-  "userID": "",
-  "username": "",
-  "appID": "",
-  "sessionID": ""
-}
+### 5. 查询任务列表
+
+```bash
+curl -X GET "http://localhost:8081/todo/v1/user/tasks?project_id=1" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
 ```
 
 ## 📡 API 接口说明
 
+详细的 API 文档请参考 `api/` 目录下的文档：
+
+- **[API 文档索引](./api/README.md)** - API 文档概览
+- **[公共接口](./api/common_api.md)** - 健康检查、Header 信息
+- **[用户接口](./api/user_api.md)** - 用户创建、查询、更新
+- **[项目接口](./api/project_api.md)** - 项目管理和成员管理
+- **[任务接口](./api/task_api.md)** - 任务管理
+
 ### 请求头说明
 
 网关会转发以下请求头到业务服务：
-- `X-User-ID`: 用户ID
+- `X-User-ID`: 用户 UUID（必需）
 - `X-User-Username`: 用户名
-- `X-User-AppID`: 应用ID
-- `X-User-SessionID`: 会话ID
+- `X-User-AppID`: 应用 ID
+- `X-User-SessionID`: 会话 ID
 
-### 接口列表
+### 主要接口列表
 
-| 方法 | 路径 | 认证级别 | 说明 |
-|------|------|----------|------|
-| GET | `/{service}/v1/public/health` | public | 健康检查 |
-| GET | `/{service}/v1/user/header-info` | user | 获取用户 Header 信息 |
-| GET | `/{service}/v1/apikey/header-info` | apikey | 获取 API Key Header 信息 |
+| 功能模块 | 方法 | 路径 | 认证级别 | 说明 |
+|---------|------|------|----------|------|
+| 健康检查 | GET | `/{service}/v1/public/health` | public | 健康检查 |
+| 用户管理 | POST | `/{service}/v1/user/users` | user | 创建用户 |
+| 用户管理 | GET | `/{service}/v1/user/users/:uuid` | user | 查询用户 |
+| 用户管理 | PUT | `/{service}/v1/user/users/:uuid` | user | 更新用户 |
+| 项目管理 | POST | `/{service}/v1/user/projects` | user | 创建项目 |
+| 项目管理 | GET | `/{service}/v1/user/projects` | user | 查询用户参与的项目 |
+| 项目管理 | PUT | `/{service}/v1/user/projects/:id` | user | 更新项目 |
+| 项目管理 | DELETE | `/{service}/v1/user/projects/:id` | user | 删除项目 |
+| 成员管理 | POST | `/{service}/v1/user/projects/:id/invitations` | user | 邀请项目成员 |
+| 成员管理 | POST | `/{service}/v1/user/projects/join` | user | 加入项目 |
+| 成员管理 | DELETE | `/{service}/v1/user/projects/:id/members` | user | 删除项目成员 |
+| 成员管理 | PUT | `/{service}/v1/user/projects/:id/members/role` | user | 设置成员角色 |
+| 任务管理 | POST | `/{service}/v1/user/tasks` | user | 创建任务 |
+| 任务管理 | PUT | `/{service}/v1/user/tasks/:id` | user | 更新任务 |
+| 任务管理 | GET | `/{service}/v1/user/tasks?project_id=1` | user | 查询任务列表 |
+| 任务管理 | DELETE | `/{service}/v1/user/tasks` | user | 批量删除任务 |
 
-### 响应格式
+### 数据模型
 
-所有接口返回 JSON 格式数据，`header-info` 接口包含：
-- `method`: 请求来源方法（user/apikey）
-- `userID`: 用户ID
-- `username`: 用户名
-- `appID`: 应用ID
-- `sessionID`: 会话ID
+#### 任务状态
+- `pending` - 待处理（默认）
+- `in_progress` - 进行中
+- `completed` - 已完成
+- `cancelled` - 已取消
+- `blocked` - 已阻塞
+
+#### 项目成员角色
+- `owner` - 所有者（项目创建者），拥有所有权限
+- `admin` - 管理员，可以管理项目成员和任务
+- `member` - 成员，可以创建任务，只能修改/删除自己创建或分配给自己执行的任务
 
 ## 🔍 开发指南
 
 ### 添加新的 Handler
 
 1. 在 `handler/` 目录创建新的 handler 文件
-2. 实现处理函数，使用 `middleware.GetHeaderInfo(c)` 获取用户信息
-3. 在 `router/router.go` 中添加路由
+2. 实现处理函数，使用 `middleware.GetDB(c)` 获取数据库连接
+3. 使用 `middleware.RequireUserID(c)` 获取用户 ID
+4. 在 `router/router.go` 中添加路由
 
 示例：
 ```go
 // handler/example.go
 func ExampleHandler(c *gin.Context) {
-    headerInfo := middleware.GetHeaderInfo(c)
+    db := middleware.GetDB(c)
+    userID, ok := middleware.RequireUserID(c)
+    if !ok {
+        return
+    }
     // 处理逻辑
     c.JSON(http.StatusOK, gin.H{"data": "example"})
 }
@@ -262,27 +306,53 @@ func ExampleHandler(c *gin.Context) {
 userGroup.GET("/example", handler.ExampleHandler)
 ```
 
-### 使用 Header 信息
+### 使用中间件
 
 ```go
 import "todo/middleware"
 
 func MyHandler(c *gin.Context) {
+    // 获取数据库连接
+    db := middleware.GetDB(c)
+    
+    // 获取用户ID（自动从Header UUID查询用户表）
+    userID, ok := middleware.RequireUserID(c)
+    if !ok {
+        // 用户ID获取失败（已返回错误响应）
+        return
+    }
+    
+    // 获取Header信息
     headerInfo := middleware.GetHeaderInfo(c)
     if headerInfo != nil {
-        userID := headerInfo.UserID
+        uuid := headerInfo.UserID
         username := headerInfo.Username
         // 使用用户信息
     }
 }
 ```
 
+### 数据库模型
+
+所有数据模型定义在 `models/` 目录下：
+- `models.User` - 用户模型
+- `models.Project` - 项目模型
+- `models.ProjectMember` - 项目成员模型
+- `models.ProjectInvitation` - 项目邀请模型
+- `models.Task` - 任务模型
+
+数据库连接和迁移在 `database/db.go` 中自动处理。
+
 ## 📝 注意事项
 
 1. **环境变量必需**：PORT、HOST、SERVICE_NAME 必须设置，否则服务无法启动
-2. **网关依赖**：本服务设计为与网关配合使用，网关负责认证和路由转发
-3. **Header 提取**：所有请求都会经过 `ExtractHeaderInfo` 中间件，即使没有 header 信息也不会报错
-4. **路由前缀**：路由前缀由 `SERVICE_NAME` 环境变量决定，确保与网关配置一致
+2. **数据库连接**：确保 PostgreSQL 已启动并配置正确
+3. **网关依赖**：本服务设计为与网关配合使用，网关负责认证和路由转发
+4. **Header 提取**：所有请求都会经过 `ExtractHeaderInfo` 中间件，即使没有 header 信息也不会报错
+5. **用户ID获取**：中间件 `ExtractUserID` 会自动从 Header UUID 查询用户表获取用户ID，推荐在请求URL中使用 `user_id` 查询参数避免额外查询
+6. **权限验证**：所有操作都需要验证用户是否为项目成员，直接查询项目成员表
+7. **事务处理**：批量删除任务使用事务处理，保证数据一致性
+8. **级联删除**：删除项目会自动级联删除项目成员和任务（通过数据库外键约束）
 
 ## 🐳 Docker 说明
 
@@ -290,8 +360,8 @@ func MyHandler(c *gin.Context) {
 - 基于 Alpine Linux，轻量级
 - 支持环境变量配置
 - 自动重启策略
+- 包含 PostgreSQL 数据库（通过 docker-compose.yml）
 
 ## 📄 License
 
 MIT
-
