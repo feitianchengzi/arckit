@@ -1,12 +1,11 @@
 # 生产环境配置（仅应用服务，连接远程 RDS 数据库）
+# 注意：生产环境使用已构建的镜像，不使用 build
 services:
   todo-service:
-    build:
-      context: ../..  # 项目根目录（需要 go.mod 和源代码）
-      dockerfile: deploy/Dockerfile  # Dockerfile 在 deploy/ 目录下
+    image: todo-service:latest  # 使用已构建的镜像
     container_name: todo-service
     env_file:
-      - .env.production  # 从 .env.production 文件加载所有环境变量
+      - .env.workshop.production  # 从 .env.workshop.production 文件加载所有环境变量
     ports:
       - "${PORT:-8081}:${PORT:-8081}"
     restart: unless-stopped
