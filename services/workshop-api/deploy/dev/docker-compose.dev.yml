@@ -1,0 +1,48 @@
+services:
+  # 本地 PostgreSQL 数据库（仅开发环境）
+  postgres:
+    image: postgres:16-alpine
+    container_name: todo-postgres-dev
+    environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_DB=${DB_NAME:-todo}
+    ports:
+      - "5433:5432"  # 映射到宿主机的 5433 端口，避免与本地 PostgreSQL 冲突
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - workshop
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-todo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 应用服务
+  todo-service:
+    build:
+      context: ../..  # 项目根目录（需要 go.mod 和源代码）
+      dockerfile: deploy/Dockerfile  # Dockerfile 在 deploy/ 目录下
+    container_name: todo-service
+    env_file:
+      - .env.development  # 从当前目录（deploy/dev/）的 .env.development 文件加载所有环境变量
+    environment:
+      - DB_HOST=postgres  # Docker 网络中的服务名，覆盖 .env 文件中的 localhost
+      - DB_PORT=5432      # Docker 网络内部端口
+    ports:
+      - "${PORT:-8081}:${PORT:-8081}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - workshop
+
+networks:
+  workshop:
+    driver: bridge
+
+volumes:
+  postgres-data:

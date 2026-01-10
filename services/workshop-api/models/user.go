@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // User 用户表
@@ -27,9 +28,9 @@ func (User) TableName() string {
 	return "users"
 }
 
-// BeforeCreate 创建前钩子，自动生成UUID
-// 注意：此方法需要GORM支持，如果未使用GORM，请手动设置UUID
-func (u *User) BeforeCreate() error {
+// BeforeCreate 创建前钩子，自动生成UUID（如果未设置）
+// GORM 钩子方法签名：BeforeCreate(*gorm.DB) error
+func (u *User) BeforeCreate(tx *gorm.DB) error {
 	if u.UUID == "" {
 		u.UUID = uuid.New().String()
 	}
