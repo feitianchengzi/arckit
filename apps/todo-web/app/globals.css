@@ -1,0 +1,47 @@
+/* 导入 Tailwind CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 导入 DesignTokens */
+@import '../lib/design-tokens/tokens.css';
+
+/* 全局基础样式 */
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  
+  body {
+    @apply bg-background text-text-primary;
+    font-family: var(--font-family-sans);
+  }
+  
+  /* 标题样式 */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold;
+  }
+  
+  /* 链接样式 */
+  a {
+    @apply text-primary hover:text-primary-700 transition-colors;
+  }
+  
+  /* 按钮重置 */
+  button {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  }
+  
+  /* 输入框重置 */
+  input, textarea, select {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary;
+  }
+}
+
+/* 工具类 */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
