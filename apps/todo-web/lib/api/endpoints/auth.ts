@@ -1,139 +1,54 @@
 /**
- * auth API - 认证相关接口
+ * TODO 后端 API - 用户相关接口
  */
 
 import { apiClient } from '../client'
+import { CreateUserRequest, TodoUser } from '@/types/auth'
 
-export interface LoginInput {
-  username: string
-  password: string
-}
-
-export interface RegisterInput {
-  username: string
-  password: string
-}
-
-export interface AuthResponse {
-  token: string
-  user: {
-    id: number
-    username: string
-    avatar?: string
-  }
-}
-
-export const authApi = {
+export const todoUserApi = {
   /**
-   * 登录
-   * 开发模式：直接返回 mock 数据，并设置测试用户信息
-   * 生产模式：调用网关登录接口
+   * 创建/获取用户
+   * POST /{service}/v1/user/users
+   * 
+   * 如果用户已存在（根据UUID），返回现有用户信息
+   * 如果用户不存在，创建新用户
    */
-  login: async (input: LoginInput): Promise<AuthResponse> => {
-    // 开发模式：模拟登录
-    if (process.env.NODE_ENV === 'development') {
-      // 生成一个固定的 UUID（基于用户名）
-      const uuid = `dev-${input.username.replace(/[^a-zA-Z0-9]/g, '-')}-${Date.now()}`
-      // 存储测试用户信息到 localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('dev_user_id', uuid)
-        localStorage.setItem('dev_username', input.username)
-        localStorage.setItem('auth_token', 'dev-token-' + Date.now())
-      }
-      
-      // 尝试创建用户（后端会根据 X-User-ID Header 自动创建）
-      // 设置较短的超时时间，避免长时间等待
-      try {
-        const { data: user } = await apiClient.post('/user/users', {
-          username: input.username,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${input.username}`,
-        }, {
-          timeout: 2000, // 2秒超时
-        })
-        
-        return {
-          token: 'dev-token',
-          user: {
-            id: user.id,
-            username: user.username,
-            avatar: user.avatar,
-          },
-        }
-      } catch (error: any) {
-        // 如果后端不可用（连接失败、超时等），静默返回 mock 数据
-        // 不抛出错误，让登录流程继续
-        console.log('开发模式：后端不可用，使用 mock 数据', error.message)
-        return {
-          token: 'dev-token',
-          user: {
-            id: 1,
-            username: input.username,
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${input.username}`,
-          },
-        }
-      }
-    }
+  createOrGetUser: async (data?: CreateUserRequest): Promise<TodoUser> => {
+    // 确保请求体不为空，至少发送一个空对象
+    const requestBody = data || {}
     
-    // 生产模式：调用网关登录接口
-    const { data } = await apiClient.post('/public/login', input)
-    return data
+    try {
+      const response = await apiClient.post<TodoUser>('/user/users', requestBody)
+      return response.data
+    } catch (error: any) {
+      // 记录详细的错误信息以便调试
+      console.error('❌ 创建/获取用户失败')
+      console.error('请求 URL:', '/user/users')
+      console.error('请求方法:', 'POST')
+      console.error('请求体:', requestBody)
+      console.error('响应状态:', error.response?.status)
+      console.error('错误信息:', error.response?.data || error.message)
+      console.error('请求 Headers:', error.config?.headers)
+      console.error('完整错误对象:', error)
+      throw error
+    }
   },
-  
+
   /**
-   * 注册
-   * 开发模式：同登录逻辑
-   * 生产模式：调用网关注册接口
+   * 更新用户信息
+   * PUT /{service}/v1/user/users/:id
    */
-  register: async (input: RegisterInput): Promise<AuthResponse> => {
-    // 开发模式：使用登录逻辑
-    if (process.env.NODE_ENV === 'development') {
-      return authApi.login(input)
-    }
-    
-    // 生产模式：调用网关注册接口
-    const { data } = await apiClient.post('/public/register', input)
-    return data
+  updateUser: async (id: number, data: Partial<CreateUserRequest>): Promise<TodoUser> => {
+    const response = await apiClient.put<TodoUser>(`/user/users/${id}`, data)
+    return response.data
   },
-  
+
   /**
    * 获取当前用户信息
-   * 开发模式：调用后端创建用户接口（如果不存在会自动创建）
-   * 生产模式：调用网关获取用户信息接口
+   * GET /{service}/v1/user/users/me
    */
-  getCurrentUser: async () => {
-    // 开发模式：调用后端创建用户接口
-    if (process.env.NODE_ENV === 'development') {
-      if (typeof window !== 'undefined') {
-        const devUsername = localStorage.getItem('dev_username') || 'testuser'
-        const devUserId = localStorage.getItem('dev_user_id') || '11111111-1111-1111-1111-111111111111'
-        
-        try {
-          // 后端会根据 X-User-ID Header 自动创建或返回用户
-          const { data } = await apiClient.post('/user/users', {
-            username: devUsername,
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${devUsername}`,
-          }, {
-            timeout: 2000, // 2秒超时
-          })
-          return data
-        } catch (error: any) {
-          // 如果后端不可用，返回 mock 数据
-          console.log('开发模式：后端不可用，使用 mock 用户数据', error.message)
-          return {
-            id: 1,
-            uuid: devUserId,
-            username: devUsername,
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${devUsername}`,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }
-        }
-      }
-    }
-    
-    // 生产模式：调用网关获取用户信息接口
-    const { data } = await apiClient.get('/user/info')
-    return data
+  getCurrentUser: async (): Promise<TodoUser> => {
+    const response = await apiClient.get<TodoUser>('/user/users/me')
+    return response.data
   },
 }
-

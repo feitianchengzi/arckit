@@ -6,16 +6,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { tasksApi, CreateTaskInput, UpdateTaskInput } from '@/lib/api/endpoints/tasks'
 import { tasksToTodos, taskToTodo } from '@/lib/utils/taskMapper'
+import { useAuthStore } from '@/store/authStore'
 
 /**
  * 获取项目的任务列表
  * 返回所有任务的扁平列表（用于项目详情页面显示）
  */
 export function useTaskList(projectId: string) {
+  const user = useAuthStore((state) => state.user)
+  
   return useQuery({
     queryKey: ['projects', projectId, 'tasks'],
     queryFn: async () => {
-      const tasks = await tasksApi.listByProject(projectId)
+      const tasks = await tasksApi.listByProject(projectId, user?.id)
       // 转换为 Todo 模型，返回扁平列表
       const todos = tasksToTodos(tasks)
       
@@ -37,7 +40,7 @@ export function useTaskList(projectId: string) {
       // 子任务会在任务详情页面中通过 children 字段显示
       return todos
     },
-    enabled: !!projectId,
+    enabled: !!projectId && !!user?.id,
   })
 }
 
@@ -46,11 +49,13 @@ export function useTaskList(projectId: string) {
  * 注意：后端没有单独的获取任务详情接口，我们从任务列表中查找
  */
 export function useTask(projectId: string, taskId: string) {
+  const user = useAuthStore((state) => state.user)
+  
   return useQuery({
     queryKey: ['projects', projectId, 'tasks', taskId],
     queryFn: async () => {
       // 获取所有任务（包括子任务）
-      const allTasks = await tasksApi.listByProject(projectId)
+      const allTasks = await tasksApi.listByProject(projectId, user?.id)
       const todos = tasksToTodos(allTasks)
       
       // 找到目标任务
@@ -67,7 +72,7 @@ export function useTask(projectId: string, taskId: string) {
       
       return task
     },
-    enabled: !!projectId && !!taskId,
+    enabled: !!projectId && !!taskId && !!user?.id,
   })
 }
 
@@ -76,9 +81,10 @@ export function useTask(projectId: string, taskId: string) {
  */
 export function useCreateTask(projectId: string) {
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
   
   return useMutation({
-    mutationFn: (input: CreateTaskInput) => tasksApi.create(input),
+    mutationFn: (input: CreateTaskInput) => tasksApi.create(input, user?.id),
     onSuccess: (data, variables) => {
       // 使任务列表缓存失效
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
@@ -100,10 +106,11 @@ export function useCreateTask(projectId: string) {
  */
 export function useUpdateTask(projectId: string, taskId: string) {
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
   
   return useMutation({
     mutationFn: (input: UpdateTaskInput) =>
-      tasksApi.update(projectId, taskId, input),
+      tasksApi.update(projectId, taskId, input, user?.id),
     onSuccess: () => {
       // 使任务列表缓存失效
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
@@ -118,9 +125,10 @@ export function useUpdateTask(projectId: string, taskId: string) {
  */
 export function useDeleteTask(projectId: string) {
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
   
   return useMutation({
-    mutationFn: (taskId: string) => tasksApi.delete(projectId, taskId),
+    mutationFn: (taskId: string) => tasksApi.delete(projectId, taskId, user?.id),
     onSuccess: () => {
       // 使任务列表缓存失效
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
@@ -133,10 +141,11 @@ export function useDeleteTask(projectId: string) {
  */
 export function useUpdateTaskStatus(projectId: string) {
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
   
   return useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
-      tasksApi.updateStatus(projectId, taskId, status),
+      tasksApi.updateStatus(projectId, taskId, status, user?.id),
     onSuccess: (_, variables) => {
       // 使任务列表缓存失效
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
@@ -145,4 +154,3 @@ export function useUpdateTaskStatus(projectId: string) {
     },
   })
 }
-

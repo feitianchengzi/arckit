@@ -81,9 +81,9 @@ export default function ProjectDetailPage() {
         <div className="flex gap-3">
           <Button
             variant="secondary"
-            onClick={() => router.push(`/projects/${projectId}/invite`)}
+            onClick={() => router.push(`/projects/${projectId}/members`)}
           >
-            邀请成员
+            成员
           </Button>
           
           <Button

@@ -61,7 +61,7 @@ export const invitationsApi = {
    * @param inviteCode 邀请码
    * @param userId 用户ID（数据库ID），如果不提供会尝试从其他途径获取
    */
-  join: async (inviteCode: string, userId?: number): Promise<void> => {
+  join: async (inviteCode: string, userId?: number): Promise<{ project_id: number }> => {
     // 如果没有传入 userId，尝试从 localStorage 获取（作为备用方案）
     if (!userId && typeof window !== 'undefined') {
       try {
@@ -81,9 +81,10 @@ export const invitationsApi = {
       throw new Error('无法获取用户ID，请先登录')
     }
     
-    await apiClient.post(`/user/projects/join?user_id=${userId}`, {
+    const { data } = await apiClient.post(`/user/projects/join?user_id=${userId}`, {
       invite_code: inviteCode,
     })
+    return data
   },
   
   /**

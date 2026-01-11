@@ -9,12 +9,12 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, TextField, LoadingView, ErrorView } from '@/components/ui'
 import { useAuthStore } from '@/store/authStore'
-import { useCurrentUser } from '@/hooks/useAuth'
-import { authApi } from '@/lib/api/endpoints/auth'
+import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 
 export default function SettingsPage() {
   const router = useRouter()
   const setUser = useAuthStore((state) => state.setUser)
+  const logoutMutation = useLogout()
   const { data: currentUser, isLoading, error, refetch } = useCurrentUser()
   
   const [username, setUsername] = useState('')
@@ -152,8 +152,8 @@ export default function SettingsPage() {
             
             {/* 错误提示 */}
             {saveError && (
-              <div className="bg-error-light border border-error rounded-md p-3">
-                <p className="text-sm text-error">{saveError}</p>
+              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                <p className="text-sm text-red-600">{saveError}</p>
               </div>
             )}
             
@@ -215,16 +215,27 @@ export default function SettingsPage() {
         )}
       </div>
       
-      {/* 其他设置（占位） */}
+      {/* 退出登录 */}
       <div className="bg-white rounded-lg shadow p-6 space-y-4">
-        <h2 className="text-xl font-semibold text-gray-900 border-b border-gray-200 pb-4">
-          其他设置
-        </h2>
-        <p className="text-sm text-gray-500">
-          更多设置选项将在后续版本中添加
-        </p>
+        <div className="border-b border-gray-200 pb-4">
+          <h2 className="text-xl font-semibold text-gray-900">账户操作</h2>
+          <p className="mt-1 text-sm text-gray-500">
+            退出登录后需要重新登录才能使用
+          </p>
+        </div>
+        
+        <Button
+          variant="danger"
+          onClick={() => {
+            if (confirm('确定要退出登录吗？')) {
+              logoutMutation.mutate()
+            }
+          }}
+          disabled={logoutMutation.isPending}
+        >
+          退出登录
+        </Button>
       </div>
     </div>
   )
 }
-

@@ -5,11 +5,13 @@
  * 
  * 包含：
  * 1. React Query Provider
- * 2. 未来可能添加：i18n Provider, Theme Provider
+ * 2. Auth Store 初始化
+ * 3. 未来可能添加：i18n Provider, Theme Provider
  */
 
-import { ReactNode, useState } from 'react'
+import { ReactNode, useState, useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { useAuthStore } from '@/store/authStore'
 
 interface ProvidersProps {
   children: ReactNode
@@ -40,6 +42,12 @@ export function Providers({ children }: ProvidersProps) {
         },
       })
   )
+
+  // 初始化认证状态
+  useEffect(() => {
+    const { initialize } = useAuthStore.getState()
+    initialize()
+  }, [])
 
   return (
     <QueryClientProvider client={queryClient}>

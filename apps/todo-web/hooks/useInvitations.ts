@@ -81,9 +81,16 @@ export function useJoinByInvite() {
       
       return invitationsApi.join(inviteCode, userId)
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       // 使项目列表缓存失效（加入了新项目）
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      
+      // 如果有 project_id，也使项目详情和成员列表缓存失效
+      if (data?.project_id) {
+        const projectId = data.project_id.toString()
+        queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
+        queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'members'] })
+      }
     },
   })
 }

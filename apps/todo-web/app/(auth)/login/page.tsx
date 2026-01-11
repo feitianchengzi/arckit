@@ -1,130 +1,177 @@
 'use client'
 
 /**
- * 登录页面
+ * 登录页面 - 验证码登录
  */
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { Button, TextField } from '@/components/ui'
-import { useLogin } from '@/hooks/useAuth'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Button } from '@/components/ui/Button'
+import { TextField } from '@/components/ui/TextField'
+import { VerificationCodeInput } from '@/components/ui/VerificationCodeInput'
+import { useSendVerificationCode, useLogin } from '@/hooks/useAuth'
+import { useAuthStore } from '@/store/authStore'
+import { detectInputType } from '@/lib/utils/validators'
+import type { CodeType, LoginRequest } from '@/types/auth'
 
 export default function LoginPage() {
   const router = useRouter()
-  const login = useLogin()
-  
+  const searchParams = useSearchParams()
+
+  // 表单状态
   const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [verificationCode, setVerificationCode] = useState('')
+  const [codeType, setCodeType] = useState<CodeType | null>(null)
   const [error, setError] = useState('')
-  const [redirect, setRedirect] = useState('/projects')
-  
-  // 从 URL 获取 redirect 参数
+
+  // Hooks
+  const sendCode = useSendVerificationCode()
+  const login = useLogin()
+  const { checkAuth, user } = useAuthStore()
+
+  // 检查是否已登录（只在客户端执行）
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search)
-      const redirectParam = params.get('redirect')
-      if (redirectParam) {
-        setRedirect(redirectParam)
+    // 只在客户端执行，避免 SSR 问题
+    if (typeof window === 'undefined') return
+    
+    // 延迟检查，等待 auth store 初始化完成
+    const timer = setTimeout(() => {
+      const hasAuth = checkAuth()
+      if (hasAuth && user) {
+        const redirect = searchParams.get('redirect') || '/projects'
+        router.push(redirect)
       }
-    }
-  }, [])
-  
-  // 检查组件是否正常加载
-  useEffect(() => {
-    console.log('=== 登录页面组件已加载 ===')
-    console.log('login hook:', login)
-    console.log('login.isPending:', login.isPending)
-  }, [login])
-  
-  // 添加按钮点击测试
-  const handleButtonClick = (e: React.MouseEvent) => {
-    console.log('按钮被点击了!', e)
-  }
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    console.log('=== 登录表单提交开始 ===')
-    console.log('登录表单提交:', { username, password })
+    }, 100)
+    
+    return () => clearTimeout(timer)
+  }, [checkAuth, user, router, searchParams])
+
+  // 发送验证码
+  const handleSendCode = async () => {
     setError('')
-    
-    // 验证
-    if (!username || !password) {
-      console.log('验证失败: 用户名或密码为空')
-      setError('请输入用户名和密码')
-      return
+
+    // 验证用户名
+    const type = detectInputType(username)
+    if (!type) {
+      setError('请输入有效的邮箱或手机号')
+      throw new Error('Invalid username')
     }
-    
-    if (password.length < 6) {
-      console.log('验证失败: 密码长度不足')
-      setError('密码长度不能少于 6 位')
-      return
-    }
-    
-    console.log('开始登录...')
-    console.log('login 对象:', login)
-    console.log('redirect:', redirect)
-    // 登录
+
+    setCodeType(type)
+
+    // 调用发送接口
     try {
-      console.log('调用 login.mutateAsync...')
-      const result = await login.mutateAsync({ username, password, redirect })
-      console.log('登录成功:', result)
-      // 登录成功后会通过 onSuccess 回调跳转，这里不需要额外操作
+      await sendCode.mutateAsync({
+        code_type: type,
+        target: username,
+        purpose: 'login',
+      })
     } catch (err: any) {
-      // 处理登录错误
-      console.error('登录错误:', err)
-      console.error('错误详情:', JSON.stringify(err, null, 2))
-      const errorMessage = err?.response?.data?.message || err?.message || '登录失败，请重试'
-      setError(errorMessage)
+      setError(err.message || '发送失败，请重试')
+      throw err
     }
   }
-  
+
+  // 登录
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    // 验证
+    if (!username) {
+      setError('请输入邮箱或手机号')
+      return
+    }
+
+    if (!verificationCode || verificationCode.length !== 6) {
+      setError('请输入6位验证码')
+      return
+    }
+
+    const type = codeType || detectInputType(username)
+    if (!type) {
+      setError('用户名格式不正确')
+      return
+    }
+
+    // 构建登录请求
+    const loginData: LoginRequest = type === 'email'
+      ? {
+          email: username,
+          code: verificationCode,
+          code_type: 'email',
+          purpose: 'login',
+        }
+      : {
+          phone: username,
+          code: verificationCode,
+          code_type: 'sms',
+          purpose: 'login',
+        }
+
+    try {
+      await login.mutateAsync(loginData)
+      // 登录成功后，login hook 会自动跳转到 /projects
+      // 首次设置对话框将在主页显示
+    } catch (err: any) {
+      const message = err.response?.data?.message || err.message || '登录失败'
+      setError(message)
+    }
+  }
+
+  // 实时验证用户名格式
+  const getUsernameError = () => {
+    if (!username) return ''
+    const type = detectInputType(username)
+    if (!type) return '请输入有效的邮箱或手机号'
+    return ''
+  }
+
+  const usernameError = getUsernameError()
+  const isSendCodeDisabled = !username || !!usernameError
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo 和标题 */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">待办管理系统</h1>
-          <p className="mt-2 text-gray-600">登录到你的账户</p>
+          <p className="mt-2 text-gray-600">使用验证码快速登录</p>
         </div>
-        
+
         {/* 登录表单 */}
         <div className="bg-white rounded-lg shadow-lg p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* 用户名 */}
+          <form onSubmit={handleLogin} className="space-y-6">
+            {/* 用户名（邮箱/手机号） */}
             <TextField
               id="username"
-              label="用户名"
-              placeholder="请输入用户名"
+              label="邮箱/手机号"
+              placeholder="请输入邮箱或手机号"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               fullWidth
               required
               autoComplete="username"
+              helperText="支持邮箱和手机号登录"
+              error={usernameError}
             />
-            
-            {/* 密码 */}
-            <TextField
-              id="password"
-              label="密码"
-              type="password"
-              placeholder="请输入密码"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              fullWidth
-              required
-              autoComplete="current-password"
-              helperText="密码长度不能少于 6 位"
+
+            {/* 验证码 */}
+            <VerificationCodeInput
+              value={verificationCode}
+              onChange={setVerificationCode}
+              onSendCode={handleSendCode}
+              sendButtonDisabled={isSendCodeDisabled}
+              error={error && error.includes('验证码') ? error : ''}
             />
-            
-            {/* 错误提示 */}
-            {error && (
-              <div className="bg-error-light border border-error rounded-md p-3">
-                <p className="text-sm text-error">{error}</p>
+
+            {/* 全局错误提示 */}
+            {error && !error.includes('验证码') && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                <p className="text-sm text-red-600">{error}</p>
               </div>
             )}
-            
+
             {/* 登录按钮 */}
             <Button
               type="submit"
@@ -132,32 +179,21 @@ export default function LoginPage() {
               size="lg"
               fullWidth
               loading={login.isPending}
-              disabled={login.isPending}
-              onClick={handleButtonClick}
+              disabled={!username || !verificationCode || login.isPending}
             >
-              {login.isPending ? '登录中...' : '登录'}
+              {login.isPending ? '登录中...' : '立即登录'}
             </Button>
           </form>
-          
-          {/* 注册链接 */}
+
+          {/* 提示信息 */}
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              还没有账户？{' '}
-              <Link href="/register" className="text-primary hover:text-primary-700 font-medium">
-                立即注册
-              </Link>
+            <p className="text-sm text-gray-500">
+              💡 新用户将自动创建账户
             </p>
           </div>
         </div>
-        
-        {/* 测试提示 */}
-        <div className="mt-4 text-center">
-          <p className="text-xs text-gray-500">
-            测试账号：admin / 123456
-          </p>
-        </div>
+
       </div>
     </div>
   )
 }
-

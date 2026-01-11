@@ -5,14 +5,18 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { projectsApi, CreateProjectInput, UpdateProjectInput } from '@/lib/api/endpoints/projects'
+import { useAuthStore } from '@/store/authStore'
 
 /**
  * 获取项目列表
  */
 export function useProjectList() {
+  const user = useAuthStore((state) => state.user)
+  
   return useQuery({
     queryKey: ['projects'],
-    queryFn: () => projectsApi.list(),
+    queryFn: () => projectsApi.list(user?.id),
+    enabled: !!user?.id, // 只在有用户ID时查询
   })
 }
 
@@ -33,9 +37,10 @@ export function useProject(projectId: string) {
 export function useCreateProject() {
   const router = useRouter()
   const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
   
   return useMutation({
-    mutationFn: (input: CreateProjectInput) => projectsApi.create(input),
+    mutationFn: (input: CreateProjectInput) => projectsApi.create(input, user?.id),
     onSuccess: (data) => {
       // 使项目列表缓存失效
       queryClient.invalidateQueries({ queryKey: ['projects'] })
@@ -86,10 +91,58 @@ export function useDeleteProject() {
  * 获取项目成员
  */
 export function useProjectMembers(projectId: string) {
+  const user = useAuthStore((state) => state.user)
+  
   return useQuery({
     queryKey: ['projects', projectId, 'members'],
-    queryFn: () => projectsApi.getMembers(projectId),
-    enabled: !!projectId,
+    queryFn: () => projectsApi.getMembers(projectId, user?.id),
+    enabled: !!projectId && !!user?.id,
+  })
+}
+
+/**
+ * 删除项目成员
+ */
+export function useDeleteProjectMember(projectId: string) {
+  const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
+  
+  return useMutation({
+    mutationFn: async (targetUserId: number) => {
+      if (!user?.id) {
+        throw new Error('无法获取用户ID，请先登录')
+      }
+      return projectsApi.deleteMember(projectId, targetUserId, user.id)
+    },
+    onSuccess: () => {
+      // 使成员列表缓存失效
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'members'] })
+      // 使项目详情缓存失效
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
+    },
+  })
+}
+
+/**
+ * 设置成员角色
+ */
+export function useSetMemberRole(projectId: string) {
+  const queryClient = useQueryClient()
+  const user = useAuthStore((state) => state.user)
+  
+  return useMutation({
+    mutationFn: async ({ targetUserId, role }: { targetUserId: number; role: 'admin' | 'member' }) => {
+      if (!user?.id) {
+        throw new Error('无法获取用户ID，请先登录')
+      }
+      return projectsApi.setMemberRole(projectId, targetUserId, role, user.id)
+    },
+    onSuccess: () => {
+      // 使成员列表缓存失效
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'members'] })
+      // 使项目详情缓存失效
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
+    },
   })
 }
 

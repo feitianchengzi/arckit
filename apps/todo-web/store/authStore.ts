@@ -1,87 +1,127 @@
 /**
- * authStore - 认证状态管理
- * 
- * 功能：
- * 1. 管理用户 token
- * 2. 管理当前用户信息
- * 3. 提供登录、登出方法
- * 4. 持久化到 localStorage
+ * 认证状态管理 Store
+ * 管理登录状态、用户信息、Token
  */
 
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-
-interface User {
-  id: number
-  username: string
-  avatar?: string
-}
+import { TodoUser, TokenInfo } from '@/types/auth'
+import {
+  saveAuthInfo,
+  getAuthInfo,
+  clearAuthInfo,
+  getAccessToken,
+} from '@/lib/utils/tokenManager'
 
 interface AuthState {
   // 状态
-  token: string | null
-  user: User | null
   isAuthenticated: boolean
-  
+  user: TodoUser | null
+  isLoading: boolean
+
   // Actions
-  setToken: (token: string) => void
-  setUser: (user: User) => void
+  setAuth: (tokens: TokenInfo, userId: string) => void
+  setUser: (user: TodoUser) => void
   logout: () => void
-  reset: () => void
+  checkAuth: () => boolean
+  initialize: () => void
 }
 
-const initialState = {
-  token: null,
-  user: null,
+export const useAuthStore = create<AuthState>((set, get) => ({
+  // 初始状态
   isAuthenticated: false,
-}
+  user: null,
+  isLoading: true,
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      ...initialState,
-      
-      // 设置 token
-      setToken: (token: string) => {
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('auth_token', token)
-          // 同时设置 cookie，供中间件使用
-          document.cookie = `auth_token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`
-        }
-        set({ token, isAuthenticated: true })
-      },
-      
-      // 设置用户信息
-      setUser: (user: User) => {
-        set({ user })
-      },
-      
-      // 退出登录
-      logout: () => {
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('auth_token')
-          // 清除 cookie
-          document.cookie = 'auth_token=; path=/; max-age=0'
-        }
-        set(initialState)
-      },
-      
-      // 重置状态
-      reset: () => {
-        set(initialState)
-      },
-    }),
-    {
-      name: 'auth-storage',
-      partialize: (state) => ({
-        token: state.token,
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
-      }),
+  /**
+   * 设置认证信息（登录时调用）
+   */
+  setAuth: (tokens: TokenInfo, userId: string) => {
+    saveAuthInfo({
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      tokenObtainedAt: Date.now(),
+      tokenExpiresIn: tokens.expires_in,
+      userId,
+    })
+
+    set({ isAuthenticated: true })
+  },
+
+  /**
+   * 设置用户信息
+   */
+  setUser: (user: TodoUser) => {
+    // 同时更新 localStorage 中的用户信息
+    const authInfo = getAuthInfo()
+    if (authInfo) {
+      saveAuthInfo({
+        ...authInfo,
+        username: user.username,
+        avatarUrl: user.avatar,
+      })
     }
-  )
-)
 
-// 便捷的选择器
+    set({ user })
+  },
+
+  /**
+   * 退出登录
+   */
+  logout: () => {
+    clearAuthInfo()
+    set({
+      isAuthenticated: false,
+      user: null,
+    })
+
+    // 跳转到登录页
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login'
+    }
+  },
+
+  /**
+   * 检查认证状态
+   */
+  checkAuth: () => {
+    const token = getAccessToken()
+    const hasAuth = !!token
+
+    set({ isAuthenticated: hasAuth })
+    return hasAuth
+  },
+
+  /**
+   * 初始化：从 localStorage 恢复状态
+   */
+  initialize: () => {
+    const authInfo = getAuthInfo()
+
+    if (authInfo && authInfo.accessToken) {
+      set({
+        isAuthenticated: true,
+        user: authInfo.username
+          ? {
+              id: 0,
+              uuid: authInfo.userId,
+              username: authInfo.username,
+              avatar: authInfo.avatarUrl || '',
+              created_at: '',
+              updated_at: '',
+            }
+          : null,
+        isLoading: false,
+      })
+    } else {
+      set({
+        isAuthenticated: false,
+        user: null,
+        isLoading: false,
+      })
+    }
+  },
+}))
+
+// 便捷的 Hooks
 export const useCurrentUser = () => useAuthStore((state) => state.user)
 export const useIsAuthenticated = () => useAuthStore((state) => state.isAuthenticated)

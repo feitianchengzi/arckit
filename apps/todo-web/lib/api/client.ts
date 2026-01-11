@@ -3,41 +3,145 @@
  * 
  * 功能：
  * 1. 配置 baseURL
- * 2. 请求拦截器：自动添加 Authorization token
+ * 2. 请求拦截器：自动添加 Authorization token 和 Token 自动刷新
  * 3. 响应拦截器：统一错误处理（401 跳转登录）
  */
 
-import axios from 'axios'
+import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
+import { getAccessToken, shouldRefreshToken, getRefreshToken, saveAuthInfo, clearAuthInfo, getAuthInfo } from '@/lib/utils/tokenManager'
+import { gatewayApi } from './endpoints/gateway'
 
-// 创建 Axios 实例
-export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081/todo/v1',
+// TODO 后端基础URL
+// 注意：路径格式为 /{service}/v1/...，所以 baseURL 应该包含 service 和 v1
+const TODO_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081/todo/v1'
+
+// 创建 axios 实例
+export const apiClient: AxiosInstance = axios.create({
+  baseURL: TODO_BASE_URL,
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 秒超时
 })
 
-// 请求拦截器：添加 Authorization token 和开发模式 Header
+// 标记是否正在刷新 Token
+let isRefreshing = false
+// 刷新 Token 时等待的请求队列
+let failedQueue: Array<{
+  resolve: (value: unknown) => void
+  reject: (reason?: any) => void
+}> = []
+
+/**
+ * 处理队列中的请求
+ */
+function processQueue(error: any, token: string | null = null) {
+  failedQueue.forEach(prom => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
+/**
+ * 请求拦截器：自动添加 Token 和检查刷新
+ */
 apiClient.interceptors.request.use(
-  (config) => {
-    if (typeof window !== 'undefined') {
-      // 开发模式：直接设置 Header（模拟网关行为）
-      if (process.env.NODE_ENV === 'development') {
-        // 从 localStorage 获取测试用户信息，如果没有则使用默认值
-        const devUserId = localStorage.getItem('dev_user_id') || '11111111-1111-1111-1111-111111111111'
-        const devUsername = localStorage.getItem('dev_username') || 'testuser'
+  async (config: InternalAxiosRequestConfig) => {
+    // 检查是否需要刷新 Token
+    if (shouldRefreshToken() && !isRefreshing) {
+      isRefreshing = true
+
+      try {
+        const refreshToken = getRefreshToken()
+        if (!refreshToken) {
+          throw new Error('No refresh token')
+        }
+
+        console.log('🔄 Token 即将过期，自动刷新...')
         
-        config.headers['X-User-ID'] = devUserId
-        config.headers['X-User-Username'] = devUsername
-      } else {
-        // 生产模式：使用 JWT token（通过网关）
-        const token = localStorage.getItem('auth_token')
+        // 调用刷新接口
+        const response = await gatewayApi.refreshToken({
+          refresh_token: refreshToken,
+        })
+
+        // 保存新 Token（保留原有用户信息）
+        const authInfo = getAuthInfo()
+        saveAuthInfo({
+          accessToken: response.data.tokens.access_token,
+          refreshToken: response.data.tokens.refresh_token,
+          tokenObtainedAt: Date.now(),
+          tokenExpiresIn: response.data.tokens.expires_in,
+          userId: authInfo?.userId || '',
+          username: authInfo?.username,
+          avatarUrl: authInfo?.avatarUrl,
+        })
+
+        console.log('✅ Token 刷新成功')
+        
+        // 处理等待队列
+        processQueue(null, response.data.tokens.access_token)
+      } catch (error) {
+        console.error('❌ Token 刷新失败:', error)
+        
+        // 清除认证信息
+        clearAuthInfo()
+        
+        // 刷新失败，跳转到登录页
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login'
+        }
+        
+        // 处理等待队列
+        processQueue(error, null)
+        
+        return Promise.reject(error)
+      } finally {
+        isRefreshing = false
+      }
+    }
+
+    // 如果正在刷新，将请求加入队列
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        failedQueue.push({ resolve, reject })
+      }).then(() => {
+        // Token 刷新完成后，使用新 Token 重新发起请求
+        const token = getAccessToken()
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
         }
+        return config
+      })
+    }
+
+    // 添加 Authorization header
+    const token = getAccessToken()
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+
+    // 添加用户相关的 Header（后端需要 X-User-ID 来识别用户）
+    const authInfo = getAuthInfo()
+    if (authInfo?.userId) {
+      console.log('📤 发送请求 - X-User-ID:', authInfo.userId, '长度:', authInfo.userId.length)
+      console.log('📤 发送请求 - Access Token:', authInfo.accessToken?.substring(0, 20) + '...')
+      config.headers['X-User-ID'] = authInfo.userId
+    } else {
+      // 如果 userId 不存在，记录警告（这不应该发生）
+      console.warn('⚠️ X-User-ID header 缺失，可能导致后端请求失败')
+    }
+    
+    // 开发模式：添加额外的测试 Header
+    if (process.env.NODE_ENV === 'development') {
+      if (authInfo?.username) {
+        config.headers['X-Username'] = authInfo.username
       }
     }
+
     return config
   },
   (error) => {
@@ -45,23 +149,20 @@ apiClient.interceptors.request.use(
   }
 )
 
-// 响应拦截器：统一错误处理
+/**
+ * 响应拦截器：处理错误
+ */
 apiClient.interceptors.response.use(
-  (response) => {
-    return response
-  },
+  (response) => response,
   (error) => {
-    // 401 未授权：跳转到登录页
+    // 401 未授权：跳转登录
     if (error.response?.status === 401) {
+      clearAuthInfo()
       if (typeof window !== 'undefined') {
-        // 清除 token
-        localStorage.removeItem('auth_token')
-        // 跳转到登录页
         window.location.href = '/login'
       }
     }
-    
-    // 其他错误：返回错误信息
+
     return Promise.reject(error)
   }
 )

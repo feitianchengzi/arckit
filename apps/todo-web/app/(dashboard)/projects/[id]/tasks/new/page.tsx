@@ -9,7 +9,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import clsx from 'clsx'
 import { Button } from '@/components/ui'
 import { useCreateTask, useTaskList } from '@/hooks/useTasks'
-import { useProject } from '@/hooks/useProjects'
+import { useProject, useProjectMembers } from '@/hooks/useProjects'
 
 export default function NewTaskPage() {
   const params = useParams()
@@ -19,6 +19,7 @@ export default function NewTaskPage() {
   
   const { data: project } = useProject(projectId)
   const { data: tasks } = useTaskList(projectId)
+  const { data: members } = useProjectMembers(projectId)
   const createTask = useCreateTask(projectId)
   
   // 从 URL 查询参数获取父任务 ID
@@ -28,6 +29,7 @@ export default function NewTaskPage() {
   const [parentId, setParentId] = useState<number | undefined>(
     parentIdFromUrl ? parseInt(parentIdFromUrl) : undefined
   )
+  const [assigneeId, setAssigneeId] = useState<number | undefined>(undefined)
   const [error, setError] = useState('')
   
   // 如果从 URL 获取了 parentId，设置为选中状态
@@ -53,6 +55,7 @@ export default function NewTaskPage() {
         content: content.trim(),
         projectId: parseInt(projectId),
         parentId: parentId,
+        assigneeId: assigneeId,
       })
       
       // 创建成功后，根据是否有父任务决定跳转
@@ -109,6 +112,33 @@ export default function NewTaskPage() {
               <p className="text-sm text-gray-500">
                 选择父任务后，此任务将作为子任务创建
               </p>
+            </div>
+          )}
+
+          {/* 分配给成员（可选） */}
+          {members && members.length > 0 && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">
+                分配给成员（可选）
+              </label>
+              <select
+                value={assigneeId || ''}
+                onChange={(e) => setAssigneeId(e.target.value ? parseInt(e.target.value) : undefined)}
+                className={clsx(
+                  'w-full px-3 py-2 text-base',
+                  'border border-gray-300 rounded-md',
+                  'focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50',
+                  'transition-colors',
+                  'bg-white'
+                )}
+              >
+                <option value="">无（不分配）</option>
+                {members.map((member: any) => (
+                  <option key={member.user_id} value={member.user_id}>
+                    {member.user?.username || `用户 ${member.user_id}`}
+                  </option>
+                ))}
+              </select>
             </div>
           )}
 

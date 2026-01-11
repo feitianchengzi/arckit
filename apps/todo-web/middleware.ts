@@ -1,58 +1,50 @@
 /**
- * 中间件 - 路由保护
- * 
- * 功能：
- * 1. 检查用户是否已登录
- * 2. 未登录用户访问受保护路由 → 跳转到登录页
- * 3. 已登录用户访问登录/注册页 → 跳转到项目列表
+ * Next.js 中间件
+ * 处理认证和路由保护
  */
 
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+// 公开路由（无需认证）
+const PUBLIC_ROUTES = ['/login', '/register']
+
+// 认证路由（已登录不可访问）
+const AUTH_ROUTES = ['/login', '/register']
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  
-  // 从 cookie 或 header 中获取 token
-  // 注意：由于 middleware 在服务端运行，无法访问 localStorage
-  // 这里简化处理，实际项目可以使用 cookie
+
+  // 检查是否有 auth token (从 cookie)
   const token = request.cookies.get('auth_token')?.value
-  
-  // 公开路由（不需要认证）
-  const publicRoutes = ['/login', '/register']
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route))
-  
-  // 受保护路由（需要认证）
-  const protectedRoutes = ['/projects', '/tasks', '/settings']
-  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route))
-  
-  // 情况 1: 未登录访问受保护路由 → 跳转到登录
-  if (isProtectedRoute && !token) {
+
+  // 如果访问认证页面，但已登录，跳转到主页
+  // 注意：允许用户访问登录页面，即使有 token（用户可能想切换账号）
+  // 所以这里暂时不重定向，让登录页面自己处理
+  // if (AUTH_ROUTES.includes(pathname) && token) {
+  //   return NextResponse.redirect(new URL('/projects', request.url))
+  // }
+
+  // 如果访问受保护页面，但未登录，跳转到登录页
+  if (!PUBLIC_ROUTES.includes(pathname) && !token) {
     const loginUrl = new URL('/login', request.url)
     loginUrl.searchParams.set('redirect', pathname)
     return NextResponse.redirect(loginUrl)
   }
-  
-  // 情况 2: 已登录访问登录/注册页 → 跳转到项目列表
-  if (isPublicRoute && token) {
-    return NextResponse.redirect(new URL('/projects', request.url))
-  }
-  
-  // 情况 3: 其他情况 → 放行
+
   return NextResponse.next()
 }
 
-// 配置中间件匹配路径
+// 配置需要运行中间件的路径
 export const config = {
   matcher: [
     /*
-     * 匹配所有路径，除了：
+     * 匹配所有路径，除了:
+     * - api routes
      * - _next/static (静态文件)
      * - _next/image (图片优化)
-     * - favicon.ico (网站图标)
-     * - public 文件夹
+     * - favicon.ico
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\..*|_next).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 }
-

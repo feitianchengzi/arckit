@@ -1,92 +1,150 @@
 /**
- * useAuth - 认证相关 Hook
+ * 认证相关 Hooks
  */
 
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { authApi, LoginInput, RegisterInput } from '@/lib/api/endpoints/auth'
+import { gatewayApi } from '@/lib/api/endpoints/gateway'
+import { todoUserApi } from '@/lib/api/endpoints/auth'
 import { useAuthStore } from '@/store/authStore'
+import {
+  SendVerificationRequest,
+  LoginRequest,
+  CreateUserRequest,
+} from '@/types/auth'
 
 /**
- * 登录输入参数（扩展了 redirect）
+ * 发送验证码 Hook
  */
-interface LoginInputWithRedirect extends LoginInput {
-  redirect?: string
+export function useSendVerificationCode() {
+  return useMutation({
+    mutationFn: (data: SendVerificationRequest) => gatewayApi.sendVerification(data),
+    onSuccess: () => {
+      console.log('✅ 验证码发送成功')
+    },
+    onError: (error: any) => {
+      console.error('❌ 验证码发送失败:', error)
+      throw error
+    },
+  })
 }
 
 /**
- * 登录
+ * 登录 Hook
  */
 export function useLogin() {
   const router = useRouter()
-  const setToken = useAuthStore((state) => state.setToken)
-  const setUser = useAuthStore((state) => state.setUser)
-  
+  const { setAuth, setUser } = useAuthStore()
+  const queryClient = useQueryClient()
+
   return useMutation({
-    mutationFn: (input: LoginInputWithRedirect) => {
-      // 从 input 中提取 redirect，不传递给 API
-      const { redirect, ...loginData } = input
-      return authApi.login(loginData).then(data => ({ ...data, redirect }))
+    mutationFn: (data: LoginRequest) => gatewayApi.login(data),
+    onSuccess: async (response) => {
+      console.log('✅ 登录成功:', response.data.user)
+      console.log('🔑 Access Token:', response.data.tokens.access_token)
+      console.log('🆔 User ID (UUID):', response.data.user.id)
+
+      // 1. 保存 Token 到 localStorage
+      setAuth(response.data.tokens, response.data.user.id)
+
+      // 2. 尝试创建/获取 TODO 后端用户
+      try {
+        const todoUser = await todoUserApi.createOrGetUser({
+          username: response.data.user.username || undefined,
+          avatar: response.data.user.avatar_url || '',
+        })
+
+        // 3. 保存用户信息到 Store
+        setUser(todoUser)
+      } catch (error) {
+        console.error('❌ 获取用户信息失败:', error)
+        // 即使失败也允许进入应用
+      }
+
+      // 4. 登录成功后直接跳转到主页
+      // 首次设置对话框将在主页显示
+      router.push('/projects')
+
+      // 5. 清除相关查询缓存
+      queryClient.invalidateQueries({ queryKey: ['user'] })
     },
-    onSuccess: (result) => {
-      console.log('useLogin onSuccess 被调用:', result)
-      // 保存 token 和用户信息（会同时设置 localStorage 和 cookie）
-      setToken(result.token)
-      setUser(result.user)
-      
-      // 跳转到指定页面（或默认项目列表）
-      const redirectUrl = result.redirect || '/projects'
-      console.log('准备跳转到', redirectUrl)
-      window.location.href = redirectUrl
+    onError: (error: any) => {
+      console.error('❌ 登录失败:', error)
+      throw error
     },
   })
 }
 
 /**
- * 注册
+ * 首次设置用户信息 Hook
  */
-export function useRegister() {
-  const router = useRouter()
-  const setToken = useAuthStore((state) => state.setToken)
-  const setUser = useAuthStore((state) => state.setUser)
-  
+export function useFirstTimeSetup() {
+  const { setUser } = useAuthStore()
+
   return useMutation({
-    mutationFn: (input: RegisterInput) => authApi.register(input),
-    onSuccess: (data) => {
-      // 保存 token 和用户信息（会同时设置 localStorage 和 cookie）
-      setToken(data.token)
-      setUser(data.user)
-      
-      // 跳转到项目列表
-      // 使用 window.location.href 确保完整的页面刷新和中间件重新评估
-      window.location.href = '/projects'
+    mutationFn: (data: CreateUserRequest) => {
+      // 确保 avatar 不为空，如果为空则使用空字符串
+      const requestData: CreateUserRequest = {
+        username: data.username,
+        avatar: data.avatar || '',
+      }
+      return todoUserApi.createOrGetUser(requestData)
+    },
+    onSuccess: (user) => {
+      console.log('✅ 用户信息设置成功:', user)
+      setUser(user)
+    },
+    onError: (error: any) => {
+      console.error('❌ 用户信息设置失败:', error)
+      throw error
     },
   })
 }
 
 /**
- * 获取当前用户信息
- */
-export function useCurrentUser() {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  
-  return useQuery({
-    queryKey: ['currentUser'],
-    queryFn: () => authApi.getCurrentUser(),
-    enabled: isAuthenticated, // 只在已认证时查询
-  })
-}
-
-/**
- * 退出登录
+ * 退出登录 Hook
  */
 export function useLogout() {
   const router = useRouter()
-  const logout = useAuthStore((state) => state.logout)
-  
-  return () => {
-    logout()
-    router.push('/login')
-  }
+  const { logout } = useAuthStore()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => {
+      // 这里可以调用后端的退出接口（如果有）
+      return Promise.resolve()
+    },
+    onSuccess: () => {
+      // 清除本地状态
+      logout()
+
+      // 清除所有查询缓存
+      queryClient.clear()
+
+      // 跳转到登录页
+      router.push('/login')
+    },
+  })
 }
 
+/**
+ * 获取当前用户 Hook
+ */
+export function useGetCurrentUser() {
+  const { isAuthenticated, user, setUser } = useAuthStore()
+
+  return useQuery({
+    queryKey: ['user', 'current'],
+    queryFn: () => todoUserApi.getCurrentUser(),
+    enabled: isAuthenticated && !user,
+    staleTime: 5 * 60 * 1000, // 5分钟内认为数据新鲜
+    onSuccess: (data) => {
+      setUser(data)
+    },
+  })
+}
+
+/**
+ * 获取当前用户 Hook（别名，为了向后兼容）
+ */
+export const useCurrentUser = useGetCurrentUser
