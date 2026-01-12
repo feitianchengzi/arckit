@@ -17,9 +17,12 @@ import (
 func SetupRouter(serviceName string) *gin.Engine {
 	r := gin.Default()
 
-	// CORS 配置：从环境变量读取允许的来源
-	corsConfig := getCORSConfig()
-	r.Use(cors.New(corsConfig))
+	// CORS 配置：只有在环境变量中配置了 CORS_ALLOW_ORIGINS 时才启用 CORS 中间件
+	// 如果网关已经处理了 CORS，这里就不需要再添加，避免重复的 CORS 头
+	if corsAllowOrigins := os.Getenv("CORS_ALLOW_ORIGINS"); corsAllowOrigins != "" {
+		corsConfig := getCORSConfig()
+		r.Use(cors.New(corsConfig))
+	}
 
 	// 全局中间件：提取header信息和注入数据库连接
 	r.Use(middleware.ExtractHeaderInfo())
@@ -73,6 +76,7 @@ func SetupRouter(serviceName string) *gin.Engine {
 }
 
 // getCORSConfig 从环境变量读取 CORS 配置
+// 注意：此函数只在环境变量 CORS_ALLOW_ORIGINS 有值时才会被调用
 func getCORSConfig() cors.Config {
 	// 从环境变量读取允许的来源列表
 	allowOriginsEnv := os.Getenv("CORS_ALLOW_ORIGINS")
@@ -109,13 +113,10 @@ func getCORSConfig() cors.Config {
 		}
 	}
 
-	// 如果没有配置或配置为空，使用默认策略（允许所有 localhost 和 127.0.0.1）
+	// 如果配置了 CORS_ALLOW_ORIGINS 但解析后为空，拒绝所有来源
 	if allowOriginFunc == nil {
 		allowOriginFunc = func(origin string) bool {
-			return strings.HasPrefix(origin, "http://localhost") ||
-				strings.HasPrefix(origin, "http://127.0.0.1") ||
-				strings.HasPrefix(origin, "https://localhost") ||
-				strings.HasPrefix(origin, "https://127.0.0.1")
+			return false
 		}
 	}
 
