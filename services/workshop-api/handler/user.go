@@ -18,8 +18,6 @@ type CreateUserRequest struct {
 
 // CreateUserResponse 创建用户响应结构
 type CreateUserResponse struct {
-	ID        uint   `json:"id"`         // 用户ID
-	UUID      string `json:"uuid"`       // 用户UUID
 	Username  string `json:"username"`   // 用户名
 	Avatar    string `json:"avatar"`     // 头像地址
 	CreatedAt string `json:"created_at"` // 创建时间
@@ -68,8 +66,6 @@ func CreateUser(c *gin.Context) {
 	if err == nil {
 		// 用户已存在，返回现有用户信息
 		c.JSON(http.StatusOK, CreateUserResponse{
-			ID:        user.ID,
-			UUID:      user.UUID,
 			Username:  user.Username,
 			Avatar:    user.Avatar,
 			CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -108,8 +104,6 @@ func CreateUser(c *gin.Context) {
 
 	// 6. 返回成功响应
 	c.JSON(http.StatusCreated, CreateUserResponse{
-		ID:        user.ID,
-		UUID:      user.UUID,
 		Username:  user.Username,
 		Avatar:    user.Avatar,
 		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -119,8 +113,6 @@ func CreateUser(c *gin.Context) {
 
 // GetUserResponse 查询用户响应结构
 type GetUserResponse struct {
-	ID        uint   `json:"id"`         // 用户ID
-	UUID      string `json:"uuid"`       // 用户UUID
 	Username  string `json:"username"`   // 用户名
 	Avatar    string `json:"avatar"`     // 头像地址
 	CreatedAt string `json:"created_at"` // 创建时间
@@ -179,8 +171,6 @@ func GetUser(c *gin.Context) {
 
 	// 5. 返回成功响应
 	c.JSON(http.StatusOK, GetUserResponse{
-		ID:        user.ID,
-		UUID:      user.UUID,
 		Username:  user.Username,
 		Avatar:    user.Avatar,
 		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -196,8 +186,6 @@ type UpdateUserRequest struct {
 
 // UpdateUserResponse 更新用户响应结构
 type UpdateUserResponse struct {
-	ID        uint   `json:"id"`         // 用户ID
-	UUID      string `json:"uuid"`       // 用户UUID
 	Username  string `json:"username"`   // 用户名
 	Avatar    string `json:"avatar"`     // 头像地址
 	CreatedAt string `json:"created_at"` // 创建时间
@@ -205,15 +193,13 @@ type UpdateUserResponse struct {
 }
 
 // UpdateUser 更新用户信息
-// 网关路由: PUT /todo-service/v1/user/users/:uuid
+// 网关路由: PUT /todo-service/v1/user/users
 // 认证级别: user (需要JWT认证)
-// 权限规则：用户只能更新自己的信息（Header中的UUID必须与路径参数中的UUID一致）
+// 权限规则：用户只能更新自己的信息（使用Header中的UUID）
 // 流程：
 // 1. 从网关Header获取当前用户UUID
-// 2. 从路径参数获取要更新的用户UUID
-// 3. 验证权限（只能更新自己的信息）
-// 4. 更新用户信息
-// 5. 返回更新后的用户信息
+// 2. 更新用户信息
+// 3. 返回更新后的用户信息
 func UpdateUser(c *gin.Context) {
 	// 1. 获取Header信息
 	headerInfo := middleware.GetHeaderInfo(c)
@@ -224,24 +210,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 2. 从路径参数获取UUID
-	uuid := c.Param("uuid")
-	if uuid == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "用户UUID不能为空",
-		})
-		return
-	}
-
-	// 3. 验证权限：只能更新自己的信息
-	if headerInfo.UserID != uuid {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "您只能更新自己的信息",
-		})
-		return
-	}
-
-	// 4. 解析请求体
+	// 2. 解析请求体
 	var req UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -250,7 +219,15 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 5. 从context获取数据库连接
+	// 3. 检查是否至少提供了一个更新字段
+	if req.Username == nil && req.Avatar == nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "至少需要提供一个更新字段（username或avatar）",
+		})
+		return
+	}
+
+	// 4. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -259,9 +236,9 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 6. 查询用户
+	// 5. 查询用户（使用Header中的UUID）
 	var user models.User
-	if err := db.Where("uuid = ?", uuid).First(&user).Error; err != nil {
+	if err := db.Where("uuid = ?", headerInfo.UserID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "用户不存在",
@@ -274,7 +251,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 7. 构建更新字段
+	// 6. 构建更新字段
 	updates := make(map[string]interface{})
 	if req.Username != nil {
 		updates["username"] = *req.Username
@@ -283,20 +260,7 @@ func UpdateUser(c *gin.Context) {
 		updates["avatar"] = *req.Avatar
 	}
 
-	// 8. 如果没有要更新的字段，直接返回当前用户信息
-	if len(updates) == 0 {
-		c.JSON(http.StatusOK, UpdateUserResponse{
-			ID:        user.ID,
-			UUID:      user.UUID,
-			Username:  user.Username,
-			Avatar:    user.Avatar,
-			CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		})
-		return
-	}
-
-	// 9. 更新用户信息
+	// 7. 更新用户信息
 	if err := db.Model(&user).Updates(updates).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "更新用户失败: " + err.Error(),
@@ -304,7 +268,7 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 10. 重新查询用户以获取最新数据
+	// 8. 重新查询用户以获取最新数据
 	if err := db.First(&user, user.ID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "查询更新后的用户信息失败: " + err.Error(),
@@ -312,10 +276,8 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// 11. 返回成功响应
+	// 9. 返回成功响应
 	c.JSON(http.StatusOK, UpdateUserResponse{
-		ID:        user.ID,
-		UUID:      user.UUID,
 		Username:  user.Username,
 		Avatar:    user.Avatar,
 		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),

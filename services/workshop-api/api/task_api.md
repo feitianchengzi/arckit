@@ -8,19 +8,12 @@
 
 ### 用户ID获取方式
 
-所有接口通过中间件 `ExtractUserID` 自动获取用户ID，获取优先级如下：
+所有接口通过中间件 `ExtractUserID` 自动获取用户ID：
 
-1. **优先从查询参数获取**：如果请求URL中包含 `user_id` 查询参数，直接使用该值
-2. **从Header UUID查询**：如果没有查询参数，则从请求头 `X-User-ID` 获取用户UUID，然后查询用户表获取对应的用户ID
-
-**推荐方式**：在请求URL中添加 `user_id` 查询参数，避免额外的数据库查询。
+从请求头 `X-User-ID` 获取用户UUID，然后查询用户表获取对应的用户ID。
 
 **示例**：
 ```bash
-# 推荐：使用查询参数
-POST /todo/v1/user/tasks?user_id=3
-
-# 备选：仅使用Header（会查询用户表）
 POST /todo/v1/user/tasks
 # Header: X-User-ID: 11111111-1111-1111-1111-111111111111
 ```

@@ -153,10 +153,10 @@ type GetUserProjectsResponse struct {
 }
 
 // GetUserProjects 根据用户ID查询所有参与的项目
-// 网关路由: GET /todo-service/v1/user/projects?user_id=xxx 或 GET /todo-service/v1/user/projects
+// 网关路由: GET /todo-service/v1/user/projects
 // 认证级别: user (需要JWT认证)
 // 流程：
-// 1. 从查询参数获取用户ID，如果没有则从Header中获取用户ID
+// 1. 从Header UUID获取用户ID（通过中间件ExtractUserID）
 // 2. 查询该用户参与的所有项目（通过project_members表）
 // 3. 为每个项目查询并包含项目成员信息
 func GetUserProjects(c *gin.Context) {

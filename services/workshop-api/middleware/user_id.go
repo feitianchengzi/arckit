@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 	"todo/models"
 
@@ -10,8 +9,7 @@ import (
 
 const userIDKey = "userID"
 
-// ExtractUserID 中间件：从请求中获取用户ID并存储到context中
-// 优先从查询参数user_id获取，如果没有则从Header的UUID查询用户表获取
+// ExtractUserID 中间件：从Header的UUID查询用户表获取用户ID并存储到context中
 // 如果获取失败，不会中断请求，handler可以通过GetUserID检查是否获取成功
 func ExtractUserID() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -19,18 +17,6 @@ func ExtractUserID() gin.HandlerFunc {
 		if db == nil {
 			c.Next()
 			return
-		}
-
-		var userID uint
-
-		// 优先从查询参数获取
-		userIDStr := c.Query("user_id")
-		if userIDStr != "" {
-			if _, err := fmt.Sscanf(userIDStr, "%d", &userID); err == nil && userID != 0 {
-				c.Set(userIDKey, userID)
-				c.Next()
-				return
-			}
 		}
 
 		// 从Header获取UUID，然后查询用户表

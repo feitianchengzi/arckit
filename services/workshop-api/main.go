@@ -9,10 +9,6 @@ import (
 )
 
 func main() {
-	// 环境变量由 Docker Compose 通过 env_file 注入
-	// 开发环境：docker-compose.dev.yml -> .env.development
-	// 生产环境：docker-compose.prod.yml -> .env.production
-
 	// 初始化数据库连接
 	if err := database.InitDB(); err != nil {
 		log.Fatal("数据库初始化失败:", err)
