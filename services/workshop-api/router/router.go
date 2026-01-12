@@ -47,7 +47,7 @@ func SetupRouter(serviceName string) *gin.Engine {
 		{
 			userGroup.GET("/header-info", handler.GetHeaderInfo)
 			userGroup.POST("/users", handler.CreateUser)                                 // 根据网关UUID创建用户
-			userGroup.GET("/users/:uuid", handler.GetUser)                               // 根据UUID查询用户
+			userGroup.GET("/users", handler.GetUser)                                     // 根据Header中的UUID查询用户
 			userGroup.PUT("/users", handler.UpdateUser)                                  // 更新用户信息
 			userGroup.POST("/projects", handler.CreateProject)                           // 创建新项目
 			userGroup.GET("/projects", handler.GetUserProjects)                          // 根据用户UUID查询所有参与的项目

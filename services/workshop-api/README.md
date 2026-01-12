@@ -251,8 +251,8 @@ curl -X GET "http://localhost:8081/todo/v1/user/tasks?project_id=1" \
 |---------|------|------|----------|------|
 | 健康检查 | GET | `/{service}/v1/public/health` | public | 健康检查 |
 | 用户管理 | POST | `/{service}/v1/user/users` | user | 创建用户 |
-| 用户管理 | GET | `/{service}/v1/user/users/:uuid` | user | 查询用户 |
-| 用户管理 | PUT | `/{service}/v1/user/users/:uuid` | user | 更新用户 |
+| 用户管理 | GET | `/{service}/v1/user/users` | user | 查询用户 |
+| 用户管理 | PUT | `/{service}/v1/user/users` | user | 更新用户 |
 | 项目管理 | POST | `/{service}/v1/user/projects` | user | 创建项目 |
 | 项目管理 | GET | `/{service}/v1/user/projects` | user | 查询用户参与的项目 |
 | 项目管理 | PUT | `/{service}/v1/user/projects/:id` | user | 更新项目 |

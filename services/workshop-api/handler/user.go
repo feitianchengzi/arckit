@@ -24,6 +24,15 @@ type CreateUserResponse struct {
 	UpdatedAt string `json:"updated_at"` // 更新时间
 }
 
+// ErrorResponse 错误响应结构
+type ErrorResponse struct {
+	HTTPStatus int    `json:"http_status"` // HTTP状态码
+	HandlerID  int    `json:"handler_id"`  // 处理器ID
+	MessageID  int    `json:"message_id"`  // 错误消息ID
+	Message    string `json:"message"`     // 错误信息
+	Code       int    `json:"code"`        // 错误码（由HTTPStatus + HandlerID + MessageID拼接而成）
+}
+
 // CreateUser 根据网关UUID创建用户
 // 网关路由: POST /todo-service/v1/user/users
 // 认证级别: user (需要JWT认证)
@@ -131,14 +140,14 @@ type GetUserResponse struct {
 }
 
 // GetUser 根据UUID查询用户
-// 网关路由: GET /todo-service/v1/user/users/:uuid
+// 网关路由: GET /todo-service/v1/user/users
 // 认证级别: user (需要JWT认证)
 // 流程：
-// 1. 从路径参数获取用户UUID
+// 1. 从Header信息获取用户UUID
 // 2. 查询用户信息
 // 3. 返回用户信息
 func GetUser(c *gin.Context) {
-	// 1. 获取Header信息（可选，用于验证认证）
+	// 1. 获取Header信息
 	headerInfo := middleware.GetHeaderInfo(c)
 	if headerInfo == nil || headerInfo.UserID == "" {
 		c.JSON(http.StatusUnauthorized, gin.H{
@@ -147,14 +156,8 @@ func GetUser(c *gin.Context) {
 		return
 	}
 
-	// 2. 从路径参数获取UUID
-	uuid := c.Param("uuid")
-	if uuid == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "用户UUID不能为空",
-		})
-		return
-	}
+	// 2. 从Header信息获取用户UUID
+	userUUID := headerInfo.UserID
 
 	// 3. 从context获取数据库连接
 	db := middleware.GetDB(c)
@@ -167,7 +170,7 @@ func GetUser(c *gin.Context) {
 
 	// 4. 查询用户
 	var user models.User
-	if err := db.Where("uuid = ?", uuid).First(&user).Error; err != nil {
+	if err := db.Where("uuid = ?", userUUID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{
 				"error": "用户不存在",
