@@ -42,14 +42,24 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// 2. 解析请求体（可选）
+	// 2. 解析请求体（必填，至少提供一个字段）
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		// 请求体解析失败不影响，使用Header中的信息
-		req = CreateUserRequest{}
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "请求参数错误: " + err.Error(),
+		})
+		return
 	}
 
-	// 3. 从context获取数据库连接
+	// 3. 检查是否至少提供了一个字段
+	if req.Username == "" && req.Avatar == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "至少需要提供一个字段（username或avatar）",
+		})
+		return
+	}
+
+	// 4. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -58,7 +68,7 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// 4. 使用网关提供的UUID查询用户
+	// 5. 使用网关提供的UUID查询用户
 	userUUID := headerInfo.UserID
 	var user models.User
 	err := db.Where("uuid = ?", userUUID).First(&user).Error
@@ -82,10 +92,11 @@ func CreateUser(c *gin.Context) {
 		return
 	}
 
-	// 5. 用户不存在，创建新用户
-	// 优先使用请求体中的用户名，否则使用Header中的用户名
+	// 6. 用户不存在，创建新用户
+	// 使用请求体中的字段，如果某个字段为空字符串，则不设置（使用默认值）
 	username := req.Username
 	if username == "" {
+		// 如果请求体中username为空，使用Header中的用户名
 		username = headerInfo.Username
 	}
 
