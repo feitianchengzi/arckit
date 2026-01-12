@@ -11,6 +11,7 @@ import { Button, LoadingView, ErrorView, EmptyStateView } from '@/components/ui'
 import { TodoItem } from '@/components/features'
 import { useProjectList } from '@/hooks/useProjects'
 import { tasksApi } from '@/lib/api/endpoints/tasks'
+import { projectsApi } from '@/lib/api/endpoints/projects'
 import { tasksToTodos } from '@/lib/utils/taskMapper'
 import { useAuthStore } from '@/store/authStore'
 import type { Todo } from '@/types'
@@ -33,34 +34,77 @@ export default function MyTasksPage() {
       setTasksError(null)
       
       try {
+        console.log('📥 开始获取所有项目的任务...')
         const allTasks: Array<Todo & { projectId: string; projectName: string }> = []
         
-        // 并发获取所有项目的任务
+        // 并发获取所有项目的任务和成员
         const taskPromises = projects.map(async (project) => {
           try {
+            console.log(`📋 获取项目 ${project.name} (ID: ${project.id}) 的任务和成员...`)
+            
+            // 获取任务列表
             const tasks = await tasksApi.listByProject(project.id.toString())
             const todos = tasksToTodos(tasks)
+            console.log(`✅ 项目 ${project.name}: 获取到 ${todos.length} 个任务`)
+            
+            // 获取项目成员列表（用于 ID -> username 映射）
+            const members = await projectsApi.getMembers(project.id.toString())
+            console.log(`✅ 项目 ${project.name}: 获取到 ${members.length} 个成员`)
+            
+            // 创建 user_id -> username 的映射
+            const userIdToUsername = new Map<number, string>()
+            members.forEach(member => {
+              if (member.user_id && member.username) {
+                userIdToUsername.set(member.user_id, member.username)
+              }
+            })
             
             // 筛选出分配给当前用户的任务（或者是当前用户创建的任务）
+            // 注意：现在通过 user_id 在成员列表中查找 username，然后与当前用户的 username 比较
             const userTasks = todos
-              .filter(todo => todo.executorId === user.id || todo.creatorId === user.id)
+              .filter(todo => {
+                // 获取任务创建者和执行者的 username
+                const creatorUsername = todo.creatorId ? userIdToUsername.get(todo.creatorId) : undefined
+                const executorUsername = todo.assigneeId ? userIdToUsername.get(todo.assigneeId) : undefined
+                
+                // 检查是否是当前用户创建或被分配的任务
+                const isCreator = creatorUsername === user.username
+                const isAssignee = executorUsername === user.username
+                
+                console.log(`任务 ${todo.id}:`, {
+                  content: todo.content.substring(0, 30),
+                  creatorId: todo.creatorId,
+                  creatorUsername,
+                  assigneeId: todo.assigneeId,
+                  executorUsername,
+                  currentUsername: user.username,
+                  isCreator,
+                  isAssignee,
+                  matched: isCreator || isAssignee,
+                })
+                
+                return isCreator || isAssignee
+              })
               .map(todo => ({
                 ...todo,
                 projectId: project.id.toString(),
                 projectName: project.name,
               }))
             
+            console.log(`✅ 项目 ${project.name}: 当前用户有 ${userTasks.length} 个相关任务`)
             return userTasks
           } catch (err) {
-            console.error(`获取项目 ${project.id} 的任务失败:`, err)
+            console.error(`❌ 获取项目 ${project.id} 的任务失败:`, err)
             return []
           }
         })
         
         const results = await Promise.all(taskPromises)
         const flattened = results.flat()
+        console.log(`✅ 总共找到 ${flattened.length} 个任务`)
         setMyTasks(flattened)
       } catch (err) {
+        console.error('❌ 获取任务列表失败:', err)
         setTasksError(err as Error)
       } finally {
         setTasksLoading(false)
@@ -200,4 +244,3 @@ export default function MyTasksPage() {
     </div>
   )
 }
-

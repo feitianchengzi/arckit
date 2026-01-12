@@ -4,11 +4,14 @@
  * 项目成员管理页面
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Button, LoadingView, ErrorView, EmptyStateView, RoleSelect, ConfirmDialog } from '@/components/ui'
 import { useProject, useProjectMembers, useDeleteProjectMember, useSetMemberRole } from '@/hooks/useProjects'
 import { useAuthStore } from '@/store/authStore'
+import { todoUserApi } from '@/lib/api/endpoints/auth'
+import { gatewayApi } from '@/lib/api/endpoints/gateway'
+import { getAuthInfo } from '@/lib/utils/tokenManager'
 import type { ProjectMember, ProjectRole } from '@/types'
 
 export default function ProjectMembersPage() {
@@ -17,6 +20,7 @@ export default function ProjectMembersPage() {
   const projectId = params.id as string
   
   const currentUser = useAuthStore((state) => state.user)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const { data: project, isLoading: projectLoading } = useProject(projectId)
   const { data: members, isLoading: membersLoading, error, refetch } = useProjectMembers(projectId)
   const deleteMember = useDeleteProjectMember(projectId)
@@ -26,6 +30,61 @@ export default function ProjectMembersPage() {
   const [memberToDelete, setMemberToDelete] = useState<ProjectMember | null>(null)
   const [roleEditId, setRoleEditId] = useState<number | null>(null)
   const [newRole, setNewRole] = useState<ProjectRole>('member')
+  
+  // 如果已认证但没有用户信息，尝试加载用户信息
+  useEffect(() => {
+    const loadUserInfo = async () => {
+      // 只在认证且没有 username 时加载，避免无限循环
+      if (!isAuthenticated || currentUser?.username) {
+        return
+      }
+      
+      const authInfo = getAuthInfo()
+      if (!authInfo?.userId) {
+        return
+      }
+
+      try {
+        console.log('📥 成员页面：加载用户信息...')
+        
+        // 尝试获取当前登录用户信息
+        try {
+          console.log('📥 成员页面：获取当前登录用户信息...')
+          const user = await todoUserApi.getCurrentUser()
+          useAuthStore.getState().setUser(user)
+          console.log('✅ 成员页面：用户信息加载成功, username:', user.username)
+        } catch (getUserError: any) {
+          // 如果获取失败（404 = 用户不存在），创建新用户
+          console.log('⚠️ 成员页面：获取用户失败:', getUserError.response?.status)
+          
+          if (getUserError.response?.status === 404) {
+            console.log('用户不存在，创建新用户...')
+            
+            try {
+              const userResponse = await todoUserApi.createOrGetUser({ username: '新用户' })
+              const newUser: TodoUser = {
+                id: 0, // API 不返回数据库 ID
+                uuid: authInfo.userId,
+                username: userResponse.username || '',
+                avatar: userResponse.avatar || '',
+                created_at: userResponse.created_at || '',
+                updated_at: userResponse.updated_at || '',
+              }
+              
+              useAuthStore.getState().setUser(newUser)
+              console.log('✅ 成员页面：新用户创建成功')
+            } catch (createError) {
+              console.error('❌ 成员页面：创建用户失败:', createError)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('❌ 成员页面：获取用户信息失败:', error)
+      }
+    }
+    
+    loadUserInfo()
+  }, [isAuthenticated, currentUser?.username]) // 只依赖 username，避免无限循环
   
   // 加载状态
   if (projectLoading || membersLoading) {
@@ -44,32 +103,85 @@ export default function ProjectMembersPage() {
   }
   
   // 当前用户在项目中的角色
-  const currentUserMember = members?.find((m: ProjectMember) => m.user_id === currentUser?.id)
-  const isOwner = currentUserMember?.role === 'owner'
-  const isAdmin = currentUserMember?.role === 'admin' || isOwner
+  // 注意：因为 API 不返回数据库 ID，我们通过 username 匹配当前用户
+  const currentUserMember = members?.find((m: ProjectMember) => {
+    // 通过 username 匹配
+    return m.username === currentUser?.username
+  })
+  
+  // 判断是否是项目创建者
+  // 通过 username 比较
+  const isCreator = project.creator?.username === currentUser?.username
+  
+  // 当前用户的角色（从成员列表获取，如果找不到但用户是创建者，则默认为 owner）
+  const currentUserRole: ProjectRole | null = currentUserMember?.role || (isCreator ? 'owner' : null)
+  
+  // 判断是否是 owner（在成员列表中或者是创建者且不在成员列表中）
+  const isOwner = currentUserRole === 'owner'
+  
+  // 判断是否是 admin（admin 或 owner，owner 默认也是 admin）
+  const isAdmin = currentUserRole === 'admin' || isOwner
+  
+  // 是否有权限添加成员（admin 或 owner）
+  // owner 默认也是 admin，所以有权限
+  const canAddMember = isAdmin
+  
+  console.log('👤 当前用户权限检查:', { 
+    currentUsername: currentUser?.username,
+    projectCreatorUsername: project.creator?.username,
+    isCreator,
+    currentUserRole,
+    members: members?.map(m => ({ 
+      id: m.id, 
+      username: m.username,
+      role: m.role, 
+      username: m.user?.username || (m as any).username 
+    })),
+    currentUserMember,
+    isOwner,
+    isAdmin,
+    canAddMember
+  })
   
   // 处理删除成员（移除或离开）
   const handleDeleteClick = (member: ProjectMember) => {
-    // 如果是自己，可以离开
-    if (member.user_id === currentUser?.id) {
+    const isCurrentUser = member.user_id === currentUser?.id
+    
+    // 如果是自己，任何角色都可以离开
+    if (isCurrentUser) {
       setMemberToDelete(member)
       setShowDeleteConfirm(true)
       return
     }
     
-    // 只有 owner 可以删除其他成员
-    if (!isOwner) {
+    // 如果不是自己，需要检查权限
+    // member：不能删除其他成员
+    if (currentUserRole === 'member') {
+      return // member 只能离开，不能删除其他成员
+    }
+    
+    // admin：可以删除其他成员，但不能删除 owner
+    if (currentUserRole === 'admin') {
+      if (member.role === 'owner') {
+        alert('不能删除项目所有者')
+        return
+      }
+      setMemberToDelete(member)
+      setShowDeleteConfirm(true)
       return
     }
     
-    // 不能删除 owner
-    if (member.role === 'owner') {
-      alert('不能删除项目所有者')
+    // owner：可以删除其他成员，但不能删除自己（已在上面处理）
+    if (isOwner) {
+      // owner 不能删除其他 owner（虽然通常只有一个 owner）
+      if (member.role === 'owner') {
+        alert('不能删除项目所有者')
+        return
+      }
+      setMemberToDelete(member)
+      setShowDeleteConfirm(true)
       return
     }
-    
-    setMemberToDelete(member)
-    setShowDeleteConfirm(true)
   }
   
   const handleDeleteConfirm = async () => {
@@ -160,7 +272,8 @@ export default function ProjectMembersPage() {
         </div>
         
         {/* 添加新成员按钮 */}
-        {isAdmin && (
+        {/* 项目创建者（owner）或管理员（admin）可以添加成员 */}
+        {canAddMember && (
           <Button
             variant="primary"
             onClick={() => router.push(`/projects/${projectId}/invite`)}
@@ -176,17 +289,29 @@ export default function ProjectMembersPage() {
           <EmptyStateView
             title="还没有成员"
             message="添加成员加入项目"
-            actionLabel="添加新成员"
-            onAction={() => router.push(`/projects/${projectId}/invite`)}
+            actionLabel={canAddMember ? "添加新成员" : undefined}
+            onAction={canAddMember ? () => router.push(`/projects/${projectId}/invite`) : undefined}
           />
         ) : (
           <div className="divide-y divide-gray-200">
             {members.map((member: ProjectMember) => {
               const isEditing = roleEditId === member.id
-              const canEdit = isOwner && member.role !== 'owner' && member.user_id !== currentUser?.id
               const isCurrentUser = member.user_id === currentUser?.id
-              // owner 可以删除其他成员，非 owner 只能删除（离开）自己
-              const canDelete = (isOwner && member.role !== 'owner') || (isCurrentUser && !isOwner)
+              
+              // 只有 owner 可以编辑其他成员的角色
+              // 不能编辑 owner 的角色，不能编辑自己的角色
+              const canEdit = isOwner && member.role !== 'owner' && !isCurrentUser
+              
+              // 删除/离开权限判断：
+              // 1. 如果是自己，任何角色都可以离开
+              // 2. 如果不是自己：
+              //    - member：不能删除其他成员
+              //    - admin：可以删除其他成员（但不能删除 owner）
+              //    - owner：可以删除其他成员（但不能删除其他 owner）
+              const canDelete = isCurrentUser || 
+                               (currentUserRole === 'admin' && member.role !== 'owner') ||
+                               (isOwner && member.role !== 'owner')
+              
               const deleteButtonLabel = isCurrentUser ? '离开' : '移除'
               
               return (
@@ -195,14 +320,14 @@ export default function ProjectMembersPage() {
                     <div className="flex items-center gap-4 flex-1">
                       {/* 头像 */}
                       <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-white text-lg font-semibold">
-                        {member.user?.username?.charAt(0)?.toUpperCase() || 'U'}
+                        {((member.username || member.user?.username)?.charAt(0)?.toUpperCase() || 'U')}
                       </div>
                       
                       {/* 用户信息 */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-base font-medium text-gray-900">
-                            {member.user?.username || '未知用户'}
+                            {member.username || member.user?.username || `用户 ${member.user_id}`}
                           </p>
                           {member.user_id === currentUser?.id && (
                             <span className="text-xs text-gray-500">（我）</span>
@@ -286,7 +411,7 @@ export default function ProjectMembersPage() {
         message={
           memberToDelete?.user_id === currentUser?.id
             ? `确定要离开项目 "${project.name}" 吗？离开后将无法访问该项目。`
-            : `确定要移除成员 "${memberToDelete?.user?.username || '未知用户'}" 吗？此操作不可撤销。`
+            : `确定要移除成员 "${memberToDelete?.user?.username || (memberToDelete as any)?.username || '未知用户'}" 吗？此操作不可撤销。`
         }
         confirmLabel={memberToDelete?.user_id === currentUser?.id ? "离开" : "移除"}
         cancelLabel="取消"

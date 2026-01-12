@@ -135,7 +135,7 @@ export default function NewTaskPage() {
                 <option value="">无（不分配）</option>
                 {members.map((member: any) => (
                   <option key={member.user_id} value={member.user_id}>
-                    {member.user?.username || `用户 ${member.user_id}`}
+                    {member.username || member.user?.username || `用户 ${member.user_id}`}
                   </option>
                 ))}
               </select>

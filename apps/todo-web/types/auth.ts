@@ -47,24 +47,30 @@ export interface TokenInfo {
   access_token: string
   refresh_token: string
   expires_in: number  // 秒数，如 7200 (2小时)
+  refresh_expires_in: number  // 刷新Token过期时间（秒），如 2592000 (30天)
+  key_id: string  // Token密钥ID
 }
 
-/** 网关用户信息 */
+/** 网关用户信息（登录接口返回，不包含 id/uuid） */
 export interface GatewayUser {
-  id: string  // UUID
   email?: string
   phone?: string
   username?: string | null
   avatar_url?: string | null
+  is_active?: boolean
+  is_verified?: boolean
+  is_admin?: boolean
 }
 
 /** 登录响应 */
 export interface LoginResponse {
   success: boolean
+  message?: string
   data: {
     user: GatewayUser
     tokens: TokenInfo
   }
+  auth_level?: string
 }
 
 /** 刷新Token请求 */
@@ -78,6 +84,26 @@ export interface RefreshTokenResponse {
   data: {
     tokens: TokenInfo
   }
+}
+
+// ==================== 用户服务 API 类型 ====================
+
+/** 用户服务返回的完整用户信息（包含 UUID） */
+export interface UserProfile {
+  id: string  // UUID（重要！登录接口不返回，需要调用 Profile 接口获取）
+  email?: string
+  username?: string | null
+  avatar_url?: string | null
+  is_active?: boolean
+  is_verified?: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+/** 获取用户Profile响应 */
+export interface UserProfileResponse {
+  success: boolean
+  data: UserProfile
 }
 
 // ==================== TODO 后端 API 类型 ====================

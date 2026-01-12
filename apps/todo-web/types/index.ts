@@ -45,6 +45,9 @@ export interface ProjectMember {
   created_at: string
   updated_at: string
   user?: User
+  // API 文档中，成员数据直接包含 username 和 avatar
+  username?: string
+  avatar?: string
 }
 
 export type ProjectRole = 'owner' | 'admin' | 'member'

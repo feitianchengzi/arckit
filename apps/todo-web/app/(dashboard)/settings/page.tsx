@@ -8,14 +8,21 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button, TextField, LoadingView, ErrorView } from '@/components/ui'
+import { AvatarCropUpload } from '@/components/ui/AvatarCropUpload'
 import { useAuthStore } from '@/store/authStore'
-import { useCurrentUser, useLogout } from '@/hooks/useAuth'
+import { useLogout, useFirstTimeSetup } from '@/hooks/useAuth'
+import { todoUserApi } from '@/lib/api/endpoints/auth'
+import { getAuthInfo } from '@/lib/utils/tokenManager'
 
 export default function SettingsPage() {
   const router = useRouter()
   const setUser = useAuthStore((state) => state.setUser)
+  const currentUser = useAuthStore((state) => state.user)
   const logoutMutation = useLogout()
-  const { data: currentUser, isLoading, error, refetch } = useCurrentUser()
+  const updateUserMutation = useFirstTimeSetup()
+  
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   const [username, setUsername] = useState('')
   const [avatar, setAvatar] = useState('')
@@ -29,8 +36,31 @@ export default function SettingsPage() {
     if (currentUser) {
       setUsername(currentUser.username || '')
       setAvatar(currentUser.avatar || '')
+    } else {
+      // 如果 store 中没有用户信息，尝试从 localStorage 获取或查询
+      setIsLoading(true)
+      const authInfo = getAuthInfo()
+      if (authInfo?.userId) {
+        // 尝试获取当前用户信息
+        todoUserApi.getCurrentUser()
+          .then((user) => {
+            setUser(user)
+            setUsername(user.username || '')
+            setAvatar(user.avatar || '')
+          })
+          .catch((err) => {
+            console.error('获取用户信息失败:', err)
+            setError('无法获取用户信息')
+          })
+          .finally(() => {
+            setIsLoading(false)
+          })
+      } else {
+        setIsLoading(false)
+        setError('未登录，请先登录')
+      }
     }
-  }, [currentUser])
+  }, [currentUser, setUser])
   
   // 加载状态
   if (isLoading) {
@@ -38,12 +68,12 @@ export default function SettingsPage() {
   }
   
   // 错误状态
-  if (error) {
+  if (error && !currentUser) {
     return (
       <ErrorView
         title="加载失败"
-        message="无法获取用户信息，请稍后重试"
-        onRetry={() => refetch()}
+        message={error || '无法获取用户信息，请稍后重试'}
+        onRetry={() => window.location.reload()}
       />
     )
   }
@@ -60,15 +90,10 @@ export default function SettingsPage() {
     setSaveSuccess(false)
     
     try {
-      // 更新用户信息
-      // 注意：这里需要调用后端的更新用户接口
-      // 由于后端 API 可能不支持更新，这里先使用 mock 逻辑
-      
-      // 更新 authStore 中的用户信息
-      setUser({
-        id: currentUser?.id || 0,
+      // 调用更新用户信息接口
+      await updateUserMutation.mutateAsync({
         username: username.trim(),
-        avatar: avatar.trim() || undefined,
+        avatar: avatar.trim() || '',
       })
       
       setSaveSuccess(true)
@@ -131,16 +156,13 @@ export default function SettingsPage() {
               disabled={isSaving}
             />
             
-            {/* 头像 URL */}
-            <TextField
-              id="avatar"
-              label="头像 URL"
-              placeholder="https://example.com/avatar.png"
+            {/* 头像上传 */}
+            <AvatarCropUpload
               value={avatar}
-              onChange={(e) => setAvatar(e.target.value)}
-              fullWidth
-              helperText="输入头像图片的 URL 地址"
-              disabled={isSaving}
+              onChange={setAvatar}
+              outputSize={200}
+              label="头像"
+              showLabel={true}
             />
             
             {/* 成功提示 */}
@@ -181,9 +203,17 @@ export default function SettingsPage() {
             {/* 显示当前用户信息 */}
             <div className="flex items-center gap-4">
               {/* 头像 */}
-              <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-white text-2xl font-semibold">
-                {currentUser?.username?.charAt(0)?.toUpperCase() || 'U'}
-              </div>
+              {currentUser?.avatar ? (
+                <img
+                  src={currentUser.avatar}
+                  alt="用户头像"
+                  className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-white text-2xl font-semibold">
+                  {currentUser?.username?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+              )}
               
               {/* 用户信息 */}
               <div className="flex-1">

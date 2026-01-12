@@ -5,7 +5,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { invitationsApi, CreateInvitationInput } from '@/lib/api/endpoints/invitations'
 import { useAuthStore } from '@/store/authStore'
-import { authApi } from '@/lib/api/endpoints/auth'
+import { todoUserApi } from '@/lib/api/endpoints/auth'
 
 /**
  * 获取项目的邀请列表
@@ -63,17 +63,7 @@ export function useJoinByInvite() {
   return useMutation({
     mutationFn: async (inviteCode: string) => {
       // 获取当前用户ID
-      let userId = user?.id
-      
-      if (!userId) {
-        // 如果 authStore 中没有用户ID，尝试从 getCurrentUser 获取
-        try {
-          const currentUser = await authApi.getCurrentUser()
-          userId = currentUser.id
-        } catch (err) {
-          throw new Error('无法获取用户ID，请先登录')
-        }
-      }
+      const userId = user?.id
       
       if (!userId) {
         throw new Error('无法获取用户ID，请先登录')

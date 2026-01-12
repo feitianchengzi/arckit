@@ -11,13 +11,13 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 import { getAccessToken, shouldRefreshToken, getRefreshToken, saveAuthInfo, clearAuthInfo, getAuthInfo } from '@/lib/utils/tokenManager'
 import { gatewayApi } from './endpoints/gateway'
 
-// TODO 后端基础URL
+// Workshop 后端基础URL
 // 注意：路径格式为 /{service}/v1/...，所以 baseURL 应该包含 service 和 v1
-const TODO_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8081/todo/v1'
+const WORKSHOP_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://api.feitianchengzi.com/workshop/v1'
 
 // 创建 axios 实例
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: TODO_BASE_URL,
+  baseURL: WORKSHOP_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -124,23 +124,23 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
 
-    // 添加用户相关的 Header（后端需要 X-User-ID 来识别用户）
-    const authInfo = getAuthInfo()
-    if (authInfo?.userId) {
-      console.log('📤 发送请求 - X-User-ID:', authInfo.userId, '长度:', authInfo.userId.length)
-      console.log('📤 发送请求 - Access Token:', authInfo.accessToken?.substring(0, 20) + '...')
-      config.headers['X-User-ID'] = authInfo.userId
-    } else {
-      // 如果 userId 不存在，记录警告（这不应该发生）
-      console.warn('⚠️ X-User-ID header 缺失，可能导致后端请求失败')
-    }
-    
-    // 开发模式：添加额外的测试 Header
-    if (process.env.NODE_ENV === 'development') {
+    // 注意：在生产环境中，网关会自动从 JWT Token 中提取用户信息并添加 X-User-ID 头
+    // 前端不应该手动添加 X-User-ID 头，否则会导致 CORS 错误
+    // 只在开发环境中（直接连接本地后端）才手动添加这些头
+    if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_API_URL?.includes('localhost')) {
+      const authInfo = getAuthInfo()
+      if (authInfo?.userId) {
+        config.headers['X-User-ID'] = authInfo.userId
+      }
       if (authInfo?.username) {
         config.headers['X-Username'] = authInfo.username
       }
     }
+
+    // 统一打印请求日志（包含完整 URL）
+    const fullUrl = `${config.baseURL}${config.url}`
+    const method = config.method?.toUpperCase() || 'GET'
+    console.log(`🌐 API 请求: ${method} ${fullUrl}`)
 
     return config
   },

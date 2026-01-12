@@ -10,7 +10,7 @@ import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialo
 import { SubtaskList, StatusHistory } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useTaskHistory } from '@/hooks/useHistory'
-import { useProject } from '@/hooks/useProjects'
+import { useProject, useProjectMembers } from '@/hooks/useProjects'
 import type { TodoStatus } from '@/types'
 
 export default function TaskDetailPage() {
@@ -31,6 +31,18 @@ export default function TaskDetailPage() {
   const [updateError, setUpdateError] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [statusUpdateError, setStatusUpdateError] = useState('')
+  const [isEditingAssignee, setIsEditingAssignee] = useState(false)
+  const [newAssigneeId, setNewAssigneeId] = useState<number | undefined>(undefined)
+  
+  const { data: members } = useProjectMembers(projectId)
+  
+  // 从成员列表中查找创建者和执行者信息
+  const creatorInfo = members?.find(m => m.user_id === todo?.creatorId)
+  const executorInfo = members?.find(m => m.user_id === todo?.assigneeId)
+  
+  // 获取创建者和执行者的用户名
+  const creatorUsername = todo?.creator?.username || creatorInfo?.username || creatorInfo?.user?.username || '未知'
+  const executorUsername = todo?.assignee?.username || executorInfo?.username || executorInfo?.user?.username || '未分配'
   
   // 加载状态
   if (isLoading) {
@@ -228,15 +240,73 @@ export default function TaskDetailPage() {
           <div>
             <p className="text-sm font-medium text-gray-700">创建者</p>
             <p className="mt-1 text-sm text-gray-900">
-              {todo.creator?.username || '未知'}
+              {creatorUsername}
             </p>
           </div>
           
           <div>
             <p className="text-sm font-medium text-gray-700">执行者</p>
-            <p className="mt-1 text-sm text-gray-900">
-              {todo.assignee?.username || '未分配'}
-            </p>
+            {isEditingAssignee ? (
+              <div className="mt-1 space-y-2">
+                <select
+                  value={newAssigneeId || ''}
+                  onChange={(e) => setNewAssigneeId(e.target.value ? parseInt(e.target.value) : undefined)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50"
+                >
+                  <option value="">未分配</option>
+                  {members?.map((member: any) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.username || member.user?.username || `用户 ${member.user_id}`}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={async () => {
+                      try {
+                        await updateTask.mutateAsync({ assigneeId: newAssigneeId })
+                        setIsEditingAssignee(false)
+                        setNewAssigneeId(undefined)
+                      } catch (err: any) {
+                        setUpdateError(err?.response?.data?.message || '更新失败，请重试')
+                      }
+                    }}
+                    loading={updateTask.isPending}
+                  >
+                    保存
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setIsEditingAssignee(false)
+                      setNewAssigneeId(undefined)
+                    }}
+                    disabled={updateTask.isPending}
+                  >
+                    取消
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-sm text-gray-900">
+                  {executorUsername}
+                </p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setIsEditingAssignee(true)
+                    setNewAssigneeId(todo.assigneeId)
+                  }}
+                >
+                  编辑
+                </Button>
+              </div>
+            )}
           </div>
           
           <div>

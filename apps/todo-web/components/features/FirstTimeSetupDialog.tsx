@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { TextField } from '@/components/ui/TextField'
-import { AvatarUpload } from '@/components/ui/AvatarUpload'
+import { AvatarCropUpload } from '@/components/ui/AvatarCropUpload'
 import { isValidUsername } from '@/lib/utils/validators'
 
 export interface FirstTimeSetupDialogProps {
@@ -52,28 +52,13 @@ export function FirstTimeSetupDialog({
     }
   }
 
-  // 跳过设置
-  const handleSkip = async () => {
-    // 使用邮箱前缀作为默认用户名
-    const defaultUsername = defaultEmail?.split('@')[0] || `user${Date.now()}`
-    
-    setIsSubmitting(true)
-    try {
-      await onComplete({ username: defaultUsername })
-      onClose()
-    } catch (err) {
-      setError('操作失败，请重试')
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
 
   return (
-    <Dialog
+      <Dialog
       open={open}
-      onClose={onClose}
+      onClose={() => {}} // 不允许关闭，必须完成设置
       title="欢迎使用待办管理系统！🎉"
-      description="完善你的个人信息"
+      description="请完善你的个人信息，用户名是必填项"
       maxWidth="md"
       showCloseButton={false}
     >
@@ -95,11 +80,12 @@ export function FirstTimeSetupDialog({
 
         {/* 头像上传 */}
         <div>
-          <AvatarUpload
+          <AvatarCropUpload
             value={avatar}
             onChange={setAvatar}
-            maxSize={200}
-            recommendedSize="50x50"
+            outputSize={200}
+            label="头像（可选）"
+            showLabel={true}
           />
         </div>
 
@@ -111,21 +97,12 @@ export function FirstTimeSetupDialog({
         )}
 
         {/* 操作按钮 */}
-        <div className="flex gap-3 pt-4 border-t border-gray-200">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={handleSkip}
-            disabled={isSubmitting}
-            className="flex-1"
-          >
-            跳过
-          </Button>
+        <div className="flex gap-3 pt-4 border-t border-gray-200 justify-end">
           <Button
             type="submit"
             variant="primary"
             loading={isSubmitting}
-            disabled={!username || isSubmitting}
+            disabled={!username || isSubmitting || !isValidUsername(username)}
             className="flex-1"
           >
             完成设置
@@ -133,7 +110,7 @@ export function FirstTimeSetupDialog({
         </div>
 
         <p className="text-xs text-center text-gray-500">
-          跳过后可在设置页面修改
+          用户名必填，头像可选。完成后可在设置页面修改
         </p>
       </form>
     </Dialog>

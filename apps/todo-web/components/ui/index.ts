@@ -8,4 +8,6 @@ export * from './StatusBadge'
 export * from './StatusSelect'
 export * from './RoleSelect'
 export * from './ConfirmDialog'
+export * from './AvatarCropUpload'
+export * from './ImageCropDialog'
 

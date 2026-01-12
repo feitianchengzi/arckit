@@ -93,6 +93,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   /**
    * 初始化：从 localStorage 恢复状态
+   * 注意：初始化时只恢复认证状态，不恢复用户信息
+   * 用户信息需要通过 API 获取（从项目列表中获取或调用用户 API）
    */
   initialize: () => {
     const authInfo = getAuthInfo()
@@ -100,16 +102,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (authInfo && authInfo.accessToken) {
       set({
         isAuthenticated: true,
-        user: authInfo.username
-          ? {
-              id: 0,
-              uuid: authInfo.userId,
-              username: authInfo.username,
-              avatar: authInfo.avatarUrl || '',
-              created_at: '',
-              updated_at: '',
-            }
-          : null,
+        // 初始化时不设置 user，因为 id 是数据库 ID，需要从 API 获取
+        // 用户信息会在首次使用项目列表时自动获取（通过 createOrGetUser）
+        user: null,
         isLoading: false,
       })
     } else {

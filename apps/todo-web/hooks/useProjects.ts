@@ -11,12 +11,14 @@ import { useAuthStore } from '@/store/authStore'
  * 获取项目列表
  */
 export function useProjectList() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
   
   return useQuery({
     queryKey: ['projects'],
-    queryFn: () => projectsApi.list(user?.id),
-    enabled: !!user?.id, // 只在有用户ID时查询
+    queryFn: () => projectsApi.list(), // 不需要 user_id，网关自动识别
+    // 只在已登录且用户已完成首次设置（有 username）时查询
+    enabled: isAuthenticated && !!user && !!user.username,
   })
 }
 
@@ -37,13 +39,14 @@ export function useProject(projectId: string) {
 export function useCreateProject() {
   const router = useRouter()
   const queryClient = useQueryClient()
-  const user = useAuthStore((state) => state.user)
   
   return useMutation({
-    mutationFn: (input: CreateProjectInput) => projectsApi.create(input, user?.id),
+    mutationFn: (input: CreateProjectInput) => projectsApi.create(input), // 不需要 user_id
     onSuccess: (data) => {
-      // 使项目列表缓存失效
+      console.log('✅ 项目创建成功，刷新列表')
+      // 使项目列表缓存失效，强制刷新
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.refetchQueries({ queryKey: ['projects'] })
       
       // 跳转到项目详情
       router.push(`/projects/${data.id}`)
@@ -91,12 +94,12 @@ export function useDeleteProject() {
  * 获取项目成员
  */
 export function useProjectMembers(projectId: string) {
-  const user = useAuthStore((state) => state.user)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   
   return useQuery({
     queryKey: ['projects', projectId, 'members'],
-    queryFn: () => projectsApi.getMembers(projectId, user?.id),
-    enabled: !!projectId && !!user?.id,
+    queryFn: () => projectsApi.getMembers(projectId), // 不需要 user_id
+    enabled: !!projectId && isAuthenticated,
   })
 }
 

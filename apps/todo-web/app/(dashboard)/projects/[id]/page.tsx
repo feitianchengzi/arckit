@@ -64,18 +64,10 @@ export default function ProjectDetailPage() {
       {/* 页面头部 */}
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.back()}
-              className="text-gray-600 hover:text-gray-900"
-            >
-              <BackIcon className="w-6 h-6" />
-            </button>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
-              <p className="mt-1 text-gray-600">{project.git_url}</p>
-            </div>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
+          {project.git_url && (
+            <p className="mt-1 text-gray-600">{project.git_url}</p>
+          )}
         </div>
         
         <div className="flex gap-3">

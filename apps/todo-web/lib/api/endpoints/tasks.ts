@@ -12,61 +12,30 @@ export type { CreateTaskInput, UpdateTaskInput }
 export const tasksApi = {
   /**
    * 获取项目的任务列表
-   * 后端路由: GET /todo/v1/user/tasks?project_id={projectId}&user_id={userId}
+   * 后端路由: GET /workshop/v1/user/tasks?project_id={projectId}
+   * 注意：根据API文档，不需要 user_id 参数，网关会自动识别用户
    * 响应格式: { tasks: Task[], total: number }
    */
   listByProject: async (projectId: string, userId?: number): Promise<Task[]> => {
-    // 如果没有传入 userId，尝试从 localStorage 获取
-    if (!userId && typeof window !== 'undefined') {
-      try {
-        const authStorage = localStorage.getItem('auth-storage')
-        if (authStorage) {
-          const authData = JSON.parse(authStorage)
-          if (authData?.state?.user?.id) {
-            userId = authData.state.user.id
-          }
-        }
-      } catch (err) {
-        console.warn('无法从 localStorage 获取用户ID:', err)
-      }
-    }
-    
-    if (!userId) {
-      throw new Error('无法获取用户ID，请先登录')
-    }
-    
+    // 根据API文档，不需要 user_id 参数，网关会自动识别用户
+    console.log('📋 获取项目任务列表，项目ID:', projectId)
     const { data } = await apiClient.get(`/user/tasks`, {
-      params: { project_id: projectId, user_id: userId },
+      params: { project_id: projectId },
     })
     // 后端返回格式是 { tasks: [], total: 0 }，需要提取 tasks 数组
-    return data?.tasks || data || []
+    const tasks = data?.tasks || data || []
+    console.log('✅ 获取到任务列表，数量:', tasks.length)
+    return tasks
   },
   
   /**
    * 创建任务
-   * 后端路由: POST /todo/v1/user/tasks?user_id={userId}
+   * 后端路由: POST /workshop/v1/user/tasks
+   * 注意：根据API文档，不需要 user_id 参数，网关会自动识别用户
    * 请求体需要包含 project_id
    */
   create: async (input: CreateTaskInput, userId?: number): Promise<Task> => {
-    // 如果没有传入 userId，尝试从 localStorage 获取
-    if (!userId && typeof window !== 'undefined') {
-      try {
-        const authStorage = localStorage.getItem('auth-storage')
-        if (authStorage) {
-          const authData = JSON.parse(authStorage)
-          if (authData?.state?.user?.id) {
-            userId = authData.state.user.id
-          }
-        }
-      } catch (err) {
-        console.warn('无法从 localStorage 获取用户ID:', err)
-      }
-    }
-    
-    if (!userId) {
-      throw new Error('无法获取用户ID，请先登录')
-    }
-    
+    // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     const taskInput: any = {
       project_id: input.projectId,
       content: input.content,
@@ -80,7 +49,9 @@ export const tasksApi = {
       taskInput.father_id = input.parentId
     }
     
-    const { data } = await apiClient.post(`/user/tasks?user_id=${userId}`, taskInput)
+    console.log('🆕 创建任务:', taskInput)
+    const { data } = await apiClient.post(`/user/tasks`, taskInput)
+    console.log('✅ 任务创建成功:', data)
     return data
   },
   
@@ -109,7 +80,8 @@ export const tasksApi = {
   
   /**
    * 更新任务
-   * 后端路由: PUT /todo/v1/user/tasks/:id?user_id={userId}
+   * 后端路由: PUT /workshop/v1/user/tasks/:id
+   * 注意：根据API文档，不需要 user_id 参数，网关会自动识别用户
    */
   update: async (
     projectId: string,
@@ -117,25 +89,7 @@ export const tasksApi = {
     input: UpdateTaskInput,
     userId?: number
   ): Promise<Task> => {
-    // 如果没有传入 userId，尝试从 localStorage 获取
-    if (!userId && typeof window !== 'undefined') {
-      try {
-        const authStorage = localStorage.getItem('auth-storage')
-        if (authStorage) {
-          const authData = JSON.parse(authStorage)
-          if (authData?.state?.user?.id) {
-            userId = authData.state.user.id
-          }
-        }
-      } catch (err) {
-        console.warn('无法从 localStorage 获取用户ID:', err)
-      }
-    }
-    
-    if (!userId) {
-      throw new Error('无法获取用户ID，请先登录')
-    }
-    
+    // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     const taskInput: any = {}
     
     if (input.content !== undefined) {
@@ -150,43 +104,31 @@ export const tasksApi = {
       taskInput.executor_id = input.assigneeId
     }
     
-    const { data } = await apiClient.put(`/user/tasks/${taskId}?user_id=${userId}`, taskInput)
+    console.log('🔄 更新任务，任务ID:', taskId, '更新内容:', taskInput)
+    const { data } = await apiClient.put(`/user/tasks/${taskId}`, taskInput)
+    console.log('✅ 任务更新成功:', data)
     return data
   },
   
   /**
    * 删除任务
-   * 后端路由: DELETE /todo/v1/user/tasks?user_id={userId}
+   * 后端路由: DELETE /workshop/v1/user/tasks
+   * 注意：根据API文档，不需要 user_id 参数，网关会自动识别用户
    * 请求体需要包含 task_ids 数组（批量删除）
    */
   delete: async (projectId: string, taskId: string, userId?: number): Promise<void> => {
-    // 如果没有传入 userId，尝试从 localStorage 获取
-    if (!userId && typeof window !== 'undefined') {
-      try {
-        const authStorage = localStorage.getItem('auth-storage')
-        if (authStorage) {
-          const authData = JSON.parse(authStorage)
-          if (authData?.state?.user?.id) {
-            userId = authData.state.user.id
-          }
-        }
-      } catch (err) {
-        console.warn('无法从 localStorage 获取用户ID:', err)
-      }
-    }
-    
-    if (!userId) {
-      throw new Error('无法获取用户ID，请先登录')
-    }
-    
-    await apiClient.delete(`/user/tasks?user_id=${userId}`, {
+    // 根据API文档，不需要 user_id 参数，网关会自动识别用户
+    console.log('🗑️ 删除任务，任务ID:', taskId)
+    await apiClient.delete(`/user/tasks`, {
       data: { task_ids: [parseInt(taskId)] },
     })
+    console.log('✅ 任务删除成功')
   },
   
   /**
    * 更新任务状态
-   * 后端路由: PUT /todo/v1/user/tasks/:id?user_id={userId}
+   * 后端路由: PUT /workshop/v1/user/tasks/:id
+   * 注意：根据API文档，不需要 user_id 参数，网关会自动识别用户
    */
   updateStatus: async (
     projectId: string,
@@ -194,28 +136,12 @@ export const tasksApi = {
     status: string,
     userId?: number
   ): Promise<Task> => {
-    // 如果没有传入 userId，尝试从 localStorage 获取
-    if (!userId && typeof window !== 'undefined') {
-      try {
-        const authStorage = localStorage.getItem('auth-storage')
-        if (authStorage) {
-          const authData = JSON.parse(authStorage)
-          if (authData?.state?.user?.id) {
-            userId = authData.state.user.id
-          }
-        }
-      } catch (err) {
-        console.warn('无法从 localStorage 获取用户ID:', err)
-      }
-    }
-    
-    if (!userId) {
-      throw new Error('无法获取用户ID，请先登录')
-    }
-    
-    const { data } = await apiClient.put(`/user/tasks/${taskId}?user_id=${userId}`, {
+    // 根据API文档，不需要 user_id 参数，网关会自动识别用户
+    console.log('🔄 更新任务状态，任务ID:', taskId, '新状态:', status)
+    const { data } = await apiClient.put(`/user/tasks/${taskId}`, {
       state: statusToState(status as any),
     })
+    console.log('✅ 任务状态更新成功:', data)
     return data
   },
   
@@ -224,7 +150,7 @@ export const tasksApi = {
    * 从任务列表中筛选出子任务
    */
   getChildren: async (projectId: string, taskId: string): Promise<Task[]> => {
-    const tasks = await tasksApi.listByProject(projectId)
+    const tasks = await tasksApi.listByProject(projectId) // 不需要 userId
     return tasks.filter((t) => t.father_id?.toString() === taskId) || []
   },
 }

@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '@/store/authStore'
+import { ProjectList } from './ProjectList'
 
 interface SidebarProps {
   className?: string
@@ -82,13 +83,10 @@ export function Sidebar({ className }: SidebarProps) {
       
       {/* 导航菜单 */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        <NavItem
-          icon={<ProjectsIcon />}
-          label="项目列表"
-          href="/projects"
-          active={true}
-        />
+        {/* 项目列表（可展开） */}
+        <ProjectList />
         
+        {/* 我的任务 */}
         <NavItem
           icon={<TasksIcon />}
           label="我的任务"
