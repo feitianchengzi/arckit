@@ -14,6 +14,43 @@ import (
 	"gorm.io/gorm"
 )
 
+// Project错误消息ID定义 - 项目服务特定的错误消息
+const (
+	ProjectErrCreateProjectFailed        = 1  // 创建项目失败
+	ProjectErrQueryMembersFailed         = 2  // 查询项目成员失败
+	ProjectErrQueryMemberRelationsFailed = 3  // 查询项目成员关系失败
+	ProjectErrProjectIDEmpty             = 4  // 项目ID不能为空
+	ProjectErrProjectNotFound            = 5  // 项目不存在
+	ProjectErrQueryProjectFailed         = 6  // 查询项目失败
+	ProjectErrNotMember                  = 7  // 您不是该项目的成员
+	ProjectErrVerifyMemberFailed         = 8  // 验证项目成员身份失败
+	ProjectErrNoPermissionUpdate         = 9  // 您没有权限更新此项目，只有项目所有者和管理员可以更新
+	ProjectErrUpdateProjectFailed        = 10 // 更新项目失败
+	ProjectErrQueryUpdatedFailed         = 11 // 查询更新后的项目信息失败
+	ProjectErrNoPermissionInvite         = 12 // 您没有权限邀请项目成员，只有项目所有者和管理员可以邀请
+	ProjectErrInvalidRole                = 13 // 无效的项目角色
+	ProjectErrCreateInviteFailed         = 14 // 创建邀请失败
+	ProjectErrInviteCodeInvalid          = 15 // 邀请码无效
+	ProjectErrQueryInviteFailed          = 16 // 查询邀请记录失败
+	ProjectErrInviteCodeUsed             = 17 // 该邀请码已被使用
+	ProjectErrInviteCodeExpired          = 18 // 该邀请码已过期
+	ProjectErrAlreadyMember              = 19 // 您已经是该项目的成员
+	ProjectErrCheckMemberFailed          = 20 // 检查项目成员失败
+	ProjectErrJoinProjectFailed          = 21 // 加入项目失败
+	ProjectErrOnlyOwnerCanDelete         = 22 // 只有项目所有者可以删除项目
+	ProjectErrDeleteProjectFailed        = 23 // 删除项目失败
+	ProjectErrNoPermissionDeleteMember   = 24 // 您没有权限删除项目成员，只有项目所有者和管理员可以删除
+	ProjectErrUserNotMember              = 25 // 该用户不是项目成员
+	ProjectErrCannotDeleteOwner          = 26 // 无法删除项目所有者，项目至少需要保留一个成员
+	ProjectErrDeleteMemberFailed         = 27 // 删除项目成员失败
+	ProjectErrOnlyOwnerCanSetPermission  = 28 // 只有项目所有者可以设置成员权限
+	ProjectErrInvalidRoleValue           = 29 // 无效的角色，仅支持 admin 或 member
+	ProjectErrTargetUserNotMember        = 30 // 目标用户不是项目成员
+	ProjectErrCannotModifyOwnerRole      = 31 // 不能修改项目所有者的角色
+	ProjectErrUpdateMemberRoleFailed     = 32 // 更新成员角色失败
+	ProjectErrQueryMemberInfoFailed      = 33 // 查询成员信息失败
+)
+
 // CreateProjectRequest 创建项目请求结构
 type CreateProjectRequest struct {
 	Name   string `json:"name" binding:"required"`    // 项目名称（必填）
@@ -49,8 +86,11 @@ func CreateProject(c *gin.Context) {
 	// 1. 解析请求体
 	var req CreateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "请求参数错误: " + err.Error(),
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrBadRequest,
+			Message:    "请求参数错误: " + err.Error(),
 		})
 		return
 	}
@@ -58,8 +98,11 @@ func CreateProject(c *gin.Context) {
 	// 2. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "数据库连接未初始化",
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrDatabaseNotInit,
+			Message:    "数据库连接未初始化",
 		})
 		return
 	}
@@ -97,8 +140,11 @@ func CreateProject(c *gin.Context) {
 	})
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "创建项目失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrCreateProjectFailed,
+			Message:    "创建项目失败: " + err.Error(),
 		})
 		return
 	}
@@ -106,8 +152,11 @@ func CreateProject(c *gin.Context) {
 	// 5. 查询项目成员（包含创建者）
 	var members []models.ProjectMember
 	if err := db.Where("project_id = ?", project.ID).Preload("User").Find(&members).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询项目成员失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryMembersFailed,
+			Message:    "查询项目成员失败: " + err.Error(),
 		})
 		return
 	}
@@ -163,8 +212,11 @@ func GetUserProjects(c *gin.Context) {
 	// 1. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "数据库连接未初始化",
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrDatabaseNotInit,
+			Message:    "数据库连接未初始化",
 		})
 		return
 	}
@@ -178,8 +230,11 @@ func GetUserProjects(c *gin.Context) {
 	// 3. 查询用户参与的所有项目（通过project_members表）
 	var projectMembers []models.ProjectMember
 	if err := db.Where("user_id = ?", userID).Preload("Project").Find(&projectMembers).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询项目成员关系失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryMemberRelationsFailed,
+			Message:    "查询项目成员关系失败: " + err.Error(),
 		})
 		return
 	}
@@ -196,8 +251,11 @@ func GetUserProjects(c *gin.Context) {
 	var allMembers []models.ProjectMember
 	if len(projectIDs) > 0 {
 		if err := db.Where("project_id IN ?", projectIDs).Preload("User").Find(&allMembers).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "查询项目成员失败: " + err.Error(),
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				HTTPStatus: http.StatusInternalServerError,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrQueryMembersFailed,
+				Message:    "查询项目成员失败: " + err.Error(),
 			})
 			return
 		}
@@ -277,8 +335,11 @@ func UpdateProject(c *gin.Context) {
 	// 1. 获取项目ID
 	projectID := c.Param("id")
 	if projectID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "项目ID不能为空",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrProjectIDEmpty,
+			Message:    "项目ID不能为空",
 		})
 		return
 	}
@@ -286,8 +347,11 @@ func UpdateProject(c *gin.Context) {
 	// 2. 解析请求体
 	var req UpdateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "请求参数错误: " + err.Error(),
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrBadRequest,
+			Message:    "请求参数错误: " + err.Error(),
 		})
 		return
 	}
@@ -295,8 +359,11 @@ func UpdateProject(c *gin.Context) {
 	// 3. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "数据库连接未初始化",
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrDatabaseNotInit,
+			Message:    "数据库连接未初始化",
 		})
 		return
 	}
@@ -311,13 +378,19 @@ func UpdateProject(c *gin.Context) {
 	var project models.Project
 	if err := db.First(&project, projectID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "项目不存在",
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				HTTPStatus: http.StatusNotFound,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrProjectNotFound,
+				Message:    "项目不存在",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询项目失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryProjectFailed,
+			Message:    "查询项目失败: " + err.Error(),
 		})
 		return
 	}
@@ -326,21 +399,30 @@ func UpdateProject(c *gin.Context) {
 	var member models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", project.ID, userID).First(&member).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "您不是该项目的成员",
+			c.JSON(http.StatusForbidden, models.ErrorResponse{
+				HTTPStatus: http.StatusForbidden,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrNotMember,
+				Message:    "您不是该项目的成员",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "验证项目成员身份失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrVerifyMemberFailed,
+			Message:    "验证项目成员身份失败: " + err.Error(),
 		})
 		return
 	}
 
 	// 7. 验证权限：只有owner和admin可以更新项目
 	if member.Role != models.ProjectRoleOwner && member.Role != models.ProjectRoleAdmin {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "您没有权限更新此项目，只有项目所有者和管理员可以更新",
+		c.JSON(http.StatusForbidden, models.ErrorResponse{
+			HTTPStatus: http.StatusForbidden,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrNoPermissionUpdate,
+			Message:    "您没有权限更新此项目，只有项目所有者和管理员可以更新",
 		})
 		return
 	}
@@ -359,8 +441,11 @@ func UpdateProject(c *gin.Context) {
 		// 查询项目成员
 		var members []models.ProjectMember
 		if err := db.Where("project_id = ?", project.ID).Preload("User").Find(&members).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "查询项目成员失败: " + err.Error(),
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				HTTPStatus: http.StatusInternalServerError,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrQueryMembersFailed,
+				Message:    "查询项目成员失败: " + err.Error(),
 			})
 			return
 		}
@@ -392,16 +477,22 @@ func UpdateProject(c *gin.Context) {
 
 	// 10. 更新项目信息
 	if err := db.Model(&project).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "更新项目失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrUpdateProjectFailed,
+			Message:    "更新项目失败: " + err.Error(),
 		})
 		return
 	}
 
 	// 11. 重新查询项目以获取最新数据
 	if err := db.First(&project, project.ID).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询更新后的项目信息失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryUpdatedFailed,
+			Message:    "查询更新后的项目信息失败: " + err.Error(),
 		})
 		return
 	}
@@ -409,8 +500,11 @@ func UpdateProject(c *gin.Context) {
 	// 12. 查询项目成员
 	var members []models.ProjectMember
 	if err := db.Where("project_id = ?", project.ID).Preload("User").Find(&members).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询项目成员失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryMembersFailed,
+			Message:    "查询项目成员失败: " + err.Error(),
 		})
 		return
 	}
@@ -472,8 +566,11 @@ func InviteProjectMember(c *gin.Context) {
 	// 1. 获取项目ID
 	projectID := c.Param("id")
 	if projectID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "项目ID不能为空",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrProjectIDEmpty,
+			Message:    "项目ID不能为空",
 		})
 		return
 	}
@@ -481,8 +578,11 @@ func InviteProjectMember(c *gin.Context) {
 	// 2. 解析请求体
 	var req InviteProjectMemberRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "请求参数错误: " + err.Error(),
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrBadRequest,
+			Message:    "请求参数错误: " + err.Error(),
 		})
 		return
 	}
@@ -490,8 +590,11 @@ func InviteProjectMember(c *gin.Context) {
 	// 3. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "数据库连接未初始化",
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrDatabaseNotInit,
+			Message:    "数据库连接未初始化",
 		})
 		return
 	}
@@ -506,13 +609,19 @@ func InviteProjectMember(c *gin.Context) {
 	var project models.Project
 	if err := db.First(&project, projectID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "项目不存在",
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				HTTPStatus: http.StatusNotFound,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrProjectNotFound,
+				Message:    "项目不存在",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询项目失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryProjectFailed,
+			Message:    "查询项目失败: " + err.Error(),
 		})
 		return
 	}
@@ -521,21 +630,30 @@ func InviteProjectMember(c *gin.Context) {
 	var member models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", project.ID, userID).First(&member).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "您不是该项目的成员",
+			c.JSON(http.StatusForbidden, models.ErrorResponse{
+				HTTPStatus: http.StatusForbidden,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrNotMember,
+				Message:    "您不是该项目的成员",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "验证项目成员身份失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrVerifyMemberFailed,
+			Message:    "验证项目成员身份失败: " + err.Error(),
 		})
 		return
 	}
 
 	// 7. 验证权限：只有owner和admin可以邀请成员
 	if member.Role != models.ProjectRoleOwner && member.Role != models.ProjectRoleAdmin {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "您没有权限邀请项目成员，只有项目所有者和管理员可以邀请",
+		c.JSON(http.StatusForbidden, models.ErrorResponse{
+			HTTPStatus: http.StatusForbidden,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrNoPermissionInvite,
+			Message:    "您没有权限邀请项目成员，只有项目所有者和管理员可以邀请",
 		})
 		return
 	}
@@ -548,8 +666,11 @@ func InviteProjectMember(c *gin.Context) {
 
 	// 9. 验证角色是否有效
 	if !models.IsValidProjectRole(role) {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的项目角色",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrInvalidRole,
+			Message:    "无效的项目角色",
 		})
 		return
 	}
@@ -574,8 +695,11 @@ func InviteProjectMember(c *gin.Context) {
 	}
 
 	if err := db.Create(&invitation).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "创建邀请失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrCreateInviteFailed,
+			Message:    "创建邀请失败: " + err.Error(),
 		})
 		return
 	}
@@ -626,8 +750,11 @@ func JoinProject(c *gin.Context) {
 	// 1. 解析请求体
 	var req JoinProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "请求参数错误: " + err.Error(),
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrBadRequest,
+			Message:    "请求参数错误: " + err.Error(),
 		})
 		return
 	}
@@ -635,8 +762,11 @@ func JoinProject(c *gin.Context) {
 	// 2. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "数据库连接未初始化",
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrDatabaseNotInit,
+			Message:    "数据库连接未初始化",
 		})
 		return
 	}
@@ -651,29 +781,41 @@ func JoinProject(c *gin.Context) {
 	var invitation models.ProjectInvitation
 	if err := db.Where("invite_code = ?", req.InviteCode).First(&invitation).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "邀请码无效",
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				HTTPStatus: http.StatusNotFound,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrInviteCodeInvalid,
+				Message:    "邀请码无效",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询邀请记录失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryInviteFailed,
+			Message:    "查询邀请记录失败: " + err.Error(),
 		})
 		return
 	}
 
 	// 5. 验证邀请是否已使用
 	if invitation.IsUsed() {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "该邀请码已被使用",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrInviteCodeUsed,
+			Message:    "该邀请码已被使用",
 		})
 		return
 	}
 
 	// 6. 验证邀请是否过期
 	if invitation.IsExpired() {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "该邀请码已过期",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrInviteCodeExpired,
+			Message:    "该邀请码已过期",
 		})
 		return
 	}
@@ -682,13 +824,19 @@ func JoinProject(c *gin.Context) {
 	var project models.Project
 	if err := db.First(&project, invitation.ProjectID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "项目不存在",
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				HTTPStatus: http.StatusNotFound,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrProjectNotFound,
+				Message:    "项目不存在",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询项目失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryProjectFailed,
+			Message:    "查询项目失败: " + err.Error(),
 		})
 		return
 	}
@@ -697,14 +845,20 @@ func JoinProject(c *gin.Context) {
 	var existingMember models.ProjectMember
 	err := db.Where("project_id = ? AND user_id = ?", project.ID, userID).First(&existingMember).Error
 	if err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "您已经是该项目的成员",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrAlreadyMember,
+			Message:    "您已经是该项目的成员",
 		})
 		return
 	}
 	if err != gorm.ErrRecordNotFound {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "检查项目成员失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrCheckMemberFailed,
+			Message:    "检查项目成员失败: " + err.Error(),
 		})
 		return
 	}
@@ -733,8 +887,11 @@ func JoinProject(c *gin.Context) {
 	})
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "加入项目失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrJoinProjectFailed,
+			Message:    "加入项目失败: " + err.Error(),
 		})
 		return
 	}
@@ -779,8 +936,11 @@ func DeleteProject(c *gin.Context) {
 	// 1. 获取项目ID
 	projectID := c.Param("id")
 	if projectID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "项目ID不能为空",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrProjectIDEmpty,
+			Message:    "项目ID不能为空",
 		})
 		return
 	}
@@ -788,8 +948,11 @@ func DeleteProject(c *gin.Context) {
 	// 2. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "数据库连接未初始化",
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrDatabaseNotInit,
+			Message:    "数据库连接未初始化",
 		})
 		return
 	}
@@ -804,13 +967,19 @@ func DeleteProject(c *gin.Context) {
 	var project models.Project
 	if err := db.First(&project, projectID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "项目不存在",
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				HTTPStatus: http.StatusNotFound,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrProjectNotFound,
+				Message:    "项目不存在",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询项目失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryProjectFailed,
+			Message:    "查询项目失败: " + err.Error(),
 		})
 		return
 	}
@@ -819,29 +988,41 @@ func DeleteProject(c *gin.Context) {
 	var member models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", project.ID, userID).First(&member).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "您不是该项目的成员",
+			c.JSON(http.StatusForbidden, models.ErrorResponse{
+				HTTPStatus: http.StatusForbidden,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrNotMember,
+				Message:    "您不是该项目的成员",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "验证项目成员身份失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrVerifyMemberFailed,
+			Message:    "验证项目成员身份失败: " + err.Error(),
 		})
 		return
 	}
 
 	// 6. 验证权限：只有owner可以删除项目
 	if member.Role != models.ProjectRoleOwner {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "只有项目所有者可以删除项目",
+		c.JSON(http.StatusForbidden, models.ErrorResponse{
+			HTTPStatus: http.StatusForbidden,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrOnlyOwnerCanDelete,
+			Message:    "只有项目所有者可以删除项目",
 		})
 		return
 	}
 
 	// 7. 删除项目（会级联删除项目成员和任务）
 	if err := db.Delete(&project).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "删除项目失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrDeleteProjectFailed,
+			Message:    "删除项目失败: " + err.Error(),
 		})
 		return
 	}
@@ -895,8 +1076,11 @@ func DeleteProjectMember(c *gin.Context) {
 	// 1. 获取项目ID
 	projectID := c.Param("id")
 	if projectID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "项目ID不能为空",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrProjectIDEmpty,
+			Message:    "项目ID不能为空",
 		})
 		return
 	}
@@ -904,8 +1088,11 @@ func DeleteProjectMember(c *gin.Context) {
 	// 2. 解析请求体
 	var req DeleteProjectMemberRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "请求参数错误: " + err.Error(),
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrBadRequest,
+			Message:    "请求参数错误: " + err.Error(),
 		})
 		return
 	}
@@ -913,8 +1100,11 @@ func DeleteProjectMember(c *gin.Context) {
 	// 3. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "数据库连接未初始化",
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrDatabaseNotInit,
+			Message:    "数据库连接未初始化",
 		})
 		return
 	}
@@ -929,13 +1119,19 @@ func DeleteProjectMember(c *gin.Context) {
 	var project models.Project
 	if err := db.First(&project, projectID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "项目不存在",
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				HTTPStatus: http.StatusNotFound,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrProjectNotFound,
+				Message:    "项目不存在",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询项目失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryProjectFailed,
+			Message:    "查询项目失败: " + err.Error(),
 		})
 		return
 	}
@@ -944,21 +1140,30 @@ func DeleteProjectMember(c *gin.Context) {
 	var currentMember models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", project.ID, currentUserID).First(&currentMember).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "您不是该项目的成员",
+			c.JSON(http.StatusForbidden, models.ErrorResponse{
+				HTTPStatus: http.StatusForbidden,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrNotMember,
+				Message:    "您不是该项目的成员",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "验证项目成员身份失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrVerifyMemberFailed,
+			Message:    "验证项目成员身份失败: " + err.Error(),
 		})
 		return
 	}
 
 	// 7. 验证权限：只有owner和admin可以删除成员
 	if currentMember.Role != models.ProjectRoleOwner && currentMember.Role != models.ProjectRoleAdmin {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "您没有权限删除项目成员，只有项目所有者和管理员可以删除",
+		c.JSON(http.StatusForbidden, models.ErrorResponse{
+			HTTPStatus: http.StatusForbidden,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrNoPermissionDeleteMember,
+			Message:    "您没有权限删除项目成员，只有项目所有者和管理员可以删除",
 		})
 		return
 	}
@@ -972,13 +1177,19 @@ func DeleteProjectMember(c *gin.Context) {
 		// 删除他人，需要查询目标成员
 		if err := db.Where("project_id = ? AND user_id = ?", project.ID, req.TargetUserID).First(&targetMember).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusNotFound, gin.H{
-					"error": "该用户不是项目成员",
+				c.JSON(http.StatusNotFound, models.ErrorResponse{
+					HTTPStatus: http.StatusNotFound,
+					HandlerID:  models.ProjectHandlerID,
+					MessageID:  ProjectErrUserNotMember,
+					Message:    "该用户不是项目成员",
 				})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "查询项目成员失败: " + err.Error(),
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				HTTPStatus: http.StatusInternalServerError,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrQueryMembersFailed,
+				Message:    "查询项目成员失败: " + err.Error(),
 			})
 			return
 		}
@@ -1028,21 +1239,30 @@ func DeleteProjectMember(c *gin.Context) {
 
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusBadRequest, gin.H{
-					"error": "无法删除项目所有者，项目至少需要保留一个成员",
+				c.JSON(http.StatusBadRequest, models.ErrorResponse{
+					HTTPStatus: http.StatusBadRequest,
+					HandlerID:  models.ProjectHandlerID,
+					MessageID:  ProjectErrCannotDeleteOwner,
+					Message:    "无法删除项目所有者，项目至少需要保留一个成员",
 				})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "删除项目成员失败: " + err.Error(),
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				HTTPStatus: http.StatusInternalServerError,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrDeleteMemberFailed,
+				Message:    "删除项目成员失败: " + err.Error(),
 			})
 			return
 		}
 	} else {
 		// 10. 删除非所有者成员
 		if err := db.Delete(&targetMember).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": "删除项目成员失败: " + err.Error(),
+			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+				HTTPStatus: http.StatusInternalServerError,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrDeleteMemberFailed,
+				Message:    "删除项目成员失败: " + err.Error(),
 			})
 			return
 		}
@@ -1069,8 +1289,11 @@ func UpdateProjectMemberRole(c *gin.Context) {
 	// 1. 获取项目ID
 	projectID := c.Param("id")
 	if projectID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "项目ID不能为空",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrProjectIDEmpty,
+			Message:    "项目ID不能为空",
 		})
 		return
 	}
@@ -1078,8 +1301,11 @@ func UpdateProjectMemberRole(c *gin.Context) {
 	// 2. 解析请求体
 	var req UpdateProjectMemberRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "请求参数错误: " + err.Error(),
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrBadRequest,
+			Message:    "请求参数错误: " + err.Error(),
 		})
 		return
 	}
@@ -1087,8 +1313,11 @@ func UpdateProjectMemberRole(c *gin.Context) {
 	// 3. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "数据库连接未初始化",
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.DefaultHandlerID,
+			MessageID:  models.ErrDatabaseNotInit,
+			Message:    "数据库连接未初始化",
 		})
 		return
 	}
@@ -1103,13 +1332,19 @@ func UpdateProjectMemberRole(c *gin.Context) {
 	var project models.Project
 	if err := db.First(&project, projectID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "项目不存在",
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				HTTPStatus: http.StatusNotFound,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrProjectNotFound,
+				Message:    "项目不存在",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询项目失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryProjectFailed,
+			Message:    "查询项目失败: " + err.Error(),
 		})
 		return
 	}
@@ -1118,27 +1353,39 @@ func UpdateProjectMemberRole(c *gin.Context) {
 	var currentMember models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", project.ID, currentUserID).First(&currentMember).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusForbidden, gin.H{
-				"error": "您不是该项目的成员",
+			c.JSON(http.StatusForbidden, models.ErrorResponse{
+				HTTPStatus: http.StatusForbidden,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrNotMember,
+				Message:    "您不是该项目的成员",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "验证项目成员身份失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrVerifyMemberFailed,
+			Message:    "验证项目成员身份失败: " + err.Error(),
 		})
 		return
 	}
 	if currentMember.Role != models.ProjectRoleOwner {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "只有项目所有者可以设置成员权限",
+		c.JSON(http.StatusForbidden, models.ErrorResponse{
+			HTTPStatus: http.StatusForbidden,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrOnlyOwnerCanSetPermission,
+			Message:    "只有项目所有者可以设置成员权限",
 		})
 		return
 	}
 
 	// 7. 校验目标角色（仅支持admin/member）
 	if req.Role != models.ProjectRoleAdmin && req.Role != models.ProjectRoleMember {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "无效的角色，仅支持 admin 或 member",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrInvalidRoleValue,
+			Message:    "无效的角色，仅支持 admin 或 member",
 		})
 		return
 	}
@@ -1147,37 +1394,52 @@ func UpdateProjectMemberRole(c *gin.Context) {
 	var targetMember models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", project.ID, req.TargetUserID).Preload("User").First(&targetMember).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "目标用户不是项目成员",
+			c.JSON(http.StatusNotFound, models.ErrorResponse{
+				HTTPStatus: http.StatusNotFound,
+				HandlerID:  models.ProjectHandlerID,
+				MessageID:  ProjectErrTargetUserNotMember,
+				Message:    "目标用户不是项目成员",
 			})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询项目成员失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryMembersFailed,
+			Message:    "查询项目成员失败: " + err.Error(),
 		})
 		return
 	}
 
 	// 9. 目标成员不能是owner
 	if targetMember.Role == models.ProjectRoleOwner {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "不能修改项目所有者的角色",
+		c.JSON(http.StatusBadRequest, models.ErrorResponse{
+			HTTPStatus: http.StatusBadRequest,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrCannotModifyOwnerRole,
+			Message:    "不能修改项目所有者的角色",
 		})
 		return
 	}
 
 	// 10. 更新角色
 	if err := db.Model(&targetMember).Update("role", req.Role).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "更新成员角色失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrUpdateMemberRoleFailed,
+			Message:    "更新成员角色失败: " + err.Error(),
 		})
 		return
 	}
 
 	// 11. 重新查询获取更新时间与用户信息
 	if err := db.Preload("User").First(&targetMember, targetMember.ID).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询成员信息失败: " + err.Error(),
+		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
+			HTTPStatus: http.StatusInternalServerError,
+			HandlerID:  models.ProjectHandlerID,
+			MessageID:  ProjectErrQueryMemberInfoFailed,
+			Message:    "查询成员信息失败: " + err.Error(),
 		})
 		return
 	}
