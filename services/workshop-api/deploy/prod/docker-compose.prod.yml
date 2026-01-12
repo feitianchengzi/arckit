@@ -1,5 +1,9 @@
 # 生产环境配置（仅应用服务，连接远程 RDS 数据库）
 # 注意：生产环境使用已构建的镜像，不使用 build
+
+# 指定项目名称，避免与其他docker compose项目冲突
+name: workshop
+
 services:
   todo-service:
     image: todo-service:latest  # 使用已构建的镜像

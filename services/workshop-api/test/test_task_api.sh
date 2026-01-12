@@ -4,7 +4,7 @@
 # 测试 task_api.md 中的所有接口
 
 BASE_URL="http://localhost:8081/todo/v1"
-SERVICE="todo"
+SERVICE="workshop"
 
 # 颜色输出
 GREEN='\033[0;32m'

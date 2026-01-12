@@ -4,6 +4,24 @@
 认证：JWT；中间件 `ExtractUserID` 已注入当前用户 ID  
 权限：除特别说明外需是项目成员；角色含 `owner` / `admin` / `member`
 
+## 🌐 服务器信息
+
+### 生产环境
+- **公网域名**: `api.feitianchengzi.com`
+- **API网关端口**: `443` (HTTPS默认端口)
+- **协议**: HTTPS
+- **服务名称**: `workshop`
+- **完整基础URL**: `https://api.feitianchengzi.com/workshop/v1`
+
+### 认证方式
+所有需要认证的接口都需要在请求头中添加JWT Token：
+
+```bash
+Authorization: Bearer <your_jwt_token>
+```
+
+**注意**: Token会过期，请使用有效的Token进行请求。详细说明请参考 `user_api.md`。
+
 ## 通用说明
 
 ### 用户ID获取方式

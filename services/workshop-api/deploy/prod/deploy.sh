@@ -244,6 +244,7 @@ $SSH_CMD "cd ${SERVER_DEPLOY_DIR}/deploy/prod && \
     docker load -i ${IMAGE_TAR} && \
     echo '停止并清理旧容器...' && \
     \$DOCKER_COMPOSE_CMD -f ${COMPOSE_FILE} down 2>/dev/null || true && \
+    docker rm -f todo-service 2>/dev/null || true && \
     echo '启动新容器...' && \
     \$DOCKER_COMPOSE_CMD -f ${COMPOSE_FILE} up -d && \
     echo '清理临时文件...' && \
