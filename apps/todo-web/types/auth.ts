@@ -132,7 +132,7 @@ export interface StoredAuthInfo {
   refreshToken: string
   tokenObtainedAt: number  // 时间戳（毫秒）
   tokenExpiresIn: number   // 秒数
-  userId: string           // UUID
+  // 注意：不再保存 userId，网关会自动从 Token 中解析并注入到请求头
   username?: string
   avatarUrl?: string
 }

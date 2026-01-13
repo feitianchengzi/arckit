@@ -75,7 +75,6 @@ apiClient.interceptors.request.use(
           refreshToken: response.data.tokens.refresh_token,
           tokenObtainedAt: Date.now(),
           tokenExpiresIn: response.data.tokens.expires_in,
-          userId: authInfo?.userId || '',
           username: authInfo?.username,
           avatarUrl: authInfo?.avatarUrl,
         })
@@ -124,18 +123,8 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`
     }
 
-    // 注意：在生产环境中，网关会自动从 JWT Token 中提取用户信息并添加 X-User-ID 头
-    // 前端不应该手动添加 X-User-ID 头，否则会导致 CORS 错误
-    // 只在开发环境中（直接连接本地后端）才手动添加这些头
-    if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_API_URL?.includes('localhost')) {
-      const authInfo = getAuthInfo()
-      if (authInfo?.userId) {
-        config.headers['X-User-ID'] = authInfo.userId
-      }
-      if (authInfo?.username) {
-        config.headers['X-Username'] = authInfo.username
-      }
-    }
+    // 注意：网关会自动从 JWT Token 中提取用户信息并添加 X-User-ID、X-Username 等请求头
+    // 前端不需要（也不应该）手动添加这些头，网关会自动处理
 
     // 统一打印请求日志（包含完整 URL）
     const fullUrl = `${config.baseURL}${config.url}`

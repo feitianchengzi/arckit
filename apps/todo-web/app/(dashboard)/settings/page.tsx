@@ -37,28 +37,22 @@ export default function SettingsPage() {
       setUsername(currentUser.username || '')
       setAvatar(currentUser.avatar || '')
     } else {
-      // 如果 store 中没有用户信息，尝试从 localStorage 获取或查询
+      // 如果 store 中没有用户信息，尝试查询
       setIsLoading(true)
-      const authInfo = getAuthInfo()
-      if (authInfo?.userId) {
-        // 尝试获取当前用户信息
-        todoUserApi.getCurrentUser()
-          .then((user) => {
-            setUser(user)
-            setUsername(user.username || '')
-            setAvatar(user.avatar || '')
-          })
-          .catch((err) => {
-            console.error('获取用户信息失败:', err)
-            setError('无法获取用户信息')
-          })
-          .finally(() => {
-            setIsLoading(false)
-          })
-      } else {
-        setIsLoading(false)
-        setError('未登录，请先登录')
-      }
+      // 尝试获取当前用户信息
+      todoUserApi.getCurrentUser()
+        .then((user) => {
+          setUser(user)
+          setUsername(user.username || '')
+          setAvatar(user.avatar || '')
+        })
+        .catch((err) => {
+          console.error('获取用户信息失败:', err)
+          setError('无法获取用户信息')
+        })
+        .finally(() => {
+          setIsLoading(false)
+        })
     }
   }, [currentUser, setUser])
   

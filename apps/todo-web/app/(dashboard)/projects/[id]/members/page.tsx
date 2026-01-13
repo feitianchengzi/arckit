@@ -39,11 +39,6 @@ export default function ProjectMembersPage() {
         return
       }
       
-      const authInfo = getAuthInfo()
-      if (!authInfo?.userId) {
-        return
-      }
-
       try {
         console.log('📥 成员页面：加载用户信息...')
         
@@ -62,9 +57,9 @@ export default function ProjectMembersPage() {
             
             try {
               const userResponse = await todoUserApi.createOrGetUser({ username: '新用户' })
-              const newUser: TodoUser = {
+              const newUser = {
                 id: 0, // API 不返回数据库 ID
-                uuid: authInfo.userId,
+                uuid: '', // 网关会处理 UUID
                 username: userResponse.username || '',
                 avatar: userResponse.avatar || '',
                 created_at: userResponse.created_at || '',

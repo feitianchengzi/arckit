@@ -28,8 +28,7 @@ export default function ProjectsHomePage() {
   // 加载用户信息
   useEffect(() => {
     const loadUserInfo = async () => {
-      const authInfo = getAuthInfo()
-      if (isAuthenticated && authInfo?.userId) {
+      if (isAuthenticated) {
         try {
           console.log('📥 项目列表页面：加载用户信息...')
           console.log('📥 获取当前登录用户信息...')
@@ -52,7 +51,7 @@ export default function ProjectsHomePage() {
             // 用户不存在，创建一个临时的空用户对象，等待首次设置
             const tempUser = {
               id: 0,
-              uuid: authInfo.userId,
+              uuid: '', // 网关会处理 UUID
               username: '', // 空的 username，触发首次设置对话框
               avatar: '',
               created_at: '',
@@ -68,16 +67,11 @@ export default function ProjectsHomePage() {
             console.error('❌ 获取用户信息失败:', error)
           }
         }
-      } else {
-        // 没有 authInfo，检查是否需要显示设置对话框
-        if (isAuthenticated) {
-          setShowSetupDialog(true)
-        }
       }
     }
 
     loadUserInfo()
-  }, [isAuthenticated, storeUser?.uuid]) // 依赖 uuid，因为 id 始终为 0
+  }, [isAuthenticated, storeUser?.username]) // 依赖 username
 
   // 处理完成首次设置
   const handleCompleteSetup = async (data: { username: string; avatar?: string }) => {

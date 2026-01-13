@@ -11,7 +11,6 @@ import {
   LoginResponse,
   RefreshTokenRequest,
   RefreshTokenResponse,
-  UserProfileResponse,
 } from '@/types/auth'
 import { getAccessToken } from '@/lib/utils/tokenManager'
 
@@ -30,7 +29,6 @@ const gatewayClient: AxiosInstance = axios.create({
 // 请求拦截器：为需要认证的接口添加 Authorization 头
 gatewayClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    // 对于需要认证的接口（如 getUserProfile），添加 Token
     // 公共接口（登录、发送验证码等）不需要 Token
     const publicEndpoints = ['/auth-server/v1/public']
     const needsAuth = !publicEndpoints.some(endpoint => config.url?.includes(endpoint))
@@ -87,7 +85,7 @@ export const gatewayApi = {
     )
     console.log('🔑 登录返回 - Access Token:', response.data.data.tokens.access_token)
     console.log('📝 登录返回 - 用户邮箱:', response.data.data.user.email)
-    console.log('ℹ️  注意：登录接口不返回 user.id，需要调用 getUserProfile 获取 UUID')
+    console.log('ℹ️  网关会自动从 Token 中解析用户信息，无需额外获取')
     return response.data
   },
 
@@ -106,24 +104,6 @@ export const gatewayApi = {
       '/auth-server/v1/public/refresh_token',
       data
     )
-    return response.data
-  },
-
-  /**
-   * 获取用户Profile（包含UUID）
-   * GET /user-service/v1/user/profile
-   * 需要认证
-   */
-  getUserProfile: async (): Promise<UserProfileResponse> => {
-    const url = `${GATEWAY_BASE_URL}/user-service/v1/user/profile`
-    console.log('👤 调用网关获取用户Profile接口')
-    console.log('📍 完整 URL:', url)
-    const response = await gatewayClient.get<UserProfileResponse>(
-      '/user-service/v1/user/profile'
-    )
-    console.log('✅ 获取用户Profile成功')
-    console.log('📦 完整响应数据:', JSON.stringify(response.data, null, 2))
-    console.log('📦 response.data.data:', response.data.data)
     return response.data
   },
 }

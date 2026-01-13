@@ -19,7 +19,7 @@ interface AuthState {
   isLoading: boolean
 
   // Actions
-  setAuth: (tokens: TokenInfo, userId: string) => void
+  setAuth: (tokens: TokenInfo) => void
   setUser: (user: TodoUser) => void
   logout: () => void
   checkAuth: () => boolean
@@ -34,14 +34,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   /**
    * 设置认证信息（登录时调用）
+   * 注意：不再保存 userId，网关会自动从 Token 中解析
    */
-  setAuth: (tokens: TokenInfo, userId: string) => {
+  setAuth: (tokens: TokenInfo) => {
     saveAuthInfo({
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
       tokenObtainedAt: Date.now(),
       tokenExpiresIn: tokens.expires_in,
-      userId,
     })
 
     set({ isAuthenticated: true })

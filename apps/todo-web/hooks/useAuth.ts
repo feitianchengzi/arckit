@@ -2,6 +2,7 @@
  * 认证相关 Hooks
  */
 
+import React from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { gatewayApi } from '@/lib/api/endpoints/gateway'
@@ -42,49 +43,16 @@ export function useLogin() {
     onSuccess: async (response) => {
       console.log('✅ 登录成功:', response.data.user)
       console.log('🔑 Access Token:', response.data.tokens.access_token)
+      console.log('ℹ️  网关会自动从 Token 中解析用户信息并注入到请求头')
 
-      // 1. 先临时保存 Token 到 localStorage（此时还没有 userId，先保存 Token 以便后续调用 Profile 接口）
-      // 注意：使用 saveAuthInfo 辅助函数，但 userId 先设为空字符串，后续会更新
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('auth_info', JSON.stringify({
-            accessToken: response.data.tokens.access_token,
-            refreshToken: response.data.tokens.refresh_token,
-            tokenObtainedAt: Date.now(),
-            tokenExpiresIn: response.data.tokens.expires_in,
-            userId: '', // 临时值，会在获取 Profile 后更新
-          }))
-          // 同时设置 cookie 供中间件使用
-          document.cookie = `auth_token=${response.data.tokens.access_token}; path=/; max-age=${response.data.tokens.expires_in}; SameSite=Lax`
-        } catch (error) {
-          console.error('❌ 临时保存 Token 失败:', error)
-        }
-      }
+      // 1. 保存认证信息（只需要保存 Token）
+      setAuth(response.data.tokens)
 
-      // 2. 获取用户Profile（获取UUID）
-      let userId: string
-      try {
-        const profileResponse = await gatewayApi.getUserProfile()
-        userId = profileResponse.data.id
-        console.log('🆔 获取到 User ID (UUID):', userId, '长度:', userId.length)
-      } catch (error) {
-        console.error('❌ 获取用户Profile失败:', error)
-        // 清理临时保存的 Token
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('auth_info')
-          document.cookie = 'auth_token=; path=/; max-age=0'
-        }
-        throw new Error('无法获取用户信息，请重试')
-      }
-
-      // 3. 使用获取到的 UUID 保存完整的认证信息（会覆盖临时保存的数据）
-      setAuth(response.data.tokens, userId)
-
-      // 4. 登录成功后直接跳转到主页
+      // 2. 登录成功后直接跳转到主页
       // 用户信息将在主页加载，如果是新用户会显示首次设置对话框
       router.push('/projects')
 
-      // 5. 清除相关查询缓存
+      // 3. 清除相关查询缓存
       queryClient.invalidateQueries({ queryKey: ['user'] })
     },
     onError: (error: any) => {
@@ -172,15 +140,21 @@ export function useLogout() {
 export function useGetCurrentUser() {
   const { isAuthenticated, user, setUser } = useAuthStore()
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['user', 'current'],
     queryFn: () => todoUserApi.getCurrentUser(),
     enabled: isAuthenticated && !user,
     staleTime: 5 * 60 * 1000, // 5分钟内认为数据新鲜
-    onSuccess: (data) => {
-      setUser(data)
-    },
   })
+
+  // 使用 useEffect 处理数据更新
+  React.useEffect(() => {
+    if (query.data) {
+      setUser(query.data)
+    }
+  }, [query.data, setUser])
+
+  return query
 }
 
 /**

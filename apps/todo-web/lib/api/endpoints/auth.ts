@@ -63,19 +63,18 @@ export const todoUserApi = {
   /**
    * 获取当前登录用户信息
    * GET /user/users
-   * 通过 Header 中的 UserID 识别用户
+   * 通过 Header 中的 UserID 识别用户（网关自动注入）
    */
   getCurrentUser: async (): Promise<TodoUser> => {
     console.log('📥 获取当前登录用户信息')
+    console.log('ℹ️  网关会自动从 Token 中解析 UserID 并注入到请求头')
     try {
       const response = await apiClient.get<any>('/user/users')
       console.log('📦 getCurrentUser 响应:', response.data)
       
-      // API 不返回 id，我们需要从 authInfo 获取 UUID
-      const authInfo = getAuthInfo()
       return {
         id: 0, // API 不返回数据库 ID
-        uuid: authInfo?.userId || '',
+        uuid: '', // 网关已处理，前端不需要 UUID
         username: response.data.username || '',
         avatar: response.data.avatar || '',
         created_at: response.data.created_at || '',

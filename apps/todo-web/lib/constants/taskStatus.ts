@@ -58,3 +58,5 @@ export function getStatusBgColor(status: TodoStatus): string {
   return TODO_STATUS_CONFIG[status]?.bgColor || 'bg-gray-100'
 }
 
+
+
