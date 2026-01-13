@@ -218,7 +218,7 @@ POST /todo/v1/user/tasks
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | project_id | uint | 是 | 项目ID |
-| user_id | uint | 否 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+| updated_after | string | 否 | 最后更新时间（UTC字符串格式，ISO 8601），如果提供此参数，只返回在此时间之后更新或创建的任务 |
 
 **响应示例** (`200 OK`):
 
@@ -261,9 +261,16 @@ POST /todo/v1/user/tasks
 | tasks | array | 任务列表 |
 | total | int64 | 任务总数 |
 
+**特殊说明**:
+
+- 如果提供了 `updated_after` 参数，将只返回满足以下条件之一的任务：
+  - 任务的 `updated_at` 时间晚于指定时间
+  - 任务的 `created_at` 时间晚于指定时间
+- `updated_after` 参数必须是有效的 UTC 时间字符串（ISO 8601 格式），例如：`2024-01-01T12:00:00Z`
+
 **错误响应**:
 
-- `400 Bad Request` - 项目ID不能为空或无效的项目ID
+- `400 Bad Request` - 项目ID不能为空、无效的项目ID或无效的时间格式
 - `403 Forbidden` - 您不是该项目的成员，无法查看任务
 - `500 Internal Server Error` - 查询任务失败
 
@@ -410,7 +417,15 @@ curl -X PUT "http://localhost:8081/todo/v1/user/tasks/2?user_id=4" \
 ### 查询任务列表
 
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/user/tasks?project_id=1&user_id=3" \
+curl -X GET "http://localhost:8081/todo/v1/user/tasks?project_id=1" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
+```
+
+### 查询任务列表（按最后更新时间过滤）
+
+```bash
+curl -X GET "http://localhost:8081/todo/v1/user/tasks?project_id=1&updated_after=2024-01-01T12:00:00Z" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```

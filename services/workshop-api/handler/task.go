@@ -550,12 +550,13 @@ type GetTasksResponse struct {
 }
 
 // GetTasks 查询项目的所有任务
-// 网关路由: GET /todo-service/v1/user/tasks?project_id=1
+// 网关路由: GET /todo-service/v1/user/tasks?project_id=1&updated_after=2024-01-01T12:00:00Z
 // 认证级别: user (需要JWT认证)
 // 流程：
 // 1. 从请求获取用户ID
 // 2. 直接查询项目成员表验证权限
-// 3. 查询项目的所有任务
+// 3. 解析可选的updated_after参数
+// 4. 查询项目的所有任务（如果提供了updated_after，只返回在此时间之后更新或创建的任务）
 func GetTasks(c *gin.Context) {
 	// 1. 获取项目ID（查询参数）
 	projectIDStr := c.Query("project_id")
@@ -620,10 +621,38 @@ func GetTasks(c *gin.Context) {
 		return
 	}
 
-	// 6. 查询项目的所有任务
-	var tasks []models.Task
+	// 6. 解析可选的updated_after参数
+	updatedAfterStr := c.Query("updated_after")
+	var updatedAfter *time.Time
+	if updatedAfterStr != "" {
+		parsedTime, err := time.Parse("2006-01-02T15:04:05Z07:00", updatedAfterStr)
+		if err != nil {
+			// 尝试另一种常见格式（不带时区偏移）
+			parsedTime, err = time.Parse("2006-01-02T15:04:05Z", updatedAfterStr)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, models.ErrorResponse{
+					HTTPStatus: http.StatusBadRequest,
+					HandlerID:  models.DefaultHandlerID,
+					MessageID:  models.ErrBadRequest,
+					Message:    "无效的时间格式，请使用ISO 8601格式（例如：2024-01-01T12:00:00Z）",
+				})
+				return
+			}
+		}
+		updatedAfter = &parsedTime
+	}
+
+	// 7. 构建查询条件
+	baseQuery := db.Model(&models.Task{}).Where("project_id = ?", projectID)
+
+	// 如果提供了updated_after，添加时间过滤条件
+	if updatedAfter != nil {
+		baseQuery = baseQuery.Where("(updated_at > ? OR created_at > ?)", *updatedAfter, *updatedAfter)
+	}
+
+	// 8. 查询任务总数
 	var total int64
-	if err := db.Model(&models.Task{}).Where("project_id = ?", projectID).Count(&total).Error; err != nil {
+	if err := baseQuery.Count(&total).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			HTTPStatus: http.StatusInternalServerError,
 			HandlerID:  models.TaskHandlerID,
@@ -632,7 +661,10 @@ func GetTasks(c *gin.Context) {
 		})
 		return
 	}
-	if err := db.Where("project_id = ?", projectID).Find(&tasks).Error; err != nil {
+
+	// 9. 查询任务列表
+	var tasks []models.Task
+	if err := baseQuery.Find(&tasks).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
 			HTTPStatus: http.StatusInternalServerError,
 			HandlerID:  models.TaskHandlerID,
