@@ -26,12 +26,22 @@ export function ProjectList() {
   // 判断是否在项目相关页面（项目列表、项目详情、项目子页面等）
   const isInProjectPage = pathname?.startsWith('/projects') && pathname !== '/projects/new'
   
-  // 如果在项目页面，自动展开项目列表
+  // 只在首次进入项目页面时自动展开（如果之前没有保存过折叠状态）
   useEffect(() => {
-    if (isInProjectPage && !isExpanded) {
+    // 从 localStorage 读取保存的折叠状态
+    const savedExpanded = localStorage.getItem('projectListExpanded')
+    if (savedExpanded !== null) {
+      setIsExpanded(savedExpanded === 'true')
+    } else if (isInProjectPage) {
+      // 如果没有保存过状态，且在项目页面，则自动展开
       setIsExpanded(true)
     }
-  }, [isInProjectPage, isExpanded])
+  }, []) // 只在组件挂载时执行一次
+  
+  // 保存折叠状态到 localStorage
+  useEffect(() => {
+    localStorage.setItem('projectListExpanded', String(isExpanded))
+  }, [isExpanded])
 
   const toggleExpand = () => {
     setIsExpanded(!isExpanded)
