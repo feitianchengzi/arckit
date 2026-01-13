@@ -61,38 +61,29 @@ export const invitationsApi = {
   
   /**
    * 使用邀请码加入项目
-   * 后端路由: POST /todo/v1/user/projects/join?user_id={userId}
+   * 后端路由: POST /workshop/v1/user/projects/join
    * 请求体: { invite_code: string }
    * 
-   * 注意：后端需要查询参数 user_id（数据库ID）
+   * 注意：根据API文档，不需要 user_id 参数，网关会自动从 Token 中解析 UserID 并注入到请求头
    * 
    * @param inviteCode 邀请码
-   * @param userId 用户ID（数据库ID），如果不提供会尝试从其他途径获取
    */
-  join: async (inviteCode: string, userId?: number): Promise<{ project_id: number }> => {
-    // 如果没有传入 userId，尝试从 localStorage 获取（作为备用方案）
-    if (!userId && typeof window !== 'undefined') {
-      try {
-        const authStorage = localStorage.getItem('auth-storage')
-        if (authStorage) {
-          const authData = JSON.parse(authStorage)
-          if (authData?.state?.user?.id) {
-            userId = authData.state.user.id
-          }
-        }
-      } catch (err) {
-        console.warn('无法从 localStorage 获取用户ID:', err)
-      }
-    }
-    
-    if (!userId) {
-      throw new Error('无法获取用户ID，请先登录')
-    }
-    
-    const response = await apiClient.post(`/user/projects/join?user_id=${userId}`, {
+  join: async (inviteCode: string): Promise<{ project_id: number }> => {
+    console.log('🔗 使用邀请码加入项目:', inviteCode)
+    const response = await apiClient.post(`/user/projects/join`, {
       invite_code: inviteCode,
     })
-    return handleResponse<{ project_id: number }>(response)
+    const data = handleResponse<any>(response)
+    
+    // 后端返回格式可能是: { id, project_id, user_id, role, project_name, created_at }
+    // 我们需要提取 project_id
+    const projectId = data?.project_id || data?.id
+    if (!projectId) {
+      throw new Error('无法获取项目ID')
+    }
+    
+    console.log('✅ 加入项目成功，项目ID:', projectId)
+    return { project_id: projectId }
   },
   
   /**

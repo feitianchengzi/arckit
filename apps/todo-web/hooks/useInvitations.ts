@@ -58,18 +58,16 @@ export function useDeleteInvitation(projectId: string) {
  */
 export function useJoinByInvite() {
   const queryClient = useQueryClient()
-  const user = useAuthStore((state) => state.user)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   
   return useMutation({
     mutationFn: async (inviteCode: string) => {
-      // 获取当前用户ID
-      const userId = user?.id
-      
-      if (!userId) {
-        throw new Error('无法获取用户ID，请先登录')
+      // 检查是否已登录（网关会自动识别用户，不需要传递 user_id）
+      if (!isAuthenticated) {
+        throw new Error('请先登录后再使用邀请码')
       }
       
-      return invitationsApi.join(inviteCode, userId)
+      return invitationsApi.join(inviteCode)
     },
     onSuccess: (data) => {
       // 使项目列表缓存失效（加入了新项目）

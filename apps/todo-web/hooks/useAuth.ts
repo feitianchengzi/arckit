@@ -48,9 +48,13 @@ export function useLogin() {
       // 1. 保存认证信息（只需要保存 Token）
       setAuth(response.data.tokens)
 
-      // 2. 登录成功后直接跳转到主页
-      // 用户信息将在主页加载，如果是新用户会显示首次设置对话框
-      router.push('/projects')
+      // 2. 登录成功后，检查是否有 redirect 参数
+      // 从 URL 中获取 redirect 参数（如果存在）
+      const urlParams = new URLSearchParams(window.location.search)
+      const redirect = urlParams.get('redirect') || '/projects'
+      
+      console.log('🔄 登录后跳转:', redirect)
+      router.push(redirect)
 
       // 3. 清除相关查询缓存
       queryClient.invalidateQueries({ queryKey: ['user'] })
