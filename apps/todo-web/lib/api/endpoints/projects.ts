@@ -149,7 +149,7 @@ export const projectsApi = {
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别当前用户
    * 请求体: { target_user_id: number }
    */
-  deleteMember: async (projectId: string, targetUserId: number, currentUserId?: number): Promise<void> => {
+  deleteMember: async (projectId: string, targetUserId: number): Promise<void> => {
     console.log('🗑️ 删除项目成员, 项目ID:', projectId, '目标用户ID:', targetUserId)
     await apiClient.delete(`/user/projects/${projectId}/members`, {
       data: { target_user_id: targetUserId },

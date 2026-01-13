@@ -108,20 +108,24 @@ export function useProjectMembers(projectId: string) {
  */
 export function useDeleteProjectMember(projectId: string) {
   const queryClient = useQueryClient()
-  const user = useAuthStore((state) => state.user)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   
   return useMutation({
     mutationFn: async (targetUserId: number) => {
-      if (!user?.id) {
-        throw new Error('无法获取用户ID，请先登录')
+      // 检查是否已登录（网关会自动识别用户，不需要传递 currentUserId）
+      if (!isAuthenticated) {
+        throw new Error('请先登录后再进行操作')
       }
-      return projectsApi.deleteMember(projectId, targetUserId, user.id)
+      // 根据 API 文档，不需要 currentUserId 参数，网关会自动识别当前用户
+      return projectsApi.deleteMember(projectId, targetUserId)
     },
     onSuccess: () => {
       // 使成员列表缓存失效
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'members'] })
       // 使项目详情缓存失效
       queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
+      // 使项目列表缓存失效（因为成员数量可能变化）
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
     },
   })
 }

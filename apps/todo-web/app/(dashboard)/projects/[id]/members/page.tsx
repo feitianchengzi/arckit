@@ -140,7 +140,9 @@ export default function ProjectMembersPage() {
   
   // 处理删除成员（移除或离开）
   const handleDeleteClick = (member: ProjectMember) => {
-    const isCurrentUser = member.user_id === currentUser?.id
+    // 通过 username 匹配当前用户（因为 API 不返回数据库 ID）
+    const memberUsername = member.username || member.user?.username
+    const isCurrentUser = memberUsername === currentUser?.username
     
     // 如果是自己，任何角色都可以离开
     if (isCurrentUser) {
@@ -188,7 +190,8 @@ export default function ProjectMembersPage() {
       setMemberToDelete(null)
       
       // 如果是离开项目（删除自己），跳转到项目列表
-      if (memberToDelete.user_id === currentUser?.id) {
+      const memberUsername = memberToDelete.username || memberToDelete.user?.username
+      if (memberUsername === currentUser?.username) {
         router.push('/projects')
       }
     } catch (err: any) {
@@ -291,7 +294,9 @@ export default function ProjectMembersPage() {
           <div className="divide-y divide-gray-200">
             {members.map((member: ProjectMember) => {
               const isEditing = roleEditId === member.id
-              const isCurrentUser = member.user_id === currentUser?.id
+              // 通过 username 匹配当前用户（因为 API 不返回数据库 ID）
+              const memberUsername = member.username || member.user?.username
+              const isCurrentUser = memberUsername === currentUser?.username
               
               // 只有 owner 可以编辑其他成员的角色
               // 不能编辑 owner 的角色，不能编辑自己的角色
@@ -322,9 +327,9 @@ export default function ProjectMembersPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-base font-medium text-gray-900">
-                            {member.username || member.user?.username || `用户 ${member.user_id}`}
+                            {memberUsername || `用户 ${member.user_id}`}
                           </p>
-                          {member.user_id === currentUser?.id && (
+                          {isCurrentUser && (
                             <span className="text-xs text-gray-500">（我）</span>
                           )}
                         </div>
@@ -402,15 +407,15 @@ export default function ProjectMembersPage() {
       {/* 删除确认对话框 */}
       <ConfirmDialog
         open={showDeleteConfirm}
-        title={memberToDelete?.user_id === currentUser?.id ? "确认离开项目" : "确认移除成员"}
+        title={memberToDelete && (memberToDelete.username || memberToDelete.user?.username) === currentUser?.username ? "确认离开项目" : "确认移除成员"}
         message={
-          memberToDelete?.user_id === currentUser?.id
+          memberToDelete && (memberToDelete.username || memberToDelete.user?.username) === currentUser?.username
             ? `确定要离开项目 "${project.name}" 吗？离开后将无法访问该项目。`
-            : `确定要移除成员 "${memberToDelete?.user?.username || (memberToDelete as any)?.username || '未知用户'}" 吗？此操作不可撤销。`
+            : `确定要移除成员 "${memberToDelete?.user?.username || memberToDelete?.username || '未知用户'}" 吗？此操作不可撤销。`
         }
-        confirmLabel={memberToDelete?.user_id === currentUser?.id ? "离开" : "移除"}
+        confirmLabel={memberToDelete && (memberToDelete.username || memberToDelete.user?.username) === currentUser?.username ? "离开" : "移除"}
         cancelLabel="取消"
-        variant={memberToDelete?.user_id === currentUser?.id ? "secondary" : "danger"}
+        variant={memberToDelete && (memberToDelete.username || memberToDelete.user?.username) === currentUser?.username ? "secondary" : "danger"}
         onConfirm={handleDeleteConfirm}
         onCancel={() => {
           setShowDeleteConfirm(false)
