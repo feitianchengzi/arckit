@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"todo/middleware"
+	"todo/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,21 +23,23 @@ func GetHeaderInfo(c *gin.Context) {
 
 	headerInfo := middleware.GetHeaderInfo(c)
 	if headerInfo == nil {
-		c.JSON(http.StatusOK, gin.H{
+		data := gin.H{
 			"method":    method,
 			"userID":    "",
 			"username":  "",
 			"appID":     "",
 			"sessionID": "",
-		})
+		}
+		c.JSON(http.StatusOK, response.NewSuccessResponse(data))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	data := gin.H{
 		"method":    method,
 		"userID":    headerInfo.UserID,
 		"username":  headerInfo.Username,
 		"appID":     headerInfo.AppID,
 		"sessionID": headerInfo.SessionID,
-	})
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(data))
 }

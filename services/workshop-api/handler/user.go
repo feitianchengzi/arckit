@@ -5,20 +5,10 @@ import (
 
 	"todo/middleware"
 	"todo/models"
+	"todo/response"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-)
-
-// User错误消息ID定义 - 用户服务特定的错误消息
-const (
-	UserErrMissingFields       = 1 // 至少需要提供一个字段（username或avatar）
-	UserErrQueryUserFailed     = 2 // 查询用户失败
-	UserErrCreateUserFailed    = 3 // 创建用户失败
-	UserErrUserNotFound        = 4 // 用户不存在
-	UserErrMissingUpdateFields = 5 // 至少需要提供一个更新字段（username或avatar）
-	UserErrUpdateUserFailed    = 6 // 更新用户失败
-	UserErrQueryUpdatedFailed  = 7 // 查询更新后的用户信息失败
 )
 
 // CreateUserRequest 创建用户请求结构
@@ -47,47 +37,27 @@ func CreateUser(c *gin.Context) {
 	// 1. 获取Header信息
 	headerInfo := middleware.GetHeaderInfo(c)
 	if headerInfo == nil || headerInfo.UserID == "" {
-		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
-			HTTPStatus: http.StatusUnauthorized,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrUnauthorized,
-			Message:    "未获取到用户信息，请确保已通过网关认证",
-		})
+		c.JSON(http.StatusUnauthorized, response.NewErrorResponse(response.CodeUnauthorized, "未获取到用户信息，请确保已通过网关认证", nil))
 		return
 	}
 
 	// 2. 解析请求体（必填，至少提供一个字段）
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrBadRequest,
-			Message:    "请求参数错误: " + err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
 		return
 	}
 
 	// 3. 检查是否至少提供了一个字段
 	if req.Username == "" && req.Avatar == "" {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.UserHandlerID,
-			MessageID:  UserErrMissingFields,
-			Message:    "至少需要提供一个字段（username或avatar）",
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeUserMissingFields, "至少需要提供一个字段（username或avatar）", nil))
 		return
 	}
 
 	// 4. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrDatabaseNotInit,
-			Message:    "数据库连接未初始化",
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
 		return
 	}
 
@@ -98,23 +68,19 @@ func CreateUser(c *gin.Context) {
 
 	if err == nil {
 		// 用户已存在，返回现有用户信息
-		c.JSON(http.StatusOK, CreateUserResponse{
+		resp := CreateUserResponse{
 			Username:  user.Username,
 			Avatar:    user.Avatar,
 			CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		})
+		}
+		c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 		return
 	}
 
 	if err != gorm.ErrRecordNotFound {
 		// 查询出错
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.UserHandlerID,
-			MessageID:  UserErrQueryUserFailed,
-			Message:    "查询用户失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeUserQueryFailed, "查询用户失败: "+err.Error(), nil))
 		return
 	}
 
@@ -133,22 +99,18 @@ func CreateUser(c *gin.Context) {
 	}
 
 	if err := db.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.UserHandlerID,
-			MessageID:  UserErrCreateUserFailed,
-			Message:    "创建用户失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeUserCreateFailed, "创建用户失败: "+err.Error(), nil))
 		return
 	}
 
 	// 6. 返回成功响应
-	c.JSON(http.StatusCreated, CreateUserResponse{
+	resp := CreateUserResponse{
 		Username:  user.Username,
 		Avatar:    user.Avatar,
 		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	})
+	}
+	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
 // GetUserResponse 查询用户响应结构
@@ -170,12 +132,7 @@ func GetUser(c *gin.Context) {
 	// 1. 获取Header信息
 	headerInfo := middleware.GetHeaderInfo(c)
 	if headerInfo == nil || headerInfo.UserID == "" {
-		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
-			HTTPStatus: http.StatusUnauthorized,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrUnauthorized,
-			Message:    "未获取到用户信息，请确保已通过网关认证",
-		})
+		c.JSON(http.StatusUnauthorized, response.NewErrorResponse(response.CodeUnauthorized, "未获取到用户信息，请确保已通过网关认证", nil))
 		return
 	}
 
@@ -185,12 +142,7 @@ func GetUser(c *gin.Context) {
 	// 3. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrDatabaseNotInit,
-			Message:    "数据库连接未初始化",
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
 		return
 	}
 
@@ -198,30 +150,21 @@ func GetUser(c *gin.Context) {
 	var user models.User
 	if err := db.Where("uuid = ?", userUUID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				HTTPStatus: http.StatusNotFound,
-				HandlerID:  models.UserHandlerID,
-				MessageID:  UserErrUserNotFound,
-				Message:    "用户不存在",
-			})
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeUserNotFound, "用户不存在", nil))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.UserHandlerID,
-			MessageID:  UserErrQueryUserFailed,
-			Message:    "查询用户失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeUserQueryFailed, "查询用户失败: "+err.Error(), nil))
 		return
 	}
 
 	// 5. 返回成功响应
-	c.JSON(http.StatusOK, GetUserResponse{
+	resp := GetUserResponse{
 		Username:  user.Username,
 		Avatar:    user.Avatar,
 		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	})
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
 // UpdateUserRequest 更新用户请求结构
@@ -250,47 +193,27 @@ func UpdateUser(c *gin.Context) {
 	// 1. 获取Header信息
 	headerInfo := middleware.GetHeaderInfo(c)
 	if headerInfo == nil || headerInfo.UserID == "" {
-		c.JSON(http.StatusUnauthorized, models.ErrorResponse{
-			HTTPStatus: http.StatusUnauthorized,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrUnauthorized,
-			Message:    "未获取到用户信息，请确保已通过网关认证",
-		})
+		c.JSON(http.StatusUnauthorized, response.NewErrorResponse(response.CodeUnauthorized, "未获取到用户信息，请确保已通过网关认证", nil))
 		return
 	}
 
 	// 2. 解析请求体
 	var req UpdateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrBadRequest,
-			Message:    "请求参数错误: " + err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
 		return
 	}
 
 	// 3. 检查是否至少提供了一个更新字段
 	if req.Username == nil && req.Avatar == nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.UserHandlerID,
-			MessageID:  UserErrMissingUpdateFields,
-			Message:    "至少需要提供一个更新字段（username或avatar）",
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeUserMissingFields, "至少需要提供一个更新字段（username或avatar）", nil))
 		return
 	}
 
 	// 4. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrDatabaseNotInit,
-			Message:    "数据库连接未初始化",
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
 		return
 	}
 
@@ -298,20 +221,10 @@ func UpdateUser(c *gin.Context) {
 	var user models.User
 	if err := db.Where("uuid = ?", headerInfo.UserID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				HTTPStatus: http.StatusNotFound,
-				HandlerID:  models.UserHandlerID,
-				MessageID:  UserErrUserNotFound,
-				Message:    "用户不存在",
-			})
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeUserNotFound, "用户不存在", nil))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.UserHandlerID,
-			MessageID:  UserErrQueryUserFailed,
-			Message:    "查询用户失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeUserQueryFailed, "查询用户失败: "+err.Error(), nil))
 		return
 	}
 
@@ -326,31 +239,22 @@ func UpdateUser(c *gin.Context) {
 
 	// 7. 更新用户信息
 	if err := db.Model(&user).Updates(updates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.UserHandlerID,
-			MessageID:  UserErrUpdateUserFailed,
-			Message:    "更新用户失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeUserUpdateFailed, "更新用户失败: "+err.Error(), nil))
 		return
 	}
 
 	// 8. 重新查询用户以获取最新数据
 	if err := db.First(&user, user.ID).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.UserHandlerID,
-			MessageID:  UserErrQueryUpdatedFailed,
-			Message:    "查询更新后的用户信息失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeUserQueryFailed, "查询更新后的用户信息失败: "+err.Error(), nil))
 		return
 	}
 
 	// 9. 返回成功响应
-	c.JSON(http.StatusOK, UpdateUserResponse{
+	resp := UpdateUserResponse{
 		Username:  user.Username,
 		Avatar:    user.Avatar,
 		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	})
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }

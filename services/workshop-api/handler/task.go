@@ -7,35 +7,10 @@ import (
 
 	"todo/middleware"
 	"todo/models"
+	"todo/response"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-)
-
-// Task错误消息ID定义 - 任务服务特定的错误消息
-const (
-	TaskErrNotMemberCannotCreate     = 1  // 您不是该项目的成员，无法创建任务
-	TaskErrVerifyMemberFailed        = 2  // 验证项目成员身份失败
-	TaskErrParentTaskNotFound        = 3  // 父任务不存在
-	TaskErrQueryParentTaskFailed     = 4  // 查询父任务失败
-	TaskErrParentTaskMustSameProject = 5  // 父任务必须属于同一项目
-	TaskErrExecutorNotMember         = 6  // 指定的执行者不是该项目的成员
-	TaskErrVerifyExecutorFailed      = 7  // 验证执行者身份失败
-	TaskErrInvalidState              = 8  // 无效的任务状态
-	TaskErrCreateTaskFailed          = 9  // 创建任务失败
-	TaskErrTaskIDEmpty               = 10 // 任务ID不能为空
-	TaskErrTaskNotFound              = 11 // 任务不存在
-	TaskErrQueryTaskFailed           = 12 // 查询任务失败
-	TaskErrNotMember                 = 13 // 您不是该项目的成员
-	TaskErrVerifyPermissionFailed    = 14 // 验证权限失败
-	TaskErrNoPermissionModify        = 15 // 您没有权限修改此任务
-	TaskErrTaskCannotBeOwnParent     = 16 // 任务不能成为自己的父任务
-	TaskErrUpdateTaskFailed          = 17 // 更新任务失败
-	TaskErrProjectIDEmpty            = 18 // 项目ID不能为空
-	TaskErrNotMemberCannotView       = 19 // 您不是该项目的成员，无法查看任务
-	TaskErrQueryTaskTotalFailed      = 20 // 查询任务总数失败
-	TaskErrNoPermissionDelete        = 21 // 您没有权限删除此任务
-	TaskErrDeleteTaskFailed          = 22 // 删除任务失败
 )
 
 // CreateTaskRequest 创建任务请求结构
@@ -74,24 +49,14 @@ func CreateTask(c *gin.Context) {
 	// 1. 解析请求体
 	var req CreateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrBadRequest,
-			Message:    "请求参数错误: " + err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
 		return
 	}
 
 	// 2. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrDatabaseNotInit,
-			Message:    "数据库连接未初始化",
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
 		return
 	}
 
@@ -105,20 +70,10 @@ func CreateTask(c *gin.Context) {
 	var member models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", req.ProjectID, userID).First(&member).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusForbidden, models.ErrorResponse{
-				HTTPStatus: http.StatusForbidden,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrNotMemberCannotCreate,
-				Message:    "您不是该项目的成员，无法创建任务",
-			})
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员，无法创建任务", nil))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrVerifyMemberFailed,
-			Message:    "验证项目成员身份失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证项目成员身份失败: "+err.Error(), nil))
 		return
 	}
 
@@ -127,30 +82,15 @@ func CreateTask(c *gin.Context) {
 		var parentTask models.Task
 		if err := db.First(&parentTask, *req.FatherID).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusNotFound, models.ErrorResponse{
-					HTTPStatus: http.StatusNotFound,
-					HandlerID:  models.TaskHandlerID,
-					MessageID:  TaskErrParentTaskNotFound,
-					Message:    "父任务不存在",
-				})
+				c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskParentNotFound, "父任务不存在", nil))
 				return
 			}
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-				HTTPStatus: http.StatusInternalServerError,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrQueryParentTaskFailed,
-				Message:    "查询父任务失败: " + err.Error(),
-			})
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询父任务失败: "+err.Error(), nil))
 			return
 		}
 		// 验证父任务是否属于同一项目
 		if parentTask.ProjectID != req.ProjectID {
-			c.JSON(http.StatusBadRequest, models.ErrorResponse{
-				HTTPStatus: http.StatusBadRequest,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrParentTaskMustSameProject,
-				Message:    "父任务必须属于同一项目",
-			})
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentMustSameProject, "父任务必须属于同一项目", nil))
 			return
 		}
 	}
@@ -160,20 +100,10 @@ func CreateTask(c *gin.Context) {
 		var executorMember models.ProjectMember
 		if err := db.Where("project_id = ? AND user_id = ?", req.ProjectID, *req.ExecutorID).First(&executorMember).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusBadRequest, models.ErrorResponse{
-					HTTPStatus: http.StatusBadRequest,
-					HandlerID:  models.TaskHandlerID,
-					MessageID:  TaskErrExecutorNotMember,
-					Message:    "指定的执行者不是该项目的成员",
-				})
+				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskExecutorNotMember, "指定的执行者不是该项目的成员", nil))
 				return
 			}
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-				HTTPStatus: http.StatusInternalServerError,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrVerifyExecutorFailed,
-				Message:    "验证执行者身份失败: " + err.Error(),
-			})
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证执行者身份失败: "+err.Error(), nil))
 			return
 		}
 	}
@@ -186,12 +116,7 @@ func CreateTask(c *gin.Context) {
 
 	// 8. 验证状态是否有效
 	if !models.IsValidState(state) {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrInvalidValue,
-			Message:    "无效的任务状态",
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskInvalidState, "无效的任务状态", nil))
 		return
 	}
 
@@ -206,12 +131,7 @@ func CreateTask(c *gin.Context) {
 	}
 
 	if err := db.Create(&task).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrCreateTaskFailed,
-			Message:    "创建任务失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskCreateFailed, "创建任务失败: "+err.Error(), nil))
 		return
 	}
 
@@ -222,7 +142,7 @@ func CreateTask(c *gin.Context) {
 		completionAt = &completionAtStr
 	}
 
-	c.JSON(http.StatusCreated, CreateTaskResponse{
+	resp := CreateTaskResponse{
 		ID:           task.ID,
 		ProjectID:    task.ProjectID,
 		FatherID:     task.FatherID,
@@ -233,7 +153,8 @@ func CreateTask(c *gin.Context) {
 		CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		CompletionAt: completionAt,
-	})
+	}
+	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
 // canModifyTask 检查用户是否有权限修改任务
@@ -293,36 +214,21 @@ func UpdateTask(c *gin.Context) {
 	// 1. 获取任务ID
 	taskID := c.Param("id")
 	if taskID == "" {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrTaskIDEmpty,
-			Message:    "任务ID不能为空",
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskIDEmpty, "任务ID不能为空", nil))
 		return
 	}
 
 	// 2. 解析请求体
 	var req UpdateTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrBadRequest,
-			Message:    "请求参数错误: " + err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
 		return
 	}
 
 	// 3. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrDatabaseNotInit,
-			Message:    "数据库连接未初始化",
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
 		return
 	}
 
@@ -336,20 +242,10 @@ func UpdateTask(c *gin.Context) {
 	var task models.Task
 	if err := db.First(&task, taskID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				HTTPStatus: http.StatusNotFound,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrTaskNotFound,
-				Message:    "任务不存在",
-			})
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, "任务不存在", nil))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrQueryTaskFailed,
-			Message:    "查询任务失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
 		return
 	}
 
@@ -357,29 +253,14 @@ func UpdateTask(c *gin.Context) {
 	canModify, err := canModifyTask(db, userID, task)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusForbidden, models.ErrorResponse{
-				HTTPStatus: http.StatusForbidden,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrNotMember,
-				Message:    "您不是该项目的成员",
-			})
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员", nil))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrVerifyPermissionFailed,
-			Message:    "验证权限失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证权限失败: "+err.Error(), nil))
 		return
 	}
 	if !canModify {
-		c.JSON(http.StatusForbidden, models.ErrorResponse{
-			HTTPStatus: http.StatusForbidden,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrNoPermissionModify,
-			Message:    "您没有权限修改此任务",
-		})
+		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNoPermission, "您没有权限修改此任务", nil))
 		return
 	}
 
@@ -388,40 +269,20 @@ func UpdateTask(c *gin.Context) {
 		var parentTask models.Task
 		if err := db.First(&parentTask, *req.FatherID).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusNotFound, models.ErrorResponse{
-					HTTPStatus: http.StatusNotFound,
-					HandlerID:  models.TaskHandlerID,
-					MessageID:  TaskErrParentTaskNotFound,
-					Message:    "父任务不存在",
-				})
+				c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskParentNotFound, "父任务不存在", nil))
 				return
 			}
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-				HTTPStatus: http.StatusInternalServerError,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrQueryParentTaskFailed,
-				Message:    "查询父任务失败: " + err.Error(),
-			})
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询父任务失败: "+err.Error(), nil))
 			return
 		}
 		// 验证父任务是否属于同一项目
 		if parentTask.ProjectID != task.ProjectID {
-			c.JSON(http.StatusBadRequest, models.ErrorResponse{
-				HTTPStatus: http.StatusBadRequest,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrParentTaskMustSameProject,
-				Message:    "父任务必须属于同一项目",
-			})
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentMustSameProject, "父任务必须属于同一项目", nil))
 			return
 		}
 		// 防止任务成为自己的父任务
 		if parentTask.ID == task.ID {
-			c.JSON(http.StatusBadRequest, models.ErrorResponse{
-				HTTPStatus: http.StatusBadRequest,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrTaskCannotBeOwnParent,
-				Message:    "任务不能成为自己的父任务",
-			})
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskCannotBeOwnParent, "任务不能成为自己的父任务", nil))
 			return
 		}
 	}
@@ -431,20 +292,10 @@ func UpdateTask(c *gin.Context) {
 		var executorMember models.ProjectMember
 		if err := db.Where("project_id = ? AND user_id = ?", task.ProjectID, *req.ExecutorID).First(&executorMember).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusBadRequest, models.ErrorResponse{
-					HTTPStatus: http.StatusBadRequest,
-					HandlerID:  models.TaskHandlerID,
-					MessageID:  TaskErrExecutorNotMember,
-					Message:    "指定的执行者不是该项目的成员",
-				})
+				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskExecutorNotMember, "指定的执行者不是该项目的成员", nil))
 				return
 			}
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-				HTTPStatus: http.StatusInternalServerError,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrVerifyExecutorFailed,
-				Message:    "验证执行者身份失败: " + err.Error(),
-			})
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证执行者身份失败: "+err.Error(), nil))
 			return
 		}
 	}
@@ -452,12 +303,7 @@ func UpdateTask(c *gin.Context) {
 	// 9. 如果指定了状态，验证状态是否有效
 	if req.State != nil {
 		if !models.IsValidState(*req.State) {
-			c.JSON(http.StatusBadRequest, models.ErrorResponse{
-				HTTPStatus: http.StatusBadRequest,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrInvalidState,
-				Message:    "无效的任务状态",
-			})
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskInvalidState, "无效的任务状态", nil))
 			return
 		}
 		// 如果状态变为已完成，设置完成时间
@@ -493,12 +339,7 @@ func UpdateTask(c *gin.Context) {
 
 	if len(updates) > 0 {
 		if err := db.Model(&task).Updates(updates).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-				HTTPStatus: http.StatusInternalServerError,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrUpdateTaskFailed,
-				Message:    "更新任务失败: " + err.Error(),
-			})
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskUpdateFailed, "更新任务失败: "+err.Error(), nil))
 			return
 		}
 		// 重新查询任务以获取最新数据
@@ -512,7 +353,7 @@ func UpdateTask(c *gin.Context) {
 		completionAt = &completionAtStr
 	}
 
-	c.JSON(http.StatusOK, UpdateTaskResponse{
+	resp := UpdateTaskResponse{
 		ID:           task.ID,
 		ProjectID:    task.ProjectID,
 		FatherID:     task.FatherID,
@@ -523,7 +364,8 @@ func UpdateTask(c *gin.Context) {
 		CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		CompletionAt: completionAt,
-	})
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
 // GetTasksRequest 查询任务请求结构（通过查询参数）
@@ -561,24 +403,14 @@ func GetTasks(c *gin.Context) {
 	// 1. 获取项目ID（查询参数）
 	projectIDStr := c.Query("project_id")
 	if projectIDStr == "" {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrProjectIDEmpty,
-			Message:    "项目ID不能为空",
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectIDEmpty, "项目ID不能为空", nil))
 		return
 	}
 
 	// 2. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrDatabaseNotInit,
-			Message:    "数据库连接未初始化",
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
 		return
 	}
 
@@ -591,12 +423,7 @@ func GetTasks(c *gin.Context) {
 	// 4. 解析项目ID
 	var projectID uint
 	if _, err := fmt.Sscanf(projectIDStr, "%d", &projectID); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrBadRequest,
-			Message:    "无效的项目ID",
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectIDEmpty, "无效的项目ID", nil))
 		return
 	}
 
@@ -604,20 +431,10 @@ func GetTasks(c *gin.Context) {
 	var member models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", projectID, userID).First(&member).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusForbidden, models.ErrorResponse{
-				HTTPStatus: http.StatusForbidden,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrNotMemberCannotView,
-				Message:    "您不是该项目的成员，无法查看任务",
-			})
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员，无法查看任务", nil))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrVerifyMemberFailed,
-			Message:    "验证项目成员身份失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证项目成员身份失败: "+err.Error(), nil))
 		return
 	}
 
@@ -630,12 +447,7 @@ func GetTasks(c *gin.Context) {
 			// 尝试另一种常见格式（不带时区偏移）
 			parsedTime, err = time.Parse("2006-01-02T15:04:05Z", updatedAfterStr)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, models.ErrorResponse{
-					HTTPStatus: http.StatusBadRequest,
-					HandlerID:  models.DefaultHandlerID,
-					MessageID:  models.ErrBadRequest,
-					Message:    "无效的时间格式，请使用ISO 8601格式（例如：2024-01-01T12:00:00Z）",
-				})
+				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的时间格式，请使用ISO 8601格式（例如：2024-01-01T12:00:00Z）", nil))
 				return
 			}
 		}
@@ -653,24 +465,14 @@ func GetTasks(c *gin.Context) {
 	// 8. 查询任务总数
 	var total int64
 	if err := baseQuery.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrQueryTaskTotalFailed,
-			Message:    "查询任务总数失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务总数失败: "+err.Error(), nil))
 		return
 	}
 
 	// 9. 查询任务列表
 	var tasks []models.Task
 	if err := baseQuery.Find(&tasks).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrQueryTaskFailed,
-			Message:    "查询任务失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
 		return
 	}
 
@@ -698,10 +500,11 @@ func GetTasks(c *gin.Context) {
 	}
 
 	// 9. 返回成功响应
-	c.JSON(http.StatusOK, GetTasksResponse{
+	resp := GetTasksResponse{
 		Tasks: taskResponses,
 		Total: total,
-	})
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
 // DeleteTasksRequest 删除任务请求结构
@@ -726,24 +529,14 @@ func DeleteTasks(c *gin.Context) {
 	// 1. 解析请求体
 	var req DeleteTasksRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, models.ErrorResponse{
-			HTTPStatus: http.StatusBadRequest,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrBadRequest,
-			Message:    "请求参数错误: " + err.Error(),
-		})
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
 		return
 	}
 
 	// 2. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.DefaultHandlerID,
-			MessageID:  models.ErrDatabaseNotInit,
-			Message:    "数据库连接未初始化",
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
 		return
 	}
 
@@ -756,12 +549,7 @@ func DeleteTasks(c *gin.Context) {
 	// 4. 批量查询任务
 	var tasks []models.Task
 	if err := db.Where("id IN ?", req.TaskIDs).Find(&tasks).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrQueryTaskFailed,
-			Message:    "查询任务失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
 		return
 	}
 
@@ -774,12 +562,7 @@ func DeleteTasks(c *gin.Context) {
 	// 验证所有任务是否存在
 	for _, taskID := range req.TaskIDs {
 		if _, exists := taskMap[taskID]; !exists {
-			c.JSON(http.StatusNotFound, models.ErrorResponse{
-				HTTPStatus: http.StatusNotFound,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrTaskNotFound,
-				Message:    "任务不存在",
-			})
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, "任务不存在", nil))
 			return
 		}
 	}
@@ -790,29 +573,14 @@ func DeleteTasks(c *gin.Context) {
 		canModify, err := canModifyTask(db, userID, task)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusForbidden, models.ErrorResponse{
-					HTTPStatus: http.StatusForbidden,
-					HandlerID:  models.DefaultHandlerID,
-					MessageID:  models.ErrForbidden,
-					Message:    "您不是该项目的成员",
-				})
+				c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员", nil))
 				return
 			}
-			c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-				HTTPStatus: http.StatusInternalServerError,
-				HandlerID:  models.DefaultHandlerID,
-				MessageID:  models.ErrQueryFailed,
-				Message:    "验证权限失败: " + err.Error(),
-			})
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证权限失败: "+err.Error(), nil))
 			return
 		}
 		if !canModify {
-			c.JSON(http.StatusForbidden, models.ErrorResponse{
-				HTTPStatus: http.StatusForbidden,
-				HandlerID:  models.TaskHandlerID,
-				MessageID:  TaskErrNoPermissionDelete,
-				Message:    "您没有权限删除此任务",
-			})
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNoPermission, "您没有权限删除此任务", nil))
 			return
 		}
 	}
@@ -831,18 +599,14 @@ func DeleteTasks(c *gin.Context) {
 	})
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.ErrorResponse{
-			HTTPStatus: http.StatusInternalServerError,
-			HandlerID:  models.TaskHandlerID,
-			MessageID:  TaskErrDeleteTaskFailed,
-			Message:    "删除任务失败: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskDeleteFailed, "删除任务失败: "+err.Error(), nil))
 		return
 	}
 
 	// 9. 返回成功响应
-	c.JSON(http.StatusOK, DeleteTasksResponse{
+	resp := DeleteTasksResponse{
 		DeletedCount: len(deletedIDs),
 		TaskIDs:      deletedIDs,
-	})
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }

@@ -5,6 +5,8 @@ import (
 	"os"
 	"time"
 
+	"todo/response"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,11 +27,11 @@ func HealthCheck(c *gin.Context) {
 		serviceName = "todo"
 	}
 
-	response := HealthResponse{
+	healthResp := HealthResponse{
 		Status:    "ok",
 		Timestamp: time.Now(),
 		Service:   serviceName,
 	}
 
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, response.NewSuccessResponse(healthResp))
 }
