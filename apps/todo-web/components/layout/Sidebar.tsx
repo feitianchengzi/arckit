@@ -10,7 +10,7 @@
  * 4. 响应式：桌面固定，移动端可折叠
  */
 
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '@/store/authStore'
@@ -59,6 +59,16 @@ export function Sidebar({ className }: SidebarProps) {
     >
       {/* 用户信息区域 */}
       <div className="p-6 border-b border-gray-200">
+        {/* 系统标题（可点击跳转到主页） */}
+        <button
+          onClick={() => router.push('/projects')}
+          className="w-full mb-4 text-left"
+        >
+          <h2 className="text-lg font-bold text-gray-900 hover:text-primary transition-colors">
+            待办管理系统
+          </h2>
+        </button>
+        
         <div className="flex items-center gap-3">
           {/* 头像（可点击跳转到设置） */}
           <button
@@ -104,11 +114,17 @@ interface NavItemProps {
   icon: React.ReactNode
   label: string
   href: string
-  active?: boolean
+  exact?: boolean // 是否精确匹配（默认 false，匹配路径前缀）
 }
 
-function NavItem({ icon, label, href, active = false }: NavItemProps) {
+function NavItem({ icon, label, href, exact = false }: NavItemProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  
+  // 判断是否选中：精确匹配或路径前缀匹配
+  const isActive = exact 
+    ? pathname === href 
+    : pathname?.startsWith(href) || false
   
   return (
     <button
@@ -116,8 +132,8 @@ function NavItem({ icon, label, href, active = false }: NavItemProps) {
       className={clsx(
         'w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors',
         {
-          'bg-primary-50 text-primary font-medium': active,
-          'text-gray-700 hover:bg-gray-100': !active,
+          'bg-primary-50 text-primary font-medium': isActive,
+          'text-gray-700 hover:bg-gray-100': !isActive,
         }
       )}
     >

@@ -327,15 +327,12 @@ export default function ProjectMembersPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-base font-medium text-gray-900">
-                            {memberUsername || `用户 ${member.user_id}`}
+                            {memberUsername || '未知用户'}
                           </p>
                           {isCurrentUser && (
                             <span className="text-xs text-gray-500">（我）</span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500 mt-0.5">
-                          用户 ID: {member.user_id}
-                        </p>
                       </div>
                       
                       {/* 角色 */}

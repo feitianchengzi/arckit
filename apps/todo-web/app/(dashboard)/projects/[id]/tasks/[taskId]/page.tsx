@@ -256,7 +256,7 @@ export default function TaskDetailPage() {
                   <option value="">未分配</option>
                   {members?.map((member: any) => (
                     <option key={member.user_id} value={member.user_id}>
-                      {member.username || member.user?.username || `用户 ${member.user_id}`}
+                      {member.username || member.user?.username || '未知用户'}
                     </option>
                   ))}
                 </select>

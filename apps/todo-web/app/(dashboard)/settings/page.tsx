@@ -214,9 +214,6 @@ export default function SettingsPage() {
                 <p className="text-lg font-medium text-gray-900">
                   {currentUser?.username || '未知用户'}
                 </p>
-                <p className="text-sm text-gray-500">
-                  用户 ID: {currentUser?.id || 'N/A'}
-                </p>
               </div>
             </div>
             
