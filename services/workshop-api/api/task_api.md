@@ -91,16 +91,19 @@ POST /todo/v1/user/tasks
 
 ```json
 {
-  "id": 1,
-  "project_id": 1,
-  "father_id": null,
-  "content": "完成任务设计",
-  "state": "pending",
-  "creator_id": 10,
-  "executor_id": 2,
-  "created_at": "2024-01-01T12:00:00Z",
-  "updated_at": "2024-01-01T12:00:00Z",
-  "completion_at": null
+  "code": "OK",
+  "data": {
+    "id": 1,
+    "project_id": 1,
+    "father_id": null,
+    "content": "完成任务设计",
+    "state": "pending",
+    "creator_id": 10,
+    "executor_id": 2,
+    "created_at": "2024-01-01T12:00:00Z",
+    "updated_at": "2024-01-01T12:00:00Z",
+    "completion_at": null
+  }
 }
 ```
 
@@ -121,10 +124,60 @@ POST /todo/v1/user/tasks
 
 **错误响应**:
 
-- `400 Bad Request` - 请求参数错误、无效的任务状态、父任务必须属于同一项目或指定的执行者不是该项目的成员
-- `403 Forbidden` - 您不是该项目的成员，无法创建任务
-- `404 Not Found` - 父任务不存在
-- `500 Internal Server Error` - 创建任务失败
+**400 Bad Request** - 请求参数错误:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 无效状态:
+```json
+{
+  "code": "TASK_INVALID_STATE",
+  "error": {
+    "message": "无效的任务状态",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden**:
+```json
+{
+  "code": "TASK_NOT_MEMBER",
+  "error": {
+    "message": "您不是该项目的成员，无法创建任务",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "TASK_PARENT_NOT_FOUND",
+  "error": {
+    "message": "父任务不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "TASK_CREATE_FAILED",
+  "error": {
+    "message": "创建任务失败: ...",
+    "details": null
+  }
+}
+```
 
 ---
 
@@ -181,16 +234,19 @@ POST /todo/v1/user/tasks
 
 ```json
 {
-  "id": 1,
-  "project_id": 1,
-  "father_id": null,
-  "content": "更新后的任务内容",
-  "state": "in_progress",
-  "creator_id": 10,
-  "executor_id": 3,
-  "created_at": "2024-01-01T12:00:00Z",
-  "updated_at": "2024-01-01T12:01:00Z",
-  "completion_at": null
+  "code": "OK",
+  "data": {
+    "id": 1,
+    "project_id": 1,
+    "father_id": null,
+    "content": "更新后的任务内容",
+    "state": "in_progress",
+    "creator_id": 10,
+    "executor_id": 3,
+    "created_at": "2024-01-01T12:00:00Z",
+    "updated_at": "2024-01-01T12:01:00Z",
+    "completion_at": null
+  }
 }
 ```
 
@@ -198,10 +254,60 @@ POST /todo/v1/user/tasks
 
 **错误响应**:
 
-- `400 Bad Request` - 请求参数错误、无效的任务状态、父任务必须属于同一项目、任务不能成为自己的父任务或指定的执行者不是该项目的成员
-- `403 Forbidden` - 您没有权限修改此任务或您不是该项目的成员
-- `404 Not Found` - 任务不存在或父任务不存在
-- `500 Internal Server Error` - 更新任务失败
+**400 Bad Request** - 请求参数错误:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 无效状态:
+```json
+{
+  "code": "TASK_INVALID_STATE",
+  "error": {
+    "message": "无效的任务状态",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden** - 无权限:
+```json
+{
+  "code": "TASK_NO_PERMISSION",
+  "error": {
+    "message": "您没有权限修改此任务",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "TASK_NOT_FOUND",
+  "error": {
+    "message": "任务不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "TASK_UPDATE_FAILED",
+  "error": {
+    "message": "更新任务失败: ...",
+    "details": null
+  }
+}
+```
 
 ---
 
@@ -224,33 +330,36 @@ POST /todo/v1/user/tasks
 
 ```json
 {
-  "tasks": [
-    {
-      "id": 1,
-      "project_id": 1,
-      "father_id": null,
-      "content": "完成任务设计",
-      "state": "pending",
-      "creator_id": 10,
-      "executor_id": 2,
-      "created_at": "2024-01-01T12:00:00Z",
-      "updated_at": "2024-01-01T12:00:00Z",
-      "completion_at": null
-    },
-    {
-      "id": 2,
-      "project_id": 1,
-      "father_id": 1,
-      "content": "子任务：设计数据库",
-      "state": "in_progress",
-      "creator_id": 10,
-      "executor_id": null,
-      "created_at": "2024-01-01T12:05:00Z",
-      "updated_at": "2024-01-01T12:10:00Z",
-      "completion_at": null
-    }
-  ],
-  "total": 2
+  "code": "OK",
+  "data": {
+    "tasks": [
+      {
+        "id": 1,
+        "project_id": 1,
+        "father_id": null,
+        "content": "完成任务设计",
+        "state": "pending",
+        "creator_id": 10,
+        "executor_id": 2,
+        "created_at": "2024-01-01T12:00:00Z",
+        "updated_at": "2024-01-01T12:00:00Z",
+        "completion_at": null
+      },
+      {
+        "id": 2,
+        "project_id": 1,
+        "father_id": 1,
+        "content": "子任务：设计数据库",
+        "state": "in_progress",
+        "creator_id": 10,
+        "executor_id": null,
+        "created_at": "2024-01-01T12:05:00Z",
+        "updated_at": "2024-01-01T12:10:00Z",
+        "completion_at": null
+      }
+    ],
+    "total": 2
+  }
 }
 ```
 
@@ -270,9 +379,49 @@ POST /todo/v1/user/tasks
 
 **错误响应**:
 
-- `400 Bad Request` - 项目ID不能为空、无效的项目ID或无效的时间格式
-- `403 Forbidden` - 您不是该项目的成员，无法查看任务
-- `500 Internal Server Error` - 查询任务失败
+**400 Bad Request** - 项目ID为空:
+```json
+{
+  "code": "PROJECT_ID_EMPTY",
+  "error": {
+    "message": "项目ID不能为空",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 无效项目ID:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "无效的项目ID",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden**:
+```json
+{
+  "code": "TASK_NOT_MEMBER",
+  "error": {
+    "message": "您不是该项目的成员，无法查看任务",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "TASK_QUERY_FAILED",
+  "error": {
+    "message": "查询任务失败: ...",
+    "details": null
+  }
+}
+```
 
 ---
 
@@ -312,8 +461,11 @@ POST /todo/v1/user/tasks
 
 ```json
 {
-  "deleted_count": 3,
-  "task_ids": [1, 2, 3]
+  "code": "OK",
+  "data": {
+    "deleted_count": 3,
+    "task_ids": [1, 2, 3]
+  }
 }
 ```
 
@@ -326,10 +478,49 @@ POST /todo/v1/user/tasks
 
 **错误响应**:
 
-- `400 Bad Request` - 请求参数错误（task_ids为空或格式错误）
-- `403 Forbidden` - 您没有权限删除此任务或您不是该项目的成员
-- `404 Not Found` - 任务不存在
-- `500 Internal Server Error` - 删除任务失败
+**400 Bad Request**:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden** - 无权限:
+```json
+{
+  "code": "TASK_NO_PERMISSION",
+  "error": {
+    "message": "您没有权限删除此任务",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "TASK_NOT_FOUND",
+  "error": {
+    "message": "任务不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "TASK_DELETE_FAILED",
+  "error": {
+    "message": "删除任务失败: ...",
+    "details": null
+  }
+}
+```
 
 **注意事项**:
 

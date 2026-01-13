@@ -78,20 +78,23 @@ GET /todo/v1/user/projects
 
 ```json
 {
-  "id": 1,
-  "name": "电商平台开发",
-  "git_url": "https://github.com/team/ecommerce.git",
-  "creator_id": 10,
-  "members": [
-    {
-      "id": 1,
-      "user_id": 10,
-      "role": "owner",
-      "username": "john_doe",
-      "avatar": "https://example.com/avatar.png",
-      "created_at": "2024-01-01T12:00:00Z"
-    }
-  ]
+  "code": "OK",
+  "data": {
+    "id": 1,
+    "name": "电商平台开发",
+    "git_url": "https://github.com/team/ecommerce.git",
+    "creator_id": 10,
+    "members": [
+      {
+        "id": 1,
+        "user_id": 10,
+        "role": "owner",
+        "username": "john_doe",
+        "avatar": "https://example.com/avatar.png",
+        "created_at": "2024-01-01T12:00:00Z"
+      }
+    ]
+  }
 }
 ```
 
@@ -107,8 +110,27 @@ GET /todo/v1/user/projects
 
 **错误响应**:
 
-- `400 Bad Request` - 请求参数错误或缺少用户ID
-- `500 Internal Server Error` - 创建项目失败
+**400 Bad Request**:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "PROJECT_CREATE_FAILED",
+  "error": {
+    "message": "创建项目失败: ...",
+    "details": null
+  }
+}
+```
 
 ---
 
@@ -130,35 +152,38 @@ GET /todo/v1/user/projects
 
 ```json
 {
-  "projects": [
-    {
-      "id": 1,
-      "name": "电商平台开发",
-      "git_url": "https://github.com/team/ecommerce.git",
-      "creator_id": 10,
-      "created_at": "2024-01-01T12:00:00Z",
-      "updated_at": "2024-01-01T12:00:00Z",
-      "members": [
-        {
-          "id": 1,
-          "user_id": 10,
-          "role": "owner",
-          "username": "john_doe",
-          "avatar": "https://example.com/avatar.png",
-          "created_at": "2024-01-01T12:00:00Z"
-        },
-        {
-          "id": 2,
-          "user_id": 11,
-          "role": "member",
-          "username": "jane_doe",
-          "avatar": "https://example.com/avatar2.png",
-          "created_at": "2024-01-01T12:05:00Z"
-        }
-      ]
-    }
-  ],
-  "total": 1
+  "code": "OK",
+  "data": {
+    "projects": [
+      {
+        "id": 1,
+        "name": "电商平台开发",
+        "git_url": "https://github.com/team/ecommerce.git",
+        "creator_id": 10,
+        "created_at": "2024-01-01T12:00:00Z",
+        "updated_at": "2024-01-01T12:00:00Z",
+        "members": [
+          {
+            "id": 1,
+            "user_id": 10,
+            "role": "owner",
+            "username": "john_doe",
+            "avatar": "https://example.com/avatar.png",
+            "created_at": "2024-01-01T12:00:00Z"
+          },
+          {
+            "id": 2,
+            "user_id": 11,
+            "role": "member",
+            "username": "jane_doe",
+            "avatar": "https://example.com/avatar2.png",
+            "created_at": "2024-01-01T12:05:00Z"
+          }
+        ]
+      }
+    ],
+    "total": 1
+  }
 }
 ```
 
@@ -171,8 +196,27 @@ GET /todo/v1/user/projects
 
 **错误响应**:
 
-- `400 Bad Request` - 缺少用户ID
-- `500 Internal Server Error` - 查询项目失败
+**400 Bad Request**:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "PROJECT_QUERY_FAILED",
+  "error": {
+    "message": "查询项目失败: ...",
+    "details": null
+  }
+}
+```
 
 ---
 
@@ -216,13 +260,16 @@ GET /todo/v1/user/projects
 
 ```json
 {
-  "id": 1,
-  "name": "新项目名称",
-  "git_url": "https://github.com/team/new-repo.git",
-  "creator_id": 10,
-  "created_at": "2024-01-01T12:00:00Z",
-  "updated_at": "2024-01-01T12:01:00Z",
-  "members": [...]
+  "code": "OK",
+  "data": {
+    "id": 1,
+    "name": "新项目名称",
+    "git_url": "https://github.com/team/new-repo.git",
+    "creator_id": 10,
+    "created_at": "2024-01-01T12:00:00Z",
+    "updated_at": "2024-01-01T12:01:00Z",
+    "members": [...]
+  }
 }
 ```
 
@@ -230,10 +277,49 @@ GET /todo/v1/user/projects
 
 **错误响应**:
 
-- `400 Bad Request` - 请求参数错误或缺少用户ID
-- `403 Forbidden` - 您没有权限更新此项目，只有项目所有者和管理员可以更新
-- `404 Not Found` - 项目不存在或您不是该项目的成员
-- `500 Internal Server Error` - 更新项目失败
+**400 Bad Request**:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden**:
+```json
+{
+  "code": "PROJECT_NO_PERMISSION",
+  "error": {
+    "message": "您没有权限更新此项目，只有项目所有者和管理员可以更新",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "PROJECT_NOT_FOUND",
+  "error": {
+    "message": "项目不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "PROJECT_UPDATE_FAILED",
+  "error": {
+    "message": "更新项目失败: ...",
+    "details": null
+  }
+}
+```
 
 ---
 
@@ -261,16 +347,58 @@ GET /todo/v1/user/projects
 
 ```json
 {
-  "message": "项目删除成功"
+  "code": "OK",
+  "data": {
+    "message": "项目删除成功"
+  }
 }
 ```
 
 **错误响应**:
 
-- `400 Bad Request` - 项目ID不能为空或缺少用户ID
-- `403 Forbidden` - 只有项目所有者可以删除项目或您不是该项目的成员
-- `404 Not Found` - 项目不存在
-- `500 Internal Server Error` - 删除项目失败
+**400 Bad Request**:
+```json
+{
+  "code": "PROJECT_ID_EMPTY",
+  "error": {
+    "message": "项目ID不能为空",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden**:
+```json
+{
+  "code": "PROJECT_NO_PERMISSION",
+  "error": {
+    "message": "只有项目所有者可以删除项目",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "PROJECT_NOT_FOUND",
+  "error": {
+    "message": "项目不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "PROJECT_UPDATE_FAILED",
+  "error": {
+    "message": "删除项目失败: ...",
+    "details": null
+  }
+}
+```
 
 **注意事项**:
 
@@ -319,11 +447,14 @@ GET /todo/v1/user/projects
 
 ```json
 {
-  "invite_code": "ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234",
-  "invite_link": "/join?code=ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234",
-  "role": "member",
-  "expires_at": "2024-01-02T12:00:00Z",
-  "created_at": "2024-01-01T12:00:00Z"
+  "code": "OK",
+  "data": {
+    "invite_code": "ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234",
+    "invite_link": "/join?code=ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234",
+    "role": "member",
+    "expires_at": "2024-01-02T12:00:00Z",
+    "created_at": "2024-01-01T12:00:00Z"
+  }
 }
 ```
 
@@ -339,10 +470,60 @@ GET /todo/v1/user/projects
 
 **错误响应**:
 
-- `400 Bad Request` - 请求参数错误、无效的项目角色或缺少用户ID
-- `403 Forbidden` - 您没有权限邀请项目成员，只有项目所有者和管理员可以邀请或您不是该项目的成员
-- `404 Not Found` - 项目不存在
-- `500 Internal Server Error` - 创建邀请失败
+**400 Bad Request** - 请求参数错误:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 无效角色:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "无效的项目角色",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden**:
+```json
+{
+  "code": "PROJECT_NO_PERMISSION",
+  "error": {
+    "message": "您没有权限邀请项目成员，只有项目所有者和管理员可以邀请",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "PROJECT_NOT_FOUND",
+  "error": {
+    "message": "项目不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "PROJECT_CREATE_FAILED",
+  "error": {
+    "message": "创建邀请失败: ...",
+    "details": null
+  }
+}
+```
 
 ---
 
@@ -378,12 +559,15 @@ GET /todo/v1/user/projects
 
 ```json
 {
-  "id": 3,
-  "project_id": 1,
-  "user_id": 12,
-  "role": "member",
-  "project_name": "电商平台开发",
-  "created_at": "2024-01-01T12:10:00Z"
+  "code": "OK",
+  "data": {
+    "id": 3,
+    "project_id": 1,
+    "user_id": 12,
+    "role": "member",
+    "project_name": "电商平台开发",
+    "created_at": "2024-01-01T12:10:00Z"
+  }
 }
 ```
 
@@ -400,10 +584,71 @@ GET /todo/v1/user/projects
 
 **错误响应**:
 
-- `400 Bad Request` - 请求参数错误、该邀请码已被使用、该邀请码已过期或缺少用户ID
-- `403 Forbidden` - 您已经是该项目的成员
-- `404 Not Found` - 邀请码无效或项目不存在
-- `500 Internal Server Error` - 加入项目失败
+**400 Bad Request** - 请求参数错误:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 邀请码已使用:
+```json
+{
+  "code": "PROJECT_INVITE_USED",
+  "error": {
+    "message": "该邀请码已被使用",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 邀请码已过期:
+```json
+{
+  "code": "PROJECT_INVITE_EXPIRED",
+  "error": {
+    "message": "该邀请码已过期",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden**:
+```json
+{
+  "code": "PROJECT_ALREADY_MEMBER",
+  "error": {
+    "message": "您已经是该项目的成员",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "PROJECT_INVITE_INVALID",
+  "error": {
+    "message": "邀请码无效",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "PROJECT_CREATE_FAILED",
+  "error": {
+    "message": "加入项目失败: ...",
+    "details": null
+  }
+}
+```
 
 **注意事项**:
 
@@ -451,16 +696,69 @@ GET /todo/v1/user/projects
 
 ```json
 {
-  "message": "项目成员删除成功"
+  "code": "OK",
+  "data": {
+    "message": "项目成员删除成功"
+  }
 }
 ```
 
 **错误响应**:
 
-- `400 Bad Request` - 请求参数错误、无法删除项目所有者，项目至少需要保留一个成员或缺少用户ID
-- `403 Forbidden` - 您没有权限删除项目成员，只有项目所有者和管理员可以删除或您不是该项目的成员
-- `404 Not Found` - 项目不存在、该用户不是项目成员
-- `500 Internal Server Error` - 删除项目成员失败
+**400 Bad Request**:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden** - 无权限:
+```json
+{
+  "code": "PROJECT_NO_PERMISSION",
+  "error": {
+    "message": "您没有权限删除项目成员，只有项目所有者和管理员可以删除",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden** - 不是成员:
+```json
+{
+  "code": "PROJECT_NOT_MEMBER",
+  "error": {
+    "message": "您不是该项目的成员",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "PROJECT_NOT_FOUND",
+  "error": {
+    "message": "项目不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "PROJECT_UPDATE_FAILED",
+  "error": {
+    "message": "删除项目成员失败: ...",
+    "details": null
+  }
+}
+```
 
 **特殊说明**:
 
@@ -512,13 +810,16 @@ GET /todo/v1/user/projects
 
 ```json
 {
-  "id": 2,
-  "project_id": 1,
-  "user_id": 123,
-  "role": "admin",
-  "username": "jane_doe",
-  "avatar": "https://example.com/avatar.png",
-  "updated_at": "2024-01-01T12:15:00Z"
+  "code": "OK",
+  "data": {
+    "id": 2,
+    "project_id": 1,
+    "user_id": 123,
+    "role": "admin",
+    "username": "jane_doe",
+    "avatar": "https://example.com/avatar.png",
+    "updated_at": "2024-01-01T12:15:00Z"
+  }
 }
 ```
 
@@ -536,10 +837,60 @@ GET /todo/v1/user/projects
 
 **错误响应**:
 
-- `400 Bad Request` - 请求参数错误、无效的角色，仅支持 admin 或 member、不能修改项目所有者的角色或缺少用户ID
-- `403 Forbidden` - 只有项目所有者可以设置成员权限或您不是该项目的成员
-- `404 Not Found` - 项目不存在、目标用户不是项目成员
-- `500 Internal Server Error` - 更新成员角色失败
+**400 Bad Request** - 请求参数错误:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 无效角色:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "无效的角色，仅支持 admin 或 member",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden**:
+```json
+{
+  "code": "PROJECT_NO_PERMISSION",
+  "error": {
+    "message": "只有项目所有者可以设置成员权限",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "PROJECT_NOT_FOUND",
+  "error": {
+    "message": "项目不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "PROJECT_UPDATE_FAILED",
+  "error": {
+    "message": "更新成员角色失败: ...",
+    "details": null
+  }
+}
+```
 
 **限制**:
 

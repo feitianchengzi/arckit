@@ -19,9 +19,12 @@
 
 ```json
 {
-  "status": "ok",
-  "timestamp": "2024-01-01T12:00:00Z",
-  "service": "todo"
+  "code": "OK",
+  "data": {
+    "status": "ok",
+    "timestamp": "2024-01-01T12:00:00Z",
+    "service": "todo"
+  }
 }
 ```
 
@@ -51,11 +54,14 @@
 
 ```json
 {
-  "method": "user",
-  "userID": "550e8400-e29b-41d4-a716-446655440000",
-  "username": "john_doe",
-  "appID": "app_123",
-  "sessionID": "session_456"
+  "code": "OK",
+  "data": {
+    "method": "user",
+    "userID": "550e8400-e29b-41d4-a716-446655440000",
+    "username": "john_doe",
+    "appID": "app_123",
+    "sessionID": "session_456"
+  }
 }
 ```
 
@@ -92,15 +98,42 @@
 
 ### 通用响应格式
 
-**成功响应**: 根据接口不同，返回相应的数据结构。
+**成功响应**:
+
+```json
+{
+  "code": "OK",
+  "data": {
+    // 接口返回的数据
+  },
+  "meta": {
+    // 分页元数据（可选）
+    "page": 1,
+    "page_size": 20,
+    "total": 100
+  }
+}
+```
 
 **错误响应**:
 
 ```json
 {
-  "error": "错误信息描述"
+  "code": "ERROR_CODE",
+  "error": {
+    "message": "错误信息描述",
+    "details": null
+  }
 }
 ```
+
+**错误代码说明**:
+- `BAD_REQUEST` - 请求参数错误
+- `UNAUTHORIZED` - 未认证或认证失败
+- `FORBIDDEN` - 权限不足
+- `NOT_FOUND` - 资源不存在
+- `INTERNAL_ERROR` - 服务器内部错误
+- 其他特定错误代码请参考各接口文档
 
 ### HTTP状态码
 
