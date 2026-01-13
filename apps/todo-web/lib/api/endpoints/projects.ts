@@ -3,6 +3,7 @@
  */
 
 import { apiClient } from '../client'
+import { handleResponse, handlePaginatedResponse } from '../interceptors/response'
 import type { Project } from '@/types'
 
 export interface CreateProjectInput {
@@ -20,16 +21,57 @@ export const projectsApi = {
    * 获取当前用户的项目列表
    * 后端路由: GET /workshop/v1/user/projects
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别当前用户
-   * 响应格式: { projects: Project[], total: number }
+   * 响应格式: { code: 'OK', data: Project[] } 或 { code: 'OK', data: Project[], meta: {...} }
    */
   list: async (userId?: number): Promise<Project[]> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     console.log('📋 获取项目列表')
-    const { data } = await apiClient.get('/user/projects')
-    // 后端返回格式是 { projects: [], total: 0 }，需要提取 projects 数组
-    const projects = data?.projects || data || []
-    console.log('✅ 获取到项目列表，数量:', projects.length)
-    return projects
+    const response = await apiClient.get('/user/projects')
+    
+    // 后端实际返回格式: { code: 'OK', data: { projects: [...], total: 3 } }
+    const responseData = response.data
+    if (responseData?.code === 'OK' && responseData?.data) {
+      const data = responseData.data
+      
+      // 检查是否是嵌套格式: { projects: [...], total: 3 }
+      if (data && typeof data === 'object' && 'projects' in data && Array.isArray(data.projects)) {
+        console.log('✅ 获取到项目列表（嵌套格式），数量:', data.projects.length)
+        return data.projects
+      }
+      
+      // 检查是否是分页格式: { code: 'OK', data: [...], meta: {...} }
+      if (responseData?.meta) {
+        const { data: projects } = handlePaginatedResponse<Project>(response)
+        console.log('✅ 获取到项目列表（分页），数量:', projects.length)
+        return Array.isArray(projects) ? projects : []
+      }
+      
+      // 普通数组格式: { code: 'OK', data: [...] }
+      if (Array.isArray(data)) {
+        console.log('✅ 获取到项目列表（数组），数量:', data.length)
+        return data
+      }
+    }
+    
+    // 兜底：尝试使用 handleResponse
+    try {
+      const data = handleResponse<any>(response)
+      // 如果返回的是对象，尝试提取 projects 字段
+      if (data && typeof data === 'object' && 'projects' in data && Array.isArray(data.projects)) {
+        console.log('✅ 获取到项目列表（handleResponse 嵌套），数量:', data.projects.length)
+        return data.projects
+      }
+      // 如果是数组，直接返回
+      if (Array.isArray(data)) {
+        console.log('✅ 获取到项目列表（handleResponse 数组），数量:', data.length)
+        return data
+      }
+      console.warn('⚠️ 无法解析项目列表格式:', data)
+      return []
+    } catch (error) {
+      console.error('❌ 解析项目列表失败:', error)
+      return []
+    }
   },
   
   /**
@@ -37,13 +79,15 @@ export const projectsApi = {
    * 后端路由: POST /workshop/v1/user/projects
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别当前用户
    * 创建者自动成为项目所有者（owner）
+   * 响应格式: { code: 'OK', data: Project }
    */
   create: async (input: CreateProjectInput, userId?: number): Promise<Project> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     console.log('🆕 创建项目:', input)
-    const { data } = await apiClient.post('/user/projects', input)
-    console.log('✅ 项目创建成功:', data)
-    return data
+    const response = await apiClient.post('/user/projects', input)
+    const project = handleResponse<Project>(response)
+    console.log('✅ 项目创建成功:', project)
+    return project
   },
   
   /**
@@ -65,10 +109,11 @@ export const projectsApi = {
   
   /**
    * 更新项目
+   * 响应格式: { code: 'OK', data: Project }
    */
   update: async (id: string, input: UpdateProjectInput): Promise<Project> => {
-    const { data } = await apiClient.put(`/user/projects/${id}`, input)
-    return data
+    const response = await apiClient.put(`/user/projects/${id}`, input)
+    return handleResponse<Project>(response)
   },
   
   /**
@@ -117,6 +162,7 @@ export const projectsApi = {
    * 后端路由: PUT /workshop/v1/user/projects/:id/members/role
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别当前用户
    * 请求体: { target_user_id: number, role: string }
+   * 响应格式: { code: 'OK', data: ProjectMember }
    */
   setMemberRole: async (
     projectId: string, 
@@ -125,15 +171,16 @@ export const projectsApi = {
     currentUserId?: number
   ) => {
     console.log('👤 设置成员角色, 项目ID:', projectId, '目标用户ID:', targetUserId, '新角色:', role)
-    const { data } = await apiClient.put(
+    const response = await apiClient.put(
       `/user/projects/${projectId}/members/role`,
       {
         target_user_id: targetUserId,
         role,
       }
     )
-    console.log('✅ 角色设置成功:', data)
-    return data
+    const member = handleResponse<any>(response)
+    console.log('✅ 角色设置成功:', member)
+    return member
   },
 }
 

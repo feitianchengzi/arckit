@@ -3,6 +3,7 @@
  */
 
 import { apiClient } from '../client'
+import { handleResponse } from '../interceptors/response'
 import type { ProjectInvitation, ProjectRole } from '@/types'
 
 export interface CreateInvitationInput {
@@ -16,10 +17,10 @@ export const invitationsApi = {
    * 创建邀请
    * 后端路由: POST /todo/v1/user/projects/:id/invitations
    * 后端参数: { role: string, expires_in: number } (expires_in 是小时数)
-   * 后端响应: { invite_code, invite_link, role, expires_at, created_at }
+   * 响应格式: { code: 'OK', data: { invite_code, invite_link, role, expires_at, created_at } }
    */
   create: async (input: CreateInvitationInput): Promise<ProjectInvitation> => {
-    const { data } = await apiClient.post(
+    const response = await apiClient.post(
       `/user/projects/${input.project_id}/invitations`,
       {
         role: input.role,
@@ -27,7 +28,14 @@ export const invitationsApi = {
       }
     )
     
-    // 后端返回格式: { invite_code, invite_link, role, expires_at, created_at }
+    const data = handleResponse<{
+      invite_code: string
+      invite_link: string
+      role: string
+      expires_at?: string
+      created_at: string
+    }>(response)
+    
     // 转换为前端的 ProjectInvitation 格式
     return {
       id: 0, // 后端响应中没有 id，设为 0
@@ -81,10 +89,10 @@ export const invitationsApi = {
       throw new Error('无法获取用户ID，请先登录')
     }
     
-    const { data } = await apiClient.post(`/user/projects/join?user_id=${userId}`, {
+    const response = await apiClient.post(`/user/projects/join?user_id=${userId}`, {
       invite_code: inviteCode,
     })
-    return data
+    return handleResponse<{ project_id: number }>(response)
   },
   
   /**

@@ -3,6 +3,7 @@
  */
 
 import { apiClient } from '../client'
+import { handleResponse, handlePaginatedResponse } from '../interceptors/response'
 import type { Task } from '@/types'
 import type { CreateTaskInput, UpdateTaskInput } from './tasks'
 
@@ -14,18 +15,59 @@ export const tasksApi = {
    * 获取项目的任务列表
    * 后端路由: GET /workshop/v1/user/tasks?project_id={projectId}
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别用户
-   * 响应格式: { tasks: Task[], total: number }
+   * 响应格式: { code: 'OK', data: Task[] } 或 { code: 'OK', data: Task[], meta: {...} }
    */
   listByProject: async (projectId: string, userId?: number): Promise<Task[]> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     console.log('📋 获取项目任务列表，项目ID:', projectId)
-    const { data } = await apiClient.get(`/user/tasks`, {
+    const response = await apiClient.get(`/user/tasks`, {
       params: { project_id: projectId },
     })
-    // 后端返回格式是 { tasks: [], total: 0 }，需要提取 tasks 数组
-    const tasks = data?.tasks || data || []
-    console.log('✅ 获取到任务列表，数量:', tasks.length)
-    return tasks
+    
+    // 后端可能返回格式: { code: 'OK', data: { tasks: [...], total: 3 } } 或 { code: 'OK', data: [...] }
+    const responseData = response.data
+    if (responseData?.code === 'OK' && responseData?.data) {
+      const data = responseData.data
+      
+      // 检查是否是嵌套格式: { tasks: [...], total: 3 }
+      if (data && typeof data === 'object' && 'tasks' in data && Array.isArray(data.tasks)) {
+        console.log('✅ 获取到任务列表（嵌套格式），数量:', data.tasks.length)
+        return data.tasks
+      }
+      
+      // 检查是否是分页格式: { code: 'OK', data: [...], meta: {...} }
+      if (responseData?.meta) {
+        const { data: tasks } = handlePaginatedResponse<Task>(response)
+        console.log('✅ 获取到任务列表（分页），数量:', tasks.length)
+        return Array.isArray(tasks) ? tasks : []
+      }
+      
+      // 普通数组格式: { code: 'OK', data: [...] }
+      if (Array.isArray(data)) {
+        console.log('✅ 获取到任务列表（数组），数量:', data.length)
+        return data
+      }
+    }
+    
+    // 兜底：尝试使用 handleResponse
+    try {
+      const data = handleResponse<any>(response)
+      // 如果返回的是对象，尝试提取 tasks 字段
+      if (data && typeof data === 'object' && 'tasks' in data && Array.isArray(data.tasks)) {
+        console.log('✅ 获取到任务列表（handleResponse 嵌套），数量:', data.tasks.length)
+        return data.tasks
+      }
+      // 如果是数组，直接返回
+      if (Array.isArray(data)) {
+        console.log('✅ 获取到任务列表（handleResponse 数组），数量:', data.length)
+        return data
+      }
+      console.warn('⚠️ 无法解析任务列表格式:', data)
+      return []
+    } catch (error) {
+      console.error('❌ 解析任务列表失败:', error)
+      return []
+    }
   },
   
   /**
@@ -50,9 +92,10 @@ export const tasksApi = {
     }
     
     console.log('🆕 创建任务:', taskInput)
-    const { data } = await apiClient.post(`/user/tasks`, taskInput)
-    console.log('✅ 任务创建成功:', data)
-    return data
+    const response = await apiClient.post(`/user/tasks`, taskInput)
+    const task = handleResponse<Task>(response)
+    console.log('✅ 任务创建成功:', task)
+    return task
   },
   
   /**
@@ -105,9 +148,10 @@ export const tasksApi = {
     }
     
     console.log('🔄 更新任务，任务ID:', taskId, '更新内容:', taskInput)
-    const { data } = await apiClient.put(`/user/tasks/${taskId}`, taskInput)
-    console.log('✅ 任务更新成功:', data)
-    return data
+    const response = await apiClient.put(`/user/tasks/${taskId}`, taskInput)
+    const task = handleResponse<Task>(response)
+    console.log('✅ 任务更新成功:', task)
+    return task
   },
   
   /**
@@ -138,11 +182,12 @@ export const tasksApi = {
   ): Promise<Task> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     console.log('🔄 更新任务状态，任务ID:', taskId, '新状态:', status)
-    const { data } = await apiClient.put(`/user/tasks/${taskId}`, {
+    const response = await apiClient.put(`/user/tasks/${taskId}`, {
       state: statusToState(status as any),
     })
-    console.log('✅ 任务状态更新成功:', data)
-    return data
+    const task = handleResponse<Task>(response)
+    console.log('✅ 任务状态更新成功:', task)
+    return task
   },
   
   /**

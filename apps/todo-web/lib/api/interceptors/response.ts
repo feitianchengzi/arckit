@@ -32,21 +32,29 @@ import type {
  * const project = await handleResponse<Project>(response)
  */
 export function handleResponse<T>(response: AxiosResponse): T {
-  const data = response.data as ApiResponse<T>
+  // 先进行兼容性处理，转换旧格式
+  const normalizedResponse = normalizeResponse(response)
+  const data = normalizedResponse.data as ApiResponse<T>
   
-  // 成功响应
-  if (data.code === 'OK') {
-    return (data as ApiSuccessResponse<T>).data
+  // 新格式：{ code: 'OK', data: {...} }
+  if (data && typeof data === 'object' && 'code' in data) {
+    if (data.code === 'OK') {
+      return (data as ApiSuccessResponse<T>).data
+    }
+    
+    // 错误响应
+    const errorResponse = data as ApiErrorResponse
+    throw new ApiError(
+      errorResponse.error.message,
+      errorResponse.code,
+      errorResponse.error.details,
+      response.status
+    )
   }
   
-  // 错误响应
-  const errorResponse = data as ApiErrorResponse
-  throw new ApiError(
-    errorResponse.error.message,
-    errorResponse.code,
-    errorResponse.error.details,
-    response.status
-  )
+  // 如果 normalizeResponse 没有转换（可能是数组或其他格式），直接返回
+  // 这种情况不应该发生，但为了安全起见保留
+  return data as T
 }
 
 /**
@@ -62,23 +70,36 @@ export function handleResponse<T>(response: AxiosResponse): T {
 export function handlePaginatedResponse<T>(
   response: AxiosResponse
 ): { data: T[]; meta: ApiMeta } {
-  const result = response.data as ApiPaginatedResponse<T>
+  // 先进行兼容性处理，转换旧格式
+  const normalizedResponse = normalizeResponse(response)
+  const result = normalizedResponse.data as ApiPaginatedResponse<T>
   
-  // 成功响应
-  if (result.code === 'OK') {
-    const successResponse = result as ApiPaginatedSuccessResponse<T>
-    return {
-      data: successResponse.data,
-      meta: successResponse.meta,
+  // 新格式：{ code: 'OK', data: [...], meta: {...} }
+  if (result && typeof result === 'object' && 'code' in result) {
+    if (result.code === 'OK') {
+      const successResponse = result as ApiPaginatedSuccessResponse<T>
+      return {
+        data: successResponse.data,
+        meta: successResponse.meta,
+      }
     }
+    
+    // 错误响应
+    const errorResponse = result as ApiErrorResponse
+    throw new ApiError(
+      errorResponse.error.message,
+      errorResponse.code,
+      errorResponse.error.details,
+      response.status
+    )
   }
   
-  // 错误响应
-  const errorResponse = result as ApiErrorResponse
+  // 如果 normalizeResponse 没有转换，尝试从旧格式提取
+  // 这种情况不应该发生，但为了安全起见保留
   throw new ApiError(
-    errorResponse.error.message,
-    errorResponse.code,
-    errorResponse.error.details,
+    '无法解析分页响应格式',
+    'INVALID_RESPONSE',
+    null,
     response.status
   )
 }
@@ -295,26 +316,51 @@ export function normalizeResponse(response: AxiosResponse): AxiosResponse {
   }
 
   // 兼容旧分页格式：{ data: [], total: number, page?: number }
-  if (data && Array.isArray(data.data) && 'total' in data) {
-    const legacyData = data as LegacyPaginatedResponse<any>
+  // 或 { projects: [], total: number } / { tasks: [], total: number }
+  if (data && typeof data === 'object') {
+    // 检查是否有数组字段（data, projects, tasks 等）和 total 字段
+    const arrayKeys = ['data', 'projects', 'tasks', 'items', 'list']
+    const arrayKey = arrayKeys.find(key => Array.isArray(data[key]))
     
-    console.warn('⚠️ 检测到旧分页格式响应，建议后端迁移:', response.config.url)
+    if (arrayKey && 'total' in data) {
+      const arrayData = data[arrayKey]
+      const total = (data as any).total
+      
+      console.warn('⚠️ 检测到旧分页格式响应，建议后端迁移:', response.config.url)
+      
+      response.data = {
+        code: 'OK',
+        data: arrayData,
+        meta: {
+          page: (data as any).page || 1,
+          page_size: (data as any).page_size || arrayData.length,
+          total: total,
+        },
+      }
+      
+      return response
+    }
+  }
+
+  // 兼容直接返回数组的格式（无包装）
+  if (Array.isArray(data)) {
+    console.warn('⚠️ 检测到直接返回数组的响应，建议后端迁移:', response.config.url)
     
     response.data = {
       code: 'OK',
-      data: legacyData.data,
-      meta: {
-        page: legacyData.page || 1,
-        page_size: legacyData.page_size || legacyData.data.length,
-        total: legacyData.total,
-      },
+      data: data,
     }
     
     return response
   }
 
-  // 兼容直接返回数据的格式（无包装）
-  if (data && typeof data === 'object') {
+  // 兼容直接返回对象的格式（无包装）
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    // 检查是否已经是包装格式（有 code 字段），如果是则不再处理
+    if ('code' in data) {
+      return response
+    }
+    
     console.warn('⚠️ 检测到无包装的响应，建议后端迁移:', response.config.url)
     
     response.data = {

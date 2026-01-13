@@ -6,6 +6,7 @@
  */
 
 import { apiClient } from '../client'
+import { handleResponse } from '../interceptors/response'
 import type { TaskHistory } from '@/types'
 
 export const taskHistoryApi = {
@@ -15,10 +16,11 @@ export const taskHistoryApi = {
    */
   getHistory: async (projectId: string, taskId: string): Promise<TaskHistory[]> => {
     try {
-      const { data } = await apiClient.get(
+      const response = await apiClient.get(
         `/user/projects/${projectId}/tasks/${taskId}/history`
       )
-      return data || []
+      // 使用 handleResponse 统一处理响应格式: {code: 'OK', data: TaskHistory[]}
+      return handleResponse<TaskHistory[]>(response)
     } catch (error: any) {
       // 如果后端不支持（404），静默返回空数组（不输出错误日志）
       if (error.response?.status === 404) {

@@ -3,6 +3,7 @@
  */
 
 import { apiClient } from '../client'
+import { handleResponse } from '../interceptors/response'
 import { CreateUserRequest, TodoUser } from '@/types/auth'
 import { getAuthInfo } from '@/lib/utils/tokenManager'
 
@@ -19,8 +20,24 @@ export const todoUserApi = {
     const requestBody = data || {}
     
     try {
-      const response = await apiClient.post<TodoUser>('/user/users', requestBody)
-      return response.data
+      const response = await apiClient.post('/user/users', requestBody)
+      
+      // 使用 handleResponse 统一处理响应格式: {code: 'OK', data: {...}}
+      const responseData = handleResponse<{
+        username: string
+        avatar: string
+        created_at: string
+        updated_at: string
+      }>(response)
+      
+      return {
+        id: 0, // API 不返回数据库 ID
+        uuid: '', // 网关已处理，前端不需要 UUID
+        username: responseData.username || '',
+        avatar: responseData.avatar || '',
+        created_at: responseData.created_at || '',
+        updated_at: responseData.updated_at || '',
+      }
     } catch (error: any) {
       // 记录详细的错误信息以便调试
       console.error('❌ 创建/获取用户失败')
@@ -46,9 +63,26 @@ export const todoUserApi = {
     console.log('🔄 更新用户信息:', data)
     // 根据API文档，更新接口路径是 PUT /workshop/v1/user/users（不需要ID）
     try {
-      const response = await apiClient.put<TodoUser>('/user/users', data)
-      console.log('✅ 更新用户信息成功:', response.data)
-      return response.data
+      const response = await apiClient.put('/user/users', data)
+      
+      // 使用 handleResponse 统一处理响应格式: {code: 'OK', data: {...}}
+      const responseData = handleResponse<{
+        username: string
+        avatar: string
+        created_at: string
+        updated_at: string
+      }>(response)
+      
+      console.log('✅ 更新用户信息成功:', responseData)
+      
+      return {
+        id: 0, // API 不返回数据库 ID
+        uuid: '', // 网关已处理，前端不需要 UUID
+        username: responseData.username || '',
+        avatar: responseData.avatar || '',
+        created_at: responseData.created_at || '',
+        updated_at: responseData.updated_at || '',
+      }
     } catch (error: any) {
       console.error('❌ 更新用户信息失败')
       console.error('请求 URL:', '/user/users')
@@ -69,16 +103,25 @@ export const todoUserApi = {
     console.log('📥 获取当前登录用户信息')
     console.log('ℹ️  网关会自动从 Token 中解析 UserID 并注入到请求头')
     try {
-      const response = await apiClient.get<any>('/user/users')
-      console.log('📦 getCurrentUser 响应:', response.data)
+      const response = await apiClient.get('/user/users')
+      
+      // 使用 handleResponse 统一处理响应格式: {code: 'OK', data: {...}}
+      const responseData = handleResponse<{
+        username: string
+        avatar: string
+        created_at: string
+        updated_at: string
+      }>(response)
+      
+      console.log('📦 getCurrentUser 解析后的数据:', responseData)
       
       return {
         id: 0, // API 不返回数据库 ID
         uuid: '', // 网关已处理，前端不需要 UUID
-        username: response.data.username || '',
-        avatar: response.data.avatar || '',
-        created_at: response.data.created_at || '',
-        updated_at: response.data.updated_at || '',
+        username: responseData.username || '',
+        avatar: responseData.avatar || '',
+        created_at: responseData.created_at || '',
+        updated_at: responseData.updated_at || '',
       }
     } catch (error: any) {
       console.error('❌ 获取当前用户信息失败')

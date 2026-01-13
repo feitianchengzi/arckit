@@ -9,7 +9,7 @@
  * 3. 提示用户从侧边栏选择项目
  */
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { FirstTimeSetupDialog } from '@/components/features/FirstTimeSetupDialog'
 import { useFirstTimeSetup } from '@/hooks/useAuth'
@@ -24,11 +24,28 @@ export default function ProjectsHomePage() {
   const [user, setUser] = useState<typeof storeUser>(null)
   const [showSetupDialog, setShowSetupDialog] = useState(false)
   const firstTimeSetup = useFirstTimeSetup()
+  const hasLoadedUserRef = useRef(false) // 标记是否已经加载过用户信息
 
   // 加载用户信息
   useEffect(() => {
+    // 如果已经有用户信息且 username 不为空，不需要再次检查
+    if (storeUser?.username && storeUser.username.trim() !== '') {
+      console.log('✅ 用户信息已存在，跳过加载')
+      setShowSetupDialog(false)
+      setUser(storeUser)
+      hasLoadedUserRef.current = true
+      return
+    }
+
+    // 如果已经加载过且用户信息为空，不再重复加载（避免设置完成后再次触发）
+    if (hasLoadedUserRef.current && !storeUser?.username) {
+      console.log('ℹ️  已加载过用户信息，跳过重复加载')
+      return
+    }
+
     const loadUserInfo = async () => {
       if (isAuthenticated) {
+        hasLoadedUserRef.current = true
         try {
           console.log('📥 项目列表页面：加载用户信息...')
           console.log('📥 获取当前登录用户信息...')
@@ -71,22 +88,29 @@ export default function ProjectsHomePage() {
     }
 
     loadUserInfo()
-  }, [isAuthenticated, storeUser?.username]) // 依赖 username
+  }, [isAuthenticated, storeUser?.username]) // 依赖 username，用于检测用户信息更新
 
   // 处理完成首次设置
   const handleCompleteSetup = async (data: { username: string; avatar?: string }) => {
     console.log('📝 准备设置用户信息:', data)
-    await firstTimeSetup.mutateAsync(data)
     
-    // 添加一个小延迟确保状态更新
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
-    // 从 store 获取最新的用户信息并更新本地状态
-    const latestUser = useAuthStore.getState().user
-    setUser(latestUser)
-    console.log('✅ 本地用户状态已更新:', latestUser)
-    
+    // 先关闭对话框，避免状态更新时重新弹出
     setShowSetupDialog(false)
+    
+    try {
+      const updatedUser = await firstTimeSetup.mutateAsync(data)
+      
+      // 更新本地状态
+      setUser(updatedUser)
+      // 标记已加载，避免 useEffect 再次触发
+      hasLoadedUserRef.current = true
+      console.log('✅ 用户信息设置成功，本地状态已更新:', updatedUser)
+    } catch (error: any) {
+      // 如果设置失败，重新显示对话框
+      console.error('❌ 设置用户信息失败:', error)
+      setShowSetupDialog(true)
+      throw error
+    }
   }
 
   return (

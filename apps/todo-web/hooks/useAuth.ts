@@ -99,7 +99,10 @@ export function useFirstTimeSetup() {
     },
     onSuccess: (user) => {
       console.log('✅ 用户信息设置成功:', user)
-      setUser(user)
+      // 使用 setTimeout 将状态更新推迟到下一个事件循环，避免在渲染过程中更新状态
+      setTimeout(() => {
+        setUser(user)
+      }, 0)
     },
     onError: (error: any) => {
       console.error('❌ 用户信息设置失败:', error)
