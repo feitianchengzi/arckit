@@ -529,7 +529,211 @@ POST /todo/v1/user/tasks
 
 ---
 
-## 4. 查询任务列表
+## 4. 批量更新任务
+
+**接口**: `PUT /{service}/v1/user/tasks/batch`
+
+**认证级别**: `user`（需要JWT认证）
+
+**权限规则**:
+- `owner` / `admin`: 可以修改任意任务
+- `member`: 只能修改自己创建或分配给自己执行的任务
+
+**描述**: 批量更新任务，使用事务处理，所有任务要么全部更新成功，要么全部失败回滚。
+
+**请求体**:
+
+```json
+{
+  "tasks": [
+    {
+      "task_id": 1,
+      "content": "更新后的任务内容",
+      "state": "in_progress"
+    },
+    {
+      "task_id": 2,
+      "state": "completed",
+      "executor_id": 3
+    },
+    {
+      "task_id": 3,
+      "father_id": 1
+    }
+  ]
+}
+```
+
+**请求字段说明**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| tasks | array | 是 | 任务列表，至少包含一个任务 |
+
+**任务对象字段说明**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| task_id | uint | 是 | 任务ID |
+| content | string | 否 | 任务内容 |
+| state | string | 否 | 任务状态 |
+| executor_id | uint | 否 | 执行者用户ID（必须是项目成员） |
+| father_id | uint | 否 | 父任务ID |
+
+**特殊说明**:
+
+- 所有任务在事务中更新，如果任何一个任务更新失败，整个操作会回滚
+- 当状态变为 `completed` 时，自动设置完成时间
+- 当状态从 `completed` 变为其他状态时，自动清除完成时间
+- 父任务必须属于同一项目
+- 任务不能成为自己的父任务
+- 所有执行者必须在更新前验证是否为项目成员
+
+**响应示例** (`200 OK`):
+
+```json
+{
+  "code": "OK",
+  "data": {
+    "tasks": [
+      {
+        "id": 1,
+        "project_id": 1,
+        "father_id": null,
+        "content": "更新后的任务内容",
+        "state": "in_progress",
+        "creator_id": 10,
+        "executor_id": null,
+        "created_at": "2024-01-01T12:00:00Z",
+        "updated_at": "2024-01-01T12:01:00Z",
+        "completion_at": null
+      },
+      {
+        "id": 2,
+        "project_id": 1,
+        "father_id": null,
+        "content": "原任务内容",
+        "state": "completed",
+        "creator_id": 10,
+        "executor_id": 3,
+        "created_at": "2024-01-01T12:00:00Z",
+        "updated_at": "2024-01-01T12:02:00Z",
+        "completion_at": "2024-01-01T12:02:00Z"
+      },
+      {
+        "id": 3,
+        "project_id": 1,
+        "father_id": 1,
+        "content": "原任务内容",
+        "state": "pending",
+        "creator_id": 10,
+        "executor_id": null,
+        "created_at": "2024-01-01T12:00:00Z",
+        "updated_at": "2024-01-01T12:03:00Z",
+        "completion_at": null
+      }
+    ],
+    "total": 3
+  }
+}
+```
+
+**响应字段说明**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| tasks | array | 更新后的任务列表 |
+| total | int | 更新的任务总数 |
+
+**错误响应**:
+
+**400 Bad Request** - 请求参数错误:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 无效状态:
+```json
+{
+  "code": "TASK_INVALID_STATE",
+  "error": {
+    "message": "第 2 个任务的状态无效",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 父任务不存在:
+```json
+{
+  "code": "TASK_PARENT_NOT_FOUND",
+  "error": {
+    "message": "第 1 个任务的父任务不存在",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 执行者不是成员:
+```json
+{
+  "code": "TASK_EXECUTOR_NOT_MEMBER",
+  "error": {
+    "message": "第 2 个任务指定的执行者不是该项目的成员",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden** - 无权限:
+```json
+{
+  "code": "TASK_NO_PERMISSION",
+  "error": {
+    "message": "您没有权限修改任务 1",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "TASK_NOT_FOUND",
+  "error": {
+    "message": "任务 1 不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "TASK_UPDATE_FAILED",
+  "error": {
+    "message": "批量更新任务失败，所有任务已回滚: 更新第 2 个任务失败: ...",
+    "details": null
+  }
+}
+```
+
+**注意事项**:
+
+- 使用事务处理，如果任何一个任务更新失败，整个操作会回滚，不会更新任何任务
+- 错误信息会明确指出是第几个任务失败，以及失败的具体原因
+- 所有执行者必须在更新前验证是否为项目成员
+- 所有父任务必须在更新前验证是否存在且属于同一项目
+
+---
+
+## 5. 查询任务列表
 
 **接口**: `GET /{service}/v1/user/tasks?project_id=1`
 
@@ -643,7 +847,7 @@ POST /todo/v1/user/tasks
 
 ---
 
-## 5. 批量删除任务
+## 6. 批量删除任务
 
 **接口**: `DELETE /{service}/v1/user/tasks`
 
@@ -858,6 +1062,33 @@ curl -X PUT "http://localhost:8081/todo/v1/user/tasks/2?user_id=4" \
   -H "Content-Type: application/json" \
   -d '{
     "state": "completed"
+  }'
+```
+
+### 批量更新任务
+
+```bash
+curl -X PUT "http://localhost:8081/todo/v1/user/tasks/batch?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tasks": [
+      {
+        "task_id": 1,
+        "content": "更新后的任务内容",
+        "state": "in_progress"
+      },
+      {
+        "task_id": 2,
+        "state": "completed",
+        "executor_id": 4
+      },
+      {
+        "task_id": 3,
+        "father_id": 1
+      }
+    ]
   }'
 ```
 

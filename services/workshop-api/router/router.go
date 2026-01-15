@@ -59,6 +59,7 @@ func SetupRouter(serviceName string) *gin.Engine {
 			userGroup.PUT("/projects/:id/members/role", handler.UpdateProjectMemberRole) // 设置成员角色（仅所有者）
 			userGroup.POST("/tasks", handler.CreateTask)                                 // 创建新任务
 			userGroup.POST("/tasks/batch", handler.BatchCreateTasks)                     // 批量创建任务（支持嵌套）
+			userGroup.PUT("/tasks/batch", handler.BatchUpdateTasks)                      // 批量更新任务
 			userGroup.PUT("/tasks/:id", handler.UpdateTask)                              // 更新任务
 			userGroup.GET("/tasks", handler.GetTasks)                                    // 查询项目的所有任务
 			userGroup.DELETE("/tasks", handler.DeleteTasks)                              // 删除任务（支持批量）

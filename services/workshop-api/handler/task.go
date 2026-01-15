@@ -369,6 +369,247 @@ func UpdateTask(c *gin.Context) {
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
+// BatchUpdateTaskRequest 批量更新任务中单个任务的请求结构
+type BatchUpdateTaskRequest struct {
+	TaskID     uint    `json:"task_id" binding:"required"` // 任务ID（必填）
+	Content    *string `json:"content,omitempty"`          // 任务内容（可选）
+	State      *string `json:"state,omitempty"`            // 任务状态（可选）
+	ExecutorID *uint   `json:"executor_id,omitempty"`      // 执行者ID（可选）
+	FatherID   *uint   `json:"father_id,omitempty"`        // 父任务ID（可选）
+}
+
+// BatchUpdateTasksRequest 批量更新任务请求结构
+type BatchUpdateTasksRequest struct {
+	Tasks []BatchUpdateTaskRequest `json:"tasks" binding:"required,min=1"` // 任务列表（必填，至少一个）
+}
+
+// BatchUpdateTasksResponse 批量更新任务响应结构
+type BatchUpdateTasksResponse struct {
+	Tasks []UpdateTaskResponse `json:"tasks"` // 更新后的任务列表
+	Total int                  `json:"total"` // 更新的任务总数
+}
+
+// BatchUpdateTasks 批量更新任务
+// 网关路由: PUT /todo-service/v1/user/tasks/batch
+// 认证级别: user (需要JWT认证)
+// 权限规则：
+// - owner/admin：可以修改任意任务
+// - member：只能修改自己创建或分配给自己执行的任务
+// 注意：使用事务处理，所有任务要么全部更新成功，要么全部失败回滚
+func BatchUpdateTasks(c *gin.Context) {
+	// 1. 解析请求体
+	var req BatchUpdateTasksRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
+		return
+	}
+
+	// 2. 从context获取数据库连接
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	// 3. 获取用户ID
+	userID, ok := middleware.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	// 4. 收集所有任务ID
+	taskIDs := make([]uint, 0, len(req.Tasks))
+	for _, taskReq := range req.Tasks {
+		taskIDs = append(taskIDs, taskReq.TaskID)
+	}
+
+	// 5. 批量查询所有任务
+	var tasks []models.Task
+	if err := db.Where("id IN ?", taskIDs).Find(&tasks).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
+		return
+	}
+
+	// 6. 检查是否有任务不存在
+	taskMap := make(map[uint]models.Task)
+	for _, task := range tasks {
+		taskMap[task.ID] = task
+	}
+
+	// 验证所有任务是否存在
+	for _, taskReq := range req.Tasks {
+		if _, exists := taskMap[taskReq.TaskID]; !exists {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, fmt.Sprintf("任务 %d 不存在", taskReq.TaskID), nil))
+			return
+		}
+	}
+
+	// 7. 验证所有任务的权限（canModifyTask内部会查询项目成员表）
+	for _, taskReq := range req.Tasks {
+		task := taskMap[taskReq.TaskID]
+		canModify, err := canModifyTask(db, userID, task)
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员", nil))
+				return
+			}
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证权限失败: "+err.Error(), nil))
+			return
+		}
+		if !canModify {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNoPermission, fmt.Sprintf("您没有权限修改任务 %d", taskReq.TaskID), nil))
+			return
+		}
+	}
+
+	// 8. 预验证所有父任务和执行者（提前发现错误）
+	for i, taskReq := range req.Tasks {
+		task := taskMap[taskReq.TaskID]
+
+		// 验证父任务
+		if taskReq.FatherID != nil {
+			var parentTask models.Task
+			if err := db.First(&parentTask, *taskReq.FatherID).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentNotFound, fmt.Sprintf("第 %d 个任务的父任务不存在", i+1), nil))
+					return
+				}
+				c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, fmt.Sprintf("查询第 %d 个任务的父任务失败: %s", i+1, err.Error()), nil))
+				return
+			}
+			// 验证父任务是否属于同一项目
+			if parentTask.ProjectID != task.ProjectID {
+				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentMustSameProject, fmt.Sprintf("第 %d 个任务的父任务必须属于同一项目", i+1), nil))
+				return
+			}
+			// 防止任务成为自己的父任务
+			if parentTask.ID == task.ID {
+				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskCannotBeOwnParent, fmt.Sprintf("第 %d 个任务不能成为自己的父任务", i+1), nil))
+				return
+			}
+		}
+
+		// 验证执行者
+		if taskReq.ExecutorID != nil {
+			var executorMember models.ProjectMember
+			if err := db.Where("project_id = ? AND user_id = ?", task.ProjectID, *taskReq.ExecutorID).First(&executorMember).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskExecutorNotMember, fmt.Sprintf("第 %d 个任务指定的执行者不是该项目的成员", i+1), nil))
+					return
+				}
+				c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, fmt.Sprintf("验证第 %d 个任务的执行者身份失败: %s", i+1, err.Error()), nil))
+				return
+			}
+		}
+
+		// 验证状态
+		if taskReq.State != nil {
+			if !models.IsValidState(*taskReq.State) {
+				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskInvalidState, fmt.Sprintf("第 %d 个任务的状态无效", i+1), nil))
+				return
+			}
+		}
+	}
+
+	// 9. 在事务中批量更新任务
+	var updatedTasks []models.Task
+	err := db.Transaction(func(tx *gorm.DB) error {
+		updatedTasks = make([]models.Task, 0, len(req.Tasks))
+
+		for i, taskReq := range req.Tasks {
+			// 在事务中重新查询任务，确保获取最新数据
+			var task models.Task
+			if err := tx.First(&task, taskReq.TaskID).Error; err != nil {
+				return fmt.Errorf("查询第 %d 个任务失败: %w", i+1, err)
+			}
+
+			// 处理完成时间（如果状态改变）
+			if taskReq.State != nil {
+				// 如果状态变为已完成，设置完成时间
+				if *taskReq.State == models.TaskStateCompleted && task.State != models.TaskStateCompleted {
+					now := time.Now()
+					task.CompletionAt = &now
+				} else if *taskReq.State != models.TaskStateCompleted && task.CompletionAt != nil {
+					// 如果状态从已完成变为其他状态，清除完成时间
+					task.CompletionAt = nil
+				}
+			}
+
+			// 构建更新字段
+			updates := make(map[string]interface{})
+			if taskReq.Content != nil {
+				updates["content"] = *taskReq.Content
+			}
+			if taskReq.State != nil {
+				updates["state"] = *taskReq.State
+			}
+			if taskReq.ExecutorID != nil {
+				updates["executor_id"] = *taskReq.ExecutorID
+			}
+			if taskReq.FatherID != nil {
+				updates["father_id"] = *taskReq.FatherID
+			}
+			if task.CompletionAt != nil {
+				updates["completion_at"] = task.CompletionAt
+			} else if taskReq.State != nil && *taskReq.State != models.TaskStateCompleted {
+				// 如果状态不是已完成，清除完成时间
+				updates["completion_at"] = nil
+			}
+
+			// 如果有更新字段，执行更新
+			if len(updates) > 0 {
+				if err := tx.Model(&task).Updates(updates).Error; err != nil {
+					return fmt.Errorf("更新第 %d 个任务失败: %w", i+1, err)
+				}
+				// 重新查询任务以获取最新数据
+				if err := tx.First(&task, task.ID).Error; err != nil {
+					return fmt.Errorf("查询第 %d 个任务失败: %w", i+1, err)
+				}
+			}
+
+			updatedTasks = append(updatedTasks, task)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		// 事务失败，所有操作已回滚，返回整体错误信息
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskUpdateFailed, "批量更新任务失败，所有任务已回滚: "+err.Error(), nil))
+		return
+	}
+
+	// 10. 转换为响应格式
+	taskResponses := make([]UpdateTaskResponse, 0, len(updatedTasks))
+	for _, task := range updatedTasks {
+		var completionAt *string
+		if task.CompletionAt != nil {
+			completionAtStr := task.CompletionAt.Format("2006-01-02T15:04:05Z07:00")
+			completionAt = &completionAtStr
+		}
+
+		taskResponses = append(taskResponses, UpdateTaskResponse{
+			ID:           task.ID,
+			ProjectID:    task.ProjectID,
+			FatherID:     task.FatherID,
+			Content:      task.Content,
+			State:        task.State,
+			CreatorID:    task.CreatorID,
+			ExecutorID:   task.ExecutorID,
+			CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			CompletionAt: completionAt,
+		})
+	}
+
+	// 11. 返回成功响应
+	resp := BatchUpdateTasksResponse{
+		Tasks: taskResponses,
+		Total: len(taskResponses),
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
+}
+
 // GetTasksRequest 查询任务请求结构（通过查询参数）
 // 使用查询参数: ?project_id=1
 
