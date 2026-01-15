@@ -21,7 +21,7 @@ export default function MyTasksPage() {
   const user = useAuthStore((state) => state.user)
   const { data: projects, isLoading: projectsLoading, error: projectsError } = useProjectList()
   
-  const [myTasks, setMyTasks] = useState<Array<Todo & { projectId: string; projectName: string }>>([])
+  const [myTasks, setMyTasks] = useState<Array<Omit<Todo, 'projectId'> & { projectId: string; projectName: string }>>([])
   const [tasksLoading, setTasksLoading] = useState(false)
   const [tasksError, setTasksError] = useState<Error | null>(null)
   
@@ -35,7 +35,7 @@ export default function MyTasksPage() {
       
       try {
         console.log('📥 开始获取所有项目的任务...')
-        const allTasks: Array<Todo & { projectId: string; projectName: string }> = []
+        const allTasks: Array<Omit<Todo, 'projectId'> & { projectId: string; projectName: string }> = []
         
         // 并发获取所有项目的任务和成员
         const taskPromises = projects.map(async (project) => {
@@ -87,7 +87,7 @@ export default function MyTasksPage() {
               })
               .map(todo => ({
                 ...todo,
-                projectId: project.id.toString(),
+                projectId: project.id.toString(), // 转换为 string 类型
                 projectName: project.name,
               }))
             
@@ -233,8 +233,11 @@ export default function MyTasksPage() {
               {tasks.map((task) => (
                 <TodoItem
                   key={task.id}
-                  todo={task}
-                  projectId={projectId}
+                  todo={{
+                    ...task,
+                    projectId: parseInt(task.projectId), // 转换为 number 以匹配 Todo 类型
+                  }}
+                  projectId={task.projectId}
                 />
               ))}
             </div>
@@ -244,3 +247,4 @@ export default function MyTasksPage() {
     </div>
   )
 }
+

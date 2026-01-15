@@ -195,24 +195,30 @@ function useUserProfile() {
 // ==================== 示例 5: React Query 中使用 ====================
 
 import { useQuery, useMutation } from '@tanstack/react-query'
+import { useEffect } from 'react'
 
 /**
- * 使用 React Query
+ * 使用 React Query (v5)
+ * 注意：React Query v5 移除了 useQuery 的 onError 和 onSuccess 回调
+ * 错误处理应该在组件中使用 useEffect 监听 error 状态
  */
 function useUserProfileQuery() {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['user', 'profile'],
     queryFn: async () => {
       const response = await apiClient.get('/user/profile')
       return handleResponse<User>(response)
     },
-    // 错误处理
-    onError: (error) => {
-      if (error instanceof ApiError) {
-        console.error('获取用户失败:', error.getUserMessage())
-      }
-    },
   })
+  
+  // 错误处理：使用 useEffect 监听 error 状态
+  useEffect(() => {
+    if (query.error && query.error instanceof ApiError) {
+      console.error('获取用户失败:', query.error.getUserMessage())
+    }
+  }, [query.error])
+  
+  return query
 }
 
 /**
@@ -412,10 +418,12 @@ async function typeSafeExample() {
 async function handleDetailsExample() {
   try {
     // 场景 1: 表单验证错误
-    await createUser({
+    // 示例：创建用户时验证失败
+    const response = await apiClient.post('/user/users', {
       email: 'invalid-email',
       password: '123',
     })
+    handleResponse<User>(response)
   } catch (error) {
     if (error instanceof ApiError && error.is('VALIDATION_FAILED')) {
       // details 包含字段级错误
@@ -443,7 +451,11 @@ async function handleDetailsExample() {
 
   try {
     // 场景 3: 权限不足
-    await projectsApi.deleteMember('123', 456)
+    // 示例：删除项目成员时权限不足
+    const response = await apiClient.delete('/user/projects/123/members', {
+      data: { target_user_id: 456 },
+    })
+    handleResponse<void>(response)
   } catch (error) {
     if (error instanceof ApiError && error.isPermissionError()) {
       // details 包含权限信息
@@ -458,7 +470,13 @@ async function handleDetailsExample() {
 
   try {
     // 场景 4: 速率限制
-    await sendVerificationCode('test@example.com')
+    // 示例：发送验证码时触发速率限制
+    const response = await apiClient.post('/auth-server/v1/public/send_verification', {
+      code_type: 'email',
+      target: 'test@example.com',
+      purpose: 'login',
+    })
+    handleResponse<{ success: boolean }>(response)
   } catch (error) {
     if (error instanceof ApiError && error.is('RATE_LIMIT_EXCEEDED')) {
       // details 包含重试信息
@@ -477,7 +495,7 @@ export {
   useUserProfile,
   useUserProfileQuery,
   useCreateProject,
-  handleGlobalError,
+  // handleGlobalError 已经在上面用 export function 声明，不需要重复导出
   typeSafeApiCall,
   typeSafeExample,
   handleDetailsExample,

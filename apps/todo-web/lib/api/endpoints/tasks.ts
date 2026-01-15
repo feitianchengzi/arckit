@@ -5,10 +5,20 @@
 import { apiClient } from '../client'
 import { handleResponse, handlePaginatedResponse } from '../interceptors/response'
 import type { Task } from '@/types'
-import type { CreateTaskInput, UpdateTaskInput } from './tasks'
 
-// 重新导出类型
-export type { CreateTaskInput, UpdateTaskInput }
+// 定义任务输入类型
+export interface CreateTaskInput {
+  projectId: number
+  content: string
+  assigneeId?: number
+  parentId?: number
+}
+
+export interface UpdateTaskInput {
+  content?: string
+  status?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'BLOCKED'
+  assigneeId?: number
+}
 
 export const tasksApi = {
   /**
