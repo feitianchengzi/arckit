@@ -16,8 +16,13 @@ echo -e "${BLUE}═════════════════════�
 echo -e "${BLUE}   Next.js OSS 静态导出脚本${NC}"
 echo -e "${BLUE}═══════════════════════════════════════${NC}"
 
-# 进入脚本所在目录的父目录（frontend 目录）
-cd "$(dirname "$0")/.."
+# 获取脚本所在的目录
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# 进入 frontend 目录（脚本在 frontend/script/ 下）
+FRONTEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+echo -e "${YELLOW}📂 进入目录: ${FRONTEND_DIR}${NC}"
+cd "$FRONTEND_DIR"
 
 # Next.js 静态导出默认输出目录
 OUT_DIR="out"
@@ -26,10 +31,11 @@ OUT_DIR="out"
 echo -e "\n${YELLOW}📦 清理旧的构建产物...${NC}"
 rm -rf .next
 rm -rf "$OUT_DIR"
+rm -rf node_modules/.cache
 
 # 执行静态导出构建
 echo -e "\n${YELLOW}🔨 执行 Next.js 静态导出构建...${NC}"
-echo -e "${YELLOW}   使用 NEXT_EXPORT=true 启用静态导出模式${NC}"
+echo -e "${YELLOW}   配置: output: 'export' 已在 next.config.js 中启用${NC}"
 
 # 设置默认 basePath（用于子路径部署）
 # 如果环境变量中已设置，则使用环境变量的值；否则默认使用 /workshop
@@ -40,16 +46,32 @@ else
     echo -e "${YELLOW}   使用自定义 basePath: ${NEXT_PUBLIC_BASE_PATH}${NC}"
 fi
 
-# 执行构建
-if ! NEXT_EXPORT=true npm run build; then
+# 执行构建（不需要 NEXT_EXPORT 环境变量，next.config.js 已配置 output: 'export'）
+if ! npm run build; then
     echo -e "\n${RED}❌ 静态导出构建失败${NC}"
     echo -e "${RED}   请查看上方错误信息${NC}"
     exit 1
 fi
 
-# 检查静态导出是否成功（应该生成 out 目录）
-if [ ! -d "$OUT_DIR" ]; then
-    echo -e "${RED}❌ 静态导出失败：$OUT_DIR 目录不存在${NC}"
+# Next.js 14+ 静态导出：将 .next 目录内容复制到 out 目录
+echo -e "\n${YELLOW}📦 整理静态导出文件...${NC}"
+mkdir -p "$OUT_DIR"
+
+# 复制 HTML 文件和静态资源
+if [ -d ".next/server/app" ]; then
+    echo -e "${YELLOW}   复制 HTML 文件...${NC}"
+    cp -r .next/server/app/* "$OUT_DIR/" 2>/dev/null || true
+fi
+
+if [ -d ".next/static" ]; then
+    echo -e "${YELLOW}   复制静态资源...${NC}"
+    mkdir -p "$OUT_DIR/_next/static"
+    cp -r .next/static/* "$OUT_DIR/_next/static/" 2>/dev/null || true
+fi
+
+# 检查静态导出是否成功
+if [ ! -d "$OUT_DIR" ] || [ ! -f "$OUT_DIR/index.html" ]; then
+    echo -e "${RED}❌ 静态导出失败：未能生成有效的导出文件${NC}"
     echo -e "${RED}   请检查构建日志中的错误信息${NC}"
     exit 1
 fi
