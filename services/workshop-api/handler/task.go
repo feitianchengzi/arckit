@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"todo/middleware"
@@ -609,4 +610,290 @@ func DeleteTasks(c *gin.Context) {
 		TaskIDs:      deletedIDs,
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
+}
+
+// NestedCreateTaskRequest 嵌套任务创建请求结构（支持多级嵌套）
+type NestedCreateTaskRequest struct {
+	Content    string                    `json:"content" binding:"required"` // 任务内容（必填）
+	State      string                    `json:"state,omitempty"`            // 任务状态（可选，默认为pending）
+	ExecutorID *uint                     `json:"executor_id,omitempty"`      // 执行者ID（可选）
+	SubTasks   []NestedCreateTaskRequest `json:"sub_tasks,omitempty"`        // 子任务列表（可选，支持嵌套）
+}
+
+// BatchCreateTasksRequest 批量创建任务请求结构
+type BatchCreateTasksRequest struct {
+	ProjectID uint                      `json:"project_id" binding:"required"`  // 项目ID（必填）
+	Tasks     []NestedCreateTaskRequest `json:"tasks" binding:"required,min=1"` // 任务列表（必填，至少一个）
+}
+
+// BatchCreateTaskResponse 批量创建任务响应结构
+type BatchCreateTaskResponse struct {
+	Tasks []CreateTaskResponse `json:"tasks"` // 创建的任务列表
+	Total int                  `json:"total"` // 创建的任务总数
+}
+
+// createNestedTask 递归创建嵌套任务
+// 返回创建的任务ID和错误
+func createNestedTask(db *gorm.DB, projectID uint, creatorID uint, parentID *uint, req NestedCreateTaskRequest) (uint, error) {
+	// 1. 设置默认状态（如果未指定）
+	state := req.State
+	if state == "" {
+		state = models.TaskStatePending
+	}
+
+	// 2. 验证状态是否有效
+	if !models.IsValidState(state) {
+		return 0, fmt.Errorf("无效的任务状态: %s", state)
+	}
+
+	// 3. 如果指定了执行者，验证执行者是否是项目成员
+	if req.ExecutorID != nil {
+		var executorMember models.ProjectMember
+		if err := db.Where("project_id = ? AND user_id = ?", projectID, *req.ExecutorID).First(&executorMember).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return 0, fmt.Errorf("指定的执行者不是该项目的成员")
+			}
+			return 0, fmt.Errorf("验证执行者身份失败: %w", err)
+		}
+	}
+
+	// 4. 创建任务
+	task := models.Task{
+		ProjectID:  projectID,
+		FatherID:   parentID,
+		Content:    req.Content,
+		State:      state,
+		CreatorID:  creatorID,
+		ExecutorID: req.ExecutorID,
+	}
+
+	if err := db.Create(&task).Error; err != nil {
+		return 0, fmt.Errorf("创建任务失败: %w", err)
+	}
+
+	// 5. 递归创建子任务
+	if len(req.SubTasks) > 0 {
+		parentTaskID := task.ID
+		for _, subTaskReq := range req.SubTasks {
+			_, err := createNestedTask(db, projectID, creatorID, &parentTaskID, subTaskReq)
+			if err != nil {
+				return 0, fmt.Errorf("创建子任务失败: %w", err)
+			}
+		}
+	}
+
+	return task.ID, nil
+}
+
+// collectAllCreatedTasks 收集所有已创建的任务（包括子任务）
+func collectAllCreatedTasks(db *gorm.DB, projectID uint, taskIDs []uint) ([]models.Task, error) {
+	if len(taskIDs) == 0 {
+		return []models.Task{}, nil
+	}
+
+	// 先查询根任务
+	var rootTasks []models.Task
+	if err := db.Where("project_id = ? AND id IN ?", projectID, taskIDs).Find(&rootTasks).Error; err != nil {
+		return nil, err
+	}
+
+	// 从根任务开始，递归收集所有子任务
+	relatedTasks := make([]models.Task, 0)
+	collected := make(map[uint]bool)
+
+	// 递归收集函数
+	var collectChildren func(uint) error
+	collectChildren = func(taskID uint) error {
+		if collected[taskID] {
+			return nil
+		}
+		collected[taskID] = true
+
+		// 查询当前任务
+		var task models.Task
+		if err := db.Where("project_id = ? AND id = ?", projectID, taskID).First(&task).Error; err != nil {
+			return err
+		}
+		relatedTasks = append(relatedTasks, task)
+
+		// 查询所有子任务
+		var childTasks []models.Task
+		if err := db.Where("project_id = ? AND father_id = ?", projectID, taskID).Find(&childTasks).Error; err != nil {
+			return err
+		}
+
+		// 递归收集子任务
+		for _, childTask := range childTasks {
+			if err := collectChildren(childTask.ID); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	// 从根任务ID开始收集
+	for _, id := range taskIDs {
+		if err := collectChildren(id); err != nil {
+			return nil, err
+		}
+	}
+
+	return relatedTasks, nil
+}
+
+// BatchCreateTasks 批量创建任务（支持嵌套结构）
+// 网关路由: POST /todo-service/v1/user/tasks/batch
+// 认证级别: user (需要JWT认证)
+// 流程：
+// 1. 从请求获取用户ID
+// 2. 直接查询项目成员表验证权限（项目成员都可以创建任务）
+// 3. 验证所有执行者是否是项目成员
+// 4. 在事务中批量创建任务（先创建父任务，再创建子任务并设置父ID）
+func BatchCreateTasks(c *gin.Context) {
+	// 1. 解析请求体
+	var req BatchCreateTasksRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
+		return
+	}
+
+	// 2. 从context获取数据库连接
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	// 3. 获取用户ID
+	userID, ok := middleware.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	// 4. 直接查询项目成员表验证权限（项目成员都可以创建任务）
+	var member models.ProjectMember
+	if err := db.Where("project_id = ? AND user_id = ?", req.ProjectID, userID).First(&member).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员，无法创建任务", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证项目成员身份失败: "+err.Error(), nil))
+		return
+	}
+
+	// 5. 预验证所有执行者是否是项目成员（提前发现错误）
+	var allExecutorIDs []uint
+	var collectExecutorIDs func(NestedCreateTaskRequest)
+	collectExecutorIDs = func(taskReq NestedCreateTaskRequest) {
+		if taskReq.ExecutorID != nil {
+			allExecutorIDs = append(allExecutorIDs, *taskReq.ExecutorID)
+		}
+		for _, subTask := range taskReq.SubTasks {
+			collectExecutorIDs(subTask)
+		}
+	}
+	for _, task := range req.Tasks {
+		collectExecutorIDs(task)
+	}
+
+	// 去重
+	executorIDMap := make(map[uint]bool)
+	uniqueExecutorIDs := make([]uint, 0)
+	for _, id := range allExecutorIDs {
+		if !executorIDMap[id] {
+			executorIDMap[id] = true
+			uniqueExecutorIDs = append(uniqueExecutorIDs, id)
+		}
+	}
+
+	// 验证所有执行者
+	if len(uniqueExecutorIDs) > 0 {
+		var executorCount int64
+		if err := db.Model(&models.ProjectMember{}).
+			Where("project_id = ? AND user_id IN ?", req.ProjectID, uniqueExecutorIDs).
+			Count(&executorCount).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证执行者身份失败: "+err.Error(), nil))
+			return
+		}
+		if int64(len(uniqueExecutorIDs)) != executorCount {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskExecutorNotMember, "部分指定的执行者不是该项目的成员", nil))
+			return
+		}
+	}
+
+	// 6. 在事务中批量创建任务
+	var createdTaskIDs []uint
+	var createdTasks []models.Task
+
+	err := db.Transaction(func(tx *gorm.DB) error {
+		createdTaskIDs = make([]uint, 0)
+		// 递归创建所有任务
+		for i, taskReq := range req.Tasks {
+			taskID, err := createNestedTask(tx, req.ProjectID, userID, nil, taskReq)
+			if err != nil {
+				// 返回详细的错误信息，包括是第几个任务失败
+				return fmt.Errorf("创建第 %d 个任务失败: %w", i+1, err)
+			}
+			createdTaskIDs = append(createdTaskIDs, taskID)
+		}
+
+		// 查询所有创建的任务（包括子任务）
+		var queryErr error
+		createdTasks, queryErr = collectAllCreatedTasks(tx, req.ProjectID, createdTaskIDs)
+		if queryErr != nil {
+			return fmt.Errorf("查询已创建的任务失败: %w", queryErr)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		// 事务失败，所有操作已回滚，返回整体错误信息
+		errMsg := err.Error()
+
+		// 根据错误类型返回相应的HTTP状态码
+		if strings.Contains(errMsg, "无效的任务状态") {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskInvalidState, "批量创建任务失败: "+errMsg, nil))
+			return
+		}
+		if strings.Contains(errMsg, "指定的执行者不是该项目的成员") {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskExecutorNotMember, "批量创建任务失败: "+errMsg, nil))
+			return
+		}
+
+		// 其他错误返回500
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskCreateFailed, "批量创建任务失败，所有任务已回滚: "+errMsg, nil))
+		return
+	}
+
+	// 7. 转换为响应格式
+	taskResponses := make([]CreateTaskResponse, 0, len(createdTasks))
+	for _, task := range createdTasks {
+		var completionAt *string
+		if task.CompletionAt != nil {
+			completionAtStr := task.CompletionAt.Format("2006-01-02T15:04:05Z07:00")
+			completionAt = &completionAtStr
+		}
+
+		taskResponses = append(taskResponses, CreateTaskResponse{
+			ID:           task.ID,
+			ProjectID:    task.ProjectID,
+			FatherID:     task.FatherID,
+			Content:      task.Content,
+			State:        task.State,
+			CreatorID:    task.CreatorID,
+			ExecutorID:   task.ExecutorID,
+			CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			CompletionAt: completionAt,
+		})
+	}
+
+	// 8. 返回成功响应
+	resp := BatchCreateTaskResponse{
+		Tasks: taskResponses,
+		Total: len(taskResponses),
+	}
+	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }

@@ -122,6 +122,10 @@ POST /todo/v1/user/tasks
 | updated_at | string | 更新时间（ISO 8601格式） |
 | completion_at | string | 完成时间（ISO 8601格式，可为null） |
 
+**特殊说明**:
+
+- 使用事务处理，保证数据一致性
+
 **错误响应**:
 
 **400 Bad Request** - 请求参数错误:
@@ -181,7 +185,221 @@ POST /todo/v1/user/tasks
 
 ---
 
-## 2. 更新任务
+## 2. 批量创建任务（支持嵌套结构）
+
+**接口**: `POST /{service}/v1/user/tasks/batch`
+
+**认证级别**: `user`（需要JWT认证）
+
+**权限要求**: 用户必须是项目成员
+
+**描述**: 批量创建任务，支持多级嵌套的子任务结构。使用事务处理，所有任务要么全部创建成功，要么全部失败回滚。
+
+**请求体**:
+
+```json
+{
+  "project_id": 1,
+  "tasks": [
+    {
+      "content": "父任务1",
+      "state": "pending",
+      "executor_id": 2,
+      "sub_tasks": [
+        {
+          "content": "子任务1-1",
+          "state": "pending",
+          "sub_tasks": [
+            {
+              "content": "子任务1-1-1",
+              "state": "in_progress"
+            }
+          ]
+        },
+        {
+          "content": "子任务1-2",
+          "executor_id": 3
+        }
+      ]
+    },
+    {
+      "content": "父任务2",
+      "state": "completed"
+    }
+  ]
+}
+```
+
+**请求字段说明**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| project_id | uint | 是 | 项目ID |
+| tasks | array | 是 | 任务列表，至少包含一个任务 |
+
+**任务对象字段说明**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| content | string | 是 | 任务内容 |
+| state | string | 否 | 任务状态，默认为 "pending" |
+| executor_id | uint | 否 | 执行者用户ID（必须是项目成员） |
+| sub_tasks | array | 否 | 子任务列表，支持多级嵌套 |
+
+**特殊说明**:
+
+- 支持多级嵌套：任务可以有子任务，子任务还可以有子任务，理论上支持无限层级
+- 父任务创建后，系统会自动为子任务设置 `father_id`
+- 所有任务在事务中创建，如果任何一个任务创建失败，整个操作会回滚
+- 所有执行者必须在创建前验证是否为项目成员，如果验证失败，整个操作会回滚
+
+**响应示例** (`201 Created`):
+
+```json
+{
+  "code": "OK",
+  "data": {
+    "tasks": [
+      {
+        "id": 1,
+        "project_id": 1,
+        "father_id": null,
+        "content": "父任务1",
+        "state": "pending",
+        "creator_id": 10,
+        "executor_id": 2,
+        "created_at": "2024-01-01T12:00:00Z",
+        "updated_at": "2024-01-01T12:00:00Z",
+        "completion_at": null
+      },
+      {
+        "id": 2,
+        "project_id": 1,
+        "father_id": 1,
+        "content": "子任务1-1",
+        "state": "pending",
+        "creator_id": 10,
+        "executor_id": null,
+        "created_at": "2024-01-01T12:00:01Z",
+        "updated_at": "2024-01-01T12:00:01Z",
+        "completion_at": null
+      },
+      {
+        "id": 3,
+        "project_id": 1,
+        "father_id": 2,
+        "content": "子任务1-1-1",
+        "state": "in_progress",
+        "creator_id": 10,
+        "executor_id": null,
+        "created_at": "2024-01-01T12:00:02Z",
+        "updated_at": "2024-01-01T12:00:02Z",
+        "completion_at": null
+      },
+      {
+        "id": 4,
+        "project_id": 1,
+        "father_id": 1,
+        "content": "子任务1-2",
+        "state": "pending",
+        "creator_id": 10,
+        "executor_id": 3,
+        "created_at": "2024-01-01T12:00:03Z",
+        "updated_at": "2024-01-01T12:00:03Z",
+        "completion_at": null
+      },
+      {
+        "id": 5,
+        "project_id": 1,
+        "father_id": null,
+        "content": "父任务2",
+        "state": "completed",
+        "creator_id": 10,
+        "executor_id": null,
+        "created_at": "2024-01-01T12:00:04Z",
+        "updated_at": "2024-01-01T12:00:04Z",
+        "completion_at": "2024-01-01T12:00:04Z"
+      }
+    ],
+    "total": 5
+  }
+}
+```
+
+**响应字段说明**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| tasks | array | 创建的所有任务列表（包括所有子任务） |
+| total | int | 创建的任务总数（包括所有子任务） |
+
+**错误响应**:
+
+**400 Bad Request** - 请求参数错误:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "请求参数错误: ...",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 无效状态:
+```json
+{
+  "code": "TASK_INVALID_STATE",
+  "error": {
+    "message": "批量创建任务失败: 创建第 2 个任务失败: 无效的任务状态: invalid_state",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 执行者不是成员:
+```json
+{
+  "code": "TASK_EXECUTOR_NOT_MEMBER",
+  "error": {
+    "message": "批量创建任务失败: 创建第 1 个任务失败: 创建子任务失败: 指定的执行者不是该项目的成员",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden**:
+```json
+{
+  "code": "TASK_NOT_MEMBER",
+  "error": {
+    "message": "您不是该项目的成员，无法创建任务",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "TASK_CREATE_FAILED",
+  "error": {
+    "message": "批量创建任务失败，所有任务已回滚: 创建第 1 个任务失败: 创建任务失败: ...",
+    "details": null
+  }
+}
+```
+
+**注意事项**:
+
+- 使用事务处理，如果任何一个任务创建失败，整个操作会回滚，不会创建任何任务
+- 错误信息会明确指出是第几个任务失败，以及失败的具体原因
+- 所有执行者必须在创建前验证是否为项目成员
+- 返回的任务列表包含所有创建的任务（包括所有层级的子任务），按创建顺序排列
+
+---
+
+## 3. 更新任务
 
 **接口**: `PUT /{service}/v1/user/tasks/:id`
 
@@ -311,7 +529,7 @@ POST /todo/v1/user/tasks
 
 ---
 
-## 3. 查询任务列表
+## 4. 查询任务列表
 
 **接口**: `GET /{service}/v1/user/tasks?project_id=1`
 
@@ -425,7 +643,7 @@ POST /todo/v1/user/tasks
 
 ---
 
-## 4. 批量删除任务
+## 5. 批量删除任务
 
 **接口**: `DELETE /{service}/v1/user/tasks`
 
@@ -577,6 +795,44 @@ curl -X POST "http://localhost:8081/todo/v1/user/tasks?user_id=3" \
     "content": "子任务：设计数据库表结构",
     "state": "pending",
     "father_id": 1
+  }'
+```
+
+### 批量创建任务（支持嵌套结构）
+
+```bash
+curl -X POST "http://localhost:8081/todo/v1/user/tasks/batch?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "project_id": 1,
+    "tasks": [
+      {
+        "content": "父任务1",
+        "state": "pending",
+        "executor_id": 4,
+        "sub_tasks": [
+          {
+            "content": "子任务1-1",
+            "state": "in_progress",
+            "sub_tasks": [
+              {
+                "content": "子任务1-1-1"
+              }
+            ]
+          },
+          {
+            "content": "子任务1-2",
+            "executor_id": 4
+          }
+        ]
+      },
+      {
+        "content": "父任务2",
+        "state": "completed"
+      }
+    ]
   }'
 ```
 
