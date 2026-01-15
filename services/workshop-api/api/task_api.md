@@ -849,7 +849,7 @@ POST /todo/v1/user/tasks
 
 ## 6. 批量删除任务
 
-**接口**: `DELETE /{service}/v1/user/tasks`
+**接口**: `DELETE /{service}/v1/user/tasks/batch`
 
 **认证级别**: `user`（需要JWT认证）
 
@@ -857,13 +857,7 @@ POST /todo/v1/user/tasks
 - `owner` / `admin`: 可以删除任意任务
 - `member`: 只能删除自己创建或分配给自己执行的任务
 
-**描述**: 批量删除任务，使用事务处理，所有任务要么全部删除成功，要么全部失败回滚
-
-**查询参数**:
-
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| user_id | uint | 否 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+**描述**: 批量删除任务，使用事务处理，所有任务要么全部删除成功，要么全部失败回滚。
 
 **请求体**:
 
@@ -916,7 +910,7 @@ POST /todo/v1/user/tasks
 {
   "code": "TASK_NO_PERMISSION",
   "error": {
-    "message": "您没有权限删除此任务",
+    "message": "您没有权限删除任务 1",
     "details": null
   }
 }
@@ -927,7 +921,7 @@ POST /todo/v1/user/tasks
 {
   "code": "TASK_NOT_FOUND",
   "error": {
-    "message": "任务不存在",
+    "message": "任务 1 不存在",
     "details": null
   }
 }
@@ -938,7 +932,7 @@ POST /todo/v1/user/tasks
 {
   "code": "TASK_DELETE_FAILED",
   "error": {
-    "message": "删除任务失败: ...",
+    "message": "批量删除任务失败，所有任务已回滚: ...",
     "details": null
   }
 }
@@ -946,9 +940,10 @@ POST /todo/v1/user/tasks
 
 **注意事项**:
 
-- 使用事务处理，如果任何一个任务删除失败，整个操作会回滚
+- 使用事务处理，如果任何一个任务删除失败，整个操作会回滚，不会删除任何任务
 - 所有任务必须存在且用户有权限删除，否则返回错误
 - 会逐个验证每个任务的权限
+- 错误信息会明确指出是哪个任务失败，以及失败的具体原因
 
 ---
 
@@ -1111,7 +1106,7 @@ curl -X GET "http://localhost:8081/todo/v1/user/tasks?project_id=1&updated_after
 ### 批量删除任务
 
 ```bash
-curl -X DELETE "http://localhost:8081/todo/v1/user/tasks?user_id=3" \
+curl -X DELETE "http://localhost:8081/todo/v1/user/tasks/batch?user_id=3" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
