@@ -10,6 +10,7 @@ import { SubtaskList, StatusHistory } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
+import { useAuthStore } from '@/store/authStore'
 import type { TodoStatus } from '@/types'
 
 export default function TaskDetailPage() {
@@ -20,6 +21,9 @@ export default function TaskDetailPage() {
   
   const { data: project } = useProject(String(projectId))
   const { data: todo, isLoading, error, refetch } = useTask(String(projectId), String(taskId))
+  
+  // 获取父任务信息（如果有）
+  const parentTask = (todo as any)?.parentTask
   const { data: history, isLoading: historyLoading } = useTaskHistory(String(projectId), String(taskId))
   const updateTask = useUpdateTask(String(projectId), String(taskId))
   const deleteTask = useDeleteTask(projectId)
@@ -34,6 +38,7 @@ export default function TaskDetailPage() {
   const [newAssigneeId, setNewAssigneeId] = useState<number | undefined>(undefined)
   
   const { data: members } = useProjectMembers(String(projectId))
+  const currentUser = useAuthStore((state) => state.user)
   
   // 从成员列表中查找创建者和执行者信息
   const creatorInfo = members?.find(m => m.user_id === todo?.creatorId)
@@ -42,6 +47,9 @@ export default function TaskDetailPage() {
   // 获取创建者和执行者的用户名
   const creatorUsername = todo?.creator?.username || creatorInfo?.username || creatorInfo?.user?.username || '未知'
   const executorUsername = todo?.assignee?.username || executorInfo?.username || executorInfo?.user?.username || '未分配'
+  
+  // 检查当前用户是否是任务创建者（通过 username 比较）
+  const isCreator = creatorUsername === currentUser?.username
   
   // 加载状态
   if (isLoading) {
@@ -135,12 +143,47 @@ export default function TaskDetailPage() {
       {/* 页面头部 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
+          {/* 返回按钮 */}
           <button
             onClick={() => navigate(-1)}
             className="text-gray-600 hover:text-gray-900"
+            title="返回上一页"
           >
             <BackIcon className="w-6 h-6" />
           </button>
+          
+          {/* 父任务图标（如果有） */}
+          {parentTask && (
+            <button
+              onClick={() => navigate(`/projects/${projectId}/tasks/${parentTask.id}`)}
+              className="text-gray-600 hover:text-gray-900 relative group"
+            >
+              <ParentTaskIcon className="w-6 h-6" />
+              {/* Tooltip */}
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
+                <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
+                  父任务：{parentTask.title || parentTask.content.substring(0, 30)}
+                  <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
+            </button>
+          )}
+          
+          {/* 项目详情图标 */}
+          <button
+            onClick={() => navigate(`/projects/${projectId}`)}
+            className="text-gray-600 hover:text-gray-900 relative group"
+          >
+            <ProjectIcon className="w-6 h-6" />
+            {/* Tooltip */}
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
+              <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
+                项目详情：{project?.name || '项目'}
+                <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+              </div>
+            </div>
+          </button>
+          
           <div>
             <h1 className="text-3xl font-bold text-gray-900">任务详情</h1>
             {project && (
@@ -259,17 +302,47 @@ export default function TaskDetailPage() {
                     </option>
                   ))}
                 </select>
+                {updateError && (
+                  <div className="bg-error-light border border-error rounded-md p-2">
+                    <p className="text-xs text-error">{updateError}</p>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button
                     size="sm"
                     variant="primary"
                     onClick={async () => {
                       try {
+                        setUpdateError('')
                         await updateTask.mutateAsync({ assigneeId: newAssigneeId })
                         setIsEditingAssignee(false)
                         setNewAssigneeId(undefined)
                       } catch (err: any) {
-                        setUpdateError(err?.response?.data?.message || '更新失败，请重试')
+                        console.error('分配任务失败:', err)
+                        
+                        // 处理 403 权限错误
+                        if (err?.response?.status === 403) {
+                          setUpdateError('您没有权限分配此任务，只有任务创建者可以分配任务')
+                        } else {
+                          // 提取错误消息
+                          const errorData = err?.response?.data
+                          let errorMsg = '更新失败，请重试'
+                          
+                          if (errorData) {
+                            // 新格式：{ code: 'ERROR', error: { message: '...' } }
+                            if (errorData.error && errorData.error.message) {
+                              errorMsg = errorData.error.message
+                            } else if (errorData.message) {
+                              errorMsg = errorData.message
+                            } else if (errorData.error && typeof errorData.error === 'string') {
+                              errorMsg = errorData.error
+                            }
+                          } else if (err?.message) {
+                            errorMsg = err.message
+                          }
+                          
+                          setUpdateError(errorMsg)
+                        }
                       }
                     }}
                     loading={updateTask.isPending}
@@ -294,16 +367,22 @@ export default function TaskDetailPage() {
                 <p className="text-sm text-gray-900">
                   {executorUsername}
                 </p>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setIsEditingAssignee(true)
-                    setNewAssigneeId(todo.assigneeId)
-                  }}
-                >
-                  编辑
-                </Button>
+                {isCreator ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setIsEditingAssignee(true)
+                      setNewAssigneeId(todo.assigneeId)
+                    }}
+                  >
+                    编辑
+                  </Button>
+                ) : (
+                  <span className="text-xs text-gray-500" title="只有任务创建者可以分配任务">
+                    仅创建者可编辑
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -369,6 +448,22 @@ function BackIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+    </svg>
+  )
+}
+
+function ParentTaskIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function ProjectIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
     </svg>
   )
 }

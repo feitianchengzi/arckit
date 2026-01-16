@@ -134,6 +134,7 @@ export interface ProjectInvitation {
   id: number
   project_id: number
   invite_code: string
+  invite_link?: string  // 后端可能返回的邀请链接
   role: ProjectRole
   inviter_id: number
   expires_at?: string

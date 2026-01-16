@@ -30,7 +30,7 @@ export const invitationsApi = {
     
     const data = handleResponse<{
       invite_code: string
-      invite_link: string
+      invite_link?: string  // 后端可能返回邀请链接
       role: string
       expires_at?: string
       created_at: string
@@ -41,6 +41,7 @@ export const invitationsApi = {
       id: 0, // 后端响应中没有 id，设为 0
       project_id: input.project_id,
       invite_code: data.invite_code,
+      invite_link: data.invite_link, // 保留后端返回的链接（如果有）
       role: data.role as ProjectRole,
       inviter_id: 0, // 后端响应中没有 inviter_id
       expires_at: data.expires_at || undefined,

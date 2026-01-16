@@ -10,7 +10,11 @@ import {
   getAuthInfo,
   clearAuthInfo,
   getAccessToken,
+  isTokenExpired,
+  shouldRefreshToken,
+  getRefreshToken,
 } from '@/lib/utils/tokenManager'
+import { gatewayApi } from '@/lib/api/endpoints/gateway'
 
 interface AuthState {
   // 状态
@@ -23,6 +27,7 @@ interface AuthState {
   setUser: (user: TodoUser) => void
   logout: () => void
   checkAuth: () => boolean
+  checkAndRefreshAuth: () => Promise<boolean>
   initialize: () => void
 }
 
@@ -81,14 +86,82 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   /**
-   * 检查认证状态
+   * 检查认证状态（同步）
+   * 检查 token 是否存在且未过期
+   * 注意：如果 token 过期，返回 false，但不自动刷新（刷新需要异步调用 checkAndRefreshAuth）
    */
   checkAuth: () => {
-    const token = getAccessToken()
-    const hasAuth = !!token
+    const authInfo = getAuthInfo()
+    
+    // 没有 token，未登录
+    if (!authInfo || !authInfo.accessToken) {
+      set({ isAuthenticated: false })
+      return false
+    }
+    
+    // 检查 token 是否过期
+    if (isTokenExpired(authInfo)) {
+      // Token 已过期，返回 false
+      // 调用方应该使用 checkAndRefreshAuth() 来尝试刷新
+      set({ isAuthenticated: false })
+      return false
+    }
+    
+    // Token 有效
+    set({ isAuthenticated: true })
+    return true
+  },
 
-    set({ isAuthenticated: hasAuth })
-    return hasAuth
+  /**
+   * 检查并刷新认证状态（异步）
+   * 如果 token 过期，尝试刷新
+   */
+  checkAndRefreshAuth: async () => {
+    const authInfo = getAuthInfo()
+    
+    // 没有 token 或 refresh token
+    if (!authInfo || !authInfo.accessToken || !authInfo.refreshToken) {
+      clearAuthInfo()
+      set({ isAuthenticated: false })
+      return false
+    }
+    
+    // 检查是否需要刷新
+    if (!shouldRefreshToken()) {
+      // 不需要刷新，token 仍然有效
+      set({ isAuthenticated: true })
+      return true
+    }
+    
+    // 尝试刷新 token
+    try {
+      console.log('🔄 Token 已过期，尝试刷新...')
+      
+      const response = await gatewayApi.refreshToken({
+        refresh_token: authInfo.refreshToken,
+      })
+      
+      // 保存新 token（保留原有用户信息）
+      saveAuthInfo({
+        accessToken: response.data.tokens.access_token,
+        refreshToken: response.data.tokens.refresh_token,
+        tokenObtainedAt: Date.now(),
+        tokenExpiresIn: response.data.tokens.expires_in,
+        username: authInfo.username,
+        avatarUrl: authInfo.avatarUrl,
+      })
+      
+      console.log('✅ Token 刷新成功')
+      set({ isAuthenticated: true })
+      return true
+    } catch (error) {
+      console.error('❌ Token 刷新失败:', error)
+      
+      // 刷新失败，清除认证信息
+      clearAuthInfo()
+      set({ isAuthenticated: false, user: null })
+      return false
+    }
   },
 
   /**
@@ -99,17 +172,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initialize: () => {
     const authInfo = getAuthInfo()
 
-    if (authInfo && authInfo.accessToken) {
+    if (!authInfo || !authInfo.accessToken) {
+      // 没有 token
       set({
-        isAuthenticated: true,
-        // 初始化时不设置 user，因为 id 是数据库 ID，需要从 API 获取
-        // 用户信息会在首次使用项目列表时自动获取（通过 createOrGetUser）
+        isAuthenticated: false,
         user: null,
         isLoading: false,
       })
-    } else {
+      return
+    }
+    
+    // 检查 token 是否过期
+    if (isTokenExpired(authInfo)) {
+      // Token 已过期，尝试刷新（异步）
+      get().checkAndRefreshAuth().then((success) => {
+        set({ isLoading: false })
+      })
+      // 先设置为未认证，刷新成功后会更新
       set({
         isAuthenticated: false,
+        user: null,
+        isLoading: true, // 正在刷新
+      })
+    } else {
+      // Token 有效
+      set({
+        isAuthenticated: true,
         user: null,
         isLoading: false,
       })

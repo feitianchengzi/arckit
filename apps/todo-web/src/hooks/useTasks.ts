@@ -70,6 +70,19 @@ export function useTask(projectId: string, taskId: string) {
         task.children = children
       }
       
+      // 查找父任务（如果有）
+      if (task.parentId) {
+        const parentTask = todos.find(t => t.id === task.parentId)
+        if (parentTask) {
+          // 将父任务信息附加到任务对象上（用于导航）
+          ;(task as any).parentTask = {
+            id: parentTask.id,
+            title: parentTask.title,
+            content: parentTask.content,
+          }
+        }
+      }
+      
       return task
     },
     enabled: !!projectId && !!taskId && isAuthenticated, // 只需要检查是否已登录

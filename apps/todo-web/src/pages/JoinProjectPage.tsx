@@ -69,21 +69,59 @@ export default function JoinProjectPage() {
           status: err?.response?.status,
           data: err?.response?.data,
           message: err?.message,
+          code: err?.code,
         })
         
         setStatus('error')
         let errorMsg = '加入项目失败，请检查邀请码是否正确或是否已过期'
         
-        if (err?.response?.status === 400) {
-          errorMsg = err?.response?.data?.error || err?.response?.data?.message || '邀请码无效或格式错误'
+        // 提取错误消息（确保是字符串）
+        const extractErrorMessage = (error: any): string => {
+          // 如果是字符串，直接返回
+          if (typeof error === 'string') return error
+          // 如果是 ApiError 实例
+          if (error?.name === 'ApiError' && error?.message) {
+            return error.message
+          }
+          // 如果是对象，尝试提取 message 字段
+          if (error && typeof error === 'object') {
+            // 新格式：{ code: 'ERROR_CODE', error: { message: '...', details: ... } }
+            if (error.error && typeof error.error === 'object' && error.error.message) {
+              return String(error.error.message)
+            }
+            // 旧格式：{ message: '...' } 或 { error: '...' }
+            if (error.message && typeof error.message === 'string') return error.message
+            if (error.error && typeof error.error === 'string') return error.error
+            // 如果是对象，转换为 JSON 字符串（调试用）
+            return JSON.stringify(error)
+          }
+          return String(error || '未知错误')
+        }
+        
+        // 处理 ApiError 实例（从 handleResponse 抛出的）
+        if (err?.name === 'ApiError') {
+          errorMsg = err.message || '加入项目失败'
+        } else if (err?.response?.status === 400) {
+          // 400 错误：可能是邀请码格式错误或已过期
+          const errorData = err?.response?.data
+          if (errorData) {
+            // 新格式：{ code: 'ERROR_CODE', error: { message: '...' } }
+            if (errorData.error && errorData.error.message) {
+              errorMsg = extractErrorMessage(errorData.error.message)
+            } else if (errorData.code && errorData.error) {
+              errorMsg = extractErrorMessage(errorData.error)
+            } else {
+              errorMsg = extractErrorMessage(errorData)
+            }
+          } else {
+            errorMsg = '邀请码无效或格式错误'
+          }
         } else if (err?.response?.status === 409) {
           errorMsg = '您已经是该项目的成员'
-        } else if (err?.response?.data?.error) {
-          errorMsg = err.response.data.error
-        } else if (err?.response?.data?.message) {
-          errorMsg = err.response.data.message
+        } else if (err?.response?.data) {
+          errorMsg = extractErrorMessage(err.response.data)
         } else if (err?.message) {
-          errorMsg = err.message
+          errorMsg = extractErrorMessage(err.message)
         }
         
         setErrorMessage(errorMsg)
@@ -179,17 +217,45 @@ export default function JoinProjectPage() {
                   console.error('重试加入项目失败:', err)
                   setStatus('error')
                   
+                  // 提取错误消息（确保是字符串）
+                  const extractErrorMessage = (error: any): string => {
+                    if (typeof error === 'string') return error
+                    if (error?.name === 'ApiError' && error?.message) {
+                      return error.message
+                    }
+                    if (error && typeof error === 'object') {
+                      if (error.error && typeof error.error === 'object' && error.error.message) {
+                        return String(error.error.message)
+                      }
+                      if (error.message && typeof error.message === 'string') return error.message
+                      if (error.error && typeof error.error === 'string') return error.error
+                      return JSON.stringify(error)
+                    }
+                    return String(error || '未知错误')
+                  }
+                  
                   let errorMsg = '加入项目失败，请检查邀请码是否正确或是否已过期'
-                  if (err?.response?.status === 400) {
-                    errorMsg = err?.response?.data?.error || err?.response?.data?.message || '邀请码无效或格式错误'
+                  if (err?.name === 'ApiError') {
+                    errorMsg = err.message || '加入项目失败'
+                  } else if (err?.response?.status === 400) {
+                    const errorData = err?.response?.data
+                    if (errorData) {
+                      if (errorData.error && errorData.error.message) {
+                        errorMsg = extractErrorMessage(errorData.error.message)
+                      } else if (errorData.code && errorData.error) {
+                        errorMsg = extractErrorMessage(errorData.error)
+                      } else {
+                        errorMsg = extractErrorMessage(errorData)
+                      }
+                    } else {
+                      errorMsg = '邀请码无效或格式错误'
+                    }
                   } else if (err?.response?.status === 409) {
                     errorMsg = '您已经是该项目的成员'
-                  } else if (err?.response?.data?.error) {
-                    errorMsg = err.response.data.error
-                  } else if (err?.response?.data?.message) {
-                    errorMsg = err.response.data.message
+                  } else if (err?.response?.data) {
+                    errorMsg = extractErrorMessage(err.response.data)
                   } else if (err?.message) {
-                    errorMsg = err.message
+                    errorMsg = extractErrorMessage(err.message)
                   }
                   
                   setErrorMessage(errorMsg)

@@ -14,6 +14,27 @@ export default defineConfig({
   server: {
     port: 3000,
     open: false,
+    // 开发环境代理配置（避免 CORS 问题）
+    proxy: {
+      '/api-proxy': {
+        target: 'https://api.feitianchengzi.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api-proxy/, ''),
+      },
+    },
+  },
+  preview: {
+    port: 4173,
+    // 预览环境代理配置（避免 CORS 问题）
+    proxy: {
+      '/api-proxy': {
+        target: 'https://api.feitianchengzi.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api-proxy/, ''),
+      },
+    },
   },
   build: {
     outDir: 'dist',

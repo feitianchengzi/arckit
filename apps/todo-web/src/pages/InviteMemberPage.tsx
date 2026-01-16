@@ -50,9 +50,21 @@ export default function InviteMemberPage() {
       
       setInviteCode(invitation.invite_code)
       
-      // 生成邀请链接（假设前端部署在 /join/:code 路由）
-      const baseUrl = window.location.origin
-      setInviteLink(`${baseUrl}/join/${invitation.invite_code}`)
+      // 生成邀请链接
+      // 优先使用后端返回的 invite_link（如果存在且有效）
+      // 否则前端自己拼接，确保包含 base path
+      if (invitation.invite_link && invitation.invite_link.startsWith('http')) {
+        // 后端返回了完整的链接，直接使用
+        setInviteLink(invitation.invite_link)
+      } else {
+        // 前端自己拼接，使用 Vite 的 BASE_URL 确保包含 base path
+        const baseUrl = window.location.origin
+        // import.meta.env.BASE_URL 是 Vite 自动提供的，值为 '/workshop/'（包含尾部斜杠）
+        const basePath = import.meta.env.BASE_URL || '/workshop/'
+        // 确保 basePath 以 / 开头，但不重复尾部斜杠
+        const normalizedBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+        setInviteLink(`${baseUrl}${normalizedBasePath}/join/${invitation.invite_code}`)
+      }
     } catch (err: any) {
       setError(err.response?.data?.message || '生成邀请失败，请重试')
     }
