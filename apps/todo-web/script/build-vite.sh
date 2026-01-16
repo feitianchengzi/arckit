@@ -35,12 +35,12 @@ rm -rf node_modules/.vite
 
 # 检查环境变量配置
 echo -e "\n${YELLOW}🔍 检查环境变量...${NC}"
-if [ -f ".env.production" ]; then
-    echo -e "${GREEN}   ✓ 找到 .env.production${NC}"
+if [ -f ".env" ]; then
+    echo -e "${GREEN}   ✓ 找到 .env${NC}"
     echo -e "${YELLOW}   环境变量预览：${NC}"
-    cat .env.production | grep -v "^#" | grep -v "^$" | sed 's/^/     /'
+    cat .env | grep -v "^#" | grep -v "^$" | sed 's/^/     /'
 elif [ -f ".env.local" ]; then
-    echo -e "${YELLOW}   ⚠️  未找到 .env.production，将使用 .env.local${NC}"
+    echo -e "${YELLOW}   ⚠️  未找到 .env，将使用 .env.local${NC}"
 else
     echo -e "${YELLOW}   ⚠️  未找到环境变量文件，将使用默认配置${NC}"
 fi
@@ -49,7 +49,7 @@ fi
 echo -e "\n${YELLOW}🔨 执行 Vite 构建...${NC}"
 echo -e "${YELLOW}   配置: vite.config.ts${NC}"
 echo -e "${YELLOW}   输出目录: ${DIST_DIR}/${NC}"
-echo -e "${YELLOW}   Base Path: /workshop/${NC}"
+echo -e "${YELLOW}   Base Path: /${NC}"
 
 # 执行构建
 if ! npm run build; then
@@ -116,7 +116,7 @@ cat > "$DIST_DIR/DEPLOY.md" << 'EOF'
    - 选择 `dist/` 目录下的**所有文件**（不是 dist 目录本身）
    - 确保上传时保持目录结构
 
-   **重要**：上传到根目录或子目录（如 `/workshop/`），确保 `index.html` 在正确的位置。
+   **重要**：上传到根目录，确保 `index.html` 在正确的位置。
 
 ### 步骤 2：配置静态网站托管
 
@@ -160,7 +160,7 @@ cat > "$DIST_DIR/DEPLOY.md" << 'EOF'
 
 在打包前确保配置了正确的环境变量：
 
-**方法 1：创建 `.env.production` 文件**
+**方法 1：创建 `.env` 文件**
 
 ```bash
 # API 地址
@@ -180,7 +180,7 @@ npm run build
 
 部署完成后，请验证：
 
-- [ ] 首页可以正常访问（如 `https://your-domain.com/workshop/`）
+- [ ] 首页可以正常访问（如 `https://your-domain.com/`）
 - [ ] 静态资源（CSS、JS）正常加载（检查浏览器 Network 标签）
 - [ ] 路由跳转正常（SPA 路由）
 - [ ] 刷新页面不会出现 404（依赖 OSS 的 404 页面配置）
@@ -204,16 +204,15 @@ dist/
 ## ⚠️ 注意事项
 
 1. **Base Path 配置**
-   - 本项目配置了 `base: '/workshop/'`（在 `vite.config.ts` 中）
-   - 如果部署到 OSS 根目录，需要将文件上传到 `/workshop/` 子目录
-   - 或者修改 `vite.config.ts` 中的 `base` 配置为 `/`
+   - 本项目配置了 `base: '/'`（在 `vite.config.ts` 中）
+   - 文件上传到 OSS 根目录即可
 
 2. **404 页面配置**
    - **必须**将 OSS 的"默认 404 页"设置为 `index.html`
    - 否则刷新页面或直接访问动态路由会返回 404
 
 3. **API 地址配置**
-   - 确保 `.env.production` 或构建时的环境变量中配置了正确的 API 地址
+   - 确保 `.env` 或构建时的环境变量中配置了正确的 API 地址
    - Vite 使用 `VITE_` 前缀的环境变量
 
 4. **HTTPS**
@@ -240,7 +239,7 @@ A:
 ### Q: 路由跳转后刷新页面显示 404？
 A: 
 - 检查 OSS 的"默认 404 页"是否设置为 `index.html`
-- 如果部署到子目录（如 `/workshop/`），404 页面路径应该是 `/workshop/index.html`
+- 404 页面路径应该是 `index.html`
 
 ### Q: API 请求失败，出现 CORS 错误？
 A: 
@@ -259,7 +258,7 @@ A:
 编辑 `vite.config.ts`：
 ```typescript
 export default defineConfig({
-  base: '/',  // 改为根路径
+   base: '/',  // 根路径
   // 或
   base: '/your-path/',  // 改为其他路径
 })
@@ -281,7 +280,7 @@ npm run preview
 serve -s dist -l 3000
 ```
 
-访问 `http://localhost:3000/workshop/` 测试。
+访问 `http://localhost:3000/` 测试。
 
 ## 📞 技术支持
 
@@ -310,7 +309,7 @@ echo -e "${YELLOW}🧪 本地预览：${NC}"
 echo -e "   运行 ${BLUE}npm run preview${NC} 预览构建结果"
 echo -e ""
 echo -e "${YELLOW}📝 注意事项：${NC}"
-echo -e "   • Base Path 配置为 ${BLUE}/workshop/${NC}，请确保部署路径一致"
+echo -e "   • Base Path 配置为 ${BLUE}/${NC}，文件上传到 OSS 根目录"
 echo -e "   • 必须设置 OSS 的 404 页面为 ${BLUE}index.html${NC} 以支持客户端路由"
 echo -e "   • 确认环境变量（API 地址）配置正确"
 

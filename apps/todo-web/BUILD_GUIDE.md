@@ -27,17 +27,17 @@ npm run build                    # 直接生成 dist/ 目录
 
 ### 1. 配置环境变量
 
-**创建生产环境配置文件：**
+**创建环境配置文件：**
 
 ```bash
 cd frontend
-cp .env.local .env.production
+cp .env.example .env
 ```
 
-或手动创建 `.env.production`：
+或手动创建 `.env`：
 
 ```bash
-# .env.production
+# .env
 VITE_API_URL=https://api.feitianchengzi.com/workshop/v1
 VITE_GATEWAY_URL=https://api.feitianchengzi.com
 ```
@@ -124,7 +124,7 @@ dist/
    - 清理 Vite 缓存
 
 2. **环境变量检查**
-   - 检测 `.env.production` 文件
+   - 检测 `.env` 文件
    - 显示配置预览
 
 3. **执行构建**
@@ -178,9 +178,8 @@ export default defineConfig({
 ### 环境变量文件优先级
 
 ```
-.env.production       # 生产环境（npm run build 时使用）
-.env.local            # 本地开发（所有环境）
-.env                  # 默认配置
+.env                  # 环境配置（开发和生产共用）
+.env.local            # 本地开发覆盖（优先级更高）
 ```
 
 ---
@@ -212,7 +211,7 @@ export default defineConfig({
 ### Q4: 环境变量为什么不生效？
 
 A: 检查：
-1. 文件名是否为 `.env.production`
+1. 文件名是否为 `.env`
 2. 变量名是否以 `VITE_` 开头（不是 `NEXT_PUBLIC_`）
 3. 是否重新构建（环境变量在构建时注入）
 
@@ -233,7 +232,7 @@ du -sh dist/
 A: 常见原因：
 1. **TypeScript 错误**: 运行 `npm run build:check`
 2. **依赖问题**: 运行 `npm install`
-3. **环境变量**: 检查 `.env.production`
+3. **环境变量**: 检查 `.env`
 4. **磁盘空间**: 清理 `node_modules/.cache`
 
 ---
