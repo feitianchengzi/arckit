@@ -78,17 +78,34 @@ fi
 
 echo -e "${GREEN}   ✓ 找到 .env 文件${NC}"
 
-# 检查 dist 目录
-echo -e "\n${YELLOW}🔍 检查构建文件...${NC}"
+# 自动执行构建
+echo -e "\n${YELLOW}🔨 自动执行构建...${NC}"
+BUILD_SCRIPT="$SCRIPT_DIR/build-vite.sh"
+
+if [ ! -f "$BUILD_SCRIPT" ]; then
+    echo -e "${RED}❌ 未找到构建脚本: $BUILD_SCRIPT${NC}"
+    exit 1
+fi
+
+# 确保构建脚本可执行
+chmod +x "$BUILD_SCRIPT"
+
+# 执行构建脚本
+echo -e "${YELLOW}   运行: $BUILD_SCRIPT${NC}"
+if ! bash "$BUILD_SCRIPT"; then
+    echo -e "\n${RED}❌ 构建失败，部署已取消${NC}"
+    exit 1
+fi
+
+# 验证构建结果
+echo -e "\n${YELLOW}🔍 验证构建文件...${NC}"
 if [ ! -d "dist" ]; then
-    echo -e "${RED}❌ dist 目录不存在${NC}"
-    echo -e "${YELLOW}   请先运行构建脚本: ./script/build-vite.sh${NC}"
+    echo -e "${RED}❌ 构建失败：dist 目录不存在${NC}"
     exit 1
 fi
 
 if [ ! -f "dist/index.html" ]; then
-    echo -e "${RED}❌ dist 目录中未找到 index.html${NC}"
-    echo -e "${YELLOW}   请先运行构建脚本: ./script/build-vite.sh${NC}"
+    echo -e "${RED}❌ 构建失败：dist 目录中未找到 index.html${NC}"
     exit 1
 fi
 
