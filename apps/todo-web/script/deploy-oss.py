@@ -51,6 +51,7 @@ def load_env_config():
     endpoint = os.getenv('OSS_ENDPOINT')
     bucket_name = os.getenv('OSS_BUCKET_NAME')
     prefix = os.getenv('OSS_PREFIX', '')  # 默认前缀为空（根目录）
+    custom_domain = os.getenv('OSS_CUSTOM_DOMAIN', '')  # 自定义域名（可选）
     
     # 验证必需参数
     if not all([access_key_id, access_key_secret, endpoint, bucket_name]):
@@ -62,6 +63,7 @@ def load_env_config():
         print_colored("  - OSS_BUCKET_NAME", Colors.YELLOW)
         print_colored("可选参数：", Colors.YELLOW)
         print_colored("  - OSS_PREFIX (可选，默认: 根目录)", Colors.YELLOW)
+        print_colored("  - OSS_CUSTOM_DOMAIN (可选，自定义域名)", Colors.YELLOW)
         sys.exit(1)
     
     return {
@@ -70,6 +72,7 @@ def load_env_config():
         'endpoint': endpoint,
         'bucket_name': bucket_name,
         'prefix': prefix,
+        'custom_domain': custom_domain,
         'dist_dir': frontend_dir / 'dist'
     }
 
@@ -212,16 +215,26 @@ def main():
     print_colored("✅ 部署完成！", Colors.GREEN)
     print_colored("=" * 45, Colors.BLUE)
     print_colored(f"\n💡 访问地址:", Colors.YELLOW)
-    # 构建 OSS 访问地址
-    endpoint = config['endpoint']
-    bucket_name = config['bucket_name']
-    # 移除 http:// 或 https:// 前缀
-    if endpoint.startswith('http://'):
-        endpoint = endpoint[7:]
-    elif endpoint.startswith('https://'):
-        endpoint = endpoint[8:]
-    # 构建访问地址：https://{bucket-name}.{endpoint}
-    access_url = f"https://{bucket_name}.{endpoint}"
+    # 优先使用自定义域名，否则使用 OSS bucket 地址
+    if config['custom_domain']:
+        # 使用自定义域名
+        custom_domain = config['custom_domain'].rstrip('/')
+        # 确保有 https:// 前缀
+        if not custom_domain.startswith('http://') and not custom_domain.startswith('https://'):
+            custom_domain = f"https://{custom_domain}"
+        access_url = custom_domain
+    else:
+        # 构建 OSS 访问地址
+        endpoint = config['endpoint']
+        bucket_name = config['bucket_name']
+        # 移除 http:// 或 https:// 前缀
+        if endpoint.startswith('http://'):
+            endpoint = endpoint[7:]
+        elif endpoint.startswith('https://'):
+            endpoint = endpoint[8:]
+        # 构建访问地址：https://{bucket-name}.{endpoint}
+        access_url = f"https://{bucket_name}.{endpoint}"
+    
     prefix_url = f"/{config['prefix']}/" if config['prefix'] else "/"
     print_colored(f"   {access_url}{prefix_url}", Colors.BLUE)
     print_colored(f"\n📝 注意事项:", Colors.YELLOW)
