@@ -25,7 +25,8 @@ export default defineConfig({
     },
   },
   preview: {
-    port: 4173,
+    port: 3000, // 使用 3000 端口，与开发环境一致（网关认证需要）
+    host: true,
     // 预览环境代理配置（避免 CORS 问题）
     proxy: {
       '/api-proxy': {
