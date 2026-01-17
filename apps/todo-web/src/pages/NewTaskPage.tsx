@@ -50,22 +50,16 @@ export default function NewTaskPage() {
     
     // 创建任务
     try {
-      await createTask.mutateAsync({
+      const newTask = await createTask.mutateAsync({
         content: content.trim(),
         projectId: parseInt(projectId),
         parentId: parentId,
         assigneeId: assigneeId,
       })
       
-      // 创建成功后，根据是否有父任务决定跳转
-      if (parentId) {
-        // 如果有父任务，跳转回父任务详情页
-        navigate(`/projects/${projectId}/tasks/${parentId}`)
-      } else {
-        // 否则跳转到项目详情页（useCreateTask 的 onSuccess 已经处理了）
-        // 但为了避免双重跳转，我们手动跳转
-        navigate(`/projects/${projectId}`)
-      }
+      // 创建成功后跳转到任务详情页
+      // 使用 replace: true 替换当前历史记录，避免点击返回时回到创建页面
+      navigate(`/projects/${projectId}/tasks/${newTask.id}`, { replace: true })
     } catch (err: any) {
       setError(err.response?.data?.message || '创建失败，请重试')
     }

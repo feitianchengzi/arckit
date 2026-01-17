@@ -48,8 +48,12 @@ export default function TaskDetailPage() {
   const creatorUsername = todo?.creator?.username || creatorInfo?.username || creatorInfo?.user?.username || '未知'
   const executorUsername = todo?.assignee?.username || executorInfo?.username || executorInfo?.user?.username || '未分配'
   
-  // 检查当前用户是否是任务创建者（通过 username 比较）
+  // 检查当前用户是否是任务创建者或执行者（通过 username 比较）
   const isCreator = creatorUsername === currentUser?.username
+  const isAssignee = executorUsername === currentUser?.username && executorUsername !== '未分配'
+  
+  // 只有创建者或执行者可以分配任务（后端逻辑：非创建者且非执行者才返回 403）
+  const canEditAssignee = isCreator || isAssignee
   
   // 加载状态
   if (isLoading) {
@@ -320,9 +324,9 @@ export default function TaskDetailPage() {
                       } catch (err: any) {
                         console.error('分配任务失败:', err)
                         
-                        // 处理 403 权限错误
-                        if (err?.response?.status === 403) {
-                          setUpdateError('您没有权限分配此任务，只有任务创建者可以分配任务')
+                       // 处理 403 权限错误
+                       if (err?.response?.status === 403) {
+                         setUpdateError('您没有权限分配此任务，只有任务创建者或执行者可以分配任务')
                         } else {
                           // 提取错误消息
                           const errorData = err?.response?.data
@@ -367,7 +371,7 @@ export default function TaskDetailPage() {
                 <p className="text-sm text-gray-900">
                   {executorUsername}
                 </p>
-                {isCreator ? (
+                {canEditAssignee ? (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -379,8 +383,17 @@ export default function TaskDetailPage() {
                     编辑
                   </Button>
                 ) : (
-                  <span className="text-xs text-gray-500" title="只有任务创建者可以分配任务">
-                    仅创建者可编辑
+                  <span 
+                    className="text-xs text-gray-500 relative group cursor-help"
+                  >
+                    仅创建者/执行者可编辑
+                    {/* Tooltip */}
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
+                      <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
+                        只有任务创建者或执行者可以分配任务
+                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
                   </span>
                 )}
               </div>
