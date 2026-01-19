@@ -72,7 +72,7 @@ export function StatusSelect({ value, onChange, disabled = false, size = 'md' }:
           />
           
           {/* 选项列表 */}
-          <div className="absolute z-20 mt-1 bg-white border border-gray-200 rounded-md shadow-lg min-w-[160px]">
+          <div className="absolute z-50 mt-1 bg-white border border-gray-200 rounded-md shadow-lg min-w-[160px] right-0">
             {ALL_STATUSES.map((status) => {
               const statusConfig = {
                 label: getStatusLabel(status),

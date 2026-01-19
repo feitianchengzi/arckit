@@ -3,8 +3,6 @@
  * 使用 Headless UI 的 Dialog 实现
  */
 
-'use client'
-
 import { Fragment } from 'react'
 import { Dialog as HeadlessDialog, Transition } from '@headlessui/react'
 

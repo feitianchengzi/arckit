@@ -130,8 +130,10 @@ export interface TodoUser {
 export interface StoredAuthInfo {
   accessToken: string
   refreshToken: string
-  tokenObtainedAt: number  // 时间戳（毫秒）
-  tokenExpiresIn: number   // 秒数
+  tokenObtainedAt: number  // Access Token 获取时间戳（毫秒）
+  tokenExpiresIn: number   // Access Token 过期时间（秒数）
+  refreshTokenObtainedAt: number  // Refresh Token 获取时间戳（毫秒）
+  refreshExpiresIn: number   // Refresh Token 过期时间（秒数）
   // 注意：不再保存 userId，网关会自动从 Token 中解析并注入到请求头
   username?: string
   avatarUrl?: string

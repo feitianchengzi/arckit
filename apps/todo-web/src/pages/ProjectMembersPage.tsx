@@ -22,6 +22,29 @@ export default function ProjectMembersPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const { data: project, isLoading: projectLoading } = useProject(String(projectId))
   const { data: members, isLoading: membersLoading, error, refetch } = useProjectMembers(String(projectId))
+  
+  // 监听成员列表变化，打印日志
+  useEffect(() => {
+    if (members) {
+      console.log('📋 [成员列表更新] 成员列表已更新')
+      console.log('📋 [成员列表更新] 成员数量:', members.length)
+      console.log('📋 [成员列表更新] 成员详细信息:')
+      members.forEach((member: ProjectMember, index: number) => {
+        console.log(`📋 [成员列表更新] 成员 ${index + 1}:`, {
+          id: member.id,
+          project_id: member.project_id,
+          user_id: member.user_id,
+          role: member.role,
+          username: member.username || member.user?.username,
+          avatar: member.avatar || member.user?.avatar,
+          created_at: member.created_at,
+          updated_at: member.updated_at,
+          user: member.user,
+        })
+      })
+      console.log('📋 [成员列表更新] 完整成员列表:', JSON.stringify(members, null, 2))
+    }
+  }, [members])
   const deleteMember = useDeleteProjectMember(projectId)
   const setMemberRole = useSetMemberRole(projectId)
   
@@ -182,29 +205,46 @@ export default function ProjectMembersPage() {
   const handleDeleteConfirm = async () => {
     if (!memberToDelete) return
     
+    console.log('🔍 [删除确认] 开始删除成员流程')
+    console.log('🔍 [删除确认] 要删除的成员:', {
+      id: memberToDelete.id,
+      user_id: memberToDelete.user_id,
+      username: memberToDelete.username || memberToDelete.user?.username,
+      role: memberToDelete.role,
+    })
+    console.log('🔍 [删除确认] 当前用户:', {
+      id: currentUser?.id,
+      username: currentUser?.username,
+      role: currentUserRole,
+    })
+    console.log('🔍 [删除确认] 项目ID:', projectId)
+    
     try {
-      // 获取当前用户的 user_id（从成员列表中查找）
-      const currentUserId = currentUserMember?.user_id
-      
-      if (!currentUserId) {
-        alert('无法获取当前用户ID，请刷新页面后重试')
-        return
-      }
+      // 根据API文档，不需要传递 currentUserId，网关会自动识别当前用户
+      console.log('🔍 [删除确认] 调用 deleteMember.mutateAsync')
+      console.log('🔍 [删除确认] 参数:', { targetUserId: memberToDelete.user_id })
       
       await deleteMember.mutateAsync({
         targetUserId: memberToDelete.user_id,
-        currentUserId: currentUserId,
       })
+      
+      console.log('✅ [删除确认] mutateAsync 成功')
       setShowDeleteConfirm(false)
       setMemberToDelete(null)
       
       // 如果是离开项目（删除自己），跳转到项目列表
       const memberUsername = memberToDelete.username || memberToDelete.user?.username
       if (memberUsername === currentUser?.username) {
+        console.log('🔍 [删除确认] 删除的是自己，跳转到项目列表')
         navigate('/projects')
       }
     } catch (err: any) {
-      console.error('删除成员失败:', err)
+      console.error('❌ [删除确认] 删除成员失败')
+      console.error('❌ [删除确认] 错误对象:', err)
+      console.error('❌ [删除确认] 错误类型:', err?.name)
+      console.error('❌ [删除确认] 错误消息:', err?.message)
+      console.error('❌ [删除确认] 响应状态:', err?.response?.status)
+      console.error('❌ [删除确认] 响应数据:', err?.response?.data)
       const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err?.message || '操作失败，请重试'
       alert(errorMessage)
     }
@@ -216,8 +256,9 @@ export default function ProjectMembersPage() {
     if (!isOwner) return
     // 不能编辑 owner 的角色
     if (member.role === 'owner') return
-    // 不能编辑自己的角色
-    if (member.user_id === currentUser?.id) return
+    // 不能编辑自己的角色（通过 username 匹配，因为 API 可能不返回数据库 ID）
+    const memberUsername = member.username || member.user?.username
+    if (memberUsername === currentUser?.username) return
     
     setRoleEditId(member.id)
     setNewRole(member.role === 'admin' ? 'member' : 'admin')
@@ -233,6 +274,8 @@ export default function ProjectMembersPage() {
         role: newRole,
       })
       setRoleEditId(null)
+      // 主动刷新成员列表以确保显示最新数据
+      await refetch()
     } catch (err: any) {
       alert(err?.response?.data?.error || err?.message || '更新角色失败，请重试')
     }

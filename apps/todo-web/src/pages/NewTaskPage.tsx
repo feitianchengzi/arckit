@@ -1,6 +1,6 @@
 
 /**
- * 创建任务页面（客户端组件）
+ * 创建待办页面（客户端组件）
  */
 
 import { useState, useEffect } from 'react'
@@ -42,13 +42,13 @@ export default function NewTaskPage() {
     e.preventDefault()
     setError('')
     
-    // 验证
-    if (!content.trim()) {
-      setError('请输入任务内容')
-      return
-    }
-    
-    // 创建任务
+      // 验证
+      if (!content.trim()) {
+        setError('请输入待办内容')
+        return
+      }
+      
+      // 创建待办
     try {
       const newTask = await createTask.mutateAsync({
         content: content.trim(),
@@ -57,7 +57,7 @@ export default function NewTaskPage() {
         assigneeId: assigneeId,
       })
       
-      // 创建成功后跳转到任务详情页
+      // 创建成功后跳转到待办详情页
       // 使用 replace: true 替换当前历史记录，避免点击返回时回到创建页面
       navigate(`/projects/${projectId}/tasks/${newTask.id}`, { replace: true })
     } catch (err: any) {
@@ -69,7 +69,7 @@ export default function NewTaskPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       {/* 页面头部 */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">创建任务</h1>
+        <h1 className="text-3xl font-bold text-gray-900">创建待办</h1>
         {project && (
           <p className="mt-2 text-gray-600">项目：{project.name}</p>
         )}
@@ -78,11 +78,11 @@ export default function NewTaskPage() {
       {/* 创建表单 */}
       <div className="bg-white rounded-lg shadow p-6">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* 父任务选择（可选） */}
+          {/* 父待办选择（可选） */}
           {tasks && tasks.length > 0 && (
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">
-                父任务（可选）
+                父待办（可选）
               </label>
               <select
                 value={parentId || ''}
@@ -95,7 +95,7 @@ export default function NewTaskPage() {
                   'bg-white'
                 )}
               >
-                <option value="">无（创建独立任务）</option>
+                <option value="">无（创建独立待办）</option>
                 {tasks.map((task) => (
                   <option key={task.id} value={task.id}>
                     {task.title}
@@ -103,7 +103,7 @@ export default function NewTaskPage() {
                 ))}
               </select>
               <p className="text-sm text-gray-500">
-                选择父任务后，此任务将作为子任务创建
+                选择父待办后，此待办将作为子待办创建
               </p>
             </div>
           )}
@@ -135,15 +135,15 @@ export default function NewTaskPage() {
             </div>
           )}
 
-          {/* 任务内容 */}
+          {/* 待办内容 */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-gray-700">
-              任务内容 <span className="text-error">*</span>
+              待办内容 <span className="text-error">*</span>
             </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="请输入任务内容..."
+              placeholder="请输入待办内容..."
               rows={6}
               className={clsx(
                 'w-full px-3 py-2 text-base',
@@ -155,7 +155,7 @@ export default function NewTaskPage() {
               required
             />
             <p className="text-sm text-gray-500">
-              支持多行文本，前 50 个字符将作为任务标题
+              支持多行文本，前 50 个字符将作为待办标题
             </p>
           </div>
           
@@ -174,7 +174,7 @@ export default function NewTaskPage() {
               loading={createTask.isPending}
               disabled={createTask.isPending}
             >
-              {createTask.isPending ? '创建中...' : '创建任务'}
+              {createTask.isPending ? '创建中...' : '创建待办'}
             </Button>
             
             <Button

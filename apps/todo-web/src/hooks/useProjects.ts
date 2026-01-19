@@ -63,10 +63,11 @@ export function useUpdateProject(projectId: string) {
   return useMutation({
     mutationFn: (input: UpdateProjectInput) => projectsApi.update(projectId, input),
     onSuccess: (data) => {
-      // 更新项目列表缓存
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
       // 更新项目详情缓存
       queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
+      // 更新项目列表缓存并主动刷新（确保侧边栏立即更新）
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.refetchQueries({ queryKey: ['projects'] })
     },
   })
 }
@@ -110,26 +111,41 @@ export function useProjectMembers(projectId: string) {
   
   return useQuery({
     queryKey: ['projects', projectId, 'members'],
-    queryFn: () => projectsApi.getMembers(projectId), // 不需要 user_id
+    queryFn: async () => {
+      console.log('🔄 [Hook] useProjectMembers 开始获取成员列表')
+      console.log('🔄 [Hook] 项目ID:', projectId)
+      const members = await projectsApi.getMembers(projectId)
+      console.log('🔄 [Hook] 获取成员列表成功，数量:', members.length)
+      return members
+    },
     enabled: !!projectId && isAuthenticated,
+    onSuccess: (data) => {
+      console.log('✅ [Hook] useProjectMembers 查询成功')
+      console.log('✅ [Hook] 返回的成员数据:', data)
+    },
+    onError: (error) => {
+      console.error('❌ [Hook] useProjectMembers 查询失败:', error)
+    },
   })
 }
 
 /**
  * 删除项目成员
+ * 注意：根据API文档，不需要 user_id 参数，网关会自动识别当前用户
+ * 权限：owner 和 admin 可以删除任何成员，任何成员都可以删除自己（离开项目）
  */
 export function useDeleteProjectMember(projectId: string) {
   const queryClient = useQueryClient()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   
   return useMutation({
-    mutationFn: async ({ targetUserId, currentUserId }: { targetUserId: number; currentUserId?: number }) => {
-      // 检查是否已登录
+    mutationFn: async ({ targetUserId }: { targetUserId: number }) => {
+      // 检查是否已登录（网关会自动识别用户，不需要传递 user_id）
       if (!isAuthenticated) {
         throw new Error('请先登录后再进行操作')
       }
-      // 根据 API 文档，需要传递 currentUserId 作为查询参数
-      return projectsApi.deleteMember(projectId, targetUserId, currentUserId)
+      // 根据API文档，不需要传递 currentUserId，网关会自动识别当前用户
+      return projectsApi.deleteMember(projectId, targetUserId)
     },
     onSuccess: () => {
       // 使成员列表缓存失效
@@ -144,23 +160,30 @@ export function useDeleteProjectMember(projectId: string) {
 
 /**
  * 设置成员角色
+ * 注意：根据API文档，不需要 user_id 参数，网关会自动识别当前用户
  */
 export function useSetMemberRole(projectId: string) {
   const queryClient = useQueryClient()
-  const user = useAuthStore((state) => state.user)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   
   return useMutation({
     mutationFn: async ({ targetUserId, role }: { targetUserId: number; role: 'admin' | 'member' }) => {
-      if (!user?.id) {
-        throw new Error('无法获取用户ID，请先登录')
+      // 检查是否已登录（网关会自动识别用户，不需要 user.id）
+      if (!isAuthenticated) {
+        throw new Error('请先登录后再进行操作')
       }
-      return projectsApi.setMemberRole(projectId, targetUserId, role, user.id)
+      // 根据API文档，不需要传递 currentUserId，网关会自动识别当前用户
+      return projectsApi.setMemberRole(projectId, targetUserId, role)
     },
     onSuccess: () => {
       // 使成员列表缓存失效
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'members'] })
       // 使项目详情缓存失效
       queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
+      // 使项目列表缓存失效（因为成员列表是从项目列表中获取的）
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      // 主动刷新成员列表
+      queryClient.refetchQueries({ queryKey: ['projects', projectId, 'members'] })
     },
   })
 }

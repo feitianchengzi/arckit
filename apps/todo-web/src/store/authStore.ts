@@ -13,6 +13,7 @@ import {
   isTokenExpired,
   shouldRefreshToken,
   getRefreshToken,
+  isRefreshTokenValid,
 } from '@/lib/utils/tokenManager'
 import { gatewayApi } from '@/lib/api/endpoints/gateway'
 
@@ -42,11 +43,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    * 注意：不再保存 userId，网关会自动从 Token 中解析
    */
   setAuth: (tokens: TokenInfo) => {
+    const now = Date.now()
     saveAuthInfo({
       accessToken: tokens.access_token,
       refreshToken: tokens.refresh_token,
-      tokenObtainedAt: Date.now(),
+      tokenObtainedAt: now,
       tokenExpiresIn: tokens.expires_in,
+      refreshTokenObtainedAt: now,
+      refreshExpiresIn: tokens.refresh_expires_in,
     })
 
     set({ isAuthenticated: true })
@@ -119,19 +123,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   checkAndRefreshAuth: async () => {
     const authInfo = getAuthInfo()
     
-    // 没有 token 或 refresh token
-    if (!authInfo || !authInfo.accessToken || !authInfo.refreshToken) {
+    // 步骤1: 检查 Refresh Token 是否存在且未过期
+    if (!isRefreshTokenValid()) {
+      console.warn('⚠️ Refresh Token 不存在或已过期，需要重新登录')
       clearAuthInfo()
-      set({ isAuthenticated: false })
+      set({ isAuthenticated: false, user: null })
+      // 跳转到登录页
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
       return false
     }
     
-    // 检查是否需要刷新
+    // 步骤2: 检查 Access Token 是否过期
     if (!shouldRefreshToken()) {
-      // 不需要刷新，token 仍然有效
+      // Access Token 未过期，认证有效
       set({ isAuthenticated: true })
       return true
     }
+    
+    // Access Token 已过期，需要刷新
     
     // 尝试刷新 token
     try {
@@ -142,11 +153,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
       
       // 保存新 token（保留原有用户信息）
+      const now = Date.now()
       saveAuthInfo({
         accessToken: response.data.tokens.access_token,
         refreshToken: response.data.tokens.refresh_token,
-        tokenObtainedAt: Date.now(),
+        tokenObtainedAt: now,
         tokenExpiresIn: response.data.tokens.expires_in,
+        refreshTokenObtainedAt: now,
+        refreshExpiresIn: response.data.tokens.refresh_expires_in,
         username: authInfo.username,
         avatarUrl: authInfo.avatarUrl,
       })

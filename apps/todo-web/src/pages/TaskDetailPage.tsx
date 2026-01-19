@@ -1,6 +1,6 @@
 
 /**
- * 任务详情页面（客户端组件）
+ * 待办详情页面（客户端组件）
  */
 
 import { useState } from 'react'
@@ -57,7 +57,7 @@ export default function TaskDetailPage() {
   
   // 加载状态
   if (isLoading) {
-    return <LoadingView size="lg" text="加载任务详情..." />
+    return <LoadingView size="lg" text="加载待办详情..." />
   }
   
   // 错误状态
@@ -65,7 +65,7 @@ export default function TaskDetailPage() {
     return (
       <ErrorView
         title="加载失败"
-        message="无法获取任务详情，请稍后重试"
+        message="无法获取待办详情，请稍后重试"
         onRetry={() => refetch()}
       />
     )
@@ -83,7 +83,7 @@ export default function TaskDetailPage() {
     setUpdateError('')
     
     if (!editContent.trim()) {
-      setUpdateError('任务内容不能为空')
+      setUpdateError('待办内容不能为空')
       return
     }
     
@@ -102,7 +102,7 @@ export default function TaskDetailPage() {
     setUpdateError('')
   }
   
-  // 删除任务
+  // 删除待办
   const handleDelete = async () => {
     try {
       await deleteTask.mutateAsync(taskId)
@@ -113,16 +113,16 @@ export default function TaskDetailPage() {
     }
   }
 
-  // 处理子任务状态变更
+  // 处理子待办状态变更
   const handleSubtaskStatusChange = async (subtaskId: number, newStatus: string) => {
     try {
       await updateStatus.mutateAsync({ taskId: subtaskId.toString(), status: newStatus })
     } catch (error) {
-      console.error('更新子任务状态失败:', error)
+      console.error('更新子待办状态失败:', error)
     }
   }
 
-  // 创建子任务
+  // 创建子待办
   const handleCreateSubtask = () => {
     navigate(`/projects/${projectId}/tasks/new?parentId=${taskId}`)
   }
@@ -192,7 +192,7 @@ export default function TaskDetailPage() {
           </button>
           
           <div>
-            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">任务详情</h1>
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">待办详情</h1>
             {project && (
               <p className="mt-1 text-sm md:text-base text-gray-600">项目：{project.name}</p>
             )}
@@ -219,7 +219,7 @@ export default function TaskDetailPage() {
         )}
       </div>
       
-      {/* 任务内容 */}
+      {/* 待办内容 */}
       <div className="bg-white rounded-lg shadow p-6 space-y-6">
         {/* 状态 */}
         <div className="space-y-2">
@@ -242,7 +242,7 @@ export default function TaskDetailPage() {
         
         {/* 内容 */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">任务内容</label>
+          <label className="text-sm font-medium text-gray-700">待办内容</label>
           
           {isEditing ? (
             <div className="space-y-3">
@@ -419,7 +419,7 @@ export default function TaskDetailPage() {
         </div>
       </div>
       
-      {/* 子任务 */}
+      {/* 子待办 */}
       <div className="bg-white rounded-lg shadow p-6">
         <SubtaskList
           subtasks={todo.children || []}
@@ -442,11 +442,11 @@ export default function TaskDetailPage() {
       {/* 删除确认对话框 */}
       <ConfirmDialog
         open={showDeleteConfirm}
-        title="删除任务"
+        title="删除待办"
         message={
           todo.children && todo.children.length > 0
-            ? `确定要删除这个任务吗？此任务有 ${todo.children.length} 个子任务，删除后子任务也会被删除。`
-            : '确定要删除这个任务吗？此操作不可撤销。'
+            ? `确定要删除这个待办吗？此待办有 ${todo.children.length} 个子待办，删除后子待办也会被删除。`
+            : '确定要删除这个待办吗？此操作不可撤销。'
         }
         confirmLabel="删除"
         cancelLabel="取消"

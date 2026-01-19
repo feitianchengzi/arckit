@@ -156,10 +156,10 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         {/* 项目列表（可展开） */}
         <ProjectList onItemClick={handleNavClick} />
         
-        {/* 我的任务 */}
+        {/* 我的待办 */}
         <NavItem
           icon={<TasksIcon />}
-          label="我的任务"
+          label="我的待办"
           href="/tasks"
           onClick={handleNavClick}
         />

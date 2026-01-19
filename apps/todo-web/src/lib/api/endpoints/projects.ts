@@ -129,40 +129,77 @@ export const projectsApi = {
    * 成员列表包含在项目详情中，我们从项目列表中查找对应的项目并返回其成员
    */
   getMembers: async (projectId: string, userId?: number) => {
+    console.log('👥 [获取成员列表] 开始获取项目成员列表')
+    console.log('👥 [获取成员列表] 项目ID:', projectId)
+    
     // 后端没有单独的获取成员列表接口，我们从项目列表中查找对应的项目
     const projects = await projectsApi.list()
+    console.log('👥 [获取成员列表] 项目列表数量:', projects.length)
+    
     const project = projects.find((p) => p.id.toString() === projectId)
     
     if (!project) {
+      console.error('❌ [获取成员列表] 项目不存在，项目ID:', projectId)
       throw new Error('项目不存在')
     }
     
     // 返回项目的成员列表
     const members = project.members || []
-    console.log('👥 获取项目成员列表，项目ID:', projectId, '成员数量:', members.length)
+    console.log('👥 [获取成员列表] 成员数量:', members.length)
+    console.log('👥 [获取成员列表] 成员详细信息:')
+    members.forEach((member: any, index: number) => {
+      console.log(`👥 [获取成员列表] 成员 ${index + 1}:`, {
+        id: member.id,
+        project_id: member.project_id,
+        user_id: member.user_id,
+        role: member.role,
+        username: member.username || member.user?.username,
+        avatar: member.avatar || member.user?.avatar,
+        created_at: member.created_at,
+        updated_at: member.updated_at,
+        user: member.user,
+      })
+    })
+    console.log('👥 [获取成员列表] 完整成员列表:', JSON.stringify(members, null, 2))
     return members
   },
   
   /**
    * 删除项目成员
    * 后端路由: DELETE /workshop/v1/user/projects/:id/members
-   * 注意：根据API文档，需要 user_id 查询参数（当前用户ID，数据库ID）
+   * 注意：根据API文档，不需要 user_id 参数，网关会自动识别当前用户
+   * 权限：owner 和 admin 可以删除任何成员，任何成员都可以删除自己（离开项目）
    * 请求体: { target_user_id: number }
    */
-  deleteMember: async (projectId: string, targetUserId: number, currentUserId?: number): Promise<void> => {
-    console.log('🗑️ 删除项目成员, 项目ID:', projectId, '目标用户ID:', targetUserId, '当前用户ID:', currentUserId)
+  deleteMember: async (projectId: string, targetUserId: number): Promise<void> => {
+    console.log('🗑️ [删除成员] 开始删除项目成员')
+    console.log('🗑️ [删除成员] 项目ID:', projectId)
+    console.log('🗑️ [删除成员] 目标用户ID:', targetUserId)
+    console.log('🗑️ [删除成员] 请求URL:', `/user/projects/${projectId}/members`)
+    console.log('🗑️ [删除成员] 请求体:', JSON.stringify({ target_user_id: targetUserId }))
     
-    // 构建查询参数
-    const params: Record<string, string> = {}
-    if (currentUserId) {
-      params.user_id = currentUserId.toString()
+    try {
+      const response = await apiClient.delete(`/user/projects/${projectId}/members`, {
+        data: { target_user_id: targetUserId }, // 请求体
+      })
+      console.log('✅ [删除成员] 请求成功')
+      console.log('✅ [删除成员] 响应状态:', response.status)
+      console.log('✅ [删除成员] 响应数据:', JSON.stringify(response.data))
+      console.log('✅ [删除成员] 成员删除成功')
+    } catch (error: any) {
+      console.error('❌ [删除成员] 请求失败')
+      console.error('❌ [删除成员] 错误类型:', error.name)
+      console.error('❌ [删除成员] 错误消息:', error.message)
+      console.error('❌ [删除成员] 响应状态:', error.response?.status)
+      console.error('❌ [删除成员] 响应数据:', JSON.stringify(error.response?.data))
+      console.error('❌ [删除成员] 请求配置:', JSON.stringify({
+        url: error.config?.url,
+        method: error.config?.method,
+        data: error.config?.data,
+        headers: error.config?.headers,
+      }))
+      throw error
     }
-    
-    await apiClient.delete(`/user/projects/${projectId}/members`, {
-      params, // 查询参数
-      data: { target_user_id: targetUserId }, // 请求体
-    })
-    console.log('✅ 成员删除成功')
   },
   
   /**
@@ -175,8 +212,7 @@ export const projectsApi = {
   setMemberRole: async (
     projectId: string, 
     targetUserId: number, 
-    role: 'admin' | 'member',
-    currentUserId?: number
+    role: 'admin' | 'member'
   ) => {
     console.log('👤 设置成员角色, 项目ID:', projectId, '目标用户ID:', targetUserId, '新角色:', role)
     const response = await apiClient.put(

@@ -8,7 +8,7 @@
  */
 
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
-import { getAccessToken, shouldRefreshToken, getRefreshToken, saveAuthInfo, clearAuthInfo, getAuthInfo } from '@/lib/utils/tokenManager'
+import { getAccessToken, shouldRefreshToken, getRefreshToken, saveAuthInfo, clearAuthInfo, getAuthInfo, isRefreshTokenValid } from '@/lib/utils/tokenManager'
 import { gatewayApi } from './endpoints/gateway'
 
 // Workshop 后端基础URL
@@ -48,10 +48,27 @@ function processQueue(error: any, token: string | null = null) {
 
 /**
  * 请求拦截器：自动添加 Token 和检查刷新
+ * 
+ * 逻辑流程：
+ * 1. 检查 Refresh Token 是否存在且未过期
+ *    - 如果不存在或过期 → 清除认证信息 → 跳转登录页
+ * 2. 检查 Access Token 是否过期
+ *    - 如果过期且 Refresh Token 有效 → 使用 Refresh Token 刷新 Access Token
+ *    - 如果未过期 → 继续请求
  */
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
-    // 检查是否需要刷新 Token
+    // 步骤1: 检查 Refresh Token 是否存在且未过期
+    if (!isRefreshTokenValid()) {
+      console.warn('⚠️ Refresh Token 不存在或已过期，跳转登录页')
+      clearAuthInfo()
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
+      return Promise.reject(new Error('Refresh token invalid or expired'))
+    }
+
+    // 步骤2: 检查 Access Token 是否过期，如果过期则刷新
     if (shouldRefreshToken() && !isRefreshing) {
       isRefreshing = true
 
@@ -61,7 +78,7 @@ apiClient.interceptors.request.use(
           throw new Error('No refresh token')
         }
 
-        console.log('🔄 Token 即将过期，自动刷新...')
+        console.log('🔄 Access Token 已过期，使用 Refresh Token 刷新...')
         
         // 调用刷新接口
         const response = await gatewayApi.refreshToken({
@@ -69,17 +86,20 @@ apiClient.interceptors.request.use(
         })
 
         // 保存新 Token（保留原有用户信息）
-        const authInfo = getAuthInfo()
+        const currentAuthInfo = getAuthInfo()
+        const now = Date.now()
         saveAuthInfo({
           accessToken: response.data.tokens.access_token,
           refreshToken: response.data.tokens.refresh_token,
-          tokenObtainedAt: Date.now(),
+          tokenObtainedAt: now,
           tokenExpiresIn: response.data.tokens.expires_in,
-          username: authInfo?.username,
-          avatarUrl: authInfo?.avatarUrl,
+          refreshTokenObtainedAt: now,
+          refreshExpiresIn: response.data.tokens.refresh_expires_in,
+          username: currentAuthInfo?.username,
+          avatarUrl: currentAuthInfo?.avatarUrl,
         })
 
-        console.log('✅ Token 刷新成功')
+        console.log('✅ Access Token 刷新成功')
         
         // 处理等待队列
         processQueue(null, response.data.tokens.access_token)

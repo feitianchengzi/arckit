@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * SubtaskList - 子任务列表组件
+ * SubtaskList - 子待办列表组件
  */
 
 import { useNavigate } from 'react-router-dom'
@@ -30,22 +30,22 @@ export function SubtaskList({
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">子任务</h3>
+          <h3 className="text-lg font-semibold text-gray-900">子待办</h3>
           {onCreateSubtask && (
             <Button
               variant="primary"
               size="sm"
               onClick={onCreateSubtask}
             >
-              创建子任务
+              创建子待办
             </Button>
           )}
         </div>
         
         <EmptyStateView
-          title="还没有子任务"
-          message="创建第一个子任务来分解任务"
-          actionLabel="创建子任务"
+          title="还没有子待办"
+          message="创建第一个子待办来分解待办"
+          actionLabel="创建子待办"
           onAction={onCreateSubtask}
         />
       </div>
@@ -56,7 +56,7 @@ export function SubtaskList({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900">
-          子任务 ({subtasks.length})
+          子待办 ({subtasks.length})
         </h3>
         {onCreateSubtask && (
           <Button
@@ -64,7 +64,7 @@ export function SubtaskList({
             size="sm"
             onClick={onCreateSubtask}
           >
-            创建子任务
+            创建子待办
           </Button>
         )}
       </div>
