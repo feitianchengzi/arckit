@@ -149,6 +149,7 @@ export interface CreateInvitationInput {
   project_id: number
   role: ProjectRole
   expires_in_hours?: number // 0 表示永不过期
+  max_uses?: number // 最大使用次数，不传则默认1
 }
 
 // ==================== API Response ====================
