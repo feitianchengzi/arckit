@@ -411,6 +411,7 @@ func UpdateProject(c *gin.Context) {
 type InviteProjectMemberRequest struct {
 	Role      string `json:"role,omitempty"`       // 邀请的角色（可选，默认为member）
 	ExpiresIn int    `json:"expires_in,omitempty"` // 过期时间（小时，可选，0表示永不过期）
+	MaxUses   int    `json:"max_uses,omitempty"`   // 最大使用次数（可选，默认1）
 }
 
 // InviteProjectMemberResponse 邀请项目成员响应结构
@@ -418,6 +419,8 @@ type InviteProjectMemberResponse struct {
 	InviteCode string `json:"invite_code"`          // 邀请码
 	InviteLink string `json:"invite_link"`          // 邀请链接
 	Role       string `json:"role"`                 // 角色
+	MaxUses    int    `json:"max_uses"`             // 最大使用次数
+	UsedCount  int    `json:"used_count"`           // 已使用次数
 	ExpiresAt  string `json:"expires_at,omitempty"` // 过期时间
 	CreatedAt  string `json:"created_at"`           // 创建时间
 }
@@ -433,7 +436,7 @@ type InviteProjectMemberResponse struct {
 // 2. 查询项目
 // 3. 验证用户权限（owner/admin）
 // 4. 生成邀请码
-// 5. 创建邀请记录
+// 5. 创建邀请记录（支持设置最大使用次数，默认1）
 // 6. 返回邀请码和邀请链接
 func InviteProjectMember(c *gin.Context) {
 	// 1. 获取项目ID
@@ -513,13 +516,21 @@ func InviteProjectMember(c *gin.Context) {
 		expiresAt = &exp
 	}
 
-	// 12. 创建邀请记录
+	// 12. 设置最大使用次数（默认1）
+	maxUses := req.MaxUses
+	if maxUses <= 0 {
+		maxUses = 1
+	}
+
+	// 13. 创建邀请记录
 	invitation := models.ProjectInvitation{
 		ProjectID:  project.ID,
 		InviteCode: inviteCode,
 		Role:       role,
 		InviterID:  userID,
 		ExpiresAt:  expiresAt,
+		MaxUses:    maxUses,
+		UsedCount:  0,
 	}
 
 	if err := db.Create(&invitation).Error; err != nil {
@@ -527,18 +538,20 @@ func InviteProjectMember(c *gin.Context) {
 		return
 	}
 
-	// 13. 构建响应
+	// 14. 构建响应
 	inviteResp := InviteProjectMemberResponse{
 		InviteCode: inviteCode,
 		InviteLink: buildInviteLink(inviteCode),
 		Role:       role,
+		MaxUses:    invitation.MaxUses,
+		UsedCount:  invitation.UsedCount,
 		CreatedAt:  invitation.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	if expiresAt != nil {
 		inviteResp.ExpiresAt = expiresAt.Format("2006-01-02T15:04:05Z07:00")
 	}
 
-	// 14. 返回成功响应
+	// 15. 返回成功响应
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(inviteResp))
 }
 
@@ -564,10 +577,10 @@ type JoinProjectResponse struct {
 // 1. 从请求获取用户ID
 // 2. 解析邀请码
 // 3. 查询邀请记录
-// 4. 验证邀请是否有效（未过期、未使用）
+// 4. 验证邀请是否有效（未过期、未达到最大使用次数）
 // 5. 检查用户是否已经是项目成员
 // 6. 创建项目成员关系
-// 7. 标记邀请为已使用
+// 7. 增加邀请使用计数
 // 8. 返回加入成功信息
 func JoinProject(c *gin.Context) {
 	// 1. 解析请求体
@@ -601,15 +614,15 @@ func JoinProject(c *gin.Context) {
 		return
 	}
 
-	// 5. 验证邀请是否已使用
-	if invitation.IsUsed() {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectInviteUsed, "该邀请码已被使用", nil))
+	// 5. 验证邀请是否过期
+	if invitation.IsExpired() {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectInviteExpired, "该邀请码已过期", nil))
 		return
 	}
 
-	// 6. 验证邀请是否过期
-	if invitation.IsExpired() {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectInviteExpired, "该邀请码已过期", nil))
+	// 6. 验证邀请是否已达到最大使用次数
+	if invitation.IsUsed() {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectInviteUsed, "该邀请码已达到最大使用次数", nil))
 		return
 	}
 
@@ -636,7 +649,7 @@ func JoinProject(c *gin.Context) {
 		return
 	}
 
-	// 9. 在事务中创建项目成员并标记邀请为已使用
+	// 9. 在事务中创建项目成员并增加邀请使用计数
 	var newMember models.ProjectMember
 	err = db.Transaction(func(tx *gorm.DB) error {
 		// 创建项目成员
@@ -649,9 +662,13 @@ func JoinProject(c *gin.Context) {
 			return err
 		}
 
-		// 标记邀请为已使用
-		now := time.Now()
-		invitation.UsedAt = &now
+		// 增加邀请使用计数
+		invitation.UsedCount++
+		// 如果是首次使用，记录首次使用时间（用于兼容）
+		if invitation.UsedAt == nil {
+			now := time.Now()
+			invitation.UsedAt = &now
+		}
 		if err := tx.Save(&invitation).Error; err != nil {
 			return err
 		}

@@ -76,7 +76,9 @@ type ProjectInvitation struct {
 	Role       string     `json:"role" gorm:"type:varchar(50);not null;default:'member'"`   // 邀请的角色（默认member）
 	InviterID  uint       `json:"inviter_id" gorm:"not null;index"`                         // 外键：邀请者ID
 	ExpiresAt  *time.Time `json:"expires_at,omitempty" gorm:"index"`                        // 过期时间（可选）
-	UsedAt     *time.Time `json:"used_at,omitempty"`                                        // 使用时间（已使用则不为空）
+	MaxUses    int        `json:"max_uses" gorm:"not null;default:1"`                       // 最大使用次数（默认1）
+	UsedCount  int        `json:"used_count" gorm:"not null;default:0"`                     // 已使用次数
+	UsedAt     *time.Time `json:"used_at,omitempty"`                                        // 首次使用时间（保留用于兼容）
 	CreatedAt  time.Time  `json:"created_at" gorm:"autoCreateTime"`                         // 创建时间
 	UpdatedAt  time.Time  `json:"updated_at" gorm:"autoUpdateTime"`                         // 更新时间
 
@@ -97,7 +99,7 @@ func (pi *ProjectInvitation) IsExpired() bool {
 	return time.Now().After(*pi.ExpiresAt)
 }
 
-// IsUsed 检查邀请是否已被使用
+// IsUsed 检查邀请是否已达到最大使用次数
 func (pi *ProjectInvitation) IsUsed() bool {
-	return pi.UsedAt != nil
+	return pi.UsedCount >= pi.MaxUses
 }
