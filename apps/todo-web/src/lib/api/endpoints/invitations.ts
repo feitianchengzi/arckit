@@ -10,6 +10,7 @@ export interface CreateInvitationInput {
   project_id: number
   role: ProjectRole
   expires_in_hours?: number // 0 表示永不过期
+  max_uses?: number // 最大使用次数，不传则默认1
 }
 
 export const invitationsApi = {
@@ -20,12 +21,19 @@ export const invitationsApi = {
    * 响应格式: { code: 'OK', data: { invite_code, invite_link, role, expires_at, created_at } }
    */
   create: async (input: CreateInvitationInput): Promise<ProjectInvitation> => {
+    const requestBody: any = {
+      role: input.role,
+      expires_in: input.expires_in_hours || 0, // 后端参数名是 expires_in（小时数）
+    }
+    
+    // 如果提供了 max_uses，则添加到请求体中
+    if (input.max_uses !== undefined && input.max_uses !== null) {
+      requestBody.max_uses = input.max_uses
+    }
+    
     const response = await apiClient.post(
       `/user/projects/${input.project_id}/invitations`,
-      {
-        role: input.role,
-        expires_in: input.expires_in_hours || 0, // 后端参数名是 expires_in（小时数）
-      }
+      requestBody
     )
     
     const data = handleResponse<{

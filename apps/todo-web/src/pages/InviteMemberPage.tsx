@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, LoadingView, ErrorView, RoleSelect } from '@/components/ui'
+import { Button, LoadingView, ErrorView, RoleSelect, TextField } from '@/components/ui'
 import { useProject } from '@/hooks/useProjects'
 import { useCreateInvitation } from '@/hooks/useInvitations'
 import type { ProjectRole } from '@/types'
@@ -20,6 +20,7 @@ export default function InviteMemberPage() {
   
   const [role, setRole] = useState<ProjectRole>('member')
   const [expiresInHours, setExpiresInHours] = useState('24')
+  const [maxUses, setMaxUses] = useState('') // 邀请人数，可选
   const [inviteCode, setInviteCode] = useState('')
   const [inviteLink, setInviteLink] = useState('')
   const [error, setError] = useState('')
@@ -42,11 +43,21 @@ export default function InviteMemberPage() {
     setInviteLink('')
     
     try {
-      const invitation = await createInvitation.mutateAsync({
+      const invitationInput: any = {
         project_id: parseInt(projectId),
         role,
         expires_in_hours: parseInt(expiresInHours) || 0,
-      })
+      }
+      
+      // 如果输入了邀请人数，添加到请求中
+      if (maxUses.trim() !== '') {
+        const maxUsesNum = parseInt(maxUses)
+        if (!isNaN(maxUsesNum) && maxUsesNum > 0) {
+          invitationInput.max_uses = maxUsesNum
+        }
+      }
+      
+      const invitation = await createInvitation.mutateAsync(invitationInput)
       
       setInviteCode(invitation.invite_code)
       
@@ -131,6 +142,22 @@ export default function InviteMemberPage() {
             <option value="168">7 天</option>
             <option value="0">永不过期</option>
           </select>
+        </div>
+        
+        {/* 邀请人数 */}
+        <div className="space-y-2">
+          <TextField
+            id="maxUses"
+            label="邀请人数（可选）"
+            type="number"
+            min="1"
+            value={maxUses}
+            onChange={(e) => setMaxUses(e.target.value)}
+            placeholder="留空则默认1人"
+            helperText="不填写则默认1人，填写后该邀请码可被指定次数的人使用"
+            disabled={createInvitation.isPending}
+            fullWidth
+          />
         </div>
         
         {/* 生成按钮 */}
