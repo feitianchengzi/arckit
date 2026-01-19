@@ -9,16 +9,16 @@
 
 **后端**：采用 **Go + Gin + GORM + PostgreSQL**（已实现），提供高性能的 RESTful API，支持网关统一认证架构。
 
-**前端**：采用 **React 18 + Next.js 14 (App Router) + TypeScript**，提供现代化的 SPA 体验，通过 HTTP 客户端对接后端 API。
+**前端**：采用 **React 18.2.0 + Vite 5.0.8 + React Router 6.21.1 + TypeScript**，提供现代化的 SPA 体验，通过 HTTP 客户端对接后端 API。前端托管在阿里云 OSS 静态网站托管。
 
 ## Technical Context
 
 **Language/Version**: 
 - Frontend: TypeScript 5+
-- Backend: Go 1.24+ (已实现)
+- Backend: Go 1.21+ (已实现)
 
 **Primary Dependencies**: 
-- Frontend: React 18, Next.js 14, Tailwind CSS, Zustand, React Query, Axios
+- Frontend: React 18.2.0, Vite 5.0.8, React Router 6.21.1, Tailwind CSS 3.4.0, Zustand 4.4.7, React Query 5.17.9, Axios 1.6.5, React Hook Form 7.49.3, Zod 3.22.4, react-i18next 14.0.0
 - Backend: Gin, GORM, PostgreSQL (已实现)
 
 **Storage**: PostgreSQL (通过 GORM)  
@@ -41,6 +41,19 @@
 - 国际化支持（中英文）
 - DesignTokens 设计系统（无硬编码设计值）
 
+**技术演进历史**：
+- **Phase 1**: Next.js 14 App Router（已弃用）
+  - 遇到问题：静态导出限制（`generateStaticParams` bug）、路由组冲突、Middleware 不工作、构建复杂度高
+- **Phase 2**: Vite + React（当前方案）✅
+  - 迁移时间：2026-01-15
+  - 迁移原因：
+    1. ✅ 更简单的静态部署（无 SSR 复杂性）
+    2. ✅ 更快的开发体验（HMR 更快）
+    3. ✅ 更灵活的路由配置（React Router）
+    4. ✅ 避免 Next.js 静态导出的 Bug
+  - 构建性能提升：构建时间从 30-60 秒降至 1.06 秒（提升 30-60x），构建产物从 1.6M 降至 385KB（减小 76%）
+  - 环境变量变更：`NEXT_PUBLIC_*` → `VITE_*`
+
 **Scale/Scope**: 
 - 用户规模: 100+ 并发用户
 - 页面数量: 9 个主要页面
@@ -48,8 +61,9 @@
 - 数据实体: User, Project, Todo, ProjectInvitation, TodoStatusHistory
 
 **Technology Stack** (Constitution Requirement):
-- **Backend**: Go 1.24+ + Gin + GORM + PostgreSQL（已实现）
-- **Web Frontend**: React 18 + Next.js 14 (App Router) + TypeScript
+- **Backend**: Go 1.21+ + Gin + GORM + PostgreSQL（已实现），采用 API Gateway 微服务架构
+- **Web Frontend**: React 18.2.0 + Vite 5.0.8 + React Router 6.21.1 + TypeScript（已实现）
+- **部署**: 阿里云 OSS 静态网站托管（前端）+ 微服务集群（后端）
 - **iOS**: N/A (Web only)
 - **Android**: N/A (Web only)
 
@@ -70,9 +84,9 @@
   - ✅ 动态字体：支持浏览器字体缩放
 
 - **性能 (Performance)**：
-  - ✅ UI 流畅度：目标 60fps（使用 React 18 Concurrent Features，Next.js 优化）
+  - ✅ UI 流畅度：目标 60fps（使用 React 18 Concurrent Features，Vite 优化）
   - ✅ 响应时间：用户交互响应 <100ms（客户端状态更新）
-  - ✅ 页面加载：首屏内容 <500ms（Next.js 自动代码分割、预加载）
+  - ✅ 页面加载：首屏内容 <500ms（Vite 代码分割、构建优化）
   - ✅ 数据刷新：<1s（React Query 缓存和后台更新）
 
 - **国际化 (Internationalization)**：
@@ -94,9 +108,9 @@
     - 设计值从 DesignTokens 读取，无硬编码（使用 Tailwind CSS + CSS Variables）
     - 可访问性：支持键盘导航和屏幕阅读器
   - ✅ **性能要求**：
-    - UI 目标：60fps（React 18 + Next.js 优化）
+    - UI 目标：60fps（React 18 + Vite 优化）
     - 交互响应：<100ms（客户端状态更新）
-    - 构建优化：Next.js 自动代码分割、图片优化
+    - 构建优化：Vite 代码分割、手动分包（react-vendor, ui-vendor）
 
 ## Project Structure
 
@@ -116,85 +130,151 @@ specs/main/
 
 ```text
 workshop-todo-website/
-├── frontend/                 # Next.js 前端项目
-│   ├── app/                 # App Router (Next.js 13+)
-│   │   ├── (auth)/          # 路由组：认证相关（如需要）
-│   │   │   ├── login/       # 登录页面（可选，如果网关已处理）
-│   │   │   └── register/    # 注册页面（可选，如果网关已处理）
-│   │   ├── (dashboard)/     # 路由组：主应用（包含 Sidebar）
-│   │   │   ├── projects/    # 项目列表
-│   │   │   ├── projects/[id]/ # 项目详情
-│   │   │   │   ├── tasks/   # 任务列表（嵌套路由）
-│   │   │   │   └── invite/  # 邀请成员
-│   │   │   └── tasks/       # 全局任务列表
-│   │   ├── layout.tsx      # 根布局
-│   │   └── page.tsx        # 首页（重定向到项目列表）
-│   ├── components/          # 组件
-│   │   ├── ui/             # 基础 UI 组件（基于 DesignTokens）
-│   │   │   ├── Button.tsx
-│   │   │   ├── TextField.tsx
-│   │   │   ├── Select.tsx
-│   │   │   ├── Label.tsx
-│   │   │   ├── LoadingView.tsx
-│   │   │   ├── ErrorView.tsx
-│   │   │   └── EmptyStateView.tsx
-│   │   ├── layout/         # 布局组件
-│   │   │   ├── Sidebar.tsx # 侧边栏（用户头像、设置、导航）
-│   │   │   └── MainLayout.tsx # 主布局（Sidebar + 主内容区）
-│   │   └── features/       # 功能组件
-│   │       ├── ProjectCard.tsx
-│   │       ├── TaskItem.tsx
-│   │       ├── MemberList.tsx
-│   │       └── InviteCodeDisplay.tsx
-│   ├── hooks/              # 自定义 Hooks
-│   │   ├── useAuth.ts      # 与网关认证集成
-│   │   ├── useProjects.ts
-│   │   └── useTasks.ts
-│   ├── store/              # Zustand 状态管理
-│   │   ├── authStore.ts    # 存储用户信息（从网关获取）
-│   │   └── uiStore.ts
-│   ├── lib/                # 工具库
-│   │   ├── api/           # API 客户端
-│   │   │   ├── client.ts  # Axios 实例（配置后端 API 地址）
-│   │   │   └── endpoints/ # API 端点定义
-│   │   │       ├── projects.ts
-│   │   │       ├── tasks.ts
-│   │   │       ├── users.ts
-│   │   │       └── invitations.ts
-│   │   ├── utils/         # 工具函数
-│   │   ├── design-tokens/ # DesignTokens 定义
-│   │   │   └── tokens.ts  # CSS Variables + TypeScript 类型
-│   │   └── i18n/          # 国际化
-│   │       ├── config.ts
-│   │       └── locales/
-│   ├── public/            # 静态资源
-│   ├── next.config.js     # Next.js 配置
-│   ├── tailwind.config.js # Tailwind 配置（使用 DesignTokens）
-│   ├── tsconfig.json
-│   └── package.json
-├── server/                  # Go 后端（已实现，不修改）
-│   ├── main.go             # 应用入口
-│   ├── router/             # 路由配置
-│   ├── handler/            # 业务处理器
-│   ├── middleware/         # 中间件
-│   ├── models/             # 数据模型（GORM）
-│   ├── database/           # 数据库配置
-│   ├── api/                # API 文档
-│   ├── docker-compose.yml  # Docker 配置
-│   ├── go.mod              # Go 依赖
-│   └── README.md           # 后端文档
+├── frontend/                 # Vite + React 前端项目（已实现）
+│   ├── index.html           # 入口 HTML
+│   ├── vite.config.ts       # Vite 配置
+│   ├── tsconfig.json        # TypeScript 配置
+│   ├── tailwind.config.ts   # Tailwind CSS 配置
+│   ├── package.json         # 依赖管理
+│   ├── .env.local           # 本地环境变量
+│   │
+│   ├── src/
+│   │   ├── main.tsx         # 应用入口
+│   │   ├── App.tsx          # React Router 路由配置
+│   │   ├── globals.css      # 全局样式
+│   │   ├── vite-env.d.ts    # Vite 类型声明
+│   │   │
+│   │   ├── pages/           # 页面组件
+│   │   │   ├── LoginPage.tsx
+│   │   │   ├── ProjectsPage.tsx
+│   │   │   ├── ProjectDetailPage.tsx
+│   │   │   ├── TaskDetailPage.tsx
+│   │   │   └── ...
+│   │   │
+│   │   ├── components/      # UI 组件
+│   │   │   ├── ui/          # 基础 UI 组件（基于 DesignTokens）
+│   │   │   │   ├── Button.tsx
+│   │   │   │   ├── TextField.tsx
+│   │   │   │   ├── Select.tsx
+│   │   │   │   ├── Label.tsx
+│   │   │   │   ├── LoadingView.tsx
+│   │   │   │   ├── ErrorView.tsx
+│   │   │   │   └── EmptyStateView.tsx
+│   │   │   ├── layout/      # 布局组件
+│   │   │   │   ├── Sidebar.tsx
+│   │   │   │   └── DashboardLayout.tsx
+│   │   │   ├── features/    # 功能组件
+│   │   │   │   ├── ProjectCard.tsx
+│   │   │   │   ├── TodoItem.tsx
+│   │   │   │   ├── SubtaskList.tsx
+│   │   │   │   ├── MemberList.tsx
+│   │   │   │   └── InviteCodeDisplay.tsx
+│   │   │   └── auth/        # 认证组件
+│   │   │       └── AuthGuard.tsx
+│   │   │
+│   │   ├── hooks/           # 自定义 Hooks
+│   │   │   ├── useAuth.ts   # 与网关认证集成
+│   │   │   ├── useProjects.ts
+│   │   │   └── useTasks.ts
+│   │   │
+│   │   ├── store/           # Zustand 状态管理
+│   │   │   ├── authStore.ts # 存储用户信息（从网关获取）
+│   │   │   └── uiStore.ts
+│   │   │
+│   │   ├── lib/             # 工具库
+│   │   │   ├── api/         # API 客户端
+│   │   │   │   ├── client.ts # Axios 实例（配置后端 API 地址）
+│   │   │   │   └── endpoints/ # API 端点定义
+│   │   │   │       ├── auth.ts
+│   │   │   │       ├── projects.ts
+│   │   │   │       ├── tasks.ts
+│   │   │   │       ├── users.ts
+│   │   │   │       └── invitations.ts
+│   │   │   ├── utils/       # 工具函数
+│   │   │   │   ├── tokenManager.ts
+│   │   │   │   └── taskMapper.ts
+│   │   │   ├── design-tokens/ # DesignTokens 定义
+│   │   │   │   └── tokens.css # CSS Variables
+│   │   │   └── i18n/        # 国际化
+│   │   │       └── index.ts
+│   │   │
+│   │   ├── types/           # TypeScript 类型
+│   │   │   ├── index.ts
+│   │   │   └── auth.ts
+│   │   │
+│   │   └── layouts/         # 布局组件
+│   │       └── DashboardLayout.tsx
+│   │
+│   ├── scripts/             # 构建脚本
+│   │   ├── build-vite.sh    # Vite 构建脚本
+│   │   └── diagnose-online-issue.sh
+│   │
+│   └── dist/                # 构建输出（自动生成，部署到 OSS）
+│       ├── index.html
+│       └── assets/
+├── server/                  # Go 后端微服务集群（已实现）
+│   ├── auth-service/        # 认证服务
+│   │   ├── main.go
+│   │   ├── router/
+│   │   ├── handler/
+│   │   └── ...
+│   ├── user-service/        # 用户服务
+│   │   ├── main.go
+│   │   ├── router/
+│   │   ├── handler/
+│   │   └── ...
+│   ├── workshop-service/    # 业务服务（项目、任务）
+│   │   ├── main.go
+│   │   ├── router/
+│   │   ├── handler/
+│   │   ├── middleware/
+│   │   ├── models/          # 数据模型（GORM）
+│   │   ├── database/        # 数据库配置
+│   │   ├── api/             # API 文档
+│   │   ├── docker-compose.yml
+│   │   ├── go.mod
+│   │   └── README.md
+│   └── gateway/             # API Gateway（JWT 认证、路由转发）
 ├── specs/                   # 设计文档
 └── README.md
 ```
 
 **Structure Decision**: 
-采用 **Web application (frontend + backend)** 结构。
+采用 **Web application (frontend + backend microservices)** 结构。
 
-**前端**：使用 Next.js 14 App Router，支持 SPA 模式（`output: 'export'`），同时保留未来扩展 SSR 的能力。
+**前端**：使用 **Vite 5.0.8 + React 18.2.0 + React Router 6.21.1**（已实现，从 Next.js 14 App Router 迁移而来）。采用 SPA 模式，部署在阿里云 OSS 静态网站托管。构建产物自动分包（react-vendor, ui-vendor）以优化加载性能。
 
-**后端**：使用 Go + Gin + GORM（已实现），采用网关统一认证架构，通过 RESTful API 提供服务。API 路由格式：`/{service}/v1/{auth_level}/{path}`。
+**技术迁移历史**：
+- **Phase 1**: Next.js 14 App Router（已弃用）
+  - 问题：静态导出限制、路由组冲突、Middleware 不工作、构建复杂度高
+- **Phase 2**: Vite + React（当前方案）✅
+  - 优势：更简单的静态部署、更快的开发体验（HMR）、更灵活的路由配置、避免 Next.js 静态导出 Bug
 
-**对接方式**：前端通过 Axios 调用后端 API，后端从请求头（`X-User-ID`, `X-User-Username`）获取用户信息（由网关转发）。
+**后端**：使用 **Go 1.21+ + Gin + GORM + PostgreSQL**（已实现），采用 **API Gateway 微服务架构**。微服务包括：
+- **Auth Service**：认证服务（登录、注册、Token 刷新）
+- **User Service**：用户服务（用户管理、个人信息）
+- **Workshop Service**：业务服务（项目、任务、成员、邀请）
+
+**API 路由格式**：`/{service}/v1/{auth_level}/{path}`
+- 示例：`/auth-server/v1/public/login`、`/workshop/v1/user/projects`
+
+**认证机制**：
+- JWT Token 结构：Access Token（15分钟）+ Refresh Token（7天）
+- API Gateway 验证 JWT Token，注入 `X-User-ID` header 到下游服务
+- 下游服务通过 header 获取用户信息，无需再次验证 Token
+
+**对接方式**：
+- 前端通过 Axios 调用 API Gateway（`https://api.feitianchengzi.com`）
+- 网关验证 Token 后转发到对应的微服务
+- 后端从请求头（`X-User-ID`, `X-User-Username`）获取用户信息（由网关注入）
+
+**部署架构**：
+- **前端**：阿里云 OSS 静态网站托管
+  - 域名：`workshop.feitianchengzi.com`
+  - 配置：SPA 路由支持（错误文档 → index.html）
+- **后端**：微服务集群 + API Gateway
+  - 域名：`api.feitianchengzi.com`
+  - 功能：JWT 认证、请求转发、用户信息注入
 
 ## Complexity Tracking
 
@@ -207,5 +287,6 @@ workshop-todo-website/
 ---
 
 **版本**: 1.0.0  
-**最后更新**: 2024-12-19
+**最后更新**: 2026-01-16  
+**更新说明**: 根据实际架构文档更新技术栈（Vite + React Router 替代 Next.js）和部署方案（阿里云 OSS）
 

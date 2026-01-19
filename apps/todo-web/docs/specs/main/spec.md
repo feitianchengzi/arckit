@@ -128,14 +128,29 @@
 
 ### Edge Cases
 
-- 当用户删除项目时，项目中的所有待办事项如何处理？
-- 当被邀请的用户账户不存在时，邀请如何处理？
-- 当待办事项的执行人离开项目时，待办事项如何处理？
-- 当用户尝试创建循环的子待办关系时（A是B的子待办，B又是A的子待办），系统如何处理？
-- 当多个用户同时编辑同一个待办事项时，如何处理冲突？
-- 当项目成员数量达到上限时，如何处理新的邀请？
-- 当待办事项的创建人被移除项目时，待办事项的所有权如何处理？
-- 当用户尝试将待办流转到已禁用的状态时，如何处理？
+- **当用户删除项目时，项目中的所有待办事项如何处理？**  
+  答：当前阶段项目还不能删除，删除计划是下一个版本。
+
+- **当被邀请的用户账户不存在时，邀请如何处理？**  
+  答：当前版本项目邀请方案是通过邀请码的方式，不存在用户不存在的情况。任何一个点击了邀请码链接的都是用户。如果当前不存在则开始登录免注册流程。当前已经实现了这套逻辑。
+
+- **当待办事项的执行人离开项目时，待办事项如何处理？**  
+  答：交付给待办创建人，并给予提醒，如果创建人也不存在了，给予项目创建人。当前版本项目不能删除，所以项目创建人不能离开。（暂未实现）
+
+- **当用户尝试创建循环的子待办关系时（A是B的子待办，B又是A的子待办），系统如何处理？**  
+  答：当前版本，应该不能创建循环子任务，因为已经创建好的任务不能通过其他方式重新选取父任务。
+
+- **当多个用户同时编辑同一个待办事项时，如何处理冲突？**  
+  答：这个看请求成功的先后顺序吧。这个按道理说只有创建人和执行人可以编辑待办事项的状态。但是当前后端任何项目的成员都可以修改，所以需要对接后端探讨下。
+
+- **当项目成员数量达到上限时，如何处理新的邀请？**  
+  答：当前未处理上限问题，也就是说不存在上限。
+
+- **当待办事项的创建人被移除项目时，待办事项的所有权如何处理？**  
+  答：应该是自动交由项目创建人。同时如果创建人本身就是项目创建人，那么任务是不能移除的吧？需要后端对接探讨。
+
+- **当用户尝试将待办流转到已禁用的状态时，如何处理？**  
+  答：[待澄清]
 
 ## Requirements *(mandatory)*
 
@@ -145,25 +160,31 @@
 - **FR-002**: System MUST authenticate users with email and password
 - **FR-003**: System MUST allow authenticated users to create projects with name and description
 - **FR-004**: System MUST allow users to view all projects they created or are members of
-- **FR-005**: System MUST allow project creators to invite other users to join projects via email or username
-- **FR-006**: System MUST allow invited users to accept or decline project invitations
+- **FR-005**: System MUST allow project creators to invite other users to join projects via invitation code links
+- **FR-006**: System MUST allow users to join projects by clicking invitation code links, with automatic user creation if the user does not exist (passwordless registration flow)
 - **FR-007**: System MUST allow project members to create todo items with title, content, and assignee
 - **FR-008**: System MUST display all todos in a project with creator, assignee, and content information
-- **FR-009**: System MUST allow users to edit todos they created or have permission to edit
+- **FR-009**: System MUST allow users to edit todos they created or have permission to edit (ideally only creators and assignees, but current backend allows all project members)
 - **FR-010**: System MUST allow users to create sub-todos under existing todos
 - **FR-011**: System MUST display sub-todos in a hierarchical structure under parent todos
+- **FR-011a**: System MUST prevent circular sub-todo relationships (A cannot be a sub-todo of B if B is already a sub-todo of A) by not allowing existing todos to change parent
 - **FR-012**: System MUST allow users to change todo status to implement workflow transitions
+- **FR-012a**: System MUST prevent users from transitioning todos to disabled/invalid states (implementation: [待澄清])
 - **FR-013**: System MUST track and display todo status change history
 - **FR-014**: System MUST validate that required fields (project name, todo title) are provided before creation
 - **FR-015**: System MUST enforce access control so users can only access projects they created or are members of
-- **FR-016**: System MUST handle concurrent edits to prevent data loss [NEEDS CLARIFICATION: conflict resolution strategy not specified - last-write-wins, merge, or lock?]
+- **FR-015a**: System MUST automatically reassign todo ownership to the todo creator when the assignee leaves the project, with notification to the creator. If the creator no longer exists, ownership transfers to the project creator
+- **FR-015b**: System MUST automatically transfer todo ownership to the project creator when the todo creator is removed from the project (project creator cannot be removed and todos created by project creator cannot be removed)
+- **FR-015c**: System MUST NOT impose limits on project member count (no maximum member limit)
+- **FR-015d**: System MUST NOT allow project deletion in current version (planned for next version)
+- **FR-016**: System MUST handle concurrent edits using last-write-wins strategy (request success order determines final state)
 
 ### Key Entities
 
 - **User**: Represents a system user with email, username, password. Users can create projects, be invited to projects, create todos, and be assigned to todos.
 - **Project**: Represents a container for todos with name, description, creator, and members. Projects have a many-to-many relationship with users through membership.
 - **Todo**: Represents a task item with title, content, creator, assignee, status, and creation timestamp. Todos belong to a project and can have parent-child relationships with other todos.
-- **ProjectInvitation**: Represents an invitation for a user to join a project with inviter, invitee, project, status (pending/accepted/declined), and timestamp.
+- **ProjectInvitation**: Represents an invitation for a user to join a project via invitation code links, with automatic user creation for new users (passwordless registration). Contains invitation code, project, and timestamp.
 - **TodoStatusHistory**: Represents a record of todo status changes with todo, previous status, new status, changed by user, and timestamp.
 
 ## Success Criteria *(mandatory)*
@@ -202,11 +223,15 @@
 
 - Users will primarily access the system via web browsers
 - Email addresses are used as unique identifiers for user accounts
-- Project creators have full administrative rights over their projects
+- Project creators have full administrative rights over their projects and cannot be removed from projects
+- Projects cannot be deleted in the current version (planned for next version)
 - Todo assignees can be any project member
+- When a todo assignee leaves a project, ownership automatically transfers to the todo creator with notification
+- When a todo creator is removed from a project (except project creator), ownership automatically transfers to the project creator
+- Project member count has no maximum limit
 - Default todo statuses include: "待处理" (Pending), "进行中" (In Progress), "已完成" (Completed)
 - System will use standard session-based authentication
-- Invitations expire after 7 days if not accepted [NEEDS CLARIFICATION: invitation expiration period not specified]
+- Project invitations use invitation code links that enable passwordless registration for new users
 - Users can be members of multiple projects simultaneously
 - Todos can have unlimited levels of nesting (sub-todos can have their own sub-todos)
 - System will support real-time updates for collaborative editing [NEEDS CLARIFICATION: real-time collaboration requirement not specified - needed for conflict resolution?]
@@ -217,6 +242,18 @@
 - Email service for sending invitation notifications
 - Database for persisting users, projects, todos, and relationships
 - Access control and permission management system
+
+## Clarifications
+
+### Session 2024-12-19
+
+- Q: 当用户删除项目时，项目中的所有待办事项如何处理？ → A: 当前阶段项目还不能删除，删除计划是下一个版本。
+- Q: 当被邀请的用户账户不存在时，邀请如何处理？ → A: 当前版本项目邀请方案是通过邀请码的方式，不存在用户不存在的情况。任何一个点击了邀请码链接的都是用户。如果当前不存在则开始登录免注册流程。当前已经实现了这套逻辑。
+- Q: 当待办事项的执行人离开项目时，待办事项如何处理？ → A: 交付给待办创建人，并给予提醒，如果创建人也不存在了，给予项目创建人。当前版本项目不能删除，所以项目创建人不能离开。（暂未实现）
+- Q: 当用户尝试创建循环的子待办关系时（A是B的子待办，B又是A的子待办），系统如何处理？ → A: 当前版本，应该不能创建循环子任务，因为已经创建好的任务不能通过其他方式重新选取父任务。
+- Q: 当多个用户同时编辑同一个待办事项时，如何处理冲突？ → A: 这个看请求成功的先后顺序吧。这个按道理说只有创建人和执行人可以编辑待办事项的状态。但是当前后端任何项目的成员都可以修改，所以需要对接后端探讨下。
+- Q: 当项目成员数量达到上限时，如何处理新的邀请？ → A: 当前未处理上限问题，也就是说不存在上限。
+- Q: 当待办事项的创建人被移除项目时，待办事项的所有权如何处理？ → A: 应该是自动交由项目创建人。同时如果创建人本身就是项目创建人，那么任务是不能移除的吧？需要后端对接探讨。
 
 ## Out of Scope
 
