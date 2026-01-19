@@ -3,11 +3,13 @@
  * 项目详情页面（客户端组件）
  */
 
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, LoadingView, ErrorView, EmptyStateView } from '@/components/ui'
+import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog } from '@/components/ui'
 import { TodoItem } from '@/components/features'
-import { useProject } from '@/hooks/useProjects'
+import { useProject, useDeleteProject } from '@/hooks/useProjects'
 import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
+import { useAuthStore } from '@/store/authStore'
 import { useMemo } from 'react'
 
 export default function ProjectDetailPage() {
@@ -15,8 +17,16 @@ export default function ProjectDetailPage() {
   const params = useParams()
   const projectId = Number(params.id!)
   
+  const currentUser = useAuthStore((state) => state.user)
   const { data: project, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(String(projectId))
-  const { data: todos, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(String(projectId))
+  const deleteProject = useDeleteProject()
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  
+  // 如果正在删除项目，禁用任务列表查询
+  const { data: todos, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(String(projectId), {
+    enabled: !isDeleting && !!project, // 正在删除或项目不存在时不查询
+  })
   const updateStatus = useUpdateTaskStatus(String(projectId))
   
   // 统计数据
@@ -49,6 +59,10 @@ export default function ProjectDetailPage() {
     )
   }
   
+  // 判断当前用户是否是项目所有者
+  const isOwner = project?.creator?.username === currentUser?.username || 
+    project?.members?.some(m => m.username === currentUser?.username && m.role === 'owner')
+  
   // 处理状态变更
   const handleStatusChange = async (todoId: number, newStatus: string) => {
     try {
@@ -58,31 +72,65 @@ export default function ProjectDetailPage() {
     }
   }
   
+  // 处理删除项目
+  const handleDeleteProject = async () => {
+    try {
+      setIsDeleting(true) // 立即禁用任务列表查询，防止继续请求
+      setShowDeleteConfirm(false) // 先关闭对话框
+      await deleteProject.mutateAsync(String(projectId))
+      // 删除成功后会通过 useDeleteProject hook 自动跳转到项目列表
+    } catch (error) {
+      console.error('删除项目失败:', error)
+      setIsDeleting(false) // 删除失败，恢复查询
+      setShowDeleteConfirm(true) // 删除失败，重新显示对话框
+    }
+  }
+  
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* 页面头部 */}
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold text-gray-900">{project.name}</h1>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0 max-w-[calc(100%-200px)] md:max-w-none">
+          <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 truncate" title={project.name}>
+            {project.name}
+          </h1>
           {project.git_url && (
-            <p className="mt-1 text-gray-600">{project.git_url}</p>
+            <p className="mt-1 text-xs md:text-base text-gray-600 truncate" title={project.git_url}>
+              {project.git_url}
+            </p>
           )}
         </div>
         
-        <div className="flex gap-3">
-          <Button
-            variant="secondary"
-            onClick={() => navigate(`/projects/${projectId}/members`)}
-          >
-            成员
-          </Button>
+        <div className="flex flex-col md:flex-row gap-2 shrink-0">
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`/projects/${projectId}/members`)}
+              className="min-h-[44px] text-sm md:text-base px-3 md:px-4"
+            >
+              成员
+            </Button>
+            
+            <Button
+              variant="primary"
+              onClick={() => navigate(`/projects/${projectId}/tasks/new`)}
+              className="min-h-[44px] text-sm md:text-base px-3 md:px-4"
+            >
+              创建任务
+            </Button>
+          </div>
           
-          <Button
-            variant="primary"
-            onClick={() => navigate(`/projects/${projectId}/tasks/new`)}
-          >
-            创建任务
-          </Button>
+          {/* 只有项目所有者才能看到删除按钮 */}
+          {isOwner && (
+            <Button
+              variant="danger"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="min-h-[44px] text-sm md:text-base px-3 md:px-4"
+              loading={deleteProject.isPending}
+            >
+              删除项目
+            </Button>
+          )}
         </div>
       </div>
       
@@ -134,6 +182,18 @@ export default function ProjectDetailPage() {
           </div>
         )}
       </div>
+      
+      {/* 删除项目确认对话框 */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="删除项目"
+        message={`确定要删除项目 "${project.name}" 吗？此操作将删除项目及其所有任务和成员，且无法撤销。`}
+        confirmLabel="删除"
+        cancelLabel="取消"
+        variant="danger"
+        onConfirm={handleDeleteProject}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 }

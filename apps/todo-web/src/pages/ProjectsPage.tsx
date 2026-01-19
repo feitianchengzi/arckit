@@ -113,14 +113,14 @@ export default function ProjectsHomePage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center space-y-6 max-w-2xl px-6">
+    <div className="min-h-screen flex items-center justify-center py-8 md:py-0">
+      <div className="text-center space-y-4 md:space-y-6 max-w-2xl w-full px-4 md:px-6">
         {/* 欢迎标题 */}
-        <div className="space-y-3">
-          <h1 className="text-4xl font-bold text-gray-900">
+        <div className="space-y-2 md:space-y-3">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900">
             欢迎使用项目管理系统
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-base md:text-lg text-gray-600">
             从左侧边栏选择一个项目开始工作
           </p>
         </div>
@@ -129,7 +129,7 @@ export default function ProjectsHomePage() {
         <div className="flex justify-center gap-4">
           <button
             onClick={() => navigate('/projects/new')}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg"
+            className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg min-h-[44px]"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -139,18 +139,18 @@ export default function ProjectsHomePage() {
         </div>
 
         {/* 提示信息 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-left">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 md:p-6 text-left">
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0">
-              <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 md:w-6 md:h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div className="flex-1 space-y-2">
-              <h3 className="font-semibold text-blue-900">
+              <h3 className="font-semibold text-sm md:text-base text-blue-900">
                 快速开始
               </h3>
-              <ul className="space-y-1 text-sm text-blue-800">
+              <ul className="space-y-1 text-xs md:text-sm text-blue-800">
                 <li>• 在左侧边栏点击 <strong>项目列表</strong> 查看所有项目</li>
                 <li>• 点击具体项目名称查看项目详情和任务</li>
                 <li>• 点击项目列表旁的 <strong>+</strong> 按钮创建新项目</li>
@@ -160,14 +160,14 @@ export default function ProjectsHomePage() {
         </div>
 
         {/* 装饰性图标 */}
-        <div className="flex justify-center gap-8 pt-8 opacity-30">
-          <svg className="w-16 h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="hidden md:flex justify-center gap-6 md:gap-8 pt-6 md:pt-8 opacity-30">
+          <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
-          <svg className="w-16 h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
           </svg>
-          <svg className="w-16 h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
           </svg>
         </div>

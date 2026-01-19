@@ -80,7 +80,19 @@ export function useDeleteProject() {
   
   return useMutation({
     mutationFn: (projectId: string) => projectsApi.delete(projectId),
-    onSuccess: () => {
+    onSuccess: (_, projectId) => {
+      // 立即取消该项目的所有正在进行的查询，避免请求已删除的项目数据
+      queryClient.cancelQueries({ queryKey: ['projects', projectId] })
+      queryClient.cancelQueries({ queryKey: ['projects', projectId, 'tasks'] })
+      queryClient.cancelQueries({ queryKey: ['projects', projectId, 'members'] })
+      queryClient.cancelQueries({ queryKey: ['projects', projectId, 'invitations'] })
+      
+      // 移除该项目的所有相关查询缓存
+      queryClient.removeQueries({ queryKey: ['projects', projectId] })
+      queryClient.removeQueries({ queryKey: ['projects', projectId, 'tasks'] })
+      queryClient.removeQueries({ queryKey: ['projects', projectId, 'members'] })
+      queryClient.removeQueries({ queryKey: ['projects', projectId, 'invitations'] })
+      
       // 使项目列表缓存失效
       queryClient.invalidateQueries({ queryKey: ['projects'] })
       
@@ -111,13 +123,13 @@ export function useDeleteProjectMember(projectId: string) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   
   return useMutation({
-    mutationFn: async (targetUserId: number) => {
-      // 检查是否已登录（网关会自动识别用户，不需要传递 currentUserId）
+    mutationFn: async ({ targetUserId, currentUserId }: { targetUserId: number; currentUserId?: number }) => {
+      // 检查是否已登录
       if (!isAuthenticated) {
         throw new Error('请先登录后再进行操作')
       }
-      // 根据 API 文档，不需要 currentUserId 参数，网关会自动识别当前用户
-      return projectsApi.deleteMember(projectId, targetUserId)
+      // 根据 API 文档，需要传递 currentUserId 作为查询参数
+      return projectsApi.deleteMember(projectId, targetUserId, currentUserId)
     },
     onSuccess: () => {
       // 使成员列表缓存失效

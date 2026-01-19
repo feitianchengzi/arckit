@@ -183,7 +183,18 @@ export default function ProjectMembersPage() {
     if (!memberToDelete) return
     
     try {
-      await deleteMember.mutateAsync(memberToDelete.user_id)
+      // 获取当前用户的 user_id（从成员列表中查找）
+      const currentUserId = currentUserMember?.user_id
+      
+      if (!currentUserId) {
+        alert('无法获取当前用户ID，请刷新页面后重试')
+        return
+      }
+      
+      await deleteMember.mutateAsync({
+        targetUserId: memberToDelete.user_id,
+        currentUserId: currentUserId,
+      })
       setShowDeleteConfirm(false)
       setMemberToDelete(null)
       
@@ -193,7 +204,9 @@ export default function ProjectMembersPage() {
         navigate('/projects')
       }
     } catch (err: any) {
-      alert(err?.response?.data?.error || err?.message || '操作失败，请重试')
+      console.error('删除成员失败:', err)
+      const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err?.message || '操作失败，请重试'
+      alert(errorMessage)
     }
   }
   

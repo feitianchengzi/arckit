@@ -143,26 +143,28 @@ export default function TaskDetailPage() {
   }
   
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
       {/* 页面头部 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
+        <div className="flex items-center gap-2 md:gap-3">
           {/* 返回按钮 */}
           <button
             onClick={() => navigate(-1)}
-            className="text-gray-600 hover:text-gray-900"
+            className="text-gray-600 hover:text-gray-900 min-w-[44px] min-h-[44px] flex items-center justify-center"
             title="返回上一页"
+            aria-label="返回上一页"
           >
-            <BackIcon className="w-6 h-6" />
+            <BackIcon className="w-5 h-5 md:w-6 md:h-6" />
           </button>
           
           {/* 父任务图标（如果有） */}
           {parentTask && (
             <button
               onClick={() => navigate(`/projects/${projectId}/tasks/${parentTask.id}`)}
-              className="text-gray-600 hover:text-gray-900 relative group"
+              className="text-gray-600 hover:text-gray-900 relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
+              aria-label="查看父任务"
             >
-              <ParentTaskIcon className="w-6 h-6" />
+              <ParentTaskIcon className="w-5 h-5 md:w-6 md:h-6" />
               {/* Tooltip */}
               <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
                 <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
@@ -176,9 +178,10 @@ export default function TaskDetailPage() {
           {/* 项目详情图标 */}
           <button
             onClick={() => navigate(`/projects/${projectId}`)}
-            className="text-gray-600 hover:text-gray-900 relative group"
+            className="text-gray-600 hover:text-gray-900 relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
+            aria-label="查看项目详情"
           >
-            <ProjectIcon className="w-6 h-6" />
+            <ProjectIcon className="w-5 h-5 md:w-6 md:h-6" />
             {/* Tooltip */}
             <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
               <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
@@ -189,9 +192,9 @@ export default function TaskDetailPage() {
           </button>
           
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">任务详情</h1>
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">任务详情</h1>
             {project && (
-              <p className="mt-1 text-gray-600">项目：{project.name}</p>
+              <p className="mt-1 text-sm md:text-base text-gray-600">项目：{project.name}</p>
             )}
           </div>
         </div>

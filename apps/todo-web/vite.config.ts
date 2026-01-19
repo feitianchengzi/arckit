@@ -13,6 +13,7 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    host: true, // 允许通过局域网IP访问（手机可以连接）
     open: false,
     // 开发环境代理配置（避免 CORS 问题）
     proxy: {

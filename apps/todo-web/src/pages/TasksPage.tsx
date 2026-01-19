@@ -172,19 +172,19 @@ export default function MyTasksPage() {
   }
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       {/* 页面头部 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">我的任务</h1>
-          <p className="mt-2 text-gray-600">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">我的任务</h1>
+          <p className="mt-1 md:mt-2 text-sm md:text-base text-gray-600">
             共 {filteredTasks.length} 个任务
           </p>
         </div>
       </div>
       
       {/* 状态筛选 */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button
           variant={statusFilter === 'all' ? 'primary' : 'secondary'}
           size="sm"

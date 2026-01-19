@@ -12,7 +12,7 @@ import { useAuthStore } from '@/store/authStore'
  * 获取项目的任务列表
  * 返回所有任务的扁平列表（用于项目详情页面显示）
  */
-export function useTaskList(projectId: string) {
+export function useTaskList(projectId: string, options?: { enabled?: boolean }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   
   return useQuery({
@@ -40,7 +40,7 @@ export function useTaskList(projectId: string) {
       // 子任务会在任务详情页面中通过 children 字段显示
       return todos
     },
-    enabled: !!projectId && isAuthenticated, // 只需要检查是否已登录
+    enabled: (options?.enabled !== false) && !!projectId && isAuthenticated, // 支持外部控制是否启用查询
   })
 }
 

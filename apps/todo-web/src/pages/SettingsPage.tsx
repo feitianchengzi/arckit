@@ -113,22 +113,23 @@ export default function SettingsPage() {
   }
   
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-4 md:space-y-6">
       {/* 页面头部 */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">设置</h1>
-        <p className="mt-2 text-gray-600">管理您的账户设置和偏好</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">设置</h1>
+        <p className="mt-1 md:mt-2 text-sm md:text-base text-gray-600">管理您的账户设置和偏好</p>
       </div>
       
       {/* 用户信息卡片 */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-6">
-        <div className="flex items-center justify-between border-b border-gray-200 pb-4">
-          <h2 className="text-xl font-semibold text-gray-900">账户信息</h2>
+      <div className="bg-white rounded-lg shadow p-4 md:p-6 space-y-4 md:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 border-b border-gray-200 pb-3 md:pb-4">
+          <h2 className="text-lg md:text-xl font-semibold text-gray-900">账户信息</h2>
           {!isEditing && (
             <Button
               variant="secondary"
               size="sm"
               onClick={() => setIsEditing(true)}
+              className="min-h-[44px]"
             >
               编辑
             </Button>

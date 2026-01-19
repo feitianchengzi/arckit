@@ -45,3 +45,32 @@
   }
 }
 
+/* 移动端优化 */
+@layer base {
+  /* 移动端触摸优化：按钮最小尺寸 44x44px */
+  @media (max-width: 767px) {
+    button, a[role="button"], [role="button"] {
+      min-height: 44px;
+      min-width: 44px;
+    }
+    
+    /* 输入框触摸优化 */
+    input, textarea, select {
+      min-height: 44px;
+      font-size: 16px; /* 防止 iOS 自动缩放 */
+    }
+  }
+  
+  /* 防止移动端双击缩放 */
+  * {
+    touch-action: manipulation;
+  }
+  
+  /* 移动端滚动优化 */
+  @media (max-width: 767px) {
+    body {
+      -webkit-overflow-scrolling: touch;
+    }
+  }
+}
+

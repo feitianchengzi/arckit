@@ -14,7 +14,11 @@ import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { useProjectList } from '@/hooks/useProjects'
 
-export function ProjectList() {
+interface ProjectListProps {
+  onItemClick?: (href: string) => void // 点击项目项的回调
+}
+
+export function ProjectList({ onItemClick }: ProjectListProps = {}) {
   const navigate = useNavigate()
   const location = useLocation()
   const pathname = location.pathname
@@ -49,7 +53,21 @@ export function ProjectList() {
   }
 
   const handleCreateProject = () => {
-    navigate('/projects/new')
+    const href = '/projects/new'
+    if (onItemClick) {
+      onItemClick(href)
+    } else {
+      navigate(href)
+    }
+  }
+
+  const handleProjectClick = (projectId: number) => {
+    const href = `/projects/${projectId}`
+    if (onItemClick) {
+      onItemClick(href)
+    } else {
+      navigate(href)
+    }
   }
 
   return (
@@ -60,6 +78,7 @@ export function ProjectList() {
           onClick={toggleExpand}
           className={clsx(
             'flex-1 flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors',
+            'min-h-[44px]', // 移动端触摸优化
             {
               'bg-primary-50 text-primary': isInProjectPage,
               'text-gray-700 hover:bg-gray-100': !isInProjectPage,
@@ -76,8 +95,9 @@ export function ProjectList() {
         {/* 新建项目按钮 */}
         <button
           onClick={handleCreateProject}
-          className="px-2 py-2 text-primary hover:bg-primary-50 rounded-md transition-colors"
+          className="px-2 py-2 text-primary hover:bg-primary-50 rounded-md transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
           title="新建项目"
+          aria-label="新建项目"
         >
           <PlusIcon />
         </button>
@@ -99,15 +119,17 @@ export function ProjectList() {
             projects.map((project: any) => (
               <button
                 key={project.id}
-                onClick={() => navigate(`/projects/${project.id}`)}
+                onClick={() => handleProjectClick(project.id)}
                 className={clsx(
                   'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
+                  'min-h-[44px]', // 移动端触摸优化
                   {
                     'bg-primary-50 text-primary font-medium': currentProjectId === String(project.id),
                     'text-gray-700 hover:bg-gray-100': currentProjectId !== String(project.id),
                   }
                 )}
                 title={project.name}
+                aria-current={currentProjectId === String(project.id) ? 'page' : undefined}
               >
                 <FolderIcon />
                 <span className="truncate">{project.name}</span>

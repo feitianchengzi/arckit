@@ -6,6 +6,17 @@ const config: Config = {
     './src/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
+    screens: {
+      // 响应式断点（符合设计规范）
+      // 移动端: < 768px (默认)
+      // 平板端: 768px - 1024px (md)
+      // 桌面端: > 1024px (lg)
+      'sm': '640px',
+      'md': '768px',   // 平板端起始
+      'lg': '1024px',  // 桌面端起始
+      'xl': '1280px',
+      '2xl': '1536px',
+    },
     extend: {
       colors: {
         primary: {

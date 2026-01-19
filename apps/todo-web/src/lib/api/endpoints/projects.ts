@@ -146,13 +146,21 @@ export const projectsApi = {
   /**
    * 删除项目成员
    * 后端路由: DELETE /workshop/v1/user/projects/:id/members
-   * 注意：根据API文档，不需要 user_id 参数，网关会自动识别当前用户
+   * 注意：根据API文档，需要 user_id 查询参数（当前用户ID，数据库ID）
    * 请求体: { target_user_id: number }
    */
-  deleteMember: async (projectId: string, targetUserId: number): Promise<void> => {
-    console.log('🗑️ 删除项目成员, 项目ID:', projectId, '目标用户ID:', targetUserId)
+  deleteMember: async (projectId: string, targetUserId: number, currentUserId?: number): Promise<void> => {
+    console.log('🗑️ 删除项目成员, 项目ID:', projectId, '目标用户ID:', targetUserId, '当前用户ID:', currentUserId)
+    
+    // 构建查询参数
+    const params: Record<string, string> = {}
+    if (currentUserId) {
+      params.user_id = currentUserId.toString()
+    }
+    
     await apiClient.delete(`/user/projects/${projectId}/members`, {
-      data: { target_user_id: targetUserId },
+      params, // 查询参数
+      data: { target_user_id: targetUserId }, // 请求体
     })
     console.log('✅ 成员删除成功')
   },
