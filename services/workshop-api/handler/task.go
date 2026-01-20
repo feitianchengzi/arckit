@@ -159,8 +159,9 @@ func CreateTask(c *gin.Context) {
 }
 
 // canModifyTask 检查用户是否有权限修改任务
-// owner/admin：可以修改任意任务
-// member：只能修改自己创建或分配给自己执行的任务
+// 权限规则：
+// - 如果任务没有分配执行者（ExecutorID == nil），任何项目成员都可以修改
+// - 如果任务分配了执行者，只有管理员/所有者/执行者可以修改
 func canModifyTask(db *gorm.DB, userID uint, task models.Task) (bool, error) {
 	// 查询用户在项目中的角色
 	var member models.ProjectMember
@@ -168,14 +169,20 @@ func canModifyTask(db *gorm.DB, userID uint, task models.Task) (bool, error) {
 		return false, err
 	}
 
+	// 如果任务没有分配执行者，任何项目成员都可以修改
+	if task.ExecutorID == nil {
+		return true, nil
+	}
+
+	// 如果任务分配了执行者，只有管理员/所有者/执行者可以修改
 	// owner 或 admin 可以修改任意任务
 	if member.Role == models.ProjectRoleOwner || member.Role == models.ProjectRoleAdmin {
 		return true, nil
 	}
 
-	// member 只能修改自己创建或分配给自己执行的任务
+	// member 如果是执行者也可以修改
 	if member.Role == models.ProjectRoleMember {
-		if task.CreatorID == userID || (task.ExecutorID != nil && *task.ExecutorID == userID) {
+		if task.ExecutorID != nil && *task.ExecutorID == userID {
 			return true, nil
 		}
 	}
@@ -209,8 +216,8 @@ type UpdateTaskResponse struct {
 // 网关路由: PUT /todo-service/v1/user/tasks/:id
 // 认证级别: user (需要JWT认证)
 // 权限规则：
-// - owner/admin：可以修改任意任务
-// - member：只能修改自己创建或分配给自己执行的任务
+// - 如果任务没有分配执行者，任何项目成员都可以修改
+// - 如果任务分配了执行者，只有管理员/所有者/执行者可以修改
 func UpdateTask(c *gin.Context) {
 	// 1. 获取任务ID
 	taskID := c.Param("id")
@@ -393,8 +400,8 @@ type BatchUpdateTasksResponse struct {
 // 网关路由: PUT /todo-service/v1/user/tasks/batch
 // 认证级别: user (需要JWT认证)
 // 权限规则：
-// - owner/admin：可以修改任意任务
-// - member：只能修改自己创建或分配给自己执行的任务
+// - 如果任务没有分配执行者，任何项目成员都可以修改
+// - 如果任务分配了执行者，只有管理员/所有者/执行者可以修改
 // 注意：使用事务处理，所有任务要么全部更新成功，要么全部失败回滚
 func BatchUpdateTasks(c *gin.Context) {
 	// 1. 解析请求体
@@ -611,7 +618,18 @@ func BatchUpdateTasks(c *gin.Context) {
 }
 
 // GetTasksRequest 查询任务请求结构（通过查询参数）
-// 使用查询参数: ?project_id=1
+// 支持的查询参数:
+//   - project_id (必填): 项目ID，例如 ?project_id=1
+//   - updated_after (可选): 更新时间过滤，ISO 8601格式，例如 ?updated_after=2024-01-01T12:00:00Z
+//   - father_id (可选): 父任务ID过滤
+//   - 不提供: 查询所有任务
+//   - 为0: 查询所有父任务ID为空的任务（顶级任务）
+//   - 其他值: 查询指定父任务ID的子任务，例如 ?father_id=5
+type GetTasksRequest struct {
+	ProjectID    uint   `form:"project_id" binding:"required"` // 项目ID（必填）
+	UpdatedAfter string `form:"updated_after"`                 // 更新时间过滤（可选，ISO 8601格式）
+	FatherID     *uint  `form:"father_id"`                     // 父任务ID过滤（可选）
+}
 
 // TaskResponse 任务响应结构
 type TaskResponse struct {
@@ -634,18 +652,20 @@ type GetTasksResponse struct {
 }
 
 // GetTasks 查询项目的所有任务
-// 网关路由: GET /todo-service/v1/user/tasks?project_id=1&updated_after=2024-01-01T12:00:00Z
+// 网关路由: GET /todo-service/v1/user/tasks?project_id=1&updated_after=2024-01-01T12:00:00Z&father_id=0
 // 认证级别: user (需要JWT认证)
 // 流程：
-// 1. 从请求获取用户ID
-// 2. 直接查询项目成员表验证权限
-// 3. 解析可选的updated_after参数
-// 4. 查询项目的所有任务（如果提供了updated_after，只返回在此时间之后更新或创建的任务）
+// 1. 绑定查询参数到GetTasksRequest结构体
+// 2. 从请求获取用户ID
+// 3. 直接查询项目成员表验证权限
+// 4. 解析可选的updated_after参数
+// 5. 根据father_id参数构建查询条件
+// 6. 查询项目的所有任务（根据提供的参数进行过滤）
 func GetTasks(c *gin.Context) {
-	// 1. 获取项目ID（查询参数）
-	projectIDStr := c.Query("project_id")
-	if projectIDStr == "" {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectIDEmpty, "项目ID不能为空", nil))
+	// 1. 绑定查询参数
+	var req GetTasksRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "参数绑定失败: "+err.Error(), nil))
 		return
 	}
 
@@ -662,16 +682,9 @@ func GetTasks(c *gin.Context) {
 		return
 	}
 
-	// 4. 解析项目ID
-	var projectID uint
-	if _, err := fmt.Sscanf(projectIDStr, "%d", &projectID); err != nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectIDEmpty, "无效的项目ID", nil))
-		return
-	}
-
-	// 5. 直接查询项目成员表验证权限
+	// 4. 直接查询项目成员表验证权限
 	var member models.ProjectMember
-	if err := db.Where("project_id = ? AND user_id = ?", projectID, userID).First(&member).Error; err != nil {
+	if err := db.Where("project_id = ? AND user_id = ?", req.ProjectID, userID).First(&member).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员，无法查看任务", nil))
 			return
@@ -680,14 +693,13 @@ func GetTasks(c *gin.Context) {
 		return
 	}
 
-	// 6. 解析可选的updated_after参数
-	updatedAfterStr := c.Query("updated_after")
+	// 5. 解析可选的updated_after参数
 	var updatedAfter *time.Time
-	if updatedAfterStr != "" {
-		parsedTime, err := time.Parse("2006-01-02T15:04:05Z07:00", updatedAfterStr)
+	if req.UpdatedAfter != "" {
+		parsedTime, err := time.Parse("2006-01-02T15:04:05Z07:00", req.UpdatedAfter)
 		if err != nil {
 			// 尝试另一种常见格式（不带时区偏移）
-			parsedTime, err = time.Parse("2006-01-02T15:04:05Z", updatedAfterStr)
+			parsedTime, err = time.Parse("2006-01-02T15:04:05Z", req.UpdatedAfter)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的时间格式，请使用ISO 8601格式（例如：2024-01-01T12:00:00Z）", nil))
 				return
@@ -696,29 +708,40 @@ func GetTasks(c *gin.Context) {
 		updatedAfter = &parsedTime
 	}
 
-	// 7. 构建查询条件
-	baseQuery := db.Model(&models.Task{}).Where("project_id = ?", projectID)
+	// 6. 构建查询条件
+	baseQuery := db.Model(&models.Task{}).Where("project_id = ?", req.ProjectID)
 
 	// 如果提供了updated_after，添加时间过滤条件
 	if updatedAfter != nil {
 		baseQuery = baseQuery.Where("(updated_at > ? OR created_at > ?)", *updatedAfter, *updatedAfter)
 	}
 
-	// 8. 查询任务总数
+	// 如果提供了father_id，添加父任务ID过滤条件
+	if req.FatherID != nil {
+		if *req.FatherID == 0 {
+			// father_id为0，查询所有父任务ID为空的任务
+			baseQuery = baseQuery.Where("father_id IS NULL")
+		} else {
+			// father_id有值，查询指定父任务ID的任务
+			baseQuery = baseQuery.Where("father_id = ?", *req.FatherID)
+		}
+	}
+
+	// 7. 查询任务总数
 	var total int64
 	if err := baseQuery.Count(&total).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务总数失败: "+err.Error(), nil))
 		return
 	}
 
-	// 9. 查询任务列表
+	// 8. 查询任务列表
 	var tasks []models.Task
 	if err := baseQuery.Find(&tasks).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
 		return
 	}
 
-	// 7. 转换为响应格式
+	// 9. 转换为响应格式
 	taskResponses := make([]TaskResponse, 0, len(tasks))
 	for _, task := range tasks {
 		var completionAt *string
@@ -741,7 +764,7 @@ func GetTasks(c *gin.Context) {
 		})
 	}
 
-	// 9. 返回成功响应
+	// 10. 返回成功响应
 	resp := GetTasksResponse{
 		Tasks: taskResponses,
 		Total: total,

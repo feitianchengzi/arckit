@@ -806,18 +806,22 @@ type UpdateProjectMemberRoleResponse struct {
 // 网关路由: DELETE /todo-service/v1/user/projects/:id/members
 // 认证级别: user (需要JWT认证)
 // 权限规则：
-// - owner/admin：可以删除任何成员
+// - 可以删除自己（不需要额外权限）
+// - owner/admin：可以删除其他成员
 // - 如果所有者删除自己，需要转移所有权：
 //  1. 优先选择第一个管理员改为所有者
 //  2. 如果没有管理员，选择第一个成员改为所有者
 //  3. 如果项目只有所有者一个人，删除失败
 //
 // 流程：
-// 1. 从请求获取当前用户ID
-// 2. 查询项目
-// 3. 验证当前用户权限（owner/admin）
-// 4. 查询要删除的成员（使用请求中的userID）
-// 5. 如果删除的是所有者自己，执行所有权转移逻辑
+// 1. 判断项目ID
+// 2. 验证项目成员身份
+// 3. 验证删除的目标ID是不是自己
+//   - 如果是自己，直接继续
+//   - 如果不是自己，需要验证当前用户是否是管理员或所有者
+//
+// 4. 查询目标成员
+// 5. 执行权限交接流程（如果删除的是所有者）
 // 6. 删除项目成员
 func DeleteProjectMember(c *gin.Context) {
 	// 1. 获取项目ID
@@ -869,19 +873,21 @@ func DeleteProjectMember(c *gin.Context) {
 		return
 	}
 
-	// 7. 验证权限：只有owner和admin可以删除成员
-	if currentMember.Role != models.ProjectRoleOwner && currentMember.Role != models.ProjectRoleAdmin {
-		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeProjectNoPermission, "您没有权限删除项目成员，只有项目所有者和管理员可以删除", nil))
-		return
-	}
-
-	// 8. 判断是否删除自己
+	// 7. 判断是否删除自己
 	var targetMember models.ProjectMember
-	if req.TargetUserID == currentUserID {
-		// 删除自己，直接使用已查询的currentMember
+	isDeletingSelf := req.TargetUserID == currentUserID
+
+	if isDeletingSelf {
+		// 删除自己，直接使用已查询的currentMember，允许继续执行
 		targetMember = currentMember
 	} else {
-		// 删除他人，需要查询目标成员
+		// 删除他人，需要先验证权限：只有owner和admin可以删除其他成员
+		if currentMember.Role != models.ProjectRoleOwner && currentMember.Role != models.ProjectRoleAdmin {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeProjectNoPermission, "您没有权限删除项目成员，只有项目所有者和管理员可以删除", nil))
+			return
+		}
+
+		// 查询目标成员
 		if err := db.Where("project_id = ? AND user_id = ?", project.ID, req.TargetUserID).First(&targetMember).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeProjectNotMember, "该用户不是项目成员", nil))
@@ -892,7 +898,7 @@ func DeleteProjectMember(c *gin.Context) {
 		}
 	}
 
-	// 9. 如果删除的是所有者，需要转移所有权
+	// 8. 如果删除的是所有者，需要转移所有权
 	if targetMember.Role == models.ProjectRoleOwner {
 		// 在事务中处理所有权转移和删除
 		err := db.Transaction(func(tx *gorm.DB) error {
@@ -943,14 +949,14 @@ func DeleteProjectMember(c *gin.Context) {
 			return
 		}
 	} else {
-		// 10. 删除非所有者成员
+		// 9. 删除非所有者成员
 		if err := db.Delete(&targetMember).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectUpdateFailed, "删除项目成员失败: "+err.Error(), nil))
 			return
 		}
 	}
 
-	// 11. 返回成功响应
+	// 10. 返回成功响应
 	data := gin.H{
 		"message": "项目成员删除成功",
 	}
