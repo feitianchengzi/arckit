@@ -34,6 +34,10 @@ export const tasksApi = {
       params: { project_id: projectId },
     })
     
+    // 打印完整的返回体
+    console.log('🔍 [待办列表API] 完整返回体:', JSON.stringify(response.data, null, 2))
+    console.log('🔍 [待办列表API] response.data:', response.data)
+    
     // 后端可能返回格式: { code: 'OK', data: { tasks: [...], total: 3 } } 或 { code: 'OK', data: [...] }
     const responseData = response.data
     if (responseData?.code === 'OK' && responseData?.data) {

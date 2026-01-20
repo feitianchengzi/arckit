@@ -4,6 +4,7 @@
  */
 
 import { useState } from 'react'
+import type React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog } from '@/components/ui'
 import { SubtaskList, StatusHistory } from '@/components/features'
@@ -12,6 +13,7 @@ import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
 import { useAuthStore } from '@/store/authStore'
 import type { TodoStatus } from '@/types'
+import ReactMarkdown from 'react-markdown'
 
 export default function TaskDetailPage() {
   const navigate = useNavigate()
@@ -52,8 +54,12 @@ export default function TaskDetailPage() {
   const isCreator = creatorUsername === currentUser?.username
   const isAssignee = executorUsername === currentUser?.username && executorUsername !== '未分配'
   
-  // 只有创建者或执行者可以分配任务（后端逻辑：非创建者且非执行者才返回 403）
-  const canEditAssignee = isCreator || isAssignee
+  // 获取当前用户在项目中的角色
+  const currentUserMember = (members as any)?.find((m: any) => m.username === currentUser?.username)
+  const currentUserRole = currentUserMember?.role || null
+  
+  // 创建者、执行者、项目管理员（admin）或所有者（owner）可以分配任务
+  const canEditAssignee = isCreator || isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner'
   
   // 加载状态
   if (isLoading) {
@@ -222,8 +228,8 @@ export default function TaskDetailPage() {
       {/* 待办内容 */}
       <div className="bg-white rounded-lg shadow p-6 space-y-6">
         {/* 状态 */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">状态</label>
+        <div className="space-y-3">
+          <h2 className="text-base font-semibold text-gray-900">状态</h2>
           <div className="flex items-center gap-3">
             {!isEditing ? (
               <StatusSelect
@@ -240,9 +246,12 @@ export default function TaskDetailPage() {
           )}
         </div>
         
+        {/* 分割线 */}
+        <div className="border-t border-gray-200"></div>
+        
         {/* 内容 */}
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">待办内容</label>
+        <div className="space-y-3">
+          <h2 className="text-base font-semibold text-gray-900">待办内容</h2>
           
           {isEditing ? (
             <div className="space-y-3">
@@ -278,25 +287,62 @@ export default function TaskDetailPage() {
               </div>
             </div>
           ) : (
-            <div className="text-base text-gray-900 whitespace-pre-wrap">
-              {todo.content}
+            <div 
+              className="bg-gray-800 text-gray-100 rounded-lg p-4 max-h-96 overflow-y-auto prose prose-invert prose-sm max-w-none"
+              style={{
+                wordBreak: 'break-word',
+                overflowWrap: 'anywhere',
+              }}
+            >
+              <ReactMarkdown
+                components={{
+                  // 自定义样式组件
+                  p: ({ children }: { children?: React.ReactNode }) => <p className="text-gray-100 mb-3 last:mb-0">{children}</p>,
+                  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-gray-100 mb-3 mt-4 first:mt-0">{children}</h1>,
+                  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-gray-100 mb-2 mt-4 first:mt-0">{children}</h2>,
+                  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-gray-100 mb-2 mt-3 first:mt-0">{children}</h3>,
+                  code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) => 
+                    inline ? (
+                      <code className="bg-gray-700 text-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
+                    ) : (
+                      <code className="block bg-gray-700 text-gray-100 p-3 rounded-lg text-sm font-mono overflow-x-auto mb-3">{children}</code>
+                    ),
+                  pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-gray-700 text-gray-100 p-3 rounded-lg text-sm font-mono overflow-x-auto mb-3">{children}</pre>,
+                  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-3 space-y-1 text-gray-100">{children}</ul>,
+                  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-100">{children}</ol>,
+                  li: ({ children }: { children?: React.ReactNode }) => <li className="text-gray-100">{children}</li>,
+                  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-gray-600 pl-4 italic text-gray-300 mb-3">{children}</blockquote>,
+                  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => <a href={href} className="text-blue-400 hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-gray-100">{children}</strong>,
+                  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-gray-100">{children}</em>,
+                  hr: () => <hr className="border-gray-600 my-4" />,
+                  table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border-collapse border border-gray-600">{children}</table></div>,
+                  th: ({ children }: { children?: React.ReactNode }) => <th className="border border-gray-600 px-3 py-2 bg-gray-700 text-gray-100 font-semibold text-left">{children}</th>,
+                  td: ({ children }: { children?: React.ReactNode }) => <td className="border border-gray-600 px-3 py-2 text-gray-100">{children}</td>,
+                }}
+              >
+                {todo.content}
+              </ReactMarkdown>
             </div>
           )}
         </div>
         
+        {/* 分割线 */}
+        <div className="border-t border-gray-200"></div>
+        
         {/* 元信息 */}
-        <div className="grid grid-cols-2 gap-4 pt-6 border-t">
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-sm font-medium text-gray-700">创建者</p>
-            <p className="mt-1 text-sm text-gray-900">
+            <h2 className="text-base font-semibold text-gray-900 mb-1">创建者</h2>
+            <p className="text-sm text-gray-700">
               {creatorUsername}
             </p>
           </div>
           
           <div>
-            <p className="text-sm font-medium text-gray-700">执行者</p>
+            <h2 className="text-base font-semibold text-gray-900 mb-1">执行者</h2>
             {isEditingAssignee ? (
-              <div className="mt-1 space-y-2">
+              <div className="space-y-2">
                 <select
                   value={newAssigneeId || ''}
                   onChange={(e) => setNewAssigneeId(e.target.value ? parseInt(e.target.value) : undefined)}
@@ -329,7 +375,7 @@ export default function TaskDetailPage() {
                         
                        // 处理 403 权限错误
                        if (err?.response?.status === 403) {
-                         setUpdateError('您没有权限分配此任务，只有任务创建者或执行者可以分配任务')
+                         setUpdateError('您没有权限分配此任务，只有任务创建者、执行者或项目管理员可以分配任务')
                         } else {
                           // 提取错误消息
                           const errorData = err?.response?.data
@@ -370,8 +416,8 @@ export default function TaskDetailPage() {
                 </div>
               </div>
             ) : (
-              <div className="mt-1 flex items-center gap-2">
-                <p className="text-sm text-gray-900">
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-gray-700">
                   {executorUsername}
                 </p>
                 {canEditAssignee ? (
@@ -389,11 +435,11 @@ export default function TaskDetailPage() {
                   <span 
                     className="text-xs text-gray-500 relative group cursor-help"
                   >
-                    仅创建者/执行者可编辑
+                    仅创建者/执行者/管理员可编辑
                     {/* Tooltip */}
                     <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
                       <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
-                        只有任务创建者或执行者可以分配任务
+                        只有任务创建者、执行者或项目管理员可以分配任务
                         <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                       </div>
                     </div>
@@ -404,15 +450,15 @@ export default function TaskDetailPage() {
           </div>
           
           <div>
-            <p className="text-sm font-medium text-gray-700">创建时间</p>
-            <p className="mt-1 text-sm text-gray-900">
+            <h2 className="text-base font-semibold text-gray-900 mb-1">创建时间</h2>
+            <p className="text-sm text-gray-700">
               {new Date(todo.createdAt).toLocaleString('zh-CN')}
             </p>
           </div>
           
           <div>
-            <p className="text-sm font-medium text-gray-700">更新时间</p>
-            <p className="mt-1 text-sm text-gray-900">
+            <h2 className="text-base font-semibold text-gray-900 mb-1">更新时间</h2>
+            <p className="text-sm text-gray-700">
               {new Date(todo.updatedAt).toLocaleString('zh-CN')}
             </p>
           </div>

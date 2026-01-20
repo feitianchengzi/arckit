@@ -6,6 +6,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { validateImageFile } from '@/lib/utils/validators'
+import { uploadApi } from '@/lib/api/endpoints/upload'
+import { uploadToOSS } from '@/lib/utils/ossUpload'
+import { compressImage, dataURLtoFile } from '@/lib/utils/imageCompress'
 
 export interface AvatarUploadProps {
   /** 头像 URL */
@@ -27,6 +30,7 @@ export function AvatarUpload({
   const [preview, setPreview] = useState<string | undefined>(value)
   const [error, setError] = useState<string>('')
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 同步外部value到preview
@@ -48,31 +52,56 @@ export function AvatarUpload({
 
     setError('')
     setIsUploading(true)
+    setUploadProgress(0)
 
     try {
-      // 生成预览
+      // 1. 读取文件生成预览
       const reader = new FileReader()
-      reader.onloadend = () => {
-        const dataUrl = reader.result as string
-        setPreview(dataUrl)
-        onChange(dataUrl)
-        setIsUploading(false)
+      reader.onloadend = async () => {
+        try {
+          const dataUrl = reader.result as string
+          // 先显示本地预览
+          setPreview(dataUrl)
+          
+          // 2. 压缩图片
+          const compressedImage = await compressImage(dataUrl, maxSize, 0.8)
+          
+          // 3. 转换为 File 对象
+          const compressedFile = dataURLtoFile(compressedImage, file.name)
+          
+          // 4. 获取 STS 临时凭证
+          const credentials = await uploadApi.getSTSToken()
+          
+          // 5. 上传到 OSS
+          const ossUrl = await uploadToOSS(compressedFile, credentials, (progress) => {
+            setUploadProgress(progress)
+          })
+          
+          // 6. 更新预览和调用回调
+          setPreview(ossUrl)
+          onChange(ossUrl)
+          
+          console.log('✅ 头像上传成功:', ossUrl)
+        } catch (uploadErr) {
+          console.error('❌ 头像上传失败:', uploadErr)
+          const errorMessage = uploadErr instanceof Error ? uploadErr.message : '上传失败，请重试'
+          setError(errorMessage)
+          // 上传失败时保留本地预览
+        } finally {
+          setIsUploading(false)
+          setUploadProgress(0)
+        }
       }
       reader.onerror = () => {
         setError('文件读取失败')
         setIsUploading(false)
+        setUploadProgress(0)
       }
       reader.readAsDataURL(file)
-
-      // 注意：这里只是本地预览
-      // 如果需要上传到服务器，需要添加上传逻辑：
-      // const formData = new FormData()
-      // formData.append('avatar', file)
-      // const response = await uploadApi.uploadAvatar(formData)
-      // onChange(response.url)
     } catch (err) {
-      setError('上传失败，请重试')
+      setError('处理文件失败，请重试')
       setIsUploading(false)
+      setUploadProgress(0)
     }
   }
 
@@ -141,7 +170,12 @@ export function AvatarUpload({
 
           {isUploading && (
             <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent" />
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent mx-auto mb-1" />
+                <div className="text-white text-xs mt-1">
+                  {Math.round(uploadProgress * 100)}%
+                </div>
+              </div>
             </div>
           )}
         </div>

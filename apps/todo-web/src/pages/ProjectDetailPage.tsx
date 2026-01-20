@@ -6,7 +6,8 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog } from '@/components/ui'
-import { TodoItem } from '@/components/features'
+import { TodoTreeItem } from '@/components/features/TodoTreeItem'
+import { buildTaskTree } from '@/lib/utils/taskTree'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
 import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useAuthStore } from '@/store/authStore'
@@ -52,31 +53,67 @@ export default function ProjectDetailPage() {
     return currentMember?.user_id || null
   }, [currentUser?.username, members])
   
-  // 统计数据
-  const stats = useMemo(() => {
-    if (!todos) return { pending: 0, inProgress: 0, completed: 0 }
-    
-    const allTasks = todos.filter(t => !t.parentId) // 只统计根任务
-    
-    return {
-      pending: allTasks.filter(t => t.status === 'PENDING').length,
-      inProgress: allTasks.filter(t => t.status === 'IN_PROGRESS').length,
-      completed: allTasks.filter(t => t.status === 'COMPLETED').length,
-    }
+  // 构建树形结构
+  const taskTree = useMemo(() => {
+    if (!todos) return []
+    return buildTaskTree(todos)
   }, [todos])
   
-  // 筛选后的待办列表
-  const filteredTodos = useMemo(() => {
-    if (!todos) return []
-    let filtered = todos.filter(todo => !todo.parentId) // 只显示根任务
+  // 统计数据（基于树形结构，只统计根任务）
+  const stats = useMemo(() => {
+    if (!taskTree || taskTree.length === 0) return { pending: 0, inProgress: 0, completed: 0 }
     
-    // 根据状态筛选
-    if (statusFilter !== 'ALL') {
-      filtered = filtered.filter(todo => todo.status === statusFilter)
+    return {
+      pending: taskTree.filter(t => t.status === 'PENDING').length,
+      inProgress: taskTree.filter(t => t.status === 'IN_PROGRESS').length,
+      completed: taskTree.filter(t => t.status === 'COMPLETED').length,
+    }
+  }, [taskTree])
+  
+  // 筛选后的待办列表（树形结构）
+  const filteredTodos = useMemo(() => {
+    if (!taskTree || taskTree.length === 0) return []
+    
+    // 根据状态筛选根任务（子任务会跟随父任务显示）
+    if (statusFilter === 'ALL') {
+      return taskTree
     }
     
-    return filtered
-  }, [todos, statusFilter])
+    // 筛选函数：递归筛选树形结构
+    const filterTree = (tasks: typeof taskTree): typeof taskTree => {
+      return tasks
+        .filter(todo => {
+          // 如果任务本身匹配状态，或者有子任务匹配状态，则保留
+          if (todo.status === statusFilter) {
+            return true
+          }
+          // 如果有子任务，递归检查子任务
+          if (todo.children && todo.children.length > 0) {
+            const filteredChildren = filterTree(todo.children)
+            if (filteredChildren.length > 0) {
+              // 保留父任务，但只显示匹配的子任务
+              return true
+            }
+          }
+          return false
+        })
+        .map(todo => {
+          // 如果任务本身不匹配，但子任务匹配，只显示子任务
+          if (todo.status !== statusFilter && todo.children && todo.children.length > 0) {
+            const filteredChildren = filterTree(todo.children)
+            if (filteredChildren.length > 0) {
+              return {
+                ...todo,
+                children: filteredChildren,
+              }
+            }
+          }
+          return todo
+        })
+    }
+    
+    return filterTree(taskTree)
+  }, [taskTree, statusFilter])
   
   // 初始化编辑表单
   const handleEditClick = () => {
@@ -353,9 +390,9 @@ export default function ProjectDetailPage() {
             onAction={statusFilter !== 'ALL' ? undefined : () => navigate(`/projects/${projectId}/tasks/new`)}
           />
         ) : (
-          <div className="space-y-3">
+          <div>
             {filteredTodos.map((todo) => (
-              <TodoItem
+              <TodoTreeItem
                 key={todo.id}
                 todo={todo}
                 projectId={projectId}

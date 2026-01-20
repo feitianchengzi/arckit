@@ -7,11 +7,12 @@
 import { useMemo, useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, EmptyStateView } from '@/components/ui'
-import { TodoItem } from '@/components/features'
+import { TodoTreeItem } from '@/components/features/TodoTreeItem'
 import { useProjectList } from '@/hooks/useProjects'
 import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { projectsApi } from '@/lib/api/endpoints/projects'
 import { tasksToTodos } from '@/lib/utils/taskMapper'
+import { buildTaskTree } from '@/lib/utils/taskTree'
 import { useAuthStore } from '@/store/authStore'
 import type { Todo } from '@/types'
 import clsx from 'clsx'
@@ -125,7 +126,7 @@ export default function MyTasksPage() {
     return myTasks.filter(task => task.status === statusFilter)
   }, [myTasks, statusFilter])
   
-  // 按项目分组
+  // 按项目分组并构建树形结构
   const tasksByProject = useMemo(() => {
     const grouped = new Map<string, typeof filteredTasks>()
     filteredTasks.forEach(task => {
@@ -134,7 +135,21 @@ export default function MyTasksPage() {
       }
       grouped.get(task.projectId)!.push(task)
     })
-    return grouped
+    
+    // 为每个项目的任务构建树形结构
+    const treeMap = new Map<string, Todo[]>()
+    grouped.forEach((tasks, projectId) => {
+      // 转换为完整的 Todo 类型（包含 projectId 作为 number）
+      const fullTasks: Todo[] = tasks.map(task => ({
+        ...task,
+        projectId: parseInt(task.projectId),
+      }))
+      // 构建树形结构
+      const tree = buildTaskTree(fullTasks)
+      treeMap.set(projectId, tree)
+    })
+    
+    return { grouped, treeMap }
   }, [filteredTasks])
 
   // 折叠状态管理（每个项目组）
@@ -143,7 +158,7 @@ export default function MyTasksPage() {
   
   // 初始化时展开所有项目组
   useEffect(() => {
-    const projectIds = Array.from(tasksByProject.keys())
+    const projectIds = Array.from(tasksByProject.grouped.keys())
     if (projectIds.length > 0 && !initializedRef.current) {
       setExpandedProjects(new Set(projectIds))
       initializedRef.current = true
@@ -262,10 +277,11 @@ export default function MyTasksPage() {
       
       {/* 待办列表（按项目分组） */}
       <div className="space-y-6">
-        {Array.from(tasksByProject.entries()).map(([projectId, tasks]) => {
+        {Array.from(tasksByProject.grouped.entries()).map(([projectId, tasks]) => {
           const isExpanded = expandedProjects.has(projectId)
-          const totalProjects = tasksByProject.size
+          const totalProjects = tasksByProject.grouped.size
           const expandedCount = expandedProjects.size
+          const taskTree = tasksByProject.treeMap.get(projectId) || []
           
           // 计算是否可以折叠：
           // 1. 如果项目组已折叠，按钮可用（可以展开）
@@ -331,17 +347,14 @@ export default function MyTasksPage() {
                 </div>
               </div>
               
-              {/* 待办列表 - 根据折叠状态显示/隐藏 */}
+              {/* 待办列表 - 根据折叠状态显示/隐藏（树形结构） */}
               {isExpanded && (
-                <div className="space-y-3">
-                  {tasks.map((task) => (
-                    <TodoItem
+                <div>
+                  {taskTree.map((task) => (
+                    <TodoTreeItem
                       key={task.id}
-                      todo={{
-                        ...task,
-                        projectId: parseInt(task.projectId), // 转换为 number 以匹配 Todo 类型
-                      }}
-                      projectId={task.projectId}
+                      todo={task}
+                      projectId={projectId}
                     />
                   ))}
                 </div>

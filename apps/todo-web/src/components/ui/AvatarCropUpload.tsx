@@ -7,6 +7,9 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { ImageCropDialog } from './ImageCropDialog'
+import { uploadApi } from '@/lib/api/endpoints/upload'
+import { uploadToOSS } from '@/lib/utils/ossUpload'
+import { compressImage, dataURLtoFile } from '@/lib/utils/imageCompress'
 
 export interface AvatarCropUploadProps {
   /** 头像 URL */
@@ -32,6 +35,8 @@ export function AvatarCropUpload({
   const [originalImage, setOriginalImage] = useState<string>('')
   const [showCropDialog, setShowCropDialog] = useState(false)
   const [error, setError] = useState<string>('')
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 同步外部value到preview
@@ -74,11 +79,46 @@ export function AvatarCropUpload({
     }
   }
 
-  // 裁切完成
-  const handleCropComplete = (croppedImage: string) => {
+  // 裁切完成，上传到 OSS
+  const handleCropComplete = async (croppedImage: string) => {
+    // 先显示预览（本地预览）
     setPreview(croppedImage)
-    onChange(croppedImage)
     setShowCropDialog(false)
+    
+    // 开始上传流程
+    setIsUploading(true)
+    setUploadProgress(0)
+    setError('')
+    
+    try {
+      // 1. 压缩图片（确保文件大小不会太大）
+      const compressedImage = await compressImage(croppedImage, 200, 0.8)
+      
+      // 2. 转换为 File 对象
+      const file = dataURLtoFile(compressedImage, 'avatar.jpg')
+      
+      // 3. 获取 STS 临时凭证
+      const credentials = await uploadApi.getSTSToken()
+      
+      // 4. 上传到 OSS
+      const ossUrl = await uploadToOSS(file, credentials, (progress) => {
+        setUploadProgress(progress)
+      })
+      
+      // 5. 更新预览和调用回调
+      setPreview(ossUrl)
+      onChange(ossUrl)
+      
+      console.log('✅ 头像上传成功:', ossUrl)
+    } catch (err) {
+      console.error('❌ 头像上传失败:', err)
+      const errorMessage = err instanceof Error ? err.message : '上传失败，请重试'
+      setError(errorMessage)
+      // 上传失败时，保留本地预览，但显示错误
+    } finally {
+      setIsUploading(false)
+      setUploadProgress(0)
+    }
   }
 
   // 触发文件选择
@@ -145,6 +185,18 @@ export function AvatarCropUpload({
               </svg>
             </div>
           )}
+          
+          {/* 上传进度遮罩 */}
+          {isUploading && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent mx-auto mb-1" />
+                <div className="text-white text-xs mt-1">
+                  {Math.round(uploadProgress * 100)}%
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 上传按钮和说明 */}
@@ -152,9 +204,10 @@ export function AvatarCropUpload({
           <button
             type="button"
             onClick={handleClick}
-            className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-lg hover:bg-primary-50 transition-colors"
+            disabled={isUploading}
+            className="px-4 py-2 text-sm font-medium text-primary border border-primary rounded-lg hover:bg-primary-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {preview ? '更换头像' : '上传头像'}
+            {isUploading ? '上传中...' : preview ? '更换头像' : '上传头像'}
           </button>
           <p className="mt-1 text-xs text-gray-500">
             支持 JPG、PNG、GIF 等图片格式
