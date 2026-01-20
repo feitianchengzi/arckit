@@ -19,10 +19,10 @@ export function useTaskList(projectId: string, options?: { enabled?: boolean }) 
     queryKey: ['projects', projectId, 'tasks'],
     queryFn: async () => {
       const tasks = await tasksApi.listByProject(projectId) // 不需要 user_id
-      console.log('🔍 [项目详情页-待办列表] 获取到的任务列表:', JSON.stringify(tasks, null, 2))
+      // console.log('🔍 [项目详情页-待办列表] 获取到的任务列表:', JSON.stringify(tasks, null, 2))
       // 转换为 Todo 模型，返回扁平列表
       const todos = tasksToTodos(tasks)
-      console.log('🔍 [项目详情页-待办列表] 转换后的待办列表:', JSON.stringify(todos, null, 2))
+      // console.log('🔍 [项目详情页-待办列表] 转换后的待办列表:', JSON.stringify(todos, null, 2))
       
       // 构建待办树关系（用于子待办显示）
       const todoMap = new Map(todos.map(todo => [todo.id, todo]))
@@ -58,9 +58,9 @@ export function useTask(projectId: string, taskId: string) {
     queryFn: async () => {
       // 获取所有任务（包括子任务）
       const allTasks = await tasksApi.listByProject(projectId) // 不需要 user_id
-      console.log('🔍 [任务详情页-待办列表] 获取到的任务列表:', JSON.stringify(allTasks, null, 2))
+      // console.log('🔍 [任务详情页-待办列表] 获取到的任务列表:', JSON.stringify(allTasks, null, 2))
       const todos = tasksToTodos(allTasks)
-      console.log('🔍 [任务详情页-待办列表] 转换后的待办列表:', JSON.stringify(todos, null, 2))
+      // console.log('🔍 [任务详情页-待办列表] 转换后的待办列表:', JSON.stringify(todos, null, 2))
       
       // 找到目标任务
       const task = todos.find(t => t.id.toString() === taskId)
@@ -70,7 +70,7 @@ export function useTask(projectId: string, taskId: string) {
       
       // 构建子待办列表
       const children = todos.filter(t => t.parentId === task.id)
-      console.log('🔍 [任务详情页-待办列表] 子待办列表:', JSON.stringify(children, null, 2))
+      // console.log('🔍 [任务详情页-待办列表] 子待办列表:', JSON.stringify(children, null, 2))
       if (children.length > 0) {
         task.children = children
       }

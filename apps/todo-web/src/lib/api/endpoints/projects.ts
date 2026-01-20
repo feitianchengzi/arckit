@@ -145,22 +145,22 @@ export const projectsApi = {
     
     // 返回项目的成员列表
     const members = project.members || []
-    console.log('👥 [获取成员列表] 成员数量:', members.length)
-    console.log('👥 [获取成员列表] 成员详细信息:')
-    members.forEach((member: any, index: number) => {
-      console.log(`👥 [获取成员列表] 成员 ${index + 1}:`, {
-        id: member.id,
-        project_id: member.project_id,
-        user_id: member.user_id,
-        role: member.role,
-        username: member.username || member.user?.username,
-        avatar: member.avatar || member.user?.avatar,
-        created_at: member.created_at,
-        updated_at: member.updated_at,
-        user: member.user,
-      })
-    })
-    console.log('👥 [获取成员列表] 完整成员列表:', JSON.stringify(members, null, 2))
+    // console.log('👥 [获取成员列表] 成员数量:', members.length)
+    // console.log('👥 [获取成员列表] 成员详细信息:')
+    // members.forEach((member: any, index: number) => {
+    //   console.log(`👥 [获取成员列表] 成员 ${index + 1}:`, {
+    //     id: member.id,
+    //     project_id: member.project_id,
+    //     user_id: member.user_id,
+    //     role: member.role,
+    //     username: member.username || member.user?.username,
+    //     avatar: member.avatar || member.user?.avatar,
+    //     created_at: member.created_at,
+    //     updated_at: member.updated_at,
+    //     user: member.user,
+    //   })
+    // })
+    // console.log('👥 [获取成员列表] 完整成员列表:', JSON.stringify(members, null, 2))
     return members
   },
   

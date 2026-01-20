@@ -26,23 +26,23 @@ export default function ProjectMembersPage() {
   // 监听成员列表变化，打印日志
   useEffect(() => {
     if (members) {
-      console.log('📋 [成员列表更新] 成员列表已更新')
-      console.log('📋 [成员列表更新] 成员数量:', members.length)
-      console.log('📋 [成员列表更新] 成员详细信息:')
-      members.forEach((member: ProjectMember, index: number) => {
-        console.log(`📋 [成员列表更新] 成员 ${index + 1}:`, {
-          id: member.id,
-          project_id: member.project_id,
-          user_id: member.user_id,
-          role: member.role,
-          username: member.username || member.user?.username,
-          avatar: member.avatar || member.user?.avatar,
-          created_at: member.created_at,
-          updated_at: member.updated_at,
-          user: member.user,
-        })
-      })
-      console.log('📋 [成员列表更新] 完整成员列表:', JSON.stringify(members, null, 2))
+      // console.log('📋 [成员列表更新] 成员列表已更新')
+      // console.log('📋 [成员列表更新] 成员数量:', members.length)
+      // console.log('📋 [成员列表更新] 成员详细信息:')
+      // members.forEach((member: ProjectMember, index: number) => {
+      //   console.log(`📋 [成员列表更新] 成员 ${index + 1}:`, {
+      //     id: member.id,
+      //     project_id: member.project_id,
+      //     user_id: member.user_id,
+      //     role: member.role,
+      //     username: member.username || member.user?.username,
+      //     avatar: member.avatar || member.user?.avatar,
+      //     created_at: member.created_at,
+      //     updated_at: member.updated_at,
+      //     user: member.user,
+      //   })
+      // })
+      // console.log('📋 [成员列表更新] 完整成员列表:', JSON.stringify(members, null, 2))
     }
   }, [members])
   const deleteMember = useDeleteProjectMember(projectId)
