@@ -95,6 +95,7 @@ func InitDB() error {
 		&models.ProjectMember{},
 		&models.ProjectInvitation{},
 		&models.Task{},
+		&models.Tag{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to auto migrate: %w", err)

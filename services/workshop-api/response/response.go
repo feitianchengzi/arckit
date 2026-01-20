@@ -99,6 +99,14 @@ const (
 	CodeTaskCannotBeOwnParent     = "TASK_CANNOT_BE_OWN_PARENT"
 	CodeTaskExecutorNotMember     = "TASK_EXECUTOR_NOT_MEMBER"
 
+	// 标签相关错误
+	CodeTagNotFound     = "TAG_NOT_FOUND"
+	CodeTagCreateFailed = "TAG_CREATE_FAILED"
+	CodeTagUpdateFailed = "TAG_UPDATE_FAILED"
+	CodeTagDeleteFailed = "TAG_DELETE_FAILED"
+	CodeTagQueryFailed  = "TAG_QUERY_FAILED"
+	CodeTagNotMember    = "TAG_NOT_MEMBER"
+
 	// 数据库相关错误
 	CodeDatabaseNotInit = "DATABASE_NOT_INIT"
 )

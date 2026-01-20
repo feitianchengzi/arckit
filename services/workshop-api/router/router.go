@@ -64,6 +64,10 @@ func SetupRouter(serviceName string) *gin.Engine {
 			userGroup.PUT("/tasks/:id", handler.UpdateTask)                              // 更新任务
 			userGroup.GET("/tasks", handler.GetTasks)                                    // 查询项目的所有任务
 			userGroup.DELETE("/tasks", handler.DeleteTasks)                              // 删除任务（支持批量）
+			userGroup.GET("/projects/:id/tags", handler.GetTags)                         // 查询项目的所有标签
+			userGroup.POST("/projects/:id/tags", handler.CreateTag)                      // 创建标签
+			userGroup.PUT("/tags/:id", handler.UpdateTag)                                // 更新标签
+			userGroup.DELETE("/tags/:id", handler.DeleteTag)                             // 删除标签
 		}
 
 		// apikey级别路由 - 需要API密钥认证
