@@ -12,9 +12,17 @@ declare global {
   }
 }
 
-// OSS 配置（从环境变量读取）
-const OSS_REGION = import.meta.env.VITE_OSS_REGION || 'oss-cn-hangzhou'
-const OSS_BUCKET = import.meta.env.VITE_OSS_BUCKET || 'feitianchengziworkshop'
+/**
+ * 从 endpoint 中提取 region
+ * 例如: http://oss-cn-beijing.aliyuncs.com -> oss-cn-beijing
+ */
+function extractRegionFromEndpoint(endpoint: string): string {
+  // 移除协议前缀 (http:// 或 https://)
+  const withoutProtocol = endpoint.replace(/^https?:\/\//, '')
+  // 提取第一个点之前的部分作为 region
+  const parts = withoutProtocol.split('.')
+  return parts[0] || 'oss-cn-hangzhou' // 默认值
+}
 
 /**
  * 动态加载 OSS Browser SDK
@@ -48,9 +56,28 @@ async function loadOSSSDK(): Promise<any> {
 }
 
 /**
+ * 刷新 STS Token 的函数
+ * 用于 OSS SDK 自动刷新过期凭证
+ */
+async function refreshSTSToken(): Promise<{
+  accessKeyId: string
+  accessKeySecret: string
+  stsToken: string
+}> {
+  const { uploadApi } = await import('../api/endpoints/upload')
+  const credentials = await uploadApi.getSTSToken()
+  
+  return {
+    accessKeyId: credentials.AccessKeyId,
+    accessKeySecret: credentials.AccessKeySecret,
+    stsToken: credentials.SecurityToken,
+  }
+}
+
+/**
  * 上传文件到 OSS
  * @param file 要上传的文件
- * @param credentials STS 临时凭证
+ * @param credentials STS 临时凭证（包含 endpoint 和 bucket_name）
  * @param onProgress 上传进度回调 (0-1)
  * @returns OSS 文件 URL
  */
@@ -63,14 +90,22 @@ export async function uploadToOSS(
     // 加载 OSS SDK
     const OSS = await loadOSSSDK()
     
+    // 从 endpoint 中提取 region
+    const region = extractRegionFromEndpoint(credentials.Endpoint)
+    
     // 创建 OSS 客户端
+    // 根据参考代码，添加 authorizationV4: true 和自动刷新 STS token 配置
     const client = new OSS({
-      region: OSS_REGION,
+      region: region,
       accessKeyId: credentials.AccessKeyId,
       accessKeySecret: credentials.AccessKeySecret,
       stsToken: credentials.SecurityToken,
-      bucket: OSS_BUCKET,
+      bucket: credentials.BucketName,
       secure: true, // 使用 HTTPS
+      authorizationV4: true, // 使用 V4 签名，有助于解决 CORS 问题
+      // 自动刷新 STS token（STS token 有效期为 1 小时，提前 5 分钟刷新）
+      refreshSTSToken: refreshSTSToken,
+      refreshSTSTokenInterval: 55 * 60 * 1000, // 55 分钟后自动刷新（单位：毫秒）
     })
     
     // 生成文件路径
@@ -89,13 +124,52 @@ export async function uploadToOSS(
     })
     
     // 返回文件 URL
-    // 使用 HTTPS 协议的 URL
-    const fileUrl = `https://${OSS_BUCKET}.${OSS_REGION}.aliyuncs.com/${result.name}`
+    // 使用 HTTPS 协议的 URL，格式: https://{bucket}.{region}.aliyuncs.com/{key}
+    const fileUrl = `https://${credentials.BucketName}.${region}.aliyuncs.com/${result.name}`
     
     return fileUrl
   } catch (error) {
     console.error('OSS 上传失败:', error)
-    throw new Error(`上传失败: ${error instanceof Error ? error.message : '未知错误'}`)
+    
+      // 提供更详细的错误信息
+      if (error instanceof Error) {
+        // 检查是否是 CORS 错误
+        if (
+          error.message.includes('CORS') || 
+          error.message.includes('Access-Control-Allow-Origin') ||
+          error.message.includes('preflight') ||
+          error.message.includes('blocked by CORS policy')
+        ) {
+          const corsErrorMsg = '上传失败：CORS 跨域错误。\n\n' +
+            '请按照以下步骤配置 OSS Bucket 的 CORS 规则：\n' +
+            '1. 登录阿里云 OSS 控制台\n' +
+            '2. 找到 Bucket: feitianchengziworkshop\n' +
+            '3. 进入"权限管理" → "跨域设置（CORS）"\n' +
+            '4. 添加规则：\n' +
+            '   - 来源: https://workshop.feitianchengzi.com\n' +
+            '   - 允许 Methods: GET, PUT, POST, DELETE, HEAD, OPTIONS\n' +
+            '   - 允许 Headers: *\n' +
+            '   - 暴露 Headers: ETag, x-oss-request-id\n' +
+            '   - 缓存时间: 3600\n\n' +
+            '详细配置指南请查看: frontend/OSS_CORS_CONFIG.md'
+          throw new Error(corsErrorMsg)
+        }
+        // 检查是否是网络错误（可能是 CORS 导致的）
+        if (error.message.includes('XHR error') || error.message.includes('network') || error.message.includes('ERR_FAILED')) {
+          // 检查是否是 CORS 相关的网络错误
+          const isLikelyCORS = error.message.includes('PUT') || error.message.includes('aliyuncs.com')
+          if (isLikelyCORS) {
+            const corsErrorMsg = '上传失败：可能是 CORS 配置问题。\n\n' +
+              '请检查 OSS Bucket 的 CORS 配置是否正确。\n' +
+              '详细配置指南请查看: frontend/OSS_CORS_CONFIG.md'
+            throw new Error(corsErrorMsg)
+          }
+          throw new Error('上传失败：网络连接错误。请检查网络连接或联系管理员检查 OSS 服务状态。')
+        }
+        throw new Error(`上传失败: ${error.message}`)
+      }
+    
+    throw new Error(`上传失败: 未知错误`)
   }
 }
 
@@ -110,7 +184,7 @@ function getFileExtension(filename: string): string {
 /**
  * 获取带签名的访问 URL（可选，如果需要临时访问链接）
  * @param fileUrl OSS 文件 URL
- * @param credentials STS 临时凭证
+ * @param credentials STS 临时凭证（包含 endpoint 和 bucket_name）
  * @param expires 过期时间（秒），默认 3600
  */
 export async function getSignedUrl(
@@ -129,14 +203,18 @@ export async function getSignedUrl(
     
     const key = urlParts[1]
     
+    // 从 endpoint 中提取 region
+    const region = extractRegionFromEndpoint(credentials.Endpoint)
+    
     // 创建 OSS 客户端
     const client = new OSS({
-      region: OSS_REGION,
+      region: region,
       accessKeyId: credentials.AccessKeyId,
       accessKeySecret: credentials.AccessKeySecret,
       stsToken: credentials.SecurityToken,
-      bucket: OSS_BUCKET,
+      bucket: credentials.BucketName,
       secure: true,
+      authorizationV4: true, // 使用 V4 签名
     })
     
     // 生成签名 URL
