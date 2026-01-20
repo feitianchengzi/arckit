@@ -6,6 +6,7 @@ package models
 // - user.go: User
 // - project.go: Project, ProjectMember
 // - task.go: Task
+// - tag.go: Tag
 // - response.go: ErrorResponse (通用错误响应结构)
 
 // 导入此包即可使用所有模型：

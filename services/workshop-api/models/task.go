@@ -16,6 +16,8 @@ type Task struct {
 	CreatedAt    time.Time  `json:"created_at" gorm:"autoCreateTime"`                               // 创建时间
 	UpdatedAt    time.Time  `json:"updated_at" gorm:"autoUpdateTime"`                               // 更新时间
 	CompletionAt *time.Time `json:"completion_at,omitempty"`                                        // 完成时间（可为空）
+	Priority     *int       `json:"priority,omitempty" gorm:"type:int"`                             // 优先级（可为空，0为最高，数值越大优先级越低）
+	Tags         *string    `json:"tags,omitempty" gorm:"type:text"`                                // 标签（用逗号分割，可为空）
 
 	// belongs to：由fixForeignKeyConstraints函数创建正确的外键约束
 	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`

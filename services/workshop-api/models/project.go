@@ -18,6 +18,7 @@ type Project struct {
 	Creator User            `json:"creator,omitempty" gorm:"foreignKey:CreatorID;references:ID"`
 	Members []ProjectMember `json:"members,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:OnDelete:CASCADE"`
 	Tasks   []Task          `json:"tasks,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:OnDelete:CASCADE"`
+	Tags    []Tag           `json:"tags,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName 指定表名

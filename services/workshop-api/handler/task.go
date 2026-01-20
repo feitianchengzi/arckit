@@ -16,11 +16,13 @@ import (
 
 // CreateTaskRequest 创建任务请求结构
 type CreateTaskRequest struct {
-	ProjectID  uint   `json:"project_id" binding:"required"` // 项目ID（必填）
-	FatherID   *uint  `json:"father_id,omitempty"`           // 父任务ID（可选，用于创建子任务）
-	Content    string `json:"content" binding:"required"`    // 任务内容（必填）
-	State      string `json:"state,omitempty"`               // 任务状态（可选，默认为pending）
-	ExecutorID *uint  `json:"executor_id,omitempty"`         // 执行者ID（可选）
+	ProjectID  uint    `json:"project_id" binding:"required"` // 项目ID（必填）
+	FatherID   *uint   `json:"father_id,omitempty"`           // 父任务ID（可选，用于创建子任务）
+	Content    string  `json:"content" binding:"required"`    // 任务内容（必填）
+	State      string  `json:"state,omitempty"`               // 任务状态（可选，默认为pending）
+	ExecutorID *uint   `json:"executor_id,omitempty"`         // 执行者ID（可选）
+	Priority   *int    `json:"priority,omitempty"`            // 优先级（可选，0为最高，数值越大优先级越低）
+	Tags       *string `json:"tags,omitempty"`                // 标签（可选，用逗号分割）
 }
 
 // CreateTaskResponse 创建任务响应结构
@@ -32,6 +34,8 @@ type CreateTaskResponse struct {
 	State        string  `json:"state"`         // 任务状态
 	CreatorID    uint    `json:"creator_id"`    // 创建者ID
 	ExecutorID   *uint   `json:"executor_id"`   // 执行者ID
+	Priority     *int    `json:"priority"`      // 优先级
+	Tags         *string `json:"tags"`          // 标签
 	CreatedAt    string  `json:"created_at"`    // 创建时间
 	UpdatedAt    string  `json:"updated_at"`    // 更新时间
 	CompletionAt *string `json:"completion_at"` // 完成时间
@@ -129,6 +133,8 @@ func CreateTask(c *gin.Context) {
 		State:      state,
 		CreatorID:  userID,
 		ExecutorID: req.ExecutorID,
+		Priority:   req.Priority,
+		Tags:       req.Tags,
 	}
 
 	if err := db.Create(&task).Error; err != nil {
@@ -151,6 +157,8 @@ func CreateTask(c *gin.Context) {
 		State:        task.State,
 		CreatorID:    task.CreatorID,
 		ExecutorID:   task.ExecutorID,
+		Priority:     task.Priority,
+		Tags:         task.Tags,
 		CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		CompletionAt: completionAt,
@@ -196,6 +204,8 @@ type UpdateTaskRequest struct {
 	State      *string `json:"state,omitempty"`       // 任务状态（可选）
 	ExecutorID *uint   `json:"executor_id,omitempty"` // 执行者ID（可选）
 	FatherID   *uint   `json:"father_id,omitempty"`   // 父任务ID（可选）
+	Priority   *int    `json:"priority,omitempty"`    // 优先级（可选，0为最高，数值越大优先级越低）
+	Tags       *string `json:"tags,omitempty"`        // 标签（可选，用逗号分割）
 }
 
 // UpdateTaskResponse 更新任务响应结构
@@ -207,6 +217,8 @@ type UpdateTaskResponse struct {
 	State        string  `json:"state"`         // 任务状态
 	CreatorID    uint    `json:"creator_id"`    // 创建者ID
 	ExecutorID   *uint   `json:"executor_id"`   // 执行者ID
+	Priority     *int    `json:"priority"`      // 优先级
+	Tags         *string `json:"tags"`          // 标签
 	CreatedAt    string  `json:"created_at"`    // 创建时间
 	UpdatedAt    string  `json:"updated_at"`    // 更新时间
 	CompletionAt *string `json:"completion_at"` // 完成时间
@@ -338,6 +350,12 @@ func UpdateTask(c *gin.Context) {
 	if req.FatherID != nil {
 		updates["father_id"] = *req.FatherID
 	}
+	if req.Priority != nil {
+		updates["priority"] = *req.Priority
+	}
+	if req.Tags != nil {
+		updates["tags"] = *req.Tags
+	}
 	if task.CompletionAt != nil {
 		updates["completion_at"] = task.CompletionAt
 	} else if req.State != nil && *req.State != models.TaskStateCompleted {
@@ -369,6 +387,8 @@ func UpdateTask(c *gin.Context) {
 		State:        task.State,
 		CreatorID:    task.CreatorID,
 		ExecutorID:   task.ExecutorID,
+		Priority:     task.Priority,
+		Tags:         task.Tags,
 		CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		CompletionAt: completionAt,
@@ -383,6 +403,8 @@ type BatchUpdateTaskRequest struct {
 	State      *string `json:"state,omitempty"`            // 任务状态（可选）
 	ExecutorID *uint   `json:"executor_id,omitempty"`      // 执行者ID（可选）
 	FatherID   *uint   `json:"father_id,omitempty"`        // 父任务ID（可选）
+	Priority   *int    `json:"priority,omitempty"`         // 优先级（可选，0为最高，数值越大优先级越低）
+	Tags       *string `json:"tags,omitempty"`             // 标签（可选，用逗号分割）
 }
 
 // BatchUpdateTasksRequest 批量更新任务请求结构
@@ -556,6 +578,12 @@ func BatchUpdateTasks(c *gin.Context) {
 			if taskReq.FatherID != nil {
 				updates["father_id"] = *taskReq.FatherID
 			}
+			if taskReq.Priority != nil {
+				updates["priority"] = *taskReq.Priority
+			}
+			if taskReq.Tags != nil {
+				updates["tags"] = *taskReq.Tags
+			}
 			if task.CompletionAt != nil {
 				updates["completion_at"] = task.CompletionAt
 			} else if taskReq.State != nil && *taskReq.State != models.TaskStateCompleted {
@@ -603,6 +631,8 @@ func BatchUpdateTasks(c *gin.Context) {
 			State:        task.State,
 			CreatorID:    task.CreatorID,
 			ExecutorID:   task.ExecutorID,
+			Priority:     task.Priority,
+			Tags:         task.Tags,
 			CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			CompletionAt: completionAt,
@@ -640,6 +670,8 @@ type TaskResponse struct {
 	State        string  `json:"state"`         // 任务状态
 	CreatorID    uint    `json:"creator_id"`    // 创建者ID
 	ExecutorID   *uint   `json:"executor_id"`   // 执行者ID
+	Priority     *int    `json:"priority"`      // 优先级
+	Tags         *string `json:"tags"`          // 标签
 	CreatedAt    string  `json:"created_at"`    // 创建时间
 	UpdatedAt    string  `json:"updated_at"`    // 更新时间
 	CompletionAt *string `json:"completion_at"` // 完成时间
@@ -758,6 +790,8 @@ func GetTasks(c *gin.Context) {
 			State:        task.State,
 			CreatorID:    task.CreatorID,
 			ExecutorID:   task.ExecutorID,
+			Priority:     task.Priority,
+			Tags:         task.Tags,
 			CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			CompletionAt: completionAt,
@@ -985,6 +1019,8 @@ type NestedCreateTaskRequest struct {
 	Content    string                    `json:"content" binding:"required"` // 任务内容（必填）
 	State      string                    `json:"state,omitempty"`            // 任务状态（可选，默认为pending）
 	ExecutorID *uint                     `json:"executor_id,omitempty"`      // 执行者ID（可选）
+	Priority   *int                      `json:"priority,omitempty"`         // 优先级（可选，0为最高，数值越大优先级越低）
+	Tags       *string                   `json:"tags,omitempty"`             // 标签（可选，用逗号分割）
 	SubTasks   []NestedCreateTaskRequest `json:"sub_tasks,omitempty"`        // 子任务列表（可选，支持嵌套）
 }
 
@@ -1033,6 +1069,8 @@ func createNestedTask(db *gorm.DB, projectID uint, creatorID uint, parentID *uin
 		State:      state,
 		CreatorID:  creatorID,
 		ExecutorID: req.ExecutorID,
+		Priority:   req.Priority,
+		Tags:       req.Tags,
 	}
 
 	if err := db.Create(&task).Error; err != nil {
@@ -1252,6 +1290,8 @@ func BatchCreateTasks(c *gin.Context) {
 			State:        task.State,
 			CreatorID:    task.CreatorID,
 			ExecutorID:   task.ExecutorID,
+			Priority:     task.Priority,
+			Tags:         task.Tags,
 			CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			CompletionAt: completionAt,
