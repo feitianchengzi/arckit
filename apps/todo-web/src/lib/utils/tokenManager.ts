@@ -68,7 +68,16 @@ export function isTokenExpired(
   const expiresAt = authInfo.tokenObtainedAt + (authInfo.tokenExpiresIn * 1000)
   
   // 提前5分钟视为过期，以便有时间刷新
-  return now >= (expiresAt - bufferMs)
+  const isExpired = now >= (expiresAt - bufferMs)
+  
+  // 调试日志
+  if (isExpired) {
+    const remainingMs = expiresAt - now
+    const remainingMin = Math.floor(remainingMs / 60000)
+    console.log(`⏰ Access Token 即将过期，剩余 ${remainingMin} 分钟`)
+  }
+  
+  return isExpired
 }
 
 /**
@@ -101,7 +110,17 @@ export function isRefreshTokenExpired(
   const expiresAt = authInfo.refreshTokenObtainedAt + (authInfo.refreshExpiresIn * 1000)
   
   // 提前5分钟视为过期，以便有时间刷新
-  return now >= (expiresAt - bufferMs)
+  const isExpired = now >= (expiresAt - bufferMs)
+  
+  // 调试日志
+  if (isExpired) {
+    const remainingMs = expiresAt - now
+    const remainingDays = Math.floor(remainingMs / 86400000)
+    const remainingHours = Math.floor((remainingMs % 86400000) / 3600000)
+    console.log(`⏰ Refresh Token 即将过期，剩余 ${remainingDays} 天 ${remainingHours} 小时`)
+  }
+  
+  return isExpired
 }
 
 /**

@@ -144,14 +144,15 @@ export function useUpdateTask(projectId: string, taskId: string) {
 /**
  * 删除待办
  */
-export function useDeleteTask(projectId: string) {
+export function useDeleteTask(projectId: string | number) {
   const queryClient = useQueryClient()
+  const projectIdStr = String(projectId)
   
   return useMutation({
-    mutationFn: (taskId: string) => tasksApi.delete(projectId, taskId), // 不需要 user_id
+    mutationFn: (taskId: string) => tasksApi.delete(projectIdStr, taskId), // 不需要 user_id
     onSuccess: () => {
       // 使待办列表缓存失效
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
+      queryClient.invalidateQueries({ queryKey: ['projects', projectIdStr, 'tasks'] })
     },
   })
 }

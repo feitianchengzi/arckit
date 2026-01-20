@@ -15,7 +15,7 @@ import type { CodeType, LoginRequest } from '@/types/auth'
 
 function LoginPageContent() {
   const navigate = useNavigate()
-  const searchParams = useSearchParams()
+  const [searchParams] = useSearchParams()
 
   // 表单状态
   const [username, setUsername] = useState('')

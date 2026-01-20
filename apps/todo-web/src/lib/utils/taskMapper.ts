@@ -64,6 +64,8 @@ export function taskToTodo(task: Task): Todo {
     assignee: task.executor,
     creator: task.creator,
     children: task.children?.map(taskToTodo),
+    tags: task.tags,
+    priority: task.priority,
   }
 }
 
@@ -91,6 +93,14 @@ export function todoToTaskInput(todo: Partial<Todo>): Partial<Task> {
   
   if (todo.parentId !== undefined) {
     result.father_id = todo.parentId
+  }
+  
+  if (todo.tags !== undefined) {
+    result.tags = todo.tags
+  }
+  
+  if (todo.priority !== undefined) {
+    result.priority = todo.priority
   }
   
   return result

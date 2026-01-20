@@ -69,6 +69,8 @@ export interface Todo {
   assignee?: User
   creator?: User
   children?: Todo[]
+  tags?: string // 标签字符串，格式："[Bug](#ffff0000),[Add](#ffabc101),..."
+  priority?: number // 优先级，0为最高优先级
 }
 
 export type TodoStatus = 
@@ -89,6 +91,8 @@ export interface UpdateTodoInput {
   content?: string
   status?: TodoStatus
   assigneeId?: number
+  tags?: string // 标签字符串
+  priority?: number // 优先级
 }
 
 // ==================== Task (后端模型) ====================
@@ -107,6 +111,8 @@ export interface Task {
   creator?: User
   executor?: User
   children?: Task[]
+  tags?: string // 标签字符串，格式："[Bug](#ffff0000),[Add](#ffabc101),..."
+  priority?: number // 优先级，0为最高优先级
 }
 
 export type TaskState = 

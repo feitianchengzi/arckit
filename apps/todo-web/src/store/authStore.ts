@@ -9,13 +9,12 @@ import {
   saveAuthInfo,
   getAuthInfo,
   clearAuthInfo,
-  getAccessToken,
   isTokenExpired,
   shouldRefreshToken,
-  getRefreshToken,
   isRefreshTokenValid,
 } from '@/lib/utils/tokenManager'
 import { gatewayApi } from '@/lib/api/endpoints/gateway'
+import { logFlow } from '@/utils/tokenDebug'
 
 interface AuthState {
   // 状态
@@ -31,6 +30,9 @@ interface AuthState {
   checkAndRefreshAuth: () => Promise<boolean>
   initialize: () => void
 }
+
+// 全局刷新锁：防止并发刷新
+let refreshPromise: Promise<boolean> | null = null
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   // 初始状态
@@ -77,6 +79,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    * 退出登录
    */
   logout: () => {
+    logFlow('authStore：调用 logout()，跳转登录页')
     clearAuthInfo()
     set({
       isAuthenticated: false,
@@ -99,6 +102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     // 没有 token，未登录
     if (!authInfo || !authInfo.accessToken) {
+      logFlow('authStore.checkAuth：无认证信息', { hasAuthInfo: !!authInfo })
       set({ isAuthenticated: false })
       return false
     }
@@ -107,11 +111,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (isTokenExpired(authInfo)) {
       // Token 已过期，返回 false
       // 调用方应该使用 checkAndRefreshAuth() 来尝试刷新
+      logFlow('authStore.checkAuth：Token 已过期', {
+        tokenObtainedAt: new Date(authInfo.tokenObtainedAt).toLocaleString('zh-CN'),
+        expiresIn: authInfo.tokenExpiresIn
+      })
       set({ isAuthenticated: false })
       return false
     }
     
     // Token 有效
+    logFlow('authStore.checkAuth：Token 有效')
     set({ isAuthenticated: true })
     return true
   },
@@ -119,13 +128,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   /**
    * 检查并刷新认证状态（异步）
    * 如果 token 过期，尝试刷新
+   * 使用全局锁防止并发刷新
    */
   checkAndRefreshAuth: async () => {
+    // 如果已经有刷新在进行中，直接返回那个 Promise
+    if (refreshPromise) {
+      console.log('🔒 已有刷新在进行中，等待刷新完成...')
+      logFlow('authStore.checkAndRefreshAuth：检测到正在刷新，等待完成')
+      return refreshPromise
+    }
+    
     const authInfo = getAuthInfo()
+    
+    logFlow('authStore.checkAndRefreshAuth：开始检查并刷新认证状态')
     
     // 步骤1: 检查 Refresh Token 是否存在且未过期
     if (!isRefreshTokenValid()) {
       console.warn('⚠️ Refresh Token 不存在或已过期，需要重新登录')
+      logFlow('authStore.checkAndRefreshAuth：Refresh Token 不存在或已过期，跳转登录页')
       clearAuthInfo()
       set({ isAuthenticated: false, user: null })
       // 跳转到登录页
@@ -138,44 +158,84 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 步骤2: 检查 Access Token 是否过期
     if (!shouldRefreshToken()) {
       // Access Token 未过期，认证有效
+      logFlow('authStore.checkAndRefreshAuth：Access Token 未过期，认证有效')
       set({ isAuthenticated: true })
       return true
     }
     
     // Access Token 已过期，需要刷新
+    logFlow('authStore.checkAndRefreshAuth：Access Token 已过期，开始刷新')
     
-    // 尝试刷新 token
-    try {
-      console.log('🔄 Token 已过期，尝试刷新...')
-      
-      const response = await gatewayApi.refreshToken({
-        refresh_token: authInfo.refreshToken,
-      })
-      
-      // 保存新 token（保留原有用户信息）
-      const now = Date.now()
-      saveAuthInfo({
-        accessToken: response.data.tokens.access_token,
-        refreshToken: response.data.tokens.refresh_token,
-        tokenObtainedAt: now,
-        tokenExpiresIn: response.data.tokens.expires_in,
-        refreshTokenObtainedAt: now,
-        refreshExpiresIn: response.data.tokens.refresh_expires_in,
-        username: authInfo.username,
-        avatarUrl: authInfo.avatarUrl,
-      })
-      
-      console.log('✅ Token 刷新成功')
-      set({ isAuthenticated: true })
-      return true
-    } catch (error) {
-      console.error('❌ Token 刷新失败:', error)
-      
-      // 刷新失败，清除认证信息
-      clearAuthInfo()
-      set({ isAuthenticated: false, user: null })
-      return false
-    }
+    // 创建刷新 Promise 并存储到全局变量
+    refreshPromise = (async () => {
+      try {
+        console.log('🔄 Token 已过期，尝试刷新...')
+        logFlow('authStore.checkAndRefreshAuth：调用刷新接口')
+        
+        if (!authInfo || !authInfo.refreshToken) {
+          throw new Error('No refresh token available')
+        }
+        
+        const response = await gatewayApi.refreshToken({
+          refresh_token: authInfo.refreshToken,
+        })
+        
+        console.log('📦 authStore 刷新接口返回:', JSON.stringify(response, null, 2))
+        
+        // 根据 API 文档，响应格式为：{ code: 'OK', data: { access_token: ..., refresh_token: ..., ... } }
+        // gatewayApi.refreshToken 返回的是 response.data（即 axios 的 response.data）
+        // 所以 response 就是 { code: 'OK', data: {...} }
+        // response.data 才是 tokens
+        const tokens = response.data
+        
+        if (!tokens || !tokens.access_token) {
+          console.error('❌ authStore 刷新接口返回格式错误')
+          logFlow('authStore.checkAndRefreshAuth：刷新接口返回格式错误', { response })
+          throw new Error('Invalid refresh token response format')
+        }
+        
+        logFlow('authStore.checkAndRefreshAuth：刷新接口返回成功', { expiresIn: tokens.expires_in })
+        
+        // 保存新 token（保留原有用户信息）
+        const now = Date.now()
+        saveAuthInfo({
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          tokenObtainedAt: now,
+          tokenExpiresIn: tokens.expires_in,
+          refreshTokenObtainedAt: now,
+          refreshExpiresIn: tokens.refresh_expires_in,
+          username: authInfo?.username,
+          avatarUrl: authInfo?.avatarUrl,
+        })
+        
+        console.log('✅ Token 刷新成功')
+        logFlow('authStore.checkAndRefreshAuth：Token 刷新成功，保存新 Token', {
+          newExpiresIn: tokens.expires_in,
+          newTokenObtainedAt: new Date(now).toLocaleString('zh-CN')
+        })
+        set({ isAuthenticated: true })
+        return true
+      } catch (error: any) {
+        console.error('❌ Token 刷新失败:', error)
+        logFlow('authStore.checkAndRefreshAuth：Token 刷新失败', {
+          error: error.message,
+          responseData: error.response?.data,
+          status: error.response?.status
+        })
+        
+        // 刷新失败，清除认证信息
+        clearAuthInfo()
+        set({ isAuthenticated: false, user: null })
+        return false
+      } finally {
+        // 刷新完成，清除全局锁
+        refreshPromise = null
+        logFlow('authStore.checkAndRefreshAuth：刷新流程结束，释放锁')
+      }
+    })()
+    
+    return refreshPromise
   },
 
   /**
@@ -199,7 +259,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 检查 token 是否过期
     if (isTokenExpired(authInfo)) {
       // Token 已过期，尝试刷新（异步）
-      get().checkAndRefreshAuth().then((success) => {
+      get().checkAndRefreshAuth().finally(() => {
         set({ isLoading: false })
       })
       // 先设置为未认证，刷新成功后会更新

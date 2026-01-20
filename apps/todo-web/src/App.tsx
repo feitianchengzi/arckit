@@ -21,15 +21,14 @@ import DashboardLayout from '@/layouts/DashboardLayout'
 import AuthGuard from '@/components/auth/AuthGuard'
 
 function App() {
-  const { checkAuth, initialize } = useAuthStore()
+  const { initialize } = useAuthStore()
 
   // 应用启动时初始化认证状态（从 localStorage 恢复）
   useEffect(() => {
-    // 初始化（从 localStorage 恢复状态，检查 token 是否过期）
+    // 初始化（从 localStorage 恢复状态）
+    // 注意：不在这里调用 checkAuth()，让 AuthGuard 完全控制认证流程
     initialize()
-    // 检查认证状态（如果 token 过期会尝试刷新）
-    checkAuth()
-  }, [initialize, checkAuth])
+  }, [initialize])
 
   return (
     <Routes>

@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog } from '@/components/ui'
-import { SubtaskList, StatusHistory } from '@/components/features'
+import { SubtaskList, StatusHistory, TagSelector } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
@@ -18,18 +18,18 @@ import ReactMarkdown from 'react-markdown'
 export default function TaskDetailPage() {
   const navigate = useNavigate()
   const params = useParams()
-  const projectId = Number(params.id!)
-  const taskId = Number(params.taskId!)
+  const projectId = params.id!
+  const taskId = params.taskId!
   
-  const { data: project } = useProject(String(projectId))
-  const { data: todo, isLoading, error, refetch } = useTask(String(projectId), String(taskId))
+  const { data: project } = useProject(projectId)
+  const { data: todo, isLoading, error, refetch } = useTask(projectId, taskId)
   
   // 获取父任务信息（如果有）
   const parentTask = (todo as any)?.parentTask
-  const { data: history, isLoading: historyLoading } = useTaskHistory(String(projectId), String(taskId))
-  const updateTask = useUpdateTask(String(projectId), String(taskId))
+  const { data: history, isLoading: historyLoading } = useTaskHistory(projectId, taskId)
+  const updateTask = useUpdateTask(projectId, taskId)
   const deleteTask = useDeleteTask(projectId)
-  const updateStatus = useUpdateTaskStatus(String(projectId))
+  const updateStatus = useUpdateTaskStatus(projectId)
   
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState('')
@@ -39,12 +39,12 @@ export default function TaskDetailPage() {
   const [isEditingAssignee, setIsEditingAssignee] = useState(false)
   const [newAssigneeId, setNewAssigneeId] = useState<number | undefined>(undefined)
   
-  const { data: members } = useProjectMembers(String(projectId))
+  const { data: members } = useProjectMembers(projectId)
   const currentUser = useAuthStore((state) => state.user)
   
   // 从成员列表中查找创建者和执行者信息
-  const creatorInfo = members?.find(m => m.user_id === todo?.creatorId)
-  const executorInfo = members?.find(m => m.user_id === todo?.assigneeId)
+  const creatorInfo = Array.isArray(members) ? members.find((m: any) => m.user_id === todo?.creatorId) : undefined
+  const executorInfo = Array.isArray(members) ? members.find((m: any) => m.user_id === todo?.assigneeId) : undefined
   
   // 获取创建者和执行者的用户名
   const creatorUsername = todo?.creator?.username || creatorInfo?.username || creatorInfo?.user?.username || '未知'
@@ -58,8 +58,19 @@ export default function TaskDetailPage() {
   const currentUserMember = (members as any)?.find((m: any) => m.username === currentUser?.username)
   const currentUserRole = currentUserMember?.role || null
   
-  // 创建者、执行者、项目管理员（admin）或所有者（owner）可以分配任务
-  const canEditAssignee = isCreator || isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner'
+  // 判断执行者是否未分配
+  const isAssigneeUnassigned = !todo?.assigneeId || executorUsername === '未分配'
+  
+  // 权限检查：编辑任务内容
+  // owner/admin 可以修改任意任务，member 只能修改自己创建或分配给自己执行的任务
+  const canEditContent = currentUserRole === 'owner' || currentUserRole === 'admin' || isCreator || isAssignee
+  
+  // 权限检查：分配执行者
+  // 1. 如果执行者是未分配状态，任何项目成员都可以分配
+  // 2. 如果执行者已分配，只有创建人、执行人、项目管理员（admin）或所有者（owner）可以分配
+  const canEditAssignee = isAssigneeUnassigned 
+    ? !!currentUserMember  // 未分配时，任何项目成员都可以分配
+    : (isCreator || isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner')  // 已分配时，只有创建人、执行人、管理员或owner可以分配
   
   // 加载状态
   if (isLoading) {
@@ -108,16 +119,6 @@ export default function TaskDetailPage() {
     setUpdateError('')
   }
   
-  // 删除待办
-  const handleDelete = async () => {
-    try {
-      await deleteTask.mutateAsync(taskId)
-      navigate(`/projects/${projectId}`)
-    } catch (err: any) {
-      alert(err.response?.data?.message || '删除失败，请重试')
-      setShowDeleteConfirm(false)
-    }
-  }
 
   // 处理子待办状态变更
   const handleSubtaskStatusChange = async (subtaskId: number, newStatus: string) => {
@@ -145,6 +146,17 @@ export default function TaskDetailPage() {
       await updateStatus.mutateAsync({ taskId, status: newStatus })
     } catch (err: any) {
       setStatusUpdateError(err.response?.data?.message || '状态更新失败，请重试')
+    }
+  }
+  
+  // 处理删除
+  const handleDelete = async () => {
+    try {
+      await deleteTask.mutateAsync(taskId)
+      navigate(`/projects/${projectId}`)
+    } catch (err: any) {
+      alert(err.response?.data?.message || '删除失败，请重试')
+      setShowDeleteConfirm(false)
     }
   }
   
@@ -205,7 +217,7 @@ export default function TaskDetailPage() {
           </div>
         </div>
         
-        {!isEditing && (
+        {!isEditing && canEditContent && (
           <div className="flex gap-3">
             <Button
               variant="secondary"
@@ -249,9 +261,43 @@ export default function TaskDetailPage() {
         {/* 分割线 */}
         <div className="border-t border-gray-200"></div>
         
+        {/* 标签 */}
+        <div className="space-y-3">
+          <h2 className="text-base font-semibold text-gray-900">标签</h2>
+          <TagSelector
+            projectId={projectId}
+            currentTags={todo.tags}
+            onTagsChange={async (tagsString) => {
+              try {
+                await updateTask.mutateAsync({ tags: tagsString })
+              } catch (err: any) {
+                console.error('更新标签失败:', err)
+                throw err
+              }
+            }}
+            showCreateButton={true}
+          />
+        </div>
+        
+        {/* 分割线 */}
+        <div className="border-t border-gray-200"></div>
+        
         {/* 内容 */}
         <div className="space-y-3">
-          <h2 className="text-base font-semibold text-gray-900">待办内容</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-base font-semibold text-gray-900">待办内容</h2>
+            {!isEditing && canEditContent && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleEdit}
+                className="flex items-center gap-1.5"
+              >
+                <EditIcon className="w-4 h-4" />
+                编辑
+              </Button>
+            )}
+          </div>
           
           {isEditing ? (
             <div className="space-y-3">
@@ -349,7 +395,7 @@ export default function TaskDetailPage() {
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50"
                 >
                   <option value="">未分配</option>
-                  {members?.map((member: any) => (
+                  {Array.isArray(members) && members.map((member: any) => (
                     <option key={member.user_id} value={member.user_id}>
                       {member.username || member.user?.username || '未知用户'}
                     </option>
@@ -375,7 +421,11 @@ export default function TaskDetailPage() {
                         
                        // 处理 403 权限错误
                        if (err?.response?.status === 403) {
-                         setUpdateError('您没有权限分配此任务，只有任务创建者、执行者或项目管理员可以分配任务')
+                         if (isAssigneeUnassigned) {
+                           setUpdateError('您没有权限分配此任务，只有项目成员可以分配未分配的任务')
+                         } else {
+                           setUpdateError('您没有权限分配此任务，只有任务创建者、执行者、项目管理员或所有者可以分配任务')
+                         }
                         } else {
                           // 提取错误消息
                           const errorData = err?.response?.data
@@ -435,11 +485,13 @@ export default function TaskDetailPage() {
                   <span 
                     className="text-xs text-gray-500 relative group cursor-help"
                   >
-                    仅创建者/执行者/管理员可编辑
+                    {isAssigneeUnassigned ? '仅项目成员可编辑' : '仅创建者/执行者/管理员可编辑'}
                     {/* Tooltip */}
                     <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
                       <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
-                        只有任务创建者、执行者或项目管理员可以分配任务
+                        {isAssigneeUnassigned 
+                          ? '未分配状态时，任何项目成员都可以分配任务'
+                          : '只有任务创建者、执行者、项目管理员或所有者可以分配任务'}
                         <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
                       </div>
                     </div>
@@ -526,6 +578,14 @@ function ProjectIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+    </svg>
+  )
+}
+
+function EditIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
     </svg>
   )
 }

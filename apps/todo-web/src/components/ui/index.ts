@@ -11,4 +11,5 @@ export * from './ConfirmDialog'
 export * from './Dialog'
 export * from './AvatarCropUpload'
 export * from './ImageCropDialog'
+export * from './icons'
 

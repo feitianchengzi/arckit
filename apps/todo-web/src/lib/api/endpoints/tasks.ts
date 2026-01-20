@@ -18,6 +18,8 @@ export interface UpdateTaskInput {
   content?: string
   status?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'BLOCKED'
   assigneeId?: number
+  tags?: string // 标签字符串
+  priority?: number // 优先级
 }
 
 export const tasksApi = {
@@ -159,6 +161,14 @@ export const tasksApi = {
     
     if (input.assigneeId !== undefined) {
       taskInput.executor_id = input.assigneeId
+    }
+    
+    if (input.tags !== undefined) {
+      taskInput.tags = input.tags
+    }
+    
+    if (input.priority !== undefined) {
+      taskInput.priority = input.priority
     }
     
     console.log('🔄 更新任务，任务ID:', taskId, '更新内容:', taskInput)

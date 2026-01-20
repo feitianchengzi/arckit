@@ -80,10 +80,8 @@ export interface RefreshTokenRequest {
 
 /** 刷新Token响应 */
 export interface RefreshTokenResponse {
-  success: boolean
-  data: {
-    tokens: TokenInfo
-  }
+  code: string
+  data: TokenInfo  // 根据 API 文档，data 直接就是 TokenInfo，不是 { tokens: TokenInfo }
 }
 
 // ==================== 用户服务 API 类型 ====================

@@ -7,6 +7,7 @@
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { StatusBadge, StatusSelect } from '@/components/ui'
+import { TagList } from './TagList'
 import type { Todo, TodoStatus } from '@/types'
 
 export interface TodoItemProps {
@@ -45,11 +46,19 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
         className
       )}
     >
-      {/* 头部：内容 + 状态 */}
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="flex-1 text-base font-medium text-gray-900 truncate" title={todo.content}>
-          {todo.content}
-        </h3>
+      {/* 头部：标签 + 内容 + 状态 */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          {/* 标签显示在标题左侧 */}
+          {todo.tags && (
+            <div className="mb-2">
+              <TagList tagsString={todo.tags} size="sm" />
+            </div>
+          )}
+          <h3 className="text-base font-medium text-gray-900 truncate" title={todo.content}>
+            {todo.content}
+          </h3>
+        </div>
         
         <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
           {canEdit ? (
