@@ -2,11 +2,17 @@ package handler
 
 import (
 	"net/http"
+	"os"
+	"strconv"
 
 	"todo/middleware"
 	"todo/models"
 	"todo/response"
 
+	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
+	sts20150401 "github.com/alibabacloud-go/sts-20150401/v2/client"
+	util "github.com/alibabacloud-go/tea-utils/v2/service"
+	"github.com/alibabacloud-go/tea/tea"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -255,6 +261,114 @@ func UpdateUser(c *gin.Context) {
 		Avatar:    user.Avatar,
 		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: user.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
+}
+
+// GetOSSTempCredentialsResponse OSS临时凭证响应结构
+type GetOSSTempCredentialsResponse struct {
+	AccessKeyId     string `json:"access_key_id"`     // 临时AccessKeyId
+	AccessKeySecret string `json:"access_key_secret"` // 临时AccessKeySecret
+	SecurityToken   string `json:"security_token"`    // SecurityToken
+	Expiration      string `json:"expiration"`        // 过期时间
+	Endpoint        string `json:"endpoint"`          // OSS Endpoint
+	BucketName      string `json:"bucket_name"`       // OSS Bucket名称
+}
+
+// GetOSSTempCredentials 为客户端生成临时的OSS访问凭证
+// 网关路由: GET /todo-service/v1/user/oss/credentials
+// 认证级别: user (需要JWT认证)
+// 流程：
+// 1. 验证用户身份（通过中间件RequireUserID）
+// 2. 从环境变量读取OSS和STS配置
+// 3. 调用阿里云STS服务生成临时凭证
+// 4. 返回临时凭证信息
+func GetOSSTempCredentials(c *gin.Context) {
+	// 1. 验证用户身份（如果没有用户身份就直接返回错误）
+	_, ok := middleware.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	// 2. 获取Header信息（用于会话名称）
+	headerInfo := middleware.GetHeaderInfo(c)
+	if headerInfo == nil || headerInfo.UserID == "" {
+		c.JSON(http.StatusUnauthorized, response.NewErrorResponse(response.CodeUnauthorized, "未获取到用户信息，请确保已通过网关认证", nil))
+		return
+	}
+
+	// 3. 从环境变量读取配置
+	accessKeyId := os.Getenv("OSS_ACCESS_KEY_ID")
+	accessKeySecret := os.Getenv("OSS_ACCESS_KEY_SECRET")
+	ossEndpoint := os.Getenv("OSS_ENDPOINT")
+	bucketName := os.Getenv("OSS_BUCKET_NAME")
+	roleArn := os.Getenv("OSS_RAM_ROLE_ARN")
+	region := os.Getenv("OSS_REGION")
+
+	// 4. 验证必要的环境变量
+	if accessKeyId == "" || accessKeySecret == "" {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "OSS配置不完整：缺少OSS_ACCESS_KEY_ID或OSS_ACCESS_KEY_SECRET", nil))
+		return
+	}
+	if ossEndpoint == "" {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "OSS配置不完整：缺少OSS_ENDPOINT", nil))
+		return
+	}
+	if bucketName == "" {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "OSS配置不完整：缺少OSS_BUCKET_NAME", nil))
+		return
+	}
+	if roleArn == "" {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "OSS配置不完整：缺少OSS_RAM_ROLE_ARN", nil))
+		return
+	}
+	if region == "" {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "OSS配置不完整：缺少OSS_REGION", nil))
+		return
+	}
+
+	// 5. 创建STS客户端配置
+	config := &openapi.Config{
+		AccessKeyId:     tea.String(accessKeyId),     // RAM用户的AccessKey ID
+		AccessKeySecret: tea.String(accessKeySecret), // RAM用户的AccessKey Secret
+	}
+
+	// 设置STS服务的Endpoint（必须使用HTTPS）
+	// 根据region构建STS endpoint，格式：sts.{region}.aliyuncs.com
+	stsEndpoint := "sts." + region + ".aliyuncs.com"
+	config.Endpoint = tea.String(stsEndpoint)
+
+	// 6. 创建STS客户端
+	client, err := sts20150401.NewClient(config)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "创建STS客户端失败: "+err.Error(), nil))
+		return
+	}
+
+	// 7. 构建AssumeRole请求参数
+	durationSeconds, _ := strconv.ParseInt("3600", 10, 64)
+	request := &sts20150401.AssumeRoleRequest{
+		DurationSeconds: tea.Int64(durationSeconds),                     // 临时凭证的有效期，单位为秒（1小时）
+		RoleArn:         tea.String(roleArn),                            // RAM角色的ARN
+		RoleSessionName: tea.String("oss-session-" + headerInfo.UserID), // 自定义会话名称，使用用户ID
+	}
+
+	// 8. 发送请求并获取临时访问凭证
+	stsResponse, err := client.AssumeRoleWithOptions(request, &util.RuntimeOptions{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "获取临时凭证失败: "+err.Error(), nil))
+		return
+	}
+
+	// 9. 返回成功响应
+	creds := stsResponse.Body.Credentials
+	resp := GetOSSTempCredentialsResponse{
+		AccessKeyId:     tea.StringValue(creds.AccessKeyId),
+		AccessKeySecret: tea.StringValue(creds.AccessKeySecret),
+		SecurityToken:   tea.StringValue(creds.SecurityToken),
+		Expiration:      tea.StringValue(creds.Expiration),
+		Endpoint:        ossEndpoint,
+		BucketName:      bucketName,
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
