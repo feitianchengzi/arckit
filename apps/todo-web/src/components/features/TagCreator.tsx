@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import { Button } from '@/components/ui'
-import { cssColorToArgb } from '@/lib/utils/tagParser'
+import { argbToCssColor } from '@/lib/utils/tagParser'
 import type { ParsedTag } from '@/lib/utils/tagParser'
 
 export interface TagCreatorProps {
@@ -15,33 +15,36 @@ export interface TagCreatorProps {
   className?: string
 }
 
-// 预设颜色板
-const PRESET_COLORS = [
-  '#ff0000', // 红色
-  '#ff8000', // 橙色
-  '#ffd700', // 金色
-  '#32cd32', // 绿色
-  '#00bfff', // 天蓝色
-  '#4169e1', // 蓝色
-  '#9370db', // 紫色
-  '#ff1493', // 深粉色
-  '#ff69b4', // 粉色
-  '#00ced1', // 青色
-  '#ff6347', // 番茄红
-  '#ffa500', // 橙色
-  '#ffff00', // 黄色
-  '#90ee90', // 浅绿色
-  '#87ceeb', // 天蓝色
-  '#4682b4', // 钢蓝色
-  '#ba55d3', // 中紫色
-  '#dc143c', // 深红色
+// 预设颜色板（8位ARGB格式）
+const PRESET_COLORS_ARGB = [
+  'ffff0000', // 红色
+  'ffff8000', // 橙色
+  'ffffd700', // 金色
+  'ff32cd32', // 绿色
+  'ff00bfff', // 天蓝色
+  'ff4169e1', // 蓝色
+  'ff9370db', // 紫色
+  'ffff1493', // 深粉色
+  'ffff69b4', // 粉色
+  'ff00ced1', // 青色
+  'ffff6347', // 番茄红
+  'ffffa500', // 橙色
+  'ffffff00', // 黄色
+  'ff90ee90', // 浅绿色
+  'ff87ceeb', // 天蓝色
+  'ff4682b4', // 钢蓝色
+  'ffba55d3', // 中紫色
+  'ffdc143c', // 深红色
 ]
 
 export function TagCreator({ onSave, onCancel, existingTags = [], className }: TagCreatorProps) {
   const [tagName, setTagName] = useState('')
-  const [selectedColor, setSelectedColor] = useState(PRESET_COLORS[0])
+  const [selectedColorArgb, setSelectedColorArgb] = useState(PRESET_COLORS_ARGB[0])
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  
+  // 将8位ARGB转换为CSS颜色（用于显示）
+  const selectedColorCss = argbToCssColor(selectedColorArgb)
   
   const handleSave = async () => {
     // 验证标签名称
@@ -62,12 +65,12 @@ export function TagCreator({ onSave, onCancel, existingTags = [], className }: T
       try {
         const tag: ParsedTag = {
           name: tagName.trim(),
-          color: cssColorToArgb(selectedColor),
+          color: selectedColorArgb, // 直接使用8位ARGB格式
         }
         await onSave(tag)
         // 保存成功后重置表单
         setTagName('')
-        setSelectedColor(PRESET_COLORS[0])
+        setSelectedColorArgb(PRESET_COLORS_ARGB[0])
         setError('')
       } catch (err: any) {
         setError(err.message || '创建标签失败')
@@ -100,26 +103,29 @@ export function TagCreator({ onSave, onCancel, existingTags = [], className }: T
           选择颜色
         </label>
         <div className="flex flex-wrap gap-2">
-          {PRESET_COLORS.map((color) => (
-            <button
-              key={color}
-              type="button"
-              onClick={() => setSelectedColor(color)}
-              className={`
-                w-8 h-8 rounded-full border-2 transition-all
-                ${selectedColor === color ? 'border-gray-900 scale-110' : 'border-gray-300 hover:border-gray-500'}
-              `}
-              style={{ backgroundColor: color }}
-              title={color}
-            />
-          ))}
+          {PRESET_COLORS_ARGB.map((colorArgb) => {
+            const colorCss = argbToCssColor(colorArgb)
+            return (
+              <button
+                key={colorArgb}
+                type="button"
+                onClick={() => setSelectedColorArgb(colorArgb)}
+                className={`
+                  w-8 h-8 rounded-full border-2 transition-all
+                  ${selectedColorArgb === colorArgb ? 'border-gray-900 scale-110' : 'border-gray-300 hover:border-gray-500'}
+                `}
+                style={{ backgroundColor: colorCss }}
+                title={`${colorArgb} (${colorCss})`}
+              />
+            )
+          })}
         </div>
         {/* 显示当前选中的颜色预览 */}
         <div className="mt-2 flex items-center gap-2">
           <span className="text-xs text-gray-600">预览：</span>
           <span
             className="inline-block px-3 py-1 rounded-full text-sm font-medium text-white"
-            style={{ backgroundColor: selectedColor }}
+            style={{ backgroundColor: selectedColorCss }}
           >
             {tagName || '标签名称'}
           </span>

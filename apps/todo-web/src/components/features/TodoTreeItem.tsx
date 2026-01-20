@@ -9,6 +9,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { StatusBadge, StatusSelect } from '@/components/ui'
+import { TagList, PriorityBadge } from './'
 import type { Todo, TodoStatus } from '@/types'
 import { TodoItem } from './TodoItem'
 
@@ -42,8 +43,19 @@ export function TodoTreeItem({
   // 最大深度限制（避免过深的嵌套）
   const MAX_DEPTH = 5
   
-  // 计算缩进（每层增加 24px）
-  const indentWidth = Math.min(depth, MAX_DEPTH) * 24
+  // 计算背景色渐变（每层逐渐变浅）
+  const getBackgroundColor = (depth: number): string => {
+    const baseColors = [
+      'bg-white',           // 0层：白色
+      'bg-gray-50',        // 1层：浅灰
+      'bg-gray-100/50',    // 2层：更浅灰
+      'bg-blue-50/30',     // 3层：浅蓝
+      'bg-blue-100/20',    // 4层：更浅蓝
+    ]
+    return baseColors[Math.min(depth, MAX_DEPTH - 1)] || baseColors[baseColors.length - 1]
+  }
+  
+  const backgroundColor = getBackgroundColor(depth)
   
   // 点击展开/折叠
   const handleToggleExpand = (e: React.MouseEvent) => {
@@ -78,40 +90,17 @@ export function TodoTreeItem({
   }
   
   return (
-    <div className={clsx('relative', className, 'mb-3')}>
-      {/* 书签样式标记（如果有父任务） */}
-      {depth > 0 && (
-        <div
-          className="absolute left-0 text-primary"
-          style={{
-            left: `${(depth - 1) * 24 + 4}px`,
-            top: '12px', // 与子任务容器的 pt-3 (12px) 对齐
-          }}
-        >
-          <svg
-            className="w-4 h-4"
-            viewBox="0 0 1024 1024"
-            version="1.1"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="currentColor"
-          >
-            <path d="M460.8 234.666667h405.333333c17.066667 0 34.133333-12.8 34.133334-34.133334s-17.066667-29.866667-38.4-29.866666h-405.333334c-17.066667 0-29.866667 12.8-29.866666 29.866666s12.8 34.133333 34.133333 34.133334zM861.866667 789.333333h-119.466667c-17.066667 0-34.133333 12.8-34.133333 34.133334s12.8 34.133333 34.133333 34.133333h119.466667c17.066667 0 34.133333-12.8 34.133333-34.133333s-12.8-34.133333-34.133333-34.133334zM430.933333 546.133333c12.8 51.2 59.733333 85.333333 110.933334 85.333334 64 0 119.466667-51.2 119.466666-119.466667s-51.2-119.466667-119.466666-119.466667c-55.466667 0-98.133333 34.133333-110.933334 85.333334H277.333333V315.733333c51.2-12.8 85.333333-59.733333 85.333334-110.933333C362.666667 136.533333 311.466667 85.333333 247.466667 85.333333S128 136.533333 128 200.533333c0 55.466667 34.133333 102.4 85.333333 115.2v422.4C213.333333 802.133333 264.533333 853.333333 332.8 853.333333h102.4c12.8 51.2 59.733333 85.333333 110.933333 85.333334 64 0 119.466667-51.2 119.466667-119.466667s-51.2-119.466667-119.466667-119.466667c-55.466667 0-98.133333 34.133333-110.933333 85.333334H332.8c-29.866667 0-51.2-25.6-51.2-51.2v-192h149.333333z m115.2-85.333333c29.866667 0 51.2 25.6 51.2 51.2s-25.6 51.2-51.2 51.2-51.2-25.6-51.2-51.2 21.333333-51.2 51.2-51.2z m0 307.2c29.866667 0 51.2 25.6 51.2 51.2s-25.6 51.2-51.2 51.2-51.2-25.6-51.2-51.2 21.333333-51.2 51.2-51.2zM192 200.533333c0-29.866667 25.6-51.2 51.2-51.2S298.666667 174.933333 298.666667 200.533333 273.066667 256 247.466667 256s-55.466667-25.6-55.466667-55.466667zM861.866667 482.133333h-119.466667c-17.066667 0-34.133333 12.8-34.133333 34.133334s12.8 34.133333 34.133333 34.133333h119.466667c17.066667 0 34.133333-12.8 34.133333-34.133333s-12.8-34.133333-34.133333-34.133334z" />
-          </svg>
-        </div>
-      )}
-      
+    <div className={clsx('relative', className, 'mb-2')}>
       {/* 任务项 */}
       <div
         className={clsx(
           'relative',
           'group',
-          'bg-white rounded-lg border border-gray-200',
+          'rounded-lg border border-gray-200',
           'hover:shadow-md hover:border-primary transition-all',
-          depth > 0 && 'ml-6 mr-3' // 子任务缩进和右边距
+          backgroundColor, // 使用渐变背景色
+          depth > 0 && 'ml-4' // 子任务轻微缩进
         )}
-        style={{
-          marginLeft: depth > 0 ? `${indentWidth}px` : undefined,
-        }}
       >
         {/* 主任务内容 */}
         <div
@@ -119,18 +108,18 @@ export function TodoTreeItem({
           className={clsx(
             'p-4 space-y-3',
             'cursor-pointer',
-            hasChildren && 'border-b border-gray-100' // 有子任务时添加底部分隔线
+            hasChildren && isExpanded && 'border-b border-gray-200' // 有子任务且展开时添加底部分隔线
           )}
         >
           {/* 头部：展开按钮 + 内容 + 状态 */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             {/* 展开/折叠按钮 */}
             {hasChildren ? (
               <button
                 onClick={handleToggleExpand}
                 className={clsx(
-                  'flex-shrink-0 w-6 h-6 flex items-center justify-center',
-                  'rounded hover:bg-gray-100 transition-colors',
+                  'flex-shrink-0 w-6 h-6 flex items-center justify-center mt-0.5',
+                  'rounded hover:bg-gray-200 transition-colors',
                   'text-gray-500 hover:text-gray-700'
                 )}
                 title={isExpanded ? '折叠子任务' : '展开子任务'}
@@ -141,10 +130,22 @@ export function TodoTreeItem({
               <div className="w-6" /> // 占位，保持对齐
             )}
             
-            {/* 任务内容 */}
-            <h3 className="flex-1 text-base font-medium text-gray-900 truncate" title={todo.content}>
-              {todo.content}
-            </h3>
+            {/* 任务内容和标签/优先级 */}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-base font-medium text-gray-900 truncate mb-2" title={todo.content}>
+                {todo.content}
+              </h3>
+              
+              {/* 标签和优先级 */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {todo.tags && (
+                  <TagList tagsString={todo.tags} size="sm" />
+                )}
+                {todo.priority !== null && todo.priority !== undefined && (
+                  <PriorityBadge value={todo.priority} size="sm" />
+                )}
+              </div>
+            </div>
             
             {/* 状态选择/显示 */}
             <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
@@ -239,7 +240,7 @@ export function TodoTreeItem({
         
         {/* 子任务列表 */}
         {hasChildren && isExpanded && (
-          <div className="pt-3 pb-2 pl-3 pr-3">
+          <div className="px-4 pb-3 pt-2">
             {todo.children!.map((child, index) => (
               <TodoTreeItem
                 key={child.id}

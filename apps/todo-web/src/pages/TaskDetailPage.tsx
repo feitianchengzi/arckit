@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog } from '@/components/ui'
-import { SubtaskList, StatusHistory, TagSelector } from '@/components/features'
+import { SubtaskList, StatusHistory, TagSelectorDropdown, PrioritySelector, PriorityBadge } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
@@ -239,44 +239,67 @@ export default function TaskDetailPage() {
       
       {/* 待办内容 */}
       <div className="bg-white rounded-lg shadow p-6 space-y-6">
-        {/* 状态 */}
+        {/* 状态、标签、优先级 - 一行显示 */}
         <div className="space-y-3">
-          <h2 className="text-base font-semibold text-gray-900">状态</h2>
-          <div className="flex items-center gap-3">
-            {!isEditing ? (
-              <StatusSelect
-                value={todo.status}
-                onChange={handleStatusChange}
-                disabled={updateStatus.isPending}
-              />
-            ) : (
-              <StatusBadge status={todo.status} />
-            )}
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            {/* 状态 - 左侧 */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-gray-900 whitespace-nowrap">状态：</span>
+              {!isEditing ? (
+                <StatusSelect
+                  value={todo.status}
+                  onChange={handleStatusChange}
+                  disabled={updateStatus.isPending}
+                />
+              ) : (
+                <StatusBadge status={todo.status} />
+              )}
+            </div>
+            
+            {/* 标签和优先级 - 右侧 */}
+            <div className="flex items-center gap-4 flex-wrap">
+              {/* 标签 */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-gray-900 whitespace-nowrap">标签：</span>
+                <TagSelectorDropdown
+                  projectId={projectId}
+                  currentTags={todo.tags}
+                  onTagsChange={async (tagsString) => {
+                    try {
+                      await updateTask.mutateAsync({ tags: tagsString })
+                    } catch (err: any) {
+                      console.error('更新标签失败:', err)
+                      throw err
+                    }
+                  }}
+                  showCreateButton={true}
+                />
+              </div>
+              
+              {/* 优先级 */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-gray-900 whitespace-nowrap">优先级：</span>
+                {!isEditing ? (
+                  <PrioritySelector
+                    value={todo.priority ?? null}
+                    onChange={async (priority) => {
+                      try {
+                        await updateTask.mutateAsync({ priority: priority ?? undefined })
+                      } catch (err: any) {
+                        console.error('更新优先级失败:', err)
+                      }
+                    }}
+                    disabled={updateTask.isPending}
+                  />
+                ) : (
+                  <PriorityBadge value={todo.priority ?? null} />
+                )}
+              </div>
+            </div>
           </div>
           {statusUpdateError && (
             <p className="text-sm text-error">{statusUpdateError}</p>
           )}
-        </div>
-        
-        {/* 分割线 */}
-        <div className="border-t border-gray-200"></div>
-        
-        {/* 标签 */}
-        <div className="space-y-3">
-          <h2 className="text-base font-semibold text-gray-900">标签</h2>
-          <TagSelector
-            projectId={projectId}
-            currentTags={todo.tags}
-            onTagsChange={async (tagsString) => {
-              try {
-                await updateTask.mutateAsync({ tags: tagsString })
-              } catch (err: any) {
-                console.error('更新标签失败:', err)
-                throw err
-              }
-            }}
-            showCreateButton={true}
-          />
         </div>
         
         {/* 分割线 */}

@@ -3,15 +3,16 @@
  * 用于在任务中选择/添加标签
  */
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui'
-import { Tag, TagList } from './'
+import { TagList } from './'
 import { TagCreator } from './TagCreator'
+import { TagManager } from './TagManager'
 import { tagsApi } from '@/lib/api/endpoints/tags'
 import { parseTags, stringifyTags, argbToCssColor } from '@/lib/utils/tagParser'
 import type { ParsedTag } from '@/lib/utils/tagParser'
-import { PlusIcon, XIcon } from '@/components/ui'
+import { PlusIcon, XIcon, CogIcon } from '@/components/ui'
 
 export interface TagSelectorProps {
   projectId: string
@@ -29,6 +30,7 @@ export function TagSelector({
   showCreateButton = true,
 }: TagSelectorProps) {
   const [showCreator, setShowCreator] = useState(false)
+  const [showManager, setShowManager] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   
   // 获取项目的所有标签
@@ -63,7 +65,7 @@ export function TagSelector({
       // 如果项目标签在任务中未使用，使用默认颜色
       availableTags.push({
         name: projectTag.name,
-        color: 'ff6b6b', // 默认红色
+        color: 'ffff6b6b', // 默认红色（8位ARGB格式）
       })
     }
   })
@@ -166,24 +168,36 @@ export function TagSelector({
             可用标签
           </label>
           {showCreateButton && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowCreator(!showCreator)}
-              className="flex items-center gap-1"
-            >
-              {showCreator ? (
-                <>
-                  <XIcon className="w-4 h-4" />
-                  取消
-                </>
-              ) : (
-                <>
-                  <PlusIcon className="w-4 h-4" />
-                  新建标签
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowManager(true)}
+                className="flex items-center gap-1"
+                title="管理项目标签"
+              >
+                <CogIcon className="w-4 h-4" />
+                管理
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowCreator(!showCreator)}
+                className="flex items-center gap-1"
+              >
+                {showCreator ? (
+                  <>
+                    <XIcon className="w-4 h-4" />
+                    取消
+                  </>
+                ) : (
+                  <>
+                    <PlusIcon className="w-4 h-4" />
+                    新建
+                  </>
+                )}
+              </Button>
+            </div>
           )}
         </div>
         
@@ -238,6 +252,21 @@ export function TagSelector({
             onCancel={() => setShowCreator(false)}
             existingTags={availableTags}
           />
+        </div>
+      )}
+      
+      {/* 标签管理器（弹出层） */}
+      {showManager && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-2xl">
+            <TagManager
+              projectId={projectId}
+              tags={projectTags}
+              currentTags={currentTags}
+              onTagsChange={onTagsChange}
+              onClose={() => setShowManager(false)}
+            />
+          </div>
         </div>
       )}
     </div>

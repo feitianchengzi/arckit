@@ -6,4 +6,7 @@ export * from './Tag'
 export * from './TagList'
 export * from './TagSelector'
 export * from './TagCreator'
+export * from './TagManager'
+export * from './TagSelectorDropdown'
+export * from './PrioritySelector'
 

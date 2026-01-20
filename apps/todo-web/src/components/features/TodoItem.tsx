@@ -7,7 +7,7 @@
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { StatusBadge, StatusSelect } from '@/components/ui'
-import { TagList } from './TagList'
+import { TagList, PriorityBadge } from './'
 import type { Todo, TodoStatus } from '@/types'
 
 export interface TodoItemProps {
@@ -46,18 +46,22 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
         className
       )}
     >
-      {/* 头部：标签 + 内容 + 状态 */}
+      {/* 头部：内容 + 状态/优先级 */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          {/* 标签显示在标题左侧 */}
-          {todo.tags && (
-            <div className="mb-2">
-              <TagList tagsString={todo.tags} size="sm" />
-            </div>
-          )}
-          <h3 className="text-base font-medium text-gray-900 truncate" title={todo.content}>
+          <h3 className="text-base font-medium text-gray-900 truncate mb-2" title={todo.content}>
             {todo.content}
           </h3>
+          
+          {/* 标签和优先级 */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {todo.tags && (
+              <TagList tagsString={todo.tags} size="sm" />
+            )}
+            {todo.priority !== null && todo.priority !== undefined && (
+              <PriorityBadge value={todo.priority} size="sm" />
+            )}
+          </div>
         </div>
         
         <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
@@ -78,12 +82,12 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
         <div className="flex items-center gap-3 flex-wrap">
           {/* 标识图标：我是创建人或执行人 */}
           {(isCreator || isAssignee) && (
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex items-center gap-1 flex-shrink-0" title={isCreator && isAssignee ? '我创建的 · 我负责的' : isCreator ? '我创建的' : '我负责的'}>
               {isCreator && (
-                <CreatorBadgeIcon className="w-3.5 h-3.5 text-blue-500" title="我创建的" />
+                <CreatorBadgeIcon className="w-3.5 h-3.5 text-blue-500" />
               )}
               {isAssignee && (
-                <AssigneeBadgeIcon className="w-3.5 h-3.5 text-orange-500" title="我负责的" />
+                <AssigneeBadgeIcon className="w-3.5 h-3.5 text-orange-500" />
               )}
             </div>
           )}

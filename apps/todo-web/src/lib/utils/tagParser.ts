@@ -14,8 +14,12 @@ export interface ParsedTag {
 
 /**
  * 解析tags字符串
- * 输入: "[Bug](#ffff0000),[Add](#ffabc101)"
+ * 输入: "[Bug](#ffff0000),[Add](#ffabc101)" 或 "[Bug](#ff0000)"
  * 输出: [{ name: "Bug", color: "ffff0000" }, { name: "Add", color: "ffabc101" }]
+ * 
+ * 支持两种颜色格式：
+ * - 8位ARGB格式（如：ffff0000）
+ * - 6位RGB格式（如：ff0000）会自动补全为8位ARGB（ff前缀）
  */
 export function parseTags(tagsString: string | null | undefined): ParsedTag[] {
   if (!tagsString || !tagsString.trim()) {
@@ -23,12 +27,19 @@ export function parseTags(tagsString: string | null | undefined): ParsedTag[] {
   }
 
   const tags: ParsedTag[] = []
-  const tagPattern = /\[([^\]]+)\]\(#([a-fA-F0-9]{8})\)/g
+  // 修改正则，支持6位或8位颜色值
+  const tagPattern = /\[([^\]]+)\]\(#([a-fA-F0-9]{6,8})\)/g
   let match
 
   while ((match = tagPattern.exec(tagsString)) !== null) {
     const name = match[1]
-    const color = match[2]
+    let color = match[2]
+    
+    // 如果是6位RGB格式，自动补全为8位ARGB格式（添加ff作为alpha通道）
+    if (color.length === 6) {
+      color = 'ff' + color
+    }
+    
     tags.push({ name, color })
   }
 
@@ -46,17 +57,36 @@ export function stringifyTags(tags: ParsedTag[]): string {
 
 /**
  * 将ARGB颜色转换为CSS颜色
- * 输入: "ffff0000" (ARGB格式)
+ * 输入: "ffff0000" (ARGB格式) 或 "ff0000" (RGB格式)
  * 输出: "#ff0000" (RGB格式，忽略alpha通道)
  */
 export function argbToCssColor(argb: string): string {
-  // ARGB格式：前两位是alpha，后六位是RGB
-  // 如果alpha是ff（不透明），直接返回RGB部分
-  // 如果alpha不是ff，需要处理透明度（这里简化处理，只返回RGB）
-  if (argb.length === 8) {
-    return `#${argb.slice(2)}` // 忽略alpha通道，只取RGB
+  if (!argb) {
+    return '#ff6b6b' // 默认红色
   }
-  return `#${argb}` // 如果格式不对，直接返回
+  
+  // 移除可能存在的#号
+  const hex = argb.replace('#', '')
+  
+  // ARGB格式：前两位是alpha，后六位是RGB
+  if (hex.length === 8) {
+    return `#${hex.slice(2)}` // 忽略alpha通道，只取RGB
+  }
+  
+  // RGB格式（6位），直接返回
+  if (hex.length === 6) {
+    return `#${hex}`
+  }
+  
+  // 如果格式不对，尝试补全或返回默认值
+  if (hex.length < 6) {
+    // 如果长度不足6位，补0
+    const padded = hex.padEnd(6, '0')
+    return `#${padded}`
+  }
+  
+  // 默认返回红色
+  return '#ff6b6b'
 }
 
 /**

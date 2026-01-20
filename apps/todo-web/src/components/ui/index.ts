@@ -11,5 +11,5 @@ export * from './ConfirmDialog'
 export * from './Dialog'
 export * from './AvatarCropUpload'
 export * from './ImageCropDialog'
-export * from './icons'
+export { PlusIcon, XIcon, CogIcon, TrashIcon, PencilIcon, ChevronDownIcon } from './icons'
 
