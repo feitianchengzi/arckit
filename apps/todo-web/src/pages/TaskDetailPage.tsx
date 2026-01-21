@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog } from '@/components/ui'
-import { SubtaskList, StatusHistory, TagSelectorDropdown, PrioritySelector, PriorityBadge } from '@/components/features'
+import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
@@ -261,10 +261,10 @@ export default function TaskDetailPage() {
               {/* 标签 */}
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-gray-900 whitespace-nowrap">标签：</span>
-                <TagSelectorDropdown
+                <TagSelector
                   projectId={projectId}
                   currentTags={todo.tags}
-                  onTagsChange={async (tagsString) => {
+                  onTagsChange={async (tagsString: string) => {
                     try {
                       await updateTask.mutateAsync({ tags: tagsString })
                     } catch (err: any) {

@@ -1,25 +1,40 @@
 /**
- * TagSelector - 标签选择器组件
- * 用于在任务中选择/添加标签
+ * TagSelector - 标签选择器组件（下拉菜单+checkbox）
+ * 用于在待办中选择/取消选择标签
+ * 数据源：项目标签数组 + 待办tags字段
+ * 操作：更新本地选中状态，点击保存后调用任务更新API
+ * 
+ * 交互设计：
+ * - 下拉菜单+checkbox UI
+ * - 延迟保存：选择/取消选择操作不立即调用API
+ * - 保存按钮：提供明确的"保存"按钮，用户确认后再更新
+ * - 避免频繁请求：减少不必要的API调用，提升用户体验
  */
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { Button } from '@/components/ui'
-import { TagList } from './'
+import { useState, useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { Button, ConfirmDialog } from '@/components/ui'
+import { TagDisplay } from './TagDisplay'
 import { TagCreator } from './TagCreator'
-import { TagManager } from './TagManager'
+import { TagEditor } from './TagEditor'
+import { useTagStore } from '@/store/tagStore'
 import { tagsApi } from '@/lib/api/endpoints/tags'
-import { parseTags, stringifyTags, argbToCssColor } from '@/lib/utils/tagParser'
-import type { ParsedTag } from '@/lib/utils/tagParser'
-import { PlusIcon, XIcon, CogIcon } from '@/components/ui'
+import { parseTaskTags, buildTaskTags, buildTagName, type ProjectTag } from '@/lib/utils/tagUtils'
+import { PlusIcon, ChevronDownIcon, PencilIcon, TrashIcon } from '@/components/ui'
+import clsx from 'clsx'
 
 export interface TagSelectorProps {
+  /** 项目ID */
   projectId: string
-  currentTags?: string | null // 当前任务的tags字符串
+  /** 当前任务的tags字段（标签ID字符串，如 "1,2,3"） */
+  currentTags?: string | null
+  /** 标签变化回调（保存时调用） */
   onTagsChange: (tagsString: string) => void | Promise<void>
   className?: string
-  showCreateButton?: boolean // 是否显示创建新标签按钮
+  /** 是否显示创建新标签按钮 */
+  showCreateButton?: boolean
+  /** 尺寸 */
+  size?: 'sm' | 'md' | 'lg'
 }
 
 export function TagSelector({
@@ -28,267 +43,363 @@ export function TagSelector({
   onTagsChange,
   className,
   showCreateButton = true,
+  size = 'md',
 }: TagSelectorProps) {
+  const queryClient = useQueryClient()
+  const { 
+    projectTagsMap, 
+    loadProjectTags, 
+    addTag,
+    updateTag,
+    deleteTag,
+    getProjectTags 
+  } = useTagStore()
+  
+  const [isOpen, setIsOpen] = useState(false)
   const [showCreator, setShowCreator] = useState(false)
-  const [showManager, setShowManager] = useState(false)
-  const [isUpdating, setIsUpdating] = useState(false)
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([])
+  const [isSaving, setIsSaving] = useState(false)
+  const [editingTagId, setEditingTagId] = useState<number | null>(null)
+  const [deletingTagId, setDeletingTagId] = useState<number | null>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   
-  // 获取项目的所有标签
-  const { data: projectTags = [], isLoading, refetch } = useQuery({
-    queryKey: ['projects', projectId, 'tags'],
-    queryFn: () => tagsApi.listByProject(projectId),
-    enabled: !!projectId,
-  })
-  
-  // 解析当前任务的标签
-  const currentParsedTags = parseTags(currentTags)
-  
-  // 从项目标签中解析出ParsedTag（项目标签的name字段就是标签名称）
-  // 注意：项目标签API返回的是Tag对象，但我们需要从任务的tags字符串中解析颜色
-  // 这里我们需要一个映射：项目标签名称 -> 任务中使用的标签（包含颜色）
-  const projectTagMap = new Map<string, ParsedTag>()
-  
-  // 从当前任务的tags中提取标签信息（包含颜色）
-  currentParsedTags.forEach(tag => {
-    projectTagMap.set(tag.name.toLowerCase(), tag)
-  })
-  
-  // 获取所有可用的标签（项目标签 + 当前任务已使用的标签）
-  const availableTags: ParsedTag[] = []
-  
-  // 添加项目标签（如果任务中已使用，使用任务中的颜色；否则使用默认颜色）
-  projectTags.forEach(projectTag => {
-    const existingTag = projectTagMap.get(projectTag.name.toLowerCase())
-    if (existingTag) {
-      availableTags.push(existingTag)
-    } else {
-      // 如果项目标签在任务中未使用，使用默认颜色
-      availableTags.push({
-        name: projectTag.name,
-        color: 'ffff6b6b', // 默认红色（8位ARGB格式）
-      })
+  // 加载项目标签
+  useEffect(() => {
+    if (projectId && !projectTagsMap[projectId]) {
+      loadProjectTags(projectId).catch(console.error)
     }
-  })
+  }, [projectId, projectTagsMap, loadProjectTags])
   
-  // 添加当前任务中使用的但不在项目标签列表中的标签
-  currentParsedTags.forEach(tag => {
-    if (!projectTags.some(pt => pt.name.toLowerCase() === tag.name.toLowerCase())) {
-      availableTags.push(tag)
-    }
-  })
+  // 初始化选中状态（从currentTags解析）
+  useEffect(() => {
+    const tagIds = parseTaskTags(currentTags)
+    setSelectedTagIds(tagIds)
+  }, [currentTags])
   
-  // 处理标签切换（添加/移除）
-  const handleTagToggle = async (tag: ParsedTag) => {
-    const isSelected = currentParsedTags.some(
-      t => t.name.toLowerCase() === tag.name.toLowerCase()
-    )
-    
-    let newTags: ParsedTag[]
-    
-    if (isSelected) {
-      // 移除标签
-      newTags = currentParsedTags.filter(
-        t => t.name.toLowerCase() !== tag.name.toLowerCase()
-      )
-    } else {
-      // 添加标签
-      newTags = [...currentParsedTags, tag]
+  // 点击外部关闭下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
     }
     
-    setIsUpdating(true)
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside)
+      }
+    }
+  }, [isOpen])
+  
+  const projectTags = getProjectTags(projectId)
+  
+  // 已选中的标签
+  const selectedTags = projectTags.filter(tag => selectedTagIds.includes(tag.id))
+  
+  // 切换标签选中状态（本地状态，不立即调用API）
+  const handleTagToggle = (tagId: number) => {
+    setSelectedTagIds(prev => {
+      if (prev.includes(tagId)) {
+        // 取消选择
+        return prev.filter(id => id !== tagId)
+      } else {
+        // 选择
+        return [...prev, tagId]
+      }
+    })
+  }
+  
+  // 保存标签选择（调用API）
+  const handleSave = async () => {
+    setIsSaving(true)
     try {
-      await onTagsChange(stringifyTags(newTags))
-    } catch (err) {
-      console.error('更新标签失败:', err)
+      const tagsString = buildTaskTags(selectedTagIds)
+      await onTagsChange(tagsString)
+      setIsOpen(false)
+    } catch (error) {
+      console.error('保存标签失败:', error)
+      // 恢复之前的状态
+      const tagIds = parseTaskTags(currentTags)
+      setSelectedTagIds(tagIds)
     } finally {
-      setIsUpdating(false)
+      setIsSaving(false)
     }
   }
   
-  // 处理删除标签（从已选标签中删除）
-  const handleDeleteTag = async (tag: ParsedTag) => {
-    const newTags = currentParsedTags.filter(
-      t => t.name.toLowerCase() !== tag.name.toLowerCase()
-    )
-    
-    setIsUpdating(true)
+  // 创建新标签
+  const handleCreateTag = async (displayName: string, color: string) => {
     try {
-      await onTagsChange(stringifyTags(newTags))
-    } catch (err) {
-      console.error('删除标签失败:', err)
-    } finally {
-      setIsUpdating(false)
-    }
-  }
-  
-  // 处理创建新标签
-  const handleCreateTag = async (tag: ParsedTag) => {
-    try {
-      // 先调用API创建项目标签
-      await tagsApi.create(projectId, {
-        project_id: parseInt(projectId),
-        name: tag.name,
+      const name = buildTagName(displayName, color)
+      
+      const newTag = await tagsApi.create(projectId, {
+        project_id: parseInt(projectId, 10),
+        name,
       })
       
-      // 刷新项目标签列表
-      await refetch()
+      // 更新状态
+      addTag(projectId, newTag)
       
-      // 将新标签添加到当前任务
-      const newTags = [...currentParsedTags, tag]
-      await onTagsChange(stringifyTags(newTags))
+      // 自动选中新创建的标签
+      setSelectedTagIds(prev => [...prev, newTag.id])
       
-      // 关闭创建器
+      // 刷新查询缓存
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tags'] })
+      
       setShowCreator(false)
-    } catch (err: any) {
-      throw new Error(err.response?.data?.error?.message || '创建标签失败')
+    } catch (error: any) {
+      console.error('创建标签失败:', error)
+      throw error
     }
+  }
+  
+  // 更新标签（即时操作）
+  const handleUpdateTag = async (tagId: number, displayName: string, color: string) => {
+    try {
+      const name = buildTagName(displayName, color)
+      
+      const updatedTag = await tagsApi.update(tagId.toString(), { name })
+      
+      // 更新状态
+      updateTag(projectId, tagId, updatedTag)
+      
+      // 刷新查询缓存
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tags'] })
+      
+      setEditingTagId(null)
+    } catch (error: any) {
+      console.error('更新标签失败:', error)
+      throw error
+    }
+  }
+  
+  // 删除标签（即时操作，带确认）
+  const handleDeleteTag = async (tagId: number) => {
+    try {
+      await tagsApi.delete(tagId.toString())
+      
+      // 更新状态
+      deleteTag(projectId, tagId)
+      
+      // 如果该标签已选中，从选中列表中移除
+      setSelectedTagIds(prev => prev.filter(id => id !== tagId))
+      
+      // 刷新查询缓存
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tags'] })
+      
+      setDeletingTagId(null)
+    } catch (error: any) {
+      console.error('删除标签失败:', error)
+      alert('删除标签失败: ' + (error.message || '未知错误'))
+      setDeletingTagId(null)
+    }
+  }
+  
+  // 检查是否有未保存的更改
+  const hasUnsavedChanges = () => {
+    const currentTagIds = parseTaskTags(currentTags)
+    return JSON.stringify(currentTagIds.sort()) !== JSON.stringify(selectedTagIds.sort())
+  }
+  
+  const sizeClasses = {
+    sm: 'px-2 py-1 text-xs',
+    md: 'px-3 py-1.5 text-sm',
+    lg: 'px-4 py-2 text-base',
+  }
+  
+  // 按钮显示文本
+  const getButtonText = () => {
+    if (selectedTags.length === 0) {
+      return '选择标签'
+    }
+    if (selectedTags.length === 1) {
+      return selectedTags[0].displayName
+    }
+    return `已选 ${selectedTags.length} 个标签`
   }
   
   return (
-    <div className={`space-y-3 ${className || ''}`}>
-      {/* 当前选中的标签 */}
-      {currentParsedTags.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            已选标签
-          </label>
-          <TagList
-            tagsString={currentTags}
-            size="sm"
-            showDelete={true}
-            onDelete={handleDeleteTag}
-          />
+    <div className={clsx('relative', className)} ref={dropdownRef}>
+      {/* 选择按钮 */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={clsx(
+          'inline-flex items-center gap-2 font-medium rounded-md transition-all',
+          'border border-gray-300 bg-white',
+          'hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary focus:ring-offset-2',
+          sizeClasses[size],
+          hasUnsavedChanges() && 'border-orange-400 bg-orange-50'
+        )}
+      >
+        {/* 显示已选中的标签（最多显示2个） */}
+        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+          {selectedTags.length > 0 ? (
+            <>
+              {selectedTags.slice(0, 2).map(tag => (
+                <TagDisplay key={tag.id} tag={tag} size="sm" />
+              ))}
+              {selectedTags.length > 2 && (
+                <span className="text-gray-500">+{selectedTags.length - 2}</span>
+              )}
+            </>
+          ) : (
+            <span className="text-gray-500">{getButtonText()}</span>
+          )}
         </div>
-      )}
+        <ChevronDownIcon
+          className={clsx(
+            'transition-transform flex-shrink-0 text-gray-400',
+            {
+              'w-3 h-3': size === 'sm',
+              'w-4 h-4': size === 'md',
+              'w-5 h-5': size === 'lg',
+              'transform rotate-180': isOpen,
+            }
+          )}
+        />
+      </button>
       
-      {/* 可用标签列表 */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <label className="block text-sm font-medium text-gray-700">
-            可用标签
-          </label>
+      {/* 下拉菜单 */}
+      {isOpen && (
+        <div
+          className={clsx(
+            'absolute z-50 mt-1 w-80 bg-white rounded-lg shadow-lg border border-gray-200',
+            'max-h-96 overflow-auto'
+          )}
+        >
+          {/* 标签列表 */}
+          {projectTags.length > 0 ? (
+            <div className="py-1">
+              {projectTags.map(tag => {
+                const isSelected = selectedTagIds.includes(tag.id)
+                const isEditing = editingTagId === tag.id
+                
+                return (
+                  <div
+                    key={tag.id}
+                    className={clsx(
+                      'px-3 py-2',
+                      'hover:bg-gray-50 transition-colors',
+                      isEditing && 'bg-gray-50'
+                    )}
+                  >
+                    {isEditing ? (
+                      <TagEditor
+                        currentName={tag.displayName}
+                        currentColor={tag.color}
+                        onSave={(displayName, color) => handleUpdateTag(tag.id, displayName, color)}
+                        onCancel={() => setEditingTagId(null)}
+                        existingTags={projectTags}
+                        currentTagId={tag.id}
+                      />
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-3 cursor-pointer flex-1 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleTagToggle(tag.id)}
+                            className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary flex-shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <TagDisplay tag={tag} size="sm" />
+                        </label>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditingTagId(tag.id)
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                            title="编辑标签"
+                          >
+                            <PencilIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDeletingTagId(tag.id)
+                            }}
+                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                            title="删除标签"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="px-3 py-4 text-sm text-gray-500 text-center">
+              暂无标签
+            </div>
+          )}
+          
+          {/* 创建新标签 */}
           {showCreateButton && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowManager(true)}
-                className="flex items-center gap-1"
-                title="管理项目标签"
-              >
-                <CogIcon className="w-4 h-4" />
-                管理
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCreator(!showCreator)}
-                className="flex items-center gap-1"
-              >
-                {showCreator ? (
-                  <>
-                    <XIcon className="w-4 h-4" />
-                    取消
-                  </>
-                ) : (
-                  <>
+            <>
+              {!showCreator ? (
+                <div className="border-t border-gray-200 px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreator(true)}
+                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-primary hover:bg-primary/10 rounded-md transition-colors"
+                  >
                     <PlusIcon className="w-4 h-4" />
-                    新建
-                  </>
-                )}
+                    创建新标签
+                  </button>
+                </div>
+              ) : (
+                <div className="border-t border-gray-200 p-3 sticky bottom-0 bg-white">
+                  <TagCreator
+                    onSave={handleCreateTag}
+                    onCancel={() => setShowCreator(false)}
+                    existingTags={projectTags}
+                  />
+                </div>
+              )}
+            </>
+          )}
+          
+          {/* 保存按钮（仅在有待保存更改时显示） */}
+          {hasUnsavedChanges() && (
+            <div className="border-t border-gray-200 p-3 sticky bottom-0 bg-white">
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSave}
+                loading={isSaving}
+                className="w-full"
+              >
+                保存更改
               </Button>
             </div>
           )}
         </div>
-        
-        {isLoading ? (
-          <div className="text-sm text-gray-500">加载标签中...</div>
-        ) : availableTags.length === 0 && !showCreator ? (
-          <div className="text-sm text-gray-500">暂无可用标签</div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {availableTags.map((tag, index) => {
-              const isSelected = currentParsedTags.some(
-                t => t.name.toLowerCase() === tag.name.toLowerCase()
-              )
-              const bgColor = argbToCssColor(tag.color)
-              // 计算文字颜色（浅色背景用深色字，深色背景用浅色字）
-              const textColor = getContrastColor(bgColor)
-              
-              return (
-                <button
-                  key={`${tag.name}-${index}`}
-                  type="button"
-                  onClick={() => handleTagToggle(tag)}
-                  disabled={isUpdating}
-                  className={`
-                    inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium
-                    transition-all
-                    ${isSelected 
-                      ? 'ring-2 ring-primary ring-offset-1' 
-                      : 'hover:opacity-80'
-                    }
-                    ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-                  `}
-                  style={{
-                    backgroundColor: isSelected ? bgColor : `${bgColor}80`,
-                    color: textColor,
-                  }}
-                >
-                  {tag.name}
-                  {isSelected && <XIcon className="w-3 h-3" />}
-                </button>
-              )
-            })}
-          </div>
-        )}
-      </div>
-      
-      {/* 标签创建器 */}
-      {showCreator && (
-        <div className="border-t border-gray-200 pt-3">
-          <TagCreator
-            onSave={handleCreateTag}
-            onCancel={() => setShowCreator(false)}
-            existingTags={availableTags}
-          />
-        </div>
       )}
       
-      {/* 标签管理器（弹出层） */}
-      {showManager && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl">
-            <TagManager
-              projectId={projectId}
-              tags={projectTags}
-              currentTags={currentTags}
-              onTagsChange={onTagsChange}
-              onClose={() => setShowManager(false)}
-            />
-          </div>
-        </div>
-      )}
+      {/* 删除确认对话框 */}
+      <ConfirmDialog
+        open={deletingTagId !== null}
+        title="删除标签"
+        message={`确定要删除标签"${projectTags.find(t => t.id === deletingTagId)?.displayName || ''}"吗？删除后，已使用该标签的待办仍会保留标签ID，但标签将不再显示。`}
+        confirmLabel="删除"
+        cancelLabel="取消"
+        variant="danger"
+        onConfirm={() => {
+          if (deletingTagId !== null) {
+            handleDeleteTag(deletingTagId)
+          }
+        }}
+        onCancel={() => setDeletingTagId(null)}
+      />
     </div>
   )
-}
-
-/**
- * 根据背景色计算对比度高的文字颜色
- */
-function getContrastColor(bgColor: string): string {
-  // 移除#号
-  const hex = bgColor.replace('#', '')
-  
-  // 转换为RGB
-  const r = parseInt(hex.substring(0, 2), 16)
-  const g = parseInt(hex.substring(2, 4), 16)
-  const b = parseInt(hex.substring(4, 6), 16)
-  
-  // 计算亮度（使用相对亮度公式）
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-  
-  // 如果背景较亮，返回深色文字；如果背景较暗，返回浅色文字
-  return luminance > 0.5 ? '#000000' : '#ffffff'
 }
 

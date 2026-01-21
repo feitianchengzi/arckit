@@ -11,6 +11,8 @@ import { buildTaskTree } from '@/lib/utils/taskTree'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
 import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useAuthStore } from '@/store/authStore'
+import { useTagStore } from '@/store/tagStore'
+import { parseTaskTags } from '@/lib/utils/tagUtils'
 import type { TodoStatus } from '@/types'
 import clsx from 'clsx'
 
@@ -41,6 +43,9 @@ export default function ProjectDetailPage() {
   // 创建人和执行人筛选
   const [creatorFilter, setCreatorFilter] = useState<number | 'ME' | null>(null)
   const [executorFilter, setExecutorFilter] = useState<number | 'ME' | 'UNASSIGNED' | null>(null)
+  // 标签和优先级筛选
+  const [tagFilter, setTagFilter] = useState<number | null>(null)
+  const [priorityFilter, setPriorityFilter] = useState<number | null | 'ALL' | 'NONE'>(null)
   
   // 如果正在删除项目，禁用待办列表查询
   const { data: todos, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(String(projectId), {
@@ -48,6 +53,15 @@ export default function ProjectDetailPage() {
   })
   const { data: members } = useProjectMembers(String(projectId))
   const updateStatus = useUpdateTaskStatus(String(projectId))
+  
+  // 加载项目标签
+  const { loadProjectTags, getProjectTags } = useTagStore()
+  useEffect(() => {
+    if (projectId) {
+      loadProjectTags(String(projectId)).catch(console.error)
+    }
+  }, [projectId, loadProjectTags])
+  const projectTags = getProjectTags(String(projectId))
   
   // 获取当前用户的 user_id（通过 is_me 字段）
   const currentUserId = useMemo(() => {
@@ -105,7 +119,30 @@ export default function ProjectDetailPage() {
         }
       }
       
-      return statusMatch && creatorMatch && executorMatch
+      // 标签筛选
+      let tagMatch = true
+      if (tagFilter !== null) {
+        const taskTagIds = parseTaskTags(todo.tags)
+        tagMatch = taskTagIds.includes(tagFilter)
+      }
+      
+      // 优先级筛选
+      let priorityMatch = true
+      if (priorityFilter !== null) {
+        if (priorityFilter === 'ALL') {
+          // 'ALL' 表示筛选"有优先级"（任意优先级）
+          priorityMatch = todo.priority !== null && todo.priority !== undefined
+        } else if (priorityFilter === 'NONE') {
+          // 'NONE' 表示筛选"无优先级"
+          priorityMatch = todo.priority === null || todo.priority === undefined
+        } else {
+          // 数字表示筛选特定优先级
+          priorityMatch = todo.priority === priorityFilter
+        }
+      }
+      // priorityFilter === null 表示不筛选优先级
+      
+      return statusMatch && creatorMatch && executorMatch && tagMatch && priorityMatch
     }
     
     // 递归筛选树形结构
@@ -142,7 +179,7 @@ export default function ProjectDetailPage() {
     }
     
     return filterTree(taskTree)
-  }, [taskTree, statusFilter, creatorFilter, executorFilter, currentUserId])
+  }, [taskTree, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, currentUserId])
   
   // 初始化编辑表单
   const handleEditClick = () => {
@@ -391,10 +428,13 @@ export default function ProjectDetailPage() {
         {/* 筛选器 */}
         <div className="mb-4 space-y-3">
           {/* 筛选器组 */}
-          <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex flex-wrap gap-6 items-center">
             {/* 状态筛选 */}
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600 whitespace-nowrap">状态：</label>
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
+                <StatusFilterIcon className="w-4 h-4 text-gray-500" />
+                状态:
+              </label>
               <div className="relative">
                 <select
                   value={statusFilter}
@@ -402,7 +442,7 @@ export default function ProjectDetailPage() {
                     const value = e.target.value
                     setStatusFilter(value as TodoStatus | 'ALL')
                   }}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 >
                   <option value="ALL">全部</option>
                   <option value="PENDING">待办</option>
@@ -416,7 +456,10 @@ export default function ProjectDetailPage() {
             
             {/* 创建人筛选 */}
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600 whitespace-nowrap">创建人：</label>
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
+                <CreatorFilterIcon className="w-4 h-4 text-gray-500" />
+                创建人:
+              </label>
               <div className="relative">
                 <select
                   value={
@@ -439,7 +482,7 @@ export default function ProjectDetailPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 >
                   <option value="">全部</option>
                   {currentUserId && (
@@ -456,7 +499,10 @@ export default function ProjectDetailPage() {
             
             {/* 执行人筛选 */}
             <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600 whitespace-nowrap">执行人：</label>
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
+                <ExecutorFilterIcon className="w-4 h-4 text-gray-500" />
+                执行人:
+              </label>
               <div className="relative">
                 <select
                   value={
@@ -483,7 +529,7 @@ export default function ProjectDetailPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 >
                   <option value="">全部</option>
                   <option value="UNASSIGNED">未分配</option>
@@ -499,8 +545,85 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             
+            {/* 标签筛选 */}
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
+                <TagFilterIcon className="w-4 h-4 text-gray-500" />
+                标签:
+              </label>
+              <div className="relative">
+                <select
+                  value={tagFilter === null ? '' : String(tagFilter)}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === '') {
+                      setTagFilter(null)
+                    } else {
+                      const numValue = Number(value)
+                      if (!isNaN(numValue)) {
+                        setTagFilter(numValue)
+                      }
+                    }
+                  }}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  <option value="">全部</option>
+                  {projectTags.map((tag) => (
+                    <option key={tag.id} value={tag.id}>
+                      {tag.displayName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            {/* 优先级筛选 */}
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
+                <PriorityFilterIcon className="w-4 h-4 text-gray-500" />
+                优先级:
+              </label>
+              <div className="relative">
+                <select
+                  value={
+                    priorityFilter === null
+                      ? ''
+                      : priorityFilter === 'ALL'
+                      ? 'ALL'
+                      : priorityFilter === 'NONE'
+                      ? 'NONE'
+                      : String(priorityFilter)
+                  }
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === '') {
+                      setPriorityFilter(null)
+                    } else if (value === 'ALL') {
+                      setPriorityFilter('ALL')
+                    } else if (value === 'NONE') {
+                      setPriorityFilter('NONE')
+                    } else {
+                      const numValue = Number(value)
+                      if (!isNaN(numValue)) {
+                        setPriorityFilter(numValue)
+                      }
+                    }
+                  }}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  <option value="">全部</option>
+                  <option value="ALL">有优先级</option>
+                  <option value="0">🔴 最高</option>
+                  <option value="1">🟠 高</option>
+                  <option value="2">🟡 中</option>
+                  <option value="3">🟢 低</option>
+                  <option value="NONE">无优先级</option>
+                </select>
+              </div>
+            </div>
+            
             {/* 清除所有筛选 */}
-            {(statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null) && (
+            {(statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -508,6 +631,8 @@ export default function ProjectDetailPage() {
                   setStatusFilter('ALL')
                   setCreatorFilter(null)
                   setExecutorFilter(null)
+                  setTagFilter(null)
+                  setPriorityFilter(null)
                 }}
               >
                 清除所有筛选
@@ -527,17 +652,17 @@ export default function ProjectDetailPage() {
           <EmptyStateView
             title="没有匹配的待办"
             message={
-              statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null
+              statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null
                 ? '尝试切换其他筛选条件'
                 : '创建第一个待办开始工作'
             }
             actionLabel={
-              statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null
+              statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null
                 ? undefined
                 : '创建待办'
             }
             onAction={
-              statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null
+              statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null
                 ? undefined
                 : () => navigate(`/projects/${projectId}/tasks/new`)
             }
@@ -833,6 +958,48 @@ function CheckIcon() {
   return (
     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+// ==================== 筛选器图标组件 ====================
+
+function StatusFilterIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+    </svg>
+  )
+}
+
+function CreatorFilterIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+  )
+}
+
+function ExecutorFilterIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    </svg>
+  )
+}
+
+function TagFilterIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+    </svg>
+  )
+}
+
+function PriorityFilterIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
     </svg>
   )
 }

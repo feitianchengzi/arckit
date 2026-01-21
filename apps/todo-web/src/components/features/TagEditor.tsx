@@ -1,21 +1,25 @@
 /**
- * TagCreator - 标签创建组件
- * 用于创建新标签（项目级别）
- * 输入：displayName + color（8位格式）
- * 输出：组装name字段，调用创建标签API
+ * TagEditor - 标签编辑组件（内联编辑）
+ * 用于编辑标签的名称和颜色
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui'
-import { normalizeColorTo8Digit, argbToCssColor } from '@/lib/utils/tagUtils'
+import { normalizeColorTo8Digit, argbToCssColor, buildTagName } from '@/lib/utils/tagUtils'
 
-export interface TagCreatorProps {
-  /** 创建标签回调 */
+export interface TagEditorProps {
+  /** 当前标签名称 */
+  currentName: string
+  /** 当前标签颜色（8位ARGB格式，带#号） */
+  currentColor: string
+  /** 保存回调 */
   onSave: (displayName: string, color: string) => void | Promise<void>
   /** 取消回调 */
   onCancel: () => void
   /** 已存在的标签列表（用于检查重名） */
-  existingTags?: Array<{ displayName: string }>
+  existingTags?: Array<{ displayName: string; id?: number }>
+  /** 当前编辑的标签ID（用于排除自己） */
+  currentTagId?: number
   className?: string
 }
 
@@ -41,14 +45,19 @@ const PRESET_COLORS_ARGB = [
   'ffdc143c', // 深红色
 ]
 
-export function TagCreator({ 
-  onSave, 
-  onCancel, 
-  existingTags = [], 
-  className 
-}: TagCreatorProps) {
-  const [tagName, setTagName] = useState('')
-  const [selectedColorArgb, setSelectedColorArgb] = useState(PRESET_COLORS_ARGB[0])
+export function TagEditor({
+  currentName,
+  currentColor,
+  onSave,
+  onCancel,
+  existingTags = [],
+  currentTagId,
+  className,
+}: TagEditorProps) {
+  const [tagName, setTagName] = useState(currentName)
+  const [selectedColorArgb, setSelectedColorArgb] = useState(
+    currentColor.replace('#', '')
+  )
   const [error, setError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   
@@ -62,8 +71,11 @@ export function TagCreator({
       return
     }
     
-    // 检查是否已存在同名标签
-    if (existingTags.some(tag => tag.displayName.toLowerCase() === tagName.trim().toLowerCase())) {
+    // 检查是否已存在同名标签（排除自己）
+    if (existingTags.some(
+      tag => tag.displayName.toLowerCase() === tagName.trim().toLowerCase() 
+        && tag.id !== currentTagId
+    )) {
       setError('该标签名称已存在')
       return
     }
@@ -75,16 +87,25 @@ export function TagCreator({
       // 确保颜色是8位格式
       const normalizedColor = normalizeColorTo8Digit(`#${selectedColorArgb}`)
       await onSave(tagName.trim(), normalizedColor)
-      // 保存成功后重置表单
-      setTagName('')
-      setSelectedColorArgb(PRESET_COLORS_ARGB[0])
-      setError('')
     } catch (err: any) {
-      setError(err.message || '创建标签失败')
+      setError(err.message || '更新标签失败')
     } finally {
       setIsSaving(false)
     }
   }
+  
+  // 监听ESC键取消编辑
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCancel()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onCancel])
   
   return (
     <div className={`space-y-3 ${className || ''}`}>
@@ -102,6 +123,12 @@ export function TagCreator({
           placeholder="输入标签名称"
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50"
           maxLength={100}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              handleSave()
+            }
+          }}
         />
       </div>
       
@@ -149,24 +176,21 @@ export function TagCreator({
         </div>
       )}
       
-      {/* 按钮固定在底部 */}
-      <div className="flex gap-2 sticky bottom-0 bg-white pt-2 border-t border-gray-200">
+      <div className="flex gap-2">
         <Button
           variant="primary"
           size="sm"
           onClick={handleSave}
           loading={isSaving}
           disabled={!tagName.trim()}
-          className="flex-1"
         >
-          创建
+          保存
         </Button>
         <Button
           variant="secondary"
           size="sm"
           onClick={onCancel}
           disabled={isSaving}
-          className="flex-1"
         >
           取消
         </Button>
@@ -174,3 +198,4 @@ export function TagCreator({
     </div>
   )
 }
+
