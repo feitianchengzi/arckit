@@ -80,7 +80,7 @@ export function ProjectList({ onItemClick }: ProjectListProps = {}) {
             'flex-1 flex items-center justify-between px-3 py-2 text-sm font-medium rounded-md transition-colors',
             'min-h-[44px]', // 移动端触摸优化
             {
-              'bg-primary-50 text-primary': isInProjectPage,
+              'bg-blue-50 text-blue-600': isInProjectPage, // 父级别使用浅蓝色
               'text-gray-700 hover:bg-gray-100': !isInProjectPage,
             }
           )}
@@ -124,7 +124,7 @@ export function ProjectList({ onItemClick }: ProjectListProps = {}) {
                   'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
                   'min-h-[44px]', // 移动端触摸优化
                   {
-                    'bg-primary-50 text-primary font-medium': currentProjectId === String(project.id),
+                    'bg-primary-50 text-primary font-medium': currentProjectId === String(project.id), // 子项目使用主题色
                     'text-gray-700 hover:bg-gray-100': currentProjectId !== String(project.id),
                   }
                 )}

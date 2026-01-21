@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { StatusBadge, StatusSelect } from '@/components/ui'
 import { TagList, PriorityBadge } from './'
+import { parseTaskTags } from '@/lib/utils/tagUtils'
 import type { Todo, TodoStatus } from '@/types'
 
 export interface TodoItemProps {
@@ -40,8 +41,8 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
       onClick={handleClick}
       className={clsx(
         'group',
-        'bg-white rounded-lg border border-gray-200',
-        'p-4 space-y-3',
+        'bg-white border border-gray-300',
+        'p-3 space-y-2',
         'hover:shadow-md hover:border-primary transition-all cursor-pointer',
         className
       )}
@@ -49,36 +50,38 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
       {/* 头部：内容 + 状态/优先级 */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-medium text-gray-900 truncate mb-2" title={todo.content}>
+          <h3 className="text-base font-medium text-gray-900 truncate mb-1.5" title={todo.content}>
             {todo.content}
           </h3>
           
           {/* 标签和优先级 */}
           <div className="flex items-center gap-3 flex-wrap">
-            {/* 标签 */}
-            {todo.tags && (
-              <div className="flex items-center gap-1.5">
-                <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
-                  <TagIcon className="w-3.5 h-3.5 text-gray-500" />
-                  标签
-                </span>
+            {/* 标签 - 始终显示 */}
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
+                <TagIcon className="w-3.5 h-3.5 text-gray-500" />
+                标签
+              </span>
+              {parseTaskTags(todo.tags).length > 0 ? (
                 <TagList projectId={projectId} tagsString={todo.tags} size="sm" />
-              </div>
-            )}
+              ) : (
+                <span className="text-xs text-gray-400">无</span>
+              )}
+            </div>
             {/* 分隔符 */}
-            {todo.tags && todo.priority !== null && todo.priority !== undefined && (
-              <span className="text-gray-300">|</span>
-            )}
-            {/* 优先级 */}
-            {todo.priority !== null && todo.priority !== undefined && (
-              <div className="flex items-center gap-1.5">
-                <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
-                  <PriorityIcon className="w-3.5 h-3.5 text-gray-500" />
-                  优先级
-                </span>
+            <span className="text-gray-300">|</span>
+            {/* 优先级 - 始终显示 */}
+            <div className="flex items-center gap-1.5">
+              <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
+                <PriorityIcon className="w-3.5 h-3.5 text-gray-500" />
+                优先级
+              </span>
+              {todo.priority !== null && todo.priority !== undefined ? (
                 <PriorityBadge value={todo.priority} size="sm" />
-              </div>
-            )}
+              ) : (
+                <span className="text-xs text-gray-400">未设定</span>
+              )}
+            </div>
           </div>
         </div>
         

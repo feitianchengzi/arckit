@@ -66,8 +66,8 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         // 基础样式
         'flex flex-col h-screen bg-white border-r border-gray-200',
         'w-64 z-50',
-        // 桌面端：静态定位，始终显示
-        'lg:static lg:translate-x-0 lg:block',
+        // 桌面端：固定定位，不随内容滚动
+        'lg:fixed lg:top-0 lg:left-0 lg:translate-x-0 lg:block',
         // 移动端/平板端：固定定位，支持滑动动画
         'fixed top-0 left-0',
         'transform transition-transform duration-300 ease-in-out',
@@ -153,9 +153,6 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         'lg:block',
         { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
       )}>
-        {/* 项目列表（可展开） */}
-        <ProjectList onItemClick={handleNavClick} />
-        
         {/* 我的待办 */}
         <NavItem
           icon={<TasksIcon />}
@@ -163,6 +160,12 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
           href="/tasks"
           onClick={handleNavClick}
         />
+        
+        {/* 分割线 */}
+        <div className="my-2 border-t border-gray-200" />
+        
+        {/* 项目列表（可展开） */}
+        <ProjectList onItemClick={handleNavClick} />
       </nav>
       
     </aside>

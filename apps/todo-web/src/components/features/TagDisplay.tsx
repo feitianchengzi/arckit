@@ -54,7 +54,7 @@ export function TagDisplay({
   return (
     <span
       className={clsx(
-        'inline-flex items-center rounded-full font-medium',
+        'inline-flex items-center rounded font-medium',
         sizeClasses[size],
         onClick && 'cursor-pointer hover:opacity-80 transition-opacity',
         className

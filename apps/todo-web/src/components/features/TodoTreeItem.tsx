@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { StatusBadge, StatusSelect } from '@/components/ui'
 import { TagList, PriorityBadge } from './'
+import { parseTaskTags } from '@/lib/utils/tagUtils'
 import type { Todo, TodoStatus } from '@/types'
 import { TodoItem } from './TodoItem'
 
@@ -22,6 +23,7 @@ export interface TodoTreeItemProps {
   canEdit?: boolean
   depth?: number // 嵌套深度，用于缩进
   isLast?: boolean // 是否是最后一个（用于连接线样式）
+  parentExpanded?: boolean // 父任务是否展开
 }
 
 export function TodoTreeItem({
@@ -33,8 +35,9 @@ export function TodoTreeItem({
   canEdit = false,
   depth = 0,
   isLast = false,
+  parentExpanded = false,
 }: TodoTreeItemProps) {
-  const [isExpanded, setIsExpanded] = useState(true) // 默认展开
+  const [isExpanded, setIsExpanded] = useState(false) // 默认不展开
   const navigate = useNavigate()
   
   // 是否有子任务
@@ -43,21 +46,44 @@ export function TodoTreeItem({
   // 最大深度限制（避免过深的嵌套）
   const MAX_DEPTH = 5
   
-  // 计算背景色渐变（每层逐渐变浅）
-  const getBackgroundColor = (depth: number): string => {
-    const baseColors = [
-      'bg-white',           // 0层：白色
-      'bg-gray-50',        // 1层：浅灰
-      'bg-gray-100/50',    // 2层：更浅灰
-      'bg-blue-50/30',     // 3层：浅蓝
-      'bg-blue-100/20',    // 4层：更浅蓝
+  // 是否是子任务（depth > 0）
+  const isChildTask = depth > 0
+  
+  // 计算背景色渐变（子任务层级越深背景色越深，展开状态下使用不同颜色）
+  const getBackgroundColor = (depth: number, isExpandedState: boolean): string => {
+    if (depth === 0) {
+      return 'bg-white' // 根任务：白色
+    }
+    
+    // 如果父任务展开，子任务使用淡蓝色调表示展开状态
+    if (isExpandedState) {
+      const expandedColors = [
+        'bg-blue-50',      // 第1代子任务：浅蓝
+        'bg-blue-100',     // 第2代子任务：中浅蓝
+        'bg-blue-200',     // 第3代子任务：中蓝
+        'bg-blue-300',     // 第4代子任务：深蓝
+        'bg-blue-400',     // 第5代子任务：更深蓝
+      ]
+      const colorIndex = Math.min(depth - 1, expandedColors.length - 1)
+      return expandedColors[colorIndex] || expandedColors[expandedColors.length - 1]
+    }
+    
+    // 父任务未展开时的默认灰色
+    const childColors = [
+      'bg-gray-100',      // 第1代子任务：浅灰
+      'bg-gray-200',      // 第2代子任务：中灰
+      'bg-gray-300',      // 第3代子任务：深灰
+      'bg-gray-400',      // 第4代子任务：更深灰
+      'bg-gray-500',      // 第5代子任务：最深灰
     ]
-    return baseColors[Math.min(depth, MAX_DEPTH - 1)] || baseColors[baseColors.length - 1]
+    const colorIndex = Math.min(depth - 1, childColors.length - 1)
+    return childColors[colorIndex] || childColors[childColors.length - 1]
   }
   
-  const backgroundColor = getBackgroundColor(depth)
+  // 使用父任务的展开状态来决定子任务的背景色
+  const backgroundColor = getBackgroundColor(depth, parentExpanded)
   
-  // 点击展开/折叠
+  // 点击展开/折叠（通过点击"x个子待办"触发）
   const handleToggleExpand = (e: React.MouseEvent) => {
     e.stopPropagation()
     setIsExpanded(!isExpanded)
@@ -90,78 +116,64 @@ export function TodoTreeItem({
   }
   
   return (
-    <div className={clsx('relative', className, 'mb-2')}>
+    <div className={clsx('relative', className, !isChildTask && 'mb-2')}>
       {/* 任务项 */}
       <div
         className={clsx(
           'relative',
           'group',
-          'rounded-lg border border-gray-200',
-          'hover:shadow-md hover:border-primary transition-all',
           backgroundColor, // 使用渐变背景色
-          depth > 0 && 'ml-4' // 子任务轻微缩进
+          isChildTask
+            ? 'border-t border-gray-300' // 子任务：只有上分割线
+            : 'border border-gray-300', // 根任务：完整border（颜色加深）
+          !isChildTask && 'hover:shadow-md hover:border-primary transition-all' // 根任务hover效果
         )}
       >
         {/* 主任务内容 */}
         <div
           onClick={handleClick}
           className={clsx(
-            'p-4 space-y-3',
+            'p-3 space-y-2',
             'cursor-pointer',
-            hasChildren && isExpanded && 'border-b border-gray-200' // 有子任务且展开时添加底部分隔线
+            hasChildren && isExpanded && !isChildTask && 'border-b border-gray-200' // 根任务有子任务且展开时添加底部分隔线
           )}
         >
-          {/* 头部：展开按钮 + 内容 + 状态 */}
+          {/* 头部：内容 + 状态 */}
           <div className="flex items-start gap-3">
-            {/* 展开/折叠按钮 */}
-            {hasChildren ? (
-              <button
-                onClick={handleToggleExpand}
-                className={clsx(
-                  'flex-shrink-0 w-6 h-6 flex items-center justify-center mt-0.5',
-                  'rounded hover:bg-gray-200 transition-colors',
-                  'text-gray-500 hover:text-gray-700'
-                )}
-                title={isExpanded ? '折叠子任务' : '展开子任务'}
-              >
-                <ChevronIcon isExpanded={isExpanded} />
-              </button>
-            ) : (
-              <div className="w-6" /> // 占位，保持对齐
-            )}
-            
             {/* 任务内容和标签/优先级 */}
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-medium text-gray-900 truncate mb-2" title={todo.content}>
+              <h3 className="text-base font-medium text-gray-900 truncate mb-1.5" title={todo.content}>
                 {todo.content}
               </h3>
               
               {/* 标签和优先级 */}
               <div className="flex items-center gap-3 flex-wrap">
-                {/* 标签 */}
-                {todo.tags && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
-                      <TagIcon className="w-3.5 h-3.5 text-gray-500" />
-                      标签
-                    </span>
+                {/* 标签 - 始终显示 */}
+                <div className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
+                    <TagIcon className="w-3.5 h-3.5 text-gray-500" />
+                    标签
+                  </span>
+                  {parseTaskTags(todo.tags).length > 0 ? (
                     <TagList projectId={projectId} tagsString={todo.tags} size="sm" />
-                  </div>
-                )}
+                  ) : (
+                    <span className="text-xs text-gray-400">无</span>
+                  )}
+                </div>
                 {/* 分隔符 */}
-                {todo.tags && todo.priority !== null && todo.priority !== undefined && (
-                  <span className="text-gray-300">|</span>
-                )}
-                {/* 优先级 */}
-                {todo.priority !== null && todo.priority !== undefined && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
-                      <PriorityIcon className="w-3.5 h-3.5 text-gray-500" />
-                      优先级
-                    </span>
+                <span className="text-gray-300">|</span>
+                {/* 优先级 - 始终显示 */}
+                <div className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
+                    <PriorityIcon className="w-3.5 h-3.5 text-gray-500" />
+                    优先级
+                  </span>
+                  {todo.priority !== null && todo.priority !== undefined ? (
                     <PriorityBadge value={todo.priority} size="sm" />
-                  </div>
-                )}
+                  ) : (
+                    <span className="text-xs text-gray-400">未设定</span>
+                  )}
+                </div>
               </div>
             </div>
             
@@ -181,7 +193,7 @@ export function TodoTreeItem({
           
           {/* 底部信息：标识图标 + 创建人、执行人、时间 */}
           <div className="flex items-center justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-3 flex-wrap ml-9">
+            <div className="flex items-center gap-3 flex-wrap">
               {/* 标识图标：我是创建人或执行人 */}
               {((currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId) ||
                 (currentUserId !== null && currentUserId !== undefined && todo.assigneeId === currentUserId)) && (
@@ -238,13 +250,23 @@ export function TodoTreeItem({
               )}
             </div>
             
-            <div className="flex items-center gap-3 flex-shrink-0 ml-9">
-              {/* 子任务指示器 */}
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {/* 子任务指示器 - 可点击展开/折叠 */}
               {hasChildren && (
-                <div className="flex items-center gap-1 text-xs text-primary">
+                <button
+                  onClick={handleToggleExpand}
+                  className={clsx(
+                    "flex items-center gap-1 text-xs transition-colors",
+                    isExpanded 
+                      ? "text-gray-700 hover:text-gray-900" 
+                      : "text-primary hover:text-primary-600"
+                  )}
+                  title={isExpanded ? '折叠子任务' : '展开子任务'}
+                >
                   <SubtaskIcon className="w-3.5 h-3.5" />
                   <span>{todo.children!.length} 个子待办</span>
-                </div>
+                  <ChevronIcon isExpanded={isExpanded} />
+                </button>
               )}
               
               {/* 创建时间 */}
@@ -258,7 +280,7 @@ export function TodoTreeItem({
         
         {/* 子任务列表 */}
         {hasChildren && isExpanded && (
-          <div className="px-4 pb-3 pt-2">
+          <div>
             {todo.children!.map((child, index) => (
               <TodoTreeItem
                 key={child.id}
@@ -269,6 +291,7 @@ export function TodoTreeItem({
                 canEdit={canEdit}
                 depth={depth + 1}
                 isLast={index === todo.children!.length - 1}
+                parentExpanded={isExpanded} // 传递当前任务的展开状态给子任务
               />
             ))}
           </div>

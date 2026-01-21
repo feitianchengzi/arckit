@@ -22,6 +22,19 @@ export default function ProjectDetailPage() {
   const projectId = Number(params.id!)
   
   const currentUser = useAuthStore((state) => state.user)
+  const [showScrollTop, setShowScrollTop] = useState(false)
+  
+  // 回到顶部
+  const scrollToTop = () => {
+    const main = document.querySelector('main') as HTMLElement
+    if (main && main.scrollHeight > main.clientHeight) {
+      console.log('回到顶部 (main)')
+      main.scrollTo({ top: 0, behavior: 'smooth' })
+    } else {
+      console.log('回到顶部 (window)')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }
   const { data: project, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(String(projectId))
   const deleteProject = useDeleteProject()
   const updateProject = useUpdateProject(String(projectId))
@@ -180,6 +193,102 @@ export default function ProjectDetailPage() {
     
     return filterTree(taskTree)
   }, [taskTree, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, currentUserId])
+  
+  // 监听主内容区滚动
+  useEffect(() => {
+    let scrollElement: HTMLElement | null = null
+    let cleanup: (() => void) | null = null
+    
+    const setupScrollListener = () => {
+      // 先尝试 main 元素
+      const main = document.querySelector('main') as HTMLElement
+      if (main) {
+        const canScroll = main.scrollHeight > main.clientHeight
+        console.log('检查 main 元素:', { 
+          scrollHeight: main.scrollHeight, 
+          clientHeight: main.clientHeight,
+          canScroll,
+          scrollTop: main.scrollTop 
+        })
+        
+        if (canScroll) {
+          scrollElement = main
+        } else {
+          // 如果 main 不能滚动，检查 body 或 window
+          const body = document.body
+          const html = document.documentElement
+          const windowCanScroll = html.scrollHeight > html.clientHeight || body.scrollHeight > body.clientHeight
+          console.log('检查 window 滚动:', {
+            htmlScrollHeight: html.scrollHeight,
+            htmlClientHeight: html.clientHeight,
+            bodyScrollHeight: body.scrollHeight,
+            bodyClientHeight: body.clientHeight,
+            windowCanScroll
+          })
+          
+          if (windowCanScroll) {
+            scrollElement = null // 使用 window
+          }
+        }
+      }
+      
+      const handleScroll = () => {
+        if (scrollElement) {
+          const scrollTop = scrollElement.scrollTop
+          const shouldShow = scrollTop > 150
+          console.log('滚动检测 (main):', { scrollTop, shouldShow })
+          setShowScrollTop(shouldShow)
+        } else {
+          // 使用 window 滚动
+          const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+          const shouldShow = scrollTop > 150
+          console.log('滚动检测 (window):', { scrollTop, shouldShow })
+          setShowScrollTop(shouldShow)
+        }
+      }
+      
+      if (scrollElement) {
+        console.log('绑定 main 滚动事件')
+        scrollElement.addEventListener('scroll', handleScroll, { passive: true })
+        handleScroll() // 初始检查
+        cleanup = () => {
+          scrollElement?.removeEventListener('scroll', handleScroll)
+        }
+      } else {
+        console.log('绑定 window 滚动事件')
+        window.addEventListener('scroll', handleScroll, { passive: true })
+        handleScroll() // 初始检查
+        cleanup = () => {
+          window.removeEventListener('scroll', handleScroll)
+        }
+      }
+    }
+    
+    // 延迟执行，确保 DOM 完全渲染
+    const timer1 = setTimeout(() => {
+      setupScrollListener()
+    }, 300)
+    
+    // 使用 MutationObserver 监听 DOM 变化
+    const observer = new MutationObserver(() => {
+      // DOM 变化后重新检查
+      setTimeout(() => {
+        if (cleanup) cleanup()
+        setupScrollListener()
+      }, 100)
+    })
+    
+    const main = document.querySelector('main')
+    if (main) {
+      observer.observe(main, { childList: true, subtree: true })
+    }
+    
+    return () => {
+      clearTimeout(timer1)
+      observer.disconnect()
+      if (cleanup) cleanup()
+    }
+  }, [todos, filteredTodos]) // 当数据加载完成后重新绑定
   
   // 初始化编辑表单
   const handleEditClick = () => {
@@ -749,6 +858,43 @@ export default function ProjectDetailPage() {
         onConfirm={handleDeleteProject}
         onCancel={() => setShowDeleteConfirm(false)}
       />
+      
+      {/* 回到顶部按钮 */}
+      <button
+        onClick={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          scrollToTop()
+        }}
+        type="button"
+        className={clsx(
+          'fixed bottom-6 right-6 z-[100]',
+          'w-12 h-12 flex items-center justify-center',
+          'bg-blue-400 text-white rounded-full shadow-lg',
+          'hover:bg-blue-500 transition-all duration-300',
+          'focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2',
+          'cursor-pointer',
+          showScrollTop 
+            ? 'opacity-100 translate-y-0 pointer-events-auto visible' 
+            : 'opacity-0 translate-y-4 pointer-events-none invisible'
+        )}
+        aria-label="回到顶部"
+        tabIndex={showScrollTop ? 0 : -1}
+      >
+        <svg
+          className="w-6 h-6"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M5 10l7-7m0 0l7 7m-7-7v18"
+          />
+        </svg>
+      </button>
     </div>
   )
 }
