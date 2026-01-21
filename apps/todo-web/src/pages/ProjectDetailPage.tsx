@@ -38,6 +38,9 @@ export default function ProjectDetailPage() {
   
   // 任务筛选状态（默认选中"待办任务"）
   const [statusFilter, setStatusFilter] = useState<TodoStatus | 'ALL'>('PENDING')
+  // 创建人和执行人筛选
+  const [creatorFilter, setCreatorFilter] = useState<number | 'ME' | null>(null)
+  const [executorFilter, setExecutorFilter] = useState<number | 'ME' | 'UNASSIGNED' | null>(null)
   
   // 如果正在删除项目，禁用待办列表查询
   const { data: todos, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(String(projectId), {
@@ -46,12 +49,12 @@ export default function ProjectDetailPage() {
   const { data: members } = useProjectMembers(String(projectId))
   const updateStatus = useUpdateTaskStatus(String(projectId))
   
-  // 获取当前用户的 user_id（通过项目成员列表匹配 username）
+  // 获取当前用户的 user_id（通过 is_me 字段）
   const currentUserId = useMemo(() => {
-    if (!currentUser?.username || !members) return null
-    const currentMember = members.find(m => m.username === currentUser.username)
+    if (!members) return null
+    const currentMember = members.find(m => m.is_me === true)
     return currentMember?.user_id || null
-  }, [currentUser?.username, members])
+  }, [members])
   
   // 构建树形结构
   const taskTree = useMemo(() => {
@@ -74,17 +77,43 @@ export default function ProjectDetailPage() {
   const filteredTodos = useMemo(() => {
     if (!taskTree || taskTree.length === 0) return []
     
-    // 根据状态筛选根任务（子任务会跟随父任务显示）
-    if (statusFilter === 'ALL') {
-      return taskTree
+    // 筛选函数：检查任务是否匹配筛选条件
+    const matchesFilters = (todo: typeof taskTree[0]): boolean => {
+      // 状态筛选
+      const statusMatch = statusFilter === 'ALL' || todo.status === statusFilter
+      
+      // 创建人筛选
+      let creatorMatch = true
+      if (creatorFilter !== null) {
+        if (creatorFilter === 'ME') {
+          creatorMatch = todo.creatorId === currentUserId
+        } else {
+          creatorMatch = todo.creatorId === creatorFilter
+        }
+      }
+      
+      // 执行人筛选
+      let executorMatch = true
+      if (executorFilter !== null) {
+        if (executorFilter === 'ME') {
+          executorMatch = todo.assigneeId === currentUserId
+        } else if (executorFilter === 'UNASSIGNED') {
+          // assigneeId 类型是 number | undefined，检查未分配
+          executorMatch = todo.assigneeId === undefined || todo.assigneeId === null
+        } else {
+          executorMatch = todo.assigneeId === executorFilter
+        }
+      }
+      
+      return statusMatch && creatorMatch && executorMatch
     }
     
-    // 筛选函数：递归筛选树形结构
+    // 递归筛选树形结构
     const filterTree = (tasks: typeof taskTree): typeof taskTree => {
       return tasks
         .filter(todo => {
-          // 如果任务本身匹配状态，或者有子任务匹配状态，则保留
-          if (todo.status === statusFilter) {
+          // 如果任务本身匹配筛选条件，或者有子任务匹配筛选条件，则保留
+          if (matchesFilters(todo)) {
             return true
           }
           // 如果有子任务，递归检查子任务
@@ -99,7 +128,7 @@ export default function ProjectDetailPage() {
         })
         .map(todo => {
           // 如果任务本身不匹配，但子任务匹配，只显示子任务
-          if (todo.status !== statusFilter && todo.children && todo.children.length > 0) {
+          if (!matchesFilters(todo) && todo.children && todo.children.length > 0) {
             const filteredChildren = filterTree(todo.children)
             if (filteredChildren.length > 0) {
               return {
@@ -113,7 +142,7 @@ export default function ProjectDetailPage() {
     }
     
     return filterTree(taskTree)
-  }, [taskTree, statusFilter])
+  }, [taskTree, statusFilter, creatorFilter, executorFilter, currentUserId])
   
   // 初始化编辑表单
   const handleEditClick = () => {
@@ -359,21 +388,133 @@ export default function ProjectDetailPage() {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-4">待办列表</h2>
         
-        {/* 筛选提示 */}
-        {statusFilter !== 'ALL' && (
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-gray-600">
-              当前筛选：{statusFilter === 'PENDING' ? '待办' : statusFilter === 'IN_PROGRESS' ? '进行中' : '已完成'}
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setStatusFilter('ALL')}
-            >
-              清除筛选
-            </Button>
+        {/* 筛选器 */}
+        <div className="mb-4 space-y-3">
+          {/* 筛选器组 */}
+          <div className="flex flex-wrap gap-3 items-center">
+            {/* 状态筛选 */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 whitespace-nowrap">状态：</label>
+              <div className="relative">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setStatusFilter(value as TodoStatus | 'ALL')
+                  }}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  <option value="ALL">全部</option>
+                  <option value="PENDING">待办</option>
+                  <option value="IN_PROGRESS">进行中</option>
+                  <option value="COMPLETED">已完成</option>
+                  <option value="CANCELLED">已取消</option>
+                  <option value="BLOCKED">已阻塞</option>
+                </select>
+              </div>
+            </div>
+            
+            {/* 创建人筛选 */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 whitespace-nowrap">创建人：</label>
+              <div className="relative">
+                <select
+                  value={
+                    creatorFilter === null
+                      ? ''
+                      : creatorFilter === 'ME'
+                      ? 'ME'
+                      : String(creatorFilter)
+                  }
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === '') {
+                      setCreatorFilter(null)
+                    } else if (value === 'ME') {
+                      setCreatorFilter('ME')
+                    } else {
+                      const numValue = Number(value)
+                      if (!isNaN(numValue)) {
+                        setCreatorFilter(numValue)
+                      }
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  <option value="">全部</option>
+                  {currentUserId && (
+                    <option value="ME">我创建的</option>
+                  )}
+                  {members?.map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.username || member.user?.username || `用户${member.user_id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            {/* 执行人筛选 */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 whitespace-nowrap">执行人：</label>
+              <div className="relative">
+                <select
+                  value={
+                    executorFilter === null
+                      ? ''
+                      : executorFilter === 'ME'
+                      ? 'ME'
+                      : executorFilter === 'UNASSIGNED'
+                      ? 'UNASSIGNED'
+                      : String(executorFilter)
+                  }
+                  onChange={(e) => {
+                    const value = e.target.value
+                    if (value === '') {
+                      setExecutorFilter(null)
+                    } else if (value === 'ME') {
+                      setExecutorFilter('ME')
+                    } else if (value === 'UNASSIGNED') {
+                      setExecutorFilter('UNASSIGNED')
+                    } else {
+                      const numValue = Number(value)
+                      if (!isNaN(numValue)) {
+                        setExecutorFilter(numValue)
+                      }
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  <option value="">全部</option>
+                  <option value="UNASSIGNED">未分配</option>
+                  {currentUserId && (
+                    <option value="ME">我执行的</option>
+                  )}
+                  {members?.map((member) => (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.username || member.user?.username || `用户${member.user_id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            
+            {/* 清除所有筛选 */}
+            {(statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setStatusFilter('ALL')
+                  setCreatorFilter(null)
+                  setExecutorFilter(null)
+                }}
+              >
+                清除所有筛选
+              </Button>
+            )}
           </div>
-        )}
+        </div>
         
         {!todos || todos.length === 0 ? (
           <EmptyStateView
@@ -384,10 +525,22 @@ export default function ProjectDetailPage() {
           />
         ) : filteredTodos.length === 0 ? (
           <EmptyStateView
-            title={`没有${statusFilter === 'PENDING' ? '待办' : statusFilter === 'IN_PROGRESS' ? '进行中' : '已完成'}的待办`}
-            message={statusFilter !== 'ALL' ? '尝试切换其他筛选条件' : '创建第一个待办开始工作'}
-            actionLabel={statusFilter !== 'ALL' ? undefined : '创建待办'}
-            onAction={statusFilter !== 'ALL' ? undefined : () => navigate(`/projects/${projectId}/tasks/new`)}
+            title="没有匹配的待办"
+            message={
+              statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null
+                ? '尝试切换其他筛选条件'
+                : '创建第一个待办开始工作'
+            }
+            actionLabel={
+              statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null
+                ? undefined
+                : '创建待办'
+            }
+            onAction={
+              statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null
+                ? undefined
+                : () => navigate(`/projects/${projectId}/tasks/new`)
+            }
           />
         ) : (
           <div>

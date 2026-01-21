@@ -48,6 +48,8 @@ export interface ProjectMember {
   // API 文档中，成员数据直接包含 username 和 avatar
   username?: string
   avatar?: string
+  // 标识这个成员是否是当前用户
+  is_me?: boolean
 }
 
 export type ProjectRole = 'owner' | 'admin' | 'member'

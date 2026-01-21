@@ -28,6 +28,10 @@ export const projectsApi = {
     console.log('📋 获取项目列表')
     const response = await apiClient.get('/user/projects')
     
+    // 输出完整的响应内容
+    console.log('🔍 [项目列表API] 完整响应体:', JSON.stringify(response.data, null, 2))
+    console.log('🔍 [项目列表API] response.data:', response.data)
+    
     // 后端实际返回格式: { code: 'OK', data: { projects: [...], total: 3 } }
     const responseData = response.data
     if (responseData?.code === 'OK' && responseData?.data) {
@@ -97,11 +101,21 @@ export const projectsApi = {
    */
   getById: async (id: string, userId?: number): Promise<Project> => {
     // 后端没有单独的获取项目详情接口，我们从项目列表中查找
+    console.log('🔍 [项目详情API] 开始获取项目详情，项目ID:', id)
     const projects = await projectsApi.list() // 不需要 userId
     const project = projects.find((p) => p.id.toString() === id)
     
     if (!project) {
+      console.error('❌ [项目详情API] 项目不存在，项目ID:', id)
       throw new Error('项目不存在')
+    }
+    
+    // 输出完整的项目详情内容
+    console.log('✅ [项目详情API] 项目详情内容:', JSON.stringify(project, null, 2))
+    console.log('✅ [项目详情API] 项目详情对象:', project)
+    console.log('✅ [项目详情API] 项目成员数量:', project.members?.length || 0)
+    if (project.members && project.members.length > 0) {
+      console.log('✅ [项目详情API] 项目成员列表:', JSON.stringify(project.members, null, 2))
     }
     
     return project

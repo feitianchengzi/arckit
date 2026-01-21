@@ -54,8 +54,8 @@ export default function TaskDetailPage() {
   const isCreator = creatorUsername === currentUser?.username
   const isAssignee = executorUsername === currentUser?.username && executorUsername !== '未分配'
   
-  // 获取当前用户在项目中的角色
-  const currentUserMember = (members as any)?.find((m: any) => m.username === currentUser?.username)
+  // 获取当前用户在项目中的角色（通过 is_me 字段）
+  const currentUserMember = (members as any)?.find((m: any) => m.is_me === true)
   const currentUserRole = currentUserMember?.role || null
   
   // 判断执行者是否未分配

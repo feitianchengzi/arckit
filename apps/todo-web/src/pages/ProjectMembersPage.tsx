@@ -119,12 +119,8 @@ export default function ProjectMembersPage() {
     )
   }
   
-  // 当前用户在项目中的角色
-  // 注意：因为 API 不返回数据库 ID，我们通过 username 匹配当前用户
-  const currentUserMember = members?.find((m: ProjectMember) => {
-    // 通过 username 匹配
-    return m.username === currentUser?.username
-  })
+  // 当前用户在项目中的角色（通过 is_me 字段）
+  const currentUserMember = members?.find((m: ProjectMember) => m.is_me === true)
   
   // 判断是否是项目创建者
   // 通过 username 比较
