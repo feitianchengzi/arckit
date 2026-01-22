@@ -271,8 +271,11 @@ type GetOSSTempCredentialsResponse struct {
 	AccessKeySecret string `json:"access_key_secret"` // 临时AccessKeySecret
 	SecurityToken   string `json:"security_token"`    // SecurityToken
 	Expiration      string `json:"expiration"`        // 过期时间
-	Endpoint        string `json:"endpoint"`          // OSS Endpoint
 	BucketName      string `json:"bucket_name"`       // OSS Bucket名称
+	Region          string `json:"region"`            // OSS Region（用于前端构建region: 'oss-' + region）
+	RootPath        string `json:"root_path"`         // OSS根目录路径（允许操作的根目录）
+	AuthorizationV4 bool   `json:"authorization_v4"`  // 使用V4签名（推荐）
+	Secure          bool   `json:"secure"`            // 使用HTTPS协议
 }
 
 // GetOSSTempCredentials 为客户端生成临时的OSS访问凭证
@@ -300,18 +303,14 @@ func GetOSSTempCredentials(c *gin.Context) {
 	// 3. 从环境变量读取配置
 	accessKeyId := os.Getenv("OSS_ACCESS_KEY_ID")
 	accessKeySecret := os.Getenv("OSS_ACCESS_KEY_SECRET")
-	ossEndpoint := os.Getenv("OSS_ENDPOINT")
 	bucketName := os.Getenv("OSS_BUCKET_NAME")
 	roleArn := os.Getenv("OSS_RAM_ROLE_ARN")
 	region := os.Getenv("OSS_REGION")
+	rootPath := os.Getenv("OSS_ROOT_PATH")
 
 	// 4. 验证必要的环境变量
 	if accessKeyId == "" || accessKeySecret == "" {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "OSS配置不完整：缺少OSS_ACCESS_KEY_ID或OSS_ACCESS_KEY_SECRET", nil))
-		return
-	}
-	if ossEndpoint == "" {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "OSS配置不完整：缺少OSS_ENDPOINT", nil))
 		return
 	}
 	if bucketName == "" {
@@ -346,9 +345,13 @@ func GetOSSTempCredentials(c *gin.Context) {
 	}
 
 	// 7. 构建AssumeRole请求参数
-	durationSeconds, _ := strconv.ParseInt("3600", 10, 64)
+	durationSeconds, err := strconv.ParseInt("900", 10, 64)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "解析凭证有效期失败: "+err.Error(), nil))
+		return
+	}
 	request := &sts20150401.AssumeRoleRequest{
-		DurationSeconds: tea.Int64(durationSeconds),                     // 临时凭证的有效期，单位为秒（1小时）
+		DurationSeconds: tea.Int64(durationSeconds),                     // 临时凭证的有效期，单位为秒（15分钟）
 		RoleArn:         tea.String(roleArn),                            // RAM角色的ARN
 		RoleSessionName: tea.String("oss-session-" + headerInfo.UserID), // 自定义会话名称，使用用户ID
 	}
@@ -367,8 +370,11 @@ func GetOSSTempCredentials(c *gin.Context) {
 		AccessKeySecret: tea.StringValue(creds.AccessKeySecret),
 		SecurityToken:   tea.StringValue(creds.SecurityToken),
 		Expiration:      tea.StringValue(creds.Expiration),
-		Endpoint:        ossEndpoint,
 		BucketName:      bucketName,
+		Region:          "oss-" + region,
+		RootPath:        rootPath,
+		AuthorizationV4: true,
+		Secure:          true,
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
