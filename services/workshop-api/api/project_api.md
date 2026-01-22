@@ -91,7 +91,8 @@ GET /todo/v1/user/projects
         "role": "owner",
         "username": "john_doe",
         "avatar": "https://example.com/avatar.png",
-        "created_at": "2024-01-01T12:00:00Z"
+        "created_at": "2024-01-01T12:00:00Z",
+        "is_me": true
       }
     ]
   }
@@ -107,6 +108,18 @@ GET /todo/v1/user/projects
 | git_url | string | Git仓库地址 |
 | creator_id | uint | 创建者用户ID |
 | members | array | 项目成员列表（包含创建者） |
+
+**成员对象字段说明**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | uint | 成员关系ID |
+| user_id | uint | 用户ID |
+| role | string | 角色（owner/admin/member） |
+| username | string | 用户名 |
+| avatar | string | 头像地址 |
+| created_at | string | 加入时间（ISO 8601格式） |
+| is_me | bool | 是否是当前用户自己 |
 
 **错误响应**:
 
@@ -169,7 +182,8 @@ GET /todo/v1/user/projects
             "role": "owner",
             "username": "john_doe",
             "avatar": "https://example.com/avatar.png",
-            "created_at": "2024-01-01T12:00:00Z"
+            "created_at": "2024-01-01T12:00:00Z",
+            "is_me": true
           },
           {
             "id": 2,
@@ -177,7 +191,8 @@ GET /todo/v1/user/projects
             "role": "member",
             "username": "jane_doe",
             "avatar": "https://example.com/avatar2.png",
-            "created_at": "2024-01-01T12:05:00Z"
+            "created_at": "2024-01-01T12:05:00Z",
+            "is_me": false
           }
         ]
       }
@@ -193,6 +208,30 @@ GET /todo/v1/user/projects
 |------|------|------|
 | projects | array | 项目列表 |
 | total | int64 | 项目总数 |
+
+**项目对象字段说明**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | uint | 项目ID |
+| name | string | 项目名称 |
+| git_url | string | Git仓库地址 |
+| creator_id | uint | 创建者用户ID |
+| created_at | string | 创建时间（ISO 8601格式） |
+| updated_at | string | 更新时间（ISO 8601格式） |
+| members | array | 项目成员列表 |
+
+**成员对象字段说明**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | uint | 成员关系ID |
+| user_id | uint | 用户ID |
+| role | string | 角色（owner/admin/member） |
+| username | string | 用户名 |
+| avatar | string | 头像地址 |
+| created_at | string | 加入时间（ISO 8601格式） |
+| is_me | bool | 是否是当前用户自己 |
 
 **错误响应**:
 

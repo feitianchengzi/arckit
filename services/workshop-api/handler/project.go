@@ -29,6 +29,7 @@ type ProjectMemberResponse struct {
 	Username  string `json:"username"`   // 用户名
 	Avatar    string `json:"avatar"`     // 头像地址
 	CreatedAt string `json:"created_at"` // 加入时间
+	IsMe      bool   `json:"is_me"`      // 是否是当前用户自己
 }
 
 // CreateProjectResponse 创建项目响应结构
@@ -115,6 +116,7 @@ func CreateProject(c *gin.Context) {
 			Username:  member.User.Username,
 			Avatar:    member.User.Avatar,
 			CreatedAt: member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			IsMe:      member.UserID == userID,
 		})
 	}
 
@@ -211,6 +213,7 @@ func GetUserProjects(c *gin.Context) {
 				Username:  member.User.Username,
 				Avatar:    member.User.Avatar,
 				CreatedAt: member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+				IsMe:      member.UserID == userID,
 			})
 		}
 
@@ -346,6 +349,7 @@ func UpdateProject(c *gin.Context) {
 				Username:  m.User.Username,
 				Avatar:    m.User.Avatar,
 				CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+				IsMe:      m.UserID == userID,
 			})
 		}
 
@@ -391,6 +395,7 @@ func UpdateProject(c *gin.Context) {
 			Username:  m.User.Username,
 			Avatar:    m.User.Avatar,
 			CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			IsMe:      m.UserID == userID,
 		})
 	}
 
