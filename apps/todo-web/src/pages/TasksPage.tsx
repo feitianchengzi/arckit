@@ -16,6 +16,7 @@ import { buildTaskTree } from '@/lib/utils/taskTree'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
+import { saveTaskFilterState, loadTaskFilterState } from '@/lib/utils/filterStorage'
 import type { Todo, TodoStatus } from '@/types'
 import clsx from 'clsx'
 
@@ -41,12 +42,36 @@ export default function MyTasksPage() {
   const [tasksLoading, setTasksLoading] = useState(false)
   const [tasksError, setTasksError] = useState<Error | null>(null)
   
-  // 筛选器状态
-  const [statusFilter, setStatusFilter] = useState<TodoStatus | 'ALL'>('ALL')
-  const [creatorFilter, setCreatorFilter] = useState<number | 'ME' | null>(null)
-  const [executorFilter, setExecutorFilter] = useState<number | 'ME' | 'UNASSIGNED' | null>(null)
-  const [tagFilter, setTagFilter] = useState<{ projectId: string; tagId: number } | null>(null)
-  const [priorityFilter, setPriorityFilter] = useState<number | null | 'ALL' | 'NONE'>(null)
+  // 从本地存储恢复筛选条件
+  const savedFilters = loadTaskFilterState()
+  
+  // 筛选器状态（初始值从本地存储恢复）
+  const [statusFilter, setStatusFilter] = useState<TodoStatus | 'ALL'>(
+    (savedFilters?.statusFilter as TodoStatus | 'ALL') || 'ALL'
+  )
+  const [creatorFilter, setCreatorFilter] = useState<number | 'ME' | null>(
+    savedFilters?.creatorFilter ?? null
+  )
+  const [executorFilter, setExecutorFilter] = useState<number | 'ME' | 'UNASSIGNED' | null>(
+    savedFilters?.executorFilter ?? null
+  )
+  const [tagFilter, setTagFilter] = useState<{ projectId: string; tagId: number } | null>(
+    (savedFilters?.tagFilter as { projectId: string; tagId: number } | null) ?? null
+  )
+  const [priorityFilter, setPriorityFilter] = useState<number | null | 'ALL' | 'NONE'>(
+    savedFilters?.priorityFilter ?? null
+  )
+  
+  // 当筛选条件改变时保存到本地存储
+  useEffect(() => {
+    saveTaskFilterState({
+      statusFilter,
+      creatorFilter,
+      executorFilter,
+      tagFilter,
+      priorityFilter,
+    })
+  }, [statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter])
   
   // 所有项目的成员和标签信息
   const [allMembers, setAllMembers] = useState<Map<string, Array<{ user_id: number; username: string }>>>(new Map())
@@ -186,6 +211,54 @@ export default function MyTasksPage() {
     })
     return tagsMap
   }, [projects, getProjectTags])
+  
+  // 验证并修复筛选条件（数据加载完成后）
+  useEffect(() => {
+    // 如果还在加载中，不进行验证
+    if (allTasksLoading) return
+    
+    let needUpdate = false
+    const updates: Partial<{
+      creatorFilter: number | 'ME' | null
+      executorFilter: number | 'ME' | 'UNASSIGNED' | null
+      tagFilter: { projectId: string; tagId: number } | null
+    }> = {}
+    
+    // 验证创建人筛选
+    if (creatorFilter !== null && creatorFilter !== 'ME') {
+      // 如果成员列表为空，或者该成员不存在，重置为 null
+      if (allMembersList.length === 0 || !allMembersList.some(m => m.user_id === creatorFilter)) {
+        updates.creatorFilter = null
+        needUpdate = true
+      }
+    }
+    
+    // 验证执行人筛选
+    if (executorFilter !== null && executorFilter !== 'ME' && executorFilter !== 'UNASSIGNED') {
+      // 如果成员列表为空，或者该成员不存在，重置为 null
+      if (allMembersList.length === 0 || !allMembersList.some(m => m.user_id === executorFilter)) {
+        updates.executorFilter = null
+        needUpdate = true
+      }
+    }
+    
+    // 验证标签筛选
+    if (tagFilter !== null) {
+      const projectTags = allTagsByProject.get(tagFilter.projectId)
+      // 如果项目不存在，或者项目没有标签，或者该标签不存在，重置为 null
+      if (!projectTags || projectTags.length === 0 || !projectTags.some(t => t.id === tagFilter.tagId)) {
+        updates.tagFilter = null
+        needUpdate = true
+      }
+    }
+    
+    // 应用修复（静默处理，不报错）
+    if (needUpdate) {
+      if (updates.creatorFilter !== undefined) setCreatorFilter(updates.creatorFilter)
+      if (updates.executorFilter !== undefined) setExecutorFilter(updates.executorFilter)
+      if (updates.tagFilter !== undefined) setTagFilter(updates.tagFilter)
+    }
+  }, [allTasksLoading, allMembersList, allTagsByProject, creatorFilter, executorFilter, tagFilter])
   
   // 筛选后的待办列表
   const filteredTasks = useMemo(() => {
@@ -497,8 +570,14 @@ export default function MyTasksPage() {
           <div className="flex flex-wrap gap-6 items-center">
             {/* 状态筛选 */}
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
-                <StatusFilterIcon className="w-4 h-4 text-gray-500" />
+              <label className={clsx(
+                "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
+                statusFilter !== 'ALL' ? "text-orange-600" : "text-gray-600"
+              )}>
+                <StatusFilterIcon className={clsx(
+                  "w-4 h-4",
+                  statusFilter !== 'ALL' ? "text-orange-500" : "text-gray-500"
+                )} />
                 状态:
               </label>
               <div className="relative">
@@ -508,7 +587,10 @@ export default function MyTasksPage() {
                     const value = e.target.value
                     setStatusFilter(value as TodoStatus | 'ALL')
                   }}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={clsx(
+                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    statusFilter !== 'ALL' ? "text-orange-600 font-medium" : "text-gray-900"
+                  )}
                 >
                   <option value="ALL">全部</option>
                   <option value="PENDING">待办</option>
@@ -522,8 +604,14 @@ export default function MyTasksPage() {
             
             {/* 创建人筛选 */}
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
-                <CreatorFilterIcon className="w-4 h-4 text-gray-500" />
+              <label className={clsx(
+                "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
+                creatorFilter !== null ? "text-orange-600" : "text-gray-600"
+              )}>
+                <CreatorFilterIcon className={clsx(
+                  "w-4 h-4",
+                  creatorFilter !== null ? "text-orange-500" : "text-gray-500"
+                )} />
                 创建人:
               </label>
               <div className="relative">
@@ -548,7 +636,10 @@ export default function MyTasksPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={clsx(
+                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    creatorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                  )}
                 >
                   <option value="">全部</option>
                   {currentUserId && (
@@ -565,8 +656,14 @@ export default function MyTasksPage() {
             
             {/* 执行人筛选 */}
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
-                <ExecutorFilterIcon className="w-4 h-4 text-gray-500" />
+              <label className={clsx(
+                "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
+                executorFilter !== null ? "text-orange-600" : "text-gray-600"
+              )}>
+                <ExecutorFilterIcon className={clsx(
+                  "w-4 h-4",
+                  executorFilter !== null ? "text-orange-500" : "text-gray-500"
+                )} />
                 执行人:
               </label>
               <div className="relative">
@@ -595,7 +692,10 @@ export default function MyTasksPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={clsx(
+                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    executorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                  )}
                 >
                   <option value="">全部</option>
                   <option value="UNASSIGNED">未分配</option>
@@ -613,8 +713,14 @@ export default function MyTasksPage() {
             
             {/* 标签筛选 */}
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
-                <TagFilterIcon className="w-4 h-4 text-gray-500" />
+              <label className={clsx(
+                "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
+                tagFilter !== null ? "text-orange-600" : "text-gray-600"
+              )}>
+                <TagFilterIcon className={clsx(
+                  "w-4 h-4",
+                  tagFilter !== null ? "text-orange-500" : "text-gray-500"
+                )} />
                 标签:
               </label>
               <div className="relative">
@@ -636,7 +742,10 @@ export default function MyTasksPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={clsx(
+                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    tagFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                  )}
                 >
                   <option value="">全部</option>
                   {Array.from(allTagsByProject.entries()).map(([projectId, tags]) => {
@@ -657,8 +766,14 @@ export default function MyTasksPage() {
             
             {/* 优先级筛选 */}
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
-                <PriorityFilterIcon className="w-4 h-4 text-gray-500" />
+              <label className={clsx(
+                "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
+                priorityFilter !== null ? "text-orange-600" : "text-gray-600"
+              )}>
+                <PriorityFilterIcon className={clsx(
+                  "w-4 h-4",
+                  priorityFilter !== null ? "text-orange-500" : "text-gray-500"
+                )} />
                 优先级:
               </label>
               <div className="relative">
@@ -687,7 +802,10 @@ export default function MyTasksPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={clsx(
+                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    priorityFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                  )}
                 >
                   <option value="">全部</option>
                   <option value="ALL">有优先级</option>

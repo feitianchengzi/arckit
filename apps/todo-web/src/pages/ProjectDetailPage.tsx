@@ -13,6 +13,7 @@ import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
+import { saveProjectFilterState, loadProjectFilterState } from '@/lib/utils/filterStorage'
 import type { TodoStatus } from '@/types'
 import clsx from 'clsx'
 
@@ -51,14 +52,38 @@ export default function ProjectDetailPage() {
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
   
+  // 从本地存储恢复筛选条件（按项目ID）
+  const savedFilters = loadProjectFilterState(String(projectId))
+  
   // 任务筛选状态（默认选中"待办任务"）
-  const [statusFilter, setStatusFilter] = useState<TodoStatus | 'ALL'>('PENDING')
+  const [statusFilter, setStatusFilter] = useState<TodoStatus | 'ALL'>(
+    (savedFilters?.statusFilter as TodoStatus | 'ALL') || 'PENDING'
+  )
   // 创建人和执行人筛选
-  const [creatorFilter, setCreatorFilter] = useState<number | 'ME' | null>(null)
-  const [executorFilter, setExecutorFilter] = useState<number | 'ME' | 'UNASSIGNED' | null>(null)
+  const [creatorFilter, setCreatorFilter] = useState<number | 'ME' | null>(
+    savedFilters?.creatorFilter ?? null
+  )
+  const [executorFilter, setExecutorFilter] = useState<number | 'ME' | 'UNASSIGNED' | null>(
+    savedFilters?.executorFilter ?? null
+  )
   // 标签和优先级筛选
-  const [tagFilter, setTagFilter] = useState<number | null>(null)
-  const [priorityFilter, setPriorityFilter] = useState<number | null | 'ALL' | 'NONE'>(null)
+  const [tagFilter, setTagFilter] = useState<number | null>(
+    (savedFilters?.tagFilter as number) ?? null
+  )
+  const [priorityFilter, setPriorityFilter] = useState<number | null | 'ALL' | 'NONE'>(
+    savedFilters?.priorityFilter ?? null
+  )
+  
+  // 当筛选条件改变时保存到本地存储
+  useEffect(() => {
+    saveProjectFilterState(String(projectId), {
+      statusFilter,
+      creatorFilter,
+      executorFilter,
+      tagFilter: tagFilter as number | null,
+      priorityFilter,
+    })
+  }, [projectId, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter])
   
   // 如果正在删除项目，禁用待办列表查询
   const { data: todos, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(String(projectId), {
@@ -75,6 +100,52 @@ export default function ProjectDetailPage() {
     }
   }, [projectId, loadProjectTags])
   const projectTags = getProjectTags(String(projectId))
+  
+  // 验证并修复筛选条件（数据加载完成后）
+  useEffect(() => {
+    if (todosLoading || !members) return
+    
+    let needUpdate = false
+    const updates: Partial<{
+      creatorFilter: number | 'ME' | null
+      executorFilter: number | 'ME' | 'UNASSIGNED' | null
+      tagFilter: number | null
+    }> = {}
+    
+    // 验证创建人筛选
+    if (creatorFilter !== null && creatorFilter !== 'ME') {
+      const memberExists = members.some(m => m.user_id === creatorFilter)
+      if (!memberExists) {
+        updates.creatorFilter = null
+        needUpdate = true
+      }
+    }
+    
+    // 验证执行人筛选
+    if (executorFilter !== null && executorFilter !== 'ME' && executorFilter !== 'UNASSIGNED') {
+      const memberExists = members.some(m => m.user_id === executorFilter)
+      if (!memberExists) {
+        updates.executorFilter = null
+        needUpdate = true
+      }
+    }
+    
+    // 验证标签筛选
+    if (tagFilter !== null) {
+      const tagExists = projectTags.some(t => t.id === tagFilter)
+      if (!tagExists) {
+        updates.tagFilter = null
+        needUpdate = true
+      }
+    }
+    
+    // 应用修复
+    if (needUpdate) {
+      if (updates.creatorFilter !== undefined) setCreatorFilter(updates.creatorFilter)
+      if (updates.executorFilter !== undefined) setExecutorFilter(updates.executorFilter)
+      if (updates.tagFilter !== undefined) setTagFilter(updates.tagFilter)
+    }
+  }, [todosLoading, members, projectTags, creatorFilter, executorFilter, tagFilter])
   
   // 获取当前用户的 user_id（通过 is_me 字段）
   const currentUserId = useMemo(() => {
@@ -540,8 +611,14 @@ export default function ProjectDetailPage() {
           <div className="flex flex-wrap gap-6 items-center">
             {/* 状态筛选 */}
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
-                <StatusFilterIcon className="w-4 h-4 text-gray-500" />
+              <label className={clsx(
+                "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
+                statusFilter !== 'ALL' ? "text-orange-600" : "text-gray-600"
+              )}>
+                <StatusFilterIcon className={clsx(
+                  "w-4 h-4",
+                  statusFilter !== 'ALL' ? "text-orange-500" : "text-gray-500"
+                )} />
                 状态:
               </label>
               <div className="relative">
@@ -551,7 +628,10 @@ export default function ProjectDetailPage() {
                     const value = e.target.value
                     setStatusFilter(value as TodoStatus | 'ALL')
                   }}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={clsx(
+                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    statusFilter !== 'ALL' ? "text-orange-600 font-medium" : "text-gray-900"
+                  )}
                 >
                   <option value="ALL">全部</option>
                   <option value="PENDING">待办</option>
@@ -565,8 +645,14 @@ export default function ProjectDetailPage() {
             
             {/* 创建人筛选 */}
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
-                <CreatorFilterIcon className="w-4 h-4 text-gray-500" />
+              <label className={clsx(
+                "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
+                creatorFilter !== null ? "text-orange-600" : "text-gray-600"
+              )}>
+                <CreatorFilterIcon className={clsx(
+                  "w-4 h-4",
+                  creatorFilter !== null ? "text-orange-500" : "text-gray-500"
+                )} />
                 创建人:
               </label>
               <div className="relative">
@@ -591,7 +677,10 @@ export default function ProjectDetailPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={clsx(
+                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    creatorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                  )}
                 >
                   <option value="">全部</option>
                   {currentUserId && (
@@ -608,8 +697,14 @@ export default function ProjectDetailPage() {
             
             {/* 执行人筛选 */}
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
-                <ExecutorFilterIcon className="w-4 h-4 text-gray-500" />
+              <label className={clsx(
+                "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
+                executorFilter !== null ? "text-orange-600" : "text-gray-600"
+              )}>
+                <ExecutorFilterIcon className={clsx(
+                  "w-4 h-4",
+                  executorFilter !== null ? "text-orange-500" : "text-gray-500"
+                )} />
                 执行人:
               </label>
               <div className="relative">
@@ -638,7 +733,10 @@ export default function ProjectDetailPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={clsx(
+                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    executorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                  )}
                 >
                   <option value="">全部</option>
                   <option value="UNASSIGNED">未分配</option>
@@ -656,8 +754,14 @@ export default function ProjectDetailPage() {
             
             {/* 标签筛选 */}
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
-                <TagFilterIcon className="w-4 h-4 text-gray-500" />
+              <label className={clsx(
+                "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
+                tagFilter !== null ? "text-orange-600" : "text-gray-600"
+              )}>
+                <TagFilterIcon className={clsx(
+                  "w-4 h-4",
+                  tagFilter !== null ? "text-orange-500" : "text-gray-500"
+                )} />
                 标签:
               </label>
               <div className="relative">
@@ -674,7 +778,10 @@ export default function ProjectDetailPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={clsx(
+                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    tagFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                  )}
                 >
                   <option value="">全部</option>
                   {projectTags.map((tag) => (
@@ -688,8 +795,14 @@ export default function ProjectDetailPage() {
             
             {/* 优先级筛选 */}
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-sm font-semibold text-gray-600 whitespace-nowrap">
-                <PriorityFilterIcon className="w-4 h-4 text-gray-500" />
+              <label className={clsx(
+                "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
+                priorityFilter !== null ? "text-orange-600" : "text-gray-600"
+              )}>
+                <PriorityFilterIcon className={clsx(
+                  "w-4 h-4",
+                  priorityFilter !== null ? "text-orange-500" : "text-gray-500"
+                )} />
                 优先级:
               </label>
               <div className="relative">
@@ -718,7 +831,10 @@ export default function ProjectDetailPage() {
                       }
                     }
                   }}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={clsx(
+                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    priorityFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                  )}
                 >
                   <option value="">全部</option>
                   <option value="ALL">有优先级</option>
