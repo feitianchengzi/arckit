@@ -72,7 +72,7 @@ export function AvatarUpload({
           const credentials = await uploadApi.getSTSToken()
           
           // 5. 上传到 OSS 并自动更新用户头像
-          const { uploadAvatarToOSS } = await import('@/lib/utils/ossUploadApi')
+          const { uploadAvatarToOSS } = await import('@/lib/oss/uploadApi')
           const uploadResult = await uploadAvatarToOSS(
             compressedFile,
             credentials,
@@ -83,7 +83,7 @@ export function AvatarUpload({
           )
           
           // 6. 生成签名URL用于预览
-          const { getSignedUrl } = await import('@/lib/utils/ossUpload')
+          const { getSignedUrl } = await import('@/lib/oss/upload')
           const previewUrl = await getSignedUrl(uploadResult.objectKey, credentials)
           
           // 7. 更新预览和调用回调（传递 objectKey）

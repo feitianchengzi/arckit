@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import type { User } from '@/types'
-import { getAvatarUrl } from '@/lib/utils/ossUpload'
+import { getAvatarUrl } from '@/lib/oss/urlHelper'
 
 export interface AvatarProps {
   user?: User | { username?: string; avatar?: string } | null

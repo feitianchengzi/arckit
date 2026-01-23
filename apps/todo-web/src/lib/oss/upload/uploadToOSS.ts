@@ -1,57 +1,12 @@
 /**
- * OSS 上传工具
- * 使用阿里云 OSS Browser SDK 上传文件
+ * 上传文件到 OSS（内部函数，仅供 oss/uploadApi 使用）
+ * 注意：业务代码不应直接使用此函数，应使用 oss/uploadApi 中提供的业务接口
  */
 
-import { STSCredentials } from '../api/endpoints/upload'
-
-// 声明全局 OSS 类型
-declare global {
-  interface Window {
-    OSS?: any
-  }
-}
-
-/**
- * 路径拼接工具函数
- * 确保路径正确拼接，处理斜杠
- */
-function joinPath(a: string, b: string): string {
-  const left = (a || '').replace(/\/+$/g, '')
-  const right = (b || '').replace(/^\/+/, '')
-  return left ? `${left}/${right}` : right
-}
-
-/**
- * 动态加载 OSS Browser SDK
- * 使用 CDN 方式加载，避免增加 bundle 大小
- */
-async function loadOSSSDK(): Promise<any> {
-  // 检查是否已经加载
-  if (window.OSS) {
-    return window.OSS
-  }
-
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://gosspublic.alicdn.com/aliyun-oss-sdk-6.23.0.min.js'
-    script.async = true
-    
-    script.onload = () => {
-      if (window.OSS) {
-        resolve(window.OSS)
-      } else {
-        reject(new Error('OSS SDK 加载失败'))
-      }
-    }
-    
-    script.onerror = () => {
-      reject(new Error('无法加载 OSS SDK'))
-    }
-    
-    document.head.appendChild(script)
-  })
-}
+import { STSCredentials } from '../../api/endpoints/upload'
+import { loadOSSSDK, getFileExtension } from '../sdk'
+import { generateObjectKey } from './generateObjectKey'
+import type { OSSDirectory, UploadResult } from './types'
 
 /**
  * 刷新 STS Token 的函数
@@ -62,7 +17,7 @@ async function refreshSTSToken(): Promise<{
   accessKeySecret: string
   stsToken: string
 }> {
-  const { uploadApi } = await import('../api/endpoints/upload')
+  const { uploadApi } = await import('../../api/endpoints/upload')
   const credentials = await uploadApi.getSTSToken()
   
   return {
@@ -87,36 +42,8 @@ function calculateRefreshInterval(expiration: string): number {
 }
 
 /**
- * OSS 文件目录类型
- */
-export type OSSDirectory = 'avatars' | 'attachments' | 'documents' | string
-
-/**
- * 生成 OSS objectKey
- * @param rootPath OSS 根路径
- * @param directory 文件目录（例如：'avatars'、'attachments'、'documents'）
- * @param fileName 文件名
- * @returns 完整的 objectKey
- */
-export function generateObjectKey(
-  rootPath: string,
-  directory: OSSDirectory,
-  fileName: string
-): string {
-  return joinPath(rootPath, `${directory}/${fileName}`)
-}
-
-/**
- * 上传结果接口
- */
-export interface UploadResult {
-  objectKey: string
-  url?: string // 可选的签名URL，如果需要立即访问
-}
-
-/**
- * 上传文件到 OSS（内部函数，仅供 ossUploadApi.ts 使用）
- * 注意：业务代码不应直接使用此函数，应使用 ossUploadApi.ts 中提供的业务接口
+ * 上传文件到 OSS（内部函数，仅供 oss/uploadApi 使用）
+ * 注意：业务代码不应直接使用此函数，应使用 oss/uploadApi 中提供的业务接口
  * 
  * @param file 要上传的文件
  * @param credentials STS 临时凭证（包含 region、bucket_name、root_path 等）
@@ -178,7 +105,7 @@ export async function uploadToOSS(
     // 如果提供了 callback URL，配置 callback
     if (callbackUrl) {
       // 获取 access token 添加到 header
-      const { getAccessToken } = await import('./tokenManager')
+      const { getAccessToken } = await import('../../utils/tokenManager')
       const accessToken = getAccessToken()
       
       const callbackHeaders: Record<string, string> = {}
@@ -260,118 +187,3 @@ export async function uploadToOSS(
   }
 }
 
-/**
- * 获取文件扩展名
- */
-function getFileExtension(filename: string): string {
-  const parts = filename.split('.')
-  return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : 'jpg'
-}
-
-
-/**
- * 判断字符串是否为 OSS objectKey（而不是完整的 URL）
- * objectKey 格式：不包含 http:// 或 https://，通常包含路径分隔符
- */
-function isObjectKey(avatar: string): boolean {
-  return !avatar.startsWith('http://') && !avatar.startsWith('https://') && avatar.includes('/')
-}
-
-/**
- * 获取带签名的访问 URL（如果需要临时访问链接）
- * @param objectKey OSS 对象 Key（例如：workshop/avatars/xxx.jpg）
- * @param credentials STS 临时凭证（包含 region、bucket_name 等）
- * @param expires 过期时间（秒），默认 3600
- */
-export async function getSignedUrl(
-  objectKey: string,
-  credentials: STSCredentials,
-  expires: number = 3600
-): Promise<string> {
-  console.log('[getSignedUrl] 开始生成签名 URL:', {
-    objectKey,
-    expires,
-    region: credentials.Region,
-    bucket: credentials.BucketName
-  })
-  
-  try {
-    console.log('[getSignedUrl] 加载 OSS SDK...')
-    const OSS = await loadOSSSDK()
-    console.log('[getSignedUrl] OSS SDK 加载成功')
-    
-    // 创建 OSS 客户端
-    // Region 直接使用接口返回值
-    console.log('[getSignedUrl] 创建 OSS 客户端...')
-    const client = new OSS({
-      region: credentials.Region, // 直接使用，例如: "oss-cn-beijing"
-      accessKeyId: credentials.AccessKeyId,
-      accessKeySecret: credentials.AccessKeySecret,
-      stsToken: credentials.SecurityToken,
-      bucket: credentials.BucketName,
-      secure: credentials.Secure,
-      authorizationV4: credentials.AuthorizationV4,
-    })
-    console.log('[getSignedUrl] OSS 客户端创建成功')
-    
-    // 生成签名 URL
-    console.log('[getSignedUrl] 调用 client.signatureUrl...')
-    const signedUrl = client.signatureUrl(objectKey, {
-      expires,
-    })
-    console.log('[getSignedUrl] 签名 URL 生成成功:', signedUrl.substring(0, 100) + '...')
-    
-    return signedUrl
-  } catch (error) {
-    console.error('[getSignedUrl] 生成签名 URL 失败:', error)
-    console.error('[getSignedUrl] 错误详情:', {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      objectKey,
-      region: credentials.Region,
-      bucket: credentials.BucketName
-    })
-    throw error
-  }
-}
-
-/**
- * 将头像值（可能是 objectKey 或完整 URL）转换为可访问的 URL
- * 如果是 objectKey，优先使用本地缓存，否则获取 STS 凭证并生成签名 URL
- * 如果是完整 URL，直接返回
- * 
- * @param avatar 头像值（objectKey 或完整 URL）
- * @returns 可访问的头像 URL，如果转换失败返回 null
- */
-export async function getAvatarUrl(avatar: string | undefined | null): Promise<string | null> {
-  console.log('[getAvatarUrl] 开始处理头像:', avatar)
-  
-  if (!avatar) {
-    console.log('[getAvatarUrl] 头像为空，返回 null')
-    return null
-  }
-  
-  // 如果已经是完整 URL，直接返回
-  if (!isObjectKey(avatar)) {
-    console.log('[getAvatarUrl] 检测到完整 URL，直接返回:', avatar)
-    return avatar
-  }
-  
-  // 如果是 objectKey，使用缓存管理获取 URL（优先使用本地缓存）
-  console.log('[getAvatarUrl] 检测到 objectKey，开始获取文件 URL:', avatar)
-  try {
-    const { getFileUrl } = await import('./ossFileCache')
-    console.log('[getAvatarUrl] 调用 getFileUrl:', avatar)
-    const url = await getFileUrl(avatar)
-    console.log('[getAvatarUrl] 获取文件 URL 成功:', url)
-    return url
-  } catch (error) {
-    console.error('[getAvatarUrl] 获取头像 URL 失败:', error)
-    console.error('[getAvatarUrl] 错误详情:', {
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      avatar
-    })
-    return null
-  }
-}

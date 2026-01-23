@@ -7,11 +7,12 @@
  * - 上传附件：使用 uploadAttachmentToOSS()
  * - 上传文档：使用 uploadDocumentToOSS()
  * 
- * 注意：不要直接使用 ossUpload.ts 中的 uploadToOSS，应使用本文件提供的业务接口
+ * 注意：不要直接使用 oss/upload 中的 uploadToOSS，应使用本文件提供的业务接口
  */
 
-import type { STSCredentials, UploadResult } from './ossUpload'
-import { uploadToOSS } from './ossUpload'
+import type { STSCredentials } from '../api/endpoints/upload'
+import type { UploadResult } from './upload'
+import { uploadToOSS } from './upload'
 
 /**
  * 上传头像到 OSS 并自动更新用户头像
