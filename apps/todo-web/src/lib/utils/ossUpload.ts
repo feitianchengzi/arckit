@@ -13,15 +13,13 @@ declare global {
 }
 
 /**
- * 从 endpoint 中提取 region
- * 例如: http://oss-cn-beijing.aliyuncs.com -> oss-cn-beijing
+ * 从 region 字段中提取 OSS SDK 需要的 region 格式
+ * API 返回的 region 格式为 "oss-cn-beijing"，需要去掉 "oss-" 前缀
+ * OSS SDK 需要的格式为 "cn-beijing"
  */
-function extractRegionFromEndpoint(endpoint: string): string {
-  // 移除协议前缀 (http:// 或 https://)
-  const withoutProtocol = endpoint.replace(/^https?:\/\//, '')
-  // 提取第一个点之前的部分作为 region
-  const parts = withoutProtocol.split('.')
-  return parts[0] || 'oss-cn-hangzhou' // 默认值
+function extractOSSSDKRegion(region: string): string {
+  // 去掉 "oss-" 前缀
+  return region.replace(/^oss-/, '') || 'cn-hangzhou' // 默认值
 }
 
 /**
@@ -77,7 +75,7 @@ async function refreshSTSToken(): Promise<{
 /**
  * 上传文件到 OSS
  * @param file 要上传的文件
- * @param credentials STS 临时凭证（包含 endpoint 和 bucket_name）
+ * @param credentials STS 临时凭证（包含 region、bucket_name、root_path 等）
  * @param onProgress 上传进度回调 (0-1)
  * @returns OSS 文件 URL
  */
@@ -90,29 +88,34 @@ export async function uploadToOSS(
     // 加载 OSS SDK
     const OSS = await loadOSSSDK()
     
-    // 从 endpoint 中提取 region
-    const region = extractRegionFromEndpoint(credentials.Endpoint)
+    // 从 region 字段中提取 OSS SDK 需要的 region 格式
+    // API 返回的 region 格式为 "oss-cn-beijing"，需要去掉 "oss-" 前缀
+    const ossRegion = extractOSSSDKRegion(credentials.Region)
     
     // 创建 OSS 客户端
-    // 根据参考代码，添加 authorizationV4: true 和自动刷新 STS token 配置
+    // 使用 API 返回的配置：authorizationV4 和 secure
     const client = new OSS({
-      region: region,
+      region: ossRegion, // 例如: "cn-beijing"
       accessKeyId: credentials.AccessKeyId,
       accessKeySecret: credentials.AccessKeySecret,
       stsToken: credentials.SecurityToken,
       bucket: credentials.BucketName,
-      secure: true, // 使用 HTTPS
-      authorizationV4: true, // 使用 V4 签名，有助于解决 CORS 问题
-      // 自动刷新 STS token（STS token 有效期为 1 小时，提前 5 分钟刷新）
+      secure: credentials.Secure, // 使用 HTTPS（固定为 true）
+      authorizationV4: credentials.AuthorizationV4, // 使用 V4 签名（固定为 true）
+      // 自动刷新 STS token（STS token 有效期为 15 分钟，提前 1 分钟刷新）
       refreshSTSToken: refreshSTSToken,
-      refreshSTSTokenInterval: 55 * 60 * 1000, // 55 分钟后自动刷新（单位：毫秒）
+      refreshSTSTokenInterval: 14 * 60 * 1000, // 14 分钟后自动刷新（单位：毫秒）
     })
     
     // 生成文件路径
+    // 使用 root_path 作为基础路径，例如 /workshop/avatars/...
     const timestamp = Date.now()
     const randomStr = Math.random().toString(36).substring(2, 15)
     const fileExt = getFileExtension(file.name || 'image.jpg')
-    const key = `avatars/${timestamp}_${randomStr}.${fileExt}`
+    
+    // 确保路径格式正确：去掉 root_path 末尾的斜杠，确保路径以 / 开头
+    const rootPath = credentials.RootPath.replace(/\/$/, '') // 去掉末尾斜杠
+    const key = `${rootPath}/avatars/${timestamp}_${randomStr}.${fileExt}`.replace(/\/+/g, '/') // 确保路径格式正确
     
     // 上传文件
     const result = await client.multipartUpload(key, file, {
@@ -125,7 +128,8 @@ export async function uploadToOSS(
     
     // 返回文件 URL
     // 使用 HTTPS 协议的 URL，格式: https://{bucket}.{region}.aliyuncs.com/{key}
-    const fileUrl = `https://${credentials.BucketName}.${region}.aliyuncs.com/${result.name}`
+    // region 格式为 "cn-beijing"（已去掉 "oss-" 前缀）
+    const fileUrl = `https://${credentials.BucketName}.${ossRegion}.aliyuncs.com/${result.name}`
     
     return fileUrl
   } catch (error) {
@@ -184,7 +188,7 @@ function getFileExtension(filename: string): string {
 /**
  * 获取带签名的访问 URL（可选，如果需要临时访问链接）
  * @param fileUrl OSS 文件 URL
- * @param credentials STS 临时凭证（包含 endpoint 和 bucket_name）
+ * @param credentials STS 临时凭证（包含 region、bucket_name 等）
  * @param expires 过期时间（秒），默认 3600
  */
 export async function getSignedUrl(
@@ -203,18 +207,18 @@ export async function getSignedUrl(
     
     const key = urlParts[1]
     
-    // 从 endpoint 中提取 region
-    const region = extractRegionFromEndpoint(credentials.Endpoint)
+    // 从 region 字段中提取 OSS SDK 需要的 region 格式
+    const ossRegion = extractOSSSDKRegion(credentials.Region)
     
     // 创建 OSS 客户端
     const client = new OSS({
-      region: region,
+      region: ossRegion,
       accessKeyId: credentials.AccessKeyId,
       accessKeySecret: credentials.AccessKeySecret,
       stsToken: credentials.SecurityToken,
       bucket: credentials.BucketName,
-      secure: true,
-      authorizationV4: true, // 使用 V4 签名
+      secure: credentials.Secure,
+      authorizationV4: credentials.AuthorizationV4, // 使用 V4 签名
     })
     
     // 生成签名 URL

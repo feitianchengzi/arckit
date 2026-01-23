@@ -83,9 +83,6 @@ export const gatewayApi = {
       '/auth-server/v1/public/login',
       data
     )
-    console.log('🔑 登录返回 - Access Token:', response.data.data.tokens.access_token)
-    console.log('📝 登录返回 - 用户邮箱:', response.data.data.user.email)
-    console.log('ℹ️  网关会自动从 Token 中解析用户信息，无需额外获取')
     return response.data
   },
 

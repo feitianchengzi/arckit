@@ -180,7 +180,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           refresh_token: authInfo.refreshToken,
         })
         
-        console.log('📦 authStore 刷新接口返回:', JSON.stringify(response, null, 2))
         
         // 根据 API 文档，响应格式为：{ code: 'OK', data: { access_token: ..., refresh_token: ..., ... } }
         // gatewayApi.refreshToken 返回的是 response.data（即 axios 的 response.data）

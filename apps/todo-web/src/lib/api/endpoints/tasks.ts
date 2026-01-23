@@ -70,12 +70,10 @@ export const tasksApi = {
       const data = handleResponse<any>(response)
       // 如果返回的是对象，尝试提取 tasks 字段
       if (data && typeof data === 'object' && 'tasks' in data && Array.isArray(data.tasks)) {
-        console.log('✅ 获取到任务列表（handleResponse 嵌套），数量:', data.tasks.length)
         return data.tasks
       }
       // 如果是数组，直接返回
       if (Array.isArray(data)) {
-        console.log('✅ 获取到任务列表（handleResponse 数组），数量:', data.length)
         return data
       }
       console.warn('⚠️ 无法解析任务列表格式:', data)

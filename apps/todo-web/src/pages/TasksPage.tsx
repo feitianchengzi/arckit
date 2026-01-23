@@ -13,11 +13,13 @@ import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { projectsApi } from '@/lib/api/endpoints/projects'
 import { tasksToTodos } from '@/lib/utils/taskMapper'
 import { buildTaskTree } from '@/lib/utils/taskTree'
+import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
-import { saveTaskFilterState, loadTaskFilterState } from '@/lib/utils/filterStorage'
-import type { Todo, TodoStatus } from '@/types'
+import { saveTaskFilterState, loadTaskFilterState, type DateRange } from '@/lib/utils/filterStorage'
+import { DateRangeFilter } from '@/components/features/DateRangeFilter'
+import type { Todo, TodoStatus, ProjectMember } from '@/types'
 import clsx from 'clsx'
 
 export default function MyTasksPage() {
@@ -29,10 +31,8 @@ export default function MyTasksPage() {
   const scrollToTop = () => {
     const main = document.querySelector('main') as HTMLElement
     if (main && main.scrollHeight > main.clientHeight) {
-      console.log('回到顶部 (main)')
       main.scrollTo({ top: 0, behavior: 'smooth' })
     } else {
-      console.log('回到顶部 (window)')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
@@ -61,6 +61,10 @@ export default function MyTasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<number | null | 'ALL' | 'NONE'>(
     savedFilters?.priorityFilter ?? null
   )
+  // 日期范围筛选
+  const [dateRange, setDateRange] = useState<DateRange>(
+    savedFilters?.dateRange ?? { startDate: null, endDate: null }
+  )
   
   // 当筛选条件改变时保存到本地存储
   useEffect(() => {
@@ -70,8 +74,9 @@ export default function MyTasksPage() {
       executorFilter,
       tagFilter,
       priorityFilter,
+      dateRange,
     })
-  }, [statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter])
+  }, [statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange])
   
   // 所有项目的成员和标签信息
   const [allMembers, setAllMembers] = useState<Map<string, Array<{ user_id: number; username: string }>>>(new Map())
@@ -86,23 +91,21 @@ export default function MyTasksPage() {
       setTasksError(null)
       
       try {
-        console.log('📥 开始获取所有项目的待办...')
         const allTasks: Array<Omit<Todo, 'projectId'> & { projectId: string; projectName: string }> = []
         const membersMap = new Map<string, Array<{ user_id: number; username: string }>>()
         
         // 并发获取所有项目的待办、成员和标签
         const taskPromises = projects.map(async (project) => {
           try {
-            console.log(`📋 获取项目 ${project.name} (ID: ${project.id}) 的待办、成员和标签...`)
-            
             // 获取待办列表
             const tasks = await tasksApi.listByProject(project.id.toString())
-            const todos = tasksToTodos(tasks)
-            console.log(`✅ 项目 ${project.name}: 获取到 ${todos.length} 个待办`)
+            let todos = tasksToTodos(tasks)
             
             // 获取项目成员列表
             const members = await projectsApi.getMembers(project.id.toString())
-            console.log(`✅ 项目 ${project.name}: 获取到 ${members.length} 个成员`)
+            
+            // 使用成员信息丰富待办项的用户信息（创建人和执行人）
+            todos = enrichTodosWithMembers(todos, members)
             
             // 存储成员信息
             const memberList = members
@@ -132,8 +135,8 @@ export default function MyTasksPage() {
             const userTasks = todos
               .filter(todo => {
                 // 获取待办创建者和执行者的 username
-                const creatorUsername = todo.creatorId ? userIdToUsername.get(todo.creatorId) : undefined
-                const executorUsername = todo.assigneeId ? userIdToUsername.get(todo.assigneeId) : undefined
+                const creatorUsername = todo.creator?.username || (todo.creatorId ? userIdToUsername.get(todo.creatorId) : undefined)
+                const executorUsername = todo.assignee?.username || (todo.assigneeId ? userIdToUsername.get(todo.assigneeId) : undefined)
                 
                 // 检查是否是当前用户创建或被分配的待办
                 const isCreator = creatorUsername === user.username
@@ -147,7 +150,6 @@ export default function MyTasksPage() {
                 projectName: project.name,
               }))
             
-            console.log(`✅ 项目 ${project.name}: 当前用户有 ${userTasks.length} 个相关待办`)
             return userTasks
           } catch (err) {
             console.error(`❌ 获取项目 ${project.id} 的待办失败:`, err)
@@ -157,7 +159,6 @@ export default function MyTasksPage() {
         
         const results = await Promise.all(taskPromises)
         const flattened = results.flat()
-        console.log(`✅ 总共找到 ${flattened.length} 个待办`)
         setMyTasks(flattened)
         setAllMembers(membersMap)
       } catch (err) {
@@ -314,9 +315,32 @@ export default function MyTasksPage() {
         }
       }
       
-      return statusMatch && creatorMatch && executorMatch && tagMatch && priorityMatch
+      // 日期范围筛选（基于创建时间）
+      let dateMatch = true
+      if (dateRange && (dateRange.startDate || dateRange.endDate)) {
+        const taskDate = new Date(task.createdAt)
+        taskDate.setHours(0, 0, 0, 0)
+        
+        if (dateRange.startDate) {
+          const startDate = new Date(dateRange.startDate)
+          startDate.setHours(0, 0, 0, 0)
+          if (taskDate < startDate) {
+            dateMatch = false
+          }
+        }
+        
+        if (dateRange.endDate && dateMatch) {
+          const endDate = new Date(dateRange.endDate)
+          endDate.setHours(23, 59, 59, 999)
+          if (taskDate > endDate) {
+            dateMatch = false
+          }
+        }
+      }
+      
+      return statusMatch && creatorMatch && executorMatch && tagMatch && priorityMatch && dateMatch
     })
-  }, [myTasks, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, currentUserId])
+  }, [myTasks, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, currentUserId])
   
   // 按项目分组并构建树形结构
   const tasksByProject = useMemo(() => {
@@ -354,12 +378,6 @@ export default function MyTasksPage() {
       const main = document.querySelector('main') as HTMLElement
       if (main) {
         const canScroll = main.scrollHeight > main.clientHeight
-        console.log('检查 main 元素:', { 
-          scrollHeight: main.scrollHeight, 
-          clientHeight: main.clientHeight,
-          canScroll,
-          scrollTop: main.scrollTop 
-        })
         
         if (canScroll) {
           scrollElement = main
@@ -368,13 +386,6 @@ export default function MyTasksPage() {
           const html = document.documentElement
           const body = document.body
           const windowCanScroll = html.scrollHeight > html.clientHeight || body.scrollHeight > body.clientHeight
-          console.log('检查 window 滚动:', {
-            htmlScrollHeight: html.scrollHeight,
-            htmlClientHeight: html.clientHeight,
-            bodyScrollHeight: body.scrollHeight,
-            bodyClientHeight: body.clientHeight,
-            windowCanScroll
-          })
           
           if (windowCanScroll) {
             scrollElement = null // 使用 window
@@ -386,26 +397,22 @@ export default function MyTasksPage() {
         if (scrollElement) {
           const scrollTop = scrollElement.scrollTop
           const shouldShow = scrollTop > 150
-          console.log('滚动检测 (main):', { scrollTop, shouldShow })
           setShowScrollTop(shouldShow)
         } else {
           // 使用 window 滚动
           const scrollTop = window.pageYOffset || document.documentElement.scrollTop
           const shouldShow = scrollTop > 150
-          console.log('滚动检测 (window):', { scrollTop, shouldShow })
           setShowScrollTop(shouldShow)
         }
       }
       
       if (scrollElement) {
-        console.log('绑定 main 滚动事件')
         scrollElement.addEventListener('scroll', handleScroll, { passive: true })
         handleScroll() // 初始检查
         cleanup = () => {
           scrollElement?.removeEventListener('scroll', handleScroll)
         }
       } else {
-        console.log('绑定 window 滚动事件')
         window.addEventListener('scroll', handleScroll, { passive: true })
         handleScroll() // 初始检查
         cleanup = () => {
@@ -567,7 +574,7 @@ export default function MyTasksPage() {
         {/* 筛选器 */}
         <div className="mb-4 space-y-3">
           {/* 筛选器组 */}
-          <div className="flex flex-wrap gap-6 items-center">
+          <div className="flex flex-wrap gap-4 items-center">
             {/* 状态筛选 */}
             <div className="flex items-center gap-2">
               <label className={clsx(
@@ -588,7 +595,7 @@ export default function MyTasksPage() {
                     setStatusFilter(value as TodoStatus | 'ALL')
                   }}
                   className={clsx(
-                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
                     statusFilter !== 'ALL' ? "text-orange-600 font-medium" : "text-gray-900"
                   )}
                 >
@@ -637,13 +644,13 @@ export default function MyTasksPage() {
                     }
                   }}
                   className={clsx(
-                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
                     creatorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
                   )}
                 >
                   <option value="">全部</option>
                   {currentUserId && (
-                    <option value="ME">我创建的</option>
+                    <option value="ME">我</option>
                   )}
                   {allMembersList.map((member) => (
                     <option key={member.user_id} value={member.user_id}>
@@ -693,14 +700,14 @@ export default function MyTasksPage() {
                     }
                   }}
                   className={clsx(
-                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
                     executorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
                   )}
                 >
                   <option value="">全部</option>
                   <option value="UNASSIGNED">未分配</option>
                   {currentUserId && (
-                    <option value="ME">我执行的</option>
+                    <option value="ME">我</option>
                   )}
                   {allMembersList.map((member) => (
                     <option key={member.user_id} value={member.user_id}>
@@ -743,7 +750,7 @@ export default function MyTasksPage() {
                     }
                   }}
                   className={clsx(
-                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
                     tagFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
                   )}
                 >
@@ -803,7 +810,7 @@ export default function MyTasksPage() {
                     }
                   }}
                   className={clsx(
-                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
                     priorityFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
                   )}
                 >
@@ -818,8 +825,14 @@ export default function MyTasksPage() {
               </div>
             </div>
             
-            {/* 清除所有筛选 */}
-            {(statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null) && (
+            {/* 日期范围筛选 */}
+            <DateRangeFilter
+              value={dateRange}
+              onChange={setDateRange}
+            />
+            
+            {/* 重置筛选 */}
+            {(statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null || (dateRange && (dateRange.startDate || dateRange.endDate))) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -829,9 +842,10 @@ export default function MyTasksPage() {
                   setExecutorFilter(null)
                   setTagFilter(null)
                   setPriorityFilter(null)
+                  setDateRange({ startDate: null, endDate: null })
                 }}
               >
-                清除所有筛选
+                重置筛选
               </Button>
             )}
           </div>

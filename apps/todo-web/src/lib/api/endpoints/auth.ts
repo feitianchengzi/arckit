@@ -39,15 +39,7 @@ export const todoUserApi = {
         updated_at: responseData.updated_at || '',
       }
     } catch (error: any) {
-      // 记录详细的错误信息以便调试
-      console.error('❌ 创建/获取用户失败')
-      console.error('请求 URL:', '/user/users')
-      console.error('请求方法:', 'POST')
-      console.error('请求体:', requestBody)
-      console.error('响应状态:', error.response?.status)
-      console.error('错误信息:', error.response?.data || error.message)
-      console.error('请求 Headers:', error.config?.headers)
-      console.error('完整错误对象:', error)
+      console.error('❌ 创建/获取用户失败:', error.message)
       throw error
     }
   },
@@ -73,7 +65,6 @@ export const todoUserApi = {
         updated_at: string
       }>(response)
       
-      console.log('✅ 更新用户信息成功:', responseData)
       
       return {
         id: 0, // API 不返回数据库 ID
@@ -84,12 +75,7 @@ export const todoUserApi = {
         updated_at: responseData.updated_at || '',
       }
     } catch (error: any) {
-      console.error('❌ 更新用户信息失败')
-      console.error('请求 URL:', '/user/users')
-      console.error('请求方法:', 'PUT')
-      console.error('请求体:', data)
-      console.error('响应状态:', error.response?.status)
-      console.error('错误信息:', error.response?.data || error.message)
+      console.error('❌ 更新用户信息失败:', error.message)
       throw error
     }
   },
@@ -113,7 +99,6 @@ export const todoUserApi = {
         updated_at: string
       }>(response)
       
-      console.log('📦 getCurrentUser 解析后的数据:', responseData)
       
       return {
         id: 0, // API 不返回数据库 ID
@@ -126,8 +111,7 @@ export const todoUserApi = {
     } catch (error: any) {
       console.error('❌ 获取当前用户信息失败')
       console.error('请求 URL:', '/user/users')
-      console.error('响应状态:', error.response?.status)
-      console.error('错误信息:', error.response?.data || error.message)
+      console.error('请求失败:', error.message)
       throw error
     }
   },

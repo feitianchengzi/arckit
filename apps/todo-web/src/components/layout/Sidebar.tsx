@@ -14,7 +14,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '@/store/authStore'
-import { ProjectList } from './ProjectList'
+import { ProjectListContent } from './ProjectList'
 
 interface SidebarProps {
   className?: string
@@ -32,10 +32,32 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const [user, setUser] = useState<typeof storeUser>(null)
   const [mounted, setMounted] = useState(false)
   
+  // 用于计算固定区域和头像区域的高度
+  const topAreaRef = useRef<HTMLDivElement>(null)
+  const bottomAreaRef = useRef<HTMLDivElement>(null)
+  const [listTop, setListTop] = useState(0)
+  const [listBottom, setListBottom] = useState(0)
+  
   useEffect(() => {
     setMounted(true)
     setUser(storeUser)
   }, [storeUser])
+  
+  // 计算列表区域的位置
+  useEffect(() => {
+    const updateListPosition = () => {
+      if (topAreaRef.current && bottomAreaRef.current) {
+        const topHeight = topAreaRef.current.offsetHeight
+        const bottomHeight = bottomAreaRef.current.offsetHeight
+        setListTop(topHeight)
+        setListBottom(bottomHeight)
+      }
+    }
+    
+    updateListPosition()
+    window.addEventListener('resize', updateListPosition)
+    return () => window.removeEventListener('resize', updateListPosition)
+  }, [isOpen])
   
   const handleLogout = () => {
     logout()
@@ -63,8 +85,8 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   return (
     <aside
       className={clsx(
-        // 基础样式
-        'flex flex-col h-screen bg-white border-r border-gray-200',
+        // 基础样式 - 使用 relative 定位，类似 Android RelativeLayout
+        'relative bg-white border-r border-gray-200',
         'w-64 z-50',
         // 桌面端：固定定位，不随内容滚动
         'lg:fixed lg:top-0 lg:left-0 lg:translate-x-0 lg:block',
@@ -79,10 +101,16 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         className
       )}
       aria-label="主导航"
+      style={{ height: '100vh', maxHeight: '100vh' }}
     >
       {/* 移动端/平板端：关闭按钮 */}
       <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200">
-        <h2 className="text-lg font-bold text-gray-900">待办管理系统</h2>
+        <div className="flex items-center gap-3">
+          <div className="flex-shrink-0">
+            <LogoIcon />
+          </div>
+          <h2 className="text-lg font-bold text-gray-900">待办管理系统</h2>
+        </div>
         <button
           onClick={onClose}
           className={clsx(
@@ -109,22 +137,83 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         </button>
       </div>
 
-      {/* 用户信息区域 */}
+      {/* 固定区域 - 顶部（系统标题、我的待办、新建项目） */}
+      <div 
+        ref={topAreaRef}
+        className={clsx(
+          'lg:block',
+          { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
+        )}
+      >
+        {/* 桌面端：系统标题 */}
+        <div className="p-6 border-b border-gray-200">
+          <button
+            onClick={() => handleNavClick('/projects')}
+            className="w-full flex items-center gap-3 text-left"
+          >
+            {/* Logo */}
+            <div className="flex-shrink-0">
+              <LogoIcon />
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 hover:text-primary transition-colors">
+              待办管理系统
+            </h2>
+          </button>
+        </div>
+        
+        {/* 我的待办 - 固定区域 */}
+        <div className="p-4 pb-2 border-b border-gray-200">
+          <NavItem
+            icon={<TasksIcon />}
+            label="我的待办"
+            href="/tasks"
+            onClick={handleNavClick}
+          />
+        </div>
+        
+        {/* 新建项目按钮 - 固定区域 */}
+        <div className="px-4 pb-2 border-b border-gray-200">
+          <button
+            onClick={() => handleNavClick('/projects/new')}
+            className={clsx(
+              'w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
+              'min-h-[44px]', // 移动端触摸优化
+              'text-gray-700 hover:bg-gray-100'
+            )}
+            title="新建项目"
+            aria-label="新建项目"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>新建项目</span>
+          </button>
+        </div>
+      </div>
+      
+      {/* 项目列表 - 占据剩余空间，可滚动 */}
       <div className={clsx(
-        'p-6 border-b border-gray-200',
+        'absolute left-0 right-0 overflow-y-auto p-4 pt-2',
         'lg:block',
         { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
-      )}>
-        {/* 桌面端：系统标题 */}
-        <button
-          onClick={() => handleNavClick('/projects')}
-          className="hidden lg:block w-full mb-4 text-left"
-        >
-          <h2 className="text-lg font-bold text-gray-900 hover:text-primary transition-colors">
-            待办管理系统
-          </h2>
-        </button>
-        
+      )}
+      style={{
+        top: `${listTop}px`,
+        bottom: `${listBottom}px`
+      }}
+      >
+        <ProjectListContent onItemClick={handleNavClick} />
+      </div>
+      
+      {/* 用户信息区域 - 绝对定位固定在底部 */}
+      <div 
+        ref={bottomAreaRef}
+        className={clsx(
+          'absolute left-0 right-0 bottom-0 p-6 border-t border-gray-200 bg-white',
+          'lg:block',
+          { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
+        )}
+      >
         <div className="flex items-center gap-3">
           {/* 头像（可点击跳转到设置） */}
           <button
@@ -146,27 +235,6 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
           </div>
         </div>
       </div>
-      
-      {/* 导航菜单 */}
-      <nav className={clsx(
-        'flex-1 p-4 space-y-1 overflow-y-auto',
-        'lg:block',
-        { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
-      )}>
-        {/* 我的待办 */}
-        <NavItem
-          icon={<TasksIcon />}
-          label="我的待办"
-          href="/tasks"
-          onClick={handleNavClick}
-        />
-        
-        {/* 分割线 */}
-        <div className="my-2 border-t border-gray-200" />
-        
-        {/* 项目列表（可展开） */}
-        <ProjectList onItemClick={handleNavClick} />
-      </nav>
       
     </aside>
   )
@@ -233,6 +301,24 @@ function TasksIcon() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    </svg>
+  )
+}
+
+function LogoIcon() {
+  return (
+    <svg 
+      className="w-8 h-8 text-primary" 
+      fill="none" 
+      viewBox="0 0 24 24" 
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path 
+        strokeLinecap="round" 
+        strokeLinejoin="round" 
+        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" 
+      />
     </svg>
   )
 }

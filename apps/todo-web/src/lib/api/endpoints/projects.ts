@@ -25,12 +25,7 @@ export const projectsApi = {
    */
   list: async (userId?: number): Promise<Project[]> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
-    console.log('📋 获取项目列表')
     const response = await apiClient.get('/user/projects')
-    
-    // 输出完整的响应内容
-    console.log('🔍 [项目列表API] 完整响应体:', JSON.stringify(response.data, null, 2))
-    console.log('🔍 [项目列表API] response.data:', response.data)
     
     // 后端实际返回格式: { code: 'OK', data: { projects: [...], total: 3 } }
     const responseData = response.data
@@ -39,20 +34,17 @@ export const projectsApi = {
       
       // 检查是否是嵌套格式: { projects: [...], total: 3 }
       if (data && typeof data === 'object' && 'projects' in data && Array.isArray(data.projects)) {
-        console.log('✅ 获取到项目列表（嵌套格式），数量:', data.projects.length)
         return data.projects
       }
       
       // 检查是否是分页格式: { code: 'OK', data: [...], meta: {...} }
       if (responseData?.meta) {
         const { data: projects } = handlePaginatedResponse<Project>(response)
-        console.log('✅ 获取到项目列表（分页），数量:', projects.length)
         return Array.isArray(projects) ? projects : []
       }
       
       // 普通数组格式: { code: 'OK', data: [...] }
       if (Array.isArray(data)) {
-        console.log('✅ 获取到项目列表（数组），数量:', data.length)
         return data
       }
     }
@@ -62,12 +54,10 @@ export const projectsApi = {
       const data = handleResponse<any>(response)
       // 如果返回的是对象，尝试提取 projects 字段
       if (data && typeof data === 'object' && 'projects' in data && Array.isArray(data.projects)) {
-        console.log('✅ 获取到项目列表（handleResponse 嵌套），数量:', data.projects.length)
         return data.projects
       }
       // 如果是数组，直接返回
       if (Array.isArray(data)) {
-        console.log('✅ 获取到项目列表（handleResponse 数组），数量:', data.length)
         return data
       }
       console.warn('⚠️ 无法解析项目列表格式:', data)
@@ -196,22 +186,8 @@ export const projectsApi = {
       const response = await apiClient.delete(`/user/projects/${projectId}/members`, {
         data: { target_user_id: targetUserId }, // 请求体
       })
-      console.log('✅ [删除成员] 请求成功')
-      console.log('✅ [删除成员] 响应状态:', response.status)
-      console.log('✅ [删除成员] 响应数据:', JSON.stringify(response.data))
-      console.log('✅ [删除成员] 成员删除成功')
     } catch (error: any) {
-      console.error('❌ [删除成员] 请求失败')
-      console.error('❌ [删除成员] 错误类型:', error.name)
-      console.error('❌ [删除成员] 错误消息:', error.message)
-      console.error('❌ [删除成员] 响应状态:', error.response?.status)
-      console.error('❌ [删除成员] 响应数据:', JSON.stringify(error.response?.data))
-      console.error('❌ [删除成员] 请求配置:', JSON.stringify({
-        url: error.config?.url,
-        method: error.config?.method,
-        data: error.config?.data,
-        headers: error.config?.headers,
-      }))
+      console.error('❌ [删除成员] 删除失败:', error.message)
       throw error
     }
   },

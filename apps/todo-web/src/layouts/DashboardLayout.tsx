@@ -89,7 +89,7 @@ export default function DashboardLayout() {
       <main 
         className="flex-1 overflow-y-auto w-full lg:w-auto lg:pl-64"
       >
-        <div className="container mx-auto max-w-7xl p-4 md:p-6 pt-16 lg:pt-6">
+        <div className="container mx-auto max-w-[1600px] p-4 md:p-6 pt-16 lg:pt-6">
           <Outlet />
         </div>
       </main>

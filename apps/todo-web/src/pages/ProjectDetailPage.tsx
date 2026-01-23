@@ -8,12 +8,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
 import { buildTaskTree } from '@/lib/utils/taskTree'
+import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
 import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
-import { saveProjectFilterState, loadProjectFilterState } from '@/lib/utils/filterStorage'
+import { saveProjectFilterState, loadProjectFilterState, type DateRange } from '@/lib/utils/filterStorage'
+import { DateRangeFilter } from '@/components/features/DateRangeFilter'
 import type { TodoStatus } from '@/types'
 import clsx from 'clsx'
 
@@ -29,10 +31,8 @@ export default function ProjectDetailPage() {
   const scrollToTop = () => {
     const main = document.querySelector('main') as HTMLElement
     if (main && main.scrollHeight > main.clientHeight) {
-      console.log('回到顶部 (main)')
       main.scrollTo({ top: 0, behavior: 'smooth' })
     } else {
-      console.log('回到顶部 (window)')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
@@ -73,6 +73,10 @@ export default function ProjectDetailPage() {
   const [priorityFilter, setPriorityFilter] = useState<number | null | 'ALL' | 'NONE'>(
     savedFilters?.priorityFilter ?? null
   )
+  // 日期范围筛选
+  const [dateRange, setDateRange] = useState<DateRange>(
+    savedFilters?.dateRange ?? { startDate: null, endDate: null }
+  )
   
   // 当筛选条件改变时保存到本地存储
   useEffect(() => {
@@ -82,8 +86,9 @@ export default function ProjectDetailPage() {
       executorFilter,
       tagFilter: tagFilter as number | null,
       priorityFilter,
+      dateRange,
     })
-  }, [projectId, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter])
+  }, [projectId, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange])
   
   // 如果正在删除项目，禁用待办列表查询
   const { data: todos, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(String(projectId), {
@@ -154,11 +159,17 @@ export default function ProjectDetailPage() {
     return currentMember?.user_id || null
   }, [members])
   
+  // 使用成员信息丰富待办项的用户信息（创建人和执行人）
+  const enrichedTodos = useMemo(() => {
+    if (!todos || !members) return todos || []
+    return enrichTodosWithMembers(todos, members)
+  }, [todos, members])
+
   // 构建树形结构
   const taskTree = useMemo(() => {
-    if (!todos) return []
-    return buildTaskTree(todos)
-  }, [todos])
+    if (!enrichedTodos) return []
+    return buildTaskTree(enrichedTodos)
+  }, [enrichedTodos])
   
   // 统计数据（基于树形结构，只统计根任务）
   const stats = useMemo(() => {
@@ -226,7 +237,30 @@ export default function ProjectDetailPage() {
       }
       // priorityFilter === null 表示不筛选优先级
       
-      return statusMatch && creatorMatch && executorMatch && tagMatch && priorityMatch
+      // 日期范围筛选（基于创建时间）
+      let dateMatch = true
+      if (dateRange && (dateRange.startDate || dateRange.endDate)) {
+        const taskDate = new Date(todo.createdAt)
+        taskDate.setHours(0, 0, 0, 0)
+        
+        if (dateRange.startDate) {
+          const startDate = new Date(dateRange.startDate)
+          startDate.setHours(0, 0, 0, 0)
+          if (taskDate < startDate) {
+            dateMatch = false
+          }
+        }
+        
+        if (dateRange.endDate && dateMatch) {
+          const endDate = new Date(dateRange.endDate)
+          endDate.setHours(23, 59, 59, 999)
+          if (taskDate > endDate) {
+            dateMatch = false
+          }
+        }
+      }
+      
+      return statusMatch && creatorMatch && executorMatch && tagMatch && priorityMatch && dateMatch
     }
     
     // 递归筛选树形结构
@@ -263,7 +297,7 @@ export default function ProjectDetailPage() {
     }
     
     return filterTree(taskTree)
-  }, [taskTree, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, currentUserId])
+  }, [taskTree, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, currentUserId])
   
   // 监听主内容区滚动
   useEffect(() => {
@@ -275,12 +309,6 @@ export default function ProjectDetailPage() {
       const main = document.querySelector('main') as HTMLElement
       if (main) {
         const canScroll = main.scrollHeight > main.clientHeight
-        console.log('检查 main 元素:', { 
-          scrollHeight: main.scrollHeight, 
-          clientHeight: main.clientHeight,
-          canScroll,
-          scrollTop: main.scrollTop 
-        })
         
         if (canScroll) {
           scrollElement = main
@@ -289,13 +317,6 @@ export default function ProjectDetailPage() {
           const body = document.body
           const html = document.documentElement
           const windowCanScroll = html.scrollHeight > html.clientHeight || body.scrollHeight > body.clientHeight
-          console.log('检查 window 滚动:', {
-            htmlScrollHeight: html.scrollHeight,
-            htmlClientHeight: html.clientHeight,
-            bodyScrollHeight: body.scrollHeight,
-            bodyClientHeight: body.clientHeight,
-            windowCanScroll
-          })
           
           if (windowCanScroll) {
             scrollElement = null // 使用 window
@@ -307,26 +328,22 @@ export default function ProjectDetailPage() {
         if (scrollElement) {
           const scrollTop = scrollElement.scrollTop
           const shouldShow = scrollTop > 150
-          console.log('滚动检测 (main):', { scrollTop, shouldShow })
           setShowScrollTop(shouldShow)
         } else {
           // 使用 window 滚动
           const scrollTop = window.pageYOffset || document.documentElement.scrollTop
           const shouldShow = scrollTop > 150
-          console.log('滚动检测 (window):', { scrollTop, shouldShow })
           setShowScrollTop(shouldShow)
         }
       }
       
       if (scrollElement) {
-        console.log('绑定 main 滚动事件')
         scrollElement.addEventListener('scroll', handleScroll, { passive: true })
         handleScroll() // 初始检查
         cleanup = () => {
           scrollElement?.removeEventListener('scroll', handleScroll)
         }
       } else {
-        console.log('绑定 window 滚动事件')
         window.addEventListener('scroll', handleScroll, { passive: true })
         handleScroll() // 初始检查
         cleanup = () => {
@@ -571,14 +588,14 @@ export default function ProjectDetailPage() {
       
       {/* 统计卡片 - 移动端横向滚动，桌面端网格布局 */}
       <div className="-mx-4 px-4 md:mx-0 md:px-0">
-        <div className="flex md:grid md:grid-cols-3 gap-3 md:gap-6 overflow-x-auto overflow-y-visible py-4 md:py-0 scrollbar-hide">
+        <div className="flex md:grid md:grid-cols-3 gap-2 md:gap-4 overflow-x-auto overflow-y-visible py-2 md:py-0 scrollbar-hide">
           <StatCard
             title="待办"
             value={stats.pending}
             icon={<TaskIcon />}
             isActive={statusFilter === 'PENDING'}
             onClick={() => setStatusFilter(statusFilter === 'PENDING' ? 'ALL' : 'PENDING')}
-            className="min-w-[140px] md:min-w-0 flex-shrink-0"
+            className="min-w-[120px] md:min-w-0 flex-shrink-0"
           />
           
           <StatCard
@@ -587,7 +604,7 @@ export default function ProjectDetailPage() {
             icon={<ProgressIcon />}
             isActive={statusFilter === 'IN_PROGRESS'}
             onClick={() => setStatusFilter(statusFilter === 'IN_PROGRESS' ? 'ALL' : 'IN_PROGRESS')}
-            className="min-w-[140px] md:min-w-0 flex-shrink-0"
+            className="min-w-[120px] md:min-w-0 flex-shrink-0"
           />
           
           <StatCard
@@ -596,19 +613,18 @@ export default function ProjectDetailPage() {
             icon={<CheckIcon />}
             isActive={statusFilter === 'COMPLETED'}
             onClick={() => setStatusFilter(statusFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
-            className="min-w-[140px] md:min-w-0 flex-shrink-0"
+            className="min-w-[120px] md:min-w-0 flex-shrink-0"
           />
         </div>
       </div>
       
       {/* 待办列表 */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">待办列表</h2>
         
         {/* 筛选器 */}
         <div className="mb-4 space-y-3">
           {/* 筛选器组 */}
-          <div className="flex flex-wrap gap-6 items-center">
+          <div className="flex flex-wrap gap-4 items-center">
             {/* 状态筛选 */}
             <div className="flex items-center gap-2">
               <label className={clsx(
@@ -629,7 +645,7 @@ export default function ProjectDetailPage() {
                     setStatusFilter(value as TodoStatus | 'ALL')
                   }}
                   className={clsx(
-                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
                     statusFilter !== 'ALL' ? "text-orange-600 font-medium" : "text-gray-900"
                   )}
                 >
@@ -678,13 +694,13 @@ export default function ProjectDetailPage() {
                     }
                   }}
                   className={clsx(
-                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
                     creatorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
                   )}
                 >
                   <option value="">全部</option>
                   {currentUserId && (
-                    <option value="ME">我创建的</option>
+                    <option value="ME">我</option>
                   )}
                   {members?.map((member) => (
                     <option key={member.user_id} value={member.user_id}>
@@ -734,14 +750,14 @@ export default function ProjectDetailPage() {
                     }
                   }}
                   className={clsx(
-                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
                     executorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
                   )}
                 >
                   <option value="">全部</option>
                   <option value="UNASSIGNED">未分配</option>
                   {currentUserId && (
-                    <option value="ME">我执行的</option>
+                    <option value="ME">我</option>
                   )}
                   {members?.map((member) => (
                     <option key={member.user_id} value={member.user_id}>
@@ -779,7 +795,7 @@ export default function ProjectDetailPage() {
                     }
                   }}
                   className={clsx(
-                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
                     tagFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
                   )}
                 >
@@ -832,7 +848,7 @@ export default function ProjectDetailPage() {
                     }
                   }}
                   className={clsx(
-                    "px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
                     priorityFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
                   )}
                 >
@@ -847,8 +863,14 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             
-            {/* 清除所有筛选 */}
-            {(statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null) && (
+            {/* 日期范围筛选 */}
+            <DateRangeFilter
+              value={dateRange}
+              onChange={setDateRange}
+            />
+            
+            {/* 重置筛选 */}
+            {(statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null || (dateRange && (dateRange.startDate || dateRange.endDate))) && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -858,9 +880,10 @@ export default function ProjectDetailPage() {
                   setExecutorFilter(null)
                   setTagFilter(null)
                   setPriorityFilter(null)
+                  setDateRange({ startDate: null, endDate: null })
                 }}
               >
-                清除所有筛选
+                重置筛选
               </Button>
             )}
           </div>
@@ -1030,7 +1053,7 @@ function StatCard({ title, value, icon, isActive = false, onClick, className }: 
   return (
     <div
       className={clsx(
-        'bg-white rounded-lg shadow p-4 md:p-6 cursor-pointer transition-all',
+        'bg-white rounded-lg shadow p-3 md:p-4 cursor-pointer transition-all',
         {
           'border-2 border-primary-500 shadow-lg': isActive,
           'border-2 border-transparent': !isActive, // 保持相同大小，避免布局跳动
@@ -1040,9 +1063,9 @@ function StatCard({ title, value, icon, isActive = false, onClick, className }: 
       )}
       onClick={onClick}
     >
-      <div className="flex items-center gap-3 md:gap-4">
+      <div className="flex items-center gap-2 md:gap-3">
         <div className={clsx(
-          'w-10 h-10 md:w-12 md:h-12 rounded-lg flex items-center justify-center flex-shrink-0',
+          'w-8 h-8 md:w-10 md:h-10 rounded-lg flex items-center justify-center flex-shrink-0',
           {
             'bg-primary-500 text-white': isActive,
             'bg-primary-50 text-primary': !isActive,
@@ -1052,14 +1075,14 @@ function StatCard({ title, value, icon, isActive = false, onClick, className }: 
         </div>
         <div className="min-w-0">
           <p className={clsx(
-            'text-xs md:text-sm truncate',
+            'text-xs truncate',
             {
               'text-primary-600 font-medium': isActive,
               'text-gray-600': !isActive,
             }
           )}>{title}</p>
           <p className={clsx(
-            'text-xl md:text-2xl font-bold',
+            'text-lg md:text-xl font-bold',
             {
               'text-primary-600': isActive,
               'text-gray-900': !isActive,
@@ -1090,7 +1113,7 @@ function IconButton({ icon, label, onClick, variant = 'secondary', isActive = fa
       onClick={onClick}
       disabled={disabled}
       className={clsx(
-        'relative group min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md transition-colors',
+        'relative group min-w-[52px] min-h-[52px] px-3 py-2.5 flex items-center justify-center gap-2 rounded-lg transition-colors',
         'focus:outline-none focus:ring-2 focus:ring-offset-2',
         // 如果有自定义背景色，使用自定义背景色，否则使用 variant 的默认样式
         iconBgColor 
@@ -1108,10 +1131,11 @@ function IconButton({ icon, label, onClick, variant = 'secondary', isActive = fa
       title={label}
       aria-label={label}
     >
-      <span className={clsx('w-5 h-5', iconColor && !iconBgColor ? iconColor : '')}>{icon}</span>
+      <span className={clsx('w-5 h-5 flex-shrink-0', iconColor && !iconBgColor ? iconColor : '')}>{icon}</span>
+      <span className="hidden sm:inline text-sm font-medium">{label}</span>
       
-      {/* Tooltip - 桌面端显示，在按钮下方 */}
-      <div className="hidden md:block absolute left-1/2 -translate-x-1/2 top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+      {/* Tooltip - 移动端显示，在按钮下方 */}
+      <div className="sm:hidden absolute left-1/2 -translate-x-1/2 top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
         <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
           {label}
           <div className="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>

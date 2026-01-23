@@ -210,7 +210,6 @@ export function TodoTreeItem({
               {/* 创建者 */}
               {todo.creator && (
                 <div className="flex items-center gap-1.5">
-                  <UserIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                   <span className="text-xs text-gray-600 whitespace-nowrap">
                     <span className="text-gray-500">创建：</span>
                     <span
@@ -231,7 +230,6 @@ export function TodoTreeItem({
               {/* 执行者 */}
               {todo.assignee && (
                 <div className="flex items-center gap-1.5">
-                  <AssignIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                   <span className="text-xs text-gray-600 whitespace-nowrap">
                     <span className="text-gray-500">执行：</span>
                     <span
@@ -240,7 +238,7 @@ export function TodoTreeItem({
                         currentUserId !== null &&
                           currentUserId !== undefined &&
                           todo.assigneeId === currentUserId &&
-                          'text-orange-600'
+                          'text-blue-600'
                       )}
                     >
                       {todo.assignee.username}

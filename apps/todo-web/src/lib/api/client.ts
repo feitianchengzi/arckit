@@ -127,7 +127,6 @@ apiClient.interceptors.request.use(
           refresh_token: refreshToken,
         })
 
-        console.log('📦 刷新接口完整返回:', JSON.stringify(response, null, 2))
         logFlow('请求拦截器：刷新接口返回成功', { expiresIn: response.data.expires_in })
 
         // 根据 API 文档（第 278-291 行），响应格式为：
@@ -139,8 +138,7 @@ apiClient.interceptors.request.use(
         
         // 检查响应格式
         if (!tokens || !tokens.access_token) {
-          console.error('❌ 刷新接口返回格式错误，完整响应:', response)
-          console.error('❌ 期望 response.data 包含 access_token，实际:', tokens)
+          console.error('❌ 刷新接口返回格式错误')
           throw new Error('Invalid refresh token response format')
         }
 
@@ -178,7 +176,7 @@ apiClient.interceptors.request.use(
         logFlow('请求拦截器：处理等待队列完成', { queueLength: failedQueue.length })
       } catch (error: any) {
         console.error('❌ Token 刷新失败:', error)
-        console.error('错误详情:', error.response?.data || error.message)
+        console.error('错误详情:', error.message)
         
         logFlow('请求拦截器：Token 刷新失败，跳转登录页', {
           error: error.message,
@@ -310,7 +308,6 @@ apiClient.interceptors.response.use(
           refresh_token: refreshToken,
         })
 
-        console.log('📦 刷新接口返回:', JSON.stringify(response, null, 2))
         logFlow('响应拦截器：刷新接口返回成功', { expiresIn: response.data.expires_in })
 
         const tokens = response.data

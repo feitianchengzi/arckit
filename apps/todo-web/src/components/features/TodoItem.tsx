@@ -108,7 +108,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                 <CreatorBadgeIcon className="w-3.5 h-3.5 text-blue-500" />
               )}
               {isAssignee && (
-                <AssigneeBadgeIcon className="w-3.5 h-3.5 text-orange-500" />
+                <AssigneeBadgeIcon className="w-3.5 h-3.5 text-blue-500" />
               )}
             </div>
           )}
@@ -116,7 +116,6 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
           {/* 创建者 */}
           {todo.creator && (
             <div className="flex items-center gap-1.5">
-              <UserIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
               <span className="text-xs text-gray-600 whitespace-nowrap">
                 <span className="text-gray-500">创建：</span>
                 <span className={clsx('font-medium', isCreator && 'text-blue-600')}>
@@ -129,10 +128,9 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
           {/* 执行者 - 只在有执行人时显示 */}
           {todo.assignee && (
             <div className="flex items-center gap-1.5">
-              <AssignIcon className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
               <span className="text-xs text-gray-600 whitespace-nowrap">
                 <span className="text-gray-500">执行：</span>
-                <span className={clsx('font-medium', isAssignee && 'text-orange-600')}>
+                <span className={clsx('font-medium', isAssignee && 'text-blue-600')}>
                   {todo.assignee.username}
                 </span>
               </span>

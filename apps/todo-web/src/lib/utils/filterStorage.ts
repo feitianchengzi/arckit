@@ -3,12 +3,17 @@
  * 用于保存和恢复页面筛选条件
  */
 
+import type { DateRange } from '@/components/features/DateRangeFilter'
+
+export type { DateRange }
+
 export interface TaskFilterState {
   statusFilter: string | 'ALL'
   creatorFilter: number | 'ME' | null
   executorFilter: number | 'ME' | 'UNASSIGNED' | null
   tagFilter: number | { projectId: string; tagId: number } | null
   priorityFilter: number | null | 'ALL' | 'NONE'
+  dateRange: DateRange | null
 }
 
 const STORAGE_KEY_TASKS = 'task_filter_state'

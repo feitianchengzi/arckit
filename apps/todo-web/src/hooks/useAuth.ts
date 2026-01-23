@@ -41,9 +41,6 @@ export function useLogin() {
   return useMutation({
     mutationFn: (data: LoginRequest) => gatewayApi.login(data),
     onSuccess: async (response) => {
-      console.log('✅ 登录成功:', response.data.user)
-      console.log('🔑 Access Token:', response.data.tokens.access_token)
-      console.log('ℹ️  网关会自动从 Token 中解析用户信息并注入到请求头')
 
       // 1. 保存认证信息（只需要保存 Token）
       setAuth(response.data.tokens)

@@ -9,4 +9,5 @@ export * from './TagCreator'
 export * from './TagEditor'
 export * from './TagManager'
 export * from './PrioritySelector'
+export * from './DateRangeFilter'
 

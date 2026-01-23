@@ -60,7 +60,7 @@ export default function ProjectsHomePage() {
             setShowSetupDialog(false)
           }
         } catch (error: any) {
-          console.log('⚠️ 获取用户失败:', error.response?.status, error.response?.data)
+          console.log('⚠️ 获取用户失败')
           if (error.response?.status === 404) {
             console.log('用户不存在，显示首次设置对话框')
             

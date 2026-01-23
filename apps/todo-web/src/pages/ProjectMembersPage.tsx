@@ -72,7 +72,7 @@ export default function ProjectMembersPage() {
           console.log('✅ 成员页面：用户信息加载成功, username:', user.username)
         } catch (getUserError: any) {
           // 如果获取失败（404 = 用户不存在），创建新用户
-          console.log('⚠️ 成员页面：获取用户失败:', getUserError.response?.status)
+          console.log('⚠️ 成员页面：获取用户失败')
           
           if (getUserError.response?.status === 404) {
             console.log('用户不存在，创建新用户...')
@@ -235,12 +235,7 @@ export default function ProjectMembersPage() {
         navigate('/projects')
       }
     } catch (err: any) {
-      console.error('❌ [删除确认] 删除成员失败')
-      console.error('❌ [删除确认] 错误对象:', err)
-      console.error('❌ [删除确认] 错误类型:', err?.name)
-      console.error('❌ [删除确认] 错误消息:', err?.message)
-      console.error('❌ [删除确认] 响应状态:', err?.response?.status)
-      console.error('❌ [删除确认] 响应数据:', err?.response?.data)
+      console.error('❌ [删除确认] 删除成员失败:', err?.message)
       const errorMessage = err?.response?.data?.error || err?.response?.data?.message || err?.message || '操作失败，请重试'
       alert(errorMessage)
     }
