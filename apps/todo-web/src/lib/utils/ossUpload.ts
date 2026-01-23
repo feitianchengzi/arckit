@@ -87,22 +87,50 @@ function calculateRefreshInterval(expiration: string): number {
 }
 
 /**
- * 上传文件到 OSS
- * @param file 要上传的文件
- * @param credentials STS 临时凭证（包含 region、bucket_name、root_path 等）
- * @param onProgress 上传进度回调 (0-1)
- * @param callbackUrl 可选：OSS callback URL，上传成功后OSS会向此URL发送POST请求
- * @param callbackBody 可选：OSS callback body，传递给callback的数据
- * @returns 上传结果，包含 objectKey 和可选的签名URL
+ * OSS 文件目录类型
+ */
+export type OSSDirectory = 'avatars' | 'attachments' | 'documents' | string
+
+/**
+ * 生成 OSS objectKey
+ * @param rootPath OSS 根路径
+ * @param directory 文件目录（例如：'avatars'、'attachments'、'documents'）
+ * @param fileName 文件名
+ * @returns 完整的 objectKey
+ */
+export function generateObjectKey(
+  rootPath: string,
+  directory: OSSDirectory,
+  fileName: string
+): string {
+  return joinPath(rootPath, `${directory}/${fileName}`)
+}
+
+/**
+ * 上传结果接口
  */
 export interface UploadResult {
   objectKey: string
   url?: string // 可选的签名URL，如果需要立即访问
 }
 
+/**
+ * 上传文件到 OSS（内部函数，仅供 ossUploadApi.ts 使用）
+ * 注意：业务代码不应直接使用此函数，应使用 ossUploadApi.ts 中提供的业务接口
+ * 
+ * @param file 要上传的文件
+ * @param credentials STS 临时凭证（包含 region、bucket_name、root_path 等）
+ * @param directory 文件目录（例如：'avatars'、'attachments'、'documents'）
+ * @param onProgress 上传进度回调 (0-1)
+ * @param callbackUrl 可选：OSS callback URL，上传成功后OSS会向此URL发送POST请求
+ * @param callbackBody 可选：OSS callback body，传递给callback的数据
+ * @returns 上传结果，包含 objectKey 和可选的签名URL
+ * @internal 仅供内部使用
+ */
 export async function uploadToOSS(
   file: File | Blob,
   credentials: STSCredentials,
+  directory: OSSDirectory,
   onProgress?: (progress: number) => void,
   callbackUrl?: string,
   callbackBody?: string
@@ -128,14 +156,15 @@ export async function uploadToOSS(
     })
     
     // 生成文件路径
-    // objectKey = root_path + avatars/ + 文件名
+    // objectKey = root_path + directory/ + 文件名
     const timestamp = Date.now()
     const randomStr = Math.random().toString(36).substring(2, 15)
-    const fileExt = getFileExtension(file.name || 'image.jpg')
-    const fileName = `${timestamp}_${randomStr}.${fileExt}`
+    const fileName = file instanceof File ? file.name : 'image.jpg'
+    const fileExt = getFileExtension(fileName)
+    const finalFileName = `${timestamp}_${randomStr}.${fileExt}`
     
-    // 使用 joinPath 正确拼接路径
-    const objectKey = joinPath(credentials.RootPath, `avatars/${fileName}`)
+    // 使用 generateObjectKey 生成 objectKey（支持多目录）
+    const objectKey = generateObjectKey(credentials.RootPath, directory, finalFileName)
     
     // 构建上传选项
     const putOptions: any = {
@@ -148,10 +177,20 @@ export async function uploadToOSS(
     
     // 如果提供了 callback URL，配置 callback
     if (callbackUrl) {
+      // 获取 access token 添加到 header
+      const { getAccessToken } = await import('./tokenManager')
+      const accessToken = getAccessToken()
+      
+      const callbackHeaders: Record<string, string> = {}
+      if (accessToken) {
+        callbackHeaders['Authorization'] = `Bearer ${accessToken}`
+      }
+      
       putOptions.callback = {
         url: callbackUrl,
         body: callbackBody || `object=${objectKey}&bucket=${credentials.BucketName}`,
         contentType: 'application/x-www-form-urlencoded',
+        headers: callbackHeaders, // OSS SDK 使用 headers 传递自定义 header
       }
     }
     
@@ -174,7 +213,7 @@ export async function uploadToOSS(
     uploadResult.url = client.signatureUrl(objectKey, {
       expires: 3600, // 1小时有效期
     })
-    
+    console.log("++ uploadResult", uploadResult)
     return uploadResult
   } catch (error) {
     console.error('OSS 上传失败:', error)
@@ -229,52 +268,13 @@ function getFileExtension(filename: string): string {
   return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : 'jpg'
 }
 
+
 /**
- * 上传头像到 OSS 并自动更新用户头像
- * 支持两种方式：
- * 1. 使用 OSS callback（推荐）：上传成功后OSS自动调用后端接口更新头像
- * 2. 直接更新：上传成功后前端调用API更新头像
- * 
- * @param file 要上传的头像文件
- * @param credentials STS 临时凭证
- * @param onProgress 上传进度回调 (0-1)
- * @param useCallback 是否使用 OSS callback（默认 false，使用直接更新方式）
- * @param callbackUrl 可选：OSS callback URL（如果 useCallback 为 true）
- * @returns 上传结果，包含 objectKey 和可选的签名URL
+ * 判断字符串是否为 OSS objectKey（而不是完整的 URL）
+ * objectKey 格式：不包含 http:// 或 https://，通常包含路径分隔符
  */
-export async function uploadAvatarAndUpdate(
-  file: File | Blob,
-  credentials: STSCredentials,
-  onProgress?: (progress: number) => void,
-  useCallback: boolean = false,
-  callbackUrl?: string
-): Promise<UploadResult> {
-  try {
-    // 1. 上传文件到 OSS
-    let uploadResult: UploadResult
-    
-    if (useCallback && callbackUrl) {
-      // 使用 OSS callback 方式
-      // callback body 包含 objectKey，后端可以根据此更新用户头像
-      const callbackBody = `object=\${object}&bucket=\${bucket}`
-      uploadResult = await uploadToOSS(file, credentials, onProgress, callbackUrl, callbackBody)
-      console.log('✅ 头像上传成功（使用 callback）:', uploadResult.objectKey)
-    } else {
-      // 直接上传方式
-      uploadResult = await uploadToOSS(file, credentials, onProgress)
-      
-      // 2. 上传成功后，直接调用API更新用户头像
-      const { todoUserApi } = await import('../api/endpoints/auth')
-      await todoUserApi.updateUser(0, { avatar: uploadResult.objectKey })
-      
-      console.log('✅ 头像上传并更新成功:', uploadResult.objectKey)
-    }
-    
-    return uploadResult
-  } catch (error) {
-    console.error('❌ 头像上传失败:', error)
-    throw error
-  }
+function isObjectKey(avatar: string): boolean {
+  return !avatar.startsWith('http://') && !avatar.startsWith('https://') && avatar.includes('/')
 }
 
 /**
@@ -288,11 +288,21 @@ export async function getSignedUrl(
   credentials: STSCredentials,
   expires: number = 3600
 ): Promise<string> {
+  console.log('[getSignedUrl] 开始生成签名 URL:', {
+    objectKey,
+    expires,
+    region: credentials.Region,
+    bucket: credentials.BucketName
+  })
+  
   try {
+    console.log('[getSignedUrl] 加载 OSS SDK...')
     const OSS = await loadOSSSDK()
+    console.log('[getSignedUrl] OSS SDK 加载成功')
     
     // 创建 OSS 客户端
     // Region 直接使用接口返回值
+    console.log('[getSignedUrl] 创建 OSS 客户端...')
     const client = new OSS({
       region: credentials.Region, // 直接使用，例如: "oss-cn-beijing"
       accessKeyId: credentials.AccessKeyId,
@@ -302,15 +312,66 @@ export async function getSignedUrl(
       secure: credentials.Secure,
       authorizationV4: credentials.AuthorizationV4,
     })
+    console.log('[getSignedUrl] OSS 客户端创建成功')
     
     // 生成签名 URL
+    console.log('[getSignedUrl] 调用 client.signatureUrl...')
     const signedUrl = client.signatureUrl(objectKey, {
       expires,
     })
+    console.log('[getSignedUrl] 签名 URL 生成成功:', signedUrl.substring(0, 100) + '...')
     
     return signedUrl
   } catch (error) {
-    console.error('生成签名 URL 失败:', error)
+    console.error('[getSignedUrl] 生成签名 URL 失败:', error)
+    console.error('[getSignedUrl] 错误详情:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      objectKey,
+      region: credentials.Region,
+      bucket: credentials.BucketName
+    })
     throw error
+  }
+}
+
+/**
+ * 将头像值（可能是 objectKey 或完整 URL）转换为可访问的 URL
+ * 如果是 objectKey，优先使用本地缓存，否则获取 STS 凭证并生成签名 URL
+ * 如果是完整 URL，直接返回
+ * 
+ * @param avatar 头像值（objectKey 或完整 URL）
+ * @returns 可访问的头像 URL，如果转换失败返回 null
+ */
+export async function getAvatarUrl(avatar: string | undefined | null): Promise<string | null> {
+  console.log('[getAvatarUrl] 开始处理头像:', avatar)
+  
+  if (!avatar) {
+    console.log('[getAvatarUrl] 头像为空，返回 null')
+    return null
+  }
+  
+  // 如果已经是完整 URL，直接返回
+  if (!isObjectKey(avatar)) {
+    console.log('[getAvatarUrl] 检测到完整 URL，直接返回:', avatar)
+    return avatar
+  }
+  
+  // 如果是 objectKey，使用缓存管理获取 URL（优先使用本地缓存）
+  console.log('[getAvatarUrl] 检测到 objectKey，开始获取文件 URL:', avatar)
+  try {
+    const { getFileUrl } = await import('./ossFileCache')
+    console.log('[getAvatarUrl] 调用 getFileUrl:', avatar)
+    const url = await getFileUrl(avatar)
+    console.log('[getAvatarUrl] 获取文件 URL 成功:', url)
+    return url
+  } catch (error) {
+    console.error('[getAvatarUrl] 获取头像 URL 失败:', error)
+    console.error('[getAvatarUrl] 错误详情:', {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      avatar
+    })
+    return null
   }
 }

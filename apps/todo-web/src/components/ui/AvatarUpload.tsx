@@ -7,7 +7,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { validateImageFile } from '@/lib/utils/validators'
 import { uploadApi } from '@/lib/api/endpoints/upload'
-import { uploadToOSS } from '@/lib/utils/ossUpload'
 import { compressImage, dataURLtoFile } from '@/lib/utils/imageCompress'
 
 export interface AvatarUploadProps {
@@ -73,8 +72,8 @@ export function AvatarUpload({
           const credentials = await uploadApi.getSTSToken()
           
           // 5. 上传到 OSS 并自动更新用户头像
-          const { uploadAvatarAndUpdate } = await import('@/lib/utils/ossUpload')
-          const uploadResult = await uploadAvatarAndUpdate(
+          const { uploadAvatarToOSS } = await import('@/lib/utils/ossUploadApi')
+          const uploadResult = await uploadAvatarToOSS(
             compressedFile,
             credentials,
             (progress) => {

@@ -4,7 +4,8 @@
 - `frontend/src/lib/api/endpoints/upload.ts`（STS 获取与字段映射）
 - `frontend/src/lib/utils/ossUpload.ts`（OSS SDK 加载、client、上传）
 - `frontend/src/components/ui/AvatarCropUpload.tsx` / `frontend/src/components/ui/AvatarUpload.tsx`（头像入口）
-- `frontend/OSS_CORS_CONFIG.md`（CORS 排查）
+- `frontend/docs/oss/OSS_CORS_CONFIG.md`（CORS 排查）
+- `frontend/docs/oss/OSS_FILE_DISPLAY.md`（文件展示）
 
 ### 后端 STS 响应（必须字段，snake_case）
 ```json

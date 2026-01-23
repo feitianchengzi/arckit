@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, TextField, LoadingView, ErrorView } from '@/components/ui'
+import { Button, TextField, LoadingView, ErrorView, Avatar } from '@/components/ui'
 import { AvatarCropUpload } from '@/components/ui/AvatarCropUpload'
 import { useAuthStore } from '@/store/authStore'
 import { useLogout, useFirstTimeSetup } from '@/hooks/useAuth'
@@ -32,21 +32,32 @@ export default function SettingsPage() {
   
   // 初始化表单数据
   useEffect(() => {
+    console.log('[SettingsPage] 初始化用户数据, currentUser:', currentUser)
+    
     if (currentUser) {
+      console.log('[SettingsPage] 使用 store 中的用户信息:', {
+        username: currentUser.username,
+        avatar: currentUser.avatar
+      })
       setUsername(currentUser.username || '')
       setAvatar(currentUser.avatar || '')
     } else {
       // 如果 store 中没有用户信息，尝试查询
+      console.log('[SettingsPage] store 中没有用户信息，开始获取...')
       setIsLoading(true)
       // 尝试获取当前用户信息
       todoUserApi.getCurrentUser()
         .then((user) => {
+          console.log('[SettingsPage] 获取用户信息成功:', {
+            username: user.username,
+            avatar: user.avatar
+          })
           setUser(user)
           setUsername(user.username || '')
           setAvatar(user.avatar || '')
         })
         .catch((err) => {
-          console.error('获取用户信息失败:', err)
+          console.error('[SettingsPage] 获取用户信息失败:', err)
           setError('无法获取用户信息')
         })
         .finally(() => {
@@ -196,18 +207,12 @@ export default function SettingsPage() {
           <div className="space-y-4">
             {/* 显示当前用户信息 */}
             <div className="flex items-center gap-4">
-              {/* 头像 */}
-              {currentUser?.avatar ? (
-                <img
-                  src={currentUser.avatar}
-                  alt="用户头像"
-                  className="w-16 h-16 rounded-full object-cover border-2 border-gray-200"
-                />
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center text-white text-2xl font-semibold">
-                  {currentUser?.username?.charAt(0)?.toUpperCase() || 'U'}
-                </div>
-              )}
+              {/* 头像 - 使用 Avatar 组件，支持 objectKey 自动转换 */}
+              <Avatar
+                user={currentUser}
+                size="lg"
+                showTooltip={true}
+              />
               
               {/* 用户信息 */}
               <div className="flex-1">

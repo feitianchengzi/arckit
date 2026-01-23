@@ -15,6 +15,7 @@ import { useState, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '@/store/authStore'
 import { ProjectListContent } from './ProjectList'
+import { Avatar } from '@/components/ui'
 
 interface SidebarProps {
   className?: string
@@ -39,6 +40,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const [listBottom, setListBottom] = useState(0)
   
   useEffect(() => {
+    console.log('[Sidebar] 用户信息更新:', storeUser)
     setMounted(true)
     setUser(storeUser)
   }, [storeUser])
@@ -218,10 +220,14 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
           {/* 头像（可点击跳转到设置） */}
           <button
             onClick={() => handleNavClick('/settings')}
-            className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-semibold hover:bg-primary-700 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full"
             title="设置"
           >
-            {userInitial}
+            <Avatar
+              user={user}
+              size="md"
+              showTooltip={true}
+            />
           </button>
           
           {/* 用户名 */}
