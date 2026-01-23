@@ -100,16 +100,26 @@ export function AvatarCropUpload({
       // 3. 获取 STS 临时凭证
       const credentials = await uploadApi.getSTSToken()
       
-      // 4. 上传到 OSS
-      const ossUrl = await uploadToOSS(file, credentials, (progress) => {
-        setUploadProgress(progress)
-      })
+      // 4. 上传到 OSS 并自动更新用户头像
+      const { uploadAvatarAndUpdate } = await import('@/lib/utils/ossUpload')
+      const uploadResult = await uploadAvatarAndUpdate(
+        file,
+        credentials,
+        (progress) => {
+          setUploadProgress(progress)
+        },
+        false // 使用直接更新方式（不使用 callback）
+      )
       
-      // 5. 更新预览和调用回调
-      setPreview(ossUrl)
-      onChange(ossUrl)
+      // 5. 生成签名URL用于预览
+      const { getSignedUrl } = await import('@/lib/utils/ossUpload')
+      const previewUrl = await getSignedUrl(uploadResult.objectKey, credentials)
       
-      console.log('✅ 头像上传成功:', ossUrl)
+      // 6. 更新预览和调用回调（传递 objectKey）
+      setPreview(previewUrl)
+      onChange(uploadResult.objectKey) // 传递 objectKey 而不是 URL
+      
+      console.log('✅ 头像上传成功:', uploadResult.objectKey)
     } catch (err) {
       console.error('❌ 头像上传失败:', err)
       const errorMessage = err instanceof Error ? err.message : '上传失败，请重试'

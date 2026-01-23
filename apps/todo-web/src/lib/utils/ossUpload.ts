@@ -13,13 +13,13 @@ declare global {
 }
 
 /**
- * 从 region 字段中提取 OSS SDK 需要的 region 格式
- * API 返回的 region 格式为 "oss-cn-beijing"，需要去掉 "oss-" 前缀
- * OSS SDK 需要的格式为 "cn-beijing"
+ * 路径拼接工具函数
+ * 确保路径正确拼接，处理斜杠
  */
-function extractOSSSDKRegion(region: string): string {
-  // 去掉 "oss-" 前缀
-  return region.replace(/^oss-/, '') || 'cn-hangzhou' // 默认值
+function joinPath(a: string, b: string): string {
+  const left = (a || '').replace(/\/+$/g, '')
+  const right = (b || '').replace(/^\/+/, '')
+  return left ? `${left}/${right}` : right
 }
 
 /**
@@ -34,7 +34,7 @@ async function loadOSSSDK(): Promise<any> {
 
   return new Promise((resolve, reject) => {
     const script = document.createElement('script')
-    script.src = 'https://gosspublic.alicdn.com/aliyun-oss-sdk-6.18.0.min.js'
+    script.src = 'https://gosspublic.alicdn.com/aliyun-oss-sdk-6.23.0.min.js'
     script.async = true
     
     script.onload = () => {
@@ -73,65 +73,109 @@ async function refreshSTSToken(): Promise<{
 }
 
 /**
+ * 计算 STS Token 刷新时间间隔
+ * 根据 expiration 时间计算，提前 1 分钟刷新（安全窗口）
+ */
+function calculateRefreshInterval(expiration: string): number {
+  const expirationTime = new Date(expiration).getTime()
+  const now = Date.now()
+  const safetyWindow = 60 * 1000 // 1 分钟安全窗口
+  const interval = expirationTime - now - safetyWindow
+  
+  // 确保间隔至少为 1 分钟
+  return Math.max(interval, 60 * 1000)
+}
+
+/**
  * 上传文件到 OSS
  * @param file 要上传的文件
  * @param credentials STS 临时凭证（包含 region、bucket_name、root_path 等）
  * @param onProgress 上传进度回调 (0-1)
- * @returns OSS 文件 URL
+ * @param callbackUrl 可选：OSS callback URL，上传成功后OSS会向此URL发送POST请求
+ * @param callbackBody 可选：OSS callback body，传递给callback的数据
+ * @returns 上传结果，包含 objectKey 和可选的签名URL
  */
+export interface UploadResult {
+  objectKey: string
+  url?: string // 可选的签名URL，如果需要立即访问
+}
+
 export async function uploadToOSS(
   file: File | Blob,
   credentials: STSCredentials,
-  onProgress?: (progress: number) => void
-): Promise<string> {
+  onProgress?: (progress: number) => void,
+  callbackUrl?: string,
+  callbackBody?: string
+): Promise<UploadResult> {
   try {
     // 加载 OSS SDK
     const OSS = await loadOSSSDK()
     
-    // 从 region 字段中提取 OSS SDK 需要的 region 格式
-    // API 返回的 region 格式为 "oss-cn-beijing"，需要去掉 "oss-" 前缀
-    const ossRegion = extractOSSSDKRegion(credentials.Region)
-    
     // 创建 OSS 客户端
+    // Region 直接使用接口返回值（完整格式，例如 "oss-cn-beijing"）
     // 使用 API 返回的配置：authorizationV4 和 secure
     const client = new OSS({
-      region: ossRegion, // 例如: "cn-beijing"
+      region: credentials.Region, // 直接使用，例如: "oss-cn-beijing"
       accessKeyId: credentials.AccessKeyId,
       accessKeySecret: credentials.AccessKeySecret,
       stsToken: credentials.SecurityToken,
       bucket: credentials.BucketName,
-      secure: credentials.Secure, // 使用 HTTPS（固定为 true）
-      authorizationV4: credentials.AuthorizationV4, // 使用 V4 签名（固定为 true）
-      // 自动刷新 STS token（STS token 有效期为 15 分钟，提前 1 分钟刷新）
+      secure: credentials.Secure, // 使用接口返回值
+      authorizationV4: credentials.AuthorizationV4, // 使用接口返回值
+      // 自动刷新 STS token，根据 expiration 计算刷新时间
       refreshSTSToken: refreshSTSToken,
-      refreshSTSTokenInterval: 14 * 60 * 1000, // 14 分钟后自动刷新（单位：毫秒）
+      refreshSTSTokenInterval: calculateRefreshInterval(credentials.Expiration),
     })
     
     // 生成文件路径
-    // 使用 root_path 作为基础路径，例如 /workshop/avatars/...
+    // objectKey = root_path + avatars/ + 文件名
     const timestamp = Date.now()
     const randomStr = Math.random().toString(36).substring(2, 15)
     const fileExt = getFileExtension(file.name || 'image.jpg')
+    const fileName = `${timestamp}_${randomStr}.${fileExt}`
     
-    // 确保路径格式正确：去掉 root_path 末尾的斜杠，确保路径以 / 开头
-    const rootPath = credentials.RootPath.replace(/\/$/, '') // 去掉末尾斜杠
-    const key = `${rootPath}/avatars/${timestamp}_${randomStr}.${fileExt}`.replace(/\/+/g, '/') // 确保路径格式正确
+    // 使用 joinPath 正确拼接路径
+    const objectKey = joinPath(credentials.RootPath, `avatars/${fileName}`)
     
-    // 上传文件
-    const result = await client.multipartUpload(key, file, {
+    // 构建上传选项
+    const putOptions: any = {
       progress: (p: number) => {
         if (onProgress) {
           onProgress(p)
         }
       },
+    }
+    
+    // 如果提供了 callback URL，配置 callback
+    if (callbackUrl) {
+      putOptions.callback = {
+        url: callbackUrl,
+        body: callbackBody || `object=${objectKey}&bucket=${credentials.BucketName}`,
+        contentType: 'application/x-www-form-urlencoded',
+      }
+    }
+    
+    // 上传文件
+    const result = await client.put(objectKey, file, putOptions)
+    
+    // 检查上传结果
+    if (result?.res?.status !== 200) {
+      throw new Error(`OSS upload failed: ${result?.res?.status}`)
+    }
+    
+    // 返回 objectKey（主要返回值）
+    // 如果需要立即访问，可以生成签名URL
+    const uploadResult: UploadResult = {
+      objectKey,
+    }
+    
+    // 如果需要URL，使用 SDK 的 signatureUrl 方法生成访问 URL
+    // 禁止手拼 URL，使用 SDK 方法
+    uploadResult.url = client.signatureUrl(objectKey, {
+      expires: 3600, // 1小时有效期
     })
     
-    // 返回文件 URL
-    // 使用 HTTPS 协议的 URL，格式: https://{bucket}.{region}.aliyuncs.com/{key}
-    // region 格式为 "cn-beijing"（已去掉 "oss-" 前缀）
-    const fileUrl = `https://${credentials.BucketName}.${ossRegion}.aliyuncs.com/${result.name}`
-    
-    return fileUrl
+    return uploadResult
   } catch (error) {
     console.error('OSS 上传失败:', error)
     
@@ -186,45 +230,82 @@ function getFileExtension(filename: string): string {
 }
 
 /**
- * 获取带签名的访问 URL（可选，如果需要临时访问链接）
- * @param fileUrl OSS 文件 URL
+ * 上传头像到 OSS 并自动更新用户头像
+ * 支持两种方式：
+ * 1. 使用 OSS callback（推荐）：上传成功后OSS自动调用后端接口更新头像
+ * 2. 直接更新：上传成功后前端调用API更新头像
+ * 
+ * @param file 要上传的头像文件
+ * @param credentials STS 临时凭证
+ * @param onProgress 上传进度回调 (0-1)
+ * @param useCallback 是否使用 OSS callback（默认 false，使用直接更新方式）
+ * @param callbackUrl 可选：OSS callback URL（如果 useCallback 为 true）
+ * @returns 上传结果，包含 objectKey 和可选的签名URL
+ */
+export async function uploadAvatarAndUpdate(
+  file: File | Blob,
+  credentials: STSCredentials,
+  onProgress?: (progress: number) => void,
+  useCallback: boolean = false,
+  callbackUrl?: string
+): Promise<UploadResult> {
+  try {
+    // 1. 上传文件到 OSS
+    let uploadResult: UploadResult
+    
+    if (useCallback && callbackUrl) {
+      // 使用 OSS callback 方式
+      // callback body 包含 objectKey，后端可以根据此更新用户头像
+      const callbackBody = `object=\${object}&bucket=\${bucket}`
+      uploadResult = await uploadToOSS(file, credentials, onProgress, callbackUrl, callbackBody)
+      console.log('✅ 头像上传成功（使用 callback）:', uploadResult.objectKey)
+    } else {
+      // 直接上传方式
+      uploadResult = await uploadToOSS(file, credentials, onProgress)
+      
+      // 2. 上传成功后，直接调用API更新用户头像
+      const { todoUserApi } = await import('../api/endpoints/auth')
+      await todoUserApi.updateUser(0, { avatar: uploadResult.objectKey })
+      
+      console.log('✅ 头像上传并更新成功:', uploadResult.objectKey)
+    }
+    
+    return uploadResult
+  } catch (error) {
+    console.error('❌ 头像上传失败:', error)
+    throw error
+  }
+}
+
+/**
+ * 获取带签名的访问 URL（如果需要临时访问链接）
+ * @param objectKey OSS 对象 Key（例如：workshop/avatars/xxx.jpg）
  * @param credentials STS 临时凭证（包含 region、bucket_name 等）
  * @param expires 过期时间（秒），默认 3600
  */
 export async function getSignedUrl(
-  fileUrl: string,
+  objectKey: string,
   credentials: STSCredentials,
   expires: number = 3600
 ): Promise<string> {
   try {
     const OSS = await loadOSSSDK()
     
-    // 从 URL 中提取 key
-    const urlParts = fileUrl.split('.aliyuncs.com/')
-    if (urlParts.length < 2) {
-      throw new Error('无效的 OSS URL')
-    }
-    
-    const key = urlParts[1]
-    
-    // 从 region 字段中提取 OSS SDK 需要的 region 格式
-    const ossRegion = extractOSSSDKRegion(credentials.Region)
-    
     // 创建 OSS 客户端
+    // Region 直接使用接口返回值
     const client = new OSS({
-      region: ossRegion,
+      region: credentials.Region, // 直接使用，例如: "oss-cn-beijing"
       accessKeyId: credentials.AccessKeyId,
       accessKeySecret: credentials.AccessKeySecret,
       stsToken: credentials.SecurityToken,
       bucket: credentials.BucketName,
       secure: credentials.Secure,
-      authorizationV4: credentials.AuthorizationV4, // 使用 V4 签名
+      authorizationV4: credentials.AuthorizationV4,
     })
     
     // 生成签名 URL
-    const signedUrl = client.signatureUrl(key, {
+    const signedUrl = client.signatureUrl(objectKey, {
       expires,
-      method: 'GET',
     })
     
     return signedUrl

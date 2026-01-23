@@ -72,16 +72,26 @@ export function AvatarUpload({
           // 4. 获取 STS 临时凭证
           const credentials = await uploadApi.getSTSToken()
           
-          // 5. 上传到 OSS
-          const ossUrl = await uploadToOSS(compressedFile, credentials, (progress) => {
-            setUploadProgress(progress)
-          })
+          // 5. 上传到 OSS 并自动更新用户头像
+          const { uploadAvatarAndUpdate } = await import('@/lib/utils/ossUpload')
+          const uploadResult = await uploadAvatarAndUpdate(
+            compressedFile,
+            credentials,
+            (progress) => {
+              setUploadProgress(progress)
+            },
+            false // 使用直接更新方式（不使用 callback）
+          )
           
-          // 6. 更新预览和调用回调
-          setPreview(ossUrl)
-          onChange(ossUrl)
+          // 6. 生成签名URL用于预览
+          const { getSignedUrl } = await import('@/lib/utils/ossUpload')
+          const previewUrl = await getSignedUrl(uploadResult.objectKey, credentials)
           
-          console.log('✅ 头像上传成功:', ossUrl)
+          // 7. 更新预览和调用回调（传递 objectKey）
+          setPreview(previewUrl)
+          onChange(uploadResult.objectKey) // 传递 objectKey 而不是 URL
+          
+          console.log('✅ 头像上传成功:', uploadResult.objectKey)
         } catch (uploadErr) {
           console.error('❌ 头像上传失败:', uploadErr)
           const errorMessage = uploadErr instanceof Error ? uploadErr.message : '上传失败，请重试'
