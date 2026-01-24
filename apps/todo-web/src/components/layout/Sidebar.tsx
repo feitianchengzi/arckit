@@ -227,30 +227,31 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         }}
       >
         <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            {/* 头像（可点击跳转到设置） */}
-            <button
-              onClick={() => handleNavClick('/settings')}
-              className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full"
-              title="设置"
-            >
+          {/* 整个用户信息区域可点击进入设置 */}
+          <button
+            onClick={() => handleNavClick('/settings')}
+            className="w-full flex items-center gap-3 text-left hover:bg-surface-hover rounded-md p-1 -ml-1 -mr-1 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            title="设置"
+          >
+            {/* 头像 */}
+            <div className="flex-shrink-0">
               <Avatar
                 user={user}
                 size="md"
                 showTooltip={true}
               />
-            </button>
+            </div>
             
             {/* 用户名 */}
             <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-foreground truncate">
-              {displayUsername}
-            </p>
-            <p className="text-xs text-foreground-secondary">
+              <p className="text-sm font-medium text-foreground truncate">
+                {displayUsername}
+              </p>
+              <p className="text-xs text-foreground-secondary">
                 开发者
               </p>
             </div>
-          </div>
+          </button>
           
           {/* 深色模式切换 */}
           <button
