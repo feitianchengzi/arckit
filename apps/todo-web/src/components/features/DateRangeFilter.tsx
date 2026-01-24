@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui'
 import clsx from 'clsx'
+import { useThemeStore } from '@/store/themeStore'
 
 export interface DateRange {
   startDate: string | null
@@ -122,6 +123,7 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
   const containerRef = useRef<HTMLDivElement>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
   const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null)
+  const theme = useThemeStore((state) => state.theme)
 
   // 计算弹窗位置
   useEffect(() => {
@@ -190,12 +192,15 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
           "flex items-center gap-1.5 px-2 py-1 text-sm border rounded-md transition-colors h-[28px]",
           "max-w-[140px] min-w-[80px]",
           hasFilter
-            ? "text-orange-600 border-orange-300 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-700 dark:text-orange-400 font-medium"
+            ? "text-blue-600 border-border dark:text-blue-400 font-medium"
             : "text-foreground-secondary border-border bg-surface-elevated hover:bg-surface-hover"
         )}
+        style={hasFilter ? {
+          backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff' // gray-800 : white
+        } : undefined}
       >
         <svg
-          className={clsx("w-4 h-4 flex-shrink-0", hasFilter ? "text-orange-500 dark:text-orange-400" : "text-foreground-tertiary")}
+          className={clsx("w-4 h-4 flex-shrink-0", hasFilter ? "text-blue-600 dark:text-blue-400" : "text-foreground-tertiary")}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -223,7 +228,7 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
               e.stopPropagation()
               onChange({ startDate: null, endDate: null })
             }}
-            className="ml-0.5 text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 flex-shrink-0"
+            className="ml-0.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex-shrink-0"
             title="清除"
           >
             ×

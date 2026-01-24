@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog, Drawer } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
-import { ProjectMemberList, TaskDetailContent, CreateTaskDialog } from '@/components/features'
+import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog } from '@/components/features'
 import { buildTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
@@ -59,6 +59,9 @@ export default function ProjectDetailPage() {
   // 更多菜单状态
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
+  
+  // 导出待办对话框状态
+  const [showExportDialog, setShowExportDialog] = useState(false)
   
   // 筛选器"更多"菜单状态
   const [showMoreFilters, setShowMoreFilters] = useState(false)
@@ -923,23 +926,38 @@ export default function ProjectDetailPage() {
               variant="primary"
             />
             
-            {/* 更多菜单 - 只有项目所有者才能看到 */}
-            {isOwner && (
-              <div className="relative" ref={moreMenuRef}>
-                <IconButton
-                  icon={<MoreIcon />}
-                  label="更多"
-                  onClick={() => setShowMoreMenu(!showMoreMenu)}
-                  variant="secondary"
-                  isActive={showMoreMenu}
-                />
-                
-                {/* 下拉菜单 */}
-                {showMoreMenu && (
-                  <div 
-                    className="absolute right-0 top-full mt-1 w-40 border border-border rounded-md shadow-lg z-50"
-                    style={{ backgroundColor: 'var(--color-surface-elevated)' }}
+            {/* 更多菜单 - 所有用户都可以看到 */}
+            <div className="relative" ref={moreMenuRef}>
+              <IconButton
+                icon={<MoreIcon />}
+                label="更多"
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                variant="secondary"
+                isActive={showMoreMenu}
+              />
+              
+              {/* 下拉菜单 */}
+              {showMoreMenu && (
+                <div 
+                  className="absolute right-0 top-full mt-1 w-40 border border-border rounded-md shadow-lg z-50"
+                  style={{ backgroundColor: 'var(--color-surface-elevated)' }}
+                >
+                  {/* 导出待办 - 所有用户可见 */}
+                  <button
+                    onClick={() => {
+                      setShowExportDialog(true)
+                      setShowMoreMenu(false)
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 transition-colors"
                   >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>导出待办</span>
+                  </button>
+                  
+                  {/* 编辑项目 - 只有所有者可见 */}
+                  {isOwner && (
                     <button
                       onClick={() => {
                         handleEditClick()
@@ -950,7 +968,10 @@ export default function ProjectDetailPage() {
                       <EditIcon className="w-4 h-4" />
                       <span>编辑项目</span>
                     </button>
-                    
+                  )}
+                  
+                  {/* 删除项目 - 只有所有者可见 */}
+                  {isOwner && (
                     <button
                       onClick={() => {
                         setShowDeleteConfirm(true)
@@ -966,10 +987,10 @@ export default function ProjectDetailPage() {
                       )}
                       <span>删除项目</span>
                     </button>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
         {/* 占位，保持布局一致 */}
@@ -1718,6 +1739,19 @@ export default function ProjectDetailPage() {
           refetchTodos()
         }}
       />
+      
+      {/* 导出待办对话框 */}
+      {todos && members && currentUserId && project && (
+        <ExportTodosDialog
+          open={showExportDialog}
+          onClose={() => setShowExportDialog(false)}
+          todos={todos}
+          members={members}
+          currentUserId={currentUserId}
+          projectId={projectId}
+          projectName={project.name}
+        />
+      )}
       
       {/* 回到顶部按钮 */}
       <button
