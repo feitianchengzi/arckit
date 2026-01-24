@@ -7,6 +7,7 @@ import { useState, useRef, useCallback } from 'react'
 import { Button, EmptyStateView, RoleSelect, ConfirmDialog, TextField } from '@/components/ui'
 import { Avatar } from '@/components/ui/Avatar'
 import { PlusIcon, CogIcon, XIcon } from '@/components/ui/icons'
+import { useThemeStore } from '@/store/themeStore'
 
 // 复制图标
 function CopyIcon({ className }: { className?: string }) {
@@ -69,6 +70,7 @@ export function ProjectMemberList({
   className,
 }: ProjectMemberListProps) {
   const currentUser = useAuthStore((state) => state.user)
+  const theme = useThemeStore((state) => state.theme)
   const [isManaging, setIsManaging] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState<ProjectMember | null>(null)
@@ -475,6 +477,11 @@ export function ProjectMemberList({
                   isManaging ? "bg-surface-hover" : "hover:bg-surface-hover",
                   !isManaging && onMemberClick && "cursor-pointer"
                 )}
+                style={{ 
+                  backgroundColor: theme === 'dark' 
+                    ? '#333338' // 介于 zinc-700 (#3f3f46) 和 zinc-800 (#27272a) 之间
+                    : 'var(--color-surface-active)' 
+                }}
                 onClick={() => {
                   console.log('👆 [成员列表] 成员项被点击')
                   console.log('👆 [成员列表] 成员信息:', {
