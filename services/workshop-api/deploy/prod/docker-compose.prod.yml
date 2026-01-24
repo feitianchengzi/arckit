@@ -15,6 +15,14 @@ services:
     restart: unless-stopped
     networks:
       - workshop
+    deploy:
+    resources:
+      limits:
+        cpus: '0.2'
+        memory: 256M
+      reservations:
+        cpus: '0.1'
+        memory: 128M
 
 networks:
   workshop:
