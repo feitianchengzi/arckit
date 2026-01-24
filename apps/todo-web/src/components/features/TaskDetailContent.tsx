@@ -289,7 +289,7 @@ export function TaskDetailContent({
       )}
       
       {/* 待办内容 */}
-      <div className="rounded-lg p-6 space-y-4" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)', backgroundColor: '#1f1f23' }}>
+      <div className="rounded-lg p-6 space-y-4" style={{ backgroundColor: 'var(--color-surface)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}>
         {/* 创建者信息 - 左上方 */}
         <div className="flex items-start justify-between gap-3 pb-4 border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}>
           <div className="flex items-start gap-3 flex-1 min-w-0">
@@ -653,7 +653,7 @@ export function TaskDetailContent({
       </div>
       
       {/* 子待办 */}
-      <div className="rounded-lg p-6" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)', backgroundColor: '#1f1f23' }}>
+      <div className="rounded-lg p-6" style={{ backgroundColor: 'var(--color-surface)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}>
         <SubtaskList
           subtasks={todo.children || []}
           projectId={projectId}
@@ -665,7 +665,7 @@ export function TaskDetailContent({
       </div>
 
       {/* 状态历史 */}
-      <div className="rounded-lg p-6" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)', backgroundColor: '#1f1f23' }}>
+      <div className="rounded-lg p-6" style={{ backgroundColor: 'var(--color-surface)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}>
         {historyLoading ? (
           <div className="text-sm text-foreground-secondary">加载状态历史中...</div>
         ) : (

@@ -89,11 +89,8 @@ export function Drawer({ open, onClose, children, title, width = 'w-full md:w-[6
       >
         {/* 头部 - 回退按钮（左上角）、标题（中间）、关闭按钮（右上角） */}
         <div 
-          className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
-          style={{ 
-            borderBottomColor: 'var(--color-divider)',
-            backgroundColor: 'var(--color-surface-elevated)'
-          }}
+          className="flex items-center justify-between px-4 py-3 border-b border-divider flex-shrink-0"
+          style={{ backgroundColor: 'var(--color-surface-elevated)', borderBottomColor: 'var(--color-divider)' }}
         >
           {/* 左侧：回退按钮或占位 */}
           <div className="flex-shrink-0 w-10">
