@@ -29,6 +29,11 @@ export class StorageManager {
       // 更新访问信息
       l1Item.lastAccessed = Date.now()
       l1Item.accessCount++
+      console.log(`[StorageManager] ✅ L1 缓存命中: ${objectKey}`, {
+        signedUrl: l1Item.signedUrl.substring(0, 50) + '...',
+        expiresAt: new Date(l1Item.expiresAt).toLocaleString(),
+        accessCount: l1Item.accessCount,
+      })
       return l1Item
     }
     
@@ -39,10 +44,37 @@ export class StorageManager {
       this.memoryCache.set(objectKey, l2Item)
       l2Item.lastAccessed = Date.now()
       l2Item.accessCount++
+      console.log(`[StorageManager] ✅ L2 缓存命中（已提升到 L1）: ${objectKey}`, {
+        signedUrl: l2Item.signedUrl.substring(0, 50) + '...',
+        expiresAt: new Date(l2Item.expiresAt).toLocaleString(),
+        accessCount: l2Item.accessCount,
+      })
       return l2Item
     }
     
+    console.log(`[StorageManager] ❌ 缓存未命中: ${objectKey}`, {
+      l1Size: this.memoryCache.size,
+      l2Keys: this.getL2Keys().length,
+    })
     return null
+  }
+  
+  /**
+   * 获取所有 L2 缓存的键（用于调试）
+   */
+  private getL2Keys(): string[] {
+    const keys: string[] = []
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && key.startsWith(this.CACHE_PREFIX)) {
+          keys.push(key)
+        }
+      }
+    } catch (error) {
+      console.error('[StorageManager] 获取 L2 键列表失败:', error)
+    }
+    return keys
   }
   
   /**
@@ -68,12 +100,24 @@ export class StorageManager {
   }
   
   /**
-   * 检查缓存是否有效
+   * 检查缓存是否有效（使用 expiresAt，即 OSS 签名的真实过期时间）
+   * 只要 expiresAt 未过期，缓存就有效，可以继续使用
    */
   isValid(item: ResourceItem, bufferTime: number = 0): boolean {
     const now = Date.now()
-    // 使用逻辑过期时间判断
-    return item.logicalExpiresAt > (now + bufferTime)
+    // 使用 expiresAt 判断缓存是否有效（OSS 签名的真实过期时间）
+    const isValid = item.expiresAt > (now + bufferTime)
+    
+    if (!isValid) {
+      console.log(`[StorageManager] ⚠️ 缓存已过期: ${item.objectKey}`, {
+        now: new Date(now).toLocaleString(),
+        expiresAt: new Date(item.expiresAt).toLocaleString(),
+        bufferTime: bufferTime / 1000 + 's',
+        timeRemaining: (item.expiresAt - now) / 1000 + 's',
+      })
+    }
+    
+    return isValid
   }
   
   /**
@@ -102,6 +146,12 @@ export class StorageManager {
       if (!cached) return null
       
       const data = JSON.parse(cached) as ResourceItem
+      
+      // 兼容旧数据：如果包含 logicalExpiresAt，移除它（已废弃）
+      if ('logicalExpiresAt' in data) {
+        delete (data as any).logicalExpiresAt
+      }
+      
       return data
     } catch (error) {
       console.error('[StorageManager] 读取 L2 缓存失败:', error)

@@ -7,6 +7,25 @@ import { isObjectKey } from './sdk'
 import { getOssResourceLoader } from './load'
 
 /**
+ * 同步获取头像 URL（仅当缓存命中时）
+ * 用于需要立即获取 URL 的场景，避免异步延迟
+ */
+export function getAvatarUrlSync(avatar: string | undefined | null): string | null {
+  if (!avatar) {
+    return null
+  }
+  
+  // 如果已经是完整 URL，直接返回
+  if (!isObjectKey(avatar)) {
+    return avatar
+  }
+  
+  // 如果是 objectKey，尝试同步获取缓存
+  const resourceLoader = getOssResourceLoader()
+  return resourceLoader.getUrlSync(avatar)
+}
+
+/**
  * 将头像值（可能是 objectKey 或完整 URL）转换为可访问的 URL
  * 如果是 objectKey，使用 OssResourceLoadManager 获取签名 URL（自动缓存和请求合并）
  * 如果是完整 URL，直接返回

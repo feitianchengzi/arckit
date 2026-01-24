@@ -61,6 +61,19 @@ export class OssResourceLoadManager {
   }
   
   /**
+   * 同步获取资源 URL（仅当缓存命中时，否则返回 null）
+   * 用于需要立即获取 URL 的场景，避免异步延迟
+   */
+  getUrlSync(objectKey: string): string | null {
+    const cached = this.storageManager.get(objectKey)
+    if (cached && this.storageManager.isValid(cached, this.config.bufferTime * 1000)) {
+      console.log(`[OssResourceLoadManager] ⚡ 同步返回缓存 URL: ${objectKey}`)
+      return cached.signedUrl
+    }
+    return null
+  }
+  
+  /**
    * 预加载一批资源（后台加载，不阻塞）
    */
   prefetch(objectKeys: string[]): void {

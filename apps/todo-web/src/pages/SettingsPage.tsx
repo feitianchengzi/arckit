@@ -30,7 +30,7 @@ export default function SettingsPage() {
   const [saveError, setSaveError] = useState('')
   const [saveSuccess, setSaveSuccess] = useState(false)
   
-  // 初始化表单数据
+  // 初始化表单数据（只在组件挂载时执行一次，或 currentUser 从 null 变为有值时执行）
   useEffect(() => {
     console.log('[SettingsPage] 初始化用户数据, currentUser:', currentUser)
     
@@ -39,8 +39,21 @@ export default function SettingsPage() {
         username: currentUser.username,
         avatar: currentUser.avatar
       })
-      setUsername(currentUser.username || '')
-      setAvatar(currentUser.avatar || '')
+      // 只在首次设置或用户信息真正变化时才更新表单
+      setUsername(prev => {
+        const newValue = currentUser.username || ''
+        if (prev !== newValue) {
+          console.log('[SettingsPage] 用户名变化:', prev, '->', newValue)
+        }
+        return newValue
+      })
+      setAvatar(prev => {
+        const newValue = currentUser.avatar || ''
+        if (prev !== newValue) {
+          console.log('[SettingsPage] 头像变化:', prev, '->', newValue)
+        }
+        return newValue
+      })
     } else {
       // 如果 store 中没有用户信息，尝试查询
       console.log('[SettingsPage] store 中没有用户信息，开始获取...')
@@ -64,7 +77,10 @@ export default function SettingsPage() {
           setIsLoading(false)
         })
     }
-  }, [currentUser, setUser])
+    // 注意：这里只依赖 currentUser?.username 和 currentUser?.avatar，而不是整个 currentUser 对象
+    // 这样可以避免因为 currentUser 对象引用变化而重新执行
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUser?.username, currentUser?.avatar, setUser])
   
   // 加载状态
   if (isLoading) {
@@ -114,6 +130,7 @@ export default function SettingsPage() {
   
   // 处理取消
   const handleCancel = () => {
+    console.log('[SettingsPage] 取消编辑，恢复原始数据')
     if (currentUser) {
       setUsername(currentUser.username || '')
       setAvatar(currentUser.avatar || '')

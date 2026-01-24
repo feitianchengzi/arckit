@@ -9,7 +9,6 @@ export interface ResourceItem {
   objectKey: string           // 原始路径
   signedUrl: string            // 签名后的全路径（保证缓存期内一致性）
   expiresAt: number            // OSS 签名的实际过期时间戳（毫秒）
-  logicalExpiresAt: number     // 逻辑过期时间（实际过期时间 - 缓冲时间，默认1小时）
   status: 'loading' | 'ready' | 'error'
   size?: number                // 文件大小（可选）
   retryCount: number           // 重试次数

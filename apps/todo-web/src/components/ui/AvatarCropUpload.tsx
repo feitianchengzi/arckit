@@ -9,6 +9,7 @@ import { useState, useRef, useEffect } from 'react'
 import { ImageCropDialog } from './ImageCropDialog'
 import { uploadApi } from '@/lib/api/endpoints/upload'
 import { compressImage, dataURLtoFile } from '@/lib/utils/imageCompress'
+import { getAvatarUrl, getAvatarUrlSync } from '@/lib/oss/urlHelper'
 
 export interface AvatarCropUploadProps {
   /** 头像 URL */
@@ -38,9 +39,45 @@ export function AvatarCropUpload({
   const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // 同步外部value到preview
+  // 同步外部value到preview（支持 objectKey 自动转换）
   useEffect(() => {
-    setPreview(value)
+    console.log('[AvatarCropUpload] value 变化:', value)
+    
+    if (!value) {
+      setPreview(undefined)
+      return
+    }
+    
+    // 如果是完整 URL（http/https），直接使用
+    if (value.startsWith('http://') || value.startsWith('https://')) {
+      console.log('[AvatarCropUpload] 检测到完整 URL，直接使用:', value)
+      setPreview(value)
+      return
+    }
+    
+    // 如果是 objectKey，先尝试同步获取缓存（避免异步延迟）
+    const cachedUrl = getAvatarUrlSync(value)
+    if (cachedUrl) {
+      console.log('[AvatarCropUpload] ⚡ 同步获取缓存 URL 成功:', cachedUrl.substring(0, 50) + '...')
+      setPreview(cachedUrl)
+      return
+    }
+    
+    // 缓存未命中，异步获取
+    console.log('[AvatarCropUpload] 缓存未命中，异步获取 URL:', value)
+    getAvatarUrl(value)
+      .then((url) => {
+        console.log('[AvatarCropUpload] 获取头像 URL 成功:', url)
+        if (url) {
+          setPreview(url)
+        } else {
+          setPreview(undefined)
+        }
+      })
+      .catch((error) => {
+        console.error('[AvatarCropUpload] 获取头像 URL 失败:', error)
+        setPreview(undefined)
+      })
   }, [value])
 
   // 处理文件选择
@@ -176,6 +213,7 @@ export function AvatarCropUpload({
               src={preview}
               alt="Avatar preview"
               className="w-full h-full object-cover"
+              data-oss-key={value && !value.startsWith('http') ? value : undefined}
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-gray-400">

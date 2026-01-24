@@ -10,6 +10,7 @@ export { SignatureProvider } from './SignatureProvider'
 export { StatusMonitor } from './StatusMonitor'
 export { RequestCoordinator } from './RequestCoordinator'
 export { OssResourceLoadManager } from './OssResourceLoadManager'
+export { initErrorInterceptor, destroyErrorInterceptor } from './ErrorInterceptor'
 export type { ResourceItem, ResourceStatus, ManagerConfig } from './types'
 
 /**
