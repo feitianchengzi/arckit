@@ -71,6 +71,7 @@ export default function ProjectDetailPage() {
   const [visibleFilters, setVisibleFilters] = useState<string[]>(['status', 'creator', 'executor', 'tag', 'priority', 'dateRange'])
   const [hiddenFilters, setHiddenFilters] = useState<string[]>([])
   const [moreFiltersPosition, setMoreFiltersPosition] = useState<{ top: number; left: number } | null>(null)
+  const [searchFilterInMoreMenu, setSearchFilterInMoreMenu] = useState(false)
   
   // 从本地存储恢复筛选条件（按项目ID）
   const savedFilters = loadProjectFilterState(String(projectId))
@@ -656,9 +657,11 @@ export default function ProjectDetailPage() {
             moreFiltersMenuRef.current && !moreFiltersMenuRef.current.contains(target)) {
           setShowMoreFilters(false)
         }
-        // 点击外部关闭搜索框
+        // 点击外部关闭搜索框 - 如果有搜索内容，不能关闭
         if (showSearchBar && searchBarRef.current && !searchBarRef.current.contains(target)) {
-          setShowSearchBar(false)
+          if (!searchQuery.trim()) {
+            setShowSearchBar(false)
+          }
         }
       } catch (error) {
         // 忽略扩展相关的错误
@@ -700,6 +703,10 @@ export default function ProjectDetailPage() {
       // 如果重置按钮存在，使用实际宽度；如果不存在但应该显示，预留80px空间
       const resetButtonWidth = resetButton ? resetButton.offsetWidth + 16 : 80 + 16 // 16px gap
       
+      // 获取搜索筛选器的宽度（如果有搜索内容，需要预留空间）
+      const searchFilter = children.find(child => child.dataset.filterKey === 'search')
+      const searchFilterWidth = searchFilter ? searchFilter.offsetWidth + 16 : 0 // 16px gap
+      
       // 按顺序计算哪些筛选器可以显示
       const filterOrder = ['status', 'creator', 'executor', 'tag', 'priority', 'dateRange']
       let totalWidth = 0
@@ -707,6 +714,18 @@ export default function ProjectDetailPage() {
       
       // 预留"更多"按钮的空间（约80px，如果后续有隐藏的筛选器）
       const moreButtonWidth = 80 + 16 // 16px gap
+      
+      // 首先尝试在主行显示搜索筛选器
+      // 计算可用宽度（减去搜索和重置按钮的宽度）
+      let availableWidth = containerWidth - resetButtonWidth - searchFilterWidth
+      let searchFilterInMainRow = true
+      
+      // 如果搜索筛选器宽度为0（没有搜索内容），不需要预留空间
+      if (searchFilterWidth === 0) {
+        availableWidth = containerWidth - resetButtonWidth
+        searchFilterInMainRow = false
+        setSearchFilterInMoreMenu(false) // 没有搜索内容，不在"更多"菜单中显示
+      }
       
       for (const filterKey of filterOrder) {
         const child = children.find(c => c.dataset.filterKey === filterKey) as HTMLElement
@@ -716,16 +735,47 @@ export default function ProjectDetailPage() {
         
         // 检查是否还有更多筛选器需要隐藏
         const remainingFilters = filterOrder.slice(filterOrder.indexOf(filterKey) + 1)
-        const needsMoreButton = remainingFilters.length > 0
+        const needsMoreButton = remainingFilters.length > 0 || !searchFilterInMainRow
         
-        // 计算需要的总宽度
-        const neededWidth = totalWidth + width + resetButtonWidth + (needsMoreButton ? moreButtonWidth : 0)
+        // 计算需要的总宽度（使用可用宽度）
+        const neededWidth = totalWidth + width + (needsMoreButton ? moreButtonWidth : 0)
         
-        if (neededWidth <= containerWidth) {
+        if (neededWidth <= availableWidth) {
           totalWidth += width
           filterKeys.push(filterKey)
         } else {
           break
+        }
+      }
+      
+      // 如果搜索筛选器在主行显示不下，将其隐藏，放到"更多"菜单中
+      if (searchFilterWidth > 0) {
+        const totalNeededWidth = totalWidth + searchFilterWidth + resetButtonWidth + (filterKeys.length < filterOrder.length ? moreButtonWidth : 0)
+        if (totalNeededWidth > containerWidth) {
+          searchFilterInMainRow = false
+          // 重新计算可用宽度（不减去搜索筛选器宽度）
+          availableWidth = containerWidth - resetButtonWidth
+          totalWidth = 0
+          filterKeys.length = 0
+          
+          // 重新计算哪些筛选器可以显示
+          for (const filterKey of filterOrder) {
+            const child = children.find(c => c.dataset.filterKey === filterKey) as HTMLElement
+            if (!child) continue
+            
+            const width = child.offsetWidth + 16 // 16px gap
+            const remainingFilters = filterOrder.slice(filterOrder.indexOf(filterKey) + 1)
+            const needsMoreButton = remainingFilters.length > 0 || true // 搜索筛选器在"更多"中，所以总是需要"更多"按钮
+            
+            const neededWidth = totalWidth + width + (needsMoreButton ? moreButtonWidth : 0)
+            
+            if (neededWidth <= availableWidth) {
+              totalWidth += width
+              filterKeys.push(filterKey)
+            } else {
+              break
+            }
+          }
         }
       }
 
@@ -736,16 +786,22 @@ export default function ProjectDetailPage() {
       
       // 隐藏超出容器的筛选器
       children.forEach((child) => {
-        if (child.dataset.filterKey && child.dataset.filterKey !== 'reset' && child.dataset.filterKey !== 'more') {
-          if (!filterKeys.includes(child.dataset.filterKey)) {
+        const filterKey = child.dataset.filterKey
+        if (filterKey && filterKey !== 'reset' && filterKey !== 'more' && filterKey !== 'search') {
+          if (!filterKeys.includes(filterKey)) {
             child.style.display = 'none'
           } else {
             child.style.display = ''
           }
         }
         // 确保重置按钮始终显示（如果有筛选条件）
-        if (child.dataset.filterKey === 'reset') {
+        if (filterKey === 'reset') {
           child.style.display = ''
+        }
+        // 搜索筛选器：如果在主行显示，显示；否则隐藏（会在"更多"菜单中显示）
+        if (filterKey === 'search') {
+          child.style.display = searchFilterInMainRow ? '' : 'none'
+          setSearchFilterInMoreMenu(!searchFilterInMainRow)
         }
       })
     }
@@ -758,7 +814,7 @@ export default function ProjectDetailPage() {
       clearTimeout(timeoutId)
       window.removeEventListener('resize', calculateVisibleFilters)
     }
-  }, [statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, members, projectTags])
+  }, [statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, searchQuery, members, projectTags])
   
   // 保存编辑
   const handleEditSave = async () => {
@@ -903,14 +959,14 @@ export default function ProjectDetailPage() {
                   {/* X按钮 - 有内容时清除内容，无内容时关闭搜索框 */}
                   <button
                     onClick={() => {
-                      if (searchQuery) {
+                      if (searchQuery.trim()) {
                         setSearchQuery('')
                       } else {
                         setShowSearchBar(false)
                       }
                     }}
                     className="p-1.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-tertiary hover:text-foreground mr-1 flex-shrink-0"
-                    title={searchQuery ? "清除搜索" : "关闭搜索"}
+                    title={searchQuery.trim() ? "清除搜索" : "关闭搜索"}
                   >
                     <XIcon className="w-4 h-4" />
                   </button>
@@ -1186,11 +1242,11 @@ export default function ProjectDetailPage() {
             <div data-filter-key="tag" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
-                tagFilter !== null ? "text-orange-600" : "text-gray-600"
+                tagFilter !== null ? "text-warning" : "text-foreground-secondary"
               )}>
                 <TagFilterIcon className={clsx(
                   "w-4 h-4",
-                  tagFilter !== null ? "text-orange-500" : "text-gray-500"
+                  tagFilter !== null ? "text-warning" : "text-foreground-tertiary"
                 )} />
                 标签:
               </label>
@@ -1227,11 +1283,11 @@ export default function ProjectDetailPage() {
             <div data-filter-key="priority" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
-                priorityFilter !== null ? "text-orange-600" : "text-gray-600"
+                priorityFilter !== null ? "text-warning" : "text-foreground-secondary"
               )}>
                 <PriorityFilterIcon className={clsx(
                   "w-4 h-4",
-                  priorityFilter !== null ? "text-orange-500" : "text-gray-500"
+                  priorityFilter !== null ? "text-warning" : "text-foreground-tertiary"
                 )} />
                 优先级:
               </label>
@@ -1286,7 +1342,7 @@ export default function ProjectDetailPage() {
             </div>
             
             {/* 更多筛选器按钮 */}
-            {hiddenFilters.length > 0 && (
+            {(hiddenFilters.length > 0 || searchFilterInMoreMenu) && (
               <div data-filter-key="more" className="relative flex-shrink-0" ref={moreFiltersRef}>
                 <Button
                   variant="ghost"
@@ -1493,9 +1549,55 @@ export default function ProjectDetailPage() {
                         </div>
                       </div>
                     )}
+                    
+                    {/* 如果搜索筛选器在主行显示不下，在"更多"菜单中显示 */}
+                    {searchQuery.trim() && searchFilterInMoreMenu && (
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-warning">
+                          <SearchIcon className="w-4 h-4 text-warning" />
+                          搜索:
+                        </label>
+                        <div className="flex-1 px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-warning font-medium truncate" title={searchQuery}>
+                          {searchQuery.length > 10 ? `${searchQuery.slice(0, 10)}...` : searchQuery}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setSearchQuery('')
+                            setShowSearchBar(false)
+                          }}
+                          className="p-0.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-tertiary hover:text-foreground flex-shrink-0"
+                          title="清除搜索"
+                        >
+                          <XIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>,
                   document.body
                 )}
+              </div>
+            )}
+            
+            {/* 搜索筛选显示 - 紧挨着"重置筛选" */}
+            {searchQuery.trim() && (
+              <div data-filter-key="search" className="flex items-center gap-2 flex-shrink-0">
+                <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-warning">
+                  <SearchIcon className="w-4 h-4 text-warning" />
+                  搜索:
+                </label>
+                <div className="px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-warning font-medium max-w-[80px] truncate" title={searchQuery}>
+                  {searchQuery.length > 5 ? `${searchQuery.slice(0, 5)}...` : searchQuery}
+                </div>
+                <button
+                  onClick={() => {
+                    setSearchQuery('')
+                    setShowSearchBar(false)
+                  }}
+                  className="p-0.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-tertiary hover:text-foreground flex-shrink-0"
+                  title="清除搜索"
+                >
+                  <XIcon className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
             
