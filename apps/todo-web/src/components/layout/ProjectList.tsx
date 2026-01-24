@@ -50,10 +50,10 @@ export function ProjectList({ onItemClick }: ProjectListProps = {}) {
       {isLoading ? (
         <div className="px-3 py-2 flex items-center gap-2">
           <LoadingSpinner />
-          <span className="text-xs text-gray-500">加载中...</span>
+          <span className="text-xs text-foreground-secondary">加载中...</span>
         </div>
       ) : projects.length === 0 ? (
-        <div className="px-3 py-2 text-xs text-gray-500">
+        <div className="px-3 py-2 text-xs text-foreground-secondary">
           暂无项目
         </div>
       ) : (
@@ -65,8 +65,8 @@ export function ProjectList({ onItemClick }: ProjectListProps = {}) {
               'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
               'min-h-[44px]', // 移动端触摸优化
               {
-                'bg-primary-50 text-primary font-medium': currentProjectId === String(project.id),
-                'text-gray-700 hover:bg-gray-100': currentProjectId !== String(project.id),
+                'bg-primary-light text-primary font-medium': currentProjectId === String(project.id),
+                'text-foreground hover:bg-surface-hover': currentProjectId !== String(project.id),
               }
             )}
             title={project.name}
@@ -105,10 +105,10 @@ export function ProjectListContent({ onItemClick }: ProjectListProps = {}) {
       {isLoading ? (
         <div className="px-3 py-2 flex items-center gap-2">
           <LoadingSpinner />
-          <span className="text-xs text-gray-500">加载中...</span>
+          <span className="text-xs text-foreground-secondary">加载中...</span>
         </div>
       ) : projects.length === 0 ? (
-        <div className="px-3 py-2 text-xs text-gray-500">
+        <div className="px-3 py-2 text-xs text-foreground-secondary">
           暂无项目
         </div>
       ) : (
@@ -120,8 +120,8 @@ export function ProjectListContent({ onItemClick }: ProjectListProps = {}) {
               'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
               'min-h-[44px]', // 移动端触摸优化
               {
-                'bg-primary-50 text-primary font-medium': currentProjectId === String(project.id),
-                'text-gray-700 hover:bg-gray-100': currentProjectId !== String(project.id),
+                'bg-primary-light text-primary font-medium': currentProjectId === String(project.id),
+                'text-foreground hover:bg-surface-hover': currentProjectId !== String(project.id),
               }
             )}
             title={project.name}
@@ -165,7 +165,7 @@ function PlusIcon() {
 function LoadingSpinner() {
   return (
     <svg
-      className="w-3 h-3 animate-spin text-gray-400"
+      className="w-3 h-3 animate-spin text-foreground-tertiary"
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"

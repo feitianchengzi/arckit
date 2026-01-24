@@ -14,6 +14,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '@/store/authStore'
+import { useThemeStore } from '@/store/themeStore'
 import { ProjectListContent } from './ProjectList'
 import { Avatar } from '@/components/ui'
 
@@ -27,6 +28,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const navigate = useNavigate()
   const storeUser = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
+  const { theme, toggleTheme } = useThemeStore()
   
   // 使用 state 来避免 hydration 不匹配
   // 服务端和客户端首次渲染时都显示默认值，客户端 hydration 后再更新
@@ -88,8 +90,9 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
     <aside
       className={clsx(
         // 基础样式 - 使用 relative 定位，类似 Android RelativeLayout
-        'relative bg-white border-r border-gray-200',
+        'relative bg-surface-elevated border-r border-border',
         'w-64 z-50',
+        'transition-colors',
         // 桌面端：固定定位，不随内容滚动
         'lg:fixed lg:top-0 lg:left-0 lg:translate-x-0 lg:block',
         // 移动端/平板端：固定定位，支持滑动动画
@@ -106,18 +109,19 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
       style={{ height: '100vh', maxHeight: '100vh' }}
     >
       {/* 移动端/平板端：关闭按钮 */}
-      <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200">
+      <div className="lg:hidden flex items-center justify-between p-4">
         <div className="flex items-center gap-3">
           <div className="flex-shrink-0">
             <LogoIcon />
           </div>
-          <h2 className="text-lg font-bold text-gray-900">待办管理系统</h2>
+          <h2 className="text-lg font-bold text-foreground">待办管理系统</h2>
         </div>
         <button
           onClick={onClose}
           className={clsx(
             'w-10 h-10 flex items-center justify-center',
-            'text-gray-500 hover:text-gray-700 hover:bg-gray-100',
+            'text-foreground-secondary hover:text-foreground',
+            'hover:bg-surface-hover',
             'rounded-lg transition-colors',
             'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
           )}
@@ -148,7 +152,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         )}
       >
         {/* 桌面端：系统标题 */}
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6">
           <button
             onClick={() => handleNavClick('/projects')}
             className="w-full flex items-center gap-3 text-left"
@@ -157,14 +161,14 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
             <div className="flex-shrink-0">
               <LogoIcon />
             </div>
-            <h2 className="text-lg font-bold text-gray-900 hover:text-primary transition-colors">
+            <h2 className="text-lg font-bold text-foreground hover:text-primary transition-colors">
               待办管理系统
             </h2>
           </button>
         </div>
         
         {/* 我的待办 - 固定区域 */}
-        <div className="p-4 pb-2 border-b border-gray-200">
+        <div className="p-4 pb-2 border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}>
           <NavItem
             icon={<TasksIcon />}
             label="我的待办"
@@ -174,13 +178,13 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         </div>
         
         {/* 新建项目按钮 - 固定区域 */}
-        <div className="px-4 pb-2 border-b border-gray-200">
+        <div className="px-4 pb-2 border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}>
           <button
             onClick={() => handleNavClick('/projects/new')}
             className={clsx(
               'w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
               'min-h-[44px]', // 移动端触摸优化
-              'text-gray-700 hover:bg-gray-100'
+              'text-foreground hover:bg-surface-hover'
             )}
             title="新建项目"
             aria-label="新建项目"
@@ -211,34 +215,78 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
       <div 
         ref={bottomAreaRef}
         className={clsx(
-          'absolute left-0 right-0 bottom-0 p-6 border-t border-gray-200 bg-white',
+          'absolute left-0 right-0 bottom-0 p-6 border-t z-10',
+          'bg-surface-elevated',
           'lg:block',
+          'transition-colors',
           { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
         )}
+        style={{ 
+          borderTopWidth: '0.5px',
+          borderTopColor: 'var(--color-divider)'
+        }}
       >
-        <div className="flex items-center gap-3">
-          {/* 头像（可点击跳转到设置） */}
-          <button
-            onClick={() => handleNavClick('/settings')}
-            className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full"
-            title="设置"
-          >
-            <Avatar
-              user={user}
-              size="md"
-              showTooltip={true}
-            />
-          </button>
-          
-          {/* 用户名 */}
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            {/* 头像（可点击跳转到设置） */}
+            <button
+              onClick={() => handleNavClick('/settings')}
+              className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-full"
+              title="设置"
+            >
+              <Avatar
+                user={user}
+                size="md"
+                showTooltip={true}
+              />
+            </button>
+            
+            {/* 用户名 */}
+            <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">
               {displayUsername}
             </p>
-            <p className="text-xs text-gray-500">
-              开发者
-            </p>
+            <p className="text-xs text-foreground-secondary">
+                开发者
+              </p>
+            </div>
           </div>
+          
+          {/* 深色模式切换 */}
+          <button
+            onClick={toggleTheme}
+            className={clsx(
+              'w-full flex items-center justify-between px-3 py-2 rounded-md',
+              'text-sm text-foreground',
+              'hover:bg-surface-hover',
+              'transition-colors',
+              'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
+            )}
+            title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+            aria-label="切换深色模式"
+          >
+            <div className="flex items-center gap-2">
+              {theme === 'dark' ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+              )}
+              <span>{theme === 'dark' ? '深色模式' : '浅色模式'}</span>
+            </div>
+            <div className={clsx(
+              'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+              theme === 'dark' ? 'bg-primary' : 'bg-gray-300'
+            )}>
+              <span className={clsx(
+                'inline-block h-3.5 w-3.5 transform rounded-full transition-transform',
+                theme === 'dark' ? 'bg-white translate-x-5' : 'bg-white translate-x-0.5'
+              )} />
+            </div>
+          </button>
         </div>
       </div>
       
@@ -281,8 +329,8 @@ function NavItem({ icon, label, href, exact = false, onClick }: NavItemProps) {
         'w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors',
         'min-h-[44px]', // 移动端触摸优化
         {
-          'bg-primary-50 text-primary font-medium': isActive,
-          'text-gray-700 hover:bg-gray-100': !isActive,
+          'bg-primary-light text-primary font-medium': isActive,
+          'text-foreground hover:bg-surface-hover': !isActive,
         }
       )}
       aria-current={isActive ? 'page' : undefined}

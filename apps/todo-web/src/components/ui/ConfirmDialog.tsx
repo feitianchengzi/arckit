@@ -41,14 +41,14 @@ export function ConfirmDialog({
       {/* 对话框 */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4"
+          className="bg-surface-elevated rounded-lg shadow-xl max-w-md w-full p-6 space-y-4"
           onClick={(e) => e.stopPropagation()}
         >
           {/* 标题 */}
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
           
           {/* 内容 */}
-          <p className="text-sm text-gray-600">{message}</p>
+          <p className="text-sm text-foreground-secondary">{message}</p>
           
           {/* 按钮组 */}
           <div className="flex gap-3 justify-end pt-4">

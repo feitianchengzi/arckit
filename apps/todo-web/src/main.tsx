@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from './store/authStore'
+import { useThemeStore, initializeTheme } from './store/themeStore'
 import { initErrorInterceptor } from './lib/oss/load'
 import App from './App'
 import './globals.css'
@@ -58,6 +59,9 @@ const queryClient = new QueryClient({
 
 // 在应用启动前初始化认证状态
 useAuthStore.getState().initialize()
+
+// 初始化主题（必须在应用渲染前执行）
+initializeTheme()
 
 // 初始化 OSS 错误拦截器（自动修复 403 错误）
 initErrorInterceptor()

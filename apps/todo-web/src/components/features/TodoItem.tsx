@@ -61,7 +61,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
   
   const handleStatusChange = (newStatus: TodoStatus) => {
     if (onStatusChange) {
-      onStatusChange(todo.id, newStatus)
+      onStatusChange(todo.id, newStatus as string)
     }
   }
   
@@ -70,7 +70,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
       onClick={handleClick}
       className={clsx(
         'group',
-        'bg-white border border-gray-300',
+        'bg-surface-elevated border border-border',
         'p-3 space-y-2',
         'hover:shadow-md hover:border-primary transition-all cursor-pointer',
         className
@@ -79,7 +79,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
       {/* 头部：内容 + 状态/优先级 */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-medium text-gray-900 truncate mb-1.5" title={todo.content}>
+          <h3 className="text-base font-medium text-foreground truncate mb-1.5" title={todo.content}>
             {todo.content}
           </h3>
           
@@ -87,8 +87,8 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
           <div className="flex items-center gap-3 flex-wrap">
             {/* 标签 - 始终显示 */}
             <div className="flex items-center gap-1.5">
-              <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
-                <TagIcon className="w-3.5 h-3.5 text-gray-500" />
+              <span className="flex items-center gap-1 text-xs text-foreground-secondary font-bold">
+                <TagIcon className="w-3.5 h-3.5 text-foreground-secondary" />
                 标签
               </span>
               {isEditingTags && canEditTags && onUpdateTags ? (
@@ -127,7 +127,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                         setNewTagIds(parseTaskTags(todo.tags))
                         loadProjectTags(projectId).catch(console.error)
                       }}
-                      className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                      className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                       aria-label="设置标签"
                       title="设置标签"
                     >
@@ -137,7 +137,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                 </div>
               ) : (
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-400">无</span>
+                  <span className="text-xs text-foreground-tertiary">无</span>
                   {canEditTags && onUpdateTags && (
                     <button
                       onClick={(e) => {
@@ -146,7 +146,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                         setNewTagIds([])
                         loadProjectTags(projectId).catch(console.error)
                       }}
-                      className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                      className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                       aria-label="设置标签"
                       title="设置标签"
                     >
@@ -157,7 +157,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
               )}
             </div>
             {/* 分隔符 */}
-            <span className="text-gray-300">|</span>
+            <span className="text-foreground-tertiary">|</span>
             {/* 优先级 - 始终显示 */}
             <div className="flex items-center gap-1.5">
               <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
@@ -196,7 +196,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                         setIsEditingPriority(true)
                         setNewPriority(todo.priority ?? null)
                       }}
-                      className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                      className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                       aria-label="设置优先级"
                       title="设置优先级"
                     >
@@ -206,7 +206,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                 </div>
               ) : (
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-gray-400">未设定</span>
+                  <span className="text-xs text-foreground-tertiary">未设定</span>
                   {canEditPriority && onUpdatePriority && (
                     <button
                       onClick={(e) => {
@@ -214,7 +214,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                         setIsEditingPriority(true)
                         setNewPriority(null)
                       }}
-                      className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                      className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                       aria-label="设置优先级"
                       title="设置优先级"
                     >
@@ -245,8 +245,8 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
         <div className="flex items-center gap-5 flex-wrap">
           {/* 创建者 */}
           {todo.creator && (
-            <div className="flex items-center gap-0.5 text-xs text-gray-600 whitespace-nowrap">
-              <span className="text-gray-500 font-bold">创建：</span>
+            <div className="flex items-center gap-0.5 text-xs text-foreground-secondary whitespace-nowrap">
+              <span className="text-foreground-secondary font-bold">创建：</span>
               <Avatar user={todo.creator} size="xs" />
               <span className={clsx('font-medium', isCreator && 'text-blue-600')}>
                 {todo.creator.username}
@@ -255,8 +255,8 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
           )}
           
           {/* 执行者 - 始终显示 */}
-          <div className="flex items-center gap-0.5 text-xs text-gray-600 whitespace-nowrap">
-            <span className="text-gray-500 font-bold">执行：</span>
+          <div className="flex items-center gap-0.5 text-xs text-foreground-secondary whitespace-nowrap">
+            <span className="text-foreground-secondary font-bold">执行：</span>
             {todo.assignee ? (
               <div className="flex items-center gap-1">
                 <Avatar user={todo.assignee} size="xs" />
@@ -291,7 +291,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
               </div>
             ) : (
               <div className="flex items-center gap-1">
-                <span className="text-gray-400">未选定</span>
+                <span className="text-foreground-tertiary">未选定</span>
                 {canAssignAssignee && onUpdateAssignee && members.length > 0 && (
                   <button
                     onClick={(e) => {
@@ -328,7 +328,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
             <div
               className={clsx(
                 'w-full transition-all duration-300 ease-in-out',
-                isEditingAssignee ? 'max-h-[500px] opacity-100 mt-2 pt-2 border-t border-gray-200' : 'max-h-0 opacity-0'
+                isEditingAssignee ? 'max-h-[500px] opacity-100 mt-2 pt-2 border-t border-divider' : 'max-h-0 opacity-0'
               )}
               style={{ overflow: isEditingAssignee ? 'visible' : 'hidden' }}
               onClick={(e) => e.stopPropagation()}
@@ -391,7 +391,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                       }}
                       disabled={isSavingAssignee}
                       className={clsx(
-                        "relative flex flex-col items-center gap-0.5 px-1 py-1 transition-all hover:shadow-lg bg-white rounded border border-gray-200 shadow focus:outline-none focus:ring-0 w-[60px]",
+                        "relative flex flex-col items-center gap-0.5 px-1 py-1 transition-all hover:shadow-lg bg-surface-elevated rounded border border-border shadow focus:outline-none focus:ring-0 w-[60px]",
                         isSavingAssignee && "opacity-50 cursor-not-allowed"
                       )}
                     >
@@ -402,7 +402,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                         }}
                         size="xs"
                       />
-                      <span className="text-[10px] text-gray-700 text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
+                      <span className="text-[10px] text-foreground text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
                       {isSelected && (
                         <div className="absolute inset-0 bg-black/50 rounded-lg border border-white/50 flex items-center justify-center">
                           {isSavingAssignee ? (
@@ -435,7 +435,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
           )}
           
           {/* 创建时间 */}
-          <div className="flex items-center gap-1 text-xs text-gray-500">
+          <div className="flex items-center gap-1 text-xs text-foreground-secondary">
             <ClockIcon className="w-3.5 h-3.5" />
             <span>{formatDate(todo.createdAt)}</span>
           </div>
@@ -625,7 +625,7 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
           ref={buttonRef}
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[120px]"
+          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-border rounded bg-surface-elevated hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[120px]"
         >
           <div className="flex items-center gap-1 flex-1 min-w-0">
             {value !== undefined ? (
@@ -640,10 +640,10 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
                 <span className="truncate text-xs">{selectedUsername}</span>
               </>
             ) : (
-              <span className="text-gray-500 text-xs">未选定</span>
+              <span className="text-foreground-secondary text-xs">未选定</span>
             )}
           </div>
-          <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-3 h-3 text-foreground-tertiary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
@@ -670,7 +670,7 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
           type="button"
           onClick={onCancel}
           disabled={loading}
-          className="p-0.5 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          className="p-0.5 rounded bg-surface-active text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           aria-label="取消"
           title="取消"
         >
@@ -686,7 +686,7 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
           />
           <div
             ref={menuRef}
-            className="fixed z-[101] w-[240px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-80 overflow-auto"
+            className="fixed z-[101] w-[240px] bg-surface-elevated rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
             style={{
               top: `${menuPosition.top}px`,
               left: `${menuPosition.left}px`,
@@ -699,12 +699,12 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
                 setIsOpen(false)
               }}
               className={clsx(
-                'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-gray-100 transition-colors text-xs',
-                value === undefined && 'bg-gray-50'
+                'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
+                value === undefined && 'bg-surface-hover'
               )}
               style={{ borderBottom: 'none' }}
             >
-              <span className="text-xs text-gray-500">未选定</span>
+              <span className="text-xs text-foreground-secondary">未选定</span>
             </button>
             {members.map((member) => {
               const memberUsername = member.username || member.user?.username || '未知用户'
@@ -718,8 +718,8 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
                     setIsOpen(false)
                   }}
                   className={clsx(
-                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-gray-100 transition-colors text-xs',
-                    isSelected && 'bg-gray-50'
+                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
+                    isSelected && 'bg-surface-hover'
                   )}
                   style={{ borderBottom: 'none' }}
                 >
@@ -730,7 +730,7 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
                     }}
                     size="xs"
                   />
-                  <span className="text-xs text-gray-900 flex-1">{memberUsername}</span>
+                  <span className="text-xs text-foreground flex-1">{memberUsername}</span>
                   {isSelected && (
                     <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -827,13 +827,13 @@ function PrioritySelectorInline({ value, onChange, onSave, onCancel, loading }: 
           ref={buttonRef}
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
+          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-border rounded bg-surface-elevated hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
         >
           <div className="flex items-center gap-1 flex-1 min-w-0">
             <span>{selectedOption.icon}</span>
             <span className="truncate text-xs">{selectedOption.label}</span>
           </div>
-          <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-3 h-3 text-foreground-tertiary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
@@ -860,7 +860,7 @@ function PrioritySelectorInline({ value, onChange, onSave, onCancel, loading }: 
           type="button"
           onClick={onCancel}
           disabled={loading}
-          className="p-0.5 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          className="p-0.5 rounded bg-surface-active text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           aria-label="取消"
           title="取消"
         >
@@ -876,7 +876,7 @@ function PrioritySelectorInline({ value, onChange, onSave, onCancel, loading }: 
           />
           <div
             ref={menuRef}
-            className="fixed z-[101] w-[200px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-80 overflow-auto"
+            className="fixed z-[101] w-[200px] bg-surface-elevated rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
             style={{
               top: `${menuPosition.top}px`,
               left: `${menuPosition.left}px`,
@@ -893,13 +893,13 @@ function PrioritySelectorInline({ value, onChange, onSave, onCancel, loading }: 
                     setIsOpen(false)
                   }}
                   className={clsx(
-                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-gray-100 transition-colors text-xs',
-                    isSelected && 'bg-gray-50'
+                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
+                    isSelected && 'bg-surface-hover'
                   )}
                   style={{ borderBottom: 'none' }}
                 >
                   <span className="text-xs">{option.icon}</span>
-                  <span className="text-xs text-gray-900 flex-1">{option.label}</span>
+                  <span className="text-xs text-foreground flex-1">{option.label}</span>
                   {isSelected && (
                     <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -1011,7 +1011,7 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
           ref={buttonRef}
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
+          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-border rounded bg-surface-elevated hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
         >
           <div className="flex items-center gap-1 flex-1 min-w-0">
             {selectedTags.length > 0 ? (
@@ -1024,10 +1024,10 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
                 )}
               </>
             ) : (
-              <span className="text-gray-500 text-xs truncate">{getButtonText()}</span>
+              <span className="text-foreground-secondary text-xs truncate">{getButtonText()}</span>
             )}
           </div>
-          <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-3 h-3 text-foreground-tertiary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
@@ -1054,7 +1054,7 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
           type="button"
           onClick={onCancel}
           disabled={loading}
-          className="p-0.5 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          className="p-0.5 rounded bg-surface-active text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
           aria-label="取消"
           title="取消"
         >
@@ -1070,7 +1070,7 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
           />
           <div
             ref={menuRef}
-            className="fixed z-[101] w-[280px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-[400px] overflow-auto"
+            className="fixed z-[101] w-[280px] bg-surface-elevated rounded-lg shadow-lg border border-border py-1 max-h-[400px] overflow-auto"
             style={{
               top: `${menuPosition.top}px`,
               left: `${menuPosition.left}px`,
@@ -1085,7 +1085,7 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
                       key={tag.id}
                       className={clsx(
                         'px-2 py-1.5 hover:bg-gray-100 transition-colors',
-                        isSelected && 'bg-gray-50'
+                        isSelected && 'bg-surface-hover'
                       )}
                     >
                       <label className="flex items-center gap-2 cursor-pointer">
@@ -1103,7 +1103,7 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
                 })}
               </div>
             ) : (
-              <div className="px-3 py-4 text-xs text-gray-500 text-center">
+              <div className="px-3 py-4 text-xs text-foreground-secondary text-center">
                 暂无标签
               </div>
             )}

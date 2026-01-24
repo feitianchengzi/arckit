@@ -31,7 +31,7 @@ export function ProjectCard({ project, className }: ProjectCardProps) {
       onClick={handleClick}
       className={clsx(
         'w-full text-left',
-        'bg-white rounded-lg shadow-sm border border-gray-200',
+        'bg-surface-elevated rounded-lg shadow-sm border border-border',
         'p-6 space-y-3',
         'hover:shadow-md hover:border-primary transition-all',
         'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
@@ -40,24 +40,24 @@ export function ProjectCard({ project, className }: ProjectCardProps) {
     >
       {/* 项目名称 */}
       <div className="flex items-start justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 line-clamp-1">
+        <h3 className="text-lg font-semibold text-foreground line-clamp-1">
           {project.name}
         </h3>
         
         {/* 项目图标 */}
-        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary-50 flex items-center justify-center">
+        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-primary-light flex items-center justify-center">
           <FolderIcon className="w-6 h-6 text-primary" />
         </div>
       </div>
       
       {/* Git 地址 */}
-      <div className="flex items-center gap-2 text-sm text-gray-600">
+      <div className="flex items-center gap-2 text-sm text-foreground-secondary">
         <GitIcon className="w-4 h-4" />
         <span className="truncate">{project.git_url}</span>
       </div>
       
       {/* 底部信息 */}
-      <div className="flex items-center justify-between text-xs text-gray-500">
+      <div className="flex items-center justify-between text-xs text-foreground-secondary">
         <div className="flex items-center gap-1">
           <UserIcon className="w-4 h-4" />
           <span>{project.creator?.username || '未知'}</span>

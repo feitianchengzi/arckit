@@ -52,9 +52,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           // 变体样式
           {
             'bg-primary text-white hover:bg-primary-700 focus:ring-primary': variant === 'primary',
-            'bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500': variant === 'secondary',
+            'bg-surface-active text-foreground hover:bg-surface-hover focus:ring-gray-500': variant === 'secondary',
             'bg-error text-white hover:bg-red-600 focus:ring-error': variant === 'danger',
-            'bg-transparent text-primary hover:bg-primary-50 focus:ring-primary': variant === 'ghost',
+            'bg-transparent text-primary hover:bg-primary-light focus:ring-primary': variant === 'ghost',
           },
           
           // 尺寸样式

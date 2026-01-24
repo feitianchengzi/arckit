@@ -4,56 +4,16 @@
  * 重要：所有组件必须使用这些 token，不允许硬编码设计值
  * 
  * 使用方式：
- * 1. 在 Tailwind 配置中引用这些 CSS 变量
- * 2. 在组件中使用 Tailwind 类名（如 bg-primary, text-lg）
- * 3. 不要直接使用 var(--color-primary)，而是通过 Tailwind
+ * 1. 导入统一的颜色配置 colors.css
+ * 2. 在 Tailwind 配置中引用这些 CSS 变量
+ * 3. 在组件中使用语义化的 Tailwind 类名（如 bg-surface, text-foreground）
+ * 4. 不要直接使用 var(--color-*)，而是通过 Tailwind 类名
  */
 
+/* 导入统一的颜色配置 */
+@import './colors.css';
+
 :root {
-  /* ==================== Colors ==================== */
-  
-  /* Primary - 主色（蓝色） */
-  --color-primary: #2563EB;
-  --color-primary-50: #EFF6FF;
-  --color-primary-100: #DBEAFE;
-  --color-primary-200: #BFDBFE;
-  --color-primary-300: #93C5FD;
-  --color-primary-400: #60A5FA;
-  --color-primary-500: #3B82F6;
-  --color-primary-600: #2563EB;
-  --color-primary-700: #1D4ED8;
-  --color-primary-800: #1E40AF;
-  --color-primary-900: #1E3A8A;
-  
-  /* Semantic Colors - 语义化颜色 */
-  --color-success: #10B981;
-  --color-success-light: #D1FAE5;
-  --color-warning: #F59E0B;
-  --color-warning-light: #FEF3C7;
-  --color-error: #EF4444;
-  --color-error-light: #FEE2E2;
-  --color-info: #3B82F6;
-  --color-info-light: #DBEAFE;
-  
-  /* Neutral Colors - 中性色 */
-  --color-gray-50: #F9FAFB;
-  --color-gray-100: #F3F4F6;
-  --color-gray-200: #E5E7EB;
-  --color-gray-300: #D1D5DB;
-  --color-gray-400: #9CA3AF;
-  --color-gray-500: #6B7280;
-  --color-gray-600: #4B5563;
-  --color-gray-700: #374151;
-  --color-gray-800: #1F2937;
-  --color-gray-900: #111827;
-  
-  /* Background & Text */
-  --color-background: #FFFFFF;
-  --color-text-primary: #111827;
-  --color-text-secondary: #6B7280;
-  --color-text-tertiary: #9CA3AF;
-  --color-border: #E5E7EB;
-  
   /* ==================== Spacing ==================== */
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -96,10 +56,26 @@
   --radius-full: 9999px;
   
   /* ==================== Shadows ==================== */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  /* 阴影已在 colors.css 中定义，这里不再重复定义 */
+  
+  /* ==================== 兼容性变量 ==================== */
+  /* 为了向后兼容，保留旧的变量名 */
+  --color-background: var(--color-surface);
+  --color-text-primary: var(--color-foreground);
+  --color-text-secondary: var(--color-foreground-secondary);
+  --color-text-tertiary: var(--color-foreground-tertiary);
+  
+  /* Primary 色阶（向后兼容） */
+  --color-primary-50: var(--color-primary-lighter);
+  --color-primary-100: var(--color-primary-light);
+  --color-primary-200: var(--color-primary-light);
+  --color-primary-300: var(--color-primary);
+  --color-primary-400: var(--color-primary);
+  --color-primary-500: var(--color-primary);
+  --color-primary-600: var(--color-primary-hover);
+  --color-primary-700: var(--color-primary-active);
+  --color-primary-800: var(--color-primary-active);
+  --color-primary-900: var(--color-primary-active);
   
   /* ==================== Animation ==================== */
   --duration-fast: 150ms;

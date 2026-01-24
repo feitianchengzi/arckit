@@ -862,8 +862,8 @@ export default function MyTasksPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">我的待办</h1>
-          <p className="mt-2 text-gray-600">查看分配给您的待办</p>
+          <h1 className="text-3xl font-bold text-foreground">我的待办</h1>
+          <p className="mt-2 text-foreground-secondary">查看分配给您的待办</p>
         </div>
         
           <EmptyStateView
@@ -881,8 +881,8 @@ export default function MyTasksPage() {
       {/* 页面头部 */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">我的待办</h1>
-          <p className="mt-1 md:mt-2 text-sm md:text-base text-gray-600">
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">我的待办</h1>
+          <p className="mt-1 md:mt-2 text-sm md:text-base text-foreground-secondary">
             共 {filteredTasks.length} 个待办
           </p>
         </div>
@@ -898,7 +898,7 @@ export default function MyTasksPage() {
               onClick={() => {
                 setShowSearchBar(true)
               }}
-              className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+              className="p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
               title="搜索"
             >
               <SearchIcon className="w-5 h-5" />
@@ -913,7 +913,7 @@ export default function MyTasksPage() {
               : "opacity-0 translate-x-4 pointer-events-none"
           )}>
             <div className={clsx(
-              "flex items-center bg-white border border-gray-300 rounded-md shadow-sm overflow-hidden transition-all duration-300 ease-in-out h-[40px]",
+              "flex items-center bg-surface-elevated border border-border rounded-md shadow-sm overflow-hidden transition-all duration-300 ease-in-out h-[40px]",
               showSearchBar ? "w-[320px]" : "w-0"
             )}>
               <div className="flex items-center px-3 py-2 flex-shrink-0">
@@ -936,7 +936,7 @@ export default function MyTasksPage() {
                     setShowSearchBar(false)
                   }
                 }}
-                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 mr-1 flex-shrink-0"
+                className="p-1.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground mr-1 flex-shrink-0"
                 title={searchQuery ? "清除搜索" : "关闭搜索"}
               >
                 <XIcon className="w-4 h-4" />
@@ -947,9 +947,9 @@ export default function MyTasksPage() {
       </div>
       
       {/* 待办列表 - 使用和项目详情页相同的样式 */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-surface-elevated rounded-lg shadow-md p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">待办列表</h2>
+          <h2 className="text-xl font-semibold text-foreground">待办列表</h2>
           
           {/* 全部折叠/展开按钮 */}
           {filteredTasks.length > 0 && (() => {
@@ -994,7 +994,7 @@ export default function MyTasksPage() {
             <div data-filter-key="status" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
-                statusFilter !== 'ALL' ? "text-orange-600" : "text-gray-600"
+                statusFilter !== 'ALL' ? "text-warning" : "text-foreground-secondary"
               )}>
                 <StatusFilterIcon className={clsx(
                   "w-4 h-4",
@@ -1010,8 +1010,8 @@ export default function MyTasksPage() {
                     setStatusFilter(value as TodoStatus | 'ALL')
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
-                    statusFilter !== 'ALL' ? "text-orange-600 font-medium" : "text-gray-900"
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    statusFilter !== 'ALL' ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
                   <option value="ALL">全部</option>
@@ -1028,11 +1028,11 @@ export default function MyTasksPage() {
             <div data-filter-key="creator" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
-                creatorFilter !== null ? "text-orange-600" : "text-gray-600"
+                creatorFilter !== null ? "text-warning" : "text-foreground-secondary"
               )}>
                 <CreatorFilterIcon className={clsx(
                   "w-4 h-4",
-                  creatorFilter !== null ? "text-orange-500" : "text-gray-500"
+                  creatorFilter !== null ? "text-warning" : "text-foreground-tertiary"
                 )} />
                 创建人:
               </label>
@@ -1059,8 +1059,8 @@ export default function MyTasksPage() {
                     }
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
-                    creatorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    creatorFilter !== null ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
                   <option value="">全部</option>
@@ -1115,8 +1115,8 @@ export default function MyTasksPage() {
                     }
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
-                    executorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    executorFilter !== null ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
                   <option value="">全部</option>
@@ -1165,8 +1165,8 @@ export default function MyTasksPage() {
                     }
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
-                    tagFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    tagFilter !== null ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
                   <option value="">全部</option>
@@ -1225,8 +1225,8 @@ export default function MyTasksPage() {
                     }
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
-                    priorityFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    priorityFilter !== null ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
                   <option value="">全部</option>
@@ -1267,7 +1267,7 @@ export default function MyTasksPage() {
                 {showMoreFilters && moreFiltersPosition && createPortal(
                   <div 
                     ref={moreFiltersMenuRef}
-                    className="fixed w-64 bg-white border-2 border-gray-200 rounded-md shadow-xl z-[100] p-4 space-y-3" 
+                    className="fixed w-64 bg-surface-elevated border-2 border-border rounded-md shadow-xl z-[100] p-4 space-y-3" 
                     style={{ 
                       top: `${moreFiltersPosition.top}px`,
                       left: `${moreFiltersPosition.left}px`,
@@ -1277,7 +1277,7 @@ export default function MyTasksPage() {
                   >
                     {hiddenFilters.includes('creator') && (
                       <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
                           <CreatorFilterIcon className="w-4 h-4 text-gray-500" />
                           创建人:
                         </label>
@@ -1302,7 +1302,7 @@ export default function MyTasksPage() {
                               }
                             }
                           }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                          className="flex-1 px-2 py-1 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         >
                           <option value="">全部</option>
                           {currentUserId && (
@@ -1319,7 +1319,7 @@ export default function MyTasksPage() {
                     
                     {hiddenFilters.includes('executor') && (
                       <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
                           <ExecutorFilterIcon className="w-4 h-4 text-gray-500" />
                           执行人:
                         </label>
@@ -1348,7 +1348,7 @@ export default function MyTasksPage() {
                               }
                             }
                           }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                          className="flex-1 px-2 py-1 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         >
                           <option value="">全部</option>
                           <option value="UNASSIGNED">未分配</option>
@@ -1366,7 +1366,7 @@ export default function MyTasksPage() {
                     
                     {hiddenFilters.includes('tag') && (
                       <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
                           <TagFilterIcon className="w-4 h-4 text-gray-500" />
                           标签:
                         </label>
@@ -1388,7 +1388,7 @@ export default function MyTasksPage() {
                               }
                             }
                           }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                          className="flex-1 px-2 py-1 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         >
                           <option value="">全部</option>
                           {Array.from(allTagsByProject.entries()).map(([projectId, tags]) => {
@@ -1409,7 +1409,7 @@ export default function MyTasksPage() {
                     
                     {hiddenFilters.includes('priority') && (
                       <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
                           <PriorityFilterIcon className="w-4 h-4 text-gray-500" />
                           优先级:
                         </label>
@@ -1438,7 +1438,7 @@ export default function MyTasksPage() {
                               }
                             }
                           }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                          className="flex-1 px-2 py-1 text-sm border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                         >
                           <option value="">全部</option>
                           <option value="ALL">有优先级</option>
@@ -1453,7 +1453,7 @@ export default function MyTasksPage() {
                     
                     {hiddenFilters.includes('dateRange') && (
                       <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
                           <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>

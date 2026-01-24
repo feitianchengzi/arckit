@@ -82,7 +82,7 @@ export function TodoTreeItem({
   // 计算背景色渐变（子任务层级越深背景色越深，展开状态下使用不同颜色）
   const getBackgroundColor = (depth: number, isExpandedState: boolean): string => {
     if (depth === 0) {
-      return 'bg-white' // 根任务：白色
+      return 'bg-surface-elevated' // 根任务：使用语义化背景色
     }
     
     // 如果父任务展开，子任务使用淡蓝色调表示展开状态
@@ -100,11 +100,11 @@ export function TodoTreeItem({
     
     // 父任务未展开时的默认灰色
     const childColors = [
-      'bg-gray-100',      // 第1代子任务：浅灰
-      'bg-gray-200',      // 第2代子任务：中灰
-      'bg-gray-300',      // 第3代子任务：深灰
-      'bg-gray-400',      // 第4代子任务：更深灰
-      'bg-gray-500',      // 第5代子任务：最深灰
+      'bg-surface-hover',      // 第1代子任务：浅灰
+      'bg-surface-active',      // 第2代子任务：中灰
+      'bg-surface-disabled',      // 第3代子任务：深灰
+      'bg-surface-disabled',      // 第4代子任务：更深灰
+      'bg-surface-disabled',      // 第5代子任务：最深灰
     ]
     const colorIndex = Math.min(depth - 1, childColors.length - 1)
     return childColors[colorIndex] || childColors[childColors.length - 1]
@@ -131,7 +131,7 @@ export function TodoTreeItem({
   // 状态变更处理
   const handleStatusChange = (newStatus: TodoStatus) => {
     if (onStatusChange) {
-      onStatusChange(todo.id, newStatus)
+      onStatusChange(todo.id, newStatus as string)
     }
   }
   
@@ -166,8 +166,8 @@ export function TodoTreeItem({
           'group',
           backgroundColor, // 使用渐变背景色
           isChildTask
-            ? 'border-t border-gray-300' // 子任务：只有上分割线
-            : 'border border-gray-300', // 根任务：完整border（颜色加深）
+            ? 'border-t border-border' // 子任务：只有上分割线
+            : 'border border-border', // 根任务：完整border
           !isChildTask && 'hover:shadow-md hover:border-primary transition-all' // 根任务hover效果
         )}
       >
@@ -177,14 +177,14 @@ export function TodoTreeItem({
           className={clsx(
             'p-3 space-y-2',
             'cursor-pointer',
-            hasChildren && isExpanded && !isChildTask && 'border-b border-gray-200' // 根任务有子任务且展开时添加底部分隔线
+            hasChildren && isExpanded && !isChildTask && 'border-b border-divider' // 根任务有子任务且展开时添加底部分隔线
           )}
         >
           {/* 头部：内容 + 状态 */}
           <div className="flex items-start gap-3">
             {/* 任务内容和标签/优先级 */}
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-medium text-gray-900 truncate mb-1.5" title={todo.content}>
+              <h3 className="text-base font-medium text-foreground truncate mb-1.5" title={todo.content}>
                 {todo.content}
               </h3>
               
@@ -192,8 +192,8 @@ export function TodoTreeItem({
               <div className="flex items-center gap-3 flex-wrap">
                 {/* 标签 - 始终显示 */}
                 <div className="flex items-center gap-1.5">
-                  <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
-                    <TagIcon className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="flex items-center gap-1 text-xs text-foreground-secondary font-bold">
+                    <TagIcon className="w-3.5 h-3.5 text-foreground-secondary" />
                     标签
                   </span>
                   {isEditingTags && canEditTags && onUpdateTags ? (
@@ -232,7 +232,7 @@ export function TodoTreeItem({
                             setNewTagIds(parseTaskTags(todo.tags))
                             loadProjectTags(projectId).catch(console.error)
                           }}
-                          className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                          className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                           aria-label="设置标签"
                           title="设置标签"
                         >
@@ -242,7 +242,7 @@ export function TodoTreeItem({
                     </div>
                   ) : (
                     <div className="flex items-center gap-1">
-                      <span className="text-xs text-gray-400">无</span>
+                      <span className="text-xs text-foreground-tertiary">无</span>
                       {canEditTags && onUpdateTags && (
                         <button
                           onClick={(e) => {
@@ -251,7 +251,7 @@ export function TodoTreeItem({
                             setNewTagIds([])
                             loadProjectTags(projectId).catch(console.error)
                           }}
-                          className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                          className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                           aria-label="设置标签"
                           title="设置标签"
                         >
@@ -262,11 +262,11 @@ export function TodoTreeItem({
                   )}
                 </div>
                 {/* 分隔符 */}
-                <span className="text-gray-300">|</span>
+                <span className="text-foreground-tertiary">|</span>
                 {/* 优先级 - 始终显示 */}
                 <div className="flex items-center gap-1.5">
-                  <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
-                    <PriorityIcon className="w-3.5 h-3.5 text-gray-500" />
+                  <span className="flex items-center gap-1 text-xs text-foreground-secondary font-bold">
+                    <PriorityIcon className="w-3.5 h-3.5 text-foreground-secondary" />
                     优先级
                   </span>
                   {isEditingPriority && canEditPriority && onUpdatePriority ? (
@@ -301,7 +301,7 @@ export function TodoTreeItem({
                             setIsEditingPriority(true)
                             setNewPriority(todo.priority ?? null)
                           }}
-                          className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                          className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                           aria-label="设置优先级"
                           title="设置优先级"
                         >
@@ -311,7 +311,7 @@ export function TodoTreeItem({
                     </div>
                   ) : (
                     <div className="flex items-center gap-1">
-                      <span className="text-xs text-gray-400">未设定</span>
+                      <span className="text-xs text-foreground-tertiary">未设定</span>
                       {canEditPriority && onUpdatePriority && (
                         <button
                           onClick={(e) => {
@@ -319,7 +319,7 @@ export function TodoTreeItem({
                             setIsEditingPriority(true)
                             setNewPriority(null)
                           }}
-                          className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                          className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                           aria-label="设置优先级"
                           title="设置优先级"
                         >
@@ -351,8 +351,8 @@ export function TodoTreeItem({
             <div className="flex items-center gap-5 flex-wrap">
               {/* 创建者 */}
               {todo.creator && (
-                <div className="flex items-center gap-0.5 text-xs text-gray-600 whitespace-nowrap">
-                  <span className="text-gray-500 font-bold">创建：</span>
+                <div className="flex items-center gap-0.5 text-xs text-foreground-secondary whitespace-nowrap">
+                  <span className="text-foreground-secondary font-bold">创建：</span>
                   <Avatar user={todo.creator} size="xs" />
                   <span
                     className={clsx(
@@ -369,8 +369,8 @@ export function TodoTreeItem({
               )}
               
               {/* 执行者 - 始终显示 */}
-              <div className="flex items-center gap-0.5 text-xs text-gray-600 whitespace-nowrap">
-                <span className="text-gray-500 font-bold">执行：</span>
+              <div className="flex items-center gap-0.5 text-xs text-foreground-secondary whitespace-nowrap">
+                <span className="text-foreground-secondary font-bold">执行：</span>
                 {isEditingAssignee && canAssignAssignee && onUpdateAssignee && members.length > 0 ? (
                   <AssigneeSelectorInline
                     members={members}
@@ -415,7 +415,7 @@ export function TodoTreeItem({
                           setIsEditingAssignee(true)
                           setNewAssigneeId(todo.assigneeId || undefined)
                         }}
-                        className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                        className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                         aria-label="更换执行人"
                         title="更换执行人"
                       >
@@ -425,7 +425,7 @@ export function TodoTreeItem({
                   </div>
                 ) : (
                   <div className="flex items-center gap-1">
-                    <span className="text-gray-400">未选定</span>
+                    <span className="text-foreground-tertiary">未选定</span>
                     {canAssignAssignee && onUpdateAssignee && members.length > 0 && (
                       <button
                         onClick={(e) => {
@@ -433,7 +433,7 @@ export function TodoTreeItem({
                           setIsEditingAssignee(true)
                           setNewAssigneeId(undefined)
                         }}
-                        className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                        className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                         aria-label="设置执行人"
                         title="设置执行人"
                       >
@@ -453,7 +453,7 @@ export function TodoTreeItem({
                   className={clsx(
                     "flex items-center gap-1 text-xs transition-colors",
                     isExpanded 
-                      ? "text-gray-700 hover:text-gray-900" 
+                      ? "text-foreground hover:text-foreground" 
                       : "text-primary hover:text-primary-600"
                   )}
                   title={isExpanded ? '折叠子任务' : '展开子任务'}
@@ -465,7 +465,7 @@ export function TodoTreeItem({
               )}
               
               {/* 创建时间 */}
-              <div className="flex items-center gap-1 text-xs text-gray-500">
+              <div className="flex items-center gap-1 text-xs text-foreground-secondary">
                 <ClockIcon className="w-3.5 h-3.5" />
                 <span>{formatDate(todo.createdAt)}</span>
               </div>
@@ -631,7 +631,7 @@ function PrioritySelectorInline({ value, onChange, onSave, onCancel, loading }: 
           ref={buttonRef}
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
+          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-border rounded bg-surface-elevated hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
         >
           <div className="flex items-center gap-1 flex-1 min-w-0">
             <span>{selectedOption.icon}</span>
@@ -680,7 +680,7 @@ function PrioritySelectorInline({ value, onChange, onSave, onCancel, loading }: 
           />
           <div
             ref={menuRef}
-            className="fixed z-[101] w-[200px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-80 overflow-auto"
+            className="fixed z-[101] w-[200px] bg-surface-elevated rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
             style={{
               top: `${menuPosition.top}px`,
               left: `${menuPosition.left}px`,
@@ -865,7 +865,7 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
           ref={buttonRef}
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[120px]"
+          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-border rounded bg-surface-elevated hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[120px]"
         >
           <div className="flex items-center gap-1 flex-1 min-w-0">
             {value !== undefined ? (
@@ -926,7 +926,7 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
           />
           <div
             ref={menuRef}
-            className="fixed z-[101] w-[240px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-80 overflow-auto"
+            className="fixed z-[101] w-[240px] bg-surface-elevated rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
             style={{
               top: `${menuPosition.top}px`,
               left: `${menuPosition.left}px`,
@@ -1081,7 +1081,7 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
           ref={buttonRef}
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
+          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-border rounded bg-surface-elevated hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
         >
           <div className="flex items-center gap-1 flex-1 min-w-0">
             {selectedTags.length > 0 ? (

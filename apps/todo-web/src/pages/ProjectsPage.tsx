@@ -117,10 +117,10 @@ export default function ProjectsHomePage() {
       <div className="text-center space-y-4 md:space-y-6 max-w-2xl w-full px-4 md:px-6">
         {/* 欢迎标题 */}
         <div className="space-y-2 md:space-y-3">
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900">
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-foreground">
             欢迎使用项目管理系统
           </h1>
-          <p className="text-base md:text-lg text-gray-600">
+          <p className="text-base md:text-lg text-foreground-secondary">
             从左侧边栏选择一个项目开始工作
           </p>
         </div>
@@ -139,18 +139,18 @@ export default function ProjectsHomePage() {
         </div>
 
         {/* 提示信息 */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 md:p-6 text-left">
+        <div className="bg-info-lighter border border-info-light rounded-lg p-4 md:p-6 text-left">
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0">
-              <svg className="w-5 h-5 md:w-6 md:h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 md:w-6 md:h-6 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
             <div className="flex-1 space-y-2">
-              <h3 className="font-semibold text-sm md:text-base text-blue-900">
+              <h3 className="font-semibold text-sm md:text-base text-info">
                 快速开始
               </h3>
-              <ul className="space-y-1 text-xs md:text-sm text-blue-800">
+              <ul className="space-y-1 text-xs md:text-sm text-foreground-secondary">
                 <li>• 在左侧边栏点击 <strong>项目列表</strong> 查看所有项目</li>
                 <li>• 点击具体项目名称查看项目详情和任务</li>
                 <li>• 点击项目列表旁的 <strong>+</strong> 按钮创建新项目</li>
@@ -161,7 +161,7 @@ export default function ProjectsHomePage() {
 
         {/* 装饰性图标 */}
         <div className="hidden md:flex justify-center gap-6 md:gap-8 pt-6 md:pt-8 opacity-30">
-          <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-12 h-12 md:w-16 md:h-16 text-foreground-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
           </svg>
           <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

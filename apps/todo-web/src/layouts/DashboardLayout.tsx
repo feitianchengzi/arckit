@@ -38,15 +38,15 @@ export default function DashboardLayout() {
   }, [sidebarOpen])
 
   return (
-    <div className="min-h-screen bg-gray-50 flex relative">
+    <div className="min-h-screen bg-surface flex relative transition-colors">
       {/* 移动端菜单按钮 */}
       <button
         onClick={() => setSidebarOpen(true)}
         className={clsx(
           'lg:hidden fixed top-4 left-4 z-50',
           'w-11 h-11 flex items-center justify-center',
-          'bg-white rounded-lg shadow-md',
-          'text-gray-700 hover:bg-gray-100',
+          'bg-surface-elevated rounded-lg shadow-md',
+          'text-foreground hover:bg-surface-hover',
           'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
           'transition-colors'
         )}

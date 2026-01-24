@@ -61,22 +61,22 @@ export function Dialog({
               leaveTo="opacity-0 scale-95"
             >
               <HeadlessDialog.Panel
-                className={`w-full ${maxWidthClasses[maxWidth]} transform overflow-hidden rounded-xl bg-white shadow-xl transition-all`}
+                className={`w-full ${maxWidthClasses[maxWidth]} transform overflow-hidden rounded-xl bg-surface-elevated shadow-xl transition-all`}
               >
                 {/* 标题区域 */}
                 {(title || showCloseButton) && (
-                  <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4">
+                  <div className="flex items-start justify-between border-b border-divider px-6 py-4">
                     <div className="flex-1">
                       {title && (
                         <HeadlessDialog.Title
                           as="h2"
-                          className="text-xl font-semibold text-gray-900"
+                          className="text-xl font-semibold text-foreground"
                         >
                           {title}
                         </HeadlessDialog.Title>
                       )}
                       {description && (
-                        <HeadlessDialog.Description className="mt-1 text-sm text-gray-500">
+                        <HeadlessDialog.Description className="mt-1 text-sm text-foreground-secondary">
                           {description}
                         </HeadlessDialog.Description>
                       )}
@@ -84,7 +84,7 @@ export function Dialog({
                     {showCloseButton && (
                       <button
                         type="button"
-                        className="ml-4 text-gray-400 hover:text-gray-500"
+                        className="ml-4 text-foreground-tertiary hover:text-foreground"
                         onClick={onClose}
                       >
                         <svg

@@ -9,6 +9,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Button, TextField, LoadingView, ErrorView, Avatar } from '@/components/ui'
 import { AvatarCropUpload } from '@/components/ui/AvatarCropUpload'
 import { useAuthStore } from '@/store/authStore'
+import { useThemeStore } from '@/store/themeStore'
 import { useLogout, useFirstTimeSetup } from '@/hooks/useAuth'
 import { todoUserApi } from '@/lib/api/endpoints/auth'
 import { getAuthInfo } from '@/lib/utils/tokenManager'
@@ -19,6 +20,7 @@ export default function SettingsPage() {
   const currentUser = useAuthStore((state) => state.user)
   const logoutMutation = useLogout()
   const updateUserMutation = useFirstTimeSetup()
+  const { theme, toggleTheme } = useThemeStore()
   
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -144,14 +146,14 @@ export default function SettingsPage() {
     <div className="max-w-2xl mx-auto space-y-4 md:space-y-6">
       {/* 页面头部 */}
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-gray-900">设置</h1>
-        <p className="mt-1 md:mt-2 text-sm md:text-base text-gray-600">管理您的账户设置和偏好</p>
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground">设置</h1>
+        <p className="mt-1 md:mt-2 text-sm md:text-base text-foreground-secondary">管理您的账户设置和偏好</p>
       </div>
       
       {/* 用户信息卡片 */}
-      <div className="bg-white rounded-lg shadow p-4 md:p-6 space-y-4 md:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 border-b border-gray-200 pb-3 md:pb-4">
-          <h2 className="text-lg md:text-xl font-semibold text-gray-900">账户信息</h2>
+      <div className="bg-surface-elevated rounded-lg shadow-md p-4 md:p-6 space-y-4 md:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 border-b border-divider pb-3 md:pb-4">
+          <h2 className="text-lg md:text-xl font-semibold text-foreground">账户信息</h2>
           {!isEditing && (
             <Button
               variant="secondary"
@@ -189,20 +191,20 @@ export default function SettingsPage() {
             
             {/* 成功提示 */}
             {saveSuccess && (
-              <div className="bg-green-50 border border-green-200 rounded-md p-3">
-                <p className="text-sm text-green-800">保存成功！</p>
+              <div className="bg-success-lighter border border-success-light rounded-md p-3">
+                <p className="text-sm text-success">保存成功！</p>
               </div>
             )}
             
             {/* 错误提示 */}
             {saveError && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                <p className="text-sm text-red-600">{saveError}</p>
+              <div className="bg-error-lighter border border-error-light rounded-md p-3">
+                <p className="text-sm text-error">{saveError}</p>
               </div>
             )}
             
             {/* 操作按钮 */}
-            <div className="flex gap-3 justify-end pt-4 border-t border-gray-200">
+            <div className="flex gap-3 justify-end pt-4 border-t border-divider">
               <Button
                 variant="secondary"
                 onClick={handleCancel}
@@ -233,21 +235,21 @@ export default function SettingsPage() {
               
               {/* 用户信息 */}
               <div className="flex-1">
-                <p className="text-lg font-medium text-gray-900">
+                <p className="text-lg font-medium text-foreground">
                   {currentUser?.username || '未知用户'}
                 </p>
               </div>
             </div>
             
             {/* 详细信息 */}
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-divider">
               <div>
-                <p className="text-sm font-medium text-gray-700">用户名</p>
-                <p className="mt-1 text-sm text-gray-900">{currentUser?.username || 'N/A'}</p>
+                <p className="text-sm font-medium text-foreground-secondary">用户名</p>
+                <p className="mt-1 text-sm text-foreground">{currentUser?.username || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-700">注册时间</p>
-                <p className="mt-1 text-sm text-gray-900">
+                <p className="text-sm font-medium text-foreground-secondary">注册时间</p>
+                <p className="mt-1 text-sm text-foreground">
                   {currentUser?.created_at
                     ? new Date(currentUser.created_at).toLocaleDateString('zh-CN')
                     : 'N/A'}
@@ -258,11 +260,46 @@ export default function SettingsPage() {
         )}
       </div>
       
+      {/* 外观设置 */}
+      <div className="bg-surface-elevated rounded-lg shadow-md p-4 md:p-6 space-y-4 md:space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 border-b border-divider pb-3 md:pb-4">
+          <h2 className="text-lg md:text-xl font-semibold text-foreground">外观设置</h2>
+        </div>
+        
+        {/* 深色模式切换 */}
+        <div className="flex items-center justify-between py-2">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-foreground">深色模式</p>
+            <p className="mt-1 text-xs text-foreground-secondary">
+              切换浅色/深色主题
+            </p>
+          </div>
+          <button
+            onClick={toggleTheme}
+            className={`
+              relative inline-flex h-6 w-11 items-center rounded-full transition-colors
+              ${theme === 'dark' ? 'bg-primary' : 'bg-surface-active'}
+              focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
+            `}
+            role="switch"
+            aria-checked={theme === 'dark'}
+            aria-label="切换深色模式"
+          >
+            <span
+              className={`
+                inline-block h-4 w-4 transform rounded-full bg-white transition-transform
+                ${theme === 'dark' ? 'translate-x-6' : 'translate-x-1'}
+              `}
+            />
+          </button>
+        </div>
+      </div>
+      
       {/* 退出登录 */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
-        <div className="border-b border-gray-200 pb-4">
-          <h2 className="text-xl font-semibold text-gray-900">账户操作</h2>
-          <p className="mt-1 text-sm text-gray-500">
+      <div className="bg-surface-elevated rounded-lg shadow-md p-6 space-y-4">
+        <div className="border-b border-divider pb-4">
+          <h2 className="text-xl font-semibold text-foreground">账户操作</h2>
+          <p className="mt-1 text-sm text-foreground-secondary">
             退出登录后需要重新登录才能使用
           </p>
         </div>

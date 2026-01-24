@@ -10,11 +10,14 @@
 @layer base {
   html {
     @apply antialiased;
+    @apply transition-colors;
   }
   
   body {
-    @apply bg-background text-text-primary;
+    background-color: var(--color-surface);
+    color: var(--color-foreground);
     font-family: var(--font-family-sans);
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
   
   /* 标题样式 */
@@ -35,6 +38,21 @@
   /* 输入框重置 */
   input, textarea, select {
     @apply focus:outline-none focus:ring-2 focus:ring-primary;
+    background-color: var(--color-surface-elevated);
+    color: var(--color-foreground);
+    border-color: var(--color-border);
+  }
+  
+  /* select 下拉框样式 */
+  select {
+    background-color: var(--color-surface-elevated);
+    color: var(--color-foreground);
+  }
+  
+  /* select option 样式 */
+  select option {
+    background-color: var(--color-surface-elevated);
+    color: var(--color-foreground);
   }
 }
 

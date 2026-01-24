@@ -236,13 +236,13 @@ export function ProjectMemberList({
     <div className={className}>
       {/* 标题和操作按钮 */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">成员</h3>
+        <h3 className="text-lg font-semibold text-foreground">成员</h3>
         {!showInviteForm && (
           <div className="flex items-center gap-2">
             {canAddMember && (
               <button
                 onClick={() => setShowInviteForm(true)}
-                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+                className="p-1.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                 title="添加成员"
               >
                 <PlusIcon className="w-5 h-5" />
@@ -254,7 +254,7 @@ export function ProjectMemberList({
                 {!isManaging ? (
                   <button
                     onClick={() => setIsManaging(true)}
-                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+                    className="p-1.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                     title="管理成员"
                   >
                     <CogIcon className="w-5 h-5" />
@@ -262,7 +262,7 @@ export function ProjectMemberList({
                 ) : (
                   <button
                     onClick={() => setIsManaging(false)}
-                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+                    className="p-1.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                     title="退出管理"
                   >
                     <XIcon className="w-5 h-5" />
@@ -277,9 +277,9 @@ export function ProjectMemberList({
       {/* 成员列表或邀请表单 */}
       {showInviteForm && canAddMember ? (
         /* 邀请表单 - 覆盖成员列表 */
-        <div className="p-4 bg-white rounded-lg border border-gray-200 space-y-4">
+        <div className="p-4 bg-surface-elevated rounded-lg border border-border space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-gray-900">邀请新成员</h4>
+            <h4 className="text-sm font-semibold text-foreground">邀请新成员</h4>
             <button
               onClick={handleCloseInviteForm}
               className="p-1 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
@@ -291,7 +291,7 @@ export function ProjectMemberList({
           
           {/* 选择角色 */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-sm font-medium text-foreground">
               成员角色
             </label>
             <RoleSelect
@@ -303,14 +303,14 @@ export function ProjectMemberList({
           
           {/* 过期时间 */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-sm font-medium text-foreground">
               过期时间（小时）
             </label>
             <select
               value={expiresInHours}
               onChange={(e) => setExpiresInHours(e.target.value)}
               disabled={createInvitation.isPending}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-primary focus:ring-2 focus:ring-primary"
+              className="w-full px-3 py-2 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:border-primary focus:ring-2 focus:ring-primary"
             >
               <option value="1">1 小时</option>
               <option value="6">6 小时</option>
@@ -357,9 +357,9 @@ export function ProjectMemberList({
           
           {/* 邀请码和链接 */}
           {inviteCode && (
-            <div className="space-y-3 pt-4 border-t border-gray-200">
+            <div className="space-y-3 pt-4 border-t border-divider">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-sm font-medium text-foreground">
                   邀请码
                 </label>
                 <div className="flex gap-2 items-center min-w-0">
@@ -368,11 +368,11 @@ export function ProjectMemberList({
                     value={inviteCode}
                     readOnly
                     disabled
-                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-md bg-gray-100 font-mono text-gray-600 cursor-not-allowed"
+                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-md bg-surface-disabled font-mono text-foreground-secondary cursor-not-allowed"
                   />
                   <button
                     onClick={() => handleCopy('code')}
-                    className="flex-shrink-0 p-2 rounded-md hover:bg-gray-200 transition-colors text-gray-600 hover:text-gray-900"
+                    className="flex-shrink-0 p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                     title={copied === 'code' ? '已复制' : '复制邀请码'}
                   >
                     {copied === 'code' ? (
@@ -385,7 +385,7 @@ export function ProjectMemberList({
               </div>
               
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">
+                <label className="text-sm font-medium text-foreground">
                   邀请链接
                 </label>
                 <div className="flex gap-2 items-center min-w-0">
@@ -394,11 +394,11 @@ export function ProjectMemberList({
                     value={inviteLink}
                     readOnly
                     disabled
-                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed truncate"
+                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-md bg-surface-disabled text-foreground-secondary cursor-not-allowed truncate"
                   />
                   <button
                     onClick={() => handleCopy('link')}
-                    className="flex-shrink-0 p-2 rounded-md hover:bg-gray-200 transition-colors text-gray-600 hover:text-gray-900"
+                    className="flex-shrink-0 p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                     title={copied === 'link' ? '已复制' : '复制邀请链接'}
                   >
                     {copied === 'link' ? (
@@ -472,7 +472,7 @@ export function ProjectMemberList({
                 key={member.id}
                 className={clsx(
                   "flex items-center gap-3 p-3 rounded-lg transition-colors",
-                  isManaging ? "bg-gray-50" : "hover:bg-gray-50",
+                  isManaging ? "bg-surface-hover" : "hover:bg-surface-hover",
                   !isManaging && onMemberClick && "cursor-pointer"
                 )}
                 onClick={() => {
@@ -495,11 +495,11 @@ export function ProjectMemberList({
                 {/* 用户信息 */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-medium text-foreground truncate">
                       {memberUsername}
                     </p>
                     {isCurrentUser && (
-                      <span className="text-xs text-gray-500">（我）</span>
+                      <span className="text-xs text-foreground-secondary">（我）</span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-1">
@@ -514,10 +514,10 @@ export function ProjectMemberList({
                           }}
                           disabled={isRoleChanging || setMemberRole.isPending}
                           className={clsx(
-                            "px-2 py-1 text-xs border border-gray-300 rounded-md",
+                            "px-2 py-1 text-xs border border-border rounded-md bg-surface-elevated text-foreground",
                             "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
-                            "disabled:bg-gray-100 disabled:cursor-not-allowed",
-                            "bg-white text-gray-900"
+                            "disabled:bg-surface-disabled disabled:cursor-not-allowed",
+                            "bg-surface-elevated text-foreground"
                           )}
                         >
                           <option value="member">成员</option>

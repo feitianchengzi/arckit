@@ -806,11 +806,11 @@ export default function ProjectDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         <div className="lg:col-span-4 flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 truncate" title={project.name}>
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground truncate" title={project.name}>
               {project.name}
             </h1>
             {project.git_url && (
-              <p className="mt-1 text-xs md:text-base text-gray-600 truncate" title={project.git_url}>
+              <p className="mt-1 text-xs md:text-base text-foreground-secondary truncate" title={project.git_url}>
                 {project.git_url}
               </p>
             )}
@@ -843,7 +843,7 @@ export default function ProjectDetailPage() {
                   : "opacity-0 translate-x-4 pointer-events-none"
               )}>
                 <div className={clsx(
-                  "flex items-center bg-white border border-gray-300 rounded-md shadow-sm overflow-hidden transition-all duration-300 ease-in-out h-[52px]",
+                  "flex items-center bg-surface-elevated border border-border rounded-md shadow-sm overflow-hidden transition-all duration-300 ease-in-out h-[52px]",
                   showSearchBar ? "w-[320px]" : "w-0"
                 )}>
                   <div className="flex items-center px-3 py-2 flex-shrink-0">
@@ -866,7 +866,7 @@ export default function ProjectDetailPage() {
                         setShowSearchBar(false)
                       }
                     }}
-                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 mr-1 flex-shrink-0"
+                    className="p-1.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground mr-1 flex-shrink-0"
                     title={searchQuery ? "清除搜索" : "关闭搜索"}
                   >
                     <XIcon className="w-4 h-4" />
@@ -896,13 +896,13 @@ export default function ProjectDetailPage() {
                 
                 {/* 下拉菜单 */}
                 {showMoreMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-surface-elevated border border-border rounded-md shadow-lg z-50">
                     <button
                       onClick={() => {
                         handleEditClick()
                         setShowMoreMenu(false)
                       }}
-                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                      className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 transition-colors"
                     >
                       <EditIcon className="w-4 h-4" />
                       <span>编辑项目</span>
@@ -938,7 +938,7 @@ export default function ProjectDetailPage() {
         {/* 待办列表（占 4/5） */}
         <div className="lg:col-span-4 space-y-6">
           {/* 统计卡片 - 移动端横向滚动，桌面端网格布局 */}
-          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+          <div className="bg-surface-elevated rounded-lg shadow-md p-4 md:p-6">
             <div className="flex md:grid md:grid-cols-3 gap-2 md:gap-4 overflow-x-auto overflow-y-visible py-2 md:py-2 scrollbar-hide" style={{ paddingLeft: '4px', paddingRight: '4px' }}>
               <StatCard
                 title="待办"
@@ -970,7 +970,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* 待办列表内容 */}
-          <div className="bg-white rounded-lg shadow relative overflow-visible" style={{ padding: '24px', paddingTop: '28px', paddingBottom: '28px' }}>
+          <div className="bg-surface-elevated rounded-lg shadow-md relative overflow-visible" style={{ padding: '24px', paddingTop: '28px', paddingBottom: '28px' }}>
             {/* 筛选器 */}
             <div className="mb-4" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
           {/* 筛选器组 - 单行，不换行 */}
@@ -979,7 +979,7 @@ export default function ProjectDetailPage() {
             <div data-filter-key="status" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
-                statusFilter !== 'ALL' ? "text-orange-600" : "text-gray-600"
+                statusFilter !== 'ALL' ? "text-warning" : "text-foreground-secondary"
               )}>
                 <StatusFilterIcon className={clsx(
                   "w-4 h-4",
@@ -995,8 +995,8 @@ export default function ProjectDetailPage() {
                     setStatusFilter(value as TodoStatus | 'ALL')
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
-                    statusFilter !== 'ALL' ? "text-orange-600 font-medium" : "text-gray-900"
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    statusFilter !== 'ALL' ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
                   <option value="ALL">全部</option>
@@ -1013,11 +1013,11 @@ export default function ProjectDetailPage() {
             <div data-filter-key="creator" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
-                creatorFilter !== null ? "text-orange-600" : "text-gray-600"
+                creatorFilter !== null ? "text-warning" : "text-foreground-secondary"
               )}>
                 <CreatorFilterIcon className={clsx(
                   "w-4 h-4",
-                  creatorFilter !== null ? "text-orange-500" : "text-gray-500"
+                  creatorFilter !== null ? "text-warning" : "text-foreground-tertiary"
                 )} />
                 创建人:
               </label>
@@ -1044,8 +1044,8 @@ export default function ProjectDetailPage() {
                     }
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
-                    creatorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    creatorFilter !== null ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
                   <option value="">全部</option>
@@ -1065,11 +1065,11 @@ export default function ProjectDetailPage() {
             <div data-filter-key="executor" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
-                executorFilter !== null ? "text-orange-600" : "text-gray-600"
+                executorFilter !== null ? "text-warning" : "text-foreground-secondary"
               )}>
                 <ExecutorFilterIcon className={clsx(
                   "w-4 h-4",
-                  executorFilter !== null ? "text-orange-500" : "text-gray-500"
+                  executorFilter !== null ? "text-warning" : "text-foreground-tertiary"
                 )} />
                 执行人:
               </label>
@@ -1100,8 +1100,8 @@ export default function ProjectDetailPage() {
                     }
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
-                    executorFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    executorFilter !== null ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
                   <option value="">全部</option>
@@ -1145,8 +1145,8 @@ export default function ProjectDetailPage() {
                     }
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
-                    tagFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    tagFilter !== null ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
                   <option value="">全部</option>
@@ -1198,8 +1198,8 @@ export default function ProjectDetailPage() {
                     }
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
-                    priorityFilter !== null ? "text-orange-600 font-medium" : "text-gray-900"
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    priorityFilter !== null ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
                   <option value="">全部</option>
@@ -1240,7 +1240,7 @@ export default function ProjectDetailPage() {
                 {showMoreFilters && moreFiltersPosition && createPortal(
                   <div 
                     ref={moreFiltersMenuRef}
-                    className="fixed w-64 bg-white border-2 border-gray-200 rounded-md shadow-xl z-[100] p-4 space-y-3" 
+                    className="fixed w-64 bg-surface-elevated border-2 border-border rounded-md shadow-xl z-[100] p-4 space-y-3" 
                     style={{ 
                       top: `${moreFiltersPosition.top}px`,
                       left: `${moreFiltersPosition.left}px`,
@@ -1250,7 +1250,7 @@ export default function ProjectDetailPage() {
                   >
                     {hiddenFilters.includes('creator') && (
                       <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
                           <CreatorFilterIcon className="w-4 h-4 text-gray-500" />
                           创建人:
                         </label>
@@ -1292,7 +1292,7 @@ export default function ProjectDetailPage() {
                     
                     {hiddenFilters.includes('executor') && (
                       <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
                           <ExecutorFilterIcon className="w-4 h-4 text-gray-500" />
                           执行人:
                         </label>
@@ -1339,7 +1339,7 @@ export default function ProjectDetailPage() {
                     
                     {hiddenFilters.includes('tag') && (
                       <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
                           <TagFilterIcon className="w-4 h-4 text-gray-500" />
                           标签:
                         </label>
@@ -1370,7 +1370,7 @@ export default function ProjectDetailPage() {
                     
                     {hiddenFilters.includes('priority') && (
                       <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
                           <PriorityFilterIcon className="w-4 h-4 text-gray-500" />
                           优先级:
                         </label>
@@ -1414,7 +1414,7 @@ export default function ProjectDetailPage() {
                     
                     {hiddenFilters.includes('dateRange') && (
                       <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
                           <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
@@ -1514,7 +1514,7 @@ export default function ProjectDetailPage() {
 
         {/* 成员列表（占 1/4，宽度减小） */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow p-4">
+          <div className="bg-surface-elevated rounded-lg shadow-md p-4">
             <ProjectMemberList
               members={members || []}
               projectId={projectId}
@@ -1717,7 +1717,7 @@ function StatCard({ title, value, icon, isActive = false, onClick, className }: 
   return (
     <div
       className={clsx(
-        'bg-white rounded-lg shadow p-3 md:p-4 cursor-pointer transition-all',
+        'bg-surface-elevated rounded-lg shadow-md p-3 md:p-4 cursor-pointer transition-all',
         {
           'ring-2 ring-primary-500 shadow-lg': isActive,
           'ring-2 ring-transparent': !isActive, // 使用 ring 而不是 border，避免被 overflow 裁切
@@ -1742,14 +1742,14 @@ function StatCard({ title, value, icon, isActive = false, onClick, className }: 
             'text-xs truncate',
             {
               'text-primary-600 font-medium': isActive,
-              'text-gray-600': !isActive,
+              'text-foreground-secondary': !isActive,
             }
           )}>{title}</p>
           <p className={clsx(
             'text-lg md:text-xl font-bold',
             {
               'text-primary-600': isActive,
-              'text-gray-900': !isActive,
+              'text-foreground': !isActive,
             }
           )}>{value}</p>
         </div>
@@ -1781,11 +1781,11 @@ function IconButton({ icon, label, onClick, variant = 'secondary', isActive = fa
         'focus:outline-none focus:ring-2 focus:ring-offset-2',
         // 如果有自定义背景色，使用自定义背景色，否则使用 variant 的默认样式
         iconBgColor 
-          ? clsx(iconBgColor, iconColor || 'text-gray-700', 'hover:opacity-80', 'focus:ring-gray-500')
+          ? clsx(iconBgColor, iconColor || 'text-foreground', 'hover:opacity-80', 'focus:ring-gray-500')
           : {
               'bg-primary text-white hover:bg-primary-700 focus:ring-primary': variant === 'primary',
-              'bg-gray-200 text-gray-700 hover:bg-gray-300 focus:ring-gray-500': variant === 'secondary' && !isActive,
-              'bg-gray-300 text-gray-900 focus:ring-gray-500': variant === 'secondary' && isActive,
+              'bg-surface-active text-foreground hover:bg-surface-hover focus:ring-gray-500': variant === 'secondary' && !isActive,
+              'bg-surface-hover text-foreground focus:ring-gray-500': variant === 'secondary' && isActive,
               'bg-error text-white hover:bg-red-600 focus:ring-error': variant === 'danger',
             },
         {

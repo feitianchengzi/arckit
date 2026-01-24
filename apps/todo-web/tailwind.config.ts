@@ -5,6 +5,7 @@ const config: Config = {
     './index.html',
     './src/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  darkMode: 'class', // 使用 class 策略启用深色模式
   theme: {
     screens: {
       // 响应式断点（符合设计规范）
@@ -19,8 +20,39 @@ const config: Config = {
     },
     extend: {
       colors: {
+        /* ==================== 语义化颜色系统 ==================== */
+        /* 表面颜色 - 用于背景、卡片等 */
+        surface: {
+          DEFAULT: 'var(--color-surface)',
+          elevated: 'var(--color-surface-elevated)',
+          hover: 'var(--color-surface-hover)',
+          active: 'var(--color-surface-active)',
+          disabled: 'var(--color-surface-disabled)',
+        },
+        /* 前景颜色 - 用于文本、图标等 */
+        foreground: {
+          DEFAULT: 'var(--color-foreground)',
+          secondary: 'var(--color-foreground-secondary)',
+          tertiary: 'var(--color-foreground-tertiary)',
+          disabled: 'var(--color-foreground-disabled)',
+          inverse: 'var(--color-foreground-inverse)',
+        },
+        /* 边框和分割线 */
+        border: {
+          DEFAULT: 'var(--color-border)',
+          hover: 'var(--color-border-hover)',
+          focus: 'var(--color-border-focus)',
+        },
+        divider: 'var(--color-divider)',
+        
+        /* ==================== 主色 ==================== */
         primary: {
           DEFAULT: 'var(--color-primary)',
+          hover: 'var(--color-primary-hover)',
+          active: 'var(--color-primary-active)',
+          light: 'var(--color-primary-light)',
+          lighter: 'var(--color-primary-lighter)',
+          // 向后兼容的色阶
           50: 'var(--color-primary-50)',
           100: 'var(--color-primary-100)',
           200: 'var(--color-primary-200)',
@@ -32,27 +64,38 @@ const config: Config = {
           800: 'var(--color-primary-800)',
           900: 'var(--color-primary-900)',
         },
+        
+        /* ==================== 语义颜色 ==================== */
         success: {
           DEFAULT: 'var(--color-success)',
+          hover: 'var(--color-success-hover)',
           light: 'var(--color-success-light)',
+          lighter: 'var(--color-success-lighter)',
         },
         warning: {
           DEFAULT: 'var(--color-warning)',
+          hover: 'var(--color-warning-hover)',
           light: 'var(--color-warning-light)',
+          lighter: 'var(--color-warning-lighter)',
         },
         error: {
           DEFAULT: 'var(--color-error)',
+          hover: 'var(--color-error-hover)',
           light: 'var(--color-error-light)',
+          lighter: 'var(--color-error-lighter)',
         },
         info: {
           DEFAULT: 'var(--color-info)',
+          hover: 'var(--color-info-hover)',
           light: 'var(--color-info-light)',
+          lighter: 'var(--color-info-lighter)',
         },
+        
+        /* ==================== 向后兼容 ==================== */
         background: 'var(--color-background)',
         'text-primary': 'var(--color-text-primary)',
         'text-secondary': 'var(--color-text-secondary)',
         'text-tertiary': 'var(--color-text-tertiary)',
-        border: 'var(--color-border)',
       },
       spacing: {
         xs: 'var(--spacing-xs)',

@@ -360,7 +360,7 @@ export default function ProjectMembersPage() {
               const deleteButtonLabel = isCurrentUser ? '离开' : '移除'
               
               return (
-                <div key={member.id} className="p-6 hover:bg-gray-50 transition-colors">
+                <div key={member.id} className="p-6 hover:bg-surface-hover transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
                       {/* 头像 */}
@@ -371,11 +371,11 @@ export default function ProjectMembersPage() {
                       {/* 用户信息 */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-base font-medium text-gray-900">
+                          <p className="text-base font-medium text-foreground">
                             {memberUsername || '未知用户'}
                           </p>
                           {isCurrentUser && (
-                            <span className="text-xs text-gray-500">（我）</span>
+                            <span className="text-xs text-foreground-secondary">（我）</span>
                           )}
                         </div>
                       </div>
