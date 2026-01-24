@@ -190,12 +190,12 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
           "flex items-center gap-1.5 px-2 py-1 text-sm border rounded-md transition-colors h-[28px]",
           "max-w-[140px] min-w-[80px]",
           hasFilter
-            ? "text-orange-600 border-orange-300 bg-orange-50 font-medium"
-            : "text-gray-600 border-gray-300 bg-white hover:bg-gray-50"
+            ? "text-orange-600 border-orange-300 bg-orange-50 dark:bg-orange-950/30 dark:border-orange-700 dark:text-orange-400 font-medium"
+            : "text-foreground-secondary border-border bg-surface-elevated hover:bg-surface-hover"
         )}
       >
         <svg
-          className={clsx("w-4 h-4 flex-shrink-0", hasFilter ? "text-orange-500" : "text-gray-500")}
+          className={clsx("w-4 h-4 flex-shrink-0", hasFilter ? "text-orange-500 dark:text-orange-400" : "text-foreground-tertiary")}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -223,7 +223,7 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
               e.stopPropagation()
               onChange({ startDate: null, endDate: null })
             }}
-            className="ml-0.5 text-orange-600 hover:text-orange-800 flex-shrink-0"
+            className="ml-0.5 text-orange-600 dark:text-orange-400 hover:text-orange-800 dark:hover:text-orange-300 flex-shrink-0"
             title="清除"
           >
             ×
@@ -235,20 +235,21 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
       {showPicker && pickerPosition && createPortal(
         <div 
           ref={pickerRef}
-          className="fixed z-[100] bg-white border border-gray-200 rounded-lg shadow-lg p-4 min-w-[320px]"
+          className="fixed z-[100] border border-border rounded-lg shadow-lg p-4 min-w-[320px]"
           style={{
             top: `${pickerPosition.top}px`,
             left: `${pickerPosition.left}px`,
+            backgroundColor: 'var(--color-surface-elevated)'
           }}
         >
           {/* 快捷操作 */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-gray-700">快捷选择</span>
+              <span className="text-sm font-semibold text-foreground">快捷选择</span>
               <button
                 type="button"
                 onClick={() => setShowQuickOptions(!showQuickOptions)}
-                className="text-xs text-gray-500 hover:text-gray-700"
+                className="text-xs text-foreground-secondary hover:text-foreground"
               >
                 {showQuickOptions ? '收起' : '展开'}
               </button>
@@ -310,7 +311,7 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
           {/* 日期范围输入 */}
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-foreground mb-1">
                 开始日期
               </label>
               <input
@@ -318,11 +319,11 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
                 value={value.startDate || ''}
                 onChange={handleStartDateChange}
                 max={value.endDate || undefined}
-                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full px-2 py-1.5 text-sm border border-border bg-surface-elevated text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
+              <label className="block text-xs font-medium text-foreground mb-1">
                 结束日期
               </label>
               <input
@@ -330,7 +331,7 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
                 value={value.endDate || ''}
                 onChange={handleEndDateChange}
                 min={value.startDate || undefined}
-                className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                className="w-full px-2 py-1.5 text-sm border border-border bg-surface-elevated text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
             </div>
           </div>

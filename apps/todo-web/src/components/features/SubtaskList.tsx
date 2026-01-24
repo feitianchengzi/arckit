@@ -32,7 +32,7 @@ export function SubtaskList({
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">子待办</h3>
+          <h3 className="text-lg font-semibold text-foreground">子待办</h3>
           {onCreateSubtask && (
             <Button
               variant="primary"
@@ -57,7 +57,7 @@ export function SubtaskList({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">
+        <h3 className="text-lg font-semibold text-foreground">
           子待办 ({subtasks.length})
         </h3>
         {onCreateSubtask && (
@@ -71,7 +71,7 @@ export function SubtaskList({
         )}
       </div>
       
-      <div className="space-y-2 pl-4 border-l-2 border-gray-200">
+      <div className="space-y-2 pl-4 border-l-2 border-divider">
         {subtasks.map((subtask) => (
           <TodoItem
             key={subtask.id}

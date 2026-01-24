@@ -823,7 +823,7 @@ export default function ProjectDetailPage() {
               {/* 搜索按钮 - 搜索框显示时隐藏 */}
               <div className={clsx(
                 "transition-all duration-300 ease-in-out",
-                showSearchBar ? "opacity-0 scale-0 pointer-events-none absolute" : "opacity-100 scale-100"
+                showSearchBar ? "opacity-0 scale-0 pointer-events-none absolute right-0" : "opacity-100 scale-100"
               )}>
                 <IconButton
                   icon={<SearchIcon />}
@@ -832,6 +832,7 @@ export default function ProjectDetailPage() {
                     setShowSearchBar(true)
                   }}
                   variant="secondary"
+                  iconBgColor="transparent"
                 />
               </div>
               
@@ -845,16 +846,18 @@ export default function ProjectDetailPage() {
                 <div className={clsx(
                   "flex items-center bg-surface-elevated border border-border rounded-md shadow-sm overflow-hidden transition-all duration-300 ease-in-out h-[52px]",
                   showSearchBar ? "w-[320px]" : "w-0"
-                )}>
+                )}
+                style={{ backgroundColor: 'var(--color-surface-elevated)' }}
+                >
                   <div className="flex items-center px-3 py-2 flex-shrink-0">
-                    <SearchIcon className="w-4 h-4 text-gray-400" />
+                    <SearchIcon className="w-4 h-4 text-foreground-tertiary" />
                   </div>
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="搜索待办内容..."
-                    className="flex-1 px-2 py-2 text-sm focus:outline-none focus:ring-0 border-0 bg-transparent min-w-0 h-full"
+                    className="flex-1 px-2 py-2 text-sm focus:outline-none focus:ring-0 border-0 bg-transparent text-foreground placeholder:text-foreground-tertiary min-w-0 h-full"
                     autoFocus={showSearchBar}
                   />
                   {/* X按钮 - 有内容时清除内容，无内容时关闭搜索框 */}
@@ -866,7 +869,7 @@ export default function ProjectDetailPage() {
                         setShowSearchBar(false)
                       }
                     }}
-                    className="p-1.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground mr-1 flex-shrink-0"
+                    className="p-1.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-tertiary hover:text-foreground mr-1 flex-shrink-0"
                     title={searchQuery ? "清除搜索" : "关闭搜索"}
                   >
                     <XIcon className="w-4 h-4" />
@@ -938,7 +941,7 @@ export default function ProjectDetailPage() {
         {/* 待办列表（占 4/5） */}
         <div className="lg:col-span-4 space-y-6">
           {/* 统计卡片 - 移动端横向滚动，桌面端网格布局 */}
-          <div className="bg-surface-elevated rounded-lg shadow-md p-4 md:p-6">
+          <div className="bg-surface-elevated rounded-lg shadow-md border border-border p-4 md:p-6" style={{ borderColor: 'var(--color-border)' }}>
             <div className="flex md:grid md:grid-cols-3 gap-2 md:gap-4 overflow-x-auto overflow-y-visible py-2 md:py-2 scrollbar-hide" style={{ paddingLeft: '4px', paddingRight: '4px' }}>
               <StatCard
                 title="待办"
@@ -970,7 +973,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* 待办列表内容 */}
-          <div className="bg-surface-elevated rounded-lg shadow-md relative overflow-visible" style={{ padding: '24px', paddingTop: '28px', paddingBottom: '28px' }}>
+          <div className="bg-surface-elevated rounded-lg shadow-md border border-border relative overflow-visible" style={{ padding: '24px', paddingTop: '28px', paddingBottom: '28px', borderColor: 'var(--color-border)' }}>
             {/* 筛选器 */}
             <div className="mb-4" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
           {/* 筛选器组 - 单行，不换行 */}
@@ -1240,7 +1243,8 @@ export default function ProjectDetailPage() {
                 {showMoreFilters && moreFiltersPosition && createPortal(
                   <div 
                     ref={moreFiltersMenuRef}
-                    className="fixed w-64 bg-surface-elevated border-2 border-border rounded-md shadow-xl z-[100] p-4 space-y-3" 
+                    className="fixed w-64 border-2 border-border rounded-md shadow-xl z-[100] p-4 space-y-3"
+                    style={{ backgroundColor: 'var(--color-surface-elevated)' }} 
                     style={{ 
                       top: `${moreFiltersPosition.top}px`,
                       left: `${moreFiltersPosition.left}px`,
@@ -1514,7 +1518,7 @@ export default function ProjectDetailPage() {
 
         {/* 成员列表（占 1/4，宽度减小） */}
         <div className="lg:col-span-1">
-          <div className="bg-surface-elevated rounded-lg shadow-md p-4">
+          <div className="bg-surface-elevated rounded-lg shadow-md border border-border p-4" style={{ borderColor: 'var(--color-border)' }}>
             <ProjectMemberList
               members={members || []}
               projectId={projectId}
@@ -1772,6 +1776,19 @@ interface IconButtonProps {
 }
 
 function IconButton({ icon, label, onClick, variant = 'secondary', isActive = false, disabled = false, iconBgColor, iconColor }: IconButtonProps) {
+  // 根据variant和isActive状态确定背景色
+  const getBackgroundColor = () => {
+    if (iconBgColor) return undefined // 使用自定义背景色类
+    if (variant === 'primary') return 'var(--color-primary)'
+    if (variant === 'danger') return 'var(--color-error)'
+    if (variant === 'secondary') {
+      return isActive ? 'var(--color-surface-hover)' : 'var(--color-surface-active)'
+    }
+    return 'var(--color-surface-active)'
+  }
+
+  const bgColor = getBackgroundColor()
+
   return (
     <button
       onClick={onClick}
@@ -1781,17 +1798,22 @@ function IconButton({ icon, label, onClick, variant = 'secondary', isActive = fa
         'focus:outline-none focus:ring-2 focus:ring-offset-2',
         // 如果有自定义背景色，使用自定义背景色，否则使用 variant 的默认样式
         iconBgColor 
-          ? clsx(iconBgColor, iconColor || 'text-foreground', 'hover:opacity-80', 'focus:ring-gray-500')
+          ? clsx(
+              iconBgColor === 'transparent' ? 'bg-transparent' : iconBgColor, 
+              iconColor || 'text-foreground', 
+              iconBgColor === 'transparent' ? 'hover:bg-surface-hover' : 'hover:opacity-80', 
+              'focus:ring-gray-500'
+            )
           : {
-              'bg-primary text-white hover:bg-primary-700 focus:ring-primary': variant === 'primary',
-              'bg-surface-active text-foreground hover:bg-surface-hover focus:ring-gray-500': variant === 'secondary' && !isActive,
-              'bg-surface-hover text-foreground focus:ring-gray-500': variant === 'secondary' && isActive,
-              'bg-error text-white hover:bg-red-600 focus:ring-error': variant === 'danger',
+              'text-white hover:opacity-90 focus:ring-primary': variant === 'primary',
+              'text-foreground hover:opacity-90 focus:ring-gray-500': variant === 'secondary',
+              'text-white hover:opacity-90 focus:ring-error': variant === 'danger',
             },
         {
           'opacity-50 cursor-not-allowed': disabled,
         }
       )}
+      style={iconBgColor === 'transparent' ? { backgroundColor: 'transparent' } : bgColor ? { backgroundColor: bgColor } : undefined}
       title={label}
       aria-label={label}
     >

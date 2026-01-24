@@ -72,7 +72,10 @@ export function StatusSelect({ value, onChange, disabled = false, size = 'md' }:
           />
           
           {/* 选项列表 */}
-          <div className="absolute z-50 mt-1 bg-white border border-gray-200 rounded-md shadow-lg min-w-[160px] right-0">
+          <div 
+            className="absolute z-50 mt-1 border border-border rounded-md shadow-lg min-w-[160px] right-0"
+            style={{ backgroundColor: 'var(--color-surface-elevated)' }}
+          >
             {ALL_STATUSES.map((status) => {
               const statusConfig = {
                 label: getStatusLabel(status),
@@ -90,9 +93,9 @@ export function StatusSelect({ value, onChange, disabled = false, size = 'md' }:
                   }}
                   className={clsx(
                     'w-full px-4 py-2 text-left',
-                    'hover:bg-gray-50 transition-colors',
+                    'hover:bg-surface-hover transition-colors',
                     {
-                      'bg-primary-50': status === value,
+                      'bg-primary-light': status === value,
                     }
                   )}
                 >

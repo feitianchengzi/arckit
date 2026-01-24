@@ -122,13 +122,13 @@ export function CreateTaskDialog({
         {isCreatingSubtask ? (
           // 创建子待办：显示锁定的父待办信息
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-sm font-medium text-foreground">
               父待办
             </label>
             <div className={clsx(
               'w-full px-3 py-2 text-base',
-              'border border-gray-300 rounded-md',
-              'bg-gray-50 text-gray-600',
+              'border border-border rounded-md',
+              'bg-surface-disabled text-foreground-secondary',
               'cursor-not-allowed'
             )}>
               {parentTask ? (
@@ -137,14 +137,14 @@ export function CreateTaskDialog({
                 <span>加载中...</span>
               )}
             </div>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-foreground-secondary">
               此待办将作为子待办创建，父待办已锁定
             </p>
           </div>
         ) : availableParentTasks.length > 0 ? (
           // 创建独立待办：显示可选择的父待办选择器
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-sm font-medium text-foreground">
               父待办（可选）
             </label>
             <select
@@ -152,10 +152,10 @@ export function CreateTaskDialog({
               onChange={(e) => setParentIdState(e.target.value ? parseInt(e.target.value) : undefined)}
               className={clsx(
                 'w-full px-3 py-2 text-base',
-                'border border-gray-300 rounded-md',
+                'border border-border rounded-md',
                 'focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50',
                 'transition-colors',
-                'bg-white'
+                'bg-surface-elevated text-foreground'
               )}
             >
               <option value="">无（创建独立待办）</option>
@@ -165,7 +165,7 @@ export function CreateTaskDialog({
                 </option>
               ))}
             </select>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-foreground-secondary">
               选择父待办后，此待办将作为子待办创建
             </p>
           </div>
@@ -174,7 +174,7 @@ export function CreateTaskDialog({
         {/* 分配给成员（可选） */}
         {members && members.length > 0 && (
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700">
+            <label className="text-sm font-medium text-foreground">
               分配给成员（可选）
             </label>
             <div className="flex items-center gap-2">
@@ -187,7 +187,7 @@ export function CreateTaskDialog({
                     }}
                     size="sm"
                   />
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-foreground">
                     {members.find((m: any) => m.user_id === assigneeId)?.username || members.find((m: any) => m.user_id === assigneeId)?.user?.username || '未知用户'}
                   </span>
                   <button
@@ -199,7 +199,7 @@ export function CreateTaskDialog({
                         setIsEditingAssignee(true)
                       }
                     }}
-                    className="p-1 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 flex-shrink-0 ml-0.5"
+                    className="p-1 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground flex-shrink-0 ml-0.5"
                     aria-label={isEditingAssignee ? "收起" : "展开"}
                     title={isEditingAssignee ? "收起" : "展开"}
                   >
@@ -213,7 +213,7 @@ export function CreateTaskDialog({
                 </div>
               ) : (
                 <div className="flex items-center gap-2 flex-1">
-                  <span className="text-sm text-gray-400">未分配</span>
+                  <span className="text-sm text-foreground-tertiary">未分配</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -223,7 +223,7 @@ export function CreateTaskDialog({
                         setIsEditingAssignee(true)
                       }
                     }}
-                    className="p-1 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 flex-shrink-0 ml-0.5"
+                    className="p-1 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground flex-shrink-0 ml-0.5"
                     aria-label={isEditingAssignee ? "收起" : "展开"}
                     title={isEditingAssignee ? "展开" : "收起"}
                   >
@@ -241,7 +241,7 @@ export function CreateTaskDialog({
             <div
               className={clsx(
                 'transition-all duration-300 ease-in-out',
-                isEditingAssignee ? 'max-h-[500px] opacity-100 mt-2 pt-2 border-t border-gray-200' : 'max-h-0 opacity-0'
+                isEditingAssignee ? 'max-h-[500px] opacity-100 mt-2 pt-2 border-t border-divider' : 'max-h-0 opacity-0'
               )}
               style={{ overflow: isEditingAssignee ? 'visible' : 'hidden' }}
             >
@@ -262,7 +262,7 @@ export function CreateTaskDialog({
                         setIsEditingAssignee(false)
                       }}
                       className={clsx(
-                        "relative flex flex-col items-center gap-0.5 px-1 py-1 transition-all hover:shadow-lg bg-white rounded border border-gray-200 shadow focus:outline-none focus:ring-0 w-[60px]",
+                        "relative flex flex-col items-center gap-0.5 px-1 py-1 transition-all hover:shadow-lg bg-surface-elevated rounded border border-border shadow focus:outline-none focus:ring-0 w-[60px]",
                         isSelected && "ring-2 ring-primary"
                       )}
                     >
@@ -273,7 +273,7 @@ export function CreateTaskDialog({
                         }}
                         size="sm"
                       />
-                      <span className="text-[10px] text-gray-700 text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
+                      <span className="text-[10px] text-foreground text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
                       {isSelected && (
                         <div className="absolute inset-0 bg-black/50 rounded-lg border border-white/50 flex items-center justify-center">
                           <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -291,9 +291,9 @@ export function CreateTaskDialog({
 
         {/* 优先级选择 */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">
-            优先级（可选）
-          </label>
+            <label className="text-sm font-medium text-foreground">
+              优先级（可选）
+            </label>
           <PrioritySelector
             value={priority}
             onChange={setPriority}
@@ -302,9 +302,9 @@ export function CreateTaskDialog({
 
         {/* 标签选择 */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">
-            标签（可选）
-          </label>
+            <label className="text-sm font-medium text-foreground">
+              标签（可选）
+            </label>
           <TagSelector
             projectId={projectId}
             currentTags={tagsString || undefined}
@@ -318,27 +318,28 @@ export function CreateTaskDialog({
 
         {/* 待办内容 */}
         <div className="space-y-2">
-          <label className="text-sm font-medium text-gray-700">
-            待办内容 <span className="text-error">*</span>
-          </label>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder="请输入待办内容..."
-            rows={6}
-            className={clsx(
-              'w-full px-3 py-2 text-base',
-              'border border-gray-300 rounded-md',
-              'focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50',
-              'transition-colors',
-              'placeholder:text-gray-400',
-              'resize-none'
-            )}
-            required
-          />
-          <p className="text-sm text-gray-500">
-            支持多行文本，前 50 个字符将作为待办标题
-          </p>
+            <label className="text-sm font-medium text-foreground">
+              待办内容 <span className="text-error">*</span>
+            </label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="请输入待办内容..."
+              rows={6}
+              className={clsx(
+                'w-full px-3 py-2 text-base',
+                'border border-border rounded-md',
+                'bg-surface-elevated text-foreground',
+                'focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50',
+                'transition-colors',
+                'placeholder:text-foreground-tertiary',
+                'resize-none'
+              )}
+              required
+            />
+            <p className="text-sm text-foreground-secondary">
+              支持多行文本，前 50 个字符将作为待办标题
+            </p>
         </div>
         
         {/* 错误提示 */}

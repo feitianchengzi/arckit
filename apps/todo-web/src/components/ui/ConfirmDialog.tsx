@@ -34,14 +34,15 @@ export function ConfirmDialog({
     <>
       {/* 遮罩层 */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-50 z-50"
+        className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50"
         onClick={onCancel}
       />
       
       {/* 对话框 */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
-          className="bg-surface-elevated rounded-lg shadow-xl max-w-md w-full p-6 space-y-4"
+          className="rounded-lg shadow-xl max-w-md w-full p-6 space-y-4"
+          style={{ backgroundColor: 'var(--color-surface-elevated)' }}
           onClick={(e) => e.stopPropagation()}
         >
           {/* 标题 */}

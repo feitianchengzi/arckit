@@ -77,23 +77,30 @@ export function Drawer({ open, onClose, children, title, width = 'w-full md:w-[6
       <div
         className={clsx(
           'absolute right-0 top-0 bottom-0',
-          'bg-white shadow-xl',
+          'shadow-xl',
           'transform transition-transform duration-300 ease-in-out',
           width,
           'flex flex-col',
           'overflow-hidden',
           isAnimating ? 'translate-x-0' : 'translate-x-full'
         )}
+        style={{ backgroundColor: 'var(--color-surface-elevated)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 - 回退按钮（左上角）、标题（中间）、关闭按钮（右上角） */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0 bg-gray-50">
+        <div 
+          className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0"
+          style={{ 
+            borderBottomColor: 'var(--color-divider)',
+            backgroundColor: 'var(--color-surface-elevated)'
+          }}
+        >
           {/* 左侧：回退按钮或占位 */}
           <div className="flex-shrink-0 w-10">
             {showBackButton && onBack ? (
               <button
                 onClick={onBack}
-                className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+                className="p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                 aria-label="返回"
                 title="返回"
               >
@@ -107,9 +114,9 @@ export function Drawer({ open, onClose, children, title, width = 'w-full md:w-[6
           {/* 中间：标题 */}
           <div className="flex-1 text-center">
             {title ? (
-              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+              <h2 className="text-lg font-semibold text-foreground">{title}</h2>
             ) : (
-              <h2 className="text-lg font-semibold text-gray-900">待办详情</h2>
+              <h2 className="text-lg font-semibold text-foreground">待办详情</h2>
             )}
           </div>
           
@@ -117,7 +124,7 @@ export function Drawer({ open, onClose, children, title, width = 'w-full md:w-[6
           <div className="flex-shrink-0 w-10 flex justify-end">
             <button
               onClick={onClose}
-              className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+              className="p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
               aria-label="关闭"
               title="关闭"
             >

@@ -41,25 +41,26 @@ export function RoleSelect({ value, onChange, disabled = false }: RoleSelectProp
         disabled={disabled}
         className={clsx(
           'w-full px-4 py-3 text-left',
-          'bg-white border border-gray-300 rounded-md',
+          'border border-border rounded-md',
           'hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary',
           'transition-colors',
-          'disabled:bg-gray-100 disabled:cursor-not-allowed'
+          'disabled:bg-surface-disabled disabled:cursor-not-allowed'
         )}
+        style={{ backgroundColor: 'var(--color-surface-elevated)' }}
       >
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-900">
+            <p className="text-sm font-medium text-foreground">
               {selectedRole.label}
             </p>
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-foreground-secondary">
               {selectedRole.description}
             </p>
           </div>
           
           <ChevronIcon
             className={clsx(
-              'w-5 h-5 text-gray-400 transition-transform',
+              'w-5 h-5 text-foreground-tertiary transition-transform',
               { 'transform rotate-180': isOpen }
             )}
           />
@@ -76,7 +77,10 @@ export function RoleSelect({ value, onChange, disabled = false }: RoleSelectProp
           />
           
           {/* 选项列表 */}
-          <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
+          <div 
+            className="absolute z-20 w-full mt-1 border border-border rounded-md shadow-lg"
+            style={{ backgroundColor: 'var(--color-surface-elevated)' }}
+          >
             {ROLES.map((role) => (
               <button
                 key={role.value}
@@ -87,16 +91,16 @@ export function RoleSelect({ value, onChange, disabled = false }: RoleSelectProp
                 }}
                 className={clsx(
                   'w-full px-4 py-3 text-left',
-                  'hover:bg-gray-50 transition-colors',
+                  'hover:bg-surface-hover transition-colors',
                   {
-                    'bg-primary-50': role.value === value,
+                    'bg-primary-light': role.value === value,
                   }
                 )}
               >
-                <p className="text-sm font-medium text-gray-900">
+                <p className="text-sm font-medium text-foreground">
                   {role.label}
                 </p>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs text-foreground-secondary">
                   {role.description}
                 </p>
               </button>

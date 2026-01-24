@@ -680,10 +680,11 @@ function PrioritySelectorInline({ value, onChange, onSave, onCancel, loading }: 
           />
           <div
             ref={menuRef}
-            className="fixed z-[101] w-[200px] bg-surface-elevated rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
+            className="fixed z-[101] w-[200px] rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
             style={{
               top: `${menuPosition.top}px`,
               left: `${menuPosition.left}px`,
+              backgroundColor: 'var(--color-surface-elevated)'
             }}
           >
             {PRIORITY_OPTIONS.map((option) => {
@@ -697,13 +698,13 @@ function PrioritySelectorInline({ value, onChange, onSave, onCancel, loading }: 
                     setIsOpen(false)
                   }}
                   className={clsx(
-                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-gray-100 transition-colors text-xs',
-                    isSelected && 'bg-gray-50'
+                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
+                    isSelected && 'bg-surface-active'
                   )}
                   style={{ borderBottom: 'none' }}
                 >
                   <span className="text-xs">{option.icon}</span>
-                  <span className="text-xs text-gray-900 flex-1">{option.label}</span>
+                  <span className="text-xs text-foreground flex-1">{option.label}</span>
                   {isSelected && (
                     <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -880,7 +881,7 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
                 <span className="truncate text-xs">{selectedUsername}</span>
               </>
             ) : (
-              <span className="text-gray-500 text-xs">未选定</span>
+              <span className="text-foreground-secondary text-xs">未选定</span>
             )}
           </div>
           <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -926,10 +927,11 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
           />
           <div
             ref={menuRef}
-            className="fixed z-[101] w-[240px] bg-surface-elevated rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
+            className="fixed z-[101] w-[240px] rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
             style={{
               top: `${menuPosition.top}px`,
               left: `${menuPosition.left}px`,
+              backgroundColor: 'var(--color-surface-elevated)'
             }}
           >
             <button
@@ -939,8 +941,8 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
                 setIsOpen(false)
               }}
               className={clsx(
-                'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-gray-100 transition-colors text-xs',
-                value === undefined && 'bg-gray-50'
+                'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
+                value === undefined && 'bg-surface-active'
               )}
               style={{ borderBottom: 'none' }}
             >
@@ -958,8 +960,8 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
                     setIsOpen(false)
                   }}
                   className={clsx(
-                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-gray-100 transition-colors text-xs',
-                    isSelected && 'bg-gray-50'
+                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
+                    isSelected && 'bg-surface-active'
                   )}
                   style={{ borderBottom: 'none' }}
                 >
@@ -970,7 +972,7 @@ function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, lo
                     }}
                     size="xs"
                   />
-                  <span className="text-xs text-gray-900 flex-1">{memberUsername}</span>
+                  <span className="text-xs text-foreground flex-1">{memberUsername}</span>
                   {isSelected && (
                     <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -1140,10 +1142,11 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
           />
           <div
             ref={menuRef}
-            className="fixed z-[101] w-[280px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-[400px] overflow-auto"
+            className="fixed z-[101] w-[280px] rounded-lg shadow-lg border border-border py-1 max-h-[400px] overflow-auto"
             style={{
               top: `${menuPosition.top}px`,
               left: `${menuPosition.left}px`,
+              backgroundColor: 'var(--color-surface-elevated)'
             }}
           >
             {projectTags.length > 0 ? (
@@ -1154,8 +1157,8 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
                     <div
                       key={tag.id}
                       className={clsx(
-                        'px-2 py-1.5 hover:bg-gray-100 transition-colors',
-                        isSelected && 'bg-gray-50'
+                        'px-2 py-1.5 hover:bg-surface-hover transition-colors',
+                        isSelected && 'bg-surface-active'
                       )}
                     >
                       <label className="flex items-center gap-2 cursor-pointer">
@@ -1163,7 +1166,7 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => handleTagToggle(tag.id)}
-                          className="w-3.5 h-3.5 text-primary border-gray-300 rounded focus:ring-primary flex-shrink-0"
+                          className="w-3.5 h-3.5 text-primary border-border rounded focus:ring-primary flex-shrink-0"
                           onClick={(e) => e.stopPropagation()}
                         />
                         <TagDisplay tag={tag} size="xs" />
@@ -1173,7 +1176,7 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
                 })}
               </div>
             ) : (
-              <div className="px-3 py-4 text-xs text-gray-500 text-center">
+              <div className="px-3 py-4 text-xs text-foreground-secondary text-center">
                 暂无标签
               </div>
             )}

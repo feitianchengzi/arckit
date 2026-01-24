@@ -283,7 +283,7 @@ export function TagSelector({
           onClick={() => setIsOpen(!isOpen)}
           className={clsx(
             'inline-flex items-center gap-1.5 font-medium rounded transition-all',
-            'border border-gray-300 bg-white',
+            'border border-border bg-surface-elevated text-foreground',
             'hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary focus:ring-offset-2',
             sizeClasses[size],
             hasUnsavedChanges() && 'border-orange-400 bg-orange-50'
@@ -297,16 +297,16 @@ export function TagSelector({
                 <TagDisplay key={tag.id} tag={tag} size="sm" />
               ))}
               {selectedTags.length > 2 && (
-                <span className="text-xs text-gray-500">+{selectedTags.length - 2}</span>
+                <span className="text-xs text-foreground-secondary">+{selectedTags.length - 2}</span>
               )}
             </>
           ) : (
-            <span className="text-xs text-gray-500">{getButtonText()}</span>
+            <span className="text-xs text-foreground-secondary">{getButtonText()}</span>
           )}
         </div>
         <ChevronDownIcon
           className={clsx(
-            'transition-transform flex-shrink-0 text-gray-400',
+            'transition-transform flex-shrink-0 text-foreground-tertiary',
             {
               'w-3 h-3': size === 'sm',
               'w-4 h-4': size === 'md',
@@ -330,12 +330,13 @@ export function TagSelector({
           <div
             ref={dropdownRef}
             className={clsx(
-              'fixed z-[70] w-80 bg-white rounded-lg shadow-lg border border-gray-200',
+              'fixed z-[70] w-80 rounded-lg shadow-lg border border-border',
               'flex flex-col max-h-96'
             )}
             style={{
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,
+              backgroundColor: 'var(--color-surface-elevated)'
             }}
           >
           {/* 标签列表区域（可滚动） */}
@@ -351,8 +352,8 @@ export function TagSelector({
                       key={tag.id}
                       className={clsx(
                         'px-3 py-2',
-                        'hover:bg-gray-50 transition-colors',
-                        isEditing && 'bg-gray-50'
+                        'hover:bg-surface-hover transition-colors',
+                        isEditing && 'bg-surface-active'
                       )}
                     >
                       {isEditing ? (
@@ -430,7 +431,7 @@ export function TagSelector({
                     </button>
                   </div>
                 ) : (
-                  <div className="p-3 bg-white">
+                  <div className="p-3 bg-surface-elevated">
                     <TagCreator
                       onSave={handleCreateTag}
                       onCancel={() => setShowCreator(false)}
@@ -443,7 +444,7 @@ export function TagSelector({
             
             {/* 保存按钮（仅在有待保存更改时显示，且不在创建标签模式下） */}
             {hasUnsavedChanges() && !showCreator && (
-              <div className="px-3 py-2 bg-white border-t border-gray-200">
+              <div className="px-3 py-2 bg-surface-elevated border-t border-divider">
                 <Button
                   variant="primary"
                   size="sm"

@@ -1267,7 +1267,8 @@ export default function MyTasksPage() {
                 {showMoreFilters && moreFiltersPosition && createPortal(
                   <div 
                     ref={moreFiltersMenuRef}
-                    className="fixed w-64 bg-surface-elevated border-2 border-border rounded-md shadow-xl z-[100] p-4 space-y-3" 
+                    className="fixed w-64 border-2 border-border rounded-md shadow-xl z-[100] p-4 space-y-3"
+                    style={{ backgroundColor: 'var(--color-surface-elevated)' }} 
                     style={{ 
                       top: `${moreFiltersPosition.top}px`,
                       left: `${moreFiltersPosition.left}px`,

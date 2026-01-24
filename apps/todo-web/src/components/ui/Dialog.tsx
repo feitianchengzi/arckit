@@ -45,7 +45,7 @@ export function Dialog({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" />
+          <div className="fixed inset-0 bg-black/50 dark:bg-black/70" />
         </Transition.Child>
 
         {/* 对话框容器 */}
@@ -61,7 +61,8 @@ export function Dialog({
               leaveTo="opacity-0 scale-95"
             >
               <HeadlessDialog.Panel
-                className={`w-full ${maxWidthClasses[maxWidth]} transform overflow-hidden rounded-xl bg-surface-elevated shadow-xl transition-all`}
+                className={`w-full ${maxWidthClasses[maxWidth]} transform overflow-hidden rounded-xl shadow-xl transition-all`}
+                style={{ backgroundColor: 'var(--color-surface-elevated)' }}
               >
                 {/* 标题区域 */}
                 {(title || showCloseButton) && (

@@ -109,8 +109,8 @@ export function PrioritySelector({
                     'border-primary shadow-sm'
                   )
                 : clsx(
-                    'border-gray-200 bg-white text-gray-700',
-                    !disabled && 'hover:bg-gray-50 hover:border-gray-300'
+                    'border-border bg-surface-elevated text-foreground',
+                    !disabled && 'hover:bg-surface-hover hover:border-border-hover'
                   ),
               disabled && 'opacity-50 cursor-not-allowed'
             )}
@@ -155,7 +155,7 @@ export function PriorityBadge({ value, size = 'md', className }: PriorityBadgePr
     <span
       className={clsx(
         'inline-flex items-center gap-1.5 font-medium rounded-md',
-        'border border-gray-300',
+        'border border-border',
         priority.color,
         priority.bgColor,
         sizeClasses[size],

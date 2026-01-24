@@ -282,7 +282,7 @@ export function ProjectMemberList({
             <h4 className="text-sm font-semibold text-foreground">邀请新成员</h4>
             <button
               onClick={handleCloseInviteForm}
-              className="p-1 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+              className="p-1 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
               title="取消"
             >
               <XIcon className="w-5 h-5" />

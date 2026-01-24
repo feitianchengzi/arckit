@@ -200,7 +200,7 @@ export function TaskDetailContent({
             {onClose ? (
               <button
                 onClick={onClose}
-                className="text-gray-600 hover:text-gray-900 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                className="text-foreground-secondary hover:text-foreground min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="关闭"
                 aria-label="关闭"
               >
@@ -209,7 +209,7 @@ export function TaskDetailContent({
             ) : (
               <button
                 onClick={() => navigate(-1)}
-                className="text-gray-600 hover:text-gray-900 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                className="text-foreground-secondary hover:text-foreground min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="返回上一页"
                 aria-label="返回上一页"
               >
@@ -256,9 +256,9 @@ export function TaskDetailContent({
             </button>
             
             <div>
-              <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">待办详情</h1>
+              <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">待办详情</h1>
               {project && (
-                <p className="mt-1 text-sm md:text-base text-gray-600">项目：{project.name}</p>
+                <p className="mt-1 text-sm md:text-base text-foreground-secondary">项目：{project.name}</p>
               )}
             </div>
           </div>
@@ -289,9 +289,9 @@ export function TaskDetailContent({
       )}
       
       {/* 待办内容 */}
-      <div className="bg-white rounded-lg border-t border-gray-200 p-6 space-y-4" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)' }}>
+      <div className="rounded-lg p-6 space-y-4" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)', backgroundColor: '#1f1f23' }}>
         {/* 创建者信息 - 左上方 */}
-        <div className="flex items-start justify-between gap-3 pb-4 border-b border-gray-200">
+        <div className="flex items-start justify-between gap-3 pb-4 border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}>
           <div className="flex items-start gap-3 flex-1 min-w-0">
             <Avatar
               user={{
@@ -301,10 +301,10 @@ export function TaskDetailContent({
               size="md"
             />
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-gray-900">
+              <div className="font-semibold text-foreground">
                 {creatorUsername}
               </div>
-              <div className="text-xs text-gray-500 mt-0.5">
+              <div className="text-xs text-foreground-secondary mt-0.5">
                 创建于 {new Date(todo.createdAt).toLocaleString('zh-CN')}
               </div>
             </div>
@@ -315,7 +315,7 @@ export function TaskDetailContent({
               {canEditContent && (
                 <button
                   onClick={handleEdit}
-                  className="p-2 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+                  className="p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
                   aria-label="编辑内容"
                   title="编辑内容"
                 >
@@ -348,8 +348,8 @@ export function TaskDetailContent({
         <div className="flex items-center gap-4 flex-wrap">
           {/* 标签 */}
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-sm font-bold text-gray-900 whitespace-nowrap">
-              <TagIcon className="w-4 h-4 text-gray-500" />
+            <span className="flex items-center gap-1 text-sm font-bold text-foreground whitespace-nowrap">
+              <TagIcon className="w-4 h-4 text-foreground-secondary" />
               标签：
             </span>
             <TagSelector
@@ -369,8 +369,8 @@ export function TaskDetailContent({
           
           {/* 优先级 */}
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-sm font-bold text-gray-900 whitespace-nowrap">
-              <PriorityIcon className="w-4 h-4 text-gray-500" />
+            <span className="flex items-center gap-1 text-sm font-bold text-foreground whitespace-nowrap">
+              <PriorityIcon className="w-4 h-4 text-foreground-secondary" />
               优先级：
             </span>
             {!isEditing ? (
@@ -400,7 +400,7 @@ export function TaskDetailContent({
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 rows={8}
-                className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:border-primary focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 text-base border border-border bg-surface-elevated text-foreground rounded-md focus:border-primary focus:ring-2 focus:ring-primary"
               />
               
               {updateError && (
@@ -429,7 +429,7 @@ export function TaskDetailContent({
             </div>
           ) : (
             <div 
-              className="bg-gray-100 text-gray-900 rounded p-4 max-h-96 overflow-y-auto prose prose-sm max-w-none"
+              className="bg-surface-hover text-foreground rounded p-4 max-h-96 overflow-y-auto prose prose-sm max-w-none"
               style={{
                 wordBreak: 'break-word',
                 overflowWrap: 'anywhere',
@@ -437,28 +437,28 @@ export function TaskDetailContent({
             >
               <ReactMarkdown
                 components={{
-                  p: ({ children }: { children?: React.ReactNode }) => <p className="text-gray-900 mb-3 last:mb-0">{children}</p>,
-                  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-gray-900 mb-3 mt-4 first:mt-0">{children}</h1>,
-                  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-gray-900 mb-2 mt-4 first:mt-0">{children}</h2>,
-                  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-gray-900 mb-2 mt-3 first:mt-0">{children}</h3>,
+                  p: ({ children }: { children?: React.ReactNode }) => <p className="text-foreground mb-3 last:mb-0">{children}</p>,
+                  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-foreground mb-3 mt-4 first:mt-0">{children}</h1>,
+                  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-foreground mb-2 mt-4 first:mt-0">{children}</h2>,
+                  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-foreground mb-2 mt-3 first:mt-0">{children}</h3>,
                   code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) => 
                     inline ? (
-                      <code className="bg-gray-200 text-gray-900 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
+                      <code className="bg-surface-active text-foreground px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
                     ) : (
-                      <code className="block bg-gray-200 text-gray-900 p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</code>
+                      <code className="block bg-surface-active text-foreground p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</code>
                     ),
-                  pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-gray-200 text-gray-900 p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</pre>,
-                  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-3 space-y-1 text-gray-900">{children}</ul>,
-                  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-900">{children}</ol>,
-                  li: ({ children }: { children?: React.ReactNode }) => <li className="text-gray-900">{children}</li>,
-                  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-700 mb-3">{children}</blockquote>,
+                  pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-surface-active text-foreground p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</pre>,
+                  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-3 space-y-1 text-foreground">{children}</ul>,
+                  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-foreground">{children}</ol>,
+                  li: ({ children }: { children?: React.ReactNode }) => <li className="text-foreground">{children}</li>,
+                  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-border pl-4 italic text-foreground mb-3">{children}</blockquote>,
                   a: ({ children, href }: { children?: React.ReactNode; href?: string }) => <a href={href} className="text-blue-600 hover:text-blue-700 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
-                  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-gray-900">{children}</strong>,
-                  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-gray-900">{children}</em>,
-                  hr: () => <hr className="border-gray-300 my-4" />,
-                  table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border-collapse border border-gray-300">{children}</table></div>,
-                  th: ({ children }: { children?: React.ReactNode }) => <th className="border border-gray-300 px-3 py-2 bg-gray-200 text-gray-900 font-semibold text-left">{children}</th>,
-                  td: ({ children }: { children?: React.ReactNode }) => <td className="border border-gray-300 px-3 py-2 text-gray-900">{children}</td>,
+                  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-foreground">{children}</strong>,
+                  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-foreground">{children}</em>,
+                  hr: () => <hr className="border-border my-4" />,
+                  table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border-collapse border border-border">{children}</table></div>,
+                  th: ({ children }: { children?: React.ReactNode }) => <th className="border border-border px-3 py-2 bg-surface-active text-foreground font-semibold text-left">{children}</th>,
+                  td: ({ children }: { children?: React.ReactNode }) => <td className="border border-border px-3 py-2 text-foreground">{children}</td>,
                 }}
               >
                 {todo.content}
@@ -468,7 +468,7 @@ export function TaskDetailContent({
         </div>
         
         {/* 分割线 */}
-        <div className="border-t border-gray-200"></div>
+        <div style={{ borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}></div>
         
         {/* 元信息 */}
         <div className="grid grid-cols-2 gap-4">
@@ -485,7 +485,7 @@ export function TaskDetailContent({
                     }}
                     size="sm"
                   />
-                  <p className="text-sm text-gray-700">
+                  <p className="text-sm text-foreground-secondary">
                     {executorUsername}
                   </p>
                   {canEditAssignee && (
@@ -500,7 +500,7 @@ export function TaskDetailContent({
                           setNewAssigneeId(todo.assigneeId)
                         }
                       }}
-                      className="p-1 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 flex-shrink-0 ml-0.5"
+                      className="p-1 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground flex-shrink-0 ml-0.5"
                       aria-label={isEditingAssignee ? "收起" : "展开"}
                       title={isEditingAssignee ? "收起" : "展开"}
                     >
@@ -515,7 +515,7 @@ export function TaskDetailContent({
                 </div>
                 {!isEditingAssignee && !canEditAssignee && (
                   <span 
-                    className="text-xs text-gray-500 relative group cursor-help"
+                    className="text-xs text-foreground-secondary relative group cursor-help"
                   >
                     {isAssigneeUnassigned ? '仅项目成员可编辑' : '仅创建者/执行者/管理员可编辑'}
                     <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
@@ -552,7 +552,7 @@ export function TaskDetailContent({
             <div
               className={clsx(
                 'transition-all duration-300 ease-in-out',
-                isEditingAssignee ? 'max-h-[500px] opacity-100 mt-4 pt-4 border-t border-gray-200' : 'max-h-0 opacity-0'
+                isEditingAssignee ? 'max-h-[500px] opacity-100 mt-4 pt-4 border-t border-divider' : 'max-h-0 opacity-0'
               )}
               style={{ overflow: isEditingAssignee ? 'visible' : 'hidden' }}
             >
@@ -617,7 +617,7 @@ export function TaskDetailContent({
                       }}
                       disabled={isSavingAssignee || updateTask.isPending}
                       className={clsx(
-                        "relative flex flex-col items-center gap-0.5 px-1 py-1 transition-all hover:shadow-lg bg-white rounded border border-gray-200 shadow focus:outline-none focus:ring-0 w-[60px]",
+                        "relative flex flex-col items-center gap-0.5 px-1 py-1 transition-all hover:shadow-lg bg-surface-elevated rounded border border-border shadow focus:outline-none focus:ring-0 w-[60px]",
                         (isSavingAssignee || updateTask.isPending) && "opacity-50 cursor-not-allowed"
                       )}
                     >
@@ -628,7 +628,7 @@ export function TaskDetailContent({
                         }}
                         size="sm"
                       />
-                      <span className="text-[10px] text-gray-700 text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
+                      <span className="text-[10px] text-foreground text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
                       {isSelected && (
                         <div className="absolute inset-0 bg-black/50 rounded border border-white/50 flex items-center justify-center">
                           {isSavingAssignee ? (
@@ -653,7 +653,7 @@ export function TaskDetailContent({
       </div>
       
       {/* 子待办 */}
-      <div className="bg-white rounded-lg border-t border-gray-200 p-6" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)' }}>
+      <div className="rounded-lg p-6" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)', backgroundColor: '#1f1f23' }}>
         <SubtaskList
           subtasks={todo.children || []}
           projectId={projectId}
@@ -665,9 +665,9 @@ export function TaskDetailContent({
       </div>
 
       {/* 状态历史 */}
-      <div className="bg-white rounded-lg border-t border-gray-200 p-6" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)' }}>
+      <div className="rounded-lg p-6" style={{ boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)', backgroundColor: '#1f1f23' }}>
         {historyLoading ? (
-          <div className="text-sm text-gray-500">加载状态历史中...</div>
+          <div className="text-sm text-foreground-secondary">加载状态历史中...</div>
         ) : (
           <StatusHistory history={history || []} lastUpdatedAt={todo.updatedAt} />
         )}
@@ -836,7 +836,7 @@ function AssigneeSelector({ members, value, onChange, onSave, onCancel, error, l
           ref={buttonRef}
           type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 px-2.5 py-1 text-sm border border-gray-300 rounded-md bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary min-w-[200px] justify-between h-8"
+          className="flex items-center gap-2 px-2.5 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary min-w-[200px] justify-between h-8"
         >
           <div className="flex items-center gap-2 flex-1 min-w-0">
             {value !== undefined ? (
@@ -851,10 +851,10 @@ function AssigneeSelector({ members, value, onChange, onSave, onCancel, error, l
                 <span className="truncate">{selectedUsername}</span>
               </>
             ) : (
-              <span className="text-gray-500">未分配</span>
+              <span className="text-foreground-secondary">未分配</span>
             )}
           </div>
-          <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <svg className="w-4 h-4 text-foreground-tertiary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
@@ -881,7 +881,7 @@ function AssigneeSelector({ members, value, onChange, onSave, onCancel, error, l
           type="button"
           onClick={onCancel}
           disabled={loading}
-          className="p-2 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-2 rounded-md bg-surface-active text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="取消"
           title="取消"
         >
@@ -903,10 +903,11 @@ function AssigneeSelector({ members, value, onChange, onSave, onCancel, error, l
           />
           <div
             ref={menuRef}
-            className="fixed z-[101] w-[280px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-80 overflow-auto"
+            className="fixed z-[101] w-[280px] rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
             style={{
               top: `${menuPosition.top}px`,
               left: `${menuPosition.left}px`,
+              backgroundColor: 'var(--color-surface-elevated)'
             }}
           >
             <button
@@ -916,13 +917,13 @@ function AssigneeSelector({ members, value, onChange, onSave, onCancel, error, l
                 setIsOpen(false)
               }}
               className={clsx(
-                'w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-gray-100 transition-colors text-sm',
-                value === undefined && 'bg-gray-50',
+                'w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-surface-hover transition-colors text-sm',
+                value === undefined && 'bg-surface-active',
                 'border-b-0'
               )}
               style={{ borderBottom: 'none' }}
             >
-              <span className="text-sm text-gray-500">未分配</span>
+              <span className="text-sm text-foreground-secondary">未分配</span>
             </button>
             {members.map((member: any) => {
               const memberUsername = member.username || member.user?.username || '未知用户'
@@ -936,8 +937,8 @@ function AssigneeSelector({ members, value, onChange, onSave, onCancel, error, l
                     setIsOpen(false)
                   }}
                   className={clsx(
-                    'w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-gray-100 transition-colors text-sm',
-                    isSelected && 'bg-gray-50'
+                    'w-full px-3 py-1.5 text-left flex items-center gap-2 hover:bg-surface-hover transition-colors text-sm',
+                    isSelected && 'bg-surface-active'
                   )}
                   style={{ borderBottom: 'none' }}
                 >
@@ -948,7 +949,7 @@ function AssigneeSelector({ members, value, onChange, onSave, onCancel, error, l
                     }}
                     size="sm"
                   />
-                  <span className="text-sm text-gray-900 flex-1">{memberUsername}</span>
+                  <span className="text-sm text-foreground flex-1">{memberUsername}</span>
                   {isSelected && (
                     <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
