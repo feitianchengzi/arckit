@@ -4,13 +4,17 @@
  * TodoItem - 任务项组件
  */
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { StatusBadge, StatusSelect, Avatar } from '@/components/ui'
 import { TagList, PriorityBadge } from './'
-import { parseTaskTags } from '@/lib/utils/tagUtils'
+import { parseTaskTags, buildTaskTags } from '@/lib/utils/tagUtils'
 import type { Todo, TodoStatus, ProjectMember } from '@/types'
+import { XIcon, ChevronDownIcon } from '@/components/ui/icons'
+import { useTagStore } from '@/store/tagStore'
+import { TagDisplay } from './TagDisplay'
 
 export interface TodoItemProps {
   todo: Todo
@@ -24,18 +28,35 @@ export interface TodoItemProps {
   onUpdateAssignee?: (taskId: number, assigneeId: number | null) => Promise<void> // 更新执行人的回调
   canEditPriority?: boolean // 是否可以编辑优先级（owner/admin/创建人）
   onUpdatePriority?: (taskId: number, priority: number | null) => Promise<void> // 更新优先级的回调
+  canEditTags?: boolean // 是否可以编辑标签（owner/admin/创建人）
+  onUpdateTags?: (taskId: number, tagsString: string) => Promise<void> // 更新标签的回调
+  onClick?: () => void // 点击待办项的回调（用于打开抽屉）
 }
 
-export function TodoItem({ todo, projectId, onStatusChange, className, currentUserId, canEdit = false,   members = [], canAssignAssignee = false, onUpdateAssignee, canEditPriority = false, onUpdatePriority }: TodoItemProps) {
+export function TodoItem({ todo, projectId, onStatusChange, className, currentUserId, canEdit = false,   members = [], canAssignAssignee = false, onUpdateAssignee,   canEditPriority = false, onUpdatePriority, canEditTags = false, onUpdateTags, onClick }: TodoItemProps) {
   // 判断是否是创建者或执行者
   const isCreator = currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId
   const isAssignee = currentUserId !== null && currentUserId !== undefined && todo.assigneeId === currentUserId
   const [isUpdatingAssignee, setIsUpdatingAssignee] = useState(false)
   const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
+  const [isEditingAssignee, setIsEditingAssignee] = useState(false)
+  const [isEditingPriority, setIsEditingPriority] = useState(false)
+  const [isEditingTags, setIsEditingTags] = useState(false)
+  const [newAssigneeId, setNewAssigneeId] = useState<number | null | undefined>(undefined)
+  const [isSavingAssignee, setIsSavingAssignee] = useState(false)
+  const [assigneeError, setAssigneeError] = useState('')
+  const [newPriority, setNewPriority] = useState<number | null | undefined>(undefined)
+  const [newTagIds, setNewTagIds] = useState<number[] | null>(null)
+  const [isUpdatingTags, setIsUpdatingTags] = useState(false)
   const navigate = useNavigate()
+  const { loadProjectTags, getProjectTags } = useTagStore()
   
   const handleClick = () => {
-    navigate(`/projects/${projectId}/tasks/${todo.id}`)
+    if (onClick) {
+      onClick()
+    } else {
+      navigate(`/projects/${projectId}/tasks/${todo.id}`)
+    }
   }
   
   const handleStatusChange = (newStatus: TodoStatus) => {
@@ -70,10 +91,69 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                 <TagIcon className="w-3.5 h-3.5 text-gray-500" />
                 标签
               </span>
-              {parseTaskTags(todo.tags).length > 0 ? (
-                <TagList projectId={projectId} tagsString={todo.tags} size="sm" />
+              {isEditingTags && canEditTags && onUpdateTags ? (
+                <TagSelectorInline
+                  projectId={projectId}
+                  currentTags={todo.tags}
+                  selectedTagIds={newTagIds !== null ? newTagIds : parseTaskTags(todo.tags)}
+                  onChange={(tagIds) => setNewTagIds(tagIds)}
+                  onSave={async () => {
+                    try {
+                      setIsUpdatingTags(true)
+                      const tagsString = buildTaskTags(newTagIds !== null ? newTagIds : parseTaskTags(todo.tags))
+                      await onUpdateTags(todo.id, tagsString)
+                      setIsEditingTags(false)
+                      setNewTagIds(null)
+                    } catch (error) {
+                      console.error('更新标签失败:', error)
+                    } finally {
+                      setIsUpdatingTags(false)
+                    }
+                  }}
+                  onCancel={() => {
+                    setIsEditingTags(false)
+                    setNewTagIds(null)
+                  }}
+                  loading={isUpdatingTags}
+                />
+              ) : parseTaskTags(todo.tags).length > 0 ? (
+                <div className="flex items-center gap-1">
+                  <TagList projectId={projectId} tagsString={todo.tags} size="sm" />
+                  {canEditTags && onUpdateTags && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsEditingTags(true)
+                        setNewTagIds(parseTaskTags(todo.tags))
+                        loadProjectTags(projectId).catch(console.error)
+                      }}
+                      className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                      aria-label="设置标签"
+                      title="设置标签"
+                    >
+                      <ReplaceIcon className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               ) : (
-                <span className="text-xs text-gray-400">无</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-400">无</span>
+                  {canEditTags && onUpdateTags && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsEditingTags(true)
+                        setNewTagIds([])
+                        loadProjectTags(projectId).catch(console.error)
+                      }}
+                      className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                      aria-label="设置标签"
+                      title="设置标签"
+                    >
+                      <ReplaceIcon className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
             {/* 分隔符 */}
@@ -84,42 +164,64 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                 <PriorityIcon className="w-3.5 h-3.5 text-gray-500" />
                 优先级
               </span>
-              {canEditPriority && onUpdatePriority ? (
-                <select
-                  value={todo.priority !== null && todo.priority !== undefined ? todo.priority : ''}
-                  onChange={async (e) => {
-                    const value = e.target.value
+              {isEditingPriority && canEditPriority && onUpdatePriority ? (
+                <PrioritySelectorInline
+                  value={newPriority !== undefined ? newPriority : (todo.priority ?? null)}
+                  onChange={setNewPriority}
+                  onSave={async () => {
                     try {
                       setIsUpdatingPriority(true)
-                      const priority = value === '' ? null : Number(value)
-                      await onUpdatePriority(todo.id, priority)
+                      await onUpdatePriority(todo.id, newPriority ?? null)
+                      setIsEditingPriority(false)
+                      setNewPriority(undefined)
                     } catch (error) {
                       console.error('更新优先级失败:', error)
                     } finally {
                       setIsUpdatingPriority(false)
                     }
                   }}
-                  disabled={isUpdatingPriority}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  className={clsx(
-                    "px-2 py-0.5 text-xs border border-gray-300 rounded-md",
-                    "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
-                    "disabled:bg-gray-100 disabled:cursor-not-allowed",
-                    "bg-white text-gray-900",
-                    isUpdatingPriority && "opacity-50"
-                  )}
-                >
-                  <option value="">未设定</option>
-                  <option value="0">🔴 最高</option>
-                  <option value="1">🟠 高</option>
-                  <option value="2">🟡 中</option>
-                  <option value="3">🟢 低</option>
-                </select>
+                  onCancel={() => {
+                    setIsEditingPriority(false)
+                    setNewPriority(undefined)
+                  }}
+                  loading={isUpdatingPriority}
+                />
               ) : todo.priority !== null && todo.priority !== undefined ? (
-                <PriorityBadge value={todo.priority} size="sm" />
+                <div className="flex items-center gap-1">
+                  <PriorityBadge value={todo.priority} size="sm" />
+                  {canEditPriority && onUpdatePriority && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsEditingPriority(true)
+                        setNewPriority(todo.priority ?? null)
+                      }}
+                      className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                      aria-label="设置优先级"
+                      title="设置优先级"
+                    >
+                      <ReplaceIcon className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               ) : (
-                <span className="text-xs text-gray-400">未设定</span>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-400">未设定</span>
+                  {canEditPriority && onUpdatePriority && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setIsEditingPriority(true)
+                        setNewPriority(null)
+                      }}
+                      className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700"
+                      aria-label="设置优先级"
+                      title="设置优先级"
+                    >
+                      <ReplaceIcon className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -155,51 +257,172 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
           {/* 执行者 - 始终显示 */}
           <div className="flex items-center gap-0.5 text-xs text-gray-600 whitespace-nowrap">
             <span className="text-gray-500 font-bold">执行：</span>
-            {canAssignAssignee && onUpdateAssignee && members.length > 0 ? (
-              <select
-                value={todo.assigneeId || ''}
-                onChange={async (e) => {
-                  const value = e.target.value
-                  
-                  try {
-                    setIsUpdatingAssignee(true)
-                    const assigneeId = value === '' ? null : Number(value)
-                    await onUpdateAssignee(todo.id, assigneeId)
-                  } catch (error) {
-                    console.error('更新执行人失败:', error)
-                  } finally {
-                    setIsUpdatingAssignee(false)
-                  }
-                }}
-                disabled={isUpdatingAssignee}
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-                className={clsx(
-                  "px-2 py-0.5 text-xs border border-gray-300 rounded-md",
-                  "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
-                  "disabled:bg-gray-100 disabled:cursor-not-allowed",
-                  "bg-white text-gray-900",
-                  isUpdatingAssignee && "opacity-50"
-                )}
-              >
-                <option value="">未选定</option>
-                {members.map((member) => (
-                  <option key={member.user_id} value={member.user_id}>
-                    {member.username || member.user?.username || `用户 ${member.user_id}`}
-                  </option>
-                ))}
-              </select>
-            ) : todo.assignee ? (
-              <>
+            {todo.assignee ? (
+              <div className="flex items-center gap-1">
                 <Avatar user={todo.assignee} size="xs" />
                 <span className={clsx('font-medium', isAssignee && 'text-blue-600')}>
                   {todo.assignee.username}
                 </span>
-              </>
+                {canAssignAssignee && onUpdateAssignee && members.length > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (isEditingAssignee) {
+                        setIsEditingAssignee(false)
+                        setNewAssigneeId(undefined)
+                        setAssigneeError('')
+                      } else {
+                        setIsEditingAssignee(true)
+                        setNewAssigneeId(todo.assigneeId || undefined)
+                      }
+                    }}
+                    className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700 ml-0.5"
+                    aria-label={isEditingAssignee ? "收起" : "展开"}
+                    title={isEditingAssignee ? "收起" : "展开"}
+                  >
+                    <ChevronDownIcon 
+                      className={clsx(
+                        "w-3 h-3 transition-transform",
+                        isEditingAssignee && "transform rotate-180"
+                      )} 
+                    />
+                  </button>
+                )}
+              </div>
             ) : (
-              <span className="text-gray-400">未选定</span>
+              <div className="flex items-center gap-1">
+                <span className="text-gray-400">未选定</span>
+                {canAssignAssignee && onUpdateAssignee && members.length > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (isEditingAssignee) {
+                        setIsEditingAssignee(false)
+                        setNewAssigneeId(undefined)
+                        setAssigneeError('')
+                      } else {
+                        setIsEditingAssignee(true)
+                        setNewAssigneeId(undefined)
+                      }
+                    }}
+                    className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700 ml-0.5"
+                    aria-label={isEditingAssignee ? "收起" : "展开"}
+                    title={isEditingAssignee ? "收起" : "展开"}
+                  >
+                    <ChevronDownIcon 
+                      className={clsx(
+                        "w-3 h-3 transition-transform",
+                        isEditingAssignee && "transform rotate-180"
+                      )} 
+                    />
+                  </button>
+                )}
+              </div>
+            )}
+            {assigneeError && (
+              <span className="text-xs text-error ml-2">{assigneeError}</span>
             )}
           </div>
+          {/* 成员选择区域 - 点击更换后展开 */}
+          {isEditingAssignee && canAssignAssignee && onUpdateAssignee && members.length > 0 && (
+            <div
+              className={clsx(
+                'w-full transition-all duration-300 ease-in-out',
+                isEditingAssignee ? 'max-h-[500px] opacity-100 mt-2 pt-2 border-t border-gray-200' : 'max-h-0 opacity-0'
+              )}
+              style={{ overflow: isEditingAssignee ? 'visible' : 'hidden' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex flex-wrap gap-x-1 gap-y-1.5">
+                {/* 成员列表 */}
+                {members.map((member) => {
+                  const memberId = member.user_id
+                  const isSelected = newAssigneeId === memberId
+                  const memberUsername = member.username || member.user?.username || '未知用户'
+                  const memberAvatar = member.avatar || member.user?.avatar
+                  
+                  return (
+                    <button
+                      key={memberId}
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation()
+                        // 如果正在保存或已选中，不处理
+                        if (isSavingAssignee || isSelected) return
+                        
+                        // 如果点击的是当前选中的，不处理
+                        if (newAssigneeId === memberId) return
+                        
+                        try {
+                          setIsSavingAssignee(true)
+                          setAssigneeError('')
+                          setNewAssigneeId(memberId)
+                          await onUpdateAssignee(todo.id, memberId)
+                          setIsEditingAssignee(false)
+                        } catch (error: any) {
+                          console.error('分配任务失败:', error)
+                          
+                          // 恢复之前的选择
+                          setNewAssigneeId(todo.assigneeId || undefined)
+                          
+                          if (error?.response?.status === 403) {
+                            setAssigneeError('您没有权限分配此任务')
+                          } else {
+                            const errorData = error?.response?.data
+                            let errorMsg = '更新失败，请重试'
+                            
+                            if (errorData) {
+                              if (errorData.error && errorData.error.message) {
+                                errorMsg = errorData.error.message
+                              } else if (errorData.message) {
+                                errorMsg = errorData.message
+                              } else if (errorData.error && typeof errorData.error === 'string') {
+                                errorMsg = errorData.error
+                              }
+                            } else if (error?.message) {
+                              errorMsg = error.message
+                            }
+                            
+                            setAssigneeError(errorMsg)
+                          }
+                        } finally {
+                          setIsSavingAssignee(false)
+                        }
+                      }}
+                      disabled={isSavingAssignee}
+                      className={clsx(
+                        "relative flex flex-col items-center gap-0.5 px-1 py-1 transition-all hover:shadow-lg bg-white rounded border border-gray-200 shadow focus:outline-none focus:ring-0 w-[60px]",
+                        isSavingAssignee && "opacity-50 cursor-not-allowed"
+                      )}
+                    >
+                      <Avatar
+                        user={{
+                          username: memberUsername,
+                          avatar: memberAvatar
+                        }}
+                        size="xs"
+                      />
+                      <span className="text-[10px] text-gray-700 text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
+                      {isSelected && (
+                        <div className="absolute inset-0 bg-black/50 rounded-lg border border-white/50 flex items-center justify-center">
+                          {isSavingAssignee ? (
+                            <svg className="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
         
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -228,12 +451,44 @@ function formatDate(dateString: string): string {
   const date = new Date(dateString)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
+  
+  // 如果时间差为负数（未来时间），返回具体日期
+  if (diffMs < 0) {
+    return date.toLocaleDateString('zh-CN')
+  }
+  
+  // 计算时间差
+  const diffSeconds = Math.floor(diffMs / 1000)
+  const diffMinutes = Math.floor(diffMs / (1000 * 60))
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
   
-  if (diffDays === 0) return '今天'
-  if (diffDays === 1) return '昨天'
-  if (diffDays < 7) return `${diffDays} 天前`
+  // 刚刚（1分钟内）
+  if (diffSeconds < 60) {
+    return '刚刚'
+  }
   
+  // x分钟前（1分钟到59分钟）
+  if (diffMinutes < 60) {
+    return `${diffMinutes}分钟前`
+  }
+  
+  // x小时前（1小时到23小时）
+  if (diffHours < 24) {
+    return `${diffHours}小时前`
+  }
+  
+  // 昨天（24小时到48小时前）
+  if (diffDays === 1) {
+    return '昨天'
+  }
+  
+  // 前天（48小时到72小时前）
+  if (diffDays === 2) {
+    return '前天'
+  }
+  
+  // 更早的日期显示具体日期
   return date.toLocaleDateString('zh-CN')
 }
 
@@ -288,5 +543,574 @@ function PriorityIcon({ className }: { className?: string }) {
   )
 }
 
+function ReplaceIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+    </svg>
+  )
+}
+
+// ==================== 执行人选择器组件（内联版本）====================
+
+interface AssigneeSelectorInlineProps {
+  members: ProjectMember[]
+  value: number | undefined
+  onChange: (value: number | undefined) => void
+  onSave: () => Promise<void>
+  onCancel: () => void
+  loading?: boolean
+}
+
+function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, loading }: AssigneeSelectorInlineProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const selectedMember = members.find((m) => m.user_id === value)
+  const selectedUsername = selectedMember?.username || selectedMember?.user?.username || (value === undefined ? '未选定' : '未知用户')
+
+  // 计算下拉菜单位置
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const buttonRect = buttonRef.current.getBoundingClientRect()
+      const viewportHeight = window.innerHeight
+      const viewportWidth = window.innerWidth
+      const menuHeight = Math.min(320, (members.length + 1) * 40 + 8)
+      const menuWidth = 240
+
+      let top = buttonRect.bottom + 4
+      if (top + menuHeight > viewportHeight) {
+        top = buttonRect.top - menuHeight - 4
+      }
+
+      let left = buttonRect.left
+      if (left + menuWidth > viewportWidth) {
+        left = viewportWidth - menuWidth - 8
+      }
+      if (left < 8) {
+        left = 8
+      }
+
+      setMenuPosition({ top, left })
+    } else {
+      setMenuPosition(null)
+    }
+  }, [isOpen, members.length])
+
+  // 点击外部关闭
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  return (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1">
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[120px]"
+        >
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            {value !== undefined ? (
+              <>
+                <Avatar
+                  user={{
+                    username: selectedMember?.username || selectedMember?.user?.username,
+                    avatar: selectedMember?.avatar || selectedMember?.user?.avatar
+                  }}
+                  size="xs"
+                />
+                <span className="truncate text-xs">{selectedUsername}</span>
+              </>
+            ) : (
+              <span className="text-gray-500 text-xs">未选定</span>
+            )}
+          </div>
+          <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={loading}
+          className="p-0.5 rounded bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          aria-label="保存"
+          title="保存"
+        >
+          {loading ? (
+            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          ) : (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={loading}
+          className="p-0.5 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          aria-label="取消"
+          title="取消"
+        >
+          <XIcon className="w-3 h-3" />
+        </button>
+      </div>
+
+      {isOpen && menuPosition && createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-[100]"
+            onClick={() => setIsOpen(false)}
+          />
+          <div
+            ref={menuRef}
+            className="fixed z-[101] w-[240px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-80 overflow-auto"
+            style={{
+              top: `${menuPosition.top}px`,
+              left: `${menuPosition.left}px`,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                onChange(undefined)
+                setIsOpen(false)
+              }}
+              className={clsx(
+                'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-gray-100 transition-colors text-xs',
+                value === undefined && 'bg-gray-50'
+              )}
+              style={{ borderBottom: 'none' }}
+            >
+              <span className="text-xs text-gray-500">未选定</span>
+            </button>
+            {members.map((member) => {
+              const memberUsername = member.username || member.user?.username || '未知用户'
+              const isSelected = member.user_id === value
+              return (
+                <button
+                  key={member.user_id}
+                  type="button"
+                  onClick={() => {
+                    onChange(member.user_id)
+                    setIsOpen(false)
+                  }}
+                  className={clsx(
+                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-gray-100 transition-colors text-xs',
+                    isSelected && 'bg-gray-50'
+                  )}
+                  style={{ borderBottom: 'none' }}
+                >
+                  <Avatar
+                    user={{
+                      username: memberUsername,
+                      avatar: member.avatar || member.user?.avatar
+                    }}
+                    size="xs"
+                  />
+                  <span className="text-xs text-gray-900 flex-1">{memberUsername}</span>
+                  {isSelected && (
+                    <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+// ==================== 优先级选择器组件（内联版本）====================
+
+interface PrioritySelectorInlineProps {
+  value: number | null
+  onChange: (value: number | null) => void
+  onSave: () => Promise<void>
+  onCancel: () => void
+  loading?: boolean
+}
+
+const PRIORITY_OPTIONS = [
+  { value: 0, label: '最高', icon: '🔴' },
+  { value: 1, label: '高', icon: '🟠' },
+  { value: 2, label: '中', icon: '🟡' },
+  { value: 3, label: '低', icon: '🟢' },
+  { value: null, label: '未设定', icon: '⚪' },
+]
+
+function PrioritySelectorInline({ value, onChange, onSave, onCancel, loading }: PrioritySelectorInlineProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  const selectedOption = PRIORITY_OPTIONS.find((p) => p.value === value) || PRIORITY_OPTIONS[4]
+
+  // 计算下拉菜单位置
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const buttonRect = buttonRef.current.getBoundingClientRect()
+      const viewportHeight = window.innerHeight
+      const viewportWidth = window.innerWidth
+      const menuHeight = Math.min(320, PRIORITY_OPTIONS.length * 40 + 8)
+      const menuWidth = 200
+
+      let top = buttonRect.bottom + 4
+      if (top + menuHeight > viewportHeight) {
+        top = buttonRect.top - menuHeight - 4
+      }
+
+      let left = buttonRect.left
+      if (left + menuWidth > viewportWidth) {
+        left = viewportWidth - menuWidth - 8
+      }
+      if (left < 8) {
+        left = 8
+      }
+
+      setMenuPosition({ top, left })
+    } else {
+      setMenuPosition(null)
+    }
+  }, [isOpen])
+
+  // 点击外部关闭
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  return (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1">
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
+        >
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            <span>{selectedOption.icon}</span>
+            <span className="truncate text-xs">{selectedOption.label}</span>
+          </div>
+          <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={loading}
+          className="p-0.5 rounded bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          aria-label="保存"
+          title="保存"
+        >
+          {loading ? (
+            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          ) : (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={loading}
+          className="p-0.5 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          aria-label="取消"
+          title="取消"
+        >
+          <XIcon className="w-3 h-3" />
+        </button>
+      </div>
+
+      {isOpen && menuPosition && createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-[100]"
+            onClick={() => setIsOpen(false)}
+          />
+          <div
+            ref={menuRef}
+            className="fixed z-[101] w-[200px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-80 overflow-auto"
+            style={{
+              top: `${menuPosition.top}px`,
+              left: `${menuPosition.left}px`,
+            }}
+          >
+            {PRIORITY_OPTIONS.map((option) => {
+              const isSelected = option.value === value
+              return (
+                <button
+                  key={option.value ?? 'none'}
+                  type="button"
+                  onClick={() => {
+                    onChange(option.value)
+                    setIsOpen(false)
+                  }}
+                  className={clsx(
+                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-gray-100 transition-colors text-xs',
+                    isSelected && 'bg-gray-50'
+                  )}
+                  style={{ borderBottom: 'none' }}
+                >
+                  <span className="text-xs">{option.icon}</span>
+                  <span className="text-xs text-gray-900 flex-1">{option.label}</span>
+                  {isSelected && (
+                    <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  )
+}
 
 
+// ==================== 标签选择器组件（内联版本）====================
+
+interface TagSelectorInlineProps {
+  projectId: string
+  currentTags?: string | null
+  selectedTagIds: number[]
+  onChange: (tagIds: number[]) => void
+  onSave: () => Promise<void>
+  onCancel: () => void
+  loading?: boolean
+}
+
+function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, onSave, onCancel, loading }: TagSelectorInlineProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const { getProjectTags } = useTagStore()
+
+  const projectTags = getProjectTags(projectId)
+  const selectedTags = projectTags.filter(tag => selectedTagIds.includes(tag.id))
+
+  // 计算下拉菜单位置
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const buttonRect = buttonRef.current.getBoundingClientRect()
+      const viewportHeight = window.innerHeight
+      const viewportWidth = window.innerWidth
+      const menuHeight = Math.min(400, (projectTags.length + 1) * 50 + 60)
+      const menuWidth = 280
+
+      let top = buttonRect.bottom + 4
+      if (top + menuHeight > viewportHeight) {
+        top = buttonRect.top - menuHeight - 4
+      }
+
+      let left = buttonRect.left
+      if (left + menuWidth > viewportWidth) {
+        left = viewportWidth - menuWidth - 8
+      }
+      if (left < 8) {
+        left = 8
+      }
+
+      setMenuPosition({ top, left })
+    } else {
+      setMenuPosition(null)
+    }
+  }, [isOpen, projectTags.length])
+
+  // 点击外部关闭
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(e.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  const handleTagToggle = (tagId: number) => {
+    if (selectedTagIds.includes(tagId)) {
+      onChange(selectedTagIds.filter(id => id !== tagId))
+    } else {
+      onChange([...selectedTagIds, tagId])
+    }
+  }
+
+  const getButtonText = () => {
+    if (selectedTags.length === 0) {
+      return '选择标签'
+    }
+    if (selectedTags.length === 1) {
+      return selectedTags[0].displayName
+    }
+    return `已选 ${selectedTags.length} 个`
+  }
+
+  return (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1">
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-gray-300 rounded bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
+        >
+          <div className="flex items-center gap-1 flex-1 min-w-0">
+            {selectedTags.length > 0 ? (
+              <>
+                {selectedTags.slice(0, 1).map(tag => (
+                  <TagDisplay key={tag.id} tag={tag} size="xs" />
+                ))}
+                {selectedTags.length > 1 && (
+                  <span className="text-xs text-gray-500">+{selectedTags.length - 1}</span>
+                )}
+              </>
+            ) : (
+              <span className="text-gray-500 text-xs truncate">{getButtonText()}</span>
+            )}
+          </div>
+          <svg className="w-3 h-3 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={loading}
+          className="p-0.5 rounded bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          aria-label="保存"
+          title="保存"
+        >
+          {loading ? (
+            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          ) : (
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={loading}
+          className="p-0.5 rounded bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          aria-label="取消"
+          title="取消"
+        >
+          <XIcon className="w-3 h-3" />
+        </button>
+      </div>
+
+      {isOpen && menuPosition && createPortal(
+        <>
+          <div
+            className="fixed inset-0 z-[100]"
+            onClick={() => setIsOpen(false)}
+          />
+          <div
+            ref={menuRef}
+            className="fixed z-[101] w-[280px] bg-white rounded-lg shadow-lg border border-gray-200 py-1 max-h-[400px] overflow-auto"
+            style={{
+              top: `${menuPosition.top}px`,
+              left: `${menuPosition.left}px`,
+            }}
+          >
+            {projectTags.length > 0 ? (
+              <div className="py-1">
+                {projectTags.map(tag => {
+                  const isSelected = selectedTagIds.includes(tag.id)
+                  return (
+                    <div
+                      key={tag.id}
+                      className={clsx(
+                        'px-2 py-1.5 hover:bg-gray-100 transition-colors',
+                        isSelected && 'bg-gray-50'
+                      )}
+                    >
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleTagToggle(tag.id)}
+                          className="w-3.5 h-3.5 text-primary border-gray-300 rounded focus:ring-primary flex-shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <TagDisplay tag={tag} size="xs" />
+                      </label>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="px-3 py-4 text-xs text-gray-500 text-center">
+                暂无标签
+              </div>
+            )}
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  )
+}

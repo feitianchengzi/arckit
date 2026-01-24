@@ -46,15 +46,15 @@ export function TagDisplay({
   const textColor = getContrastColor(bgColor)
   
   const sizeClasses = {
-    sm: 'text-xs px-2 py-0.5',
-    md: 'text-sm px-2.5 py-1',
-    lg: 'text-base px-3 py-1.5',
+    sm: 'text-[10px] px-1.5 py-0 h-4',
+    md: 'text-[10px] px-2 py-0 h-4',
+    lg: 'text-xs px-2.5 py-0 h-5',
   }
   
   return (
     <span
       className={clsx(
-        'inline-flex items-center rounded font-medium',
+        'inline-flex items-center rounded font-medium leading-none',
         sizeClasses[size],
         onClick && 'cursor-pointer hover:opacity-80 transition-opacity',
         className

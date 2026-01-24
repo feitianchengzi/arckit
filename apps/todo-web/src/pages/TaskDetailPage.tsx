@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog } from '@/components/ui'
-import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge } from '@/components/features'
+import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge, CreateTaskDialog } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
@@ -38,6 +38,7 @@ export default function TaskDetailPage() {
   const [statusUpdateError, setStatusUpdateError] = useState('')
   const [isEditingAssignee, setIsEditingAssignee] = useState(false)
   const [newAssigneeId, setNewAssigneeId] = useState<number | undefined>(undefined)
+  const [createSubtaskDialogOpen, setCreateSubtaskDialogOpen] = useState(false)
   
   const { data: members } = useProjectMembers(projectId)
   const currentUser = useAuthStore((state) => state.user)
@@ -132,7 +133,13 @@ export default function TaskDetailPage() {
 
   // 创建子待办
   const handleCreateSubtask = () => {
-    navigate(`/projects/${projectId}/tasks/new?parentId=${taskId}`)
+    setCreateSubtaskDialogOpen(true)
+  }
+  
+  const handleCreateSubtaskSuccess = (newTaskId: number) => {
+    // 创建成功后刷新任务详情
+    refetch()
+    setCreateSubtaskDialogOpen(false)
   }
 
   // 处理状态变更
@@ -575,6 +582,15 @@ export default function TaskDetailPage() {
         variant="danger"
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+      
+      {/* 创建子待办对话框 */}
+      <CreateTaskDialog
+        open={createSubtaskDialogOpen}
+        onClose={() => setCreateSubtaskDialogOpen(false)}
+        projectId={projectId}
+        parentId={todo.id}
+        onSuccess={handleCreateSubtaskSuccess}
       />
     </div>
   )

@@ -10,7 +10,6 @@
  * - null/undefined: 无优先级
  */
 
-import { useState } from 'react'
 import clsx from 'clsx'
 
 export interface PrioritySelectorProps {
@@ -86,106 +85,50 @@ export function PrioritySelector({
   size = 'md',
   className,
 }: PrioritySelectorProps) {
-  const [isOpen, setIsOpen] = useState(false)
-
-  const currentPriority = PRIORITY_LEVELS.find((p) => p.value === value) || PRIORITY_LEVELS[4]
-
   const sizeClasses = {
     sm: 'px-2 py-0.5 text-xs',
-    md: 'px-3 py-1 text-sm',
-    lg: 'px-4 py-1.5 text-base',
-  }
-
-  const handleSelect = (priority: number | null) => {
-    onChange(priority)
-    setIsOpen(false)
+    md: 'px-2.5 py-1 text-xs',
+    lg: 'px-3 py-1.5 text-sm',
   }
 
   return (
-    <div className={clsx('relative', className)}>
-      {/* 选择按钮 */}
-      <button
-        type="button"
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-        disabled={disabled}
-        className={clsx(
-          'inline-flex items-center gap-1.5 font-medium rounded-md transition-all',
-          'border border-gray-300',
-          currentPriority.color,
-          currentPriority.bgColor,
-          sizeClasses[size],
-          !disabled && currentPriority.hoverBg,
-          'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
-          'disabled:opacity-50 disabled:cursor-not-allowed'
-        )}
-      >
-        <span className="flex-shrink-0">{currentPriority.icon}</span>
-        <span>{currentPriority.label}</span>
-        <ChevronIcon
-          className={clsx('transition-transform flex-shrink-0', {
-            'w-3 h-3': size === 'sm',
-            'w-4 h-4': size === 'md',
-            'w-5 h-5': size === 'lg',
-            'transform rotate-180': isOpen,
-          })}
-        />
-      </button>
-
-      {/* 下拉菜单 */}
-      {isOpen && (
-        <>
-          {/* 遮罩层 */}
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
-          />
-
-          {/* 菜单内容 */}
-          <div
+    <div className={clsx('flex items-center gap-1 flex-wrap', className)}>
+      {PRIORITY_LEVELS.map((priority) => {
+        const isSelected = priority.value === value
+        return (
+          <label
+            key={priority.value ?? 'none'}
             className={clsx(
-              'absolute z-20 mt-1 w-64 bg-white rounded-lg shadow-lg border border-gray-200',
-              'py-1 max-h-80 overflow-auto'
+              'inline-flex items-center gap-1 font-medium rounded transition-all cursor-pointer',
+              'border h-5',
+              sizeClasses[size],
+              isSelected
+                ? clsx(
+                    priority.color,
+                    priority.bgColor,
+                    'border-primary shadow-sm'
+                  )
+                : clsx(
+                    'border-gray-200 bg-white text-gray-700',
+                    !disabled && 'hover:bg-gray-50 hover:border-gray-300'
+                  ),
+              disabled && 'opacity-50 cursor-not-allowed'
             )}
           >
-            <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider border-b border-gray-100">
-              选择优先级
-            </div>
-            {PRIORITY_LEVELS.map((priority) => {
-              const isSelected = priority.value === value
-              return (
-                <button
-                  key={priority.value ?? 'none'}
-                  type="button"
-                  onClick={() => handleSelect(priority.value)}
-                  className={clsx(
-                    'w-full px-3 py-2 text-left flex items-start gap-3',
-                    'transition-colors',
-                    priority.hoverBg,
-                    isSelected && priority.bgColor
-                  )}
-                >
-                  <span className="flex-shrink-0 text-lg mt-0.5">
-                    {priority.icon}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <div className={clsx('font-medium', priority.color)}>
-                      {priority.label}
-                      {isSelected && (
-                        <span className="ml-2 text-xs text-primary">✓</span>
-                      )}
-                    </div>
-                    {priority.description && (
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {priority.description}
-                      </div>
-                    )}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        </>
-      )}
+            <input
+              type="radio"
+              name="priority"
+              value={priority.value ?? 'none'}
+              checked={isSelected}
+              onChange={() => !disabled && onChange(priority.value)}
+              disabled={disabled}
+              className="sr-only"
+            />
+            <span className="flex-shrink-0 text-xs leading-none">{priority.icon}</span>
+            <span className="text-xs leading-none">{priority.label}</span>
+          </label>
+        )
+      })}
     </div>
   )
 }
@@ -232,23 +175,5 @@ export function getPriorityConfig(value?: number | null): PriorityLevel {
   return PRIORITY_LEVELS.find((p) => p.value === value) || PRIORITY_LEVELS[4]
 }
 
-// 箭头图标组件
-function ChevronIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d="M19 9l-7 7-7-7"
-      />
-    </svg>
-  )
-}
 
 

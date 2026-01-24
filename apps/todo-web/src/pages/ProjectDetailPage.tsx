@@ -6,9 +6,9 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog } from '@/components/ui'
+import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog, Drawer } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
-import { ProjectMemberList } from '@/components/features/ProjectMemberList'
+import { ProjectMemberList, TaskDetailContent, CreateTaskDialog } from '@/components/features'
 import { buildTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
@@ -30,6 +30,10 @@ export default function ProjectDetailPage() {
   
   const currentUser = useAuthStore((state) => state.user)
   const [showScrollTop, setShowScrollTop] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false)
+  const [taskHistory, setTaskHistory] = useState<Array<{ taskId: string; projectId: string; parentTaskId: number | null }>>([])
   
   // 回到顶部
   const scrollToTop = () => {
@@ -558,6 +562,25 @@ export default function ProjectDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
     queryClient.refetchQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
   }, [projectId, queryClient])
+
+  const canEditTags = useCallback((todo: any) => {
+    if (!currentUserId || !currentUserRole) return false
+    
+    // owner 或 admin 可以编辑任意任务的标签
+    if (currentUserRole === 'owner' || currentUserRole === 'admin') {
+      return true
+    }
+    
+    // 创建人可以编辑自己创建的任务的标签
+    return todo.creatorId === currentUserId
+  }, [currentUserId, currentUserRole])
+
+  const handleUpdateTags = useCallback(async (taskId: number, tagsString: string) => {
+    await tasksApi.update(String(projectId), String(taskId), { tags: tagsString })
+    // 刷新待办列表缓存
+    queryClient.invalidateQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
+    queryClient.refetchQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
+  }, [projectId, queryClient])
   
   // 计算"更多"菜单的位置
   useEffect(() => {
@@ -856,7 +879,7 @@ export default function ProjectDetailPage() {
             <IconButton
               icon={<CreateTodoIcon />}
               label="创建待办"
-              onClick={() => navigate(`/projects/${projectId}/tasks/new`)}
+              onClick={() => setShowCreateTaskDialog(true)}
               variant="primary"
             />
             
@@ -1440,7 +1463,7 @@ export default function ProjectDetailPage() {
             title="还没有待办"
             message="创建第一个待办开始工作"
             actionLabel="创建待办"
-            onAction={() => navigate(`/projects/${projectId}/tasks/new`)}
+            onAction={() => setCreateTaskDialogOpen(true)}
           />
         ) : filteredTodos.length === 0 ? (
           <EmptyStateView
@@ -1458,7 +1481,7 @@ export default function ProjectDetailPage() {
             onAction={
               statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null
                 ? undefined
-                : () => navigate(`/projects/${projectId}/tasks/new`)
+                : () => setShowCreateTaskDialog(true)
             }
           />
         ) : (
@@ -1476,6 +1499,12 @@ export default function ProjectDetailPage() {
                 onUpdateAssignee={handleUpdateAssignee}
                 canEditPriority={canEditPriority(todo)}
                 onUpdatePriority={handleUpdatePriority}
+                canEditTags={canEditTags(todo)}
+                onUpdateTags={handleUpdateTags}
+                onClick={() => {
+                  setSelectedTaskId(String(todo.id))
+                  setDrawerOpen(true)
+                }}
               />
             ))}
           </div>
@@ -1569,6 +1598,68 @@ export default function ProjectDetailPage() {
         variant="danger"
         onConfirm={handleDeleteProject}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+      
+      {/* 待办详情抽屉 */}
+      <Drawer
+        open={drawerOpen}
+        onClose={() => {
+          setDrawerOpen(false)
+          setSelectedTaskId(null)
+          setTaskHistory([])
+        }}
+        width="w-full md:w-[600px] lg:w-[700px]"
+        showBackButton={taskHistory.length > 0}
+        onBack={() => {
+          if (taskHistory.length > 0) {
+            // 如果有历史记录，返回上一个任务
+            const previous = taskHistory[taskHistory.length - 1]
+            setTaskHistory(prev => prev.slice(0, -1))
+            setSelectedTaskId(previous.taskId)
+          }
+        }}
+      >
+        {selectedTaskId && (
+          <TaskDetailContent
+            projectId={String(projectId)}
+            taskId={selectedTaskId}
+            showHeader={false}
+            parentTaskId={taskHistory.length > 0 ? taskHistory[taskHistory.length - 1].parentTaskId : null}
+            onNavigateToSubtask={(subtaskId) => {
+              // 获取当前任务的父任务ID
+              const currentTask = enrichedTodos?.find(t => t.id.toString() === selectedTaskId)
+              const parentTaskId = currentTask?.parentId || null
+              
+              // 添加到历史记录
+              setTaskHistory(prev => [...prev, { taskId: selectedTaskId, projectId: String(projectId), parentTaskId }])
+              
+              // 导航到子待办
+              setSelectedTaskId(String(subtaskId))
+            }}
+            onClose={() => {
+              // 关闭抽屉（回退逻辑已在 Drawer 的 onBack 中处理）
+              setDrawerOpen(false)
+              setSelectedTaskId(null)
+            }}
+            onDelete={() => {
+              setDrawerOpen(false)
+              setSelectedTaskId(null)
+              setTaskHistory([])
+              refetchTodos()
+            }}
+          />
+        )}
+      </Drawer>
+      
+      {/* 创建待办对话框 */}
+      <CreateTaskDialog
+        open={showCreateTaskDialog}
+        onClose={() => setShowCreateTaskDialog(false)}
+        projectId={String(projectId)}
+        onSuccess={() => {
+          setShowCreateTaskDialog(false)
+          refetchTodos()
+        }}
       />
       
       {/* 回到顶部按钮 */}

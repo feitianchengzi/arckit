@@ -12,6 +12,8 @@ export interface CreateTaskInput {
   content: string
   assigneeId?: number
   parentId?: number
+  priority?: number
+  tags?: string
 }
 
 export interface UpdateTaskInput {
@@ -103,6 +105,14 @@ export const tasksApi = {
     
     if (input.parentId !== undefined) {
       taskInput.father_id = input.parentId
+    }
+    
+    if (input.priority !== undefined && input.priority !== null) {
+      taskInput.priority = input.priority
+    }
+    
+    if (input.tags !== undefined && input.tags !== null && input.tags !== '') {
+      taskInput.tags = input.tags
     }
     
     console.log('🆕 创建任务:', taskInput)

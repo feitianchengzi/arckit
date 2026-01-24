@@ -11,14 +11,19 @@ import { stateToStatus } from '@/lib/utils/taskMapper'
 export interface StatusHistoryProps {
   history: TaskHistory[]
   className?: string
+  lastUpdatedAt?: string // 最后更新时间
 }
 
-export function StatusHistory({ history, className }: StatusHistoryProps) {
+export function StatusHistory({ history, className, lastUpdatedAt }: StatusHistoryProps) {
   if (!history || history.length === 0) {
     return (
       <div className={className}>
         <h3 className="text-lg font-semibold text-gray-900 mb-4">状态历史</h3>
-        <p className="text-sm text-gray-500">暂无状态变更记录</p>
+        {lastUpdatedAt && (
+          <p className="text-sm text-gray-500">
+            最后一次更新于 {new Date(lastUpdatedAt).toLocaleString('zh-CN')}
+          </p>
+        )}
       </div>
     )
   }
@@ -57,6 +62,13 @@ export function StatusHistory({ history, className }: StatusHistoryProps) {
             </div>
           </div>
         ))}
+        {lastUpdatedAt && (
+          <div className="pt-2 border-t border-gray-200">
+            <p className="text-sm text-gray-500">
+              最后一次更新于 {new Date(lastUpdatedAt).toLocaleString('zh-CN')}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -15,6 +15,7 @@ export interface SubtaskListProps {
   parentTaskId: number
   onCreateSubtask?: () => void
   onStatusChange?: (todoId: number, newStatus: string) => void
+  onSubtaskClick?: (subtaskId: number) => void
 }
 
 export function SubtaskList({
@@ -23,6 +24,7 @@ export function SubtaskList({
   parentTaskId,
   onCreateSubtask,
   onStatusChange,
+  onSubtaskClick,
 }: SubtaskListProps) {
   const navigate = useNavigate()
 
@@ -76,6 +78,7 @@ export function SubtaskList({
             todo={subtask}
             projectId={projectId}
             onStatusChange={onStatusChange}
+            onClick={onSubtaskClick ? () => onSubtaskClick(subtask.id) : undefined}
             className="ml-0"
           />
         ))}

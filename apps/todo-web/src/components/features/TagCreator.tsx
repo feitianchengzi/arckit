@@ -149,8 +149,8 @@ export function TagCreator({
         </div>
       )}
       
-      {/* 按钮固定在底部 */}
-      <div className="flex gap-2 sticky bottom-0 bg-white pt-2 border-t border-gray-200">
+      {/* 按钮 */}
+      <div className="flex gap-2 pt-2 border-t border-gray-200">
         <Button
           variant="primary"
           size="sm"

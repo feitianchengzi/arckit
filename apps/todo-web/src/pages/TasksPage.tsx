@@ -8,8 +8,8 @@ import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button, LoadingView, ErrorView, EmptyStateView } from '@/components/ui'
-import { TodoTreeItem } from '@/components/features/TodoTreeItem'
+import { Button, LoadingView, ErrorView, EmptyStateView, Drawer } from '@/components/ui'
+import { TodoTreeItem, TaskDetailContent } from '@/components/features'
 import { useProjectList } from '@/hooks/useProjects'
 import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { projectsApi } from '@/lib/api/endpoints/projects'
@@ -28,6 +28,13 @@ export default function MyTasksPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const [showScrollTop, setShowScrollTop] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [taskHistory, setTaskHistory] = useState<Array<{ taskId: string; projectId: string; parentTaskId?: number | null }>>([]) // 任务导航历史
+  const [createTaskDialogOpen, setCreateTaskDialogOpen] = useState(false)
+  const [createTaskProjectId, setCreateTaskProjectId] = useState<string | null>(null)
+  const [createTaskParentId, setCreateTaskParentId] = useState<number | undefined>(undefined)
   
   // 回到顶部
   const scrollToTop = () => {
@@ -38,7 +45,7 @@ export default function MyTasksPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
-  const { data: projects, isLoading: projectsLoading, error: projectsError } = useProjectList()
+  const { data: projects, isLoading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjectList()
   
   const [myTasks, setMyTasks] = useState<Array<Omit<Todo, 'projectId'> & { projectId: string; projectName: string }>>([])
   const [tasksLoading, setTasksLoading] = useState(false)
@@ -669,7 +676,18 @@ export default function MyTasksPage() {
   
   const handleAddTaskClick = (projectId: string, e: React.MouseEvent) => {
     e.stopPropagation() // 阻止事件冒泡，避免触发项目名称点击
-    navigate(`/projects/${projectId}/tasks/new`)
+    setCreateTaskProjectId(projectId)
+    setCreateTaskParentId(undefined)
+    setCreateTaskDialogOpen(true)
+  }
+  
+  const handleCreateTaskSuccess = (taskId: number) => {
+    // 创建成功后刷新待办列表
+    queryClient.invalidateQueries({ queryKey: ['projects'] })
+    // 可以选择打开新创建的待办详情
+    // setSelectedTaskId(String(taskId))
+    // setSelectedProjectId(createTaskProjectId)
+    // setDrawerOpen(true)
   }
   
   // 获取用户在项目中的角色
@@ -724,20 +742,104 @@ export default function MyTasksPage() {
     // 创建人可以编辑自己创建的任务的优先级
     return todo.creatorId === currentUserId
   }, [currentUserId, getUserRoleInProject])
+
+  const canEditTags = useCallback((todo: any, projectId: string) => {
+    if (!currentUserId) return false
+    
+    const userRole = getUserRoleInProject(projectId)
+    
+    // owner 或 admin 可以编辑任意任务的标签
+    if (userRole === 'owner' || userRole === 'admin') {
+      return true
+    }
+    
+    // 创建人可以编辑自己创建的任务的标签
+    return todo.creatorId === currentUserId
+  }, [currentUserId, getUserRoleInProject])
+  
+  // 判断是否可以编辑任务（owner/admin 可以修改任意任务，member 只能修改自己创建或分配给自己执行的任务）
+  const canEditTask = useCallback((todo: any, projectId: string) => {
+    if (!currentUserId) return false
+    
+    const userRole = getUserRoleInProject(projectId)
+    
+    // owner 或 admin 可以修改任意任务
+    if (userRole === 'owner' || userRole === 'admin') {
+      return true
+    }
+    
+    // member 只能修改自己创建或分配给自己执行的任务
+    return todo.creatorId === currentUserId || todo.assigneeId === currentUserId
+  }, [currentUserId, getUserRoleInProject])
+  
+  // 处理状态更改
+  const handleStatusChange = useCallback(async (taskId: number, newStatus: TodoStatus, projectId: string) => {
+    try {
+      // 直接调用 API 更新状态
+      await tasksApi.update(projectId, String(taskId), { status: newStatus })
+      // 刷新对应项目的任务列表
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
+      // 更新本地状态
+      setMyTasks(prev => prev.map(task => 
+        task.id === taskId && task.projectId === projectId
+          ? { ...task, status: newStatus }
+          : task
+      ))
+    } catch (error) {
+      console.error('更新任务状态失败:', error)
+    }
+  }, [queryClient])
   
   // 处理更新执行人
   const handleUpdateAssignee = useCallback(async (taskId: number, assigneeId: number | null, projectId: string) => {
     await tasksApi.update(projectId, String(taskId), { assigneeId: assigneeId || undefined })
-    // 刷新待办列表（重新获取所有项目的待办）
-    window.location.reload() // 简单粗暴的方式，因为需要重新获取所有项目的数据
-  }, [])
+    // 刷新对应项目的任务列表
+    queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
+    // 由于数据是在useEffect中手动获取的，需要手动更新本地状态
+    // 更新对应任务的执行人信息
+    setMyTasks(prev => prev.map(task => {
+      if (task.id === taskId && task.projectId === projectId) {
+        // 从项目成员中查找新的执行人信息
+        const members = projectMembersMap.get(projectId) || []
+        const newAssignee = assigneeId ? members.find(m => m.user_id === assigneeId) : null
+        return {
+          ...task,
+          assigneeId: assigneeId || undefined,
+          assignee: newAssignee ? {
+            username: newAssignee.username || newAssignee.user?.username || '未知用户',
+            avatar: newAssignee.avatar || newAssignee.user?.avatar
+          } : undefined
+        }
+      }
+      return task
+    }))
+  }, [queryClient, projectMembersMap])
   
   // 处理更新优先级
   const handleUpdatePriority = useCallback(async (taskId: number, priority: number | null, projectId: string) => {
     await tasksApi.update(projectId, String(taskId), { priority: priority !== null ? priority : undefined })
-    // 刷新待办列表（重新获取所有项目的待办）
-    window.location.reload() // 简单粗暴的方式，因为需要重新获取所有项目的数据
-  }, [])
+    // 刷新对应项目的任务列表
+    queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
+    // 更新本地状态
+    setMyTasks(prev => prev.map(task => 
+      task.id === taskId && task.projectId === projectId
+        ? { ...task, priority: priority !== null ? priority : undefined }
+        : task
+    ))
+  }, [queryClient])
+
+  // 处理更新标签
+  const handleUpdateTags = useCallback(async (taskId: number, tagsString: string, projectId: string) => {
+    await tasksApi.update(projectId, String(taskId), { tags: tagsString })
+    // 刷新对应项目的任务列表
+    queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
+    // 更新本地状态
+    setMyTasks(prev => prev.map(task => 
+      task.id === taskId && task.projectId === projectId
+        ? { ...task, tags: tagsString }
+        : task
+    ))
+  }, [queryClient])
   
   // 加载状态
   if (allTasksLoading) {
@@ -1488,10 +1590,19 @@ export default function MyTasksPage() {
                             projectId={projectId}
                             currentUserId={currentUserId}
                             members={members}
+                            canEdit={canEditTask(task, projectId)}
+                            onStatusChange={canEditTask(task, projectId) ? (taskId, newStatus) => handleStatusChange(taskId, newStatus, projectId) : undefined}
                             canAssignAssignee={canAssignAssignee(task, projectId)}
                             onUpdateAssignee={async (taskId, assigneeId) => handleUpdateAssignee(taskId, assigneeId, projectId)}
                             canEditPriority={canEditPriority(task, projectId)}
                             onUpdatePriority={async (taskId, priority) => handleUpdatePriority(taskId, priority, projectId)}
+                            canEditTags={canEditTags(task, projectId)}
+                            onUpdateTags={async (taskId, tagsString) => handleUpdateTags(taskId, tagsString, projectId)}
+                            onClick={() => {
+                              setSelectedTaskId(String(task.id))
+                              setSelectedProjectId(projectId)
+                              setDrawerOpen(true)
+                            }}
                           />
                         )
                       })}
@@ -1503,6 +1614,63 @@ export default function MyTasksPage() {
           </div>
         )}
       </div>
+      
+      {/* 待办详情抽屉 */}
+      <Drawer
+        open={drawerOpen}
+        onClose={() => {
+          setDrawerOpen(false)
+          setSelectedTaskId(null)
+          setSelectedProjectId(null)
+          setTaskHistory([])
+        }}
+        width="w-full md:w-[600px] lg:w-[700px]"
+        showBackButton={taskHistory.length > 0}
+        onBack={() => {
+          if (taskHistory.length > 0) {
+            // 如果有历史记录，返回上一个任务
+            const previous = taskHistory[taskHistory.length - 1]
+            setTaskHistory(prev => prev.slice(0, -1))
+            setSelectedTaskId(previous.taskId)
+            setSelectedProjectId(previous.projectId)
+          }
+        }}
+      >
+        {selectedTaskId && selectedProjectId && (
+          <TaskDetailContent
+            projectId={selectedProjectId}
+            taskId={selectedTaskId}
+            showHeader={false}
+            parentTaskId={taskHistory.length > 0 ? taskHistory[taskHistory.length - 1].parentTaskId : null}
+            onNavigateToSubtask={(subtaskId) => {
+              // 获取当前任务的父任务ID
+              const currentTask = myTasks.find(t => t.id.toString() === selectedTaskId && t.projectId === selectedProjectId)
+              const parentTaskId = currentTask?.parentId || null
+              
+              // 添加到历史记录
+              setTaskHistory(prev => [...prev, { taskId: selectedTaskId, projectId: selectedProjectId, parentTaskId }])
+              
+              // 导航到子待办
+              setSelectedTaskId(String(subtaskId))
+              setSelectedProjectId(selectedProjectId)
+            }}
+            onClose={() => {
+              // 关闭抽屉（回退逻辑已在 Drawer 的 onBack 中处理）
+              setDrawerOpen(false)
+              setSelectedTaskId(null)
+              setSelectedProjectId(null)
+            }}
+            onDelete={() => {
+              setDrawerOpen(false)
+              setSelectedTaskId(null)
+              setSelectedProjectId(null)
+              setTaskHistory([])
+              // 刷新待办列表
+              queryClient.invalidateQueries({ queryKey: ['projects'] })
+            }}
+          />
+        )}
+      </Drawer>
       
       {/* 回到顶部按钮 */}
       <button

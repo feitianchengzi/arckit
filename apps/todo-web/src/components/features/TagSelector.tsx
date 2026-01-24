@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, ConfirmDialog } from '@/components/ui'
 import { TagDisplay } from './TagDisplay'
@@ -62,6 +63,8 @@ export function TagSelector({
   const [editingTagId, setEditingTagId] = useState<number | null>(null)
   const [deletingTagId, setDeletingTagId] = useState<number | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null)
   
   // 加载项目标签
   useEffect(() => {
@@ -76,10 +79,62 @@ export function TagSelector({
     setSelectedTagIds(tagIds)
   }, [currentTags])
   
+  // 计算下拉菜单位置
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const updatePosition = () => {
+        if (buttonRef.current) {
+          const rect = buttonRef.current.getBoundingClientRect()
+          const viewportHeight = window.innerHeight
+          const viewportWidth = window.innerWidth
+          const dropdownHeight = 384 // max-h-96 = 384px
+          const dropdownWidth = 320 // w-80 = 320px
+          
+          // 计算垂直位置：优先向下，如果空间不够则向上
+          let top = rect.bottom + 4
+          if (top + dropdownHeight > viewportHeight) {
+            top = rect.top - dropdownHeight - 4
+            if (top < 8) {
+              // 如果向上也不够，则向下但限制高度
+              top = rect.bottom + 4
+            }
+          }
+          
+          // 计算水平位置：优先左对齐
+          let left = rect.left
+          if (left + dropdownWidth > viewportWidth) {
+            left = viewportWidth - dropdownWidth - 8
+          }
+          if (left < 8) {
+            left = 8
+          }
+          
+          setDropdownPosition({ top, left })
+        }
+      }
+      
+      updatePosition()
+      window.addEventListener('scroll', updatePosition, true)
+      window.addEventListener('resize', updatePosition)
+      
+      return () => {
+        window.removeEventListener('scroll', updatePosition, true)
+        window.removeEventListener('resize', updatePosition)
+      }
+    } else {
+      setDropdownPosition(null)
+    }
+  }, [isOpen])
+  
   // 点击外部关闭下拉菜单
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current && 
+        !dropdownRef.current.contains(event.target as Node) &&
+        buttonRef.current &&
+        !buttonRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false)
       }
     }
@@ -202,9 +257,9 @@ export function TagSelector({
   }
   
   const sizeClasses = {
-    sm: 'px-2 py-1 text-xs',
-    md: 'px-3 py-1.5 text-sm',
-    lg: 'px-4 py-2 text-base',
+    sm: 'px-1 py-0.5 text-xs h-5',
+    md: 'px-1.5 py-1 text-xs h-5',
+    lg: 'px-2 py-1.5 text-sm h-6',
   }
   
   // 按钮显示文本
@@ -219,19 +274,21 @@ export function TagSelector({
   }
   
   return (
-    <div className={clsx('relative', className)} ref={dropdownRef}>
-      {/* 选择按钮 */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className={clsx(
-          'inline-flex items-center gap-2 font-medium rounded-md transition-all',
-          'border border-gray-300 bg-white',
-          'hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary focus:ring-offset-2',
-          sizeClasses[size],
-          hasUnsavedChanges() && 'border-orange-400 bg-orange-50'
-        )}
-      >
+    <>
+      <div className={clsx('relative', className)}>
+        {/* 选择按钮 */}
+        <button
+          ref={buttonRef}
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className={clsx(
+            'inline-flex items-center gap-1.5 font-medium rounded transition-all',
+            'border border-gray-300 bg-white',
+            'hover:border-primary focus:border-primary focus:ring-2 focus:ring-primary focus:ring-offset-2',
+            sizeClasses[size],
+            hasUnsavedChanges() && 'border-orange-400 bg-orange-50'
+          )}
+        >
         {/* 显示已选中的标签（最多显示2个） */}
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           {selectedTags.length > 0 ? (
@@ -240,11 +297,11 @@ export function TagSelector({
                 <TagDisplay key={tag.id} tag={tag} size="sm" />
               ))}
               {selectedTags.length > 2 && (
-                <span className="text-gray-500">+{selectedTags.length - 2}</span>
+                <span className="text-xs text-gray-500">+{selectedTags.length - 2}</span>
               )}
             </>
           ) : (
-            <span className="text-gray-500">{getButtonText()}</span>
+            <span className="text-xs text-gray-500">{getButtonText()}</span>
           )}
         </div>
         <ChevronDownIcon
@@ -258,130 +315,150 @@ export function TagSelector({
             }
           )}
         />
-      </button>
+        </button>
+      </div>
       
-      {/* 下拉菜单 */}
-      {isOpen && (
-        <div
-          className={clsx(
-            'absolute z-50 mt-1 w-80 bg-white rounded-lg shadow-lg border border-gray-200',
-            'max-h-96 overflow-auto'
-          )}
-        >
-          {/* 标签列表 */}
-          {projectTags.length > 0 ? (
-            <div className="py-1">
-              {projectTags.map(tag => {
-                const isSelected = selectedTagIds.includes(tag.id)
-                const isEditing = editingTagId === tag.id
-                
-                return (
-                  <div
-                    key={tag.id}
-                    className={clsx(
-                      'px-3 py-2',
-                      'hover:bg-gray-50 transition-colors',
-                      isEditing && 'bg-gray-50'
-                    )}
-                  >
-                    {isEditing ? (
-                      <TagEditor
-                        currentName={tag.displayName}
-                        currentColor={tag.color}
-                        onSave={(displayName, color) => handleUpdateTag(tag.id, displayName, color)}
-                        onCancel={() => setEditingTagId(null)}
-                        existingTags={projectTags}
-                        currentTagId={tag.id}
-                      />
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <label className="flex items-center gap-3 cursor-pointer flex-1 min-w-0">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => handleTagToggle(tag.id)}
-                            className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary flex-shrink-0"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <TagDisplay tag={tag} size="sm" />
-                        </label>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setEditingTagId(tag.id)
-                            }}
-                            className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-                            title="编辑标签"
-                          >
-                            <PencilIcon className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setDeletingTagId(tag.id)
-                            }}
-                            className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                            title="删除标签"
-                          >
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
+      {/* 下拉菜单 - 使用 Portal 渲染到 body */}
+      {isOpen && dropdownPosition && createPortal(
+        <>
+          {/* 遮罩层，点击关闭 */}
+          <div
+            className="fixed inset-0 z-[60]"
+            onClick={() => setIsOpen(false)}
+          />
+          {/* 下拉菜单 */}
+          <div
+            ref={dropdownRef}
+            className={clsx(
+              'fixed z-[70] w-80 bg-white rounded-lg shadow-lg border border-gray-200',
+              'flex flex-col max-h-96'
+            )}
+            style={{
+              top: `${dropdownPosition.top}px`,
+              left: `${dropdownPosition.left}px`,
+            }}
+          >
+          {/* 标签列表区域（可滚动） */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {projectTags.length > 0 ? (
+              <div className="py-1">
+                {projectTags.map(tag => {
+                  const isSelected = selectedTagIds.includes(tag.id)
+                  const isEditing = editingTagId === tag.id
+                  
+                  return (
+                    <div
+                      key={tag.id}
+                      className={clsx(
+                        'px-3 py-2',
+                        'hover:bg-gray-50 transition-colors',
+                        isEditing && 'bg-gray-50'
+                      )}
+                    >
+                      {isEditing ? (
+                        <TagEditor
+                          currentName={tag.displayName}
+                          currentColor={tag.color}
+                          onSave={(displayName, color) => handleUpdateTag(tag.id, displayName, color)}
+                          onCancel={() => setEditingTagId(null)}
+                          existingTags={projectTags}
+                          currentTagId={tag.id}
+                        />
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <label className="flex items-center gap-3 cursor-pointer flex-1 min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleTagToggle(tag.id)}
+                              className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary flex-shrink-0"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <TagDisplay tag={tag} size="sm" />
+                          </label>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setEditingTagId(tag.id)
+                              }}
+                              className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+                              title="编辑标签"
+                            >
+                              <PencilIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setDeletingTagId(tag.id)
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                              title="删除标签"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="px-3 py-4 text-sm text-gray-500 text-center">
+                暂无标签
+              </div>
+            )}
+          </div>
+          
+          {/* 底部操作区域（固定，不滚动） */}
+          <div className="flex-shrink-0 border-t border-gray-200">
+            {/* 创建新标签 */}
+            {showCreateButton && (
+              <>
+                {!showCreator ? (
+                  <div className="px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreator(true)}
+                      className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-primary hover:bg-primary/10 rounded-md transition-colors"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      创建新标签
+                    </button>
                   </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="px-3 py-4 text-sm text-gray-500 text-center">
-              暂无标签
-            </div>
-          )}
-          
-          {/* 创建新标签 */}
-          {showCreateButton && (
-            <>
-              {!showCreator ? (
-                <div className="border-t border-gray-200 px-3 py-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreator(true)}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-primary hover:bg-primary/10 rounded-md transition-colors"
-                  >
-                    <PlusIcon className="w-4 h-4" />
-                    创建新标签
-                  </button>
-                </div>
-              ) : (
-                <div className="border-t border-gray-200 p-3 sticky bottom-0 bg-white">
-                  <TagCreator
-                    onSave={handleCreateTag}
-                    onCancel={() => setShowCreator(false)}
-                    existingTags={projectTags}
-                  />
-                </div>
-              )}
-            </>
-          )}
-          
-          {/* 保存按钮（仅在有待保存更改时显示） */}
-          {hasUnsavedChanges() && (
-            <div className="border-t border-gray-200 p-3 sticky bottom-0 bg-white">
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleSave}
-                loading={isSaving}
-                className="w-full"
-              >
-                保存更改
-              </Button>
-            </div>
-          )}
-        </div>
+                ) : (
+                  <div className="p-3 bg-white">
+                    <TagCreator
+                      onSave={handleCreateTag}
+                      onCancel={() => setShowCreator(false)}
+                      existingTags={projectTags}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+            
+            {/* 保存按钮（仅在有待保存更改时显示，且不在创建标签模式下） */}
+            {hasUnsavedChanges() && !showCreator && (
+              <div className="px-3 py-2 bg-white border-t border-gray-200">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSave}
+                  loading={isSaving}
+                  className="w-full"
+                >
+                  保存更改
+                </Button>
+              </div>
+            )}
+          </div>
+          </div>
+        </>,
+        document.body
       )}
       
       {/* 删除确认对话框 */}
@@ -399,7 +476,7 @@ export function TagSelector({
         }}
         onCancel={() => setDeletingTagId(null)}
       />
-    </div>
+    </>
   )
 }
 
