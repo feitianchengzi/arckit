@@ -239,7 +239,16 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
           style={{
             top: `${pickerPosition.top}px`,
             left: `${pickerPosition.left}px`,
-            backgroundColor: 'var(--color-surface-elevated)'
+            backgroundColor: 'var(--color-surface-elevated)',
+            zIndex: 100
+          }}
+          onClick={(e) => {
+            // 阻止事件冒泡，防止触发父级的点击外部关闭逻辑
+            e.stopPropagation()
+          }}
+          onMouseDown={(e) => {
+            // 阻止事件冒泡，防止触发父级的点击外部关闭逻辑
+            e.stopPropagation()
           }}
         >
           {/* 快捷操作 */}

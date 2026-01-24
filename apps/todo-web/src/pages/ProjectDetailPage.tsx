@@ -616,15 +616,45 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       try {
-        if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        const target = event.target as Node
+        
+        // 检查是否点击在 DateRangeFilter 的 picker 内部
+        // DateRangeFilter 的 picker 使用 Portal 渲染，具有 z-[100] 和特定的样式
+        const targetElement = target as Element
+        if (targetElement) {
+          // 查找最近的具有 z-[100] 或 z-index: 100 的父元素
+          let current: Element | null = targetElement
+          while (current) {
+            const style = window.getComputedStyle(current)
+            const zIndex = style.zIndex
+            // 检查是否是日期筛选器的 picker（z-index 为 100 且包含日期相关的类名或内容）
+            if (zIndex === '100' && (
+              current.classList.contains('fixed') ||
+              current.getAttribute('style')?.includes('z-index: 100')
+            )) {
+              // 可能是日期筛选器，检查是否包含日期相关的元素
+              const hasDateInput = current.querySelector('input[type="date"]') !== null
+              const hasDateText = current.textContent?.includes('快捷选择') || 
+                                  current.textContent?.includes('开始日期') ||
+                                  current.textContent?.includes('结束日期')
+              if (hasDateInput || hasDateText) {
+                // 这是日期筛选器，不关闭"更多筛选"菜单
+                return
+              }
+            }
+            current = current.parentElement
+          }
+        }
+        
+        if (moreMenuRef.current && !moreMenuRef.current.contains(target)) {
           setShowMoreMenu(false)
         }
-        if (moreFiltersRef.current && !moreFiltersRef.current.contains(event.target as Node) &&
-            moreFiltersMenuRef.current && !moreFiltersMenuRef.current.contains(event.target as Node)) {
+        if (moreFiltersRef.current && !moreFiltersRef.current.contains(target) &&
+            moreFiltersMenuRef.current && !moreFiltersMenuRef.current.contains(target)) {
           setShowMoreFilters(false)
         }
         // 点击外部关闭搜索框
-        if (showSearchBar && searchBarRef.current && !searchBarRef.current.contains(event.target as Node)) {
+        if (showSearchBar && searchBarRef.current && !searchBarRef.current.contains(target)) {
           setShowSearchBar(false)
         }
       } catch (error) {
@@ -662,9 +692,10 @@ export default function ProjectDetailPage() {
         }
       })
 
-      // 获取"重置"按钮的宽度（如果存在）
+      // 获取"重置"按钮的宽度（始终显示，需要预留空间）
       const resetButton = children.find(child => child.dataset.filterKey === 'reset')
-      const resetButtonWidth = resetButton ? resetButton.offsetWidth + 16 : 0 // 16px gap
+      // 如果重置按钮存在，使用实际宽度；如果不存在但应该显示，预留80px空间
+      const resetButtonWidth = resetButton ? resetButton.offsetWidth + 16 : 80 + 16 // 16px gap
       
       // 按顺序计算哪些筛选器可以显示
       const filterOrder = ['status', 'creator', 'executor', 'tag', 'priority', 'dateRange']
@@ -705,7 +736,13 @@ export default function ProjectDetailPage() {
         if (child.dataset.filterKey && child.dataset.filterKey !== 'reset' && child.dataset.filterKey !== 'more') {
           if (!filterKeys.includes(child.dataset.filterKey)) {
             child.style.display = 'none'
+          } else {
+            child.style.display = ''
           }
+        }
+        // 确保重置按钮始终显示（如果有筛选条件）
+        if (child.dataset.filterKey === 'reset') {
+          child.style.display = ''
         }
       })
     }
@@ -899,7 +936,10 @@ export default function ProjectDetailPage() {
                 
                 {/* 下拉菜单 */}
                 {showMoreMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-40 bg-surface-elevated border border-border rounded-md shadow-lg z-50">
+                  <div 
+                    className="absolute right-0 top-full mt-1 w-40 border border-border rounded-md shadow-lg z-50"
+                    style={{ backgroundColor: 'var(--color-surface-elevated)' }}
+                  >
                     <button
                       onClick={() => {
                         handleEditClick()
@@ -1244,8 +1284,8 @@ export default function ProjectDetailPage() {
                   <div 
                     ref={moreFiltersMenuRef}
                     className="fixed w-64 border-2 border-border rounded-md shadow-xl z-[100] p-4 space-y-3"
-                    style={{ backgroundColor: 'var(--color-surface-elevated)' }} 
                     style={{ 
+                      backgroundColor: 'var(--color-surface-elevated)',
                       top: `${moreFiltersPosition.top}px`,
                       left: `${moreFiltersPosition.left}px`,
                       maxHeight: 'calc(100vh - 100px)',
@@ -1525,12 +1565,25 @@ export default function ProjectDetailPage() {
               canAddMember={isOwner || currentUserRole === 'admin'}
               canManage={isOwner || currentUserRole === 'admin'}
               onMemberClick={(member) => {
-                // 非管理模式下，点击成员触发筛选
-                if (!isOwner && currentUserRole !== 'admin') {
-                  // 点击成员时，同时设置创建人和执行人筛选为这个成员
-                  setCreatorFilter(member.user_id)
-                  setExecutorFilter(member.user_id)
-                }
+                console.log('🔍 [成员点击] 点击成员触发筛选')
+                console.log('🔍 [成员点击] 成员信息:', {
+                  id: member.id,
+                  user_id: member.user_id,
+                  username: member.username || member.user?.username,
+                  role: member.role
+                })
+                console.log('🔍 [成员点击] 当前权限状态:', {
+                  isOwner,
+                  currentUserRole,
+                  canManage: isOwner || currentUserRole === 'admin'
+                })
+                
+                // 点击成员时，同时设置创建人和执行人筛选为这个成员（不分角色权限）
+                console.log('🔍 [成员点击] 设置创建人筛选:', member.user_id)
+                console.log('🔍 [成员点击] 设置执行人筛选:', member.user_id)
+                setCreatorFilter(member.user_id)
+                setExecutorFilter(member.user_id)
+                console.log('🔍 [成员点击] 筛选器已设置')
               }}
             />
           </div>
