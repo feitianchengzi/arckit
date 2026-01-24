@@ -36,7 +36,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
         {label && (
           <label
             htmlFor={props.id}
-            className="text-sm font-medium text-gray-700"
+            className="text-sm font-medium text-foreground"
           >
             {label}
             {props.required && <span className="text-error ml-1">*</span>}
@@ -50,13 +50,14 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
             'px-3 py-2 text-base',
             'border rounded-md',
             'transition-colors',
-            'placeholder:text-gray-400',
+            'bg-surface-elevated text-foreground',
+            'placeholder:text-foreground-tertiary',
             
             // 状态样式
             {
-              'border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50': !error,
+              'border-border focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50': !error,
               'border-error focus:border-error focus:ring-2 focus:ring-error focus:ring-opacity-50': error,
-              'bg-gray-100 cursor-not-allowed': props.disabled,
+              'bg-surface-disabled cursor-not-allowed': props.disabled,
             },
             
             className
@@ -71,7 +72,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
             id={error ? `${props.id}-error` : undefined}
             className={clsx('text-sm', {
               'text-error': error,
-              'text-gray-500': !error,
+              'text-foreground-secondary': !error,
             })}
           >
             {error || helperText}
