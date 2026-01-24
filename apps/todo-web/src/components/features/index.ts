@@ -10,4 +10,5 @@ export * from './TagEditor'
 export * from './TagManager'
 export * from './PrioritySelector'
 export * from './DateRangeFilter'
+export * from './ProjectMemberList'
 

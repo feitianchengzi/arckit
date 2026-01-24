@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui'
 import clsx from 'clsx'
 
@@ -119,11 +120,27 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
   const [showPicker, setShowPicker] = useState(false)
   const [showQuickOptions, setShowQuickOptions] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const pickerRef = useRef<HTMLDivElement>(null)
+  const [pickerPosition, setPickerPosition] = useState<{ top: number; left: number } | null>(null)
+
+  // 计算弹窗位置
+  useEffect(() => {
+    if (showPicker && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect()
+      setPickerPosition({
+        top: rect.bottom + 8,
+        left: rect.left,
+      })
+    } else {
+      setPickerPosition(null)
+    }
+  }, [showPicker])
 
   // 点击外部关闭
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node) &&
+          pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
         setShowPicker(false)
         setShowQuickOptions(false)
       }
@@ -214,9 +231,16 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
         )}
       </button>
 
-      {/* 日期选择器面板 */}
-      {showPicker && (
-        <div className="absolute top-full left-0 mt-2 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 min-w-[320px]">
+      {/* 日期选择器面板 - 使用 Portal 渲染到 body */}
+      {showPicker && pickerPosition && createPortal(
+        <div 
+          ref={pickerRef}
+          className="fixed z-[100] bg-white border border-gray-200 rounded-lg shadow-lg p-4 min-w-[320px]"
+          style={{
+            top: `${pickerPosition.top}px`,
+            left: `${pickerPosition.left}px`,
+          }}
+        >
           {/* 快捷操作 */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
@@ -230,7 +254,7 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
               </button>
             </div>
             {showQuickOptions && (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -330,7 +354,8 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
               确定
             </Button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

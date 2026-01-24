@@ -35,3 +35,4 @@ echo "   2. 启动开发服务器: npm run dev"
 echo "   3. 在手机浏览器中输入上面的地址"
 echo ""
 
+

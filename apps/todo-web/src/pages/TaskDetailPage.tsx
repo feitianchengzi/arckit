@@ -50,13 +50,14 @@ export default function TaskDetailPage() {
   const creatorUsername = todo?.creator?.username || creatorInfo?.username || creatorInfo?.user?.username || '未知'
   const executorUsername = todo?.assignee?.username || executorInfo?.username || executorInfo?.user?.username || '未分配'
   
-  // 检查当前用户是否是任务创建者或执行者（通过 username 比较）
-  const isCreator = creatorUsername === currentUser?.username
-  const isAssignee = executorUsername === currentUser?.username && executorUsername !== '未分配'
-  
   // 获取当前用户在项目中的角色（通过 is_me 字段）
   const currentUserMember = (members as any)?.find((m: any) => m.is_me === true)
   const currentUserRole = currentUserMember?.role || null
+  const currentUserId = currentUserMember?.user_id || null
+  
+  // 检查当前用户是否是任务创建者或执行者（通过 user_id 比较，更可靠）
+  const isCreator = todo?.creatorId !== undefined && todo?.creatorId !== null && currentUserId !== null && todo.creatorId === currentUserId
+  const isAssignee = todo?.assigneeId !== undefined && todo?.assigneeId !== null && currentUserId !== null && todo.assigneeId === currentUserId
   
   // 判断执行者是否未分配
   const isAssigneeUnassigned = !todo?.assigneeId || executorUsername === '未分配'

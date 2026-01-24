@@ -4,9 +4,11 @@
  */
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
+import { ProjectMemberList } from '@/components/features/ProjectMemberList'
 import { buildTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
@@ -52,6 +54,15 @@ export default function ProjectDetailPage() {
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
   
+  // 筛选器"更多"菜单状态
+  const [showMoreFilters, setShowMoreFilters] = useState(false)
+  const moreFiltersRef = useRef<HTMLDivElement>(null)
+  const moreFiltersMenuRef = useRef<HTMLDivElement>(null)
+  const filterContainerRef = useRef<HTMLDivElement>(null)
+  const [visibleFilters, setVisibleFilters] = useState<string[]>(['status', 'creator', 'executor', 'tag', 'priority', 'dateRange'])
+  const [hiddenFilters, setHiddenFilters] = useState<string[]>([])
+  const [moreFiltersPosition, setMoreFiltersPosition] = useState<{ top: number; left: number } | null>(null)
+  
   // 从本地存储恢复筛选条件（按项目ID）
   const savedFilters = loadProjectFilterState(String(projectId))
   
@@ -77,6 +88,9 @@ export default function ProjectDetailPage() {
   const [dateRange, setDateRange] = useState<DateRange>(
     savedFilters?.dateRange ?? { startDate: null, endDate: null }
   )
+  // 搜索状态
+  const [searchQuery, setSearchQuery] = useState<string>('')
+  const [showSearchBar, setShowSearchBar] = useState(false)
   
   // 当筛选条件改变时保存到本地存储
   useEffect(() => {
@@ -186,32 +200,48 @@ export default function ProjectDetailPage() {
   const filteredTodos = useMemo(() => {
     if (!taskTree || taskTree.length === 0) return []
     
+    // 检查是否同时筛选了创建人和执行人
+    const hasBothFilters = creatorFilter !== null && executorFilter !== null
+    
+    // 创建人匹配函数
+    const checkCreatorMatch = (todo: typeof taskTree[0]): boolean => {
+      if (creatorFilter === null) return true
+      if (creatorFilter === 'ME') {
+        return todo.creatorId === currentUserId
+      }
+      return todo.creatorId === creatorFilter
+    }
+    
+    // 执行人匹配函数
+    const checkExecutorMatch = (todo: typeof taskTree[0]): boolean => {
+      if (executorFilter === null) return true
+      if (executorFilter === 'ME') {
+        return todo.assigneeId === currentUserId
+      } else if (executorFilter === 'UNASSIGNED') {
+        return todo.assigneeId === undefined || todo.assigneeId === null
+      }
+      return todo.assigneeId === executorFilter
+    }
+    
     // 筛选函数：检查任务是否匹配筛选条件
-    const matchesFilters = (todo: typeof taskTree[0]): boolean => {
+    const matchesFilters = (todo: typeof taskTree[0], useOrLogic: boolean = false): boolean => {
       // 状态筛选
       const statusMatch = statusFilter === 'ALL' || todo.status === statusFilter
       
       // 创建人筛选
-      let creatorMatch = true
-      if (creatorFilter !== null) {
-        if (creatorFilter === 'ME') {
-          creatorMatch = todo.creatorId === currentUserId
-        } else {
-          creatorMatch = todo.creatorId === creatorFilter
-        }
-      }
+      const creatorMatch = checkCreatorMatch(todo)
       
       // 执行人筛选
-      let executorMatch = true
-      if (executorFilter !== null) {
-        if (executorFilter === 'ME') {
-          executorMatch = todo.assigneeId === currentUserId
-        } else if (executorFilter === 'UNASSIGNED') {
-          // assigneeId 类型是 number | undefined，检查未分配
-          executorMatch = todo.assigneeId === undefined || todo.assigneeId === null
-        } else {
-          executorMatch = todo.assigneeId === executorFilter
-        }
+      const executorMatch = checkExecutorMatch(todo)
+      
+      // 如果同时筛选创建人和执行人，且使用OR逻辑
+      let creatorExecutorMatch = true
+      if (hasBothFilters && useOrLogic) {
+        // OR逻辑：创建人匹配 OR 执行人匹配
+        creatorExecutorMatch = creatorMatch || executorMatch
+      } else {
+        // AND逻辑：创建人匹配 AND 执行人匹配
+        creatorExecutorMatch = creatorMatch && executorMatch
       }
       
       // 标签筛选
@@ -260,20 +290,29 @@ export default function ProjectDetailPage() {
         }
       }
       
-      return statusMatch && creatorMatch && executorMatch && tagMatch && priorityMatch && dateMatch
+      // 搜索匹配（模糊匹配待办内容和标题）
+      let searchMatch = true
+      if (searchQuery.trim()) {
+        const query = searchQuery.trim().toLowerCase()
+        const content = (todo.content || '').toLowerCase()
+        const title = (todo.title || '').toLowerCase()
+        searchMatch = content.includes(query) || title.includes(query)
+      }
+      
+      return statusMatch && creatorExecutorMatch && tagMatch && priorityMatch && dateMatch && searchMatch
     }
     
     // 递归筛选树形结构
-    const filterTree = (tasks: typeof taskTree): typeof taskTree => {
+    const filterTree = (tasks: typeof taskTree, useOrLogic: boolean = false): typeof taskTree => {
       return tasks
         .filter(todo => {
           // 如果任务本身匹配筛选条件，或者有子任务匹配筛选条件，则保留
-          if (matchesFilters(todo)) {
+          if (matchesFilters(todo, useOrLogic)) {
             return true
           }
           // 如果有子任务，递归检查子任务
           if (todo.children && todo.children.length > 0) {
-            const filteredChildren = filterTree(todo.children)
+            const filteredChildren = filterTree(todo.children, useOrLogic)
             if (filteredChildren.length > 0) {
               // 保留父任务，但只显示匹配的子任务
               return true
@@ -283,8 +322,8 @@ export default function ProjectDetailPage() {
         })
         .map(todo => {
           // 如果任务本身不匹配，但子任务匹配，只显示子任务
-          if (!matchesFilters(todo) && todo.children && todo.children.length > 0) {
-            const filteredChildren = filterTree(todo.children)
+          if (!matchesFilters(todo, useOrLogic) && todo.children && todo.children.length > 0) {
+            const filteredChildren = filterTree(todo.children, useOrLogic)
             if (filteredChildren.length > 0) {
               return {
                 ...todo,
@@ -296,8 +335,46 @@ export default function ProjectDetailPage() {
         })
     }
     
+    // 如果同时筛选了创建人和执行人，优先显示AND结果，然后显示OR结果
+    if (hasBothFilters) {
+      // 先获取AND逻辑的结果
+      const andResults = filterTree(taskTree, false)
+      
+      // 获取OR逻辑的结果
+      const orResults = filterTree(taskTree, true)
+      
+      // 创建一个函数来检查任务是否在结果列表中（递归检查树形结构）
+      const isTodoInResults = (todo: typeof taskTree[0], results: typeof taskTree): boolean => {
+        for (const resultTodo of results) {
+          if (resultTodo.id === todo.id) {
+            return true
+          }
+          if (resultTodo.children && todo.children) {
+            if (isTodoInResults(todo, resultTodo.children)) {
+              return true
+            }
+          }
+        }
+        return false
+      }
+      
+      // 从OR结果中排除已经在AND结果中的任务
+      const filteredOrResults = orResults.filter(todo => !isTodoInResults(todo, andResults))
+      
+      // 合并结果：AND结果在前，OR结果在后
+      // 对AND结果按日期排序（最新的在前）
+      const sortedAndResults = [...andResults].sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime()
+        const dateB = new Date(b.createdAt).getTime()
+        return dateB - dateA // 降序，最新的在前
+      })
+      
+      return [...sortedAndResults, ...filteredOrResults]
+    }
+    
+    // 否则使用原来的逻辑
     return filterTree(taskTree)
-  }, [taskTree, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, currentUserId])
+  }, [taskTree, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, searchQuery, currentUserId])
   
   // 监听主内容区滚动
   useEffect(() => {
@@ -408,22 +485,143 @@ export default function ProjectDetailPage() {
     return todo.creatorId === currentUserId || todo.assigneeId === currentUserId
   }, [currentUserId, currentUserRole])
   
-  // 点击外部关闭更多菜单 - 必须在早期返回之前调用
+  // 计算"更多"菜单的位置
+  useEffect(() => {
+    if (showMoreFilters && moreFiltersRef.current) {
+      const updatePosition = () => {
+        if (!moreFiltersRef.current) return
+        const rect = moreFiltersRef.current.getBoundingClientRect()
+        const menuWidth = 256 // w-64 = 256px
+        const left = Math.max(8, rect.right - menuWidth) // 确保不超出左边界
+        setMoreFiltersPosition({
+          top: rect.bottom + 8,
+          left: left,
+        })
+      }
+      
+      updatePosition()
+      window.addEventListener('scroll', updatePosition, true)
+      window.addEventListener('resize', updatePosition)
+      
+      return () => {
+        window.removeEventListener('scroll', updatePosition, true)
+        window.removeEventListener('resize', updatePosition)
+      }
+    } else {
+      setMoreFiltersPosition(null)
+    }
+  }, [showMoreFilters])
+
+  // 搜索框引用
+  const searchBarRef = useRef<HTMLDivElement>(null)
+  
+  // 点击外部关闭更多菜单和搜索框
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
-        setShowMoreMenu(false)
+      try {
+        if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+          setShowMoreMenu(false)
+        }
+        if (moreFiltersRef.current && !moreFiltersRef.current.contains(event.target as Node) &&
+            moreFiltersMenuRef.current && !moreFiltersMenuRef.current.contains(event.target as Node)) {
+          setShowMoreFilters(false)
+        }
+        // 点击外部关闭搜索框
+        if (showSearchBar && searchBarRef.current && !searchBarRef.current.contains(event.target as Node)) {
+          setShowSearchBar(false)
+        }
+      } catch (error) {
+        // 忽略扩展相关的错误
+        console.warn('点击外部处理错误（可能是浏览器扩展问题）:', error)
       }
     }
     
-    if (showMoreMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
+    if (showMoreMenu || showMoreFilters || showSearchBar) {
+      // 使用捕获阶段，避免被扩展拦截
+      document.addEventListener('mousedown', handleClickOutside, true)
+      // 也监听 click 事件作为备用
+      document.addEventListener('click', handleClickOutside, true)
     }
     
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('mousedown', handleClickOutside, true)
+      document.removeEventListener('click', handleClickOutside, true)
     }
-  }, [showMoreMenu])
+  }, [showMoreMenu, showMoreFilters, showSearchBar])
+
+  // 计算哪些筛选器需要隐藏（响应式）
+  useEffect(() => {
+    const calculateVisibleFilters = () => {
+      if (!filterContainerRef.current) return
+
+      const container = filterContainerRef.current
+      const containerWidth = container.offsetWidth
+      const children = Array.from(container.children) as HTMLElement[]
+      
+      // 重置所有筛选器为可见
+      children.forEach((child) => {
+        if (child.dataset.filterKey && child.dataset.filterKey !== 'reset' && child.dataset.filterKey !== 'more') {
+          child.style.display = ''
+        }
+      })
+
+      // 获取"重置"按钮的宽度（如果存在）
+      const resetButton = children.find(child => child.dataset.filterKey === 'reset')
+      const resetButtonWidth = resetButton ? resetButton.offsetWidth + 16 : 0 // 16px gap
+      
+      // 按顺序计算哪些筛选器可以显示
+      const filterOrder = ['status', 'creator', 'executor', 'tag', 'priority', 'dateRange']
+      let totalWidth = 0
+      const filterKeys: string[] = []
+      
+      // 预留"更多"按钮的空间（约80px，如果后续有隐藏的筛选器）
+      const moreButtonWidth = 80 + 16 // 16px gap
+      
+      for (const filterKey of filterOrder) {
+        const child = children.find(c => c.dataset.filterKey === filterKey) as HTMLElement
+        if (!child) continue
+        
+        const width = child.offsetWidth + 16 // 16px gap
+        
+        // 检查是否还有更多筛选器需要隐藏
+        const remainingFilters = filterOrder.slice(filterOrder.indexOf(filterKey) + 1)
+        const needsMoreButton = remainingFilters.length > 0
+        
+        // 计算需要的总宽度
+        const neededWidth = totalWidth + width + resetButtonWidth + (needsMoreButton ? moreButtonWidth : 0)
+        
+        if (neededWidth <= containerWidth) {
+          totalWidth += width
+          filterKeys.push(filterKey)
+        } else {
+          break
+        }
+      }
+
+      // 设置可见和隐藏的筛选器
+      const allFilterKeys = ['status', 'creator', 'executor', 'tag', 'priority', 'dateRange']
+      setVisibleFilters(filterKeys)
+      setHiddenFilters(allFilterKeys.filter(key => !filterKeys.includes(key)))
+      
+      // 隐藏超出容器的筛选器
+      children.forEach((child) => {
+        if (child.dataset.filterKey && child.dataset.filterKey !== 'reset' && child.dataset.filterKey !== 'more') {
+          if (!filterKeys.includes(child.dataset.filterKey)) {
+            child.style.display = 'none'
+          }
+        }
+      })
+    }
+
+    // 延迟执行，确保 DOM 已渲染
+    const timeoutId = setTimeout(calculateVisibleFilters, 100)
+    window.addEventListener('resize', calculateVisibleFilters)
+    
+    return () => {
+      clearTimeout(timeoutId)
+      window.removeEventListener('resize', calculateVisibleFilters)
+    }
+  }, [statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, members, projectTags])
   
   // 保存编辑
   const handleEditSave = async () => {
@@ -508,125 +706,180 @@ export default function ProjectDetailPage() {
   return (
     <div className="space-y-4 md:space-y-6">
       {/* 页面头部 */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0 max-w-[calc(100%-200px)] md:max-w-none">
-          <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 truncate" title={project.name}>
-            {project.name}
-          </h1>
-          {project.git_url && (
-            <p className="mt-1 text-xs md:text-base text-gray-600 truncate" title={project.git_url}>
-              {project.git_url}
-            </p>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2 shrink-0">
-          {/* 成员按钮 - 图标按钮 */}
-          <IconButton
-            icon={<MembersIcon />}
-            label="成员"
-            onClick={() => navigate(`/projects/${projectId}/members`)}
-            variant="secondary"
-            iconBgColor="bg-blue-100"
-            iconColor="text-blue-600"
-          />
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-4 flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900 truncate" title={project.name}>
+              {project.name}
+            </h1>
+            {project.git_url && (
+              <p className="mt-1 text-xs md:text-base text-gray-600 truncate" title={project.git_url}>
+                {project.git_url}
+              </p>
+            )}
+          </div>
           
-          {/* 创建待办按钮 - 图标按钮 */}
-          <IconButton
-            icon={<CreateTodoIcon />}
-            label="创建待办"
-            onClick={() => navigate(`/projects/${projectId}/tasks/new`)}
-            variant="primary"
-          />
-          
-          {/* 更多菜单 - 只有项目所有者才能看到 */}
-          {isOwner && (
-            <div className="relative" ref={moreMenuRef}>
-              <IconButton
-                icon={<MoreIcon />}
-                label="更多"
-                onClick={() => setShowMoreMenu(!showMoreMenu)}
-                variant="secondary"
-                isActive={showMoreMenu}
-              />
+          {/* 操作按钮 - 右对齐待办列表右侧 */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* 搜索区域 - 搜索按钮和搜索框共用位置 */}
+            <div className="relative flex items-center" ref={searchBarRef}>
+              {/* 搜索按钮 - 搜索框显示时隐藏 */}
+              <div className={clsx(
+                "transition-all duration-300 ease-in-out",
+                showSearchBar ? "opacity-0 scale-0 pointer-events-none absolute" : "opacity-100 scale-100"
+              )}>
+                <IconButton
+                  icon={<SearchIcon />}
+                  label="搜索"
+                  onClick={() => {
+                    setShowSearchBar(true)
+                  }}
+                  variant="secondary"
+                />
+              </div>
               
-              {/* 下拉菜单 */}
-              {showMoreMenu && (
-                <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+              {/* 搜索栏 - 从搜索按钮位置向左展开 */}
+              <div className={clsx(
+                "absolute right-0 transition-all duration-300 ease-in-out flex items-center",
+                showSearchBar 
+                  ? "opacity-100 translate-x-0 pointer-events-auto" 
+                  : "opacity-0 translate-x-4 pointer-events-none"
+              )}>
+                <div className={clsx(
+                  "flex items-center bg-white border border-gray-300 rounded-md shadow-sm overflow-hidden transition-all duration-300 ease-in-out h-[52px]",
+                  showSearchBar ? "w-[320px]" : "w-0"
+                )}>
+                  <div className="flex items-center px-3 py-2 flex-shrink-0">
+                    <SearchIcon className="w-4 h-4 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="搜索待办内容..."
+                    className="flex-1 px-2 py-2 text-sm focus:outline-none focus:ring-0 border-0 bg-transparent min-w-0 h-full"
+                    autoFocus={showSearchBar}
+                  />
+                  {/* X按钮 - 有内容时清除内容，无内容时关闭搜索框 */}
                   <button
                     onClick={() => {
-                      handleEditClick()
-                      setShowMoreMenu(false)
+                      if (searchQuery) {
+                        setSearchQuery('')
+                      } else {
+                        setShowSearchBar(false)
+                      }
                     }}
-                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 mr-1 flex-shrink-0"
+                    title={searchQuery ? "清除搜索" : "关闭搜索"}
                   >
-                    <EditIcon className="w-4 h-4" />
-                    <span>编辑项目</span>
-                  </button>
-                  
-                  <button
-                    onClick={() => {
-                      setShowDeleteConfirm(true)
-                      setShowMoreMenu(false)
-                    }}
-                    disabled={deleteProject.isPending}
-                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {deleteProject.isPending ? (
-                      <LoadingSpinner className="w-4 h-4" />
-                    ) : (
-                      <DeleteIcon className="w-4 h-4" />
-                    )}
-                    <span>删除项目</span>
+                    <XIcon className="w-4 h-4" />
                   </button>
                 </div>
-              )}
+              </div>
             </div>
-          )}
+            
+            {/* 创建待办按钮 */}
+            <IconButton
+              icon={<CreateTodoIcon />}
+              label="创建待办"
+              onClick={() => navigate(`/projects/${projectId}/tasks/new`)}
+              variant="primary"
+            />
+            
+            {/* 更多菜单 - 只有项目所有者才能看到 */}
+            {isOwner && (
+              <div className="relative" ref={moreMenuRef}>
+                <IconButton
+                  icon={<MoreIcon />}
+                  label="更多"
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  variant="secondary"
+                  isActive={showMoreMenu}
+                />
+                
+                {/* 下拉菜单 */}
+                {showMoreMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+                    <button
+                      onClick={() => {
+                        handleEditClick()
+                        setShowMoreMenu(false)
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                    >
+                      <EditIcon className="w-4 h-4" />
+                      <span>编辑项目</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setShowDeleteConfirm(true)
+                        setShowMoreMenu(false)
+                      }}
+                      disabled={deleteProject.isPending}
+                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {deleteProject.isPending ? (
+                        <LoadingSpinner className="w-4 h-4" />
+                      ) : (
+                        <DeleteIcon className="w-4 h-4" />
+                      )}
+                      <span>删除项目</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+        {/* 占位，保持布局一致 */}
+        <div className="hidden lg:block"></div>
       </div>
       
-      {/* 统计卡片 - 移动端横向滚动，桌面端网格布局 */}
-      <div className="-mx-4 px-4 md:mx-0 md:px-0">
-        <div className="flex md:grid md:grid-cols-3 gap-2 md:gap-4 overflow-x-auto overflow-y-visible py-2 md:py-0 scrollbar-hide">
-          <StatCard
-            title="待办"
-            value={stats.pending}
-            icon={<TaskIcon />}
-            isActive={statusFilter === 'PENDING'}
-            onClick={() => setStatusFilter(statusFilter === 'PENDING' ? 'ALL' : 'PENDING')}
-            className="min-w-[120px] md:min-w-0 flex-shrink-0"
-          />
-          
-          <StatCard
-            title="进行中"
-            value={stats.inProgress}
-            icon={<ProgressIcon />}
-            isActive={statusFilter === 'IN_PROGRESS'}
-            onClick={() => setStatusFilter(statusFilter === 'IN_PROGRESS' ? 'ALL' : 'IN_PROGRESS')}
-            className="min-w-[120px] md:min-w-0 flex-shrink-0"
-          />
-          
-          <StatCard
-            title="已完成"
-            value={stats.completed}
-            icon={<CheckIcon />}
-            isActive={statusFilter === 'COMPLETED'}
-            onClick={() => setStatusFilter(statusFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
-            className="min-w-[120px] md:min-w-0 flex-shrink-0"
-          />
-        </div>
-      </div>
-      
-      {/* 待办列表 */}
-      <div className="bg-white rounded-lg shadow p-6">
-        
-        {/* 筛选器 */}
-        <div className="mb-4 space-y-3">
-          {/* 筛选器组 */}
-          <div className="flex flex-wrap gap-4 items-center">
+      {/* 待办列表和成员列表 */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* 待办列表（占 4/5） */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* 统计卡片 - 移动端横向滚动，桌面端网格布局 */}
+          <div className="bg-white rounded-lg shadow p-4 md:p-6">
+            <div className="flex md:grid md:grid-cols-3 gap-2 md:gap-4 overflow-x-auto overflow-y-visible py-2 md:py-2 scrollbar-hide" style={{ paddingLeft: '4px', paddingRight: '4px' }}>
+              <StatCard
+                title="待办"
+                value={stats.pending}
+                icon={<TaskIcon />}
+                isActive={statusFilter === 'PENDING'}
+                onClick={() => setStatusFilter(statusFilter === 'PENDING' ? 'ALL' : 'PENDING')}
+                className="min-w-[120px] md:min-w-0 flex-shrink-0"
+              />
+              
+              <StatCard
+                title="进行中"
+                value={stats.inProgress}
+                icon={<ProgressIcon />}
+                isActive={statusFilter === 'IN_PROGRESS'}
+                onClick={() => setStatusFilter(statusFilter === 'IN_PROGRESS' ? 'ALL' : 'IN_PROGRESS')}
+                className="min-w-[120px] md:min-w-0 flex-shrink-0"
+              />
+              
+              <StatCard
+                title="已完成"
+                value={stats.completed}
+                icon={<CheckIcon />}
+                isActive={statusFilter === 'COMPLETED'}
+                onClick={() => setStatusFilter(statusFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
+                className="min-w-[120px] md:min-w-0 flex-shrink-0"
+              />
+            </div>
+          </div>
+
+          {/* 待办列表内容 */}
+          <div className="bg-white rounded-lg shadow relative overflow-visible" style={{ padding: '24px', paddingTop: '28px', paddingBottom: '28px' }}>
+            {/* 筛选器 */}
+            <div className="mb-4" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
+          {/* 筛选器组 - 单行，不换行 */}
+          <div ref={filterContainerRef} className="flex items-center gap-4 flex-nowrap" style={{ overflowX: 'hidden', overflowY: 'visible', paddingTop: '6px', paddingBottom: '6px' }}>
             {/* 状态筛选 */}
-            <div className="flex items-center gap-2">
+            <div data-filter-key="status" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
                 statusFilter !== 'ALL' ? "text-orange-600" : "text-gray-600"
@@ -660,7 +913,7 @@ export default function ProjectDetailPage() {
             </div>
             
             {/* 创建人筛选 */}
-            <div className="flex items-center gap-2">
+            <div data-filter-key="creator" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
                 creatorFilter !== null ? "text-orange-600" : "text-gray-600"
@@ -712,7 +965,7 @@ export default function ProjectDetailPage() {
             </div>
             
             {/* 执行人筛选 */}
-            <div className="flex items-center gap-2">
+            <div data-filter-key="executor" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
                 executorFilter !== null ? "text-orange-600" : "text-gray-600"
@@ -769,7 +1022,7 @@ export default function ProjectDetailPage() {
             </div>
             
             {/* 标签筛选 */}
-            <div className="flex items-center gap-2">
+            <div data-filter-key="tag" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
                 tagFilter !== null ? "text-orange-600" : "text-gray-600"
@@ -810,7 +1063,7 @@ export default function ProjectDetailPage() {
             </div>
             
             {/* 优先级筛选 */}
-            <div className="flex items-center gap-2">
+            <div data-filter-key="priority" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
                 priorityFilter !== null ? "text-orange-600" : "text-gray-600"
@@ -863,28 +1116,247 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             
-            {/* 日期范围筛选 */}
-            <DateRangeFilter
-              value={dateRange}
-              onChange={setDateRange}
-            />
+            {/* 日期范围筛选 - 独立弹窗 */}
+            <div data-filter-key="dateRange" className="flex-shrink-0">
+              <DateRangeFilter
+                value={dateRange}
+                onChange={setDateRange}
+              />
+            </div>
             
-            {/* 重置筛选 */}
-            {(statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null || (dateRange && (dateRange.startDate || dateRange.endDate))) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setStatusFilter('ALL')
-                  setCreatorFilter(null)
-                  setExecutorFilter(null)
-                  setTagFilter(null)
-                  setPriorityFilter(null)
-                  setDateRange({ startDate: null, endDate: null })
-                }}
-              >
-                重置筛选
-              </Button>
+            {/* 更多筛选器按钮 */}
+            {hiddenFilters.length > 0 && (
+              <div data-filter-key="more" className="relative flex-shrink-0" ref={moreFiltersRef}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setShowMoreFilters(!showMoreFilters)
+                  }}
+                >
+                  更多
+                </Button>
+                
+                {/* 更多筛选器下拉菜单 - 使用 Portal 渲染到 body */}
+                {showMoreFilters && moreFiltersPosition && createPortal(
+                  <div 
+                    ref={moreFiltersMenuRef}
+                    className="fixed w-64 bg-white border-2 border-gray-200 rounded-md shadow-xl z-[100] p-4 space-y-3" 
+                    style={{ 
+                      top: `${moreFiltersPosition.top}px`,
+                      left: `${moreFiltersPosition.left}px`,
+                      maxHeight: 'calc(100vh - 100px)',
+                      overflowY: 'auto'
+                    }}
+                  >
+                    {hiddenFilters.includes('creator') && (
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                          <CreatorFilterIcon className="w-4 h-4 text-gray-500" />
+                          创建人:
+                        </label>
+                        <select
+                          value={
+                            creatorFilter === null
+                              ? ''
+                              : creatorFilter === 'ME'
+                              ? 'ME'
+                              : String(creatorFilter)
+                          }
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (value === '') {
+                              setCreatorFilter(null)
+                            } else if (value === 'ME') {
+                              setCreatorFilter('ME')
+                            } else {
+                              const numValue = Number(value)
+                              if (!isNaN(numValue)) {
+                                setCreatorFilter(numValue)
+                              }
+                            }
+                          }}
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                        >
+                          <option value="">全部</option>
+                          {currentUserId && (
+                            <option value="ME">我</option>
+                          )}
+                          {members?.map((member) => (
+                            <option key={member.user_id} value={member.user_id}>
+                              {member.username || member.user?.username || `用户${member.user_id}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    
+                    {hiddenFilters.includes('executor') && (
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                          <ExecutorFilterIcon className="w-4 h-4 text-gray-500" />
+                          执行人:
+                        </label>
+                        <select
+                          value={
+                            executorFilter === null
+                              ? ''
+                              : executorFilter === 'ME'
+                              ? 'ME'
+                              : executorFilter === 'UNASSIGNED'
+                              ? 'UNASSIGNED'
+                              : String(executorFilter)
+                          }
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (value === '') {
+                              setExecutorFilter(null)
+                            } else if (value === 'ME') {
+                              setExecutorFilter('ME')
+                            } else if (value === 'UNASSIGNED') {
+                              setExecutorFilter('UNASSIGNED')
+                            } else {
+                              const numValue = Number(value)
+                              if (!isNaN(numValue)) {
+                                setExecutorFilter(numValue)
+                              }
+                            }
+                          }}
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                        >
+                          <option value="">全部</option>
+                          <option value="UNASSIGNED">未分配</option>
+                          {currentUserId && (
+                            <option value="ME">我</option>
+                          )}
+                          {members?.map((member) => (
+                            <option key={member.user_id} value={member.user_id}>
+                              {member.username || member.user?.username || `用户${member.user_id}`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    
+                    {hiddenFilters.includes('tag') && (
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                          <TagFilterIcon className="w-4 h-4 text-gray-500" />
+                          标签:
+                        </label>
+                        <select
+                          value={tagFilter === null ? '' : String(tagFilter)}
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (value === '') {
+                              setTagFilter(null)
+                            } else {
+                              const numValue = Number(value)
+                              if (!isNaN(numValue)) {
+                                setTagFilter(numValue)
+                              }
+                            }
+                          }}
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                        >
+                          <option value="">全部</option>
+                          {projectTags.map((tag) => (
+                            <option key={tag.id} value={tag.id}>
+                              {tag.displayName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    
+                    {hiddenFilters.includes('priority') && (
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                          <PriorityFilterIcon className="w-4 h-4 text-gray-500" />
+                          优先级:
+                        </label>
+                        <select
+                          value={
+                            priorityFilter === null
+                              ? ''
+                              : priorityFilter === 'ALL'
+                              ? 'ALL'
+                              : priorityFilter === 'NONE'
+                              ? 'NONE'
+                              : String(priorityFilter)
+                          }
+                          onChange={(e) => {
+                            const value = e.target.value
+                            if (value === '') {
+                              setPriorityFilter(null)
+                            } else if (value === 'ALL') {
+                              setPriorityFilter('ALL')
+                            } else if (value === 'NONE') {
+                              setPriorityFilter('NONE')
+                            } else {
+                              const numValue = Number(value)
+                              if (!isNaN(numValue)) {
+                                setPriorityFilter(numValue)
+                              }
+                            }
+                          }}
+                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                        >
+                          <option value="">全部</option>
+                          <option value="ALL">有优先级</option>
+                          <option value="0">🔴 最高</option>
+                          <option value="1">🟠 高</option>
+                          <option value="2">🟡 中</option>
+                          <option value="3">🟢 低</option>
+                          <option value="NONE">无优先级</option>
+                        </select>
+                      </div>
+                    )}
+                    
+                    {hiddenFilters.includes('dateRange') && (
+                      <div className="flex items-center gap-2">
+                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-gray-600">
+                          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          日期范围:
+                        </label>
+                        <div className="flex-1">
+                          <DateRangeFilter
+                            value={dateRange}
+                            onChange={setDateRange}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>,
+                  document.body
+                )}
+              </div>
+            )}
+            
+            {/* 重置筛选 - 始终显示在最后 */}
+            {(statusFilter !== 'ALL' || creatorFilter !== null || executorFilter !== null || tagFilter !== null || priorityFilter !== null || (dateRange && (dateRange.startDate || dateRange.endDate)) || searchQuery.trim()) && (
+              <div data-filter-key="reset" className="flex-shrink-0 ml-auto">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setStatusFilter('ALL')
+                    setCreatorFilter(null)
+                    setExecutorFilter(null)
+                    setTagFilter(null)
+                    setPriorityFilter(null)
+                    setDateRange({ startDate: null, endDate: null })
+                    setSearchQuery('')
+                    setShowSearchBar(false)
+                  }}
+                >
+                  重置筛选
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -929,6 +1401,37 @@ export default function ProjectDetailPage() {
             ))}
           </div>
         )}
+          </div>
+        </div>
+
+        {/* 成员列表（占 1/4，宽度减小） */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-lg shadow p-4">
+            <ProjectMemberList
+              members={members || []}
+              projectId={projectId}
+              canAddMember={isOwner || currentUserRole === 'admin'}
+              canManage={isOwner || currentUserRole === 'admin'}
+              onMemberClick={(member) => {
+                // 非管理模式下，点击成员触发筛选
+                if (!isOwner && currentUserRole !== 'admin') {
+                  // 如果当前筛选的是创建人，则切换为执行人筛选；否则设置为创建人筛选
+                  if (creatorFilter === member.user_id) {
+                    setCreatorFilter(null)
+                    setExecutorFilter(member.user_id)
+                  } else if (executorFilter === member.user_id) {
+                    setExecutorFilter(null)
+                    setCreatorFilter(member.user_id)
+                  } else {
+                    // 默认设置为创建人筛选
+                    setCreatorFilter(member.user_id)
+                    setExecutorFilter(null)
+                  }
+                }
+              }}
+            />
+          </div>
+        </div>
       </div>
       
       {/* 编辑项目对话框 */}
@@ -1055,8 +1558,8 @@ function StatCard({ title, value, icon, isActive = false, onClick, className }: 
       className={clsx(
         'bg-white rounded-lg shadow p-3 md:p-4 cursor-pointer transition-all',
         {
-          'border-2 border-primary-500 shadow-lg': isActive,
-          'border-2 border-transparent': !isActive, // 保持相同大小，避免布局跳动
+          'ring-2 ring-primary-500 shadow-lg': isActive,
+          'ring-2 ring-transparent': !isActive, // 使用 ring 而不是 border，避免被 overflow 裁切
           'hover:shadow-md': !isActive,
         },
         className
@@ -1286,6 +1789,22 @@ function PriorityFilterIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+    </svg>
+  )
+}
+
+function SearchIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+  )
+}
+
+function XIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
   )
 }

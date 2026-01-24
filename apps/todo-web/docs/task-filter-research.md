@@ -194,3 +194,4 @@ GET /workshop/v1/user/tasks?project_id={projectId}&creator_id={creatorId}&execut
 3. **如何处理执行人为null的情况？**
    - 方案：在筛选器中添加"未分配"选项，筛选 `executor_id === null` 的任务
 
+

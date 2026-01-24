@@ -83,20 +83,38 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
       })
   }, [avatar])
 
+  // 用户图标 SVG（placeholder）
+  const UserIcon = ({ className }: { className?: string }) => (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+      />
+    </svg>
+  )
+
   const avatarElement = (
     <div
       className={clsx(
         'rounded-full flex items-center justify-center flex-shrink-0',
         'bg-gradient-to-br from-orange-400 to-orange-500 text-white font-semibold',
-        'border border-gray-200',
+        'border border-gray-200 relative overflow-hidden',
         sizeClasses[size],
         className
       )}
       title={showTooltip ? username : undefined}
     >
       {isLoading ? (
-        // 加载中显示首字母
-        initial
+        // 加载中显示用户图标
+        <UserIcon className="w-1/2 h-1/2 opacity-80" />
       ) : avatarUrl ? (
         <img
           src={avatarUrl}
@@ -104,7 +122,7 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
           className="w-full h-full rounded-full object-cover"
           data-oss-key={avatar || undefined}
           onError={(e) => {
-            // 如果图片加载失败，显示首字母
+            // 如果图片加载失败，显示用户图标和首字母
             const target = e.target as HTMLImageElement
             console.error('[Avatar] 图片加载失败:', {
               src: target.src,
@@ -112,11 +130,8 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
               avatarUrl,
               error: e
             })
-            target.style.display = 'none'
-            const parent = target.parentElement
-            if (parent) {
-              parent.textContent = initial
-            }
+            // 隐藏图片，显示 placeholder
+            setAvatarUrl(null)
           }}
           onLoad={(e) => {
             const img = e.target as HTMLImageElement
@@ -188,7 +203,11 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
           }}
         />
       ) : (
-        initial
+        // 没有头像时显示用户图标和首字母的组合
+        <>
+          <UserIcon className="absolute w-1/2 h-1/2 opacity-60" />
+          <span className="relative z-10">{initial}</span>
+        </>
       )}
     </div>
   )
