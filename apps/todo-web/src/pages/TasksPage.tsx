@@ -4,9 +4,10 @@
  * 显示当前用户分配的所有待办（跨项目）
  */
 
-import { useMemo, useState, useEffect, useRef } from 'react'
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button, LoadingView, ErrorView, EmptyStateView } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
 import { useProjectList } from '@/hooks/useProjects'
@@ -94,6 +95,9 @@ export default function MyTasksPage() {
   
   // 所有项目的成员和标签信息
   const [allMembers, setAllMembers] = useState<Map<string, Array<{ user_id: number; username: string }>>>(new Map())
+  // 存储完整的项目成员信息（包括角色）
+  const [projectMembersMap, setProjectMembersMap] = useState<Map<string, ProjectMember[]>>(new Map())
+  const queryClient = useQueryClient()
   const { loadProjectTags, getProjectTags } = useTagStore()
   
   // 获取所有项目的任务、成员和标签
@@ -107,6 +111,7 @@ export default function MyTasksPage() {
       try {
         const allTasks: Array<Omit<Todo, 'projectId'> & { projectId: string; projectName: string }> = []
         const membersMap = new Map<string, Array<{ user_id: number; username: string }>>()
+        const fullMembersMap = new Map<string, ProjectMember[]>()
         
         // 并发获取所有项目的待办、成员和标签
         const taskPromises = projects.map(async (project) => {
@@ -121,7 +126,7 @@ export default function MyTasksPage() {
             // 使用成员信息丰富待办项的用户信息（创建人和执行人）
             todos = enrichTodosWithMembers(todos, members)
             
-            // 存储成员信息
+            // 存储成员信息（用于筛选）
             const memberList = members
               .filter(m => m.user_id && m.username)
               .map(m => ({
@@ -129,6 +134,9 @@ export default function MyTasksPage() {
                 username: m.username!,
               }))
             membersMap.set(project.id.toString(), memberList)
+            
+            // 存储完整的成员信息（包括角色）
+            fullMembersMap.set(project.id.toString(), members)
             
             // 加载项目标签
             try {
@@ -175,6 +183,7 @@ export default function MyTasksPage() {
         const flattened = results.flat()
         setMyTasks(flattened)
         setAllMembers(membersMap)
+        setProjectMembersMap(fullMembersMap)
       } catch (err) {
         console.error('❌ 获取待办列表失败:', err)
         setTasksError(err as Error)
@@ -662,6 +671,73 @@ export default function MyTasksPage() {
     e.stopPropagation() // 阻止事件冒泡，避免触发项目名称点击
     navigate(`/projects/${projectId}/tasks/new`)
   }
+  
+  // 获取用户在项目中的角色
+  const getUserRoleInProject = useCallback((projectId: string): 'owner' | 'admin' | 'member' | null => {
+    if (!user?.username) return null
+    const members = projectMembersMap.get(projectId)
+    if (!members) return null
+    
+    const currentMember = members.find(m => 
+      (m.username === user.username) || (m.user?.username === user.username) || (m.is_me === true)
+    )
+    
+    if (currentMember) {
+      return currentMember.role
+    }
+    
+    // 如果成员列表中没有找到，检查是否是项目创建者
+    const project = projects?.find(p => p.id.toString() === projectId)
+    if (project?.creator?.username === user.username) {
+      return 'owner'
+    }
+    
+    return null
+  }, [user?.username, projectMembersMap, projects])
+  
+  // 判断是否可以分配执行人（owner/admin/创建人）
+  const canAssignAssignee = useCallback((todo: any, projectId: string) => {
+    if (!currentUserId) return false
+    
+    const userRole = getUserRoleInProject(projectId)
+    
+    // owner 或 admin 可以分配任意任务的执行人
+    if (userRole === 'owner' || userRole === 'admin') {
+      return true
+    }
+    
+    // 创建人可以分配自己创建的任务的执行人
+    return todo.creatorId === currentUserId
+  }, [currentUserId, getUserRoleInProject])
+  
+  // 判断是否可以编辑优先级（owner/admin/创建人）
+  const canEditPriority = useCallback((todo: any, projectId: string) => {
+    if (!currentUserId) return false
+    
+    const userRole = getUserRoleInProject(projectId)
+    
+    // owner 或 admin 可以编辑任意任务的优先级
+    if (userRole === 'owner' || userRole === 'admin') {
+      return true
+    }
+    
+    // 创建人可以编辑自己创建的任务的优先级
+    return todo.creatorId === currentUserId
+  }, [currentUserId, getUserRoleInProject])
+  
+  // 处理更新执行人
+  const handleUpdateAssignee = useCallback(async (taskId: number, assigneeId: number | null, projectId: string) => {
+    await tasksApi.update(projectId, String(taskId), { assigneeId: assigneeId || undefined })
+    // 刷新待办列表（重新获取所有项目的待办）
+    window.location.reload() // 简单粗暴的方式，因为需要重新获取所有项目的数据
+  }, [])
+  
+  // 处理更新优先级
+  const handleUpdatePriority = useCallback(async (taskId: number, priority: number | null, projectId: string) => {
+    await tasksApi.update(projectId, String(taskId), { priority: priority !== null ? priority : undefined })
+    // 刷新待办列表（重新获取所有项目的待办）
+    window.location.reload() // 简单粗暴的方式，因为需要重新获取所有项目的数据
+  }, [])
   
   // 加载状态
   if (allTasksLoading) {
@@ -1403,13 +1479,22 @@ export default function MyTasksPage() {
                   {/* 待办列表 - 根据折叠状态显示/隐藏（树形结构） */}
                   {isExpanded && (
                     <div>
-                      {taskTree.map((task) => (
-                        <TodoTreeItem
-                          key={task.id}
-                          todo={task}
-                          projectId={projectId}
-                        />
-                      ))}
+                      {taskTree.map((task) => {
+                        const members = projectMembersMap.get(projectId) || []
+                        return (
+                          <TodoTreeItem
+                            key={task.id}
+                            todo={task}
+                            projectId={projectId}
+                            currentUserId={currentUserId}
+                            members={members}
+                            canAssignAssignee={canAssignAssignee(task, projectId)}
+                            onUpdateAssignee={async (taskId, assigneeId) => handleUpdateAssignee(taskId, assigneeId, projectId)}
+                            canEditPriority={canEditPriority(task, projectId)}
+                            onUpdatePriority={async (taskId, priority) => handleUpdatePriority(taskId, priority, projectId)}
+                          />
+                        )
+                      })}
                     </div>
                   )}
                 </div>

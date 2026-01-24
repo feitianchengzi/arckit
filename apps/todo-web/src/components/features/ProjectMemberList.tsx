@@ -4,13 +4,31 @@
  */
 
 import { useState, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Button, EmptyStateView, RoleSelect, ConfirmDialog } from '@/components/ui'
+import { Button, EmptyStateView, RoleSelect, ConfirmDialog, TextField } from '@/components/ui'
 import { Avatar } from '@/components/ui/Avatar'
 import { PlusIcon, CogIcon, XIcon } from '@/components/ui/icons'
+
+// 复制图标
+function CopyIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+    </svg>
+  )
+}
+
+// 已复制图标（勾选）
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+    </svg>
+  )
+}
 import type { ProjectMember, ProjectRole } from '@/types'
 import { useAuthStore } from '@/store/authStore'
 import { useDeleteProjectMember, useSetMemberRole } from '@/hooks/useProjects'
+import { useCreateInvitation } from '@/hooks/useInvitations'
 import clsx from 'clsx'
 
 export interface ProjectMemberListProps {
@@ -50,11 +68,21 @@ export function ProjectMemberList({
   onMemberClick,
   className,
 }: ProjectMemberListProps) {
-  const navigate = useNavigate()
   const currentUser = useAuthStore((state) => state.user)
   const [isManaging, setIsManaging] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState<ProjectMember | null>(null)
+  const [showInviteForm, setShowInviteForm] = useState(false)
+  
+  // 邀请相关状态
+  const createInvitation = useCreateInvitation(projectId)
+  const [role, setRole] = useState<ProjectRole>('member')
+  const [expiresInHours, setExpiresInHours] = useState('24')
+  const [maxUses, setMaxUses] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
+  const [inviteLink, setInviteLink] = useState('')
+  const [inviteError, setInviteError] = useState('')
+  const [copied, setCopied] = useState<'code' | 'link' | null>(null)
   
   // 用于跟踪每个成员的角色变更请求状态，防止频繁请求
   const roleChangeInProgress = useRef<Set<number>>(new Set())
@@ -140,54 +168,256 @@ export function ProjectMemberList({
       console.error('删除成员失败:', error)
     }
   }
+  
+  // 生成邀请
+  const handleGenerate = async () => {
+    setInviteError('')
+    setInviteCode('')
+    setInviteLink('')
+    
+    try {
+      const invitationInput: any = {
+        project_id: projectId,
+        role,
+        expires_in_hours: parseInt(expiresInHours) || 0,
+      }
+      
+      // 如果输入了邀请人数，添加到请求中
+      if (maxUses.trim() !== '') {
+        const maxUsesNum = parseInt(maxUses)
+        if (!isNaN(maxUsesNum) && maxUsesNum > 0) {
+          invitationInput.max_uses = maxUsesNum
+        }
+      }
+      
+      const invitation = await createInvitation.mutateAsync(invitationInput)
+      
+      setInviteCode(invitation.invite_code)
+      
+      // 生成邀请链接
+      if (invitation.invite_link && invitation.invite_link.startsWith('http')) {
+        setInviteLink(invitation.invite_link)
+      } else {
+        const baseUrl = window.location.origin
+        const basePath = import.meta.env.BASE_URL || '/workshop/'
+        const normalizedBasePath = basePath.endsWith('/') ? basePath.slice(0, -1) : basePath
+        setInviteLink(`${baseUrl}${normalizedBasePath}/join/${invitation.invite_code}`)
+      }
+    } catch (err: any) {
+      setInviteError(err.response?.data?.message || '生成邀请失败，请重试')
+    }
+  }
+  
+  // 复制到剪贴板
+  const handleCopy = async (type: 'code' | 'link') => {
+    const text = type === 'code' ? inviteCode : inviteLink
+    
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(type)
+      setTimeout(() => setCopied(null), 2000)
+    } catch (err) {
+      alert('复制失败，请手动复制')
+    }
+  }
+  
+  // 关闭邀请表单并重置状态
+  const handleCloseInviteForm = () => {
+    setShowInviteForm(false)
+    setInviteCode('')
+    setInviteLink('')
+    setInviteError('')
+    setMaxUses('')
+    setRole('member')
+    setExpiresInHours('24')
+  }
 
   return (
     <div className={className}>
       {/* 标题和操作按钮 */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">成员</h3>
-        <div className="flex items-center gap-2">
-          {canAddMember && (
-            <button
-              onClick={() => navigate(`/projects/${projectId}/invite`)}
-              className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
-              title="添加成员"
-            >
-              <PlusIcon className="w-5 h-5" />
-            </button>
-          )}
-          {/* 管理按钮常驻，因为成员可以离开 */}
-          {members && members.length > 0 && (
-            <>
-              {!isManaging ? (
-                <button
-                  onClick={() => setIsManaging(true)}
-                  className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
-                  title="管理成员"
-                >
-                  <CogIcon className="w-5 h-5" />
-                </button>
-              ) : (
-                <button
-                  onClick={() => setIsManaging(false)}
-                  className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
-                  title="退出管理"
-                >
-                  <XIcon className="w-5 h-5" />
-                </button>
-              )}
-            </>
-          )}
-        </div>
+        {!showInviteForm && (
+          <div className="flex items-center gap-2">
+            {canAddMember && (
+              <button
+                onClick={() => setShowInviteForm(true)}
+                className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+                title="添加成员"
+              >
+                <PlusIcon className="w-5 h-5" />
+              </button>
+            )}
+            {/* 管理按钮常驻，因为成员可以离开 */}
+            {members && members.length > 0 && (
+              <>
+                {!isManaging ? (
+                  <button
+                    onClick={() => setIsManaging(true)}
+                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+                    title="管理成员"
+                  >
+                    <CogIcon className="w-5 h-5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setIsManaging(false)}
+                    className="p-1.5 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+                    title="退出管理"
+                  >
+                    <XIcon className="w-5 h-5" />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* 成员列表 */}
-      {!members || members.length === 0 ? (
+      {/* 成员列表或邀请表单 */}
+      {showInviteForm && canAddMember ? (
+        /* 邀请表单 - 覆盖成员列表 */
+        <div className="p-4 bg-white rounded-lg border border-gray-200 space-y-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-gray-900">邀请新成员</h4>
+            <button
+              onClick={handleCloseInviteForm}
+              className="p-1 rounded-md hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900"
+              title="取消"
+            >
+              <XIcon className="w-5 h-5" />
+            </button>
+          </div>
+          
+          {/* 选择角色 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">
+              成员角色
+            </label>
+            <RoleSelect
+              value={role}
+              onChange={setRole}
+              disabled={createInvitation.isPending}
+            />
+          </div>
+          
+          {/* 过期时间 */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-gray-700">
+              过期时间（小时）
+            </label>
+            <select
+              value={expiresInHours}
+              onChange={(e) => setExpiresInHours(e.target.value)}
+              disabled={createInvitation.isPending}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-primary focus:ring-2 focus:ring-primary"
+            >
+              <option value="1">1 小时</option>
+              <option value="6">6 小时</option>
+              <option value="24">24 小时</option>
+              <option value="72">3 天</option>
+              <option value="168">7 天</option>
+              <option value="0">永不过期</option>
+            </select>
+          </div>
+          
+          {/* 邀请人数 */}
+          <div className="space-y-2">
+            <TextField
+              id="maxUses"
+              label="邀请人数（可选）"
+              type="number"
+              min="1"
+              value={maxUses}
+              onChange={(e) => setMaxUses(e.target.value)}
+              placeholder="留空则默认1人"
+              helperText="不填写则默认1人，填写后该邀请码可被指定次数的人使用"
+              disabled={createInvitation.isPending}
+              fullWidth
+            />
+          </div>
+          
+          {/* 生成按钮 */}
+          <Button
+            variant="primary"
+            onClick={handleGenerate}
+            loading={createInvitation.isPending}
+            fullWidth
+            size="sm"
+          >
+            {createInvitation.isPending ? '生成中...' : '生成邀请'}
+          </Button>
+          
+          {/* 错误提示 */}
+          {inviteError && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <p className="text-sm text-red-600">{inviteError}</p>
+            </div>
+          )}
+          
+          {/* 邀请码和链接 */}
+          {inviteCode && (
+            <div className="space-y-3 pt-4 border-t border-gray-200">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  邀请码
+                </label>
+                <div className="flex gap-2 items-center min-w-0">
+                  <input
+                    type="text"
+                    value={inviteCode}
+                    readOnly
+                    disabled
+                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-md bg-gray-100 font-mono text-gray-600 cursor-not-allowed"
+                  />
+                  <button
+                    onClick={() => handleCopy('code')}
+                    className="flex-shrink-0 p-2 rounded-md hover:bg-gray-200 transition-colors text-gray-600 hover:text-gray-900"
+                    title={copied === 'code' ? '已复制' : '复制邀请码'}
+                  >
+                    {copied === 'code' ? (
+                      <CheckIcon className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <CopyIcon className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">
+                  邀请链接
+                </label>
+                <div className="flex gap-2 items-center min-w-0">
+                  <input
+                    type="text"
+                    value={inviteLink}
+                    readOnly
+                    disabled
+                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-md bg-gray-100 text-gray-600 cursor-not-allowed truncate"
+                  />
+                  <button
+                    onClick={() => handleCopy('link')}
+                    className="flex-shrink-0 p-2 rounded-md hover:bg-gray-200 transition-colors text-gray-600 hover:text-gray-900"
+                    title={copied === 'link' ? '已复制' : '复制邀请链接'}
+                  >
+                    {copied === 'link' ? (
+                      <CheckIcon className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <CopyIcon className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : !members || members.length === 0 ? (
         <EmptyStateView
           title="还没有成员"
           message="添加成员加入项目"
           actionLabel={canAddMember ? "添加新成员" : undefined}
-          onAction={canAddMember ? () => navigate(`/projects/${projectId}/invite`) : undefined}
+          onAction={canAddMember ? () => setShowInviteForm(true) : undefined}
         />
       ) : (
         <div className="space-y-3">
