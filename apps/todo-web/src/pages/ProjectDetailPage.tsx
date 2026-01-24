@@ -13,6 +13,8 @@ import { buildTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
 import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
+import { tasksApi } from '@/lib/api/endpoints/tasks'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
@@ -110,6 +112,7 @@ export default function ProjectDetailPage() {
   })
   const { data: members } = useProjectMembers(String(projectId))
   const updateStatus = useUpdateTaskStatus(String(projectId))
+  const queryClient = useQueryClient()
   
   // 加载项目标签
   const { loadProjectTags, getProjectTags } = useTagStore()
@@ -513,6 +516,48 @@ export default function ProjectDetailPage() {
     // member 只能修改自己创建或分配给自己执行的任务
     return todo.creatorId === currentUserId || todo.assigneeId === currentUserId
   }, [currentUserId, currentUserRole])
+  
+  // 判断是否可以分配执行人（owner/admin/创建人）
+  const canAssignAssignee = useCallback((todo: any) => {
+    if (!currentUserId || !currentUserRole) return false
+    
+    // owner 或 admin 可以分配任意任务的执行人
+    if (currentUserRole === 'owner' || currentUserRole === 'admin') {
+      return true
+    }
+    
+    // 创建人可以分配自己创建的任务的执行人
+    return todo.creatorId === currentUserId
+  }, [currentUserId, currentUserRole])
+  
+  // 判断是否可以编辑优先级（owner/admin/创建人）
+  const canEditPriority = useCallback((todo: any) => {
+    if (!currentUserId || !currentUserRole) return false
+    
+    // owner 或 admin 可以编辑任意任务的优先级
+    if (currentUserRole === 'owner' || currentUserRole === 'admin') {
+      return true
+    }
+    
+    // 创建人可以编辑自己创建的任务的优先级
+    return todo.creatorId === currentUserId
+  }, [currentUserId, currentUserRole])
+  
+  // 处理更新执行人
+  const handleUpdateAssignee = useCallback(async (taskId: number, assigneeId: number | null) => {
+    await tasksApi.update(String(projectId), String(taskId), { assigneeId: assigneeId || undefined })
+    // 刷新待办列表缓存
+    queryClient.invalidateQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
+    queryClient.refetchQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
+  }, [projectId, queryClient])
+  
+  // 处理更新优先级
+  const handleUpdatePriority = useCallback(async (taskId: number, priority: number | null) => {
+    await tasksApi.update(String(projectId), String(taskId), { priority: priority !== null ? priority : undefined })
+    // 刷新待办列表缓存
+    queryClient.invalidateQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
+    queryClient.refetchQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
+  }, [projectId, queryClient])
   
   // 计算"更多"菜单的位置
   useEffect(() => {
@@ -1426,6 +1471,11 @@ export default function ProjectDetailPage() {
                 onStatusChange={canEditTask(todo) ? handleStatusChange : undefined}
                 currentUserId={currentUserId}
                 canEdit={canEditTask(todo)}
+                members={members || []}
+                canAssignAssignee={canAssignAssignee(todo)}
+                onUpdateAssignee={handleUpdateAssignee}
+                canEditPriority={canEditPriority(todo)}
+                onUpdatePriority={handleUpdatePriority}
               />
             ))}
           </div>

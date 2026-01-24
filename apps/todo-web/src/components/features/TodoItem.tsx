@@ -4,12 +4,13 @@
  * TodoItem - 任务项组件
  */
 
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import { StatusBadge, StatusSelect } from '@/components/ui'
+import { StatusBadge, StatusSelect, Avatar } from '@/components/ui'
 import { TagList, PriorityBadge } from './'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
-import type { Todo, TodoStatus } from '@/types'
+import type { Todo, TodoStatus, ProjectMember } from '@/types'
 
 export interface TodoItemProps {
   todo: Todo
@@ -18,12 +19,19 @@ export interface TodoItemProps {
   className?: string
   currentUserId?: number | null // 当前用户的 user_id
   canEdit?: boolean // 是否有权限编辑任务状态
+  members?: ProjectMember[] // 项目成员列表
+  canAssignAssignee?: boolean // 是否可以分配执行人（owner/admin/创建人）
+  onUpdateAssignee?: (taskId: number, assigneeId: number | null) => Promise<void> // 更新执行人的回调
+  canEditPriority?: boolean // 是否可以编辑优先级（owner/admin/创建人）
+  onUpdatePriority?: (taskId: number, priority: number | null) => Promise<void> // 更新优先级的回调
 }
 
-export function TodoItem({ todo, projectId, onStatusChange, className, currentUserId, canEdit = false }: TodoItemProps) {
+export function TodoItem({ todo, projectId, onStatusChange, className, currentUserId, canEdit = false,   members = [], canAssignAssignee = false, onUpdateAssignee, canEditPriority = false, onUpdatePriority }: TodoItemProps) {
   // 判断是否是创建者或执行者
   const isCreator = currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId
   const isAssignee = currentUserId !== null && currentUserId !== undefined && todo.assigneeId === currentUserId
+  const [isUpdatingAssignee, setIsUpdatingAssignee] = useState(false)
+  const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
   const navigate = useNavigate()
   
   const handleClick = () => {
@@ -76,7 +84,39 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
                 <PriorityIcon className="w-3.5 h-3.5 text-gray-500" />
                 优先级
               </span>
-              {todo.priority !== null && todo.priority !== undefined ? (
+              {canEditPriority && onUpdatePriority ? (
+                <select
+                  value={todo.priority !== null && todo.priority !== undefined ? todo.priority : ''}
+                  onChange={async (e) => {
+                    const value = e.target.value
+                    try {
+                      setIsUpdatingPriority(true)
+                      const priority = value === '' ? null : Number(value)
+                      await onUpdatePriority(todo.id, priority)
+                    } catch (error) {
+                      console.error('更新优先级失败:', error)
+                    } finally {
+                      setIsUpdatingPriority(false)
+                    }
+                  }}
+                  disabled={isUpdatingPriority}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className={clsx(
+                    "px-2 py-0.5 text-xs border border-gray-300 rounded-md",
+                    "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                    "disabled:bg-gray-100 disabled:cursor-not-allowed",
+                    "bg-white text-gray-900",
+                    isUpdatingPriority && "opacity-50"
+                  )}
+                >
+                  <option value="">未设定</option>
+                  <option value="0">🔴 最高</option>
+                  <option value="1">🟠 高</option>
+                  <option value="2">🟡 中</option>
+                  <option value="3">🟢 低</option>
+                </select>
+              ) : todo.priority !== null && todo.priority !== undefined ? (
                 <PriorityBadge value={todo.priority} size="sm" />
               ) : (
                 <span className="text-xs text-gray-400">未设定</span>
@@ -98,44 +138,68 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
         </div>
       </div>
       
-      {/* 底部信息：标识图标 + 创建人、执行人、时间、子任务 */}
+      {/* 底部信息：创建人、执行人、时间、子任务 */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* 标识图标：我是创建人或执行人 */}
-          {(isCreator || isAssignee) && (
-            <div className="flex items-center gap-1 flex-shrink-0" title={isCreator && isAssignee ? '我创建的 · 我负责的' : isCreator ? '我创建的' : '我负责的'}>
-              {isCreator && (
-                <CreatorBadgeIcon className="w-3.5 h-3.5 text-blue-500" />
-              )}
-              {isAssignee && (
-                <AssigneeBadgeIcon className="w-3.5 h-3.5 text-blue-500" />
-              )}
-            </div>
-          )}
-          
+        <div className="flex items-center gap-5 flex-wrap">
           {/* 创建者 */}
           {todo.creator && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-600 whitespace-nowrap">
-                <span className="text-gray-500">创建：</span>
-                <span className={clsx('font-medium', isCreator && 'text-blue-600')}>
-                  {todo.creator.username}
-                </span>
+            <div className="flex items-center gap-0.5 text-xs text-gray-600 whitespace-nowrap">
+              <span className="text-gray-500 font-bold">创建：</span>
+              <Avatar user={todo.creator} size="xs" />
+              <span className={clsx('font-medium', isCreator && 'text-blue-600')}>
+                {todo.creator.username}
               </span>
             </div>
           )}
           
-          {/* 执行者 - 只在有执行人时显示 */}
-          {todo.assignee && (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-600 whitespace-nowrap">
-                <span className="text-gray-500">执行：</span>
+          {/* 执行者 - 始终显示 */}
+          <div className="flex items-center gap-0.5 text-xs text-gray-600 whitespace-nowrap">
+            <span className="text-gray-500 font-bold">执行：</span>
+            {canAssignAssignee && onUpdateAssignee && members.length > 0 ? (
+              <select
+                value={todo.assigneeId || ''}
+                onChange={async (e) => {
+                  const value = e.target.value
+                  
+                  try {
+                    setIsUpdatingAssignee(true)
+                    const assigneeId = value === '' ? null : Number(value)
+                    await onUpdateAssignee(todo.id, assigneeId)
+                  } catch (error) {
+                    console.error('更新执行人失败:', error)
+                  } finally {
+                    setIsUpdatingAssignee(false)
+                  }
+                }}
+                disabled={isUpdatingAssignee}
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                className={clsx(
+                  "px-2 py-0.5 text-xs border border-gray-300 rounded-md",
+                  "focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary",
+                  "disabled:bg-gray-100 disabled:cursor-not-allowed",
+                  "bg-white text-gray-900",
+                  isUpdatingAssignee && "opacity-50"
+                )}
+              >
+                <option value="">未选定</option>
+                {members.map((member) => (
+                  <option key={member.user_id} value={member.user_id}>
+                    {member.username || member.user?.username || `用户 ${member.user_id}`}
+                  </option>
+                ))}
+              </select>
+            ) : todo.assignee ? (
+              <>
+                <Avatar user={todo.assignee} size="xs" />
                 <span className={clsx('font-medium', isAssignee && 'text-blue-600')}>
                   {todo.assignee.username}
                 </span>
-              </span>
-            </div>
-          )}
+              </>
+            ) : (
+              <span className="text-gray-400">未选定</span>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -204,22 +268,6 @@ function SubtaskIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-    </svg>
-  )
-}
-
-function CreatorBadgeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-    </svg>
-  )
-}
-
-function AssigneeBadgeIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
     </svg>
   )
 }
