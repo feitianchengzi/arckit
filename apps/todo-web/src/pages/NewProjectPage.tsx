@@ -54,12 +54,12 @@ export default function NewProjectPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       {/* 页面头部 */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">创建项目</h1>
-        <p className="mt-2 text-gray-600">填写项目信息开始使用</p>
+        <h1 className="text-3xl font-bold text-foreground">创建项目</h1>
+        <p className="mt-2 text-foreground-secondary">填写项目信息开始使用</p>
       </div>
       
       {/* 创建表单 */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-surface-elevated rounded-lg shadow p-6 border border-border">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* 项目名称 */}
           <TextField
