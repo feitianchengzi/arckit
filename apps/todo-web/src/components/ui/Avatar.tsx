@@ -24,6 +24,7 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const lastAvatarRef = useRef<string | undefined>(avatar)
+  const failedUrlsRef = useRef<Set<string>>(new Set()) // 记录加载失败的 URL，避免重复尝试
 
   useEffect(() => {
     // 如果 avatar 没有变化，不重新加载
@@ -41,11 +42,19 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
       console.log('[Avatar] 没有头像，使用默认首字母')
       setAvatarUrl(null)
       setIsLoading(false)
+      failedUrlsRef.current.clear() // 清除失败记录
       return
     }
 
-    // 如果是完整 URL，直接使用
+    // 如果是完整 URL，检查是否之前加载失败过
     if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+      if (failedUrlsRef.current.has(avatar)) {
+        // 之前加载失败过，直接使用 placeholder，不触发请求
+        console.log('[Avatar] URL 之前加载失败过，跳过:', avatar)
+        setAvatarUrl(null)
+        setIsLoading(false)
+        return
+      }
       console.log('[Avatar] 检测到完整 URL，直接使用:', avatar)
       setAvatarUrl(avatar)
       setIsLoading(false)
@@ -55,6 +64,13 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
     // 如果是 objectKey，先尝试同步获取缓存（避免异步延迟）
     const cachedUrl = getAvatarUrlSync(avatar)
     if (cachedUrl) {
+      // 检查缓存的 URL 是否之前加载失败过
+      if (failedUrlsRef.current.has(cachedUrl)) {
+        console.log('[Avatar] 缓存的 URL 之前加载失败过，跳过:', cachedUrl.substring(0, 50) + '...')
+        setAvatarUrl(null)
+        setIsLoading(false)
+        return
+      }
       console.log('[Avatar] ⚡ 同步获取缓存 URL 成功:', cachedUrl.substring(0, 50) + '...')
       setAvatarUrl(cachedUrl)
       setIsLoading(false)
@@ -66,8 +82,16 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
     setIsLoading(true)
     getAvatarUrl(avatar)
       .then((url) => {
+        if (url && failedUrlsRef.current.has(url)) {
+          // 如果获取到的 URL 之前加载失败过，直接使用 placeholder
+          console.log('[Avatar] 获取到的 URL 之前加载失败过，跳过:', url.substring(0, 50) + '...')
+          setAvatarUrl(null)
+          setIsLoading(false)
+          return
+        }
         console.log('[Avatar] 获取头像 URL 成功:', url)
         setAvatarUrl(url)
+        setIsLoading(false)
       })
       .catch((error) => {
         console.error('[Avatar] 获取头像 URL 失败:', error)
@@ -77,8 +101,6 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
           avatar
         })
         setAvatarUrl(null)
-      })
-      .finally(() => {
         setIsLoading(false)
       })
   }, [avatar])
@@ -124,13 +146,14 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
           onError={(e) => {
             // 如果图片加载失败，显示用户图标和首字母
             const target = e.target as HTMLImageElement
-            console.error('[Avatar] 图片加载失败:', {
-              src: target.src,
-              avatar,
-              avatarUrl,
-              error: e
-            })
-            // 隐藏图片，显示 placeholder
+            const failedUrl = target.src
+            
+            // 记录失败的 URL，避免重复尝试
+            if (failedUrl) {
+              failedUrlsRef.current.add(failedUrl)
+            }
+            
+            // 隐藏图片，显示 placeholder（不输出错误日志，这是正常的降级处理）
             setAvatarUrl(null)
           }}
           onLoad={(e) => {

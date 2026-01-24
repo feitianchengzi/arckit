@@ -290,13 +290,37 @@ export default function ProjectDetailPage() {
         }
       }
       
-      // 搜索匹配（模糊匹配待办内容和标题）
+      // 搜索匹配（模糊匹配待办内容、标题和创建人/执行人用户名）
       let searchMatch = true
       if (searchQuery.trim()) {
         const query = searchQuery.trim().toLowerCase()
         const content = (todo.content || '').toLowerCase()
         const title = (todo.title || '').toLowerCase()
-        searchMatch = content.includes(query) || title.includes(query)
+        
+        // 检查内容或标题匹配
+        let contentMatch = content.includes(query) || title.includes(query)
+        
+        // 检查创建人用户名匹配
+        let creatorNameMatch = false
+        if (members) {
+          const creatorMember = members.find(m => m.user_id === todo.creatorId)
+          if (creatorMember) {
+            const creatorName = (creatorMember.username || creatorMember.user?.username || '').toLowerCase()
+            creatorNameMatch = creatorName.includes(query)
+          }
+        }
+        
+        // 检查执行人用户名匹配
+        let executorNameMatch = false
+        if (members && todo.assigneeId) {
+          const executorMember = members.find(m => m.user_id === todo.assigneeId)
+          if (executorMember) {
+            const executorName = (executorMember.username || executorMember.user?.username || '').toLowerCase()
+            executorNameMatch = executorName.includes(query)
+          }
+        }
+        
+        searchMatch = contentMatch || creatorNameMatch || executorNameMatch
       }
       
       return statusMatch && creatorExecutorMatch && tagMatch && priorityMatch && dateMatch && searchMatch
@@ -337,23 +361,21 @@ export default function ProjectDetailPage() {
     
     // 如果同时筛选了创建人和执行人，优先显示AND结果，然后显示OR结果
     if (hasBothFilters) {
-      // 先获取AND逻辑的结果
+      // 先获取AND逻辑的结果（创建人&执行人）
       const andResults = filterTree(taskTree, false)
       
-      // 获取OR逻辑的结果
+      // 获取OR逻辑的结果（创建人 OR 执行人）
       const orResults = filterTree(taskTree, true)
       
-      // 创建一个函数来检查任务是否在结果列表中（递归检查树形结构）
+      // 创建一个函数来检查任务是否在结果列表中（通过ID比较）
       const isTodoInResults = (todo: typeof taskTree[0], results: typeof taskTree): boolean => {
-        for (const resultTodo of results) {
-          if (resultTodo.id === todo.id) {
-            return true
-          }
-          if (resultTodo.children && todo.children) {
-            if (isTodoInResults(todo, resultTodo.children)) {
-              return true
-            }
-          }
+        // 检查当前任务
+        if (results.some(r => r.id === todo.id)) {
+          return true
+        }
+        // 递归检查子任务
+        if (todo.children && todo.children.length > 0) {
+          return todo.children.some(child => isTodoInResults(child, results))
         }
         return false
       }
@@ -369,12 +391,19 @@ export default function ProjectDetailPage() {
         return dateB - dateA // 降序，最新的在前
       })
       
-      return [...sortedAndResults, ...filteredOrResults]
+      // 对OR结果也按日期排序（最新的在前）
+      const sortedOrResults = [...filteredOrResults].sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime()
+        const dateB = new Date(b.createdAt).getTime()
+        return dateB - dateA // 降序，最新的在前
+      })
+      
+      return [...sortedAndResults, ...sortedOrResults]
     }
     
     // 否则使用原来的逻辑
     return filterTree(taskTree)
-  }, [taskTree, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, searchQuery, currentUserId])
+  }, [taskTree, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, searchQuery, currentUserId, members])
   
   // 监听主内容区滚动
   useEffect(() => {
@@ -1415,18 +1444,9 @@ export default function ProjectDetailPage() {
               onMemberClick={(member) => {
                 // 非管理模式下，点击成员触发筛选
                 if (!isOwner && currentUserRole !== 'admin') {
-                  // 如果当前筛选的是创建人，则切换为执行人筛选；否则设置为创建人筛选
-                  if (creatorFilter === member.user_id) {
-                    setCreatorFilter(null)
-                    setExecutorFilter(member.user_id)
-                  } else if (executorFilter === member.user_id) {
-                    setExecutorFilter(null)
-                    setCreatorFilter(member.user_id)
-                  } else {
-                    // 默认设置为创建人筛选
-                    setCreatorFilter(member.user_id)
-                    setExecutorFilter(null)
-                  }
+                  // 点击成员时，同时设置创建人和执行人筛选为这个成员
+                  setCreatorFilter(member.user_id)
+                  setExecutorFilter(member.user_id)
                 }
               }}
             />
