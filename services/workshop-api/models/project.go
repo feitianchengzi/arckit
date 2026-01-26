@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Project 项目表
@@ -10,9 +12,10 @@ type Project struct {
 	ID        uint      `json:"id" gorm:"primaryKey;autoIncrement"`              // 主键
 	Name      string    `json:"name" gorm:"type:varchar(200);not null;index"`    // 项目名称
 	GitURL    string    `json:"git_url" gorm:"type:varchar(500);not null;index"` // 项目Git地址
-	CreatorID uint      `json:"creator_id" gorm:"not null;index"`                // 外键：创建者ID（保留历史记录，不级联删除）
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`                // 创建时间
-	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`                // 更新时间
+	CreatorID uint           `json:"creator_id" gorm:"not null;index"`                // 外键：创建者ID（保留历史记录，不级联删除）
+	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`                // 创建时间
+	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                // 更新时间
+	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"` // 软删除时间
 
 	// has many：级联删除约束
 	Creator User            `json:"creator,omitempty" gorm:"foreignKey:CreatorID;references:ID"`
@@ -33,9 +36,10 @@ type ProjectMember struct {
 	ID        uint      `json:"id" gorm:"primaryKey;autoIncrement"`                     // 主键
 	ProjectID uint      `json:"project_id" gorm:"not null;index"`                       // 外键：项目ID
 	UserID    uint      `json:"user_id" gorm:"not null;index"`                          // 外键：用户ID
-	Role      string    `json:"role" gorm:"type:varchar(50);not null;default:'member'"` // 角色：owner, admin, member等
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`                       // 加入时间
-	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`                       // 更新时间
+	Role      string         `json:"role" gorm:"type:varchar(50);not null;default:'member'"` // 角色：owner, admin, member等
+	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`                       // 加入时间
+	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                       // 更新时间
+	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`     // 软删除时间
 
 	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
 	User    User    `json:"user,omitempty" gorm:"foreignKey:UserID;references:ID"`
@@ -79,9 +83,10 @@ type ProjectInvitation struct {
 	ExpiresAt  *time.Time `json:"expires_at,omitempty" gorm:"index"`                        // 过期时间（可选）
 	MaxUses    int        `json:"max_uses" gorm:"not null;default:1"`                       // 最大使用次数（默认1）
 	UsedCount  int        `json:"used_count" gorm:"not null;default:0"`                     // 已使用次数
-	UsedAt     *time.Time `json:"used_at,omitempty"`                                        // 首次使用时间（保留用于兼容）
-	CreatedAt  time.Time  `json:"created_at" gorm:"autoCreateTime"`                         // 创建时间
-	UpdatedAt  time.Time  `json:"updated_at" gorm:"autoUpdateTime"`                         // 更新时间
+	UsedAt     *time.Time     `json:"used_at,omitempty"`                                        // 首次使用时间（保留用于兼容）
+	CreatedAt  time.Time      `json:"created_at" gorm:"autoCreateTime"`                         // 创建时间
+	UpdatedAt  time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                         // 更新时间
+	DeletedAt  gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`       // 软删除时间
 
 	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID;constraint:OnDelete:CASCADE"`
 	Inviter User    `json:"inviter,omitempty" gorm:"foreignKey:InviterID;references:ID"`

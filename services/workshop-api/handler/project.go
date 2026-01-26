@@ -133,13 +133,14 @@ func CreateProject(c *gin.Context) {
 
 // ProjectResponse 项目响应结构（用于查询接口）
 type ProjectResponse struct {
-	ID        uint                    `json:"id"`         // 项目ID
-	Name      string                  `json:"name"`       // 项目名称
-	GitURL    string                  `json:"git_url"`    // Git地址
-	CreatorID uint                    `json:"creator_id"` // 创建者ID
-	CreatedAt string                  `json:"created_at"` // 创建时间
-	UpdatedAt string                  `json:"updated_at"` // 更新时间
-	Members   []ProjectMemberResponse `json:"members"`    // 项目成员列表
+	ID        uint                    `json:"id"`                   // 项目ID
+	Name      string                  `json:"name"`                 // 项目名称
+	GitURL    string                  `json:"git_url"`              // Git地址
+	CreatorID uint                    `json:"creator_id"`           // 创建者ID
+	CreatedAt string                  `json:"created_at"`           // 创建时间
+	UpdatedAt string                  `json:"updated_at"`           // 更新时间
+	DeletedAt *string                 `json:"deleted_at,omitempty"` // 删除时间（如果存在）
+	Members   []ProjectMemberResponse `json:"members"`              // 项目成员列表
 }
 
 // GetUserProjectsResponse 查询用户项目响应结构
@@ -148,35 +149,53 @@ type GetUserProjectsResponse struct {
 	Total    int64             `json:"total"`    // 项目总数
 }
 
+// GetUserProjectsRequest 查询用户项目请求结构
+type GetUserProjectsRequest struct {
+	IncludeDeleted bool `form:"include_deleted"` // 是否包含已删除的记录（可选，默认false）
+}
+
 // GetUserProjects 根据用户ID查询所有参与的项目
-// 网关路由: GET /todo-service/v1/user/projects
+// 网关路由: GET /todo-service/v1/user/projects?include_deleted=true
 // 认证级别: user (需要JWT认证)
 // 流程：
 // 1. 从Header UUID获取用户ID（通过中间件ExtractUserID）
 // 2. 查询该用户参与的所有项目（通过project_members表）
 // 3. 为每个项目查询并包含项目成员信息
 func GetUserProjects(c *gin.Context) {
-	// 1. 从context获取数据库连接
+	// 1. 绑定查询参数
+	var req GetUserProjectsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		// 如果绑定失败，使用默认值（include_deleted=false）
+		req.IncludeDeleted = false
+	}
+
+	// 2. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
 		return
 	}
 
-	// 2. 获取用户ID
+	// 3. 获取用户ID
 	userID, ok := middleware.RequireUserID(c)
 	if !ok {
 		return
 	}
 
-	// 3. 查询用户参与的所有项目（通过project_members表）
+	// 4. 构建查询条件
+	query := db.Where("user_id = ?", userID)
+	if req.IncludeDeleted {
+		query = query.Unscoped()
+	}
+
+	// 5. 查询用户参与的所有项目（通过project_members表）
 	var projectMembers []models.ProjectMember
-	if err := db.Where("user_id = ?", userID).Preload("Project").Find(&projectMembers).Error; err != nil {
+	if err := query.Preload("Project").Find(&projectMembers).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询项目成员关系失败: "+err.Error(), nil))
 		return
 	}
 
-	// 4. 提取项目ID列表
+	// 6. 提取项目ID列表
 	projectIDs := make([]uint, 0, len(projectMembers))
 	projectMap := make(map[uint]models.Project)
 	for _, pm := range projectMembers {
@@ -184,22 +203,28 @@ func GetUserProjects(c *gin.Context) {
 		projectMap[pm.ProjectID] = pm.Project
 	}
 
-	// 5. 查询所有项目的成员信息
+	// 7. 构建成员查询条件
+	memberQuery := db.Where("project_id IN ?", projectIDs)
+	if req.IncludeDeleted {
+		memberQuery = memberQuery.Unscoped()
+	}
+
+	// 8. 查询所有项目的成员信息
 	var allMembers []models.ProjectMember
 	if len(projectIDs) > 0 {
-		if err := db.Where("project_id IN ?", projectIDs).Preload("User").Find(&allMembers).Error; err != nil {
+		if err := memberQuery.Preload("User").Find(&allMembers).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询项目成员失败: "+err.Error(), nil))
 			return
 		}
 	}
 
-	// 6. 按项目ID分组成员
+	// 9. 按项目ID分组成员
 	membersByProject := make(map[uint][]models.ProjectMember)
 	for _, member := range allMembers {
 		membersByProject[member.ProjectID] = append(membersByProject[member.ProjectID], member)
 	}
 
-	// 7. 构建响应
+	// 10. 构建响应
 	projectResponses := make([]ProjectResponse, 0, len(projectMap))
 	for _, project := range projectMap {
 		// 转换项目成员
@@ -217,6 +242,12 @@ func GetUserProjects(c *gin.Context) {
 			})
 		}
 
+		var deletedAt *string
+		if project.DeletedAt.Valid {
+			deletedAtStr := project.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+			deletedAt = &deletedAtStr
+		}
+
 		projectResponses = append(projectResponses, ProjectResponse{
 			ID:        project.ID,
 			Name:      project.Name,
@@ -224,11 +255,12 @@ func GetUserProjects(c *gin.Context) {
 			CreatorID: project.CreatorID,
 			CreatedAt: project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			DeletedAt: deletedAt,
 			Members:   memberResponses,
 		})
 	}
 
-	// 8. 返回成功响应
+	// 11. 返回成功响应
 	resp := GetUserProjectsResponse{
 		Projects: projectResponses,
 		Total:    int64(len(projectResponses)),

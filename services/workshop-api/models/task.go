@@ -2,6 +2,8 @@ package models
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Task 任务表
@@ -13,9 +15,10 @@ type Task struct {
 	State        string     `json:"state" gorm:"type:varchar(50);not null;default:'pending';index"` // 任务状态
 	CreatorID    uint       `json:"creator_id" gorm:"not null;index"`                               // 外键：创建者ID（保留历史记录，不级联删除）
 	ExecutorID   *uint      `json:"executor_id,omitempty" gorm:"index"`                             // 外键：执行者ID（可为空，保留历史记录，不级联删除）
-	CreatedAt    time.Time  `json:"created_at" gorm:"autoCreateTime"`                               // 创建时间
-	UpdatedAt    time.Time  `json:"updated_at" gorm:"autoUpdateTime"`                               // 更新时间
-	CompletionAt *time.Time `json:"completion_at,omitempty"`                                        // 完成时间（可为空）
+	CreatedAt    time.Time      `json:"created_at" gorm:"autoCreateTime"`                               // 创建时间
+	UpdatedAt    time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                               // 更新时间
+	CompletionAt *time.Time     `json:"completion_at,omitempty"`                                        // 完成时间（可为空）
+	DeletedAt    gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`             // 软删除时间
 	Priority     *int       `json:"priority,omitempty" gorm:"type:int"`                             // 优先级（可为空，0为最高，数值越大优先级越低）
 	Tags         *string    `json:"tags,omitempty" gorm:"type:text"`                                // 标签（用逗号分割，可为空）
 

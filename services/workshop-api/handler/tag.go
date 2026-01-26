@@ -25,15 +25,21 @@ type UpdateTagRequest struct {
 
 // TagResponse 标签响应结构
 type TagResponse struct {
-	ID        uint   `json:"id"`         // 标签ID
-	ProjectID uint   `json:"project_id"` // 项目ID
-	Name      string `json:"name"`       // 标签名称
-	CreatedAt string `json:"created_at"` // 创建时间
-	UpdatedAt string `json:"updated_at"` // 更新时间
+	ID        uint    `json:"id"`         // 标签ID
+	ProjectID uint    `json:"project_id"` // 项目ID
+	Name      string  `json:"name"`       // 标签名称
+	CreatedAt string  `json:"created_at"` // 创建时间
+	UpdatedAt string  `json:"updated_at"` // 更新时间
+	DeletedAt *string `json:"deleted_at,omitempty"` // 删除时间（如果存在）
+}
+
+// GetTagsRequest 查询标签请求结构
+type GetTagsRequest struct {
+	IncludeDeleted bool `form:"include_deleted"` // 是否包含已删除的记录（可选，默认false）
 }
 
 // GetTags 查询项目的所有标签
-// 网关路由: GET /todo-service/v1/user/projects/:id/tags
+// 网关路由: GET /todo-service/v1/user/projects/:id/tags?include_deleted=true
 // 认证级别: user (需要JWT认证)
 // 权限: 项目成员均可操作
 func GetTags(c *gin.Context) {
@@ -45,20 +51,27 @@ func GetTags(c *gin.Context) {
 		return
 	}
 
-	// 2. 从context获取数据库连接
+	// 2. 绑定查询参数
+	var req GetTagsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		// 如果绑定失败，使用默认值（include_deleted=false）
+		req.IncludeDeleted = false
+	}
+
+	// 3. 从context获取数据库连接
 	db := middleware.GetDB(c)
 	if db == nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
 		return
 	}
 
-	// 3. 获取用户ID
+	// 4. 获取用户ID
 	userID, ok := middleware.RequireUserID(c)
 	if !ok {
 		return
 	}
 
-	// 4. 验证用户是否为项目成员
+	// 5. 验证用户是否为项目成员
 	var member models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", projectID, userID).First(&member).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -69,22 +82,35 @@ func GetTags(c *gin.Context) {
 		return
 	}
 
-	// 5. 查询项目的所有标签
+	// 6. 构建查询条件
+	query := db.Where("project_id = ?", projectID).Order("created_at DESC")
+	if req.IncludeDeleted {
+		query = query.Unscoped()
+	}
+
+	// 7. 查询项目的所有标签
 	var tags []models.Tag
-	if err := db.Where("project_id = ?", projectID).Order("created_at DESC").Find(&tags).Error; err != nil {
+	if err := query.Find(&tags).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTagQueryFailed, "查询标签失败: "+err.Error(), nil))
 		return
 	}
 
-	// 6. 转换为响应格式
+	// 8. 转换为响应格式
 	tagResponses := make([]TagResponse, len(tags))
 	for i, tag := range tags {
+		var deletedAt *string
+		if tag.DeletedAt.Valid {
+			deletedAtStr := tag.DeletedAt.Time.Format("2006-01-02 15:04:05")
+			deletedAt = &deletedAtStr
+		}
+
 		tagResponses[i] = TagResponse{
 			ID:        tag.ID,
 			ProjectID: tag.ProjectID,
 			Name:      tag.Name,
 			CreatedAt: tag.CreatedAt.Format("2006-01-02 15:04:05"),
 			UpdatedAt: tag.UpdatedAt.Format("2006-01-02 15:04:05"),
+			DeletedAt: deletedAt,
 		}
 	}
 
@@ -168,6 +194,7 @@ func CreateTag(c *gin.Context) {
 		Name:      tag.Name,
 		CreatedAt: tag.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt: tag.UpdatedAt.Format("2006-01-02 15:04:05"),
+		DeletedAt: nil,
 	}
 
 	c.JSON(http.StatusOK, response.NewSuccessResponse(tagResponse))
@@ -246,12 +273,19 @@ func UpdateTag(c *gin.Context) {
 	}
 
 	// 9. 返回更新后的标签
+	var deletedAt *string
+	if tag.DeletedAt.Valid {
+		deletedAtStr := tag.DeletedAt.Time.Format("2006-01-02 15:04:05")
+		deletedAt = &deletedAtStr
+	}
+
 	tagResponse := TagResponse{
 		ID:        tag.ID,
 		ProjectID: tag.ProjectID,
 		Name:      tag.Name,
 		CreatedAt: tag.CreatedAt.Format("2006-01-02 15:04:05"),
 		UpdatedAt: tag.UpdatedAt.Format("2006-01-02 15:04:05"),
+		DeletedAt: deletedAt,
 	}
 
 	c.JSON(http.StatusOK, response.NewSuccessResponse(tagResponse))

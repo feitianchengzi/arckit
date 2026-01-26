@@ -12,9 +12,10 @@ type User struct {
 	ID        uint      `json:"id" gorm:"primaryKey;autoIncrement"`                // 主键
 	UUID      string    `json:"uuid" gorm:"type:varchar(36);uniqueIndex;not null"` // UUID，唯一索引
 	Username  string    `json:"username" gorm:"type:varchar(100);not null;index"`  // 用户名
-	Avatar    string    `json:"avatar" gorm:"type:varchar(500)"`                   // 头像地址
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`                  // 创建时间
-	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`                  // 更新时间
+	Avatar    string         `json:"avatar" gorm:"type:varchar(500)"`                   // 头像地址
+	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`                  // 创建时间
+	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                  // 更新时间
+	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"` // 软删除时间
 
 	// 关联关系
 	ProjectMembers  []ProjectMember `json:"project_members,omitempty" gorm:"foreignKey:UserID"`     // 用户参与的项目成员关系（通过此表访问项目）

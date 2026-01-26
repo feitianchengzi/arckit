@@ -176,6 +176,7 @@ func CreateTask(c *gin.Context) {
 //   - taskID: 当前任务ID
 //   - newFatherID: 新的父任务ID
 //   - maxDepth: 最大检查深度（防止无限循环，建议50）
+//
 // 返回：
 //   - error: 如果检测到循环引用，返回错误；否则返回nil
 func checkCircularReference(db *gorm.DB, taskID uint, newFatherID uint, maxDepth int) error {
@@ -259,13 +260,13 @@ func canModifyTask(db *gorm.DB, userID uint, task models.Task) (bool, error) {
 
 // UpdateTaskRequest 更新任务请求结构
 type UpdateTaskRequest struct {
-	Content    *string `json:"content,omitempty"`     // 任务内容（可选）
-	State      *string `json:"state,omitempty"`       // 任务状态（可选）
-	ExecutorID *uint   `json:"executor_id,omitempty"` // 执行者ID（可选）
-	FatherID   *uint   `json:"father_id,omitempty"`   // 父任务ID（可选，可设置为null来清空）
-	Priority   *int    `json:"priority,omitempty"`    // 优先级（可选，0为最高，数值越大优先级越低）
-	Tags       *string `json:"tags,omitempty"`        // 标签（可选，用逗号分割）
-	fatherIDSet bool   `json:"-"`                     // 内部标志：father_id是否在JSON中被显式设置
+	Content     *string `json:"content,omitempty"`     // 任务内容（可选）
+	State       *string `json:"state,omitempty"`       // 任务状态（可选）
+	ExecutorID  *uint   `json:"executor_id,omitempty"` // 执行者ID（可选）
+	FatherID    *uint   `json:"father_id,omitempty"`   // 父任务ID（可选，可设置为null来清空）
+	Priority    *int    `json:"priority,omitempty"`    // 优先级（可选，0为最高，数值越大优先级越低）
+	Tags        *string `json:"tags,omitempty"`        // 标签（可选，用逗号分割）
+	fatherIDSet bool    `json:"-"`                     // 内部标志：father_id是否在JSON中被显式设置
 }
 
 // UnmarshalJSON 自定义JSON反序列化，用于检测father_id是否被显式设置
@@ -277,7 +278,7 @@ func (r *UpdateTaskRequest) UnmarshalJSON(data []byte) error {
 			r.fatherIDSet = true
 		}
 	}
-	
+
 	// 使用临时结构体避免递归调用
 	type Alias struct {
 		Content    *string `json:"content,omitempty"`
@@ -287,12 +288,12 @@ func (r *UpdateTaskRequest) UnmarshalJSON(data []byte) error {
 		Priority   *int    `json:"priority,omitempty"`
 		Tags       *string `json:"tags,omitempty"`
 	}
-	
+
 	var aux Alias
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
-	
+
 	// 复制字段
 	r.Content = aux.Content
 	r.State = aux.State
@@ -300,7 +301,7 @@ func (r *UpdateTaskRequest) UnmarshalJSON(data []byte) error {
 	r.FatherID = aux.FatherID
 	r.Priority = aux.Priority
 	r.Tags = aux.Tags
-	
+
 	return nil
 }
 
@@ -510,14 +511,14 @@ func UpdateTask(c *gin.Context) {
 
 // BatchUpdateTaskRequest 批量更新任务中单个任务的请求结构
 type BatchUpdateTaskRequest struct {
-	TaskID     uint    `json:"task_id" binding:"required"` // 任务ID（必填）
-	Content    *string `json:"content,omitempty"`          // 任务内容（可选）
-	State      *string `json:"state,omitempty"`            // 任务状态（可选）
-	ExecutorID *uint   `json:"executor_id,omitempty"`      // 执行者ID（可选）
-	FatherID   *uint   `json:"father_id,omitempty"`        // 父任务ID（可选，可设置为null来清空）
-	Priority   *int    `json:"priority,omitempty"`         // 优先级（可选，0为最高，数值越大优先级越低）
-	Tags       *string `json:"tags,omitempty"`             // 标签（可选，用逗号分割）
-	fatherIDSet bool   `json:"-"`                          // 内部标志：father_id是否在JSON中被显式设置
+	TaskID      uint    `json:"task_id" binding:"required"` // 任务ID（必填）
+	Content     *string `json:"content,omitempty"`          // 任务内容（可选）
+	State       *string `json:"state,omitempty"`            // 任务状态（可选）
+	ExecutorID  *uint   `json:"executor_id,omitempty"`      // 执行者ID（可选）
+	FatherID    *uint   `json:"father_id,omitempty"`        // 父任务ID（可选，可设置为null来清空）
+	Priority    *int    `json:"priority,omitempty"`         // 优先级（可选，0为最高，数值越大优先级越低）
+	Tags        *string `json:"tags,omitempty"`             // 标签（可选，用逗号分割）
+	fatherIDSet bool    `json:"-"`                          // 内部标志：father_id是否在JSON中被显式设置
 }
 
 // UnmarshalJSON 自定义JSON反序列化，用于检测father_id是否被显式设置
@@ -529,7 +530,7 @@ func (r *BatchUpdateTaskRequest) UnmarshalJSON(data []byte) error {
 			r.fatherIDSet = true
 		}
 	}
-	
+
 	// 使用临时结构体避免递归调用
 	type Alias struct {
 		TaskID     uint    `json:"task_id"`
@@ -540,12 +541,12 @@ func (r *BatchUpdateTaskRequest) UnmarshalJSON(data []byte) error {
 		Priority   *int    `json:"priority,omitempty"`
 		Tags       *string `json:"tags,omitempty"`
 	}
-	
+
 	var aux Alias
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err
 	}
-	
+
 	// 复制字段
 	r.TaskID = aux.TaskID
 	r.Content = aux.Content
@@ -554,7 +555,7 @@ func (r *BatchUpdateTaskRequest) UnmarshalJSON(data []byte) error {
 	r.FatherID = aux.FatherID
 	r.Priority = aux.Priority
 	r.Tags = aux.Tags
-	
+
 	return nil
 }
 
@@ -570,7 +571,7 @@ type BatchUpdateTasksResponse struct {
 }
 
 // BatchUpdateTasks 批量更新任务
-// 
+//
 // ⚠️ 已弃用：此接口已标记为弃用，后续版本将停止维护，请使用单个任务更新接口
 // 网关路由: PUT /todo-service/v1/user/tasks/batch
 // 认证级别: user (需要JWT认证)
@@ -578,7 +579,7 @@ type BatchUpdateTasksResponse struct {
 // - 如果任务没有分配执行者，任何项目成员都可以修改
 // - 如果任务分配了执行者，只有管理员/所有者/执行者可以修改
 // 注意：使用事务处理，所有任务要么全部更新成功，要么全部失败回滚
-// 
+//
 // Deprecated: 此接口已弃用，请使用 PUT /todo-service/v1/user/tasks/:id
 func BatchUpdateTasks(c *gin.Context) {
 	// 1. 解析请求体
@@ -821,25 +822,27 @@ func BatchUpdateTasks(c *gin.Context) {
 //   - 为0: 查询所有父任务ID为空的任务（顶级任务）
 //   - 其他值: 查询指定父任务ID的子任务，例如 ?father_id=5
 type GetTasksRequest struct {
-	ProjectID    uint   `form:"project_id" binding:"required"` // 项目ID（必填）
-	UpdatedAfter string `form:"updated_after"`                 // 更新时间过滤（可选，ISO 8601格式）
-	FatherID     *uint  `form:"father_id"`                     // 父任务ID过滤（可选）
+	ProjectID      uint   `form:"project_id" binding:"required"` // 项目ID（必填）
+	UpdatedAfter   string `form:"updated_after"`                 // 更新时间过滤（可选，ISO 8601格式）
+	FatherID       *uint  `form:"father_id"`                     // 父任务ID过滤（可选）
+	IncludeDeleted bool   `form:"include_deleted"`               // 是否包含已删除的记录（可选，默认false）
 }
 
 // TaskResponse 任务响应结构
 type TaskResponse struct {
-	ID           uint    `json:"id"`            // 任务ID
-	ProjectID    uint    `json:"project_id"`    // 项目ID
-	FatherID     *uint   `json:"father_id"`     // 父任务ID
-	Content      string  `json:"content"`       // 任务内容
-	State        string  `json:"state"`         // 任务状态
-	CreatorID    uint    `json:"creator_id"`    // 创建者ID
-	ExecutorID   *uint   `json:"executor_id"`   // 执行者ID
-	Priority     *int    `json:"priority"`      // 优先级
-	Tags         *string `json:"tags"`          // 标签
-	CreatedAt    string  `json:"created_at"`    // 创建时间
-	UpdatedAt    string  `json:"updated_at"`    // 更新时间
-	CompletionAt *string `json:"completion_at"` // 完成时间
+	ID           uint    `json:"id"`                   // 任务ID
+	ProjectID    uint    `json:"project_id"`           // 项目ID
+	FatherID     *uint   `json:"father_id"`            // 父任务ID
+	Content      string  `json:"content"`              // 任务内容
+	State        string  `json:"state"`                // 任务状态
+	CreatorID    uint    `json:"creator_id"`           // 创建者ID
+	ExecutorID   *uint   `json:"executor_id"`          // 执行者ID
+	Priority     *int    `json:"priority"`             // 优先级
+	Tags         *string `json:"tags"`                 // 标签
+	CreatedAt    string  `json:"created_at"`           // 创建时间
+	UpdatedAt    string  `json:"updated_at"`           // 更新时间
+	CompletionAt *string `json:"completion_at"`        // 完成时间
+	DeletedAt    *string `json:"deleted_at,omitempty"` // 删除时间（如果存在）
 }
 
 // GetTasksResponse 查询任务响应结构
@@ -908,6 +911,11 @@ func GetTasks(c *gin.Context) {
 	// 6. 构建查询条件
 	baseQuery := db.Model(&models.Task{}).Where("project_id = ?", req.ProjectID)
 
+	// 如果 include_deleted 为 true，使用 Unscoped() 查询包含已删除的记录
+	if req.IncludeDeleted {
+		baseQuery = baseQuery.Unscoped()
+	}
+
 	// 如果提供了updated_after，添加时间过滤条件
 	if updatedAfter != nil {
 		baseQuery = baseQuery.Where("(updated_at > ? OR created_at > ?)", *updatedAfter, *updatedAfter)
@@ -947,6 +955,12 @@ func GetTasks(c *gin.Context) {
 			completionAt = &completionAtStr
 		}
 
+		var deletedAt *string
+		if task.DeletedAt.Valid {
+			deletedAtStr := task.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+			deletedAt = &deletedAtStr
+		}
+
 		taskResponses = append(taskResponses, TaskResponse{
 			ID:           task.ID,
 			ProjectID:    task.ProjectID,
@@ -960,6 +974,7 @@ func GetTasks(c *gin.Context) {
 			CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			CompletionAt: completionAt,
+			DeletedAt:    deletedAt,
 		})
 	}
 
