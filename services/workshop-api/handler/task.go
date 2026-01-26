@@ -986,29 +986,30 @@ func GetTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
-// DeleteTasksRequest 删除任务请求结构
-type DeleteTasksRequest struct {
-	TaskIDs []uint `json:"task_ids" binding:"required,min=1"` // 任务ID列表（必填，至少一个）
-}
-
 // DeleteTasksResponse 删除任务响应结构
 type DeleteTasksResponse struct {
-	DeletedCount int    `json:"deleted_count"` // 删除的任务数量
-	TaskIDs      []uint `json:"task_ids"`      // 已删除的任务ID列表
+	TaskID    uint   `json:"task_id"`    // 已删除的任务ID
+	DeletedAt string `json:"deleted_at"` // 删除时间
 }
 
-// DeleteTasks 删除任务（支持批量删除）
-// 网关路由: DELETE /todo-service/v1/user/tasks
+// DeleteTasks 删除任务
+// 网关路由: DELETE /todo-service/v1/user/tasks/:id
 // 认证级别: user (需要JWT认证)
 // 权限规则：
 // - owner/admin：可以删除任意任务
 // - member：只能删除自己创建或分配给自己执行的任务
-// 注意：使用事务处理，所有任务要么全部删除成功，要么全部失败回滚
+// 注意：删除任务时会级联删除关联的附件
 func DeleteTasks(c *gin.Context) {
-	// 1. 解析请求体
-	var req DeleteTasksRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
+	// 1. 获取任务ID（从路径参数）
+	taskIDStr := c.Param("id")
+	if taskIDStr == "" {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "任务ID不能为空", nil))
+		return
+	}
+
+	var taskID uint
+	if _, err := fmt.Sscanf(taskIDStr, "%d", &taskID); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的任务ID", nil))
 		return
 	}
 
@@ -1025,55 +1026,45 @@ func DeleteTasks(c *gin.Context) {
 		return
 	}
 
-	// 4. 批量查询任务
-	var tasks []models.Task
-	if err := db.Where("id IN ?", req.TaskIDs).Find(&tasks).Error; err != nil {
+	// 4. 查询任务
+	var task models.Task
+	if err := db.First(&task, taskID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, "任务不存在", nil))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
 		return
 	}
 
-	// 6. 检查是否有任务不存在
-	taskMap := make(map[uint]models.Task)
-	for _, task := range tasks {
-		taskMap[task.ID] = task
-	}
-
-	// 验证所有任务是否存在
-	for _, taskID := range req.TaskIDs {
-		if _, exists := taskMap[taskID]; !exists {
-			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, "任务不存在", nil))
+	// 5. 验证权限（canModifyTask内部会查询项目成员表）
+	canModify, err := canModifyTask(db, userID, task)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员", nil))
 			return
 		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证权限失败: "+err.Error(), nil))
+		return
+	}
+	if !canModify {
+		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNoPermission, "您没有权限删除此任务", nil))
+		return
 	}
 
-	// 7. 验证所有任务的权限（canModifyTask内部会查询项目成员表）
-	for _, taskID := range req.TaskIDs {
-		task := taskMap[taskID]
-		canModify, err := canModifyTask(db, userID, task)
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员", nil))
-				return
-			}
-			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证权限失败: "+err.Error(), nil))
-			return
-		}
-		if !canModify {
-			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNoPermission, "您没有权限删除此任务", nil))
-			return
-		}
-	}
-
-	// 8. 在事务中批量删除所有任务
-	var deletedIDs []uint
-	err := db.Transaction(func(tx *gorm.DB) error {
-		// 批量删除任务
-		if err := tx.Where("id IN ?", req.TaskIDs).Delete(&models.Task{}).Error; err != nil {
+	// 6. 在事务中删除任务及其附件
+	deletedAt := time.Now()
+	err = db.Transaction(func(tx *gorm.DB) error {
+		// 先级联删除任务附件（软删除）
+		if err := tx.Where("task_id = ?", taskID).Delete(&models.TaskAttachment{}).Error; err != nil {
 			return err
 		}
 
-		// 记录已删除的任务ID
-		deletedIDs = req.TaskIDs
+		// 删除任务（软删除）
+		if err := tx.Delete(&task).Error; err != nil {
+			return err
+		}
+
 		return nil
 	})
 
@@ -1082,118 +1073,10 @@ func DeleteTasks(c *gin.Context) {
 		return
 	}
 
-	// 9. 返回成功响应
+	// 7. 返回成功响应
 	resp := DeleteTasksResponse{
-		DeletedCount: len(deletedIDs),
-		TaskIDs:      deletedIDs,
-	}
-	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
-}
-
-// BatchDeleteTasksRequest 批量删除任务请求结构
-type BatchDeleteTasksRequest struct {
-	TaskIDs []uint `json:"task_ids" binding:"required,min=1"` // 任务ID列表（必填，至少一个）
-}
-
-// BatchDeleteTasksResponse 批量删除任务响应结构
-type BatchDeleteTasksResponse struct {
-	DeletedCount int    `json:"deleted_count"` // 删除的任务数量
-	TaskIDs      []uint `json:"task_ids"`      // 已删除的任务ID列表
-}
-
-// BatchDeleteTasks 批量删除任务
-//
-// ⚠️ 已弃用：此接口已标记为弃用，后续版本将停止维护，请使用单个任务删除接口
-// 网关路由: DELETE /todo-service/v1/user/tasks/batch
-// 认证级别: user (需要JWT认证)
-// 权限规则：
-// - owner/admin：可以删除任意任务
-// - member：只能删除自己创建或分配给自己执行的任务
-// 注意：使用事务处理，所有任务要么全部删除成功，要么全部失败回滚
-//
-// Deprecated: 此接口已弃用，请使用 DELETE /todo-service/v1/user/tasks
-func BatchDeleteTasks(c *gin.Context) {
-	// 1. 解析请求体
-	var req BatchDeleteTasksRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
-		return
-	}
-
-	// 2. 从context获取数据库连接
-	db := middleware.GetDB(c)
-	if db == nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
-		return
-	}
-
-	// 3. 获取用户ID
-	userID, ok := middleware.RequireUserID(c)
-	if !ok {
-		return
-	}
-
-	// 4. 批量查询任务
-	var tasks []models.Task
-	if err := db.Where("id IN ?", req.TaskIDs).Find(&tasks).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
-		return
-	}
-
-	// 5. 检查是否有任务不存在
-	taskMap := make(map[uint]models.Task)
-	for _, task := range tasks {
-		taskMap[task.ID] = task
-	}
-
-	// 验证所有任务是否存在
-	for _, taskID := range req.TaskIDs {
-		if _, exists := taskMap[taskID]; !exists {
-			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, fmt.Sprintf("任务 %d 不存在", taskID), nil))
-			return
-		}
-	}
-
-	// 6. 验证所有任务的权限（canModifyTask内部会查询项目成员表）
-	for _, taskID := range req.TaskIDs {
-		task := taskMap[taskID]
-		canModify, err := canModifyTask(db, userID, task)
-		if err != nil {
-			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员", nil))
-				return
-			}
-			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证权限失败: "+err.Error(), nil))
-			return
-		}
-		if !canModify {
-			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNoPermission, fmt.Sprintf("您没有权限删除任务 %d", taskID), nil))
-			return
-		}
-	}
-
-	// 7. 在事务中批量删除所有任务
-	var deletedIDs []uint
-	err := db.Transaction(func(tx *gorm.DB) error {
-		// 批量删除任务
-		if err := tx.Where("id IN ?", req.TaskIDs).Delete(&models.Task{}).Error; err != nil {
-			return err
-		}
-
-		// 记录已删除的任务ID
-		deletedIDs = req.TaskIDs
-		return nil
-	})
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskDeleteFailed, "批量删除任务失败，所有任务已回滚: "+err.Error(), nil))
-		return
-	}
-
-	// 8. 返回成功响应
-	resp := BatchDeleteTasksResponse{
-		DeletedCount: len(deletedIDs),
-		TaskIDs:      deletedIDs,
+		TaskID:    taskID,
+		DeletedAt: deletedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
@@ -1492,7 +1375,7 @@ func BatchCreateTasks(c *gin.Context) {
 
 // CreateTaskAttachmentRequest 创建任务附件请求结构
 type CreateTaskAttachmentRequest struct {
-	TaskID  uint   `json:"task_id" binding:"required"`  // 任务ID（必填）
+	TaskID  uint   `json:"task_id" binding:"required"` // 任务ID（必填）
 	Type    string `json:"type" binding:"required"`    // 附件类型：text/file/url（必填）
 	Content string `json:"content" binding:"required"` // 内容：文本内容或URL（必填）
 }
@@ -1593,26 +1476,26 @@ func CreateTaskAttachment(c *gin.Context) {
 
 // GetTaskAttachmentsRequest 查询任务附件请求结构
 type GetTaskAttachmentsRequest struct {
-	TaskID        uint `form:"task_id" binding:"required"` // 任务ID（必填）
-	IncludeDeleted bool `form:"include_deleted"`          // 是否包含已删除的记录（可选，默认false）
+	TaskID         uint `form:"task_id" binding:"required"` // 任务ID（必填）
+	IncludeDeleted bool `form:"include_deleted"`            // 是否包含已删除的记录（可选，默认false）
 }
 
 // TaskAttachmentResponse 任务附件响应结构
 type TaskAttachmentResponse struct {
-	ID        uint    `json:"id"`         // 附件ID
-	TaskID    uint    `json:"task_id"`    // 任务ID
-	CreatorID uint    `json:"creator_id"` // 创建者ID
-	Type      string  `json:"type"`       // 附件类型
-	Content   string  `json:"content"`    // 内容
-	CreatedAt string  `json:"created_at"` // 创建时间
-	UpdatedAt string  `json:"updated_at"` // 更新时间
+	ID        uint    `json:"id"`                   // 附件ID
+	TaskID    uint    `json:"task_id"`              // 任务ID
+	CreatorID uint    `json:"creator_id"`           // 创建者ID
+	Type      string  `json:"type"`                 // 附件类型
+	Content   string  `json:"content"`              // 内容
+	CreatedAt string  `json:"created_at"`           // 创建时间
+	UpdatedAt string  `json:"updated_at"`           // 更新时间
 	DeletedAt *string `json:"deleted_at,omitempty"` // 删除时间（如果存在）
 }
 
 // GetTaskAttachmentsResponse 查询任务附件响应结构
 type GetTaskAttachmentsResponse struct {
 	Attachments []TaskAttachmentResponse `json:"attachments"` // 附件列表
-	Total       int64                     `json:"total"`       // 附件总数
+	Total       int64                    `json:"total"`       // 附件总数
 }
 
 // GetTaskAttachments 查询任务的所有附件
@@ -1694,7 +1577,7 @@ func GetTaskAttachments(c *gin.Context) {
 		attachmentResponses = append(attachmentResponses, TaskAttachmentResponse{
 			ID:        attachment.ID,
 			TaskID:    attachment.TaskID,
-			CreatorID:  attachment.CreatorID,
+			CreatorID: attachment.CreatorID,
 			Type:      attachment.Type,
 			Content:   attachment.Content,
 			CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),

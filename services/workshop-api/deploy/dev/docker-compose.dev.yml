@@ -3,6 +3,8 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: todo-postgres-dev
+    env_file:
+      - .env.development  # 从当前目录（deploy/dev/）的 .env.development 文件加载所有环境变量
     environment:
       - POSTGRES_USER=${DB_USER:-postgres}
       - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
