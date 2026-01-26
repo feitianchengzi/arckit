@@ -3,9 +3,7 @@ import clsx from 'clsx'
 import type { User } from '@/types'
 import { getAvatarUrl, getAvatarUrlSync } from '@/lib/oss/urlHelper'
 import { subscribeUrlUpdate } from '@/lib/oss/load/UrlUpdateNotifier'
-
-// 控制 Avatar 组件日志输出，需要调试时可以设置为 true
-const ENABLE_AVATAR_LOGS = false
+import { ENABLE_AVATAR_LOGS } from '@/lib/oss/load/logConfig'
 
 export interface AvatarProps {
   user?: User | { username?: string; avatar?: string } | null

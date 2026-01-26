@@ -1690,8 +1690,8 @@ export default function ProjectDetailPage() {
                 canEditTags={canEditTags(todo)}
                 onUpdateTags={handleUpdateTags}
                 currentUserRole={currentUserRole}
-                onClick={() => {
-                  setSelectedTaskId(String(todo.id))
+                onClick={(todoId) => {
+                  setSelectedTaskId(String(todoId))
                   setDrawerOpen(true)
                 }}
               />

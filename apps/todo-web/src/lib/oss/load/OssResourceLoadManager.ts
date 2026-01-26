@@ -8,6 +8,7 @@ import { SignatureProvider } from './SignatureProvider'
 import { StatusMonitor } from './StatusMonitor'
 import { RequestCoordinator } from './RequestCoordinator'
 import type { ManagerConfig, ResourceStatus } from './types'
+import { ENABLE_AVATAR_LOGS } from './logConfig'
 
 export class OssResourceLoadManager {
   private static instance: OssResourceLoadManager | null = null
@@ -67,7 +68,9 @@ export class OssResourceLoadManager {
   getUrlSync(objectKey: string): string | null {
     const cached = this.storageManager.get(objectKey)
     if (cached && this.storageManager.isValid(cached, this.config.bufferTime * 1000)) {
-      console.log(`[OssResourceLoadManager] ⚡ 同步返回缓存 URL: ${objectKey}`)
+      if (ENABLE_AVATAR_LOGS) {
+        console.log(`[OssResourceLoadManager] ⚡ 同步返回缓存 URL: ${objectKey}`)
+      }
       return cached.signedUrl
     }
     return null
@@ -80,7 +83,9 @@ export class OssResourceLoadManager {
     // 后台加载，不等待结果
     objectKeys.forEach(objectKey => {
       this.getUrl(objectKey).catch(error => {
-        console.warn(`[OssResourceLoadManager] 预加载失败: ${objectKey}`, error)
+        if (ENABLE_AVATAR_LOGS) {
+          console.warn(`[OssResourceLoadManager] 预加载失败: ${objectKey}`, error)
+        }
       })
     })
   }

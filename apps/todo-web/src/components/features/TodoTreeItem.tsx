@@ -37,7 +37,7 @@ export interface TodoTreeItemProps {
   onUpdatePriority?: (taskId: number, priority: number | null) => Promise<void> // 更新优先级的回调
   canEditTags?: boolean // 是否可以编辑标签（owner/admin/创建人）
   onUpdateTags?: (taskId: number, tagsString: string) => Promise<void> // 更新标签的回调
-  onClick?: () => void // 点击待办项的回调（用于打开抽屉）
+  onClick?: (todoId: number) => void // 点击待办项的回调（用于打开抽屉），接收待办 ID 作为参数
   currentUserRole?: 'owner' | 'admin' | 'member' | null // 当前用户在项目中的角色
 }
 
@@ -151,7 +151,8 @@ export function TodoTreeItem({
   // 点击任务项跳转到详情或打开抽屉
   const handleClick = () => {
     if (onClick) {
-      onClick()
+      // 传递当前待办的 ID，确保子待办点击时使用的是子待办的 ID
+      onClick(todo.id)
     } else {
       navigate(`/projects/${projectId}/tasks/${todo.id}`)
     }

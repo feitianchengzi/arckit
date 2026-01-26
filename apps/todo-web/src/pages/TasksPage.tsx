@@ -1653,8 +1653,8 @@ export default function MyTasksPage() {
                             canEditTags={canEditTags(task, projectId)}
                             onUpdateTags={async (taskId, tagsString) => handleUpdateTags(taskId, tagsString, projectId)}
                             currentUserRole={getUserRoleInProject(projectId)}
-                            onClick={() => {
-                              setSelectedTaskId(String(task.id))
+                            onClick={(todoId) => {
+                              setSelectedTaskId(String(todoId))
                               setSelectedProjectId(projectId)
                               setDrawerOpen(true)
                             }}

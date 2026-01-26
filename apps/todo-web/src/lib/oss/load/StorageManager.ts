@@ -4,6 +4,7 @@
  */
 
 import type { ResourceItem, ManagerConfig } from './types'
+import { ENABLE_AVATAR_LOGS } from './logConfig'
 
 export class StorageManager {
   // L1: 内存缓存
@@ -29,11 +30,13 @@ export class StorageManager {
       // 更新访问信息
       l1Item.lastAccessed = Date.now()
       l1Item.accessCount++
-      console.log(`[StorageManager] ✅ L1 缓存命中: ${objectKey}`, {
-        signedUrl: l1Item.signedUrl.substring(0, 50) + '...',
-        expiresAt: new Date(l1Item.expiresAt).toLocaleString(),
-        accessCount: l1Item.accessCount,
-      })
+      if (ENABLE_AVATAR_LOGS) {
+        console.log(`[StorageManager] ✅ L1 缓存命中: ${objectKey}`, {
+          signedUrl: l1Item.signedUrl.substring(0, 50) + '...',
+          expiresAt: new Date(l1Item.expiresAt).toLocaleString(),
+          accessCount: l1Item.accessCount,
+        })
+      }
       return l1Item
     }
     
@@ -44,18 +47,22 @@ export class StorageManager {
       this.memoryCache.set(objectKey, l2Item)
       l2Item.lastAccessed = Date.now()
       l2Item.accessCount++
-      console.log(`[StorageManager] ✅ L2 缓存命中（已提升到 L1）: ${objectKey}`, {
-        signedUrl: l2Item.signedUrl.substring(0, 50) + '...',
-        expiresAt: new Date(l2Item.expiresAt).toLocaleString(),
-        accessCount: l2Item.accessCount,
-      })
+      if (ENABLE_AVATAR_LOGS) {
+        console.log(`[StorageManager] ✅ L2 缓存命中（已提升到 L1）: ${objectKey}`, {
+          signedUrl: l2Item.signedUrl.substring(0, 50) + '...',
+          expiresAt: new Date(l2Item.expiresAt).toLocaleString(),
+          accessCount: l2Item.accessCount,
+        })
+      }
       return l2Item
     }
     
-    console.log(`[StorageManager] ❌ 缓存未命中: ${objectKey}`, {
-      l1Size: this.memoryCache.size,
-      l2Keys: this.getL2Keys().length,
-    })
+    if (ENABLE_AVATAR_LOGS) {
+      console.log(`[StorageManager] ❌ 缓存未命中: ${objectKey}`, {
+        l1Size: this.memoryCache.size,
+        l2Keys: this.getL2Keys().length,
+      })
+    }
     return null
   }
   
@@ -72,7 +79,9 @@ export class StorageManager {
         }
       }
     } catch (error) {
-      console.error('[StorageManager] 获取 L2 键列表失败:', error)
+      if (ENABLE_AVATAR_LOGS) {
+        console.error('[StorageManager] 获取 L2 键列表失败:', error)
+      }
     }
     return keys
   }
@@ -109,12 +118,14 @@ export class StorageManager {
     const isValid = item.expiresAt > (now + bufferTime)
     
     if (!isValid) {
-      console.log(`[StorageManager] ⚠️ 缓存已过期: ${item.objectKey}`, {
-        now: new Date(now).toLocaleString(),
-        expiresAt: new Date(item.expiresAt).toLocaleString(),
-        bufferTime: bufferTime / 1000 + 's',
-        timeRemaining: (item.expiresAt - now) / 1000 + 's',
-      })
+      if (ENABLE_AVATAR_LOGS) {
+        console.log(`[StorageManager] ⚠️ 缓存已过期: ${item.objectKey}`, {
+          now: new Date(now).toLocaleString(),
+          expiresAt: new Date(item.expiresAt).toLocaleString(),
+          bufferTime: bufferTime / 1000 + 's',
+          timeRemaining: (item.expiresAt - now) / 1000 + 's',
+        })
+      }
     }
     
     return isValid
@@ -154,7 +165,9 @@ export class StorageManager {
       
       return data
     } catch (error) {
-      console.error('[StorageManager] 读取 L2 缓存失败:', error)
+      if (ENABLE_AVATAR_LOGS) {
+        console.error('[StorageManager] 读取 L2 缓存失败:', error)
+      }
       return null
     }
   }
@@ -167,7 +180,9 @@ export class StorageManager {
       const key = `${this.CACHE_PREFIX}${objectKey}`
       localStorage.setItem(key, JSON.stringify(item))
     } catch (error) {
-      console.error('[StorageManager] 保存 L2 缓存失败:', error)
+      if (ENABLE_AVATAR_LOGS) {
+        console.error('[StorageManager] 保存 L2 缓存失败:', error)
+      }
       // 如果存储空间不足，尝试清理旧缓存
       if (error instanceof DOMException && error.name === 'QuotaExceededError') {
         this.clearOldL2Caches()
@@ -176,7 +191,9 @@ export class StorageManager {
           const key = `${this.CACHE_PREFIX}${objectKey}`
           localStorage.setItem(key, JSON.stringify(item))
         } catch (retryError) {
-          console.error('[StorageManager] 重试保存 L2 缓存失败:', retryError)
+          if (ENABLE_AVATAR_LOGS) {
+            console.error('[StorageManager] 重试保存 L2 缓存失败:', retryError)
+          }
         }
       }
     }
@@ -190,7 +207,9 @@ export class StorageManager {
       const key = `${this.CACHE_PREFIX}${objectKey}`
       localStorage.removeItem(key)
     } catch (error) {
-      console.error('[StorageManager] 删除 L2 缓存失败:', error)
+      if (ENABLE_AVATAR_LOGS) {
+        console.error('[StorageManager] 删除 L2 缓存失败:', error)
+      }
     }
   }
   
@@ -208,7 +227,9 @@ export class StorageManager {
       }
       keysToDelete.forEach(key => localStorage.removeItem(key))
     } catch (error) {
-      console.error('[StorageManager] 清除 L2 缓存失败:', error)
+      if (ENABLE_AVATAR_LOGS) {
+        console.error('[StorageManager] 清除 L2 缓存失败:', error)
+      }
     }
   }
   
@@ -243,9 +264,13 @@ export class StorageManager {
         localStorage.removeItem(key)
       })
       
-      console.log(`[StorageManager] 清理了 ${toDelete.length} 个旧 L2 缓存`)
+      if (ENABLE_AVATAR_LOGS) {
+        console.log(`[StorageManager] 清理了 ${toDelete.length} 个旧 L2 缓存`)
+      }
     } catch (error) {
-      console.error('[StorageManager] 清理旧 L2 缓存失败:', error)
+      if (ENABLE_AVATAR_LOGS) {
+        console.error('[StorageManager] 清理旧 L2 缓存失败:', error)
+      }
     }
   }
   
@@ -268,7 +293,9 @@ export class StorageManager {
       this.memoryCache.delete(key)
     })
     
-    console.log(`[StorageManager] LRU 清理: 删除了 ${toDelete.length} 个缓存项`)
+    if (ENABLE_AVATAR_LOGS) {
+      console.log(`[StorageManager] LRU 清理: 删除了 ${toDelete.length} 个缓存项`)
+    }
   }
 }
 
