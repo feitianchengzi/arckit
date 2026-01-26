@@ -230,34 +230,31 @@ func checkCircularReference(db *gorm.DB, taskID uint, newFatherID uint, maxDepth
 
 // canModifyTask 检查用户是否有权限修改任务
 // 权限规则：
-// - 如果任务没有分配执行者（ExecutorID == nil），任何项目成员都可以修改
-// - 如果任务分配了执行者，只有管理员/所有者/执行者可以修改
+// - 如果任务状态为 in_progress（执行中），只有执行者和管理员/所有者可以修改，其他人不允许修改
+// - 如果任务状态不是 in_progress，任何项目成员都可以修改
 func canModifyTask(db *gorm.DB, userID uint, task models.Task) (bool, error) {
-	// 查询用户在项目中的角色
+	// 查询用户在项目中的角色（验证用户是项目成员）
 	var member models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", task.ProjectID, userID).First(&member).Error; err != nil {
 		return false, err
 	}
 
-	// 如果任务没有分配执行者，任何项目成员都可以修改
-	if task.ExecutorID == nil {
-		return true, nil
-	}
-
-	// 如果任务分配了执行者，只有管理员/所有者/执行者可以修改
-	// owner 或 admin 可以修改任意任务
-	if member.Role == models.ProjectRoleOwner || member.Role == models.ProjectRoleAdmin {
-		return true, nil
-	}
-
-	// member 如果是执行者也可以修改
-	if member.Role == models.ProjectRoleMember {
+	// 特殊规则：如果任务状态为 in_progress（执行中），只有执行者和管理员/所有者可以修改
+	if task.State == models.TaskStateInProgress {
+		// owner 或 admin 可以修改执行中的任务
+		if member.Role == models.ProjectRoleOwner || member.Role == models.ProjectRoleAdmin {
+			return true, nil
+		}
+		// 只有执行者可以修改执行中的任务
 		if task.ExecutorID != nil && *task.ExecutorID == userID {
 			return true, nil
 		}
+		// 其他人都不能修改执行中的任务
+		return false, nil
 	}
 
-	return false, nil
+	// 非执行中状态的任务，任何项目成员都可以修改
+	return true, nil
 }
 
 // UpdateTaskRequest 更新任务请求结构
@@ -327,8 +324,8 @@ type UpdateTaskResponse struct {
 // 网关路由: PUT /todo-service/v1/user/tasks/:id
 // 认证级别: user (需要JWT认证)
 // 权限规则：
-// - 如果任务没有分配执行者，任何项目成员都可以修改
-// - 如果任务分配了执行者，只有管理员/所有者/执行者可以修改
+// - 如果任务状态为 in_progress（执行中），只有执行者和管理员/所有者可以修改，其他人不允许修改
+// - 如果任务状态不是 in_progress，任何项目成员都可以修改
 func UpdateTask(c *gin.Context) {
 	// 1. 获取任务ID
 	taskID := c.Param("id")
