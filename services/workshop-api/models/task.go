@@ -32,6 +32,9 @@ type Task struct {
 	// 用户关联（不级联删除，保留历史）
 	Creator  User  `json:"creator,omitempty" gorm:"foreignKey:CreatorID;references:ID"`
 	Executor *User `json:"executor,omitempty" gorm:"foreignKey:ExecutorID;references:ID"`
+
+	// 任务附件关联（级联删除）
+	Attachments []TaskAttachment `json:"attachments,omitempty" gorm:"foreignKey:TaskID;references:ID;constraint:OnDelete:CASCADE"`
 }
 
 // TableName 指定表名

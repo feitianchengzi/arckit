@@ -108,6 +108,14 @@ const (
 	CodeTagQueryFailed  = "TAG_QUERY_FAILED"
 	CodeTagNotMember    = "TAG_NOT_MEMBER"
 
+	// 任务附件相关错误
+	CodeTaskAttachmentNotFound     = "TASK_ATTACHMENT_NOT_FOUND"
+	CodeTaskAttachmentCreateFailed = "TASK_ATTACHMENT_CREATE_FAILED"
+	CodeTaskAttachmentUpdateFailed = "TASK_ATTACHMENT_UPDATE_FAILED"
+	CodeTaskAttachmentDeleteFailed = "TASK_ATTACHMENT_DELETE_FAILED"
+	CodeTaskAttachmentQueryFailed  = "TASK_ATTACHMENT_QUERY_FAILED"
+	CodeTaskAttachmentInvalidType  = "TASK_ATTACHMENT_INVALID_TYPE"
+
 	// 数据库相关错误
 	CodeDatabaseNotInit = "DATABASE_NOT_INIT"
 )

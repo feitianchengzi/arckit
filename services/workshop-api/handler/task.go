@@ -1489,3 +1489,401 @@ func BatchCreateTasks(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
+
+// CreateTaskAttachmentRequest 创建任务附件请求结构
+type CreateTaskAttachmentRequest struct {
+	TaskID  uint   `json:"task_id" binding:"required"`  // 任务ID（必填）
+	Type    string `json:"type" binding:"required"`    // 附件类型：text/file/url（必填）
+	Content string `json:"content" binding:"required"` // 内容：文本内容或URL（必填）
+}
+
+// CreateTaskAttachmentResponse 创建任务附件响应结构
+type CreateTaskAttachmentResponse struct {
+	ID        uint   `json:"id"`         // 附件ID
+	TaskID    uint   `json:"task_id"`    // 任务ID
+	CreatorID uint   `json:"creator_id"` // 创建者ID
+	Type      string `json:"type"`       // 附件类型
+	Content   string `json:"content"`    // 内容
+	CreatedAt string `json:"created_at"` // 创建时间
+	UpdatedAt string `json:"updated_at"` // 更新时间
+}
+
+// CreateTaskAttachment 创建任务附件
+// 网关路由: POST /todo-service/v1/user/tasks/attachments
+// 认证级别: user (需要JWT认证)
+// 权限规则：与任务修改权限相同
+func CreateTaskAttachment(c *gin.Context) {
+	// 1. 解析请求体
+	var req CreateTaskAttachmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
+		return
+	}
+
+	// 2. 验证附件类型
+	if !models.IsValidAttachmentType(req.Type) {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskAttachmentInvalidType, "无效的附件类型，支持的类型：text/file/url", nil))
+		return
+	}
+
+	// 3. 从context获取数据库连接
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	// 4. 获取用户ID
+	userID, ok := middleware.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	// 5. 查询任务
+	var task models.Task
+	if err := db.First(&task, req.TaskID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, "任务不存在", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
+		return
+	}
+
+	// 6. 验证权限（canModifyTask内部会查询项目成员表）
+	canModify, err := canModifyTask(db, userID, task)
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证权限失败: "+err.Error(), nil))
+		return
+	}
+	if !canModify {
+		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNoPermission, "您没有权限为此任务添加附件", nil))
+		return
+	}
+
+	// 7. 创建附件
+	attachment := models.TaskAttachment{
+		TaskID:    req.TaskID,
+		CreatorID: userID,
+		Type:      req.Type,
+		Content:   req.Content,
+	}
+
+	if err := db.Create(&attachment).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentCreateFailed, "创建附件失败: "+err.Error(), nil))
+		return
+	}
+
+	// 8. 返回成功响应
+	resp := CreateTaskAttachmentResponse{
+		ID:        attachment.ID,
+		TaskID:    attachment.TaskID,
+		CreatorID: attachment.CreatorID,
+		Type:      attachment.Type,
+		Content:   attachment.Content,
+		CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: attachment.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
+}
+
+// GetTaskAttachmentsRequest 查询任务附件请求结构
+type GetTaskAttachmentsRequest struct {
+	TaskID        uint `form:"task_id" binding:"required"` // 任务ID（必填）
+	IncludeDeleted bool `form:"include_deleted"`          // 是否包含已删除的记录（可选，默认false）
+}
+
+// TaskAttachmentResponse 任务附件响应结构
+type TaskAttachmentResponse struct {
+	ID        uint    `json:"id"`         // 附件ID
+	TaskID    uint    `json:"task_id"`    // 任务ID
+	CreatorID uint    `json:"creator_id"` // 创建者ID
+	Type      string  `json:"type"`       // 附件类型
+	Content   string  `json:"content"`    // 内容
+	CreatedAt string  `json:"created_at"` // 创建时间
+	UpdatedAt string  `json:"updated_at"` // 更新时间
+	DeletedAt *string `json:"deleted_at,omitempty"` // 删除时间（如果存在）
+}
+
+// GetTaskAttachmentsResponse 查询任务附件响应结构
+type GetTaskAttachmentsResponse struct {
+	Attachments []TaskAttachmentResponse `json:"attachments"` // 附件列表
+	Total       int64                     `json:"total"`       // 附件总数
+}
+
+// GetTaskAttachments 查询任务的所有附件
+// 网关路由: GET /todo-service/v1/user/tasks/attachments?task_id=1&include_deleted=true
+// 认证级别: user (需要JWT认证)
+// 权限规则：项目成员均可查看
+func GetTaskAttachments(c *gin.Context) {
+	// 1. 绑定查询参数
+	var req GetTaskAttachmentsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "参数绑定失败: "+err.Error(), nil))
+		return
+	}
+
+	// 2. 从context获取数据库连接
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	// 3. 获取用户ID
+	userID, ok := middleware.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	// 4. 查询任务
+	var task models.Task
+	if err := db.First(&task, req.TaskID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, "任务不存在", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
+		return
+	}
+
+	// 5. 验证用户是否为项目成员
+	var member models.ProjectMember
+	if err := db.Where("project_id = ? AND user_id = ?", task.ProjectID, userID).First(&member).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员，无法查看附件", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证项目成员身份失败: "+err.Error(), nil))
+		return
+	}
+
+	// 6. 构建查询条件
+	query := db.Where("task_id = ?", req.TaskID).Order("created_at DESC")
+	if req.IncludeDeleted {
+		query = query.Unscoped()
+	}
+
+	// 7. 查询附件总数
+	var total int64
+	if err := query.Model(&models.TaskAttachment{}).Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentQueryFailed, "查询附件总数失败: "+err.Error(), nil))
+		return
+	}
+
+	// 8. 查询附件列表
+	var attachments []models.TaskAttachment
+	if err := query.Find(&attachments).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentQueryFailed, "查询附件失败: "+err.Error(), nil))
+		return
+	}
+
+	// 9. 转换为响应格式
+	attachmentResponses := make([]TaskAttachmentResponse, 0, len(attachments))
+	for _, attachment := range attachments {
+		var deletedAt *string
+		if attachment.DeletedAt.Valid {
+			deletedAtStr := attachment.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+			deletedAt = &deletedAtStr
+		}
+
+		attachmentResponses = append(attachmentResponses, TaskAttachmentResponse{
+			ID:        attachment.ID,
+			TaskID:    attachment.TaskID,
+			CreatorID:  attachment.CreatorID,
+			Type:      attachment.Type,
+			Content:   attachment.Content,
+			CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt: attachment.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			DeletedAt: deletedAt,
+		})
+	}
+
+	// 10. 返回成功响应
+	resp := GetTaskAttachmentsResponse{
+		Attachments: attachmentResponses,
+		Total:       total,
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
+}
+
+// UpdateTaskAttachmentRequest 更新任务附件请求结构
+type UpdateTaskAttachmentRequest struct {
+	Content *string `json:"content,omitempty"` // 内容（可选，附件类型不可更新）
+}
+
+// UpdateTaskAttachmentResponse 更新任务附件响应结构
+type UpdateTaskAttachmentResponse struct {
+	ID        uint   `json:"id"`         // 附件ID
+	TaskID    uint   `json:"task_id"`    // 任务ID
+	CreatorID uint   `json:"creator_id"` // 创建者ID
+	Type      string `json:"type"`       // 附件类型
+	Content   string `json:"content"`    // 内容
+	CreatedAt string `json:"created_at"` // 创建时间
+	UpdatedAt string `json:"updated_at"` // 更新时间
+}
+
+// UpdateTaskAttachment 更新任务附件
+// 网关路由: PUT /todo-service/v1/user/tasks/attachments/:id
+// 认证级别: user (需要JWT认证)
+// 权限规则：与任务修改权限相同
+func UpdateTaskAttachment(c *gin.Context) {
+	// 1. 获取附件ID
+	attachmentID := c.Param("id")
+	if attachmentID == "" {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "附件ID不能为空", nil))
+		return
+	}
+
+	// 2. 解析请求体
+	var req UpdateTaskAttachmentRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
+		return
+	}
+
+	// 3. 从context获取数据库连接
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	// 4. 获取用户ID
+	userID, ok := middleware.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	// 5. 查询附件
+	var attachment models.TaskAttachment
+	if err := db.First(&attachment, attachmentID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskAttachmentNotFound, "附件不存在", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentQueryFailed, "查询附件失败: "+err.Error(), nil))
+		return
+	}
+
+	// 6. 验证权限：只有创建者可以修改附件
+	if attachment.CreatorID != userID {
+		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNoPermission, "只有创建者可以修改此附件", nil))
+		return
+	}
+
+	// 7. 更新附件字段（只允许更新content，type不可更新）
+	updates := make(map[string]interface{})
+	if req.Content != nil {
+		updates["content"] = *req.Content
+	}
+
+	if len(updates) == 0 {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "没有需要更新的字段", nil))
+		return
+	}
+
+	if err := db.Model(&attachment).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentUpdateFailed, "更新附件失败: "+err.Error(), nil))
+		return
+	}
+	// 重新查询附件以获取最新数据
+	db.First(&attachment, attachment.ID)
+
+	// 8. 返回成功响应
+	resp := UpdateTaskAttachmentResponse{
+		ID:        attachment.ID,
+		TaskID:    attachment.TaskID,
+		CreatorID: attachment.CreatorID,
+		Type:      attachment.Type,
+		Content:   attachment.Content,
+		CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: attachment.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
+}
+
+// DeleteTaskAttachment 删除任务附件
+// 网关路由: DELETE /todo-service/v1/user/tasks/attachments/:id
+// 认证级别: user (需要JWT认证)
+// 权限规则：与任务修改权限相同
+func DeleteTaskAttachment(c *gin.Context) {
+	// 1. 获取附件ID
+	attachmentID := c.Param("id")
+	if attachmentID == "" {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "附件ID不能为空", nil))
+		return
+	}
+
+	// 2. 从context获取数据库连接
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	// 3. 获取用户ID
+	userID, ok := middleware.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	// 4. 查询附件
+	var attachment models.TaskAttachment
+	if err := db.First(&attachment, attachmentID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskAttachmentNotFound, "附件不存在", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentQueryFailed, "查询附件失败: "+err.Error(), nil))
+		return
+	}
+
+	// 5. 验证权限：创建者可以删除，或者项目的管理者和所有者也可以删除
+	if attachment.CreatorID != userID {
+		// 如果不是创建者，检查是否是项目的管理员或所有者
+		// 先查询任务以获取项目ID
+		var task models.Task
+		if err := db.First(&task, attachment.TaskID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, "任务不存在", nil))
+				return
+			}
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
+			return
+		}
+
+		// 查询用户在项目中的角色
+		var member models.ProjectMember
+		if err := db.Where("project_id = ? AND user_id = ?", task.ProjectID, userID).First(&member).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员，无法删除附件", nil))
+				return
+			}
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证项目成员身份失败: "+err.Error(), nil))
+			return
+		}
+
+		// 只有管理员和所有者可以删除非自己创建的附件
+		if member.Role != models.ProjectRoleAdmin && member.Role != models.ProjectRoleOwner {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNoPermission, "只有创建者、项目管理员或所有者可以删除此附件", nil))
+			return
+		}
+	}
+
+	// 7. 删除附件（软删除）
+	if err := db.Delete(&attachment).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentDeleteFailed, "删除附件失败: "+err.Error(), nil))
+		return
+	}
+
+	// 8. 返回成功响应
+	c.JSON(http.StatusOK, response.NewSuccessResponse(map[string]interface{}{
+		"id":         attachment.ID,
+		"deleted_at": time.Now().Format("2006-01-02T15:04:05Z07:00"),
+	}))
+}
