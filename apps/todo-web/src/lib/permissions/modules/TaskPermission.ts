@@ -7,135 +7,151 @@ import type { TaskInfo, ProjectRole } from '../types'
 
 export class TaskPermission {
   /**
-   * 检查是否可以修改任务状态
-   * 
-   * 规则：
-   * - 当状态为"进行中"时，只有执行人、管理员、owner可以修改
-   * - 非"进行中"的任何角色都可以修改（需要基本编辑权限）
+   * 检查在 IN_PROGRESS 状态下是否有权限操作
+   * 只有 管理员/owner/执行人 可以操作
    * 
    * @param taskInfo 任务信息
    * @param userRole 用户在项目中的角色
    * @param userId 当前用户ID
    * @returns 是否有权限
    */
-  hasStatusChangePermission(
+  private hasInProgressPermission(
     taskInfo: TaskInfo,
     userRole: ProjectRole | null,
     userId: number | null
   ): boolean {
-    // 基础检查
     if (!userId || !userRole) return false
+    
+    return (
+      taskInfo.assigneeId === userId ||
+      userRole === 'admin' ||
+      userRole === 'owner'
+    )
+  }
+  
+  /**
+   * 检查是否可以修改任务状态
+   * 
+   * 规则：
+   * - 当状态为"进行中"时，只有执行人、管理员、owner可以修改
+   * - 非"进行中"的任何项目角色都可以修改
+   * 
+   * @param taskInfo 任务信息
+   * @param userRole 用户在项目中的角色
+   * @param userId 当前用户ID
+   * @param isProjectMember 是否是项目成员（用于非进行中状态的检查，默认为true）
+   * @returns 是否有权限
+   */
+  hasStatusChangePermission(
+    taskInfo: TaskInfo,
+    userRole: ProjectRole | null,
+    userId: number | null,
+    isProjectMember: boolean = true
+  ): boolean {
+    // 基础检查
+    if (!userId) return false
     
     // 特殊规则：进行中状态需要特殊权限
     if (taskInfo.status === 'IN_PROGRESS') {
-      return (
-        taskInfo.assigneeId === userId ||
-        userRole === 'admin' ||
-        userRole === 'owner'
-      )
+      return this.hasInProgressPermission(taskInfo, userRole, userId)
     }
     
-    // 非进行中状态：需要基本编辑权限
-    return this.hasEditPermission(taskInfo, userRole, userId)
+    // 非进行中状态：任何项目角色都可以修改
+    return isProjectMember
   }
   
   /**
    * 检查是否可以编辑任务内容
    * 
    * 规则：
-   * - owner/admin 可以编辑任意任务
-   * - member 只能编辑自己创建或分配给自己执行的任务
+   * - 当状态为"进行中"时，只有执行人、管理员、owner可以编辑
+   * - 非"进行中"的任何项目角色都可以编辑
    * 
    * @param taskInfo 任务信息
    * @param userRole 用户在项目中的角色
    * @param userId 当前用户ID
+   * @param isProjectMember 是否是项目成员（用于非进行中状态的检查，默认为true）
    * @returns 是否有权限
    */
   hasEditPermission(
     taskInfo: TaskInfo,
     userRole: ProjectRole | null,
-    userId: number | null
+    userId: number | null,
+    isProjectMember: boolean = true
   ): boolean {
-    if (!userId || !userRole) return false
+    if (!userId) return false
     
-    // owner/admin 可以编辑任意任务
-    if (userRole === 'owner' || userRole === 'admin') {
-      return true
+    // 特殊规则：进行中状态需要特殊权限
+    if (taskInfo.status === 'IN_PROGRESS') {
+      return this.hasInProgressPermission(taskInfo, userRole, userId)
     }
     
-    // member 只能编辑自己创建或分配给自己执行的任务
-    return (
-      taskInfo.creatorId === userId ||
-      taskInfo.assigneeId === userId
-    )
+    // 非进行中状态：任何项目角色都可以编辑
+    return isProjectMember
   }
   
   /**
    * 检查是否可以删除任务
    * 
-   * 规则：与编辑权限相同
+   * 规则：
+   * - 当状态为"进行中"时，只有执行人、管理员、owner可以删除
+   * - 非"进行中"的任何项目角色都可以删除
    * 
    * @param taskInfo 任务信息
    * @param userRole 用户在项目中的角色
    * @param userId 当前用户ID
+   * @param isProjectMember 是否是项目成员（用于非进行中状态的检查，默认为true）
    * @returns 是否有权限
    */
   hasDeletePermission(
     taskInfo: TaskInfo,
     userRole: ProjectRole | null,
-    userId: number | null
+    userId: number | null,
+    isProjectMember: boolean = true
   ): boolean {
-    return this.hasEditPermission(taskInfo, userRole, userId)
+    // 基础检查：必须有用户ID
+    if (!userId) return false
+    
+    // 特殊规则：进行中状态需要特殊权限检查
+    if (taskInfo.status === 'IN_PROGRESS') {
+      return this.hasInProgressPermission(taskInfo, userRole, userId)
+    }
+    
+    // 非进行中状态：任何项目角色都可以删除
+    return isProjectMember
   }
   
   /**
    * 检查是否可以分配执行人
    * 
    * 规则：
-   * - 如果执行人未分配（初始状态），任何项目成员都可以认领（不限制角色）
-   * - 如果执行人已分配，只有以下角色可以重新设置执行人：
-   *   - owner（所有者）
-   *   - admin（管理员）
-   *   - 当前执行人（执行者）
-   *   - 创建人
+   * - 当状态为"进行中"时，只有执行人、管理员、owner可以分配执行人
+   * - 非"进行中"的任何项目角色都可以分配执行人
    * 
    * @param taskInfo 任务信息
-   * @param userRole 用户在项目中的角色（未分配时可以为null）
+   * @param userRole 用户在项目中的角色
    * @param userId 当前用户ID
-   * @param isAssigneeUnassigned 执行人是否未分配
-   * @param isProjectMember 是否是项目成员（用于未分配时的检查，默认为true）
+   * @param isAssigneeUnassigned 执行人是否未分配（已废弃，保留以兼容旧代码）
+   * @param isProjectMember 是否是项目成员（用于非进行中状态的检查，默认为true）
    * @returns 是否有权限
    */
   hasAssignAssigneePermission(
     taskInfo: TaskInfo,
     userRole: ProjectRole | null,
     userId: number | null,
-    isAssigneeUnassigned: boolean,
+    _isAssigneeUnassigned: boolean, // 保留参数以兼容旧代码，但不再使用
     isProjectMember: boolean = true
   ): boolean {
     // 基础检查：必须有用户ID
     if (!userId) return false
     
-    // 如果执行人未分配（初始状态），任何项目成员都可以认领
-    if (isAssigneeUnassigned) {
-      // 只需要是项目成员即可，不限制角色
-      return isProjectMember
+    // 特殊规则：进行中状态需要特殊权限
+    if (taskInfo.status === 'IN_PROGRESS') {
+      return this.hasInProgressPermission(taskInfo, userRole, userId)
     }
     
-    // 已分配时：需要检查角色和身份
-    if (!userRole) return false
-    
-    // 只有以下角色可以重新设置执行人：
-    // 1. owner（所有者）
-    // 2. admin（管理员）
-    // 3. 当前执行人（执行者）
-    // 4. 创建人
-    return (
-      userRole === 'owner' ||
-      userRole === 'admin' ||
-      taskInfo.assigneeId === userId ||
-      taskInfo.creatorId === userId
-    )
+    // 非进行中状态：任何项目角色都可以分配执行人
+    return isProjectMember
   }
   
   /**
@@ -153,7 +169,7 @@ export class TaskPermission {
    */
   hasClaimTaskPermission(
     taskInfo: TaskInfo,
-    userRole: ProjectRole | null,
+    _userRole: ProjectRole | null, // 保留参数以兼容旧代码，但不再使用
     userId: number | null,
     isProjectMember: boolean = true
   ): boolean {
@@ -178,45 +194,116 @@ export class TaskPermission {
    * 检查是否可以编辑优先级
    * 
    * 规则：
-   * - owner/admin 可以编辑任意任务的优先级
-   * - 创建人可以编辑自己创建的任务的优先级
+   * - 当状态为"进行中"时，只有执行人、管理员、owner可以编辑优先级
+   * - 非"进行中"的任何项目角色都可以编辑优先级
    * 
    * @param taskInfo 任务信息
    * @param userRole 用户在项目中的角色
    * @param userId 当前用户ID
+   * @param isProjectMember 是否是项目成员（用于非进行中状态的检查，默认为true）
    * @returns 是否有权限
    */
   hasEditPriorityPermission(
     taskInfo: TaskInfo,
     userRole: ProjectRole | null,
-    userId: number | null
+    userId: number | null,
+    isProjectMember: boolean = true
   ): boolean {
-    if (!userId || !userRole) return false
+    if (!userId) return false
     
-    // owner/admin 可以编辑任意任务的优先级
-    if (userRole === 'owner' || userRole === 'admin') {
-      return true
+    // 特殊规则：进行中状态需要特殊权限
+    if (taskInfo.status === 'IN_PROGRESS') {
+      return this.hasInProgressPermission(taskInfo, userRole, userId)
     }
     
-    // 创建人可以编辑自己创建的任务的优先级
-    return taskInfo.creatorId === userId
+    // 非进行中状态：任何项目角色都可以编辑优先级
+    return isProjectMember
   }
   
   /**
    * 检查是否可以编辑标签
    * 
-   * 规则：与编辑优先级权限相同
+   * 规则：
+   * - 当状态为"进行中"时，只有执行人、管理员、owner可以编辑标签
+   * - 非"进行中"的任何项目角色都可以编辑标签
    * 
    * @param taskInfo 任务信息
    * @param userRole 用户在项目中的角色
    * @param userId 当前用户ID
+   * @param isProjectMember 是否是项目成员（用于非进行中状态的检查，默认为true）
    * @returns 是否有权限
    */
   hasEditTagsPermission(
     taskInfo: TaskInfo,
     userRole: ProjectRole | null,
+    userId: number | null,
+    isProjectMember: boolean = true
+  ): boolean {
+    return this.hasEditPriorityPermission(taskInfo, userRole, userId, isProjectMember)
+  }
+  
+  /**
+   * 检查是否可以创建评论
+   * 
+   * 规则：任何项目成员都可以创建评论
+   * 
+   * @param isProjectMember 是否是项目成员
+   * @returns 是否有权限
+   */
+  hasCreateCommentPermission(
+    isProjectMember: boolean
+  ): boolean {
+    return isProjectMember
+  }
+  
+  /**
+   * 检查是否可以编辑评论
+   * 
+   * 规则：只有评论创建者可以编辑自己的评论
+   * 
+   * @param commentCreatorId 评论创建者ID
+   * @param userId 当前用户ID
+   * @returns 是否有权限
+   */
+  hasEditCommentPermission(
+    commentCreatorId: number | null | undefined,
     userId: number | null
   ): boolean {
-    return this.hasEditPriorityPermission(taskInfo, userRole, userId)
+    if (!userId || !commentCreatorId) return false
+    return commentCreatorId === userId
+  }
+  
+  /**
+   * 检查是否可以删除评论
+   * 
+   * 规则：
+   * - 评论创建者可以删除自己的评论
+   * - 任务创建者可以删除任务下的任何评论
+   * - 项目管理员/所有者可以删除任务下的任何评论
+   * 
+   * @param commentCreatorId 评论创建者ID
+   * @param taskInfo 任务信息
+   * @param userRole 用户在项目中的角色
+   * @param userId 当前用户ID
+   * @returns 是否有权限
+   */
+  hasDeleteCommentPermission(
+    commentCreatorId: number | null | undefined,
+    taskInfo: TaskInfo,
+    userRole: ProjectRole | null,
+    userId: number | null
+  ): boolean {
+    if (!userId || !commentCreatorId) return false
+    
+    // 评论创建者可以删除
+    if (commentCreatorId === userId) return true
+    
+    // 任务创建者可以删除
+    if (taskInfo.creatorId === userId) return true
+    
+    // 管理员/所有者可以删除
+    if (userRole === 'admin' || userRole === 'owner') return true
+    
+    return false
   }
 }

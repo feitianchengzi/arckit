@@ -5,18 +5,20 @@
  * 支持递归嵌套展示子任务，类似 Reddit 的板块效果
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { StatusBadge, StatusSelect, Avatar } from '@/components/ui'
-import { TagList, PriorityBadge } from './'
+import { TagList, PriorityBadge, TaskContentDialog } from './'
 import { parseTaskTags, buildTaskTags } from '@/lib/utils/tagUtils'
+import { getFirstNonEmptyLine, hasMultipleLines } from '@/lib/utils/contentUtils'
 import type { Todo, TodoStatus, ProjectMember } from '@/types'
 import { TodoItem } from './TodoItem'
 import { XIcon } from '@/components/ui/icons'
 import { useTagStore } from '@/store/tagStore'
 import { TagDisplay } from './TagDisplay'
+import { useThemeStore } from '@/store/themeStore'
 
 export interface TodoTreeItemProps {
   todo: Todo
@@ -69,11 +71,22 @@ export function TodoTreeItem({
   const [newPriority, setNewPriority] = useState<number | null | undefined>(undefined)
   const [newTagIds, setNewTagIds] = useState<number[] | null>(null)
   const [isUpdatingTags, setIsUpdatingTags] = useState(false)
+  const [showContentDialog, setShowContentDialog] = useState(false)
   const navigate = useNavigate()
   const { loadProjectTags, getProjectTags } = useTagStore()
+  const theme = useThemeStore((state) => state.theme)
+  
+  // 提取第一行内容
+  const firstLine = useMemo(() => getFirstNonEmptyLine(todo.content), [todo.content])
+  const hasMoreLines = useMemo(() => hasMultipleLines(todo.content), [todo.content])
   
   // 是否有子任务
   const hasChildren = todo.children && todo.children.length > 0
+  
+  const handleDetailClick = (e: React.MouseEvent) => {
+    e.stopPropagation() // 阻止触发父元素的点击事件
+    setShowContentDialog(true)
+  }
   
   // 最大深度限制（避免过深的嵌套）
   const MAX_DEPTH = 5
@@ -89,18 +102,32 @@ export function TodoTreeItem({
     
     // 如果父任务展开，子任务使用淡蓝色调表示展开状态
     if (isExpandedState) {
-      const expandedColors = [
-        'bg-blue-50',      // 第1代子任务：浅蓝
-        'bg-blue-100',     // 第2代子任务：中浅蓝
-        'bg-blue-200',     // 第3代子任务：中蓝
-        'bg-blue-300',     // 第4代子任务：深蓝
-        'bg-blue-400',     // 第5代子任务：更深蓝
-      ]
-      const colorIndex = Math.min(depth - 1, expandedColors.length - 1)
-      return expandedColors[colorIndex] || expandedColors[expandedColors.length - 1]
+      if (theme === 'dark') {
+        // 深色模式：使用深蓝色调（带透明度）
+        const expandedColors = [
+          'bg-blue-900/30',      // 第1代子任务：深蓝（30%透明度）
+          'bg-blue-950/40',      // 第2代子任务：更深蓝（40%透明度，更暗）
+          'bg-blue-950/50',      // 第3代子任务：更深蓝（50%透明度，更暗）
+          'bg-blue-950/60',      // 第4代子任务：更深蓝（60%透明度，更暗）
+          'bg-blue-900/70',      // 第5代子任务：更深蓝（70%透明度）
+        ]
+        const colorIndex = Math.min(depth - 1, expandedColors.length - 1)
+        return expandedColors[colorIndex] || expandedColors[expandedColors.length - 1]
+      } else {
+        // 浅色模式：使用浅蓝色调
+        const expandedColors = [
+          'bg-blue-50',      // 第1代子任务：浅蓝
+          'bg-blue-100',     // 第2代子任务：中浅蓝
+          'bg-blue-200',     // 第3代子任务：中蓝
+          'bg-blue-300',     // 第4代子任务：深蓝
+          'bg-blue-400',     // 第5代子任务：更深蓝
+        ]
+        const colorIndex = Math.min(depth - 1, expandedColors.length - 1)
+        return expandedColors[colorIndex] || expandedColors[expandedColors.length - 1]
+      }
     }
     
-    // 父任务未展开时的默认灰色
+    // 父任务未展开时的默认灰色（使用语义化颜色，自动适配深色模式）
     const childColors = [
       'bg-surface-hover',      // 第1代子任务：浅灰
       'bg-surface-active',      // 第2代子任务：中灰
@@ -187,9 +214,21 @@ export function TodoTreeItem({
           <div className="flex items-start gap-3">
             {/* 任务内容和标签/优先级 */}
             <div className="flex-1 min-w-0">
-              <h3 className="text-base font-medium text-foreground truncate mb-1.5" title={todo.content}>
-                {todo.content}
-              </h3>
+              <div className="flex items-center gap-2 mb-1.5">
+                <h3 className="text-base font-medium text-foreground truncate flex-1" title={todo.content}>
+                  {firstLine || '无内容'}
+                </h3>
+                {hasMoreLines && (
+                  <button
+                    onClick={handleDetailClick}
+                    className="flex-shrink-0 text-foreground-secondary hover:text-foreground transition-colors p-1"
+                    title="查看详情"
+                    aria-label="查看详情"
+                  >
+                    <DetailIcon className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
               
               {/* 标签和优先级 */}
               <div className="flex items-center gap-3 flex-wrap">
@@ -504,6 +543,14 @@ export function TodoTreeItem({
           </div>
         )}
       </div>
+      
+      {/* 内容详情弹窗 */}
+      <TaskContentDialog
+        open={showContentDialog}
+        onClose={() => setShowContentDialog(false)}
+        content={todo.content}
+        title="任务详情"
+      />
     </div>
   )
 }
@@ -792,6 +839,14 @@ function ReplaceIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+    </svg>
+  )
+}
+
+function DetailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }

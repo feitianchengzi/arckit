@@ -3,18 +3,24 @@
  * 可以在页面或抽屉中使用
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog, Avatar } from '@/components/ui'
 import { XIcon, ChevronDownIcon, TrashIcon } from '@/components/ui/icons'
-import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge, CreateTaskDialog } from '@/components/features'
+import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge, CreateTaskDialog, CommentSection, TagDisplay } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
+import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
 import { useAuthStore } from '@/store/authStore'
 import type { TodoStatus } from '@/types'
 import ReactMarkdown from 'react-markdown'
+import { permissionManager } from '@/lib/permissions'
+import { isAssigneeUnassigned } from '@/lib/permissions/utils'
+import type { TaskInfo } from '@/lib/permissions'
+import { parseTaskTags } from '@/lib/utils/tagUtils'
+import { useTagStore } from '@/store/tagStore'
 import clsx from 'clsx'
 
 export interface TaskDetailContentProps {
@@ -56,9 +62,11 @@ export function TaskDetailContent({
   const [newAssigneeId, setNewAssigneeId] = useState<number | undefined>(undefined)
   const [isSavingAssignee, setIsSavingAssignee] = useState(false)
   const [createSubtaskDialogOpen, setCreateSubtaskDialogOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<'comments' | 'subtasks' | 'history'>('comments')
   
   const { data: members } = useProjectMembers(projectId)
   const currentUser = useAuthStore((state) => state.user)
+  const { getProjectTags } = useTagStore()
   
   // 从成员列表中查找创建者和执行者信息
   const creatorInfo = Array.isArray(members) ? members.find((m: any) => m.user_id === todo?.creatorId) : undefined
@@ -77,26 +85,140 @@ export function TaskDetailContent({
   const isCreator = todo?.creatorId !== undefined && todo?.creatorId !== null && currentUserId !== null && todo.creatorId === currentUserId
   const isAssignee = todo?.assigneeId !== undefined && todo?.assigneeId !== null && currentUserId !== null && todo.assigneeId === currentUserId
   
-  // 判断执行者是否未分配
-  const isAssigneeUnassigned = !todo?.assigneeId || executorUsername === '未分配'
+  // 判断执行者是否未分配（用于显示和提示）
+  const isAssigneeUnassignedLocal = !todo?.assigneeId || executorUsername === '未分配'
   
   // 权限检查：编辑任务内容
-  const canEditContent = currentUserRole === 'owner' || currentUserRole === 'admin' || isCreator || isAssignee
+  // 当状态为"进行中"时，只有执行人、管理员、owner可以编辑
+  // 非"进行中"的任何项目角色都可以编辑
+  const canEditContent = useMemo(() => {
+    if (!todo) return false
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isProjectMember = !!currentUserMember
+    return permissionManager.task.hasEditPermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
   
-  // 权限检查：删除任务（创建者、执行者、管理员或所有者可以删除）
-  const canDelete = currentUserRole === 'owner' || currentUserRole === 'admin' || isCreator || isAssignee
+  // 权限检查：删除任务
+  // 规则：
+  // - 如果任务状态为 `in_progress`（执行中），只有执行者和管理员/所有者可以删除
+  // - 如果任务状态不是 `in_progress`，任何项目成员都可以删除
+  const canDelete = useMemo(() => {
+    if (!todo) return false
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isProjectMember = !!currentUserMember
+    return permissionManager.task.hasDeletePermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
   
   // 权限检查：分配执行者
-  const canEditAssignee = isAssigneeUnassigned 
-    ? !!currentUserMember
-    : (isCreator || isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner')
+  // 规则：
+  // - 当状态为"进行中"时，只有执行人、管理员、owner可以分配执行人
+  // - 非"进行中"的任何项目角色都可以分配执行人
+  const canEditAssignee = useMemo(() => {
+    if (!todo) return false
+    
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isUnassigned = isAssigneeUnassigned(todo.assigneeId)
+    const isProjectMember = !!currentUserMember
+    
+    return permissionManager.task.hasAssignAssigneePermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isUnassigned,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
   
   // 权限检查：修改状态
   // 当状态为"进行中"时，只有执行人、管理员、owner可以修改
-  // 非"进行中"的任何角色都可以修改
-  const canChangeStatus = todo?.status === 'IN_PROGRESS'
-    ? (isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner')
-    : true // 非进行中状态，任何角色都可以修改
+  // 非"进行中"的任何项目角色都可以修改
+  const canChangeStatus = useMemo(() => {
+    if (!todo) return false
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isProjectMember = !!currentUserMember
+    return permissionManager.task.hasStatusChangePermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
+  
+  // 权限检查：编辑优先级
+  // 当状态为"进行中"时，只有执行人、管理员、owner可以编辑优先级
+  // 非"进行中"的任何项目角色都可以编辑优先级
+  const canEditPriority = useMemo(() => {
+    if (!todo) return false
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isProjectMember = !!currentUserMember
+    return permissionManager.task.hasEditPriorityPermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
+  
+  // 权限检查：编辑标签
+  // 当状态为"进行中"时，只有执行人、管理员、owner可以编辑标签
+  // 非"进行中"的任何项目角色都可以编辑标签
+  const canEditTags = useMemo(() => {
+    if (!todo) return false
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isProjectMember = !!currentUserMember
+    return permissionManager.task.hasEditTagsPermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
   
   // 加载状态
   if (isLoading) {
@@ -154,6 +276,43 @@ export function TaskDetailContent({
     }
   }
 
+  // 处理子待办执行人更新
+  const handleSubtaskAssigneeUpdate = async (subtaskId: number, assigneeId: number | null) => {
+    try {
+      const updateInput: { assigneeId?: number } = {}
+      if (assigneeId !== null && assigneeId !== undefined) {
+        updateInput.assigneeId = assigneeId
+      }
+      await tasksApi.update(projectId, subtaskId.toString(), updateInput)
+      refetch() // 刷新任务详情以更新子待办信息
+    } catch (error) {
+      console.error('更新子待办执行人失败:', error)
+      throw error
+    }
+  }
+
+  // 处理子待办优先级更新
+  const handleSubtaskPriorityUpdate = async (subtaskId: number, priority: number | null) => {
+    try {
+      await tasksApi.update(projectId, subtaskId.toString(), { priority: priority ?? undefined })
+      refetch() // 刷新任务详情以更新子待办信息
+    } catch (error) {
+      console.error('更新子待办优先级失败:', error)
+      throw error
+    }
+  }
+
+  // 处理子待办标签更新
+  const handleSubtaskTagsUpdate = async (subtaskId: number, tagsString: string) => {
+    try {
+      await tasksApi.update(projectId, subtaskId.toString(), { tags: tagsString })
+      refetch() // 刷新任务详情以更新子待办信息
+    } catch (error) {
+      console.error('更新子待办标签失败:', error)
+      throw error
+    }
+  }
+
   // 创建子待办
   const handleCreateSubtask = () => {
     setCreateSubtaskDialogOpen(true)
@@ -173,9 +332,9 @@ export function TaskDetailContent({
       return
     }
     
-    // 权限检查：如果当前状态是"进行中"，需要验证权限
-    if (todo.status === 'IN_PROGRESS' && !canChangeStatus) {
-      setStatusUpdateError('只有执行人、管理员或所有者可以修改"进行中"状态的任务')
+    // 权限检查：使用权限管理器检查是否有权限修改状态
+    if (!canChangeStatus) {
+      setStatusUpdateError('没有权限修改此任务的状态')
       return
     }
     
@@ -365,19 +524,32 @@ export function TaskDetailContent({
               <TagIcon className="w-4 h-4 text-foreground-secondary" />
               标签：
             </span>
-            <TagSelector
-              projectId={projectId}
-              currentTags={todo.tags}
-              onTagsChange={async (tagsString: string) => {
-                try {
-                  await updateTask.mutateAsync({ tags: tagsString })
-                } catch (err: any) {
-                  console.error('更新标签失败:', err)
-                  throw err
-                }
-              }}
-              showCreateButton={true}
-            />
+            {canEditTags ? (
+              <TagSelector
+                projectId={projectId}
+                currentTags={todo.tags}
+                onTagsChange={async (tagsString: string) => {
+                  try {
+                    await updateTask.mutateAsync({ tags: tagsString })
+                  } catch (err: any) {
+                    console.error('更新标签失败:', err)
+                    throw err
+                  }
+                }}
+                showCreateButton={true}
+              />
+            ) : (
+              <div className="flex items-center gap-1 flex-wrap">
+                {todo.tags ? (
+                  parseTaskTags(todo.tags).map((tagId) => {
+                    const tag = getProjectTags(projectId).find(t => t.id === tagId)
+                    return tag ? <TagDisplay key={tagId} tag={tag} size="sm" /> : null
+                  })
+                ) : (
+                  <span className="text-sm text-foreground-secondary">无标签</span>
+                )}
+              </div>
+            )}
           </div>
           
           {/* 优先级 */}
@@ -396,7 +568,7 @@ export function TaskDetailContent({
                     console.error('更新优先级失败:', err)
                   }
                 }}
-                disabled={updateTask.isPending}
+                disabled={updateTask.isPending || !canEditPriority}
                 size="sm"
               />
             ) : (
@@ -526,14 +698,14 @@ export function TaskDetailContent({
                     </button>
                   )}
                 </div>
-                {!isEditingAssignee && !canEditAssignee && (
+                {!isEditingAssignee && !canEditAssignee && todo.status === 'IN_PROGRESS' && (
                   <span 
                     className="text-xs text-foreground-secondary relative group cursor-help"
                   >
-                    {isAssigneeUnassigned ? '仅项目成员可编辑' : '仅创建者/执行者/管理员可编辑'}
+                    {isAssigneeUnassignedLocal ? '仅项目成员可编辑' : '仅创建者/执行者/管理员可编辑'}
                     <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
                       <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
-                        {isAssigneeUnassigned 
+                        {isAssigneeUnassignedLocal 
                           ? '未分配状态时，任何项目成员都可以分配任务'
                           : '只有任务创建者、执行人、项目管理员或所有者可以分配任务'}
                         <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
@@ -581,7 +753,7 @@ export function TaskDetailContent({
             >
               <div className="flex flex-wrap gap-x-1 gap-y-1.5">
                 {/* 成员列表 */}
-                {members?.map((member: any) => {
+                {Array.isArray(members) && members.map((member: any) => {
                   const memberId = member.user_id
                   const isSelected = newAssigneeId === memberId
                   const memberUsername = member.username || member.user?.username || '未知用户'
@@ -611,7 +783,7 @@ export function TaskDetailContent({
                           setNewAssigneeId(todo.assigneeId)
                           
                           if (err?.response?.status === 403) {
-                            if (isAssigneeUnassigned) {
+                            if (isAssigneeUnassignedLocal) {
                               setUpdateError('您没有权限分配此任务，只有项目成员可以分配未分配的任务')
                             } else {
                               setUpdateError('您没有权限分配此任务，只有任务创建者、执行人、项目管理员或所有者可以分配任务')
@@ -675,25 +847,104 @@ export function TaskDetailContent({
         </div>
       </div>
       
-      {/* 子待办 */}
-      <div className="rounded-lg p-6" style={{ backgroundColor: 'var(--color-surface)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}>
-        <SubtaskList
-          subtasks={todo.children || []}
-          projectId={projectId}
-          parentTaskId={todo.id}
-          onCreateSubtask={handleCreateSubtask}
-          onStatusChange={handleSubtaskStatusChange}
-          onSubtaskClick={onNavigateToSubtask}
-        />
-      </div>
-
-      {/* 状态历史 */}
-      <div className="rounded-lg p-6" style={{ backgroundColor: 'var(--color-surface)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}>
-        {historyLoading ? (
-          <div className="text-sm text-foreground-secondary">加载状态历史中...</div>
-        ) : (
-          <StatusHistory history={history || []} lastUpdatedAt={todo.updatedAt} />
-        )}
+      {/* Tab 切换区域：评论、子待办、状态历史 */}
+      <div className="rounded-lg" style={{ backgroundColor: 'var(--color-surface)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}>
+        {/* Tab 导航 */}
+        <div className="flex gap-1 px-1">
+          <button
+            onClick={() => setActiveTab('comments')}
+            className={clsx(
+              'flex-1 px-4 py-3 text-base font-semibold transition-colors rounded-t-lg',
+              'border-0 outline-none focus:outline-none focus:ring-0 focus:ring-offset-0',
+              activeTab === 'comments'
+                ? 'text-primary'
+                : 'text-foreground-secondary hover:text-foreground'
+            )}
+            style={{ border: 'none' }}
+          >
+            评论
+          </button>
+          <button
+            onClick={() => setActiveTab('subtasks')}
+            className={clsx(
+              'flex-1 px-4 py-3 text-base font-semibold transition-colors rounded-t-lg',
+              'border-0 outline-none focus:outline-none focus:ring-0 focus:ring-offset-0',
+              activeTab === 'subtasks'
+                ? 'text-primary'
+                : 'text-foreground-secondary hover:text-foreground'
+            )}
+            style={{ border: 'none' }}
+          >
+            子待办 {todo.children && todo.children.length > 0 && `(${todo.children.length})`}
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            className={clsx(
+              'flex-1 px-4 py-3 text-base font-semibold transition-colors rounded-t-lg',
+              'border-0 outline-none focus:outline-none focus:ring-0 focus:ring-offset-0',
+              activeTab === 'history'
+                ? 'text-primary'
+                : 'text-foreground-secondary hover:text-foreground'
+            )}
+            style={{ border: 'none' }}
+          >
+            状态历史
+          </button>
+        </div>
+        
+        {/* Tab 分隔线 */}
+        <div className="border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}></div>
+        
+        {/* Tab 内容 */}
+        <div className="p-6">
+          {activeTab === 'comments' && (
+            <CommentSection
+              taskId={todo.id}
+              taskInfo={{
+                id: todo.id,
+                creatorId: todo.creatorId,
+                assigneeId: todo.assigneeId,
+                status: todo.status,
+                projectId: todo.projectId
+              }}
+              members={Array.isArray(members) ? members : []}
+              currentUserId={currentUserId}
+              currentUserRole={currentUserRole}
+              isProjectMember={!!currentUserMember}
+              projectId={projectId}
+            />
+          )}
+          
+          {activeTab === 'subtasks' && (
+            <SubtaskList
+              subtasks={todo.children || []}
+              projectId={projectId}
+              parentTaskId={todo.id}
+              onCreateSubtask={handleCreateSubtask}
+              onStatusChange={handleSubtaskStatusChange}
+              onSubtaskClick={onNavigateToSubtask}
+              members={Array.isArray(members) ? members : []}
+              currentUserId={currentUserId}
+              currentUserRole={currentUserRole}
+              canAssignAssignee={canEditAssignee}
+              onUpdateAssignee={handleSubtaskAssigneeUpdate}
+              canEditPriority={canEditPriority}
+              onUpdatePriority={handleSubtaskPriorityUpdate}
+              canEditTags={canEditTags}
+              onUpdateTags={handleSubtaskTagsUpdate}
+            />
+          )}
+          
+          {activeTab === 'history' && (
+            <>
+              {historyLoading ? (
+                <div className="text-sm text-foreground-secondary">加载状态历史中...</div>
+              ) : (
+                <StatusHistory history={history || []} lastUpdatedAt={todo.updatedAt} />
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* 删除确认对话框 */}

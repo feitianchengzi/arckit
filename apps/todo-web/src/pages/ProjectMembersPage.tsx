@@ -292,7 +292,7 @@ export default function ProjectMembersPage() {
     const colors: Record<ProjectRole, string> = {
       owner: 'bg-purple-100 text-purple-800',
       admin: 'bg-blue-100 text-blue-800',
-      member: 'bg-gray-100 text-gray-800',
+      member: 'bg-gray-200 text-gray-800', // 使用更深的灰色背景，确保在浅色模式下可见
     }
     return colors[role]
   }

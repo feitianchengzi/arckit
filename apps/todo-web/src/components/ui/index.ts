@@ -13,5 +13,5 @@ export * from './Drawer'
 export * from './Avatar'
 export * from './AvatarCropUpload'
 export * from './ImageCropDialog'
-export { PlusIcon, XIcon, CogIcon, TrashIcon, PencilIcon, ChevronDownIcon } from './icons'
+export { PlusIcon, XIcon, CogIcon, TrashIcon, PencilIcon, ChevronDownIcon, LinkIcon, DocumentIcon } from './icons'
 

@@ -188,17 +188,26 @@ export const tasksApi = {
   
   /**
    * 删除任务
-   * 后端路由: DELETE /workshop/v1/user/tasks
+   * 后端路由: DELETE /workshop/v1/user/tasks/:id
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别用户
-   * 请求体需要包含 task_ids 数组（批量删除）
+   * 删除任务时会级联删除关联的附件（软删除）
+   * 
+   * 响应格式:
+   * {
+   *   "code": "OK",
+   *   "data": {
+   *     "task_id": 1,
+   *     "deleted_at": "2024-01-01T12:20:00Z"
+   *   }
+   * }
    */
-  delete: async (projectId: string, taskId: string, userId?: number): Promise<void> => {
+  delete: async (projectId: string, taskId: string, userId?: number): Promise<{ task_id: number; deleted_at: string }> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     console.log('🗑️ 删除任务，任务ID:', taskId)
-    await apiClient.delete(`/user/tasks`, {
-      data: { task_ids: [parseInt(taskId)] },
-    })
-    console.log('✅ 任务删除成功')
+    const response = await apiClient.delete(`/user/tasks/${taskId}`)
+    const result = handleResponse<{ task_id: number; deleted_at: string }>(response)
+    console.log('✅ 任务删除成功:', result)
+    return result
   },
   
   /**

@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import type { User } from '@/types'
 import { getAvatarUrl, getAvatarUrlSync } from '@/lib/oss/urlHelper'
+import { subscribeUrlUpdate } from '@/lib/oss/load/UrlUpdateNotifier'
+
+// 控制 Avatar 组件日志输出，需要调试时可以设置为 true
+const ENABLE_AVATAR_LOGS = false
 
 export interface AvatarProps {
   user?: User | { username?: string; avatar?: string } | null
@@ -25,21 +29,34 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
   const [isLoading, setIsLoading] = useState(true)
   const lastAvatarRef = useRef<string | undefined>(avatar)
   const failedUrlsRef = useRef<Set<string>>(new Set()) // 记录加载失败的 URL，避免重复尝试
+  const errorTimeoutRef = useRef<NodeJS.Timeout | null>(null) // 用于延迟处理错误
+  const errorRetryCountRef = useRef<Map<string, number>>(new Map()) // 记录每个 objectKey 的错误重试次数
 
   useEffect(() => {
     // 如果 avatar 没有变化，不重新加载
     if (lastAvatarRef.current === avatar && avatarUrl) {
-      console.log('[Avatar] avatar 未变化，跳过重新加载:', avatar)
+      if (ENABLE_AVATAR_LOGS) {
+        console.log('[Avatar] avatar 未变化，跳过重新加载:', avatar)
+      }
       return
     }
     
     // 更新 ref
     lastAvatarRef.current = avatar
     
-    console.log('[Avatar] 开始加载头像, avatar:', avatar)
+    // 清除之前的重试计数（avatar 变化时重置）
+    if (avatar) {
+      errorRetryCountRef.current.delete(avatar)
+    }
+    
+    if (ENABLE_AVATAR_LOGS) {
+      console.log('[Avatar] 开始加载头像, avatar:', avatar)
+    }
     
     if (!avatar) {
-      console.log('[Avatar] 没有头像，使用默认首字母')
+      if (ENABLE_AVATAR_LOGS) {
+        console.log('[Avatar] 没有头像，使用默认首字母')
+      }
       setAvatarUrl(null)
       setIsLoading(false)
       failedUrlsRef.current.clear() // 清除失败记录
@@ -50,12 +67,16 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
     if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
       if (failedUrlsRef.current.has(avatar)) {
         // 之前加载失败过，直接使用 placeholder，不触发请求
-        console.log('[Avatar] URL 之前加载失败过，跳过:', avatar)
+        if (ENABLE_AVATAR_LOGS) {
+          console.log('[Avatar] URL 之前加载失败过，跳过:', avatar)
+        }
         setAvatarUrl(null)
         setIsLoading(false)
         return
       }
-      console.log('[Avatar] 检测到完整 URL，直接使用:', avatar)
+      if (ENABLE_AVATAR_LOGS) {
+        console.log('[Avatar] 检测到完整 URL，直接使用:', avatar)
+      }
       setAvatarUrl(avatar)
       setIsLoading(false)
       return
@@ -66,44 +87,104 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
     if (cachedUrl) {
       // 检查缓存的 URL 是否之前加载失败过
       if (failedUrlsRef.current.has(cachedUrl)) {
-        console.log('[Avatar] 缓存的 URL 之前加载失败过，跳过:', cachedUrl.substring(0, 50) + '...')
+        if (ENABLE_AVATAR_LOGS) {
+          console.log('[Avatar] 缓存的 URL 之前加载失败过，跳过:', cachedUrl.substring(0, 50) + '...')
+        }
         setAvatarUrl(null)
         setIsLoading(false)
         return
       }
-      console.log('[Avatar] ⚡ 同步获取缓存 URL 成功:', cachedUrl.substring(0, 50) + '...')
+      if (ENABLE_AVATAR_LOGS) {
+        console.log('[Avatar] ⚡ 同步获取缓存 URL 成功:', cachedUrl.substring(0, 50) + '...')
+      }
       setAvatarUrl(cachedUrl)
       setIsLoading(false)
       return
     }
 
     // 缓存未命中，异步获取
-    console.log('[Avatar] 缓存未命中，异步获取 URL:', avatar)
+    if (ENABLE_AVATAR_LOGS) {
+      console.log('[Avatar] 缓存未命中，异步获取 URL:', avatar)
+    }
     setIsLoading(true)
     getAvatarUrl(avatar)
       .then((url) => {
         if (url && failedUrlsRef.current.has(url)) {
           // 如果获取到的 URL 之前加载失败过，直接使用 placeholder
-          console.log('[Avatar] 获取到的 URL 之前加载失败过，跳过:', url.substring(0, 50) + '...')
+          if (ENABLE_AVATAR_LOGS) {
+            console.log('[Avatar] 获取到的 URL 之前加载失败过，跳过:', url.substring(0, 50) + '...')
+          }
           setAvatarUrl(null)
           setIsLoading(false)
           return
         }
-        console.log('[Avatar] 获取头像 URL 成功:', url)
+        if (ENABLE_AVATAR_LOGS) {
+          console.log('[Avatar] 获取头像 URL 成功:', url)
+        }
         setAvatarUrl(url)
         setIsLoading(false)
       })
       .catch((error) => {
-        console.error('[Avatar] 获取头像 URL 失败:', error)
-        console.error('[Avatar] 错误详情:', {
-          message: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-          avatar
-        })
+        if (ENABLE_AVATAR_LOGS) {
+          console.error('[Avatar] 获取头像 URL 失败:', error)
+          console.error('[Avatar] 错误详情:', {
+            message: error instanceof Error ? error.message : String(error),
+            stack: error instanceof Error ? error.stack : undefined,
+            avatar
+          })
+        }
         setAvatarUrl(null)
         setIsLoading(false)
       })
   }, [avatar])
+
+  // 订阅 URL 更新事件（当 ErrorInterceptor 成功修复图片后，会通知所有使用相同 objectKey 的组件）
+  useEffect(() => {
+    if (!avatar || avatar.startsWith('http://') || avatar.startsWith('https://')) {
+      // 不是 objectKey，不需要订阅
+      return
+    }
+
+    if (ENABLE_AVATAR_LOGS) {
+      console.log('[Avatar] 订阅 URL 更新事件:', avatar)
+    }
+    
+    // 订阅 URL 更新
+    const unsubscribe = subscribeUrlUpdate(avatar, (newUrl) => {
+      if (ENABLE_AVATAR_LOGS) {
+        console.log('[Avatar] 📨 收到 URL 更新通知，更新头像:', {
+          objectKey: avatar,
+          newUrl: newUrl.substring(0, 50) + '...',
+        })
+      }
+      
+      // 更新头像 URL
+      setAvatarUrl(newUrl)
+      setIsLoading(false)
+      
+      // 清除失败记录，因为新 URL 已经成功
+      failedUrlsRef.current.delete(newUrl)
+      // 清除重试计数
+      errorRetryCountRef.current.delete(avatar)
+    })
+
+    // 清理函数
+    return () => {
+      if (ENABLE_AVATAR_LOGS) {
+        console.log('[Avatar] 取消订阅 URL 更新事件:', avatar)
+      }
+      unsubscribe()
+    }
+  }, [avatar])
+
+  // 清理定时器
+  useEffect(() => {
+    return () => {
+      if (errorTimeoutRef.current) {
+        clearTimeout(errorTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // 用户图标 SVG（placeholder）
   const UserIcon = ({ className }: { className?: string }) => (
@@ -144,20 +225,117 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
           className="w-full h-full rounded-full object-cover"
           data-oss-key={avatar || undefined}
           onError={(e) => {
-            // 如果图片加载失败，显示用户图标和首字母
+            // 如果图片加载失败，等待 ErrorInterceptor 自动修复
             const target = e.target as HTMLImageElement
             const failedUrl = target.src
+            const objectKey = target.getAttribute('data-oss-key')
             
-            // 记录失败的 URL，避免重复尝试
-            if (failedUrl) {
-              failedUrlsRef.current.add(failedUrl)
+            // 清除之前的延迟处理
+            if (errorTimeoutRef.current) {
+              clearTimeout(errorTimeoutRef.current)
             }
             
-            // 隐藏图片，显示 placeholder（不输出错误日志，这是正常的降级处理）
-            setAvatarUrl(null)
+            // 如果图片有 data-oss-key，说明可能是 OSS 图片，等待 ErrorInterceptor 修复
+            if (objectKey && failedUrl.includes('aliyuncs.com')) {
+              // 检查重试次数
+              const retryCount = errorRetryCountRef.current.get(objectKey) || 0
+              const MAX_AVATAR_RETRY = 2 // Avatar 组件最多等待 2 次
+              
+              if (retryCount >= MAX_AVATAR_RETRY) {
+                if (ENABLE_AVATAR_LOGS) {
+                  console.log('[Avatar] 已达到最大重试次数，使用 placeholder:', {
+                    objectKey,
+                    retryCount
+                  })
+                }
+                if (failedUrl) {
+                  failedUrlsRef.current.add(failedUrl)
+                }
+                setAvatarUrl(null)
+                return
+              }
+              
+              // 增加重试计数
+              errorRetryCountRef.current.set(objectKey, retryCount + 1)
+              
+              if (ENABLE_AVATAR_LOGS) {
+                console.log('[Avatar] 图片加载失败，等待 ErrorInterceptor 自动修复:', {
+                  objectKey,
+                  failedUrl: failedUrl.substring(0, 50) + '...',
+                  retryCount: retryCount + 1,
+                  maxRetry: MAX_AVATAR_RETRY
+                })
+              }
+              
+              // 等待一段时间，让 ErrorInterceptor 有机会修复（缩短等待时间）
+              errorTimeoutRef.current = setTimeout(() => {
+                // 检查图片 src 是否已被 ErrorInterceptor 更新
+                const currentSrc = target.src
+                if (currentSrc !== failedUrl && currentSrc.includes('aliyuncs.com')) {
+                  if (ENABLE_AVATAR_LOGS) {
+                    console.log('[Avatar] ErrorInterceptor 已更新 URL，图片应该会自动重新加载:', {
+                      oldUrl: failedUrl.substring(0, 50) + '...',
+                      newUrl: currentSrc.substring(0, 50) + '...'
+                    })
+                  }
+                  // URL 已更新，更新 React 状态以匹配新的 URL
+                  setAvatarUrl(currentSrc)
+                  // 不设置 avatarUrl 为 null，让图片尝试加载新 URL
+                  // 如果新 URL 也失败，会在下一次 onError 中处理
+                  return
+                }
+                
+                // ErrorInterceptor 没有修复，或者修复后仍然失败
+                if (ENABLE_AVATAR_LOGS) {
+                  console.log('[Avatar] ErrorInterceptor 未修复或修复失败，使用 placeholder')
+                }
+                if (failedUrl) {
+                  failedUrlsRef.current.add(failedUrl)
+                }
+                setAvatarUrl(null)
+              }, 300) // 缩短等待时间到 300ms，ErrorInterceptor 修复很快
+            } else {
+              // 不是 OSS 图片，或者没有 objectKey，直接标记为失败
+              if (failedUrl) {
+                failedUrlsRef.current.add(failedUrl)
+              }
+              setAvatarUrl(null)
+            }
           }}
           onLoad={(e) => {
+            // 图片加载成功，清除错误处理延迟和重试计数
+            if (errorTimeoutRef.current) {
+              clearTimeout(errorTimeoutRef.current)
+              errorTimeoutRef.current = null
+            }
+            
             const img = e.target as HTMLImageElement
+            const currentSrc = img.src
+            const objectKey = img.getAttribute('data-oss-key')
+            
+            // 清除该 objectKey 的重试计数
+            if (objectKey) {
+              errorRetryCountRef.current.delete(objectKey)
+            }
+            
+            // 如果当前 src 与 avatarUrl 不匹配，说明 ErrorInterceptor 更新了 URL
+            // 更新 React 状态以匹配实际的图片 URL
+            if (currentSrc !== avatarUrl) {
+              if (ENABLE_AVATAR_LOGS) {
+                console.log('[Avatar] 检测到图片 URL 已更新（可能是 ErrorInterceptor 修复）:', {
+                  oldUrl: avatarUrl?.substring(0, 50) + '...',
+                  newUrl: currentSrc.substring(0, 50) + '...'
+                })
+              }
+              setAvatarUrl(currentSrc)
+              // 清除失败记录，因为新 URL 已经成功加载
+              failedUrlsRef.current.delete(currentSrc)
+            }
+            
+            if (!ENABLE_AVATAR_LOGS) {
+              return // 如果不需要日志，直接返回，不执行性能检查
+            }
+            
             const startTime = performance.now()
             
             // 使用重试机制获取性能数据
@@ -199,7 +377,7 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
                     dns: (entry.domainLookupEnd - entry.domainLookupStart).toFixed(2) + 'ms',
                     connect: (entry.connectEnd - entry.connectStart).toFixed(2) + 'ms',
                     response: (entry.responseEnd - entry.requestStart).toFixed(2) + 'ms',
-                    load: (entry.loadEventEnd - entry.fetchStart).toFixed(2) + 'ms',
+                    load: ((entry as any).loadEventEnd ? ((entry as any).loadEventEnd - entry.fetchStart).toFixed(2) : 'N/A') + 'ms',
                   },
                   retryCount,
                 })
@@ -220,9 +398,11 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
             }
             
             // 延迟检查，确保性能数据已准备好
-            requestAnimationFrame(() => {
-              setTimeout(() => checkPerformance(), 50)
-            })
+            if (ENABLE_AVATAR_LOGS) {
+              requestAnimationFrame(() => {
+                setTimeout(() => checkPerformance(), 50)
+              })
+            }
           }}
         />
       ) : (

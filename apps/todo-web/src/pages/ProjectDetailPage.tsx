@@ -22,6 +22,9 @@ import { saveProjectFilterState, loadProjectFilterState, type DateRange } from '
 import { DateRangeFilter } from '@/components/features/DateRangeFilter'
 import type { TodoStatus } from '@/types'
 import clsx from 'clsx'
+import { permissionManager } from '@/lib/permissions'
+import { todoToTaskInfo, isAssigneeUnassigned } from '@/lib/permissions/utils'
+import type { TaskInfo } from '@/lib/permissions'
 
 export default function ProjectDetailPage() {
   const navigate = useNavigate()
@@ -512,59 +515,51 @@ export default function ProjectDetailPage() {
     return currentMember?.role || null
   }, [currentUser?.username, members])
   
-  // 判断是否有权限修改任务（owner/admin 可以修改任意任务，member 只能修改自己创建或分配给自己执行的任务）- 必须在早期返回之前调用
-  const canEditTask = useCallback((todo: any) => {
-    if (!currentUserId || !currentUserRole) return false
-    
-    // owner 或 admin 可以修改任意任务
-    if (currentUserRole === 'owner' || currentUserRole === 'admin') {
-      return true
-    }
-    
-    // member 只能修改自己创建或分配给自己执行的任务
-    return todo.creatorId === currentUserId || todo.assigneeId === currentUserId
-  }, [currentUserId, currentUserRole])
-  
   // 判断是否可以修改状态
   // 当状态为"进行中"时，只有执行人、管理员、owner可以修改
   // 非"进行中"的任何角色都可以修改
   const canChangeStatus = useCallback((todo: any) => {
-    if (!currentUserId || !currentUserRole) return false
-    
-    // 如果状态是"进行中"，需要特殊权限检查
-    if (todo.status === 'IN_PROGRESS') {
-      // 只有执行人、管理员、owner可以修改
-      return todo.assigneeId === currentUserId || currentUserRole === 'admin' || currentUserRole === 'owner'
-    }
-    
-    // 非"进行中"状态，任何角色都可以修改（但需要基本的编辑权限）
-    return canEditTask(todo)
-  }, [currentUserId, currentUserRole, canEditTask])
-  
-  // 判断是否可以分配执行人（owner/admin/创建人）
-  const canAssignAssignee = useCallback((todo: any) => {
-    if (!currentUserId || !currentUserRole) return false
-    
-    // owner 或 admin 可以分配任意任务的执行人
-    if (currentUserRole === 'owner' || currentUserRole === 'admin') {
-      return true
-    }
-    
-    // 创建人可以分配自己创建的任务的执行人
-    return todo.creatorId === currentUserId
+    const taskInfo: TaskInfo = todoToTaskInfo(todo)
+    return permissionManager.task.hasStatusChangePermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId
+    )
   }, [currentUserId, currentUserRole])
+  
+  // 判断是否可以分配执行人
+  // 规则：
+  // - 如果执行人未分配（初始状态），任何项目成员都可以认领（不限制角色）
+  // - 如果执行人已分配，只有 owner/admin/当前执行人/创建人 可以重新设置
+  const canAssignAssignee = useCallback((todo: any) => {
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isUnassigned = isAssigneeUnassigned(todo.assigneeId)
+    // 检查是否是项目成员
+    const isProjectMember = members ? members.some((m: any) => m.user_id === currentUserId || m.is_me === true) : false
+    
+    return permissionManager.task.hasAssignAssigneePermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isUnassigned,
+      isProjectMember
+    )
+  }, [currentUserId, currentUserRole, members])
   
   // 判断是否可以编辑优先级（owner/admin/创建人）
   const canEditPriority = useCallback((todo: any) => {
-    if (!currentUserId || !currentUserRole) return false
-    
-    // owner 或 admin 可以编辑任意任务的优先级
-    if (currentUserRole === 'owner' || currentUserRole === 'admin') {
-      return true
-    }
-    
-    // 创建人可以编辑自己创建的任务的优先级
-    return todo.creatorId === currentUserId
+    const taskInfo: TaskInfo = todoToTaskInfo(todo)
+    return permissionManager.task.hasEditPriorityPermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId
+    )
   }, [currentUserId, currentUserRole])
   
   // 处理更新执行人
@@ -584,15 +579,12 @@ export default function ProjectDetailPage() {
   }, [projectId, queryClient])
 
   const canEditTags = useCallback((todo: any) => {
-    if (!currentUserId || !currentUserRole) return false
-    
-    // owner 或 admin 可以编辑任意任务的标签
-    if (currentUserRole === 'owner' || currentUserRole === 'admin') {
-      return true
-    }
-    
-    // 创建人可以编辑自己创建的任务的标签
-    return todo.creatorId === currentUserId
+    const taskInfo: TaskInfo = todoToTaskInfo(todo)
+    return permissionManager.task.hasEditTagsPermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId
+    )
   }, [currentUserId, currentUserRole])
 
   const handleUpdateTags = useCallback(async (taskId: number, tagsString: string) => {
@@ -875,9 +867,9 @@ export default function ProjectDetailPage() {
       return
     }
     
-    // 权限检查：如果当前状态是"进行中"，需要验证权限
-    if (todo.status === 'IN_PROGRESS' && !canChangeStatus(todo)) {
-      console.error('只有执行人、管理员或所有者可以修改"进行中"状态的任务')
+    // 权限检查：使用权限管理器检查是否有权限修改状态
+    if (!canChangeStatus(todo)) {
+      console.error('没有权限修改此任务的状态')
       return
     }
     
@@ -1718,25 +1710,9 @@ export default function ProjectDetailPage() {
               canAddMember={isOwner || currentUserRole === 'admin'}
               canManage={isOwner || currentUserRole === 'admin'}
               onMemberClick={(member) => {
-                console.log('🔍 [成员点击] 点击成员触发筛选')
-                console.log('🔍 [成员点击] 成员信息:', {
-                  id: member.id,
-                  user_id: member.user_id,
-                  username: member.username || member.user?.username,
-                  role: member.role
-                })
-                console.log('🔍 [成员点击] 当前权限状态:', {
-                  isOwner,
-                  currentUserRole,
-                  canManage: isOwner || currentUserRole === 'admin'
-                })
-                
                 // 点击成员时，同时设置创建人和执行人筛选为这个成员（不分角色权限）
-                console.log('🔍 [成员点击] 设置创建人筛选:', member.user_id)
-                console.log('🔍 [成员点击] 设置执行人筛选:', member.user_id)
                 setCreatorFilter(member.user_id)
                 setExecutorFilter(member.user_id)
-                console.log('🔍 [成员点击] 筛选器已设置')
               }}
             />
           </div>

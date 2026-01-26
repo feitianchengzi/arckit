@@ -112,20 +112,9 @@ export function useProjectMembers(projectId: string) {
   return useQuery({
     queryKey: ['projects', projectId, 'members'],
     queryFn: async () => {
-      console.log('🔄 [Hook] useProjectMembers 开始获取成员列表')
-      console.log('🔄 [Hook] 项目ID:', projectId)
-      const members = await projectsApi.getMembers(projectId)
-      console.log('🔄 [Hook] 获取成员列表成功，数量:', members.length)
-      return members
+      return await projectsApi.getMembers(projectId)
     },
     enabled: !!projectId && isAuthenticated,
-    onSuccess: (data) => {
-      console.log('✅ [Hook] useProjectMembers 查询成功')
-      console.log('✅ [Hook] 返回的成员数据:', data)
-    },
-    onError: (error) => {
-      console.error('❌ [Hook] useProjectMembers 查询失败:', error)
-    },
   })
 }
 

@@ -3,17 +3,22 @@
  * 待办详情页面（客户端组件）
  */
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import type React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog } from '@/components/ui'
-import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge, CreateTaskDialog } from '@/components/features'
+import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge, CreateTaskDialog, TagDisplay } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
 import { useAuthStore } from '@/store/authStore'
 import type { TodoStatus } from '@/types'
 import ReactMarkdown from 'react-markdown'
+import { permissionManager } from '@/lib/permissions'
+import { isAssigneeUnassigned } from '@/lib/permissions/utils'
+import type { TaskInfo } from '@/lib/permissions'
+import { parseTaskTags } from '@/lib/utils/tagUtils'
+import { useTagStore } from '@/store/tagStore'
 
 export default function TaskDetailPage() {
   const navigate = useNavigate()
@@ -42,6 +47,7 @@ export default function TaskDetailPage() {
   
   const { data: members } = useProjectMembers(projectId)
   const currentUser = useAuthStore((state) => state.user)
+  const { getProjectTags } = useTagStore()
   
   // 从成员列表中查找创建者和执行者信息
   const creatorInfo = Array.isArray(members) ? members.find((m: any) => m.user_id === todo?.creatorId) : undefined
@@ -60,26 +66,118 @@ export default function TaskDetailPage() {
   const isCreator = todo?.creatorId !== undefined && todo?.creatorId !== null && currentUserId !== null && todo.creatorId === currentUserId
   const isAssignee = todo?.assigneeId !== undefined && todo?.assigneeId !== null && currentUserId !== null && todo.assigneeId === currentUserId
   
-  // 判断执行者是否未分配
-  const isAssigneeUnassigned = !todo?.assigneeId || executorUsername === '未分配'
+  // 判断执行者是否未分配（用于显示和提示）
+  const isAssigneeUnassignedLocal = !todo?.assigneeId || executorUsername === '未分配'
   
   // 权限检查：编辑任务内容
-  // owner/admin 可以修改任意任务，member 只能修改自己创建或分配给自己执行的任务
-  const canEditContent = currentUserRole === 'owner' || currentUserRole === 'admin' || isCreator || isAssignee
+  // 当状态为"进行中"时，只有执行人、管理员、owner可以编辑
+  // 非"进行中"的任何项目角色都可以编辑
+  const canEditContent = useMemo(() => {
+    if (!todo) return false
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isProjectMember = !!currentUserMember
+    return permissionManager.task.hasEditPermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
   
   // 权限检查：分配执行者
-  // 1. 如果执行者是未分配状态，任何项目成员都可以分配
-  // 2. 如果执行者已分配，只有创建人、执行人、项目管理员（admin）或所有者（owner）可以分配
-  const canEditAssignee = isAssigneeUnassigned 
-    ? !!currentUserMember  // 未分配时，任何项目成员都可以分配
-    : (isCreator || isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner')  // 已分配时，只有创建人、执行人、管理员或owner可以分配
+  // 规则：
+  // - 当状态为"进行中"时，只有执行人、管理员、owner可以分配执行人
+  // - 非"进行中"的任何项目角色都可以分配执行人
+  const canEditAssignee = useMemo(() => {
+    if (!todo) return false
+    
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isUnassigned = isAssigneeUnassigned(todo.assigneeId)
+    const isProjectMember = !!currentUserMember
+    
+    return permissionManager.task.hasAssignAssigneePermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isUnassigned,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
   
   // 权限检查：修改状态
   // 当状态为"进行中"时，只有执行人、管理员、owner可以修改
-  // 非"进行中"的任何角色都可以修改
-  const canChangeStatus = todo?.status === 'IN_PROGRESS'
-    ? (isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner')
-    : true // 非进行中状态，任何角色都可以修改
+  // 非"进行中"的任何项目角色都可以修改
+  const canChangeStatus = useMemo(() => {
+    if (!todo) return false
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isProjectMember = !!currentUserMember
+    return permissionManager.task.hasStatusChangePermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
+  
+  // 权限检查：编辑优先级
+  // 当状态为"进行中"时，只有执行人、管理员、owner可以编辑优先级
+  // 非"进行中"的任何项目角色都可以编辑优先级
+  const canEditPriority = useMemo(() => {
+    if (!todo) return false
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isProjectMember = !!currentUserMember
+    return permissionManager.task.hasEditPriorityPermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
+  
+  // 权限检查：编辑标签
+  // 当状态为"进行中"时，只有执行人、管理员、owner可以编辑标签
+  // 非"进行中"的任何项目角色都可以编辑标签
+  const canEditTags = useMemo(() => {
+    if (!todo) return false
+    const taskInfo: TaskInfo = {
+      id: todo.id,
+      creatorId: todo.creatorId,
+      assigneeId: todo.assigneeId,
+      status: todo.status,
+      projectId: todo.projectId
+    }
+    const isProjectMember = !!currentUserMember
+    return permissionManager.task.hasEditTagsPermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId,
+      isProjectMember
+    )
+  }, [todo, currentUserRole, currentUserId, currentUserMember])
   
   // 加载状态
   if (isLoading) {
@@ -157,9 +255,9 @@ export default function TaskDetailPage() {
       return // 状态未改变
     }
     
-    // 权限检查：如果当前状态是"进行中"，需要验证权限
-    if (todo.status === 'IN_PROGRESS' && !canChangeStatus) {
-      setStatusUpdateError('只有执行人、管理员或所有者可以修改"进行中"状态的任务')
+    // 权限检查：使用权限管理器检查是否有权限修改状态
+    if (!canChangeStatus) {
+      setStatusUpdateError('没有权限修改此任务的状态')
       return
     }
     
@@ -292,19 +390,32 @@ export default function TaskDetailPage() {
               {/* 标签 */}
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-gray-900 whitespace-nowrap">标签：</span>
-                <TagSelector
-                  projectId={projectId}
-                  currentTags={todo.tags}
-                  onTagsChange={async (tagsString: string) => {
-                    try {
-                      await updateTask.mutateAsync({ tags: tagsString })
-                    } catch (err: any) {
-                      console.error('更新标签失败:', err)
-                      throw err
-                    }
-                  }}
-                  showCreateButton={true}
-                />
+                {canEditTags ? (
+                  <TagSelector
+                    projectId={projectId}
+                    currentTags={todo.tags}
+                    onTagsChange={async (tagsString: string) => {
+                      try {
+                        await updateTask.mutateAsync({ tags: tagsString })
+                      } catch (err: any) {
+                        console.error('更新标签失败:', err)
+                        throw err
+                      }
+                    }}
+                    showCreateButton={true}
+                  />
+                ) : (
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {todo.tags ? (
+                      parseTaskTags(todo.tags).map((tagId) => {
+                        const tag = getProjectTags(projectId).find(t => t.id === tagId)
+                        return tag ? <TagDisplay key={tagId} tag={tag} size="sm" /> : null
+                      })
+                    ) : (
+                      <span className="text-sm text-gray-500">无标签</span>
+                    )}
+                  </div>
+                )}
               </div>
               
               {/* 优先级 */}
@@ -320,7 +431,7 @@ export default function TaskDetailPage() {
                         console.error('更新优先级失败:', err)
                       }
                     }}
-                    disabled={updateTask.isPending}
+                    disabled={updateTask.isPending || !canEditPriority}
                   />
                 ) : (
                   <PriorityBadge value={todo.priority ?? null} />
@@ -475,11 +586,11 @@ export default function TaskDetailPage() {
                         
                        // 处理 403 权限错误
                        if (err?.response?.status === 403) {
-                         if (isAssigneeUnassigned) {
-                           setUpdateError('您没有权限分配此任务，只有项目成员可以分配未分配的任务')
-                         } else {
-                           setUpdateError('您没有权限分配此任务，只有任务创建者、执行者、项目管理员或所有者可以分配任务')
-                         }
+                       if (isAssigneeUnassignedLocal) {
+                         setUpdateError('您没有权限分配此任务，只有项目成员可以分配未分配的任务')
+                       } else {
+                         setUpdateError('您没有权限分配此任务，只有任务创建者、执行者、项目管理员或所有者可以分配任务')
+                       }
                         } else {
                           // 提取错误消息
                           const errorData = err?.response?.data
@@ -536,20 +647,22 @@ export default function TaskDetailPage() {
                     编辑
                   </Button>
                 ) : (
-                  <span 
-                    className="text-xs text-gray-500 relative group cursor-help"
-                  >
-                    {isAssigneeUnassigned ? '仅项目成员可编辑' : '仅创建者/执行者/管理员可编辑'}
-                    {/* Tooltip */}
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
-                      <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
-                        {isAssigneeUnassigned 
-                          ? '未分配状态时，任何项目成员都可以分配任务'
-                          : '只有任务创建者、执行者、项目管理员或所有者可以分配任务'}
-                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                  todo.status === 'IN_PROGRESS' && (
+                    <span 
+                      className="text-xs text-gray-500 relative group cursor-help"
+                    >
+                      {isAssigneeUnassignedLocal ? '仅项目成员可编辑' : '仅创建者/执行者/管理员可编辑'}
+                      {/* Tooltip */}
+                      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
+                        <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
+                          {isAssigneeUnassignedLocal 
+                            ? '未分配状态时，任何项目成员都可以分配任务'
+                            : '只有任务创建者、执行者、项目管理员或所有者可以分配任务'}
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                        </div>
                       </div>
-                    </div>
-                  </span>
+                    </span>
+                  )
                 )}
               </div>
             )}

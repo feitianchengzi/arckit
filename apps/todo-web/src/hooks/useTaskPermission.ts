@@ -44,7 +44,7 @@ export function useTaskPermission(
     return {
       // 基础权限
       canEdit: permissionManager.task.hasEditPermission(taskInfo, userRole, userId),
-      canDelete: permissionManager.task.hasDeletePermission(taskInfo, userRole, userId),
+      canDelete: permissionManager.task.hasDeletePermission(taskInfo, userRole, userId, isProjectMember),
       canChangeStatus: permissionManager.task.hasStatusChangePermission(taskInfo, userRole, userId),
       
       // 认领权限（新增）

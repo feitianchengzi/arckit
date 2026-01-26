@@ -55,7 +55,7 @@ const getRoleColor = (role: ProjectRole): string => {
   const colors: Record<ProjectRole, string> = {
     owner: 'bg-purple-100 text-purple-700',
     admin: 'bg-blue-100 text-blue-700',
-    member: 'bg-gray-100 text-gray-700',
+    member: 'bg-gray-200 text-gray-700', // 使用更深的灰色背景，确保在浅色模式下可见
   }
   return colors[role]
 }
@@ -483,26 +483,9 @@ export function ProjectMemberList({
                     : 'var(--color-surface-active)' 
                 }}
                 onClick={() => {
-                  console.log('👆 [成员列表] 成员项被点击')
-                  console.log('👆 [成员列表] 成员信息:', {
-                    id: member.id,
-                    user_id: member.user_id,
-                    username: member.username || member.user?.username,
-                    role: member.role
-                  })
-                  console.log('👆 [成员列表] 当前状态:', {
-                    isManaging,
-                    hasOnMemberClick: !!onMemberClick
-                  })
-                  
                   // 非管理模式下，点击成员触发筛选
                   if (!isManaging && onMemberClick) {
-                    console.log('👆 [成员列表] 调用 onMemberClick 回调')
                     onMemberClick(member)
-                  } else {
-                    console.log('👆 [成员列表] 跳过回调:', {
-                      reason: isManaging ? '正在管理模式' : '没有 onMemberClick 回调'
-                    })
                   }
                 }}
               >

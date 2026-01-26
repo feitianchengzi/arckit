@@ -91,21 +91,11 @@ export const projectsApi = {
    */
   getById: async (id: string, userId?: number): Promise<Project> => {
     // 后端没有单独的获取项目详情接口，我们从项目列表中查找
-    console.log('🔍 [项目详情API] 开始获取项目详情，项目ID:', id)
     const projects = await projectsApi.list() // 不需要 userId
     const project = projects.find((p) => p.id.toString() === id)
     
     if (!project) {
-      console.error('❌ [项目详情API] 项目不存在，项目ID:', id)
       throw new Error('项目不存在')
-    }
-    
-    // 输出完整的项目详情内容
-    console.log('✅ [项目详情API] 项目详情内容:', JSON.stringify(project, null, 2))
-    console.log('✅ [项目详情API] 项目详情对象:', project)
-    console.log('✅ [项目详情API] 项目成员数量:', project.members?.length || 0)
-    if (project.members && project.members.length > 0) {
-      console.log('✅ [项目详情API] 项目成员列表:', JSON.stringify(project.members, null, 2))
     }
     
     return project
@@ -133,39 +123,16 @@ export const projectsApi = {
    * 成员列表包含在项目详情中，我们从项目列表中查找对应的项目并返回其成员
    */
   getMembers: async (projectId: string, userId?: number) => {
-    console.log('👥 [获取成员列表] 开始获取项目成员列表')
-    console.log('👥 [获取成员列表] 项目ID:', projectId)
-    
     // 后端没有单独的获取成员列表接口，我们从项目列表中查找对应的项目
     const projects = await projectsApi.list()
-    console.log('👥 [获取成员列表] 项目列表数量:', projects.length)
-    
     const project = projects.find((p) => p.id.toString() === projectId)
     
     if (!project) {
-      console.error('❌ [获取成员列表] 项目不存在，项目ID:', projectId)
       throw new Error('项目不存在')
     }
     
     // 返回项目的成员列表
-    const members = project.members || []
-    // console.log('👥 [获取成员列表] 成员数量:', members.length)
-    // console.log('👥 [获取成员列表] 成员详细信息:')
-    // members.forEach((member: any, index: number) => {
-    //   console.log(`👥 [获取成员列表] 成员 ${index + 1}:`, {
-    //     id: member.id,
-    //     project_id: member.project_id,
-    //     user_id: member.user_id,
-    //     role: member.role,
-    //     username: member.username || member.user?.username,
-    //     avatar: member.avatar || member.user?.avatar,
-    //     created_at: member.created_at,
-    //     updated_at: member.updated_at,
-    //     user: member.user,
-    //   })
-    // })
-    // console.log('👥 [获取成员列表] 完整成员列表:', JSON.stringify(members, null, 2))
-    return members
+    return project.members || []
   },
   
   /**

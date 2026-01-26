@@ -4,17 +4,21 @@
  * TodoItem - 任务项组件
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { StatusBadge, StatusSelect, Avatar } from '@/components/ui'
-import { TagList, PriorityBadge } from './'
+import { TagList, PriorityBadge, TaskContentDialog } from './'
 import { parseTaskTags, buildTaskTags } from '@/lib/utils/tagUtils'
+import { getFirstNonEmptyLine, hasMultipleLines } from '@/lib/utils/contentUtils'
 import type { Todo, TodoStatus, ProjectMember } from '@/types'
 import { XIcon, ChevronDownIcon } from '@/components/ui/icons'
 import { useTagStore } from '@/store/tagStore'
 import { TagDisplay } from './TagDisplay'
+import { permissionManager } from '@/lib/permissions'
+import { todoToTaskInfo } from '@/lib/permissions/utils'
+import type { TaskInfo } from '@/lib/permissions'
 
 export interface TodoItemProps {
   todo: Todo
@@ -39,12 +43,51 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
   const isCreator = currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId
   const isAssignee = currentUserId !== null && currentUserId !== undefined && todo.assigneeId === currentUserId
   
+  // 从成员列表中查找执行人信息（如果todo.assignee不存在）
+  const assigneeInfo = useMemo(() => {
+    if (todo.assignee) {
+      return todo.assignee
+    }
+    if (todo.assigneeId && Array.isArray(members) && members.length > 0) {
+      const member = members.find((m: any) => m.user_id === todo.assigneeId)
+      if (member) {
+        return {
+          id: todo.assigneeId,
+          username: member.username || member.user?.username || '未知',
+          avatar: member.avatar || member.user?.avatar,
+          created_at: '',
+          updated_at: '',
+        }
+      }
+    }
+    return null
+  }, [todo.assignee, todo.assigneeId, members])
+  
   // 权限检查：修改状态
-  // 当状态为"进行中"时，只有执行人、管理员、owner可以修改
-  // 非"进行中"的任何角色都可以修改（如果 canEdit 为 true）
-  const canChangeStatus = todo.status === 'IN_PROGRESS'
-    ? (isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner')
-    : canEdit // 非进行中状态，使用传入的 canEdit
+  // 使用权限管理器检查权限，但保留 canEdit prop 的兼容性
+  const canChangeStatus = useMemo(() => {
+    if (!currentUserId || !currentUserRole) return false
+    
+    const taskInfo: TaskInfo = todoToTaskInfo(todo)
+    const hasPermission = permissionManager.task.hasStatusChangePermission(
+      taskInfo,
+      currentUserRole,
+      currentUserId
+    )
+    
+    // 如果权限管理器返回 true，直接使用
+    // 如果权限管理器返回 false，但在非进行中状态且 canEdit 为 true，也允许修改（向后兼容）
+    if (hasPermission) {
+      return true
+    }
+    
+    // 向后兼容：非进行中状态时，如果 canEdit 为 true，也允许修改
+    if (todo.status !== 'IN_PROGRESS' && canEdit) {
+      return true
+    }
+    
+    return false
+  }, [todo, currentUserRole, currentUserId, canEdit])
   const [isUpdatingAssignee, setIsUpdatingAssignee] = useState(false)
   const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
   const [isEditingAssignee, setIsEditingAssignee] = useState(false)
@@ -56,8 +99,13 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
   const [newPriority, setNewPriority] = useState<number | null | undefined>(undefined)
   const [newTagIds, setNewTagIds] = useState<number[] | null>(null)
   const [isUpdatingTags, setIsUpdatingTags] = useState(false)
+  const [showContentDialog, setShowContentDialog] = useState(false)
   const navigate = useNavigate()
   const { loadProjectTags, getProjectTags } = useTagStore()
+  
+  // 提取第一行内容
+  const firstLine = useMemo(() => getFirstNonEmptyLine(todo.content), [todo.content])
+  const hasMoreLines = useMemo(() => hasMultipleLines(todo.content), [todo.content])
   
   const handleClick = () => {
     if (onClick) {
@@ -65,6 +113,11 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
     } else {
       navigate(`/projects/${projectId}/tasks/${todo.id}`)
     }
+  }
+  
+  const handleDetailClick = (e: React.MouseEvent) => {
+    e.stopPropagation() // 阻止触发父元素的点击事件
+    setShowContentDialog(true)
   }
   
   const handleStatusChange = (newStatus: TodoStatus) => {
@@ -87,9 +140,21 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
       {/* 头部：内容 + 状态/优先级 */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-medium text-foreground truncate mb-1.5" title={todo.content}>
-            {todo.content}
-          </h3>
+          <div className="flex items-center gap-2 mb-1.5">
+            <h3 className="text-base font-medium text-foreground truncate flex-1" title={todo.content}>
+              {firstLine || '无内容'}
+            </h3>
+            {hasMoreLines && (
+              <button
+                onClick={handleDetailClick}
+                className="flex-shrink-0 text-foreground-secondary hover:text-foreground transition-colors p-1"
+                title="查看详情"
+                aria-label="查看详情"
+              >
+                <DetailIcon className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           
           {/* 标签和优先级 */}
           <div className="flex items-center gap-3 flex-wrap">
@@ -265,11 +330,11 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
           {/* 执行者 - 始终显示 */}
           <div className="flex items-center gap-0.5 text-xs text-foreground-secondary whitespace-nowrap">
             <span className="text-foreground-secondary font-bold">执行：</span>
-            {todo.assignee ? (
+            {assigneeInfo ? (
               <div className="flex items-center gap-1">
-                <Avatar user={todo.assignee} size="xs" />
+                <Avatar user={assigneeInfo} size="xs" />
                 <span className={clsx('font-medium', isAssignee && 'text-blue-600')}>
-                  {todo.assignee.username}
+                  {assigneeInfo.username}
                 </span>
                 {canAssignAssignee && onUpdateAssignee && members.length > 0 && (
                   <button
@@ -449,6 +514,14 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
           </div>
         </div>
       </div>
+      
+      {/* 内容详情弹窗 */}
+      <TaskContentDialog
+        open={showContentDialog}
+        onClose={() => setShowContentDialog(false)}
+        content={todo.content}
+        title="任务详情"
+      />
     </div>
   )
 }
@@ -555,6 +628,14 @@ function ReplaceIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+    </svg>
+  )
+}
+
+function DetailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }
