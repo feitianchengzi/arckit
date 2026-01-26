@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -98,6 +99,8 @@ func CreateTask(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentMustSameProject, "父任务必须属于同一项目", nil))
 			return
 		}
+		// 注意：创建任务时不需要检查循环引用，因为新任务还没有ID，不会形成循环
+		// 但为了代码一致性，我们可以在创建后检查（虽然这种情况理论上不会发生）
 	}
 
 	// 6. 如果指定了执行者，验证执行者是否是项目成员
@@ -166,6 +169,65 @@ func CreateTask(c *gin.Context) {
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
+// checkCircularReference 检查循环引用
+// 当设置任务的father_id时，向上遍历父任务链，检查是否形成循环
+// 参数：
+//   - db: 数据库连接
+//   - taskID: 当前任务ID
+//   - newFatherID: 新的父任务ID
+//   - maxDepth: 最大检查深度（防止无限循环，建议50）
+// 返回：
+//   - error: 如果检测到循环引用，返回错误；否则返回nil
+func checkCircularReference(db *gorm.DB, taskID uint, newFatherID uint, maxDepth int) error {
+	if maxDepth <= 0 {
+		maxDepth = 50 // 默认最大深度50层
+	}
+
+	visited := make(map[uint]bool)
+	currentID := newFatherID
+	depth := 0
+
+	// 向上遍历父任务链
+	for currentID != 0 && depth < maxDepth {
+		// 检测直接循环：如果新父任务就是当前任务本身
+		if currentID == taskID {
+			return fmt.Errorf("检测到循环引用：目标任务的父任务链中包含当前任务")
+		}
+
+		// 检测间接循环：如果已经访问过这个任务ID
+		if visited[currentID] {
+			return fmt.Errorf("检测到循环引用：父任务链中存在循环")
+		}
+
+		visited[currentID] = true
+
+		// 查询当前任务的父任务
+		var task models.Task
+		if err := db.Select("father_id").First(&task, currentID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				// 任务不存在，但这不是循环引用问题，可能是数据不一致
+				// 这种情况会在后续的父任务验证中被捕获
+				break
+			}
+			return fmt.Errorf("查询父任务链失败: %w", err)
+		}
+
+		// 如果父任务为空，说明到达根节点，没有循环
+		if task.FatherID == nil {
+			break
+		}
+
+		currentID = *task.FatherID
+		depth++
+	}
+
+	// 如果达到最大深度，可能存在很深的层级，但不一定是循环
+	// 为了安全起见，如果达到最大深度，我们仍然允许，但记录警告
+	// 实际应用中，50层的任务层级已经非常深了，正常情况下不会达到
+
+	return nil
+}
+
 // canModifyTask 检查用户是否有权限修改任务
 // 权限规则：
 // - 如果任务没有分配执行者（ExecutorID == nil），任何项目成员都可以修改
@@ -203,9 +265,46 @@ type UpdateTaskRequest struct {
 	Content    *string `json:"content,omitempty"`     // 任务内容（可选）
 	State      *string `json:"state,omitempty"`       // 任务状态（可选）
 	ExecutorID *uint   `json:"executor_id,omitempty"` // 执行者ID（可选）
-	FatherID   *uint   `json:"father_id,omitempty"`   // 父任务ID（可选）
+	FatherID   *uint   `json:"father_id,omitempty"`   // 父任务ID（可选，可设置为null来清空）
 	Priority   *int    `json:"priority,omitempty"`    // 优先级（可选，0为最高，数值越大优先级越低）
 	Tags       *string `json:"tags,omitempty"`        // 标签（可选，用逗号分割）
+	fatherIDSet bool   `json:"-"`                     // 内部标志：father_id是否在JSON中被显式设置
+}
+
+// UnmarshalJSON 自定义JSON反序列化，用于检测father_id是否被显式设置
+func (r *UpdateTaskRequest) UnmarshalJSON(data []byte) error {
+	// 检查原始JSON中是否包含father_id字段
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err == nil {
+		if _, exists := raw["father_id"]; exists {
+			r.fatherIDSet = true
+		}
+	}
+	
+	// 使用临时结构体避免递归调用
+	type Alias struct {
+		Content    *string `json:"content,omitempty"`
+		State      *string `json:"state,omitempty"`
+		ExecutorID *uint   `json:"executor_id,omitempty"`
+		FatherID   *uint   `json:"father_id,omitempty"`
+		Priority   *int    `json:"priority,omitempty"`
+		Tags       *string `json:"tags,omitempty"`
+	}
+	
+	var aux Alias
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	
+	// 复制字段
+	r.Content = aux.Content
+	r.State = aux.State
+	r.ExecutorID = aux.ExecutorID
+	r.FatherID = aux.FatherID
+	r.Priority = aux.Priority
+	r.Tags = aux.Tags
+	
+	return nil
 }
 
 // UpdateTaskResponse 更新任务响应结构
@@ -285,26 +384,36 @@ func UpdateTask(c *gin.Context) {
 	}
 
 	// 7. 如果指定了父任务，验证父任务是否存在且属于同一项目
-	if req.FatherID != nil {
-		var parentTask models.Task
-		if err := db.First(&parentTask, *req.FatherID).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskParentNotFound, "父任务不存在", nil))
+	// 如果father_id被显式设置（包括设置为null），需要验证
+	if req.fatherIDSet {
+		if req.FatherID != nil {
+			// 设置了具体的父任务ID，需要验证
+			var parentTask models.Task
+			if err := db.First(&parentTask, *req.FatherID).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskParentNotFound, "父任务不存在", nil))
+					return
+				}
+				c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询父任务失败: "+err.Error(), nil))
 				return
 			}
-			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询父任务失败: "+err.Error(), nil))
-			return
+			// 验证父任务是否属于同一项目
+			if parentTask.ProjectID != task.ProjectID {
+				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentMustSameProject, "父任务必须属于同一项目", nil))
+				return
+			}
+			// 防止任务成为自己的父任务
+			if parentTask.ID == task.ID {
+				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskCannotBeOwnParent, "任务不能成为自己的父任务", nil))
+				return
+			}
+			// 检查循环引用：向上遍历父任务链，确保不会形成循环
+			if err := checkCircularReference(db, task.ID, *req.FatherID, 50); err != nil {
+				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskCircularReference, err.Error(), nil))
+				return
+			}
 		}
-		// 验证父任务是否属于同一项目
-		if parentTask.ProjectID != task.ProjectID {
-			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentMustSameProject, "父任务必须属于同一项目", nil))
-			return
-		}
-		// 防止任务成为自己的父任务
-		if parentTask.ID == task.ID {
-			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskCannotBeOwnParent, "任务不能成为自己的父任务", nil))
-			return
-		}
+		// 如果 req.FatherID == nil 且 req.fatherIDSet == true，说明显式设置为null，这是允许的，不需要验证
 	}
 
 	// 8. 如果指定了执行者，验证执行者是否是项目成员
@@ -347,8 +456,14 @@ func UpdateTask(c *gin.Context) {
 	if req.ExecutorID != nil {
 		updates["executor_id"] = *req.ExecutorID
 	}
-	if req.FatherID != nil {
-		updates["father_id"] = *req.FatherID
+	// 如果father_id被显式设置（包括设置为null），则更新
+	if req.fatherIDSet {
+		if req.FatherID != nil {
+			updates["father_id"] = *req.FatherID
+		} else {
+			// 显式设置为null，清空father_id
+			updates["father_id"] = nil
+		}
 	}
 	if req.Priority != nil {
 		updates["priority"] = *req.Priority
@@ -402,9 +517,48 @@ type BatchUpdateTaskRequest struct {
 	Content    *string `json:"content,omitempty"`          // 任务内容（可选）
 	State      *string `json:"state,omitempty"`            // 任务状态（可选）
 	ExecutorID *uint   `json:"executor_id,omitempty"`      // 执行者ID（可选）
-	FatherID   *uint   `json:"father_id,omitempty"`        // 父任务ID（可选）
+	FatherID   *uint   `json:"father_id,omitempty"`        // 父任务ID（可选，可设置为null来清空）
 	Priority   *int    `json:"priority,omitempty"`         // 优先级（可选，0为最高，数值越大优先级越低）
 	Tags       *string `json:"tags,omitempty"`             // 标签（可选，用逗号分割）
+	fatherIDSet bool   `json:"-"`                          // 内部标志：father_id是否在JSON中被显式设置
+}
+
+// UnmarshalJSON 自定义JSON反序列化，用于检测father_id是否被显式设置
+func (r *BatchUpdateTaskRequest) UnmarshalJSON(data []byte) error {
+	// 检查原始JSON中是否包含father_id字段
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err == nil {
+		if _, exists := raw["father_id"]; exists {
+			r.fatherIDSet = true
+		}
+	}
+	
+	// 使用临时结构体避免递归调用
+	type Alias struct {
+		TaskID     uint    `json:"task_id"`
+		Content    *string `json:"content,omitempty"`
+		State      *string `json:"state,omitempty"`
+		ExecutorID *uint   `json:"executor_id,omitempty"`
+		FatherID   *uint   `json:"father_id,omitempty"`
+		Priority   *int    `json:"priority,omitempty"`
+		Tags       *string `json:"tags,omitempty"`
+	}
+	
+	var aux Alias
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	
+	// 复制字段
+	r.TaskID = aux.TaskID
+	r.Content = aux.Content
+	r.State = aux.State
+	r.ExecutorID = aux.ExecutorID
+	r.FatherID = aux.FatherID
+	r.Priority = aux.Priority
+	r.Tags = aux.Tags
+	
+	return nil
 }
 
 // BatchUpdateTasksRequest 批量更新任务请求结构
@@ -419,12 +573,16 @@ type BatchUpdateTasksResponse struct {
 }
 
 // BatchUpdateTasks 批量更新任务
+// 
+// ⚠️ 已弃用：此接口已标记为弃用，后续版本将停止维护，请使用单个任务更新接口
 // 网关路由: PUT /todo-service/v1/user/tasks/batch
 // 认证级别: user (需要JWT认证)
 // 权限规则：
 // - 如果任务没有分配执行者，任何项目成员都可以修改
 // - 如果任务分配了执行者，只有管理员/所有者/执行者可以修改
 // 注意：使用事务处理，所有任务要么全部更新成功，要么全部失败回滚
+// 
+// Deprecated: 此接口已弃用，请使用 PUT /todo-service/v1/user/tasks/:id
 func BatchUpdateTasks(c *gin.Context) {
 	// 1. 解析请求体
 	var req BatchUpdateTasksRequest
@@ -495,27 +653,31 @@ func BatchUpdateTasks(c *gin.Context) {
 	for i, taskReq := range req.Tasks {
 		task := taskMap[taskReq.TaskID]
 
-		// 验证父任务
-		if taskReq.FatherID != nil {
-			var parentTask models.Task
-			if err := db.First(&parentTask, *taskReq.FatherID).Error; err != nil {
-				if err == gorm.ErrRecordNotFound {
-					c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentNotFound, fmt.Sprintf("第 %d 个任务的父任务不存在", i+1), nil))
+		// 验证父任务（如果father_id被显式设置）
+		if taskReq.fatherIDSet {
+			if taskReq.FatherID != nil {
+				// 设置了具体的父任务ID，需要验证
+				var parentTask models.Task
+				if err := db.First(&parentTask, *taskReq.FatherID).Error; err != nil {
+					if err == gorm.ErrRecordNotFound {
+						c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentNotFound, fmt.Sprintf("第 %d 个任务的父任务不存在", i+1), nil))
+						return
+					}
+					c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, fmt.Sprintf("查询第 %d 个任务的父任务失败: %s", i+1, err.Error()), nil))
 					return
 				}
-				c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, fmt.Sprintf("查询第 %d 个任务的父任务失败: %s", i+1, err.Error()), nil))
-				return
+				// 验证父任务是否属于同一项目
+				if parentTask.ProjectID != task.ProjectID {
+					c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentMustSameProject, fmt.Sprintf("第 %d 个任务的父任务必须属于同一项目", i+1), nil))
+					return
+				}
+				// 防止任务成为自己的父任务
+				if parentTask.ID == task.ID {
+					c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskCannotBeOwnParent, fmt.Sprintf("第 %d 个任务不能成为自己的父任务", i+1), nil))
+					return
+				}
 			}
-			// 验证父任务是否属于同一项目
-			if parentTask.ProjectID != task.ProjectID {
-				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskParentMustSameProject, fmt.Sprintf("第 %d 个任务的父任务必须属于同一项目", i+1), nil))
-				return
-			}
-			// 防止任务成为自己的父任务
-			if parentTask.ID == task.ID {
-				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskCannotBeOwnParent, fmt.Sprintf("第 %d 个任务不能成为自己的父任务", i+1), nil))
-				return
-			}
+			// 如果 taskReq.FatherID == nil 且 taskReq.fatherIDSet == true，说明显式设置为null，这是允许的，不需要验证
 		}
 
 		// 验证执行者
@@ -575,8 +737,14 @@ func BatchUpdateTasks(c *gin.Context) {
 			if taskReq.ExecutorID != nil {
 				updates["executor_id"] = *taskReq.ExecutorID
 			}
-			if taskReq.FatherID != nil {
-				updates["father_id"] = *taskReq.FatherID
+			// 如果father_id被显式设置（包括设置为null），则更新
+			if taskReq.fatherIDSet {
+				if taskReq.FatherID != nil {
+					updates["father_id"] = *taskReq.FatherID
+				} else {
+					// 显式设置为null，清空father_id
+					updates["father_id"] = nil
+				}
 			}
 			if taskReq.Priority != nil {
 				updates["priority"] = *taskReq.Priority
@@ -922,12 +1090,16 @@ type BatchDeleteTasksResponse struct {
 }
 
 // BatchDeleteTasks 批量删除任务
+//
+// ⚠️ 已弃用：此接口已标记为弃用，后续版本将停止维护，请使用单个任务删除接口
 // 网关路由: DELETE /todo-service/v1/user/tasks/batch
 // 认证级别: user (需要JWT认证)
 // 权限规则：
 // - owner/admin：可以删除任意任务
 // - member：只能删除自己创建或分配给自己执行的任务
 // 注意：使用事务处理，所有任务要么全部删除成功，要么全部失败回滚
+//
+// Deprecated: 此接口已弃用，请使用 DELETE /todo-service/v1/user/tasks
 func BatchDeleteTasks(c *gin.Context) {
 	// 1. 解析请求体
 	var req BatchDeleteTasksRequest

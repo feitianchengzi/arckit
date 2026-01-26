@@ -97,6 +97,7 @@ const (
 	CodeTaskParentNotFound        = "TASK_PARENT_NOT_FOUND"
 	CodeTaskParentMustSameProject = "TASK_PARENT_MUST_SAME_PROJECT"
 	CodeTaskCannotBeOwnParent     = "TASK_CANNOT_BE_OWN_PARENT"
+	CodeTaskCircularReference     = "TASK_CIRCULAR_REFERENCE"
 	CodeTaskExecutorNotMember     = "TASK_EXECUTOR_NOT_MEMBER"
 
 	// 标签相关错误
