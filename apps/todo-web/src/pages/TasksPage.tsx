@@ -772,8 +772,39 @@ export default function MyTasksPage() {
     return todo.creatorId === currentUserId || todo.assigneeId === currentUserId
   }, [currentUserId, getUserRoleInProject])
   
+  // 判断是否可以修改状态
+  // 当状态为"进行中"时，只有执行人、管理员、owner可以修改
+  // 非"进行中"的任何角色都可以修改
+  const canChangeStatus = useCallback((todo: any, projectId: string) => {
+    if (!currentUserId) return false
+    
+    const userRole = getUserRoleInProject(projectId)
+    
+    // 如果状态是"进行中"，需要特殊权限检查
+    if (todo.status === 'IN_PROGRESS') {
+      // 只有执行人、管理员、owner可以修改
+      return todo.assigneeId === currentUserId || userRole === 'admin' || userRole === 'owner'
+    }
+    
+    // 非"进行中"状态，任何角色都可以修改（但需要基本的编辑权限）
+    return canEditTask(todo, projectId)
+  }, [currentUserId, getUserRoleInProject, canEditTask])
+  
   // 处理状态更改
   const handleStatusChange = useCallback(async (taskId: number, newStatus: TodoStatus, projectId: string) => {
+    // 查找对应的任务
+    const task = myTasks.find(t => t.id === taskId && t.projectId === projectId)
+    if (!task) {
+      console.error('找不到对应的任务')
+      return
+    }
+    
+    // 权限检查：如果当前状态是"进行中"，需要验证权限
+    if (task.status === 'IN_PROGRESS' && !canChangeStatus(task, projectId)) {
+      console.error('只有执行人、管理员或所有者可以修改"进行中"状态的任务')
+      return
+    }
+    
     try {
       // 直接调用 API 更新状态
       await tasksApi.update(projectId, String(taskId), { status: newStatus })
@@ -788,7 +819,7 @@ export default function MyTasksPage() {
     } catch (error) {
       console.error('更新任务状态失败:', error)
     }
-  }, [queryClient])
+  }, [queryClient, myTasks, canChangeStatus])
   
   // 处理更新执行人
   const handleUpdateAssignee = useCallback(async (taskId: number, assigneeId: number | null, projectId: string) => {
@@ -1591,14 +1622,15 @@ export default function MyTasksPage() {
                             projectId={projectId}
                             currentUserId={currentUserId}
                             members={members}
-                            canEdit={canEditTask(task, projectId)}
-                            onStatusChange={canEditTask(task, projectId) ? (taskId, newStatus) => handleStatusChange(taskId, newStatus, projectId) : undefined}
+                            canEdit={canChangeStatus(task, projectId)}
+                            onStatusChange={canChangeStatus(task, projectId) ? (taskId, newStatus) => handleStatusChange(taskId, newStatus as TodoStatus, projectId) : undefined}
                             canAssignAssignee={canAssignAssignee(task, projectId)}
                             onUpdateAssignee={async (taskId, assigneeId) => handleUpdateAssignee(taskId, assigneeId, projectId)}
                             canEditPriority={canEditPriority(task, projectId)}
                             onUpdatePriority={async (taskId, priority) => handleUpdatePriority(taskId, priority, projectId)}
                             canEditTags={canEditTags(task, projectId)}
                             onUpdateTags={async (taskId, tagsString) => handleUpdateTags(taskId, tagsString, projectId)}
+                            currentUserRole={getUserRoleInProject(projectId)}
                             onClick={() => {
                               setSelectedTaskId(String(task.id))
                               setSelectedProjectId(projectId)

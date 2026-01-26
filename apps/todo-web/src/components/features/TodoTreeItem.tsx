@@ -36,6 +36,7 @@ export interface TodoTreeItemProps {
   canEditTags?: boolean // 是否可以编辑标签（owner/admin/创建人）
   onUpdateTags?: (taskId: number, tagsString: string) => Promise<void> // 更新标签的回调
   onClick?: () => void // 点击待办项的回调（用于打开抽屉）
+  currentUserRole?: 'owner' | 'admin' | 'member' | null // 当前用户在项目中的角色
 }
 
 export function TodoTreeItem({
@@ -56,6 +57,7 @@ export function TodoTreeItem({
   canEditTags = false,
   onUpdateTags,
   onClick,
+  currentUserRole = null,
 }: TodoTreeItemProps) {
   const [isExpanded, setIsExpanded] = useState(false) // 默认不展开
   const [isUpdatingAssignee, setIsUpdatingAssignee] = useState(false)
@@ -153,6 +155,7 @@ export function TodoTreeItem({
         canEditTags={canEditTags}
         onUpdateTags={onUpdateTags}
         onClick={onClick}
+        currentUserRole={currentUserRole}
       />
     )
   }
@@ -488,6 +491,7 @@ export function TodoTreeItem({
                 isLast={index === todo.children!.length - 1}
                 parentExpanded={isExpanded} // 传递当前任务的展开状态给子任务
                 members={members}
+                currentUserRole={currentUserRole}
                 canAssignAssignee={canAssignAssignee}
                 onUpdateAssignee={onUpdateAssignee}
                 canEditPriority={canEditPriority}

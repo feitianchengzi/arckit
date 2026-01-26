@@ -74,6 +74,13 @@ export default function TaskDetailPage() {
     ? !!currentUserMember  // 未分配时，任何项目成员都可以分配
     : (isCreator || isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner')  // 已分配时，只有创建人、执行人、管理员或owner可以分配
   
+  // 权限检查：修改状态
+  // 当状态为"进行中"时，只有执行人、管理员、owner可以修改
+  // 非"进行中"的任何角色都可以修改
+  const canChangeStatus = todo?.status === 'IN_PROGRESS'
+    ? (isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner')
+    : true // 非进行中状态，任何角色都可以修改
+  
   // 加载状态
   if (isLoading) {
     return <LoadingView size="lg" text="加载待办详情..." />
@@ -148,6 +155,12 @@ export default function TaskDetailPage() {
     
     if (newStatus === todo.status) {
       return // 状态未改变
+    }
+    
+    // 权限检查：如果当前状态是"进行中"，需要验证权限
+    if (todo.status === 'IN_PROGRESS' && !canChangeStatus) {
+      setStatusUpdateError('只有执行人、管理员或所有者可以修改"进行中"状态的任务')
+      return
     }
     
     try {
@@ -254,11 +267,21 @@ export default function TaskDetailPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold text-gray-900 whitespace-nowrap">状态：</span>
               {!isEditing ? (
-                <StatusSelect
-                  value={todo.status}
-                  onChange={handleStatusChange}
-                  disabled={updateStatus.isPending}
-                />
+                <div className="relative group">
+                  <StatusSelect
+                    value={todo.status}
+                    onChange={handleStatusChange}
+                    disabled={updateStatus.isPending || !canChangeStatus}
+                  />
+                  {!canChangeStatus && todo.status === 'IN_PROGRESS' && (
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
+                      <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
+                        只有执行人、管理员或所有者可以修改"进行中"状态的任务
+                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <StatusBadge status={todo.status} />
               )}

@@ -1,0 +1,332 @@
+# 权限管理模块迁移 TODO
+
+本文档列出了所有需要应用权限管理模块的文件和位置。
+
+## 迁移策略
+
+1. **阶段一**：先迁移 1-2 个文件，验证功能正常
+2. **阶段二**：逐步迁移其他文件
+3. **阶段三**：清理旧代码，删除重复的权限检查逻辑
+
+## 需要迁移的文件清单
+
+### 一、页面组件 (Pages)
+
+#### 1. `frontend/src/pages/ProjectDetailPage.tsx`
+
+**优先级**：高  
+**复杂度**：高  
+**需要替换的权限检查函数**：
+
+- [ ] `canEditTask` (行 516-526)
+  - 替换为：`permissionManager.task.hasEditPermission()`
+  - 使用位置：传递给 `TodoTreeItem` 的 `canEdit` prop
+
+- [ ] `canChangeStatus` (行 531-542)
+  - 替换为：`permissionManager.task.hasStatusChangePermission()`
+  - 使用位置：
+    - 传递给 `TodoTreeItem` 的 `canEdit` prop (行 1663)
+    - `handleStatusChange` 中的权限验证 (行 870-876)
+    - `onStatusChange` 回调的条件判断 (行 1661)
+
+- [ ] `canAssignAssignee` (行 545-555)
+  - 替换为：`permissionManager.task.hasAssignAssigneePermission()`
+  - 使用位置：传递给 `TodoTreeItem` 的 `canAssignAssignee` prop (行 1665)
+
+- [ ] `canEditPriority` (行 558-568)
+  - 替换为：`permissionManager.task.hasEditPriorityPermission()`
+  - 使用位置：传递给 `TodoTreeItem` 的 `canEditPriority` prop (行 1667)
+
+- [ ] `canEditTags` (行 586-596)
+  - 替换为：`permissionManager.task.hasEditTagsPermission()`
+  - 使用位置：传递给 `TodoTreeItem` 的 `canEditTags` prop (行 1669)
+
+**额外工作**：
+- [ ] 在 `handleStatusChange` 中添加权限验证（行 870-876）
+- [ ] 导入权限管理模块：`import { permissionManager } from '@/lib/permissions'`
+- [ ] 导入工具函数：`import { todoToTaskInfo, isAssigneeUnassigned } from '@/lib/permissions/utils'`
+- [ ] 导入类型：`import type { TaskInfo } from '@/lib/permissions'`
+
+**建议**：可以使用 `useTaskPermission` Hook 简化代码
+
+---
+
+#### 2. `frontend/src/pages/TasksPage.tsx`
+
+**优先级**：高  
+**复杂度**：高  
+**需要替换的权限检查函数**：
+
+- [ ] `canEditTask` (行 761-773)
+  - 替换为：`permissionManager.task.hasEditPermission()`
+  - 使用位置：传递给 `TodoTreeItem` 的 `canEdit` prop (行 1594)
+
+- [ ] `canChangeStatus` (行 778-791)
+  - 替换为：`permissionManager.task.hasStatusChangePermission()`
+  - 使用位置：
+    - 传递给 `TodoTreeItem` 的 `canEdit` prop (行 1594)
+    - `handleStatusChange` 中的权限验证 (行 794-820)
+    - `onStatusChange` 回调的条件判断 (行 1595)
+
+- [ ] `canAssignAssignee` (行 717-729)
+  - 替换为：`permissionManager.task.hasAssignAssigneePermission()`
+  - 使用位置：传递给 `TodoTreeItem` 的 `canAssignAssignee` prop (行 1596)
+
+- [ ] `canEditPriority` (行 732-744)
+  - 替换为：`permissionManager.task.hasEditPriorityPermission()`
+  - 使用位置：传递给 `TodoTreeItem` 的 `canEditPriority` prop (行 1598)
+
+- [ ] `canEditTags` (行 746-758)
+  - 替换为：`permissionManager.task.hasEditTagsPermission()`
+  - 使用位置：传递给 `TodoTreeItem` 的 `canEditTags` prop (行 1600)
+
+**额外工作**：
+- [ ] 在 `handleStatusChange` 中添加权限验证（行 794-820）
+- [ ] 导入权限管理模块和相关工具
+- [ ] 注意：此文件需要处理多个项目，需要为每个项目获取角色
+
+**建议**：可以使用 `useTaskPermission` Hook，但需要注意多项目场景
+
+---
+
+#### 3. `frontend/src/pages/TaskDetailPage.tsx`
+
+**优先级**：中  
+**复杂度**：中  
+**需要替换的权限检查**：
+
+- [ ] `canEditContent` (行 68)
+  - 替换为：`permissionManager.task.hasEditPermission()`
+  - 使用位置：控制编辑按钮显示 (行 228, 320)
+
+- [ ] `canEditAssignee` (行 73-75)
+  - 替换为：`permissionManager.task.hasAssignAssigneePermission()`
+  - 使用位置：控制执行人编辑功能 (行 504)
+
+- [ ] `canChangeStatus` (行 80-82)
+  - 替换为：`permissionManager.task.hasStatusChangePermission()`
+  - 使用位置：
+    - 控制状态选择器禁用 (行 260)
+    - `handleStatusChange` 中的权限验证 (行 152-158)
+
+**额外工作**：
+- [ ] 在 `handleStatusChange` 中添加权限验证（行 152-158）
+- [ ] 导入权限管理模块和相关工具
+- [ ] 添加认领功能（如果待办未分配，显示"认领"按钮）
+
+**建议**：可以使用 `useTaskPermission` Hook 简化代码
+
+---
+
+### 二、功能组件 (Features)
+
+#### 4. `frontend/src/components/features/TaskDetailContent.tsx`
+
+**优先级**：中  
+**复杂度**：中  
+**需要替换的权限检查**：
+
+- [ ] `canEditContent` (行 84)
+  - 替换为：`permissionManager.task.hasEditPermission()`
+  - 使用位置：控制编辑按钮显示 (行 268, 315)
+
+- [ ] `canDelete` (行 87)
+  - 替换为：`permissionManager.task.hasDeletePermission()`
+  - 使用位置：控制删除按钮显示 (行 277)
+
+- [ ] `canEditAssignee` (行 90-92)
+  - 替换为：`permissionManager.task.hasAssignAssigneePermission()`
+  - 使用位置：控制执行人编辑功能 (行 504)
+
+- [ ] `canChangeStatus` (行 97-99)
+  - 替换为：`permissionManager.task.hasStatusChangePermission()`
+  - 使用位置：
+    - 控制状态选择器禁用 (行 537)
+    - `handleStatusChange` 中的权限验证 (行 162-174)
+
+**额外工作**：
+- [ ] 在 `handleStatusChange` 中添加权限验证（行 162-174）
+- [ ] 导入权限管理模块和相关工具
+- [ ] 添加认领功能（如果待办未分配，显示"认领"按钮）
+
+**建议**：可以使用 `useTaskPermission` Hook 简化代码
+
+---
+
+#### 5. `frontend/src/components/features/TodoItem.tsx`
+
+**优先级**：中  
+**复杂度**：低  
+**需要替换的权限检查**：
+
+- [ ] `canChangeStatus` (行 45-47)
+  - 替换为：`permissionManager.task.hasStatusChangePermission()`
+  - 使用位置：控制状态选择器显示 (行 232)
+
+**额外工作**：
+- [ ] 导入权限管理模块和相关工具
+- [ ] 注意：此组件接收 `canEdit` prop，需要根据状态和权限计算 `canChangeStatus`
+
+**建议**：可以在组件内部使用权限管理器，但保留 `canEdit` prop 的兼容性
+
+---
+
+#### 6. `frontend/src/components/features/TodoTreeItem.tsx`
+
+**优先级**：低  
+**复杂度**：低  
+**需要检查**：
+
+- [ ] 检查是否直接使用权限检查逻辑
+- [ ] 如果只是传递 props，可能不需要修改
+- [ ] 确认是否需要添加认领功能
+
+**建议**：先检查代码，如果只是透传 props，可能不需要修改
+
+---
+
+### 三、项目权限相关
+
+#### 7. `frontend/src/components/features/ProjectMemberList.tsx`
+
+**优先级**：低  
+**复杂度**：低  
+**需要替换的权限检查**：
+
+- [ ] `canAddMember` prop (行 38, 66)
+  - 替换为：`permissionManager.project.hasAddMemberPermission()`
+  - 使用位置：控制添加成员按钮显示 (行 244, 280, 421)
+
+- [ ] `canManage` prop (行 39, 67)
+  - 替换为：`permissionManager.project.hasManagePermission()`
+  - 使用位置：控制管理功能显示
+
+**额外工作**：
+- [ ] 在调用此组件的地方，使用权限管理器计算权限
+- [ ] 主要修改位置：`ProjectDetailPage.tsx` (行 1718-1719)
+
+**建议**：在父组件中使用权限管理器，然后传递给子组件
+
+---
+
+#### 8. `frontend/src/pages/ProjectMembersPage.tsx`
+
+**优先级**：低  
+**复杂度**：低  
+**需要替换的权限检查**：
+
+- [ ] `canAddMember` (行 140)
+  - 替换为：`permissionManager.project.hasAddMemberPermission()`
+  - 使用位置：控制添加成员按钮显示 (行 319, 335)
+
+**额外工作**：
+- [ ] 导入权限管理模块
+- [ ] 使用权限管理器计算权限
+
+---
+
+## 新增功能 TODO
+
+### 认领待办功能
+
+需要在以下位置添加认领功能：
+
+- [ ] `TaskDetailPage.tsx` - 添加"认领此待办"按钮
+- [ ] `TaskDetailContent.tsx` - 添加"认领此待办"按钮
+- [ ] `TodoItem.tsx` - 添加"认领"按钮（可选）
+- [ ] `ProjectDetailPage.tsx` - 在待办列表中显示认领按钮（可选）
+
+**实现步骤**：
+1. 使用 `permissionManager.task.hasClaimTaskPermission()` 检查权限
+2. 添加"认领"按钮 UI
+3. 实现 `handleClaimTask` 函数，调用 API 将自己设置为执行人
+
+---
+
+## 迁移步骤
+
+### 步骤 1：准备阶段
+- [x] 创建权限管理模块代码
+- [x] 创建类型定义
+- [x] 创建工具函数
+- [x] 创建 Hook
+
+### 步骤 2：测试阶段
+- [ ] 选择一个简单文件进行迁移测试（建议：`TodoItem.tsx`）
+- [ ] 验证功能正常
+- [ ] 修复可能的问题
+
+### 步骤 3：批量迁移
+- [ ] 迁移 `TaskDetailPage.tsx`
+- [ ] 迁移 `TaskDetailContent.tsx`
+- [ ] 迁移 `ProjectDetailPage.tsx`
+- [ ] 迁移 `TasksPage.tsx`
+- [ ] 迁移其他文件
+
+### 步骤 4：新增功能
+- [ ] 实现认领待办功能
+- [ ] 添加认领按钮 UI
+- [ ] 测试认领功能
+
+### 步骤 5：清理阶段
+- [ ] 删除所有旧的权限检查函数
+- [ ] 删除重复的权限逻辑
+- [ ] 更新文档
+- [ ] 代码审查
+
+---
+
+## 注意事项
+
+1. **向后兼容**：迁移期间保持旧代码可用，逐步替换
+2. **类型安全**：确保所有类型正确导入和使用
+3. **性能优化**：使用 `useMemo` 缓存权限检查结果
+4. **测试**：每个文件迁移后都要测试功能是否正常
+5. **多项目场景**：`TasksPage.tsx` 需要处理多个项目，注意获取每个项目的角色
+6. **未分配状态**：注意处理 `assigneeId` 为 `null` 或 `undefined` 的情况
+
+---
+
+## 代码示例
+
+### 使用权限管理器
+
+```typescript
+import { permissionManager } from '@/lib/permissions'
+import { todoToTaskInfo, isAssigneeUnassigned } from '@/lib/permissions/utils'
+import type { TaskInfo } from '@/lib/permissions'
+
+// 在组件中
+const taskInfo = todoToTaskInfo(todo)
+const isUnassigned = isAssigneeUnassigned(todo.assigneeId)
+
+const canChangeStatus = permissionManager.task.hasStatusChangePermission(
+  taskInfo,
+  currentUserRole,
+  currentUserId
+)
+```
+
+### 使用 Hook
+
+```typescript
+import { useTaskPermission } from '@/hooks/useTaskPermission'
+
+// 在组件中
+const permissions = useTaskPermission(
+  todo,
+  currentUserRole,
+  currentUserId,
+  !!currentUserMember
+)
+
+// 使用
+{permissions.canEdit && <EditButton />}
+{permissions.canClaim && <ClaimButton />}
+```
+
+---
+
+**文档版本**：v1.0  
+**创建日期**：2026-01-26  
+**最后更新**：2026-01-26

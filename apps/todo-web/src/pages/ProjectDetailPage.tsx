@@ -525,6 +525,22 @@ export default function ProjectDetailPage() {
     return todo.creatorId === currentUserId || todo.assigneeId === currentUserId
   }, [currentUserId, currentUserRole])
   
+  // 判断是否可以修改状态
+  // 当状态为"进行中"时，只有执行人、管理员、owner可以修改
+  // 非"进行中"的任何角色都可以修改
+  const canChangeStatus = useCallback((todo: any) => {
+    if (!currentUserId || !currentUserRole) return false
+    
+    // 如果状态是"进行中"，需要特殊权限检查
+    if (todo.status === 'IN_PROGRESS') {
+      // 只有执行人、管理员、owner可以修改
+      return todo.assigneeId === currentUserId || currentUserRole === 'admin' || currentUserRole === 'owner'
+    }
+    
+    // 非"进行中"状态，任何角色都可以修改（但需要基本的编辑权限）
+    return canEditTask(todo)
+  }, [currentUserId, currentUserRole, canEditTask])
+  
   // 判断是否可以分配执行人（owner/admin/创建人）
   const canAssignAssignee = useCallback((todo: any) => {
     if (!currentUserId || !currentUserRole) return false
@@ -852,6 +868,19 @@ export default function ProjectDetailPage() {
   
   // 处理状态变更
   const handleStatusChange = async (todoId: number, newStatus: string) => {
+    // 查找对应的任务
+    const todo = taskTree.find(t => t.id === todoId)
+    if (!todo) {
+      console.error('找不到对应的任务')
+      return
+    }
+    
+    // 权限检查：如果当前状态是"进行中"，需要验证权限
+    if (todo.status === 'IN_PROGRESS' && !canChangeStatus(todo)) {
+      console.error('只有执行人、管理员或所有者可以修改"进行中"状态的任务')
+      return
+    }
+    
     try {
       await updateStatus.mutateAsync({ taskId: todoId.toString(), status: newStatus })
     } catch (error) {
@@ -1658,9 +1687,9 @@ export default function ProjectDetailPage() {
                 key={todo.id}
                 todo={todo}
                 projectId={projectId}
-                onStatusChange={canEditTask(todo) ? handleStatusChange : undefined}
+                onStatusChange={canChangeStatus(todo) ? handleStatusChange : undefined}
                 currentUserId={currentUserId}
-                canEdit={canEditTask(todo)}
+                canEdit={canChangeStatus(todo)}
                 members={members || []}
                 canAssignAssignee={canAssignAssignee(todo)}
                 onUpdateAssignee={handleUpdateAssignee}
@@ -1668,6 +1697,7 @@ export default function ProjectDetailPage() {
                 onUpdatePriority={handleUpdatePriority}
                 canEditTags={canEditTags(todo)}
                 onUpdateTags={handleUpdateTags}
+                currentUserRole={currentUserRole}
                 onClick={() => {
                   setSelectedTaskId(String(todo.id))
                   setDrawerOpen(true)

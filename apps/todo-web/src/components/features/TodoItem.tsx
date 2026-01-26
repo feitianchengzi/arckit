@@ -22,7 +22,7 @@ export interface TodoItemProps {
   onStatusChange?: (todoId: number, newStatus: string) => void
   className?: string
   currentUserId?: number | null // 当前用户的 user_id
-  canEdit?: boolean // 是否有权限编辑任务状态
+  canEdit?: boolean // 是否有权限编辑任务状态（已考虑状态为进行中时的权限）
   members?: ProjectMember[] // 项目成员列表
   canAssignAssignee?: boolean // 是否可以分配执行人（owner/admin/创建人）
   onUpdateAssignee?: (taskId: number, assigneeId: number | null) => Promise<void> // 更新执行人的回调
@@ -31,12 +31,20 @@ export interface TodoItemProps {
   canEditTags?: boolean // 是否可以编辑标签（owner/admin/创建人）
   onUpdateTags?: (taskId: number, tagsString: string) => Promise<void> // 更新标签的回调
   onClick?: () => void // 点击待办项的回调（用于打开抽屉）
+  currentUserRole?: 'owner' | 'admin' | 'member' | null // 当前用户在项目中的角色
 }
 
-export function TodoItem({ todo, projectId, onStatusChange, className, currentUserId, canEdit = false,   members = [], canAssignAssignee = false, onUpdateAssignee,   canEditPriority = false, onUpdatePriority, canEditTags = false, onUpdateTags, onClick }: TodoItemProps) {
+export function TodoItem({ todo, projectId, onStatusChange, className, currentUserId, canEdit = false,   members = [], canAssignAssignee = false, onUpdateAssignee,   canEditPriority = false, onUpdatePriority, canEditTags = false, onUpdateTags, onClick, currentUserRole = null }: TodoItemProps) {
   // 判断是否是创建者或执行者
   const isCreator = currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId
   const isAssignee = currentUserId !== null && currentUserId !== undefined && todo.assigneeId === currentUserId
+  
+  // 权限检查：修改状态
+  // 当状态为"进行中"时，只有执行人、管理员、owner可以修改
+  // 非"进行中"的任何角色都可以修改（如果 canEdit 为 true）
+  const canChangeStatus = todo.status === 'IN_PROGRESS'
+    ? (isAssignee || currentUserRole === 'admin' || currentUserRole === 'owner')
+    : canEdit // 非进行中状态，使用传入的 canEdit
   const [isUpdatingAssignee, setIsUpdatingAssignee] = useState(false)
   const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
   const [isEditingAssignee, setIsEditingAssignee] = useState(false)
@@ -228,7 +236,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
         </div>
         
         <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
-          {canEdit ? (
+          {canChangeStatus ? (
             <StatusSelect
               value={todo.status}
               onChange={handleStatusChange}
