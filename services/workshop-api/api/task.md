@@ -888,7 +888,9 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
 
 ## 6. 批量删除任务
 
-**接口**: `DELETE /workshop/v1/user/tasks/batch`
+> ⚠️ **已移除**: 此接口已被移除，请使用单个任务删除接口 `DELETE /workshop/v1/user/tasks/:id` 逐个删除任务。
+
+**接口**: `DELETE /workshop/v1/user/tasks/batch` (已移除)
 
 **认证级别**: `user`（需要JWT认证）
 
@@ -896,7 +898,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
 - 如果任务状态为 `in_progress`（执行中），只有执行者和管理员/所有者可以删除，其他人不允许删除
 - 如果任务状态不是 `in_progress`，任何项目成员都可以删除
 
-**描述**: 批量删除任务，使用事务处理，所有任务要么全部删除成功，要么全部失败回滚。
+**描述**: ~~批量删除任务，使用事务处理，所有任务要么全部删除成功，要么全部失败回滚。~~ (此接口已移除)
 
 **请求示例**:
 
@@ -999,7 +1001,115 @@ curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/tasks/batch" \
 
 ---
 
-## 7. 创建任务附件
+## 7. 删除任务
+
+**接口**: `DELETE /workshop/v1/user/tasks/:id`
+
+**认证级别**: `user`（需要JWT认证）
+
+**权限规则**:
+- 如果任务状态为 `in_progress`（执行中），只有执行者和管理员/所有者可以删除，其他人不允许删除
+- 如果任务状态不是 `in_progress`，任何项目成员都可以删除
+
+**路径参数**:
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | uint | 任务ID |
+
+**描述**: 删除单个任务（软删除），删除任务时会级联删除关联的附件。
+
+**请求示例**:
+
+**测试环境**:
+```bash
+TASK_ID=1
+
+curl -X DELETE "http://localhost:8081/todo/v1/user/tasks/$TASK_ID" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
+```
+
+**生产环境**:
+```bash
+TASK_ID=1
+
+curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/tasks/$TASK_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+**响应示例** (`200 OK`):
+```json
+{
+  "code": "OK",
+  "data": {
+    "task_id": 1,
+    "deleted_at": "2024-01-01T12:20:00Z"
+  }
+}
+```
+
+**响应字段说明**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| task_id | uint | 已删除的任务ID |
+| deleted_at | string | 删除时间（ISO 8601格式） |
+
+**特殊说明**:
+- 删除操作为软删除，任务记录不会从数据库中物理删除
+- 删除任务时会级联删除关联的附件（软删除）
+- 使用 `include_deleted=true` 参数查询任务列表时，可以查看已删除的任务
+
+**错误响应**:
+
+**400 Bad Request**:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "任务ID不能为空",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden** - 无权限:
+```json
+{
+  "code": "TASK_NO_PERMISSION",
+  "error": {
+    "message": "您没有权限删除此任务",
+    "details": null
+  }
+}
+```
+
+**404 Not Found**:
+```json
+{
+  "code": "TASK_NOT_FOUND",
+  "error": {
+    "message": "任务不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "TASK_DELETE_FAILED",
+  "error": {
+    "message": "删除任务失败: ...",
+    "details": null
+  }
+}
+```
+
+---
+
+## 8. 创建任务附件
 
 **接口**: `POST /workshop/v1/user/tasks/attachments`
 
@@ -1134,7 +1244,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments"
 
 ---
 
-## 8. 查询任务附件列表
+## 9. 查询任务附件列表
 
 **接口**: `GET /workshop/v1/user/tasks/attachments?task_id=1`
 
@@ -1270,7 +1380,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments?t
 
 ---
 
-## 9. 更新任务附件
+## 10. 更新任务附件
 
 **接口**: `PUT /workshop/v1/user/tasks/attachments/:id`
 
@@ -1398,7 +1508,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments/$
 
 ---
 
-## 10. 删除任务附件
+## 11. 删除任务附件
 
 **接口**: `DELETE /workshop/v1/user/tasks/attachments/:id`
 

@@ -43,7 +43,6 @@ type CreateTaskResponse struct {
 }
 
 // CreateTask 创建新任务
-// 网关路由: POST /todo-service/v1/user/tasks
 // 认证级别: user (需要JWT认证)
 // 流程：
 // 1. 从请求获取用户ID
@@ -322,7 +321,6 @@ type UpdateTaskResponse struct {
 }
 
 // UpdateTask 更新任务
-// 网关路由: PUT /todo-service/v1/user/tasks/:id
 // 认证级别: user (需要JWT认证)
 // 权限规则：
 // - 如果任务状态为 in_progress（执行中），只有执行者和管理员/所有者可以修改，其他人不允许修改
@@ -573,7 +571,6 @@ type BatchUpdateTasksResponse struct {
 // BatchUpdateTasks 批量更新任务
 //
 // ⚠️ 已弃用：此接口已标记为弃用，后续版本将停止维护，请使用单个任务更新接口
-// 网关路由: PUT /todo-service/v1/user/tasks/batch
 // 认证级别: user (需要JWT认证)
 // 权限规则：
 // - 如果任务没有分配执行者，任何项目成员都可以修改
@@ -852,7 +849,6 @@ type GetTasksResponse struct {
 }
 
 // GetTasks 查询项目的所有任务
-// 网关路由: GET /todo-service/v1/user/tasks?project_id=1&updated_after=2024-01-01T12:00:00Z&father_id=0
 // 认证级别: user (需要JWT认证)
 // 流程：
 // 1. 绑定查询参数到GetTasksRequest结构体
@@ -986,20 +982,19 @@ func GetTasks(c *gin.Context) {
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
-// DeleteTasksResponse 删除任务响应结构
-type DeleteTasksResponse struct {
+// DeleteTaskResponse 删除任务响应结构
+type DeleteTaskResponse struct {
 	TaskID    uint   `json:"task_id"`    // 已删除的任务ID
 	DeletedAt string `json:"deleted_at"` // 删除时间
 }
 
-// DeleteTasks 删除任务
-// 网关路由: DELETE /todo-service/v1/user/tasks/:id
+// DeleteTask 删除任务
 // 认证级别: user (需要JWT认证)
 // 权限规则：
 // - owner/admin：可以删除任意任务
 // - member：只能删除自己创建或分配给自己执行的任务
 // 注意：删除任务时会级联删除关联的附件
-func DeleteTasks(c *gin.Context) {
+func DeleteTask(c *gin.Context) {
 	// 1. 获取任务ID（从路径参数）
 	taskIDStr := c.Param("id")
 	if taskIDStr == "" {
@@ -1074,7 +1069,7 @@ func DeleteTasks(c *gin.Context) {
 	}
 
 	// 7. 返回成功响应
-	resp := DeleteTasksResponse{
+	resp := DeleteTaskResponse{
 		TaskID:    taskID,
 		DeletedAt: deletedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
@@ -1216,7 +1211,6 @@ func collectAllCreatedTasks(db *gorm.DB, projectID uint, taskIDs []uint) ([]mode
 }
 
 // BatchCreateTasks 批量创建任务（支持嵌套结构）
-// 网关路由: POST /todo-service/v1/user/tasks/batch
 // 认证级别: user (需要JWT认证)
 // 流程：
 // 1. 从请求获取用户ID
@@ -1392,7 +1386,6 @@ type CreateTaskAttachmentResponse struct {
 }
 
 // CreateTaskAttachment 创建任务附件
-// 网关路由: POST /todo-service/v1/user/tasks/attachments
 // 认证级别: user (需要JWT认证)
 // 权限规则：与任务修改权限相同
 func CreateTaskAttachment(c *gin.Context) {
@@ -1499,7 +1492,6 @@ type GetTaskAttachmentsResponse struct {
 }
 
 // GetTaskAttachments 查询任务的所有附件
-// 网关路由: GET /todo-service/v1/user/tasks/attachments?task_id=1&include_deleted=true
 // 认证级别: user (需要JWT认证)
 // 权限规则：项目成员均可查看
 func GetTaskAttachments(c *gin.Context) {
@@ -1611,7 +1603,6 @@ type UpdateTaskAttachmentResponse struct {
 }
 
 // UpdateTaskAttachment 更新任务附件
-// 网关路由: PUT /todo-service/v1/user/tasks/attachments/:id
 // 认证级别: user (需要JWT认证)
 // 权限规则：只有创建者可以修改附件（附件类型不可更新，只能更新内容）
 func UpdateTaskAttachment(c *gin.Context) {
@@ -1691,7 +1682,6 @@ func UpdateTaskAttachment(c *gin.Context) {
 }
 
 // DeleteTaskAttachment 删除任务附件
-// 网关路由: DELETE /todo-service/v1/user/tasks/attachments/:id
 // 认证级别: user (需要JWT认证)
 // 权限规则：创建者可以删除，或者项目的管理者和所有者也可以删除
 func DeleteTaskAttachment(c *gin.Context) {

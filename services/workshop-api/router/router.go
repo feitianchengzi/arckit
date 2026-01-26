@@ -61,7 +61,7 @@ func SetupRouter(serviceName string) *gin.Engine {
 			userGroup.POST("/tasks", handler.CreateTask)                                 // 创建新任务
 			userGroup.PUT("/tasks/:id", handler.UpdateTask)                              // 更新任务
 			userGroup.GET("/tasks", handler.GetTasks)                                    // 查询项目的所有任务
-			userGroup.DELETE("/tasks/:id", handler.DeleteTasks)                           // 删除任务
+			userGroup.DELETE("/tasks/:id", handler.DeleteTask)                           // 删除任务
 			userGroup.POST("/tasks/attachments", handler.CreateTaskAttachment)          // 创建任务附件
 			userGroup.GET("/tasks/attachments", handler.GetTaskAttachments)             // 查询任务附件列表
 			userGroup.PUT("/tasks/attachments/:id", handler.UpdateTaskAttachment)        // 更新任务附件
