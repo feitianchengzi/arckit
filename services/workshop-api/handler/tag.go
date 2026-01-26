@@ -100,7 +100,7 @@ func GetTags(c *gin.Context) {
 	for i, tag := range tags {
 		var deletedAt *string
 		if tag.DeletedAt.Valid {
-			deletedAtStr := tag.DeletedAt.Time.Format("2006-01-02 15:04:05")
+			deletedAtStr := tag.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
 			deletedAt = &deletedAtStr
 		}
 
@@ -108,8 +108,8 @@ func GetTags(c *gin.Context) {
 			ID:        tag.ID,
 			ProjectID: tag.ProjectID,
 			Name:      tag.Name,
-			CreatedAt: tag.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt: tag.UpdatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt: tag.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt: tag.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			DeletedAt: deletedAt,
 		}
 	}
@@ -192,8 +192,8 @@ func CreateTag(c *gin.Context) {
 		ID:        tag.ID,
 		ProjectID: tag.ProjectID,
 		Name:      tag.Name,
-		CreatedAt: tag.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: tag.UpdatedAt.Format("2006-01-02 15:04:05"),
+		CreatedAt: tag.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: tag.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		DeletedAt: nil,
 	}
 
@@ -275,7 +275,7 @@ func UpdateTag(c *gin.Context) {
 	// 9. 返回更新后的标签
 	var deletedAt *string
 	if tag.DeletedAt.Valid {
-		deletedAtStr := tag.DeletedAt.Time.Format("2006-01-02 15:04:05")
+		deletedAtStr := tag.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
 		deletedAt = &deletedAtStr
 	}
 
@@ -283,8 +283,8 @@ func UpdateTag(c *gin.Context) {
 		ID:        tag.ID,
 		ProjectID: tag.ProjectID,
 		Name:      tag.Name,
-		CreatedAt: tag.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: tag.UpdatedAt.Format("2006-01-02 15:04:05"),
+		CreatedAt: tag.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: tag.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		DeletedAt: deletedAt,
 	}
 

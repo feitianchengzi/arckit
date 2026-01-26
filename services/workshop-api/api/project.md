@@ -1,40 +1,12 @@
 # 项目相关接口
 
-基础路径：`/{service}/v1/user/projects`  
+基础路径：`/workshop/v1/user/projects`  
 认证：JWT；中间件 `ExtractUserID` 已注入当前用户 ID  
 权限：除特别说明外需是项目成员；角色含 `owner` / `admin` / `member`
 
-## 🌐 服务器信息
-
-### 生产环境
-- **公网域名**: `api.feitianchengzi.com`
-- **API网关端口**: `443` (HTTPS默认端口)
-- **协议**: HTTPS
-- **服务名称**: `workshop`
-- **完整基础URL**: `https://api.feitianchengzi.com/workshop/v1`
-
-### 认证方式
-所有需要认证的接口都需要在请求头中添加JWT Token：
-
-```bash
-Authorization: Bearer <your_jwt_token>
-```
-
-**注意**: Token会过期，请使用有效的Token进行请求。详细说明请参考 `user_api.md`。
+---
 
 ## 通用说明
-
-### 用户ID获取方式
-
-所有接口通过中间件 `ExtractUserID` 自动获取用户ID：
-
-从请求头 `X-User-ID` 获取用户UUID，然后查询用户表获取对应的用户ID。
-
-**示例**：
-```bash
-GET /todo/v1/user/projects
-# Header: X-User-ID: 11111111-1111-1111-1111-111111111111
-```
 
 ### 项目成员角色
 
@@ -46,25 +18,35 @@ GET /todo/v1/user/projects
 
 ## 1. 创建项目
 
-**接口**: `POST /{service}/v1/user/projects`
+**接口**: `POST /workshop/v1/user/projects`
 
 **认证级别**: `user`（需要JWT认证）
 
 **描述**: 创建新项目，创建者自动成为项目所有者（owner）
 
-**查询参数**:
+**请求示例**:
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+**测试环境**:
+```bash
+curl -X POST "http://localhost:8081/todo/v1/user/projects" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "电商平台开发",
+    "git_url": "https://github.com/team/ecommerce.git"
+  }'
+```
 
-**请求体**:
-
-```json
-{
-  "name": "电商平台开发",
-  "git_url": "https://github.com/team/ecommerce.git"
-}
+**生产环境**:
+```bash
+curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "电商平台开发",
+    "git_url": "https://github.com/team/ecommerce.git"
+  }'
 ```
 
 **请求字段说明**:
@@ -75,7 +57,6 @@ GET /todo/v1/user/projects
 | git_url | string | 是 | Git仓库地址 |
 
 **响应示例** (`201 Created`):
-
 ```json
 {
   "code": "OK",
@@ -107,7 +88,7 @@ GET /todo/v1/user/projects
 | name | string | 项目名称 |
 | git_url | string | Git仓库地址 |
 | creator_id | uint | 创建者用户ID |
-| members | array | 项目成员列表（包含创建者） |
+| members | array | 项目成员列表 |
 
 **成员对象字段说明**:
 
@@ -120,6 +101,10 @@ GET /todo/v1/user/projects
 | avatar | string | 头像地址 |
 | created_at | string | 加入时间（ISO 8601格式） |
 | is_me | bool | 是否是当前用户自己 |
+
+**特殊说明**:
+- 创建项目时，创建者自动成为项目所有者（owner）
+- `is_me` 字段表示该成员是否是当前登录用户自己
 
 **错误响应**:
 
@@ -149,7 +134,7 @@ GET /todo/v1/user/projects
 
 ## 2. 查询用户参与的项目
 
-**接口**: `GET /{service}/v1/user/projects`
+**接口**: `GET /workshop/v1/user/projects`
 
 **认证级别**: `user`（需要JWT认证）
 
@@ -159,10 +144,24 @@ GET /todo/v1/user/projects
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+| include_deleted | bool | 否 | 是否包含已删除的记录（默认false） |
+
+**请求示例**:
+
+**测试环境**:
+```bash
+curl -X GET "http://localhost:8081/todo/v1/user/projects" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
+```
+
+**生产环境**:
+```bash
+curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
 
 **响应示例** (`200 OK`):
-
 ```json
 {
   "code": "OK",
@@ -175,6 +174,7 @@ GET /todo/v1/user/projects
         "creator_id": 10,
         "created_at": "2024-01-01T12:00:00Z",
         "updated_at": "2024-01-01T12:00:00Z",
+        "deleted_at": null,
         "members": [
           {
             "id": 1,
@@ -184,15 +184,6 @@ GET /todo/v1/user/projects
             "avatar": "https://example.com/avatar.png",
             "created_at": "2024-01-01T12:00:00Z",
             "is_me": true
-          },
-          {
-            "id": 2,
-            "user_id": 11,
-            "role": "member",
-            "username": "jane_doe",
-            "avatar": "https://example.com/avatar2.png",
-            "created_at": "2024-01-01T12:05:00Z",
-            "is_me": false
           }
         ]
       }
@@ -219,32 +210,30 @@ GET /todo/v1/user/projects
 | creator_id | uint | 创建者用户ID |
 | created_at | string | 创建时间（ISO 8601格式） |
 | updated_at | string | 更新时间（ISO 8601格式） |
+| deleted_at | string | 删除时间（ISO 8601格式，如果存在） |
 | members | array | 项目成员列表 |
 
-**成员对象字段说明**:
+**特殊说明**:
+- `include_deleted` 参数用于查询包含已删除（软删除）的项目
+- 当 `include_deleted=true` 时，响应中的 `deleted_at` 字段会显示删除时间（如果项目已删除）
+- 默认情况下（`include_deleted=false`），只返回未删除的项目
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| id | uint | 成员关系ID |
-| user_id | uint | 用户ID |
-| role | string | 角色（owner/admin/member） |
-| username | string | 用户名 |
-| avatar | string | 头像地址 |
-| created_at | string | 加入时间（ISO 8601格式） |
-| is_me | bool | 是否是当前用户自己 |
+**查询包含已删除的项目**:
+
+**测试环境**:
+```bash
+curl -X GET "http://localhost:8081/todo/v1/user/projects?include_deleted=true" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
+```
+
+**生产环境**:
+```bash
+curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects?include_deleted=true" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
 
 **错误响应**:
-
-**400 Bad Request**:
-```json
-{
-  "code": "BAD_REQUEST",
-  "error": {
-    "message": "请求参数错误: ...",
-    "details": null
-  }
-}
-```
 
 **500 Internal Server Error**:
 ```json
@@ -261,7 +250,7 @@ GET /todo/v1/user/projects
 
 ## 3. 更新项目
 
-**接口**: `PUT /{service}/v1/user/projects/:id`
+**接口**: `PUT /workshop/v1/user/projects/:id`
 
 **认证级别**: `user`（需要JWT认证）
 
@@ -273,22 +262,36 @@ GET /todo/v1/user/projects
 |------|------|------|
 | id | uint | 项目ID |
 
-**查询参数**:
+**请求示例**:
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+**测试环境**:
+```bash
+PROJECT_ID=1
 
-**请求体**（所有字段均为可选，但至少提供一个）:
-
-```json
-{
-  "name": "新项目名称",
-  "git_url": "https://github.com/team/new-repo.git"
-}
+curl -X PUT "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "新项目名称",
+    "git_url": "https://github.com/team/new-repo.git"
+  }'
 ```
 
-**请求字段说明**:
+**生产环境**:
+```bash
+PROJECT_ID=1
+
+curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "新项目名称",
+    "git_url": "https://github.com/team/new-repo.git"
+  }'
+```
+
+**请求字段说明**（所有字段均为可选，但至少提供一个）:
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -296,7 +299,6 @@ GET /todo/v1/user/projects
 | git_url | string | 否 | Git仓库地址 |
 
 **响应示例** (`200 OK`):
-
 ```json
 {
   "code": "OK",
@@ -364,7 +366,7 @@ GET /todo/v1/user/projects
 
 ## 4. 删除项目
 
-**接口**: `DELETE /{service}/v1/user/projects/:id`
+**接口**: `DELETE /workshop/v1/user/projects/:id`
 
 **认证级别**: `user`（需要JWT认证）
 
@@ -376,14 +378,26 @@ GET /todo/v1/user/projects
 |------|------|------|
 | id | uint | 项目ID |
 
-**查询参数**:
+**请求示例**:
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+**测试环境**:
+```bash
+PROJECT_ID=1
+
+curl -X DELETE "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
+```
+
+**生产环境**:
+```bash
+PROJECT_ID=1
+
+curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
 
 **响应示例** (`200 OK`):
-
 ```json
 {
   "code": "OK",
@@ -393,25 +407,17 @@ GET /todo/v1/user/projects
 }
 ```
 
-**错误响应**:
+**特殊说明**:
+- 删除项目会级联删除项目成员和任务
 
-**400 Bad Request**:
-```json
-{
-  "code": "PROJECT_ID_EMPTY",
-  "error": {
-    "message": "项目ID不能为空",
-    "details": null
-  }
-}
-```
+**错误响应**:
 
 **403 Forbidden**:
 ```json
 {
   "code": "PROJECT_NO_PERMISSION",
   "error": {
-    "message": "只有项目所有者可以删除项目",
+    "message": "您没有权限删除此项目，只有项目所有者可以删除",
     "details": null
   }
 }
@@ -431,7 +437,7 @@ GET /todo/v1/user/projects
 **500 Internal Server Error**:
 ```json
 {
-  "code": "PROJECT_UPDATE_FAILED",
+  "code": "PROJECT_DELETE_FAILED",
   "error": {
     "message": "删除项目失败: ...",
     "details": null
@@ -439,16 +445,11 @@ GET /todo/v1/user/projects
 }
 ```
 
-**注意事项**:
-
-- 删除项目会级联删除项目成员和任务
-- 只有项目所有者可以删除项目
-
 ---
 
 ## 5. 邀请项目成员（生成邀请码）
 
-**接口**: `POST /{service}/v1/user/projects/:id/invitations`
+**接口**: `POST /workshop/v1/user/projects/:id/invitations`
 
 **认证级别**: `user`（需要JWT认证）
 
@@ -460,30 +461,46 @@ GET /todo/v1/user/projects
 |------|------|------|
 | id | uint | 项目ID |
 
-**查询参数**:
+**请求示例**:
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+**测试环境**:
+```bash
+PROJECT_ID=1
 
-**请求体**:
+curl -X POST "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/invitations" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "role": "member",
+    "expires_in": 24,
+    "max_uses": 5
+  }'
+```
 
-```json
-{
-  "role": "member",
-  "expires_in": 24
-}
+**生产环境**:
+```bash
+PROJECT_ID=1
+
+curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_ID/invitations" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "role": "member",
+    "expires_in": 24,
+    "max_uses": 5
+  }'
 ```
 
 **请求字段说明**:
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| role | string | 否 | 邀请的角色（可选，默认为 "member"），可选值：member, admin |
+| role | string | 否 | 邀请的角色（可选，默认为 "member"），可选值：`member`, `admin` |
 | expires_in | int | 否 | 过期时间（小时，可选），0 表示永不过期 |
+| max_uses | int | 否 | 最大使用次数（可选，默认1），同一个邀请码最多可以被使用多少次 |
 
 **响应示例** (`201 Created`):
-
 ```json
 {
   "code": "OK",
@@ -491,6 +508,8 @@ GET /todo/v1/user/projects
     "invite_code": "ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234",
     "invite_link": "/join?code=ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234",
     "role": "member",
+    "max_uses": 5,
+    "used_count": 0,
     "expires_at": "2024-01-02T12:00:00Z",
     "created_at": "2024-01-01T12:00:00Z"
   }
@@ -501,42 +520,22 @@ GET /todo/v1/user/projects
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
-| invite_code | string | 邀请码（唯一） |
+| invite_code | string | 邀请码 |
 | invite_link | string | 邀请链接 |
 | role | string | 邀请的角色 |
-| expires_at | string | 过期时间（ISO 8601格式，如果设置了过期时间） |
+| max_uses | int | 最大使用次数 |
+| used_count | int | 已使用次数 |
+| expires_at | string | 过期时间（ISO 8601格式） |
 | created_at | string | 创建时间（ISO 8601格式） |
 
 **错误响应**:
-
-**400 Bad Request** - 请求参数错误:
-```json
-{
-  "code": "BAD_REQUEST",
-  "error": {
-    "message": "请求参数错误: ...",
-    "details": null
-  }
-}
-```
-
-**400 Bad Request** - 无效角色:
-```json
-{
-  "code": "BAD_REQUEST",
-  "error": {
-    "message": "无效的项目角色",
-    "details": null
-  }
-}
-```
 
 **403 Forbidden**:
 ```json
 {
   "code": "PROJECT_NO_PERMISSION",
   "error": {
-    "message": "您没有权限邀请项目成员，只有项目所有者和管理员可以邀请",
+    "message": "您没有权限邀请成员，只有项目所有者和管理员可以邀请",
     "details": null
   }
 }
@@ -556,9 +555,9 @@ GET /todo/v1/user/projects
 **500 Internal Server Error**:
 ```json
 {
-  "code": "PROJECT_CREATE_FAILED",
+  "code": "PROJECT_INVITE_FAILED",
   "error": {
-    "message": "创建邀请失败: ...",
+    "message": "生成邀请码失败: ...",
     "details": null
   }
 }
@@ -568,24 +567,33 @@ GET /todo/v1/user/projects
 
 ## 6. 加入项目（使用邀请码）
 
-**接口**: `POST /{service}/v1/user/projects/join`
+**接口**: `POST /workshop/v1/user/projects/join`
 
 **认证级别**: `user`（需要JWT认证）
 
 **描述**: 使用邀请码加入项目
 
-**查询参数**:
+**请求示例**:
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+**测试环境**:
+```bash
+curl -X POST "http://localhost:8081/todo/v1/user/projects/join" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "invite_code": "ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234"
+  }'
+```
 
-**请求体**:
-
-```json
-{
-  "invite_code": "ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234"
-}
+**生产环境**:
+```bash
+curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/join" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "invite_code": "ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234"
+  }'
 ```
 
 **请求字段说明**:
@@ -595,7 +603,6 @@ GET /todo/v1/user/projects
 | invite_code | string | 是 | 邀请码 |
 
 **响应示例** (`201 Created`):
-
 ```json
 {
   "code": "OK",
@@ -621,53 +628,14 @@ GET /todo/v1/user/projects
 | project_name | string | 项目名称 |
 | created_at | string | 加入时间（ISO 8601格式） |
 
+**特殊说明**:
+- 同一个邀请码可以被多人使用，最多使用次数由创建邀请时设置的 `max_uses` 决定（默认1次）
+- 每次使用后，邀请码的 `used_count` 会递增，达到 `max_uses` 后无法继续使用
+- 如果用户已经是项目成员，无法重复加入
+
 **错误响应**:
 
-**400 Bad Request** - 请求参数错误:
-```json
-{
-  "code": "BAD_REQUEST",
-  "error": {
-    "message": "请求参数错误: ...",
-    "details": null
-  }
-}
-```
-
-**400 Bad Request** - 邀请码已使用:
-```json
-{
-  "code": "PROJECT_INVITE_USED",
-  "error": {
-    "message": "该邀请码已被使用",
-    "details": null
-  }
-}
-```
-
-**400 Bad Request** - 邀请码已过期:
-```json
-{
-  "code": "PROJECT_INVITE_EXPIRED",
-  "error": {
-    "message": "该邀请码已过期",
-    "details": null
-  }
-}
-```
-
-**403 Forbidden**:
-```json
-{
-  "code": "PROJECT_ALREADY_MEMBER",
-  "error": {
-    "message": "您已经是该项目的成员",
-    "details": null
-  }
-}
-```
-
-**404 Not Found**:
+**400 Bad Request** - 邀请码无效:
 ```json
 {
   "code": "PROJECT_INVITE_INVALID",
@@ -678,32 +646,54 @@ GET /todo/v1/user/projects
 }
 ```
 
-**500 Internal Server Error**:
+**400 Bad Request** - 邀请码已使用:
 ```json
 {
-  "code": "PROJECT_CREATE_FAILED",
+  "code": "PROJECT_INVITE_USED",
   "error": {
-    "message": "加入项目失败: ...",
+    "message": "邀请码已达到最大使用次数",
     "details": null
   }
 }
 ```
 
-**注意事项**:
+**400 Bad Request** - 邀请码已过期:
+```json
+{
+  "code": "PROJECT_INVITE_EXPIRED",
+  "error": {
+    "message": "邀请码已过期",
+    "details": null
+  }
+}
+```
 
-- 邀请码使用后会被标记为已使用，不能重复使用
-- 如果邀请码设置了过期时间，过期后无法使用
-- 如果用户已经是项目成员，无法重复加入
+**400 Bad Request** - 已是成员:
+```json
+{
+  "code": "PROJECT_ALREADY_MEMBER",
+  "error": {
+    "message": "您已经是该项目的成员",
+    "details": null
+  }
+}
+```
 
 ---
 
 ## 7. 删除项目成员
 
-**接口**: `DELETE /{service}/v1/user/projects/:id/members`
+**接口**: `DELETE /workshop/v1/user/projects/:id/members`
 
 **认证级别**: `user`（需要JWT认证）
 
-**权限规则**: `owner` 和 `admin` 可以删除任何成员
+**权限规则**:
+- 任何成员都可以删除自己（不需要额外权限）
+- `owner` 和 `admin` 可以删除其他成员
+- 如果删除的是所有者，系统会自动转移所有权：
+  - 优先选择第一个管理员改为所有者
+  - 如果没有管理员，选择第一个成员改为所有者
+  - 如果项目只有所有者一个人，删除失败
 
 **路径参数**:
 
@@ -711,28 +701,59 @@ GET /todo/v1/user/projects
 |------|------|------|
 | id | uint | 项目ID |
 
-**查询参数**:
+**请求示例**:
 
-| 参数 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
+**测试环境**:
+```bash
+PROJECT_ID=1
 
-**请求体**:
+# 删除其他成员（需要 owner/admin 权限）
+curl -X DELETE "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/members" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_user_id": 123
+  }'
 
-```json
-{
-  "target_user_id": 123
-}
+# 删除自己（任何成员都可以）
+curl -X DELETE "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/members" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_user_id": 456
+  }'
+```
+
+**生产环境**:
+```bash
+PROJECT_ID=1
+
+# 删除其他成员（需要 owner/admin 权限）
+curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_ID/members" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_user_id": 123
+  }'
+
+# 删除自己（任何成员都可以）
+curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_ID/members" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_user_id": 456
+  }'
 ```
 
 **请求字段说明**:
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| target_user_id | uint | 是 | 要删除的用户ID |
+| target_user_id | uint | 是 | 目标用户ID（数据库ID） |
 
 **响应示例** (`200 OK`):
-
 ```json
 {
   "code": "OK",
@@ -741,6 +762,12 @@ GET /todo/v1/user/projects
   }
 }
 ```
+
+**特殊说明**:
+- 任何成员都可以删除自己，无需额外权限
+- 删除他人需要 `owner` 或 `admin` 权限
+- 无法删除项目所有者，项目至少需要保留一个成员
+- 如果删除的是所有者自己，系统会自动转移所有权
 
 **错误响应**:
 
@@ -755,23 +782,12 @@ GET /todo/v1/user/projects
 }
 ```
 
-**403 Forbidden** - 无权限:
+**403 Forbidden**:
 ```json
 {
   "code": "PROJECT_NO_PERMISSION",
   "error": {
-    "message": "您没有权限删除项目成员，只有项目所有者和管理员可以删除",
-    "details": null
-  }
-}
-```
-
-**403 Forbidden** - 不是成员:
-```json
-{
-  "code": "PROJECT_NOT_MEMBER",
-  "error": {
-    "message": "您不是该项目的成员",
+    "message": "您没有权限删除此成员",
     "details": null
   }
 }
@@ -791,7 +807,7 @@ GET /todo/v1/user/projects
 **500 Internal Server Error**:
 ```json
 {
-  "code": "PROJECT_UPDATE_FAILED",
+  "code": "PROJECT_DELETE_MEMBER_FAILED",
   "error": {
     "message": "删除项目成员失败: ...",
     "details": null
@@ -799,19 +815,11 @@ GET /todo/v1/user/projects
 }
 ```
 
-**特殊说明**:
-
-- 如果删除的是所有者（owner）自己，需要转移所有权：
-  1. 优先选择第一个管理员（admin）改为所有者
-  2. 如果没有管理员，选择第一个成员（member）改为所有者
-  3. 如果项目只有所有者一个人，删除失败
-- 如果删除的是自己，直接使用已查询的成员信息，无需再次查询
-
 ---
 
 ## 8. 设置成员角色
 
-**接口**: `PUT /{service}/v1/user/projects/:id/members/role`
+**接口**: `PUT /workshop/v1/user/projects/:id/members/role`
 
 **认证级别**: `user`（需要JWT认证）
 
@@ -829,13 +837,33 @@ GET /todo/v1/user/projects
 |------|------|------|------|
 | user_id | uint | 是 | 用户ID（数据库ID），推荐使用查询参数，避免从UUID查询用户表 |
 
-**请求体**:
+**请求示例**:
 
-```json
-{
-  "target_user_id": 123,
-  "role": "admin"
-}
+**测试环境**:
+```bash
+PROJECT_ID=1
+
+curl -X PUT "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/members/role?user_id=3" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_user_id": 123,
+    "role": "admin"
+  }'
+```
+
+**生产环境**:
+```bash
+PROJECT_ID=1
+
+curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_ID/members/role?user_id=3" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "target_user_id": 123,
+    "role": "admin"
+  }'
 ```
 
 **请求字段说明**:
@@ -846,7 +874,6 @@ GET /todo/v1/user/projects
 | role | string | 是 | 角色（仅支持 "admin" 或 "member"） |
 
 **响应示例** (`200 OK`):
-
 ```json
 {
   "code": "OK",
@@ -874,18 +901,11 @@ GET /todo/v1/user/projects
 | avatar | string | 头像地址 |
 | updated_at | string | 更新时间（ISO 8601格式） |
 
-**错误响应**:
+**特殊说明**:
+- 不能修改项目所有者（owner）的角色
+- 只能将成员设置为 `admin` 或 `member`
 
-**400 Bad Request** - 请求参数错误:
-```json
-{
-  "code": "BAD_REQUEST",
-  "error": {
-    "message": "请求参数错误: ...",
-    "details": null
-  }
-}
-```
+**错误响应**:
 
 **400 Bad Request** - 无效角色:
 ```json
@@ -893,6 +913,17 @@ GET /todo/v1/user/projects
   "code": "BAD_REQUEST",
   "error": {
     "message": "无效的角色，仅支持 admin 或 member",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 不能修改所有者:
+```json
+{
+  "code": "PROJECT_NO_PERMISSION",
+  "error": {
+    "message": "不能修改项目所有者的角色",
     "details": null
   }
 }
@@ -912,126 +943,10 @@ GET /todo/v1/user/projects
 **404 Not Found**:
 ```json
 {
-  "code": "PROJECT_NOT_FOUND",
+  "code": "PROJECT_NOT_MEMBER",
   "error": {
-    "message": "项目不存在",
+    "message": "目标用户不是项目成员",
     "details": null
   }
 }
-```
-
-**500 Internal Server Error**:
-```json
-{
-  "code": "PROJECT_UPDATE_FAILED",
-  "error": {
-    "message": "更新成员角色失败: ...",
-    "details": null
-  }
-}
-```
-
-**限制**:
-
-- 不能修改项目所有者（owner）的角色
-- 只能将成员设置为 `admin` 或 `member`
-
----
-
-## 使用示例
-
-以下示例使用测试用户信息（参考 `README.md`）：
-- **Alice**: `user_id=3`, `UUID=11111111-1111-1111-1111-111111111111`, `username=alice`
-- **Bob**: `user_id=4`, `UUID=22222222-2222-2222-2222-222222222222`, `username=bob`
-
-### 创建项目
-
-```bash
-curl -X POST "http://localhost:8081/todo/v1/user/projects?user_id=3" \
-  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
-  -H "X-User-Username: alice" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "电商平台开发",
-    "git_url": "https://github.com/team/ecommerce.git"
-  }'
-```
-
-### 查询用户参与的项目
-
-```bash
-curl -X GET "http://localhost:8081/todo/v1/user/projects?user_id=3" \
-  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
-  -H "X-User-Username: alice"
-```
-
-### 更新项目
-
-```bash
-curl -X PUT "http://localhost:8081/todo/v1/user/projects/2?user_id=3" \
-  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
-  -H "X-User-Username: alice" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "新项目名称-电商平台V2",
-    "git_url": "https://github.com/team/ecommerce-v2.git"
-  }'
-```
-
-### 删除项目
-
-```bash
-curl -X DELETE "http://localhost:8081/todo/v1/user/projects/2?user_id=3" \
-  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
-  -H "X-User-Username: alice"
-```
-
-### 邀请项目成员
-
-```bash
-curl -X POST "http://localhost:8081/todo/v1/user/projects/2/invitations?user_id=3" \
-  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
-  -H "X-User-Username: alice" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "role": "member",
-    "expires_in": 24
-  }'
-```
-
-### 加入项目
-
-```bash
-curl -X POST "http://localhost:8081/todo/v1/user/projects/join?user_id=4" \
-  -H "X-User-ID: 22222222-2222-2222-2222-222222222222" \
-  -H "X-User-Username: bob" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "invite_code": "0D32A295A83D41D5A6F15DA32050268F"
-  }'
-```
-
-### 删除项目成员
-
-```bash
-curl -X DELETE "http://localhost:8081/todo/v1/user/projects/2/members?user_id=3" \
-  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
-  -H "X-User-Username: alice" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "target_user_id": 4
-  }'
-```
-
-### 设置成员角色
-
-```bash
-curl -X PUT "http://localhost:8081/todo/v1/user/projects/2/members/role?user_id=3" \
-  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
-  -H "X-User-Username: alice" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "target_user_id": 4,
-    "role": "admin"
-  }'
 ```

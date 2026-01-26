@@ -1,170 +1,80 @@
-# Todo Service API 文档索引
+# API 文档
 
-## 概述
+## 📋 概述
 
-Todo Service 是一个团队共享任务管理系统，提供项目管理和任务管理功能。
+本文档提供 Todo Service 的完整 API 接口说明，适用于**测试环境**和**生产环境**。
 
-**基础路径**: `/{service}/v1/{auth_level}/{path}`
+## 🌐 环境配置
 
-**服务名称**: `todo-service`（可通过环境变量 `SERVICE_NAME` 配置）
+### 测试环境（本地开发）
 
-**版本**: `v1`
-
-## 文档分类
-
-- **[common_api.md](./common_api.md)** - 公共接口（健康检查、Header信息）
-- **[user_api.md](./user_api.md)** - 用户相关接口（创建、查询、更新用户）
-- **[project_api.md](./project_api.md)** - 项目及成员管理接口（创建项目、邀请成员、加入项目、成员管理）
-- **[task_api.md](./task_api.md)** - 任务管理接口（创建、更新、查询、删除任务）
-
-## 认证说明
-
-### 认证级别
-
-1. **public** - 无需认证，公开接口
-2. **user** - 需要JWT认证，用户级别接口
-3. **apikey** - 需要API密钥认证，API级别接口
-
-### Header信息
-
-网关会在请求头中传递以下信息（业务服务自动提取）：
-
-- `X-User-ID` - 用户UUID（必需）
-- `X-User-Username` - 用户名
-- `X-User-AppID` - 应用ID
-- `X-User-SessionID` - 会话ID
-
-### 用户ID获取
-
-所有 `user` 级别的接口都通过中间件 `ExtractUserID` 自动获取用户ID，handler 直接使用 `middleware.RequireUserID(c)` 获取，无需手动查询用户表。
-
-## 通用响应格式
-
-### 成功响应
-
-根据接口不同，返回相应的数据结构。
-
-### 错误响应
-
-```json
-{
-  "error": "错误信息描述"
-}
-```
-
-### HTTP状态码
-
-- `200 OK` - 请求成功
-- `201 Created` - 资源创建成功
-- `400 Bad Request` - 请求参数错误
-- `401 Unauthorized` - 未认证或认证失败
-- `403 Forbidden` - 权限不足
-- `404 Not Found` - 资源不存在
-- `500 Internal Server Error` - 服务器内部错误
-
-## 数据模型
-
-### 任务状态
-
-| 状态值 | 说明 |
-|--------|------|
-| pending | 待处理 |
-| in_progress | 进行中 |
-| completed | 已完成 |
-| cancelled | 已取消 |
-| blocked | 已阻塞 |
-
-### 项目成员角色
-
-| 角色值 | 说明 | 权限 |
-|--------|------|------|
-| owner | 所有者 | 项目创建者，拥有所有权限 |
-| admin | 管理员 | 可以管理项目成员和任务 |
-| member | 成员 | 可以创建任务，只能修改/删除自己创建或分配给自己执行的任务 |
-
-## 测试用户
-
-以下测试用户已创建，可用于 API 测试：
-
-### 用户 1: Alice
-```json
-{
-  "id": 3,
-  "uuid": "11111111-1111-1111-1111-111111111111",
-  "username": "alice",
-  "avatar": "https://example.com/avatars/alice.png",
-  "created_at": "2026-01-07T08:44:24Z",
-  "updated_at": "2026-01-07T08:44:24Z"
-}
-```
-
-**测试 Header:**
-```bash
--H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
--H "X-User-Username: alice"
-```
-
-### 用户 2: Bob
-```json
-{
-  "id": 4,
-  "uuid": "22222222-2222-2222-2222-222222222222",
-  "username": "bob",
-  "avatar": "https://example.com/avatars/bob.png",
-  "created_at": "2026-01-07T08:44:26Z",
-  "updated_at": "2026-01-07T08:44:26Z"
-}
-```
-
-**测试 Header:**
-```bash
--H "X-User-ID: 22222222-2222-2222-2222-222222222222" \
--H "X-User-Username: bob"
-```
-
-### 用户 3: Charlie
-```json
-{
-  "id": 5,
-  "uuid": "33333333-3333-3333-3333-333333333333",
-  "username": "charlie",
-  "avatar": "https://example.com/avatars/charlie.png",
-  "created_at": "2026-01-07T08:44:29Z",
-  "updated_at": "2026-01-07T08:44:29Z"
-}
-```
-
-**测试 Header:**
-```bash
--H "X-User-ID: 33333333-3333-3333-3333-333333333333" \
--H "X-User-Username: charlie"
-```
-
-### 使用示例
-
-在测试 API 时，可以使用以下方式设置测试用户：
-
-```bash
-# 使用 Alice 测试
-curl -X GET "http://127.0.0.1:8081/todo/v1/user/users/11111111-1111-1111-1111-111111111111" \
-  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+- **基础URL**: `http://localhost:8081/todo/v1`
+- **认证方式**: 使用 Header 传递用户信息（网关模拟）
+- **Header 格式**:
+  ```bash
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111"
   -H "X-User-Username: alice"
+  ```
 
-# 使用 Bob 测试
-curl -X GET "http://127.0.0.1:8081/todo/v1/user/users/22222222-2222-2222-2222-222222222222" \
-  -H "X-User-ID: 22222222-2222-2222-2222-222222222222" \
-  -H "X-User-Username: bob"
+### 生产环境（线上）
 
-# 使用 Charlie 测试
-curl -X GET "http://127.0.0.1:8081/todo/v1/user/users/33333333-3333-3333-3333-333333333333" \
-  -H "X-User-ID: 33333333-3333-3333-3333-333333333333" \
-  -H "X-User-Username: charlie"
+- **基础URL**: `https://api.feitianchengzi.com/workshop/v1`
+- **认证方式**: 使用 JWT Token（由网关处理）
+- **Header 格式**:
+  ```bash
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+  ```
+
+## 📝 使用说明
+
+### 环境变量设置
+
+在调用接口前，根据环境设置相应的变量：
+
+**测试环境**:
+```bash
+BASE_URL="http://localhost:8081/todo/v1"
+USER_ID="11111111-1111-1111-1111-111111111111"
+USERNAME="alice"
 ```
 
-## 注意事项
+**生产环境**:
+```bash
+BASE_URL="https://api.feitianchengzi.com/workshop/v1"
+ACCESS_TOKEN="your_access_token_here"
+```
 
-1. **用户识别**: 系统使用网关提供的用户UUID（`X-User-ID`）进行用户识别，通过中间件自动转换为数据库用户ID
-2. **权限验证**: 所有操作都需要验证用户是否为项目成员，直接查询项目成员表，无需查询用户表和项目表
-3. **事务处理**: 批量删除任务使用事务处理，保证数据一致性
-4. **历史记录**: 即使用户离职，任务的创建者和执行者信息仍然保留，用于历史记录追踪
-5. **时间格式**: 所有时间字段使用 ISO 8601 格式（例如：`2024-01-01T12:00:00Z`）
+### 通用请求格式
+
+**测试环境示例**:
+```bash
+curl -X GET "$BASE_URL/user/projects" \
+  -H "X-User-ID: $USER_ID" \
+  -H "X-User-Username: $USERNAME"
+```
+
+**生产环境示例**:
+```bash
+curl -X GET "$BASE_URL/user/projects" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+## 📚 文档结构
+
+- **[common.md](./common.md)** - 公共接口（健康检查、Header信息）
+- **[user.md](./user.md)** - 用户相关接口（创建、查询、更新用户、获取OSS凭证）
+- **[project.md](./project.md)** - 项目相关接口（创建、查询、更新、删除项目、成员管理、邀请）
+- **[task.md](./task.md)** - 任务相关接口（创建、更新、查询、删除任务、任务附件）
+- **[tag.md](./tag.md)** - 标签相关接口（创建、查询、更新、删除标签）
+
+## 🔄 环境差异说明
+
+| 项目 | 测试环境 | 生产环境 |
+|------|---------|---------|
+| 基础URL | `http://localhost:8081/todo/v1` | `https://api.feitianchengzi.com/workshop/v1` |
+| 认证方式 | Header 传递用户信息 | JWT Token |
+| Header 字段 | `X-User-ID`, `X-User-Username` | `Authorization: Bearer <token>` |
+| 网关处理 | 无（直接访问服务） | 有（网关处理认证和路由） |
+
+**注意**: 除了认证方式和基础URL不同外，所有接口的请求体、响应格式、参数说明都完全相同。

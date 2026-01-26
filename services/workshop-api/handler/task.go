@@ -1730,7 +1730,7 @@ type UpdateTaskAttachmentResponse struct {
 // UpdateTaskAttachment 更新任务附件
 // 网关路由: PUT /todo-service/v1/user/tasks/attachments/:id
 // 认证级别: user (需要JWT认证)
-// 权限规则：与任务修改权限相同
+// 权限规则：只有创建者可以修改附件（附件类型不可更新，只能更新内容）
 func UpdateTaskAttachment(c *gin.Context) {
 	// 1. 获取附件ID
 	attachmentID := c.Param("id")
@@ -1810,7 +1810,7 @@ func UpdateTaskAttachment(c *gin.Context) {
 // DeleteTaskAttachment 删除任务附件
 // 网关路由: DELETE /todo-service/v1/user/tasks/attachments/:id
 // 认证级别: user (需要JWT认证)
-// 权限规则：与任务修改权限相同
+// 权限规则：创建者可以删除，或者项目的管理者和所有者也可以删除
 func DeleteTaskAttachment(c *gin.Context) {
 	// 1. 获取附件ID
 	attachmentID := c.Param("id")
