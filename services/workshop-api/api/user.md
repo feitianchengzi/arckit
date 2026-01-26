@@ -17,7 +17,7 @@
 
 **测试环境**:
 ```bash
-curl -X POST "http://localhost:8081/todo/v1/user/users" \
+curl -X POST "http://localhost:8081/workshop/v1/user/users" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -121,7 +121,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/users" \
 
 **测试环境**:
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/user/users" \
+curl -X GET "http://localhost:8081/workshop/v1/user/users" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -196,7 +196,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/users" \
 
 **测试环境**:
 ```bash
-curl -X PUT "http://localhost:8081/todo/v1/user/users" \
+curl -X PUT "http://localhost:8081/workshop/v1/user/users" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -298,7 +298,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/users" \
 
 **测试环境**:
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/user/oss/credentials" \
+curl -X GET "http://localhost:8081/workshop/v1/user/oss/credentials" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```

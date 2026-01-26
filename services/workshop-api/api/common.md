@@ -17,7 +17,7 @@
 
 **测试环境**:
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/public/health"
+curl -X GET "http://localhost:8081/workshop/v1/public/health"
 ```
 
 **生产环境**:
@@ -61,7 +61,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/public/health"
 
 **测试环境**:
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/user/header-info" \
+curl -X GET "http://localhost:8081/workshop/v1/user/header-info" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```

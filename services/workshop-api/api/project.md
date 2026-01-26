@@ -28,7 +28,7 @@
 
 **测试环境**:
 ```bash
-curl -X POST "http://localhost:8081/todo/v1/user/projects" \
+curl -X POST "http://localhost:8081/workshop/v1/user/projects" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -150,7 +150,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 
 **测试环境**:
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/user/projects" \
+curl -X GET "http://localhost:8081/workshop/v1/user/projects" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -222,7 +222,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 
 **测试环境**:
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/user/projects?include_deleted=true" \
+curl -X GET "http://localhost:8081/workshop/v1/user/projects?include_deleted=true" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -268,7 +268,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects?include_de
 ```bash
 PROJECT_ID=1
 
-curl -X PUT "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID" \
+curl -X PUT "http://localhost:8081/workshop/v1/user/projects/$PROJECT_ID" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -384,7 +384,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 ```bash
 PROJECT_ID=1
 
-curl -X DELETE "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID" \
+curl -X DELETE "http://localhost:8081/workshop/v1/user/projects/$PROJECT_ID" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -467,7 +467,7 @@ curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJEC
 ```bash
 PROJECT_ID=1
 
-curl -X POST "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/invitations" \
+curl -X POST "http://localhost:8081/workshop/v1/user/projects/$PROJECT_ID/invitations" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -577,7 +577,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_
 
 **测试环境**:
 ```bash
-curl -X POST "http://localhost:8081/todo/v1/user/projects/join" \
+curl -X POST "http://localhost:8081/workshop/v1/user/projects/join" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -708,7 +708,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/join" \
 PROJECT_ID=1
 
 # 删除其他成员（需要 owner/admin 权限）
-curl -X DELETE "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/members" \
+curl -X DELETE "http://localhost:8081/workshop/v1/user/projects/$PROJECT_ID/members" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -717,7 +717,7 @@ curl -X DELETE "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/members"
   }'
 
 # 删除自己（任何成员都可以）
-curl -X DELETE "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/members" \
+curl -X DELETE "http://localhost:8081/workshop/v1/user/projects/$PROJECT_ID/members" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -843,7 +843,7 @@ curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJEC
 ```bash
 PROJECT_ID=1
 
-curl -X PUT "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/members/role?user_id=3" \
+curl -X PUT "http://localhost:8081/workshop/v1/user/projects/$PROJECT_ID/members/role?user_id=3" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \

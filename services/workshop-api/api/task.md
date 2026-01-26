@@ -35,7 +35,7 @@
 
 **测试环境**:
 ```bash
-curl -X POST "http://localhost:8081/todo/v1/user/tasks" \
+curl -X POST "http://localhost:8081/workshop/v1/user/tasks" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -190,7 +190,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/tasks" \
 
 **测试环境**:
 ```bash
-curl -X POST "http://localhost:8081/todo/v1/user/tasks/batch" \
+curl -X POST "http://localhost:8081/workshop/v1/user/tasks/batch" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -417,7 +417,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/tasks/batch" \
 ```bash
 TASK_ID=1
 
-curl -X PUT "http://localhost:8081/todo/v1/user/tasks/$TASK_ID" \
+curl -X PUT "http://localhost:8081/workshop/v1/user/tasks/$TASK_ID" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -562,7 +562,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tasks/$TASK_ID" \
 
 **测试环境**:
 ```bash
-curl -X PUT "http://localhost:8081/todo/v1/user/tasks/batch" \
+curl -X PUT "http://localhost:8081/workshop/v1/user/tasks/batch" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -758,7 +758,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tasks/batch" \
 ```bash
 PROJECT_ID=1
 
-curl -X GET "http://localhost:8081/todo/v1/user/tasks?project_id=$PROJECT_ID" \
+curl -X GET "http://localhost:8081/workshop/v1/user/tasks?project_id=$PROJECT_ID" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -838,7 +838,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
 
 **测试环境**:
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/user/tasks?project_id=$PROJECT_ID&include_deleted=true" \
+curl -X GET "http://localhost:8081/workshop/v1/user/tasks?project_id=$PROJECT_ID&include_deleted=true" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -904,7 +904,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
 
 **测试环境**:
 ```bash
-curl -X DELETE "http://localhost:8081/todo/v1/user/tasks/batch" \
+curl -X DELETE "http://localhost:8081/workshop/v1/user/tasks/batch" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -1025,7 +1025,7 @@ curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/tasks/batch" \
 ```bash
 TASK_ID=1
 
-curl -X DELETE "http://localhost:8081/todo/v1/user/tasks/$TASK_ID" \
+curl -X DELETE "http://localhost:8081/workshop/v1/user/tasks/$TASK_ID" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -1121,7 +1121,7 @@ curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/tasks/$TASK_ID" 
 
 **测试环境**:
 ```bash
-curl -X POST "http://localhost:8081/todo/v1/user/tasks/attachments" \
+curl -X POST "http://localhost:8081/workshop/v1/user/tasks/attachments" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -1265,7 +1265,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments"
 ```bash
 TASK_ID=1
 
-curl -X GET "http://localhost:8081/todo/v1/user/tasks/attachments?task_id=$TASK_ID" \
+curl -X GET "http://localhost:8081/workshop/v1/user/tasks/attachments?task_id=$TASK_ID" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -1321,7 +1321,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments?t
 
 **测试环境**:
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/user/tasks/attachments?task_id=$TASK_ID&include_deleted=true" \
+curl -X GET "http://localhost:8081/workshop/v1/user/tasks/attachments?task_id=$TASK_ID&include_deleted=true" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -1400,7 +1400,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments?t
 ```bash
 ATTACHMENT_ID=1
 
-curl -X PUT "http://localhost:8081/todo/v1/user/tasks/attachments/$ATTACHMENT_ID" \
+curl -X PUT "http://localhost:8081/workshop/v1/user/tasks/attachments/$ATTACHMENT_ID" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -1530,7 +1530,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments/$
 ```bash
 ATTACHMENT_ID=1
 
-curl -X DELETE "http://localhost:8081/todo/v1/user/tasks/attachments/$ATTACHMENT_ID" \
+curl -X DELETE "http://localhost:8081/workshop/v1/user/tasks/attachments/$ATTACHMENT_ID" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```

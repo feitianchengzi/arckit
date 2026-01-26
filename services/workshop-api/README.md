@@ -29,9 +29,9 @@ Todo Service 是一个团队共享任务管理系统，提供以下核心功能�
 /{service}/{version}/{auth_level}/{path}
 ```
 示例：
-- `GET /todo/v1/public/health` - 健康检查
-- `POST /todo/v1/user/projects` - 创建项目
-- `GET /todo/v1/user/tasks?project_id=1` - 查询任务
+- `GET /workshop/v1/public/health` - 健康检查
+- `POST /workshop/v1/user/projects` - 创建项目
+- `GET /workshop/v1/user/tasks?project_id=1` - 查询任务
 
 ### 4. **数据库模型**
 - **User**: 用户表，使用网关提供的 UUID 作为唯一标识
@@ -167,7 +167,7 @@ go run main.go
 ### 1. 健康检查接口（Public）
 
 ```bash
-curl http://localhost:8081/todo/v1/public/health
+curl http://localhost:8081/workshop/v1/public/health
 ```
 
 **响应示例：**
@@ -182,7 +182,7 @@ curl http://localhost:8081/todo/v1/public/health
 ### 2. 创建用户
 
 ```bash
-curl -X POST "http://localhost:8081/todo/v1/user/users" \
+curl -X POST "http://localhost:8081/workshop/v1/user/users" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -195,7 +195,7 @@ curl -X POST "http://localhost:8081/todo/v1/user/users" \
 ### 3. 创建项目
 
 ```bash
-curl -X POST "http://localhost:8081/todo/v1/user/projects" \
+curl -X POST "http://localhost:8081/workshop/v1/user/projects" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -208,7 +208,7 @@ curl -X POST "http://localhost:8081/todo/v1/user/projects" \
 ### 4. 创建任务
 
 ```bash
-curl -X POST "http://localhost:8081/todo/v1/user/tasks" \
+curl -X POST "http://localhost:8081/workshop/v1/user/tasks" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -222,7 +222,7 @@ curl -X POST "http://localhost:8081/todo/v1/user/tasks" \
 ### 5. 查询任务列表
 
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/user/tasks?project_id=1" \
+curl -X GET "http://localhost:8081/workshop/v1/user/tasks?project_id=1" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```

@@ -8,7 +8,7 @@
 
 ### 测试环境（本地开发）
 
-- **基础URL**: `http://localhost:8081/todo/v1`
+- **基础URL**: `http://localhost:8081/workshop/v1`
 - **认证方式**: 使用 Header 传递用户信息（网关模拟）
 - **Header 格式**:
   ```bash
@@ -33,7 +33,7 @@
 
 **测试环境**:
 ```bash
-BASE_URL="http://localhost:8081/todo/v1"
+BASE_URL="http://localhost:8081/workshop/v1"
 USER_ID="11111111-1111-1111-1111-111111111111"
 USERNAME="alice"
 ```
@@ -72,7 +72,7 @@ curl -X GET "$BASE_URL/user/projects" \
 
 | 项目 | 测试环境 | 生产环境 |
 |------|---------|---------|
-| 基础URL | `http://localhost:8081/todo/v1` | `https://api.feitianchengzi.com/workshop/v1` |
+| 基础URL | `http://localhost:8081/workshop/v1` | `https://api.feitianchengzi.com/workshop/v1` |
 | 认证方式 | Header 传递用户信息 | JWT Token |
 | Header 字段 | `X-User-ID`, `X-User-Username` | `Authorization: Bearer <token>` |
 | 网关处理 | 无（直接访问服务） | 有（网关处理认证和路由） |

@@ -34,7 +34,7 @@
 ```bash
 PROJECT_ID=1
 
-curl -X GET "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/tags" \
+curl -X GET "http://localhost:8081/workshop/v1/user/projects/$PROJECT_ID/tags" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -95,7 +95,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 
 **测试环境**:
 ```bash
-curl -X GET "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/tags?include_deleted=true" \
+curl -X GET "http://localhost:8081/workshop/v1/user/projects/$PROJECT_ID/tags?include_deleted=true" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
@@ -170,7 +170,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 ```bash
 PROJECT_ID=1
 
-curl -X POST "http://localhost:8081/todo/v1/user/projects/$PROJECT_ID/tags" \
+curl -X POST "http://localhost:8081/workshop/v1/user/projects/$PROJECT_ID/tags" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -276,7 +276,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_
 ```bash
 TAG_ID=1
 
-curl -X PUT "http://localhost:8081/todo/v1/user/tags/$TAG_ID" \
+curl -X PUT "http://localhost:8081/workshop/v1/user/tags/$TAG_ID" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice" \
   -H "Content-Type: application/json" \
@@ -390,7 +390,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tags/$TAG_ID" \
 ```bash
 TAG_ID=1
 
-curl -X DELETE "http://localhost:8081/todo/v1/user/tags/$TAG_ID" \
+curl -X DELETE "http://localhost:8081/workshop/v1/user/tags/$TAG_ID" \
   -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
   -H "X-User-Username: alice"
 ```
