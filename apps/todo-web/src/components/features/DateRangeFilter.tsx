@@ -222,17 +222,25 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
             : '日期'}
         </span>
         {hasFilter && (
-          <button
-            type="button"
+          <span
+            role="button"
+            tabIndex={0}
             onClick={(e) => {
               e.stopPropagation()
               onChange({ startDate: null, endDate: null })
             }}
-            className="ml-0.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex-shrink-0"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                e.stopPropagation()
+                onChange({ startDate: null, endDate: null })
+              }
+            }}
+            className="ml-0.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex-shrink-0 cursor-pointer"
             title="清除"
           >
             ×
-          </button>
+          </span>
         )}
       </button>
 

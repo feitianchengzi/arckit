@@ -1149,7 +1149,7 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
             {selectedTags.length > 0 ? (
               <>
                 {selectedTags.slice(0, 1).map(tag => (
-                  <TagDisplay key={tag.id} tag={tag} size="xs" />
+                  <TagDisplay key={tag.id} tag={tag} size="sm" />
                 ))}
                 {selectedTags.length > 1 && (
                   <span className="text-xs text-gray-500">+{selectedTags.length - 1}</span>
@@ -1229,7 +1229,7 @@ function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, o
                           className="w-3.5 h-3.5 text-primary border-border rounded focus:ring-primary flex-shrink-0"
                           onClick={(e) => e.stopPropagation()}
                         />
-                        <TagDisplay tag={tag} size="xs" />
+                        <TagDisplay tag={tag} size="sm" />
                       </label>
                     </div>
                   )
