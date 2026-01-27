@@ -1,13 +1,64 @@
 /**
  * CommentItem - 单个评论项组件
+ * 格式约定：[] 仅类型。[name](username)→@提及，[link](url) / [link](url|显示名)→可点击链接。
  */
 
 import { useState } from 'react'
+
+const escapeHtml = (s: string) =>
+  String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+
+/** 按约定转安全 HTML：[name](xxx)→@，[link](url) / [link](url|显示名)→<a>，裸 URL→<a>，换行→<br> */
+function commentTextToSafeHtml(text: string): string {
+  if (!text || typeof text !== 'string') return ''
+  let out = ''
+  let last = 0
+  const re = /\[([^\]]*)\]\(([^)]*)\)/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    const [, type, params] = m
+    const before = text.slice(last, m.index)
+    last = m.index + m[0].length
+    out += escapeHtml(before)
+    const p = (params || '').trim()
+    const typ = (type || '').trim()
+    if (typ === 'name') {
+      try {
+        out += `@${escapeHtml(decodeURIComponent(p))}`
+      } catch {
+        out += `@${escapeHtml(p)}`
+      }
+    } else if (typ === 'link') {
+      const parts = p.split('|')
+      const url = parts[0]?.trim() ?? ''
+      const name = parts[1]?.trim() || url
+      if (url) {
+        out += `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="comment-link">${escapeHtml(name)}</a>`
+      } else {
+        out += escapeHtml(m[0])
+      }
+    } else if (/^https?:\/\//i.test(p)) {
+      out += `<a href="${escapeHtml(p)}" target="_blank" rel="noopener noreferrer" class="comment-link">${escapeHtml(typ || p)}</a>`
+    } else {
+      out += escapeHtml(m[0])
+    }
+  }
+  out += escapeHtml(text.slice(last))
+  out = out.replace(
+    /(^|>|\s)(https?:\/\/[^\s<>"]+)/g,
+    (_, prefix: string, url: string) => `${prefix}<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="comment-link">${escapeHtml(url)}</a>`
+  )
+  return out.replace(/\n/g, '<br/>')
+}
+
 import { Avatar, ConfirmDialog } from '@/components/ui'
 import { PencilIcon, TrashIcon } from '@/components/ui/icons'
-import ReactMarkdown from 'react-markdown'
 import { CommentEditor } from './CommentEditor'
-import type { TaskComment } from '@/lib/api/endpoints/comments'
+import { buildTextCommentContent, parseTextCommentContent, type TaskComment } from '@/lib/api/endpoints/comments'
 import { uploadApi } from '@/lib/api/endpoints/upload'
 import { getSignedUrl } from '@/lib/oss/upload/getSignedUrl'
 import { formatRelativeTime } from '@/lib/utils/dateUtils'
@@ -59,9 +110,14 @@ export function CommentItem({
     }
   }
 
-  const handleEdit = async (content: string, type: 'text' | 'url' | 'file') => {
+  const handleEdit = async (data: { content: string; imageKeys: string[]; fileKeys: string[] }) => {
     setIsSaving(true)
     try {
+      const content = buildTextCommentContent({
+        text: data.content,
+        imageKeys: data.imageKeys,
+        fileKeys: data.fileKeys,
+      })
       await onEdit(comment.id, content)
       setIsEditing(false)
     } finally {
@@ -146,7 +202,6 @@ export function CommentItem({
           {isEditing ? (
             <CommentEditor
               initialContent={comment.content}
-              initialType={comment.type}
               onSubmit={handleEdit}
               onCancel={() => setIsEditing(false)}
               isLoading={isSaving}
@@ -199,79 +254,19 @@ export function CommentItem({
                   {comment.content}
                 </a>
               ) : (
-                <div className="prose prose-sm max-w-none">
-                  <ReactMarkdown
-                    components={{
-                      p: ({ children }: { children?: React.ReactNode }) => <p className="text-foreground mb-2 last:mb-0">{children}</p>,
-                      h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-lg font-bold text-foreground mb-2 mt-2 first:mt-0">{children}</h1>,
-                      h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-base font-bold text-foreground mb-1 mt-2 first:mt-0">{children}</h2>,
-                      h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-sm font-bold text-foreground mb-1 mt-2 first:mt-0">{children}</h3>,
-                      code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) => 
-                        inline ? (
-                          <code className="bg-surface-active text-foreground px-1 py-0.5 rounded text-xs font-mono">{children}</code>
-                        ) : (
-                          <code className="block bg-surface-active text-foreground p-2 rounded text-xs font-mono overflow-x-auto mb-2">{children}</code>
-                        ),
-                      pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-surface-active text-foreground p-2 rounded text-xs font-mono overflow-x-auto mb-2">{children}</pre>,
-                      ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-2 space-y-0.5 text-foreground">{children}</ul>,
-                      ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-2 space-y-0.5 text-foreground">{children}</ol>,
-                      li: ({ children }: { children?: React.ReactNode }) => <li className="text-foreground">{children}</li>,
-                      blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-2 border-border pl-2 italic text-foreground mb-2">{children}</blockquote>,
-                      a: ({ children, href }: { children?: React.ReactNode; href?: string }) => {
-                        // 检查是否是用户提及链接 [name](用户名)
-                        // [name]是固定前缀，href中是用户名
-                        // ReactMarkdown会将 [name](xxx) 解析为 children="name", href="xxx"
-                        const childrenText = typeof children === 'string' ? children : 
-                          (Array.isArray(children) && children.length === 1 && typeof children[0] === 'string' ? children[0] : null)
-                        
-                        if (childrenText === 'name' && href) {
-                          // 解码 URL 编码的用户名（ReactMarkdown 可能会对特殊字符进行编码）
-                          let decodedUsername = href
-                          try {
-                            // 尝试解码，如果失败则使用原始值
-                            decodedUsername = decodeURIComponent(href)
-                          } catch (e) {
-                            // 如果解码失败，使用原始值
-                            decodedUsername = href
-                          }
-                          return (
-                            <span className="text-blue-600">
-                              @{decodedUsername}
-                            </span>
-                          )
-                        }
-                        // 普通链接：确保链接有协议，否则添加 https://
-                        let finalHref = href || ''
-                        if (finalHref && !finalHref.match(/^https?:\/\//i)) {
-                          // 如果链接没有协议，添加 https://
-                          finalHref = `https://${finalHref}`
-                        }
-                        return (
-                          <a 
-                            href={finalHref} 
-                            className="text-blue-600 hover:text-blue-700 underline" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            onClick={(e) => {
-                              // 确保外部链接在新窗口打开，不被路由拦截
-                              if (finalHref && (finalHref.startsWith('http://') || finalHref.startsWith('https://'))) {
-                                e.preventDefault()
-                                window.open(finalHref, '_blank', 'noopener,noreferrer')
-                              }
-                            }}
-                          >
-                            {children}
-                          </a>
-                        )
-                      },
-                      strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-foreground">{children}</strong>,
-                      em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-foreground">{children}</em>,
-                      hr: () => <hr className="border-border my-2" />,
-                    }}
-                  >
-                    {comment.content}
-                  </ReactMarkdown>
-                </div>
+                <div
+                  className="comment-body text-foreground [&_.comment-link]:text-blue-600 [&_.comment-link]:underline [&_.comment-link]:hover:text-blue-700 [&_.comment-link]:cursor-pointer"
+                  dangerouslySetInnerHTML={{
+                    __html: commentTextToSafeHtml(parseTextCommentContent(comment.content)),
+                  }}
+                  onClick={(e) => {
+                    const a = (e.target as HTMLElement).closest('a.comment-link')
+                    if (a && a.getAttribute('href') && /^https?:\/\//i.test(a.getAttribute('href') ?? '')) {
+                      e.preventDefault()
+                      window.open(a.getAttribute('href')!, '_blank', 'noopener,noreferrer')
+                    }
+                  }}
+                />
               )}
             </div>
           )}

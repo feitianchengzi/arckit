@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { CommentList } from './CommentList'
 import { CommentEditor } from './CommentEditor'
 import { useTaskComments, useCreateComment, useUpdateComment, useDeleteComment } from '@/hooks/useTaskComments'
+import { buildTextCommentContent } from '@/lib/api/endpoints/comments'
 import { permissionManager } from '@/lib/permissions'
 import type { TaskInfo, ProjectRole } from '@/lib/permissions'
 
@@ -43,8 +44,13 @@ export function CommentSection({
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   })
 
-  const handleCreate = async (content: string, type: 'text' | 'url' | 'file') => {
-    await createComment.mutateAsync({ content, type })
+  const handleCreate = async (data: { content: string; imageKeys: string[]; fileKeys: string[] }) => {
+    const content = buildTextCommentContent({
+      text: data.content,
+      imageKeys: data.imageKeys,
+      fileKeys: data.fileKeys,
+    })
+    await createComment.mutateAsync({ content, type: 'text' })
   }
 
   const handleEdit = async (commentId: number, content: string) => {

@@ -6,5 +6,6 @@
 export { generateObjectKey } from './generateObjectKey'
 export { uploadToOSS } from './uploadToOSS'
 export { getSignedUrl } from './getSignedUrl'
+export { OssUploadPurpose, PURPOSE_TO_DIR } from './purpose'
 export type { OSSDirectory, UploadResult } from './types'
 
