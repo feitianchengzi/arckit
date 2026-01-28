@@ -145,6 +145,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | include_deleted | bool | 否 | 是否包含已删除的记录（默认false） |
+| organization_id | uint | 否 | 组织ID（可选，为空或0则查询组织ID为空的项目，否则查询指定组织ID的项目） |
 
 **请求示例**:
 
@@ -217,6 +218,9 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 - `include_deleted` 参数用于查询包含已删除（软删除）的项目
 - 当 `include_deleted=true` 时，响应中的 `deleted_at` 字段会显示删除时间（如果项目已删除）
 - 默认情况下（`include_deleted=false`），只返回未删除的项目
+- `organization_id` 参数用于按组织过滤项目：
+  - 不提供或为 `0`：只返回不属于任何组织的项目（`organization_id IS NULL`）
+  - 提供有效值：只返回属于该组织的项目（`organization_id = ?`）
 
 **查询包含已删除的项目**:
 
@@ -230,6 +234,36 @@ curl -X GET "http://localhost:8081/workshop/v1/user/projects?include_deleted=tru
 **生产环境**:
 ```bash
 curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects?include_deleted=true" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+**查询指定组织的项目**:
+
+**测试环境**:
+```bash
+curl -X GET "http://localhost:8081/workshop/v1/user/projects?organization_id=1" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
+```
+
+**生产环境**:
+```bash
+curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects?organization_id=1" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+**查询不属于任何组织的项目**:
+
+**测试环境**:
+```bash
+curl -X GET "http://localhost:8081/workshop/v1/user/projects?organization_id=0" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
+```
+
+**生产环境**:
+```bash
+curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects?organization_id=0" \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 

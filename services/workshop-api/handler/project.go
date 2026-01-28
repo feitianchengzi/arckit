@@ -151,17 +151,20 @@ type GetUserProjectsResponse struct {
 
 // GetUserProjectsRequest 查询用户项目请求结构
 type GetUserProjectsRequest struct {
-	IncludeDeleted bool   `form:"include_deleted"` // 是否包含已删除的记录（可选，默认false）
-	OrganizationID *uint  `form:"organization_id"` // 组织ID（可选，为空则查询组织ID为空的项目，否则查询指定组织ID的项目）
+	IncludeDeleted bool  `form:"include_deleted"` // 是否包含已删除的记录（可选，默认false）
+	OrganizationID *uint `form:"organization_id"` // 组织ID（可选，为空则查询组织ID为空的项目，否则查询指定组织ID的项目）
 }
 
 // GetUserProjects 根据用户ID查询所有参与的项目
-// 网关路由: GET /todo-service/v1/user/projects?include_deleted=true
 // 认证级别: user (需要JWT认证)
+// 查询参数：
+// - include_deleted: 是否包含已删除的记录（可选，默认false）
+// - organization_id: 组织ID（可选，为空或0则查询组织ID为空的项目，否则查询指定组织ID的项目）
 // 流程：
 // 1. 从Header UUID获取用户ID（通过中间件ExtractUserID）
 // 2. 查询该用户参与的所有项目（通过project_members表）
-// 3. 为每个项目查询并包含项目成员信息
+// 3. 根据organization_id参数过滤项目
+// 4. 为每个项目查询并包含项目成员信息
 func GetUserProjects(c *gin.Context) {
 	// 1. 绑定查询参数
 	var req GetUserProjectsRequest
