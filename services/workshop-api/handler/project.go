@@ -762,15 +762,14 @@ func buildInviteLink(inviteCode string) string {
 }
 
 // DeleteProject 删除项目
-// 网关路由: DELETE /todo-service/v1/user/projects/:id
 // 认证级别: user (需要JWT认证)
 // 权限规则：只有项目所有者可以删除项目
 // 流程：
 // 1. 从请求获取用户ID
 // 2. 查询项目
 // 3. 验证用户是项目所有者
-// 4. 删除项目（数据库会自动级联删除：项目成员、任务、邀请）
-// 注意：依赖数据库外键约束的 ON DELETE CASCADE 实现级联删除
+// 4. 应用层级联软删除：先软删除该项目的任务附件、任务、标签、项目成员、项目邀请，再软删除项目
+// 注意：使用软删除，需在应用层显式软删除关联数据，数据库 ON DELETE CASCADE 仅在物理删除时触发
 func DeleteProject(c *gin.Context) {
 	// 1. 获取项目ID
 	projectID := c.Param("id")
@@ -820,8 +819,36 @@ func DeleteProject(c *gin.Context) {
 		return
 	}
 
-	// 7. 删除项目（会级联删除项目成员和任务）
-	if err := db.Delete(&project).Error; err != nil {
+	// 7. 在事务中级联软删除：任务附件、任务、标签、项目成员、项目邀请，最后软删除项目
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// 7.1 软删除该项目下所有任务的附件（任务附件依赖任务，需先于任务处理）
+		if err := tx.Where("task_id IN (?)", tx.Model(&models.Task{}).Select("id").Where("project_id = ?", project.ID)).Delete(&models.TaskAttachment{}).Error; err != nil {
+			return err
+		}
+		// 7.2 软删除该项目下的所有任务
+		if err := tx.Where("project_id = ?", project.ID).Delete(&models.Task{}).Error; err != nil {
+			return err
+		}
+		// 7.3 软删除该项目下的所有标签
+		if err := tx.Where("project_id = ?", project.ID).Delete(&models.Tag{}).Error; err != nil {
+			return err
+		}
+		// 7.4 软删除该项目的所有成员
+		if err := tx.Where("project_id = ?", project.ID).Delete(&models.ProjectMember{}).Error; err != nil {
+			return err
+		}
+		// 7.5 软删除该项目的所有邀请
+		if err := tx.Where("project_id = ?", project.ID).Delete(&models.ProjectInvitation{}).Error; err != nil {
+			return err
+		}
+		// 7.6 软删除项目
+		if err := tx.Delete(&project).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectUpdateFailed, "删除项目失败: "+err.Error(), nil))
 		return
 	}

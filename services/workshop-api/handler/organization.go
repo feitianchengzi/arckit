@@ -14,8 +14,8 @@ import (
 
 // CreateOrganizationRequest 创建组织请求结构
 type CreateOrganizationRequest struct {
-	Name        string `json:"name" binding:"required"`         // 组织名称（必填）
-	Description string `json:"description"`                     // 组织描述（可选）
+	Name        string `json:"name" binding:"required"` // 组织名称（必填）
+	Description string `json:"description"`             // 组织描述（可选）
 }
 
 // OrganizationMemberResponse 组织成员响应结构
@@ -31,12 +31,12 @@ type OrganizationMemberResponse struct {
 
 // CreateOrganizationResponse 创建组织响应结构
 type CreateOrganizationResponse struct {
-	ID          uint                        `json:"id"`           // 组织ID
-	Name        string                      `json:"name"`         // 组织名称
-	Description string                      `json:"description"`  // 组织描述
-	CreatorID   uint                        `json:"creator_id"`   // 创建者ID
-	Members     []OrganizationMemberResponse `json:"members"`      // 组织成员列表
-	CreatedAt   string                      `json:"created_at"`   // 创建时间
+	ID          uint                         `json:"id"`          // 组织ID
+	Name        string                       `json:"name"`        // 组织名称
+	Description string                       `json:"description"` // 组织描述
+	CreatorID   uint                         `json:"creator_id"`  // 创建者ID
+	Members     []OrganizationMemberResponse `json:"members"`     // 组织成员列表
+	CreatedAt   string                       `json:"created_at"`  // 创建时间
 }
 
 // CreateOrganization 创建新组织
@@ -465,8 +465,8 @@ func UpdateOrganization(c *gin.Context) {
 // 1. 从请求获取用户ID
 // 2. 查询组织
 // 3. 验证用户是组织所有者
-// 4. 删除组织（数据库会自动级联删除：组织成员、项目）
-// 注意：依赖数据库外键约束的 ON DELETE CASCADE 实现级联删除
+// 4. 应用层级联软删除：先软删除该组织的成员、邀请、下属项目，再软删除组织
+// 注意：使用软删除，需在应用层显式软删除关联数据，数据库 ON DELETE CASCADE 仅在物理删除时触发
 func DeleteOrganization(c *gin.Context) {
 	// 1. 获取组织ID
 	organizationID := c.Param("id")
@@ -516,8 +516,28 @@ func DeleteOrganization(c *gin.Context) {
 		return
 	}
 
-	// 7. 删除组织（会级联删除组织成员和项目）
-	if err := db.Delete(&organization).Error; err != nil {
+	// 7. 在事务中级联软删除：组织成员、组织邀请、下属项目，最后软删除组织
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// 7.1 软删除该组织的所有成员
+		if err := tx.Where("organization_id = ?", organization.ID).Delete(&models.OrganizationMember{}).Error; err != nil {
+			return err
+		}
+		// 7.2 软删除该组织的所有邀请
+		if err := tx.Where("organization_id = ?", organization.ID).Delete(&models.OrganizationInvitation{}).Error; err != nil {
+			return err
+		}
+		// 7.3 软删除该组织下的所有项目
+		if err := tx.Where("organization_id = ?", organization.ID).Delete(&models.Project{}).Error; err != nil {
+			return err
+		}
+		// 7.4 软删除组织
+		if err := tx.Delete(&organization).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationUpdateFailed, "删除组织失败: "+err.Error(), nil))
 		return
 	}
@@ -684,11 +704,11 @@ type JoinOrganizationRequest struct {
 // JoinOrganizationResponse 加入组织响应结构
 type JoinOrganizationResponse struct {
 	ID               uint   `json:"id"`                // 成员关系ID
-	OrganizationID   uint   `json:"organization_id"`    // 组织ID
-	UserID          uint   `json:"user_id"`            // 用户ID
-	Role            string `json:"role"`                // 角色
+	OrganizationID   uint   `json:"organization_id"`   // 组织ID
+	UserID           uint   `json:"user_id"`           // 用户ID
+	Role             string `json:"role"`              // 角色
 	OrganizationName string `json:"organization_name"` // 组织名称
-	CreatedAt       string `json:"created_at"`          // 加入时间
+	CreatedAt        string `json:"created_at"`        // 加入时间
 }
 
 // JoinOrganization 加入组织（使用邀请码）
@@ -805,10 +825,10 @@ func JoinOrganization(c *gin.Context) {
 	resp := JoinOrganizationResponse{
 		ID:               newMember.ID,
 		OrganizationID:   newMember.OrganizationID,
-		UserID:          newMember.UserID,
-		Role:            newMember.Role,
+		UserID:           newMember.UserID,
+		Role:             newMember.Role,
 		OrganizationName: organization.Name,
-		CreatedAt:       newMember.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		CreatedAt:        newMember.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
