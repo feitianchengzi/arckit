@@ -460,6 +460,129 @@ func UpdateProject(c *gin.Context) {
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
+// AddProjectMemberRequest 添加项目成员请求结构（通过组织成员ID）
+type AddProjectMemberRequest struct {
+	OrganizationMemberID uint `json:"organization_member_id" binding:"required"` // 组织成员ID（必填）
+}
+
+// AddProjectMemberResponse 添加项目成员响应结构
+type AddProjectMemberResponse struct {
+	ID        uint   `json:"id"`         // 成员关系ID
+	ProjectID uint   `json:"project_id"` // 项目ID
+	UserID    uint   `json:"user_id"`    // 用户ID
+	Role      string `json:"role"`       // 角色
+	Username  string `json:"username"`   // 用户名
+	Avatar    string `json:"avatar"`     // 头像
+	CreatedAt string `json:"created_at"` // 加入时间
+}
+
+// AddProjectMember 添加项目成员（通过组织成员ID，无权限限制）
+// 网关路由: POST /todo-service/v1/user/projects/:id/members
+// 认证级别: user (需要JWT认证)
+// 流程：
+// 1. 获取项目ID、请求体中的组织成员ID
+// 2. 校验项目存在且属于某组织
+// 3. 校验组织成员存在且属于该项目所属组织
+// 4. 若该用户已是项目成员则直接返回成功
+// 5. 创建项目成员（role=member）
+func AddProjectMember(c *gin.Context) {
+	projectID := c.Param("id")
+	if projectID == "" {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectIDEmpty, "项目ID不能为空", nil))
+		return
+	}
+
+	var req AddProjectMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
+		return
+	}
+
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	var project models.Project
+	if err := db.First(&project, projectID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeProjectNotFound, "项目不存在", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询项目失败: "+err.Error(), nil))
+		return
+	}
+
+	if project.OrganizationID == nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "该项目未关联组织，无法通过组织成员添加", nil))
+		return
+	}
+
+	var orgMember models.OrganizationMember
+	if err := db.Preload("User").First(&orgMember, req.OrganizationMemberID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeBadRequest, "组织成员不存在", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询组织成员失败: "+err.Error(), nil))
+		return
+	}
+
+	if orgMember.OrganizationID != *project.OrganizationID {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "该组织成员不属于本项目所在组织", nil))
+		return
+	}
+
+	var existing models.ProjectMember
+	err := db.Where("project_id = ? AND user_id = ?", project.ID, orgMember.UserID).First(&existing).Error
+	if err == nil {
+		// 已是项目成员，直接返回成功（幂等）
+		username := ""
+		avatar := ""
+		if orgMember.User.ID != 0 {
+			username = orgMember.User.Username
+			avatar = orgMember.User.Avatar
+		}
+		resp := AddProjectMemberResponse{
+			ID:        existing.ID,
+			ProjectID: existing.ProjectID,
+			UserID:    existing.UserID,
+			Role:      existing.Role,
+			Username:  username,
+			Avatar:    avatar,
+			CreatedAt: existing.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+		c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
+		return
+	}
+	if err != gorm.ErrRecordNotFound {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "检查项目成员失败: "+err.Error(), nil))
+		return
+	}
+
+	newMember := models.ProjectMember{
+		ProjectID: project.ID,
+		UserID:    orgMember.UserID,
+		Role:      models.ProjectRoleMember,
+	}
+	if err := db.Create(&newMember).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectCreateFailed, "添加项目成员失败: "+err.Error(), nil))
+		return
+	}
+
+	resp := AddProjectMemberResponse{
+		ID:        newMember.ID,
+		ProjectID: newMember.ProjectID,
+		UserID:    newMember.UserID,
+		Role:      newMember.Role,
+		Username:  orgMember.User.Username,
+		Avatar:    orgMember.User.Avatar,
+		CreatedAt: newMember.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
+}
+
 // InviteProjectMemberRequest 邀请项目成员请求结构
 type InviteProjectMemberRequest struct {
 	Role      string `json:"role,omitempty"`       // 邀请的角色（可选，默认为member）

@@ -599,7 +599,164 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_
 
 ---
 
-## 6. 加入项目（使用邀请码）
+## 6. 添加项目成员（通过组织成员ID）
+
+**接口**: `POST /workshop/v1/user/projects/:id/members`
+
+**认证级别**: `user`（需要JWT认证）
+
+**权限规则**: 无权限限制，任何已认证用户均可调用。仅校验项目存在、项目已关联组织、组织成员存在且属于该项目所在组织。
+
+**路径参数**:
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| id | uint | 项目ID |
+
+**描述**: 通过组织成员ID将对应用户直接加入为项目成员。项目必须已关联组织，且组织成员必须属于该项目所在组织。若该用户已是项目成员，则幂等返回当前成员信息。
+
+**请求示例**:
+
+**测试环境**:
+```bash
+PROJECT_ID=1
+
+curl -X POST "http://localhost:8081/workshop/v1/user/projects/$PROJECT_ID/members" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organization_member_id": 5
+  }'
+```
+
+**生产环境**:
+```bash
+PROJECT_ID=1
+
+curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_ID/members" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organization_member_id": 5
+  }'
+```
+
+**请求字段说明**:
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| organization_member_id | uint | 是 | 组织成员ID（组织成员表主键） |
+
+**响应示例** (`201 Created` - 新加入):
+```json
+{
+  "code": "OK",
+  "data": {
+    "id": 4,
+    "project_id": 1,
+    "user_id": 12,
+    "role": "member",
+    "username": "jane_doe",
+    "avatar": "https://example.com/avatar.png",
+    "created_at": "2024-01-01T12:10:00Z"
+  }
+}
+```
+
+**响应示例** (`200 OK` - 已是成员，幂等):
+```json
+{
+  "code": "OK",
+  "data": {
+    "id": 3,
+    "project_id": 1,
+    "user_id": 12,
+    "role": "member",
+    "username": "jane_doe",
+    "avatar": "https://example.com/avatar.png",
+    "created_at": "2024-01-01T12:00:00Z"
+  }
+}
+```
+
+**响应字段说明**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | uint | 成员关系ID（project_members 主键） |
+| project_id | uint | 项目ID |
+| user_id | uint | 用户ID |
+| role | string | 角色（新加入固定为 "member"） |
+| username | string | 用户名 |
+| avatar | string | 头像地址 |
+| created_at | string | 加入时间（ISO 8601格式） |
+
+**特殊说明**:
+- 项目必须已关联组织（`organization_id` 非空），否则返回 400。
+- 组织成员必须属于该项目所在组织，否则返回 400。
+- 若该用户已是项目成员，返回 200 及当前成员信息（幂等）。
+
+**错误响应**:
+
+**400 Bad Request** - 项目未关联组织:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "该项目未关联组织，无法通过组织成员添加",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 组织成员不属于项目所在组织:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "该组织成员不属于本项目所在组织",
+    "details": null
+  }
+}
+```
+
+**404 Not Found** - 项目不存在:
+```json
+{
+  "code": "PROJECT_NOT_FOUND",
+  "error": {
+    "message": "项目不存在",
+    "details": null
+  }
+}
+```
+
+**404 Not Found** - 组织成员不存在:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "组织成员不存在",
+    "details": null
+  }
+}
+```
+
+**500 Internal Server Error**:
+```json
+{
+  "code": "PROJECT_CREATE_FAILED",
+  "error": {
+    "message": "添加项目成员失败: ...",
+    "details": null
+  }
+}
+```
+
+---
+
+## 7. 加入项目（使用邀请码）
 
 **接口**: `POST /workshop/v1/user/projects/join`
 
@@ -715,7 +872,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/join" \
 
 ---
 
-## 7. 删除项目成员
+## 8. 删除项目成员
 
 **接口**: `DELETE /workshop/v1/user/projects/:id/members`
 
@@ -851,7 +1008,7 @@ curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJEC
 
 ---
 
-## 8. 设置成员角色
+## 9. 设置成员角色
 
 **接口**: `PUT /workshop/v1/user/projects/:id/members/role`
 
