@@ -32,7 +32,7 @@ export class StorageManager {
       l1Item.accessCount++
       if (ENABLE_AVATAR_LOGS) {
         console.log(`[StorageManager] ✅ L1 缓存命中: ${objectKey}`, {
-          signedUrl: l1Item.signedUrl.substring(0, 50) + '...',
+          signedUrl: l1Item.signedUrl,
           expiresAt: new Date(l1Item.expiresAt).toLocaleString(),
           accessCount: l1Item.accessCount,
         })
@@ -49,7 +49,7 @@ export class StorageManager {
       l2Item.accessCount++
       if (ENABLE_AVATAR_LOGS) {
         console.log(`[StorageManager] ✅ L2 缓存命中（已提升到 L1）: ${objectKey}`, {
-          signedUrl: l2Item.signedUrl.substring(0, 50) + '...',
+          signedUrl: l2Item.signedUrl,
           expiresAt: new Date(l2Item.expiresAt).toLocaleString(),
           accessCount: l2Item.accessCount,
         })

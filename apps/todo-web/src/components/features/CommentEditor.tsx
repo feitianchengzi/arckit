@@ -14,6 +14,7 @@ import Mention from '@tiptap/extension-mention'
 import Link from '@tiptap/extension-link'
 import type { SuggestionProps } from '@tiptap/suggestion'
 import { Button, Avatar } from '@/components/ui'
+import { ImageIcon, PaperClipIcon, LinkIcon } from '@/components/ui/icons'
 import { uploadApi } from '@/lib/api/endpoints/upload'
 import { parseTextCommentContentPayload, rawUrlsToLinkFormat } from '@/lib/api/endpoints/comments'
 import { OssResourceManager, OssUploadPurpose } from '@/lib/oss/OssResourceManager'
@@ -125,6 +126,7 @@ export function CommentEditor({
 }: CommentEditorProps) {
   const parsed = parseInitialContent(initialContent)
 
+  const [hasText, setHasText] = useState(!!parsed.text.trim())
   const [images, setImages] = useState<{ key: string; url: string }[]>([])
   const [files, setFiles] = useState<{ key: string; name: string }[]>([])
   const [error, setError] = useState('')
@@ -189,10 +191,10 @@ export function CommentEditor({
               avatar: m.avatar ?? m.user?.avatar,
             }))
           },
-          command: ({ editor: ed, range, props }: { editor: Editor; range: { from: number; to: number }; props: { id: string; label: string; userId?: number } }) => {
+          command: ({ editor: ed, range, props }: { editor: Editor; range: { from: number; to: number }; props: { id: string | null; label?: string | null; userId?: number } }) => {
             if (props.userId != null && projectId) saveRecentMention(projectId, props.userId)
             ed.chain().focus().insertContentAt(range, [
-              { type: 'mention', attrs: { id: props.id, label: props.label, mentionSuggestionChar: '@' } },
+              { type: 'mention', attrs: { id: props.id || '', label: props.label || props.id || '', mentionSuggestionChar: '@' } },
               { type: 'text', text: ' ' },
             ]).run()
           },
@@ -240,11 +242,14 @@ export function CommentEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ history: { depth: 50 } }),
+      StarterKit.configure(),
       Placeholder.configure({ placeholder }),
       mentionExt,
       Link.configure({ openOnClick: false }),
     ],
+    onUpdate: ({ editor }) => {
+      setHasText(!!editor.getText().trim())
+    },
     content: mentionTextToHtml(parsed.text) || '<p></p>',
     editorProps: {
       attributes: {
@@ -370,7 +375,7 @@ export function CommentEditor({
   const handleSubmit = async () => {
     if (!editor) return
     const raw = htmlToMentionText(editor.getHTML())
-    const content = rawUrlsToLinkFormat(raw)
+    let content = rawUrlsToLinkFormat(raw)
     const textOnly = content.replace(/\[name\]\([^)]*\)/g, ' ').replace(/\[link\]\([^)]*\)/g, ' ').replace(/\[([^\]]*)\]\([^)]*\)/g, ' ').trim()
     const hasTags = /\[(name|link)\]\(/.test(content)
     if (!textOnly && !hasTags && images.length === 0 && files.length === 0) {
@@ -378,32 +383,33 @@ export function CommentEditor({
       return
     }
     setError('')
+
+    // Prepend images and files as tags
+    const imageTags = images.map((img) => `[image](${img.key})`).join(' ')
+    const fileTags = files.map((file) => `[file](${file.key})`).join(' ')
+    
+    let finalContent = content
+    if (fileTags) finalContent = finalContent ? `${fileTags} ${finalContent}` : fileTags
+    if (imageTags) finalContent = finalContent ? `${imageTags} ${finalContent}` : imageTags
+
     try {
       await onSubmit({
-        content,
-        imageKeys: images.map((i) => i.key),
-        fileKeys: files.map((f) => f.key),
+        content: finalContent,
+        imageKeys: [],
+        fileKeys: [],
       })
       editor.commands.setContent('<p></p>')
       setImages([])
       setFiles([])
+      setHasText(false)
     } catch (err: any) {
       setError(err?.message || '提交失败')
     }
   }
-
-  const handleClear = () => {
-    editor?.commands.setContent('<p></p>')
-    setImages([])
-    setFiles([])
-    setError('')
-  }
-
-  const hasContent =
-    (editor?.getText()?.trim() ?? '') || images.length > 0 || files.length > 0
+  const hasContent = hasText || images.length > 0 || files.length > 0
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 relative">
       {/* 图片区：置顶，最多 5 个一行，缩略图，悬停显示删除 */}
       {images.length > 0 && (
         <div
@@ -419,6 +425,7 @@ export function CommentEditor({
               <img
                 src={img.url}
                 alt=""
+                data-oss-key={img.key}
                 className="w-full h-full object-cover"
               />
               <button
@@ -436,118 +443,173 @@ export function CommentEditor({
         </div>
       )}
 
-      {/* 工具栏：插入图片、插入文件、插入链接 */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleImageChange}
-            disabled={isLoading || isUploading}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            onChange={handleFileChange}
-            disabled={isLoading || isUploading}
-          />
-          <button
-            type="button"
-            onClick={() => imageInputRef.current?.click()}
-            disabled={isLoading || isUploading}
-            className="text-sm px-2 py-1.5 rounded-md bg-surface-hover text-foreground-secondary hover:text-foreground hover:bg-surface-active disabled:opacity-50"
-          >
-            插入图片
-          </button>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading || isUploading}
-            className="text-sm px-2 py-1.5 rounded-md bg-surface-hover text-foreground-secondary hover:text-foreground hover:bg-surface-active disabled:opacity-50"
-          >
-            插入文件
-          </button>
-          <button
-            type="button"
-            onClick={openLinkPopup}
-            disabled={isLoading || !editor}
-            className="text-sm px-2 py-1.5 rounded-md bg-surface-hover text-foreground-secondary hover:text-foreground hover:bg-surface-active disabled:opacity-50"
-          >
-            插入链接
-          </button>
+      {/* 附件区 */}
+      {files.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {files.map((f, index) => (
+            <span
+              key={f.key}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-surface-active text-sm text-foreground border border-border"
+            >
+              <span className="truncate max-w-[120px]" title={f.name}>{f.name}</span>
+              <button
+                type="button"
+                onClick={() => removeFile(index)}
+                className="shrink-0 text-foreground-secondary hover:text-foreground"
+                aria-label="移除附件"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </span>
+          ))}
         </div>
-        {linkPopupOpen && (
-          <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-elevated px-2 py-2">
+      )}
+
+      {/* 统一的编辑器容器 */}
+      <div
+        className={clsx(
+          'flex flex-col rounded-lg border bg-surface transition-all',
+          'border-border focus-within:border-primary focus-within:ring-1 focus-within:ring-primary',
+          (isLoading || isUploading) && 'opacity-70 pointer-events-none'
+        )}
+      >
+        {/* 输入框区域 */}
+        <div className="min-h-[80px]">
+          <EditorContent editor={editor} />
+          <style>{`
+            .mention-tag { color: #2563eb; font-weight: 500; cursor: default; user-select: none; padding: 0 2px; }
+            .ProseMirror a { color: #2563eb; text-decoration: underline; cursor: pointer; }
+          `}</style>
+        </div>
+
+        {/* 底部工具栏 */}
+        <div className="flex items-center justify-between px-2 py-2 border-t border-border/50 bg-surface-muted/30 rounded-b-lg">
+          {/* 左侧功能按钮 */}
+          <div className="flex items-center gap-1">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageChange}
+              disabled={isLoading || isUploading}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileChange}
+              disabled={isLoading || isUploading}
+            />
+            
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isLoading || isUploading}
+              className="p-2 rounded-md hover:bg-surface-hover text-foreground-secondary hover:text-foreground transition-colors"
+              title="插入图片"
+            >
+              <ImageIcon className="w-5 h-5" />
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading || isUploading}
+              className="p-2 rounded-md hover:bg-surface-hover text-foreground-secondary hover:text-foreground transition-colors"
+              title="插入附件"
+            >
+              <PaperClipIcon className="w-5 h-5" />
+            </button>
+            
+            <button
+              type="button"
+              onClick={openLinkPopup}
+              disabled={isLoading || !editor}
+              className="p-2 rounded-md hover:bg-surface-hover text-foreground-secondary hover:text-foreground transition-colors"
+              title="插入链接"
+            >
+              <LinkIcon className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* 右侧操作按钮 */}
+          <div className="flex items-center gap-2">
+            {onCancel && (
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={onCancel}
+                disabled={isLoading || isUploading}
+              >
+                {cancelLabel}
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSubmit}
+              loading={isLoading || isUploading}
+              disabled={!hasContent}
+            >
+              {submitLabel}
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* 链接弹出框 */}
+      {linkPopupOpen && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-surface-elevated px-3 py-3 shadow-lg absolute bottom-full mb-2 left-0 z-10 w-full max-w-md">
             <input
               type="url"
               value={linkUrl}
               onChange={(e) => setLinkUrl(e.target.value)}
               placeholder="链接地址"
-              className="min-w-[200px] flex-1 rounded border border-border bg-surface px-2 py-1.5 text-sm text-foreground placeholder:text-foreground-muted"
+              className="flex-1 min-w-[150px] rounded border border-border bg-surface px-2 py-1.5 text-sm text-foreground placeholder:text-foreground-muted"
               onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  cancelLinkPopup()
-                  return
-                }
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                  e.preventDefault()
-                  applyLink()
-                }
+                if (e.key === 'Escape') { cancelLinkPopup(); return }
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); applyLink() }
               }}
+              autoFocus
             />
             <input
               type="text"
               value={linkText}
               onChange={(e) => setLinkText(e.target.value)}
-              placeholder="链接文字（选填，无选区时作显示名）"
-              className="min-w-[140px] flex-1 rounded border border-border bg-surface px-2 py-1.5 text-sm text-foreground placeholder:text-foreground-muted"
+              placeholder="链接文字"
+              className="w-[100px] rounded border border-border bg-surface px-2 py-1.5 text-sm text-foreground placeholder:text-foreground-muted"
               onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  cancelLinkPopup()
-                  return
-                }
-                if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
-                  e.preventDefault()
-                  applyLink()
-                }
+                if (e.key === 'Escape') { cancelLinkPopup(); return }
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) { e.preventDefault(); applyLink() }
               }}
             />
             <div className="flex gap-1">
               <button
                 type="button"
                 onClick={applyLink}
-                className="rounded px-2 py-1.5 text-sm bg-primary text-primary-fg hover:opacity-90"
+                className="rounded px-2 py-1.5 text-sm bg-primary text-primary-fg hover:opacity-90 whitespace-nowrap"
               >
                 确定
               </button>
               <button
                 type="button"
                 onClick={cancelLinkPopup}
-                className="rounded px-2 py-1.5 text-sm bg-surface-hover text-foreground-secondary hover:text-foreground"
+                className="rounded px-2 py-1.5 text-sm bg-surface-hover text-foreground-secondary hover:text-foreground whitespace-nowrap"
               >
                 取消
               </button>
             </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
-      {/* 单输入框：Tiptap */}
-      <div
-        className={clsx(
-          'rounded-md border bg-surface-elevated focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20',
-          'border-border'
-        )}
-      >
-        <EditorContent editor={editor} />
-        <style>{`
-          .mention-tag { color: #2563eb; font-weight: 500; cursor: default; user-select: none; padding: 0 2px; }
-          .ProseMirror a { color: #2563eb; text-decoration: underline; cursor: pointer; }
-        `}</style>
-      </div>
+      {error && (
+        <div className="rounded-md border border-error bg-error/10 px-2 py-1.5">
+          <p className="text-xs text-error">{error}</p>
+        </div>
+      )}
 
       {/* @ 提及下拉：Portal 到 body */}
       {suggestionProps && suggestionRect && suggestionProps.items.length > 0 &&
@@ -592,53 +654,6 @@ export function CommentEditor({
           </>,
           document.body
         )}
-
-      {/* 附件区：在输入框外 */}
-      {files.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {files.map((f, index) => (
-            <span
-              key={f.key}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-surface-active text-sm text-foreground border border-border"
-            >
-              <span className="truncate max-w-[120px]" title={f.name}>{f.name}</span>
-              <button
-                type="button"
-                onClick={() => removeFile(index)}
-                className="shrink-0 text-foreground-secondary hover:text-foreground"
-                aria-label="移除附件"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {error && (
-        <div className="rounded-md border border-error bg-error/10 px-2 py-1.5">
-          <p className="text-xs text-error">{error}</p>
-        </div>
-      )}
-
-      <div className="flex items-center justify-end gap-2">
-        {hasContent && (
-          <Button variant="secondary" size="sm" onClick={handleClear} disabled={isLoading || isUploading}>
-            清空
-          </Button>
-        )}
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={handleSubmit}
-          loading={isLoading || isUploading}
-          disabled={!hasContent}
-        >
-          {submitLabel}
-        </Button>
-      </div>
     </div>
   )
 }

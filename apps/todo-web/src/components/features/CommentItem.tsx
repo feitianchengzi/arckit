@@ -3,7 +3,7 @@
  * 格式约定：[] 仅类型。[name](username)→@提及，[link](url) / [link](url|显示名)→可点击链接。
  */
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 
 const escapeHtml = (s: string) =>
   String(s)
@@ -62,7 +62,91 @@ import { buildTextCommentContent, parseTextCommentContent, type TaskComment } fr
 import { uploadApi } from '@/lib/api/endpoints/upload'
 import { getSignedUrl } from '@/lib/oss/upload/getSignedUrl'
 import { formatRelativeTime } from '@/lib/utils/dateUtils'
+import { OssResourceManager } from '@/lib/oss/OssResourceManager'
 import clsx from 'clsx'
+
+type ContentPart = 
+  | { type: 'text', content: string }
+  | { type: 'image', key: string }
+  | { type: 'file', key: string }
+
+function parseContentToParts(text: string): ContentPart[] {
+  const parts: ContentPart[] = []
+  const regex = /\[(image|file)\]\(([^)]+)\)/g
+  let lastIndex = 0
+  let match
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', content: text.slice(lastIndex, match.index) })
+    }
+    parts.push({ type: match[1] as 'image' | 'file', key: match[2] })
+    lastIndex = regex.lastIndex
+  }
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', content: text.slice(lastIndex) })
+  }
+  return parts.length > 0 ? parts : [{ type: 'text', content: text }]
+}
+
+function CommentImage({ objectKey }: { objectKey: string }) {
+  const [url, setUrl] = useState('')
+  useEffect(() => {
+    console.log('[CommentImage] Start resolving:', objectKey)
+    let active = true
+    OssResourceManager.resolve(objectKey).then(u => {
+      console.log('[CommentImage] Resolved:', objectKey, u)
+      if (active && u) setUrl(u)
+    }).catch(err => {
+      console.error('[CommentImage] Failed to resolve:', objectKey, err)
+    })
+    return () => { active = false }
+  }, [objectKey])
+
+  if (!url) return <div className="w-16 h-16 bg-surface-active animate-pulse rounded my-2" />
+  return (
+    <img 
+      src={url} 
+      alt="图片附件" 
+      data-oss-key={objectKey}
+      className="max-w-full rounded-md max-h-[300px] object-contain my-2 border border-border" 
+    />
+  )
+}
+
+function CommentFile({ objectKey }: { objectKey: string }) {
+  const [loading, setLoading] = useState(false)
+  const fileName = objectKey.split('/').pop() || '附件'
+  
+  const handleDownload = async () => {
+    if (loading) return
+    setLoading(true)
+    try {
+      const credentials = await uploadApi.getSTSToken()
+      const url = await getSignedUrl(objectKey, credentials)
+      window.open(url, '_blank')
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 p-2 bg-surface-active rounded-md my-1 inline-flex border border-border max-w-full">
+      <svg className="w-5 h-5 text-foreground-secondary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      <button
+        onClick={handleDownload}
+        disabled={loading}
+        className="text-blue-600 hover:text-blue-700 underline truncate text-left disabled:opacity-50"
+      >
+        {loading ? '生成链接中...' : fileName}
+      </button>
+    </div>
+  )
+}
 
 export interface CommentItemProps {
   comment: TaskComment
@@ -113,12 +197,7 @@ export function CommentItem({
   const handleEdit = async (data: { content: string; imageKeys: string[]; fileKeys: string[] }) => {
     setIsSaving(true)
     try {
-      const content = buildTextCommentContent({
-        text: data.content,
-        imageKeys: data.imageKeys,
-        fileKeys: data.fileKeys,
-      })
-      await onEdit(comment.id, content)
+      await onEdit(comment.id, data.content)
       setIsEditing(false)
     } finally {
       setIsSaving(false)
@@ -136,6 +215,34 @@ export function CommentItem({
 
   const username = creatorInfo?.username || '未知用户'
   const avatar = creatorInfo?.avatar
+
+  const contentParts = useMemo(() => {
+    if (comment.type === 'text') {
+      // 1. 尝试检测是否为 JSON 格式（旧数据兼容）
+      const rawContent = comment.content
+      try {
+        const json = JSON.parse(rawContent)
+        if (json && typeof json.text === 'string') {
+          // 旧数据：将 JSON 转为 ContentPart[]
+          const parts: ContentPart[] = []
+          if (Array.isArray(json.imageKeys)) {
+            json.imageKeys.forEach((k: string) => parts.push({ type: 'image', key: k }))
+          }
+          if (Array.isArray(json.fileKeys)) {
+            json.fileKeys.forEach((k: string) => parts.push({ type: 'file', key: k }))
+          }
+          if (json.text) {
+            parts.push({ type: 'text', content: json.text })
+          }
+          return parts
+        }
+      } catch {}
+
+      // 2. 新数据：直接解析 rawContent，不使用 parseTextCommentContent（因为它会剥离 tags）
+      return parseContentToParts(rawContent)
+    }
+    return []
+  }, [comment.content, comment.type])
 
   return (
     <div className="py-3 border-b border-divider last:border-b-0">
@@ -254,19 +361,29 @@ export function CommentItem({
                   {comment.content}
                 </a>
               ) : (
-                <div
-                  className="comment-body text-foreground [&_.comment-link]:text-blue-600 [&_.comment-link]:underline [&_.comment-link]:hover:text-blue-700 [&_.comment-link]:cursor-pointer"
-                  dangerouslySetInnerHTML={{
-                    __html: commentTextToSafeHtml(parseTextCommentContent(comment.content)),
-                  }}
-                  onClick={(e) => {
-                    const a = (e.target as HTMLElement).closest('a.comment-link')
-                    if (a && a.getAttribute('href') && /^https?:\/\//i.test(a.getAttribute('href') ?? '')) {
-                      e.preventDefault()
-                      window.open(a.getAttribute('href')!, '_blank', 'noopener,noreferrer')
-                    }
-                  }}
-                />
+                <div className="space-y-1">
+                  {contentParts.map((part, i) => {
+                    if (part.type === 'image') return <div key={i}><CommentImage objectKey={part.key} /></div>
+                    if (part.type === 'file') return <div key={i}><CommentFile objectKey={part.key} /></div>
+                    if (!part.content.trim()) return null
+                    return (
+                      <div
+                        key={i}
+                        className="comment-body text-foreground [&_.comment-link]:text-blue-600 [&_.comment-link]:underline [&_.comment-link]:hover:text-blue-700 [&_.comment-link]:cursor-pointer"
+                        dangerouslySetInnerHTML={{
+                          __html: commentTextToSafeHtml(part.content),
+                        }}
+                        onClick={(e) => {
+                          const a = (e.target as HTMLElement).closest('a.comment-link')
+                          if (a && a.getAttribute('href') && /^https?:\/\//i.test(a.getAttribute('href') ?? '')) {
+                            e.preventDefault()
+                            window.open(a.getAttribute('href')!, '_blank', 'noopener,noreferrer')
+                          }
+                        }}
+                      />
+                    )
+                  })}
+                </div>
               )}
             </div>
           )}

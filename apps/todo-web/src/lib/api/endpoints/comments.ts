@@ -18,13 +18,15 @@ import { handleResponse } from '../interceptors/response'
  *   示例 "[link](https://www.baidu.com)"、"[link](https://www.baidu.com|百度)"
  *   用户输入裸 URL（如 www.baidu.com）时，提交前转为 [link](https://www.baidu.com)
  *
- * - 图片：   (当前) 使用 payload.imageKeys；(后续可扩展) 内联如 [image](ossKey)
- * - 文件：   (当前) 使用 payload.fileKeys；(后续可扩展) 内联如 [file](ossKey)
+ * - 图片：   [image](ossKey)
+ * - 文件：   [file](ossKey)
  */
 export const COMMENT_RICH_TEXT_FORMAT = {
   mention: '[name](username)' as const,
   link: '[link](url)' as const,
   linkWithName: '[link](url|显示名)' as const,
+  image: '[image](key)' as const,
+  file: '[file](key)' as const,
 }
 
 /**
@@ -87,9 +89,11 @@ export function parseTextCommentContent(content: string): string {
   return p ? p.text : (content ?? '')
 }
 
-/** 解析出完整 payload，用于编辑回填；非 JSON 或无效时返回 null */
+/** 解析出完整 payload，用于编辑回填；支持 JSON 格式（旧）和 Tag 格式（新） */
 export function parseTextCommentContentPayload(content: string): TextCommentContentPayload | null {
   if (!content || typeof content !== 'string') return null
+  
+  // 1. 尝试解析 JSON (兼容旧数据)
   try {
     const o = JSON.parse(content) as TextCommentContentPayload
     if (o && typeof o.text === 'string') {
@@ -99,11 +103,26 @@ export function parseTextCommentContentPayload(content: string): TextCommentCont
         fileKeys: Array.isArray(o.fileKeys) ? o.fileKeys : [],
       }
     }
-  } catch {
-    // 旧数据为纯文本，可当作 { text: content, imageKeys: [], fileKeys: [] }
-    return { text: content, imageKeys: [], fileKeys: [] }
-  }
-  return null
+  } catch {}
+
+  // 2. 解析 Tag 格式 (新数据)
+  let text = content
+  const imageKeys: string[] = []
+  const fileKeys: string[] = []
+
+  // Extract [image](key)
+  text = text.replace(/\[image\]\(([^)]+)\)/g, (_, key) => {
+    imageKeys.push(key)
+    return ''
+  })
+
+  // Extract [file](key)
+  text = text.replace(/\[file\]\(([^)]+)\)/g, (_, key) => {
+    fileKeys.push(key)
+    return ''
+  })
+
+  return { text: text.trim(), imageKeys, fileKeys }
 }
 
 /**

@@ -45,12 +45,7 @@ export function CommentSection({
   })
 
   const handleCreate = async (data: { content: string; imageKeys: string[]; fileKeys: string[] }) => {
-    const content = buildTextCommentContent({
-      text: data.content,
-      imageKeys: data.imageKeys,
-      fileKeys: data.fileKeys,
-    })
-    await createComment.mutateAsync({ content, type: 'text' })
+    await createComment.mutateAsync({ content: data.content, type: 'text' })
   }
 
   const handleEdit = async (commentId: number, content: string) => {

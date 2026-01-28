@@ -101,7 +101,7 @@ export class RequestCoordinator {
       const signedUrl = await this.signatureProvider.getSignedUrl(objectKey)
       const signatureTime = Date.now() - startTime
       console.log(`[RequestCoordinator] ✅ 签名 URL 获取成功 (耗时 ${signatureTime}ms): ${objectKey}`, {
-        url: signedUrl.substring(0, 50) + '...',
+        url: signedUrl,
       })
       
       // 计算过期时间
