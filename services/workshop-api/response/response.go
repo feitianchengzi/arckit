@@ -84,6 +84,19 @@ const (
 	CodeProjectInviteExpired = "PROJECT_INVITE_EXPIRED"
 	CodeProjectAlreadyMember = "PROJECT_ALREADY_MEMBER"
 
+	// 组织相关错误
+	CodeOrganizationNotFound      = "ORGANIZATION_NOT_FOUND"
+	CodeOrganizationCreateFailed  = "ORGANIZATION_CREATE_FAILED"
+	CodeOrganizationUpdateFailed  = "ORGANIZATION_UPDATE_FAILED"
+	CodeOrganizationQueryFailed   = "ORGANIZATION_QUERY_FAILED"
+	CodeOrganizationNotMember     = "ORGANIZATION_NOT_MEMBER"
+	CodeOrganizationNoPermission  = "ORGANIZATION_NO_PERMISSION"
+	CodeOrganizationIDEmpty       = "ORGANIZATION_ID_EMPTY"
+	CodeOrganizationInviteInvalid = "ORGANIZATION_INVITE_INVALID"
+	CodeOrganizationInviteUsed    = "ORGANIZATION_INVITE_USED"
+	CodeOrganizationInviteExpired = "ORGANIZATION_INVITE_EXPIRED"
+	CodeOrganizationAlreadyMember = "ORGANIZATION_ALREADY_MEMBER"
+
 	// 任务相关错误
 	CodeTaskNotFound              = "TASK_NOT_FOUND"
 	CodeTaskCreateFailed          = "TASK_CREATE_FAILED"

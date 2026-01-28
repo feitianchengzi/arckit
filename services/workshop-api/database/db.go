@@ -93,6 +93,7 @@ func InitDB() error {
 		&models.User{},
 		&models.Organization{},
 		&models.OrganizationMember{},
+		&models.OrganizationInvitation{},
 		&models.Project{},
 		&models.ProjectMember{},
 		&models.ProjectInvitation{},

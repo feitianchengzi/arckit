@@ -151,7 +151,8 @@ type GetUserProjectsResponse struct {
 
 // GetUserProjectsRequest 查询用户项目请求结构
 type GetUserProjectsRequest struct {
-	IncludeDeleted bool `form:"include_deleted"` // 是否包含已删除的记录（可选，默认false）
+	IncludeDeleted bool   `form:"include_deleted"` // 是否包含已删除的记录（可选，默认false）
+	OrganizationID *uint  `form:"organization_id"` // 组织ID（可选，为空则查询组织ID为空的项目，否则查询指定组织ID的项目）
 }
 
 // GetUserProjects 根据用户ID查询所有参与的项目
@@ -195,12 +196,24 @@ func GetUserProjects(c *gin.Context) {
 		return
 	}
 
-	// 6. 提取项目ID列表
+	// 6. 提取项目ID列表，并根据组织ID过滤
 	projectIDs := make([]uint, 0, len(projectMembers))
 	projectMap := make(map[uint]models.Project)
 	for _, pm := range projectMembers {
-		projectIDs = append(projectIDs, pm.ProjectID)
-		projectMap[pm.ProjectID] = pm.Project
+		// 根据组织ID过滤项目
+		if req.OrganizationID == nil || *req.OrganizationID == 0 {
+			// 如果组织ID为空或为0，只查询组织ID为空的项目
+			if pm.Project.OrganizationID == nil {
+				projectIDs = append(projectIDs, pm.ProjectID)
+				projectMap[pm.ProjectID] = pm.Project
+			}
+		} else {
+			// 如果指定了组织ID（且不为0），只查询该组织ID的项目
+			if pm.Project.OrganizationID != nil && *pm.Project.OrganizationID == *req.OrganizationID {
+				projectIDs = append(projectIDs, pm.ProjectID)
+				projectMap[pm.ProjectID] = pm.Project
+			}
+		}
 	}
 
 	// 7. 构建成员查询条件

@@ -68,3 +68,41 @@ func IsValidOrganizationRole(role string) bool {
 	}
 	return false
 }
+
+// OrganizationInvitation 组织邀请表
+// 用于存储组织邀请信息，生成邀请码供用户加入组织
+type OrganizationInvitation struct {
+	ID             uint           `json:"id" gorm:"primaryKey;autoIncrement"`                       // 主键
+	OrganizationID uint           `json:"organization_id" gorm:"not null;index"`                   // 外键：组织ID（constraint在关联字段上定义）
+	InviteCode     string         `json:"invite_code" gorm:"type:varchar(64);uniqueIndex;not null"` // 邀请码（唯一）
+	Role           string         `json:"role" gorm:"type:varchar(50);not null;default:'member'"`   // 邀请的角色（默认member）
+	InviterID      uint           `json:"inviter_id" gorm:"not null;index"`                         // 外键：邀请者ID
+	ExpiresAt      *time.Time     `json:"expires_at,omitempty" gorm:"index"`                        // 过期时间（可选）
+	MaxUses        int            `json:"max_uses" gorm:"not null;default:1"`                       // 最大使用次数（默认1）
+	UsedCount      int            `json:"used_count" gorm:"not null;default:0"`                     // 已使用次数
+	UsedAt         *time.Time     `json:"used_at,omitempty"`                                        // 首次使用时间（保留用于兼容）
+	CreatedAt      time.Time      `json:"created_at" gorm:"autoCreateTime"`                         // 创建时间
+	UpdatedAt      time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                         // 更新时间
+	DeletedAt      gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`       // 软删除时间
+
+	Organization Organization `json:"organization,omitempty" gorm:"foreignKey:OrganizationID;references:ID;constraint:OnDelete:CASCADE"`
+	Inviter      User         `json:"inviter,omitempty" gorm:"foreignKey:InviterID;references:ID"`
+}
+
+// TableName 指定表名
+func (OrganizationInvitation) TableName() string {
+	return "organization_invitations"
+}
+
+// IsExpired 检查邀请是否过期
+func (oi *OrganizationInvitation) IsExpired() bool {
+	if oi.ExpiresAt == nil {
+		return false // 没有设置过期时间，永不过期
+	}
+	return time.Now().After(*oi.ExpiresAt)
+}
+
+// IsUsed 检查邀请是否已达到最大使用次数
+func (oi *OrganizationInvitation) IsUsed() bool {
+	return oi.UsedCount >= oi.MaxUses
+}

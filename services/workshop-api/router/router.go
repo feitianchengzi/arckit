@@ -50,14 +50,23 @@ func SetupRouter(serviceName string) *gin.Engine {
 			userGroup.GET("/users", handler.GetUser)                                     // 根据Header中的UUID查询用户
 			userGroup.PUT("/users", handler.UpdateUser)                                  // 更新用户信息
 			userGroup.GET("/oss/credentials", handler.GetOSSTempCredentials)             // 获取OSS临时访问凭证
-			userGroup.POST("/projects", handler.CreateProject)                           // 创建新项目
-			userGroup.GET("/projects", handler.GetUserProjects)                          // 根据用户UUID查询所有参与的项目
-			userGroup.PUT("/projects/:id", handler.UpdateProject)                        // 更新项目信息
-			userGroup.DELETE("/projects/:id", handler.DeleteProject)                     // 删除项目（仅所有者）
-			userGroup.POST("/projects/:id/invitations", handler.InviteProjectMember)     // 邀请项目成员（生成邀请码）
-			userGroup.POST("/projects/join", handler.JoinProject)                        // 加入项目（使用邀请码）
-			userGroup.DELETE("/projects/:id/members", handler.DeleteProjectMember)       // 删除项目成员
-			userGroup.PUT("/projects/:id/members/role", handler.UpdateProjectMemberRole) // 设置成员角色（仅所有者）
+			userGroup.POST("/organizations", handler.CreateOrganization)                               // 创建新组织
+			userGroup.GET("/organizations", handler.GetUserOrganizations)                              // 根据用户UUID查询所有参与的组织
+			userGroup.PUT("/organizations/:id", handler.UpdateOrganization)                            // 更新组织信息
+			userGroup.DELETE("/organizations/:id", handler.DeleteOrganization)                         // 删除组织（仅所有者）
+			userGroup.GET("/organizations/:id/members", handler.GetOrganizationMembers)                // 查询组织成员列表
+			userGroup.POST("/organizations/:id/invitations", handler.InviteOrganizationMember)         // 邀请组织成员（生成邀请码）
+			userGroup.POST("/organizations/join", handler.JoinOrganization)                            // 加入组织（使用邀请码）
+			userGroup.DELETE("/organizations/:id/members", handler.DeleteOrganizationMember)           // 删除组织成员
+			userGroup.PUT("/organizations/:id/members/role", handler.UpdateOrganizationMemberRole)     // 设置成员角色（仅所有者）
+			userGroup.POST("/projects", handler.CreateProject)                                       // 创建新项目
+			userGroup.GET("/projects", handler.GetUserProjects)                                      // 根据用户UUID查询所有参与的项目
+			userGroup.PUT("/projects/:id", handler.UpdateProject)                                    // 更新项目信息
+			userGroup.DELETE("/projects/:id", handler.DeleteProject)                                 // 删除项目（仅所有者）
+			userGroup.POST("/projects/:id/invitations", handler.InviteProjectMember)                 // 邀请项目成员（生成邀请码）
+			userGroup.POST("/projects/join", handler.JoinProject)                                    // 加入项目（使用邀请码）
+			userGroup.DELETE("/projects/:id/members", handler.DeleteProjectMember)                   // 删除项目成员
+			userGroup.PUT("/projects/:id/members/role", handler.UpdateProjectMemberRole)             // 设置成员角色（仅所有者）
 			userGroup.POST("/tasks", handler.CreateTask)                                 // 创建新任务
 			userGroup.PUT("/tasks/:id", handler.UpdateTask)                              // 更新任务
 			userGroup.GET("/tasks", handler.GetTasks)                                    // 查询项目的所有任务
