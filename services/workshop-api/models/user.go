@@ -18,10 +18,12 @@ type User struct {
 	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"` // 软删除时间
 
 	// 关联关系
-	ProjectMembers  []ProjectMember `json:"project_members,omitempty" gorm:"foreignKey:UserID"`     // 用户参与的项目成员关系（通过此表访问项目）
-	CreatedProjects []Project       `json:"created_projects,omitempty" gorm:"foreignKey:CreatorID"` // 创建的项目
-	CreatedTasks    []Task          `json:"created_tasks,omitempty" gorm:"foreignKey:CreatorID"`    // 创建的任务
-	ExecutedTasks   []Task          `json:"executed_tasks,omitempty" gorm:"foreignKey:ExecutorID"`  // 执行的任务
+	ProjectMembers      []ProjectMember      `json:"project_members,omitempty" gorm:"foreignKey:UserID"`           // 用户参与的项目成员关系（通过此表访问项目）
+	OrganizationMembers []OrganizationMember `json:"organization_members,omitempty" gorm:"foreignKey:UserID"`      // 用户参与的组织成员关系（通过此表访问组织）
+	CreatedProjects     []Project            `json:"created_projects,omitempty" gorm:"foreignKey:CreatorID"`       // 创建的项目
+	CreatedOrganizations []Organization      `json:"created_organizations,omitempty" gorm:"foreignKey:CreatorID"`   // 创建的组织
+	CreatedTasks        []Task              `json:"created_tasks,omitempty" gorm:"foreignKey:CreatorID"`            // 创建的任务
+	ExecutedTasks       []Task              `json:"executed_tasks,omitempty" gorm:"foreignKey:ExecutorID"`           // 执行的任务
 }
 
 // TableName 指定表名
