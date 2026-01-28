@@ -91,6 +91,8 @@ func InitDB() error {
 	// 自动迁移（创建表结构）
 	err = DB.AutoMigrate(
 		&models.User{},
+		&models.Organization{},
+		&models.OrganizationMember{},
 		&models.Project{},
 		&models.ProjectMember{},
 		&models.ProjectInvitation{},
