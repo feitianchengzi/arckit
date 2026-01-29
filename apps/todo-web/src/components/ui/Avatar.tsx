@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import type { User } from '@/types'
 import { getAvatarUrl, getAvatarUrlSync } from '@/lib/oss/urlHelper'
-import { subscribeUrlUpdate } from '@/lib/oss/load/UrlUpdateNotifier'
+import { subscribeUrlUpdate, notifyUrlUpdated } from '@/lib/oss/load/UrlUpdateNotifier'
 import { ENABLE_AVATAR_LOGS } from '@/lib/oss/load/logConfig'
 
 export interface AvatarProps {
@@ -156,14 +156,13 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
         })
       }
       
+      // 清除所有失败记录，因为新 URL 已经成功
+      failedUrlsRef.current.clear()
+      // 清除重试计数
+      errorRetryCountRef.current.delete(avatar)
       // 更新头像 URL
       setAvatarUrl(newUrl)
       setIsLoading(false)
-      
-      // 清除失败记录，因为新 URL 已经成功
-      failedUrlsRef.current.delete(newUrl)
-      // 清除重试计数
-      errorRetryCountRef.current.delete(avatar)
     })
 
     // 清理函数
@@ -316,11 +315,15 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
               errorRetryCountRef.current.delete(objectKey)
             }
             
-            // 如果当前 src 与 avatarUrl 不匹配，说明 ErrorInterceptor 更新了 URL
+            // 检查是否是因为收到 URL 更新通知而触发的加载
+            // 如果当前 src 与 avatarUrl 不匹配，说明是收到通知后更新的，此时不应该再次通知
+            const isFromNotification = currentSrc !== avatarUrl
+            
+            // 如果当前 src 与 avatarUrl 不匹配，说明 ErrorInterceptor 或其他通知更新了 URL
             // 更新 React 状态以匹配实际的图片 URL
-            if (currentSrc !== avatarUrl) {
+            if (isFromNotification) {
               if (ENABLE_AVATAR_LOGS) {
-                console.log('[Avatar] 检测到图片 URL 已更新（可能是 ErrorInterceptor 修复）:', {
+                console.log('[Avatar] 检测到图片 URL 已更新（可能是 ErrorInterceptor 修复或其他通知）:', {
                   oldUrl: avatarUrl?.substring(0, 50) + '...',
                   newUrl: currentSrc.substring(0, 50) + '...'
                 })
@@ -328,6 +331,19 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
               setAvatarUrl(currentSrc)
               // 清除失败记录，因为新 URL 已经成功加载
               failedUrlsRef.current.delete(currentSrc)
+            }
+            
+            // 当图片加载成功且不是因为收到通知而触发的加载时，通知其他使用相同 objectKey 的图片元素更新
+            // 这样可以避免连锁通知的问题
+            if (objectKey && !isFromNotification) {
+              if (ENABLE_AVATAR_LOGS) {
+                console.log('[Avatar] 图片加载成功，通知其他使用相同 objectKey 的图片元素:', {
+                  objectKey,
+                  successUrl: currentSrc.substring(0, 50) + '...'
+                })
+              }
+              // 通知其他使用相同 objectKey 的图片元素更新
+              notifyUrlUpdated(objectKey, currentSrc)
             }
             
             if (!ENABLE_AVATAR_LOGS) {
@@ -371,6 +387,7 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
                   duration: entry.duration.toFixed(2) + 'ms',
                   loadTime: loadTime.toFixed(2) + 'ms',
                   objectKey: avatar,
+                  isFromNotification,
                   timing: {
                     dns: (entry.domainLookupEnd - entry.domainLookupStart).toFixed(2) + 'ms',
                     connect: (entry.connectEnd - entry.connectStart).toFixed(2) + 'ms',
@@ -388,6 +405,7 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
                 console.log('[Avatar] 图片加载成功（性能数据未就绪，已重试3次）:', {
                   url: avatarUrl?.substring(0, 50) + '...',
                   objectKey: avatar,
+                  isFromNotification,
                   loadTime: loadTime.toFixed(2) + 'ms',
                   note: '性能数据可能还未准备好，图片可能使用了浏览器缓存',
                   hint: '如果 loadTime < 50ms，很可能使用了浏览器缓存',
