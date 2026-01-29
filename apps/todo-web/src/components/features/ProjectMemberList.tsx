@@ -39,6 +39,8 @@ export interface ProjectMemberListProps {
   canManage?: boolean // 是否有管理权限（owner/admin）
   onViewMembers?: () => void
   onMemberClick?: (member: ProjectMember) => void // 点击成员时的回调
+  creatorFilter?: number | 'ME' | null // 创建人筛选
+  executorFilter?: number | 'ME' | 'UNASSIGNED' | null // 执行人筛选
   className?: string
 }
 
@@ -60,15 +62,17 @@ const getRoleColor = (role: ProjectRole): string => {
   return colors[role]
 }
 
-export function ProjectMemberList({
-  members,
-  projectId,
-  canAddMember = false,
+export const ProjectMemberList = ({ 
+  members, 
+  projectId, 
+  canAddMember = false, 
   canManage = false,
   onViewMembers,
   onMemberClick,
-  className,
-}: ProjectMemberListProps) {
+  creatorFilter,
+  executorFilter,
+  className 
+}: ProjectMemberListProps) => {
   const currentUser = useAuthStore((state) => state.user)
   const theme = useThemeStore((state) => state.theme)
   const [isManaging, setIsManaging] = useState(false)
@@ -508,6 +512,24 @@ export function ProjectMemberList({
                     {isCurrentUser && (
                       <span className="text-xs text-foreground-secondary">（我）</span>
                     )}
+                    {/* 筛选状态图标 */}
+                {!isManaging && onMemberClick && (
+                  <div className="flex items-center gap-1">
+                    {/* 执行人筛选图标 */}
+                    {(executorFilter === member.user_id || (executorFilter === 'ME' && currentUser?.id === member.user_id)) && (
+                      <svg className="w-3 h-3 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    )}
+                    {/* 创建人筛选图标 */}
+                    {(creatorFilter === member.user_id || (creatorFilter === 'ME' && currentUser?.id === member.user_id)) && (
+                      <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    )}
+                  </div>
+                )}
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     {isManaging && canEditRole ? (

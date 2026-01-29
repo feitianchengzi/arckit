@@ -10,17 +10,20 @@ import { loadOSSSDK } from '../sdk'
  * @param objectKey OSS 对象 Key（例如：workshop/avatars/xxx.jpg）
  * @param credentials STS 临时凭证（包含 region、bucket_name 等）
  * @param expires 过期时间（秒），默认 3600
+ * @param forceDownload 是否强制下载（设置 Content-Disposition 为 attachment），默认 false
  */
 export async function getSignedUrl(
   objectKey: string,
   credentials: STSCredentials,
-  expires: number = 3600
+  expires: number = 3600,
+  forceDownload: boolean = false
 ): Promise<string> {
   console.log('[getSignedUrl] 开始生成签名 URL:', {
     objectKey,
     expires,
     region: credentials.Region,
-    bucket: credentials.BucketName
+    bucket: credentials.BucketName,
+    forceDownload
   })
   
   try {
@@ -44,8 +47,13 @@ export async function getSignedUrl(
     
     // 生成签名 URL
     console.log('[getSignedUrl] 调用 client.signatureUrl...')
+    const fileName = objectKey.split('/').pop() || 'download'
+    
     const signedUrl = client.signatureUrl(objectKey, {
       expires,
+      response: {
+        'content-disposition': forceDownload ? `attachment; filename="${encodeURIComponent(fileName)}"` : undefined,
+      },
     })
     console.log('[getSignedUrl] 签名 URL 生成成功:', signedUrl.substring(0, 100) + '...')
     

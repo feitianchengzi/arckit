@@ -95,8 +95,9 @@ export default function ProjectDetailPage() {
     (savedFilters?.tagFilter as number) ?? null
   )
   const [priorityFilter, setPriorityFilter] = useState<number | null | 'ALL' | 'NONE'>(
-    savedFilters?.priorityFilter ?? null
+    savedFilters?.priorityFilter ?? 'ALL'
   )
+  
   // 日期范围筛选
   const [dateRange, setDateRange] = useState<DateRange>(
     savedFilters?.dateRange ?? { startDate: null, endDate: null }
@@ -1147,6 +1148,18 @@ export default function ProjectDetailPage() {
                   <option value="CANCELLED">已取消</option>
                   <option value="BLOCKED">已阻塞</option>
                 </select>
+                {/* 取消角标 */}
+                {statusFilter !== 'ALL' && (
+                  <button
+                    onClick={() => setStatusFilter('ALL')}
+                    className="absolute right-1 top-1 w-4 h-4 bg-warning hover:bg-warning/80 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors z-10"
+                    aria-label="重置状态筛选"
+                  >
+                    <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
             
@@ -1199,6 +1212,18 @@ export default function ProjectDetailPage() {
                     </option>
                   ))}
                 </select>
+                {/* 取消角标 */}
+                {creatorFilter !== null && (
+                  <button
+                    onClick={() => setCreatorFilter(null)}
+                    className="absolute right-1 top-1 w-4 h-4 bg-warning hover:bg-warning/80 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors z-10"
+                    aria-label="重置创建人筛选"
+                  >
+                    <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
             
@@ -1256,6 +1281,18 @@ export default function ProjectDetailPage() {
                     </option>
                   ))}
                 </select>
+                {/* 取消角标 */}
+                {executorFilter !== null && (
+                  <button
+                    onClick={() => setExecutorFilter(null)}
+                    className="absolute right-1 top-1 w-4 h-4 bg-warning hover:bg-warning/80 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors z-10"
+                    aria-label="重置执行人筛选"
+                  >
+                    <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
             
@@ -1297,6 +1334,18 @@ export default function ProjectDetailPage() {
                     </option>
                   ))}
                 </select>
+                {/* 取消角标 */}
+                {tagFilter !== null && (
+                  <button
+                    onClick={() => setTagFilter(null)}
+                    className="absolute right-1 top-1 w-4 h-4 bg-warning hover:bg-warning/80 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors z-10"
+                    aria-label="重置标签筛选"
+                  >
+                    <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
             
@@ -1351,6 +1400,18 @@ export default function ProjectDetailPage() {
                   <option value="3">🟢 低</option>
                   <option value="NONE">无优先级</option>
                 </select>
+                {/* 取消角标 */}
+                {priorityFilter !== null && (
+                  <button
+                    onClick={() => setPriorityFilter(null)}
+                    className="absolute right-1 top-1 w-4 h-4 bg-warning hover:bg-warning/80 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors z-10"
+                    aria-label="重置优先级筛选"
+                  >
+                    <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
               </div>
             </div>
             
@@ -1396,39 +1457,53 @@ export default function ProjectDetailPage() {
                           <CreatorFilterIcon className="w-4 h-4 text-gray-500" />
                           创建人:
                         </label>
-                        <select
-                          value={
-                            creatorFilter === null
-                              ? ''
-                              : creatorFilter === 'ME'
-                              ? 'ME'
-                              : String(creatorFilter)
-                          }
-                          onChange={(e) => {
-                            const value = e.target.value
-                            if (value === '') {
-                              setCreatorFilter(null)
-                            } else if (value === 'ME') {
-                              setCreatorFilter('ME')
-                            } else {
-                              const numValue = Number(value)
-                              if (!isNaN(numValue)) {
-                                setCreatorFilter(numValue)
-                              }
+                        <div className="relative flex-1">
+                          <select
+                            value={
+                              creatorFilter === null
+                                ? ''
+                                : creatorFilter === 'ME'
+                                ? 'ME'
+                                : String(creatorFilter)
                             }
-                          }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                        >
-                          <option value="">全部</option>
-                          {currentUserId && (
-                            <option value="ME">我</option>
+                            onChange={(e) => {
+                              const value = e.target.value
+                              if (value === '') {
+                                setCreatorFilter(null)
+                              } else if (value === 'ME') {
+                                setCreatorFilter('ME')
+                              } else {
+                                const numValue = Number(value)
+                                if (!isNaN(numValue)) {
+                                  setCreatorFilter(numValue)
+                                }
+                              }
+                            }}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                          >
+                            <option value="">全部</option>
+                            {currentUserId && (
+                              <option value="ME">我</option>
+                            )}
+                            {members?.map((member) => (
+                              <option key={member.user_id} value={member.user_id}>
+                                {member.username || member.user?.username || `用户${member.user_id}`}
+                              </option>
+                            ))}
+                          </select>
+                          {/* 取消按钮 */}
+                          {creatorFilter !== null && (
+                            <button
+                              onClick={() => setCreatorFilter(null)}
+                              className="absolute right-[-16px] top-[-4px] w-4 h-4 bg-surface-active hover:bg-surface-hover rounded-full flex items-center justify-center text-foreground-secondary hover:text-foreground transition-colors"
+                              aria-label="重置创建人筛选"
+                            >
+                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
                           )}
-                          {members?.map((member) => (
-                            <option key={member.user_id} value={member.user_id}>
-                              {member.username || member.user?.username || `用户${member.user_id}`}
-                            </option>
-                          ))}
-                        </select>
+                        </div>
                       </div>
                     )}
                     
@@ -1438,44 +1513,58 @@ export default function ProjectDetailPage() {
                           <ExecutorFilterIcon className="w-4 h-4 text-gray-500" />
                           执行人:
                         </label>
-                        <select
-                          value={
-                            executorFilter === null
-                              ? ''
-                              : executorFilter === 'ME'
-                              ? 'ME'
-                              : executorFilter === 'UNASSIGNED'
-                              ? 'UNASSIGNED'
-                              : String(executorFilter)
-                          }
-                          onChange={(e) => {
-                            const value = e.target.value
-                            if (value === '') {
-                              setExecutorFilter(null)
-                            } else if (value === 'ME') {
-                              setExecutorFilter('ME')
-                            } else if (value === 'UNASSIGNED') {
-                              setExecutorFilter('UNASSIGNED')
-                            } else {
-                              const numValue = Number(value)
-                              if (!isNaN(numValue)) {
-                                setExecutorFilter(numValue)
-                              }
+                        <div className="relative flex-1">
+                          <select
+                            value={
+                              executorFilter === null
+                                ? ''
+                                : executorFilter === 'ME'
+                                ? 'ME'
+                                : executorFilter === 'UNASSIGNED'
+                                ? 'UNASSIGNED'
+                                : String(executorFilter)
                             }
-                          }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                        >
-                          <option value="">全部</option>
-                          <option value="UNASSIGNED">未分配</option>
-                          {currentUserId && (
-                            <option value="ME">我</option>
+                            onChange={(e) => {
+                              const value = e.target.value
+                              if (value === '') {
+                                setExecutorFilter(null)
+                              } else if (value === 'ME') {
+                                setExecutorFilter('ME')
+                              } else if (value === 'UNASSIGNED') {
+                                setExecutorFilter('UNASSIGNED')
+                              } else {
+                                const numValue = Number(value)
+                                if (!isNaN(numValue)) {
+                                  setExecutorFilter(numValue)
+                                }
+                              }
+                            }}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                          >
+                            <option value="">全部</option>
+                            <option value="UNASSIGNED">未分配</option>
+                            {currentUserId && (
+                              <option value="ME">我</option>
+                            )}
+                            {members?.map((member) => (
+                              <option key={member.user_id} value={member.user_id}>
+                                {member.username || member.user?.username || `用户${member.user_id}`}
+                              </option>
+                            ))}
+                          </select>
+                          {/* 取消按钮 */}
+                          {executorFilter !== null && (
+                            <button
+                              onClick={() => setExecutorFilter(null)}
+                              className="absolute right-[-16px] top-[-4px] w-4 h-4 bg-surface-active hover:bg-surface-hover rounded-full flex items-center justify-center text-foreground-secondary hover:text-foreground transition-colors"
+                              aria-label="重置执行人筛选"
+                            >
+                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
                           )}
-                          {members?.map((member) => (
-                            <option key={member.user_id} value={member.user_id}>
-                              {member.username || member.user?.username || `用户${member.user_id}`}
-                            </option>
-                          ))}
-                        </select>
+                        </div>
                       </div>
                     )}
                     
@@ -1485,28 +1574,42 @@ export default function ProjectDetailPage() {
                           <TagFilterIcon className="w-4 h-4 text-gray-500" />
                           标签:
                         </label>
-                        <select
-                          value={tagFilter === null ? '' : String(tagFilter)}
-                          onChange={(e) => {
-                            const value = e.target.value
-                            if (value === '') {
-                              setTagFilter(null)
-                            } else {
-                              const numValue = Number(value)
-                              if (!isNaN(numValue)) {
-                                setTagFilter(numValue)
+                        <div className="relative flex-1">
+                          <select
+                            value={tagFilter === null ? '' : String(tagFilter)}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              if (value === '') {
+                                setTagFilter(null)
+                              } else {
+                                const numValue = Number(value)
+                                if (!isNaN(numValue)) {
+                                  setTagFilter(numValue)
+                                }
                               }
-                            }
-                          }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                        >
-                          <option value="">全部</option>
-                          {projectTags.map((tag) => (
-                            <option key={tag.id} value={tag.id}>
-                              {tag.displayName}
-                            </option>
-                          ))}
-                        </select>
+                            }}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                          >
+                            <option value="">全部</option>
+                            {projectTags.map((tag) => (
+                              <option key={tag.id} value={tag.id}>
+                                {tag.displayName}
+                              </option>
+                            ))}
+                          </select>
+                          {/* 取消按钮 */}
+                          {tagFilter !== null && (
+                            <button
+                              onClick={() => setTagFilter(null)}
+                              className="absolute right-[-16px] top-[-4px] w-4 h-4 bg-surface-active hover:bg-surface-hover rounded-full flex items-center justify-center text-foreground-secondary hover:text-foreground transition-colors"
+                              aria-label="重置标签筛选"
+                            >
+                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                     
@@ -1516,41 +1619,55 @@ export default function ProjectDetailPage() {
                           <PriorityFilterIcon className="w-4 h-4 text-gray-500" />
                           优先级:
                         </label>
-                        <select
-                          value={
-                            priorityFilter === null
-                              ? ''
-                              : priorityFilter === 'ALL'
-                              ? 'ALL'
-                              : priorityFilter === 'NONE'
-                              ? 'NONE'
-                              : String(priorityFilter)
-                          }
-                          onChange={(e) => {
-                            const value = e.target.value
-                            if (value === '') {
-                              setPriorityFilter(null)
-                            } else if (value === 'ALL') {
-                              setPriorityFilter('ALL')
-                            } else if (value === 'NONE') {
-                              setPriorityFilter('NONE')
-                            } else {
-                              const numValue = Number(value)
-                              if (!isNaN(numValue)) {
-                                setPriorityFilter(numValue)
-                              }
+                        <div className="relative flex-1">
+                          <select
+                            value={
+                              priorityFilter === null
+                                ? ''
+                                : priorityFilter === 'ALL'
+                                ? 'ALL'
+                                : priorityFilter === 'NONE'
+                                ? 'NONE'
+                                : String(priorityFilter)
                             }
-                          }}
-                          className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                        >
-                          <option value="">全部</option>
-                          <option value="ALL">有优先级</option>
-                          <option value="0">🔴 最高</option>
-                          <option value="1">🟠 高</option>
-                          <option value="2">🟡 中</option>
-                          <option value="3">🟢 低</option>
-                          <option value="NONE">无优先级</option>
-                        </select>
+                            onChange={(e) => {
+                              const value = e.target.value
+                              if (value === '') {
+                                setPriorityFilter(null)
+                              } else if (value === 'ALL') {
+                                setPriorityFilter('ALL')
+                              } else if (value === 'NONE') {
+                                setPriorityFilter('NONE')
+                              } else {
+                                const numValue = Number(value)
+                                if (!isNaN(numValue)) {
+                                  setPriorityFilter(numValue)
+                                }
+                              }
+                            }}
+                            className="w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                          >
+                            <option value="">全部</option>
+                            <option value="ALL">有优先级</option>
+                            <option value="0">🔴 最高</option>
+                            <option value="1">🟠 高</option>
+                            <option value="2">🟡 中</option>
+                            <option value="3">🟢 低</option>
+                            <option value="NONE">无优先级</option>
+                          </select>
+                          {/* 取消按钮 */}
+                          {priorityFilter !== null && (
+                            <button
+                              onClick={() => setPriorityFilter(null)}
+                              className="absolute right-[-16px] top-[-4px] w-4 h-4 bg-surface-active hover:bg-surface-hover rounded-full flex items-center justify-center text-foreground-secondary hover:text-foreground transition-colors"
+                              aria-label="重置优先级筛选"
+                            >
+                              <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
                       </div>
                     )}
                     
@@ -1637,6 +1754,7 @@ export default function ProjectDetailPage() {
                     setDateRange({ startDate: null, endDate: null })
                     setSearchQuery('')
                     setShowSearchBar(false)
+                    setMemberFilterState({}) // 重置成员筛选状态
                   }}
                 >
                   重置筛选
@@ -1651,7 +1769,7 @@ export default function ProjectDetailPage() {
             title="还没有待办"
             message="创建第一个待办开始工作"
             actionLabel="创建待办"
-            onAction={() => setCreateTaskDialogOpen(true)}
+            onAction={() => setShowCreateTaskDialog(true)}
           />
         ) : filteredTodos.length === 0 ? (
           <EmptyStateView
@@ -1678,7 +1796,7 @@ export default function ProjectDetailPage() {
               <TodoTreeItem
                 key={todo.id}
                 todo={todo}
-                projectId={projectId}
+                projectId={String(projectId)}
                 onStatusChange={canChangeStatus(todo) ? handleStatusChange : undefined}
                 currentUserId={currentUserId}
                 canEdit={canChangeStatus(todo)}
@@ -1709,10 +1827,48 @@ export default function ProjectDetailPage() {
               projectId={projectId}
               canAddMember={isOwner || currentUserRole === 'admin'}
               canManage={isOwner || currentUserRole === 'admin'}
+              creatorFilter={creatorFilter}
+              executorFilter={executorFilter}
               onMemberClick={(member) => {
-                // 点击成员时，同时设置创建人和执行人筛选为这个成员（不分角色权限）
-                setCreatorFilter(member.user_id)
-                setExecutorFilter(member.user_id)
+                const userId = member.user_id;
+                
+                // 重置其他成员的筛选状态
+                const currentCreatorFilter = creatorFilter === userId ? creatorFilter : null;
+                const currentExecutorFilter = executorFilter === userId ? executorFilter : null;
+                
+                // 计算当前状态
+                let currentState = 0;
+                if (currentCreatorFilter === userId && currentExecutorFilter === userId) {
+                  currentState = 3; // 两者
+                } else if (currentCreatorFilter === userId) {
+                  currentState = 2; // 创建人
+                } else if (currentExecutorFilter === userId) {
+                  currentState = 1; // 执行人
+                }
+                
+                // 计算下一个状态（循环：0 → 1 → 2 → 3 → 0）
+                const nextState = (currentState + 1) % 4;
+                
+                // 根据状态设置筛选
+                switch (nextState) {
+                  case 1: // 第一次点击 - 执行人
+                    setExecutorFilter(userId);
+                    setCreatorFilter(null);
+                    break;
+                  case 2: // 第二次点击 - 创建人
+                    setExecutorFilter(null);
+                    setCreatorFilter(userId);
+                    break;
+                  case 3: // 第三次点击 - 两者
+                    setExecutorFilter(userId);
+                    setCreatorFilter(userId);
+                    break;
+                  case 0: // 第四次点击 - 重置
+                  default:
+                    setExecutorFilter(null);
+                    setCreatorFilter(null);
+                    break;
+                }
               }}
             />
           </div>

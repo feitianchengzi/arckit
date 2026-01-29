@@ -180,7 +180,7 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
   const hasFilter = value.startDate !== null || value.endDate !== null
 
   return (
-    <div className={clsx("relative", className)} ref={containerRef}>
+    <div className={clsx("relative flex items-center gap-1", className)} ref={containerRef}>
       {/* 日期筛选按钮 */}
       <button
         type="button"
@@ -222,25 +222,19 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
             : '日期'}
         </span>
         {hasFilter && (
-          <span
-            role="button"
-            tabIndex={0}
+          <button
             onClick={(e) => {
               e.stopPropagation()
               onChange({ startDate: null, endDate: null })
             }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                e.stopPropagation()
-                onChange({ startDate: null, endDate: null })
-              }
-            }}
-            className="ml-0.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex-shrink-0 cursor-pointer"
+            className="ml-0.5 w-4 h-4 bg-surface-active hover:bg-surface-hover rounded-full flex items-center justify-center text-foreground-secondary hover:text-foreground transition-colors flex-shrink-0"
+            aria-label="重置日期筛选"
             title="清除"
           >
-            ×
-          </span>
+            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         )}
       </button>
 

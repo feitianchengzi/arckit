@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
+import { ImageGallery } from './ImageGallery'
 
 const escapeHtml = (s: string) =>
   String(s)
@@ -55,7 +56,7 @@ function commentTextToSafeHtml(text: string): string {
   return out.replace(/\n/g, '<br/>')
 }
 
-import { Avatar, ConfirmDialog } from '@/components/ui'
+import { Avatar, ConfirmDialog, ImagePreview } from '@/components/ui'
 import { PencilIcon, TrashIcon } from '@/components/ui/icons'
 import { CommentEditor } from './CommentEditor'
 import { buildTextCommentContent, parseTextCommentContent, type TaskComment } from '@/lib/api/endpoints/comments'
@@ -89,7 +90,7 @@ function parseContentToParts(text: string): ContentPart[] {
   return parts.length > 0 ? parts : [{ type: 'text', content: text }]
 }
 
-function CommentImage({ objectKey }: { objectKey: string }) {
+function CommentImage({ objectKey, onClick }: { objectKey: string; onClick?: () => void }) {
   const [url, setUrl] = useState('')
   useEffect(() => {
     console.log('[CommentImage] Start resolving:', objectKey)
@@ -109,7 +110,8 @@ function CommentImage({ objectKey }: { objectKey: string }) {
       src={url} 
       alt="图片附件" 
       data-oss-key={objectKey}
-      className="max-w-full rounded-md max-h-[300px] object-contain my-2 border border-border" 
+      className="max-w-full rounded-md max-h-[300px] object-contain my-2 border border-border cursor-pointer hover:opacity-90 transition-opacity" 
+      onClick={onClick}
     />
   )
 }
@@ -123,7 +125,7 @@ function CommentFile({ objectKey }: { objectKey: string }) {
     setLoading(true)
     try {
       const credentials = await uploadApi.getSTSToken()
-      const url = await getSignedUrl(objectKey, credentials)
+      const url = await getSignedUrl(objectKey, credentials, 3600, true)
       window.open(url, '_blank')
     } catch (e) {
       console.error(e)
@@ -176,15 +178,15 @@ export function CommentItem({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isGeneratingUrl, setIsGeneratingUrl] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewIndex, setPreviewIndex] = useState(0)
+  const [previewImages, setPreviewImages] = useState<{ url: string; key: string }[]>([])
 
   const handleFileDownload = async (objectKey: string) => {
     setIsGeneratingUrl(true)
     try {
-      // 获取STS凭证
       const credentials = await uploadApi.getSTSToken()
-      // 生成签名URL
-      const signedUrl = await getSignedUrl(objectKey, credentials)
-      // 打开下载链接
+      const signedUrl = await getSignedUrl(objectKey, credentials, 3600, true)
       window.open(signedUrl, '_blank')
     } catch (error) {
       console.error('生成文件下载链接失败:', error)
@@ -192,6 +194,18 @@ export function CommentItem({
     } finally {
       setIsGeneratingUrl(false)
     }
+  }
+
+  const handleImageClick = async (objectKey: string, allImageKeys: string[]) => {
+    const imagePromises = allImageKeys.map(async (key) => {
+      const url = await OssResourceManager.resolve(key)
+      return { url: url || '', key }
+    })
+    const images = await Promise.all(imagePromises)
+    const currentIndex = allImageKeys.indexOf(objectKey)
+    setPreviewImages(images)
+    setPreviewIndex(currentIndex >= 0 ? currentIndex : 0)
+    setPreviewOpen(true)
   }
 
   const handleEdit = async (data: { content: string; imageKeys: string[]; fileKeys: string[] }) => {
@@ -218,12 +232,10 @@ export function CommentItem({
 
   const contentParts = useMemo(() => {
     if (comment.type === 'text') {
-      // 1. 尝试检测是否为 JSON 格式（旧数据兼容）
       const rawContent = comment.content
       try {
         const json = JSON.parse(rawContent)
         if (json && typeof json.text === 'string') {
-          // 旧数据：将 JSON 转为 ContentPart[]
           const parts: ContentPart[] = []
           if (Array.isArray(json.imageKeys)) {
             json.imageKeys.forEach((k: string) => parts.push({ type: 'image', key: k }))
@@ -238,11 +250,20 @@ export function CommentItem({
         }
       } catch {}
 
-      // 2. 新数据：直接解析 rawContent，不使用 parseTextCommentContent（因为它会剥离 tags）
       return parseContentToParts(rawContent)
     }
     return []
   }, [comment.content, comment.type])
+
+  const imageKeys = useMemo(() => {
+    return contentParts.filter(p => p.type === 'image').map(p => p.key)
+  }, [contentParts])
+
+  const fileKeys = useMemo(() => {
+    return contentParts.filter(p => p.type === 'file').map(p => p.key)
+  }, [contentParts])
+
+  const [showFiles, setShowFiles] = useState(false)
 
   return (
     <div className="py-3 border-b border-divider last:border-b-0">
@@ -361,10 +382,19 @@ export function CommentItem({
                   {comment.content}
                 </a>
               ) : (
-                <div className="space-y-1">
+                <div className="space-y-2">
+                  {/* 图片画廊 */}
+                  {imageKeys.length > 0 && (
+                    <ImageGallery 
+                      images={imageKeys.map(key => ({ key }))} 
+                      onImageClick={(key) => handleImageClick(key, imageKeys)} 
+                    />
+                  )}
+                  
+                  {/* 文本内容 */}
                   {contentParts.map((part, i) => {
-                    if (part.type === 'image') return <div key={i}><CommentImage objectKey={part.key} /></div>
-                    if (part.type === 'file') return <div key={i}><CommentFile objectKey={part.key} /></div>
+                    if (part.type === 'image') return null // 图片已经在画廊中显示
+                    if (part.type === 'file') return null // 附件已经在附件区域显示
                     if (!part.content.trim()) return null
                     return (
                       <div
@@ -383,6 +413,41 @@ export function CommentItem({
                       />
                     )
                   })}
+                  
+                  {/* 附件显示 - 永远在最底部 */}
+                  {fileKeys.length > 0 && (
+                    <div className="mt-2">
+                      {/* 附件标题和展开按钮 - 定位到右下侧 */}
+                      <div 
+                        className="flex items-center gap-1 p-1.5 bg-surface-active rounded-md cursor-pointer hover:bg-surface-hover transition-colors inline-block float-right"
+                        onClick={() => setShowFiles(!showFiles)}
+                      >
+                        {/* 曲别针图标 */}
+                        <svg className="w-4 h-4 text-foreground-secondary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                        </svg>
+                        {fileKeys.length > 1 && (
+                          <span className="text-xs text-foreground-secondary">{fileKeys.length}</span>
+                        )}
+                        <svg className={`w-3 h-3 text-foreground-secondary transition-transform ${showFiles ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                      
+                      {/* 附件列表 - 从右往左展示 */}
+                      {showFiles && (
+                        <div className="clear-right mt-1 overflow-x-auto pb-2">
+                          <div className="flex gap-2 min-w-max flex-row-reverse">
+                            {fileKeys.map((key, index) => (
+                              <div key={index} className="w-48 flex-shrink-0">
+                                <CommentFile objectKey={key} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -400,6 +465,15 @@ export function CommentItem({
         variant="danger"
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+      
+      {/* 图片预览对话框 */}
+      <ImagePreview
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        images={previewImages}
+        currentIndex={previewIndex}
+        onIndexChange={setPreviewIndex}
       />
     </div>
   )
