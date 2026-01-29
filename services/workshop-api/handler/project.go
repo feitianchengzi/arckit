@@ -23,13 +23,14 @@ type CreateProjectRequest struct {
 
 // ProjectMemberResponse 项目成员响应结构
 type ProjectMemberResponse struct {
-	ID        uint   `json:"id"`         // 成员关系ID
-	UserID    uint   `json:"user_id"`    // 用户ID
-	Role      string `json:"role"`       // 角色
-	Username  string `json:"username"`   // 用户名
-	Avatar    string `json:"avatar"`     // 头像地址
-	CreatedAt string `json:"created_at"` // 加入时间
-	IsMe      bool   `json:"is_me"`      // 是否是当前用户自己
+	ID         uint   `json:"id"`          // 成员关系ID
+	UserID     uint   `json:"user_id"`     // 用户ID
+	Role       string `json:"role"`        // 角色
+	Username   string `json:"username"`    // 用户名
+	Avatar     string `json:"avatar"`      // 头像地址
+	CreatedAt  string `json:"created_at"`  // 加入时间
+	IsMe       bool   `json:"is_me"`       // 是否是当前用户自己
+	IsExternal bool   `json:"is_external"` // 是否为组织外部成员
 }
 
 // CreateProjectResponse 创建项目响应结构
@@ -110,13 +111,14 @@ func CreateProject(c *gin.Context) {
 	memberResponses := make([]ProjectMemberResponse, 0, len(members))
 	for _, member := range members {
 		memberResponses = append(memberResponses, ProjectMemberResponse{
-			ID:        member.ID,
-			UserID:    member.UserID,
-			Role:      member.Role,
-			Username:  member.User.Username,
-			Avatar:    member.User.Avatar,
-			CreatedAt: member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			IsMe:      member.UserID == userID,
+			ID:         member.ID,
+			UserID:     member.UserID,
+			Role:       member.Role,
+			Username:   member.User.Username,
+			Avatar:     member.User.Avatar,
+			CreatedAt:  member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			IsMe:       member.UserID == userID,
+			IsExternal: member.IsExternal,
 		})
 	}
 
@@ -248,13 +250,14 @@ func GetUserProjects(c *gin.Context) {
 		memberResponses := make([]ProjectMemberResponse, 0, len(members))
 		for _, member := range members {
 			memberResponses = append(memberResponses, ProjectMemberResponse{
-				ID:        member.ID,
-				UserID:    member.UserID,
-				Role:      member.Role,
-				Username:  member.User.Username,
-				Avatar:    member.User.Avatar,
-				CreatedAt: member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-				IsMe:      member.UserID == userID,
+				ID:         member.ID,
+				UserID:     member.UserID,
+				Role:       member.Role,
+				Username:   member.User.Username,
+				Avatar:     member.User.Avatar,
+				CreatedAt:  member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+				IsMe:       member.UserID == userID,
+				IsExternal: member.IsExternal,
 			})
 		}
 
@@ -391,13 +394,14 @@ func UpdateProject(c *gin.Context) {
 		memberResponses := make([]ProjectMemberResponse, 0, len(members))
 		for _, m := range members {
 			memberResponses = append(memberResponses, ProjectMemberResponse{
-				ID:        m.ID,
-				UserID:    m.UserID,
-				Role:      m.Role,
-				Username:  m.User.Username,
-				Avatar:    m.User.Avatar,
-				CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-				IsMe:      m.UserID == userID,
+				ID:         m.ID,
+				UserID:     m.UserID,
+				Role:       m.Role,
+				Username:   m.User.Username,
+				Avatar:     m.User.Avatar,
+				CreatedAt:  m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+				IsMe:       m.UserID == userID,
+				IsExternal: m.IsExternal,
 			})
 		}
 
@@ -437,13 +441,14 @@ func UpdateProject(c *gin.Context) {
 	memberResponses := make([]ProjectMemberResponse, 0, len(members))
 	for _, m := range members {
 		memberResponses = append(memberResponses, ProjectMemberResponse{
-			ID:        m.ID,
-			UserID:    m.UserID,
-			Role:      m.Role,
-			Username:  m.User.Username,
-			Avatar:    m.User.Avatar,
-			CreatedAt: m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			IsMe:      m.UserID == userID,
+			ID:         m.ID,
+			UserID:     m.UserID,
+			Role:       m.Role,
+			Username:   m.User.Username,
+			Avatar:     m.User.Avatar,
+			CreatedAt:  m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			IsMe:       m.UserID == userID,
+			IsExternal: m.IsExternal,
 		})
 	}
 
@@ -467,13 +472,14 @@ type AddProjectMemberRequest struct {
 
 // AddProjectMemberResponse 添加项目成员响应结构
 type AddProjectMemberResponse struct {
-	ID        uint   `json:"id"`         // 成员关系ID
-	ProjectID uint   `json:"project_id"` // 项目ID
-	UserID    uint   `json:"user_id"`    // 用户ID
-	Role      string `json:"role"`       // 角色
-	Username  string `json:"username"`   // 用户名
-	Avatar    string `json:"avatar"`     // 头像
-	CreatedAt string `json:"created_at"` // 加入时间
+	ID         uint   `json:"id"`          // 成员关系ID
+	ProjectID  uint   `json:"project_id"`  // 项目ID
+	UserID     uint   `json:"user_id"`     // 用户ID
+	Role       string `json:"role"`        // 角色
+	Username   string `json:"username"`    // 用户名
+	Avatar     string `json:"avatar"`      // 头像
+	CreatedAt  string `json:"created_at"`  // 加入时间
+	IsExternal bool   `json:"is_external"` // 是否为组织外部成员
 }
 
 // AddProjectMember 添加项目成员（通过组织成员ID，无权限限制）
@@ -545,13 +551,14 @@ func AddProjectMember(c *gin.Context) {
 			avatar = orgMember.User.Avatar
 		}
 		resp := AddProjectMemberResponse{
-			ID:        existing.ID,
-			ProjectID: existing.ProjectID,
-			UserID:    existing.UserID,
-			Role:      existing.Role,
-			Username:  username,
-			Avatar:    avatar,
-			CreatedAt: existing.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			ID:         existing.ID,
+			ProjectID:  existing.ProjectID,
+			UserID:     existing.UserID,
+			Role:       existing.Role,
+			Username:   username,
+			Avatar:     avatar,
+			CreatedAt:  existing.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			IsExternal: existing.IsExternal,
 		}
 		c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 		return
@@ -572,13 +579,14 @@ func AddProjectMember(c *gin.Context) {
 	}
 
 	resp := AddProjectMemberResponse{
-		ID:        newMember.ID,
-		ProjectID: newMember.ProjectID,
-		UserID:    newMember.UserID,
-		Role:      newMember.Role,
-		Username:  orgMember.User.Username,
-		Avatar:    orgMember.User.Avatar,
-		CreatedAt: newMember.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:         newMember.ID,
+		ProjectID:  newMember.ProjectID,
+		UserID:     newMember.UserID,
+		Role:       newMember.Role,
+		Username:   orgMember.User.Username,
+		Avatar:     orgMember.User.Avatar,
+		CreatedAt:  newMember.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		IsExternal: newMember.IsExternal,
 	}
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
@@ -744,6 +752,7 @@ type JoinProjectResponse struct {
 	Role        string `json:"role"`         // 角色
 	ProjectName string `json:"project_name"` // 项目名称
 	CreatedAt   string `json:"created_at"`   // 加入时间
+	IsExternal  bool   `json:"is_external"`  // 是否为组织外部成员
 }
 
 // JoinProject 加入项目（使用邀请码）
@@ -879,6 +888,7 @@ func JoinProject(c *gin.Context) {
 		Role:        newMember.Role,
 		ProjectName: project.Name,
 		CreatedAt:   newMember.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		IsExternal:  newMember.IsExternal,
 	}
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }

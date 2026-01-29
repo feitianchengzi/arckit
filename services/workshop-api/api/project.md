@@ -73,7 +73,8 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
         "username": "john_doe",
         "avatar": "https://example.com/avatar.png",
         "created_at": "2024-01-01T12:00:00Z",
-        "is_me": true
+        "is_me": true,
+        "is_external": false
       }
     ]
   }
@@ -101,6 +102,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 | avatar | string | 头像地址 |
 | created_at | string | 加入时间（ISO 8601格式） |
 | is_me | bool | 是否是当前用户自己 |
+| is_external | bool | 是否为组织外部成员（通过邀请码加入且非项目所属组织成员时为 true） |
 
 **特殊说明**:
 - 创建项目时，创建者自动成为项目所有者（owner）
