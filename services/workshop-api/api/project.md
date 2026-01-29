@@ -186,7 +186,8 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects" \
             "username": "john_doe",
             "avatar": "https://example.com/avatar.png",
             "created_at": "2024-01-01T12:00:00Z",
-            "is_me": true
+            "is_me": true,
+            "is_external": false
           }
         ]
       }
@@ -216,12 +217,25 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 | deleted_at | string | 删除时间（ISO 8601格式，如果存在） |
 | members | array | 项目成员列表 |
 
+**成员对象字段说明**（与创建项目接口的成员对象一致）:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | uint | 成员关系ID |
+| user_id | uint | 用户ID |
+| role | string | 角色（owner/admin/member） |
+| username | string | 用户名 |
+| avatar | string | 头像地址 |
+| created_at | string | 加入时间（ISO 8601格式） |
+| is_me | bool | 是否是当前用户自己 |
+| is_external | bool | 是否为组织外部成员 |
+
 **特殊说明**:
 - `include_deleted` 参数用于查询包含已删除（软删除）的项目
 - 当 `include_deleted=true` 时，响应中的 `deleted_at` 字段会显示删除时间（如果项目已删除）
 - 默认情况下（`include_deleted=false`），只返回未删除的项目
 - `organization_id` 参数用于按组织过滤项目：
-  - 不提供或为 `0`：只返回不属于任何组织的项目（`organization_id IS NULL`）
+  - 不提供或为 `0`：返回不属于任何组织的项目（`organization_id IS NULL`）+ 当前用户在该项目中为外部成员的项目（`is_external = true`）
   - 提供有效值：只返回属于该组织的项目（`organization_id = ?`）
 
 **查询包含已删除的项目**:
@@ -661,7 +675,8 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_
     "role": "member",
     "username": "jane_doe",
     "avatar": "https://example.com/avatar.png",
-    "created_at": "2024-01-01T12:10:00Z"
+    "created_at": "2024-01-01T12:10:00Z",
+    "is_external": false
   }
 }
 ```
@@ -677,7 +692,8 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_
     "role": "member",
     "username": "jane_doe",
     "avatar": "https://example.com/avatar.png",
-    "created_at": "2024-01-01T12:00:00Z"
+    "created_at": "2024-01-01T12:00:00Z",
+    "is_external": false
   }
 }
 ```
@@ -693,6 +709,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_
 | username | string | 用户名 |
 | avatar | string | 头像地址 |
 | created_at | string | 加入时间（ISO 8601格式） |
+| is_external | bool | 是否为组织外部成员（通过组织成员添加的均为 false） |
 
 **特殊说明**:
 - 项目必须已关联组织（`organization_id` 非空），否则返回 400。
@@ -805,7 +822,8 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/join" \
     "user_id": 12,
     "role": "member",
     "project_name": "电商平台开发",
-    "created_at": "2024-01-01T12:10:00Z"
+    "created_at": "2024-01-01T12:10:00Z",
+    "is_external": true
   }
 }
 ```
@@ -820,11 +838,13 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects/join" \
 | role | string | 角色 |
 | project_name | string | 项目名称 |
 | created_at | string | 加入时间（ISO 8601格式） |
+| is_external | bool | 是否为组织外部成员：若项目关联组织且当前用户不是该组织成员则为 true，否则为 false |
 
 **特殊说明**:
 - 同一个邀请码可以被多人使用，最多使用次数由创建邀请时设置的 `max_uses` 决定（默认1次）
 - 每次使用后，邀请码的 `used_count` 会递增，达到 `max_uses` 后无法继续使用
 - 如果用户已经是项目成员，无法重复加入
+- 通过邀请码加入时，若项目有关联组织且用户不是该组织成员，则 `is_external` 为 true
 
 **错误响应**:
 
