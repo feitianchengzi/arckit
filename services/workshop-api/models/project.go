@@ -40,8 +40,9 @@ type ProjectMember struct {
 	ID        uint           `json:"id" gorm:"primaryKey;autoIncrement"`                     // 主键
 	ProjectID uint           `json:"project_id" gorm:"not null;index"`                       // 外键：项目ID
 	UserID    uint           `json:"user_id" gorm:"not null;index"`                          // 外键：用户ID
-	Role      string         `json:"role" gorm:"type:varchar(50);not null;default:'member'"` // 角色：owner, admin, member等
-	CreatedAt time.Time      `json:"created_at" gorm:"autoCreateTime"`                       // 加入时间
+	Role       string         `json:"role" gorm:"type:varchar(50);not null;default:'member'"` // 角色：owner, admin, member等
+	IsExternal bool           `json:"is_external" gorm:"not null;default:false"`             // 是否为组织外部成员，默认为false
+	CreatedAt  time.Time      `json:"created_at" gorm:"autoCreateTime"`                       // 加入时间
 	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                       // 更新时间
 	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`     // 软删除时间
 

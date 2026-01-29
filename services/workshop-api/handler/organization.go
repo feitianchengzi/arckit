@@ -813,6 +813,12 @@ func JoinOrganization(c *gin.Context) {
 			return err
 		}
 
+		// 将该用户在该组织下所有项目中的项目成员记录的 IsExternal 改为 false（若存在）
+		subQuery := tx.Model(&models.Project{}).Select("id").Where("organization_id = ?", organization.ID)
+		if err := tx.Model(&models.ProjectMember{}).Where("user_id = ? AND project_id IN (?)", userID, subQuery).Update("is_external", false).Error; err != nil {
+			return err
+		}
+
 		return nil
 	})
 
@@ -972,6 +978,12 @@ func DeleteOrganizationMember(c *gin.Context) {
 				return err
 			}
 
+			// 将该用户在该组织下所有项目中的项目成员改为外部成员
+			subQuery := tx.Model(&models.Project{}).Select("id").Where("organization_id = ?", organization.ID)
+			if err := tx.Model(&models.ProjectMember{}).Where("user_id = ? AND project_id IN (?)", targetMember.UserID, subQuery).Update("is_external", true).Error; err != nil {
+				return err
+			}
+
 			return nil
 		})
 
@@ -984,8 +996,18 @@ func DeleteOrganizationMember(c *gin.Context) {
 			return
 		}
 	} else {
-		// 9. 删除非所有者成员
-		if err := db.Delete(&targetMember).Error; err != nil {
+		// 9. 删除非所有者成员，并将该用户在该组织下所有项目中的项目成员改为外部成员
+		err := db.Transaction(func(tx *gorm.DB) error {
+			subQuery := tx.Model(&models.Project{}).Select("id").Where("organization_id = ?", organization.ID)
+			if err := tx.Model(&models.ProjectMember{}).Where("user_id = ? AND project_id IN (?)", targetMember.UserID, subQuery).Update("is_external", true).Error; err != nil {
+				return err
+			}
+			if err := tx.Delete(&targetMember).Error; err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
 			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationUpdateFailed, "删除组织成员失败: "+err.Error(), nil))
 			return
 		}

@@ -205,8 +205,8 @@ func GetUserProjects(c *gin.Context) {
 	for _, pm := range projectMembers {
 		// 根据组织ID过滤项目
 		if req.OrganizationID == nil || *req.OrganizationID == 0 {
-			// 如果组织ID为空或为0，只查询组织ID为空的项目
-			if pm.Project.OrganizationID == nil {
+			// 如果组织ID为空或为0：包含无组织项目 + 用户在该项目中为外部成员的项目
+			if pm.Project.OrganizationID == nil || pm.IsExternal {
 				projectIDs = append(projectIDs, pm.ProjectID)
 				projectMap[pm.ProjectID] = pm.Project
 			}
@@ -825,14 +825,28 @@ func JoinProject(c *gin.Context) {
 		return
 	}
 
+	// 8.1 若项目有关联组织，检查用户是否为组织成员，非组织成员则视为外部成员
+	isExternal := false
+	if project.OrganizationID != nil {
+		var orgMember models.OrganizationMember
+		err := db.Where("organization_id = ? AND user_id = ?", *project.OrganizationID, userID).First(&orgMember).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				isExternal = true
+			}
+			// 其他查询错误不改变 isExternal，保持 false
+		}
+	}
+
 	// 9. 在事务中创建项目成员并增加邀请使用计数
 	var newMember models.ProjectMember
 	err = db.Transaction(func(tx *gorm.DB) error {
 		// 创建项目成员
 		newMember = models.ProjectMember{
-			ProjectID: project.ID,
-			UserID:    userID,
-			Role:      invitation.Role,
+			ProjectID:  project.ID,
+			UserID:     userID,
+			Role:       invitation.Role,
+			IsExternal: isExternal,
 		}
 		if err := tx.Create(&newMember).Error; err != nil {
 			return err
