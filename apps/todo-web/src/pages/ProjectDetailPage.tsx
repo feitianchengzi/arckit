@@ -1079,36 +1079,34 @@ export default function ProjectDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* 待办列表（占 4/5） */}
         <div className="lg:col-span-4 space-y-6">
-          {/* 统计卡片 - 移动端横向滚动，桌面端网格布局 */}
-          <div className="bg-surface-elevated rounded-lg shadow-md border border-border p-4 md:p-6" style={{ borderColor: 'var(--color-border)' }}>
-            <div className="flex md:grid md:grid-cols-3 gap-2 md:gap-4 overflow-x-auto overflow-y-visible py-2 md:py-2 scrollbar-hide" style={{ paddingLeft: '4px', paddingRight: '4px' }}>
-              <StatCard
-                title="待办"
-                value={stats.pending}
-                icon={<TaskIcon />}
-                isActive={statusFilter === 'PENDING'}
-                onClick={() => setStatusFilter(statusFilter === 'PENDING' ? 'ALL' : 'PENDING')}
-                className="min-w-[120px] md:min-w-0 flex-shrink-0"
-              />
-              
-              <StatCard
-                title="进行中"
-                value={stats.inProgress}
-                icon={<ProgressIcon />}
-                isActive={statusFilter === 'IN_PROGRESS'}
-                onClick={() => setStatusFilter(statusFilter === 'IN_PROGRESS' ? 'ALL' : 'IN_PROGRESS')}
-                className="min-w-[120px] md:min-w-0 flex-shrink-0"
-              />
-              
-              <StatCard
-                title="已完成"
-                value={stats.completed}
-                icon={<CheckIcon />}
-                isActive={statusFilter === 'COMPLETED'}
-                onClick={() => setStatusFilter(statusFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
-                className="min-w-[120px] md:min-w-0 flex-shrink-0"
-              />
-            </div>
+          {/* 统计卡片 - 直接放在外层，移除父容器 */}
+          <div className="grid grid-cols-3 gap-4">
+            <StatCard
+              title="待办"
+              value={stats.pending}
+              icon={<TaskIcon />}
+              isActive={statusFilter === 'PENDING'}
+              onClick={() => setStatusFilter(statusFilter === 'PENDING' ? 'ALL' : 'PENDING')}
+              className="h-16"
+            />
+            
+            <StatCard
+              title="进行中"
+              value={stats.inProgress}
+              icon={<ProgressIcon />}
+              isActive={statusFilter === 'IN_PROGRESS'}
+              onClick={() => setStatusFilter(statusFilter === 'IN_PROGRESS' ? 'ALL' : 'IN_PROGRESS')}
+              className="h-16"
+            />
+            
+            <StatCard
+              title="已完成"
+              value={stats.completed}
+              icon={<CheckIcon />}
+              isActive={statusFilter === 'COMPLETED'}
+              onClick={() => setStatusFilter(statusFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
+              className="h-16"
+            />
           </div>
 
           {/* 待办列表内容 */}
@@ -1754,7 +1752,6 @@ export default function ProjectDetailPage() {
                     setDateRange({ startDate: null, endDate: null })
                     setSearchQuery('')
                     setShowSearchBar(false)
-                    setMemberFilterState({}) // 重置成员筛选状态
                   }}
                 >
                   重置筛选
@@ -2072,7 +2069,7 @@ function StatCard({ title, value, icon, isActive = false, onClick, className }: 
   return (
     <div
       className={clsx(
-        'bg-surface-elevated rounded-lg shadow-md p-3 md:p-4 cursor-pointer transition-all',
+        'bg-surface-elevated rounded-lg shadow-md p-3 md:p-4 cursor-pointer transition-all flex items-center',
         {
           'ring-2 ring-primary-500 shadow-lg': isActive,
           'ring-2 ring-transparent': !isActive, // 使用 ring 而不是 border，避免被 overflow 裁切

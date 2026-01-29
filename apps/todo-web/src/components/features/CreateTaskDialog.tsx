@@ -8,6 +8,7 @@ import { TagSelector, PrioritySelector } from '@/components/features'
 import { useCreateTask, useTaskList } from '@/hooks/useTasks'
 import { useProjectMembers } from '@/hooks/useProjects'
 import { useTagStore } from '@/store/tagStore'
+import { useAuthStore } from '@/store/authStore'
 import { buildTaskTags, parseTaskTags } from '@/lib/utils/tagUtils'
 import { ChevronDownIcon } from '@/components/ui/icons'
 import clsx from 'clsx'
@@ -34,6 +35,8 @@ export function CreateTaskDialog({
   const [tagsString, setTagsString] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [isEditingAssignee, setIsEditingAssignee] = useState(false)
+  
+  const currentUser = useAuthStore((state) => state.user)
   
   const { data: tasks } = useTaskList(projectId)
   const { data: members } = useProjectMembers(projectId)
@@ -66,6 +69,69 @@ export function CreateTaskDialog({
       setIsEditingAssignee(false)
     }
   }, [open, parentId])
+  
+  // 当对话框打开且有成员数据时，默认选中当前用户作为执行人
+  useEffect(() => {
+    if (open && members && members.length > 0) {
+      // 尝试获取当前用户信息
+      const currentUserId = currentUser?.id
+      
+      console.log('[CreateTaskDialog] 检查默认执行人:', {
+        open,
+        membersLength: members.length,
+        currentUserId,
+        members
+      })
+      
+      // 如果有当前用户 ID 且不为 0，尝试根据 ID 查找
+      if (currentUserId && currentUserId !== 0) {
+        const currentUserMember = members.find((m: any) => {
+          return m.user_id === currentUserId || 
+                 (m.user && m.user.id === currentUserId) ||
+                 m.id === currentUserId
+        })
+        
+        if (currentUserMember) {
+          const memberId = currentUserMember.user_id || 
+                          (currentUserMember.user && currentUserMember.user.id) ||
+                          currentUserMember.id
+          
+          console.log('[CreateTaskDialog] 根据 ID 找到当前用户:', { memberId, username: currentUserMember.username })
+          setAssigneeId(memberId)
+          return
+        }
+      }
+      
+      // 如果没有找到，尝试根据用户名查找
+      if (currentUser?.username) {
+        const currentUserMember = members.find((m: any) => {
+          return m.username === currentUser.username || 
+                 (m.user && m.user.username === currentUser.username)
+        })
+        
+        if (currentUserMember) {
+          const memberId = currentUserMember.user_id || 
+                          (currentUserMember.user && currentUserMember.user.id) ||
+                          currentUserMember.id
+          
+          console.log('[CreateTaskDialog] 根据用户名找到当前用户:', { memberId, username: currentUserMember.username })
+          setAssigneeId(memberId)
+          return
+        }
+      }
+      
+      // 如果还是没有找到，尝试选择第一个成员（作为默认）
+      if (members.length > 0) {
+        const firstMember = members[0]
+        const memberId = firstMember.user_id || 
+                        (firstMember.user && firstMember.user.id) ||
+                        firstMember.id
+        
+        console.log('[CreateTaskDialog] 选择第一个成员作为默认:', { memberId, username: firstMember.username })
+        setAssigneeId(memberId)
+      }
+    }
+  }, [open, members, currentUser])
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -258,8 +324,13 @@ export function CreateTaskDialog({
                       key={memberId}
                       type="button"
                       onClick={() => {
-                        setAssigneeId(memberId)
-                        setIsEditingAssignee(false)
+                        // 如果点击的是已经选中的成员，则取消选中
+                        if (isSelected) {
+                          setAssigneeId(undefined)
+                        } else {
+                          setAssigneeId(memberId)
+                        }
+                        // 不要自动收起控件
                       }}
                       className={clsx(
                         "relative flex flex-col items-center gap-0.5 px-1 py-1 transition-all hover:shadow-lg bg-surface-elevated rounded border border-border shadow focus:outline-none focus:ring-0 w-[60px]",

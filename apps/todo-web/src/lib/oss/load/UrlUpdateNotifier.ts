@@ -3,6 +3,8 @@
  * 当 ErrorInterceptor 成功修复图片 URL 后，通知所有使用相同 objectKey 的图片元素更新
  */
 
+import { ENABLE_AVATAR_LOGS } from './logConfig'
+
 // 全局 URL 缓存：objectKey -> 最新的有效 URL
 const urlCache = new Map<string, string>()
 
@@ -25,10 +27,12 @@ export function notifyUrlUpdated(objectKey: string, newUrl: string): void {
     })
     window.dispatchEvent(event)
     
-    console.log('[UrlUpdateNotifier] 📢 通知 URL 已更新:', {
-      objectKey,
-      newUrl: newUrl.substring(0, 50) + '...',
-    })
+    if (ENABLE_AVATAR_LOGS) {
+      console.log('[UrlUpdateNotifier] 📢 通知 URL 已更新:', {
+        objectKey,
+        newUrl: newUrl.substring(0, 50) + '...',
+      })
+    }
   }
 }
 
@@ -50,10 +54,12 @@ export function subscribeUrlUpdate(
   const cachedUrl = urlCache.get(objectKey)
   if (cachedUrl) {
     // 立即调用回调，使用缓存的 URL
-    console.log('[UrlUpdateNotifier] ⚡ 使用缓存的 URL:', {
-      objectKey,
-      cachedUrl: cachedUrl.substring(0, 50) + '...',
-    })
+    if (ENABLE_AVATAR_LOGS) {
+      console.log('[UrlUpdateNotifier] ⚡ 使用缓存的 URL:', {
+        objectKey,
+        cachedUrl: cachedUrl.substring(0, 50) + '...',
+      })
+    }
     callback(cachedUrl)
   }
   
@@ -61,10 +67,12 @@ export function subscribeUrlUpdate(
   const handler = (event: Event) => {
     const customEvent = event as CustomEvent<{ objectKey: string; newUrl: string }>
     if (customEvent.detail.objectKey === objectKey) {
-      console.log('[UrlUpdateNotifier] 📨 收到 URL 更新通知:', {
-        objectKey,
-        newUrl: customEvent.detail.newUrl.substring(0, 50) + '...',
-      })
+      if (ENABLE_AVATAR_LOGS) {
+        console.log('[UrlUpdateNotifier] 📨 收到 URL 更新通知:', {
+          objectKey,
+          newUrl: customEvent.detail.newUrl.substring(0, 50) + '...',
+        })
+      }
       callback(customEvent.detail.newUrl)
     }
   }
