@@ -15,7 +15,11 @@ import { useState, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
+import { useQueryClient } from '@tanstack/react-query'
 import { ProjectListContent } from './ProjectList'
+import { OrganizationList } from './OrganizationList'
+import { CreateOrganizationDialog } from '../features/CreateOrganizationDialog'
+import { CreateProjectDialog } from '../features/CreateProjectDialog'
 import { Avatar } from '@/components/ui'
 
 interface SidebarProps {
@@ -29,6 +33,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const storeUser = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
   const { theme, toggleTheme } = useThemeStore()
+  const queryClient = useQueryClient()
   
   // 使用 state 来避免 hydration 不匹配
   // 服务端和客户端首次渲染时都显示默认值，客户端 hydration 后再更新
@@ -40,6 +45,12 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const bottomAreaRef = useRef<HTMLDivElement>(null)
   const [listTop, setListTop] = useState(0)
   const [listBottom, setListBottom] = useState(0)
+  
+  // 组织相关状态
+  const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
+  // 项目相关状态
+  const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false)
+  const [forceRecalculate, setForceRecalculate] = useState(0)
   
   useEffect(() => {
     console.log('[Sidebar] 用户信息更新:', storeUser)
@@ -61,7 +72,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
     updateListPosition()
     window.addEventListener('resize', updateListPosition)
     return () => window.removeEventListener('resize', updateListPosition)
-  }, [isOpen])
+  }, [isOpen, forceRecalculate])
   
   const handleLogout = () => {
     logout()
@@ -86,6 +97,24 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
     }
   }
   
+  const handleCreateOrgSuccess = () => {
+    // 创建组织成功后刷新组织列表
+    console.log('组织创建成功');
+    // 使组织列表查询失效，触发重新获取
+    queryClient.invalidateQueries({ queryKey: ['organizations'] });
+    // 强制重新计算列表位置，避免重叠
+    setForceRecalculate(prev => prev + 1);
+  }
+  
+  const handleCreateProjectSuccess = () => {
+    // 创建项目成功后刷新项目列表
+    console.log('项目创建成功');
+    // 使项目列表查询失效，触发重新获取
+    queryClient.invalidateQueries({ queryKey: ['projects'] });
+    // 强制重新计算列表位置，避免重叠
+    setForceRecalculate(prev => prev + 1);
+  }
+  
   return (
     <aside
       className={clsx(
@@ -108,14 +137,9 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
       aria-label="主导航"
       style={{ height: '100vh', maxHeight: '100vh' }}
     >
+
       {/* 移动端/平板端：关闭按钮 */}
-      <div className="lg:hidden flex items-center justify-between p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex-shrink-0">
-            <LogoIcon />
-          </div>
-          <h2 className="text-lg font-bold text-foreground">待办管理系统</h2>
-        </div>
+      <div className="lg:hidden flex items-center justify-end p-4">
         <button
           onClick={onClose}
           className={clsx(
@@ -143,7 +167,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         </button>
       </div>
 
-      {/* 固定区域 - 顶部（系统标题、我的待办、新建项目） */}
+      {/* 固定区域 - 顶部（组织部分：新建组织） */}
       <div 
         ref={topAreaRef}
         className={clsx(
@@ -151,48 +175,49 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
           { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
         )}
       >
-        {/* 桌面端：系统标题 */}
-        <div className="p-6">
+        {/* 组织部分标题和新建按钮 */}
+        <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+          <h3 className="text-base font-bold text-primary px-3">组织</h3>
           <button
-            onClick={() => handleNavClick('/projects')}
-            className="w-full flex items-center gap-3 text-left"
+            onClick={() => setShowCreateOrgDialog(true)}
+            className={clsx(
+              'flex items-center justify-center p-2 rounded-md transition-colors',
+              'text-foreground hover:bg-surface-hover'
+            )}
+            title="新建组织"
+            aria-label="新建组织"
           >
-            {/* Logo */}
-            <div className="flex-shrink-0">
-              <LogoIcon />
-            </div>
-            <h2 className="text-lg font-bold text-foreground hover:text-primary transition-colors">
-              待办管理系统
-            </h2>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
           </button>
         </div>
         
-        {/* 我的待办 - 固定区域 */}
-        <div className="p-4 pb-2 border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}>
-          <NavItem
-            icon={<TasksIcon />}
-            label="我的待办"
-            href="/tasks"
-            onClick={handleNavClick}
-          />
+        {/* 组织列表 - 固定区域 */}
+        <div className="px-4 pb-2">
+          <div className="max-h-48 overflow-y-auto">
+            <OrganizationList onItemClick={handleNavClick} />
+          </div>
         </div>
         
-        {/* 新建项目按钮 - 固定区域 */}
-        <div className="px-4 pb-2 border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}>
+        {/* 分隔线 */}
+        <div className="border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}></div>
+        
+        {/* 项目部分标题和新建按钮 */}
+        <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+          <h3 className="text-base font-bold text-primary px-3">项目</h3>
           <button
-            onClick={() => handleNavClick('/projects/new')}
+            onClick={() => setShowCreateProjectDialog(true)}
             className={clsx(
-              'w-full flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md transition-colors',
-              'min-h-[44px]', // 移动端触摸优化
+              'flex items-center justify-center p-2 rounded-md transition-colors',
               'text-foreground hover:bg-surface-hover'
             )}
             title="新建项目"
             aria-label="新建项目"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            <span>新建项目</span>
           </button>
         </div>
       </div>
@@ -293,6 +318,19 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         </div>
       </div>
       
+      {/* 新建组织对话框 */}
+      <CreateOrganizationDialog
+        open={showCreateOrgDialog}
+        onClose={() => setShowCreateOrgDialog(false)}
+        onSuccess={handleCreateOrgSuccess}
+      />
+      
+      {/* 新建项目对话框 */}
+      <CreateProjectDialog
+        open={showCreateProjectDialog}
+        onClose={() => setShowCreateProjectDialog(false)}
+        onSuccess={handleCreateProjectSuccess}
+      />
     </aside>
   )
 }

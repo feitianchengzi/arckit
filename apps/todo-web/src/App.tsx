@@ -15,6 +15,7 @@ import NewProjectPage from '@/pages/NewProjectPage'
 import TasksPage from '@/pages/TasksPage'
 import SettingsPage from '@/pages/SettingsPage'
 import JoinProjectPage from '@/pages/JoinProjectPage'
+import OrganizationDetailPage from '@/pages/OrganizationDetailPage'
 
 // 布局组件
 import DashboardLayout from '@/layouts/DashboardLayout'
@@ -48,6 +49,7 @@ function App() {
         <Route path="/projects/:id/tasks/new" element={<NewTaskPage />} />
         <Route path="/projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
         <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/organizations/:id" element={<OrganizationDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
