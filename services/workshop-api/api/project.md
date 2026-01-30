@@ -55,6 +55,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 |------|------|------|------|
 | name | string | 是 | 项目名称 |
 | git_url | string | 是 | Git仓库地址 |
+| organization_id | uint | 否 | 组织ID（可选），不传则项目不关联组织 |
 
 **响应示例** (`201 Created`):
 ```json
@@ -347,6 +348,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 |------|------|------|------|
 | name | string | 否 | 项目名称 |
 | git_url | string | 否 | Git仓库地址 |
+| organization_id | uint | 否 | 组织ID（可选）。**临时字段，后续将移除** |
 
 **响应示例** (`200 OK`):
 ```json
@@ -365,6 +367,9 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 ```
 
 **响应字段说明**: 同创建项目接口，包含完整的成员列表
+
+**特殊说明**:
+- `organization_id` 为临时字段，后续版本将移除，请勿长期依赖
 
 **错误响应**:
 

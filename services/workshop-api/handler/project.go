@@ -17,8 +17,9 @@ import (
 
 // CreateProjectRequest 创建项目请求结构
 type CreateProjectRequest struct {
-	Name   string `json:"name" binding:"required"`    // 项目名称（必填）
-	GitURL string `json:"git_url" binding:"required"` // Git地址（必填）
+	Name           string `json:"name" binding:"required"`    // 项目名称（必填）
+	GitURL         string `json:"git_url" binding:"required"` // Git地址（必填）
+	OrganizationID *uint  `json:"organization_id,omitempty"`  // 组织ID（可选）
 }
 
 // ProjectMemberResponse 项目成员响应结构
@@ -74,9 +75,10 @@ func CreateProject(c *gin.Context) {
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// 创建项目
 		project = models.Project{
-			Name:      req.Name,
-			GitURL:    req.GitURL,
-			CreatorID: userID,
+			Name:           req.Name,
+			GitURL:         req.GitURL,
+			CreatorID:      userID,
+			OrganizationID: req.OrganizationID,
 		}
 		if err := tx.Create(&project).Error; err != nil {
 			return err
@@ -289,8 +291,9 @@ func GetUserProjects(c *gin.Context) {
 
 // UpdateProjectRequest 更新项目请求结构
 type UpdateProjectRequest struct {
-	Name   *string `json:"name,omitempty"`    // 项目名称（可选）
-	GitURL *string `json:"git_url,omitempty"` // Git地址（可选）
+	Name           *string `json:"name,omitempty"`            // 项目名称（可选）
+	GitURL         *string `json:"git_url,omitempty"`         // Git地址（可选）
+	OrganizationID *uint   `json:"organization_id,omitempty"` // 组织ID（可选）；临时字段，后续将移除
 }
 
 // UpdateProjectResponse 更新项目响应结构
@@ -379,6 +382,9 @@ func UpdateProject(c *gin.Context) {
 	}
 	if req.GitURL != nil {
 		updates["git_url"] = *req.GitURL
+	}
+	if req.OrganizationID != nil {
+		updates["organization_id"] = *req.OrganizationID // 临时字段，后续将移除
 	}
 
 	// 9. 如果没有要更新的字段，直接返回当前项目信息
