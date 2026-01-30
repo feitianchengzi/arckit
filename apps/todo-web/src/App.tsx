@@ -16,6 +16,8 @@ import TasksPage from '@/pages/TasksPage'
 import SettingsPage from '@/pages/SettingsPage'
 import JoinProjectPage from '@/pages/JoinProjectPage'
 import OrganizationDetailPage from '@/pages/OrganizationDetailPage'
+import InviteOrganizationPage from '@/pages/InviteOrganizationPage'
+import JoinOrganizationPage from '@/pages/JoinOrganizationPage'
 
 // 布局组件
 import DashboardLayout from '@/layouts/DashboardLayout'
@@ -37,6 +39,7 @@ function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/join/:code" element={<JoinProjectPage />} />
+      <Route path="/join-organization/:code" element={<JoinOrganizationPage />} />
 
       {/* 受保护的路由 */}
       <Route element={<AuthGuard><DashboardLayout /></AuthGuard>}>
@@ -50,6 +53,7 @@ function App() {
         <Route path="/projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
         <Route path="/tasks" element={<TasksPage />} />
         <Route path="/organizations/:id" element={<OrganizationDetailPage />} />
+        <Route path="/organizations/:id/invite" element={<InviteOrganizationPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
@@ -60,4 +64,3 @@ function App() {
 }
 
 export default App
-

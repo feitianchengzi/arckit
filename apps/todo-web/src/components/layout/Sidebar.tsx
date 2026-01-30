@@ -61,17 +61,31 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   // 计算列表区域的位置
   useEffect(() => {
     const updateListPosition = () => {
-      if (topAreaRef.current && bottomAreaRef.current) {
-        const topHeight = topAreaRef.current.offsetHeight
-        const bottomHeight = bottomAreaRef.current.offsetHeight
-        setListTop(topHeight)
-        setListBottom(bottomHeight)
+      if (topAreaRef.current) {
+        setListTop(topAreaRef.current.offsetHeight)
+      }
+      if (bottomAreaRef.current) {
+        setListBottom(bottomAreaRef.current.offsetHeight)
       }
     }
     
     updateListPosition()
     window.addEventListener('resize', updateListPosition)
-    return () => window.removeEventListener('resize', updateListPosition)
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateListPosition) : null
+    if (resizeObserver) {
+      if (topAreaRef.current) {
+        resizeObserver.observe(topAreaRef.current)
+      }
+      if (bottomAreaRef.current) {
+        resizeObserver.observe(bottomAreaRef.current)
+      }
+    }
+    return () => {
+      window.removeEventListener('resize', updateListPosition)
+      if (resizeObserver) {
+        resizeObserver.disconnect()
+      }
+    }
   }, [isOpen, forceRecalculate])
   
   const handleLogout = () => {
@@ -146,6 +160,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
             'w-10 h-10 flex items-center justify-center',
             'text-foreground-secondary hover:text-foreground',
             'hover:bg-surface-hover',
+            'active:bg-surface-active',
             'rounded-lg transition-colors',
             'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
           )}
@@ -182,7 +197,9 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
             onClick={() => setShowCreateOrgDialog(true)}
             className={clsx(
               'flex items-center justify-center p-2 rounded-md transition-colors',
-              'text-foreground hover:bg-surface-hover'
+              'text-foreground hover:bg-surface-hover',
+              'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+              'active:bg-surface-active'
             )}
             title="新建组织"
             aria-label="新建组织"
@@ -210,7 +227,9 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
             onClick={() => setShowCreateProjectDialog(true)}
             className={clsx(
               'flex items-center justify-center p-2 rounded-md transition-colors',
-              'text-foreground hover:bg-surface-hover'
+              'text-foreground hover:bg-surface-hover',
+              'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+              'active:bg-surface-active'
             )}
             title="新建项目"
             aria-label="新建项目"
@@ -224,13 +243,14 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
       
       {/* 项目列表 - 占据剩余空间，可滚动 */}
       <div className={clsx(
-        'absolute left-0 right-0 overflow-y-auto p-4 pt-2',
+        'absolute left-0 right-0 overflow-y-auto p-4',
         'lg:block',
         { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
       )}
       style={{
         top: `${listTop}px`,
-        bottom: `${listBottom}px`
+        bottom: `${listBottom}px`,
+        paddingTop: '8px'
       }}
       >
         <ProjectListContent onItemClick={handleNavClick} />
@@ -255,7 +275,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
           {/* 整个用户信息区域可点击进入设置 */}
           <button
             onClick={() => handleNavClick('/settings')}
-            className="w-full flex items-center gap-3 text-left hover:bg-surface-hover rounded-md p-1 -ml-1 -mr-1 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            className="w-full flex items-center gap-3 text-left hover:bg-surface-hover rounded-md p-1 -ml-1 -mr-1 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 active:bg-surface-active"
             title="设置"
           >
             {/* 头像 */}
@@ -417,4 +437,3 @@ function LogoIcon() {
     </svg>
   )
 }
-

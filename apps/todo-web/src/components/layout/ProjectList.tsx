@@ -64,6 +64,8 @@ export function ProjectList({ onItemClick }: ProjectListProps = {}) {
             className={clsx(
               'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
               'min-h-[44px]', // 移动端触摸优化
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+              'active:bg-surface-active',
               {
                 'bg-primary-light text-primary font-medium': currentProjectId === String(project.id),
                 'text-foreground hover:bg-surface-hover': currentProjectId !== String(project.id),
@@ -119,6 +121,8 @@ export function ProjectListContent({ onItemClick }: ProjectListProps = {}) {
             className={clsx(
               'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
               'min-h-[44px]', // 移动端触摸优化
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+              'active:bg-surface-active',
               {
                 'bg-primary-light text-primary font-medium': currentProjectId === String(project.id),
                 'text-foreground hover:bg-surface-hover': currentProjectId !== String(project.id),
@@ -186,4 +190,3 @@ function LoadingSpinner() {
     </svg>
   )
 }
-

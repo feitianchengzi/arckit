@@ -75,6 +75,8 @@ export function OrganizationList({ onItemClick }: OrganizationListProps = {}) {
               className={clsx(
                 'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
                 'min-h-[44px]', // 移动端触摸优化
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+                'active:bg-surface-active',
                 {
                   'bg-primary-light text-primary font-medium': currentOrganizationId === String(organization.id),
                   'text-foreground hover:bg-surface-hover': currentOrganizationId !== String(organization.id),
@@ -97,7 +99,9 @@ export function OrganizationList({ onItemClick }: OrganizationListProps = {}) {
               className={clsx(
                 'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
                 'min-h-[44px]', // 移动端触摸优化
-                'text-foreground hover:bg-surface-hover'
+                'text-foreground hover:bg-surface-hover',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+                'active:bg-surface-active'
               )}
             >
               <PlusIcon />
