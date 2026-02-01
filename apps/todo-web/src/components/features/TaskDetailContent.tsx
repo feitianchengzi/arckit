@@ -362,6 +362,43 @@ export function TaskDetailContent({
     }
   }
   
+  const tabHeaderRef = useRef<HTMLDivElement>(null)
+
+  // 处理评论添加后的滚动
+  const handleCommentAdded = () => {
+    // 等待 DOM 更新
+    setTimeout(() => {
+      if (tabHeaderRef.current) {
+        const rect = tabHeaderRef.current.getBoundingClientRect()
+        // 找到滚动的容器（通常是 window 或最近的滚动父级）
+        // 这里假设是 window 或 body 滚动，如果是 Drawer 内部滚动，需要找到对应的容器
+        // 获取当前滚动容器（Drawer 的内容区域）
+        const scrollContainer = tabHeaderRef.current.closest('.overflow-y-auto') as HTMLElement
+        
+        if (scrollContainer) {
+          // 计算目标位置：当前滚动位置 + 元素相对容器的位置 - 偏移量
+          // offsetTop 是元素相对于 offsetParent 的位置
+          // 我们需要计算元素相对于滚动容器顶部的距离
+          const containerRect = scrollContainer.getBoundingClientRect()
+          const relativeTop = rect.top - containerRect.top + scrollContainer.scrollTop
+          
+          scrollContainer.scrollTo({
+            top: relativeTop - 22, // 向上偏移 25px
+            behavior: 'smooth'
+          })
+        } else {
+          // 兜底：如果是 window 滚动
+          const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+          const targetTop = rect.top + scrollTop - 22
+          window.scrollTo({
+            top: targetTop,
+            behavior: 'smooth'
+          })
+        }
+      }
+    }, 100)
+  }
+  
   return (
     <div className="space-y-4 md:space-y-6 p-6">
       {/* 页面头部 */}
@@ -848,7 +885,11 @@ export function TaskDetailContent({
       </div>
       
       {/* Tab 切换区域：评论、子待办、状态历史 */}
-      <div className="rounded-lg" style={{ backgroundColor: 'var(--color-surface)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}>
+      <div 
+        ref={tabHeaderRef}
+        className="rounded-lg" 
+        style={{ backgroundColor: 'var(--color-surface)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}
+      >
         {/* Tab 导航 */}
         <div className="flex gap-1 px-1">
           <button
@@ -912,6 +953,7 @@ export function TaskDetailContent({
               currentUserRole={currentUserRole}
               isProjectMember={!!currentUserMember}
               projectId={projectId}
+              onCommentAdded={handleCommentAdded}
             />
           )}
           
