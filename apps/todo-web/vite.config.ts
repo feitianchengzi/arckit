@@ -42,11 +42,29 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     sourcemap: false,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'ui-vendor': ['zustand', '@tanstack/react-query', 'axios'],
+          'tiptap-vendor': [
+            '@tiptap/react',
+            '@tiptap/starter-kit',
+            '@tiptap/extension-link',
+            '@tiptap/extension-mention',
+            '@tiptap/extension-placeholder',
+            '@tiptap/suggestion'
+          ],
+          'utils-vendor': [
+            'axios', 
+            'zustand', 
+            '@tanstack/react-query', 
+            'zod', 
+            'i18next', 
+            'react-i18next', 
+            'react-hook-form'
+          ],
+          'ui-vendor': ['@headlessui/react'],
         },
       },
     },

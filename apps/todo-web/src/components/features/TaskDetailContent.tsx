@@ -63,6 +63,7 @@ export function TaskDetailContent({
   const [isSavingAssignee, setIsSavingAssignee] = useState(false)
   const [createSubtaskDialogOpen, setCreateSubtaskDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'comments' | 'subtasks' | 'history'>('comments')
+  const tabHeaderRef = useRef<HTMLDivElement>(null)
   
   const { data: members } = useProjectMembers(projectId)
   const currentUser = useAuthStore((state) => state.user)
@@ -361,8 +362,7 @@ export function TaskDetailContent({
       setShowDeleteConfirm(false)
     }
   }
-  
-  const tabHeaderRef = useRef<HTMLDivElement>(null)
+
 
   // 处理评论添加后的滚动
   const handleCommentAdded = () => {

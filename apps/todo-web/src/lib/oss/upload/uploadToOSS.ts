@@ -3,10 +3,11 @@
  * 注意：业务代码不应直接使用此函数，应使用 oss/uploadApi 中提供的业务接口
  */
 
-import { STSCredentials } from '../../api/endpoints/upload'
+import { STSCredentials, uploadApi } from '../../api/endpoints/upload'
 import { loadOSSSDK, getFileExtension } from '../sdk'
 import { generateObjectKey } from './generateObjectKey'
 import type { OSSDirectory, UploadResult } from './types'
+import { getAccessToken } from '../../utils/tokenManager'
 
 /**
  * 刷新 STS Token 的函数
@@ -17,7 +18,6 @@ async function refreshSTSToken(): Promise<{
   accessKeySecret: string
   stsToken: string
 }> {
-  const { uploadApi } = await import('../../api/endpoints/upload')
   const credentials = await uploadApi.getSTSToken()
   
   return {
@@ -105,7 +105,6 @@ export async function uploadToOSS(
     // 如果提供了 callback URL，配置 callback
     if (callbackUrl) {
       // 获取 access token 添加到 header
-      const { getAccessToken } = await import('../../utils/tokenManager')
       const accessToken = getAccessToken()
       
       const callbackHeaders: Record<string, string> = {}

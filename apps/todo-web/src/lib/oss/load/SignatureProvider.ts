@@ -3,7 +3,7 @@
  * 管理 STS 凭证池和 OSS Client 实例（单例模式，全局共享）
  */
 
-import { STSCredentials } from '../../api/endpoints/upload'
+import { STSCredentials, uploadApi } from '../../api/endpoints/upload'
 import { loadOSSSDK } from '../sdk'
 import type { ManagerConfig } from './types'
 
@@ -86,7 +86,6 @@ export class SignatureProvider {
     console.log('[SignatureProvider] 开始刷新 STS 凭证...')
     
     try {
-      const { uploadApi } = await import('../../api/endpoints/upload')
       const credentials = await uploadApi.getSTSToken()
       
       // 计算过期时间戳

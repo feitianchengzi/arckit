@@ -8,6 +8,8 @@ import { useState, useRef, useEffect } from 'react'
 import { validateImageFile } from '@/lib/utils/validators'
 import { uploadApi } from '@/lib/api/endpoints/upload'
 import { compressImage, dataURLtoFile } from '@/lib/utils/imageCompress'
+import { uploadAvatarToOSS } from '@/lib/oss/uploadApi'
+import { getSignedUrl } from '@/lib/oss/upload'
 
 export interface AvatarUploadProps {
   /** 头像 URL */
@@ -72,7 +74,6 @@ export function AvatarUpload({
           const credentials = await uploadApi.getSTSToken()
           
           // 5. 上传到 OSS 并自动更新用户头像
-          const { uploadAvatarToOSS } = await import('@/lib/oss/uploadApi')
           const uploadResult = await uploadAvatarToOSS(
             compressedFile,
             credentials,
@@ -83,7 +84,6 @@ export function AvatarUpload({
           )
           
           // 6. 生成签名URL用于预览
-          const { getSignedUrl } = await import('@/lib/oss/upload')
           const previewUrl = await getSignedUrl(uploadResult.objectKey, credentials)
           
           // 7. 更新预览和调用回调（传递 objectKey）

@@ -10,6 +10,8 @@ import { ImageCropDialog } from './ImageCropDialog'
 import { uploadApi } from '@/lib/api/endpoints/upload'
 import { compressImage, dataURLtoFile } from '@/lib/utils/imageCompress'
 import { getAvatarUrl, getAvatarUrlSync } from '@/lib/oss/urlHelper'
+import { uploadAvatarToOSS } from '@/lib/oss/uploadApi'
+import { getSignedUrl } from '@/lib/oss/upload'
 
 export interface AvatarCropUploadProps {
   /** 头像 URL */
@@ -137,7 +139,6 @@ export function AvatarCropUpload({
       const credentials = await uploadApi.getSTSToken()
       
       // 4. 上传到 OSS 并自动更新用户头像
-      const { uploadAvatarToOSS } = await import('@/lib/oss/uploadApi')
       const uploadResult = await uploadAvatarToOSS(
         file,
         credentials,
@@ -148,7 +149,6 @@ export function AvatarCropUpload({
       )
       
       // 5. 生成签名URL用于预览
-      const { getSignedUrl } = await import('@/lib/oss/upload')
       const previewUrl = await getSignedUrl(uploadResult.objectKey, credentials)
       
       // 6. 更新预览和调用回调（传递 objectKey）

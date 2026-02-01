@@ -11,6 +11,7 @@
  */
 
 import type { STSCredentials } from '../api/endpoints/upload'
+import { todoUserApi } from '../api/endpoints/auth'
 import type { UploadResult } from './upload'
 import { uploadToOSS } from './upload'
 
@@ -49,7 +50,6 @@ export async function uploadAvatarToOSS(
       uploadResult = await uploadToOSS(file, credentials, 'avatars', onProgress)
       
       // 2. 上传成功后，直接调用API更新用户头像
-      const { todoUserApi } = await import('../api/endpoints/auth')
       await todoUserApi.updateUser(0, { avatar: uploadResult.objectKey })
       
       console.log('✅ 头像上传并更新成功:', uploadResult.objectKey)

@@ -536,6 +536,10 @@ export const ProjectMemberList = ({
               // 检查该成员是否正在请求中
               const isRoleChanging = roleChangeInProgress.current.has(member.user_id)
 
+              // 检查是否为组织成员
+              // 如果没有当前组织ID，或者组织成员列表尚未加载，默认为true（不显示非组织成员标记）
+              const isOrgMember = !currentOrganizationId || !orgMembers || orgMembers.some(om => om.user_id === member.user_id)
+
             return (
               <div
                 key={member.id}
@@ -574,6 +578,14 @@ export const ProjectMemberList = ({
                     </p>
                     {isCurrentUser && (
                       <span className="text-xs text-foreground-secondary">（我）</span>
+                    )}
+                    {!isOrgMember && (
+                      <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        <span className="text-[10px]">非组织成员</span>
+                      </div>
                     )}
                     {/* 筛选状态图标 */}
                 {!isManaging && onMemberClick && (

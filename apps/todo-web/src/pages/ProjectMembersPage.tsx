@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, EmptyStateView, RoleSelect, ConfirmDialog } from '@/components/ui'
 import { useProject, useProjectMembers, useDeleteProjectMember, useSetMemberRole } from '@/hooks/useProjects'
+import { useOrganizationStore } from '@/store/organizationStore'
+import { useOrganizationMembers } from '@/hooks/useOrganizations'
 import { useAuthStore } from '@/store/authStore'
 import { todoUserApi } from '@/lib/api/endpoints/auth'
 import { gatewayApi } from '@/lib/api/endpoints/gateway'
@@ -23,6 +25,9 @@ export default function ProjectMembersPage() {
   const { data: project, isLoading: projectLoading } = useProject(String(projectId))
   const { data: members, isLoading: membersLoading, error, refetch } = useProjectMembers(String(projectId))
   
+  const currentOrganizationId = useOrganizationStore((state) => state.currentOrganizationId)
+  const { data: orgMembers } = useOrganizationMembers(currentOrganizationId || 0)
+
   // 监听成员列表变化，打印日志
   useEffect(() => {
     if (members) {
@@ -45,8 +50,8 @@ export default function ProjectMembersPage() {
       // console.log('📋 [成员列表更新] 完整成员列表:', JSON.stringify(members, null, 2))
     }
   }, [members])
-  const deleteMember = useDeleteProjectMember(projectId)
-  const setMemberRole = useSetMemberRole(projectId)
+  const deleteMember = useDeleteProjectMember(String(projectId))
+  const setMemberRole = useSetMemberRole(String(projectId))
   
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState<ProjectMember | null>(null)
@@ -377,6 +382,17 @@ export default function ProjectMembersPage() {
                           {isCurrentUser && (
                             <span className="text-xs text-foreground-secondary">（我）</span>
                           )}
+                          {(() => {
+                            const isOrgMember = !currentOrganizationId || !orgMembers || orgMembers.some(om => om.user_id === member.user_id)
+                            return !isOrgMember && (
+                              <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                </svg>
+                                <span className="text-[10px]">非组织成员</span>
+                              </div>
+                            )
+                          })()}
                         </div>
                       </div>
                       

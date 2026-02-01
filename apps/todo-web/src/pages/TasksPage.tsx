@@ -1381,8 +1381,8 @@ export default function MyTasksPage() {
                   <div 
                     ref={moreFiltersMenuRef}
                     className="fixed w-64 border-2 border-border rounded-md shadow-xl z-[100] p-4 space-y-3"
-                    style={{ backgroundColor: 'var(--color-surface-elevated)' }} 
                     style={{ 
+                      backgroundColor: 'var(--color-surface-elevated)',
                       top: `${moreFiltersPosition.top}px`,
                       left: `${moreFiltersPosition.left}px`,
                       maxHeight: 'calc(100vh - 100px)',
