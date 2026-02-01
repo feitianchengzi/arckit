@@ -1,24 +1,46 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog } from '@/components/ui/Dialog';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { useCreateProject } from '@/hooks/useProjects';
+import { useOrganizationList } from '@/hooks/useOrganizations';
 
 interface CreateProjectDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
+  selectedOrganizationId?: number | null;
 }
 
-export function CreateProjectDialog({ open, onClose, onSuccess }: CreateProjectDialogProps) {
+export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganizationId }: CreateProjectDialogProps) {
   const [name, setName] = useState('');
   const [gitUrl, setGitUrl] = useState('');
   const [error, setError] = useState('');
+  const [organizationId, setOrganizationId] = useState<number | null>(null);
   const createProject = useCreateProject();
+  const { data: organizations = [], isLoading: orgLoading } = useOrganizationList();
+  
+  useEffect(() => {
+    if (selectedOrganizationId !== undefined) {
+      setOrganizationId(selectedOrganizationId ?? null);
+    } else {
+      // 默认选择第一个组织（如果存在）
+      if (organizations.length > 0) {
+        setOrganizationId(organizations[0].id);
+      } else {
+        setOrganizationId(null);
+      }
+    }
+  }, [selectedOrganizationId, organizations.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    if (!organizationId) {
+      setError('请选择所属组织');
+      return;
+    }
     
     // 验证
     if (!name.trim()) {
@@ -43,10 +65,12 @@ export function CreateProjectDialog({ open, onClose, onSuccess }: CreateProjectD
       await createProject.mutateAsync({
         name: name.trim(),
         git_url: gitUrl.trim(),
+        organization_id: organizationId,
       });
       
       setName('');
       setGitUrl('');
+      setOrganizationId(selectedOrganizationId ?? null);
       onSuccess?.();
       onClose();
     } catch (err: any) {
@@ -63,6 +87,33 @@ export function CreateProjectDialog({ open, onClose, onSuccess }: CreateProjectD
     >
       <form onSubmit={handleSubmit} id="create-project-form">
         <div className="space-y-4 py-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">所属组织 *</label>
+            {orgLoading ? (
+              <div className="text-xs text-foreground-secondary">加载组织列表...</div>
+            ) : organizations.length === 0 ? (
+              <div className="text-sm text-foreground-secondary">
+                暂无组织，创建项目前请先创建或加入一个组织
+              </div>
+            ) : (
+              <select
+                value={organizationId ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setOrganizationId(val ? Number(val) : null)
+                }}
+                className="w-full px-3 py-2 border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                disabled={createProject.isPending}
+                required
+              >
+                <option value="" disabled>请选择组织</option>
+                {organizations.map((org: any) => (
+                  <option key={org.id} value={org.id}>{org.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          
           <TextField
             label="项目名称 *"
             placeholder="例如：待办管理系统"
@@ -103,7 +154,7 @@ export function CreateProjectDialog({ open, onClose, onSuccess }: CreateProjectD
             type="submit" 
             form="create-project-form"
             loading={createProject.isPending}
-            disabled={!name.trim() || !gitUrl.trim() || createProject.isPending}
+            disabled={!organizationId || !name.trim() || !gitUrl.trim() || createProject.isPending || organizations.length === 0}
           >
             创建
           </Button>

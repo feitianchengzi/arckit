@@ -96,6 +96,14 @@ const config: Config = {
         'text-primary': 'var(--color-text-primary)',
         'text-secondary': 'var(--color-text-secondary)',
         'text-tertiary': 'var(--color-text-tertiary)',
+        
+        /* ==================== 项目特定颜色 ==================== */
+        project: {
+          icon: {
+            DEFAULT: 'var(--color-project-icon)',
+            selected: 'var(--color-project-icon-selected)',
+          }
+        }
       },
       spacing: {
         xs: 'var(--spacing-xs)',

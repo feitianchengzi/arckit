@@ -20,7 +20,7 @@ import { useTagStore } from '@/store/tagStore'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
 import { saveProjectFilterState, loadProjectFilterState, type DateRange } from '@/lib/utils/filterStorage'
 import { DateRangeFilter } from '@/components/features/DateRangeFilter'
-import type { TodoStatus } from '@/types'
+import type { TodoStatus, ProjectMember } from '@/types'
 import clsx from 'clsx'
 import { permissionManager } from '@/lib/permissions'
 import { todoToTaskInfo, isAssigneeUnassigned } from '@/lib/permissions/utils'
@@ -29,7 +29,8 @@ import type { TaskInfo } from '@/lib/permissions'
 export default function ProjectDetailPage() {
   const navigate = useNavigate()
   const params = useParams()
-  const projectId = Number(params.id!)
+  const projectIdParam = params.id ?? ''
+  const projectId = Number(projectIdParam)
   
   const currentUser = useAuthStore((state) => state.user)
   const [showScrollTop, setShowScrollTop] = useState(false)
@@ -47,9 +48,9 @@ export default function ProjectDetailPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
-  const { data: project, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(String(projectId))
+  const { data: project, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(projectIdParam)
   const deleteProject = useDeleteProject()
-  const updateProject = useUpdateProject(String(projectId))
+  const updateProject = useUpdateProject(projectIdParam)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   
@@ -65,6 +66,11 @@ export default function ProjectDetailPage() {
   
   // 导出待办对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false)
+
+  // 迁移项目状态
+  const [showMigrateDialog, setShowMigrateDialog] = useState(false)
+  const [migrateOrgId, setMigrateOrgId] = useState('')
+  const [migrateError, setMigrateError] = useState('')
   
   // 筛选器"更多"菜单状态
   const [showMoreFilters, setShowMoreFilters] = useState(false)
@@ -77,7 +83,7 @@ export default function ProjectDetailPage() {
   const [searchFilterInMoreMenu, setSearchFilterInMoreMenu] = useState(false)
   
   // 从本地存储恢复筛选条件（按项目ID）
-  const savedFilters = loadProjectFilterState(String(projectId))
+  const savedFilters = loadProjectFilterState(projectIdParam)
   
   // 任务筛选状态（默认选中"待办任务"）
   const [statusFilter, setStatusFilter] = useState<TodoStatus | 'ALL'>(
@@ -95,7 +101,7 @@ export default function ProjectDetailPage() {
     (savedFilters?.tagFilter as number) ?? null
   )
   const [priorityFilter, setPriorityFilter] = useState<number | null | 'ALL' | 'NONE'>(
-    savedFilters?.priorityFilter ?? 'ALL'
+    savedFilters?.priorityFilter ?? null
   )
   
   // 日期范围筛选
@@ -108,7 +114,7 @@ export default function ProjectDetailPage() {
   
   // 当筛选条件改变时保存到本地存储
   useEffect(() => {
-    saveProjectFilterState(String(projectId), {
+    saveProjectFilterState(projectIdParam, {
       statusFilter,
       creatorFilter,
       executorFilter,
@@ -119,21 +125,21 @@ export default function ProjectDetailPage() {
   }, [projectId, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange])
   
   // 如果正在删除项目，禁用待办列表查询
-  const { data: todos, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(String(projectId), {
-    enabled: !isDeleting && !!project, // 正在删除或项目不存在时不查询
+  const { data: todos, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(projectIdParam, {
+    enabled: !isDeleting && !!projectIdParam, // 正在删除时不查询
   })
-  const { data: members } = useProjectMembers(String(projectId))
-  const updateStatus = useUpdateTaskStatus(String(projectId))
+  const { data: members } = useProjectMembers(projectIdParam)
+  const updateStatus = useUpdateTaskStatus(projectIdParam)
   const queryClient = useQueryClient()
   
   // 加载项目标签
   const { loadProjectTags, getProjectTags } = useTagStore()
   useEffect(() => {
-    if (projectId) {
-      loadProjectTags(String(projectId)).catch(console.error)
+    if (projectIdParam) {
+      loadProjectTags(projectIdParam).catch(console.error)
     }
-  }, [projectId, loadProjectTags])
-  const projectTags = getProjectTags(String(projectId))
+  }, [projectIdParam, loadProjectTags])
+  const projectTags = getProjectTags(projectIdParam)
   
   // 验证并修复筛选条件（数据加载完成后）
   useEffect(() => {
@@ -508,6 +514,30 @@ export default function ProjectDetailPage() {
       setShowEditDialog(true)
     }
   }
+
+  // 处理迁移项目
+  const handleMigrateProject = async () => {
+    if (!migrateOrgId.trim()) {
+      setMigrateError('请输入组织ID')
+      return
+    }
+    const orgId = parseInt(migrateOrgId)
+    if (isNaN(orgId)) {
+      setMigrateError('组织ID必须是数字')
+      return
+    }
+    
+    try {
+      setMigrateError('')
+      await updateProject.mutateAsync({ organization_id: orgId })
+      setShowMigrateDialog(false)
+      setMigrateOrgId('')
+      // 成功后可能需要提示用户
+    } catch (err: any) {
+      console.error('迁移项目失败:', err)
+      setMigrateError(err.message || '迁移项目失败')
+    }
+  }
   
   // 获取当前用户在项目中的角色 - 必须在早期返回之前调用
   const currentUserRole = useMemo(() => {
@@ -565,19 +595,17 @@ export default function ProjectDetailPage() {
   
   // 处理更新执行人
   const handleUpdateAssignee = useCallback(async (taskId: number, assigneeId: number | null) => {
-    await tasksApi.update(String(projectId), String(taskId), { assigneeId: assigneeId || undefined })
-    // 刷新待办列表缓存
-    queryClient.invalidateQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
-    queryClient.refetchQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
-  }, [projectId, queryClient])
+    await tasksApi.update(projectIdParam, String(taskId), { assigneeId: assigneeId || undefined })
+    queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'tasks'] })
+    queryClient.refetchQueries({ queryKey: ['projects', projectIdParam, 'tasks'] })
+  }, [projectIdParam, queryClient])
   
   // 处理更新优先级
   const handleUpdatePriority = useCallback(async (taskId: number, priority: number | null) => {
-    await tasksApi.update(String(projectId), String(taskId), { priority: priority !== null ? priority : undefined })
-    // 刷新待办列表缓存
-    queryClient.invalidateQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
-    queryClient.refetchQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
-  }, [projectId, queryClient])
+    await tasksApi.update(projectIdParam, String(taskId), { priority: priority !== null ? priority : undefined })
+    queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'tasks'] })
+    queryClient.refetchQueries({ queryKey: ['projects', projectIdParam, 'tasks'] })
+  }, [projectIdParam, queryClient])
 
   const canEditTags = useCallback((todo: any) => {
     const taskInfo: TaskInfo = todoToTaskInfo(todo)
@@ -589,11 +617,10 @@ export default function ProjectDetailPage() {
   }, [currentUserId, currentUserRole])
 
   const handleUpdateTags = useCallback(async (taskId: number, tagsString: string) => {
-    await tasksApi.update(String(projectId), String(taskId), { tags: tagsString })
-    // 刷新待办列表缓存
-    queryClient.invalidateQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
-    queryClient.refetchQueries({ queryKey: ['projects', String(projectId), 'tasks'] })
-  }, [projectId, queryClient])
+    await tasksApi.update(projectIdParam, String(taskId), { tags: tagsString })
+    queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'tasks'] })
+    queryClient.refetchQueries({ queryKey: ['projects', projectIdParam, 'tasks'] })
+  }, [projectIdParam, queryClient])
   
   // 计算"更多"菜单的位置
   useEffect(() => {
@@ -886,7 +913,7 @@ export default function ProjectDetailPage() {
     try {
       setIsDeleting(true) // 立即禁用待办列表查询，防止继续请求
       setShowDeleteConfirm(false) // 先关闭对话框
-      await deleteProject.mutateAsync(String(projectId))
+      await deleteProject.mutateAsync(projectIdParam)
       // 删除成功后会通过 useDeleteProject hook 自动跳转到项目列表
     } catch (error) {
       console.error('删除项目失败:', error)
@@ -896,27 +923,27 @@ export default function ProjectDetailPage() {
   }
   
   // 加载状态 - 必须在所有 Hook 之后
-  if (projectLoading || todosLoading) {
+  if (projectLoading) {
     return <LoadingView size="lg" text="加载项目详情..." />
   }
   
   // 错误状态 - 必须在所有 Hook 之后
-  if (projectError || todosError || !project) {
+  if (projectError || !project) {
+    console.log(`######- projectError ${projectError} , project:`,project);
     return (
       <ErrorView
         title="加载失败"
         message="无法获取项目详情，请稍后重试"
-        onRetry={() => {
-          refetchProject()
-          refetchTodos()
-        }}
+        onRetry={refetchProject}
       />
     )
   }
   
   // 判断当前用户是否是项目所有者
   const isOwner = project?.creator?.username === currentUser?.username || 
-    project?.members?.some(m => m.username === currentUser?.username && m.role === 'owner')
+    project?.members?.some((m: ProjectMember) => m.username === currentUser?.username && m.role === 'owner')
+
+  const canManageProject = isOwner || project?.members?.some((m: ProjectMember) => m.username === currentUser?.username && m.role === 'admin')
   
   return (
     <div className="space-y-4 md:space-y-6">
@@ -1012,6 +1039,7 @@ export default function ProjectDetailPage() {
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
                 variant="secondary"
                 isActive={showMoreMenu}
+                iconBgColor="bg-surface-active dark:bg-[#3A3A3A]"
               />
               
               {/* 下拉菜单 */}
@@ -1034,6 +1062,22 @@ export default function ProjectDetailPage() {
                     <span>导出待办</span>
                   </button>
                   
+                  {/* 迁移项目 - 只有管理者可见 */}
+                  {canManageProject && (
+                    <button
+                      onClick={() => {
+                        setShowMigrateDialog(true)
+                        setShowMoreMenu(false)
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      <span>迁移项目到组织</span>
+                    </button>
+                  )}
+
                   {/* 编辑项目 - 只有所有者可见 */}
                   {isOwner && (
                     <button
@@ -1076,9 +1120,9 @@ export default function ProjectDetailPage() {
       </div>
       
       {/* 待办列表和成员列表 */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* 待办列表（占 4/5） */}
-        <div className="lg:col-span-4 space-y-6">
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* 待办列表（自适应宽度） */}
+        <div className="flex-1 min-w-0 space-y-6">
           {/* 统计卡片 - 直接放在外层，移除父容器 */}
           <div className="grid grid-cols-3 gap-4">
             <StatCard
@@ -1761,7 +1805,18 @@ export default function ProjectDetailPage() {
           </div>
         </div>
         
-        {!todos || todos.length === 0 ? (
+        {todosLoading ? (
+          <div className="py-12">
+            <LoadingView text="加载任务列表..." />
+          </div>
+        ) : todosError ? (
+          <div className="py-12">
+             <ErrorView 
+               message="无法获取任务列表" 
+               onRetry={refetchTodos} 
+             />
+          </div>
+        ) : !todos || todos.length === 0 ? (
           <EmptyStateView
             title="还没有待办"
             message="创建第一个待办开始工作"
@@ -1793,7 +1848,7 @@ export default function ProjectDetailPage() {
               <TodoTreeItem
                 key={todo.id}
                 todo={todo}
-                projectId={String(projectId)}
+                projectId={projectIdParam}
                 onStatusChange={canChangeStatus(todo) ? handleStatusChange : undefined}
                 currentUserId={currentUserId}
                 canEdit={canChangeStatus(todo)}
@@ -1817,7 +1872,7 @@ export default function ProjectDetailPage() {
         </div>
 
         {/* 成员列表（占 1/4，宽度减小） */}
-        <div className="lg:col-span-1">
+        <div className="lg:w-1/4 min-w-[200px]">
           <div className="bg-surface-elevated rounded-lg shadow-md border border-border p-4" style={{ borderColor: 'var(--color-border)' }}>
             <ProjectMemberList
               members={members || []}
@@ -1960,7 +2015,7 @@ export default function ProjectDetailPage() {
       >
         {selectedTaskId && (
           <TaskDetailContent
-            projectId={String(projectId)}
+            projectId={projectIdParam}
             taskId={selectedTaskId}
             showHeader={false}
             parentTaskId={taskHistory.length > 0 ? taskHistory[taskHistory.length - 1].parentTaskId : null}
@@ -1970,7 +2025,7 @@ export default function ProjectDetailPage() {
               const parentTaskId = currentTask?.parentId || null
               
               // 添加到历史记录
-              setTaskHistory(prev => [...prev, { taskId: selectedTaskId, projectId: String(projectId), parentTaskId }])
+              setTaskHistory(prev => [...prev, { taskId: selectedTaskId, projectId: projectIdParam, parentTaskId }])
               
               // 导航到子待办
               setSelectedTaskId(String(subtaskId))
@@ -1994,7 +2049,7 @@ export default function ProjectDetailPage() {
       <CreateTaskDialog
         open={showCreateTaskDialog}
         onClose={() => setShowCreateTaskDialog(false)}
-        projectId={String(projectId)}
+        projectId={projectIdParam}
         onSuccess={() => {
           setShowCreateTaskDialog(false)
           refetchTodos()
@@ -2013,6 +2068,54 @@ export default function ProjectDetailPage() {
           projectName={project.name}
         />
       )}
+
+      {/* 迁移项目对话框 */}
+      <Dialog
+        open={showMigrateDialog}
+        onClose={() => {
+          setShowMigrateDialog(false)
+          setMigrateOrgId('')
+          setMigrateError('')
+        }}
+        title="迁移项目到组织"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-foreground-secondary">
+            请输入目标组织的ID。迁移后，该项目将归属于指定组织。
+          </p>
+          <TextField
+            label="组织ID"
+            value={migrateOrgId}
+            onChange={(e) => {
+              setMigrateOrgId(e.target.value)
+              setMigrateError('')
+            }}
+            error={migrateError}
+            placeholder="例如: 123"
+            autoFocus
+          />
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setShowMigrateDialog(false)
+                setMigrateOrgId('')
+                setMigrateError('')
+              }}
+            >
+              取消
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleMigrateProject}
+              disabled={updateProject.isPending}
+              loading={updateProject.isPending}
+            >
+              迁移
+            </Button>
+          </div>
+        </div>
+      </Dialog>
       
       {/* 回到顶部按钮 */}
       <button
@@ -2339,4 +2442,3 @@ function XIcon({ className }: { className?: string }) {
     </svg>
   )
 }
-

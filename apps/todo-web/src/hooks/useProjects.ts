@@ -3,21 +3,22 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { projectsApi, CreateProjectInput, UpdateProjectInput } from '@/lib/api/endpoints/projects'
 import { useAuthStore } from '@/store/authStore'
+import { useOrganizationStore } from '@/store/organizationStore'
 
 /**
  * 获取项目列表
  */
-export function useProjectList() {
+export function useProjectList(organizationId?: number | null) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
   
   return useQuery({
-    queryKey: ['projects'],
-    queryFn: () => projectsApi.list(), // 不需要 user_id，网关自动识别
-    // 只在已登录且用户已完成首次设置（有 username）时查询
+    queryKey: ['projects', { organizationId }],
+    queryFn: () => projectsApi.list({ organizationId }),
     enabled: isAuthenticated && !!user && !!user.username,
   })
 }
@@ -26,10 +27,38 @@ export function useProjectList() {
  * 获取项目详情
  */
 export function useProject(projectId: string) {
+  const queryClient = useQueryClient()
+  const { currentOrganizationId } = useOrganizationStore()
+  
+  // 尝试从缓存中查找项目信息（包含 organizationId）
+  const cachedInfo = useMemo(() => {
+    // 获取所有 projects 相关的查询
+    const queries = queryClient.getQueriesData({ queryKey: ['projects'] })
+    
+    for (const [key, data] of queries) {
+      // key: ['projects', { organizationId: 123 }]
+      // data: Project[]
+      if (Array.isArray(data)) {
+        const project = data.find((p: any) => p.id?.toString() === projectId)
+        if (project) {
+          // 尝试从 queryKey 中获取 organizationId
+          const params = key[1] as { organizationId?: number } | undefined
+          // 如果 queryKey 中有 organizationId，优先使用
+          // 如果没有（比如个人项目 organizationId 为 undefined/null），则使用 project.organization_id
+          const organizationId = params?.organizationId ?? project.organization_id
+          
+          return { project, organizationId }
+        }
+      }
+    }
+    return null
+  }, [queryClient, projectId])
+
   return useQuery({
     queryKey: ['projects', projectId],
-    queryFn: () => projectsApi.getById(projectId),
+    queryFn: () => projectsApi.getById(projectId, cachedInfo?.organizationId ?? currentOrganizationId),
     enabled: !!projectId, // 只在有 projectId 时查询
+    initialData: cachedInfo?.project,
   })
 }
 
@@ -108,13 +137,36 @@ export function useDeleteProject() {
  */
 export function useProjectMembers(projectId: string) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const { currentOrganizationId } = useOrganizationStore()
   
   return useQuery({
-    queryKey: ['projects', projectId, 'members'],
+    queryKey: ['projects', projectId, 'members', { organizationId: currentOrganizationId }],
     queryFn: async () => {
-      return await projectsApi.getMembers(projectId)
+      return await projectsApi.getMembers(projectId, currentOrganizationId)
     },
     enabled: !!projectId && isAuthenticated,
+  })
+}
+
+/**
+ * 添加项目成员
+ */
+export function useAddProjectMember(projectId: string) {
+  const queryClient = useQueryClient()
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+
+  return useMutation({
+    mutationFn: async ({ organizationMemberId }: { organizationMemberId: number }) => {
+      if (!isAuthenticated) {
+        throw new Error('请先登录后再进行操作')
+      }
+      return projectsApi.addMember(projectId, organizationMemberId)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'members'] })
+      queryClient.invalidateQueries({ queryKey: ['projects', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
   })
 }
 
@@ -176,4 +228,3 @@ export function useSetMemberRole(projectId: string) {
     },
   })
 }
-

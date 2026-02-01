@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { useOrganizationMembers } from '@/hooks/useOrganizations';
+import { useOrganizationMembers, useUpdateOrganizationMemberRole } from '@/hooks/useOrganizations';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoadingView } from '@/components/ui/LoadingView';
 import { ErrorView } from '@/components/ui/ErrorView';
@@ -101,7 +101,7 @@ export default function OrganizationDetailPage() {
       console.error('删除组织失败:', err);
     }
   });
-  
+
   // 处理生成邀请码
   const handleGenerateInvite = async () => {
     setInviteError('');
@@ -128,6 +128,67 @@ export default function OrganizationDetailPage() {
   const handleDeleteOrganization = async () => {
     await deleteOrganizationMutation.mutateAsync(organizationId);
   };
+  
+  // 删除成员的mutation
+  const removeMemberMutation = useMutation({
+    mutationFn: (input: { organization_id: number; target_user_id: number }) => 
+      organizationsApi.removeMember(input),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organizationMembers', organizationId] });
+    },
+    onError: (err: any) => {
+      console.error('移除成员失败:', err);
+      // 可以添加 toast 提示
+    }
+  });
+
+  // 更新成员角色的mutation
+  const updateMemberRoleMutation = useUpdateOrganizationMemberRole();
+
+  // 处理更新成员角色
+  const handleUpdateMemberRole = async (memberId: number, newRole: 'admin' | 'member') => {
+    try {
+      await updateMemberRoleMutation.mutateAsync({
+        organizationId,
+        targetUserId: memberId,
+        role: newRole
+      });
+    } catch (err) {
+      console.error('更新成员角色失败:', err);
+    }
+  };
+
+  // 处理移除成员
+  const handleRemoveMember = (memberId: number, memberName: string) => {
+    if (confirm(`确定要将成员 ${memberName} 移出组织吗？`)) {
+      removeMemberMutation.mutate({
+        organization_id: organizationId,
+        target_user_id: memberId
+      });
+    }
+  };
+
+  // 处理退出组织
+  const handleLeaveOrganization = () => {
+    if (confirm('确定要退出该组织吗？')) {
+      // 退出组织实际上就是移除自己
+      const myMember = members?.find(m => m.is_me);
+      if (myMember) {
+        removeMemberMutation.mutate({
+          organization_id: organizationId,
+          target_user_id: myMember.user_id
+        }, {
+          onSuccess: () => {
+            navigate('/organizations');
+          }
+        });
+      }
+    }
+  };
+
+  // 获取当前用户在组织中的角色
+  const myRole = members?.find(m => m.is_me)?.role;
+  const canManage = myRole === 'owner' || myRole === 'admin';
 
   if (errorMembers || errorOrg) {
     const errorMessage = errorMembers ? (errorMembers instanceof Error ? errorMembers.message : String(errorMembers)) : 
@@ -176,6 +237,13 @@ export default function OrganizationDetailPage() {
         <Card.Content>
           <div className="mb-6">
             <p className="text-foreground-secondary">{organization?.description || '暂无描述，点击编辑按钮添加组织描述'}</p>
+            {canManage && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs text-foreground-tertiary bg-surface-hover px-2 py-1 rounded select-all">
+                  ID: {organization?.id}
+                </span>
+              </div>
+            )}
           </div>
           
           <div>
@@ -195,11 +263,67 @@ export default function OrganizationDetailPage() {
             {members && members.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {members.map(member => (
-                  <div key={member.id} className="flex items-center gap-3 p-3 border rounded-lg">
-                    <Avatar user={{ id: member.user_id, username: member.username, avatar: member.avatar }} size="sm" />
-                    <div>
-                      <p className="font-medium">{member.username}</p>
-                      <p className="text-sm text-foreground-secondary capitalize">{member.role}</p>
+                  <div key={member.id} className="flex items-center justify-between p-3 border rounded-lg group hover:bg-surface-hover transition-colors">
+                    <div className="flex items-center gap-3">
+                      <Avatar user={{ id: member.user_id, username: member.username, avatar: member.avatar }} size="sm" />
+                      <div>
+                      <p className="font-medium flex items-center gap-2">
+                        {member.username}
+                        {member.is_me && <span className="text-xs text-foreground-secondary font-normal">(我)</span>}
+                      </p>
+                      {canManage && !member.is_me && member.role !== 'owner' ? (
+                        <div className="mt-1" onClick={(e) => e.stopPropagation()}>
+                          <select
+                            value={member.role}
+                            onChange={(e) => handleUpdateMemberRole(member.user_id, e.target.value as 'admin' | 'member')}
+                            disabled={updateMemberRoleMutation.isPending}
+                            className="text-xs border rounded px-2 py-0.5 bg-surface text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer hover:border-primary transition-colors appearance-none pr-6 relative"
+                            style={{
+                              backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                              backgroundPosition: 'right 0.25rem center',
+                              backgroundRepeat: 'no-repeat',
+                              backgroundSize: '1em 1em'
+                            }}
+                          >
+                            <option value="admin">管理员</option>
+                            <option value="member">成员</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-foreground-secondary capitalize">
+                          {member.role === 'owner' ? '所有者' : member.role === 'admin' ? '管理员' : '成员'}
+                        </p>
+                      )}
+                    </div>
+                    </div>
+                    
+                    {/* 操作按钮 */}
+                    <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      {member.is_me ? (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={handleLeaveOrganization} 
+                          title="退出组织"
+                          className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                        </Button>
+                      ) : canManage && (member.role !== 'owner' || myRole === 'owner') ? (
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleRemoveMember(member.user_id, member.username)} 
+                          title="移出成员"
+                          className="text-red-500 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 ))}

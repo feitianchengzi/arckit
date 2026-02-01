@@ -86,7 +86,7 @@ export const todoUserApi = {
    * 通过 Header 中的 UserID 识别用户（网关自动注入）
    */
   getCurrentUser: async (): Promise<TodoUser> => {
-    console.log('📥 获取当前登录用户信息')
+    console.log('📥 获取当前登录用户信息 [REQUEST TRACE]: /user/users called from auth.ts')
     console.log('ℹ️  网关会自动从 Token 中解析 UserID 并注入到请求头')
     try {
       const response = await apiClient.get('/user/users')

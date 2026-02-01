@@ -205,11 +205,13 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
     <div
       className={clsx(
         'rounded-full flex items-center justify-center flex-shrink-0',
-        'bg-gradient-to-br from-orange-400 to-orange-500 text-white font-semibold',
-        'border border-gray-200 relative overflow-hidden',
+        'bg-cover bg-center text-white font-semibold',
+        'relative overflow-hidden transform-gpu',
+        'ring-1 ring-inset ring-black/10', // 使用 ring 代替 border 以优化边缘抗锯齿
         sizeClasses[size],
         className
       )}
+      style={{ backgroundImage: "url('/images/gradient.svg')" }}
       title={showTooltip ? username : undefined}
     >
       {isLoading ? (
@@ -219,7 +221,7 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
         <img
           src={avatarUrl}
           alt={username}
-          className="w-full h-full rounded-full object-cover"
+          className="w-full h-full object-cover"
           data-oss-key={avatar || undefined}
           onError={(e) => {
             // 如果图片加载失败，等待 ErrorInterceptor 自动修复
@@ -423,10 +425,13 @@ export function Avatar({ user, size = 'sm', className, showTooltip = false }: Av
         />
       ) : (
         // 没有头像时显示用户图标和首字母的组合
-        <>
-          <UserIcon className="absolute w-1/2 h-1/2 opacity-60" />
-          <span className="relative z-10">{initial}</span>
-        </>
+        // 如果没有用户名或用户名为空，显示 U
+        // 否则显示用户名的首字母（包括 '未知'）
+        (!user?.username || user.username.trim() === '') ? (
+          <span className={clsx("font-bold text-white", size === 'xs' || size === 'sm' ? 'text-[10px]' : 'text-xs')}>U</span>
+        ) : (
+          <span className={clsx("relative z-10 font-bold text-white", size === 'xs' || size === 'sm' ? 'text-[10px]' : '')}>{initial}</span>
+        )
       )}
     </div>
   )

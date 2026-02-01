@@ -23,6 +23,7 @@ export interface Project {
   id: number
   name: string
   git_url: string
+  organization_id?: number | null
   creator_id: number
   created_at: string
   updated_at: string
@@ -33,6 +34,7 @@ export interface Project {
 export interface CreateProjectInput {
   name: string
   git_url: string
+  organization_id?: number | null
 }
 
 // ==================== Project Member ====================
@@ -173,4 +175,3 @@ export interface PaginatedResponse<T> {
   page: number
   page_size: number
 }
-

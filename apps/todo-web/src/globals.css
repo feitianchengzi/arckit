@@ -30,9 +30,14 @@
     @apply text-primary hover:text-primary-700 transition-colors;
   }
   
+  /* Global focus reset */
+  *:focus {
+    outline: none;
+  }
+
   /* 按钮重置 */
   button {
-    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+    @apply focus:outline-none;
   }
   
   /* 输入框重置 */
@@ -70,6 +75,15 @@
   
   .scrollbar-hide::-webkit-scrollbar {
     display: none; /* Chrome, Safari and Opera */
+  }
+
+  /* Dark mode organization tab selected state tweaks */
+  .dark .org-tab-selected {
+    border-width: 2px; /* Increase border width by 1px (from default 1px) */
+  }
+  
+  .dark .org-tab-selected:hover {
+    color: var(--color-primary); /* Text color matches border color on hover */
   }
 }
 

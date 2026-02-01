@@ -9,11 +9,13 @@ import type { Project } from '@/types'
 export interface CreateProjectInput {
   name: string
   git_url: string
+  organization_id?: number | null
 }
 
 export interface UpdateProjectInput {
   name?: string
   git_url?: string
+  organization_id?: number
 }
 
 export const projectsApi = {
@@ -23,9 +25,15 @@ export const projectsApi = {
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别当前用户
    * 响应格式: { code: 'OK', data: Project[] } 或 { code: 'OK', data: Project[], meta: {...} }
    */
-  list: async (userId?: number): Promise<Project[]> => {
-    // 根据API文档，不需要 user_id 参数，网关会自动识别用户
-    const response = await apiClient.get('/user/projects')
+  list: async (options?: { organizationId?: number | null; includeDeleted?: boolean }): Promise<Project[]> => {
+    const params: Record<string, number | boolean> = {}
+    if (options?.includeDeleted !== undefined) {
+      params.include_deleted = options.includeDeleted
+    }
+    if (options?.organizationId !== undefined) {
+      params.organization_id = options.organizationId ?? 0
+    }
+    const response = await apiClient.get('/user/projects', { params })
     
     // 后端实际返回格式: { code: 'OK', data: { projects: [...], total: 3 } }
     const responseData = response.data
@@ -89,13 +97,15 @@ export const projectsApi = {
    * 注意：后端没有单独的获取项目详情接口
    * 我们从项目列表中查找对应的项目
    */
-  getById: async (id: string, userId?: number): Promise<Project> => {
-    // 后端没有单独的获取项目详情接口，我们从项目列表中查找
-    const projects = await projectsApi.list() // 不需要 userId
+  getById: async (id: string, organizationId?: number | null): Promise<Project> => {
+    // 由于后端不支持直接通过ID获取项目详情 (返回404)，
+    // 我们先获取项目列表，然后从中查找目标项目
+    // 如果已知 organizationId，则只获取该组织的项目列表
+    const projects = await projectsApi.list({ organizationId })
     const project = projects.find((p) => p.id.toString() === id)
     
     if (!project) {
-      throw new Error('项目不存在')
+      throw new Error('Project not found')
     }
     
     return project
@@ -122,9 +132,8 @@ export const projectsApi = {
    * 注意：后端没有单独的获取成员列表接口
    * 成员列表包含在项目详情中，我们从项目列表中查找对应的项目并返回其成员
    */
-  getMembers: async (projectId: string, userId?: number) => {
-    // 后端没有单独的获取成员列表接口，我们从项目列表中查找对应的项目
-    const projects = await projectsApi.list()
+  getMembers: async (projectId: string, organizationId?: number | null) => {
+    const projects = await projectsApi.list({ organizationId })
     const project = projects.find((p) => p.id.toString() === projectId)
     
     if (!project) {
@@ -135,6 +144,21 @@ export const projectsApi = {
     return project.members || []
   },
   
+  /**
+   * 添加项目成员
+   * 后端路由: POST /workshop/v1/user/projects/:id/members
+   * 请求体: { organization_member_id: number }
+   */
+  addMember: async (projectId: string, organizationMemberId: number): Promise<void> => {
+    console.log('➕ [添加成员] 开始添加项目成员')
+    console.log('➕ [添加成员] 项目ID:', projectId)
+    console.log('➕ [添加成员] 组织成员ID:', organizationMemberId)
+    
+    await apiClient.post(`/user/projects/${projectId}/members`, {
+      organization_member_id: organizationMemberId,
+    })
+  },
+
   /**
    * 删除项目成员
    * 后端路由: DELETE /workshop/v1/user/projects/:id/members
@@ -184,4 +208,3 @@ export const projectsApi = {
     return member
   },
 }
-

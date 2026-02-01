@@ -9,19 +9,38 @@
  * 3. 点击项目跳转到项目详情
  */
 
+import { useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import clsx from 'clsx'
 import { useProjectList } from '@/hooks/useProjects'
+import { useAuthStore } from '@/store/authStore'
+import { Avatar } from '@/components/ui/Avatar'
+import { Tooltip } from '@/components/ui/Tooltip'
 
 interface ProjectListProps {
   onItemClick?: (href: string) => void // 点击项目项的回调
+  organizationId?: number | null
 }
 
-export function ProjectList({ onItemClick }: ProjectListProps = {}) {
+export function ProjectList({ onItemClick, organizationId }: ProjectListProps = {}) {
   const navigate = useNavigate()
   const location = useLocation()
   const pathname = location.pathname
-  const { data: projects = [], isLoading } = useProjectList()
+  const { data: projects = [], isLoading } = useProjectList(organizationId)
+  const user = useAuthStore((state) => state.user)
+
+  // Sort projects: my projects first
+  const sortedProjects = useMemo(() => {
+    if (!projects) return []
+    return [...projects].sort((a, b) => {
+      const aIsMine = user?.id && a.creator_id === user.id
+      const bIsMine = user?.id && b.creator_id === user.id
+      
+      if (aIsMine && !bIsMine) return -1
+      if (!aIsMine && bIsMine) return 1
+      return 0
+    })
+  }, [projects, user?.id])
 
   // 获取当前选中的项目 ID
   const currentProjectId = pathname?.match(/\/projects\/(\d+)/)?.[1]
@@ -45,7 +64,7 @@ export function ProjectList({ onItemClick }: ProjectListProps = {}) {
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {/* 项目列表内容 - 直接显示，不需要展开/折叠 */}
       {isLoading ? (
         <div className="px-3 py-2 flex items-center gap-2">
@@ -57,38 +76,95 @@ export function ProjectList({ onItemClick }: ProjectListProps = {}) {
           暂无项目
         </div>
       ) : (
-        projects.map((project: any) => (
-          <button
-            key={project.id}
-            onClick={() => handleProjectClick(project.id)}
-            className={clsx(
-              'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
-              'min-h-[44px]', // 移动端触摸优化
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-              'active:bg-surface-active',
-              {
-                'bg-primary-light text-primary font-medium': currentProjectId === String(project.id),
-                'text-foreground hover:bg-surface-hover': currentProjectId !== String(project.id),
-              }
-            )}
-            title={project.name}
-            aria-current={currentProjectId === String(project.id) ? 'page' : undefined}
-          >
-            <FolderIcon />
-            <span className="truncate">{project.name}</span>
-          </button>
-        ))
+        sortedProjects.map((project: any) => {
+          const isActive = currentProjectId === String(project.id)
+
+          // 查找创建者信息：优先使用 creator 字段，如果没有，则从 members 中匹配 creator_id
+          const creator = project.creator || (() => {
+            const member = project.members?.find((m: any) => m.user_id === project.creator_id)
+            return member ? (member.user || { username: member.username, avatar: member.avatar }) : null
+          })()
+
+          return (
+            <button
+              key={project.id}
+              onClick={() => handleProjectClick(project.id)}
+              className={clsx(
+                'w-full flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors group',
+                'min-h-[44px] border',
+                'focus:outline-none',
+                isActive 
+                  ? 'bg-primary-light dark:!bg-[#212B3B] border-[#2E5AF1] dark:border-[#23467E]' 
+                  : 'bg-surface-elevated dark:bg-[#2A2A2A] border-transparent hover:bg-surface-hover dark:hover:bg-[#3A3A3A]'
+              )}
+              title={project.name}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              <div
+                className={clsx(
+                  'h-9 w-9 flex items-center justify-center rounded-lg transition-colors',
+                  isActive 
+                    ? 'bg-[#b9c6ee] dark:bg-[#233E69] text-[#51A2FF]' 
+                    : 'bg-[#e4e6eb] dark:bg-[#333333] text-foreground-secondary group-hover:bg-[#d0d3d8] dark:group-hover:bg-[#3e3e3e]'
+                )}
+              >
+                <FolderIcon />
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <div className="truncate text-sm font-semibold text-foreground">{project.name}</div>
+                <div className={clsx('text-xs', isActive ? 'text-foreground-secondary' : 'text-foreground-tertiary')}>
+                  {isActive ? '当前项目' : '点击查看'}
+                </div>
+              </div>
+              
+              {/* Creator Avatar */}
+              <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <Tooltip 
+                  content={
+                    <div className="flex items-center gap-3 whitespace-nowrap px-1 py-0.5">
+                      <Avatar user={creator} size="sm" />
+                      <span className="text-sm font-medium">创建人：{creator?.username || '未知'}</span>
+                    </div>
+                  }
+                  position="right"
+                >
+                  <div>
+                    <Avatar 
+                      user={creator} 
+                      size="xs" 
+                      showTooltip={false} 
+                    />
+                  </div>
+                </Tooltip>
+              </div>
+            </button>
+          )
+        })
       )}
     </div>
   )
 }
 
 // 导出项目列表内容组件（不包含新建项目按钮）
-export function ProjectListContent({ onItemClick }: ProjectListProps = {}) {
+export function ProjectListContent({ onItemClick, organizationId }: ProjectListProps = {}) {
   const navigate = useNavigate()
   const location = useLocation()
   const pathname = location.pathname
-  const { data: projects = [], isLoading } = useProjectList()
+  const { data: projects = [], isLoading } = useProjectList(organizationId)
+  const user = useAuthStore((state) => state.user)
+
+  // Sort projects: my projects first
+  const sortedProjects = useMemo(() => {
+    if (!projects) return []
+    return [...projects].sort((a, b) => {
+      const aIsMine = user?.id && a.creator_id === user.id
+      const bIsMine = user?.id && b.creator_id === user.id
+      
+      if (aIsMine && !bIsMine) return -1
+      if (!aIsMine && bIsMine) return 1
+      return 0
+    })
+  }, [projects, user?.id])
 
   // 获取当前选中的项目 ID
   const currentProjectId = pathname?.match(/\/projects\/(\d+)/)?.[1]
@@ -103,7 +179,7 @@ export function ProjectListContent({ onItemClick }: ProjectListProps = {}) {
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {isLoading ? (
         <div className="px-3 py-2 flex items-center gap-2">
           <LoadingSpinner />
@@ -114,27 +190,70 @@ export function ProjectListContent({ onItemClick }: ProjectListProps = {}) {
           暂无项目
         </div>
       ) : (
-        projects.map((project: any) => (
-          <button
-            key={project.id}
-            onClick={() => handleProjectClick(project.id)}
-            className={clsx(
-              'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
-              'min-h-[44px]', // 移动端触摸优化
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-              'active:bg-surface-active',
-              {
-                'bg-primary-light text-primary font-medium': currentProjectId === String(project.id),
-                'text-foreground hover:bg-surface-hover': currentProjectId !== String(project.id),
-              }
-            )}
-            title={project.name}
-            aria-current={currentProjectId === String(project.id) ? 'page' : undefined}
-          >
-            <FolderIcon />
-            <span className="truncate">{project.name}</span>
-          </button>
-        ))
+        sortedProjects.map((project: any) => {
+          const isActive = currentProjectId === String(project.id)
+
+          // 查找创建者信息：优先使用 creator 字段，如果没有，则从 members 中匹配 creator_id
+          const creator = project.creator || (() => {
+            const member = project.members?.find((m: any) => m.user_id === project.creator_id)
+            return member ? (member.user || { username: member.username, avatar: member.avatar }) : null
+          })()
+
+          return (
+            <button
+              key={project.id}
+              onClick={() => handleProjectClick(project.id)}
+              className={clsx(
+                'w-full flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors group',
+                'min-h-[44px] border',
+                'focus:outline-none',
+                isActive 
+                  ? 'bg-primary-light dark:!bg-[#212B3B] border-[#2E5AF1] dark:border-[#23467E]' 
+                  : 'bg-surface-elevated dark:bg-[#2A2A2A] border-transparent hover:bg-surface-hover dark:hover:bg-[#3A3A3A]'
+              )}
+              title={project.name}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              <div
+                className={clsx(
+                  'h-9 w-9 flex items-center justify-center rounded-lg transition-colors',
+                  isActive 
+                    ? 'bg-[#b9c6ee] dark:bg-[#233E69] text-[#51A2FF]' 
+                    : 'bg-[#e4e6eb] dark:bg-[#333333] text-foreground-secondary group-hover:bg-[#d0d3d8] dark:group-hover:bg-[#3e3e3e]'
+                )}
+              >
+                <FolderIcon />
+              </div>
+              <div className="min-w-0 flex-1 text-left">
+                <div className="truncate text-sm font-semibold text-foreground">{project.name}</div>
+                <div className={clsx('text-xs', isActive ? 'text-foreground-secondary' : 'text-foreground-tertiary')}>
+                  {isActive ? '当前项目' : '点击查看'}
+                </div>
+              </div>
+
+              {/* Creator Avatar */}
+              <div className="flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <Tooltip 
+                  content={
+                    <div className="flex items-center gap-3 whitespace-nowrap px-1 py-0.5">
+                      <Avatar user={creator} size="sm" />
+                      <span className="text-sm font-medium">创建人：{creator?.username || '未知'}</span>
+                    </div>
+                  }
+                  position="right"
+                >
+                  <div>
+                    <Avatar 
+                      user={creator} 
+                      size="xs" 
+                      showTooltip={false} 
+                    />
+                  </div>
+                </Tooltip>
+              </div>
+            </button>
+          )
+        })
       )}
     </div>
   )

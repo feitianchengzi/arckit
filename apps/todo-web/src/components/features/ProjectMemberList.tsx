@@ -28,8 +28,10 @@ function CheckIcon({ className }: { className?: string }) {
 }
 import type { ProjectMember, ProjectRole } from '@/types'
 import { useAuthStore } from '@/store/authStore'
-import { useDeleteProjectMember, useSetMemberRole } from '@/hooks/useProjects'
+import { useDeleteProjectMember, useSetMemberRole, useAddProjectMember } from '@/hooks/useProjects'
 import { useCreateInvitation } from '@/hooks/useInvitations'
+import { useOrganizationStore } from '@/store/organizationStore'
+import { useOrganizationMembers } from '@/hooks/useOrganizations'
 import clsx from 'clsx'
 
 export interface ProjectMemberListProps {
@@ -57,7 +59,7 @@ const getRoleColor = (role: ProjectRole): string => {
   const colors: Record<ProjectRole, string> = {
     owner: 'bg-purple-100 text-purple-700',
     admin: 'bg-blue-100 text-blue-700',
-    member: 'bg-gray-200 text-gray-700', // 使用更深的灰色背景，确保在浅色模式下可见
+    member: 'bg-[#DBDBDC] text-gray-700', // 介于 gray-200 和 gray-300 之间的自定义灰色
   }
   return colors[role]
 }
@@ -81,7 +83,7 @@ export const ProjectMemberList = ({
   const [showInviteForm, setShowInviteForm] = useState(false)
   
   // 邀请相关状态
-  const createInvitation = useCreateInvitation(projectId)
+  const createInvitation = useCreateInvitation(String(projectId))
   const [role, setRole] = useState<ProjectRole>('member')
   const [expiresInHours, setExpiresInHours] = useState('24')
   const [maxUses, setMaxUses] = useState('')
@@ -96,6 +98,29 @@ export const ProjectMemberList = ({
   
   const deleteMember = useDeleteProjectMember(String(projectId))
   const setMemberRole = useSetMemberRole(String(projectId))
+  
+  const { currentOrganizationId } = useOrganizationStore()
+  const { data: orgMembers } = useOrganizationMembers(currentOrganizationId ?? 0, false)
+  const addProjectMember = useAddProjectMember(String(projectId))
+  const [addingMemberId, setAddingMemberId] = useState<number | null>(null)
+
+  const potentialMembers = orgMembers?.filter(om => 
+    // 过滤掉已经是项目成员的用户
+    !members.some(pm => pm.user_id === om.user_id) &&
+    // 过滤掉当前用户（创建人/自己）
+    om.user_id !== currentUser?.id
+  ) || []
+
+  const handleAddMember = async (organizationMemberId: number, userId: number) => {
+    setAddingMemberId(userId)
+    try {
+      await addProjectMember.mutateAsync({ organizationMemberId })
+    } catch (error) {
+      console.error('添加成员失败:', error)
+    } finally {
+      setAddingMemberId(null)
+    }
+  }
 
   // 判断当前用户角色
   const currentUserMember = members?.find((m: ProjectMember) => {
@@ -167,7 +192,7 @@ export const ProjectMemberList = ({
     if (!memberToDelete) return
 
     try {
-      await deleteMember.mutateAsync(memberToDelete.user_id)
+      await deleteMember.mutateAsync({ targetUserId: memberToDelete.user_id })
       setShowDeleteConfirm(false)
       setMemberToDelete(null)
     } catch (error) {
@@ -414,6 +439,44 @@ export const ProjectMemberList = ({
                     )}
                   </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* 从组织添加成员 */}
+          {potentialMembers.length > 0 && (
+            <div className="pt-4 mt-4 border-t border-divider">
+              <h4 className="text-sm font-semibold text-foreground mb-3">从组织添加成员</h4>
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {potentialMembers.map(member => (
+                  <div key={member.id} className="flex items-center justify-between p-2 rounded-md hover:bg-surface-hover border border-transparent hover:border-border transition-all">
+                    <div className="flex items-center gap-3">
+                      <Avatar user={{ avatar: member.avatar, username: member.username }} className="w-8 h-8" />
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{member.username}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className={clsx(
+                            "w-1.5 h-1.5 rounded-full",
+                            member.role === 'owner' ? "bg-purple-500" :
+                            member.role === 'admin' ? "bg-blue-500" : "bg-gray-400"
+                          )}></span>
+                          <span className="text-xs text-foreground-tertiary">
+                            组织{member.role === 'owner' ? '所有者' : member.role === 'admin' ? '管理员' : '成员'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="secondary"
+                      onClick={() => handleAddMember(member.id, member.user_id)}
+                      loading={addingMemberId === member.user_id}
+                      disabled={addProjectMember.isPending && addingMemberId !== member.user_id}
+                    >
+                      邀请
+                    </Button>
+                  </div>
+                ))}
               </div>
             </div>
           )}

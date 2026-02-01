@@ -15,5 +15,5 @@ export * from './AvatarCropUpload'
 export * from './ImageCropDialog'
 export * from './ImagePreview'
 export * from './Card'
+export * from './Tooltip'
 export { PlusIcon, XIcon, CogIcon, TrashIcon, PencilIcon, ChevronDownIcon, LinkIcon, DocumentIcon } from './icons'
-

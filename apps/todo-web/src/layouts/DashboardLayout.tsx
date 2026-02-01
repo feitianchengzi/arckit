@@ -87,7 +87,7 @@ export default function DashboardLayout() {
 
       {/* 主内容区 */}
       <main 
-        className="flex-1 overflow-y-auto w-full lg:w-auto lg:pl-64"
+        className="flex-1 overflow-y-auto w-full lg:w-auto lg:pl-[336px]"
       >
         <div className="container mx-auto max-w-[1600px] p-4 md:p-6 pt-16 lg:pt-6">
           <Outlet />
@@ -96,4 +96,3 @@ export default function DashboardLayout() {
     </div>
   )
 }
-

@@ -9,12 +9,15 @@
  */
 
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { FirstTimeSetupDialog } from '@/components/features/FirstTimeSetupDialog'
 import { useFirstTimeSetup } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
-import { getAuthInfo } from '@/lib/utils/tokenManager'
 import { todoUserApi } from '@/lib/api/endpoints/auth'
+import { useOrganizationList } from '@/hooks/useOrganizations'
+import { CreateOrganizationDialog } from '@/components/features/CreateOrganizationDialog'
+import { LoadingView } from '@/components/ui/LoadingView'
+import { useQueryClient } from '@tanstack/react-query'
 
 export default function ProjectsHomePage() {
   const navigate = useNavigate()
@@ -22,8 +25,11 @@ export default function ProjectsHomePage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const [user, setUser] = useState<typeof storeUser>(null)
   const [showSetupDialog, setShowSetupDialog] = useState(false)
+  const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
   const firstTimeSetup = useFirstTimeSetup()
   const hasLoadedUserRef = useRef(false) // 标记是否已经加载过用户信息
+  const { data: organizations = [], isLoading: orgLoading } = useOrganizationList()
+  const queryClient = useQueryClient()
 
   // 加载用户信息
   useEffect(() => {
@@ -112,65 +118,92 @@ export default function ProjectsHomePage() {
     }
   }
 
+  const handleCreateOrgSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['organizations'] })
+  }
+
+  if (orgLoading) {
+    return <LoadingView />
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center py-8 md:py-0">
       <div className="text-center space-y-4 md:space-y-6 max-w-2xl w-full px-4 md:px-6">
-        {/* 欢迎标题 */}
-        <div className="space-y-2 md:space-y-3">
-          <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-foreground">
-            欢迎使用项目管理系统
-          </h1>
-          <p className="text-base md:text-lg text-foreground-secondary">
-            从左侧边栏选择一个项目开始工作
-          </p>
-        </div>
-
-        {/* 快速操作按钮 */}
-        <div className="flex justify-center gap-4">
-          <button
-            onClick={() => navigate('/projects/new')}
-            className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg min-h-[44px]"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span>创建新项目</span>
-          </button>
-        </div>
-
-        {/* 提示信息 */}
-        <div className="bg-info-lighter border border-info-light rounded-lg p-4 md:p-6 text-left">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0">
-              <svg className="w-5 h-5 md:w-6 md:h-6 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        {organizations.length === 0 ? (
+          <>
+            <div className="space-y-2 md:space-y-3">
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-foreground">
+                开始创建你的组织
+              </h1>
+              <p className="text-base md:text-lg text-foreground-secondary">
+                项目必须归属组织，请先创建或加入一个组织
+              </p>
+            </div>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => setShowCreateOrgDialog(true)}
+                className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg min-h-[44px]"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>创建组织</span>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="space-y-2 md:space-y-3">
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-foreground">
+                欢迎使用项目管理系统
+              </h1>
+              <p className="text-base md:text-lg text-foreground-secondary">
+                从左侧边栏选择一个项目开始工作
+              </p>
+            </div>
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => navigate('/projects/new')}
+                className="inline-flex items-center gap-2 px-4 md:px-6 py-2.5 md:py-3 bg-primary text-white font-semibold rounded-lg hover:bg-primary-700 transition-colors shadow-md hover:shadow-lg min-h-[44px]"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>创建新项目</span>
+              </button>
+            </div>
+            <div className="bg-info-lighter border border-info-light rounded-lg p-4 md:p-6 text-left">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0">
+                  <svg className="w-5 h-5 md:w-6 md:h-6 text-info" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <h3 className="font-semibold text-sm md:text-base text-info">
+                    快速开始
+                  </h3>
+                  <ul className="space-y-1 text-xs md:text-sm text-foreground-secondary">
+                    <li>• 在左侧边栏点击 <strong>组织</strong> 选择项目归属</li>
+                    <li>• 点击具体项目名称查看项目详情和任务</li>
+                    <li>• 点击项目列表旁的 <strong>+</strong> 按钮创建新项目</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <div className="hidden md:flex justify-center gap-6 md:gap-8 pt-6 md:pt-8 opacity-30">
+              <svg className="w-12 h-12 md:w-16 md:h-16 text-foreground-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+              </svg>
+              <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             </div>
-            <div className="flex-1 space-y-2">
-              <h3 className="font-semibold text-sm md:text-base text-info">
-                快速开始
-              </h3>
-              <ul className="space-y-1 text-xs md:text-sm text-foreground-secondary">
-                <li>• 在左侧边栏点击 <strong>项目列表</strong> 查看所有项目</li>
-                <li>• 点击具体项目名称查看项目详情和任务</li>
-                <li>• 点击项目列表旁的 <strong>+</strong> 按钮创建新项目</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* 装饰性图标 */}
-        <div className="hidden md:flex justify-center gap-6 md:gap-8 pt-6 md:pt-8 opacity-30">
-          <svg className="w-12 h-12 md:w-16 md:h-16 text-foreground-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-          </svg>
-          <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-          </svg>
-          <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-          </svg>
-        </div>
+          </>
+        )}
       </div>
 
       {/* 首次设置对话框 */}
@@ -178,6 +211,11 @@ export default function ProjectsHomePage() {
         open={showSetupDialog}
         onClose={() => {}} // 防止关闭，必须完成设置
         onComplete={handleCompleteSetup}
+      />
+      <CreateOrganizationDialog
+        open={showCreateOrgDialog}
+        onClose={() => setShowCreateOrgDialog(false)}
+        onSuccess={handleCreateOrgSuccess}
       />
     </div>
   )

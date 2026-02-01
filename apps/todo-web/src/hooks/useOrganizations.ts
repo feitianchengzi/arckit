@@ -14,6 +14,36 @@ export function useOrganizationList(includeDeleted = false) {
 }
 
 /**
+ * 更新组织成员角色
+ */
+export function useUpdateOrganizationMemberRole() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ 
+      organizationId, 
+      targetUserId, 
+      role 
+    }: { 
+      organizationId: number
+      targetUserId: number
+      role: 'admin' | 'member' 
+    }) => {
+      return organizationsApi.updateMemberRole({
+        organization_id: organizationId,
+        target_user_id: targetUserId,
+        role
+      })
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ 
+        queryKey: ['organizationMembers', variables.organizationId] 
+      })
+    },
+  })
+}
+
+/**
  * 获取特定组织的成员列表
  */
 export function useOrganizationMembers(organizationId: number, includeDeleted = false) {

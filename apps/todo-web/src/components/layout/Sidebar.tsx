@@ -11,7 +11,7 @@
  */
 
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import clsx from 'clsx'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
@@ -21,6 +21,10 @@ import { OrganizationList } from './OrganizationList'
 import { CreateOrganizationDialog } from '../features/CreateOrganizationDialog'
 import { CreateProjectDialog } from '../features/CreateProjectDialog'
 import { Avatar } from '@/components/ui'
+import { useOrganizationList } from '@/hooks/useOrganizations'
+import { useProjectList } from '@/hooks/useProjects'
+
+import { useOrganizationStore } from '@/store/organizationStore'
 
 interface SidebarProps {
   className?: string
@@ -30,64 +34,30 @@ interface SidebarProps {
 
 export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const navigate = useNavigate()
+  const location = useLocation()
   const storeUser = useAuthStore((state) => state.user)
   const logout = useAuthStore((state) => state.logout)
   const { theme, toggleTheme } = useThemeStore()
   const queryClient = useQueryClient()
-  
+  const { data: organizations = [] } = useOrganizationList()
+  const { currentOrganizationId, setCurrentOrganizationId } = useOrganizationStore()
+
   // 使用 state 来避免 hydration 不匹配
   // 服务端和客户端首次渲染时都显示默认值，客户端 hydration 后再更新
   const [user, setUser] = useState<typeof storeUser>(null)
   const [mounted, setMounted] = useState(false)
   
-  // 用于计算固定区域和头像区域的高度
-  const topAreaRef = useRef<HTMLDivElement>(null)
-  const bottomAreaRef = useRef<HTMLDivElement>(null)
-  const [listTop, setListTop] = useState(0)
-  const [listBottom, setListBottom] = useState(0)
-  
   // 组织相关状态
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
   // 项目相关状态
   const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false)
-  const [forceRecalculate, setForceRecalculate] = useState(0)
   
   useEffect(() => {
     console.log('[Sidebar] 用户信息更新:', storeUser)
     setMounted(true)
     setUser(storeUser)
   }, [storeUser])
-  
-  // 计算列表区域的位置
-  useEffect(() => {
-    const updateListPosition = () => {
-      if (topAreaRef.current) {
-        setListTop(topAreaRef.current.offsetHeight)
-      }
-      if (bottomAreaRef.current) {
-        setListBottom(bottomAreaRef.current.offsetHeight)
-      }
-    }
-    
-    updateListPosition()
-    window.addEventListener('resize', updateListPosition)
-    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateListPosition) : null
-    if (resizeObserver) {
-      if (topAreaRef.current) {
-        resizeObserver.observe(topAreaRef.current)
-      }
-      if (bottomAreaRef.current) {
-        resizeObserver.observe(bottomAreaRef.current)
-      }
-    }
-    return () => {
-      window.removeEventListener('resize', updateListPosition)
-      if (resizeObserver) {
-        resizeObserver.disconnect()
-      }
-    }
-  }, [isOpen, forceRecalculate])
-  
+
   const handleLogout = () => {
     logout()
     navigate('/login')
@@ -101,7 +71,17 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const displayUsername = mounted && user?.username 
     ? user.username 
     : '未登录'
-  
+
+  const pathname = location.pathname
+  const { data: projects = [] } = useProjectList(currentOrganizationId)
+  const hasOrganizations = organizations.length > 0
+  const selectedOrganization = currentOrganizationId
+    ? organizations.find((organization) => organization.id === currentOrganizationId)
+    : null
+  const isPersonalProjects = !currentOrganizationId && pathname.startsWith('/projects')
+  const headerTitle = selectedOrganization?.name ?? (isPersonalProjects ? '个人项目' : '项目')
+  const projectCount = projects.length
+
   // 移动端/平板端：点击导航项后自动关闭侧边栏
   const handleNavClick = (href: string) => {
     navigate(href)
@@ -116,8 +96,6 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
     console.log('组织创建成功');
     // 使组织列表查询失效，触发重新获取
     queryClient.invalidateQueries({ queryKey: ['organizations'] });
-    // 强制重新计算列表位置，避免重叠
-    setForceRecalculate(prev => prev + 1);
   }
   
   const handleCreateProjectSuccess = () => {
@@ -125,16 +103,14 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
     console.log('项目创建成功');
     // 使项目列表查询失效，触发重新获取
     queryClient.invalidateQueries({ queryKey: ['projects'] });
-    // 强制重新计算列表位置，避免重叠
-    setForceRecalculate(prev => prev + 1);
   }
   
   return (
     <aside
       className={clsx(
         // 基础样式 - 使用 relative 定位，类似 Android RelativeLayout
-        'relative bg-surface-elevated border-r border-border',
-        'w-64 z-50',
+        'relative bg-surface-elevated border-r border-border flex flex-col',
+        'w-[320px] z-50',
         'transition-colors',
         // 桌面端：固定定位，不随内容滚动
         'lg:fixed lg:top-0 lg:left-0 lg:translate-x-0 lg:block',
@@ -153,7 +129,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
     >
 
       {/* 移动端/平板端：关闭按钮 */}
-      <div className="lg:hidden flex items-center justify-end p-4">
+      <div className="lg:hidden absolute top-0 right-0 p-4 z-20">
         <button
           onClick={onClose}
           className={clsx(
@@ -182,159 +158,128 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         </button>
       </div>
 
-      {/* 固定区域 - 顶部（组织部分：新建组织） */}
-      <div 
-        ref={topAreaRef}
-        className={clsx(
-          'lg:block',
-          { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
-        )}
-      >
-        {/* 组织部分标题和新建按钮 */}
-        <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-          <h3 className="text-base font-bold text-primary px-3">组织</h3>
-          <button
-            onClick={() => setShowCreateOrgDialog(true)}
-            className={clsx(
-              'flex items-center justify-center p-2 rounded-md transition-colors',
-              'text-foreground hover:bg-surface-hover',
-              'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
-              'active:bg-surface-active'
-            )}
-            title="新建组织"
-            aria-label="新建组织"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
-        </div>
-        
-        {/* 组织列表 - 固定区域 */}
-        <div className="px-4 pb-2">
-          <div className="max-h-48 overflow-y-auto">
-            <OrganizationList onItemClick={handleNavClick} />
+      <div className="flex flex-1 min-h-0 h-full">
+        <div className="flex w-20 flex-col border-r border-border min-h-0 h-full bg-surface-elevated">
+          <div className="flex-1 overflow-y-auto py-3">
+            <div className="flex items-center justify-center pb-3">
+              <div className="flex h-9 w-9 items-center justify-center text-foreground-secondary">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M5 7v11a1 1 0 001 1h12a1 1 0 001-1V7M7 7V5a1 1 0 011-1h8a1 1 0 011 1v2" />
+                </svg>
+              </div>
+            </div>
+            <div className="border-b border-border" />
+            <OrganizationList
+              onItemClick={handleNavClick}
+              selectedOrganizationId={currentOrganizationId}
+              onSelectOrganization={setCurrentOrganizationId}
+            />
+          </div>
+          <div className="mt-auto space-y-2">
+            <div className="border-t border-border">
+              <div className="w-full flex flex-col items-center gap-3 px-3 pt-3">
+                <button
+                  onClick={() => handleNavClick('/settings')}
+                  className="group relative flex h-11 w-11 items-center justify-center rounded-xl bg-gray-200 dark:bg-[#2A2A2A] text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  title="设置"
+                >
+                  <Avatar
+                    user={user}
+                    size="sm"
+                    showTooltip={false}
+                  />
+                  <span className="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-surface-elevated px-3 py-1 text-xs font-semibold text-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+                    {displayUsername}
+                  </span>
+                </button>
+                <button
+                  onClick={toggleTheme}
+                  className={clsx(
+                    'flex h-11 w-11 items-center justify-center rounded-xl',
+                    'text-foreground-secondary bg-gray-200 dark:bg-[#2A2A2A] hover:bg-surface-hover hover:text-foreground transition-colors',
+                    'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
+                  )}
+                  title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+                  aria-label="切换深色模式"
+                >
+                  {theme === 'dark' ? (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="border-t border-border flex justify-center pb-3 pt-3">
+              <button
+                onClick={() => setShowCreateOrgDialog(true)}
+                className={clsx(
+                  'flex h-11 w-11 items-center justify-center rounded-xl',
+                  'text-foreground-secondary bg-gray-200 dark:bg-[#2A2A2A] hover:bg-surface-hover hover:text-foreground transition-colors',
+                  'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+                  'font-semibold'
+                )}
+                title="新建组织"
+                aria-label="新建组织"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
-        
-        {/* 分隔线 */}
-        <div className="border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}></div>
-        
-        {/* 项目部分标题和新建按钮 */}
-        <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-          <h3 className="text-base font-bold text-primary px-3">项目</h3>
-          <button
-            onClick={() => setShowCreateProjectDialog(true)}
-            className={clsx(
-              'flex items-center justify-center p-2 rounded-md transition-colors',
-              'text-foreground hover:bg-surface-hover',
-              'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
-              'active:bg-surface-active'
-            )}
-            title="新建项目"
-            aria-label="新建项目"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
-        </div>
-      </div>
-      
-      {/* 项目列表 - 占据剩余空间，可滚动 */}
-      <div className={clsx(
-        'absolute left-0 right-0 overflow-y-auto p-4',
-        'lg:block',
-        { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
-      )}
-      style={{
-        top: `${listTop}px`,
-        bottom: `${listBottom}px`,
-        paddingTop: '8px'
-      }}
-      >
-        <ProjectListContent onItemClick={handleNavClick} />
-      </div>
-      
-      {/* 用户信息区域 - 绝对定位固定在底部 */}
-      <div 
-        ref={bottomAreaRef}
-        className={clsx(
-          'absolute left-0 right-0 bottom-0 p-6 border-t z-10',
-          'bg-surface-elevated',
-          'lg:block',
-          'transition-colors',
-          { 'hidden lg:block': !isOpen } // 移动端关闭时隐藏，桌面端始终显示
-        )}
-        style={{ 
-          borderTopWidth: '0.5px',
-          borderTopColor: 'var(--color-divider)'
-        }}
-      >
-        <div className="space-y-3">
-          {/* 整个用户信息区域可点击进入设置 */}
-          <button
-            onClick={() => handleNavClick('/settings')}
-            className="w-full flex items-center gap-3 text-left hover:bg-surface-hover rounded-md p-1 -ml-1 -mr-1 transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 active:bg-surface-active"
-            title="设置"
-          >
-            {/* 头像 */}
-            <div className="flex-shrink-0">
-              <Avatar
-                user={user}
-                size="md"
-                showTooltip={true}
-              />
+        <div className="flex w-64 flex-col min-h-0 bg-surface dark:bg-[#202020]">
+          <div className="px-4 pt-4 pb-3">
+            <div className="text-base font-semibold text-foreground">{headerTitle}</div>
+            <div className="text-xs text-foreground-secondary">{projectCount} 个项目</div>
+          </div>
+          <div className="px-4 pb-3">
+            <button
+              onClick={() => setShowCreateProjectDialog(true)}
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary dark:bg-[#2B7FFF] py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark dark:hover:bg-[#2570E6] focus:outline-none"
+              title="新增项目"
+              aria-label="新增项目"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              新增项目
+            </button>
+          </div>
+          <div className="border-t border-border" />
+          {!hasOrganizations && (
+            <div className="px-4 py-3 text-xs text-foreground-secondary">
+              请先加入或创建一个组织
             </div>
-            
-            {/* 用户名 */}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-foreground truncate">
-                {displayUsername}
-              </p>
-              <p className="text-xs text-foreground-secondary">
-                开发者
-              </p>
+          )}
+          {hasOrganizations && !currentOrganizationId && !isPersonalProjects && (
+            <div className="px-4 py-3 text-xs text-foreground-secondary">
+              请选择组织后创建项目
             </div>
-          </button>
-          
-          {/* 深色模式切换 */}
-          <button
-            onClick={toggleTheme}
-            className={clsx(
-              'w-full flex items-center justify-between px-3 py-2 rounded-md',
-              'text-sm text-foreground',
-              'hover:bg-surface-hover',
-              'transition-colors',
-              'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
-            )}
-            title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
-            aria-label="切换深色模式"
-          >
-            <div className="flex items-center gap-2">
-              {theme === 'dark' ? (
-                // 深色模式：显示月亮图标（当前是深色模式）
-                <svg className="w-4 h-4 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                </svg>
-              ) : (
-                // 浅色模式：显示太阳图标（当前是浅色模式）
-                <svg className="w-4 h-4 text-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              )}
-              <span>{theme === 'dark' ? '深色模式' : '浅色模式'}</span>
-            </div>
-            <div className={clsx(
-              'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
-              theme === 'dark' ? 'bg-primary' : 'bg-gray-300'
-            )}>
-              <span className={clsx(
-                'inline-block h-3.5 w-3.5 transform rounded-full transition-transform',
-                theme === 'dark' ? 'bg-white translate-x-5' : 'bg-white translate-x-0.5'
-              )} />
-            </div>
-          </button>
+          )}
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            <ProjectListContent onItemClick={handleNavClick} organizationId={currentOrganizationId} />
+          </div>
+          {currentOrganizationId && selectedOrganization && (
+            <>
+              <div className="border-t border-border" />
+              <div className="px-4 py-3">
+                <button
+                  onClick={() => handleNavClick(`/organizations/${currentOrganizationId}`)}
+                  className="w-full flex items-center justify-center rounded-lg bg-surface-elevated py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  title="组织设置"
+                  aria-label="组织设置"
+                >
+                  组织设置
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
       
@@ -350,6 +295,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
         open={showCreateProjectDialog}
         onClose={() => setShowCreateProjectDialog(false)}
         onSuccess={handleCreateProjectSuccess}
+        selectedOrganizationId={currentOrganizationId}
       />
     </aside>
   )

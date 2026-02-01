@@ -13,7 +13,7 @@ import Placeholder from '@tiptap/extension-placeholder'
 import Mention from '@tiptap/extension-mention'
 import Link from '@tiptap/extension-link'
 import type { SuggestionProps } from '@tiptap/suggestion'
-import { Button, Avatar, ImagePreview } from '@/components/ui'
+import { Button, Avatar } from '@/components/ui'
 import { ImageIcon, PaperClipIcon, LinkIcon } from '@/components/ui/icons'
 import { uploadApi } from '@/lib/api/endpoints/upload'
 import { parseTextCommentContentPayload, rawUrlsToLinkFormat } from '@/lib/api/endpoints/comments'
@@ -141,8 +141,6 @@ export function CommentEditor({
   const [linkPopupOpen, setLinkPopupOpen] = useState(false)
   const [linkUrl, setLinkUrl] = useState('')
   const [linkText, setLinkText] = useState('')
-  const [previewOpen, setPreviewOpen] = useState(false)
-  const [previewIndex, setPreviewIndex] = useState(0)
   setSuggestionRef.current = (p) => {
     suggestionPropsRef.current = p
     setSuggestionProps(p)
@@ -374,11 +372,6 @@ export function CommentEditor({
     setError('')
   }
 
-  const handleImageClick = (index: number) => {
-    setPreviewIndex(index)
-    setPreviewOpen(true)
-  }
-
   const handleSubmit = async () => {
     if (!editor) return
     const raw = htmlToMentionText(editor.getHTML())
@@ -426,9 +419,8 @@ export function CommentEditor({
           {images.map((img, index) => (
             <div
               key={img.key}
-              className="group relative rounded-md overflow-hidden border border-border bg-surface-active cursor-pointer"
+              className="group relative rounded-md overflow-hidden border border-border bg-surface-active"
               style={{ width: IMAGE_CELL_SIZE, height: IMAGE_CELL_SIZE }}
-              onClick={() => handleImageClick(index)}
             >
               <img
                 src={img.url}
@@ -438,10 +430,7 @@ export function CommentEditor({
               />
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  removeImage(index)
-                }}
+                onClick={() => removeImage(index)}
                 className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center bg-black/60 text-white rounded-bl opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label="删除图片"
               >
@@ -665,15 +654,6 @@ export function CommentEditor({
           </>,
           document.body
         )}
-      
-      {/* 图片预览对话框 */}
-      <ImagePreview
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        images={images}
-        currentIndex={previewIndex}
-        onIndexChange={setPreviewIndex}
-      />
     </div>
   )
 }

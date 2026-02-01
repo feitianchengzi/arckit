@@ -16,6 +16,8 @@ import { useState } from 'react'
 
 interface OrganizationListProps {
   onItemClick?: (href: string) => void // 点击组织项的回调
+  selectedOrganizationId?: number | null
+  onSelectOrganization?: (organizationId: number | null) => void
 }
 
 interface Organization {
@@ -28,21 +30,28 @@ interface Organization {
   deleted_at?: string
 }
 
-export function OrganizationList({ onItemClick }: OrganizationListProps = {}) {
+export function OrganizationList({ onItemClick, selectedOrganizationId, onSelectOrganization }: OrganizationListProps = {}) {
   const navigate = useNavigate()
   const location = useLocation()
   const pathname = location.pathname
   const { data: organizations = [], isLoading } = useOrganizationList()
   const [showAll, setShowAll] = useState(false)
+  const isPersonalActive = !selectedOrganizationId && pathname?.startsWith('/projects')
 
   // 获取当前选中的组织 ID
-  const currentOrganizationId = pathname?.match(/\/organizations\/(\d+)/)?.[1]
+  const routeOrganizationId = pathname?.match(/\/organizations\/(\d+)/)?.[1]
+  const currentOrganizationId = selectedOrganizationId !== undefined && selectedOrganizationId !== null
+    ? String(selectedOrganizationId)
+    : routeOrganizationId
 
   // 控制显示的组织数量，最多显示3个，除非用户点击"显示更多"
   const displayedOrganizations = showAll ? organizations : organizations.slice(0, 3)
   const hasMore = organizations.length > 3
 
   const handleOrganizationClick = (organizationId: number) => {
+    if (onSelectOrganization) {
+      onSelectOrganization(organizationId)
+    }
     const href = `/organizations/${organizationId}`
     if (onItemClick) {
       onItemClick(href)
@@ -54,9 +63,21 @@ export function OrganizationList({ onItemClick }: OrganizationListProps = {}) {
   const handleShowMore = () => {
     setShowAll(!showAll)
   }
+  
+  const handlePersonalClick = () => {
+    if (onSelectOrganization) {
+      onSelectOrganization(null)
+    }
+    const href = '/projects'
+    if (onItemClick) {
+      onItemClick(href)
+    } else {
+      navigate(href)
+    }
+  }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1 px-2">
       {isLoading ? (
         <div className="px-3 py-2 flex items-center gap-2">
           <LoadingSpinner />
@@ -68,44 +89,104 @@ export function OrganizationList({ onItemClick }: OrganizationListProps = {}) {
         </div>
       ) : (
         <>
-          {displayedOrganizations.map((organization: Organization) => (
-            <button
-              key={organization.id}
-              onClick={() => handleOrganizationClick(organization.id)}
-              className={clsx(
-                'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
-                'min-h-[44px]', // 移动端触摸优化
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-                'active:bg-surface-active',
-                {
-                  'bg-primary-light text-primary font-medium': currentOrganizationId === String(organization.id),
-                  'text-foreground hover:bg-surface-hover': currentOrganizationId !== String(organization.id),
-                }
-              )}
-              style={{
-                outline: 'none',
-                boxShadow: 'none'
-              }}
-              title={organization.name}
-              aria-current={currentOrganizationId === String(organization.id) ? 'page' : undefined}
-            >
-              <BuildingIcon />
-              <span className="truncate">{organization.name}</span>
-            </button>
-          ))}
+          {displayedOrganizations.map((organization: Organization) => {
+            const initial = organization.name?.trim()?.charAt(0)?.toUpperCase() || '?'
+            const isActive = currentOrganizationId === String(organization.id)
+            return (
+              <button
+                key={organization.id}
+                onClick={() => handleOrganizationClick(organization.id)}
+                className={clsx(
+                  'w-full flex flex-col items-center gap-1 px-2 py-2 text-xs rounded-md transition-colors relative',
+                  'min-h-[64px]',
+                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+                  'text-foreground-secondary hover:text-foreground font-semibold',
+                  {
+                    'text-primary': isActive,
+                  }
+                )}
+                style={{
+                  outline: 'none',
+                  boxShadow: 'none'
+                }}
+                title={organization.name}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <span className="relative">
+                  <span
+                    className={clsx(
+                      'absolute left-[-16px] top-1/2 -translate-y-1/2 h-6 w-1.5 rounded-full transition-all bg-primary',
+                      isActive ? 'opacity-100' : 'opacity-0'
+                    )}
+                  />
+                  <span
+                    className={clsx(
+                      'flex h-10 w-10 items-center justify-center rounded-lg text-sm font-semibold border transition-colors',
+                      isActive
+                        ? 'bg-primary-light text-primary border-primary org-tab-selected'
+                        : 'bg-gray-200 dark:bg-[#2A2A2A] text-foreground-secondary hover:bg-surface-hover hover:text-foreground border-transparent'
+                    )}
+                  >
+                    {initial}
+                  </span>
+                </span>
+                <span className="truncate w-full text-center">{organization.name}</span>
+              </button>
+            )
+          })}
+          <button
+            onClick={handlePersonalClick}
+            className={clsx(
+              'w-full flex flex-col items-center gap-1 px-2 py-2 text-xs rounded-md transition-colors relative',
+              'min-h-[64px]',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+              'text-foreground-secondary hover:text-foreground font-semibold',
+              {
+                'text-primary': isPersonalActive,
+              }
+            )}
+            style={{
+              outline: 'none',
+              boxShadow: 'none'
+            }}
+            title="个人项目"
+            aria-current={isPersonalActive ? 'page' : undefined}
+          >
+            <span className="relative">
+              <span
+                className={clsx(
+                  'absolute left-[-16px] top-1/2 -translate-y-1/2 h-6 w-1.5 rounded-full transition-all bg-primary',
+                  isPersonalActive ? 'opacity-100' : 'opacity-0'
+                )}
+              />
+              <span
+                className={clsx(
+                    'flex h-10 w-10 items-center justify-center rounded-lg text-sm font-semibold border transition-colors',
+                    isPersonalActive
+                      ? 'bg-primary-light text-primary border-primary org-tab-selected'
+                      : 'bg-gray-200 dark:bg-[#2A2A2A] text-foreground-secondary hover:bg-surface-hover hover:text-foreground border-transparent'
+                  )}
+              >
+                个
+              </span>
+            </span>
+            <span className="truncate w-full text-center">个人项目</span>
+          </button>
           {hasMore && (
             <button
               onClick={handleShowMore}
               className={clsx(
-                'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors',
-                'min-h-[44px]', // 移动端触摸优化
-                'text-foreground hover:bg-surface-hover',
+                'w-full flex flex-col items-center gap-1 px-2 py-2 text-xs rounded-md transition-colors',
+                'min-h-[64px]',
+                'text-foreground-secondary hover:text-foreground font-semibold',
                 'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-                'active:bg-surface-active'
+                'active:bg-surface-hover'
               )}
             >
-              <PlusIcon />
-              <span>{showAll ? '收起' : '显示更多'}</span>
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200 dark:bg-[#2A2A2A] hover:bg-surface-hover text-base font-semibold text-foreground-secondary border border-transparent">
+                +
+              </span>
+              <span>{showAll ? '收起' : '更多'}</span>
             </button>
           )}
         </>
@@ -115,22 +196,6 @@ export function OrganizationList({ onItemClick }: OrganizationListProps = {}) {
 }
 
 // ==================== 图标组件 ====================
-
-function BuildingIcon() {
-  return (
-    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-    </svg>
-  )
-}
-
-function PlusIcon() {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-    </svg>
-  )
-}
 
 function LoadingSpinner() {
   return (
