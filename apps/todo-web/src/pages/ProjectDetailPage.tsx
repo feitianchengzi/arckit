@@ -886,10 +886,25 @@ export default function ProjectDetailPage() {
     }
   }
   
+  // 递归查找任务（包括子任务）
+  const findTaskInTree = (tasks: typeof taskTree, todoId: number): typeof taskTree[0] | null => {
+    for (const task of tasks) {
+      if (task.id === todoId) {
+        return task
+      }
+      // 递归查找子任务
+      if (task.children && task.children.length > 0) {
+        const found = findTaskInTree(task.children, todoId)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
   // 处理状态变更
   const handleStatusChange = async (todoId: number, newStatus: string) => {
-    // 查找对应的任务
-    const todo = taskTree.find(t => t.id === todoId)
+    // 查找对应的任务（包括子任务）
+    const todo = findTaskInTree(taskTree, todoId)
     if (!todo) {
       console.error('找不到对应的任务')
       return
