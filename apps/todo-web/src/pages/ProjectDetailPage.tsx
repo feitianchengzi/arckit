@@ -948,8 +948,8 @@ export default function ProjectDetailPage() {
   return (
     <div className="space-y-4 md:space-y-6">
       {/* 页面头部 */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <div className="lg:col-span-4 flex items-start justify-between gap-3">
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="flex-1 min-w-0 flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground truncate" title={project.name}>
               {project.name}
@@ -961,8 +961,8 @@ export default function ProjectDetailPage() {
             )}
           </div>
           
-          {/* 操作按钮 - 右对齐待办列表右侧 */}
-          <div className="flex items-center gap-2 shrink-0">
+          {/* 操作按钮 - 顶部右对齐 */}
+          <div className="flex items-center gap-2 shrink-0 pt-1">
             {/* 搜索区域 - 搜索按钮和搜索框共用位置 */}
             <div className="relative flex items-center" ref={searchBarRef}>
               {/* 搜索按钮 - 搜索框显示时隐藏 */}
@@ -1115,10 +1115,9 @@ export default function ProjectDetailPage() {
             </div>
           </div>
         </div>
-        {/* 占位，保持布局一致 */}
-        <div className="hidden lg:block"></div>
+        <div className="lg:w-1/4 min-w-[200px] hidden lg:block" aria-hidden="true"></div>
       </div>
-      
+
       {/* 待办列表和成员列表 */}
       <div className="flex flex-col lg:flex-row gap-6">
         {/* 待办列表（自适应宽度） */}
