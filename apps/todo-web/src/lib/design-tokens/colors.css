@@ -21,7 +21,7 @@
   /* 用于背景、卡片、容器等 */
   --color-surface: #ffffff;
   --color-surface-elevated: #fefefe;
-  --color-surface-hover: #f3f4f6;
+  --color-surface-hover: #dce2eb;
   --color-surface-active: #e5e7eb;
   --color-surface-disabled: #f9fafb;
   
@@ -50,7 +50,7 @@
   /* ==================== Project List Icons ==================== */
    --color-project-icon: #F3F4F6;
    --color-project-icon-selected: #8A9BD3;
-   --color-surface-icon: #9ca3af;
+   --color-surface-icon: #d2d7df;
 
   /* ==================== 语义颜色 ==================== */
   /* Success */
