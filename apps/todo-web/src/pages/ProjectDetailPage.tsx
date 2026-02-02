@@ -1154,7 +1154,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* 待办列表内容 */}
-          <div className="bg-surface-elevated rounded-lg shadow-md border border-border relative overflow-visible" style={{ padding: '24px', paddingTop: '28px', paddingBottom: '28px', borderColor: 'var(--color-border)' }}>
+          <div className="bg-surface-elevated rounded-lg border border-border relative overflow-visible" style={{ padding: '24px', paddingTop: '28px', paddingBottom: '28px', borderColor: 'var(--color-border)' }}>
             {/* 筛选器 */}
             <div className="mb-4" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
           {/* 筛选器组 - 单行，不换行 */}
@@ -1873,7 +1873,7 @@ export default function ProjectDetailPage() {
 
         {/* 成员列表（占 1/4，宽度减小） */}
         <div className="lg:w-1/4 min-w-[200px]">
-          <div className="bg-surface-elevated rounded-lg shadow-md border border-border p-4" style={{ borderColor: 'var(--color-border)' }}>
+          <div className="bg-surface-elevated rounded-lg border border-border p-4" style={{ borderColor: 'var(--color-border)' }}>
             <ProjectMemberList
               members={members || []}
               projectId={projectId}
@@ -2172,11 +2172,10 @@ function StatCard({ title, value, icon, isActive = false, onClick, className }: 
   return (
     <div
       className={clsx(
-        'bg-surface-elevated rounded-lg shadow-md p-3 md:p-4 cursor-pointer transition-all flex items-center',
+        'bg-surface-elevated rounded-lg border border-border p-3 md:p-4 cursor-pointer transition-all flex items-center',
         {
-          'ring-2 ring-primary-500 shadow-lg': isActive,
-          'ring-2 ring-transparent': !isActive, // 使用 ring 而不是 border，避免被 overflow 裁切
-          'hover:shadow-md': !isActive,
+          'ring-2 ring-primary-500': isActive,
+          'hover:bg-surface-hover': !isActive,
         },
         className
       )}

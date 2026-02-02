@@ -95,7 +95,7 @@ export function ProjectList({ onItemClick, organizationId }: ProjectListProps = 
                 'focus:outline-none',
                 isActive 
                   ? 'bg-primary-light dark:!bg-[#212B3B] border-[#2E5AF1] dark:border-[#23467E]' 
-                  : 'bg-surface-elevated dark:bg-[#2A2A2A] border-transparent hover:bg-surface-hover dark:hover:bg-[#3A3A3A]'
+                  : 'bg-surface-elevated dark:bg-[#2A2A2A] border-border hover:bg-surface-hover dark:hover:bg-[#3A3A3A]'
               )}
               title={project.name}
               aria-current={isActive ? 'page' : undefined}
@@ -209,7 +209,7 @@ export function ProjectListContent({ onItemClick, organizationId }: ProjectListP
                 'focus:outline-none',
                 isActive 
                   ? 'bg-primary-light dark:!bg-[#212B3B] border-[#2E5AF1] dark:border-[#23467E]' 
-                  : 'bg-surface-elevated dark:bg-[#2A2A2A] border-transparent hover:bg-surface-hover dark:hover:bg-[#3A3A3A]'
+                  : 'bg-surface-elevated dark:bg-[#2A2A2A] border-border hover:bg-surface-hover dark:hover:bg-[#3A3A3A]'
               )}
               title={project.name}
               aria-current={isActive ? 'page' : undefined}

@@ -59,7 +59,7 @@ const getRoleColor = (role: ProjectRole): string => {
   const colors: Record<ProjectRole, string> = {
     owner: 'bg-purple-100 text-purple-700',
     admin: 'bg-blue-100 text-blue-700',
-    member: 'bg-[#DBDBDC] text-gray-700', // 介于 gray-200 和 gray-300 之间的自定义灰色
+    member: 'bg-gray-200 text-gray-700', // 使用标准的 gray-100，比原来的 #DBDBDC 更浅
   }
   return colors[role]
 }

@@ -20,9 +20,9 @@
   /* ==================== 表面颜色 (Surface) ==================== */
   /* 用于背景、卡片、容器等 */
   --color-surface: #ffffff;
-  --color-surface-elevated: #f1f1f1;
+  --color-surface-elevated: #fefefe;
   --color-surface-hover: #f9fafb;
-  --color-surface-active: #ebe8e8;
+  --color-surface-active: #fafafa;
   --color-surface-disabled: #f9fafb;
   
   /* ==================== 前景颜色 (Foreground) ==================== */
