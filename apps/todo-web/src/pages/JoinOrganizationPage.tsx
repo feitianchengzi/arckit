@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView } from '@/components/ui'
 import { useAuthStore } from '@/store/authStore'
 import { useJoinOrganizationInvite } from '@/hooks/useOrganizations'
+import { getAccessToken } from '@/lib/utils/tokenManager'
 
 export default function JoinOrganizationPage() {
   const navigate = useNavigate()
@@ -23,6 +24,15 @@ export default function JoinOrganizationPage() {
       return
     }
 
+    // 检查 token 是否存在
+    const token = getAccessToken()
+    if (!token) {
+      console.log('Token 不存在，等待认证状态更新...')
+      // 重置标记，允许下次尝试
+      hasAttemptedJoin.current = false
+      return
+    }
+
     setStatus('loading')
     try {
       await joinOrganization.mutateAsync(inviteCode)
@@ -31,15 +41,27 @@ export default function JoinOrganizationPage() {
         navigate('/organizations')
       }, 3000)
     } catch (err: any) {
-      setStatus('error')
-      setErrorMessage(err?.response?.data?.message || err?.message || '加入组织失败')
+      // 检查是否是400错误（用户未注册完成）
+      if (err?.response?.status === 400) {
+        // 跳转到登录页面，携带邀请码参数
+        navigate(`/login?redirect=/join-organization/${inviteCode}`)
+      } else {
+        setStatus('error')
+        setErrorMessage(err?.response?.data?.message || err?.message || '加入组织失败')
+      }
     }
   }
 
   useEffect(() => {
     if (!isAuthenticated || !inviteCode || hasAttemptedJoin.current) return
-    hasAttemptedJoin.current = true
-    handleJoin()
+    
+    // 添加短暂延迟，确保 token 已经完全设置
+    const timer = setTimeout(() => {
+      hasAttemptedJoin.current = true
+      handleJoin()
+    }, 100) // 100ms 延迟
+    
+    return () => clearTimeout(timer)
   }, [isAuthenticated, inviteCode])
 
   if (!inviteCode) {

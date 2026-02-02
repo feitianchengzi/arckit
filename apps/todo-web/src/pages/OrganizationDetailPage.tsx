@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { TextField } from '@/components/ui/TextField';
+import { useToast } from '@/components/ui/Toast';
 import { organizationsApi } from '@/lib/api/endpoints/organizations';
 
 export default function OrganizationDetailPage() {
@@ -29,6 +30,20 @@ export default function OrganizationDetailPage() {
   const [inviteCode, setInviteCode] = useState('');
   const [inviteLink, setInviteLink] = useState('');
   const [inviteError, setInviteError] = useState('');
+  
+  // Toast 提示
+  const { showToast, toastComponent } = useToast();
+
+  // 处理复制到剪贴板
+  const handleCopy = async (text: string, _type: 'code' | 'link') => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast('已复制到粘贴板', 'success', 2000);
+    } catch (err) {
+      console.error('复制失败:', err);
+      showToast('复制失败', 'error', 2000);
+    }
+  };
   
   // 获取组织成员列表
   const {
@@ -93,9 +108,9 @@ export default function OrganizationDetailPage() {
   const deleteOrganizationMutation = useMutation({
     mutationFn: (orgId: number) => organizationsApi.delete(orgId),
     onSuccess: () => {
-      // 删除成功后，使组织列表查询失效并导航到组织列表页面
+      // 删除成功后，使组织列表查询失效并导航到个人项目页面
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
-      navigate('/organizations');
+      navigate('/projects');
     },
     onError: (err: any) => {
       console.error('删除组织失败:', err);
@@ -133,8 +148,10 @@ export default function OrganizationDetailPage() {
   const removeMemberMutation = useMutation({
     mutationFn: (input: { organization_id: number; target_user_id: number }) => 
       organizationsApi.removeMember(input),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['organizationMembers', organizationId] });
+      // 刷新组织列表（退出组织后需要更新）
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
     },
     onError: (err: any) => {
       console.error('移除成员失败:', err);
@@ -179,7 +196,8 @@ export default function OrganizationDetailPage() {
           target_user_id: myMember.user_id
         }, {
           onSuccess: () => {
-            navigate('/organizations');
+            // 退出后导航到个人项目页面
+            navigate('/projects');
           }
         });
       }
@@ -205,34 +223,38 @@ export default function OrganizationDetailPage() {
       <Card>
         <Card.Header className="flex items-center justify-between">
           <Card.Title className="text-2xl font-bold text-primary">组织详情</Card.Title>
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="secondary" 
-              size="sm"
-              onClick={() => setShowEditDialog(true)}
-              title="编辑组织"
-              className="text-foreground-secondary"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-            </Button>
-            <Button 
-              variant="danger" 
-              size="sm"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowDeleteDialog(true);
-              }}
-              title="删除组织"
-              className="text-red-500"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </Button>
-          </div>
+          {canManage && (
+            <div className="flex items-center gap-4">
+              <Button 
+                variant="secondary" 
+                size="sm"
+                onClick={() => setShowEditDialog(true)}
+                title="编辑组织"
+                className="text-foreground-secondary"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </Button>
+              {myRole === 'owner' && (
+                <Button 
+                  variant="danger" 
+                  size="sm"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowDeleteDialog(true);
+                  }}
+                  title="删除组织"
+                  className="text-red-500"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </Button>
+              )}
+            </div>
+          )}
         </Card.Header>
         <Card.Content>
           <div className="mb-6">
@@ -417,13 +439,15 @@ export default function OrganizationDetailPage() {
                       disabled
                       className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-md bg-surface-disabled font-mono text-foreground-secondary cursor-not-allowed"
                     />
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => navigator.clipboard.writeText(inviteCode)}
+                    <button
+                      onClick={() => handleCopy(inviteCode, 'code')}
+                      className="p-2 text-foreground-secondary hover:text-primary hover:bg-primary-light rounded-md transition-colors"
+                      title="复制邀请码"
                     >
-                      复制
-                    </Button>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )}
@@ -441,13 +465,15 @@ export default function OrganizationDetailPage() {
                       disabled
                       className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-md bg-surface-disabled text-foreground-secondary cursor-not-allowed truncate"
                     />
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => navigator.clipboard.writeText(inviteLink)}
+                    <button
+                      onClick={() => handleCopy(inviteLink, 'link')}
+                      className="p-2 text-foreground-secondary hover:text-primary hover:bg-primary-light rounded-md transition-colors"
+                      title="复制邀请链接"
                     >
-                      复制
-                    </Button>
+                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               )}
@@ -542,6 +568,9 @@ export default function OrganizationDetailPage() {
           </div>
         </div>
       </Dialog>
+
+      {/* Toast 提示 */}
+      {toastComponent}
     </div>
   );
 }
