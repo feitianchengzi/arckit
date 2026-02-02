@@ -1039,7 +1039,7 @@ export default function ProjectDetailPage() {
                 onClick={() => setShowMoreMenu(!showMoreMenu)}
                 variant="secondary"
                 isActive={showMoreMenu}
-                iconBgColor="bg-surface-active dark:bg-[#3A3A3A]"
+                iconBgColor="bg-surface-active dark:bg-surface-hover"
               />
               
               {/* 下拉菜单 */}

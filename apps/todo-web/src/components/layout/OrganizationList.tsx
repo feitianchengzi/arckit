@@ -120,7 +120,7 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
                       'flex h-10 w-10 items-center justify-center rounded-lg text-sm font-semibold border transition-colors',
                       isActive
                         ? 'bg-primary-light text-primary border-primary org-tab-selected'
-                        : 'bg-gray-200 dark:bg-[#2A2A2A] text-foreground-secondary hover:bg-surface-hover hover:text-foreground border-transparent'
+                        : 'bg-gray-200 dark:bg-surface-active text-foreground-secondary hover:bg-surface-hover hover:text-foreground border-transparent'
                     )}
                   >
                     {initial}
@@ -160,7 +160,7 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
                     'flex h-10 w-10 items-center justify-center rounded-lg text-sm font-semibold border transition-colors',
                     isPersonalActive
                       ? 'bg-primary-light text-primary border-primary org-tab-selected'
-                      : 'bg-gray-200 dark:bg-[#2A2A2A] text-foreground-secondary hover:bg-surface-hover hover:text-foreground border-transparent'
+                      : 'bg-gray-200 dark:bg-surface-active text-foreground-secondary hover:bg-surface-hover hover:text-foreground border-transparent'
                   )}
               >
                 个
@@ -179,7 +179,7 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
                 'active:bg-surface-hover'
               )}
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200 dark:bg-[#2A2A2A] hover:bg-surface-hover text-base font-semibold text-foreground-secondary border border-transparent">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200 dark:bg-surface-active hover:bg-surface-hover text-base font-semibold text-foreground-secondary border border-transparent">
                 +
               </span>
               <span>{showAll ? '收起' : '更多'}</span>

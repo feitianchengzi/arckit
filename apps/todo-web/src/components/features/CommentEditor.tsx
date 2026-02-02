@@ -479,8 +479,8 @@ export function CommentEditor({
         <div className="min-h-[80px]">
           <EditorContent editor={editor} />
           <style>{`
-            .mention-tag { color: #2563eb; font-weight: 500; cursor: default; user-select: none; padding: 0 2px; }
-            .ProseMirror a { color: #2563eb; text-decoration: underline; cursor: pointer; }
+            .mention-tag { color: var(--color-primary); font-weight: 500; cursor: default; user-select: none; padding: 0 2px; }
+            .ProseMirror a { color: var(--color-primary); text-decoration: underline; cursor: pointer; }
           `}</style>
         </div>
 

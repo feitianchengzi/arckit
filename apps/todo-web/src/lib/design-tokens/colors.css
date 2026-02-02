@@ -21,8 +21,8 @@
   /* 用于背景、卡片、容器等 */
   --color-surface: #ffffff;
   --color-surface-elevated: #fefefe;
-  --color-surface-hover: #f9fafb;
-  --color-surface-active: #fafafa;
+  --color-surface-hover: #dce2eb;
+  --color-surface-active: #e5e7eb;
   --color-surface-disabled: #f9fafb;
   
   /* ==================== 前景颜色 (Foreground) ==================== */
@@ -50,6 +50,7 @@
   /* ==================== Project List Icons ==================== */
    --color-project-icon: #F3F4F6;
    --color-project-icon-selected: #8A9BD3;
+   --color-surface-icon: #d2d7df;
 
   /* ==================== 语义颜色 ==================== */
   /* Success */
@@ -97,66 +98,64 @@
 }
 
 /* ==================== 深色模式 ==================== */
-/* 基于 Tailwind CSS Zinc 色阶，符合 WCAG AA 对比度标准 */
+/* 基于 design-colors.css 定义的深色主题 */
 .dark {
   /* ==================== 表面颜色 (Surface) ==================== */
-  /* 使用 zinc 色阶，避免纯黑色，符合 OLED 屏幕最佳实践 */
-  --color-surface: #18181b;           /* zinc-900 - 主背景，避免纯黑 */
-  --color-surface-elevated: #1a1a1a;  /* zinc-800 - 卡片、模态框背景（调亮以便区分） */
-  --color-surface-hover: #3A3A3A;     /* zinc-700 - 悬停状态 */
-  --color-surface-active: #233E69;    /* zinc-600 - 激活状态 */
-  --color-surface-disabled: #27272a;   /* zinc-800 - 禁用状态 */
+  --color-surface: #161616;           /* app-bg-darkest - 主内容区背景 */
+  --color-surface-elevated: #1f1f1f;  /* app-bg-dark - 卡片/侧边栏背景 */
+  --color-surface-hover: #3a3a3a;     /* app-bg-light - 悬停状态 */
+  --color-surface-active: #2a2a2a;    /* app-bg-medium - 激活/次级背景 */
+  --color-surface-disabled: #1a1a1a;  /* app-bg-darker - 禁用背景 */
+  --color-surface-icon: #333333;      /* 图标背景色 - Figma设计参考 */
   
   /* ==================== 前景颜色 (Foreground) ==================== */
-  /* 高对比度文本，符合 WCAG AA 标准 */
-  --color-foreground: #fafafa;        /* zinc-50 - 主文本，高对比度 */
-  --color-foreground-secondary: #a1a1aa; /* zinc-400 - 次要文本 */
-  --color-foreground-tertiary: #71717a;  /* zinc-500 - 三级文本 */
-  --color-foreground-disabled: #52525b;  /* zinc-600 - 禁用文本 */
-  --color-foreground-inverse: #18181b;   /* zinc-900 - 反色文本 */
+  --color-foreground: #ffffff;        /* app-text-primary - 主要文本 */
+  --color-foreground-secondary: #e5e5e5; /* app-text-secondary - 次要文本 */
+  --color-foreground-tertiary: #a0a0a0;  /* app-text-tertiary - 三级文本 */
+  --color-foreground-disabled: #4a4a4a;  /* app-text-disabled - 禁用文本 */
+  --color-foreground-inverse: #161616;   /* app-bg-darkest - 反色文本 */
   
   /* ==================== 边框颜色 (Border/Divider) ==================== */
-  --color-border: #3A3A3A;           /* zinc-700 - 边框（卡片边框，需要可见） */
-  --color-border-hover: #4A4A4A;     /* zinc-600 - 悬停边框 */
-  --color-border-focus: #2d2d35;     /* indigo-500 - 聚焦边框（主色） */
-  --color-divider: #454549;          /* 非常暗且灰的分割线，几乎与背景融合但仍有区分 */
+  --color-border: #2a2a2a;           /* app-border-dark - 主要边框 */
+  --color-border-hover: #444444;     /* app-border-light - 悬停边框 */
+  --color-border-focus: #3b82f6;     /* app-blue-500 - 聚焦边框 */
+  --color-divider: #3a3a3a;          /* app-border-medium - 分割线 */
   
   /* ==================== 主色 (Primary) ==================== */
-  /* 使用 indigo，在深色背景下降低饱和度，提高亮度 */
-  --color-primary: #2B7FFF;          /* indigo-500 - 主色 */
-  --color-primary-hover: #155CFC;    /* indigo-400 - 悬停（更亮） */
-  --color-primary-active: #231bc2;   /* indigo-600 - 激活（更深） */
-  --color-primary-light: #27272a;    /* zinc-800 - 浅色背景变体 */
-  --color-primary-lighter: #1e1b4b;   /* indigo-950 - 更浅的背景 */
+  --color-primary: #3b82f6;          /* app-blue-500 - 主色 */
+  --color-primary-hover: #2563eb;    /* app-blue-600 - 悬停 */
+  --color-primary-active: #1d4ed8;   /* app-blue-700 - 激活 */
+  --color-primary-light: #1f1f1f;    /* app-bg-dark - 浅色背景变体 */
+  --color-primary-lighter: rgba(59, 130, 246, 0.1); /* app-blue-opacity-10 */
 
   /* ==================== Project List Icons ==================== */
-  --color-project-icon: #333333;
-  --color-project-icon-selected: #233E69;
+  --color-project-icon: #a0a0a0;     /* app-text-tertiary */
+  --color-project-icon-selected: #3b82f6; /* app-blue-500 */
   
   /* ==================== 语义颜色 ==================== */
-  /* Success - 绿色，在深色背景下调整亮度和饱和度 */
-  --color-success: #22c55e;         /* green-500 */
-  --color-success-hover: #4ade80;   /* green-400 - 更亮 */
-  --color-success-light: #27272a;   /* zinc-800 - 浅色背景 */
-  --color-success-lighter: #052e16; /* green-950 - 更浅的背景 */
+  /* Success */
+  --color-success: #22c55e;         /* app-green-500 */
+  --color-success-hover: #4ade80;   /* app-green-400 */
+  --color-success-light: rgba(34, 197, 94, 0.1); /* app-green-opacity-10 */
+  --color-success-lighter: rgba(34, 197, 94, 0.2); /* app-green-opacity-20 */
   
-  /* Warning - 橙色/黄色，在深色背景下调整 */
-  --color-warning: #eab308;          /* yellow-500 */
-  --color-warning-hover: #facc15;    /* yellow-400 - 更亮 */
-  --color-warning-light: #27272a;    /* zinc-800 - 浅色背景 */
-  --color-warning-lighter: #422006;  /* yellow-950 - 更浅的背景 */
+  /* Warning */
+  --color-warning: #eab308;          /* app-yellow-500 */
+  --color-warning-hover: #facc15;    /* app-yellow-400 */
+  --color-warning-light: #1f1f1f;    /* app-bg-dark */
+  --color-warning-lighter: #1a1a1a;  /* app-bg-darker */
   
-  /* Error - 红色，在深色背景下调整 */
+  /* Error - 保留原有配置 (design-colors 未定义红色) */
   --color-error: #ef4444;            /* red-500 */
-  --color-error-hover: #f87171;      /* red-400 - 更亮 */
-  --color-error-light: #27272a;      /* zinc-800 - 浅色背景 */
-  --color-error-lighter: #450a0a;    /* red-950 - 更浅的背景 */
+  --color-error-hover: #f87171;      /* red-400 */
+  --color-error-light: #27272a;      /* zinc-800 */
+  --color-error-lighter: #450a0a;    /* red-950 */
   
-  /* Info - 蓝色，与主色协调 */
-  --color-info: #3b82f6;             /* blue-500 */
-  --color-info-hover: #60a5fa;       /* blue-400 - 更亮 */
-  --color-info-light: #27272a;      /* zinc-800 - 浅色背景 */
-  --color-info-lighter: #172554;     /* blue-950 - 更浅的背景 */
+  /* Info */
+  --color-info: #3b82f6;             /* app-blue-500 */
+  --color-info-hover: #60a5fa;       /* app-blue-400 */
+  --color-info-light: rgba(59, 130, 246, 0.1); /* app-blue-opacity-10 */
+  --color-info-lighter: rgba(59, 130, 246, 0.2); /* app-blue-opacity-20 */
   
   /* ==================== 中性色 (Zinc Scale) ==================== */
   /* 完整的 zinc 色阶，用于特殊场景 */
@@ -172,7 +171,7 @@
   --color-gray-900: #18181b;
   
   /* ==================== 阴影 ==================== */
-  /* 深色模式下使用更明显的阴影 */
+  /* 深色模式下使用更明显的阴影 (design-colors 阴影过浅，保留原有一套) */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
