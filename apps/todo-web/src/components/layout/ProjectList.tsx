@@ -89,30 +89,28 @@ export function ProjectList({ onItemClick, organizationId }: ProjectListProps = 
             <button
               key={project.id}
               onClick={() => handleProjectClick(project.id)}
-              className={clsx(
-                'w-full flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors group',
-                'min-h-[44px] border',
-                'focus:outline-none',
-                isActive 
-                  ? 'bg-primary-light dark:!bg-primary-light border-primary dark:border-primary' 
-                  : 'bg-surface-elevated dark:bg-surface-active border-border hover:bg-surface-hover dark:hover:bg-surface-hover'
-              )}
+              className={`
+                w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all group min-h-[44px]
+                ${isActive
+                  ? 'bg-blue-500/10 border border-blue-500/30 text-white'
+                  : 'bg-[var(--color-surface-active)] hover:bg-[var(--color-surface-icon)] text-[var(--color-foreground-secondary)] border border-transparent'
+                }
+              `}
               title={project.name}
               aria-current={isActive ? 'page' : undefined}
             >
-              <div
-                className={clsx(
-                  'h-9 w-9 flex items-center justify-center rounded-lg transition-colors',
-                  isActive 
-                    ? 'bg-primary-light dark:bg-primary-light text-primary' 
-                    : 'bg-gray-200 dark:bg-surface-lighter text-foreground-secondary group-hover:bg-gray-300 dark:group-hover:bg-surface-hover'
-                )}
-              >
+              <div className={`
+                w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
+                ${isActive
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'bg-[var(--color-surface-icon)] text-[var(--color-foreground-tertiary)] group-hover:bg-[var(--color-surface-hover)]'
+                }
+              `}>
                 <FolderIcon />
               </div>
               <div className="min-w-0 flex-1 text-left">
-                <div className="truncate text-sm font-semibold text-foreground">{project.name}</div>
-                <div className={clsx('text-xs', isActive ? 'text-foreground-secondary' : 'text-foreground-tertiary')}>
+                <div className="truncate text-sm font-semibold">{project.name}</div>
+                <div className="text-xs">
                   {isActive ? '当前项目' : '点击查看'}
                 </div>
               </div>
@@ -203,25 +201,23 @@ export function ProjectListContent({ onItemClick, organizationId }: ProjectListP
             <button
               key={project.id}
               onClick={() => handleProjectClick(project.id)}
-              className={clsx(
-                'w-full flex items-center gap-3 rounded-lg px-3 py-3 text-sm transition-colors group',
-                'min-h-[44px] border',
-                'focus:outline-none',
-                isActive 
-                  ? 'bg-primary-light dark:!bg-[#212B3B] border-[#2E5AF1] dark:border-[#23467E]' 
-                  : 'bg-surface-elevated dark:bg-[#2A2A2A] border-border hover:bg-surface-hover dark:hover:bg-[#3A3A3A]'
-              )}
+              className={`
+                w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all group min-h-[44px]
+                ${isActive
+                  ? 'bg-blue-500/10 border border-blue-500/30 text-white'
+                  : 'bg-[var(--color-surface-active)] hover:bg-[var(--color-surface-icon)] text-[var(--color-foreground-secondary)] border border-transparent'
+                }
+              `}
               title={project.name}
               aria-current={isActive ? 'page' : undefined}
             >
-              <div
-                className={clsx(
-                  'h-9 w-9 flex items-center justify-center rounded-lg transition-colors',
-                  isActive 
-                    ? 'bg-primary-light dark:bg-primary-light text-primary' 
-                    : 'bg-gray-200 dark:bg-surface-lighter text-foreground-secondary group-hover:bg-gray-300 dark:group-hover:bg-surface-hover'
-                )}
-              >
+              <div className={`
+                w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0
+                ${isActive
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'bg-[var(--color-surface-icon)] text-[var(--color-foreground-tertiary)] group-hover:bg-[var(--color-surface-hover)]'
+                }
+              `}>
                 <FolderIcon />
               </div>
               <div className="min-w-0 flex-1 text-left">

@@ -21,8 +21,8 @@
   /* 用于背景、卡片、容器等 */
   --color-surface: #ffffff;
   --color-surface-elevated: #fefefe;
-  --color-surface-hover: #f9fafb;
-  --color-surface-active: #fafafa;
+  --color-surface-hover: #f3f4f6;
+  --color-surface-active: #e5e7eb;
   --color-surface-disabled: #f9fafb;
   
   /* ==================== 前景颜色 (Foreground) ==================== */
@@ -50,6 +50,7 @@
   /* ==================== Project List Icons ==================== */
    --color-project-icon: #F3F4F6;
    --color-project-icon-selected: #8A9BD3;
+   --color-surface-icon: #9ca3af;
 
   /* ==================== 语义颜色 ==================== */
   /* Success */
@@ -105,6 +106,7 @@
   --color-surface-hover: #3a3a3a;     /* app-bg-light - 悬停状态 */
   --color-surface-active: #2a2a2a;    /* app-bg-medium - 激活/次级背景 */
   --color-surface-disabled: #1a1a1a;  /* app-bg-darker - 禁用背景 */
+  --color-surface-icon: #333333;      /* 图标背景色 - Figma设计参考 */
   
   /* ==================== 前景颜色 (Foreground) ==================== */
   --color-foreground: #ffffff;        /* app-text-primary - 主要文本 */
