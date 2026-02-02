@@ -1,4 +1,3 @@
-
 /**
  * 创建项目页面
  */
@@ -19,7 +18,7 @@ export default function NewProjectPage() {
   const createProject = useCreateProject()
   const { data: organizations = [], isLoading: orgLoading } = useOrganizationList()
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
-  const routeOrganizationId = location.pathname.match(/\/organizations\/(\d+)/)?.[1]
+  const routeOrganizationId = location.pathname.match(/\/organizations\/(\d)+/)?.[1]
   const selectedOrganizationId = routeOrganizationId ? Number(routeOrganizationId) : null
   
   const [name, setName] = useState('')
@@ -32,10 +31,12 @@ export default function NewProjectPage() {
       setOrganizationId(selectedOrganizationId)
       return
     }
+    // 默认选择第一个组织（如果存在），否则为个人项目（null）
     if (organizations.length > 0) {
       setOrganizationId((current) => current ?? organizations[0].id)
       return
     }
+    // 没有组织时，默认为个人项目
     setOrganizationId(null)
   }, [selectedOrganizationId, organizations.length])
 
@@ -46,11 +47,6 @@ export default function NewProjectPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-
-    if (!organizationId) {
-      setError('请选择所属组织')
-      return
-    }
     
     // 验证
     if (!name.trim()) {
@@ -76,7 +72,8 @@ export default function NewProjectPage() {
       await createProject.mutateAsync({
         name: name.trim(),
         git_url: gitUrl.trim(),
-        organization_id: organizationId,
+        // organization_id 为 null 时表示个人项目
+        organization_id: organizationId ?? null,
       })
     } catch (err: any) {
       setError(err.response?.data?.message || '创建失败，请重试')
@@ -85,30 +82,6 @@ export default function NewProjectPage() {
   
   if (orgLoading) {
     return <LoadingView />
-  }
-
-  if (organizations.length === 0) {
-    return (
-      <div className="max-w-2xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">创建项目</h1>
-          <p className="mt-2 text-foreground-secondary">项目必须归属组织，请先创建或加入一个组织</p>
-        </div>
-        <div className="bg-surface-elevated rounded-lg shadow p-6 border border-border space-y-4">
-          <Button variant="primary" onClick={() => setShowCreateOrgDialog(true)}>
-            创建组织
-          </Button>
-          <Button variant="secondary" onClick={() => navigate(-1)}>
-            返回
-          </Button>
-        </div>
-        <CreateOrganizationDialog
-          open={showCreateOrgDialog}
-          onClose={() => setShowCreateOrgDialog(false)}
-          onSuccess={handleCreateOrgSuccess}
-        />
-      </div>
-    )
   }
 
   return (
@@ -123,18 +96,17 @@ export default function NewProjectPage() {
       <div className="bg-surface-elevated rounded-lg shadow p-6 border border-border">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium mb-1">所属组织 *</label>
+            <label className="block text-sm font-medium mb-1">所属组织</label>
             <select
-              value={organizationId ?? ''}
+              value={organizationId ?? 'personal'}
               onChange={(e) => {
                 const val = e.target.value
-                setOrganizationId(val ? Number(val) : null)
+                setOrganizationId(val === 'personal' ? null : Number(val))
               }}
               className="w-full px-3 py-2 border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               disabled={createProject.isPending}
-              required
             >
-              <option value="" disabled>请选择组织</option>
+              <option value="personal">个人项目</option>
               {organizations.map((org) => (
                 <option key={org.id} value={org.id}>{org.name}</option>
               ))}
@@ -201,5 +173,3 @@ export default function NewProjectPage() {
     </div>
   )
 }
-
-

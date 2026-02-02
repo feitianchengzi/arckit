@@ -83,10 +83,6 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
           <LoadingSpinner />
           <span className="text-xs text-foreground-secondary">加载中...</span>
         </div>
-      ) : organizations.length === 0 ? (
-        <div className="px-3 py-2 text-xs text-foreground-secondary">
-          暂无组织
-        </div>
       ) : (
         <>
           {displayedOrganizations.map((organization: Organization) => {

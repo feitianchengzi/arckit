@@ -93,9 +93,9 @@ export default function OrganizationDetailPage() {
   const deleteOrganizationMutation = useMutation({
     mutationFn: (orgId: number) => organizationsApi.delete(orgId),
     onSuccess: () => {
-      // 删除成功后，使组织列表查询失效并导航到组织列表页面
+      // 删除成功后，使组织列表查询失效并导航到个人项目页面
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
-      navigate('/organizations');
+      navigate('/projects');
     },
     onError: (err: any) => {
       console.error('删除组织失败:', err);
@@ -133,8 +133,10 @@ export default function OrganizationDetailPage() {
   const removeMemberMutation = useMutation({
     mutationFn: (input: { organization_id: number; target_user_id: number }) => 
       organizationsApi.removeMember(input),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['organizationMembers', organizationId] });
+      // 刷新组织列表（退出组织后需要更新）
+      queryClient.invalidateQueries({ queryKey: ['organizations'] });
     },
     onError: (err: any) => {
       console.error('移除成员失败:', err);
@@ -179,7 +181,8 @@ export default function OrganizationDetailPage() {
           target_user_id: myMember.user_id
         }, {
           onSuccess: () => {
-            navigate('/organizations');
+            // 退出后导航到个人项目页面
+            navigate('/projects');
           }
         });
       }

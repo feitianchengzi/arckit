@@ -14,7 +14,7 @@ import { FirstTimeSetupDialog } from '@/components/features/FirstTimeSetupDialog
 import { useFirstTimeSetup } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 import { todoUserApi } from '@/lib/api/endpoints/auth'
-import { useOrganizationList } from '@/hooks/useOrganizations'
+import { useOrganizationList, useJoinOrganizationInvite } from '@/hooks/useOrganizations'
 import { CreateOrganizationDialog } from '@/components/features/CreateOrganizationDialog'
 import { LoadingView } from '@/components/ui/LoadingView'
 import { useQueryClient } from '@tanstack/react-query'
@@ -27,6 +27,7 @@ export default function ProjectsHomePage() {
   const [showSetupDialog, setShowSetupDialog] = useState(false)
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
   const firstTimeSetup = useFirstTimeSetup()
+  const joinOrganization = useJoinOrganizationInvite()
   const hasLoadedUserRef = useRef(false) // 标记是否已经加载过用户信息
   const { data: organizations = [], isLoading: orgLoading } = useOrganizationList()
   const queryClient = useQueryClient()
@@ -110,6 +111,29 @@ export default function ProjectsHomePage() {
       // 标记已加载，避免 useEffect 再次触发
       hasLoadedUserRef.current = true
       console.log('✅ 用户信息设置成功，本地状态已更新:', updatedUser)
+      
+      // 检查是否有待处理的邀请链接
+      const pendingInvite = sessionStorage.getItem('pending_invite_redirect')
+      if (pendingInvite) {
+        console.log('🎯 发现待处理的邀请链接，准备直接加入:', pendingInvite)
+        sessionStorage.removeItem('pending_invite_redirect')
+        
+        // 从URL中提取邀请码
+        const inviteCode = pendingInvite.split('/').pop()
+        if (inviteCode) {
+          try {
+            // 直接调用加入组织API，无痕加入
+            await joinOrganization.mutateAsync(inviteCode)
+            console.log('✅ 成功加入组织')
+            // 加入成功后跳转到组织列表
+            navigate('/organizations')
+          } catch (err: any) {
+            console.error('❌ 加入组织失败:', err)
+            // 如果加入失败，显示错误但不阻止用户继续使用
+            // 用户可以在组织列表页面手动加入
+          }
+        }
+      }
     } catch (error: any) {
       // 如果设置失败，重新显示对话框
       console.error('❌ 设置用户信息失败:', error)

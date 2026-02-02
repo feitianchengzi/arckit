@@ -51,7 +51,17 @@ export function useLogin() {
       const redirect = urlParams.get('redirect') || '/projects'
       
       console.log('🔄 登录后跳转:', redirect)
-      navigate(redirect)
+      
+      // 如果是邀请链接，先保存到 sessionStorage，然后导航到主页完成首次设置
+      if (redirect && redirect.startsWith('/join-organization/')) {
+        sessionStorage.setItem('pending_invite_redirect', redirect)
+        console.log('💾 保存邀请链接到 sessionStorage，先导航到主页完成设置:', redirect)
+        // 先导航到主页，让用户完成首次设置
+        navigate('/projects', { replace: true })
+      } else {
+        // 其他情况直接导航到目标页面
+        navigate(redirect, { replace: true })
+      }
 
       // 3. 清除相关查询缓存
       queryClient.invalidateQueries({ queryKey: ['user'] })
