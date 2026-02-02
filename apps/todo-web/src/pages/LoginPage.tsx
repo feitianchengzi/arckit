@@ -110,8 +110,7 @@ function LoginPageContent() {
 
     try {
       await login.mutateAsync(loginData)
-      // 登录成功后，login hook 会自动跳转到 /projects
-      // 首次设置对话框将在主页显示
+      // 导航逻辑已在 useLogin 中处理
     } catch (err: any) {
       const message = err.response?.data?.message || err.message || '登录失败'
       setError(message)
