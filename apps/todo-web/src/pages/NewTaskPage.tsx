@@ -9,6 +9,8 @@ import clsx from 'clsx'
 import { Button } from '@/components/ui'
 import { useCreateTask, useTaskList } from '@/hooks/useTasks'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
+import { useOrganizationStore } from '@/store/organizationStore'
+import { useOrganizationMembers } from '@/hooks/useOrganizations'
 
 export default function NewTaskPage() {
   const navigate = useNavigate()
@@ -19,6 +21,8 @@ export default function NewTaskPage() {
   const { data: project } = useProject(String(projectId))
   const { data: tasks } = useTaskList(String(projectId))
   const { data: members } = useProjectMembers(String(projectId))
+  const { currentOrganizationId } = useOrganizationStore()
+  const { data: orgMembers } = useOrganizationMembers(currentOrganizationId || 0)
   const createTask = useCreateTask(String(projectId))
   
   // 从 URL 查询参数获取父任务 ID
@@ -52,7 +56,7 @@ export default function NewTaskPage() {
     try {
       const newTask = await createTask.mutateAsync({
         content: content.trim(),
-        projectId: parseInt(projectId),
+        projectId: projectId,
         parentId: parentId,
         assigneeId: assigneeId,
       })
@@ -126,11 +130,15 @@ export default function NewTaskPage() {
                 )}
               >
                 <option value="">无（不分配）</option>
-                {members.map((member: any) => (
-                  <option key={member.user_id} value={member.user_id}>
-                    {member.username || member.user?.username || '未知用户'}
-                  </option>
-                ))}
+                {members.map((member: any) => {
+                  const isOrgMember = !currentOrganizationId || !orgMembers || orgMembers.some(om => om.user_id === member.user_id)
+                  return (
+                    <option key={member.user_id} value={member.user_id}>
+                      {member.username || member.user?.username || '未知用户'}
+                      {!isOrgMember ? ' (非组织成员)' : ''}
+                    </option>
+                  )
+                })}
               </select>
             </div>
           )}

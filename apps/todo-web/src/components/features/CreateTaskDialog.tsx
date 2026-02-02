@@ -7,6 +7,8 @@ import { Dialog, Button, TextField, Avatar } from '@/components/ui'
 import { TagSelector, PrioritySelector } from '@/components/features'
 import { useCreateTask, useTaskList } from '@/hooks/useTasks'
 import { useProjectMembers } from '@/hooks/useProjects'
+import { useOrganizationStore } from '@/store/organizationStore'
+import { useOrganizationMembers } from '@/hooks/useOrganizations'
 import { useTagStore } from '@/store/tagStore'
 import { useAuthStore } from '@/store/authStore'
 import { buildTaskTags, parseTaskTags } from '@/lib/utils/tagUtils'
@@ -40,6 +42,8 @@ export function CreateTaskDialog({
   
   const { data: tasks } = useTaskList(projectId)
   const { data: members } = useProjectMembers(projectId)
+  const { currentOrganizationId } = useOrganizationStore()
+  const { data: orgMembers } = useOrganizationMembers(currentOrganizationId || 0)
   const createTask = useCreateTask(projectId)
   const { loadProjectTags } = useTagStore()
   
@@ -256,6 +260,18 @@ export function CreateTaskDialog({
                   <span className="text-sm text-foreground">
                     {members.find((m: any) => m.user_id === assigneeId)?.username || members.find((m: any) => m.user_id === assigneeId)?.user?.username || '未知用户'}
                   </span>
+                  {(() => {
+                    if (assigneeId === undefined || !currentOrganizationId) return null
+                    const isOrgMember = !orgMembers || orgMembers.some(om => om.user_id === assigneeId)
+                    if (isOrgMember) return null
+                    return (
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
+                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                      </div>
+                    )
+                  })()}
                   <button
                     type="button"
                     onClick={() => {
@@ -318,6 +334,7 @@ export function CreateTaskDialog({
                   const isSelected = assigneeId === memberId
                   const memberUsername = member.username || member.user?.username || '未知用户'
                   const memberAvatar = member.avatar || member.user?.avatar
+                  const isOrgMember = !currentOrganizationId || !orgMembers || orgMembers.some(om => om.user_id === memberId)
                   
                   return (
                     <button
@@ -345,6 +362,13 @@ export function CreateTaskDialog({
                         size="sm"
                       />
                       <span className="text-[10px] text-foreground text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
+                      {!isOrgMember && (
+                        <div className="absolute top-0 right-0 z-10 bg-gray-100 dark:bg-gray-800 rounded-full p-0.5 border border-gray-200 dark:border-gray-700 shadow-sm" title="该成员不在当前组织中">
+                          <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                        </div>
+                      )}
                       {isSelected && (
                         <div className="absolute inset-0 bg-black/50 rounded-lg border border-white/50 flex items-center justify-center">
                           <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>

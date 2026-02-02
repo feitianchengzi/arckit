@@ -13,6 +13,8 @@ import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/ho
 import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
+import { useOrganizationStore } from '@/store/organizationStore'
+import { useOrganizationMembers } from '@/hooks/useOrganizations'
 import { useAuthStore } from '@/store/authStore'
 import type { TodoStatus } from '@/types'
 import ReactMarkdown from 'react-markdown'
@@ -66,6 +68,8 @@ export function TaskDetailContent({
   const tabHeaderRef = useRef<HTMLDivElement>(null)
   
   const { data: members } = useProjectMembers(projectId)
+  const { currentOrganizationId } = useOrganizationStore()
+  const { data: orgMembers } = useOrganizationMembers(currentOrganizationId || 0)
   const currentUser = useAuthStore((state) => state.user)
   const { getProjectTags } = useTagStore()
   
@@ -510,8 +514,20 @@ export function TaskDetailContent({
               size="md"
             />
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-foreground">
+              <div className="font-semibold text-foreground flex items-center gap-1">
                 {creatorUsername}
+                {(() => {
+                   if (!todo.creatorId || !currentOrganizationId) return null
+                   const isOrgMember = !orgMembers || orgMembers.some(om => om.user_id === todo.creatorId)
+                   if (isOrgMember) return null
+                   return (
+                     <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
+                       <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                       </svg>
+                     </div>
+                   )
+                 })()}
               </div>
               <div className="text-xs text-foreground-secondary mt-0.5">
                 创建于 {new Date(todo.createdAt).toLocaleString('zh-CN')}
@@ -710,6 +726,18 @@ export function TaskDetailContent({
                   <p className="text-sm text-foreground-secondary">
                     {executorUsername}
                   </p>
+                  {(() => {
+                    if (!todo.assigneeId || !currentOrganizationId) return null
+                    const isOrgMember = !orgMembers || orgMembers.some(om => om.user_id === todo.assigneeId)
+                    if (isOrgMember) return null
+                    return (
+                      <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
+                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                      </div>
+                    )
+                  })()}
                   {canEditAssignee && (
                     <button
                       onClick={() => {
@@ -795,6 +823,7 @@ export function TaskDetailContent({
                   const isSelected = newAssigneeId === memberId
                   const memberUsername = member.username || member.user?.username || '未知用户'
                   const memberAvatar = member.avatar || member.user?.avatar
+                  const isOrgMember = !currentOrganizationId || !orgMembers || orgMembers.some(om => om.user_id === memberId)
                   
                   return (
                     <button
@@ -861,6 +890,13 @@ export function TaskDetailContent({
                         size="sm"
                       />
                       <span className="text-[10px] text-foreground text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
+                      {!isOrgMember && (
+                        <div className="absolute top-0 right-0 z-10 bg-gray-100 dark:bg-gray-800 rounded-full p-0.5 border border-gray-200 dark:border-gray-700 shadow-sm" title="该成员不在当前组织中">
+                          <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                        </div>
+                      )}
                       {isSelected && (
                         <div className="absolute inset-0 bg-black/50 rounded border border-white/50 flex items-center justify-center">
                           {isSavingAssignee ? (
