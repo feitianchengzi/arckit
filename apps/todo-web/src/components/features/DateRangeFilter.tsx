@@ -192,12 +192,9 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
           "flex items-center gap-1.5 px-2 py-1 text-sm border rounded-md transition-colors h-[28px]",
           "max-w-[140px] min-w-[80px]",
           hasFilter
-            ? "text-blue-600 border-border dark:text-blue-400 font-medium"
+            ? "text-blue-600 border-border dark:text-blue-400 font-medium bg-surface dark:bg-surface-elevated"
             : "text-foreground-secondary border-border bg-surface-elevated hover:bg-surface-hover"
         )}
-        style={hasFilter ? {
-          backgroundColor: theme === 'dark' ? '#1f2937' : '#ffffff' // gray-800 : white
-        } : undefined}
       >
         <svg
           className={clsx("w-4 h-4 flex-shrink-0", hasFilter ? "text-blue-600 dark:text-blue-400" : "text-foreground-tertiary")}
@@ -242,11 +239,10 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
       {showPicker && pickerPosition && createPortal(
         <div 
           ref={pickerRef}
-          className="fixed z-[100] border border-border rounded-lg shadow-lg p-4 min-w-[320px]"
+          className="fixed z-[100] border border-border rounded-lg shadow-lg p-4 min-w-[320px] bg-surface-elevated"
           style={{
             top: `${pickerPosition.top}px`,
             left: `${pickerPosition.left}px`,
-            backgroundColor: 'var(--color-surface-elevated)',
             zIndex: 100
           }}
           onClick={(e) => {

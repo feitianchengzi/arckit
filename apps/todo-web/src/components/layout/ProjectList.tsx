@@ -94,8 +94,8 @@ export function ProjectList({ onItemClick, organizationId }: ProjectListProps = 
                 'min-h-[44px] border',
                 'focus:outline-none',
                 isActive 
-                  ? 'bg-primary-light dark:!bg-[#212B3B] border-[#2E5AF1] dark:border-[#23467E]' 
-                  : 'bg-surface-elevated dark:bg-[#2A2A2A] border-border hover:bg-surface-hover dark:hover:bg-[#3A3A3A]'
+                  ? 'bg-primary-light dark:!bg-primary-light border-primary dark:border-primary' 
+                  : 'bg-surface-elevated dark:bg-surface-active border-border hover:bg-surface-hover dark:hover:bg-surface-hover'
               )}
               title={project.name}
               aria-current={isActive ? 'page' : undefined}
@@ -104,8 +104,8 @@ export function ProjectList({ onItemClick, organizationId }: ProjectListProps = 
                 className={clsx(
                   'h-9 w-9 flex items-center justify-center rounded-lg transition-colors',
                   isActive 
-                    ? 'bg-[#b9c6ee] dark:bg-[#233E69] text-[#51A2FF]' 
-                    : 'bg-[#e4e6eb] dark:bg-[#333333] text-foreground-secondary group-hover:bg-[#d0d3d8] dark:group-hover:bg-[#3e3e3e]'
+                    ? 'bg-primary-light dark:bg-primary-light text-primary' 
+                    : 'bg-gray-200 dark:bg-surface-lighter text-foreground-secondary group-hover:bg-gray-300 dark:group-hover:bg-surface-hover'
                 )}
               >
                 <FolderIcon />
@@ -218,8 +218,8 @@ export function ProjectListContent({ onItemClick, organizationId }: ProjectListP
                 className={clsx(
                   'h-9 w-9 flex items-center justify-center rounded-lg transition-colors',
                   isActive 
-                    ? 'bg-[#b9c6ee] dark:bg-[#233E69] text-[#51A2FF]' 
-                    : 'bg-[#e4e6eb] dark:bg-[#333333] text-foreground-secondary group-hover:bg-[#d0d3d8] dark:group-hover:bg-[#3e3e3e]'
+                    ? 'bg-primary-light dark:bg-primary-light text-primary' 
+                    : 'bg-gray-200 dark:bg-surface-lighter text-foreground-secondary group-hover:bg-gray-300 dark:group-hover:bg-surface-hover'
                 )}
               >
                 <FolderIcon />

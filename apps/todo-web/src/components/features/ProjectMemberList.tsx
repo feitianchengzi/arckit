@@ -544,15 +544,10 @@ export const ProjectMemberList = ({
               <div
                 key={member.id}
                 className={clsx(
-                  "flex items-center gap-3 p-3 rounded-lg transition-colors",
+                  "flex items-center gap-3 p-3 rounded-lg transition-colors bg-surface-active dark:bg-surface-active",
                   isManaging ? "bg-surface-hover" : "hover:bg-surface-hover",
                   !isManaging && onMemberClick && "cursor-pointer"
                 )}
-                style={{ 
-                  backgroundColor: theme === 'dark' 
-                    ? '#333338' // 介于 zinc-700 (#3f3f46) 和 zinc-800 (#27272a) 之间
-                    : 'var(--color-surface-active)' 
-                }}
                 onClick={() => {
                   // 非管理模式下，点击成员触发筛选
                   if (!isManaging && onMemberClick) {

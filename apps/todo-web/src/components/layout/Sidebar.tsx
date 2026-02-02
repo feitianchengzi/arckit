@@ -180,7 +180,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
               <div className="w-full flex flex-col items-center gap-3 px-3 pt-3">
                 <button
                   onClick={() => handleNavClick('/settings')}
-                  className="group relative flex h-11 w-11 items-center justify-center rounded-xl bg-gray-200 dark:bg-[#2A2A2A] text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  className="group relative flex h-11 w-11 items-center justify-center rounded-xl bg-gray-200 dark:bg-surface-active text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                   title="设置"
                 >
                   <Avatar
@@ -196,7 +196,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
                   onClick={toggleTheme}
                   className={clsx(
                     'flex h-11 w-11 items-center justify-center rounded-xl',
-                    'text-foreground-secondary bg-gray-200 dark:bg-[#2A2A2A] hover:bg-surface-hover hover:text-foreground transition-colors',
+                    'text-foreground-secondary bg-gray-200 dark:bg-surface-active hover:bg-surface-hover hover:text-foreground transition-colors',
                     'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
                   )}
                   title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
@@ -219,7 +219,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
                 onClick={() => setShowCreateOrgDialog(true)}
                 className={clsx(
                   'flex h-11 w-11 items-center justify-center rounded-xl',
-                  'text-foreground-secondary bg-gray-200 dark:bg-[#2A2A2A] hover:bg-surface-hover hover:text-foreground transition-colors',
+                  'text-foreground-secondary bg-gray-200 dark:bg-surface-active hover:bg-surface-hover hover:text-foreground transition-colors',
                   'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
                   'font-semibold'
                 )}
@@ -233,7 +233,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
             </div>
           </div>
         </div>
-        <div className="flex w-64 flex-col min-h-0 bg-surface dark:bg-[#202020]">
+        <div className="flex w-64 flex-col min-h-0 bg-surface dark:bg-surface-elevated">
           <div className="px-4 pt-4 pb-3">
             <div className="text-base font-semibold text-foreground">{headerTitle}</div>
             <div className="text-xs text-foreground-secondary">{projectCount} 个项目</div>
@@ -241,7 +241,7 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
           <div className="px-4 pb-3">
             <button
               onClick={() => setShowCreateProjectDialog(true)}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary dark:bg-[#2B7FFF] py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-dark dark:hover:bg-[#2570E6] focus:outline-none"
+              className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary dark:bg-primary py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover dark:hover:bg-primary-hover focus:outline-none"
               title="新增项目"
               aria-label="新增项目"
             >
