@@ -17,6 +17,8 @@ import { todoUserApi } from '@/lib/api/endpoints/auth'
 import { useOrganizationList, useJoinOrganizationInvite } from '@/hooks/useOrganizations'
 import { CreateOrganizationDialog } from '@/components/features/CreateOrganizationDialog'
 import { LoadingView } from '@/components/ui/LoadingView'
+import { Dialog } from '@/components/ui/Dialog'
+import { Button } from '@/components/ui/Button'
 import { useQueryClient } from '@tanstack/react-query'
 
 export default function ProjectsHomePage() {
@@ -26,6 +28,10 @@ export default function ProjectsHomePage() {
   const [user, setUser] = useState<typeof storeUser>(null)
   const [showSetupDialog, setShowSetupDialog] = useState(false)
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
+  // 加入组织成功后的提示对话框状态
+  const [showJoinSuccessDialog, setShowJoinSuccessDialog] = useState(false)
+  const [joinedOrgName, setJoinedOrgName] = useState('')
+  const [joinedOrgId, setJoinedOrgId] = useState<number | null>(null)
   const firstTimeSetup = useFirstTimeSetup()
   const joinOrganization = useJoinOrganizationInvite()
   const hasLoadedUserRef = useRef(false) // 标记是否已经加载过用户信息
@@ -123,10 +129,13 @@ export default function ProjectsHomePage() {
         if (inviteCode) {
           try {
             // 直接调用加入组织API，无痕加入
-            await joinOrganization.mutateAsync(inviteCode)
-            console.log('✅ 成功加入组织')
-            // 加入成功后跳转到组织列表
-            navigate('/organizations')
+            const result = await joinOrganization.mutateAsync(inviteCode)
+            console.log('✅ 成功加入组织:', result)
+            // 显示加入成功对话框
+            const orgName = result?.organization_name || result?.name || ''
+            setJoinedOrgName(orgName)
+            setJoinedOrgId(result?.organization_id || null)
+            setShowJoinSuccessDialog(true)
           } catch (err: any) {
             console.error('❌ 加入组织失败:', err)
             // 如果加入失败，显示错误但不阻止用户继续使用
@@ -145,6 +154,43 @@ export default function ProjectsHomePage() {
   const handleCreateOrgSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['organizations'] })
   }
+
+  // 处理已注册用户登录后的邀请链接（不需要首次设置的用户）
+  useEffect(() => {
+    // 只在用户已认证、有用户名（已注册完成）、且不需要显示设置对话框时执行
+    if (!isAuthenticated || !user?.username || showSetupDialog || orgLoading) {
+      return
+    }
+
+    const handlePendingInviteForExistingUser = async () => {
+      const pendingInvite = sessionStorage.getItem('pending_invite_redirect')
+      if (pendingInvite) {
+        console.log('🎯 已注册用户发现待处理的邀请链接:', pendingInvite)
+        sessionStorage.removeItem('pending_invite_redirect')
+        
+        // 从URL中提取邀请码
+        const inviteCode = pendingInvite.split('/').pop()
+        if (inviteCode) {
+          try {
+            // 直接调用加入组织API，无痕加入
+            const result = await joinOrganization.mutateAsync(inviteCode)
+            console.log('✅ 已注册用户成功加入组织:', result)
+            // 显示加入成功对话框
+            const orgName = result?.organization_name || result?.name || ''
+            setJoinedOrgName(orgName)
+            setJoinedOrgId(result?.organization_id || null)
+            setShowJoinSuccessDialog(true)
+          } catch (err: any) {
+            console.error('❌ 已注册用户加入组织失败:', err)
+            // 如果加入失败（比如已经加入过），静默处理
+            // 用户已经在项目首页，可以继续使用
+          }
+        }
+      }
+    }
+
+    handlePendingInviteForExistingUser()
+  }, [isAuthenticated, user?.username, showSetupDialog, orgLoading, joinOrganization, navigate])
 
   if (orgLoading) {
     return <LoadingView />
@@ -241,6 +287,35 @@ export default function ProjectsHomePage() {
         onClose={() => setShowCreateOrgDialog(false)}
         onSuccess={handleCreateOrgSuccess}
       />
+
+      {/* 加入组织成功提示对话框 */}
+      <Dialog
+        open={showJoinSuccessDialog}
+        onClose={() => {}}
+        title="加入成功"
+      >
+        <div className="space-y-4 py-4">
+          <p className="text-foreground">
+            {joinedOrgName ? `您已加入了「${joinedOrgName}」组织` : '您已加入组织'}
+          </p>
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              onClick={() => {
+                setShowJoinSuccessDialog(false)
+                // 跳转到组织详情页面
+                if (joinedOrgId) {
+                  navigate(`/organizations/${joinedOrgId}`)
+                } else {
+                  navigate('/organizations')
+                }
+              }}
+            >
+              确定
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   )
 }
