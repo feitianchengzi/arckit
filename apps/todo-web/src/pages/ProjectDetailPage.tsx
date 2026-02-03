@@ -104,6 +104,11 @@ export default function ProjectDetailPage() {
     savedFilters?.priorityFilter ?? null
   )
   
+  // 注意：priorityFilter 为 null 时表示"全部"（不筛选）
+  // 'ALL' 表示筛选"有优先级"（任意优先级）
+  // 'NONE' 表示筛选"无优先级"
+  // 数字表示筛选特定优先级
+  
   // 日期范围筛选
   const [dateRange, setDateRange] = useState<DateRange>(
     savedFilters?.dateRange ?? { startDate: null, endDate: null }
@@ -1490,8 +1495,27 @@ export default function ProjectDetailPage() {
                     e.stopPropagation()
                     setShowMoreFilters(!showMoreFilters)
                   }}
+                  className="relative"
                 >
                   更多
+                  {/* 角标：当隐藏筛选器中有条件时显示 */}
+                    {(() => {
+                      // 检查隐藏筛选器中是否有条件
+                      const hasHiddenCreator = hiddenFilters.includes('creator') && creatorFilter !== null
+                      const hasHiddenExecutor = hiddenFilters.includes('executor') && executorFilter !== null
+                      const hasHiddenTag = hiddenFilters.includes('tag') && tagFilter !== null
+                      const hasHiddenPriority = hiddenFilters.includes('priority') && priorityFilter !== null
+                      const hasHiddenDateRange = hiddenFilters.includes('dateRange') && (dateRange.startDate || dateRange.endDate)
+                      const hasActiveFilters = hasHiddenCreator || hasHiddenExecutor || hasHiddenTag || hasHiddenPriority || hasHiddenDateRange
+                      
+                      if (!hasActiveFilters) return null
+                      
+                      return (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-warning rounded-full flex items-center justify-center text-white text-[10px] font-bold">
+                          ·
+                        </span>
+                      )
+                    })()}
                 </Button>
                 
                 {/* 更多筛选器下拉菜单 - 使用 Portal 渲染到 body */}
@@ -1766,6 +1790,37 @@ export default function ProjectDetailPage() {
                         </button>
                       </div>
                     )}
+                    
+                    {/* 清除所有隐藏筛选条件 */}
+                    {(() => {
+                      const hasHiddenCreator = hiddenFilters.includes('creator') && creatorFilter !== null
+                      const hasHiddenExecutor = hiddenFilters.includes('executor') && executorFilter !== null
+                      const hasHiddenTag = hiddenFilters.includes('tag') && tagFilter !== null
+                      const hasHiddenPriority = hiddenFilters.includes('priority') && priorityFilter !== null
+                      const hasHiddenDateRange = hiddenFilters.includes('dateRange') && (dateRange.startDate || dateRange.endDate)
+                      const hasActiveFilters = hasHiddenCreator || hasHiddenExecutor || hasHiddenTag || hasHiddenPriority || hasHiddenDateRange
+                      
+                      if (!hasActiveFilters) return null
+                      
+                      return (
+                        <div className="pt-2 border-t border-border">
+                          <button
+                            onClick={() => {
+                              // 清除所有隐藏筛选器中的条件
+                              if (hiddenFilters.includes('creator')) setCreatorFilter(null)
+                              if (hiddenFilters.includes('executor')) setExecutorFilter(null)
+                              if (hiddenFilters.includes('tag')) setTagFilter(null)
+                              if (hiddenFilters.includes('priority')) setPriorityFilter(null)
+                              if (hiddenFilters.includes('dateRange')) setDateRange({ startDate: null, endDate: null })
+                            }}
+                            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-foreground-secondary hover:text-warning hover:bg-surface-hover rounded-md transition-colors"
+                          >
+                            <XIcon className="w-4 h-4" />
+                            清除所有隐藏筛选
+                          </button>
+                        </div>
+                      )
+                    })()}
                   </div>,
                   document.body
                 )}
