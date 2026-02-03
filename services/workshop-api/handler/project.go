@@ -1196,6 +1196,137 @@ func DeleteProjectMember(c *gin.Context) {
 	c.JSON(http.StatusOK, response.NewSuccessResponse(data))
 }
 
+// GetOrganizationProjectsRequest 查询组织项目请求结构
+type GetOrganizationProjectsRequest struct {
+	OrganizationID uint `form:"organization_id" binding:"required"` // 组织ID（必填）
+}
+
+// GetOrganizationProjectsResponse 查询组织项目响应结构
+type GetOrganizationProjectsResponse struct {
+	Projects []ProjectResponse `json:"projects"` // 项目列表
+	Total    int64             `json:"total"`    // 项目总数
+}
+
+// GetOrganizationProjects 管理员查询组织所有项目
+// 网关路由: GET /todo-service/v1/user/organization/projects
+// 认证级别: user (需要JWT认证)
+// 权限规则：只有组织管理员（owner/admin）可以查询
+// 流程：
+// 1. 获取组织ID参数（必填）
+// 2. 验证当前用户是组织的管理员或所有者
+// 3. 查询该组织下的所有项目
+// 4. 返回项目列表
+func GetOrganizationProjects(c *gin.Context) {
+	// 1. 绑定查询参数
+	var req GetOrganizationProjectsRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "组织ID不能为空", nil))
+		return
+	}
+
+	// 2. 从context获取数据库连接
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	// 3. 获取用户ID
+	userID, ok := middleware.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	// 4. 验证用户是否是该组织的成员且为管理员或所有者
+	var orgMember models.OrganizationMember
+	if err := db.Where("organization_id = ? AND user_id = ?", req.OrganizationID, userID).First(&orgMember).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeForbidden, "您不是该组织的成员", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeInternalError, "验证组织成员身份失败: "+err.Error(), nil))
+		return
+	}
+
+	// 验证权限：只有owner和admin可以查询组织项目
+	if orgMember.Role != models.OrganizationRoleOwner && orgMember.Role != models.OrganizationRoleAdmin {
+		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeForbidden, "您没有权限查询组织项目，只有组织所有者和管理员可以查询", nil))
+		return
+	}
+
+	// 5. 查询该组织下的所有项目
+	var projects []models.Project
+	if err := db.Where("organization_id = ?", req.OrganizationID).Find(&projects).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询组织项目失败: "+err.Error(), nil))
+		return
+	}
+
+	// 6. 提取项目ID列表
+	projectIDs := make([]uint, 0, len(projects))
+	for _, project := range projects {
+		projectIDs = append(projectIDs, project.ID)
+	}
+
+	// 7. 查询所有项目的成员信息
+	var allMembers []models.ProjectMember
+	if len(projectIDs) > 0 {
+		if err := db.Where("project_id IN ?", projectIDs).Preload("User").Find(&allMembers).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询项目成员失败: "+err.Error(), nil))
+			return
+		}
+	}
+
+	// 8. 按项目ID分组成员
+	membersByProject := make(map[uint][]models.ProjectMember)
+	for _, member := range allMembers {
+		membersByProject[member.ProjectID] = append(membersByProject[member.ProjectID], member)
+	}
+
+	// 9. 构建响应
+	projectResponses := make([]ProjectResponse, 0, len(projects))
+	for _, project := range projects {
+		// 转换项目成员
+		members := membersByProject[project.ID]
+		memberResponses := make([]ProjectMemberResponse, 0, len(members))
+		for _, member := range members {
+			memberResponses = append(memberResponses, ProjectMemberResponse{
+				ID:         member.ID,
+				UserID:     member.UserID,
+				Role:       member.Role,
+				Username:   member.User.Username,
+				Avatar:     member.User.Avatar,
+				CreatedAt:  member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+				IsMe:       member.UserID == userID,
+				IsExternal: member.IsExternal,
+			})
+		}
+
+		var deletedAt *string
+		if project.DeletedAt.Valid {
+			deletedAtStr := project.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+			deletedAt = &deletedAtStr
+		}
+
+		projectResponses = append(projectResponses, ProjectResponse{
+			ID:        project.ID,
+			Name:      project.Name,
+			GitURL:    project.GitURL,
+			CreatorID: project.CreatorID,
+			CreatedAt: project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			DeletedAt: deletedAt,
+			Members:   memberResponses,
+		})
+	}
+
+	// 10. 返回成功响应
+	resp := GetOrganizationProjectsResponse{
+		Projects: projectResponses,
+		Total:    int64(len(projectResponses)),
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
+}
+
 // UpdateProjectMemberRole 更新项目成员角色
 // 网关路由: PUT /todo-service/v1/user/projects/:id/members/role
 // 认证级别: user (需要JWT认证)

@@ -130,6 +130,7 @@ func registerBusinessRoutes(group *gin.RouterGroup) {
 	group.PUT("/organizations/:id/members/role", handler.UpdateOrganizationMemberRole) // 设置成员角色（仅所有者）
 	group.POST("/projects", handler.CreateProject)                                     // 创建新项目
 	group.GET("/projects", handler.GetUserProjects)                                    // 根据用户UUID查询所有参与的项目
+	group.GET("/organization/projects", handler.GetOrganizationProjects)               // 管理员查询组织所有项目
 	group.PUT("/projects/:id", handler.UpdateProject)                                  // 更新项目信息
 	group.DELETE("/projects/:id", handler.DeleteProject)                               // 删除项目（仅所有者）
 	group.POST("/projects/:id/invitations", handler.InviteProjectMember)               // 邀请项目成员（生成邀请码）
