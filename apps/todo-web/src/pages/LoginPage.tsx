@@ -129,16 +129,16 @@ function LoginPageContent() {
   const isSendCodeDisabled = !username || !!usernameError
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-surface flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo 和标题 */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">待办管理系统</h1>
-          <p className="mt-2 text-gray-600">使用验证码快速登录</p>
+          <h1 className="text-3xl font-bold text-foreground">待办管理系统</h1>
+          <p className="mt-2 text-foreground-secondary">使用验证码快速登录</p>
         </div>
 
         {/* 登录表单 */}
-        <div className="bg-white rounded-lg shadow-lg p-8">
+        <div className="bg-surface-elevated rounded-lg shadow-lg p-8 border border-border">
           <form onSubmit={handleLogin} className="space-y-6">
             {/* 用户名（邮箱/手机号） */}
             <TextField
@@ -165,8 +165,8 @@ function LoginPageContent() {
 
             {/* 全局错误提示 */}
             {error && !error.includes('验证码') && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                <p className="text-sm text-red-600">{error}</p>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md p-3">
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               </div>
             )}
 
@@ -185,7 +185,7 @@ function LoginPageContent() {
 
           {/* 提示信息 */}
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-foreground-tertiary">
               💡 新用户将自动创建账户
             </p>
           </div>

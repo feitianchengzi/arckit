@@ -8,7 +8,7 @@ import type { DateRange } from '@/components/features/DateRangeFilter'
 export type { DateRange }
 
 export interface TaskFilterState {
-  statusFilter: string | 'ALL'
+  statusFilter: string[] | 'ALL'
   creatorFilter: number | 'ME' | null
   executorFilter: number | 'ME' | 'UNASSIGNED' | null
   tagFilter: number | { projectId: string; tagId: number } | null

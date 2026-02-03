@@ -86,9 +86,18 @@ export default function ProjectDetailPage() {
   const savedFilters = loadProjectFilterState(projectIdParam)
   
   // 任务筛选状态（默认选中"待办任务"）
-  const [statusFilter, setStatusFilter] = useState<TodoStatus | 'ALL'>(
-    (savedFilters?.statusFilter as TodoStatus | 'ALL') || 'PENDING'
-  )
+  // 兼容旧数据：如果保存的是字符串，转换为数组
+  const getInitialStatusFilter = (): TodoStatus[] | 'ALL' => {
+    const saved = savedFilters?.statusFilter
+    if (!saved) return ['PENDING']
+    if (saved === 'ALL') return 'ALL'
+    // 兼容旧数据格式（字符串）
+    if (typeof saved === 'string') return [saved as TodoStatus]
+    // 新数据格式（数组）
+    if (Array.isArray(saved)) return saved as TodoStatus[]
+    return ['PENDING']
+  }
+  const [statusFilter, setStatusFilter] = useState<TodoStatus[] | 'ALL'>(getInitialStatusFilter())
   // 创建人和执行人筛选
   const [creatorFilter, setCreatorFilter] = useState<number | 'ME' | null>(
     savedFilters?.creatorFilter ?? null
@@ -116,6 +125,63 @@ export default function ProjectDetailPage() {
   // 搜索状态
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [showSearchBar, setShowSearchBar] = useState(false)
+  
+  // 状态筛选下拉菜单
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
+  const statusDropdownRef = useRef<HTMLDivElement>(null)
+  const statusButtonRef = useRef<HTMLButtonElement>(null)
+  const [statusDropdownPosition, setStatusDropdownPosition] = useState<{ top: number; left: number } | null>(null)
+  
+  // 状态标签映射
+  const getStatusLabel = (status: TodoStatus): string => {
+    const labels: Record<TodoStatus, string> = {
+      'PENDING': '待办',
+      'IN_PROGRESS': '进行中',
+      'COMPLETED': '已完成',
+      'CANCELLED': '已取消',
+      'BLOCKED': '已阻塞',
+    }
+    return labels[status] || status
+  }
+  
+  // 计算下拉菜单位置
+  useEffect(() => {
+    if (showStatusDropdown && statusButtonRef.current) {
+      const rect = statusButtonRef.current.getBoundingClientRect()
+      setStatusDropdownPosition({
+        top: rect.bottom + 4,
+        left: rect.left,
+      })
+    }
+  }, [showStatusDropdown])
+  
+  // 点击外部关闭状态下拉菜单，滚动时关闭
+  useEffect(() => {
+    if (!showStatusDropdown) return
+    
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        statusDropdownRef.current &&
+        !statusDropdownRef.current.contains(event.target as Node) &&
+        statusButtonRef.current &&
+        !statusButtonRef.current.contains(event.target as Node)
+      ) {
+        setShowStatusDropdown(false)
+      }
+    }
+    
+    const handleScroll = () => {
+      setShowStatusDropdown(false)
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('scroll', handleScroll, true)
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [showStatusDropdown])
   
   // 当筛选条件改变时保存到本地存储
   useEffect(() => {
@@ -252,7 +318,7 @@ export default function ProjectDetailPage() {
     // 筛选函数：检查任务是否匹配筛选条件
     const matchesFilters = (todo: typeof taskTree[0], useOrLogic: boolean = false): boolean => {
       // 状态筛选
-      const statusMatch = statusFilter === 'ALL' || todo.status === statusFilter
+      const statusMatch = statusFilter === 'ALL' || statusFilter.includes(todo.status)
       
       // 创建人筛选
       const creatorMatch = checkCreatorMatch(todo)
@@ -1148,8 +1214,17 @@ export default function ProjectDetailPage() {
               title="待办"
               value={stats.pending}
               icon={<TaskIcon />}
-              isActive={statusFilter === 'PENDING'}
-              onClick={() => setStatusFilter(statusFilter === 'PENDING' ? 'ALL' : 'PENDING')}
+              isActive={statusFilter === 'ALL' || statusFilter.includes('PENDING')}
+              onClick={() => {
+                if (statusFilter === 'ALL') {
+                  setStatusFilter(['PENDING'])
+                } else if (statusFilter.includes('PENDING')) {
+                  const newFilter = statusFilter.filter(s => s !== 'PENDING')
+                  setStatusFilter(newFilter.length === 0 ? 'ALL' : newFilter as TodoStatus[])
+                } else {
+                  setStatusFilter([...statusFilter, 'PENDING'])
+                }
+              }}
               className="h-16"
             />
             
@@ -1157,8 +1232,17 @@ export default function ProjectDetailPage() {
               title="进行中"
               value={stats.inProgress}
               icon={<ProgressIcon />}
-              isActive={statusFilter === 'IN_PROGRESS'}
-              onClick={() => setStatusFilter(statusFilter === 'IN_PROGRESS' ? 'ALL' : 'IN_PROGRESS')}
+              isActive={statusFilter === 'ALL' || statusFilter.includes('IN_PROGRESS')}
+              onClick={() => {
+                if (statusFilter === 'ALL') {
+                  setStatusFilter(['IN_PROGRESS'])
+                } else if (statusFilter.includes('IN_PROGRESS')) {
+                  const newFilter = statusFilter.filter(s => s !== 'IN_PROGRESS')
+                  setStatusFilter(newFilter.length === 0 ? 'ALL' : newFilter as TodoStatus[])
+                } else {
+                  setStatusFilter([...statusFilter, 'IN_PROGRESS'])
+                }
+              }}
               className="h-16"
             />
             
@@ -1166,8 +1250,17 @@ export default function ProjectDetailPage() {
               title="已完成"
               value={stats.completed}
               icon={<CheckIcon />}
-              isActive={statusFilter === 'COMPLETED'}
-              onClick={() => setStatusFilter(statusFilter === 'COMPLETED' ? 'ALL' : 'COMPLETED')}
+              isActive={statusFilter === 'ALL' || statusFilter.includes('COMPLETED')}
+              onClick={() => {
+                if (statusFilter === 'ALL') {
+                  setStatusFilter(['COMPLETED'])
+                } else if (statusFilter.includes('COMPLETED')) {
+                  const newFilter = statusFilter.filter(s => s !== 'COMPLETED')
+                  setStatusFilter(newFilter.length === 0 ? 'ALL' : newFilter as TodoStatus[])
+                } else {
+                  setStatusFilter([...statusFilter, 'COMPLETED'])
+                }
+              }}
               className="h-16"
             />
           </div>
@@ -1178,7 +1271,7 @@ export default function ProjectDetailPage() {
             <div className="mb-4" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
           {/* 筛选器组 - 单行，不换行 */}
           <div ref={filterContainerRef} className="flex items-center gap-4 flex-nowrap" style={{ overflowX: 'hidden', overflowY: 'visible', paddingTop: '6px', paddingBottom: '6px' }}>
-            {/* 状态筛选 */}
+            {/* 状态筛选 - 多选 */}
             <div data-filter-key="status" className="flex items-center gap-2 flex-shrink-0">
               <label className={clsx(
                 "flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap",
@@ -1191,35 +1284,86 @@ export default function ProjectDetailPage() {
                 状态:
               </label>
               <div className="relative">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setStatusFilter(value as TodoStatus | 'ALL')
+                {/* 多选按钮 */}
+                <button
+                  ref={statusButtonRef}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setShowStatusDropdown(!showStatusDropdown)
                   }}
                   className={clsx(
-                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary max-w-[120px]",
+                    "px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary min-w-[80px] max-w-[120px] flex items-center justify-between gap-1",
                     statusFilter !== 'ALL' ? "text-warning font-medium" : "text-foreground"
                   )}
                 >
-                  <option value="ALL">全部</option>
-                  <option value="PENDING">待办</option>
-                  <option value="IN_PROGRESS">进行中</option>
-                  <option value="COMPLETED">已完成</option>
-                  <option value="CANCELLED">已取消</option>
-                  <option value="BLOCKED">已阻塞</option>
-                </select>
+                  <span className="truncate">
+                    {statusFilter === 'ALL' 
+                      ? '全部' 
+                      : statusFilter.length === 1 
+                        ? getStatusLabel(statusFilter[0])
+                        : `已选${statusFilter.length}项`
+                    }
+                  </span>
+                  <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                
                 {/* 取消角标 */}
                 {statusFilter !== 'ALL' && (
                   <button
                     onClick={() => setStatusFilter('ALL')}
-                    className="absolute right-1 top-1 w-4 h-4 bg-warning hover:bg-warning/80 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors z-10"
+                    className="absolute -right-1 -top-1 w-4 h-4 bg-warning hover:bg-warning/80 rounded-full flex items-center justify-center text-white text-xs font-bold transition-colors z-10"
                     aria-label="重置状态筛选"
                   >
                     <svg className="w-2 h-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
+                )}
+                
+                {/* 多选下拉菜单 */}
+                {showStatusDropdown && statusDropdownPosition && createPortal(
+                  <div 
+                    ref={statusDropdownRef}
+                    className="fixed w-40 border border-border rounded-md shadow-xl z-[100] py-1 bg-surface-elevated"
+                    style={{ 
+                      top: `${statusDropdownPosition.top}px`,
+                      left: `${statusDropdownPosition.left}px`,
+                    }}
+                  >
+                    {[
+                      { value: 'PENDING', label: '待办' },
+                      { value: 'IN_PROGRESS', label: '进行中' },
+                      { value: 'COMPLETED', label: '已完成' },
+                      { value: 'CANCELLED', label: '已取消' },
+                      { value: 'BLOCKED', label: '已阻塞' },
+                    ].map((option) => (
+                      <label
+                        key={option.value}
+                        className="flex items-center gap-2 px-3 py-2 hover:bg-surface-hover cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={statusFilter !== 'ALL' && statusFilter.includes(option.value as TodoStatus)}
+                          onChange={(e) => {
+                            if (statusFilter === 'ALL') {
+                              setStatusFilter([option.value as TodoStatus])
+                            } else if (e.target.checked) {
+                              setStatusFilter([...statusFilter, option.value as TodoStatus])
+                            } else {
+                              const newFilter = statusFilter.filter(s => s !== option.value)
+                              setStatusFilter(newFilter.length === 0 ? 'ALL' : newFilter)
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
+                        />
+                        <span className="text-sm text-foreground">{option.label}</span>
+                      </label>
+                    ))}
+                  </div>,
+                  document.body
                 )}
               </div>
             </div>

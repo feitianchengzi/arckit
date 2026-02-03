@@ -72,7 +72,7 @@ export function VerificationCodeInput({
 
   return (
     <div className="space-y-1">
-      <label className="block text-sm font-medium text-gray-700">
+      <label className="block text-sm font-medium text-foreground">
         验证码
       </label>
       
@@ -91,10 +91,10 @@ export function VerificationCodeInput({
             placeholder="请输入6位验证码"
             disabled={disabled}
             className={`
-              w-full px-3 py-2 border rounded-lg
+              w-full px-3 py-2 border rounded-lg bg-surface text-foreground placeholder:text-foreground-tertiary
               focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
-              disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed
-              ${error ? 'border-red-300' : 'border-gray-300'}
+              disabled:bg-surface-elevated disabled:text-foreground-tertiary disabled:cursor-not-allowed
+              ${error ? 'border-red-300 dark:border-red-700' : 'border-border'}
             `}
           />
         </div>
@@ -114,11 +114,11 @@ export function VerificationCodeInput({
 
       {/* 辅助文字或错误提示 */}
       {error ? (
-        <p className="text-sm text-red-600">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
       ) : countdown > 0 ? (
-        <p className="text-sm text-gray-500">{countdown}秒后可重新发送</p>
+        <p className="text-sm text-foreground-tertiary">{countdown}秒后可重新发送</p>
       ) : (
-        <p className="text-sm text-gray-500">请输入收到的6位验证码</p>
+        <p className="text-sm text-foreground-tertiary">请输入收到的6位验证码</p>
       )}
     </div>
   )

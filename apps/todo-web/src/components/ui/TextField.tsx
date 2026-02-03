@@ -72,7 +72,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(
             id={error ? `${props.id}-error` : undefined}
             className={clsx('text-sm', {
               'text-error': error,
-              'text-foreground-secondary': !error,
+              'text-foreground-tertiary': !error,
             })}
           >
             {error || helperText}
