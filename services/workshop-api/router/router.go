@@ -44,51 +44,14 @@ func SetupRouter(serviceName string) *gin.Engine {
 		// 示例：GET /todo-service/v1/user/header-info
 		userGroup := v1.Group("/user")
 		userGroup.Use(middleware.ExtractUserID()) // 提取用户ID中间件
-		{
-			userGroup.GET("/header-info", handler.GetHeaderInfo)
-			userGroup.POST("/users", handler.CreateUser)                                           // 根据网关UUID创建用户
-			userGroup.GET("/users", handler.GetUser)                                               // 根据Header中的UUID查询用户
-			userGroup.PUT("/users", handler.UpdateUser)                                            // 更新用户信息
-			userGroup.GET("/oss/credentials", handler.GetOSSTempCredentials)                       // 获取OSS临时访问凭证
-			userGroup.POST("/organizations", handler.CreateOrganization)                           // 创建新组织
-			userGroup.GET("/organizations", handler.GetUserOrganizations)                          // 根据用户UUID查询所有参与的组织
-			userGroup.PUT("/organizations/:id", handler.UpdateOrganization)                        // 更新组织信息
-			userGroup.DELETE("/organizations/:id", handler.DeleteOrganization)                     // 删除组织（仅所有者）
-			userGroup.GET("/organizations/:id/members", handler.GetOrganizationMembers)            // 查询组织成员列表
-			userGroup.POST("/organizations/:id/invitations", handler.InviteOrganizationMember)     // 邀请组织成员（生成邀请码）
-			userGroup.POST("/organizations/join", handler.JoinOrganization)                        // 加入组织（使用邀请码）
-			userGroup.DELETE("/organizations/:id/members", handler.DeleteOrganizationMember)       // 删除组织成员
-			userGroup.PUT("/organizations/:id/members/role", handler.UpdateOrganizationMemberRole) // 设置成员角色（仅所有者）
-			userGroup.POST("/projects", handler.CreateProject)                                     // 创建新项目
-			userGroup.GET("/projects", handler.GetUserProjects)                                    // 根据用户UUID查询所有参与的项目
-			userGroup.PUT("/projects/:id", handler.UpdateProject)                                  // 更新项目信息
-			userGroup.DELETE("/projects/:id", handler.DeleteProject)                               // 删除项目（仅所有者）
-			userGroup.POST("/projects/:id/invitations", handler.InviteProjectMember)               // 邀请项目成员（生成邀请码）
-			userGroup.POST("/projects/join", handler.JoinProject)                                  // 加入项目（使用邀请码）
-			userGroup.POST("/projects/:id/members", handler.AddProjectMember)                      // 添加项目成员（通过组织成员ID，无权限限制）
-			userGroup.DELETE("/projects/:id/members", handler.DeleteProjectMember)                 // 删除项目成员
-			userGroup.PUT("/projects/:id/members/role", handler.UpdateProjectMemberRole)           // 设置成员角色（仅所有者）
-			userGroup.POST("/tasks", handler.CreateTask)                                           // 创建新任务
-			userGroup.PUT("/tasks/:id", handler.UpdateTask)                                        // 更新任务
-			userGroup.GET("/tasks", handler.GetTasks)                                              // 查询项目的所有任务
-			userGroup.DELETE("/tasks/:id", handler.DeleteTask)                                     // 删除任务
-			userGroup.POST("/tasks/attachments", handler.CreateTaskAttachment)                     // 创建任务附件
-			userGroup.GET("/tasks/attachments", handler.GetTaskAttachments)                        // 查询任务附件列表
-			userGroup.PUT("/tasks/attachments/:id", handler.UpdateTaskAttachment)                  // 更新任务附件
-			userGroup.DELETE("/tasks/attachments/:id", handler.DeleteTaskAttachment)               // 删除任务附件
-			userGroup.GET("/projects/:id/tags", handler.GetTags)                                   // 查询项目的所有标签
-			userGroup.POST("/projects/:id/tags", handler.CreateTag)                                // 创建标签
-			userGroup.PUT("/tags/:id", handler.UpdateTag)                                          // 更新标签
-			userGroup.DELETE("/tags/:id", handler.DeleteTag)                                       // 删除标签
-		}
+		registerBusinessRoutes(userGroup)
 
 		// apikey级别路由 - 需要API密钥认证
 		// 网关已经验证了认证，如果请求到达这里，说明认证通过
 		// 示例：GET /todo-service/v1/apikey/header-info
 		apikeyGroup := v1.Group("/apikey")
-		{
-			apikeyGroup.GET("/header-info", handler.GetHeaderInfo)
-		}
+		apikeyGroup.Use(middleware.ExtractUserID()) // 提取用户ID中间件
+		registerBusinessRoutes(apikeyGroup)
 	}
 
 	return r
@@ -146,4 +109,44 @@ func getCORSConfig() cors.Config {
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 	}
+}
+
+// registerBusinessRoutes 注册业务路由
+// 用于 user 和 apikey 两个认证级别，使其执行完全相同的接口
+func registerBusinessRoutes(group *gin.RouterGroup) {
+	group.GET("/header-info", handler.GetHeaderInfo)
+	group.POST("/users", handler.CreateUser)                                           // 根据网关UUID创建用户
+	group.GET("/users", handler.GetUser)                                               // 根据Header中的UUID查询用户
+	group.PUT("/users", handler.UpdateUser)                                            // 更新用户信息
+	group.GET("/oss/credentials", handler.GetOSSTempCredentials)                       // 获取OSS临时访问凭证
+	group.POST("/organizations", handler.CreateOrganization)                           // 创建新组织
+	group.GET("/organizations", handler.GetUserOrganizations)                          // 根据用户UUID查询所有参与的组织
+	group.PUT("/organizations/:id", handler.UpdateOrganization)                        // 更新组织信息
+	group.DELETE("/organizations/:id", handler.DeleteOrganization)                     // 删除组织（仅所有者）
+	group.GET("/organizations/:id/members", handler.GetOrganizationMembers)            // 查询组织成员列表
+	group.POST("/organizations/:id/invitations", handler.InviteOrganizationMember)     // 邀请组织成员（生成邀请码）
+	group.POST("/organizations/join", handler.JoinOrganization)                        // 加入组织（使用邀请码）
+	group.DELETE("/organizations/:id/members", handler.DeleteOrganizationMember)       // 删除组织成员
+	group.PUT("/organizations/:id/members/role", handler.UpdateOrganizationMemberRole) // 设置成员角色（仅所有者）
+	group.POST("/projects", handler.CreateProject)                                     // 创建新项目
+	group.GET("/projects", handler.GetUserProjects)                                    // 根据用户UUID查询所有参与的项目
+	group.PUT("/projects/:id", handler.UpdateProject)                                  // 更新项目信息
+	group.DELETE("/projects/:id", handler.DeleteProject)                               // 删除项目（仅所有者）
+	group.POST("/projects/:id/invitations", handler.InviteProjectMember)               // 邀请项目成员（生成邀请码）
+	group.POST("/projects/join", handler.JoinProject)                                  // 加入项目（使用邀请码）
+	group.POST("/projects/:id/members", handler.AddProjectMember)                      // 添加项目成员（通过组织成员ID，无权限限制）
+	group.DELETE("/projects/:id/members", handler.DeleteProjectMember)                 // 删除项目成员
+	group.PUT("/projects/:id/members/role", handler.UpdateProjectMemberRole)           // 设置成员角色（仅所有者）
+	group.POST("/tasks", handler.CreateTask)                                           // 创建新任务
+	group.PUT("/tasks/:id", handler.UpdateTask)                                        // 更新任务
+	group.GET("/tasks", handler.GetTasks)                                              // 查询项目的所有任务
+	group.DELETE("/tasks/:id", handler.DeleteTask)                                     // 删除任务
+	group.POST("/tasks/attachments", handler.CreateTaskAttachment)                     // 创建任务附件
+	group.GET("/tasks/attachments", handler.GetTaskAttachments)                        // 查询任务附件列表
+	group.PUT("/tasks/attachments/:id", handler.UpdateTaskAttachment)                  // 更新任务附件
+	group.DELETE("/tasks/attachments/:id", handler.DeleteTaskAttachment)               // 删除任务附件
+	group.GET("/projects/:id/tags", handler.GetTags)                                   // 查询项目的所有标签
+	group.POST("/projects/:id/tags", handler.CreateTag)                                // 创建标签
+	group.PUT("/tags/:id", handler.UpdateTag)                                          // 更新标签
+	group.DELETE("/tags/:id", handler.DeleteTag)                                       // 删除标签
 }
