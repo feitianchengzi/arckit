@@ -4,22 +4,43 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { tasksApi, CreateTaskInput, UpdateTaskInput } from '@/lib/api/endpoints/tasks'
-import { tasksToTodos, taskToTodo } from '@/lib/utils/taskMapper'
+import { tasksApi, CreateTaskInput, UpdateTaskInput, type TaskListFilters } from '@/lib/api/endpoints/tasks'
+import { tasksToTodos } from '@/lib/utils/taskMapper'
 import { useAuthStore } from '@/store/authStore'
+import type { ApiMeta } from '@/types/api'
+
+export interface TaskListData {
+  todos: ReturnType<typeof tasksToTodos>
+  meta: ApiMeta
+  total: number
+}
+
+export interface UseTaskListOptions {
+  enabled?: boolean
+  filters?: TaskListFilters
+  page?: number
+  pageSize?: number
+}
 
 /**
  * 获取项目的待办列表
  * 返回所有待办的扁平列表（用于项目详情页面显示）
  */
-export function useTaskList(projectId: string, options?: { enabled?: boolean }) {
+export function useTaskList(projectId: string, options?: UseTaskListOptions) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const filtersKey = JSON.stringify(options?.filters ?? {})
+  const page = options?.page ?? 1
+  const pageSize = options?.pageSize ?? 50
   
   return useQuery({
-    queryKey: ['projects', projectId, 'tasks'],
+    queryKey: ['projects', projectId, 'tasks', filtersKey, page, pageSize],
     queryFn: async () => {
-      const tasks = await tasksApi.listByProject(projectId) // 不需要 user_id
-      // console.log('🔍 [项目详情页-待办列表] 获取到的任务列表:', JSON.stringify(tasks, null, 2))
+      const result = await tasksApi.listByProject(projectId, {
+        filters: options?.filters,
+        page,
+        pageSize,
+      })
+      const tasks = result.tasks
       // 转换为 Todo 模型，返回扁平列表
       const todos = tasksToTodos(tasks)
       // console.log('🔍 [项目详情页-待办列表] 转换后的待办列表:', JSON.stringify(todos, null, 2))
@@ -38,9 +59,11 @@ export function useTaskList(projectId: string, options?: { enabled?: boolean }) 
         }
       })
       
-      // 返回所有待办（扁平列表），用于在项目详情页面显示
-      // 子待办会在待办详情页面中通过 children 字段显示
-      return todos
+      return {
+        todos,
+        meta: result.meta,
+        total: result.total,
+      } as TaskListData
     },
     enabled: (options?.enabled !== false) && !!projectId && isAuthenticated, // 支持外部控制是否启用查询
   })
@@ -57,7 +80,7 @@ export function useTask(projectId: string, taskId: string) {
     queryKey: ['projects', projectId, 'tasks', taskId],
     queryFn: async () => {
       // 获取所有任务（包括子任务）
-      const allTasks = await tasksApi.listByProject(projectId) // 不需要 user_id
+      const { tasks: allTasks } = await tasksApi.listByProject(projectId, { page: 1, pageSize: 200 }) // 不需要 user_id
       // console.log('🔍 [任务详情页-待办列表] 获取到的任务列表:', JSON.stringify(allTasks, null, 2))
       const todos = tasksToTodos(allTasks)
       // console.log('🔍 [任务详情页-待办列表] 转换后的待办列表:', JSON.stringify(todos, null, 2))

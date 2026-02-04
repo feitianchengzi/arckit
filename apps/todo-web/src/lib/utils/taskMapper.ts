@@ -65,7 +65,7 @@ export function taskToTodo(task: Task): Todo {
     creator: task.creator,
     children: task.children?.map(taskToTodo),
     tags: task.tags,
-    priority: task.priority,
+    priority: task.priority ?? 2,
   }
 }
 
@@ -112,4 +112,3 @@ export function todoToTaskInput(todo: Partial<Todo>): Partial<Task> {
 export function tasksToTodos(tasks: Task[]): Todo[] {
   return tasks.map(taskToTodo)
 }
-

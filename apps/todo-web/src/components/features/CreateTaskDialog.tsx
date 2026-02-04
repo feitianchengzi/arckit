@@ -40,7 +40,8 @@ export function CreateTaskDialog({
   
   const currentUser = useAuthStore((state) => state.user)
   
-  const { data: tasks } = useTaskList(projectId)
+  const { data: taskListData } = useTaskList(projectId)
+  const tasks = taskListData?.todos ?? []
   const { data: members } = useProjectMembers(projectId)
   const { currentOrganizationId } = useOrganizationStore()
   const { data: orgMembers } = useOrganizationMembers(currentOrganizationId || 0)
@@ -467,4 +468,3 @@ export function CreateTaskDialog({
     </Dialog>
   )
 }
-
