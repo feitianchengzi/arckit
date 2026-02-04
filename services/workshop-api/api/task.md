@@ -889,7 +889,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments?t
 
 ---
 
-## 10. 更新任务附件
+## 7. 更新任务附件
 
 **接口**: `PUT /workshop/v1/user/tasks/attachments/:id`
 
@@ -1017,7 +1017,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments/$
 
 ---
 
-## 11. 删除任务附件
+## 8. 删除任务附件
 
 **接口**: `DELETE /workshop/v1/user/tasks/attachments/:id`
 

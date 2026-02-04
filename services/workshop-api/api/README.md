@@ -60,9 +60,14 @@ curl -X GET "$BASE_URL/user/projects" \
   -H "Content-Type: application/json"
 ```
 
+**路由提示**:
+- `public` 级别只包含 `GET /public/health`
+- `header-info` 在 `user` / `apikey` 级别：`GET /user/header-info` 或 `GET /apikey/header-info`
+- `public/user` 这种路径不是有效路由
+
 ## 📚 文档结构
 
-- **[common.md](./common.md)** - 公共接口（健康检查、Header信息）
+- **[common.md](./common.md)** - 公共接口（健康检查；Header 信息在 user/apikey 级别）
 - **[user.md](./user.md)** - 用户相关接口（创建、查询、更新用户、获取OSS凭证）
 - **[project.md](./project.md)** - 项目相关接口（创建、查询、更新、删除项目、成员管理、邀请）
 - **[task.md](./task.md)** - 任务相关接口（创建、更新、查询、删除任务、子任务、任务附件）

@@ -1,7 +1,10 @@
 # 公共接口
 
-基础路径：`/workshop/v1/public` 或 `/workshop/v1/{auth_level}`  
-认证：部分接口无需认证，部分需要认证
+基础路径：
+- `public` 级别：`/workshop/v1/public`（**仅**健康检查 `GET /health`）
+- `user` / `apikey` 级别：`/workshop/v1/{auth_level}`（如 `GET /user/header-info`、`GET /apikey/header-info`）  
+认证：部分接口无需认证，部分需要认证  
+注意：`header-info` **不在** `public` 级别路径下，`/workshop/v1/public/user/...` 不是有效路由
 
 ---
 

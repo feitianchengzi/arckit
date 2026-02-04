@@ -197,7 +197,7 @@ func GetUserOrganizations(c *gin.Context) {
 	// 6. 查询组织总数（仅分页时）
 	var total int64
 	if paginated {
-		countQuery := query.Distinct("organizations.id").Session(&gorm.Session{})
+		countQuery := query.Session(&gorm.Session{}).Distinct("organizations.id")
 		if err := countQuery.Count(&total).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "查询组织总数失败: "+err.Error(), nil))
 			return
@@ -205,7 +205,7 @@ func GetUserOrganizations(c *gin.Context) {
 	}
 
 	// 7. 查询组织列表
-	query = query.Distinct().Order("organizations.updated_at DESC").Order("organizations.id DESC")
+	query = query.Select("organizations.*").Distinct().Order("organizations.updated_at DESC").Order("organizations.id DESC")
 	if paginated {
 		query = query.Offset(pagination.Offset).Limit(pagination.Limit)
 	}
