@@ -440,6 +440,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
 - `updated_after` 参数必须是有效的 UTC 时间字符串（ISO 8601 格式），例如：`2024-01-01T12:00:00Z`
 - `start_time` / `end_time` 过滤任务创建时间（`created_at`）；当两者同时提供时，只返回处于该时间段内的任务
 - `state` / `creator_id` / `executor_id` / `tags` / `priority` 支持多选（重复参数或逗号分隔）
+- `state` / `creator_id` / `executor_id` / `tags` / `priority` 若不传、传空值（如 `state=`）、或传空数组（如 `state=[]` / `state=[ ]`），视为不参与过滤
 - `search_key` 仅对任务内容进行模糊匹配
 - `father_id` 参数的使用方式：
   - 不提供：查询所有任务

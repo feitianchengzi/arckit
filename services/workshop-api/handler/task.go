@@ -580,15 +580,26 @@ func parseISOTime(value string) (*time.Time, error) {
 	return &parsedTime, nil
 }
 
+func isEmptyArrayToken(value string) bool {
+	compact := strings.Join(strings.Fields(value), "")
+	return compact == "[]"
+}
+
 func splitAndTrim(values []string) []string {
 	if len(values) == 0 {
 		return nil
 	}
 	out := make([]string, 0, len(values))
 	for _, value := range values {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
 		for _, item := range strings.Split(value, ",") {
 			trimmed := strings.TrimSpace(item)
 			if trimmed == "" {
+				continue
+			}
+			if isEmptyArrayToken(trimmed) {
 				continue
 			}
 			out = append(out, trimmed)
