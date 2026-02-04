@@ -27,6 +27,8 @@
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | include_deleted | bool | 否 | 是否包含已删除的记录（默认false） |
+| page | int | 否 | 页码（默认1） |
+| page_size | int | 否 | 每页条数（默认50，最大200） |
 
 **请求示例**:
 
@@ -76,7 +78,12 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
       "updated_at": "2024-01-01T12:00:00Z",
       "deleted_at": null
     }
-  ]
+  ],
+  "meta": {
+    "page": 1,
+    "page_size": 50,
+    "total": 3
+  }
 }
 ```
 
@@ -90,6 +97,14 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 | created_at | string | 创建时间（ISO 8601格式） |
 | updated_at | string | 更新时间（ISO 8601格式） |
 | deleted_at | string | 删除时间（ISO 8601格式，如果存在） |
+
+**分页元数据字段说明（meta）**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| page | int | 当前页码 |
+| page_size | int | 每页条数 |
+| total | int | 总记录数 |
 
 **查询包含已删除的标签**:
 
@@ -110,6 +125,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 - `include_deleted` 参数用于查询包含已删除（软删除）的标签
 - 当 `include_deleted=true` 时，响应中的 `deleted_at` 字段会显示删除时间（如果标签已删除）
 - 默认情况下（`include_deleted=false`），只返回未删除的标签
+- 接口强制分页：未传 `page` / `page_size` 时，使用默认值 `page=1`、`page_size=50`
 
 **错误响应**:
 

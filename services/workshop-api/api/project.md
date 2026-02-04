@@ -105,7 +105,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 |------|------|------|------|
 | name | string | 是 | 项目名称 |
 | git_url | string | 是 | Git仓库地址 |
-| organization_id | uint | 否 | 组织ID（可选），不传则项目不关联组织 |
+| organization_id | uint | 否 | 组织ID（可选），不传则项目不关联组织；**仅允许组织成员创建** |
 
 **响应示例** (`201 Created`):
 ```json
@@ -158,6 +158,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 **特殊说明**:
 - 创建项目时，创建者自动成为项目所有者（owner）
 - `is_me` 字段表示该成员是否是当前登录用户自己
+- 若传 `organization_id`，当前用户必须为该组织成员
 
 **错误响应**:
 
@@ -199,6 +200,8 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 |------|------|------|------|
 | include_deleted | bool | 否 | 是否包含已删除的记录（默认false） |
 | organization_id | uint | 否 | 组织ID（可选，为空或0则查询组织ID为空的项目，否则查询指定组织ID的项目） |
+| page | int | 否 | 页码（默认1） |
+| page_size | int | 否 | 每页条数（默认50，最大200） |
 
 **请求示例**:
 
@@ -244,6 +247,11 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects" \
       }
     ],
     "total": 1
+  },
+  "meta": {
+    "page": 1,
+    "page_size": 50,
+    "total": 1
   }
 }
 ```
@@ -254,6 +262,14 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 |------|------|------|
 | projects | array | 项目列表 |
 | total | int64 | 项目总数 |
+
+**分页元数据字段说明（meta）**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| page | int | 当前页码 |
+| page_size | int | 每页条数 |
+| total | int | 总记录数 |
 
 **项目对象字段说明**:
 
@@ -285,6 +301,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 - `include_deleted` 参数用于查询包含已删除（软删除）的项目
 - 当 `include_deleted=true` 时，响应中的 `deleted_at` 字段会显示删除时间（如果项目已删除）
 - 默认情况下（`include_deleted=false`），只返回未删除的项目
+- 接口强制分页：未传 `page` / `page_size` 时，使用默认值 `page=1`、`page_size=50`
 - `organization_id` 参数用于按组织过滤项目：
   - 不提供或为 `0`：返回不属于任何组织的项目（`organization_id IS NULL`）+ 当前用户在该项目中为外部成员的项目（`is_external = true`）
   - 提供有效值：只返回属于该组织的项目（`organization_id = ?`）
@@ -398,7 +415,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 |------|------|------|------|
 | name | string | 否 | 项目名称 |
 | git_url | string | 否 | Git仓库地址 |
-| organization_id | uint | 否 | 组织ID（可选）。**临时字段，后续将移除** |
+| organization_id | uint | 否 | 组织ID（可选）。**临时迁移字段，后续将移除** |
 
 **响应示例** (`200 OK`):
 ```json
@@ -419,7 +436,8 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 **响应字段说明**: 同创建项目接口，包含完整的成员列表
 
 **特殊说明**:
-- `organization_id` 为临时字段，后续版本将移除，请勿长期依赖
+- `organization_id` 为临时迁移字段，后续版本将移除，请勿长期依赖
+- 当前版本**不校验**组织成员身份，仅用于历史项目迁移，后续将收紧
 
 **错误响应**:
 
@@ -1218,3 +1236,86 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
   }
 }
 ```
+
+---
+
+## 10. 查询组织所有项目（管理员）
+
+**接口**: `GET /workshop/v1/user/organization/projects`
+
+**认证级别**: `user`（需要JWT认证）
+
+**描述**: 管理员查询组织下的所有项目，返回每个项目的成员列表
+
+**权限规则**: 只有组织所有者（owner）或管理员（admin）可以查询
+
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| organization_id | uint | 是 | 组织ID |
+| page | int | 否 | 页码（默认1） |
+| page_size | int | 否 | 每页条数（默认50，最大200） |
+
+**请求示例**:
+
+**测试环境**:
+```bash
+ORG_ID=1
+
+curl -X GET "http://localhost:8081/workshop/v1/user/organization/projects?organization_id=$ORG_ID" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
+```
+
+**生产环境**:
+```bash
+ORG_ID=1
+
+curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/organization/projects?organization_id=$ORG_ID" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+**响应示例** (`200 OK`):
+```json
+{
+  "code": "OK",
+  "data": {
+    "projects": [
+      {
+        "id": 1,
+        "name": "电商平台开发",
+        "git_url": "https://github.com/team/ecommerce.git",
+        "creator_id": 10,
+        "created_at": "2024-01-01T12:00:00Z",
+        "updated_at": "2024-01-02T12:00:00Z",
+        "deleted_at": null,
+        "members": [
+          {
+            "id": 1,
+            "user_id": 10,
+            "role": "owner",
+            "username": "john_doe",
+            "avatar": "https://example.com/avatar.png",
+            "created_at": "2024-01-01T12:00:00Z",
+            "is_me": true,
+            "is_external": false
+          }
+        ]
+      }
+    ],
+    "total": 1
+  },
+  "meta": {
+    "page": 1,
+    "page_size": 50,
+    "total": 1
+  }
+}
+```
+
+**响应字段说明**: 同查询用户参与的项目接口
+
+**特殊说明**:
+- 接口强制分页：未传 `page` / `page_size` 时，使用默认值 `page=1`、`page_size=50`
+- 不支持 `include_deleted`，默认只返回未删除的项目

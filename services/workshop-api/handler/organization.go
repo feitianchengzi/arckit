@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CreateOrganizationRequest 创建组织请求结构
@@ -149,6 +151,8 @@ type GetUserOrganizationsResponse struct {
 // GetUserOrganizationsRequest 查询用户组织请求结构
 type GetUserOrganizationsRequest struct {
 	IncludeDeleted bool `form:"include_deleted"` // 是否包含已删除的记录（可选，默认false）
+	Page           int  `form:"page"`            // 页码（可选，默认1）
+	PageSize       int  `form:"page_size"`       // 每页条数（可选，默认50，最大200）
 }
 
 // GetUserOrganizations 根据用户ID查询所有参与的组织
@@ -178,27 +182,42 @@ func GetUserOrganizations(c *gin.Context) {
 	}
 
 	// 4. 构建查询条件
-	query := db.Where("user_id = ?", userID)
+	query := db.Model(&models.Organization{}).
+		Joins("JOIN organization_members om ON om.organization_id = organizations.id").
+		Where("om.user_id = ?", userID)
 	if req.IncludeDeleted {
 		query = query.Unscoped()
+	} else {
+		query = query.Where("om.delete_at IS NULL")
 	}
 
-	// 5. 查询用户参与的所有组织（通过organization_members表）
-	var organizationMembers []models.OrganizationMember
-	if err := query.Preload("Organization").Find(&organizationMembers).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "查询组织成员关系失败: "+err.Error(), nil))
+	// 5. 解析分页参数
+	pagination, paginated := ParsePagination(c)
+
+	// 6. 查询组织总数（仅分页时）
+	var total int64
+	if paginated {
+		countQuery := query.Distinct("organizations.id").Session(&gorm.Session{})
+		if err := countQuery.Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "查询组织总数失败: "+err.Error(), nil))
+			return
+		}
+	}
+
+	// 7. 查询组织列表
+	query = query.Distinct().Order("organizations.updated_at DESC").Order("organizations.id DESC")
+	if paginated {
+		query = query.Offset(pagination.Offset).Limit(pagination.Limit)
+	}
+	var organizations []models.Organization
+	if err := query.Find(&organizations).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "查询组织失败: "+err.Error(), nil))
 		return
 	}
 
-	// 6. 提取组织信息
-	organizationMap := make(map[uint]models.Organization)
-	for _, om := range organizationMembers {
-		organizationMap[om.OrganizationID] = om.Organization
-	}
-
-	// 7. 构建响应
-	organizationResponses := make([]OrganizationResponse, 0, len(organizationMap))
-	for _, organization := range organizationMap {
+	// 8. 构建响应
+	organizationResponses := make([]OrganizationResponse, 0, len(organizations))
+	for _, organization := range organizations {
 		var deletedAt *string
 		if organization.DeletedAt.Valid {
 			deletedAtStr := organization.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
@@ -216,10 +235,21 @@ func GetUserOrganizations(c *gin.Context) {
 		})
 	}
 
-	// 8. 返回成功响应
+	// 9. 返回成功响应
+	if !paginated {
+		total = int64(len(organizationResponses))
+	}
 	resp := GetUserOrganizationsResponse{
 		Organizations: organizationResponses,
-		Total:         int64(len(organizationResponses)),
+		Total:         total,
+	}
+	if paginated {
+		c.JSON(http.StatusOK, response.NewSuccessResponseWithMeta(resp, response.Meta{
+			Page:     pagination.Page,
+			PageSize: pagination.PageSize,
+			Total:    int(total),
+		}))
+		return
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
@@ -227,6 +257,8 @@ func GetUserOrganizations(c *gin.Context) {
 // GetOrganizationMembersRequest 查询组织成员请求结构
 type GetOrganizationMembersRequest struct {
 	IncludeDeleted bool `form:"include_deleted"` // 是否包含已删除的记录（可选，默认false）
+	Page           int  `form:"page"`            // 页码（可选，默认1）
+	PageSize       int  `form:"page_size"`       // 每页条数（可选，默认50，最大200）
 }
 
 // GetOrganizationMembersResponse 查询组织成员响应结构
@@ -294,12 +326,28 @@ func GetOrganizationMembers(c *gin.Context) {
 	}
 
 	// 7. 构建成员查询条件
-	memberQuery := db.Where("organization_id = ?", organization.ID)
+	memberQuery := db.Where("organization_id = ?", organization.ID).Order("created_at DESC").Order("id DESC")
 	if req.IncludeDeleted {
 		memberQuery = memberQuery.Unscoped()
 	}
 
-	// 8. 查询组织成员列表
+	// 8. 解析分页参数
+	pagination, paginated := ParsePagination(c)
+
+	// 9. 查询组织成员总数（仅分页时）
+	var total int64
+	if paginated {
+		countQuery := memberQuery.Model(&models.OrganizationMember{}).Session(&gorm.Session{})
+		if err := countQuery.Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "查询组织成员总数失败: "+err.Error(), nil))
+			return
+		}
+	}
+
+	// 10. 查询组织成员列表
+	if paginated {
+		memberQuery = memberQuery.Offset(pagination.Offset).Limit(pagination.Limit)
+	}
 	var members []models.OrganizationMember
 	if err := memberQuery.Preload("User").Find(&members).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "查询组织成员失败: "+err.Error(), nil))
@@ -320,10 +368,21 @@ func GetOrganizationMembers(c *gin.Context) {
 		})
 	}
 
-	// 10. 返回成功响应
+	// 11. 返回成功响应
+	if !paginated {
+		total = int64(len(memberResponses))
+	}
 	resp := GetOrganizationMembersResponse{
 		Members: memberResponses,
-		Total:   int64(len(memberResponses)),
+		Total:   total,
+	}
+	if paginated {
+		c.JSON(http.StatusOK, response.NewSuccessResponseWithMeta(resp, response.Meta{
+			Page:     pagination.Page,
+			PageSize: pagination.PageSize,
+			Total:    int(total),
+		}))
+		return
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
@@ -516,21 +575,44 @@ func DeleteOrganization(c *gin.Context) {
 		return
 	}
 
-	// 7. 在事务中级联软删除：组织成员、组织邀请、下属项目，最后软删除组织
+	// 7. 在事务中级联软删除：组织下项目全链路数据 + 组织自身
 	err := db.Transaction(func(tx *gorm.DB) error {
-		// 7.1 软删除该组织的所有成员
-		if err := tx.Where("organization_id = ?", organization.ID).Delete(&models.OrganizationMember{}).Error; err != nil {
+		projectIDs := tx.Model(&models.Project{}).Select("id").Where("organization_id = ?", organization.ID)
+		taskIDs := tx.Model(&models.Task{}).Select("id").Where("project_id IN (?)", projectIDs)
+
+		// 7.1 软删除该组织下所有项目的任务附件
+		if err := tx.Where("task_id IN (?)", taskIDs).Delete(&models.TaskAttachment{}).Error; err != nil {
 			return err
 		}
-		// 7.2 软删除该组织的所有邀请
-		if err := tx.Where("organization_id = ?", organization.ID).Delete(&models.OrganizationInvitation{}).Error; err != nil {
+		// 7.2 软删除该组织下所有项目的任务
+		if err := tx.Where("project_id IN (?)", projectIDs).Delete(&models.Task{}).Error; err != nil {
 			return err
 		}
-		// 7.3 软删除该组织下的所有项目
+		// 7.3 软删除该组织下所有项目的标签
+		if err := tx.Where("project_id IN (?)", projectIDs).Delete(&models.Tag{}).Error; err != nil {
+			return err
+		}
+		// 7.4 软删除该组织下所有项目的成员
+		if err := tx.Where("project_id IN (?)", projectIDs).Delete(&models.ProjectMember{}).Error; err != nil {
+			return err
+		}
+		// 7.5 软删除该组织下所有项目的邀请
+		if err := tx.Where("project_id IN (?)", projectIDs).Delete(&models.ProjectInvitation{}).Error; err != nil {
+			return err
+		}
+		// 7.6 软删除该组织下的所有项目
 		if err := tx.Where("organization_id = ?", organization.ID).Delete(&models.Project{}).Error; err != nil {
 			return err
 		}
-		// 7.4 软删除组织
+		// 7.7 软删除该组织的所有成员
+		if err := tx.Where("organization_id = ?", organization.ID).Delete(&models.OrganizationMember{}).Error; err != nil {
+			return err
+		}
+		// 7.8 软删除该组织的所有邀请
+		if err := tx.Where("organization_id = ?", organization.ID).Delete(&models.OrganizationInvitation{}).Error; err != nil {
+			return err
+		}
+		// 7.9 软删除组织
 		if err := tx.Delete(&organization).Error; err != nil {
 			return err
 		}
@@ -701,6 +783,14 @@ type JoinOrganizationRequest struct {
 	InviteCode string `json:"invite_code" binding:"required"` // 邀请码（必填）
 }
 
+var (
+	errOrganizationInviteInvalid = errors.New("organization invite invalid")
+	errOrganizationInviteExpired = errors.New("organization invite expired")
+	errOrganizationInviteUsed    = errors.New("organization invite used")
+	errOrganizationAlreadyMember = errors.New("organization already member")
+	errOrganizationNotFound      = errors.New("organization not found")
+)
+
 // JoinOrganizationResponse 加入组织响应结构
 type JoinOrganizationResponse struct {
 	ID               uint   `json:"id"`                // 成员关系ID
@@ -743,77 +833,68 @@ func JoinOrganization(c *gin.Context) {
 		return
 	}
 
-	// 4. 查询邀请记录
-	var invitation models.OrganizationInvitation
-	if err := db.Where("invite_code = ?", req.InviteCode).First(&invitation).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeOrganizationInviteInvalid, "邀请码无效", nil))
-			return
+	// 4. 在事务中校验邀请码并创建组织成员（并发安全）
+	var (
+		newMember    models.OrganizationMember
+		organization models.Organization
+	)
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// 4.1 锁定邀请码记录，防止并发超用
+		var invitation models.OrganizationInvitation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("invite_code = ?", req.InviteCode).
+			First(&invitation).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return errOrganizationInviteInvalid
+			}
+			return err
 		}
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "查询邀请记录失败: "+err.Error(), nil))
-		return
-	}
 
-	// 5. 验证邀请是否过期
-	if invitation.IsExpired() {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeOrganizationInviteExpired, "该邀请码已过期", nil))
-		return
-	}
-
-	// 6. 验证邀请是否已达到最大使用次数
-	if invitation.IsUsed() {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeOrganizationInviteUsed, "该邀请码已达到最大使用次数", nil))
-		return
-	}
-
-	// 7. 查询组织
-	var organization models.Organization
-	if err := db.First(&organization, invitation.OrganizationID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeOrganizationNotFound, "组织不存在", nil))
-			return
+		// 4.2 校验邀请码状态
+		if invitation.IsExpired() {
+			return errOrganizationInviteExpired
 		}
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "查询组织失败: "+err.Error(), nil))
-		return
-	}
+		if invitation.IsUsed() {
+			return errOrganizationInviteUsed
+		}
 
-	// 8. 检查用户是否已经是组织成员
-	var existingMember models.OrganizationMember
-	err := db.Where("organization_id = ? AND user_id = ?", organization.ID, userID).First(&existingMember).Error
-	if err == nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeOrganizationAlreadyMember, "您已经是该组织的成员", nil))
-		return
-	}
-	if err != gorm.ErrRecordNotFound {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "检查组织成员失败: "+err.Error(), nil))
-		return
-	}
+		// 4.3 查询组织
+		if err := tx.First(&organization, invitation.OrganizationID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return errOrganizationNotFound
+			}
+			return err
+		}
 
-	// 9. 在事务中创建组织成员并增加邀请使用计数
-	var newMember models.OrganizationMember
-	err = db.Transaction(func(tx *gorm.DB) error {
-		// 创建组织成员
+		// 4.4 创建组织成员（并发下唯一约束兜底）
 		newMember = models.OrganizationMember{
 			OrganizationID: organization.ID,
 			UserID:         userID,
 			Role:           invitation.Role,
 		}
 		if err := tx.Create(&newMember).Error; err != nil {
+			if isUniqueViolation(err, "uniq_org_user") {
+				return errOrganizationAlreadyMember
+			}
 			return err
 		}
 
-		// 增加邀请使用计数
-		invitation.UsedCount++
-		// 如果是首次使用，记录首次使用时间（用于兼容）
-		if invitation.UsedAt == nil {
-			now := time.Now()
-			invitation.UsedAt = &now
+		// 4.5 增加邀请码使用计数（条件更新避免并发超用）
+		now := time.Now()
+		updateResult := tx.Model(&models.OrganizationInvitation{}).
+			Where("id = ? AND used_count < max_uses", invitation.ID).
+			Updates(map[string]interface{}{
+				"used_count": gorm.Expr("used_count + 1"),
+				"used_at":    gorm.Expr("COALESCE(used_at, ?)", now),
+			})
+		if updateResult.Error != nil {
+			return updateResult.Error
 		}
-		if err := tx.Save(&invitation).Error; err != nil {
-			return err
+		if updateResult.RowsAffected == 0 {
+			return errOrganizationInviteUsed
 		}
 
-		// 将该用户在该组织下所有项目中的项目成员记录的 IsExternal 改为 false（若存在）
+		// 4.6 将该用户在该组织下所有项目中的项目成员记录的 IsExternal 改为 false（若存在）
 		subQuery := tx.Model(&models.Project{}).Select("id").Where("organization_id = ?", organization.ID)
 		if err := tx.Model(&models.ProjectMember{}).Where("user_id = ? AND project_id IN (?)", userID, subQuery).Update("is_external", false).Error; err != nil {
 			return err
@@ -823,7 +904,20 @@ func JoinOrganization(c *gin.Context) {
 	})
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationCreateFailed, "加入组织失败: "+err.Error(), nil))
+		switch {
+		case errors.Is(err, errOrganizationInviteInvalid):
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeOrganizationInviteInvalid, "邀请码无效", nil))
+		case errors.Is(err, errOrganizationInviteExpired):
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeOrganizationInviteExpired, "该邀请码已过期", nil))
+		case errors.Is(err, errOrganizationInviteUsed):
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeOrganizationInviteUsed, "该邀请码已达到最大使用次数", nil))
+		case errors.Is(err, errOrganizationAlreadyMember):
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeOrganizationAlreadyMember, "您已经是该组织的成员", nil))
+		case errors.Is(err, errOrganizationNotFound):
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeOrganizationNotFound, "组织不存在", nil))
+		default:
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationCreateFailed, "加入组织失败: "+err.Error(), nil))
+		}
 		return
 	}
 

@@ -147,6 +147,8 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/organizations" \
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | include_deleted | bool | 否 | 是否包含已删除的记录（默认false） |
+| page | int | 否 | 页码（默认1） |
+| page_size | int | 否 | 每页条数（默认50，最大200） |
 
 **请求示例**:
 
@@ -180,6 +182,11 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/organizations" \
       }
     ],
     "total": 1
+  },
+  "meta": {
+    "page": 1,
+    "page_size": 50,
+    "total": 1
   }
 }
 ```
@@ -190,6 +197,14 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/organizations" \
 |------|------|------|
 | organizations | array | 组织列表 |
 | total | int64 | 组织总数 |
+
+**分页元数据字段说明（meta）**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| page | int | 当前页码 |
+| page_size | int | 每页条数 |
+| total | int | 总记录数 |
 
 **组织对象字段说明**:
 
@@ -207,6 +222,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/organizations" \
 - `include_deleted` 参数用于查询包含已删除（软删除）的组织
 - 当 `include_deleted=true` 时，响应中的 `deleted_at` 字段会显示删除时间（如果组织已删除）
 - 默认情况下（`include_deleted=false`），只返回未删除的组织
+- 接口强制分页：未传 `page` / `page_size` 时，使用默认值 `page=1`、`page_size=50`
 
 ---
 
@@ -229,6 +245,8 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/organizations" \
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | include_deleted | bool | 否 | 是否包含已删除的记录（默认false） |
+| page | int | 否 | 页码（默认1） |
+| page_size | int | 否 | 每页条数（默认50，最大200） |
 
 **请求示例**:
 
@@ -271,6 +289,11 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/organizations/1/mem
       }
     ],
     "total": 2
+  },
+  "meta": {
+    "page": 1,
+    "page_size": 50,
+    "total": 2
   }
 }
 ```
@@ -281,6 +304,14 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/organizations/1/mem
 |------|------|------|
 | members | array | 组织成员列表 |
 | total | int64 | 成员总数 |
+
+**分页元数据字段说明（meta）**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| page | int | 当前页码 |
+| page_size | int | 每页条数 |
+| total | int | 总记录数 |
 
 **成员对象字段说明**:
 
@@ -293,6 +324,9 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/organizations/1/mem
 | avatar | string | 头像地址 |
 | created_at | string | 加入时间（ISO 8601格式） |
 | is_me | bool | 是否是当前用户自己 |
+
+**分页说明**:
+- 接口强制分页：未传 `page` / `page_size` 时，使用默认值 `page=1`、`page_size=50`
 
 **错误响应**:
 

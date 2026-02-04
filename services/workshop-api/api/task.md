@@ -748,9 +748,11 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tasks/batch" \
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | project_id | uint | 是 | 项目ID |
-| updated_after | string | 否 | 最后更新时间（UTC字符串格式，ISO 8601），如果提供此参数，只返回在此时间之后更新或创建的任务 |
+| updated_after | string | 否 | 最后更新时间（UTC字符串格式，ISO 8601），如果提供此参数，只返回在此时间之后更新的任务 |
 | father_id | uint | 否 | 父任务ID过滤。不提供：查询所有任务；为0：查询所有父任务ID为空的任务（顶级任务）；其他值：查询指定父任务ID的子任务 |
 | include_deleted | bool | 否 | 是否包含已删除的记录（默认false） |
+| page | int | 否 | 页码（默认1） |
+| page_size | int | 否 | 每页条数（默认50，最大200） |
 
 **请求示例**:
 
@@ -809,6 +811,11 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
       }
     ],
     "total": 2
+  },
+  "meta": {
+    "page": 1,
+    "page_size": 50,
+    "total": 2
   }
 }
 ```
@@ -820,10 +827,16 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
 | tasks | array | 任务列表 |
 | total | int64 | 任务总数 |
 
+**分页元数据字段说明（meta）**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| page | int | 当前页码 |
+| page_size | int | 每页条数 |
+| total | int | 总记录数 |
+
 **特殊说明**:
-- 如果提供了 `updated_after` 参数，将只返回满足以下条件之一的任务：
-  - 任务的 `updated_at` 时间晚于指定时间
-  - 任务的 `created_at` 时间晚于指定时间
+- 如果提供了 `updated_after` 参数，将只返回 `updated_at` 晚于指定时间的任务
 - `updated_after` 参数必须是有效的 UTC 时间字符串（ISO 8601 格式），例如：`2024-01-01T12:00:00Z`
 - `father_id` 参数的使用方式：
   - 不提供：查询所有任务
@@ -833,6 +846,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
 - 当 `include_deleted=true` 时，响应中的 `deleted_at` 字段会显示删除时间（如果任务已删除）
 - 默认情况下（`include_deleted=false`），只返回未删除的任务
 - 多个查询参数可以组合使用，例如：`?project_id=1&updated_after=2024-01-01T12:00:00Z&father_id=0&include_deleted=true`
+- 接口强制分页：未传 `page` / `page_size` 时，使用默认值 `page=1`、`page_size=50`
 
 **查询包含已删除的任务**:
 
@@ -1258,6 +1272,8 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments"
 |------|------|------|------|
 | task_id | uint | 是 | 任务ID |
 | include_deleted | bool | 否 | 是否包含已删除的记录（默认false） |
+| page | int | 否 | 页码（默认1） |
+| page_size | int | 否 | 每页条数（默认50，最大200） |
 
 **请求示例**:
 
@@ -1306,6 +1322,11 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments?t
       }
     ],
     "total": 2
+  },
+  "meta": {
+    "page": 1,
+    "page_size": 50,
+    "total": 2
   }
 }
 ```
@@ -1316,6 +1337,17 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments?t
 |------|------|------|
 | attachments | array | 附件列表 |
 | total | int64 | 附件总数 |
+
+**分页元数据字段说明（meta）**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| page | int | 当前页码 |
+| page_size | int | 每页条数 |
+| total | int | 总记录数 |
+
+**分页说明**:
+- 接口强制分页：未传 `page` / `page_size` 时，使用默认值 `page=1`、`page_size=50`
 
 **查询包含已删除的附件**:
 

@@ -36,6 +36,8 @@ type TagResponse struct {
 // GetTagsRequest 查询标签请求结构
 type GetTagsRequest struct {
 	IncludeDeleted bool `form:"include_deleted"` // 是否包含已删除的记录（可选，默认false）
+	Page           int  `form:"page"`            // 页码（可选，默认1）
+	PageSize       int  `form:"page_size"`       // 每页条数（可选，默认50，最大200）
 }
 
 // GetTags 查询项目的所有标签
@@ -83,12 +85,28 @@ func GetTags(c *gin.Context) {
 	}
 
 	// 6. 构建查询条件
-	query := db.Where("project_id = ?", projectID).Order("created_at DESC")
+	query := db.Where("project_id = ?", projectID).Order("created_at DESC").Order("id DESC")
 	if req.IncludeDeleted {
 		query = query.Unscoped()
 	}
 
-	// 7. 查询项目的所有标签
+	// 7. 解析分页参数
+	pagination, paginated := ParsePagination(c)
+
+	// 8. 查询标签总数（仅分页时）
+	var total int64
+	if paginated {
+		countQuery := query.Model(&models.Tag{}).Session(&gorm.Session{})
+		if err := countQuery.Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTagQueryFailed, "查询标签总数失败: "+err.Error(), nil))
+			return
+		}
+	}
+
+	// 9. 查询项目的所有标签
+	if paginated {
+		query = query.Offset(pagination.Offset).Limit(pagination.Limit)
+	}
 	var tags []models.Tag
 	if err := query.Find(&tags).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTagQueryFailed, "查询标签失败: "+err.Error(), nil))
@@ -114,6 +132,14 @@ func GetTags(c *gin.Context) {
 		}
 	}
 
+	if paginated {
+		c.JSON(http.StatusOK, response.NewSuccessResponseWithMeta(tagResponses, response.Meta{
+			Page:     pagination.Page,
+			PageSize: pagination.PageSize,
+			Total:    int(total),
+		}))
+		return
+	}
 	resp := tagResponses
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
@@ -184,6 +210,10 @@ func CreateTag(c *gin.Context) {
 		Name:      req.Name,
 	}
 	if err := db.Create(&tag).Error; err != nil {
+		if isUniqueViolation(err, "uniq_project_tag") {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "该标签名称已存在", nil))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTagCreateFailed, "创建标签失败: "+err.Error(), nil))
 		return
 	}
@@ -270,6 +300,10 @@ func UpdateTag(c *gin.Context) {
 	// 8. 更新标签
 	tag.Name = req.Name
 	if err := db.Save(&tag).Error; err != nil {
+		if isUniqueViolation(err, "uniq_project_tag") {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "该标签名称已存在", nil))
+			return
+		}
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTagUpdateFailed, "更新标签失败: "+err.Error(), nil))
 		return
 	}

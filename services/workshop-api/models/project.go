@@ -37,14 +37,14 @@ func (Project) TableName() string {
 // 替代原来的 teams 和 user_teams 表
 // 用户通过此表直接关联到项目，并包含角色信息
 type ProjectMember struct {
-	ID        uint           `json:"id" gorm:"primaryKey;autoIncrement"`                     // 主键
-	ProjectID uint           `json:"project_id" gorm:"not null;index"`                       // 外键：项目ID
-	UserID    uint           `json:"user_id" gorm:"not null;index"`                          // 外键：用户ID
-	Role       string         `json:"role" gorm:"type:varchar(50);not null;default:'member'"` // 角色：owner, admin, member等
-	IsExternal bool           `json:"is_external" gorm:"not null;default:false"`             // 是否为组织外部成员，默认为false
-	CreatedAt  time.Time      `json:"created_at" gorm:"autoCreateTime"`                       // 加入时间
-	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                       // 更新时间
-	DeletedAt gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`     // 软删除时间
+	ID         uint           `json:"id" gorm:"primaryKey;autoIncrement"`                                                                // 主键
+	ProjectID  uint           `json:"project_id" gorm:"not null;index;uniqueIndex:uniq_project_user,priority:1,where:delete_at IS NULL"` // 外键：项目ID
+	UserID     uint           `json:"user_id" gorm:"not null;index;uniqueIndex:uniq_project_user,priority:2,where:delete_at IS NULL"`    // 外键：用户ID
+	Role       string         `json:"role" gorm:"type:varchar(50);not null;default:'member'"`                                            // 角色：owner, admin, member等
+	IsExternal bool           `json:"is_external" gorm:"not null;default:false"`                                                         // 是否为组织外部成员，默认为false
+	CreatedAt  time.Time      `json:"created_at" gorm:"autoCreateTime"`                                                                  // 加入时间
+	UpdatedAt  time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                                                                  // 更新时间
+	DeletedAt  gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at"`                                                // 软删除时间
 
 	Project Project `json:"project,omitempty" gorm:"foreignKey:ProjectID;references:ID"`
 	User    User    `json:"user,omitempty" gorm:"foreignKey:UserID;references:ID"`

@@ -825,6 +825,8 @@ type GetTasksRequest struct {
 	UpdatedAfter   string `form:"updated_after"`                 // 更新时间过滤（可选，ISO 8601格式）
 	FatherID       *uint  `form:"father_id"`                     // 父任务ID过滤（可选）
 	IncludeDeleted bool   `form:"include_deleted"`               // 是否包含已删除的记录（可选，默认false）
+	Page           int    `form:"page"`                          // 页码（可选，默认1）
+	PageSize       int    `form:"page_size"`                     // 每页条数（可选，默认50，最大200）
 }
 
 // TaskResponse 任务响应结构
@@ -916,7 +918,7 @@ func GetTasks(c *gin.Context) {
 
 	// 如果提供了updated_after，添加时间过滤条件
 	if updatedAfter != nil {
-		baseQuery = baseQuery.Where("(updated_at > ? OR created_at > ?)", *updatedAfter, *updatedAfter)
+		baseQuery = baseQuery.Where("updated_at > ?", *updatedAfter)
 	}
 
 	// 如果提供了father_id，添加父任务ID过滤条件
@@ -930,21 +932,31 @@ func GetTasks(c *gin.Context) {
 		}
 	}
 
-	// 7. 查询任务总数
+	// 7. 解析分页参数
+	pagination, paginated := ParsePagination(c)
+
+	// 8. 查询任务总数（仅分页时）
 	var total int64
-	if err := baseQuery.Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务总数失败: "+err.Error(), nil))
-		return
+	if paginated {
+		countQuery := baseQuery.Session(&gorm.Session{})
+		if err := countQuery.Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务总数失败: "+err.Error(), nil))
+			return
+		}
 	}
 
-	// 8. 查询任务列表
+	// 9. 查询任务列表
+	baseQuery = baseQuery.Order("updated_at DESC").Order("id DESC")
+	if paginated {
+		baseQuery = baseQuery.Offset(pagination.Offset).Limit(pagination.Limit)
+	}
 	var tasks []models.Task
 	if err := baseQuery.Find(&tasks).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
 		return
 	}
 
-	// 9. 转换为响应格式
+	// 10. 转换为响应格式
 	taskResponses := make([]TaskResponse, 0, len(tasks))
 	for _, task := range tasks {
 		var completionAt *string
@@ -976,10 +988,21 @@ func GetTasks(c *gin.Context) {
 		})
 	}
 
-	// 10. 返回成功响应
+	// 11. 返回成功响应
+	if !paginated {
+		total = int64(len(taskResponses))
+	}
 	resp := GetTasksResponse{
 		Tasks: taskResponses,
 		Total: total,
+	}
+	if paginated {
+		c.JSON(http.StatusOK, response.NewSuccessResponseWithMeta(resp, response.Meta{
+			Page:     pagination.Page,
+			PageSize: pagination.PageSize,
+			Total:    int(total),
+		}))
+		return
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
@@ -1475,6 +1498,8 @@ func CreateTaskAttachment(c *gin.Context) {
 type GetTaskAttachmentsRequest struct {
 	TaskID         uint `form:"task_id" binding:"required"` // 任务ID（必填）
 	IncludeDeleted bool `form:"include_deleted"`            // 是否包含已删除的记录（可选，默认false）
+	Page           int  `form:"page"`                       // 页码（可选，默认1）
+	PageSize       int  `form:"page_size"`                  // 每页条数（可选，默认50，最大200）
 }
 
 // TaskAttachmentResponse 任务附件响应结构
@@ -1542,19 +1567,28 @@ func GetTaskAttachments(c *gin.Context) {
 	}
 
 	// 6. 构建查询条件
-	query := db.Where("task_id = ?", req.TaskID).Order("created_at DESC")
+	query := db.Where("task_id = ?", req.TaskID).Order("created_at DESC").Order("id DESC")
 	if req.IncludeDeleted {
 		query = query.Unscoped()
 	}
 
-	// 7. 查询附件总数
+	// 7. 解析分页参数
+	pagination, paginated := ParsePagination(c)
+
+	// 8. 查询附件总数（仅分页时）
 	var total int64
-	if err := query.Model(&models.TaskAttachment{}).Count(&total).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentQueryFailed, "查询附件总数失败: "+err.Error(), nil))
-		return
+	if paginated {
+		countQuery := query.Model(&models.TaskAttachment{}).Session(&gorm.Session{})
+		if err := countQuery.Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentQueryFailed, "查询附件总数失败: "+err.Error(), nil))
+			return
+		}
 	}
 
-	// 8. 查询附件列表
+	// 9. 查询附件列表
+	if paginated {
+		query = query.Offset(pagination.Offset).Limit(pagination.Limit)
+	}
 	var attachments []models.TaskAttachment
 	if err := query.Find(&attachments).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentQueryFailed, "查询附件失败: "+err.Error(), nil))
@@ -1583,9 +1617,20 @@ func GetTaskAttachments(c *gin.Context) {
 	}
 
 	// 10. 返回成功响应
+	if !paginated {
+		total = int64(len(attachmentResponses))
+	}
 	resp := GetTaskAttachmentsResponse{
 		Attachments: attachmentResponses,
 		Total:       total,
+	}
+	if paginated {
+		c.JSON(http.StatusOK, response.NewSuccessResponseWithMeta(resp, response.Meta{
+			Page:     pagination.Page,
+			PageSize: pagination.PageSize,
+			Total:    int(total),
+		}))
+		return
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }

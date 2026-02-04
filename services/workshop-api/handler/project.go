@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // CreateProjectRequest 创建项目请求结构
@@ -68,6 +70,29 @@ func CreateProject(c *gin.Context) {
 	userID, ok := middleware.RequireUserID(c)
 	if !ok {
 		return
+	}
+
+	// 3.1 如果指定了组织ID，验证当前用户为组织成员
+	if req.OrganizationID != nil {
+		var organization models.Organization
+		if err := db.First(&organization, *req.OrganizationID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeOrganizationNotFound, "组织不存在", nil))
+				return
+			}
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "查询组织失败: "+err.Error(), nil))
+			return
+		}
+
+		var orgMember models.OrganizationMember
+		if err := db.Where("organization_id = ? AND user_id = ?", organization.ID, userID).First(&orgMember).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeOrganizationNotMember, "您不是该组织的成员，无法创建项目", nil))
+				return
+			}
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeOrganizationQueryFailed, "验证组织成员身份失败: "+err.Error(), nil))
+			return
+		}
 	}
 
 	// 4. 在事务中创建项目和项目成员
@@ -158,6 +183,8 @@ type GetUserProjectsResponse struct {
 type GetUserProjectsRequest struct {
 	IncludeDeleted bool  `form:"include_deleted"` // 是否包含已删除的记录（可选，默认false）
 	OrganizationID *uint `form:"organization_id"` // 组织ID（可选，为空则查询组织ID为空的项目，否则查询指定组织ID的项目）
+	Page           int   `form:"page"`            // 页码（可选，默认1）
+	PageSize       int   `form:"page_size"`       // 每页条数（可选，默认50，最大200）
 }
 
 // GetUserProjects 根据用户ID查询所有参与的项目
@@ -192,45 +219,61 @@ func GetUserProjects(c *gin.Context) {
 	}
 
 	// 4. 构建查询条件
-	query := db.Where("user_id = ?", userID)
+	query := db.Model(&models.Project{}).
+		Joins("JOIN project_members pm ON pm.project_id = projects.id").
+		Where("pm.user_id = ?", userID)
 	if req.IncludeDeleted {
 		query = query.Unscoped()
+	} else {
+		query = query.Where("pm.delete_at IS NULL")
 	}
 
-	// 5. 查询用户参与的所有项目（通过project_members表）
-	var projectMembers []models.ProjectMember
-	if err := query.Preload("Project").Find(&projectMembers).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询项目成员关系失败: "+err.Error(), nil))
-		return
+	// 根据组织ID过滤项目
+	if req.OrganizationID == nil || *req.OrganizationID == 0 {
+		// 如果组织ID为空或为0：包含无组织项目 + 用户在该项目中为外部成员的项目
+		query = query.Where("(projects.organization_id IS NULL OR pm.is_external = ?)", true)
+	} else {
+		// 如果指定了组织ID（且不为0），只查询该组织ID的项目
+		query = query.Where("projects.organization_id = ?", *req.OrganizationID)
 	}
 
-	// 6. 提取项目ID列表，并根据组织ID过滤
-	projectIDs := make([]uint, 0, len(projectMembers))
-	projectMap := make(map[uint]models.Project)
-	for _, pm := range projectMembers {
-		// 根据组织ID过滤项目
-		if req.OrganizationID == nil || *req.OrganizationID == 0 {
-			// 如果组织ID为空或为0：包含无组织项目 + 用户在该项目中为外部成员的项目
-			if pm.Project.OrganizationID == nil || pm.IsExternal {
-				projectIDs = append(projectIDs, pm.ProjectID)
-				projectMap[pm.ProjectID] = pm.Project
-			}
-		} else {
-			// 如果指定了组织ID（且不为0），只查询该组织ID的项目
-			if pm.Project.OrganizationID != nil && *pm.Project.OrganizationID == *req.OrganizationID {
-				projectIDs = append(projectIDs, pm.ProjectID)
-				projectMap[pm.ProjectID] = pm.Project
-			}
+	// 5. 解析分页参数
+	pagination, paginated := ParsePagination(c)
+
+	// 6. 查询项目总数（仅分页时）
+	var total int64
+	if paginated {
+		countQuery := query.Distinct("projects.id").Session(&gorm.Session{})
+		if err := countQuery.Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询项目总数失败: "+err.Error(), nil))
+			return
 		}
 	}
 
-	// 7. 构建成员查询条件
-	memberQuery := db.Where("project_id IN ?", projectIDs)
+	// 7. 查询项目列表
+	query = query.Distinct().Order("projects.updated_at DESC").Order("projects.id DESC")
+	if paginated {
+		query = query.Offset(pagination.Offset).Limit(pagination.Limit)
+	}
+	var projects []models.Project
+	if err := query.Find(&projects).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询项目失败: "+err.Error(), nil))
+		return
+	}
+
+	// 8. 提取项目ID列表
+	projectIDs := make([]uint, 0, len(projects))
+	for _, project := range projects {
+		projectIDs = append(projectIDs, project.ID)
+	}
+
+	// 9. 构建成员查询条件
+	memberQuery := db.Where("project_id IN ?", projectIDs).Order("created_at DESC").Order("id DESC")
 	if req.IncludeDeleted {
 		memberQuery = memberQuery.Unscoped()
 	}
 
-	// 8. 查询所有项目的成员信息
+	// 10. 查询所有项目的成员信息
 	var allMembers []models.ProjectMember
 	if len(projectIDs) > 0 {
 		if err := memberQuery.Preload("User").Find(&allMembers).Error; err != nil {
@@ -239,15 +282,15 @@ func GetUserProjects(c *gin.Context) {
 		}
 	}
 
-	// 9. 按项目ID分组成员
+	// 11. 按项目ID分组成员
 	membersByProject := make(map[uint][]models.ProjectMember)
 	for _, member := range allMembers {
 		membersByProject[member.ProjectID] = append(membersByProject[member.ProjectID], member)
 	}
 
-	// 10. 构建响应
-	projectResponses := make([]ProjectResponse, 0, len(projectMap))
-	for _, project := range projectMap {
+	// 12. 构建响应
+	projectResponses := make([]ProjectResponse, 0, len(projects))
+	for _, project := range projects {
 		// 转换项目成员
 		members := membersByProject[project.ID]
 		memberResponses := make([]ProjectMemberResponse, 0, len(members))
@@ -282,10 +325,21 @@ func GetUserProjects(c *gin.Context) {
 		})
 	}
 
-	// 11. 返回成功响应
+	// 13. 返回成功响应
+	if !paginated {
+		total = int64(len(projectResponses))
+	}
 	resp := GetUserProjectsResponse{
 		Projects: projectResponses,
-		Total:    int64(len(projectResponses)),
+		Total:    total,
+	}
+	if paginated {
+		c.JSON(http.StatusOK, response.NewSuccessResponseWithMeta(resp, response.Meta{
+			Page:     pagination.Page,
+			PageSize: pagination.PageSize,
+			Total:    int(total),
+		}))
+		return
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
@@ -294,7 +348,7 @@ func GetUserProjects(c *gin.Context) {
 type UpdateProjectRequest struct {
 	Name           *string `json:"name,omitempty"`            // 项目名称（可选）
 	GitURL         *string `json:"git_url,omitempty"`         // Git地址（可选）
-	OrganizationID *uint   `json:"organization_id,omitempty"` // 组织ID（可选）；临时字段，后续将移除
+	OrganizationID *uint   `json:"organization_id,omitempty"` // 组织ID（可选）；临时迁移字段，后续将移除
 }
 
 // UpdateProjectResponse 更新项目响应结构
@@ -385,7 +439,8 @@ func UpdateProject(c *gin.Context) {
 		updates["git_url"] = *req.GitURL
 	}
 	if req.OrganizationID != nil {
-		updates["organization_id"] = *req.OrganizationID // 临时字段，后续将移除
+		// 临时迁移字段：当前不校验组织成员，后续将移除
+		updates["organization_id"] = *req.OrganizationID
 	}
 
 	// 9. 如果没有要更新的字段，直接返回当前项目信息
@@ -582,6 +637,24 @@ func AddProjectMember(c *gin.Context) {
 		Role:      models.ProjectRoleMember,
 	}
 	if err := db.Create(&newMember).Error; err != nil {
+		if isUniqueViolation(err, "uniq_project_user") {
+			// 并发场景下可能已被添加，返回幂等成功
+			var existing models.ProjectMember
+			if err := db.Where("project_id = ? AND user_id = ?", project.ID, orgMember.UserID).First(&existing).Error; err == nil {
+				resp := AddProjectMemberResponse{
+					ID:         existing.ID,
+					ProjectID:  existing.ProjectID,
+					UserID:     existing.UserID,
+					Role:       existing.Role,
+					Username:   orgMember.User.Username,
+					Avatar:     orgMember.User.Avatar,
+					CreatedAt:  existing.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+					IsExternal: existing.IsExternal,
+				}
+				c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
+				return
+			}
+		}
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectCreateFailed, "添加项目成员失败: "+err.Error(), nil))
 		return
 	}
@@ -755,6 +828,14 @@ type JoinProjectRequest struct {
 	InviteCode string `json:"invite_code" binding:"required"` // 邀请码（必填）
 }
 
+var (
+	errProjectInviteInvalid = errors.New("project invite invalid")
+	errProjectInviteExpired = errors.New("project invite expired")
+	errProjectInviteUsed    = errors.New("project invite used")
+	errProjectAlreadyMember = errors.New("project already member")
+	errProjectNotFound      = errors.New("project not found")
+)
+
 // JoinProjectResponse 加入项目响应结构
 type JoinProjectResponse struct {
 	ID          uint   `json:"id"`           // 成员关系ID
@@ -799,69 +880,53 @@ func JoinProject(c *gin.Context) {
 		return
 	}
 
-	// 4. 查询邀请记录
-	var invitation models.ProjectInvitation
-	if err := db.Where("invite_code = ?", req.InviteCode).First(&invitation).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeProjectInviteInvalid, "邀请码无效", nil))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询邀请记录失败: "+err.Error(), nil))
-		return
-	}
-
-	// 5. 验证邀请是否过期
-	if invitation.IsExpired() {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectInviteExpired, "该邀请码已过期", nil))
-		return
-	}
-
-	// 6. 验证邀请是否已达到最大使用次数
-	if invitation.IsUsed() {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectInviteUsed, "该邀请码已达到最大使用次数", nil))
-		return
-	}
-
-	// 7. 查询项目
-	var project models.Project
-	if err := db.First(&project, invitation.ProjectID).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeProjectNotFound, "项目不存在", nil))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询项目失败: "+err.Error(), nil))
-		return
-	}
-
-	// 8. 检查用户是否已经是项目成员
-	var existingMember models.ProjectMember
-	err := db.Where("project_id = ? AND user_id = ?", project.ID, userID).First(&existingMember).Error
-	if err == nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectAlreadyMember, "您已经是该项目的成员", nil))
-		return
-	}
-	if err != gorm.ErrRecordNotFound {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "检查项目成员失败: "+err.Error(), nil))
-		return
-	}
-
-	// 8.1 若项目有关联组织，检查用户是否为组织成员，非组织成员则视为外部成员
-	isExternal := false
-	if project.OrganizationID != nil {
-		var orgMember models.OrganizationMember
-		err := db.Where("organization_id = ? AND user_id = ?", *project.OrganizationID, userID).First(&orgMember).Error
-		if err != nil {
+	// 4. 在事务中校验邀请码并创建项目成员（并发安全）
+	var (
+		newMember models.ProjectMember
+		project   models.Project
+	)
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// 4.1 锁定邀请码记录，防止并发超用
+		var invitation models.ProjectInvitation
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("invite_code = ?", req.InviteCode).
+			First(&invitation).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
-				isExternal = true
+				return errProjectInviteInvalid
 			}
-			// 其他查询错误不改变 isExternal，保持 false
+			return err
 		}
-	}
 
-	// 9. 在事务中创建项目成员并增加邀请使用计数
-	var newMember models.ProjectMember
-	err = db.Transaction(func(tx *gorm.DB) error {
-		// 创建项目成员
+		// 4.2 校验邀请码状态
+		if invitation.IsExpired() {
+			return errProjectInviteExpired
+		}
+		if invitation.IsUsed() {
+			return errProjectInviteUsed
+		}
+
+		// 4.3 查询项目
+		if err := tx.First(&project, invitation.ProjectID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return errProjectNotFound
+			}
+			return err
+		}
+
+		// 4.4 若项目有关联组织，检查用户是否为组织成员，非组织成员则视为外部成员
+		isExternal := false
+		if project.OrganizationID != nil {
+			var orgMember models.OrganizationMember
+			err := tx.Where("organization_id = ? AND user_id = ?", *project.OrganizationID, userID).First(&orgMember).Error
+			if err != nil {
+				if err == gorm.ErrRecordNotFound {
+					isExternal = true
+				}
+				// 其他查询错误不改变 isExternal，保持 false
+			}
+		}
+
+		// 4.5 创建项目成员（并发下唯一约束兜底）
 		newMember = models.ProjectMember{
 			ProjectID:  project.ID,
 			UserID:     userID,
@@ -869,25 +934,45 @@ func JoinProject(c *gin.Context) {
 			IsExternal: isExternal,
 		}
 		if err := tx.Create(&newMember).Error; err != nil {
+			if isUniqueViolation(err, "uniq_project_user") {
+				return errProjectAlreadyMember
+			}
 			return err
 		}
 
-		// 增加邀请使用计数
-		invitation.UsedCount++
-		// 如果是首次使用，记录首次使用时间（用于兼容）
-		if invitation.UsedAt == nil {
-			now := time.Now()
-			invitation.UsedAt = &now
+		// 4.6 增加邀请使用计数（条件更新避免并发超用）
+		now := time.Now()
+		updateResult := tx.Model(&models.ProjectInvitation{}).
+			Where("id = ? AND used_count < max_uses", invitation.ID).
+			Updates(map[string]interface{}{
+				"used_count": gorm.Expr("used_count + 1"),
+				"used_at":    gorm.Expr("COALESCE(used_at, ?)", now),
+			})
+		if updateResult.Error != nil {
+			return updateResult.Error
 		}
-		if err := tx.Save(&invitation).Error; err != nil {
-			return err
+		if updateResult.RowsAffected == 0 {
+			return errProjectInviteUsed
 		}
 
 		return nil
 	})
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectCreateFailed, "加入项目失败: "+err.Error(), nil))
+		switch {
+		case errors.Is(err, errProjectInviteInvalid):
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeProjectInviteInvalid, "邀请码无效", nil))
+		case errors.Is(err, errProjectInviteExpired):
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectInviteExpired, "该邀请码已过期", nil))
+		case errors.Is(err, errProjectInviteUsed):
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectInviteUsed, "该邀请码已达到最大使用次数", nil))
+		case errors.Is(err, errProjectAlreadyMember):
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectAlreadyMember, "您已经是该项目的成员", nil))
+		case errors.Is(err, errProjectNotFound):
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeProjectNotFound, "项目不存在", nil))
+		default:
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectCreateFailed, "加入项目失败: "+err.Error(), nil))
+		}
 		return
 	}
 
@@ -1207,6 +1292,8 @@ func DeleteProjectMember(c *gin.Context) {
 // GetOrganizationProjectsRequest 查询组织项目请求结构
 type GetOrganizationProjectsRequest struct {
 	OrganizationID uint `form:"organization_id" binding:"required"` // 组织ID（必填）
+	Page           int  `form:"page"`                               // 页码（可选，默认1）
+	PageSize       int  `form:"page_size"`                          // 每页条数（可选，默认50，最大200）
 }
 
 // GetOrganizationProjectsResponse 查询组织项目响应结构
@@ -1262,20 +1349,37 @@ func GetOrganizationProjects(c *gin.Context) {
 		return
 	}
 
-	// 5. 查询该组织下的所有项目
+	// 5. 解析分页参数
+	pagination, paginated := ParsePagination(c)
+
+	// 6. 查询组织项目总数（仅分页时）
+	var total int64
+	if paginated {
+		countQuery := db.Model(&models.Project{}).Where("organization_id = ?", req.OrganizationID).Session(&gorm.Session{})
+		if err := countQuery.Count(&total).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询组织项目总数失败: "+err.Error(), nil))
+			return
+		}
+	}
+
+	// 7. 查询该组织下的所有项目
+	query := db.Where("organization_id = ?", req.OrganizationID).Order("updated_at DESC").Order("id DESC")
+	if paginated {
+		query = query.Offset(pagination.Offset).Limit(pagination.Limit)
+	}
 	var projects []models.Project
-	if err := db.Where("organization_id = ?", req.OrganizationID).Find(&projects).Error; err != nil {
+	if err := query.Find(&projects).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询组织项目失败: "+err.Error(), nil))
 		return
 	}
 
-	// 6. 提取项目ID列表
+	// 8. 提取项目ID列表
 	projectIDs := make([]uint, 0, len(projects))
 	for _, project := range projects {
 		projectIDs = append(projectIDs, project.ID)
 	}
 
-	// 7. 查询所有项目的成员信息
+	// 9. 查询所有项目的成员信息
 	var allMembers []models.ProjectMember
 	if len(projectIDs) > 0 {
 		if err := db.Where("project_id IN ?", projectIDs).Preload("User").Find(&allMembers).Error; err != nil {
@@ -1284,13 +1388,13 @@ func GetOrganizationProjects(c *gin.Context) {
 		}
 	}
 
-	// 8. 按项目ID分组成员
+	// 10. 按项目ID分组成员
 	membersByProject := make(map[uint][]models.ProjectMember)
 	for _, member := range allMembers {
 		membersByProject[member.ProjectID] = append(membersByProject[member.ProjectID], member)
 	}
 
-	// 9. 构建响应
+	// 11. 构建响应
 	projectResponses := make([]ProjectResponse, 0, len(projects))
 	for _, project := range projects {
 		// 转换项目成员
@@ -1327,10 +1431,21 @@ func GetOrganizationProjects(c *gin.Context) {
 		})
 	}
 
-	// 10. 返回成功响应
+	// 12. 返回成功响应
+	if !paginated {
+		total = int64(len(projectResponses))
+	}
 	resp := GetOrganizationProjectsResponse{
 		Projects: projectResponses,
-		Total:    int64(len(projectResponses)),
+		Total:    total,
+	}
+	if paginated {
+		c.JSON(http.StatusOK, response.NewSuccessResponseWithMeta(resp, response.Meta{
+			Page:     pagination.Page,
+			PageSize: pagination.PageSize,
+			Total:    int(total),
+		}))
+		return
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }

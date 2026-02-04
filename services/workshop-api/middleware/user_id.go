@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"todo/models"
+	"todo/response"
 
 	"github.com/gin-gonic/gin"
 )
@@ -23,7 +24,7 @@ func ExtractUserID() gin.HandlerFunc {
 		headerInfo := GetHeaderInfo(c)
 		if headerInfo != nil && headerInfo.UserID != "" {
 			var user models.User
-			if err := db.Where("uuid = ?", headerInfo.UserID).First(&user).Error; err == nil {
+			if err := db.Select("id").Where("uuid = ?", headerInfo.UserID).First(&user).Error; err == nil {
 				if user.ID != 0 {
 					c.Set(userIDKey, user.ID)
 				}
@@ -55,9 +56,7 @@ func GetUserID(c *gin.Context) (uint, bool) {
 func RequireUserID(c *gin.Context) (uint, bool) {
 	userID, ok := GetUserID(c)
 	if !ok {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "缺少用户ID",
-		})
+		c.JSON(http.StatusUnauthorized, response.NewErrorResponse(response.CodeUnauthorized, "缺少用户ID", nil))
 		return 0, false
 	}
 	return userID, true
