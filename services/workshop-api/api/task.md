@@ -341,6 +341,14 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tasks/$TASK_ID" \
 |------|------|------|------|
 | project_id | uint | 是 | 项目ID |
 | updated_after | string | 否 | 最后更新时间（UTC字符串格式，ISO 8601），如果提供此参数，只返回在此时间之后更新的任务 |
+| state | string | 否 | 任务状态过滤（可多选，重复参数或逗号分隔） |
+| creator_id | uint | 否 | 创建者ID过滤（可多选，重复参数或逗号分隔） |
+| executor_id | uint | 否 | 执行者ID过滤（可多选，重复参数或逗号分隔） |
+| tags | string | 否 | 标签过滤（可多选，匹配任一标签） |
+| priority | int | 否 | 优先级过滤（可多选，重复参数或逗号分隔） |
+| start_time | string | 否 | 创建时间开始（UTC字符串格式，ISO 8601） |
+| end_time | string | 否 | 创建时间结束（UTC字符串格式，ISO 8601） |
+| search_key | string | 否 | 关键字搜索（任务内容模糊匹配） |
 | father_id | uint | 否 | 父任务ID过滤。不提供：查询所有任务；为0：查询所有父任务ID为空的任务（顶级任务）；其他值：查询指定父任务ID的子任务 |
 | include_deleted | bool | 否 | 是否包含已删除的记录（默认false） |
 | page | int | 否 | 页码（默认1） |
@@ -430,6 +438,9 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
 **特殊说明**:
 - 如果提供了 `updated_after` 参数，将只返回 `updated_at` 晚于指定时间的任务
 - `updated_after` 参数必须是有效的 UTC 时间字符串（ISO 8601 格式），例如：`2024-01-01T12:00:00Z`
+- `start_time` / `end_time` 过滤任务创建时间（`created_at`）；当两者同时提供时，只返回处于该时间段内的任务
+- `state` / `creator_id` / `executor_id` / `tags` / `priority` 支持多选（重复参数或逗号分隔）
+- `search_key` 仅对任务内容进行模糊匹配
 - `father_id` 参数的使用方式：
   - 不提供：查询所有任务
   - 为0：查询所有父任务ID为空的任务（顶级任务）
@@ -437,7 +448,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
 - `include_deleted` 参数用于查询包含已删除（软删除）的任务
 - 当 `include_deleted=true` 时，响应中的 `deleted_at` 字段会显示删除时间（如果任务已删除）
 - 默认情况下（`include_deleted=false`），只返回未删除的任务
-- 多个查询参数可以组合使用，例如：`?project_id=1&updated_after=2024-01-01T12:00:00Z&father_id=0&include_deleted=true`
+- 多个查询参数可以组合使用，例如：`?project_id=1&state=pending&state=completed&creator_id=10&start_time=2024-01-01T00:00:00Z&end_time=2024-01-31T23:59:59Z`
 - 接口强制分页：未传 `page` / `page_size` 时，使用默认值 `page=1`、`page_size=50`
 
 **查询包含已删除的任务**:
