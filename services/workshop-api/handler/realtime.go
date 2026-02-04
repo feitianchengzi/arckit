@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"todo/middleware"
@@ -20,10 +21,35 @@ const (
 	wsPingPeriod = (wsPongWait * 9) / 10
 )
 
+const wsAuthSubprotocolPrefix = "nebula-auth."
+
 var wsUpgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return realtime.IsOriginAllowed(r.Header.Get("Origin"))
 	},
+}
+
+func websocketSubprotocols(r *http.Request) []string {
+	requested := websocket.Subprotocols(r)
+	if len(requested) == 0 {
+		return nil
+	}
+
+	protocols := make([]string, 0, len(requested))
+	for _, protocol := range requested {
+		protocol = strings.TrimSpace(protocol)
+		if protocol == "" {
+			continue
+		}
+		if strings.HasPrefix(protocol, wsAuthSubprotocolPrefix) {
+			continue
+		}
+		protocols = append(protocols, protocol)
+	}
+	if len(protocols) == 0 {
+		return nil
+	}
+	return protocols
 }
 
 // ConnectProjectWebsocket upgrades the connection and joins the project room.
@@ -58,7 +84,9 @@ func ConnectProjectWebsocket(c *gin.Context) {
 		return
 	}
 
-	conn, err := wsUpgrader.Upgrade(c.Writer, c.Request, nil)
+	upgrader := wsUpgrader
+	upgrader.Subprotocols = websocketSubprotocols(c.Request)
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		return
 	}

@@ -6,6 +6,18 @@ const { randomBytes } = require("crypto");
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:8081/workshop/v1";
 const WS_BASE_URL = BASE_URL.replace(/^http/, "ws");
+const SERVICE_NAME =
+  process.env.SERVICE_NAME ||
+  (() => {
+    try {
+      const parts = new URL(BASE_URL).pathname.split("/").filter(Boolean);
+      return parts[0] || "todo";
+    } catch (_) {
+      return "todo";
+    }
+  })();
+const WS_SUBPROTOCOL =
+  process.env.WS_SUBPROTOCOL || `${SERVICE_NAME}-ws`;
 
 const users = {
   u1: { id: "11111111-1111-1111-1111-111111111111", name: "alice" },
@@ -69,7 +81,7 @@ function connectWebSocket(projectId, userKey) {
   return new Promise((resolve, reject) => {
     let ws;
     try {
-      ws = new WebSocket(url, { headers });
+      ws = new WebSocket(url, [WS_SUBPROTOCOL], { headers });
     } catch (err) {
       reject(err);
       return;
@@ -323,6 +335,7 @@ function checkNotOk(label, resp) {
       {
         "X-User-ID": users.u3.id,
         "X-User-Username": users.u3.name,
+        "Sec-WebSocket-Protocol": WS_SUBPROTOCOL,
         Origin: "http://localhost",
       }
     );

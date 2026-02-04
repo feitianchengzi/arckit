@@ -32,6 +32,19 @@
 ws://localhost:8081/workshop/v1/user/projects/{project_id}/ws
 ```
 
+**子协议（Sec-WebSocket-Protocol）**:
+- 推荐命名为业务服务相关的子协议，例如：`workshop-ws`
+- 服务端会回写选中的子协议，避免客户端因协议缺失而断开
+
+**推荐握手示例**（同时携带业务子协议 + 鉴权子协议）:
+
+```js
+const ws = new WebSocket(
+  "wss://<gateway>/workshop/v1/user/projects/<project_id>/ws",
+  ["workshop-ws", `nebula-auth.${token}`]
+);
+```
+
 **事件格式**:
 ```json
 {
