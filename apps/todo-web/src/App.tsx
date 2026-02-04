@@ -18,6 +18,7 @@ import JoinProjectPage from '@/pages/JoinProjectPage'
 import OrganizationDetailPage from '@/pages/OrganizationDetailPage'
 import InviteOrganizationPage from '@/pages/InviteOrganizationPage'
 import JoinOrganizationPage from '@/pages/JoinOrganizationPage'
+import { ToastHost } from '@/components/ui/ToastHost'
 
 // 布局组件
 import DashboardLayout from '@/layouts/DashboardLayout'
@@ -34,7 +35,9 @@ function App() {
   }, [initialize])
 
   return (
-    <Routes>
+    <>
+      <ToastHost />
+      <Routes>
       {/* 公开路由 */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
@@ -59,7 +62,8 @@ function App() {
 
       {/* 404 */}
       <Route path="*" element={<Navigate to="/projects" replace />} />
-    </Routes>
+      </Routes>
+    </>
   )
 }
 

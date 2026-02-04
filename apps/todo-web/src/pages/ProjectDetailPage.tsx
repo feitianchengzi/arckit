@@ -13,6 +13,8 @@ import { buildTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
 import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
+import { useProjectWebSocket, type ProjectSocketEvent } from '@/hooks/useProjectWebSocket'
+import { showGlobalToast } from '@/components/ui/Toast'
 import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
@@ -199,6 +201,109 @@ export default function ProjectDetailPage() {
     }
   }, [projectIdParam, loadProjectTags])
   const projectTags = getProjectTags(projectIdParam)
+  const realtimePendingRef = useRef({
+    tasks: false,
+    tags: false,
+    members: false,
+    project: false,
+    invitations: false,
+  })
+  const realtimeTimerRef = useRef<number | null>(null)
+  const lastRealtimeToastAtRef = useRef(0)
+
+  const flushRealtimeRefresh = useCallback(() => {
+    const pending = realtimePendingRef.current
+    const hasUpdates = pending.tasks || pending.tags || pending.members || pending.project || pending.invitations
+    if (pending.tasks) {
+      queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'tasks'] })
+    }
+    if (pending.members) {
+      queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'members'] })
+    }
+    if (pending.project) {
+      queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    }
+    if (pending.invitations) {
+      queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'invitations'] })
+    }
+    if (pending.tags) {
+      loadProjectTags(projectIdParam).catch(console.error)
+    }
+    realtimePendingRef.current = {
+      tasks: false,
+      tags: false,
+      members: false,
+      project: false,
+      invitations: false,
+    }
+    if (hasUpdates) {
+      const now = Date.now()
+      if (now - lastRealtimeToastAtRef.current > 2500) {
+        lastRealtimeToastAtRef.current = now
+        showGlobalToast('已同步项目最新变更', 'info', 3500)
+      }
+    }
+  }, [projectIdParam, queryClient, loadProjectTags])
+
+  const scheduleRealtimeRefresh = useCallback(
+    (targets: Array<keyof typeof realtimePendingRef.current>) => {
+      targets.forEach((target) => {
+        realtimePendingRef.current[target] = true
+      })
+      if (realtimeTimerRef.current !== null) return
+      realtimeTimerRef.current = window.setTimeout(() => {
+        realtimeTimerRef.current = null
+        flushRealtimeRefresh()
+      }, 300)
+    },
+    [flushRealtimeRefresh]
+  )
+
+  useEffect(() => {
+    return () => {
+      if (realtimeTimerRef.current !== null) {
+        window.clearTimeout(realtimeTimerRef.current)
+      }
+    }
+  }, [])
+
+  const handleSocketEvent = useCallback(
+    (payload: ProjectSocketEvent) => {
+      if (!payload?.event || payload.event === 'system.connected') return
+      if (payload.project_id && payload.project_id !== projectId) return
+
+      const eventName = payload.event
+      const targets: Array<keyof typeof realtimePendingRef.current> = []
+
+      if (eventName.startsWith('task.') || eventName.startsWith('task_attachment.')) {
+        targets.push('tasks')
+      }
+      if (eventName.startsWith('tag.')) {
+        targets.push('tags')
+      }
+      if (eventName.startsWith('project_member.')) {
+        targets.push('members', 'project')
+      }
+      if (eventName.startsWith('project_invitation.')) {
+        targets.push('invitations')
+      }
+      if (eventName.startsWith('project.')) {
+        targets.push('project')
+      }
+
+      if (targets.length > 0) {
+        scheduleRealtimeRefresh([...new Set(targets)])
+      }
+    },
+    [projectId, scheduleRealtimeRefresh]
+  )
+
+  useProjectWebSocket({
+    projectId: projectIdParam,
+    enabled: !!projectIdParam && !isDeleting,
+    onEvent: handleSocketEvent,
+  })
 
   const memberIds = useMemo(
     () => (members ? members.map(member => member.user_id).filter((id): id is number => typeof id === 'number') : []),

@@ -31,7 +31,7 @@ export function Toast({ message, visible, onClose, duration = 2000, type = 'succ
       }, duration)
       return () => clearTimeout(timer)
     }
-  }, [visible, duration, onClose])
+  }, [visible, duration, onClose, message, type])
 
   if (!visible) return null
 
