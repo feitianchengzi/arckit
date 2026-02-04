@@ -65,7 +65,7 @@ curl -X GET "$BASE_URL/user/projects" \
 - **[common.md](./common.md)** - 公共接口（健康检查、Header信息）
 - **[user.md](./user.md)** - 用户相关接口（创建、查询、更新用户、获取OSS凭证）
 - **[project.md](./project.md)** - 项目相关接口（创建、查询、更新、删除项目、成员管理、邀请）
-- **[task.md](./task.md)** - 任务相关接口（创建、更新、查询、删除任务、任务附件）
+- **[task.md](./task.md)** - 任务相关接口（创建、更新、查询、删除任务、子任务、任务附件）
 - **[tag.md](./tag.md)** - 标签相关接口（创建、查询、更新、删除标签）
 
 ## 🔄 环境差异说明
