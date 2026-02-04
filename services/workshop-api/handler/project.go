@@ -132,6 +132,7 @@ func CreateProject(c *gin.Context) {
 		CreatorID: project.CreatorID,
 		Members:   memberResponses,
 	}
+	notifyProjectEvent(c, db, project.ID, userID, "project.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -468,6 +469,7 @@ func UpdateProject(c *gin.Context) {
 		UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		Members:   memberResponses,
 	}
+	notifyProjectEvent(c, db, project.ID, userID, "project.updated", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
@@ -594,6 +596,8 @@ func AddProjectMember(c *gin.Context) {
 		CreatedAt:  newMember.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		IsExternal: newMember.IsExternal,
 	}
+	actorID, _ := middleware.GetUserID(c)
+	notifyProjectEvent(c, db, project.ID, actorID, "project_member.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -742,6 +746,7 @@ func InviteProjectMember(c *gin.Context) {
 	}
 
 	// 15. 返回成功响应
+	notifyProjectEvent(c, db, project.ID, userID, "project_invitation.created", inviteResp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(inviteResp))
 }
 
@@ -896,6 +901,7 @@ func JoinProject(c *gin.Context) {
 		CreatedAt:   newMember.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		IsExternal:  newMember.IsExternal,
 	}
+	notifyProjectEvent(c, db, project.ID, userID, "project_member.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -1010,6 +1016,7 @@ func DeleteProject(c *gin.Context) {
 	data := gin.H{
 		"message": "项目删除成功",
 	}
+	notifyProjectEvent(c, db, project.ID, userID, "project.deleted", data)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(data))
 }
 
@@ -1193,6 +1200,7 @@ func DeleteProjectMember(c *gin.Context) {
 	data := gin.H{
 		"message": "项目成员删除成功",
 	}
+	notifyProjectEvent(c, db, project.ID, currentUserID, "project_member.deleted", data)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(data))
 }
 
@@ -1437,5 +1445,6 @@ func UpdateProjectMemberRole(c *gin.Context) {
 		Avatar:    targetMember.User.Avatar,
 		UpdatedAt: targetMember.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
+	notifyProjectEvent(c, db, project.ID, currentUserID, "project_member.updated", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }

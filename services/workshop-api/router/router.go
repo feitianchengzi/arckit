@@ -115,6 +115,7 @@ func getCORSConfig() cors.Config {
 // 用于 user 和 apikey 两个认证级别，使其执行完全相同的接口
 func registerBusinessRoutes(group *gin.RouterGroup) {
 	group.GET("/header-info", handler.GetHeaderInfo)
+	group.GET("/projects/:id/ws", handler.ConnectProjectWebsocket)
 	group.POST("/users", handler.CreateUser)                                           // 根据网关UUID创建用户
 	group.GET("/users", handler.GetUser)                                               // 根据Header中的UUID查询用户
 	group.PUT("/users", handler.UpdateUser)                                            // 更新用户信息

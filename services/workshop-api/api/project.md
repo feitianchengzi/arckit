@@ -16,6 +16,56 @@
 
 ---
 
+## 实时通知（WebSocket）
+
+**接口**: `GET /workshop/v1/user/projects/:id/ws`
+
+**认证级别**: `user`（需要JWT认证）
+
+**描述**: 连接项目房间，接收该项目内的变更事件（C/U/D）。
+
+**权限**: 仅项目成员可连接。
+
+**连接示例**（测试环境）:
+
+```
+ws://localhost:8081/workshop/v1/user/projects/{project_id}/ws
+```
+
+**事件格式**:
+```json
+{
+  "event": "task.created",
+  "project_id": 12,
+  "actor": {
+    "id": 1,
+    "username": "alice",
+    "avatar": "https://example.com/avatar.png"
+  },
+  "occurred_at": "2026-02-04T12:34:56.789Z",
+  "data": {
+    "...": "..."
+  }
+}
+```
+
+**系统事件**:
+- `system.connected` - 连接成功（服务端发出的握手确认）
+
+**常见变更事件**（只推变更类事件，不推查询事件）:
+- `project.created` / `project.updated` / `project.deleted`
+- `project_member.created` / `project_member.updated` / `project_member.deleted`
+- `project_invitation.created`
+- `task.created` / `task.updated` / `task.deleted`
+- `tag.created` / `tag.updated` / `tag.deleted`
+- `task_attachment.created` / `task_attachment.updated` / `task_attachment.deleted`
+
+**错误说明**:
+- 非项目成员连接会返回 `403`。
+- 连接采用标准 WebSocket Ping/Pong 心跳，断线后建议客户端自动重连。
+
+---
+
 ## 1. 创建项目
 
 **接口**: `POST /workshop/v1/user/projects`

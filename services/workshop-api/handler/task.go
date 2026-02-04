@@ -165,6 +165,7 @@ func CreateTask(c *gin.Context) {
 		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		CompletionAt: completionAt,
 	}
+	notifyProjectEvent(c, db, task.ProjectID, userID, "task.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -504,6 +505,7 @@ func UpdateTask(c *gin.Context) {
 		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		CompletionAt: completionAt,
 	}
+	notifyProjectEvent(c, db, task.ProjectID, userID, "task.updated", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
@@ -1073,6 +1075,7 @@ func DeleteTask(c *gin.Context) {
 		TaskID:    taskID,
 		DeletedAt: deletedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
+	notifyProjectEvent(c, db, task.ProjectID, userID, "task.deleted", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
@@ -1464,6 +1467,7 @@ func CreateTaskAttachment(c *gin.Context) {
 		CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: attachment.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
+	notifyProjectEvent(c, db, task.ProjectID, userID, "task_attachment.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -1678,6 +1682,7 @@ func UpdateTaskAttachment(c *gin.Context) {
 		CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: attachment.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
+	notifyProjectEventByTaskID(c, db, attachment.TaskID, userID, "task_attachment.updated", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
@@ -1755,8 +1760,10 @@ func DeleteTaskAttachment(c *gin.Context) {
 	}
 
 	// 8. 返回成功响应
-	c.JSON(http.StatusOK, response.NewSuccessResponse(map[string]interface{}{
+	data := map[string]interface{}{
 		"id":         attachment.ID,
 		"deleted_at": time.Now().Format("2006-01-02T15:04:05Z07:00"),
-	}))
+	}
+	notifyProjectEventByTaskID(c, db, attachment.TaskID, userID, "task_attachment.deleted", data)
+	c.JSON(http.StatusOK, response.NewSuccessResponse(data))
 }

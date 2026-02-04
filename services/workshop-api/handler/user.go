@@ -37,7 +37,7 @@ type CreateUserResponse struct {
 // 流程：
 // 1. 从网关Header获取用户UUID（X-User-ID）
 // 2. 检查用户是否已存在（根据UUID）
-// 3. 如果不存在，使用网关提供的UUID创建新用户
+// 3. 如果不存在，使用网关提供的UUID创建新用户，并同步创建默认个人组织
 // 4. 如果已存在，返回现有用户信息
 func CreateUser(c *gin.Context) {
 	// 1. 获取Header信息
@@ -104,12 +104,36 @@ func CreateUser(c *gin.Context) {
 		Avatar:   req.Avatar,
 	}
 
-	if err := db.Create(&user).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeUserCreateFailed, "创建用户失败: "+err.Error(), nil))
+	// 7. 事务创建用户及默认个人组织（用户名 + "的项目"）
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&user).Error; err != nil {
+			return err
+		}
+
+		organization := models.Organization{
+			Name:      username + "的项目",
+			CreatorID: user.ID,
+		}
+		if err := tx.Create(&organization).Error; err != nil {
+			return err
+		}
+
+		member := models.OrganizationMember{
+			OrganizationID: organization.ID,
+			UserID:         user.ID,
+			Role:           models.OrganizationRoleOwner,
+		}
+		if err := tx.Create(&member).Error; err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeUserCreateFailed, "创建用户或默认组织失败: "+err.Error(), nil))
 		return
 	}
 
-	// 6. 返回成功响应
+	// 8. 返回成功响应
 	resp := CreateUserResponse{
 		Username:  user.Username,
 		Avatar:    user.Avatar,

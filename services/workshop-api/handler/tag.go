@@ -25,11 +25,11 @@ type UpdateTagRequest struct {
 
 // TagResponse 标签响应结构
 type TagResponse struct {
-	ID        uint    `json:"id"`         // 标签ID
-	ProjectID uint    `json:"project_id"` // 项目ID
-	Name      string  `json:"name"`       // 标签名称
-	CreatedAt string  `json:"created_at"` // 创建时间
-	UpdatedAt string  `json:"updated_at"` // 更新时间
+	ID        uint    `json:"id"`                   // 标签ID
+	ProjectID uint    `json:"project_id"`           // 项目ID
+	Name      string  `json:"name"`                 // 标签名称
+	CreatedAt string  `json:"created_at"`           // 创建时间
+	UpdatedAt string  `json:"updated_at"`           // 更新时间
 	DeletedAt *string `json:"deleted_at,omitempty"` // 删除时间（如果存在）
 }
 
@@ -114,7 +114,8 @@ func GetTags(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, response.NewSuccessResponse(tagResponses))
+	resp := tagResponses
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
 // CreateTag 创建新标签
@@ -197,6 +198,7 @@ func CreateTag(c *gin.Context) {
 		DeletedAt: nil,
 	}
 
+	notifyProjectEvent(c, db, tag.ProjectID, userID, "tag.created", tagResponse)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(tagResponse))
 }
 
@@ -288,6 +290,7 @@ func UpdateTag(c *gin.Context) {
 		DeletedAt: deletedAt,
 	}
 
+	notifyProjectEvent(c, db, tag.ProjectID, userID, "tag.updated", tagResponse)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(tagResponse))
 }
 
@@ -345,5 +348,8 @@ func DeleteTag(c *gin.Context) {
 		return
 	}
 
+	notifyProjectEvent(c, db, tag.ProjectID, userID, "tag.deleted", gin.H{
+		"id": tag.ID,
+	})
 	c.JSON(http.StatusOK, response.NewSuccessResponse(nil))
 }
