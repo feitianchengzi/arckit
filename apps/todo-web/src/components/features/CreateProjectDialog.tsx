@@ -21,18 +21,15 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
   const { data: organizations = [], isLoading: orgLoading } = useOrganizationList();
   
   useEffect(() => {
-    if (selectedOrganizationId !== undefined) {
-      // 如果传入的是null，表示选择个人项目
+    if (typeof selectedOrganizationId === 'number') {
       setOrganizationId(selectedOrganizationId);
-    } else {
-      // 默认选择第一个组织（如果存在）
-      if (organizations.length > 0) {
-        setOrganizationId(organizations[0].id);
-      } else {
-        // 没有组织时，默认为个人项目（null）
-        setOrganizationId(null);
-      }
+      return
     }
+    if (organizations.length > 0) {
+      setOrganizationId(organizations[0].id);
+      return
+    }
+    setOrganizationId(null);
   }, [selectedOrganizationId, organizations.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,6 +39,11 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
     // 验证
     if (!name.trim()) {
       setError('请输入项目名称');
+      return;
+    }
+
+    if (typeof organizationId !== 'number') {
+      setError('请先选择组织');
       return;
     }
     
@@ -62,13 +64,12 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
       await createProject.mutateAsync({
         name: name.trim(),
         git_url: gitUrl.trim(),
-        // organization_id 为 null 时表示个人项目
-        organization_id: organizationId ?? null,
+        organization_id: organizationId,
       });
       
       setName('');
       setGitUrl('');
-      setOrganizationId(selectedOrganizationId ?? null);
+      setOrganizationId(typeof selectedOrganizationId === 'number' ? selectedOrganizationId : organizationId);
       onSuccess?.();
       onClose();
     } catch (err: any) {
@@ -91,15 +92,11 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
               <div className="text-xs text-foreground-secondary">加载组织列表...</div>
             ) : (
               <select
-                value={organizationId ?? 'personal'}
-                onChange={(e) => {
-                  const val = e.target.value
-                  setOrganizationId(val === 'personal' ? null : Number(val))
-                }}
+                value={organizationId ?? ''}
+                onChange={(e) => setOrganizationId(Number(e.target.value))}
                 className="w-full px-3 py-2 border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                disabled={createProject.isPending}
+                disabled={createProject.isPending || organizations.length === 0}
               >
-                <option value="personal">个人项目</option>
                 {organizations.map((org: any) => (
                   <option key={org.id} value={org.id}>{org.name}</option>
                 ))}
@@ -147,7 +144,7 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
             type="submit" 
             form="create-project-form"
             loading={createProject.isPending}
-            disabled={!name.trim() || !gitUrl.trim() || createProject.isPending}
+            disabled={!name.trim() || !gitUrl.trim() || typeof organizationId !== 'number' || createProject.isPending}
           >
             创建
           </Button>

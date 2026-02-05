@@ -18,6 +18,7 @@ import { buildTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
+import { useOrganizationStore } from '@/store/organizationStore'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
 import { saveTaskFilterState, loadTaskFilterState, type DateRange } from '@/lib/utils/filterStorage'
 import type { Todo, TodoStatus, ProjectMember } from '@/types'
@@ -29,6 +30,8 @@ import type { TaskInfo } from '@/lib/permissions'
 export default function MyTasksPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
+  const currentOrganizationId = useOrganizationStore((state) => state.currentOrganizationId)
+  const hasOrganization = typeof currentOrganizationId === 'number'
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -47,7 +50,7 @@ export default function MyTasksPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
-  const { data: projects, isLoading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjectList()
+  const { data: projects, isLoading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjectList(currentOrganizationId)
   
   const [myTasks, setMyTasks] = useState<Array<Omit<Todo, 'projectId'> & { projectId: string; projectName: string }>>([])
   const [tasksLoading, setTasksLoading] = useState(false)
@@ -180,7 +183,7 @@ export default function MyTasksPage() {
   
   // 获取所有项目的任务、成员和标签
   useEffect(() => {
-    if (!projects || !user || projectsLoading) return
+    if (!projects || !user || projectsLoading || !hasOrganization) return
     
     const fetchAllTasks = async () => {
       setTasksLoading(true)
@@ -273,7 +276,7 @@ export default function MyTasksPage() {
     fetchAllTasks()
   }, [projects, user, projectsLoading, loadProjectTags])
   
-  const allTasksLoading = projectsLoading || tasksLoading
+  const allTasksLoading = projectsLoading || tasksLoading || !hasOrganization
   const allTasksError = projectsError || tasksError
   
   // 获取当前用户的 user_id（从所有成员中查找）

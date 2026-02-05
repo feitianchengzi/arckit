@@ -108,7 +108,7 @@ export default function OrganizationDetailPage() {
   const deleteOrganizationMutation = useMutation({
     mutationFn: (orgId: number) => organizationsApi.delete(orgId),
     onSuccess: () => {
-      // 删除成功后，使组织列表查询失效并导航到个人项目页面
+      // 删除成功后，使组织列表查询失效并导航到项目列表页面
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
       navigate('/projects');
     },
@@ -196,7 +196,7 @@ export default function OrganizationDetailPage() {
           target_user_id: myMember.user_id
         }, {
           onSuccess: () => {
-            // 退出后导航到个人项目页面
+            // 退出后导航到项目列表页面
             navigate('/projects');
           }
         });
@@ -221,8 +221,12 @@ export default function OrganizationDetailPage() {
   return (
     <div className="p-6">
       <Card>
-        <Card.Header className="flex items-center justify-between">
-          <Card.Title className="text-2xl font-bold text-primary">组织详情</Card.Title>
+        <Card.Header className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <Card.Title className="text-2xl font-bold text-primary">
+              {organization?.name || '未命名'}
+            </Card.Title>
+          </div>
           {canManage && (
             <div className="flex items-center gap-4">
               <Button 
