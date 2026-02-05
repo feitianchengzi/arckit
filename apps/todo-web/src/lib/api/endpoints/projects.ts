@@ -30,8 +30,8 @@ export const projectsApi = {
     if (options?.includeDeleted !== undefined) {
       params.include_deleted = options.includeDeleted
     }
-    if (options?.organizationId !== undefined) {
-      params.organization_id = options.organizationId ?? 0
+    if (typeof options?.organizationId === 'number') {
+      params.organization_id = options.organizationId
     }
     const response = await apiClient.get('/user/projects', { params })
     

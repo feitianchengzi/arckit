@@ -117,6 +117,10 @@ export default function ProjectsHomePage() {
       // 标记已加载，避免 useEffect 再次触发
       hasLoadedUserRef.current = true
       console.log('✅ 用户信息设置成功，本地状态已更新:', updatedUser)
+
+      // 新用户会自动创建组织，刷新组织列表
+      await queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      await queryClient.refetchQueries({ queryKey: ['organizations'] })
       
       // 检查是否有待处理的邀请链接
       const pendingInvite = sessionStorage.getItem('pending_invite_redirect')

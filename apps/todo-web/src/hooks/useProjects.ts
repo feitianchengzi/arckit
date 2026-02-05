@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { projectsApi, CreateProjectInput, UpdateProjectInput } from '@/lib/api/endpoints/projects'
 import { useAuthStore } from '@/store/authStore'
 import { useOrganizationStore } from '@/store/organizationStore'
+import { useOrganizationStore } from '@/store/organizationStore'
 
 /**
  * 获取项目列表
@@ -15,11 +16,18 @@ import { useOrganizationStore } from '@/store/organizationStore'
 export function useProjectList(organizationId?: number | null) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
+  const currentOrganizationId = useOrganizationStore((state) => state.currentOrganizationId)
+  const resolvedOrganizationId =
+    typeof organizationId === 'number' ? organizationId : currentOrganizationId ?? null
   
   return useQuery({
-    queryKey: ['projects', { organizationId }],
-    queryFn: () => projectsApi.list({ organizationId }),
-    enabled: isAuthenticated && !!user && !!user.username,
+    queryKey: ['projects', { organizationId: resolvedOrganizationId }],
+    queryFn: () => projectsApi.list({ organizationId: resolvedOrganizationId }),
+    enabled:
+      isAuthenticated &&
+      !!user &&
+      !!user.username &&
+      typeof resolvedOrganizationId === 'number',
   })
 }
 
@@ -44,7 +52,7 @@ export function useProject(projectId: string) {
           // 尝试从 queryKey 中获取 organizationId
           const params = key[1] as { organizationId?: number } | undefined
           // 如果 queryKey 中有 organizationId，优先使用
-          // 如果没有（比如个人项目 organizationId 为 undefined/null），则使用 project.organization_id
+          // 如果没有，则使用 project.organization_id
           const organizationId = params?.organizationId ?? project.organization_id
           
           return { project, organizationId }
@@ -54,10 +62,13 @@ export function useProject(projectId: string) {
     return null
   }, [queryClient, projectId])
 
+  const resolvedOrganizationId = cachedInfo?.organizationId ?? currentOrganizationId ?? null
+  const canFetch = typeof resolvedOrganizationId === 'number'
+
   return useQuery({
-    queryKey: ['projects', projectId],
-    queryFn: () => projectsApi.getById(projectId, cachedInfo?.organizationId ?? currentOrganizationId),
-    enabled: !!projectId, // 只在有 projectId 时查询
+    queryKey: ['projects', projectId, { organizationId: resolvedOrganizationId }],
+    queryFn: () => projectsApi.getById(projectId, resolvedOrganizationId ?? undefined),
+    enabled: !!projectId && (canFetch || !!cachedInfo?.project), // 只在有 projectId 时查询
     initialData: cachedInfo?.project,
   })
 }
@@ -144,7 +155,7 @@ export function useProjectMembers(projectId: string) {
     queryFn: async () => {
       return await projectsApi.getMembers(projectId, currentOrganizationId)
     },
-    enabled: !!projectId && isAuthenticated,
+    enabled: !!projectId && isAuthenticated && typeof currentOrganizationId === 'number',
   })
 }
 

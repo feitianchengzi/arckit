@@ -36,7 +36,6 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
   const pathname = location.pathname
   const { data: organizations = [], isLoading } = useOrganizationList()
   const [showAll, setShowAll] = useState(false)
-  const isPersonalActive = !selectedOrganizationId && pathname?.startsWith('/projects')
 
   // 获取当前选中的组织 ID
   const routeOrganizationId = pathname?.match(/\/organizations\/(\d+)/)?.[1]
@@ -64,18 +63,6 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
     setShowAll(!showAll)
   }
   
-  const handlePersonalClick = () => {
-    if (onSelectOrganization) {
-      onSelectOrganization(null)
-    }
-    const href = '/projects'
-    if (onItemClick) {
-      onItemClick(href)
-    } else {
-      navigate(href)
-    }
-  }
-
   return (
     <div className="space-y-1 px-2">
       {isLoading ? (
@@ -130,44 +117,6 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
               </button>
             )
           })}
-          <button
-            onClick={handlePersonalClick}
-            className={clsx(
-              'w-full flex flex-col items-center gap-1 px-2 py-2 text-xs rounded-md transition-colors relative',
-              'min-h-[64px]',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
-              'text-foreground-secondary hover:text-foreground font-semibold',
-              {
-                'text-primary': isPersonalActive,
-              }
-            )}
-            style={{
-              outline: 'none',
-              boxShadow: 'none'
-            }}
-            title="个人项目"
-            aria-current={isPersonalActive ? 'page' : undefined}
-          >
-            <span className="relative">
-              <span
-                className={clsx(
-                  'absolute left-[-16px] top-1/2 -translate-y-1/2 h-6 w-1.5 rounded-full transition-all bg-primary',
-                  isPersonalActive ? 'opacity-100' : 'opacity-0'
-                )}
-              />
-              <span
-                className={clsx(
-                    'flex h-10 w-10 items-center justify-center rounded-lg text-sm font-semibold border transition-colors',
-                    isPersonalActive
-                      ? 'bg-primary-light text-primary border-primary org-tab-selected'
-                      : 'bg-gray-200 dark:bg-surface-active text-foreground-secondary hover:bg-surface-hover hover:text-foreground border-transparent'
-                  )}
-              >
-                个
-              </span>
-            </span>
-            <span className="truncate w-full text-center">个人项目</span>
-          </button>
           {hasMore && (
             <button
               onClick={handleShowMore}
