@@ -19,7 +19,8 @@ export default function NewTaskPage() {
   const projectId = Number(params.id!)
   
   const { data: project } = useProject(String(projectId))
-  const { data: tasks } = useTaskList(String(projectId))
+  const { data: taskListData } = useTaskList(String(projectId))
+  const tasks = taskListData?.todos ?? []
   const { data: members } = useProjectMembers(String(projectId))
   const { currentOrganizationId } = useOrganizationStore()
   const { data: orgMembers } = useOrganizationMembers(currentOrganizationId || 0)
@@ -199,4 +200,3 @@ export default function NewTaskPage() {
     </div>
   )
 }
-
