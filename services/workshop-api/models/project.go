@@ -41,6 +41,7 @@ type ProjectMember struct {
 	ProjectID  uint           `json:"project_id" gorm:"not null;index;uniqueIndex:uniq_project_user,priority:1,where:delete_at IS NULL"` // 外键：项目ID
 	UserID     uint           `json:"user_id" gorm:"not null;index;uniqueIndex:uniq_project_user,priority:2,where:delete_at IS NULL"`    // 外键：用户ID
 	Role       string         `json:"role" gorm:"type:varchar(50);not null;default:'member'"`                                            // 角色：owner, admin, member等
+	Duty       *string        `json:"duty,omitempty" gorm:"type:varchar(200)"`                                                            // 职能/职责（可为空）
 	IsExternal bool           `json:"is_external" gorm:"not null;default:false"`                                                         // 是否为组织外部成员，默认为false
 	CreatedAt  time.Time      `json:"created_at" gorm:"autoCreateTime"`                                                                  // 加入时间
 	UpdatedAt  time.Time      `json:"updated_at" gorm:"autoUpdateTime"`                                                                  // 更新时间

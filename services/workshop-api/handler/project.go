@@ -26,14 +26,15 @@ type CreateProjectRequest struct {
 
 // ProjectMemberResponse 项目成员响应结构
 type ProjectMemberResponse struct {
-	ID         uint   `json:"id"`          // 成员关系ID
-	UserID     uint   `json:"user_id"`     // 用户ID
-	Role       string `json:"role"`        // 角色
-	Username   string `json:"username"`    // 用户名
-	Avatar     string `json:"avatar"`      // 头像地址
-	CreatedAt  string `json:"created_at"`  // 加入时间
-	IsMe       bool   `json:"is_me"`       // 是否是当前用户自己
-	IsExternal bool   `json:"is_external"` // 是否为组织外部成员
+	ID         uint    `json:"id"`          // 成员关系ID
+	UserID     uint    `json:"user_id"`     // 用户ID
+	Role       string  `json:"role"`        // 角色
+	Duty       *string `json:"duty,omitempty"` // 职能/职责描述
+	Username   string  `json:"username"`    // 用户名
+	Avatar     string  `json:"avatar"`      // 头像地址
+	CreatedAt  string  `json:"created_at"`  // 加入时间
+	IsMe       bool    `json:"is_me"`       // 是否是当前用户自己
+	IsExternal bool    `json:"is_external"` // 是否为组织外部成员
 }
 
 // CreateProjectResponse 创建项目响应结构
@@ -141,6 +142,7 @@ func CreateProject(c *gin.Context) {
 			ID:         member.ID,
 			UserID:     member.UserID,
 			Role:       member.Role,
+			Duty:       member.Duty,
 			Username:   member.User.Username,
 			Avatar:     member.User.Avatar,
 			CreatedAt:  member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -299,6 +301,7 @@ func GetUserProjects(c *gin.Context) {
 				ID:         member.ID,
 				UserID:     member.UserID,
 				Role:       member.Role,
+				Duty:       member.Duty,
 				Username:   member.User.Username,
 				Avatar:     member.User.Avatar,
 				CreatedAt:  member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -459,6 +462,7 @@ func UpdateProject(c *gin.Context) {
 				ID:         m.ID,
 				UserID:     m.UserID,
 				Role:       m.Role,
+				Duty:       m.Duty,
 				Username:   m.User.Username,
 				Avatar:     m.User.Avatar,
 				CreatedAt:  m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -506,6 +510,7 @@ func UpdateProject(c *gin.Context) {
 			ID:         m.ID,
 			UserID:     m.UserID,
 			Role:       m.Role,
+			Duty:       m.Duty,
 			Username:   m.User.Username,
 			Avatar:     m.User.Avatar,
 			CreatedAt:  m.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -1112,19 +1117,21 @@ type DeleteProjectMemberRequest struct {
 
 // UpdateProjectMemberRoleRequest 更新项目成员角色请求结构
 type UpdateProjectMemberRoleRequest struct {
-	TargetUserID uint   `json:"target_user_id" binding:"required"` // 要更新的用户ID（必填）
-	Role         string `json:"role" binding:"required"`           // 目标角色：admin/member
+	TargetUserID uint    `json:"target_user_id" binding:"required"` // 要更新的用户ID（必填）
+	Role         *string `json:"role,omitempty"`                    // 目标角色：admin/member（可选）
+	Duty         *string `json:"duty,omitempty"`                    // 职能/职责描述（可选）
 }
 
 // UpdateProjectMemberRoleResponse 更新项目成员角色响应结构
 type UpdateProjectMemberRoleResponse struct {
-	ID        uint   `json:"id"`         // 成员关系ID
-	ProjectID uint   `json:"project_id"` // 项目ID
-	UserID    uint   `json:"user_id"`    // 用户ID
-	Role      string `json:"role"`       // 角色
-	Username  string `json:"username"`   // 用户名
-	Avatar    string `json:"avatar"`     // 头像
-	UpdatedAt string `json:"updated_at"` // 更新时间
+	ID        uint    `json:"id"`         // 成员关系ID
+	ProjectID uint    `json:"project_id"` // 项目ID
+	UserID    uint    `json:"user_id"`    // 用户ID
+	Role      string  `json:"role"`       // 角色
+	Duty      *string `json:"duty,omitempty"` // 职能/职责描述
+	Username  string  `json:"username"`   // 用户名
+	Avatar    string  `json:"avatar"`     // 头像
+	UpdatedAt string  `json:"updated_at"` // 更新时间
 }
 
 // DeleteProjectMember 删除项目成员
@@ -1405,6 +1412,7 @@ func GetOrganizationProjects(c *gin.Context) {
 				ID:         member.ID,
 				UserID:     member.UserID,
 				Role:       member.Role,
+				Duty:       member.Duty,
 				Username:   member.User.Username,
 				Avatar:     member.User.Avatar,
 				CreatedAt:  member.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -1515,13 +1523,21 @@ func UpdateProjectMemberRole(c *gin.Context) {
 		return
 	}
 
-	// 7. 校验目标角色（仅支持admin/member）
-	if req.Role != models.ProjectRoleAdmin && req.Role != models.ProjectRoleMember {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的角色，仅支持 admin 或 member", nil))
+	// 7. 校验是否提供了要更新的字段（role 或 duty 至少一个）
+	if req.Role == nil && req.Duty == nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请提供要更新的字段：role 或 duty", nil))
 		return
 	}
 
-	// 8. 查询目标成员
+	// 8. 如果提供了 role，校验目标角色（仅支持admin/member）
+	if req.Role != nil {
+		if *req.Role != models.ProjectRoleAdmin && *req.Role != models.ProjectRoleMember {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的角色，仅支持 admin 或 member", nil))
+			return
+		}
+	}
+
+	// 9. 查询目标成员
 	var targetMember models.ProjectMember
 	if err := db.Where("project_id = ? AND user_id = ?", project.ID, req.TargetUserID).Preload("User").First(&targetMember).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -1532,30 +1548,40 @@ func UpdateProjectMemberRole(c *gin.Context) {
 		return
 	}
 
-	// 9. 目标成员不能是owner
-	if targetMember.Role == models.ProjectRoleOwner {
+	// 10. 如果要更新 role，目标成员不能是 owner
+	if req.Role != nil && targetMember.Role == models.ProjectRoleOwner {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeProjectNoPermission, "不能修改项目所有者的角色", nil))
 		return
 	}
 
-	// 10. 更新角色
-	if err := db.Model(&targetMember).Update("role", req.Role).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectUpdateFailed, "更新成员角色失败: "+err.Error(), nil))
+	// 11. 构建更新字段
+	updates := make(map[string]interface{})
+	if req.Role != nil {
+		updates["role"] = *req.Role
+	}
+	if req.Duty != nil {
+		updates["duty"] = *req.Duty
+	}
+
+	// 12. 更新成员信息
+	if err := db.Model(&targetMember).Updates(updates).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectUpdateFailed, "更新成员信息失败: "+err.Error(), nil))
 		return
 	}
 
-	// 11. 重新查询获取更新时间与用户信息
+	// 13. 重新查询获取更新时间与用户信息
 	if err := db.Preload("User").First(&targetMember, targetMember.ID).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectQueryFailed, "查询成员信息失败: "+err.Error(), nil))
 		return
 	}
 
-	// 12. 返回成功响应
+	// 14. 返回成功响应
 	resp := UpdateProjectMemberRoleResponse{
 		ID:        targetMember.ID,
 		ProjectID: targetMember.ProjectID,
 		UserID:    targetMember.UserID,
 		Role:      targetMember.Role,
+		Duty:      targetMember.Duty,
 		Username:  targetMember.User.Username,
 		Avatar:    targetMember.User.Avatar,
 		UpdatedAt: targetMember.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),

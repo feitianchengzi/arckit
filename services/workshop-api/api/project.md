@@ -134,6 +134,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
         "id": 1,
         "user_id": 10,
         "role": "owner",
+        "duty": null,
         "username": "john_doe",
         "avatar": "https://example.com/avatar.png",
         "created_at": "2024-01-01T12:00:00Z",
@@ -162,6 +163,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 | id | uint | 成员关系ID |
 | user_id | uint | 用户ID |
 | role | string | 角色（owner/admin/member） |
+| duty | string | 职能/职责描述（可选，可为 null） |
 | username | string | 用户名 |
 | avatar | string | 头像地址 |
 | created_at | string | 加入时间（ISO 8601格式） |
@@ -250,6 +252,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects" \
             "id": 1,
             "user_id": 10,
             "role": "owner",
+            "duty": null,
             "username": "john_doe",
             "avatar": "https://example.com/avatar.png",
             "created_at": "2024-01-01T12:00:00Z",
@@ -304,6 +307,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 | id | uint | 成员关系ID |
 | user_id | uint | 用户ID |
 | role | string | 角色（owner/admin/member） |
+| duty | string | 职能/职责描述（可选，可为 null） |
 | username | string | 用户名 |
 | avatar | string | 头像地址 |
 | created_at | string | 加入时间（ISO 8601格式） |
@@ -1170,7 +1174,8 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | target_user_id | uint | 是 | 目标用户ID |
-| role | string | 是 | 角色（仅支持 "admin" 或 "member"） |
+| role | string | 否 | 角色（"admin" 或 "member"），与 duty 至少提供一个 |
+| duty | string | 否 | 职能/职责描述，与 role 至少提供一个 |
 
 **响应示例** (`200 OK`):
 ```json
@@ -1181,6 +1186,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
     "project_id": 1,
     "user_id": 123,
     "role": "admin",
+    "duty": "前端开发负责人",
     "username": "jane_doe",
     "avatar": "https://example.com/avatar.png",
     "updated_at": "2024-01-01T12:15:00Z"
@@ -1196,6 +1202,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 | project_id | uint | 项目ID |
 | user_id | uint | 用户ID |
 | role | string | 角色 |
+| duty | string | 职能/职责描述（可选，可为 null） |
 | username | string | 用户名 |
 | avatar | string | 头像地址 |
 | updated_at | string | 更新时间（ISO 8601格式） |
@@ -1203,6 +1210,9 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/projects/$PROJECT_I
 **特殊说明**:
 - 不能修改项目所有者（owner）的角色
 - 只能将成员设置为 `admin` 或 `member`
+- 可以单独更新 `duty` 而不修改 `role`
+- 可以单独更新 `role` 而不修改 `duty`
+- 也可以同时更新 `role` 和 `duty`
 
 **错误响应**:
 
@@ -1308,6 +1318,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/organization/projec
             "id": 1,
             "user_id": 10,
             "role": "owner",
+            "duty": null,
             "username": "john_doe",
             "avatar": "https://example.com/avatar.png",
             "created_at": "2024-01-01T12:00:00Z",
