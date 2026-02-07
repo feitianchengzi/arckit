@@ -263,18 +263,22 @@ func canModifyTask(db *gorm.DB, userID uint, task models.Task) (bool, error) {
 type UpdateTaskRequest struct {
 	Content     *string `json:"content,omitempty"`     // 任务内容（可选）
 	State       *string `json:"state,omitempty"`       // 任务状态（可选）
-	ExecutorID  *uint   `json:"executor_id,omitempty"` // 执行者ID（可选）
+	ExecutorID  *uint   `json:"executor_id,omitempty"` // 执行者ID（可选，可设置为null来清空）
 	FatherID    *uint   `json:"father_id,omitempty"`   // 父任务ID（可选，可设置为null来清空）
 	Priority    *int    `json:"priority,omitempty"`    // 优先级（可选，0为最高，数值越大优先级越低）
 	Tags        *string `json:"tags,omitempty"`        // 标签（可选，用逗号分割）
+	executorIDSet bool  `json:"-"`                     // 内部标志：executor_id是否在JSON中被显式设置
 	fatherIDSet bool    `json:"-"`                     // 内部标志：father_id是否在JSON中被显式设置
 }
 
-// UnmarshalJSON 自定义JSON反序列化，用于检测father_id是否被显式设置
+// UnmarshalJSON 自定义JSON反序列化，用于检测字段是否被显式设置
 func (r *UpdateTaskRequest) UnmarshalJSON(data []byte) error {
 	// 检查原始JSON中是否包含father_id字段
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err == nil {
+		if _, exists := raw["executor_id"]; exists {
+			r.executorIDSet = true
+		}
 		if _, exists := raw["father_id"]; exists {
 			r.fatherIDSet = true
 		}
@@ -414,8 +418,8 @@ func UpdateTask(c *gin.Context) {
 		// 如果 req.FatherID == nil 且 req.fatherIDSet == true，说明显式设置为null，这是允许的，不需要验证
 	}
 
-	// 8. 如果指定了执行者，验证执行者是否是项目成员
-	if req.ExecutorID != nil {
+	// 8. 如果指定了执行者（且不为null），验证执行者是否是项目成员
+	if req.executorIDSet && req.ExecutorID != nil {
 		var executorMember models.ProjectMember
 		if err := db.Where("project_id = ? AND user_id = ?", task.ProjectID, *req.ExecutorID).First(&executorMember).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -451,8 +455,14 @@ func UpdateTask(c *gin.Context) {
 	if req.State != nil {
 		updates["state"] = *req.State
 	}
-	if req.ExecutorID != nil {
-		updates["executor_id"] = *req.ExecutorID
+	// 如果executor_id被显式设置（包括设置为null），则更新
+	if req.executorIDSet {
+		if req.ExecutorID != nil {
+			updates["executor_id"] = *req.ExecutorID
+		} else {
+			// 显式设置为null，清空executor_id
+			updates["executor_id"] = nil
+		}
 	}
 	// 如果father_id被显式设置（包括设置为null），则更新
 	if req.fatherIDSet {
