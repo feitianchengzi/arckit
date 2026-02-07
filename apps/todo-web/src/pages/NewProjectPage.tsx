@@ -31,12 +31,12 @@ export default function NewProjectPage() {
       setOrganizationId(selectedOrganizationId)
       return
     }
-    // 默认选择第一个组织（如果存在）
+    // 默认选择第一个组织（如果存在），否则为个人项目（null）
     if (organizations.length > 0) {
       setOrganizationId((current) => current ?? organizations[0].id)
       return
     }
-    // 没有组织时，保留为空
+    // 没有组织时，默认为个人项目
     setOrganizationId(null)
   }, [selectedOrganizationId, organizations.length])
 
@@ -54,11 +54,6 @@ export default function NewProjectPage() {
       return
     }
 
-    if (typeof organizationId !== 'number') {
-      setError('请先选择组织')
-      return
-    }
-    
     if (!gitUrl.trim()) {
       setError('请输入 Git 地址')
       return
@@ -74,10 +69,15 @@ export default function NewProjectPage() {
     
     // 创建项目
     try {
-      await createProject.mutateAsync({
+      const input: any = {
         name: name.trim(),
         git_url: gitUrl.trim(),
-        organization_id: organizationId,
+      }
+      if (typeof organizationId === 'number') {
+        input.organization_id = organizationId
+      }
+      await createProject.mutateAsync({
+        ...input,
       })
     } catch (err: any) {
       setError(err.response?.data?.message || '创建失败，请重试')
@@ -102,11 +102,15 @@ export default function NewProjectPage() {
           <div>
             <label className="block text-sm font-medium mb-1">所属组织</label>
             <select
-              value={organizationId ?? ''}
-              onChange={(e) => setOrganizationId(Number(e.target.value))}
+              value={organizationId ?? 'personal'}
+              onChange={(e) => {
+                const val = e.target.value
+                setOrganizationId(val === 'personal' ? null : Number(val))
+              }}
               className="w-full px-3 py-2 border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-              disabled={createProject.isPending || organizations.length === 0}
+              disabled={createProject.isPending}
             >
+              <option value="personal">个人项目</option>
               {organizations.map((org) => (
                 <option key={org.id} value={org.id}>{org.name}</option>
               ))}
@@ -149,7 +153,7 @@ export default function NewProjectPage() {
               type="submit"
               variant="primary"
               loading={createProject.isPending}
-              disabled={createProject.isPending || typeof organizationId !== 'number'}
+              disabled={createProject.isPending}
             >
               {createProject.isPending ? '创建中...' : '创建项目'}
             </Button>

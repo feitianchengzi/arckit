@@ -17,17 +17,12 @@ export function useProjectList(organizationId?: number | null) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const user = useAuthStore((state) => state.user)
   const currentOrganizationId = useOrganizationStore((state) => state.currentOrganizationId)
-  const resolvedOrganizationId =
-    typeof organizationId === 'number' ? organizationId : currentOrganizationId ?? null
+  const resolvedOrganizationId = organizationId !== undefined ? organizationId : currentOrganizationId
   
   return useQuery({
     queryKey: ['projects', { organizationId: resolvedOrganizationId }],
     queryFn: () => projectsApi.list({ organizationId: resolvedOrganizationId }),
-    enabled:
-      isAuthenticated &&
-      !!user &&
-      !!user.username &&
-      typeof resolvedOrganizationId === 'number',
+    enabled: isAuthenticated && !!user && !!user.username,
   })
 }
 
@@ -62,13 +57,10 @@ export function useProject(projectId: string) {
     return null
   }, [queryClient, projectId])
 
-  const resolvedOrganizationId = cachedInfo?.organizationId ?? currentOrganizationId ?? null
-  const canFetch = typeof resolvedOrganizationId === 'number'
-
   return useQuery({
-    queryKey: ['projects', projectId, { organizationId: resolvedOrganizationId }],
-    queryFn: () => projectsApi.getById(projectId, resolvedOrganizationId ?? undefined),
-    enabled: !!projectId && (canFetch || !!cachedInfo?.project), // 只在有 projectId 时查询
+    queryKey: ['projects', projectId],
+    queryFn: () => projectsApi.getById(projectId, cachedInfo?.organizationId ?? currentOrganizationId),
+    enabled: !!projectId, // 只在有 projectId 时查询
     initialData: cachedInfo?.project,
   })
 }
@@ -155,7 +147,7 @@ export function useProjectMembers(projectId: string) {
     queryFn: async () => {
       return await projectsApi.getMembers(projectId, currentOrganizationId)
     },
-    enabled: !!projectId && isAuthenticated && typeof currentOrganizationId === 'number',
+    enabled: !!projectId && isAuthenticated,
   })
 }
 

@@ -21,15 +21,18 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
   const { data: organizations = [], isLoading: orgLoading } = useOrganizationList();
   
   useEffect(() => {
-    if (typeof selectedOrganizationId === 'number') {
+    if (selectedOrganizationId !== undefined) {
+      // 如果传入的是null，表示选择个人项目
       setOrganizationId(selectedOrganizationId);
-      return
+    } else {
+      // 默认选择第一个组织（如果存在）
+      if (organizations.length > 0) {
+        setOrganizationId(organizations[0].id);
+      } else {
+        // 没有组织时，默认为个人项目（null）
+        setOrganizationId(null);
+      }
     }
-    if (organizations.length > 0) {
-      setOrganizationId(organizations[0].id);
-      return
-    }
-    setOrganizationId(null);
   }, [selectedOrganizationId, organizations.length]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,11 +45,6 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
       return;
     }
 
-    if (typeof organizationId !== 'number') {
-      setError('请先选择组织');
-      return;
-    }
-    
     if (!gitUrl.trim()) {
       setError('请输入 Git 地址');
       return;
@@ -61,15 +59,20 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
     }
     
     try {
-      await createProject.mutateAsync({
+      const input: any = {
         name: name.trim(),
         git_url: gitUrl.trim(),
-        organization_id: organizationId,
+      }
+      if (typeof organizationId === 'number') {
+        input.organization_id = organizationId
+      }
+      await createProject.mutateAsync({
+        ...input,
       });
       
       setName('');
       setGitUrl('');
-      setOrganizationId(typeof selectedOrganizationId === 'number' ? selectedOrganizationId : organizationId);
+      setOrganizationId(selectedOrganizationId ?? null);
       onSuccess?.();
       onClose();
     } catch (err: any) {
@@ -92,11 +95,15 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
               <div className="text-xs text-foreground-secondary">加载组织列表...</div>
             ) : (
               <select
-                value={organizationId ?? ''}
-                onChange={(e) => setOrganizationId(Number(e.target.value))}
+                value={organizationId ?? 'personal'}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setOrganizationId(val === 'personal' ? null : Number(val))
+                }}
                 className="w-full px-3 py-2 border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                disabled={createProject.isPending || organizations.length === 0}
+                disabled={createProject.isPending}
               >
+                <option value="personal">个人项目</option>
                 {organizations.map((org: any) => (
                   <option key={org.id} value={org.id}>{org.name}</option>
                 ))}
@@ -144,7 +151,7 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
             type="submit" 
             form="create-project-form"
             loading={createProject.isPending}
-            disabled={!name.trim() || !gitUrl.trim() || typeof organizationId !== 'number' || createProject.isPending}
+            disabled={!name.trim() || !gitUrl.trim() || createProject.isPending}
           >
             创建
           </Button>

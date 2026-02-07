@@ -8,10 +8,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { ImageCropDialog } from './ImageCropDialog'
 import { uploadApi } from '@/lib/api/endpoints/upload'
-import { compressImage, dataURLtoFile } from '@/lib/utils/imageCompress'
+import { compressImageDataUrl, dataURLtoFile } from '@/lib/utils/imageCompress'
 import { getAvatarUrl, getAvatarUrlSync } from '@/lib/oss/urlHelper'
 import { uploadAvatarToOSS } from '@/lib/oss/uploadApi'
 import { getSignedUrl } from '@/lib/oss/upload'
+import { UPLOAD_LIMITS } from '@/lib/constants/uploadLimits'
+import { formatFileSize } from '@/lib/utils/validators'
 
 export interface AvatarCropUploadProps {
   /** 头像 URL */
@@ -129,11 +131,24 @@ export function AvatarCropUpload({
     setError('')
     
     try {
-      // 1. 压缩图片（确保文件大小不会太大）
-      const compressedImage = await compressImage(croppedImage, 200, 0.8)
+      const targetBytes = Math.min(UPLOAD_LIMITS.avatar.targetBytes, UPLOAD_LIMITS.avatar.maxBytes)
+
+      // 1. 压缩图片（尽量压缩到目标体积）
+      const compressed = await compressImageDataUrl(croppedImage, {
+        maxSizeBytes: targetBytes,
+        maxDimension: UPLOAD_LIMITS.avatar.maxDimension,
+        initialQuality: UPLOAD_LIMITS.avatar.initialQuality,
+        minQuality: UPLOAD_LIMITS.avatar.minQuality,
+        qualityStep: UPLOAD_LIMITS.avatar.qualityStep,
+      })
+
+      if (compressed.sizeBytes > UPLOAD_LIMITS.avatar.maxBytes) {
+        setError(`头像过大，压缩后仍超过 ${formatFileSize(UPLOAD_LIMITS.avatar.maxBytes)}`)
+        return
+      }
       
       // 2. 转换为 File 对象
-      const file = dataURLtoFile(compressedImage, 'avatar.jpg')
+      const file = dataURLtoFile(compressed.dataUrl, 'avatar.jpg')
       
       // 3. 获取 STS 临时凭证
       const credentials = await uploadApi.getSTSToken()
@@ -291,6 +306,5 @@ export function AvatarCropUpload({
     </div>
   )
 }
-
 
 

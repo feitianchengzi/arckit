@@ -275,16 +275,22 @@ export default function OrganizationDetailPage() {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <h3 className="text-lg font-medium">组织成员</h3>
-              <button
-                onClick={() => setShowInviteDialog(true)}
-                className="flex items-center justify-center p-2 rounded-md transition-colors text-foreground hover:bg-surface-hover"
-                title="新增成员"
-                aria-label="新增成员"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
+              {canManage ? (
+                <button
+                  onClick={() => setShowInviteDialog(true)}
+                  className="flex items-center justify-center p-2 rounded-md transition-colors text-foreground hover:bg-surface-hover"
+                  title="新增成员"
+                  aria-label="新增成员"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              ) : (
+                <span className="text-xs text-foreground-tertiary">
+                  邀请成员请联系组织管理员
+                </span>
+              )}
             </div>
             {members && members.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

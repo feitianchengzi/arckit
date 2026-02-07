@@ -37,6 +37,9 @@ export function CreateTaskDialog({
   const [tagsString, setTagsString] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [isEditingAssignee, setIsEditingAssignee] = useState(false)
+  const toggleAssigneeEditor = () => {
+    setIsEditingAssignee((prev) => !prev)
+  }
   
   const currentUser = useAuthStore((state) => state.user)
   
@@ -250,7 +253,11 @@ export function CreateTaskDialog({
             </label>
             <div className="flex items-center gap-2">
               {assigneeId !== undefined ? (
-                <div className="flex items-center gap-2 flex-1">
+                <button
+                  type="button"
+                  onClick={toggleAssigneeEditor}
+                  className="flex items-center gap-2 flex-1 text-left hover:text-foreground transition-colors"
+                >
                   <Avatar
                     user={{
                       username: members.find((m: any) => m.user_id === assigneeId)?.username || members.find((m: any) => m.user_id === assigneeId)?.user?.username || '未知用户',
@@ -273,51 +280,27 @@ export function CreateTaskDialog({
                       </div>
                     )
                   })()}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isEditingAssignee) {
-                        setIsEditingAssignee(false)
-                      } else {
-                        setIsEditingAssignee(true)
-                      }
-                    }}
-                    className="p-1 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground flex-shrink-0 ml-0.5"
-                    aria-label={isEditingAssignee ? "收起" : "展开"}
-                    title={isEditingAssignee ? "收起" : "展开"}
-                  >
-                    <ChevronDownIcon 
-                      className={clsx(
-                        "w-4 h-4 transition-transform",
-                        isEditingAssignee && "transform rotate-180"
-                      )} 
-                    />
-                  </button>
-                </div>
+                  <ChevronDownIcon 
+                    className={clsx(
+                      "w-4 h-4 transition-transform ml-1 text-foreground-secondary",
+                      isEditingAssignee && "transform rotate-180"
+                    )} 
+                  />
+                </button>
               ) : (
-                <div className="flex items-center gap-2 flex-1">
-                  <span className="text-sm text-foreground-tertiary">未分配</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isEditingAssignee) {
-                        setIsEditingAssignee(false)
-                      } else {
-                        setIsEditingAssignee(true)
-                      }
-                    }}
-                    className="p-1 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground flex-shrink-0 ml-0.5"
-                    aria-label={isEditingAssignee ? "收起" : "展开"}
-                    title={isEditingAssignee ? "展开" : "收起"}
-                  >
-                    <ChevronDownIcon 
-                      className={clsx(
-                        "w-4 h-4 transition-transform",
-                        isEditingAssignee && "transform rotate-180"
-                      )} 
-                    />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={toggleAssigneeEditor}
+                  className="flex items-center gap-2 flex-1 text-left text-foreground-tertiary hover:text-foreground transition-colors"
+                >
+                  <span className="text-sm">未分配</span>
+                  <ChevronDownIcon 
+                    className={clsx(
+                      "w-4 h-4 transition-transform ml-1 text-foreground-secondary",
+                      isEditingAssignee && "transform rotate-180"
+                    )} 
+                  />
+                </button>
               )}
             </div>
             {/* 成员选择区域 - 点击更换后展开 */}

@@ -715,54 +715,78 @@ export function TaskDetailContent({
             <div className="flex items-center justify-between gap-4 w-full">
               {/* 执行人信息 - 左侧 */}
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <Avatar
-                    user={{
-                      username: executorUsername,
-                      avatar: executorInfo?.avatar || executorInfo?.user?.avatar || todo?.assignee?.avatar
+                {canEditAssignee ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isEditingAssignee) {
+                        setIsEditingAssignee(false)
+                        setNewAssigneeId(undefined)
+                        setUpdateError('')
+                      } else {
+                        setIsEditingAssignee(true)
+                        setNewAssigneeId(todo.assigneeId)
+                      }
                     }}
-                    size="sm"
-                  />
-                  <p className="text-sm text-foreground-secondary">
-                    {executorUsername}
-                  </p>
-                  {(() => {
-                    if (!todo.assigneeId || !currentOrganizationId) return null
-                    const isOrgMember = !orgMembers || orgMembers.some(om => om.user_id === todo.assigneeId)
-                    if (isOrgMember) return null
-                    return (
-                      <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
-                        <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                        </svg>
-                      </div>
-                    )
-                  })()}
-                  {canEditAssignee && (
-                    <button
-                      onClick={() => {
-                        if (isEditingAssignee) {
-                          setIsEditingAssignee(false)
-                          setNewAssigneeId(undefined)
-                          setUpdateError('')
-                        } else {
-                          setIsEditingAssignee(true)
-                          setNewAssigneeId(todo.assigneeId)
-                        }
+                    className="flex items-center gap-2 flex-1 min-w-0 text-left hover:text-foreground transition-colors"
+                    aria-label={isEditingAssignee ? "收起" : "展开"}
+                    title={isEditingAssignee ? "收起" : "展开"}
+                  >
+                    <Avatar
+                      user={{
+                        username: executorUsername,
+                        avatar: executorInfo?.avatar || executorInfo?.user?.avatar || todo?.assignee?.avatar
                       }}
-                      className="p-1 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground flex-shrink-0 ml-0.5"
-                      aria-label={isEditingAssignee ? "收起" : "展开"}
-                      title={isEditingAssignee ? "收起" : "展开"}
-                    >
-                      <ChevronDownIcon 
-                        className={clsx(
-                          "w-4 h-4 transition-transform",
-                          isEditingAssignee && "transform rotate-180"
-                        )} 
-                      />
-                    </button>
-                  )}
-                </div>
+                      size="sm"
+                    />
+                    <p className="text-sm text-foreground-secondary">
+                      {executorUsername}
+                    </p>
+                    {(() => {
+                      if (!todo.assigneeId || !currentOrganizationId) return null
+                      const isOrgMember = !orgMembers || orgMembers.some(om => om.user_id === todo.assigneeId)
+                      if (isOrgMember) return null
+                      return (
+                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                        </div>
+                      )
+                    })()}
+                    <ChevronDownIcon 
+                      className={clsx(
+                        "w-4 h-4 transition-transform text-foreground-secondary ml-1",
+                        isEditingAssignee && "transform rotate-180"
+                      )} 
+                    />
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Avatar
+                      user={{
+                        username: executorUsername,
+                        avatar: executorInfo?.avatar || executorInfo?.user?.avatar || todo?.assignee?.avatar
+                      }}
+                      size="sm"
+                    />
+                    <p className="text-sm text-foreground-secondary">
+                      {executorUsername}
+                    </p>
+                    {(() => {
+                      if (!todo.assigneeId || !currentOrganizationId) return null
+                      const isOrgMember = !orgMembers || orgMembers.some(om => om.user_id === todo.assigneeId)
+                      if (isOrgMember) return null
+                      return (
+                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
+                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                          </svg>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                )}
                 {!isEditingAssignee && !canEditAssignee && todo.status === 'IN_PROGRESS' && (
                   <span 
                     className="text-xs text-foreground-secondary relative group cursor-help"
@@ -830,23 +854,22 @@ export function TaskDetailContent({
                       key={memberId}
                       type="button"
                       onClick={async () => {
-                        // 如果正在保存或已选中，不处理
-                        if (isSavingAssignee || isSelected) return
-                        
-                        // 如果点击的是当前选中的，不处理
-                        if (newAssigneeId === memberId) return
+                        // 如果正在保存，不处理
+                        if (isSavingAssignee) return
                         
                         try {
                           setIsSavingAssignee(true)
                           setUpdateError('')
-                          setNewAssigneeId(memberId)
-                          await updateTask.mutateAsync({ assigneeId: memberId })
+                          const willClear = isSelected
+                          const nextAssigneeId = willClear ? null : memberId
+                          setNewAssigneeId(willClear ? undefined : memberId)
+                          await updateTask.mutateAsync({ assigneeId: nextAssigneeId })
                           setIsEditingAssignee(false)
                         } catch (err: any) {
                           console.error('分配任务失败:', err)
                           
                           // 恢复之前的选择
-                          setNewAssigneeId(todo.assigneeId)
+                          setNewAssigneeId(todo.assigneeId ?? undefined)
                           
                           if (err?.response?.status === 403) {
                             if (isAssigneeUnassignedLocal) {
@@ -1317,4 +1340,3 @@ function AssigneeSelector({ members, value, onChange, onSave, onCancel, error, l
     </div>
   )
 }
-

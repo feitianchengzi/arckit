@@ -161,7 +161,6 @@ export interface FirstTimeSetupDialogProps {
 export interface AvatarUploadProps {
   value?: string
   onChange: (url: string) => void
-  maxSize?: number  // KB
+  maxSize?: number  // KB（压缩后限制）
   recommendedSize?: string
 }
-

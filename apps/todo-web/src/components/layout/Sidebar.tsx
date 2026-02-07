@@ -77,15 +77,9 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   const selectedOrganization = currentOrganizationId
     ? organizations.find((organization) => organization.id === currentOrganizationId)
     : null
-  const headerTitle = selectedOrganization?.name ?? '项目'
+  const isPersonalProjects = !currentOrganizationId && location.pathname.startsWith('/projects')
+  const headerTitle = selectedOrganization?.name ?? (isPersonalProjects ? '个人项目' : '项目')
   const projectCount = projects.length
-
-  useEffect(() => {
-    if (!organizations.length) return
-    if (!currentOrganizationId || !organizations.some((org) => org.id === currentOrganizationId)) {
-      setCurrentOrganizationId(organizations[0].id)
-    }
-  }, [organizations, currentOrganizationId, setCurrentOrganizationId])
 
   // 移动端/平板端：点击导航项后自动关闭侧边栏
   const handleNavClick = (href: string) => {
@@ -260,6 +254,11 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
           {!hasOrganizations && (
             <div className="px-4 py-3 text-xs text-foreground-secondary">
               请先加入或创建一个组织
+            </div>
+          )}
+          {hasOrganizations && !currentOrganizationId && !isPersonalProjects && (
+            <div className="px-4 py-3 text-xs text-foreground-secondary">
+              请选择组织后创建项目
             </div>
           )}
           <div className="flex-1 overflow-y-auto px-4 py-3">

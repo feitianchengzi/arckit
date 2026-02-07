@@ -36,6 +36,7 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
   const pathname = location.pathname
   const { data: organizations = [], isLoading } = useOrganizationList()
   const [showAll, setShowAll] = useState(false)
+  const isPersonalActive = !selectedOrganizationId && pathname?.startsWith('/projects')
 
   // 获取当前选中的组织 ID
   const routeOrganizationId = pathname?.match(/\/organizations\/(\d+)/)?.[1]
@@ -63,6 +64,18 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
     setShowAll(!showAll)
   }
   
+  const handlePersonalClick = () => {
+    if (onSelectOrganization) {
+      onSelectOrganization(null)
+    }
+    const href = '/projects'
+    if (onItemClick) {
+      onItemClick(href)
+    } else {
+      navigate(href)
+    }
+  }
+
   return (
     <div className="space-y-1 px-2">
       {isLoading ? (
@@ -117,6 +130,79 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
               </button>
             )
           })}
+          <button
+            onClick={handlePersonalClick}
+            className={clsx(
+              'w-full flex flex-col items-center gap-1 px-2 py-2 text-xs rounded-md transition-colors relative',
+              'min-h-[64px]',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+              'text-foreground-secondary hover:text-foreground font-semibold',
+              {
+                'text-primary': isPersonalActive,
+              }
+            )}
+            style={{
+              outline: 'none',
+              boxShadow: 'none'
+            }}
+            title="个人项目"
+            aria-current={isPersonalActive ? 'page' : undefined}
+          >
+            <span className="relative">
+              <span
+                className={clsx(
+                  'absolute left-[-16px] top-1/2 -translate-y-1/2 h-6 w-1.5 rounded-full transition-all bg-primary',
+                  isPersonalActive ? 'opacity-100' : 'opacity-0'
+                )}
+              />
+              <span
+                className={clsx(
+                  'flex h-10 w-10 items-center justify-center rounded-lg text-sm font-semibold border transition-colors',
+                  isPersonalActive
+                    ? 'bg-primary-light text-primary border-primary org-tab-selected'
+                    : 'bg-gray-200 dark:bg-surface-active text-foreground-secondary hover:bg-surface-hover hover:text-foreground border-transparent'
+                )}
+              >
+                个
+              </span>
+              <span className="absolute -top-0.5 -right-0.5">
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true"
+                >
+                  <defs>
+                    <linearGradient id="personalBadgeGradient" x1="2" y1="2" x2="14" y2="14" gradientUnits="userSpaceOnUse">
+                      <stop offset="0%" stopColor="#60A5FA" />
+                      <stop offset="100%" stopColor="#A78BFA" />
+                    </linearGradient>
+                    <radialGradient
+                      id="personalBadgeHighlight"
+                      cx="0"
+                      cy="0"
+                      r="1"
+                      gradientUnits="userSpaceOnUse"
+                      gradientTransform="translate(11 4) rotate(45) scale(6.5 5)"
+                    >
+                      <stop offset="0" stopColor="white" stopOpacity="0.45" />
+                      <stop offset="0.6" stopColor="white" stopOpacity="0.18" />
+                      <stop offset="1" stopColor="white" stopOpacity="0" />
+                    </radialGradient>
+                  </defs>
+                  <circle cx="8" cy="8" r="7" fill="url(#personalBadgeGradient)" />
+                  <circle cx="8" cy="8" r="7" fill="url(#personalBadgeHighlight)" />
+                  <path
+                    d="M6 4h3.3a2.2 2.2 0 0 1 0 4.4H7.6V12H6V4zm1.6 1.6v1.6h1.7a0.8 0.8 0 0 0 0-1.6H7.6z"
+                    fill="white"
+                  />
+                </svg>
+              </span>
+            </span>
+            <span className="truncate w-full text-center">个人项目</span>
+          </button>
           {hasMore && (
             <button
               onClick={handleShowMore}

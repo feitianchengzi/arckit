@@ -130,6 +130,7 @@ export const ProjectMemberList = ({
   const currentUserRole = currentUserMember?.role || null
   const isOwner = currentUserRole === 'owner'
   const isAdmin = currentUserRole === 'admin' || isOwner
+  const canInvite = isAdmin
 
   // 处理角色变更（直接请求API，带防抖保护）
   const handleRoleChange = useCallback(async (member: ProjectMember, newRole: 'admin' | 'member') => {
@@ -310,7 +311,9 @@ export const ProjectMemberList = ({
         /* 邀请表单 - 覆盖成员列表 */
         <div className="p-4 bg-surface-elevated rounded-lg border border-border space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-sm font-semibold text-foreground">邀请新成员</h4>
+            <h4 className="text-sm font-semibold text-foreground">
+              {canInvite ? '邀请新成员' : '添加成员'}
+            </h4>
             <button
               onClick={handleCloseInviteForm}
               className="p-1 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
@@ -320,134 +323,138 @@ export const ProjectMemberList = ({
             </button>
           </div>
           
-          {/* 选择角色 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              成员角色
-            </label>
-            <RoleSelect
-              value={role}
-              onChange={setRole}
-              disabled={createInvitation.isPending}
-            />
-          </div>
-          
-          {/* 过期时间 */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              过期时间（小时）
-            </label>
-            <select
-              value={expiresInHours}
-              onChange={(e) => setExpiresInHours(e.target.value)}
-              disabled={createInvitation.isPending}
-              className="w-full px-3 py-2 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:border-primary focus:ring-2 focus:ring-primary"
-            >
-              <option value="1">1 小时</option>
-              <option value="6">6 小时</option>
-              <option value="24">24 小时</option>
-              <option value="72">3 天</option>
-              <option value="168">7 天</option>
-              <option value="0">永不过期</option>
-            </select>
-          </div>
-          
-          {/* 邀请人数 */}
-          <div className="space-y-2">
-            <TextField
-              id="maxUses"
-              label="邀请人数（可选）"
-              type="number"
-              min="1"
-              value={maxUses}
-              onChange={(e) => setMaxUses(e.target.value)}
-              placeholder="留空则默认1人"
-              helperText="不填写则默认1人，填写后该邀请码可被指定次数的人使用"
-              disabled={createInvitation.isPending}
-              fullWidth
-            />
-          </div>
-          
-          {/* 生成按钮 */}
-          <Button
-            variant="primary"
-            onClick={handleGenerate}
-            loading={createInvitation.isPending}
-            fullWidth
-            size="sm"
-          >
-            {createInvitation.isPending ? '生成中...' : '生成邀请'}
-          </Button>
-          
-          {/* 错误提示 */}
-          {inviteError && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3">
-              <p className="text-sm text-red-600">{inviteError}</p>
-            </div>
-          )}
-          
-          {/* 邀请码和链接 */}
-          {inviteCode && (
-            <div className="space-y-3 pt-4 border-t border-divider">
+          {canInvite && (
+            <>
+              {/* 选择角色 */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
-                  邀请码
+                  成员角色
                 </label>
-                <div className="flex gap-2 items-center min-w-0">
-                  <input
-                    type="text"
-                    value={inviteCode}
-                    readOnly
-                    disabled
-                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-md bg-surface-disabled font-mono text-foreground-secondary cursor-not-allowed"
-                  />
-                  <button
-                    onClick={() => handleCopy('code')}
-                    className="flex-shrink-0 p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
-                    title={copied === 'code' ? '已复制' : '复制邀请码'}
-                  >
-                    {copied === 'code' ? (
-                      <CheckIcon className="w-5 h-5 text-green-600" />
-                    ) : (
-                      <CopyIcon className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
+                <RoleSelect
+                  value={role}
+                  onChange={setRole}
+                  disabled={createInvitation.isPending}
+                />
               </div>
               
+              {/* 过期时间 */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
-                  邀请链接
+                  过期时间（小时）
                 </label>
-                <div className="flex gap-2 items-center min-w-0">
-                  <input
-                    type="text"
-                    value={inviteLink}
-                    readOnly
-                    disabled
-                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-md bg-surface-disabled text-foreground-secondary cursor-not-allowed truncate"
-                  />
-                  <button
-                    onClick={() => handleCopy('link')}
-                    className="flex-shrink-0 p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
-                    title={copied === 'link' ? '已复制' : '复制邀请链接'}
-                  >
-                    {copied === 'link' ? (
-                      <CheckIcon className="w-5 h-5 text-green-600" />
-                    ) : (
-                      <CopyIcon className="w-5 h-5" />
-                    )}
-                  </button>
-                </div>
+                <select
+                  value={expiresInHours}
+                  onChange={(e) => setExpiresInHours(e.target.value)}
+                  disabled={createInvitation.isPending}
+                  className="w-full px-3 py-2 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:border-primary focus:ring-2 focus:ring-primary"
+                >
+                  <option value="1">1 小时</option>
+                  <option value="6">6 小时</option>
+                  <option value="24">24 小时</option>
+                  <option value="72">3 天</option>
+                  <option value="168">7 天</option>
+                  <option value="0">永不过期</option>
+                </select>
               </div>
-            </div>
+              
+              {/* 邀请人数 */}
+              <div className="space-y-2">
+                <TextField
+                  id="maxUses"
+                  label="邀请人数（可选）"
+                  type="number"
+                  min="1"
+                  value={maxUses}
+                  onChange={(e) => setMaxUses(e.target.value)}
+                  placeholder="留空则默认1人"
+                  helperText="不填写则默认1人，填写后该邀请码可被指定次数的人使用"
+                  disabled={createInvitation.isPending}
+                  fullWidth
+                />
+              </div>
+              
+              {/* 生成按钮 */}
+              <Button
+                variant="primary"
+                onClick={handleGenerate}
+                loading={createInvitation.isPending}
+                fullWidth
+                size="sm"
+              >
+                {createInvitation.isPending ? '生成中...' : '生成邀请'}
+              </Button>
+              
+              {/* 错误提示 */}
+              {inviteError && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                  <p className="text-sm text-red-600">{inviteError}</p>
+                </div>
+              )}
+              
+              {/* 邀请码和链接 */}
+              {inviteCode && (
+                <div className="space-y-3 pt-4 border-t border-divider">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      邀请码
+                    </label>
+                    <div className="flex gap-2 items-center min-w-0">
+                      <input
+                        type="text"
+                        value={inviteCode}
+                        readOnly
+                        disabled
+                        className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-md bg-surface-disabled font-mono text-foreground-secondary cursor-not-allowed"
+                      />
+                      <button
+                        onClick={() => handleCopy('code')}
+                        className="flex-shrink-0 p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
+                        title={copied === 'code' ? '已复制' : '复制邀请码'}
+                      >
+                        {copied === 'code' ? (
+                          <CheckIcon className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <CopyIcon className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">
+                      邀请链接
+                    </label>
+                    <div className="flex gap-2 items-center min-w-0">
+                      <input
+                        type="text"
+                        value={inviteLink}
+                        readOnly
+                        disabled
+                        className="flex-1 min-w-0 px-3 py-2 text-sm border border-border rounded-md bg-surface-disabled text-foreground-secondary cursor-not-allowed truncate"
+                      />
+                      <button
+                        onClick={() => handleCopy('link')}
+                        className="flex-shrink-0 p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
+                        title={copied === 'link' ? '已复制' : '复制邀请链接'}
+                      >
+                        {copied === 'link' ? (
+                          <CheckIcon className="w-5 h-5 text-green-600" />
+                        ) : (
+                          <CopyIcon className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* 从组织添加成员 */}
-          {potentialMembers.length > 0 && (
-            <div className="pt-4 mt-4 border-t border-divider">
+          {potentialMembers.length > 0 ? (
+            <div className={clsx(canInvite && 'pt-4 mt-4 border-t border-divider')}>
               <h4 className="text-sm font-semibold text-foreground mb-3">从组织添加成员</h4>
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1 scrollbar-slim">
                 {potentialMembers.map(member => (
                   <div key={member.id} className="flex items-center justify-between p-2 rounded-md hover:bg-surface-hover border border-transparent hover:border-border transition-all">
                     <div className="flex items-center gap-3">
@@ -478,6 +485,10 @@ export const ProjectMemberList = ({
                   </div>
                 ))}
               </div>
+            </div>
+          ) : (
+            <div className={clsx(canInvite && 'pt-4 mt-4 border-t border-divider', 'text-sm text-foreground-secondary')}>
+              暂无可添加的组织成员
             </div>
           )}
         </div>

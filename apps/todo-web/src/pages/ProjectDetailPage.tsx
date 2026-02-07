@@ -14,7 +14,6 @@ import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
 import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useProjectWebSocket, type ProjectSocketEvent } from '@/hooks/useProjectWebSocket'
-import { showGlobalToast } from '@/components/ui/Toast'
 import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
@@ -160,7 +159,7 @@ export default function ProjectDetailPage() {
 
   const toggleStatusFilter = (status: TodoStatus) => {
     if (statusFilter.length === 0) {
-      setStatusFilter([status])
+      setStatusFilter(statusValues.filter(value => value !== status))
       return
     }
     if (statusFilter.includes(status)) {
@@ -209,11 +208,9 @@ export default function ProjectDetailPage() {
     invitations: false,
   })
   const realtimeTimerRef = useRef<number | null>(null)
-  const lastRealtimeToastAtRef = useRef(0)
 
   const flushRealtimeRefresh = useCallback(() => {
     const pending = realtimePendingRef.current
-    const hasUpdates = pending.tasks || pending.tags || pending.members || pending.project || pending.invitations
     if (pending.tasks) {
       queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'tasks'] })
     }
@@ -236,13 +233,6 @@ export default function ProjectDetailPage() {
       members: false,
       project: false,
       invitations: false,
-    }
-    if (hasUpdates) {
-      const now = Date.now()
-      if (now - lastRealtimeToastAtRef.current > 2500) {
-        lastRealtimeToastAtRef.current = now
-        showGlobalToast('已同步项目最新变更', 'info', 3500)
-      }
     }
   }, [projectIdParam, queryClient, loadProjectTags])
 
@@ -352,6 +342,22 @@ export default function ProjectDetailPage() {
     tagIds,
     priorityValues,
   ])
+
+  const isStatusFilterActive = (taskListFilters.status?.length ?? 0) > 0
+  const isCreatorFilterActive = (taskListFilters.creatorIds?.length ?? 0) > 0
+  const isExecutorFilterActive = (taskListFilters.executorIds?.length ?? 0) > 0
+  const isTagFilterActive = (taskListFilters.tagIds?.length ?? 0) > 0
+  const isPriorityFilterActive = (taskListFilters.priorities?.length ?? 0) > 0
+  const isDateRangeActive = !!(dateRange && (dateRange.startDate || dateRange.endDate))
+  const isSearchActive = !!searchQuery.trim()
+  const hasActiveFilters =
+    isStatusFilterActive ||
+    isCreatorFilterActive ||
+    isExecutorFilterActive ||
+    isTagFilterActive ||
+    isPriorityFilterActive ||
+    isDateRangeActive ||
+    isSearchActive
 
   // 如果正在删除项目，禁用待办列表查询
   const { data: taskListData, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(projectIdParam, {
@@ -1031,10 +1037,11 @@ export default function ProjectDetailPage() {
   }
   
   // 判断当前用户是否是项目所有者
-  const isOwner = project?.creator?.username === currentUser?.username || 
+  const isOwner =
+    currentUserRole === 'owner' ||
+    project?.creator_id === currentUser?.id ||
+    project?.creator?.username === currentUser?.username ||
     project?.members?.some((m: ProjectMember) => m.username === currentUser?.username && m.role === 'owner')
-
-  const canManageProject = isOwner || project?.members?.some((m: ProjectMember) => m.username === currentUser?.username && m.role === 'admin')
   
   return (
     <div className="space-y-4 md:space-y-6">
@@ -1153,22 +1160,6 @@ export default function ProjectDetailPage() {
                     <span>导出待办</span>
                   </button>
                   
-                  {/* 迁移项目 - 只有管理者可见 */}
-                  {canManageProject && (
-                    <button
-                      onClick={() => {
-                        setShowMigrateDialog(true)
-                        setShowMoreMenu(false)
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 transition-colors"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                      <span>迁移项目到组织</span>
-                    </button>
-                  )}
-
                   {/* 编辑项目 - 只有所有者可见 */}
                   {isOwner && (
                     <button
@@ -1257,14 +1248,14 @@ export default function ProjectDetailPage() {
                   <StatusFilterIcon
                     className={clsx(
                       'w-4 h-4',
-                      statusFilter.length > 0 ? 'text-orange-500' : 'text-gray-500'
+                      isStatusFilterActive ? 'text-orange-500' : 'text-gray-500'
                     )}
                   />
                 }
                 value={statusFilter}
                 options={statusOptions}
                 onChange={setStatusFilter}
-                active={statusFilter.length > 0}
+                active={isStatusFilterActive}
               />
             </div>
             
@@ -1276,14 +1267,14 @@ export default function ProjectDetailPage() {
                   <CreatorFilterIcon
                     className={clsx(
                       'w-4 h-4',
-                      creatorFilter.length > 0 ? 'text-warning' : 'text-foreground-tertiary'
+                      isCreatorFilterActive ? 'text-warning' : 'text-foreground-tertiary'
                     )}
                   />
                 }
                 value={creatorFilter}
                 options={creatorOptions}
                 onChange={setCreatorFilter}
-                active={creatorFilter.length > 0}
+                active={isCreatorFilterActive}
                 disabled={creatorOptions.length === 0}
               />
             </div>
@@ -1296,14 +1287,14 @@ export default function ProjectDetailPage() {
                   <ExecutorFilterIcon
                     className={clsx(
                       'w-4 h-4',
-                      executorFilter.length > 0 ? 'text-warning' : 'text-foreground-tertiary'
+                      isExecutorFilterActive ? 'text-warning' : 'text-foreground-tertiary'
                     )}
                   />
                 }
                 value={executorFilter}
                 options={executorOptions}
                 onChange={setExecutorFilter}
-                active={executorFilter.length > 0}
+                active={isExecutorFilterActive}
                 disabled={executorOptions.length === 0}
               />
             </div>
@@ -1316,14 +1307,14 @@ export default function ProjectDetailPage() {
                   <TagFilterIcon
                     className={clsx(
                       'w-4 h-4',
-                      tagFilter.length > 0 ? 'text-warning' : 'text-foreground-tertiary'
+                      isTagFilterActive ? 'text-warning' : 'text-foreground-tertiary'
                     )}
                   />
                 }
                 value={tagFilter}
                 options={tagOptions}
                 onChange={setTagFilter}
-                active={tagFilter.length > 0}
+                active={isTagFilterActive}
                 disabled={tagOptions.length === 0}
               />
             </div>
@@ -1336,14 +1327,14 @@ export default function ProjectDetailPage() {
                   <PriorityFilterIcon
                     className={clsx(
                       'w-4 h-4',
-                      priorityFilter.length > 0 ? 'text-warning' : 'text-foreground-tertiary'
+                      isPriorityFilterActive ? 'text-warning' : 'text-foreground-tertiary'
                     )}
                   />
                 }
                 value={priorityFilter}
                 options={priorityOptions}
                 onChange={setPriorityFilter}
-                active={priorityFilter.length > 0}
+                active={isPriorityFilterActive}
               />
             </div>
             
@@ -1372,11 +1363,11 @@ export default function ProjectDetailPage() {
                   {/* 角标：当隐藏筛选器中有条件时显示 */}
                     {(() => {
                       // 检查隐藏筛选器中是否有条件
-                      const hasHiddenCreator = hiddenFilters.includes('creator') && creatorFilter.length > 0
-                      const hasHiddenExecutor = hiddenFilters.includes('executor') && executorFilter.length > 0
-                      const hasHiddenTag = hiddenFilters.includes('tag') && tagFilter.length > 0
-                      const hasHiddenPriority = hiddenFilters.includes('priority') && priorityFilter.length > 0
-                      const hasHiddenDateRange = hiddenFilters.includes('dateRange') && (dateRange.startDate || dateRange.endDate)
+                      const hasHiddenCreator = hiddenFilters.includes('creator') && isCreatorFilterActive
+                      const hasHiddenExecutor = hiddenFilters.includes('executor') && isExecutorFilterActive
+                      const hasHiddenTag = hiddenFilters.includes('tag') && isTagFilterActive
+                      const hasHiddenPriority = hiddenFilters.includes('priority') && isPriorityFilterActive
+                      const hasHiddenDateRange = hiddenFilters.includes('dateRange') && isDateRangeActive
                       const hasActiveFilters = hasHiddenCreator || hasHiddenExecutor || hasHiddenTag || hasHiddenPriority || hasHiddenDateRange
                       
                       if (!hasActiveFilters) return null
@@ -1411,7 +1402,7 @@ export default function ProjectDetailPage() {
                         options={creatorOptions}
                         onChange={setCreatorFilter}
                         buttonClassName="w-full max-w-none"
-                        active={creatorFilter.length > 0}
+                        active={isCreatorFilterActive}
                         disabled={creatorOptions.length === 0}
                       />
                     )}
@@ -1425,7 +1416,7 @@ export default function ProjectDetailPage() {
                         options={executorOptions}
                         onChange={setExecutorFilter}
                         buttonClassName="w-full max-w-none"
-                        active={executorFilter.length > 0}
+                        active={isExecutorFilterActive}
                         disabled={executorOptions.length === 0}
                       />
                     )}
@@ -1439,7 +1430,7 @@ export default function ProjectDetailPage() {
                         options={tagOptions}
                         onChange={setTagFilter}
                         buttonClassName="w-full max-w-none"
-                        active={tagFilter.length > 0}
+                        active={isTagFilterActive}
                         disabled={tagOptions.length === 0}
                       />
                     )}
@@ -1453,7 +1444,7 @@ export default function ProjectDetailPage() {
                         options={priorityOptions}
                         onChange={setPriorityFilter}
                         buttonClassName="w-full max-w-none"
-                        active={priorityFilter.length > 0}
+                        active={isPriorityFilterActive}
                       />
                     )}
                     
@@ -1499,11 +1490,11 @@ export default function ProjectDetailPage() {
                     
                     {/* 清除所有隐藏筛选条件 */}
                     {(() => {
-                      const hasHiddenCreator = hiddenFilters.includes('creator') && creatorFilter.length > 0
-                      const hasHiddenExecutor = hiddenFilters.includes('executor') && executorFilter.length > 0
-                      const hasHiddenTag = hiddenFilters.includes('tag') && tagFilter.length > 0
-                      const hasHiddenPriority = hiddenFilters.includes('priority') && priorityFilter.length > 0
-                      const hasHiddenDateRange = hiddenFilters.includes('dateRange') && (dateRange.startDate || dateRange.endDate)
+                      const hasHiddenCreator = hiddenFilters.includes('creator') && isCreatorFilterActive
+                      const hasHiddenExecutor = hiddenFilters.includes('executor') && isExecutorFilterActive
+                      const hasHiddenTag = hiddenFilters.includes('tag') && isTagFilterActive
+                      const hasHiddenPriority = hiddenFilters.includes('priority') && isPriorityFilterActive
+                      const hasHiddenDateRange = hiddenFilters.includes('dateRange') && isDateRangeActive
                       const hasActiveFilters = hasHiddenCreator || hasHiddenExecutor || hasHiddenTag || hasHiddenPriority || hasHiddenDateRange
                       
                       if (!hasActiveFilters) return null
@@ -1557,7 +1548,7 @@ export default function ProjectDetailPage() {
             )}
             
             {/* 重置筛选 - 始终显示在最后 */}
-            {(statusFilter.length > 0 || creatorFilter.length > 0 || executorFilter.length > 0 || tagFilter.length > 0 || priorityFilter.length > 0 || (dateRange && (dateRange.startDate || dateRange.endDate)) || searchQuery.trim()) && (
+            {hasActiveFilters && (
               <div data-filter-key="reset" className="flex-shrink-0 ml-auto">
                 <Button
                   variant="ghost"
@@ -1593,29 +1584,17 @@ export default function ProjectDetailPage() {
           </div>
         ) : !todos || todos.length === 0 ? (
           <EmptyStateView
-            title="还没有待办"
-            message="创建第一个待办开始工作"
-            actionLabel="创建待办"
-            onAction={() => setShowCreateTaskDialog(true)}
+            title={hasActiveFilters ? "没有匹配的待办" : "还没有待办"}
+            message={hasActiveFilters ? "尝试切换其他筛选条件" : "创建第一个待办开始工作"}
+            actionLabel={hasActiveFilters ? undefined : "创建待办"}
+            onAction={hasActiveFilters ? undefined : () => setShowCreateTaskDialog(true)}
           />
         ) : filteredTodos.length === 0 ? (
           <EmptyStateView
             title="没有匹配的待办"
-            message={
-              statusFilter.length > 0 || creatorFilter.length > 0 || executorFilter.length > 0 || tagFilter.length > 0 || priorityFilter.length > 0
-                ? '尝试切换其他筛选条件'
-                : '创建第一个待办开始工作'
-            }
-            actionLabel={
-              statusFilter.length > 0 || creatorFilter.length > 0 || executorFilter.length > 0 || tagFilter.length > 0 || priorityFilter.length > 0
-                ? undefined
-                : '创建待办'
-            }
-            onAction={
-              statusFilter.length > 0 || creatorFilter.length > 0 || executorFilter.length > 0 || tagFilter.length > 0 || priorityFilter.length > 0
-                ? undefined
-                : () => setShowCreateTaskDialog(true)
-            }
+            message={hasActiveFilters ? '尝试切换其他筛选条件' : '创建第一个待办开始工作'}
+            actionLabel={hasActiveFilters ? undefined : '创建待办'}
+            onAction={hasActiveFilters ? undefined : () => setShowCreateTaskDialog(true)}
           />
         ) : (
           <div className="space-y-4">
@@ -1695,7 +1674,7 @@ export default function ProjectDetailPage() {
             <ProjectMemberList
               members={members || []}
               projectId={projectId}
-              canAddMember={isOwner || currentUserRole === 'admin'}
+              canAddMember={true}
               canManage={isOwner || currentUserRole === 'admin'}
               creatorFilter={creatorFilter}
               executorFilter={executorFilter}

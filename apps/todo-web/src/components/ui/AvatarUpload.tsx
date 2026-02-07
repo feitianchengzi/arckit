@@ -5,11 +5,12 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { validateImageFile } from '@/lib/utils/validators'
 import { uploadApi } from '@/lib/api/endpoints/upload'
-import { compressImage, dataURLtoFile } from '@/lib/utils/imageCompress'
+import { formatFileSize } from '@/lib/utils/validators'
+import { compressImageDataUrl, dataURLtoFile, readFileAsDataUrl } from '@/lib/utils/imageCompress'
 import { uploadAvatarToOSS } from '@/lib/oss/uploadApi'
 import { getSignedUrl } from '@/lib/oss/upload'
+import { UPLOAD_LIMITS } from '@/lib/constants/uploadLimits'
 
 export interface AvatarUploadProps {
   /** 头像 URL */
@@ -25,7 +26,7 @@ export interface AvatarUploadProps {
 export function AvatarUpload({
   value,
   onChange,
-  maxSize = 200,
+  maxSize = Math.round(UPLOAD_LIMITS.avatar.maxBytes / 1024),
   recommendedSize = '50x50',
 }: AvatarUploadProps) {
   const [preview, setPreview] = useState<string | undefined>(value)
@@ -33,6 +34,9 @@ export function AvatarUpload({
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const requestedMaxBytes = Math.max(1, maxSize) * 1024
+  const maxSizeBytes = Math.min(requestedMaxBytes, UPLOAD_LIMITS.avatar.maxBytes)
+  const targetBytes = Math.min(UPLOAD_LIMITS.avatar.targetBytes, maxSizeBytes)
 
   // 同步外部value到preview
   useEffect(() => {
@@ -42,12 +46,12 @@ export function AvatarUpload({
   // 处理文件选择
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
 
-    // 验证文件
-    const validation = validateImageFile(file, maxSize)
-    if (!validation.valid) {
-      setError(validation.error!)
+    // 验证文件类型
+    if (!file.type.startsWith('image/')) {
+      setError('请选择图片文件')
       return
     }
 
@@ -56,59 +60,50 @@ export function AvatarUpload({
     setUploadProgress(0)
 
     try {
-      // 1. 读取文件生成预览
-      const reader = new FileReader()
-      reader.onloadend = async () => {
-        try {
-          const dataUrl = reader.result as string
-          // 先显示本地预览
-          setPreview(dataUrl)
-          
-          // 2. 压缩图片
-          const compressedImage = await compressImage(dataUrl, maxSize, 0.8)
-          
-          // 3. 转换为 File 对象
-          const compressedFile = dataURLtoFile(compressedImage, file.name)
-          
-          // 4. 获取 STS 临时凭证
-          const credentials = await uploadApi.getSTSToken()
-          
-          // 5. 上传到 OSS 并自动更新用户头像
-          const uploadResult = await uploadAvatarToOSS(
-            compressedFile,
-            credentials,
-            (progress) => {
-              setUploadProgress(progress)
-            },
-            false // 使用直接更新方式（不使用 callback）
-          )
-          
-          // 6. 生成签名URL用于预览
-          const previewUrl = await getSignedUrl(uploadResult.objectKey, credentials)
-          
-          // 7. 更新预览和调用回调（传递 objectKey）
-          setPreview(previewUrl)
-          onChange(uploadResult.objectKey) // 传递 objectKey 而不是 URL
-          
-          console.log('✅ 头像上传成功:', uploadResult.objectKey)
-        } catch (uploadErr) {
-          console.error('❌ 头像上传失败:', uploadErr)
-          const errorMessage = uploadErr instanceof Error ? uploadErr.message : '上传失败，请重试'
-          setError(errorMessage)
-          // 上传失败时保留本地预览
-        } finally {
-          setIsUploading(false)
-          setUploadProgress(0)
-        }
+      const dataUrl = await readFileAsDataUrl(file)
+      setPreview(dataUrl)
+
+      const compressed = await compressImageDataUrl(dataUrl, {
+        maxSizeBytes: targetBytes,
+        maxDimension: UPLOAD_LIMITS.avatar.maxDimension,
+        initialQuality: UPLOAD_LIMITS.avatar.initialQuality,
+        minQuality: UPLOAD_LIMITS.avatar.minQuality,
+        qualityStep: UPLOAD_LIMITS.avatar.qualityStep,
+      })
+
+      if (compressed.sizeBytes > maxSizeBytes) {
+        setError(`头像过大，压缩后仍超过 ${formatFileSize(maxSizeBytes)}`)
+        return
       }
-      reader.onerror = () => {
-        setError('文件读取失败')
-        setIsUploading(false)
-        setUploadProgress(0)
-      }
-      reader.readAsDataURL(file)
+
+      const compressedFile = dataURLtoFile(compressed.dataUrl, 'avatar.jpg')
+
+      // 获取 STS 临时凭证
+      const credentials = await uploadApi.getSTSToken()
+
+      // 上传到 OSS 并自动更新用户头像
+      const uploadResult = await uploadAvatarToOSS(
+        compressedFile,
+        credentials,
+        (progress) => {
+          setUploadProgress(progress)
+        },
+        false // 使用直接更新方式（不使用 callback）
+      )
+
+      // 生成签名URL用于预览
+      const previewUrl = await getSignedUrl(uploadResult.objectKey, credentials)
+
+      // 更新预览和调用回调（传递 objectKey）
+      setPreview(previewUrl)
+      onChange(uploadResult.objectKey) // 传递 objectKey 而不是 URL
+
+      console.log('✅ 头像上传成功:', uploadResult.objectKey)
     } catch (err) {
-      setError('处理文件失败，请重试')
+      console.error('❌ 头像上传失败:', err)
+      const errorMessage = err instanceof Error ? err.message : '上传失败，请重试'
+      setError(errorMessage)
+    } finally {
       setIsUploading(false)
       setUploadProgress(0)
     }
@@ -200,7 +195,7 @@ export function AvatarUpload({
             {preview ? '更换头像' : '上传头像'}
           </button>
           <p className="mt-1 text-xs text-gray-500">
-            支持 JPG、PNG，不超过 {maxSize}KB
+            支持 JPG、PNG，压缩后不超过 {formatFileSize(maxSizeBytes)}
           </p>
           <p className="text-xs text-gray-500">
             建议尺寸：{recommendedSize}
@@ -222,4 +217,3 @@ export function AvatarUpload({
     </div>
   )
 }
-

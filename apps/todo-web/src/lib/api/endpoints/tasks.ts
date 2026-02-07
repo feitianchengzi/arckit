@@ -21,7 +21,7 @@ export interface CreateTaskInput {
 export interface UpdateTaskInput {
   content?: string
   status?: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'BLOCKED'
-  assigneeId?: number
+  assigneeId?: number | null
   tags?: string // 标签字符串
   priority?: number // 优先级
 }

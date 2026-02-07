@@ -31,7 +31,6 @@ export default function MyTasksPage() {
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const currentOrganizationId = useOrganizationStore((state) => state.currentOrganizationId)
-  const hasOrganization = typeof currentOrganizationId === 'number'
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
@@ -73,6 +72,8 @@ export default function MyTasksPage() {
     { value: 2, label: '🟡 中' },
     { value: 3, label: '🟢 低' },
   ]
+  const statusValues = statusOptions.map(option => option.value)
+  const priorityValues = priorityOptions.map(option => option.value)
   
   // 筛选器状态（初始值从本地存储恢复）
   const normalizeStatusFilter = (): TodoStatus[] => {
@@ -183,7 +184,7 @@ export default function MyTasksPage() {
   
   // 获取所有项目的任务、成员和标签
   useEffect(() => {
-    if (!projects || !user || projectsLoading || !hasOrganization) return
+    if (!projects || !user || projectsLoading) return
     
     const fetchAllTasks = async () => {
       setTasksLoading(true)
@@ -276,7 +277,7 @@ export default function MyTasksPage() {
     fetchAllTasks()
   }, [projects, user, projectsLoading, loadProjectTags])
   
-  const allTasksLoading = projectsLoading || tasksLoading || !hasOrganization
+  const allTasksLoading = projectsLoading || tasksLoading
   const allTasksError = projectsError || tasksError
   
   // 获取当前用户的 user_id（从所有成员中查找）
@@ -362,6 +363,34 @@ export default function MyTasksPage() {
     })
     return options
   }, [projects, allTagsByProject])
+
+  const isFilterActive = <T,>(selected: T[], allValues: T[]) => {
+    if (selected.length === 0) return false
+    if (allValues.length > 0 && selected.length === allValues.length && allValues.every(value => selected.includes(value))) {
+      return false
+    }
+    return true
+  }
+
+  const creatorValues = useMemo(() => creatorOptions.map(option => option.value), [creatorOptions])
+  const executorValues = creatorValues
+  const tagValues = useMemo(() => tagOptions.map(option => option.value), [tagOptions])
+
+  const isStatusFilterActive = isFilterActive(statusFilter, statusValues)
+  const isCreatorFilterActive = isFilterActive(creatorFilter, creatorValues)
+  const isExecutorFilterActive = isFilterActive(executorFilter, executorValues)
+  const isTagFilterActive = isFilterActive(tagFilter, tagValues)
+  const isPriorityFilterActive = isFilterActive(priorityFilter, priorityValues)
+  const isDateRangeActive = !!(dateRange && (dateRange.startDate || dateRange.endDate))
+  const isSearchActive = !!searchQuery.trim()
+  const hasActiveFilters =
+    isStatusFilterActive ||
+    isCreatorFilterActive ||
+    isExecutorFilterActive ||
+    isTagFilterActive ||
+    isPriorityFilterActive ||
+    isDateRangeActive ||
+    isSearchActive
   
   // 验证并修复筛选条件（数据加载完成后）
   useEffect(() => {
@@ -1164,14 +1193,14 @@ export default function MyTasksPage() {
                   <StatusFilterIcon
                     className={clsx(
                       'w-4 h-4',
-                      statusFilter.length > 0 ? 'text-orange-500' : 'text-gray-500'
+                      isStatusFilterActive ? 'text-orange-500' : 'text-gray-500'
                     )}
                   />
                 }
                 value={statusFilter}
                 options={statusOptions}
                 onChange={setStatusFilter}
-                active={statusFilter.length > 0}
+                active={isStatusFilterActive}
               />
             </div>
             
@@ -1183,14 +1212,14 @@ export default function MyTasksPage() {
                   <CreatorFilterIcon
                     className={clsx(
                       'w-4 h-4',
-                      creatorFilter.length > 0 ? 'text-warning' : 'text-foreground-tertiary'
+                      isCreatorFilterActive ? 'text-warning' : 'text-foreground-tertiary'
                     )}
                   />
                 }
                 value={creatorFilter}
                 options={creatorOptions}
                 onChange={setCreatorFilter}
-                active={creatorFilter.length > 0}
+                active={isCreatorFilterActive}
                 disabled={creatorOptions.length === 0}
               />
             </div>
@@ -1203,14 +1232,14 @@ export default function MyTasksPage() {
                   <ExecutorFilterIcon
                     className={clsx(
                       'w-4 h-4',
-                      executorFilter.length > 0 ? 'text-orange-500' : 'text-gray-500'
+                      isExecutorFilterActive ? 'text-orange-500' : 'text-gray-500'
                     )}
                   />
                 }
                 value={executorFilter}
                 options={executorOptions}
                 onChange={setExecutorFilter}
-                active={executorFilter.length > 0}
+                active={isExecutorFilterActive}
                 disabled={executorOptions.length === 0}
               />
             </div>
@@ -1223,14 +1252,14 @@ export default function MyTasksPage() {
                   <TagFilterIcon
                     className={clsx(
                       'w-4 h-4',
-                      tagFilter.length > 0 ? 'text-orange-500' : 'text-gray-500'
+                      isTagFilterActive ? 'text-orange-500' : 'text-gray-500'
                     )}
                   />
                 }
                 value={tagFilter}
                 options={tagOptions}
                 onChange={setTagFilter}
-                active={tagFilter.length > 0}
+                active={isTagFilterActive}
                 disabled={tagOptions.length === 0}
               />
             </div>
@@ -1243,14 +1272,14 @@ export default function MyTasksPage() {
                   <PriorityFilterIcon
                     className={clsx(
                       'w-4 h-4',
-                      priorityFilter.length > 0 ? 'text-orange-500' : 'text-gray-500'
+                      isPriorityFilterActive ? 'text-orange-500' : 'text-gray-500'
                     )}
                   />
                 }
                 value={priorityFilter}
                 options={priorityOptions}
                 onChange={setPriorityFilter}
-                active={priorityFilter.length > 0}
+                active={isPriorityFilterActive}
               />
             </div>
             
@@ -1299,7 +1328,7 @@ export default function MyTasksPage() {
                         options={creatorOptions}
                         onChange={setCreatorFilter}
                         buttonClassName="w-full max-w-none"
-                        active={creatorFilter.length > 0}
+                        active={isCreatorFilterActive}
                         disabled={creatorOptions.length === 0}
                       />
                     )}
@@ -1313,7 +1342,7 @@ export default function MyTasksPage() {
                         options={executorOptions}
                         onChange={setExecutorFilter}
                         buttonClassName="w-full max-w-none"
-                        active={executorFilter.length > 0}
+                        active={isExecutorFilterActive}
                         disabled={executorOptions.length === 0}
                       />
                     )}
@@ -1327,7 +1356,7 @@ export default function MyTasksPage() {
                         options={tagOptions}
                         onChange={setTagFilter}
                         buttonClassName="w-full max-w-none"
-                        active={tagFilter.length > 0}
+                        active={isTagFilterActive}
                         disabled={tagOptions.length === 0}
                       />
                     )}
@@ -1341,7 +1370,7 @@ export default function MyTasksPage() {
                         options={priorityOptions}
                         onChange={setPriorityFilter}
                         buttonClassName="w-full max-w-none"
-                        active={priorityFilter.length > 0}
+                        active={isPriorityFilterActive}
                       />
                     )}
                     
@@ -1368,7 +1397,7 @@ export default function MyTasksPage() {
             )}
             
             {/* 重置筛选 - 始终显示在最后 */}
-            {(statusFilter.length > 0 || creatorFilter.length > 0 || executorFilter.length > 0 || tagFilter.length > 0 || priorityFilter.length > 0 || (dateRange && (dateRange.startDate || dateRange.endDate)) || searchQuery.trim()) && (
+            {hasActiveFilters && (
               <div data-filter-key="reset" className="flex-shrink-0 ml-auto">
                 <Button
                   variant="ghost"
@@ -1398,21 +1427,21 @@ export default function MyTasksPage() {
             message={
               myTasks.length === 0
                 ? "您目前没有被分配的待办"
-                : statusFilter.length > 0 || creatorFilter.length > 0 || executorFilter.length > 0 || tagFilter.length > 0 || priorityFilter.length > 0 || (dateRange && (dateRange.startDate || dateRange.endDate)) || searchQuery.trim()
+                : hasActiveFilters
                 ? '尝试切换其他筛选条件'
                 : '创建第一个待办开始工作'
             }
             actionLabel={
               myTasks.length === 0
                 ? '查看项目'
-                : statusFilter.length > 0 || creatorFilter.length > 0 || executorFilter.length > 0 || tagFilter.length > 0 || priorityFilter.length > 0 || (dateRange && (dateRange.startDate || dateRange.endDate)) || searchQuery.trim()
+                : hasActiveFilters
                 ? undefined
                 : '创建待办'
             }
             onAction={
               myTasks.length === 0
                 ? () => navigate('/projects')
-                : statusFilter.length > 0 || creatorFilter.length > 0 || executorFilter.length > 0 || tagFilter.length > 0 || priorityFilter.length > 0 || (dateRange && (dateRange.startDate || dateRange.endDate)) || searchQuery.trim()
+                : hasActiveFilters
                 ? undefined
                 : () => navigate('/projects')
             }

@@ -18,6 +18,9 @@ import { ImageIcon, PaperClipIcon, LinkIcon } from '@/components/ui/icons'
 import { uploadApi } from '@/lib/api/endpoints/upload'
 import { parseTextCommentContentPayload, rawUrlsToLinkFormat } from '@/lib/api/endpoints/comments'
 import { OssResourceManager, OssUploadPurpose } from '@/lib/oss/OssResourceManager'
+import { UPLOAD_LIMITS } from '@/lib/constants/uploadLimits'
+import { compressImageDataUrl, dataURLtoFile, readFileAsDataUrl } from '@/lib/utils/imageCompress'
+import { formatFileSize } from '@/lib/utils/validators'
 import clsx from 'clsx'
 
 /** 提交内容：正文 HTML + 图片 key 列表 + 附件 key 列表 */
@@ -289,8 +292,23 @@ export function CommentEditor({
     setIsUploading(true)
     setError('')
     try {
+      const dataUrl = await readFileAsDataUrl(file)
+      const compressed = await compressImageDataUrl(dataUrl, {
+        maxSizeBytes: UPLOAD_LIMITS.image.maxBytes,
+        maxDimension: UPLOAD_LIMITS.image.maxDimension,
+        initialQuality: UPLOAD_LIMITS.image.initialQuality,
+        minQuality: UPLOAD_LIMITS.image.minQuality,
+        qualityStep: UPLOAD_LIMITS.image.qualityStep,
+      })
+
+      if (compressed.sizeBytes > UPLOAD_LIMITS.image.maxBytes) {
+        setError(`图片过大，压缩后仍超过 ${formatFileSize(UPLOAD_LIMITS.image.maxBytes)}`)
+        return
+      }
+
+      const compressedFile = dataURLtoFile(compressed.dataUrl, 'comment-image.jpg')
       const credentials = await uploadApi.getSTSToken()
-      const { key, url } = await OssResourceManager.upload(file, {
+      const { key, url } = await OssResourceManager.upload(compressedFile, {
         purpose: OssUploadPurpose.COMMENT_IMAGE,
         credentials,
       })
@@ -307,6 +325,10 @@ export function CommentEditor({
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    if (file.size > UPLOAD_LIMITS.file.maxBytes) {
+      setError(`文件过大，最大支持 ${formatFileSize(UPLOAD_LIMITS.file.maxBytes)}`)
+      return
+    }
     setIsUploading(true)
     setError('')
     try {

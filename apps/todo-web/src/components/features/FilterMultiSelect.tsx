@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
-import { ChevronDownIcon, XIcon } from '@/components/ui/icons'
+import { ChevronDownIcon } from '@/components/ui/icons'
 
 export interface FilterMultiSelectOption<T extends string | number> {
   value: T
@@ -22,8 +22,6 @@ interface FilterMultiSelectProps<T extends string | number> {
   menuClassName?: string
   active?: boolean
   disabled?: boolean
-  treatEmptyAsAll?: boolean
-  showAllOption?: boolean
   maxLabelCount?: number
 }
 
@@ -40,8 +38,6 @@ export function FilterMultiSelect<T extends string | number>({
   menuClassName,
   active = false,
   disabled = false,
-  treatEmptyAsAll = true,
-  showAllOption = true,
   maxLabelCount = 1,
 }: FilterMultiSelectProps<T>) {
   const [open, setOpen] = useState(false)
@@ -49,20 +45,15 @@ export function FilterMultiSelect<T extends string | number>({
   const menuRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null)
 
-  const normalizedValue = useMemo(() => {
-    if (!treatEmptyAsAll || value.length > 0) return value
-    return options.map(option => option.value)
-  }, [options, treatEmptyAsAll, value])
-
-  const isAllSelected = options.length > 0 && normalizedValue.length === options.length
+  const isAllSelected = options.length > 0 && value.length === options.length
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current
     if (!trigger) return
     const rect = trigger.getBoundingClientRect()
     setPosition({
-      top: rect.bottom + 6,
-      left: rect.left,
+      top: rect.bottom + 6 + window.scrollY,
+      left: rect.left + window.scrollX,
       width: Math.max(rect.width, 160),
     })
   }, [])
@@ -73,12 +64,10 @@ export function FilterMultiSelect<T extends string | number>({
       return
     }
     updatePosition()
-    const handleScroll = () => updatePosition()
-    window.addEventListener('scroll', handleScroll, true)
-    window.addEventListener('resize', handleScroll)
+    const handleResize = () => updatePosition()
+    window.addEventListener('resize', handleResize)
     return () => {
-      window.removeEventListener('scroll', handleScroll, true)
-      window.removeEventListener('resize', handleScroll)
+      window.removeEventListener('resize', handleResize)
     }
   }, [open, updatePosition])
 
@@ -97,39 +86,34 @@ export function FilterMultiSelect<T extends string | number>({
   const selectedLabel = useMemo(() => {
     if (options.length === 0) return '无选项'
     if (value.length === 0 || isAllSelected) return allLabel
-    if (normalizedValue.length <= maxLabelCount) {
+    if (value.length <= maxLabelCount) {
       const labels = options
-        .filter(option => normalizedValue.includes(option.value))
+        .filter(option => value.includes(option.value))
         .map(option => option.label)
       return labels.join(', ') || placeholder
     }
-    return `已选${normalizedValue.length}项`
-  }, [allLabel, isAllSelected, maxLabelCount, normalizedValue, options, placeholder, value.length])
+    return `已选${value.length}项`
+  }, [allLabel, isAllSelected, maxLabelCount, options, placeholder, value])
 
   const handleToggleOption = (optionValue: T) => {
-    const current = new Set(normalizedValue)
+    const current = new Set(value)
     if (current.has(optionValue)) {
       current.delete(optionValue)
     } else {
       current.add(optionValue)
     }
-    const nextValues = Array.from(current)
-    if (treatEmptyAsAll && nextValues.length === options.length) {
-      onChange([])
-      return
-    }
-    onChange(nextValues)
+    onChange(Array.from(current))
   }
 
-  const handleToggleAll = () => {
-    if (isAllSelected) {
-      onChange([])
-      return
-    }
-    onChange(options.map(option => option.value))
+  const handleSelectAll = () => {
+    if (options.length === 0) return
+    const selectable = options.filter(option => !option.disabled).map(option => option.value)
+    onChange(selectable)
   }
 
-  const showClear = !disabled && value.length > 0 && !isAllSelected
+  const handleClear = () => {
+    onChange([])
+  }
 
   return (
     <div className={clsx('flex items-center gap-2', className)}>
@@ -163,27 +147,12 @@ export function FilterMultiSelect<T extends string | number>({
           <ChevronDownIcon className="w-3 h-3 flex-shrink-0" />
         </button>
 
-        {showClear && (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.preventDefault()
-              event.stopPropagation()
-              onChange([])
-            }}
-            className="absolute -right-1 -top-1 w-4 h-4 bg-warning hover:bg-warning/80 rounded-full flex items-center justify-center text-white text-[10px] font-bold transition-colors z-10"
-            aria-label="重置筛选"
-          >
-            <XIcon className="w-2.5 h-2.5" />
-          </button>
-        )}
-
         {open && position && createPortal(
           <div
             ref={menuRef}
             data-filter-popover="true"
             className={clsx(
-              'fixed border border-border rounded-md shadow-xl z-[120] py-1 bg-surface-elevated',
+              'absolute border border-border rounded-md shadow-xl z-[120] py-1 bg-surface-elevated',
               menuClassName
             )}
             style={{
@@ -194,17 +163,24 @@ export function FilterMultiSelect<T extends string | number>({
               overflowY: 'auto',
             }}
           >
-            {showAllOption && (
-              <label className="flex items-center gap-2 px-3 py-2 hover:bg-surface-hover cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isAllSelected}
-                  onChange={handleToggleAll}
-                  className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
-                />
-                <span className="text-sm text-foreground">{allLabel}</span>
-              </label>
-            )}
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+              <button
+                type="button"
+                onClick={handleSelectAll}
+                className="flex-1 rounded-md border border-border px-2 py-1 text-xs font-semibold text-foreground hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary"
+                disabled={disabled || options.length === 0}
+              >
+                全选
+              </button>
+              <button
+                type="button"
+                onClick={handleClear}
+                className="flex-1 rounded-md border border-border px-2 py-1 text-xs font-semibold text-foreground-secondary hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary"
+                disabled={disabled}
+              >
+                清除
+              </button>
+            </div>
             {options.map(option => (
               <label
                 key={String(option.value)}
@@ -216,7 +192,7 @@ export function FilterMultiSelect<T extends string | number>({
                 <input
                   type="checkbox"
                   disabled={option.disabled}
-                  checked={normalizedValue.includes(option.value)}
+                  checked={value.includes(option.value)}
                   onChange={() => {
                     if (option.disabled) return
                     handleToggleOption(option.value)
