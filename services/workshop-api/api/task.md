@@ -10,8 +10,9 @@
 
 ### 任务状态
 
-- `pending` - 待处理（默认）
+- `pending` - 待处理
 - `in_progress` - 进行中
+- `pending_review` - 待评审（默认）
 - `completed` - 已完成
 - `cancelled` - 已取消
 - `blocked` - 已阻塞
@@ -42,7 +43,7 @@ curl -X POST "http://localhost:8081/workshop/v1/user/tasks" \
   -d '{
     "project_id": 1,
     "content": "完成任务设计",
-    "state": "pending",
+    "state": "pending_review",
     "executor_id": 2,
     "priority": 0,
     "tags": "重要,紧急"
@@ -57,7 +58,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/tasks" \
   -d '{
     "project_id": 1,
     "content": "完成任务设计",
-    "state": "pending",
+    "state": "pending_review",
     "executor_id": 2,
     "priority": 0,
     "tags": "重要,紧急"
@@ -70,7 +71,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/tasks" \
 |------|------|------|------|
 | project_id | uint | 是 | 项目ID |
 | content | string | 是 | 任务内容 |
-| state | string | 否 | 任务状态，默认为 "pending" |
+| state | string | 否 | 任务状态，默认为 "pending_review" |
 | father_id | uint | 否 | 父任务ID，用于创建子任务 |
 | executor_id | uint | 否 | 执行者用户ID（必须是项目成员） |
 | priority | int | 否 | 优先级（可选，0为最高，数值越大优先级越低） |
@@ -85,7 +86,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/tasks" \
     "project_id": 1,
     "father_id": null,
     "content": "完成任务设计",
-    "state": "pending",
+    "state": "pending_review",
     "creator_id": 10,
     "executor_id": 2,
     "priority": 0,
@@ -385,7 +386,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
         "project_id": 1,
         "father_id": null,
         "content": "完成任务设计",
-        "state": "pending",
+        "state": "pending_review",
         "creator_id": 10,
         "executor_id": 2,
         "priority": 0,

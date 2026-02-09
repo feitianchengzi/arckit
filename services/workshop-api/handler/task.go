@@ -119,7 +119,7 @@ func CreateTask(c *gin.Context) {
 	// 7. 设置默认状态（如果未指定）
 	state := req.State
 	if state == "" {
-		state = models.TaskStatePending
+		state = models.TaskStatePendingReview
 	}
 
 	// 8. 验证状态是否有效
