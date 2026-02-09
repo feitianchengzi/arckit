@@ -44,14 +44,15 @@ export function buildTaskTree(todos: Todo[]): Todo[] {
     }
   })
   
-  // 递归排序：先按状态排序（PENDING -> IN_PROGRESS -> COMPLETED），再按创建时间倒序
+  // 递归排序：先按状态排序（PENDING_REVIEW -> PENDING -> IN_PROGRESS -> COMPLETED），再按创建时间倒序
   const sortTasks = (tasks: Todo[]): Todo[] => {
     const statusOrder = {
-      'PENDING': 1,
-      'IN_PROGRESS': 2,
-      'COMPLETED': 3,
-      'CANCELLED': 4,
-      'BLOCKED': 5,
+      'PENDING_REVIEW': 1,
+      'PENDING': 2,
+      'IN_PROGRESS': 3,
+      'COMPLETED': 4,
+      'CANCELLED': 5,
+      'BLOCKED': 6,
     }
     
     return tasks

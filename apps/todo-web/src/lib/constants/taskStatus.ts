@@ -10,6 +10,11 @@ export const TODO_STATUS_CONFIG: Record<TodoStatus, {
   color: string
   bgColor: string
 }> = {
+  'PENDING_REVIEW': {
+    label: '待评审',
+    color: 'text-amber-700',
+    bgColor: 'bg-amber-100',
+  },
   'PENDING': {
     label: '待处理',
     color: 'text-gray-700',
@@ -57,6 +62,5 @@ export function getStatusColor(status: TodoStatus): string {
 export function getStatusBgColor(status: TodoStatus): string {
   return TODO_STATUS_CONFIG[status]?.bgColor || 'bg-gray-100'
 }
-
 
 

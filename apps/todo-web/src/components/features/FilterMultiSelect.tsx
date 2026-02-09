@@ -1,5 +1,4 @@
-import { useState, useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useRef, useEffect, useMemo, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { ChevronDownIcon } from '@/components/ui/icons'
 
@@ -43,33 +42,8 @@ export function FilterMultiSelect<T extends string | number>({
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(null)
 
   const isAllSelected = options.length > 0 && value.length === options.length
-
-  const updatePosition = useCallback(() => {
-    const trigger = triggerRef.current
-    if (!trigger) return
-    const rect = trigger.getBoundingClientRect()
-    setPosition({
-      top: rect.bottom + 6 + window.scrollY,
-      left: rect.left + window.scrollX,
-      width: Math.max(rect.width, 160),
-    })
-  }, [])
-
-  useEffect(() => {
-    if (!open) {
-      setPosition(null)
-      return
-    }
-    updatePosition()
-    const handleResize = () => updatePosition()
-    window.addEventListener('resize', handleResize)
-    return () => {
-      window.removeEventListener('resize', handleResize)
-    }
-  }, [open, updatePosition])
 
   useEffect(() => {
     if (!open) return
@@ -147,18 +121,16 @@ export function FilterMultiSelect<T extends string | number>({
           <ChevronDownIcon className="w-3 h-3 flex-shrink-0" />
         </button>
 
-        {open && position && createPortal(
+        {open && (
           <div
             ref={menuRef}
             data-filter-popover="true"
             className={clsx(
-              'absolute border border-border rounded-md shadow-xl z-[120] py-1 bg-surface-elevated',
+              'absolute left-0 top-full mt-1.5 border border-border rounded-md shadow-xl z-[120] py-1 bg-surface-elevated',
               menuClassName
             )}
             style={{
-              top: `${position.top}px`,
-              left: `${position.left}px`,
-              minWidth: `${position.width}px`,
+              minWidth: 'max(160px, 100%)',
               maxHeight: '60vh',
               overflowY: 'auto',
             }}
@@ -202,8 +174,7 @@ export function FilterMultiSelect<T extends string | number>({
                 <span className="text-sm text-foreground">{option.label}</span>
               </label>
             ))}
-          </div>,
-          document.body
+          </div>
         )}
       </div>
     </div>

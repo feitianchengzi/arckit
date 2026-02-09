@@ -16,7 +16,7 @@ export interface StatusSelectProps {
   size?: 'sm' | 'md' | 'lg'
 }
 
-const ALL_STATUSES: TodoStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'BLOCKED']
+const ALL_STATUSES: TodoStatus[] = ['PENDING_REVIEW', 'PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'BLOCKED']
 
 export function StatusSelect({ value, onChange, disabled = false, size = 'md' }: StatusSelectProps) {
   const [isOpen, setIsOpen] = useState(false)
@@ -121,6 +121,5 @@ function ChevronIcon({ className }: { className?: string }) {
     </svg>
   )
 }
-
 
 

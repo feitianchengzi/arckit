@@ -86,6 +86,7 @@ export default function ProjectDetailPage() {
   const legacyFilters = savedFilters as any
 
   const statusOptions: Array<{ value: TodoStatus; label: string }> = [
+    { value: 'PENDING_REVIEW', label: '待评审' },
     { value: 'PENDING', label: '待办' },
     { value: 'IN_PROGRESS', label: '进行中' },
     { value: 'COMPLETED', label: '已完成' },
@@ -100,17 +101,17 @@ export default function ProjectDetailPage() {
   ]
   const statusValues = statusOptions.map(option => option.value)
   
-  // 任务筛选状态（默认选中"待办任务"）
+  // 任务筛选状态（默认选中"待评审"）
   const normalizeStatusFilter = (): TodoStatus[] => {
     const saved = legacyFilters?.statusFilter
-    if (!saved) return ['PENDING']
+    if (!saved) return ['PENDING_REVIEW']
     if (saved === 'ALL') return []
     if (typeof saved === 'string') return [saved as TodoStatus]
     if (Array.isArray(saved)) {
       const filtered = saved.filter((value: TodoStatus) => statusValues.includes(value))
       return filtered.length === statusValues.length ? [] : filtered
     }
-    return ['PENDING']
+    return ['PENDING_REVIEW']
   }
 
   const normalizeNumberArray = (value: unknown): number[] => {
@@ -494,7 +495,7 @@ export default function ProjectDetailPage() {
     if (!taskTree || taskTree.length === 0) return { pending: 0, inProgress: 0, completed: 0 }
     
     return {
-      pending: taskTree.filter(t => t.status === 'PENDING').length,
+      pending: taskTree.filter(t => t.status === 'PENDING' || t.status === 'PENDING_REVIEW').length,
       inProgress: taskTree.filter(t => t.status === 'IN_PROGRESS').length,
       completed: taskTree.filter(t => t.status === 'COMPLETED').length,
     }
@@ -1042,6 +1043,8 @@ export default function ProjectDetailPage() {
     project?.creator_id === currentUser?.id ||
     project?.creator?.username === currentUser?.username ||
     project?.members?.some((m: ProjectMember) => m.username === currentUser?.username && m.role === 'owner')
+
+  const showStatusTabs = false
   
   return (
     <div className="space-y-4 md:space-y-6">
@@ -1205,41 +1208,43 @@ export default function ProjectDetailPage() {
         {/* 待办列表（自适应宽度） */}
         <div className="flex-1 min-w-0 space-y-6">
           {/* 统计卡片 - 直接放在外层，移除父容器 */}
-          <div className="grid grid-cols-3 gap-4">
-            <StatCard
-              title="待办"
-              value={stats.pending}
-              icon={<TaskIcon />}
-              isActive={isStatusSelected('PENDING')}
-              onClick={() => toggleStatusFilter('PENDING')}
-              className="h-16"
-            />
-            
-            <StatCard
-              title="进行中"
-              value={stats.inProgress}
-              icon={<ProgressIcon />}
-              isActive={isStatusSelected('IN_PROGRESS')}
-              onClick={() => toggleStatusFilter('IN_PROGRESS')}
-              className="h-16"
-            />
-            
-            <StatCard
-              title="已完成"
-              value={stats.completed}
-              icon={<CheckIcon />}
-              isActive={isStatusSelected('COMPLETED')}
-              onClick={() => toggleStatusFilter('COMPLETED')}
-              className="h-16"
-            />
-          </div>
+          {showStatusTabs && (
+            <div className="grid grid-cols-3 gap-4">
+              <StatCard
+                title="待办"
+                value={stats.pending}
+                icon={<TaskIcon />}
+                isActive={isStatusSelected('PENDING')}
+                onClick={() => toggleStatusFilter('PENDING')}
+                className="h-16"
+              />
+              
+              <StatCard
+                title="进行中"
+                value={stats.inProgress}
+                icon={<ProgressIcon />}
+                isActive={isStatusSelected('IN_PROGRESS')}
+                onClick={() => toggleStatusFilter('IN_PROGRESS')}
+                className="h-16"
+              />
+              
+              <StatCard
+                title="已完成"
+                value={stats.completed}
+                icon={<CheckIcon />}
+                isActive={isStatusSelected('COMPLETED')}
+                onClick={() => toggleStatusFilter('COMPLETED')}
+                className="h-16"
+              />
+            </div>
+          )}
 
           {/* 待办列表内容 */}
-          <div className="bg-surface-elevated rounded-lg border border-border relative overflow-visible" style={{ padding: '24px', paddingTop: '28px', paddingBottom: '28px', borderColor: 'var(--color-border)' }}>
+          <div className="bg-surface-elevated rounded-lg border border-border relative overflow-visible" style={{ padding: '24px', paddingTop: '5px', paddingBottom: '10px', borderColor: 'var(--color-border)' }}>
             {/* 筛选器 */}
             <div className="mb-4" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
           {/* 筛选器组 - 单行，不换行 */}
-          <div ref={filterContainerRef} className="flex items-center gap-4 flex-nowrap" style={{ overflowX: 'hidden', overflowY: 'visible', paddingTop: '6px', paddingBottom: '6px' }}>
+          <div ref={filterContainerRef} className="flex items-center gap-4 flex-nowrap" style={{ overflowX: 'visible', overflowY: 'visible', paddingTop: '6px', paddingBottom: '6px' }}>
             {/* 状态筛选 - 多选 */}
             <div data-filter-key="status" className="flex items-center gap-2 flex-shrink-0">
               <FilterMultiSelect

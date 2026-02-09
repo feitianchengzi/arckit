@@ -12,6 +12,7 @@ import type { Todo, Task, TodoStatus, TaskState } from '@/types'
 // ==================== 状态映射 ====================
 
 const STATUS_TO_STATE_MAP: Record<TodoStatus, TaskState> = {
+  'PENDING_REVIEW': 'pending_review',
   'PENDING': 'pending',
   'IN_PROGRESS': 'in_progress',
   'COMPLETED': 'completed',
@@ -20,6 +21,7 @@ const STATUS_TO_STATE_MAP: Record<TodoStatus, TaskState> = {
 }
 
 const STATE_TO_STATUS_MAP: Record<TaskState, TodoStatus> = {
+  'pending_review': 'PENDING_REVIEW',
   'pending': 'PENDING',
   'in_progress': 'IN_PROGRESS',
   'completed': 'COMPLETED',

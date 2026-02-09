@@ -210,6 +210,7 @@ function exportToMarkdown(
   const filterDescriptions: string[] = []
   if (filters.statusFilter !== 'ALL') {
     const statusLabels: Record<TodoStatus, string> = {
+      'PENDING_REVIEW': '待评审',
       'PENDING': '待办',
       'IN_PROGRESS': '进行中',
       'COMPLETED': '已完成',
@@ -433,6 +434,7 @@ export function ExportTodosDialog({
                   className="w-full px-2 py-1.5 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                 >
                   <option value="ALL">全部</option>
+                  <option value="PENDING_REVIEW">待评审</option>
                   <option value="PENDING">待办</option>
                   <option value="IN_PROGRESS">进行中</option>
                   <option value="COMPLETED">已完成</option>

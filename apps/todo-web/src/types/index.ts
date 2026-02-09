@@ -78,6 +78,7 @@ export interface Todo {
 }
 
 export type TodoStatus = 
+  | 'PENDING_REVIEW'
   | 'PENDING'
   | 'IN_PROGRESS'
   | 'COMPLETED'
@@ -120,6 +121,7 @@ export interface Task {
 }
 
 export type TaskState = 
+  | 'pending_review'
   | 'pending'
   | 'in_progress'
   | 'completed'

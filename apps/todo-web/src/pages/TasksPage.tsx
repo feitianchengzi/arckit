@@ -60,6 +60,7 @@ export default function MyTasksPage() {
   const legacyFilters = savedFilters as any
 
   const statusOptions: Array<{ value: TodoStatus; label: string }> = [
+    { value: 'PENDING_REVIEW', label: '待评审' },
     { value: 'PENDING', label: '待办' },
     { value: 'IN_PROGRESS', label: '进行中' },
     { value: 'COMPLETED', label: '已完成' },
@@ -1184,7 +1185,7 @@ export default function MyTasksPage() {
         {/* 筛选器 */}
         <div className="mb-4">
           {/* 筛选器组 - 单行，不换行 */}
-          <div ref={filterContainerRef} className="flex items-center gap-4 flex-nowrap" style={{ overflowX: 'hidden', overflowY: 'visible', paddingTop: '6px', paddingBottom: '6px' }}>
+          <div ref={filterContainerRef} className="flex items-center gap-4 flex-nowrap" style={{ overflowX: 'visible', overflowY: 'visible', paddingTop: '6px', paddingBottom: '6px' }}>
             {/* 状态筛选 */}
             <div data-filter-key="status" className="flex items-center gap-2 flex-shrink-0">
               <FilterMultiSelect
