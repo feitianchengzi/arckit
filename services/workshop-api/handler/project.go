@@ -17,11 +17,19 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// strPtrVal 返回 *string 的值，nil 时返回空字符串（用于响应中 GitURL 等可选字段）
+func strPtrVal(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
 // CreateProjectRequest 创建项目请求结构
 type CreateProjectRequest struct {
-	Name           string `json:"name" binding:"required"`    // 项目名称（必填）
-	GitURL         string `json:"git_url" binding:"required"` // Git地址（必填）
-	OrganizationID *uint  `json:"organization_id,omitempty"`  // 组织ID（可选）
+	Name           string `json:"name" binding:"required"`   // 项目名称（必填）
+	GitURL         string `json:"git_url,omitempty"`          // Git地址（可选）
+	OrganizationID *uint  `json:"organization_id,omitempty"` // 组织ID（可选）
 }
 
 // ProjectMemberResponse 项目成员响应结构
@@ -98,11 +106,15 @@ func CreateProject(c *gin.Context) {
 
 	// 4. 在事务中创建项目和项目成员
 	var project models.Project
+	var gitURL *string
+	if req.GitURL != "" {
+		gitURL = &req.GitURL
+	}
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// 创建项目
 		project = models.Project{
 			Name:           req.Name,
-			GitURL:         req.GitURL,
+			GitURL:         gitURL,
 			CreatorID:      userID,
 			OrganizationID: req.OrganizationID,
 		}
@@ -155,7 +167,7 @@ func CreateProject(c *gin.Context) {
 	resp := CreateProjectResponse{
 		ID:        project.ID,
 		Name:      project.Name,
-		GitURL:    project.GitURL,
+		GitURL:    strPtrVal(project.GitURL),
 		CreatorID: project.CreatorID,
 		Members:   memberResponses,
 	}
@@ -319,7 +331,7 @@ func GetUserProjects(c *gin.Context) {
 		projectResponses = append(projectResponses, ProjectResponse{
 			ID:        project.ID,
 			Name:      project.Name,
-			GitURL:    project.GitURL,
+			GitURL:    strPtrVal(project.GitURL),
 			CreatorID: project.CreatorID,
 			CreatedAt: project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -439,7 +451,11 @@ func UpdateProject(c *gin.Context) {
 		updates["name"] = *req.Name
 	}
 	if req.GitURL != nil {
-		updates["git_url"] = *req.GitURL
+		if *req.GitURL == "" {
+			updates["git_url"] = nil
+		} else {
+			updates["git_url"] = *req.GitURL
+		}
 	}
 	if req.OrganizationID != nil {
 		// 临时迁移字段：当前不校验组织成员，后续将移除
@@ -474,7 +490,7 @@ func UpdateProject(c *gin.Context) {
 		resp := UpdateProjectResponse{
 			ID:        project.ID,
 			Name:      project.Name,
-			GitURL:    project.GitURL,
+			GitURL:    strPtrVal(project.GitURL),
 			CreatorID: project.CreatorID,
 			CreatedAt: project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -523,7 +539,7 @@ func UpdateProject(c *gin.Context) {
 	resp := UpdateProjectResponse{
 		ID:        project.ID,
 		Name:      project.Name,
-		GitURL:    project.GitURL,
+		GitURL:    strPtrVal(project.GitURL),
 		CreatorID: project.CreatorID,
 		CreatedAt: project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
@@ -1430,7 +1446,7 @@ func GetOrganizationProjects(c *gin.Context) {
 		projectResponses = append(projectResponses, ProjectResponse{
 			ID:        project.ID,
 			Name:      project.Name,
-			GitURL:    project.GitURL,
+			GitURL:    strPtrVal(project.GitURL),
 			CreatorID: project.CreatorID,
 			CreatedAt: project.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 			UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),

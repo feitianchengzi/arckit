@@ -117,7 +117,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/projects" \
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | name | string | 是 | 项目名称 |
-| git_url | string | 是 | Git仓库地址 |
+| git_url | string | 否 | Git仓库地址（可选），不传或传空则不关联 Git |
 | organization_id | uint | 否 | 组织ID（可选），不传则项目不关联组织；**仅允许组织成员创建** |
 
 **响应示例** (`201 Created`):

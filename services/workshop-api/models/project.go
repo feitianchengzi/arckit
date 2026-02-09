@@ -11,7 +11,7 @@ import (
 type Project struct {
 	ID             uint           `json:"id" gorm:"primaryKey;autoIncrement"`                 // 主键
 	Name           string         `json:"name" gorm:"type:varchar(200);not null;index"`       // 项目名称
-	GitURL         string         `json:"git_url" gorm:"type:varchar(500);not null;index"`    // 项目Git地址
+	GitURL         *string        `json:"git_url,omitempty" gorm:"type:varchar(500);index"`   // 项目Git地址（可空）
 	OrganizationID *uint          `json:"organization_id,omitempty" gorm:"index"`             // 外键：组织ID（可空，非空时级联删除）
 	CreatorID      uint           `json:"creator_id" gorm:"not null;index"`                   // 外键：创建者ID（保留历史记录，不级联删除）
 	CreatedAt      time.Time      `json:"created_at" gorm:"autoCreateTime"`                   // 创建时间
