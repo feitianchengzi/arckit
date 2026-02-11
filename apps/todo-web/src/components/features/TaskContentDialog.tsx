@@ -6,6 +6,7 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Dialog } from '@/components/ui'
+import { normalizeMarkdown } from '@/lib/utils/markdown'
 
 export interface TaskContentDialogProps {
   open: boolean
@@ -110,7 +111,7 @@ export function TaskContentDialog({
             ),
           }}
         >
-          {content || '无内容'}
+          {normalizeMarkdown(content || '无内容')}
         </ReactMarkdown>
       </div>
     </Dialog>

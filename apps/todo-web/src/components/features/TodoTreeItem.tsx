@@ -19,6 +19,7 @@ import { XIcon } from '@/components/ui/icons'
 import { useTagStore } from '@/store/tagStore'
 import { TagDisplay } from './TagDisplay'
 import { useThemeStore } from '@/store/themeStore'
+import { buildProjectPath } from '@/lib/utils/projectRouting'
 
 export interface TodoTreeItemProps {
   todo: Todo
@@ -39,6 +40,10 @@ export interface TodoTreeItemProps {
   onUpdateTags?: (taskId: number, tagsString: string) => Promise<void> // 更新标签的回调
   onClick?: (todoId: number) => void // 点击待办项的回调（用于打开抽屉），接收待办 ID 作为参数
   currentUserRole?: 'owner' | 'admin' | 'member' | null // 当前用户在项目中的角色
+  selectionMode?: boolean // 是否处于父待办选择模式
+  selectionDisabled?: boolean // 是否禁止选择该待办
+  selectionDisabledIds?: Set<number> // 选择模式禁用集合
+  onSelectParent?: (todoId: number) => void // 选择父待办回调
 }
 
 export function TodoTreeItem({
@@ -60,6 +65,10 @@ export function TodoTreeItem({
   onUpdateTags,
   onClick,
   currentUserRole = null,
+  selectionMode = false,
+  selectionDisabled = false,
+  selectionDisabledIds,
+  onSelectParent,
 }: TodoTreeItemProps) {
   const [isExpanded, setIsExpanded] = useState(false) // 默认不展开
   const [isUpdatingAssignee, setIsUpdatingAssignee] = useState(false)
@@ -85,6 +94,7 @@ export function TodoTreeItem({
   
   const handleDetailClick = (e: React.MouseEvent) => {
     e.stopPropagation() // 阻止触发父元素的点击事件
+    if (selectionMode) return
     setShowContentDialog(true)
   }
   
@@ -103,13 +113,13 @@ export function TodoTreeItem({
     // 如果父任务展开，子任务使用淡蓝色调表示展开状态
     if (isExpandedState) {
       if (theme === 'dark') {
-        // 深色模式：使用深蓝色调（带透明度）
+        // 深色模式：使用深灰色系
         const expandedColors = [
-          'bg-blue-900/30',      // 第1代子任务：深蓝（30%透明度）
-          'bg-blue-950/40',      // 第2代子任务：更深蓝（40%透明度，更暗）
-          'bg-blue-950/50',      // 第3代子任务：更深蓝（50%透明度，更暗）
-          'bg-blue-950/60',      // 第4代子任务：更深蓝（60%透明度，更暗）
-          'bg-blue-900/70',      // 第5代子任务：更深蓝（70%透明度）
+          'bg-slate-900/40',   // 第1代子任务
+          'bg-slate-900/50',   // 第2代子任务
+          'bg-slate-800/55',   // 第3代子任务
+          'bg-slate-800/65',   // 第4代子任务
+          'bg-slate-700/70',   // 第5代子任务
         ]
         const colorIndex = Math.min(depth - 1, expandedColors.length - 1)
         return expandedColors[colorIndex] || expandedColors[expandedColors.length - 1]
@@ -141,6 +151,7 @@ export function TodoTreeItem({
   
   // 使用父任务的展开状态来决定子任务的背景色
   const backgroundColor = getBackgroundColor(depth, parentExpanded)
+  const isSelectionDisabled = selectionDisabledIds ? selectionDisabledIds.has(todo.id) : selectionDisabled
   
   // 点击展开/折叠（通过点击"x个子待办"触发）
   const handleToggleExpand = (e: React.MouseEvent) => {
@@ -150,11 +161,12 @@ export function TodoTreeItem({
   
   // 点击任务项跳转到详情或打开抽屉
   const handleClick = () => {
+    if (selectionMode) return
     if (onClick) {
       // 传递当前待办的 ID，确保子待办点击时使用的是子待办的 ID
       onClick(todo.id)
     } else {
-      navigate(`/projects/${projectId}/tasks/${todo.id}`)
+      navigate(buildProjectPath(projectId, `tasks/${todo.id}`))
     }
   }
   
@@ -184,12 +196,121 @@ export function TodoTreeItem({
         onUpdateTags={onUpdateTags}
         onClick={onClick}
         currentUserRole={currentUserRole}
+        selectionMode={selectionMode}
+        selectionDisabled={isSelectionDisabled}
+        onSelectParent={onSelectParent}
       />
+    )
+  }
+
+  if (selectionMode) {
+    return (
+      <div
+        className={clsx(
+          'relative',
+          className,
+          !isChildTask && 'mb-2',
+          isSelectionDisabled && 'opacity-60'
+        )}
+      >
+        <div
+          className={clsx(
+            'relative',
+            'group',
+            backgroundColor,
+            isChildTask ? 'border-t border-border' : 'border border-border'
+          )}
+        >
+          <div
+            className={clsx(
+              'px-3 py-2',
+              isSelectionDisabled ? 'cursor-not-allowed' : 'cursor-default'
+            )}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex-1 flex items-center gap-2">
+                {todo.creator && <Avatar user={todo.creator} size="xs" />}
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium text-foreground truncate" title={todo.content}>
+                    {firstLine || '无内容'}
+                  </div>
+                </div>
+                {hasChildren && (
+                  <button
+                    onClick={handleToggleExpand}
+                    className={clsx(
+                      'inline-flex items-center gap-1 text-xs transition-colors whitespace-nowrap flex-shrink-0',
+                      isExpanded ? 'text-foreground hover:text-foreground' : 'text-primary hover:text-primary-600'
+                    )}
+                    title={isExpanded ? '折叠子任务' : '展开子任务'}
+                  >
+                    <SubtaskIcon className="w-3.5 h-3.5" />
+                    <span>{todo.children!.length} 个子待办</span>
+                    <ChevronIcon isExpanded={isExpanded} />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {isSelectionDisabled ? (
+                  <div className="flex items-center gap-1 text-xs text-foreground-tertiary">
+                    <DisabledIcon className="w-3.5 h-3.5" />
+                    不可选
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onSelectParent?.(todo.id)}
+                    className="px-4 py-2 rounded-md text-sm font-semibold bg-primary text-white hover:bg-primary/90 transition-colors flex-shrink-0 whitespace-nowrap min-w-[72px]"
+                  >
+                    选择
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {hasChildren && isExpanded && (
+            <div>
+              {todo.children!.map((child, index) => (
+                <TodoTreeItem
+                  key={child.id}
+                  todo={child}
+                  projectId={projectId}
+                  onStatusChange={onStatusChange}
+                  currentUserId={currentUserId}
+                  canEdit={canEdit}
+                  depth={depth + 1}
+                  isLast={index === todo.children!.length - 1}
+                  parentExpanded={isExpanded}
+                  members={members}
+                  currentUserRole={currentUserRole}
+                  canAssignAssignee={canAssignAssignee}
+                  onUpdateAssignee={onUpdateAssignee}
+                  canEditPriority={canEditPriority}
+                  onUpdatePriority={onUpdatePriority}
+                  canEditTags={canEditTags}
+                  onUpdateTags={onUpdateTags}
+                  onClick={onClick}
+                  selectionMode={selectionMode}
+                  selectionDisabledIds={selectionDisabledIds}
+                  onSelectParent={onSelectParent}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     )
   }
   
   return (
-    <div className={clsx('relative', className, !isChildTask && 'mb-2')}>
+    <div
+      className={clsx(
+        'relative',
+        className,
+        !isChildTask && 'mb-2',
+        selectionMode && isSelectionDisabled && 'opacity-60'
+      )}
+    >
       {/* 任务项 */}
       <div
         className={clsx(
@@ -199,7 +320,8 @@ export function TodoTreeItem({
           isChildTask
             ? 'border-t border-border' // 子任务：只有上分割线
             : 'border border-border', // 根任务：完整border
-          !isChildTask && 'hover:shadow-md hover:border-primary transition-all' // 根任务hover效果
+          !isChildTask && !selectionMode && 'hover:shadow-md hover:border-primary transition-all', // 根任务hover效果
+          !isChildTask && selectionMode && 'transition-all hover:border-primary/60'
         )}
       >
         {/* 主任务内容 */}
@@ -207,7 +329,8 @@ export function TodoTreeItem({
           onClick={handleClick}
           className={clsx(
             'p-3 space-y-2',
-            'cursor-pointer',
+            !selectionMode ? 'cursor-pointer' : 'cursor-default',
+            selectionMode && isSelectionDisabled && 'cursor-not-allowed',
             hasChildren && isExpanded && !isChildTask && 'border-b border-divider' // 根任务有子任务且展开时添加底部分隔线
           )}
         >
@@ -376,7 +499,7 @@ export function TodoTreeItem({
             </div>
             
             {/* 状态选择/显示 */}
-            <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+            <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0 flex flex-col items-end gap-2">
               {canEdit ? (
                 <StatusSelect
                   value={todo.status}
@@ -385,6 +508,24 @@ export function TodoTreeItem({
                 />
               ) : (
                 <StatusBadge status={todo.status} size="sm" />
+              )}
+              {selectionMode && (
+                isSelectionDisabled ? (
+                  <div className="flex items-center gap-1 text-xs text-foreground-tertiary">
+                    <DisabledIcon className="w-3.5 h-3.5" />
+                    不可选
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSelectParent?.(todo.id)
+                    }}
+                    className="px-2.5 py-1 rounded-md text-xs font-medium bg-primary text-white hover:bg-primary/90 transition-colors"
+                  >
+                    选择
+                  </button>
+                )
               )}
             </div>
           </div>
@@ -539,6 +680,9 @@ export function TodoTreeItem({
                 canEditTags={canEditTags}
                 onUpdateTags={onUpdateTags}
                 onClick={onClick} // 传递 onClick 回调，确保子待办也能在抽屉中打开
+                selectionMode={selectionMode}
+                selectionDisabledIds={selectionDisabledIds}
+                onSelectParent={onSelectParent}
               />
             ))}
           </div>
@@ -848,6 +992,14 @@ function DetailIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function DisabledIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-12.728 12.728M6.343 6.343a9 9 0 1111.314 11.314A9 9 0 016.343 6.343z" />
     </svg>
   )
 }

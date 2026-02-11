@@ -19,6 +19,7 @@ import { TagDisplay } from './TagDisplay'
 import { permissionManager } from '@/lib/permissions'
 import { todoToTaskInfo } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
+import { buildProjectPath } from '@/lib/utils/projectRouting'
 
 export interface TodoItemProps {
   todo: Todo
@@ -36,9 +37,31 @@ export interface TodoItemProps {
   onUpdateTags?: (taskId: number, tagsString: string) => Promise<void> // 更新标签的回调
   onClick?: (todoId: number) => void // 点击待办项的回调（用于打开抽屉），接收待办 ID 作为参数
   currentUserRole?: 'owner' | 'admin' | 'member' | null // 当前用户在项目中的角色
+  selectionMode?: boolean // 是否处于父待办选择模式
+  selectionDisabled?: boolean // 是否禁止选择该待办
+  onSelectParent?: (todoId: number) => void // 选择父待办回调
 }
 
-export function TodoItem({ todo, projectId, onStatusChange, className, currentUserId, canEdit = false,   members = [], canAssignAssignee = false, onUpdateAssignee,   canEditPriority = false, onUpdatePriority, canEditTags = false, onUpdateTags, onClick, currentUserRole = null }: TodoItemProps) {
+export function TodoItem({
+  todo,
+  projectId,
+  onStatusChange,
+  className,
+  currentUserId,
+  canEdit = false,
+  members = [],
+  canAssignAssignee = false,
+  onUpdateAssignee,
+  canEditPriority = false,
+  onUpdatePriority,
+  canEditTags = false,
+  onUpdateTags,
+  onClick,
+  currentUserRole = null,
+  selectionMode = false,
+  selectionDisabled = false,
+  onSelectParent,
+}: TodoItemProps) {
   // 判断是否是创建者或执行者
   const isCreator = currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId
   const isAssignee = currentUserId !== null && currentUserId !== undefined && todo.assigneeId === currentUserId
@@ -66,6 +89,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
   // 权限检查：修改状态
   // 使用权限管理器检查权限，但保留 canEdit prop 的兼容性
   const canChangeStatus = useMemo(() => {
+    if (selectionMode) return false
     if (!currentUserId || !currentUserRole) return false
     
     const taskInfo: TaskInfo = todoToTaskInfo(todo)
@@ -87,7 +111,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
     }
     
     return false
-  }, [todo, currentUserRole, currentUserId, canEdit])
+  }, [selectionMode, todo, currentUserRole, currentUserId, canEdit])
   const [isUpdatingAssignee, setIsUpdatingAssignee] = useState(false)
   const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
   const [isEditingAssignee, setIsEditingAssignee] = useState(false)
@@ -108,16 +132,18 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
   const hasMoreLines = useMemo(() => hasMultipleLines(todo.content), [todo.content])
   
   const handleClick = () => {
+    if (selectionMode) return
     if (onClick) {
       // 传递当前待办的 ID，确保子待办点击时使用的是子待办的 ID
       onClick(todo.id)
     } else {
-      navigate(`/projects/${projectId}/tasks/${todo.id}`)
+      navigate(buildProjectPath(projectId, `tasks/${todo.id}`))
     }
   }
   
   const handleDetailClick = (e: React.MouseEvent) => {
     e.stopPropagation() // 阻止触发父元素的点击事件
+    if (selectionMode) return
     setShowContentDialog(true)
   }
   
@@ -125,6 +151,46 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
     if (onStatusChange) {
       onStatusChange(todo.id, newStatus as string)
     }
+  }
+
+  if (selectionMode) {
+    return (
+      <div
+        className={clsx(
+          'group',
+          'bg-surface-elevated border border-border',
+          'px-3 py-2',
+          selectionDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-default',
+          className
+        )}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1 flex items-center gap-2">
+            {todo.creator && <Avatar user={todo.creator} size="xs" />}
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-foreground truncate" title={todo.content}>
+                {firstLine || '无内容'}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectionDisabled ? (
+              <div className="flex items-center gap-1 text-xs text-foreground-tertiary">
+                <DisabledIcon className="w-3.5 h-3.5" />
+                不可选
+              </div>
+            ) : (
+              <button
+                onClick={() => onSelectParent?.(todo.id)}
+                className="px-4 py-2 rounded-md text-sm font-semibold bg-primary text-white hover:bg-primary/90 transition-colors flex-shrink-0 whitespace-nowrap min-w-[72px]"
+              >
+                选择
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
   }
   
   return (
@@ -134,7 +200,9 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
         'group',
         'bg-surface-elevated border border-border',
         'p-3 space-y-2',
-        'hover:shadow-md hover:border-primary transition-all cursor-pointer',
+        !selectionMode && 'hover:shadow-md hover:border-primary transition-all cursor-pointer',
+        selectionMode && 'transition-all hover:border-primary/60 cursor-default',
+        selectionMode && selectionDisabled && 'opacity-60 cursor-not-allowed',
         className
       )}
     >
@@ -301,7 +369,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
           </div>
         </div>
         
-        <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0">
+        <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0 flex flex-col items-end gap-2">
           {canChangeStatus ? (
             <StatusSelect
               value={todo.status}
@@ -310,6 +378,24 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
             />
           ) : (
             <StatusBadge status={todo.status} size="sm" />
+          )}
+          {selectionMode && (
+            selectionDisabled ? (
+              <div className="flex items-center gap-1 text-xs text-foreground-tertiary">
+                <DisabledIcon className="w-3.5 h-3.5" />
+                不可选
+              </div>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelectParent?.(todo.id)
+                }}
+                className="px-2.5 py-1 rounded-md text-xs font-medium bg-primary text-white hover:bg-primary/90 transition-colors"
+              >
+                选择
+              </button>
+            )
           )}
         </div>
       </div>
@@ -637,6 +723,14 @@ function DetailIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function DisabledIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-12.728 12.728M6.343 6.343a9 9 0 1111.314 11.314A9 9 0 016.343 6.343z" />
     </svg>
   )
 }

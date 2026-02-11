@@ -10,6 +10,7 @@ import ReactMarkdown from 'react-markdown'
 import { useTagStore } from '@/store/tagStore'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
 import clsx from 'clsx'
+import { buildProjectPath } from '@/lib/utils/projectRouting'
 
 export interface ExportTodosDialogProps {
   open: boolean
@@ -45,7 +46,7 @@ function truncateText(text: string, maxLength: number = 80): string {
 
 // 生成待办详情页URL
 function getTaskDetailUrl(projectId: number, taskId: number): string {
-  return `${window.location.origin}/projects/${projectId}/tasks/${taskId}`
+  return `${window.location.origin}${buildProjectPath(projectId, `tasks/${taskId}`)}`
 }
 
 // 筛选待办列表

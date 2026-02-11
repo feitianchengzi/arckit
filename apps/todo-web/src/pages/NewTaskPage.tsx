@@ -11,20 +11,24 @@ import { useCreateTask, useTaskList } from '@/hooks/useTasks'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
 import { useOrganizationStore } from '@/store/organizationStore'
 import { useOrganizationMembers } from '@/hooks/useOrganizations'
+import { buildProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
 
 export default function NewTaskPage() {
   const navigate = useNavigate()
   const params = useParams()
   const [searchParams] = useSearchParams()
-  const projectId = Number(params.id!)
+  const projectSlug = params.id ?? ''
+  const decodedProjectId = decodeProjectId(projectSlug)
+  const projectIdParam = decodedProjectId ?? projectSlug
+  const projectId = Number(projectIdParam)
   
-  const { data: project } = useProject(String(projectId))
-  const { data: taskListData } = useTaskList(String(projectId))
+  const { data: project } = useProject(projectIdParam)
+  const { data: taskListData } = useTaskList(projectIdParam)
   const tasks = taskListData?.todos ?? []
-  const { data: members } = useProjectMembers(String(projectId))
+  const { data: members } = useProjectMembers(projectIdParam)
   const { currentOrganizationId } = useOrganizationStore()
   const { data: orgMembers } = useOrganizationMembers(currentOrganizationId || 0)
-  const createTask = useCreateTask(String(projectId))
+  const createTask = useCreateTask(projectIdParam)
   
   // 从 URL 查询参数获取父任务 ID
   const parentIdFromUrl = searchParams.get('parentId')
@@ -64,7 +68,7 @@ export default function NewTaskPage() {
       
       // 创建成功后跳转到待办详情页
       // 使用 replace: true 替换当前历史记录，避免点击返回时回到创建页面
-      navigate(`/projects/${projectId}/tasks/${newTask.id}`, { replace: true })
+      navigate(buildProjectPath(projectIdParam, `tasks/${newTask.id}`), { replace: true })
     } catch (err: any) {
       setError(err.response?.data?.message || '创建失败，请重试')
     }

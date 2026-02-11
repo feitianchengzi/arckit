@@ -49,29 +49,29 @@ export default function NewProjectPage() {
     setError('')
     
     // 验证
-    if (!name.trim()) {
+    const trimmedName = name.trim()
+    const trimmedGitUrl = gitUrl.trim()
+
+    if (!trimmedName) {
       setError('请输入项目名称')
       return
     }
-
-    if (!gitUrl.trim()) {
-      setError('请输入 Git 地址')
-      return
-    }
     
-    // 简单的 URL 验证
-    try {
-      new URL(gitUrl)
-    } catch {
-      setError('请输入有效的 Git 地址')
-      return
+    // 简单的 URL 验证（仅在填写时）
+    if (trimmedGitUrl) {
+      try {
+        new URL(trimmedGitUrl)
+      } catch {
+        setError('请输入有效的 Git 地址')
+        return
+      }
     }
     
     // 创建项目
     try {
       const input: any = {
-        name: name.trim(),
-        git_url: gitUrl.trim(),
+        name: trimmedName,
+        git_url: trimmedGitUrl,
       }
       if (typeof organizationId === 'number') {
         input.organization_id = organizationId
@@ -136,8 +136,7 @@ export default function NewProjectPage() {
             value={gitUrl}
             onChange={(e) => setGitUrl(e.target.value)}
             fullWidth
-            required
-            helperText="项目的 Git 仓库地址"
+            helperText="项目的 Git 仓库地址（可选）"
           />
           
           {/* 错误提示 */}

@@ -21,6 +21,7 @@ import { useTagStore } from '@/store/tagStore'
 import { useOrganizationStore } from '@/store/organizationStore'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
 import { saveTaskFilterState, loadTaskFilterState, type DateRange } from '@/lib/utils/filterStorage'
+import { buildProjectPath } from '@/lib/utils/projectRouting'
 import type { Todo, TodoStatus, ProjectMember } from '@/types'
 import clsx from 'clsx'
 import { permissionManager } from '@/lib/permissions'
@@ -817,7 +818,7 @@ export default function MyTasksPage() {
   }
   
   const handleProjectNameClick = (projectId: string) => {
-    navigate(`/projects/${projectId}`)
+    navigate(buildProjectPath(projectId))
   }
   
   const handleAddTaskClick = (projectId: string, e: React.MouseEvent) => {
