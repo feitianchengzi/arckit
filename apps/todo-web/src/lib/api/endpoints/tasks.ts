@@ -22,6 +22,7 @@ export interface UpdateTaskInput {
   content?: string
   status?: 'PENDING_REVIEW' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'BLOCKED'
   assigneeId?: number | null
+  parentId?: number | null
   tags?: string // 标签字符串
   priority?: number // 优先级
 }
@@ -201,6 +202,10 @@ export const tasksApi = {
     
     if (input.assigneeId !== undefined) {
       taskInput.executor_id = input.assigneeId
+    }
+
+    if (input.parentId !== undefined) {
+      taskInput.father_id = input.parentId
     }
     
     if (input.parentId !== undefined) {

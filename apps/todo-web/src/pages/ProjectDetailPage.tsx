@@ -3,7 +3,7 @@
  * 项目详情页面（客户端组件）
  */
 
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog, Drawer } from '@/components/ui'
@@ -42,6 +42,7 @@ export default function ProjectDetailPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false)
   const [taskHistory, setTaskHistory] = useState<Array<{ taskId: string; projectId: string; parentTaskId: number | null }>>([])
+  const [parentSelectTaskId, setParentSelectTaskId] = useState<string | null>(null)
   const parseTaskIdFromHash = (hash: string): string | null => {
     if (!hash) return null
     const cleaned = hash.startsWith('#') ? hash.slice(1) : hash
@@ -529,6 +530,161 @@ export default function ProjectDetailPage() {
     if (!enrichedTodos) return []
     return buildTaskTree(enrichedTodos)
   }, [enrichedTodos])
+
+  const parentSelectTask = useMemo(() => {
+    if (!parentSelectTaskId || !enrichedTodos) return null
+    return enrichedTodos.find(todo => todo.id.toString() === parentSelectTaskId) || null
+  }, [parentSelectTaskId, enrichedTodos])
+
+  const parentSelectTitle = useMemo(() => {
+    if (!parentSelectTask) return '待办'
+    return parentSelectTask.title || parentSelectTask.content?.slice(0, 30) || '待办'
+  }, [parentSelectTask])
+
+  const parentSelectBlockedIds = useMemo(() => {
+    const blocked = new Set<number>()
+    if (!parentSelectTaskId) return blocked
+    const targetId = Number(parentSelectTaskId)
+    if (!Number.isFinite(targetId)) return blocked
+    const findNode = (nodes: any[]): any | null => {
+      for (const node of nodes) {
+        if (node.id === targetId) return node
+        if (node.children) {
+          const found = findNode(node.children)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    const collect = (node: any) => {
+      blocked.add(node.id)
+      if (node.children) {
+        node.children.forEach((child: any) => collect(child))
+      }
+    }
+    const targetNode = findNode(taskTree)
+    if (targetNode) {
+      collect(targetNode)
+    } else {
+      blocked.add(targetId)
+    }
+    return blocked
+  }, [parentSelectTaskId, taskTree])
+
+  const isSelectingParent = !!parentSelectTaskId
+  const [isUpdatingParent, setIsUpdatingParent] = useState(false)
+  const [parentSelectError, setParentSelectError] = useState('')
+  const [pendingParentId, setPendingParentId] = useState<number | null>(null)
+  const listContainerRef = useRef<HTMLDivElement>(null)
+  const [parentBannerStyle, setParentBannerStyle] = useState<React.CSSProperties>({})
+  const handleExitParentSelect = useCallback(() => {
+    setParentSelectError('')
+    setParentSelectTaskId(null)
+  }, [setParentSelectError, setParentSelectTaskId])
+  useEffect(() => {
+    if (isSelectingParent) {
+      setShowSearchBar(false)
+    }
+  }, [isSelectingParent])
+  useEffect(() => {
+    if (!isSelectingParent) {
+      setPendingParentId(null)
+    }
+  }, [isSelectingParent])
+  useLayoutEffect(() => {
+    if (!isSelectingParent) return
+    const topMargin = 12
+    const bottomGap = 12
+    const minHeight = 88
+    const updateBanner = () => {
+      const rect = listContainerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const left = Math.max(0, Math.round(rect.left))
+      const width = Math.max(0, Math.round(rect.width))
+      const availableHeight = Math.max(0, Math.round(rect.top) - topMargin - bottomGap)
+      const height = Math.max(availableHeight, minHeight)
+      setParentBannerStyle({
+        top: `${topMargin}px`,
+        left: `${left}px`,
+        width: `${width}px`,
+        height: `${height}px`,
+      })
+    }
+    const main = document.querySelector('main')
+    updateBanner()
+    const raf = requestAnimationFrame(updateBanner)
+    const observer = listContainerRef.current ? new ResizeObserver(updateBanner) : null
+    if (listContainerRef.current && observer) {
+      observer.observe(listContainerRef.current)
+    }
+    window.addEventListener('resize', updateBanner)
+    window.addEventListener('scroll', updateBanner, true)
+    main?.addEventListener('scroll', updateBanner)
+    return () => {
+      cancelAnimationFrame(raf)
+      observer?.disconnect()
+      window.removeEventListener('resize', updateBanner)
+      window.removeEventListener('scroll', updateBanner, true)
+      main?.removeEventListener('scroll', updateBanner)
+    }
+  }, [isSelectingParent])
+
+  const handleStartParentSelect = useCallback((taskId: string) => {
+    setParentSelectError('')
+    setTaskHistory([])
+    setTaskRoute(null)
+    setParentSelectTaskId(taskId)
+    scrollToTop('auto')
+  }, [setTaskRoute, scrollToTop])
+
+  const handleSelectParent = useCallback(async (newParentId: number) => {
+    if (!parentSelectTaskId) return
+    if (parentSelectBlockedIds.has(newParentId)) return
+    setIsUpdatingParent(true)
+    setParentSelectError('')
+    try {
+      const payload = { father_id: newParentId }
+      console.info(
+        `[parent-select] PUT /projects/${projectIdParam}/tasks/${parentSelectTaskId}`,
+        payload
+      )
+      console.info('[parent-select] payload', payload)
+      await tasksApi.update(projectIdParam, parentSelectTaskId, { parentId: newParentId })
+      await refetchTodos()
+      const currentTaskId = parentSelectTaskId
+      setParentSelectTaskId(null)
+      setTaskRoute(currentTaskId)
+    } catch (err: any) {
+      console.error('更新父待办失败:', err)
+      setParentSelectError(err?.response?.data?.message || err?.message || '更新父待办失败')
+    } finally {
+      setIsUpdatingParent(false)
+    }
+  }, [parentSelectTaskId, parentSelectBlockedIds, projectIdParam, refetchTodos, setTaskRoute])
+  const handleRequestParentSelect = useCallback((newParentId: number) => {
+    if (parentSelectBlockedIds.has(newParentId)) return
+    setPendingParentId(newParentId)
+  }, [parentSelectBlockedIds])
+  const handleConfirmParentSelect = useCallback(() => {
+    if (!pendingParentId) return
+    handleSelectParent(pendingParentId)
+    setPendingParentId(null)
+  }, [pendingParentId, handleSelectParent])
+  const pendingParentTitle = useMemo(() => {
+    if (!pendingParentId) return ''
+    const findInTree = (nodes: any[]): any | null => {
+      for (const node of nodes) {
+        if (node.id === pendingParentId) return node
+        if (node.children) {
+          const found = findInTree(node.children)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    const target = findInTree(taskTree)
+    return target?.title || target?.content?.slice(0, 30) || '待办'
+  }, [pendingParentId, taskTree])
   
   // 统计数据（基于树形结构，只统计根任务）
   const stats = useMemo(() => {
@@ -1085,11 +1241,64 @@ export default function ProjectDetailPage() {
     project?.members?.some((m: ProjectMember) => m.username === currentUser?.username && m.role === 'owner')
 
   const showStatusTabs = false
+  const parentSelectBanner = isSelectingParent ? (
+    <div className="parent-select-banner" style={parentBannerStyle} role="status" aria-live="polite">
+      <div className="parent-select-banner__content">
+        <div className="parent-select-banner__left">
+          <div className="parent-select-banner__icon">
+            <RelationBannerIcon className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="parent-select-banner__title">选择父待办</div>
+            <div className="parent-select-banner__subtitle">
+              正在为「{parentSelectTitle}」选择新的父待办
+            </div>
+          </div>
+        </div>
+          <div className="parent-select-banner__search">
+            <SearchIcon className="w-4 h-4 text-foreground-tertiary" />
+            <input
+              type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="搜索待办内容..."
+            aria-label="搜索待办内容"
+          />
+          {searchQuery.trim() && (
+            <button
+              type="button"
+              className="parent-select-banner__clear"
+              onClick={() => setSearchQuery('')}
+              aria-label="清除搜索"
+            >
+              <XIcon className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+          <div className="parent-select-banner__right">
+            {parentSelectError && (
+              <span className="parent-select-banner__error text-error">{parentSelectError}</span>
+            )}
+          <button
+            type="button"
+            className="parent-select-banner__cancel"
+            onClick={handleExitParentSelect}
+            disabled={isUpdatingParent}
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null
   
   return (
     <div className="space-y-4 md:space-y-6">
+      {parentSelectBanner && typeof document !== 'undefined'
+        ? createPortal(parentSelectBanner, document.body)
+        : null}
       {/* 页面头部 */}
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col lg:flex-row gap-6" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
         <div className="flex-1 min-w-0 flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground truncate" title={project.name}>
@@ -1253,7 +1462,7 @@ export default function ProjectDetailPage() {
         <div className="flex-1 min-w-0 space-y-6">
           {/* 统计卡片 - 直接放在外层，移除父容器 */}
           {showStatusTabs && (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-4" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
               <StatCard
                 title="待办"
                 value={stats.pending}
@@ -1284,7 +1493,11 @@ export default function ProjectDetailPage() {
           )}
 
           {/* 待办列表内容 */}
-          <div className="bg-surface-elevated rounded-lg border border-border relative overflow-visible" style={{ padding: '24px', paddingTop: '5px', paddingBottom: '10px', borderColor: 'var(--color-border)' }}>
+          <div
+            ref={listContainerRef}
+            className="bg-surface-elevated rounded-lg border border-border relative overflow-visible"
+            style={{ padding: '24px', paddingTop: '5px', paddingBottom: '10px', borderColor: 'var(--color-border)' }}
+          >
             {/* 筛选器 */}
             <div className="mb-4" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
           {/* 筛选器组 - 单行，不换行 */}
@@ -1307,7 +1520,7 @@ export default function ProjectDetailPage() {
                 active={isStatusFilterActive}
               />
             </div>
-            
+
             {/* 创建人筛选 */}
             <div data-filter-key="creator" className="flex items-center gap-2 flex-shrink-0">
               <FilterMultiSelect
@@ -1653,21 +1866,25 @@ export default function ProjectDetailPage() {
                   key={todo.id}
                   todo={todo}
                   projectId={projectIdParam}
-                  onStatusChange={canChangeStatus(todo) ? handleStatusChange : undefined}
+                  onStatusChange={!isSelectingParent && canChangeStatus(todo) ? handleStatusChange : undefined}
                   currentUserId={currentUserId}
-                  canEdit={canChangeStatus(todo)}
+                  canEdit={!isSelectingParent && canChangeStatus(todo)}
                   members={members || []}
-                  canAssignAssignee={canAssignAssignee(todo)}
-                  onUpdateAssignee={handleUpdateAssignee}
-                  canEditPriority={canEditPriority(todo)}
-                  onUpdatePriority={handleUpdatePriority}
-                  canEditTags={canEditTags(todo)}
-                  onUpdateTags={handleUpdateTags}
+                  canAssignAssignee={!isSelectingParent && canAssignAssignee(todo)}
+                  onUpdateAssignee={isSelectingParent ? undefined : handleUpdateAssignee}
+                  canEditPriority={!isSelectingParent && canEditPriority(todo)}
+                  onUpdatePriority={isSelectingParent ? undefined : handleUpdatePriority}
+                  canEditTags={!isSelectingParent && canEditTags(todo)}
+                  onUpdateTags={isSelectingParent ? undefined : handleUpdateTags}
                   currentUserRole={currentUserRole}
                   onClick={(todoId) => {
                     setTaskHistory([])
                     setTaskRoute(String(todoId))
                   }}
+                  selectionMode={isSelectingParent}
+                  selectionDisabled={isSelectingParent && parentSelectBlockedIds.has(todo.id)}
+                  selectionDisabledIds={isSelectingParent ? parentSelectBlockedIds : undefined}
+                  onSelectParent={isSelectingParent ? handleRequestParentSelect : undefined}
                 />
               ))}
             </div>
@@ -1838,6 +2055,18 @@ export default function ProjectDetailPage() {
         onConfirm={handleDeleteProject}
         onCancel={() => setShowDeleteConfirm(false)}
       />
+
+      {/* 选择父待办确认对话框 */}
+      <ConfirmDialog
+        open={pendingParentId !== null}
+        title="确认选择父待办"
+        message={`确定选择「${pendingParentTitle}」作为新的父待办吗？`}
+        confirmLabel="确定"
+        cancelLabel="取消"
+        variant="primary"
+        onConfirm={handleConfirmParentSelect}
+        onCancel={() => setPendingParentId(null)}
+      />
       
       {/* 待办详情抽屉 */}
       <Drawer
@@ -1872,6 +2101,9 @@ export default function ProjectDetailPage() {
               
               // 导航到子待办
               setTaskRoute(String(subtaskId))
+            }}
+            onRequestParentSelect={(taskId) => {
+              handleStartParentSelect(taskId)
             }}
             onClose={() => {
               // 关闭抽屉（回退逻辑已在 Drawer 的 onBack 中处理）
@@ -2278,6 +2510,14 @@ function XIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
+function RelationBannerIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true">
+      <path d="M608 128a48 48 0 0 1 48 48V368a48 48 0 0 1-48 48H530.112v54.016h253.568c9.92 0 17.92 8.064 17.92 17.92v120.064h46.592c26.496 0 48 21.44 47.872 48v192a48 48 0 0 1-48 47.936h-192a48 48 0 0 1-48-48v-192a48 48 0 0 1 48-48h109.632V506.112H258.56V608h109.44a48 48 0 0 1 48 48v191.872a48 48 0 0 1-48 48h-192a48 48 0 0 1-48-48v-192a48 48 0 0 1 48-48h46.592V487.936c0-9.92 8.064-17.92 17.984-17.92h253.44v-54.08H416.128a48 48 0 0 1-48-48v-192A48 48 0 0 1 416.064 128z m-275.2 534.4H211.2a28.8 28.8 0 0 0-28.8 28.8v121.6c0 15.936 12.864 28.8 28.8 28.8h121.6a28.8 28.8 0 0 0 28.8-28.8v-121.6a28.8 28.8 0 0 0-28.8-28.8z m476.8 0h-115.2a32 32 0 0 0-32 32v115.2a32 32 0 0 0 32 32h115.2a32 32 0 0 0 32-32v-115.2a32 32 0 0 0-32-32zM571.52 185.6h-115.2a32 32 0 0 0-32 32v115.2a32 32 0 0 0 32 32h115.2a32 32 0 0 0 32-32V217.6a32 32 0 0 0-32-32z" />
     </svg>
   )
 }

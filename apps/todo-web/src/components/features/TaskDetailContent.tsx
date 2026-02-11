@@ -35,6 +35,7 @@ export interface TaskDetailContentProps {
   onClose?: () => void // 关闭回调（用于抽屉）
   parentTaskId?: number | null // 父任务ID（用于回退）
   onNavigateToSubtask?: (subtaskId: number) => void // 导航到子待办的回调
+  onRequestParentSelect?: (taskId: string) => void // 请求重新选择父待办
 }
 
 export function TaskDetailContent({ 
@@ -44,7 +45,8 @@ export function TaskDetailContent({
   showHeader = true,
   onClose,
   parentTaskId,
-  onNavigateToSubtask
+  onNavigateToSubtask,
+  onRequestParentSelect
 }: TaskDetailContentProps) {
   const navigate = useNavigate()
   const { data: project } = useProject(projectId)
@@ -116,27 +118,22 @@ export function TaskDetailContent({
     )
   }, [todo, currentUserRole, currentUserId, currentUserMember])
   
-  // 权限检查：删除任务
-  // 规则：
-  // - 如果任务状态为 `in_progress`（执行中），只有执行者和管理员/所有者可以删除
-  // - 如果任务状态不是 `in_progress`，任何项目成员都可以删除
+  // 权限检查：删除任务（仅创建人/项目owner/admin）
   const canDelete = useMemo(() => {
     if (!todo) return false
-    const taskInfo: TaskInfo = {
-      id: todo.id,
-      creatorId: todo.creatorId,
-      assigneeId: todo.assigneeId,
-      status: todo.status,
-      projectId: todo.projectId
-    }
-    const isProjectMember = !!currentUserMember
-    return permissionManager.task.hasDeletePermission(
-      taskInfo,
-      currentUserRole,
-      currentUserId,
-      isProjectMember
-    )
-  }, [todo, currentUserRole, currentUserId, currentUserMember])
+    const isOwnerOrAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
+    const isCreator = currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId
+    return isOwnerOrAdmin || isCreator
+  }, [todo, currentUserRole, currentUserId])
+
+  // 权限检查：调整父待办（owner/admin/创建人/执行人）
+  const canSelectParent = useMemo(() => {
+    if (!todo) return false
+    const isOwnerOrAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
+    const isCreator = currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId
+    const isAssignee = currentUserId !== null && currentUserId !== undefined && todo.assigneeId === currentUserId
+    return isOwnerOrAdmin || isCreator || isAssignee
+  }, [todo, currentUserRole, currentUserId])
   
   // 权限检查：分配执行者
   // 规则：
@@ -539,6 +536,19 @@ export function TaskDetailContent({
           {/* 操作按钮 - 放在最右侧 */}
           {!isEditing && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              {canSelectParent && onRequestParentSelect && (
+                <button
+                  onClick={() => {
+                    if (onClose) onClose()
+                    onRequestParentSelect?.(taskId)
+                  }}
+                  className="p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
+                  aria-label="调整父待办"
+                  title="调整父待办"
+                >
+                  <RelationIcon className="w-4 h-4" />
+                </button>
+              )}
               {canEditContent && (
                 <button
                   onClick={handleEdit}
@@ -1108,6 +1118,14 @@ function EditIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+    </svg>
+  )
+}
+
+function RelationIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true">
+      <path d="M608 128a48 48 0 0 1 48 48V368a48 48 0 0 1-48 48H530.112v54.016h253.568c9.92 0 17.92 8.064 17.92 17.92v120.064h46.592c26.496 0 48 21.44 47.872 48v192a48 48 0 0 1-48 47.936h-192a48 48 0 0 1-48-48v-192a48 48 0 0 1 48-48h109.632V506.112H258.56V608h109.44a48 48 0 0 1 48 48v191.872a48 48 0 0 1-48 48h-192a48 48 0 0 1-48-48v-192a48 48 0 0 1 48-48h46.592V487.936c0-9.92 8.064-17.92 17.984-17.92h253.44v-54.08H416.128a48 48 0 0 1-48-48v-192A48 48 0 0 1 416.064 128z m-275.2 534.4H211.2a28.8 28.8 0 0 0-28.8 28.8v121.6c0 15.936 12.864 28.8 28.8 28.8h121.6a28.8 28.8 0 0 0 28.8-28.8v-121.6a28.8 28.8 0 0 0-28.8-28.8z m476.8 0h-115.2a32 32 0 0 0-32 32v115.2a32 32 0 0 0 32 32h115.2a32 32 0 0 0 32-32v-115.2a32 32 0 0 0-32-32zM571.52 185.6h-115.2a32 32 0 0 0-32 32v115.2a32 32 0 0 0 32 32h115.2a32 32 0 0 0 32-32V217.6a32 32 0 0 0-32-32z" />
     </svg>
   )
 }

@@ -93,6 +93,13 @@ export default function TaskDetailPage() {
       isProjectMember
     )
   }, [todo, currentUserRole, currentUserId, currentUserMember])
+
+  const canDelete = useMemo(() => {
+    if (!todo) return false
+    const isOwnerOrAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
+    const isCreator = currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId
+    return isOwnerOrAdmin || isCreator
+  }, [todo, currentUserRole, currentUserId])
   
   // 权限检查：分配执行者
   // 规则：
@@ -340,22 +347,26 @@ export default function TaskDetailPage() {
           </div>
         </div>
         
-        {!isEditing && canEditContent && (
+        {!isEditing && (canEditContent || canDelete) && (
           <div className="flex gap-3">
-            <Button
-              variant="secondary"
-              onClick={handleEdit}
-            >
-              编辑
-            </Button>
+            {canEditContent && (
+              <Button
+                variant="secondary"
+                onClick={handleEdit}
+              >
+                编辑
+              </Button>
+            )}
             
-            <Button
-              variant="danger"
-              onClick={() => setShowDeleteConfirm(true)}
-              loading={deleteTask.isPending}
-            >
-              删除
-            </Button>
+            {canDelete && (
+              <Button
+                variant="danger"
+                onClick={() => setShowDeleteConfirm(true)}
+                loading={deleteTask.isPending}
+              >
+                删除
+              </Button>
+            )}
           </div>
         )}
       </div>
