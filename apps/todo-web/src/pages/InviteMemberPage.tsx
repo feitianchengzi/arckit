@@ -9,14 +9,18 @@ import { Button, LoadingView, ErrorView, RoleSelect, TextField } from '@/compone
 import { useProject } from '@/hooks/useProjects'
 import { useCreateInvitation } from '@/hooks/useInvitations'
 import type { ProjectRole } from '@/types'
+import { decodeProjectId } from '@/lib/utils/projectRouting'
 
 export default function InviteMemberPage() {
   const navigate = useNavigate()
   const params = useParams()
-  const projectId = Number(params.id!)
+  const projectSlug = params.id ?? ''
+  const decodedProjectId = decodeProjectId(projectSlug)
+  const projectIdParam = decodedProjectId ?? projectSlug
+  const projectId = Number(projectIdParam)
   
-  const { data: project, isLoading: projectLoading } = useProject(String(projectId))
-  const createInvitation = useCreateInvitation(projectId)
+  const { data: project, isLoading: projectLoading } = useProject(projectIdParam)
+  const createInvitation = useCreateInvitation(projectIdParam)
   
   const [role, setRole] = useState<ProjectRole>('member')
   const [expiresInHours, setExpiresInHours] = useState('24')
@@ -44,7 +48,7 @@ export default function InviteMemberPage() {
     
     try {
       const invitationInput: any = {
-        project_id: parseInt(projectId),
+        project_id: parseInt(projectIdParam),
         role,
         expires_in_hours: parseInt(expiresInHours) || 0,
       }
@@ -235,6 +239,5 @@ function BackIcon({ className }: { className?: string }) {
     </svg>
   )
 }
-
 
 

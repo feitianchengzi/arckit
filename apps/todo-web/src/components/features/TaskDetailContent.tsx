@@ -25,6 +25,7 @@ import type { TaskInfo } from '@/lib/permissions'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
 import { useTagStore } from '@/store/tagStore'
 import clsx from 'clsx'
+import { buildProjectPath } from '@/lib/utils/projectRouting'
 
 export interface TaskDetailContentProps {
   projectId: string
@@ -360,7 +361,7 @@ export function TaskDetailContent({
       } else if (onClose) {
         onClose()
       } else {
-        navigate(`/projects/${projectId}`)
+        navigate(buildProjectPath(projectId))
       }
     } catch (err: any) {
       alert(err.response?.data?.message || '删除失败，请重试')
@@ -436,7 +437,7 @@ export function TaskDetailContent({
               <button
                 onClick={() => {
                   if (onClose) onClose()
-                  navigate(`/projects/${projectId}/tasks/${parentTask.id}`)
+                  navigate(buildProjectPath(projectId, `tasks/${parentTask.id}`))
                 }}
                 className="text-gray-600 hover:text-gray-900 relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
                 aria-label="查看父任务"
@@ -455,7 +456,7 @@ export function TaskDetailContent({
             <button
               onClick={() => {
                 if (onClose) onClose()
-                navigate(`/projects/${projectId}`)
+                navigate(buildProjectPath(projectId))
               }}
               className="text-gray-600 hover:text-gray-900 relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="查看项目详情"

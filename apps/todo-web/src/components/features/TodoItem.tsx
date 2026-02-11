@@ -19,6 +19,7 @@ import { TagDisplay } from './TagDisplay'
 import { permissionManager } from '@/lib/permissions'
 import { todoToTaskInfo } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
+import { buildProjectPath } from '@/lib/utils/projectRouting'
 
 export interface TodoItemProps {
   todo: Todo
@@ -112,7 +113,7 @@ export function TodoItem({ todo, projectId, onStatusChange, className, currentUs
       // 传递当前待办的 ID，确保子待办点击时使用的是子待办的 ID
       onClick(todo.id)
     } else {
-      navigate(`/projects/${projectId}/tasks/${todo.id}`)
+      navigate(buildProjectPath(projectId, `tasks/${todo.id}`))
     }
   }
   

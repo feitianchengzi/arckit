@@ -14,6 +14,7 @@ import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import type { Project } from '@/types'
 import { Avatar } from '@/components/ui/Avatar'
+import { buildProjectPath } from '@/lib/utils/projectRouting'
 
 export interface ProjectCardProps {
   project: Project
@@ -24,7 +25,7 @@ export function ProjectCard({ project, className }: ProjectCardProps) {
   const navigate = useNavigate()
   
   const handleClick = () => {
-    navigate(`/projects/${project.id}`)
+    navigate(buildProjectPath(project.id))
   }
   
   return (
@@ -122,6 +123,5 @@ function ClockIcon({ className }: { className?: string }) {
     </svg>
   )
 }
-
 
 

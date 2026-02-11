@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { projectsApi, CreateProjectInput, UpdateProjectInput } from '@/lib/api/endpoints/projects'
+import { buildProjectPath } from '@/lib/utils/projectRouting'
 import { useAuthStore } from '@/store/authStore'
 import { useOrganizationStore } from '@/store/organizationStore'
 import { useOrganizationStore } from '@/store/organizationStore'
@@ -81,7 +82,7 @@ export function useCreateProject() {
       queryClient.refetchQueries({ queryKey: ['projects'] })
       
       // 跳转到项目详情
-      navigate(`/projects/${data.id}`)
+      navigate(buildProjectPath(data.id))
     },
   })
 }

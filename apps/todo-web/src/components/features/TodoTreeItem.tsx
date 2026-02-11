@@ -19,6 +19,7 @@ import { XIcon } from '@/components/ui/icons'
 import { useTagStore } from '@/store/tagStore'
 import { TagDisplay } from './TagDisplay'
 import { useThemeStore } from '@/store/themeStore'
+import { buildProjectPath } from '@/lib/utils/projectRouting'
 
 export interface TodoTreeItemProps {
   todo: Todo
@@ -154,7 +155,7 @@ export function TodoTreeItem({
       // 传递当前待办的 ID，确保子待办点击时使用的是子待办的 ID
       onClick(todo.id)
     } else {
-      navigate(`/projects/${projectId}/tasks/${todo.id}`)
+      navigate(buildProjectPath(projectId, `tasks/${todo.id}`))
     }
   }
   

@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog, Drawer } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
 import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog, DateRangeFilter, FilterMultiSelect } from '@/components/features'
@@ -19,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
 import { saveProjectFilterState, loadProjectFilterState, type DateRange } from '@/lib/utils/filterStorage'
+import { decodeProjectId } from '@/lib/utils/projectRouting'
 import type { TodoStatus, ProjectMember } from '@/types'
 import clsx from 'clsx'
 import { permissionManager } from '@/lib/permissions'
@@ -27,8 +28,12 @@ import type { TaskInfo } from '@/lib/permissions'
 
 export default function ProjectDetailPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const params = useParams()
-  const projectIdParam = params.id ?? ''
+  const projectSlug = params.id ?? ''
+  const decodedProjectId = decodeProjectId(projectSlug)
+  const projectIdParam = decodedProjectId ?? projectSlug
   const projectId = Number(projectIdParam)
   
   const currentUser = useAuthStore((state) => state.user)
@@ -37,6 +42,30 @@ export default function ProjectDetailPage() {
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false)
   const [taskHistory, setTaskHistory] = useState<Array<{ taskId: string; projectId: string; parentTaskId: number | null }>>([])
+  const parseTaskIdFromHash = (hash: string): string | null => {
+    if (!hash) return null
+    const cleaned = hash.startsWith('#') ? hash.slice(1) : hash
+    if (!cleaned) return null
+    const params = new URLSearchParams(cleaned.startsWith('?') ? cleaned.slice(1) : cleaned)
+    return params.get('task')
+  }
+  const taskIdFromHash = useMemo(() => parseTaskIdFromHash(location.hash), [location.hash])
+  const taskIdFromSearch = searchParams.get('task')
+  const taskIdFromUrl = taskIdFromSearch ?? taskIdFromHash
+  const setTaskRoute = useCallback((taskId: string | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (taskId) {
+        next.set('task', taskId)
+      } else {
+        next.delete('task')
+      }
+      return next
+    })
+    if (taskIdFromHash) {
+      navigate({ hash: '' }, { replace: true })
+    }
+  }, [navigate, setSearchParams, taskIdFromHash])
   
   // 回到顶部
   const scrollToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -47,6 +76,17 @@ export default function ProjectDetailPage() {
       window.scrollTo({ top: 0, behavior })
     }
   }, [])
+  
+  useEffect(() => {
+    if (taskIdFromUrl) {
+      setSelectedTaskId(taskIdFromUrl)
+      setDrawerOpen(true)
+      return
+    }
+    setDrawerOpen(false)
+    setSelectedTaskId(null)
+    setTaskHistory([])
+  }, [taskIdFromUrl])
   const { data: project, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(projectIdParam)
   const deleteProject = useDeleteProject()
   const updateProject = useUpdateProject(projectIdParam)
@@ -1625,8 +1665,8 @@ export default function ProjectDetailPage() {
                   onUpdateTags={handleUpdateTags}
                   currentUserRole={currentUserRole}
                   onClick={(todoId) => {
-                    setSelectedTaskId(String(todoId))
-                    setDrawerOpen(true)
+                    setTaskHistory([])
+                    setTaskRoute(String(todoId))
                   }}
                 />
               ))}
@@ -1803,9 +1843,7 @@ export default function ProjectDetailPage() {
       <Drawer
         open={drawerOpen}
         onClose={() => {
-          setDrawerOpen(false)
-          setSelectedTaskId(null)
-          setTaskHistory([])
+          setTaskRoute(null)
         }}
         width="w-full md:w-[600px] lg:w-[700px]"
         showBackButton={taskHistory.length > 0}
@@ -1814,7 +1852,7 @@ export default function ProjectDetailPage() {
             // 如果有历史记录，返回上一个任务
             const previous = taskHistory[taskHistory.length - 1]
             setTaskHistory(prev => prev.slice(0, -1))
-            setSelectedTaskId(previous.taskId)
+            setTaskRoute(previous.taskId)
           }
         }}
       >
@@ -1833,17 +1871,14 @@ export default function ProjectDetailPage() {
               setTaskHistory(prev => [...prev, { taskId: selectedTaskId, projectId: projectIdParam, parentTaskId }])
               
               // 导航到子待办
-              setSelectedTaskId(String(subtaskId))
+              setTaskRoute(String(subtaskId))
             }}
             onClose={() => {
               // 关闭抽屉（回退逻辑已在 Drawer 的 onBack 中处理）
-              setDrawerOpen(false)
-              setSelectedTaskId(null)
+              setTaskRoute(null)
             }}
             onDelete={() => {
-              setDrawerOpen(false)
-              setSelectedTaskId(null)
-              setTaskHistory([])
+              setTaskRoute(null)
               refetchTodos()
             }}
           />

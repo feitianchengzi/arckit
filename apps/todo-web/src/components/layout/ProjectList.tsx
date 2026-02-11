@@ -16,6 +16,7 @@ import { useProjectList } from '@/hooks/useProjects'
 import { useAuthStore } from '@/store/authStore'
 import { Avatar } from '@/components/ui/Avatar'
 import { Tooltip } from '@/components/ui/Tooltip'
+import { buildProjectPath, decodeProjectId, parseProjectSlugFromPath } from '@/lib/utils/projectRouting'
 
 interface ProjectListProps {
   onItemClick?: (href: string) => void // 点击项目项的回调
@@ -43,7 +44,8 @@ export function ProjectList({ onItemClick, organizationId }: ProjectListProps = 
   }, [projects, user?.id])
 
   // 获取当前选中的项目 ID
-  const currentProjectId = pathname?.match(/\/projects\/(\d+)/)?.[1]
+  const currentProjectSlug = parseProjectSlugFromPath(pathname)
+  const currentProjectId = currentProjectSlug ? decodeProjectId(currentProjectSlug) : null
 
   const handleCreateProject = () => {
     const href = '/projects/new'
@@ -55,7 +57,7 @@ export function ProjectList({ onItemClick, organizationId }: ProjectListProps = 
   }
 
   const handleProjectClick = (projectId: number) => {
-    const href = `/projects/${projectId}`
+    const href = buildProjectPath(projectId)
     if (onItemClick) {
       onItemClick(href)
     } else {
@@ -165,10 +167,11 @@ export function ProjectListContent({ onItemClick, organizationId }: ProjectListP
   }, [projects, user?.id])
 
   // 获取当前选中的项目 ID
-  const currentProjectId = pathname?.match(/\/projects\/(\d+)/)?.[1]
+  const currentProjectSlug = parseProjectSlugFromPath(pathname)
+  const currentProjectId = currentProjectSlug ? decodeProjectId(currentProjectSlug) : null
 
   const handleProjectClick = (projectId: number) => {
-    const href = `/projects/${projectId}`
+    const href = buildProjectPath(projectId)
     if (onItemClick) {
       onItemClick(href)
     } else {

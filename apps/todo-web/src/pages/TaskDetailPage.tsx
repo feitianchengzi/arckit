@@ -20,11 +20,14 @@ import { isAssigneeUnassigned } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
 import { useTagStore } from '@/store/tagStore'
+import { buildProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
 
 export default function TaskDetailPage() {
   const navigate = useNavigate()
   const params = useParams()
-  const projectId = params.id!
+  const projectSlug = params.id ?? ''
+  const decodedProjectId = decodeProjectId(projectSlug)
+  const projectId = decodedProjectId ?? projectSlug
   const taskId = params.taskId!
   
   const { data: project } = useProject(projectId)
@@ -273,7 +276,7 @@ export default function TaskDetailPage() {
   const handleDelete = async () => {
     try {
       await deleteTask.mutateAsync(taskId)
-      navigate(`/projects/${projectId}`)
+      navigate(buildProjectPath(projectId))
     } catch (err: any) {
       alert(err.response?.data?.message || '删除失败，请重试')
       setShowDeleteConfirm(false)
@@ -298,7 +301,7 @@ export default function TaskDetailPage() {
           {/* 父任务图标（如果有） */}
           {parentTask && (
             <button
-              onClick={() => navigate(`/projects/${projectId}/tasks/${parentTask.id}`)}
+              onClick={() => navigate(buildProjectPath(projectId, `tasks/${parentTask.id}`))}
               className="text-gray-600 hover:text-gray-900 relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="查看父任务"
             >
@@ -315,7 +318,7 @@ export default function TaskDetailPage() {
           
           {/* 项目详情图标 */}
           <button
-            onClick={() => navigate(`/projects/${projectId}`)}
+            onClick={() => navigate(buildProjectPath(projectId))}
             className="text-gray-600 hover:text-gray-900 relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="查看项目详情"
           >

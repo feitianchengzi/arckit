@@ -13,17 +13,21 @@ import { useAuthStore } from '@/store/authStore'
 import { todoUserApi } from '@/lib/api/endpoints/auth'
 import { gatewayApi } from '@/lib/api/endpoints/gateway'
 import { getAuthInfo } from '@/lib/utils/tokenManager'
+import { buildProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
 import type { ProjectMember, ProjectRole } from '@/types'
 
 export default function ProjectMembersPage() {
   const navigate = useNavigate()
   const params = useParams()
-  const projectId = Number(params.id!)
+  const projectSlug = params.id ?? ''
+  const decodedProjectId = decodeProjectId(projectSlug)
+  const projectIdParam = decodedProjectId ?? projectSlug
+  const projectId = Number(projectIdParam)
   
   const currentUser = useAuthStore((state) => state.user)
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
-  const { data: project, isLoading: projectLoading } = useProject(String(projectId))
-  const { data: members, isLoading: membersLoading, error, refetch } = useProjectMembers(String(projectId))
+  const { data: project, isLoading: projectLoading } = useProject(projectIdParam)
+  const { data: members, isLoading: membersLoading, error, refetch } = useProjectMembers(projectIdParam)
   
   const currentOrganizationId = useOrganizationStore((state) => state.currentOrganizationId)
   const { data: orgMembers } = useOrganizationMembers(currentOrganizationId || 0)
@@ -50,8 +54,8 @@ export default function ProjectMembersPage() {
       // console.log('📋 [成员列表更新] 完整成员列表:', JSON.stringify(members, null, 2))
     }
   }, [members])
-  const deleteMember = useDeleteProjectMember(String(projectId))
-  const setMemberRole = useSetMemberRole(String(projectId))
+  const deleteMember = useDeleteProjectMember(projectIdParam)
+  const setMemberRole = useSetMemberRole(projectIdParam)
   
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [memberToDelete, setMemberToDelete] = useState<ProjectMember | null>(null)
@@ -324,7 +328,7 @@ export default function ProjectMembersPage() {
         {canAddMember && (
           <Button
             variant="primary"
-            onClick={() => navigate(`/projects/${projectId}/invite`)}
+            onClick={() => navigate(buildProjectPath(projectIdParam, 'invite'))}
           >
             添加新成员
           </Button>
@@ -338,7 +342,7 @@ export default function ProjectMembersPage() {
             title="还没有成员"
             message="添加成员加入项目"
             actionLabel={canAddMember ? "添加新成员" : undefined}
-            onAction={canAddMember ? () => navigate(`/projects/${projectId}/invite`) : undefined}
+            onAction={canAddMember ? () => navigate(buildProjectPath(projectIdParam, 'invite')) : undefined}
           />
         ) : (
           <div className="divide-y divide-gray-200">
