@@ -14,6 +14,7 @@ import { useProject, useProjectMembers } from '@/hooks/useProjects'
 import { useAuthStore } from '@/store/authStore'
 import type { TodoStatus } from '@/types'
 import ReactMarkdown from 'react-markdown'
+import { normalizeMarkdown } from '@/lib/utils/markdown'
 import { permissionManager } from '@/lib/permissions'
 import { isAssigneeUnassigned } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
@@ -532,7 +533,7 @@ export default function TaskDetailPage() {
                   td: ({ children }: { children?: React.ReactNode }) => <td className="border border-gray-600 px-3 py-2 text-gray-100">{children}</td>,
                 }}
               >
-                {todo.content}
+                {normalizeMarkdown(todo.content)}
               </ReactMarkdown>
             </div>
           )}
@@ -765,4 +766,3 @@ function EditIcon({ className }: { className?: string }) {
     </svg>
   )
 }
-

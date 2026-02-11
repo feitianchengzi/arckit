@@ -18,6 +18,7 @@ import { useOrganizationMembers } from '@/hooks/useOrganizations'
 import { useAuthStore } from '@/store/authStore'
 import type { TodoStatus } from '@/types'
 import ReactMarkdown from 'react-markdown'
+import { normalizeMarkdown } from '@/lib/utils/markdown'
 import { permissionManager } from '@/lib/permissions'
 import { isAssigneeUnassigned } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
@@ -699,7 +700,7 @@ export function TaskDetailContent({
                   td: ({ children }: { children?: React.ReactNode }) => <td className="border border-border px-3 py-2 text-foreground">{children}</td>,
                 }}
               >
-                {todo.content}
+                {normalizeMarkdown(todo.content)}
               </ReactMarkdown>
             </div>
           )}
