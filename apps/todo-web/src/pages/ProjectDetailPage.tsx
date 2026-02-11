@@ -940,28 +940,28 @@ export default function ProjectDetailPage() {
     setEditError('')
     
     // 验证
-    if (!editName.trim()) {
+    const trimmedName = editName.trim()
+    const trimmedGitUrl = editGitUrl.trim()
+
+    if (!trimmedName) {
       setEditError('请输入项目名称')
       return
     }
     
-    if (!editGitUrl.trim()) {
-      setEditError('请输入 Git 地址')
-      return
-    }
-    
     // 简单的 URL 验证
-    try {
-      new URL(editGitUrl.trim())
-    } catch {
-      setEditError('请输入有效的 Git 地址')
-      return
+    if (trimmedGitUrl) {
+      try {
+        new URL(trimmedGitUrl)
+      } catch {
+        setEditError('请输入有效的 Git 地址')
+        return
+      }
     }
     
     try {
       await updateProject.mutateAsync({
-        name: editName.trim(),
-        git_url: editGitUrl.trim(),
+        name: trimmedName,
+        git_url: trimmedGitUrl,
       })
       setShowEditDialog(false)
     } catch (err: any) {
@@ -1055,9 +1055,13 @@ export default function ProjectDetailPage() {
             <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground truncate" title={project.name}>
               {project.name}
             </h1>
-            {project.git_url && (
+            {project.git_url ? (
               <p className="mt-1 text-xs md:text-base text-foreground-secondary truncate" title={project.git_url}>
                 {project.git_url}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs md:text-base text-foreground-secondary">
+                当前项目尚未关联任何 Git 仓库
               </p>
             )}
           </div>
@@ -1754,8 +1758,7 @@ export default function ProjectDetailPage() {
             value={editGitUrl}
             onChange={(e) => setEditGitUrl(e.target.value)}
             fullWidth
-            required
-            helperText="项目的 Git 仓库地址"
+            helperText="项目的 Git 仓库地址（可选）"
           />
           
           {editError && (

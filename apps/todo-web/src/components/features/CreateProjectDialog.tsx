@@ -40,28 +40,28 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
     setError('');
     
     // 验证
-    if (!name.trim()) {
-      setError('请输入项目名称');
-      return;
-    }
+    const trimmedName = name.trim();
+    const trimmedGitUrl = gitUrl.trim();
 
-    if (!gitUrl.trim()) {
-      setError('请输入 Git 地址');
+    if (!trimmedName) {
+      setError('请输入项目名称');
       return;
     }
     
     // 简单的 URL 验证
-    try {
-      new URL(gitUrl);
-    } catch {
-      setError('请输入有效的 Git 地址');
-      return;
+    if (trimmedGitUrl) {
+      try {
+        new URL(trimmedGitUrl);
+      } catch {
+        setError('请输入有效的 Git 地址');
+        return;
+      }
     }
     
     try {
       const input: any = {
-        name: name.trim(),
-        git_url: gitUrl.trim(),
+        name: trimmedName,
+        git_url: trimmedGitUrl,
       }
       if (typeof organizationId === 'number') {
         input.organization_id = organizationId
@@ -122,13 +122,12 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
           />
           
           <TextField
-            label="Git 地址 *"
+            label="Git 地址"
             placeholder="https://github.com/username/repo"
             value={gitUrl}
             onChange={(e) => setGitUrl(e.target.value)}
-            required
             disabled={createProject.isPending}
-            helperText="项目的 Git 仓库地址"
+            helperText="项目的 Git 仓库地址（可选）"
           />
           
           {error && (
@@ -151,7 +150,7 @@ export function CreateProjectDialog({ open, onClose, onSuccess, selectedOrganiza
             type="submit" 
             form="create-project-form"
             loading={createProject.isPending}
-            disabled={!name.trim() || !gitUrl.trim() || createProject.isPending}
+            disabled={!name.trim() || createProject.isPending}
           >
             创建
           </Button>
