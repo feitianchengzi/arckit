@@ -283,7 +283,11 @@ export const tasksApi = {
     if (input.priority !== undefined) {
       taskInput.priority = input.priority
     }
-    
+
+    if (input.parentId !== undefined) {
+      taskInput.father_id = input.parentId
+    }
+
     console.log('🔄 更新任务，任务ID:', taskId, '更新内容:', taskInput)
     const response = await apiClient.put(`/user/tasks/${taskId}`, taskInput)
     const task = handleResponse<Task>(response)
