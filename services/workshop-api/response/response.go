@@ -129,6 +129,15 @@ const (
 	CodeTaskAttachmentQueryFailed  = "TASK_ATTACHMENT_QUERY_FAILED"
 	CodeTaskAttachmentInvalidType  = "TASK_ATTACHMENT_INVALID_TYPE"
 
+	// 反馈相关错误
+	CodeFeedbackNotFound     = "FEEDBACK_NOT_FOUND"
+	CodeFeedbackCreateFailed = "FEEDBACK_CREATE_FAILED"
+	CodeFeedbackUpdateFailed = "FEEDBACK_UPDATE_FAILED"
+	CodeFeedbackDeleteFailed = "FEEDBACK_DELETE_FAILED"
+	CodeFeedbackQueryFailed  = "FEEDBACK_QUERY_FAILED"
+	CodeFeedbackNotMember    = "FEEDBACK_NOT_MEMBER"
+	CodeFeedbackNoPermission = "FEEDBACK_NO_PERMISSION"
+
 	// 数据库相关错误
 	CodeDatabaseNotInit = "DATABASE_NOT_INIT"
 )
