@@ -65,6 +65,19 @@ curl -X GET "$BASE_URL/user/projects" \
 - `header-info` 在 `user` / `apikey` 级别：`GET /user/header-info` 或 `GET /apikey/header-info`
 - `public/user` 这种路径不是有效路由
 
+## 🧪 本地测试脚本
+
+用于验证任务父子关系更新行为的本地脚本：
+- `test/dev/task_update_local_test.py`
+
+运行示例（测试环境）:
+```bash
+BASE_URL="http://localhost:8081/workshop/v1" \
+USER_ID="11111111-1111-1111-1111-111111111111" \
+USERNAME="alice" \
+python3 test/dev/task_update_local_test.py
+```
+
 ## 📚 文档结构
 
 - **[common.md](./common.md)** - 公共接口（健康检查；Header 信息在 user/apikey 级别）

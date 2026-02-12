@@ -176,21 +176,20 @@ func CreateTask(c *gin.Context) {
 //   - db: 数据库连接
 //   - taskID: 当前任务ID
 //   - newFatherID: 新的父任务ID
-//   - maxDepth: 最大检查深度（防止无限循环，建议50）
+//   - maxDepth: 最大检查深度（防止无限循环，最多20层）
 //
 // 返回：
-//   - error: 如果检测到循环引用，返回错误；否则返回nil
+//   - error: 如果检测到循环引用或超过最大深度，返回错误；否则返回nil
 func checkCircularReference(db *gorm.DB, taskID uint, newFatherID uint, maxDepth int) error {
 	if maxDepth <= 0 {
-		maxDepth = 50 // 默认最大深度50层
+		maxDepth = 20 // 默认最大深度20层
 	}
 
 	visited := make(map[uint]bool)
 	currentID := newFatherID
-	depth := 0
 
 	// 向上遍历父任务链
-	for currentID != 0 && depth < maxDepth {
+	for depth := 0; currentID != 0 && depth < maxDepth; depth++ {
 		// 检测直接循环：如果新父任务就是当前任务本身
 		if currentID == taskID {
 			return fmt.Errorf("检测到循环引用：目标任务的父任务链中包含当前任务")
@@ -209,6 +208,7 @@ func checkCircularReference(db *gorm.DB, taskID uint, newFatherID uint, maxDepth
 			if err == gorm.ErrRecordNotFound {
 				// 任务不存在，但这不是循环引用问题，可能是数据不一致
 				// 这种情况会在后续的父任务验证中被捕获
+				currentID = 0
 				break
 			}
 			return fmt.Errorf("查询父任务链失败: %w", err)
@@ -216,16 +216,16 @@ func checkCircularReference(db *gorm.DB, taskID uint, newFatherID uint, maxDepth
 
 		// 如果父任务为空，说明到达根节点，没有循环
 		if task.FatherID == nil {
-			break
+			return nil
 		}
 
 		currentID = *task.FatherID
-		depth++
 	}
 
-	// 如果达到最大深度，可能存在很深的层级，但不一定是循环
-	// 为了安全起见，如果达到最大深度，我们仍然允许，但记录警告
-	// 实际应用中，50层的任务层级已经非常深了，正常情况下不会达到
+	// 达到最大深度仍未到根节点，拒绝设置，避免无法完成循环检测
+	if currentID != 0 {
+		return fmt.Errorf("父任务层级超过%d层，无法设置父任务", maxDepth)
+	}
 
 	return nil
 }
@@ -410,7 +410,7 @@ func UpdateTask(c *gin.Context) {
 				return
 			}
 			// 检查循环引用：向上遍历父任务链，确保不会形成循环
-			if err := checkCircularReference(db, task.ID, *req.FatherID, 50); err != nil {
+			if err := checkCircularReference(db, task.ID, *req.FatherID, 20); err != nil {
 				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskCircularReference, err.Error(), nil))
 				return
 			}
