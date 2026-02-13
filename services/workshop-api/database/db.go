@@ -125,6 +125,7 @@ func InitDB() error {
 			&models.Tag{},
 			&models.TaskAttachment{},
 			&models.Feedback{},
+			&models.ProjectFeedbackAccessKey{},
 		)
 		if err != nil {
 			return fmt.Errorf("failed to auto migrate: %w", err)

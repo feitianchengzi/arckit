@@ -130,13 +130,17 @@ const (
 	CodeTaskAttachmentInvalidType  = "TASK_ATTACHMENT_INVALID_TYPE"
 
 	// 反馈相关错误
-	CodeFeedbackNotFound     = "FEEDBACK_NOT_FOUND"
-	CodeFeedbackCreateFailed = "FEEDBACK_CREATE_FAILED"
-	CodeFeedbackUpdateFailed = "FEEDBACK_UPDATE_FAILED"
-	CodeFeedbackDeleteFailed = "FEEDBACK_DELETE_FAILED"
-	CodeFeedbackQueryFailed  = "FEEDBACK_QUERY_FAILED"
-	CodeFeedbackNotMember    = "FEEDBACK_NOT_MEMBER"
-	CodeFeedbackNoPermission = "FEEDBACK_NO_PERMISSION"
+	CodeFeedbackNotFound              = "FEEDBACK_NOT_FOUND"
+	CodeFeedbackCreateFailed          = "FEEDBACK_CREATE_FAILED"
+	CodeFeedbackUpdateFailed          = "FEEDBACK_UPDATE_FAILED"
+	CodeFeedbackDeleteFailed          = "FEEDBACK_DELETE_FAILED"
+	CodeFeedbackQueryFailed           = "FEEDBACK_QUERY_FAILED"
+	CodeFeedbackNotMember             = "FEEDBACK_NOT_MEMBER"
+	CodeFeedbackNoPermission          = "FEEDBACK_NO_PERMISSION"
+	CodeFeedbackAccessKeyNotFound     = "FEEDBACK_ACCESS_KEY_NOT_FOUND"
+	CodeFeedbackAccessKeyCreateFailed = "FEEDBACK_ACCESS_KEY_CREATE_FAILED"
+	CodeFeedbackAccessKeyQueryFailed  = "FEEDBACK_ACCESS_KEY_QUERY_FAILED"
+	CodeFeedbackAccessKeyDeleteFailed = "FEEDBACK_ACCESS_KEY_DELETE_FAILED"
 
 	// 数据库相关错误
 	CodeDatabaseNotInit = "DATABASE_NOT_INIT"

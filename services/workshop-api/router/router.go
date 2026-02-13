@@ -37,6 +37,7 @@ func SetupRouter(serviceName string) *gin.Engine {
 		publicGroup := v1.Group("/public")
 		{
 			publicGroup.GET("/health", handler.HealthCheck)
+			publicGroup.GET("/feedbacks", handler.GetPublicFeedbacksByKey) // 通过 key 查询反馈（独立 public 接口）
 		}
 
 		// user级别路由 - 需要JWT认证
@@ -45,6 +46,9 @@ func SetupRouter(serviceName string) *gin.Engine {
 		userGroup := v1.Group("/user")
 		userGroup.Use(middleware.ExtractUserID()) // 提取用户ID中间件
 		registerBusinessRoutes(userGroup)
+		userGroup.POST("/projects/:id/feedback-access-keys", handler.CreateProjectFeedbackAccessKey)           // 创建项目反馈访问 key（管理员/所有者）
+		userGroup.GET("/projects/:id/feedback-access-keys", handler.GetProjectFeedbackAccessKeys)              // 查询项目反馈访问 key 列表（管理员/所有者）
+		userGroup.DELETE("/projects/:id/feedback-access-keys/:key_id", handler.DeleteProjectFeedbackAccessKey) // 删除项目反馈访问 key（管理员/所有者）
 
 		// apikey级别路由 - 需要API密钥认证
 		// 网关已经验证了认证，如果请求到达这里，说明认证通过
