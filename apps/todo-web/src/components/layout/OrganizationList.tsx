@@ -13,6 +13,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import clsx from 'clsx'
 import { useOrganizationList } from '@/hooks/useOrganizations'
 import { useState } from 'react'
+import { buildOrganizationPath, buildFeedbackOrganizationPath, decodeOrganizationId } from '@/lib/utils/organizationRouting'
 
 interface OrganizationListProps {
   onItemClick?: (href: string) => void // 点击组织项的回调
@@ -36,10 +37,14 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
   const pathname = location.pathname
   const { data: organizations = [], isLoading } = useOrganizationList()
   const [showAll, setShowAll] = useState(false)
-  const isPersonalActive = !selectedOrganizationId && pathname?.startsWith('/projects')
+  const isFeedbackSection = pathname?.startsWith('/feedbacks')
+  const isPersonalActive =
+    !selectedOrganizationId &&
+    (pathname?.startsWith('/projects') || pathname?.startsWith('/feedbacks'))
 
   // 获取当前选中的组织 ID
-  const routeOrganizationId = pathname?.match(/\/organizations\/(\d+)/)?.[1]
+  const routeOrganizationSlug = pathname?.match(/\/organizations\/([^/]+)/)?.[1]
+  const routeOrganizationId = routeOrganizationSlug ? decodeOrganizationId(routeOrganizationSlug) : null
   const currentOrganizationId = selectedOrganizationId !== undefined && selectedOrganizationId !== null
     ? String(selectedOrganizationId)
     : routeOrganizationId
@@ -52,7 +57,9 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
     if (onSelectOrganization) {
       onSelectOrganization(organizationId)
     }
-    const href = `/organizations/${organizationId}`
+    const href = isFeedbackSection
+      ? buildFeedbackOrganizationPath(organizationId)
+      : buildOrganizationPath(organizationId)
     if (onItemClick) {
       onItemClick(href)
     } else {
@@ -68,7 +75,7 @@ export function OrganizationList({ onItemClick, selectedOrganizationId, onSelect
     if (onSelectOrganization) {
       onSelectOrganization(null)
     }
-    const href = '/projects'
+    const href = isFeedbackSection ? '/feedbacks' : '/projects'
     if (onItemClick) {
       onItemClick(href)
     } else {

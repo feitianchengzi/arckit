@@ -16,7 +16,7 @@ import { useProjectList } from '@/hooks/useProjects'
 import { useAuthStore } from '@/store/authStore'
 import { Avatar } from '@/components/ui/Avatar'
 import { Tooltip } from '@/components/ui/Tooltip'
-import { buildProjectPath, decodeProjectId, parseProjectSlugFromPath } from '@/lib/utils/projectRouting'
+import { buildFeedbackProjectPath, buildProjectPath, decodeProjectId, parseProjectSlugFromPath } from '@/lib/utils/projectRouting'
 
 interface ProjectListProps {
   onItemClick?: (href: string) => void // 点击项目项的回调
@@ -27,6 +27,7 @@ export function ProjectList({ onItemClick, organizationId }: ProjectListProps = 
   const navigate = useNavigate()
   const location = useLocation()
   const pathname = location.pathname
+  const isFeedbackSection = pathname.startsWith('/feedbacks')
   const { data: projects = [], isLoading } = useProjectList(organizationId)
   const user = useAuthStore((state) => state.user)
 
@@ -57,7 +58,7 @@ export function ProjectList({ onItemClick, organizationId }: ProjectListProps = 
   }
 
   const handleProjectClick = (projectId: number) => {
-    const href = buildProjectPath(projectId)
+    const href = isFeedbackSection ? buildFeedbackProjectPath(projectId) : buildProjectPath(projectId)
     if (onItemClick) {
       onItemClick(href)
     } else {
@@ -150,6 +151,7 @@ export function ProjectListContent({ onItemClick, organizationId }: ProjectListP
   const navigate = useNavigate()
   const location = useLocation()
   const pathname = location.pathname
+  const isFeedbackSection = pathname.startsWith('/feedbacks')
   const { data: projects = [], isLoading } = useProjectList(organizationId)
   const user = useAuthStore((state) => state.user)
 
@@ -171,7 +173,7 @@ export function ProjectListContent({ onItemClick, organizationId }: ProjectListP
   const currentProjectId = currentProjectSlug ? decodeProjectId(currentProjectSlug) : null
 
   const handleProjectClick = (projectId: number) => {
-    const href = buildProjectPath(projectId)
+    const href = isFeedbackSection ? buildFeedbackProjectPath(projectId) : buildProjectPath(projectId)
     if (onItemClick) {
       onItemClick(href)
     } else {

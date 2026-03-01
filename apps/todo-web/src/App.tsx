@@ -18,6 +18,7 @@ import JoinProjectPage from '@/pages/JoinProjectPage'
 import OrganizationDetailPage from '@/pages/OrganizationDetailPage'
 import InviteOrganizationPage from '@/pages/InviteOrganizationPage'
 import JoinOrganizationPage from '@/pages/JoinOrganizationPage'
+import FeedbackProjectDetailPage from '@/pages/FeedbackProjectDetailPage'
 import { ToastHost } from '@/components/ui/ToastHost'
 
 // 布局组件
@@ -55,6 +56,9 @@ function App() {
         <Route path="/projects/:id/tasks/new" element={<NewTaskPage />} />
         <Route path="/projects/:id/tasks/:taskId" element={<TaskDetailPage />} />
         <Route path="/tasks" element={<TasksPage />} />
+        <Route path="/feedbacks" element={<ProjectsPage />} />
+        <Route path="/feedbacks/organizations/:id" element={<OrganizationDetailPage />} />
+        <Route path="/feedbacks/projects/:id" element={<FeedbackProjectDetailPage />} />
         <Route path="/organizations/:id" element={<OrganizationDetailPage />} />
         <Route path="/organizations/:id/invite" element={<InviteOrganizationPage />} />
         <Route path="/settings" element={<SettingsPage />} />

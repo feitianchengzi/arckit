@@ -4,11 +4,13 @@ import { useMutation } from '@tanstack/react-query'
 import { Button, LoadingView, ErrorView, TextField } from '@/components/ui'
 import { useOrganizationList } from '@/hooks/useOrganizations'
 import { organizationsApi } from '@/lib/api/endpoints/organizations'
+import { decodeOrganizationId } from '@/lib/utils/organizationRouting'
 
 export default function InviteOrganizationPage() {
   const navigate = useNavigate()
   const params = useParams()
-  const organizationId = Number(params.id!)
+  const decodedOrganizationId = decodeOrganizationId(params.id ?? '')
+  const organizationId = Number(decodedOrganizationId ?? 0)
 
   const { data: organizations, isLoading, error } = useOrganizationList()
   const organization = organizations?.find(org => org.id === organizationId)
@@ -28,6 +30,10 @@ export default function InviteOrganizationPage() {
 
   if (isLoading) {
     return <LoadingView size="lg" text="加载组织信息..." />
+  }
+
+  if (!decodedOrganizationId) {
+    return <ErrorView title="加载失败" message="无效的组织标识" />
   }
 
   if (error || !organization) {

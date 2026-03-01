@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog, Drawer } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
-import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog, DateRangeFilter, FilterMultiSelect, FeedbackDialog, FeedbackManagementDialog } from '@/components/features'
+import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog, DateRangeFilter, FilterMultiSelect, FeedbackDialog } from '@/components/features'
 import { buildTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
@@ -126,8 +126,6 @@ export default function ProjectDetailPage() {
   const [showExportDialog, setShowExportDialog] = useState(false)
   // 反馈对话框状态
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
-  // 反馈管理对话框状态
-  const [showFeedbackManagementDialog, setShowFeedbackManagementDialog] = useState(false)
 
   // 迁移项目状态
   const [showMigrateDialog, setShowMigrateDialog] = useState(false)
@@ -1375,21 +1373,6 @@ export default function ProjectDetailPage() {
               hideLabel
             />
 
-            {/* 反馈管理按钮 - 仅 owner/admin 可见 */}
-            {(isOwner || currentUserRole === 'admin') && (
-              <IconButton
-                icon={
-                  <svg className="w-5 h-5" viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true">
-                    <path d="M938.666667 569.216A256 256 0 0 0 611.882667 896H128a42.666667 42.666667 0 0 1-42.666667-42.666667V170.666667a42.666667 42.666667 0 0 1 42.666667-42.666667h768a42.666667 42.666667 0 0 1 42.666667 42.666667v398.549333z m-424.106667-70.741333l-273.578667-232.32-55.253333 65.024 329.386667 279.68 323.456-279.893334-55.808-64.554666-268.16 232.064h-0.042667z m212.906667 335.573333a128.746667 128.746667 0 0 1 0-46.762667l-43.264-25.002666 42.666666-73.898667L770.133333 713.386667a128.618667 128.618667 0 0 1 40.533334-23.466667V640h85.333333v49.92c14.976 5.333333 28.672 13.312 40.533333 23.466667l43.264-25.002667 42.666667 73.898667-43.264 25.002666a128.746667 128.746667 0 0 1 0 46.762667l43.264 25.002667-42.666667 73.898666L936.533333 907.946667c-11.946667 10.24-25.685333 18.197333-40.533333 23.466666V981.333333h-85.333333v-49.92a127.872 127.872 0 0 1-40.533334-23.466666l-43.264 25.002666-42.666666-73.898666 43.264-25.002667zM853.333333 853.333333a42.666667 42.666667 0 1 0 0-85.333333 42.666667 42.666667 0 0 0 0 85.333333z" />
-                  </svg>
-                }
-                label="反馈管理"
-                onClick={() => setShowFeedbackManagementDialog(true)}
-                variant="secondary"
-                hideLabel
-              />
-            )}
-            
             {/* 更多菜单 - 所有用户都可以看到 */}
             <div className="relative" ref={moreMenuRef}>
               <IconButton
@@ -2138,14 +2121,6 @@ export default function ProjectDetailPage() {
         open={showFeedbackDialog}
         onClose={() => setShowFeedbackDialog(false)}
         projectId={projectId}
-        projectName={project?.name}
-      />
-
-      {/* 反馈管理对话框 */}
-      <FeedbackManagementDialog
-        open={showFeedbackManagementDialog}
-        onClose={() => setShowFeedbackManagementDialog(false)}
-        projectId={projectIdParam}
         projectName={project?.name}
       />
       

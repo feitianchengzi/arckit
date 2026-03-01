@@ -11,10 +11,12 @@ interface FeedbackManagementDialogProps {
   onClose: () => void
   projectId: string
   projectName?: string
+  embedded?: boolean
 }
 
 type FeedbackState = 'pending' | 'accepted' | 'ignored' | 'converted'
 type FeedbackStatus = 'pending' | 'accepted' | 'ignored'
+const FEEDBACK_STATES: FeedbackState[] = ['pending', 'accepted', 'ignored', 'converted']
 
 const PAGE_SIZE = 12
 
@@ -129,7 +131,7 @@ const buildFeedbackTaskContent = (feedback: Feedback) => {
   return '[反馈]'
 }
 
-export function FeedbackManagementDialog({ open, onClose, projectId, projectName }: FeedbackManagementDialogProps) {
+export function FeedbackManagementDialog({ open, onClose, projectId, projectName, embedded = false }: FeedbackManagementDialogProps) {
   const [page, setPage] = useState(1)
   const [pageInput, setPageInput] = useState('1')
   const [searchQuery, setSearchQuery] = useState('')
@@ -142,7 +144,7 @@ export function FeedbackManagementDialog({ open, onClose, projectId, projectName
   const { data: feedbackData, isLoading, error, refetch } = useFeedbackList(projectId, {
     page,
     pageSize: PAGE_SIZE,
-    enabled: open,
+    enabled: embedded ? true : open,
   })
 
   const feedbacks = feedbackData?.feedbacks ?? []
@@ -154,12 +156,19 @@ export function FeedbackManagementDialog({ open, onClose, projectId, projectName
   }, [page])
 
   useEffect(() => {
+    if (embedded) return
     if (!open) {
       setPage(1)
       setPageInput('1')
       setSearchQuery('')
     }
-  }, [open])
+  }, [embedded, open])
+
+  useEffect(() => {
+    setPage(1)
+    setPageInput('1')
+    setSearchQuery('')
+  }, [projectId])
 
   const filteredFeedbacks = useMemo(() => {
     if (!searchQuery.trim()) return feedbacks
@@ -218,63 +227,179 @@ export function FeedbackManagementDialog({ open, onClose, projectId, projectName
     setPage(safePage)
   }
 
-  const headerContent = (
+  const renderFeedbackCard = (feedback: Feedback, accentClass: string) => {
+    const feedbackState = parseFeedbackState(feedback)
+    const isUpdating = updatingId === feedback.id || updateFeedback.isPending
+    return (
+      <div
+        key={feedback.id}
+        className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col h-[188px] overflow-hidden"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <h3
+            className={clsx('text-base font-semibold truncate', accentClass)}
+            title={feedback.title}
+          >
+            {feedback.title}
+          </h3>
+          <span className="text-xs text-foreground-tertiary">#{feedback.short_id}</span>
+        </div>
+        <div className="flex-1 space-y-2 mt-2">
+          <p
+            className="text-sm text-foreground-secondary whitespace-pre-line"
+            style={{
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {feedback.content}
+          </p>
+          <div className="flex flex-wrap gap-2 text-xs text-foreground-tertiary h-[24px] overflow-hidden">
+            {feedback.custom_user_id && (
+              <span className="px-2 py-1 rounded-md bg-surface-active">自定义ID：{feedback.custom_user_id}</span>
+            )}
+            {feedback.user_phone && (
+              <span className="px-2 py-1 rounded-md bg-surface-active">手机：{feedback.user_phone}</span>
+            )}
+            {feedback.user_email && (
+              <span className="px-2 py-1 rounded-md bg-surface-active">邮箱：{feedback.user_email}</span>
+            )}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-foreground-tertiary">
+              提交时间：{formatDateTime(feedback.created_at)}
+            </span>
+            <div className="flex items-center gap-2">
+              {feedbackState === 'accepted' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingFeedback(feedback)
+                    setPendingTaskContent(buildFeedbackTaskContent(feedback))
+                    setShowCreateTaskDialog(true)
+                  }}
+                  className="text-xs font-semibold text-primary hover:text-primary-hover"
+                >
+                  流转为待办
+                </button>
+              )}
+              <span className="text-xs font-medium text-foreground-secondary">
+                {STATE_META[feedbackState].label}
+              </span>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {STATUS_OPTIONS.map((option) => {
+              const isActive = feedbackState === option
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => handleStateChange(feedback, option)}
+                  disabled={isUpdating || isActive}
+                  className={clsx(
+                    'px-2 py-1.5 rounded-md border text-xs font-semibold transition-colors',
+                    'disabled:opacity-60 disabled:cursor-not-allowed',
+                    isActive
+                      ? STATE_ACTIVE_STYLE[option]
+                      : 'bg-surface-active text-foreground-secondary border-border hover:bg-surface-hover'
+                  )}
+                >
+                  {STATE_ACTION_LABEL[option]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const searchInput = (
+    <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-elevated px-3 py-2">
+      <svg className="w-4 h-4 text-foreground-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z" />
+      </svg>
+      <input
+        type="text"
+        value={searchQuery}
+        onChange={(e) => {
+          setSearchQuery(e.target.value)
+          setPage(1)
+        }}
+        placeholder="搜索反馈..."
+        className="w-full bg-transparent text-sm text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-0"
+      />
+    </div>
+  )
+
+  const paginationControls = (
+    <div className="flex items-center gap-2 text-xs text-foreground-secondary">
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+          disabled={page <= 1}
+          className="px-2 py-1 rounded-md border border-border bg-surface-active text-foreground-secondary hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          上一页
+        </button>
+        <span className="px-2">第 {page} / {totalPages} 页</span>
+        <button
+          type="button"
+          onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+          disabled={page >= totalPages}
+          className="px-2 py-1 rounded-md border border-border bg-surface-active text-foreground-secondary hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          下一页
+        </button>
+      </div>
+      <div className="hidden md:flex items-center gap-1">
+        <input
+          type="number"
+          min={1}
+          max={totalPages}
+          value={pageInput}
+          onChange={(e) => setPageInput(e.target.value)}
+          className="w-16 rounded-md border border-border bg-surface-elevated px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-0"
+        />
+        <button
+          type="button"
+          onClick={handlePageJump}
+          className="px-2 py-1 rounded-md border border-border bg-surface-active text-foreground-secondary hover:bg-surface-hover"
+        >
+          跳转
+        </button>
+      </div>
+    </div>
+  )
+
+  const dialogHeaderContent = (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
       <div className="flex-1">
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface-elevated px-3 py-2">
-          <svg className="w-4 h-4 text-foreground-tertiary" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m1.35-5.65a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value)
-              setPage(1)
-            }}
-            placeholder="搜索反馈..."
-            className="w-full bg-transparent text-sm text-foreground placeholder:text-foreground-tertiary focus:outline-none focus:ring-0"
-          />
+        <div className="mb-1 text-xs text-foreground-tertiary">
+          {projectName ? `项目：${projectName}` : '项目反馈'}
         </div>
+        {searchInput}
       </div>
-      <div className="flex items-center gap-2 text-xs text-foreground-secondary">
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-            disabled={page <= 1}
-            className="px-2 py-1 rounded-md border border-border bg-surface-active text-foreground-secondary hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            上一页
-          </button>
-          <span className="px-2">第 {page} / {totalPages} 页</span>
-          <button
-            type="button"
-            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-            disabled={page >= totalPages}
-            className="px-2 py-1 rounded-md border border-border bg-surface-active text-foreground-secondary hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            下一页
-          </button>
+      {paginationControls}
+    </div>
+  )
+
+  const embeddedHeaderContent = (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-wide text-foreground-tertiary">反馈管理</div>
+          <h1 className="mt-1 truncate text-xl font-bold text-foreground">{projectName || '项目反馈'}</h1>
         </div>
-        <div className="hidden md:flex items-center gap-1">
-          <input
-            type="number"
-            min={1}
-            max={totalPages}
-            value={pageInput}
-            onChange={(e) => setPageInput(e.target.value)}
-            className="w-16 rounded-md border border-border bg-surface-elevated px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-0"
-          />
-          <button
-            type="button"
-            onClick={handlePageJump}
-            className="px-2 py-1 rounded-md border border-border bg-surface-active text-foreground-secondary hover:bg-surface-hover"
-          >
-            跳转
-          </button>
-        </div>
+        {paginationControls}
       </div>
+      {searchInput}
     </div>
   )
 
@@ -286,21 +411,101 @@ export function FeedbackManagementDialog({ open, onClose, projectId, projectName
     maxHeight: 'calc(100vh - 30px)',
   } as const
 
+  const content = (
+    <div className={clsx('space-y-4', embedded && 'flex-1')}>
+      {isLoading && <LoadingView size="md" text="加载反馈..." />}
+
+      {error && (
+        <ErrorView
+          title="反馈加载失败"
+          message="无法获取反馈列表，请稍后重试"
+          onRetry={() => refetch()}
+        />
+      )}
+
+      {!isLoading && !error && filteredFeedbacks.length === 0 && (
+        <EmptyStateView title="暂无反馈" message="当前项目还没有收到反馈。" />
+      )}
+
+      {!isLoading && !error && filteredFeedbacks.length > 0 && (
+        <div className={clsx('pr-1', !embedded && 'overflow-y-auto scrollbar-slim max-h-[calc(100vh-260px)]')}>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {FEEDBACK_STATES.map((state) => {
+              const items = grouped[state]
+              const meta = STATE_META[state]
+              return (
+                <div key={state} className="space-y-4">
+                  <div
+                    className={clsx(
+                      'flex items-center justify-between rounded-xl border border-border px-4 py-3 shadow-sm',
+                      meta.headerBg
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={clsx('h-2.5 w-2.5 rounded-full bg-current', meta.accent)} />
+                      <span className="text-sm font-semibold text-foreground">{meta.label}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-foreground-tertiary">{items.length}</span>
+                  </div>
+
+                  <div className="space-y-4">
+                    {items.map((feedback) => renderFeedbackCard(feedback, meta.accent))}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+
+  const embeddedTabs = (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {FEEDBACK_STATES.map((state) => {
+        const items = grouped[state]
+        const meta = STATE_META[state]
+        return (
+          <div
+            key={state}
+            className={clsx(
+              'flex items-center justify-between rounded-xl border border-border px-4 py-3 shadow-sm',
+              meta.headerBg
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <span className={clsx('h-2.5 w-2.5 rounded-full bg-current', meta.accent)} />
+              <span className="text-sm font-semibold text-foreground">{meta.label}</span>
+            </div>
+            <span className="text-xs font-semibold text-foreground-tertiary">{items.length}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+
+  const embeddedCards = (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+      {FEEDBACK_STATES.map((state) => {
+        const items = grouped[state]
+        const meta = STATE_META[state]
+        return (
+          <div key={state} className="space-y-4">
+            {items.map((feedback) => renderFeedbackCard(feedback, meta.accent))}
+          </div>
+        )
+      })}
+    </div>
+  )
+
   return (
     <>
-      <Dialog
-        open={open}
-        onClose={onClose}
-        title="反馈管理台"
-        description="查看和管理用户反馈"
-        maxWidth="2xl"
-        headerContent={headerContent}
-        panelStyle={panelStyle}
-      >
-        <div className="space-y-4">
-
+      {embedded ? (
+        <div className="flex h-full min-h-0 flex-col gap-4">
+          <div className="sticky top-0 z-30 rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
+            {embeddedHeaderContent}
+          </div>
           {isLoading && <LoadingView size="md" text="加载反馈..." />}
-
           {error && (
             <ErrorView
               title="反馈加载失败"
@@ -308,133 +513,33 @@ export function FeedbackManagementDialog({ open, onClose, projectId, projectName
               onRetry={() => refetch()}
             />
           )}
-
           {!isLoading && !error && filteredFeedbacks.length === 0 && (
             <EmptyStateView title="暂无反馈" message="当前项目还没有收到反馈。" />
           )}
-
           {!isLoading && !error && filteredFeedbacks.length > 0 && (
-            <div className="max-h-[calc(100vh-260px)] overflow-y-auto pr-1 scrollbar-slim">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-                {(['pending', 'accepted', 'ignored', 'converted'] as FeedbackState[]).map((state) => {
-                  const items = grouped[state]
-                  const meta = STATE_META[state]
-                  return (
-                    <div key={state} className="space-y-4">
-                      <div
-                        className={clsx(
-                          'flex items-center justify-between rounded-xl border border-border px-4 py-3 shadow-sm',
-                          meta.headerBg
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className={clsx('h-2.5 w-2.5 rounded-full bg-current', meta.accent)} />
-                          <span className="text-sm font-semibold text-foreground">{meta.label}</span>
-                        </div>
-                        <span className="text-xs font-semibold text-foreground-tertiary">{items.length}</span>
-                      </div>
-
-                      <div className="space-y-4">
-                        {items.map((feedback) => {
-                          const feedbackState = parseFeedbackState(feedback)
-                          const isUpdating = updatingId === feedback.id || updateFeedback.isPending
-                          return (
-                            <div
-                              key={feedback.id}
-                              className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col h-[188px] overflow-hidden"
-                            >
-                              <div className="flex items-start justify-between gap-3">
-                                <h3
-                                  className={clsx('text-base font-semibold truncate', meta.accent)}
-                                  title={feedback.title}
-                                >
-                                  {feedback.title}
-                                </h3>
-                                <span className="text-xs text-foreground-tertiary">#{feedback.short_id}</span>
-                              </div>
-                              <div className="flex-1 space-y-2 mt-2">
-                                <p
-                                  className="text-sm text-foreground-secondary whitespace-pre-line"
-                                  style={{
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 3,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden',
-                                  }}
-                                >
-                                  {feedback.content}
-                                </p>
-                                <div className="flex flex-wrap gap-2 text-xs text-foreground-tertiary h-[24px] overflow-hidden">
-                                  {feedback.custom_user_id && (
-                                    <span className="px-2 py-1 rounded-md bg-surface-active">自定义ID：{feedback.custom_user_id}</span>
-                                  )}
-                                  {feedback.user_phone && (
-                                    <span className="px-2 py-1 rounded-md bg-surface-active">手机：{feedback.user_phone}</span>
-                                  )}
-                                  {feedback.user_email && (
-                                    <span className="px-2 py-1 rounded-md bg-surface-active">邮箱：{feedback.user_email}</span>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between gap-3">
-                                  <span className="text-xs text-foreground-tertiary">
-                                    提交时间：{formatDateTime(feedback.created_at)}
-                                  </span>
-                                  <div className="flex items-center gap-2">
-                                    {feedbackState === 'accepted' && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setPendingFeedback(feedback)
-                                          setPendingTaskContent(buildFeedbackTaskContent(feedback))
-                                          setShowCreateTaskDialog(true)
-                                        }}
-                                        className="text-xs font-semibold text-primary hover:text-primary-hover"
-                                      >
-                                        流转为待办
-                                      </button>
-                                    )}
-                                    <span className="text-xs font-medium text-foreground-secondary">
-                                      {STATE_META[feedbackState].label}
-                                    </span>
-                                  </div>
-                                </div>
-                                <div className="grid grid-cols-3 gap-2">
-                                  {STATUS_OPTIONS.map((option) => {
-                                    const isActive = feedbackState === option
-                                    return (
-                                      <button
-                                        key={option}
-                                        type="button"
-                                        onClick={() => handleStateChange(feedback, option)}
-                                        disabled={isUpdating || isActive}
-                                        className={clsx(
-                                          'px-2 py-1.5 rounded-md border text-xs font-semibold transition-colors',
-                                          'disabled:opacity-60 disabled:cursor-not-allowed',
-                                          isActive
-                                            ? STATE_ACTIVE_STYLE[option]
-                                            : 'bg-surface-active text-foreground-secondary border-border hover:bg-surface-hover'
-                                        )}
-                                      >
-                                        {STATE_ACTION_LABEL[option]}
-                                      </button>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )
-                })}
+            <>
+              <div className="rounded-xl border border-border bg-surface p-2 shadow-sm">
+                {embeddedTabs}
               </div>
-            </div>
+              <div className="flex-1 min-h-0 overflow-y-auto pr-1 scrollbar-slim">
+                {embeddedCards}
+              </div>
+            </>
           )}
         </div>
-      </Dialog>
+      ) : (
+        <Dialog
+          open={open}
+          onClose={onClose}
+          title="反馈管理台"
+          description="查看和管理用户反馈"
+          maxWidth="2xl"
+          headerContent={dialogHeaderContent}
+          panelStyle={panelStyle}
+        >
+          {content}
+        </Dialog>
+      )}
 
       <CreateTaskDialog
         open={showCreateTaskDialog}
