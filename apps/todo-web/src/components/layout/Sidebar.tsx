@@ -25,6 +25,7 @@ import { useOrganizationList } from '@/hooks/useOrganizations'
 import { useProjectList } from '@/hooks/useProjects'
 
 import { useOrganizationStore } from '@/store/organizationStore'
+import { buildFeedbackOrganizationPath, buildOrganizationPath } from '@/lib/utils/organizationRouting'
 
 interface SidebarProps {
   className?: string
@@ -73,11 +74,14 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
     : '未登录'
 
   const { data: projects = [] } = useProjectList(currentOrganizationId)
+  const isFeedbackSection = location.pathname.startsWith('/feedbacks')
   const hasOrganizations = organizations.length > 0
   const selectedOrganization = currentOrganizationId
     ? organizations.find((organization) => organization.id === currentOrganizationId)
     : null
-  const isPersonalProjects = !currentOrganizationId && location.pathname.startsWith('/projects')
+  const isPersonalProjects =
+    !currentOrganizationId &&
+    (location.pathname.startsWith('/projects') || location.pathname.startsWith('/feedbacks'))
   const headerTitle = selectedOrganization?.name ?? (isPersonalProjects ? '个人项目' : '项目')
   const projectCount = projects.length
 
@@ -269,7 +273,11 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
               <div className="border-t border-border" />
               <div className="px-4 py-3">
                 <button
-                  onClick={() => handleNavClick(`/organizations/${currentOrganizationId}`)}
+                  onClick={() => handleNavClick(
+                    isFeedbackSection
+                      ? buildFeedbackOrganizationPath(currentOrganizationId)
+                      : buildOrganizationPath(currentOrganizationId)
+                  )}
                   className="w-full flex items-center justify-center rounded-lg bg-surface-elevated py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
                   title="组织设置"
                   aria-label="组织设置"

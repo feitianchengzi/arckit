@@ -29,7 +29,13 @@ export const buildProjectPath = (projectId: number | string, suffix = ''): strin
   return `/projects/${slug}${suffix.startsWith('/') ? suffix : `/${suffix}`}`
 }
 
+export const buildFeedbackProjectPath = (projectId: number | string, suffix = ''): string => {
+  const slug = encodeProjectId(projectId)
+  if (!suffix) return `/feedbacks/projects/${slug}`
+  return `/feedbacks/projects/${slug}${suffix.startsWith('/') ? suffix : `/${suffix}`}`
+}
+
 export const parseProjectSlugFromPath = (pathname: string): string | null => {
-  const match = pathname.match(/\/projects\/([^/]+)/)
+  const match = pathname.match(/\/(?:projects|feedbacks\/projects)\/([^/]+)/)
   return match?.[1] ?? null
 }

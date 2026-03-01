@@ -34,6 +34,8 @@ export default function MyTasksPage() {
   const currentOrganizationId = useOrganizationStore((state) => state.currentOrganizationId)
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [hideScrollTopForDrawerTransition, setHideScrollTopForDrawerTransition] = useState(false)
+  const hasDrawerOpenedRef = useRef(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [taskHistory, setTaskHistory] = useState<Array<{ taskId: string; projectId: string; parentTaskId?: number | null }>>([]) // 任务导航历史
@@ -50,6 +52,23 @@ export default function MyTasksPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }
   }
+
+  useEffect(() => {
+    if (drawerOpen) {
+      hasDrawerOpenedRef.current = true
+      setHideScrollTopForDrawerTransition(false)
+      return
+    }
+    if (!hasDrawerOpenedRef.current) return
+
+    setHideScrollTopForDrawerTransition(true)
+    const timer = window.setTimeout(() => {
+      setHideScrollTopForDrawerTransition(false)
+    }, 320)
+
+    return () => window.clearTimeout(timer)
+  }, [drawerOpen])
+
   const { data: projects, isLoading: projectsLoading, error: projectsError, refetch: refetchProjects } = useProjectList(currentOrganizationId)
   
   const [myTasks, setMyTasks] = useState<Array<Omit<Todo, 'projectId'> & { projectId: string; projectName: string }>>([])
@@ -368,7 +387,7 @@ export default function MyTasksPage() {
 
   const isFilterActive = <T,>(selected: T[], allValues: T[]) => {
     if (selected.length === 0) return false
-    if (allValues.length > 0 && selected.length === allValues.length && allValues.every(value => selected.includes(value))) {
+    if (allValues.length > 1 && selected.length === allValues.length && allValues.every(value => selected.includes(value))) {
       return false
     }
     return true
@@ -1613,12 +1632,12 @@ export default function MyTasksPage() {
           'hover:bg-blue-500 transition-all duration-300',
           'focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2',
           'cursor-pointer',
-          showScrollTop 
+          showScrollTop && !drawerOpen && !hideScrollTopForDrawerTransition
             ? 'opacity-100 translate-y-0 pointer-events-auto visible' 
             : 'opacity-0 translate-y-4 pointer-events-none invisible'
         )}
         aria-label="回到顶部"
-        tabIndex={showScrollTop ? 0 : -1}
+        tabIndex={showScrollTop && !drawerOpen && !hideScrollTopForDrawerTransition ? 0 : -1}
       >
         <svg
           className="w-6 h-6"

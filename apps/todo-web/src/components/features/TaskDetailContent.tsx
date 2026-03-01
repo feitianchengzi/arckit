@@ -70,6 +70,7 @@ export function TaskDetailContent({
   const [createSubtaskDialogOpen, setCreateSubtaskDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'comments' | 'subtasks' | 'history'>('comments')
   const tabHeaderRef = useRef<HTMLDivElement>(null)
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null)
   
   const { data: members } = useProjectMembers(projectId)
   const { currentOrganizationId } = useOrganizationStore()
@@ -223,6 +224,21 @@ export function TaskDetailContent({
       isProjectMember
     )
   }, [todo, currentUserRole, currentUserId, currentUserMember])
+
+  useEffect(() => {
+    if (!isEditing) return
+
+    const frame = requestAnimationFrame(() => {
+      const textarea = editTextareaRef.current
+      if (!textarea) return
+
+      textarea.focus()
+      const end = textarea.value.length
+      textarea.setSelectionRange(end, end)
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [isEditing])
   
   // 加载状态
   if (isLoading) {
@@ -477,15 +493,6 @@ export function TaskDetailContent({
           
           {!isEditing && (
             <div className="flex gap-3">
-              {canEditContent && (
-                <Button
-                  variant="secondary"
-                  onClick={handleEdit}
-                >
-                  编辑
-                </Button>
-              )}
-              
               {canDelete && (
                 <Button
                   variant="danger"
@@ -547,16 +554,6 @@ export function TaskDetailContent({
                   title="调整父待办"
                 >
                   <RelationIcon className="w-4 h-4" />
-                </button>
-              )}
-              {canEditContent && (
-                <button
-                  onClick={handleEdit}
-                  className="p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
-                  aria-label="编辑内容"
-                  title="编辑内容"
-                >
-                  <EditIcon className="w-4 h-4" />
                 </button>
               )}
               {canDelete && (
@@ -647,6 +644,7 @@ export function TaskDetailContent({
           {isEditing ? (
             <div className="space-y-3">
               <textarea
+                ref={editTextareaRef}
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 rows={8}
@@ -659,7 +657,7 @@ export function TaskDetailContent({
                 </div>
               )}
               
-              <div className="flex gap-3">
+              <div className="flex justify-end gap-3">
                 <Button
                   variant="primary"
                   onClick={handleSave}
@@ -678,41 +676,66 @@ export function TaskDetailContent({
               </div>
             </div>
           ) : (
-            <div 
-              className="bg-surface-hover text-foreground rounded p-4 max-h-96 overflow-y-auto prose prose-sm max-w-none"
-              style={{
-                wordBreak: 'break-word',
-                overflowWrap: 'anywhere',
-              }}
-            >
-              <ReactMarkdown
-                components={{
-                  p: ({ children }: { children?: React.ReactNode }) => <p className="text-foreground mb-3 last:mb-0">{children}</p>,
-                  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-foreground mb-3 mt-4 first:mt-0">{children}</h1>,
-                  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-foreground mb-2 mt-4 first:mt-0">{children}</h2>,
-                  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-foreground mb-2 mt-3 first:mt-0">{children}</h3>,
-                  code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) => 
-                    inline ? (
-                      <code className="bg-surface-active text-foreground px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
-                    ) : (
-                      <code className="block bg-surface-active text-foreground p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</code>
-                    ),
-                  pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-surface-active text-foreground p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</pre>,
-                  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-3 space-y-1 text-foreground">{children}</ul>,
-                  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-foreground">{children}</ol>,
-                  li: ({ children }: { children?: React.ReactNode }) => <li className="text-foreground">{children}</li>,
-                  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-border pl-4 italic text-foreground mb-3">{children}</blockquote>,
-                  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => <a href={href} className="text-blue-600 hover:text-blue-700 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
-                  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-foreground">{children}</strong>,
-                  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-foreground">{children}</em>,
-                  hr: () => <hr className="border-border my-4" />,
-                  table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border-collapse border border-border">{children}</table></div>,
-                  th: ({ children }: { children?: React.ReactNode }) => <th className="border border-border px-3 py-2 bg-surface-active text-foreground font-semibold text-left">{children}</th>,
-                  td: ({ children }: { children?: React.ReactNode }) => <td className="border border-border px-3 py-2 text-foreground">{children}</td>,
+            <div className="group/task-content relative">
+              <div
+                onDoubleClick={() => {
+                  if (canEditContent) handleEdit()
+                }}
+                className={clsx(
+                  'bg-surface-hover text-foreground rounded p-4 max-h-96 overflow-y-auto prose prose-sm max-w-none',
+                  canEditContent && 'min-h-[220px] pb-14'
+                )}
+                style={{
+                  wordBreak: 'break-word',
+                  overflowWrap: 'anywhere',
                 }}
               >
-                {normalizeMarkdown(todo.content)}
-              </ReactMarkdown>
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }: { children?: React.ReactNode }) => <p className="text-foreground mb-3 last:mb-0">{children}</p>,
+                    h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-foreground mb-3 mt-4 first:mt-0">{children}</h1>,
+                    h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-foreground mb-2 mt-4 first:mt-0">{children}</h2>,
+                    h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-foreground mb-2 mt-3 first:mt-0">{children}</h3>,
+                    code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) => 
+                      inline ? (
+                        <code className="bg-surface-active text-foreground px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
+                      ) : (
+                        <code className="block bg-surface-active text-foreground p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</code>
+                      ),
+                    pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-surface-active text-foreground p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</pre>,
+                    ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-3 space-y-1 text-foreground">{children}</ul>,
+                    ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-foreground">{children}</ol>,
+                    li: ({ children }: { children?: React.ReactNode }) => <li className="text-foreground">{children}</li>,
+                    blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-border pl-4 italic text-foreground mb-3">{children}</blockquote>,
+                    a: ({ children, href }: { children?: React.ReactNode; href?: string }) => <a href={href} className="text-blue-600 hover:text-blue-700 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
+                    strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-foreground">{children}</strong>,
+                    em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-foreground">{children}</em>,
+                    hr: () => <hr className="border-border my-4" />,
+                    table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border-collapse border border-border">{children}</table></div>,
+                    th: ({ children }: { children?: React.ReactNode }) => <th className="border border-border px-3 py-2 bg-surface-active text-foreground font-semibold text-left">{children}</th>,
+                    td: ({ children }: { children?: React.ReactNode }) => <td className="border border-border px-3 py-2 text-foreground">{children}</td>,
+                  }}
+                >
+                  {normalizeMarkdown(todo.content)}
+                </ReactMarkdown>
+              </div>
+
+              {canEditContent && (
+                <button
+                  type="button"
+                  onClick={handleEdit}
+                  className={clsx(
+                    'absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 py-1.5 text-xs font-medium text-foreground-secondary shadow-sm transition-all',
+                    'opacity-0 pointer-events-none group-hover/task-content:opacity-100 group-hover/task-content:pointer-events-auto',
+                    'hover:bg-surface-active hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
+                  )}
+                  aria-label="编辑内容"
+                  title="编辑内容（双击内容区也可编辑）"
+                >
+                  <EditIcon className="w-3.5 h-3.5" />
+                  编辑
+                </button>
+              )}
             </div>
           )}
         </div>

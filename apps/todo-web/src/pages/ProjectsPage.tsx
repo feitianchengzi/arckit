@@ -20,6 +20,7 @@ import { LoadingView } from '@/components/ui/LoadingView'
 import { Dialog } from '@/components/ui/Dialog'
 import { Button } from '@/components/ui/Button'
 import { useQueryClient } from '@tanstack/react-query'
+import { buildOrganizationPath } from '@/lib/utils/organizationRouting'
 
 export default function ProjectsHomePage() {
   const navigate = useNavigate()
@@ -309,7 +310,7 @@ export default function ProjectsHomePage() {
                 setShowJoinSuccessDialog(false)
                 // 跳转到组织详情页面
                 if (joinedOrgId) {
-                  navigate(`/organizations/${joinedOrgId}`)
+                  navigate(buildOrganizationPath(joinedOrgId))
                 } else {
                   navigate('/organizations')
                 }

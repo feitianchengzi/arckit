@@ -43,7 +43,16 @@ export function FilterMultiSelect<T extends string | number>({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const isAllSelected = options.length > 0 && value.length === options.length
+  const selectedValueSet = useMemo(() => new Set(value), [value])
+  const selectableOptions = useMemo(
+    () => options.filter(option => !option.disabled),
+    [options]
+  )
+  const selectedSelectableCount = useMemo(
+    () => selectableOptions.filter(option => selectedValueSet.has(option.value)).length,
+    [selectableOptions, selectedValueSet]
+  )
+  const isAllSelected = selectableOptions.length > 0 && selectedSelectableCount === selectableOptions.length
 
   useEffect(() => {
     if (!open) return
@@ -59,15 +68,17 @@ export function FilterMultiSelect<T extends string | number>({
 
   const selectedLabel = useMemo(() => {
     if (options.length === 0) return '无选项'
-    if (value.length === 0 || isAllSelected) return allLabel
+    if (value.length === 0) return allLabel
+    // 仅在存在多个可选项且被全选时才折叠为“全部”
+    if (isAllSelected && selectableOptions.length > 1) return allLabel
     if (value.length <= maxLabelCount) {
       const labels = options
-        .filter(option => value.includes(option.value))
+        .filter(option => selectedValueSet.has(option.value))
         .map(option => option.label)
       return labels.join(', ') || placeholder
     }
     return `已选${value.length}项`
-  }, [allLabel, isAllSelected, maxLabelCount, options, placeholder, value])
+  }, [allLabel, isAllSelected, maxLabelCount, options, placeholder, selectableOptions.length, selectedValueSet, value.length])
 
   const handleToggleOption = (optionValue: T) => {
     const current = new Set(value)

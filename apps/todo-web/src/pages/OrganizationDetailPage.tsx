@@ -11,12 +11,16 @@ import { Dialog } from '@/components/ui/Dialog';
 import { TextField } from '@/components/ui/TextField';
 import { useToast } from '@/components/ui/Toast';
 import { organizationsApi } from '@/lib/api/endpoints/organizations';
+import { decodeOrganizationId } from '@/lib/utils/organizationRouting';
+import { useOrganizationStore } from '@/store/organizationStore';
 
 export default function OrganizationDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const organizationId = Number(id);
+  const decodedOrganizationId = decodeOrganizationId(id ?? '')
+  const organizationId = Number(decodedOrganizationId ?? 0)
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const setCurrentOrganizationId = useOrganizationStore((state) => state.setCurrentOrganizationId)
   
   // 状态管理
   const [showInviteDialog, setShowInviteDialog] = useState(false);
@@ -61,6 +65,11 @@ export default function OrganizationDetailPage() {
   
   // 找到当前组织
   const organization = organizations?.find(org => org.id === organizationId);
+
+  useEffect(() => {
+    if (!decodedOrganizationId) return
+    setCurrentOrganizationId(organizationId)
+  }, [decodedOrganizationId, organizationId, setCurrentOrganizationId])
 
   useEffect(() => {
     if (showEditDialog) {
@@ -207,6 +216,10 @@ export default function OrganizationDetailPage() {
   // 获取当前用户在组织中的角色
   const myRole = members?.find(m => m.is_me)?.role;
   const canManage = myRole === 'owner' || myRole === 'admin';
+
+  if (!decodedOrganizationId) {
+    return <ErrorView title="组织不存在" message="无效的组织标识，请返回重试" />
+  }
 
   if (errorMembers || errorOrg) {
     const errorMessage = errorMembers ? (errorMembers instanceof Error ? errorMembers.message : String(errorMembers)) : 
