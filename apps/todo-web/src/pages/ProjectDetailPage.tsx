@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog, Drawer } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
-import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog, DateRangeFilter, FilterMultiSelect } from '@/components/features'
+import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog, DateRangeFilter, FilterMultiSelect, FeedbackDialog, FeedbackManagementDialog } from '@/components/features'
 import { buildTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
@@ -18,7 +18,7 @@ import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
-import { saveProjectFilterState, loadProjectFilterState, type DateRange } from '@/lib/utils/filterStorage'
+import { type DateRange } from '@/lib/utils/filterStorage'
 import { decodeProjectId } from '@/lib/utils/projectRouting'
 import type { TodoStatus, ProjectMember } from '@/types'
 import clsx from 'clsx'
@@ -106,6 +106,10 @@ export default function ProjectDetailPage() {
   
   // 导出待办对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false)
+  // 反馈对话框状态
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
+  // 反馈管理对话框状态
+  const [showFeedbackManagementDialog, setShowFeedbackManagementDialog] = useState(false)
 
   // 迁移项目状态
   const [showMigrateDialog, setShowMigrateDialog] = useState(false)
@@ -122,10 +126,6 @@ export default function ProjectDetailPage() {
   const [moreFiltersPosition, setMoreFiltersPosition] = useState<{ top: number; left: number } | null>(null)
   const [searchFilterInMoreMenu, setSearchFilterInMoreMenu] = useState(false)
   
-  // 从本地存储恢复筛选条件（按项目ID）
-  const savedFilters = loadProjectFilterState(projectIdParam)
-  const legacyFilters = savedFilters as any
-
   const statusOptions: Array<{ value: TodoStatus; label: string }> = [
     { value: 'PENDING_REVIEW', label: '待评审' },
     { value: 'PENDING', label: '待办' },
@@ -142,59 +142,20 @@ export default function ProjectDetailPage() {
   ]
   const statusValues = statusOptions.map(option => option.value)
   
-  // 任务筛选状态（默认选中"待评审"）
-  const normalizeStatusFilter = (): TodoStatus[] => {
-    const saved = legacyFilters?.statusFilter
-    if (!saved) return ['PENDING_REVIEW']
-    if (saved === 'ALL') return []
-    if (typeof saved === 'string') return [saved as TodoStatus]
-    if (Array.isArray(saved)) {
-      const filtered = saved.filter((value: TodoStatus) => statusValues.includes(value))
-      return filtered.length === statusValues.length ? [] : filtered
-    }
-    return ['PENDING_REVIEW']
-  }
-
-  const normalizeNumberArray = (value: unknown): number[] => {
-    if (Array.isArray(value)) {
-      return value.filter(item => typeof item === 'number' && !Number.isNaN(item))
-    }
-    if (typeof value === 'number' && !Number.isNaN(value)) {
-      return [value]
-    }
-    if (typeof value === 'string') {
-      const parsed = Number(value)
-      if (!Number.isNaN(parsed)) return [parsed]
-    }
-    return []
-  }
-
-  const [statusFilter, setStatusFilter] = useState<TodoStatus[]>(normalizeStatusFilter())
-  const [creatorFilter, setCreatorFilter] = useState<number[]>(
-    normalizeNumberArray(legacyFilters?.creatorFilter)
-  )
-  const [executorFilter, setExecutorFilter] = useState<number[]>(
-    normalizeNumberArray(legacyFilters?.executorFilter)
-  )
-  const [tagFilter, setTagFilter] = useState<number[]>(
-    normalizeNumberArray(legacyFilters?.tagFilter)
-  )
-  const [priorityFilter, setPriorityFilter] = useState<number[]>(
-    normalizeNumberArray(legacyFilters?.priorityFilter)
-  )
-
-  const savedCreatorIsMe = legacyFilters?.creatorFilter === 'ME'
-  const savedExecutorIsMe = legacyFilters?.executorFilter === 'ME'
+  const [statusFilter, setStatusFilter] = useState<TodoStatus[]>([])
+  const [creatorFilter, setCreatorFilter] = useState<number[]>([])
+  const [executorFilter, setExecutorFilter] = useState<number[]>([])
+  const [tagFilter, setTagFilter] = useState<number[]>([])
+  const [priorityFilter, setPriorityFilter] = useState<number[]>([])
 
   // 日期范围筛选
-  const [dateRange, setDateRange] = useState<DateRange>(
-    savedFilters?.dateRange ?? { startDate: null, endDate: null }
-  )
+  const [dateRange, setDateRange] = useState<DateRange>({ startDate: null, endDate: null })
   // 搜索状态
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [showSearchBar, setShowSearchBar] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
+  const [filterContextProjectId, setFilterContextProjectId] = useState(projectIdParam)
   
   const isStatusSelected = (status: TodoStatus) =>
     statusFilter.length === 0 || statusFilter.includes(status)
@@ -212,18 +173,21 @@ export default function ProjectDetailPage() {
     setStatusFilter([...statusFilter, status])
   }
   
-  
-  // 当筛选条件改变时保存到本地存储
+  // 切换项目后重置筛选，避免跨项目和跨组织继承筛选条件
   useEffect(() => {
-    saveProjectFilterState(projectIdParam, {
-      statusFilter,
-      creatorFilter,
-      executorFilter,
-      tagFilter,
-      priorityFilter,
-      dateRange,
-    })
-  }, [projectId, statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange])
+    if (filterContextProjectId === projectIdParam) return
+
+    setStatusFilter([])
+    setCreatorFilter([])
+    setExecutorFilter([])
+    setTagFilter([])
+    setPriorityFilter([])
+    setDateRange({ startDate: null, endDate: null })
+    setSearchQuery('')
+    setShowSearchBar(false)
+    setPage(1)
+    setFilterContextProjectId(projectIdParam)
+  }, [filterContextProjectId, projectIdParam])
 
   // 筛选条件变化时回到第一页
   useEffect(() => {
@@ -403,7 +367,7 @@ export default function ProjectDetailPage() {
 
   // 如果正在删除项目，禁用待办列表查询
   const { data: taskListData, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(projectIdParam, {
-    enabled: !isDeleting && !!projectIdParam, // 正在删除时不查询
+    enabled: !isDeleting && !!projectIdParam && filterContextProjectId === projectIdParam, // 切项目后等待筛选重置完成
     filters: taskListFilters,
     page,
     pageSize,
@@ -480,21 +444,6 @@ export default function ProjectDetailPage() {
     const currentMember = members.find(m => m.is_me === true)
     return currentMember?.user_id || null
   }, [members])
-
-  // 兼容旧筛选：当保存的是 ME 时，等到当前用户ID可用再回填
-  const appliedLegacyMeRef = useRef(false)
-  useEffect(() => {
-    if (appliedLegacyMeRef.current) return
-    if (!currentUserId) return
-
-    if (savedCreatorIsMe && creatorFilter.length === 0) {
-      setCreatorFilter([currentUserId])
-    }
-    if (savedExecutorIsMe && executorFilter.length === 0) {
-      setExecutorFilter([currentUserId])
-    }
-    appliedLegacyMeRef.current = true
-  }, [currentUserId, savedCreatorIsMe, savedExecutorIsMe, creatorFilter.length, executorFilter.length])
 
   const memberOptions = useMemo(() => {
     if (!members) return []
@@ -1384,6 +1333,36 @@ export default function ProjectDetailPage() {
               onClick={() => setShowCreateTaskDialog(true)}
               variant="primary"
             />
+
+            {/* 新增反馈按钮 - 所有用户可见 */}
+            <IconButton
+              icon={
+                <svg className="w-5 h-5" viewBox="0 0 1138 1024" fill="currentColor" aria-hidden="true">
+                  <path d="M1055.738 57.594c-45.439-36.351-154.492-27.262-304.439 86.333-213.562 159.036-308.983 368.052-445.298 572.527-22.719 31.807 13.632 49.983 40.895 36.351l86.333-49.983c13.632-4.544 18.175-4.544 13.632-27.262-9.088-68.158 18.176-131.772 59.070-186.298v0c149.947 63.614 331.702 27.262 395.317-154.492 81.789-18.176 159.036-109.053 172.667-172.666 13.632-45.439 9.088-86.333-18.175-104.509zM142.422 716.454c122.684 213.562 390.773 286.263 604.333 163.58 140.859-81.789 218.105-227.193 222.649-377.14 0-49.983-59.070-45.439-59.070 0 0 131.772-68.158 254.457-190.842 327.158-186.298 104.509-422.579 40.895-527.088-140.859-109.053-186.298-45.439-422.579 140.859-527.088 99.965-59.070 222.649-68.158 322.614-27.262 40.895 13.632 59.070-40.895 18.175-54.527-118.141-40.895-249.911-36.351-368.052 31.807-213.562 122.684-286.263 395.317-163.58 604.333z" />
+                </svg>
+              }
+              label="新增反馈"
+              onClick={() => setShowFeedbackDialog(true)}
+              variant="secondary"
+              iconBgColor="bg-primary"
+              iconColor="text-white"
+              hideLabel
+            />
+
+            {/* 反馈管理按钮 - 仅 owner/admin 可见 */}
+            {(isOwner || currentUserRole === 'admin') && (
+              <IconButton
+                icon={
+                  <svg className="w-5 h-5" viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true">
+                    <path d="M938.666667 569.216A256 256 0 0 0 611.882667 896H128a42.666667 42.666667 0 0 1-42.666667-42.666667V170.666667a42.666667 42.666667 0 0 1 42.666667-42.666667h768a42.666667 42.666667 0 0 1 42.666667 42.666667v398.549333z m-424.106667-70.741333l-273.578667-232.32-55.253333 65.024 329.386667 279.68 323.456-279.893334-55.808-64.554666-268.16 232.064h-0.042667z m212.906667 335.573333a128.746667 128.746667 0 0 1 0-46.762667l-43.264-25.002666 42.666666-73.898667L770.133333 713.386667a128.618667 128.618667 0 0 1 40.533334-23.466667V640h85.333333v49.92c14.976 5.333333 28.672 13.312 40.533333 23.466667l43.264-25.002667 42.666667 73.898667-43.264 25.002666a128.746667 128.746667 0 0 1 0 46.762667l43.264 25.002667-42.666667 73.898666L936.533333 907.946667c-11.946667 10.24-25.685333 18.197333-40.533333 23.466666V981.333333h-85.333333v-49.92a127.872 127.872 0 0 1-40.533334-23.466666l-43.264 25.002666-42.666666-73.898666 43.264-25.002667zM853.333333 853.333333a42.666667 42.666667 0 1 0 0-85.333333 42.666667 42.666667 0 0 0 0 85.333333z" />
+                  </svg>
+                }
+                label="反馈管理"
+                onClick={() => setShowFeedbackManagementDialog(true)}
+                variant="secondary"
+                hideLabel
+              />
+            )}
             
             {/* 更多菜单 - 所有用户都可以看到 */}
             <div className="relative" ref={moreMenuRef}>
@@ -1415,7 +1394,7 @@ export default function ProjectDetailPage() {
                     </svg>
                     <span>导出待办</span>
                   </button>
-                  
+
                   {/* 编辑项目 - 只有所有者可见 */}
                   {isOwner && (
                     <button
@@ -2127,6 +2106,22 @@ export default function ProjectDetailPage() {
           refetchTodos()
         }}
       />
+
+      {/* 提交反馈对话框 */}
+      <FeedbackDialog
+        open={showFeedbackDialog}
+        onClose={() => setShowFeedbackDialog(false)}
+        projectId={projectId}
+        projectName={project?.name}
+      />
+
+      {/* 反馈管理对话框 */}
+      <FeedbackManagementDialog
+        open={showFeedbackManagementDialog}
+        onClose={() => setShowFeedbackManagementDialog(false)}
+        projectId={projectIdParam}
+        projectName={project?.name}
+      />
       
       {/* 导出待办对话框 */}
       {todos && members && currentUserId && project && (
@@ -2295,9 +2290,20 @@ interface IconButtonProps {
   disabled?: boolean
   iconBgColor?: string
   iconColor?: string
+  hideLabel?: boolean
 }
 
-function IconButton({ icon, label, onClick, variant = 'secondary', isActive = false, disabled = false, iconBgColor, iconColor }: IconButtonProps) {
+function IconButton({
+  icon,
+  label,
+  onClick,
+  variant = 'secondary',
+  isActive = false,
+  disabled = false,
+  iconBgColor,
+  iconColor,
+  hideLabel = false,
+}: IconButtonProps) {
   // 根据variant和isActive状态确定背景色
   const getBackgroundColor = () => {
     if (iconBgColor) return undefined // 使用自定义背景色类
@@ -2340,10 +2346,15 @@ function IconButton({ icon, label, onClick, variant = 'secondary', isActive = fa
       aria-label={label}
     >
       <span className={clsx('w-5 h-5 flex-shrink-0', iconColor && !iconBgColor ? iconColor : '')}>{icon}</span>
-      <span className="hidden sm:inline text-sm font-medium">{label}</span>
+      {!hideLabel && <span className="hidden sm:inline text-sm font-medium">{label}</span>}
       
-      {/* Tooltip - 移动端显示，在按钮下方 */}
-      <div className="sm:hidden absolute left-1/2 -translate-x-1/2 top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+      {/* Tooltip */}
+      <div
+        className={clsx(
+          'absolute left-1/2 -translate-x-1/2 top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50',
+          hideLabel ? '' : 'sm:hidden'
+        )}
+      >
         <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
           {label}
           <div className="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>

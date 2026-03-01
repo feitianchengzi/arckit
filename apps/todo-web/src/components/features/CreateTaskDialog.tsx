@@ -21,6 +21,7 @@ export interface CreateTaskDialogProps {
   projectId: string
   parentId?: number // 父待办ID（可选，用于创建子待办）
   onSuccess?: (taskId: number) => void // 创建成功后的回调
+  initialContent?: string // 预填内容（可选）
 }
 
 export function CreateTaskDialog({
@@ -29,6 +30,7 @@ export function CreateTaskDialog({
   projectId,
   parentId,
   onSuccess,
+  initialContent,
 }: CreateTaskDialogProps) {
   const [content, setContent] = useState('')
   const [parentIdState, setParentIdState] = useState<number | undefined>(parentId)
@@ -75,8 +77,12 @@ export function CreateTaskDialog({
       setTagsString(null)
       setError('')
       setIsEditingAssignee(false)
+      return
     }
-  }, [open, parentId])
+    if (open) {
+      setContent(initialContent ?? '')
+    }
+  }, [open, parentId, initialContent])
   
   // 当对话框打开且有成员数据时，默认选中当前用户作为执行人
   useEffect(() => {

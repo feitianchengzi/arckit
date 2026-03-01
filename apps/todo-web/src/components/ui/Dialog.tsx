@@ -12,8 +12,11 @@ export interface DialogProps {
   title?: string
   description?: string
   children: React.ReactNode
-  maxWidth?: 'sm' | 'md' | 'lg' | 'xl'
+  maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
   showCloseButton?: boolean
+  headerContent?: React.ReactNode
+  panelClassName?: string
+  panelStyle?: React.CSSProperties
 }
 
 const maxWidthClasses = {
@@ -21,6 +24,7 @@ const maxWidthClasses = {
   md: 'max-w-md',
   lg: 'max-w-lg',
   xl: 'max-w-xl',
+  '2xl': 'max-w-6xl',
 }
 
 export function Dialog({
@@ -31,6 +35,9 @@ export function Dialog({
   children,
   maxWidth = 'md',
   showCloseButton = true,
+  headerContent,
+  panelClassName,
+  panelStyle,
 }: DialogProps) {
   return (
     <Transition appear show={open} as={Fragment}>
@@ -61,48 +68,51 @@ export function Dialog({
               leaveTo="opacity-0 scale-95"
             >
               <HeadlessDialog.Panel
-                className={`w-full ${maxWidthClasses[maxWidth]} transform overflow-hidden rounded-xl shadow-xl transition-all`}
-                style={{ backgroundColor: 'var(--color-surface-elevated)' }}
+                className={`w-full ${maxWidthClasses[maxWidth]} transform overflow-hidden rounded-xl shadow-xl transition-all ${panelClassName ?? ''}`}
+                style={{ backgroundColor: 'var(--color-surface-elevated)', ...panelStyle }}
               >
                 {/* 标题区域 */}
-                {(title || showCloseButton) && (
-                  <div className="flex items-start justify-between border-b border-divider px-6 py-4">
-                    <div className="flex-1">
-                      {title && (
-                        <HeadlessDialog.Title
-                          as="h2"
-                          className="text-xl font-semibold text-foreground"
+                {(title || showCloseButton || headerContent) && (
+                  <div className="border-b border-divider px-6 py-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        {title && (
+                          <HeadlessDialog.Title
+                            as="h2"
+                            className="text-xl font-semibold text-foreground"
+                          >
+                            {title}
+                          </HeadlessDialog.Title>
+                        )}
+                        {description && (
+                          <HeadlessDialog.Description className="mt-1 text-sm text-foreground-secondary">
+                            {description}
+                          </HeadlessDialog.Description>
+                        )}
+                      </div>
+                      {showCloseButton && (
+                        <button
+                          type="button"
+                          className="ml-4 text-foreground-tertiary hover:text-foreground"
+                          onClick={onClose}
                         >
-                          {title}
-                        </HeadlessDialog.Title>
-                      )}
-                      {description && (
-                        <HeadlessDialog.Description className="mt-1 text-sm text-foreground-secondary">
-                          {description}
-                        </HeadlessDialog.Description>
+                          <svg
+                            className="h-5 w-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                        </button>
                       )}
                     </div>
-                    {showCloseButton && (
-                      <button
-                        type="button"
-                        className="ml-4 text-foreground-tertiary hover:text-foreground"
-                        onClick={onClose}
-                      >
-                        <svg
-                          className="h-5 w-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    )}
+                    {headerContent && <div className="mt-3">{headerContent}</div>}
                   </div>
                 )}
 
@@ -116,4 +126,3 @@ export function Dialog({
     </Transition>
   )
 }
-
