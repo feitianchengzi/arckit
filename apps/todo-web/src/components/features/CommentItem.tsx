@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { ImageGallery } from './ImageGallery'
+import { decodeUrlForDisplay } from '@/lib/utils/urlDisplay'
 
 const escapeHtml = (s: string) =>
   String(s)
@@ -12,6 +13,12 @@ const escapeHtml = (s: string) =>
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+
+function normalizeHttpUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim()
+  if (!trimmed) return ''
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+}
 
 /** 按约定转安全 HTML：[name](xxx)→@，[link](url) / [link](url|显示名)→<a>，裸 URL→<a>，换行→<br> */
 function commentTextToSafeHtml(text: string): string {
@@ -36,14 +43,17 @@ function commentTextToSafeHtml(text: string): string {
     } else if (typ === 'link') {
       const parts = p.split('|')
       const url = parts[0]?.trim() ?? ''
-      const name = parts[1]?.trim() || url
+      const name = parts[1]?.trim()
+      const displayText = name || (url ? decodeUrlForDisplay(url) : '')
       if (url) {
-        out += `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="comment-link">${escapeHtml(name)}</a>`
+        out += `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="comment-link">${escapeHtml(displayText)}</a>`
       } else {
         out += escapeHtml(m[0])
       }
     } else if (/^https?:\/\//i.test(p)) {
-      out += `<a href="${escapeHtml(p)}" target="_blank" rel="noopener noreferrer" class="comment-link">${escapeHtml(typ || p)}</a>`
+      const rawLabel = typ || p
+      const displayLabel = /^https?:\/\//i.test(rawLabel) ? decodeUrlForDisplay(rawLabel) : rawLabel
+      out += `<a href="${escapeHtml(p)}" target="_blank" rel="noopener noreferrer" class="comment-link">${escapeHtml(displayLabel)}</a>`
     } else {
       out += escapeHtml(m[0])
     }
@@ -51,7 +61,7 @@ function commentTextToSafeHtml(text: string): string {
   out += escapeHtml(text.slice(last))
   out = out.replace(
     /(^|>|\s)(https?:\/\/[^\s<>"]+)/g,
-    (_, prefix: string, url: string) => `${prefix}<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="comment-link">${escapeHtml(url)}</a>`
+    (_, prefix: string, url: string) => `${prefix}<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="comment-link">${escapeHtml(decodeUrlForDisplay(url))}</a>`
   )
   return out.replace(/\n/g, '<br/>')
 }
@@ -263,6 +273,16 @@ export function CommentItem({
     return contentParts.filter(p => p.type === 'file').map(p => p.key)
   }, [contentParts])
 
+  const urlContentHref = useMemo(
+    () => (comment.type === 'url' ? normalizeHttpUrl(comment.content) : ''),
+    [comment.content, comment.type]
+  )
+
+  const urlContentDisplay = useMemo(
+    () => (urlContentHref ? decodeUrlForDisplay(urlContentHref) : comment.content),
+    [comment.content, urlContentHref]
+  )
+
   const [showFiles, setShowFiles] = useState(false)
 
   return (
@@ -357,29 +377,19 @@ export function CommentItem({
                 </div>
               ) : comment.type === 'url' ? (
                 <a
-                  href={(() => {
-                    let url = comment.content
-                    if (url && !url.match(/^https?:\/\//i)) {
-                      url = `https://${url}`
-                    }
-                    return url
-                  })()}
+                  href={urlContentHref}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-700 underline break-all"
                   onClick={(e) => {
-                    // 确保外部链接在新窗口打开，不被路由拦截
-                    let url = comment.content
-                    if (url && !url.match(/^https?:\/\//i)) {
-                      url = `https://${url}`
-                    }
-                    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                    // Ensure external links are always opened by the browser in a new tab.
+                    if (urlContentHref && /^https?:\/\//i.test(urlContentHref)) {
                       e.preventDefault()
-                      window.open(url, '_blank', 'noopener,noreferrer')
+                      window.open(urlContentHref, '_blank', 'noopener,noreferrer')
                     }
                   }}
                 >
-                  {comment.content}
+                  {urlContentDisplay}
                 </a>
               ) : (
                 <div className="space-y-2">

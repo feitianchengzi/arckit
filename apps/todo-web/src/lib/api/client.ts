@@ -10,6 +10,7 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios'
 import { getAccessToken, shouldRefreshToken, getRefreshToken, saveAuthInfo, clearAuthInfo, getAuthInfo, isRefreshTokenValid } from '@/lib/utils/tokenManager'
 import { gatewayApi } from './endpoints/gateway'
+import { redirectToLogin } from '@/lib/utils/loginRedirect'
 import { logFlow } from '@/utils/tokenDebug'
 
 // Workshop 后端基础URL
@@ -98,7 +99,7 @@ apiClient.interceptors.request.use(
         
         clearAuthInfo()
         if (typeof window !== 'undefined') {
-          window.location.href = '/login'
+          redirectToLogin()
         }
         return Promise.reject(new Error('Refresh token expired'))
       }
@@ -198,7 +199,7 @@ apiClient.interceptors.request.use(
         
         // 刷新失败，跳转到登录页
         if (typeof window !== 'undefined') {
-          window.location.href = '/login'
+          redirectToLogin()
         }
         
         // 处理等待队列
@@ -291,7 +292,7 @@ apiClient.interceptors.response.use(
         })
         clearAuthInfo()
         if (typeof window !== 'undefined') {
-          window.location.href = '/login'
+          redirectToLogin()
         }
         return Promise.reject(error)
       }
@@ -375,7 +376,7 @@ apiClient.interceptors.response.use(
         clearAuthInfo()
         
         if (typeof window !== 'undefined') {
-          window.location.href = '/login'
+          redirectToLogin()
         }
         
         return Promise.reject(refreshError)
@@ -423,4 +424,3 @@ export function handleApiError(error: any): ApiError {
     }
   }
 }
-

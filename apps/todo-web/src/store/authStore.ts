@@ -14,6 +14,7 @@ import {
   isRefreshTokenValid,
 } from '@/lib/utils/tokenManager'
 import { gatewayApi } from '@/lib/api/endpoints/gateway'
+import { redirectToLogin } from '@/lib/utils/loginRedirect'
 import { logFlow } from '@/utils/tokenDebug'
 
 interface AuthState {
@@ -88,7 +89,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // 跳转到登录页
     if (typeof window !== 'undefined') {
-      window.location.href = '/login'
+      redirectToLogin('/projects')
     }
   },
 
@@ -150,7 +151,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isAuthenticated: false, user: null })
       // 跳转到登录页
       if (typeof window !== 'undefined') {
-        window.location.href = '/login'
+        redirectToLogin()
       }
       return false
     }

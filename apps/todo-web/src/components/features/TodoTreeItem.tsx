@@ -20,6 +20,7 @@ import { useTagStore } from '@/store/tagStore'
 import { TagDisplay } from './TagDisplay'
 import { useThemeStore } from '@/store/themeStore'
 import { buildProjectPath } from '@/lib/utils/projectRouting'
+import { decodeUrlsInTextForDisplay } from '@/lib/utils/urlDisplay'
 
 export interface TodoTreeItemProps {
   todo: Todo
@@ -87,7 +88,9 @@ export function TodoTreeItem({
   
   // 提取第一行内容
   const firstLine = useMemo(() => getFirstNonEmptyLine(todo.content), [todo.content])
+  const firstLineDisplay = useMemo(() => decodeUrlsInTextForDisplay(firstLine), [firstLine])
   const hasMoreLines = useMemo(() => hasMultipleLines(todo.content), [todo.content])
+  const contentTitleDisplay = useMemo(() => decodeUrlsInTextForDisplay(todo.content), [todo.content])
   
   // 是否有子任务
   const hasChildren = todo.children && todo.children.length > 0
@@ -231,8 +234,8 @@ export function TodoTreeItem({
               <div className="min-w-0 flex-1 flex items-center gap-2">
                 {todo.creator && <Avatar user={todo.creator} size="xs" />}
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium text-foreground truncate" title={todo.content}>
-                    {firstLine || '无内容'}
+                  <div className="text-sm font-medium text-foreground truncate" title={contentTitleDisplay}>
+                    {firstLineDisplay || '无内容'}
                   </div>
                 </div>
                 {hasChildren && (
@@ -339,8 +342,8 @@ export function TodoTreeItem({
             {/* 任务内容和标签/优先级 */}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1.5">
-                <h3 className="text-base font-medium text-foreground truncate flex-1" title={todo.content}>
-                  {firstLine || '无内容'}
+                <h3 className="text-base font-medium text-foreground truncate flex-1" title={contentTitleDisplay}>
+                  {firstLineDisplay || '无内容'}
                 </h3>
                 {hasMoreLines && (
                   <button

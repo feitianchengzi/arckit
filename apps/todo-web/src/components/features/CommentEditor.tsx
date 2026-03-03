@@ -4,7 +4,7 @@
  * 插入能力：插入图片、插入文件、插入链接。@ 存为 [name](xxx)，链接存为 [link](url) 或 [link](url|显示名)，显示名可选。
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, type ClipboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditor, EditorContent } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
@@ -285,40 +285,62 @@ export function CommentEditor({
     }
   }, [])
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file || !file.type.startsWith('image/')) return
+  const uploadImage = async (file: File) => {
+    const dataUrl = await readFileAsDataUrl(file)
+    const compressed = await compressImageDataUrl(dataUrl, {
+      maxSizeBytes: UPLOAD_LIMITS.image.maxBytes,
+      maxDimension: UPLOAD_LIMITS.image.maxDimension,
+      initialQuality: UPLOAD_LIMITS.image.initialQuality,
+      minQuality: UPLOAD_LIMITS.image.minQuality,
+      qualityStep: UPLOAD_LIMITS.image.qualityStep,
+    })
+
+    if (compressed.sizeBytes > UPLOAD_LIMITS.image.maxBytes) {
+      throw new Error(`图片过大，压缩后仍超过 ${formatFileSize(UPLOAD_LIMITS.image.maxBytes)}`)
+    }
+
+    const compressedFile = dataURLtoFile(compressed.dataUrl, 'comment-image.jpg')
+    const credentials = await uploadApi.getSTSToken()
+    const { key, url } = await OssResourceManager.upload(compressedFile, {
+      purpose: OssUploadPurpose.COMMENT_IMAGE,
+      credentials,
+    })
+    const previewUrl = url || (await OssResourceManager.resolve(key))
+
+    return { key, url: previewUrl }
+  }
+
+  const uploadImages = async (imageFiles: File[]) => {
+    if (imageFiles.length === 0) return
     setIsUploading(true)
     setError('')
     try {
-      const dataUrl = await readFileAsDataUrl(file)
-      const compressed = await compressImageDataUrl(dataUrl, {
-        maxSizeBytes: UPLOAD_LIMITS.image.maxBytes,
-        maxDimension: UPLOAD_LIMITS.image.maxDimension,
-        initialQuality: UPLOAD_LIMITS.image.initialQuality,
-        minQuality: UPLOAD_LIMITS.image.minQuality,
-        qualityStep: UPLOAD_LIMITS.image.qualityStep,
-      })
-
-      if (compressed.sizeBytes > UPLOAD_LIMITS.image.maxBytes) {
-        setError(`图片过大，压缩后仍超过 ${formatFileSize(UPLOAD_LIMITS.image.maxBytes)}`)
-        return
-      }
-
-      const compressedFile = dataURLtoFile(compressed.dataUrl, 'comment-image.jpg')
-      const credentials = await uploadApi.getSTSToken()
-      const { key, url } = await OssResourceManager.upload(compressedFile, {
-        purpose: OssUploadPurpose.COMMENT_IMAGE,
-        credentials,
-      })
-      const previewUrl = url || (await OssResourceManager.resolve(key))
-      setImages((prev) => [...prev, { key, url: previewUrl }])
+      const uploaded = await Promise.all(imageFiles.map((file) => uploadImage(file)))
+      setImages((prev) => [...prev, ...uploaded])
     } catch (err: any) {
       setError(err?.message || '图片上传失败')
     } finally {
       setIsUploading(false)
     }
+  }
+
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const imageFiles = Array.from(e.target.files ?? []).filter((file) => file.type.startsWith('image/'))
+    e.target.value = ''
+    await uploadImages(imageFiles)
+  }
+
+  const handleEditorPaste = async (event: ClipboardEvent<HTMLDivElement>) => {
+    const imageFiles = Array.from(event.clipboardData?.items ?? [])
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => !!file)
+
+    if (imageFiles.length === 0) return
+
+    // 截图/图片粘贴时直接走上传流程，避免把二进制内容插入编辑器
+    event.preventDefault()
+    await uploadImages(imageFiles)
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -499,7 +521,7 @@ export function CommentEditor({
       >
         {/* 输入框区域 */}
         <div className="min-h-[80px]">
-          <EditorContent editor={editor} />
+          <EditorContent editor={editor} onPaste={handleEditorPaste} />
           <style>{`
             .mention-tag { color: var(--color-primary); font-weight: 500; cursor: default; user-select: none; padding: 0 2px; }
             .ProseMirror a { color: var(--color-primary); text-decoration: underline; cursor: pointer; }

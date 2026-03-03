@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuthStore } from './store/authStore'
 import { useThemeStore, initializeTheme } from './store/themeStore'
 import { initErrorInterceptor } from './lib/oss/load'
+import { redirectToLogin } from './lib/utils/loginRedirect'
 import App from './App'
 import './globals.css'
 
@@ -37,7 +38,7 @@ if (storedAuthInfo) {
         // 延迟执行，确保 React 应用已加载
         setTimeout(() => {
           alert('检测到认证数据格式已更新，请重新登录。')
-          window.location.href = '/login'
+          redirectToLogin()
         }, 100)
       }
     }
@@ -81,4 +82,3 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </React.StrictMode>,
 )
-

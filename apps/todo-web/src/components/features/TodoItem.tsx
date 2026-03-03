@@ -20,6 +20,7 @@ import { permissionManager } from '@/lib/permissions'
 import { todoToTaskInfo } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
 import { buildProjectPath } from '@/lib/utils/projectRouting'
+import { decodeUrlsInTextForDisplay } from '@/lib/utils/urlDisplay'
 
 export interface TodoItemProps {
   todo: Todo
@@ -129,7 +130,9 @@ export function TodoItem({
   
   // 提取第一行内容
   const firstLine = useMemo(() => getFirstNonEmptyLine(todo.content), [todo.content])
+  const firstLineDisplay = useMemo(() => decodeUrlsInTextForDisplay(firstLine), [firstLine])
   const hasMoreLines = useMemo(() => hasMultipleLines(todo.content), [todo.content])
+  const contentTitleDisplay = useMemo(() => decodeUrlsInTextForDisplay(todo.content), [todo.content])
   
   const handleClick = () => {
     if (selectionMode) return
@@ -168,8 +171,8 @@ export function TodoItem({
           <div className="min-w-0 flex-1 flex items-center gap-2">
             {todo.creator && <Avatar user={todo.creator} size="xs" />}
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-foreground truncate" title={todo.content}>
-                {firstLine || '无内容'}
+              <div className="text-sm font-medium text-foreground truncate" title={contentTitleDisplay}>
+                {firstLineDisplay || '无内容'}
               </div>
             </div>
           </div>
@@ -210,8 +213,8 @@ export function TodoItem({
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
-            <h3 className="text-base font-medium text-foreground truncate flex-1" title={todo.content}>
-              {firstLine || '无内容'}
+            <h3 className="text-base font-medium text-foreground truncate flex-1" title={contentTitleDisplay}>
+              {firstLineDisplay || '无内容'}
             </h3>
             {hasMoreLines && (
               <button

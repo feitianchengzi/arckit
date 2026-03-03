@@ -91,10 +91,10 @@ export function VerificationCodeInput({
             placeholder="请输入6位验证码"
             disabled={disabled}
             className={`
-              w-full px-3 py-2 border rounded-lg bg-surface text-foreground placeholder:text-foreground-tertiary
+              w-full px-3 py-2 border rounded-md bg-surface-elevated text-foreground placeholder:text-foreground-tertiary
               focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent
-              disabled:bg-surface-elevated disabled:text-foreground-tertiary disabled:cursor-not-allowed
-              ${error ? 'border-red-300 dark:border-red-700' : 'border-border'}
+              disabled:bg-surface-disabled disabled:text-foreground-tertiary disabled:cursor-not-allowed
+              ${error ? 'border-error' : 'border-border'}
             `}
           />
         </div>
@@ -123,4 +123,3 @@ export function VerificationCodeInput({
     </div>
   )
 }
-

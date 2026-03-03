@@ -3,7 +3,7 @@
  * 待办详情页面（客户端组件）
  */
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, Children } from 'react'
 import type React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog } from '@/components/ui'
@@ -21,6 +21,35 @@ import type { TaskInfo } from '@/lib/permissions'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
 import { useTagStore } from '@/store/tagStore'
 import { buildProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
+import { decodeUrlForDisplay, decodeUrlsInTextForDisplay } from '@/lib/utils/urlDisplay'
+
+function getLinkDisplayChildren(children: React.ReactNode, href?: string): React.ReactNode {
+  if (!href) return children
+  const parts = Children.toArray(children)
+  if (!parts.length) return children
+  if (!parts.every((part) => typeof part === 'string' || typeof part === 'number')) {
+    return children
+  }
+  const rawText = parts.join('')
+  const trimmedText = rawText.trim()
+  if (!trimmedText || !/%[0-9A-Fa-f]{2}/.test(trimmedText)) return children
+
+  const decoded = decodeUrlForDisplay(trimmedText)
+  if (decoded === trimmedText) return children
+
+  const leadingSpace = rawText.match(/^\s*/)?.[0] ?? ''
+  const trailingSpace = rawText.match(/\s*$/)?.[0] ?? ''
+  return `${leadingSpace}${decoded}${trailingSpace}`
+}
+
+function getTextDisplayChildren(children?: React.ReactNode): React.ReactNode {
+  return Children.map(children, (child) => {
+    if (typeof child === 'string') {
+      return decodeUrlsInTextForDisplay(child)
+    }
+    return child
+  })
+}
 
 export default function TaskDetailPage() {
   const navigate = useNavigate()
@@ -523,10 +552,10 @@ export default function TaskDetailPage() {
               <ReactMarkdown
                 components={{
                   // 自定义样式组件
-                  p: ({ children }: { children?: React.ReactNode }) => <p className="text-gray-100 mb-3 last:mb-0">{children}</p>,
-                  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-gray-100 mb-3 mt-4 first:mt-0">{children}</h1>,
-                  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-gray-100 mb-2 mt-4 first:mt-0">{children}</h2>,
-                  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-gray-100 mb-2 mt-3 first:mt-0">{children}</h3>,
+                  p: ({ children }: { children?: React.ReactNode }) => <p className="text-gray-100 mb-3 last:mb-0">{getTextDisplayChildren(children)}</p>,
+                  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-gray-100 mb-3 mt-4 first:mt-0">{getTextDisplayChildren(children)}</h1>,
+                  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-gray-100 mb-2 mt-4 first:mt-0">{getTextDisplayChildren(children)}</h2>,
+                  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-gray-100 mb-2 mt-3 first:mt-0">{getTextDisplayChildren(children)}</h3>,
                   code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) => 
                     inline ? (
                       <code className="bg-gray-700 text-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
@@ -536,15 +565,19 @@ export default function TaskDetailPage() {
                   pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-gray-700 text-gray-100 p-3 rounded-lg text-sm font-mono overflow-x-auto mb-3">{children}</pre>,
                   ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-3 space-y-1 text-gray-100">{children}</ul>,
                   ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-100">{children}</ol>,
-                  li: ({ children }: { children?: React.ReactNode }) => <li className="text-gray-100">{children}</li>,
-                  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-gray-600 pl-4 italic text-gray-300 mb-3">{children}</blockquote>,
-                  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => <a href={href} className="text-blue-400 hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer">{children}</a>,
-                  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-gray-100">{children}</strong>,
-                  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-gray-100">{children}</em>,
+                  li: ({ children }: { children?: React.ReactNode }) => <li className="text-gray-100">{getTextDisplayChildren(children)}</li>,
+                  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-gray-600 pl-4 italic text-gray-300 mb-3">{getTextDisplayChildren(children)}</blockquote>,
+                  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
+                    <a href={href} className="text-blue-400 hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer">
+                      {getLinkDisplayChildren(children, href)}
+                    </a>
+                  ),
+                  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-gray-100">{getTextDisplayChildren(children)}</strong>,
+                  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-gray-100">{getTextDisplayChildren(children)}</em>,
                   hr: () => <hr className="border-gray-600 my-4" />,
                   table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border-collapse border border-gray-600">{children}</table></div>,
-                  th: ({ children }: { children?: React.ReactNode }) => <th className="border border-gray-600 px-3 py-2 bg-gray-700 text-gray-100 font-semibold text-left">{children}</th>,
-                  td: ({ children }: { children?: React.ReactNode }) => <td className="border border-gray-600 px-3 py-2 text-gray-100">{children}</td>,
+                  th: ({ children }: { children?: React.ReactNode }) => <th className="border border-gray-600 px-3 py-2 bg-gray-700 text-gray-100 font-semibold text-left">{getTextDisplayChildren(children)}</th>,
+                  td: ({ children }: { children?: React.ReactNode }) => <td className="border border-gray-600 px-3 py-2 text-gray-100">{getTextDisplayChildren(children)}</td>,
                 }}
               >
                 {normalizeMarkdown(todo.content)}
