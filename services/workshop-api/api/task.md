@@ -14,6 +14,7 @@
 - `in_progress` - 进行中
 - `pending_review` - 待评审（默认）
 - `completed` - 已完成
+- `accepted` - 已验收
 - `cancelled` - 已取消
 - `blocked` - 已阻塞
 

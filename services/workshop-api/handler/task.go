@@ -21,7 +21,7 @@ type CreateTaskRequest struct {
 	ProjectID  uint    `json:"project_id" binding:"required"` // 项目ID（必填）
 	FatherID   *uint   `json:"father_id,omitempty"`           // 父任务ID（可选，用于创建子任务）
 	Content    string  `json:"content" binding:"required"`    // 任务内容（必填）
-	State      string  `json:"state,omitempty"`               // 任务状态（可选，默认为pending）
+	State      string  `json:"state,omitempty"`               // 任务状态（可选，默认为pending_review）
 	ExecutorID *uint   `json:"executor_id,omitempty"`         // 执行者ID（可选）
 	Priority   *int    `json:"priority,omitempty"`            // 优先级（可选，0为最高，数值越大优先级越低）
 	Tags       *string `json:"tags,omitempty"`                // 标签（可选，用逗号分割）
@@ -138,6 +138,11 @@ func CreateTask(c *gin.Context) {
 		ExecutorID: req.ExecutorID,
 		Priority:   req.Priority,
 		Tags:       req.Tags,
+	}
+
+	if models.IsDoneState(state) {
+		now := time.Now()
+		task.CompletionAt = &now
 	}
 
 	if err := db.Create(&task).Error; err != nil {
@@ -261,14 +266,14 @@ func canModifyTask(db *gorm.DB, userID uint, task models.Task) (bool, error) {
 
 // UpdateTaskRequest 更新任务请求结构
 type UpdateTaskRequest struct {
-	Content     *string `json:"content,omitempty"`     // 任务内容（可选）
-	State       *string `json:"state,omitempty"`       // 任务状态（可选）
-	ExecutorID  *uint   `json:"executor_id,omitempty"` // 执行者ID（可选，可设置为null来清空）
-	FatherID    *uint   `json:"father_id,omitempty"`   // 父任务ID（可选，可设置为null来清空）
-	Priority    *int    `json:"priority,omitempty"`    // 优先级（可选，0为最高，数值越大优先级越低）
-	Tags        *string `json:"tags,omitempty"`        // 标签（可选，用逗号分割）
-	executorIDSet bool  `json:"-"`                     // 内部标志：executor_id是否在JSON中被显式设置
-	fatherIDSet bool    `json:"-"`                     // 内部标志：father_id是否在JSON中被显式设置
+	Content       *string `json:"content,omitempty"`     // 任务内容（可选）
+	State         *string `json:"state,omitempty"`       // 任务状态（可选）
+	ExecutorID    *uint   `json:"executor_id,omitempty"` // 执行者ID（可选，可设置为null来清空）
+	FatherID      *uint   `json:"father_id,omitempty"`   // 父任务ID（可选，可设置为null来清空）
+	Priority      *int    `json:"priority,omitempty"`    // 优先级（可选，0为最高，数值越大优先级越低）
+	Tags          *string `json:"tags,omitempty"`        // 标签（可选，用逗号分割）
+	executorIDSet bool    `json:"-"`                     // 内部标志：executor_id是否在JSON中被显式设置
+	fatherIDSet   bool    `json:"-"`                     // 内部标志：father_id是否在JSON中被显式设置
 }
 
 // UnmarshalJSON 自定义JSON反序列化，用于检测字段是否被显式设置
@@ -437,12 +442,11 @@ func UpdateTask(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskInvalidState, "无效的任务状态", nil))
 			return
 		}
-		// 如果状态变为已完成，设置完成时间
-		if *req.State == models.TaskStateCompleted && task.State != models.TaskStateCompleted {
+		// 进入完成态时设置完成时间，离开完成态时清除完成时间。
+		if models.IsDoneState(*req.State) && !models.IsDoneState(task.State) {
 			now := time.Now()
 			task.CompletionAt = &now
-		} else if *req.State != models.TaskStateCompleted && task.CompletionAt != nil {
-			// 如果状态从已完成变为其他状态，清除完成时间
+		} else if !models.IsDoneState(*req.State) && task.CompletionAt != nil {
 			task.CompletionAt = nil
 		}
 	}
@@ -481,8 +485,7 @@ func UpdateTask(c *gin.Context) {
 	}
 	if task.CompletionAt != nil {
 		updates["completion_at"] = task.CompletionAt
-	} else if req.State != nil && *req.State != models.TaskStateCompleted {
-		// 如果状态不是已完成，清除完成时间
+	} else if req.State != nil && !models.IsDoneState(*req.State) {
 		updates["completion_at"] = nil
 	}
 

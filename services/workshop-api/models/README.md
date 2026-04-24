@@ -102,7 +102,9 @@ users ←→ projects (多对多，通过 project_members，包含角色)
 **任务状态常量：**
 - `TaskStatePending` - 待处理
 - `TaskStateInProgress` - 进行中
+- `TaskStatePendingReview` - 待评审
 - `TaskStateCompleted` - 已完成
+- `TaskStateAccepted` - 已验收
 - `TaskStateCancelled` - 已取消
 - `TaskStateBlocked` - 已阻塞
 

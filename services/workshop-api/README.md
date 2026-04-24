@@ -269,9 +269,11 @@ curl -X GET "http://localhost:8081/workshop/v1/user/tasks?project_id=1" \
 ### 数据模型
 
 #### 任务状态
-- `pending` - 待处理（默认）
+- `pending` - 待处理
 - `in_progress` - 进行中
+- `pending_review` - 待评审（默认）
 - `completed` - 已完成
+- `accepted` - 已验收
 - `cancelled` - 已取消
 - `blocked` - 已阻塞
 
