@@ -23,6 +23,7 @@
     color: var(--color-foreground);
     font-family: var(--font-family-sans);
     transition: background-color 0.2s ease, color 0.2s ease;
+    caret-color: transparent;
   }
   
   /* 标题样式 */
@@ -51,6 +52,37 @@
     background-color: var(--color-surface-elevated);
     color: var(--color-foreground);
     border-color: var(--color-border);
+    caret-color: var(--color-foreground);
+  }
+
+  /* 常见点击控件不参与文本选中，避免误触时出现文本光标/选中文本 */
+  button,
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  label,
+  summary,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  [tabindex]:not(input):not(textarea):not(select):not([contenteditable="true"]):not([contenteditable="plaintext-only"]),
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    user-select: none;
+    -webkit-user-select: none;
+    caret-color: transparent;
+  }
+
+  [contenteditable="true"],
+  [contenteditable="plaintext-only"],
+  [contenteditable="true"] *,
+  [contenteditable="plaintext-only"] * {
+    caret-color: var(--color-foreground);
   }
 
   /* 统一浏览器自动填充样式，避免深色模式下出现浅色输入框 */

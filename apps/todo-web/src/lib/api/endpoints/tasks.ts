@@ -20,7 +20,7 @@ export interface CreateTaskInput {
 
 export interface UpdateTaskInput {
   content?: string
-  status?: 'PENDING_REVIEW' | 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'BLOCKED'
+  status?: TodoStatus
   assigneeId?: number | null
   parentId?: number | null
   tags?: string // 标签字符串

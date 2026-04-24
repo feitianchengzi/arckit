@@ -9,6 +9,7 @@ import type { Todo, ProjectMember, TodoStatus } from '@/types'
 import ReactMarkdown from 'react-markdown'
 import { useTagStore } from '@/store/tagStore'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
+import { isDoneStatus } from '@/lib/constants/taskStatus'
 import clsx from 'clsx'
 import { buildProjectPath } from '@/lib/utils/projectRouting'
 
@@ -215,6 +216,7 @@ function exportToMarkdown(
       'PENDING': '待办',
       'IN_PROGRESS': '进行中',
       'COMPLETED': '已完成',
+      'ACCEPTED': '已验收',
       'CANCELLED': '已取消',
       'BLOCKED': '已阻塞',
     }
@@ -233,8 +235,7 @@ function exportToMarkdown(
   // 递归生成待办列表
   function generateTodoMarkdown(todo: Todo, indent: number = 0, index: number = 0): string {
     const indentStr = '  '.repeat(indent)
-    const isCompleted = todo.status === 'COMPLETED'
-    const checkbox = isCompleted ? '[x]' : '[ ]'
+    const checkbox = isDoneStatus(todo.status) ? '[x]' : '[ ]'
     // 使用 1. 格式（注意点后面有空格）
     const numberPrefix = indent === 0 ? `${index + 1}. ` : ''
     
@@ -439,6 +440,7 @@ export function ExportTodosDialog({
                   <option value="PENDING">待办</option>
                   <option value="IN_PROGRESS">进行中</option>
                   <option value="COMPLETED">已完成</option>
+                  <option value="ACCEPTED">已验收</option>
                   <option value="CANCELLED">已取消</option>
                   <option value="BLOCKED">已阻塞</option>
                 </select>

@@ -147,6 +147,7 @@ export default function ProjectDetailPage() {
     { value: 'PENDING', label: '待办' },
     { value: 'IN_PROGRESS', label: '进行中' },
     { value: 'COMPLETED', label: '已完成' },
+    { value: 'ACCEPTED', label: '已验收' },
     { value: 'CANCELLED', label: '已取消' },
     { value: 'BLOCKED', label: '已阻塞' },
   ]
@@ -661,12 +662,15 @@ export default function ProjectDetailPage() {
   
   // 统计数据（基于树形结构，只统计根任务）
   const stats = useMemo(() => {
-    if (!taskTree || taskTree.length === 0) return { pending: 0, inProgress: 0, completed: 0 }
+    if (!taskTree || taskTree.length === 0) {
+      return { pending: 0, inProgress: 0, completed: 0, accepted: 0 }
+    }
     
     return {
       pending: taskTree.filter(t => t.status === 'PENDING' || t.status === 'PENDING_REVIEW').length,
       inProgress: taskTree.filter(t => t.status === 'IN_PROGRESS').length,
       completed: taskTree.filter(t => t.status === 'COMPLETED').length,
+      accepted: taskTree.filter(t => t.status === 'ACCEPTED').length,
     }
   }, [taskTree])
   
@@ -1450,7 +1454,7 @@ export default function ProjectDetailPage() {
         <div className="flex-1 min-w-0 space-y-6">
           {/* 统计卡片 - 直接放在外层，移除父容器 */}
           {showStatusTabs && (
-            <div className="grid grid-cols-3 gap-4" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
+            <div className="grid grid-cols-4 gap-4" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
               <StatCard
                 title="待办"
                 value={stats.pending}
@@ -1475,6 +1479,15 @@ export default function ProjectDetailPage() {
                 icon={<CheckIcon />}
                 isActive={isStatusSelected('COMPLETED')}
                 onClick={() => toggleStatusFilter('COMPLETED')}
+                className="h-16"
+              />
+
+              <StatCard
+                title="已验收"
+                value={stats.accepted}
+                icon={<AcceptedIcon />}
+                isActive={isStatusSelected('ACCEPTED')}
+                onClick={() => toggleStatusFilter('ACCEPTED')}
                 className="h-16"
               />
             </div>
@@ -2464,6 +2477,15 @@ function CheckIcon() {
   return (
     <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function AcceptedIcon() {
+  return (
+    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l7 4v5c0 5-3.5 7.5-7 9-3.5-1.5-7-4-7-9V7l7-4z" />
     </svg>
   )
 }

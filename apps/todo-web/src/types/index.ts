@@ -82,6 +82,7 @@ export type TodoStatus =
   | 'PENDING'
   | 'IN_PROGRESS'
   | 'COMPLETED'
+  | 'ACCEPTED'
   | 'CANCELLED'
   | 'BLOCKED'
 
@@ -125,6 +126,7 @@ export type TaskState =
   | 'pending'
   | 'in_progress'
   | 'completed'
+  | 'accepted'
   | 'cancelled'
   | 'blocked'
 

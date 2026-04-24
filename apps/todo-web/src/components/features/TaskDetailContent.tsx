@@ -7,7 +7,8 @@ import { useState, useRef, useEffect, useMemo, Children } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog, Avatar } from '@/components/ui'
-import { XIcon, ChevronDownIcon, TrashIcon } from '@/components/ui/icons'
+import { XIcon, ChevronDownIcon, TrashIcon, LinkIcon } from '@/components/ui/icons'
+import { showGlobalToast } from '@/components/ui/Toast'
 import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge, CreateTaskDialog, CommentSection, TagDisplay } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { tasksApi } from '@/lib/api/endpoints/tasks'
@@ -253,6 +254,17 @@ export function TaskDetailContent({
       isProjectMember
     )
   }, [todo, currentUserRole, currentUserId, currentUserMember])
+
+  const handleCopyTaskLink = async () => {
+    try {
+      const detailUrl = `${window.location.origin}${buildProjectPath(projectId, `tasks/${taskId}`)}`
+      await navigator.clipboard.writeText(detailUrl)
+      showGlobalToast('详情链接已复制', 'success', 2000)
+    } catch (error) {
+      console.error('复制详情链接失败:', error)
+      showGlobalToast('复制失败，请手动复制', 'error', 2500)
+    }
+  }
 
   useEffect(() => {
     if (!isEditing) return
@@ -522,6 +534,12 @@ export function TaskDetailContent({
           
           {!isEditing && (
             <div className="flex gap-3">
+              <Button variant="secondary" onClick={handleCopyTaskLink}>
+                <span className="flex items-center gap-2">
+                  <LinkIcon className="w-4 h-4" />
+                  复制链接
+                </span>
+              </Button>
               {canDelete && (
                 <Button
                   variant="danger"
@@ -572,6 +590,14 @@ export function TaskDetailContent({
           {/* 操作按钮 - 放在最右侧 */}
           {!isEditing && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={handleCopyTaskLink}
+                className="p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
+                aria-label="复制待办详情链接"
+                title="复制待办详情链接"
+              >
+                <LinkIcon className="w-4 h-4" />
+              </button>
               {canSelectParent && onRequestParentSelect && (
                 <button
                   onClick={() => {

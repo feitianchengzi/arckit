@@ -16,6 +16,7 @@ const STATUS_TO_STATE_MAP: Record<TodoStatus, TaskState> = {
   'PENDING': 'pending',
   'IN_PROGRESS': 'in_progress',
   'COMPLETED': 'completed',
+  'ACCEPTED': 'accepted',
   'CANCELLED': 'cancelled',
   'BLOCKED': 'blocked',
 }
@@ -25,6 +26,7 @@ const STATE_TO_STATUS_MAP: Record<TaskState, TodoStatus> = {
   'pending': 'PENDING',
   'in_progress': 'IN_PROGRESS',
   'completed': 'COMPLETED',
+  'accepted': 'ACCEPTED',
   'cancelled': 'CANCELLED',
   'blocked': 'BLOCKED',
 }

@@ -3,6 +3,7 @@
  * 将扁平的任务列表转换为树形结构
  */
 
+import { TODO_STATUS_SORT_ORDER } from '@/lib/constants/taskStatus'
 import type { Todo } from '@/types'
 
 /**
@@ -44,21 +45,12 @@ export function buildTaskTree(todos: Todo[]): Todo[] {
     }
   })
   
-  // 递归排序：先按状态排序（PENDING_REVIEW -> PENDING -> IN_PROGRESS -> COMPLETED），再按创建时间倒序
+  // 递归排序：先按状态排序，再按创建时间倒序
   const sortTasks = (tasks: Todo[]): Todo[] => {
-    const statusOrder = {
-      'PENDING_REVIEW': 1,
-      'PENDING': 2,
-      'IN_PROGRESS': 3,
-      'COMPLETED': 4,
-      'CANCELLED': 5,
-      'BLOCKED': 6,
-    }
-    
     return tasks
       .sort((a, b) => {
         // 先按状态排序
-        const statusDiff = (statusOrder[a.status] || 999) - (statusOrder[b.status] || 999)
+        const statusDiff = (TODO_STATUS_SORT_ORDER[a.status] || 999) - (TODO_STATUS_SORT_ORDER[b.status] || 999)
         if (statusDiff !== 0) return statusDiff
         
         // 状态相同，按创建时间倒序（最新的在前）

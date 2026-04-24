@@ -84,6 +84,7 @@ export default function MyTasksPage() {
     { value: 'PENDING', label: '待办' },
     { value: 'IN_PROGRESS', label: '进行中' },
     { value: 'COMPLETED', label: '已完成' },
+    { value: 'ACCEPTED', label: '已验收' },
     { value: 'CANCELLED', label: '已取消' },
     { value: 'BLOCKED', label: '已阻塞' },
   ]
@@ -101,10 +102,15 @@ export default function MyTasksPage() {
     const saved = legacyFilters?.statusFilter
     if (!saved) return []
     if (saved === 'ALL') return []
-    if (typeof saved === 'string') return [saved as TodoStatus]
+    if (typeof saved === 'string') {
+      return statusOptions.some(option => option.value === saved) ? [saved as TodoStatus] : []
+    }
     if (Array.isArray(saved)) {
       const valid = saved.filter((value: TodoStatus) => statusOptions.some(option => option.value === value))
-      return valid.length === statusOptions.length ? [] : valid
+      const isLegacyAllSelection =
+        valid.length === statusOptions.length - 1 &&
+        !valid.includes('ACCEPTED')
+      return valid.length === statusOptions.length || isLegacyAllSelection ? [] : valid
     }
     return []
   }

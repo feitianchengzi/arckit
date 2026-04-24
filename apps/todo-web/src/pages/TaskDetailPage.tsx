@@ -6,7 +6,8 @@
 import { useState, useMemo, Children } from 'react'
 import type React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog } from '@/components/ui'
+import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog, LinkIcon } from '@/components/ui'
+import { showGlobalToast } from '@/components/ui/Toast'
 import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge, CreateTaskDialog, TagDisplay } from '@/components/features'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useTaskHistory } from '@/hooks/useHistory'
@@ -218,6 +219,17 @@ export default function TaskDetailPage() {
       isProjectMember
     )
   }, [todo, currentUserRole, currentUserId, currentUserMember])
+
+  const handleCopyTaskLink = async () => {
+    try {
+      const detailUrl = `${window.location.origin}${buildProjectPath(projectId, `tasks/${taskId}`)}`
+      await navigator.clipboard.writeText(detailUrl)
+      showGlobalToast('详情链接已复制', 'success', 2000)
+    } catch (error) {
+      console.error('复制详情链接失败:', error)
+      showGlobalToast('复制失败，请手动复制', 'error', 2500)
+    }
+  }
   
   // 加载状态
   if (isLoading) {
@@ -376,8 +388,17 @@ export default function TaskDetailPage() {
           </div>
         </div>
         
-        {!isEditing && (canEditContent || canDelete) && (
+        {!isEditing && (
           <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={handleCopyTaskLink}
+            >
+              <span className="flex items-center gap-2">
+                <LinkIcon className="w-4 h-4" />
+                复制链接
+              </span>
+            </Button>
             {canEditContent && (
               <Button
                 variant="secondary"
