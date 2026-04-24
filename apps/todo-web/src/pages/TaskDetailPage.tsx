@@ -5,7 +5,7 @@
 
 import { useState, useMemo, Children } from 'react'
 import type React from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog, LinkIcon } from '@/components/ui'
 import { showGlobalToast } from '@/components/ui/Toast'
 import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge, CreateTaskDialog, TagDisplay } from '@/components/features'
@@ -19,6 +19,7 @@ import { normalizeMarkdown } from '@/lib/utils/markdown'
 import { permissionManager } from '@/lib/permissions'
 import { isAssigneeUnassigned } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
+import { buildRouteFromState, getRouteFromState } from '@/lib/utils/navigationState'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
 import { useTagStore } from '@/store/tagStore'
 import { buildProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
@@ -53,12 +54,15 @@ function getTextDisplayChildren(children?: React.ReactNode): React.ReactNode {
 }
 
 export default function TaskDetailPage() {
+  const location = useLocation()
   const navigate = useNavigate()
   const params = useParams()
   const projectSlug = params.id ?? ''
   const decodedProjectId = decodeProjectId(projectSlug)
   const projectId = decodedProjectId ?? projectSlug
   const taskId = params.taskId!
+  const currentPath = `${location.pathname}${location.search}${location.hash}`
+  const backPath = getRouteFromState(location.state)
   
   const { data: project } = useProject(projectId)
   const { data: todo, isLoading, error, refetch } = useTask(projectId, taskId)
@@ -230,6 +234,15 @@ export default function TaskDetailPage() {
       showGlobalToast('复制失败，请手动复制', 'error', 2500)
     }
   }
+
+  const handleBack = () => {
+    if (backPath) {
+      navigate(-1)
+      return
+    }
+
+    navigate('/tasks', { replace: true })
+  }
   
   // 加载状态
   if (isLoading) {
@@ -338,8 +351,8 @@ export default function TaskDetailPage() {
         <div className="flex items-center gap-2 md:gap-3">
           {/* 返回按钮 */}
           <button
-            onClick={() => navigate(-1)}
-            className="text-gray-600 hover:text-gray-900 min-w-[44px] min-h-[44px] flex items-center justify-center"
+            onClick={handleBack}
+            className="text-foreground-secondary hover:text-foreground min-w-[44px] min-h-[44px] flex items-center justify-center"
             title="返回上一页"
             aria-label="返回上一页"
           >
@@ -349,8 +362,12 @@ export default function TaskDetailPage() {
           {/* 父任务图标（如果有） */}
           {parentTask && (
             <button
-              onClick={() => navigate(buildProjectPath(projectId, `tasks/${parentTask.id}`))}
-              className="text-gray-600 hover:text-gray-900 relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
+              onClick={() =>
+                navigate(buildProjectPath(projectId, `tasks/${parentTask.id}`), {
+                  state: buildRouteFromState(currentPath),
+                })
+              }
+              className="text-foreground-secondary hover:text-foreground relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label="查看父任务"
             >
               <ParentTaskIcon className="w-5 h-5 md:w-6 md:h-6" />
@@ -367,7 +384,7 @@ export default function TaskDetailPage() {
           {/* 项目详情图标 */}
           <button
             onClick={() => navigate(buildProjectPath(projectId))}
-            className="text-gray-600 hover:text-gray-900 relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className="text-foreground-secondary hover:text-foreground relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="查看项目详情"
           >
             <ProjectIcon className="w-5 h-5 md:w-6 md:h-6" />
@@ -381,9 +398,9 @@ export default function TaskDetailPage() {
           </button>
           
           <div>
-            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">待办详情</h1>
+            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground">待办详情</h1>
             {project && (
-              <p className="mt-1 text-sm md:text-base text-gray-600">项目：{project.name}</p>
+              <p className="mt-1 text-sm md:text-base text-foreground-secondary">项目：{project.name}</p>
             )}
           </div>
         </div>
@@ -422,13 +439,13 @@ export default function TaskDetailPage() {
       </div>
       
       {/* 待办内容 */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-6">
+      <div className="bg-surface-elevated border border-border rounded-lg shadow-sm p-6 space-y-6">
         {/* 状态、标签、优先级 - 一行显示 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-4 flex-wrap">
             {/* 状态 - 左侧 */}
             <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-gray-900 whitespace-nowrap">状态：</span>
+              <span className="text-sm font-bold text-foreground whitespace-nowrap">状态：</span>
               {!isEditing ? (
                 <div className="relative group">
                   <StatusSelect
@@ -454,7 +471,7 @@ export default function TaskDetailPage() {
             <div className="flex items-center gap-4 flex-wrap">
               {/* 标签 */}
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-gray-900 whitespace-nowrap">标签：</span>
+                <span className="text-sm font-bold text-foreground whitespace-nowrap">标签：</span>
                 {canEditTags ? (
                   <TagSelector
                     projectId={projectId}
@@ -477,7 +494,7 @@ export default function TaskDetailPage() {
                         return tag ? <TagDisplay key={tagId} tag={tag} size="sm" /> : null
                       })
                     ) : (
-                      <span className="text-sm text-gray-500">无标签</span>
+                      <span className="text-sm text-foreground-tertiary">无标签</span>
                     )}
                   </div>
                 )}
@@ -485,7 +502,7 @@ export default function TaskDetailPage() {
               
               {/* 优先级 */}
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-gray-900 whitespace-nowrap">优先级：</span>
+                <span className="text-sm font-bold text-foreground whitespace-nowrap">优先级：</span>
                 {!isEditing ? (
                   <PrioritySelector
                     value={todo.priority ?? null}
@@ -510,12 +527,12 @@ export default function TaskDetailPage() {
         </div>
         
         {/* 分割线 */}
-        <div className="border-t border-gray-200"></div>
+        <div className="border-t border-divider"></div>
         
         {/* 内容 */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">待办内容</h2>
+            <h2 className="text-base font-semibold text-foreground">待办内容</h2>
             {!isEditing && canEditContent && (
               <Button
                 size="sm"
@@ -535,7 +552,7 @@ export default function TaskDetailPage() {
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 rows={8}
-                className="w-full px-3 py-2 text-base border border-gray-300 rounded-md focus:border-primary focus:ring-2 focus:ring-primary"
+                className="w-full px-3 py-2 text-base rounded-md bg-surface text-foreground border border-border focus:border-primary focus:ring-2 focus:ring-primary"
               />
               
               {updateError && (
@@ -564,7 +581,7 @@ export default function TaskDetailPage() {
             </div>
           ) : (
             <div 
-              className="bg-gray-800 text-gray-100 rounded-lg p-4 max-h-96 overflow-y-auto prose prose-invert prose-sm max-w-none"
+              className="bg-surface-active text-foreground rounded-lg p-4 max-h-96 overflow-y-auto prose prose-sm dark:prose-invert max-w-none"
               style={{
                 wordBreak: 'break-word',
                 overflowWrap: 'anywhere',
@@ -573,32 +590,32 @@ export default function TaskDetailPage() {
               <ReactMarkdown
                 components={{
                   // 自定义样式组件
-                  p: ({ children }: { children?: React.ReactNode }) => <p className="text-gray-100 mb-3 last:mb-0">{getTextDisplayChildren(children)}</p>,
-                  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-gray-100 mb-3 mt-4 first:mt-0">{getTextDisplayChildren(children)}</h1>,
-                  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-gray-100 mb-2 mt-4 first:mt-0">{getTextDisplayChildren(children)}</h2>,
-                  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-gray-100 mb-2 mt-3 first:mt-0">{getTextDisplayChildren(children)}</h3>,
+                  p: ({ children }: { children?: React.ReactNode }) => <p className="text-foreground mb-3 last:mb-0">{getTextDisplayChildren(children)}</p>,
+                  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-foreground mb-3 mt-4 first:mt-0">{getTextDisplayChildren(children)}</h1>,
+                  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-foreground mb-2 mt-4 first:mt-0">{getTextDisplayChildren(children)}</h2>,
+                  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-foreground mb-2 mt-3 first:mt-0">{getTextDisplayChildren(children)}</h3>,
                   code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) => 
                     inline ? (
-                      <code className="bg-gray-700 text-gray-100 px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
+                      <code className="bg-surface-disabled text-foreground px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
                     ) : (
-                      <code className="block bg-gray-700 text-gray-100 p-3 rounded-lg text-sm font-mono overflow-x-auto mb-3">{children}</code>
+                      <code className="block bg-surface-disabled text-foreground p-3 rounded-lg text-sm font-mono overflow-x-auto mb-3">{children}</code>
                     ),
-                  pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-gray-700 text-gray-100 p-3 rounded-lg text-sm font-mono overflow-x-auto mb-3">{children}</pre>,
-                  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-3 space-y-1 text-gray-100">{children}</ul>,
-                  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-gray-100">{children}</ol>,
-                  li: ({ children }: { children?: React.ReactNode }) => <li className="text-gray-100">{getTextDisplayChildren(children)}</li>,
-                  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-gray-600 pl-4 italic text-gray-300 mb-3">{getTextDisplayChildren(children)}</blockquote>,
+                  pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-surface-disabled text-foreground p-3 rounded-lg text-sm font-mono overflow-x-auto mb-3">{children}</pre>,
+                  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-3 space-y-1 text-foreground">{children}</ul>,
+                  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-foreground">{children}</ol>,
+                  li: ({ children }: { children?: React.ReactNode }) => <li className="text-foreground">{getTextDisplayChildren(children)}</li>,
+                  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-divider pl-4 italic text-foreground-secondary mb-3">{getTextDisplayChildren(children)}</blockquote>,
                   a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
-                    <a href={href} className="text-blue-400 hover:text-blue-300 underline" target="_blank" rel="noopener noreferrer">
+                    <a href={href} className="text-primary hover:text-primary/80 underline" target="_blank" rel="noopener noreferrer">
                       {getLinkDisplayChildren(children, href)}
                     </a>
                   ),
-                  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-gray-100">{getTextDisplayChildren(children)}</strong>,
-                  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-gray-100">{getTextDisplayChildren(children)}</em>,
-                  hr: () => <hr className="border-gray-600 my-4" />,
-                  table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border-collapse border border-gray-600">{children}</table></div>,
-                  th: ({ children }: { children?: React.ReactNode }) => <th className="border border-gray-600 px-3 py-2 bg-gray-700 text-gray-100 font-semibold text-left">{getTextDisplayChildren(children)}</th>,
-                  td: ({ children }: { children?: React.ReactNode }) => <td className="border border-gray-600 px-3 py-2 text-gray-100">{getTextDisplayChildren(children)}</td>,
+                  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-foreground">{getTextDisplayChildren(children)}</strong>,
+                  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-foreground">{getTextDisplayChildren(children)}</em>,
+                  hr: () => <hr className="border-divider my-4" />,
+                  table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border-collapse border border-divider">{children}</table></div>,
+                  th: ({ children }: { children?: React.ReactNode }) => <th className="border border-divider px-3 py-2 bg-surface-disabled text-foreground font-semibold text-left">{getTextDisplayChildren(children)}</th>,
+                  td: ({ children }: { children?: React.ReactNode }) => <td className="border border-divider px-3 py-2 text-foreground">{getTextDisplayChildren(children)}</td>,
                 }}
               >
                 {normalizeMarkdown(todo.content)}
@@ -608,25 +625,25 @@ export default function TaskDetailPage() {
         </div>
         
         {/* 分割线 */}
-        <div className="border-t border-gray-200"></div>
+        <div className="border-t border-divider"></div>
         
         {/* 元信息 */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <h2 className="text-base font-semibold text-gray-900 mb-1">创建者</h2>
-            <p className="text-sm text-gray-700">
+            <h2 className="text-base font-semibold text-foreground mb-1">创建者</h2>
+            <p className="text-sm text-foreground-secondary">
               {creatorUsername}
             </p>
           </div>
           
           <div>
-            <h2 className="text-base font-semibold text-gray-900 mb-1">执行者</h2>
+            <h2 className="text-base font-semibold text-foreground mb-1">执行者</h2>
             {isEditingAssignee ? (
               <div className="space-y-2">
                 <select
                   value={newAssigneeId || ''}
                   onChange={(e) => setNewAssigneeId(e.target.value ? parseInt(e.target.value) : undefined)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50"
+                  className="w-full px-3 py-2 text-sm rounded-md bg-surface text-foreground border border-border focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50"
                 >
                   <option value="">未分配</option>
                   {Array.isArray(members) && members.map((member: any) => (
@@ -701,7 +718,7 @@ export default function TaskDetailPage() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <p className="text-sm text-gray-700">
+                <p className="text-sm text-foreground-secondary">
                   {executorUsername}
                 </p>
                 {canEditAssignee ? (
@@ -718,7 +735,7 @@ export default function TaskDetailPage() {
                 ) : (
                   todo.status === 'IN_PROGRESS' && (
                     <span 
-                      className="text-xs text-gray-500 relative group cursor-help"
+                      className="text-xs text-foreground-tertiary relative group cursor-help"
                     >
                       {isAssigneeUnassignedLocal ? '仅项目成员可编辑' : '仅创建者/执行者/管理员可编辑'}
                       {/* Tooltip */}
@@ -738,15 +755,15 @@ export default function TaskDetailPage() {
           </div>
           
           <div>
-            <h2 className="text-base font-semibold text-gray-900 mb-1">创建时间</h2>
-            <p className="text-sm text-gray-700">
+            <h2 className="text-base font-semibold text-foreground mb-1">创建时间</h2>
+            <p className="text-sm text-foreground-secondary">
               {new Date(todo.createdAt).toLocaleString('zh-CN')}
             </p>
           </div>
           
           <div>
-            <h2 className="text-base font-semibold text-gray-900 mb-1">更新时间</h2>
-            <p className="text-sm text-gray-700">
+            <h2 className="text-base font-semibold text-foreground mb-1">更新时间</h2>
+            <p className="text-sm text-foreground-secondary">
               {new Date(todo.updatedAt).toLocaleString('zh-CN')}
             </p>
           </div>
@@ -754,7 +771,7 @@ export default function TaskDetailPage() {
       </div>
       
       {/* 子待办 */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-surface-elevated border border-border rounded-lg shadow-sm p-6">
         <SubtaskList
           subtasks={todo.children || []}
           projectId={projectId}
@@ -765,9 +782,9 @@ export default function TaskDetailPage() {
       </div>
 
       {/* 状态历史 */}
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-surface-elevated border border-border rounded-lg shadow-sm p-6">
         {historyLoading ? (
-          <div className="text-sm text-gray-500">加载状态历史中...</div>
+          <div className="text-sm text-foreground-secondary">加载状态历史中...</div>
         ) : (
           <StatusHistory history={history || []} />
         )}

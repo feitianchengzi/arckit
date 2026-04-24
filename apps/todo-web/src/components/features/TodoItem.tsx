@@ -6,7 +6,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { StatusBadge, StatusSelect, Avatar } from '@/components/ui'
 import { TagList, PriorityBadge, TaskContentDialog } from './'
@@ -19,6 +19,7 @@ import { TagDisplay } from './TagDisplay'
 import { permissionManager } from '@/lib/permissions'
 import { todoToTaskInfo } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
+import { buildRouteFromState } from '@/lib/utils/navigationState'
 import { buildProjectPath } from '@/lib/utils/projectRouting'
 import { decodeUrlsInTextForDisplay } from '@/lib/utils/urlDisplay'
 
@@ -125,8 +126,10 @@ export function TodoItem({
   const [newTagIds, setNewTagIds] = useState<number[] | null>(null)
   const [isUpdatingTags, setIsUpdatingTags] = useState(false)
   const [showContentDialog, setShowContentDialog] = useState(false)
+  const location = useLocation()
   const navigate = useNavigate()
   const { loadProjectTags, getProjectTags } = useTagStore()
+  const currentPath = `${location.pathname}${location.search}${location.hash}`
   
   // 提取第一行内容
   const firstLine = useMemo(() => getFirstNonEmptyLine(todo.content), [todo.content])
@@ -140,7 +143,9 @@ export function TodoItem({
       // 传递当前待办的 ID，确保子待办点击时使用的是子待办的 ID
       onClick(todo.id)
     } else {
-      navigate(buildProjectPath(projectId, `tasks/${todo.id}`))
+      navigate(buildProjectPath(projectId, `tasks/${todo.id}`), {
+        state: buildRouteFromState(currentPath),
+      })
     }
   }
   

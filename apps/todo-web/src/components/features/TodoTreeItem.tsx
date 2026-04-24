@@ -7,7 +7,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { StatusBadge, StatusSelect, Avatar } from '@/components/ui'
 import { TagList, PriorityBadge, TaskContentDialog } from './'
@@ -19,6 +19,7 @@ import { XIcon } from '@/components/ui/icons'
 import { useTagStore } from '@/store/tagStore'
 import { TagDisplay } from './TagDisplay'
 import { useThemeStore } from '@/store/themeStore'
+import { buildRouteFromState } from '@/lib/utils/navigationState'
 import { buildProjectPath } from '@/lib/utils/projectRouting'
 import { decodeUrlsInTextForDisplay } from '@/lib/utils/urlDisplay'
 
@@ -155,6 +156,8 @@ export function TodoTreeItem({
   // 使用父任务的展开状态来决定子任务的背景色
   const backgroundColor = getBackgroundColor(depth, parentExpanded)
   const isSelectionDisabled = selectionDisabledIds ? selectionDisabledIds.has(todo.id) : selectionDisabled
+  const location = useLocation()
+  const currentPath = `${location.pathname}${location.search}${location.hash}`
   
   // 点击展开/折叠（通过点击"x个子待办"触发）
   const handleToggleExpand = (e: React.MouseEvent) => {
@@ -169,7 +172,9 @@ export function TodoTreeItem({
       // 传递当前待办的 ID，确保子待办点击时使用的是子待办的 ID
       onClick(todo.id)
     } else {
-      navigate(buildProjectPath(projectId, `tasks/${todo.id}`))
+      navigate(buildProjectPath(projectId, `tasks/${todo.id}`), {
+        state: buildRouteFromState(currentPath),
+      })
     }
   }
   

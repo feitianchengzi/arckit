@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, useMemo, type ReactNode } from 'react'
+import { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { ChevronDownIcon } from '@/components/ui/icons'
 
@@ -24,6 +25,18 @@ interface FilterMultiSelectProps<T extends string | number> {
   maxLabelCount?: number
 }
 
+const MENU_GAP = 6
+const VIEWPORT_PADDING = 8
+const MIN_MENU_WIDTH = 160
+
+interface MenuPosition {
+  top: number
+  left: number
+  maxHeight: number
+  minWidth: number
+  maxWidth: number
+}
+
 export function FilterMultiSelect<T extends string | number>({
   label,
   icon,
@@ -40,6 +53,7 @@ export function FilterMultiSelect<T extends string | number>({
   maxLabelCount = 1,
 }: FilterMultiSelectProps<T>) {
   const [open, setOpen] = useState(false)
+  const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -54,17 +68,96 @@ export function FilterMultiSelect<T extends string | number>({
   )
   const isAllSelected = selectableOptions.length > 0 && selectedSelectableCount === selectableOptions.length
 
+  const updateMenuPosition = useCallback(() => {
+    if (!triggerRef.current || !menuRef.current) return
+
+    const triggerRect = triggerRef.current.getBoundingClientRect()
+    const menuElement = menuRef.current
+    const naturalWidth = menuElement.scrollWidth
+    const naturalHeight = menuElement.scrollHeight
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+    const maxWidth = Math.max(viewportWidth - VIEWPORT_PADDING * 2, MIN_MENU_WIDTH)
+    const minWidth = Math.max(Math.round(triggerRect.width), MIN_MENU_WIDTH)
+    const renderedWidth = Math.min(Math.max(naturalWidth, minWidth), maxWidth)
+    const spaceBelow = Math.max(
+      viewportHeight - triggerRect.bottom - MENU_GAP - VIEWPORT_PADDING,
+      0
+    )
+    const spaceAbove = Math.max(
+      triggerRect.top - MENU_GAP - VIEWPORT_PADDING,
+      0
+    )
+    const shouldOpenBelow =
+      spaceBelow >= naturalHeight || spaceBelow >= spaceAbove
+    const availableHeight = shouldOpenBelow ? spaceBelow : spaceAbove
+    const renderedHeight = Math.min(naturalHeight, availableHeight)
+
+    let top = shouldOpenBelow
+      ? triggerRect.bottom + MENU_GAP
+      : triggerRect.top - MENU_GAP - renderedHeight
+
+    if (shouldOpenBelow) {
+      top = Math.min(top, viewportHeight - VIEWPORT_PADDING - renderedHeight)
+    } else {
+      top = Math.max(top, VIEWPORT_PADDING)
+    }
+
+    let left = triggerRect.left
+    const maxLeft = viewportWidth - VIEWPORT_PADDING - renderedWidth
+    left = Math.min(left, maxLeft)
+    left = Math.max(left, VIEWPORT_PADDING)
+
+    setMenuPosition({
+      top,
+      left,
+      maxHeight: Math.max(availableHeight, 0),
+      minWidth,
+      maxWidth,
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setMenuPosition(null)
+      return
+    }
+
+    updateMenuPosition()
+  }, [open, updateMenuPosition])
+
   useEffect(() => {
     if (!open) return
+
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node
       if (triggerRef.current && triggerRef.current.contains(target)) return
       if (menuRef.current && menuRef.current.contains(target)) return
       setOpen(false)
     }
+
+    const handleViewportChange = () => {
+      updateMenuPosition()
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [open])
+    document.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('resize', handleViewportChange)
+    window.addEventListener('scroll', handleViewportChange, true)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('resize', handleViewportChange)
+      window.removeEventListener('scroll', handleViewportChange, true)
+    }
+  }, [open, updateMenuPosition])
 
   const selectedLabel = useMemo(() => {
     if (options.length === 0) return '无选项'
@@ -111,7 +204,7 @@ export function FilterMultiSelect<T extends string | number>({
         {icon}
         {label}
       </label>
-      <div className="relative">
+      <div>
         <button
           ref={triggerRef}
           type="button"
@@ -132,18 +225,22 @@ export function FilterMultiSelect<T extends string | number>({
           <ChevronDownIcon className="w-3 h-3 flex-shrink-0" />
         </button>
 
-        {open && (
+        {open && createPortal(
           <div
             ref={menuRef}
             data-filter-popover="true"
             className={clsx(
-              'absolute left-0 top-full mt-1.5 border border-border rounded-md shadow-xl z-[120] py-1 bg-surface-elevated',
+              'fixed border border-border rounded-md shadow-xl z-[120] py-1 bg-surface-elevated overflow-y-auto',
               menuClassName
             )}
             style={{
-              minWidth: 'max(160px, 100%)',
-              maxHeight: '60vh',
-              overflowY: 'auto',
+              top: `${menuPosition?.top ?? 0}px`,
+              left: `${menuPosition?.left ?? 0}px`,
+              minWidth: `${menuPosition?.minWidth ?? MIN_MENU_WIDTH}px`,
+              maxWidth: `${menuPosition?.maxWidth ?? MIN_MENU_WIDTH}px`,
+              maxHeight: `${menuPosition?.maxHeight ?? 0}px`,
+              width: 'max-content',
+              visibility: menuPosition ? 'visible' : 'hidden',
             }}
           >
             <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
@@ -182,10 +279,11 @@ export function FilterMultiSelect<T extends string | number>({
                   }}
                   className="w-4 h-4 rounded border-border text-primary focus:ring-primary"
                 />
-                <span className="text-sm text-foreground">{option.label}</span>
+                <span className="text-sm text-foreground whitespace-nowrap">{option.label}</span>
               </label>
             ))}
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </div>

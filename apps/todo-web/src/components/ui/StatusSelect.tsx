@@ -27,7 +27,7 @@ const MENU_TEXT_COLOR_MAP: Record<TodoStatus, string> = {
   'PENDING': 'text-gray-700 dark:text-gray-200',
   'IN_PROGRESS': 'text-blue-700 dark:text-blue-300',
   'COMPLETED': 'text-green-700 dark:text-green-300',
-  'ACCEPTED': 'text-emerald-950 dark:text-emerald-100',
+  'ACCEPTED': 'text-emerald-500 dark:text-emerald-300',
   'CANCELLED': 'text-red-700 dark:text-red-300',
   'BLOCKED': 'text-orange-700 dark:text-orange-300',
 }

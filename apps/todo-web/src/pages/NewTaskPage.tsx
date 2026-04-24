@@ -11,6 +11,7 @@ import { useCreateTask, useTaskList } from '@/hooks/useTasks'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
 import { useOrganizationStore } from '@/store/organizationStore'
 import { useOrganizationMembers } from '@/hooks/useOrganizations'
+import { buildRouteFromState } from '@/lib/utils/navigationState'
 import { buildProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
 
 export default function NewTaskPage() {
@@ -68,7 +69,10 @@ export default function NewTaskPage() {
       
       // 创建成功后跳转到待办详情页
       // 使用 replace: true 替换当前历史记录，避免点击返回时回到创建页面
-      navigate(buildProjectPath(projectIdParam, `tasks/${newTask.id}`), { replace: true })
+      navigate(buildProjectPath(projectIdParam, `tasks/${newTask.id}`), {
+        replace: true,
+        state: buildRouteFromState(buildProjectPath(projectIdParam)),
+      })
     } catch (err: any) {
       setError(err.response?.data?.message || '创建失败，请重试')
     }

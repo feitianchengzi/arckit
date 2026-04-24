@@ -5,7 +5,7 @@
 
 import { useState, useRef, useEffect, useMemo, Children } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog, Avatar } from '@/components/ui'
 import { XIcon, ChevronDownIcon, TrashIcon, LinkIcon } from '@/components/ui/icons'
 import { showGlobalToast } from '@/components/ui/Toast'
@@ -26,6 +26,7 @@ import type { TaskInfo } from '@/lib/permissions'
 import { parseTaskTags } from '@/lib/utils/tagUtils'
 import { useTagStore } from '@/store/tagStore'
 import clsx from 'clsx'
+import { buildRouteFromState, getRouteFromState } from '@/lib/utils/navigationState'
 import { buildProjectPath } from '@/lib/utils/projectRouting'
 import { decodeUrlForDisplay, decodeUrlsInTextForDisplay } from '@/lib/utils/urlDisplay'
 
@@ -78,9 +79,12 @@ export function TaskDetailContent({
   onNavigateToSubtask,
   onRequestParentSelect
 }: TaskDetailContentProps) {
+  const location = useLocation()
   const navigate = useNavigate()
   const { data: project } = useProject(projectId)
   const { data: todo, isLoading, error, refetch } = useTask(projectId, taskId)
+  const currentPath = `${location.pathname}${location.search}${location.hash}`
+  const backPath = getRouteFromState(location.state)
   
   // 获取父任务信息（如果有）
   const parentTask = (todo as any)?.parentTask
@@ -264,6 +268,15 @@ export function TaskDetailContent({
       console.error('复制详情链接失败:', error)
       showGlobalToast('复制失败，请手动复制', 'error', 2500)
     }
+  }
+
+  const handleBack = () => {
+    if (backPath) {
+      navigate(-1)
+      return
+    }
+
+    navigate('/tasks', { replace: true })
   }
 
   useEffect(() => {
@@ -477,7 +490,7 @@ export function TaskDetailContent({
               </button>
             ) : (
               <button
-                onClick={() => navigate(-1)}
+                onClick={handleBack}
                 className="text-foreground-secondary hover:text-foreground min-w-[44px] min-h-[44px] flex items-center justify-center"
                 title="返回上一页"
                 aria-label="返回上一页"
@@ -491,7 +504,9 @@ export function TaskDetailContent({
               <button
                 onClick={() => {
                   if (onClose) onClose()
-                  navigate(buildProjectPath(projectId, `tasks/${parentTask.id}`))
+                  navigate(buildProjectPath(projectId, `tasks/${parentTask.id}`), {
+                    state: buildRouteFromState(currentPath),
+                  })
                 }}
                 className="text-gray-600 hover:text-gray-900 relative group min-w-[44px] min-h-[44px] flex items-center justify-center"
                 aria-label="查看父任务"
