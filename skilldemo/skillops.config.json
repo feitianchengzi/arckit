@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "sourceDir": "skills",
+  "teamRepo": "github.com/feitianchengzi/skillops-hub/tree/main/skilldemo",
+  "profiles": [
+    {
+      "name": "default",
+      "description": "Default skill set for local projects.",
+      "skills": [
+        "*"
+      ],
+      "targets": [
+        "claude",
+        "codex",
+        "cursor"
+      ]
+    }
+  ]
+}
