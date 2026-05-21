@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "sourceDir": "skills",
+  "profiles": [
+    {
+      "name": "default",
+      "description": "Default skill set for this workspace.",
+      "skills": [
+        "*"
+      ],
+      "targets": [
+        "claude",
+        "codex",
+        "cursor"
+      ]
+    }
+  ]
+}

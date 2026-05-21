@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{PAGE_NAME}} - 线框图</title>
+    <!-- 线框图统一样式：相对 interaction 根的路径，由 new-page-design 按页面嵌套深度替换 {{WIREFRAME_CSS_HREF}} -->
+    <link rel="stylesheet" href="{{WIREFRAME_CSS_HREF}}">
+</head>
+<body>
+    <div class="wireframe-container">
+        <header>
+            <h1>{{PAGE_NAME}}</h1>
+            <div class="meta-info">
+                <div>View: <code>{{VIEW_NAME}}</code></div>
+                <div>平台: <strong>{{PLATFORM}}</strong></div>
+            </div>
+        </header>
+
+        <!--
+        ===== 线框图生成指南 =====
+
+        ## 结构层级（必读 — 避免业务内容与 device-frame 平级）
+        - wireframe-canvas：画布衬底，仅负责衬底与居中，其内**有且仅有**一个直接子元素 .device-frame。
+        - device-frame：设备框，宽度由平台决定（见下），整体在 canvas 内居中；**所有业务 UI**（导航栏、内容区、弹窗占位等）必须放在 device-frame **内部**，不得与 device-frame 平级。
+        - 正确：wireframe-canvas > device-frame > (nav-bar / toolbar + content-area / 其他业务块)
+        - 错误：wireframe-canvas > [ device-frame 与 业务内容 平级 ]
+
+        ## 状态要求
+        至少 4 个状态（加载中/成功/空状态/错误），每个用 <details> 包裹，第一个设置 open。
+        弹窗/对话框若存在，作为独立状态或内嵌在触发状态中。
+
+        ## 状态结构（每个必须包含）
+        <details [open]>
+            <summary>状态名称</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>描述</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame [.tablet|.desktop 按平台]">
+                        [导航/工具栏 + 内容区等，业务内容全部在此内]
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>组件</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3>
+                    <div class="interaction-item"><code>操作</code> → 结果</div>
+                </div>
+            </div>
+        </details>
+
+        ## data-kit 标注
+        在关键节点加 data-kit 属性，标注目标平台的原生控件类型。
+        只标注有歧义的节点（div 做容器时需标注，button 不需要）。
+        标注值使用目标平台的控件名（如 SwiftUI 的 NavigationStack、List 等）。
+        完整映射表见 references/data-kit-mappings.md。
+
+        ## 设备框架（宽度与平台）
+        - iOS:    .device-frame（默认 375px）
+        - iPad:   .device-frame.tablet（768px）
+        - macOS:  .device-frame.desktop（100%）
+
+        ## 桌面端布局
+        - 侧边栏+详情: .split-h > .sidebar + .panel
+        - 上下分栏: .split-v > .panel + .split-divider-v + .panel
+        - 工具栏: .toolbar > .toolbar-button / .toolbar-group
+
+        ## 弹窗规则
+        直接渲染在页面中，不用 position:fixed / z-index。
+        用 data-kit 标注展示方式（Sheet/Alert/ConfirmationDialog）。
+        用 data-label 属性标注弹窗类型名称。
+        <div class="modal-overlay" data-kit="Sheet">
+            <div class="modal-content" data-label="Sheet">内容</div>
+        </div>
+
+        ## 可用组件 class
+        导航:    .nav-bar .nav-title .nav-button .tab-bar .tab-item .toolbar .toolbar-button
+        布局:    .sidebar .split-h .split-v .panel .panel-header .split-divider-h .split-divider-v
+        内容:    .content-area .list-item .card .card-grid .group-box .section-header
+        控件:    .button .button.primary .button.destructive .input-field .toggle-row .picker .search-bar
+        占位:    .placeholder-box .icon-placeholder .avatar .image-placeholder .spinner
+        状态:    .badge .progress-bar .empty-state
+        弹窗:    .modal-overlay .modal-content
+        -->
+
+        <!-- ===== 示例：iOS 移动端页面 ===== -->
+        <details open>
+            <summary>加载中</summary>
+            <div class="state-content">
+                <div class="state-description">
+                    <strong>触发条件：</strong>页面首次加载或下拉刷新时
+                </div>
+                <div class="wireframe-canvas">
+                    <!-- 画布内唯一直接子元素为 device-frame；业务 UI 全部放在其内 -->
+                    <div class="device-frame" data-kit="NavigationStack">
+                        <div class="nav-bar" data-kit="toolbar">
+                            <div class="nav-button">返回</div>
+                            <div class="nav-title">{{PAGE_NAME}}</div>
+                            <div class="nav-button">更多</div>
+                        </div>
+                        <div class="content-area">
+                            <div class="placeholder-box">
+                                <div class="spinner"></div>
+                                <p style="margin-top:1rem;">加载中...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list">
+                    <h3>组件清单</h3>
+                    <ul>
+                        <li>NavigationStack + 导航栏</li>
+                        <li>ProgressView（加载指示器）</li>
+                    </ul>
+                </div>
+                <div class="interactions">
+                    <h3>交互行为</h3>
+                    <div class="interaction-item">
+                        <code>点击返回</code> → NavigationStack.pop()
+                    </div>
+                </div>
+            </div>
+        </details>
+
+        <!-- 按业务需求生成更多状态：成功、空状态、错误、弹窗等 -->
+        <!-- 每个状态保持同一结构：state-description + wireframe-canvas + component-list + interactions -->
+
+        <!--
+        ===== 示例片段：桌面端 Shell 骨架 =====
+        如果是 macOS 桌面应用，device-frame 仍须在 wireframe-canvas 内，例如：
+
+        <div class="wireframe-canvas">
+            <div class="device-frame desktop" data-kit="NavigationSplitView">
+                <div class="toolbar" data-kit="toolbar">
+                    <div class="toolbar-button">←</div>
+                    <div class="toolbar-button">→</div>
+                    <div class="toolbar-spacer"></div>
+                    <div class="toolbar-group">
+                        <div class="toolbar-button">A</div>
+                        <div class="toolbar-button">B</div>
+                    </div>
+                </div>
+                <div class="split-h">
+                    <div class="sidebar" data-kit="List(sidebar)">
+                        <div class="sidebar-section">分类</div>
+                        <div class="list-item">项目 A</div>
+                        <div class="list-item">项目 B</div>
+                    </div>
+                    <div class="split-divider-h"></div>
+                    <div class="split-v">
+                        <div class="panel" data-kit="DetailView">
+                            <div class="panel-header">主内容区</div>
+                            <div class="content-area">...</div>
+                        </div>
+                        <div class="split-divider-v"></div>
+                        <div class="panel" data-kit="InspectorView" style="height:200px;">
+                            <div class="panel-header">底部面板</div>
+                            <div class="content-area">...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        -->
+
+    </div>
+</body>
+</html>

@@ -1,0 +1,60 @@
+# {{ENTITY}} 数据模型
+# 路径: arckit/tech/{{MODEL_PATH}}
+
+metadata:
+  path: "tech/{{MODEL_PATH}}"
+  domain: "_shared"
+  entity_name: "{{ENTITY}}"
+  storage: "PostgreSQL"
+  owner: "@username"
+  version: "1.0"
+  created: "{{DATE}}"
+  updated: "{{DATE}}"
+
+type: object
+description: "（实体用途简述）"
+
+required:
+  - id
+  - created_at
+  - updated_at
+
+properties:
+  id:
+    type: string
+    format: uuid
+    description: "主键"
+    readOnly: true
+
+  name:
+    type: string
+    minLength: 2
+    maxLength: 200
+    description: "显示名称"
+
+  status:
+    type: string
+    enum: ["active", "inactive"]
+    default: "active"
+    description: "状态"
+
+  created_at:
+    type: string
+    format: date-time
+    description: "创建时间"
+    readOnly: true
+
+  updated_at:
+    type: string
+    format: date-time
+    description: "更新时间"
+    readOnly: true
+
+  deleted_at:
+    type: string
+    format: date-time
+    nullable: true
+    description: "软删除时间"
+
+relationships: {}
+indexes: []

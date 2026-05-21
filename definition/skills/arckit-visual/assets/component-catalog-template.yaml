@@ -1,0 +1,44 @@
+# 组件视觉目录 — {{PROJECT_NAME}}
+# 本文件记录可复用组件的视觉规格入口，实际代码在目标平台源码中实现。
+# 每当新增或调整组件视觉规格时更新此文件。
+
+metadata:
+  project: "{{PROJECT_NAME}}"
+  last_updated: "{{DATE}}"
+  tokens: "./design-tokens.yaml"
+
+# ─── 组件视觉规格列表 ───
+# 格式说明：
+#   role:          组件在视觉系统中的角色
+#   variants:      视觉变体
+#   sizes:         尺寸变体
+#   states:        状态集合
+#   token_refs:    依赖的 Design Tokens
+#   accessibility: 无障碍与对比度要求
+
+components: {}
+
+  # 示例（取消注释并修改）：
+  #
+  # Button:
+  #   role: 承载页面或流程中的明确操作
+  #   variants:
+  #     primary:
+  #       usage: 主操作
+  #       background: "{colors.accent}"
+  #       foreground: "{colors.background.primary}"
+  #     secondary:
+  #       usage: 次级操作
+  #       background: transparent
+  #       foreground: "{colors.accent}"
+  #       border: "{colors.accent}"
+  #   sizes:
+  #     sm: { height: 32, padding: "{spacing.sm} {spacing.md}", typography: "{typography.caption_1}" }
+  #     md: { height: 40, padding: "{spacing.sm} {spacing.lg}", typography: "{typography.body}" }
+  #   states: [default, hover, active, disabled, focus]
+  #   token_refs:
+  #     - colors.accent
+  #     - spacing.sm
+  #     - corner_radius.medium
+  #   accessibility:
+  #     min_contrast: "4.5:1"

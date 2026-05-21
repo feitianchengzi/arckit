@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{PROJECT_NAME}} — Style Preview</title>
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4/dist/js-yaml.min.js"></script>
+    <style>
+        /* ===== CSS 变量由 JS 从 YAML 动态注入，以下仅为安全回退 ===== */
+        :root {
+            --accent:#6366F1; --bg-primary:#FFF; --bg-secondary:#F8FAFC; --bg-tertiary:#F1F5F9;
+            --text-primary:#0F172A; --text-secondary:#64748B; --text-tertiary:#94A3B8;
+            --destructive:#EF4444; --success:#22C55E; --warning:#F59E0B; --separator:#E2E8F0;
+            --sp-xxs:2px; --sp-xs:4px; --sp-sm:8px; --sp-md:16px; --sp-lg:24px; --sp-xl:32px; --sp-xxl:48px;
+            --radius-small:4px; --radius-medium:8px; --radius-large:12px; --radius-extra_large:16px;
+            --shadow-small:0 1px 3px rgba(0,0,0,.06);
+            --shadow-medium:0 2px 8px rgba(0,0,0,.08);
+            --shadow-large:0 4px 16px rgba(0,0,0,.12);
+        }
+
+        * { box-sizing:border-box; margin:0; padding:0; }
+        body {
+            font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+            font-size:16px; line-height:1.6;
+            color:var(--text-primary); background:var(--bg-secondary); padding:32px;
+        }
+        .container { max-width:1200px; margin:0 auto; }
+
+        /* ─ Header ─ */
+        .header { margin-bottom:24px; }
+        .header h1 { font-size:28px; font-weight:700; margin-bottom:4px; }
+        .header .subtitle { color:var(--text-secondary); font-size:14px; margin-bottom:16px; }
+        .toolbar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+        .toolbar .badge-source {
+            font-size:12px; padding:4px 10px; border-radius:10px;
+            background:var(--bg-tertiary); color:var(--text-secondary); font-weight:600;
+        }
+        .toolbar .badge-source.ok { background:#DCFCE7; color:#16A34A; }
+        .toolbar .badge-source.fallback { background:#FEF9C3; color:#A16207; }
+
+        /* ─ Theme Toggle ─ */
+        .theme-toggle { display:flex; gap:8px; }
+        .theme-toggle button {
+            padding:8px 16px; border-radius:8px; border:1px solid var(--separator);
+            font-size:14px; font-weight:600; cursor:pointer;
+            background:var(--bg-primary); color:var(--text-primary);
+        }
+        .theme-toggle button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+
+        /* ─ Loader / Fallback ─ */
+        #loader {
+            background:var(--bg-primary); border-radius:12px; padding:32px; text-align:center;
+            margin-bottom:24px; border:2px dashed var(--separator);
+        }
+        #loader.hidden { display:none; }
+        #loader p { color:var(--text-secondary); margin-bottom:12px; }
+        #loader input[type=file] { margin:0 auto; }
+        #loader .hint { font-size:13px; color:var(--text-tertiary); margin-top:8px; }
+
+        /* ─ Section ─ */
+        .section {
+            background:var(--bg-primary); border-radius:12px;
+            padding:24px; margin-bottom:24px; box-shadow:var(--shadow-small);
+        }
+        .section-title {
+            font-size:13px; font-weight:600; text-transform:uppercase;
+            letter-spacing:.5px; color:var(--text-tertiary);
+            margin-bottom:16px; padding-bottom:8px; border-bottom:1px solid var(--separator);
+        }
+
+        /* ─ Color Grid ─ */
+        .color-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:16px; }
+        .color-swatch { border-radius:8px; overflow:hidden; border:1px solid var(--separator); }
+        .color-swatch-block { height:64px; }
+        .color-swatch-label { padding:8px; font-size:13px; }
+        .color-swatch-label .name { font-weight:600; }
+        .color-swatch-label .value { color:var(--text-tertiary); font-family:"SF Mono",monospace; font-size:11px; }
+
+        /* ─ Typography ─ */
+        .type-sample { margin-bottom:16px; }
+        .type-sample .label { font-size:12px; color:var(--text-tertiary); font-family:"SF Mono",monospace; margin-bottom:2px; }
+
+        /* ─ Spacing ─ */
+        .spacing-row { display:flex; align-items:center; gap:16px; margin-bottom:8px; }
+        .spacing-bar { height:24px; background:var(--accent); border-radius:2px; opacity:.7; }
+        .spacing-label { font-size:13px; color:var(--text-secondary); font-family:"SF Mono",monospace; min-width:100px; }
+
+        /* ─ Radius ─ */
+        .radius-grid { display:flex; gap:24px; flex-wrap:wrap; }
+        .radius-item { text-align:center; }
+        .radius-box { width:80px; height:80px; background:var(--bg-tertiary); border:2px solid var(--accent); margin-bottom:8px; }
+        .radius-item .label { font-size:12px; color:var(--text-tertiary); font-family:"SF Mono",monospace; }
+
+        /* ─ Shadow ─ */
+        .shadow-grid { display:flex; gap:24px; flex-wrap:wrap; }
+        .shadow-item { text-align:center; }
+        .shadow-box { width:120px; height:80px; background:var(--bg-primary); border-radius:8px; margin-bottom:8px; }
+        .shadow-item .label { font-size:12px; color:var(--text-tertiary); }
+
+        /* ─ Buttons ─ */
+        .button-row { display:flex; gap:16px; flex-wrap:wrap; align-items:center; }
+        .btn { padding:10px 20px; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; border:none; transition:opacity .2s; }
+        .btn:hover { opacity:.85; }
+        .btn-primary { background:var(--accent); color:#fff; }
+        .btn-secondary { background:transparent; color:var(--accent); border:1.5px solid var(--accent); }
+        .btn-destructive { background:var(--destructive); color:#fff; }
+        .btn-text { background:none; color:var(--accent); padding:10px 12px; }
+        .btn-disabled { background:var(--bg-tertiary); color:var(--text-tertiary); cursor:not-allowed; }
+
+        /* ─ Badge ─ */
+        .badge-row { display:flex; gap:8px; flex-wrap:wrap; }
+        .badge { padding:4px 10px; border-radius:10px; font-size:12px; font-weight:600; }
+        .badge-default { background:var(--bg-tertiary); color:var(--text-secondary); }
+        .badge-accent { background:var(--accent); color:#fff; }
+        .badge-success { background:var(--success); color:#fff; }
+        .badge-warning { background:var(--warning); color:#fff; }
+        .badge-destructive { background:var(--destructive); color:#fff; }
+
+        /* ─ Form ─ */
+        .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+        .form-group { display:flex; flex-direction:column; gap:4px; }
+        .form-label { font-size:14px; font-weight:600; }
+        .form-input {
+            padding:10px 12px; border-radius:8px; border:1px solid var(--separator);
+            font-size:15px; background:var(--bg-primary); color:var(--text-primary);
+        }
+        .form-input:focus { outline:2px solid var(--accent); border-color:transparent; }
+        .form-input::placeholder { color:var(--text-tertiary); }
+        .toggle-track { width:44px; height:24px; border-radius:12px; position:relative; background:var(--accent); cursor:pointer; display:inline-block; }
+        .toggle-thumb { width:20px; height:20px; border-radius:50%; background:#fff; position:absolute; top:2px; right:2px; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+
+        /* ─ Card ─ */
+        .card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+        .card { border-radius:12px; border:1px solid var(--separator); overflow:hidden; background:var(--bg-primary); }
+        .card-image { height:140px; background:var(--bg-tertiary); display:flex; align-items:center; justify-content:center; color:var(--text-tertiary); font-size:14px; }
+        .card-body { padding:16px; }
+        .card-body h3 { font-size:17px; font-weight:600; margin-bottom:4px; }
+        .card-body p { font-size:15px; color:var(--text-secondary); }
+
+        /* ─ List ─ */
+        .list-preview { border:1px solid var(--separator); border-radius:12px; overflow:hidden; }
+        .list-row { display:flex; align-items:center; gap:16px; padding:12px 16px; border-bottom:1px solid var(--separator); }
+        .list-row:last-child { border-bottom:none; }
+        .list-avatar { width:40px; height:40px; border-radius:50%; background:var(--bg-tertiary); flex-shrink:0; }
+        .list-text { flex:1; }
+        .list-text .title { font-weight:600; font-size:15px; }
+        .list-text .sub { font-size:13px; color:var(--text-secondary); }
+        .list-chevron { color:var(--text-tertiary); font-size:14px; }
+
+        @media (max-width:768px) { body{padding:16px;} .form-grid{grid-template-columns:1fr;} }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- ===== Header ===== -->
+    <div class="header">
+        <h1>{{PROJECT_NAME}} — Style Preview</h1>
+        <p class="subtitle">Design System 视觉预览 · 数据源: design-tokens.yaml</p>
+        <div class="toolbar">
+            <div class="theme-toggle">
+                <button class="active" onclick="setTheme('light')">Light</button>
+                <button onclick="setTheme('dark')">Dark</button>
+            </div>
+            <span id="source-badge" class="badge-source">未加载</span>
+        </div>
+    </div>
+
+    <!-- ===== YAML 加载器（file:// 降级） ===== -->
+    <div id="loader" class="hidden">
+        <p>无法自动加载 design-tokens.yaml（file:// 协议限制）</p>
+        <p>推荐运行预览服务器：<code>python3 preview-server.py</code></p>
+        <p>或手动选择 YAML 文件：</p>
+        <input type="file" id="yaml-picker" accept=".yaml,.yml">
+        <div class="hint">选择后页面会立即刷新预览</div>
+    </div>
+
+    <!-- ===== 动态区块 ===== -->
+    <div id="colors-section"></div>
+    <div id="typography-section"></div>
+    <div id="spacing-section"></div>
+    <div id="radius-shadow-section"></div>
+
+    <!-- ===== 组件预览（静态 HTML，使用 CSS 变量） ===== -->
+    <div class="section">
+        <div class="section-title">Buttons · 按钮</div>
+        <div class="button-row">
+            <button class="btn btn-primary">主要操作</button>
+            <button class="btn btn-secondary">次要操作</button>
+            <button class="btn btn-destructive">删除</button>
+            <button class="btn btn-text">文字按钮</button>
+            <button class="btn btn-disabled" disabled>禁用状态</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Badges · 标签</div>
+        <div class="badge-row">
+            <span class="badge badge-default">默认</span>
+            <span class="badge badge-accent">主要</span>
+            <span class="badge badge-success">成功</span>
+            <span class="badge badge-warning">警告</span>
+            <span class="badge badge-destructive">错误</span>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Form Controls · 表单控件</div>
+        <div class="form-grid">
+            <div class="form-group">
+                <label class="form-label">用户名</label>
+                <input class="form-input" placeholder="请输入用户名">
+            </div>
+            <div class="form-group">
+                <label class="form-label">密码</label>
+                <input class="form-input" type="password" placeholder="请输入密码">
+            </div>
+            <div class="form-group">
+                <label class="form-label">开关</label>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="toggle-track"><div class="toggle-thumb"></div></div>
+                    <span style="font-size:14px;color:var(--text-secondary);">开启通知</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">Cards · 卡片</div>
+        <div class="card-grid">
+            <div class="card">
+                <div class="card-image">图片占位</div>
+                <div class="card-body"><h3>卡片标题</h3><p>卡片描述文字，展示正文和次要文字的搭配效果。</p></div>
+            </div>
+            <div class="card">
+                <div class="card-image">图片占位</div>
+                <div class="card-body"><h3>另一个卡片</h3><p>不同长度的内容，验证布局的弹性和一致性。</p></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-title">List Rows · 列表行</div>
+        <div class="list-preview">
+            <div class="list-row"><div class="list-avatar"></div><div class="list-text"><div class="title">列表项标题</div><div class="sub">副标题描述文字</div></div><div class="list-chevron">›</div></div>
+            <div class="list-row"><div class="list-avatar"></div><div class="list-text"><div class="title">另一个列表项</div><div class="sub">附加说明信息</div></div><div class="list-chevron">›</div></div>
+            <div class="list-row"><div class="list-avatar"></div><div class="list-text"><div class="title">第三个列表项</div><div class="sub">更多描述文字</div></div><div class="list-chevron">›</div></div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+/* ──────────────────────────────────────────────
+ *  Style Preview — 动态 YAML → CSS 变量 引擎
+ * ────────────────────────────────────────────── */
+
+const YAML_RELATIVE_PATH = 'design-tokens.yaml';
+let tokens = null;
+let currentTheme = 'light';
+
+/* ── 权重映射 ── */
+const WEIGHT_MAP = { thin:100, ultralight:200, light:300, regular:400, medium:500, semibold:600, bold:700, heavy:800, black:900 };
+
+/* ── YAML 路径 → CSS 变量名 ── */
+function pathToVar(prefix, segments) {
+    const abbr = { background:'bg', corner_radius:'radius' };
+    const parts = segments.map(s => abbr[s] || s);
+    return '--' + (prefix ? prefix + '-' : '') + parts.join('-');
+}
+
+/* ── 递归展平颜色 {light,dark} 叶节点 ── */
+function flattenColors(obj, path) {
+    const result = [];
+    if (!obj || typeof obj !== 'object') return result;
+    for (const [key, val] of Object.entries(obj)) {
+        const p = [...path, key];
+        if (val && typeof val === 'object' && 'light' in val && 'dark' in val) {
+            result.push({ segments: p, light: val.light, dark: val.dark });
+        } else if (val && typeof val === 'object') {
+            result.push(...flattenColors(val, p));
+        }
+    }
+    return result;
+}
+
+/* ── 设置 CSS 变量 ── */
+function applyTokens(data, theme) {
+    const root = document.documentElement.style;
+    if (!data) return;
+
+    // 1. 颜色
+    if (data.colors) {
+        const colors = flattenColors(data.colors, []);
+        colors.forEach(c => {
+            root.setProperty(pathToVar('', c.segments), c[theme]);
+        });
+    }
+
+    // 2. 间距
+    if (data.spacing) {
+        for (const [name, val] of Object.entries(data.spacing)) {
+            root.setProperty(`--sp-${name}`, `${val}px`);
+        }
+    }
+
+    // 3. 圆角
+    if (data.corner_radius) {
+        for (const [name, val] of Object.entries(data.corner_radius)) {
+            root.setProperty(`--radius-${name}`, `${val}px`);
+        }
+    }
+
+    // 4. 阴影
+    if (data.shadows) {
+        for (const [name, s] of Object.entries(data.shadows)) {
+            root.setProperty(`--shadow-${name}`, `${s.x||0}px ${s.y||0}px ${s.blur||0}px ${s.color||'rgba(0,0,0,.1)'}`);
+        }
+    }
+}
+
+/* ── 生成颜色区块 ── */
+function renderColors(data) {
+    if (!data?.colors) return;
+    const colors = flattenColors(data.colors, []);
+    const html = colors.map(c => {
+        const varName = pathToVar('', c.segments);
+        const displayName = c.segments.map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' › ');
+        return `<div class="color-swatch">
+            <div class="color-swatch-block" style="background:var(${varName})"></div>
+            <div class="color-swatch-label">
+                <div class="name">${displayName}</div>
+                <div class="value">${varName}  ·  ${c[currentTheme]}</div>
+            </div>
+        </div>`;
+    }).join('');
+    document.getElementById('colors-section').innerHTML =
+        `<div class="section"><div class="section-title">Colors · 颜色</div><div class="color-grid">${html}</div></div>`;
+}
+
+/* ── 生成字体区块 ── */
+function renderTypography(data) {
+    if (!data?.typography) return;
+    const html = Object.entries(data.typography).map(([name, t]) => {
+        const size = t.size || 16;
+        const weight = WEIGHT_MAP[t.weight] || 400;
+        const family = t.family ? `'${t.family}',Monaco,monospace` : 'inherit';
+        const label = name.replace(/_/g, ' ');
+        return `<div class="type-sample">
+            <div class="label">${label} · ${size}px ${t.weight || 'regular'}${t.family ? ' · ' + t.family : ''}</div>
+            <div class="text" style="font-size:${size}px;font-weight:${weight};font-family:${family};">
+                示例文字 The quick brown fox
+            </div>
+        </div>`;
+    }).join('');
+    document.getElementById('typography-section').innerHTML =
+        `<div class="section"><div class="section-title">Typography · 字体</div>${html}</div>`;
+}
+
+/* ── 生成间距区块 ── */
+function renderSpacing(data) {
+    if (!data?.spacing) return;
+    const html = Object.entries(data.spacing).map(([name, val]) => {
+        return `<div class="spacing-row">
+            <div class="spacing-label">${name} · ${val}px</div>
+            <div class="spacing-bar" style="width:${val}px;"></div>
+        </div>`;
+    }).join('');
+    document.getElementById('spacing-section').innerHTML =
+        `<div class="section"><div class="section-title">Spacing · 间距</div>${html}</div>`;
+}
+
+/* ── 生成圆角 & 阴影区块 ── */
+function renderRadiusShadow(data) {
+    let radiusHtml = '', shadowHtml = '';
+    if (data?.corner_radius) {
+        radiusHtml = Object.entries(data.corner_radius).map(([name, val]) =>
+            `<div class="radius-item"><div class="radius-box" style="border-radius:${val}px"></div><div class="label">${name} · ${val}px</div></div>`
+        ).join('');
+        radiusHtml = `<div><div class="section-title">Corner Radius · 圆角</div><div class="radius-grid">${radiusHtml}</div></div>`;
+    }
+    if (data?.shadows) {
+        shadowHtml = Object.entries(data.shadows).map(([name, s]) => {
+            const css = `${s.x||0}px ${s.y||0}px ${s.blur||0}px ${s.color||'rgba(0,0,0,.1)'}`;
+            return `<div class="shadow-item"><div class="shadow-box" style="box-shadow:${css}"></div><div class="label">${name}</div></div>`;
+        }).join('');
+        shadowHtml = `<div><div class="section-title">Shadows · 阴影</div><div class="shadow-grid">${shadowHtml}</div></div>`;
+    }
+    if (radiusHtml || shadowHtml) {
+        document.getElementById('radius-shadow-section').innerHTML =
+            `<div class="section" style="display:flex;gap:48px;flex-wrap:wrap;">${radiusHtml}${shadowHtml}</div>`;
+    }
+}
+
+/* ── 全量渲染 ── */
+function render(data) {
+    tokens = data;
+    applyTokens(data, currentTheme);
+    renderColors(data);
+    renderTypography(data);
+    renderSpacing(data);
+    renderRadiusShadow(data);
+}
+
+/* ── 主题切换 ── */
+function setTheme(theme) {
+    currentTheme = theme;
+    document.querySelectorAll('.theme-toggle button').forEach(btn =>
+        btn.classList.toggle('active', btn.textContent.toLowerCase() === theme)
+    );
+    if (tokens) {
+        applyTokens(tokens, theme);
+        renderColors(tokens); // 刷新色值标注
+    }
+}
+
+/* ── 加载入口 ── */
+async function init() {
+    const badge = document.getElementById('source-badge');
+    const loader = document.getElementById('loader');
+
+    // 尝试 fetch（HTTP 模式）
+    try {
+        const resp = await fetch(YAML_RELATIVE_PATH);
+        if (!resp.ok) throw new Error(resp.status);
+        const text = await resp.text();
+        const data = jsyaml.load(text);
+        render(data);
+        badge.textContent = '✓ 自动加载 · ' + YAML_RELATIVE_PATH;
+        badge.classList.add('ok');
+        return;
+    } catch (e) {
+        // fetch 失败（file:// 或 404）
+    }
+
+    // 降级：显示文件选择器
+    loader.classList.remove('hidden');
+    badge.textContent = '⚠ 需手动选择文件';
+    badge.classList.add('fallback');
+
+    document.getElementById('yaml-picker').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const data = jsyaml.load(reader.result);
+                render(data);
+                loader.classList.add('hidden');
+                badge.textContent = '✓ 已加载 · ' + file.name;
+                badge.classList.remove('fallback');
+                badge.classList.add('ok');
+            } catch (err) {
+                alert('YAML 解析失败: ' + err.message);
+            }
+        };
+        reader.readAsText(file);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

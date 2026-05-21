@@ -1,0 +1,55 @@
+# {{ENDPOINT_NAME}} API 契约
+# 路径: arckit/tech/{{CONTRACT_PATH}}
+
+metadata:
+  path: "tech/{{CONTRACT_PATH}}"
+  domain: "_shared"
+  owner: "@username"
+  version: "1.0"
+  created: "{{DATE}}"
+  updated: "{{DATE}}"
+
+endpoint:
+  method: "GET"
+  path: "/api/v1/（resource）/（id）"
+  summary: "（端点用途）"
+  description: "（详细描述）"
+  auth_required: true
+  permission: "user"
+
+request:
+  path_params: []
+  query_params: []
+  body: null
+
+responses:
+  success:
+    status: 200
+    description: "成功响应"
+    schema:
+      type: object
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          type: object
+    example:
+      success: true
+      data: {}
+
+  errors:
+    - status: 400
+      code: "INVALID_REQUEST"
+      message: "请求格式错误"
+    - status: 401
+      code: "UNAUTHORIZED"
+      message: "未认证"
+    - status: 404
+      code: "NOT_FOUND"
+      message: "资源不存在"
+
+business_logic:
+  flow: []
+  state_transitions: []
+  side_effects: []
