@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "sourceDir": "skills",
+  "teamRepo": "github.com/feitianchengzi/arckit/tree/main/idea",
+  "shareTargetMode": "direct",
+  "shareProjectName": "arc-kit",
+  "applyTargets": [
+    {
+      "id": "apply-mph0boco-l70wox",
+      "name": "ios-project-sync",
+      "profile": "ios",
+      "agentTargetIds": [],
+      "projectTargetDirs": [
+        "/Users/Glare/Library/Developer/ModularProgram/hoewo/yueya-melody"
+      ]
+    },
+    {
+      "id": "apply-mph0fssj-kdwaay",
+      "name": "idea-project-sync",
+      "profile": "idea",
+      "agentTargetIds": [],
+      "projectTargetDirs": [
+        "/Users/Glare/Library/Developer/ModularProgram/hoewo/knowledge"
+      ]
+    }
+  ],
+  "shareTargets": [
+    {
+      "id": "share-mph0cmri-t3s143",
+      "name": "idea-to-arckit",
+      "profile": "idea",
+      "remoteUrl": "https://github.com/feitianchengzi/arckit/tree/main/idea/skills",
+      "targetMode": "direct",
+      "projectName": "arc-kit"
+    },
+    {
+      "id": "share-mph0e8h9-x04knp",
+      "name": "ios-to-arckit",
+      "profile": "ios",
+      "remoteUrl": "https://github.com/feitianchengzi/arckit/tree/main/engineering/skills",
+      "targetMode": "direct",
+      "projectName": "arc-kit"
+    }
+  ],
+  "profiles": [
+    {
+      "name": "arc-kit/idea",
+      "skills": [
+        "arckit-idea",
+        "arckit-idea-explore",
+        "decision-framework"
+      ],
+      "targets": [
+        "codex",
+        "claude",
+        "cursor"
+      ]
+    }
+  ]
+}

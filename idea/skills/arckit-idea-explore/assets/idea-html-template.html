@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{IDEA_NAME}} — 创意探索</title>
+    <style>
+        /* ===== 基础重置 ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #f8f9fa;
+            --surface: #ffffff;
+            --border: #e2e8f0;
+            --border-light: #f1f5f9;
+            --text-primary: #1a202c;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --green: #22c55e;
+            --green-bg: #f0fdf4;
+            --green-border: #bbf7d0;
+            --yellow: #f59e0b;
+            --yellow-bg: #fffbeb;
+            --yellow-border: #fde68a;
+            --red: #ef4444;
+            --red-bg: #fef2f2;
+            --red-border: #fecaca;
+            --blue: #3b82f6;
+            --blue-bg: #eff6ff;
+            --blue-border: #bfdbfe;
+            --purple: #8b5cf6;
+            --purple-bg: #f5f3ff;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,.08);
+            --shadow: 0 4px 12px rgba(0,0,0,.08);
+            --radius: 10px;
+            --radius-sm: 6px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text-primary);
+            font-size: 14px;
+            line-height: 1.6;
+            padding: 24px 16px 48px;
+        }
+
+        /* ===== 布局 ===== */
+        .page-header {
+            max-width: 900px;
+            margin: 0 auto 24px;
+        }
+        .page-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .page-meta {
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        .container { max-width: 900px; margin: 0 auto; }
+
+        /* ===== 状态横幅 ===== */
+        .status-banner {
+            border-radius: var(--radius);
+            padding: 14px 20px;
+            margin-bottom: 24px;
+            font-weight: 600;
+            font-size: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: 1.5px solid;
+        }
+        .status-banner.continue  { background: var(--green-bg);  border-color: var(--green-border);  color: #166534; }
+        .status-banner.adjust    { background: var(--yellow-bg); border-color: var(--yellow-border); color: #92400e; }
+        .status-banner.abandon   { background: var(--red-bg);    border-color: var(--red-border);    color: #991b1b; }
+
+        .support-rate {
+            margin-left: auto;
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        /* ===== 区块卡片 ===== */
+        .section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow-sm);
+        }
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        /* ===== 用户旅程 ===== */
+        .journey {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0;
+        }
+        .journey-step {
+            padding: 16px 12px;
+            text-align: center;
+            position: relative;
+        }
+        .journey-step:not(:last-child)::after {
+            content: '→';
+            position: absolute;
+            right: -8px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 16px;
+            z-index: 1;
+        }
+        .journey-icon {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+        .journey-label {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .journey-desc {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        /* ===== 价值主张画布 ===== */
+        .canvas-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .canvas-block {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 14px 16px;
+            background: var(--border-light);
+        }
+        .canvas-block-title {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .canvas-block ul { padding-left: 16px; }
+        .canvas-block li { font-size: 12px; color: var(--text-secondary); margin-bottom: 3px; }
+
+        /* ===== 用户研究模拟 ===== */
+        .sim-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .sim-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+        }
+        .sim-card-header {
+            padding: 8px 12px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+        }
+        .sim-card-header.pro   { background: var(--green-bg);  color: #166534; }
+        .sim-card-header.con   { background: var(--red-bg);    color: #991b1b; }
+        .sim-card-header.neu   { background: var(--blue-bg);   color: #1e40af; }
+        .sim-card-body { padding: 12px; }
+        .sim-user {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .sim-user:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+        .sim-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .sim-user-info { flex: 1; min-width: 0; }
+        .sim-user-label { font-size: 11px; font-weight: 600; color: var(--text-primary); }
+        .sim-user-desc  { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+
+        /* 支持率统计 */
+        .sim-stats {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 14px 16px;
+            background: var(--border-light);
+            border-radius: var(--radius-sm);
+            margin-bottom: 12px;
+        }
+        .stat-item { text-align: center; }
+        .stat-num { font-size: 22px; font-weight: 800; color: var(--text-primary); }
+        .stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+        .stat-divider { width: 1px; height: 36px; background: var(--border); }
+        .stat-rate { font-size: 32px; font-weight: 900; }
+        .stat-rate.high   { color: var(--green); }
+        .stat-rate.mid    { color: var(--yellow); }
+        .stat-rate.low    { color: var(--red); }
+
+        /* 模拟结论 */
+        .sim-conclusion {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            font-size: 12px;
+        }
+        .sim-conclusion p { margin-bottom: 4px; color: var(--text-secondary); }
+        .sim-conclusion strong { color: var(--text-primary); }
+        .verdict-tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .verdict-tag.continue { background: var(--green-bg);  color: #166534; }
+        .verdict-tag.adjust   { background: var(--yellow-bg); color: #92400e; }
+        .verdict-tag.abandon  { background: var(--red-bg);    color: #991b1b; }
+
+        /* ===== MVP 功能卡片 ===== */
+        .mvp-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .mvp-card {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px 14px;
+            position: relative;
+        }
+        .mvp-priority {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 1px 7px;
+            border-radius: 4px;
+            margin-bottom: 6px;
+        }
+        .mvp-priority.p1 { background: #fef3c7; color: #92400e; }
+        .mvp-priority.p2 { background: var(--blue-bg); color: #1e40af; }
+        .mvp-priority.p3 { background: var(--border-light); color: var(--text-secondary); }
+        .mvp-name { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+        .mvp-desc { font-size: 11px; color: var(--text-secondary); }
+
+        /* ===== 界面草图 ===== */
+        .wireframes-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+        .wireframe-item { }
+        .wireframe-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            margin-bottom: 8px;
+            padding-left: 2px;
+        }
+        .wireframe-canvas {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 8px;
+        }
+        .device-frame {
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--surface);
+            font-size: 11px;
+        }
+        .wf-nav {
+            background: var(--border-light);
+            border-bottom: 1px solid var(--border);
+            padding: 8px 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 600;
+            font-size: 11px;
+        }
+        .wf-nav-btn { color: var(--blue); font-size: 10px; }
+        .wf-content { padding: 10px; min-height: 160px; }
+        .wf-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .wf-row:last-child { border-bottom: none; }
+        .wf-icon {
+            width: 28px;
+            height: 28px;
+            background: var(--border);
+            border-radius: 6px;
+            flex-shrink: 0;
+        }
+        .wf-text { flex: 1; }
+        .wf-text-line { height: 8px; background: var(--border); border-radius: 4px; margin-bottom: 4px; }
+        .wf-text-line.short { width: 60%; }
+        .wf-text-line.med   { width: 80%; }
+        .wf-text-line.full  { width: 100%; }
+        .wf-btn {
+            display: block;
+            background: var(--blue);
+            color: white;
+            text-align: center;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            margin: 8px 0 0;
+        }
+        .wf-btn.secondary {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        .wf-input {
+            display: block;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            padding: 6px 8px;
+            margin-bottom: 6px;
+            width: 100%;
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        .wf-card {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 6px;
+        }
+        .wf-hero {
+            background: var(--blue-bg);
+            border-radius: 6px;
+            padding: 14px 10px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        .wf-hero-title { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
+        .wf-hero-sub   { font-size: 10px; color: var(--text-secondary); }
+        .wf-tab-bar {
+            display: flex;
+            border-top: 1px solid var(--border);
+            background: var(--surface);
+        }
+        .wf-tab {
+            flex: 1;
+            text-align: center;
+            padding: 6px 0 4px;
+            font-size: 10px;
+            color: var(--text-muted);
+        }
+        .wf-tab.active { color: var(--blue); font-weight: 600; }
+        .wf-section-header {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            color: var(--text-muted);
+            padding: 6px 0 4px;
+        }
+        .wf-empty {
+            text-align: center;
+            padding: 24px 10px;
+            color: var(--text-muted);
+        }
+        .wf-empty-icon { font-size: 24px; margin-bottom: 6px; }
+        .wf-empty-text { font-size: 10px; }
+
+        /* ===== 响应式 ===== */
+        @media (max-width: 640px) {
+            .journey { grid-template-columns: repeat(2, 1fr); }
+            .sim-grid { grid-template-columns: 1fr; }
+            .mvp-grid { grid-template-columns: repeat(2, 1fr); }
+            .wireframes-grid { grid-template-columns: 1fr; }
+            .canvas-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="page-header">
+    <div class="page-title">{{IDEA_NAME}}</div>
+    <div class="page-meta">创意探索报告 · {{DATE}} · arckit/idea-explore/{{IDEA_DIR}}</div>
+</div>
+
+<div class="container">
+
+    <!-- ===== 状态横幅 ===== -->
+    <!--
+    根据模拟建议选择对应横幅，删除另外两个：
+
+    继续探索（支持率 ≥ 60%）:
+    <div class="status-banner continue">✅ 建议继续 — 创意价值得到验证 <span class="support-rate">N%</span></div>
+
+    调整方向（支持率 40-60%）:
+    <div class="status-banner adjust">⚠️ 需要调整 — 请关注反方用户反馈 <span class="support-rate">N%</span></div>
+
+    放弃（支持率 < 40%）:
+    <div class="status-banner abandon">❌ 不建议继续 — 此创意未通过验证 <span class="support-rate">N%</span></div>
+    -->
+    <div class="status-banner continue">✅ 建议继续 — 创意价值得到验证 <span class="support-rate">{{SUPPORT_RATE}}%</span></div>
+
+    <!-- ===== 用户旅程 ===== -->
+    <div class="section">
+        <div class="section-title">用户旅程</div>
+        <div class="journey">
+            <!--
+            每步包含: journey-icon（emoji）/ journey-label（步骤名）/ journey-desc（描述）
+            基于 idea.md 内容填充，4 个步骤: 发现问题 → 接触产品 → 开始使用 → 获得价值
+            -->
+            <div class="journey-step">
+                <div class="journey-icon">😤</div>
+                <div class="journey-label">发现问题</div>
+                <div class="journey-desc">{用户遇到的具体痛点场景}</div>
+            </div>
+            <div class="journey-step">
+                <div class="journey-icon">🔍</div>
+                <div class="journey-label">接触产品</div>
+                <div class="journey-desc">{通过什么渠道发现产品}</div>
+            </div>
+            <div class="journey-step">
+                <div class="journey-icon">🚀</div>
+                <div class="journey-label">开始使用</div>
+                <div class="journey-desc">{核心使用流程}</div>
+            </div>
+            <div class="journey-step">
+                <div class="journey-icon">✨</div>
+                <div class="journey-label">获得价值</div>
+                <div class="journey-desc">{用户获得的核心价值}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 价值主张画布 ===== -->
+    <div class="section">
+        <div class="section-title">价值主张画布</div>
+        <div class="canvas-grid">
+            <div class="canvas-block">
+                <div class="canvas-block-title">用户痛点</div>
+                <ul>
+                    <!-- 从 idea.md 提取 3-5 个核心痛点 -->
+                    <li>{痛点 1}</li>
+                    <li>{痛点 2}</li>
+                    <li>{痛点 3}</li>
+                </ul>
+            </div>
+            <div class="canvas-block">
+                <div class="canvas-block-title">产品价值</div>
+                <ul>
+                    <!-- 对应每个痛点的解决方案 -->
+                    <li>{解决方案 1}</li>
+                    <li>{解决方案 2}</li>
+                    <li>{解决方案 3}</li>
+                </ul>
+            </div>
+            <div class="canvas-block">
+                <div class="canvas-block-title">用户需求</div>
+                <ul>
+                    <!-- 用户想要完成的任务（Jobs-to-be-done） -->
+                    <li>{需求 1}</li>
+                    <li>{需求 2}</li>
+                </ul>
+            </div>
+            <div class="canvas-block">
+                <div class="canvas-block-title">产品功能</div>
+                <ul>
+                    <!-- 满足需求的核心功能 -->
+                    <li>{功能 1}</li>
+                    <li>{功能 2}</li>
+                    <li>{功能 3}</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 用户研究模拟 ===== -->
+    <div class="section">
+        <div class="section-title">用户研究模拟</div>
+
+        <div class="sim-grid">
+            <!-- 正方用户（3-5 人） -->
+            <div class="sim-card">
+                <div class="sim-card-header pro">✅ 正方用户</div>
+                <div class="sim-card-body">
+                    <!--
+                    每个用户:
+                    <div class="sim-user">
+                        <div class="sim-avatar">😊</div>
+                        <div class="sim-user-info">
+                            <div class="sim-user-label">{名字}, {年龄} {职业}</div>
+                            <div class="sim-user-desc">{支持理由一句话}</div>
+                        </div>
+                    </div>
+                    -->
+                    <div class="sim-user">
+                        <div class="sim-avatar">😊</div>
+                        <div class="sim-user-info">
+                            <div class="sim-user-label">{用户 1}</div>
+                            <div class="sim-user-desc">{支持理由}</div>
+                        </div>
+                    </div>
+                    <div class="sim-user">
+                        <div class="sim-avatar">🙂</div>
+                        <div class="sim-user-info">
+                            <div class="sim-user-label">{用户 2}</div>
+                            <div class="sim-user-desc">{支持理由}</div>
+                        </div>
+                    </div>
+                    <div class="sim-user">
+                        <div class="sim-avatar">😄</div>
+                        <div class="sim-user-info">
+                            <div class="sim-user-label">{用户 3}</div>
+                            <div class="sim-user-desc">{支持理由}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 反方用户（2-3 人） -->
+            <div class="sim-card">
+                <div class="sim-card-header con">❌ 反方用户</div>
+                <div class="sim-card-body">
+                    <div class="sim-user">
+                        <div class="sim-avatar">😤</div>
+                        <div class="sim-user-info">
+                            <div class="sim-user-label">{用户 1}</div>
+                            <div class="sim-user-desc">{质疑理由}</div>
+                        </div>
+                    </div>
+                    <div class="sim-user">
+                        <div class="sim-avatar">🤔</div>
+                        <div class="sim-user-info">
+                            <div class="sim-user-label">{用户 2}</div>
+                            <div class="sim-user-desc">{质疑理由}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 中立观察者（1-2 人） -->
+            <div class="sim-card">
+                <div class="sim-card-header neu">🔭 中立观察</div>
+                <div class="sim-card-body">
+                    <div class="sim-user">
+                        <div class="sim-avatar">🧐</div>
+                        <div class="sim-user-info">
+                            <div class="sim-user-label">{观察者 1}</div>
+                            <div class="sim-user-desc">{客观分析}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 支持率统计 -->
+        <div class="sim-stats">
+            <div class="stat-item">
+                <div class="stat-num" style="color: var(--green);">N</div>
+                <div class="stat-label">正方</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <div class="stat-num" style="color: var(--red);">N</div>
+                <div class="stat-label">反方</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item">
+                <!--
+                high: 支持率 ≥ 60%（绿色）
+                mid:  支持率 40-60%（黄色）
+                low:  支持率 < 40%（红色）
+                -->
+                <div class="stat-rate high">{{SUPPORT_RATE}}%</div>
+                <div class="stat-label">支持率</div>
+            </div>
+            <div class="stat-divider"></div>
+            <div class="stat-item" style="flex:1; text-align:left;">
+                <div style="font-size:12px; font-weight:700; margin-bottom:2px;">模拟建议</div>
+                <!--
+                根据建议选择对应 class：continue / adjust / abandon
+                -->
+                <span class="verdict-tag continue">继续探索</span>
+            </div>
+        </div>
+
+        <!-- 模拟结论 -->
+        <div class="sim-conclusion">
+            <p><strong>核心价值验证：</strong>{是否被验证，简述}</p>
+            <p><strong>主要反对理由：</strong>{1-2 条}</p>
+            <p><strong>调整建议：</strong>{如有}</p>
+        </div>
+    </div>
+
+    <!-- ===== MVP 功能卡片（建议="放弃"时删除此区块）===== -->
+    <div class="section">
+        <div class="section-title">MVP 功能</div>
+        <div class="mvp-grid">
+            <!--
+            每个功能卡片:
+            <div class="mvp-card">
+                <span class="mvp-priority p1">P1</span>
+                <div class="mvp-name">{功能名}</div>
+                <div class="mvp-desc">{简述，1-2 句}</div>
+            </div>
+            p1/p2/p3 对应优先级；建议至少 3 个 P1 功能
+            -->
+            <div class="mvp-card">
+                <span class="mvp-priority p1">P1</span>
+                <div class="mvp-name">{核心功能 1}</div>
+                <div class="mvp-desc">{功能简述}</div>
+            </div>
+            <div class="mvp-card">
+                <span class="mvp-priority p1">P1</span>
+                <div class="mvp-name">{核心功能 2}</div>
+                <div class="mvp-desc">{功能简述}</div>
+            </div>
+            <div class="mvp-card">
+                <span class="mvp-priority p1">P1</span>
+                <div class="mvp-name">{核心功能 3}</div>
+                <div class="mvp-desc">{功能简述}</div>
+            </div>
+            <div class="mvp-card">
+                <span class="mvp-priority p2">P2</span>
+                <div class="mvp-name">{功能 4}</div>
+                <div class="mvp-desc">{功能简述}</div>
+            </div>
+            <div class="mvp-card">
+                <span class="mvp-priority p2">P2</span>
+                <div class="mvp-name">{功能 5}</div>
+                <div class="mvp-desc">{功能简述}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 核心界面草图 ===== -->
+    <div class="section">
+        <div class="section-title">核心界面草图</div>
+        <!--
+        生成规范：
+        - 必须使用 HTML + CSS 实现，严禁 ASCII 文本图
+        - 必需界面: 落地页 + 核心价值界面
+        - 功能界面: 每个 P1 功能对应 1 个界面
+        - 总数量: 4-8 个（根据功能复杂度）
+        - 每个界面包含: wireframe-label（界面名称）+ device-frame（内容）
+        - 使用上方定义的 wf-* CSS 类
+        -->
+        <div class="wireframes-grid">
+
+            <!-- 界面 1: 落地页 / 首屏 -->
+            <div class="wireframe-item">
+                <div class="wireframe-label">落地页 — 首屏</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame">
+                        <div class="wf-nav">
+                            <span>{产品名}</span>
+                            <span class="wf-nav-btn">登录</span>
+                        </div>
+                        <div class="wf-content">
+                            <div class="wf-hero">
+                                <div class="wf-hero-title">{核心价值主张}</div>
+                                <div class="wf-hero-sub">{一句话描述}</div>
+                            </div>
+                            <a class="wf-btn">立即开始</a>
+                            <a class="wf-btn secondary" style="margin-top:6px;">了解更多</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 界面 2: 核心功能主界面 -->
+            <div class="wireframe-item">
+                <div class="wireframe-label">{P1 功能 1} — 主界面</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame">
+                        <div class="wf-nav">
+                            <span class="wf-nav-btn">←</span>
+                            <span>{功能名称}</span>
+                            <span class="wf-nav-btn">+</span>
+                        </div>
+                        <div class="wf-content">
+                            <div class="wf-section-header">内容列表</div>
+                            <div class="wf-row">
+                                <div class="wf-icon"></div>
+                                <div class="wf-text">
+                                    <div class="wf-text-line med"></div>
+                                    <div class="wf-text-line short"></div>
+                                </div>
+                            </div>
+                            <div class="wf-row">
+                                <div class="wf-icon"></div>
+                                <div class="wf-text">
+                                    <div class="wf-text-line full"></div>
+                                    <div class="wf-text-line short"></div>
+                                </div>
+                            </div>
+                            <div class="wf-row">
+                                <div class="wf-icon"></div>
+                                <div class="wf-text">
+                                    <div class="wf-text-line med"></div>
+                                    <div class="wf-text-line short"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="wf-tab-bar">
+                            <div class="wf-tab active">首页</div>
+                            <div class="wf-tab">功能</div>
+                            <div class="wf-tab">我的</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 界面 3: P1 功能 2 -->
+            <div class="wireframe-item">
+                <div class="wireframe-label">{P1 功能 2} — 操作界面</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame">
+                        <div class="wf-nav">
+                            <span class="wf-nav-btn">取消</span>
+                            <span>{功能名称}</span>
+                            <span class="wf-nav-btn">保存</span>
+                        </div>
+                        <div class="wf-content">
+                            <div class="wf-section-header">填写信息</div>
+                            <div class="wf-input">{输入项 1}</div>
+                            <div class="wf-input">{输入项 2}</div>
+                            <div class="wf-input">{输入项 3}</div>
+                            <a class="wf-btn" style="margin-top:12px;">确认提交</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 界面 4: 核心价值呈现界面 -->
+            <div class="wireframe-item">
+                <div class="wireframe-label">{核心价值} — 结果界面</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame">
+                        <div class="wf-nav">
+                            <span class="wf-nav-btn">←</span>
+                            <span>{结果页标题}</span>
+                            <span class="wf-nav-btn">分享</span>
+                        </div>
+                        <div class="wf-content">
+                            <div class="wf-card">
+                                <div class="wf-text-line med" style="margin-bottom:6px;"></div>
+                                <div class="wf-text-line full" style="margin-bottom:4px;"></div>
+                                <div class="wf-text-line short"></div>
+                            </div>
+                            <div class="wf-card">
+                                <div class="wf-text-line med" style="margin-bottom:6px;"></div>
+                                <div class="wf-text-line full" style="margin-bottom:4px;"></div>
+                                <div class="wf-text-line med"></div>
+                            </div>
+                            <a class="wf-btn">下一步</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!--
+            按需继续添加界面（P1 剩余功能 / P2 复杂功能），最多 8 个。
+            每个界面结构:
+            <div class="wireframe-item">
+                <div class="wireframe-label">{功能名} — {界面类型}</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame">
+                        ... wf-* 内容 ...
+                    </div>
+                </div>
+            </div>
+            -->
+
+        </div>
+    </div>
+
+</div>
+</body>
+</html>
