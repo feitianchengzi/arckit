@@ -259,3 +259,27 @@ engineering/
 Arckit 是飞天橙子团队在 AI Agent 协作开发中的长期沉淀仓库。
 
 它会随着真实 2B 和 2C 项目的推进持续演化。我们优先收录已经被项目验证、能显著提升产品定义、工程实现、质量保障或交付效率的 skills。
+
+<!-- skillops:share:start:skillops -->
+## SkillOps: skillops
+
+Visibility: `private`
+
+### Use in SkillOps Desktop
+
+1. Open SkillOps.
+2. Click **Add Skill project**.
+3. Enter `github.com/feitianchengzi/arckit` as the GitHub source.
+4. Choose a profile and add an application target.
+
+### Profiles
+
+- `skillops/default`: all skills
+
+### CLI
+
+```bash
+skillshare install github.com/feitianchengzi/arckit --track --all && skillshare sync
+npx skills add github.com/feitianchengzi/arckit
+```
+<!-- skillops:share:end:skillops -->

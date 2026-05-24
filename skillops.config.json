@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "sourceDir": "skills",
+  "teamRepo": "github.com/feitianchengzi/arckit",
+  "shareTargetMode": "direct",
+  "profiles": [
+    {
+      "name": "skillops/default",
+      "description": "Default skill set for local projects.",
+      "skills": [
+        "*"
+      ],
+      "targets": [
+        "claude",
+        "codex",
+        "cursor"
+      ]
+    }
+  ]
+}
