@@ -1,0 +1,3 @@
+display_name: Arckit Pending
+short_description: Manage unresolved project discussion items in arckit/pending.
+default_prompt: Add, update, query, archive, or promote pending project items in arckit/pending.
