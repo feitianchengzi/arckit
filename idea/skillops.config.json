@@ -47,8 +47,7 @@
       "name": "arc-kit/idea",
       "skills": [
         "arckit-idea",
-        "arckit-idea-explore",
-        "decision-framework"
+        "arckit-idea-explore"
       ],
       "targets": [
         "codex",

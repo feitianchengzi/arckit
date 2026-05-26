@@ -14,7 +14,7 @@ Visibility: `private`
 
 ### Profiles
 
-- `arc-kit/idea`: arckit-idea, arckit-idea-explore, decision-framework
+- `arc-kit/idea`: arckit-idea, arckit-idea-explore
 
 ### CLI
 
