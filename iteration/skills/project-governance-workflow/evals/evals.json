@@ -1,0 +1,198 @@
+{
+  "skill_name": "project-governance-workflow",
+  "evals": [
+    {
+      "id": 0,
+      "name": "raw-user-notes-to-workflow-routing",
+      "prompt": "用户原始输入：\n\n我们现在有个本地财务工具，老板说“现金看不清、页面太长、项目里录了工时但首页没看到、工资到底应付还是已付也不清楚”。另一个人又说想顺便加银行转账、发票管理、自动报税和多人审批。还有人说先别做大系统，先把 5 月这一个月跑通。\n\n请不要直接写实现计划。请先把这段输入识别为 Backlog、Goal 候选、Decision Candidate、Risk、Question，并说明哪些可以进入当前工作流，哪些应保持原始 Backlog。然后给出最小的工作流落地建议。",
+      "expected_output": "A routing analysis that classifies raw user input into workflow artifacts before creating execution work.",
+      "files": [],
+      "expectations": [
+        "Output classifies the user's mixed statements into Backlog items, Goal candidates, Decision Candidates, Risks, and Questions rather than flattening everything into tasks.",
+        "Output distinguishes concrete current operating feedback from broad future capabilities such as bank transfer, invoice management, tax filing, and multi-user approval.",
+        "Output proposes at least one outcome-oriented Goal candidate focused on making the current operating month understandable, not on implementing every requested feature.",
+        "Output keeps broad future capabilities as deferred Backlog or non-goals unless evidence justifies current scope.",
+        "Output explains what lands in current workflow artifacts: Backlog, Goal, Scope, Iteration, Task candidates, Review evidence, or Decision candidates.",
+        "Structured field names, if used, remain English while prose can follow the system language."
+      ]
+    },
+    {
+      "id": 1,
+      "name": "goal-granularity-repair",
+      "prompt": "下面是一个项目计划片段：\n\nG-010：重做首页现金卡片\nG-011：把“预计可用现金”改成“真实可用现金”\nG-012：给工资列表加已付/未付标签\nG-013：把税务说明折叠起来\nI-010：执行模式信息架构优化\nT-088 到 T-094 分别对应上面这些小 Goal。\n\n请评审这个 Goal / Iteration 关系是否健康，并给出修正版。重点判断哪些 Goal 粒度过小，是否应合并为更整体的 Goal，Iteration 应如何作为执行路径承载这些任务。",
+      "expected_output": "A corrected goal/iteration model that merges task-sized goals into an outcome-oriented Goal and keeps Iteration as the execution slice.",
+      "files": [],
+      "expectations": [
+        "Output identifies that the listed Goals are too small because they are page changes, label changes, or task clusters.",
+        "Output proposes a larger outcome-oriented Goal that can span more than one Iteration.",
+        "Output keeps I-010 or an equivalent Iteration as the execution path rather than making it identical to the Goal.",
+        "Output assigns tasks through goal_id and iteration_id instead of one Goal per task group.",
+        "Output includes or recommends primary_goal_id, supporting_goal_ids, and reason_for_mix if the Iteration touches multiple Goals.",
+        "Output explains why the repaired model improves Review and Goal Progress Review."
+      ]
+    },
+    {
+      "id": 2,
+      "name": "iteration-slice-across-multiple-goals",
+      "prompt": "当前 Active Goals：\n\nG-020：让执行模式能支撑一个真实月份的经营复盘。\nG-021：让页面信息层级按用户任务组织，而不是按数据库表组织。\nG-022：降低真实数据录入前的数据安全风险。\n\n下一个 5 天 Iteration 只能做 4 个任务。用户希望同时处理首页现金、项目工时可见、数据库备份检查、以及工资应付/已付状态。请规划这个 Iteration。不要新增小 Goal。",
+      "expected_output": "An iteration plan that selects tasks from multiple active Goals without creating one-to-one Goals.",
+      "files": [],
+      "expectations": [
+        "Output does not create new small Goals for cash card, work visibility, backup check, or salary status.",
+        "Output defines one Iteration with a clear theme, primary_goal_id, supporting_goal_ids, reason_for_mix, selected_scope, excluded_scope, and review_date or review trigger.",
+        "Output selects about 3 to 5 tasks and every task has goal_id and iteration_id.",
+        "Task allocation is coherent: information hierarchy tasks map to G-021, real-month operating tasks map to G-020, and backup/data-safety work maps to G-022.",
+        "Output explains why mixing Goals in this Iteration is justified and what evidence will be reviewed.",
+        "Output avoids pulling in unrelated broad features outside the stated 5-day capacity."
+      ]
+    },
+    {
+      "id": 3,
+      "name": "prompt-to-backlog-versus-task-decision",
+      "prompt": "用户说：\n\n“能不能下次把每个项目的预计回款时间也算进去？现在真实可用现金和预计可用现金容易混。但是我不确定这个是不是现在就要做，可能先把真实现金讲清楚就行。”\n\n请判断这段话应该如何进入工作流。它是当前任务、Backlog、Question、Decision Candidate、Goal 调整，还是 Review evidence？请给出落地方式。",
+      "expected_output": "A workflow landing decision for a small ambiguous user request.",
+      "files": [],
+      "expectations": [
+        "Output treats the statement as ambiguous input requiring classification, not as an immediate implementation task.",
+        "Output captures the confusion about real versus projected cash as Review evidence or Backlog/Risk.",
+        "Output records projected cash timing as a Question or deferred Backlog item unless current scope explicitly includes it.",
+        "Output may propose a Decision Candidate about cash metric naming or forecast boundary if the distinction affects product behavior.",
+        "Output suggests current-scope work should focus on making real cash clear if that is the active Goal/Iteration.",
+        "Output states what artifact should be updated and why, with minimal edit surface."
+      ]
+    },
+    {
+      "id": 4,
+      "name": "task-breakdown-quality-from-existing-goal-and-iteration",
+      "prompt": "Active Goal G-030：让小团队能在不理解数据库表的情况下完成一个月的经营记录和复盘。\n当前 Iteration I-014：5 天内验证“录入 -> 回看 -> 修正 -> 复盘”的最小路径。\n约束：不做银行支付，不做正式报税，不做多人审批，不做完整视觉重设计。现在用户要求“把页面都优化一下”。\n\n请把这个要求落到本轮任务中。重点是判断哪些是任务，哪些是 Backlog 或非目标。",
+      "expected_output": "A bounded task breakdown that maps a vague page optimization request to current Goal and Iteration.",
+      "files": [],
+      "expectations": [
+        "Output does not treat 'optimize all pages' as executable work.",
+        "Output derives a small set of tasks aligned to G-030 and I-014, each with goal_id, iteration_id, done_when, and evidence.",
+        "Tasks focus on the minimum path: entry, review, correction, and recap rather than broad visual redesign.",
+        "Output pushes bank payment, tax filing, multi-user approval, and full visual redesign into non-goals or deferred Backlog.",
+        "Task evidence is behavioral or reviewable, such as walkthrough results, browser checks, saved records, or user review evidence.",
+        "Output includes enough reasoning to show why the task split is reasonable for the Iteration."
+      ]
+    },
+    {
+      "id": 5,
+      "name": "iteration-review-to-goal-progress",
+      "prompt": "本轮执行结果：\n\nIteration I-014 完成了 T-101、T-102、T-103。T-101 让用户可以新增真实收款并在项目页看到记录；T-102 让首页显示真实现金和待支付工资；T-103 浏览器检查通过，但用户仍然说“我不知道这个数字从哪来的”。T-104 原计划做导出，但没做。\n\n相关 Goal：G-030 让小团队能完成一个月经营记录和复盘；G-021 让信息层级按用户任务组织。\n\n请生成 Iteration Review，并更新相关 Goal Progress。不要只做任务总结。",
+      "expected_output": "A review that separates iteration result from goal progress across affected Goals.",
+      "files": [],
+      "expectations": [
+        "Output includes an Iteration Review for I-014 that evaluates evidence, what worked, what failed, risks, and next candidates.",
+        "Output updates goal_progress separately for G-030 and G-021 or clearly explains each affected Goal's progress.",
+        "Output does not mark G-030 achieved just because several tasks completed.",
+        "Output treats the user's 'where did this number come from' feedback as evidence of remaining uncertainty or next Backlog/Task candidate.",
+        "Output records T-104 export as incomplete/deferred rather than pretending the Iteration fully achieved all intended outcomes.",
+        "Output proposes Decision or Roadmap impact only if the evidence changes scope, sequencing, or accepted risk."
+      ]
+    },
+    {
+      "id": 6,
+      "name": "specialist-handoff-landing",
+      "prompt": "下面是 interaction-validation 的输出摘要：\n\npvw_handoff:\n  source: interaction-validation\n  validated_insight: 用户不是真的要求更多字段，而是需要先确认已有记录和来源，再决定是否新增。\n  backlog_candidates:\n    - title: 防止重复录入的最近记录提示\n      type: Risk\n  decision_candidates:\n    - title: 新增表单和已有记录是否必须分层\n  scope_impact:\n    must_have:\n      - 项目工时和实收录入前显示最近记录\n    non_goals:\n      - 完整审批流\n  task_candidates:\n    - title: 拆分工时录入的已有记录层和新增层\n    - title: 拆分实收录入的已有记录层和新增层\n  review_evidence:\n    - 用户反馈：新增和回看放在同一层导致不确定是否重复录入。\n\n请把这个 handoff 落到 project-governance-workflow 中，说明应更新哪些 artifact，不要复制整段分析到所有文件。",
+      "expected_output": "A narrow routing plan that maps pvw_handoff fields to workflow artifacts.",
+      "files": [],
+      "expectations": [
+        "Output routes validated_insight to Review evidence or plan rationale rather than duplicating it everywhere.",
+        "Output routes backlog_candidates to Backlog with appropriate type/status.",
+        "Output routes decision_candidates to Decisions as Decision Candidate, not accepted Decision unless the choice is made.",
+        "Output routes scope_impact to Scope for the relevant Goal or Iteration.",
+        "Output routes task_candidates to Tasks only if Goal and Iteration are clear; otherwise it marks missing context or creates task candidates.",
+        "Output states the minimal set of files/artifacts to update and explains why unrelated files should not change."
+      ]
+    },
+    {
+      "id": 7,
+      "name": "near-miss-prompt-should-not-overgovern",
+      "prompt": "用户说：\n\n“帮我把明天要讲的融资路演稿写得更有感染力，重点突出市场空间、团队背景和商业模式。”\n\n请判断是否应该启动 project-governance-workflow。如果不应该，请说明为什么；如果只有很弱的关联，也说明什么额外条件才会触发。",
+      "expected_output": "A boundary classification that avoids invoking governance workflow for a generic writing request.",
+      "files": [],
+      "expectations": [
+        "Output does not force the request into Backlog, Goal, Iteration, Task, Review, Decision, and Roadmap.",
+        "Output explains that the prompt is primarily a presentation/copywriting task, not project governance.",
+        "Output states what additional user intent would trigger the skill, such as turning roadmap uncertainty into Goals/Iterations or deciding validation scope.",
+        "Output is concise and does not create fake workflow artifacts."
+      ]
+    },
+    {
+      "id": 8,
+      "name": "weak-plan-repair-for-reasonableness",
+      "prompt": "计划草稿：\n\n项目：面向独立咖啡馆的库存预测软件。\n目标：上线完整 SaaS，打败大型 POS。\n本周任务：做登录、店铺管理、商品库、供应商管理、POS 集成、预测模型、自动采购、发票、权限、移动端、数据看板、客户成功后台。\n成功标准：功能完整，界面好看。\n约束：只有 1 个开发者，只有 2 家咖啡馆愿意试，10 天内要判断是否继续。\n\n请评审并修复这个计划。重点检查 Backlog、Goal、Iteration、Task 的划分是否合理，而不是只输出一个漂亮文档。",
+      "expected_output": "A repaired plan that demonstrates reasonable classification, goal creation, iteration slicing, and task selection.",
+      "files": [],
+      "expectations": [
+        "Output identifies that the draft jumps from broad Backlog directly to many tasks.",
+        "Output creates or proposes an outcome-oriented Goal around validating usefulness with 2 coffee shops within 10 days, not 'build full SaaS'.",
+        "Output creates a narrow Iteration as the execution path and does not equate the Goal with the Iteration.",
+        "Output selects a small number of evidence-producing tasks and defers broad SaaS features.",
+        "Output uses success criteria based on user behavior, decision evidence, or learning rather than feature completeness or visual attractiveness.",
+        "Output records at least one Decision Candidate or Decision explaining the scope reduction."
+      ]
+    },
+    {
+      "id": 9,
+      "name": "document-growth-is-secondary-to-workflow-landing",
+      "prompt": "项目文档已经很多：有 operating-model、capabilities、user-stories、interaction-notes、tasks、reviews、decisions。现在用户又给了一段反馈：“首页真实现金终于看懂了，但项目页和人员页还是不知道先看哪里。”\n\n请说明这段反馈应如何落地。可以提到文档位置，但重点不是设计目录结构，而是判断它进入 Review、Backlog、Goal Progress、Scope、Task 还是 Decision。",
+      "expected_output": "A workflow landing analysis for new feedback in a large-document project.",
+      "files": [],
+      "expectations": [
+        "Output treats the feedback as current Review evidence or interaction evidence before turning it into tasks.",
+        "Output identifies possible Backlog or Task candidates related to project/person page information hierarchy.",
+        "Output updates Goal Progress if the active Goal concerns operating comprehension or information architecture.",
+        "Output does not default to reorganizing the document tree unless document growth is the actual problem.",
+        "Output states which artifact should receive the feedback and why.",
+        "Output distinguishes already improved homepage cash comprehension from remaining project/person page uncertainty."
+      ]
+    },
+    {
+      "id": 10,
+      "name": "user-proposed-goal-history-calibration",
+      "prompt": "当前工作流摘要：\n\nActive Goal G-040：让真实经营数据能支撑一个月复盘。\nGoal Progress：G-040 已完成真实收款和工资状态展示，但项目页、人员页仍有信息层级不清。\nRecent Review：用户能看懂首页真实现金，但仍不知道项目页和人员页先看哪里。\nBacklog：B-120 银行转账；B-121 自动报税；B-122 项目页最近记录提示；B-123 人员页工资来源解释。\nDecision：D-018 本阶段不做银行支付和自动报税，先验证真实经营复盘。\nRoadmap：now=经营复盘清晰度，next=录入前防重复，later=自动化能力。\n\n用户现在说：“下一个目标就定成自动报税吧。”\n\n请判断这个用户提出的目标如何进入工作流。不要直接接受为 Active Goal，也不要直接拆任务。",
+      "expected_output": "A Goal Intake analysis that calibrates a user-proposed goal against historical workflow evidence.",
+      "files": [],
+      "expectations": [
+        "Output runs Goal Intake rather than accepting the user wording as an active Goal.",
+        "Output checks Backlog, recent Review, Goal Progress, Decision, Roadmap, and constraints from the prompt.",
+        "Output identifies that automatic tax filing conflicts with D-018 and current roadmap sequencing.",
+        "Output recommends keep_as_candidate, reject_or_defer, or requires explicit user decision before replacing the current direction.",
+        "Output explains the stronger next-goal candidates from current evidence, such as project/person page comprehension or duplicate-entry prevention.",
+        "Output does not create implementation Tasks or an Iteration for automatic tax filing."
+      ]
+    },
+    {
+      "id": 11,
+      "name": "next-goal-recommendation-from-workflow-evidence",
+      "prompt": "基于下面材料推荐下一个 Goal：\n\nBacklog：\n- B-201：项目页看不到最近实收和工时来源。\n- B-202：人员页工资应付、已付、来源不清楚。\n- B-203：用户担心重复录入。\n- B-204：未来希望导出报表。\n\nRecent Reviews：\n- I-020：首页真实现金已经能看懂。\n- I-020：用户仍然需要在项目页和人员页确认来源。\n- I-020：没有证据表明导出是当前阻塞点。\n\nGoal Progress：\n- G-050 经营复盘清晰度 continuing，首页部分完成，项目/人员仍有不确定性。\n\nDecisions：\n- D-022 本阶段优先真实使用闭环，不做完整报表中心。\n\nRoadmap：\n- now：G-050 经营复盘清晰度 accepted。\n- next：录入前防重复 proposed。\n- later：报表导出 deferred。\n\n请推荐下一个 Goal，并说明是否应沿用当前 Goal、调整当前 Goal，还是创建新 Goal。",
+      "expected_output": "A next-goal recommendation based on workflow evidence rather than arbitrary roadmap generation.",
+      "files": [],
+      "expectations": [
+        "Output uses Backlog, Reviews, Goal Progress, Decisions, and Roadmap as source evidence.",
+        "Output considers continuing or adjusting G-050 instead of always creating a new Goal.",
+        "Output recommends a coherent next Goal or Goal adjustment with why_now, expected outcome, success criteria, non-goals, and remaining uncertainty.",
+        "Output explains alternatives and tradeoffs, including why report export should stay deferred under D-022 unless the user changes direction.",
+        "Output includes required_user_decision or a confirmation gate before marking the recommendation accepted.",
+        "Output does not immediately generate an Iteration unless explicitly framed as a next step after Goal confirmation."
+      ]
+    },
+    {
+      "id": 12,
+      "name": "roadmap-is-sequencing-not-bigger-goal",
+      "prompt": "用户问：\n\n“Roadmap 和 Goal 的区别是什么？是不是可以把 Roadmap 当成更大粒度的 Goal？另外请基于当前材料给我一个 Roadmap 草案。”\n\n当前材料：\n- G-060：让真实经营复盘能被非财务用户看懂，accepted。\n- Goal Candidate：防止重复录入，来自 Review R-030，尚未确认。\n- Backlog：银行转账、自动报税、导出报表。\n- Decision D-030：本阶段不做银行转账和自动报税。\n- Review R-030：项目页和人员页来源说明仍不清。\n\n请回答概念区别，并输出 Roadmap 草案。",
+      "expected_output": "A Roadmap explanation and draft that keeps Roadmap as sequencing with statuses and sources.",
+      "files": [],
+      "expectations": [
+        "Output explicitly says Roadmap is a sequencing layer, not a larger Goal.",
+        "Output distinguishes Goal, Iteration, and Roadmap by the question each one answers.",
+        "Output creates a roadmap draft with now, next, later, and not_now.",
+        "Every roadmap item includes item_type, source, status, and rationale.",
+        "Output marks the generated roadmap or unconfirmed items as proposed unless accepted by existing Decision or user confirmation.",
+        "Output places bank transfer and automatic tax filing in not_now or deferred because D-030 says they are out of current scope."
+      ]
+    }
+  ]
+}

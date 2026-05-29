@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Governance Workflow"
+  short_description: "Govern goals, roadmaps, and evidence"
+  default_prompt: "Use $project-governance-workflow to calibrate Goals against Backlog, Reviews, Decisions, and Roadmap before planning Iterations and Tasks."
