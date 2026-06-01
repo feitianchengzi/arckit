@@ -1,0 +1,6 @@
+interface:
+  display_name: "ArcKit SwiftUI Local Data Lifecycle"
+  short_description: "SwiftUI 本地数据生命周期"
+  default_prompt: "使用 $arckit-swiftui-local-data-lifecycle 设计 SwiftUI 本地数据、缓存、迁移和 Widget 共享生命周期。"
+policy:
+  allow_implicit_invocation: true
