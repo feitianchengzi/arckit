@@ -1,0 +1,6 @@
+interface:
+  display_name: "ArcKit SwiftUI Foundation"
+  short_description: "SwiftUI Apple 客户端工程底座"
+  default_prompt: "使用 $arckit-swiftui-foundation 创建或整理 SwiftUI Apple 客户端工程底座。"
+policy:
+  allow_implicit_invocation: true

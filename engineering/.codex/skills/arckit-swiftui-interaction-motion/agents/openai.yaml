@@ -1,0 +1,6 @@
+interface:
+  display_name: "ArcKit SwiftUI Interaction Motion"
+  short_description: "SwiftUI 手势、交互和动画状态机"
+  default_prompt: "使用 $arckit-swiftui-interaction-motion 实现 SwiftUI 手势、动画、翻页、缩放和交互状态机。"
+policy:
+  allow_implicit_invocation: true
