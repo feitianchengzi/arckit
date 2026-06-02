@@ -1,0 +1,6 @@
+interface:
+  display_name: "ArcKit SwiftUI Performance Quality"
+  short_description: "SwiftUI 性能、卡顿治理与质量回归"
+  default_prompt: "使用 $arckit-swiftui-performance-quality 定位并治理 SwiftUI 卡顿、掉帧、重计算和质量回归。"
+policy:
+  allow_implicit_invocation: true

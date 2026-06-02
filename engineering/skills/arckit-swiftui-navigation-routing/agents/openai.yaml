@@ -1,0 +1,6 @@
+interface:
+  display_name: "ArcKit SwiftUI Navigation Routing"
+  short_description: "SwiftUI 导航、路由与外部入口"
+  default_prompt: "使用 $arckit-swiftui-navigation-routing 实现 SwiftUI 导航、Deep Link 和外部入口路由。"
+policy:
+  allow_implicit_invocation: true

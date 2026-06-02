@@ -1,0 +1,6 @@
+interface:
+  display_name: "ArcKit SwiftUI Release Observability"
+  short_description: "SwiftUI 发布配置与线上观测"
+  default_prompt: "使用 $arckit-swiftui-release-observability 检查 SwiftUI App 发布配置、隐私声明、埋点和日志。"
+policy:
+  allow_implicit_invocation: true
