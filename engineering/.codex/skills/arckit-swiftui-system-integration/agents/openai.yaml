@@ -1,6 +1,0 @@
-interface:
-  display_name: "ArcKit SwiftUI System Integration"
-  short_description: "SwiftUI 与 Apple 系统能力集成"
-  default_prompt: "使用 $arckit-swiftui-system-integration 接入 SwiftUI 与 Apple 系统能力并隔离必要桥接。"
-policy:
-  allow_implicit_invocation: true

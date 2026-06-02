@@ -1,6 +1,0 @@
-interface:
-  display_name: "ArcKit SwiftUI View Composition"
-  short_description: "SwiftUI 页面组织与组件拆分"
-  default_prompt: "使用 $arckit-swiftui-view-composition 实现 SwiftUI 页面组织、组件拆分和设计系统落地。"
-policy:
-  allow_implicit_invocation: true

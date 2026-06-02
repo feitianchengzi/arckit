@@ -1,6 +1,0 @@
-interface:
-  display_name: "ArcKit SwiftUI State Dataflow"
-  short_description: "SwiftUI 状态、数据流与分层边界"
-  default_prompt: "使用 $arckit-swiftui-state-dataflow 梳理 SwiftUI 状态、数据流和 View/Model/Service 边界。"
-policy:
-  allow_implicit_invocation: true

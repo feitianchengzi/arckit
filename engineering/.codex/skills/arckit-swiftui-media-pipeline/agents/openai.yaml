@@ -1,6 +1,0 @@
-interface:
-  display_name: "ArcKit SwiftUI Media Pipeline"
-  short_description: "SwiftUI 图片与媒体资源管线"
-  default_prompt: "使用 $arckit-swiftui-media-pipeline 实现 SwiftUI 图片加载、缓存、上传、失败重试和查看器。"
-policy:
-  allow_implicit_invocation: true

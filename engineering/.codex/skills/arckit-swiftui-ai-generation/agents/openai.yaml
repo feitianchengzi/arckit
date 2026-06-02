@@ -1,6 +1,0 @@
-interface:
-  display_name: "ArcKit SwiftUI AI Generation"
-  short_description: "SwiftUI 客户端 AI 生成链路"
-  default_prompt: "使用 $arckit-swiftui-ai-generation 实现 SwiftUI AI 生成、prompt、stream、解析、质量门和重试。"
-policy:
-  allow_implicit_invocation: true
