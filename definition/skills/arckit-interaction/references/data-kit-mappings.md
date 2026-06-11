@@ -158,12 +158,12 @@
 ```html
 <div class="device-frame desktop" data-kit="HSplitView">
   <div class="split-h">
-    <div class="panel" data-kit="List(sidebar)" style="width:260px;">侧边栏</div>
+    <div class="panel sidebar" data-kit="List(sidebar)">侧边栏</div>
     <div class="split-divider-h"></div>
     <div class="split-v" data-kit="VSplitView">
       <div class="panel">主编辑区</div>
       <div class="split-divider-v"></div>
-      <div class="panel" style="height:200px;">底部面板</div>
+      <div class="panel">底部面板</div>
     </div>
   </div>
 </div>

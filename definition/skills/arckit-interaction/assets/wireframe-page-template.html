@@ -27,8 +27,11 @@
         - 错误：wireframe-canvas > [ device-frame 与 业务内容 平级 ]
 
         ## 状态要求
-        至少 4 个状态（加载中/成功/空状态/错误），每个用 <details> 包裹，第一个设置 open。
+        简单页面至少 4 个状态（加载中/成功/空状态/错误），每个用 <details> 包裹，第一个设置 open。
+        复杂流程必须按真实任务阶段拆成独立 <details> 状态块，例如入口、选择、预览、修正、执行、完成、失败恢复、权限恢复。
+        每个关键任务阶段都要在 HTML 中可见；不要只在 interaction.md 中描述。
         弹窗/对话框若存在，作为独立状态或内嵌在触发状态中。
+        弹窗/对话框过多时，可拆 overlays.html，但必须在 INDEX 与 interaction.md 中引用。
 
         ## 状态结构（每个必须包含）
         <details [open]>
@@ -79,6 +82,12 @@
         占位:    .placeholder-box .icon-placeholder .avatar .image-placeholder .spinner
         状态:    .badge .progress-bar .empty-state
         弹窗:    .modal-overlay .modal-content
+
+        ## 完成前自检
+        - 复杂流程的关键阶段是否都有独立 <details>
+        - 每个 <details> 是否都有触发条件、组件清单、交互行为
+        - 所有业务 UI 是否都在 device-frame 内
+        - 是否没有内联 style、脚本、品牌色/彩色
         -->
 
         <!-- ===== 示例：iOS 移动端页面 ===== -->
@@ -99,7 +108,7 @@
                         <div class="content-area">
                             <div class="placeholder-box">
                                 <div class="spinner"></div>
-                                <p style="margin-top:1rem;">加载中...</p>
+                                <p>加载中...</p>
                             </div>
                         </div>
                     </div>
@@ -151,7 +160,7 @@
                             <div class="content-area">...</div>
                         </div>
                         <div class="split-divider-v"></div>
-                        <div class="panel" data-kit="InspectorView" style="height:200px;">
+                        <div class="panel" data-kit="InspectorView">
                             <div class="panel-header">底部面板</div>
                             <div class="content-area">...</div>
                         </div>
