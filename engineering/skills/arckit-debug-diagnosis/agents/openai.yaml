@@ -1,0 +1,6 @@
+interface:
+  display_name: "ArcKit Debug Diagnosis"
+  short_description: "bug 定位思路、证据验证、最小修复与沉淀建议"
+  default_prompt: "使用 $arckit-debug-diagnosis 从症状提取事实，按项目上下文提出假设，设计观察点验证并完成最小修复。"
+policy:
+  allow_implicit_invocation: true

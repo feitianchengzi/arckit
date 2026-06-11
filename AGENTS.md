@@ -13,7 +13,7 @@ agent capability types over time. Reusable skills must live under that directory
 - `definition/`: project definition artifacts, including product specifications, interaction design, visual design, and technical solutions.
 - `memory/`: agent memory entry points and repository context navigation, such as maintaining `AGENTS.md`, `CLAUDE.md`, project indexes, and context maps.
 - `media/`: media production and operations capabilities, including video production, social media operations, publishing workflows, and cross-platform adaptation.
-- `engineering/`: implementation-focused capabilities, including platform development, frontend/backend practices, authentication integration, and concrete coding workflows.
+- `engineering/`: technology-agnostic engineering workflows, including debugging, regression diagnosis, implementation coordination, refactoring strategy, and code-level investigation patterns.
 - `quality/`: validation-focused capabilities, including code review, testing strategy, regression checks, acceptance checks, and release readiness review.
 - `delivery/`: deployment, release, runtime environment, operations, monitoring, and incident handling.
 
@@ -27,7 +27,8 @@ Use the skill's primary purpose to choose a directory:
 - If it defines what the project is, how it behaves, how it looks, or how it is technically shaped, place it under `definition/skills/`.
 - If it helps agents understand and reuse project context across sessions, place it under `memory/skills/`.
 - If it supports media production, video creation, social media operations, publishing, or platform adaptation, place it under `media/skills/`.
-- If it tells agents how to implement something, place it under `engineering/skills/`.
+- If it guides technology-agnostic engineering diagnosis, implementation coordination, refactoring strategy, or code-level investigation, place it under `engineering/skills/`.
+- If it tells agents how to code in a specific language, framework, platform, or stack, do not place it in this repository; maintain it in `arckit-code`.
 - If it checks whether implementation is correct and reliable, place it under `quality/skills/`.
 - If it helps ship, deploy, operate, or recover the system, place it under `delivery/skills/`.
 
@@ -37,7 +38,7 @@ When a skill could fit multiple directories, choose the one closest to the actio
 
 Skills may reference each other as soft collaborators, but should not require runtime skill imports. A product or artifact skill can say that it may use the output of a method skill, but it must still describe its own inputs, outputs, and maintenance workflow. Prefer the relationship "upstream analysis output -> downstream artifact maintenance" over hidden automatic invocation.
 
-For example, an authentication architecture note belongs in `definition/skills/`, but a step-by-step gateway login implementation skill belongs in `engineering/skills/`.
+For example, an authentication architecture note belongs in `definition/skills/`, a step-by-step gateway login implementation skill belongs in `arckit-code`, and a general debugging or regression-diagnosis workflow belongs in `engineering/skills/`.
 
 ## Current Skill Placement
 
@@ -50,13 +51,13 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - Technical solution: `definition/skills/`
 - Project pending context management: `memory/skills/`
 - Media production, video, and social operations: `media/skills/`
-- iOS SwiftUI development: `engineering/skills/`
-- Nebula Gateway frontend login and backend authentication: `engineering/skills/`
+- General debug diagnosis and implementation troubleshooting: `engineering/skills/`
+- Technology-stack-specific coding skills: maintained in `arckit-code`, not this repository.
 - Server deployment: `delivery/skills/`
 
 ## Skill Folder Convention
 
 Each skill should be a self-contained folder under a top-level directory's `skills/` directory with a required `SKILL.md`.
-Use lowercase kebab-case names, such as `product-spec` or `ios-swiftui-development`.
+Use lowercase kebab-case names, such as `product-spec` or `arckit-debug-diagnosis`.
 
 Keep `SKILL.md` focused on the core workflow. Put detailed references, scripts, templates, or assets inside the skill folder only when they directly support that skill.
