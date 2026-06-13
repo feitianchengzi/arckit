@@ -3,7 +3,7 @@ name: arckit-interaction
 description: "维护 arckit/interaction/ 下的页面级交互策略、灰度线框 HTML 和交互文档。用于用户要求查询、新建、更新、拆分或归档页面流程、状态、表单、导航、线框或交互规则时；输出涉及的 interaction 路径、依据和摘要。"
 ---
 
-# ArcKit Interaction — 交互设计维护
+# ArcKit Interaction
 
 管理 `arckit/interaction/` 的交互策略、线框图与交互文档，遵循「INDEX 驱动、页面拆分、动态拆解、Progressive Disclosure」原则。交互策略是源，线框与交互规范是投影；执行流程、脚本入口和路径约定保持稳定。
 

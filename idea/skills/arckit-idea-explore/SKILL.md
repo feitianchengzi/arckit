@@ -3,7 +3,7 @@ name: arckit-idea-explore
 description: 当用户明确要求深度探索一个产品创意、梳理目标用户和核心假设、模拟用户反馈、形成支持率判断，或生成可视化线框图时使用。通过对话探索和 AI 模拟用户研究，维护 arckit/idea-explore/{idea-name}/ 下的 idea.md 与 idea.html。
 ---
 
-# ArcKit Idea Explore — 深度创意探索与可视化
+# ArcKit Idea Explore
 
 管理 `arckit/idea-explore/` 下的创意探索文档与可视化产物。核心职责：把产品创意探索过程沉淀为 `idea.md` 和 `idea.html`，形成清晰的 Arckit 产物。
 

@@ -5,7 +5,7 @@ description: |
   典型输入是客户需求、合作线索、内部产品创意、已有条目的进展、状态变化、补充信息或复盘记录；典型产物是 business-opportunities/ 或 product-ideas/ 下的详情文件和主索引。
 ---
 
-# ArcKit Idea — 商机与产品创意管理
+# ArcKit Idea
 
 管理 `arckit/idea/` 下两类追踪数据：**商机**（客户驱动）和**产品创意**（内部驱动）。
 

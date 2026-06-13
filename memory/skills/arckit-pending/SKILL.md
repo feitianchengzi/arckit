@@ -3,7 +3,7 @@ name: arckit-pending
 description: 管理目标项目 arckit/pending 工作区中的项目级未决讨论项。当用户想新增、列出、读取、更新、删除、归档、恢复或提升 pending issues、讨论分支、延后想法、开放问题，或 agent 协作过程中捕获但尚未决定的项目上下文时使用。
 ---
 
-# Arckit Pending
+# ArcKit Pending
 
 使用本 skill 维护 agent 协作过程中出现、但还不适合成为正式 spec、interaction 文档、technical solution、iteration task 或 implementation change 的未决项目上下文。
 

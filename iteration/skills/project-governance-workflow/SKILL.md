@@ -3,7 +3,7 @@ name: project-governance-workflow
 description: 治理小团队和 AI 协作中的项目验证与执行循环。当 Codex 需要把想法、需求、笔记、反馈、专家分析或既有项目文档路由到 Backlog、Goal、scope 边界、Iteration、Task、Review、Decision、Roadmap、current/reference/archive/index 结构或 Project Plan 产物时使用；也用于规划最短可用版本路径、防止规划文档膨胀成一个不可读文件、设计或修复长期项目的文件层级和文档归属、澄清 Goals 与 Iterations/Tasks 的关系，以及把领域建模、产品定义或交互验证结果交回项目执行。
 ---
 
-# 项目治理工作流
+# Project Governance Workflow
 
 把本 skill 作为项目治理层：连接焦点、范围、证据、决策、专家交接和路线图变化。
 

@@ -3,7 +3,7 @@ name: arckit-spec
 description: "维护 arckit/spec/ 下的产品功能规格、行为规则、验收口径和模块化规格索引。用于用户要求查询、新建、更新、拆分或归档稳定的产品规格文档时；输出变更涉及的 spec 路径和一句话摘要。"
 ---
 
-# ArcKit Spec — 产品功能规格维护
+# ArcKit Spec
 
 管理 `arckit/spec/` 的功能规格，遵循「INDEX 驱动、动态拆解、Progressive Disclosure」原则。
 

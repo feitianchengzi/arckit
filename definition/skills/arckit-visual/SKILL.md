@@ -3,7 +3,7 @@ name: arckit-visual
 description: "维护 arckit/visual/ 下的视觉风格策略、Design Tokens、主题和组件视觉规格。用于用户要求查询、新建、更新、拆分或归档品牌调性、视觉语言、token、主题或组件视觉规则时；输出涉及的 visual 路径、依据和摘要。"
 ---
 
-# ArcKit Visual — 视觉设计系统维护
+# ArcKit Visual
 
 管理 `arckit/visual/` 的视觉风格策略与 Design System，遵循「INDEX 驱动、动态拆解、Progressive Disclosure」原则。风格是源，视觉规范是投影；执行流程、脚本入口和路径约定保持稳定。专注于建立和维护系统化的视觉语言，不做业务页面的视觉稿。
 

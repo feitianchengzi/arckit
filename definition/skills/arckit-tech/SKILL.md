@@ -3,7 +3,7 @@ name: arckit-tech
 description: "维护 arckit/tech/ 下的技术方案、架构说明、数据模型和 API 契约。用于用户要求查询、新建、更新、拆分或归档可沉淀的技术设计、实现约束、模型或接口契约时；输出变更涉及的 tech 路径和一句话摘要。"
 ---
 
-# ArcKit Tech — 技术方案+数据契约维护
+# ArcKit Tech
 
 管理 `arckit/tech/` 的技术文档与数据契约，遵循「INDEX 驱动、动态拆解、Progressive Disclosure」原则。
 

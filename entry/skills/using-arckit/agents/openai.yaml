@@ -1,4 +1,4 @@
 interface:
-  display_name: "使用 Arckit"
-  short_description: "为软件项目任务选择 Arckit 工作流"
-  default_prompt: "使用 $using-arckit 为软件项目任务选择合适的 Arckit 工作流。"
+  display_name: "Using ArcKit"
+  short_description: "软件项目协作的默认 ArcKit 路由入口"
+  default_prompt: "使用 $using-arckit 先判断软件项目协作场景，说明 ArcKit 能力，并选择最小必要的 ArcKit workflow。"
