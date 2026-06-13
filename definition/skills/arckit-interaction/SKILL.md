@@ -1,11 +1,11 @@
 ---
 name: arckit-interaction
-description: "Maintain page-based interaction strategy, minimal wireframe-style HTML, and interaction docs in arckit/interaction/ (grayscale + line-only; no brand/color). Interaction strategy is the source; wireframes and specs are projections. INDEX-driven analysis, strict page-level directories, cross-references. Outputs document scope (query: path + summary; change: path + source_basis + summary). Triggers on interaction, wireframe, data-kit, 交互."
+description: "维护 arckit/interaction/ 下的页面级交互策略、灰度线框 HTML 和交互文档。用于用户要求查询、新建、更新、拆分或归档页面流程、状态、表单、导航、线框或交互规则时；输出涉及的 interaction 路径、依据和摘要。"
 ---
 
 # ArcKit Interaction — 交互设计维护
 
-管理 `arckit/interaction/` 的交互策略、线框图与交互文档，遵循「INDEX 驱动、页面拆分、动态拆解、渐进式揭示」原则。交互策略是源，线框与交互规范是投影；执行流程、脚本入口和路径约定保持稳定。
+管理 `arckit/interaction/` 的交互策略、线框图与交互文档，遵循「INDEX 驱动、页面拆分、动态拆解、Progressive Disclosure」原则。交互策略是源，线框与交互规范是投影；执行流程、脚本入口和路径约定保持稳定。
 
 ## 核心结构
 
@@ -108,15 +108,15 @@ interaction/
 
 **若判定为查询**：
 1. 只读 `arckit/interaction/INDEX.md`（必要时按需读少量相关文档）。
-2. 输出「文档范围」后**结束**，不执行任何写操作。输出格式见下方「最终输出：文档范围」之 `scope_kind: query`。
+2. 输出 `document_scope` 后**结束**，不执行任何写操作。输出格式见下方「最终输出：document_scope」之 `scope_kind: query`。
 
-**若判定为变更**：继续执行「INDEX 全局分析」及后续步骤；执行结束后必须输出「文档范围」，格式见 `scope_kind: change`。
+**若判定为变更**：继续执行「INDEX 全局分析」及后续步骤；执行结束后必须输出 `document_scope`，格式见 `scope_kind: change`。
 
 ---
 
-### 最终输出：文档范围（每次调用结束前必须输出）
+### 最终输出：document_scope（每次调用结束前必须输出）
 
-本 Skill 的**唯一结果形态**是「文档范围」：调用方据此知道本次在 `arckit/interaction/` 下涉及了哪些页面文件，以及每项的一句话总结。
+本 Skill 的**唯一 Output Contract** 是 `document_scope`：调用方据此知道本次在 `arckit/interaction/` 下涉及了哪些页面文件，以及每项的一句话总结。
 
 **查询结束时**（只读，无写操作）：
 ```yaml

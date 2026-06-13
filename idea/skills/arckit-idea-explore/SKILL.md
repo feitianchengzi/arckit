@@ -1,26 +1,15 @@
 ---
 name: arckit-idea-explore
-description: 引导产品创意从模糊想法到可验证假设，通过对话探索、AI 模拟用户研究、支持率决策，产出结构化 idea.md 和可视化 idea.html，存储在 arckit/idea-explore/{idea-name}/ 独立文件夹中。手动触发：用于深度创意探索和可视化线框图生成。
+description: 当用户明确要求深度探索一个产品创意、梳理目标用户和核心假设、模拟用户反馈、形成支持率判断，或生成可视化线框图时使用。通过对话探索和 AI 模拟用户研究，维护 arckit/idea-explore/{idea-name}/ 下的 idea.md 与 idea.html。
 ---
 
 # ArcKit Idea Explore — 深度创意探索与可视化
 
 管理 `arckit/idea-explore/` 下的创意探索文档与可视化产物。核心职责：把产品创意探索过程沉淀为 `idea.md` 和 `idea.html`，形成清晰的 Arckit 产物。
 
-## 与 decision-framework 的关系
+## 产物边界
 
-`decision-framework` 是跨生命周期思考工具，负责第一性原理、产品价值评估和苏格拉底追问等通用判断方法。
-
-`arckit-idea-explore` 是产品创意探索的产物编排 skill，负责维护 `arckit/idea-explore/{idea-name}/` 下的 `idea.md` 和 `idea.html`。它可以参考 `decision-framework` 的分析结论，但不应把关键产物维护步骤隐藏到另一个 skill 中。
-
-## 与 arckit-idea 的区别
-
-| 维度 | arckit-idea | arckit-idea-explore |
-|------|-------------|---------------------|
-| 产物 | 商机或产品创意详情文件 + 对应主索引 | `idea.md` + `idea.html` 线框图 |
-| 存储 | `arckit/idea/business-opportunities/` 或 `arckit/idea/product-ideas/` | `arckit/idea-explore/{idea-name}/` 独立文件夹 |
-| 触发 | Agent 自动识别 | 手动 `/arckit-idea-explore` |
-| 定位 | 轻量日常记录 | 深度探索产物编排 + 可视化输出 |
+每个探索对象独立维护一个目录，目录内必须能表达完整探索过程、关键假设、模拟用户反馈、支持率结论和可视化线框图。
 
 ## 目录结构
 
@@ -91,6 +80,11 @@ arckit/idea-explore/
 - [ ] 模拟完整（正方 3-5 人 / 反方 2-3 人 / 中立 1-2 人）
 - [ ] 支持率计算正确
 - [ ] 后续建议明确（继续 / 调整 / 放弃）
+
+**关键判断点：**
+- 问题定义、目标用户、核心价值或继续/调整/放弃结论不稳时，先做轻量决策检查。
+- 决策检查只产出可回填片段，不另建独立决策产物，除非用户明确要求。
+- 把判断结果写入 `idea.md` 的核心假设、用户研究模拟、后续建议或探索记录。
 
 ### 阶段 2：生成结构化文档
 

@@ -4,7 +4,7 @@
 
 ## 维护约定
 
-- Pack 内 `skills/` 是唯一事实来源；Desktop 根据当前选择的底层 agent 同步到该 agent 可访问的 skill 目录。
+- Pack 内 `skills/` 是唯一 source of truth；Desktop 根据当前选择的底层 agent 同步到该 agent 可访问的 skill 目录。
 - 新增或删除 skill 时，同步更新 `../pack.yaml` 的 `skills` 清单。
 - Pack skill 不声明 agent 白名单；agent 适配能力由 Desktop 同步层决定。
 - 多个 arckit 文档类 skill 共享 `_arckit_shared/content-spec.md`。

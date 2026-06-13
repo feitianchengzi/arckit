@@ -1,0 +1,4 @@
+interface:
+  display_name: "使用 Arckit"
+  short_description: "为软件项目任务选择 Arckit 工作流"
+  default_prompt: "使用 $using-arckit 为软件项目任务选择合适的 Arckit 工作流。"

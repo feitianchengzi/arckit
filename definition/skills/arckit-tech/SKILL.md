@@ -1,11 +1,11 @@
 ---
 name: arckit-tech
-description: "Maintain technical solutions and data contracts in arckit/tech/ with INDEX-driven analysis. Auto-manages domain hierarchy, detects oversized docs, centralizes models/contracts in _shared. Outputs document scope (query/change: path + one-sentence summary per item under arckit/tech/). Triggers on tech, solution, research."
+description: "维护 arckit/tech/ 下的技术方案、架构说明、数据模型和 API 契约。用于用户要求查询、新建、更新、拆分或归档可沉淀的技术设计、实现约束、模型或接口契约时；输出变更涉及的 tech 路径和一句话摘要。"
 ---
 
 # ArcKit Tech — 技术方案+数据契约维护
 
-管理 `arckit/tech/` 的技术文档与数据契约，遵循「INDEX 驱动、动态拆解、渐进式揭示」原则。
+管理 `arckit/tech/` 的技术文档与数据契约，遵循「INDEX 驱动、动态拆解、Progressive Disclosure」原则。
 
 ## 核心结构
 
@@ -76,15 +76,15 @@ tech/
 
 **若判定为查询**：
 1. 只读 `arckit/tech/INDEX.md`（必要时按需读少量相关文档）。
-2. 输出「文档范围」后**结束**，不执行任何写操作。输出格式见下方「最终输出：文档范围」之 `scope_kind: query`。
+2. 输出 `document_scope` 后**结束**，不执行任何写操作。输出格式见下方「最终输出：document_scope」之 `scope_kind: query`。
 
-**若判定为变更**：继续执行「INDEX 全局分析」及后续步骤；执行结束后必须输出「文档范围」，格式见 `scope_kind: change`。
+**若判定为变更**：继续执行「INDEX 全局分析」及后续步骤；执行结束后必须输出 `document_scope`，格式见 `scope_kind: change`。
 
 ---
 
-### 最终输出：文档范围（每次调用结束前必须输出）
+### 最终输出：document_scope（每次调用结束前必须输出）
 
-本 Skill 的**唯一结果形态**是「文档范围」：调用方据此知道本次在 `arckit/tech/` 下涉及了哪些文件，以及每项的一句话总结。
+本 Skill 的**唯一 Output Contract** 是 `document_scope`：调用方据此知道本次在 `arckit/tech/` 下涉及了哪些文件，以及每项的一句话总结。
 
 **查询结束时**（只读，无写操作）：
 ```yaml

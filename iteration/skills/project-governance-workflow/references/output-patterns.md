@@ -1,8 +1,8 @@
 # Output Patterns
 
-Use this reference when the user asks for a plan, Goal Intake, next Goal recommendation, Roadmap draft, structure audit, or a project-specific governance document.
+当用户要求计划、Goal Intake、Next Goal Recommendation、Roadmap 草案、Structure Audit 或项目专属治理文档时，使用本参考。
 
-Keep prose in the user's system language. Keep structured field names in English.
+正文使用用户的系统语言。结构化字段名保持英文。
 
 ## Planning Artifact
 
@@ -34,7 +34,7 @@ goal_scope:
 
 ## Goal Intake
 
-Use this when the user proposes, changes, or asks to set a Goal. Do not accept the Goal from wording alone.
+当用户提出、修改或要求设定 Goal 时使用。不要只根据用户措辞直接接受 Goal。
 
 ```yaml
 goal_intake:
@@ -49,7 +49,7 @@ goal_intake:
 
 ## Next Goal Recommendation
 
-Use this when recommending what Goal to pursue next. The recommendation is proposed until the user confirms it or an accepted Decision already supports it.
+当需要建议下一步追求哪个 Goal 时使用。在用户确认之前，或没有已接受 Decision 支持之前，该建议仍只是提案。
 
 ```yaml
 next_goal_recommendation:
@@ -62,7 +62,7 @@ next_goal_recommendation:
   required_user_decision:
 ```
 
-## Iteration And Tasks
+## Iteration 和 Tasks
 
 ```yaml
 current_iteration:
@@ -87,7 +87,7 @@ tasks:
     evidence:
 ```
 
-## Review And Goal Progress
+## Review 和 Goal Progress
 
 ```yaml
 iteration_review:
@@ -112,7 +112,7 @@ goal_progress:
 
 ## Roadmap
 
-Roadmap is a sequencing layer, not a larger Goal. Every item needs `source` and `status`.
+Roadmap 是排序层，不是更大的 Goal。每个条目都需要 `source` 和 `status`。
 
 ```yaml
 roadmap:
@@ -144,7 +144,7 @@ roadmap:
 
 ## Small Project Variant
 
-For a very small project, a singular `current_goal` is acceptable, but do not imply that the Goal ends with the current Iteration.
+对于很小的项目，可以使用单数 `current_goal`，但不要暗示该 Goal 会随着当前 Iteration 结束。
 
 ```yaml
 current_goal:
@@ -167,7 +167,7 @@ current_iteration:
 
 ## Structure Audit
 
-Use this before editing when the user asks for document hierarchy, growth control, archive, retrieval, or migration.
+当用户要求文档层级、增长控制、归档、检索或迁移时，编辑前先使用本结构。
 
 ```yaml
 structure_audit:
@@ -182,24 +182,24 @@ structure_audit:
   link_risk:
 ```
 
-## Project-Specific Markdown Document
+## 项目专属 Markdown 文档
 
-When the user asks for a reusable or project-specific governance document, include:
+当用户要求可复用或项目专属治理文档时，包含：
 
-- Current context
-- Backlog sources
-- Active Goals
-- Goal scope boundary
-- Iteration plan and Goal mix
-- Task list
-- Iteration Review checklist
-- Goal Progress Review checklist
-- Decision log
-- Roadmap adjustment
+- 当前上下文
+- Backlog 来源
+- 活跃 Goals
+- Goal 范围边界
+- Iteration 计划和 Goal 组合
+- Task 列表
+- Iteration Review 检查清单
+- Goal Progress Review 检查清单
+- Decision 记录
+- Roadmap 调整
 
-When the project uses multiple documents, produce or update:
+当项目使用多个文档时，创建或更新：
 
-- A short entry document with a document map.
-- One artifact document per planning concern.
-- Cross-links between related documents.
-- A note about which file should be edited for common updates.
+- 一个带文档地图的简短入口文档。
+- 每个 planning concern 对应一个 artifact 文档。
+- 相关文档之间的交叉链接。
+- 一段说明：常见更新应该编辑哪个文件。

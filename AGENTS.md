@@ -7,6 +7,7 @@ agent capability types over time. Reusable skills must live under that directory
 
 ## Directory Map
 
+- `entry/`: cross-lifecycle entry points, skill routing, workflow composition, and scenario-to-skill orchestration.
 - `idea/`: opportunity discovery, idea collection, idea analysis, user feedback synthesis, and early problem framing.
 - `thinking/`: cross-lifecycle reasoning, decision frameworks, structured analysis, problem reframing, and review thinking tools.
 - `iteration/`: project iteration management, milestone planning, version rhythm, prioritization, and execution cadence.
@@ -21,6 +22,7 @@ agent capability types over time. Reusable skills must live under that directory
 
 Use the skill's primary purpose to choose a directory:
 
+- If it is the top-level entry point that routes user scenarios across multiple lifecycle skills, place it under `entry/skills/`.
 - If it helps decide whether an idea is worth pursuing, place it under `idea/skills/`.
 - If it provides reusable reasoning, decision, critique, or structured thinking methods across multiple lifecycle stages, place it under `thinking/skills/`.
 - If it manages when and how work moves forward, place it under `iteration/skills/`.
@@ -42,7 +44,9 @@ For example, an authentication architecture note belongs in `definition/skills/`
 
 ## Current Skill Placement
 
+- Arckit entry routing and workflow composition: `entry/skills/`
 - Project iteration management: `iteration/skills/`
+- Workshop Desktop execution bridge: `iteration/skills/`
 - Cross-lifecycle thinking and decision frameworks: `thinking/skills/`
 - Idea collection and analysis: `idea/skills/`
 - Product specification: `definition/skills/`

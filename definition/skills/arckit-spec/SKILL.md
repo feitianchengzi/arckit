@@ -1,11 +1,11 @@
 ---
 name: arckit-spec
-description: "Maintain product specifications in arckit/spec/ with INDEX-driven dynamic analysis. Auto-splits oversized files, manages hierarchical structure, and maintains cross-references. Outputs document scope (query/change: path + one-sentence summary per item under arckit/spec/). Triggers on spec, feature, requirement."
+description: "维护 arckit/spec/ 下的产品功能规格、行为规则、验收口径和模块化规格索引。用于用户要求查询、新建、更新、拆分或归档稳定的产品规格文档时；输出变更涉及的 spec 路径和一句话摘要。"
 ---
 
 # ArcKit Spec — 产品功能规格维护
 
-管理 `arckit/spec/` 的功能规格，遵循「INDEX 驱动、动态拆解、渐进式揭示」原则。
+管理 `arckit/spec/` 的功能规格，遵循「INDEX 驱动、动态拆解、Progressive Disclosure」原则。
 
 ## 核心结构
 
@@ -63,15 +63,15 @@ spec/
 
 **若判定为查询**：
 1. 只读 `arckit/spec/INDEX.md`（必要时按需读少量相关文档）。
-2. 输出「文档范围」后**结束**，不执行任何写操作。输出格式见下方「最终输出：文档范围」之 `scope_kind: query`。
+2. 输出 `document_scope` 后**结束**，不执行任何写操作。输出格式见下方「最终输出：document_scope」之 `scope_kind: query`。
 
-**若判定为变更**：继续执行「INDEX 全局分析」及后续步骤；执行结束后必须输出「文档范围」，格式见 `scope_kind: change`。
+**若判定为变更**：继续执行「INDEX 全局分析」及后续步骤；执行结束后必须输出 `document_scope`，格式见 `scope_kind: change`。
 
 ---
 
-### 最终输出：文档范围（每次调用结束前必须输出）
+### 最终输出：document_scope（每次调用结束前必须输出）
 
-本 Skill 的**唯一结果形态**是「文档范围」：调用方据此知道本次在 `arckit/spec/` 下涉及了哪些文件，以及每项的一句话总结。
+本 Skill 的**唯一 Output Contract** 是 `document_scope`：调用方据此知道本次在 `arckit/spec/` 下涉及了哪些文件，以及每项的一句话总结。
 
 **查询结束时**（只读，无写操作）：
 ```yaml

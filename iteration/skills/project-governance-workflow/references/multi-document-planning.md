@@ -1,49 +1,49 @@
 # Multi-Document Planning
 
-Use this reference when a project plan has outgrown one file or the user asks to split, reorganize, or maintain planning docs across files.
+当项目计划已经不适合放在一个文件中，或用户要求拆分、重组、长期维护规划文档时，使用本参考。
 
-## Table Of Contents
+## 目录
 
-- [When To Split](#when-to-split)
-- [Folder Layers](#folder-layers)
-- [Recommended Layout](#recommended-layout)
-- [Granularity Rules](#granularity-rules)
-- [Hierarchical Retrieval](#hierarchical-retrieval)
+- [何时拆分](#何时拆分)
+- [文件夹分层](#文件夹分层)
+- [推荐布局](#推荐布局)
+- [粒度规则](#粒度规则)
+- [分层检索](#分层检索)
 - [Context Hygiene](#context-hygiene)
 - [Artifact Homes](#artifact-homes)
-- [Migration Steps](#migration-steps)
+- [迁移步骤](#迁移步骤)
 - [Growth Triggers](#growth-triggers)
 - [Growth Steps](#growth-steps)
 - [Update Routing](#update-routing)
 - [Quality Checks](#quality-checks)
 
-## When To Split
+## 何时拆分
 
-Split a single plan file when one or more are true:
+满足以下任一条件时，拆分单一计划文件：
 
-- The file is hard to scan or regularly exceeds a few hundred lines.
-- Several iterations or MVP stages are mixed together.
-- Tasks, decisions, reviews, and roadmap changes are all edited in the same place.
-- Users ask for clearer document ownership or easier continuation by future agents.
+- 文件已经难以扫描，或经常超过几百行。
+- 多个 iterations 或 MVP 阶段混在一起。
+- Tasks、decisions、reviews 和 roadmap changes 都在同一位置编辑。
+- 用户要求更清晰的文档归属，或希望未来 agent 更容易接续。
 
-Keep one file when the project is still small, short-lived, or mostly a one-off planning note.
+如果项目仍然很小、生命周期很短，或主要只是一次性 planning note，可以继续保持一个文件。
 
-## Folder Layers
+## 文件夹分层
 
-Organize by information lifetime and edit frequency before choosing file names:
+先按信息生命周期和编辑频率组织，再决定文件名：
 
-| Layer | Typical files | What belongs here | What does not belong here |
+| 层级 | 典型文件 | 应放内容 | 不应放内容 |
 | --- | --- | --- | --- |
-| Entry | `docs/project-plan.md`, optional `docs/project/README.md` | Short current focus, document map, editing rules. | Full history, task evidence, long analysis. |
-| Active core | `docs/project/current.md` | Active Goals, current/next Iteration, active task order, open gates, current Roadmap summary. | Completed iterations, old reviews, full task bodies, historical roadmap states. |
-| Workflow ledgers | `backlog.md` or `workflow/backlog/*`, `plans.md` or `workflow/goals/*`, `scopes.md` or `workflow/scopes/*`, `iterations.md` or `workflow/iterations/*`, `decisions.md` or `workflow/decisions/*`, `roadmap.md` or `workflow/roadmap/*` | Source of truth for governance objects and evidence. | Durable domain/product/architecture essays. |
-| Reference library | `reference/domain/`, `reference/product/`, `reference/interaction/`, `reference/architecture/`, `reference/data/`, `reference/prototypes/` | Long-lived specialist knowledge that informs the workflow. | Active task status, decision candidates without routing. |
-| Indexes | `indexes/id-registry.md`, `indexes/active-task-index.md`, `indexes/decision-index.md`, `indexes/document-map.md` | Navigation, lookup, cross-file pointers. | Original decisions, task evidence, requirements text. |
-| Archive | `archive/superseded/`, `archive/exports/`, optional cold-storage folders | Superseded plans, generated exports, old snapshots, cold material that is no longer part of normal retrieval. | Active work, unresolved decisions, or canonical iteration shards. |
+| Entry | `docs/project-plan.md`，可选 `docs/project/README.md` | 简短当前焦点、文档地图、编辑规则。 | 完整历史、任务证据、长分析。 |
+| Active core | `docs/project/current.md` | Active Goals、当前/下一轮 Iteration、活跃 task 顺序、open gates、当前 Roadmap 摘要。 | 已完成 iterations、旧 reviews、完整 task 正文、历史 roadmap 状态。 |
+| Workflow ledgers | `backlog.md` 或 `workflow/backlog/*`、`plans.md` 或 `workflow/goals/*`、`scopes.md` 或 `workflow/scopes/*`、`iterations.md` 或 `workflow/iterations/*`、`decisions.md` 或 `workflow/decisions/*`、`roadmap.md` 或 `workflow/roadmap/*` | 治理对象和证据的 source of truth。 | 持久 domain/product/architecture 长文。 |
+| Reference library | `reference/domain/`、`reference/product/`、`reference/interaction/`、`reference/architecture/`、`reference/data/`、`reference/prototypes/` | 长期有效、用于支撑 workflow 的专家知识。 | 活跃 task 状态，未路由的 decision candidates。 |
+| Indexes | `indexes/id-registry.md`、`indexes/active-task-index.md`、`indexes/decision-index.md`、`indexes/document-map.md` | 导航、查找、跨文件指针。 | 原始 decisions、task evidence、requirements 正文。 |
+| Archive | `archive/superseded/`、`archive/exports/`，可选冷存储文件夹 | 被替代计划、生成导出、旧快照、正常检索不再需要的冷材料。 | 活跃工作、未解决 decisions、规范 iteration shards。 |
 
-## Recommended Layout
+## 推荐布局
 
-Use the standard layout when the planning set is multi-document but still easy to scan:
+当 planning set 已经多文档化、但仍然容易扫描时，使用标准布局：
 
 ```text
 docs/project-plan.md
@@ -62,9 +62,9 @@ docs/project/archive/
 docs/project/indexes/
 ```
 
-`docs/project-plan.md` should stay short. It should explain the current focus, link to the artifact files, and describe the editing rule. `current.md` is optional but useful once the standard artifact files become long; keep only active Goals, current/next Iteration, active Tasks, open Decisions, and current Roadmap there.
+`docs/project-plan.md` 应保持短小。它只解释当前焦点、链接 artifact files，并说明编辑规则。当标准 artifact files 变长后，`current.md` 会很有用；其中只保留 active Goals、current/next Iteration、active Tasks、open Decisions 和 current Roadmap。
 
-Use the canonical scalable layout when `docs/project/` has become crowded, reference docs are numerous, workflow ledgers are too long to maintain comfortably, or the user asks for unlimited growth and hierarchical retrieval:
+当 `docs/project/` 已经拥挤、reference docs 很多、workflow ledgers 难以维护，或用户要求无限增长和分层检索时，使用规范可扩展布局：
 
 ```text
 docs/project-plan.md
@@ -116,165 +116,165 @@ docs/project/
     exports/
 ```
 
-Do not migrate an existing flat layout just for aesthetics. If links already depend on root-level files, first add `reference/README.md`, `indexes/id-registry.md`, and `archive/README.md`; then move only the areas whose current location is causing real lookup or edit problems.
+不要只因为美观迁移既有 flat layout。如果链接已经依赖根级文件，先增加 `reference/README.md`、`indexes/id-registry.md` 和 `archive/README.md`；然后只移动确实造成检索或编辑问题的区域。
 
-In the scalable layout, every growing concern has a shard key:
+在可扩展布局中，每个增长关注点都有 shard key：
 
-| Concern | Shard key | Active view |
+| 关注点 | 分片键 | 活跃视图 |
 | --- | --- | --- |
 | Backlog | status + quarter | `workflow/backlog/open.md` |
-| Goal | `G-*` | `workflow/goals/index.md` and `current.md` |
-| Scope | `G-*` or `I-*` | `workflow/scopes/index.md` and `current.md` |
-| Iteration plan, Goal mix, tasks, review, evidence | `I-*` | `workflow/iterations/index.md` and `current.md` |
+| Goal | `G-*` | `workflow/goals/index.md` 和 `current.md` |
+| Scope | `G-*` 或 `I-*` | `workflow/scopes/index.md` 和 `current.md` |
+| Iteration plan、Goal mix、tasks、review、evidence | `I-*` | `workflow/iterations/index.md` 和 `current.md` |
 | Decision | year + `D-*` | `workflow/decisions/open.md` |
-| Roadmap | current sequencing plus quarter history | `workflow/roadmap/current.md` |
+| Roadmap | 当前排序加季度历史 | `workflow/roadmap/current.md` |
 | Reference | area + topic | `reference/<area>/README.md` |
 
-## Granularity Rules
+## 粒度规则
 
-Do not make every ID its own file. File boundaries should reduce retrieval and editing cost; too many tiny files create a different maintenance problem.
+不要让每个 ID 都单独成文件。文件边界应该降低检索和编辑成本；过多小文件会制造另一种维护问题。
 
-Use these defaults:
+默认规则：
 
-| Artifact | Default | Create separate file when | Avoid separate file when |
+| 产物 | 默认位置 | 何时创建独立文件 | 何时避免独立文件 |
 | --- | --- | --- | --- |
-| Backlog item `B-*` | Keep in `workflow/backlog/open.md`, `deferred/YYYY-QN.md`, or `closed/YYYY-QN.md`. | It is a large research brief, a risk investigation, a customer/source note, or an epic that will be cited many times before promotion. | It is a short raw idea, duplicate, question, task seed, or low-context note. |
-| Goal `G-*` | One file per active/substantial Goal in scalable layout. | It has success criteria, non-goals, scope impact, or spans multiple iterations. | It is only a small planning note or already closed with no future retrieval value. |
-| Scope | One file per `G-*`; occasionally per `I-*`. | The boundary includes material tradeoffs, risk controls, or non-goals that other files cite. | It only restates the current iteration plan. |
-| Iteration `I-*` | One folder per iteration with `plan.md`, `tasks.md`, `review.md`, and optional `evidence.md`. | Use this by default for recurring execution because it caps task and review growth. `plan.md` should include `primary_goal_id`, optional `supporting_goal_ids`, and `reason_for_mix`. | The project is still a one-off plan with no repeated iterations. |
-| Task `T-*` | Keep tasks together in the iteration `tasks.md`. | A task is a mini-spec, research packet, or evidence bundle too large for the task list; link it from `tasks.md`. | It is a normal executable item with `done_when` and short evidence. |
-| Decision `D-*` | One file per accepted decision; candidates stay in `open.md`. | The decision changes scope, accepts risk, postpones important work, changes formulas/policy, or affects Roadmap. | It is only an unresolved candidate or minor note. |
-| Review | Keep in the iteration folder. | Evidence is large enough to need `evidence.md` or attachments. | It is only a short closeout. |
-| Reference topic | One file per stable topic under `reference/<area>/`. | The topic has durable value and will be cited by multiple workflow items. | It is temporary execution evidence or an unresolved decision. |
+| Backlog item `B-*` | 保留在 `workflow/backlog/open.md`、`deferred/YYYY-QN.md` 或 `closed/YYYY-QN.md`。 | 它是大型研究 brief、风险调查、客户/来源记录，或在提升前会被多次引用的 epic。 | 它只是短原始想法、重复项、问题、task seed 或低上下文笔记。 |
+| Goal `G-*` | 可扩展布局中，一个活跃/重要 Goal 一个文件。 | 它有 success criteria、non-goals、scope impact，或跨多个 iterations。 | 它只是小 planning note，或已关闭且没有未来检索价值。 |
+| Scope | 每个 `G-*` 一个文件；偶尔每个 `I-*` 一个文件。 | 边界包含实质 tradeoffs、risk controls 或会被其他文件引用的 non-goals。 | 它只是在复述当前 iteration plan。 |
+| Iteration `I-*` | 每个 iteration 一个文件夹，包含 `plan.md`、`tasks.md`、`review.md` 和可选 `evidence.md`。 | 对重复执行默认使用这种方式，因为它能限制 task 和 review 增长。`plan.md` 应包含 `primary_goal_id`、可选 `supporting_goal_ids` 和 `reason_for_mix`。 | 项目仍是一次性计划，没有重复 iterations。 |
+| Task `T-*` | Tasks 放在 iteration 的 `tasks.md` 中。 | 某个 task 是 mini-spec、research packet 或 evidence bundle，太大不适合任务列表；从 `tasks.md` 链接它。 | 它是普通可执行项，只有 `done_when` 和短 evidence。 |
+| Decision `D-*` | 已接受 decision 每个一个文件；候选项留在 `open.md`。 | decision 改变范围、接受风险、推迟重要工作、改变公式/政策，或影响 Roadmap。 | 它只是未解决候选项或小笔记。 |
+| Review | 保留在 iteration 文件夹中。 | Evidence 大到需要 `evidence.md` 或附件。 | 它只是简短 closeout。 |
+| Reference topic | `reference/<area>/` 下每个稳定 topic 一个文件。 | Topic 有长期价值，会被多个 workflow items 引用。 | 它只是临时执行证据或未解决 decision。 |
 
-The cautious default for Backlog is collection-first, not file-per-item. Promote a Backlog item into a Goal, Decision, Reference topic, or Iteration task before giving it a durable standalone home.
+Backlog 的谨慎默认是先收集，而不是每个 item 一个文件。先把 Backlog item 提升成 Goal、Decision、Reference topic 或 Iteration task，再给它持久独立归属。
 
-## Hierarchical Retrieval
+## 分层检索
 
-Use this read order so future agents do not scan the whole planning tree:
+使用以下读取顺序，避免未来 agent 扫描整个 planning tree：
 
-1. Entry: read `docs/project-plan.md` or `docs/project/README.md`.
-2. Active state: read `docs/project/current.md`.
-3. Index lookup: read `indexes/retrieval-guide.md`, `indexes/id-registry.md`, or `indexes/active-task-index.md`.
-4. Source shard: read the exact workflow shard, such as `workflow/iterations/I-012/tasks.md`, `workflow/goals/G-012.md`, or `workflow/decisions/2026/D-047.md`.
-5. Reference support: read only linked `reference/<area>/<topic>.md` files.
-6. Cold history: search `archive/` only when active files point there or the user asks for historical context.
+1. Entry：读取 `docs/project-plan.md` 或 `docs/project/README.md`。
+2. Active state：读取 `docs/project/current.md`。
+3. Index lookup：读取 `indexes/retrieval-guide.md`、`indexes/id-registry.md` 或 `indexes/active-task-index.md`。
+4. Source shard：读取精确 workflow shard，例如 `workflow/iterations/I-012/tasks.md`、`workflow/goals/G-012.md` 或 `workflow/decisions/2026/D-047.md`。
+5. Reference support：只读取被链接的 `reference/<area>/<topic>.md` 文件。
+6. Cold history：只有 active files 指向 archive，或用户要求历史上下文时，才搜索 `archive/`。
 
-Create `indexes/retrieval-guide.md` when the project has enough files that this route is not obvious. It should list common questions and where to look, for example:
+当项目文件多到检索路径不明显时，创建 `indexes/retrieval-guide.md`。它应列出常见问题和查找位置，例如：
 
-| Question | Start here | Then read |
+| 问题 | 起点 | 然后读取 |
 | --- | --- | --- |
-| What should I do next? | `current.md` | `workflow/iterations/<current>/tasks.md` |
-| Why was this scope chosen? | `workflow/scopes/<goal>.md` | linked decisions |
-| What changed after a review? | `workflow/iterations/<id>/review.md` | `workflow/roadmap/current.md` |
-| Where is this ID? | `indexes/id-registry.md` | source shard |
+| 下一步做什么？ | `current.md` | `workflow/iterations/<current>/tasks.md` |
+| 为什么选择这个范围？ | `workflow/scopes/<goal>.md` | 链接的 decisions |
+| Review 后改变了什么？ | `workflow/iterations/<id>/review.md` | `workflow/roadmap/current.md` |
+| 这个 ID 在哪里？ | `indexes/id-registry.md` | source shard |
 
 ## Context Hygiene
 
-Document growth is acceptable only if default context stays bounded. The risk is not that old files exist; the risk is reading old plans, raw backlog, superseded decisions, and historical reviews into a current execution task without status boundaries.
+只要默认上下文有边界，文档增长就是可接受的。风险不是旧文件存在，而是在当前执行任务中无状态边界地读入旧计划、原始 backlog、被替代 decisions 和历史 reviews。
 
-Use these controls:
+使用以下控制：
 
-- Default read set: entry file, `current.md`, relevant index, and exact workflow shard.
-- Non-default read set: full backlog, review history, decision history, reference library, and archive.
-- Read archive only for historical questions, provenance checks, or when an active source links there.
-- Label historical material before using it: `active`, `open`, `deferred`, `closed`, `superseded`, or `reference`.
-- Promote any still-current consequence from long history into a live source: `current.md`, current Scope, accepted Decision, or current Roadmap.
-- Never infer current direction by averaging old and new plans. If source status conflicts, prefer active core and live source shards; cite uncertainty when status is unclear.
+- 默认读取集：entry file、`current.md`、相关 index 和精确 workflow shard。
+- 非默认读取集：完整 backlog、review history、decision history、reference library 和 archive。
+- 只在历史问题、来源检查，或 active source 链接到 archive 时读取 archive。
+- 使用历史材料前先标记状态：`active`、`open`、`deferred`、`closed`、`superseded` 或 `reference`。
+- 将仍然有效的历史影响提升到 live source：`current.md`、当前 Scope、accepted Decision 或 current Roadmap。
+- 不要通过平均旧计划和新计划来推断当前方向。如果 source status 冲突，优先 active core 和 live source shards；状态不清楚时说明不确定性。
 
-Common contamination patterns:
+常见 context contamination patterns：
 
-| Contamination | Prevention |
+| Contamination | 预防方式 |
 | --- | --- |
-| Raw Backlog becomes executable work | Require Goal and Iteration before Task. |
-| Goal becomes an Iteration wrapper | Keep Goal outcome-oriented; use Iteration theme or Task cluster for one execution slice. |
-| Iteration silently mixes several Goals | Require `primary_goal_id`, `supporting_goal_ids`, and `reason_for_mix`. |
-| User-proposed Goal bypasses history | Run Goal Intake against Backlog, Review, Goal Progress, Decision, constraints, and Roadmap before accepting it. |
-| Roadmap becomes a bigger Goal | Keep Roadmap as sequencing over Goals, Goal candidates, deferred Backlog, and Decisions; do not split tasks from Roadmap directly. |
-| AI-generated Roadmap looks committed | Require `source` and `status`; use `proposed` unless user confirmation or an accepted Decision exists. |
-| Superseded plan looks current | Keep superseded files under archive and label them in indexes. |
-| Old Review noise hides current next step | Keep `current.md` short and route next action through the active iteration shard. |
-| Reference prose becomes a shadow plan | Route only governance consequences into Backlog, Scope, Decision, Task, Review, or Roadmap. |
-| Duplicate summaries conflict | Prefer the source shard over summary/index text. |
+| Raw Backlog 变成可执行工作 | Task 前必须先有 Goal 和 Iteration。 |
+| Goal 变成 Iteration wrapper | Goal 保持结果导向；一次执行切片使用 Iteration theme 或 Task cluster。 |
+| Iteration 静默混合多个 Goals | 要求 `primary_goal_id`、`supporting_goal_ids` 和 `reason_for_mix`。 |
+| 用户提出的 Goal 绕过历史 | 接受前用 Backlog、Review、Goal Progress、Decision、constraints 和 Roadmap 做 Goal Intake。 |
+| Roadmap 变成更大的 Goal | Roadmap 只对 Goals、Goal candidates、deferred Backlog 和 Decisions 排序；不要直接从 Roadmap 拆 tasks。 |
+| AI 生成的 Roadmap 看起来已承诺 | 要求 `source` 和 `status`；除非用户确认或已有 accepted Decision，否则使用 `proposed`。 |
+| 被替代计划看起来像当前计划 | 将 superseded files 放入 archive，并在 indexes 中标记。 |
+| 旧 Review 噪声遮蔽当前下一步 | 保持 `current.md` 短小，并通过 active iteration shard 路由下一步。 |
+| Reference prose 变成 shadow plan | 只把治理后果路由到 Backlog、Scope、Decision、Task、Review 或 Roadmap。 |
+| 重复摘要互相冲突 | 优先 source shard，而不是 summary/index text。 |
 
 ## Artifact Homes
 
-Use these homes unless the repository already has a clear convention:
+除非仓库已经有清晰约定，否则使用以下归属：
 
-| Artifact | Home document | Notes |
+| Artifact | Home document | 说明 |
 | --- | --- | --- |
-| Current context | `context.md` or `workflow/context.md` | Stable project background and planning assumptions. |
-| Backlog | `backlog.md` or `workflow/backlog/open.md` plus status/quarter shards | Raw material only; do not treat every backlog item as executable. |
-| Project plan and goals | `plans.md` or `workflow/goals/G-*.md` | Objectives, focus, constraints, non-goals, `G-*`. |
-| Scope boundary | `scopes.md` or `workflow/scopes/G-*.md` | `must_have`, `nice_to_have`, `non_goals`, `risk_controls`. |
-| Iteration | `iterations.md` or `workflow/iterations/I-*/plan.md` | `I-*`, `primary_goal_id`, optional `supporting_goal_ids`, `reason_for_mix`, selected scope, excluded scope, success criteria. |
-| Task | `tasks.md` or `workflow/iterations/I-*/tasks.md` | `T-*`, `goal_id`, `iteration_id`, `done_when`, `evidence`. |
-| Review | `reviews.md` or `workflow/iterations/I-*/review.md` | Templates and completed iteration reviews; update affected Goal progress in `workflow/goals/G-*.md` or the Goal ledger. |
-| Evidence | `tasks.md` / `reviews.md` or `workflow/iterations/I-*/evidence.md` | Verification output, browser checks, user review evidence, screenshots, links. |
-| Decision | `decisions.md` or `workflow/decisions/YYYY/D-*.md` plus `open.md` for candidates | `D-*` logs and `DC-*` decision candidates. |
-| Roadmap | `roadmap.md` or `workflow/roadmap/current.md` plus `history/YYYY-QN.md` | Sequencing layer with `now`, `next`, `later`, `not_now`; each item should carry `item_type`, `source`, `status`, and `rationale`. Keep historical roadmap states outside the active view. |
+| Current context | `context.md` 或 `workflow/context.md` | 稳定项目背景和 planning assumptions。 |
+| Backlog | `backlog.md` 或 `workflow/backlog/open.md`，加 status/quarter shards | 只作为原材料；不要把每个 backlog item 当成可执行项。 |
+| Project plan and goals | `plans.md` 或 `workflow/goals/G-*.md` | Objectives、focus、constraints、non-goals、`G-*`。 |
+| Scope boundary | `scopes.md` 或 `workflow/scopes/G-*.md` | `must_have`、`nice_to_have`、`non_goals`、`risk_controls`。 |
+| Iteration | `iterations.md` 或 `workflow/iterations/I-*/plan.md` | `I-*`、`primary_goal_id`、可选 `supporting_goal_ids`、`reason_for_mix`、selected scope、excluded scope、success criteria。 |
+| Task | `tasks.md` 或 `workflow/iterations/I-*/tasks.md` | `T-*`、`goal_id`、`iteration_id`、`done_when`、`evidence`。 |
+| Review | `reviews.md` 或 `workflow/iterations/I-*/review.md` | Templates 和已完成 iteration reviews；在 `workflow/goals/G-*.md` 或 Goal ledger 中更新受影响 Goal progress。 |
+| Evidence | `tasks.md` / `reviews.md` 或 `workflow/iterations/I-*/evidence.md` | Verification output、browser checks、user review evidence、screenshots、links。 |
+| Decision | `decisions.md` 或 `workflow/decisions/YYYY/D-*.md`，候选项用 `open.md` | `D-*` logs 和 `DC-*` decision candidates。 |
+| Roadmap | `roadmap.md` 或 `workflow/roadmap/current.md`，历史用 `history/YYYY-QN.md` | 带 `now`、`next`、`later`、`not_now` 的排序层；每项应有 `item_type`、`source`、`status` 和 `rationale`。历史 roadmap states 放在 active view 外。 |
 
-Domain model docs, scenario notes, architecture notes, and product specs can stay outside this planning set. Link them from the index or from the artifact that uses them.
+Domain model docs、scenario notes、architecture notes 和 product specs 可以留在 planning set 外部。从 index 或使用它们的 artifact 链接过去。
 
-Use subfolders once the project has durable specialist artifacts:
+当项目有持久专家产物时，使用子文件夹：
 
-| Folder | Contents | Rule |
+| 文件夹 | 内容 | 规则 |
 | --- | --- | --- |
-| `reference/` | Domain models, capability catalogs, user stories, formulas, interaction architecture, architecture notes, data-shape specs, prototype specs. | Reference docs can be long, but they should feed Decisions, Backlog, Scope, and Tasks instead of replacing them. |
-| `archive/` | Superseded plans, generated exports, cold snapshots, and exceptional historical material not served by normal shards. | Preserve IDs and link from the active artifact or index. Do not use archive as a dumping ground for unresolved work. |
-| `indexes/` | ID registry, decision index, capability map, active task index. | Indexes are navigation aids, not the source of truth. |
+| `reference/` | Domain models、capability catalogs、user stories、formulas、interaction architecture、architecture notes、data-shape specs、prototype specs。 | Reference docs 可以很长，但应支撑 Decisions、Backlog、Scope 和 Tasks，而不是替代它们。 |
+| `archive/` | 被替代计划、生成导出、冷快照，以及普通 shards 不服务的特殊历史材料。 | 保留 IDs，并从 active artifact 或 index 链接。不要把 archive 当成未解决工作的垃圾箱。 |
+| `indexes/` | ID registry、decision index、capability map、active task index。 | Indexes 是导航辅助，不是 source of truth。 |
 
-## Migration Steps
+## 迁移步骤
 
-1. Read the current plan and list its top-level headings.
-2. Classify each section as entry, active core, workflow ledger, reference, index, archive, or out of scope.
-3. Choose the target document map and create the folder if needed.
-4. Move each top-level section into its artifact home.
-5. Replace the old large file with a short index and links.
-6. Preserve all existing IDs and status values.
-7. Verify that every old top-level section appears in a new file or is intentionally retired.
-8. Run a lightweight link/heading check with `rg` or an equivalent search.
+1. 读取当前 plan，列出顶层 headings。
+2. 将每个 section 分类为 entry、active core、workflow ledger、reference、index、archive 或 out of scope。
+3. 选择目标 document map，必要时创建文件夹。
+4. 将每个顶层 section 移到它的 artifact home。
+5. 用简短 index 和链接替换旧大文件。
+6. 保留所有既有 IDs 和 status values。
+7. 确认每个旧顶层 section 都出现在新文件中，或被有意退役。
+8. 用 `rg` 或等价搜索做轻量 link/heading 检查。
 
-For high-growth migration, work in this order:
+高增长迁移按以下顺序执行：
 
-1. Shorten the entry file first.
-2. Add or refresh `current.md`.
-3. Separate workflow ledgers from reference documents.
-4. Add indexes for IDs and active work.
-5. Start writing new iteration material to `workflow/iterations/I-*/` so task and review evidence is naturally bounded.
-6. Shard decisions, backlog, and roadmap when those ledgers become difficult to scan.
-7. Move file paths last, because path churn is expensive and can break historical links.
+1. 先缩短 entry file。
+2. 增加或刷新 `current.md`。
+3. 将 workflow ledgers 和 reference documents 分离。
+4. 增加 IDs 和 active work 的 indexes。
+5. 从 `workflow/iterations/I-*/` 开始写入新 iteration material，让 task 和 review evidence 自然有边界。
+6. 当 decisions、backlog 和 roadmap ledgers 难以扫描时，再进行 shard。
+7. 最后移动文件路径，因为路径变动成本高，也可能破坏历史链接。
 
 ## Growth Triggers
 
-Treat these as signals to restructure:
+把以下情况视为需要重构的信号：
 
-- The entry file explains history instead of just where to start.
-- `current.md` contains completed task evidence or old review narrative.
-- A workflow ledger is mostly completed history and only a small part is active.
-- A reference doc combines several independent topics such as domain rules, page IA, data structure, and prototype notes.
-- The project folder root contains many long-lived specialist docs and users cannot tell which are active workflow files.
-- Future agents must scan many files before knowing active Goals, current Iteration, and next task.
-- The same ID family appears in several files without an index explaining the source of truth.
-- Searching for one active task returns too many closed historical matches.
+- Entry file 在解释历史，而不是只说明从哪里开始。
+- `current.md` 包含已完成 task evidence 或旧 review narrative。
+- 某个 workflow ledger 大部分是已完成历史，只有很小一部分活跃。
+- 某个 reference doc 混合多个独立 topic，例如 domain rules、page IA、data structure 和 prototype notes。
+- Project folder root 包含许多长期专家 docs，用户无法判断哪些是 active workflow files。
+- 未来 agent 必须扫描许多文件后，才能知道 active Goals、current Iteration 和 next task。
+- 同一 ID family 出现在多个文件中，却没有 index 说明 source of truth。
+- 搜索一个 active task 返回太多已关闭历史匹配。
 
-Do not overreact to line count alone. A long reference document can be acceptable if it has one clear topic and stable ownership. A shorter file can still be harmful if it mixes active decisions, task evidence, and future ideas.
+不要只因行数过多就过度反应。如果长 reference document 只有一个清晰 topic 且归属稳定，可以接受。反过来，较短文件如果混合 active decisions、task evidence 和 future ideas，也仍然有害。
 
 ## Growth Steps
 
-When the multi-document set becomes large:
+当多文档集合变大时：
 
-1. Create or update `current.md` with active Goals, current/next Iteration, active Tasks, open Decisions, and current Roadmap.
-2. Create `workflow/iterations/I-*/` for each new iteration and put the iteration plan, task list, review, and evidence there.
-3. Keep any old flat `tasks.md`, `reviews.md`, and `iterations.md` as compatibility maps until link churn is acceptable, then migrate old sections gradually.
-4. Create `workflow/decisions/open.md` for decision candidates and `workflow/decisions/YYYY/D-*.md` for accepted decisions.
-5. Keep `workflow/backlog/open.md` limited to active raw material; move deferred or closed items into quarter shards.
-6. Move durable domain, product, interaction, architecture, data-shape, formula, or prototype artifacts into `reference/<area>/` unless the repository already has a clear home for them.
-7. Add `indexes/id-registry.md` when cross-file lookup by `B-*`, `G-*`, `I-*`, `T-*`, `D-*`, `DC-*`, `CAP-*`, or `US-*` becomes slow.
-8. Add `indexes/retrieval-guide.md` when future agents need a deterministic read order.
-9. Use generated JSON, SQLite, or search indexes only as derived views unless the user explicitly wants workflow data to live in a database.
+1. 创建或更新 `current.md`，包含 active Goals、current/next Iteration、active Tasks、open Decisions 和 current Roadmap。
+2. 为每个新 iteration 创建 `workflow/iterations/I-*/`，并把 iteration plan、task list、review 和 evidence 放进去。
+3. 保留旧 flat `tasks.md`、`reviews.md` 和 `iterations.md` 作为兼容映射，直到链接变动成本可接受，再逐步迁移旧 sections。
+4. 为 decision candidates 创建 `workflow/decisions/open.md`，为 accepted decisions 创建 `workflow/decisions/YYYY/D-*.md`。
+5. 保持 `workflow/backlog/open.md` 只包含活跃原材料；把 deferred 或 closed items 移入季度 shards。
+6. 将持久 domain、product、interaction、architecture、data-shape、formula 或 prototype artifacts 移入 `reference/<area>/`，除非仓库已有清晰归属。
+7. 当按 `B-*`、`G-*`、`I-*`、`T-*`、`D-*`、`DC-*`、`CAP-*` 或 `US-*` 跨文件查找变慢时，增加 `indexes/id-registry.md`。
+8. 当未来 agent 需要确定性读取顺序时，增加 `indexes/retrieval-guide.md`。
+9. 只有用户明确希望 workflow data 存在数据库中时，才把生成的 JSON、SQLite 或 search indexes 作为 source of truth；否则它们只是派生视图。
 
-Recommended bounded source shapes:
+推荐的 bounded source shapes：
 
 ```text
 docs/project/workflow/iterations/I-012/plan.md
@@ -286,40 +286,40 @@ docs/project/workflow/backlog/deferred/2026-Q2.md
 docs/project/archive/superseded/2026-05-23-old-roadmap.md
 ```
 
-For smaller projects, the flat layout is enough. When migrating to the scalable layout, preserve IDs in headings or frontmatter so `rg "T-095"` still finds the item after it moves.
+小项目使用 flat layout 就够了。迁移到可扩展布局时，在 headings 或 frontmatter 中保留 IDs，确保移动后 `rg "T-095"` 仍能找到该 item。
 
 ## Update Routing
 
-- New idea or risk: update `backlog.md` in the standard layout, or `workflow/backlog/open.md` in the scalable layout.
-- New user-proposed goal: first run Goal Intake against Backlog, Review, Goal Progress, Decision, constraints, and Roadmap. If accepted or revised, update `plans.md`, or create/update `workflow/goals/G-*.md`; otherwise keep it as a Goal Candidate or Backlog item.
-- Changed scope boundary: update `scopes.md`, or create/update `workflow/scopes/G-*.md`; add a decision if the change is material.
-- New iteration: update `iterations.md`, or create `workflow/iterations/I-*/plan.md` with `primary_goal_id`, optional `supporting_goal_ids`, and `reason_for_mix`.
-- New implementation task: update `tasks.md`, or add it to `workflow/iterations/I-*/tasks.md`.
-- Completed task evidence: update the task source and evidence source; update `reviews.md` or `workflow/iterations/I-*/review.md` only during iteration review.
-- Accepted risk, postponed work, formula/policy change, or roadmap change: update `decisions.md`, or create `workflow/decisions/YYYY/D-*.md`.
-- Sequencing change: update `roadmap.md`, or `workflow/roadmap/current.md` with `now`, `next`, `later`, `not_now`, `source`, and `status`; move old roadmap state to `workflow/roadmap/history/YYYY-QN.md` when useful. If the change alters an accepted direction, add or update a Decision.
-- Specialist handoff: route each `pvw_handoff` field to its artifact home instead of copying the whole analysis into every file.
-- Historical evidence: keep it in the relevant iteration shard or archive it after the Review unless it is still active evidence for an open Task or Decision.
-- New long-lived domain/product/interaction/architecture analysis: create or update `reference/<area>/<topic>.md`, then route only the governance consequence into Backlog, Scope, Decision, Task, Review, or Roadmap.
-- New index request: update `indexes/` only with pointers and status summaries; keep original rationale in source files.
-- Existing flat layout with many root files: prefer a document map and new subfolders for future material before moving old files.
+- 新 idea 或 risk：标准布局更新 `backlog.md`；可扩展布局更新 `workflow/backlog/open.md`。
+- 新用户提出的 goal：先用 Backlog、Review、Goal Progress、Decision、constraints 和 Roadmap 做 Goal Intake。如果接受或修订，更新 `plans.md`，或创建/更新 `workflow/goals/G-*.md`；否则保留为 Goal Candidate 或 Backlog item。
+- Scope boundary 变化：更新 `scopes.md`，或创建/更新 `workflow/scopes/G-*.md`；如果变化重要，增加 decision。
+- 新 iteration：更新 `iterations.md`，或创建 `workflow/iterations/I-*/plan.md`，其中包含 `primary_goal_id`、可选 `supporting_goal_ids` 和 `reason_for_mix`。
+- 新 implementation task：更新 `tasks.md`，或加入 `workflow/iterations/I-*/tasks.md`。
+- 已完成 task evidence：更新 task source 和 evidence source；只在 iteration review 时更新 `reviews.md` 或 `workflow/iterations/I-*/review.md`。
+- 接受风险、推迟工作、公式/政策变化或 roadmap 变化：更新 `decisions.md`，或创建 `workflow/decisions/YYYY/D-*.md`。
+- 排序变化：更新 `roadmap.md` 或 `workflow/roadmap/current.md`，带上 `now`、`next`、`later`、`not_now`、`source` 和 `status`；有用时把旧 roadmap state 移入 `workflow/roadmap/history/YYYY-QN.md`。如果变化改变了已接受方向，增加或更新 Decision。
+- Specialist handoff：把每个 `pvw_handoff` 字段路由到自己的 artifact home，不要把整份分析复制到每个文件。
+- Historical evidence：保留在相关 iteration shard；Review 后归档，除非它仍是 open Task 或 Decision 的活跃证据。
+- 新长期 domain/product/interaction/architecture 分析：创建或更新 `reference/<area>/<topic>.md`，然后只把治理后果路由到 Backlog、Scope、Decision、Task、Review 或 Roadmap。
+- 新 index 请求：`indexes/` 只更新指针和状态摘要；原始 rationale 留在 source files。
+- 既有 flat layout 有许多根级文件：移动旧文件前，优先增加 document map，并为未来材料建立新 subfolders。
 
 ## Quality Checks
 
-Before finishing, check:
+完成前检查：
 
-- The index links to every artifact document.
-- `current.md`, if present, contains only active or next-step material.
-- Each task has `goal_id`, `iteration_id`, `done_when`, and `evidence`.
-- Iterations that mix Goals explain `primary_goal_id`, `supporting_goal_ids`, and `reason_for_mix`.
-- Goals are not just single-iteration task wrappers.
-- User-proposed Goals have been calibrated against historical workflow evidence before becoming active.
-- Roadmap is a sequencing layer, not a second Goal ledger.
-- Generated roadmap items are marked `proposed` unless there is user confirmation or an accepted Decision.
-- Backlog items are not mixed into executable tasks without a goal.
-- Decisions record why a direction changed, not only what changed.
-- No artifact is duplicated in two homes.
-- Archived IDs remain searchable from an index or from the active artifact that references them.
-- Entry and active-core files are short enough to answer "where do I start?" and "what do I do next?" without scanning history.
-- Reference files have clear topical ownership and do not become shadow task trackers.
-- A future agent can find active Goals, current Iteration, next active task, and open decisions from the entry file plus `current.md`.
+- Index 链接到每个 artifact document。
+- 如果存在 `current.md`，它只包含 active 或 next-step material。
+- 每个 task 都有 `goal_id`、`iteration_id`、`done_when` 和 `evidence`。
+- 混合 Goals 的 iterations 说明 `primary_goal_id`、`supporting_goal_ids` 和 `reason_for_mix`。
+- Goals 不是单个 iteration 的 task wrapper。
+- 用户提出的 Goals 在成为 active 前，已经用历史 workflow evidence 校准。
+- Roadmap 是排序层，不是第二个 Goal ledger。
+- 生成的 roadmap items 标为 `proposed`，除非有用户确认或 accepted Decision。
+- Backlog items 没有在缺少 goal 的情况下混入 executable tasks。
+- Decisions 记录为什么方向改变，而不只是记录改变了什么。
+- 没有 artifact 在两个 home 中重复。
+- Archived IDs 仍能从 index 或引用它们的 active artifact 中搜索到。
+- Entry 和 active-core files 足够短，能回答“从哪里开始”和“下一步做什么”，无需扫描历史。
+- Reference files 有清晰 topic ownership，不会变成 shadow task trackers。
+- 未来 agent 可以从 entry file 加 `current.md` 找到 active Goals、current Iteration、next active task 和 open decisions。

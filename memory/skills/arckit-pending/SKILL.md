@@ -1,35 +1,35 @@
 ---
 name: arckit-pending
-description: Manage unresolved project-level discussion items in a target project's arckit/pending workspace. Use when the user wants to add, list, read, update, delete, archive, revive, or promote pending issues, discussion threads, deferred thoughts, open questions, or not-yet-decided project context captured during agent collaboration.
+description: 管理目标项目 arckit/pending 工作区中的项目级未决讨论项。当用户想新增、列出、读取、更新、删除、归档、恢复或提升 pending issues、讨论分支、延后想法、开放问题，或 agent 协作过程中捕获但尚未决定的项目上下文时使用。
 ---
 
 # Arckit Pending
 
-Use this skill to maintain unresolved project context that came up during agent collaboration but is not ready to become a formal spec, interaction document, technical solution, iteration task, or implementation change.
+使用本 skill 维护 agent 协作过程中出现、但还不适合成为正式 spec、interaction 文档、technical solution、iteration task 或 implementation change 的未决项目上下文。
 
 ## Scope
 
-The managed artifacts live in the target project's Arckit workspace:
+受管理产物位于目标项目的 Arckit 工作区：
 
 ```text
 <project-root>/arckit/pending/
 ```
 
-## When To Use
+## Usage
 
-Use this skill when the user wants to preserve or manage something like:
+当用户想保存或管理以下内容时使用本 skill：
 
-- A thought that appeared during an agent conversation but is not decided.
-- A project-specific open question that should be revisited later.
-- A possible improvement, risk, or direction that is not yet a requirement.
-- A discussion branch that should be parked without polluting formal docs.
-- A pending item that may later be promoted into `arckit/spec/`, `arckit/interaction/`, `arckit/visual/`, `arckit/tech/`, iteration planning, or implementation work.
+- agent 对话中出现但尚未决定的想法。
+- 需要日后重访的项目级开放问题。
+- 尚未成为需求的可能改进、风险或方向。
+- 需要暂停、但不应污染正式文档的讨论分支。
+- 未来可能提升到 `arckit/spec/`、`arckit/interaction/`、`arckit/visual/`、`arckit/tech/`、迭代计划或实现工作的 pending item。
 
-Do not treat pending items as committed backlog tasks. They are unresolved project context until explicitly promoted or closed.
+不要把 pending items 当成已承诺 backlog tasks。它们在被明确提升或关闭前，都是未解决的项目上下文。
 
-## Directory Shape
+## Workspace Layout
 
-Create the workspace if missing:
+缺失时创建工作区：
 
 ```text
 arckit/pending/
@@ -40,40 +40,40 @@ arckit/pending/
     YYYY-MM-DD-short-slug.md
 ```
 
-Keep active items in `items/`. Move closed, rejected, merged, or stale items to `archive/` unless the user explicitly asks to delete them.
+活跃 items 放在 `items/`。closed、rejected、merged 或 stale items 移入 `archive/`，除非用户明确要求删除。
 
-## Item Format
+## Item 格式
 
-Each item is a Markdown file. Use the structure below so future agents can recover the discussion state without treating the item as committed work:
+每个 item 是一个 Markdown 文件。使用以下结构，让未来 agent 能恢复讨论状态，同时不会把 item 当成已承诺工作：
 
 ```markdown
-# Short Pending Item Title
+# 简短 Pending Item 标题
 
 ## Status
 
 - State: parked
 - Type: workflow
-- Source: agent conversation
+- Source: agent 对话
 - Created: YYYY-MM-DD
 - Updated: YYYY-MM-DD
-- Decision: record only; do not execute yet
+- Decision: 仅记录，暂不执行
 
 ## Background
 
-Why this pending item exists.
+该 pending item 为什么存在。
 
 ## Pending Item
 
-The unresolved thought, question, direction, possibility, or discussion branch.
+未解决的想法、问题、方向、可能性或讨论分支。
 
 ## Current Judgment
 
-Current assessment, including why it is not being executed yet.
+当前判断，包括为什么现在还不执行。
 
 ## Revisit When
 
-- Condition 1
-- Condition 2
+- 条件 1
+- 条件 2
 
 ## Related Areas
 
@@ -81,24 +81,24 @@ Current assessment, including why it is not being executed yet.
 
 ## Notes
 
-- Later discussion updates.
+- 后续讨论更新。
 
 ## Outcome
 
-Filled when promoted, merged, or closed.
+提升、合并或关闭后填写。
 ```
 
-Valid `State` values:
+有效 `State` 值：
 
-- `open`: still unresolved.
-- `parked`: recorded for later, with no current action.
-- `watching`: relevant signals should be watched before deciding.
-- `candidate`: may become committed work if conditions are met.
-- `promoted`: moved into a formal artifact or task.
-- `merged`: combined into another pending item.
-- `closed`: intentionally dropped.
+- `open`：仍未解决。
+- `parked`：记录待以后处理，当前无动作。
+- `watching`：需要观察相关信号后再决定。
+- `candidate`：条件满足后可能成为已承诺工作。
+- `promoted`：已进入正式 artifact 或 task。
+- `merged`：已合并到另一个 pending item。
+- `closed`：已明确放弃。
 
-Use `Type` to keep different pending items searchable. Prefer one of:
+使用 `Type` 保持不同 pending items 可检索。优先使用：
 
 - `product`
 - `workflow`
@@ -108,62 +108,62 @@ Use `Type` to keep different pending items searchable. Prefer one of:
 - `content`
 - `operation`
 
-Use `Decision` for the current judgment, not the lifecycle state. For example: `record only; do not execute yet`, `wait for repeated manual usage`, or `promote after workflow stabilizes`.
+`Decision` 表示当前判断，不表示生命周期状态。例如：`仅记录，暂不执行`、`等待重复手动使用后再判断`、`工作流稳定后再提升`。
 
 ## Index Format
 
-Maintain `arckit/pending/INDEX.md` as the navigation surface:
+维护 `arckit/pending/INDEX.md` 作为导航入口：
 
 ```markdown
 # Pending
 
-Project-level unresolved items captured during agent collaboration.
+agent 协作过程中捕获的项目级未决事项。
 
 | Item | State | Type | Updated | Summary | Revisit When |
 |---|---|---|---:|---|---|
-| [Short Pending Item Title](items/YYYY-MM-DD-short-slug.md) | parked | workflow | YYYY-MM-DD | One-sentence summary. | Revisit condition. |
+| [简短 Pending Item 标题](items/YYYY-MM-DD-short-slug.md) | parked | workflow | YYYY-MM-DD | 一句话摘要。 | 重访条件。 |
 
 ## Archived
 
 | Item | State | Type | Updated | Outcome |
 |---|---|---|---:|---|
-| [Closed Item](archive/YYYY-MM-DD-closed-item.md) | closed | workflow | YYYY-MM-DD | One-sentence outcome. |
+| [已关闭事项](archive/YYYY-MM-DD-closed-item.md) | closed | workflow | YYYY-MM-DD | 一句话结果。 |
 ```
 
 ## Workflow
 
-1. Locate the target project root. Prefer the user's current project root; if ambiguous, ask a short clarification before writing.
-2. Ensure `arckit/pending/INDEX.md`, `items/`, and `archive/` exist.
-3. For add operations, create one focused item per unresolved topic. Preserve raw user wording where it matters, then add a concise structured summary.
-4. For list or query operations, read `INDEX.md` first, then open only the relevant item files.
-5. For update operations, edit the item file, refresh `Updated`, and keep `INDEX.md` in sync.
-6. For delete requests, clarify whether the user means hard delete or archive when the item contains meaningful project context. If they clearly ask for hard delete, remove the file and index row.
-7. For archive, close, merge, or promote operations, move the item to `archive/` or update its state, then record the decision or target artifact in `Decision` and `Outcome`.
+1. 定位目标项目根目录。优先使用用户当前项目根；不明确时，写入前做简短澄清。
+2. 确保 `arckit/pending/INDEX.md`、`items/` 和 `archive/` 存在。
+3. 新增时，每个未决主题创建一个聚焦 item。重要时保留用户原话，再添加简洁结构化摘要。
+4. 列表或查询时，先读 `INDEX.md`，再只打开相关 item 文件。
+5. 更新时，编辑 item 文件，刷新 `Updated`，并同步 `INDEX.md`。
+6. 删除请求中，如果 item 包含有意义的项目上下文，先澄清用户是要硬删除还是归档。用户明确要求硬删除时，删除文件和 index 行。
+7. 归档、关闭、合并或提升时，移动 item 到 `archive/` 或更新其状态，然后在 `Decision` 和 `Outcome` 中记录决策或目标 artifact。
 
 ## Promotion Rules
 
-Promote a pending item only when the user asks or the conversation has clearly turned it into a committed artifact:
+只有当用户要求，或对话已经明确把 pending item 变成已承诺 artifact 时，才提升它：
 
-- Product behavior or requirement: move into `arckit/spec/`.
-- Interaction flow or wireframe concern: move into `arckit/interaction/`.
-- Visual system or UI style concern: move into `arckit/visual/`.
-- Technical architecture or data contract: move into `arckit/tech/`.
-- Execution timing or priority: move into iteration planning.
-- Implementation detail: handle through the relevant engineering workflow.
+- 产品行为或需求：移入 `arckit/spec/`。
+- 交互流程或线框问题：移入 `arckit/interaction/`。
+- 视觉系统或 UI 风格问题：移入 `arckit/visual/`。
+- 技术架构或数据契约：移入 `arckit/tech/`。
+- 执行时机或优先级：移入迭代计划。
+- 实现细节：通过相关 engineering workflow 处理。
 
-When promoting, leave a short trace in the pending item before archiving:
+提升时，归档前在 pending item 中留下简短痕迹：
 
 ```markdown
 ## Outcome
 
-Promoted to `../spec/path/to/file.md` on YYYY-MM-DD.
+已于 YYYY-MM-DD 提升到 `../spec/path/to/file.md`。
 ```
 
 ## Output Contract
 
-When reporting changes, include:
+报告变更时包含：
 
-- `path`: the pending index or item path touched.
-- `summary`: one sentence describing what changed.
-- `state`: current item state.
-- `revisit_when`: the next expected revisit condition, if any.
+- `path`：被触及的 pending index 或 item 路径。
+- `summary`：一句话说明变更。
+- `state`：当前 item 状态。
+- `revisit_when`：如有，说明下次重访条件。

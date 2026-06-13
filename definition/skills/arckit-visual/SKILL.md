@@ -1,11 +1,11 @@
 ---
 name: arckit-visual
-description: "Maintain visual style strategy and Design System in arckit/visual/ — Design Tokens, component visual specs, theming, brand identity. Visual style is the source; visual specs are projections. INDEX-driven analysis, systematic visual language. Outputs document scope (query: path + summary; change: path + source_basis + summary). Triggers on visual, Design System, token, 视觉, 主题."
+description: "维护 arckit/visual/ 下的视觉风格策略、Design Tokens、主题和组件视觉规格。用于用户要求查询、新建、更新、拆分或归档品牌调性、视觉语言、token、主题或组件视觉规则时；输出涉及的 visual 路径、依据和摘要。"
 ---
 
 # ArcKit Visual — 视觉设计系统维护
 
-管理 `arckit/visual/` 的视觉风格策略与 Design System，遵循「INDEX 驱动、动态拆解、渐进式揭示」原则。风格是源，视觉规范是投影；执行流程、脚本入口和路径约定保持稳定。专注于建立和维护系统化的视觉语言，不做业务页面的视觉稿。
+管理 `arckit/visual/` 的视觉风格策略与 Design System，遵循「INDEX 驱动、动态拆解、Progressive Disclosure」原则。风格是源，视觉规范是投影；执行流程、脚本入口和路径约定保持稳定。专注于建立和维护系统化的视觉语言，不做业务页面的视觉稿。
 
 ## 核心结构
 
@@ -83,15 +83,15 @@ visual/
 
 **若判定为查询**：
 1. 只读 `arckit/visual/INDEX.md`（必要时按需读少量相关文档）。
-2. 输出「文档范围」后**结束**，不执行任何写操作。输出格式见下方「最终输出：文档范围」之 `scope_kind: query`。
+2. 输出 `document_scope` 后**结束**，不执行任何写操作。输出格式见下方「最终输出：document_scope」之 `scope_kind: query`。
 
-**若判定为变更**：继续执行「INDEX 全局分析」及后续步骤；执行结束后必须输出「文档范围」，格式见 `scope_kind: change`。
+**若判定为变更**：继续执行「INDEX 全局分析」及后续步骤；执行结束后必须输出 `document_scope`，格式见 `scope_kind: change`。
 
 ---
 
-### 最终输出：文档范围（每次调用结束前必须输出）
+### 最终输出：document_scope（每次调用结束前必须输出）
 
-本 Skill 的**唯一结果形态**是「文档范围」：调用方据此知道本次在 `arckit/visual/` 下涉及了哪些文件，以及每项的一句话总结。
+本 Skill 的**唯一 Output Contract** 是 `document_scope`：调用方据此知道本次在 `arckit/visual/` 下涉及了哪些文件，以及每项的一句话总结。
 
 **查询结束时**（只读，无写操作）：
 ```yaml
