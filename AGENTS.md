@@ -53,6 +53,7 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - Interaction: `definition/skills/`
 - Visual: `definition/skills/`
 - Technical solution: `definition/skills/`
+- Project input intake: `memory/skills/`
 - Project pending context management: `memory/skills/`
 - Media production, video, and social operations: `media/skills/`
 - General debug diagnosis and implementation troubleshooting: `engineering/skills/`
