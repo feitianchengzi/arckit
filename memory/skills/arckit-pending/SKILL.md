@@ -1,6 +1,6 @@
 ---
 name: arckit-pending
-description: 管理目标项目 arckit/pending 工作区中的项目级未决讨论项。当用户想新增、列出、读取、更新、删除、归档、恢复或提升 pending issues、讨论分支、延后想法、开放问题，或 agent 协作过程中捕获但尚未决定的项目上下文时使用。
+description: 管理目标项目 arckit/pending 工作区中的项目级未决讨论项。当用户想新增、列出、读取、更新、删除、归档、恢复或提升 pending issues、讨论分支、延后想法、开放问题、过程 skill handoff，或 agent 协作过程中捕获但尚未决定的项目上下文时使用。
 ---
 
 # ArcKit Pending
@@ -23,6 +23,7 @@ description: 管理目标项目 arckit/pending 工作区中的项目级未决讨
 - 需要日后重访的项目级开放问题。
 - 尚未成为需求的可能改进、风险或方向。
 - 需要暂停、但不应污染正式文档的讨论分支。
+- 过程 skill 产出的 handoff、草案、候选方案、假设、风险或待验证项，暂时不能写入正式事实源，但需要跨回合复用。
 - 未来可能提升到 `arckit/spec/`、`arckit/interaction/`、`arckit/visual/`、`arckit/tech/`、迭代计划或实现工作的 pending item。
 
 不要把 pending items 当成已承诺 backlog tasks。它们在被明确提升或关闭前，都是未解决的项目上下文。
@@ -70,6 +71,39 @@ arckit/pending/
 
 当前判断，包括为什么现在还不执行。
 
+## Process Handoff
+
+仅当 Type 为 `process_handoff` 时使用。普通 pending item 可省略本节。
+
+- Kind:
+- Source Skill:
+- Target Candidate Skills:
+- Source Refs:
+
+### Accepted Facts
+
+- 可被结果 skill 作为候选事实评估的内容。
+
+### Assumptions
+
+- 尚未确认的假设。
+
+### Gaps
+
+- 缺口、开放问题或待补证据。
+
+### Risks
+
+- 主要风险。
+
+### Rejected Items
+
+- 已比较但暂不采纳的候选项。
+
+### Suggested Next
+
+- 建议后续进入的 skill、验证动作或用户决策。
+
 ## Revisit When
 
 - 条件 1
@@ -107,8 +141,27 @@ arckit/pending/
 - `technical`
 - `content`
 - `operation`
+- `process_handoff`
 
 `Decision` 表示当前判断，不表示生命周期状态。例如：`仅记录，暂不执行`、`等待重复手动使用后再判断`、`工作流稳定后再提升`。
+
+## Process Handoff Items
+
+`process_handoff` 用于保存过程 skill 的中间产物。它是临时停车位，不是新的 source of truth。
+
+使用条件：
+
+- 用户要求“先保存草案/候选/分析，后面再决定”。
+- 过程 skill 输出需要跨回合复用。
+- handoff 中包含未确认假设、风险、缺口或多个候选方案，不能直接写入结果事实源。
+- 后续可能提升到 `arckit/spec`、`arckit/interaction`、`arckit/visual`、`arckit/tech`、治理计划或实现工作。
+
+保存规则：
+
+- `Accepted Facts` 只放下游结果 skill 可以考虑入库的候选事实。
+- `Assumptions`、`Gaps`、`Risks`、`Rejected Items` 不得在提升时静默写成事实。
+- `Source Refs` 尽量引用 intake、用户输入、已有 `arckit/*` 文档、外部来源或生成该 handoff 的过程 skill。
+- `Suggested Next` 只是建议，不绕过下游 skill 的触发边界和入库规则。
 
 ## Index Format
 
@@ -150,6 +203,7 @@ agent 协作过程中捕获的项目级未决事项。
 - 技术架构或数据契约：移入 `arckit/tech/`。
 - 执行时机或优先级：移入迭代计划。
 - 实现细节：通过相关 engineering workflow 处理。
+- `process_handoff`：根据 `Target Candidate Skills` 和 `Suggested Next` 进入对应过程、结果、治理或实现 workflow；提升时只携带已确认内容和必要来源。
 
 提升时，归档前在 pending item 中留下简短痕迹：
 

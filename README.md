@@ -53,7 +53,7 @@ arckit/
   idea/
     skills/        想法、机会、用户反馈和早期问题分析
   thinking/
-    skills/        跨生命周期思考、决策框架、结构化分析和问题重构
+    skills/        跨生命周期过程型思考能力、决策框架、草案生成、候选比较和 handoff 准备
   iteration/
     skills/        迭代管理、里程碑、优先级和执行节奏
   definition/
@@ -80,9 +80,9 @@ arckit/
 
 ### `thinking/`
 
-用于跨生命周期的思考方法、决策框架、结构化分析、问题重构和方案拷问。
+用于跨生命周期的过程型思考能力，包括决策框架、结构化分析、问题重构、草案生成、候选方案比较、批评修正和结果入库前的 handoff 准备。
 
-如果一个 skill 是可复用的思考工具，而不是某个阶段的产物维护流程，应放在 `thinking/skills/`。
+如果一个 skill 承担的是可替换的分析、推理、生成、比较、批评或 handoff 准备，而不是某个阶段的长期产物维护流程，应放在 `thinking/skills/`。
 
 ### `iteration/`
 
@@ -178,7 +178,7 @@ Skill 可以形成软组合，但不应设计成运行时硬依赖。Agent 的 s
 
 推荐做法：
 
-- 通用方法放在横向能力目录，例如 `thinking/skills/decision-framework/`。
+- 过程型方法放在横向能力目录，例如 `thinking/skills/arckit-decision-analysis/` 或 `thinking/skills/arckit-draft-spec/`。
 - 产物型 skill 可以在正文中说明“可参考”某个方法型 skill 的结论，但仍应能独立完成自己的产物维护。
 - 不要把关键执行步骤藏在另一个 skill 里；如果必须复用，写清楚输入、输出和人工触发条件。
 - 多 skill 协作时，优先把关系设计成“上游分析结果 -> 下游产物沉淀”，而不是“下游必须自动调用上游”。
@@ -218,11 +218,11 @@ engineering/
 
 示例：
 
-- `product-spec`
-- `interaction-strategy`
-- `visual-system`
+- `arckit-spec`
+- `arckit-interaction`
+- `arckit-visual`
 - `arckit-debug-diagnosis`
-- `server-deployment`
+- `arckit-release-readiness`
 
 `SKILL.md` 应聚焦核心工作流。详细参考资料、脚本、模板、示例或资产，可以放在 skill 目录内的 `references/`、`scripts/`、`templates/` 或 `assets/` 中。
 
@@ -253,7 +253,7 @@ engineering/
 - 是否有真实项目验证
 - 是否应该放在当前目录，还是更适合其他生命周期阶段
 
-当一个 skill 横跨多个目录时，优先放到 agent 实际执行动作最接近的目录。若 skill 是全生命周期可复用方法，优先放到横向能力目录。
+当一个 skill 横跨多个目录时，优先放到 agent 实际执行动作最接近的目录。若 skill 是全生命周期可复用的过程能力，优先放到横向能力目录。
 
 例如：
 

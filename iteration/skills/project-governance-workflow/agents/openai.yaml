@@ -1,4 +1,0 @@
-interface:
-  display_name: "Project Governance Workflow"
-  short_description: "治理目标、路线图和证据"
-  default_prompt: "使用 $project-governance-workflow 在规划 Iterations 和 Tasks 前，用 Backlog、Reviews、Decisions 和 Roadmap 校准 Goals。"

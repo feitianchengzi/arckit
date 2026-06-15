@@ -9,7 +9,7 @@ agent capability types over time. Reusable skills must live under that directory
 
 - `entry/`: cross-lifecycle entry points, skill routing, workflow composition, and scenario-to-skill orchestration.
 - `idea/`: opportunity discovery, idea collection, idea analysis, user feedback synthesis, and early problem framing.
-- `thinking/`: cross-lifecycle reasoning, decision frameworks, structured analysis, problem reframing, and review thinking tools.
+- `thinking/`: cross-lifecycle process thinking capabilities, including reasoning, decision frameworks, structured analysis, draft generation, candidate comparison, critique, and handoff preparation.
 - `iteration/`: project iteration management, milestone planning, version rhythm, prioritization, and execution cadence.
 - `definition/`: project definition artifacts, including product specifications, interaction design, visual design, and technical solutions.
 - `memory/`: agent memory entry points and repository context navigation, such as maintaining `AGENTS.md`, `CLAUDE.md`, project indexes, and context maps.
@@ -24,7 +24,7 @@ Use the skill's primary purpose to choose a directory:
 
 - If it is the top-level entry point that routes user scenarios across multiple lifecycle skills, place it under `entry/skills/`.
 - If it helps decide whether an idea is worth pursuing, place it under `idea/skills/`.
-- If it provides reusable reasoning, decision, critique, or structured thinking methods across multiple lifecycle stages, place it under `thinking/skills/`.
+- If it provides reusable process capabilities such as reasoning, decision analysis, critique, draft generation, candidate comparison, or handoff preparation across multiple lifecycle stages, place it under `thinking/skills/`.
 - If it manages when and how work moves forward, place it under `iteration/skills/`.
 - If it defines what the project is, how it behaves, how it looks, or how it is technically shaped, place it under `definition/skills/`.
 - If it helps agents understand and reuse project context across sessions, place it under `memory/skills/`.
@@ -47,7 +47,7 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - Arckit entry routing and workflow composition: `entry/skills/`
 - Project iteration management: `iteration/skills/`
 - Workshop Desktop execution bridge: `iteration/skills/`
-- Cross-lifecycle thinking and decision frameworks: `thinking/skills/`
+- Cross-lifecycle process thinking, decision frameworks, draft generation, and handoff preparation: `thinking/skills/`
 - Idea collection and analysis: `idea/skills/`
 - Product specification: `definition/skills/`
 - Interaction: `definition/skills/`
@@ -63,6 +63,6 @@ For example, an authentication architecture note belongs in `definition/skills/`
 ## Skill Folder Convention
 
 Each skill should be a self-contained folder under a top-level directory's `skills/` directory with a required `SKILL.md`.
-Use lowercase kebab-case names, such as `product-spec` or `arckit-debug-diagnosis`.
+Use lowercase kebab-case names, such as `arckit-spec` or `arckit-debug-diagnosis`.
 
 Keep `SKILL.md` focused on the core workflow. Put detailed references, scripts, templates, or assets inside the skill folder only when they directly support that skill.

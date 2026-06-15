@@ -1,3 +1,3 @@
 display_name: ArcKit Pending
-short_description: 管理 arckit/pending 中的未决项目讨论项。
-default_prompt: 在 arckit/pending 中新增、更新、查询、归档或提升未决项目事项。
+short_description: 管理 arckit/pending 中的未决讨论项和过程 handoff。
+default_prompt: 在 arckit/pending 中新增、更新、查询、归档或提升未决项目事项，包括暂不入库的过程 handoff。

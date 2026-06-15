@@ -6,11 +6,11 @@ description: >-
 
 # ArcKit Workshop Desktop
 
-把 Workshop Desktop 作为 Arckit 的桌面执行桥。本 skill 不决定项目范围、Goals、Iterations、Tasks、Reviews、Decisions 或 Roadmap；这些由 `project-governance-workflow` 处理。只有当已选动作需要 Workshop Desktop 作为本地应用、记录库、任务视图或 Codex dispatch bridge 时，才使用本 skill。
+把 Workshop Desktop 作为 Arckit 的桌面执行桥。本 skill 不决定项目范围、Goals、Iterations、Tasks、Reviews、Decisions 或 Roadmap；这些由 `arckit-project-governance-workflow` 处理。只有当已选动作需要 Workshop Desktop 作为本地应用、记录库、任务视图或 Codex dispatch bridge 时，才使用本 skill。
 
 ## 边界
 
-- `project-governance-workflow` 是治理层：决定什么进入 Backlog、Goal、Iteration、Task、Review、Decision 或 Roadmap。
+- `arckit-project-governance-workflow` 是治理层：决定什么进入 Backlog、Goal、Iteration、Task、Review、Decision 或 Roadmap。
 - `arckit-workshop-desktop` 是桌面桥：负责检查、打开、安装、更新、读取、写入记录，以及调用 Workshop Desktop 本地 app server。
 - 不要把 Workshop Desktop 记录当作已接受的仓库事实。记录只是面向人的工作材料，直到用户明确提升它，或仓库文档被明确更新并 review。
 - 不要直接写 Electron `userData`、`personal-records/` 或 app-server 连接文件。使用随附脚本或 Workshop Desktop 自己的 CLI/app server。

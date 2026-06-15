@@ -1,0 +1,16 @@
+id: IN-20260615-001
+title: all 原始 Skill 包
+received_at: 2026-06-15
+source: user
+input_types:
+  - code
+  - archive
+status: recorded
+sensitivity: internal
+description: 用户提供的 all 原始 skill 目录副本。
+artifacts:
+  - source: files/source/all
+    record: files/records/all.md
+    extracted: null
+    type: code
+    role: text_source

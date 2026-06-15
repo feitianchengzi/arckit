@@ -1,0 +1,50 @@
+repos:
+  # ── 通用格式 ─────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        name: 去除行尾空白
+      - id: end-of-file-fixer
+        name: 文件末尾换行
+      - id: check-yaml
+        name: YAML 语法检查
+      - id: check-json
+        name: JSON 语法检查
+      - id: check-added-large-files
+        name: 检查大文件
+        args: ['--maxkb=500']
+      - id: forbid-submodules
+        name: 禁止 git submodule
+
+  # ── 本地自定义 hooks ────────────────────────────
+  - repo: local
+    hooks:
+      # Python 语法检查
+      - id: python-compile
+        name: Python 语法检查
+        entry: python3 -c "import sys, py_compile; [py_compile.compile(f, doraise=True) for f in sys.argv[1:]]"
+        language: system
+        types: [python]
+        exclude: __pycache__
+
+      # Shell 语法检查
+      - id: bash-syntax
+        name: Shell 语法检查
+        entry: bash -n
+        language: system
+        types: [shell]
+
+      # SKILL.md 规范检查
+      - id: skill-md-check
+        name: SKILL.md 规范检查
+        entry: bash -c 'for f in "$@"; do grep -q "铁律" "$f" && grep -q "反合理化" "$f" && grep -q "与其他Skill的衔接" "$f" || { echo "FAIL: $f 缺少铁律/反合理化/衔接"; exit 1; }; done' --
+        language: system
+        files: SKILL\.md$
+
+      # 禁止 __pycache__
+      - id: no-pycache
+        name: 禁止提交 __pycache__
+        entry: bash -c 'exit 1'
+        language: system
+        files: __pycache__

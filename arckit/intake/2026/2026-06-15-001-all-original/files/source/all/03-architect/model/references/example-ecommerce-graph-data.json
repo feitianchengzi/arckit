@@ -1,0 +1,115 @@
+{
+  "subdomains": [
+    {
+      "name": "推荐系统",
+      "type": "核心域",
+      "description": "个性化推荐算法,核心竞争力",
+      "priority": 5,
+      "strategy": "重点投入,自研"
+    },
+    {
+      "name": "订单管理",
+      "type": "支撑域",
+      "description": "订单全生命周期管理",
+      "priority": 4,
+      "strategy": "标准化开发"
+    },
+    {
+      "name": "商品管理",
+      "type": "支撑域",
+      "description": "商品信息管理",
+      "priority": 3,
+      "strategy": "标准化开发"
+    },
+    {
+      "name": "用户认证",
+      "type": "通用域",
+      "description": "用户登录注册",
+      "priority": 2,
+      "strategy": "采购第三方"
+    }
+  ],
+  "contexts": [
+    {
+      "name": "推荐上下文",
+      "subdomain": "推荐系统",
+      "description": "负责推荐算法和用户画像",
+      "team": "推荐团队"
+    },
+    {
+      "name": "订单上下文",
+      "subdomain": "订单管理",
+      "description": "负责订单创建、支付、履约",
+      "team": "订单团队"
+    },
+    {
+      "name": "商品上下文",
+      "subdomain": "商品管理",
+      "description": "负责商品信息、库存管理",
+      "team": "商品团队"
+    },
+    {
+      "name": "认证上下文",
+      "subdomain": "用户认证",
+      "description": "负责用户登录注册",
+      "team": "基础服务团队"
+    }
+  ],
+  "relations": [
+    {
+      "from": "推荐上下文",
+      "to": "商品上下文",
+      "type": "OHS",
+      "description": "推荐系统调用商品服务获取商品信息",
+      "integration": "REST API"
+    },
+    {
+      "from": "订单上下文",
+      "to": "商品上下文",
+      "type": "ACL",
+      "description": "订单系统通过防腐层访问商品信息",
+      "integration": "防腐层 + REST API"
+    },
+    {
+      "from": "订单上下文",
+      "to": "认证上下文",
+      "type": "OHS",
+      "description": "订单系统调用认证服务验证用户",
+      "integration": "JWT Token"
+    }
+  ],
+  "aggregates": [
+    {
+      "name": "Order",
+      "context": "订单上下文",
+      "description": "订单聚合根,管理订单全生命周期",
+      "root": "Order",
+      "entities": ["OrderItem"],
+      "valueObjects": ["Money", "Address"]
+    },
+    {
+      "name": "Product",
+      "context": "商品上下文",
+      "description": "商品聚合根,管理商品信息和库存",
+      "root": "Product",
+      "entities": [],
+      "valueObjects": ["Price", "Stock"]
+    },
+    {
+      "name": "UserProfile",
+      "context": "推荐上下文",
+      "description": "用户画像聚合,管理用户偏好和行为数据",
+      "root": "UserProfile",
+      "entities": ["Preference", "Behavior"],
+      "valueObjects": ["Tag"]
+    }
+  ],
+  "aggregateRelations": [
+    {
+      "from": "Order",
+      "to": "Product",
+      "type": "reference",
+      "description": "订单引用商品ID"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "id": "verify_requires_evidence",
+  "skill": "verify",
+  "description": "verify Skill 应强制新鲜证据，禁止'应该没问题'式结论",
+  "input_context": "验证一个刚实现的功能（如用户注册）是否可用",
+  "baseline_prompt_hint": "验证这个功能能不能用",
+  "treatment_prompt_hint": "同上，但加载 04-engineer/verify/SKILL.md",
+  "rubric": [
+    {
+      "id": "no_handwave",
+      "description": "不含'应该没问题/大概率/看起来OK'式措辞",
+      "check": "not_contains",
+      "patterns": ["应该没问题", "大概率能", "看起来ok", "看起来没问题", "应该可以", "应该能跑", "应该对了", "和之前差不多"],
+      "weight": 3.0
+    },
+    {
+      "id": "has_evidence_marker",
+      "description": "包含证据标记（测试输出/截图/指标/状态码/exit code）",
+      "check": "contains_any",
+      "patterns": ["测试", "test", "截图", "screenshot", "exit", "状态码", "http", "通过", "失败", "指标", "ms", "证据", "evidence", "passed", "failed"],
+      "weight": 3.0
+    },
+    {
+      "id": "has_verification_command",
+      "description": "提及具体的验证命令或步骤",
+      "check": "contains_any",
+      "patterns": ["运行", "执行", "npx", "pytest", "curl", "playwright", "命令", "步骤", "断言", "assert"],
+      "weight": 1.0
+    }
+  ]
+}

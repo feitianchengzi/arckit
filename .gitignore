@@ -1,0 +1,6 @@
+# Local raw candidate package. The preserved copy lives under arckit/intake/.
+/all/
+
+# Generated Python artifacts
+__pycache__/
+*.py[cod]

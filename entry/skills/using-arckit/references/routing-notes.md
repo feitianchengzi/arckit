@@ -5,7 +5,7 @@
 预期顺序是：
 
 ```text
-user intent -> smallest matching specialist skill -> project-governance-workflow when execution state changes -> arckit-workshop-desktop only for desktop records/tasks/dispatch
+user intent -> smallest matching specialist skill -> arckit-project-governance-workflow when execution state changes -> arckit-workshop-desktop only for desktop records/tasks/dispatch
 ```
 
 除非 ArcKit 后续需要面向不同团队或 agent 的多套安装包，否则不要增加独立 profile 层。
