@@ -46,6 +46,7 @@ For example, an authentication architecture note belongs in `definition/skills/`
 
 - Arckit entry routing and workflow composition: `entry/skills/`
 - Project iteration management: `iteration/skills/`
+- Product-level development work item discovery: `iteration/skills/`
 - Workshop Desktop execution bridge: `iteration/skills/`
 - Cross-lifecycle process thinking, decision frameworks, draft generation, and handoff preparation: `thinking/skills/`
 - Idea collection and analysis: `idea/skills/`

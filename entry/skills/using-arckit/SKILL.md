@@ -1,7 +1,7 @@
 ---
 name: using-arckit
 description: >-
-  软件项目协作的默认入口 skill。只要用户请求有任何可能涉及产品想法、原始输入归档、需求规格、交互、视觉、技术方案、迭代治理、项目记忆、debug、任务记录、Workshop Desktop、或软件项目开发工作流，就先使用本 skill；不要求用户提到 ArcKit。即使只有很低概率适用，也用本 skill 快速识别场景、说明 ArcKit 是什么和有哪些能力，并选择最小必要的专门 skills；只有当请求明确与软件项目协作无关时才跳过。
+  软件项目协作的默认入口 skill。只要用户请求或输入材料可能涉及产品想法、原始输入归档、用户反馈、候选事项、问题清单、需求规格、交互、视觉、技术方案、迭代治理、项目记忆、debug、任务记录、Workshop Desktop 或软件项目开发工作流，就先使用本 skill；不要求用户提到 ArcKit。即使只有很低概率适用，也用本 skill 快速识别场景、说明 ArcKit 是什么和有哪些能力，并选择最小必要的专门 skills；只有当请求和输入材料明确与软件项目协作无关时才跳过。
 ---
 
 # Using ArcKit
@@ -20,6 +20,7 @@ ArcKit 覆盖软件项目协作的这些层：
 - 过程层：负责结果入库前的可替换分析和 handoff 准备。使用 `arckit-draft-spec`、`arckit-explore-product-design`、`arckit-architecture-decision`、`arckit-domain-modeling`。
 - 定义层：负责稳定的产品、交互、视觉和技术事实。使用 `arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech`；定义类 skill 是对应领域的 source of truth，不替代实际编码。
 - 治理层：负责把方向、定义、决策和执行证据变成项目闭环。使用 `arckit-project-governance-workflow` 管理 Backlog、Goals、scope、Iterations、Tasks、Reviews、Decisions 和 Roadmap。
+- 规划辅助层：负责先独立维护团队职责、高维迭代地图和候选事项发现。使用 `arckit-team-responsibility` 维护团队职责；使用 `arckit-iteration-planning` 维护迭代地图和归属规则；使用 `arckit-work-item-discovery` 阅读真实项目源码和文档，推荐产品级开发清单。该层先和 `arckit-project-governance-workflow` 隔离，只输出 downstream candidates。
 - 记忆层：负责区分原始输入和未承诺上下文。使用 `arckit-intake` 归档 source input materials 与 provenance；使用 `arckit-pending` 保存尚未承诺的开放问题、风险、延后想法和讨论分支。
 - 诊断层：负责 bug、回归和异常行为的证据驱动定位与最小修复。使用 `arckit-debug-diagnosis`；只有改变事实、计划或验收证据时才交回其他层。
 - 质量层：负责实现验证和代码审查。使用 `arckit-verify-implementation` 和 `arckit-code-review`。
@@ -47,7 +48,8 @@ ArcKit 覆盖软件项目协作的这些层：
 
 用以下规则处理过程、结果、治理和实现之间的交接。
 
-- **定义优先还是治理优先**：用户问“做什么、怎么表现、规则是什么、技术怎么定”时，先进入定义或对应过程 skill；用户问“怎么推进、排期、拆任务、验收、复盘、路线图”时，先进入 `arckit-project-governance-workflow`。
+- **定义优先还是治理优先**：用户问“做什么、怎么表现、规则是什么、技术怎么定”时，先进入定义或对应过程 skill；用户问“怎么推进、排期、拆任务、验收、复盘、路线图”时，先进入 `arckit-project-governance-workflow`。用户问团队职责或迭代归属时，先进入规划辅助层，不自动并入 governance。
+- **项目现状先发现后推进**：用户要求阅读项目源码和文档、判断还差什么才能上线、推荐后续产品级开发事项时，先使用 `arckit-work-item-discovery` 形成增量事项清单和证据口径；如果用户随后要求排期、归属或 owner，再结合 `arckit-iteration-planning`、`arckit-team-responsibility` 和 `arckit-project-governance-workflow` 推进。
 - **过程 handoff 临时保存**：过程 skill 的输出默认只作为当前回合交接。如果用户需要后续复用、跨回合继续、或暂不入库，把 handoff 摘要、来源、开放问题和建议下游保存到 `arckit-pending`；不要把未确认内容直接写进 `arckit/spec`、`arckit/interaction`、`arckit/visual` 或 `arckit/tech`。
 - **结果入库边界**：结果 skill 只接收可确认事实。`assumptions`、`gaps`、`risks`、`open_questions` 和被拒绝方案保留为 pending、治理风险或过程记录，不能静默写成稳定规格。
 - **编码交接**：进入普通代码工作流或外部 `arckit-code` 前，先形成最小 `implementation_handoff`：`scope`、`source_docs`、`tasks`、`acceptance`、`constraints`、`evidence_expected`。如果这些信息缺失，先回到对应定义 skill 或治理 skill。
@@ -59,6 +61,8 @@ ArcKit 覆盖软件项目协作的这些层：
 下面按真实项目常见流转给出组合参考。已有上游产物时跳过对应步骤，只选择当前任务真正需要的最小 skill 集。
 
 - **收到客户资料、会议纪要、截图或旧文档，尚未判断含义**：先用 `arckit-intake` 归档 source input materials、provenance 和可引用 ID。若用户随后要求分析，再按内容进入 `arckit-market-research`、`arckit-decision-framework`、`arckit-draft-spec`、`arckit-domain-modeling` 或结果型定义 skill。
+- **收到一批反馈、需求、bug、优化、风险、问题、Review 发现、会议待办、支持记录或任务候选**：先判断用户是要沉淀推进还是暂存未承诺上下文。需要进入目标、排序、任务或 roadmap 的内容走 `arckit-project-governance-workflow`；暂不承诺但未来可能有价值的内容走 `arckit-pending`；具体执行另起 debug/spec/design/tech/code/verify。
+- **要求读项目后推荐还要开发什么**：先用 `arckit-work-item-discovery` 阅读源码和文档，判断业务、实现状态、上线目标和增量产品级事项。它只输出产品负责人可排期和验收的清单，不拆技术实现子任务；需要排期归属时再结合 `arckit-iteration-planning`、`arckit-team-responsibility` 和 `arckit-project-governance-workflow`。
 - **一个模糊想法需要判断是否值得做**：用 `arckit-decision-framework` 拆假设、价值和风险；需要外部证据时接 `arckit-market-research`；需要用户研究或线框探索时接 `arckit-idea-explore`；需要长期留痕时接 `arckit-idea`；决定进入执行后交给 `arckit-project-governance-workflow` 建 Goal、scope 或 roadmap。
 - **已有方向，要变成可执行版本**：如果缺少产品、交互、视觉或技术定义，先补定义；如果定义足够但缺少推进方式，使用 `arckit-project-governance-workflow` 明确 Goal、scope、优先级和迭代边界；最后形成可交给编码工作流的 `implementation_handoff`。
 - **正在定义一个功能、页面或模块**：产品行为先落 `arckit-spec`；页面流程和状态接 `arckit-interaction`；视觉系统或组件规则接 `arckit-visual`；架构、数据模型和 API 接 `arckit-tech`。如果材料还不成熟，先用对应过程 skill 生成 handoff。定义变化若影响任务、风险或路线图，交回 `arckit-project-governance-workflow`。
@@ -75,6 +79,7 @@ ArcKit 覆盖软件项目协作的这些层：
 - 原始输入事实：`arckit-intake` 只记录 source input materials 和 provenance，不代表已接受需求、任务或决策。
 - 产品定义事实：`arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech` 分别是产品行为、交互、视觉和技术方案的 source of truth。
 - 项目治理事实：`arckit-project-governance-workflow` 是 Goals、Iterations、Tasks、Reviews、Decisions 和 Roadmap 的控制层。
+- 规划辅助事实：`arckit-iteration-planning` 是高维迭代地图和归属规则的 source of truth；`arckit-team-responsibility` 是团队职责和 owner 推断规则的 source of truth；`arckit-work-item-discovery` 是从项目现状反推出候选产品级开发事项的过程输出。
 - 未承诺上下文：`arckit-pending` 记录尚未承诺的开放问题、风险和延后想法，不等同于 backlog、spec 或 decision。
 - 桌面执行记录：Workshop Desktop 记录是面向人的工作笔记和执行桥，不是已接受的项目事实。
 
@@ -95,6 +100,9 @@ ArcKit 覆盖软件项目协作的这些层：
 - `arckit-visual` -> `arckit/visual/`
 - `arckit-tech` -> `arckit/tech/`
 - `arckit-project-governance-workflow` -> Goals、Iterations、Tasks、Reviews、Decisions、Roadmap
+- `arckit-iteration-planning` -> `arckit/planning/iteration-map.md`
+- `arckit-team-responsibility` -> `arckit/planning/team-responsibility.md`
+- `arckit-work-item-discovery` -> 默认仅作为对话回答，除非用户要求沉淀
 - `arckit-pending` -> `arckit/pending/`
 - `arckit-workshop-desktop` -> Workshop Desktop 记录
 - 无需沉淀 -> 仅作为对话回答

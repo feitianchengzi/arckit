@@ -1,0 +1,20 @@
+{
+  "skill_name": "arckit-iteration-planning",
+  "evals": [
+    {
+      "id": 0,
+      "name": "build-iteration-map-from-vague-direction",
+      "prompt": "当前只有一个模糊方向“优化经营复盘体验”。用户提到首页现金、项目页看不懂、工资状态错误、录入前防重复和自动报税。请建立一个高维迭代地图，说明当前迭代、下一迭代、后续迭代分别关注什么，并判断这些候选项应归属哪一轮。不要执行 bug 修复，不要写需求，不要拆具体任务。",
+      "expected_output": "A proposed high-level iteration map and assignment decisions without execution planning.",
+      "files": [],
+      "expectations": [
+        "Output repairs the vague direction into a high-level iteration map rather than a task plan.",
+        "Output distinguishes current, next, later, and not_now or equivalent iteration labels.",
+        "Output defines intent, include_boundary, exclude_boundary, success_signals, and assignment_rules.",
+        "Output assigns each candidate item to an iteration bucket with rationale.",
+        "Output keeps automatic tax filing in later or not_now unless the user changes strategic direction.",
+        "Output does not invoke debug, spec, design, or implementation steps."
+      ]
+    }
+  ]
+}
