@@ -1,7 +1,6 @@
 ---
 name: arckit-workshop-desktop
-description: >-
-  当 Arckit workflow 需要把 Workshop Desktop 作为本地桌面执行桥时使用：检查应用是否已安装或运行，从 hoewo/workshop-desktop 最新 GitHub Release 安装或更新，打开应用，通过 app server 创建项目/任务/个人记录，列出 Workshop 项目或任务，或通过 Workshop Desktop 桥发送已批准的项目工作。
+description: 当 Arckit workflow 需要把 Workshop Desktop 作为本地桌面执行桥时使用：检查应用是否已安装或运行，从 hoewo/workshop-desktop 最新 GitHub Release 安装或更新，打开应用，通过 app server 创建项目/任务/个人记录，列出 Workshop 项目或任务，或通过 Workshop Desktop 桥发送已批准的项目工作。
 ---
 
 # ArcKit Workshop Desktop
@@ -41,10 +40,13 @@ node iteration/skills/arckit-workshop-desktop/scripts/workshop-desktop.mjs statu
 ```bash
 node iteration/skills/arckit-workshop-desktop/scripts/workshop-desktop.mjs status --check-latest
 node iteration/skills/arckit-workshop-desktop/scripts/workshop-desktop.mjs ensure --yes
+node iteration/skills/arckit-workshop-desktop/scripts/workshop-desktop.mjs verify
 node iteration/skills/arckit-workshop-desktop/scripts/workshop-desktop.mjs open
 ```
 
 `ensure` 从 `https://github.com/hoewo/workshop-desktop/releases/latest` 下载最新匹配安装包。在 macOS 上默认把最新 zip 安装到 `~/Applications`；其他平台下载匹配 asset 并报告本地路径，除非已有自动安装路径实现。
+
+macOS 安装或更新后，脚本必须保留 `.app` bundle 内的 framework 符号链接、扩展属性和代码签名结构，并在报告安装成功前完成 `codesign` 与 Gatekeeper 校验。不要用普通递归复制工具手动复制 `.app` bundle；如果需要手动恢复安装，先删除损坏的目标 app，再用 `ditto` 从 zip 或 staging app 复制。
 
 在只读模拟或离线环境中，运行 `status` 后停止，或在 latest-release 查询失败后停止。报告 GitHub Release 查询需要网络权限；不要无限重试。
 
@@ -85,5 +87,7 @@ node iteration/skills/arckit-workshop-desktop/scripts/workshop-desktop.mjs rpc c
 
 - 如果 Workshop Desktop 未运行，询问用户是否运行 `ensure --yes` 或 `open`。
 - 如果缺少 app server 连接，不要编辑本地应用文件。打开桌面应用后重试。
+- 如果 macOS 提示 `is damaged and can't be opened`，不要先让用户人工移动到废纸篓，也不要先猜测只是权限问题。先运行 `verify`，或用 `codesign --verify --deep --strict --verbose=4` 与 `spctl --assess --type execute --verbose=4` 诊断。若错误包含 `unsealed contents present`，或 Electron Framework 的根目录符号链接指向 `/tmp`、`/var/folders` 等临时目录，说明安装复制破坏了 `.app` bundle；删除目标 app 后用 `ditto` 重新解压或重新安装。
+- 如果安装后 `verify` 失败，停止打开应用并报告签名或 Gatekeeper 的具体输出。不要把这种情况报告为安装成功。
 - 如果 GitHub Release 查询失败，报告网络或 release 错误，并提供 releases URL。
 - 如果受限 token 拒绝读取或 dispatch 方法，说明 dispatched-agent 模式通常只允许 `record.create`。

@@ -19,6 +19,7 @@ const NETWORK_TIMEOUT_MS = 20_000;
 function usage() {
   return `Usage:
   workshop-desktop.mjs status [--check-latest] [--json]
+  workshop-desktop.mjs verify [--json]
   workshop-desktop.mjs ensure [--yes] [--json]
   workshop-desktop.mjs open
   workshop-desktop.mjs record create --title <text> [--body <markdown>] [--body-file <path>] [--scope none|project|task] [--project-id N] [--project-name <text>] [--task-id N] [--task-title <text>] [--open] [--json]
@@ -349,10 +350,52 @@ async function installMacZip(zipPath) {
 
   const applicationsDir = path.join(os.homedir(), "Applications");
   const targetPath = path.join(applicationsDir, `${PRODUCT_NAME}.app`);
+  const stagingPath = path.join(applicationsDir, `${PRODUCT_NAME}.app.installing-${process.pid}`);
   await fs.mkdir(applicationsDir, { recursive: true });
-  await fs.rm(targetPath, { recursive: true, force: true });
-  await fs.cp(appPath, targetPath, { recursive: true });
+  await fs.rm(stagingPath, { recursive: true, force: true });
+
+  try {
+    await execFileAsync("ditto", [appPath, stagingPath]);
+    await verifyMacApp(stagingPath);
+    await fs.rm(targetPath, { recursive: true, force: true });
+    await fs.rename(stagingPath, targetPath);
+  } catch (error) {
+    await fs.rm(stagingPath, { recursive: true, force: true }).catch(() => {});
+    throw error;
+  }
   return targetPath;
+}
+
+async function verifyMacApp(appPath) {
+  if (process.platform !== "darwin" || !appPath?.endsWith(".app")) {
+    return { ok: true, skipped: true };
+  }
+
+  try {
+    await execFileAsync("codesign", ["--verify", "--deep", "--strict", "--verbose=4", appPath], {
+      maxBuffer: 8 * 1024 * 1024
+    });
+  } catch (error) {
+    throw new Error(`Installed ${PRODUCT_NAME} failed codesign verification: ${commandOutput(error)}`);
+  }
+
+  try {
+    const { stdout, stderr } = await execFileAsync("spctl", ["--assess", "--type", "execute", "--verbose=4", appPath], {
+      maxBuffer: 8 * 1024 * 1024
+    });
+    return {
+      ok: true,
+      codeSignature: "valid",
+      gatekeeper: "accepted",
+      detail: String(stdout || stderr || "").trim()
+    };
+  } catch (error) {
+    throw new Error(`Installed ${PRODUCT_NAME} was rejected by Gatekeeper: ${commandOutput(error)}`);
+  }
+}
+
+function commandOutput(error) {
+  return String(error?.stderr || error?.stdout || error?.message || error).trim();
 }
 
 async function findFirstApp(dir) {
@@ -406,6 +449,7 @@ async function ensure(options) {
 
   if (process.platform === "darwin" && downloadedPath.toLowerCase().endsWith(".zip")) {
     plan.installedPath = await installMacZip(downloadedPath);
+    plan.verification = await verifyMacApp(plan.installedPath);
     plan.note = `Installed ${PRODUCT_NAME} to ${plan.installedPath}.`;
     return plan;
   }
@@ -424,8 +468,9 @@ async function openApp() {
   }
 
   if (process.platform === "darwin") {
+    const verification = await verifyMacApp(appPath);
     await execFileAsync("open", [appPath]);
-    return { opened: true, appPath };
+    return { opened: true, appPath, verification };
   }
   if (process.platform === "win32") {
     spawn(appPath, { detached: true, stdio: "ignore" }).unref();
@@ -502,6 +547,15 @@ async function main() {
 
   if (command === "status") {
     printResult(await status({ checkLatest: Boolean(options["check-latest"]) }), options);
+    return;
+  }
+
+  if (command === "verify") {
+    const appPath = await findInstalledApp();
+    if (!appPath) {
+      throw new Error("Workshop Desktop is not installed.");
+    }
+    printResult({ appPath, verification: await verifyMacApp(appPath) }, options);
     return;
   }
 

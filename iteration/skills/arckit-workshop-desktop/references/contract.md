@@ -9,6 +9,7 @@ node iteration/skills/arckit-workshop-desktop/scripts/workshop-desktop.mjs <comm
 ## 命令
 
 - `status [--check-latest] [--json]`：报告平台、已安装应用、app-server 可用性，并可选检查最新 GitHub Release。`--check-latest` 需要网络访问。
+- `verify [--json]`：在 macOS 上验证已安装 `.app` 的代码签名和 Gatekeeper 接受状态；其它平台可跳过或返回已跳过。
 - `ensure [--yes] [--json]`：检查最新 release，并在明确批准后安装或更新。没有 `--yes` 时，只打印计划动作并退出，不下载。
 - `open`：尽可能使用已安装应用路径打开 Workshop Desktop。
 - `record create --title ... --body ... --scope none|project|task [--project-id N] [--project-name X] [--task-id N] [--task-title X] [--open]`：通过本地 app server 创建记录。
@@ -35,6 +36,19 @@ https://api.github.com/repos/hoewo/workshop-desktop/releases/latest
 - Linux：优先 `.AppImage`，其次 `.deb`。
 
 如果网络访问失败，报告错误并停止。不要循环重试。脚本本身有网络超时边界，但 agent 仍应把查询最新 release 视为在受限环境中可能需要用户批准的操作。
+
+## macOS 安装完整性
+
+macOS `.app` bundle 必须用 `ditto` 复制或解压，不能用普通递归复制实现。Electron `.framework` 内部依赖相对符号链接；如果复制过程把这些链接解析为指向 staging 或临时目录的绝对路径，`codesign` 会报告 `unsealed contents present in the root directory of an embedded framework`，Gatekeeper 会把应用显示为 damaged。
+
+`ensure --yes` 在 macOS zip 安装路径中必须：
+
+1. 用 `ditto -x -k` 解压 release zip 到临时 staging 目录。
+2. 用 `ditto <staging app> <target app>` 复制到应用目录，保留符号链接、扩展属性和 bundle 结构。
+3. 在替换正式目标前校验 staging app 的 `codesign --verify --deep --strict --verbose=4`。
+4. 安装完成后返回 `verify` 结果；如果 `codesign` 或 `spctl --assess --type execute --verbose=4` 失败，命令必须失败，不得报告安装成功。
+
+当用户报告 `is damaged and can't be opened` 时，优先运行 `verify` 或上述底层命令，并检查 `Contents/Frameworks/Electron Framework.framework` 根目录下的符号链接是否仍指向 `Versions/Current/...`。
 
 ## Token 边界
 

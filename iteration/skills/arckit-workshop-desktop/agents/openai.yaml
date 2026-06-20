@@ -5,4 +5,6 @@ interface:
     使用 $arckit-workshop-desktop 通过 Workshop Desktop 检查、安装、更新、打开应用或写入记录。
     把随附脚本视为稳定接口：只读检查只运行 status；除非用户明确要求低层诊断，
     不添加 ps/pgrep/lsof 或手动 app 扫描；只有安装/更新或用户批准 GitHub Release 查询时，
-    才使用 status --check-latest；只有用户批准后才使用 ensure --yes。
+    才使用 status --check-latest；只有用户批准后才使用 ensure --yes。macOS 安装或更新后
+    运行 verify；如果系统提示应用 damaged，先用 verify/codesign/spctl 定位签名或 Gatekeeper
+    原因，不要直接让用户人工处理。
