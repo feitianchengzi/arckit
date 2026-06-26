@@ -1,7 +1,7 @@
 interface:
   display_name: "Using ArcKit"
   short_description: "软件项目协作的默认 ArcKit 场景识别和工作流编排入口"
-  default_prompt: "使用 $using-arckit 先识别软件项目协作场景，并默认调用 $arckit-workflow-memory 做开始 memory_check：先读取相关 INDEX.md 内容，再匹配 accepted/candidates，索引缺失或不完整时扫描目录兜底；随后生成 workflow frame，组合必要 ArcKit skills，明确 handoff、沉淀目标、确认点和停止条件；任务结束或阻塞时再次调用 $arckit-workflow-memory 记录 workflow signal，且 signal 收口必须是 written、pending_write 或 blocked 三选一。~/.arckit/workflows 不存在且可写时直接初始化，只有权限不足时 pending；第二条相似 signal 后必须输出 candidate 状态；写入或更新 signal/candidate/accepted 后必须同步 INDEX.md；用户确认后才 accepted。"
+  default_prompt: "使用 $using-arckit 先识别软件项目协作场景，建立 runtime_situation，并默认调用 $arckit-workflow-memory 做开始 memory_check：先读取相关 INDEX.md 内容，再匹配 accepted/candidate workflow patches，索引缺失或不完整时扫描目录兜底；随后把 memory overlay 应用到默认能力地图，编译 workflow_frame，组合必要 ArcKit skills，明确 handoff、artifact_impact_scan、reflection_gates、确认点和停止条件；任务结束或阻塞时先完成 artifact impact scan，再调用 $arckit-workflow-memory 做 workflow memory closeout，输出 signal_decision，并按学习价值写 signal、轻量更新 candidate patch 或跳过。~/.arckit/workflows 不存在且可写时直接初始化，只有权限不足时 pending；第二条相似 signal 后必须输出 candidate 状态；写入或更新 signal/candidate/accepted 后必须同步 INDEX.md；用户确认后才 accepted。"
 policy:
   allow_implicit_invocation: true
   orchestration_required: true
@@ -9,15 +9,18 @@ workflow:
   first_steps:
     - "识别 scenario、signals 和 workflow_source。"
     - "默认调用 arckit-workflow-memory 做 memory_check，不等用户提到 workflow；先读 INDEX.md 内容，索引缺失或不完整时再扫描目录兜底。"
-    - "生成或采用 workflow_frame，再读取专门 skill。"
+    - "生成 runtime_situation，应用 memory overlay，编译 workflow_frame，再读取专门 skill。"
     - "正向实现任务也先形成 implementation_handoff，再执行代码工作流并按风险验证。"
     - "bug、review、skill 验证、产品定义和技术方案按默认 workflow 组合专门 skill。"
-    - "任务结束、阻塞或失败时调用 arckit-workflow-memory 捕获 workflow signal；不能只口头报告目录不存在或未写入。"
+    - "任务结束、阻塞或失败时先做 artifact impact scan，再调用 arckit-workflow-memory 做 closeout decision；不能只口头报告目录不存在或未写入。"
     - "同一会话第二条相似 signal 后，要求 arckit-workflow-memory 输出 candidate written、candidate_pending_write、candidate_blocked 或 none+相似数量，并同步 INDEX.md。"
   persistence_rules:
     - "Workflow memory 分为 signals、candidates、accepted；一次任务不能直接 accepted。"
     - "业务代码写入边界不自动禁止 ~/.arckit workflow memory；首次初始化不需要产品确认，权限不足时输出 pending write 或请求权限。"
     - "Pending signals 也算 candidate evidence；不需要等 signal 文件落盘才维护 candidate。"
+    - "Workflow signal 是学习证据，不是任务日志；命中 candidate 且无新信息时轻量更新 candidate，命中 accepted 且完全按预期成功时可以 skip。"
+    - "Workflow memory 是 overlay，不是固定流程执行器；命中 memory 必须改写或明确不改写本轮 workflow_frame。"
+    - "每轮必须扫描 spec、interaction、visual、tech、pending、governance、verification 和 workflow_memory 的影响。"
     - "产品概念和技术方案仍写入目标项目 arckit/spec、arckit/tech 或其他结果事实源。"
     - "Accepted workflow 前必须让用户确认内容、证据、作用域和影响。"
     - "INDEX.md 是 workflow memory 导航索引；写入 signal/candidate/accepted 后不能漏更新，无法更新时必须输出 workflow_index_pending_write 或 workflow_index_blocked。"

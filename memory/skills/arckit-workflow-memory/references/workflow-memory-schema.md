@@ -1,5 +1,19 @@
 # Workflow Memory Schema
 
+## Signal Decision
+
+每次 workflow memory closeout 都必须先输出 signal decision。Decision 是收口动作，不等同于 signal 文件。
+
+```yaml
+signal_decision:
+  action: write_signal|update_candidate_only|skip
+  reason: ""
+  matched_workflow: ""
+  applied_overlay: ""
+  novelty: none|low|medium|high
+  outcome: succeeded|failed|blocked|partial
+```
+
 ## Signal
 
 ```yaml
@@ -15,10 +29,14 @@ fingerprint_confidence: high|medium|low
 workflow_frame:
   scenario: ""
   signals: []
+  runtime_situation: {}
   workflow_source: ""
   skills: []
   handoffs: []
   artifact_targets: []
+  artifact_impact_scan: {}
+  reflection_gates: []
+  memory_overlay: []
   confirmation_points: []
   stop_conditions: []
 skills_used: []
@@ -85,7 +103,7 @@ signal_summary: ""
 
 ```yaml
 id: "cand-short-slug"
-type: workflow_candidate
+type: workflow_candidate_patch
 status: candidate
 created_at: "YYYY-MM-DD"
 updated_at: "YYYY-MM-DD"
@@ -95,19 +113,58 @@ scenario: ""
 trigger_signals: []
 applies_when: []
 does_not_apply_when: []
-steps:
-  - id: ""
-    skill: ""
-    purpose: ""
-    required: true
-handoffs: []
-confirmation_points: []
-artifact_targets: []
-stop_conditions: []
+patch:
+  add_required_steps:
+    - id: ""
+      skill: ""
+      purpose: ""
+      required: true
+  remove_steps: []
+  reorder_steps: []
+  handoffs: []
+  artifact_impact_scan:
+    spec: none|check|update|pending|skipped
+    interaction: none|check|update|pending|skipped
+    visual: none|check|update|pending|skipped
+    tech: none|check|update|pending|skipped
+    pending: none|check|update|pending|skipped
+    governance: none|check|update|pending|skipped
+    verification: none|check|update|pending|skipped
+    workflow_memory: none|check|update|pending|skipped
+  artifact_targets: []
+  reflection_gates: []
+  confirmation_points: []
+  stop_conditions: []
 evidence_refs: []
 success_count: 0
 failure_count: 0
 risk_notes: []
+match_count: 0
+last_matched_at: ""
+last_outcome: succeeded|failed|blocked|partial
+last_match_summary: ""
+```
+
+## Candidate Match Update
+
+命中 candidate 且没有新学习信息时使用。该结构只维护 candidate 的轻量验证状态，不创建完整 signal，也不更新 `INDEX.md` 的 Recent Signals。
+
+```yaml
+type: workflow_candidate_match_update
+candidate_id: "cand-short-slug"
+reason: "matched_candidate_without_new_learning"
+matched_at: "YYYY-MM-DD"
+outcome: succeeded|failed|blocked|partial
+applied_overlay: true|false
+frame_changes:
+  skills: []
+  artifact_impact_scan: []
+  reflection_gates: []
+match_count_delta: 1
+success_count_delta: 1
+failure_count_delta: 0
+last_match_summary: ""
+index_update_required: true
 ```
 
 ## Candidate Pending Write
@@ -120,7 +177,7 @@ reason: signal_files_pending|permission_required|write_boundary_forbidden|tool_u
 target_path: "~/.arckit/workflows/user/candidates/cand-short-slug.yaml"
 candidate:
   id: "cand-short-slug"
-  type: workflow_candidate
+  type: workflow_candidate_patch
   status: candidate
   scope: user|project
   title: ""
@@ -146,7 +203,7 @@ candidate_summary: ""
 
 ## Index Update
 
-每次 memory check 都要读取相关 `INDEX.md` 内容。每次 signal、candidate 或 accepted workflow 写入成功后，都要同步维护对应 `INDEX.md`。如果索引缺失、过期或没有列出磁盘上已存在的候选文件，应扫描目录兜底并在收口时修复或报告。
+每次 memory check 都要读取相关 `INDEX.md` 内容。每次 signal、candidate patch 或 accepted workflow patch 写入成功后，都要同步维护对应 `INDEX.md`。如果索引缺失、过期或没有列出磁盘上已存在的候选文件，应扫描目录兜底并在收口时修复或报告。
 
 ```yaml
 workflow_index_update:
@@ -226,11 +283,11 @@ pending_signal_buffer:
       - "verification:<verification-shape>"
 ```
 
-## Accepted Workflow
+## Accepted Workflow Patch
 
 ```yaml
 id: "wf-short-slug"
-type: workflow
+type: workflow_patch
 status: accepted
 accepted_at: "YYYY-MM-DD"
 accepted_by: user
@@ -244,11 +301,24 @@ triggers:
   paths: []
 applies_when: []
 does_not_apply_when: []
-steps: []
-handoffs: []
-confirmation_points: []
-artifact_targets: []
-stop_conditions: []
+patch:
+  add_required_steps: []
+  remove_steps: []
+  reorder_steps: []
+  handoffs: []
+  artifact_impact_scan:
+    spec: none|check|update|pending|skipped
+    interaction: none|check|update|pending|skipped
+    visual: none|check|update|pending|skipped
+    tech: none|check|update|pending|skipped
+    pending: none|check|update|pending|skipped
+    governance: none|check|update|pending|skipped
+    verification: none|check|update|pending|skipped
+    workflow_memory: none|check|update|pending|skipped
+  artifact_targets: []
+  reflection_gates: []
+  confirmation_points: []
+  stop_conditions: []
 source_candidate: ""
 evidence_refs: []
 version: 1

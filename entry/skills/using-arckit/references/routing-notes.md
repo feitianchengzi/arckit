@@ -24,21 +24,27 @@
 ```text
 user intent
 -> scenario classification
+-> runtime situation model
 -> arckit-workflow-memory memory_check
--> accepted/candidate workflow match or ad-hoc workflow frame
--> specialist skills with explicit handoffs
--> verification/governance/result artifact write-back when needed
--> arckit-workflow-memory signal_capture and candidate/index maintenance
+-> memory overlay patch match
+-> workflow frame compilation
+-> specialist skills with explicit handoffs and reflection gates
+-> artifact impact scan and result/pending/governance write-back when needed
+-> arckit-workflow-memory closeout decision and candidate/index maintenance
 ```
 
 ## Workflow Frame 字段
 
 - `scenario`
 - `signals`
+- `runtime_situation`
 - `workflow_source`
 - `skills`
 - `handoffs`
 - `artifact_targets`
+- `artifact_impact_scan`
+- `reflection_gates`
+- `memory_overlay`
 - `workflow_memory`
 - `confirmation_points`
 - `stop_conditions`
@@ -72,7 +78,11 @@ user intent
 ## Coordination Rules
 
 - 入口先编排再执行：先形成 workflow frame，再读取专门 skill。
-- Workflow memory 默认参与：开始检查，结束捕获 signal 并维护 candidate/index。
+- Workflow memory 是 overlay：命中的 candidate/accepted 必须改写或明确不改写本轮 workflow frame，不能只展示为来源。
+- 每轮执行 artifact impact scan：稳定事实进 spec/interaction/visual/tech，未决问题进 pending，目标任务影响进 governance，流程经验进 workflow memory。
+- 轻量任务可压缩 artifact impact scan：若没有项目事实、未决上下文、治理状态或流程学习变化，输出 `all skipped; no project facts changed` 即可。
+- 执行中保留 reflection gates：after_context_read、before_edit、after_execution、before_final。
+- Workflow memory 默认参与：开始检查，结束做 closeout decision，并按学习价值写 signal、轻量更新 candidate 或跳过。
 - Memory 缺目录也要收口：可写时初始化，不可写时 pending，不能只报告不存在。
 - 连续相似任务必须触发 candidate 维护：pending signals 也算 evidence。
 - 正向实现也进入 workflow frame：不要因为没有技术栈 skill 就完全跳出 ArcKit。
