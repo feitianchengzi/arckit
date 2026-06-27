@@ -1,7 +1,7 @@
 interface:
   display_name: "ArcKit Workflow Memory"
   short_description: "默认维护 Arckit 工作流信号、候选和已确认工作流记忆"
-  default_prompt: "使用 $arckit-workflow-memory 在每个 Arckit 任务开始时检查用户级/项目级 workflow memory：必须先读取相关 INDEX.md 内容，再按索引读取匹配的 accepted/candidate workflow patches；索引缺失、过期或未列出已有文件时扫描目录兜底并报告 index_status。向 using-arckit 输出 memory overlay 及其预期改写项。任务结束时做 signal_decision；只有有学习价值时记录 workflow signal；命中 candidate patch 且无新信息时轻量更新 candidate；命中 accepted patch 且完全按预期成功时 skip。把 pending signals 保留在当前会话 buffer 中，第二条相似 signal 后必须输出 candidate written、candidate_pending_write 或 candidate_blocked；写入或更新 signal/candidate/accepted 后必须同步 INDEX.md，不能只写 YAML 文件；只有用户确认后才提升为 accepted workflow patch。"
+  default_prompt: "使用 $arckit-workflow-memory 在每个 Arckit 任务开始时检查用户级/项目级 workflow memory：必须先读取相关 INDEX.md 内容，再按索引读取匹配的 accepted/candidate workflow patches；索引缺失、过期或未列出已有文件时扫描目录兜底并报告 index_status。向 using-arckit 输出 memory overlay 及其预期改写项。任务结束时做 signal_decision；只有有学习价值时记录 workflow signal。用户流程质疑、选择/确认/原型偏好、最终目标与当前阶段分离、或 using-arckit 触发 user_workflow_correction 时，优先记录为 workflow-level signal，抽象成编排启发式、adaptation_triggers、final_goal/current_phase 和 workflow_patch_shape，不写成固定模板流程。命中 candidate patch 且无新信息时轻量更新 candidate；命中 accepted patch 且完全按预期成功时 skip。把 pending signals 保留在当前会话 buffer 中，第二条相似 signal 后必须输出 candidate written、candidate_pending_write 或 candidate_blocked；写入或更新 signal/candidate/accepted 后必须同步 INDEX.md，不能只写 YAML 文件；只有用户确认后才提升为 accepted workflow patch。"
 policy:
   allow_implicit_invocation: true
   default_from_using_arckit: true
@@ -10,11 +10,12 @@ workflow:
     - "memory_check: 先读取 user/project INDEX.md 内容，再按索引匹配 accepted 与 candidates；索引缺失或不完整时扫描目录兜底。"
     - "frame_contribution: 为 using-arckit 的 workflow_frame 提供 memory overlay，并说明预期改写的 skill、handoff、artifact scan、reflection gate、确认点或 closeout 策略。"
     - "signal_decision: 每个 Arckit 任务结束时必须得到 write_signal、update_candidate_only 或 skip 三选一；目录不存在且可写时直接初始化，只有权限不足且需要写入时生成 bootstrap pending write。"
-    - "candidate_maintenance: 维护 pending_signal_buffer；第二条相似 signal 后必须创建或更新 candidate patch，不能只报告 signal pending；candidate 写入或更新后同步 INDEX.md。"
+    - "candidate_maintenance: 维护 pending_signal_buffer；相似性包括 scenario、skill 链、任务输入、用户纠偏/适配触发器、final_goal/current_phase 是否分离、workflow_patch_shape 和验证形态；第二条相似 signal 后必须创建或更新 candidate patch，不能只报告 signal pending；candidate 写入或更新后同步 INDEX.md。"
     - "index_maintenance: signal、candidate patch 或 accepted workflow patch 写入后必须维护 INDEX.md；无法维护时输出 workflow_index_pending_write 或 workflow_index_blocked。"
     - "acceptance: 只有用户确认后才写 accepted workflow patch。"
   boundaries:
     - "不要把一次任务直接提升为 accepted workflow patch。"
+    - "Workflow memory 记录编排启发式和 frame 改写方式，不记录“某类任务必须永远 A->B->C”的固定方案。"
     - "产品概念、技术方案和项目事实不写入 workflow memory。"
     - "~/.arckit/workflows 是基础运行状态目录，首次初始化不需要产品确认；沙箱或工具无权限时才请求权限。"
     - "业务代码只改目标目录不等于禁止 workflow memory；明确禁止或拒绝后才输出 blocked。"

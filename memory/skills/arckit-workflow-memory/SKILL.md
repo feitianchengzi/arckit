@@ -14,6 +14,8 @@ Workflow memory 是 procedural memory，不是项目事实源。Workflow signal 
 - 每个进入 Arckit 的软件项目协作任务，开始阶段做 memory check，结束、阻塞或失败时做 workflow memory closeout。
 - 不要因为用户没有提到 workflow、记忆、沉淀或 Arckit，就跳过本 skill。
 - 一轮任务最多生成一条 signal；只有有学习价值时才写 signal；多个相似 signals 才能形成 candidate patch；candidate 经用户确认后才成为 accepted workflow patch。
+- Workflow memory 记录编排启发式和 frame 改写方式，不记录固定模板流程；不要把一次事件写成“某类任务必须总是 A->B->C”。
+- 用户对流程提出质疑、偏好、缺漏或阶段纠偏时，优先按 workflow-level correction 评估是否写 signal，而不是只当作普通任务备注。
 - `~/.arckit/workflows` 是 ArcKit 的用户级基础运行状态目录。目录不存在且当前工具权限允许时，直接初始化。
 - 用户限制“业务代码只改某项目目录”时，默认只约束业务代码和项目事实写入，不自动禁止 workflow memory。
 - `INDEX.md` 是 workflow memory 的导航索引：memory check 必须先读索引；写入或更新 signal、candidate patch、accepted workflow patch 后必须同步索引。
@@ -54,6 +56,7 @@ Workflow memory 是 procedural memory，不是项目事实源。Workflow signal 
 动作：
 - 读取 [references/workflow-memory-schema.md](references/workflow-memory-schema.md)。
 - 输出 `signal_decision`，action 必须是 `write_signal`、`update_candidate_only` 或 `skip`。
+- 当用户反馈触发过 `user_workflow_correction`、重新区分 `final_goal` 和 `current_phase`、或改变了 selected capabilities，默认具有学习价值；除非已被命中的 accepted patch 完全覆盖，否则优先 `write_signal`。
 - `write_signal` 时记录一条 workflow signal，或输出 `workflow_signal_pending_write|workflow_signal_blocked`；并把本次 signal 加入当前会话 `pending_signal_buffer`。
 - `update_candidate_only` 时只更新命中的 candidate 轻量统计或验证状态，不创建完整 signal。
 - `skip` 只用于命中 accepted workflow patch 且本次完全按预期成功、无用户纠偏、无失败、无新增模式。

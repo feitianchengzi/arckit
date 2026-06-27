@@ -45,12 +45,20 @@
 写 signal 的条件：
 
 - 用户纠正了 agent 的流程、确认点、输出格式或工具边界。
+- 用户把最终目标和当前步骤分开描述，或要求先选择、先确认、先原型、先方案、先解释流程，再进入实现或稳定事实写入。
+- 用户指出 agent 没有按 `using-arckit` 编译 workflow、没有利用基础 skill、没有生成预期中间产物，或质疑“为什么没有先...”。
 - 任务失败、阻塞、返工、回滚或验证不通过。
 - 出现新的任务形态、输入形态、skill 组合或停止条件。
 - 现有 candidate/accepted workflow patch 不适配，或需要收窄适用边界。
 - 本次验证了 candidate 的关键假设，并且该证据需要保留完整上下文。
 - 出现新的风险、权限边界、索引漂移、事实源边界或候选提升判断。
 - 本轮发现某个 workflow patch 应该改变 future workflow frame 的步骤、artifact scan、reflection gate、确认点或验证强度。
+
+写入时抽象为启发式：
+
+- 记录触发信号、当前阶段判断、应选择或跳过的能力、下一次重编译条件和 frame 改写形状。
+- 避免把一次具体任务、页面类型、技术栈或中间产物写成普适顺序。
+- 推荐表达为“当出现这些信号时重新编译 workflow 并显式区分 final_goal/current_phase”，而不是“所有同类任务必须先做某一步”。
 
 只更新 candidate 的条件：
 
@@ -87,6 +95,8 @@
 - `scenario`
 - 主要 skill 链
 - 任务输入形态
+- 用户纠偏或适配触发器
+- final goal 与 current phase 是否分离
 - 失败/验证形态
 - artifact targets
 - artifact impact scan
@@ -104,6 +114,7 @@
 - 更新 candidate 时保留 evidence refs，不覆盖历史证据。
 - Candidate match update 可以只维护 `match_count`、`success_count`、`failure_count`、`last_matched_at`、`last_outcome` 和 `last_match_summary`；没有完整 signal 时不要伪造 `evidence_refs`。
 - Candidate patch 应描述适用边界、对 workflow frame 的改写、skill 组合、确认点、artifact scan、reflection gates、失败模式和停止条件。
+- Candidate patch 的核心应是 workflow 编排启发式：何时重编译、如何选择基础能力、何时请求确认、何时进入实现或验证；不要把候选写成单一固定路线。
 - candidate 文件创建或更新成功后必须同步更新对应 `INDEX.md` 的 Candidates。
 - Candidate patch 不能自动变成 accepted。
 

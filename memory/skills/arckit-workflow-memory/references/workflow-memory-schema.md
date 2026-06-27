@@ -30,12 +30,21 @@ workflow_frame:
   scenario: ""
   signals: []
   runtime_situation: {}
+  workflow_composition_reasoning: {}
+  final_goal: ""
+  current_phase: ""
+  phase_reason: ""
   workflow_source: ""
+  available_arckit_capabilities: []
+  selected_capabilities: []
+  why_not_selected: {}
   skills: []
   handoffs: []
   artifact_targets: []
   artifact_impact_scan: {}
   reflection_gates: []
+  adaptation_triggers: []
+  next_recompile_condition: ""
   memory_overlay: []
   confirmation_points: []
   stop_conditions: []
@@ -47,6 +56,7 @@ evidence:
   verification: []
 outcome: succeeded|failed|blocked|partial
 reusable_pattern_hint: ""
+workflow_patch_shape: ""
 promotion_hint: none|candidate_possible
 notes: []
 ```
@@ -85,6 +95,7 @@ signal:
     verification: []
   outcome: succeeded|failed|blocked|partial
   reusable_pattern_hint: ""
+  workflow_patch_shape: ""
   promotion_hint: none|candidate_possible
 ```
 
@@ -113,6 +124,7 @@ scenario: ""
 trigger_signals: []
 applies_when: []
 does_not_apply_when: []
+composition_heuristic: ""
 patch:
   add_required_steps:
     - id: ""
@@ -133,6 +145,8 @@ patch:
     workflow_memory: none|check|update|pending|skipped
   artifact_targets: []
   reflection_gates: []
+  adaptation_triggers: []
+  next_recompile_condition: ""
   confirmation_points: []
   stop_conditions: []
 evidence_refs: []
@@ -280,6 +294,9 @@ pending_signal_buffer:
       - "scenario:<scenario>"
       - "skills:<skill-chain>"
       - "task-shape:<task-shape>"
+      - "adaptation:<adaptation-trigger>"
+      - "phase:<final-goal>-><current-phase>"
+      - "workflow:<workflow-patch-shape>"
       - "verification:<verification-shape>"
 ```
 
@@ -301,6 +318,7 @@ triggers:
   paths: []
 applies_when: []
 does_not_apply_when: []
+composition_heuristic: ""
 patch:
   add_required_steps: []
   remove_steps: []
@@ -317,6 +335,8 @@ patch:
     workflow_memory: none|check|update|pending|skipped
   artifact_targets: []
   reflection_gates: []
+  adaptation_triggers: []
+  next_recompile_condition: ""
   confirmation_points: []
   stop_conditions: []
 source_candidate: ""
