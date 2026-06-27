@@ -24,10 +24,23 @@
 
 项目指纹优先使用 Git root + remote URL。没有 Git 信息时，使用项目绝对路径的稳定标识；无法稳定计算时，用路径 slug，并在 signal 中标记 `fingerprint_confidence: low`。
 
+当 signal `scope=project`，或 `workflow_correction_ledger.scope_hint=current_project` 时，优先写入项目级目录：
+
+```text
+~/.arckit/workflows/projects/<project-fingerprint>/
+  INDEX.md
+  signals/
+  candidates/
+  accepted/
+```
+
+不得无说明写入 `~/.arckit/workflows/user/signals/`。只有项目指纹无法稳定计算、项目级目录不可写，或用户明确要求用户级记忆时，才可降级到 user scope；降级时必须在 `workflow_memory_closeout`、pending write 或 signal notes 中说明原因。
+
 ## Memory Check 细节
 
 - 如果 memory root 不存在且当前工具权限允许写入，直接初始化基础目录和 `INDEX.md`。
 - 如果 memory root 不存在但当前工具权限不允许写入，返回 `bootstrap_required: true` 和 `write_permission: needs_permission|unavailable`，不要把它当作“无须沉淀”。
+- 如果本轮是项目级 signal，memory check 和 closeout 都必须检查对应 project scope 的 `INDEX.md`，再按需要参考 user scope 作为 fallback overlay。
 - 读取相关 `INDEX.md` 的文件内容，并把索引中与当前 `scenario`、路径、错误类型或用户意图可能匹配的 candidate/accepted workflow patches 作为首批候选。
 - 如果 `INDEX.md` 不存在、为空、没有列出 candidate/accepted，或索引条目与磁盘文件明显不一致，扫描 `accepted/` 和 `candidates/` 目录兜底；只打开可能匹配的文件，并记录 `index_status: missing|stale|incomplete|current`。
 - 无目录、无权限或无匹配时，不阻塞任务，返回 `workflow_memory_status`。
@@ -44,9 +57,9 @@
 
 写 signal 的条件：
 
-- 用户纠正了 agent 的流程、确认点、输出格式或工具边界。
-- 用户把最终目标和当前步骤分开描述，或要求先选择、先确认、先原型、先方案、先解释流程，再进入实现或稳定事实写入。
-- 用户指出 agent 没有按 `using-arckit` 编译 workflow、没有利用基础 skill、没有生成预期中间产物，或质疑“为什么没有先...”。
+- `workflow_correction_ledger` 表明用户纠正了 agent 的流程、确认点、输出格式、验证方式、停止条件或工具边界。
+- 最终 workflow frame 重新区分了最终目标和当前步骤，或要求先选择、先确认、先原型、先方案、先解释流程，再进入实现或稳定事实写入。
+- `workflow_correction_ledger` 表明用户指出 agent 没有按 `using-arckit` 编译 workflow、没有利用基础 skill、没有生成预期中间产物、没有学习或跳过了记忆判断。
 - 任务失败、阻塞、返工、回滚或验证不通过。
 - 出现新的任务形态、输入形态、skill 组合或停止条件。
 - 现有 candidate/accepted workflow patch 不适配，或需要收窄适用边界。

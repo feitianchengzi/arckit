@@ -5,6 +5,16 @@
 每次 workflow memory closeout 都必须先输出 signal decision。Decision 是收口动作，不等同于 signal 文件。
 
 ```yaml
+workflow_memory_closeout:
+  correction_detected: yes|no
+  signal_decision: write_signal|update_candidate_only|skip
+  skip_reason: ""
+  ledger_source: arckit-turn-adaptation|using-arckit|none
+```
+
+当 `correction_detected=yes` 且 `signal_decision=skip` 时，`skip_reason` 必须说明该纠偏为什么不是可复用流程学习，或说明完全覆盖它的 accepted workflow patch。
+
+```yaml
 signal_decision:
   action: write_signal|update_candidate_only|skip
   reason: ""
@@ -15,6 +25,8 @@ signal_decision:
 ```
 
 ## Signal
+
+`scope: project` 的 signal 默认路径是 `~/.arckit/workflows/projects/<project-fingerprint>/signals/`；`scope: user` 的 signal 默认路径是 `~/.arckit/workflows/user/signals/`。如果 `scope=project` 但因权限或指纹问题降级到 user 目录，必须在 `notes` 和 closeout 输出中说明降级原因。
 
 ```yaml
 id: "sig-YYYYMMDD-short-slug"
@@ -72,12 +84,13 @@ requested_permission: ""
 bootstrap_required: true|false
 target_paths:
   root: "~/.arckit/workflows"
-  index: "~/.arckit/workflows/user/INDEX.md"
-  signal: "~/.arckit/workflows/user/signals/sig-YYYYMMDD-short-slug.yaml"
+  scope_path: "user|projects/<project-fingerprint>"
+  index: "~/.arckit/workflows/<scope-path>/INDEX.md"
+  signal: "~/.arckit/workflows/<scope-path>/signals/sig-YYYYMMDD-short-slug.yaml"
 directories:
-  - "~/.arckit/workflows/user/signals"
-  - "~/.arckit/workflows/user/candidates"
-  - "~/.arckit/workflows/user/accepted"
+  - "~/.arckit/workflows/<scope-path>/signals"
+  - "~/.arckit/workflows/<scope-path>/candidates"
+  - "~/.arckit/workflows/<scope-path>/accepted"
 signal:
   id: "sig-YYYYMMDD-short-slug"
   type: workflow_signal
@@ -106,7 +119,7 @@ signal:
 ```yaml
 type: workflow_signal_blocked
 reason: user_declined|external_memory_forbidden|scope_forbidden
-would_have_written: "~/.arckit/workflows/user/signals/sig-YYYYMMDD-short-slug.yaml"
+would_have_written: "~/.arckit/workflows/<scope-path>/signals/sig-YYYYMMDD-short-slug.yaml"
 signal_summary: ""
 ```
 

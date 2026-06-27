@@ -4,7 +4,7 @@
 
 ## 能力分层
 
-- 入口编排层：`using-arckit`；workflow memory 使用 `arckit-workflow-memory`；显式角色协作使用 `arckit-role-orchestration`。
+- 入口编排层：`using-arckit`；任务中后续消息适配使用 `arckit-turn-adaptation`；workflow memory 使用 `arckit-workflow-memory`；显式角色协作使用 `arckit-role-orchestration`。
 - 判断层：`arckit-decision-framework`。
 - 想法层：`arckit-idea`、`arckit-market-research`、`arckit-idea-explore`。
 - 过程层：`arckit-draft-spec`、`arckit-explore-product-design`、`arckit-architecture-decision`、`arckit-domain-modeling`。
@@ -29,8 +29,9 @@ user intent
 -> memory overlay patch match
 -> workflow frame compilation
 -> specialist skills with explicit handoffs and reflection gates
+-> arckit-turn-adaptation when a later user message changes context, workflow, goal, facts, or stop state
 -> artifact impact scan and result/pending/governance write-back when needed
--> arckit-workflow-memory closeout decision and candidate/index maintenance
+-> arckit-workflow-memory closeout
 ```
 
 ## Workflow Frame 字段
@@ -79,26 +80,23 @@ user intent
 - 当用户要求“让我选择”“先给方案”“先生成原型”“确认后再做”时，当前阶段通常是探索、原型或确认；实现、稳定 spec 或 tech 只有在确认后进入。
 - 当用户描述清楚、风险低、已有 artifact 足够且没有确认/比较信号时，可以直接实现；但仍要在 workflow frame 中说明跳过探索、交互、视觉或技术方案的原因。
 - 当用户最终目标和当前步骤分离时，workflow frame 必须同时保留二者，例如 `final_goal: 生成可运行代码`，`current_phase: 先做交互原型供选择`。
-- 当用户反馈“为什么没先...”“不是这个意思”“你是不是没按 using-arckit 生成工作流”时，不要争辩默认流程；把它识别为 workflow-level correction，重新判断 final goal、current phase 和 selected capabilities。
+- 当用户在任务执行中继续补充、纠错、换目标、纠正项目事实或要求暂停时，交给 `arckit-turn-adaptation` 分类；如果它产出 `workflow_correction_ledger`，再重新判断 final goal、current phase 和 selected capabilities。
 - 当实现中发现定义不稳定、视觉/交互歧义、技术边界不清、验证失败或用户改口，触发重编译，而不是把当前路径硬走完。
 
-### Workflow-Level Correction 恢复协议
+### Turn Adaptation 交接
 
-触发 workflow-level correction 时，输出并执行：
+后续用户消息由 `arckit-turn-adaptation` 输出：
 
 ```yaml
-workflow_recompile:
-  detected_deviation: ""
-  corrected_final_goal: ""
-  corrected_current_phase: ""
-  phase_reason: ""
-  selected_capabilities: []
-  why_not_selected: {}
-  recovery_next_step: ""
-  workflow_signal_decision_hint: write_signal|update_candidate_only|skip
+turn_adaptation_decision:
+  turn_type: supplemental_context|user_workflow_correction|goal_change|artifact_fact_correction|pause_or_stop|clarification_answer
+  frame_delta: {}
+  artifact_routing_delta: {}
+  handoff_targets: []
+workflow_correction_ledger: null
 ```
 
-`workflow_signal_decision_hint` 只是给 `arckit-workflow-memory` 的 closeout 输入，不替代最终 signal decision。
+当 `workflow_correction_ledger` 非空时，把它作为 `arckit-workflow-memory` 的 closeout 输入；它不替代最终 signal decision。
 
 ## Workflow 选择优先级
 
@@ -129,16 +127,13 @@ workflow_recompile:
 ## Coordination Rules
 
 - 入口先编排再执行：先形成 workflow frame，再读取专门 skill。
-- Workflow memory 是 overlay：命中的 candidate/accepted 必须改写或明确不改写本轮 workflow frame，不能只展示为来源。
+- Workflow memory 是 overlay：命中的 memory 必须改写或明确不改写本轮 workflow frame，不能只展示为来源。
 - 每轮执行 artifact impact scan：稳定事实进 spec/interaction/visual/tech，未决问题进 pending，目标任务影响进 governance，流程经验进 workflow memory。
 - 轻量任务可压缩 artifact impact scan：若没有项目事实、未决上下文、治理状态或流程学习变化，输出 `all skipped; no project facts changed` 即可。
-- 执行中保留 reflection gates：after_context_read、before_edit、after_execution、before_final。
-- 用户流程纠偏是 reflection gate：出现“为什么没有先...”“不是这个意思”“让我选择”“先生成原型”“先确认”“最终要代码但现在先...”等表达时，触发 `user_workflow_correction` 并重新编译 workflow frame。
-- Workflow memory 默认参与：开始检查，结束做 closeout decision，并按学习价值写 signal、轻量更新 candidate 或跳过。
-- Memory 缺目录也要收口：可写时初始化，不可写时 pending，不能只报告不存在。
-- 连续相似任务必须触发 candidate 维护：pending signals 也算 evidence。
+- 执行中保留 reflection gates：after_context_read、before_edit、after_execution、before_final、turn_adaptation。
+- 后续用户消息是 turn adaptation gate：出现补充、纠错、换目标、事实纠正、回答澄清或暂停时，先用 `arckit-turn-adaptation` 分类，再决定是否重编 workflow frame 或更新 artifact routing。
+- Workflow memory 默认参与：开始检查，结束做 closeout；具体 signal、candidate、accepted 和 index 规则由 `arckit-workflow-memory` 处理。
 - 正向实现也进入 workflow frame：不要因为没有技术栈 skill 就完全跳出 ArcKit。
-- 自然沉淀分层：signal -> candidate -> accepted，accepted 必须用户确认。
 - 过程 handoff 临时保存：需要后续复用但未确认时放 `arckit-pending`。
 - 工作流偏好和项目事实分离：workflow memory 只记录 agent 工作方式。
 
