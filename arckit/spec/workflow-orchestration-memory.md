@@ -1,6 +1,6 @@
 # Arckit 工作流编排与自然沉淀规格
 
-更新时间：2026-06-27
+更新时间：2026-07-02
 
 ## 1. 产品定位
 
@@ -92,7 +92,9 @@ Artifact Impact Scan 是每轮 ArcKit 工作流的反思路由动作。它判断
 
 Scan 的结果决定是否调用 `arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech`、`arckit-pending`、`arckit-project-governance-workflow` 或 `arckit-workflow-memory`。没有影响时必须显式跳过，避免过度沉淀。
 
-轻量任务仍必须做 artifact impact scan，但可以压缩输出。当任务只涉及查看状态、提交代码、简单查询、无项目事实变化的局部文件操作，且没有暴露新的产品、交互、视觉、技术、治理或未决上下文时，scan 可以简写为：`artifact_impact_scan: all skipped; no project facts changed`。该压缩形式只省略展开说明，不省略判断。
+Artifact impact scan 不按任务规模设置特殊分支。所有任务都按同一组目标逐项判断，任务规模、实现难度或是否只是局部操作不能作为省略扫描的依据。最终响应可以用简洁形式说明 scan 结果，但必须基于逐项判断；无项目事实变化只影响 spec、interaction、visual、tech、pending、governance 等事实源路由，不替代 workflow memory closeout 判断。
+
+当用户目标是代码实现，但内容涉及 UI 一致性、跨页面行为或样式统一、组件状态统一、从已有代码抽象规范或通过实现反推规范变化时，scan 必须先把 `interaction` 和 `visual` 标记为 `check`。代码实现完成后，系统再依据实际变更判断是否将交互流程、页面状态、视觉规则、主题、token 或组件表现更新到对应事实源。
 
 ### 2.7 Natural Deposition
 
@@ -260,10 +262,11 @@ Workflow Memory 不替代 `arckit/spec/` 或 `arckit/tech/`。
 - 给定普通软件开发任务时，`using-arckit` 能输出场景判断和 workflow frame，而不是只给最小 skill 列表。
 - 给定 bug 诊断任务时，系统能自动组合 debug 和 verify 类 skill。
 - 给定正向功能开发任务时，系统能形成 implementation handoff、执行代码工作流并安排验证，而不是完全跳出 Arckit。
+- 给定 UI 一致性、跨页面行为/样式统一或组件状态统一的实现任务时，系统能在代码实现前识别 `interaction` 和 `visual` 的潜在规范影响，并在实现后决定是否更新对应文档。
 - 给定源码 skill 规则变更时，系统能在执行前或执行后识别 spec/tech impact，并调用对应结果型 skill 更新稳定文档。
 - 给定执行中暴露的未决问题时，系统能把内容路由到 `arckit-pending`，而不是写入稳定 spec/tech 或 workflow memory。
 - 给定命中的 workflow patch 时，系统能实际改变本轮 skill 组合、handoff、artifact scan、确认点或验证强度，而不是只把它展示为 `workflow_source`。
-- 给定轻量任务且没有项目事实变化时，系统能压缩输出 artifact impact scan，同时仍明确判断全部事实源 skipped。
+- 给定任务未改变项目事实时，系统仍按同一组目标完成 artifact impact scan，并明确 workflow memory closeout 需要独立判断。
 - 给定 skill first 验证任务时，系统能匹配 Skill First workflow。
 - 给定用户自然纠正时，系统能区分本次调整和可沉淀偏好。
 - 给定连续相似且有学习价值的任务时，系统能记录 signals，形成 candidate patch，并在用户确认后写入对应用户级或项目级 accepted workflow patch。

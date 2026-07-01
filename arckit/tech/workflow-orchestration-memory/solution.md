@@ -105,7 +105,9 @@ Artifact Impact Router 负责把执行中发现的影响路由到正确事实源
 
 Router 在 `after_context_read`、`after_execution` 和 `before_final` 至少各有一次判断机会。没有影响时必须显式标记为 `none` 或 `skipped`。
 
-轻量任务可以使用压缩 scan。适用条件是：任务不改变项目事实源、不产生未决上下文、不改变治理状态，且只是读取、提交、状态确认或局部机械操作。压缩输出必须等价于完整 scan 的全部 skipped 判断，例如 `artifact_impact_scan: all skipped; no project facts changed`。
+Router 不按任务规模设置特殊分支。所有任务都按同一组目标逐项判断，不能因为任务只是读取、提交、状态确认或局部机械操作就预设扫描结果。最终输出可以简洁，但必须保留逐项判断结论，并且不能用“没有项目事实变化”替代 workflow memory closeout 判断。
+
+当实现任务涉及 UI 一致性、跨页面行为/样式统一、组件状态统一、从代码抽象规范或通过代码实现反推规范变化时，Router 在进入代码实现前将 `interaction` 和 `visual` 标记为 `check`。代码实现后再根据 diff 和验证证据决定是否升级为 `update`，或保持 `check` 并说明未更新事实源的依据。
 
 ### 2.7 Workflow Memory Manager
 

@@ -74,14 +74,16 @@ user intent
 - `adaptation_triggers`：记录哪些信号会让本轮重新编译 workflow。
 - `next_recompile_condition`：明确下一次重编译条件，例如用户选择方案、原型反馈、测试失败、发现技术阻塞、用户质疑流程、确认点通过或目标阶段切换。
 
-### 能力选择启发式
+### 能力选择原则
 
-- 当用户最终要代码但当前缺交互结构、方案选择或视觉方向时，先选择探索、交互或视觉能力形成过程产物；实现能力保持为后续 handoff，而不是丢失最终目标。
-- 当用户要求“让我选择”“先给方案”“先生成原型”“确认后再做”时，当前阶段通常是探索、原型或确认；实现、稳定 spec 或 tech 只有在确认后进入。
-- 当用户描述清楚、风险低、已有 artifact 足够且没有确认/比较信号时，可以直接实现；但仍要在 workflow frame 中说明跳过探索、交互、视觉或技术方案的原因。
-- 当用户最终目标和当前步骤分离时，workflow frame 必须同时保留二者，例如 `final_goal: 生成可运行代码`，`current_phase: 先做交互原型供选择`。
-- 当用户在任务执行中继续补充、纠错、换目标、纠正项目事实或要求暂停时，交给 `arckit-turn-adaptation` 分类；如果它产出 `workflow_correction_ledger`，再重新判断 final goal、current phase 和 selected capabilities。
-- 当实现中发现定义不稳定、视觉/交互歧义、技术边界不清、验证失败或用户改口，触发重编译，而不是把当前路径硬走完。
+本节不是场景穷举表。它只规定编译 `workflow_frame` 时的选择维度；具体任务先按这些维度判断，再选择最小必要能力集合。
+
+- 分离最终目标和当前阶段：`final_goal` 保留用户最终要的产物，`current_phase` 表达本轮现在要补的缺口。二者不一致时，不丢失最终目标，也不跳过当前缺口。
+- 先判缺口再选能力：缺证据、选择、确认、交互结构、视觉方向、产品规则、技术边界、实现改动、验证结果或流程记忆时，选择能补该缺口的能力；只选当前阶段实际需要的能力。
+- 区分产物稳定性：稳定事实进入 spec、interaction、visual 或 tech；过程产物、候选方案和待确认假设不直接写入稳定事实源；可复用流程经验交给 workflow memory 判断。
+- 实现不是默认终点：正向实现前先判断代码改动是否建立、强化或改变产品、交互、视觉或技术规范。若 UI 一致性、跨页面行为/样式、组件状态或从代码反推规范变化影响交互/视觉，先将 `interaction` 和 `visual` 标记为 `check`，实现后再依据证据决定是否 `update`。
+- 直接实现需要说明依据：只有当前定义、交互、视觉、技术边界和验收口径足够清楚，且没有选择、确认或比较缺口时，才进入实现；同时在 `why_not_selected` 中说明为何暂不选择明显相关的探索、交互、视觉、spec 或 tech 能力。
+- 执行中保持可重编译：出现用户纠偏、目标变化、事实纠正、定义不稳定、视觉/交互歧义、技术阻塞、验证失败或新的 artifact impact 时，重新判断 `final_goal`、`current_phase`、`selected_capabilities` 和 artifact routing；首轮之后的用户消息先交给 `arckit-turn-adaptation` 分类。
 
 ### Turn Adaptation 交接
 
@@ -116,7 +118,7 @@ workflow_correction_ledger: null
 - 模糊想法判断：`arckit-decision-framework`，需要外部证据接 `arckit-market-research`，需要用户研究或线框接 `arckit-idea-explore`。
 - 方向变成可执行版本：缺定义先补定义；缺推进方式用 `arckit-project-governance-workflow`；最后形成 `implementation_handoff`。
 - 功能、页面或模块定义：产品行为写 `arckit-spec`；交互写 `arckit-interaction`；视觉写 `arckit-visual`；技术方案写 `arckit-tech`。
-- 正向实现：`implementation_handoff` -> 普通代码工作流或外部 `arckit-code` -> `arckit-verify-implementation`。
+- 正向实现：先判断实现是否会建立或强化产品、交互、视觉或技术规范；普通实现走 `implementation_handoff` -> 普通代码工作流或外部 `arckit-code` -> `arckit-verify-implementation`；UI 一致性、跨页面行为/样式统一或组件状态统一需要在实现前标记 `interaction: check`、`visual: check`，实现后按证据决定是否 update 文档。
 - bug、回归、偶发失败、性能退化：`arckit-debug-diagnosis` -> `arckit-verify-implementation`；需要运行期信号时接 `arckit-runtime-operations`。
 - 代码审查：`arckit-code-review`，必要时接 `arckit-verify-implementation` 和治理收口。
 - skill 创建、维护、反馈固化：`arcforge-skill-creator`；隔离验证或模拟测试用 `arcforge-skill-first`。
@@ -129,7 +131,7 @@ workflow_correction_ledger: null
 - 入口先编排再执行：先形成 workflow frame，再读取专门 skill。
 - Workflow memory 是 overlay：命中的 memory 必须改写或明确不改写本轮 workflow frame，不能只展示为来源。
 - 每轮执行 artifact impact scan：稳定事实进 spec/interaction/visual/tech，未决问题进 pending，目标任务影响进 governance，流程经验进 workflow memory。
-- 轻量任务可压缩 artifact impact scan：若没有项目事实、未决上下文、治理状态或流程学习变化，输出 `all skipped; no project facts changed` 即可。
+- Artifact impact scan 不按任务规模设置特殊分支：所有任务都按同一组目标逐项判断。最终表述可以简洁，但不得用任务规模推断结果，也不得用“无项目事实变化”替代 workflow memory closeout 判断。
 - 执行中保留 reflection gates：after_context_read、before_edit、after_execution、before_final、turn_adaptation。
 - 后续用户消息是 turn adaptation gate：出现补充、纠错、换目标、事实纠正、回答澄清或暂停时，先用 `arckit-turn-adaptation` 分类，再决定是否重编 workflow frame 或更新 artifact routing。
 - Workflow memory 默认参与：开始检查，结束做 closeout；具体 signal、candidate、accepted 和 index 规则由 `arckit-workflow-memory` 处理。
