@@ -1,26 +1,29 @@
 interface:
   display_name: "Using ArcKit"
-  short_description: "软件项目协作的首轮 ArcKit 场景识别和 workflow frame 编译入口"
-  default_prompt: "使用 $using-arckit 处理软件项目协作的首轮入口：识别 scenario 和 signals，建立 runtime_situation，调用 $arckit-workflow-memory 做 memory_check，把 memory overlay 应用到默认能力地图，编译 workflow_frame，并路由必要的专门 skills。workflow_frame 必须区分 final_goal、current_phase、phase_reason、selected_capabilities、why_not_selected、artifact_targets、reflection_gates、confirmation_points 和 stop_conditions。首轮之后用户继续补充、纠错、换目标、纠正项目事实、回答澄清或暂停时，交给 $arckit-turn-adaptation 分类；任务结束、阻塞或失败时先完成 artifact impact scan，再触发 $arckit-workflow-memory closeout。项目事实没有变化只影响 artifact 路由，不等于 workflow memory closeout 可以跳过。"
+  short_description: "软件项目协作的首轮 ArcKit 场景工作流解析和 workflow frame 编译入口"
+  default_prompt: "使用 $using-arckit 处理软件项目协作的首轮入口：识别 scenario 和 signals，建立 runtime_situation，调用 $arckit-workflow-memory 做 workflow_resolution，优先绑定已有 accepted/candidate scenario workflow，只有无法匹配时才创建或准备创建场景级 candidate；本次任务只产生 execution_record。把 memory overlay 应用到默认能力地图，编译 workflow_frame，并路由必要的专门 skills。workflow_frame 必须区分 workflow_resolution、final_goal、current_phase、phase_reason、selected_capabilities、why_not_selected、artifact_targets、reflection_gates、execution_record_target、confirmation_points 和 stop_conditions。首轮之后用户继续补充、纠错、换目标、纠正项目事实、回答澄清或暂停时，交给 $arckit-turn-adaptation 分类；任务结束、阻塞或失败时先完成 artifact impact scan，再触发 $arckit-workflow-memory 写 execution_record 和 closeout。项目事实没有变化只影响 artifact 路由，不等于 workflow memory closeout 可以跳过。不要使用会诱导 agent 降低流程完整性的 workflow 修饰词。"
 policy:
   allow_implicit_invocation: true
   orchestration_required: true
 workflow:
   first_steps:
     - "识别 scenario、signals 和 workflow_source。"
-    - "默认调用 arckit-workflow-memory 做 memory_check，不等用户提到 workflow。"
+    - "默认调用 arckit-workflow-memory 做 workflow_resolution，不等用户提到 workflow。"
+    - "优先绑定项目级 accepted/candidate scenario workflow，再参考用户级 accepted/candidate；无法匹配时才创建或准备创建场景级 candidate。"
     - "生成 runtime_situation，先做 workflow_composition_reasoning，区分 final_goal/current_phase/phase_reason，判断缺口、可用能力、已选能力、跳过原因和下一次重编译条件，再应用 memory overlay 编译 workflow_frame。"
     - "正向实现任务先判断是否建立或强化产品、交互、视觉或技术规范；UI 一致性、跨页面行为/样式统一、组件状态统一或从代码实现中反推规范变化时，先标记 interaction/visual check，再形成 implementation_handoff。"
     - "普通正向实现任务形成 implementation_handoff，再执行代码工作流并按风险验证。"
     - "用户在首轮目标之后继续补充、纠正、换目标、纠正项目事实、回答澄清或要求暂停时，交给 arckit-turn-adaptation 分类；不要在 using-arckit 内展开 turn-level 分类细节。"
     - "bug、review、skill 验证、产品定义和技术方案按默认 workflow 组合专门 skill。"
-    - "任务结束、阻塞或失败时先做 artifact impact scan，再触发 arckit-workflow-memory 做 closeout。"
+    - "任务结束、阻塞或失败时先做 artifact impact scan，再触发 arckit-workflow-memory 写 execution_record 并做 closeout。"
   persistence_rules:
     - "业务代码写入边界不自动禁止 ~/.arckit workflow memory。"
-    - "Workflow memory 是 overlay，不是固定流程执行器；命中 memory 必须改写或明确不改写本轮 workflow_frame。"
+    - "Workflow memory 负责 workflow_resolution、overlay 和 execution_record；命中 scenario workflow 必须绑定到本轮 workflow_frame，并改写或明确不改写本轮 workflow_frame。"
+    - "每次任务写 execution_record，不要把每次任务建成新的 workflow；同类场景维护同一个 accepted/candidate workflow。"
     - "能力选择按 final_goal、current_phase、missing_piece、artifact_stability 和 artifact impact 判断，不用场景穷举替代 workflow_composition_reasoning。"
     - "Workflow frame 不是静态清单；必须解释为什么选择或不选择 explore-product-design、interaction、visual、spec、tech、implementation、verification、pending 等基础能力。"
     - "每轮必须扫描 spec、interaction、visual、tech、pending、governance、verification 和 workflow_memory 的影响；项目事实没有变化不等于 workflow memory 可以跳过。"
     - "Artifact impact scan 不按任务规模设置特殊分支；必须逐项判断后再给出简洁或展开结果。"
+    - "不要使用会诱导 agent 降低流程完整性的 workflow 修饰词；需要控制输出长度时，仍必须保留 workflow_resolution、artifact impact scan 和 closeout 判断。"
     - "目标是代码不等于 interaction/visual skipped；实现 UI 一致性或跨页面统一时，interaction 和 visual 至少先 check，收口时再决定是否 update。"
     - "产品概念和技术方案仍写入目标项目 arckit/spec、arckit/tech 或其他结果事实源。"

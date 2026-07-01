@@ -25,13 +25,13 @@
 user intent
 -> scenario classification
 -> runtime situation model
--> arckit-workflow-memory memory_check
--> memory overlay patch match
+-> arckit-workflow-memory workflow_resolution
+-> bind accepted/candidate scenario workflow, or create scenario-level candidate when no match exists
 -> workflow frame compilation
 -> specialist skills with explicit handoffs and reflection gates
 -> arckit-turn-adaptation when a later user message changes context, workflow, goal, facts, or stop state
 -> artifact impact scan and result/pending/governance write-back when needed
--> arckit-workflow-memory closeout
+-> arckit-workflow-memory execution_record update and closeout
 ```
 
 ## Workflow Frame 字段
@@ -39,6 +39,7 @@ user intent
 - `scenario`
 - `signals`
 - `runtime_situation`
+- `workflow_resolution`
 - `workflow_composition_reasoning`
 - `final_goal`
 - `current_phase`
@@ -55,6 +56,7 @@ user intent
 - `adaptation_triggers`
 - `next_recompile_condition`
 - `memory_overlay`
+- `execution_record_target`
 - `workflow_memory`
 - `confirmation_points`
 - `stop_conditions`
@@ -66,7 +68,7 @@ user intent
 - `final_goal`：用户最终想得到什么，例如可运行代码、产品判断、可确认原型、稳定规格、技术方案、修复结果、发布判断或工作流维护结果。
 - `current_phase`：本轮当前最应该处于探索、定义、原型、视觉、技术方案、实现、验证、治理、记忆沉淀或收口中的哪一段。
 - `phase_reason`：为什么当前阶段不是直接实现、不是继续讨论、不是先写稳定事实源，或为什么必须请求确认。
-- `missing_piece`：当前最缺的是证据、选择、确认、交互结构、视觉方向、产品规则、技术边界、实现改动、验证结果还是流程记忆。
+- `missing_piece`：当前缺的是证据、选择、确认、交互结构、视觉方向、产品规则、技术边界、实现改动、验证结果还是流程记忆。
 - `available_arckit_capabilities`：列出本轮可能相关的基础能力，例如 `arckit-explore-product-design`、`arckit-interaction`、`arckit-visual`、`arckit-spec`、`arckit-tech`、`arckit-debug-diagnosis`、实现工作流、`arckit-verify-implementation`、`arckit-pending`、`arckit-workflow-memory`。
 - `selected_capabilities`：只选择当前阶段实际需要的能力，并说明每个能力补哪个缺口。
 - `why_not_selected`：对明显相关但本轮不选的能力给出简短理由，避免 agent 凭直觉跳过原型、确认、验证或实现。
@@ -76,14 +78,16 @@ user intent
 
 ### 能力选择原则
 
-本节不是场景穷举表。它只规定编译 `workflow_frame` 时的选择维度；具体任务先按这些维度判断，再选择最小必要能力集合。
+本节不是场景穷举表。它只规定编译 `workflow_frame` 时的选择维度；具体任务先按这些维度判断，再选择当前阶段实际需要的能力集合。
 
 - 分离最终目标和当前阶段：`final_goal` 保留用户最终要的产物，`current_phase` 表达本轮现在要补的缺口。二者不一致时，不丢失最终目标，也不跳过当前缺口。
 - 先判缺口再选能力：缺证据、选择、确认、交互结构、视觉方向、产品规则、技术边界、实现改动、验证结果或流程记忆时，选择能补该缺口的能力；只选当前阶段实际需要的能力。
+- 先解析并绑定场景工作流：同一类场景优先复用项目级 accepted/candidate workflow，再参考用户级 accepted/candidate workflow。只有无法匹配已有场景工作流时，才创建场景级 candidate；本次任务只产生 `execution_record`。
 - 区分产物稳定性：稳定事实进入 spec、interaction、visual 或 tech；过程产物、候选方案和待确认假设不直接写入稳定事实源；可复用流程经验交给 workflow memory 判断。
 - 实现不是默认终点：正向实现前先判断代码改动是否建立、强化或改变产品、交互、视觉或技术规范。若 UI 一致性、跨页面行为/样式、组件状态或从代码反推规范变化影响交互/视觉，先将 `interaction` 和 `visual` 标记为 `check`，实现后再依据证据决定是否 `update`。
 - 直接实现需要说明依据：只有当前定义、交互、视觉、技术边界和验收口径足够清楚，且没有选择、确认或比较缺口时，才进入实现；同时在 `why_not_selected` 中说明为何暂不选择明显相关的探索、交互、视觉、spec 或 tech 能力。
 - 执行中保持可重编译：出现用户纠偏、目标变化、事实纠正、定义不稳定、视觉/交互歧义、技术阻塞、验证失败或新的 artifact impact 时，重新判断 `final_goal`、`current_phase`、`selected_capabilities` 和 artifact routing；首轮之后的用户消息先交给 `arckit-turn-adaptation` 分类。
+- 保持术语不诱导降级：不要使用会让 agent 误解为可以削减流程完整性的 workflow 修饰词。需要控制输出长度时，明确要求“简洁输出但完整判断 workflow resolution、artifact impact scan 和 closeout”。
 
 ### Turn Adaptation 交接
 
@@ -104,11 +108,12 @@ workflow_correction_ledger: null
 
 1. 当前用户明确指令。
 2. 当前对话中已确认的 workflow 调整。
-3. 当前项目级 workflow memory。
-4. 当前项目个人 workflow memory。
-5. 用户全局 workflow memory。
-6. Arckit 默认场景 workflow。
-7. 临时生成的 ad-hoc workflow。
+3. 当前项目级 accepted scenario workflow。
+4. 当前项目级 candidate scenario workflow。
+5. 用户全局 accepted scenario workflow。
+6. 用户全局 candidate scenario workflow。
+7. Arckit 默认场景 workflow。
+8. 新建场景级 candidate workflow。
 
 ## 默认 Workflow 参考
 
@@ -129,12 +134,13 @@ workflow_correction_ledger: null
 ## Coordination Rules
 
 - 入口先编排再执行：先形成 workflow frame，再读取专门 skill。
-- Workflow memory 是 overlay：命中的 memory 必须改写或明确不改写本轮 workflow frame，不能只展示为来源。
+- Workflow memory 是 scenario workflow resolution 和 overlay 来源：命中的 workflow 必须绑定到本轮 frame，并改写或明确不改写本轮 workflow frame，不能只展示为来源。
+- 执行记录不是新 workflow：每次任务写 `execution_record`；同类场景维护同一个 accepted/candidate workflow。
 - 每轮执行 artifact impact scan：稳定事实进 spec/interaction/visual/tech，未决问题进 pending，目标任务影响进 governance，流程经验进 workflow memory。
 - Artifact impact scan 不按任务规模设置特殊分支：所有任务都按同一组目标逐项判断。最终表述可以简洁，但不得用任务规模推断结果，也不得用“无项目事实变化”替代 workflow memory closeout 判断。
 - 执行中保留 reflection gates：after_context_read、before_edit、after_execution、before_final、turn_adaptation。
 - 后续用户消息是 turn adaptation gate：出现补充、纠错、换目标、事实纠正、回答澄清或暂停时，先用 `arckit-turn-adaptation` 分类，再决定是否重编 workflow frame 或更新 artifact routing。
-- Workflow memory 默认参与：开始检查，结束做 closeout；具体 signal、candidate、accepted 和 index 规则由 `arckit-workflow-memory` 处理。
+- Workflow memory 默认参与：开始做 workflow resolution，结束写 execution record 并做 closeout；具体 signal、candidate、accepted、executions 和 index 规则由 `arckit-workflow-memory` 处理。
 - 正向实现也进入 workflow frame：不要因为没有技术栈 skill 就完全跳出 ArcKit。
 - 过程 handoff 临时保存：需要后续复用但未确认时放 `arckit-pending`。
 - 工作流偏好和项目事实分离：workflow memory 只记录 agent 工作方式。

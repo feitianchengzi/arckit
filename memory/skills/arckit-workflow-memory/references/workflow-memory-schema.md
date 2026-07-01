@@ -1,5 +1,29 @@
 # Workflow Memory Schema
 
+## Workflow Resolution
+
+每个进入 ArcKit 的任务开始时都必须输出 workflow resolution。Resolution 的目标是绑定可复用场景工作流；它不是新建本次任务 workflow。
+
+```yaml
+workflow_resolution:
+  scope_checked:
+    - project
+    - user
+  project_fingerprint: ""
+  resolution_source: project_accepted|project_candidate|user_accepted|user_candidate|arckit_default|new_candidate_required|pending
+  bound_workflow_id: ""
+  bound_candidate_id: ""
+  match_reason: ""
+  applied_overlay: true|false
+  new_candidate_required: true|false
+  execution_record_target: "~/.arckit/workflows/<scope-path>/executions/YYYY-MM-DD/exec-YYYYMMDD-short-slug.yaml"
+  index_status:
+    project: current|missing|stale|incomplete|not_checked
+    user: current|missing|stale|incomplete|not_checked
+  fallback_scan_performed: true|false
+  write_permission: available|needs_permission|unavailable
+```
+
 ## Signal Decision
 
 每次 workflow memory closeout 都必须先输出 signal decision。Decision 是收口动作，不等同于 signal 文件。
@@ -42,6 +66,7 @@ workflow_frame:
   scenario: ""
   signals: []
   runtime_situation: {}
+  workflow_resolution: {}
   workflow_composition_reasoning: {}
   final_goal: ""
   current_phase: ""
@@ -58,6 +83,7 @@ workflow_frame:
   adaptation_triggers: []
   next_recompile_condition: ""
   memory_overlay: []
+  execution_record_target: ""
   confirmation_points: []
   stop_conditions: []
 skills_used: []
@@ -91,6 +117,7 @@ directories:
   - "~/.arckit/workflows/<scope-path>/signals"
   - "~/.arckit/workflows/<scope-path>/candidates"
   - "~/.arckit/workflows/<scope-path>/accepted"
+  - "~/.arckit/workflows/<scope-path>/executions"
 signal:
   id: "sig-YYYYMMDD-short-slug"
   type: workflow_signal
@@ -110,6 +137,63 @@ signal:
   reusable_pattern_hint: ""
   workflow_patch_shape: ""
   promotion_hint: none|candidate_possible
+```
+
+## Execution Record
+
+Execution record 记录本次任务如何应用绑定的 scenario workflow。它可以每次新增；它不是 workflow、不是 candidate，也不替代 signal decision。
+
+```yaml
+id: "exec-YYYYMMDD-short-slug"
+type: workflow_execution_record
+created_at: "YYYY-MM-DD"
+scope: user|project
+scenario: ""
+source_task: ""
+project_root: ""
+project_fingerprint: ""
+resolution:
+  resolution_source: project_accepted|project_candidate|user_accepted|user_candidate|arckit_default|new_candidate_required|pending
+  bound_workflow_id: ""
+  bound_candidate_id: ""
+  match_reason: ""
+  applied_overlay: true|false
+workflow_frame_summary:
+  final_goal: ""
+  current_phase: ""
+  selected_capabilities: []
+  why_not_selected: {}
+  artifact_impact_scan: {}
+execution:
+  skills_used: []
+  files_read: []
+  commands: []
+  files_written: []
+  verification: []
+  deviations_from_bound_workflow: []
+  user_corrections: []
+closeout:
+  outcome: succeeded|failed|blocked|partial
+  workflow_memory_closeout: {}
+  signal_decision: write_signal|update_candidate_only|skip
+  candidate_update: ""
+  accepted_patch_proposal: ""
+notes: []
+```
+
+## Execution Record Pending Write
+
+```yaml
+type: execution_record_pending_write
+reason: permission_required|write_boundary_forbidden|tool_unavailable
+target_path: "~/.arckit/workflows/<scope-path>/executions/YYYY-MM-DD/exec-YYYYMMDD-short-slug.yaml"
+record_summary:
+  scenario: ""
+  source_task: ""
+  bound_workflow_id: ""
+  bound_candidate_id: ""
+  outcome: succeeded|failed|blocked|partial
+  signal_decision: write_signal|update_candidate_only|skip
 ```
 
 ## Signal Blocked
@@ -174,7 +258,7 @@ last_match_summary: ""
 
 ## Candidate Match Update
 
-命中 candidate 且没有新学习信息时使用。该结构只维护 candidate 的轻量验证状态，不创建完整 signal，也不更新 `INDEX.md` 的 Recent Signals。
+命中 candidate 且没有新学习信息时使用。该结构只维护 candidate 的匹配与验证状态，不创建完整 signal，也不更新 `INDEX.md` 的 Recent Signals。
 
 ```yaml
 type: workflow_candidate_match_update
@@ -230,7 +314,7 @@ candidate_summary: ""
 
 ## Index Update
 
-每次 memory check 都要读取相关 `INDEX.md` 内容。每次 signal、candidate patch 或 accepted workflow patch 写入成功后，都要同步维护对应 `INDEX.md`。如果索引缺失、过期或没有列出磁盘上已存在的候选文件，应扫描目录兜底并在收口时修复或报告。
+每次 workflow resolution 都要读取相关 `INDEX.md` 内容。每次 signal、candidate patch、accepted workflow patch 或 execution record 写入成功后，都要同步维护对应 `INDEX.md`。如果索引缺失、过期或没有列出磁盘上已存在的候选文件，应扫描目录兜底并在收口时修复或报告。
 
 ```yaml
 workflow_index_update:
@@ -246,6 +330,7 @@ workflow_index_update:
     matched_files: []
   entries_added: []
   entries_updated: []
+  execution_entries_added: []
   entries_missing_after_update: []
   status_after: current|pending_write|blocked
 ```
@@ -276,6 +361,14 @@ pending_entries:
       scenario: ""
       scope: user|project
       updated: "YYYY-MM-DD"
+      summary: ""
+  executions:
+    - id: "exec-YYYYMMDD-short-slug"
+      scenario: ""
+      outcome: succeeded|failed|blocked|partial
+      created: "YYYY-MM-DD"
+      bound_workflow_id: ""
+      bound_candidate_id: ""
       summary: ""
 ```
 
@@ -376,4 +469,9 @@ version: 1
 
 | Signal | Scenario | Outcome | Created | Summary |
 |---|---|---|---:|---|
+
+## Recent Executions
+
+| Execution | Scenario | Outcome | Bound Workflow | Created | Summary |
+|---|---|---|---|---:|---|
 ```

@@ -1,21 +1,22 @@
 interface:
   display_name: "ArcKit Turn Adaptation"
   short_description: "区分 ArcKit 任务进行中的补充、纠错、换目标、事实纠正和暂停消息"
-  default_prompt: "使用 $arckit-turn-adaptation 处理 ArcKit 软件项目协作任务执行中的后续用户消息，而不是首轮任务入口。先读取当前 workflow_frame、已执行动作、artifact impact scan 状态和停止条件，再把用户消息分类为 supplemental_context、user_workflow_correction、goal_change、artifact_fact_correction、pause_or_stop 或 clarification_answer。turn_type 是主处理类型，不是唯一信号槽；如果暂停、换目标、事实纠正中同时包含 workflow 纠偏，必须在 secondary_signals 中保留并生成 workflow_correction_ledger。只有 workflow 纠偏信号生成 workflow_correction_ledger，字段包括 correction_text、affected_workflow_area、scope_hint、changed_frame、default_signal_decision 和 handoff_target；普通补充信息、项目事实纠正和目标切换不要误写成 workflow signal。用户使用后续/以后/当前项目/不要/只需要/必须/我来处理/为什么没有学习/为什么跳过等表达，并改变验证方式、确认点、工具使用、停止条件或记忆判断时，默认判定为 workflow 纠偏。项目事实没有变化不等于 workflow memory closeout 可以跳过；存在 workflow_correction_ledger 时交给 $arckit-workflow-memory 做 signal decision。"
+  default_prompt: "使用 $arckit-turn-adaptation 处理 ArcKit 软件项目协作任务执行中的后续用户消息，而不是首轮任务入口。先读取当前 workflow_frame、workflow_resolution、execution_record 状态、已执行动作、artifact impact scan 状态和停止条件，再把用户消息分类为 supplemental_context、user_workflow_correction、goal_change、artifact_fact_correction、pause_or_stop 或 clarification_answer。turn_type 是主处理类型，不是唯一信号槽；如果暂停、换目标、事实纠正中同时包含 workflow 纠偏，必须在 secondary_signals 中保留并生成 workflow_correction_ledger。只有 workflow 纠偏信号生成 workflow_correction_ledger，字段包括 correction_text、affected_workflow_area、scope_hint、changed_frame、default_signal_decision 和 handoff_target；普通补充信息、项目事实纠正和目标切换不要误写成 workflow signal。用户使用后续/以后/当前项目/不要/只需要/必须/我来处理/为什么没有学习/为什么跳过等表达，并改变 workflow resolution、工作流复用方式、execution record、验证方式、确认点、工具使用、停止条件、术语边界或记忆判断时，默认判定为 workflow 纠偏。项目事实没有变化不等于 workflow memory closeout 可以跳过；存在 workflow_correction_ledger 时交给 $arckit-workflow-memory 做 signal decision。"
 policy:
   allow_implicit_invocation: true
   turn_level_only: true
 workflow:
   first_steps:
     - "确认当前消息是否发生在首轮目标之后；如果没有可用 workflow_frame，交回 using-arckit 建立入口 frame。"
-    - "读取当前 final_goal、current_phase、selected_capabilities、confirmation_points、stop_conditions、artifact_targets 和验证策略。"
+    - "读取当前 workflow_resolution、final_goal、current_phase、selected_capabilities、confirmation_points、stop_conditions、artifact_targets、execution_record_target 和验证策略。"
     - "按优先级分类 turn：pause_or_stop、goal_change、user_workflow_correction、artifact_fact_correction、clarification_answer、supplemental_context；同时保留 secondary_signals。"
-    - "输出 turn_adaptation_decision，说明继续原 frame、重编 frame、更新 artifact routing、停止任务或交给 workflow memory。"
+    - "输出 turn_adaptation_decision，说明继续原 frame、重编 frame、更新 workflow_resolution、更新 execution record、更新 artifact routing、停止任务或交给 workflow memory。"
     - "仅在存在 workflow 纠偏信号时生成 workflow_correction_ledger；即使主 turn_type 是 pause_or_stop 或 goal_change，也不能吞掉 ledger。"
   boundaries:
     - "本 skill 不做首轮软件项目协作入口编排；首轮入口仍由 using-arckit 处理。"
     - "本 skill 不写 workflow signal、candidate 或 accepted patch；只向 arckit-workflow-memory 提供 ledger。"
     - "补充上下文、事实纠正和目标切换不是自动 workflow signal。"
+    - "用户纠正不要每次新建 workflow、要求同类场景复用同一个 workflow、或禁止误导性 workflow 术语时，必须生成 workflow_correction_ledger。"
     - "当前项目写完代码后只自查、不编译、由用户人工编译，应分类为 user_workflow_correction，并生成 current_project 范围的 ledger。"
     - "artifact impact scan 全部 skipped 只说明没有项目事实写入，不允许因此跳过 workflow memory closeout。"
   output:
