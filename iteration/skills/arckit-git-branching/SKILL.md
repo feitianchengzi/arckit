@@ -1,6 +1,6 @@
 ---
 name: arckit-git-branching
-description: 当用户需要选择、创建或治理 main、feature/*、release/*、hotfix/* 分支，处理发布线修复回流、多版本并行，或表达发布/出包/测试分发/应用商店发布意图时作为候选能力使用。软件项目首轮应先由 using-arckit 编译 workflow frame 后路由到本 skill；本 skill 只负责分支规范、tag 规范和通过 git push 远端分支或 tag 触发已配置的远端 workflow；不负责本地构建、测试、archive、导出、上传、发布前验证、外部平台配置、账号授权或真实发布平台操作。
+description: 当用户需要选择、创建或治理 main、feature/*、release/*、hotfix/* 分支，处理发布线修复回流、多版本并行，表达发布/出包/测试分发/应用商店发布意图，或反馈远端 workflow 触发后缺少失败原因时作为候选能力使用。软件项目首轮应先由 using-arckit 编译 workflow frame 后路由到本 skill；本 skill 只负责分支规范、tag 规范、通过 git push 远端分支或 tag 触发已配置的远端 workflow，以及指导收集远端失败原因；不负责本地构建、测试、archive、导出、上传、发布前验证、外部平台配置、账号授权、真实发布平台操作或按无证据猜测修复。
 ---
 
 # Arckit Git Branching
@@ -19,6 +19,7 @@ description: 当用户需要选择、创建或治理 main、feature/*、release/
 - 本 skill 不输出、不计划、不执行本地构建、测试、archive、导出、上传、提交审核、签名、provisioning、Transporter、Organizer、App Store Connect 操作或发布前验证。
 - 本 skill 不修改项目版本号/build 号文件；版本/build 只用于推荐 branch/tag 名称，除非用户另行明确要求修改工程版本。
 - 任何创建分支、切换分支、打 tag、push、合并、删除或重置操作前，必须先检查工作区状态并请求用户确认。
+- push 后如果用户反馈远端 workflow 失败、日志不完整或发布平台没有上传历史，只做失败原因收集引导；必须先要求用户提供远端失败原因原文，再交给后续 debug 或平台配置处理。
 
 ## 主流程
 
@@ -29,6 +30,7 @@ description: 当用户需要选择、创建或治理 main、feature/*、release/
 动作：
 - `recommend-git-trigger`：用户表达发布、出包、测试分发、应用商店发布、内测、公测、正式发布或发布候选意图，但尚未明确确认执行 Git 操作。
 - `apply-git-trigger`：用户已确认采用某个推荐方案，要求创建/推送 `release/*` 或 tag。
+- `workflow-failure-evidence`：用户反馈通过 branch/tag 触发的远端 workflow 失败、缺少日志、缺少上传历史或不知道失败原因在哪里看。
 - `branch-policy`：用户只询问分支规范、多版本并行、release/hotfix/feature 选择。
 - `branch-maintenance`：用户明确要求创建、切换、合并、删除普通分支，或处理 release/hotfix 回流。
 
@@ -69,7 +71,20 @@ description: 当用户需要选择、创建或治理 main、feature/*、release/
 
 退出条件：分支/tag 已 push，或因 Git 状态/权限/网络失败而停止并报告。
 
-### 4. 分支规范和维护
+### 4. 收集远端失败原因
+
+仅在 `workflow-failure-evidence` 模式执行。
+
+动作：
+- 不运行本地构建、上传或平台修复命令，也不根据笼统失败文案盲改代码或配置。
+- 读取平台无关失败原因入口；如果是 Apple/Xcode Cloud 场景，再读取 Apple reference 的失败信息入口。
+- 指导用户收集远端 workflow 或平台通知中的失败原因原文，包括失败标题、具体错误、触发的 branch/tag、commit、workflow 名称和时间。
+- 如果 Apple 首次上传导致 TestFlight 看不到上传历史，必须提示优先检查开发者账号邮箱中的失败邮件；Xcode Cloud Build 历史可能只显示泛化失败标题，不能把 logs/artifacts 成功误判为整体成功。
+- 拿到失败原因原文之前，只输出收集清单和下一步交接边界。
+
+退出条件：用户知道去哪里找失败原因，或已经提供可交给 debug/平台配置任务处理的失败原因原文。
+
+### 5. 分支规范和维护
 
 动作：
 - `branch-policy`：直接给出分支选择建议，不需要读取仓库。
@@ -82,7 +97,7 @@ description: 当用户需要选择、创建或治理 main、feature/*、release/
 ## Reference 路由
 
 - 平台无关的 tag 命名和远端 workflow 触发契约：读 [references/platform-release-triggers.md](references/platform-release-triggers.md)。
-- Apple/TestFlight/App Store 的 tag 约定：只在 prompt 明确涉及 Apple 平台或 TestFlight/App Store 时读 [references/xcode-cloud-release-triggers.md](references/xcode-cloud-release-triggers.md)。
+- Apple/TestFlight/App Store 的 tag 约定和 Xcode Cloud 失败信息入口：只在 prompt 明确涉及 Apple 平台、Xcode Cloud、TestFlight 或 App Store 时读 [references/xcode-cloud-release-triggers.md](references/xcode-cloud-release-triggers.md)。
 
 ## 最终汇报字段
 
@@ -92,4 +107,5 @@ description: 当用户需要选择、创建或治理 main、feature/*、release/
 - 远端触发方式：push branch、push tag，或二者。
 - 已执行的 Git 操作；如未执行，说明等待确认或阻塞原因。
 - 远端 workflow 需要预先监听的 branch/tag pattern。
+- 如果是远端 workflow 失败原因收集：已建议检查的失败信息入口和仍缺少的失败原因原文。
 - 发布线修复回流计划，如适用。

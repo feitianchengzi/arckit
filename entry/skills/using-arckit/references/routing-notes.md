@@ -94,10 +94,11 @@ user intent
 用户表达发布、出包、测试分发、应用商店发布、TestFlight、App Store、内测、公测、正式发布或发布候选时，先判断用户要的是哪一种交付动作：
 
 - 分支/tag 触发：用户想发包、出测试包、发 TestFlight、发应用商店候选、创建 release 线、打 tag、触发远端 workflow，默认选择 `arckit-git-branching`。
+- 远端失败原因收集：用户反馈 Xcode Cloud、CI、发布平台或远端出包 workflow 失败，但只有泛化失败标题、logs/artifacts 不足、没有上传历史或不知道失败原因在哪里看，默认选择 `arckit-git-branching`；先指导收集失败原因原文，不进入 debug 或 readiness。
 - 发布 readiness：用户明确要求发布前检查、上线 gate、go/no-go、灰度/回滚策略、发布风险评估，才选择 `arckit-release-readiness`。
 - 运行期观察：用户要求线上健康、监控、SLO、告警或运行状态，才选择 `arckit-runtime-operations`。
 
-当分支/tag 触发和 readiness 都可能相关时，先选择 `arckit-git-branching` 给出或执行 Git 分支/tag 触发方案；readiness 只能作为后续显式确认的补充，不要抢占默认路由。
+当分支/tag 触发、远端失败原因收集和 readiness 都可能相关时，先选择 `arckit-git-branching` 给出 Git 触发方案或失败原因收集入口；readiness 只能作为后续显式确认的补充，不要抢占默认路由。
 
 ### Turn Adaptation 交接
 
@@ -138,6 +139,7 @@ workflow_correction_ledger: null
 - 代码审查：`arckit-code-review`，必要时接 `arckit-verify-implementation` 和治理收口。
 - skill 创建、维护、反馈固化：`arcforge-skill-creator`；隔离验证或模拟测试用 `arcforge-skill-first`。
 - 发布/出包/测试分发/应用商店候选：默认 `arckit-git-branching`，把意图转成 `release/*` 分支和 tag push 触发远端 workflow；不展开本地构建、archive、上传或平台发布流程。
+- 远端出包 workflow 失败但缺少错误原因：默认 `arckit-git-branching`，先指导用户从远端 workflow UI、平台通知和开发者邮箱收集失败原因原文；拿到错误前不进入 debug、readiness 或无证据配置修改。
 - 发布前 gate、go/no-go、灰度/回滚风险：`arckit-release-readiness`。
 - 运行期健康、监控、SLO、告警：`arckit-runtime-operations`。
 - 本地桌面记录、任务派发或 Codex dispatch：先确认任务足够明确，再用 `arckit-workshop-desktop`。

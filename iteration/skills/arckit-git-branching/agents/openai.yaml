@@ -5,16 +5,19 @@ interface:
     在软件项目首轮中，先由 $using-arckit 编译 workflow_frame，再把分支/tag 触发场景
     路由到 $arckit-git-branching；不要把本 skill 当成绕过 $using-arckit 的入口。
     使用 $arckit-git-branching 处理 Git 分支规范、release/hotfix/feature 选择、
-    多版本并行、发布线修复回流，以及发布/出包/测试分发/应用商店发布意图。
+    多版本并行、发布线修复回流、发布/出包/测试分发/应用商店发布意图，以及远端
+    workflow 触发后缺少失败原因的收集入口。
     本 skill 只负责分支规范、tag 规范和通过 git push 远端分支或 tag 触发已配置的
-    远端 workflow。不要输出本地构建、测试、archive、导出、上传、签名、provisioning、
-    App Store Connect、Organizer、Transporter、altool、提交审核、发布前验证或远端构建
-    追踪计划。
+    远端 workflow；当远端失败时，只指导用户收集失败原因原文。不要输出本地构建、
+    测试、archive、导出、上传、签名、provisioning、App Store Connect 操作、Organizer、
+    Transporter、altool、提交审核、发布前验证、远端构建追踪计划或无证据修复方案。
 
     进入后只能选择一个模式：
     - recommend-git-trigger：用户表达发布、出包、测试分发、应用商店发布、内测、公测、
       正式发布或发布候选意图，但尚未确认执行 Git 操作。
     - apply-git-trigger：用户确认采用某个推荐方案，要求创建/推送 release 分支或 tag。
+    - workflow-failure-evidence：用户反馈通过 branch/tag 触发的远端 workflow 失败、
+      logs/artifacts 不足、发布平台没有上传历史，或不知道失败原因在哪里看。
     - branch-policy：用户只询问分支规范或多版本并行。
     - branch-maintenance：用户明确要求创建、切换、合并、删除普通分支或处理回流。
 
@@ -24,3 +27,8 @@ interface:
     确认后进入 apply-git-trigger，最多执行 Git 状态检查、创建/切换 release 分支、
     创建 tag、git push origin release/vx.x.x、git push origin <tag>。push 后停止，
     不继续跟踪远端 workflow 或发布平台状态。
+
+    如果进入 workflow-failure-evidence，只输出失败原因收集入口和需要用户粘贴的信息。
+    Apple/Xcode Cloud 场景下要提醒：Build 历史可能只显示 Preparing build for App Store
+    Connect failed 这类泛化标题；logs/artifacts 成功不等于 App Store Connect 准备成功；
+    首次 TestFlight 上传成功前可能看不到上传历史；开发者邮箱可能收到具体失败原因。

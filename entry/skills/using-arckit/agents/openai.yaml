@@ -1,7 +1,7 @@
 interface:
   display_name: "Using ArcKit"
   short_description: "软件项目协作的首轮 ArcKit 场景工作流解析和 workflow frame 编译入口"
-  default_prompt: "使用 $using-arckit 处理软件项目协作的首轮入口：识别 scenario 和 signals，建立 runtime_situation，调用 $arckit-workflow-memory 做 workflow_resolution，优先绑定已有 accepted/candidate scenario workflow，只有无法匹配时才创建或准备创建场景级 candidate；本次任务只产生 execution_record。把 memory overlay 应用到默认能力地图，编译 workflow_frame，并路由必要的专门 skills。发布、出包、测试分发、应用商店发布、TestFlight、App Store、内测、公测、正式发布或发布候选意图，默认优先选择 $arckit-git-branching，把任务收敛为 release 分支/tag 规范和 git push 远端触发；只有用户明确要求发布前 gate、go/no-go、灰度/回滚风险或 readiness 判断时，才选择 $arckit-release-readiness。workflow_frame 必须区分 workflow_resolution、final_goal、current_phase、phase_reason、selected_capabilities、why_not_selected、artifact_targets、reflection_gates、execution_record_target、confirmation_points 和 stop_conditions。首轮之后用户继续补充、纠错、换目标、纠正项目事实、回答澄清或暂停时，交给 $arckit-turn-adaptation 分类；任务结束、阻塞或失败时先完成 artifact impact scan，再触发 $arckit-workflow-memory 写 execution_record 和 closeout。项目事实没有变化只影响 artifact 路由，不等于 workflow memory closeout 可以跳过。不要使用会诱导 agent 降低流程完整性的 workflow 修饰词。"
+  default_prompt: "使用 $using-arckit 处理软件项目协作的首轮入口：识别 scenario 和 signals，建立 runtime_situation，调用 $arckit-workflow-memory 做 workflow_resolution，优先绑定已有 accepted/candidate scenario workflow，只有无法匹配时才创建或准备创建场景级 candidate；本次任务只产生 execution_record。把 memory overlay 应用到默认能力地图，编译 workflow_frame，并路由必要的专门 skills。发布、出包、测试分发、应用商店发布、TestFlight、App Store、内测、公测、正式发布或发布候选意图，默认优先选择 $arckit-git-branching，把任务收敛为 release 分支/tag 规范和 git push 远端触发；远端出包 workflow 失败但只有泛化失败标题、logs/artifacts 不足、没有上传历史或不知道失败原因在哪里看时，也优先选择 $arckit-git-branching 收集失败原因原文；只有用户明确要求发布前 gate、go/no-go、灰度/回滚风险或 readiness 判断时，才选择 $arckit-release-readiness。workflow_frame 必须区分 workflow_resolution、final_goal、current_phase、phase_reason、selected_capabilities、why_not_selected、artifact_targets、reflection_gates、execution_record_target、confirmation_points 和 stop_conditions。首轮之后用户继续补充、纠错、换目标、纠正项目事实、回答澄清或暂停时，交给 $arckit-turn-adaptation 分类；任务结束、阻塞或失败时先完成 artifact impact scan，再触发 $arckit-workflow-memory 写 execution_record 和 closeout。项目事实没有变化只影响 artifact 路由，不等于 workflow memory closeout 可以跳过。不要使用会诱导 agent 降低流程完整性的 workflow 修饰词。"
 policy:
   allow_implicit_invocation: true
   orchestration_required: true
@@ -11,7 +11,7 @@ workflow:
     - "默认调用 arckit-workflow-memory 做 workflow_resolution，不等用户提到 workflow。"
     - "优先绑定项目级 accepted/candidate scenario workflow，再参考用户级 accepted/candidate；无法匹配时才创建或准备创建场景级 candidate。"
     - "生成 runtime_situation，先做 workflow_composition_reasoning，区分 final_goal/current_phase/phase_reason，判断缺口、可用能力、已选能力、跳过原因和下一次重编译条件，再应用 memory overlay 编译 workflow_frame。"
-    - "发布、出包、测试分发、应用商店发布、TestFlight、App Store、内测、公测、正式发布或发布候选意图，默认先路由到 arckit-git-branching；不要用 arckit-release-readiness 抢占，除非用户明确要求发布前 gate/go-no-go/readiness。"
+    - "发布、出包、测试分发、应用商店发布、TestFlight、App Store、内测、公测、正式发布或发布候选意图，默认先路由到 arckit-git-branching；远端出包 workflow 失败但缺少具体错误原因时，也先路由到 arckit-git-branching 收集失败原因；不要用 arckit-release-readiness 抢占，除非用户明确要求发布前 gate/go-no-go/readiness。"
     - "正向实现任务先判断是否建立或强化产品、交互、视觉或技术规范；UI 一致性、跨页面行为/样式统一、组件状态统一或从代码实现中反推规范变化时，先标记 interaction/visual check，再形成 implementation_handoff。"
     - "普通正向实现任务形成 implementation_handoff，再执行代码工作流并按风险验证。"
     - "用户在首轮目标之后继续补充、纠正、换目标、纠正项目事实、回答澄清或要求暂停时，交给 arckit-turn-adaptation 分类；不要在 using-arckit 内展开 turn-level 分类细节。"
