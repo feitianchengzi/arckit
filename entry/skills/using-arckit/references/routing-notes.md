@@ -14,7 +14,7 @@
 - 记忆层：`arckit-intake`、`arckit-pending`、`arckit-workflow-memory`。
 - 诊断层：`arckit-debug-diagnosis`。
 - 质量层：`arckit-verify-implementation`、`arckit-code-review`。
-- 交付层：`arckit-release-readiness`、`arckit-runtime-operations`。
+- 交付层：`arckit-git-branching`、`arckit-release-readiness`、`arckit-runtime-operations`。
 - 桌面桥：`arckit-workshop-desktop`。
 
 当前仓库不承载具体技术栈的正向编码 skill。用户要求实现代码时，先形成 `implementation_handoff`，再按普通代码工作流或外部 `arckit-code` 执行；实现改变范围、证据、计划或稳定文档时，再回到对应 ArcKit skill。
@@ -89,6 +89,16 @@ user intent
 - 执行中保持可重编译：出现用户纠偏、目标变化、事实纠正、定义不稳定、视觉/交互歧义、技术阻塞、验证失败或新的 artifact impact 时，重新判断 `final_goal`、`current_phase`、`selected_capabilities` 和 artifact routing；首轮之后的用户消息先交给 `arckit-turn-adaptation` 分类。
 - 保持术语不诱导降级：不要使用会让 agent 误解为可以削减流程完整性的 workflow 修饰词。需要控制输出长度时，明确要求“简洁输出但完整判断 workflow resolution、artifact impact scan 和 closeout”。
 
+### 发布和出包路由
+
+用户表达发布、出包、测试分发、应用商店发布、TestFlight、App Store、内测、公测、正式发布或发布候选时，先判断用户要的是哪一种交付动作：
+
+- 分支/tag 触发：用户想发包、出测试包、发 TestFlight、发应用商店候选、创建 release 线、打 tag、触发远端 workflow，默认选择 `arckit-git-branching`。
+- 发布 readiness：用户明确要求发布前检查、上线 gate、go/no-go、灰度/回滚策略、发布风险评估，才选择 `arckit-release-readiness`。
+- 运行期观察：用户要求线上健康、监控、SLO、告警或运行状态，才选择 `arckit-runtime-operations`。
+
+当分支/tag 触发和 readiness 都可能相关时，先选择 `arckit-git-branching` 给出或执行 Git 分支/tag 触发方案；readiness 只能作为后续显式确认的补充，不要抢占默认路由。
+
 ### Turn Adaptation 交接
 
 后续用户消息由 `arckit-turn-adaptation` 输出：
@@ -127,7 +137,9 @@ workflow_correction_ledger: null
 - bug、回归、偶发失败、性能退化：`arckit-debug-diagnosis` -> `arckit-verify-implementation`；需要运行期信号时接 `arckit-runtime-operations`。
 - 代码审查：`arckit-code-review`，必要时接 `arckit-verify-implementation` 和治理收口。
 - skill 创建、维护、反馈固化：`arcforge-skill-creator`；隔离验证或模拟测试用 `arcforge-skill-first`。
-- 发布或运行期工作：`arckit-release-readiness` 或 `arckit-runtime-operations`。
+- 发布/出包/测试分发/应用商店候选：默认 `arckit-git-branching`，把意图转成 `release/*` 分支和 tag push 触发远端 workflow；不展开本地构建、archive、上传或平台发布流程。
+- 发布前 gate、go/no-go、灰度/回滚风险：`arckit-release-readiness`。
+- 运行期健康、监控、SLO、告警：`arckit-runtime-operations`。
 - 本地桌面记录、任务派发或 Codex dispatch：先确认任务足够明确，再用 `arckit-workshop-desktop`。
 - 显式角色协作：`arckit-role-orchestration`，且执行前需要用户确认。
 

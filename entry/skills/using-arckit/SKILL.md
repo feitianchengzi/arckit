@@ -1,6 +1,6 @@
 ---
 name: using-arckit
-description: 软件项目协作的首轮默认入口、scenario workflow resolver 和 workflow frame compiler。只要用户首轮请求或输入材料可能涉及产品想法、原始输入归档、反馈、需求、规格、交互、视觉、技术方案、迭代治理、项目记忆、debug、任务记录、Workshop Desktop、skill 创建/验证或软件项目开发工作流，就先使用本 skill 建立 runtime situation，调用 arckit-workflow-memory 解析并绑定可复用场景工作流，编译 workflow frame 并路由专门 skill。用户在首轮目标之后继续补充、纠错、换目标、纠正项目事实或暂停时，交给 arckit-turn-adaptation；workflow memory 的 workflow resolution、execution record、信号判断和持久化交给 arckit-workflow-memory。只有当请求明确与软件项目协作无关时才跳过。
+description: 软件项目协作的首轮默认入口、scenario workflow resolver 和 workflow frame compiler。只要用户首轮请求或输入材料可能涉及产品想法、原始输入归档、反馈、需求、规格、交互、视觉、技术方案、迭代治理、项目记忆、debug、任务记录、Workshop Desktop、skill 创建/验证、发布/出包/测试分发或软件项目开发工作流，就先使用本 skill 建立 runtime situation，调用 arckit-workflow-memory 解析并绑定可复用场景工作流，编译 workflow frame 并路由专门 skill；发布/出包/TestFlight/App Store 这类意图优先考虑 arckit-git-branching 的分支/tag 远端触发契约。用户在首轮目标之后继续补充、纠错、换目标、纠正项目事实或暂停时，交给 arckit-turn-adaptation；workflow memory 的 workflow resolution、execution record、信号判断和持久化交给 arckit-workflow-memory。只有当请求明确与软件项目协作无关时才跳过。
 ---
 
 # Using ArcKit
@@ -24,6 +24,7 @@ description: 软件项目协作的首轮默认入口、scenario workflow resolve
 - 项目事实没有变化只影响 spec/tech/interaction/visual 等 artifact 路由，不等于 workflow memory 可跳过。
 - workflow memory 的信号、候选和已确认规则由 `arckit-workflow-memory` 负责。
 - 在 ArcKit 源仓库内工作时，优先读取本仓库中的同级源路径，而不是用户级已安装副本。
+- 发布/出包/测试分发/应用商店发布意图默认先路由到 `arckit-git-branching`，由它推荐或执行 release 分支和 tag push 触发；只有用户明确要求发布风险 gate、上线 go/no-go、回滚/灰度策略或发布 readiness 判断时，才选择 `arckit-release-readiness`。
 
 ## 主流程
 
@@ -56,6 +57,7 @@ description: 软件项目协作的首轮默认入口、scenario workflow resolve
 - 先做 `workflow_composition_reasoning`：判断最终要交付什么、当前阶段缺什么、哪些 ArcKit 基础能力可补缺口、哪些 artifact 是稳定事实或过程产物、是否存在确认/选择/比较/纠偏信号，以及绑定的 scenario workflow 如何影响本轮 frame。
 - 生成 `workflow_frame`：`scenario`、`signals`、`runtime_situation`、`workflow_resolution`、`final_goal`、`current_phase`、`phase_reason`、`workflow_source`、`available_arckit_capabilities`、`selected_capabilities`、`why_not_selected`、`skills`、`handoffs`、`artifact_targets`、`artifact_impact_scan`、`reflection_gates`、`adaptation_triggers`、`next_recompile_condition`、`memory_overlay`、`execution_record_target`、`confirmation_points`、`stop_conditions`。
 - 将默认能力地图、用户显式要求、runtime situation 和 memory overlay 合并；冲突时当前用户显式要求优先，未决冲突进入 pending 或请求确认。
+- 如果 `signals` 包含发布、出包、测试分发、应用商店、TestFlight、App Store、内测、公测、正式发布或发布候选，且用户没有明确要求 readiness/go-no-go，`selected_capabilities` 必须优先包含 `arckit-git-branching`；`current_phase` 应是 Git 分支/tag 触发推荐或确认后 Git push，而不是发布前验证或平台上传。
 - 正向实现任务先判断是否建立、强化或改变产品、交互、视觉或技术规范；若是 UI 一致性、跨页面统一行为/样式或组件状态统一，先把 `interaction` 和 `visual` 置为 `check`，再形成明确的 `implementation_handoff`，执行普通代码工作流或外部 `arckit-code`，并按风险使用 `arckit-verify-implementation`。
 - 多个 skill 都适用时，按 workflow frame 的阶段顺序组合；只加载当前任务真正需要的 skill。
 
