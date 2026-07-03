@@ -3,7 +3,7 @@
  */
 
 import { STSCredentials } from '../../api/endpoints/upload'
-import { loadOSSSDK } from '../sdk'
+import { getSafeSignedUrlExpires, loadOSSSDK, normalizeObjectKey } from '../sdk'
 
 /**
  * 获取带签名的访问 URL（如果需要临时访问链接）
@@ -18,8 +18,10 @@ export async function getSignedUrl(
   expires: number = 3600,
   forceDownload: boolean = false
 ): Promise<string> {
+  const normalizedKey = normalizeObjectKey(objectKey)
+
   console.log('[getSignedUrl] 开始生成签名 URL:', {
-    objectKey,
+    objectKey: normalizedKey,
     expires,
     region: credentials.Region,
     bucket: credentials.BucketName,
@@ -47,10 +49,11 @@ export async function getSignedUrl(
     
     // 生成签名 URL
     console.log('[getSignedUrl] 调用 client.signatureUrl...')
-    const fileName = objectKey.split('/').pop() || 'download'
+    const fileName = normalizedKey.split('/').pop() || 'download'
+    const safeExpires = getSafeSignedUrlExpires(credentials.Expiration, expires)
     
-    const signedUrl = client.signatureUrl(objectKey, {
-      expires,
+    const signedUrl = client.signatureUrl(normalizedKey, {
+      expires: safeExpires,
       response: {
         'content-disposition': forceDownload ? `attachment; filename="${encodeURIComponent(fileName)}"` : undefined,
       },
@@ -63,11 +66,10 @@ export async function getSignedUrl(
     console.error('[getSignedUrl] 错误详情:', {
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      objectKey,
+      objectKey: normalizedKey,
       region: credentials.Region,
       bucket: credentials.BucketName
     })
     throw error
   }
 }
-

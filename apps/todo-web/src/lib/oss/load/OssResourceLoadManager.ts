@@ -9,6 +9,8 @@ import { StatusMonitor } from './StatusMonitor'
 import { RequestCoordinator } from './RequestCoordinator'
 import type { ManagerConfig, ResourceStatus } from './types'
 import { ENABLE_AVATAR_LOGS } from './logConfig'
+import { normalizeObjectKey } from '../sdk'
+import { clearCache as clearUrlUpdateCache } from './UrlUpdateNotifier'
 
 export class OssResourceLoadManager {
   private static instance: OssResourceLoadManager | null = null
@@ -58,7 +60,7 @@ export class OssResourceLoadManager {
    * 获取资源 URL（最常用，透明化处理）
    */
   async getUrl(objectKey: string): Promise<string> {
-    return this.requestCoordinator.coordinate(objectKey)
+    return this.requestCoordinator.coordinate(normalizeObjectKey(objectKey))
   }
   
   /**
@@ -66,10 +68,11 @@ export class OssResourceLoadManager {
    * 用于需要立即获取 URL 的场景，避免异步延迟
    */
   getUrlSync(objectKey: string): string | null {
-    const cached = this.storageManager.get(objectKey)
+    const normalizedKey = normalizeObjectKey(objectKey)
+    const cached = this.storageManager.get(normalizedKey)
     if (cached && this.storageManager.isValid(cached, this.config.bufferTime * 1000)) {
       if (ENABLE_AVATAR_LOGS) {
-        console.log(`[OssResourceLoadManager] ⚡ 同步返回缓存 URL: ${objectKey}`)
+        console.log(`[OssResourceLoadManager] ⚡ 同步返回缓存 URL: ${normalizedKey}`)
       }
       return cached.signedUrl
     }
@@ -82,9 +85,10 @@ export class OssResourceLoadManager {
   prefetch(objectKeys: string[]): void {
     // 后台加载，不等待结果
     objectKeys.forEach(objectKey => {
-      this.getUrl(objectKey).catch(error => {
+      const normalizedKey = normalizeObjectKey(objectKey)
+      this.getUrl(normalizedKey).catch(error => {
         if (ENABLE_AVATAR_LOGS) {
-          console.warn(`[OssResourceLoadManager] 预加载失败: ${objectKey}`, error)
+          console.warn(`[OssResourceLoadManager] 预加载失败: ${normalizedKey}`, error)
         }
       })
     })
@@ -94,14 +98,17 @@ export class OssResourceLoadManager {
    * 强制刷新某个资源的签名
    */
   async refresh(objectKey: string): Promise<string> {
+    const normalizedKey = normalizeObjectKey(objectKey)
+
     // 清除缓存
-    this.storageManager.delete(objectKey)
+    this.storageManager.delete(normalizedKey)
+    clearUrlUpdateCache(normalizedKey)
     
     // 强制刷新 STS 凭证
     await this.signatureProvider.getCredentials(true)
     
     // 重新加载
-    return this.getUrl(objectKey)
+    return this.getUrl(normalizedKey)
   }
   
   /**
@@ -109,11 +116,14 @@ export class OssResourceLoadManager {
    */
   clearCache(objectKey?: string): void {
     if (objectKey) {
-      this.storageManager.delete(objectKey)
-      this.statusMonitor.clear(objectKey)
+      const normalizedKey = normalizeObjectKey(objectKey)
+      this.storageManager.delete(normalizedKey)
+      this.statusMonitor.clear(normalizedKey)
+      clearUrlUpdateCache(normalizedKey)
     } else {
       this.storageManager.clear()
       this.statusMonitor.clear()
+      clearUrlUpdateCache()
     }
   }
   
@@ -124,16 +134,18 @@ export class OssResourceLoadManager {
     objectKey: string,
     callback: (url: string) => void
   ): () => void {
+    const normalizedKey = normalizeObjectKey(objectKey)
+
     // 先检查是否已有 URL
-    const cached = this.storageManager.get(objectKey)
+    const cached = this.storageManager.get(normalizedKey)
     if (cached && this.storageManager.isValid(cached)) {
       callback(cached.signedUrl)
     }
     
     // 订阅状态变更
-    return this.statusMonitor.subscribe(objectKey, (status) => {
+    return this.statusMonitor.subscribe(normalizedKey, (status) => {
       if (status === 'ready') {
-        const item = this.storageManager.get(objectKey)
+        const item = this.storageManager.get(normalizedKey)
         if (item) {
           callback(item.signedUrl)
         }
@@ -145,7 +157,6 @@ export class OssResourceLoadManager {
    * 获取资源加载状态（可选，用于调试）
    */
   getStatus(objectKey: string): ResourceStatus {
-    return this.statusMonitor.getStatus(objectKey)
+    return this.statusMonitor.getStatus(normalizeObjectKey(objectKey))
   }
 }
-

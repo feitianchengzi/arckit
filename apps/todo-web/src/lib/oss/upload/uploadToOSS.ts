@@ -4,7 +4,7 @@
  */
 
 import { STSCredentials, uploadApi } from '../../api/endpoints/upload'
-import { loadOSSSDK, getFileExtension } from '../sdk'
+import { getFileExtension, getSafeSignedUrlExpires, loadOSSSDK, normalizeObjectKey } from '../sdk'
 import { generateObjectKey } from './generateObjectKey'
 import type { OSSDirectory, UploadResult } from './types'
 import { getAccessToken } from '../../utils/tokenManager'
@@ -91,7 +91,7 @@ export async function uploadToOSS(
     const finalFileName = `${timestamp}_${randomStr}.${fileExt}`
     
     // 使用 generateObjectKey 生成 objectKey（支持多目录）
-    const objectKey = generateObjectKey(credentials.RootPath, directory, finalFileName)
+    const objectKey = normalizeObjectKey(generateObjectKey(credentials.RootPath, directory, finalFileName))
     
     // 构建上传选项
     const putOptions: any = {
@@ -137,7 +137,7 @@ export async function uploadToOSS(
     // 如果需要URL，使用 SDK 的 signatureUrl 方法生成访问 URL
     // 禁止手拼 URL，使用 SDK 方法
     uploadResult.url = client.signatureUrl(objectKey, {
-      expires: 3600, // 1小时有效期
+      expires: getSafeSignedUrlExpires(credentials.Expiration),
     })
     console.log("++ uploadResult", uploadResult)
     return uploadResult
@@ -185,4 +185,3 @@ export async function uploadToOSS(
     throw new Error(`上传失败: 未知错误`)
   }
 }
-

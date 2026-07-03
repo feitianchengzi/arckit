@@ -5,6 +5,7 @@
 
 import type { ResourceItem, ManagerConfig } from './types'
 import { ENABLE_AVATAR_LOGS } from './logConfig'
+import { normalizeObjectKey } from '../sdk'
 
 export class StorageManager {
   // L1: 内存缓存
@@ -24,14 +25,16 @@ export class StorageManager {
    * 获取缓存（优先 L1，未命中则查 L2）
    */
   get(objectKey: string): ResourceItem | null {
+    const normalizedKey = normalizeObjectKey(objectKey)
+
     // 先查 L1
-    const l1Item = this.memoryCache.get(objectKey)
+    const l1Item = this.memoryCache.get(normalizedKey)
     if (l1Item) {
       // 更新访问信息
       l1Item.lastAccessed = Date.now()
       l1Item.accessCount++
       if (ENABLE_AVATAR_LOGS) {
-        console.log(`[StorageManager] ✅ L1 缓存命中: ${objectKey}`, {
+        console.log(`[StorageManager] ✅ L1 缓存命中: ${normalizedKey}`, {
           signedUrl: l1Item.signedUrl,
           expiresAt: new Date(l1Item.expiresAt).toLocaleString(),
           accessCount: l1Item.accessCount,
@@ -41,14 +44,14 @@ export class StorageManager {
     }
     
     // 查 L2
-    const l2Item = this.getFromL2(objectKey)
+    const l2Item = this.getFromL2(normalizedKey)
     if (l2Item) {
       // 提升到 L1
-      this.memoryCache.set(objectKey, l2Item)
+      this.memoryCache.set(normalizedKey, l2Item)
       l2Item.lastAccessed = Date.now()
       l2Item.accessCount++
       if (ENABLE_AVATAR_LOGS) {
-        console.log(`[StorageManager] ✅ L2 缓存命中（已提升到 L1）: ${objectKey}`, {
+        console.log(`[StorageManager] ✅ L2 缓存命中（已提升到 L1）: ${normalizedKey}`, {
           signedUrl: l2Item.signedUrl,
           expiresAt: new Date(l2Item.expiresAt).toLocaleString(),
           accessCount: l2Item.accessCount,
@@ -58,7 +61,7 @@ export class StorageManager {
     }
     
     if (ENABLE_AVATAR_LOGS) {
-      console.log(`[StorageManager] ❌ 缓存未命中: ${objectKey}`, {
+      console.log(`[StorageManager] ❌ 缓存未命中: ${normalizedKey}`, {
         l1Size: this.memoryCache.size,
         l2Keys: this.getL2Keys().length,
       })
@@ -90,6 +93,9 @@ export class StorageManager {
    * 设置缓存（同时写入 L1 和 L2）
    */
   set(objectKey: string, item: ResourceItem): void {
+    const normalizedKey = normalizeObjectKey(objectKey)
+    item.objectKey = normalizedKey
+
     // 更新访问信息
     item.lastAccessed = Date.now()
     if (!item.accessCount) {
@@ -99,10 +105,10 @@ export class StorageManager {
     }
     
     // 写入 L1
-    this.memoryCache.set(objectKey, item)
+    this.memoryCache.set(normalizedKey, item)
     
     // 写入 L2
-    this.saveToL2(objectKey, item)
+    this.saveToL2(normalizedKey, item)
     
     // 检查容量限制
     this.enforceCapacityLimit()
@@ -135,8 +141,9 @@ export class StorageManager {
    * 删除缓存
    */
   delete(objectKey: string): void {
-    this.memoryCache.delete(objectKey)
-    this.deleteFromL2(objectKey)
+    const normalizedKey = normalizeObjectKey(objectKey)
+    this.memoryCache.delete(normalizedKey)
+    this.deleteFromL2(normalizedKey)
   }
   
   /**
@@ -298,4 +305,3 @@ export class StorageManager {
     }
   }
 }
-

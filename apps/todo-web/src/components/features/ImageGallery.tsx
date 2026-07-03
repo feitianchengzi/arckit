@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { OssResourceManager } from '@/lib/oss/OssResourceManager'
+import { subscribeUrlUpdate } from '@/lib/oss/load/UrlUpdateNotifier'
+import { normalizeObjectKey } from '@/lib/oss/sdk'
 
 export interface ImageItem {
   key: string
@@ -10,8 +12,63 @@ export interface ImageGalleryProps {
   onImageClick: (key: string) => void
 }
 
+function GalleryImage({
+  image,
+  index,
+  onImageClick,
+}: {
+  image: ImageItem
+  index: number
+  onImageClick: (key: string) => void
+}) {
+  const objectKey = normalizeObjectKey(image.key)
+  const [url, setUrl] = useState('')
+
+  useEffect(() => {
+    let active = true
+    setUrl('')
+
+    const unsubscribe = subscribeUrlUpdate(objectKey, (newUrl) => {
+      if (active) setUrl(newUrl)
+    })
+
+    OssResourceManager.resolve(objectKey).then(u => {
+      if (active && u) setUrl(u)
+    }).catch(error => {
+      console.error('[ImageGallery] 图片 URL 解析失败:', {
+        objectKey,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    })
+
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [objectKey])
+
+  if (!url) {
+    return (
+      <div className="w-32 h-32 bg-surface-active animate-pulse rounded-md flex-shrink-0" />
+    )
+  }
+
+  return (
+    <div
+      className="w-32 h-32 bg-surface-active rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden border border-border"
+      onClick={() => onImageClick(objectKey)}
+    >
+      <img
+        src={url}
+        alt={`图片 ${index + 1}`}
+        data-oss-key={objectKey}
+        className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform"
+      />
+    </div>
+  )
+}
+
 export function ImageGallery({ images, onImageClick }: ImageGalleryProps) {
-  const [scrollLeft, setScrollLeft] = useState(0)
   const [showLeftButton, setShowLeftButton] = useState(false)
   const [showRightButton, setShowRightButton] = useState(true)
   const galleryRef = React.useRef<HTMLDivElement>(null)
@@ -22,7 +79,6 @@ export function ImageGallery({ images, onImageClick }: ImageGalleryProps) {
       if (!galleryRef.current) return
       
       const { scrollLeft, scrollWidth, clientWidth } = galleryRef.current
-      setScrollLeft(scrollLeft)
       
       // 计算是否显示左右按钮
       setShowLeftButton(scrollLeft > 10) // 留一点缓冲
@@ -47,7 +103,6 @@ export function ImageGallery({ images, onImageClick }: ImageGalleryProps) {
     if (!galleryRef.current) return
     const scrollAmount = direction === 'left' ? -200 : 200
     const newScrollLeft = galleryRef.current.scrollLeft + scrollAmount
-    setScrollLeft(newScrollLeft)
     galleryRef.current.scrollTo({
       left: newScrollLeft,
       behavior: 'smooth'
@@ -93,37 +148,14 @@ export function ImageGallery({ images, onImageClick }: ImageGalleryProps) {
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         <div className="flex gap-2 min-w-max">
-          {images.map((img, index) => {
-            const [url, setUrl] = useState('')
-            useEffect(() => {
-              let active = true
-              OssResourceManager.resolve(img.key).then(u => {
-                if (active && u) setUrl(u)
-              })
-              return () => { active = false }
-            }, [img.key])
-
-            if (!url) {
-              return (
-                <div key={index} className="w-32 h-32 bg-surface-active animate-pulse rounded-md flex-shrink-0" />
-              )
-            }
-
-            return (
-              <div 
-                key={index} 
-                className="w-32 h-32 bg-surface-active rounded-md flex items-center justify-center flex-shrink-0 overflow-hidden border border-border"
-                onClick={() => onImageClick(img.key)}
-              >
-                <img 
-                  src={url} 
-                  alt={`图片 ${index + 1}`} 
-                  data-oss-key={img.key}
-                  className="w-full h-full object-contain cursor-pointer hover:scale-105 transition-transform"
-                />
-              </div>
-            )
-          })}
+          {images.map((img, index) => (
+            <GalleryImage
+              key={normalizeObjectKey(img.key) || index}
+              image={img}
+              index={index}
+              onImageClick={onImageClick}
+            />
+          ))}
         </div>
       </div>
     </div>
