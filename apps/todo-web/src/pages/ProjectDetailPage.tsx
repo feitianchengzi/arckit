@@ -18,6 +18,8 @@ import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
+import { useDashboardLayout } from '@/layouts/DashboardLayoutContext'
+import { showGlobalToast } from '@/components/ui/Toast'
 import { type DateRange } from '@/lib/utils/filterStorage'
 import { decodeProjectId } from '@/lib/utils/projectRouting'
 import type { TodoStatus, ProjectMember } from '@/types'
@@ -37,12 +39,14 @@ export default function ProjectDetailPage() {
   const projectId = Number(projectIdParam)
   
   const currentUser = useAuthStore((state) => state.user)
+  const { isProjectSidebarCollapsed, toggleProjectSidebar } = useDashboardLayout()
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [hideScrollTopForDrawerTransition, setHideScrollTopForDrawerTransition] = useState(false)
   const hasDrawerOpenedRef = useRef(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false)
+  const createTaskButtonRef = useRef<HTMLButtonElement>(null)
   const [taskHistory, setTaskHistory] = useState<Array<{ taskId: string; projectId: string; parentTaskId: number | null }>>([])
   const [parentSelectTaskId, setParentSelectTaskId] = useState<string | null>(null)
   const parseTaskIdFromHash = (hash: string): string | null => {
@@ -117,10 +121,16 @@ export default function ProjectDetailPage() {
   const [editName, setEditName] = useState('')
   const [editGitUrl, setEditGitUrl] = useState('')
   const [editError, setEditError] = useState('')
+  const [projectInfoName, setProjectInfoName] = useState('')
+  const [projectInfoGitUrl, setProjectInfoGitUrl] = useState('')
+  const [projectInfoError, setProjectInfoError] = useState('')
+  const [isSavingProjectInfo, setIsSavingProjectInfo] = useState(false)
+  const [showProjectInfoDialog, setShowProjectInfoDialog] = useState(false)
   
   // 更多菜单状态
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
+  const moreMenuButtonRef = useRef<HTMLButtonElement>(null)
   
   // 导出待办对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false)
@@ -214,6 +224,13 @@ export default function ProjectDetailPage() {
   const { data: members } = useProjectMembers(projectIdParam)
   const updateStatus = useUpdateTaskStatus(projectIdParam)
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!project) return
+    setProjectInfoName(project.name)
+    setProjectInfoGitUrl(project.git_url || '')
+    setProjectInfoError('')
+  }, [project?.id, project?.name, project?.git_url])
   
   // 加载项目标签
   const { loadProjectTags, getProjectTags } = useTagStore()
@@ -905,7 +922,7 @@ export default function ProjectDetailPage() {
   
   // 点击外部关闭更多菜单和搜索框
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | PointerEvent) => {
       try {
         const target = event.target as Node
         const targetElement = target as Element
@@ -942,7 +959,7 @@ export default function ProjectDetailPage() {
           }
         }
         
-        if (moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        if (showMoreMenu && moreMenuRef.current && !moreMenuRef.current.contains(target)) {
           setShowMoreMenu(false)
         }
         if (moreFiltersRef.current && !moreFiltersRef.current.contains(target) &&
@@ -963,16 +980,16 @@ export default function ProjectDetailPage() {
     
     if (showMoreMenu || showMoreFilters || showSearchBar) {
       // 使用捕获阶段，避免被扩展拦截
-      document.addEventListener('mousedown', handleClickOutside, true)
+      document.addEventListener('pointerdown', handleClickOutside, true)
       // 也监听 click 事件作为备用
       document.addEventListener('click', handleClickOutside, true)
     }
     
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside, true)
+      document.removeEventListener('pointerdown', handleClickOutside, true)
       document.removeEventListener('click', handleClickOutside, true)
     }
-  }, [showMoreMenu, showMoreFilters, showSearchBar])
+  }, [searchQuery, showMoreMenu, showMoreFilters, showSearchBar])
 
   // 计算哪些筛选器需要隐藏（响应式）
   useEffect(() => {
@@ -1220,6 +1237,73 @@ export default function ProjectDetailPage() {
     project?.creator?.username === currentUser?.username ||
     project?.members?.some((m: ProjectMember) => m.username === currentUser?.username && m.role === 'owner')
 
+  const canEditProjectInfo = isOwner
+  const projectInfoDirty =
+    projectInfoName.trim() !== project.name ||
+    projectInfoGitUrl.trim() !== (project.git_url || '')
+
+  const handleProjectInfoSave = async () => {
+    if (!canEditProjectInfo || isSavingProjectInfo) return
+
+    const trimmedName = projectInfoName.trim()
+    const trimmedGitUrl = projectInfoGitUrl.trim()
+
+    setProjectInfoError('')
+
+    if (!trimmedName) {
+      setProjectInfoName(project.name)
+      setProjectInfoError('请输入项目名称')
+      return
+    }
+
+    if (trimmedGitUrl) {
+      try {
+        new URL(trimmedGitUrl)
+      } catch {
+        setProjectInfoError('请输入有效的 Git 地址')
+        return
+      }
+    }
+
+    if (!projectInfoDirty) {
+      setProjectInfoName(project.name)
+      setProjectInfoGitUrl(project.git_url || '')
+      return
+    }
+
+    setIsSavingProjectInfo(true)
+
+    try {
+      await updateProject.mutateAsync({
+        name: trimmedName,
+        git_url: trimmedGitUrl,
+      })
+      setProjectInfoName(trimmedName)
+      setProjectInfoGitUrl(trimmedGitUrl)
+      showGlobalToast('项目信息已更新', 'success', 2000)
+    } catch (err: any) {
+      const message = err?.response?.data?.error || err?.response?.data?.message || err?.message || '更新失败，请重试'
+      setProjectInfoError(message)
+      showGlobalToast(message, 'error', 2500)
+    } finally {
+      setIsSavingProjectInfo(false)
+    }
+  }
+
+  const handleCloseProjectInfoDialog = () => {
+    setShowProjectInfoDialog(false)
+    window.setTimeout(() => {
+      moreMenuButtonRef.current?.blur()
+    }, 0)
+  }
+
+  const handleCloseCreateTaskDialog = () => {
+    setShowCreateTaskDialog(false)
+    window.setTimeout(() => {
+      createTaskButtonRef.current?.blur()
+    }, 0)
+  }
+
   const showStatusTabs = false
   const parentSelectBanner = isSelectingParent ? (
     <div className="parent-select-banner" style={parentBannerStyle} role="status" aria-live="polite">
@@ -1273,45 +1357,158 @@ export default function ProjectDetailPage() {
   ) : null
   
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="space-y-3 md:space-y-4">
       {parentSelectBanner && typeof document !== 'undefined'
         ? createPortal(parentSelectBanner, document.body)
         : null}
       {/* 页面头部 */}
-      <div className="flex flex-col lg:flex-row gap-6" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
-        <div className="flex-1 min-w-0 flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground truncate" title={project.name}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-8" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-5 lg:gap-8">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleProjectSidebar}
+              className={clsx(
+                'hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-transparent text-foreground-secondary transition-colors lg:flex',
+                'hover:bg-surface-hover hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+                isProjectSidebarCollapsed && 'bg-surface-hover text-foreground'
+              )}
+              title={isProjectSidebarCollapsed ? '展开项目列表' : '折叠项目列表'}
+              aria-label={isProjectSidebarCollapsed ? '展开项目列表' : '折叠项目列表'}
+              aria-pressed={isProjectSidebarCollapsed}
+            >
+              <ProjectSidebarToggleIcon
+                collapsed={isProjectSidebarCollapsed}
+                className="h-5 w-5"
+              />
+            </button>
+            <h1 className="min-w-0 truncate text-base font-medium text-foreground md:text-lg lg:text-xl" title={project.name}>
               {project.name}
             </h1>
-            {project.git_url ? (
-              <p className="mt-1 text-xs md:text-base text-foreground-secondary truncate" title={project.git_url}>
-                {project.git_url}
-              </p>
-            ) : (
-              <p className="mt-1 text-xs md:text-base text-foreground-secondary">
-                当前项目尚未关联任何 Git 仓库
-              </p>
-            )}
+
+            {/* 更多菜单 - 跟随项目名称伸缩 */}
+            <div className="relative shrink-0" ref={moreMenuRef}>
+              <HeaderIconButton
+                icon={<MoreIcon />}
+                label="更多"
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                isActive={showMoreMenu}
+                buttonRef={moreMenuButtonRef}
+              />
+
+              {/* 下拉菜单 */}
+              {showMoreMenu && (
+                <div
+                  className="absolute right-0 top-full z-50 mt-2 flex w-44 flex-col overflow-hidden rounded-xl border border-border bg-surface-elevated py-1 shadow-[0_12px_28px_rgba(15,23,42,0.12)]"
+                  role="menu"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProjectInfoName(project.name)
+                      setProjectInfoGitUrl(project.git_url || '')
+                      setProjectInfoError('')
+                      moreMenuButtonRef.current?.blur()
+                      setShowProjectInfoDialog(true)
+                      setShowMoreMenu(false)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover"
+                    role="menuitem"
+                  >
+                    <ProjectInfoIcon className="h-4 w-4 shrink-0" />
+                    <span>项目信息</span>
+                  </button>
+
+                  {/* 新增反馈 - 所有用户可见 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFeedbackDialog(true)
+                      setShowMoreMenu(false)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover"
+                    role="menuitem"
+                  >
+                    <FeedbackIcon className="h-4 w-4 shrink-0" />
+                    <span>新增反馈</span>
+                  </button>
+
+                  {/* 导出待办 - 所有用户可见 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportDialog(true)
+                      setShowMoreMenu(false)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover"
+                    role="menuitem"
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z" />
+                    </svg>
+                    <span>导出待办</span>
+                  </button>
+
+                  {/* 编辑项目 - 只有所有者可见 */}
+                  {isOwner && (
+                    <button
+                      onClick={() => {
+                        handleEditClick()
+                        setShowMoreMenu(false)
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover"
+                      role="menuitem"
+                    >
+                      <EditIcon className="h-4 w-4 shrink-0" />
+                      <span>编辑项目</span>
+                    </button>
+                  )}
+
+                  {/* 删除项目 - 只有所有者可见 */}
+                  {isOwner && (
+                    <button
+                      onClick={() => {
+                        setShowDeleteConfirm(true)
+                        setShowMoreMenu(false)
+                      }}
+                      disabled={deleteProject.isPending}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-error transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      role="menuitem"
+                    >
+                      {deleteProject.isPending ? (
+                        <LoadingSpinner className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <DeleteIcon className="h-4 w-4 shrink-0" />
+                      )}
+                      <span>删除项目</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           
           {/* 操作按钮 - 顶部右对齐 */}
-          <div className="flex items-center gap-2 shrink-0 pt-1">
+          <div className="flex shrink-0 items-center gap-2">
             {/* 搜索区域 - 搜索按钮和搜索框共用位置 */}
-            <div className="relative flex items-center" ref={searchBarRef}>
+            <div
+              className={clsx(
+                'relative flex h-10 items-center justify-end transition-[width] duration-300 ease-in-out',
+                showSearchBar ? 'w-[300px]' : 'w-10'
+              )}
+              ref={searchBarRef}
+            >
               {/* 搜索按钮 - 搜索框显示时隐藏 */}
               <div className={clsx(
                 "transition-all duration-300 ease-in-out",
                 showSearchBar ? "opacity-0 scale-0 pointer-events-none absolute right-0" : "opacity-100 scale-100"
               )}>
-                <IconButton
+                <HeaderIconButton
                   icon={<SearchIcon />}
                   label="搜索"
                   onClick={() => {
                     setShowSearchBar(true)
                   }}
-                  variant="secondary"
-                  iconBgColor="transparent"
                 />
               </div>
               
@@ -1323,8 +1520,8 @@ export default function ProjectDetailPage() {
                   : "opacity-0 translate-x-4 pointer-events-none"
               )}>
                 <div className={clsx(
-                  "flex items-center bg-surface-elevated border border-border rounded-md shadow-sm overflow-hidden transition-all duration-300 ease-in-out h-[52px]",
-                  showSearchBar ? "w-[320px]" : "w-0"
+                  "flex h-10 items-center overflow-hidden rounded-md border border-border bg-surface-elevated shadow-sm transition-all duration-300 ease-in-out",
+                  showSearchBar ? "w-[300px]" : "w-0"
                 )}
                 style={{ backgroundColor: 'var(--color-surface-elevated)' }}
                 >
@@ -1357,104 +1554,22 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             
-            {/* 创建待办按钮 */}
-            <IconButton
-              icon={<CreateTodoIcon />}
-              label="创建待办"
-              onClick={() => setShowCreateTaskDialog(true)}
-              variant="primary"
-            />
+            <button
+              ref={createTaskButtonRef}
+              type="button"
+              onClick={() => {
+                setShowCreateTaskDialog(true)
+              }}
+              className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-white transition-colors hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              创建待办
+            </button>
 
-            {/* 新增反馈按钮 - 所有用户可见 */}
-            <IconButton
-              icon={
-                <svg className="w-5 h-5" viewBox="0 0 1138 1024" fill="currentColor" aria-hidden="true">
-                  <path d="M1055.738 57.594c-45.439-36.351-154.492-27.262-304.439 86.333-213.562 159.036-308.983 368.052-445.298 572.527-22.719 31.807 13.632 49.983 40.895 36.351l86.333-49.983c13.632-4.544 18.175-4.544 13.632-27.262-9.088-68.158 18.176-131.772 59.070-186.298v0c149.947 63.614 331.702 27.262 395.317-154.492 81.789-18.176 159.036-109.053 172.667-172.666 13.632-45.439 9.088-86.333-18.175-104.509zM142.422 716.454c122.684 213.562 390.773 286.263 604.333 163.58 140.859-81.789 218.105-227.193 222.649-377.14 0-49.983-59.070-45.439-59.070 0 0 131.772-68.158 254.457-190.842 327.158-186.298 104.509-422.579 40.895-527.088-140.859-109.053-186.298-45.439-422.579 140.859-527.088 99.965-59.070 222.649-68.158 322.614-27.262 40.895 13.632 59.070-40.895 18.175-54.527-118.141-40.895-249.911-36.351-368.052 31.807-213.562 122.684-286.263 395.317-163.58 604.333z" />
-                </svg>
-              }
-              label="新增反馈"
-              onClick={() => setShowFeedbackDialog(true)}
-              variant="secondary"
-              iconBgColor="bg-primary"
-              iconColor="text-white"
-              hideLabel
-            />
-
-            {/* 更多菜单 - 所有用户都可以看到 */}
-            <div className="relative" ref={moreMenuRef}>
-              <IconButton
-                icon={<MoreIcon />}
-                label="更多"
-                onClick={() => setShowMoreMenu(!showMoreMenu)}
-                variant="secondary"
-                isActive={showMoreMenu}
-                iconBgColor="bg-surface-active dark:bg-surface-hover"
-              />
-              
-              {/* 下拉菜单 */}
-              {showMoreMenu && (
-                <div 
-                  className="absolute right-0 top-full mt-1 w-40 border border-border rounded-md shadow-lg z-50"
-                  style={{ backgroundColor: 'var(--color-surface-elevated)' }}
-                >
-                  {/* 导出待办 - 所有用户可见 */}
-                  <button
-                    onClick={() => {
-                      setShowExportDialog(true)
-                      setShowMoreMenu(false)
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span>导出待办</span>
-                  </button>
-
-                  {/* 编辑项目 - 只有所有者可见 */}
-                  {isOwner && (
-                    <button
-                      onClick={() => {
-                        handleEditClick()
-                        setShowMoreMenu(false)
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 transition-colors"
-                    >
-                      <EditIcon className="w-4 h-4" />
-                      <span>编辑项目</span>
-                    </button>
-                  )}
-                  
-                  {/* 删除项目 - 只有所有者可见 */}
-                  {isOwner && (
-                    <button
-                      onClick={() => {
-                        setShowDeleteConfirm(true)
-                        setShowMoreMenu(false)
-                      }}
-                      disabled={deleteProject.isPending}
-                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {deleteProject.isPending ? (
-                        <LoadingSpinner className="w-4 h-4" />
-                      ) : (
-                        <DeleteIcon className="w-4 h-4" />
-                      )}
-                      <span>删除项目</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
         </div>
-        <div className="lg:w-1/4 min-w-[200px] hidden lg:block" aria-hidden="true"></div>
       </div>
 
-      {/* 待办列表和成员列表 */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* 待办列表（自适应宽度） */}
-        <div className="flex-1 min-w-0 space-y-6">
+      <div className="space-y-6">
           {/* 统计卡片 - 直接放在外层，移除父容器 */}
           {showStatusTabs && (
             <div className="grid grid-cols-4 gap-4" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
@@ -1938,61 +2053,77 @@ export default function ProjectDetailPage() {
           </div>
         </div>
 
-        {/* 成员列表（占 1/4，宽度减小） */}
-        <div className="lg:w-1/4 min-w-[200px]">
-          <div className="bg-surface-elevated rounded-lg border border-border p-4" style={{ borderColor: 'var(--color-border)' }}>
-            <ProjectMemberList
-              members={members || []}
-              projectId={projectId}
-              canAddMember={true}
-              canManage={isOwner || currentUserRole === 'admin'}
-              creatorFilter={creatorFilter}
-              executorFilter={executorFilter}
-              onMemberClick={(member) => {
-                const userId = member.user_id;
-                
-                // 重置其他成员的筛选状态
-                const currentCreatorFilter = creatorFilter.includes(userId);
-                const currentExecutorFilter = executorFilter.includes(userId);
-                
-                // 计算当前状态
-                let currentState = 0;
-                if (currentCreatorFilter && currentExecutorFilter) {
-                  currentState = 3; // 两者
-                } else if (currentCreatorFilter) {
-                  currentState = 2; // 创建人
-                } else if (currentExecutorFilter) {
-                  currentState = 1; // 执行人
-                }
-                
-                // 计算下一个状态（循环：0 → 1 → 2 → 3 → 0）
-                const nextState = (currentState + 1) % 4;
-                
-                // 根据状态设置筛选
-                switch (nextState) {
-                  case 1: // 第一次点击 - 执行人
-                    setExecutorFilter([userId]);
-                    setCreatorFilter([]);
-                    break;
-                  case 2: // 第二次点击 - 创建人
-                    setExecutorFilter([]);
-                    setCreatorFilter([userId]);
-                    break;
-                  case 3: // 第三次点击 - 两者
-                    setExecutorFilter([userId]);
-                    setCreatorFilter([userId]);
-                    break;
-                  case 0: // 第四次点击 - 重置
-                  default:
-                    setExecutorFilter([]);
-                    setCreatorFilter([]);
-                    break;
-                }
-              }}
-            />
+      {/* 项目信息弹窗 */}
+      <Dialog
+        open={showProjectInfoDialog}
+        onClose={handleCloseProjectInfoDialog}
+        title="项目信息"
+        maxWidth="2xl"
+        panelClassName="flex flex-col"
+        panelStyle={{ maxWidth: '820px', height: '80vh', maxHeight: '820px' }}
+        bodyClassName="min-h-0 flex-1 overflow-y-auto px-6 py-5"
+      >
+        <div className="space-y-8">
+          <div className="overflow-hidden rounded-lg border border-border bg-surface-elevated">
+            <div className="grid gap-3 border-b border-divider px-4 py-4 md:grid-cols-[minmax(120px,1fr)_minmax(260px,360px)] md:items-center md:px-5">
+              <label htmlFor="project-info-name" className="text-sm font-medium text-foreground">
+                项目名称
+              </label>
+              <input
+                id="project-info-name"
+                value={projectInfoName}
+                onChange={(event) => setProjectInfoName(event.target.value)}
+                onBlur={handleProjectInfoSave}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.currentTarget.blur()
+                  }
+                }}
+                className="h-9 w-full rounded-md border border-border bg-surface-elevated px-3 text-sm text-foreground outline-none transition-colors placeholder:text-foreground-tertiary focus:border-foreground-tertiary focus:ring-1 focus:ring-foreground-tertiary/15 disabled:cursor-not-allowed disabled:bg-surface-disabled"
+                placeholder="请输入项目名称"
+                disabled={!canEditProjectInfo || isSavingProjectInfo}
+                maxLength={50}
+              />
+            </div>
+
+            <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(120px,1fr)_minmax(260px,360px)] md:items-center md:px-5">
+              <label htmlFor="project-info-git-url" className="text-sm font-medium text-foreground">
+                Git 地址
+              </label>
+              <input
+                id="project-info-git-url"
+                value={projectInfoGitUrl}
+                onChange={(event) => setProjectInfoGitUrl(event.target.value)}
+                onBlur={handleProjectInfoSave}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.currentTarget.blur()
+                  }
+                }}
+                className="h-9 w-full rounded-md border border-border bg-surface-elevated px-3 text-sm text-foreground outline-none transition-colors placeholder:text-foreground-tertiary focus:border-foreground-tertiary focus:ring-1 focus:ring-foreground-tertiary/15 disabled:cursor-not-allowed disabled:bg-surface-disabled"
+                placeholder="https://github.com/username/repo"
+                disabled={!canEditProjectInfo || isSavingProjectInfo}
+              />
+            </div>
           </div>
+
+          {projectInfoError && (
+            <p className="-mt-5 text-sm text-error">{projectInfoError}</p>
+          )}
+
+          <section>
+            <h3 className="text-lg font-semibold text-foreground">项目成员</h3>
+            <div className="mt-4 overflow-hidden rounded-lg border border-border bg-surface-elevated p-4 md:p-5">
+              <ProjectMemberList
+                members={members || []}
+                projectId={projectId}
+                canAddMember={true}
+                canManage={isOwner || currentUserRole === 'admin'}
+              />
+            </div>
+          </section>
         </div>
-      </div>
+      </Dialog>
       
       {/* 编辑项目对话框 */}
       <Dialog
@@ -2124,10 +2255,10 @@ export default function ProjectDetailPage() {
       {/* 创建待办对话框 */}
       <CreateTaskDialog
         open={showCreateTaskDialog}
-        onClose={() => setShowCreateTaskDialog(false)}
+        onClose={handleCloseCreateTaskDialog}
         projectId={projectIdParam}
         onSuccess={() => {
-          setShowCreateTaskDialog(false)
+          handleCloseCreateTaskDialog()
           refetchTodos()
         }}
       />
@@ -2298,90 +2429,65 @@ function StatCard({ title, value, icon, isActive = false, onClick, className }: 
 
 // ==================== 图标按钮组件 ====================
 
-interface IconButtonProps {
+interface HeaderIconButtonProps {
   icon: React.ReactNode
   label: string
   onClick: () => void
-  variant?: 'primary' | 'secondary' | 'danger'
   isActive?: boolean
   disabled?: boolean
-  iconBgColor?: string
-  iconColor?: string
-  hideLabel?: boolean
+  buttonRef?: React.Ref<HTMLButtonElement>
 }
 
-function IconButton({
+function HeaderIconButton({
   icon,
   label,
   onClick,
-  variant = 'secondary',
   isActive = false,
   disabled = false,
-  iconBgColor,
-  iconColor,
-  hideLabel = false,
-}: IconButtonProps) {
-  // 根据variant和isActive状态确定背景色
-  const getBackgroundColor = () => {
-    if (iconBgColor) return undefined // 使用自定义背景色类
-    if (variant === 'primary') return 'var(--color-primary)'
-    if (variant === 'danger') return 'var(--color-error)'
-    if (variant === 'secondary') {
-      return isActive ? 'var(--color-surface-hover)' : 'var(--color-surface-active)'
-    }
-    return 'var(--color-surface-active)'
-  }
-
-  const bgColor = getBackgroundColor()
-
+  buttonRef,
+}: HeaderIconButtonProps) {
   return (
     <button
+      ref={buttonRef}
+      type="button"
       onClick={onClick}
       disabled={disabled}
       className={clsx(
-        'relative group min-w-[52px] min-h-[52px] px-3 py-2.5 flex items-center justify-center gap-2 rounded-lg transition-colors',
-        'focus:outline-none focus:ring-2 focus:ring-offset-2',
-        // 如果有自定义背景色，使用自定义背景色，否则使用 variant 的默认样式
-        iconBgColor 
-          ? clsx(
-              iconBgColor === 'transparent' ? 'bg-transparent' : iconBgColor, 
-              iconColor || 'text-foreground', 
-              iconBgColor === 'transparent' ? 'hover:bg-surface-hover' : 'hover:opacity-80', 
-              'focus:ring-gray-500'
-            )
-          : {
-              'text-white hover:opacity-90 focus:ring-primary': variant === 'primary',
-              'text-foreground hover:opacity-90 focus:ring-gray-500': variant === 'secondary',
-              'text-white hover:opacity-90 focus:ring-error': variant === 'danger',
-            },
-        {
-          'opacity-50 cursor-not-allowed': disabled,
-        }
+        'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-transparent text-foreground-secondary transition-colors',
+        'hover:bg-surface-hover hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+        isActive && 'bg-surface-hover text-foreground',
+        disabled && 'cursor-not-allowed opacity-50'
       )}
-      style={iconBgColor === 'transparent' ? { backgroundColor: 'transparent' } : bgColor ? { backgroundColor: bgColor } : undefined}
       title={label}
       aria-label={label}
+      aria-pressed={isActive}
     >
-      <span className={clsx('w-5 h-5 flex-shrink-0', iconColor && !iconBgColor ? iconColor : '')}>{icon}</span>
-      {!hideLabel && <span className="hidden sm:inline text-sm font-medium">{label}</span>}
-      
-      {/* Tooltip */}
-      <div
-        className={clsx(
-          'absolute left-1/2 -translate-x-1/2 top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50',
-          hideLabel ? '' : 'sm:hidden'
-        )}
-      >
-        <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
-          {label}
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>
-        </div>
-      </div>
+      <span className="h-5 w-5 shrink-0 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
     </button>
   )
 }
 
 // ==================== 图标组件 ====================
+
+function ProjectSidebarToggleIcon({
+  collapsed,
+  className,
+}: {
+  collapsed: boolean
+  className?: string
+}) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v18" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d={collapsed ? 'm13 9 3 3-3 3' : 'm16 9-3 3 3 3'}
+      />
+    </svg>
+  )
+}
 
 function MembersIcon() {
   return (
@@ -2391,14 +2497,18 @@ function MembersIcon() {
   )
 }
 
-function CreateTodoIcon() {
+function FeedbackIcon({ className }: { className?: string }) {
   return (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
-      {/* 待办列表 */}
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-      {/* + 号在右上角，使用圆形背景 */}
-      <circle cx="17" cy="7" r="3.5" fill="currentColor" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 5.5v3M15.5 7h3" strokeWidth={1.5} stroke="white" fill="white" />
+    <svg className={className} viewBox="0 0 1138 1024" fill="currentColor" aria-hidden="true">
+      <path d="M1055.738 57.594c-45.439-36.351-154.492-27.262-304.439 86.333-213.562 159.036-308.983 368.052-445.298 572.527-22.719 31.807 13.632 49.983 40.895 36.351l86.333-49.983c13.632-4.544 18.175-4.544 13.632-27.262-9.088-68.158 18.176-131.772 59.070-186.298v0c149.947 63.614 331.702 27.262 395.317-154.492 81.789-18.176 159.036-109.053 172.667-172.666 13.632-45.439 9.088-86.333-18.175-104.509zM142.422 716.454c122.684 213.562 390.773 286.263 604.333 163.58 140.859-81.789 218.105-227.193 222.649-377.14 0-49.983-59.070-45.439-59.070 0 0 131.772-68.158 254.457-190.842 327.158-186.298 104.509-422.579 40.895-527.088-140.859-109.053-186.298-45.439-422.579 140.859-527.088 99.965-59.070 222.649-68.158 322.614-27.262 40.895 13.632 59.070-40.895 18.175-54.527-118.141-40.895-249.911-36.351-368.052 31.807-213.562 122.684-286.263 395.317-163.58 604.333z" />
+    </svg>
+  )
+}
+
+function ProjectInfoIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" />
     </svg>
   )
 }

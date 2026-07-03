@@ -80,9 +80,12 @@ export function FeedbackDialog({ open, onClose, projectId, projectName }: Feedba
       title="提交反馈"
       description={projectName ? `关联项目：${projectName}` : '反馈将关联当前项目'}
       maxWidth="md"
+      panelClassName="flex flex-col"
+      panelStyle={{ height: '80vh', maxHeight: '820px' }}
+      bodyClassName="min-h-0 flex flex-1 flex-col p-0"
     >
-      <form onSubmit={handleSubmit} id="create-feedback-form">
-        <div className="space-y-4 py-2">
+      <form onSubmit={handleSubmit} id="create-feedback-form" className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
           <TextField
             label="反馈标题 *"
             placeholder="例如：筛选器交互不直观"
@@ -122,7 +125,7 @@ export function FeedbackDialog({ open, onClose, projectId, projectName }: Feedba
           )}
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-divider">
+        <div className="flex shrink-0 justify-end gap-3 border-t border-divider px-6 py-4">
           <Button
             type="button"
             variant="secondary"

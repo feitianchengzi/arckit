@@ -23,12 +23,13 @@ interface SidebarProps {
   className?: string
   isOpen?: boolean
   onClose?: () => void
+  collapsed?: boolean
 }
 
 const ORGANIZATION_MENU_PAGE_SIZE = 20
 const ORGANIZATION_MENU_SCROLL_THRESHOLD = 48
 
-export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
+export function Sidebar({ className, isOpen = true, onClose, collapsed = false }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
@@ -163,11 +164,9 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
       className={clsx(
         'fixed left-0 top-0 z-50 flex h-screen max-h-screen w-[280px] max-w-[85vw] flex-col',
         'border-r border-border bg-surface-elevated text-foreground transition-colors',
-        'transform transition-transform duration-300 ease-in-out lg:translate-x-0',
-        {
-          '-translate-x-full lg:translate-x-0': !isOpen,
-          'translate-x-0': isOpen,
-        },
+        'transform transition-transform duration-300 ease-in-out',
+        isOpen ? 'translate-x-0' : '-translate-x-full',
+        collapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0',
         className
       )}
       aria-label="主导航"

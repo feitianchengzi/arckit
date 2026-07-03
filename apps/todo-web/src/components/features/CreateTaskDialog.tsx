@@ -196,60 +196,64 @@ export function CreateTaskDialog({
       onClose={onClose}
       title={isCreatingSubtask ? "创建子待办" : "创建待办"}
       maxWidth="lg"
+      panelClassName="flex flex-col"
+      panelStyle={{ height: '80vh', maxHeight: '820px' }}
+      bodyClassName="min-h-0 flex flex-1 flex-col p-0"
     >
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* 父待办选择（可选） */}
-        {isCreatingSubtask ? (
-          // 创建子待办：显示锁定的父待办信息
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              父待办
-            </label>
-            <div className={clsx(
-              'w-full px-3 py-2 text-base',
-              'border border-border rounded-md',
-              'bg-surface-disabled text-foreground-secondary',
-              'cursor-not-allowed'
-            )}>
-              {parentTask ? (
-                <span>{parentTask.title || parentTask.content.substring(0, 50)}</span>
-              ) : (
-                <span>加载中...</span>
-              )}
-            </div>
-            <p className="text-sm text-foreground-secondary">
-              此待办将作为子待办创建，父待办已锁定
-            </p>
-          </div>
-        ) : availableParentTasks.length > 0 ? (
-          // 创建独立待办：显示可选择的父待办选择器
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              父待办（可选）
-            </label>
-            <select
-              value={parentIdState || ''}
-              onChange={(e) => setParentIdState(e.target.value ? parseInt(e.target.value) : undefined)}
-              className={clsx(
+      <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-4">
+          {/* 父待办选择（可选） */}
+          {isCreatingSubtask ? (
+            // 创建子待办：显示锁定的父待办信息
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                父待办
+              </label>
+              <div className={clsx(
                 'w-full px-3 py-2 text-base',
                 'border border-border rounded-md',
-                'focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50',
-                'transition-colors',
-                'bg-surface-elevated text-foreground'
-              )}
-            >
-              <option value="">无（创建独立待办）</option>
-              {availableParentTasks.map((task) => (
-                <option key={task.id} value={task.id}>
-                  {task.title}
-                </option>
-              ))}
-            </select>
-            <p className="text-sm text-foreground-secondary">
-              选择父待办后，此待办将作为子待办创建
-            </p>
-          </div>
-        ) : null}
+                'bg-surface-disabled text-foreground-secondary',
+                'cursor-not-allowed'
+              )}>
+                {parentTask ? (
+                  <span>{parentTask.title || parentTask.content.substring(0, 50)}</span>
+                ) : (
+                  <span>加载中...</span>
+                )}
+              </div>
+              <p className="text-sm text-foreground-secondary">
+                此待办将作为子待办创建，父待办已锁定
+              </p>
+            </div>
+          ) : availableParentTasks.length > 0 ? (
+            // 创建独立待办：显示可选择的父待办选择器
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                父待办（可选）
+              </label>
+              <select
+                value={parentIdState || ''}
+                onChange={(e) => setParentIdState(e.target.value ? parseInt(e.target.value) : undefined)}
+                className={clsx(
+                  'w-full px-3 py-2 text-base',
+                  'border border-border rounded-md',
+                  'focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50',
+                  'transition-colors',
+                  'bg-surface-elevated text-foreground'
+                )}
+              >
+                <option value="">无（创建独立待办）</option>
+                {availableParentTasks.map((task) => (
+                  <option key={task.id} value={task.id}>
+                    {task.title}
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-foreground-secondary">
+                选择父待办后，此待办将作为子待办创建
+              </p>
+            </div>
+          ) : null}
 
         {/* 分配给成员（可选） */}
         {members && members.length > 0 && (
@@ -427,15 +431,16 @@ export function CreateTaskDialog({
             </p>
         </div>
         
-        {/* 错误提示 */}
-        {error && (
-          <div className="bg-error-light border border-error rounded-md p-3">
-            <p className="text-sm text-error">{error}</p>
-          </div>
-        )}
+          {/* 错误提示 */}
+          {error && (
+            <div className="bg-error-light border border-error rounded-md p-3">
+              <p className="text-sm text-error">{error}</p>
+            </div>
+          )}
+        </div>
         
         {/* 按钮组 */}
-        <div className="flex gap-4 justify-end">
+        <div className="flex shrink-0 justify-end gap-4 border-t border-divider px-6 py-4">
           <Button
             type="button"
             variant="secondary"
