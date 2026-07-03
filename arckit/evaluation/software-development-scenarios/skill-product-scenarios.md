@@ -56,7 +56,7 @@
 
 本轮真实目标：创建或更新 skill，使其稳定改变 Agent 后续行为。
 
-期望能力组合：skill 创建维护、workflow memory、验证场景生成、arcforge 治理。
+期望能力组合：ArcForge 类外部 skill 生命周期能力、workflow memory、验证场景生成、skill 生命周期治理。
 
 期望产物：新 skill 或已有 skill 修改、验收场景、安装或同步建议。
 
@@ -167,4 +167,3 @@
 当前风险或疑问：当前产品方案是否支持多 AI 能力版本评测。
 
 评测状态：待试跑。
-

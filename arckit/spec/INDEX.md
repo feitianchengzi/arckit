@@ -8,6 +8,6 @@
   - solution-principles.md 解决思路：从背景推导协作组织、语义材料、表达清晰度非主轴、阶段区分、产物角色、多事实源、低承诺沉淀、场景化预期评测和工作方式演化原则。⚪ (104行)
   - product-concepts.md 产品概念：定义人、Agent、AI 能力假设、prompt、显式约束、语义材料、真实软件预期、阶段、产物、最终产物类型、事实、评测集和操作层。⚪ (167行)
   - product-architecture.md 产品架构：描述语义入口、阶段判断、产物系统、最终产物类型、事实系统、评测集和演化系统如何组合成整体产品。⚪ (121行)
-  - skill-architecture.md Skill 架构：预期 skill 类型、编排原则、各类 skill 定位、评测场景能力和 skill 作为最终产物的生命周期。⚪ (150行)
-- workflow-orchestration-memory.md Arckit 工作流编排与自然沉淀：定义首轮 runtime compiler、turn adaptation、workflow patch overlay、artifact impact scan、用户确认和作用域沉淀规则。⚪ (275行)
+  - skill-architecture.md Skill 架构：把产品架构转化为真实 Arckit skill 承载链路、能力建设原则、职责边界和实施拆解口径。⚪ (195行)
+- workflow-orchestration-memory.md Arckit 工作流编排与自然沉淀：定义首轮 runtime compiler、turn adaptation、workflow patch overlay、artifact impact scan、用户确认和作用域沉淀规则。⚪ (278行)
 - all-integration-strategy.md all 候选 Skill 整合策略草案：记录 all 角色型研发流水线 skill 包的优缺点、过程/结果 skill 分离策略、逐项归并方案、脚本迁移规则和已确认补充决策。⚪ (900行)

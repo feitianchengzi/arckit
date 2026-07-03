@@ -793,7 +793,7 @@ runtime_operations_handoff:
 | 会执行 git/npm/curl/kubectl 的脚本 | 迁移前必须写清副作用，并要求用户确认风险 |
 | 脚手架生成器 | 本轮默认不迁移；后续若单独迁移，归入 `arckit-code` |
 | 依赖 `output/` glob 的脚本 | 适配 ArcKit 工作区和索引后再正式使用 |
-| hooks、全局配置、eval 和测试脚本 | 默认不迁移；除非后续证明它们应成为 ArcForge/仓库治理工具或某个 skill 的必要验证资源 |
+| hooks、全局配置、eval 和测试脚本 | 默认不迁移；除非后续证明它们应成为仓库治理工具或某个 skill 的必要验证资源 |
 
 根目录 `scripts/check_prerequisite.py`、`scripts/validate_handoff.py` 以及各 skill 内部的 `check_prerequisites.py` 属于 prerequisite 检查脚本族。它们的思想可以保留，但不应成为全局强流程。本轮优先采用分散策略：哪个过程 skill 需要确认上游事实，就在该 skill 自己的 `scripts/` 或 workflow 中提供轻量检查，读取目标项目：
 
@@ -808,7 +808,7 @@ arckit/pending/
 
 只有当多个过程 skill 出现实质重复，且确实需要统一事实源发现契约时，才考虑抽成 `entry` 或共享工具。即使集中，也只能作为可选发现/增强检查，不作为所有流程的硬阻断入口。
 
-`all/.claude/settings.json`、`.pre-commit-config.yaml`、`all/scripts/hooks/*`、`all/scripts/eval/*`、`all/scripts/test_scripts.sh` 和 `all/scripts/tests/*` 本轮不迁移。它们不属于某个原子 skill 的核心执行资源；若后续要保留，应先判断是进入 ArcForge 治理工具、仓库级验证工具，还是某个具体 skill 的局部验证资源。
+`all/.claude/settings.json`、`.pre-commit-config.yaml`、`all/scripts/hooks/*`、`all/scripts/eval/*`、`all/scripts/test_scripts.sh` 和 `all/scripts/tests/*` 本轮不迁移。它们不属于某个原子 skill 的核心执行资源；若后续要保留，应先判断是进入仓库治理工具、仓库级验证工具，还是某个具体 skill 的局部验证资源。
 
 ## 8. 贡献保留策略
 
@@ -841,7 +841,7 @@ arckit/pending/
 - 不默认为关键 skill 增加 eval cases；只有触发边界高度模糊、输出质量反复不稳，或后续迁移引入明显回归风险时再加。
 - `README.md` 和 `AGENTS.md` 中 `thinking/` 的目录定义已同步更新为跨生命周期的过程型思考能力。
 - `verify`、`review`、`ship` 和 `operate` 运行部分都需要在正式迁移时具备各自 handoff 契约，不能只停留在阶段表。
-- `all` 中 hooks、全局配置、eval 和测试脚本本轮不迁移；后续若保留，先判断是否属于 ArcForge/仓库治理工具或具体 skill 的局部验证资源。
+- `all` 中 hooks、全局配置、eval 和测试脚本本轮不迁移；后续若保留，先判断是否属于仓库治理工具或具体 skill 的局部验证资源。
 
 ## 10. 本轮实施记录
 

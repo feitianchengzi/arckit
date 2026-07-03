@@ -134,10 +134,10 @@ workflow_correction_ledger: null
 - 模糊想法判断：`arckit-decision-framework`，需要外部证据接 `arckit-market-research`，需要用户研究或线框接 `arckit-idea-explore`。
 - 方向变成可执行版本：缺定义先补定义；缺推进方式用 `arckit-project-governance-workflow`；最后形成 `implementation_handoff`。
 - 功能、页面或模块定义：产品行为写 `arckit-spec`；交互写 `arckit-interaction`；视觉写 `arckit-visual`；技术方案写 `arckit-tech`。
-- 正向实现：先判断实现是否会建立或强化产品、交互、视觉或技术规范；普通实现走 `implementation_handoff` -> 普通代码工作流或外部 `arckit-code` -> `arckit-verify-implementation`；UI 一致性、跨页面行为/样式统一或组件状态统一需要在实现前标记 `interaction: check`、`visual: check`，实现后按证据决定是否 update 文档。
+- 正向实现：先判断实现是否会建立或强化产品、交互、视觉或技术规范；Code 类实现走 `implementation_handoff` -> 普通代码工作流或外部 `arckit-code` -> `arckit-verify-implementation`；UI 一致性、跨页面行为/样式统一或组件状态统一需要在实现前标记 `interaction: check`、`visual: check`，实现后按证据决定是否 update 文档。
 - bug、回归、偶发失败、性能退化：`arckit-debug-diagnosis` -> `arckit-verify-implementation`；需要运行期信号时接 `arckit-runtime-operations`。
 - 代码审查：`arckit-code-review`，必要时接 `arckit-verify-implementation` 和治理收口。
-- skill 创建、维护、反馈固化：`arcforge-skill-creator`；隔离验证或模拟测试用 `arcforge-skill-first`。
+- Skill 类实现：路由到 ArcForge 类外部 skill 生命周期能力完成 skill 创建、维护、治理、应用或漂移检查；隔离验证或模拟测试路由到 ArcForge 类外部 skill 场景验证能力，Arckit 负责判断事实源、评测和工作方式回流影响。
 - 发布/出包/测试分发/应用商店候选：默认 `arckit-git-branching`，把意图转成 `release/*` 分支和 tag push 触发远端 workflow；不展开本地构建、archive、上传或平台发布流程。
 - 远端出包 workflow 失败但缺少错误原因：默认 `arckit-git-branching`，先指导用户从远端 workflow UI、平台通知和开发者邮箱收集失败原因原文；拿到错误前不进入 debug、readiness 或无证据配置修改。
 - 发布前 gate、go/no-go、灰度/回滚风险：`arckit-release-readiness`。

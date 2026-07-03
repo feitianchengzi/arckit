@@ -44,8 +44,8 @@
 | P06 | Artifact impact scan 太容易被跳过。 | 小任务、类似代码的任务或 skill 编辑会被视为没有项目事实影响。 | 所有 Arckit 任务使用同一组 scan targets；任务大小不能决定 skipped 状态。 | workflow memory + `using-arckit` |
 | P07 | Workflow memory 有候选但没有 accepted 规则。 | 已有学习信号不能可靠改变未来 workflow frame。 | 审查成熟 candidates，并将确认的项目级 workflow patches 提升为 accepted。 | `~/.arckit/workflows` |
 | P08 | 专门 skill description 与入口路由竞争。 | 强 description 会让专门 skill 在组合前抢占任务。 | 专门 skill description 只定义能力，入口统一决定组合。 | Skill authoring rules |
-| P09 | `arcforge-skill-creator` 边界过窄。 | 它维护目标 skill 文件和 post-handoff，但不强制项目事实路由。 | 要求检测 spec、tech、governance、pending、verification 和 workflow-memory 影响。 | `arcforge-skill-creator` |
-| P10 | Skill First 验证目标行为，不验证完整 workflow 覆盖。 | 目标 skill 可以通过验证，但上下游 Arckit 文档仍被遗漏。 | 增加验证用例：skill 反馈必须同时更新或路由项目 artifacts。 | `arcforge-skill-first` |
+| P09 | ArcForge 类外部 skill 生命周期能力边界过窄。 | 它维护目标 skill 文件和 post-handoff，但不强制项目事实路由。 | 要求检测 spec、tech、governance、pending、verification 和 workflow-memory 影响。 | ArcForge 类外部 skill 生命周期能力 |
+| P10 | Skill First 验证目标行为，不验证完整 workflow 覆盖。 | 目标 skill 可以通过验证，但上下游 Arckit 文档仍被遗漏。 | 增加验证用例：skill 反馈必须同时更新或路由项目 artifacts。 | ArcForge 类外部 skill 场景验证能力 |
 | P11 | Prompt 没有像代码一样治理。 | Prompt 变更缺少设计、审查、验证、回归和发布语义。 | 将 prompt/skill 变更视为代码级变更，包含 source、tests、validation 和 lifecycle。 | `arckit/tech` |
 | P12 | 过程型 skill 输出没有被稳定接收。 | decision、architecture、draft、domain handoff 可能只停留在回答里。 | 主 workflow 必须对每个过程 handoff 选择 accept、pending、promote 或 reject。 | `using-arckit` |
 | P13 | 项目事实会丢失。 | 维护 prompt 中的稳定决策可能没有写入 `arckit/`。 | 如果 prompt 改变稳定行为或架构，必须路由到结果型 skill。 | `arckit/spec`, `arckit/tech` |
@@ -65,7 +65,7 @@
 | P27 | Skill artifacts 缺少统一生命周期。 | 创建、维护、验证、同步、发布被拆开，但没有建模成一个生命周期。 | 定义从 intake 到 accepted workflow/source sync 的 skill artifact lifecycle。 | `arckit/spec` 或 `arckit/tech` |
 | P28 | 一行 skill 修复隐藏架构决策。 | 具体 skill 规则可能体现架构政策。 | 在目标 skill 编辑前或同时提取 architecture decisions。 | `arckit-architecture-decision` -> `arckit-tech` |
 | P29 | Pending context 使用不足。 | 未确认分析要么丢失，要么过早写成事实。 | 用 promotion rules 将未解决分析保存为 pending。 | `arckit/pending` |
-| P30 | 系统缺少编排回归 fixture。 | 测试主要验证单个 skill 或文件结构，不验证多阶段路由。 | 增加多信号 prompt 和预期 artifact impact coverage 的 Skill First 场景。 | `arcforge-skill-first` |
+| P30 | 系统缺少编排回归 fixture。 | 测试主要验证单个 skill 或文件结构，不验证多阶段路由。 | 增加多信号 prompt 和预期 artifact impact coverage 的 Skill First 场景。 | ArcForge 类外部 skill 场景验证能力 |
 
 ## 后续拆解用示例场景
 
@@ -77,7 +77,7 @@
 
 1. 识别这是 skill 维护任务，同时也是 Arckit workflow-system correction。
 2. 将 prompt 拆成目标 skill 规则、项目级 skill-system 事实、workflow 纠偏，以及可能的 release/governance 影响。
-3. 使用 `arcforge-skill-creator` 修改目标 skill。
+3. 使用 ArcForge 类外部 skill 生命周期能力修改目标 skill。
 4. 对持久 skill-system 规则或 release-trigger 架构决策，考虑 `arckit-spec` 或 `arckit-tech`。
 5. 使用 `arckit-workflow-memory` 记录“skill 维护不能跳过 artifact impact scan”的可复用纠偏。
 6. 当信号尚不足以成为结果事实时，使用 `arckit-pending` 暂存。
@@ -86,7 +86,7 @@
 
 1. 定义 skill、prompt、workflow artifact 的生命周期模型。
 2. 收紧 `using-arckit` 的 prompt-signal decomposition 和 runtime compiler 检查点。
-3. 收紧 `arcforge-skill-creator` 的 handoff 和 artifact impact 职责。
+3. 收紧 ArcForge 类外部 skill 生命周期能力的 handoff 和 artifact impact 职责。
 4. 为多阶段 skill 维护 prompt 增加 Skill First 验证场景。
 5. 审查 workflow memory candidates，决定哪些提升为 accepted project-level workflow patches。
 6. 将本 pending item 中已确认的持久结论提升到 `arckit/spec` 和 `arckit/tech`。
@@ -94,7 +94,7 @@
 ## 重访条件
 
 - 准备将这些问题拆成具体实现任务时。
-- 更新 `using-arckit`、`arcforge-skill-creator` 或 `arcforge-skill-first` 时。
+- 更新 `using-arckit`、ArcForge 类外部 skill 生命周期能力或 ArcForge 类外部 skill 场景验证能力时。
 - 审查 workflow memory candidates 并决定是否提升为 accepted 时。
 - 未来 agent 再次把 skill 维护当成单 skill 文件编辑处理时。
 
@@ -106,8 +106,8 @@
 - `arckit/spec/arckit-skill-system.md`
 - `arckit/spec/workflow-orchestration-memory.md`
 - `arckit/tech/workflow-orchestration-memory/solution.md`
-- `arcforge-skill-creator`
-- `arcforge-skill-first`
+- ArcForge 类外部 skill 生命周期能力
+- ArcForge 类外部 skill 场景验证能力
 
 ## 备注
 

@@ -153,7 +153,7 @@ Arckit 至少识别以下场景：
 | 正向功能实现 | 新增能力、补测试、改 README | implementation handoff、普通代码工作流、verify |
 | bug 诊断 | 失败、回归、异常、测试红 | debug diagnosis、verify |
 | 代码审查 | review、风险评估、质量反馈 | code review、verify |
-| skill 验证 | skill first、模拟测试、复测 skill | arcforge skill first |
+| skill 验证 | skill first、模拟测试、复测 skill | ArcForge 类外部 skill 场景验证 |
 | 项目治理 | 目标、迭代、任务、review、decision | project governance |
 | 运行交付 | 发布、回滚、SLO、告警、运行观察 | release readiness、runtime operations |
 
