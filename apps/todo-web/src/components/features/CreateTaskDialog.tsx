@@ -402,6 +402,8 @@ export function CreateTaskDialog({
             }}
             showCreateButton={true}
             size="md"
+            displayAllSelected
+            selectedDisplayVariant="linear"
           />
         </div>
 

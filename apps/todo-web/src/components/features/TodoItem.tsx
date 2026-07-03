@@ -4,18 +4,14 @@
  * TodoItem - 任务项组件
  */
 
-import { useState, useRef, useEffect, useMemo } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useRef, useEffect, useMemo, type RefObject } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import { StatusBadge, StatusSelect, Avatar } from '@/components/ui'
-import { TagList, PriorityBadge, TaskContentDialog } from './'
-import { parseTaskTags, buildTaskTags } from '@/lib/utils/tagUtils'
-import { getFirstNonEmptyLine, hasMultipleLines } from '@/lib/utils/contentUtils'
+import { Avatar } from '@/components/ui'
+import { TagList } from './'
+import { getFirstNonEmptyLine } from '@/lib/utils/contentUtils'
+import { formatTaskListDate } from '@/lib/utils/dateUtils'
 import type { Todo, TodoStatus, ProjectMember } from '@/types'
-import { XIcon, ChevronDownIcon } from '@/components/ui/icons'
-import { useTagStore } from '@/store/tagStore'
-import { TagDisplay } from './TagDisplay'
 import { permissionManager } from '@/lib/permissions'
 import { todoToTaskInfo } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
@@ -44,6 +40,38 @@ export interface TodoItemProps {
   onSelectParent?: (todoId: number) => void // 选择父待办回调
 }
 
+type LinearPriorityTone = 'none' | 'urgent' | 'high' | 'medium' | 'low'
+type LinearStatusTone = 'backlog' | 'todo' | 'progress' | 'review' | 'done' | 'canceled' | 'blocked'
+type QuickTaskMenu = 'priority' | 'status' | null
+
+const LINEAR_PRIORITY_OPTIONS: Array<{
+  value: number | null
+  label: string
+  shortcut: string
+  tone: LinearPriorityTone
+}> = [
+  { value: null, label: '无优先级', shortcut: '0', tone: 'none' },
+  { value: 0, label: '紧急', shortcut: '1', tone: 'urgent' },
+  { value: 1, label: '高', shortcut: '2', tone: 'high' },
+  { value: 2, label: '中', shortcut: '3', tone: 'medium' },
+  { value: 3, label: '低', shortcut: '4', tone: 'low' },
+]
+
+const LINEAR_STATUS_OPTIONS: Array<{
+  status: TodoStatus
+  label: string
+  shortcut: string
+  tone: LinearStatusTone
+}> = [
+  { status: 'PENDING_REVIEW', label: '待评审', shortcut: '1', tone: 'backlog' },
+  { status: 'PENDING', label: '待处理', shortcut: '2', tone: 'todo' },
+  { status: 'IN_PROGRESS', label: '进行中', shortcut: '3', tone: 'progress' },
+  { status: 'COMPLETED', label: '已完成', shortcut: '4', tone: 'review' },
+  { status: 'ACCEPTED', label: '已验收', shortcut: '5', tone: 'done' },
+  { status: 'CANCELLED', label: '已取消', shortcut: '6', tone: 'canceled' },
+  { status: 'BLOCKED', label: '已阻塞', shortcut: '7', tone: 'blocked' },
+]
+
 export function TodoItem({
   todo,
   projectId,
@@ -52,22 +80,14 @@ export function TodoItem({
   currentUserId,
   canEdit = false,
   members = [],
-  canAssignAssignee = false,
-  onUpdateAssignee,
   canEditPriority = false,
   onUpdatePriority,
-  canEditTags = false,
-  onUpdateTags,
   onClick,
   currentUserRole = null,
   selectionMode = false,
   selectionDisabled = false,
   onSelectParent,
 }: TodoItemProps) {
-  // 判断是否是创建者或执行者
-  const isCreator = currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId
-  const isAssignee = currentUserId !== null && currentUserId !== undefined && todo.assigneeId === currentUserId
-  
   // 从成员列表中查找执行人信息（如果todo.assignee不存在）
   const assigneeInfo = useMemo(() => {
     if (todo.assignee) {
@@ -114,28 +134,18 @@ export function TodoItem({
     
     return false
   }, [selectionMode, todo, currentUserRole, currentUserId, canEdit])
-  const [isUpdatingAssignee, setIsUpdatingAssignee] = useState(false)
+  const [openQuickMenu, setOpenQuickMenu] = useState<QuickTaskMenu>(null)
   const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
-  const [isEditingAssignee, setIsEditingAssignee] = useState(false)
-  const [isEditingPriority, setIsEditingPriority] = useState(false)
-  const [isEditingTags, setIsEditingTags] = useState(false)
-  const [newAssigneeId, setNewAssigneeId] = useState<number | null | undefined>(undefined)
-  const [isSavingAssignee, setIsSavingAssignee] = useState(false)
-  const [assigneeError, setAssigneeError] = useState('')
-  const [newPriority, setNewPriority] = useState<number | null | undefined>(undefined)
-  const [newTagIds, setNewTagIds] = useState<number[] | null>(null)
-  const [isUpdatingTags, setIsUpdatingTags] = useState(false)
-  const [showContentDialog, setShowContentDialog] = useState(false)
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const { loadProjectTags, getProjectTags } = useTagStore()
   const currentPath = `${location.pathname}${location.search}${location.hash}`
   
   // 提取第一行内容
   const firstLine = useMemo(() => getFirstNonEmptyLine(todo.content), [todo.content])
   const firstLineDisplay = useMemo(() => decodeUrlsInTextForDisplay(firstLine), [firstLine])
-  const hasMoreLines = useMemo(() => hasMultipleLines(todo.content), [todo.content])
   const contentTitleDisplay = useMemo(() => decodeUrlsInTextForDisplay(todo.content), [todo.content])
+  const subtaskProgress = useMemo(() => getSubtaskProgress(todo), [todo])
   
   const handleClick = () => {
     if (selectionMode) return
@@ -149,15 +159,40 @@ export function TodoItem({
     }
   }
   
-  const handleDetailClick = (e: React.MouseEvent) => {
-    e.stopPropagation() // 阻止触发父元素的点击事件
-    if (selectionMode) return
-    setShowContentDialog(true)
-  }
-  
   const handleStatusChange = (newStatus: TodoStatus) => {
     if (onStatusChange) {
       onStatusChange(todo.id, newStatus as string)
+    }
+  }
+
+  const canUsePriorityMenu = canEditPriority && Boolean(onUpdatePriority)
+  const canUseStatusMenu = canChangeStatus && Boolean(onStatusChange)
+
+  const handleQuickPriorityChange = async (priority: number | null) => {
+    if (!canUsePriorityMenu || !onUpdatePriority || isUpdatingPriority) return
+
+    try {
+      setIsUpdatingPriority(true)
+      await onUpdatePriority(todo.id, priority)
+      setOpenQuickMenu(null)
+    } catch (error) {
+      console.error('更新优先级失败:', error)
+    } finally {
+      setIsUpdatingPriority(false)
+    }
+  }
+
+  const handleQuickStatusChange = (newStatus: TodoStatus) => {
+    if (!canUseStatusMenu || isUpdatingStatus) return
+
+    try {
+      setIsUpdatingStatus(true)
+      if (newStatus !== todo.status) {
+        handleStatusChange(newStatus)
+      }
+      setOpenQuickMenu(null)
+    } finally {
+      setIsUpdatingStatus(false)
     }
   }
 
@@ -205,1107 +240,314 @@ export function TodoItem({
     <div
       onClick={handleClick}
       className={clsx(
-        'group',
-        'bg-surface-elevated border border-border',
-        'p-3 space-y-2',
-        !selectionMode && 'hover:shadow-md hover:border-primary transition-all cursor-pointer',
-        selectionMode && 'transition-all hover:border-primary/60 cursor-default',
+        'task-list-row-frame group',
+        !selectionMode && 'cursor-pointer',
+        selectionMode && 'cursor-default',
         selectionMode && selectionDisabled && 'opacity-60 cursor-not-allowed',
         className
       )}
     >
-      {/* 头部：内容 + 状态/优先级 */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
-            <h3 className="text-base font-medium text-foreground truncate flex-1" title={contentTitleDisplay}>
+      <div className="task-linear-row">
+        <TaskQuickControls
+          priority={todo.priority ?? null}
+          status={todo.status}
+          priorityMenuOpen={openQuickMenu === 'priority'}
+          statusMenuOpen={openQuickMenu === 'status'}
+          canChangePriority={canUsePriorityMenu}
+          canChangeStatus={canUseStatusMenu}
+          priorityUpdating={isUpdatingPriority}
+          statusUpdating={isUpdatingStatus}
+          onTogglePriority={() => setOpenQuickMenu((current) => (current === 'priority' ? null : 'priority'))}
+          onToggleStatus={() => setOpenQuickMenu((current) => (current === 'status' ? null : 'status'))}
+          onClose={() => setOpenQuickMenu(null)}
+          onChangePriority={handleQuickPriorityChange}
+          onChangeStatus={handleQuickStatusChange}
+        />
+
+        <div className="task-linear-main">
+          <span className="task-linear-title-row">
+            <h3 className="task-linear-title" title={contentTitleDisplay}>
               {firstLineDisplay || '无内容'}
             </h3>
-            {hasMoreLines && (
-              <button
-                onClick={handleDetailClick}
-                className="flex-shrink-0 text-foreground-secondary hover:text-foreground transition-colors p-1"
-                title="查看详情"
-                aria-label="查看详情"
-              >
-                <DetailIcon className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-          
-          {/* 标签和优先级 */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* 标签 - 始终显示 */}
-            <div className="flex items-center gap-1.5">
-              <span className="flex items-center gap-1 text-xs text-foreground-secondary font-bold">
-                <TagIcon className="w-3.5 h-3.5 text-foreground-secondary" />
-                标签
-              </span>
-              {isEditingTags && canEditTags && onUpdateTags ? (
-                <TagSelectorInline
-                  projectId={projectId}
-                  currentTags={todo.tags}
-                  selectedTagIds={newTagIds !== null ? newTagIds : parseTaskTags(todo.tags)}
-                  onChange={(tagIds) => setNewTagIds(tagIds)}
-                  onSave={async () => {
-                    try {
-                      setIsUpdatingTags(true)
-                      const tagsString = buildTaskTags(newTagIds !== null ? newTagIds : parseTaskTags(todo.tags))
-                      await onUpdateTags(todo.id, tagsString)
-                      setIsEditingTags(false)
-                      setNewTagIds(null)
-                    } catch (error) {
-                      console.error('更新标签失败:', error)
-                    } finally {
-                      setIsUpdatingTags(false)
-                    }
-                  }}
-                  onCancel={() => {
-                    setIsEditingTags(false)
-                    setNewTagIds(null)
-                  }}
-                  loading={isUpdatingTags}
-                />
-              ) : parseTaskTags(todo.tags).length > 0 ? (
-                <div className="flex items-center gap-1">
-                  <TagList projectId={projectId} tagsString={todo.tags} size="sm" />
-                  {canEditTags && onUpdateTags && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setIsEditingTags(true)
-                        setNewTagIds(parseTaskTags(todo.tags))
-                        loadProjectTags(projectId).catch(console.error)
-                      }}
-                      className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
-                      aria-label="设置标签"
-                      title="设置标签"
-                    >
-                      <ReplaceIcon className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-foreground-tertiary">无</span>
-                  {canEditTags && onUpdateTags && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setIsEditingTags(true)
-                        setNewTagIds([])
-                        loadProjectTags(projectId).catch(console.error)
-                      }}
-                      className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
-                      aria-label="设置标签"
-                      title="设置标签"
-                    >
-                      <ReplaceIcon className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-            {/* 分隔符 */}
-            <span className="text-foreground-tertiary">|</span>
-            {/* 优先级 - 始终显示 */}
-            <div className="flex items-center gap-1.5">
-              <span className="flex items-center gap-1 text-xs text-gray-500 font-bold">
-                <PriorityIcon className="w-3.5 h-3.5 text-gray-500" />
-                优先级
-              </span>
-              {isEditingPriority && canEditPriority && onUpdatePriority ? (
-                <PrioritySelectorInline
-                  value={newPriority !== undefined ? newPriority : (todo.priority ?? null)}
-                  onChange={setNewPriority}
-                  onSave={async () => {
-                    try {
-                      setIsUpdatingPriority(true)
-                      await onUpdatePriority(todo.id, newPriority ?? null)
-                      setIsEditingPriority(false)
-                      setNewPriority(undefined)
-                    } catch (error) {
-                      console.error('更新优先级失败:', error)
-                    } finally {
-                      setIsUpdatingPriority(false)
-                    }
-                  }}
-                  onCancel={() => {
-                    setIsEditingPriority(false)
-                    setNewPriority(undefined)
-                  }}
-                  loading={isUpdatingPriority}
-                />
-              ) : todo.priority !== null && todo.priority !== undefined ? (
-                <div className="flex items-center gap-1">
-                  <PriorityBadge value={todo.priority} size="sm" />
-                  {canEditPriority && onUpdatePriority && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setIsEditingPriority(true)
-                        setNewPriority(todo.priority ?? null)
-                      }}
-                      className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
-                      aria-label="设置优先级"
-                      title="设置优先级"
-                    >
-                      <ReplaceIcon className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-foreground-tertiary">未设定</span>
-                  {canEditPriority && onUpdatePriority && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setIsEditingPriority(true)
-                        setNewPriority(null)
-                      }}
-                      className="p-0.5 rounded hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
-                      aria-label="设置优先级"
-                      title="设置优先级"
-                    >
-                      <ReplaceIcon className="w-3 h-3" />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
+          </span>
+
+          {subtaskProgress.total > 0 && (
+            <span className="task-list-progress">
+              <span className="progress-ring" />
+              {subtaskProgress.completed}/{subtaskProgress.total}
+            </span>
+          )}
         </div>
-        
-        <div onClick={(e) => e.stopPropagation()} className="flex-shrink-0 flex flex-col items-end gap-2">
-          {canChangeStatus ? (
-            <StatusSelect
-              value={todo.status}
-              onChange={handleStatusChange}
-              size="sm"
-            />
+
+        <div className="task-list-meta">
+          <TagList projectId={projectId} tagsString={todo.tags} size="sm" variant="linear" />
+
+          {assigneeInfo ? (
+            <span className="task-list-assignee-avatar" title={assigneeInfo.username}>
+              <Avatar user={assigneeInfo} size="sm" />
+            </span>
           ) : (
-            <StatusBadge status={todo.status} size="sm" />
+            <span className="task-list-assignee is-empty" aria-label="未选定执行者" />
           )}
-          {selectionMode && (
-            selectionDisabled ? (
-              <div className="flex items-center gap-1 text-xs text-foreground-tertiary">
-                <DisabledIcon className="w-3.5 h-3.5" />
-                不可选
-              </div>
-            ) : (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSelectParent?.(todo.id)
-                }}
-                className="px-2.5 py-1 rounded-md text-xs font-medium bg-primary text-white hover:bg-primary/90 transition-colors"
-              >
-                选择
-              </button>
-            )
-          )}
+
+          <span className="task-list-date">{formatTaskListDate(todo.createdAt)}</span>
         </div>
       </div>
-      
-      {/* 底部信息：创建人、执行人、时间、子任务 */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-5 flex-wrap">
-          {/* 创建者 */}
-          {todo.creator && (
-            <div className="flex items-center gap-0.5 text-xs text-foreground-secondary whitespace-nowrap">
-              <span className="text-foreground-secondary font-bold">创建：</span>
-              <Avatar user={todo.creator} size="xs" />
-              <span className={clsx('font-medium', isCreator && 'text-blue-600')}>
-                {todo.creator.username}
-              </span>
-            </div>
-          )}
-          
-          {/* 执行者 - 始终显示 */}
-          <div className="flex items-center gap-0.5 text-xs text-foreground-secondary whitespace-nowrap">
-            <span className="text-foreground-secondary font-bold">执行：</span>
-            {assigneeInfo ? (
-              <div className="flex items-center gap-1">
-                <Avatar user={assigneeInfo} size="xs" />
-                <span className={clsx('font-medium', isAssignee && 'text-blue-600')}>
-                  {assigneeInfo.username}
-                </span>
-                {canAssignAssignee && onUpdateAssignee && members.length > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (isEditingAssignee) {
-                        setIsEditingAssignee(false)
-                        setNewAssigneeId(undefined)
-                        setAssigneeError('')
-                      } else {
-                        setIsEditingAssignee(true)
-                        setNewAssigneeId(todo.assigneeId || undefined)
-                      }
-                    }}
-                    className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700 ml-0.5"
-                    aria-label={isEditingAssignee ? "收起" : "展开"}
-                    title={isEditingAssignee ? "收起" : "展开"}
-                  >
-                    <ChevronDownIcon 
-                      className={clsx(
-                        "w-3 h-3 transition-transform",
-                        isEditingAssignee && "transform rotate-180"
-                      )} 
-                    />
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-1">
-                <span className="text-foreground-tertiary">未选定</span>
-                {canAssignAssignee && onUpdateAssignee && members.length > 0 && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (isEditingAssignee) {
-                        setIsEditingAssignee(false)
-                        setNewAssigneeId(undefined)
-                        setAssigneeError('')
-                      } else {
-                        setIsEditingAssignee(true)
-                        setNewAssigneeId(undefined)
-                      }
-                    }}
-                    className="p-0.5 rounded hover:bg-gray-100 transition-colors text-gray-500 hover:text-gray-700 ml-0.5"
-                    aria-label={isEditingAssignee ? "收起" : "展开"}
-                    title={isEditingAssignee ? "收起" : "展开"}
-                  >
-                    <ChevronDownIcon 
-                      className={clsx(
-                        "w-3 h-3 transition-transform",
-                        isEditingAssignee && "transform rotate-180"
-                      )} 
-                    />
-                  </button>
-                )}
-              </div>
-            )}
-            {assigneeError && (
-              <span className="text-xs text-error ml-2">{assigneeError}</span>
-            )}
-          </div>
-          {/* 成员选择区域 - 点击更换后展开 */}
-          {isEditingAssignee && canAssignAssignee && onUpdateAssignee && members.length > 0 && (
-            <div
-              className={clsx(
-                'w-full transition-all duration-300 ease-in-out',
-                isEditingAssignee ? 'max-h-[500px] opacity-100 mt-2 pt-2 border-t border-divider' : 'max-h-0 opacity-0'
-              )}
-              style={{ overflow: isEditingAssignee ? 'visible' : 'hidden' }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex flex-wrap gap-x-1 gap-y-1.5">
-                {/* 成员列表 */}
-                {members.map((member) => {
-                  const memberId = member.user_id
-                  const isSelected = newAssigneeId === memberId
-                  const memberUsername = member.username || member.user?.username || '未知用户'
-                  const memberAvatar = member.avatar || member.user?.avatar
-                  
-                  return (
-                    <button
-                      key={memberId}
-                      type="button"
-                      onClick={async (e) => {
-                        e.stopPropagation()
-                        // 如果正在保存或已选中，不处理
-                        if (isSavingAssignee || isSelected) return
-                        
-                        // 如果点击的是当前选中的，不处理
-                        if (newAssigneeId === memberId) return
-                        
-                        try {
-                          setIsSavingAssignee(true)
-                          setAssigneeError('')
-                          setNewAssigneeId(memberId)
-                          await onUpdateAssignee(todo.id, memberId)
-                          setIsEditingAssignee(false)
-                        } catch (error: any) {
-                          console.error('分配任务失败:', error)
-                          
-                          // 恢复之前的选择
-                          setNewAssigneeId(todo.assigneeId || undefined)
-                          
-                          if (error?.response?.status === 403) {
-                            setAssigneeError('您没有权限分配此任务')
-                          } else {
-                            const errorData = error?.response?.data
-                            let errorMsg = '更新失败，请重试'
-                            
-                            if (errorData) {
-                              if (errorData.error && errorData.error.message) {
-                                errorMsg = errorData.error.message
-                              } else if (errorData.message) {
-                                errorMsg = errorData.message
-                              } else if (errorData.error && typeof errorData.error === 'string') {
-                                errorMsg = errorData.error
-                              }
-                            } else if (error?.message) {
-                              errorMsg = error.message
-                            }
-                            
-                            setAssigneeError(errorMsg)
-                          }
-                        } finally {
-                          setIsSavingAssignee(false)
-                        }
-                      }}
-                      disabled={isSavingAssignee}
-                      className={clsx(
-                        "relative flex flex-col items-center gap-0.5 px-1 py-1 transition-all hover:shadow-lg bg-surface-elevated rounded border border-border shadow focus:outline-none focus:ring-0 w-[60px]",
-                        isSavingAssignee && "opacity-50 cursor-not-allowed"
-                      )}
-                    >
-                      <Avatar
-                        user={{
-                          username: memberUsername,
-                          avatar: memberAvatar
-                        }}
-                        size="xs"
-                      />
-                      <span className="text-[10px] text-foreground text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
-                      {isSelected && (
-                        <div className="absolute inset-0 bg-black/50 rounded-lg border border-white/50 flex items-center justify-center">
-                          {isSavingAssignee ? (
-                            <svg className="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-3 flex-shrink-0">
-          {/* 子任务指示器 */}
-          {todo.children && todo.children.length > 0 && (
-            <div className="flex items-center gap-1 text-xs text-primary">
-              <SubtaskIcon className="w-3.5 h-3.5" />
-              <span>{todo.children.length} 个子待办</span>
-            </div>
-          )}
-          
-          {/* 创建时间 */}
-          <div className="flex items-center gap-1 text-xs text-foreground-secondary">
-            <ClockIcon className="w-3.5 h-3.5" />
-            <span>{formatDate(todo.createdAt)}</span>
-          </div>
-        </div>
-      </div>
-      
-      {/* 内容详情弹窗 */}
-      <TaskContentDialog
-        open={showContentDialog}
-        onClose={() => setShowContentDialog(false)}
-        content={todo.content}
-        title="任务详情"
-      />
     </div>
   )
 }
 
 // ==================== 工具函数 ====================
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diffMs = now.getTime() - date.getTime()
-  
-  // 如果时间差为负数（未来时间），返回具体日期
-  if (diffMs < 0) {
-    return date.toLocaleDateString('zh-CN')
+function getSubtaskProgress(todo: Todo) {
+  const children = todo.children ?? []
+
+  return {
+    completed: children.filter((child) => child.status === 'COMPLETED' || child.status === 'ACCEPTED').length,
+    total: children.length,
   }
-  
-  // 计算时间差
-  const diffSeconds = Math.floor(diffMs / 1000)
-  const diffMinutes = Math.floor(diffMs / (1000 * 60))
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  
-  // 刚刚（1分钟内）
-  if (diffSeconds < 60) {
-    return '刚刚'
-  }
-  
-  // x分钟前（1分钟到59分钟）
-  if (diffMinutes < 60) {
-    return `${diffMinutes}分钟前`
-  }
-  
-  // x小时前（1小时到23小时）
-  if (diffHours < 24) {
-    return `${diffHours}小时前`
-  }
-  
-  // 昨天（24小时到48小时前）
-  if (diffDays === 1) {
-    return '昨天'
-  }
-  
-  // 前天（48小时到72小时前）
-  if (diffDays === 2) {
-    return '前天'
-  }
-  
-  // 更早的日期显示具体日期
-  return date.toLocaleDateString('zh-CN')
+}
+
+export function getLinearPriorityOption(priority: number | null) {
+  return LINEAR_PRIORITY_OPTIONS.find((option) => option.value === priority) || LINEAR_PRIORITY_OPTIONS[0]
+}
+
+export function getLinearStatusOption(status: TodoStatus) {
+  return LINEAR_STATUS_OPTIONS.find((option) => option.status === status) || LINEAR_STATUS_OPTIONS[1]
+}
+
+export function LinearPriorityMarker({ priority, variant = 'default' }: { priority: number | null; variant?: 'default' | 'menu' }) {
+  const option = getLinearPriorityOption(priority)
+
+  return (
+    <span className={clsx('task-linear-priority-marker', `is-${option.tone}`, variant === 'menu' && 'is-menu')}>
+      {option.tone === 'none' && '---'}
+      {option.tone === 'urgent' && '!'}
+      {(option.tone === 'high' || option.tone === 'medium' || option.tone === 'low') && (
+        <>
+          <span />
+          <span />
+          <span />
+        </>
+      )}
+    </span>
+  )
+}
+
+export function LinearStatusMarker({ status }: { status: TodoStatus }) {
+  const option = getLinearStatusOption(status)
+  return <span className={clsx('task-linear-status-marker', `is-${option.tone}`)} />
+}
+
+function useLinearMenuDismiss(menuRef: RefObject<HTMLDivElement>, onClose: () => void) {
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (menuRef.current && event.target instanceof Node && !menuRef.current.contains(event.target)) {
+        onClose()
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuRef, onClose])
+}
+
+export function TaskQuickControls({
+  priority,
+  status,
+  priorityMenuOpen,
+  statusMenuOpen,
+  canChangePriority,
+  canChangeStatus,
+  priorityUpdating,
+  statusUpdating,
+  onTogglePriority,
+  onToggleStatus,
+  onClose,
+  onChangePriority,
+  onChangeStatus,
+}: {
+  priority: number | null
+  status: TodoStatus
+  priorityMenuOpen: boolean
+  statusMenuOpen: boolean
+  canChangePriority: boolean
+  canChangeStatus: boolean
+  priorityUpdating: boolean
+  statusUpdating: boolean
+  onTogglePriority: () => void
+  onToggleStatus: () => void
+  onClose: () => void
+  onChangePriority: (priority: number | null) => void | Promise<void>
+  onChangeStatus: (status: TodoStatus) => void
+}) {
+  const priorityLabel = getLinearPriorityOption(priority).label
+  const statusLabel = getLinearStatusOption(status).label
+
+  return (
+    <div
+      className="task-linear-controls"
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <span className="task-linear-control">
+        <button
+          type="button"
+          className={clsx('task-linear-control-button', priorityMenuOpen && 'is-active')}
+          aria-label={`切换优先级：${priorityLabel}`}
+          aria-haspopup="menu"
+          aria-expanded={priorityMenuOpen}
+          disabled={!canChangePriority || priorityUpdating}
+          title={priorityLabel}
+          onClick={onTogglePriority}
+        >
+          <LinearPriorityMarker priority={priority} />
+        </button>
+        {priorityMenuOpen && (
+          <LinearPriorityMenu
+            currentPriority={priority}
+            updating={priorityUpdating}
+            onChange={onChangePriority}
+            onClose={onClose}
+          />
+        )}
+      </span>
+
+      <span className="task-linear-control">
+        <button
+          type="button"
+          className={clsx('task-linear-control-button', statusMenuOpen && 'is-active')}
+          aria-label={`切换状态：${statusLabel}`}
+          aria-haspopup="menu"
+          aria-expanded={statusMenuOpen}
+          disabled={!canChangeStatus || statusUpdating}
+          title={statusLabel}
+          onClick={onToggleStatus}
+        >
+          <LinearStatusMarker status={status} />
+        </button>
+        {statusMenuOpen && (
+          <LinearStatusMenu
+            currentStatus={status}
+            updating={statusUpdating}
+            onChange={onChangeStatus}
+            onClose={onClose}
+          />
+        )}
+      </span>
+    </div>
+  )
+}
+
+export function LinearPriorityMenu({
+  currentPriority,
+  updating,
+  onChange,
+  onClose,
+}: {
+  currentPriority: number | null
+  updating: boolean
+  onChange: (priority: number | null) => void | Promise<void>
+  onClose: () => void
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  useLinearMenuDismiss(menuRef, onClose)
+
+  return (
+    <div className="task-linear-menu task-linear-priority-menu" ref={menuRef} role="menu" aria-label="切换优先级">
+      <div className="task-linear-menu-options">
+        {LINEAR_PRIORITY_OPTIONS.map((option) => {
+          const isActive = option.value === currentPriority
+          return (
+            <button
+              className={clsx('task-linear-menu-option', isActive && 'is-active')}
+              key={option.value ?? 'none'}
+              type="button"
+              role="menuitemradio"
+              aria-checked={isActive}
+              disabled={updating}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (isActive) {
+                  onClose()
+                  return
+                }
+                void onChange(option.value)
+              }}
+            >
+              <LinearPriorityMarker priority={option.value} variant="menu" />
+              <span>{option.label}</span>
+              <span className="task-linear-menu-current">{isActive ? '✓' : ''}</span>
+              <kbd>{option.shortcut}</kbd>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export function LinearStatusMenu({
+  currentStatus,
+  updating,
+  onChange,
+  onClose,
+}: {
+  currentStatus: TodoStatus
+  updating: boolean
+  onChange: (status: TodoStatus) => void
+  onClose: () => void
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  useLinearMenuDismiss(menuRef, onClose)
+
+  return (
+    <div className="task-linear-menu task-linear-status-menu" ref={menuRef} role="menu" aria-label="切换状态">
+      <div className="task-linear-menu-options">
+        {LINEAR_STATUS_OPTIONS.map((option) => {
+          const isActive = option.status === currentStatus
+          return (
+            <button
+              className={clsx('task-linear-menu-option', isActive && 'is-active')}
+              key={option.status}
+              type="button"
+              role="menuitemradio"
+              aria-checked={isActive}
+              disabled={updating}
+              onClick={(event) => {
+                event.stopPropagation()
+                onChange(option.status)
+              }}
+            >
+              <LinearStatusMarker status={option.status} />
+              <span>{option.label}</span>
+              <span className="task-linear-menu-current">{isActive ? '✓' : ''}</span>
+              <kbd>{option.shortcut}</kbd>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 
 // ==================== 图标组件 ====================
-
-function UserIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
-  )
-}
-
-function AssignIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-    </svg>
-  )
-}
-
-function ClockIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
-function SubtaskIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-    </svg>
-  )
-}
-
-function TagIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-    </svg>
-  )
-}
-
-function PriorityIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-    </svg>
-  )
-}
-
-function ReplaceIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-    </svg>
-  )
-}
-
-function DetailIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
 
 function DisabledIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 5.636l-12.728 12.728M6.343 6.343a9 9 0 1111.314 11.314A9 9 0 016.343 6.343z" />
     </svg>
-  )
-}
-
-// ==================== 执行人选择器组件（内联版本）====================
-
-interface AssigneeSelectorInlineProps {
-  members: ProjectMember[]
-  value: number | undefined
-  onChange: (value: number | undefined) => void
-  onSave: () => Promise<void>
-  onCancel: () => void
-  loading?: boolean
-}
-
-function AssigneeSelectorInline({ members, value, onChange, onSave, onCancel, loading }: AssigneeSelectorInlineProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  const selectedMember = members.find((m) => m.user_id === value)
-  const selectedUsername = selectedMember?.username || selectedMember?.user?.username || (value === undefined ? '未选定' : '未知用户')
-
-  // 计算下拉菜单位置
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const buttonRect = buttonRef.current.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const viewportWidth = window.innerWidth
-      const menuHeight = Math.min(320, (members.length + 1) * 40 + 8)
-      const menuWidth = 240
-
-      let top = buttonRect.bottom + 4
-      if (top + menuHeight > viewportHeight) {
-        top = buttonRect.top - menuHeight - 4
-      }
-
-      let left = buttonRect.left
-      if (left + menuWidth > viewportWidth) {
-        left = viewportWidth - menuWidth - 8
-      }
-      if (left < 8) {
-        left = 8
-      }
-
-      setMenuPosition({ top, left })
-    } else {
-      setMenuPosition(null)
-    }
-  }, [isOpen, members.length])
-
-  // 点击外部关闭
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
-
-  return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-1">
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-border rounded bg-surface-elevated hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[120px]"
-        >
-          <div className="flex items-center gap-1 flex-1 min-w-0">
-            {value !== undefined ? (
-              <>
-                <Avatar
-                  user={{
-                    username: selectedMember?.username || selectedMember?.user?.username,
-                    avatar: selectedMember?.avatar || selectedMember?.user?.avatar
-                  }}
-                  size="xs"
-                />
-                <span className="truncate text-xs">{selectedUsername}</span>
-              </>
-            ) : (
-              <span className="text-foreground-secondary text-xs">未选定</span>
-            )}
-          </div>
-          <svg className="w-3 h-3 text-foreground-tertiary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={loading}
-          className="p-0.5 rounded bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          aria-label="保存"
-          title="保存"
-        >
-          {loading ? (
-            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          className="p-0.5 rounded bg-surface-active text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          aria-label="取消"
-          title="取消"
-        >
-          <XIcon className="w-3 h-3" />
-        </button>
-      </div>
-
-      {isOpen && menuPosition && createPortal(
-        <>
-          <div
-            className="fixed inset-0 z-[100]"
-            onClick={() => setIsOpen(false)}
-          />
-          <div
-            ref={menuRef}
-            className="fixed z-[101] w-[240px] rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
-            style={{
-              top: `${menuPosition.top}px`,
-              left: `${menuPosition.left}px`,
-              backgroundColor: 'var(--color-surface-elevated)'
-            }}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                onChange(undefined)
-                setIsOpen(false)
-              }}
-              className={clsx(
-                'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
-                value === undefined && 'bg-surface-hover'
-              )}
-              style={{ borderBottom: 'none' }}
-            >
-              <span className="text-xs text-foreground-secondary">未选定</span>
-            </button>
-            {members.map((member) => {
-              const memberUsername = member.username || member.user?.username || '未知用户'
-              const isSelected = member.user_id === value
-              return (
-                <button
-                  key={member.user_id}
-                  type="button"
-                  onClick={() => {
-                    onChange(member.user_id)
-                    setIsOpen(false)
-                  }}
-                  className={clsx(
-                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
-                    isSelected && 'bg-surface-hover'
-                  )}
-                  style={{ borderBottom: 'none' }}
-                >
-                  <Avatar
-                    user={{
-                      username: memberUsername,
-                      avatar: member.avatar || member.user?.avatar
-                    }}
-                    size="xs"
-                  />
-                  <span className="text-xs text-foreground flex-1">{memberUsername}</span>
-                  {isSelected && (
-                    <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </>,
-        document.body
-      )}
-    </div>
-  )
-}
-
-// ==================== 优先级选择器组件（内联版本）====================
-
-interface PrioritySelectorInlineProps {
-  value: number | null
-  onChange: (value: number | null) => void
-  onSave: () => Promise<void>
-  onCancel: () => void
-  loading?: boolean
-}
-
-const PRIORITY_OPTIONS = [
-  { value: 0, label: '最高', icon: '🔴' },
-  { value: 1, label: '高', icon: '🟠' },
-  { value: 2, label: '中', icon: '🟡' },
-  { value: 3, label: '低', icon: '🟢' },
-  { value: null, label: '未设定', icon: '⚪' },
-]
-
-function PrioritySelectorInline({ value, onChange, onSave, onCancel, loading }: PrioritySelectorInlineProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  const selectedOption = PRIORITY_OPTIONS.find((p) => p.value === value) || PRIORITY_OPTIONS[4]
-
-  // 计算下拉菜单位置
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const buttonRect = buttonRef.current.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const viewportWidth = window.innerWidth
-      const menuHeight = Math.min(320, PRIORITY_OPTIONS.length * 40 + 8)
-      const menuWidth = 200
-
-      let top = buttonRect.bottom + 4
-      if (top + menuHeight > viewportHeight) {
-        top = buttonRect.top - menuHeight - 4
-      }
-
-      let left = buttonRect.left
-      if (left + menuWidth > viewportWidth) {
-        left = viewportWidth - menuWidth - 8
-      }
-      if (left < 8) {
-        left = 8
-      }
-
-      setMenuPosition({ top, left })
-    } else {
-      setMenuPosition(null)
-    }
-  }, [isOpen])
-
-  // 点击外部关闭
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
-
-  return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-1">
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-border rounded bg-surface-elevated hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
-        >
-          <div className="flex items-center gap-1 flex-1 min-w-0">
-            <span>{selectedOption.icon}</span>
-            <span className="truncate text-xs">{selectedOption.label}</span>
-          </div>
-          <svg className="w-3 h-3 text-foreground-tertiary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={loading}
-          className="p-0.5 rounded bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          aria-label="保存"
-          title="保存"
-        >
-          {loading ? (
-            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          className="p-0.5 rounded bg-surface-active text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          aria-label="取消"
-          title="取消"
-        >
-          <XIcon className="w-3 h-3" />
-        </button>
-      </div>
-
-      {isOpen && menuPosition && createPortal(
-        <>
-          <div
-            className="fixed inset-0 z-[100]"
-            onClick={() => setIsOpen(false)}
-          />
-          <div
-            ref={menuRef}
-            className="fixed z-[101] w-[200px] rounded-lg shadow-lg border border-border py-1 max-h-80 overflow-auto"
-            style={{
-              top: `${menuPosition.top}px`,
-              left: `${menuPosition.left}px`,
-              backgroundColor: 'var(--color-surface-elevated)'
-            }}
-          >
-            {PRIORITY_OPTIONS.map((option) => {
-              const isSelected = option.value === value
-              return (
-                <button
-                  key={option.value ?? 'none'}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.value)
-                    setIsOpen(false)
-                  }}
-                  className={clsx(
-                    'w-full px-2 py-1 text-left flex items-center gap-1.5 hover:bg-surface-hover transition-colors text-xs',
-                    isSelected && 'bg-surface-hover'
-                  )}
-                  style={{ borderBottom: 'none' }}
-                >
-                  <span className="text-xs">{option.icon}</span>
-                  <span className="text-xs text-foreground flex-1">{option.label}</span>
-                  {isSelected && (
-                    <svg className="w-3 h-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        </>,
-        document.body
-      )}
-    </div>
-  )
-}
-
-
-// ==================== 标签选择器组件（内联版本）====================
-
-interface TagSelectorInlineProps {
-  projectId: string
-  currentTags?: string | null
-  selectedTagIds: number[]
-  onChange: (tagIds: number[]) => void
-  onSave: () => Promise<void>
-  onCancel: () => void
-  loading?: boolean
-}
-
-function TagSelectorInline({ projectId, currentTags, selectedTagIds, onChange, onSave, onCancel, loading }: TagSelectorInlineProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-  const { getProjectTags } = useTagStore()
-
-  const projectTags = getProjectTags(projectId)
-  const selectedTags = projectTags.filter(tag => selectedTagIds.includes(tag.id))
-
-  // 计算下拉菜单位置
-  useEffect(() => {
-    if (isOpen && buttonRef.current) {
-      const buttonRect = buttonRef.current.getBoundingClientRect()
-      const viewportHeight = window.innerHeight
-      const viewportWidth = window.innerWidth
-      const menuHeight = Math.min(400, (projectTags.length + 1) * 50 + 60)
-      const menuWidth = 280
-
-      let top = buttonRect.bottom + 4
-      if (top + menuHeight > viewportHeight) {
-        top = buttonRect.top - menuHeight - 4
-      }
-
-      let left = buttonRect.left
-      if (left + menuWidth > viewportWidth) {
-        left = viewportWidth - menuWidth - 8
-      }
-      if (left < 8) {
-        left = 8
-      }
-
-      setMenuPosition({ top, left })
-    } else {
-      setMenuPosition(null)
-    }
-  }, [isOpen, projectTags.length])
-
-  // 点击外部关闭
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target as Node) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(e.target as Node)
-      ) {
-        setIsOpen(false)
-      }
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
-
-  const handleTagToggle = (tagId: number) => {
-    if (selectedTagIds.includes(tagId)) {
-      onChange(selectedTagIds.filter(id => id !== tagId))
-    } else {
-      onChange([...selectedTagIds, tagId])
-    }
-  }
-
-  const getButtonText = () => {
-    if (selectedTags.length === 0) {
-      return '选择标签'
-    }
-    if (selectedTags.length === 1) {
-      return selectedTags[0].displayName
-    }
-    return `已选 ${selectedTags.length} 个`
-  }
-
-  return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
-      <div className="flex items-center gap-1">
-        <button
-          ref={buttonRef}
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-1 px-1.5 py-0.5 text-xs border border-border rounded bg-surface-elevated hover:bg-surface-hover focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary h-6 justify-between min-w-[100px]"
-        >
-          <div className="flex items-center gap-1 flex-1 min-w-0">
-            {selectedTags.length > 0 ? (
-              <>
-                {selectedTags.slice(0, 1).map(tag => (
-                  <TagDisplay key={tag.id} tag={tag} size="sm" />
-                ))}
-                {selectedTags.length > 1 && (
-                  <span className="text-xs text-gray-500">+{selectedTags.length - 1}</span>
-                )}
-              </>
-            ) : (
-              <span className="text-foreground-secondary text-xs truncate">{getButtonText()}</span>
-            )}
-          </div>
-          <svg className="w-3 h-3 text-foreground-tertiary flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={onSave}
-          disabled={loading}
-          className="p-0.5 rounded bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          aria-label="保存"
-          title="保存"
-        >
-          {loading ? (
-            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={loading}
-          className="p-0.5 rounded bg-surface-active text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-          aria-label="取消"
-          title="取消"
-        >
-          <XIcon className="w-3 h-3" />
-        </button>
-      </div>
-
-      {isOpen && menuPosition && createPortal(
-        <>
-          <div
-            className="fixed inset-0 z-[100]"
-            onClick={() => setIsOpen(false)}
-          />
-          <div
-            ref={menuRef}
-            className="fixed z-[101] w-[280px] rounded-lg shadow-lg border border-border py-1 max-h-[400px] overflow-auto"
-            style={{
-              top: `${menuPosition.top}px`,
-              left: `${menuPosition.left}px`,
-              backgroundColor: 'var(--color-surface-elevated)'
-            }}
-          >
-            {projectTags.length > 0 ? (
-              <div className="py-1">
-                {projectTags.map(tag => {
-                  const isSelected = selectedTagIds.includes(tag.id)
-                  return (
-                    <div
-                      key={tag.id}
-                      className={clsx(
-                        'px-2 py-1.5 hover:bg-surface-hover transition-colors',
-                        isSelected && 'bg-surface-active'
-                      )}
-                    >
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => handleTagToggle(tag.id)}
-                          className="w-3.5 h-3.5 text-primary border-border rounded focus:ring-primary flex-shrink-0"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                        <TagDisplay tag={tag} size="sm" />
-                      </label>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="px-3 py-4 text-xs text-foreground-secondary text-center">
-                暂无标签
-              </div>
-            )}
-          </div>
-        </>,
-        document.body
-      )}
-    </div>
   )
 }

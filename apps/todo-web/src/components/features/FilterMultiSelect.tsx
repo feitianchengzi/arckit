@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect, useMemo, useLayoutEffect, useCallback, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
-import { ChevronDownIcon } from '@/components/ui/icons'
+import { ChevronDownIcon, PlusIcon, XIcon } from '@/components/ui/icons'
 
 export interface FilterMultiSelectOption<T extends string | number> {
   value: T
   label: string
+  icon?: ReactNode
+  content?: ReactNode
   disabled?: boolean
 }
 
@@ -23,6 +25,7 @@ interface FilterMultiSelectProps<T extends string | number> {
   active?: boolean
   disabled?: boolean
   maxLabelCount?: number
+  variant?: 'default' | 'linearChip'
 }
 
 const MENU_GAP = 6
@@ -51,9 +54,11 @@ export function FilterMultiSelect<T extends string | number>({
   active = false,
   disabled = false,
   maxLabelCount = 1,
+  variant = 'default',
 }: FilterMultiSelectProps<T>) {
   const [open, setOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState<MenuPosition | null>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -131,7 +136,7 @@ export function FilterMultiSelect<T extends string | number>({
 
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node
-      if (triggerRef.current && triggerRef.current.contains(target)) return
+      if (rootRef.current && rootRef.current.contains(target)) return
       if (menuRef.current && menuRef.current.contains(target)) return
       setOpen(false)
     }
@@ -193,8 +198,109 @@ export function FilterMultiSelect<T extends string | number>({
     onChange([])
   }
 
+  if (variant === 'linearChip') {
+    return (
+      <div className={clsx('task-filter-chip-wrap', className)} ref={rootRef}>
+        <div className={clsx('task-filter-chip', open && 'is-active', active && 'has-selection', disabled && 'is-disabled')}>
+          <button
+            ref={triggerRef}
+            className="filter-chip-main"
+            type="button"
+            aria-expanded={open}
+            aria-haspopup="menu"
+            disabled={disabled}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              if (disabled) return
+              setOpen(prev => !prev)
+            }}
+          >
+            <span className="filter-chip-segment filter-chip-field">
+              {icon}
+              {label}
+            </span>
+            {active && (
+              <span className="filter-chip-segment filter-chip-value">
+                {selectedLabel}
+              </span>
+            )}
+          </button>
+          <span className="filter-chip-divider" aria-hidden="true" />
+          <button
+            className="filter-chip-remove"
+            type="button"
+            disabled={disabled}
+            aria-label={active ? `清除${label}筛选` : `添加${label}筛选`}
+            title={active ? `清除${label}筛选` : `添加${label}筛选`}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              if (disabled) return
+              if (active) {
+                handleClear()
+              } else {
+                setOpen(true)
+              }
+            }}
+          >
+            {active ? <XIcon className="icon" /> : <PlusIcon className="icon" />}
+          </button>
+        </div>
+
+        {open && createPortal(
+          <div
+            ref={menuRef}
+            data-filter-popover="true"
+            className={clsx('toolbar-filter-popover', menuClassName)}
+            role="menu"
+            aria-label={`${label}筛选`}
+            style={{
+              top: `${menuPosition?.top ?? 0}px`,
+              left: `${menuPosition?.left ?? 0}px`,
+              maxHeight: `${menuPosition?.maxHeight ?? 0}px`,
+              visibility: menuPosition ? 'visible' : 'hidden',
+              overflowY: 'auto',
+            }}
+          >
+            <div className="filter-search-placeholder">{label}</div>
+            {options.map(option => {
+              const selected = value.includes(option.value)
+              const optionIcon = option.icon !== undefined ? option.icon : icon
+
+              return (
+                <button
+                  key={String(option.value)}
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={selected}
+                  disabled={option.disabled}
+                  className={clsx(
+                    'filter-value-option',
+                    !optionIcon && 'has-no-option-icon',
+                    selected && 'is-selected',
+                    option.disabled && 'is-disabled'
+                  )}
+                  onClick={() => {
+                    if (option.disabled) return
+                    handleToggleOption(option.value)
+                  }}
+                >
+                  <span className="filter-option-check">{selected ? '✓' : ''}</span>
+                  {optionIcon && <span className="filter-value-option-icon">{optionIcon}</span>}
+                  <span className="filter-value-option-content">{option.content ?? option.label}</span>
+                </button>
+              )
+            })}
+          </div>,
+          document.body
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className={clsx('flex items-center gap-2', className)}>
+    <div className={clsx('flex items-center gap-2', className)} ref={rootRef}>
       <label
         className={clsx(
           'flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap',

@@ -17,12 +17,32 @@ export default function DashboardLayout() {
     setProjectSidebarCollapsed((collapsed) => !collapsed)
   }, [])
 
+  const collapseProjectSidebar = useCallback(() => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false)
+      return
+    }
+
+    setProjectSidebarCollapsed(true)
+  }, [])
+
+  const expandProjectSidebar = useCallback(() => {
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(true)
+      return
+    }
+
+    setProjectSidebarCollapsed(false)
+  }, [])
+
   const dashboardLayoutContext = useMemo(
     () => ({
       isProjectSidebarCollapsed: projectSidebarCollapsed,
       toggleProjectSidebar,
+      collapseProjectSidebar,
+      expandProjectSidebar,
     }),
-    [projectSidebarCollapsed, toggleProjectSidebar]
+    [projectSidebarCollapsed, toggleProjectSidebar, collapseProjectSidebar, expandProjectSidebar]
   )
 
   // 监听窗口大小变化，桌面端自动打开侧边栏

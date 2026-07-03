@@ -3,16 +3,22 @@
  * 可以在页面或抽屉中使用
  */
 
-import { useState, useRef, useEffect, useMemo, Children } from 'react'
+import { useState, useRef, useEffect, useMemo, Children, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Button, LoadingView, ErrorView, StatusBadge, StatusSelect, ConfirmDialog, Avatar } from '@/components/ui'
+import { Button, LoadingView, ErrorView, ConfirmDialog, Avatar } from '@/components/ui'
 import { XIcon, ChevronDownIcon, TrashIcon, LinkIcon } from '@/components/ui/icons'
 import { showGlobalToast } from '@/components/ui/Toast'
-import { SubtaskList, StatusHistory, TagSelector, PrioritySelector, PriorityBadge, CreateTaskDialog, CommentSection, TagDisplay } from '@/components/features'
+import { TagSelector, CommentSection, TagList } from '@/components/features'
+import {
+  getLinearPriorityOption,
+  getLinearStatusOption,
+  LinearPriorityMarker,
+  LinearPriorityMenu,
+  LinearStatusMarker,
+  LinearStatusMenu,
+} from './TodoItem'
 import { useTask, useUpdateTask, useDeleteTask, useUpdateTaskStatus } from '@/hooks/useTasks'
-import { tasksApi } from '@/lib/api/endpoints/tasks'
-import { useTaskHistory } from '@/hooks/useHistory'
 import { useProject, useProjectMembers } from '@/hooks/useProjects'
 import { useOrganizationStore } from '@/store/organizationStore'
 import { useOrganizationMembers } from '@/hooks/useOrganizations'
@@ -23,8 +29,6 @@ import { normalizeMarkdown } from '@/lib/utils/markdown'
 import { permissionManager } from '@/lib/permissions'
 import { isAssigneeUnassigned } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
-import { parseTaskTags } from '@/lib/utils/tagUtils'
-import { useTagStore } from '@/store/tagStore'
 import clsx from 'clsx'
 import { buildRouteFromState, getRouteFromState } from '@/lib/utils/navigationState'
 import { buildProjectPath } from '@/lib/utils/projectRouting'
@@ -58,6 +62,31 @@ function getTextDisplayChildren(children?: React.ReactNode): React.ReactNode {
   })
 }
 
+function formatRelativeTimeZh(value?: string | null): string {
+  if (!value) return '刚刚'
+  const timestamp = new Date(value).getTime()
+  if (Number.isNaN(timestamp)) return '刚刚'
+
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
+  if (seconds < 60) return '刚刚'
+
+  const units: Array<[number, string]> = [
+    [365 * 24 * 60 * 60, '年'],
+    [30 * 24 * 60 * 60, '个月'],
+    [24 * 60 * 60, '天'],
+    [60 * 60, '小时'],
+    [60, '分钟'],
+  ]
+
+  for (const [unitSeconds, label] of units) {
+    if (seconds >= unitSeconds) {
+      return `${Math.floor(seconds / unitSeconds)} ${label}前`
+    }
+  }
+
+  return '刚刚'
+}
+
 export interface TaskDetailContentProps {
   projectId: string
   taskId: string
@@ -66,7 +95,7 @@ export interface TaskDetailContentProps {
   onClose?: () => void // 关闭回调（用于抽屉）
   parentTaskId?: number | null // 父任务ID（用于回退）
   onNavigateToSubtask?: (subtaskId: number) => void // 导航到子待办的回调
-  onRequestParentSelect?: (taskId: string) => void // 请求重新选择父待办
+  hideCopyLinkButton?: boolean // 是否隐藏内容区的复制链接按钮
 }
 
 export function TaskDetailContent({ 
@@ -77,7 +106,7 @@ export function TaskDetailContent({
   onClose,
   parentTaskId,
   onNavigateToSubtask,
-  onRequestParentSelect
+  hideCopyLinkButton = false
 }: TaskDetailContentProps) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -88,7 +117,6 @@ export function TaskDetailContent({
   
   // 获取父任务信息（如果有）
   const parentTask = (todo as any)?.parentTask
-  const { data: history, isLoading: historyLoading } = useTaskHistory(projectId, taskId)
   const updateTask = useUpdateTask(projectId, taskId)
   const deleteTask = useDeleteTask(projectId)
   const updateStatus = useUpdateTaskStatus(projectId)
@@ -98,11 +126,7 @@ export function TaskDetailContent({
   const [updateError, setUpdateError] = useState('')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [statusUpdateError, setStatusUpdateError] = useState('')
-  const [isEditingAssignee, setIsEditingAssignee] = useState(false)
-  const [newAssigneeId, setNewAssigneeId] = useState<number | undefined>(undefined)
-  const [isSavingAssignee, setIsSavingAssignee] = useState(false)
-  const [createSubtaskDialogOpen, setCreateSubtaskDialogOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<'comments' | 'subtasks' | 'history'>('comments')
+  const [openDetailMenu, setOpenDetailMenu] = useState<'status' | 'priority' | 'assignee' | null>(null)
   const tabHeaderRef = useRef<HTMLDivElement>(null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
   
@@ -110,8 +134,6 @@ export function TaskDetailContent({
   const { currentOrganizationId } = useOrganizationStore()
   const { data: orgMembers } = useOrganizationMembers(currentOrganizationId || 0)
   const currentUser = useAuthStore((state) => state.user)
-  const { getProjectTags } = useTagStore()
-  
   // 从成员列表中查找创建者和执行者信息
   const creatorInfo = Array.isArray(members) ? members.find((m: any) => m.user_id === todo?.creatorId) : undefined
   const executorInfo = Array.isArray(members) ? members.find((m: any) => m.user_id === todo?.assigneeId) : undefined
@@ -161,15 +183,6 @@ export function TaskDetailContent({
     return isOwnerOrAdmin || isCreator
   }, [todo, currentUserRole, currentUserId])
 
-  // 权限检查：调整父待办（owner/admin/创建人/执行人）
-  const canSelectParent = useMemo(() => {
-    if (!todo) return false
-    const isOwnerOrAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
-    const isCreator = currentUserId !== null && currentUserId !== undefined && todo.creatorId === currentUserId
-    const isAssignee = currentUserId !== null && currentUserId !== undefined && todo.assigneeId === currentUserId
-    return isOwnerOrAdmin || isCreator || isAssignee
-  }, [todo, currentUserRole, currentUserId])
-  
   // 权限检查：分配执行者
   // 规则：
   // - 当状态为"进行中"时，只有执行人、管理员、owner可以分配执行人
@@ -341,61 +354,32 @@ export function TaskDetailContent({
     setUpdateError('')
   }
 
-  // 处理子待办状态变更
-  const handleSubtaskStatusChange = async (subtaskId: number, newStatus: string) => {
-    try {
-      await updateStatus.mutateAsync({ taskId: subtaskId.toString(), status: newStatus })
-    } catch (error) {
-      console.error('更新子待办状态失败:', error)
-    }
-  }
+  const handleInlineContentBlur = async () => {
+    if (!isEditing) return
 
-  // 处理子待办执行人更新
-  const handleSubtaskAssigneeUpdate = async (subtaskId: number, assigneeId: number | null) => {
-    try {
-      const updateInput: { assigneeId?: number } = {}
-      if (assigneeId !== null && assigneeId !== undefined) {
-        updateInput.assigneeId = assigneeId
-      }
-      await tasksApi.update(projectId, subtaskId.toString(), updateInput)
-      refetch() // 刷新任务详情以更新子待办信息
-    } catch (error) {
-      console.error('更新子待办执行人失败:', error)
-      throw error
+    const nextContent = editContent.trim()
+    if (nextContent === todo.content.trim()) {
+      setIsEditing(false)
+      setEditContent('')
+      setUpdateError('')
+      return
     }
-  }
 
-  // 处理子待办优先级更新
-  const handleSubtaskPriorityUpdate = async (subtaskId: number, priority: number | null) => {
-    try {
-      await tasksApi.update(projectId, subtaskId.toString(), { priority: priority ?? undefined })
-      refetch() // 刷新任务详情以更新子待办信息
-    } catch (error) {
-      console.error('更新子待办优先级失败:', error)
-      throw error
+    if (!nextContent) {
+      setUpdateError('待办内容不能为空')
+      requestAnimationFrame(() => editTextareaRef.current?.focus())
+      return
     }
-  }
 
-  // 处理子待办标签更新
-  const handleSubtaskTagsUpdate = async (subtaskId: number, tagsString: string) => {
+    setUpdateError('')
     try {
-      await tasksApi.update(projectId, subtaskId.toString(), { tags: tagsString })
-      refetch() // 刷新任务详情以更新子待办信息
-    } catch (error) {
-      console.error('更新子待办标签失败:', error)
-      throw error
+      await updateTask.mutateAsync({ content: nextContent })
+      setIsEditing(false)
+      setEditContent('')
+    } catch (err: any) {
+      setUpdateError(err.response?.data?.message || '更新失败，请重试')
+      requestAnimationFrame(() => editTextareaRef.current?.focus())
     }
-  }
-
-  // 创建子待办
-  const handleCreateSubtask = () => {
-    setCreateSubtaskDialogOpen(true)
-  }
-  
-  const handleCreateSubtaskSuccess = (newTaskId: number) => {
-    // 创建成功后刷新任务详情
-    refetch()
-    setCreateSubtaskDialogOpen(false)
   }
 
   // 处理状态变更
@@ -416,6 +400,52 @@ export function TaskDetailContent({
       await updateStatus.mutateAsync({ taskId, status: newStatus })
     } catch (err: any) {
       setStatusUpdateError(err.response?.data?.message || '状态更新失败，请重试')
+    }
+  }
+
+  const handleDetailStatusChange = async (newStatus: TodoStatus) => {
+    await handleStatusChange(newStatus)
+    setOpenDetailMenu(null)
+  }
+
+  const handleDetailPriorityChange = async (priority: number | null) => {
+    if (!canEditPriority) {
+      setUpdateError('没有权限修改此任务的优先级')
+      return
+    }
+
+    setUpdateError('')
+    try {
+      await updateTask.mutateAsync({ priority: priority ?? undefined })
+      setOpenDetailMenu(null)
+    } catch (err: any) {
+      setUpdateError(err.response?.data?.message || '优先级更新失败，请重试')
+    }
+  }
+
+  const handleDetailAssigneeChange = async (assigneeId: number | null) => {
+    if (!canEditAssignee) {
+      setUpdateError(
+        isAssigneeUnassignedLocal
+          ? '您没有权限分配此任务，只有项目成员可以分配未分配的任务'
+          : '您没有权限分配此任务，只有任务创建者、执行人、项目管理员或所有者可以分配任务'
+      )
+      return
+    }
+
+    setUpdateError('')
+    try {
+      await updateTask.mutateAsync({ assigneeId })
+      setOpenDetailMenu(null)
+    } catch (err: any) {
+      const errorData = err?.response?.data
+      const errorMsg =
+        errorData?.error?.message ||
+        errorData?.message ||
+        (typeof errorData?.error === 'string' ? errorData.error : '') ||
+        err?.message ||
+        '更新失败，请重试'
+      setUpdateError(errorMsg)
     }
   }
   
@@ -547,14 +577,16 @@ export function TaskDetailContent({
             </div>
           </div>
           
-          {!isEditing && (
+          {!isEditing && (!hideCopyLinkButton || canDelete) && (
             <div className="flex gap-3">
-              <Button variant="secondary" onClick={handleCopyTaskLink}>
-                <span className="flex items-center gap-2">
-                  <LinkIcon className="w-4 h-4" />
-                  复制链接
-                </span>
-              </Button>
+              {!hideCopyLinkButton && (
+                <Button variant="secondary" onClick={handleCopyTaskLink}>
+                  <span className="flex items-center gap-2">
+                    <LinkIcon className="w-4 h-4" />
+                    复制链接
+                  </span>
+                </Button>
+              )}
               {canDelete && (
                 <Button
                   variant="danger"
@@ -569,591 +601,235 @@ export function TaskDetailContent({
         </div>
       )}
       
-      {/* 待办内容 */}
-      <div className="rounded-lg p-6 space-y-4" style={{ backgroundColor: 'var(--color-surface)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}>
-        {/* 创建者信息 - 左上方 */}
-        <div className="flex items-start justify-between gap-3 pb-4 border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}>
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <Avatar
-              user={{
-                username: creatorUsername,
-                avatar: creatorInfo?.avatar || creatorInfo?.user?.avatar || todo?.creator?.avatar
-              }}
-              size="md"
-            />
-            <div className="flex-1 min-w-0">
-              <div className="font-semibold text-foreground flex items-center gap-1">
-                {creatorUsername}
-                {(() => {
-                   if (!todo.creatorId || !currentOrganizationId) return null
-                   const isOrgMember = !orgMembers || orgMembers.some(om => om.user_id === todo.creatorId)
-                   if (isOrgMember) return null
-                   return (
-                     <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
-                       <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                       </svg>
-                     </div>
-                   )
-                 })()}
-              </div>
-              <div className="text-xs text-foreground-secondary mt-0.5">
-                创建于 {new Date(todo.createdAt).toLocaleString('zh-CN')}
-              </div>
-            </div>
-          </div>
-          {/* 操作按钮 - 放在最右侧 */}
-          {!isEditing && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={handleCopyTaskLink}
-                className="p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
-                aria-label="复制待办详情链接"
-                title="复制待办详情链接"
-              >
-                <LinkIcon className="w-4 h-4" />
-              </button>
-              {canSelectParent && onRequestParentSelect && (
-                <button
-                  onClick={() => {
-                    if (onClose) onClose()
-                    onRequestParentSelect?.(taskId)
-                  }}
-                  className="p-2 rounded-md hover:bg-surface-hover transition-colors text-foreground-secondary hover:text-foreground"
-                  aria-label="调整父待办"
-                  title="调整父待办"
-                >
-                  <RelationIcon className="w-4 h-4" />
-                </button>
-              )}
-              {canDelete && (
-                <button
-                  onClick={() => setShowDeleteConfirm(true)}
-                  disabled={deleteTask.isPending}
-                  className="p-2 rounded-md hover:bg-red-50 transition-colors text-red-600 hover:text-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="删除待办"
-                  title="删除待办"
-                >
-                  {deleteTask.isPending ? (
-                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <TrashIcon className="w-4 h-4" />
-                  )}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-        
-        {/* 标签、优先级 - 一行显示 */}
-        <div className="flex items-center gap-4 flex-wrap">
-          {/* 标签 */}
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-sm font-bold text-foreground whitespace-nowrap">
-              <TagIcon className="w-4 h-4 text-foreground-secondary" />
-              标签：
-            </span>
-            {canEditTags ? (
-              <TagSelector
-                projectId={projectId}
-                currentTags={todo.tags}
-                onTagsChange={async (tagsString: string) => {
-                  try {
-                    await updateTask.mutateAsync({ tags: tagsString })
-                  } catch (err: any) {
-                    console.error('更新标签失败:', err)
-                    throw err
-                  }
-                }}
-                showCreateButton={true}
-              />
-            ) : (
-              <div className="flex items-center gap-1 flex-wrap">
-                {todo.tags ? (
-                  parseTaskTags(todo.tags).map((tagId) => {
-                    const tag = getProjectTags(projectId).find(t => t.id === tagId)
-                    return tag ? <TagDisplay key={tagId} tag={tag} size="sm" /> : null
-                  })
-                ) : (
-                  <span className="text-sm text-foreground-secondary">无标签</span>
-                )}
-              </div>
-            )}
-          </div>
-          
-          {/* 优先级 */}
-          <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1 text-sm font-bold text-foreground whitespace-nowrap">
-              <PriorityIcon className="w-4 h-4 text-foreground-secondary" />
-              优先级：
-            </span>
-            {!isEditing ? (
-              <PrioritySelector
-                value={todo.priority ?? null}
-                onChange={async (priority) => {
-                  try {
-                    await updateTask.mutateAsync({ priority: priority ?? undefined })
-                  } catch (err: any) {
-                    console.error('更新优先级失败:', err)
-                  }
-                }}
-                disabled={updateTask.isPending || !canEditPriority}
-                size="sm"
-              />
-            ) : (
-              <PriorityBadge value={todo.priority ?? null} size="sm" />
-            )}
-          </div>
-        </div>
-        
-        {/* 内容 */}
-        <div className="space-y-3">
-          {isEditing ? (
-            <div className="space-y-3">
-              <textarea
-                ref={editTextareaRef}
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                rows={8}
-                className="w-full px-3 py-2 text-base border border-border bg-surface-elevated text-foreground rounded-md focus:border-primary focus:ring-2 focus:ring-primary"
-              />
-              
-              {updateError && (
-                <div className="bg-error-light border border-error rounded-md p-3">
-                  <p className="text-sm text-error">{updateError}</p>
-                </div>
-              )}
-              
-              <div className="flex justify-end gap-3">
-                <Button
-                  variant="primary"
-                  onClick={handleSave}
-                  loading={updateTask.isPending}
-                >
-                  保存
-                </Button>
-                
-                <Button
-                  variant="secondary"
-                  onClick={handleCancel}
-                  disabled={updateTask.isPending}
-                >
-                  取消
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="group/task-content relative">
-              <div
-                onDoubleClick={() => {
-                  if (canEditContent) handleEdit()
-                }}
-                className={clsx(
-                  'bg-surface-hover text-foreground rounded p-4 max-h-96 overflow-y-auto prose prose-sm max-w-none',
-                  canEditContent && 'min-h-[220px] pb-14'
-                )}
-                style={{
-                  wordBreak: 'break-word',
-                  overflowWrap: 'anywhere',
-                }}
-              >
-                <ReactMarkdown
-                  components={{
-                    p: ({ children }: { children?: React.ReactNode }) => <p className="text-foreground mb-3 last:mb-0">{getTextDisplayChildren(children)}</p>,
-                    h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-foreground mb-3 mt-4 first:mt-0">{getTextDisplayChildren(children)}</h1>,
-                    h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-foreground mb-2 mt-4 first:mt-0">{getTextDisplayChildren(children)}</h2>,
-                    h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-foreground mb-2 mt-3 first:mt-0">{getTextDisplayChildren(children)}</h3>,
-                    code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) => 
-                      inline ? (
-                        <code className="bg-surface-active text-foreground px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
-                      ) : (
-                        <code className="block bg-surface-active text-foreground p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</code>
-                      ),
-                    pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-surface-active text-foreground p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</pre>,
-                    ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-3 space-y-1 text-foreground">{children}</ul>,
-                    ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-foreground">{children}</ol>,
-                    li: ({ children }: { children?: React.ReactNode }) => <li className="text-foreground">{getTextDisplayChildren(children)}</li>,
-                    blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-border pl-4 italic text-foreground mb-3">{getTextDisplayChildren(children)}</blockquote>,
-                    a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
-                      <a href={href} className="text-blue-600 hover:text-blue-700 underline" target="_blank" rel="noopener noreferrer">
-                        {getLinkDisplayChildren(children, href)}
-                      </a>
-                    ),
-                    strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-foreground">{getTextDisplayChildren(children)}</strong>,
-                    em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-foreground">{getTextDisplayChildren(children)}</em>,
-                    hr: () => <hr className="border-border my-4" />,
-                    table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border-collapse border border-border">{children}</table></div>,
-                    th: ({ children }: { children?: React.ReactNode }) => <th className="border border-border px-3 py-2 bg-surface-active text-foreground font-semibold text-left">{getTextDisplayChildren(children)}</th>,
-                    td: ({ children }: { children?: React.ReactNode }) => <td className="border border-border px-3 py-2 text-foreground">{getTextDisplayChildren(children)}</td>,
-                  }}
-                >
-                  {normalizeMarkdown(todo.content)}
-                </ReactMarkdown>
-              </div>
-
-              {canEditContent && (
-                <button
-                  type="button"
-                  onClick={handleEdit}
-                  className={clsx(
-                    'absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-md border border-border bg-surface-elevated px-2.5 py-1.5 text-xs font-medium text-foreground-secondary shadow-sm transition-all',
-                    'opacity-0 pointer-events-none group-hover/task-content:opacity-100 group-hover/task-content:pointer-events-auto',
-                    'hover:bg-surface-active hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary'
-                  )}
-                  aria-label="编辑内容"
-                  title="编辑内容（双击内容区也可编辑）"
-                >
-                  <EditIcon className="w-3.5 h-3.5" />
-                  编辑
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-        
-        {/* 分割线 */}
-        <div style={{ borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}></div>
-        
-        {/* 元信息 */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            {/* 执行人和状态选择器 - 同一行 */}
-            <div className="flex items-center justify-between gap-4 w-full">
-              {/* 执行人信息 - 左侧 */}
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                {canEditAssignee ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isEditingAssignee) {
-                        setIsEditingAssignee(false)
-                        setNewAssigneeId(undefined)
-                        setUpdateError('')
-                      } else {
-                        setIsEditingAssignee(true)
-                        setNewAssigneeId(todo.assigneeId)
-                      }
-                    }}
-                    className="flex items-center gap-2 flex-1 min-w-0 text-left hover:text-foreground transition-colors"
-                    aria-label={isEditingAssignee ? "收起" : "展开"}
-                    title={isEditingAssignee ? "收起" : "展开"}
-                  >
-                    <Avatar
-                      user={{
-                        username: executorUsername,
-                        avatar: executorInfo?.avatar || executorInfo?.user?.avatar || todo?.assignee?.avatar
-                      }}
-                      size="sm"
-                    />
-                    <p className="text-sm text-foreground-secondary">
-                      {executorUsername}
-                    </p>
-                    {(() => {
-                      if (!todo.assigneeId || !currentOrganizationId) return null
-                      const isOrgMember = !orgMembers || orgMembers.some(om => om.user_id === todo.assigneeId)
-                      if (isOrgMember) return null
-                      return (
-                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
-                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                          </svg>
-                        </div>
-                      )
-                    })()}
-                    <ChevronDownIcon 
-                      className={clsx(
-                        "w-4 h-4 transition-transform text-foreground-secondary ml-1",
-                        isEditingAssignee && "transform rotate-180"
-                      )} 
-                    />
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Avatar
-                      user={{
-                        username: executorUsername,
-                        avatar: executorInfo?.avatar || executorInfo?.user?.avatar || todo?.assignee?.avatar
-                      }}
-                      size="sm"
-                    />
-                    <p className="text-sm text-foreground-secondary">
-                      {executorUsername}
-                    </p>
-                    {(() => {
-                      if (!todo.assigneeId || !currentOrganizationId) return null
-                      const isOrgMember = !orgMembers || orgMembers.some(om => om.user_id === todo.assigneeId)
-                      if (isOrgMember) return null
-                      return (
-                        <div className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700" title="该成员不在当前组织中">
-                          <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                          </svg>
-                        </div>
-                      )
-                    })()}
-                  </div>
-                )}
-                {!isEditingAssignee && !canEditAssignee && todo.status === 'IN_PROGRESS' && (
-                  <span 
-                    className="text-xs text-foreground-secondary relative group cursor-help"
-                  >
-                    {isAssigneeUnassignedLocal ? '仅项目成员可编辑' : '仅创建者/执行者/管理员可编辑'}
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
-                      <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
-                        {isAssigneeUnassignedLocal 
-                          ? '未分配状态时，任何项目成员都可以分配任务'
-                          : '只有任务创建者、执行人、项目管理员或所有者可以分配任务'}
-                        <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                      </div>
-                    </div>
-                  </span>
-                )}
-              </div>
-              {/* 状态选择器 - 右侧 */}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {!isEditing ? (
-                  <div className="relative group">
-                    <StatusSelect
-                      value={todo.status}
-                      onChange={handleStatusChange}
-                      disabled={updateStatus.isPending || !canChangeStatus}
-                    />
-                    {!canChangeStatus && todo.status === 'IN_PROGRESS' && (
-                      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 hidden group-hover:block z-10 pointer-events-none">
-                        <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
-                          只有执行人、管理员或所有者可以修改"进行中"状态的任务
-                          <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <StatusBadge status={todo.status} />
-                )}
-              </div>
-            </div>
-            {statusUpdateError && (
-              <p className="text-sm text-error mt-2">{statusUpdateError}</p>
-            )}
-            {updateError && (
-              <p className="text-sm text-error mt-2">{updateError}</p>
-            )}
-            {/* 成员选择区域 - 点击更换后展开 */}
-            <div
-              className={clsx(
-                'transition-all duration-300 ease-in-out',
-                isEditingAssignee ? 'max-h-[500px] opacity-100 mt-4 pt-4 border-t border-divider' : 'max-h-0 opacity-0'
-              )}
-              style={{ overflow: isEditingAssignee ? 'visible' : 'hidden' }}
+      <section className="task-detail-linear-section">
+        <div className="task-detail-linear-summary" aria-label="待办属性">
+          <span
+            className="task-detail-property-control"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={clsx('task-detail-summary-chip', openDetailMenu === 'status' && 'is-active')}
+              aria-label={`切换状态：${getLinearStatusOption(todo.status).label}`}
+              aria-haspopup="menu"
+              aria-expanded={openDetailMenu === 'status'}
+              disabled={!canChangeStatus || updateStatus.isPending}
+              onClick={() => setOpenDetailMenu((current) => (current === 'status' ? null : 'status'))}
             >
-              <div className="flex flex-wrap gap-x-1 gap-y-1.5">
-                {/* 成员列表 */}
-                {Array.isArray(members) && members.map((member: any) => {
-                  const memberId = member.user_id
-                  const isSelected = newAssigneeId === memberId
-                  const memberUsername = member.username || member.user?.username || '未知用户'
-                  const memberAvatar = member.avatar || member.user?.avatar
-                  const isOrgMember = !currentOrganizationId || !orgMembers || orgMembers.some(om => om.user_id === memberId)
-                  
-                  return (
-                    <button
-                      key={memberId}
-                      type="button"
-                      onClick={async () => {
-                        // 如果正在保存，不处理
-                        if (isSavingAssignee) return
-                        
-                        try {
-                          setIsSavingAssignee(true)
-                          setUpdateError('')
-                          const willClear = isSelected
-                          const nextAssigneeId = willClear ? null : memberId
-                          setNewAssigneeId(willClear ? undefined : memberId)
-                          await updateTask.mutateAsync({ assigneeId: nextAssigneeId })
-                          setIsEditingAssignee(false)
-                        } catch (err: any) {
-                          console.error('分配任务失败:', err)
-                          
-                          // 恢复之前的选择
-                          setNewAssigneeId(todo.assigneeId ?? undefined)
-                          
-                          if (err?.response?.status === 403) {
-                            if (isAssigneeUnassignedLocal) {
-                              setUpdateError('您没有权限分配此任务，只有项目成员可以分配未分配的任务')
-                            } else {
-                              setUpdateError('您没有权限分配此任务，只有任务创建者、执行人、项目管理员或所有者可以分配任务')
-                            }
-                          } else {
-                            const errorData = err?.response?.data
-                            let errorMsg = '更新失败，请重试'
-                            
-                            if (errorData) {
-                              if (errorData.error && errorData.error.message) {
-                                errorMsg = errorData.error.message
-                              } else if (errorData.message) {
-                                errorMsg = errorData.message
-                              } else if (errorData.error && typeof errorData.error === 'string') {
-                                errorMsg = errorData.error
-                              }
-                            } else if (err?.message) {
-                              errorMsg = err.message
-                            }
-                            
-                            setUpdateError(errorMsg)
-                          }
-                        } finally {
-                          setIsSavingAssignee(false)
-                        }
-                      }}
-                      disabled={isSavingAssignee || updateTask.isPending}
-                      className={clsx(
-                        "relative flex flex-col items-center gap-0.5 px-1 py-1 transition-all hover:shadow-lg bg-surface-elevated rounded border border-border shadow focus:outline-none focus:ring-0 w-[60px]",
-                        (isSavingAssignee || updateTask.isPending) && "opacity-50 cursor-not-allowed"
-                      )}
-                    >
-                      <Avatar
-                        user={{
-                          username: memberUsername,
-                          avatar: memberAvatar
-                        }}
-                        size="sm"
-                      />
-                      <span className="text-[10px] text-foreground text-center truncate w-full" title={memberUsername}>{memberUsername}</span>
-                      {!isOrgMember && (
-                        <div className="absolute top-0 right-0 z-10 bg-gray-100 dark:bg-gray-800 rounded-full p-0.5 border border-gray-200 dark:border-gray-700 shadow-sm" title="该成员不在当前组织中">
-                          <svg className="w-2.5 h-2.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                          </svg>
-                        </div>
-                      )}
-                      {isSelected && (
-                        <div className="absolute inset-0 bg-black/50 rounded border border-white/50 flex items-center justify-center">
-                          {isSavingAssignee ? (
-                            <svg className="w-4 h-4 text-white animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
+              <LinearStatusMarker status={todo.status} />
+              <span>{getLinearStatusOption(todo.status).label}</span>
+            </button>
+            {openDetailMenu === 'status' && (
+              <LinearStatusMenu
+                currentStatus={todo.status}
+                updating={updateStatus.isPending}
+                onChange={handleDetailStatusChange}
+                onClose={() => setOpenDetailMenu(null)}
+              />
+            )}
+          </span>
+
+          <span
+            className="task-detail-property-control"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className={clsx('task-detail-summary-chip', openDetailMenu === 'priority' && 'is-active')}
+              aria-label={`切换优先级：${getLinearPriorityOption(todo.priority ?? null).label}`}
+              aria-haspopup="menu"
+              aria-expanded={openDetailMenu === 'priority'}
+              disabled={!canEditPriority || updateTask.isPending}
+              onClick={() => setOpenDetailMenu((current) => (current === 'priority' ? null : 'priority'))}
+            >
+              <LinearPriorityMarker priority={todo.priority ?? null} />
+              <span>{getLinearPriorityOption(todo.priority ?? null).label}</span>
+            </button>
+            {openDetailMenu === 'priority' && (
+              <LinearPriorityMenu
+                currentPriority={todo.priority ?? null}
+                updating={updateTask.isPending}
+                onChange={handleDetailPriorityChange}
+                onClose={() => setOpenDetailMenu(null)}
+              />
+            )}
+          </span>
+
+          <TaskDetailAssigneeControl
+            open={openDetailMenu === 'assignee'}
+            disabled={!canEditAssignee || updateTask.isPending}
+            updating={updateTask.isPending}
+            members={Array.isArray(members) ? members : []}
+            assigneeId={todo.assigneeId ?? null}
+            assigneeName={executorUsername}
+            assigneeAvatar={executorInfo?.avatar || executorInfo?.user?.avatar || todo?.assignee?.avatar}
+            onToggle={() => setOpenDetailMenu((current) => (current === 'assignee' ? null : 'assignee'))}
+            onClose={() => setOpenDetailMenu(null)}
+            onChange={handleDetailAssigneeChange}
+          />
         </div>
-      </div>
+
+        {statusUpdateError && (
+          <p className="task-detail-error-text">{statusUpdateError}</p>
+        )}
+
+        <div className="task-detail-content-block">
+          {isEditing ? (
+            <textarea
+              ref={editTextareaRef}
+              value={editContent}
+              onChange={(e) => setEditContent(e.target.value)}
+              onBlur={handleInlineContentBlur}
+              rows={8}
+              className="task-detail-content-editor"
+              disabled={updateTask.isPending}
+            />
+          ) : (
+            <div
+              role={canEditContent ? 'button' : undefined}
+              tabIndex={canEditContent ? 0 : undefined}
+              onClick={() => {
+                if (canEditContent) handleEdit()
+              }}
+              onKeyDown={(event) => {
+                if (canEditContent && (event.key === 'Enter' || event.key === ' ')) {
+                  event.preventDefault()
+                  handleEdit()
+                }
+              }}
+              className={clsx('task-detail-content-display prose prose-sm max-w-none', canEditContent && 'is-editable')}
+              style={{
+                wordBreak: 'break-word',
+                overflowWrap: 'anywhere',
+              }}
+            >
+              <ReactMarkdown
+                components={{
+                  p: ({ children }: { children?: React.ReactNode }) => <p className="text-foreground mb-3 last:mb-0">{getTextDisplayChildren(children)}</p>,
+                  h1: ({ children }: { children?: React.ReactNode }) => <h1 className="text-xl font-bold text-foreground mb-3 mt-4 first:mt-0">{getTextDisplayChildren(children)}</h1>,
+                  h2: ({ children }: { children?: React.ReactNode }) => <h2 className="text-lg font-bold text-foreground mb-2 mt-4 first:mt-0">{getTextDisplayChildren(children)}</h2>,
+                  h3: ({ children }: { children?: React.ReactNode }) => <h3 className="text-base font-bold text-foreground mb-2 mt-3 first:mt-0">{getTextDisplayChildren(children)}</h3>,
+                  code: ({ inline, children }: { inline?: boolean; children?: React.ReactNode }) =>
+                    inline ? (
+                      <code className="bg-surface-active text-foreground px-1.5 py-0.5 rounded text-sm font-mono">{children}</code>
+                    ) : (
+                      <code className="block bg-surface-active text-foreground p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</code>
+                    ),
+                  pre: ({ children }: { children?: React.ReactNode }) => <pre className="bg-surface-active text-foreground p-3 rounded text-sm font-mono overflow-x-auto mb-3">{children}</pre>,
+                  ul: ({ children }: { children?: React.ReactNode }) => <ul className="list-disc list-inside mb-3 space-y-1 text-foreground">{children}</ul>,
+                  ol: ({ children }: { children?: React.ReactNode }) => <ol className="list-decimal list-inside mb-3 space-y-1 text-foreground">{children}</ol>,
+                  li: ({ children }: { children?: React.ReactNode }) => <li className="text-foreground">{getTextDisplayChildren(children)}</li>,
+                  blockquote: ({ children }: { children?: React.ReactNode }) => <blockquote className="border-l-4 border-border pl-4 italic text-foreground mb-3">{getTextDisplayChildren(children)}</blockquote>,
+                  a: ({ children, href }: { children?: React.ReactNode; href?: string }) => (
+                    <a
+                      href={href}
+                      className="text-blue-600 hover:text-blue-700 underline"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      {getLinkDisplayChildren(children, href)}
+                    </a>
+                  ),
+                  strong: ({ children }: { children?: React.ReactNode }) => <strong className="font-bold text-foreground">{getTextDisplayChildren(children)}</strong>,
+                  em: ({ children }: { children?: React.ReactNode }) => <em className="italic text-foreground">{getTextDisplayChildren(children)}</em>,
+                  hr: () => <hr className="border-border my-4" />,
+                  table: ({ children }: { children?: React.ReactNode }) => <div className="overflow-x-auto mb-3"><table className="min-w-full border-collapse border border-border">{children}</table></div>,
+                  th: ({ children }: { children?: React.ReactNode }) => <th className="border border-border px-3 py-2 bg-surface-active text-foreground font-semibold text-left">{getTextDisplayChildren(children)}</th>,
+                  td: ({ children }: { children?: React.ReactNode }) => <td className="border border-border px-3 py-2 text-foreground">{getTextDisplayChildren(children)}</td>,
+                }}
+              >
+                {normalizeMarkdown(todo.content)}
+              </ReactMarkdown>
+            </div>
+          )}
+        </div>
+
+        {updateError && (
+          <p className="task-detail-error-text">{updateError}</p>
+        )}
+
+        <div className="task-detail-tags-row">
+          {canEditTags ? (
+            <TagSelector
+              projectId={projectId}
+              currentTags={todo.tags}
+              onTagsChange={async (tagsString: string) => {
+                await updateTask.mutateAsync({ tags: tagsString })
+              }}
+              showCreateButton={true}
+              size="md"
+              className="task-detail-tag-selector"
+              displayAllSelected
+              selectedDisplayVariant="linear"
+            />
+          ) : (
+            <div className="task-detail-tags-static">
+              {todo.tags ? (
+                <TagList
+                  projectId={projectId}
+                  tagsString={todo.tags}
+                  variant="linear"
+                  maxVisible={999}
+                />
+              ) : (
+                <span className="task-detail-tags-empty">无标签</span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="task-detail-creator-event">
+          <Avatar
+            user={{
+              username: creatorUsername,
+              avatar: creatorInfo?.avatar || creatorInfo?.user?.avatar || todo?.creator?.avatar
+            }}
+            size="sm"
+          />
+          <span>
+            <strong>{creatorUsername}</strong>
+            创建了任务 · {formatRelativeTimeZh(todo.createdAt)}
+          </span>
+        </div>
+      </section>
       
-      {/* Tab 切换区域：评论、子待办、状态历史 */}
+      {/* 评论区域 */}
       <div 
         ref={tabHeaderRef}
         className="rounded-lg" 
         style={{ backgroundColor: 'var(--color-surface)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04)', borderTopWidth: '0.5px', borderTopColor: 'var(--color-divider)' }}
       >
-        {/* Tab 导航 */}
-        <div className="flex gap-1 px-1">
+        <div className="task-detail-comment-nav">
           <button
-            onClick={() => setActiveTab('comments')}
-            className={clsx(
-              'flex-1 px-4 py-3 text-base font-semibold transition-colors rounded-t-lg',
-              'border-0 outline-none focus:outline-none focus:ring-0 focus:ring-offset-0',
-              activeTab === 'comments'
-                ? 'text-primary'
-                : 'text-foreground-secondary hover:text-foreground'
-            )}
-            style={{ border: 'none' }}
+            type="button"
+            className="task-detail-comment-tab"
           >
             评论
           </button>
-          <button
-            onClick={() => setActiveTab('subtasks')}
-            className={clsx(
-              'flex-1 px-4 py-3 text-base font-semibold transition-colors rounded-t-lg',
-              'border-0 outline-none focus:outline-none focus:ring-0 focus:ring-offset-0',
-              activeTab === 'subtasks'
-                ? 'text-primary'
-                : 'text-foreground-secondary hover:text-foreground'
-            )}
-            style={{ border: 'none' }}
-          >
-            子待办 {todo.children && todo.children.length > 0 && `(${todo.children.length})`}
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={clsx(
-              'flex-1 px-4 py-3 text-base font-semibold transition-colors rounded-t-lg',
-              'border-0 outline-none focus:outline-none focus:ring-0 focus:ring-offset-0',
-              activeTab === 'history'
-                ? 'text-primary'
-                : 'text-foreground-secondary hover:text-foreground'
-            )}
-            style={{ border: 'none' }}
-          >
-            状态历史
-          </button>
         </div>
         
-        {/* Tab 分隔线 */}
         <div className="border-b" style={{ borderBottomWidth: '0.5px', borderBottomColor: 'var(--color-divider)' }}></div>
         
-        {/* Tab 内容 */}
         <div className="p-6">
-          {activeTab === 'comments' && (
-            <CommentSection
-              taskId={todo.id}
-              taskInfo={{
-                id: todo.id,
-                creatorId: todo.creatorId,
-                assigneeId: todo.assigneeId,
-                status: todo.status,
-                projectId: todo.projectId
-              }}
-              members={Array.isArray(members) ? members : []}
-              currentUserId={currentUserId}
-              currentUserRole={currentUserRole}
-              isProjectMember={!!currentUserMember}
-              projectId={projectId}
-              onCommentAdded={handleCommentAdded}
-            />
-          )}
-          
-          {activeTab === 'subtasks' && (
-            <SubtaskList
-              subtasks={todo.children || []}
-              projectId={projectId}
-              parentTaskId={todo.id}
-              onCreateSubtask={handleCreateSubtask}
-              onStatusChange={handleSubtaskStatusChange}
-              onSubtaskClick={onNavigateToSubtask}
-              members={Array.isArray(members) ? members : []}
-              currentUserId={currentUserId}
-              currentUserRole={currentUserRole}
-              canAssignAssignee={canEditAssignee}
-              onUpdateAssignee={handleSubtaskAssigneeUpdate}
-              canEditPriority={canEditPriority}
-              onUpdatePriority={handleSubtaskPriorityUpdate}
-              canEditTags={canEditTags}
-              onUpdateTags={handleSubtaskTagsUpdate}
-            />
-          )}
-          
-          {activeTab === 'history' && (
-            <>
-              {historyLoading ? (
-                <div className="text-sm text-foreground-secondary">加载状态历史中...</div>
-              ) : (
-                <StatusHistory history={history || []} lastUpdatedAt={todo.updatedAt} />
-              )}
-            </>
-          )}
+          <CommentSection
+            taskId={todo.id}
+            taskInfo={{
+              id: todo.id,
+              creatorId: todo.creatorId,
+              assigneeId: todo.assigneeId,
+              status: todo.status,
+              projectId: todo.projectId
+            }}
+            members={Array.isArray(members) ? members : []}
+            currentUserId={currentUserId}
+            currentUserRole={currentUserRole}
+            isProjectMember={!!currentUserMember}
+            projectId={projectId}
+            onCommentAdded={handleCommentAdded}
+          />
         </div>
       </div>
 
@@ -1172,16 +848,156 @@ export function TaskDetailContent({
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteConfirm(false)}
       />
-      
-      {/* 创建子待办对话框 */}
-      <CreateTaskDialog
-        open={createSubtaskDialogOpen}
-        onClose={() => setCreateSubtaskDialogOpen(false)}
-        projectId={projectId}
-        parentId={todo.id}
-        onSuccess={handleCreateSubtaskSuccess}
-      />
     </div>
+  )
+}
+
+function useDetailMenuDismiss(menuRef: RefObject<HTMLDivElement>, onClose: () => void) {
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (menuRef.current && event.target instanceof Node && !menuRef.current.contains(event.target)) {
+        onClose()
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menuRef, onClose])
+}
+
+function TaskDetailAssigneeControl({
+  open,
+  disabled,
+  updating,
+  members,
+  assigneeId,
+  assigneeName,
+  assigneeAvatar,
+  onToggle,
+  onClose,
+  onChange,
+}: {
+  open: boolean
+  disabled: boolean
+  updating: boolean
+  members: any[]
+  assigneeId: number | null
+  assigneeName: string
+  assigneeAvatar?: string | null
+  onToggle: () => void
+  onClose: () => void
+  onChange: (assigneeId: number | null) => void | Promise<void>
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  useDetailMenuDismiss(menuRef, onClose)
+
+  return (
+    <span
+      className="task-detail-property-control"
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        className={clsx('task-detail-summary-chip', open && 'is-active')}
+        aria-label={`切换执行者：${assigneeName}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={disabled}
+        onClick={onToggle}
+      >
+        {assigneeId ? (
+          <span className="task-detail-assignee-avatar">
+            <Avatar
+              user={{
+                username: assigneeName,
+                avatar: assigneeAvatar || undefined,
+              }}
+              size="sm"
+            />
+          </span>
+        ) : (
+          <span className="task-list-assignee is-empty" aria-label="未分配" />
+        )}
+        <span>{assigneeName}</span>
+      </button>
+
+      {open && (
+        <div className="task-linear-menu task-detail-assignee-menu" ref={menuRef} role="menu" aria-label="切换执行者">
+          <div className="task-linear-menu-options">
+            <button
+              className={clsx('task-linear-menu-option task-detail-assignee-option', !assigneeId && 'is-active')}
+              type="button"
+              role="menuitemradio"
+              aria-checked={!assigneeId}
+              disabled={updating}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (!assigneeId) {
+                  onClose()
+                  return
+                }
+                void onChange(null)
+              }}
+            >
+              <span className="task-list-assignee is-empty" aria-hidden="true" />
+              <span className="task-detail-assignee-name">未分配</span>
+              <span className="task-detail-assignee-check">{!assigneeId ? '✓' : ''}</span>
+              <kbd>0</kbd>
+            </button>
+
+            {members.map((member: any, index: number) => {
+              const memberId = member.user_id
+              const memberUsername = member.username || member.user?.username || '未知用户'
+              const memberAvatar = member.avatar || member.user?.avatar
+              const isActive = assigneeId === memberId
+
+              return (
+                <button
+                  className={clsx('task-linear-menu-option task-detail-assignee-option', isActive && 'is-active')}
+                  key={memberId}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={isActive}
+                  disabled={updating}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (isActive) {
+                      onClose()
+                      return
+                    }
+                    void onChange(memberId)
+                  }}
+                >
+                  <span className="task-detail-assignee-avatar">
+                    <Avatar
+                      user={{
+                        username: memberUsername,
+                        avatar: memberAvatar,
+                      }}
+                      size="sm"
+                    />
+                  </span>
+                  <span className="task-detail-assignee-name">{memberUsername}</span>
+                  <span className="task-detail-assignee-check">{isActive ? '✓' : ''}</span>
+                  <kbd>{index + 1}</kbd>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </span>
   )
 }
 
@@ -1215,14 +1031,6 @@ function EditIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-    </svg>
-  )
-}
-
-function RelationIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true">
-      <path d="M608 128a48 48 0 0 1 48 48V368a48 48 0 0 1-48 48H530.112v54.016h253.568c9.92 0 17.92 8.064 17.92 17.92v120.064h46.592c26.496 0 48 21.44 47.872 48v192a48 48 0 0 1-48 47.936h-192a48 48 0 0 1-48-48v-192a48 48 0 0 1 48-48h109.632V506.112H258.56V608h109.44a48 48 0 0 1 48 48v191.872a48 48 0 0 1-48 48h-192a48 48 0 0 1-48-48v-192a48 48 0 0 1 48-48h46.592V487.936c0-9.92 8.064-17.92 17.984-17.92h253.44v-54.08H416.128a48 48 0 0 1-48-48v-192A48 48 0 0 1 416.064 128z m-275.2 534.4H211.2a28.8 28.8 0 0 0-28.8 28.8v121.6c0 15.936 12.864 28.8 28.8 28.8h121.6a28.8 28.8 0 0 0 28.8-28.8v-121.6a28.8 28.8 0 0 0-28.8-28.8z m476.8 0h-115.2a32 32 0 0 0-32 32v115.2a32 32 0 0 0 32 32h115.2a32 32 0 0 0 32-32v-115.2a32 32 0 0 0-32-32zM571.52 185.6h-115.2a32 32 0 0 0-32 32v115.2a32 32 0 0 0 32 32h115.2a32 32 0 0 0 32-32V217.6a32 32 0 0 0-32-32z" />
     </svg>
   )
 }

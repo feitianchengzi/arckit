@@ -5,6 +5,7 @@
 import { apiClient } from '../client'
 import { handleResponse } from '../interceptors/response'
 import { statusToState } from '@/lib/utils/taskMapper'
+import { getDefaultTaskTimeFilters } from '@/lib/utils/taskDateRange'
 import type { Task, TodoStatus } from '@/types'
 import type { ApiMeta } from '@/types/api'
 
@@ -59,6 +60,104 @@ const serializeArrayParam = (values?: Array<string | number>) => {
   return values.join(',')
 }
 
+const applyTaskListFilters = (params: Record<string, any>, filters?: TaskListFilters) => {
+  const stateParam = filters?.status ? serializeArrayParam(filters.status.map(statusToState)) : undefined
+  if (stateParam !== undefined) {
+    params.state = stateParam
+  }
+  const creatorParam = serializeArrayParam(filters?.creatorIds)
+  if (creatorParam !== undefined) {
+    params.creator_id = creatorParam
+  }
+  const executorParam = serializeArrayParam(filters?.executorIds)
+  if (executorParam !== undefined) {
+    params.executor_id = executorParam
+  }
+  const tagsParam = serializeArrayParam(filters?.tagIds)
+  if (tagsParam !== undefined) {
+    params.tags = tagsParam
+  }
+  const priorityParam = serializeArrayParam(filters?.priorities)
+  if (priorityParam !== undefined) {
+    params.priority = priorityParam
+  }
+  if (filters?.startTime) {
+    params.start_time = filters.startTime
+  }
+  if (filters?.endTime) {
+    params.end_time = filters.endTime
+  }
+  if (filters?.searchKey) {
+    params.search_key = filters.searchKey
+  }
+  if (filters?.updatedAfter) {
+    params.updated_after = filters.updatedAfter
+  }
+  if (filters?.fatherId !== undefined) {
+    params.father_id = filters.fatherId
+  }
+  if (filters?.includeDeleted !== undefined) {
+    params.include_deleted = filters.includeDeleted
+  }
+}
+
+const parseTaskListResponse = (
+  response: any,
+  fallbackPage = 1,
+  fallbackPageSize = 0
+): TaskListResult => {
+  const responseData = response.data
+  let tasks: Task[] = []
+  let total = 0
+  let meta: ApiMeta = {
+    page: fallbackPage,
+    page_size: fallbackPageSize,
+    total: 0,
+  }
+
+  if (responseData?.code === 'OK' && responseData?.data !== undefined) {
+    const data = responseData.data
+
+    if (data && typeof data === 'object' && 'tasks' in data && Array.isArray(data.tasks)) {
+      tasks = data.tasks
+      total = typeof data.total === 'number' ? data.total : tasks.length
+    } else if (Array.isArray(data)) {
+      tasks = data
+      total = tasks.length
+    }
+
+    if (responseData?.meta) {
+      meta = responseData.meta as ApiMeta
+      if (typeof meta.total !== 'number') {
+        meta.total = total
+      }
+    } else {
+      meta = {
+        page: fallbackPage,
+        page_size: fallbackPageSize || tasks.length,
+        total,
+      }
+    }
+
+    return { tasks, meta, total }
+  }
+
+  const data = handleResponse<any>(response)
+  if (data && typeof data === 'object' && 'tasks' in data && Array.isArray(data.tasks)) {
+    tasks = data.tasks
+    total = typeof data.total === 'number' ? data.total : tasks.length
+  } else if (Array.isArray(data)) {
+    tasks = data
+    total = tasks.length
+  }
+  meta = {
+    page: fallbackPage,
+    page_size: fallbackPageSize || tasks.length,
+    total,
+  }
+  return { tasks, meta, total }
+}
+
 export const tasksApi = {
   /**
    * 获取项目的任务列表
@@ -74,44 +173,7 @@ export const tasksApi = {
       project_id: projectId,
     }
 
-    const stateParam = filters?.status ? serializeArrayParam(filters.status.map(statusToState)) : undefined
-    if (stateParam !== undefined) {
-      params.state = stateParam
-    }
-    const creatorParam = serializeArrayParam(filters?.creatorIds)
-    if (creatorParam !== undefined) {
-      params.creator_id = creatorParam
-    }
-    const executorParam = serializeArrayParam(filters?.executorIds)
-    if (executorParam !== undefined) {
-      params.executor_id = executorParam
-    }
-    const tagsParam = serializeArrayParam(filters?.tagIds)
-    if (tagsParam !== undefined) {
-      params.tags = tagsParam
-    }
-    const priorityParam = serializeArrayParam(filters?.priorities)
-    if (priorityParam !== undefined) {
-      params.priority = priorityParam
-    }
-    if (filters?.startTime) {
-      params.start_time = filters.startTime
-    }
-    if (filters?.endTime) {
-      params.end_time = filters.endTime
-    }
-    if (filters?.searchKey) {
-      params.search_key = filters.searchKey
-    }
-    if (filters?.updatedAfter) {
-      params.updated_after = filters.updatedAfter
-    }
-    if (filters?.fatherId !== undefined) {
-      params.father_id = filters.fatherId
-    }
-    if (filters?.includeDeleted !== undefined) {
-      params.include_deleted = filters.includeDeleted
-    }
+    applyTaskListFilters(params, filters)
     if (options?.page) {
       params.page = options.page
     }
@@ -122,57 +184,8 @@ export const tasksApi = {
     console.log('📋 获取项目任务列表，项目ID:', projectId, '筛选:', params)
     const response = await apiClient.get(`/user/tasks`, { params })
 
-    const responseData = response.data
-    let tasks: Task[] = []
-    let total = 0
-    let meta: ApiMeta = {
-      page: options?.page || 1,
-      page_size: options?.pageSize || 0,
-      total: 0,
-    }
-
-    if (responseData?.code === 'OK' && responseData?.data !== undefined) {
-      const data = responseData.data
-
-      if (data && typeof data === 'object' && 'tasks' in data && Array.isArray(data.tasks)) {
-        tasks = data.tasks
-        total = typeof data.total === 'number' ? data.total : tasks.length
-      } else if (Array.isArray(data)) {
-        tasks = data
-        total = tasks.length
-      }
-
-      if (responseData?.meta) {
-        meta = responseData.meta as ApiMeta
-        if (typeof meta.total !== 'number') {
-          meta.total = total
-        }
-      } else {
-        meta = {
-          page: options?.page || 1,
-          page_size: options?.pageSize || tasks.length,
-          total,
-        }
-      }
-
-      return { tasks, meta, total }
-    }
-
     try {
-      const data = handleResponse<any>(response)
-      if (data && typeof data === 'object' && 'tasks' in data && Array.isArray(data.tasks)) {
-        tasks = data.tasks
-        total = typeof data.total === 'number' ? data.total : tasks.length
-      } else if (Array.isArray(data)) {
-        tasks = data
-        total = tasks.length
-      }
-      meta = {
-        page: options?.page || 1,
-        page_size: options?.pageSize || tasks.length,
-        total,
-      }
-      return { tasks, meta, total }
+      return parseTaskListResponse(response, options?.page || 1, options?.pageSize || 0)
     } catch (error) {
       console.error('❌ 解析任务列表失败:', error)
       return {
@@ -180,6 +193,49 @@ export const tasksApi = {
         meta: {
           page: options?.page || 1,
           page_size: options?.pageSize || 0,
+          total: 0,
+        },
+        total: 0,
+      }
+    }
+  },
+
+  /**
+   * 获取项目任务层级
+   * 后端路由: GET /workshop/v1/user/tasks/tree?project_id={projectId}&start_time=...&end_time=...
+   * 注意：该接口必须传时间范围，且不分页，避免父子任务在分页后被拆散。
+   */
+  listTreeByProject: async (projectId: string, options?: TaskListOptions): Promise<TaskListResult> => {
+    const defaultTimeFilters = getDefaultTaskTimeFilters()
+    const filters = {
+      ...options?.filters,
+      startTime: options?.filters?.startTime || defaultTimeFilters.startTime,
+      endTime: options?.filters?.endTime || defaultTimeFilters.endTime,
+    }
+    const params: Record<string, any> = {
+      project_id: projectId,
+    }
+
+    applyTaskListFilters(params, filters)
+
+    console.log('🌳 获取项目任务层级，项目ID:', projectId, '筛选:', params)
+    const response = await apiClient.get(`/user/tasks/tree`, { params })
+
+    try {
+      const result = parseTaskListResponse(response, 1, 0)
+      result.meta = {
+        page: 1,
+        page_size: result.total,
+        total: result.total,
+      }
+      return result
+    } catch (error) {
+      console.error('❌ 解析任务层级失败:', error)
+      return {
+        tasks: [],
+        meta: {
+          page: 1,
+          page_size: 0,
           total: 0,
         },
         total: 0,
