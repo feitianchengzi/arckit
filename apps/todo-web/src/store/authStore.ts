@@ -24,7 +24,7 @@ interface AuthState {
   isLoading: boolean
 
   // Actions
-  setAuth: (tokens: TokenInfo) => void
+  setAuth: (tokens: TokenInfo, account?: { value: string; type: 'email' | 'sms' }) => void
   setUser: (user: TodoUser) => void
   logout: () => void
   checkAuth: () => boolean
@@ -45,7 +45,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    * 设置认证信息（登录时调用）
    * 注意：不再保存 userId，网关会自动从 Token 中解析
    */
-  setAuth: (tokens: TokenInfo) => {
+  setAuth: (tokens: TokenInfo, account?: { value: string; type: 'email' | 'sms' }) => {
     const now = Date.now()
     saveAuthInfo({
       accessToken: tokens.access_token,
@@ -54,6 +54,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       tokenExpiresIn: tokens.expires_in,
       refreshTokenObtainedAt: now,
       refreshExpiresIn: tokens.refresh_expires_in,
+      account: account?.value,
+      accountType: account?.type,
     })
 
     set({ isAuthenticated: true })
@@ -70,6 +72,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         ...authInfo,
         username: user.username,
         avatarUrl: user.avatar,
+        account: authInfo.account,
+        accountType: authInfo.accountType,
       })
     }
 
@@ -205,6 +209,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           tokenExpiresIn: tokens.expires_in,
           refreshTokenObtainedAt: now,
           refreshExpiresIn: tokens.refresh_expires_in,
+          account: authInfo?.account,
+          accountType: authInfo?.accountType,
           username: authInfo?.username,
           avatarUrl: authInfo?.avatarUrl,
         })

@@ -40,10 +40,22 @@ export function useLogin() {
 
   return useMutation({
     mutationFn: (data: LoginRequest) => gatewayApi.login(data),
-    onSuccess: async (response) => {
+    onSuccess: async (response, variables) => {
 
       // 1. 保存认证信息（只需要保存 Token）
-      setAuth(response.data.tokens)
+      const inputAccount = variables.code_type === 'email' ? variables.email : variables.phone
+      const responseAccount = response.data.user?.email || response.data.user?.phone || ''
+      const account = (inputAccount || responseAccount).trim()
+
+      setAuth(
+        response.data.tokens,
+        account
+          ? {
+              value: account,
+              type: variables.code_type,
+            }
+          : undefined
+      )
 
       // 2. 登录成功后，检查是否有 redirect 参数
       // 从 URL 中获取 redirect 参数（如果存在）

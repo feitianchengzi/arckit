@@ -55,6 +55,12 @@
     caret-color: var(--color-foreground);
   }
 
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
   /* 常见点击控件不参与文本选中，避免误触时出现文本光标/选中文本 */
   button,
   [type="button"],

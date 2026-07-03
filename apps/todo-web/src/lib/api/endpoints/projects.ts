@@ -3,8 +3,9 @@
  */
 
 import { apiClient } from '../client'
-import { handleResponse, handlePaginatedResponse } from '../interceptors/response'
+import { handleResponse } from '../interceptors/response'
 import type { Project } from '@/types'
+import type { ApiMeta } from '@/types/api'
 
 export interface CreateProjectInput {
   name: string
@@ -18,6 +19,20 @@ export interface UpdateProjectInput {
   organization_id?: number
 }
 
+export interface ProjectListOptions {
+  organizationId?: number | null
+  includeDeleted?: boolean
+  page?: number
+  pageSize?: number
+  searchKey?: string
+}
+
+export interface ProjectListResult {
+  projects: Project[]
+  meta: ApiMeta
+  total: number
+}
+
 export const projectsApi = {
   /**
    * 获取当前用户的项目列表
@@ -25,35 +40,69 @@ export const projectsApi = {
    * 注意：根据API文档，不需要 user_id 参数，网关会自动识别当前用户
    * 响应格式: { code: 'OK', data: Project[] } 或 { code: 'OK', data: Project[], meta: {...} }
    */
-  list: async (options?: { organizationId?: number | null; includeDeleted?: boolean }): Promise<Project[]> => {
-    const params: Record<string, number | boolean> = {}
+  listPage: async (options?: ProjectListOptions): Promise<ProjectListResult> => {
+    const params: Record<string, number | boolean | string> = {}
     if (options?.includeDeleted !== undefined) {
       params.include_deleted = options.includeDeleted
     }
     if (options?.organizationId !== undefined) {
       params.organization_id = options.organizationId ?? 0
     }
+    if (options?.page) {
+      params.page = options.page
+    }
+    if (options?.pageSize) {
+      params.page_size = options.pageSize
+    }
+    if (options?.searchKey?.trim()) {
+      params.search_key = options.searchKey.trim()
+    }
     const response = await apiClient.get('/user/projects', { params })
+
+    const fallbackMeta = (projects: Project[], total = projects.length): ApiMeta => {
+      const requestedPage = options?.page || 1
+      const requestedPageSize = options?.pageSize || 0
+      const pageSize =
+        requestedPageSize > 0 && projects.length <= requestedPageSize
+          ? requestedPageSize
+          : projects.length
+
+      return {
+        page: requestedPage,
+        page_size: pageSize,
+        total,
+      }
+    }
     
     // 后端实际返回格式: { code: 'OK', data: { projects: [...], total: 3 } }
     const responseData = response.data
     if (responseData?.code === 'OK' && responseData?.data) {
       const data = responseData.data
+      let projects: Project[] = []
+      let total = 0
       
       // 检查是否是嵌套格式: { projects: [...], total: 3 }
       if (data && typeof data === 'object' && 'projects' in data && Array.isArray(data.projects)) {
-        return data.projects
+        projects = data.projects
+        total = typeof data.total === 'number' ? data.total : projects.length
+      } else if (Array.isArray(data)) {
+        projects = data
+        total = projects.length
       }
-      
-      // 检查是否是分页格式: { code: 'OK', data: [...], meta: {...} }
-      if (responseData?.meta) {
-        const { data: projects } = handlePaginatedResponse<Project>(response)
-        return Array.isArray(projects) ? projects : []
-      }
-      
-      // 普通数组格式: { code: 'OK', data: [...] }
-      if (Array.isArray(data)) {
-        return data
+
+      if (projects.length > 0 || Array.isArray(data)) {
+        const meta = responseData?.meta
+          ? (responseData.meta as ApiMeta)
+          : fallbackMeta(projects, total)
+
+        return {
+          projects,
+          meta: {
+            ...meta,
+            total: typeof meta.total === 'number' ? meta.total : total,
+          },
+          total: typeof meta.total === 'number' ? meta.total : total,
+        }
       }
     }
     
@@ -62,18 +111,40 @@ export const projectsApi = {
       const data = handleResponse<any>(response)
       // 如果返回的是对象，尝试提取 projects 字段
       if (data && typeof data === 'object' && 'projects' in data && Array.isArray(data.projects)) {
-        return data.projects
+        const total = typeof data.total === 'number' ? data.total : data.projects.length
+        return {
+          projects: data.projects,
+          meta: fallbackMeta(data.projects, total),
+          total,
+        }
       }
       // 如果是数组，直接返回
       if (Array.isArray(data)) {
-        return data
+        return {
+          projects: data,
+          meta: fallbackMeta(data),
+          total: data.length,
+        }
       }
       console.warn('⚠️ 无法解析项目列表格式:', data)
-      return []
+      return {
+        projects: [],
+        meta: fallbackMeta([]),
+        total: 0,
+      }
     } catch (error) {
       console.error('❌ 解析项目列表失败:', error)
-      return []
+      return {
+        projects: [],
+        meta: fallbackMeta([]),
+        total: 0,
+      }
     }
+  },
+
+  list: async (options?: ProjectListOptions): Promise<Project[]> => {
+    const { projects } = await projectsApi.listPage(options)
+    return projects
   },
   
   /**
@@ -83,7 +154,7 @@ export const projectsApi = {
    * 创建者自动成为项目所有者（owner）
    * 响应格式: { code: 'OK', data: Project }
    */
-  create: async (input: CreateProjectInput, userId?: number): Promise<Project> => {
+  create: async (input: CreateProjectInput, _userId?: number): Promise<Project> => {
     // 根据API文档，不需要 user_id 参数，网关会自动识别用户
     console.log('🆕 创建项目:', input)
     const response = await apiClient.post('/user/projects', input)
@@ -174,7 +245,7 @@ export const projectsApi = {
     console.log('🗑️ [删除成员] 请求体:', JSON.stringify({ target_user_id: targetUserId }))
     
     try {
-      const response = await apiClient.delete(`/user/projects/${projectId}/members`, {
+      await apiClient.delete(`/user/projects/${projectId}/members`, {
         data: { target_user_id: targetUserId }, // 请求体
       })
     } catch (error: any) {

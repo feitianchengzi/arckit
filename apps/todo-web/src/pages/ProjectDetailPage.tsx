@@ -1184,7 +1184,10 @@ export default function ProjectDetailPage() {
     try {
       setIsDeleting(true) // 立即禁用待办列表查询，防止继续请求
       setShowDeleteConfirm(false) // 先关闭对话框
-      await deleteProject.mutateAsync(projectIdParam)
+      await deleteProject.mutateAsync({
+        projectId: projectIdParam,
+        organizationId: project.organization_id ?? null,
+      })
       // 删除成功后会通过 useDeleteProject hook 自动跳转到项目列表
     } catch (error) {
       console.error('删除项目失败:', error)
