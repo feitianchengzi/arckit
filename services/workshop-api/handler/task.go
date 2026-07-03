@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -814,6 +815,146 @@ func buildTasksQuery(db *gorm.DB, req GetTasksRequest, params *taskQueryParams) 
 	return baseQuery
 }
 
+func buildTaskLineageQuery(db *gorm.DB, req GetTasksRequest) *gorm.DB {
+	query := db.Model(&models.Task{}).Where("project_id = ?", req.ProjectID)
+	if req.IncludeDeleted {
+		query = query.Unscoped()
+	}
+	return query
+}
+
+func addTaskIfMissing(tasksByID map[uint]models.Task, task models.Task) {
+	if _, exists := tasksByID[task.ID]; exists {
+		return
+	}
+	tasksByID[task.ID] = task
+}
+
+func collectTaskAncestors(db *gorm.DB, req GetTasksRequest, tasksByID map[uint]models.Task, matchedTasks []models.Task) error {
+	pendingParentIDs := make([]uint, 0, len(matchedTasks))
+	queuedParentIDs := make(map[uint]bool)
+	for _, task := range matchedTasks {
+		if task.FatherID == nil || queuedParentIDs[*task.FatherID] {
+			continue
+		}
+		pendingParentIDs = append(pendingParentIDs, *task.FatherID)
+		queuedParentIDs[*task.FatherID] = true
+	}
+
+	visitedParentIDs := make(map[uint]bool)
+	for len(pendingParentIDs) > 0 {
+		fetchParentIDs := make([]uint, 0, len(pendingParentIDs))
+		nextParentIDs := make([]uint, 0)
+
+		for _, parentID := range pendingParentIDs {
+			if visitedParentIDs[parentID] {
+				continue
+			}
+			visitedParentIDs[parentID] = true
+
+			if parentTask, exists := tasksByID[parentID]; exists {
+				if parentTask.FatherID != nil && !queuedParentIDs[*parentTask.FatherID] {
+					nextParentIDs = append(nextParentIDs, *parentTask.FatherID)
+					queuedParentIDs[*parentTask.FatherID] = true
+				}
+				continue
+			}
+			fetchParentIDs = append(fetchParentIDs, parentID)
+		}
+
+		if len(fetchParentIDs) > 0 {
+			var parentTasks []models.Task
+			if err := buildTaskLineageQuery(db, req).
+				Where("id IN ?", fetchParentIDs).
+				Find(&parentTasks).Error; err != nil {
+				return err
+			}
+			for _, parentTask := range parentTasks {
+				addTaskIfMissing(tasksByID, parentTask)
+				if parentTask.FatherID != nil && !queuedParentIDs[*parentTask.FatherID] {
+					nextParentIDs = append(nextParentIDs, *parentTask.FatherID)
+					queuedParentIDs[*parentTask.FatherID] = true
+				}
+			}
+		}
+
+		pendingParentIDs = nextParentIDs
+	}
+
+	return nil
+}
+
+func collectTaskDescendants(db *gorm.DB, req GetTasksRequest, tasksByID map[uint]models.Task, matchedTasks []models.Task) error {
+	pendingParentIDs := make([]uint, 0, len(matchedTasks))
+	for _, task := range matchedTasks {
+		pendingParentIDs = append(pendingParentIDs, task.ID)
+	}
+
+	expandedParentIDs := make(map[uint]bool)
+	for len(pendingParentIDs) > 0 {
+		fetchParentIDs := make([]uint, 0, len(pendingParentIDs))
+		for _, parentID := range pendingParentIDs {
+			if expandedParentIDs[parentID] {
+				continue
+			}
+			expandedParentIDs[parentID] = true
+			fetchParentIDs = append(fetchParentIDs, parentID)
+		}
+		if len(fetchParentIDs) == 0 {
+			break
+		}
+
+		var childTasks []models.Task
+		if err := buildTaskLineageQuery(db, req).
+			Where("father_id IN ?", fetchParentIDs).
+			Order("updated_at DESC").
+			Order("id DESC").
+			Find(&childTasks).Error; err != nil {
+			return err
+		}
+
+		nextParentIDs := make([]uint, 0, len(childTasks))
+		for _, childTask := range childTasks {
+			addTaskIfMissing(tasksByID, childTask)
+			nextParentIDs = append(nextParentIDs, childTask.ID)
+		}
+		pendingParentIDs = nextParentIDs
+	}
+
+	return nil
+}
+
+func expandTaskLineage(db *gorm.DB, req GetTasksRequest, matchedTasks []models.Task) ([]models.Task, error) {
+	if len(matchedTasks) == 0 {
+		return []models.Task{}, nil
+	}
+
+	tasksByID := make(map[uint]models.Task, len(matchedTasks))
+	for _, task := range matchedTasks {
+		addTaskIfMissing(tasksByID, task)
+	}
+
+	if err := collectTaskAncestors(db, req, tasksByID, matchedTasks); err != nil {
+		return nil, err
+	}
+	if err := collectTaskDescendants(db, req, tasksByID, matchedTasks); err != nil {
+		return nil, err
+	}
+
+	tasks := make([]models.Task, 0, len(tasksByID))
+	for _, task := range tasksByID {
+		tasks = append(tasks, task)
+	}
+	sort.SliceStable(tasks, func(i, j int) bool {
+		if tasks[i].UpdatedAt.Equal(tasks[j].UpdatedAt) {
+			return tasks[i].ID > tasks[j].ID
+		}
+		return tasks[i].UpdatedAt.After(tasks[j].UpdatedAt)
+	})
+
+	return tasks, nil
+}
+
 func taskToResponse(task models.Task) TaskResponse {
 	var completionAt *string
 	if task.CompletionAt != nil {
@@ -1050,7 +1191,7 @@ func GetTaskTree(c *gin.Context) {
 		return
 	}
 
-	// 6. 查询任务并组装父子层级
+	// 6. 查询命中任务，并围绕命中任务补全其上游父链和下游子树
 	baseQuery := buildTasksQuery(db, req, queryParams)
 	var total int64
 	countQuery := baseQuery.Session(&gorm.Session{})
@@ -1064,9 +1205,14 @@ func GetTaskTree(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
 		return
 	}
+	lineageTasks, err := expandTaskLineage(db, req, tasks)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务层级失败: "+err.Error(), nil))
+		return
+	}
 
 	resp := GetTaskTreeResponse{
-		Tasks: buildTaskTree(tasks),
+		Tasks: buildTaskTree(lineageTasks),
 		Total: total,
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
