@@ -572,10 +572,43 @@ type TaskResponse struct {
 	DeletedAt    *string `json:"deleted_at,omitempty"` // 删除时间（如果存在）
 }
 
+// TaskTreeResponse 带子任务层级的任务响应结构
+type TaskTreeResponse struct {
+	TaskResponse
+	Children []TaskTreeResponse `json:"children"` // 子任务列表
+}
+
 // GetTasksResponse 查询任务响应结构
 type GetTasksResponse struct {
 	Tasks []TaskResponse `json:"tasks"` // 任务列表
 	Total int64          `json:"total"` // 任务总数
+}
+
+// GetTaskTreeResponse 查询任务层级响应结构
+type GetTaskTreeResponse struct {
+	Tasks []TaskTreeResponse `json:"tasks"` // 顶层任务列表，每个任务包含children
+	Total int64              `json:"total"` // 匹配过滤条件的任务总数
+}
+
+type taskQueryParams struct {
+	UpdatedAfter *time.Time
+	StartTime    *time.Time
+	EndTime      *time.Time
+	States       []string
+	CreatorIDs   []uint
+	ExecutorIDs  []uint
+	Tags         []string
+	Priorities   []int
+	SearchKey    string
+}
+
+type taskQueryParamError struct {
+	Code    string
+	Message string
+}
+
+func (e taskQueryParamError) Error() string {
+	return e.Message
 }
 
 func parseISOTime(value string) (*time.Time, error) {
@@ -653,6 +686,222 @@ func parseIntList(values []string) ([]int, error) {
 	return out, nil
 }
 
+func parseTaskQueryParams(req GetTasksRequest) (*taskQueryParams, *taskQueryParamError) {
+	updatedAfter, err := parseISOTime(req.UpdatedAfter)
+	if err != nil {
+		return nil, &taskQueryParamError{
+			Code:    response.CodeBadRequest,
+			Message: "无效的更新时间格式，请使用ISO 8601格式（例如：2024-01-01T12:00:00Z）",
+		}
+	}
+
+	startTime, err := parseISOTime(req.StartTime)
+	if err != nil {
+		return nil, &taskQueryParamError{
+			Code:    response.CodeBadRequest,
+			Message: "无效的开始时间格式，请使用ISO 8601格式（例如：2024-01-01T12:00:00Z）",
+		}
+	}
+	endTime, err := parseISOTime(req.EndTime)
+	if err != nil {
+		return nil, &taskQueryParamError{
+			Code:    response.CodeBadRequest,
+			Message: "无效的结束时间格式，请使用ISO 8601格式（例如：2024-01-01T12:00:00Z）",
+		}
+	}
+	if startTime != nil && endTime != nil && endTime.Before(*startTime) {
+		return nil, &taskQueryParamError{
+			Code:    response.CodeBadRequest,
+			Message: "结束时间不能早于开始时间",
+		}
+	}
+
+	states := splitAndTrim(req.States)
+	if len(states) > 0 {
+		for _, state := range states {
+			if !models.IsValidState(state) {
+				return nil, &taskQueryParamError{
+					Code:    response.CodeTaskInvalidState,
+					Message: fmt.Sprintf("无效的任务状态: %s", state),
+				}
+			}
+		}
+	}
+
+	creatorIDs, err := parseUintList(req.CreatorIDs)
+	if err != nil {
+		return nil, &taskQueryParamError{
+			Code:    response.CodeBadRequest,
+			Message: "creator_id 参数格式错误",
+		}
+	}
+	executorIDs, err := parseUintList(req.ExecutorIDs)
+	if err != nil {
+		return nil, &taskQueryParamError{
+			Code:    response.CodeBadRequest,
+			Message: "executor_id 参数格式错误",
+		}
+	}
+	priorities, err := parseIntList(req.Priorities)
+	if err != nil {
+		return nil, &taskQueryParamError{
+			Code:    response.CodeBadRequest,
+			Message: "priority 参数格式错误",
+		}
+	}
+
+	return &taskQueryParams{
+		UpdatedAfter: updatedAfter,
+		StartTime:    startTime,
+		EndTime:      endTime,
+		States:       states,
+		CreatorIDs:   creatorIDs,
+		ExecutorIDs:  executorIDs,
+		Tags:         splitAndTrim(req.Tags),
+		Priorities:   priorities,
+		SearchKey:    strings.TrimSpace(req.SearchKey),
+	}, nil
+}
+
+func buildTasksQuery(db *gorm.DB, req GetTasksRequest, params *taskQueryParams) *gorm.DB {
+	baseQuery := db.Model(&models.Task{}).Where("project_id = ?", req.ProjectID)
+
+	if req.IncludeDeleted {
+		baseQuery = baseQuery.Unscoped()
+	}
+
+	if params.UpdatedAfter != nil {
+		baseQuery = baseQuery.Where("updated_at > ?", *params.UpdatedAfter)
+	}
+	if params.StartTime != nil {
+		baseQuery = baseQuery.Where("created_at >= ?", *params.StartTime)
+	}
+	if params.EndTime != nil {
+		baseQuery = baseQuery.Where("created_at <= ?", *params.EndTime)
+	}
+	if len(params.States) > 0 {
+		baseQuery = baseQuery.Where("state IN ?", params.States)
+	}
+	if len(params.CreatorIDs) > 0 {
+		baseQuery = baseQuery.Where("creator_id IN ?", params.CreatorIDs)
+	}
+	if len(params.ExecutorIDs) > 0 {
+		baseQuery = baseQuery.Where("executor_id IN ?", params.ExecutorIDs)
+	}
+	if len(params.Priorities) > 0 {
+		baseQuery = baseQuery.Where("priority IN ?", params.Priorities)
+	}
+	if len(params.Tags) > 0 {
+		tagConditions := make([]string, 0, len(params.Tags))
+		tagArgs := make([]interface{}, 0, len(params.Tags))
+		for _, tag := range params.Tags {
+			tagConditions = append(tagConditions, "tags LIKE ?")
+			tagArgs = append(tagArgs, "%"+tag+"%")
+		}
+		baseQuery = baseQuery.Where("("+strings.Join(tagConditions, " OR ")+")", tagArgs...)
+	}
+	if params.SearchKey != "" {
+		baseQuery = baseQuery.Where("content LIKE ?", "%"+params.SearchKey+"%")
+	}
+	if req.FatherID != nil {
+		if *req.FatherID == 0 {
+			baseQuery = baseQuery.Where("father_id IS NULL")
+		} else {
+			baseQuery = baseQuery.Where("father_id = ?", *req.FatherID)
+		}
+	}
+
+	return baseQuery
+}
+
+func taskToResponse(task models.Task) TaskResponse {
+	var completionAt *string
+	if task.CompletionAt != nil {
+		completionAtStr := task.CompletionAt.Format("2006-01-02T15:04:05Z07:00")
+		completionAt = &completionAtStr
+	}
+
+	var deletedAt *string
+	if task.DeletedAt.Valid {
+		deletedAtStr := task.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+		deletedAt = &deletedAtStr
+	}
+
+	return TaskResponse{
+		ID:           task.ID,
+		ProjectID:    task.ProjectID,
+		FatherID:     task.FatherID,
+		Content:      task.Content,
+		State:        task.State,
+		CreatorID:    task.CreatorID,
+		ExecutorID:   task.ExecutorID,
+		Priority:     task.Priority,
+		Tags:         task.Tags,
+		CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		CompletionAt: completionAt,
+		DeletedAt:    deletedAt,
+	}
+}
+
+func taskToTreeResponse(task models.Task) TaskTreeResponse {
+	return TaskTreeResponse{
+		TaskResponse: taskToResponse(task),
+		Children:     make([]TaskTreeResponse, 0),
+	}
+}
+
+func buildTaskTree(tasks []models.Task) []TaskTreeResponse {
+	nodes := make(map[uint]TaskTreeResponse, len(tasks))
+	taskOrder := make([]uint, 0, len(tasks))
+	for _, task := range tasks {
+		nodes[task.ID] = taskToTreeResponse(task)
+		taskOrder = append(taskOrder, task.ID)
+	}
+
+	childrenByParent := make(map[uint][]uint)
+	rootIDs := make([]uint, 0)
+	for _, task := range tasks {
+		if task.FatherID != nil {
+			if _, ok := nodes[*task.FatherID]; ok {
+				childrenByParent[*task.FatherID] = append(childrenByParent[*task.FatherID], task.ID)
+				continue
+			}
+		}
+		rootIDs = append(rootIDs, task.ID)
+	}
+
+	visited := make(map[uint]bool, len(tasks))
+	var buildNode func(id uint, stack map[uint]bool) TaskTreeResponse
+	buildNode = func(id uint, stack map[uint]bool) TaskTreeResponse {
+		node := nodes[id]
+		if stack[id] {
+			return node
+		}
+		stack[id] = true
+		childIDs := childrenByParent[id]
+		node.Children = make([]TaskTreeResponse, 0, len(childIDs))
+		for _, childID := range childIDs {
+			node.Children = append(node.Children, buildNode(childID, stack))
+		}
+		delete(stack, id)
+		visited[id] = true
+		return node
+	}
+
+	roots := make([]TaskTreeResponse, 0, len(rootIDs))
+	for _, rootID := range rootIDs {
+		roots = append(roots, buildNode(rootID, make(map[uint]bool)))
+	}
+	for _, taskID := range taskOrder {
+		if !visited[taskID] {
+			roots = append(roots, buildNode(taskID, make(map[uint]bool)))
+		}
+	}
+
+	return roots
+}
+
 // GetTasks 查询项目的所有任务
 // 认证级别: user (需要JWT认证)
 // 流程：
@@ -694,126 +943,13 @@ func GetTasks(c *gin.Context) {
 		return
 	}
 
-	// 5. 解析可选的updated_after参数
-	updatedAfter, err := parseISOTime(req.UpdatedAfter)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的更新时间格式，请使用ISO 8601格式（例如：2024-01-01T12:00:00Z）", nil))
+	// 5. 解析查询参数并构建查询条件
+	queryParams, paramErr := parseTaskQueryParams(req)
+	if paramErr != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(paramErr.Code, paramErr.Message, nil))
 		return
 	}
-
-	// 5.1 解析开始/结束时间（创建时间范围）
-	startTime, err := parseISOTime(req.StartTime)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的开始时间格式，请使用ISO 8601格式（例如：2024-01-01T12:00:00Z）", nil))
-		return
-	}
-	endTime, err := parseISOTime(req.EndTime)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的结束时间格式，请使用ISO 8601格式（例如：2024-01-01T12:00:00Z）", nil))
-		return
-	}
-	if startTime != nil && endTime != nil && endTime.Before(*startTime) {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "结束时间不能早于开始时间", nil))
-		return
-	}
-
-	// 5.2 解析状态/创建者/执行者/标签/优先级/搜索关键词
-	states := splitAndTrim(req.States)
-	if len(states) > 0 {
-		for _, state := range states {
-			if !models.IsValidState(state) {
-				c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeTaskInvalidState, fmt.Sprintf("无效的任务状态: %s", state), nil))
-				return
-			}
-		}
-	}
-
-	creatorIDs, err := parseUintList(req.CreatorIDs)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "creator_id 参数格式错误", nil))
-		return
-	}
-	executorIDs, err := parseUintList(req.ExecutorIDs)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "executor_id 参数格式错误", nil))
-		return
-	}
-	priorities, err := parseIntList(req.Priorities)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "priority 参数格式错误", nil))
-		return
-	}
-	tags := splitAndTrim(req.Tags)
-	searchKey := strings.TrimSpace(req.SearchKey)
-
-	// 6. 构建查询条件
-	baseQuery := db.Model(&models.Task{}).Where("project_id = ?", req.ProjectID)
-
-	// 如果 include_deleted 为 true，使用 Unscoped() 查询包含已删除的记录
-	if req.IncludeDeleted {
-		baseQuery = baseQuery.Unscoped()
-	}
-
-	// 如果提供了updated_after，添加时间过滤条件
-	if updatedAfter != nil {
-		baseQuery = baseQuery.Where("updated_at > ?", *updatedAfter)
-	}
-
-	// 如果提供了开始/结束时间，按创建时间过滤
-	if startTime != nil {
-		baseQuery = baseQuery.Where("created_at >= ?", *startTime)
-	}
-	if endTime != nil {
-		baseQuery = baseQuery.Where("created_at <= ?", *endTime)
-	}
-
-	// 如果提供了状态过滤
-	if len(states) > 0 {
-		baseQuery = baseQuery.Where("state IN ?", states)
-	}
-
-	// 如果提供了创建者过滤
-	if len(creatorIDs) > 0 {
-		baseQuery = baseQuery.Where("creator_id IN ?", creatorIDs)
-	}
-
-	// 如果提供了执行者过滤
-	if len(executorIDs) > 0 {
-		baseQuery = baseQuery.Where("executor_id IN ?", executorIDs)
-	}
-
-	// 如果提供了优先级过滤
-	if len(priorities) > 0 {
-		baseQuery = baseQuery.Where("priority IN ?", priorities)
-	}
-
-	// 如果提供了标签过滤（多选，任一标签匹配）
-	if len(tags) > 0 {
-		tagConditions := make([]string, 0, len(tags))
-		tagArgs := make([]interface{}, 0, len(tags))
-		for _, tag := range tags {
-			tagConditions = append(tagConditions, "tags LIKE ?")
-			tagArgs = append(tagArgs, "%"+tag+"%")
-		}
-		baseQuery = baseQuery.Where("("+strings.Join(tagConditions, " OR ")+")", tagArgs...)
-	}
-
-	// 如果提供了搜索关键词（匹配内容）
-	if searchKey != "" {
-		like := "%" + searchKey + "%"
-		baseQuery = baseQuery.Where("content LIKE ?", like)
-	}
-
-	// 如果提供了father_id，添加父任务ID过滤条件
-	if req.FatherID != nil {
-		if *req.FatherID == 0 {
-			// father_id为0，查询所有父任务ID为空的任务
-			baseQuery = baseQuery.Where("father_id IS NULL")
-		} else {
-			// father_id有值，查询指定父任务ID的任务
-			baseQuery = baseQuery.Where("father_id = ?", *req.FatherID)
-		}
-	}
+	baseQuery := buildTasksQuery(db, req, queryParams)
 
 	// 7. 解析分页参数
 	pagination, paginated := ParsePagination(c)
@@ -842,33 +978,7 @@ func GetTasks(c *gin.Context) {
 	// 10. 转换为响应格式
 	taskResponses := make([]TaskResponse, 0, len(tasks))
 	for _, task := range tasks {
-		var completionAt *string
-		if task.CompletionAt != nil {
-			completionAtStr := task.CompletionAt.Format("2006-01-02T15:04:05Z07:00")
-			completionAt = &completionAtStr
-		}
-
-		var deletedAt *string
-		if task.DeletedAt.Valid {
-			deletedAtStr := task.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
-			deletedAt = &deletedAtStr
-		}
-
-		taskResponses = append(taskResponses, TaskResponse{
-			ID:           task.ID,
-			ProjectID:    task.ProjectID,
-			FatherID:     task.FatherID,
-			Content:      task.Content,
-			State:        task.State,
-			CreatorID:    task.CreatorID,
-			ExecutorID:   task.ExecutorID,
-			Priority:     task.Priority,
-			Tags:         task.Tags,
-			CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-			CompletionAt: completionAt,
-			DeletedAt:    deletedAt,
-		})
+		taskResponses = append(taskResponses, taskToResponse(task))
 	}
 
 	// 11. 返回成功响应
@@ -886,6 +996,78 @@ func GetTasks(c *gin.Context) {
 			Total:    int(total),
 		}))
 		return
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
+}
+
+// GetTaskTree 查询时间范围内的任务层级
+// 认证级别: user (需要JWT认证)
+// 要求：start_time 和 end_time 必填，且时间间隔不超过100天
+func GetTaskTree(c *gin.Context) {
+	// 1. 绑定查询参数
+	var req GetTasksRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "参数绑定失败: "+err.Error(), nil))
+		return
+	}
+
+	// 2. 从context获取数据库连接
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+
+	// 3. 获取用户ID
+	userID, ok := middleware.RequireUserID(c)
+	if !ok {
+		return
+	}
+
+	// 4. 直接查询项目成员表验证权限
+	var member models.ProjectMember
+	if err := db.Where("project_id = ? AND user_id = ?", req.ProjectID, userID).First(&member).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNotMember, "您不是该项目的成员，无法查看任务", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "验证项目成员身份失败: "+err.Error(), nil))
+		return
+	}
+
+	// 5. 解析查询参数并校验时间范围
+	queryParams, paramErr := parseTaskQueryParams(req)
+	if paramErr != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(paramErr.Code, paramErr.Message, nil))
+		return
+	}
+	if queryParams.StartTime == nil || queryParams.EndTime == nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "必须提供 start_time 和 end_time 时间范围", nil))
+		return
+	}
+	if queryParams.EndTime.Sub(*queryParams.StartTime) > 100*24*time.Hour {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "start_time 和 end_time 的间隔不能超过100天", nil))
+		return
+	}
+
+	// 6. 查询任务并组装父子层级
+	baseQuery := buildTasksQuery(db, req, queryParams)
+	var total int64
+	countQuery := baseQuery.Session(&gorm.Session{})
+	if err := countQuery.Count(&total).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务总数失败: "+err.Error(), nil))
+		return
+	}
+
+	var tasks []models.Task
+	if err := baseQuery.Order("updated_at DESC").Order("id DESC").Find(&tasks).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
+		return
+	}
+
+	resp := GetTaskTreeResponse{
+		Tasks: buildTaskTree(tasks),
+		Total: total,
 	}
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }

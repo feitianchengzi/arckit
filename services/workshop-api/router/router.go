@@ -146,6 +146,7 @@ func registerBusinessRoutes(group *gin.RouterGroup) {
 	group.POST("/tasks", handler.CreateTask)                                           // 创建新任务
 	group.PUT("/tasks/:id", handler.UpdateTask)                                        // 更新任务
 	group.GET("/tasks", handler.GetTasks)                                              // 查询项目的所有任务
+	group.GET("/tasks/tree", handler.GetTaskTree)                                      // 按时间范围查询任务层级
 	group.DELETE("/tasks/:id", handler.DeleteTask)                                     // 删除任务
 	group.POST("/tasks/attachments", handler.CreateTaskAttachment)                     // 创建任务附件
 	group.GET("/tasks/attachments", handler.GetTaskAttachments)                        // 查询任务附件列表

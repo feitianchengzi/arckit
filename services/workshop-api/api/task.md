@@ -508,7 +508,149 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks?project_id=$P
 
 ---
 
-## 4. 删除任务
+## 4. 查询任务层级
+
+**接口**: `GET /workshop/v1/user/tasks/tree?project_id=1&start_time=2024-01-01T00:00:00Z&end_time=2024-01-31T23:59:59Z`
+
+**认证级别**: `user`（需要JWT认证）
+
+**权限要求**: 用户必须是项目成员
+
+**描述**: 查询指定创建时间范围内的任务，并按 `father_id` 组装为父子层级结构。该接口要求必须提供时间范围，且 `start_time` 与 `end_time` 的间隔不能超过 100 天。
+
+**查询参数**:
+
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| project_id | uint | 是 | 项目ID |
+| start_time | string | 是 | 创建时间开始（UTC字符串格式，ISO 8601） |
+| end_time | string | 是 | 创建时间结束（UTC字符串格式，ISO 8601），与 `start_time` 间隔不能超过100天 |
+| updated_after | string | 否 | 最后更新时间（UTC字符串格式，ISO 8601），如果提供此参数，只返回在此时间之后更新的任务 |
+| state | string | 否 | 任务状态过滤（可多选，重复参数或逗号分隔） |
+| creator_id | uint | 否 | 创建者ID过滤（可多选，重复参数或逗号分隔） |
+| executor_id | uint | 否 | 执行者ID过滤（可多选，重复参数或逗号分隔） |
+| tags | string | 否 | 标签过滤（可多选，匹配任一标签） |
+| priority | int | 否 | 优先级过滤（可多选，重复参数或逗号分隔） |
+| search_key | string | 否 | 关键字搜索（任务内容模糊匹配） |
+| father_id | uint | 否 | 父任务ID过滤。不提供：查询所有任务；为0：查询所有父任务ID为空的任务（顶级任务）；其他值：查询指定父任务ID的子任务 |
+| include_deleted | bool | 否 | 是否包含已删除的记录（默认false） |
+
+**请求示例**:
+
+**测试环境**:
+```bash
+PROJECT_ID=1
+
+curl -X GET "http://localhost:8081/workshop/v1/user/tasks/tree?project_id=$PROJECT_ID&start_time=2024-01-01T00:00:00Z&end_time=2024-01-31T23:59:59Z" \
+  -H "X-User-ID: 11111111-1111-1111-1111-111111111111" \
+  -H "X-User-Username: alice"
+```
+
+**生产环境**:
+```bash
+PROJECT_ID=1
+
+curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks/tree?project_id=$PROJECT_ID&start_time=2024-01-01T00:00:00Z&end_time=2024-01-31T23:59:59Z" \
+  -H "Authorization: Bearer $ACCESS_TOKEN"
+```
+
+**响应示例** (`200 OK`):
+```json
+{
+  "code": "OK",
+  "data": {
+    "tasks": [
+      {
+        "id": 1,
+        "project_id": 1,
+        "father_id": null,
+        "content": "完成任务设计",
+        "state": "pending_review",
+        "creator_id": 10,
+        "executor_id": 2,
+        "priority": 0,
+        "tags": "重要,紧急",
+        "created_at": "2024-01-01T12:00:00Z",
+        "updated_at": "2024-01-01T12:00:00Z",
+        "completion_at": null,
+        "deleted_at": null,
+        "children": [
+          {
+            "id": 2,
+            "project_id": 1,
+            "father_id": 1,
+            "content": "子任务：设计数据库",
+            "state": "in_progress",
+            "creator_id": 10,
+            "executor_id": null,
+            "priority": 1,
+            "tags": "数据库,设计",
+            "created_at": "2024-01-01T12:05:00Z",
+            "updated_at": "2024-01-01T12:10:00Z",
+            "completion_at": null,
+            "deleted_at": null,
+            "children": []
+          }
+        ]
+      }
+    ],
+    "total": 2
+  }
+}
+```
+
+**响应字段说明**:
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| tasks | array | 顶层任务列表。每个任务包含 `children` 子任务数组 |
+| total | int64 | 匹配过滤条件的任务总数 |
+
+**特殊说明**:
+- `start_time` / `end_time` 必须同时提供，并按任务创建时间（`created_at`）过滤
+- `start_time` 与 `end_time` 的间隔不能超过 100 天
+- 其他过滤参数与 `GET /workshop/v1/user/tasks` 一致
+- 该接口不分页，避免父子任务在分页后被拆散
+- 层级只在本次过滤结果内组装；如果某个任务的父任务不在结果集中，该任务会作为当前结果的根节点返回
+
+**错误响应**:
+
+**400 Bad Request** - 缺少时间范围:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "必须提供 start_time 和 end_time 时间范围",
+    "details": null
+  }
+}
+```
+
+**400 Bad Request** - 时间范围超过100天:
+```json
+{
+  "code": "BAD_REQUEST",
+  "error": {
+    "message": "start_time 和 end_time 的间隔不能超过100天",
+    "details": null
+  }
+}
+```
+
+**403 Forbidden**:
+```json
+{
+  "code": "TASK_NOT_MEMBER",
+  "error": {
+    "message": "您不是该项目的成员，无法查看任务",
+    "details": null
+  }
+}
+```
+
+---
+
+## 5. 删除任务
 
 **接口**: `DELETE /workshop/v1/user/tasks/:id`
 
@@ -616,7 +758,7 @@ curl -X DELETE "https://api.feitianchengzi.com/workshop/v1/user/tasks/$TASK_ID" 
 
 ---
 
-## 5. 创建任务附件
+## 6. 创建任务附件
 
 **接口**: `POST /workshop/v1/user/tasks/attachments`
 
@@ -751,7 +893,7 @@ curl -X POST "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments"
 
 ---
 
-## 6. 查询任务附件列表
+## 7. 查询任务附件列表
 
 **接口**: `GET /workshop/v1/user/tasks/attachments?task_id=1`
 
@@ -905,7 +1047,7 @@ curl -X GET "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments?t
 
 ---
 
-## 7. 更新任务附件
+## 8. 更新任务附件
 
 **接口**: `PUT /workshop/v1/user/tasks/attachments/:id`
 
@@ -1033,7 +1175,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tasks/attachments/$
 
 ---
 
-## 8. 删除任务附件
+## 9. 删除任务附件
 
 **接口**: `DELETE /workshop/v1/user/tasks/attachments/:id`
 

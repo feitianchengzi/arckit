@@ -83,7 +83,7 @@ python3 test/dev/task_update_local_test.py
 - **[common.md](./common.md)** - 公共接口（健康检查；Header 信息在 user/apikey 级别）
 - **[user.md](./user.md)** - 用户相关接口（创建、查询、更新用户、获取OSS凭证）
 - **[project.md](./project.md)** - 项目相关接口（创建、查询、更新、删除项目、成员管理、邀请）
-- **[task.md](./task.md)** - 任务相关接口（创建、更新、查询、删除任务、子任务、任务附件）
+- **[task.md](./task.md)** - 任务相关接口（创建、更新、查询、层级查询、删除任务、子任务、任务附件）
 - **[tag.md](./tag.md)** - 标签相关接口（创建、查询、更新、删除标签）
 - **[feedback.md](./feedback.md)** - 反馈相关接口（创建、查询、更新、删除反馈）
 
