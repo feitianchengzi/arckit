@@ -10,6 +10,7 @@ import { LoadingView } from '@/components/ui/LoadingView'
 import { CreateOrganizationDialog } from '@/components/features/CreateOrganizationDialog'
 import { useCreateProject } from '@/hooks/useProjects'
 import { useOrganizationList } from '@/hooks/useOrganizations'
+import { useOrganizationStore } from '@/store/organizationStore'
 
 export default function NewProjectPage() {
   const navigate = useNavigate()
@@ -17,9 +18,10 @@ export default function NewProjectPage() {
   const queryClient = useQueryClient()
   const createProject = useCreateProject()
   const { data: organizations = [], isLoading: orgLoading } = useOrganizationList()
+  const currentOrganizationId = useOrganizationStore((state) => state.currentOrganizationId)
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
   const routeOrganizationId = location.pathname.match(/\/organizations\/(\d)+/)?.[1]
-  const selectedOrganizationId = routeOrganizationId ? Number(routeOrganizationId) : null
+  const selectedOrganizationId = routeOrganizationId ? Number(routeOrganizationId) : currentOrganizationId
   
   const [name, setName] = useState('')
   const [gitUrl, setGitUrl] = useState('')
@@ -27,18 +29,8 @@ export default function NewProjectPage() {
   const [organizationId, setOrganizationId] = useState<number | null>(selectedOrganizationId)
 
   useEffect(() => {
-    if (selectedOrganizationId) {
-      setOrganizationId(selectedOrganizationId)
-      return
-    }
-    // 默认选择第一个组织（如果存在），否则为个人项目（null）
-    if (organizations.length > 0) {
-      setOrganizationId((current) => current ?? organizations[0].id)
-      return
-    }
-    // 没有组织时，默认为个人项目
-    setOrganizationId(null)
-  }, [selectedOrganizationId, organizations.length])
+    setOrganizationId(selectedOrganizationId ?? null)
+  }, [selectedOrganizationId])
 
   const handleCreateOrgSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['organizations'] })

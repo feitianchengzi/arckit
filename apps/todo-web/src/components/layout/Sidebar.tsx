@@ -1,303 +1,362 @@
 'use client'
 
 /**
- * Sidebar - 侧边栏组件
- * 
- * 功能：
- * 1. 显示用户头像和信息
- * 2. 导航菜单
- * 3. 设置和退出
- * 4. 响应式：桌面固定，移动端可折叠（抽屉菜单）
+ * Sidebar - 主导航侧边栏
  */
 
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { UIEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { useAuthStore } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
-import { useQueryClient } from '@tanstack/react-query'
+import { useOrganizationStore } from '@/store/organizationStore'
+import { useInfiniteOrganizationList } from '@/hooks/useOrganizations'
 import { ProjectListContent } from './ProjectList'
-import { OrganizationList } from './OrganizationList'
 import { CreateOrganizationDialog } from '../features/CreateOrganizationDialog'
 import { CreateProjectDialog } from '../features/CreateProjectDialog'
 import { Avatar } from '@/components/ui'
-import { useOrganizationList } from '@/hooks/useOrganizations'
-import { useProjectList } from '@/hooks/useProjects'
-
-import { useOrganizationStore } from '@/store/organizationStore'
-import { buildFeedbackOrganizationPath, buildOrganizationPath } from '@/lib/utils/organizationRouting'
+import { buildFeedbackOrganizationPath, buildOrganizationPath, decodeOrganizationId } from '@/lib/utils/organizationRouting'
 
 interface SidebarProps {
   className?: string
-  isOpen?: boolean // 移动端/平板端是否打开
-  onClose?: () => void // 关闭回调
+  isOpen?: boolean
+  onClose?: () => void
+  collapsed?: boolean
 }
 
-export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
+const ORGANIZATION_MENU_PAGE_SIZE = 20
+const ORGANIZATION_MENU_SCROLL_THRESHOLD = 48
+
+export function Sidebar({ className, isOpen = true, onClose, collapsed = false }: SidebarProps) {
   const navigate = useNavigate()
   const location = useLocation()
-  const storeUser = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
-  const { theme, toggleTheme } = useThemeStore()
   const queryClient = useQueryClient()
-  const { data: organizations = [] } = useOrganizationList()
+  const storeUser = useAuthStore((state) => state.user)
+  const { theme, toggleTheme } = useThemeStore()
+  const {
+    data: organizationPages,
+    isLoading: organizationsLoading,
+    fetchNextPage: fetchNextOrganizationPage,
+    hasNextPage: hasNextOrganizationPage,
+    isFetchingNextPage: isFetchingNextOrganizationPage,
+  } = useInfiniteOrganizationList(false, ORGANIZATION_MENU_PAGE_SIZE)
   const { currentOrganizationId, setCurrentOrganizationId } = useOrganizationStore()
+  const projectScrollRef = useRef<HTMLDivElement>(null)
+  const organizationMenuRef = useRef<HTMLDivElement>(null)
+  const organizationListRef = useRef<HTMLDivElement>(null)
 
-  // 使用 state 来避免 hydration 不匹配
-  // 服务端和客户端首次渲染时都显示默认值，客户端 hydration 后再更新
   const [user, setUser] = useState<typeof storeUser>(null)
   const [mounted, setMounted] = useState(false)
-  
-  // 组织相关状态
+  const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
-  // 项目相关状态
   const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false)
-  
+  const [organizationMenuOpen, setOrganizationMenuOpen] = useState(false)
+
   useEffect(() => {
-    console.log('[Sidebar] 用户信息更新:', storeUser)
     setMounted(true)
     setUser(storeUser)
   }, [storeUser])
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
-  
-  // 获取用户名字母（避免 hydration 不匹配）
-  const userInitial = mounted && user?.username 
-    ? user.username.charAt(0).toUpperCase() 
-    : 'U'
-  
-  const displayUsername = mounted && user?.username 
-    ? user.username 
-    : '未登录'
+  useEffect(() => {
+    if (!organizationMenuOpen) return
 
-  const { data: projects = [] } = useProjectList(currentOrganizationId)
-  const isFeedbackSection = location.pathname.startsWith('/feedbacks')
-  const hasOrganizations = organizations.length > 0
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!organizationMenuRef.current?.contains(event.target as Node)) {
+        setOrganizationMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [organizationMenuOpen])
+
+  useEffect(() => {
+    const organizationSlug = location.pathname.match(/\/(?:feedbacks\/)?organizations\/([^/]+)/)?.[1]
+    if (!organizationSlug) return
+
+    const decodedOrganizationId = decodeOrganizationId(organizationSlug)
+    const routeOrganizationId = decodedOrganizationId ? Number(decodedOrganizationId) : NaN
+    if (Number.isFinite(routeOrganizationId) && currentOrganizationId !== routeOrganizationId) {
+      setCurrentOrganizationId(routeOrganizationId)
+    }
+  }, [currentOrganizationId, location.pathname, setCurrentOrganizationId])
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 250)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [searchQuery])
+
+  const organizations = organizationPages?.pages.flatMap((page) => page.organizations) ?? []
   const selectedOrganization = currentOrganizationId
     ? organizations.find((organization) => organization.id === currentOrganizationId)
     : null
-  const isPersonalProjects =
-    !currentOrganizationId &&
-    (location.pathname.startsWith('/projects') || location.pathname.startsWith('/feedbacks'))
-  const headerTitle = selectedOrganization?.name ?? (isPersonalProjects ? '个人项目' : '项目')
-  const projectCount = projects.length
+  const isFeedbackSection = location.pathname.startsWith('/feedbacks')
+  const headerTitle = currentOrganizationId ? selectedOrganization?.name ?? '组织' : '个人项目'
+  const displayUsername = mounted && user?.username ? user.username : '未登录'
 
-  // 移动端/平板端：点击导航项后自动关闭侧边栏
   const handleNavClick = (href: string) => {
     navigate(href)
-    // 移动端/平板端点击后关闭侧边栏
     if (window.innerWidth < 1024 && onClose) {
       onClose()
     }
   }
-  
+
+  const handleSelectOrganization = (organizationId: number | null) => {
+    setCurrentOrganizationId(organizationId)
+    setOrganizationMenuOpen(false)
+
+    if (organizationId) {
+      handleNavClick(
+        isFeedbackSection
+          ? buildFeedbackOrganizationPath(organizationId)
+          : buildOrganizationPath(organizationId)
+      )
+      return
+    }
+
+    handleNavClick(isFeedbackSection ? '/feedbacks' : '/projects')
+  }
+
+  const handleOpenOrganizationSettings = () => {
+    if (currentOrganizationId) {
+      handleNavClick(
+        isFeedbackSection
+          ? buildFeedbackOrganizationPath(currentOrganizationId)
+          : buildOrganizationPath(currentOrganizationId)
+      )
+      return
+    }
+
+    handleNavClick('/settings')
+  }
+
   const handleCreateOrgSuccess = () => {
-    // 创建组织成功后刷新组织列表
-    console.log('组织创建成功');
-    // 使组织列表查询失效，触发重新获取
-    queryClient.invalidateQueries({ queryKey: ['organizations'] });
+    queryClient.invalidateQueries({ queryKey: ['organizations'] })
   }
-  
+
   const handleCreateProjectSuccess = () => {
-    // 创建项目成功后刷新项目列表
-    console.log('项目创建成功');
-    // 使项目列表查询失效，触发重新获取
-    queryClient.invalidateQueries({ queryKey: ['projects'] });
+    queryClient.invalidateQueries({ queryKey: ['projects'] })
   }
-  
+
+  const handleOrganizationMenuScroll = (event: UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget
+    const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight
+
+    if (
+      distanceToBottom > ORGANIZATION_MENU_SCROLL_THRESHOLD ||
+      !hasNextOrganizationPage ||
+      isFetchingNextOrganizationPage
+    ) {
+      return
+    }
+
+    fetchNextOrganizationPage()
+  }
+
   return (
     <aside
       className={clsx(
-        // 基础样式 - 使用 relative 定位，类似 Android RelativeLayout
-        'relative bg-surface-elevated border-r border-border flex flex-col',
-        'w-[320px] z-50',
-        'transition-colors',
-        // 桌面端：固定定位，不随内容滚动
-        'lg:fixed lg:top-0 lg:left-0 lg:translate-x-0 lg:block',
-        // 移动端/平板端：固定定位，支持滑动动画
-        'fixed top-0 left-0',
+        'fixed left-0 top-0 z-50 flex h-screen max-h-screen w-[280px] max-w-[85vw] flex-col',
+        'border-r border-border bg-surface-elevated text-foreground transition-colors',
         'transform transition-transform duration-300 ease-in-out',
-        {
-          // 移动端/平板端：根据 isOpen 状态控制显示/隐藏（桌面端忽略此状态）
-          '-translate-x-full lg:translate-x-0': !isOpen,
-          'translate-x-0': isOpen,
-        },
+        isOpen ? 'translate-x-0' : '-translate-x-full',
+        collapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0',
         className
       )}
       aria-label="主导航"
-      style={{ height: '100vh', maxHeight: '100vh' }}
     >
+      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-lg font-semibold text-foreground" title={headerTitle}>
+            {headerTitle}
+          </div>
+        </div>
 
-      {/* 移动端/平板端：关闭按钮 */}
-      <div className="lg:hidden absolute top-0 right-0 p-4 z-20">
-        <button
-          onClick={onClose}
-          className={clsx(
-            'w-10 h-10 flex items-center justify-center',
-            'text-foreground-secondary hover:text-foreground',
-            'hover:bg-surface-hover',
-            'active:bg-surface-active',
-            'rounded-lg transition-colors',
-            'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
+        <div ref={organizationMenuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setOrganizationMenuOpen((open) => !open)}
+            className="flex h-8 w-8 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+            title="切换组织"
+            aria-label="切换组织"
+            aria-expanded={organizationMenuOpen}
+            aria-haspopup="menu"
+          >
+            <SwitchIcon />
+          </button>
+
+          {organizationMenuOpen && (
+            <div
+              className="absolute right-0 top-9 z-30 flex w-52 flex-col overflow-hidden rounded-xl border border-border bg-surface-elevated py-1 shadow-[0_12px_28px_rgba(15,23,42,0.12)]"
+              role="menu"
+              style={{ maxHeight: 'min(320px, calc(100vh - 5rem))' }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setOrganizationMenuOpen(false)
+                  setShowCreateOrgDialog(true)
+                }}
+                className="w-full px-3 py-2.5 text-left text-sm font-medium text-primary transition-colors hover:bg-primary-light focus:outline-none focus-visible:bg-primary-light"
+                role="menuitem"
+              >
+                新建组织
+              </button>
+              <div className="my-1 border-t border-divider" />
+              <button
+                type="button"
+                onClick={() => handleSelectOrganization(null)}
+                className={clsx(
+                  'w-full px-3 py-2.5 text-left text-sm transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover',
+                  !currentOrganizationId ? 'text-foreground font-medium' : 'text-foreground-secondary'
+                )}
+                role="menuitem"
+              >
+                个人项目
+              </button>
+
+              <div
+                ref={organizationListRef}
+                className="min-h-0 overflow-y-auto"
+                onScroll={handleOrganizationMenuScroll}
+                role="none"
+              >
+                {organizationsLoading ? (
+                  <div className="px-3 py-2.5 text-sm text-foreground-secondary">加载中...</div>
+                ) : (
+                  organizations.map((organization) => (
+                    <button
+                      key={organization.id}
+                      type="button"
+                      onClick={() => handleSelectOrganization(organization.id)}
+                      className={clsx(
+                        'w-full px-3 py-2.5 text-left text-sm transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover',
+                        currentOrganizationId === organization.id
+                          ? 'text-foreground font-medium'
+                          : 'text-foreground-secondary'
+                      )}
+                      role="menuitem"
+                      title={organization.name}
+                    >
+                      <span className="block truncate">{organization.name}</span>
+                    </button>
+                  ))
+                )}
+
+                {isFetchingNextOrganizationPage && (
+                  <div className="px-3 py-2.5 text-sm text-foreground-secondary">加载中...</div>
+                )}
+              </div>
+            </div>
           )}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleOpenOrganizationSettings}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+          title={currentOrganizationId ? '组织设置' : '用户设置'}
+          aria-label={currentOrganizationId ? '组织设置' : '用户设置'}
+        >
+          <SettingsIcon />
+        </button>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex h-8 w-8 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 lg:hidden"
+          title="关闭菜单"
           aria-label="关闭菜单"
         >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+          <CloseIcon />
         </button>
       </div>
 
-      <div className="flex flex-1 min-h-0 h-full">
-        <div className="flex w-20 flex-col border-r border-border min-h-0 h-full bg-surface-elevated">
-          <div className="flex-1 overflow-y-auto py-3">
-            <div className="flex items-center justify-center pb-3">
-              <div className="flex h-9 w-9 items-center justify-center text-foreground-secondary">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M5 7v11a1 1 0 001 1h12a1 1 0 001-1V7M7 7V5a1 1 0 011-1h8a1 1 0 011 1v2" />
-                </svg>
-              </div>
-            </div>
-            <div className="border-b border-border" />
-            <OrganizationList
-              onItemClick={handleNavClick}
-              selectedOrganizationId={currentOrganizationId}
-              onSelectOrganization={setCurrentOrganizationId}
+      <div className="shrink-0 border-b border-border px-3 py-2">
+        <div className="flex items-center gap-2">
+          <label className="relative min-w-0 flex-1">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-tertiary">
+              <SearchIcon />
+            </span>
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="搜索项目"
+              className="h-9 w-full rounded-md border border-border bg-surface py-0 pl-9 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-foreground-tertiary focus:border-primary/60 focus:shadow-[0_0_0_1px_rgba(59,130,246,0.18)]"
+              type="search"
             />
-          </div>
-          <div className="mt-auto space-y-2">
-            <div className="border-t border-border">
-              <div className="w-full flex flex-col items-center gap-3 px-3 pt-3">
-                <button
-                  onClick={() => handleNavClick('/settings')}
-                  className="group relative flex h-11 w-11 items-center justify-center rounded-xl bg-gray-200 dark:bg-surface-active text-foreground-secondary hover:bg-surface-hover hover:text-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                  title="设置"
-                >
-                  <Avatar
-                    user={user}
-                    size="sm"
-                    showTooltip={false}
-                  />
-                  <span className="pointer-events-none absolute left-full ml-3 whitespace-nowrap rounded-md bg-surface-elevated px-3 py-1 text-xs font-semibold text-foreground opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-                    {displayUsername}
-                  </span>
-                </button>
-                <button
-                  onClick={toggleTheme}
-                  className={clsx(
-                    'flex h-11 w-11 items-center justify-center rounded-xl',
-                    'text-foreground-secondary bg-gray-200 dark:bg-surface-active hover:bg-surface-hover hover:text-foreground transition-colors',
-                    'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2'
-                  )}
-                  title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
-                  aria-label="切换深色模式"
-                >
-                  {theme === 'dark' ? (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-            <div className="border-t border-border flex justify-center pb-3 pt-3">
+            {searchQuery && (
               <button
-                onClick={() => setShowCreateOrgDialog(true)}
-                className={clsx(
-                  'flex h-11 w-11 items-center justify-center rounded-xl',
-                  'text-foreground-secondary bg-gray-200 dark:bg-surface-active hover:bg-surface-hover hover:text-foreground transition-colors',
-                  'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
-                  'font-semibold'
-                )}
-                title="新建组织"
-                aria-label="新建组织"
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md text-foreground-tertiary transition-colors hover:bg-surface-hover hover:text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+                title="清除搜索"
+                aria-label="清除搜索"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
+                <ClearIcon />
               </button>
-            </div>
-          </div>
-        </div>
-        <div className="flex w-64 flex-col min-h-0 bg-surface dark:bg-surface-elevated">
-          <div className="px-4 pt-4 pb-3">
-            <div className="text-base font-semibold text-foreground">{headerTitle}</div>
-            <div className="text-xs text-foreground-secondary">{projectCount} 个项目</div>
-          </div>
-          <div className="px-4 pb-3">
-            <button
-              onClick={() => setShowCreateProjectDialog(true)}
-              className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary dark:bg-primary py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-hover dark:hover:bg-primary-hover focus:outline-none"
-              title="新增项目"
-              aria-label="新增项目"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              新增项目
-            </button>
-          </div>
-          <div className="border-t border-border" />
-          {!hasOrganizations && (
-            <div className="px-4 py-3 text-xs text-foreground-secondary">
-              请先加入或创建一个组织
-            </div>
-          )}
-          {hasOrganizations && !currentOrganizationId && !isPersonalProjects && (
-            <div className="px-4 py-3 text-xs text-foreground-secondary">
-              请选择组织后创建项目
-            </div>
-          )}
-          <div className="flex-1 overflow-y-auto px-4 py-3">
-            <ProjectListContent onItemClick={handleNavClick} organizationId={currentOrganizationId} />
-          </div>
-          {currentOrganizationId && selectedOrganization && (
-            <>
-              <div className="border-t border-border" />
-              <div className="px-4 py-3">
-                <button
-                  onClick={() => handleNavClick(
-                    isFeedbackSection
-                      ? buildFeedbackOrganizationPath(currentOrganizationId)
-                      : buildOrganizationPath(currentOrganizationId)
-                  )}
-                  className="w-full flex items-center justify-center rounded-lg bg-surface-elevated py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                  title="组织设置"
-                  aria-label="组织设置"
-                >
-                  组织设置
-                </button>
-              </div>
-            </>
-          )}
+            )}
+          </label>
+          <button
+            type="button"
+            onClick={() => setShowCreateProjectDialog(true)}
+            className="flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full bg-primary text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+            title="新建项目"
+            aria-label="新建项目"
+          >
+            <PlusIcon />
+          </button>
         </div>
       </div>
-      
-      {/* 新建组织对话框 */}
+
+      <div ref={projectScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+        <ProjectListContent
+          onItemClick={handleNavClick}
+          organizationId={currentOrganizationId}
+          searchQuery={debouncedSearchQuery}
+          scrollRootRef={projectScrollRef}
+        />
+      </div>
+
+      <div className="shrink-0 border-t border-border px-3 py-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleNavClick('/settings')}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus:outline-none"
+            title="用户设置"
+            aria-label="用户设置"
+          >
+            <Avatar user={user} size="md" showTooltip={false} />
+            <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={displayUsername}>
+              {displayUsername}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+            title={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+            aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+            aria-pressed={theme === 'dark'}
+          >
+            {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+          </button>
+        </div>
+      </div>
+
       <CreateOrganizationDialog
         open={showCreateOrgDialog}
         onClose={() => setShowCreateOrgDialog(false)}
         onSuccess={handleCreateOrgSuccess}
       />
-      
-      {/* 新建项目对话框 */}
+
       <CreateProjectDialog
         open={showCreateProjectDialog}
         onClose={() => setShowCreateProjectDialog(false)}
@@ -308,85 +367,67 @@ export function Sidebar({ className, isOpen = true, onClose }: SidebarProps) {
   )
 }
 
-// ==================== 子组件 ====================
-
-interface NavItemProps {
-  icon: React.ReactNode
-  label: string
-  href: string
-  exact?: boolean // 是否精确匹配（默认 false，匹配路径前缀）
-  onClick?: (href: string) => void // 点击回调
-}
-
-function NavItem({ icon, label, href, exact = false, onClick }: NavItemProps) {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const pathname = location.pathname
-  
-  // 判断是否选中：精确匹配或路径前缀匹配
-  const isActive = exact 
-    ? pathname === href 
-    : pathname?.startsWith(href) || false
-  
-  const handleClick = () => {
-    if (onClick) {
-      onClick(href)
-    } else {
-      navigate(href)
-    }
-  }
-  
+function SearchIcon() {
   return (
-    <button
-      onClick={handleClick}
-      className={clsx(
-        'w-full flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors',
-        'min-h-[44px]', // 移动端触摸优化
-        {
-          'bg-primary-light text-primary font-medium': isActive,
-          'text-foreground hover:bg-surface-hover': !isActive,
-        }
-      )}
-      aria-current={isActive ? 'page' : undefined}
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
-  )
-}
-
-// ==================== 图标组件 ====================
-
-function ProjectsIcon() {
-  return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z" />
     </svg>
   )
 }
 
-function TasksIcon() {
+function ClearIcon() {
   return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 6l12 12M18 6 6 18" />
     </svg>
   )
 }
 
-function LogoIcon() {
+function PlusIcon() {
   return (
-    <svg 
-      className="w-8 h-8 text-primary" 
-      fill="none" 
-      viewBox="0 0 24 24" 
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path 
-        strokeLinecap="round" 
-        strokeLinejoin="round" 
-        d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" 
-      />
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m7-7H5" />
+    </svg>
+  )
+}
+
+function SwitchIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h12m0 0-4-4m4 4-4 4M17 17H5m0 0 4 4m-4-4 4-4" />
+    </svg>
+  )
+}
+
+function SettingsIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.3 4.3c.4-1.7 2.9-1.7 3.4 0a1.8 1.8 0 0 0 2.7 1.1c1.5-.9 3.3.9 2.4 2.4a1.8 1.8 0 0 0 1.1 2.7c1.7.4 1.7 2.9 0 3.4a1.8 1.8 0 0 0-1.1 2.7c.9 1.5-.9 3.3-2.4 2.4a1.8 1.8 0 0 0-2.7 1.1c-.4 1.7-2.9 1.7-3.4 0a1.8 1.8 0 0 0-2.7-1.1c-1.5.9-3.3-.9-2.4-2.4a1.8 1.8 0 0 0-1.1-2.7c-1.7-.4-1.7-2.9 0-3.4a1.8 1.8 0 0 0 1.1-2.7c-.9-1.5.9-3.3 2.4-2.4a1.8 1.8 0 0 0 2.7-1.1Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.4 15.3A8.5 8.5 0 0 1 8.7 3.6 8.5 8.5 0 1 0 20.4 15.3Z" />
+    </svg>
+  )
+}
+
+function SunIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4V3m0 18v-1m8-8h1M3 12h1m14.1 6.1.7.7M5.2 5.2l.7.7m12.2-.7-.7.7M5.2 18.8l.7-.7M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
     </svg>
   )
 }

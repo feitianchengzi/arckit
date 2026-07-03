@@ -5,7 +5,7 @@
 
 import { TagDisplay } from './TagDisplay'
 import { useTagStore } from '@/store/tagStore'
-import { parseTaskTags, findTagById, type ProjectTag } from '@/lib/utils/tagUtils'
+import { argbToCssColor, parseTaskTags, findTagById, type ProjectTag } from '@/lib/utils/tagUtils'
 import clsx from 'clsx'
 
 export interface TagListProps {
@@ -15,6 +15,8 @@ export interface TagListProps {
   tagsString?: string | null
   size?: 'sm' | 'md' | 'lg'
   className?: string
+  variant?: 'default' | 'linear'
+  maxVisible?: number
   /** 标签点击回调 */
   onTagClick?: (tag: ProjectTag) => void
   /** 是否显示删除按钮 */
@@ -28,6 +30,8 @@ export function TagList({
   tagsString, 
   size = 'sm', 
   className, 
+  variant = 'default',
+  maxVisible,
   onTagClick,
   showDelete = false,
   onDelete 
@@ -40,6 +44,21 @@ export function TagList({
     .map(id => findTagById(projectTags, id))
     .filter((tag): tag is ProjectTag => tag !== undefined)
   
+  if (variant === 'linear') {
+    const visibleTags = tags.slice(0, maxVisible ?? 2)
+
+    return (
+      <span className={clsx('task-list-labels', className)} aria-label="任务标签">
+        {visibleTags.map((tag) => (
+          <span className="task-list-label" key={tag.id} title={tag.displayName}>
+            <span className="task-list-label-dot" style={{ background: argbToCssColor(tag.color) }} />
+            <span>{tag.displayName}</span>
+          </span>
+        ))}
+      </span>
+    )
+  }
+
   if (tags.length === 0) {
     return null
   }

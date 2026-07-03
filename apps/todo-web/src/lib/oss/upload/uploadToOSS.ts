@@ -144,44 +144,30 @@ export async function uploadToOSS(
   } catch (error) {
     console.error('OSS 上传失败:', error)
     
-      // 提供更详细的错误信息
-      if (error instanceof Error) {
-        // 检查是否是 CORS 错误
-        if (
-          error.message.includes('CORS') || 
-          error.message.includes('Access-Control-Allow-Origin') ||
-          error.message.includes('preflight') ||
-          error.message.includes('blocked by CORS policy')
-        ) {
-          const corsErrorMsg = '上传失败：CORS 跨域错误。\n\n' +
-            '请按照以下步骤配置 OSS Bucket 的 CORS 规则：\n' +
-            '1. 登录阿里云 OSS 控制台\n' +
-            '2. 找到 Bucket: feitianchengziworkshop\n' +
-            '3. 进入"权限管理" → "跨域设置（CORS）"\n' +
-            '4. 添加规则：\n' +
-            '   - 来源: https://workshop.feitianchengzi.com\n' +
-            '   - 允许 Methods: GET, PUT, POST, DELETE, HEAD, OPTIONS\n' +
-            '   - 允许 Headers: *\n' +
-            '   - 暴露 Headers: ETag, x-oss-request-id\n' +
-            '   - 缓存时间: 3600\n\n' +
-            '详细配置指南请查看: frontend/OSS_CORS_CONFIG.md'
-          throw new Error(corsErrorMsg)
-        }
-        // 检查是否是网络错误（可能是 CORS 导致的）
-        if (error.message.includes('XHR error') || error.message.includes('network') || error.message.includes('ERR_FAILED')) {
-          // 检查是否是 CORS 相关的网络错误
-          const isLikelyCORS = error.message.includes('PUT') || error.message.includes('aliyuncs.com')
-          if (isLikelyCORS) {
-            const corsErrorMsg = '上传失败：可能是 CORS 配置问题。\n\n' +
-              '请检查 OSS Bucket 的 CORS 配置是否正确。\n' +
-              '详细配置指南请查看: frontend/OSS_CORS_CONFIG.md'
-            throw new Error(corsErrorMsg)
-          }
-          throw new Error('上传失败：网络连接错误。请检查网络连接或联系管理员检查 OSS 服务状态。')
-        }
-        throw new Error(`上传失败: ${error.message}`)
+    if (error instanceof Error) {
+      const message = error.message
+      const isCorsError =
+        message.includes('CORS') ||
+        message.includes('Access-Control-Allow-Origin') ||
+        message.includes('preflight') ||
+        message.includes('blocked by CORS policy')
+
+      const isNetworkError =
+        message.includes('XHR error') ||
+        message.includes('network') ||
+        message.includes('ERR_FAILED')
+
+      if (isCorsError || isNetworkError) {
+        console.warn('OSS 上传疑似被跨域或网络策略拦截，请检查 Bucket CORS 配置。', {
+          origin: typeof window !== 'undefined' ? window.location.origin : undefined,
+          bucket: credentials.BucketName,
+          region: credentials.Region,
+          secure: credentials.Secure,
+          originalMessage: message,
+        })
       }
+    }
     
-    throw new Error(`上传失败: 未知错误`)
+    throw new Error('上传失败，请重试')
   }
 }

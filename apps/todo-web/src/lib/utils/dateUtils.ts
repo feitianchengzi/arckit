@@ -51,3 +51,22 @@ export function formatRelativeTime(dateString: string): string {
   // 更早的日期显示具体日期
   return date.toLocaleDateString('zh-CN')
 }
+
+export function formatTaskListDate(dateString: string, now = new Date()): string {
+  const date = new Date(dateString)
+  if (Number.isNaN(date.getTime())) return ''
+
+  const oneYearAgo = new Date(now)
+  oneYearAgo.setFullYear(now.getFullYear() - 1)
+
+  const oneYearAhead = new Date(now)
+  oneYearAhead.setFullYear(now.getFullYear() + 1)
+
+  const month = date.getMonth() + 1
+
+  if (date < oneYearAgo || date > oneYearAhead) {
+    return `${date.getFullYear()}年${month}月`
+  }
+
+  return `${month}月${date.getDate()}日`
+}

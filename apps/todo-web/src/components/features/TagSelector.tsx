@@ -20,7 +20,7 @@ import { TagCreator } from './TagCreator'
 import { TagEditor } from './TagEditor'
 import { useTagStore } from '@/store/tagStore'
 import { tagsApi } from '@/lib/api/endpoints/tags'
-import { parseTaskTags, buildTaskTags, buildTagName, type ProjectTag } from '@/lib/utils/tagUtils'
+import { argbToCssColor, parseTaskTags, buildTaskTags, buildTagName, type ProjectTag } from '@/lib/utils/tagUtils'
 import { PlusIcon, ChevronDownIcon, PencilIcon, TrashIcon } from '@/components/ui'
 import clsx from 'clsx'
 
@@ -36,6 +36,10 @@ export interface TagSelectorProps {
   showCreateButton?: boolean
   /** 尺寸 */
   size?: 'sm' | 'md' | 'lg'
+  /** 是否在按钮内展示全部已选标签 */
+  displayAllSelected?: boolean
+  /** 已选标签在按钮内的展示样式 */
+  selectedDisplayVariant?: 'default' | 'linear'
 }
 
 export function TagSelector({
@@ -45,6 +49,8 @@ export function TagSelector({
   className,
   showCreateButton = true,
   size = 'md',
+  displayAllSelected = false,
+  selectedDisplayVariant = 'default',
 }: TagSelectorProps) {
   const queryClient = useQueryClient()
   const { 
@@ -272,6 +278,19 @@ export function TagSelector({
     }
     return `已选 ${selectedTags.length} 个标签`
   }
+
+  const renderTagPreview = (tag: ProjectTag) => {
+    if (selectedDisplayVariant === 'linear') {
+      return (
+        <span className="task-list-label" key={tag.id} title={tag.displayName}>
+          <span className="task-list-label-dot" style={{ background: argbToCssColor(tag.color) }} />
+          <span>{tag.displayName}</span>
+        </span>
+      )
+    }
+
+    return <TagDisplay key={tag.id} tag={tag} size="sm" />
+  }
   
   return (
     <>
@@ -289,32 +308,32 @@ export function TagSelector({
             hasUnsavedChanges() && 'border-orange-400 bg-orange-50'
           )}
         >
-        {/* 显示已选中的标签（最多显示2个） */}
-        <div className="flex items-center gap-1.5 flex-1 min-w-0">
-          {selectedTags.length > 0 ? (
-            <>
-              {selectedTags.slice(0, 2).map(tag => (
-                <TagDisplay key={tag.id} tag={tag} size="sm" />
-              ))}
-              {selectedTags.length > 2 && (
-                <span className="text-xs text-foreground-secondary">+{selectedTags.length - 2}</span>
-              )}
-            </>
-          ) : (
-            <span className="text-xs text-foreground-secondary">{getButtonText()}</span>
-          )}
-        </div>
-        <ChevronDownIcon
-          className={clsx(
-            'transition-transform flex-shrink-0 text-foreground-tertiary',
-            {
-              'w-3 h-3': size === 'sm',
-              'w-4 h-4': size === 'md',
-              'w-5 h-5': size === 'lg',
-              'transform rotate-180': isOpen,
-            }
-          )}
-        />
+          {/* 显示已选中的标签（最多显示2个） */}
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            {selectedTags.length > 0 ? (
+              <>
+                {(displayAllSelected ? selectedTags : selectedTags.slice(0, 2)).map(tag => (
+                  renderTagPreview(tag)
+                ))}
+                {!displayAllSelected && selectedTags.length > 2 && (
+                  <span className="text-xs text-foreground-secondary">+{selectedTags.length - 2}</span>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-foreground-secondary">{getButtonText()}</span>
+            )}
+          </div>
+          <ChevronDownIcon
+            className={clsx(
+              'transition-transform flex-shrink-0 text-foreground-tertiary',
+              {
+                'w-3 h-3': size === 'sm',
+                'w-4 h-4': size === 'md',
+                'w-5 h-5': size === 'lg',
+                'transform rotate-180': isOpen,
+              }
+            )}
+          />
         </button>
       </div>
       
@@ -375,7 +394,7 @@ export function TagSelector({
                               className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary flex-shrink-0"
                               onClick={(e) => e.stopPropagation()}
                             />
-                            <TagDisplay tag={tag} size="sm" />
+                            {renderTagPreview(tag)}
                           </label>
                           <div className="flex items-center gap-1 flex-shrink-0">
                             <button
@@ -480,4 +499,3 @@ export function TagSelector({
     </>
   )
 }
-

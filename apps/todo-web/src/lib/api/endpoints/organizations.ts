@@ -4,6 +4,7 @@
 
 import { apiClient } from '../client'
 import { handleResponse } from '../interceptors/response'
+import type { ApiMeta } from '@/types/api'
 
 export interface Organization {
   id: number
@@ -68,6 +69,18 @@ export interface OrganizationInvitation {
   created_at: string
 }
 
+export interface OrganizationListOptions {
+  includeDeleted?: boolean
+  page?: number
+  pageSize?: number
+}
+
+export interface OrganizationListResult {
+  organizations: Organization[]
+  meta: ApiMeta
+  total: number
+}
+
 export const organizationsApi = {
   /**
    * 创建组织
@@ -97,24 +110,72 @@ export const organizationsApi = {
    * 查询用户参与的组织
    * 后端路由: GET /workshop/v1/user/organizations
    */
-  list: async (includeDeleted = false): Promise<Organization[]> => {
+  listPage: async (options?: OrganizationListOptions): Promise<OrganizationListResult> => {
+    const params: Record<string, boolean | number> = {}
+    if (options?.includeDeleted !== undefined) {
+      params.include_deleted = options.includeDeleted
+    }
+    if (options?.page) {
+      params.page = options.page
+    }
+    if (options?.pageSize) {
+      params.page_size = options.pageSize
+    }
+
     const response = await apiClient.get('/user/organizations', {
-      params: { include_deleted: includeDeleted }
+      params
     })
-    const data = handleResponse<{ 
-      organizations: { 
-        id: number, 
-        name: string, 
-        description?: string, 
-        creator_id: number, 
-        created_at: string,
-        updated_at?: string,
-        deleted_at?: string 
-      }[], 
-      total: number 
+
+    const fallbackMeta = (organizations: Organization[], total = organizations.length): ApiMeta => {
+      const requestedPage = options?.page || 1
+      const requestedPageSize = options?.pageSize || 0
+      const pageSize =
+        requestedPageSize > 0 && organizations.length <= requestedPageSize
+          ? requestedPageSize
+          : organizations.length
+
+      return {
+        page: requestedPage,
+        page_size: pageSize,
+        total,
+      }
+    }
+
+    const responseData = response.data
+    if (responseData?.code === 'OK' && responseData?.data) {
+      const data = responseData.data
+      const organizations = Array.isArray(data.organizations) ? data.organizations as Organization[] : []
+      const total = typeof data.total === 'number' ? data.total : organizations.length
+      const meta = responseData.meta
+        ? (responseData.meta as ApiMeta)
+        : fallbackMeta(organizations, total)
+
+      return {
+        organizations,
+        meta: {
+          ...meta,
+          total: typeof meta.total === 'number' ? meta.total : total,
+        },
+        total: typeof meta.total === 'number' ? meta.total : total,
+      }
+    }
+
+    const data = handleResponse<{
+      organizations: Organization[],
+      total: number
     }>(response)
-    
-    return data.organizations
+    const total = typeof data.total === 'number' ? data.total : data.organizations.length
+
+    return {
+      organizations: data.organizations,
+      meta: fallbackMeta(data.organizations, total),
+      total,
+    }
+  },
+
+  list: async (includeDeleted = false): Promise<Organization[]> => {
+    const { organizations } = await organizationsApi.listPage({ includeDeleted })
+    return organizations
   },
 
   /**

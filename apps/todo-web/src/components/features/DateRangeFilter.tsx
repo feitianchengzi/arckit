@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/components/ui'
 import clsx from 'clsx'
@@ -13,6 +13,12 @@ interface DateRangeFilterProps {
   value: DateRange
   onChange: (range: DateRange) => void
   className?: string
+  variant?: 'default' | 'linearChip'
+  label?: string
+  icon?: ReactNode
+  active?: boolean
+  onClear?: () => void
+  allowClear?: boolean
 }
 
 // 快捷操作类型
@@ -117,7 +123,139 @@ function formatDisplayDate(dateStr: string | null): string {
   return `${month}月${day}日`
 }
 
-export function DateRangeFilter({ value, onChange, className }: DateRangeFilterProps) {
+interface DateRangePickerPanelProps {
+  pickerRef: React.RefObject<HTMLDivElement>
+  pickerPosition: { top: number; left: number }
+  showQuickOptions: boolean
+  setShowQuickOptions: (show: boolean) => void
+  handleQuickOption: (option: QuickOption) => void
+  value: DateRange
+  handleStartDateChange: (event: React.ChangeEvent<HTMLInputElement>) => void
+  handleEndDateChange: (event: React.ChangeEvent<HTMLInputElement>) => void
+  setShowPicker: (show: boolean) => void
+  allowClear: boolean
+  onClear?: () => void
+}
+
+function DateRangePickerPanel({
+  pickerRef,
+  pickerPosition,
+  showQuickOptions,
+  setShowQuickOptions,
+  handleQuickOption,
+  value,
+  handleStartDateChange,
+  handleEndDateChange,
+  setShowPicker,
+  allowClear,
+  onClear,
+}: DateRangePickerPanelProps) {
+  return (
+    <div
+      ref={pickerRef}
+      className="fixed z-[100] border border-border rounded-lg shadow-lg p-4 min-w-[320px] bg-surface-elevated"
+      style={{
+        top: `${pickerPosition.top}px`,
+        left: `${pickerPosition.left}px`,
+        zIndex: 100
+      }}
+      onClick={(e) => {
+        e.stopPropagation()
+      }}
+      onMouseDown={(e) => {
+        e.stopPropagation()
+      }}
+    >
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold text-foreground">快捷选择</span>
+          <button
+            type="button"
+            onClick={() => setShowQuickOptions(!showQuickOptions)}
+            className="text-xs text-foreground-secondary hover:text-foreground"
+          >
+            {showQuickOptions ? '收起' : '展开'}
+          </button>
+        </div>
+        {showQuickOptions && (
+          <div className="grid grid-cols-3 gap-2">
+            <Button variant="ghost" size="sm" onClick={() => handleQuickOption('today')} className="text-xs">今天</Button>
+            <Button variant="ghost" size="sm" onClick={() => handleQuickOption('yesterday')} className="text-xs">昨天</Button>
+            <Button variant="ghost" size="sm" onClick={() => handleQuickOption('thisWeek')} className="text-xs">本周</Button>
+            <Button variant="ghost" size="sm" onClick={() => handleQuickOption('lastWeek')} className="text-xs">上周</Button>
+            <Button variant="ghost" size="sm" onClick={() => handleQuickOption('thisMonth')} className="text-xs">本月</Button>
+            <Button variant="ghost" size="sm" onClick={() => handleQuickOption('lastMonth')} className="text-xs">上月</Button>
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-medium text-foreground mb-1">
+            开始日期
+          </label>
+          <input
+            type="date"
+            value={value.startDate || ''}
+            onChange={handleStartDateChange}
+            max={value.endDate || undefined}
+            className="w-full px-2 py-1.5 text-sm border border-border bg-surface-elevated text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-foreground mb-1">
+            结束日期
+          </label>
+          <input
+            type="date"
+            value={value.endDate || ''}
+            onChange={handleEndDateChange}
+            min={value.startDate || undefined}
+            className="w-full px-2 py-1.5 text-sm border border-border bg-surface-elevated text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (allowClear) {
+              handleQuickOption('clear')
+              return
+            }
+            onClear?.()
+            setShowPicker(false)
+          }}
+          className="flex-1 text-xs"
+        >
+          {allowClear ? '清除' : '恢复默认'}
+        </Button>
+        <Button
+          variant="default"
+          size="sm"
+          onClick={() => setShowPicker(false)}
+          className="flex-1 text-xs"
+        >
+          确定
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function DateRangeFilter({
+  value,
+  onChange,
+  className,
+  variant = 'default',
+  label = '日期',
+  icon,
+  active,
+  onClear,
+  allowClear = true,
+}: DateRangeFilterProps) {
   const [showPicker, setShowPicker] = useState(false)
   const [showQuickOptions, setShowQuickOptions] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -178,6 +316,74 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
   }
 
   const hasFilter = value.startDate !== null || value.endDate !== null
+  const isActive = active ?? hasFilter
+  const displayText = hasFilter
+    ? value.startDate && value.endDate
+      ? `${formatDisplayDate(value.startDate)}-${formatDisplayDate(value.endDate)}`
+      : value.startDate
+      ? `${formatDisplayDate(value.startDate)}`
+      : `${formatDisplayDate(value.endDate)}`
+    : label
+
+  if (variant === 'linearChip') {
+    return (
+      <div className={clsx('task-filter-chip-wrap', className)} ref={containerRef}>
+        <div className={clsx('task-filter-chip', showPicker && 'is-active', isActive && 'has-selection')}>
+          <button
+            type="button"
+            className="filter-chip-main"
+            aria-expanded={showPicker}
+            aria-haspopup="dialog"
+            onClick={() => {
+              setShowPicker(!showPicker)
+              setShowQuickOptions(false)
+            }}
+          >
+            <span className="filter-chip-segment filter-chip-field">
+              {icon}
+              {label}
+            </span>
+            {hasFilter && (
+              <span className="filter-chip-segment filter-chip-value">
+                {displayText}
+              </span>
+            )}
+          </button>
+          <span className="filter-chip-divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="filter-chip-select-button"
+            aria-label={`选择${label}范围`}
+            title={`选择${label}范围`}
+            onClick={(event) => {
+              event.stopPropagation()
+              setShowPicker(true)
+              setShowQuickOptions(false)
+            }}
+          >
+            选择
+          </button>
+        </div>
+
+        {showPicker && pickerPosition && createPortal(
+          <DateRangePickerPanel
+            pickerRef={pickerRef}
+            pickerPosition={pickerPosition}
+            showQuickOptions={showQuickOptions}
+            setShowQuickOptions={setShowQuickOptions}
+            handleQuickOption={handleQuickOption}
+            value={value}
+            handleStartDateChange={handleStartDateChange}
+            handleEndDateChange={handleEndDateChange}
+            setShowPicker={setShowPicker}
+            allowClear={allowClear}
+            onClear={onClear}
+          />,
+          document.body
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className={clsx("relative flex items-center gap-1", className)} ref={containerRef}>
@@ -373,4 +579,3 @@ export function DateRangeFilter({ value, onChange, className }: DateRangeFilterP
     </div>
   )
 }
-

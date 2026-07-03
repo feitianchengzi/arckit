@@ -14,9 +14,21 @@ export interface DrawerProps {
   width?: string
   showBackButton?: boolean // 是否显示回退按钮
   onBack?: () => void // 回退按钮的回调
+  showOverlay?: boolean // 是否显示遮罩
+  lockScroll?: boolean // 是否锁定页面滚动
 }
 
-export function Drawer({ open, onClose, children, title, width = 'w-full md:w-[600px]', showBackButton = false, onBack }: DrawerProps) {
+export function Drawer({
+  open,
+  onClose,
+  children,
+  title,
+  width = 'w-full md:w-[600px]',
+  showBackButton = false,
+  onBack,
+  showOverlay = true,
+  lockScroll = showOverlay,
+}: DrawerProps) {
   const [isVisible, setIsVisible] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
 
@@ -32,7 +44,9 @@ export function Drawer({ open, onClose, children, title, width = 'w-full md:w-[6
       // 打开时：先显示元素，然后触发动画
       setIsVisible(true)
       document.addEventListener('keydown', handleEsc)
-      document.body.style.overflow = 'hidden'
+      if (lockScroll) {
+        document.body.style.overflow = 'hidden'
+      }
       
       // 使用 requestAnimationFrame 确保 DOM 更新后再触发动画
       requestAnimationFrame(() => {
@@ -40,44 +54,47 @@ export function Drawer({ open, onClose, children, title, width = 'w-full md:w-[6
           setIsAnimating(true)
         })
       })
-    } else {
-      // 关闭时：先触发关闭动画，等待动画完成后再隐藏元素
-      setIsAnimating(false)
-      const timer = setTimeout(() => {
-        setIsVisible(false)
-        document.body.style.overflow = ''
-      }, 300) // 与 transition 时间一致 (300ms)
-      
       return () => {
-        clearTimeout(timer)
         document.removeEventListener('keydown', handleEsc)
+        if (lockScroll) {
+          document.body.style.overflow = ''
+        }
       }
     }
+
+    // 关闭时：先触发关闭动画，等待动画完成后再隐藏元素
+    setIsAnimating(false)
+    const timer = setTimeout(() => {
+      setIsVisible(false)
+    }, 300) // 与 transition 时间一致 (300ms)
     
     return () => {
-      document.removeEventListener('keydown', handleEsc)
+      clearTimeout(timer)
     }
-  }, [open, onClose])
+  }, [open, onClose, lockScroll])
 
   if (!isVisible) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    <div className={clsx('fixed inset-0 z-50 overflow-hidden', !showOverlay && 'pointer-events-none')}>
       {/* 遮罩层 - 渐隐渐显动画，黑色浅一些 */}
-      <div
-        className={clsx(
-          'absolute inset-0 bg-black transition-opacity duration-300 ease-in-out',
-          isAnimating ? 'opacity-30' : 'opacity-0'
-        )}
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      {showOverlay && (
+        <div
+          className={clsx(
+            'absolute inset-0 bg-black transition-opacity duration-300 ease-in-out',
+            isAnimating ? 'opacity-30' : 'opacity-0'
+          )}
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
       
       {/* 抽屉内容 - 从右侧滑入滑出 */}
       <div
         className={clsx(
           'absolute right-0 top-0 bottom-0',
-          'shadow-xl',
+          'pointer-events-auto',
+          showOverlay ? 'shadow-xl' : 'border-l border-divider shadow-2xl',
           'transform transition-transform duration-300 ease-in-out',
           width,
           'flex flex-col',
@@ -141,4 +158,3 @@ export function Drawer({ open, onClose, children, title, width = 'w-full md:w-[6
     document.body
   )
 }
-
