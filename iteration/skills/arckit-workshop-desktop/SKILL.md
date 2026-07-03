@@ -1,6 +1,6 @@
 ---
 name: arckit-workshop-desktop
-description: 当 Arckit workflow 需要把 Workshop Desktop 作为本地桌面执行桥时使用：检查应用是否已安装或运行，从 hoewo/workshop-desktop 最新 GitHub Release 安装或更新，打开应用，通过 app server 创建项目/任务/个人记录，列出 Workshop 项目或任务，或通过 Workshop Desktop 桥发送已批准的项目工作。
+description: 把 Workshop Desktop 作为 Arckit 本地桌面执行桥，检查安装/运行状态，打开应用，并通过 app server 创建项目、任务或个人记录。默认由 using-arckit 在 workflow 已确认需要本地桌面执行桥时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。不决定项目范围或治理事实。
 ---
 
 # ArcKit Workshop Desktop

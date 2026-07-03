@@ -1,6 +1,6 @@
 ---
 name: arckit-tech
-description: "维护 arckit/tech/ 下的技术方案、架构说明、数据模型和 API 契约。用于用户要求查询、新建、更新、拆分或归档可沉淀的技术设计、实现约束、模型或接口契约时；输出变更涉及的 tech 路径和一句话摘要。"
+description: "维护 arckit/tech/ 下的技术方案、架构说明、数据模型和 API 契约。默认由 using-arckit 在判断本轮需要查询或维护稳定技术预期事实时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。输出变更涉及的 tech 路径和一句话摘要。"
 ---
 
 # ArcKit Tech

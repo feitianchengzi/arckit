@@ -1,6 +1,6 @@
 ---
 name: using-arckit
-description: 软件项目协作的首轮默认入口、scenario workflow resolver 和 workflow frame compiler。只要用户首轮请求或输入材料可能涉及产品想法、原始输入归档、反馈、需求、规格、交互、视觉、技术方案、迭代治理、项目记忆、debug、任务记录、Workshop Desktop、skill 创建/验证、发布/出包/测试分发或软件项目开发工作流，就先使用本 skill 建立 runtime situation，调用 arckit-workflow-memory 解析并绑定可复用场景工作流，编译 workflow frame 并路由专门 skill；发布/出包/TestFlight/App Store 意图，或远端出包 workflow 失败但缺少失败原因时，优先考虑 arckit-git-branching 的分支/tag 远端触发和失败原因收集契约。用户在首轮目标之后继续补充、纠错、换目标、纠正项目事实或暂停时，交给 arckit-turn-adaptation；workflow memory 的 workflow resolution、execution record、信号判断和持久化交给 arckit-workflow-memory。只有当请求明确与软件项目协作无关时才跳过。
+description: 软件项目协作的首轮默认入口、scenario workflow resolver 和 workflow frame compiler。只要用户首轮请求或输入材料可能涉及产品想法、原始输入归档、反馈、需求、规格、交互、视觉、技术方案、迭代治理、项目记忆、评测材料、debug、任务记录、Workshop Desktop、skill 创建/验证、发布/出包/测试分发或软件项目开发工作流，就先使用本 skill 建立 runtime situation，调用 arckit-workflow-memory 解析并绑定可复用场景工作流，编译 workflow frame 并路由专门 skill；发布/出包/TestFlight/App Store 意图，或远端出包 workflow 失败但缺少失败原因时，优先考虑 arckit-git-branching 的分支/tag 远端触发和失败原因收集契约。用户在首轮目标之后继续补充、纠错、换目标、纠正项目事实或暂停时，交给 arckit-turn-adaptation；workflow memory 的 workflow resolution、execution record、信号判断和持久化交给 arckit-workflow-memory。只有当请求明确与软件项目协作无关时才跳过。
 ---
 
 # Using ArcKit
@@ -18,7 +18,7 @@ description: 软件项目协作的首轮默认入口、scenario workflow resolve
 - 不要使用会诱导 agent 降低流程完整性的 workflow 修饰词；需要压缩输出时，只能说“输出可按任务需要简洁，但不得省略 workflow resolution、artifact scan 和 closeout 判断”。
 - 每轮任务只创建或更新 `execution_record` 作为本次执行证据；不要把每次任务都建成新的 workflow。只有找不到可匹配 accepted/candidate scenario workflow 时，才创建新的场景级 candidate。
 - 用户在首轮目标之后补充信息、纠正流程、改变目标、纠正项目事实或要求暂停时，交给 `arckit-turn-adaptation` 分类后再决定是否重编 workflow frame。
-- 每轮都必须做 `artifact_impact_scan`：判断是否需要交给 `arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech`、`arckit-pending`、治理、验证或 workflow memory。
+- 每轮都必须做 `artifact_impact_scan`：判断是否需要交给 `arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech`、`arckit-evaluation`、`arckit-pending`、治理、验证或 workflow memory。
 - `artifact_impact_scan` 不按任务规模设置特殊分支；必须按同一组目标逐项判断后再决定 `none|check|update|pending|skipped`。
 - UI 一致性实现、跨页面样式统一、组件状态统一或从代码实现中反推规范变化时，即使最终目标是代码，也必须先把 `interaction` 和 `visual` 标记为 `check`，实现后再决定是否更新对应事实源。
 - 项目事实没有变化只影响 spec/tech/interaction/visual 等 artifact 路由，不等于 workflow memory 可跳过。
@@ -59,6 +59,7 @@ description: 软件项目协作的首轮默认入口、scenario workflow resolve
 - 将默认能力地图、用户显式要求、runtime situation 和 memory overlay 合并；冲突时当前用户显式要求优先，未决冲突进入 pending 或请求确认。
 - 如果 `signals` 包含发布、出包、测试分发、应用商店、TestFlight、App Store、内测、公测、正式发布、发布候选，或远端 workflow 出包失败但缺少错误原因，且用户没有明确要求 readiness/go-no-go，`selected_capabilities` 必须优先包含 `arckit-git-branching`；`current_phase` 应是 Git 分支/tag 触发推荐、确认后 Git push，或远端失败原因收集，而不是发布前验证、平台上传或无证据修复。
 - 正向实现任务先判断是否建立、强化或改变产品、交互、视觉或技术规范；若是 UI 一致性、跨页面统一行为/样式或组件状态统一，先把 `interaction` 和 `visual` 置为 `check`，再形成明确的 `implementation_handoff`，执行普通代码工作流或外部 `arckit-code`，并按风险使用 `arckit-verify-implementation`。
+- Skill 类最终产物维护任务先形成 `skill_implementation_guard`，再交给 ArcForge 类外部 skill 生命周期能力；不要把 skill 创建、维护、同步或漂移检查描述为 Arckit 内部实现能力。
 - 多个 skill 都适用时，按 workflow frame 的阶段顺序组合；只加载当前任务真正需要的 skill。
 
 退出条件：用户目标、skill 顺序、交接边界和停止条件明确。
@@ -71,7 +72,7 @@ description: 软件项目协作的首轮默认入口、scenario workflow resolve
 - 在 `after_context_read`、`before_edit`、`after_execution`、`before_final` 和 `turn_adaptation` 等 reflection gates 重新判断 skill 组合和 artifact targets。
 - 当用户在任务执行中继续发消息时，使用 `arckit-turn-adaptation` 区分补充信息、workflow 纠偏、目标变更、项目事实纠正、澄清回答和暂停/停止；不要在 `using-arckit` 内直接展开这些分类细节。
 - 如果 `arckit-turn-adaptation` 输出 `workflow_correction_ledger`，按其 `turn_adaptation_decision` 调整 workflow frame，并把 ledger 交给 `arckit-workflow-memory` closeout。
-- 若实现、验证或讨论暴露稳定产品、交互、视觉、技术或治理变化，交给对应结果型 skill 或治理 skill。
+- 若实现、验证或讨论暴露稳定产品、交互、视觉、技术或治理变化，交给对应结果型 skill 或治理 skill；若暴露的是场景化预期、覆盖缺口或试跑偏差，交给 `arckit-evaluation`，不要直接提升为正式事实。
 - 若出现未确认假设、风险、开放问题或过程 handoff，交给 `arckit-pending`，不要静默写入稳定事实源。
 - 若请求需要 Workshop Desktop、本地任务记录或 dispatch，再使用 `arckit-workshop-desktop`。
 - 只有用户明确要求角色协作或多 agent 编排时，使用 `arckit-role-orchestration`。
@@ -81,7 +82,7 @@ description: 软件项目协作的首轮默认入口、scenario workflow resolve
 ### 5. Artifact 和 Workflow 收口
 
 动作：
-- 先做 `artifact_impact_scan`，逐项说明 `spec|interaction|visual|tech|pending|governance|verification|workflow_memory` 是 `none|check|update|pending|skipped`；输出可以简洁，但不能因为任务规模小而省略逐项判断或把无项目事实变化等同于 workflow memory 无影响。
+- 先做 `artifact_impact_scan`，逐项说明 `spec|interaction|visual|tech|evaluation|pending|governance|verification|workflow_memory` 是 `none|check|update|pending|skipped`；输出可以简洁，但不能因为任务规模小而省略逐项判断或把无项目事实变化等同于 workflow memory 无影响。
 - 如果 `arckit-turn-adaptation` 输出 `workflow_correction_ledger`，在调用 `arckit-workflow-memory` 前必须带上该 ledger；不得因为 `artifact_impact_scan` 全部 `skipped` 而跳过 workflow memory 判断。
 - 对需要更新的稳定事实源，调用对应结果型 skill；对未决内容调用 `arckit-pending`；对实现可靠性调用质量 skill。
 - 触发 `arckit-workflow-memory` 写入或更新本轮 `execution_record`，再做 `workflow_memory_closeout`；具体信号判断、候选维护和持久化按 `arckit-workflow-memory` 的规则执行。

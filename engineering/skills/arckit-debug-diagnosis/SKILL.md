@@ -1,6 +1,6 @@
 ---
 name: arckit-debug-diagnosis
-description: bug 定位、回归诊断和最小修复 skill。用于用户报告异常行为、偶发失败、回归、数据不一致、接口错误、显示错误、性能退化，或请求“debug/排查/定位/修复 bug”时；指导 agent 从症状提取事实，按项目上下文提出可证伪假设，用证据验证并完成最小修复，最后给出沉淀建议。
+description: 定位 bug、回归、偶发失败、数据异常、接口错误、显示错误和性能退化，并指导最小修复。默认由 using-arckit 在判断本轮需要实现事实诊断而不是需求定义、代码审查或发布判断时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。
 ---
 
 # ArcKit Debug Diagnosis

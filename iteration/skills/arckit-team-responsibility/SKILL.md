@@ -1,6 +1,6 @@
 ---
 name: arckit-team-responsibility
-description: 维护项目团队成员、职责范围、决策权、协作边界和 owner 推断规则的结果型 skill。当 Codex 需要读取、建立、补齐或更新谁负责什么、谁能决定什么、任务 owner 如何确认或推断、职责缺口如何处理时使用；不用于处理具体候选事项清单、拆任务或执行 bug/需求。
+description: 维护项目团队成员、职责范围、决策权、协作边界和 owner 推断规则。默认由 using-arckit 在判断本轮需要责任、owner、决策权或协作边界事实时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。不处理具体候选事项清单、拆任务或执行 bug/需求。
 ---
 
 # Arckit Team Responsibility

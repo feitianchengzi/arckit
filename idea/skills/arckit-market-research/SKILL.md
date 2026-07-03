@@ -1,6 +1,6 @@
 ---
 name: arckit-market-research
-description: 当用户明确要求市场调研、竞品分析、趋势信号、渠道观察、行业机会扫描、或把外部市场证据整理成项目判断输入时使用。输出过程型 market_research_handoff，不直接维护长期产品创意或项目定义结果。
+description: 收集和组织市场调研、竞品分析、趋势信号、渠道观察、行业机会扫描和外部市场证据。默认由 using-arckit 在判断本轮需要外部市场证据作为项目判断输入时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。输出 market_research_handoff，不直接维护长期产品创意或项目定义结果。
 ---
 
 # Arckit Market Research

@@ -1,6 +1,6 @@
 ---
 name: arckit-explore-product-design
-description: 当用户需要在写入正式交互或视觉结果前，探索产品设计方向、页面方案、状态表达、交互风险、AI 默认设计问题或候选方案对比时使用。输出设计探索 handoff，不直接维护 arckit/interaction 或 arckit/visual。
+description: 在写入正式交互或视觉结果前探索产品设计方向、页面方案、状态表达、交互风险、AI 默认设计问题或候选方案对比。默认由 using-arckit 在判断本轮需要设计探索 handoff 时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。输出设计探索 handoff，不直接维护 arckit/interaction 或 arckit/visual。
 ---
 
 # Arckit Explore Product Design

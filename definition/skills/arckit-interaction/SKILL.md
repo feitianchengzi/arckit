@@ -1,6 +1,6 @@
 ---
 name: arckit-interaction
-description: "维护 arckit/interaction/ 下的页面级交互策略、灰度线框 HTML 和交互文档。用于用户要求查询、新建、更新、拆分或归档页面流程、状态、表单、导航、线框或交互规则时；输出涉及的 interaction 路径、依据和摘要。"
+description: "维护 arckit/interaction/ 下的页面级交互策略、灰度线框 HTML 和交互文档。默认由 using-arckit 在判断本轮需要查询或维护稳定交互预期事实时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。输出涉及的 interaction 路径、依据和摘要。"
 ---
 
 # ArcKit Interaction

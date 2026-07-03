@@ -1,6 +1,6 @@
 ---
 name: arckit-runtime-operations
-description: 当用户要求运行期健康检查、SLA/SLO、监控指标分析、baseline 采集、线上状态巡检、告警线索整理或运维观察时使用。输出 runtime_operations_handoff，不直接替代 debug 修复或发布决策。
+description: 整理运行期健康检查、SLA/SLO、监控指标、baseline、线上状态、告警线索和运维观察。默认由 using-arckit 在判断本轮需要运行观察证据而不是 debug 修复或发布决策时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。输出 runtime_operations_handoff。
 ---
 
 # Arckit Runtime Operations

@@ -1,6 +1,6 @@
 ---
 name: arckit-workflow-memory
-description: 管理用户级和项目级 Arckit 场景工作流记忆、workflow resolution、execution records 和 workflow patches。由 using-arckit 在每个软件项目协作任务开始和结束时默认使用：开始时解析并绑定 accepted/candidate scenario workflow，未命中时创建或准备创建场景级 candidate，结束时写入 execution record 并做 signal decision；只有有学习价值时记录 workflow signal，多个 signals 足够稳定时维护同一个 workflow candidate patch，只有用户确认后才提升为 accepted workflow patch。不要把一次性任务计划、产品概念、技术方案或项目事实写入本 skill；这些仍由 arckit/spec、arckit/tech、治理或 pending 维护。
+description: 管理用户级和项目级 Arckit 场景工作流记忆、workflow resolution、execution records 和 workflow patches。由 using-arckit 在每个软件项目协作任务开始和结束时默认路由触发：开始解析并绑定 accepted/candidate scenario workflow，结束写入 execution record 并做 signal decision。不要把一次性任务计划、产品概念、技术方案或项目事实写入本 skill。
 ---
 
 # ArcKit Workflow Memory

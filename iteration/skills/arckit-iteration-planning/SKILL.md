@@ -1,6 +1,6 @@
 ---
 name: arckit-iteration-planning
-description: 维护项目高维迭代规划、阶段目标、迭代边界和归属判断规则的结果型 skill。当 Codex 需要建立或更新“当前/下一轮/后续迭代分别解决什么、什么类型的问题应归入哪个迭代、哪些内容暂不纳入”的迭代地图时使用；它给反馈、需求和问题清单提供归属指导，不拆执行任务，不替代具体实现、debug、spec、设计或 project governance。
+description: 维护项目高维迭代规划、阶段目标、迭代边界和归属判断规则。默认由 using-arckit 在判断本轮需要区分当前/下一轮/后续迭代边界时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。不拆执行任务，不替代实现、debug、spec、设计或 project governance。
 ---
 
 # Arckit Iteration Planning

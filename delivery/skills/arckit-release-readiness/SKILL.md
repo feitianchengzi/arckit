@@ -1,6 +1,6 @@
 ---
 name: arckit-release-readiness
-description: 当用户要求发布前检查、release gate、上线准备、灰度/canary 策略、回滚准备、发布风险评估或发布 go/no-go 判断时使用。输出 release_readiness_handoff，不直接执行生产发布。
+description: 判断发布前检查、release gate、上线准备、灰度/canary 策略、回滚准备、发布风险评估和 go/no-go。默认由 using-arckit 在用户明确要求 readiness、gate、风险或回滚判断时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。输出 release_readiness_handoff，不直接执行生产发布。
 ---
 
 # Arckit Release Readiness

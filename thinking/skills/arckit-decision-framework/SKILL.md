@@ -1,6 +1,6 @@
 ---
 name: arckit-decision-framework
-description: 当用户要判断一个想法、需求、方案或战略选择是否值得推进，比较多个选项，拆解底层假设，做产品价值评估，或用苏格拉底式追问拷问逻辑时使用。也可作为其他主工作流的过程型辅助方法，在关键判断点提供轻量 decision_handoff；独立使用时产出完整决策分析。
+description: 判断想法、需求、方案或战略选择是否值得推进，比较选项、拆解假设、评估产品价值或拷问逻辑。默认由 using-arckit 在关键判断点路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。可输出轻量 decision_handoff 或完整决策分析。
 ---
 
 # Decision Framework

@@ -1,6 +1,6 @@
 ---
 name: arckit-project-governance-workflow
-description: 治理小团队和 AI 协作中的项目验证与执行循环。当 Codex 需要把想法、需求、笔记、反馈、专家分析或既有项目文档路由到 Backlog、Goal、scope 边界、Iteration、Task、Review、Decision、Roadmap、current/reference/archive/index 结构或 Project Plan 产物时使用；也用于规划最短可用版本路径、防止规划文档膨胀成一个不可读文件、设计或修复长期项目的文件层级和文档归属、澄清 Goals 与 Iterations/Tasks 的关系，以及把领域建模、产品定义或交互验证结果交回项目执行。
+description: 治理小团队和 AI 协作中的项目验证与执行循环，维护 Backlog、Goal、Scope、Iteration、Task、Review、Decision、Roadmap 和 Project Plan 产物。默认由 using-arckit 在判断本轮需要项目级归属、推进、分发或验收回写时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。
 ---
 
 # Project Governance Workflow

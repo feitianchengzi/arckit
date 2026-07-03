@@ -1,0 +1,15 @@
+interface:
+  display_name: "Arckit Evaluation"
+  short_description: "维护真实研发活动评测场景、覆盖矩阵、试跑记录和提升建议"
+  default_prompt: "使用 $arckit-evaluation 维护 arckit/evaluation/ 下的真实研发活动评测材料。先判断本轮是新增场景、更新场景、执行评测、复盘偏差还是提升评测结论；区分 Code 类和 Skill 类最终产物；只维护 evaluation 过程产物，不直接改 spec、tech、skill 文件或任务计划。需要提升结论时输出 handoff 给对应结果型、治理型、pending 或 workflow memory 能力。"
+policy:
+  allow_implicit_invocation: true
+  routed_by:
+    - using-arckit
+workflow:
+  first_steps:
+    - "判断评测目标、评测对象、最终产物类型和禁止触碰范围。"
+    - "读取 arckit/evaluation/INDEX.md 以及目标目录下的 README、评测模型、场景总览和相关场景文件。"
+    - "新增或更新真实研发活动场景，保留用户输入样本、真实目标、期望能力组合、期望产物、沉淀路径和验收重点。"
+    - "执行或复盘评测时，记录实际行为、偏差、覆盖缺口、错误路由、事实污染风险和提升建议。"
+    - "判断结论留在 evaluation，还是输出 handoff 给 spec、tech、governance、pending 或 workflow memory。"

@@ -1,6 +1,6 @@
 ---
 name: arckit-code-review
-description: 当用户要求代码审查、PR review、实现风险评估、YAGNI/过度工程检查、可维护性审查或变更质量反馈时使用。默认采用 findings-first 的代码审查口径。
+description: 审查代码实现风险、PR 变更、YAGNI/过度工程、可维护性和测试缺口。默认由 using-arckit 在本轮需要质量审查而不是运行验证或直接修复时路由触发；也可在用户明确点名本 skill、维护本 skill 本身或隔离测试时直接使用。默认采用 findings-first 的代码审查口径。
 ---
 
 # Arckit Code Review

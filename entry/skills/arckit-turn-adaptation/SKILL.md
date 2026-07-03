@@ -1,6 +1,6 @@
 ---
 name: arckit-turn-adaptation
-description: 当 ArcKit 软件项目协作任务进行中，用户在首轮目标之后继续补充信息、纠正 agent、改变验证方式、调整停止条件、切换目标、纠正项目事实、要求暂停、纠正 workflow resolution/执行记录规则、纠正术语或追问为什么跳过记忆时使用。它是 turn-level 入口适配 skill，负责判断这条后续消息如何改变当前 workflow frame、bound scenario workflow、artifact routing、execution record 或 workflow memory closeout；不用于首轮任务入口编排，也不直接写入 workflow memory、spec、tech、pending 等事实源。
+description: 处理 ArcKit 软件项目协作任务中的后续用户消息，判断补充、纠错、目标变化、事实纠正、暂停或 workflow 纠偏如何改变当前 workflow frame。默认由 using-arckit 在首轮目标之后路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。不用于首轮入口编排，也不直接写入事实源。
 ---
 
 # ArcKit Turn Adaptation

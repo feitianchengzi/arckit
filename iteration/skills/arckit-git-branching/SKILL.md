@@ -1,6 +1,6 @@
 ---
 name: arckit-git-branching
-description: 当用户需要 Git 分支规范、release/feature/hotfix 选择、多版本并行、发布线修复回流、tag 出包触发，或远端 workflow 失败原因收集时使用。本 skill 只负责 Git 分支/tag 契约、通过 git push 触发已配置的远端 workflow，以及指导收集远端失败原因；不负责非 Git 发布实现、平台账号配置或无证据修复。
+description: 处理 Git 分支规范、release/feature/hotfix 选择、多版本并行、发布线修复回流、tag 出包触发和远端 workflow 失败原因收集。默认由 using-arckit 在判断本轮发布/出包意图应收敛到 Git 契约时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。不负责非 Git 发布实现、平台账号配置或无证据修复。
 ---
 
 # Arckit Git Branching

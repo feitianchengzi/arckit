@@ -1,6 +1,6 @@
 ---
 name: arckit-spec
-description: "维护 arckit/spec/ 下的产品功能规格、行为规则、验收口径和模块化规格索引。用于用户要求查询、新建、更新、拆分或归档稳定的产品规格文档时；输出变更涉及的 spec 路径和一句话摘要。"
+description: "维护 arckit/spec/ 下的产品功能规格、行为规则、验收口径和模块化规格索引。默认由 using-arckit 在判断本轮需要查询或维护稳定产品预期事实时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。输出变更涉及的 spec 路径和一句话摘要。"
 ---
 
 # ArcKit Spec

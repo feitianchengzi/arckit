@@ -15,7 +15,7 @@ agent capability types over time. Reusable skills must live under that directory
 - `memory/`: agent memory entry points and repository context navigation, such as maintaining `AGENTS.md`, `CLAUDE.md`, project indexes, and context maps.
 - `media/`: media production and operations capabilities, including video production, social media operations, publishing workflows, and cross-platform adaptation.
 - `engineering/`: technology-agnostic engineering workflows, including debugging, regression diagnosis, implementation coordination, refactoring strategy, and code-level investigation patterns.
-- `quality/`: validation-focused capabilities, including code review, testing strategy, regression checks, acceptance checks, and release readiness review.
+- `quality/`: validation-focused capabilities, including code review, testing strategy, regression checks, acceptance checks, real-scenario evaluation, and release readiness review.
 - `delivery/`: deployment, release, runtime environment, operations, monitoring, and incident handling.
 
 ## Placement Rules
@@ -31,7 +31,7 @@ Use the skill's primary purpose to choose a directory:
 - If it supports media production, video creation, social media operations, publishing, or platform adaptation, place it under `media/skills/`.
 - If it guides technology-agnostic engineering diagnosis, implementation coordination, refactoring strategy, or code-level investigation, place it under `engineering/skills/`.
 - If it tells agents how to code in a specific language, framework, platform, or stack, do not place it in this repository; maintain it in `arckit-code`.
-- If it checks whether implementation is correct and reliable, place it under `quality/skills/`.
+- If it checks whether implementation is correct and reliable, or maintains evaluation scenarios for validating product plans and agent workflows, place it under `quality/skills/`.
 - If it helps ship, deploy, operate, or recover the system, place it under `delivery/skills/`.
 
 When a skill could fit multiple directories, choose the one closest to the action the agent performs. Prefer horizontal capability directories for reusable methods that are intentionally used across lifecycle stages.
@@ -58,6 +58,7 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - Project pending context management: `memory/skills/`
 - Media production, video, and social operations: `media/skills/`
 - General debug diagnosis and implementation troubleshooting: `engineering/skills/`
+- Real software development scenario evaluation: `quality/skills/`
 - Technology-stack-specific coding skills: maintained in `arckit-code`, not this repository.
 - Server deployment: `delivery/skills/`
 

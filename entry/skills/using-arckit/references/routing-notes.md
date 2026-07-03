@@ -10,10 +10,10 @@
 - 过程层：`arckit-draft-spec`、`arckit-explore-product-design`、`arckit-architecture-decision`、`arckit-domain-modeling`。
 - 定义层：`arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech`。
 - 治理层：`arckit-project-governance-workflow`。
-- 规划辅助层：`arckit-team-responsibility`、`arckit-iteration-planning`、`product-work-item-discovery`。
+- 规划辅助层：`arckit-team-responsibility`、`arckit-iteration-planning`、`arckit-work-item-discovery`。
 - 记忆层：`arckit-intake`、`arckit-pending`、`arckit-workflow-memory`。
 - 诊断层：`arckit-debug-diagnosis`。
-- 质量层：`arckit-verify-implementation`、`arckit-code-review`。
+- 质量层：`arckit-verify-implementation`、`arckit-code-review`、`arckit-evaluation`。
 - 交付层：`arckit-git-branching`、`arckit-release-readiness`、`arckit-runtime-operations`。
 - 桌面桥：`arckit-workshop-desktop`。
 
@@ -69,7 +69,7 @@ user intent
 - `current_phase`：本轮当前最应该处于探索、定义、原型、视觉、技术方案、实现、验证、治理、记忆沉淀或收口中的哪一段。
 - `phase_reason`：为什么当前阶段不是直接实现、不是继续讨论、不是先写稳定事实源，或为什么必须请求确认。
 - `missing_piece`：当前缺的是证据、选择、确认、交互结构、视觉方向、产品规则、技术边界、实现改动、验证结果还是流程记忆。
-- `available_arckit_capabilities`：列出本轮可能相关的基础能力，例如 `arckit-explore-product-design`、`arckit-interaction`、`arckit-visual`、`arckit-spec`、`arckit-tech`、`arckit-debug-diagnosis`、实现工作流、`arckit-verify-implementation`、`arckit-pending`、`arckit-workflow-memory`。
+- `available_arckit_capabilities`：列出本轮可能相关的基础能力，例如 `arckit-explore-product-design`、`arckit-interaction`、`arckit-visual`、`arckit-spec`、`arckit-tech`、`arckit-evaluation`、`arckit-debug-diagnosis`、实现工作流、`arckit-verify-implementation`、`arckit-pending`、`arckit-workflow-memory`。
 - `selected_capabilities`：只选择当前阶段实际需要的能力，并说明每个能力补哪个缺口。
 - `why_not_selected`：对明显相关但本轮不选的能力给出简短理由，避免 agent 凭直觉跳过原型、确认、验证或实现。
 - `artifact_stability`：区分稳定事实、过程产物、候选方案、待确认假设和 workflow signal 来源；不要把过程讨论直接写入稳定事实源。
@@ -130,14 +130,15 @@ workflow_correction_ledger: null
 
 - 原始资料归档：`arckit-intake`，随后按内容进入分析或定义。
 - 反馈、需求、bug、风险、任务候选：治理推进走 `arckit-project-governance-workflow`；暂不承诺走 `arckit-pending`；具体执行另起 debug/spec/design/tech/code/verify。
-- 读项目后推荐后续开发：`product-work-item-discovery`；需要排期或 owner 时再接 `arckit-iteration-planning`、`arckit-team-responsibility`、`arckit-project-governance-workflow`。
+- 读项目后推荐后续开发：`arckit-work-item-discovery`；需要排期或 owner 时再接 `arckit-iteration-planning`、`arckit-team-responsibility`、`arckit-project-governance-workflow`。
 - 模糊想法判断：`arckit-decision-framework`，需要外部证据接 `arckit-market-research`，需要用户研究或线框接 `arckit-idea-explore`。
 - 方向变成可执行版本：缺定义先补定义；缺推进方式用 `arckit-project-governance-workflow`；最后形成 `implementation_handoff`。
 - 功能、页面或模块定义：产品行为写 `arckit-spec`；交互写 `arckit-interaction`；视觉写 `arckit-visual`；技术方案写 `arckit-tech`。
 - 正向实现：先判断实现是否会建立或强化产品、交互、视觉或技术规范；Code 类实现走 `implementation_handoff` -> 普通代码工作流或外部 `arckit-code` -> `arckit-verify-implementation`；UI 一致性、跨页面行为/样式统一或组件状态统一需要在实现前标记 `interaction: check`、`visual: check`，实现后按证据决定是否 update 文档。
 - bug、回归、偶发失败、性能退化：`arckit-debug-diagnosis` -> `arckit-verify-implementation`；需要运行期信号时接 `arckit-runtime-operations`。
 - 代码审查：`arckit-code-review`，必要时接 `arckit-verify-implementation` 和治理收口。
-- Skill 类实现：路由到 ArcForge 类外部 skill 生命周期能力完成 skill 创建、维护、治理、应用或漂移检查；隔离验证或模拟测试路由到 ArcForge 类外部 skill 场景验证能力，Arckit 负责判断事实源、评测和工作方式回流影响。
+- 只做评测、模拟真实研发场景、复盘试跑偏差、验证产品方案覆盖：`arckit-evaluation`；评测结论只在确认稳定后再交给 spec、tech、治理、pending 或 workflow memory。
+- Skill 类实现：先形成 `skill_implementation_guard`，说明目标 skill 的产品责任、路由状态、description 暴露边界、输入输出契约、引用资料范围、真实场景验收样本和安装同步影响；再路由到 ArcForge 类外部 skill 生命周期能力完成 skill 创建、维护、治理、应用或漂移检查。隔离验证或模拟测试路由到 ArcForge 类外部 skill 场景验证能力，Arckit 负责判断事实源、评测和工作方式回流影响。
 - 发布/出包/测试分发/应用商店候选：默认 `arckit-git-branching`，把意图转成 `release/*` 分支和 tag push 触发远端 workflow；不展开本地构建、archive、上传或平台发布流程。
 - 远端出包 workflow 失败但缺少错误原因：默认 `arckit-git-branching`，先指导用户从远端 workflow UI、平台通知和开发者邮箱收集失败原因原文；拿到错误前不进入 debug、readiness 或无证据配置修改。
 - 发布前 gate、go/no-go、灰度/回滚风险：`arckit-release-readiness`。
@@ -145,12 +146,19 @@ workflow_correction_ledger: null
 - 本地桌面记录、任务派发或 Codex dispatch：先确认任务足够明确，再用 `arckit-workshop-desktop`。
 - 显式角色协作：`arckit-role-orchestration`，且执行前需要用户确认。
 
+## Handoff Contracts
+
+- 过程型 handoff 至少包含来源、当前阶段、最终产物类型、已确认事实、候选判断、证据、风险、开放问题、建议接收方、不可直接写入稳定事实源的内容和下一步确认点。
+- `implementation_handoff` 至少包含目标最终产物类型、预期事实依据、影响范围、禁止触碰范围、实现约束、验收口径、需要回查的事实源、需要保留的未决项和验证方式。
+- `skill_implementation_guard` 至少包含目标 skill 的产品责任、路由状态、description 暴露边界、输入输出契约、引用资料范围、真实场景验收样本和安装同步影响。
+- `verification_handoff` 至少包含验证目标类型、预期依据、实现证据、执行结果、偏差、剩余风险、建议修复入口和是否需要更新评测材料。
+
 ## Coordination Rules
 
 - 入口先编排再执行：先形成 workflow frame，再读取专门 skill。
 - Workflow memory 是 scenario workflow resolution 和 overlay 来源：命中的 workflow 必须绑定到本轮 frame，并改写或明确不改写本轮 workflow frame，不能只展示为来源。
 - 执行记录不是新 workflow：每次任务写 `execution_record`；同类场景维护同一个 accepted/candidate workflow。
-- 每轮执行 artifact impact scan：稳定事实进 spec/interaction/visual/tech，未决问题进 pending，目标任务影响进 governance，流程经验进 workflow memory。
+- 每轮执行 artifact impact scan：稳定事实进 spec/interaction/visual/tech，真实研发活动场景和覆盖结论进 evaluation，未决问题进 pending，目标任务影响进 governance，流程经验进 workflow memory。
 - Artifact impact scan 不按任务规模设置特殊分支：所有任务都按同一组目标逐项判断。最终表述可以简洁，但不得用任务规模推断结果，也不得用“无项目事实变化”替代 workflow memory closeout 判断。
 - 执行中保留 reflection gates：after_context_read、before_edit、after_execution、before_final、turn_adaptation。
 - 后续用户消息是 turn adaptation gate：出现补充、纠错、换目标、事实纠正、回答澄清或暂停时，先用 `arckit-turn-adaptation` 分类，再决定是否重编 workflow frame 或更新 artifact routing。
@@ -163,8 +171,9 @@ workflow_correction_ledger: null
 
 - 原始输入事实：`arckit-intake`。
 - 产品定义事实：`arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech`。
+- 评测过程事实：`arckit-evaluation`。
 - 项目治理事实：`arckit-project-governance-workflow`。
-- 规划辅助事实：`arckit-iteration-planning`、`arckit-team-responsibility`、`product-work-item-discovery`。
+- 规划辅助事实：`arckit-iteration-planning`、`arckit-team-responsibility`、`arckit-work-item-discovery`。
 - 未承诺上下文：`arckit-pending`。
 - 桌面执行记录：Workshop Desktop。
 - Workflow Memory：`~/.arckit/workflows/` 或项目级 workflow memory。

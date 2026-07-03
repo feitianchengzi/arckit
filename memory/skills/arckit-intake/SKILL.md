@@ -1,6 +1,6 @@
 ---
 name: arckit-intake
-description: 把原始项目输入材料记录到 arckit/intake，为每个 artifact 建立 Markdown record，并按需做忠实文本提取。用于用户提供项目原始信息、笔记、文件、截图、链接、参考资料、brief、访谈记录、需求片段、可复用素材，或要求归档、保存、登记、建立索引、转写、提取、追踪 source input materials，且暂不分析、不提升为需求/任务/决策时。
+description: 把原始项目输入材料记录到 arckit/intake，为每个 artifact 建立 Markdown record，并按需做忠实文本提取。默认由 using-arckit 在判断本轮只需保存原始材料、暂不分析且不提升为需求/任务/决策时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。
 ---
 
 # Arckit Intake
