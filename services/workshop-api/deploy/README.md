@@ -13,7 +13,6 @@ deploy/
 ├── prod/                             # 生产环境
 │   ├── docker-compose.prod.yml      # Docker Compose 配置
 │   ├── deploy.sh                    # 生产环境部署脚本
-│   ├── deploy.config.example        # 部署配置示例（服务器 SSH 信息）
 │   ├── .env.workshop.production     # 生产环境配置（不提交 Git）
 │   └── env.workshop.production.example # 配置示例
 └── Dockerfile                        # Docker 镜像构建文件
@@ -38,20 +37,14 @@ deploy/
 
 生产环境部署采用**本地构建 + 上传服务器**的方式：
 
-1. **配置部署信息**：
+1. **配置生产环境变量和部署信息**：
    ```bash
    cd deploy/prod
-   cp deploy.config.example deploy.config
-   # 编辑 deploy.config，配置服务器 SSH 信息
-   ```
-
-2. **配置环境变量**：
-   ```bash
    cp env.workshop.production.example .env.workshop.production
-   # 编辑 .env.workshop.production，配置生产环境变量（RDS 连接信息等）
+   # 编辑 .env.workshop.production，配置 RDS、OSS、服务器 SSH、部署目录和镜像信息
    ```
 
-3. **执行部署**：
+2. **执行部署**：
    ```bash
    # 从项目根目录执行
    ./deploy.sh prod
@@ -67,6 +60,8 @@ deploy/
 - 保存镜像为 tar 文件
 - 上传镜像和配置文件到服务器
 - 在服务器上加载镜像并运行
+
+生产环境只维护一个配置文件：`deploy/prod/.env.workshop.production`。部署脚本会从这个文件读取服务器 SSH、部署目录、镜像信息等部署参数；上传到服务器的应用环境文件会自动过滤这些部署专用变量，只保留服务运行所需环境变量。
 
 **部署脚本选项**：
 - `--skip-build`：跳过本地构建，使用现有镜像
@@ -92,7 +87,7 @@ cp deploy/dev/env.development.example deploy/dev/.env.development
 
 # 生产环境
 cp deploy/prod/env.workshop.production.example deploy/prod/.env.workshop.production
-# 编辑 deploy/prod/.env.workshop.production 配置你的环境变量
+# 编辑 deploy/prod/.env.workshop.production 配置你的环境变量和部署信息
 ```
 
 ### 3. Docker Compose 注入

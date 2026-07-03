@@ -20,18 +20,19 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # 配置变量
-CONFIG_FILE="deploy.config"
 ENV_FILE=".env.workshop.production"
 COMPOSE_FILE="docker-compose.prod.yml"
+APP_ENV_UPLOAD_FILE="${ENV_FILE}.app"
 
-# 加载部署配置
-if [ -f "${CONFIG_FILE}" ]; then
-    echo -e "${YELLOW}加载部署配置: ${CONFIG_FILE}${NC}"
-    source "${CONFIG_FILE}"
+# 检查并加载统一生产配置文件
+if [ -f "${ENV_FILE}" ]; then
+    echo -e "${YELLOW}加载生产配置: ${ENV_FILE}${NC}"
+    source "${ENV_FILE}"
 else
-    echo -e "${RED}错误: 部署配置文件 ${CONFIG_FILE} 不存在！${NC}"
-    echo -e "${YELLOW}请从 deploy.config.example 复制创建：${NC}"
-    echo -e "${YELLOW}  cp deploy.config.example ${CONFIG_FILE}${NC}"
+    EXAMPLE_FILE="env.workshop.production.example"
+    echo -e "${RED}错误: 生产配置文件 ${ENV_FILE} 不存在！${NC}"
+    echo -e "${YELLOW}请从示例文件复制创建：${NC}"
+    echo -e "${YELLOW}  cp ${EXAMPLE_FILE} ${ENV_FILE}${NC}"
     exit 1
 fi
 
@@ -63,7 +64,7 @@ fi
 # 检查必要的配置
 if [ -z "$SERVER_HOST" ] || [ -z "$SERVER_USER" ] || [ -z "$SERVER_DEPLOY_DIR" ]; then
     echo -e "${RED}错误: 部署配置不完整！${NC}"
-    echo -e "${YELLOW}请确保 ${CONFIG_FILE} 中包含以下配置：${NC}"
+    echo -e "${YELLOW}请确保 ${ENV_FILE} 中包含以下配置：${NC}"
     echo -e "${YELLOW}  PROD_SERVER_HOST (或 SERVER_HOST)${NC}"
     echo -e "${YELLOW}  PROD_SERVER_SSH_USER (或 SERVER_USER)${NC}"
     echo -e "${YELLOW}  SERVER_DEPLOY_DIR${NC}"
@@ -85,8 +86,8 @@ if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     echo "  流程：本地编译 -> 本地构建镜像 -> 上传到服务器 -> 服务器运行"
     echo ""
     echo -e "${BLUE}配置:${NC}"
-    echo "  需要配置 ${CONFIG_FILE} 文件，包含服务器 SSH 信息"
-    echo "  需要配置 ${ENV_FILE} 文件，包含生产环境变量"
+    echo "  需要配置 ${ENV_FILE} 文件，包含生产环境变量和服务器部署信息"
+    echo "  上传到服务器的应用环境文件会自动过滤 SSH、镜像、部署目录等部署专用变量"
     exit 0
 fi
 
@@ -131,15 +132,6 @@ else
     echo -e "  SSH 认证: 使用默认密钥或密码"
 fi
 echo ""
-
-# 检查环境配置文件是否存在
-if [ ! -f "${ENV_FILE}" ]; then
-    EXAMPLE_FILE="env.workshop.production.example"
-    echo -e "${RED}错误: 环境配置文件 ${ENV_FILE} 不存在！${NC}"
-    echo -e "${YELLOW}请从示例文件复制创建：${NC}"
-    echo -e "${YELLOW}  cp ${EXAMPLE_FILE} ${ENV_FILE}${NC}"
-    exit 1
-fi
 
 # 步骤1: 本地构建 Docker 镜像
 if [ "$SKIP_BUILD" = false ]; then
@@ -206,12 +198,15 @@ fi
 
 # 上传环境配置文件
 echo -e "${YELLOW}上传环境配置文件: ${ENV_FILE}${NC}"
-if scp ${SSH_KEY_OPTION} -P ${SERVER_PORT:-22} "${ENV_FILE}" "${SERVER_USER}@${SERVER_HOST}:${SERVER_DEPLOY_DIR}/deploy/prod/"; then
+grep -Ev '^(PROD_SERVER_|SERVER_HOST=|SERVER_USER=|SERVER_PORT=|SERVER_DEPLOY_DIR=|SSH_KEY=|IMAGE_NAME=|IMAGE_TAG=|PROJECT_ROOT=)' "${ENV_FILE}" > "${APP_ENV_UPLOAD_FILE}"
+if scp ${SSH_KEY_OPTION} -P ${SERVER_PORT:-22} "${APP_ENV_UPLOAD_FILE}" "${SERVER_USER}@${SERVER_HOST}:${SERVER_DEPLOY_DIR}/deploy/prod/${ENV_FILE}"; then
     echo -e "${GREEN}✓ 环境配置文件上传成功${NC}"
 else
+    rm -f "${APP_ENV_UPLOAD_FILE}"
     echo -e "${RED}✗ 环境配置文件上传失败${NC}"
     exit 1
 fi
+rm -f "${APP_ENV_UPLOAD_FILE}"
 
 # 上传 docker-compose 文件
 echo -e "${YELLOW}上传 Docker Compose 文件: ${COMPOSE_FILE}${NC}"
