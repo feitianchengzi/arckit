@@ -1,111 +1,72 @@
 ---
 name: arckit-git-branching
-description: 当用户需要选择、创建或治理 main、feature/*、release/*、hotfix/* 分支，处理发布线修复回流、多版本并行，表达发布/出包/测试分发/应用商店发布意图，或反馈远端 workflow 触发后缺少失败原因时作为候选能力使用。软件项目首轮应先由 using-arckit 编译 workflow frame 后路由到本 skill；本 skill 只负责分支规范、tag 规范、通过 git push 远端分支或 tag 触发已配置的远端 workflow，以及指导收集远端失败原因；不负责本地构建、测试、archive、导出、上传、发布前验证、外部平台配置、账号授权、真实发布平台操作或按无证据猜测修复。
+description: 当用户需要 Git 分支规范、release/feature/hotfix 选择、多版本并行、发布线修复回流、tag 出包触发，或远端 workflow 失败原因收集时使用。本 skill 只负责 Git 分支/tag 契约、通过 git push 触发已配置的远端 workflow，以及指导收集远端失败原因；不负责非 Git 发布实现、平台账号配置或无证据修复。
 ---
 
 # Arckit Git Branching
 
-本 skill 只管理 Git 分支和 Git tag 触发契约。发布意图在这里被转译为：推荐 `release/*` 分支、推荐 tag、确认后创建并 push 到远端，让已配置的远端 workflow 自行出包。
+把发布相关请求收敛到 Git 层：分支决定代码生命周期，tag 决定远端出包意图。tag 不强制绑定 `release/*`，但必须尊重已存在的版本稳定线。
 
-## 硬约束
+## 使用边界
 
-- `main` 是默认开发和集成分支。
-- `feature/<topic>` 只在需要隔离高风险、长周期、多人协作或实验性工作时使用。
-- `release/vx.x.x` 是唯一发布稳定分支；内测、公测和正式发布是 tag 触发意图，不是分支类型。
-- 不使用 `testflight/*`、`beta/*`、`appstore/*` 作为分支类型。
-- `hotfix/<topic>` 只作为正式发布后紧急修复的可选分支。
-- 发布线修复必须回流到 `main`；存在后续 `release/*` 时要评估是否同步。
-- 出包触发只通过 `git push` 远端分支或 tag 进行：`git push origin release/vx.x.x`、`git push origin <tag>`。
-- 本 skill 不输出、不计划、不执行本地构建、测试、archive、导出、上传、提交审核、签名、provisioning、Transporter、Organizer、App Store Connect 操作或发布前验证。
-- 本 skill 不修改项目版本号/build 号文件；版本/build 只用于推荐 branch/tag 名称，除非用户另行明确要求修改工程版本。
-- 任何创建分支、切换分支、打 tag、push、合并、删除或重置操作前，必须先检查工作区状态并请求用户确认。
-- push 后如果用户反馈远端 workflow 失败、日志不完整或发布平台没有上传历史，只做失败原因收集引导；必须先要求用户提供远端失败原因原文，再交给后续 debug 或平台配置处理。
+- 只处理 `main`、`feature/*`、`release/*`、`hotfix/*` 的分支策略和合并流向。
+- 只处理 `tf/*`、`beta/*`、`appstore/*` 的 tag 命名、基线选择和 push 触发。
+- 写操作前必须检查 Git 状态并等待用户确认。
+- push 后停止，不跟踪远端构建、上传或发布平台状态。
+- 远端失败但缺少具体错误时，只收集失败原因原文，不猜测修复。
 
-## 主流程
+## 模式选择
 
-### 1. 先定模式
+- `branch-policy`：用户询问分支规范、多版本并行、release/hotfix/feature 选择。
+- `branch-maintenance`：用户要求创建、切换、合并、删除分支，或处理 release/hotfix 回流。
+- `recommend-git-trigger`：用户表达发布、出包、测试分发、应用商店发布、内测、公测、正式发布或发布候选意图，但尚未确认 Git 操作。
+- `apply-git-trigger`：用户已确认目标基线和 tag，要求创建/推送分支或 tag。
+- `workflow-failure-evidence`：用户反馈 branch/tag 触发后的远端 workflow 失败、缺少日志、缺少上传历史或不知道失败原因在哪里看。
 
-输入：用户原话。
-
-动作：
-- `recommend-git-trigger`：用户表达发布、出包、测试分发、应用商店发布、内测、公测、正式发布或发布候选意图，但尚未明确确认执行 Git 操作。
-- `apply-git-trigger`：用户已确认采用某个推荐方案，要求创建/推送 `release/*` 或 tag。
-- `workflow-failure-evidence`：用户反馈通过 branch/tag 触发的远端 workflow 失败、缺少日志、缺少上传历史或不知道失败原因在哪里看。
-- `branch-policy`：用户只询问分支规范、多版本并行、release/hotfix/feature 选择。
-- `branch-maintenance`：用户明确要求创建、切换、合并、删除普通分支，或处理 release/hotfix 回流。
-
-退出条件：只能选一个模式。发布类 prompt 默认先进入 `recommend-git-trigger`，不能展开成发布执行计划。
-
-### 2. 推荐 Git 触发方案
-
-仅在 `recommend-git-trigger` 模式执行。
-
-动作：
-- 不运行命令，不读取工程文件，不检查 App Store Connect 或外部平台状态。
-- 根据用户 prompt 推断渠道：
-  - 内测、内部测试、TestFlight 且未说明外部/公测：推荐内部测试 tag。
-  - 外部测试、公测、public link、beta：推荐公开测试 tag。
-  - 正式发布、上架、App Store 候选、生产发布：推荐正式候选 tag。
-- 推荐版本/build：
-  - 优先使用用户原话或当前对话中可见的版本/build。
-  - 没有可见版本时，给出可修改默认值 `v1.0.0`。
-  - 内部测试默认 build 序号从 `b1` 开始；公开测试默认候选序号从 `rc1` 开始。
-- 读取 [references/platform-release-triggers.md](references/platform-release-triggers.md) 获取 tag 命名规则；如果 prompt 明确是 Apple/TestFlight/App Store 场景，再读取 Apple reference。
-- 输出推荐方案，必须包含：目标分支、目标 tag、远端触发方式、假设的远端 workflow 监听规则、等待用户确认的 Git 操作。
-
-退出条件：给出可执行的 Git 触发建议后停止，等待用户确认。
-
-### 3. 确认后执行 Git 触发
-
-仅在 `apply-git-trigger` 模式执行。
-
-动作：
-- 先运行 Git 状态检查：当前分支、工作区是否干净、目标远端是否存在。
-- 如果工作区不干净或推荐方案缺少版本/tag，停止并让用户确认处理方式。
-- 按已确认方案执行最小 Git 操作：
-  - 创建或切换 `release/vx.x.x`。
-  - 创建确认过的 tag。
-  - push `release/vx.x.x` 到远端。
-  - push tag 到远端。
-- 只报告 Git 命令结果和远端 workflow 应被哪个 branch/tag 触发；不要继续跟踪远端构建、测试、上传或发布状态。
-
-退出条件：分支/tag 已 push，或因 Git 状态/权限/网络失败而停止并报告。
-
-### 4. 收集远端失败原因
-
-仅在 `workflow-failure-evidence` 模式执行。
-
-动作：
-- 不运行本地构建、上传或平台修复命令，也不根据笼统失败文案盲改代码或配置。
-- 读取平台无关失败原因入口；如果是 Apple/Xcode Cloud 场景，再读取 Apple reference 的失败信息入口。
-- 指导用户收集远端 workflow 或平台通知中的失败原因原文，包括失败标题、具体错误、触发的 branch/tag、commit、workflow 名称和时间。
-- 如果 Apple 首次上传导致 TestFlight 看不到上传历史，必须提示优先检查开发者账号邮箱中的失败邮件；Xcode Cloud Build 历史可能只显示泛化失败标题，不能把 logs/artifacts 成功误判为整体成功。
-- 拿到失败原因原文之前，只输出收集清单和下一步交接边界。
-
-退出条件：用户知道去哪里找失败原因，或已经提供可交给 debug/平台配置任务处理的失败原因原文。
-
-### 5. 分支规范和维护
-
-动作：
-- `branch-policy`：直接给出分支选择建议，不需要读取仓库。
-- `branch-maintenance`：先检查 `git status --short` 和当前分支；执行任何写操作前报告计划并等待确认。
-- 日常迭代使用 `main`；必要隔离使用 `feature/<topic>`；版本稳定线使用 `release/vx.x.x`；正式发布后紧急修复可选 `hotfix/<topic>`。
-- 如果涉及发布线修复，必须说明修复回流到 `main`，以及是否需要同步到其他 `release/*`。
-
-退出条件：给出建议，或在用户确认后完成明确的 Git 操作。
+发布类 prompt 默认先进入 `recommend-git-trigger`，不要展开成平台发布计划。
 
 ## Reference 路由
 
-- 平台无关的 tag 命名和远端 workflow 触发契约：读 [references/platform-release-triggers.md](references/platform-release-triggers.md)。
-- Apple/TestFlight/App Store 的 tag 约定和 Xcode Cloud 失败信息入口：只在 prompt 明确涉及 Apple 平台、Xcode Cloud、TestFlight 或 App Store 时读 [references/xcode-cloud-release-triggers.md](references/xcode-cloud-release-triggers.md)。
+- 分支策略、tag 基线、检查清单和平台无关 workflow pattern：读 [references/platform-release-triggers.md](references/platform-release-triggers.md)。
+- Apple / Xcode Cloud / TestFlight 场景下的 workflow pattern 和失败证据入口：读 [references/xcode-cloud-release-triggers.md](references/xcode-cloud-release-triggers.md)。
 
-## 最终汇报字段
+## 操作协议
+
+### 分支规范或维护
+
+- 按 reference 的 Branch Policy 和 Merge Policy 输出建议。
+- 若涉及 release：必须说明 `release/*` 创建后冻结，不再整体合并 `main`；必要修复通过 cherry-pick/backport 进入 release。
+- 若涉及 hotfix：必须说明它是可选分支；能在活跃 `release/*` 上修复时优先使用 `release/*`。
+
+### 推荐 tag 触发
+
+- 只做 Git 状态检查：当前分支、工作区、本地/远端 `release/*`、本地/远端目标 tag。
+- 根据用户意图推荐 tag：内部测试 `tf/*`，外部测试/公测 `beta/*`，正式候选 `appstore/*`。
+- 根据已有 release 状态推荐基线：
+  - 目标 `release/vx.x.x` 已存在：优先基于该 release。
+  - 目标 release 不存在且是内部测试：可以基于 `main`。
+  - 目标 release 不存在且是外部测试或正式候选：建议创建 release，但等待用户确认。
+- 输出推荐基线、tag、远端监听 pattern、确认后将执行的 Git 操作，然后停止。
+
+### 执行 tag 触发
+
+- 检查当前分支、工作区、远端、目标 release、目标 tag。
+- 如果工作区不干净、tag 已存在、缺少版本/tag，或目标基线违反规则，停止并请求确认。
+- 只执行已确认的最小 Git 操作：必要时切换/创建基线分支，创建 tag，push 相关分支，push tag。
+- push 完成后只报告 Git 结果和远端 workflow 应被哪个 branch/tag 触发。
+
+### 收集失败原因
+
+- 收集触发 branch/tag、commit、workflow 名称、失败时间、失败标题、具体错误和平台通知。
+- Apple 首次上传导致 TestFlight 看不到上传历史时，优先检查开发者账号邮箱；Xcode Cloud Build 泛化标题和成功 artifacts 不能证明整体成功。
+- 拿到失败原因原文后，再交给 debug、平台配置或实现修复任务。
+
+## 最终汇报
 
 - 选定模式。
-- 推荐或已执行的目标分支。
+- 推荐或已执行的基线分支/commit。
 - 推荐或已执行的 tag。
-- 远端触发方式：push branch、push tag，或二者。
+- 远端触发方式和监听 pattern。
 - 已执行的 Git 操作；如未执行，说明等待确认或阻塞原因。
-- 远端 workflow 需要预先监听的 branch/tag pattern。
-- 如果是远端 workflow 失败原因收集：已建议检查的失败信息入口和仍缺少的失败原因原文。
-- 发布线修复回流计划，如适用。
+- 如涉及失败收集：已建议检查的失败信息入口和仍缺少的失败原因原文。
+- 如涉及 release/hotfix：回流和同步计划。
