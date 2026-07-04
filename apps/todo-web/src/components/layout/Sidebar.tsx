@@ -17,6 +17,8 @@ import { ProjectListContent } from './ProjectList'
 import { CreateOrganizationDialog } from '../features/CreateOrganizationDialog'
 import { CreateProjectDialog } from '../features/CreateProjectDialog'
 import { Avatar } from '@/components/ui'
+import { showGlobalToast } from '@/components/ui/Toast'
+import { openFeedbackStatus, openFeedbackSubmit, syncFeedbackSdkTheme } from '@/lib/feedbackSdk'
 import { buildFeedbackOrganizationPath, buildOrganizationPath, decodeOrganizationId } from '@/lib/utils/organizationRouting'
 
 interface SidebarProps {
@@ -28,6 +30,7 @@ interface SidebarProps {
 
 const ORGANIZATION_MENU_PAGE_SIZE = 20
 const ORGANIZATION_MENU_SCROLL_THRESHOLD = 48
+type FeedbackPanel = 'submit' | 'status'
 
 export function Sidebar({ className, isOpen = true, onClose, collapsed = false }: SidebarProps) {
   const navigate = useNavigate()
@@ -46,6 +49,7 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
   const projectScrollRef = useRef<HTMLDivElement>(null)
   const organizationMenuRef = useRef<HTMLDivElement>(null)
   const organizationListRef = useRef<HTMLDivElement>(null)
+  const feedbackMenuRef = useRef<HTMLDivElement>(null)
 
   const [user, setUser] = useState<typeof storeUser>(null)
   const [mounted, setMounted] = useState(false)
@@ -54,6 +58,8 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
   const [showCreateOrgDialog, setShowCreateOrgDialog] = useState(false)
   const [showCreateProjectDialog, setShowCreateProjectDialog] = useState(false)
   const [organizationMenuOpen, setOrganizationMenuOpen] = useState(false)
+  const [feedbackMenuOpen, setFeedbackMenuOpen] = useState(false)
+  const [feedbackOpening, setFeedbackOpening] = useState<FeedbackPanel | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -72,6 +78,23 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
     document.addEventListener('mousedown', handlePointerDown)
     return () => document.removeEventListener('mousedown', handlePointerDown)
   }, [organizationMenuOpen])
+
+  useEffect(() => {
+    if (!feedbackMenuOpen) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!feedbackMenuRef.current?.contains(event.target as Node)) {
+        setFeedbackMenuOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [feedbackMenuOpen])
+
+  useEffect(() => {
+    syncFeedbackSdkTheme(theme)
+  }, [theme])
 
   useEffect(() => {
     const organizationSlug = location.pathname.match(/\/(?:feedbacks\/)?organizations\/([^/]+)/)?.[1]
@@ -144,6 +167,24 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
     queryClient.invalidateQueries({ queryKey: ['projects'] })
   }
 
+  const handleOpenFeedback = async (panel: FeedbackPanel) => {
+    setFeedbackMenuOpen(false)
+    setFeedbackOpening(panel)
+
+    try {
+      if (panel === 'submit') {
+        await openFeedbackSubmit(theme)
+      } else {
+        await openFeedbackStatus(theme)
+      }
+    } catch (error) {
+      console.error('打开反馈 SDK 失败:', error)
+      showGlobalToast('反馈入口加载失败，请稍后重试', 'error', 3000)
+    } finally {
+      setFeedbackOpening(null)
+    }
+  }
+
   const handleOrganizationMenuScroll = (event: UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget
     const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight
@@ -193,7 +234,7 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
 
           {organizationMenuOpen && (
             <div
-              className="absolute right-0 top-9 z-30 flex w-52 flex-col overflow-hidden rounded-xl border border-border bg-surface-elevated py-1 shadow-[0_12px_28px_rgba(15,23,42,0.12)]"
+              className="absolute left-0 top-9 z-30 flex w-52 max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-xl border border-border bg-surface-elevated py-1 shadow-[0_12px_28px_rgba(15,23,42,0.12)]"
               role="menu"
               style={{ maxHeight: 'min(320px, calc(100vh - 5rem))' }}
             >
@@ -338,6 +379,49 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
               {displayUsername}
             </span>
           </button>
+          <div ref={feedbackMenuRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setFeedbackMenuOpen((open) => !open)}
+              disabled={feedbackOpening !== null}
+              className={clsx(
+                'flex h-8 w-8 items-center justify-center rounded-md text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1',
+                feedbackOpening !== null && 'cursor-wait opacity-70'
+              )}
+              title="产品反馈"
+              aria-label="产品反馈"
+              aria-expanded={feedbackMenuOpen}
+              aria-haspopup="menu"
+            >
+              {feedbackOpening ? <SpinnerIcon /> : <FeedbackIcon />}
+            </button>
+
+            {feedbackMenuOpen && (
+              <div
+                className="absolute bottom-10 right-0 z-30 w-40 overflow-hidden rounded-lg border border-border bg-surface-elevated py-1 shadow-[0_12px_28px_rgba(15,23,42,0.12)]"
+                role="menu"
+              >
+                <button
+                  type="button"
+                  onClick={() => handleOpenFeedback('submit')}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover"
+                  role="menuitem"
+                >
+                  <SubmitFeedbackIcon />
+                  <span className="min-w-0 flex-1 truncate">提交反馈</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenFeedback('status')}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus:outline-none focus-visible:bg-surface-hover"
+                  role="menuitem"
+                >
+                  <StatusFeedbackIcon />
+                  <span className="min-w-0 flex-1 truncate">我的反馈</span>
+                </button>
+              </div>
+            )}
+          </div>
           <button
             type="button"
             onClick={toggleTheme}
@@ -420,6 +504,39 @@ function SunIcon() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4V3m0 18v-1m8-8h1M3 12h1m14.1 6.1.7.7M5.2 5.2l.7.7m12.2-.7-.7.7M5.2 18.8l.7-.7M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" />
+    </svg>
+  )
+}
+
+function FeedbackIcon() {
+  return (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h6m-7 7 3.5-3.5H17a4 4 0 0 0 4-4V8a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v3.5a4 4 0 0 0 3 3.9V19Z" />
+    </svg>
+  )
+}
+
+function SubmitFeedbackIcon() {
+  return (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v8m4-4H8m-2 9 3-3h8a4 4 0 0 0 4-4V8a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v3a4 4 0 0 0 3 3.9V18Z" />
+    </svg>
+  )
+}
+
+function StatusFeedbackIcon() {
+  return (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h8M8 12h5m5.5 6.5-2-2 2-2M5 20h9a5 5 0 0 0 0-10H7a4 4 0 0 1 0-8h10" />
+    </svg>
+  )
+}
+
+function SpinnerIcon() {
+  return (
+    <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+      <circle className="opacity-20" cx="12" cy="12" r="9" stroke="currentColor" strokeWidth={3} />
+      <path className="opacity-80" fill="currentColor" d="M12 3a9 9 0 0 1 9 9h-3a6 6 0 0 0-6-6V3Z" />
     </svg>
   )
 }

@@ -9,7 +9,7 @@ import { useParams, useNavigate, useLocation, useSearchParams } from 'react-rout
 import { Avatar, Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
 import { getLinearPriorityOption, getLinearStatusOption, LinearPriorityMarker, LinearStatusMarker } from '@/components/features/TodoItem'
-import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog, DateRangeFilter, FilterMultiSelect, FeedbackDialog } from '@/components/features'
+import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog, DateRangeFilter, FilterMultiSelect } from '@/components/features'
 import { flattenTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
 import { getDefaultTaskDateRange, isSameTaskDateRange, normalizeTaskDateRange, taskDateRangeToTimeFilters } from '@/lib/utils/taskDateRange'
@@ -213,9 +213,6 @@ export default function ProjectDetailPage() {
   
   // 导出待办对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false)
-  // 反馈对话框状态
-  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
-
   // 迁移项目状态
   const [showMigrateDialog, setShowMigrateDialog] = useState(false)
   const [migrateOrgId, setMigrateOrgId] = useState('')
@@ -1469,20 +1466,6 @@ export default function ProjectDetailPage() {
                     <span>项目信息</span>
                   </button>
 
-                  {/* 新增反馈 - 所有用户可见 */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowFeedbackDialog(true)
-                      setShowMoreMenu(false)
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover"
-                    role="menuitem"
-                  >
-                    <FeedbackIcon className="h-4 w-4 shrink-0" />
-                    <span>新增反馈</span>
-                  </button>
-
                   {/* 导出待办 - 所有用户可见 */}
                   <button
                     type="button"
@@ -2075,14 +2058,6 @@ export default function ProjectDetailPage() {
         onSuccess={handleCreateSelectedSubtaskSuccess}
       />
 
-      {/* 提交反馈对话框 */}
-      <FeedbackDialog
-        open={showFeedbackDialog}
-        onClose={() => setShowFeedbackDialog(false)}
-        projectId={projectId}
-        projectName={project?.name}
-      />
-      
       {/* 导出待办对话框 */}
       {todos && members && currentUserId && project && (
         <ExportTodosDialog
@@ -2269,14 +2244,6 @@ function MembersIcon() {
   return (
     <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-    </svg>
-  )
-}
-
-function FeedbackIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 1138 1024" fill="currentColor" aria-hidden="true">
-      <path d="M1055.738 57.594c-45.439-36.351-154.492-27.262-304.439 86.333-213.562 159.036-308.983 368.052-445.298 572.527-22.719 31.807 13.632 49.983 40.895 36.351l86.333-49.983c13.632-4.544 18.175-4.544 13.632-27.262-9.088-68.158 18.176-131.772 59.070-186.298v0c149.947 63.614 331.702 27.262 395.317-154.492 81.789-18.176 159.036-109.053 172.667-172.666 13.632-45.439 9.088-86.333-18.175-104.509zM142.422 716.454c122.684 213.562 390.773 286.263 604.333 163.58 140.859-81.789 218.105-227.193 222.649-377.14 0-49.983-59.070-45.439-59.070 0 0 131.772-68.158 254.457-190.842 327.158-186.298 104.509-422.579 40.895-527.088-140.859-109.053-186.298-45.439-422.579 140.859-527.088 99.965-59.070 222.649-68.158 322.614-27.262 40.895 13.632 59.070-40.895 18.175-54.527-118.141-40.895-249.911-36.351-368.052 31.807-213.562 122.684-286.263 395.317-163.58 604.333z" />
     </svg>
   )
 }

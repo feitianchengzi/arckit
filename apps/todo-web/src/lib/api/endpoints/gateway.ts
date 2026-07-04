@@ -11,6 +11,8 @@ import {
   LoginResponse,
   RefreshTokenRequest,
   RefreshTokenResponse,
+  UserProfile,
+  UserProfileResponse,
 } from '@/types/auth'
 import { getAccessToken } from '@/lib/utils/tokenManager'
 
@@ -104,5 +106,24 @@ export const gatewayApi = {
       data
     )
     return response.data
+  },
+
+  /**
+   * 获取网关用户 Profile
+   * GET /user-service/v1/user/profile
+   *
+   * 这里返回的是网关用户 UUID，适合用于跨项目的稳定用户标识。
+   */
+  getUserProfile: async (): Promise<UserProfile> => {
+    console.log('👤 调用网关用户 Profile 接口')
+    const response = await gatewayClient.get<UserProfileResponse>(
+      '/user-service/v1/user/profile'
+    )
+
+    if (!response.data?.data?.id) {
+      throw new Error('Invalid user profile response')
+    }
+
+    return response.data.data
   },
 }

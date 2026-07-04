@@ -94,13 +94,15 @@ export interface UserProfile {
   avatar_url?: string | null
   is_active?: boolean
   is_verified?: boolean
+  is_admin?: boolean
   created_at?: string
   updated_at?: string
 }
 
 /** 获取用户Profile响应 */
 export interface UserProfileResponse {
-  success: boolean
+  code?: string
+  success?: boolean
   data: UserProfile
 }
 
