@@ -83,6 +83,8 @@ Baseline rules:
 
 agent 只负责推荐、创建和 push branch/tag。push 后不继续追踪远端 workflow、构建产物、上传状态或发布平台状态。
 
+如果仓库中找不到 fastlane、CI、远端 workflow 或平台发布配置，只能报告“远端监听不可见”或请求用户确认监听规则。配置不可见不构成本机 fallback 的理由；不要改走本机构建、归档、导出、上传、签名或发布平台操作。
+
 ## Git Checks
 
 推荐或执行前必须检查：

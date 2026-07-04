@@ -150,10 +150,10 @@ Arckit 至少识别以下场景：
 | --- | --- | --- |
 | 产品概念定义 | 梳理想法、目标用户、价值、边界 | decision、draft spec、spec |
 | 技术方案定义 | 架构、数据模型、接口、约束 | architecture decision、domain modeling、tech |
-| 正向功能实现 | 新增能力、补测试、改 README | implementation handoff、普通代码工作流、verify |
+| 正向实现产物建设 | 新增能力、补测试、改 README、创建或维护 skill、更新 workflow | implementation handoff、按 artifact_type 选择实现 adapter、verify |
 | bug 诊断 | 失败、回归、异常、测试红 | debug diagnosis、verify |
 | 代码审查 | review、风险评估、质量反馈 | code review、verify |
-| skill 验证 | skill first、模拟测试、复测 skill | ArcForge 类外部 skill 场景验证 |
+| 实现产物验证 | 测试、模拟测试、复测 skill、回放 workflow、核对文档事实 | verify、按 artifact_type 选择证据和 adapter |
 | 项目治理 | 目标、迭代、任务、review、decision | project governance |
 | 运行交付 | 发布、回滚、SLO、告警、运行观察 | release readiness、runtime operations |
 

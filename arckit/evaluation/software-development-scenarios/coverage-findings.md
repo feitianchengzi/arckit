@@ -23,6 +23,7 @@
 | F009 | 数据、性能和第三方集成问题容易被简化成代码修改 | CP007、CP008、CP009 | Agent 可能跳过口径、基线、外部依赖和完整链路检查。 |
 | F010 | 产品价值、运营素材和功能事实链路不足 | CP005 | Agent 可能直接写运营素材，而没有先处理价值来源。 |
 | F011 | 显式约束较多时仍过度发散或重复追问 | CP002、CP006、CP012、CP013、CP014、CP015 | 用户已经给出边界和验收标准时，Agent 可能不必要地扩大范围或阻塞执行。 |
+| F012 | 发布意图容易越过 Git trigger 当前阶段 | SP002 | Agent 可能把 TestFlight/App Store 的 final_goal 当成本轮执行目标，绕过 tag 推荐和确认边界，转向本机构建、归档、上传或平台操作。 |
 
 ## 对产品方案的验证判断
 
@@ -54,6 +55,7 @@
 - turn adaptation 是否能处理用户对落盘位置、事实源边界和停止条件的纠正。
 - skill 创建维护流程是否要求配套验收场景。
 - 结果型 skill 是否只接收稳定事实，过程型输出是否先进入 handoff 或 pending。
+- 发布类入口是否能把 final_goal 和 current_phase 分开，并在选择 git-branching 后继承 Git-only stop condition。
 
 ## 后续使用方式
 

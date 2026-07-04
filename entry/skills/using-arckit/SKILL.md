@@ -1,6 +1,6 @@
 ---
 name: using-arckit
-description: 软件项目协作的首轮默认入口、scenario workflow resolver 和 workflow frame compiler。只要用户首轮请求或输入材料可能涉及产品想法、原始输入归档、反馈、需求、规格、交互、视觉、技术方案、迭代治理、项目记忆、评测材料、debug、任务记录、Workshop Desktop、skill 创建/验证、发布/出包/测试分发或软件项目开发工作流，就先使用本 skill 建立 runtime situation，调用 arckit-workflow-memory 解析并绑定可复用场景工作流，编译 workflow frame 并路由专门 skill；发布/出包/TestFlight/App Store 意图，或远端出包 workflow 失败但缺少失败原因时，优先考虑 arckit-git-branching 的分支/tag 远端触发和失败原因收集契约。用户在首轮目标之后继续补充、纠错、换目标、纠正项目事实或暂停时，交给 arckit-turn-adaptation；workflow memory 的 workflow resolution、execution record、信号判断和持久化交给 arckit-workflow-memory。只有当请求明确与软件项目协作无关时才跳过。
+description: 软件项目协作的首轮默认入口、scenario workflow resolver 和 workflow frame compiler。只要用户首轮请求或输入材料可能涉及产品想法、原始输入归档、反馈、需求、规格、交互、视觉、技术方案、迭代治理、项目记忆、评测材料、debug、任务记录、Workshop Desktop、实现产物建设、发布/出包/测试分发或软件项目开发工作流，就先使用本 skill 建立 runtime situation，调用 arckit-workflow-memory 解析并绑定可复用场景工作流，编译 workflow frame 并路由专门 skill；最终产物可以是 code、agent skill、document、workflow 或 mixed artifact，前置流程仍按需求、设计、技术、迭代、治理和验证判断，不因最终产物是 skill 而跳过 ArcKit。纯安装、同步、漂移检查、profile 归类、应用或发布准备等已明确的 agent skill 生命周期治理动作，可直接交给 ArcForge 类治理能力。发布/出包/TestFlight/App Store 意图，或远端出包 workflow 失败但缺少失败原因时，优先考虑 arckit-git-branching 的分支/tag 远端触发和失败原因收集契约。用户在首轮目标之后继续补充、纠错、换目标、纠正项目事实或暂停时，交给 arckit-turn-adaptation；workflow memory 的 workflow resolution、execution record、信号判断和持久化交给 arckit-workflow-memory。只有当请求明确与软件项目协作无关时才跳过。
 ---
 
 # Using ArcKit
@@ -10,6 +10,8 @@ description: 软件项目协作的首轮默认入口、scenario workflow resolve
 ## 硬约束
 
 - 触发门槛要低：只要有很小可能涉及软件项目协作，就先使用本 skill 判断是否进入 ArcKit 工作流。
+- 最终产物类型不决定前置流程：code、agent skill、document、workflow 或 mixed artifact 都先按同一套需求、设计、技术、迭代、治理和验证流程判断；差异只体现在实现承载、验证证据和发布/同步治理 adapter。
+- 纯 agent skill 生命周期治理动作可以直达 ArcForge 类治理能力：当用户只要求安装、同步、漂移检查、profile 归类、应用、正式化、共享或发布准备，且没有需求定义、设计、技术方案、实现或验证不确定性时，不强行编译完整 ArcKit workflow frame。
 - 入口必须先建立 `runtime_situation`，完成 `workflow_resolution` 并绑定已有 scenario workflow 或明确创建候选场景工作流，再编译当前任务的 `workflow_frame`，之后才读取专门 skill；不要直接从 prompt 关键词跳到单个结果 skill。
 - 每个进入 ArcKit 的任务都必须使用 `arckit-workflow-memory` 两次：开始做 `workflow_resolution`，结束、阻塞或失败时写 execution record 并触发 `workflow_memory_closeout`。
 - 用户说“业务代码只改目标项目目录”不等于禁止 workflow memory closeout。
@@ -25,6 +27,7 @@ description: 软件项目协作的首轮默认入口、scenario workflow resolve
 - workflow memory 的信号、候选和已确认规则由 `arckit-workflow-memory` 负责。
 - 在 ArcKit 源仓库内工作时，优先读取本仓库中的同级源路径，而不是用户级已安装副本。
 - 发布/出包/测试分发/应用商店发布意图，以及远端出包 workflow 失败但缺少具体错误原因时，默认先路由到 `arckit-git-branching`；由它推荐或执行 release 分支和 tag push 触发，或指导收集远端失败原因。只有用户明确要求发布风险 gate、上线 go/no-go、回滚/灰度策略或发布 readiness 判断时，才选择 `arckit-release-readiness`。
+- 当 `selected_capabilities` 包含 `arckit-git-branching` 且模式是 `recommend-git-trigger` 或 `apply-git-trigger` 时，本轮 stop condition 必须收敛到 tag 推荐、等待确认或 tag push；不得因为缺少 fastlane、CI、Xcode Cloud 或远端 workflow 文件而切换到本机构建、归档、上传、签名或平台发布实现。
 
 ## 主流程
 
@@ -58,8 +61,9 @@ description: 软件项目协作的首轮默认入口、scenario workflow resolve
 - 生成 `workflow_frame`：`scenario`、`signals`、`runtime_situation`、`workflow_resolution`、`final_goal`、`current_phase`、`phase_reason`、`workflow_source`、`available_arckit_capabilities`、`selected_capabilities`、`why_not_selected`、`skills`、`handoffs`、`artifact_targets`、`artifact_impact_scan`、`reflection_gates`、`adaptation_triggers`、`next_recompile_condition`、`memory_overlay`、`execution_record_target`、`confirmation_points`、`stop_conditions`。
 - 将默认能力地图、用户显式要求、runtime situation 和 memory overlay 合并；冲突时当前用户显式要求优先，未决冲突进入 pending 或请求确认。
 - 如果 `signals` 包含发布、出包、测试分发、应用商店、TestFlight、App Store、内测、公测、正式发布、发布候选，或远端 workflow 出包失败但缺少错误原因，且用户没有明确要求 readiness/go-no-go，`selected_capabilities` 必须优先包含 `arckit-git-branching`；`current_phase` 应是 Git 分支/tag 触发推荐、确认后 Git push，或远端失败原因收集，而不是发布前验证、平台上传或无证据修复。
-- 正向实现任务先判断是否建立、强化或改变产品、交互、视觉或技术规范；若是 UI 一致性、跨页面统一行为/样式或组件状态统一，先把 `interaction` 和 `visual` 置为 `check`，再形成明确的 `implementation_handoff`，执行普通代码工作流或外部 `arckit-code`，并按风险使用 `arckit-verify-implementation`。
-- Skill 类最终产物维护任务先形成 `skill_implementation_guard`，再交给 ArcForge 类外部 skill 生命周期能力；不要把 skill 创建、维护、同步或漂移检查描述为 Arckit 内部实现能力。
+- 当发布意图进入 `arckit-git-branching` 的 `recommend-git-trigger` 时，`stop_conditions` 必须包含：完成 Git 状态和 release/tag 可见性检查、给出推荐基线/tag、说明远端监听 pattern 和可见性、等待用户确认；不得执行构建、测试、归档、上传、签名、平台查询或依赖安装命令。
+- 当发布意图进入 `arckit-git-branching` 的 `apply-git-trigger` 时，`stop_conditions` 必须包含：只执行用户确认的最小 Git 操作并在 push 后停止；不得追踪远端 workflow、TestFlight、App Store Connect 或其它发布平台状态。
+- 正向实现任务先判断是否建立、强化或改变产品、交互、视觉或技术规范；若是 UI 一致性、跨页面统一行为/样式或组件状态统一，先把 `interaction` 和 `visual` 置为 `check`，再形成明确的 `implementation_handoff`，标注 `artifact_type: code|skill|document|workflow|mixed|unknown`，交给对应实现 adapter，并按风险使用 `arckit-verify-implementation`。
 - 多个 skill 都适用时，按 workflow frame 的阶段顺序组合；只加载当前任务真正需要的 skill。
 
 退出条件：用户目标、skill 顺序、交接边界和停止条件明确。

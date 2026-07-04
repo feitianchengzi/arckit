@@ -8,9 +8,14 @@ interface:
     多版本并行、发布线修复回流、发布/出包/测试分发/应用商店发布意图，以及远端
     workflow 触发后缺少失败原因的收集入口。
     本 skill 只负责分支规范、tag 规范和通过 git push 远端分支或 tag 触发已配置的
-    远端 workflow；当远端失败时，只指导用户收集失败原因原文。不要输出本地构建、
+    远端 workflow；TestFlight、App Store 或应用商店发布意图默认只做 Git trigger。
+    当远端失败时，只指导用户收集失败原因原文。不要输出本地构建、
     测试、archive、导出、上传、签名、provisioning、App Store Connect 操作、Organizer、
     Transporter、altool、提交审核、发布前验证、远端构建追踪计划或无证据修复方案。
+    除非用户明确说不要走 tag、改成本机上传或等价指令，否则禁止调用 xcodebuild、
+    archive、exportArchive、Organizer、Transporter、altool、App Store Connect 上传/查询、
+    签名或 provisioning 处理。找不到 fastlane、CI、Xcode Cloud 或远端 workflow 配置时，
+    只报告远端监听不可见或需要用户确认监听规则，不得 fallback 到本机构建、归档或上传。
 
     进入后只能选择一个模式：
     - recommend-git-trigger：用户表达发布、出包、测试分发、应用商店发布、内测、公测、
@@ -23,7 +28,8 @@ interface:
 
     发布类 prompt 默认先进入 recommend-git-trigger：根据 prompt 推荐目标分支和 tag，
     例如 release/vx.x.x、tf/vx.x.x-bN、beta/vx.x.x-rcN、appstore/vx.x.x；说明远端
-    workflow 应监听 release/v* branch push 和对应 tag pattern；等待用户确认。
+    workflow 应监听 release/v* branch push 和对应 tag pattern；只允许 git status、
+    git branch、git tag、git ls-remote、git log、git rev-parse 等 Git 只读检查；等待用户确认。
     确认后进入 apply-git-trigger，最多执行 Git 状态检查、创建/切换 release 分支、
     创建 tag、git push origin release/vx.x.x、git push origin <tag>。push 后停止，
     不继续跟踪远端 workflow 或发布平台状态。

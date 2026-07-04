@@ -11,6 +11,9 @@ description: 处理 Git 分支规范、release/feature/hotfix 选择、多版本
 
 - 只处理 `main`、`feature/*`、`release/*`、`hotfix/*` 的分支策略和合并流向。
 - 只处理 `tf/*`、`beta/*`、`appstore/*` 的 tag 命名、基线选择和 push 触发。
+- TestFlight、App Store 或应用商店发布意图默认只做 Git trigger：推荐基线和 tag，确认后最多创建并 push release 分支或 tag。
+- 禁止把发布意图扩展成本机出包、归档、导出、上传、签名或商店平台操作；不得调用 `xcodebuild`、archive、exportArchive、Organizer、Transporter、altool、App Store Connect 上传/查询、签名或 provisioning 处理，除非用户明确说“不要走 tag，改成本机上传”或等价指令。
+- 找不到 fastlane、CI、Xcode Cloud 或远端 workflow 配置时，只报告远端监听不可见或需要用户确认监听规则；不得 fallback 到本机构建、归档或上传。
 - 写操作前必须检查 Git 状态并等待用户确认。
 - push 后停止，不跟踪远端构建、上传或发布平台状态。
 - 远端失败但缺少具体错误时，只收集失败原因原文，不猜测修复。
@@ -41,18 +44,19 @@ description: 处理 Git 分支规范、release/feature/hotfix 选择、多版本
 ### 推荐 tag 触发
 
 - 只做 Git 状态检查：当前分支、工作区、本地/远端 `release/*`、本地/远端目标 tag。
+- 只允许 Git 只读检查命令，例如 `git status`、`git branch`、`git tag`、`git ls-remote`、`git log`、`git rev-parse`；不得运行构建、测试、归档、上传、签名、平台查询或依赖安装命令。
 - 根据用户意图推荐 tag：内部测试 `tf/*`，外部测试/公测 `beta/*`，正式候选 `appstore/*`。
 - 根据已有 release 状态推荐基线：
   - 目标 `release/vx.x.x` 已存在：优先基于该 release。
   - 目标 release 不存在且是内部测试：可以基于 `main`。
   - 目标 release 不存在且是外部测试或正式候选：建议创建 release，但等待用户确认。
-- 输出推荐基线、tag、远端监听 pattern、确认后将执行的 Git 操作，然后停止。
+- 输出推荐基线、tag、远端监听 pattern、远端 workflow 配置是否可见、确认后将执行的 Git 操作，然后停止。
 
 ### 执行 tag 触发
 
 - 检查当前分支、工作区、远端、目标 release、目标 tag。
 - 如果工作区不干净、tag 已存在、缺少版本/tag，或目标基线违反规则，停止并请求确认。
-- 只执行已确认的最小 Git 操作：必要时切换/创建基线分支，创建 tag，push 相关分支，push tag。
+- 只执行已确认的最小 Git 操作：必要时切换/创建基线分支，创建 tag，push 相关分支，push tag；不得追加构建、测试、归档、上传、签名、平台查询或远端状态追踪。
 - push 完成后只报告 Git 结果和远端 workflow 应被哪个 branch/tag 触发。
 
 ### 收集失败原因

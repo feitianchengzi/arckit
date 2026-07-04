@@ -65,7 +65,7 @@ Roadmap -> 对 accepted Goals、proposed Goal candidates、deferred Backlog 和 
 | 需求草案、用户故事、非能力、验收口径、规格缺口 | `arckit-draft-spec` | capability updates、backlog candidates、scope boundaries、decision candidates |
 | 用户反馈、页面层级、信息优先级、原型 walkthrough、交互风险 | `arckit-explore-product-design` | review evidence、backlog candidates、task candidates、decision candidates |
 | 架构取舍、ADR、系统拆分、技术风险 | `arckit-architecture-decision` | decision candidates、scope risks、technical task candidates |
-| 代码修改、测试、浏览器检查、发布准备 | 普通实现 workflow 或外部 `arckit-code` | 先形成 `implementation_handoff`；完成后回收 task evidence、Review result、Roadmap adjustment |
+| 实现产物修改、测试、试跑、浏览器检查、发布或同步准备 | 对应实现 adapter，例如普通代码工作流、外部 `arckit-code`、Skill First、skill creator 或 ArcForge 类能力 | 先形成带 `artifact_type` 的 `implementation_handoff`；完成后回收 task evidence、Review result、Roadmap adjustment |
 
 过程输出不应成为平行项目计划。把它们的 `*_handoff` 折回 workflow 文档。
 
@@ -106,7 +106,7 @@ Roadmap -> 对 accepted Goals、proposed Goal candidates、deferred Backlog 和 
 
 不要把完整专家 artifact 复制到每个项目文件。每项内容放入自己的 home document，并链接到 source artifact。
 
-进入编码前，若用户要求“开始实现”“交给工程”“派发给 Codex/Workshop”，先准备最小 `implementation_handoff`：`scope`、`source_docs`、`tasks`、`acceptance`、`constraints`、`evidence_expected`。缺少 Goal、Iteration、验收口径或稳定定义时，先补治理或定义，不要直接派发模糊任务。
+进入实现前，若用户要求“开始实现”“交给工程”“派发给 Codex/Workshop”或等价表达，先准备最小 `implementation_handoff`：`artifact_type`、`scope`、`source_docs`、`tasks`、`acceptance`、`constraints`、`evidence_expected`。缺少 Goal、Iteration、验收口径或稳定定义时，先补治理或定义，不要直接派发模糊任务。
 
 ## 文档和输出路由
 

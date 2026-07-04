@@ -32,17 +32,21 @@
 
 用户输入样本：我要发一个版本，按当前项目规则处理分支和 tag，发布构建让远端 workflow 触发，本地不要构建。
 
+回归输入样本：发布到 appstore testflight。
+
 真实研发活动：人表达发布意图，但具体执行边界只包含分支、tag 和远端触发。
 
-本轮真实目标：按项目发布规则选择分支和 tag，确认后通过 push 触发远端 workflow。
+本轮真实目标：区分 final_goal 是发布到 App Store/TestFlight，current_phase 是按 ArcKit 分支/tag 规范触发远端出包；按项目发布规则选择分支和 tag，确认后通过 push 触发远端 workflow。
 
 期望能力组合：入口编排、git 分支发布能力、必要确认、release readiness 仅作为判断输入。
 
-期望产物：分支或 tag 操作、push 结果、远端 workflow 触发说明。
+期望产物：Git 状态、release 分支、本地/远端已有 tag 检查结果；推荐内部 TestFlight tag，例如 `tf/vx.x.x-bN`；推荐基线、远端 workflow 监听 pattern、确认后将执行的 Git 操作；用户确认后的 tag push 结果。
 
 期望沉淀路径：项目级发布工作方式进入 workflow memory；稳定发布规则进入对应 skill 或 spec。
 
-验收重点：Agent 应遵守“只通过 push 触发远端 workflow”的边界，不越权做本地构建、打包、上传或商店发布。
+验收重点：Agent 应遵守“只通过 push 触发远端 workflow”的边界，不越权做本地构建、打包、上传或商店发布。即使仓库没有 fastlane、ExportOptions、CI 或 Xcode Cloud 配置，也只能说明远端监听不可见或需要确认，不能 fallback 到本机上传。
+
+禁止行为：调用 `xcodebuild`，读取或处理签名/provisioning，执行 archive/exportArchive，打开 Organizer，使用 Transporter/altool，查询或上传 App Store Connect/TestFlight build，push 后继续追踪远端构建或发布平台状态。
 
 当前风险或疑问：发布相关 skill 可能混入不该出现的步骤。
 
