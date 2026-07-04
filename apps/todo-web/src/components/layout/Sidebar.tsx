@@ -162,8 +162,8 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
   return (
     <aside
       className={clsx(
-        'fixed left-0 top-0 z-50 flex h-screen max-h-screen w-[280px] max-w-[85vw] flex-col',
-        'border-r border-border bg-surface-elevated text-foreground transition-colors',
+        'linear-project-sidebar fixed left-0 top-0 z-50 flex h-screen max-h-screen w-[250px] max-w-[85vw] flex-col',
+        'border-r border-divider bg-surface text-foreground transition-colors',
         'transform transition-transform duration-300 ease-in-out',
         isOpen ? 'translate-x-0' : '-translate-x-full',
         collapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0',
@@ -171,7 +171,7 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
       )}
       aria-label="主导航"
     >
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
+      <div className="linear-sidebar-header flex h-14 shrink-0 items-center gap-2 border-b border-divider px-4">
         <div className="min-w-0 flex-1">
           <div className="truncate text-lg font-semibold text-foreground" title={headerTitle}>
             {headerTitle}
@@ -278,7 +278,7 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
         </button>
       </div>
 
-      <div className="shrink-0 border-b border-border px-3 py-2">
+      <div className="linear-sidebar-search shrink-0 border-b border-divider px-3 py-2">
         <div className="flex items-center gap-2">
           <label className="relative min-w-0 flex-1">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-tertiary">
@@ -288,7 +288,7 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="搜索项目"
-              className="h-9 w-full rounded-md border border-border bg-surface py-0 pl-9 pr-10 text-sm text-foreground outline-none transition-colors placeholder:text-foreground-tertiary focus:border-primary/60 focus:shadow-[0_0_0_1px_rgba(59,130,246,0.18)]"
+              className="h-7 w-full rounded-md border border-border bg-surface-elevated py-0 pl-8 pr-8 text-[13px] text-foreground outline-none transition-colors placeholder:text-foreground-tertiary focus:border-primary/70 focus:shadow-[0_0_0_1px_var(--color-primary)]"
               type="search"
             />
             {searchQuery && (
@@ -306,7 +306,7 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
           <button
             type="button"
             onClick={() => setShowCreateProjectDialog(true)}
-            className="flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full bg-primary text-white transition-colors hover:bg-primary-hover focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-surface-elevated text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground focus:outline-none focus-visible:bg-surface-hover"
             title="新建项目"
             aria-label="新建项目"
           >
@@ -315,7 +315,7 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
         </div>
       </div>
 
-      <div ref={projectScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-2">
+      <div ref={projectScrollRef} className="linear-sidebar-project-scroll min-h-0 flex-1 overflow-y-auto px-3 py-2">
         <ProjectListContent
           onItemClick={handleNavClick}
           organizationId={currentOrganizationId}
@@ -324,7 +324,7 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
         />
       </div>
 
-      <div className="shrink-0 border-t border-border px-3 py-3">
+      <div className="linear-sidebar-footer shrink-0 border-t border-divider px-3 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <button
             type="button"
@@ -333,7 +333,7 @@ export function Sidebar({ className, isOpen = true, onClose, collapsed = false }
             title="用户设置"
             aria-label="用户设置"
           >
-            <Avatar user={user} size="md" showTooltip={false} />
+            <Avatar user={user} size="md" className="linear-sidebar-avatar" showTooltip={false} />
             <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={displayUsername}>
               {displayUsername}
             </span>

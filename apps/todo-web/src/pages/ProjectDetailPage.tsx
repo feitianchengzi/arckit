@@ -76,10 +76,7 @@ export default function ProjectDetailPage() {
   
   const currentUser = useAuthStore((state) => state.user)
   const { isProjectSidebarCollapsed, collapseProjectSidebar, expandProjectSidebar } = useDashboardLayout()
-  const [showScrollTop, setShowScrollTop] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [hideScrollTopForDrawerTransition, setHideScrollTopForDrawerTransition] = useState(false)
-  const hasDrawerOpenedRef = useRef(false)
   const hasInitializedTaskRouteRef = useRef(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false)
@@ -186,22 +183,6 @@ export default function ProjectDetailPage() {
     setSelectedTaskId(null)
     setTaskHistory([])
   }, [navigate, setSearchParams, taskIdFromHash, taskIdFromUrl])
-
-  useEffect(() => {
-    if (drawerOpen) {
-      hasDrawerOpenedRef.current = true
-      setHideScrollTopForDrawerTransition(false)
-      return
-    }
-    if (!hasDrawerOpenedRef.current) return
-
-    setHideScrollTopForDrawerTransition(true)
-    const timer = window.setTimeout(() => {
-      setHideScrollTopForDrawerTransition(false)
-    }, 320)
-
-    return () => window.clearTimeout(timer)
-  }, [drawerOpen])
 
   useEffect(() => {
     if (!drawerOpen || !selectedTaskId) {
@@ -806,85 +787,6 @@ export default function ProjectDetailPage() {
   
   // 服务端已处理筛选，直接使用当前页数据
   const filteredTodos = useMemo(() => taskTree || [], [taskTree])
-  
-  // 监听主内容区滚动
-  useEffect(() => {
-    let scrollElement: HTMLElement | null = null
-    let cleanup: (() => void) | null = null
-    
-    const setupScrollListener = () => {
-      // 先尝试 main 元素
-      const main = document.querySelector('main') as HTMLElement
-      if (main) {
-        const canScroll = main.scrollHeight > main.clientHeight
-        
-        if (canScroll) {
-          scrollElement = main
-        } else {
-          // 如果 main 不能滚动，检查 body 或 window
-          const body = document.body
-          const html = document.documentElement
-          const windowCanScroll = html.scrollHeight > html.clientHeight || body.scrollHeight > body.clientHeight
-          
-          if (windowCanScroll) {
-            scrollElement = null // 使用 window
-          }
-        }
-      }
-      
-      const handleScroll = () => {
-        if (scrollElement) {
-          const scrollTop = scrollElement.scrollTop
-          const shouldShow = scrollTop > 150
-          setShowScrollTop(shouldShow)
-        } else {
-          // 使用 window 滚动
-          const scrollTop = window.pageYOffset || document.documentElement.scrollTop
-          const shouldShow = scrollTop > 150
-          setShowScrollTop(shouldShow)
-        }
-      }
-      
-      if (scrollElement) {
-        scrollElement.addEventListener('scroll', handleScroll, { passive: true })
-        handleScroll() // 初始检查
-        cleanup = () => {
-          scrollElement?.removeEventListener('scroll', handleScroll)
-        }
-      } else {
-        window.addEventListener('scroll', handleScroll, { passive: true })
-        handleScroll() // 初始检查
-        cleanup = () => {
-          window.removeEventListener('scroll', handleScroll)
-        }
-      }
-    }
-    
-    // 延迟执行，确保 DOM 完全渲染
-    const timer1 = setTimeout(() => {
-      setupScrollListener()
-    }, 300)
-    
-    // 使用 MutationObserver 监听 DOM 变化
-    const observer = new MutationObserver(() => {
-      // DOM 变化后重新检查
-      setTimeout(() => {
-        if (cleanup) cleanup()
-        setupScrollListener()
-      }, 100)
-    })
-    
-    const main = document.querySelector('main')
-    if (main) {
-      observer.observe(main, { childList: true, subtree: true })
-    }
-    
-    return () => {
-      clearTimeout(timer1)
-      observer.disconnect()
-      if (cleanup) cleanup()
-    }
-  }, [todos, filteredTodos]) // 当数据加载完成后重新绑定
   
   // 初始化编辑表单
   const handleEditClick = () => {
@@ -1503,13 +1405,14 @@ export default function ProjectDetailPage() {
   ) : null
   
   return (
-    <div className="project-detail-page space-y-3 md:space-y-4">
+    <div className="project-detail-page">
       {parentSelectBanner && typeof document !== 'undefined'
         ? createPortal(parentSelectBanner, document.body)
         : null}
       {taskDetailFullscreenDialog}
+      <div className="project-linear-workspace">
       {/* 页面头部 */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-8" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
+      <div className="project-linear-header flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-8" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
         <div className="flex min-w-0 flex-1 items-center justify-between gap-5 lg:gap-8">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <button
@@ -1529,7 +1432,7 @@ export default function ProjectDetailPage() {
                 className="h-5 w-5"
               />
             </button>
-            <h1 className="min-w-0 truncate text-base font-medium text-foreground md:text-lg lg:text-xl" title={project.name}>
+            <h1 className="project-linear-title min-w-0 truncate text-foreground" title={project.name}>
               {project.name}
             </h1>
 
@@ -1707,7 +1610,7 @@ export default function ProjectDetailPage() {
               onClick={() => {
                 setShowCreateTaskDialog(true)
               }}
-              className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-white transition-colors hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-white transition-colors hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
             >
               创建待办
             </button>
@@ -1929,8 +1832,7 @@ export default function ProjectDetailPage() {
           {/* 待办列表内容 */}
           <div
             ref={listContainerRef}
-            className="project-task-list-card bg-surface-elevated rounded-lg border border-border relative"
-            style={{ borderColor: 'var(--color-border)' }}
+            className="project-task-list-card relative"
           >
             <div className="project-task-list-scroll">
               {todosLoading ? (
@@ -1988,18 +1890,19 @@ export default function ProjectDetailPage() {
                       />
                     ))}
                   </div>
-                  {totalTasks > 0 && (
-                    <div className="border-t border-border pt-3">
-                      <div className="text-sm text-foreground-secondary">共 {totalTasks} 条</div>
-                    </div>
-                  )}
                 </div>
               )}
               </div>
+              {totalTasks > 0 && (
+                <div className="project-task-list-footer">
+                  共 {totalTasks} 条
+                </div>
+              )}
           </div>
         </div>
         </section>
         {taskDetailPanel}
+      </div>
       </div>
 
       {/* 项目信息弹窗 */}
@@ -2241,42 +2144,6 @@ export default function ProjectDetailPage() {
         </div>
       </Dialog>
       
-      {/* 回到顶部按钮 */}
-      <button
-        onClick={(e) => {
-          e.preventDefault()
-          e.stopPropagation()
-          scrollToTop()
-        }}
-        type="button"
-        className={clsx(
-          'fixed bottom-6 right-6 z-[100]',
-          'w-12 h-12 flex items-center justify-center',
-          'bg-blue-400 text-white rounded-full shadow-lg',
-          'hover:bg-blue-500 transition-all duration-300',
-          'focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2',
-          'cursor-pointer',
-          showScrollTop && !drawerOpen && !hideScrollTopForDrawerTransition
-            ? 'opacity-100 translate-y-0 pointer-events-auto visible' 
-            : 'opacity-0 translate-y-4 pointer-events-none invisible'
-        )}
-        aria-label="回到顶部"
-        tabIndex={showScrollTop && !drawerOpen && !hideScrollTopForDrawerTransition ? 0 : -1}
-      >
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M5 10l7-7m0 0l7 7m-7-7v18"
-          />
-        </svg>
-      </button>
     </div>
   )
 }

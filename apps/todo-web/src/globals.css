@@ -380,17 +380,158 @@
 }
 
 @layer components {
+  .linear-dashboard-shell {
+    background: var(--color-surface);
+  }
+
+  .linear-dashboard-main {
+    background: var(--color-surface);
+  }
+
+  .linear-dashboard-content {
+    min-height: 100dvh;
+    padding: 64px 12px 12px;
+  }
+
+  .linear-project-sidebar {
+    background: var(--color-surface);
+    border-right-color: transparent !important;
+    box-shadow: none;
+  }
+
+  .linear-sidebar-header,
+  .linear-sidebar-search,
+  .linear-sidebar-footer {
+    border-color: transparent !important;
+    background: transparent;
+  }
+
+  .linear-sidebar-header {
+    height: 48px;
+    padding-bottom: 0;
+    padding-left: 12px;
+    padding-right: 10px;
+  }
+
+  .linear-sidebar-header > .min-w-0:first-child > .truncate {
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.25;
+  }
+
+  .linear-sidebar-search {
+    padding-top: 2px;
+    padding-bottom: 6px;
+  }
+
+  .linear-sidebar-project-scroll {
+    padding-top: 2px;
+    padding-left: 12px;
+    padding-right: 12px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .linear-sidebar-footer {
+    padding-top: 10px;
+  }
+
+  .linear-sidebar-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .linear-sidebar-project-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .linear-project-item {
+    height: 34px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.15;
+    box-shadow: none;
+    outline: none;
+  }
+
+  .linear-project-item.is-active {
+    background: #e4e4e5;
+    box-shadow: none;
+  }
+
+  .linear-project-item.is-active:hover,
+  .linear-project-item.is-active:focus-visible {
+    background: #e4e4e5;
+    box-shadow: none;
+    outline: none;
+  }
+
+  .dark .linear-project-item.is-active,
+  .dark .linear-project-item.is-active:hover,
+  .dark .linear-project-item.is-active:focus-visible {
+    background: var(--color-surface-active);
+  }
+
+  @media (min-width: 1024px) {
+    .linear-dashboard-content {
+      padding: 4px;
+    }
+  }
+
   .project-detail-page {
     --project-task-panel-height: calc(100dvh - 164px);
     --project-task-detail-offset: 0px;
+    --project-linear-workspace-bg: #fcfcfd;
+    --project-linear-muted-bg: #f0f0f1;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .dark .project-detail-page {
+    --project-linear-workspace-bg: var(--color-surface-elevated);
+    --project-linear-muted-bg: var(--color-surface-active);
+  }
+
+  .project-linear-workspace {
+    display: grid;
+    min-width: 0;
+    min-height: 0;
+    height: calc(100dvh - 8px);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid var(--color-divider);
+    border-radius: 16px;
+    background: var(--project-linear-workspace-bg);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  }
+
+  .project-linear-header {
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--color-divider);
+    background: var(--project-linear-workspace-bg);
+  }
+
+  .project-linear-title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.2;
   }
 
   .project-task-content {
     display: grid;
     min-width: 0;
+    min-height: 0;
+    height: 100%;
     grid-template-columns: minmax(0, 1fr);
-    align-items: start;
+    align-items: stretch;
     gap: 0;
+    background: var(--project-linear-workspace-bg);
   }
 
   .project-task-content.has-status-tabs {
@@ -401,34 +542,44 @@
   .project-task-list-pane {
     min-width: 0;
     min-height: 0;
+    height: 100%;
   }
 
   .project-task-list-stack {
     display: flex;
     min-width: 0;
     min-height: 0;
+    height: 100%;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
   }
 
   .project-task-list-card {
     display: grid;
+    flex: 1 1 auto;
     min-width: 0;
     min-height: 0;
-    height: var(--project-task-panel-height);
-    grid-template-rows: minmax(0, 1fr);
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr) auto;
     overflow: hidden;
-    padding: 12px;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 10px 10px 6px;
   }
 
   .project-filter-toolbar {
     min-width: 0;
-    margin-top: -4px;
+    margin-top: 0;
+    padding: 10px 16px 8px;
+    border-bottom: 0;
+    background: var(--project-linear-workspace-bg);
   }
 
   .project-task-list-scroll {
     min-width: 0;
     min-height: 0;
+    height: 100%;
     overflow-y: auto;
     padding-right: 2px;
     scrollbar-width: none;
@@ -437,6 +588,16 @@
 
   .project-task-list-scroll::-webkit-scrollbar {
     display: none;
+  }
+
+  .project-task-list-footer {
+    display: flex;
+    min-height: 30px;
+    align-items: center;
+    padding: 8px 2px 0;
+    border-top: 1px solid var(--color-divider);
+    color: var(--color-foreground-secondary);
+    font-size: 13px;
   }
 
   .task-filter-bar {
@@ -449,7 +610,7 @@
     overflow: visible;
     border: 1px solid var(--color-border);
     border-radius: 14px;
-    background: var(--color-surface);
+    background: var(--project-linear-muted-bg, var(--color-surface));
   }
 
   .task-filter-chips {
@@ -715,22 +876,24 @@
   }
 
   .project-task-content.has-detail-sidebar {
-    gap: 16px;
+    gap: 0;
   }
 
   .project-task-detail-sidebar {
-    position: sticky;
-    top: 24px;
+    position: relative;
+    top: auto;
+    align-self: stretch;
     display: grid;
     min-width: 0;
-    height: var(--project-task-panel-height);
-    max-height: var(--project-task-panel-height);
-    margin-top: var(--project-task-detail-offset);
+    height: auto;
+    max-height: none;
+    margin-top: 0;
     grid-template-rows: auto minmax(0, 1fr);
     overflow: hidden;
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    background: var(--color-surface-elevated);
+    border: 0;
+    border-left: 1px solid var(--color-divider);
+    border-radius: 0;
+    background: var(--project-linear-workspace-bg);
   }
 
   .project-task-detail-toolbar {
@@ -742,7 +905,7 @@
     gap: 12px;
     padding: 8px 12px 8px 16px;
     border-bottom: 1px solid var(--color-border);
-    background: var(--color-surface-elevated);
+    background: var(--project-linear-workspace-bg);
   }
 
   .project-task-detail-toolbar-actions {
@@ -784,7 +947,7 @@
     min-width: 0;
     min-height: 0;
     overflow-y: auto;
-    background: var(--color-surface-elevated);
+    background: var(--project-linear-workspace-bg);
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
@@ -816,7 +979,7 @@
     min-width: 0;
     min-height: 0;
     overflow-y: auto;
-    background: var(--color-surface-elevated);
+    background: var(--project-linear-workspace-bg);
     scrollbar-width: none;
     -ms-overflow-style: none;
   }
@@ -1078,6 +1241,10 @@
   }
 
   @media (max-width: 1023px) {
+    .project-linear-workspace {
+      height: calc(100dvh - 76px);
+    }
+
     .project-detail-page {
       --project-task-panel-height: calc(100dvh - 240px);
     }
@@ -1090,6 +1257,8 @@
     .project-task-detail-sidebar {
       position: relative;
       top: auto;
+      border-left: 0;
+      border-top: 1px solid var(--color-divider);
     }
   }
 

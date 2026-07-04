@@ -78,7 +78,7 @@ export default function DashboardLayout() {
 
   return (
     <DashboardLayoutContext.Provider value={dashboardLayoutContext}>
-      <div className="min-h-screen bg-surface flex relative transition-colors">
+      <div className="linear-dashboard-shell min-h-screen bg-surface flex relative transition-colors">
         {/* 移动端菜单按钮 */}
         <button
           onClick={() => setSidebarOpen(true)}
@@ -129,11 +129,11 @@ export default function DashboardLayout() {
         {/* 主内容区 */}
         <main
           className={clsx(
-            'flex-1 overflow-y-auto w-full lg:w-auto transition-[padding] duration-300 ease-in-out',
-            projectSidebarCollapsed ? 'lg:pl-0' : 'lg:pl-[280px]'
+            'linear-dashboard-main flex-1 overflow-y-auto w-full lg:w-auto transition-[padding] duration-300 ease-in-out',
+            projectSidebarCollapsed ? 'lg:pl-0' : 'lg:pl-[250px]'
           )}
         >
-          <div className="container mx-auto max-w-[1600px] p-4 md:p-6 pt-16 lg:pt-6">
+          <div className="linear-dashboard-content w-full">
             <Outlet />
           </div>
         </main>

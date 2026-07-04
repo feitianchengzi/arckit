@@ -157,10 +157,10 @@ export function ProjectListContent({
             key={project.id}
             onClick={() => handleProjectClick(project.id)}
             className={clsx(
-              'w-full h-9 min-w-0 flex items-center rounded-md px-3 text-left text-sm transition-colors',
-              'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1',
+              'linear-project-item w-full h-9 min-w-0 flex items-center rounded-md px-3 text-left text-sm transition-colors',
+              'focus:outline-none focus-visible:bg-surface-hover',
               isActive
-                ? 'bg-surface-active text-foreground font-semibold'
+                ? 'is-active text-foreground font-medium'
                 : 'text-foreground-secondary hover:bg-surface-hover hover:text-foreground'
             )}
             title={project.name}
