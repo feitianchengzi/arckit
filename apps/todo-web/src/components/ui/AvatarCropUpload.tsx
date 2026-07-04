@@ -13,7 +13,8 @@ import { getAvatarUrl, getAvatarUrlSync } from '@/lib/oss/urlHelper'
 import { uploadAvatarToOSS } from '@/lib/oss/uploadApi'
 import { getSignedUrl } from '@/lib/oss/upload'
 import { UPLOAD_LIMITS } from '@/lib/constants/uploadLimits'
-import { formatFileSize } from '@/lib/utils/validators'
+import { PencilIcon } from './icons'
+import { showGlobalToast } from './Toast'
 
 export interface AvatarCropUploadProps {
   /** 头像 URL */
@@ -26,6 +27,8 @@ export interface AvatarCropUploadProps {
   label?: string
   /** 是否显示标签 */
   showLabel?: boolean
+  /** 展示样式 */
+  variant?: 'default' | 'compact'
 }
 
 export function AvatarCropUpload({
@@ -34,11 +37,11 @@ export function AvatarCropUpload({
   outputSize = 200,
   label = '头像',
   showLabel = true,
+  variant = 'default',
 }: AvatarCropUploadProps) {
   const [preview, setPreview] = useState<string | undefined>(value)
   const [originalImage, setOriginalImage] = useState<string>('')
   const [showCropDialog, setShowCropDialog] = useState(false)
-  const [error, setError] = useState<string>('')
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -91,11 +94,9 @@ export function AvatarCropUpload({
 
     // 验证文件类型
     if (!file.type.startsWith('image/')) {
-      setError('请选择图片文件')
+      showGlobalToast('请选择图片文件', 'error', 2500)
       return
     }
-
-    setError('')
 
     try {
       // 读取文件并显示裁切对话框
@@ -106,11 +107,11 @@ export function AvatarCropUpload({
         setShowCropDialog(true)
       }
       reader.onerror = () => {
-        setError('文件读取失败')
+        showGlobalToast('图片读取失败，请重试', 'error', 2500)
       }
       reader.readAsDataURL(file)
-    } catch (err) {
-      setError('处理图片失败，请重试')
+    } catch {
+      showGlobalToast('图片读取失败，请重试', 'error', 2500)
     }
 
     // 重置 input，允许重复选择同一文件
@@ -128,7 +129,6 @@ export function AvatarCropUpload({
     // 开始上传流程
     setIsUploading(true)
     setUploadProgress(0)
-    setError('')
     
     try {
       const targetBytes = Math.min(UPLOAD_LIMITS.avatar.targetBytes, UPLOAD_LIMITS.avatar.maxBytes)
@@ -143,7 +143,7 @@ export function AvatarCropUpload({
       })
 
       if (compressed.sizeBytes > UPLOAD_LIMITS.avatar.maxBytes) {
-        setError(`头像过大，压缩后仍超过 ${formatFileSize(UPLOAD_LIMITS.avatar.maxBytes)}`)
+        showGlobalToast('上传失败，请重试', 'error', 2500)
         return
       }
       
@@ -173,9 +173,8 @@ export function AvatarCropUpload({
       console.log('✅ 头像上传成功:', uploadResult.objectKey)
     } catch (err) {
       console.error('❌ 头像上传失败:', err)
-      const errorMessage = err instanceof Error ? err.message : '上传失败，请重试'
-      setError(errorMessage)
-      // 上传失败时，保留本地预览，但显示错误
+      showGlobalToast('上传失败，请重试', 'error', 2500)
+      // 上传失败时保留本地预览，方便用户重新尝试
     } finally {
       setIsUploading(false)
       setUploadProgress(0)
@@ -205,6 +204,78 @@ export function AvatarCropUpload({
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
+  }
+
+  if (variant === 'compact') {
+    return (
+      <div className="flex flex-col items-end gap-2">
+        <button
+          type="button"
+          className="group relative flex h-10 w-10 items-center justify-center rounded-full bg-transparent p-0 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-70"
+          onClick={handleClick}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          disabled={isUploading}
+          title={preview ? '更换头像' : '上传头像'}
+          aria-label={preview ? '更换头像' : '上传头像'}
+        >
+          <span className="relative h-10 w-10 overflow-hidden rounded-full bg-surface-hover ring-1 ring-black/10 dark:ring-white/10">
+            {preview ? (
+              <img
+                src={preview}
+                alt="Avatar preview"
+                className="h-full w-full object-cover transition-[filter] duration-150 group-hover:brightness-75 group-focus-visible:brightness-75"
+                data-oss-key={value && !value.startsWith('http') ? value : undefined}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-foreground-tertiary transition-colors duration-150 group-hover:bg-black/20 group-focus-visible:bg-black/20">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                  />
+                </svg>
+              </div>
+            )}
+
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-white opacity-0 drop-shadow-sm transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+              <PencilIcon className="h-4 w-4" />
+            </span>
+
+            {isUploading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              </div>
+            )}
+          </span>
+        </button>
+
+        {isUploading && (
+          <p className="text-xs text-foreground-tertiary">上传中 {Math.round(uploadProgress * 100)}%</p>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+
+        {showCropDialog && (
+          <ImageCropDialog
+            open={showCropDialog}
+            onClose={() => setShowCropDialog(false)}
+            imageSrc={originalImage}
+            onCropComplete={handleCropComplete}
+            aspectRatio={1}
+            outputSize={outputSize}
+          />
+        )}
+      </div>
+    )
   }
 
   return (
@@ -289,9 +360,6 @@ export function AvatarCropUpload({
         />
       </div>
 
-      {/* 错误提示 */}
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
       {/* 裁切对话框 */}
       {showCropDialog && (
         <ImageCropDialog
@@ -306,5 +374,3 @@ export function AvatarCropUpload({
     </div>
   )
 }
-
-

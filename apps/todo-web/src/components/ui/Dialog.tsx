@@ -16,6 +16,7 @@ export interface DialogProps {
   showCloseButton?: boolean
   headerContent?: React.ReactNode
   panelClassName?: string
+  bodyClassName?: string
   panelStyle?: React.CSSProperties
 }
 
@@ -37,6 +38,7 @@ export function Dialog({
   showCloseButton = true,
   headerContent,
   panelClassName,
+  bodyClassName,
   panelStyle,
 }: DialogProps) {
   return (
@@ -117,7 +119,7 @@ export function Dialog({
                 )}
 
                 {/* 内容区域 */}
-                <div className="px-6 py-4">{children}</div>
+                <div className={bodyClassName ?? 'px-6 py-4'}>{children}</div>
               </HeadlessDialog.Panel>
             </Transition.Child>
           </div>

@@ -3,14 +3,15 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import { tasksApi, CreateTaskInput, UpdateTaskInput, type TaskListFilters } from '@/lib/api/endpoints/tasks'
 import { tasksToTodos } from '@/lib/utils/taskMapper'
+import { flattenTaskTree } from '@/lib/utils/taskTree'
 import { useAuthStore } from '@/store/authStore'
 import type { ApiMeta } from '@/types/api'
 
 export interface TaskListData {
   todos: ReturnType<typeof tasksToTodos>
+  todoTree: ReturnType<typeof tasksToTodos>
   meta: ApiMeta
   total: number
 }
@@ -18,8 +19,6 @@ export interface TaskListData {
 export interface UseTaskListOptions {
   enabled?: boolean
   filters?: TaskListFilters
-  page?: number
-  pageSize?: number
 }
 
 /**
@@ -29,38 +28,19 @@ export interface UseTaskListOptions {
 export function useTaskList(projectId: string, options?: UseTaskListOptions) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const filtersKey = JSON.stringify(options?.filters ?? {})
-  const page = options?.page ?? 1
-  const pageSize = options?.pageSize ?? 50
   
   return useQuery({
-    queryKey: ['projects', projectId, 'tasks', filtersKey, page, pageSize],
+    queryKey: ['projects', projectId, 'tasks', filtersKey],
     queryFn: async () => {
-      const result = await tasksApi.listByProject(projectId, {
+      const result = await tasksApi.listTreeByProject(projectId, {
         filters: options?.filters,
-        page,
-        pageSize,
       })
-      const tasks = result.tasks
-      // 转换为 Todo 模型，返回扁平列表
-      const todos = tasksToTodos(tasks)
-      // console.log('🔍 [项目详情页-待办列表] 转换后的待办列表:', JSON.stringify(todos, null, 2))
-      
-      // 构建待办树关系（用于子待办显示）
-      const todoMap = new Map(todos.map(todo => [todo.id, todo]))
-      todos.forEach(todo => {
-        if (todo.parentId) {
-          const parent = todoMap.get(todo.parentId)
-          if (parent) {
-            if (!parent.children) {
-              parent.children = []
-            }
-            parent.children.push(todo)
-          }
-        }
-      })
+      const todoTree = tasksToTodos(result.tasks)
+      const todos = flattenTaskTree(todoTree)
       
       return {
         todos,
+        todoTree,
         meta: result.meta,
         total: result.total,
       } as TaskListData

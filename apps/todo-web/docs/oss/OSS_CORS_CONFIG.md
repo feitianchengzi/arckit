@@ -35,7 +35,9 @@ No 'Access-Control-Allow-Origin' header is present on the requested resource.
   ```
   https://workshop.feitianchengzi.com
   http://localhost:3000
+  http://127.0.0.1:3000
   http://localhost:5173
+  http://127.0.0.1:5173
   ```
   
   > 💡 **提示**：可以添加多个来源，每行一个。如果需要允许所有来源（不推荐生产环境），可以填写 `*`
@@ -92,7 +94,9 @@ No 'Access-Control-Allow-Origin' header is present on the requested resource.
       "AllowedOrigin": [
         "https://workshop.feitianchengzi.com",
         "http://localhost:3000",
-        "http://localhost:5173"
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
       ],
       "AllowedMethod": [
         "GET",
@@ -166,7 +170,7 @@ curl -X OPTIONS \
 ### Q2: 开发环境和生产环境需要分别配置吗？
 
 **答**：可以在同一个 CORS 规则中添加多个来源，包括：
-- 开发环境：`http://localhost:3000`、`http://localhost:5173`
+- 开发环境：`http://localhost:3000`、`http://127.0.0.1:3000`、`http://localhost:5173`、`http://127.0.0.1:5173`
 - 生产环境：`https://workshop.feitianchengzi.com`
 
 ### Q3: 可以设置 `AllowedOrigin: *` 吗？
@@ -201,4 +205,3 @@ curl -X OPTIONS \
 ---
 
 **配置完成后，头像上传功能应该可以正常工作了！** 🎉
-

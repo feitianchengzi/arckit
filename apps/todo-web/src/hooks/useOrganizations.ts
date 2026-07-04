@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query'
 import { organizationsApi } from '@/lib/api/endpoints/organizations'
 import { useAuthStore } from '@/store/authStore'
 
@@ -10,6 +10,42 @@ export function useOrganizationList(includeDeleted = false) {
     queryKey: ['organizations', { includeDeleted }],
     queryFn: () => organizationsApi.list(includeDeleted),
     staleTime: 5 * 60 * 1000, // 5分钟内数据视为新鲜
+  })
+}
+
+/**
+ * 分页获取用户参与的组织列表，用于组织切换菜单滚动加载
+ */
+export function useInfiniteOrganizationList(includeDeleted = false, pageSize = 20) {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const user = useAuthStore((state) => state.user)
+
+  return useInfiniteQuery({
+    queryKey: ['organizations', 'infinite', { includeDeleted, pageSize }],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      organizationsApi.listPage({
+        includeDeleted,
+        page: Number(pageParam) || 1,
+        pageSize,
+      }),
+    getNextPageParam: (lastPage, allPages) => {
+      const currentPage = lastPage.meta?.page || allPages.length
+      const currentPageSize = lastPage.meta?.page_size || pageSize
+      const total = lastPage.meta?.total ?? lastPage.total
+
+      if (lastPage.organizations.length === 0 || currentPageSize <= 0) {
+        return undefined
+      }
+
+      if (typeof total === 'number' && total > 0) {
+        return currentPage * currentPageSize < total ? currentPage + 1 : undefined
+      }
+
+      return lastPage.organizations.length >= pageSize ? allPages.length + 1 : undefined
+    },
+    enabled: isAuthenticated && !!user && !!user.username,
+    staleTime: 5 * 60 * 1000,
   })
 }
 

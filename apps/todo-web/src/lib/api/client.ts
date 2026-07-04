@@ -15,7 +15,9 @@ import { logFlow } from '@/utils/tokenDebug'
 
 // Workshop 后端基础URL
 // 注意：路径格式为 /{service}/v1/...，所以 baseURL 应该包含 service 和 v1
-const WORKSHOP_BASE_URL = import.meta.env.VITE_API_URL || 'https://api.feitianchengzi.com/workshop/v1'
+const WORKSHOP_BASE_URL = import.meta.env.DEV
+  ? '/api-proxy/workshop/v1'
+  : import.meta.env.VITE_API_URL || 'https://api.feitianchengzi.com/workshop/v1'
 
 // 创建 axios 实例
 export const apiClient: AxiosInstance = axios.create({
@@ -153,6 +155,8 @@ apiClient.interceptors.request.use(
           tokenExpiresIn: tokens.expires_in,
           refreshTokenObtainedAt: now,
           refreshExpiresIn: tokens.refresh_expires_in,
+          account: currentAuthInfo?.account,
+          accountType: currentAuthInfo?.accountType,
           username: currentAuthInfo?.username,
           avatarUrl: currentAuthInfo?.avatarUrl,
         })
@@ -328,6 +332,8 @@ apiClient.interceptors.response.use(
           tokenExpiresIn: tokens.expires_in,
           refreshTokenObtainedAt: now,
           refreshExpiresIn: tokens.refresh_expires_in,
+          account: authInfo?.account,
+          accountType: authInfo?.accountType,
           username: authInfo?.username,
           avatarUrl: authInfo?.avatarUrl,
         })

@@ -14,8 +14,10 @@ import {
 } from '@/types/auth'
 import { getAccessToken } from '@/lib/utils/tokenManager'
 
-// 网关基础URL（可通过环境变量 VITE_GATEWAY_URL 覆盖）
-const GATEWAY_BASE_URL = import.meta.env.VITE_GATEWAY_URL || 'https://api.feitianchengzi.com'
+// 网关基础URL（开发环境走 Vite 代理，避免本地调线上时被 CORS 拦截）
+const GATEWAY_BASE_URL = import.meta.env.DEV
+  ? '/api-proxy'
+  : import.meta.env.VITE_GATEWAY_URL || 'https://api.feitianchengzi.com'
 
 // 创建网关专用 axios 实例
 const gatewayClient: AxiosInstance = axios.create({

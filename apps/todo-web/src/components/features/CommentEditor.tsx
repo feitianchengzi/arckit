@@ -18,6 +18,7 @@ import { ImageIcon, PaperClipIcon, LinkIcon } from '@/components/ui/icons'
 import { uploadApi } from '@/lib/api/endpoints/upload'
 import { parseTextCommentContentPayload, rawUrlsToLinkFormat } from '@/lib/api/endpoints/comments'
 import { OssResourceManager, OssUploadPurpose } from '@/lib/oss/OssResourceManager'
+import { normalizeObjectKey } from '@/lib/oss/sdk'
 import { UPLOAD_LIMITS } from '@/lib/constants/uploadLimits'
 import { compressImageDataUrl, dataURLtoFile, readFileAsDataUrl } from '@/lib/utils/imageCompress'
 import { formatFileSize } from '@/lib/utils/validators'
@@ -268,7 +269,8 @@ export function CommentEditor({
     let cancelled = false
     const load = async () => {
       const next: { key: string; url: string }[] = []
-      for (const key of parsed.imageKeys) {
+      for (const rawKey of parsed.imageKeys) {
+        const key = normalizeObjectKey(rawKey)
         const url = await OssResourceManager.resolve(key)
         if (cancelled) return
         next.push({ key, url: url || '' })
@@ -281,7 +283,10 @@ export function CommentEditor({
 
   useEffect(() => {
     if (parsed.fileKeys?.length) {
-      setFiles(parsed.fileKeys.map((key) => ({ key, name: key.split('/').pop() || '附件' })))
+      setFiles(parsed.fileKeys.map((rawKey) => {
+        const key = normalizeObjectKey(rawKey)
+        return { key, name: key.split('/').pop() || '附件' }
+      }))
     }
   }, [])
 

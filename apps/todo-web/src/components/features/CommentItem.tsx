@@ -3,7 +3,7 @@
  * 格式约定：[] 仅类型。[name](username)→@提及，[link](url) / [link](url|显示名)→可点击链接。
  */
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { ImageGallery } from './ImageGallery'
 import { decodeUrlForDisplay } from '@/lib/utils/urlDisplay'
 
@@ -69,12 +69,12 @@ function commentTextToSafeHtml(text: string): string {
 import { Avatar, ConfirmDialog, ImagePreview } from '@/components/ui'
 import { PencilIcon, TrashIcon } from '@/components/ui/icons'
 import { CommentEditor } from './CommentEditor'
-import { buildTextCommentContent, parseTextCommentContent, type TaskComment } from '@/lib/api/endpoints/comments'
+import { type TaskComment } from '@/lib/api/endpoints/comments'
 import { uploadApi } from '@/lib/api/endpoints/upload'
 import { getSignedUrl } from '@/lib/oss/upload/getSignedUrl'
 import { formatRelativeTime } from '@/lib/utils/dateUtils'
 import { OssResourceManager } from '@/lib/oss/OssResourceManager'
-import clsx from 'clsx'
+import { normalizeObjectKey } from '@/lib/oss/sdk'
 
 type ContentPart = 
   | { type: 'text', content: string }
@@ -98,32 +98,6 @@ function parseContentToParts(text: string): ContentPart[] {
     parts.push({ type: 'text', content: text.slice(lastIndex) })
   }
   return parts.length > 0 ? parts : [{ type: 'text', content: text }]
-}
-
-function CommentImage({ objectKey, onClick }: { objectKey: string; onClick?: () => void }) {
-  const [url, setUrl] = useState('')
-  useEffect(() => {
-    console.log('[CommentImage] Start resolving:', objectKey)
-    let active = true
-    OssResourceManager.resolve(objectKey).then(u => {
-      console.log('[CommentImage] Resolved:', objectKey, u)
-      if (active && u) setUrl(u)
-    }).catch(err => {
-      console.error('[CommentImage] Failed to resolve:', objectKey, err)
-    })
-    return () => { active = false }
-  }, [objectKey])
-
-  if (!url) return <div className="w-16 h-16 bg-surface-active animate-pulse rounded my-2" />
-  return (
-    <img 
-      src={url} 
-      alt="图片附件" 
-      data-oss-key={objectKey}
-      className="max-w-full rounded-md max-h-[300px] object-contain my-2 border border-border cursor-pointer hover:opacity-90 transition-opacity" 
-      onClick={onClick}
-    />
-  )
 }
 
 function CommentFile({ objectKey }: { objectKey: string }) {
@@ -181,7 +155,6 @@ export function CommentItem({
   canDelete,
   onEdit,
   onDelete,
-  isEditing: externalIsEditing,
   isDeleting = false,
 }: CommentItemProps) {
   const [isEditing, setIsEditing] = useState(false)
@@ -207,12 +180,14 @@ export function CommentItem({
   }
 
   const handleImageClick = async (objectKey: string, allImageKeys: string[]) => {
-    const imagePromises = allImageKeys.map(async (key) => {
+    const normalizedObjectKey = normalizeObjectKey(objectKey)
+    const normalizedImageKeys = allImageKeys.map(normalizeObjectKey)
+    const imagePromises = normalizedImageKeys.map(async (key) => {
       const url = await OssResourceManager.resolve(key)
       return { url: url || '', key }
     })
     const images = await Promise.all(imagePromises)
-    const currentIndex = allImageKeys.indexOf(objectKey)
+    const currentIndex = normalizedImageKeys.indexOf(normalizedObjectKey)
     setPreviewImages(images)
     setPreviewIndex(currentIndex >= 0 ? currentIndex : 0)
     setPreviewOpen(true)
@@ -266,11 +241,11 @@ export function CommentItem({
   }, [comment.content, comment.type])
 
   const imageKeys = useMemo(() => {
-    return contentParts.filter(p => p.type === 'image').map(p => p.key)
+    return contentParts.filter(p => p.type === 'image').map(p => normalizeObjectKey(p.key))
   }, [contentParts])
 
   const fileKeys = useMemo(() => {
-    return contentParts.filter(p => p.type === 'file').map(p => p.key)
+    return contentParts.filter(p => p.type === 'file').map(p => normalizeObjectKey(p.key))
   }, [contentParts])
 
   const urlContentHref = useMemo(

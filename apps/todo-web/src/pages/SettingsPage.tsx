@@ -1,95 +1,55 @@
-
 /**
  * 设置页面
- * 用户设置和偏好
+ * 用户资料和账户操作
  */
 
-import { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { Button, TextField, LoadingView, ErrorView, Avatar } from '@/components/ui'
+import { useEffect, useState } from 'react'
+import { ErrorView, LoadingView } from '@/components/ui'
 import { AvatarCropUpload } from '@/components/ui/AvatarCropUpload'
-import { useAuthStore } from '@/store/authStore'
-import { useThemeStore } from '@/store/themeStore'
-import { useLogout, useFirstTimeSetup } from '@/hooks/useAuth'
+import { useFirstTimeSetup, useLogout } from '@/hooks/useAuth'
 import { todoUserApi } from '@/lib/api/endpoints/auth'
-import { getAuthInfo } from '@/lib/utils/tokenManager'
+import { useAuthStore } from '@/store/authStore'
+import { showGlobalToast } from '@/components/ui/Toast'
 
 export default function SettingsPage() {
-  const navigate = useNavigate()
   const setUser = useAuthStore((state) => state.setUser)
   const currentUser = useAuthStore((state) => state.user)
   const logoutMutation = useLogout()
   const updateUserMutation = useFirstTimeSetup()
-  const { theme, toggleTheme } = useThemeStore()
-  
+
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  
   const [username, setUsername] = useState('')
   const [avatar, setAvatar] = useState('')
-  const [isEditing, setIsEditing] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [saveError, setSaveError] = useState('')
-  const [saveSuccess, setSaveSuccess] = useState(false)
-  
-  // 初始化表单数据（只在组件挂载时执行一次，或 currentUser 从 null 变为有值时执行）
+  const [isSavingName, setIsSavingName] = useState(false)
+
   useEffect(() => {
-    console.log('[SettingsPage] 初始化用户数据, currentUser:', currentUser)
-    
     if (currentUser) {
-      console.log('[SettingsPage] 使用 store 中的用户信息:', {
-        username: currentUser.username,
-        avatar: currentUser.avatar
-      })
-      // 只在首次设置或用户信息真正变化时才更新表单
-      setUsername(prev => {
-        const newValue = currentUser.username || ''
-        if (prev !== newValue) {
-          console.log('[SettingsPage] 用户名变化:', prev, '->', newValue)
-        }
-        return newValue
-      })
-      setAvatar(prev => {
-        const newValue = currentUser.avatar || ''
-        if (prev !== newValue) {
-          console.log('[SettingsPage] 头像变化:', prev, '->', newValue)
-        }
-        return newValue
-      })
-    } else {
-      // 如果 store 中没有用户信息，尝试查询
-      console.log('[SettingsPage] store 中没有用户信息，开始获取...')
-      setIsLoading(true)
-      // 尝试获取当前用户信息
-      todoUserApi.getCurrentUser()
-        .then((user) => {
-          console.log('[SettingsPage] 获取用户信息成功:', {
-            username: user.username,
-            avatar: user.avatar
-          })
-          setUser(user)
-          setUsername(user.username || '')
-          setAvatar(user.avatar || '')
-        })
-        .catch((err) => {
-          console.error('[SettingsPage] 获取用户信息失败:', err)
-          setError('无法获取用户信息')
-        })
-        .finally(() => {
-          setIsLoading(false)
-        })
+      setUsername(currentUser.username || '')
+      setAvatar(currentUser.avatar || '')
+      return
     }
-    // 注意：这里只依赖 currentUser?.username 和 currentUser?.avatar，而不是整个 currentUser 对象
-    // 这样可以避免因为 currentUser 对象引用变化而重新执行
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    setIsLoading(true)
+    todoUserApi.getCurrentUser()
+      .then((user) => {
+        setUser(user)
+        setUsername(user.username || '')
+        setAvatar(user.avatar || '')
+      })
+      .catch((err) => {
+        console.error('[SettingsPage] 获取用户信息失败:', err)
+        setError('无法获取用户信息')
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
   }, [currentUser?.username, currentUser?.avatar, setUser])
-  
-  // 加载状态
+
   if (isLoading) {
     return <LoadingView size="lg" text="加载用户信息..." />
   }
-  
-  // 错误状态
+
   if (error && !currentUser) {
     return (
       <ErrorView
@@ -99,223 +59,117 @@ export default function SettingsPage() {
       />
     )
   }
-  
-  // 处理保存
-  const handleSave = async () => {
-    if (!username.trim()) {
-      setSaveError('用户名不能为空')
+
+  const initialUsername = currentUser?.username || ''
+  const trimmedUsername = username.trim()
+
+  const handleSaveName = async () => {
+    if (isSavingName) return
+
+    if (!trimmedUsername) {
+      setUsername(initialUsername)
+      showGlobalToast('名称不能为空，修改失败', 'error', 2500)
       return
     }
-    
-    setIsSaving(true)
-    setSaveError('')
-    setSaveSuccess(false)
-    
+
+    if (trimmedUsername === initialUsername) {
+      setUsername(initialUsername)
+      return
+    }
+
+    setIsSavingName(true)
+
     try {
-      // 调用更新用户信息接口
       await updateUserMutation.mutateAsync({
-        username: username.trim(),
+        username: trimmedUsername,
         avatar: avatar.trim() || '',
       })
-      
-      setSaveSuccess(true)
-      setIsEditing(false)
-      
-      // 3秒后隐藏成功提示
-      setTimeout(() => setSaveSuccess(false), 3000)
+
+      setUsername(trimmedUsername)
+      showGlobalToast('名称已更新', 'success', 2000)
     } catch (err: any) {
-      setSaveError(err?.message || '保存失败，请重试')
+      setUsername(initialUsername)
+      showGlobalToast(err?.message || '名称更新失败', 'error', 2500)
     } finally {
-      setIsSaving(false)
+      setIsSavingName(false)
     }
   }
-  
-  // 处理取消
-  const handleCancel = () => {
-    console.log('[SettingsPage] 取消编辑，恢复原始数据')
-    if (currentUser) {
-      setUsername(currentUser.username || '')
-      setAvatar(currentUser.avatar || '')
-    }
-    setIsEditing(false)
-    setSaveError('')
-    setSaveSuccess(false)
-  }
-  
+
   return (
-    <div className="max-w-2xl mx-auto space-y-4 md:space-y-6">
-      {/* 页面头部 */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold text-foreground">设置</h1>
-        <p className="mt-1 md:mt-2 text-sm md:text-base text-foreground-secondary">管理您的账户设置和偏好</p>
-      </div>
-      
-      {/* 用户信息卡片 */}
-      <div className="bg-surface-elevated rounded-lg shadow-md p-4 md:p-6 space-y-4 md:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 border-b border-divider pb-3 md:pb-4">
-          <h2 className="text-lg md:text-xl font-semibold text-foreground">账户信息</h2>
-          {!isEditing && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setIsEditing(true)}
-              className="min-h-[44px]"
-            >
-              编辑
-            </Button>
-          )}
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 md:px-6 md:py-10">
+      <h1 className="text-2xl font-semibold text-foreground">用户资料</h1>
+
+      <div
+        className="mt-6 overflow-hidden rounded-lg border border-border bg-surface-elevated"
+      >
+        <div className="grid gap-3 border-b border-divider px-4 py-4 md:grid-cols-[minmax(120px,1fr)_320px] md:items-center md:px-5">
+          <div>
+            <h2 className="text-sm font-medium text-foreground">头像</h2>
+          </div>
+          <AvatarCropUpload
+            value={avatar}
+            onChange={(nextAvatar) => {
+              setAvatar(nextAvatar)
+              if (currentUser) {
+                setUser({ ...currentUser, avatar: nextAvatar })
+              }
+              showGlobalToast('头像已更新', 'success', 2000)
+            }}
+            outputSize={200}
+            showLabel={false}
+            variant="compact"
+          />
         </div>
-        
-        {isEditing ? (
-          <div className="space-y-4">
-            {/* 用户名 */}
-            <TextField
-              id="username"
-              label="用户名"
-              placeholder="请输入用户名"
+
+        <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(120px,1fr)_320px] md:items-center md:px-5">
+          <label htmlFor="profile-username" className="text-sm font-medium text-foreground">
+            名称
+          </label>
+          <div>
+            <input
+              id="profile-username"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              fullWidth
+              onChange={(event) => {
+                setUsername(event.target.value)
+              }}
+              onBlur={handleSaveName}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.currentTarget.blur()
+                }
+              }}
+              className="h-9 w-full rounded-md border border-border bg-surface-elevated px-3 text-sm text-foreground outline-none transition-colors placeholder:text-foreground-tertiary focus:border-foreground-tertiary focus:ring-1 focus:ring-foreground-tertiary/15 disabled:cursor-not-allowed disabled:bg-surface-disabled"
+              placeholder="请输入名称"
+              disabled={isSavingName}
+              maxLength={20}
               required
-              disabled={isSaving}
             />
-            
-            {/* 头像上传 */}
-            <AvatarCropUpload
-              value={avatar}
-              onChange={setAvatar}
-              outputSize={200}
-              label="头像"
-              showLabel={true}
-            />
-            
-            {/* 成功提示 */}
-            {saveSuccess && (
-              <div className="bg-success-lighter border border-success-light rounded-md p-3">
-                <p className="text-sm text-success">保存成功！</p>
-              </div>
-            )}
-            
-            {/* 错误提示 */}
-            {saveError && (
-              <div className="bg-error-lighter border border-error-light rounded-md p-3">
-                <p className="text-sm text-error">{saveError}</p>
-              </div>
-            )}
-            
-            {/* 操作按钮 */}
-            <div className="flex gap-3 justify-end pt-4 border-t border-divider">
-              <Button
-                variant="secondary"
-                onClick={handleCancel}
-                disabled={isSaving}
-              >
-                取消
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleSave}
-                loading={isSaving}
-                disabled={isSaving}
-              >
-                保存
-              </Button>
-            </div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {/* 显示当前用户信息 */}
-            <div className="flex items-center gap-4">
-              {/* 头像 - 使用 Avatar 组件，支持 objectKey 自动转换 */}
-              <Avatar
-                user={currentUser}
-                size="lg"
-                showTooltip={true}
-              />
-              
-              {/* 用户信息 */}
-              <div className="flex-1">
-                <p className="text-lg font-medium text-foreground">
-                  {currentUser?.username || '未知用户'}
-                </p>
-              </div>
-            </div>
-            
-            {/* 详细信息 */}
-            <div className="grid grid-cols-2 gap-4 pt-4 border-t border-divider">
-              <div>
-                <p className="text-sm font-medium text-foreground-secondary">用户名</p>
-                <p className="mt-1 text-sm text-foreground">{currentUser?.username || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground-secondary">注册时间</p>
-                <p className="mt-1 text-sm text-foreground">
-                  {currentUser?.created_at
-                    ? new Date(currentUser.created_at).toLocaleDateString('zh-CN')
-                    : 'N/A'}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-      
-      {/* 外观设置 */}
-      <div className="bg-surface-elevated rounded-lg shadow-md p-4 md:p-6 space-y-4 md:space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 border-b border-divider pb-3 md:pb-4">
-          <h2 className="text-lg md:text-xl font-semibold text-foreground">外观设置</h2>
-        </div>
-        
-        {/* 深色模式切换 */}
-        <div className="flex items-center justify-between py-2">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-foreground">深色模式</p>
-            <p className="mt-1 text-xs text-foreground-secondary">
-              切换浅色/深色主题
-            </p>
-          </div>
-          <button
-            onClick={toggleTheme}
-            className={`
-              relative inline-flex h-6 w-11 items-center rounded-full transition-colors
-              ${theme === 'dark' ? 'bg-primary' : 'bg-surface-active'}
-              focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2
-            `}
-            role="switch"
-            aria-checked={theme === 'dark'}
-            aria-label="切换深色模式"
-          >
-            <span
-              className={`
-                inline-block h-4 w-4 transform rounded-full bg-white transition-transform
-                ${theme === 'dark' ? 'translate-x-6' : 'translate-x-1'}
-              `}
-            />
-          </button>
         </div>
       </div>
-      
-      {/* 退出登录 */}
-      <div className="bg-surface-elevated rounded-lg shadow-md p-6 space-y-4">
-        <div className="border-b border-divider pb-4">
-          <h2 className="text-xl font-semibold text-foreground">账户操作</h2>
-          <p className="mt-1 text-sm text-foreground-secondary">
-            退出登录后需要重新登录才能使用
-          </p>
+
+      <section className="mt-10">
+        <h2 className="text-lg font-semibold text-foreground">账户访问</h2>
+        <div className="mt-4 overflow-hidden rounded-lg border border-border bg-surface-elevated">
+          <div className="flex flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between md:px-5">
+            <div>
+              <p className="text-sm font-medium text-foreground">退出当前账户</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm('确定要退出登录吗？')) {
+                  logoutMutation.mutate()
+                }
+              }}
+              disabled={logoutMutation.isPending}
+              className="inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium text-error transition-colors hover:bg-error-light focus:outline-none focus:ring-1 focus:ring-error/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              退出登录
+            </button>
+          </div>
         </div>
-        
-        <Button
-          variant="danger"
-          onClick={() => {
-            if (confirm('确定要退出登录吗？')) {
-              logoutMutation.mutate()
-            }
-          }}
-          disabled={logoutMutation.isPending}
-        >
-          退出登录
-        </Button>
-      </div>
+      </section>
     </div>
   )
 }

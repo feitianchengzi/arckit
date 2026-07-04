@@ -5,46 +5,14 @@
  * 设计文档：frontend/docs/oss/OSS_FILE_LOADER_DESIGN.md
  */
 
-import { getOssResourceLoader } from './index'
+import { OssResourceLoadManager } from './OssResourceLoadManager'
 import { notifyUrlUpdated } from './UrlUpdateNotifier'
+import { normalizeObjectKey } from '../sdk'
 
 // 记录每个图片元素已经修复的次数，避免无限循环
 const fixedImages = new WeakMap<HTMLImageElement, number>()
 const MAX_RETRY_COUNT = 2 // 每个图片最多修复 2 次
-
-// 全局 URL 缓存：存储每个 objectKey 的最新可用 URL
-const urlCache = new Map<string, string>()
-
-/**
- * 事件名称：OSS 图片 URL 更新
- */
-const OSS_IMAGE_URL_UPDATED_EVENT = 'oss-image-url-updated'
-
-/**
- * 触发全局事件，通知所有使用相同 objectKey 的图片元素更新 URL
- */
-function notifyUrlUpdated(objectKey: string, newUrl: string): void {
-  // 更新全局缓存
-  urlCache.set(objectKey, newUrl)
-  
-  // 触发自定义事件
-  const event = new CustomEvent(OSS_IMAGE_URL_UPDATED_EVENT, {
-    detail: { objectKey, newUrl }
-  })
-  window.dispatchEvent(event)
-  
-  console.log('[ErrorInterceptor] 📢 已通知所有图片元素更新 URL:', {
-    objectKey,
-    newUrl: newUrl.substring(0, 50) + '...',
-  })
-}
-
-/**
- * 获取缓存的 URL（如果存在）
- */
-export function getCachedUrl(objectKey: string): string | null {
-  return urlCache.get(objectKey) || null
-}
+let initialized = false
 
 /**
  * 初始化全局错误拦截器
@@ -55,10 +23,24 @@ export function initErrorInterceptor(): void {
     return
   }
 
+  if (initialized) {
+    return
+  }
+
   // 监听全局错误事件（捕获阶段）
   window.addEventListener('error', handleImageError, true)
+  initialized = true
 
   console.log('[ErrorInterceptor] ✅ 全局错误拦截器已初始化')
+}
+
+function getObjectKeyFromImage(img: HTMLImageElement): string {
+  const dataKey = img.getAttribute('data-oss-key')
+  if (dataKey) {
+    return normalizeObjectKey(dataKey)
+  }
+
+  return normalizeObjectKey(img.src)
 }
 
 /**
@@ -80,12 +62,14 @@ function handleImageError(event: ErrorEvent): void {
     return
   }
 
-  // 从 data-oss-key 属性获取 objectKey
-  const objectKey = img.getAttribute('data-oss-key')
+  // 从 data-oss-key 属性获取 objectKey；缺失时从 OSS URL pathname 兜底反推。
+  const objectKey = getObjectKeyFromImage(img)
   if (!objectKey) {
-    console.warn('[ErrorInterceptor] ⚠️ 图片加载失败，但未找到 data-oss-key 属性:', src)
+    console.warn('[ErrorInterceptor] ⚠️ 图片加载失败，但无法识别 objectKey:', src.substring(0, 80) + '...')
     return
   }
+
+  img.setAttribute('data-oss-key', objectKey)
 
   // 检查该图片已经修复的次数
   const retryCount = fixedImages.get(img) || 0
@@ -115,7 +99,7 @@ function handleImageError(event: ErrorEvent): void {
   fixedImages.set(img, retryCount + 1)
 
   // 自动修复：重新获取签名 URL
-  const resourceLoader = getOssResourceLoader()
+  const resourceLoader = OssResourceLoadManager.getInstance()
   
   resourceLoader.refresh(objectKey)
     .then((newUrl) => {
@@ -160,6 +144,6 @@ export function destroyErrorInterceptor(): void {
   }
 
   window.removeEventListener('error', handleImageError, true)
+  initialized = false
   console.log('[ErrorInterceptor] ✅ 全局错误拦截器已销毁')
 }
-

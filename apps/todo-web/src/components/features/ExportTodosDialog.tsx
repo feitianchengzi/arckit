@@ -416,13 +416,18 @@ export function ExportTodosDialog({
       onClose={onClose}
       title="导出待办事项"
       maxWidth="lg"
+      panelClassName="flex flex-col"
+      panelStyle={{ height: '80vh', maxHeight: '820px' }}
+      bodyClassName="min-h-0 flex flex-1 flex-col p-0"
     >
-      <div className="space-y-4">
-        {!showPreview ? (
-          <>
-            <p className="text-sm text-foreground-secondary">
-              设置筛选条件，导出符合条件的待办事项到Markdown文件。
-            </p>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
+          <div className="space-y-4">
+            {!showPreview ? (
+              <>
+                <p className="text-sm text-foreground-secondary">
+                  设置筛选条件，导出符合条件的待办事项到Markdown文件。
+                </p>
 
             <div className="space-y-4">
               {/* 状态筛选 */}
@@ -601,32 +606,10 @@ export function ExportTodosDialog({
               </p>
             </div>
 
-            <div className="flex gap-3 justify-end pt-4">
-              <Button
-                variant="secondary"
-                onClick={onClose}
-              >
-                取消
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setShowPreview(true)}
-                disabled={filteredTodos.length === 0}
-              >
-                预览
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleExport}
-                disabled={filteredTodos.length === 0}
-              >
-                导出
-              </Button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex items-center justify-between mb-2">
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-semibold text-foreground">预览内容</h3>
               <div className="flex items-center gap-2">
                 {/* 预览模式切换 */}
@@ -946,7 +929,37 @@ export function ExportTodosDialog({
               )}
             </div>
 
-            <div className="flex gap-3 justify-end pt-4">
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 justify-end gap-3 border-t border-divider px-6 py-4">
+          {!showPreview ? (
+            <>
+              <Button
+                variant="secondary"
+                onClick={onClose}
+              >
+                取消
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setShowPreview(true)}
+                disabled={filteredTodos.length === 0}
+              >
+                预览
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleExport}
+                disabled={filteredTodos.length === 0}
+              >
+                导出
+              </Button>
+            </>
+          ) : (
+            <>
               <Button
                 variant="secondary"
                 onClick={() => setShowPreview(false)}
@@ -960,9 +973,9 @@ export function ExportTodosDialog({
               >
                 导出
               </Button>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </div>
       </div>
     </Dialog>
   )

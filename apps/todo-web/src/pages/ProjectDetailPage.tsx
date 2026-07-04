@@ -6,11 +6,14 @@
 import { useState, useMemo, useRef, useEffect, useCallback, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
-import { Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog, Drawer } from '@/components/ui'
+import { Avatar, Button, LoadingView, ErrorView, EmptyStateView, ConfirmDialog, TextField, Dialog } from '@/components/ui'
 import { TodoTreeItem } from '@/components/features/TodoTreeItem'
+import { getLinearPriorityOption, getLinearStatusOption, LinearPriorityMarker, LinearStatusMarker } from '@/components/features/TodoItem'
 import { ProjectMemberList, TaskDetailContent, CreateTaskDialog, ExportTodosDialog, DateRangeFilter, FilterMultiSelect, FeedbackDialog } from '@/components/features'
-import { buildTaskTree } from '@/lib/utils/taskTree'
+import { flattenTaskTree } from '@/lib/utils/taskTree'
 import { enrichTodosWithMembers } from '@/lib/utils/enrichTodosWithMembers'
+import { getDefaultTaskDateRange, isSameTaskDateRange, normalizeTaskDateRange, taskDateRangeToTimeFilters } from '@/lib/utils/taskDateRange'
+import { argbToCssColor } from '@/lib/utils/tagUtils'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
 import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useProjectWebSocket, type ProjectSocketEvent } from '@/hooks/useProjectWebSocket'
@@ -18,8 +21,11 @@ import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
+import { useDashboardLayout } from '@/layouts/DashboardLayoutContext'
+import { showGlobalToast } from '@/components/ui/Toast'
 import { type DateRange } from '@/lib/utils/filterStorage'
-import { decodeProjectId } from '@/lib/utils/projectRouting'
+import { buildProjectPath, decodeProjectId } from '@/lib/utils/projectRouting'
+import { LinkIcon, PlusIcon } from '@/components/ui/icons'
 import type { TodoStatus, ProjectMember } from '@/types'
 import clsx from 'clsx'
 import { permissionManager } from '@/lib/permissions'
@@ -37,12 +43,17 @@ export default function ProjectDetailPage() {
   const projectId = Number(projectIdParam)
   
   const currentUser = useAuthStore((state) => state.user)
+  const { isProjectSidebarCollapsed, collapseProjectSidebar, expandProjectSidebar } = useDashboardLayout()
   const [showScrollTop, setShowScrollTop] = useState(false)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [hideScrollTopForDrawerTransition, setHideScrollTopForDrawerTransition] = useState(false)
   const hasDrawerOpenedRef = useRef(false)
+  const hasInitializedTaskRouteRef = useRef(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [showCreateTaskDialog, setShowCreateTaskDialog] = useState(false)
+  const [createSubtaskParentId, setCreateSubtaskParentId] = useState<number | null>(null)
+  const [taskDetailFullscreenOpen, setTaskDetailFullscreenOpen] = useState(false)
+  const createTaskButtonRef = useRef<HTMLButtonElement>(null)
   const [taskHistory, setTaskHistory] = useState<Array<{ taskId: string; projectId: string; parentTaskId: number | null }>>([])
   const [parentSelectTaskId, setParentSelectTaskId] = useState<string | null>(null)
   const parseTaskIdFromHash = (hash: string): string | null => {
@@ -69,6 +80,40 @@ export default function ProjectDetailPage() {
       navigate({ hash: '' }, { replace: true })
     }
   }, [navigate, setSearchParams, taskIdFromHash])
+
+  const closeTaskDetail = useCallback(() => {
+    setTaskHistory([])
+    setTaskRoute(null)
+  }, [setTaskRoute])
+
+  const handleProjectSidebarToggle = useCallback(() => {
+    if (isProjectSidebarCollapsed) {
+      closeTaskDetail()
+      expandProjectSidebar()
+      return
+    }
+
+    collapseProjectSidebar()
+  }, [collapseProjectSidebar, closeTaskDetail, expandProjectSidebar, isProjectSidebarCollapsed])
+
+  const handleOpenTaskDetail = useCallback((todoId: number) => {
+    setTaskHistory([])
+    collapseProjectSidebar()
+    setTaskRoute(String(todoId))
+  }, [collapseProjectSidebar, setTaskRoute])
+
+  const handleCopySelectedTaskLink = useCallback(async () => {
+    if (!selectedTaskId) return
+
+    try {
+      const detailUrl = `${window.location.origin}${buildProjectPath(projectIdParam, `tasks/${selectedTaskId}`)}`
+      await navigator.clipboard.writeText(detailUrl)
+      showGlobalToast('详情链接已复制', 'success', 2000)
+    } catch (error) {
+      console.error('复制详情链接失败:', error)
+      showGlobalToast('复制失败，请手动复制', 'error', 2500)
+    }
+  }, [projectIdParam, selectedTaskId])
   
   // 回到顶部
   const scrollToTop = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -81,6 +126,25 @@ export default function ProjectDetailPage() {
   }, [])
   
   useEffect(() => {
+    if (!hasInitializedTaskRouteRef.current) {
+      hasInitializedTaskRouteRef.current = true
+      setDrawerOpen(false)
+      setSelectedTaskId(null)
+      setTaskHistory([])
+
+      if (taskIdFromUrl) {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev)
+          next.delete('task')
+          return next
+        }, { replace: true })
+        if (taskIdFromHash) {
+          navigate({ hash: '' }, { replace: true })
+        }
+      }
+      return
+    }
+
     if (taskIdFromUrl) {
       setSelectedTaskId(taskIdFromUrl)
       setDrawerOpen(true)
@@ -89,7 +153,7 @@ export default function ProjectDetailPage() {
     setDrawerOpen(false)
     setSelectedTaskId(null)
     setTaskHistory([])
-  }, [taskIdFromUrl])
+  }, [navigate, setSearchParams, taskIdFromHash, taskIdFromUrl])
 
   useEffect(() => {
     if (drawerOpen) {
@@ -106,6 +170,12 @@ export default function ProjectDetailPage() {
 
     return () => window.clearTimeout(timer)
   }, [drawerOpen])
+
+  useEffect(() => {
+    if (!drawerOpen || !selectedTaskId) {
+      setTaskDetailFullscreenOpen(false)
+    }
+  }, [drawerOpen, selectedTaskId])
   const { data: project, isLoading: projectLoading, error: projectError, refetch: refetchProject } = useProject(projectIdParam)
   const deleteProject = useDeleteProject()
   const updateProject = useUpdateProject(projectIdParam)
@@ -117,10 +187,16 @@ export default function ProjectDetailPage() {
   const [editName, setEditName] = useState('')
   const [editGitUrl, setEditGitUrl] = useState('')
   const [editError, setEditError] = useState('')
+  const [projectInfoName, setProjectInfoName] = useState('')
+  const [projectInfoGitUrl, setProjectInfoGitUrl] = useState('')
+  const [projectInfoError, setProjectInfoError] = useState('')
+  const [isSavingProjectInfo, setIsSavingProjectInfo] = useState(false)
+  const [showProjectInfoDialog, setShowProjectInfoDialog] = useState(false)
   
   // 更多菜单状态
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
+  const moreMenuButtonRef = useRef<HTMLButtonElement>(null)
   
   // 导出待办对话框状态
   const [showExportDialog, setShowExportDialog] = useState(false)
@@ -132,31 +208,24 @@ export default function ProjectDetailPage() {
   const [migrateOrgId, setMigrateOrgId] = useState('')
   const [migrateError, setMigrateError] = useState('')
   
-  // 筛选器"更多"菜单状态
-  const [showMoreFilters, setShowMoreFilters] = useState(false)
-  const moreFiltersRef = useRef<HTMLDivElement>(null)
-  const moreFiltersMenuRef = useRef<HTMLDivElement>(null)
-  const filterContainerRef = useRef<HTMLDivElement>(null)
-  const [visibleFilters, setVisibleFilters] = useState<string[]>(['status', 'creator', 'executor', 'tag', 'priority', 'dateRange'])
-  const [hiddenFilters, setHiddenFilters] = useState<string[]>([])
-  const [moreFiltersPosition, setMoreFiltersPosition] = useState<{ top: number; left: number } | null>(null)
-  const [searchFilterInMoreMenu, setSearchFilterInMoreMenu] = useState(false)
-  
-  const statusOptions: Array<{ value: TodoStatus; label: string }> = [
-    { value: 'PENDING_REVIEW', label: '待评审' },
-    { value: 'PENDING', label: '待办' },
-    { value: 'IN_PROGRESS', label: '进行中' },
-    { value: 'COMPLETED', label: '已完成' },
-    { value: 'ACCEPTED', label: '已验收' },
-    { value: 'CANCELLED', label: '已取消' },
-    { value: 'BLOCKED', label: '已阻塞' },
-  ]
-  const priorityOptions = [
-    { value: 0, label: '🔴 最高' },
-    { value: 1, label: '🟠 高' },
-    { value: 2, label: '🟡 中' },
-    { value: 3, label: '🟢 低' },
-  ]
+  const statusOptions = ([
+    'PENDING_REVIEW',
+    'PENDING',
+    'IN_PROGRESS',
+    'COMPLETED',
+    'ACCEPTED',
+    'CANCELLED',
+    'BLOCKED',
+  ] as TodoStatus[]).map((status) => ({
+    value: status,
+    label: getLinearStatusOption(status).label,
+    icon: <LinearStatusMarker status={status} />,
+  }))
+  const priorityOptions = ([0, 1, 2, 3] as const).map((priority) => ({
+    value: priority,
+    label: getLinearPriorityOption(priority).label,
+    icon: <LinearPriorityMarker priority={priority} variant="menu" />,
+  }))
   const statusValues = statusOptions.map(option => option.value)
   
   const [statusFilter, setStatusFilter] = useState<TodoStatus[]>([])
@@ -165,13 +234,18 @@ export default function ProjectDetailPage() {
   const [tagFilter, setTagFilter] = useState<number[]>([])
   const [priorityFilter, setPriorityFilter] = useState<number[]>([])
 
-  // 日期范围筛选
-  const [dateRange, setDateRange] = useState<DateRange>({ startDate: null, endDate: null })
+  // 日期范围筛选：任务树接口要求必传时间范围，默认查“明天往前 30 天”。
+  const defaultDateRange = useMemo(() => getDefaultTaskDateRange(), [])
+  const [dateRange, setDateRangeState] = useState<DateRange>(() => getDefaultTaskDateRange())
+  const setDateRange = useCallback((range: DateRange) => {
+    setDateRangeState(normalizeTaskDateRange(range))
+  }, [])
+  const resetDateRange = useCallback(() => {
+    setDateRangeState(getDefaultTaskDateRange())
+  }, [])
   // 搜索状态
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [showSearchBar, setShowSearchBar] = useState(false)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
   const [filterContextProjectId, setFilterContextProjectId] = useState(projectIdParam)
   
   const isStatusSelected = (status: TodoStatus) =>
@@ -199,21 +273,22 @@ export default function ProjectDetailPage() {
     setExecutorFilter([])
     setTagFilter([])
     setPriorityFilter([])
-    setDateRange({ startDate: null, endDate: null })
+    resetDateRange()
     setSearchQuery('')
     setShowSearchBar(false)
-    setPage(1)
     setFilterContextProjectId(projectIdParam)
-  }, [filterContextProjectId, projectIdParam])
-
-  // 筛选条件变化时回到第一页
-  useEffect(() => {
-    setPage(1)
-  }, [statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, searchQuery, pageSize])
+  }, [filterContextProjectId, projectIdParam, resetDateRange])
   
   const { data: members } = useProjectMembers(projectIdParam)
   const updateStatus = useUpdateTaskStatus(projectIdParam)
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (!project) return
+    setProjectInfoName(project.name)
+    setProjectInfoGitUrl(project.git_url || '')
+    setProjectInfoError('')
+  }, [project?.id, project?.name, project?.git_url])
   
   // 加载项目标签
   const { loadProjectTags, getProjectTags } = useTagStore()
@@ -334,12 +409,7 @@ export default function ProjectDetailPage() {
       return selected
     }
 
-    const startTime = dateRange?.startDate
-      ? new Date(`${dateRange.startDate}T00:00:00`).toISOString()
-      : undefined
-    const endTime = dateRange?.endDate
-      ? new Date(`${dateRange.endDate}T23:59:59`).toISOString()
-      : undefined
+    const { startTime, endTime } = taskDateRangeToTimeFilters(dateRange)
     const searchKey = searchQuery.trim() || undefined
 
     return {
@@ -379,7 +449,7 @@ export default function ProjectDetailPage() {
   const isExecutorFilterActive = isFilterActive(executorFilter, memberIds)
   const isTagFilterActive = isFilterActive(tagFilter, tagIds)
   const isPriorityFilterActive = isFilterActive(priorityFilter, priorityValues)
-  const isDateRangeActive = !!(dateRange && (dateRange.startDate || dateRange.endDate))
+  const isDateRangeActive = !isSameTaskDateRange(dateRange, defaultDateRange)
   const isSearchActive = !!searchQuery.trim()
   const hasActiveFilters =
     isStatusFilterActive ||
@@ -394,28 +464,9 @@ export default function ProjectDetailPage() {
   const { data: taskListData, isLoading: todosLoading, error: todosError, refetch: refetchTodos } = useTaskList(projectIdParam, {
     enabled: !isDeleting && !!projectIdParam && filterContextProjectId === projectIdParam, // 切项目后等待筛选重置完成
     filters: taskListFilters,
-    page,
-    pageSize,
   })
   const todos = taskListData?.todos ?? []
-  const taskListMeta = taskListData?.meta
-  const totalTasks = taskListData?.total ?? 0
-  const totalPages = useMemo(() => {
-    const effectivePageSize = taskListMeta?.page_size || pageSize || 1
-    const total = taskListMeta?.total ?? totalTasks
-    return Math.max(1, Math.ceil(total / effectivePageSize))
-  }, [taskListMeta, totalTasks, pageSize])
-
-  useEffect(() => {
-    if (todosLoading || !taskListMeta) return
-    if (page > totalPages) {
-      setPage(totalPages)
-    }
-  }, [page, totalPages, todosLoading, taskListMeta])
-
-  useEffect(() => {
-    scrollToTop('auto')
-  }, [page, pageSize, scrollToTop])
+  const totalTasks = taskListData?.total ?? todos.length
   
   // 验证并修复筛选条件（数据加载完成后）
   useEffect(() => {
@@ -474,36 +525,60 @@ export default function ProjectDetailPage() {
     if (!members) return []
     return members
       .filter(member => typeof member.user_id === 'number')
-      .map(member => ({
-        value: member.user_id as number,
-        label: member.username || member.user?.username || `用户${member.user_id}`,
-      }))
+      .map(member => {
+        const username = member.username || member.user?.username || `用户${member.user_id}`
+        const avatar = member.avatar || member.user?.avatar
+
+        return {
+          value: member.user_id as number,
+          label: username,
+          icon: <Avatar user={{ username, avatar }} size="sm" />,
+        }
+      })
   }, [members])
 
   const creatorOptions = useMemo(() => {
     if (!currentUserId) return memberOptions
     const others = memberOptions.filter(option => option.value !== currentUserId)
-    return [{ value: currentUserId, label: '我' }, ...others]
+    const current = memberOptions.find(option => option.value === currentUserId)
+    return current ? [{ ...current, label: '我' }, ...others] : memberOptions
   }, [memberOptions, currentUserId])
 
   const executorOptions = creatorOptions
 
   const tagOptions = useMemo(
-    () => projectTags.map(tag => ({ value: tag.id, label: tag.displayName })),
+    () => projectTags.map(tag => ({
+      value: tag.id,
+      label: tag.displayName,
+      icon: null,
+      content: (
+        <span className="task-list-label filter-option-tag-label" title={tag.displayName}>
+          <span className="task-list-label-dot" style={{ background: argbToCssColor(tag.color) }} />
+          <span>{tag.displayName}</span>
+        </span>
+      ),
+    })),
     [projectTags]
   )
   
   // 使用成员信息丰富待办项的用户信息（创建人和执行人）
-  const enrichedTodos = useMemo(() => {
-    if (!todos || !members) return todos || []
-    return enrichTodosWithMembers(todos, members)
-  }, [todos, members])
+  const enrichedTaskTree = useMemo(() => {
+    const tree = taskListData?.todoTree ?? []
+    if (!tree || !members) return tree || []
+    return enrichTodosWithMembers(tree, members)
+  }, [taskListData?.todoTree, members])
 
-  // 构建树形结构
+  // 接口已经返回父子层级，这里只做成员信息补齐，不再重新分析 father_id。
   const taskTree = useMemo(() => {
-    if (!enrichedTodos) return []
-    return buildTaskTree(enrichedTodos)
-  }, [enrichedTodos])
+    return enrichedTaskTree
+  }, [enrichedTaskTree])
+
+  const enrichedTodos = useMemo(() => flattenTaskTree(taskTree), [taskTree])
+
+  const selectedTask = useMemo(() => {
+    if (!selectedTaskId || !enrichedTodos) return null
+    return enrichedTodos.find(todo => todo.id.toString() === selectedTaskId) || null
+  }, [enrichedTodos, selectedTaskId])
 
   const parentSelectTask = useMemo(() => {
     if (!parentSelectTaskId || !enrichedTodos) return null
@@ -796,6 +871,57 @@ export default function ProjectDetailPage() {
     const currentMember = members.find(m => m.username === currentUser.username)
     return currentMember?.role || null
   }, [currentUser?.username, members])
+
+  const canAdjustSelectedParent = useMemo(() => {
+    if (!selectedTask) return false
+    const isOwnerOrAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
+    const isCreator = currentUserId !== null && currentUserId !== undefined && selectedTask.creatorId === currentUserId
+    const isAssignee = currentUserId !== null && currentUserId !== undefined && selectedTask.assigneeId === currentUserId
+    return isOwnerOrAdmin || isCreator || isAssignee
+  }, [currentUserId, currentUserRole, selectedTask])
+
+  const handleCreateSelectedSubtask = useCallback(() => {
+    if (!selectedTask) return
+    setCreateSubtaskParentId(selectedTask.id)
+  }, [selectedTask])
+
+  const handleCloseCreateSubtaskDialog = useCallback(() => {
+    setCreateSubtaskParentId(null)
+  }, [])
+
+  const handleCreateSelectedSubtaskSuccess = useCallback(() => {
+    setCreateSubtaskParentId(null)
+    refetchTodos()
+  }, [refetchTodos])
+
+  const handleAdjustSelectedParent = useCallback(() => {
+    if (!selectedTask || !canAdjustSelectedParent) return
+    setTaskDetailFullscreenOpen(false)
+    handleStartParentSelect(String(selectedTask.id))
+  }, [canAdjustSelectedParent, handleStartParentSelect, selectedTask])
+
+  const handleOpenTaskDetailFullscreen = useCallback(() => {
+    if (!selectedTaskId) return
+    setTaskDetailFullscreenOpen(true)
+  }, [selectedTaskId])
+
+  const handleCloseTaskDetailFullscreen = useCallback(() => {
+    setTaskDetailFullscreenOpen(false)
+  }, [])
+
+  const handleNavigateSelectedSubtask = useCallback((subtaskId: number) => {
+    if (!selectedTaskId) return
+    const currentTask = enrichedTodos?.find(t => t.id.toString() === selectedTaskId)
+    const parentTaskId = currentTask?.parentId || null
+    setTaskHistory(prev => [...prev, { taskId: selectedTaskId, projectId: projectIdParam, parentTaskId }])
+    setTaskRoute(String(subtaskId))
+  }, [enrichedTodos, projectIdParam, selectedTaskId, setTaskRoute])
+
+  const handleSelectedTaskDelete = useCallback(() => {
+    setTaskDetailFullscreenOpen(false)
+    closeTaskDetail()
+    refetchTodos()
+  }, [closeTaskDetail, refetchTodos])
   
   // 判断是否可以修改状态
   // 当状态为"进行中"时，只有执行人、管理员、owner可以修改
@@ -873,81 +999,17 @@ export default function ProjectDetailPage() {
     queryClient.refetchQueries({ queryKey: ['projects', projectIdParam, 'tasks'] })
   }, [projectIdParam, queryClient])
   
-  // 计算"更多"菜单的位置
-  useEffect(() => {
-    if (showMoreFilters && moreFiltersRef.current) {
-      const updatePosition = () => {
-        if (!moreFiltersRef.current) return
-        const rect = moreFiltersRef.current.getBoundingClientRect()
-        const menuWidth = 256 // w-64 = 256px
-        const left = Math.max(8, rect.right - menuWidth) // 确保不超出左边界
-        setMoreFiltersPosition({
-          top: rect.bottom + 8,
-          left: left,
-        })
-      }
-      
-      updatePosition()
-      window.addEventListener('scroll', updatePosition, true)
-      window.addEventListener('resize', updatePosition)
-      
-      return () => {
-        window.removeEventListener('scroll', updatePosition, true)
-        window.removeEventListener('resize', updatePosition)
-      }
-    } else {
-      setMoreFiltersPosition(null)
-    }
-  }, [showMoreFilters])
-
   // 搜索框引用
   const searchBarRef = useRef<HTMLDivElement>(null)
   
   // 点击外部关闭更多菜单和搜索框
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | PointerEvent) => {
       try {
         const target = event.target as Node
-        const targetElement = target as Element
-
-        // 点击在筛选下拉（Portal）内时不关闭
-        if (targetElement?.closest('[data-filter-popover="true"]')) {
-          return
-        }
         
-        // 检查是否点击在 DateRangeFilter 的 picker 内部
-        // DateRangeFilter 的 picker 使用 Portal 渲染，具有 z-[100] 和特定的样式
-        if (targetElement) {
-          // 查找最近的具有 z-[100] 或 z-index: 100 的父元素
-          let current: Element | null = targetElement
-          while (current) {
-            const style = window.getComputedStyle(current)
-            const zIndex = style.zIndex
-            // 检查是否是日期筛选器的 picker（z-index 为 100 且包含日期相关的类名或内容）
-            if (zIndex === '100' && (
-              current.classList.contains('fixed') ||
-              current.getAttribute('style')?.includes('z-index: 100')
-            )) {
-              // 可能是日期筛选器，检查是否包含日期相关的元素
-              const hasDateInput = current.querySelector('input[type="date"]') !== null
-              const hasDateText = current.textContent?.includes('快捷选择') || 
-                                  current.textContent?.includes('开始日期') ||
-                                  current.textContent?.includes('结束日期')
-              if (hasDateInput || hasDateText) {
-                // 这是日期筛选器，不关闭"更多筛选"菜单
-                return
-              }
-            }
-            current = current.parentElement
-          }
-        }
-        
-        if (moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        if (showMoreMenu && moreMenuRef.current && !moreMenuRef.current.contains(target)) {
           setShowMoreMenu(false)
-        }
-        if (moreFiltersRef.current && !moreFiltersRef.current.contains(target) &&
-            moreFiltersMenuRef.current && !moreFiltersMenuRef.current.contains(target)) {
-          setShowMoreFilters(false)
         }
         // 点击外部关闭搜索框 - 如果有搜索内容，不能关闭
         if (showSearchBar && searchBarRef.current && !searchBarRef.current.contains(target)) {
@@ -961,152 +1023,18 @@ export default function ProjectDetailPage() {
       }
     }
     
-    if (showMoreMenu || showMoreFilters || showSearchBar) {
+    if (showMoreMenu || showSearchBar) {
       // 使用捕获阶段，避免被扩展拦截
-      document.addEventListener('mousedown', handleClickOutside, true)
+      document.addEventListener('pointerdown', handleClickOutside, true)
       // 也监听 click 事件作为备用
       document.addEventListener('click', handleClickOutside, true)
     }
     
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside, true)
+      document.removeEventListener('pointerdown', handleClickOutside, true)
       document.removeEventListener('click', handleClickOutside, true)
     }
-  }, [showMoreMenu, showMoreFilters, showSearchBar])
-
-  // 计算哪些筛选器需要隐藏（响应式）
-  useEffect(() => {
-    const calculateVisibleFilters = () => {
-      if (!filterContainerRef.current) return
-
-      const container = filterContainerRef.current
-      const containerWidth = container.offsetWidth
-      const children = Array.from(container.children) as HTMLElement[]
-      
-      // 重置所有筛选器为可见
-      children.forEach((child) => {
-        if (child.dataset.filterKey && child.dataset.filterKey !== 'reset' && child.dataset.filterKey !== 'more') {
-          child.style.display = ''
-        }
-      })
-
-      // 获取"重置"按钮的宽度（始终显示，需要预留空间）
-      const resetButton = children.find(child => child.dataset.filterKey === 'reset')
-      // 如果重置按钮存在，使用实际宽度；如果不存在但应该显示，预留80px空间
-      const resetButtonWidth = resetButton ? resetButton.offsetWidth + 16 : 80 + 16 // 16px gap
-      
-      // 获取搜索筛选器的宽度（如果有搜索内容，需要预留空间）
-      const searchFilter = children.find(child => child.dataset.filterKey === 'search')
-      const searchFilterWidth = searchFilter ? searchFilter.offsetWidth + 16 : 0 // 16px gap
-      
-      // 按顺序计算哪些筛选器可以显示
-      const filterOrder = ['status', 'creator', 'executor', 'tag', 'priority', 'dateRange']
-      let totalWidth = 0
-      const filterKeys: string[] = []
-      
-      // 预留"更多"按钮的空间（约80px，如果后续有隐藏的筛选器）
-      const moreButtonWidth = 80 + 16 // 16px gap
-      
-      // 首先尝试在主行显示搜索筛选器
-      // 计算可用宽度（减去搜索和重置按钮的宽度）
-      let availableWidth = containerWidth - resetButtonWidth - searchFilterWidth
-      let searchFilterInMainRow = true
-      
-      // 如果搜索筛选器宽度为0（没有搜索内容），不需要预留空间
-      if (searchFilterWidth === 0) {
-        availableWidth = containerWidth - resetButtonWidth
-        searchFilterInMainRow = false
-        setSearchFilterInMoreMenu(false) // 没有搜索内容，不在"更多"菜单中显示
-      }
-      
-      for (const filterKey of filterOrder) {
-        const child = children.find(c => c.dataset.filterKey === filterKey) as HTMLElement
-        if (!child) continue
-        
-        const width = child.offsetWidth + 16 // 16px gap
-        
-        // 检查是否还有更多筛选器需要隐藏
-        const remainingFilters = filterOrder.slice(filterOrder.indexOf(filterKey) + 1)
-        const needsMoreButton = remainingFilters.length > 0 || !searchFilterInMainRow
-        
-        // 计算需要的总宽度（使用可用宽度）
-        const neededWidth = totalWidth + width + (needsMoreButton ? moreButtonWidth : 0)
-        
-        if (neededWidth <= availableWidth) {
-          totalWidth += width
-          filterKeys.push(filterKey)
-        } else {
-          break
-        }
-      }
-      
-      // 如果搜索筛选器在主行显示不下，将其隐藏，放到"更多"菜单中
-      if (searchFilterWidth > 0) {
-        const totalNeededWidth = totalWidth + searchFilterWidth + resetButtonWidth + (filterKeys.length < filterOrder.length ? moreButtonWidth : 0)
-        if (totalNeededWidth > containerWidth) {
-          searchFilterInMainRow = false
-          // 重新计算可用宽度（不减去搜索筛选器宽度）
-          availableWidth = containerWidth - resetButtonWidth
-          totalWidth = 0
-          filterKeys.length = 0
-          
-          // 重新计算哪些筛选器可以显示
-          for (const filterKey of filterOrder) {
-            const child = children.find(c => c.dataset.filterKey === filterKey) as HTMLElement
-            if (!child) continue
-            
-            const width = child.offsetWidth + 16 // 16px gap
-            const remainingFilters = filterOrder.slice(filterOrder.indexOf(filterKey) + 1)
-            const needsMoreButton = remainingFilters.length > 0 || true // 搜索筛选器在"更多"中，所以总是需要"更多"按钮
-            
-            const neededWidth = totalWidth + width + (needsMoreButton ? moreButtonWidth : 0)
-            
-            if (neededWidth <= availableWidth) {
-              totalWidth += width
-              filterKeys.push(filterKey)
-            } else {
-              break
-            }
-          }
-        }
-      }
-
-      // 设置可见和隐藏的筛选器
-      const allFilterKeys = ['status', 'creator', 'executor', 'tag', 'priority', 'dateRange']
-      setVisibleFilters(filterKeys)
-      setHiddenFilters(allFilterKeys.filter(key => !filterKeys.includes(key)))
-      
-      // 隐藏超出容器的筛选器
-      children.forEach((child) => {
-        const filterKey = child.dataset.filterKey
-        if (filterKey && filterKey !== 'reset' && filterKey !== 'more' && filterKey !== 'search') {
-          if (!filterKeys.includes(filterKey)) {
-            child.style.display = 'none'
-          } else {
-            child.style.display = ''
-          }
-        }
-        // 确保重置按钮始终显示（如果有筛选条件）
-        if (filterKey === 'reset') {
-          child.style.display = ''
-        }
-        // 搜索筛选器：如果在主行显示，显示；否则隐藏（会在"更多"菜单中显示）
-        if (filterKey === 'search') {
-          child.style.display = searchFilterInMainRow ? '' : 'none'
-          setSearchFilterInMoreMenu(!searchFilterInMainRow)
-        }
-      })
-    }
-
-    // 延迟执行，确保 DOM 已渲染
-    const timeoutId = setTimeout(calculateVisibleFilters, 100)
-    window.addEventListener('resize', calculateVisibleFilters)
-    
-    return () => {
-      clearTimeout(timeoutId)
-      window.removeEventListener('resize', calculateVisibleFilters)
-    }
-  }, [statusFilter, creatorFilter, executorFilter, tagFilter, priorityFilter, dateRange, searchQuery, members, projectTags])
+  }, [searchQuery, showMoreMenu, showSearchBar])
   
   // 保存编辑
   const handleEditSave = async () => {
@@ -1184,7 +1112,10 @@ export default function ProjectDetailPage() {
     try {
       setIsDeleting(true) // 立即禁用待办列表查询，防止继续请求
       setShowDeleteConfirm(false) // 先关闭对话框
-      await deleteProject.mutateAsync(projectIdParam)
+      await deleteProject.mutateAsync({
+        projectId: projectIdParam,
+        organizationId: project.organization_id ?? null,
+      })
       // 删除成功后会通过 useDeleteProject hook 自动跳转到项目列表
     } catch (error) {
       console.error('删除项目失败:', error)
@@ -1216,6 +1147,73 @@ export default function ProjectDetailPage() {
     project?.creator_id === currentUser?.id ||
     project?.creator?.username === currentUser?.username ||
     project?.members?.some((m: ProjectMember) => m.username === currentUser?.username && m.role === 'owner')
+
+  const canEditProjectInfo = isOwner
+  const projectInfoDirty =
+    projectInfoName.trim() !== project.name ||
+    projectInfoGitUrl.trim() !== (project.git_url || '')
+
+  const handleProjectInfoSave = async () => {
+    if (!canEditProjectInfo || isSavingProjectInfo) return
+
+    const trimmedName = projectInfoName.trim()
+    const trimmedGitUrl = projectInfoGitUrl.trim()
+
+    setProjectInfoError('')
+
+    if (!trimmedName) {
+      setProjectInfoName(project.name)
+      setProjectInfoError('请输入项目名称')
+      return
+    }
+
+    if (trimmedGitUrl) {
+      try {
+        new URL(trimmedGitUrl)
+      } catch {
+        setProjectInfoError('请输入有效的 Git 地址')
+        return
+      }
+    }
+
+    if (!projectInfoDirty) {
+      setProjectInfoName(project.name)
+      setProjectInfoGitUrl(project.git_url || '')
+      return
+    }
+
+    setIsSavingProjectInfo(true)
+
+    try {
+      await updateProject.mutateAsync({
+        name: trimmedName,
+        git_url: trimmedGitUrl,
+      })
+      setProjectInfoName(trimmedName)
+      setProjectInfoGitUrl(trimmedGitUrl)
+      showGlobalToast('项目信息已更新', 'success', 2000)
+    } catch (err: any) {
+      const message = err?.response?.data?.error || err?.response?.data?.message || err?.message || '更新失败，请重试'
+      setProjectInfoError(message)
+      showGlobalToast(message, 'error', 2500)
+    } finally {
+      setIsSavingProjectInfo(false)
+    }
+  }
+
+  const handleCloseProjectInfoDialog = () => {
+    setShowProjectInfoDialog(false)
+    window.setTimeout(() => {
+      moreMenuButtonRef.current?.blur()
+    }, 0)
+  }
+
+  const handleCloseCreateTaskDialog = () => {
+    setShowCreateTaskDialog(false)
+    window.setTimeout(() => {
+      createTaskButtonRef.current?.blur()
+    }, 0)
+  }
 
   const showStatusTabs = false
   const parentSelectBanner = isSelectingParent ? (
@@ -1268,47 +1266,337 @@ export default function ProjectDetailPage() {
       </div>
     </div>
   ) : null
+
+  const taskDetailPanel = drawerOpen && selectedTaskId ? (
+    <aside className="project-task-detail-sidebar" aria-label="待办详情">
+      <div className="project-task-detail-toolbar">
+        <div className="flex min-w-0 items-center gap-1">
+          {taskHistory.length > 0 && (
+            <button
+              type="button"
+              className="project-task-detail-icon-button"
+              onClick={() => {
+                const previous = taskHistory[taskHistory.length - 1]
+                setTaskHistory(prev => prev.slice(0, -1))
+                setTaskRoute(previous.taskId)
+              }}
+              aria-label="返回上一个待办"
+              title="返回"
+            >
+              <BackIcon className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            className="project-task-detail-icon-button"
+            onClick={handleOpenTaskDetailFullscreen}
+            aria-label="全屏显示待办详情"
+            title="全屏显示"
+          >
+            <FullscreenIcon className="h-4 w-4" />
+          </button>
+          <span className="truncate text-sm font-medium text-foreground-secondary">待办详情</span>
+        </div>
+        <div className="project-task-detail-toolbar-actions">
+          <button
+            type="button"
+            className={clsx('project-task-detail-icon-button', !selectedTask && 'is-disabled')}
+            onClick={handleCreateSelectedSubtask}
+            aria-disabled={!selectedTask}
+            aria-label="创建子任务"
+            title="创建子任务"
+          >
+            <PlusIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className={clsx('project-task-detail-icon-button', (!selectedTask || !canAdjustSelectedParent) && 'is-disabled')}
+            onClick={handleAdjustSelectedParent}
+            aria-disabled={!selectedTask || !canAdjustSelectedParent}
+            aria-label="调整父任务"
+            title={!canAdjustSelectedParent ? '没有权限调整父任务' : '调整父任务'}
+          >
+            <RelationBannerIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="project-task-detail-icon-button"
+            onClick={handleCopySelectedTaskLink}
+            aria-label="复制待办详情链接"
+            title="复制链接"
+          >
+            <LinkIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="project-task-detail-icon-button"
+            onClick={closeTaskDetail}
+            aria-label="关闭待办详情"
+            title="关闭"
+          >
+            <XIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <div className="project-task-detail-body">
+        {!taskDetailFullscreenOpen && (
+          <TaskDetailContent
+            projectId={projectIdParam}
+            taskId={selectedTaskId}
+            showHeader={false}
+            hideCopyLinkButton
+            parentTaskId={taskHistory.length > 0 ? taskHistory[taskHistory.length - 1].parentTaskId : null}
+            onNavigateToSubtask={handleNavigateSelectedSubtask}
+            onClose={closeTaskDetail}
+            onDelete={handleSelectedTaskDelete}
+          />
+        )}
+      </div>
+    </aside>
+  ) : null
+
+  const taskDetailFullscreenDialog = selectedTaskId ? (
+    <Dialog
+      open={taskDetailFullscreenOpen}
+      onClose={handleCloseTaskDetailFullscreen}
+      maxWidth="2xl"
+      showCloseButton={false}
+      panelClassName="project-task-detail-fullscreen-panel"
+      bodyClassName="project-task-detail-fullscreen-body"
+      panelStyle={{
+        maxWidth: 'calc(100vw - 32px)',
+        height: 'calc(100dvh - 32px)',
+      }}
+    >
+      <div className="project-task-detail-toolbar project-task-detail-fullscreen-toolbar">
+        <div className="flex min-w-0 items-center gap-1">
+          {taskHistory.length > 0 && (
+            <button
+              type="button"
+              className="project-task-detail-icon-button"
+              onClick={() => {
+                const previous = taskHistory[taskHistory.length - 1]
+                setTaskHistory(prev => prev.slice(0, -1))
+                setTaskRoute(previous.taskId)
+              }}
+              aria-label="返回上一个待办"
+              title="返回"
+            >
+              <BackIcon className="h-4 w-4" />
+            </button>
+          )}
+          <span className="truncate text-sm font-medium text-foreground-secondary">待办详情</span>
+        </div>
+        <div className="project-task-detail-toolbar-actions">
+          <button
+            type="button"
+            className={clsx('project-task-detail-icon-button', !selectedTask && 'is-disabled')}
+            onClick={handleCreateSelectedSubtask}
+            aria-disabled={!selectedTask}
+            aria-label="创建子任务"
+            title="创建子任务"
+          >
+            <PlusIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className={clsx('project-task-detail-icon-button', (!selectedTask || !canAdjustSelectedParent) && 'is-disabled')}
+            onClick={handleAdjustSelectedParent}
+            aria-disabled={!selectedTask || !canAdjustSelectedParent}
+            aria-label="调整父任务"
+            title={!canAdjustSelectedParent ? '没有权限调整父任务' : '调整父任务'}
+          >
+            <RelationBannerIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="project-task-detail-icon-button"
+            onClick={handleCopySelectedTaskLink}
+            aria-label="复制待办详情链接"
+            title="复制链接"
+          >
+            <LinkIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="project-task-detail-icon-button"
+            onClick={handleCloseTaskDetailFullscreen}
+            aria-label="退出全屏"
+            title="退出全屏"
+          >
+            <XIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <div className="project-task-detail-fullscreen-content">
+        <TaskDetailContent
+          projectId={projectIdParam}
+          taskId={selectedTaskId}
+          showHeader={false}
+          hideCopyLinkButton
+          parentTaskId={taskHistory.length > 0 ? taskHistory[taskHistory.length - 1].parentTaskId : null}
+          onNavigateToSubtask={handleNavigateSelectedSubtask}
+          onClose={handleCloseTaskDetailFullscreen}
+          onDelete={handleSelectedTaskDelete}
+        />
+      </div>
+    </Dialog>
+  ) : null
   
   return (
-    <div className="space-y-4 md:space-y-6">
+    <div className="project-detail-page space-y-3 md:space-y-4">
       {parentSelectBanner && typeof document !== 'undefined'
         ? createPortal(parentSelectBanner, document.body)
         : null}
+      {taskDetailFullscreenDialog}
       {/* 页面头部 */}
-      <div className="flex flex-col lg:flex-row gap-6" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
-        <div className="flex-1 min-w-0 flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-foreground truncate" title={project.name}>
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-8" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-5 lg:gap-8">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <button
+              type="button"
+              onClick={handleProjectSidebarToggle}
+              className={clsx(
+                'hidden h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-transparent text-foreground-secondary transition-colors lg:flex',
+                'hover:bg-surface-hover hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+                isProjectSidebarCollapsed && 'bg-surface-hover text-foreground'
+              )}
+              title={isProjectSidebarCollapsed ? '展开项目列表' : '折叠项目列表'}
+              aria-label={isProjectSidebarCollapsed ? '展开项目列表' : '折叠项目列表'}
+              aria-pressed={isProjectSidebarCollapsed}
+            >
+              <ProjectSidebarToggleIcon
+                collapsed={isProjectSidebarCollapsed}
+                className="h-5 w-5"
+              />
+            </button>
+            <h1 className="min-w-0 truncate text-base font-medium text-foreground md:text-lg lg:text-xl" title={project.name}>
               {project.name}
             </h1>
-            {project.git_url ? (
-              <p className="mt-1 text-xs md:text-base text-foreground-secondary truncate" title={project.git_url}>
-                {project.git_url}
-              </p>
-            ) : (
-              <p className="mt-1 text-xs md:text-base text-foreground-secondary">
-                当前项目尚未关联任何 Git 仓库
-              </p>
-            )}
+
+            {/* 更多菜单 - 跟随项目名称伸缩 */}
+            <div className="relative shrink-0" ref={moreMenuRef}>
+              <HeaderIconButton
+                icon={<MoreIcon />}
+                label="更多"
+                onClick={() => setShowMoreMenu(!showMoreMenu)}
+                isActive={showMoreMenu}
+                buttonRef={moreMenuButtonRef}
+              />
+
+              {/* 下拉菜单 */}
+              {showMoreMenu && (
+                <div
+                  className="absolute right-0 top-full z-50 mt-2 flex w-44 flex-col overflow-hidden rounded-xl border border-border bg-surface-elevated py-1 shadow-[0_12px_28px_rgba(15,23,42,0.12)]"
+                  role="menu"
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProjectInfoName(project.name)
+                      setProjectInfoGitUrl(project.git_url || '')
+                      setProjectInfoError('')
+                      moreMenuButtonRef.current?.blur()
+                      setShowProjectInfoDialog(true)
+                      setShowMoreMenu(false)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover"
+                    role="menuitem"
+                  >
+                    <ProjectInfoIcon className="h-4 w-4 shrink-0" />
+                    <span>项目信息</span>
+                  </button>
+
+                  {/* 新增反馈 - 所有用户可见 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFeedbackDialog(true)
+                      setShowMoreMenu(false)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover"
+                    role="menuitem"
+                  >
+                    <FeedbackIcon className="h-4 w-4 shrink-0" />
+                    <span>新增反馈</span>
+                  </button>
+
+                  {/* 导出待办 - 所有用户可见 */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowExportDialog(true)
+                      setShowMoreMenu(false)
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover"
+                    role="menuitem"
+                  >
+                    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z" />
+                    </svg>
+                    <span>导出待办</span>
+                  </button>
+
+                  {/* 编辑项目 - 只有所有者可见 */}
+                  {isOwner && (
+                    <button
+                      onClick={() => {
+                        handleEditClick()
+                        setShowMoreMenu(false)
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover"
+                      role="menuitem"
+                    >
+                      <EditIcon className="h-4 w-4 shrink-0" />
+                      <span>编辑项目</span>
+                    </button>
+                  )}
+
+                  {/* 删除项目 - 只有所有者可见 */}
+                  {isOwner && (
+                    <button
+                      onClick={() => {
+                        setShowDeleteConfirm(true)
+                        setShowMoreMenu(false)
+                      }}
+                      disabled={deleteProject.isPending}
+                      className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-error transition-colors hover:bg-surface-hover focus:outline-none focus-visible:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50"
+                      role="menuitem"
+                    >
+                      {deleteProject.isPending ? (
+                        <LoadingSpinner className="h-4 w-4 shrink-0" />
+                      ) : (
+                        <DeleteIcon className="h-4 w-4 shrink-0" />
+                      )}
+                      <span>删除项目</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
           
           {/* 操作按钮 - 顶部右对齐 */}
-          <div className="flex items-center gap-2 shrink-0 pt-1">
+          <div className="flex shrink-0 items-center gap-2">
             {/* 搜索区域 - 搜索按钮和搜索框共用位置 */}
-            <div className="relative flex items-center" ref={searchBarRef}>
+            <div
+              className={clsx(
+                'relative flex h-10 items-center justify-end transition-[width] duration-300 ease-in-out',
+                showSearchBar ? 'w-[300px]' : 'w-10'
+              )}
+              ref={searchBarRef}
+            >
               {/* 搜索按钮 - 搜索框显示时隐藏 */}
               <div className={clsx(
                 "transition-all duration-300 ease-in-out",
                 showSearchBar ? "opacity-0 scale-0 pointer-events-none absolute right-0" : "opacity-100 scale-100"
               )}>
-                <IconButton
+                <HeaderIconButton
                   icon={<SearchIcon />}
                   label="搜索"
                   onClick={() => {
                     setShowSearchBar(true)
                   }}
-                  variant="secondary"
-                  iconBgColor="transparent"
                 />
               </div>
               
@@ -1320,8 +1608,8 @@ export default function ProjectDetailPage() {
                   : "opacity-0 translate-x-4 pointer-events-none"
               )}>
                 <div className={clsx(
-                  "flex items-center bg-surface-elevated border border-border rounded-md shadow-sm overflow-hidden transition-all duration-300 ease-in-out h-[52px]",
-                  showSearchBar ? "w-[320px]" : "w-0"
+                  "flex h-10 items-center overflow-hidden rounded-md border border-border bg-surface-elevated shadow-sm transition-all duration-300 ease-in-out",
+                  showSearchBar ? "w-[300px]" : "w-0"
                 )}
                 style={{ backgroundColor: 'var(--color-surface-elevated)' }}
                 >
@@ -1354,104 +1642,190 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             
-            {/* 创建待办按钮 */}
-            <IconButton
-              icon={<CreateTodoIcon />}
-              label="创建待办"
-              onClick={() => setShowCreateTaskDialog(true)}
-              variant="primary"
-            />
+            <button
+              ref={createTaskButtonRef}
+              type="button"
+              onClick={() => {
+                setShowCreateTaskDialog(true)
+              }}
+              className="inline-flex h-10 shrink-0 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-white transition-colors hover:bg-primary-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+            >
+              创建待办
+            </button>
 
-            {/* 新增反馈按钮 - 所有用户可见 */}
-            <IconButton
-              icon={
-                <svg className="w-5 h-5" viewBox="0 0 1138 1024" fill="currentColor" aria-hidden="true">
-                  <path d="M1055.738 57.594c-45.439-36.351-154.492-27.262-304.439 86.333-213.562 159.036-308.983 368.052-445.298 572.527-22.719 31.807 13.632 49.983 40.895 36.351l86.333-49.983c13.632-4.544 18.175-4.544 13.632-27.262-9.088-68.158 18.176-131.772 59.070-186.298v0c149.947 63.614 331.702 27.262 395.317-154.492 81.789-18.176 159.036-109.053 172.667-172.666 13.632-45.439 9.088-86.333-18.175-104.509zM142.422 716.454c122.684 213.562 390.773 286.263 604.333 163.58 140.859-81.789 218.105-227.193 222.649-377.14 0-49.983-59.070-45.439-59.070 0 0 131.772-68.158 254.457-190.842 327.158-186.298 104.509-422.579 40.895-527.088-140.859-109.053-186.298-45.439-422.579 140.859-527.088 99.965-59.070 222.649-68.158 322.614-27.262 40.895 13.632 59.070-40.895 18.175-54.527-118.141-40.895-249.911-36.351-368.052 31.807-213.562 122.684-286.263 395.317-163.58 604.333z" />
-                </svg>
-              }
-              label="新增反馈"
-              onClick={() => setShowFeedbackDialog(true)}
-              variant="secondary"
-              iconBgColor="bg-primary"
-              iconColor="text-white"
-              hideLabel
-            />
-
-            {/* 更多菜单 - 所有用户都可以看到 */}
-            <div className="relative" ref={moreMenuRef}>
-              <IconButton
-                icon={<MoreIcon />}
-                label="更多"
-                onClick={() => setShowMoreMenu(!showMoreMenu)}
-                variant="secondary"
-                isActive={showMoreMenu}
-                iconBgColor="bg-surface-active dark:bg-surface-hover"
-              />
-              
-              {/* 下拉菜单 */}
-              {showMoreMenu && (
-                <div 
-                  className="absolute right-0 top-full mt-1 w-40 border border-border rounded-md shadow-lg z-50"
-                  style={{ backgroundColor: 'var(--color-surface-elevated)' }}
-                >
-                  {/* 导出待办 - 所有用户可见 */}
-                  <button
-                    onClick={() => {
-                      setShowExportDialog(true)
-                      setShowMoreMenu(false)
-                    }}
-                    className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 transition-colors"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span>导出待办</span>
-                  </button>
-
-                  {/* 编辑项目 - 只有所有者可见 */}
-                  {isOwner && (
-                    <button
-                      onClick={() => {
-                        handleEditClick()
-                        setShowMoreMenu(false)
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-foreground hover:bg-surface-hover flex items-center gap-2 transition-colors"
-                    >
-                      <EditIcon className="w-4 h-4" />
-                      <span>编辑项目</span>
-                    </button>
-                  )}
-                  
-                  {/* 删除项目 - 只有所有者可见 */}
-                  {isOwner && (
-                    <button
-                      onClick={() => {
-                        setShowDeleteConfirm(true)
-                        setShowMoreMenu(false)
-                      }}
-                      disabled={deleteProject.isPending}
-                      className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {deleteProject.isPending ? (
-                        <LoadingSpinner className="w-4 h-4" />
-                      ) : (
-                        <DeleteIcon className="w-4 h-4" />
-                      )}
-                      <span>删除项目</span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
           </div>
         </div>
-        <div className="lg:w-1/4 min-w-[200px] hidden lg:block" aria-hidden="true"></div>
       </div>
 
-      {/* 待办列表和成员列表 */}
-      <div className="flex flex-col lg:flex-row gap-6">
-        {/* 待办列表（自适应宽度） */}
-        <div className="flex-1 min-w-0 space-y-6">
+      <div className="project-filter-toolbar" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
+        <div className="task-filter-bar" aria-label="任务筛选">
+          <div className="task-filter-chips">
+            <FilterMultiSelect
+              label="状态"
+              variant="linearChip"
+              icon={
+                <StatusFilterIcon
+                  className={clsx(
+                    'icon',
+                    isStatusFilterActive ? 'text-primary' : 'text-foreground-tertiary'
+                  )}
+                />
+              }
+              value={statusFilter}
+              options={statusOptions}
+              onChange={setStatusFilter}
+              active={isStatusFilterActive}
+              maxLabelCount={2}
+            />
+
+            <FilterMultiSelect
+              label="创建人"
+              variant="linearChip"
+              icon={
+                <CreatorFilterIcon
+                  className={clsx(
+                    'icon',
+                    isCreatorFilterActive ? 'text-primary' : 'text-foreground-tertiary'
+                  )}
+                />
+              }
+              value={creatorFilter}
+              options={creatorOptions}
+              onChange={setCreatorFilter}
+              active={isCreatorFilterActive}
+              disabled={creatorOptions.length === 0}
+              maxLabelCount={1}
+            />
+
+            <FilterMultiSelect
+              label="执行人"
+              variant="linearChip"
+              icon={
+                <ExecutorFilterIcon
+                  className={clsx(
+                    'icon',
+                    isExecutorFilterActive ? 'text-primary' : 'text-foreground-tertiary'
+                  )}
+                />
+              }
+              value={executorFilter}
+              options={executorOptions}
+              onChange={setExecutorFilter}
+              active={isExecutorFilterActive}
+              disabled={executorOptions.length === 0}
+              maxLabelCount={1}
+            />
+
+            <FilterMultiSelect
+              label="标签"
+              variant="linearChip"
+              icon={
+                <TagFilterIcon
+                  className={clsx(
+                    'icon',
+                    isTagFilterActive ? 'text-primary' : 'text-foreground-tertiary'
+                  )}
+                />
+              }
+              value={tagFilter}
+              options={tagOptions}
+              onChange={setTagFilter}
+              active={isTagFilterActive}
+              disabled={tagOptions.length === 0}
+              maxLabelCount={1}
+            />
+
+            <FilterMultiSelect
+              label="优先级"
+              variant="linearChip"
+              icon={
+                <PriorityFilterIcon
+                  className={clsx(
+                    'icon',
+                    isPriorityFilterActive ? 'text-primary' : 'text-foreground-tertiary'
+                  )}
+                />
+              }
+              value={priorityFilter}
+              options={priorityOptions}
+              onChange={setPriorityFilter}
+              active={isPriorityFilterActive}
+              maxLabelCount={2}
+            />
+
+            <DateRangeFilter
+              value={dateRange}
+              onChange={setDateRange}
+              variant="linearChip"
+              label="日期"
+              icon={<DateFilterIcon className="icon text-foreground-tertiary" />}
+              active
+              allowClear={false}
+              onClear={resetDateRange}
+            />
+
+            {searchQuery.trim() && (
+              <div className="task-filter-chip-wrap">
+                <div className="task-filter-chip has-selection">
+                  <button className="filter-chip-main" type="button" onClick={() => setShowSearchBar(true)}>
+                    <span className="filter-chip-segment filter-chip-field">
+                      <SearchIcon className="icon text-primary" />
+                      搜索
+                    </span>
+                    <span className="filter-chip-segment filter-chip-value" title={searchQuery}>
+                      {searchQuery}
+                    </span>
+                  </button>
+                  <span className="filter-chip-divider" aria-hidden="true" />
+                  <button
+                    className="filter-chip-remove"
+                    type="button"
+                    aria-label="清除搜索"
+                    title="清除搜索"
+                    onClick={() => {
+                      setSearchQuery('')
+                      setShowSearchBar(false)
+                    }}
+                  >
+                    <XIcon className="icon" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {hasActiveFilters && (
+            <div className="task-filter-actions">
+              <button
+                className="filter-clear-button"
+                type="button"
+                onClick={() => {
+                  setStatusFilter([])
+                  setCreatorFilter([])
+                  setExecutorFilter([])
+                  setTagFilter([])
+                  setPriorityFilter([])
+                  resetDateRange()
+                  setSearchQuery('')
+                  setShowSearchBar(false)
+                }}
+              >
+                清除
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div
+        className={clsx(
+          'project-task-content',
+          taskDetailPanel && 'has-detail-sidebar',
+          showStatusTabs && 'has-status-tabs'
+        )}
+      >
+        <section className="project-task-list-pane">
+      <div className="project-task-list-stack">
           {/* 统计卡片 - 直接放在外层，移除父容器 */}
           {showStatusTabs && (
             <div className="grid grid-cols-4 gap-4" style={{ visibility: isSelectingParent ? 'hidden' : 'visible' }}>
@@ -1496,500 +1870,150 @@ export default function ProjectDetailPage() {
           {/* 待办列表内容 */}
           <div
             ref={listContainerRef}
-            className="bg-surface-elevated rounded-lg border border-border relative overflow-visible"
-            style={{ padding: '24px', paddingTop: '5px', paddingBottom: '10px', borderColor: 'var(--color-border)' }}
+            className="project-task-list-card bg-surface-elevated rounded-lg border border-border relative"
+            style={{ borderColor: 'var(--color-border)' }}
           >
-            {/* 筛选器 */}
-            <div className="mb-4" style={{ paddingTop: '12px', paddingBottom: '12px' }}>
-          {/* 筛选器组 - 单行，不换行 */}
-          <div ref={filterContainerRef} className="flex items-center gap-4 flex-nowrap" style={{ overflowX: 'visible', overflowY: 'visible', paddingTop: '6px', paddingBottom: '6px' }}>
-            {/* 状态筛选 - 多选 */}
-            <div data-filter-key="status" className="flex items-center gap-2 flex-shrink-0">
-              <FilterMultiSelect
-                label="状态:"
-                icon={
-                  <StatusFilterIcon
-                    className={clsx(
-                      'w-4 h-4',
-                      isStatusFilterActive ? 'text-orange-500' : 'text-gray-500'
-                    )}
-                  />
-                }
-                value={statusFilter}
-                options={statusOptions}
-                onChange={setStatusFilter}
-                active={isStatusFilterActive}
-              />
-            </div>
-
-            {/* 创建人筛选 */}
-            <div data-filter-key="creator" className="flex items-center gap-2 flex-shrink-0">
-              <FilterMultiSelect
-                label="创建人:"
-                icon={
-                  <CreatorFilterIcon
-                    className={clsx(
-                      'w-4 h-4',
-                      isCreatorFilterActive ? 'text-warning' : 'text-foreground-tertiary'
-                    )}
-                  />
-                }
-                value={creatorFilter}
-                options={creatorOptions}
-                onChange={setCreatorFilter}
-                active={isCreatorFilterActive}
-                disabled={creatorOptions.length === 0}
-              />
-            </div>
-            
-            {/* 执行人筛选 */}
-            <div data-filter-key="executor" className="flex items-center gap-2 flex-shrink-0">
-              <FilterMultiSelect
-                label="执行人:"
-                icon={
-                  <ExecutorFilterIcon
-                    className={clsx(
-                      'w-4 h-4',
-                      isExecutorFilterActive ? 'text-warning' : 'text-foreground-tertiary'
-                    )}
-                  />
-                }
-                value={executorFilter}
-                options={executorOptions}
-                onChange={setExecutorFilter}
-                active={isExecutorFilterActive}
-                disabled={executorOptions.length === 0}
-              />
-            </div>
-            
-            {/* 标签筛选 */}
-            <div data-filter-key="tag" className="flex items-center gap-2 flex-shrink-0">
-              <FilterMultiSelect
-                label="标签:"
-                icon={
-                  <TagFilterIcon
-                    className={clsx(
-                      'w-4 h-4',
-                      isTagFilterActive ? 'text-warning' : 'text-foreground-tertiary'
-                    )}
-                  />
-                }
-                value={tagFilter}
-                options={tagOptions}
-                onChange={setTagFilter}
-                active={isTagFilterActive}
-                disabled={tagOptions.length === 0}
-              />
-            </div>
-            
-            {/* 优先级筛选 */}
-            <div data-filter-key="priority" className="flex items-center gap-2 flex-shrink-0">
-              <FilterMultiSelect
-                label="优先级:"
-                icon={
-                  <PriorityFilterIcon
-                    className={clsx(
-                      'w-4 h-4',
-                      isPriorityFilterActive ? 'text-warning' : 'text-foreground-tertiary'
-                    )}
-                  />
-                }
-                value={priorityFilter}
-                options={priorityOptions}
-                onChange={setPriorityFilter}
-                active={isPriorityFilterActive}
-              />
-            </div>
-            
-            {/* 日期范围筛选 - 独立弹窗 */}
-            <div data-filter-key="dateRange" className="flex-shrink-0">
-              <DateRangeFilter
-                value={dateRange}
-                onChange={setDateRange}
-              />
-            </div>
-            
-            {/* 更多筛选器按钮 */}
-            {(hiddenFilters.length > 0 || searchFilterInMoreMenu) && (
-              <div data-filter-key="more" className="relative flex-shrink-0" ref={moreFiltersRef}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    setShowMoreFilters(!showMoreFilters)
-                  }}
-                  className="relative"
-                >
-                  更多
-                  {/* 角标：当隐藏筛选器中有条件时显示 */}
-                    {(() => {
-                      // 检查隐藏筛选器中是否有条件
-                      const hasHiddenCreator = hiddenFilters.includes('creator') && isCreatorFilterActive
-                      const hasHiddenExecutor = hiddenFilters.includes('executor') && isExecutorFilterActive
-                      const hasHiddenTag = hiddenFilters.includes('tag') && isTagFilterActive
-                      const hasHiddenPriority = hiddenFilters.includes('priority') && isPriorityFilterActive
-                      const hasHiddenDateRange = hiddenFilters.includes('dateRange') && isDateRangeActive
-                      const hasActiveFilters = hasHiddenCreator || hasHiddenExecutor || hasHiddenTag || hasHiddenPriority || hasHiddenDateRange
-                      
-                      if (!hasActiveFilters) return null
-                      
-                      return (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-warning rounded-full flex items-center justify-center text-white text-[10px] font-bold">
-                          ·
-                        </span>
-                      )
-                    })()}
-                </Button>
-                
-                {/* 更多筛选器下拉菜单 - 使用 Portal 渲染到 body */}
-                {showMoreFilters && moreFiltersPosition && createPortal(
-                  <div 
-                    ref={moreFiltersMenuRef}
-                    className="fixed w-64 border-2 border-border rounded-md shadow-xl z-[100] p-4 space-y-3"
-                    style={{ 
-                      backgroundColor: 'var(--color-surface-elevated)',
-                      top: `${moreFiltersPosition.top}px`,
-                      left: `${moreFiltersPosition.left}px`,
-                      maxHeight: 'calc(100vh - 100px)',
-                      overflowY: 'auto'
-                    }}
-                  >
-                    {hiddenFilters.includes('creator') && (
-                      <FilterMultiSelect
-                        className="w-full"
-                        label="创建人:"
-                        icon={<CreatorFilterIcon className="w-4 h-4 text-gray-500" />}
-                        value={creatorFilter}
-                        options={creatorOptions}
-                        onChange={setCreatorFilter}
-                        buttonClassName="w-full max-w-none"
-                        active={isCreatorFilterActive}
-                        disabled={creatorOptions.length === 0}
-                      />
-                    )}
-                    
-                    {hiddenFilters.includes('executor') && (
-                      <FilterMultiSelect
-                        className="w-full"
-                        label="执行人:"
-                        icon={<ExecutorFilterIcon className="w-4 h-4 text-gray-500" />}
-                        value={executorFilter}
-                        options={executorOptions}
-                        onChange={setExecutorFilter}
-                        buttonClassName="w-full max-w-none"
-                        active={isExecutorFilterActive}
-                        disabled={executorOptions.length === 0}
-                      />
-                    )}
-                    
-                    {hiddenFilters.includes('tag') && (
-                      <FilterMultiSelect
-                        className="w-full"
-                        label="标签:"
-                        icon={<TagFilterIcon className="w-4 h-4 text-gray-500" />}
-                        value={tagFilter}
-                        options={tagOptions}
-                        onChange={setTagFilter}
-                        buttonClassName="w-full max-w-none"
-                        active={isTagFilterActive}
-                        disabled={tagOptions.length === 0}
-                      />
-                    )}
-                    
-                    {hiddenFilters.includes('priority') && (
-                      <FilterMultiSelect
-                        className="w-full"
-                        label="优先级:"
-                        icon={<PriorityFilterIcon className="w-4 h-4 text-gray-500" />}
-                        value={priorityFilter}
-                        options={priorityOptions}
-                        onChange={setPriorityFilter}
-                        buttonClassName="w-full max-w-none"
-                        active={isPriorityFilterActive}
-                      />
-                    )}
-                    
-                    {hiddenFilters.includes('dateRange') && (
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-foreground-secondary">
-                          <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          日期范围:
-                        </label>
-                        <div className="flex-1">
-                          <DateRangeFilter
-                            value={dateRange}
-                            onChange={setDateRange}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* 如果搜索筛选器在主行显示不下，在"更多"菜单中显示 */}
-                    {searchQuery.trim() && searchFilterInMoreMenu && (
-                      <div className="flex items-center gap-2">
-                        <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-warning">
-                          <SearchIcon className="w-4 h-4 text-warning" />
-                          搜索:
-                        </label>
-                        <div className="flex-1 px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-warning font-medium truncate" title={searchQuery}>
-                          {searchQuery.length > 10 ? `${searchQuery.slice(0, 10)}...` : searchQuery}
-                        </div>
-                        <button
-                          onClick={() => {
-                            setSearchQuery('')
-                            setShowSearchBar(false)
-                          }}
-                          className="p-0.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-tertiary hover:text-foreground flex-shrink-0"
-                          title="清除搜索"
-                        >
-                          <XIcon className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                    
-                    {/* 清除所有隐藏筛选条件 */}
-                    {(() => {
-                      const hasHiddenCreator = hiddenFilters.includes('creator') && isCreatorFilterActive
-                      const hasHiddenExecutor = hiddenFilters.includes('executor') && isExecutorFilterActive
-                      const hasHiddenTag = hiddenFilters.includes('tag') && isTagFilterActive
-                      const hasHiddenPriority = hiddenFilters.includes('priority') && isPriorityFilterActive
-                      const hasHiddenDateRange = hiddenFilters.includes('dateRange') && isDateRangeActive
-                      const hasActiveFilters = hasHiddenCreator || hasHiddenExecutor || hasHiddenTag || hasHiddenPriority || hasHiddenDateRange
-                      
-                      if (!hasActiveFilters) return null
-                      
-                      return (
-                        <div className="pt-2 border-t border-border">
-                          <button
-                            onClick={() => {
-                              // 清除所有隐藏筛选器中的条件
-                              if (hiddenFilters.includes('creator')) setCreatorFilter([])
-                              if (hiddenFilters.includes('executor')) setExecutorFilter([])
-                              if (hiddenFilters.includes('tag')) setTagFilter([])
-                              if (hiddenFilters.includes('priority')) setPriorityFilter([])
-                              if (hiddenFilters.includes('dateRange')) setDateRange({ startDate: null, endDate: null })
-                            }}
-                            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-foreground-secondary hover:text-warning hover:bg-surface-hover rounded-md transition-colors"
-                          >
-                            <XIcon className="w-4 h-4" />
-                            清除所有隐藏筛选
-                          </button>
-                        </div>
-                      )
-                    })()}
-                  </div>,
-                  document.body
-                )}
-              </div>
-            )}
-            
-            {/* 搜索筛选显示 - 紧挨着"重置筛选" */}
-            {searchQuery.trim() && (
-              <div data-filter-key="search" className="flex items-center gap-2 flex-shrink-0">
-                <label className="flex items-center gap-1.5 text-sm font-semibold whitespace-nowrap text-warning">
-                  <SearchIcon className="w-4 h-4 text-warning" />
-                  搜索:
-                </label>
-                <div className="px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-warning font-medium max-w-[80px] truncate" title={searchQuery}>
-                  {searchQuery.length > 5 ? `${searchQuery.slice(0, 5)}...` : searchQuery}
+            <div className="project-task-list-scroll">
+              {todosLoading ? (
+                <div className="py-12">
+                  <LoadingView text="加载任务列表..." />
                 </div>
-                <button
-                  onClick={() => {
-                    setSearchQuery('')
-                    setShowSearchBar(false)
-                  }}
-                  className="p-0.5 rounded-md hover:bg-surface-hover transition-colors text-foreground-tertiary hover:text-foreground flex-shrink-0"
-                  title="清除搜索"
-                >
-                  <XIcon className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-            
-            {/* 重置筛选 - 始终显示在最后 */}
-            {hasActiveFilters && (
-              <div data-filter-key="reset" className="flex-shrink-0 ml-auto">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setStatusFilter([])
-                    setCreatorFilter([])
-                    setExecutorFilter([])
-                    setTagFilter([])
-                    setPriorityFilter([])
-                    setDateRange({ startDate: null, endDate: null })
-                    setSearchQuery('')
-                    setShowSearchBar(false)
-                  }}
-                >
-                  重置筛选
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        {todosLoading ? (
-          <div className="py-12">
-            <LoadingView text="加载任务列表..." />
-          </div>
-        ) : todosError ? (
-          <div className="py-12">
-             <ErrorView 
-               message="无法获取任务列表" 
-               onRetry={refetchTodos} 
-             />
-          </div>
-        ) : !todos || todos.length === 0 ? (
-          <EmptyStateView
-            title={hasActiveFilters ? "没有匹配的待办" : "还没有待办"}
-            message={hasActiveFilters ? "尝试切换其他筛选条件" : "创建第一个待办开始工作"}
-            actionLabel={hasActiveFilters ? undefined : "创建待办"}
-            onAction={hasActiveFilters ? undefined : () => setShowCreateTaskDialog(true)}
-          />
-        ) : filteredTodos.length === 0 ? (
-          <EmptyStateView
-            title="没有匹配的待办"
-            message={hasActiveFilters ? '尝试切换其他筛选条件' : '创建第一个待办开始工作'}
-            actionLabel={hasActiveFilters ? undefined : '创建待办'}
-            onAction={hasActiveFilters ? undefined : () => setShowCreateTaskDialog(true)}
-          />
-        ) : (
-          <div className="space-y-4">
-            <div>
-              {filteredTodos.map((todo) => (
-                <TodoTreeItem
-                  key={todo.id}
-                  todo={todo}
-                  projectId={projectIdParam}
-                  onStatusChange={!isSelectingParent && canChangeStatus(todo) ? handleStatusChange : undefined}
-                  currentUserId={currentUserId}
-                  canEdit={!isSelectingParent && canChangeStatus(todo)}
-                  members={members || []}
-                  canAssignAssignee={!isSelectingParent && canAssignAssignee(todo)}
-                  onUpdateAssignee={isSelectingParent ? undefined : handleUpdateAssignee}
-                  canEditPriority={!isSelectingParent && canEditPriority(todo)}
-                  onUpdatePriority={isSelectingParent ? undefined : handleUpdatePriority}
-                  canEditTags={!isSelectingParent && canEditTags(todo)}
-                  onUpdateTags={isSelectingParent ? undefined : handleUpdateTags}
-                  currentUserRole={currentUserRole}
-                  onClick={(todoId) => {
-                    setTaskHistory([])
-                    setTaskRoute(String(todoId))
-                  }}
-                  selectionMode={isSelectingParent}
-                  selectionDisabled={isSelectingParent && parentSelectBlockedIds.has(todo.id)}
-                  selectionDisabledIds={isSelectingParent ? parentSelectBlockedIds : undefined}
-                  onSelectParent={isSelectingParent ? handleRequestParentSelect : undefined}
+              ) : todosError ? (
+                <div className="py-12">
+                  <ErrorView
+                    message="无法获取任务列表"
+                    onRetry={refetchTodos}
+                  />
+                </div>
+              ) : !todos || todos.length === 0 ? (
+                <EmptyStateView
+                  title={hasActiveFilters ? "没有匹配的待办" : "还没有待办"}
+                  message={hasActiveFilters ? "尝试切换其他筛选条件" : "创建第一个待办开始工作"}
+                  actionLabel={hasActiveFilters ? undefined : "创建待办"}
+                  onAction={hasActiveFilters ? undefined : () => setShowCreateTaskDialog(true)}
                 />
-              ))}
-            </div>
-            {taskListMeta && taskListMeta.total > 0 && (
-              <div className="flex flex-col gap-3 border-t border-border pt-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-sm text-foreground-secondary">共 {taskListMeta.total} 条</div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm text-foreground-secondary">
-                    第 {page} / {totalPages} 页
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={page <= 1}
-                    onClick={() => setPage(prev => Math.max(1, prev - 1))}
-                  >
-                    上一页
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage(prev => Math.min(totalPages, prev + 1))}
-                  >
-                    下一页
-                  </Button>
-                  <div className="flex items-center gap-2 text-sm text-foreground-secondary">
-                    <span>每页</span>
-                    <select
-                      value={pageSize}
-                      onChange={(event) => setPageSize(Number(event.target.value))}
-                      className="px-2 py-1 text-sm border border-border rounded-md bg-surface-elevated text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
-                    >
-                      {[20, 50, 100].map(size => (
-                        <option key={size} value={size}>
-                          {size}
-                        </option>
-                      ))}
-                    </select>
-                    <span>条</span>
+              ) : filteredTodos.length === 0 ? (
+                <EmptyStateView
+                  title="没有匹配的待办"
+                  message={hasActiveFilters ? '尝试切换其他筛选条件' : '创建第一个待办开始工作'}
+                  actionLabel={hasActiveFilters ? undefined : '创建待办'}
+                  onAction={hasActiveFilters ? undefined : () => setShowCreateTaskDialog(true)}
+                />
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    {filteredTodos.map((todo) => (
+                      <TodoTreeItem
+                        key={todo.id}
+                        todo={todo}
+                        projectId={projectIdParam}
+                        onStatusChange={!isSelectingParent && canChangeStatus(todo) ? handleStatusChange : undefined}
+                        currentUserId={currentUserId}
+                        canEdit={!isSelectingParent && canChangeStatus(todo)}
+                        members={members || []}
+                        canAssignAssignee={!isSelectingParent && canAssignAssignee(todo)}
+                        onUpdateAssignee={isSelectingParent ? undefined : handleUpdateAssignee}
+                        canEditPriority={!isSelectingParent && canEditPriority(todo)}
+                        onUpdatePriority={isSelectingParent ? undefined : handleUpdatePriority}
+                        canEditTags={!isSelectingParent && canEditTags(todo)}
+                        onUpdateTags={isSelectingParent ? undefined : handleUpdateTags}
+                        currentUserRole={currentUserRole}
+                        selectedTaskId={selectedTaskId}
+                        onClick={(todoId) => {
+                          handleOpenTaskDetail(todoId)
+                        }}
+                        selectionMode={isSelectingParent}
+                        selectionDisabled={isSelectingParent && parentSelectBlockedIds.has(todo.id)}
+                        selectionDisabledIds={isSelectingParent ? parentSelectBlockedIds : undefined}
+                        onSelectParent={isSelectingParent ? handleRequestParentSelect : undefined}
+                      />
+                    ))}
                   </div>
+                  {totalTasks > 0 && (
+                    <div className="border-t border-border pt-3">
+                      <div className="text-sm text-foreground-secondary">共 {totalTasks} 条</div>
+                    </div>
+                  )}
                 </div>
+              )}
               </div>
-            )}
-          </div>
-        )}
           </div>
         </div>
-
-        {/* 成员列表（占 1/4，宽度减小） */}
-        <div className="lg:w-1/4 min-w-[200px]">
-          <div className="bg-surface-elevated rounded-lg border border-border p-4" style={{ borderColor: 'var(--color-border)' }}>
-            <ProjectMemberList
-              members={members || []}
-              projectId={projectId}
-              canAddMember={true}
-              canManage={isOwner || currentUserRole === 'admin'}
-              creatorFilter={creatorFilter}
-              executorFilter={executorFilter}
-              onMemberClick={(member) => {
-                const userId = member.user_id;
-                
-                // 重置其他成员的筛选状态
-                const currentCreatorFilter = creatorFilter.includes(userId);
-                const currentExecutorFilter = executorFilter.includes(userId);
-                
-                // 计算当前状态
-                let currentState = 0;
-                if (currentCreatorFilter && currentExecutorFilter) {
-                  currentState = 3; // 两者
-                } else if (currentCreatorFilter) {
-                  currentState = 2; // 创建人
-                } else if (currentExecutorFilter) {
-                  currentState = 1; // 执行人
-                }
-                
-                // 计算下一个状态（循环：0 → 1 → 2 → 3 → 0）
-                const nextState = (currentState + 1) % 4;
-                
-                // 根据状态设置筛选
-                switch (nextState) {
-                  case 1: // 第一次点击 - 执行人
-                    setExecutorFilter([userId]);
-                    setCreatorFilter([]);
-                    break;
-                  case 2: // 第二次点击 - 创建人
-                    setExecutorFilter([]);
-                    setCreatorFilter([userId]);
-                    break;
-                  case 3: // 第三次点击 - 两者
-                    setExecutorFilter([userId]);
-                    setCreatorFilter([userId]);
-                    break;
-                  case 0: // 第四次点击 - 重置
-                  default:
-                    setExecutorFilter([]);
-                    setCreatorFilter([]);
-                    break;
-                }
-              }}
-            />
-          </div>
-        </div>
+        </section>
+        {taskDetailPanel}
       </div>
+
+      {/* 项目信息弹窗 */}
+      <Dialog
+        open={showProjectInfoDialog}
+        onClose={handleCloseProjectInfoDialog}
+        title="项目信息"
+        maxWidth="2xl"
+        panelClassName="flex flex-col"
+        panelStyle={{ maxWidth: '820px', height: '80vh', maxHeight: '820px' }}
+        bodyClassName="min-h-0 flex-1 overflow-y-auto px-6 py-5"
+      >
+        <div className="space-y-8">
+          <div className="overflow-hidden rounded-lg border border-border bg-surface-elevated">
+            <div className="grid gap-3 border-b border-divider px-4 py-4 md:grid-cols-[minmax(120px,1fr)_minmax(260px,360px)] md:items-center md:px-5">
+              <label htmlFor="project-info-name" className="text-sm font-medium text-foreground">
+                项目名称
+              </label>
+              <input
+                id="project-info-name"
+                value={projectInfoName}
+                onChange={(event) => setProjectInfoName(event.target.value)}
+                onBlur={handleProjectInfoSave}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.currentTarget.blur()
+                  }
+                }}
+                className="h-9 w-full rounded-md border border-border bg-surface-elevated px-3 text-sm text-foreground outline-none transition-colors placeholder:text-foreground-tertiary focus:border-foreground-tertiary focus:ring-1 focus:ring-foreground-tertiary/15 disabled:cursor-not-allowed disabled:bg-surface-disabled"
+                placeholder="请输入项目名称"
+                disabled={!canEditProjectInfo || isSavingProjectInfo}
+                maxLength={50}
+              />
+            </div>
+
+            <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(120px,1fr)_minmax(260px,360px)] md:items-center md:px-5">
+              <label htmlFor="project-info-git-url" className="text-sm font-medium text-foreground">
+                Git 地址
+              </label>
+              <input
+                id="project-info-git-url"
+                value={projectInfoGitUrl}
+                onChange={(event) => setProjectInfoGitUrl(event.target.value)}
+                onBlur={handleProjectInfoSave}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.currentTarget.blur()
+                  }
+                }}
+                className="h-9 w-full rounded-md border border-border bg-surface-elevated px-3 text-sm text-foreground outline-none transition-colors placeholder:text-foreground-tertiary focus:border-foreground-tertiary focus:ring-1 focus:ring-foreground-tertiary/15 disabled:cursor-not-allowed disabled:bg-surface-disabled"
+                placeholder="https://github.com/username/repo"
+                disabled={!canEditProjectInfo || isSavingProjectInfo}
+              />
+            </div>
+          </div>
+
+          {projectInfoError && (
+            <p className="-mt-5 text-sm text-error">{projectInfoError}</p>
+          )}
+
+          <section>
+            <h3 className="text-lg font-semibold text-foreground">项目成员</h3>
+            <div className="mt-4 overflow-hidden rounded-lg border border-border bg-surface-elevated p-4 md:p-5">
+              <ProjectMemberList
+                members={members || []}
+                projectId={projectId}
+                canAddMember={true}
+                canManage={isOwner || currentUserRole === 'admin'}
+              />
+            </div>
+          </section>
+        </div>
+      </Dialog>
       
       {/* 编辑项目对话框 */}
       <Dialog
@@ -2069,64 +2093,24 @@ export default function ProjectDetailPage() {
         onCancel={() => setPendingParentId(null)}
       />
       
-      {/* 待办详情抽屉 */}
-      <Drawer
-        open={drawerOpen}
-        onClose={() => {
-          setTaskRoute(null)
-        }}
-        width="w-full md:w-[600px] lg:w-[700px]"
-        showBackButton={taskHistory.length > 0}
-        onBack={() => {
-          if (taskHistory.length > 0) {
-            // 如果有历史记录，返回上一个任务
-            const previous = taskHistory[taskHistory.length - 1]
-            setTaskHistory(prev => prev.slice(0, -1))
-            setTaskRoute(previous.taskId)
-          }
-        }}
-      >
-        {selectedTaskId && (
-          <TaskDetailContent
-            projectId={projectIdParam}
-            taskId={selectedTaskId}
-            showHeader={false}
-            parentTaskId={taskHistory.length > 0 ? taskHistory[taskHistory.length - 1].parentTaskId : null}
-            onNavigateToSubtask={(subtaskId) => {
-              // 获取当前任务的父任务ID
-              const currentTask = enrichedTodos?.find(t => t.id.toString() === selectedTaskId)
-              const parentTaskId = currentTask?.parentId || null
-              
-              // 添加到历史记录
-              setTaskHistory(prev => [...prev, { taskId: selectedTaskId, projectId: projectIdParam, parentTaskId }])
-              
-              // 导航到子待办
-              setTaskRoute(String(subtaskId))
-            }}
-            onRequestParentSelect={(taskId) => {
-              handleStartParentSelect(taskId)
-            }}
-            onClose={() => {
-              // 关闭抽屉（回退逻辑已在 Drawer 的 onBack 中处理）
-              setTaskRoute(null)
-            }}
-            onDelete={() => {
-              setTaskRoute(null)
-              refetchTodos()
-            }}
-          />
-        )}
-      </Drawer>
-      
       {/* 创建待办对话框 */}
       <CreateTaskDialog
         open={showCreateTaskDialog}
-        onClose={() => setShowCreateTaskDialog(false)}
+        onClose={handleCloseCreateTaskDialog}
         projectId={projectIdParam}
         onSuccess={() => {
-          setShowCreateTaskDialog(false)
+          handleCloseCreateTaskDialog()
           refetchTodos()
         }}
+      />
+
+      {/* 创建子待办对话框 */}
+      <CreateTaskDialog
+        open={createSubtaskParentId !== null}
+        onClose={handleCloseCreateSubtaskDialog}
+        projectId={projectIdParam}
+        parentId={createSubtaskParentId ?? undefined}
+        onSuccess={handleCreateSelectedSubtaskSuccess}
       />
 
       {/* 提交反馈对话框 */}
@@ -2295,90 +2279,65 @@ function StatCard({ title, value, icon, isActive = false, onClick, className }: 
 
 // ==================== 图标按钮组件 ====================
 
-interface IconButtonProps {
+interface HeaderIconButtonProps {
   icon: React.ReactNode
   label: string
   onClick: () => void
-  variant?: 'primary' | 'secondary' | 'danger'
   isActive?: boolean
   disabled?: boolean
-  iconBgColor?: string
-  iconColor?: string
-  hideLabel?: boolean
+  buttonRef?: React.Ref<HTMLButtonElement>
 }
 
-function IconButton({
+function HeaderIconButton({
   icon,
   label,
   onClick,
-  variant = 'secondary',
   isActive = false,
   disabled = false,
-  iconBgColor,
-  iconColor,
-  hideLabel = false,
-}: IconButtonProps) {
-  // 根据variant和isActive状态确定背景色
-  const getBackgroundColor = () => {
-    if (iconBgColor) return undefined // 使用自定义背景色类
-    if (variant === 'primary') return 'var(--color-primary)'
-    if (variant === 'danger') return 'var(--color-error)'
-    if (variant === 'secondary') {
-      return isActive ? 'var(--color-surface-hover)' : 'var(--color-surface-active)'
-    }
-    return 'var(--color-surface-active)'
-  }
-
-  const bgColor = getBackgroundColor()
-
+  buttonRef,
+}: HeaderIconButtonProps) {
   return (
     <button
+      ref={buttonRef}
+      type="button"
       onClick={onClick}
       disabled={disabled}
       className={clsx(
-        'relative group min-w-[52px] min-h-[52px] px-3 py-2.5 flex items-center justify-center gap-2 rounded-lg transition-colors',
-        'focus:outline-none focus:ring-2 focus:ring-offset-2',
-        // 如果有自定义背景色，使用自定义背景色，否则使用 variant 的默认样式
-        iconBgColor 
-          ? clsx(
-              iconBgColor === 'transparent' ? 'bg-transparent' : iconBgColor, 
-              iconColor || 'text-foreground', 
-              iconBgColor === 'transparent' ? 'hover:bg-surface-hover' : 'hover:opacity-80', 
-              'focus:ring-gray-500'
-            )
-          : {
-              'text-white hover:opacity-90 focus:ring-primary': variant === 'primary',
-              'text-foreground hover:opacity-90 focus:ring-gray-500': variant === 'secondary',
-              'text-white hover:opacity-90 focus:ring-error': variant === 'danger',
-            },
-        {
-          'opacity-50 cursor-not-allowed': disabled,
-        }
+        'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-transparent text-foreground-secondary transition-colors',
+        'hover:bg-surface-hover hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2',
+        isActive && 'bg-surface-hover text-foreground',
+        disabled && 'cursor-not-allowed opacity-50'
       )}
-      style={iconBgColor === 'transparent' ? { backgroundColor: 'transparent' } : bgColor ? { backgroundColor: bgColor } : undefined}
       title={label}
       aria-label={label}
+      aria-pressed={isActive}
     >
-      <span className={clsx('w-5 h-5 flex-shrink-0', iconColor && !iconBgColor ? iconColor : '')}>{icon}</span>
-      {!hideLabel && <span className="hidden sm:inline text-sm font-medium">{label}</span>}
-      
-      {/* Tooltip */}
-      <div
-        className={clsx(
-          'absolute left-1/2 -translate-x-1/2 top-full mt-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50',
-          hideLabel ? '' : 'sm:hidden'
-        )}
-      >
-        <div className="bg-gray-900 text-white text-xs rounded py-1.5 px-2.5 whitespace-nowrap shadow-lg">
-          {label}
-          <div className="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-900"></div>
-        </div>
-      </div>
+      <span className="h-5 w-5 shrink-0 [&>svg]:h-5 [&>svg]:w-5">{icon}</span>
     </button>
   )
 }
 
 // ==================== 图标组件 ====================
+
+function ProjectSidebarToggleIcon({
+  collapsed,
+  className,
+}: {
+  collapsed: boolean
+  className?: string
+}) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5v-13Z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 3v18" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d={collapsed ? 'm13 9 3 3-3 3' : 'm16 9-3 3 3 3'}
+      />
+    </svg>
+  )
+}
 
 function MembersIcon() {
   return (
@@ -2388,14 +2347,18 @@ function MembersIcon() {
   )
 }
 
-function CreateTodoIcon() {
+function FeedbackIcon({ className }: { className?: string }) {
   return (
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} className="w-5 h-5">
-      {/* 待办列表 */}
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-      {/* + 号在右上角，使用圆形背景 */}
-      <circle cx="17" cy="7" r="3.5" fill="currentColor" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 5.5v3M15.5 7h3" strokeWidth={1.5} stroke="white" fill="white" />
+    <svg className={className} viewBox="0 0 1138 1024" fill="currentColor" aria-hidden="true">
+      <path d="M1055.738 57.594c-45.439-36.351-154.492-27.262-304.439 86.333-213.562 159.036-308.983 368.052-445.298 572.527-22.719 31.807 13.632 49.983 40.895 36.351l86.333-49.983c13.632-4.544 18.175-4.544 13.632-27.262-9.088-68.158 18.176-131.772 59.070-186.298v0c149.947 63.614 331.702 27.262 395.317-154.492 81.789-18.176 159.036-109.053 172.667-172.666 13.632-45.439 9.088-86.333-18.175-104.509zM142.422 716.454c122.684 213.562 390.773 286.263 604.333 163.58 140.859-81.789 218.105-227.193 222.649-377.14 0-49.983-59.070-45.439-59.070 0 0 131.772-68.158 254.457-190.842 327.158-186.298 104.509-422.579 40.895-527.088-140.859-109.053-186.298-45.439-422.579 140.859-527.088 99.965-59.070 222.649-68.158 322.614-27.262 40.895 13.632 59.070-40.895 18.175-54.527-118.141-40.895-249.911-36.351-368.052 31.807-213.562 122.684-286.263 395.317-163.58 604.333z" />
+    </svg>
+  )
+}
+
+function ProjectInfoIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" />
     </svg>
   )
 }
@@ -2453,6 +2416,14 @@ function BackIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+    </svg>
+  )
+}
+
+function FullscreenIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3m8 0h3a2 2 0 0 0 2-2v-3" />
     </svg>
   )
 }
@@ -2528,6 +2499,14 @@ function PriorityFilterIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+    </svg>
+  )
+}
+
+function DateFilterIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" />
     </svg>
   )
 }

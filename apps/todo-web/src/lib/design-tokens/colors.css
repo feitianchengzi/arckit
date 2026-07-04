@@ -19,37 +19,36 @@
 :root {
   /* ==================== 表面颜色 (Surface) ==================== */
   /* 用于背景、卡片、容器等 */
-  --color-surface: #ffffff;
-  --color-surface-elevated: #fefefe;
-  --color-surface-hover: #dce2eb;
-  --color-surface-active: #e5e7eb;
-  --color-surface-disabled: #f9fafb;
+  --color-surface: #f5f5f5;
+  --color-surface-elevated: #ffffff;
+  --color-surface-hover: #eeeef0;
+  --color-surface-active: #e9eaf6;
+  --color-surface-disabled: #f7f7f8;
   
   /* ==================== 前景颜色 (Foreground) ==================== */
   /* 用于文本、图标等 */
-  --color-foreground: #111827;
-  --color-foreground-secondary: #6b7280;
-  --color-foreground-tertiary: #9ca3af;
-  --color-foreground-disabled: #d1d5db;
+  --color-foreground: #23252a;
+  --color-foreground-secondary: #5c5d5f;
+  --color-foreground-tertiary: #97979a;
+  --color-foreground-disabled: #b0b5c0;
   --color-foreground-inverse: #ffffff;
   
   /* ==================== 边框颜色 (Border/Divider) ==================== */
-  --color-border: #e5e7eb;
-  --color-border-hover: #286ace;
-  --color-border-focus: #2B7FFF;     /* indigo-500 - 与主色一致 */
-  --color-divider: #e5e7eb;
+  --color-border: #d9d9d9;
+  --color-border-hover: #6d78d5;
+  --color-border-focus: #6d78d5;
+  --color-divider: #e0e0e0;
   
   /* ==================== 主色 (Primary) ==================== */
-  /* 使用 indigo，与深色模式保持一致 */
-  --color-primary: #2B7FFF;          /* indigo-500 */
-  --color-primary-hover: #155CFC;    /* indigo-600 - 悬停（更深） */
-  --color-primary-active: #155CFC;   /* indigo-700 - 激活（更深） */
-  --color-primary-light: #e0e7ff;    /* indigo-100 - 浅色背景 */
-  --color-primary-lighter: #eef2ff;  /* indigo-50 - 更浅的背景 */
+  --color-primary: #6d78d5;
+  --color-primary-hover: #5e69c1;
+  --color-primary-active: #5e69c1;
+  --color-primary-light: #e9eaf6;
+  --color-primary-lighter: #f4f4fb;
   
   /* ==================== Project List Icons ==================== */
    --color-project-icon: #F3F4F6;
-   --color-project-icon-selected: #8A9BD3;
+   --color-project-icon-selected: #6d78d5;
    --color-surface-icon: #d2d7df;
 
   /* ==================== 语义颜色 ==================== */
@@ -72,10 +71,10 @@
   --color-error-lighter: #fef2f2;
   
   /* Info */
-  --color-info: #3b82f6;
-  --color-info-hover: #2563eb;
-  --color-info-light: #dbeafe;
-  --color-info-lighter: #eff6ff;
+  --color-info: #6d78d5;
+  --color-info-hover: #5e69c1;
+  --color-info-light: #e9eaf6;
+  --color-info-lighter: #f4f4fb;
   
   /* ==================== 中性色 (Gray Scale) ==================== */
   /* 保留用于特殊场景 */
@@ -123,19 +122,19 @@
   /* ==================== 边框颜色 (Border/Divider) ==================== */
   --color-border: #2a2a2a;           /* app-border-dark - 主要边框 */
   --color-border-hover: #444444;     /* app-border-light - 悬停边框 */
-  --color-border-focus: #3b82f6;     /* app-blue-500 - 聚焦边框 */
+  --color-border-focus: #6d78d5;
   --color-divider: #3a3a3a;          /* app-border-medium - 分割线 */
   
   /* ==================== 主色 (Primary) ==================== */
-  --color-primary: #3b82f6;          /* app-blue-500 - 主色 */
-  --color-primary-hover: #2563eb;    /* app-blue-600 - 悬停 */
-  --color-primary-active: #1d4ed8;   /* app-blue-700 - 激活 */
-  --color-primary-light: #1f1f1f;    /* app-bg-dark - 浅色背景变体 */
-  --color-primary-lighter: rgba(59, 130, 246, 0.1); /* app-blue-opacity-10 */
+  --color-primary: #8a93e8;
+  --color-primary-hover: #9ca4f0;
+  --color-primary-active: #6d78d5;
+  --color-primary-light: rgba(109, 120, 213, 0.18);
+  --color-primary-lighter: rgba(109, 120, 213, 0.12);
 
   /* ==================== Project List Icons ==================== */
   --color-project-icon: #a0a0a0;     /* app-text-tertiary */
-  --color-project-icon-selected: #3b82f6; /* app-blue-500 */
+  --color-project-icon-selected: #8a93e8;
   
   /* ==================== 语义颜色 ==================== */
   /* Success */
@@ -157,10 +156,10 @@
   --color-error-lighter: #450a0a;    /* red-950 */
   
   /* Info */
-  --color-info: #3b82f6;             /* app-blue-500 */
-  --color-info-hover: #60a5fa;       /* app-blue-400 */
-  --color-info-light: rgba(59, 130, 246, 0.1); /* app-blue-opacity-10 */
-  --color-info-lighter: rgba(59, 130, 246, 0.2); /* app-blue-opacity-20 */
+  --color-info: #8a93e8;
+  --color-info-hover: #9ca4f0;
+  --color-info-light: rgba(109, 120, 213, 0.14);
+  --color-info-lighter: rgba(109, 120, 213, 0.22);
   
   /* ==================== 中性色 (Zinc Scale) ==================== */
   /* 完整的 zinc 色阶，用于特殊场景 */

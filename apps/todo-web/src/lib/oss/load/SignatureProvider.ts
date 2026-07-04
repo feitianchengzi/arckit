@@ -4,8 +4,13 @@
  */
 
 import { STSCredentials, uploadApi } from '../../api/endpoints/upload'
-import { loadOSSSDK } from '../sdk'
+import { getSafeSignedUrlExpires, loadOSSSDK, normalizeObjectKey } from '../sdk'
 import type { ManagerConfig } from './types'
+
+export interface SignedUrlResult {
+  signedUrl: string
+  expiresAt: number
+}
 
 export class SignatureProvider {
   // STS 凭证池（单例，全局共享）
@@ -22,27 +27,47 @@ export class SignatureProvider {
   
   // 配置
   private readonly bufferTime: number
+  private readonly defaultTTL: number
   
   constructor(config: ManagerConfig) {
     this.bufferTime = config.bufferTime * 1000 // 转换为毫秒
+    this.defaultTTL = config.defaultTTL
   }
   
   /**
    * 获取签名 URL
    */
   async getSignedUrl(objectKey: string): Promise<string> {
+    const result = await this.getSignedUrlWithExpires(objectKey)
+    return result.signedUrl
+  }
+
+  /**
+   * 获取签名 URL 及其前端可安全缓存的过期时间。
+   */
+  async getSignedUrlWithExpires(objectKey: string): Promise<SignedUrlResult> {
+    const normalizedKey = normalizeObjectKey(objectKey)
+
     // 获取或刷新 STS 凭证
     const credentials = await this.getCredentials()
     
     // 获取或创建 OSS Client
     const client = await this.getOSSClient(credentials)
+
+    const expires = getSafeSignedUrlExpires(
+      credentials.Expiration,
+      this.defaultTTL
+    )
     
     // 生成签名 URL
-    const signedUrl = client.signatureUrl(objectKey, {
-      expires: 3600, // 1小时有效期
+    const signedUrl = client.signatureUrl(normalizedKey, {
+      expires,
     })
     
-    return signedUrl
+    return {
+      signedUrl,
+      expiresAt: Date.now() + expires * 1000,
+    }
   }
   
   /**
@@ -188,4 +213,3 @@ export class SignatureProvider {
     this.ossClient = null
   }
 }
-

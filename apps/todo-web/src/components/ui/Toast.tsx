@@ -2,8 +2,8 @@
  * Toast 组件 - 全局提示消息
  * 
  * 功能：
- * 1. 类似 Android Toast 的效果
- * 2. 固定在窗口顶部居中显示
+ * 1. 全局轻量提示
+ * 2. 固定在窗口右下角显示
  * 3. 支持深色/浅色模式
  * 4. 自动消失
  */
@@ -35,54 +35,63 @@ export function Toast({ message, visible, onClose, duration = 2000, type = 'succ
 
   if (!visible) return null
 
-  const typeStyles = {
-    success: 'bg-surface-elevated dark:bg-surface-elevated border-l-4 border-l-green-500',
-    info: 'bg-surface-elevated dark:bg-surface-elevated border-l-4 border-l-blue-500',
-    warning: 'bg-surface-elevated dark:bg-surface-elevated border-l-4 border-l-yellow-500',
-    error: 'bg-surface-elevated dark:bg-surface-elevated border-l-4 border-l-red-500',
-  }
-
-  const iconStyles = {
-    success: 'text-green-500',
-    info: 'text-blue-500',
-    warning: 'text-yellow-500',
-    error: 'text-red-500',
+  const iconStyles: Record<NonNullable<ToastProps['type']>, string> = {
+    success: 'bg-green-500 text-white',
+    info: 'bg-blue-500 text-white',
+    warning: 'bg-amber-500 text-white',
+    error: 'bg-red-500 text-white',
   }
 
   const icons = {
     success: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
       </svg>
     ),
     info: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 8h.01M12 12v5" />
       </svg>
     ),
     warning: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 7v7m0 3h.01" />
       </svg>
     ),
     error: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+      <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18 18 6M6 6l12 12" />
       </svg>
     ),
   }
 
   return createPortal(
     <div
-      className={`fixed top-20 left-1/2 -translate-x-1/2 z-[9999] transition-all duration-300 ${
-        isExiting ? 'opacity-0 -translate-y-4' : 'opacity-100 translate-y-0'
+      className={`fixed bottom-4 right-4 z-[9999] transition-all duration-300 sm:bottom-5 sm:right-5 ${
+        isExiting ? 'translate-y-3 opacity-0' : 'translate-y-0 opacity-100'
       }`}
     >
       <div
-        className={`flex items-center gap-3 px-6 py-4 rounded-lg shadow-lg border border-border min-w-[280px] max-w-[90vw] ${typeStyles[type]}`}
+        className="flex min-h-10 w-fit max-w-[calc(100vw-32px)] items-center gap-2 rounded-lg border border-border bg-surface-elevated px-3 py-2 shadow-[0_8px_24px_rgba(15,23,42,0.14)] sm:max-w-sm"
       >
-        <div className={iconStyles[type]}>{icons[type]}</div>
-        <span className="text-foreground font-medium text-sm">{message}</span>
+        <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${iconStyles[type]}`}>
+          {icons[type]}
+        </div>
+        <span className="min-w-0 truncate text-sm font-medium text-foreground">{message}</span>
+        <button
+          type="button"
+          onClick={() => {
+            setIsExiting(true)
+            setTimeout(onClose, 180)
+          }}
+          className="ml-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-foreground-tertiary transition-colors hover:bg-surface-hover hover:text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40"
+          aria-label="关闭提示"
+          title="关闭提示"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
     </div>,
     document.body

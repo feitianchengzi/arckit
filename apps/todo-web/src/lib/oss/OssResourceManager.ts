@@ -9,6 +9,7 @@
 
 import type { STSCredentials } from '../api/endpoints/upload'
 import { getOssResourceLoader } from './load'
+import { normalizeObjectKey } from './sdk'
 import { uploadToOSS, OssUploadPurpose, PURPOSE_TO_DIR } from './upload'
 
 export { OssUploadPurpose }
@@ -34,7 +35,7 @@ export interface OssUploadResult {
  */
 export async function resolve(key: string): Promise<string> {
   if (!key) return ''
-  return getOssResourceLoader().getUrl(key)
+  return getOssResourceLoader().getUrl(normalizeObjectKey(key))
 }
 
 /**
@@ -43,7 +44,7 @@ export async function resolve(key: string): Promise<string> {
  */
 export function resolveSync(key: string): string | null {
   if (!key) return null
-  return getOssResourceLoader().getUrlSync(key)
+  return getOssResourceLoader().getUrlSync(normalizeObjectKey(key))
 }
 
 /**
@@ -63,8 +64,9 @@ export async function upload(
     options.callbackUrl,
     options.callbackBody
   )
+  const key = normalizeObjectKey(result.objectKey)
   return {
-    key: result.objectKey,
+    key,
     url: result.url,
   }
 }

@@ -117,9 +117,11 @@ export default function OrganizationDetailPage() {
   const deleteOrganizationMutation = useMutation({
     mutationFn: (orgId: number) => organizationsApi.delete(orgId),
     onSuccess: () => {
-      // 删除成功后，使组织列表查询失效并导航到项目列表页面
+      setShowDeleteDialog(false);
+      setCurrentOrganizationId(null);
       queryClient.invalidateQueries({ queryKey: ['organizations'] });
-      navigate('/projects');
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      navigate('/projects', { replace: true });
     },
     onError: (err: any) => {
       console.error('删除组织失败:', err);
