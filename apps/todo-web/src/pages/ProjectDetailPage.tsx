@@ -32,6 +32,38 @@ import { permissionManager } from '@/lib/permissions'
 import { todoToTaskInfo, isAssigneeUnassigned } from '@/lib/permissions/utils'
 import type { TaskInfo } from '@/lib/permissions'
 
+const LOCAL_STATUS_EVENT_SUPPRESS_MS = 5000
+
+const extractSocketTaskId = (payload: ProjectSocketEvent): number | null => {
+  const data = payload.data
+  if (!data || typeof data !== 'object') return null
+
+  const record = data as Record<string, unknown>
+  const candidates = [record.task_id, record.taskId, record.id]
+  for (const candidate of candidates) {
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate
+    if (typeof candidate === 'string') {
+      const parsed = Number(candidate)
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+
+  const task = record.task
+  if (task && typeof task === 'object') {
+    const taskRecord = task as Record<string, unknown>
+    const taskCandidates = [taskRecord.task_id, taskRecord.taskId, taskRecord.id]
+    for (const candidate of taskCandidates) {
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) return candidate
+      if (typeof candidate === 'string') {
+        const parsed = Number(candidate)
+        if (Number.isFinite(parsed)) return parsed
+      }
+    }
+  }
+
+  return null
+}
+
 export default function ProjectDetailPage() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -306,6 +338,7 @@ export default function ProjectDetailPage() {
     invitations: false,
   })
   const realtimeTimerRef = useRef<number | null>(null)
+  const localStatusUpdateExpiresRef = useRef<Map<number, number>>(new Map())
 
   const flushRealtimeRefresh = useCallback(() => {
     const pending = realtimePendingRef.current
@@ -348,6 +381,26 @@ export default function ProjectDetailPage() {
     [flushRealtimeRefresh]
   )
 
+  const markLocalStatusUpdate = useCallback((taskId: number) => {
+    localStatusUpdateExpiresRef.current.set(taskId, Date.now() + LOCAL_STATUS_EVENT_SUPPRESS_MS)
+  }, [])
+
+  const shouldSuppressTaskRefresh = useCallback((payload: ProjectSocketEvent) => {
+    const now = Date.now()
+    localStatusUpdateExpiresRef.current.forEach((expiresAt, taskId) => {
+      if (expiresAt <= now) {
+        localStatusUpdateExpiresRef.current.delete(taskId)
+      }
+    })
+
+    const taskId = extractSocketTaskId(payload)
+    if (taskId !== null) {
+      return (localStatusUpdateExpiresRef.current.get(taskId) ?? 0) > now
+    }
+
+    return Array.from(localStatusUpdateExpiresRef.current.values()).some((expiresAt) => expiresAt > now)
+  }, [])
+
   useEffect(() => {
     return () => {
       if (realtimeTimerRef.current !== null) {
@@ -365,7 +418,9 @@ export default function ProjectDetailPage() {
       const targets: Array<keyof typeof realtimePendingRef.current> = []
 
       if (eventName.startsWith('task.') || eventName.startsWith('task_attachment.')) {
-        targets.push('tasks')
+        if (!eventName.startsWith('task.') || !shouldSuppressTaskRefresh(payload)) {
+          targets.push('tasks')
+        }
       }
       if (eventName.startsWith('tag.')) {
         targets.push('tags')
@@ -384,7 +439,7 @@ export default function ProjectDetailPage() {
         scheduleRealtimeRefresh([...new Set(targets)])
       }
     },
-    [projectId, scheduleRealtimeRefresh]
+    [projectId, scheduleRealtimeRefresh, shouldSuppressTaskRefresh]
   )
 
   useProjectWebSocket({
@@ -1101,8 +1156,10 @@ export default function ProjectDetailPage() {
     }
     
     try {
+      markLocalStatusUpdate(todoId)
       await updateStatus.mutateAsync({ taskId: todoId.toString(), status: newStatus })
     } catch (error) {
+      localStatusUpdateExpiresRef.current.delete(todoId)
       console.error('更新状态失败:', error)
     }
   }
@@ -1347,6 +1404,7 @@ export default function ProjectDetailPage() {
             hideCopyLinkButton
             parentTaskId={taskHistory.length > 0 ? taskHistory[taskHistory.length - 1].parentTaskId : null}
             onNavigateToSubtask={handleNavigateSelectedSubtask}
+            onStatusMutationStart={markLocalStatusUpdate}
             onClose={closeTaskDetail}
             onDelete={handleSelectedTaskDelete}
           />
@@ -1436,6 +1494,7 @@ export default function ProjectDetailPage() {
           hideCopyLinkButton
           parentTaskId={taskHistory.length > 0 ? taskHistory[taskHistory.length - 1].parentTaskId : null}
           onNavigateToSubtask={handleNavigateSelectedSubtask}
+          onStatusMutationStart={markLocalStatusUpdate}
           onClose={handleCloseTaskDetailFullscreen}
           onDelete={handleSelectedTaskDelete}
         />

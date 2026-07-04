@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button, LoadingView, ErrorView, EmptyStateView, Drawer } from '@/components/ui'
+import { showGlobalToast } from '@/components/ui/Toast'
 import { TodoTreeItem, TaskDetailContent, DateRangeFilter, FilterMultiSelect } from '@/components/features'
 import { useProjectList } from '@/hooks/useProjects'
 import { tasksApi } from '@/lib/api/endpoints/tasks'
@@ -590,7 +591,7 @@ export default function MyTasksPage() {
         projectId: parseInt(task.projectId),
       }))
       // 构建树形结构
-      const tree = buildTaskTree(fullTasks)
+      const tree = buildTaskTree(fullTasks, { sortByStatus: false })
       treeMap.set(projectId, tree)
     })
     
@@ -996,21 +997,26 @@ export default function MyTasksPage() {
       return
     }
     
+    const previousStatus = task.status
+    setMyTasks(prev => prev.map(task => {
+      if (task.id === taskId && task.projectId === projectId) {
+        return { ...task, status: newStatus }
+      }
+      return task
+    }))
+
     try {
-      // 直接调用 API 更新状态
       await tasksApi.update(projectId, String(taskId), { status: newStatus })
-      // 刷新对应项目的任务列表
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
-      // 更新本地状态
-      setMyTasks(prev => prev.map(task => 
+    } catch (error: any) {
+      setMyTasks(prev => prev.map(task =>
         task.id === taskId && task.projectId === projectId
-          ? { ...task, status: newStatus }
+          ? { ...task, status: previousStatus }
           : task
       ))
-    } catch (error) {
       console.error('更新任务状态失败:', error)
+      showGlobalToast(error?.response?.data?.message || error?.message || '状态更新失败，请重试', 'error', 2500)
     }
-  }, [queryClient, myTasks, canChangeStatus])
+  }, [myTasks, canChangeStatus])
   
   // 处理更新执行人
   const handleUpdateAssignee = useCallback(async (taskId: number, assigneeId: number | null, projectId: string) => {

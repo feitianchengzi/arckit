@@ -3,11 +3,14 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import type { QueryKey } from '@tanstack/react-query'
 import { tasksApi, CreateTaskInput, UpdateTaskInput, type TaskListFilters } from '@/lib/api/endpoints/tasks'
 import { tasksToTodos } from '@/lib/utils/taskMapper'
 import { flattenTaskTree } from '@/lib/utils/taskTree'
 import { useAuthStore } from '@/store/authStore'
+import { showGlobalToast } from '@/components/ui/Toast'
 import type { ApiMeta } from '@/types/api'
+import type { Todo, TodoStatus } from '@/types'
 
 export interface TaskListData {
   todos: ReturnType<typeof tasksToTodos>
@@ -19,6 +22,89 @@ export interface TaskListData {
 export interface UseTaskListOptions {
   enabled?: boolean
   filters?: TaskListFilters
+}
+
+type TaskStatusMutationContext = {
+  previousTaskQueries: Array<[QueryKey, unknown]>
+  taskId: number | null
+  previousStatus?: TodoStatus
+}
+
+const isTaskListData = (value: unknown): value is TaskListData => {
+  return !!value && typeof value === 'object' && Array.isArray((value as TaskListData).todos)
+}
+
+const isTodoData = (value: unknown): value is Todo => {
+  const todo = value as Partial<Todo>
+  return !!value && typeof value === 'object' && typeof todo.id === 'number' && typeof todo.status === 'string'
+}
+
+const updateTodoStatusInTree = (todo: Todo, taskId: number, status: TodoStatus): Todo => {
+  const children = todo.children?.map((child) => updateTodoStatusInTree(child, taskId, status))
+  if (todo.id === taskId) {
+    return {
+      ...todo,
+      status,
+      ...(children ? { children } : {}),
+    }
+  }
+  if (children) {
+    return { ...todo, children }
+  }
+  return todo
+}
+
+const updateTodoListStatus = (todos: Todo[], taskId: number, status: TodoStatus): Todo[] => {
+  return todos.map((todo) => updateTodoStatusInTree(todo, taskId, status))
+}
+
+const findTodoStatusInTree = (todo: Todo, taskId: number): TodoStatus | undefined => {
+  if (todo.id === taskId) return todo.status
+  for (const child of todo.children ?? []) {
+    const status = findTodoStatusInTree(child, taskId)
+    if (status) return status
+  }
+  return undefined
+}
+
+const findTaskStatusInCache = (data: unknown, taskId: number): TodoStatus | undefined => {
+  if (isTaskListData(data)) {
+    for (const todo of data.todoTree) {
+      const status = findTodoStatusInTree(todo, taskId)
+      if (status) return status
+    }
+    for (const todo of data.todos) {
+      const status = findTodoStatusInTree(todo, taskId)
+      if (status) return status
+    }
+  }
+
+  if (isTodoData(data)) {
+    return findTodoStatusInTree(data, taskId)
+  }
+
+  return undefined
+}
+
+const patchTaskStatusCache = (data: unknown, taskId: number, status: TodoStatus): unknown => {
+  if (isTaskListData(data)) {
+    return {
+      ...data,
+      todos: updateTodoListStatus(data.todos, taskId, status),
+      todoTree: updateTodoListStatus(data.todoTree, taskId, status),
+    }
+  }
+
+  if (isTodoData(data)) {
+    return updateTodoStatusInTree(data, taskId, status)
+  }
+
+  return data
+}
+
+const getMutationErrorMessage = (error: unknown, fallback: string) => {
+  const err = error as any
+  return err?.response?.data?.message || err?.response?.data?.error || err?.message || fallback
 }
 
 /**
@@ -105,7 +191,7 @@ export function useCreateTask(projectId: string) {
   
   return useMutation({
     mutationFn: (input: CreateTaskInput) => tasksApi.create(input), // 不需要 user_id
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       console.log('✅ 待办创建成功，刷新待办列表')
       // 使待办列表缓存失效并强制刷新
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
@@ -169,11 +255,45 @@ export function useUpdateTaskStatus(projectId: string) {
   return useMutation({
     mutationFn: ({ taskId, status }: { taskId: string; status: string }) =>
       tasksApi.updateStatus(projectId, taskId, status), // 不需要 user_id
-    onSuccess: (_, variables) => {
-      // 使待办列表缓存失效
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
-      // 使待办详情缓存失效
-      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks', variables.taskId] })
+    onMutate: async (variables): Promise<TaskStatusMutationContext> => {
+      await queryClient.cancelQueries({ queryKey: ['projects', projectId, 'tasks'] })
+
+      const previousTaskQueries = queryClient.getQueriesData({
+        queryKey: ['projects', projectId, 'tasks'],
+      })
+      const taskId = Number(variables.taskId)
+      const status = variables.status as TodoStatus
+      const previousStatus = Number.isFinite(taskId)
+        ? previousTaskQueries.reduce<TodoStatus | undefined>((foundStatus, [, data]) => {
+            return foundStatus ?? findTaskStatusInCache(data, taskId)
+          }, undefined)
+        : undefined
+
+      if (Number.isFinite(taskId)) {
+        queryClient.setQueriesData(
+          { queryKey: ['projects', projectId, 'tasks'] },
+          (oldData) => patchTaskStatusCache(oldData, taskId, status)
+        )
+      }
+
+      return {
+        previousTaskQueries,
+        taskId: Number.isFinite(taskId) ? taskId : null,
+        previousStatus,
+      }
+    },
+    onError: (error, _variables, context) => {
+      if (context && context.taskId !== null && context.previousStatus) {
+        queryClient.setQueriesData(
+          { queryKey: ['projects', projectId, 'tasks'] },
+          (oldData) => patchTaskStatusCache(oldData, context.taskId as number, context.previousStatus as TodoStatus)
+        )
+      } else {
+        context?.previousTaskQueries.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+      showGlobalToast(getMutationErrorMessage(error, '状态更新失败，请重试'), 'error', 2500)
     },
   })
 }

@@ -21,6 +21,7 @@ export default defineConfig({
         target: 'https://api.feitianchengzi.com',
         changeOrigin: true,
         secure: true,
+        ws: true,
         rewrite: (path) => path.replace(/^\/api-proxy/, ''),
       },
     },
@@ -34,6 +35,7 @@ export default defineConfig({
         target: 'https://api.feitianchengzi.com',
         changeOrigin: true,
         secure: true,
+        ws: true,
         rewrite: (path) => path.replace(/^\/api-proxy/, ''),
       },
     },
@@ -70,4 +72,3 @@ export default defineConfig({
     },
   },
 })
-

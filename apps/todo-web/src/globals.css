@@ -431,6 +431,12 @@
     min-height: 0;
     overflow-y: auto;
     padding-right: 2px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .project-task-list-scroll::-webkit-scrollbar {
+    display: none;
   }
 
   .task-filter-bar {
@@ -779,6 +785,8 @@
     min-height: 0;
     overflow-y: auto;
     background: var(--color-surface-elevated);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 
   .project-task-detail-fullscreen-panel {
@@ -809,6 +817,13 @@
     min-height: 0;
     overflow-y: auto;
     background: var(--color-surface-elevated);
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .project-task-detail-body::-webkit-scrollbar,
+  .project-task-detail-fullscreen-content::-webkit-scrollbar {
+    display: none;
   }
 
   .task-detail-linear-section {

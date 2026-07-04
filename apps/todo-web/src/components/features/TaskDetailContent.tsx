@@ -96,6 +96,7 @@ export interface TaskDetailContentProps {
   parentTaskId?: number | null // 父任务ID（用于回退）
   onNavigateToSubtask?: (subtaskId: number) => void // 导航到子待办的回调
   hideCopyLinkButton?: boolean // 是否隐藏内容区的复制链接按钮
+  onStatusMutationStart?: (taskId: number) => void // 状态请求发起前回调
 }
 
 export function TaskDetailContent({ 
@@ -106,7 +107,8 @@ export function TaskDetailContent({
   onClose,
   parentTaskId,
   onNavigateToSubtask,
-  hideCopyLinkButton = false
+  hideCopyLinkButton = false,
+  onStatusMutationStart
 }: TaskDetailContentProps) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -397,6 +399,7 @@ export function TaskDetailContent({
     }
     
     try {
+      onStatusMutationStart?.(Number(taskId))
       await updateStatus.mutateAsync({ taskId, status: newStatus })
     } catch (err: any) {
       setStatusUpdateError(err.response?.data?.message || '状态更新失败，请重试')

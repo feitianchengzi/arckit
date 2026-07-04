@@ -6,12 +6,17 @@
 import { TODO_STATUS_SORT_ORDER } from '@/lib/constants/taskStatus'
 import type { Todo } from '@/types'
 
+export interface BuildTaskTreeOptions {
+  sortByStatus?: boolean
+}
+
 /**
  * 将扁平的任务列表转换为树形结构
  * @param todos 扁平的任务列表
  * @returns 树形结构的任务列表（只包含根任务，子任务嵌套在 children 中）
  */
-export function buildTaskTree(todos: Todo[]): Todo[] {
+export function buildTaskTree(todos: Todo[], options?: BuildTaskTreeOptions): Todo[] {
+  const sortByStatus = options?.sortByStatus ?? true
   // 创建任务映射表
   const taskMap = new Map<number, Todo>()
   const rootTasks: Todo[] = []
@@ -44,6 +49,10 @@ export function buildTaskTree(todos: Todo[]): Todo[] {
       rootTasks.push(taskCopy)
     }
   })
+
+  if (!sortByStatus) {
+    return rootTasks
+  }
   
   // 递归排序：先按状态排序，再按创建时间倒序
   const sortTasks = (tasks: Todo[]): Todo[] => {
