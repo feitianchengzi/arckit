@@ -2,109 +2,113 @@
 
 ## 定位
 
-Skill 架构把前序文档中的产品概念和产品架构转化为可实施的 Arckit skill 体系。
+Skill 架构把产品概念和产品架构转化为当前可实施的 Arckit skill 体系，用来指导 agent 辅助人类完成软件项目开发。
 
-读到本文件时，前序结论已经成立：人的 prompt 是高压缩、多义、持续演化的软件研发意图；软件研发的最终产物可以是 code、skill、document、workflow 或 mixed artifact；阶段产物、过程产物、最终产物和事实源需要分工；最终产物类型只影响实现承载、验证证据和发布或同步治理，不拆分需求、设计、技术、迭代、治理和验证前置流程；系统不能用用户表达是否清晰作为主观流程判断；真实场景预期需要作为可维护的评测材料参与演化。
+当前 Arckit 围绕软件项目开发的基础协作面组织六类能力：
 
-因此，本文件不只列出当前有哪些 skill，也不只停留在抽象能力层。它按产品架构中的语义入口、阶段判断、产物系统、事实系统和演化系统，说明每一段产品责任应由哪些 Arckit skill 承载，skill 之间如何交接，以及后续实施应如何新增、拆分、合并或收缩具体 skill。
+- 入口编排：识别任务处境，编译 workflow frame。
+- 研发事项记录：维护 `arckit/cases` 中的 development case record，追踪一个事项跨轮次的结构满足度。
+- 记忆与低承诺空间：保存原始材料、未决问题和 workflow memory。
+- 定义前思考：形成决策、草案、设计探索、架构决策和领域模型 handoff。
+- 结果事实源：维护产品、交互、视觉和技术事实。
+- 工程诊断：基于证据定位 bug、回归、数据异常、显示错误和性能退化。
 
-当前仓库实现是架构落地样本，不是架构边界本身。当现有 skill 与预期能力不一致时，以本文件定义的产品责任为准，调整 skill 职责和目录归属。
+项目治理、长期想法库、市场研究、代码审查、质量评测、发布出包、运行运维、Workshop Desktop 和角色编排进入 Arckit 时，先被整理成决策依据、定义事实、诊断证据、`arckit-pending` 未决项或 external adapter handoff，让人类和外部工具能继续推进。
 
 ## 总体链路
 
-Arckit 的 skill 体系按以下链路工作：
+Arckit 的当前 skill 体系按以下链路工作：
 
 1. `using-arckit` 接收 prompt、上下文、证据和用户纠错，形成当前任务处境。
-2. 当前任务处境判断真实软件预期、本轮阶段、显式约束、最终产物类型和可能影响的事实源。
-3. 入口编排选择一组 Arckit skill，而不是把用户提到的某个 skill 当作唯一任务。
-4. 过程型 skill 产出 handoff，结果型 skill 维护稳定事实，执行型能力改变最终产物，验证型 skill 比较预期和实现。
-5. 不稳定信息进入 `arckit-intake` 或 `arckit-pending`；工作方式变化进入 `arckit-workflow-memory`。
-6. 真实场景预期进入评测材料，用于验证产品方案、最终产物和工作方式是否覆盖真实研发活动。
-7. 执行结果、评测结果、用户纠错和 AI 能力变化回流到后续 workflow 判断。
+2. `using-arckit` 在 `arckit/cases` 中创建或更新 development case record，记录真实目标、当前轮缺口、结构状态、未决项和 completion audit。
+3. `using-arckit` 调用 `arckit-workflow-memory` 做 workflow resolution，绑定已有 accepted/candidate workflow 或准备新的场景级 candidate。
+4. 入口编排选择当前执行面中的最小必要 skill，而不是把用户提到的某个 skill 当作唯一任务。
+5. 过程型 skill 产出 handoff，结果型 skill 维护稳定事实，诊断型 skill 收敛实现事实，未确认内容进入 `arckit-pending`。
+6. `arckit-turn-adaptation` 处理首轮之后的补充、纠错、目标变化、事实纠正和暂停，并回写当前 case record。
+7. 执行结果、用户纠错和流程学习交给 `arckit-workflow-memory` closeout。
 
-这条链路是实施拆解的主线。后续拆具体 skill 时，应检查每个 skill 是否清楚说明自己位于链路哪一段、接收什么、产出什么、影响哪些事实源、何时停止、何时交给下游。
+这条链路是当前实施主线。workflow frame 根据当前维护源选择可执行 skill；跨出当前执行面的阶段通过 pending 或外部 handoff 保持连续推进。
 
 ## 能力建设原则
 
-Arckit 的真实 skill 可以新增、删除、合并或重命名，但能力建设遵循以下原则：
-
-- 一等能力必须有明确承载者或协作接口。入口编译、低承诺沉淀、预期事实维护、过程 handoff、项目治理、实现诊断、验证回流、评测场景维护和不同实现产物的 adapter 关系都应有稳定 skill 承载。
-- 入口能力只负责编译任务处境和选择能力组合，不替代结果型 skill、实现型 skill 或验证型 skill。
+- 入口能力只负责编译任务处境和选择能力组合，不替代结果型 skill、实现 adapter 或诊断 skill。
+- `arckit/cases` 记录当前研发事项的结构满足度，不替代 pending、workflow memory 或稳定事实源。
 - 过程型 skill 只产出 handoff 和候选判断，不直接写入正式事实源。
 - 结果型 skill 只维护稳定事实，不吸收未确认推断。
-- 执行桥、安装同步工具、平台触发工具和技术栈 coding 能力只在各自边界内工作，不应变成 Arckit 产品架构的中心。
-- 当一个现有 skill 同时承担多个产品责任，并导致边界不清时，应拆分；当多个 skill 只是不同名字承载同一责任时，应合并或明确主从关系。
-- 当某项预期能力没有合适承载者时，应新增 Arckit skill，而不是把能力塞进入口 skill。
+- 低承诺空间必须可用：不能立即写入稳定事实源的信息进入 `arckit-intake` 或 `arckit-pending`。
+- 工作方式变化进入 `arckit-workflow-memory`，不写入产品、交互、视觉或技术事实源。
+- 当前执行面之外的能力由入口整理成外部 adapter handoff 或 pending，保持入口职责清晰。
 
 ## Skill 暴露与路由策略
 
-Arckit 的 skill 保持独立目录和独立生命周期。`using-arckit` 是默认入口 skill，负责首轮任务处境编译、阶段判断和能力组合选择。其他 Arckit skills 默认作为 routed skills 存在：它们的 description 简短说明职责、输出和边界，并声明由 `using-arckit` 路由触发；除用户明确点名、维护该 skill 本身、隔离测试或运行 profile 明确放开外，不作为首轮默认入口竞争者。
+`using-arckit` 是默认入口 skill，负责首轮任务处境编译、阶段判断和能力组合选择。其他 Arckit skills 默认作为 routed skills 存在：它们的 description 简短说明职责、输出和边界，并声明由 `using-arckit` 路由触发；除用户明确点名、维护该 skill 本身、隔离测试或运行 profile 明确放开外，不作为首轮默认入口竞争者。
 
-Routed skill 的 description 只承载识别信息，不展开完整工作流。完整规则、模板、验证口径和引用资料保留在 skill 正文、references 或对应 spec/tech 文档中。`using-arckit` 选择 routed skill 后，仍判断事实源、评测、workflow memory 和外部实现能力的影响。
+`using-arckit` 的可见能力地图包含当前执行面中的 skill：
 
-实施时，非入口 Arckit skills 的 description 需要统一收缩为“职责识别 + 路由声明 + 直接触发边界”。入口层维护可见能力地图和路由规则；下游 skill 维护自身输入、输出、停止条件和 artifact scope。description 审计是 skill 架构落地的一部分，用于防止垂直 skill 重新变成首轮入口。
+- `arckit-workflow-memory`
+- `arckit-turn-adaptation`
+- `arckit-intake`
+- `arckit-pending`
+- `arckit-decision-framework`
+- `arckit-draft-spec`
+- `arckit-explore-product-design`
+- `arckit-architecture-decision`
+- `arckit-domain-modeling`
+- `arckit-spec`
+- `arckit-interaction`
+- `arckit-visual`
+- `arckit-tech`
+- `arckit-debug-diagnosis`
+
+当前可见能力地图以本仓库源码中的 skill 集合为准。历史文档、旧迁移策略和用户级已安装副本只提供背景信息。
 
 ## 语义入口与任务处境
 
-语义入口对应产品架构中的“语义入口”和“阶段判断”前半段。它解决的问题是：用户一句话到底在真实软件研发活动中指向什么。
-
-`using-arckit` 是默认入口 skill。它承载入口理解、处境编译和能力选择责任。它需要识别：
+`using-arckit` 承载入口理解、处境编译和能力选择责任。它需要识别：
 
 - 真实软件预期和本轮可交付内容。
 - 当前阶段候选和阶段产物。
 - 显式约束、证据、风险、冲突和待确认事项。
 - 最终产物类型是 code、skill、document、workflow、mixed artifact，还是尚未确定。
-- 本轮可能影响的事实源、过程产物、评测材料和工作方式事实。
+- 本轮可能影响的事实源、pending 和工作方式事实。
+
+`using-arckit` 优先把首轮编译结果维护为 `arckit/cases/active/` 下的 development case record。case record 是当前事项的工作台状态，包含 product、interaction、visual、technical、implementation、verification、open questions、handoffs 和 workflow memory signals 的满足度；它决定下一轮补哪个缺口，但不把候选判断直接提升为稳定事实。
 
 `arckit-turn-adaptation` 承接后续对话。它处理用户补充、纠错、目标变化、暂停、术语纠正和 workflow 纠偏。它不是重新启动完整入口，而是在已有任务处境上调整阶段、事实路由、停止条件和 workflow memory 交接。
 
-`arckit-role-orchestration` 只在用户明确要求多角色、多 Agent 或真实团队分工时参与。它不替代普通入口编排，而是在“任务需要分发给不同人或 Agent”时维护角色、责任和交接。
-
-实施时，入口相关 skill 的正向职责是编译当前任务处境、暴露阶段判断依据、选择最小必要能力组合，并声明哪些事实源和评测材料可能受影响。它不直接替代事实维护、最终产物生产、验证或发布。
-
 ## 语义材料保留与低承诺空间
-
-人在 prompt 中表达的内容不一定能立即成为需求、规格、任务或实现。语义材料保留能力对应产品概念中的过程事实和低承诺空间。
 
 `arckit-intake` 负责保存原始输入材料。它适合处理 brief、访谈记录、截图、参考资料、用户原话和其他暂不分析的输入。它的价值是保留来源，不把原始材料直接提升为结论。
 
-`arckit-pending` 负责保存未决讨论项、开放问题、候选事实、风险和过程 handoff。它适合承接“现在有价值但还不能写入正式事实源”的内容。
+`arckit/cases` 负责保存当前研发事项跨轮次的结构化状态。它适合承接“这件事整体还欠哪些软件工程结构”的判断，通过 `tools/arckit-case/arckit-case.mjs` 创建、校验、审计和索引。
+
+`arckit-pending` 负责保存未决讨论项、开放问题、候选事实、风险、外部 adapter handoff 和过程 handoff。它适合承接“现在有价值但还不能写入正式事实源”的内容。
 
 `arckit-workflow-memory` 负责保存工作方式事实和执行记录。它记录的是人和 Agent 应该如何协作，而不是产品功能事实。用户纠正“以后应该怎么做”时，入口或 turn adaptation 应判断是否形成 workflow signal、candidate patch 或 accepted patch。
 
-实施时，这三个 skill 是防止信息丢失和事实污染的基础设施。所有过程型能力和结果型能力都应明确：不能接收的内容进入 intake、pending 还是 workflow memory；已经稳定的信息再由对应结果型 skill 维护。
-
 ## Handoff 契约
-
-Handoff 契约连接过程型 skill、结果型 skill、治理 skill、外部实现能力和验证 skill。它解决的问题是：多个 skill 串联时，不能只靠自然语言摘要交接，否则阶段、事实稳定性、证据和下一步动作会丢失。
 
 过程型 handoff 至少包含：来源、当前阶段、最终产物类型、已确认事实、候选判断、证据、风险、开放问题、建议接收方、不可直接写入稳定事实源的内容和下一步确认点。
 
-实现型 handoff 至少包含：目标最终产物类型、`artifact_type`、预期事实依据、影响范围、禁止触碰范围、实现 adapter、实现约束、验收口径、需要回查的事实源、需要保留的未决项、发布或同步治理影响和验证方式。
+`implementation_handoff` 至少包含：目标最终产物类型、`artifact_type`、预期事实依据、影响范围、禁止触碰范围、实现 adapter、实现约束、验收口径、需要回查的事实源、需要保留的未决项、同步治理影响和收口证据。
 
-验证型 handoff 至少包含：验证目标类型、预期依据、实现证据、执行结果、偏差、剩余风险、建议修复入口和是否需要更新评测材料。
+`external_adapter_handoff` 至少包含：待外部执行的阶段、已确认事实、建议外部能力、输入、输出、风险、用户确认点和是否需要先写入 pending。
 
-实施时，过程型 skill 输出 handoff；结果型 skill 接收 handoff 后只写入稳定事实；外部实现 adapter 接收 `implementation_handoff`；验证 skill 接收 expected-vs-actual handoff。没有达到接收条件的信息进入 `arckit-pending` 或继续停留在评测材料中。
+## 定义前思考
 
-## 产品价值与探索判断
+`arckit-decision-framework` 是横向决策方法。它用于比较选项、暴露假设、评估价值和形成 decision handoff。
 
-产品价值与探索判断对应阶段判断中的问题探索、价值判断和候选方案形成。它解决的问题是：在还没进入正式定义或实现前，如何保存和推进人的想法。
+`arckit-draft-spec` 把原始输入、想法或讨论材料整理成规格草案或 spec handoff。
 
-`arckit-idea` 保存长期产品创意和商机。它不负责判断创意是否正确，也不替代规格。
+`arckit-explore-product-design` 在写入正式交互或视觉结果前探索页面方案、状态表达和交互风险。
 
-`arckit-idea-explore` 用于深度探索产品创意，梳理目标用户、核心假设、价值方向、MVP 轮廓和早期线框。
+`arckit-architecture-decision` 在正式技术方案沉淀前形成架构决策、ADR、系统拆分、方案权衡和约束分析。
 
-`arckit-market-research` 引入外部市场、竞品、趋势、渠道和用户反馈证据。它为产品价值判断和运营素材提供证据输入。
+`arckit-domain-modeling` 梳理领域模型、实体、值对象、状态、不变量、领域事件和上下文边界。
 
-`arckit-decision-framework` 是横向决策方法。它可以在产品、技术、治理和运营判断中使用，用于比较选项、暴露假设、评估价值和形成 decision handoff。
+这些 skill 的输出多为过程产物。只有经过确认、收敛或验证后，才进入 `arckit-spec`、`arckit-interaction`、`arckit-visual` 或 `arckit-tech`。
 
-这些 skill 的输出多为过程产物。只有经过确认、收敛或反复验证后，才进入 `arckit-spec`、`arckit-tech`、任务规划或评测材料。
-
-实施时，价值探索类 skill 采用统一 handoff 契约：区分已确认事实、假设、证据、风险、候选方向和建议沉淀路径。它们为后续规格、任务、评测和运营素材提供输入，而不是提前要求产品价值绝对正确。
-
-## 预期事实定义
-
-预期事实定义对应事实系统中的“应该是什么”。它把阶段判断和过程 handoff 转化为稳定事实。
+## 结果事实定义
 
 `arckit-spec` 维护产品行为、功能边界、验收口径和稳定规则。它是产品预期事实源。
 
@@ -114,108 +118,48 @@ Handoff 契约连接过程型 skill、结果型 skill、治理 skill、外部实
 
 `arckit-tech` 维护架构说明、技术方案、数据模型、接口契约和技术约束。它是技术预期事实源。
 
-`arckit-draft-spec`、`arckit-domain-modeling`、`arckit-architecture-decision` 和 `arckit-explore-product-design` 是定义前的过程能力。它们分别生成规格草案、领域模型、架构决策 handoff 和设计探索 handoff。它们不直接污染正式事实源，必须由对应结果型 skill 判断是否接收。
-
-实施时，定义类 skill 的关键不是写文档，而是维护事实边界。它们严格区分稳定事实、候选事实、历史对照、未决问题和实现建议，并把不能接收的内容交回低承诺空间或过程 handoff。
-
-## 计划、责任与执行推进
-
-真实软件预期通常大于单轮对话能完成的内容。计划与治理能力对应产品架构中的阶段判断和产物系统，负责把真实目标拆成可推进的阶段产物。
-
-`arckit-project-governance-workflow` 维护 Backlog、Goal、Scope、Iteration、Task、Review、Decision 和 Roadmap 等治理产物。它适合处理“接下来怎么推进”“哪些内容进入本轮”“任务如何分发”。
-
-`arckit-iteration-planning` 维护当前、下一轮和后续迭代的边界。它防止所有问题被塞进当前轮次。
-
-`arckit-team-responsibility` 维护成员职责、决策权、owner 推断和协作边界。它用于真实团队或多人协作场景。
-
-`arckit-work-item-discovery` 通过阅读项目文档和源码，发现产品级后续工作。它连接实现事实和预期事实之间的差距。
-
-`arckit-workshop-desktop` 是本地桌面执行桥，用于在需要时把项目、任务或记录发送到本地执行环境。它不是产品治理本身，而是执行协作通道。
-
-实施时，治理类 skill 的正向职责是产出项目级工作项、迭代边界、责任判断和分发结果。标准治理链路是：`arckit-work-item-discovery` 发现产品级增量事项，`arckit-project-governance-workflow` 判断是否进入 Backlog、Goal、Scope、Task 或 Review，`arckit-iteration-planning` 维护当前轮次和后续轮次边界，`arckit-team-responsibility` 维护 owner 和决策权，`arckit-workshop-desktop` 只在任务需要本地桌面执行或记录派发时参与。
-
-治理类 skill 不替代实现，也不把全部真实软件预期压成一个不可维护计划。它们的验收标准是让真实软件预期被拆成可推进、可归属、可验收的阶段产物，而不是把实现子步骤提前写死。
+定义类 skill 的关键不是写文档，而是维护事实边界。它们严格区分稳定事实、候选事实、历史对照、未决问题和实现建议，并把不能接收的内容交回低承诺空间或过程 handoff。
 
 ## 最终产物生产
 
-最终产物生产对应产物系统中的“稳定改变系统行为”。Arckit 必须同时支持 code、skill、document、workflow 和 mixed artifact 等实现产物。
+Arckit 支持 code、skill、document、workflow 和 mixed artifact 等最终产物。当前执行面负责形成清晰的目标、事实依据、影响范围、验收口径和交接输入，具体技术栈实现、skill 创建工具、发布平台、代码审查或质量评测由对应 adapter 执行。
 
-Code 类项目的最终产物以 code 工作区为承载面，源代码目录、工程配置、脚本、资源和部署描述共同表达软件实现；具体代码创建、修改、重构和技术栈实践可以由普通代码工作流或 `arckit-code` 类外部 coding skills 承担。
-
-Skill 类项目的最终产物以 skill 目录或 Skill 项目为承载面，单个 skill 是包含 `SKILL.md` 入口说明文件的目录，可包含 `references/`、`scripts/`、模板或资产等支持资源，并通过 frontmatter 提供名称、描述、目标 Agent 和版本等发现信息；具体 skill 创建、更新、拆分、隔离试跑、治理、应用和漂移检查可以由 Skill First、skill creator 或 ArcForge 类外部能力承担。
-
-Document、workflow 或 mixed artifact 也可以作为实现产物。它们的承载面可以是文档、配置、脚本、workflow patch、profile、schema 或多种对象组合；Arckit 仍先维护真实软件预期、事实源边界、治理归属和验证口径，再选择对应实现 adapter。
-
-实现交接统一以 `implementation_handoff` 为边界。Arckit 在交给普通代码工作流、`arckit-code`、Skill First、skill creator、ArcForge 或其他外部实现 adapter 前，说明本次实现依据哪些 spec、interaction、visual、tech 或治理事实，哪些内容只是候选判断，哪些文件、目录、skill、文档或 workflow 对象是允许修改范围，验收口径是什么，验证结果应回到哪个质量 skill。
-
-`implementation_handoff` 使用 `artifact_type` 表达实现承载类型。`artifact_type: code` 选择代码实现 adapter；`artifact_type: skill` 选择 Skill First、skill creator 或 ArcForge 类 adapter；`artifact_type: document`、`workflow` 或 `mixed` 按对象边界拆分实现和验证证据；`artifact_type: unknown` 表示当前缺少足够定义、技术或治理判断，不直接进入实现。
+实现交接统一以 `implementation_handoff` 为边界。Arckit 在交给普通代码工作流、`arckit-code`、Skill First、skill creator、ArcForge 或其他外部 adapter 前，说明本次实现依据哪些 spec、interaction、visual 或 tech 事实，哪些内容只是候选判断，允许修改范围是什么，收口证据是什么。
 
 纯治理动作可以直达对应 adapter。当用户只要求安装、同步、漂移检查、profile 归类、应用、正式化、共享或发布准备已有 skill，且目标、来源、应用目标和确认边界已经明确，系统可以直接交给 ArcForge 类治理能力，不强行补完整前置流程。
 
-实施时，Arckit 对不同最终产物保持同一职责边界：具体实现交给对应 adapter，Arckit 保持对阶段判断、事实路由、验证评测和回流关系的编排责任。
+## 诊断
 
-## 诊断、质量与验证
+`arckit-debug-diagnosis` 处理 bug、回归、偶发失败、数据异常、接口错误、显示错误和性能退化。它从症状、日志、测试、代码和运行证据中定位实现事实。
 
-诊断、质量与验证对应事实系统中的实现事实，以及演化系统中的验证回流。
+诊断结果可能触发三类后续动作：
 
-`arckit-debug-diagnosis` 处理 bug、回归、偶发失败、数据异常、性能退化和第三方集成失败。它从症状、日志、测试、代码和运行证据中定位实现事实。
+- 根因和修复仍在实现层：交给当前实现 adapter 或用户确认。
+- 暴露稳定产品、交互、视觉或技术事实变化：交给对应结果型 skill。
+- 暴露外部治理、质量验证、发布运维或后续排期事项：交给 `arckit-pending`。
 
-`arckit-code-review` 以审查口径识别 bug、行为回归、风险、过度设计和缺失测试。它适合用户要求 review 或需要质量把关时使用。
+## Artifact Impact Scan
 
-`arckit-verify-implementation` 验证实现是否符合规格、验收口径和质量要求。它比较预期事实、实现事实和测试证据。
+每轮 ArcKit 工作流都必须扫描：
 
-不同实现产物使用不同证据。Code 类项目验证软件是否按预期运行；Skill 类项目验证 Agent 行为是否被稳定改变；document 类产物验证事实表达和引用关系；workflow 类产物验证执行回放、触发边界和沉淀效果。Skill 行为验证需要基于真实任务试跑、评测场景和行为结果判断，不能只检查 `SKILL.md` 文本是否修改。
+- `intake`
+- `cases`
+- `spec`
+- `interaction`
+- `visual`
+- `tech`
+- `debug`
+- `pending`
+- `workflow_memory`
 
-实施时，验证类 skill 支持 `artifact_type`：验证 code、skill、document、workflow、mixed artifact 或评测覆盖。不同目标使用不同证据。Skill 行为验证是一等验证目标，不应被简化为 Markdown 文本检查。
-
-## 评测场景维护
-
-真实场景预期不自动等同于需求。评测场景维护能力对应产品概念中的评测集和真实场景预期。
-
-评测材料应保存真实软件活动中的典型输入、预期阶段、最终产物类型、能力组合、预期沉淀路径、验收重点和风险。它既可以覆盖当前 Arckit 作为 Skill 类项目的场景，也可以覆盖标准 Code 类项目、document、workflow 或 mixed artifact 场景。
-
-评测场景维护能力需要判断一个场景应停留在评测材料，还是提升为规格、任务、测试、pending 或 workflow memory。
-
-当前项目已经在 `arckit/evaluation/` 中维护真实研发活动场景。Arckit 预期形成稳定的评测场景维护 skill，负责维护场景结构、覆盖矩阵、评测结论、提升规则和回归样本。
-
-该能力预期由 `arckit-evaluation` 或等价 skill 承载。它维护 `arckit/evaluation/` 的场景索引、最终产物类型字段、覆盖矩阵、试跑记录和提升建议；它不直接维护 spec、tech、skill 文件或任务计划。评测结论只有经过确认并满足稳定事实条件后，才交给对应结果型或治理型 skill。
-
-## 交付、发布与运行观察
-
-交付和运行对应最终产物进入真实环境后的边界检查。它让软件或 skill 具备可发布、可观察和可判断风险的条件。
-
-`arckit-git-branching` 处理分支规范、tag 规范和通过远端 push 触发发布或出包 workflow 的边界。它不应擅自展开本地构建、打包、上传或平台发布。
-
-`arckit-release-readiness` 判断发布 gate、风险、回滚、灰度和 go/no-go。
-
-`arckit-runtime-operations` 处理运行期健康、指标、告警、SLA/SLO 和线上状态观察。
-
-`app-store-listing-assets` 将产品价值、功能和视觉资产转化为应用商店运营素材。它连接产品价值、产品功能和运营交付。
-
-实施时，交付运行类 skill 保持三类边界：`arckit-git-branching` 只处理 Git 分支/tag 契约和远端 workflow 触发入口；`arckit-release-readiness` 只处理发布风险、gate、灰度和回滚判断；`arckit-runtime-operations` 只处理运行期观察、指标和告警事实。平台账号配置、CI/CD 实施、商店后台提交和具体部署修复不是这些 skill 的默认职责，需要外部实现能力或用户显式授权。
-
-## 实施拆解口径
-
-后续基于本架构进入实施时，应按产品责任和能力承载关系拆任务，而不是按现有文件名机械拆任务。
-
-优先拆解顺序为：
-
-1. 收缩入口路由和具体 skill description 的抢占倾向，使具体 skill 不再绕过入口处境编译和事实源扫描。
-2. 建立 `using-arckit` 的当前任务处境输出契约，使它稳定输出阶段、最终产物类型、事实源影响、评测影响和能力组合。
-3. 统一 handoff 契约，保证过程型、结果型、治理型、实现型和验证型能力之间能稳定交接。
-4. 定义统一 `implementation_handoff` 和 `artifact_type` 字段，使外部实现能力能被 Arckit 正确编排和验收。
-5. 新增或固化评测场景维护 skill，连接 `arckit/evaluation/`、验证 skill 和真实研发活动样本。
-6. 固化治理主链路，使发现事项、迭代归属、owner 判断、执行派发和验收回写各有明确承载者。
-7. 强化验证类 skill 对不同 `artifact_type` 的证据选择和验收方法。
-8. 审查执行桥、安装同步、技术栈 coding、平台发布和运行观察相关能力，保留其边界内职责，避免混入 Arckit 核心产品架构。
+Scan 不按任务规模设置特殊分支。没有影响时必须显式标记为 `none` 或 `skipped`；无项目事实变化不替代 workflow memory closeout。
 
 ## 架构验收口径
 
 Skill 架构满足规格时，系统表现为：
 
-- 读者能从产品架构自然理解为什么需要这些 skill，而不是看到一份现状清单。
-- 每个关键产品责任都有明确的 Arckit skill 承载者，或明确标注为需要补齐的内部能力。
-- 用户点名某个 skill 时，系统仍会检查阶段、产物、事实源、评测和回流影响。
-- Code、Skill、document、workflow 和 mixed artifact 都能进入同一套设计、实现、验证和演化闭环。
-- 过程型、结果型、执行型、验证型和记忆型 skill 通过 handoff 和事实路由协作。
-- 看完本文件后，可以继续拆具体 skill 的实现方案、改造顺序和验收任务。
+- 读者能清楚理解 Arckit 如何指导 agent 辅助人类完成软件项目开发。
+- `using-arckit` 按当前执行面编译 workflow frame。
+- 过程型、结果型、诊断型和记忆型 skill 通过 handoff 和事实路由协作。
+- Code、Skill、document、workflow 和 mixed artifact 都能进入同一套定义、外部实现 adapter 和收口证据模型。
+- 治理、验证、发布、运维、桌面桥或角色编排事项会形成 pending 或 external adapter handoff，保持软件项目开发链路连续。

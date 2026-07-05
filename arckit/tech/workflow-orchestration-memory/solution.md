@@ -16,7 +16,7 @@ Scenario Classifier 识别当前用户任务所属的软件项目协作场景。
 
 输出包括：
 
-- `scenario`：产品概念、技术方案、功能实现、bug 诊断、代码审查、skill 验证、项目治理、交付运维等。
+- `scenario`：产品概念、技术方案、功能实现、bug 诊断、skill 维护、外部治理、外部质量或交付运维 handoff 等。
 - `confidence`：场景判断置信度。
 - `signals`：触发该判断的关键证据。
 - `missing_context`：当前缺失但影响工作流选择的信息。
@@ -99,8 +99,8 @@ Artifact Impact Router 负责把执行中发现的影响路由到正确事实源
 | 视觉规则、主题、组件表现 | `arckit-visual` |
 | 技术方案、架构、模型、契约 | `arckit-tech` |
 | 未决问题、风险、过程 handoff | `arckit-pending` |
-| 目标、任务、Review、Decision、Roadmap | `arckit-project-governance-workflow` |
-| 实现可靠性、测试、验收证据 | `arckit-verify-implementation` 或对应质量 skill |
+| 诊断事实、修复证据、实现异常线索 | `arckit-debug-diagnosis` 或 `arckit-pending` |
+| 外部治理、质量、发布、运维或任务推进事项 | `arckit-pending` 或 external adapter handoff |
 | 可改变未来 agent 工作方式的流程经验 | `arckit-workflow-memory` |
 
 Router 在 `after_context_read`、`after_execution` 和 `before_final` 至少各有一次判断机会。没有影响时必须显式标记为 `none` 或 `skipped`。
@@ -188,16 +188,13 @@ patch:
   - id: diagnose
     skill: arckit-debug-diagnosis
     purpose: 复现症状、收集证据、定位根因
-  - id: verify
-    skill: arckit-verify-implementation
-    purpose: 验证最小修复和回归风险
   add_reflection_gates:
     - after_execution
   artifact_impact_scan:
     spec: check
     tech: check
     pending: check
-    verification: check
+    debug: check
   artifact_targets:
     - central implementation files
   confirmation_points:
@@ -240,7 +237,7 @@ Schema 中的 `skill` 字段引用已安装或当前仓库可用的 skill 名称
 7. 按顺序执行或交接给对应 skill。
 8. 在 reflection gates 收集每个 skill 的输出摘要、证据和未决项。
 9. 首轮之后用户继续发消息时，交给 `arckit-turn-adaptation` 分类，并按 `turn_adaptation_decision` 更新 frame 或路由。
-10. 执行 artifact impact scan，并把稳定事实、未决问题、治理影响和流程学习路由到不同 skill。
+10. 执行 artifact impact scan，并把稳定事实、诊断事实、未决问题、外部 adapter 事项和流程学习路由到不同 skill。
 11. 任务结束、阻塞或失败时调用 `arckit-workflow-memory` 做 closeout；若存在 `workflow_correction_ledger`，一并传入。
 12. Signal、candidate、accepted 和 INDEX 的具体维护由 Workflow Memory Manager 执行。
 
@@ -266,9 +263,10 @@ Schema 中的 `skill` 字段引用已安装或当前仓库可用的 skill 名称
 Workflow Memory Manager 不写入产品概念或技术方案。产品和技术事实仍通过结果型 skill 写入目标项目：
 
 - 产品功能和行为规则由 `arckit-spec` 写入 `arckit/spec/`。
+- 交互和视觉事实由 `arckit-interaction`、`arckit-visual` 写入对应目录。
 - 技术方案、模型和契约由 `arckit-tech` 写入 `arckit/tech/`。
 - 未决内容由 `arckit-pending` 保存。
-- 治理事实由 `arckit-project-governance-workflow` 保存。
+- 外部治理、质量、发布或运维事项由 `arckit-pending` 保存或交给 external adapter handoff。
 
 Workflow Frame 可以指定 artifact targets，但实际写入仍由对应结果型 skill 根据 INDEX、域归属和正文规范执行。Artifact Impact Router 只决定是否需要调用目标 skill，不替代目标 skill 的入库规则。
 

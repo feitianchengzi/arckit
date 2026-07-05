@@ -1,128 +1,185 @@
 ---
 name: using-arckit
-description: 软件项目协作的首轮默认入口、scenario workflow resolver 和 workflow frame compiler。只要用户首轮请求或输入材料可能涉及产品想法、原始输入归档、反馈、需求、规格、交互、视觉、技术方案、迭代治理、项目记忆、评测材料、debug、任务记录、Workshop Desktop、实现产物建设、发布/出包/测试分发或软件项目开发工作流，就先使用本 skill 建立 runtime situation，调用 arckit-workflow-memory 解析并绑定可复用场景工作流，编译 workflow frame 并路由专门 skill；最终产物可以是 code、agent skill、document、workflow 或 mixed artifact，前置流程仍按需求、设计、技术、迭代、治理和验证判断，不因最终产物是 skill 而跳过 ArcKit。纯安装、同步、漂移检查、profile 归类、应用或发布准备等已明确的 agent skill 生命周期治理动作，可直接交给 ArcForge 类治理能力。发布/出包/TestFlight/App Store 意图，或远端出包 workflow 失败但缺少失败原因时，优先考虑 arckit-git-branching 的分支/tag 远端触发和失败原因收集契约。用户在首轮目标之后继续补充、纠错、换目标、纠正项目事实或暂停时，交给 arckit-turn-adaptation；workflow memory 的 workflow resolution、execution record、信号判断和持久化交给 arckit-workflow-memory。只有当请求明确与软件项目协作无关时才跳过。
+description: 软件项目协作的首轮入口 skill。用于把用户的自然语言请求编译成 development_case_record，并优先维护到目标项目的 arckit/cases：识别真实目标、当前轮目标、阶段产物、最终产物类型、事实源缺口和未决项；按最关键的未满足结构激活当前 Arckit 能力；每轮执行后回写记录、完成 completion_audit，并决定继续补齐、阻塞确认、交接或关闭。只要首轮请求可能涉及需求、规格、交互、视觉、技术方案、项目上下文、bug 诊断、实现探索、实现交接、agent skill 或软件项目开发协作，就先使用本 skill。首轮之后的补充、纠错、换目标、事实纠正或暂停交给 arckit-turn-adaptation；workflow resolution、execution record 和 workflow memory closeout 交给 arckit-workflow-memory。
 ---
 
 # Using ArcKit
 
-把本 skill 作为软件项目协作的首轮入口、场景工作流解析器和 runtime workflow compiler。它不直接替代专门 skill，不处理后续用户消息分类，也不把 workflow memory 当成固定流程执行器；它先建立当前任务态势，解析并绑定可复用的 scenario workflow，再编译 `workflow_frame`，并把项目事实、未决问题和流程学习路由到不同事实源。
+`using-arckit` 是 Arckit 的首轮研发事项编译协议。它把人的一句或多句请求当成软件研发语义材料，先建立 `development_case_record`，能写项目文件时维护到 `arckit/cases`，再为当前一轮编译 `workflow_frame`，执行后回写记录并审计这件事还有哪些结构尚未满足。
 
-## 硬约束
+## 核心模型
 
-- 触发门槛要低：只要有很小可能涉及软件项目协作，就先使用本 skill 判断是否进入 ArcKit 工作流。
-- 最终产物类型不决定前置流程：code、agent skill、document、workflow 或 mixed artifact 都先按同一套需求、设计、技术、迭代、治理和验证流程判断；差异只体现在实现承载、验证证据和发布/同步治理 adapter。
-- 纯 agent skill 生命周期治理动作可以直达 ArcForge 类治理能力：当用户只要求安装、同步、漂移检查、profile 归类、应用、正式化、共享或发布准备，且没有需求定义、设计、技术方案、实现或验证不确定性时，不强行编译完整 ArcKit workflow frame。
-- 入口必须先建立 `runtime_situation`，完成 `workflow_resolution` 并绑定已有 scenario workflow 或明确创建候选场景工作流，再编译当前任务的 `workflow_frame`，之后才读取专门 skill；不要直接从 prompt 关键词跳到单个结果 skill。
-- 每个进入 ArcKit 的任务都必须使用 `arckit-workflow-memory` 两次：开始做 `workflow_resolution`，结束、阻塞或失败时写 execution record 并触发 `workflow_memory_closeout`。
-- 用户说“业务代码只改目标项目目录”不等于禁止 workflow memory closeout。
-- workflow memory 提供 scenario workflow resolution、workflow patches/overlays 和 execution record 写入，不替代入口编排器；命中的 workflow 必须实际改写或明确不改写本轮 `workflow_frame`。
-- `workflow_frame` 必须体现编排推理，而不只是字段清单：区分用户最终目标、当前阶段、当前缺口、可用基础能力、已选择能力、未选择能力及原因、适配触发器和下一次重编译条件。
-- 不要使用会诱导 agent 降低流程完整性的 workflow 修饰词；需要压缩输出时，只能说“输出可按任务需要简洁，但不得省略 workflow resolution、artifact scan 和 closeout 判断”。
-- 每轮任务只创建或更新 `execution_record` 作为本次执行证据；不要把每次任务都建成新的 workflow。只有找不到可匹配 accepted/candidate scenario workflow 时，才创建新的场景级 candidate。
-- 用户在首轮目标之后补充信息、纠正流程、改变目标、纠正项目事实或要求暂停时，交给 `arckit-turn-adaptation` 分类后再决定是否重编 workflow frame。
-- 每轮都必须做 `artifact_impact_scan`：判断是否需要交给 `arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech`、`arckit-evaluation`、`arckit-pending`、治理、验证或 workflow memory。
-- `artifact_impact_scan` 不按任务规模设置特殊分支；必须按同一组目标逐项判断后再决定 `none|check|update|pending|skipped`。
-- UI 一致性实现、跨页面样式统一、组件状态统一或从代码实现中反推规范变化时，即使最终目标是代码，也必须先把 `interaction` 和 `visual` 标记为 `check`，实现后再决定是否更新对应事实源。
-- 项目事实没有变化只影响 spec/tech/interaction/visual 等 artifact 路由，不等于 workflow memory 可跳过。
-- workflow memory 的信号、候选和已确认规则由 `arckit-workflow-memory` 负责。
-- 在 ArcKit 源仓库内工作时，优先读取本仓库中的同级源路径，而不是用户级已安装副本。
-- 发布/出包/测试分发/应用商店发布意图，以及远端出包 workflow 失败但缺少具体错误原因时，默认先路由到 `arckit-git-branching`；由它推荐或执行 release 分支和 tag push 触发，或指导收集远端失败原因。只有用户明确要求发布风险 gate、上线 go/no-go、回滚/灰度策略或发布 readiness 判断时，才选择 `arckit-release-readiness`。
-- 当 `selected_capabilities` 包含 `arckit-git-branching` 且模式是 `recommend-git-trigger` 或 `apply-git-trigger` 时，本轮 stop condition 必须收敛到 tag 推荐、等待确认或 tag push；不得因为缺少 fastlane、CI、Xcode Cloud 或远端 workflow 文件而切换到本机构建、归档、上传、签名或平台发布实现。
+`development_case_record` 记录一个研发事项的整体状态。它回答：这件事最终要改变什么、当前先推进什么、哪些软件工程结构已经满足、哪些还需要补齐、哪些暂时延期或需要用户确认。用户输入可以很口语、很短或只描述结果愿望；入口 skill 负责把它拆成软件工程结构，而不是要求用户先按 Arckit 字段描述。
+
+项目级 case record 的默认位置是 `arckit/cases/active/CASE-YYYYMMDD-###-slug.md`。使用 `node tools/arckit-case/arckit-case.mjs new|validate|audit|close|index` 创建、检查、审计、关闭和同步索引；如果脚本不可用或写入边界不允许，在对话内维护同结构记录，并在 `round_update` 中输出 pending write。
+
+`workflow_frame` 记录当前这一轮如何执行。它回答：本轮补哪个缺口、使用哪些 Arckit 能力、产出什么 handoff 或事实变更、何时停止。
+
+`round_strategy_decision` 记录本轮路线选择。它回答：为什么本轮先走需求对话、规格草案、产品/交互探索、技术定义、实现探索、验证补齐或事实正式化；哪些路线已考虑但延期；什么信号会触发下一轮切换路线。
+
+`completion_audit` 是每轮结束前的自查。它回答：必要结构是否已经 `satisfied|not_applicable|deferred`，还有哪些是 `unknown|needed|blocked`，下一轮应该继续、交接、请求确认还是关闭。
+
+`visible_iteration_closeout` 是每轮最终响应前的用户可见闭环。它回答：本轮完成了什么、case 是否关闭、哪些结构仍只是探索或延期、下一轮最值得补什么，以及用户可以用什么反馈继续推进。
+
+结构状态使用以下值：
+- `unknown`：信息不足，尚不能判断是否需要。
+- `needed`：本事项需要补齐。
+- `satisfied`：已有与该结构匹配的稳定证据或产物支撑。
+- `not_applicable`：对本事项不适用。
+- `deferred`：已明确延期，带有原因和后续触发条件。
+- `blocked`：缺用户确认、外部输入、权限或证据。
+
+结构状态可以带 `evidence_maturity`，用于说明证据成熟度，而不是替代 `status`：
+- `none`：没有有效证据。
+- `exploratory`：证据来自探索、原型、草案、临时实现或初步判断。
+- `confirmed`：证据已被用户确认、验证、评审或当前轮可采信判断支撑。
+- `formalized`：证据已沉淀到稳定事实源、正式文档、验收记录或可复用结果中。
 
 ## 主流程
 
-### 1. 场景识别
+### 1. 建立研发事项记录
 
-输入：用户请求、目标路径、已有文档、错误、测试、上下文和可用 skill。
-
-动作：
-- 判断当前任务是否属于软件项目协作。
-- 识别 `scenario`、关键 `signals`、可能的 artifact targets 和当前显式约束。
-- 建立 `runtime_situation`：`user_goal`、`final_goal`、`current_phase`、`project_stage`、`evidence_available`、`uncertainty`、`constraints`、`likely_artifact_impacts`、`feedback_or_correction_signals`。
-- 如需详细场景和默认路由，读取 [references/routing-notes.md](references/routing-notes.md)。
-
-退出条件：确定进入 ArcKit 或明确跳过 ArcKit。
-
-### 2. Workflow Resolution
+输入：用户请求、项目上下文、已有事实、证据、错误、约束和用户纠错。
 
 动作：
-- 使用 `arckit-workflow-memory` 做 `workflow_resolution`：先匹配项目级 accepted workflow，再匹配项目级 candidate，再匹配用户级 accepted/candidate。
-- 命中已有 scenario workflow 时，绑定 `bound_workflow_id` 或 `bound_candidate_id`；未命中时，创建或准备创建新的场景级 candidate，而不是为本次任务新建 workflow。
-- 为本次任务分配 `execution_record` 目标路径，后续执行和纠错都写入这个执行记录。
-- 获取可应用到本轮的 memory overlay；索引、candidate、accepted、executions 和兜底扫描细节由 `arckit-workflow-memory` 处理。
-- 记录 memory overlay 是否实际改变本轮 skill、handoff、artifact scan、确认点、验证强度或 closeout 策略。
+- 保留用户原始意图和显式约束。
+- 识别真实软件预期、本轮可交付内容和当前最可能的研发阶段。
+- 当用户只给出普通一句话需求时，直接拆解，不要求用户补齐产品、交互、视觉、技术、实现、验证等字段；无法确定的结构标记为 `unknown|needed|deferred`，并写明本轮如何推进。
+- 优先用 `tools/arckit-case/arckit-case.mjs new` 在 `arckit/cases/active/` 建立 case record；已有相关 active case 时读取并更新它。
+- 建立最小 `development_case_record`，字段可以简洁，但必须足够驱动下一步；不能落盘时保留同结构的对话内记录。
 
-退出条件：得到 `workflow_memory_status` 和 `workflow_resolution`，或记录 memory 不可用、无权限、pending 的原因。
+记录字段：
+- `user_intent`：用户原话或忠实摘要。
+- `expected_outcome`：这件事最终希望改变的软件、文档、skill、workflow 或判断。
+- `current_round_goal`：本轮先推进的具体目标。
+- `artifact_type`：`code|skill|document|workflow|mixed|unknown`。
+- `round_strategy_decision`：本轮路线选择、理由、已考虑但延期的路线和触发条件。
+- `product_expectation`：产品行为、边界、价值或验收口径状态。
+- `interaction_expectation`：页面、状态、流程和用户操作状态。
+- `visual_expectation`：视觉规则、组件表现、样式和 token 状态。
+- `technical_expectation`：架构、数据、接口、约束和技术方案状态。
+- `implementation_state`：实现、探索、诊断或交接状态。
+- `verification_state`：验证证据、验收比较和风险状态。
+- `open_questions`：未决问题、冲突和待确认项。
+- `decisions`：已经确认或本轮形成的判断。
+- `pending_handoffs`：需要人类、后续任务或外部工具承接的事项。
+- `workflow_memory_signals`：可能影响未来协作方式的信号。
 
-### 3. 编译 Workflow Frame
+每个结构项至少包含 `status`、`reason`、`evidence` 和 `next`；能判断证据成熟度时补 `evidence_maturity`。
 
-动作：
-- 先做 `workflow_composition_reasoning`：判断最终要交付什么、当前阶段缺什么、哪些 ArcKit 基础能力可补缺口、哪些 artifact 是稳定事实或过程产物、是否存在确认/选择/比较/纠偏信号，以及绑定的 scenario workflow 如何影响本轮 frame。
-- 生成 `workflow_frame`：`scenario`、`signals`、`runtime_situation`、`workflow_resolution`、`final_goal`、`current_phase`、`phase_reason`、`workflow_source`、`available_arckit_capabilities`、`selected_capabilities`、`why_not_selected`、`skills`、`handoffs`、`artifact_targets`、`artifact_impact_scan`、`reflection_gates`、`adaptation_triggers`、`next_recompile_condition`、`memory_overlay`、`execution_record_target`、`confirmation_points`、`stop_conditions`。
-- 将默认能力地图、用户显式要求、runtime situation 和 memory overlay 合并；冲突时当前用户显式要求优先，未决冲突进入 pending 或请求确认。
-- 如果 `signals` 包含发布、出包、测试分发、应用商店、TestFlight、App Store、内测、公测、正式发布、发布候选，或远端 workflow 出包失败但缺少错误原因，且用户没有明确要求 readiness/go-no-go，`selected_capabilities` 必须优先包含 `arckit-git-branching`；`current_phase` 应是 Git 分支/tag 触发推荐、确认后 Git push，或远端失败原因收集，而不是发布前验证、平台上传或无证据修复。
-- 当发布意图进入 `arckit-git-branching` 的 `recommend-git-trigger` 时，`stop_conditions` 必须包含：完成 Git 状态和 release/tag 可见性检查、给出推荐基线/tag、说明远端监听 pattern 和可见性、等待用户确认；不得执行构建、测试、归档、上传、签名、平台查询或依赖安装命令。
-- 当发布意图进入 `arckit-git-branching` 的 `apply-git-trigger` 时，`stop_conditions` 必须包含：只执行用户确认的最小 Git 操作并在 push 后停止；不得追踪远端 workflow、TestFlight、App Store Connect 或其它发布平台状态。
-- 正向实现任务先判断是否建立、强化或改变产品、交互、视觉或技术规范；若是 UI 一致性、跨页面统一行为/样式或组件状态统一，先把 `interaction` 和 `visual` 置为 `check`，再形成明确的 `implementation_handoff`，标注 `artifact_type: code|skill|document|workflow|mixed|unknown`，交给对应实现 adapter，并按风险使用 `arckit-verify-implementation`。
-- 多个 skill 都适用时，按 workflow frame 的阶段顺序组合；只加载当前任务真正需要的 skill。
+退出条件：得到可执行的 `development_case_record` 和 case 路径或 pending write 状态；若缺少必要目标或边界，生成最小澄清问题或把缺口标记为 `blocked`。
 
-退出条件：用户目标、skill 顺序、交接边界和停止条件明确。
-
-### 4. 执行和交接
-
-动作：
-- 按 workflow frame 读取并使用专门 skill。
-- 执行中把实际使用的 skill、命令、文件、验证、用户纠错和偏离绑定工作流的原因汇总到本轮 `execution_record`，不要创建新的 workflow 代替执行记录。
-- 在 `after_context_read`、`before_edit`、`after_execution`、`before_final` 和 `turn_adaptation` 等 reflection gates 重新判断 skill 组合和 artifact targets。
-- 当用户在任务执行中继续发消息时，使用 `arckit-turn-adaptation` 区分补充信息、workflow 纠偏、目标变更、项目事实纠正、澄清回答和暂停/停止；不要在 `using-arckit` 内直接展开这些分类细节。
-- 如果 `arckit-turn-adaptation` 输出 `workflow_correction_ledger`，按其 `turn_adaptation_decision` 调整 workflow frame，并把 ledger 交给 `arckit-workflow-memory` closeout。
-- 若实现、验证或讨论暴露稳定产品、交互、视觉、技术或治理变化，交给对应结果型 skill 或治理 skill；若暴露的是场景化预期、覆盖缺口或试跑偏差，交给 `arckit-evaluation`，不要直接提升为正式事实。
-- 若出现未确认假设、风险、开放问题或过程 handoff，交给 `arckit-pending`，不要静默写入稳定事实源。
-- 若请求需要 Workshop Desktop、本地任务记录或 dispatch，再使用 `arckit-workshop-desktop`。
-- 只有用户明确要求角色协作或多 agent 编排时，使用 `arckit-role-orchestration`。
-
-退出条件：本轮用户目标完成、阻塞原因明确，或需要用户确认下一步。
-
-### 5. Artifact 和 Workflow 收口
+### 2. 解析工作流记忆
 
 动作：
-- 先做 `artifact_impact_scan`，逐项说明 `spec|interaction|visual|tech|evaluation|pending|governance|verification|workflow_memory` 是 `none|check|update|pending|skipped`；输出可以简洁，但不能因为任务规模小而省略逐项判断或把无项目事实变化等同于 workflow memory 无影响。
-- 如果 `arckit-turn-adaptation` 输出 `workflow_correction_ledger`，在调用 `arckit-workflow-memory` 前必须带上该 ledger；不得因为 `artifact_impact_scan` 全部 `skipped` 而跳过 workflow memory 判断。
-- 对需要更新的稳定事实源，调用对应结果型 skill；对未决内容调用 `arckit-pending`；对实现可靠性调用质量 skill。
-- 触发 `arckit-workflow-memory` 写入或更新本轮 `execution_record`，再做 `workflow_memory_closeout`；具体信号判断、候选维护和持久化按 `arckit-workflow-memory` 的规则执行。
+- 使用 `arckit-workflow-memory` 做 `workflow_resolution`。
+- 读取项目级和用户级 workflow overlay。
+- 将 overlay 应用到 `development_case_record`：它可以改变结构优先级、验证强度、确认点、停止条件或 closeout 策略。
+- 本轮只创建或更新 execution record；场景级 workflow 的候选、信号和 closeout 由 `arckit-workflow-memory` 判断。
 
-退出条件：最终响应包含 artifact impact scan 和 workflow memory closeout 状态，且没有把“检查过但未决策”当作完成。
+退出条件：记录 `workflow_resolution`，并说明 memory overlay 对本轮记录和 workflow frame 的影响。
 
-## Reference 路由
+### 3. 选择最关键未满足结构
 
-- 场景分类、默认 workflow、skill 分层、事实源边界：读 [references/routing-notes.md](references/routing-notes.md)。
+动作：
+- 查看 `development_case_record` 中所有 `unknown|needed|blocked` 的结构。
+- 选择当前最能推进事项完成的一项作为 `current_round_gap`。
+- 选择标准是：用户显式目标优先、阻塞最终产物的缺口优先、会影响实现方向或验收口径的缺口优先、可在当前权限和证据下推进的缺口优先。
+- 当用户意图是“先看到可用东西”“从 0 做个小应用”“先跑起来再说”这类探索式实现，可以把 `implementation_state` 作为本轮缺口，同时把探索后要回查的产品、交互、视觉、技术、验证或文档结构保留在 record 中。
+- 生成 `round_strategy_decision`，先判断可选路线，再选择本轮路线；可选路线至少覆盖：需求对话、规格草案、产品/交互探索、交互原型、技术定义、实现探索、验证补齐、事实正式化。
+- 选择实现探索时，记录为什么本轮适合先做可试用产物，以及需求对话、产品/交互探索、技术定义或事实正式化分别在什么信号下进入下一轮；这不是固定长流程，但必须让路线选择可审计。
 
-## 输出
+thinking 类能力按缺口激活：
+- 价值、取舍、方案选择或目标判断不清楚 -> `arckit-decision-framework`。
+- 输入材料足够但规格表达尚未成形 -> `arckit-draft-spec`。
+- 页面、状态、流程、体验风险或视觉方向需要探索 -> `arckit-explore-product-design`。
+- 架构选择、系统拆分、数据流、依赖或技术取舍需要判断 -> `arckit-architecture-decision`。
+- 实体、状态、不变量、生命周期、领域事件或上下文边界不清楚 -> `arckit-domain-modeling`。
 
-输出可按任务需要保持简洁，但必须保留 workflow resolution、workflow frame、artifact impact scan 和 closeout 判断。复杂任务输出：
+事实和执行能力按缺口激活：
+- 原始材料需要保留 -> `arckit-intake`。
+- 产品预期事实稳定 -> `arckit-spec`。
+- 交互预期事实稳定 -> `arckit-interaction`。
+- 视觉预期事实稳定 -> `arckit-visual`。
+- 技术预期事实稳定 -> `arckit-tech`。
+- bug、回归、异常、显示错误或性能退化需要证据诊断 -> `arckit-debug-diagnosis`。
+- 未决问题、风险、候选判断或交接事项需要低承诺保存 -> `arckit-pending`。
 
+退出条件：明确 `current_round_gap`、`round_strategy_decision`、所选能力、跳过其他路线和缺口的原因、本轮停止条件。
+
+### 4. 编译本轮 workflow frame
+
+根据 `development_case_record`、`workflow_resolution` 和 `current_round_gap` 生成 `workflow_frame`：
 - `scenario`
-- `runtime_situation`
-- `workflow_resolution`
-- `workflow_composition_reasoning`
-- `final_goal`
-- `current_phase`
-- `phase_reason`
-- `workflow_source`
-- `available_arckit_capabilities`
+- `current_round_gap`
+- `current_round_goal`
+- `round_strategy_decision`
 - `selected_capabilities`
-- `why_not_selected`
-- `skills`
+- `why_now`
 - `handoffs`
 - `artifact_targets`
-- `artifact_impact_scan`
-- `reflection_gates`
-- `adaptation_triggers`
-- `next_recompile_condition`
-- `memory_overlay`
-- `execution_record_target`
-- `workflow_memory`
 - `confirmation_points`
+- `reflection_gates`
 - `stop_conditions`
 
-结束时必须说明 artifact impact scan 和 workflow memory closeout 状态；具体记忆字段由 `arckit-workflow-memory` 输出。
+reflection gates 至少包含：
+- `after_context_read`
+- `before_write_or_execution`
+- `after_round_execution`
+- `before_final`
+- `turn_adaptation`
+
+退出条件：本轮要读什么、写什么、调用什么能力、何时停、如何回写 record 已明确。
+
+### 5. 执行一轮并回写记录
+
+动作：
+- 按 `workflow_frame` 使用当前所需 skill 或普通工程能力。
+- 过程型 skill 的输出先作为 handoff、候选判断、证据或风险回写到 `development_case_record`。
+- 如果 case 已落盘，更新 `arckit/cases/active/<case>.md` 中的 Structured Record，并运行 `node tools/arckit-case/arckit-case.mjs validate <case>`。
+- 稳定事实只通过 `arckit-spec`、`arckit-interaction`、`arckit-visual` 或 `arckit-tech` 维护。
+- 不稳定但有价值的信息进入 `open_questions`、`pending_handoffs` 或 `arckit-pending`。
+- 实现探索产生的发现必须回查产品、交互、视觉、技术和验证结构，判断哪些要提升为事实、哪些保持 pending 或 deferred。
+- 本轮代码已经实现的行为、界面或技术选择，默认先作为实现证据；只有用户明确确认、已有稳定事实源，或本轮同时通过对应结果型 skill 维护了事实源时，才能把产品、交互、视觉或技术结构标记为 `satisfied`。
+- 诊断结果必须回查实现状态、验证状态、事实源影响和未决项。
+
+退出条件：本轮产物、证据、更新路径、未决项、record 状态变化和 case 写入或 pending write 状态已经明确。
+
+### 6. 完成度审计
+
+结束、阻塞或交接前执行 `completion_audit`：
+- 逐项检查 `product_expectation`、`interaction_expectation`、`visual_expectation`、`technical_expectation`、`implementation_state`、`verification_state`、`open_questions`、`pending_handoffs` 和 `workflow_memory_signals`。
+- 将每项标记为 `satisfied|not_applicable|deferred|unknown|needed|blocked`，并给出最短原因。
+- 审计每项状态时先判断证据类型是否匹配：实现文件和运行结果主要支撑 `implementation_state` 与 `verification_state`；产品、交互、视觉、技术结构需要用户确认、稳定事实源、对应结果型 skill 输出，或明确限定为本轮探索范围。
+- 同时检查 `evidence_maturity`：`status` 说明结构是否满足，`evidence_maturity` 说明证据承诺层级；当证据仍是探索性时，优先保留后续补齐或正式化路径。
+- 如果某项只是“当前 MVP 暂时够用”，但尚未沉淀为稳定预期事实，标记为 `deferred` 或 `needed`，并写明后续触发条件；不要仅因代码里存在对应行为就标记为 `satisfied`。
+- 所有必要结构达到 `satisfied|not_applicable|deferred` 时，本事项可以关闭。
+- 仍有 `needed|unknown` 时，生成 `next_round_goal`。
+- 仍有 `blocked` 时，说明阻塞输入、确认点或权限。
+- 有外部承接时，生成 handoff，并把必要内容写入 `arckit-pending` 或最终响应。
+- 当 case 未关闭，或任何结构仍是 `deferred|needed|unknown|blocked`，必须生成 `visible_iteration_closeout`：`case_status`、本轮已完成、未满足结构摘要、`next_round_goal`、需要用户反馈或确认的最小问题。
+- 当本轮没有写入 `arckit/spec`、`arckit/interaction`、`arckit/visual` 或 `arckit/tech`，必须在 `visible_iteration_closeout` 中说明这些稳定事实源暂未更新的原因，以及后续什么证据会触发正式化。
+- 对实现探索型回合，最终响应不能只汇报代码文件、运行方式和验证命令；必须同时暴露本轮路线选择、探索结论、case 是否继续 active、下一轮建议补齐或正式化的结构。
+
+如果 case 已落盘，运行 `node tools/arckit-case/arckit-case.mjs audit <case> --write`；当 `completion_audit.status=complete` 时运行 `node tools/arckit-case/arckit-case.mjs close <case>`，否则运行 `node tools/arckit-case/arckit-case.mjs index`。最后使用 `arckit-workflow-memory` 更新 execution record，并完成 workflow memory closeout。
+
+退出条件：最终响应能说明这件事是关闭、继续补齐、阻塞确认还是交接后续。
+
+### 7. 后续消息适配
+
+首轮之后用户继续补充、纠错、换目标、纠正事实、回答澄清或暂停时，交给 `arckit-turn-adaptation`。适配结果必须回写到现有 `development_case_record`，再决定是否重编 `workflow_frame`、调整缺口优先级、更新事实路由或停止。
+
+## 输出要求
+
+输出可以简洁，但必须覆盖：
+- `development_case_record`：可用摘要，不必展开所有字段；包含 case 路径或 pending write 状态。
+- `workflow_resolution`：命中、未命中或不可用状态。
+- `workflow_frame`：本轮缺口、目标、能力、停止条件。
+- `round_strategy_decision`：本轮选择的路线、理由、已延期路线和切换触发条件。
+- `selected_capabilities`：本轮实际使用或准备使用的 Arckit 能力。
+- `round_update`：本轮产物、证据、事实源变化和未决项。
+- `completion_audit`：哪些满足、哪些未满足、下一步是什么。
+- `visible_iteration_closeout`：case 是否关闭、未满足或延期结构、下一轮目标、用户反馈入口；只要 case 未关闭或仍有 deferred/needed/unknown/blocked，就必须对用户可见。
+- `workflow_memory_closeout`：execution record 和 workflow signal 判断。
+
+当用户只需要快速执行时，最终回答保持短，但内部仍按 `development_case_record -> workflow_frame -> round_update -> completion_audit -> visible_iteration_closeout` 完成判断。短回答也必须保留下一轮入口：如果 case 继续 active，用 1 到 3 个要点说明接下来最应该试用、确认、补齐或正式化什么。需要交给人类、外部工具或后续任务时，输出 `handoff`，说明已确认事实、输入、输出、风险和确认点。

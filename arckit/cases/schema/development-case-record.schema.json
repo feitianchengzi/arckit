@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arckit.local/schema/development-case-record.schema.json",
+  "title": "Arckit Development Case Record",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "title",
+    "status",
+    "artifact_type",
+    "created_at",
+    "updated_at",
+    "user_intent",
+    "expected_outcome",
+    "current_round_goal",
+    "current_round_gap",
+    "structures",
+    "open_questions",
+    "decisions",
+    "pending_handoffs",
+    "workflow_memory_signals",
+    "rounds",
+    "completion_audit"
+  ],
+  "properties": {
+    "schema_version": { "const": "development-case-record/v1" },
+    "id": { "type": "string", "pattern": "^CASE-[0-9]{8}-[0-9]{3}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["active", "blocked", "handoff", "deferred", "closed"]
+    },
+    "artifact_type": {
+      "type": "string",
+      "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"]
+    },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" },
+    "user_intent": { "type": "string" },
+    "expected_outcome": { "type": "string" },
+    "current_round_goal": { "type": "string" },
+    "current_round_gap": { "type": "string" },
+    "round_strategy_decision": { "$ref": "#/$defs/round_strategy_decision" },
+    "structures": {
+      "type": "object",
+      "required": [
+        "product_expectation",
+        "interaction_expectation",
+        "visual_expectation",
+        "technical_expectation",
+        "implementation_state",
+        "verification_state",
+        "open_questions",
+        "pending_handoffs",
+        "workflow_memory_signals"
+      ],
+      "properties": {
+        "product_expectation": { "$ref": "#/$defs/structure_state" },
+        "interaction_expectation": { "$ref": "#/$defs/structure_state" },
+        "visual_expectation": { "$ref": "#/$defs/structure_state" },
+        "technical_expectation": { "$ref": "#/$defs/structure_state" },
+        "implementation_state": { "$ref": "#/$defs/structure_state" },
+        "verification_state": { "$ref": "#/$defs/structure_state" },
+        "open_questions": { "$ref": "#/$defs/structure_state" },
+        "pending_handoffs": { "$ref": "#/$defs/structure_state" },
+        "workflow_memory_signals": { "$ref": "#/$defs/structure_state" }
+      },
+      "additionalProperties": false
+    },
+    "open_questions": { "type": "array" },
+    "decisions": { "type": "array" },
+    "pending_handoffs": { "type": "array" },
+    "workflow_memory_signals": { "type": "array" },
+    "rounds": { "type": "array" },
+    "completion_audit": { "type": "object" }
+  },
+  "$defs": {
+    "round_strategy_decision": {
+      "type": "object",
+      "required": ["selected_route", "reason", "considered_routes", "next_route_triggers"],
+      "properties": {
+        "selected_route": { "type": "string" },
+        "reason": { "type": "string" },
+        "considered_routes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["route", "decision"],
+            "properties": {
+              "route": { "type": "string" },
+              "decision": {
+                "type": "string",
+                "enum": ["selected", "deferred", "not_applicable", "blocked"]
+              },
+              "reason": { "type": "string" },
+              "trigger": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "next_route_triggers": { "type": "array" },
+        "user_visible_summary": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "structure_state": {
+      "type": "object",
+      "required": ["status", "reason", "evidence", "next"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["unknown", "needed", "satisfied", "not_applicable", "deferred", "blocked"]
+        },
+        "reason": { "type": "string" },
+        "evidence": { "type": "array" },
+        "evidence_maturity": {
+          "type": "string",
+          "enum": ["none", "exploratory", "confirmed", "formalized"]
+        },
+        "next": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  }
+}
