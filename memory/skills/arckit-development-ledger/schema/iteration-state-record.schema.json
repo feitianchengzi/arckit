@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arckit.local/schema/iteration-state-record.schema.json",
+  "title": "Arckit Iteration State Record",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "title",
+    "status",
+    "created_at",
+    "updated_at",
+    "iteration_goal",
+    "project_state_ref",
+    "target_state_delta",
+    "current_state_delta",
+    "acceptance_state",
+    "blocking_gaps",
+    "active_case_refs",
+    "close_condition",
+    "last_iteration_delta"
+  ],
+  "properties": {
+    "schema_version": { "const": "iteration-state-record/v1" },
+    "id": { "type": "string", "pattern": "^ITER-[0-9]{8}-[0-9]{3}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["planned", "active", "blocked", "deferred", "closed"]
+    },
+    "created_at": { "type": "string" },
+    "updated_at": { "type": "string" },
+    "iteration_goal": { "type": "string" },
+    "project_state_ref": { "type": "string" },
+    "target_state_delta": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/state_transition" }
+    },
+    "current_state_delta": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/state_transition" }
+    },
+    "acceptance_state": {
+      "type": "object",
+      "required": ["current_state", "evidence", "remaining_gaps"],
+      "properties": {
+        "current_state": {
+          "type": "string",
+          "enum": ["unknown", "defined", "implemented", "verified", "accepted", "blocked"]
+        },
+        "evidence": { "type": "array" },
+        "remaining_gaps": { "type": "array" }
+      },
+      "additionalProperties": true
+    },
+    "blocking_gaps": { "type": "array" },
+    "active_case_refs": { "type": "array" },
+    "closed_case_refs": { "type": "array" },
+    "close_condition": { "type": "string" },
+    "last_iteration_delta": {
+      "type": "object",
+      "required": ["changed", "blocked", "deferred", "next_iteration_focus", "updated_at"],
+      "properties": {
+        "changed": { "type": "array" },
+        "blocked": { "type": "array" },
+        "deferred": { "type": "array" },
+        "next_iteration_focus": { "type": "string" },
+        "updated_at": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "state_value": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "not_required",
+        "needed",
+        "defined",
+        "designed",
+        "implemented",
+        "integrated",
+        "verified",
+        "accepted",
+        "released",
+        "operational",
+        "deferred",
+        "blocked"
+      ]
+    },
+    "state_transition": {
+      "type": "object",
+      "required": ["dimension", "from_state", "to_state", "reason"],
+      "properties": {
+        "dimension": { "type": "string" },
+        "from_state": { "$ref": "#/$defs/state_value" },
+        "to_state": { "$ref": "#/$defs/state_value" },
+        "reason": { "type": "string" },
+        "evidence": { "type": "array" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

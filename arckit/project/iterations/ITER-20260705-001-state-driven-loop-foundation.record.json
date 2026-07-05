@@ -1,0 +1,215 @@
+{
+  "schema_version": "iteration-state-record/v1",
+  "id": "ITER-20260705-001",
+  "title": "State-driven loop foundation",
+  "status": "active",
+  "created_at": "2026-07-05T15:29:32.273Z",
+  "updated_at": "2026-07-05T16:33:20.000Z",
+  "iteration_goal": "将 Arckit 状态机制从记录型账本升级为可驱动真实软件项目开发 loop 的项目完整性状态与迭代状态控制面。",
+  "project_state_ref": "arckit/project/state.record.json",
+  "target_state_delta": [
+    {
+      "dimension": "data_state",
+      "from_state": "designed",
+      "to_state": "designed",
+      "reason": "项目全局状态从 STATE.md 内嵌 JSON 迁移到 state.record.json canonical record，STATE.md 改为 projection。",
+      "evidence": [
+        "arckit/project/state.record.json",
+        "arckit/project/STATE.md",
+        "arckit/cases/closed/CASE-20260705-003-extract-project-state-record-json.md"
+      ]
+    },
+    {
+      "dimension": "runtime_surfaces",
+      "from_state": "verified",
+      "to_state": "verified",
+      "reason": "project-state 脚本新增 migrate/render，并默认使用 state.record.json。",
+      "evidence": [
+        "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "arckit/project/state.record.json"
+      ]
+    },
+    {
+      "dimension": "product_behavior",
+      "from_state": "defined",
+      "to_state": "designed",
+      "reason": "把项目状态重新定义为全局完整性状态控制面，支持状态驱动 loop。",
+      "evidence": [
+        "memory/skills/arckit-development-ledger/SKILL.md"
+      ]
+    },
+    {
+      "dimension": "iteration_governance",
+      "from_state": "needed",
+      "to_state": "implemented",
+      "reason": "将迭代状态管理放入 arckit/project 命名空间，并表达迭代级目标状态转移。",
+      "evidence": [
+        "memory/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
+        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs"
+      ]
+    },
+    {
+      "dimension": "quality_validation",
+      "from_state": "defined",
+      "to_state": "accepted",
+      "reason": "完成本轮结构校验，并把真实复杂项目 loop 验证列为下一状态 gap。",
+      "evidence": [
+        "node memory/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
+        "node memory/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
+        "node memory/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md"
+      ]
+    }
+  ],
+  "current_state_delta": [
+    {
+      "dimension": "maintainability_handoff",
+      "from_state": "implemented",
+      "to_state": "implemented",
+      "reason": "Project 和 iteration Markdown 改为有损 decision brief，使 agent 先获得行动上下文，再按需读取 canonical record。",
+      "evidence": [
+        "arckit/project/STATE.md",
+        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md",
+        "arckit/cases/closed/CASE-20260705-004-refine-generated-state-decision-briefs.md"
+      ]
+    },
+    {
+      "dimension": "iteration_governance",
+      "from_state": "implemented",
+      "to_state": "implemented",
+      "reason": "Iteration state 拆成 canonical *.record.json 和 generated iteration decision brief，并新增 audit 检查 projection 漂移。",
+      "evidence": [
+        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
+        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md",
+        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs"
+      ]
+    },
+    {
+      "dimension": "data_state",
+      "from_state": "designed",
+      "to_state": "designed",
+      "reason": "项目全局状态从 STATE.md 内嵌 JSON 迁移到 state.record.json canonical record，STATE.md 改为 projection。",
+      "evidence": [
+        "arckit/project/state.record.json",
+        "arckit/project/STATE.md",
+        "arckit/cases/closed/CASE-20260705-003-extract-project-state-record-json.md"
+      ]
+    },
+    {
+      "dimension": "runtime_surfaces",
+      "from_state": "verified",
+      "to_state": "verified",
+      "reason": "project-state 脚本新增 migrate/render，并默认使用 state.record.json。",
+      "evidence": [
+        "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "arckit/project/state.record.json"
+      ]
+    },
+    {
+      "dimension": "product_behavior",
+      "from_state": "defined",
+      "to_state": "designed",
+      "reason": "development-ledger 的职责、维度、状态语言和 loop 控制语义已重写。",
+      "evidence": [
+        "memory/skills/arckit-development-ledger/SKILL.md"
+      ]
+    },
+    {
+      "dimension": "iteration_governance",
+      "from_state": "needed",
+      "to_state": "implemented",
+      "reason": "增加 iteration state schema、project-iteration 脚本和当前迭代记录。",
+      "evidence": [
+        "memory/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
+        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md"
+      ]
+    },
+    {
+      "dimension": "quality_validation",
+      "from_state": "defined",
+      "to_state": "verified",
+      "reason": "project state、iteration state、case record 和 ledger scripts 已通过结构校验。",
+      "evidence": [
+        "node memory/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
+        "node memory/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
+        "node memory/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md"
+      ]
+    },
+    {
+      "dimension": "implementation_coverage",
+      "from_state": "designed",
+      "to_state": "verified",
+      "reason": "project-state v2、iteration-state v1、脚本和当前项目状态样例已落地并通过校验。",
+      "evidence": [
+        "memory/skills/arckit-development-ledger/schema/project-state-record.schema.json",
+        "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "arckit/project/STATE.md",
+        "node --check memory/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "node --check memory/skills/arckit-development-ledger/scripts/project-iteration.mjs"
+      ]
+    },
+    {
+      "dimension": "runtime_surfaces",
+      "from_state": "verified",
+      "to_state": "verified",
+      "reason": "Arckit 已通过 ArcForge 安装到 Codex 用户级 skills 目录，并由 subagent 使用已安装脚本在 arckit-demo 中创建和校验账本。",
+      "evidence": [
+        "/Users/Glare/.codex/skills/arckit-development-ledger/SKILL.md",
+        "../arckit-demo/arckit/project/state.record.json",
+        "../arckit-demo/arckit/cases/active/CASE-20260705-001-ledger-validation-case.md",
+        "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md"
+      ]
+    },
+    {
+      "dimension": "iteration_governance",
+      "from_state": "implemented",
+      "to_state": "implemented",
+      "reason": "demo 验证发现 ITERATIONS.md 不由 new 自动生成；已修复 project-iteration new/migrate 自动刷新索引，并由 audit 检查索引缺失或漂移。",
+      "evidence": [
+        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "../arckit-demo/arckit/project/ITERATIONS.md",
+        "node /Users/Glare/.codex/skills/arckit-development-ledger/scripts/project-iteration.mjs audit"
+      ]
+    }
+  ],
+  "acceptance_state": {
+    "current_state": "verified",
+    "evidence": [
+      "memory/skills/arckit-development-ledger/SKILL.md",
+      "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
+      "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+      "arckit/project/STATE.md",
+      "arckit/project/state.record.json",
+      "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md"
+    ],
+    "remaining_gaps": [
+      "用真实复杂项目验证 state-driven loop 是否能稳定驱动下一步行动。"
+    ]
+  },
+  "blocking_gaps": [],
+  "active_case_refs": [],
+  "closed_case_refs": [
+    "arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md",
+    "arckit/cases/closed/CASE-20260705-003-extract-project-state-record-json.md",
+    "arckit/cases/closed/CASE-20260705-004-refine-generated-state-decision-briefs.md",
+    "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md"
+  ],
+  "close_condition": "当状态机制通过结构校验，并至少经过一次真实复杂项目的 state gap -> case -> verification -> state delta 闭环验证后关闭本迭代。",
+  "last_iteration_delta": {
+    "changed": [
+      "product_behavior",
+      "iteration_governance",
+      "implementation_coverage",
+      "quality_validation",
+      "data_state",
+      "runtime_surfaces",
+      "maintainability_handoff"
+    ],
+    "blocked": [],
+    "deferred": [
+      "真实复杂项目 loop 验证"
+    ],
+    "next_iteration_focus": "在真实复杂项目中验证状态驱动 loop。",
+    "updated_at": "2026-07-05T16:33:20.000Z"
+  }
+}

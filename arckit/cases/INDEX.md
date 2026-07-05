@@ -15,3 +15,7 @@ Use `arckit-development-ledger` to create, validate, audit, close, and re-index 
 | --- | --- | --- | --- |
 | [CASE-20260704-001](closed/CASE-20260704-001-persist-development-case-records.md) | closed | Persist development case records | 2026-07-04T18:01:45.213Z |
 | [CASE-20260705-001](closed/CASE-20260705-001-govern-arckit-skill-boundaries-and-handoff-capabilities.md) | closed | Govern Arckit skill boundaries and handoff capabilities | 2026-07-05T15:25:00.000Z |
+| [CASE-20260705-002](closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md) | closed | Optimize state-driven project loop mechanism | 2026-07-05T15:33:56.140Z |
+| [CASE-20260705-003](closed/CASE-20260705-003-extract-project-state-record-json.md) | closed | Extract project state record JSON | 2026-07-05T15:54:24.572Z |
+| [CASE-20260705-004](closed/CASE-20260705-004-refine-generated-state-decision-briefs.md) | closed | Refine generated state decision briefs | 2026-07-05T16:13:39.580Z |
+| [CASE-20260705-005](closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md) | closed | Install and demo validate arckit state loop | 2026-07-05T16:33:06.419Z |

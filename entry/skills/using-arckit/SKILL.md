@@ -10,7 +10,7 @@ description: Arckit 软件项目协作入口 skill。用于把用户自然语言
 ## 职责边界
 
 - 本 skill 负责：任务处境编译、源-投影判断、能力选择、workflow frame、执行后回写协调和用户可见 closeout。
-- `arckit-development-ledger` 负责：`arckit/project`、`arckit/cases`、completion audit、索引、关闭状态和账本 schema。
+- `arckit-development-ledger` 负责：`arckit/project/state.record.json` canonical 全局项目完整性状态、`STATE.md` loop decision brief、canonical 迭代状态、迭代 decision brief、`arckit/cases`、completion audit、索引、关闭状态和账本 schema。
 - `arckit-workflow-memory` 负责：workflow resolution、execution record、workflow signal、candidate 和 accepted workflow patch。
 - 结果型 skill 负责：`arckit/spec`、`arckit/interaction`、`arckit/visual`、`arckit/tech` 的稳定事实维护。
 - 过程型、诊断型和执行协议 skill 负责自己的 handoff、诊断、实现交接、重构策略或 agent context 契约。
@@ -31,7 +31,7 @@ description: Arckit 软件项目协作入口 skill。用于把用户自然语言
 ### 1. 绑定账本和上下文
 
 动作：
-- 读取目标项目的 `AGENTS.md`、`arckit/project/STATE.md`、`arckit/cases/INDEX.md`、active case 和相关稳定事实源。
+- 读取目标项目的 `AGENTS.md`、`arckit/project/STATE.md` 作为 loop decision brief，并读取 `arckit/project/state.record.json` 作为精确项目状态；再读取 `arckit/cases/INDEX.md`、active case 和相关稳定事实源。
 - 通过 `arckit-development-ledger` 创建、读取或更新项目状态和 case。
 - 读取当前请求中的显式目标、约束、证据、风险、用户纠错和即时任务。
 
@@ -99,7 +99,7 @@ description: Arckit 软件项目协作入口 skill。用于把用户自然语言
 ### 6. 回写与收口
 
 动作：
-- 用 `arckit-development-ledger` 更新 project state、case record、project_state_delta、completion audit 和索引。
+- 用 `arckit-development-ledger` 更新 project state、iteration state、case record、state delta、completion audit 和索引。
 - 做源-投影一致性检查：若源事实变化，说明 source updated/unknown、projections updated/deferred/blocked；只改投影且源未知时不能关闭。
 - 用 `arckit-workflow-memory` 写 execution record，并判断是否产生 workflow signal。
 - 输出 visible closeout：本轮完成什么、case 是否关闭、哪些结构 deferred/needed/blocked、下一轮最值得做什么。
@@ -116,10 +116,10 @@ description: Arckit 软件项目协作入口 skill。用于把用户自然语言
 
 最终或阶段性输出保持简洁，但至少覆盖：
 
-- `ledger_paths`：项目状态、case 或 pending write。
+- `ledger_paths`：项目状态、迭代状态、case 或 pending write。
 - `workflow_frame`：当前缺口、路线、能力、写入目标、停止条件。
 - `source_projection_check`：源事实、投影产物、未知/延期/阻塞项。
 - `round_update`：本轮产物、证据、事实源变化和未决项。
 - `completion_audit`：关闭、继续、阻塞、延期或交接判断。
-- `visible_iteration_closeout`：用户下一步最需要确认、试用、补齐或正式化什么。
+- `visible_iteration_closeout`：当前 loop/迭代的状态转移、关闭条件和用户下一步最需要确认、试用、补齐或正式化什么。
 - `workflow_memory_closeout`：execution record 和 signal 判断。

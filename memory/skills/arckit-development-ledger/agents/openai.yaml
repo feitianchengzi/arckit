@@ -1,3 +1,3 @@
 display_name: ArcKit Development Ledger
-short_description: 维护 arckit/project、arckit/cases 和后续 iterations 的研发状态账本。
-default_prompt: 使用 $arckit-development-ledger 创建、读取、校验、审计和更新目标项目的 project_state_record、development_case_record、project_state_delta、completion_audit 和账本索引。
+short_description: 维护 arckit/project 下的 canonical 项目/迭代状态、生成式 decision brief 和 arckit/cases 研发事项证据。
+default_prompt: 使用 $arckit-development-ledger 创建、读取、迁移、渲染、校验、审计和更新目标项目的 project_state_record、STATE.md loop decision brief、iteration_state_record、iteration decision brief、development_case_record、state delta、completion audit 和状态索引；*.record.json 是权威结构化状态，Markdown 是有损决策投影，不是追加日志或第二事实源。

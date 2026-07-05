@@ -161,7 +161,7 @@ function createRecord({ title, artifactType = 'unknown', intent = '' }) {
     expected_outcome: '',
     current_round_goal: '',
     current_round_gap: 'unknown',
-    project_state_ref: 'arckit/project/STATE.md',
+    project_state_ref: 'arckit/project/state.record.json',
     project_state_delta: defaultProjectStateDelta(timestamp),
     round_strategy_decision: defaultRoundStrategyDecision(),
     structures: {

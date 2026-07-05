@@ -8,14 +8,16 @@
     "project",
     "active_iteration_ref",
     "active_case_refs",
-    "dimensions",
-    "decisions",
+    "completeness_dimensions",
+    "state_gaps",
+    "loop_control",
+    "active_constraints",
     "open_questions",
-    "project_memory",
-    "artifacts"
+    "canonical_artifact_refs",
+    "last_state_delta"
   ],
   "properties": {
-    "schema_version": { "const": "project-state-record/v1" },
+    "schema_version": { "const": "project-state-record/v2" },
     "project": {
       "type": "object",
       "required": ["name", "status", "created_at", "updated_at", "original_intent"],
@@ -27,7 +29,8 @@
         },
         "created_at": { "type": "string" },
         "updated_at": { "type": "string" },
-        "original_intent": { "type": "string" }
+        "original_intent": { "type": "string" },
+        "current_phase": { "type": "string" }
       },
       "additionalProperties": true
     },
@@ -36,74 +39,180 @@
       "type": "array",
       "items": { "type": "string" }
     },
-    "dimensions": {
+    "completeness_dimensions": {
       "type": "object",
       "required": [
-        "project_goal",
-        "target_users",
-        "core_scenarios",
-        "platform_targets",
-        "client_surface",
-        "server_need",
-        "account_identity",
-        "data_persistence",
-        "sync_collaboration",
-        "deployment_distribution",
-        "quality_bar",
-        "technical_foundation",
-        "iteration_strategy"
+        "project_intent",
+        "users_and_stakeholders",
+        "problem_scenarios",
+        "product_behavior",
+        "user_experience",
+        "runtime_surfaces",
+        "identity_access",
+        "data_state",
+        "integration_boundaries",
+        "architecture_foundation",
+        "implementation_coverage",
+        "quality_validation",
+        "security_privacy",
+        "delivery_operation",
+        "observability_support",
+        "maintainability_handoff",
+        "iteration_governance"
       ],
       "properties": {
-        "project_goal": { "$ref": "#/$defs/dimension_state" },
-        "target_users": { "$ref": "#/$defs/dimension_state" },
-        "core_scenarios": { "$ref": "#/$defs/dimension_state" },
-        "platform_targets": { "$ref": "#/$defs/dimension_state" },
-        "client_surface": { "$ref": "#/$defs/dimension_state" },
-        "server_need": { "$ref": "#/$defs/dimension_state" },
-        "account_identity": { "$ref": "#/$defs/dimension_state" },
-        "data_persistence": { "$ref": "#/$defs/dimension_state" },
-        "sync_collaboration": { "$ref": "#/$defs/dimension_state" },
-        "deployment_distribution": { "$ref": "#/$defs/dimension_state" },
-        "quality_bar": { "$ref": "#/$defs/dimension_state" },
-        "technical_foundation": { "$ref": "#/$defs/dimension_state" },
-        "iteration_strategy": { "$ref": "#/$defs/dimension_state" }
+        "project_intent": { "$ref": "#/$defs/dimension_state" },
+        "users_and_stakeholders": { "$ref": "#/$defs/dimension_state" },
+        "problem_scenarios": { "$ref": "#/$defs/dimension_state" },
+        "product_behavior": { "$ref": "#/$defs/dimension_state" },
+        "user_experience": { "$ref": "#/$defs/dimension_state" },
+        "runtime_surfaces": { "$ref": "#/$defs/dimension_state" },
+        "identity_access": { "$ref": "#/$defs/dimension_state" },
+        "data_state": { "$ref": "#/$defs/dimension_state" },
+        "integration_boundaries": { "$ref": "#/$defs/dimension_state" },
+        "architecture_foundation": { "$ref": "#/$defs/dimension_state" },
+        "implementation_coverage": { "$ref": "#/$defs/dimension_state" },
+        "quality_validation": { "$ref": "#/$defs/dimension_state" },
+        "security_privacy": { "$ref": "#/$defs/dimension_state" },
+        "delivery_operation": { "$ref": "#/$defs/dimension_state" },
+        "observability_support": { "$ref": "#/$defs/dimension_state" },
+        "maintainability_handoff": { "$ref": "#/$defs/dimension_state" },
+        "iteration_governance": { "$ref": "#/$defs/dimension_state" }
       },
       "additionalProperties": false
     },
-    "decisions": { "type": "array" },
+    "state_gaps": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/state_gap" }
+    },
+    "loop_control": { "$ref": "#/$defs/loop_control" },
+    "active_constraints": { "type": "array" },
     "open_questions": { "type": "array" },
-    "project_memory": { "type": "array" },
-    "artifacts": { "type": "array" },
-    "last_project_state_delta": { "$ref": "#/$defs/project_state_delta" }
+    "canonical_artifact_refs": { "type": "array" },
+    "last_state_delta": { "$ref": "#/$defs/project_state_delta" },
+    "legacy_record_refs": { "type": "array" }
   },
   "$defs": {
+    "state_value": {
+      "type": "string",
+      "enum": [
+        "unknown",
+        "not_required",
+        "needed",
+        "defined",
+        "designed",
+        "implemented",
+        "integrated",
+        "verified",
+        "accepted",
+        "released",
+        "operational",
+        "deferred",
+        "blocked"
+      ]
+    },
     "dimension_state": {
       "type": "object",
-      "required": ["status", "reason", "evidence", "next"],
+      "required": [
+        "current_state",
+        "target_state",
+        "state_reason",
+        "evidence",
+        "evidence_maturity",
+        "gap",
+        "next_transition",
+        "priority",
+        "confidence"
+      ],
       "properties": {
-        "status": {
-          "type": "string",
-          "enum": ["unknown", "needed", "satisfied", "not_applicable", "deferred", "blocked"]
-        },
-        "reason": { "type": "string" },
+        "current_state": { "$ref": "#/$defs/state_value" },
+        "target_state": { "$ref": "#/$defs/state_value" },
+        "state_reason": { "type": "string" },
         "evidence": { "type": "array" },
         "evidence_maturity": {
           "type": "string",
-          "enum": ["none", "exploratory", "confirmed", "formalized"]
+          "enum": ["none", "exploratory", "confirmed", "formalized", "validated"]
         },
-        "next": { "type": "string" }
+        "gap": { "type": "string" },
+        "next_transition": { "type": "string" },
+        "blockers": { "type": "array" },
+        "priority": {
+          "type": "string",
+          "enum": ["none", "low", "medium", "high", "critical"]
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        }
+      },
+      "additionalProperties": true
+    },
+    "state_gap": {
+      "type": "object",
+      "required": [
+        "id",
+        "dimension",
+        "current_state",
+        "target_state",
+        "impact",
+        "urgency",
+        "risk",
+        "next_transition"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "dimension": { "type": "string" },
+        "current_state": { "$ref": "#/$defs/state_value" },
+        "target_state": { "$ref": "#/$defs/state_value" },
+        "impact": { "type": "string" },
+        "urgency": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "risk": {
+          "type": "string",
+          "enum": ["low", "medium", "high", "critical"]
+        },
+        "dependencies": { "type": "array" },
+        "next_transition": { "type": "string" },
+        "candidate_case_ref": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "loop_control": {
+      "type": "object",
+      "required": [
+        "current_loop_focus",
+        "next_transition",
+        "priority_basis",
+        "stop_condition"
+      ],
+      "properties": {
+        "current_loop_focus": { "type": "string" },
+        "next_transition": { "type": "string" },
+        "priority_basis": { "type": "string" },
+        "stop_condition": { "type": "string" }
       },
       "additionalProperties": true
     },
     "project_state_delta": {
       "type": "object",
-      "required": ["changed", "unchanged_unknown", "deferred", "blocked", "next_project_question", "updated_at"],
+      "required": [
+        "changed_dimensions",
+        "state_transitions",
+        "deferred_dimensions",
+        "blocked_dimensions",
+        "next_loop_focus",
+        "updated_at"
+      ],
       "properties": {
-        "changed": { "type": "array" },
-        "unchanged_unknown": { "type": "array" },
-        "deferred": { "type": "array" },
-        "blocked": { "type": "array" },
-        "next_project_question": { "type": "string" },
+        "changed_dimensions": { "type": "array" },
+        "state_transitions": { "type": "array" },
+        "deferred_dimensions": { "type": "array" },
+        "blocked_dimensions": { "type": "array" },
+        "case_refs": { "type": "array" },
+        "iteration_ref": { "type": "string" },
+        "next_loop_focus": { "type": "string" },
         "updated_at": { "type": "string" }
       },
       "additionalProperties": true
