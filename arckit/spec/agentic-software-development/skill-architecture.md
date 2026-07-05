@@ -7,6 +7,7 @@ Skill 架构把产品概念和产品架构转化为当前可实施的 Arckit ski
 当前 Arckit 围绕软件项目开发的基础协作面组织六类能力：
 
 - 入口编排：识别任务处境，编译 workflow frame。
+- 项目连续状态：维护 `arckit/project` 中的 project state record，追踪整个应用跨上下文、跨 case、跨迭代的长期状态。
 - 研发事项记录：维护 `arckit/cases` 中的 development case record，追踪一个事项跨轮次的结构满足度。
 - 记忆与低承诺空间：保存原始材料、未决问题和 workflow memory。
 - 定义前思考：形成决策、草案、设计探索、架构决策和领域模型 handoff。
@@ -20,18 +21,21 @@ Skill 架构把产品概念和产品架构转化为当前可实施的 Arckit ski
 Arckit 的当前 skill 体系按以下链路工作：
 
 1. `using-arckit` 接收 prompt、上下文、证据和用户纠错，形成当前任务处境。
-2. `using-arckit` 在 `arckit/cases` 中创建或更新 development case record，记录真实目标、当前轮缺口、结构状态、未决项和 completion audit。
-3. `using-arckit` 调用 `arckit-workflow-memory` 做 workflow resolution，绑定已有 accepted/candidate workflow 或准备新的场景级 candidate。
-4. 入口编排选择当前执行面中的最小必要 skill，而不是把用户提到的某个 skill 当作唯一任务。
-5. 过程型 skill 产出 handoff，结果型 skill 维护稳定事实，诊断型 skill 收敛实现事实，未确认内容进入 `arckit-pending`。
-6. `arckit-turn-adaptation` 处理首轮之后的补充、纠错、目标变化、事实纠正和暂停，并回写当前 case record。
-7. 执行结果、用户纠错和流程学习交给 `arckit-workflow-memory` closeout。
+2. `using-arckit` 先读取或创建 `arckit/project/STATE.md`，确认连续项目状态和本轮可能影响的项目级维度。
+3. `using-arckit` 在 `arckit/cases` 中创建或更新 development case record，记录项目状态引用、当前轮缺口、结构状态、未决项和 completion audit。
+4. `using-arckit` 调用 `arckit-workflow-memory` 做 workflow resolution，绑定已有 accepted/candidate workflow 或准备新的场景级 candidate。
+5. 入口编排选择当前执行面中的最小必要 skill，而不是把用户提到的某个 skill 当作唯一任务。
+6. 过程型 skill 产出 handoff，结果型 skill 维护稳定事实，诊断型 skill 收敛实现事实，未确认内容进入 `arckit-pending`。
+7. `arckit-turn-adaptation` 处理首轮之后会改变 workflow frame、事实路由、停止条件、验证策略或 workflow memory 判断的后续消息，并把 frame delta 交回入口协调。
+8. 执行结果、用户纠错和流程学习交给 `arckit-workflow-memory` closeout。
 
 这条链路是当前实施主线。workflow frame 根据当前维护源选择可执行 skill；跨出当前执行面的阶段通过 pending 或外部 handoff 保持连续推进。
 
 ## 能力建设原则
 
 - 入口能力只负责编译任务处境和选择能力组合，不替代结果型 skill、实现 adapter 或诊断 skill。
+- 所有软件开发请求默认属于真实项目的连续演进；入口按状态层级、证据成熟度和本轮推进目标编译 workflow frame。
+- `arckit/project` 记录项目级连续状态，不替代 spec、interaction、visual、tech 或 case。
 - `arckit/cases` 记录当前研发事项的结构满足度，不替代 pending、workflow memory 或稳定事实源。
 - 过程型 skill 只产出 handoff 和候选判断，不直接写入正式事实源。
 - 结果型 skill 只维护稳定事实，不吸收未确认推断。
@@ -47,6 +51,7 @@ Arckit 的当前 skill 体系按以下链路工作：
 
 - `arckit-workflow-memory`
 - `arckit-turn-adaptation`
+- `arckit-development-ledger`
 - `arckit-intake`
 - `arckit-pending`
 - `arckit-decision-framework`
@@ -66,21 +71,25 @@ Arckit 的当前 skill 体系按以下链路工作：
 
 `using-arckit` 承载入口理解、处境编译和能力选择责任。它需要识别：
 
-- 真实软件预期和本轮可交付内容。
+- 项目级长期预期、本轮可交付内容和当前承诺成熟度。
 - 当前阶段候选和阶段产物。
 - 显式约束、证据、风险、冲突和待确认事项。
 - 最终产物类型是 code、skill、document、workflow、mixed artifact，还是尚未确定。
 - 本轮可能影响的事实源、pending 和工作方式事实。
 
-`using-arckit` 优先把首轮编译结果维护为 `arckit/cases/active/` 下的 development case record。case record 是当前事项的工作台状态，包含 product、interaction、visual、technical、implementation、verification、open questions、handoffs 和 workflow memory signals 的满足度；它决定下一轮补哪个缺口，但不把候选判断直接提升为稳定事实。
+`using-arckit` 优先通过 `arckit-development-ledger` 绑定 `arckit/project/STATE.md` 下的 project state record。project state record 是整个应用的连续状态，包含 project goal、target users、core scenarios、platform targets、client surface、server need、account identity、data persistence、sync collaboration、deployment distribution、quality bar、technical foundation 和 iteration strategy 的状态与证据成熟度。实现探索产生的网页、脚本、原型或临时代码只能作为探索证据，不能自动决定项目最终平台、服务端、账号或部署形态。
 
-`arckit-turn-adaptation` 承接后续对话。它处理用户补充、纠错、目标变化、暂停、术语纠正和 workflow 纠偏。它不是重新启动完整入口，而是在已有任务处境上调整阶段、事实路由、停止条件和 workflow memory 交接。
+`using-arckit` 再把首轮编译结果维护为 `arckit/cases/active/` 下的 development case record。case record 是当前事项的工作台状态，包含 product、interaction、visual、technical、implementation、verification、open questions、handoffs 和 workflow memory signals 的满足度；它决定下一轮补哪个缺口，但不把候选判断直接提升为稳定事实。case record 必须能回溯到 project state，并在每轮结束时记录 `project_state_delta`。
+
+`arckit-turn-adaptation` 承接后续对话中的变更控制。它处理会改变当前 workflow frame、事实路由、停止条件、验证策略、确认点、工具边界、术语边界或 workflow memory 判断的用户消息。它不是普通后续需求处理器，也不维护事实源；它输出 frame delta、artifact routing delta、ledger delta 或 workflow correction ledger，再交回 `using-arckit` 继续协调。
 
 ## 语义材料保留与低承诺空间
 
 `arckit-intake` 负责保存原始输入材料。它适合处理 brief、访谈记录、截图、参考资料、用户原话和其他暂不分析的输入。它的价值是保留来源，不把原始材料直接提升为结论。
 
-`arckit/cases` 负责保存当前研发事项跨轮次的结构化状态。它适合承接“这件事整体还欠哪些软件工程结构”的判断，通过 `tools/arckit-case/arckit-case.mjs` 创建、校验、审计和索引。
+`arckit-development-ledger` 负责维护目标项目 `arckit/project/STATE.md`、`arckit/cases/` 和后续 `arckit/iterations/` 中的研发状态账本。`arckit/project`、`arckit/cases` 和 `arckit/iterations` 是目标项目的数据区，只保存具体项目记录；schema、脚本和维护协议由 skill 自身承载。
+
+`arckit/cases` 负责保存当前研发事项跨轮次的结构化状态。它适合承接“这件事整体还欠哪些软件工程结构”的判断，由 `arckit-development-ledger` 创建、校验、审计和索引。
 
 `arckit-pending` 负责保存未决讨论项、开放问题、候选事实、风险、外部 adapter handoff 和过程 handoff。它适合承接“现在有价值但还不能写入正式事实源”的内容。
 
@@ -142,6 +151,7 @@ Arckit 支持 code、skill、document、workflow 和 mixed artifact 等最终产
 
 每轮 ArcKit 工作流都必须扫描：
 
+- `project`
 - `intake`
 - `cases`
 - `spec`

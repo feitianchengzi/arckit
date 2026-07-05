@@ -1,24 +1,23 @@
 interface:
   display_name: "ArcKit Turn Adaptation"
-  short_description: "区分 ArcKit 任务进行中的补充、纠错、换目标、事实纠正和暂停消息"
-  default_prompt: "使用 $arckit-turn-adaptation 处理 ArcKit 软件项目协作任务执行中的后续用户消息，而不是首轮任务入口。先读取当前 workflow_frame、workflow_resolution、execution_record 状态、已执行动作、artifact impact scan 状态和停止条件，再把用户消息分类为 supplemental_context、user_workflow_correction、goal_change、artifact_fact_correction、pause_or_stop 或 clarification_answer。turn_type 是主处理类型，不是唯一信号槽；如果暂停、换目标、事实纠正中同时包含 workflow 纠偏，必须在 secondary_signals 中保留并生成 workflow_correction_ledger。只有 workflow 纠偏信号生成 workflow_correction_ledger，字段包括 correction_text、affected_workflow_area、scope_hint、changed_frame、default_signal_decision 和 handoff_target；普通补充信息、项目事实纠正和目标切换不要误写成 workflow signal。用户使用后续/以后/当前项目/不要/只需要/必须/我来处理/为什么没有学习/为什么跳过等表达，并改变 workflow resolution、工作流复用方式、execution record、验证方式、确认点、工具使用、停止条件、术语边界或记忆判断时，默认判定为 workflow 纠偏。项目事实没有变化不等于 workflow memory closeout 可以跳过；存在 workflow_correction_ledger 时交给 $arckit-workflow-memory 做 signal decision。"
+  short_description: "解析后续消息对当前 workflow frame、事实路由、停止条件或 workflow memory 的影响。"
+  default_prompt: "使用 $arckit-turn-adaptation 解析 ArcKit 软件研发会话中的后续用户消息是否改变当前 workflow_frame、目标、事实路由、停止条件、验证策略、确认点、工具边界、术语边界或 workflow memory 判断。先读取当前 workflow_frame、workflow_resolution、project_state_record、development_case_record、已执行动作、artifact impact scan、execution record 和 stop_conditions；再分类为 continue_current_frame、supplemental_context、clarification_answer、artifact_fact_correction、goal_change、pause_or_stop 或 user_workflow_correction，并输出 frame_delta、artifact_routing_delta、ledger_delta 和 handoff_targets。只有 workflow 纠偏信号生成 workflow_correction_ledger；普通项目事实纠正、目标变化和补充信息不自动成为 workflow signal。存在 workflow_correction_ledger 时交给 $arckit-workflow-memory 做 signal decision；需要项目状态、case 或迭代账本更新时交给 $arckit-development-ledger。"
 policy:
   allow_implicit_invocation: true
   turn_level_only: true
 workflow:
   first_steps:
-    - "确认当前消息是否发生在首轮目标之后；如果没有可用 workflow_frame，交回 using-arckit 建立入口 frame。"
-    - "读取当前 workflow_resolution、final_goal、current_phase、selected_capabilities、confirmation_points、stop_conditions、artifact_targets、execution_record_target 和验证策略。"
-    - "按优先级分类 turn：pause_or_stop、goal_change、user_workflow_correction、artifact_fact_correction、clarification_answer、supplemental_context；同时保留 secondary_signals。"
-    - "输出 turn_adaptation_decision，说明继续原 frame、重编 frame、更新 workflow_resolution、更新 execution record、更新 artifact routing、停止任务或交给 workflow memory。"
-    - "仅在存在 workflow 纠偏信号时生成 workflow_correction_ledger；即使主 turn_type 是 pause_or_stop 或 goal_change，也不能吞掉 ledger。"
+    - "确认当前消息是否发生在首轮入口之后；如果没有可用 workflow_frame，交回 using-arckit 建立入口 frame。"
+    - "读取 current_round_goal、current_round_gap、selected_capabilities、artifact_targets、confirmation_points、verification_strategy、stop_conditions 和 pending handoffs。"
+    - "判断消息影响层级：continue_current_frame、supplemental_context、clarification_answer、artifact_fact_correction、goal_change、pause_or_stop 或 user_workflow_correction；同时保留 secondary_signals。"
+    - "输出 turn_adaptation_decision，说明继续原 frame、重编 frame、更新账本、更新 artifact routing、停止任务或交给 workflow memory。"
+    - "仅在存在 workflow 纠偏信号时生成 workflow_correction_ledger；即使主 turn_type 是 pause_or_stop 或 goal_change，也不能吞掉 workflow 纠偏。"
   boundaries:
     - "本 skill 不做首轮软件项目协作入口编排；首轮入口仍由 using-arckit 处理。"
-    - "本 skill 不写 workflow signal、candidate 或 accepted patch；只向 arckit-workflow-memory 提供 ledger。"
-    - "补充上下文、事实纠正和目标切换不是自动 workflow signal。"
-    - "用户纠正不要每次新建 workflow、要求同类场景复用同一个 workflow、或禁止误导性 workflow 术语时，必须生成 workflow_correction_ledger。"
-    - "当前项目写完代码后只自查、不编译、由用户人工编译，应分类为 user_workflow_correction，并生成 current_project 范围的 ledger。"
-    - "artifact impact scan 全部 skipped 只说明没有项目事实写入，不允许因此跳过 workflow memory closeout。"
+    - "本 skill 不推进实现、不维护项目账本、不写稳定事实源。"
+    - "在现有 frame 内继续推进且不改变目标、路线、事实路由或协作规则时，交回 using-arckit 继续协调。"
+    - "本 skill 不写 workflow signal、candidate 或 accepted patch；只向 arckit-workflow-memory 提供 workflow_correction_ledger。"
+    - "用户改变后续验证方式、确认点、工具边界、停止条件、workflow resolution、记忆判断或术语边界时，生成 workflow_correction_ledger。"
   output:
     - "turn_type"
     - "secondary_signals"
@@ -26,5 +25,6 @@ workflow:
     - "turn_adaptation_decision"
     - "frame_delta"
     - "artifact_routing_delta"
+    - "ledger_delta"
     - "workflow_correction_ledger"
     - "handoff_targets"

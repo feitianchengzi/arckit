@@ -42,11 +42,11 @@ const EVIDENCE_REQUIRED_ON_SATISFIED = new Set([
 function usage(exitCode = 0) {
   const message = [
     'Usage:',
-    '  node tools/arckit-case/arckit-case.mjs new --title "Title" [--artifact-type skill] [--intent "..."]',
-    '  node tools/arckit-case/arckit-case.mjs validate [case-file]',
-    '  node tools/arckit-case/arckit-case.mjs audit <case-file> [--write]',
-    '  node tools/arckit-case/arckit-case.mjs close <case-file> [--force]',
-    '  node tools/arckit-case/arckit-case.mjs index',
+    '  node <skill-dir>/scripts/development-case.mjs new --title "Title" [--artifact-type skill] [--intent "..."]',
+    '  node <skill-dir>/scripts/development-case.mjs validate [case-file]',
+    '  node <skill-dir>/scripts/development-case.mjs audit <case-file> [--write]',
+    '  node <skill-dir>/scripts/development-case.mjs close <case-file> [--force]',
+    '  node <skill-dir>/scripts/development-case.mjs index',
   ].join('\n');
   console.log(message);
   process.exit(exitCode);
@@ -135,6 +135,17 @@ function defaultRoundStrategyDecision() {
   };
 }
 
+function defaultProjectStateDelta(timestamp = '') {
+  return {
+    changed: [],
+    unchanged_unknown: [],
+    deferred: [],
+    blocked: [],
+    next_project_question: '',
+    updated_at: timestamp,
+  };
+}
+
 function createRecord({ title, artifactType = 'unknown', intent = '' }) {
   const id = nextCaseId();
   const timestamp = nowIso();
@@ -150,6 +161,8 @@ function createRecord({ title, artifactType = 'unknown', intent = '' }) {
     expected_outcome: '',
     current_round_goal: '',
     current_round_gap: 'unknown',
+    project_state_ref: 'arckit/project/STATE.md',
+    project_state_delta: defaultProjectStateDelta(timestamp),
     round_strategy_decision: defaultRoundStrategyDecision(),
     structures: {
       product_expectation: defaultStructure(),
@@ -269,6 +282,15 @@ function validateRecord(record, file = '<record>') {
   }
   if (!VALID_ARTIFACT_TYPE.has(record.artifact_type)) {
     errors.push(`${file}: artifact_type must be one of ${Array.from(VALID_ARTIFACT_TYPE).join(', ')}`);
+  }
+  if (record.project_state_ref !== undefined && typeof record.project_state_ref !== 'string') {
+    errors.push(`${file}: project_state_ref must be a string when present`);
+  }
+  if (
+    record.project_state_delta !== undefined &&
+    (!record.project_state_delta || typeof record.project_state_delta !== 'object' || Array.isArray(record.project_state_delta))
+  ) {
+    errors.push(`${file}: project_state_delta must be an object when present`);
   }
   if (record.round_strategy_decision !== undefined) {
     if (
@@ -476,9 +498,9 @@ function commandIndex() {
   const content = [
     '# Development Cases',
     '',
-    '`arckit/cases` stores project-level development case records. A case record tracks one software development matter across rounds: the user\'s intent, the expected outcome, the current round gap, structured engineering expectations, implementation state, verification state, open questions, handoffs, and completion audit.',
+    '`arckit/cases` stores development case records under the continuous project state. A case record tracks one software development matter across rounds: the project state reference, user intent, expected outcome, current round gap, structured engineering expectations, implementation state, verification state, open questions, handoffs, project state delta, and completion audit.',
     '',
-    'Use `tools/arckit-case/arckit-case.mjs` to create, validate, audit, and re-index records.',
+    'Use `arckit-development-ledger` to create, validate, audit, close, and re-index records.',
     '',
     '## Active Cases',
     '',

@@ -1,8 +1,8 @@
 # Development Cases
 
-`arckit/cases` stores project-level development case records. A case record tracks one software development matter across rounds: the user's intent, the expected outcome, the current round gap, structured engineering expectations, implementation state, verification state, open questions, handoffs, and completion audit.
+`arckit/cases` stores development case records under the continuous project ledger. A case record tracks one software development matter across rounds: the project state reference, user's intent, expected outcome, current round gap, structured engineering expectations, implementation state, verification state, open questions, handoffs, project state delta, and completion audit.
 
-Use `tools/arckit-case/arckit-case.mjs` to create, validate, audit, and re-index records.
+Use `arckit-development-ledger` to create, validate, audit, close, and re-index records.
 
 ## Active Cases
 

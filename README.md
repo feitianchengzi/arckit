@@ -48,16 +48,16 @@ Arckit 面向 AI-agent-assisted software development，目标是指导 agent 辅
 
 当用户诉求进入项目治理、代码审查、质量评测、发布出包、运行运维、Workshop Desktop、多角色协作或长期想法管理时，Arckit 先沉淀可复用的开发事实、决策依据、定义文档、诊断证据和 `arckit-pending` 交接项，再交给 `arckit-code`、ArcForge、项目自身工具或对应外部 adapter 继续执行。
 
-项目中的 `arckit/cases/` 用于保存 development case record。它记录一个研发事项跨轮次的目标、当前缺口、结构状态、未决问题、handoff 和 completion audit，并通过 `tools/arckit-case/arckit-case.mjs` 维护。
+项目中的 `arckit/project/` 和 `arckit/cases/` 用于保存研发状态账本数据。`arckit-development-ledger` 维护 project state、development case record、project_state_delta、completion audit 和索引；schema 与脚本属于 skill，自身不写入目标项目数据区。
 
 ## 目录结构
 
 ```text
 arckit/
   entry/
-    skills/        首轮入口编排、后续消息适配和场景 workflow frame
+    skills/        首轮入口编排、后续消息变更控制和场景 workflow frame
   memory/
-    skills/        原始输入、未决议题、workflow memory 和跨会话导航
+    skills/        项目连续状态、原始输入、未决议题、workflow memory 和跨会话导航
   thinking/
     skills/        跨生命周期过程型思考能力、决策框架、草案生成、候选比较和 handoff 准备
   definition/
@@ -83,6 +83,7 @@ arckit/
 
 当前保留：
 
+- `arckit-development-ledger`
 - `arckit-intake`
 - `arckit-pending`
 - `arckit-workflow-memory`

@@ -41,6 +41,8 @@
     "expected_outcome": { "type": "string" },
     "current_round_goal": { "type": "string" },
     "current_round_gap": { "type": "string" },
+    "project_state_ref": { "type": "string" },
+    "project_state_delta": { "$ref": "#/$defs/project_state_delta" },
     "round_strategy_decision": { "$ref": "#/$defs/round_strategy_decision" },
     "structures": {
       "type": "object",
@@ -101,6 +103,19 @@
         },
         "next_route_triggers": { "type": "array" },
         "user_visible_summary": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "project_state_delta": {
+      "type": "object",
+      "required": ["changed", "unchanged_unknown", "deferred", "blocked", "next_project_question"],
+      "properties": {
+        "changed": { "type": "array" },
+        "unchanged_unknown": { "type": "array" },
+        "deferred": { "type": "array" },
+        "blocked": { "type": "array" },
+        "next_project_question": { "type": "string" },
+        "updated_at": { "type": "string" }
       },
       "additionalProperties": true
     },

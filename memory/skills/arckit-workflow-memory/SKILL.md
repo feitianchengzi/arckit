@@ -18,7 +18,7 @@ Workflow memory 是 procedural memory，不是项目事实源。Workflow signal 
 - 每次任务必须产生或更新 `execution_record`，记录绑定的 workflow、实际执行、偏离原因、用户纠错和结果；execution record 不等于 workflow。
 - Workflow memory 记录编排启发式和 frame 改写方式，不记录固定模板流程；不要把一次事件写成“某类任务必须总是 A->B->C”。
 - 不要使用会诱导 agent 降低流程完整性的 workflow 修饰词；如需控制记录篇幅，明确保留 workflow resolution、execution record、signal decision 和 index update 判断。
-- 本 skill 不负责区分首轮消息、补充信息、目标变更和 workflow 纠偏；`using-arckit` 只判断首轮入口和后续消息交接，后续消息分类由 `arckit-turn-adaptation` 完成。
+- 本 skill 不负责区分首轮消息、补充信息、目标变更和 workflow 纠偏；`using-arckit` 负责首轮入口和普通后续推进，涉及 frame、事实路由、停止条件或 workflow memory 判断变化的后续消息由 `arckit-turn-adaptation` 输出 delta 或 `workflow_correction_ledger`。
 - 当输入包含 `workflow_correction_ledger`，优先按 workflow-level correction 评估是否写 signal，而不是只当作普通任务备注。
 - `workflow_correction_ledger` 表明用户纠正流程选择、改变后续验证方式、声明当前项目偏好、要求以后按某种方式执行，或指出“为什么没有学习/为什么跳过”时，`signal_decision=skip` 禁止使用；除非存在完全匹配的 accepted workflow patch，或用户明确说不要记录。
 - `~/.arckit/workflows` 是 ArcKit 的用户级基础运行状态目录。目录不存在且当前工具权限允许时，直接初始化。
