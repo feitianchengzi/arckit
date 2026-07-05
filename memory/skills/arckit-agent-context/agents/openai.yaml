@@ -1,0 +1,16 @@
+interface:
+  display_name: "ArcKit Agent Context"
+  short_description: "维护 AGENTS.md 长期 agent 启动上下文和 durable context 路由"
+  default_prompt: "使用 $arckit-agent-context 识别用户输入中的长期 agent 协作约定、仓库导航规则、事实源读取顺序和后续默认行为；先把 durable context 分类为 AGENTS.md、arckit/spec、arckit/tech、arckit/interaction、arckit/visual、arckit/pending、arckit-workflow-memory 或 no-write，再维护高信号 AGENTS.md 规则或输出路由 handoff。不要保存聊天记录、临时任务约束、未确认推断或产品/技术/交互/视觉事实到 AGENTS.md。"
+policy:
+  allow_implicit_invocation: true
+workflow:
+  first_steps:
+    - "识别长期信号，例如以后、默认、始终、不要再、这个项目约定、记住、沉淀、下次、长期、所有后续。"
+    - "区分长期上下文、即时任务、临时约束和普通说明。"
+    - "分类并路由到 AGENTS.md、Arckit 事实源、pending、workflow memory 或 no-write。"
+    - "维护 AGENTS.md 时只写短、稳定、可执行、链接驱动的 agent 操作规则。"
+    - "若同时存在即时任务，先完成上下文治理，再输出 continuation_handoff 交回当前 workflow。"
+  persistence_rules:
+    - "AGENTS.md 只保存 agent 启动和路由规则，不保存聊天记录、产品规则或技术方案。"
+    - "事实源内容必须交给对应结果型 skill；未确认内容进入 arckit-pending。"

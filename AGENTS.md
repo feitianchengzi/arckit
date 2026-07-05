@@ -5,6 +5,18 @@ Top-level directories can represent lifecycle stages or horizontal capability do
 agent capability types over time. Reusable skills must live under that directory's
 `skills/` directory.
 
+## Arckit Scope
+
+Arckit is a software-development agent collaboration and handoff protocol layer. It should help humans,
+Codex-like single agents, and multi-agent automation platforms work from the same project facts, case state,
+handoffs, pending items, workflow memory, and agent startup context.
+
+Skills in this repository should primarily improve agent reliability in real software projects: context recovery,
+fact-source governance, handoff quality, implementation boundaries, diagnosis, and safe continuation after a human
+or another agent takes over. Capabilities whose core output depends on human aesthetic judgment, business priority,
+organizational approval, or release authorization may be supported as analysis, evidence, pending context, or an
+external-adapter handoff, but should not become silent final-decision skills in this repository.
+
 ## Directory Map
 
 - `entry/`: cross-lifecycle entry points, skill routing, workflow composition, and scenario-to-skill orchestration.
@@ -55,10 +67,12 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - Visual: `definition/skills/`
 - Technical solution: `definition/skills/`
 - Development ledger and project continuous state: `memory/skills/`
+- Agent startup context and AGENTS.md governance: `memory/skills/`
 - Project input intake: `memory/skills/`
 - Project pending context management: `memory/skills/`
 - Media production, video, and social operations: `media/skills/`
 - General debug diagnosis and implementation troubleshooting: `engineering/skills/`
+- Implementation handoff and refactor strategy: `engineering/skills/`
 - Real software development scenario evaluation: `quality/skills/`
 - Technology-stack-specific coding skills: maintained in `arckit-code`, not this repository.
 - Server deployment: `delivery/skills/`

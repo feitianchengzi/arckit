@@ -97,9 +97,9 @@ FIRST_PRINCIPLES_TEMPLATE = """# {topic} — 第一性原理拆解
 
 ---
 
-## 五、极简验证
+## 五、关键假设验证
 
-| 方案 | 最关键假设 | 最低成本验证方式 | 预计耗时 |
+| 方案 | 最关键假设 | 关键验证方式 | 预计耗时 |
 |------|-----------|----------------|---------|
 | A | {validate_a_hypothesis} | {validate_a_method} | {validate_a_time} |
 | B | {validate_b_hypothesis} | {validate_b_method} | {validate_b_time} |

@@ -1,0 +1,15 @@
+interface:
+  display_name: "ArcKit Refactor Strategy"
+  short_description: "形成行为不变、分阶段、可验证的重构策略和 handoff"
+  default_prompt: "使用 $arckit-refactor-strategy 判断重构是否必要，并生成 refactor_strategy_handoff。必须先固定 behavior_must_remain，再划定 allowed_change_scope、forbidden_change_scope、risks、phases、verification、stop_conditions 和 arckit_writeback。不要把新功能、架构拍板、产品取舍或审美判断伪装成重构；需要架构选择时交给 arckit-architecture-decision。"
+policy:
+  allow_implicit_invocation: true
+workflow:
+  first_steps:
+    - "判断当前是 bug 修复、正向开发、局部整理、系统性重构还是架构决策。"
+    - "确认重构依据是否充分；不足时推荐证据指向的局部修复或继续诊断。"
+    - "固定外部行为不变护栏和禁止触碰范围。"
+    - "拆分为可独立验证的阶段，并为每阶段设置停止条件。"
+  persistence_rules:
+    - "重构策略是工程安全 handoff，不替代具体代码修改。"
+    - "任何行为变化都必须显式分离，并回到对应事实源或用户确认。"

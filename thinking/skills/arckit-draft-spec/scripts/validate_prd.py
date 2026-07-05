@@ -2,10 +2,10 @@
 """
 validate_prd.py — PRD 文档质量校验
 
-校验生成的 PRD 是否满足最低质量标准：
+校验生成的 PRD 是否满足质量标准：
   1. 必需章节是否存在
   2. 占位符残留检测
-  3. 章节内容最小长度检查
+  3. 章节内容长度下限检查
   4. 验收标准存在性检查
 
 用法:
@@ -40,7 +40,7 @@ RECOMMENDED_SECTIONS = {
     "complex": ["现状分析", "分阶段交付", "迁移方案"],
 }
 
-MIN_SECTION_LENGTH = 30  # 章节内容最少字符数
+MIN_SECTION_LENGTH = 30  # 章节内容字符数下限
 
 PLACEHOLDER_PATTERNS = [
     r"⚠️\s*\*\*\[待补充\]\*\*",

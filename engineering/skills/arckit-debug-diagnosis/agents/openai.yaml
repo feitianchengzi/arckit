@@ -1,7 +1,7 @@
 interface:
   display_name: "ArcKit Debug Diagnosis"
-  short_description: "bug 定位、证据充分性门禁、临时观测埋点、最小修复与清理"
-  default_prompt: "使用 $arckit-debug-diagnosis 从症状提取事实，判断现有证据是否足以证明唯一根因；只要根因不能被错误栈、失败测试、运行日志、可复现路径或明确 diff 100% 证明，就必须先设计并添加最小观察点或临时埋点（日志、console、trace、状态快照、请求/响应记录、测试或 arckit/debug/<issue-slug>.log），用观测结果排除竞争假设后再做最小修复。临时埋点必须带唯一标记、避免敏感信息、记录清理计划；修复和验证后必须删除临时 console/log/debug flag/trace marker，搜索唯一标记确认无残留，并在输出中说明证据充分性、观察点、修复、验证和临时埋点清理结果。"
+  short_description: "bug 定位、证据充分性门禁、临时观测埋点、必要修复与清理"
+  default_prompt: "使用 $arckit-debug-diagnosis 从症状提取事实，判断现有证据是否足以证明唯一根因；只要根因不能被错误栈、失败测试、运行日志、可复现路径或明确 diff 100% 证明，就必须先设计并添加足以区分假设的观察点或临时埋点（日志、console、trace、状态快照、请求/响应记录、测试或 arckit/debug/<issue-slug>.log），用观测结果排除竞争假设后再做必要修复。临时埋点必须带唯一标记、避免敏感信息、记录清理计划；修复和验证后必须删除临时 console/log/debug flag/trace marker，搜索唯一标记确认无残留，并在输出中说明证据充分性、观察点、修复、验证和临时埋点清理结果。"
 policy:
   allow_implicit_invocation: true
 workflow:
@@ -9,8 +9,8 @@ workflow:
     - "保护现场：检查工作区、失败输出、最近变更和用户已有改动。"
     - "收敛症状和复现条件，区分现象、解释和已确认事实。"
     - "执行证据充分性门禁：判断现有证据是否足以证明唯一根因；不足时列出竞争假设。"
-    - "证据不足时先补最小观察点或临时埋点，再验证假设；不要只读代码后猜修。"
-    - "根因被观测结果指向后，执行最小修复和回归验证。"
+    - "证据不足时先补足以区分假设的观察点或临时埋点，再验证假设；不要只读代码后猜修。"
+    - "根因被观测结果指向后，执行必要修复和回归验证。"
     - "最终前清理临时埋点，搜索唯一标记确认无残留。"
   persistence_rules:
     - "ArcKit 项目诊断过程优先记录到 arckit/debug/<issue-slug>.log。"

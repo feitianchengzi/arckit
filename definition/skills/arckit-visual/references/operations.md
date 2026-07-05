@@ -32,7 +32,7 @@
 2. 判断本次变更类型：
    - 投影变更：只调整 token 值或补充 token，品牌气质、信息层级、色彩角色、字体节奏、空间密度不变
    - 源变更：改变品牌气质、信息层级、色彩角色、字体节奏、空间密度、状态表达或主题策略，先更新 `_library/brief.md`
-   - 源缺失：先补最小必要「视觉策略」
+   - 源缺失：先补足以支撑本次 tokens 投影的「视觉策略」
 3. 修改 `arckit/visual/_library/design-tokens.yaml`
    - 按层级组织：colors（品牌色/背景色/文字色/语义色/边框）、typography、spacing、corner_radius、shadows、animation
    - 颜色须同时提供 light 和 dark 值
@@ -49,7 +49,7 @@
 2. 判断本次变更类型：
    - 投影变更：只调整组件角色、变体、尺寸、状态或 token 引用
    - 源变更：改变组件性格、层级表达、状态表达或空间密度，先更新 `_library/brief.md`
-   - 源缺失：先补最小必要「视觉策略」
+   - 源缺失：先补足以支撑本次组件投影的「视觉策略」
 3. 在 `arckit/visual/_library/component-catalog.yaml` 添加或更新组件视觉规格
    - 每个组件须包含：role（视觉角色）、variants（视觉变体）、sizes（尺寸变体）、states（状态集合）、token_refs（Token 引用）
    - 可选：accessibility（无障碍要求）、notes（使用注意事项）

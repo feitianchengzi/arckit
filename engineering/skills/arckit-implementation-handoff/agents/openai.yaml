@@ -1,0 +1,15 @@
+interface:
+  display_name: "ArcKit Implementation Handoff"
+  short_description: "把 Arckit 事实源整理成可交给 coding agent 或人类的实现交接包"
+  default_prompt: "使用 $arckit-implementation-handoff 从 project state、active case、spec、interaction、visual、tech、pending 或外部 handoff 中整理 implementation_handoff。必须写清 goal、receiver、source_facts、assumptions、in_scope、out_of_scope、must_preserve、verification、stop_conditions 和 arckit_writeback。不要写具体技术栈代码，不要把未确认候选判断当成实现事实；事实不足时输出 blocked handoff。"
+policy:
+  allow_implicit_invocation: true
+workflow:
+  first_steps:
+    - "绑定实现目标和接收方。"
+    - "收集事实依据并区分 confirmed facts、assumptions、risks 和 open questions。"
+    - "划定 in_scope、out_of_scope 和 must_preserve。"
+    - "定义验证、停止条件和 Arckit 回写要求。"
+  persistence_rules:
+    - "implementation_handoff 是交接产物，不替代 spec、tech、interaction、visual 或具体编码 skill。"
+    - "缺少足够事实时必须 blocked，不让 coding agent 从文档或代码中自行猜需求。"

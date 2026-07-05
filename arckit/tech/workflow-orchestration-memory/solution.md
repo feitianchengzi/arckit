@@ -241,7 +241,7 @@ Schema 中的 `skill` 字段引用已安装或当前仓库可用的 skill 名称
 11. 任务结束、阻塞或失败时调用 `arckit-workflow-memory` 做 closeout；若存在 `workflow_correction_ledger`，一并传入。
 12. Signal、candidate、accepted 和 INDEX 的具体维护由 Workflow Memory Manager 执行。
 
-该流程允许入口 skill 从“最小必要 skill 选择”升级为“首轮场景识别和工作流编排器”，同时避免它膨胀为执行中所有消息和记忆判断的总控。
+该流程允许入口 skill 从“关键词式 skill 选择”升级为“首轮场景识别和工作流编排器”，同时避免它膨胀为执行中所有消息和记忆判断的总控。
 
 ## 7. 自然沉淀流程
 

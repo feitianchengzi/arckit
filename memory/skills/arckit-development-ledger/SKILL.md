@@ -36,7 +36,7 @@ schema/development-case-record.schema.json
 
 动作：
 - 默认把软件开发请求视为真实项目连续演进的一部分。
-- 如果 `arckit/project/STATE.md` 缺失且可写，创建最小 `project_state_record`。
+- 如果 `arckit/project/STATE.md` 缺失且可写，创建可恢复的 `project_state_record`。
 - 读取 active case 索引；已有相关 active case 时复用并更新。
 - 账本脚本只写目标项目的具体记录，不把 schema 或脚本复制到目标项目 `arckit/` 数据区。
 
@@ -62,6 +62,7 @@ schema/development-case-record.schema.json
 
 动作：
 - 把用户输入、case 结果、稳定事实源、实现探索和验证结果映射到项目维度。
+- 当项目定位、目标用户、核心场景、协作模型、平台边界、长期工作方式或 agent 操作原则改变时，必须在 `project_state_delta.changed`、`decisions` 或 `project_memory` 中记录源事实变化；不要只记录下游 artifact、skill、代码或文档改动。
 - 实现探索产生的网页、脚本、原型、移动端壳或服务端代码先作为探索证据。
 - 只有用户确认、稳定事实源、验证结果或明确决策支撑时，才把项目级维度标记为 `satisfied`。
 - 每轮生成 `project_state_delta`，包含 changed、unchanged_unknown、deferred、blocked 和 next_project_question。
@@ -93,6 +94,8 @@ case record 至少维护：
 动作：
 - 新事项创建到 `arckit/cases/active/`。
 - 每轮执行后更新 Structured Record，运行校验并同步 `INDEX.md`。
+- 当本轮存在源事实和投影产物关系时，在 case 的 `decisions`、`open_questions`、`pending_handoffs` 或 `rounds` 中记录：`source_facts_changed`、`projection_artifacts_changed`、`deferred_projections`、`blocked_projections` 或 `source_unknown`。这可以用简洁文本表达，不要求改变 schema。
+- 如果只更新了投影产物而源事实未知或未更新，completion audit 不应写成完整完成；应保留 active、deferred 或 blocked，并写明下一轮需要定位或维护的源事实。
 - case 完成后移动到 `arckit/cases/closed/`；未完成时保留 active，并写明 next_round_goal。
 - case 只记录当前研发事项状态，不替代项目状态、pending、workflow memory 或稳定事实源。
 
@@ -127,5 +130,6 @@ node <skill-dir>/scripts/development-case.mjs index
 - `ledger_paths`：项目状态、case、index 或 pending write 路径。
 - `project_state_delta`：项目级 changed、unchanged_unknown、deferred、blocked、next_project_question。
 - `case_record_delta`：case 当前状态、current_round_gap、completion_audit 和 next_round_goal。
+- `source_projection_delta`：当适用时，说明源事实变化、投影产物变化、延期或阻塞的投影，以及是否存在只改投影未改源的风险。
 - `ledger_validation`：脚本校验结果或无法校验原因。
 - `next_ledger_step`：下一轮应继续、关闭、阻塞确认、补项目状态、补 case，还是进入迭代账本。

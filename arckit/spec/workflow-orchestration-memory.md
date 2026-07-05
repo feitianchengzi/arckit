@@ -4,7 +4,7 @@
 
 ## 1. 产品定位
 
-Arckit 支持基于 skill 的动态工作流编排。该能力使 `using-arckit` 不只作为最小 skill 路由器存在，而是承担软件项目协作首轮场景识别、工作流匹配和 workflow frame 编译入口职责；任务执行中会改变当前 frame、事实路由、停止条件或 workflow memory 判断的后续用户消息由 `arckit-turn-adaptation` 分类和适配。
+Arckit 支持基于 skill 的动态工作流编排。该能力使 `using-arckit` 不只作为关键词 skill 路由器存在，而是承担软件项目协作首轮场景识别、工作流匹配和 workflow frame 编译入口职责；任务执行中会改变当前 frame、事实路由、停止条件或 workflow memory 判断的后续用户消息由 `arckit-turn-adaptation` 分类和适配。
 
 该能力解决的问题是：用户触发入口 skill 后，agent 应表现为基于已有 Arckit 能力系统性处理问题，而不是只在 prompt 明确命中特定关键词时才偶发加载少数 skill。
 
@@ -260,7 +260,7 @@ Workflow Memory 不替代 `arckit/spec/` 或 `arckit/tech/`。
 
 该能力满足以下验收标准：
 
-- 给定普通软件开发任务时，`using-arckit` 能输出场景判断和 workflow frame，而不是只给最小 skill 列表。
+- 给定普通软件开发任务时，`using-arckit` 能输出场景判断和 workflow frame，而不是只给压缩后的 skill 列表。
 - 给定 bug 诊断任务时，系统能使用 debug diagnosis 收集证据、定位根因，并把后续事实源或 pending 影响说清楚。
 - 给定正向功能开发任务时，系统能形成 implementation handoff，并把后续执行输入交给外部 adapter。
 - 给定 UI 一致性、跨页面行为/样式统一或组件状态统一的实现任务时，系统能在代码实现前识别 `interaction` 和 `visual` 的潜在规范影响，并在实现后决定是否更新对应文档。

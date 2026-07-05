@@ -2,19 +2,21 @@
 
 ## 定位
 
-Skill 架构把产品概念和产品架构转化为当前可实施的 Arckit skill 体系，用来指导 agent 辅助人类完成软件项目开发。
+Skill 架构把产品概念和产品架构转化为当前可实施的 Arckit skill 体系，用来指导人类、Codex 类单 agent 和多 agent 自动化平台围绕同一套软件项目事实持续协作。
+
+Arckit 的定位是软件开发 Agent 的协作与接力协议层。它不等同于全自动化 AI 平台本身，也不要求所有能力都来自 Arckit；平台层可以负责多 agent 调度、loop 控制、权限、队列、运行环境、通知和人类接手机制。Arckit 负责定义项目事实、case 状态、handoff、pending、workflow memory、agent context 和回写边界，让不同 agent、外部工具和人类能可靠接力。
 
 当前 Arckit 围绕软件项目开发的基础协作面组织六类能力：
 
 - 入口编排：识别任务处境，编译 workflow frame。
 - 项目连续状态：维护 `arckit/project` 中的 project state record，追踪整个应用跨上下文、跨 case、跨迭代的长期状态。
 - 研发事项记录：维护 `arckit/cases` 中的 development case record，追踪一个事项跨轮次的结构满足度。
-- 记忆与低承诺空间：保存原始材料、未决问题和 workflow memory。
+- 记忆与低承诺空间：保存原始材料、未决问题、workflow memory 和 agent 启动上下文。
 - 定义前思考：形成决策、草案、设计探索、架构决策和领域模型 handoff。
 - 结果事实源：维护产品、交互、视觉和技术事实。
-- 工程诊断：基于证据定位 bug、回归、数据异常、显示错误和性能退化。
+- 工程执行协议：形成实现交接、重构策略、诊断证据和外部 adapter handoff。
 
-项目治理、长期想法库、市场研究、代码审查、质量评测、发布出包、运行运维、Workshop Desktop 和角色编排进入 Arckit 时，先被整理成决策依据、定义事实、诊断证据、`arckit-pending` 未决项或 external adapter handoff，让人类和外部工具能继续推进。
+项目治理、长期想法库、市场研究、代码审查、质量评测、发布出包、运行运维、Workshop Desktop、角色编排和自动化平台事项进入 Arckit 时，先被整理成决策依据、定义事实、诊断证据、`arckit-pending` 未决项、`implementation_handoff` 或 external adapter handoff，让人类、外部工具和多 agent 平台能继续推进。
 
 ## 总体链路
 
@@ -24,10 +26,13 @@ Arckit 的当前 skill 体系按以下链路工作：
 2. `using-arckit` 先读取或创建 `arckit/project/STATE.md`，确认连续项目状态和本轮可能影响的项目级维度。
 3. `using-arckit` 在 `arckit/cases` 中创建或更新 development case record，记录项目状态引用、当前轮缺口、结构状态、未决项和 completion audit。
 4. `using-arckit` 调用 `arckit-workflow-memory` 做 workflow resolution，绑定已有 accepted/candidate workflow 或准备新的场景级 candidate。
-5. 入口编排选择当前执行面中的最小必要 skill，而不是把用户提到的某个 skill 当作唯一任务。
+5. 入口编排选择足以支撑真实项目推进的 skill 组合，而不是把用户提到的某个 skill 当作唯一任务，也不为了减少 skill 数量而跳过事实、架构、验证或交接。
 6. 过程型 skill 产出 handoff，结果型 skill 维护稳定事实，诊断型 skill 收敛实现事实，未确认内容进入 `arckit-pending`。
-7. `arckit-turn-adaptation` 处理首轮之后会改变 workflow frame、事实路由、停止条件、验证策略或 workflow memory 判断的后续消息，并把 frame delta 交回入口协调。
-8. 执行结果、用户纠错和流程学习交给 `arckit-workflow-memory` closeout。
+7. 如果输入包含长期 agent 协作规则、AGENTS.md 维护或事实源读取顺序，入口路由 `arckit-agent-context` 做 durable context 分类和持久化。
+8. 如果下一步是实现执行，入口路由 `arckit-implementation-handoff` 把已确认事实、范围、禁止触碰项、验证和回写要求整理成实现交接包。
+9. 如果下一步是高风险结构治理，入口路由 `arckit-refactor-strategy` 形成行为不变、分阶段、可验证的重构策略。
+10. `arckit-turn-adaptation` 处理首轮之后会改变 workflow frame、事实路由、停止条件、验证策略或 workflow memory 判断的后续消息，并把 frame delta 交回入口协调。
+11. 执行结果、用户纠错和流程学习交给 `arckit-workflow-memory` closeout。
 
 这条链路是当前实施主线。workflow frame 根据当前维护源选择可执行 skill；跨出当前执行面的阶段通过 pending 或外部 handoff 保持连续推进。
 
@@ -35,12 +40,16 @@ Arckit 的当前 skill 体系按以下链路工作：
 
 - 入口能力只负责编译任务处境和选择能力组合，不替代结果型 skill、实现 adapter 或诊断 skill。
 - 所有软件开发请求默认属于真实项目的连续演进；入口按状态层级、证据成熟度和本轮推进目标编译 workflow frame。
+- 入口在选择能力前执行源-投影门禁：先判断本轮是否改变源事实，再判断当前要更新的 artifact 是源事实还是投影产物；源事实未知时，不允许把投影更新当成完整完成。
 - `arckit/project` 记录项目级连续状态，不替代 spec、interaction、visual、tech 或 case。
 - `arckit/cases` 记录当前研发事项的结构满足度，不替代 pending、workflow memory 或稳定事实源。
 - 过程型 skill 只产出 handoff 和候选判断，不直接写入正式事实源。
 - 结果型 skill 只维护稳定事实，不吸收未确认推断。
 - 低承诺空间必须可用：不能立即写入稳定事实源的信息进入 `arckit-intake` 或 `arckit-pending`。
 - 工作方式变化进入 `arckit-workflow-memory`，不写入产品、交互、视觉或技术事实源。
+- 长期 agent 启动规则和事实源路由规则进入 `AGENTS.md` 或 `arckit-agent-context` 输出的路由 handoff，不写成产品、交互、视觉或技术事实。
+- 需要人类审美、商业优先级、组织授权或发布承担的事项，可以由 Arckit 整理证据、风险和 handoff，但不能静默变成 agent 的最终裁决。
+- 面向编码、重构、发布、评测、平台调度或外部系统的工作优先通过 handoff 协议接入；Arckit 不把外部 adapter 的完整执行能力内建为默认职责。
 - 当前执行面之外的能力由入口整理成外部 adapter handoff 或 pending，保持入口职责清晰。
 
 ## Skill 暴露与路由策略
@@ -54,6 +63,7 @@ Arckit 的当前 skill 体系按以下链路工作：
 - `arckit-development-ledger`
 - `arckit-intake`
 - `arckit-pending`
+- `arckit-agent-context`
 - `arckit-decision-framework`
 - `arckit-draft-spec`
 - `arckit-explore-product-design`
@@ -63,6 +73,8 @@ Arckit 的当前 skill 体系按以下链路工作：
 - `arckit-interaction`
 - `arckit-visual`
 - `arckit-tech`
+- `arckit-implementation-handoff`
+- `arckit-refactor-strategy`
 - `arckit-debug-diagnosis`
 
 当前可见能力地图以本仓库源码中的 skill 集合为准。历史文档、旧迁移策略和用户级已安装副本只提供背景信息。
@@ -76,6 +88,7 @@ Arckit 的当前 skill 体系按以下链路工作：
 - 显式约束、证据、风险、冲突和待确认事项。
 - 最终产物类型是 code、skill、document、workflow、mixed artifact，还是尚未确定。
 - 本轮可能影响的事实源、pending 和工作方式事实。
+- 本轮是否包含 durable agent context、实现交接、重构策略或外部 adapter handoff。
 
 `using-arckit` 优先通过 `arckit-development-ledger` 绑定 `arckit/project/STATE.md` 下的 project state record。project state record 是整个应用的连续状态，包含 project goal、target users、core scenarios、platform targets、client surface、server need、account identity、data persistence、sync collaboration、deployment distribution、quality bar、technical foundation 和 iteration strategy 的状态与证据成熟度。实现探索产生的网页、脚本、原型或临时代码只能作为探索证据，不能自动决定项目最终平台、服务端、账号或部署形态。
 
@@ -95,11 +108,17 @@ Arckit 的当前 skill 体系按以下链路工作：
 
 `arckit-workflow-memory` 负责保存工作方式事实和执行记录。它记录的是人和 Agent 应该如何协作，而不是产品功能事实。用户纠正“以后应该怎么做”时，入口或 turn adaptation 应判断是否形成 workflow signal、candidate patch 或 accepted patch。
 
+`arckit-agent-context` 负责项目级 agent 启动上下文和 durable context 路由。它维护 `AGENTS.md` 中短、稳定、可执行的 agent 操作规则，避免把临时任务约束、聊天记录、产品事实或技术方案写入 agent 启动表面。
+
 ## Handoff 契约
 
 过程型 handoff 至少包含：来源、当前阶段、最终产物类型、已确认事实、候选判断、证据、风险、开放问题、建议接收方、不可直接写入稳定事实源的内容和下一步确认点。
 
-`implementation_handoff` 至少包含：目标最终产物类型、`artifact_type`、预期事实依据、影响范围、禁止触碰范围、实现 adapter、实现约束、验收口径、需要回查的事实源、需要保留的未决项、同步治理影响和收口证据。
+`source_projection_check` 至少包含：本轮是否改变源事实、源事实承载、已更新或待更新的投影产物、延期或阻塞的投影、以及是否存在只改投影未改源的关闭风险。
+
+`implementation_handoff` 至少包含：目标最终产物类型、`artifact_type`、接收方、预期事实依据、影响范围、禁止触碰范围、必须保持不变的行为、实现 adapter、实现约束、验证要求、停止条件、需要回查的事实源、需要保留的未决项、同步治理影响和收口证据。
+
+`refactor_strategy_handoff` 至少包含：重构目标、重构依据、必须保持不变的外部行为、允许修改范围、禁止触碰范围、风险、分阶段计划、每阶段验证方式、停止条件和需要回写的 Arckit surface。
 
 `external_adapter_handoff` 至少包含：待外部执行的阶段、已确认事实、建议外部能力、输入、输出、风险、用户确认点和是否需要先写入 pending。
 
@@ -133,7 +152,9 @@ Arckit 的当前 skill 体系按以下链路工作：
 
 Arckit 支持 code、skill、document、workflow 和 mixed artifact 等最终产物。当前执行面负责形成清晰的目标、事实依据、影响范围、验收口径和交接输入，具体技术栈实现、skill 创建工具、发布平台、代码审查或质量评测由对应 adapter 执行。
 
-实现交接统一以 `implementation_handoff` 为边界。Arckit 在交给普通代码工作流、`arckit-code`、Skill First、skill creator、ArcForge 或其他外部 adapter 前，说明本次实现依据哪些 spec、interaction、visual 或 tech 事实，哪些内容只是候选判断，允许修改范围是什么，收口证据是什么。
+实现交接统一以 `implementation_handoff` 为边界。Arckit 在交给普通代码工作流、`arckit-code`、Skill First、skill creator、ArcForge、多 agent coding role 或其他外部 adapter 前，说明本次实现依据哪些 spec、interaction、visual 或 tech 事实，哪些内容只是候选判断，允许修改范围是什么，禁止触碰范围是什么，验证和回写要求是什么。
+
+重构工作统一先通过 `arckit-refactor-strategy` 划定行为不变护栏、阶段、验证和停止条件。若重构暴露重大架构取舍，交给 `arckit-architecture-decision`；若只是 bug 根因修复，交给 `arckit-debug-diagnosis` 或实现 adapter。
 
 纯治理动作可以直达对应 adapter。当用户只要求安装、同步、漂移检查、profile 归类、应用、正式化、共享或发布准备已有 skill，且目标、来源、应用目标和确认边界已经明确，系统可以直接交给 ArcForge 类治理能力，不强行补完整前置流程。
 
@@ -145,7 +166,8 @@ Arckit 支持 code、skill、document、workflow 和 mixed artifact 等最终产
 
 - 根因和修复仍在实现层：交给当前实现 adapter 或用户确认。
 - 暴露稳定产品、交互、视觉或技术事实变化：交给对应结果型 skill。
-- 暴露外部治理、质量验证、发布运维或后续排期事项：交给 `arckit-pending`。
+- 暴露需要行为不变结构治理：交给 `arckit-refactor-strategy`。
+- 暴露外部治理、质量验证、发布运维或后续排期事项：交给 `arckit-pending` 或 external adapter handoff。
 
 ## Artifact Impact Scan
 
@@ -161,6 +183,8 @@ Arckit 支持 code、skill、document、workflow 和 mixed artifact 等最终产
 - `debug`
 - `pending`
 - `workflow_memory`
+- `agent_context`
+- `handoff`
 
 Scan 不按任务规模设置特殊分支。没有影响时必须显式标记为 `none` 或 `skipped`；无项目事实变化不替代 workflow memory closeout。
 
@@ -171,5 +195,6 @@ Skill 架构满足规格时，系统表现为：
 - 读者能清楚理解 Arckit 如何指导 agent 辅助人类完成软件项目开发。
 - `using-arckit` 按当前执行面编译 workflow frame。
 - 过程型、结果型、诊断型和记忆型 skill 通过 handoff 和事实路由协作。
+- Agent 启动上下文、实现交接和重构策略都有明确 surface 和输出契约。
 - Code、Skill、document、workflow 和 mixed artifact 都能进入同一套定义、外部实现 adapter 和收口证据模型。
 - 治理、验证、发布、运维、桌面桥或角色编排事项会形成 pending 或 external adapter handoff，保持软件项目开发链路连续。

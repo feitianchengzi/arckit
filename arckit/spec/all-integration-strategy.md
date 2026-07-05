@@ -167,7 +167,7 @@
 
 ### 4.3 实际项目使用路由规则
 
-迁移后的 ArcKit 不应因为能力变多而默认跑完整链路。`using-arckit` 仍是默认入口，但它只负责选择最小必要 skill 集，而不是把所有过程和结果 skill 串成一个强流程。
+迁移后的 ArcKit 不应因为能力变多而默认跑固定完整链路。`using-arckit` 仍是默认入口，但它负责选择足以覆盖当前真实项目缺口的 skill 组合，而不是把所有过程和结果 skill 串成一个强流程。
 
 默认路由优先级：
 
@@ -334,9 +334,9 @@ orchestration_plan:
 
 ## 6. 过程 skill 与结果 skill 的接口
 
-### 6.0 通用 handoff 最小契约
+### 6.0 通用 handoff 基础契约
 
-过程 skill 默认不直接写入 `arckit/*` 长期事实源，而是输出 handoff。不同领域可以扩展字段，但最小契约应保持一致：
+过程 skill 默认不直接写入 `arckit/*` 长期事实源，而是输出 handoff。不同领域可以扩展字段，但基础契约应保持一致：
 
 ```yaml
 process_handoff:
@@ -363,9 +363,9 @@ process_handoff:
 - 市场研究可使用领域化的 `market_research_handoff`，但仍应包含来源、事实、推断、假设、缺口和可信度。
 - 如果 handoff 需要跨回合继续、暂不入库或等待用户确认，默认把摘要、来源、开放问题和建议下游交给 `arckit-pending`，而不是只留在对话中。
 
-### 6.0.1 实现交接最小契约
+### 6.0.1 实现交接基础契约
 
-本仓库不承载正向 coding skill，但定义、治理和质量流程需要能把工作稳定交给普通代码 workflow 或外部 `arckit-code`。进入编码前应形成最小 `implementation_handoff`：
+本仓库不承载正向 coding skill，但定义、治理和质量流程需要能把工作稳定交给普通代码 workflow 或外部 `arckit-code`。进入编码前应形成足以让接收方不猜上下文的 `implementation_handoff`：
 
 ```yaml
 implementation_handoff:
@@ -643,7 +643,7 @@ process_handoff:
 迁移内容：
 
 - 完整读取错误信息。
-- 稳定复现和最小复现。
+- 稳定复现和可证明的复现路径。
 - 近期变更检查。
 - 多组件逐层诊断。
 - 单一假设测试。
@@ -654,7 +654,7 @@ process_handoff:
 
 调整要求：
 
-- 保持“最小修复”和证据驱动诊断。
+- 保持证据驱动诊断和必要修复。
 - 运行健康检查、基线和告警不进入该 skill，放入 `delivery/skills/arckit-runtime-operations`。
 - 发现架构问题时交回 `arckit-tech` 或后续前缀化后的项目治理 skill，不在 debug skill 中做长期架构重写。
 
@@ -754,7 +754,7 @@ release_readiness_handoff:
 
 ### 6.11 `operate` 运行部分 -> `delivery/skills/arckit-runtime-operations`
 
-目标：补齐运行监控和运维观察能力，用于健康检查、运行基线、指标分析、SLA/SLO 和告警建议。它处理系统运行状态，不承担 debug 最小修复，也不做发布决策。
+目标：补齐运行监控和运维观察能力，用于健康检查、运行基线、指标分析、SLA/SLO 和告警建议。它处理系统运行状态，不承担 debug 必要修复，也不做发布决策。
 
 迁移内容：
 
@@ -834,7 +834,7 @@ arckit/pending/
 - `project-governance-workflow` 的目标名采用 `arckit-project-governance-workflow`；本轮只做命名和引用迁移，不改变治理模型。
 - `all/01-pm/insight` 独立迁移为 `idea/skills/arckit-market-research`，不作为 `arckit-idea-explore` 的 reference 子流程；`arckit-idea-explore` 只读取其输出作为增强输入。
 - `all` 中具体 coding 能力本轮继续忽略，不再追问迁入哪个 `arckit-code` 目录和命名空间。
-- 迁移后 `using-arckit` 必须按用户当前意图选择最小必要 skill 集，不默认跑完整研发链路。
+- 迁移后 `using-arckit` 必须按用户当前意图选择足以覆盖事实、架构、验证、交接和上下文治理缺口的 skill 组合，不默认跑固定完整研发链路。
 - `arckit-role-orchestration` 只在用户明确要求多角色、端到端或完整研发流程时触发；若用户授权按计划继续执行，才从编排计划进入第一步 skill。
 - 过程 skill 输出 handoff 不等于结果入库；只有用户明确要求沉淀，或入口判断需要维护长期事实源时，才调用对应结果 skill。
 - 结果 skill 接收 handoff 时只能把 `accepted_facts` 当候选事实处理，`assumptions`、`gaps`、`risks` 和 `rejected_items` 不得静默入库。
@@ -859,7 +859,7 @@ arckit/pending/
 - 新建交付 skills：`delivery/skills/arckit-release-readiness/`、`delivery/skills/arckit-runtime-operations/`。
 - 补迁 `all/06-sre/operate` 调试部分到 `engineering/skills/arckit-debug-diagnosis/`：`references/debugging-methodology.md` 和 `scripts/debug_report.py`。
 - 给 `arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech` 增加 handoff 接收规则，但不扩展其核心结果维护定义。
-- 更新 `using-arckit` 路由，使其按当前意图选择最小必要 skill 集，并明确 `arckit-role-orchestration` 必须显式触发。
+- 更新 `using-arckit` 路由，使其按当前意图选择足以覆盖真实项目缺口的 skill 组合，并明确 `arckit-role-orchestration` 必须显式触发。
 - 重写 `entry/skills/arckit-role-orchestration/scripts/generate_plan.py`，移除旧 `all` 阶段名和 `build/build-fe/build-be` 链路，改为当前 `arckit-*` skill 与外部 `arckit-code` implementation handoff。
 - 清理 `thinking/skills/arckit-decision-framework/` 的旧 `skill.json` 和根级 `README.md`，并将 `scripts/init-template.sh` 默认输出从旧 `$HOME/.openclaw/workspace` 改为当前工作目录。
 - 删除 `thinking/skills/arckit-decision-framework/templates/README.md` 的重复副本，统一保留 `references/all-usage-guide.md` 作为使用指南引用。

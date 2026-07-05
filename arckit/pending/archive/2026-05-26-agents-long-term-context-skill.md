@@ -2,12 +2,12 @@
 
 ## Status
 
-- State: candidate
+- State: promoted
 - Type: agent
 - Source: agent conversation
 - Created: 2026-05-26
-- Updated: 2026-05-26
-- Decision: record only; do not execute yet
+- Updated: 2026-07-05
+- Decision: promoted to `memory/skills/arckit-agent-context/`
 
 ## Background
 
@@ -74,5 +74,4 @@ The skill should avoid automatically storing temporary instructions, one-off tas
 
 ## Outcome
 
-Not yet promoted.
-
+Promoted on 2026-07-05 as `memory/skills/arckit-agent-context/`. The active skill now owns durable context classification, AGENTS.md governance, and routing to Arckit fact sources, pending, or workflow memory.
