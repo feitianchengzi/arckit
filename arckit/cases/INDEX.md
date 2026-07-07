@@ -19,3 +19,4 @@ Use `arckit-development-ledger` to create, validate, audit, close, and re-index 
 | [CASE-20260705-003](closed/CASE-20260705-003-extract-project-state-record-json.md) | closed | Extract project state record JSON | 2026-07-05T15:54:24.572Z |
 | [CASE-20260705-004](closed/CASE-20260705-004-refine-generated-state-decision-briefs.md) | closed | Refine generated state decision briefs | 2026-07-05T16:13:39.580Z |
 | [CASE-20260705-005](closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md) | closed | Install and demo validate arckit state loop | 2026-07-05T16:33:06.419Z |
+| [CASE-20260707-001](closed/CASE-20260707-001-add-loop-handoff-responsibility-model.md) | closed | Add loop handoff responsibility model | 2026-07-07T11:20:00.000Z |

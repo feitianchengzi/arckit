@@ -132,6 +132,12 @@ function createRecord({ name, intent = '' }) {
       next_transition: '',
       priority_basis: '',
       stop_condition: '',
+      next_responsibility: 'none',
+      agent_continuation_available: false,
+      human_decision_required: false,
+      trigger_mode: 'none',
+      continuation_prompt: '',
+      responsibility_reason: '',
     },
     active_constraints: [],
     open_questions: [],
@@ -181,6 +187,11 @@ function renderState(record) {
     `- Transition: ${primaryGap.dimension ? `${primaryGap.dimension}: ${primaryGap.current_state} -> ${primaryGap.target_state}` : record.loop_control?.next_transition || 'TBD'}`,
     `- Why now: ${primaryGap.impact || record.loop_control?.priority_basis || 'TBD'}`,
     `- Next action: ${primaryGap.next_transition || record.loop_control?.next_transition || 'TBD'}`,
+    `- Next responsibility: ${record.loop_control?.next_responsibility || 'TBD'}`,
+    `- Trigger mode: ${record.loop_control?.trigger_mode || 'TBD'}`,
+    `- Agent continuation available: ${record.loop_control?.agent_continuation_available === true ? 'yes' : 'no'}`,
+    `- Human decision required: ${record.loop_control?.human_decision_required === true ? 'yes' : 'no'}`,
+    `- Continuation prompt: ${record.loop_control?.continuation_prompt || 'TBD'}`,
     '',
     '## Current Risks',
     '',
@@ -409,6 +420,28 @@ function validateRecord(record, file = '<record>') {
   } else {
     for (const key of ['current_loop_focus', 'next_transition', 'priority_basis', 'stop_condition']) {
       if (typeof record.loop_control[key] !== 'string') {
+        errors.push(`${file}: loop_control.${key} must be a string`);
+      }
+    }
+    if (
+      record.loop_control.next_responsibility !== undefined &&
+      !['agent', 'human', 'external', 'none'].includes(record.loop_control.next_responsibility)
+    ) {
+      errors.push(`${file}: loop_control.next_responsibility must be one of agent, human, external, none`);
+    }
+    if (
+      record.loop_control.trigger_mode !== undefined &&
+      !['manual_bridge', 'auto_bridge', 'user_decision', 'external_wait', 'none'].includes(record.loop_control.trigger_mode)
+    ) {
+      errors.push(`${file}: loop_control.trigger_mode must be one of manual_bridge, auto_bridge, user_decision, external_wait, none`);
+    }
+    for (const key of ['agent_continuation_available', 'human_decision_required']) {
+      if (record.loop_control[key] !== undefined && typeof record.loop_control[key] !== 'boolean') {
+        errors.push(`${file}: loop_control.${key} must be a boolean`);
+      }
+    }
+    for (const key of ['continuation_prompt', 'responsibility_reason']) {
+      if (record.loop_control[key] !== undefined && typeof record.loop_control[key] !== 'string') {
         errors.push(`${file}: loop_control.${key} must be a string`);
       }
     }

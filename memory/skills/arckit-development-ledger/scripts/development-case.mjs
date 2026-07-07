@@ -19,6 +19,10 @@ const VALID_CASE_STATUS = new Set(['active', 'blocked', 'handoff', 'deferred', '
 const VALID_ARTIFACT_TYPE = new Set(['code', 'skill', 'document', 'workflow', 'mixed', 'unknown']);
 const VALID_EVIDENCE_MATURITY = new Set(['none', 'exploratory', 'confirmed', 'formalized']);
 const VALID_ROUTE_DECISION = new Set(['selected', 'deferred', 'not_applicable', 'blocked']);
+const VALID_AUDIT_STATUS = new Set(['unknown', 'complete', 'incomplete', 'blocked']);
+const VALID_LOOP_HANDOFF_STATUS = new Set(['continue', 'done', 'needs_human', 'blocked', 'deferred']);
+const VALID_NEXT_RESPONSIBILITY = new Set(['agent', 'human', 'external', 'none']);
+const VALID_TRIGGER_MODE = new Set(['manual_bridge', 'auto_bridge', 'user_decision', 'external_wait', 'none']);
 const STRUCTURE_KEYS = [
   'product_expectation',
   'interaction_expectation',
@@ -38,6 +42,17 @@ const EVIDENCE_REQUIRED_ON_SATISFIED = new Set([
   'implementation_state',
   'verification_state',
 ]);
+const NEXT_GOAL_BY_STRUCTURE = {
+  product_expectation: 'Clarify or formalize the product expectation, then update the case audit.',
+  interaction_expectation: 'Clarify or formalize the interaction expectation, then update the case audit.',
+  visual_expectation: 'Clarify or formalize the visual expectation, then update the case audit.',
+  technical_expectation: 'Clarify or formalize the technical expectation, then update the case audit.',
+  implementation_state: 'Advance the implementation state with evidence, then update the case audit.',
+  verification_state: 'Run or document the required verification, then update the case audit.',
+  open_questions: 'Resolve or route the open questions, then update the case audit.',
+  pending_handoffs: 'Resolve or record the pending handoffs, then update the case audit.',
+  workflow_memory_signals: 'Complete workflow memory closeout, then update the case audit.',
+};
 
 function usage(exitCode = 0) {
   const message = [
@@ -146,6 +161,87 @@ function defaultProjectStateDelta(timestamp = '') {
   };
 }
 
+function nextGoalFor(key) {
+  return NEXT_GOAL_BY_STRUCTURE[key] || `Resolve ${key}`;
+}
+
+function defaultLoopHandoff({ status = 'continue', nextRoundGoal = '', remaining = [], blocked = [] } = {}) {
+  const done = status === 'done';
+  const isBlocked = status === 'blocked';
+  const nextResponsibility = done ? 'none' : isBlocked ? 'human' : 'agent';
+  const triggerMode = done ? 'none' : isBlocked ? 'user_decision' : 'manual_bridge';
+  const goal = nextRoundGoal || (remaining.length > 0 ? nextGoalFor(remaining[0]) : '');
+  const goalSentence = goal.replace(/[.。]\s*$/, '');
+  return {
+    version: 'loop-handoff/v1',
+    status,
+    next_responsibility: nextResponsibility,
+    agent_continuation_available: nextResponsibility === 'agent',
+    human_decision_required: nextResponsibility === 'human',
+    trigger_mode: triggerMode,
+    responsibility_reason: done
+      ? 'No further continuation is required.'
+      : isBlocked
+        ? `Blocked by ${blocked[0] || 'an unresolved decision or dependency'}.`
+        : 'The next step is agent-continuable; manual_bridge only compensates for missing automatic continuation.',
+    next_prompt: nextResponsibility === 'agent'
+      ? `Continue the active Arckit case. Goal: ${goalSentence}. Read the case record and project state first, then update completion_audit and loop_handoff before final.`
+      : '',
+    agent_instruction: {
+      goal,
+      required_context_refs: [
+        'arckit/project/state.record.json',
+        'arckit/project/STATE.md',
+        'current development case record',
+      ],
+      required_actions: nextResponsibility === 'agent' ? [goal] : [],
+      required_checks: [
+        'source_projection_check',
+        'case_audit',
+        'workflow_memory_closeout',
+      ],
+      stop_condition: done
+        ? 'Stop; no continuation is required.'
+        : 'Stop only after the case audit has no remaining agent-continuable gaps, or after producing a new loop_handoff.',
+    },
+    human_gate: {
+      required: nextResponsibility === 'human',
+      reason: nextResponsibility === 'human' ? 'Continuation requires human judgment, authorization, or dependency resolution.' : '',
+      decision_needed: nextResponsibility === 'human' ? blocked[0] || goal : '',
+    },
+    progress_guard: {
+      expected_state_change: goal,
+      actual_state_change: '',
+      no_progress_limit: 2,
+      max_auto_rounds: 3,
+    },
+    blocked_reason: isBlocked ? blocked.join(', ') : '',
+  };
+}
+
+function defaultCompletionAudit(timestamp = '', overrides = {}) {
+  const status = overrides.status || 'unknown';
+  const satisfied = overrides.satisfied || [];
+  const remaining = overrides.remaining || STRUCTURE_KEYS;
+  const blocked = overrides.blocked || [];
+  const nextRoundGoal = overrides.next_round_goal || '';
+  const loopStatus = status === 'complete' ? 'done' : status === 'blocked' ? 'blocked' : 'continue';
+  return {
+    status,
+    satisfied,
+    remaining,
+    blocked,
+    next_round_goal: nextRoundGoal,
+    loop_handoff: overrides.loop_handoff || defaultLoopHandoff({
+      status: loopStatus,
+      nextRoundGoal,
+      remaining,
+      blocked,
+    }),
+    updated_at: timestamp,
+  };
+}
+
 function createRecord({ title, artifactType = 'unknown', intent = '' }) {
   const id = nextCaseId();
   const timestamp = nowIso();
@@ -180,14 +276,7 @@ function createRecord({ title, artifactType = 'unknown', intent = '' }) {
     pending_handoffs: [],
     workflow_memory_signals: [],
     rounds: [],
-    completion_audit: {
-      status: 'unknown',
-      satisfied: [],
-      remaining: STRUCTURE_KEYS,
-      blocked: [],
-      next_round_goal: '',
-      updated_at: timestamp,
-    },
+    completion_audit: defaultCompletionAudit(timestamp),
   };
 }
 
@@ -224,10 +313,35 @@ function extractRecord(text, file) {
     throw new Error(`${file}: missing Structured Record json block`);
   }
   try {
-    return JSON.parse(match[1]);
+    return normalizeRecord(JSON.parse(match[1]));
   } catch (error) {
     throw new Error(`${file}: invalid JSON: ${error.message}`);
   }
+}
+
+function normalizeRecord(record) {
+  const timestamp = record.updated_at || nowIso();
+  if (!record.completion_audit || typeof record.completion_audit !== 'object' || Array.isArray(record.completion_audit)) {
+    record.completion_audit = defaultCompletionAudit(timestamp);
+    return record;
+  }
+  const audit = record.completion_audit;
+  audit.status = audit.status || 'unknown';
+  audit.satisfied = Array.isArray(audit.satisfied) ? audit.satisfied : [];
+  audit.remaining = Array.isArray(audit.remaining) ? audit.remaining : STRUCTURE_KEYS;
+  audit.blocked = Array.isArray(audit.blocked) ? audit.blocked : [];
+  audit.next_round_goal = typeof audit.next_round_goal === 'string' ? audit.next_round_goal : '';
+  audit.updated_at = typeof audit.updated_at === 'string' ? audit.updated_at : timestamp;
+  if (!audit.loop_handoff || typeof audit.loop_handoff !== 'object' || Array.isArray(audit.loop_handoff)) {
+    const loopStatus = audit.status === 'complete' ? 'done' : audit.status === 'blocked' ? 'blocked' : 'continue';
+    audit.loop_handoff = defaultLoopHandoff({
+      status: loopStatus,
+      nextRoundGoal: audit.next_round_goal,
+      remaining: audit.remaining,
+      blocked: audit.blocked,
+    });
+  }
+  return record;
 }
 
 function readRecord(file) {
@@ -359,7 +473,73 @@ function validateRecord(record, file = '<record>') {
       errors.push(`${file}: ${key} must be an array`);
     }
   }
+  validateCompletionAudit(record.completion_audit, errors, file);
   return errors;
+}
+
+function validateCompletionAudit(audit, errors, file) {
+  if (!audit || typeof audit !== 'object' || Array.isArray(audit)) {
+    errors.push(`${file}: completion_audit must be an object`);
+    return;
+  }
+  if (!VALID_AUDIT_STATUS.has(audit.status)) {
+    errors.push(`${file}: completion_audit.status must be one of ${Array.from(VALID_AUDIT_STATUS).join(', ')}`);
+  }
+  for (const key of ['satisfied', 'remaining', 'blocked']) {
+    if (!Array.isArray(audit[key])) {
+      errors.push(`${file}: completion_audit.${key} must be an array`);
+    }
+  }
+  if (typeof audit.next_round_goal !== 'string') {
+    errors.push(`${file}: completion_audit.next_round_goal must be a string`);
+  }
+  if (typeof audit.updated_at !== 'string') {
+    errors.push(`${file}: completion_audit.updated_at must be a string`);
+  }
+  const handoff = audit.loop_handoff;
+  if (!handoff || typeof handoff !== 'object' || Array.isArray(handoff)) {
+    errors.push(`${file}: completion_audit.loop_handoff must be an object`);
+    return;
+  }
+  if (handoff.version !== 'loop-handoff/v1') {
+    errors.push(`${file}: completion_audit.loop_handoff.version must be loop-handoff/v1`);
+  }
+  if (!VALID_LOOP_HANDOFF_STATUS.has(handoff.status)) {
+    errors.push(`${file}: completion_audit.loop_handoff.status must be one of ${Array.from(VALID_LOOP_HANDOFF_STATUS).join(', ')}`);
+  }
+  if (!VALID_NEXT_RESPONSIBILITY.has(handoff.next_responsibility)) {
+    errors.push(`${file}: completion_audit.loop_handoff.next_responsibility must be one of ${Array.from(VALID_NEXT_RESPONSIBILITY).join(', ')}`);
+  }
+  if (typeof handoff.agent_continuation_available !== 'boolean') {
+    errors.push(`${file}: completion_audit.loop_handoff.agent_continuation_available must be a boolean`);
+  }
+  if (typeof handoff.human_decision_required !== 'boolean') {
+    errors.push(`${file}: completion_audit.loop_handoff.human_decision_required must be a boolean`);
+  }
+  if (!VALID_TRIGGER_MODE.has(handoff.trigger_mode)) {
+    errors.push(`${file}: completion_audit.loop_handoff.trigger_mode must be one of ${Array.from(VALID_TRIGGER_MODE).join(', ')}`);
+  }
+  if (typeof handoff.responsibility_reason !== 'string') {
+    errors.push(`${file}: completion_audit.loop_handoff.responsibility_reason must be a string`);
+  }
+  if (typeof handoff.next_prompt !== 'string') {
+    errors.push(`${file}: completion_audit.loop_handoff.next_prompt must be a string`);
+  }
+  if (!handoff.agent_instruction || typeof handoff.agent_instruction !== 'object' || Array.isArray(handoff.agent_instruction)) {
+    errors.push(`${file}: completion_audit.loop_handoff.agent_instruction must be an object`);
+  }
+  if (!handoff.human_gate || typeof handoff.human_gate !== 'object' || Array.isArray(handoff.human_gate)) {
+    errors.push(`${file}: completion_audit.loop_handoff.human_gate must be an object`);
+  }
+  if (!handoff.progress_guard || typeof handoff.progress_guard !== 'object' || Array.isArray(handoff.progress_guard)) {
+    errors.push(`${file}: completion_audit.loop_handoff.progress_guard must be an object`);
+  }
+  if (handoff.next_responsibility === 'agent' && handoff.human_decision_required) {
+    errors.push(`${file}: agent-continuable handoff must not require a human decision`);
+  }
+  if (handoff.next_responsibility === 'human' && !handoff.human_decision_required) {
+    errors.push(`${file}: human-responsibility handoff must require a human decision`);
+  }
 }
 
 function auditRecord(record) {
@@ -378,12 +558,20 @@ function auditRecord(record) {
     }
   }
   const status = remaining.length === 0 ? 'complete' : blocked.length > 0 ? 'blocked' : 'incomplete';
+  const nextRoundGoal = remaining.length > 0 ? nextGoalFor(remaining[0]) : '';
+  const loopStatus = status === 'complete' ? 'done' : status === 'blocked' ? 'blocked' : 'continue';
   return {
     status,
     satisfied,
     remaining,
     blocked,
-    next_round_goal: remaining.length > 0 ? `Resolve ${remaining[0]}` : '',
+    next_round_goal: nextRoundGoal,
+    loop_handoff: defaultLoopHandoff({
+      status: loopStatus,
+      nextRoundGoal,
+      remaining,
+      blocked,
+    }),
     updated_at: nowIso(),
   };
 }

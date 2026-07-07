@@ -60,8 +60,11 @@
     "product_behavior": {
       "current_state": "designed",
       "target_state": "accepted",
-      "state_reason": "状态机制已从记录型账本重新设计为全局项目完整性状态、项目内迭代状态和 case 证据的分层模型。",
+      "state_reason": "状态机制已从记录型账本重新设计为全局项目完整性状态、项目内迭代状态、case 证据和 Loop Handoff 的分层模型；每轮 closeout 先判断下一步职责归属，再判断触发方式。",
       "evidence": [
+        "arckit/spec/agentic-software-development/product-concepts.md",
+        "arckit/spec/agentic-software-development/product-architecture.md",
+        "arckit/spec/workflow-orchestration-memory.md",
         "memory/skills/arckit-development-ledger/SKILL.md",
         "memory/skills/arckit-development-ledger/schema/project-state-record.schema.json",
         "memory/skills/arckit-development-ledger/schema/iteration-state-record.schema.json"
@@ -76,8 +79,10 @@
     "user_experience": {
       "current_state": "defined",
       "target_state": "accepted",
-      "state_reason": "当前用户体验主要是 agent 读取 Markdown 状态、迭代和 case 文件后的协作体验，不限定为 GUI。",
+      "state_reason": "当前用户体验主要是 agent 读取 Markdown 状态、迭代、case 文件和 loop handoff 后的协作体验，不限定为 GUI。人手动触发下一轮时只是补 agent 自动续轮机制，不等于承担人类决策。",
       "evidence": [
+        "arckit/spec/agentic-software-development/product-concepts.md",
+        "arckit/spec/agentic-software-development/product-architecture.md",
         "entry/skills/using-arckit/SKILL.md",
         "memory/skills/arckit-development-ledger/SKILL.md"
       ],
@@ -194,8 +199,10 @@
     "quality_validation": {
       "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "质量目标从结构校验升级为验证状态机制是否能驱动真实 loop，而不只是格式有效。",
+      "state_reason": "质量目标从结构校验升级为验证状态机制和 Loop Handoff 是否能驱动真实 loop，而不只是格式有效。",
       "evidence": [
+        "arckit/spec/workflow-orchestration-memory.md",
+        "arckit/tech/workflow-orchestration-memory/solution.md",
         "memory/skills/arckit-development-ledger/SKILL.md",
         "node memory/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
         "node memory/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
@@ -256,8 +263,11 @@
     "maintainability_handoff": {
       "current_state": "implemented",
       "target_state": "accepted",
-      "state_reason": "状态机制已明确 state.record.json、STATE.md decision brief、iteration record、iteration decision brief、case、pending、事实源和 workflow memory 的边界，使后续 agent 能按状态差距接手。",
+      "state_reason": "状态机制已明确 state.record.json、STATE.md decision brief、iteration record、iteration decision brief、case、Loop Handoff、pending、事实源和 workflow memory 的边界，使后续 agent 或自动化平台能按状态差距接手。",
       "evidence": [
+        "arckit/spec/agentic-software-development/skill-architecture.md",
+        "arckit/spec/workflow-orchestration-memory.md",
+        "arckit/tech/workflow-orchestration-memory/solution.md",
         "memory/skills/arckit-development-ledger/SKILL.md",
         "entry/skills/using-arckit/SKILL.md",
         "arckit/project/state.record.json",
@@ -322,7 +332,13 @@
     "current_loop_focus": "用真实复杂项目验证状态驱动 loop。",
     "next_transition": "选择真实复杂项目执行 state gap -> case -> verification -> state delta 的闭环，观察 STATE.md、iteration state 和 case evidence 是否能稳定驱动下一轮行动。",
     "priority_basis": "结构校验已通过；剩余风险是模型是否能在真实复杂项目中驱动工程收敛。",
-    "stop_condition": "当前迭代的 stop condition 是完成至少一次真实复杂项目 loop 验证，并根据结果决定是否补跨记录 audit。"
+    "stop_condition": "当前迭代的 stop condition 是完成至少一次真实复杂项目 loop 验证，并根据结果决定是否补跨记录 audit。",
+    "next_responsibility": "agent",
+    "agent_continuation_available": true,
+    "human_decision_required": false,
+    "trigger_mode": "manual_bridge",
+    "continuation_prompt": "继续选择真实复杂项目执行 state gap -> case -> verification -> state delta 的闭环，并验证 loop_handoff 是否正确区分 agent 续轮、人类决策和外部等待。",
+    "responsibility_reason": "下一步是 agent 可继续的真实项目 loop 验证；manual_bridge 只表示当前缺少自动续轮 controller。"
   },
   "active_constraints": [
     "Arckit 项目状态机制服务于基于状态的 loop 工程，而不是记录型日志。",
@@ -331,6 +347,7 @@
     "迭代 Markdown 是由对应 iteration *.record.json 生成的 iteration decision brief，不内嵌完整 JSON。",
     "迭代状态属于项目状态推进层，放在 arckit/project/iterations/。",
     "case 是状态变化的证据和过程记录，不替代全局状态或迭代状态。",
+    "Loop Handoff 先判断 next_responsibility，再判断 trigger_mode；manual_bridge 不等于 human_decision_required。",
     "skill、code、document、CLI、Web、App、API 和服务端都只是软件实现产物形态，不能先验排除身份、权限、数据、部署或运维维度。"
   ],
   "open_questions": [
@@ -339,6 +356,11 @@
   ],
   "canonical_artifact_refs": [
     "AGENTS.md",
+    "arckit/spec/agentic-software-development/product-concepts.md",
+    "arckit/spec/agentic-software-development/product-architecture.md",
+    "arckit/spec/agentic-software-development/skill-architecture.md",
+    "arckit/spec/workflow-orchestration-memory.md",
+    "arckit/tech/workflow-orchestration-memory/solution.md",
     "entry/skills/using-arckit/SKILL.md",
     "memory/skills/arckit-development-ledger/SKILL.md",
     "memory/skills/arckit-development-ledger/schema/project-state-record.schema.json",
@@ -350,87 +372,52 @@
     "arckit/project/ITERATIONS.md",
     "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md",
+    "arckit/cases/closed/CASE-20260707-001-add-loop-handoff-responsibility-model.md",
     "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md"
   ],
   "last_state_delta": {
     "changed_dimensions": [
       "product_behavior",
-      "runtime_surfaces",
-      "data_state",
-      "architecture_foundation",
-      "implementation_coverage",
       "quality_validation",
       "maintainability_handoff",
-      "iteration_governance"
+      "user_experience"
     ],
     "state_transitions": [
+      {
+        "dimension": "product_behavior",
+        "from_state": "designed",
+        "to_state": "designed",
+        "reason": "Loop Handoff 的稳定产品语义已正式写入 spec：先判断下一步职责归属，再判断触发方式；manual_bridge 不等于人类决策。"
+      },
       {
         "dimension": "maintainability_handoff",
         "from_state": "implemented",
         "to_state": "implemented",
-        "reason": "STATE.md 和 iteration Markdown 从完整状态摘要改为有损 decision brief，agent 先读 brief 定位行动，再读 canonical record 精确写入。"
+        "reason": "Skill 执行协议、spec、tech 和 case schema 已对齐到 completion_audit.loop_handoff，未来自动桥可读取同一结构。"
       },
       {
-        "dimension": "iteration_governance",
-        "from_state": "implemented",
-        "to_state": "implemented",
-        "reason": "迭代状态迁移为 *.record.json canonical record + generated iteration decision brief，并补 projection audit。"
-      },
-      {
-        "dimension": "data_state",
-        "from_state": "designed",
-        "to_state": "designed",
-        "reason": "全局项目状态从 STATE.md 内嵌 JSON 迁移为 state.record.json canonical record，STATE.md 改为 projection。"
-      },
-      {
-        "dimension": "runtime_surfaces",
+        "dimension": "quality_validation",
         "from_state": "verified",
         "to_state": "verified",
-        "reason": "project-state 脚本新增 migrate/render，默认读写 state.record.json 并渲染 STATE.md。"
+        "reason": "本轮补齐了先前只改 skill 投影而未同步 arckit/spec 和 arckit/tech 的源事实缺口。"
       },
       {
-        "dimension": "product_behavior",
+        "dimension": "user_experience",
         "from_state": "defined",
-        "to_state": "designed",
-        "reason": "状态机制从项目摘要/记录账本调整为项目完整性状态控制面。"
-      },
-      {
-        "dimension": "iteration_governance",
-        "from_state": "needed",
-        "to_state": "implemented",
-        "reason": "迭代状态移动到 arckit/project/iterations，并增加 iteration state schema 与脚本。"
-      },
-      {
-        "dimension": "implementation_coverage",
-        "from_state": "designed",
         "to_state": "verified",
-        "reason": "project state v2、iteration state v1、project-state 脚本和 project-iteration 脚本已落地并通过结构/语法校验。"
-      },
-      {
-        "dimension": "runtime_surfaces",
-        "from_state": "verified",
-        "to_state": "verified",
-        "reason": "Arckit 已通过 ArcForge 安装到 Codex 用户级 skills 目录，并用已安装脚本在 arckit-demo 中完成状态账本初始化与审计。"
-      },
-      {
-        "dimension": "iteration_governance",
-        "from_state": "implemented",
-        "to_state": "implemented",
-        "reason": "subagent demo 验证发现 project-iteration new 不自动生成 ITERATIONS.md；已修复为 new/migrate 自动刷新索引，audit 检查缺失或 stale index。"
+        "reason": "closeout 现在明确区分人类手动触发 agent 续轮、真实人类决策、外部等待和完成状态。"
       }
     ],
     "deferred_dimensions": [
-      "delivery_operation"
+      "delivery_operation",
+      "自动桥 controller 实现"
     ],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md",
-      "arckit/cases/closed/CASE-20260705-003-extract-project-state-record-json.md",
-      "arckit/cases/closed/CASE-20260705-004-refine-generated-state-decision-briefs.md",
-      "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md"
+      "arckit/cases/closed/CASE-20260707-001-add-loop-handoff-responsibility-model.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "next_loop_focus": "用真实复杂项目验证状态驱动 loop。",
-    "updated_at": "2026-07-05T16:33:20.000Z"
+    "next_loop_focus": "用真实复杂项目验证状态驱动 loop 和 Loop Handoff。",
+    "updated_at": "2026-07-07T11:20:00.000Z"
   }
 }

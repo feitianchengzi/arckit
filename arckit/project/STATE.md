@@ -17,6 +17,11 @@ Canonical Record: state.record.json
 - Transition: quality_validation: verified -> accepted
 - Why now: 没有真实复杂项目 loop 验证时，状态机制只能证明结构合理，不能证明能驱动工程收敛。
 - Next action: 选择真实复杂项目执行一次 state gap -> case -> verification -> state delta 的闭环。
+- Next responsibility: agent
+- Trigger mode: manual_bridge
+- Agent continuation available: yes
+- Human decision required: no
+- Continuation prompt: 继续选择真实复杂项目执行 state gap -> case -> verification -> state delta 的闭环，并验证 loop_handoff 是否正确区分 agent 续轮、人类决策和外部等待。
 
 ## Current Risks
 

@@ -32,7 +32,8 @@ Arckit 的当前 skill 体系按以下链路工作：
 8. 如果下一步是实现执行，入口路由 `arckit-implementation-handoff` 把已确认事实、范围、禁止触碰项、验证和回写要求整理成实现交接包。
 9. 如果下一步是高风险结构治理，入口路由 `arckit-refactor-strategy` 形成行为不变、分阶段、可验证的重构策略。
 10. `arckit-turn-adaptation` 处理首轮之后会改变 workflow frame、事实路由、停止条件、验证策略或 workflow memory 判断的后续消息，并把 frame delta 交回入口协调。
-11. 执行结果、用户纠错和流程学习交给 `arckit-workflow-memory` closeout。
+11. 每轮结束前，`using-arckit` 和 `arckit-development-ledger` 输出 `completion_audit.loop_handoff`，区分下一步职责归属和触发方式。
+12. 执行结果、用户纠错和流程学习交给 `arckit-workflow-memory` closeout。
 
 这条链路是当前实施主线。workflow frame 根据当前维护源选择可执行 skill；跨出当前执行面的阶段通过 pending 或外部 handoff 保持连续推进。
 
@@ -49,6 +50,7 @@ Arckit 的当前 skill 体系按以下链路工作：
 - 工作方式变化进入 `arckit-workflow-memory`，不写入产品、交互、视觉或技术事实源。
 - 长期 agent 启动规则和事实源路由规则进入 `AGENTS.md` 或 `arckit-agent-context` 输出的路由 handoff，不写成产品、交互、视觉或技术事实。
 - 需要人类审美、商业优先级、组织授权或发布承担的事项，可以由 Arckit 整理证据、风险和 handoff，但不能静默变成 agent 的最终裁决。
+- 每轮 closeout 先判断 `next_responsibility=agent|human|external|none`，再判断 `trigger_mode=manual_bridge|auto_bridge|user_decision|external_wait|none`。`manual_bridge` 只表示缺少自动续轮调度器、由人手动触发本应由 agent 继续的下一轮；它不等于人类决策，也不等于人类接手。
 - 面向编码、重构、发布、评测、平台调度或外部系统的工作优先通过 handoff 协议接入；Arckit 不把外部 adapter 的完整执行能力内建为默认职责。
 - 当前执行面之外的能力由入口整理成外部 adapter handoff 或 pending，保持入口职责清晰。
 
@@ -94,6 +96,8 @@ Arckit 的当前 skill 体系按以下链路工作：
 
 `using-arckit` 再把首轮编译结果维护为 `arckit/cases/active/` 下的 development case record。case record 是当前事项的工作台状态，包含 product、interaction、visual、technical、implementation、verification、open questions、handoffs 和 workflow memory signals 的满足度；它决定下一轮补哪个缺口，但不把候选判断直接提升为稳定事实。case record 必须能回溯到 project state，并在每轮结束时记录 `project_state_delta`。
 
+每轮结束时，case record 的 `completion_audit` 包含 `loop_handoff`。`loop_handoff` 至少包含 `status`、`next_responsibility`、`agent_continuation_available`、`human_decision_required`、`trigger_mode`、`next_prompt`、`agent_instruction`、`human_gate` 和 `progress_guard`。自动化平台只消费 agent-continuable handoff；人类只在 `human_decision_required=true` 时承担真实决策、授权或风险确认。
+
 `arckit-turn-adaptation` 承接后续对话中的变更控制。它处理会改变当前 workflow frame、事实路由、停止条件、验证策略、确认点、工具边界、术语边界或 workflow memory 判断的用户消息。它不是普通后续需求处理器，也不维护事实源；它输出 frame delta、artifact routing delta、ledger delta 或 workflow correction ledger，再交回 `using-arckit` 继续协调。
 
 ## 语义材料保留与低承诺空间
@@ -121,6 +125,8 @@ Arckit 的当前 skill 体系按以下链路工作：
 `refactor_strategy_handoff` 至少包含：重构目标、重构依据、必须保持不变的外部行为、允许修改范围、禁止触碰范围、风险、分阶段计划、每阶段验证方式、停止条件和需要回写的 Arckit surface。
 
 `external_adapter_handoff` 至少包含：待外部执行的阶段、已确认事实、建议外部能力、输入、输出、风险、用户确认点和是否需要先写入 pending。
+
+`loop_handoff` 至少包含：当前 case、当前轮状态、下一步职责归属、agent 是否可继续、是否需要人类决策、当前触发方式、给人手动触发下一轮的 `next_prompt`、给自动桥读取的 `agent_instruction`、人类 gate、外部等待条件和防循环的 progress guard。`loop_handoff` 是每轮 closeout 的接力状态，不替代 implementation/refactor/external handoff。
 
 ## 定义前思考
 
@@ -196,5 +202,6 @@ Skill 架构满足规格时，系统表现为：
 - `using-arckit` 按当前执行面编译 workflow frame。
 - 过程型、结果型、诊断型和记忆型 skill 通过 handoff 和事实路由协作。
 - Agent 启动上下文、实现交接和重构策略都有明确 surface 和输出契约。
+- `completion_audit.loop_handoff` 能区分 agent 续轮、真实人类决策、外部等待和事项完成，并能同时服务人工触发和未来自动桥。
 - Code、Skill、document、workflow 和 mixed artifact 都能进入同一套定义、外部实现 adapter 和收口证据模型。
 - 治理、验证、发布、运维、桌面桥或角色编排事项会形成 pending 或 external adapter handoff，保持软件项目开发链路连续。

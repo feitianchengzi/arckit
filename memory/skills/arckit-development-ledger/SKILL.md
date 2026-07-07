@@ -98,6 +98,7 @@ unknown -> needed -> defined -> designed -> implemented -> integrated -> verifie
 - 更新 `completeness_dimensions` 的当前状态、目标状态、证据、gap、next transition、priority 和 confidence。
 - 维护 `state_gaps`，只放当前最影响 loop 决策的状态缺口，不把所有问题都塞进去。
 - 维护 `loop_control`，让下一轮能直接知道当前 loop focus、next transition、priority basis 和 stop condition。
+- 维护 `loop_control` 的续轮职责字段：`next_responsibility=agent|human|external|none`、`agent_continuation_available`、`human_decision_required`、`trigger_mode`、`continuation_prompt` 和 `responsibility_reason`。先判断下一步本质上应由谁处理，再判断当前缺少自动桥时是否需要人类手动触发；不要把 manual bridge 写成人类决策。
 - `active_constraints` 只放仍然有效的项目级约束和决策，不放历史过程。
 - `canonical_artifact_refs` 只放当前状态判断所依赖的权威事实源入口；它不是资料导航页。
 - 每轮替换 `last_state_delta`，不要累计历史 delta。
@@ -154,7 +155,12 @@ case record 至少维护：
 - 在 case 中记录本轮做了什么、为什么做、验证了什么、改变了哪些项目或迭代状态。
 - 当本轮存在源事实和投影产物关系时，在 case 的 `decisions`、`open_questions`、`pending_handoffs` 或 `rounds` 中记录：`source_facts_changed`、`projection_artifacts_changed`、`deferred_projections`、`blocked_projections` 或 `source_unknown`。
 - 如果只更新了投影产物而源事实未知或未更新，completion audit 不应写成完整完成；应保留 active、deferred 或 blocked，并写明下一轮需要定位或维护的源事实。
-- case 完成后移动到 `arckit/cases/closed/`；未完成时保留 active，并写明 next_round_goal。
+- case 完成后移动到 `arckit/cases/closed/`；未完成时保留 active，并写明 `next_round_goal` 和 `loop_handoff`。
+- `completion_audit.loop_handoff` 必须区分职责和触发：
+  - `next_responsibility=agent` 表示下一步应由 agent 继续处理；当前没有自动桥时用 `trigger_mode=manual_bridge`，并提供可直接触发下一轮的 `next_prompt`。
+  - `next_responsibility=human` 表示需要人类判断、授权、审美、商业取舍或发布责任；必须写 `human_decision_required=true` 和 `decision_needed`。
+  - `next_responsibility=external` 表示等待外部系统或人工在系统外完成的结果；必须写恢复条件。
+  - `next_responsibility=none` 表示 case 已完成或无需继续。
 - case 只记录当前研发事项状态和过程证据，不替代 project state、iteration state、pending、workflow memory 或稳定事实源。
 
 退出条件：case record 可被未来 agent 读回，并能解释一次状态转移或下一轮继续条件。
@@ -193,6 +199,7 @@ node <skill-dir>/scripts/development-case.mjs index
 - `project_state_delta`：项目级 changed dimensions、state transitions、deferred、blocked、next loop focus。
 - `iteration_state_delta`：当前迭代目标状态、实际状态、阻塞 gap、关闭条件和下一步。
 - `case_record_delta`：case 当前状态、current_round_gap、completion_audit 和 next_round_goal。
+- `loop_handoff_delta`：下一步职责归属、agent 是否可继续、是否需要人类决策、当前触发方式、可复制的 next_prompt、agent_instruction、human_gate 和 progress_guard。
 - `source_projection_delta`：当适用时，说明源事实变化、投影产物变化、延期或阻塞的投影，以及是否存在只改投影未改源的风险。
 - `ledger_validation`：脚本校验结果或无法校验原因。
 - `next_ledger_step`：下一轮应推动哪个状态转移、关闭哪个 case、补哪个项目/迭代状态，或进入阻塞确认。

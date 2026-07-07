@@ -75,9 +75,104 @@
     "pending_handoffs": { "type": "array" },
     "workflow_memory_signals": { "type": "array" },
     "rounds": { "type": "array" },
-    "completion_audit": { "type": "object" }
+    "completion_audit": { "$ref": "#/$defs/completion_audit" }
   },
   "$defs": {
+    "loop_handoff": {
+      "type": "object",
+      "required": [
+        "version",
+        "status",
+        "next_responsibility",
+        "agent_continuation_available",
+        "human_decision_required",
+        "trigger_mode",
+        "responsibility_reason",
+        "next_prompt",
+        "agent_instruction",
+        "human_gate",
+        "progress_guard"
+      ],
+      "properties": {
+        "version": { "const": "loop-handoff/v1" },
+        "status": {
+          "type": "string",
+          "enum": ["continue", "done", "needs_human", "blocked", "deferred"]
+        },
+        "next_responsibility": {
+          "type": "string",
+          "enum": ["agent", "human", "external", "none"]
+        },
+        "agent_continuation_available": { "type": "boolean" },
+        "human_decision_required": { "type": "boolean" },
+        "trigger_mode": {
+          "type": "string",
+          "enum": ["manual_bridge", "auto_bridge", "user_decision", "external_wait", "none"]
+        },
+        "responsibility_reason": { "type": "string" },
+        "next_prompt": { "type": "string" },
+        "agent_instruction": {
+          "type": "object",
+          "required": ["goal", "required_context_refs", "required_actions", "required_checks", "stop_condition"],
+          "properties": {
+            "goal": { "type": "string" },
+            "required_context_refs": { "type": "array" },
+            "required_actions": { "type": "array" },
+            "required_checks": { "type": "array" },
+            "stop_condition": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "human_gate": {
+          "type": "object",
+          "required": ["required", "reason", "decision_needed"],
+          "properties": {
+            "required": { "type": "boolean" },
+            "reason": { "type": "string" },
+            "decision_needed": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "progress_guard": {
+          "type": "object",
+          "required": ["expected_state_change", "actual_state_change", "no_progress_limit", "max_auto_rounds"],
+          "properties": {
+            "expected_state_change": { "type": "string" },
+            "actual_state_change": { "type": "string" },
+            "no_progress_limit": { "type": "integer", "minimum": 0 },
+            "max_auto_rounds": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": true
+        },
+        "blocked_reason": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "completion_audit": {
+      "type": "object",
+      "required": [
+        "status",
+        "satisfied",
+        "remaining",
+        "blocked",
+        "next_round_goal",
+        "loop_handoff",
+        "updated_at"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["unknown", "complete", "incomplete", "blocked"]
+        },
+        "satisfied": { "type": "array" },
+        "remaining": { "type": "array" },
+        "blocked": { "type": "array" },
+        "next_round_goal": { "type": "string" },
+        "loop_handoff": { "$ref": "#/$defs/loop_handoff" },
+        "updated_at": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
     "round_strategy_decision": {
       "type": "object",
       "required": ["selected_route", "reason", "considered_routes", "next_route_triggers"],

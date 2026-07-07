@@ -191,7 +191,19 @@
         "current_loop_focus": { "type": "string" },
         "next_transition": { "type": "string" },
         "priority_basis": { "type": "string" },
-        "stop_condition": { "type": "string" }
+        "stop_condition": { "type": "string" },
+        "next_responsibility": {
+          "type": "string",
+          "enum": ["agent", "human", "external", "none"]
+        },
+        "agent_continuation_available": { "type": "boolean" },
+        "human_decision_required": { "type": "boolean" },
+        "trigger_mode": {
+          "type": "string",
+          "enum": ["manual_bridge", "auto_bridge", "user_decision", "external_wait", "none"]
+        },
+        "continuation_prompt": { "type": "string" },
+        "responsibility_reason": { "type": "string" }
       },
       "additionalProperties": true
     },

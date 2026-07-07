@@ -25,6 +25,7 @@ description: Arckit 软件项目协作入口 skill。用于把用户自然语言
 - 实现、原型、脚本或代码变更默认只是实现证据；除非已有稳定事实源、用户确认或本轮同时正式化事实，否则不能让实现产物静默决定项目预期。
 - 需要人类审美、商业优先级、组织授权或发布承担的事项，只能整理证据、风险、pending 或 handoff，不静默变成最终裁决。
 - 每轮结束必须回写账本、做 completion audit、输出 visible closeout，并完成 workflow memory closeout。
+- 每轮 closeout 必须先判断下一步职责归属，再判断触发方式：`next_responsibility=agent|human|external|none`、`agent_continuation_available`、`human_decision_required` 和 `trigger_mode`。不要把“缺少自动续轮机制、由人手动触发下一轮”误判为“需要人类决策”。
 
 ## 主流程
 
@@ -102,9 +103,14 @@ description: Arckit 软件项目协作入口 skill。用于把用户自然语言
 - 用 `arckit-development-ledger` 更新 project state、iteration state、case record、state delta、completion audit 和索引。
 - 做源-投影一致性检查：若源事实变化，说明 source updated/unknown、projections updated/deferred/blocked；只改投影且源未知时不能关闭。
 - 用 `arckit-workflow-memory` 写 execution record，并判断是否产生 workflow signal。
-- 输出 visible closeout：本轮完成什么、case 是否关闭、哪些结构 deferred/needed/blocked、下一轮最值得做什么。
+- 执行 final 前 loop gate：
+  - 如果下一步本质上仍应由 agent 处理，且不需要人类判断、授权或外部结果，写 `next_responsibility=agent`、`agent_continuation_available=true`、`human_decision_required=false`；当前没有自动续轮能力时，`trigger_mode=manual_bridge`，并给出可直接触发下一轮的 `next_prompt`。
+  - 如果下一步需要人类审美判断、商业取舍、产品确认、权限授权、破坏性操作确认或发布责任，写 `next_responsibility=human`、`human_decision_required=true`，并明确 `decision_needed`；这不是人工桥。
+  - 如果下一步等待 CI、云控制台、第三方审批、本地人工编译结果或其他系统状态，写 `next_responsibility=external`，并明确等待对象和恢复条件。
+  - 如果 case 已关闭且无后续动作，写 `next_responsibility=none`。
+- 输出 visible closeout：本轮完成什么、case 是否关闭、哪些结构 deferred/needed/blocked、下一步职责归属、当前触发方式和下一轮 agent/human/external 各自需要什么。
 
-退出条件：最终响应能说明本轮是关闭、继续、阻塞、延期还是交接。
+退出条件：最终响应能说明本轮是关闭、继续、阻塞、延期还是交接，并且 `loop_handoff` 足以让人类手动触发 agent 下一轮或让未来自动桥直接判断是否续轮。
 
 ## 后续消息
 
@@ -121,5 +127,6 @@ description: Arckit 软件项目协作入口 skill。用于把用户自然语言
 - `source_projection_check`：源事实、投影产物、未知/延期/阻塞项。
 - `round_update`：本轮产物、证据、事实源变化和未决项。
 - `completion_audit`：关闭、继续、阻塞、延期或交接判断。
-- `visible_iteration_closeout`：当前 loop/迭代的状态转移、关闭条件和用户下一步最需要确认、试用、补齐或正式化什么。
+- `loop_handoff`：`status`、`next_responsibility`、`agent_continuation_available`、`human_decision_required`、`trigger_mode`、`next_prompt`、`agent_instruction`、`human_gate` 和防循环的 progress guard。
+- `visible_iteration_closeout`：当前 loop/迭代的状态转移、关闭条件、下一步职责归属，以及用户是在补 agent 续轮机制、还是需要做真实决策/授权/外部处理。
 - `workflow_memory_closeout`：execution record 和 signal 判断。
