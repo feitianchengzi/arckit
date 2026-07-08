@@ -3,6 +3,8 @@ import { OssResourceManager } from '@/lib/oss/OssResourceManager'
 import { subscribeUrlUpdate } from '@/lib/oss/load/UrlUpdateNotifier'
 import { normalizeObjectKey } from '@/lib/oss/sdk'
 
+const IMAGE_URL_RETRY_DELAYS = [0, 800, 2000]
+
 export interface ImageItem {
   key: string
 }
@@ -26,23 +28,40 @@ function GalleryImage({
 
   useEffect(() => {
     let active = true
+    let retryTimer: number | undefined
     setUrl('')
 
     const unsubscribe = subscribeUrlUpdate(objectKey, (newUrl) => {
       if (active) setUrl(newUrl)
     })
 
-    OssResourceManager.resolve(objectKey).then(u => {
-      if (active && u) setUrl(u)
-    }).catch(error => {
-      console.error('[ImageGallery] 图片 URL 解析失败:', {
-        objectKey,
-        error: error instanceof Error ? error.message : String(error),
+    const resolveUrl = (attempt = 0) => {
+      OssResourceManager.resolve(objectKey).then(u => {
+        if (active && u) setUrl(u)
+      }).catch(error => {
+        if (!active) return
+
+        const nextAttempt = attempt + 1
+        if (nextAttempt < IMAGE_URL_RETRY_DELAYS.length) {
+          retryTimer = window.setTimeout(
+            () => resolveUrl(nextAttempt),
+            IMAGE_URL_RETRY_DELAYS[nextAttempt]
+          )
+          return
+        }
+
+        console.error('[ImageGallery] 图片 URL 解析失败:', {
+          objectKey,
+          error: error instanceof Error ? error.message : String(error),
+        })
       })
-    })
+    }
+
+    resolveUrl()
 
     return () => {
       active = false
+      if (retryTimer) window.clearTimeout(retryTimer)
       unsubscribe()
     }
   }, [objectKey])

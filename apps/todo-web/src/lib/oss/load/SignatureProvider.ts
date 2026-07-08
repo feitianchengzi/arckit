@@ -88,20 +88,23 @@ export class SignatureProvider {
       return this.stsPool.refreshPromise
     }
     
-    // 创建新的刷新 Promise
-    this.stsPool.refreshPromise = this.refreshCredentials()
-    
-    // 等待刷新完成
-    const credentials = await this.stsPool.refreshPromise
-    
-    // 清空 refreshPromise
-    this.stsPool.refreshPromise = null
-    
-    // 通知所有等待的回调
-    this.stsPool.refreshCallbacks.forEach(callback => callback(credentials))
-    this.stsPool.refreshCallbacks = []
-    
-    return credentials
+    // 创建新的刷新 Promise。无论成功还是失败都要清空，避免失败态 Promise 被永久复用。
+    const refreshPromise = this.refreshCredentials()
+    this.stsPool.refreshPromise = refreshPromise
+
+    try {
+      const credentials = await refreshPromise
+
+      // 通知所有等待的回调
+      this.stsPool.refreshCallbacks.forEach(callback => callback(credentials))
+      this.stsPool.refreshCallbacks = []
+
+      return credentials
+    } finally {
+      if (this.stsPool.refreshPromise === refreshPromise) {
+        this.stsPool.refreshPromise = null
+      }
+    }
   }
   
   /**
