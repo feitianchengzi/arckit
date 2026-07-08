@@ -400,6 +400,7 @@ export function CreateTaskDialog({
             onTagsChange={(newTagsString) => {
               setTagsString(newTagsString || null)
             }}
+            commitOnChange
             showCreateButton={true}
             size="md"
             displayAllSelected

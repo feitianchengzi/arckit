@@ -31,6 +31,8 @@ export interface TagSelectorProps {
   currentTags?: string | null
   /** 标签变化回调（保存时调用） */
   onTagsChange: (tagsString: string) => void | Promise<void>
+  /** 是否在选择变化时立即提交给父组件，适用于创建表单这类本地草稿场景 */
+  commitOnChange?: boolean
   className?: string
   /** 是否显示创建新标签按钮 */
   showCreateButton?: boolean
@@ -46,6 +48,7 @@ export function TagSelector({
   projectId,
   currentTags,
   onTagsChange,
+  commitOnChange = false,
   className,
   showCreateButton = true,
   size = 'md',
@@ -157,18 +160,27 @@ export function TagSelector({
   
   // 已选中的标签
   const selectedTags = projectTags.filter(tag => selectedTagIds.includes(tag.id))
+
+  const commitSelectedTags = async (nextTagIds: number[], previousTagIds: number[]) => {
+    if (!commitOnChange) return
+
+    try {
+      await onTagsChange(buildTaskTags(nextTagIds))
+    } catch (error) {
+      console.error('同步标签选择失败:', error)
+      setSelectedTagIds(previousTagIds)
+    }
+  }
   
   // 切换标签选中状态（本地状态，不立即调用API）
   const handleTagToggle = (tagId: number) => {
-    setSelectedTagIds(prev => {
-      if (prev.includes(tagId)) {
-        // 取消选择
-        return prev.filter(id => id !== tagId)
-      } else {
-        // 选择
-        return [...prev, tagId]
-      }
-    })
+    const previousTagIds = selectedTagIds
+    const nextTagIds = previousTagIds.includes(tagId)
+      ? previousTagIds.filter(id => id !== tagId)
+      : [...previousTagIds, tagId]
+
+    setSelectedTagIds(nextTagIds)
+    void commitSelectedTags(nextTagIds, previousTagIds)
   }
   
   // 保存标签选择（调用API）
@@ -202,7 +214,10 @@ export function TagSelector({
       addTag(projectId, newTag)
       
       // 自动选中新创建的标签
-      setSelectedTagIds(prev => [...prev, newTag.id])
+      const previousTagIds = selectedTagIds
+      const nextTagIds = [...previousTagIds, newTag.id]
+      setSelectedTagIds(nextTagIds)
+      await commitSelectedTags(nextTagIds, previousTagIds)
       
       // 刷新查询缓存
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tags'] })
@@ -243,7 +258,10 @@ export function TagSelector({
       deleteTag(projectId, tagId)
       
       // 如果该标签已选中，从选中列表中移除
-      setSelectedTagIds(prev => prev.filter(id => id !== tagId))
+      const previousTagIds = selectedTagIds
+      const nextTagIds = previousTagIds.filter(id => id !== tagId)
+      setSelectedTagIds(nextTagIds)
+      await commitSelectedTags(nextTagIds, previousTagIds)
       
       // 刷新查询缓存
       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tags'] })
@@ -258,8 +276,10 @@ export function TagSelector({
   
   // 检查是否有未保存的更改
   const hasUnsavedChanges = () => {
+    if (commitOnChange) return false
+
     const currentTagIds = parseTaskTags(currentTags)
-    return JSON.stringify(currentTagIds.sort()) !== JSON.stringify(selectedTagIds.sort())
+    return JSON.stringify([...currentTagIds].sort()) !== JSON.stringify([...selectedTagIds].sort())
   }
   
   const sizeClasses = {
