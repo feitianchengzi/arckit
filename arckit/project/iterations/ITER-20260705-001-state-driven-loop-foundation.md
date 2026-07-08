@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-07-05T16:33:20.000Z
+Updated: 2026-07-08T00:28:46.000Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -21,15 +21,15 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Remaining Gaps
 
-- 用真实复杂项目验证 state-driven loop 是否能稳定驱动下一步行动。
+- 通过 Electron Desktop Chat 在可联网环境中重跑真实 Codex supervised turn，获得 round_result=done 并通过 gate/write-ledger。
 
 ## Recent State Changes
 
-- iteration_governance: needed -> implemented; 增加 iteration state schema、project-iteration 脚本和当前迭代记录。
-- quality_validation: defined -> verified; project state、iteration state、case record 和 ledger scripts 已通过结构校验。
-- implementation_coverage: designed -> verified; project-state v2、iteration-state v1、脚本和当前项目状态样例已落地并通过校验。
-- runtime_surfaces: verified -> verified; Arckit 已通过 ArcForge 安装到 Codex 用户级 skills 目录，并由 subagent 使用已安装脚本在 arckit-demo 中创建和校验账本。
-- iteration_governance: implemented -> implemented; demo 验证发现 ITERATIONS.md 不由 new 自动生成；已修复 project-iteration new/migrate 自动刷新索引，并由 audit 检查索引缺失或漂移。
+- quality_validation: verified -> accepted; Runtime ledger writeback accepted GAP-runtime-gate-ledger-writeback: Implemented M2 Gate Engine and controlled ledger writeback for Arckit Runtime.
+- quality_validation: verified -> verified; 真实 supervised turn transcript 已保存；steer/interrupt 证据成立，但 done result 因网络限制未产出。
+- user_experience: defined -> implemented; 新增 Electron Desktop Client，支持添加本地项目、输入任务、启动 runtime run、观察 events、steer、interrupt、gate 和 ledger writeback。
+- runtime_surfaces: verified -> verified; Electron Desktop Client 作为新的本地 runtime surface 已实现并启动，run manager dry-run smoke 通过。
+- user_experience: implemented -> implemented; Desktop Client 从控制面板改为左项目列表、中间连续 Chat、右 Arckit 状态检查器；Chat 空闲时启动 runtime turn，运行中消息转为 steer。
 
 ## Blocking Gaps
 
@@ -39,6 +39,7 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
+- arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md
 - arckit/cases/closed/CASE-20260705-003-extract-project-state-record-json.md
 - arckit/cases/closed/CASE-20260705-004-refine-generated-state-decision-briefs.md
 - arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md

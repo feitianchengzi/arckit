@@ -1,0 +1,513 @@
+{
+  "runtime_version": "arckit-runtime/v0.1",
+  "project_root": "/Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit",
+  "mode": "execute",
+  "adapter": "codex-app-server",
+  "snapshot_summary": {
+    "project_name": "Arckit Skill Repository",
+    "project_status": "active",
+    "current_phase": "state-driven-loop-foundation",
+    "active_iteration": "ITER-20260705-001",
+    "loop_focus": "实现 Arckit Runtime supervised agent loop。",
+    "next_transition": "验证真实 Codex supervised turn transcript 与 steer/interrupt 行为。",
+    "top_gap": "GAP-runtime-real-supervised-turn",
+    "top_gap_dimension": "quality_validation"
+  },
+  "selected_round": {
+    "gap_id": "GAP-runtime-real-supervised-turn",
+    "dimension": "quality_validation",
+    "urgency": "critical",
+    "risk": "high",
+    "current_state": "verified",
+    "target_state": "accepted",
+    "impact": "M0/M1/M2 已证明 runtime、app-server supervisor 和 ledger writeback 的结构能力；仍缺一次真实 Codex supervised turn transcript 来证明完整 loop。",
+    "round_goal": "执行一次真实 Codex supervised turn，保存 transcript/result，并验证 steer/interrupt 行为。",
+    "required_outputs": [
+      "artifact_impact_scan",
+      "source_projection_check",
+      "runtime_result",
+      "loop_handoff"
+    ],
+    "required_context_refs": [
+      "arckit/project/state.record.json",
+      "arckit/project/STATE.md",
+      "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
+      "arckit/cases/INDEX.md",
+      "arckit/pending/INDEX.md",
+      "arckit/spec/INDEX.md",
+      "arckit/tech/INDEX.md"
+    ],
+    "stop_conditions": [
+      "Stop if source facts are unknown and the requested change would only update a projection.",
+      "Stop if human_decision_required is true.",
+      "Stop if validation cannot prove progress against the selected state gap.",
+      "Stop if the turn would require destructive or cross-workspace actions."
+    ],
+    "max_rounds": 1
+  },
+  "compiled_prompt": {
+    "prompt": "# Arckit Supervised Runtime Turn\n\nYou are executing one bounded Arckit runtime round. The runtime, not the agent, owns loop control.\n\n## Project State\n- Project: Arckit Skill Repository\n- Current phase: state-driven-loop-foundation\n- Loop focus: 实现 Arckit Runtime supervised agent loop。\n- Next transition: 验证真实 Codex supervised turn transcript 与 steer/interrupt 行为。\n\n## Selected Gap\n- Gap ID: GAP-runtime-real-supervised-turn\n- Dimension: quality_validation\n- Current state: verified\n- Target state: accepted\n- Urgency: critical\n- Risk: high\n- Impact: M0/M1/M2 已证明 runtime、app-server supervisor 和 ledger writeback 的结构能力；仍缺一次真实 Codex supervised turn transcript 来证明完整 loop。\n\n## Round Goal\n执行一次真实 Codex supervised turn，保存 transcript/result，并验证 steer/interrupt 行为。\n\n## Required Context Refs\n- arckit/project/state.record.json\n- arckit/project/STATE.md\n- arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json\n- arckit/cases/INDEX.md\n- arckit/pending/INDEX.md\n- arckit/spec/INDEX.md\n- arckit/tech/INDEX.md\n\n## Required Checks\n- Read the project state before acting.\n- Identify whether the turn changes a source fact, a projection artifact, or only implementation evidence.\n- Produce an artifact impact scan covering project, cases, spec, interaction, visual, tech, pending, workflow_memory, agent_context, and handoff.\n- Produce a Loop Handoff that separates next_responsibility from trigger_mode.\n- Do not close the round if source facts are unknown or required validation is missing.\n\n## Stop Conditions\n- Stop if source facts are unknown and the requested change would only update a projection.\n- Stop if human_decision_required is true.\n- Stop if validation cannot prove progress against the selected state gap.\n- Stop if the turn would require destructive or cross-workspace actions.\n\n## Final Output Contract\nReturn a JSON object matching runtime/arckit-runtime/schemas/runtime-result.schema.json. Do not wrap it in Markdown.\n\n## Runtime Options\n- max_rounds: 1\n- adapter: codex-app-server",
+    "output_schema": "runtime/arckit-runtime/schemas/runtime-result.schema.json",
+    "required_contracts": [
+      "artifact_impact_scan",
+      "source_projection_check",
+      "runtime_result",
+      "loop_handoff"
+    ]
+  },
+  "events": [
+    {
+      "type": "codex.initialize.completed",
+      "result": {
+        "userAgent": "arckit-runtime/0.142.5 (Mac OS 15.7.3; x86_64) iTerm.app/3.6.10 (arckit-runtime; 0.1.0)",
+        "codexHome": "/private/tmp/arckit-codex-home",
+        "platformFamily": "unix",
+        "platformOs": "macos"
+      }
+    },
+    {
+      "type": "codex.remoteControl.status.changed",
+      "method": "remoteControl/status/changed",
+      "params": {
+        "status": "disabled",
+        "serverName": "bogon",
+        "installationId": "af5fe558-0c6c-4823-94f2-26e7e83183a8",
+        "environmentId": null
+      }
+    },
+    {
+      "type": "codex.thread.started",
+      "thread_id": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+      "thread": {
+        "id": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "sessionId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "forkedFromId": null,
+        "parentThreadId": null,
+        "preview": "",
+        "ephemeral": true,
+        "modelProvider": "openai",
+        "createdAt": 1783446001,
+        "updatedAt": 1783446001,
+        "recencyAt": 1783446001,
+        "status": {
+          "type": "idle"
+        },
+        "path": null,
+        "cwd": "/Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit",
+        "cliVersion": "0.142.5",
+        "source": "vscode",
+        "threadSource": null,
+        "agentNickname": null,
+        "agentRole": null,
+        "gitInfo": null,
+        "name": null,
+        "turns": []
+      }
+    },
+    {
+      "type": "codex.thread.start.completed",
+      "thread_id": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+      "thread": {
+        "id": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "sessionId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "forkedFromId": null,
+        "parentThreadId": null,
+        "preview": "",
+        "ephemeral": true,
+        "modelProvider": "openai",
+        "createdAt": 1783446001,
+        "updatedAt": 1783446001,
+        "recencyAt": 1783446001,
+        "status": {
+          "type": "idle"
+        },
+        "path": null,
+        "cwd": "/Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit",
+        "cliVersion": "0.142.5",
+        "source": "vscode",
+        "threadSource": null,
+        "agentNickname": null,
+        "agentRole": null,
+        "gitInfo": null,
+        "name": null,
+        "turns": []
+      }
+    },
+    {
+      "type": "codex.turn.start.completed",
+      "thread_id": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+      "turn_id": "019f3daa-5787-7f62-8f5d-5b6e928bdb35",
+      "turn": {
+        "id": "019f3daa-5787-7f62-8f5d-5b6e928bdb35",
+        "items": [],
+        "itemsView": "notLoaded",
+        "status": "inProgress",
+        "error": null,
+        "startedAt": null,
+        "completedAt": null,
+        "durationMs": null
+      }
+    },
+    {
+      "type": "codex.thread.status.changed",
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "status": {
+          "type": "active",
+          "activeFlags": []
+        }
+      }
+    },
+    {
+      "type": "codex.turn.started",
+      "thread_id": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+      "turn_id": "019f3daa-5787-7f62-8f5d-5b6e928bdb35",
+      "turn": {
+        "id": "019f3daa-5787-7f62-8f5d-5b6e928bdb35",
+        "items": [],
+        "itemsView": "notLoaded",
+        "status": "inProgress",
+        "error": null,
+        "startedAt": 1783446001,
+        "completedAt": null,
+        "durationMs": null
+      }
+    },
+    {
+      "type": "codex.item.started",
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "323c74bd-888e-4a32-9fc5-d240e3fef717",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "# Arckit Supervised Runtime Turn\n\nYou are executing one bounded Arckit runtime round. The runtime, not the agent, owns loop control.\n\n## Project State\n- Project: Arckit Skill Repository\n- Current phase: state-driven-loop-foundation\n- Loop focus: 实现 Arckit Runtime supervised agent loop。\n- Next transition: 验证真实 Codex supervised turn transcript 与 steer/interrupt 行为。\n\n## Selected Gap\n- Gap ID: GAP-runtime-real-supervised-turn\n- Dimension: quality_validation\n- Current state: verified\n- Target state: accepted\n- Urgency: critical\n- Risk: high\n- Impact: M0/M1/M2 已证明 runtime、app-server supervisor 和 ledger writeback 的结构能力；仍缺一次真实 Codex supervised turn transcript 来证明完整 loop。\n\n## Round Goal\n执行一次真实 Codex supervised turn，保存 transcript/result，并验证 steer/interrupt 行为。\n\n## Required Context Refs\n- arckit/project/state.record.json\n- arckit/project/STATE.md\n- arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json\n- arckit/cases/INDEX.md\n- arckit/pending/INDEX.md\n- arckit/spec/INDEX.md\n- arckit/tech/INDEX.md\n\n## Required Checks\n- Read the project state before acting.\n- Identify whether the turn changes a source fact, a projection artifact, or only implementation evidence.\n- Produce an artifact impact scan covering project, cases, spec, interaction, visual, tech, pending, workflow_memory, agent_context, and handoff.\n- Produce a Loop Handoff that separates next_responsibility from trigger_mode.\n- Do not close the round if source facts are unknown or required validation is missing.\n\n## Stop Conditions\n- Stop if source facts are unknown and the requested change would only update a projection.\n- Stop if human_decision_required is true.\n- Stop if validation cannot prove progress against the selected state gap.\n- Stop if the turn would require destructive or cross-workspace actions.\n\n## Final Output Contract\nReturn a JSON object matching runtime/arckit-runtime/schemas/runtime-result.schema.json. Do not wrap it in Markdown.\n\n## Runtime Options\n- max_rounds: 1\n- adapter: codex-app-server",
+              "text_elements": []
+            }
+          ]
+        },
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "turnId": "019f3daa-5787-7f62-8f5d-5b6e928bdb35",
+        "startedAtMs": 1783446001548
+      }
+    },
+    {
+      "type": "codex.item.completed",
+      "method": "item/completed",
+      "params": {
+        "item": {
+          "type": "userMessage",
+          "id": "323c74bd-888e-4a32-9fc5-d240e3fef717",
+          "clientId": null,
+          "content": [
+            {
+              "type": "text",
+              "text": "# Arckit Supervised Runtime Turn\n\nYou are executing one bounded Arckit runtime round. The runtime, not the agent, owns loop control.\n\n## Project State\n- Project: Arckit Skill Repository\n- Current phase: state-driven-loop-foundation\n- Loop focus: 实现 Arckit Runtime supervised agent loop。\n- Next transition: 验证真实 Codex supervised turn transcript 与 steer/interrupt 行为。\n\n## Selected Gap\n- Gap ID: GAP-runtime-real-supervised-turn\n- Dimension: quality_validation\n- Current state: verified\n- Target state: accepted\n- Urgency: critical\n- Risk: high\n- Impact: M0/M1/M2 已证明 runtime、app-server supervisor 和 ledger writeback 的结构能力；仍缺一次真实 Codex supervised turn transcript 来证明完整 loop。\n\n## Round Goal\n执行一次真实 Codex supervised turn，保存 transcript/result，并验证 steer/interrupt 行为。\n\n## Required Context Refs\n- arckit/project/state.record.json\n- arckit/project/STATE.md\n- arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json\n- arckit/cases/INDEX.md\n- arckit/pending/INDEX.md\n- arckit/spec/INDEX.md\n- arckit/tech/INDEX.md\n\n## Required Checks\n- Read the project state before acting.\n- Identify whether the turn changes a source fact, a projection artifact, or only implementation evidence.\n- Produce an artifact impact scan covering project, cases, spec, interaction, visual, tech, pending, workflow_memory, agent_context, and handoff.\n- Produce a Loop Handoff that separates next_responsibility from trigger_mode.\n- Do not close the round if source facts are unknown or required validation is missing.\n\n## Stop Conditions\n- Stop if source facts are unknown and the requested change would only update a projection.\n- Stop if human_decision_required is true.\n- Stop if validation cannot prove progress against the selected state gap.\n- Stop if the turn would require destructive or cross-workspace actions.\n\n## Final Output Contract\nReturn a JSON object matching runtime/arckit-runtime/schemas/runtime-result.schema.json. Do not wrap it in Markdown.\n\n## Runtime Options\n- max_rounds: 1\n- adapter: codex-app-server",
+              "text_elements": []
+            }
+          ]
+        },
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "turnId": "019f3daa-5787-7f62-8f5d-5b6e928bdb35",
+        "completedAtMs": 1783446001548
+      }
+    },
+    {
+      "type": "codex.error",
+      "method": "error",
+      "params": {
+        "error": {
+          "message": "Reconnecting... 2/5",
+          "codexErrorInfo": {
+            "responseStreamDisconnected": {
+              "httpStatusCode": null
+            }
+          },
+          "additionalDetails": "stream disconnected before completion: Operation not permitted (os error 1)"
+        },
+        "willRetry": true,
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "turnId": "019f3daa-5787-7f62-8f5d-5b6e928bdb35"
+      }
+    },
+    {
+      "type": "codex.error",
+      "method": "error",
+      "params": {
+        "error": {
+          "message": "Reconnecting... 3/5",
+          "codexErrorInfo": {
+            "responseStreamDisconnected": {
+              "httpStatusCode": null
+            }
+          },
+          "additionalDetails": "stream disconnected before completion: Operation not permitted (os error 1)"
+        },
+        "willRetry": true,
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "turnId": "019f3daa-5787-7f62-8f5d-5b6e928bdb35"
+      }
+    },
+    {
+      "type": "codex.error",
+      "method": "error",
+      "params": {
+        "error": {
+          "message": "Reconnecting... 4/5",
+          "codexErrorInfo": {
+            "responseStreamDisconnected": {
+              "httpStatusCode": null
+            }
+          },
+          "additionalDetails": "stream disconnected before completion: Operation not permitted (os error 1)"
+        },
+        "willRetry": true,
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "turnId": "019f3daa-5787-7f62-8f5d-5b6e928bdb35"
+      }
+    },
+    {
+      "type": "codex.error",
+      "method": "error",
+      "params": {
+        "error": {
+          "message": "Reconnecting... 5/5",
+          "codexErrorInfo": {
+            "responseStreamDisconnected": {
+              "httpStatusCode": null
+            }
+          },
+          "additionalDetails": "stream disconnected before completion: Operation not permitted (os error 1)"
+        },
+        "willRetry": true,
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "turnId": "019f3daa-5787-7f62-8f5d-5b6e928bdb35"
+      }
+    },
+    {
+      "type": "codex.warning",
+      "method": "warning",
+      "params": {
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "message": "Falling back from WebSockets to HTTPS transport. stream disconnected before completion: Operation not permitted (os error 1)"
+      }
+    },
+    {
+      "type": "codex.error",
+      "method": "error",
+      "params": {
+        "error": {
+          "message": "Reconnecting... 1/5",
+          "codexErrorInfo": {
+            "responseStreamDisconnected": {
+              "httpStatusCode": null
+            }
+          },
+          "additionalDetails": "stream disconnected before completion: error sending request for url (https://api.openai.com/v1/responses)"
+        },
+        "willRetry": true,
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "turnId": "019f3daa-5787-7f62-8f5d-5b6e928bdb35"
+      }
+    },
+    {
+      "type": "codex.error",
+      "method": "error",
+      "params": {
+        "error": {
+          "message": "Reconnecting... 2/5",
+          "codexErrorInfo": {
+            "responseStreamDisconnected": {
+              "httpStatusCode": null
+            }
+          },
+          "additionalDetails": "stream disconnected before completion: error sending request for url (https://api.openai.com/v1/responses)"
+        },
+        "willRetry": true,
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "turnId": "019f3daa-5787-7f62-8f5d-5b6e928bdb35"
+      }
+    },
+    {
+      "type": "codex.error",
+      "method": "error",
+      "params": {
+        "error": {
+          "message": "Reconnecting... 3/5",
+          "codexErrorInfo": {
+            "responseStreamDisconnected": {
+              "httpStatusCode": null
+            }
+          },
+          "additionalDetails": "stream disconnected before completion: error sending request for url (https://api.openai.com/v1/responses)"
+        },
+        "willRetry": true,
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "turnId": "019f3daa-5787-7f62-8f5d-5b6e928bdb35"
+      }
+    },
+    {
+      "type": "runtime.operator.interrupt.sent",
+      "thread_id": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+      "turn_id": "019f3daa-5787-7f62-8f5d-5b6e928bdb35",
+      "result": {}
+    },
+    {
+      "type": "codex.thread.status.changed",
+      "method": "thread/status/changed",
+      "params": {
+        "threadId": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+        "status": {
+          "type": "idle"
+        }
+      }
+    },
+    {
+      "type": "codex.turn.completed",
+      "thread_id": "019f3daa-575b-7d50-85de-43c5221bdc9f",
+      "turn_id": "019f3daa-5787-7f62-8f5d-5b6e928bdb35",
+      "turn": {
+        "id": "019f3daa-5787-7f62-8f5d-5b6e928bdb35",
+        "items": [],
+        "itemsView": "notLoaded",
+        "status": "interrupted",
+        "error": null,
+        "startedAt": 1783446001,
+        "completedAt": 1783446019,
+        "durationMs": 17521
+      }
+    },
+    {
+      "type": "runtime.result",
+      "result": {
+        "schema_version": "arckit-runtime-result/v1",
+        "round_result": "blocked",
+        "summary": "Codex turn completed but did not return a valid arckit-runtime-result/v1 JSON envelope: No parseable JSON object found in final assistant text.",
+        "changed_files": [],
+        "artifact_impact_scan": {
+          "project": "none",
+          "intake": "none",
+          "cases": "none",
+          "spec": "none",
+          "interaction": "none",
+          "visual": "none",
+          "tech": "none",
+          "debug": "none",
+          "pending": "none",
+          "workflow_memory": "none",
+          "agent_context": "none",
+          "handoff": "none"
+        },
+        "source_projection_check": {
+          "source_facts_changed": [],
+          "projection_artifacts_changed": [],
+          "source_unknown": true,
+          "deferred_projections": [],
+          "blocked_projections": []
+        },
+        "validation_evidence": [],
+        "loop_handoff": {
+          "version": "loop-handoff/v1",
+          "status": "blocked",
+          "next_responsibility": "agent",
+          "agent_continuation_available": true,
+          "human_decision_required": false,
+          "trigger_mode": "manual_bridge",
+          "responsibility_reason": "Runtime needs a follow-up turn that returns a valid structured result before ledger writeback.",
+          "next_prompt": "Return a valid arckit-runtime-result/v1 JSON object for the completed turn.",
+          "agent_instruction": {
+            "goal": "Return a valid arckit-runtime-result/v1 JSON object for the completed turn.",
+            "required_context_refs": [],
+            "required_actions": [
+              "Return only a valid arckit-runtime-result/v1 JSON object."
+            ],
+            "required_checks": [
+              "runtime result validation"
+            ],
+            "stop_condition": "Previous turn completion params: {\"threadId\":\"019f3daa-575b-7d50-85de-43c5221bdc9f\",\"turn\":{\"id\":\"019f3daa-5787-7f62-8f5d-5b6e928bdb35\",\"items\":[],\"itemsView\":\"notLoaded\",\"status\":\"interrupted\",\"error\":null,\"startedAt\":1783446001,\"completedAt\":1783446019,\"durationMs\":17521}}"
+          },
+          "human_gate": {
+            "required": false,
+            "reason": "",
+            "decision_needed": ""
+          },
+          "progress_guard": {
+            "expected_state_change": "Valid structured runtime result.",
+            "actual_state_change": "Codex turn did not return parseable runtime JSON.",
+            "no_progress_limit": 1,
+            "max_auto_rounds": 1
+          }
+        }
+      }
+    }
+  ],
+  "runtime_result": {
+    "schema_version": "arckit-runtime-result/v1",
+    "round_result": "blocked",
+    "summary": "Codex turn completed but did not return a valid arckit-runtime-result/v1 JSON envelope: No parseable JSON object found in final assistant text.",
+    "changed_files": [],
+    "artifact_impact_scan": {
+      "project": "none",
+      "intake": "none",
+      "cases": "none",
+      "spec": "none",
+      "interaction": "none",
+      "visual": "none",
+      "tech": "none",
+      "debug": "none",
+      "pending": "none",
+      "workflow_memory": "none",
+      "agent_context": "none",
+      "handoff": "none"
+    },
+    "source_projection_check": {
+      "source_facts_changed": [],
+      "projection_artifacts_changed": [],
+      "source_unknown": true,
+      "deferred_projections": [],
+      "blocked_projections": []
+    },
+    "validation_evidence": [],
+    "loop_handoff": {
+      "version": "loop-handoff/v1",
+      "status": "blocked",
+      "next_responsibility": "agent",
+      "agent_continuation_available": true,
+      "human_decision_required": false,
+      "trigger_mode": "manual_bridge",
+      "responsibility_reason": "Runtime needs a follow-up turn that returns a valid structured result before ledger writeback.",
+      "next_prompt": "Return a valid arckit-runtime-result/v1 JSON object for the completed turn.",
+      "agent_instruction": {
+        "goal": "Return a valid arckit-runtime-result/v1 JSON object for the completed turn.",
+        "required_context_refs": [],
+        "required_actions": [
+          "Return only a valid arckit-runtime-result/v1 JSON object."
+        ],
+        "required_checks": [
+          "runtime result validation"
+        ],
+        "stop_condition": "Previous turn completion params: {\"threadId\":\"019f3daa-575b-7d50-85de-43c5221bdc9f\",\"turn\":{\"id\":\"019f3daa-5787-7f62-8f5d-5b6e928bdb35\",\"items\":[],\"itemsView\":\"notLoaded\",\"status\":\"interrupted\",\"error\":null,\"startedAt\":1783446001,\"completedAt\":1783446019,\"durationMs\":17521}}"
+      },
+      "human_gate": {
+        "required": false,
+        "reason": "",
+        "decision_needed": ""
+      },
+      "progress_guard": {
+        "expected_state_change": "Valid structured runtime result.",
+        "actual_state_change": "Codex turn did not return parseable runtime JSON.",
+        "no_progress_limit": 1,
+        "max_auto_rounds": 1
+      }
+    }
+  },
+  "validation": {
+    "valid": true,
+    "issues": []
+  },
+  "next_action": "Write validated runtime result back to project/case ledger, or continue to the next loop round."
+}

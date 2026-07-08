@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Arckit Desktop</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="project-rail">
+        <div class="brand">
+          <div class="brand-mark">A</div>
+          <div>
+            <h1>Arckit</h1>
+            <p>Desktop</p>
+          </div>
+        </div>
+
+        <div class="add-project-row">
+          <button id="pickProjectButton" class="primary-button">Add Project</button>
+        </div>
+        <div class="path-row">
+          <input id="projectPathInput" type="text" placeholder="/path/to/project">
+          <button id="addProjectPathButton" class="secondary-button">Add</button>
+        </div>
+
+        <div class="rail-heading">Projects</div>
+        <div id="projectList" class="project-list"></div>
+
+        <div class="rail-heading rail-heading-row">
+          <span>Chats</span>
+          <button id="newChatButton" class="quiet-button small-button">New</button>
+        </div>
+        <div id="sessionList" class="session-list"></div>
+
+        <div class="rail-heading">Runs</div>
+        <div id="runList" class="run-list"></div>
+      </aside>
+
+      <main class="chat-column">
+        <header class="chat-header">
+          <div>
+            <h2 id="selectedProjectName">No project selected</h2>
+            <p><span id="selectedSessionTitle">No chat</span> · <span id="selectedProjectPath">Select a project.</span></p>
+          </div>
+          <div class="header-actions">
+            <span id="projectStateBadge" class="badge">No state</span>
+            <span id="activeRunBadge" class="badge">Idle</span>
+          </div>
+        </header>
+
+        <section id="messageList" class="message-list"></section>
+
+        <footer class="composer">
+          <div class="composer-options">
+            <label><input type="radio" name="mode" value="dry-run" checked> Dry run</label>
+            <label><input type="radio" name="mode" value="codex-app-server"> Codex</label>
+            <select id="approvalPolicy">
+              <option value="on-request">on-request</option>
+              <option value="never">never</option>
+              <option value="on-failure">on-failure</option>
+            </select>
+            <input id="modelInput" type="text" placeholder="model">
+          </div>
+          <div class="composer-input-row">
+            <textarea id="chatInput" rows="3" placeholder="Message Arckit..."></textarea>
+            <div class="composer-buttons">
+              <button id="sendButton" class="primary-button">Send</button>
+              <button id="interruptButton" class="danger-button">Stop</button>
+            </div>
+          </div>
+        </footer>
+      </main>
+
+      <aside class="state-rail">
+        <section class="inspector-section">
+          <div class="section-header">
+            <h3>Loop State</h3>
+            <button id="refreshButton" class="quiet-button">Refresh</button>
+          </div>
+          <div id="loopState" class="state-block"></div>
+        </section>
+
+        <section class="inspector-section">
+          <div class="section-header">
+            <h3>State Gaps</h3>
+          </div>
+          <div id="stateGaps" class="state-list"></div>
+        </section>
+
+        <section class="inspector-section">
+          <div class="section-header">
+            <h3>Run Control</h3>
+          </div>
+          <div id="activeRunSummary" class="run-summary">No active run.</div>
+          <div class="control-grid">
+            <button id="continueButton" class="secondary-button">Continue</button>
+            <button id="gateButton" class="secondary-button">Gate</button>
+            <button id="writeDryRunButton" class="secondary-button">Preview</button>
+            <button id="writeLedgerButton" class="primary-button">Write</button>
+          </div>
+        </section>
+
+        <section class="inspector-section events-section">
+          <div class="section-header">
+            <h3>Events</h3>
+            <button id="clearEventsButton" class="quiet-button">Clear</button>
+          </div>
+          <div id="eventList" class="event-list"></div>
+        </section>
+      </aside>
+    </div>
+    <script src="./renderer.js"></script>
+  </body>
+</html>

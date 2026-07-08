@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arckit.local/schema/runtime-result.schema.json",
+  "title": "Arckit Runtime Result",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "round_result",
+    "summary",
+    "changed_files",
+    "artifact_impact_scan",
+    "source_projection_check",
+    "validation_evidence",
+    "loop_handoff"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "arckit-runtime-result/v1" },
+    "round_result": {
+      "type": "string",
+      "enum": ["done", "blocked", "needs_human", "external_wait"]
+    },
+    "summary": { "type": "string" },
+    "changed_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "artifact_impact_scan": {
+      "type": "object",
+      "required": [
+        "project",
+        "intake",
+        "cases",
+        "spec",
+        "interaction",
+        "visual",
+        "tech",
+        "debug",
+        "pending",
+        "workflow_memory",
+        "agent_context",
+        "handoff"
+      ],
+      "properties": {
+        "project": { "type": "string" },
+        "intake": { "type": "string" },
+        "cases": { "type": "string" },
+        "spec": { "type": "string" },
+        "interaction": { "type": "string" },
+        "visual": { "type": "string" },
+        "tech": { "type": "string" },
+        "debug": { "type": "string" },
+        "pending": { "type": "string" },
+        "workflow_memory": { "type": "string" },
+        "agent_context": { "type": "string" },
+        "handoff": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "source_projection_check": {
+      "type": "object",
+      "required": [
+        "source_facts_changed",
+        "projection_artifacts_changed",
+        "source_unknown",
+        "deferred_projections",
+        "blocked_projections"
+      ],
+      "properties": {
+        "source_facts_changed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "projection_artifacts_changed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "source_unknown": { "type": "boolean" },
+        "deferred_projections": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "blocked_projections": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "validation_evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "loop_handoff": {
+      "type": "object",
+      "required": [
+        "version",
+        "status",
+        "next_responsibility",
+        "agent_continuation_available",
+        "human_decision_required",
+        "trigger_mode",
+        "responsibility_reason",
+        "next_prompt",
+        "agent_instruction",
+        "human_gate",
+        "progress_guard"
+      ],
+      "properties": {
+        "version": { "type": "string", "const": "loop-handoff/v1" },
+        "status": {
+          "type": "string",
+          "enum": ["continue", "done", "needs_human", "blocked", "deferred"]
+        },
+        "next_responsibility": {
+          "type": "string",
+          "enum": ["agent", "human", "external", "none"]
+        },
+        "agent_continuation_available": { "type": "boolean" },
+        "human_decision_required": { "type": "boolean" },
+        "trigger_mode": {
+          "type": "string",
+          "enum": ["manual_bridge", "auto_bridge", "user_decision", "external_wait", "none"]
+        },
+        "responsibility_reason": { "type": "string" },
+        "next_prompt": { "type": "string" },
+        "agent_instruction": {
+          "type": "object",
+          "required": [
+            "goal",
+            "required_context_refs",
+            "required_actions",
+            "required_checks",
+            "stop_condition"
+          ],
+          "properties": {
+            "goal": { "type": "string" },
+            "required_context_refs": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "required_actions": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "required_checks": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "stop_condition": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "human_gate": {
+          "type": "object",
+          "required": ["required", "reason", "decision_needed"],
+          "properties": {
+            "required": { "type": "boolean" },
+            "reason": { "type": "string" },
+            "decision_needed": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "progress_guard": {
+          "type": "object",
+          "required": [
+            "expected_state_change",
+            "actual_state_change",
+            "no_progress_limit",
+            "max_auto_rounds"
+          ],
+          "properties": {
+            "expected_state_change": { "type": "string" },
+            "actual_state_change": { "type": "string" },
+            "no_progress_limit": { "type": "integer", "minimum": 0 },
+            "max_auto_rounds": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

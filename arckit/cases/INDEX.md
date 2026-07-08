@@ -8,6 +8,7 @@ Use `arckit-development-ledger` to create, validate, audit, close, and re-index 
 
 | ID | Status | Title | Current Gap | Updated |
 | --- | --- | --- | --- | --- |
+| [CASE-20260707-002](active/CASE-20260707-002-implement-arckit-runtime-mvp.md) | active | Implement Arckit Runtime MVP | Desktop 已补 session/run 分离和固定输入框；完整 accepted loop 仍需通过 Desktop Chat 发起真实 Codex done/gate/write 闭环。 | 2026-07-08T04:21:48.000Z |
 
 ## Closed Cases
 

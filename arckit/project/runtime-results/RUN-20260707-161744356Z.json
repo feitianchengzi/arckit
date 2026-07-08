@@ -1,0 +1,182 @@
+{
+  "schema_version": "arckit-runtime-execution-record/v1",
+  "id": "RUN-20260707-161744356Z",
+  "created_at": "2026-07-07T16:17:44.356Z",
+  "selected_round": {
+    "gap_id": "GAP-runtime-gate-ledger-writeback",
+    "dimension": "quality_validation",
+    "urgency": "critical",
+    "risk": "high",
+    "current_state": "verified",
+    "target_state": "accepted",
+    "impact": "Runtime M1 已能观察和干预 Codex app-server turn，但验证结果仍不能自动、安全地转化为 project、iteration 和 case ledger 写回。",
+    "round_goal": "实现 Gate Engine 与 ledger writeback，验证无效结果不会写回。",
+    "required_outputs": [
+      "artifact_impact_scan",
+      "source_projection_check",
+      "runtime_result",
+      "loop_handoff"
+    ],
+    "required_context_refs": [
+      "arckit/project/state.record.json",
+      "arckit/project/STATE.md",
+      "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
+      "arckit/cases/INDEX.md",
+      "arckit/pending/INDEX.md",
+      "arckit/spec/INDEX.md",
+      "arckit/tech/INDEX.md"
+    ],
+    "stop_conditions": [
+      "Stop if source facts are unknown and the requested change would only update a projection.",
+      "Stop if human_decision_required is true.",
+      "Stop if validation cannot prove progress against the selected state gap.",
+      "Stop if the turn would require destructive or cross-workspace actions."
+    ],
+    "max_rounds": 1
+  },
+  "runtime_result": {
+    "schema_version": "arckit-runtime-result/v1",
+    "round_result": "done",
+    "summary": "Implemented M2 Gate Engine and controlled ledger writeback for Arckit Runtime.",
+    "changed_files": [
+      "runtime/arckit-runtime/src/gate-engine.mjs",
+      "runtime/arckit-runtime/src/ledger-writer.mjs",
+      "runtime/arckit-runtime/src/runtime-result-file.mjs",
+      "runtime/arckit-runtime/src/cli.mjs",
+      "runtime/arckit-runtime/src/validator.mjs",
+      "runtime/arckit-runtime/package.json",
+      "runtime/arckit-runtime/README.md",
+      "arckit/tech/arckit-runtime/solution.md"
+    ],
+    "artifact_impact_scan": {
+      "project": "update",
+      "intake": "none",
+      "cases": "update",
+      "spec": "none",
+      "interaction": "none",
+      "visual": "none",
+      "tech": "update",
+      "debug": "none",
+      "pending": "none",
+      "workflow_memory": "none",
+      "agent_context": "none",
+      "handoff": "update"
+    },
+    "source_projection_check": {
+      "source_facts_changed": [
+        "arckit/tech/arckit-runtime/solution.md"
+      ],
+      "projection_artifacts_changed": [
+        "runtime/arckit-runtime/*",
+        "arckit/project/state.record.json",
+        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
+        "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      ],
+      "source_unknown": false,
+      "deferred_projections": [
+        "Real Codex supervised turn transcript after user explicitly triggers it",
+        "Supervisor UI/TUI interaction spec if the CLI control surface becomes a product UI"
+      ],
+      "blocked_projections": []
+    },
+    "validation_evidence": [
+      "npm run check",
+      "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project . --dry-run --json > /tmp/arckit-runtime-m2-smoke.json",
+      "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-m2-smoke.json",
+      "node runtime/arckit-runtime/bin/arckit-runtime.mjs gate-result --project . --file /tmp/arckit-runtime-m2-smoke.json --json",
+      "node runtime/arckit-runtime/bin/arckit-runtime.mjs write-ledger --project . --file /tmp/arckit-runtime-m2-done-fixture.json --dry-run --json"
+    ],
+    "loop_handoff": {
+      "version": "loop-handoff/v1",
+      "status": "continue",
+      "next_responsibility": "agent",
+      "agent_continuation_available": true,
+      "human_decision_required": false,
+      "trigger_mode": "manual_bridge",
+      "responsibility_reason": "M2 gate/writeback is implemented; the next agent-continuable step is to run a real supervised Codex turn when explicitly triggered.",
+      "next_prompt": "继续 active case CASE-20260707-002：使用 arckit-runtime run --adapter codex-app-server --stream-events --supervise-stdin 执行一次真实 supervised Codex turn，保存 transcript/result，并验证 steer/interrupt 行为。",
+      "agent_instruction": {
+        "goal": "验证真实 Codex supervised turn transcript 与 steer/interrupt 行为。",
+        "required_context_refs": [
+          "arckit/project/state.record.json",
+          "arckit/project/STATE.md",
+          "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md",
+          "runtime/arckit-runtime/README.md"
+        ],
+        "required_actions": [
+          "Run one explicitly-triggered Codex app-server supervised turn.",
+          "Capture event stream and runtime result.",
+          "Validate result and decide whether to close the active case or continue to opencode/multi-agent adapter."
+        ],
+        "required_checks": [
+          "app-server event stream observed",
+          "steer or interrupt behavior documented",
+          "runtime result validation",
+          "ledger writeback gate"
+        ],
+        "stop_condition": "Stop after one supervised turn transcript is validated, or if Codex app-server cannot run without additional user authorization."
+      },
+      "human_gate": {
+        "required": false,
+        "reason": "",
+        "decision_needed": ""
+      },
+      "progress_guard": {
+        "expected_state_change": "A real Codex supervised turn transcript proves the runtime loop beyond dry-run/writeback tests.",
+        "actual_state_change": "M2 implemented gate-result and write-ledger with invalid-result rejection and allowed dry-run writeback plan.",
+        "no_progress_limit": 2,
+        "max_auto_rounds": 3
+      }
+    }
+  },
+  "gate": {
+    "schema_version": "arckit-runtime-gate/v1",
+    "allowed": true,
+    "decision": "allow",
+    "reasons": [],
+    "warnings": [],
+    "write_scope": [
+      "runtime_execution_record",
+      "project_state",
+      "iteration_state",
+      "active_case",
+      "indexes_and_projections"
+    ],
+    "validation": {
+      "valid": true,
+      "issues": []
+    },
+    "selected_round": {
+      "gap_id": "GAP-runtime-gate-ledger-writeback",
+      "dimension": "quality_validation",
+      "urgency": "critical",
+      "risk": "high",
+      "current_state": "verified",
+      "target_state": "accepted",
+      "impact": "Runtime M1 已能观察和干预 Codex app-server turn，但验证结果仍不能自动、安全地转化为 project、iteration 和 case ledger 写回。",
+      "round_goal": "实现 Gate Engine 与 ledger writeback，验证无效结果不会写回。",
+      "required_outputs": [
+        "artifact_impact_scan",
+        "source_projection_check",
+        "runtime_result",
+        "loop_handoff"
+      ],
+      "required_context_refs": [
+        "arckit/project/state.record.json",
+        "arckit/project/STATE.md",
+        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
+        "arckit/cases/INDEX.md",
+        "arckit/pending/INDEX.md",
+        "arckit/spec/INDEX.md",
+        "arckit/tech/INDEX.md"
+      ],
+      "stop_conditions": [
+        "Stop if source facts are unknown and the requested change would only update a projection.",
+        "Stop if human_decision_required is true.",
+        "Stop if validation cannot prove progress against the selected state gap.",
+        "Stop if the turn would require destructive or cross-workspace actions."
+      ],
+      "max_rounds": 1
+    }
+  }
+}

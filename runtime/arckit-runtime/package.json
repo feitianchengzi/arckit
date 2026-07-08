@@ -1,0 +1,22 @@
+{
+  "name": "@arckit/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "arckit-runtime": "./bin/arckit-runtime.mjs"
+  },
+  "scripts": {
+    "check": "node --check bin/arckit-runtime.mjs && node --check src/*.mjs && node --check adapters/*.mjs && node --check desktop/main.mjs && node --check desktop/preload.cjs && node --check desktop/renderer/renderer.js",
+    "desktop": "electron desktop/main.mjs",
+    "smoke": "node bin/arckit-runtime.mjs run --project ../.. --dry-run --json",
+    "probe:app-server": "node bin/arckit-runtime.mjs probe-app-server --project ../.. --json",
+    "gate:smoke": "node bin/arckit-runtime.mjs gate-result --project ../.. --file /tmp/arckit-runtime-smoke.json --json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}

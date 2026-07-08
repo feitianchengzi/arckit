@@ -4,12 +4,14 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-07-05T16:33:20.000Z",
+    "updated_at": "2026-07-08T04:21:48.000Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
   "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-  "active_case_refs": [],
+  "active_case_refs": [
+    "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+  ],
   "completeness_dimensions": {
     "project_intent": {
       "current_state": "accepted",
@@ -77,35 +79,51 @@
       "confidence": "high"
     },
     "user_experience": {
-      "current_state": "defined",
+      "current_state": "implemented",
       "target_state": "accepted",
-      "state_reason": "当前用户体验主要是 agent 读取 Markdown 状态、迭代、case 文件和 loop handoff 后的协作体验，不限定为 GUI。人手动触发下一轮时只是补 agent 自动续轮机制，不等于承担人类决策。",
+      "state_reason": "除 agent 读取 Markdown 状态、迭代、case 文件和 loop handoff 的协作体验外，Electron Desktop Client 已改为左侧项目列表、中间连续 Chat、右侧 Arckit 状态检查器的工作台。Chat session 与 run 已分离：session 是连续对话，run 是会话内一次执行；中间消息区独立滚动，输入框固定在底部。",
       "evidence": [
         "arckit/spec/agentic-software-development/product-concepts.md",
         "arckit/spec/agentic-software-development/product-architecture.md",
         "entry/skills/using-arckit/SKILL.md",
-        "memory/skills/arckit-development-ledger/SKILL.md"
+        "memory/skills/arckit-development-ledger/SKILL.md",
+        "runtime/arckit-runtime/desktop/main.mjs",
+        "runtime/arckit-runtime/desktop/preload.cjs",
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "runtime/arckit-runtime/desktop/renderer/index.html",
+        "runtime/arckit-runtime/desktop/renderer/renderer.js",
+        "runtime/arckit-runtime/desktop/renderer/styles.css"
       ],
-      "evidence_maturity": "formalized",
-      "gap": "状态摘要对下一轮 agent 是否足够清晰，仍需在真实交接中验证。",
-      "next_transition": "在后续 closeout 中检查用户是否能从 final response 和 ledger records 看到明确状态转移。",
+      "evidence_maturity": "validated",
+      "gap": "Desktop Client 已能启动、读取 project status、持久化 project sessions/conversations 并完成 chat dry-run smoke；还需要通过桌面端跑一次真实 Codex app-server done/gate/write 闭环。",
+      "next_transition": "用 Electron Desktop Chat 对一个真实项目启动 Codex app-server run，运行中用 Chat steer，观察右侧状态并执行 gate/write-ledger。",
       "blockers": [],
-      "priority": "medium",
+      "priority": "high",
       "confidence": "medium"
     },
     "runtime_surfaces": {
       "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "当前运行表面是 Codex skill、canonical JSON 记录、Markdown decision brief、Node.js 校验/迁移/渲染/审计脚本和目标项目 arckit 数据区。",
+      "state_reason": "当前运行表面包括 Codex skills、canonical JSON 记录、Markdown decision brief、development-ledger 脚本、Arckit Runtime CLI、Codex app-server supervisor adapter 和 Electron Desktop Client。",
       "evidence": [
         "arckit/project/state.record.json",
         "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
         "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "memory/skills/arckit-development-ledger/scripts/development-case.mjs"
+        "memory/skills/arckit-development-ledger/scripts/development-case.mjs",
+        "runtime/arckit-runtime/package.json",
+        "runtime/arckit-runtime/package-lock.json",
+        "runtime/arckit-runtime/bin/arckit-runtime.mjs",
+        "runtime/arckit-runtime/README.md",
+        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "runtime/arckit-runtime/desktop/main.mjs",
+        "runtime/arckit-runtime/src/json-rpc-stdio-client.mjs",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs probe-app-server --project . --json",
+        "npm run desktop"
       ],
-      "evidence_maturity": "formalized",
-      "gap": "脚本已实现结构生成和校验，但尚未证明在多项目、多 agent 使用中足够顺手。",
-      "next_transition": "在至少一次新项目初始化和一次已有项目迁移中验证 runtime surfaces。",
+      "evidence_maturity": "validated",
+      "gap": "CLI、Gate、ledger writeback、Desktop shell、三栏 Chat workspace 和 project conversation persistence 已实现；尚缺一次通过 Desktop 发起的真实 Codex done result 闭环。",
+      "next_transition": "从 Desktop Chat 发起真实 Codex app-server run 并完成 gate/write-ledger。",
       "blockers": [],
       "priority": "medium",
       "confidence": "medium"
@@ -145,15 +163,15 @@
     "integration_boundaries": {
       "current_state": "defined",
       "target_state": "accepted",
-      "state_reason": "Arckit 与 Codex skill、ArcForge 同步治理、Skill First 验证、多 agent 平台和外部 adapter 之间的边界已有初步定义。",
+      "state_reason": "Arckit 与 Codex skill、ArcForge 同步治理、Skill First 验证、多 agent 平台、外部 adapter 和 Runtime worker adapter 之间的边界已有初步定义。",
       "evidence": [
         "AGENTS.md",
         "arckit/spec/agentic-software-development/skill-architecture.md",
         "entry/skills/using-arckit/SKILL.md"
       ],
       "evidence_maturity": "formalized",
-      "gap": "不同外部平台如何消费状态模型仍未通过完整平台接入验证。",
-      "next_transition": "在外部平台或 adapter 场景中验证 project state 与 iteration state 的消费方式。",
+      "gap": "Codex app-server adapter、Gate Engine 和 ledger writeback 已实现；opencode 和多 agent adapter 尚未接入。",
+      "next_transition": "先用真实 Codex supervised turn 验证 Runtime loop，再考虑替换 adapter。",
       "blockers": [],
       "priority": "medium",
       "confidence": "medium"
@@ -161,16 +179,22 @@
     "architecture_foundation": {
       "current_state": "implemented",
       "target_state": "accepted",
-      "state_reason": "入口编排、状态账本、case 管理、pending、agent context、handoff 和 workflow memory 已形成分层架构。",
+      "state_reason": "入口编排、状态账本、case 管理、pending、agent context、handoff、workflow memory、Runtime 控制面和 Desktop Supervisor 已形成分层架构。",
       "evidence": [
         "entry/skills/using-arckit/SKILL.md",
         "memory/skills/arckit-development-ledger/SKILL.md",
         "memory/skills/arckit-agent-context/SKILL.md",
-        "engineering/skills/arckit-implementation-handoff/SKILL.md"
+        "engineering/skills/arckit-implementation-handoff/SKILL.md",
+        "arckit/tech/arckit-runtime/solution.md",
+        "runtime/arckit-runtime/src/loop-controller.mjs",
+        "runtime/arckit-runtime/src/prompt-compiler.mjs",
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "runtime/arckit-runtime/schemas/runtime-result.schema.json",
+        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs"
       ],
       "evidence_maturity": "formalized",
-      "gap": "状态驱动 loop 的架构已经落文档和脚本，但需要真实复杂项目运行反馈。",
-      "next_transition": "用复杂项目执行一轮从 state gap 到 case 到 validation 到 state delta 的完整闭环。",
+      "gap": "Runtime 需要补超时/外层 interrupt 自动收束策略，避免长时间真实 turn 无边界等待。",
+      "next_transition": "为 codex-app-server adapter 增加 turn timeout 和 transcript compaction 策略。",
       "blockers": [],
       "priority": "high",
       "confidence": "high"
@@ -178,7 +202,7 @@
     "implementation_coverage": {
       "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "development-ledger 的 v2 project state、state.record.json canonical storage、STATE.md decision brief、iteration record storage、iteration decision brief 和脚本已经实现，using-arckit 已同步入口描述。",
+      "state_reason": "Runtime M0/M1/M2 和 Electron Desktop M3 已实现；Desktop 通过同一个 runtime CLI 管理本地项目、run、events、steer、interrupt、gate 和 ledger writeback。",
       "evidence": [
         "arckit/project/state.record.json",
         "memory/skills/arckit-development-ledger/schema/project-state-record.schema.json",
@@ -187,11 +211,31 @@
         "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
         "entry/skills/using-arckit/SKILL.md",
         "node --check memory/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "node --check memory/skills/arckit-development-ledger/scripts/project-iteration.mjs"
+        "node --check memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "runtime/arckit-runtime/src/state-store.mjs",
+        "runtime/arckit-runtime/src/validator.mjs",
+        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+        "runtime/arckit-runtime/src/async-event-queue.mjs",
+        "runtime/arckit-runtime/src/json-rpc-stdio-client.mjs",
+        "runtime/arckit-runtime/src/gate-engine.mjs",
+        "runtime/arckit-runtime/src/ledger-writer.mjs",
+        "runtime/arckit-runtime/src/runtime-result-file.mjs",
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "runtime/arckit-runtime/desktop/main.mjs",
+        "runtime/arckit-runtime/desktop/preload.cjs",
+        "runtime/arckit-runtime/desktop/renderer/index.html",
+        "runtime/arckit-runtime/desktop/renderer/renderer.js",
+        "runtime/arckit-runtime/desktop/renderer/styles.css",
+        "node --input-type=module -e 'import { createDesktopRunManager } from \"./runtime/arckit-runtime/src/desktop-run-manager.mjs\"; ...'",
+        "npm run desktop",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project . --dry-run --json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-m1-smoke.json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs probe-app-server --project . --json",
+        "runtime/arckit-runtime/schemas/runtime-result.schema.json"
       ],
       "evidence_maturity": "validated",
-      "gap": "结构校验已通过；真实复杂项目 loop 验证仍需后续执行。",
-      "next_transition": "用真实复杂项目验证 state gap、iteration state 和 case evidence 是否能稳定驱动下一轮行动。",
+      "gap": "Desktop Client 已实现三栏 Chat 体验并启动；真实 done result 仍需在可联网运行环境中通过 Desktop 复测。",
+      "next_transition": "用 Desktop Chat 重跑 codex-app-server supervised turn 并获得 done result。",
       "blockers": [],
       "priority": "high",
       "confidence": "medium"
@@ -199,18 +243,47 @@
     "quality_validation": {
       "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "质量目标从结构校验升级为验证状态机制和 Loop Handoff 是否能驱动真实 loop，而不只是格式有效。",
+      "state_reason": "真实 codex-app-server supervised turn 已执行并保存 transcript；event stream、/steer、/interrupt 控制路径得到证据，但 inner model stream 在沙箱网络下失败，因此完整 accepted loop 尚未成立。",
       "evidence": [
         "arckit/spec/workflow-orchestration-memory.md",
         "arckit/tech/workflow-orchestration-memory/solution.md",
+        "arckit/tech/arckit-runtime/solution.md",
         "memory/skills/arckit-development-ledger/SKILL.md",
         "node memory/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
         "node memory/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
-        "node memory/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md"
+        "node memory/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-m1-smoke.json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs probe-app-server --project . --json",
+        "arckit/project/runtime-results/RUN-20260707-161744356Z.json",
+        "npm run check",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project . --dry-run --json > /tmp/arckit-runtime-m2-smoke.json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-m2-smoke.json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs gate-result --project . --file /tmp/arckit-runtime-m2-smoke.json --json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs write-ledger --project . --file /tmp/arckit-runtime-m2-done-fixture.json --dry-run --json",
+        "runtime/arckit-runtime/src/gate-engine.mjs",
+        "runtime/arckit-runtime/src/ledger-writer.mjs",
+        "runtime/arckit-runtime/src/runtime-result-file.mjs",
+        "runtime/arckit-runtime/src/cli.mjs",
+        "runtime/arckit-runtime/src/validator.mjs",
+        "runtime/arckit-runtime/package.json",
+        "runtime/arckit-runtime/package-lock.json",
+        "runtime/arckit-runtime/README.md",
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "runtime/arckit-runtime/desktop/main.mjs",
+        "runtime/arckit-runtime/desktop/renderer/index.html",
+        "node --input-type=module -e 'import { createDesktopRunManager } from \"./runtime/arckit-runtime/src/desktop-run-manager.mjs\"; ...'",
+        "npm run desktop",
+        "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/result.json",
+        "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/events.jsonl",
+        "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-result.json",
+        "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-events.jsonl",
+        "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/MANIFEST.md",
+        "/tmp/arckit-runtime-real-turn-4-last-agent-result.json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-real-turn-4-last-agent-result.json"
       ],
       "evidence_maturity": "validated",
-      "gap": "结构校验已通过；真实复杂项目 loop 验证仍是下一步质量缺口。",
-      "next_transition": "选择真实复杂项目执行一次 state gap -> case -> verification -> state delta 的闭环。",
+      "gap": "真实 supervised turn 证明了事件流和控制路径；Desktop Client 已启动并通过三栏 Chat dry-run manager smoke，但还缺一次从 Desktop Chat 发起、网络可用、产出 round_result=done 且 gate-result allowed 的完整闭环。",
+      "next_transition": "在可访问 OpenAI Responses API 的环境中用 Desktop Chat 重跑 supervised turn，保留 steer/interrupt 证据，并在 gate 允许后执行 write-ledger。",
       "blockers": [],
       "priority": "critical",
       "confidence": "medium"
@@ -263,20 +336,23 @@
     "maintainability_handoff": {
       "current_state": "implemented",
       "target_state": "accepted",
-      "state_reason": "状态机制已明确 state.record.json、STATE.md decision brief、iteration record、iteration decision brief、case、Loop Handoff、pending、事实源和 workflow memory 的边界，使后续 agent 或自动化平台能按状态差距接手。",
+      "state_reason": "状态机制已明确 state.record.json、STATE.md decision brief、iteration record、case、Loop Handoff、pending、事实源、workflow memory 和 Runtime controlled turn 的边界，使后续 agent 或自动化平台能按状态差距接手。",
       "evidence": [
         "arckit/spec/agentic-software-development/skill-architecture.md",
         "arckit/spec/workflow-orchestration-memory.md",
         "arckit/tech/workflow-orchestration-memory/solution.md",
+        "arckit/tech/arckit-runtime/solution.md",
         "memory/skills/arckit-development-ledger/SKILL.md",
         "entry/skills/using-arckit/SKILL.md",
         "arckit/project/state.record.json",
         "arckit/project/STATE.md",
-        "arckit/project/ITERATIONS.md"
+        "arckit/project/ITERATIONS.md",
+        "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md",
+        "runtime/arckit-runtime/README.md"
       ],
       "evidence_maturity": "formalized",
-      "gap": "需要下一轮 agent 实际读回并按 loop_control 推进，才能证明接手体验达到 accepted。",
-      "next_transition": "在下一次项目任务开始时，以 project state summary 作为 loop 输入。",
+      "gap": "M2 已能把验证后的结果安全写回账本；还需要真实 supervised turn transcript 作为可接手证据。",
+      "next_transition": "下一轮从 active case 继续验证真实 Codex supervised turn。",
       "blockers": [],
       "priority": "high",
       "confidence": "medium"
@@ -301,18 +377,18 @@
   },
   "state_gaps": [
     {
-      "id": "GAP-state-loop-validation",
+      "id": "GAP-runtime-real-supervised-turn",
       "dimension": "quality_validation",
       "current_state": "verified",
       "target_state": "accepted",
-      "impact": "没有真实复杂项目 loop 验证时，状态机制只能证明结构合理，不能证明能驱动工程收敛。",
+      "impact": "真实 supervised turn 已证明 event stream、/steer 和 /interrupt 控制路径；Desktop Client 已提供项目列表、连续 Chat、状态检查器、事件观察和控制入口，但还未通过桌面端产出 round_result=done。",
       "urgency": "critical",
       "risk": "high",
       "dependencies": [
-        "implementation_coverage",
-        "iteration_governance"
+        "runtime_surfaces",
+        "implementation_coverage"
       ],
-      "next_transition": "选择真实复杂项目执行一次 state gap -> case -> verification -> state delta 的闭环。"
+      "next_transition": "在可联网环境中通过 Desktop Chat 重跑 supervised turn，获得 done result 后通过 gate/write-ledger。"
     },
     {
       "id": "GAP-cross-record-audit",
@@ -329,16 +405,16 @@
     }
   ],
   "loop_control": {
-    "current_loop_focus": "用真实复杂项目验证状态驱动 loop。",
-    "next_transition": "选择真实复杂项目执行 state gap -> case -> verification -> state delta 的闭环，观察 STATE.md、iteration state 和 case evidence 是否能稳定驱动下一轮行动。",
-    "priority_basis": "结构校验已通过；剩余风险是模型是否能在真实复杂项目中驱动工程收敛。",
-    "stop_condition": "当前迭代的 stop condition 是完成至少一次真实复杂项目 loop 验证，并根据结果决定是否补跨记录 audit。",
+    "current_loop_focus": "实现 Arckit Runtime supervised agent loop。",
+    "next_transition": "通过 Electron Desktop Chat 在可联网环境中重跑真实 Codex supervised turn，获得 done result 后通过 gate/write-ledger。",
+    "priority_basis": "本轮将 Desktop 从控制面板改为左项目列表、中间连续 Chat、右状态检查器；剩余阻塞是从 Desktop 发起的真实 done result 闭环。",
+    "stop_condition": "当前迭代的 stop condition 是完成至少一次 Runtime-supervised agent loop，并根据结果决定是否补跨记录 audit。",
     "next_responsibility": "agent",
     "agent_continuation_available": true,
     "human_decision_required": false,
     "trigger_mode": "manual_bridge",
-    "continuation_prompt": "继续选择真实复杂项目执行 state gap -> case -> verification -> state delta 的闭环，并验证 loop_handoff 是否正确区分 agent 续轮、人类决策和外部等待。",
-    "responsibility_reason": "下一步是 agent 可继续的真实项目 loop 验证；manual_bridge 只表示当前缺少自动续轮 controller。"
+    "continuation_prompt": "继续 active case CASE-20260707-002：使用 runtime/arckit-runtime Electron Desktop Chat 添加一个真实项目，发送任务消息发起 codex-app-server supervised turn，运行中发送 Chat 消息测试 steer，观察右侧状态和 events，保存 result/events，确认 round_result=done 后运行 gate-result 和 write-ledger。",
+    "responsibility_reason": "下一步仍是 agent 可继续的验证工作；需要运行环境具备 Codex model network access，不需要人类产品决策。"
   },
   "active_constraints": [
     "Arckit 项目状态机制服务于基于状态的 loop 工程，而不是记录型日志。",
@@ -372,52 +448,67 @@
     "arckit/project/ITERATIONS.md",
     "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md",
+    "arckit/tech/arckit-runtime/solution.md",
+    "runtime/arckit-runtime/README.md",
+    "runtime/arckit-runtime/package-lock.json",
+    "runtime/arckit-runtime/bin/arckit-runtime.mjs",
+    "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+    "runtime/arckit-runtime/desktop/main.mjs",
+    "runtime/arckit-runtime/desktop/preload.cjs",
+    "runtime/arckit-runtime/desktop/renderer/index.html",
+    "runtime/arckit-runtime/desktop/renderer/renderer.js",
+    "runtime/arckit-runtime/desktop/renderer/styles.css",
+    "runtime/arckit-runtime/schemas/runtime-result.schema.json",
+    "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+    "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md",
     "arckit/cases/closed/CASE-20260707-001-add-loop-handoff-responsibility-model.md",
-    "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md"
+    "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md",
+    "arckit/project/runtime-results/RUN-20260707-161744356Z.json",
+    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/result.json",
+    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/events.jsonl",
+    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-result.json",
+    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-events.jsonl",
+    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/MANIFEST.md"
   ],
   "last_state_delta": {
     "changed_dimensions": [
-      "product_behavior",
+      "user_experience",
+      "runtime_surfaces",
       "quality_validation",
-      "maintainability_handoff",
-      "user_experience"
+      "implementation_coverage",
+      "maintainability_handoff"
     ],
     "state_transitions": [
       {
-        "dimension": "product_behavior",
-        "from_state": "designed",
-        "to_state": "designed",
-        "reason": "Loop Handoff 的稳定产品语义已正式写入 spec：先判断下一步职责归属，再判断触发方式；manual_bridge 不等于人类决策。"
+        "dimension": "user_experience",
+        "from_state": "defined",
+        "to_state": "implemented",
+        "reason": "Electron Desktop Client 改为左项目列表、中间连续 Chat、右 Arckit 状态检查器；session 与 run 分离，输入框固定底部，Chat 空闲时启动 runtime turn，运行中消息转为 steer。"
       },
       {
-        "dimension": "maintainability_handoff",
-        "from_state": "implemented",
-        "to_state": "implemented",
-        "reason": "Skill 执行协议、spec、tech 和 case schema 已对齐到 completion_audit.loop_handoff，未来自动桥可读取同一结构。"
+        "dimension": "runtime_surfaces",
+        "from_state": "verified",
+        "to_state": "verified",
+        "reason": "Desktop Client 三栏 Chat workspace 已实现并启动，project status 读取、conversation persistence 和 run manager dry-run smoke 通过。"
       },
       {
         "dimension": "quality_validation",
         "from_state": "verified",
         "to_state": "verified",
-        "reason": "本轮补齐了先前只改 skill 投影而未同步 arckit/spec 和 arckit/tech 的源事实缺口。"
-      },
-      {
-        "dimension": "user_experience",
-        "from_state": "defined",
-        "to_state": "verified",
-        "reason": "closeout 现在明确区分人类手动触发 agent 续轮、真实人类决策、外部等待和完成状态。"
+        "reason": "Desktop Client 三栏 Chat 体验、状态读取和 dry-run manager smoke 已验证；完整 accepted loop 仍需要桌面端真实 Codex done result。"
       }
     ],
     "deferred_dimensions": [
-      "delivery_operation",
-      "自动桥 controller 实现"
+      "full accepted ledger writeback for GAP-runtime-real-supervised-turn until a Desktop Chat-started round_result=done gates successfully"
     ],
-    "blocked_dimensions": [],
+    "blocked_dimensions": [
+      "quality_validation accepted transition blocked until Desktop Chat-started Codex app-server run completes with network access"
+    ],
     "case_refs": [
-      "arckit/cases/closed/CASE-20260707-001-add-loop-handoff-responsibility-model.md"
+      "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "next_loop_focus": "用真实复杂项目验证状态驱动 loop 和 Loop Handoff。",
-    "updated_at": "2026-07-07T11:20:00.000Z"
+    "next_loop_focus": "通过 Electron Desktop Chat 重跑真实 Codex supervised turn in network-enabled environment，获得 done result。",
+    "updated_at": "2026-07-08T04:21:48.000Z"
   }
 }
