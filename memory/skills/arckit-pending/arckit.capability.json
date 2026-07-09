@@ -1,0 +1,33 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-pending",
+  "kind": "pending_context",
+  "runtime_role": ["source_fact_worker", "route_auditor", "closeout_auditor"],
+  "summary": "Maintains project-level unresolved questions, assumptions, handoffs, and context that is useful but not stable enough for source facts.",
+  "input_facts": [
+    "unknowns",
+    "assumptions",
+    "open_questions",
+    "unaccepted_handoffs",
+    "risk_items"
+  ],
+  "outputs": [
+    "pending_record",
+    "pending_index",
+    "open_question",
+    "deferred_context"
+  ],
+  "allowed_write_targets": [
+    "arckit/pending/**"
+  ],
+  "forbidden_decisions": [
+    "stable_product_fact",
+    "stable_technical_fact",
+    "case_closed",
+    "human_gate_final"
+  ],
+  "runtime_notes": [
+    "Use when an item is relevant to the project but not stable enough for arckit/spec, arckit/tech, arckit/interaction, arckit/visual, or ledger state.",
+    "Source-fact workers should route unsupported assumptions here instead of writing them as confirmed facts."
+  ]
+}

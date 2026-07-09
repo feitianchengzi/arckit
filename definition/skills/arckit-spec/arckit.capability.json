@@ -1,0 +1,28 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-spec",
+  "kind": "result_fact_source",
+  "runtime_role": ["route_auditor", "work_executor", "verification_agent"],
+  "summary": "Maintains stable product behavior, rules, feature specs, and acceptance criteria.",
+  "input_facts": [
+    "confirmed_product_expectation",
+    "accepted_decision",
+    "validated_scenario"
+  ],
+  "outputs": [
+    "spec_update",
+    "spec_audit",
+    "acceptance_criteria"
+  ],
+  "allowed_write_targets": [
+    "arckit/spec/**"
+  ],
+  "forbidden_decisions": [
+    "implementation_only_as_requirement",
+    "unconfirmed_assumption_as_fact",
+    "visual_or_technical_fact_ownership"
+  ],
+  "runtime_notes": [
+    "Only use for stable product expectation facts; route unknowns to pending."
+  ]
+}

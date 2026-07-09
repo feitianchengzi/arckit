@@ -1,6 +1,6 @@
 ---
 name: arckit-development-ledger
-description: 维护目标项目 arckit/project 和 arckit/cases 中的软件项目状态、迭代状态与研发事项 case。默认由 using-arckit 在软件项目协作、上下文恢复、每轮 closeout、状态驱动 loop 判断或需要创建/校验/审计 project state、iteration state、case record 时路由触发。用于把每轮工作转化为项目完整性状态变化、迭代状态变化和可接手 case 证据；不把 STATE.md 当作持续增长的日志。
+description: 维护目标项目 arckit/project 和 arckit/cases 中的软件项目状态、迭代状态与研发事项 case。适用于软件项目协作、上下文恢复、每轮 closeout、状态驱动 loop 判断，或需要创建、校验、审计 project state、iteration state、case record 的场景。用于把每轮工作转化为项目完整性状态变化、迭代状态变化和可接手 case 证据；不把 STATE.md 当作持续增长的日志。
 ---
 
 # ArcKit Development Ledger
@@ -85,7 +85,8 @@ unknown -> needed -> defined -> designed -> implemented -> integrated -> verifie
 - 默认把软件开发请求视为真实项目连续演进的一部分。
 - 如果 `arckit/project/state.record.json` 缺失且可写，创建可恢复的 `project_state_record`，并生成 `STATE.md` 投影视图。
 - 如果只存在旧版内嵌 JSON 的 `STATE.md`，先迁移到 `state.record.json`，再生成新的投影视图。
-- 如果本轮需要阶段目标、版本目标或跨 case 收敛，读取或创建 `arckit/project/iterations/*.md`。
+- 如果本轮需要阶段目标、版本目标、跨 case 收敛，或调用方找不到本次迭代对应状态，读取或创建 `arckit/project/iterations/*.record.json` 和对应 `.md`，并同步 `ITERATIONS.md`。
+- 本次迭代对应状态优先按 active case、上一轮 `loop_handoff`、项目 state 的 current iteration、用户当前目标和 `ITERATIONS.md` 匹配；无法匹配但本轮仍属于真实开发推进时，创建最小可恢复迭代状态，不把 iteration 缺失留给后续轮次猜。
 - 读取 active case 索引；已有相关 active case 时复用并更新。
 - 账本脚本只写目标项目的具体记录，不把 schema 或脚本复制到目标项目 `arckit/` 数据区。
 

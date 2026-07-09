@@ -1,8 +1,8 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { spawnSync } from "node:child_process";
-import { basename, dirname, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { evaluateRuntimeGates } from "./gate-engine.mjs";
+import { runLedgerScript } from "./ledger-scripts.mjs";
 
 export async function writeLedger({ projectRoot, runtimeResult, envelope, snapshot, dryRun = false }) {
   const root = resolve(projectRoot);
@@ -270,16 +270,4 @@ async function writeCaseRecord(file, text, record) {
     .replace(/^Updated: .+$/m, `Updated: ${record.updated_at}`)
     .replace(/(## Structured Record[\s\S]*?```json\s*\n)([\s\S]*?)(\n```)/, `$1${json}$3`);
   await writeFile(file, nextText);
-}
-
-function runLedgerScript(root, args) {
-  const [script, ...rest] = args;
-  const scriptPath = join(root, "memory/skills/arckit-development-ledger/scripts", script);
-  const result = spawnSync(process.execPath, [scriptPath, ...rest], {
-    cwd: root,
-    encoding: "utf8"
-  });
-  if (result.status !== 0) {
-    throw new Error(`Ledger script failed: ${basename(script)} ${rest.join(" ")}\n${result.stderr || result.stdout}`);
-  }
 }

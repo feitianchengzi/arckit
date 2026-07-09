@@ -6,9 +6,9 @@ Skill 架构把产品概念和产品架构转化为当前可实施的 Arckit ski
 
 Arckit 的定位是软件开发 Agent 的协作与接力协议层。它不等同于全自动化 AI 平台本身，也不要求所有能力都来自 Arckit；平台层可以负责多 agent 调度、loop 控制、权限、队列、运行环境、通知和人类接手机制。Arckit 负责定义项目事实、case 状态、handoff、pending、workflow memory、agent context 和回写边界，让不同 agent、外部工具和人类能可靠接力。
 
-当前 Arckit 围绕软件项目开发的基础协作面组织六类能力：
+当前 Arckit 围绕软件项目开发的基础协作面组织七类能力：
 
-- 入口编排：识别任务处境，编译 workflow frame。
+- 入口 Controller：识别任务处境，生成 controller frame、execution gate、worker packets、report intake rules、closeout rules 和 loop handoff。
 - 项目连续状态：维护 `arckit/project` 中的 project state record，追踪整个应用跨上下文、跨 case、跨迭代的长期状态。
 - 研发事项记录：维护 `arckit/cases` 中的 development case record，追踪一个事项跨轮次的结构满足度。
 - 记忆与低承诺空间：保存原始材料、未决问题、workflow memory 和 agent 启动上下文。
@@ -23,23 +23,25 @@ Arckit 的定位是软件开发 Agent 的协作与接力协议层。它不等同
 Arckit 的当前 skill 体系按以下链路工作：
 
 1. `using-arckit` 接收 prompt、上下文、证据和用户纠错，形成当前任务处境。
-2. `using-arckit` 先读取或创建 `arckit/project/STATE.md`，确认连续项目状态和本轮可能影响的项目级维度。
-3. `using-arckit` 在 `arckit/cases` 中创建或更新 development case record，记录项目状态引用、当前轮缺口、结构状态、未决项和 completion audit。
-4. `using-arckit` 调用 `arckit-workflow-memory` 做 workflow resolution，绑定已有 accepted/candidate workflow 或准备新的场景级 candidate。
-5. 入口编排选择足以支撑真实项目推进的 skill 组合，而不是把用户提到的某个 skill 当作唯一任务，也不为了减少 skill 数量而跳过事实、架构、验证或交接。
-6. 过程型 skill 产出 handoff，结果型 skill 维护稳定事实，诊断型 skill 收敛实现事实，未确认内容进入 `arckit-pending`。
-7. 如果输入包含长期 agent 协作规则、AGENTS.md 维护或事实源读取顺序，入口路由 `arckit-agent-context` 做 durable context 分类和持久化。
-8. 如果下一步是实现执行，入口路由 `arckit-implementation-handoff` 把已确认事实、范围、禁止触碰项、验证和回写要求整理成实现交接包。
-9. 如果下一步是高风险结构治理，入口路由 `arckit-refactor-strategy` 形成行为不变、分阶段、可验证的重构策略。
-10. `arckit-turn-adaptation` 处理首轮之后会改变 workflow frame、事实路由、停止条件、验证策略或 workflow memory 判断的后续消息，并把 frame delta 交回入口协调。
-11. 每轮结束前，`using-arckit` 和 `arckit-development-ledger` 输出 `completion_audit.loop_handoff`，区分下一步职责归属和触发方式。
-12. 执行结果、用户纠错和流程学习交给 `arckit-workflow-memory` closeout。
+2. `using-arckit` 读取或初始化 `arckit/project`、active case、iteration state、上一轮 handoff 和相关事实源。
+3. `using-arckit` 判断 turn delta：首轮、新 case、继续、补充、纠错、目标变化、暂停或恢复。
+4. `using-arckit` 生成 controller frame 和本轮唯一 round goal。
+5. `using-arckit` 生成 execution gate。默认不自动执行；只有人类明确授权、runtime authorization、auto-run policy 或外部平台授权时才绑定 executor。
+6. `using-arckit` 生成 worker packets、report intake rules 和 closeout rules。Worker packet 可以交给人类手动分发，也可以交给已授权执行环境派发。
+7. Worker Agent 或外部 executor 按 packet 执行并返回 worker report。Worker 不决定项目方向、不关闭 case、不替代 Controller。
+8. `using-arckit` 接收并审核 worker report，判断是否接受、退回修订、补充 worker、标记旧 packet 失效或要求人类判断。
+9. 过程型 skill 产出 handoff，结果型 skill 维护稳定事实，诊断型 skill 收敛实现事实，未确认内容进入 `arckit-pending`。
+10. 每轮结束前，`using-arckit` 和 `arckit-development-ledger` 输出 `completion_audit.loop_handoff`，区分下一步职责归属和触发方式。
+11. 执行结果、用户纠错和流程学习交给 `arckit-workflow-memory` closeout。
 
 这条链路是当前实施主线。workflow frame 根据当前维护源选择可执行 skill；跨出当前执行面的阶段通过 pending 或外部 handoff 保持连续推进。
 
 ## 能力建设原则
 
-- 入口能力只负责编译任务处境和选择能力组合，不替代结果型 skill、实现 adapter 或诊断 skill。
+- 入口能力只负责 Controller 协议：任务处境、turn delta、controller frame、execution gate、worker packets、report intake、closeout 和 loop handoff；不替代结果型 skill、实现 adapter、诊断 skill 或 Worker Agent。
+- 入口能力不得因为生成了执行包就自动执行。执行必须经过 execution gate，并绑定 `human_runtime`、`runtime_executor`、`external_agent` 或其他授权 executor。
+- 没有自动执行环境时，人类可以手动复制 worker packet 到其他 Agent 对话，并把 worker report 带回 Controller。
+- 自动执行环境可以分发 worker packet、收集 report、处理 gate、暂停和继续，但不改变入口协议语义。
 - 所有软件开发请求默认属于真实项目的连续演进；入口按状态层级、证据成熟度和本轮推进目标编译 workflow frame。
 - 入口在选择能力前执行源-投影门禁：先判断本轮是否改变源事实，再判断当前要更新的 artifact 是源事实还是投影产物；源事实未知时，不允许把投影更新当成完整完成。
 - `arckit/project` 记录项目级连续状态，不替代 spec、interaction、visual、tech 或 case。
@@ -56,12 +58,11 @@ Arckit 的当前 skill 体系按以下链路工作：
 
 ## Skill 暴露与路由策略
 
-`using-arckit` 是默认入口 skill，负责首轮任务处境编译、阶段判断和能力组合选择。其他 Arckit skills 默认作为 routed skills 存在：它们的 description 简短说明职责、输出和边界，并声明由 `using-arckit` 路由触发；除用户明确点名、维护该 skill 本身、隔离测试或运行 profile 明确放开外，不作为首轮默认入口竞争者。
+`using-arckit` 是项目对话 Controller skill，负责把用户输入编译为本轮 controller frame、execution gate、worker packets、report intake rules、closeout rules 和 loop handoff。其他 Arckit skills 是具体能力包：它们声明自身适用场景、输入、输出和事实边界；可以被 Controller 生成的 worker packet 引用，也可以被人类或外部平台直接使用。
 
 `using-arckit` 的可见能力地图包含当前执行面中的 skill：
 
 - `arckit-workflow-memory`
-- `arckit-turn-adaptation`
 - `arckit-development-ledger`
 - `arckit-intake`
 - `arckit-pending`
@@ -83,7 +84,7 @@ Arckit 的当前 skill 体系按以下链路工作：
 
 ## 语义入口与任务处境
 
-`using-arckit` 承载入口理解、处境编译和能力选择责任。它需要识别：
+`using-arckit` 承载入口理解、Controller 编排和轮次收口责任。它需要识别：
 
 - 项目级长期预期、本轮可交付内容和当前承诺成熟度。
 - 当前阶段候选和阶段产物。
@@ -98,7 +99,7 @@ Arckit 的当前 skill 体系按以下链路工作：
 
 每轮结束时，case record 的 `completion_audit` 包含 `loop_handoff`。`loop_handoff` 至少包含 `status`、`next_responsibility`、`agent_continuation_available`、`human_decision_required`、`trigger_mode`、`next_prompt`、`agent_instruction`、`human_gate` 和 `progress_guard`。自动化平台只消费 agent-continuable handoff；人类只在 `human_decision_required=true` 时承担真实决策、授权或风险确认。
 
-`arckit-turn-adaptation` 承接后续对话中的变更控制。它处理会改变当前 workflow frame、事实路由、停止条件、验证策略、确认点、工具边界、术语边界或 workflow memory 判断的用户消息。它不是普通后续需求处理器，也不维护事实源；它输出 frame delta、artifact routing delta、ledger delta 或 workflow correction ledger，再交回 `using-arckit` 继续协调。
+后续对话中的补充、纠错、目标变化、暂停和恢复由 `using-arckit` 的 turn delta 处理。Controller 必须判断旧 worker packet 是否仍有效；如果失效，明确要求停止旧 packet，并生成新 packet 或等待人类确认。
 
 ## 语义材料保留与低承诺空间
 
@@ -203,5 +204,7 @@ Skill 架构满足规格时，系统表现为：
 - 过程型、结果型、诊断型和记忆型 skill 通过 handoff 和事实路由协作。
 - Agent 启动上下文、实现交接和重构策略都有明确 surface 和输出契约。
 - `completion_audit.loop_handoff` 能区分 agent 续轮、真实人类决策、外部等待和事项完成，并能同时服务人工触发和未来自动桥。
+- Controller Worker Loop 能说明没有自动执行环境时人类如何手动分发 worker packet、收集 worker report，并回到 Controller closeout。
+- 自动执行环境能复用同一套 packet、report 和 closeout 协议，而不是另建一套入口协议。
 - Code、Skill、document、workflow 和 mixed artifact 都能进入同一套定义、外部实现 adapter 和收口证据模型。
 - 治理、验证、发布、运维、桌面桥或角色编排事项会形成 pending 或 external adapter handoff，保持软件项目开发链路连续。

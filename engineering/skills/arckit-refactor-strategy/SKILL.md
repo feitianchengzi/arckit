@@ -1,6 +1,6 @@
 ---
 name: arckit-refactor-strategy
-description: 为代码结构治理、模块拆分、依赖整理、状态管理收敛或技术债处理形成行为不变、分阶段、可验证的重构策略。默认由 using-arckit 在用户明确要求重构，或 debug/implementation 证据显示需要结构性治理且直接修改风险较高时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。不用于新功能设计、架构拍板、产品取舍或无证据的大重写。
+description: 为代码结构治理、模块拆分、依赖整理、状态管理收敛或技术债处理形成行为不变、分阶段、可验证的重构策略。适用于用户明确要求重构，或 debug/implementation 证据显示需要结构性治理且直接修改风险较高的场景。不用于新功能设计、架构拍板、产品取舍或无证据的大重写。
 ---
 
 # ArcKit Refactor Strategy

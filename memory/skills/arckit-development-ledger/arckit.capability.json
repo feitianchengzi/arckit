@@ -1,0 +1,34 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-development-ledger",
+  "kind": "state_ledger",
+  "runtime_role": ["state_reader", "verification_agent", "closeout_auditor", "ledger_writer"],
+  "summary": "Maintains project state, iteration state, development cases, audits, renders, and indexes.",
+  "input_facts": [
+    "project_state_record",
+    "iteration_state_record",
+    "development_case_record",
+    "runtime_result",
+    "merge_result"
+  ],
+  "outputs": [
+    "state_audit",
+    "case_audit",
+    "ledger_write_plan",
+    "updated_state",
+    "updated_case"
+  ],
+  "allowed_write_targets": [
+    "arckit/project/**",
+    "arckit/cases/**"
+  ],
+  "forbidden_decisions": [
+    "product_requirement_final",
+    "visual_approval",
+    "release_authorization"
+  ],
+  "runtime_notes": [
+    "Runtime should call ledger scripts for writes and audits.",
+    "Workers may inspect ledger state but ordinary workers must not write it directly."
+  ]
+}

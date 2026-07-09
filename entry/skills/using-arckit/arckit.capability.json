@@ -1,0 +1,47 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "using-arckit",
+  "kind": "project_conversation_controller",
+  "runtime_role": ["controller", "packet_compiler", "report_intake", "closeout_controller"],
+  "summary": "Turns a software-development input into a controller frame, execution gate, worker packets, report intake rules, closeout rules, and loop handoff. It does not execute work by itself; an executor must be explicitly authorized and bound.",
+  "input_facts": [
+    "user_message",
+    "project_state",
+    "active_case",
+    "iteration_state",
+    "loop_handoff",
+    "capability_manifests",
+    "operator_input",
+    "worker_reports"
+  ],
+  "outputs": [
+    "round_execution_packet",
+    "controller_frame",
+    "turn_delta",
+    "execution_gate",
+    "executor_binding",
+    "worker_packets",
+    "report_intake_rules",
+    "closeout_rules",
+    "source_projection_check",
+    "completion_audit",
+    "loop_handoff"
+  ],
+  "allowed_write_targets": [],
+  "forbidden_decisions": [
+    "ledger_writeback",
+    "case_closed",
+    "human_gate_final",
+    "executor_auto_binding_without_authorization",
+    "worker_task_execution",
+    "concrete_capability_replacement",
+    "stable_fact_write_without_owner_capability"
+  ],
+  "runtime_notes": [
+    "Use this capability as Controller protocol guidance for human-runtime, current-agent, CLI, or external runtime operation.",
+    "Default execution_gate.status is pending unless the user message, runtime authorization, auto-run policy, or external platform explicitly authorizes execution.",
+    "When no automated executor is available, humans may manually copy worker packets to worker Agent chats and bring worker reports back to this Controller.",
+    "The selected execution environment may automate worker creation, observation, merge, gates, or writeback, but the Controller semantics stay the same.",
+    "Do not replace concrete capabilities such as arckit-spec, arckit-tech, arckit-debug-diagnosis, or arckit-development-ledger."
+  ]
+}

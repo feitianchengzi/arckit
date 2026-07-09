@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arckit.local/schema/worker-report.schema.json",
+  "title": "Arckit Worker Report",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "task_id",
+    "role",
+    "status",
+    "summary",
+    "findings",
+    "evidence",
+    "changes",
+    "risks",
+    "unknowns",
+    "recommendation",
+    "requires_main_agent_decision",
+    "requires_human_decision"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "arckit-worker-report/v1" },
+    "task_id": { "type": "string" },
+    "role": {
+      "type": "string",
+      "enum": [
+        "controller_state_reader",
+        "controller_route_auditor",
+        "source_fact_worker",
+        "implementation_worker",
+        "verification_worker",
+        "closeout_controller"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "partial", "blocked", "failed", "invalid"]
+    },
+    "summary": { "type": "string" },
+    "findings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "changes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "recommendation": { "type": "string" },
+    "requires_main_agent_decision": { "type": "boolean" },
+    "requires_human_decision": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

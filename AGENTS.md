@@ -17,6 +17,12 @@ or another agent takes over. Capabilities whose core output depends on human aes
 organizational approval, or release authorization may be supported as analysis, evidence, pending context, or an
 external-adapter handoff, but should not become silent final-decision skills in this repository.
 
+## Arckit Architecture
+
+Arckit is organized around Project State as the recoverable software-project object: Case advances one state gap, Loop advances a Case, and Desktop Runtime automates the control loop around Codex-like coding agents and installed skills.
+
+Desktop owns product/runtime control architecture; Codex-like coding agents own semantic reasoning, workspace execution, evidence collection, and structured claims; skills are installed agent capability packages that provide reusable protocols, methods, scripts, and artifact maintenance rules at the bottom layer.
+
 ## Directory Map
 
 - `entry/`: cross-lifecycle entry points, skill routing, workflow composition, and scenario-to-skill orchestration.

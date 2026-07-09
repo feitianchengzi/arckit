@@ -33,7 +33,7 @@ workflow_memory_closeout:
   correction_detected: yes|no
   signal_decision: write_signal|update_candidate_only|skip
   skip_reason: ""
-  ledger_source: arckit-turn-adaptation|using-arckit|none
+  ledger_source: project_entry|caller|none
 ```
 
 当 `correction_detected=yes` 且 `signal_decision=skip` 时，`skip_reason` 必须说明该纠偏为什么不是可复用流程学习，或说明完全覆盖它的 accepted workflow patch。
@@ -62,7 +62,7 @@ source_task: ""
 project_root: ""
 project_fingerprint: ""
 fingerprint_confidence: high|medium|low
-workflow_frame:
+loop_frame:
   scenario: ""
   signals: []
   runtime_situation: {}
@@ -126,7 +126,7 @@ signal:
   scenario: ""
   source_task: ""
   project_root: ""
-  workflow_frame: {}
+  loop_frame: {}
   skills_used: []
   evidence:
     files_read: []
@@ -158,7 +158,7 @@ resolution:
   bound_candidate_id: ""
   match_reason: ""
   applied_overlay: true|false
-workflow_frame_summary:
+loop_frame_summary:
   final_goal: ""
   current_phase: ""
   selected_capabilities: []

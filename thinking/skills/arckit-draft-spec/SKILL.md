@@ -1,6 +1,6 @@
 ---
 name: arckit-draft-spec
-description: 把原始输入、想法、调研或讨论材料整理成产品规格草案、PRD 草案、验收草案或 spec handoff。默认由 using-arckit 在判断本轮需要定义前草案能力时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。该 skill 不直接维护 arckit/spec 的结果事实。
+description: 把原始输入、想法、调研或讨论材料整理成产品规格草案、PRD 草案、验收草案或 spec handoff。适用于需要定义前草案、材料归纳、验收口径草拟或交给 arckit-spec 之前的规格输入整理场景。该 skill 不直接维护 arckit/spec 的结果事实。
 ---
 
 # Arckit Draft Spec

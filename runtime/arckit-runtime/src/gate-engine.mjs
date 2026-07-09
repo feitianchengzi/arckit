@@ -13,6 +13,10 @@ export function evaluateRuntimeGates({ runtimeResult, snapshot = null, envelope 
     reasons.push(`round_result=${runtimeResult?.round_result || "unknown"} is not eligible for automatic ledger writeback.`);
   }
 
+  if (runtimeResult?.ledger_stage?.status && runtimeResult.ledger_stage.status !== "gate_ready") {
+    reasons.push(`ledger_stage.status=${runtimeResult.ledger_stage.status} is not eligible for automatic ledger writeback.`);
+  }
+
   if (runtimeResult?.loop_handoff?.human_decision_required === true) {
     reasons.push("human_decision_required=true blocks automatic ledger writeback.");
   }
@@ -37,8 +41,20 @@ export function evaluateRuntimeGates({ runtimeResult, snapshot = null, envelope 
   const projectionsChanged = Array.isArray(sourceProjection.projection_artifacts_changed)
     ? sourceProjection.projection_artifacts_changed
     : [];
+  const ownership = runtimeResult?.artifact_ownership_scan || {};
+  const ownedSourceChanged = Array.isArray(ownership.source_facts_changed) ? ownership.source_facts_changed : [];
+  const ownedProjectionsChanged = Array.isArray(ownership.projection_artifacts_changed) ? ownership.projection_artifacts_changed : [];
+  const unknownArtifacts = Array.isArray(ownership.unknown_artifacts) ? ownership.unknown_artifacts : [];
   if (sourceProjection.source_unknown === true && sourceChanged.length === 0 && projectionsChanged.length > 0) {
     reasons.push("source_unknown=true with projection-only changes blocks ledger writeback.");
+  }
+
+  if (ownedProjectionsChanged.length > 0 && ownedSourceChanged.length === 0 && sourceChanged.length === 0) {
+    reasons.push(`artifact ownership map detected projection-only changes: ${ownedProjectionsChanged.join(", ")}`);
+  }
+
+  if (unknownArtifacts.length > 0) {
+    reasons.push(`artifact ownership map contains unknown artifacts: ${unknownArtifacts.join(", ")}`);
   }
 
   if (Array.isArray(sourceProjection.blocked_projections) && sourceProjection.blocked_projections.length > 0) {

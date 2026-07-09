@@ -1,171 +1,193 @@
 # Arckit Runtime
 
-Arckit Runtime is the control layer for supervised Arckit loops. It keeps loop control outside the agent and uses the agent as a bounded worker.
+Arckit Runtime is the control plane for state-driven agentic software development. It keeps loop control outside model prompts and treats Codex app-server as a bounded worker adapter.
 
-M0 implements a dry-run runtime:
+## Product Shape
 
-- reads `arckit/project/state.record.json`
-- reads the active iteration, case index, pending index, spec index, and tech index when present
-- selects the highest-priority `state_gaps` item
-- compiles a supervised agent prompt
-- creates and validates a sample `arckit-runtime-result/v1`
+```text
+Arckit Desktop
+  project list, sessions, chat, live work, agent status, evidence, gates
 
-M1 connects the same control contract to Codex app-server events:
+Arckit Runtime
+  runtime kernel, controller reducer, round state machine, artifact ownership map, ledger gate, ledger writeback
 
-- probes Codex app-server JSON-RPC over stdio
-- starts a Codex thread and turn through the adapter
-- maps app-server notifications into normalized runtime events
-- streams events as JSONL with `--stream-events`
-- accepts operator controls with `--supervise-stdin`
-- sends `/steer <text>` through `turn/steer`
-- sends `/interrupt` through `turn/interrupt`
+Agent Workers
+  Codex app-server turns that execute one worker packet and return one worker report
 
-M3 starts the desktop control surface:
+Arckit Project Files
+  project state, cases, facts, pending, handoffs, runtime evidence
+```
 
-- registers local Arckit projects
-- presents a three-column project / chat / state workspace
-- uses the center chat as the primary task and continuation surface
-- starts dry-run or Codex app-server runtime turns from chat messages
-- turns messages sent during active work into steer controls
-- shows normalized loop events and Arckit state gaps
-- runs gate-result and write-ledger from the completed run
+The Runtime owns the loop. Workers do not decide case closure, final next responsibility, human gates, source/projection ownership, or ledger writeback.
+
+Runtime is not a semantic truth judge. Workers, Controller LLM turns, or humans make semantic judgments and submit structured claims. Runtime verifies the claim shape, evidence presence, artifact ownership, gate rules, and state transitions.
+
+The product kernel is deterministic:
+
+```text
+User Input
+  -> Controller Reducer
+  -> Round Plan
+  -> Worker Dispatch
+  -> Report Intake
+  -> Deterministic Merge
+  -> Ledger Gate
+  -> Ledger Writeback
+  -> Next Control State
+  -> Desktop UI
+```
+
+Desktop displays this runtime control state. It does not infer business state from prompt text or worker prose.
+
+## Agentic Loop
+
+Each run now produces:
+
+- `loop_frame`
+- `route_plan`
+- `worker_tasks`
+- `worker_reports`
+- `round_state`
+- `round_state_history`
+- `round_execution_packet`
+- `merge_result`
+- `controller_reducer_result`
+- `artifact_ownership_scan`
+- `ledger_stage`
+- `runtime_result`
+- raw and normalized event evidence
+
+Worker roles are selected by the dynamic route plan. Runtime does not trigger every role on every run.
+
+Available roles include:
+
+- `controller_state_reader`
+- `controller_route_auditor`
+- `source_fact_worker`
+- `implementation_worker`
+- `verification_worker`
+- `closeout_controller`
+
+For an empty or state-discovery project, the first execution route is source-fact establishment. Runtime must not start `implementation_worker` just because the user message says "build" or "develop"; implementation requires enough source facts, boundaries, and validation expectations to avoid product guessing.
+
+Dry-run mode is Packet Preview: it generates controller frame, execution gate and worker packets without starting Codex or fabricating worker reports.
+
+## Capability Manifests
+
+Runtime reads `arckit.capability.json` manifests from core Arckit skills. `SKILL.md` remains human/agent guidance, but Runtime routing uses machine-readable capability metadata where available.
+
+Capability manifests are routing and boundary metadata only. Runtime does not read `SKILL.md` bodies as control logic and does not inject skill bodies into worker prompts. Worker prompts list allowed skills as explicit `$skill-name` triggers so Codex-like Agents can use their own installed skill mechanism.
+
+Current manifest-backed capabilities include:
+
+- `using-arckit`
+- `arckit-development-ledger`
+- `arckit-implementation-handoff`
+- `arckit-debug-diagnosis`
+- `arckit-spec`
+- `arckit-architecture-decision`
 
 ## Commands
 
-Run a dry-run round from this package:
+Initialize an empty or existing local project:
 
 ```bash
-npm run smoke
+node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project .
 ```
 
-Run from the repository root:
+Run an agentic preview:
 
 ```bash
-node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project . --task "inspect the next runtime gap" --dry-run
+node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project . --task "build the first feature" --dry-run --json
 ```
 
-Write machine-readable output:
-
-```bash
-node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project . --dry-run --json
-```
-
-Validate a runtime result JSON file:
-
-```bash
-node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file result.json
-```
-
-Gate a runtime result before any ledger write:
-
-```bash
-node runtime/arckit-runtime/bin/arckit-runtime.mjs gate-result \
-  --project . \
-  --file result.json \
-  --json
-```
-
-Preview ledger writeback:
-
-```bash
-node runtime/arckit-runtime/bin/arckit-runtime.mjs write-ledger \
-  --project . \
-  --file result.json \
-  --dry-run \
-  --json
-```
-
-Apply ledger writeback after the gate allows it:
-
-```bash
-node runtime/arckit-runtime/bin/arckit-runtime.mjs write-ledger \
-  --project . \
-  --file result.json \
-  --json
-```
-
-Writeback is intentionally narrow. It only writes when `gate-result` allows the runtime result, then updates the project state, active iteration, active case, indexes, and an immutable runtime execution record under `arckit/project/runtime-results/`.
-
-Probe local Codex app-server without starting a model turn:
-
-```bash
-node runtime/arckit-runtime/bin/arckit-runtime.mjs probe-app-server --project . --json
-```
-
-Start a supervised Codex turn:
+Run real Codex app-server workers:
 
 ```bash
 node runtime/arckit-runtime/bin/arckit-runtime.mjs run \
   --project . \
-  --task "continue the active Arckit runtime case" \
+  --task "continue the active Arckit case" \
   --adapter codex-app-server \
   --stream-events \
   --supervise-stdin
 ```
 
-While the turn is running, type one of these into stdin:
+Authorize and run an existing preview packet:
+
+```bash
+node runtime/arckit-runtime/bin/arckit-runtime.mjs run \
+  --project . \
+  --packet-file result.json \
+  --adapter codex-app-server \
+  --stream-events \
+  --supervise-stdin
+```
+
+While a real run is active:
 
 ```text
-/steer revise the current approach and only update the runtime adapter
+/steer revise the current worker task and avoid changing unrelated files
 /interrupt
 ```
 
-`probe-app-server` may need access to the local Codex state under `~/.codex`; in a sandboxed agent session this can require explicit approval.
+Validate, gate, and write ledger:
+
+```bash
+node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file result.json
+node runtime/arckit-runtime/bin/arckit-runtime.mjs gate-result --project . --file result.json --json
+node runtime/arckit-runtime/bin/arckit-runtime.mjs write-ledger --project . --file result.json --dry-run --json
+node runtime/arckit-runtime/bin/arckit-runtime.mjs write-ledger --project . --file result.json --json
+```
 
 ## Desktop Client
 
-Install dependencies once from `runtime/arckit-runtime`:
+Start from `runtime/arckit-runtime`:
 
 ```bash
 npm install
-```
-
-Start the desktop client:
-
-```bash
 npm run desktop
 ```
 
-The desktop client stores its local project registry and run history under Electron `userData`. It does not replace the runtime. It launches the same `bin/arckit-runtime.mjs` commands behind the UI, so terminal and desktop runs use the same state selection, prompt contract, event stream, gate engine and ledger writer.
+Desktop is the intended product surface:
 
-Desktop surface:
+- Left rail: projects, chats, runs.
+- Center: continuous project chat and live work cards.
+- Right rail: loop state, state gaps, controller packet, execution gate, worker status, merge gate, controls, raw events.
 
-- Left: local project list and recent runs for the selected project.
-- Left: project chats and recent runs for the selected chat. A chat is the conversation; a run is one execution attempt inside that chat.
-- Center: continuous project conversation. Sending a message starts a new runtime turn when idle, or steers the active run when work is running.
-- Right: loop state, top state gap, priority dimensions, run controls, gate/write actions and normalized events.
+Sending a message when idle starts a controller round. Packet Preview generates the execution packet and leaves `execution_gate=pending`. Run Packet authorizes the same packet and binds Desktop Runtime as executor. Sending a message while a run is active sends Controller input and interrupts the current execution so the next round can classify the correction or supplement. Stop interrupts the active Codex turn.
 
-Desktop workflow:
+Empty projects are valid inputs. Adding a project initializes `arckit/project`, active case state, and the first project-discovery gap automatically.
 
-1. Add a local project folder that already contains `arckit/project/state.record.json`.
-2. Create or select a chat.
-3. Send a message in the center chat.
-4. Start either a dry run or a Codex app-server run.
-5. Watch loop state and events in the right rail.
-6. Send another chat message while work is active to steer the run, or press Stop to interrupt.
-7. After the run finishes, use Gate, Preview Ledger, then Write Ledger when the gate allows it.
+## Boundary
 
-For Codex app-server runs, the app still depends on local Codex credentials and network access in the environment where the Electron app is launched.
+Runtime owns:
 
-## Runtime Boundary
+- project initialization
+- state recovery
+- round state machine
+- loop frame compilation
+- capability manifest routing
+- worker packet creation
+- worker lifecycle
+- event storage
+- report validation
+- controller reducer and deterministic merge
+- artifact ownership classification
+- source/projection gates
+- ledger writeback
 
-The runtime owns:
+Workers own:
 
-- project state loading
-- state gap selection
-- prompt compilation
-- artifact impact scan enforcement
-- source-projection check enforcement
-- loop handoff validation
-- future ledger writeback
-- app-server protocol supervision
-- gate decisions before writeback
-- controlled project, iteration, and case ledger writeback
+- bounded reading
+- bounded implementation or diagnosis
+- producing `arckit-worker-report/v1`
 
-The agent owns:
+`requires_main_agent_decision=true` means the Controller Reducer must consume an internal decision request. It does not by itself stop closeout. Only `requires_human_decision=true` creates a human gate.
 
-- bounded repository reading
-- bounded implementation or diagnosis work
-- producing a structured runtime result
+Desktop owns:
 
-The agent does not own the loop decision.
+- human observation
+- chat-driven task entry
+- packet preview, execution authorization, pause, interrupt, continue
+- evidence and gate visibility
+- automatic ledger gate/writeback after eligible `round_result=done`

@@ -1,6 +1,6 @@
 ---
 name: arckit-pending
-description: 管理目标项目 arckit/pending 工作区中的项目级未决讨论项、开放问题、过程 handoff 和尚未决定的项目上下文。默认由 using-arckit 在判断本轮信息有价值但不能写入稳定事实源时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。
+description: 管理目标项目 arckit/pending 工作区中的项目级未决讨论项、开放问题、过程 handoff 和尚未决定的项目上下文。适用于信息有价值但不能写入稳定事实源，或需要暂存风险、假设、外部等待和候选 handoff 的场景。
 ---
 
 # ArcKit Pending

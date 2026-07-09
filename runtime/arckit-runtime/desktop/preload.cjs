@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   createSession: (projectId, input) => ipcRenderer.invoke("arckit:create-session", projectId, input),
   listMessages: (projectId, sessionId) => ipcRenderer.invoke("arckit:list-messages", projectId, sessionId),
   addMessage: (projectId, message) => ipcRenderer.invoke("arckit:add-message", projectId, message),
+  getSettings: () => ipcRenderer.invoke("arckit:get-settings"),
+  updateSettings: (input) => ipcRenderer.invoke("arckit:update-settings", input),
   startRun: (input) => ipcRenderer.invoke("arckit:start-run", input),
   controlRun: (runId, control) => ipcRenderer.invoke("arckit:control-run", runId, control),
   gateRun: (runId) => ipcRenderer.invoke("arckit:gate-run", runId),

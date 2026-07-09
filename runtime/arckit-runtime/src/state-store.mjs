@@ -29,6 +29,7 @@ export function createStateStore(projectRoot) {
           projectState: "arckit/project/state.record.json",
           stateBrief: "arckit/project/STATE.md",
           activeIteration: projectState.active_iteration_ref || "",
+          activeCases: Array.isArray(projectState.active_case_refs) ? projectState.active_case_refs : [],
           casesIndex: "arckit/cases/INDEX.md",
           pendingIndex: "arckit/pending/INDEX.md",
           specIndex: "arckit/spec/INDEX.md",

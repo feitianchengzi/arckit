@@ -1,0 +1,39 @@
+Issue: worker report schema rejected by Codex structured output
+Date: 2026-07-09
+
+Symptom
+- In Arckit Desktop, a real run for ../arckit-demo showed every worker as invalid.
+- Worker cards reported: "No parseable JSON object found in final assistant text."
+- The final merge card showed continue, with all worker reports rejected.
+
+Evidence
+- Raw run data: /Users/Glare/Library/Application Support/Electron/runtime/runs/RUN-20260709-075835586Z/raw-events.jsonl
+- Each worker emitted codex.error before any agent_message.delta, reasoning.delta, or command execution event.
+- Codex error payload:
+  invalid_request_error / invalid_json_schema
+  "Invalid schema for response_format 'codex_output_schema': In context=(), 'required' is required to be supplied and to be an array including every key in properties. Missing 'requires_human_decision'."
+- The run used four dynamic worker roles: controller_state_reader, source_fact_worker, verification_worker, closeout_controller. The fifth visible Desktop card was runtime merge/result, not a worker.
+
+Root Cause
+- runtime/arckit-runtime/schemas/worker-report.schema.json defined requires_human_decision in properties but omitted it from required.
+- Codex structured output rejected the schema before the worker could execute.
+- The adapter then parsed the empty final assistant text and produced a misleading invalid worker report about missing parseable JSON.
+- The orchestrator kept launching later workers after the first infrastructure failure, creating repeated invalid reports.
+- Desktop raw event capture split stderr chunks directly, so long JSON event lines were often stored as parsed:null fragments.
+
+Fix
+- Add requires_human_decision to the worker report schema required list and generated worker expected_output fields.
+- Preserve Codex app-server errors in invalid worker reports instead of replacing them with final-text parse errors.
+- Add infrastructure-failure fail-fast so one Codex/schema/runtime failure stops the remaining worker chain.
+- Map infrastructure-failure loop gates to runtime round_result=blocked.
+- Mark source_projection_check.source_unknown when reports are rejected, blocked, or missing.
+- Buffer Desktop stderr by full lines before parseEventLine and raw-events persistence.
+
+Temporary Instrumentation
+- No temporary runtime instrumentation was added.
+- This diagnostic log is retained intentionally as durable evidence for this failure class.
+
+Validation Plan
+- Run npm run check in runtime/arckit-runtime.
+- Run a controlled dry-run/internal validation to ensure schemas remain locally valid.
+- On the next real Desktop run, verify no invalid_json_schema codex.error appears and worker execution produces real report content.

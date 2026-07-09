@@ -1,14 +1,16 @@
 import { resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import { createStateStore } from "./state-store.mjs";
 import { selectNextRound } from "./loop-controller.mjs";
 import { compilePrompt } from "./prompt-compiler.mjs";
-import { createAgentAdapter } from "./agent-adapter.mjs";
 import { probeCodexAppServer } from "../adapters/codex-app-server-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
-import { createDryRunResult } from "./dry-run.mjs";
 import { loadRuntimeResultFile } from "./runtime-result-file.mjs";
 import { evaluateRuntimeGates } from "./gate-engine.mjs";
 import { writeLedger } from "./ledger-writer.mjs";
+import { ensureArckitProject } from "./project-initializer.mjs";
+import { runAgenticLoop } from "./agent-orchestrator.mjs";
+import { detectConversationLocale } from "./conversation-locale.mjs";
 
 export async function main(argv) {
   const command = argv[0];
@@ -25,6 +27,17 @@ export async function main(argv) {
     } else {
       printRunSummary(result);
     }
+    return;
+  }
+
+  if (command === "init-project") {
+    const options = parseInitProjectOptions(argv.slice(1));
+    const result = await ensureArckitProject({
+      projectRoot: resolve(options.project),
+      projectName: options.name,
+      intent: options.intent
+    });
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
 
@@ -93,48 +106,50 @@ export async function main(argv) {
 
 async function run(options) {
   const projectRoot = resolve(options.project);
+  if (options.packetFile) {
+    options.packetEnvelope = JSON.parse(await readFile(resolve(options.packetFile), "utf8"));
+  }
+  await ensureArckitProject({
+    projectRoot,
+    intent: options.task || "Initialize Arckit project state before supervised runtime execution."
+  });
   const stateStore = createStateStore(projectRoot);
   const snapshot = await stateStore.readSnapshot();
-  const round = selectNextRound(snapshot, options);
-  const compiledPrompt = compilePrompt(snapshot, round, options);
-  const adapter = createAgentAdapter(options.adapter, options);
-
-  const events = [];
-  let runtimeResult;
-
-  if (options.dryRun) {
-    runtimeResult = createDryRunResult(snapshot, round, compiledPrompt);
-    events.push({
-      type: "runtime.dry_run",
-      message: "Agent execution skipped; generated controlled turn and validation sample."
-    });
-  } else {
-    for await (const event of adapter.runTurn({ projectRoot, prompt: compiledPrompt.prompt, options })) {
-      events.push(event);
-      if (options.streamEvents) {
-        console.error(JSON.stringify({ event }));
-      }
-      if (event.type === "runtime.result") {
-        runtimeResult = event.result;
-      }
-    }
-    if (!runtimeResult) {
-      throw new Error("Agent adapter completed without a runtime.result event.");
-    }
-  }
-
-  const validation = validateRuntimeResult(runtimeResult);
+  snapshot.projectRoot = projectRoot;
+  options.conversationLocale = options.conversationLocale
+    || options.packetEnvelope?.conversation_locale
+    || options.packetEnvelope?.response_language
+    || options.packetEnvelope?.selected_round?.conversation_locale
+    || options.packetEnvelope?.selected_round?.response_language
+    || options.packetEnvelope?.loop_frame?.conversation_locale
+    || options.packetEnvelope?.loop_frame?.response_language
+    || detectConversationLocale(options.task || options.packetEnvelope?.selected_round?.round_goal || "");
+  const round = options.packetEnvelope?.selected_round || selectNextRound(snapshot, options);
+  const compiledPrompt = options.packetEnvelope?.compiled_prompt || compilePrompt(snapshot, round, options);
+  const loop = await runAgenticLoop({
+    projectRoot,
+    snapshot,
+    round,
+    compiledPrompt,
+    options
+  });
+  const validation = loop.validation || validateRuntimeResult(loop.runtimeResult);
 
   return {
-    runtime_version: "arckit-runtime/v0.1",
+    runtime_version: "arckit-runtime/v0.2-agentic",
     project_root: projectRoot,
     mode: options.dryRun ? "dry-run" : "execute",
-    adapter: adapter.name,
+    adapter: loop.adapter.name,
     snapshot_summary: snapshot.summary,
     selected_round: round,
+    conversation_locale: options.conversationLocale,
     compiled_prompt: compiledPrompt,
-    events,
-    runtime_result: runtimeResult,
+    loop_frame: loop.loopFrame,
+    worker_tasks: loop.agentTasks,
+    worker_reports: loop.agentReports,
+    merge_result: loop.mergeResult,
+    events: loop.events,
+    runtime_result: loop.runtimeResult,
     validation,
     next_action: validation.valid
       ? "Write validated runtime result back to project/case ledger, or continue to the next loop round."
@@ -178,6 +193,8 @@ function parseRunOptions(args) {
       options.model = requiredValue(args, ++index, arg);
     } else if (arg === "--codex-bin") {
       options.codexBin = requiredValue(args, ++index, arg);
+    } else if (arg === "--packet-file") {
+      options.packetFile = requiredValue(args, ++index, arg);
     } else if (arg === "--max-rounds") {
       options.maxRounds = Number(requiredValue(args, ++index, arg));
       if (!Number.isInteger(options.maxRounds) || options.maxRounds < 1) {
@@ -188,6 +205,27 @@ function parseRunOptions(args) {
     }
   }
 
+  return options;
+}
+
+function parseInitProjectOptions(args) {
+  const options = {
+    project: ".",
+    name: "",
+    intent: ""
+  };
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--project") {
+      options.project = requiredValue(args, ++index, arg);
+    } else if (arg === "--name") {
+      options.name = requiredValue(args, ++index, arg);
+    } else if (arg === "--intent") {
+      options.intent = requiredValue(args, ++index, arg);
+    } else {
+      throw new Error(`Unknown init-project option: ${arg}`);
+    }
+  }
   return options;
 }
 
@@ -298,6 +336,7 @@ function printHelp() {
   console.log(`arckit-runtime
 
 Usage:
+  arckit-runtime init-project [--project <path>] [--name <name>] [--intent <text>]
   arckit-runtime run [--project <path>] [--task <text>] [--dry-run] [--json]
   arckit-runtime run --adapter codex-app-server [--stream-events] [--supervise-stdin]
   arckit-runtime probe-app-server [--project <path>] [--json]

@@ -1,6 +1,6 @@
 ---
 name: arckit-domain-modeling
-description: 梳理领域模型、实体、值对象、状态、不变量、领域事件、聚合边界、上下文映射或事件风暴结果。默认由 using-arckit 在判断本轮需要领域建模 handoff 时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。输出 domain_modeling_handoff，不直接维护 arckit/tech 或 arckit/spec。
+description: 梳理领域模型、实体、值对象、状态、不变量、领域事件、聚合边界、上下文映射或事件风暴结果。适用于需要形成领域建模 handoff、澄清业务结构或为后续规格/技术方案提供模型输入的场景。输出 domain_modeling_handoff，不直接维护 arckit/tech 或 arckit/spec。
 ---
 
 # Arckit Domain Modeling

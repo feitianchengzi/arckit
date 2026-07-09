@@ -28,6 +28,7 @@ export function selectNextRound(snapshot, options = {}) {
     target_state: selectedGap?.target_state || dimensionState.target_state || "unknown",
     impact: selectedGap?.impact || dimensionState.gap || "",
     round_goal: roundGoal,
+    conversation_locale: options.conversationLocale || "en",
     required_outputs: [
       "artifact_impact_scan",
       "source_projection_check",
@@ -38,6 +39,7 @@ export function selectNextRound(snapshot, options = {}) {
       snapshot.paths.projectState,
       snapshot.paths.stateBrief,
       snapshot.paths.activeIteration,
+      ...(Array.isArray(snapshot.paths.activeCases) ? snapshot.paths.activeCases : []),
       snapshot.paths.casesIndex,
       snapshot.paths.pendingIndex,
       snapshot.paths.specIndex,

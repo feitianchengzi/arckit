@@ -1,6 +1,6 @@
 ---
 name: arckit-architecture-decision
-description: 在正式技术方案沉淀前形成架构决策、ADR、系统拆分、方案权衡、约束分析或技术取舍。默认由 using-arckit 在判断本轮需要技术定义前决策能力时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。输出 architecture_decision_handoff，不直接维护 arckit/tech 的结果事实。
+description: 在正式技术方案沉淀前形成架构决策、ADR、系统拆分、方案权衡、约束分析或技术取舍。适用于技术定义前的决策分析、方案比较、约束梳理和架构风险判断。输出 architecture_decision_handoff，不直接维护 arckit/tech 的结果事实。
 ---
 
 # Arckit Architecture Decision

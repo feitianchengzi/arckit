@@ -1,0 +1,30 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-debug-diagnosis",
+  "kind": "diagnosis",
+  "runtime_role": ["work_executor", "verification_agent"],
+  "summary": "Diagnoses bugs, regressions, failures, data issues, UI defects, and performance symptoms using evidence.",
+  "input_facts": [
+    "symptom",
+    "logs",
+    "tests",
+    "code",
+    "runtime_events"
+  ],
+  "outputs": [
+    "diagnosis_report",
+    "fix_recommendation",
+    "verification_evidence"
+  ],
+  "allowed_write_targets": [
+    "."
+  ],
+  "forbidden_decisions": [
+    "product_requirement_final",
+    "architecture_rewrite_without_decision",
+    "case_closed"
+  ],
+  "runtime_notes": [
+    "Use as an execution capability; route stable expectation changes back to result fact skills."
+  ]
+}

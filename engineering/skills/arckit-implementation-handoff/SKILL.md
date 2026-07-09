@@ -1,6 +1,6 @@
 ---
 name: arckit-implementation-handoff
-description: 将已确认的产品、交互、视觉、技术、case 和项目状态整理成可交给编码 agent、人类开发者或外部实现 adapter 的 implementation_handoff。默认由 using-arckit 在定义事实基本明确、下一步是代码实现或实现交接但不应直接让 coding agent 猜上下文时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。不负责编写具体技术栈代码，不替代 arckit-code、debug、refactor 或结果事实源。
+description: 将已确认的产品、交互、视觉、技术、case 和项目状态整理成可交给编码 agent、人类开发者或外部实现 adapter 的 implementation_handoff。适用于定义事实基本明确、下一步是代码实现或实现交接，但不应直接让 coding agent 猜上下文的场景。不负责编写具体技术栈代码，不替代 arckit-code、debug、refactor 或结果事实源。
 ---
 
 # ArcKit Implementation Handoff

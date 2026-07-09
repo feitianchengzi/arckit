@@ -18,18 +18,54 @@ export function validateRuntimeResult(result) {
 
   requireObject(result, "result", issues);
   requireEqual(result?.schema_version, "arckit-runtime-result/v1", "schema_version", issues);
-  requireEnum(result?.round_result, ["done", "blocked", "needs_human", "external_wait"], "round_result", issues);
+  requireEnum(result?.round_result, ["done", "continue", "blocked", "needs_human", "external_wait"], "round_result", issues);
+  requireEnum(result?.round_state, [
+    "planned",
+    "authorized",
+    "workers_running",
+    "reports_collected",
+    "merge_ready",
+    "ledger_gate_ready",
+    "ledger_written",
+    "next_round_ready",
+    "blocked",
+    "human_gate_required",
+    "external_wait",
+    "failed"
+  ], "round_state", issues);
+  requireArray(result?.round_state_history, "round_state_history", issues);
   requireArray(result?.changed_files, "changed_files", issues);
   requireObject(result?.artifact_impact_scan, "artifact_impact_scan", issues);
   for (const key of ARTIFACT_KEYS) {
     requireString(result?.artifact_impact_scan?.[key], `artifact_impact_scan.${key}`, issues);
   }
+  requireObject(result?.artifact_ownership_scan, "artifact_ownership_scan", issues);
+  requireEqual(result?.artifact_ownership_scan?.schema_version, "arckit-artifact-ownership-scan/v1", "artifact_ownership_scan.schema_version", issues);
+  requireArray(result?.artifact_ownership_scan?.classified, "artifact_ownership_scan.classified", issues);
+  requireArray(result?.artifact_ownership_scan?.source_facts_changed, "artifact_ownership_scan.source_facts_changed", issues);
+  requireArray(result?.artifact_ownership_scan?.projection_artifacts_changed, "artifact_ownership_scan.projection_artifacts_changed", issues);
+  requireArray(result?.artifact_ownership_scan?.implementation_evidence, "artifact_ownership_scan.implementation_evidence", issues);
+  requireArray(result?.artifact_ownership_scan?.pending_items, "artifact_ownership_scan.pending_items", issues);
+  requireArray(result?.artifact_ownership_scan?.runtime_logs, "artifact_ownership_scan.runtime_logs", issues);
+  requireArray(result?.artifact_ownership_scan?.unknown_artifacts, "artifact_ownership_scan.unknown_artifacts", issues);
   requireObject(result?.source_projection_check, "source_projection_check", issues);
   requireArray(result?.source_projection_check?.source_facts_changed, "source_projection_check.source_facts_changed", issues);
   requireArray(result?.source_projection_check?.projection_artifacts_changed, "source_projection_check.projection_artifacts_changed", issues);
   requireBoolean(result?.source_projection_check?.source_unknown, "source_projection_check.source_unknown", issues);
   requireArray(result?.source_projection_check?.deferred_projections, "source_projection_check.deferred_projections", issues);
   requireArray(result?.source_projection_check?.blocked_projections, "source_projection_check.blocked_projections", issues);
+  requireObject(result?.controller_reducer_result, "controller_reducer_result", issues);
+  requireObject(result?.controller_frame, "controller_frame", issues);
+  requireObject(result?.execution_gate, "execution_gate", issues);
+  requireObject(result?.executor_binding, "executor_binding", issues);
+  requireArray(result?.worker_packets, "worker_packets", issues);
+  requireObject(result?.report_intake, "report_intake", issues);
+  requireObject(result?.ledger_stage, "ledger_stage", issues);
+  requireEqual(result?.ledger_stage?.schema_version, "arckit-ledger-stage/v1", "ledger_stage.schema_version", issues);
+  requireEnum(result?.ledger_stage?.status, ["not_ready", "gate_ready", "gate_blocked", "human_blocked", "blocked", "written"], "ledger_stage.status", issues);
+  requireBoolean(result?.ledger_stage?.gate_required, "ledger_stage.gate_required", issues);
+  requireBoolean(result?.ledger_stage?.writeback_required, "ledger_stage.writeback_required", issues);
+  requireString(result?.ledger_stage?.reason, "ledger_stage.reason", issues);
   requireArray(result?.validation_evidence, "validation_evidence", issues);
   requireObject(result?.loop_handoff, "loop_handoff", issues);
   requireEqual(result?.loop_handoff?.version, "loop-handoff/v1", "loop_handoff.version", issues);

@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-07-08T00:28:46.000Z",
+  "updated_at": "2026-07-08T10:38:56.763Z",
   "iteration_goal": "将 Arckit 状态机制从记录型账本升级为可驱动真实软件项目开发 loop 的项目完整性状态与迭代状态控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "target_state_delta": [
@@ -286,6 +286,67 @@
         "runtime/arckit-runtime/src/desktop-run-manager.mjs",
         "node --input-type=module -e 'import { createDesktopRunManager } from \"./runtime/arckit-runtime/src/desktop-run-manager.mjs\"; ...'"
       ]
+    },
+    {
+      "dimension": "implementation_coverage",
+      "from_state": "verified",
+      "to_state": "verified",
+      "reason": "Arckit Runtime and Desktop now support empty project initialization from first chat/run.",
+      "evidence": [
+        "runtime/arckit-runtime/src/project-initializer.mjs",
+        "runtime/arckit-runtime/src/ledger-scripts.mjs",
+        "runtime/arckit-runtime/src/cli.mjs",
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "runtime/arckit-runtime/desktop/renderer/renderer.js",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
+        "npm run check"
+      ]
+    },
+    {
+      "dimension": "observability_support",
+      "from_state": "defined",
+      "to_state": "implemented",
+      "reason": "Desktop live run observability now shows phase, timeline, plan, output streams and idle state.",
+      "evidence": [
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "runtime/arckit-runtime/desktop/renderer/renderer.js",
+        "runtime/arckit-runtime/desktop/renderer/styles.css",
+        "runtime/arckit-runtime/desktop/renderer/index.html",
+        "npm run check",
+        "node --input-type=module -e activity smoke"
+      ]
+    },
+    {
+      "dimension": "observability_support",
+      "from_state": "implemented",
+      "to_state": "implemented",
+      "reason": "Desktop now persists raw run events and renders detailed agent activity sections.",
+      "evidence": [
+        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "runtime/arckit-runtime/desktop/renderer/renderer.js",
+        "runtime/arckit-runtime/desktop/renderer/styles.css",
+        "npm run check",
+        "node --input-type=module -e detail smoke"
+      ]
+    },
+    {
+      "dimension": "implementation_coverage",
+      "from_state": "verified",
+      "to_state": "verified",
+      "reason": "Desktop runtime now repairs safe old-ledger enum drift before start-run.",
+      "evidence": [
+        "runtime/arckit-runtime/src/project-initializer.mjs",
+        "npm run check",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json"
+      ]
     }
   ],
   "acceptance_state": {
@@ -308,7 +369,25 @@
       "runtime/arckit-runtime/src/desktop-run-manager.mjs",
       "runtime/arckit-runtime/desktop/main.mjs",
       "runtime/arckit-runtime/desktop/renderer/index.html",
-      "npm run desktop"
+      "npm run desktop",
+      "runtime/arckit-runtime/src/project-initializer.mjs",
+      "runtime/arckit-runtime/src/ledger-scripts.mjs",
+      "runtime/arckit-runtime/src/cli.mjs",
+      "runtime/arckit-runtime/desktop/renderer/renderer.js",
+      "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
+      "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
+      "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+      "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+      "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
+      "npm run check",
+      "runtime/arckit-runtime/desktop/renderer/styles.css",
+      "node --input-type=module -e activity smoke",
+      "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+      "node --input-type=module -e detail smoke",
+      "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
+      "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
+      "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
+      "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json"
     ],
     "remaining_gaps": [
       "通过 Electron Desktop Chat 在可联网环境中重跑真实 Codex supervised turn，获得 round_result=done 并通过 gate/write-ledger。"
@@ -327,18 +406,32 @@
   "close_condition": "当状态机制通过结构校验，并至少经过一次真实复杂项目的 state gap -> case -> verification -> state delta 闭环验证后关闭本迭代。",
   "last_iteration_delta": {
     "changed": [
-      "user_experience",
-      "runtime_surfaces",
-      "quality_validation",
-      "implementation_coverage"
-    ],
-    "blocked": [
-      "Desktop-started Codex done result not yet validated in a network-enabled run"
+      "agentic_runtime_orchestrator",
+      "desktop_agent_loop_ui",
+      "capability_manifests",
+      "empty_project_initialization_path"
     ],
     "deferred": [
-      "quality_validation accepted transition until Desktop Chat-started done result"
+      "real Codex worker done/gate/write"
     ],
-    "next_iteration_focus": "通过 Electron Desktop Chat 重跑真实 Codex supervised turn in network-enabled environment，获得 done result。",
-    "updated_at": "2026-07-08T00:28:46.000Z"
+    "blocked": [],
+    "evidence": [
+      "npm run check",
+      "Runtime agentic dry-run smoke",
+      "Desktop manager empty-project agentic dry-run smoke"
+    ],
+    "updated_at": "2026-07-08T10:39:15.366Z",
+    "next_iteration_focus": "Run real Desktop-started Codex app-server agentic worker loop and write ledger after done/gate."
+  },
+  "current_focus": "Runtime/Desktop agentic worker loop implemented; next validate real Codex worker done/gate/write.",
+  "loop_control": {
+    "current_loop_focus": "实现 Arckit Runtime/Desktop agentic worker loop。",
+    "next_transition": "通过 Desktop 在 ../arckit-demo 或真实项目中运行 Codex app-server agentic worker loop，获得 done result 后 gate/write-ledger。",
+    "next_responsibility": "agent",
+    "agent_continuation_available": true,
+    "human_decision_required": false,
+    "trigger_mode": "manual_bridge",
+    "continuation_prompt": "启动 Desktop，选择 ../arckit-demo 或真实项目，用 Codex 模式发起从 0 开始的开发任务，观察 agent reports 和 merge gate，done 后 gate/write-ledger。",
+    "responsibility_reason": "下一步是 agent 可继续的真实环境验证，不需要人类产品决策。"
   }
 }

@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-07-08T00:28:46.000Z
+Updated: 2026-07-08T10:38:56.763Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -25,11 +25,11 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Recent State Changes
 
-- quality_validation: verified -> accepted; Runtime ledger writeback accepted GAP-runtime-gate-ledger-writeback: Implemented M2 Gate Engine and controlled ledger writeback for Arckit Runtime.
-- quality_validation: verified -> verified; 真实 supervised turn transcript 已保存；steer/interrupt 证据成立，但 done result 因网络限制未产出。
-- user_experience: defined -> implemented; 新增 Electron Desktop Client，支持添加本地项目、输入任务、启动 runtime run、观察 events、steer、interrupt、gate 和 ledger writeback。
-- runtime_surfaces: verified -> verified; Electron Desktop Client 作为新的本地 runtime surface 已实现并启动，run manager dry-run smoke 通过。
 - user_experience: implemented -> implemented; Desktop Client 从控制面板改为左项目列表、中间连续 Chat、右 Arckit 状态检查器；Chat 空闲时启动 runtime turn，运行中消息转为 steer。
+- implementation_coverage: verified -> verified; Arckit Runtime and Desktop now support empty project initialization from first chat/run.
+- observability_support: defined -> implemented; Desktop live run observability now shows phase, timeline, plan, output streams and idle state.
+- observability_support: implemented -> implemented; Desktop now persists raw run events and renders detailed agent activity sections.
+- implementation_coverage: verified -> verified; Desktop runtime now repairs safe old-ledger enum drift before start-run.
 
 ## Blocking Gaps
 

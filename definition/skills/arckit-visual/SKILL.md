@@ -1,6 +1,6 @@
 ---
 name: arckit-visual
-description: "维护 arckit/visual/ 下的视觉风格策略、Design Tokens、主题和组件视觉规格。默认由 using-arckit 在判断本轮需要查询或维护稳定视觉预期事实时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。输出涉及的 visual 路径、依据和摘要。"
+description: "维护 arckit/visual/ 下的视觉风格策略、Design Tokens、主题和组件视觉规格。适用于需要查询、创建、更新或审计稳定视觉预期事实的场景。输出涉及的 visual 路径、依据和摘要。"
 ---
 
 # ArcKit Visual

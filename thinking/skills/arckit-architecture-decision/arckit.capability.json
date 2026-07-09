@@ -1,0 +1,29 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-architecture-decision",
+  "kind": "process_decision",
+  "runtime_role": ["route_auditor", "work_executor"],
+  "summary": "Produces architecture decision handoff before stable technical facts are written.",
+  "input_facts": [
+    "decision_question",
+    "constraints",
+    "options",
+    "risks",
+    "evidence"
+  ],
+  "outputs": [
+    "architecture_decision_handoff"
+  ],
+  "allowed_write_targets": [
+    "arckit/pending/**",
+    "arckit/cases/**"
+  ],
+  "forbidden_decisions": [
+    "stable_tech_fact_write",
+    "implementation_without_handoff",
+    "case_closed"
+  ],
+  "runtime_notes": [
+    "Use before arckit-tech when the architecture choice is not yet stable."
+  ]
+}

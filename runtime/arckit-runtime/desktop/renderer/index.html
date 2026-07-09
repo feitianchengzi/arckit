@@ -47,6 +47,7 @@
           <div class="header-actions">
             <span id="projectStateBadge" class="badge">No state</span>
             <span id="activeRunBadge" class="badge">Idle</span>
+            <button id="settingsButton" class="secondary-button">Settings</button>
           </div>
         </header>
 
@@ -54,8 +55,8 @@
 
         <footer class="composer">
           <div class="composer-options">
-            <label><input type="radio" name="mode" value="dry-run" checked> Dry run</label>
-            <label><input type="radio" name="mode" value="codex-app-server"> Codex</label>
+            <label><input type="radio" name="mode" value="dry-run" checked> Packet Preview</label>
+            <label><input type="radio" name="mode" value="codex-app-server"> Run Codex</label>
             <select id="approvalPolicy">
               <option value="on-request">on-request</option>
               <option value="never">never</option>
@@ -64,9 +65,9 @@
             <input id="modelInput" type="text" placeholder="model">
           </div>
           <div class="composer-input-row">
-            <textarea id="chatInput" rows="3" placeholder="Message Arckit..."></textarea>
+            <textarea id="chatInput" rows="3" placeholder="Tell the Arckit Controller what changed, what to run, or paste worker reports..."></textarea>
             <div class="composer-buttons">
-              <button id="sendButton" class="primary-button">Send</button>
+              <button id="sendButton" class="primary-button">Run</button>
               <button id="interruptButton" class="danger-button">Stop</button>
             </div>
           </div>
@@ -96,6 +97,7 @@
           <div id="activeRunSummary" class="run-summary">No active run.</div>
           <div class="control-grid">
             <button id="continueButton" class="secondary-button">Continue</button>
+            <button id="authorizePacketButton" class="primary-button">Run Packet</button>
             <button id="gateButton" class="secondary-button">Gate</button>
             <button id="writeDryRunButton" class="secondary-button">Preview</button>
             <button id="writeLedgerButton" class="primary-button">Write</button>
@@ -104,12 +106,43 @@
 
         <section class="inspector-section events-section">
           <div class="section-header">
-            <h3>Events</h3>
+            <h3>Raw Events</h3>
             <button id="clearEventsButton" class="quiet-button">Clear</button>
           </div>
           <div id="eventList" class="event-list"></div>
         </section>
       </aside>
+    </div>
+
+    <div id="settingsOverlay" class="settings-overlay hidden">
+      <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="settings-header">
+          <div>
+            <h2 id="settingsTitle">Settings</h2>
+            <p>Applies to new Codex app-server runs.</p>
+          </div>
+          <button id="closeSettingsButton" class="quiet-button">Close</button>
+        </div>
+
+        <div class="settings-form">
+          <label class="toggle-row">
+            <input id="codexProxyEnabled" type="checkbox">
+            <span>
+              <strong>Codex proxy</strong>
+              <small>Inject HTTP_PROXY and HTTPS_PROXY when launching Codex.</small>
+            </span>
+          </label>
+
+          <label class="field-row">
+            <span>Proxy address</span>
+            <input id="codexProxyUrl" type="text" placeholder="http://127.0.0.1:7890">
+          </label>
+
+          <div class="settings-actions">
+            <button id="saveSettingsButton" class="primary-button">Save</button>
+          </div>
+        </div>
+      </section>
     </div>
     <script src="./renderer.js"></script>
   </body>

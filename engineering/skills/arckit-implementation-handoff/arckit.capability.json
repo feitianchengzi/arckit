@@ -1,0 +1,30 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-implementation-handoff",
+  "kind": "process_handoff",
+  "runtime_role": ["work_executor", "route_auditor"],
+  "summary": "Turns confirmed facts, boundaries, constraints, and verification requirements into implementation handoff material.",
+  "input_facts": [
+    "spec",
+    "interaction",
+    "visual",
+    "tech",
+    "case",
+    "pending"
+  ],
+  "outputs": [
+    "implementation_handoff"
+  ],
+  "allowed_write_targets": [
+    "arckit/pending/**",
+    "arckit/cases/**"
+  ],
+  "forbidden_decisions": [
+    "source_truth_without_result_skill",
+    "case_closed",
+    "human_gate_final"
+  ],
+  "runtime_notes": [
+    "Use when the next step is bounded implementation by a worker or external coding adapter."
+  ]
+}

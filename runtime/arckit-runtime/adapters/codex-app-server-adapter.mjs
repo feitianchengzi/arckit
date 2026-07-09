@@ -18,14 +18,16 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         turnId: null,
         agentText: "",
         lastCompletedAgentText: "",
-        completed: false
+        lastError: null,
+        completed: false,
+        resultKind: "runtime-result"
       };
       let stdinControls = null;
 
       client.onNotification((message) => {
         handleNotification({ message, queue, state, client });
       });
-      client.onRequest((message) => handleServerRequest({ message, queue }));
+      client.onRequest((message) => handleServerRequest({ message, queue, options: effectiveOptions }));
       client.onClose(({ error }) => {
         if (!state.completed) {
           queue.fail(error || new Error("Codex app-server exited before turn completion."));
@@ -34,6 +36,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
 
       try {
         const initializeResult = await initializeClient(client);
+        state.resultKind = effectiveOptions.resultKind || "runtime-result";
         queue.push({ type: "codex.initialize.completed", result: initializeResult });
 
         const threadStartResult = await client.request("thread/start", {
@@ -58,7 +61,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           ? attachStdinControls({ client, queue, state })
           : null;
 
-        const outputSchema = JSON.parse(await readFile(RUNTIME_SCHEMA_URL, "utf8"));
+        const outputSchema = effectiveOptions.outputSchema || JSON.parse(await readFile(RUNTIME_SCHEMA_URL, "utf8"));
         const turnStartResult = await client.request("turn/start", {
           threadId: state.threadId,
           cwd: projectRoot,
@@ -96,11 +99,12 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
   };
 }
 
-function handleServerRequest({ message, queue }) {
+function handleServerRequest({ message, queue, options }) {
   queue.push({
     type: `codex.server_request.${message.method.replaceAll("/", ".")}`,
     method: message.method,
-    params: message.params || null
+    params: message.params || null,
+    approval_policy: options.approvalPolicy || "on-request"
   });
 
   switch (message.method) {
@@ -108,19 +112,43 @@ function handleServerRequest({ message, queue }) {
       return { currentTimeAt: Math.floor(Date.now() / 1000) };
     case "item/commandExecution/requestApproval":
     case "execCommandApproval":
-      return { decision: "denied" };
+      return approvalDecision(options, "command");
     case "item/fileChange/requestApproval":
     case "applyPatchApproval":
-      return { decision: "decline" };
+      return approvalDecision(options, "fileChange");
     case "item/tool/requestUserInput":
       return { answers: {} };
     case "mcpServer/elicitation/request":
       return { action: "decline", content: null };
     case "item/permissions/requestApproval":
-      throw new Error("Permission escalation is not supported by arckit-runtime adapter yet.");
+      return permissionDecision(options);
     default:
       throw new Error(`Unhandled server request: ${message.method}`);
   }
+}
+
+function approvalDecision(options, kind) {
+  const policy = options.approvalPolicy || "on-request";
+  if (policy === "never") {
+    return { decision: kind === "fileChange" ? "decline" : "denied" };
+  }
+  return {
+    decision: "approve",
+    approved: true,
+    reason: `Arckit Runtime approved ${kind} under approvalPolicy=${policy}.`
+  };
+}
+
+function permissionDecision(options) {
+  const policy = options.approvalPolicy || "on-request";
+  if (policy === "never") {
+    return { decision: "denied", approved: false };
+  }
+  return {
+    decision: "approve",
+    approved: true,
+    reason: `Arckit Runtime approved requested permissions under approvalPolicy=${policy}.`
+  };
 }
 
 export async function probeCodexAppServer(options = {}) {
@@ -190,10 +218,21 @@ function handleNotification({ message, queue, state, client }) {
   if (message.method === "item/completed" && message.params?.item?.type === "agentMessage") {
     state.lastCompletedAgentText = message.params.item.text || state.lastCompletedAgentText;
   }
+  if (message.method === "error" && message.params?.willRetry !== true) {
+    state.lastError = message.params?.error || message.params || message;
+  }
+  if (message.method === "item/agentMessage/delta" && message.params?.delta) {
+    state.lastError = null;
+  }
   if (message.method === "turn/completed") {
     state.completed = true;
-    const result = parseRuntimeResultOrBlocked(state.lastCompletedAgentText || state.agentText, message.params);
-    queue.push({ type: "runtime.result", result });
+    const parsed = parseWorkerOutput({
+      text: state.lastCompletedAgentText || state.agentText,
+      completionParams: message.params,
+      resultKind: state.resultKind || "runtime-result",
+      error: state.lastError
+    });
+    queue.push(parsed);
     queue.close();
     client.close();
   }
@@ -201,16 +240,22 @@ function handleNotification({ message, queue, state, client }) {
 
 function normalizeNotification(message) {
   const params = message.params || {};
+  const raw_rpc = {
+    method: message.method,
+    params
+  };
   switch (message.method) {
     case "thread/started":
       return {
         type: "codex.thread.started",
+        raw_rpc,
         thread_id: params.threadId || readId(params.thread),
         thread: params.thread || null
       };
     case "turn/started":
       return {
         type: "codex.turn.started",
+        raw_rpc,
         thread_id: params.threadId || null,
         turn_id: readId(params.turn),
         turn: params.turn || null
@@ -218,6 +263,7 @@ function normalizeNotification(message) {
     case "turn/completed":
       return {
         type: "codex.turn.completed",
+        raw_rpc,
         thread_id: params.threadId || null,
         turn_id: readId(params.turn),
         turn: params.turn || null
@@ -225,17 +271,20 @@ function normalizeNotification(message) {
     case "item/agentMessage/delta":
       return {
         type: "codex.agent_message.delta",
+        raw_rpc,
         text: params.delta || "",
         item_id: params.itemId || null
       };
     case "turn/plan/updated":
       return {
         type: "codex.plan.updated",
+        raw_rpc,
         plan: params.plan || params
       };
     case "item/commandExecution/outputDelta":
       return {
         type: "codex.command.output.delta",
+        raw_rpc,
         text: params.delta || "",
         item_id: params.itemId || null
       };
@@ -243,12 +292,14 @@ function normalizeNotification(message) {
     case "item/reasoning/textDelta":
       return {
         type: "codex.reasoning.delta",
+        raw_rpc,
         text: params.delta || "",
         item_id: params.itemId || null
       };
     default:
       return {
         type: `codex.${message.method.replaceAll("/", ".")}`,
+        raw_rpc,
         method: message.method,
         params
       };
@@ -327,9 +378,35 @@ function readId(value) {
   return value.id || value.turnId || value.threadId || null;
 }
 
+function parseWorkerOutput({ text, completionParams, resultKind, error }) {
+  if (resultKind === "worker-report") {
+    if (error) {
+      return {
+        type: "runtime.worker_report",
+        report: createInvalidWorkerReport(`Codex worker failed before returning an arckit-worker-report/v1 JSON object: ${codexErrorMessage(error)}`)
+      };
+    }
+    try {
+      return {
+        type: "runtime.worker_report",
+        report: parseJsonFromText(text)
+      };
+    } catch (error) {
+      return {
+        type: "runtime.worker_report",
+        report: createInvalidWorkerReport(`Codex worker did not return a valid arckit-worker-report/v1 JSON object: ${error.message}`)
+      };
+    }
+  }
+  return {
+    type: "runtime.result",
+    result: parseRuntimeResultOrBlocked(text, completionParams)
+  };
+}
+
 function parseRuntimeResultOrBlocked(text, completionParams) {
   try {
-    return parseRuntimeResultFromText(text);
+    return parseJsonFromText(text).runtime_result || parseJsonFromText(text);
   } catch (error) {
     return createBlockedRuntimeResult({
       summary: `Codex turn completed but did not return a valid arckit-runtime-result/v1 JSON envelope: ${error.message}`,
@@ -338,7 +415,7 @@ function parseRuntimeResultOrBlocked(text, completionParams) {
   }
 }
 
-function parseRuntimeResultFromText(text) {
+function parseJsonFromText(text) {
   const candidates = [];
   const trimmed = text.trim();
   if (trimmed) {
@@ -365,6 +442,37 @@ function parseRuntimeResultFromText(text) {
     }
   }
   throw new Error("No parseable JSON object found in final assistant text.");
+}
+
+function createInvalidWorkerReport(summary) {
+  return {
+    schema_version: "arckit-worker-report/v1",
+    task_id: "",
+    role: "implementation_worker",
+    status: "invalid",
+    summary,
+    findings: [],
+    evidence: [],
+    changes: [],
+    risks: [summary],
+    unknowns: [],
+    recommendation: "Retry the worker with the required arckit-worker-report/v1 output contract.",
+    requires_main_agent_decision: true,
+    requires_human_decision: false
+  };
+}
+
+function codexErrorMessage(error) {
+  const message = typeof error === "string" ? error : error?.message || error?.additionalDetails || JSON.stringify(error);
+  if (!message) {
+    return "Unknown Codex app-server error.";
+  }
+  try {
+    const parsed = JSON.parse(message);
+    return parsed?.error?.message || parsed?.message || message;
+  } catch {
+    return message;
+  }
 }
 
 function createBlockedRuntimeResult({ summary, completionParams }) {

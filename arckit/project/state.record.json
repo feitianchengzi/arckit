@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-07-08T04:21:48.000Z",
+    "updated_at": "2026-07-08T10:38:56.763Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -81,7 +81,7 @@
     "user_experience": {
       "current_state": "implemented",
       "target_state": "accepted",
-      "state_reason": "除 agent 读取 Markdown 状态、迭代、case 文件和 loop handoff 的协作体验外，Electron Desktop Client 已改为左侧项目列表、中间连续 Chat、右侧 Arckit 状态检查器的工作台。Chat session 与 run 已分离：session 是连续对话，run 是会话内一次执行；中间消息区独立滚动，输入框固定在底部。",
+      "state_reason": "Electron Desktop Client 支持左侧项目列表、中间连续 Chat、右侧状态检查器；本轮将 Live Run Card 从时间/JSON 展示升级为 Thinking Summary、Plan、Execution Details、Agent Output、Command Output、Errors/Retries 和 Saved Evidence 分区。",
       "evidence": [
         "arckit/spec/agentic-software-development/product-concepts.md",
         "arckit/spec/agentic-software-development/product-architecture.md",
@@ -92,11 +92,23 @@
         "runtime/arckit-runtime/src/desktop-run-manager.mjs",
         "runtime/arckit-runtime/desktop/renderer/index.html",
         "runtime/arckit-runtime/desktop/renderer/renderer.js",
-        "runtime/arckit-runtime/desktop/renderer/styles.css"
+        "runtime/arckit-runtime/desktop/renderer/styles.css",
+        "runtime/arckit-runtime/src/project-initializer.mjs",
+        "runtime/arckit-runtime/src/ledger-scripts.mjs",
+        "runtime/arckit-runtime/src/cli.mjs",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
+        "npm run check",
+        "node --input-type=module -e activity smoke",
+        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+        "node --input-type=module -e detail smoke"
       ],
       "evidence_maturity": "validated",
-      "gap": "Desktop Client 已能启动、读取 project status、持久化 project sessions/conversations 并完成 chat dry-run smoke；还需要通过桌面端跑一次真实 Codex app-server done/gate/write 闭环。",
-      "next_transition": "用 Electron Desktop Chat 对一个真实项目启动 Codex app-server run，运行中用 Chat steer，观察右侧状态并执行 gate/write-ledger。",
+      "gap": "Desktop 已能把 Codex app-server 事件翻译成人类可读的思考摘要、计划、执行项目、错误重试和输出流；还需要用 ../arckit-demo 真实 Codex run 复测事件覆盖。",
+      "next_transition": "用 ../arckit-demo 通过 Desktop Chat 发起 codex-app-server run，确认 Thinking Summary、Execution Details 和 raw-events.jsonl 能支持问题反馈复盘。",
       "blockers": [],
       "priority": "high",
       "confidence": "medium"
@@ -104,7 +116,7 @@
     "runtime_surfaces": {
       "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "当前运行表面包括 Codex skills、canonical JSON 记录、Markdown decision brief、development-ledger 脚本、Arckit Runtime CLI、Codex app-server supervisor adapter 和 Electron Desktop Client。",
+      "state_reason": "当前运行表面包括 Codex skills、canonical JSON 记录、Markdown decision brief、development-ledger 脚本、Arckit Runtime CLI、Codex app-server supervisor adapter、Electron Desktop Client，以及空项目自动初始化入口。",
       "evidence": [
         "arckit/project/state.record.json",
         "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
@@ -119,13 +131,27 @@
         "runtime/arckit-runtime/desktop/main.mjs",
         "runtime/arckit-runtime/src/json-rpc-stdio-client.mjs",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs probe-app-server --project . --json",
-        "npm run desktop"
+        "npm run desktop",
+        "runtime/arckit-runtime/src/project-initializer.mjs",
+        "runtime/arckit-runtime/src/ledger-scripts.mjs",
+        "runtime/arckit-runtime/src/cli.mjs",
+        "runtime/arckit-runtime/desktop/renderer/renderer.js",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
+        "npm run check",
+        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+        "runtime/arckit-runtime/src/capability-registry.mjs",
+        "Runtime agentic dry-run smoke",
+        "Desktop manager empty-project agentic dry-run smoke"
       ],
-      "evidence_maturity": "validated",
-      "gap": "CLI、Gate、ledger writeback、Desktop shell、三栏 Chat workspace 和 project conversation persistence 已实现；尚缺一次通过 Desktop 发起的真实 Codex done result 闭环。",
-      "next_transition": "从 Desktop Chat 发起真实 Codex app-server run 并完成 gate/write-ledger。",
+      "evidence_maturity": "confirmed",
+      "gap": "CLI、Gate、ledger writeback、Desktop Chat workspace、project conversation persistence 和空项目初始化已实现；尚缺一次通过 Desktop 发起的真实 Codex done result 闭环。",
+      "next_transition": "Run and accept a real Desktop-started Codex app-server agentic loop.",
       "blockers": [],
-      "priority": "medium",
+      "priority": "high",
       "confidence": "medium"
     },
     "identity_access": {
@@ -202,7 +228,7 @@
     "implementation_coverage": {
       "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "Runtime M0/M1/M2 和 Electron Desktop M3 已实现；Desktop 通过同一个 runtime CLI 管理本地项目、run、events、steer、interrupt、gate 和 ledger writeback。",
+      "state_reason": "Runtime M0/M1/M2、Electron Desktop、空项目 onboarding、运行可观测性和旧账本 schema 漂移修复已实现；Desktop start-run 会先归一化可安全修复的 project state 枚举字段。",
       "evidence": [
         "arckit/project/state.record.json",
         "memory/skills/arckit-development-ledger/schema/project-state-record.schema.json",
@@ -231,11 +257,28 @@
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project . --dry-run --json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-m1-smoke.json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs probe-app-server --project . --json",
-        "runtime/arckit-runtime/schemas/runtime-result.schema.json"
+        "runtime/arckit-runtime/schemas/runtime-result.schema.json",
+        "runtime/arckit-runtime/src/project-initializer.mjs",
+        "runtime/arckit-runtime/src/ledger-scripts.mjs",
+        "runtime/arckit-runtime/src/cli.mjs",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
+        "npm run check",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json",
+        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+        "runtime/arckit-runtime/src/capability-registry.mjs",
+        "Runtime agentic dry-run smoke",
+        "Desktop manager empty-project agentic dry-run smoke"
       ],
-      "evidence_maturity": "validated",
-      "gap": "Desktop Client 已实现三栏 Chat 体验并启动；真实 done result 仍需在可联网运行环境中通过 Desktop 复测。",
-      "next_transition": "用 Desktop Chat 重跑 codex-app-server supervised turn 并获得 done result。",
+      "evidence_maturity": "confirmed",
+      "gap": "旧账本枚举漂移已可自动修复；真实 Desktop/Codex done result 仍需在可联网环境中通过 Desktop 复测。",
+      "next_transition": "Run and accept a real Desktop-started Codex app-server agentic loop.",
       "blockers": [],
       "priority": "high",
       "confidence": "medium"
@@ -243,7 +286,7 @@
     "quality_validation": {
       "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "真实 codex-app-server supervised turn 已执行并保存 transcript；event stream、/steer、/interrupt 控制路径得到证据，但 inner model stream 在沙箱网络下失败，因此完整 accepted loop 尚未成立。",
+      "state_reason": "真实 codex-app-server supervised turn 已执行并保存 transcript；event stream、/steer 和 /interrupt 控制路径得到证据。本轮补充验证了空项目 init-project、run 自动初始化、ledger audit、case validate、Desktop manager empty-project dry-run smoke。",
       "evidence": [
         "arckit/spec/workflow-orchestration-memory.md",
         "arckit/tech/workflow-orchestration-memory/solution.md",
@@ -279,10 +322,26 @@
         "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-events.jsonl",
         "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/MANIFEST.md",
         "/tmp/arckit-runtime-real-turn-4-last-agent-result.json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-real-turn-4-last-agent-result.json"
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-real-turn-4-last-agent-result.json",
+        "runtime/arckit-runtime/src/project-initializer.mjs",
+        "runtime/arckit-runtime/src/ledger-scripts.mjs",
+        "runtime/arckit-runtime/desktop/renderer/renderer.js",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
+        "runtime/arckit-runtime/desktop/renderer/styles.css",
+        "node --input-type=module -e activity smoke",
+        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+        "node --input-type=module -e detail smoke",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json"
       ],
       "evidence_maturity": "validated",
-      "gap": "真实 supervised turn 证明了事件流和控制路径；Desktop Client 已启动并通过三栏 Chat dry-run manager smoke，但还缺一次从 Desktop Chat 发起、网络可用、产出 round_result=done 且 gate-result allowed 的完整闭环。",
+      "gap": "旧账本 evidence_maturity 漂移修复、audit 和 dry-run start 路径已验证；完整 accepted loop 仍缺一次真实 Desktop Chat Codex done/gate/write 闭环。",
       "next_transition": "在可访问 OpenAI Responses API 的环境中用 Desktop Chat 重跑 supervised turn，保留 steer/interrupt 证据，并在 gate 允许后执行 write-ledger。",
       "blockers": [],
       "priority": "critical",
@@ -318,23 +377,35 @@
       "confidence": "medium"
     },
     "observability_support": {
-      "current_state": "defined",
+      "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "当前可观测性主要来自结构校验、summary 输出、case audit 和明确的 state gap，而不是运行时监控。",
+      "state_reason": "Desktop runtime observability now stores raw-events.jsonl and activity.json for every run, and renders app-server reasoning summaries, item lifecycle, errors, warnings, agent output, command output and evidence paths.",
       "evidence": [
         "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
         "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "memory/skills/arckit-development-ledger/scripts/development-case.mjs"
+        "memory/skills/arckit-development-ledger/scripts/development-case.mjs",
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "runtime/arckit-runtime/desktop/renderer/renderer.js",
+        "runtime/arckit-runtime/desktop/renderer/styles.css",
+        "runtime/arckit-runtime/desktop/renderer/index.html",
+        "npm run check",
+        "node --input-type=module -e activity smoke",
+        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+        "node --input-type=module -e detail smoke",
+        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+        "runtime/arckit-runtime/src/capability-registry.mjs",
+        "Runtime agentic dry-run smoke",
+        "Desktop manager empty-project agentic dry-run smoke"
       ],
-      "evidence_maturity": "formalized",
-      "gap": "还缺少跨状态记录的系统性诊断摘要。",
-      "next_transition": "根据后续使用反馈决定是否补充跨 project/iteration/case 的 audit 命令。",
+      "evidence_maturity": "confirmed",
+      "gap": "真实 Codex app-server run 的 item 类型覆盖仍需在 ../arckit-demo 这类实际项目中复测。",
+      "next_transition": "Run and accept a real Desktop-started Codex app-server agentic loop.",
       "blockers": [],
-      "priority": "low",
+      "priority": "high",
       "confidence": "medium"
     },
     "maintainability_handoff": {
-      "current_state": "implemented",
+      "current_state": "verified",
       "target_state": "accepted",
       "state_reason": "状态机制已明确 state.record.json、STATE.md decision brief、iteration record、case、Loop Handoff、pending、事实源、workflow memory 和 Runtime controlled turn 的边界，使后续 agent 或自动化平台能按状态差距接手。",
       "evidence": [
@@ -348,11 +419,26 @@
         "arckit/project/STATE.md",
         "arckit/project/ITERATIONS.md",
         "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md",
-        "runtime/arckit-runtime/README.md"
+        "runtime/arckit-runtime/README.md",
+        "runtime/arckit-runtime/src/project-initializer.mjs",
+        "runtime/arckit-runtime/src/ledger-scripts.mjs",
+        "runtime/arckit-runtime/src/cli.mjs",
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "runtime/arckit-runtime/desktop/renderer/renderer.js",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
+        "npm run check",
+        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+        "runtime/arckit-runtime/src/capability-registry.mjs",
+        "Runtime agentic dry-run smoke",
+        "Desktop manager empty-project agentic dry-run smoke"
       ],
-      "evidence_maturity": "formalized",
-      "gap": "M2 已能把验证后的结果安全写回账本；还需要真实 supervised turn transcript 作为可接手证据。",
-      "next_transition": "下一轮从 active case 继续验证真实 Codex supervised turn。",
+      "evidence_maturity": "confirmed",
+      "gap": "空项目 onboarding 现在会创建可接手 state/case；还需要真实 supervised turn transcript 作为 accepted loop 证据。",
+      "next_transition": "Run and accept a real Desktop-started Codex app-server agentic loop.",
       "blockers": [],
       "priority": "high",
       "confidence": "medium"
@@ -381,14 +467,16 @@
       "dimension": "quality_validation",
       "current_state": "verified",
       "target_state": "accepted",
-      "impact": "真实 supervised turn 已证明 event stream、/steer 和 /interrupt 控制路径；Desktop Client 已提供项目列表、连续 Chat、状态检查器、事件观察和控制入口，但还未通过桌面端产出 round_result=done。",
+      "impact": "Runtime/Desktop 已从单 agent supervised turn 升级为 agentic worker loop：task packet、agent report、capability manifest、merge gate、Desktop Agent Loop UI 和空项目初始化 smoke 均已验证；仍缺真实 Codex worker done/gate/write 闭环。",
       "urgency": "critical",
       "risk": "high",
       "dependencies": [
         "runtime_surfaces",
-        "implementation_coverage"
+        "implementation_coverage",
+        "observability_support",
+        "maintainability_handoff"
       ],
-      "next_transition": "在可联网环境中通过 Desktop Chat 重跑 supervised turn，获得 done result 后通过 gate/write-ledger。"
+      "next_transition": "用 Desktop Codex 模式在 ../arckit-demo 或真实项目运行 agentic worker loop，验证 5 个 worker reports、merge gate、raw events 和 done result 后写回 ledger。"
     },
     {
       "id": "GAP-cross-record-audit",
@@ -405,16 +493,16 @@
     }
   ],
   "loop_control": {
-    "current_loop_focus": "实现 Arckit Runtime supervised agent loop。",
-    "next_transition": "通过 Electron Desktop Chat 在可联网环境中重跑真实 Codex supervised turn，获得 done result 后通过 gate/write-ledger。",
-    "priority_basis": "本轮将 Desktop 从控制面板改为左项目列表、中间连续 Chat、右状态检查器；剩余阻塞是从 Desktop 发起的真实 done result 闭环。",
-    "stop_condition": "当前迭代的 stop condition 是完成至少一次 Runtime-supervised agent loop，并根据结果决定是否补跨记录 audit。",
+    "current_loop_focus": "实现 Arckit Runtime/Desktop agentic worker loop。",
+    "next_transition": "通过 Desktop 在 ../arckit-demo 或真实项目中运行 Codex app-server agentic worker loop，获得 done result 后 gate/write-ledger。",
+    "priority_basis": "Runtime 已具备 agent task/report/merge gate/capability manifest，Desktop 已能展示 Agent Loop；剩余缺口是真实 Codex worker 执行闭环。",
+    "stop_condition": "停止条件是 Desktop-started real Codex worker loop 产生 valid done runtime_result 并通过 gate/write-ledger，或明确记录外部环境阻塞。",
     "next_responsibility": "agent",
     "agent_continuation_available": true,
     "human_decision_required": false,
     "trigger_mode": "manual_bridge",
-    "continuation_prompt": "继续 active case CASE-20260707-002：使用 runtime/arckit-runtime Electron Desktop Chat 添加一个真实项目，发送任务消息发起 codex-app-server supervised turn，运行中发送 Chat 消息测试 steer，观察右侧状态和 events，保存 result/events，确认 round_result=done 后运行 gate-result 和 write-ledger。",
-    "responsibility_reason": "下一步仍是 agent 可继续的验证工作；需要运行环境具备 Codex model network access，不需要人类产品决策。"
+    "continuation_prompt": "启动 Desktop，选择 ../arckit-demo 或真实项目，用 Codex 模式发起从 0 开始的开发任务，观察 agent reports 和 merge gate，done 后 gate/write-ledger。",
+    "responsibility_reason": "下一步是 agent 可继续的真实环境验证，不需要人类产品决策。"
   },
   "active_constraints": [
     "Arckit 项目状态机制服务于基于状态的 loop 工程，而不是记录型日志。",
@@ -472,43 +560,40 @@
   ],
   "last_state_delta": {
     "changed_dimensions": [
-      "user_experience",
       "runtime_surfaces",
-      "quality_validation",
       "implementation_coverage",
+      "observability_support",
       "maintainability_handoff"
     ],
     "state_transitions": [
       {
-        "dimension": "user_experience",
-        "from_state": "defined",
-        "to_state": "implemented",
-        "reason": "Electron Desktop Client 改为左项目列表、中间连续 Chat、右 Arckit 状态检查器；session 与 run 分离，输入框固定底部，Chat 空闲时启动 runtime turn，运行中消息转为 steer。"
-      },
-      {
-        "dimension": "runtime_surfaces",
+        "dimension": "implementation_coverage",
         "from_state": "verified",
         "to_state": "verified",
-        "reason": "Desktop Client 三栏 Chat workspace 已实现并启动，project status 读取、conversation persistence 和 run manager dry-run smoke 通过。"
+        "reason": "Runtime now produces loop_frame, agent_tasks, agent_reports, merge_result, and runtime_result."
       },
       {
-        "dimension": "quality_validation",
+        "dimension": "observability_support",
         "from_state": "verified",
         "to_state": "verified",
-        "reason": "Desktop Client 三栏 Chat 体验、状态读取和 dry-run manager smoke 已验证；完整 accepted loop 仍需要桌面端真实 Codex done result。"
+        "reason": "Desktop activity now shows Agent Loop, Agent Reports, Merge Gate, raw events, and saved evidence."
+      },
+      {
+        "dimension": "maintainability_handoff",
+        "from_state": "verified",
+        "to_state": "verified",
+        "reason": "Core skills now include runtime capability manifests and using-arckit is repositioned as protocol/fallback."
       }
     ],
     "deferred_dimensions": [
-      "full accepted ledger writeback for GAP-runtime-real-supervised-turn until a Desktop Chat-started round_result=done gates successfully"
+      "accepted transition until real Codex worker done/gate/write result"
     ],
-    "blocked_dimensions": [
-      "quality_validation accepted transition blocked until Desktop Chat-started Codex app-server run completes with network access"
-    ],
+    "blocked_dimensions": [],
     "case_refs": [
       "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "next_loop_focus": "通过 Electron Desktop Chat 重跑真实 Codex supervised turn in network-enabled environment，获得 done result。",
-    "updated_at": "2026-07-08T04:21:48.000Z"
+    "next_loop_focus": "通过 Desktop 在 ../arckit-demo 或真实项目中运行 Codex app-server agentic worker loop，获得 done result 后 gate/write-ledger。",
+    "updated_at": "2026-07-08T10:38:56.763Z"
   }
 }

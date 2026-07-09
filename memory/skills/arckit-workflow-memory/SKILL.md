@@ -1,13 +1,13 @@
 ---
 name: arckit-workflow-memory
-description: 管理用户级和项目级 Arckit 场景工作流记忆、workflow resolution、execution records 和 workflow patches。由 using-arckit 在每个软件项目协作任务开始和结束时默认路由触发：开始解析并绑定 accepted/candidate scenario workflow，结束写入 execution record 并做 signal decision。不要把一次性任务计划、产品概念、技术方案或项目事实写入本 skill。
+description: 管理用户级和项目级 Arckit 场景工作流记忆、workflow resolution、execution records 和 workflow patches。适用于软件项目协作任务开始时解析并绑定 accepted/candidate scenario workflow，以及任务结束、阻塞或失败时写入 execution record 并做 signal decision。不要把一次性任务计划、产品概念、技术方案或项目事实写入本 skill。
 ---
 
 # ArcKit Workflow Memory
 
 本 skill 维护 agent 工作方式的长期记忆。它把同类任务绑定到可复用 scenario workflow，把每次执行保存为 execution record，并把用户纠偏、成功/失败证据、新任务形态和重复模式沉淀为 workflow signals；多个相似 signals 用来维护同一个 workflow candidate patch，最后在用户确认后形成 accepted workflow patch。
 
-Workflow memory 是 procedural memory，不是项目事实源。Workflow signal 是学习证据，不是每次任务的审计日志；每次任务的执行证据写入 execution record。Workflow memory 不替代 `using-arckit` 的 runtime compiler；它提供 workflow resolution、可应用到 workflow frame 的 overlay，以及 execution record 持久化。
+Workflow memory 是 procedural memory，不是项目事实源。Workflow signal 是学习证据，不是每次任务的审计日志；每次任务的执行证据写入 execution record。Workflow memory 不替代项目入口能力或运行时编排器；它提供 workflow resolution、可应用到 workflow frame 的 overlay，以及 execution record 持久化。
 
 ## 硬约束
 
@@ -18,7 +18,7 @@ Workflow memory 是 procedural memory，不是项目事实源。Workflow signal 
 - 每次任务必须产生或更新 `execution_record`，记录绑定的 workflow、实际执行、偏离原因、用户纠错和结果；execution record 不等于 workflow。
 - Workflow memory 记录编排启发式和 frame 改写方式，不记录固定模板流程；不要把一次事件写成“某类任务必须总是 A->B->C”。
 - 不要使用会诱导 agent 降低流程完整性的 workflow 修饰词；如需控制记录篇幅，明确保留 workflow resolution、execution record、signal decision 和 index update 判断。
-- 本 skill 不负责区分首轮消息、补充信息、目标变更和 workflow 纠偏；`using-arckit` 负责首轮入口和普通后续推进，涉及 frame、事实路由、停止条件或 workflow memory 判断变化的后续消息由 `arckit-turn-adaptation` 输出 delta 或 `workflow_correction_ledger`。
+- 本 skill 不负责区分首轮消息、补充信息、目标变更和 workflow 纠偏；这些由项目入口能力或调用方提供为 `turn_delta`，并在存在 workflow 纠偏时提供 `workflow_correction_ledger`。
 - 当输入包含 `workflow_correction_ledger`，优先按 workflow-level correction 评估是否写 signal，而不是只当作普通任务备注。
 - `workflow_correction_ledger` 表明用户纠正流程选择、改变后续验证方式、声明当前项目偏好、要求以后按某种方式执行，或指出“为什么没有学习/为什么跳过”时，`signal_decision=skip` 禁止使用；除非存在完全匹配的 accepted workflow patch，或用户明确说不要记录。
 - `~/.arckit/workflows` 是 ArcKit 的用户级基础运行状态目录。目录不存在且当前工具权限允许时，直接初始化。
@@ -26,14 +26,14 @@ Workflow memory 是 procedural memory，不是项目事实源。Workflow signal 
 - `INDEX.md` 是 workflow memory 的导航索引：workflow resolution 必须先读索引；写入或更新 execution record、signal、candidate patch、accepted workflow patch 后必须同步索引。
 - 如果 `INDEX.md` 缺失、过期或没有列出已存在的 candidate/accepted 文件，不能判定无匹配；应扫描目录兜底，并在收口时修复或报告索引漂移。
 - 产品概念、功能规格、技术方案、交互、视觉、治理任务和项目 pending 不写入 workflow memory；它们只作为 signal 来源引用。
-- Accepted workflow patch 不覆盖当前用户显式指令、系统/工具权限、项目事实源边界、安全规则或 `using-arckit` 的 artifact impact scan。
+- Accepted workflow patch 不覆盖当前用户显式指令、系统/工具权限、项目事实源边界、安全规则或调用方的 artifact impact scan。
 - 当 `workflow_correction_ledger.scope_hint=current_project` 或 signal `scope=project` 时，默认写入项目级 workflow memory：`~/.arckit/workflows/projects/<project-fingerprint>/`。只有项目指纹无法稳定计算或项目级目录不可写时，才可降级到 user scope，并必须在输出中说明降级原因。
 
 ## 主流程
 
 ### 1. Workflow Resolution
 
-输入：用户请求、目标项目路径、`using-arckit` 初步场景判断、可用 skill 列表。
+输入：用户请求、目标项目路径、项目入口能力或调用方的初步场景判断、可用 skill 列表。
 
 动作：
 - 定位用户级和项目级 workflow memory。
@@ -51,16 +51,16 @@ Workflow memory 是 procedural memory，不是项目事实源。Workflow signal 
 ### 2. Frame Contribution
 
 动作：
-- 命中 accepted workflow patch 时，作为 memory overlay 交给 `using-arckit` 应用。
+- 命中 accepted workflow patch 时，作为 memory overlay 交给项目入口能力或调用方应用。
 - 命中 candidate patch 时，作为参考 overlay，并绑定本次 execution record；candidate 不覆盖用户显式指令和系统边界。
 - 输出该 overlay 预期改变的步骤、skill 顺序、handoff、artifact scan、reflection gate、确认点或 closeout 策略。
 - 未命中时，标记为 `new_candidate_required`，按场景创建或准备创建 candidate，并准备任务结束后做 signal decision。
 
-退出条件：`using-arckit` 的 workflow frame 能说明 workflow resolution 是否完成、是否匹配、是否降级。
+退出条件：调用方的 workflow frame 能说明 workflow resolution 是否完成、是否匹配、是否降级。
 
 ### 3. Signal Decision
 
-输入：最终 workflow frame、workflow_resolution、execution_record、实际使用的 skills、文件、命令、写入路径、验证结果、用户反馈、失败点、`workflow_correction_ledger`。
+输入：最终 loop frame、workflow_resolution、execution_record、实际使用的 skills、文件、命令、写入路径、验证结果、用户反馈、失败点、`turn_delta` 和 `workflow_correction_ledger`。
 
 动作：
 - 读取 [references/workflow-memory-schema.md](references/workflow-memory-schema.md)。

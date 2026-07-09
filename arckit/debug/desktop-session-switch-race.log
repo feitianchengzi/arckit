@@ -1,0 +1,39 @@
+Issue: Desktop project/chat switching can call listMessages with a session from another project.
+
+Symptom:
+- While an agent run is executing, switching projects and chats repeatedly can show:
+  Error occurred in handler for 'arckit:list-messages': Error: Unknown session: <session-id>
+
+Evidence:
+- The failing backend path is desktop-run-manager.mjs listMessages -> getSession.
+- getSession only searches sessions under the supplied project id.
+- renderer.js api.onEvent previously assigned state.selectedSessionId from every run.started event, regardless of whether event.run.project_id matched the currently selected project.
+- A background run from project A can therefore overwrite selectedSessionId while the visible selectedProjectId is project B.
+- refreshProjectConversation then calls listMessages(projectB, sessionFromProjectA), which getSession correctly rejects.
+
+Competing hypotheses:
+- Missing session persistence: unlikely, because the session ids exist in another project namespace.
+- Backend session creation failure: unlikely, because default sessions are created per project and the errors happen during rapid switching/background events.
+
+Conclusion:
+- Root cause is UI selection-state contamination by background run/session events, plus listMessages lacking a stale-session read fallback.
+
+Fix plan:
+- Only let run.started/session.created events change selectedSessionId/activeRunId when the event belongs to the currently selected project.
+- Guard refreshProjectConversation so it does not request messages for a session not present in the current project's session list.
+- Make listMessages return [] for a stale session id instead of throwing, while keeping write paths strict.
+
+Temporary instrumentation:
+- None added.
+
+Fix applied:
+- renderer.js now ignores run/session selection changes from background projects.
+- renderer.js guards async session/message/status refreshes against stale selected project or session ids.
+- desktop-run-manager.mjs listMessages now uses a read-only stale-session fallback and returns [] instead of throwing.
+- getSession remains strict for write paths such as addMessage.
+
+Verification:
+- node --check runtime/arckit-runtime/desktop/renderer/renderer.js passed.
+- node --check runtime/arckit-runtime/src/desktop-run-manager.mjs passed.
+- npm run check in runtime/arckit-runtime passed.
+- No temporary console/debug markers were added.

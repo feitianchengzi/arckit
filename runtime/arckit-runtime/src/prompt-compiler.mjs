@@ -1,9 +1,16 @@
+import { conversationLocaleInstruction } from "./conversation-locale.mjs";
+
 export function compilePrompt(snapshot, round, options = {}) {
   const runtimeResultSchemaPath = "runtime/arckit-runtime/schemas/runtime-result.schema.json";
+  const conversationLocale = options.conversationLocale || round.conversation_locale || "en";
   const prompt = [
     "# Arckit Supervised Runtime Turn",
     "",
     "You are executing one bounded Arckit runtime round. The runtime, not the agent, owns loop control.",
+    "",
+    "## Conversation Locale",
+    `- conversation_locale: ${conversationLocale}`,
+    `- ${conversationLocaleInstruction(conversationLocale)}`,
     "",
     "## Project State",
     `- Project: ${snapshot.summary.project_name}`,
@@ -51,6 +58,7 @@ export function compilePrompt(snapshot, round, options = {}) {
 
   return {
     prompt,
+    conversation_locale: conversationLocale,
     output_schema: runtimeResultSchemaPath,
     required_contracts: round.required_outputs
   };

@@ -1,6 +1,6 @@
 ---
 name: arckit-agent-context
-description: 维护项目级 agent 启动上下文、AGENTS.md 长期规则和 durable context 路由。默认由 using-arckit 在用户输入包含长期协作约定、仓库导航规则、事实源读取顺序、后续默认行为或 AGENTS.md 维护需求时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。不保存聊天记录，不替代 arckit/spec、arckit/tech、arckit/interaction、arckit/visual、arckit-pending 或 arckit-workflow-memory。
+description: 维护项目级 agent 启动上下文、AGENTS.md 长期规则和 durable context 路由。适用于用户输入包含长期协作约定、仓库导航规则、事实源读取顺序、后续默认行为或 AGENTS.md 维护需求的场景。不保存聊天记录，不替代 arckit/spec、arckit/tech、arckit/interaction、arckit/visual、arckit-pending 或 arckit-workflow-memory。
 ---
 
 # ArcKit Agent Context
@@ -63,7 +63,7 @@ description: 维护项目级 agent 启动上下文、AGENTS.md 长期规则和 d
 ### 4. 交回即时任务
 
 动作：
-- 如果用户请求包含即时任务，输出可交给 `using-arckit` 或当前执行 skill 的 `continuation_handoff`。
+- 如果用户请求包含即时任务，输出可交给项目入口能力、调用方或当前执行 skill 的 `continuation_handoff`。
 - 如果内容被路由到其他事实源或 pending，只输出 handoff，不直接替代对应 skill 写入。
 
 退出条件：长期上下文处理结果和即时任务继续方式都已明确。

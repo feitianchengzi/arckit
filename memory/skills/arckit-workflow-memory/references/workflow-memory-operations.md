@@ -87,7 +87,7 @@ Execution record 是本次任务如何应用场景工作流的证据，不是新
 
 - `workflow_correction_ledger` 表明用户纠正了 agent 的流程、确认点、输出格式、验证方式、停止条件或工具边界。
 - 最终 workflow frame 重新区分了最终目标和当前步骤，或要求先选择、先确认、先原型、先方案、先解释流程，再进入实现或稳定事实写入。
-- `workflow_correction_ledger` 表明用户指出 agent 没有按 `using-arckit` 编译 workflow、没有利用基础 skill、没有生成预期中间产物、没有学习或跳过了记忆判断。
+- `workflow_correction_ledger` 表明用户指出 agent 没有按项目入口能力或调用方要求编译 workflow、没有利用基础 skill、没有生成预期中间产物、没有学习或跳过了记忆判断。
 - 任务失败、阻塞、返工、回滚或验证不通过。
 - 出现新的任务形态、输入形态、skill 组合或停止条件。
 - 现有 candidate/accepted workflow patch 不适配，或需要收窄适用边界。

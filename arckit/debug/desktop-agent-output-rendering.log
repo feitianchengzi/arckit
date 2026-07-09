@@ -1,0 +1,35 @@
+Issue: Desktop agent output auto-scrolls too aggressively and shows worker JSON as raw text.
+
+Symptoms:
+- While agent output is streaming, the message list always jumps to the bottom.
+- Worker output appears as raw JSON instead of readable progress/report details.
+
+Evidence:
+- renderer.js renderMessages set messageList.scrollTop = messageList.scrollHeight after every render.
+- activity.json for RUN-20260708-172407466Z shows agent_text containing concatenated arckit-worker-report/v1 JSON objects.
+- The same activity also contains structured reports under agents[].report and activity.reports from runtime.worker_report.completed.
+- raw-events.jsonl shows codex.agent_message.delta streaming individual JSON characters for worker reports.
+
+Conclusion:
+- The scroll behavior is caused by unconditional bottom scrolling during message re-render.
+- The JSON display is caused by treating worker report JSON delta as generic Codex output even though structured report data is already available.
+
+Fix applied:
+- renderer.js now tracks whether the message list is at the bottom.
+- renderMessages scrolls to bottom only when the list was already bottom-stuck; otherwise it restores the previous scrollTop.
+- Project/chat/run switches reset bottom sticking because they are new contexts.
+- renderer.js now parses historical arckit-worker-report/v1 JSON text into report cards when possible.
+- renderer.js hides raw agent JSON when an agent already has a structured report.
+- desktop-run-manager.mjs no longer appends worker codex.agent_message.delta JSON chunks into activity.agent_text.
+- desktop-run-manager.mjs parses completed worker agentMessage JSON into agent.report.
+- renderer.js hides legacy worker JSON streams when structured activity.reports are available.
+
+Verification:
+- node --check runtime/arckit-runtime/desktop/renderer/renderer.js passed.
+- node --check runtime/arckit-runtime/src/desktop-run-manager.mjs passed.
+- npm run check in runtime/arckit-runtime passed.
+- Saved RUN-20260708-172407466Z activity has 5 structured activity.reports.
+- Saved RUN-20260708-172407466Z activity has structured agents[].report for all 5 workers; historical agent_text fragments are no longer needed for UI rendering.
+
+Temporary instrumentation:
+- None added.

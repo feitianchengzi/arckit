@@ -6,10 +6,20 @@
   "required": [
     "schema_version",
     "round_result",
+    "round_state",
+    "round_state_history",
     "summary",
     "changed_files",
     "artifact_impact_scan",
+    "artifact_ownership_scan",
     "source_projection_check",
+    "controller_reducer_result",
+    "controller_frame",
+    "execution_gate",
+    "executor_binding",
+    "worker_packets",
+    "report_intake",
+    "ledger_stage",
     "validation_evidence",
     "loop_handoff"
   ],
@@ -17,7 +27,37 @@
     "schema_version": { "type": "string", "const": "arckit-runtime-result/v1" },
     "round_result": {
       "type": "string",
-      "enum": ["done", "blocked", "needs_human", "external_wait"]
+      "enum": ["done", "continue", "blocked", "needs_human", "external_wait"]
+    },
+    "round_state": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "authorized",
+        "workers_running",
+        "reports_collected",
+        "merge_ready",
+        "ledger_gate_ready",
+        "ledger_written",
+        "next_round_ready",
+        "blocked",
+        "human_gate_required",
+        "external_wait",
+        "failed"
+      ]
+    },
+    "round_state_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["state", "at", "reason"],
+        "properties": {
+          "state": { "type": "string" },
+          "at": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
     },
     "summary": { "type": "string" },
     "changed_files": {
@@ -56,6 +96,60 @@
       },
       "additionalProperties": false
     },
+    "artifact_ownership_scan": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "classified",
+        "source_facts_changed",
+        "projection_artifacts_changed",
+        "implementation_evidence",
+        "pending_items",
+        "runtime_logs",
+        "unknown_artifacts"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "arckit-artifact-ownership-scan/v1" },
+        "classified": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "owner", "kind"],
+            "properties": {
+              "path": { "type": "string" },
+              "owner": { "type": "string" },
+              "kind": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "source_facts_changed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "projection_artifacts_changed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "implementation_evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "pending_items": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "runtime_logs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "unknown_artifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
     "source_projection_check": {
       "type": "object",
       "required": [
@@ -83,6 +177,30 @@
           "type": "array",
           "items": { "type": "string" }
         }
+      },
+      "additionalProperties": false
+    },
+    "controller_reducer_result": { "type": "object" },
+    "controller_frame": { "type": "object" },
+    "execution_gate": { "type": "object" },
+    "executor_binding": { "type": "object" },
+    "worker_packets": {
+      "type": "array",
+      "items": { "type": "object" }
+    },
+    "report_intake": { "type": "object" },
+    "ledger_stage": {
+      "type": "object",
+      "required": ["schema_version", "status", "gate_required", "writeback_required", "reason"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "arckit-ledger-stage/v1" },
+        "status": {
+          "type": "string",
+          "enum": ["not_ready", "gate_ready", "gate_blocked", "human_blocked", "blocked", "written"]
+        },
+        "gate_required": { "type": "boolean" },
+        "writeback_required": { "type": "boolean" },
+        "reason": { "type": "string" }
       },
       "additionalProperties": false
     },
