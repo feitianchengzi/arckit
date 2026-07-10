@@ -20,7 +20,7 @@ export async function writeLedger({ projectRoot, runtimeResult, envelope, snapsh
 
   const timestamp = new Date().toISOString();
   const runId = `RUN-${timestamp.replaceAll(/[-:.]/g, "").replace("T", "-").replace("Z", "Z")}`;
-  const selectedRound = envelope?.selected_round || {};
+  const selectedRound = resolveSelectedRound({ envelope, runtimeResult });
   const finalWriteback = isFinalWriteback(runtimeResult);
   const projectStatePath = join(root, "arckit/project/state.record.json");
   const iterationPath = snapshot?.projectState?.active_iteration_ref
@@ -152,10 +152,10 @@ function applyProjectStateWriteback(record, { timestamp, runtimeResult, selected
   };
 
   record.last_state_delta = {
-    changed_dimensions: Array.from(new Set([selectedRound.dimension, "quality_validation", "maintainability_handoff"].filter(Boolean))),
+    changed_dimensions: selectedRound.dimension && selectedRound.dimension !== "agent_selected" ? [selectedRound.dimension] : [],
     state_transitions: finalWriteback ? [
       {
-        dimension: selectedRound.dimension || "quality_validation",
+        dimension: selectedRound.dimension || "agent_selected",
         from_state: selectedRound.current_state || "verified",
         to_state: selectedRound.target_state || "accepted",
         reason: `Runtime ledger writeback accepted ${selectedRound.gap_id || "selected round"}: ${runtimeResult.summary}`
@@ -177,7 +177,7 @@ function applyIterationWriteback(record, { timestamp, runtimeResult, selectedRou
   record.current_state_delta = [
     ...(record.current_state_delta || []),
     {
-      dimension: selectedRound.dimension || "quality_validation",
+      dimension: selectedRound.dimension || "agent_selected",
       from_state: selectedRound.current_state || "verified",
       to_state: finalWriteback ? selectedRound.target_state || "accepted" : selectedRound.current_state || "verified",
       reason: finalWriteback
@@ -195,7 +195,7 @@ function applyIterationWriteback(record, { timestamp, runtimeResult, selectedRou
       : [runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.next_prompt || "Continue runtime-supervised loop."]
   };
   record.last_iteration_delta = {
-    changed: Array.from(new Set([selectedRound.dimension, "quality_validation"].filter(Boolean))),
+    changed: selectedRound.dimension && selectedRound.dimension !== "agent_selected" ? [selectedRound.dimension] : [],
     blocked: [],
     deferred: runtimeResult.source_projection_check?.deferred_projections || [],
     next_iteration_focus: runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.next_prompt || "",
@@ -211,7 +211,7 @@ function applyCaseWriteback(record, { timestamp, runtimeResult, selectedRound, r
     ? "none"
     : runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.responsibility_reason || "Continue runtime loop.";
   record.project_state_delta = {
-    changed: Array.from(new Set([selectedRound.dimension, "quality_validation", "maintainability_handoff"].filter(Boolean))),
+    changed: selectedRound.dimension && selectedRound.dimension !== "agent_selected" ? [selectedRound.dimension] : [],
     unchanged_unknown: [],
     deferred: runtimeResult.source_projection_check?.deferred_projections || [],
     blocked: [],
@@ -239,11 +239,23 @@ function applyCaseWriteback(record, { timestamp, runtimeResult, selectedRound, r
     loop_handoff: runtimeResult.loop_handoff,
     updated_at: timestamp
   };
-  if (record.structures?.verification_state) {
-    record.structures.verification_state.status = "satisfied";
-    record.structures.verification_state.evidence = mergeEvidence(record.structures.verification_state.evidence, [runtimeRecordPath, ...(runtimeResult.validation_evidence || [])]);
-    record.structures.verification_state.evidence_maturity = "confirmed";
+}
+
+function resolveSelectedRound({ envelope, runtimeResult }) {
+  const envelopeRound = envelope?.selected_round || {};
+  const routeGap = runtimeResult?.controller_frame?.route_plan?.selected_gap || runtimeResult?.controller_reducer_result?.controller_frame?.route_plan?.selected_gap || null;
+  if (routeGap && typeof routeGap === "object" && (routeGap.id || routeGap.dimension)) {
+    return {
+      ...envelopeRound,
+      gap_id: routeGap.id || envelopeRound.gap_id || "",
+      dimension: routeGap.dimension || envelopeRound.dimension || "",
+      current_state: routeGap.current_state || envelopeRound.current_state || "",
+      target_state: routeGap.target_state || envelopeRound.target_state || "",
+      round_goal: routeGap.next_transition || envelopeRound.round_goal || runtimeResult?.loop_handoff?.agent_instruction?.goal || "",
+      next_transition: routeGap.next_transition || envelopeRound.next_transition || ""
+    };
   }
+  return envelopeRound;
 }
 
 async function readJson(path) {

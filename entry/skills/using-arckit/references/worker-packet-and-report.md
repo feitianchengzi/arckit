@@ -8,7 +8,8 @@ Worker packets are the only work units that executors should run.
 worker_packet:
   schema_version: arckit-worker-packet/v1
   worker_id: ""
-  role: product | tech | implementation | verification | diagnosis | closeout | ledger
+  worker_type: product | tech | implementation | verification | diagnosis | closeout
+  role: ""
   project_root: ""
   case_id: ""
   round_goal: ""
@@ -16,6 +17,7 @@ worker_packet:
   context_refs: []
   allowed_actions: []
   forbidden_actions: []
+  allowed_skills: []
   allowed_paths: []
   stop_condition: ""
   expected_report_schema: arckit-worker-report/v1
@@ -29,12 +31,14 @@ The packet must be narrow enough to paste into a separate Agent chat.
 worker_report:
   schema_version: arckit-worker-report/v1
   task_id: ""
+  worker_type: product | tech | implementation | verification | diagnosis | closeout
   role: ""
   status: completed | partial | blocked | failed | invalid
   summary: ""
   findings: []
   evidence: []
   changes: []
+  artifact_impacts: []
   risks: []
   unknowns: []
   recommendation: ""
@@ -51,7 +55,8 @@ worker_report:
 Accept only when:
 
 - `task_id` matches an issued packet's `worker_id`.
-- Role and task stay within packet scope.
+- `worker_type` matches the issued packet, and role/task stay within packet scope.
+- Skill usage stays within packet `allowed_skills`.
 - Evidence is present or explicitly marked unavailable.
 - Risks and unknowns are visible.
 - The report does not claim whole-round closeout.

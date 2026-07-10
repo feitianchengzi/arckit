@@ -24,6 +24,8 @@
       "type": "object",
       "required": [
         "mode",
+        "selected_gap",
+        "selected_worker_types",
         "selected_roles",
         "reason",
         "requires_human_confirmation"
@@ -31,25 +33,44 @@
       "properties": {
         "mode": {
           "type": "string",
-          "enum": [
-            "source_fact_establishment",
-            "implementation_execution",
-            "route_review",
-            "packet_execution"
-          ]
+          "minLength": 1
+        },
+        "selected_gap": {
+          "type": "object",
+          "required": [
+            "id",
+            "dimension",
+            "current_state",
+            "target_state",
+            "urgency",
+            "risk",
+            "impact",
+            "next_transition"
+          ],
+          "properties": {
+            "id": { "type": "string" },
+            "dimension": { "type": "string" },
+            "current_state": { "type": "string" },
+            "target_state": { "type": "string" },
+            "urgency": { "type": "string" },
+            "risk": { "type": "string" },
+            "impact": { "type": "string" },
+            "next_transition": { "type": "string" }
+          },
+          "additionalProperties": false
         },
         "selected_roles": {
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "controller_state_reader",
-              "controller_route_auditor",
-              "source_fact_worker",
-              "implementation_worker",
-              "verification_worker",
-              "closeout_controller"
-            ]
+            "minLength": 1
+          }
+        },
+        "selected_worker_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"]
           }
         },
         "reason": { "type": "string" },
@@ -61,21 +82,22 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["role", "objective", "reason"],
+        "required": ["worker_type", "role", "objective", "reason", "allowed_skills"],
         "properties": {
+          "worker_type": {
+            "type": "string",
+            "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"]
+          },
           "role": {
             "type": "string",
-            "enum": [
-              "controller_state_reader",
-              "controller_route_auditor",
-              "source_fact_worker",
-              "implementation_worker",
-              "verification_worker",
-              "closeout_controller"
-            ]
+            "minLength": 1
           },
           "objective": { "type": "string" },
-          "reason": { "type": "string" }
+          "reason": { "type": "string" },
+          "allowed_skills": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
         },
         "additionalProperties": false
       }

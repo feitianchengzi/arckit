@@ -2,7 +2,7 @@
   "schema_version": "arckit-capability/v1",
   "id": "using-arckit",
   "kind": "project_conversation_controller",
-  "runtime_role": ["controller", "packet_compiler", "report_intake", "closeout_controller"],
+  "runtime_role": ["controller", "packet_compiler", "report_intake", "closeout"],
   "summary": "Turns a software-development input into a controller frame, execution gate, worker packets, report intake rules, closeout rules, and loop handoff. It does not execute work by itself; an executor must be explicitly authorized and bound.",
   "input_facts": [
     "user_message",
@@ -42,6 +42,6 @@
     "Default execution_gate.status is pending unless the user message, runtime authorization, auto-run policy, or external platform explicitly authorizes execution.",
     "When no automated executor is available, humans may manually copy worker packets to worker Agent chats and bring worker reports back to this Controller.",
     "The selected execution environment may automate worker creation, observation, merge, gates, or writeback, but the Controller semantics stay the same.",
-    "Do not replace concrete capabilities such as arckit-spec, arckit-tech, arckit-debug-diagnosis, or arckit-development-ledger."
+    "Do not hard-code per-round workflow routes, fixed worker order, or fixed skill sequences; bind allowed skills dynamically from capability manifests, packet goals, and evidence boundaries."
   ]
 }

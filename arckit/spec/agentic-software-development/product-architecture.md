@@ -21,6 +21,16 @@ Arckit 的产品结构由六个核心部分组成：
 
 这些结构共同服务于一个主轴：Project State 通过 Case 和 Loop 被持续推进。Project State 是最高层产品对象；Case 是推进某个 Project State gap 的承载单元；Loop 是推动 case 前进并产生可验证状态影响的协作循环。
 
+Arckit 能持续运行依赖五个互补机制：
+
+- 能力层：Worker 类型和 Skill 能力包表达系统可调用的软件研发能力。
+- 状态模型：Project State 和 Case State 的字段定义表达真实软件工程需要具备的状态维度、证据成熟度和缺口。
+- 运行框架：Project State、Case State 和 Worker Loop 共同形成可恢复、可授权、可验证的推进框架。
+- 证据账本：worker report、artifact impact、source/projection 边界、gate 和 ledger writeback 让状态变化可证明。
+- 能力注册：Capability Registry 把已安装 Skill 的 manifest 暴露为 runtime 可读能力地图，使 Controller 能选择 worker 类型和 allowed skills。
+
+这五个机制共同定义 Arckit 的产品闭环。状态模型说明真实软件工程还缺什么；能力层说明哪些 worker 和 skill 可以补齐缺口；运行框架让 Agent 在受控 loop 中持续行动；证据账本判断结果是否可信；能力注册把具体 skill 接入 loop 而不把单轮业务流程写死到 Runtime。
+
 ## Desktop / Agent / Skill 分层
 
 Arckit 的执行产品形态采用三层分工：
@@ -32,6 +42,8 @@ Arckit 的执行产品形态采用三层分工：
 | Skill | 安装到 Agent 中的底层能力包，提供可复用执行方法、事实源维护规则、输入输出契约和安全边界 | 不定义 Desktop 架构、产品状态机或自动写回策略 |
 
 该分层保证 Desktop 控制运行，Agent 处理语义和执行，Skill 只增强 Agent 的可复用能力。Project State、Case 和 Loop 的产品语义不由单个 skill 决定。
+
+Worker 是 Loop 中的执行角色，Skill 是 Worker 可调用的能力包。Runtime 保留稳定 worker 类型和 skill 绑定协议，但不固定某一轮必须派发哪些 worker，也不把具体业务路线写死为源码分支。Controller 根据 Project State、Case State、用户输入、证据和 Capability Registry 选择本轮 worker 类型、具体 role、allowed skills 和停止条件。
 
 ## 概念关系
 
@@ -72,6 +84,8 @@ Loop 是 case 的推进循环。一个 case 可以经历多个 loop。每个 loo
 7. Project State 根据验证后的 state delta 更新。
 
 Project State 不由 loop 直接静默改写。Loop 的输出必须先通过 report intake、验证、case closeout 或 ledger gate，才能成为 Project State delta。
+
+Project State 和 Case State 的字段定义不是普通配置项。它们表达软件项目持续推进所需的工程能力维度，包括产品意图、目标用户、核心场景、平台表面、技术基础、事实成熟度、实现覆盖、验证证据、open questions、handoff 和工作方式信号。字段定义综合真实软件研发抽象和 Arckit skill 体系的产品理念，使 Controller 能根据状态值判断本轮应补事实、定义、实现、诊断、验证、收口还是等待人类或外部系统。
 
 ## 语义入口
 

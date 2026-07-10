@@ -18,6 +18,10 @@ Arckit 的定位是软件开发 Agent 的协作与接力协议层。它不等同
 
 项目治理、长期想法库、市场研究、代码审查、质量评测、发布出包、运行运维、Workshop Desktop、角色编排和自动化平台事项进入 Arckit 时，先被整理成决策依据、定义事实、诊断证据、`arckit-pending` 未决项、`implementation_handoff` 或 external adapter handoff，让人类、外部工具和多 agent 平台能继续推进。
 
+Worker 类型和 Skill 能力包共同组成 Arckit 的能力层。Worker 类型表达一轮 loop 中需要的执行职责，如产品定义、技术定义、实现、诊断、验证和收口；Skill 能力包提供这些职责可复用的方法、事实源维护规则、输入输出契约和安全边界。Controller 不把 worker 类型当作固定流水线，而是基于 Project State、Case State、用户输入和证据选择本轮最小必要 worker，并为每个 worker packet 绑定 allowed skills。
+
+Project State 和 Case State 是能力层的状态接口。Project State 字段表达整个软件项目在真实工程维度上的长期状态；Case State 字段表达当前事项在 product、interaction、visual、technical、implementation、verification、open questions、handoffs 和 workflow memory signals 上的满足度。Controller 读取这些状态字段判断本轮缺口，再通过 worker 类型和 allowed skills 补齐对应能力。
+
 ## 总体链路
 
 Arckit 的当前 skill 体系按以下链路工作：
@@ -59,6 +63,12 @@ Arckit 的当前 skill 体系按以下链路工作：
 ## Skill 暴露与路由策略
 
 `using-arckit` 是项目对话 Controller skill，负责把用户输入编译为本轮 controller frame、execution gate、worker packets、report intake rules、closeout rules 和 loop handoff。其他 Arckit skills 是具体能力包：它们声明自身适用场景、输入、输出和事实边界；可以被 Controller 生成的 worker packet 引用，也可以被人类或外部平台直接使用。
+
+Capability Registry 读取当前仓库和已安装 skill 暴露的 capability manifest，形成 runtime 可读能力地图。能力地图只包含 skill id、runtime role、input facts、outputs、allowed write targets、forbidden decisions 和 runtime notes；它不把 `SKILL.md` 正文复制进 Runtime，也不让 Runtime 依据正文自行做业务决策。
+
+Controller 使用能力地图选择本轮 worker 类型和 allowed skills。Worker packet 中的 `allowed_skills` 是 Controller 对本轮 worker 可用能力的显式边界；Worker prompt 可以把这些 skill ids 写成显式 `$skill-name` 触发项，但不注入 skill 正文。具体 skill 行为仍由 Agent 环境中已安装的 skill 包提供。
+
+Runtime 可以维护稳定 worker type 集合和 capability manifest 解析规则；Runtime 不维护某一轮业务路线、固定 worker 串联、关键词触发实现策略或具体 skill 名称清单。具体 worker/skill 组合来自 Controller 对当前状态缺口、证据和能力地图的判断。
 
 `using-arckit` 的可见能力地图包含当前执行面中的 skill：
 

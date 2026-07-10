@@ -4,7 +4,6 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 import { runLedgerScript } from "./ledger-scripts.mjs";
 import { detectConversationLocale } from "./conversation-locale.mjs";
 
-const INITIAL_GAP_ID = "GAP-initial-project-discovery";
 const VALID_STATE_VALUE = new Set([
   "unknown",
   "not_required",
@@ -108,7 +107,7 @@ async function ensureInitialCase(root, intent, nodeBin, conversationLocale) {
     "development-case.mjs",
     "new",
     "--title",
-    t(conversationLocale, "Initial Arckit project loop", "初始 Arckit 项目 loop"),
+      t(conversationLocale, "Arckit runtime loop", "Arckit runtime loop"),
     "--artifact-type",
     "mixed",
     "--intent",
@@ -144,38 +143,23 @@ async function seedInitialCase(root, caseRef, intent, conversationLocale) {
   }
 
   const timestamp = new Date().toISOString();
-  const nextGoal = t(conversationLocale, "Use the first Desktop chat task to establish project intent, scenarios, behavior expectations, implementation boundary, and next loop handoff.", "使用第一次 Desktop 对话任务建立项目意图、场景、行为预期、实现边界和下一轮 loop handoff。");
+  const nextGoal = t(conversationLocale, "Analyze the operator task and project evidence, then return a protocol-valid route plan, evidence summary, and next loop handoff.", "分析用户任务和项目证据，然后返回符合协议的 route plan、证据摘要和下一轮 loop handoff。");
   record.updated_at = timestamp;
-  record.expected_outcome = record.expected_outcome || t(conversationLocale, "A new Arckit-managed project can start from an empty directory and become recoverable by future agent rounds.", "新的 Arckit 管理项目可以从空目录启动，并能被后续 Agent 轮次恢复。");
+  record.expected_outcome = record.expected_outcome || t(conversationLocale, "The project has a recoverable Project State that is advanced through Case and Loop, without runtime-selected workflow strategy.", "项目拥有可恢复的 Project State，并通过 Case 和 Loop 被持续推进，但 Runtime 不预选具体工作流策略。");
   record.current_round_goal = nextGoal;
-  record.current_round_gap = "initial_project_discovery";
+  record.current_round_gap = "pending_agent_analysis";
   record.round_strategy_decision = {
     ...(record.round_strategy_decision || {}),
-    selected_route: "initial_project_discovery",
-    reason: t(conversationLocale, "The project started without Arckit state, so the first runtime turn must establish source facts and a bounded implementation handoff before treating implementation as complete.", "项目启动时没有 Arckit state，因此第一轮 runtime 必须先建立 source facts 和有边界的 implementation handoff，不能直接把实现当成完成。"),
-    considered_routes: [
-      {
-        route: "direct_implementation",
-        decision: "deferred",
-        reason: t(conversationLocale, "Direct implementation would guess project intent and validation boundaries.", "直接实现会猜测项目意图和验证边界。")
-      },
-      {
-        route: "initial_project_discovery",
-        decision: "selected",
-        reason: t(conversationLocale, "This creates recoverable state for a real project from the first chat.", "这会从第一次对话开始为真实项目创建可恢复状态。")
-      }
-    ],
-    next_route_triggers: [
-      t(conversationLocale, "Initial project intent and success criteria are defined.", "初始项目意图和成功标准已定义。"),
-      t(conversationLocale, "Unknowns are routed to pending or user decision.", "未知项已路由到 pending 或用户决策。"),
-      t(conversationLocale, "A bounded implementation handoff exists.", "已有有边界的 implementation handoff。")
-    ],
-    user_visible_summary: t(conversationLocale, "The first run initializes the project loop instead of failing on missing Arckit state.", "第一次运行会初始化项目 loop，而不是因为缺少 Arckit state 失败。")
+    selected_route: "pending_agent_analysis",
+    reason: t(conversationLocale, "Runtime initialized the recoverable loop container but does not choose the workflow route; the agent must analyze the task and evidence.", "Runtime 初始化可恢复 loop 容器，但不选择具体工作流 route；应由 Agent 分析任务和证据。"),
+    considered_routes: [],
+    next_route_triggers: [],
+    user_visible_summary: t(conversationLocale, "The first run initializes Project State as the recoverable object, then leaves Case/Loop route selection to the agent.", "第一次运行会初始化 Project State 作为可恢复对象，然后把 Case/Loop 的具体 route selection 留给 Agent。")
   };
   record.project_state_delta = {
     ...(record.project_state_delta || {}),
-    changed: ["project_intent", "problem_scenarios", "maintainability_handoff"],
-    unchanged_unknown: ["product_behavior", "architecture_foundation", "quality_validation"],
+    changed: [],
+    unchanged_unknown: [],
     deferred: [],
     blocked: [],
     next_project_question: nextGoal,
@@ -183,7 +167,7 @@ async function seedInitialCase(root, caseRef, intent, conversationLocale) {
   };
   record.decisions = [
     ...asArray(record.decisions),
-    t(conversationLocale, "Empty projects are valid Arckit Desktop inputs; initialization creates state, case, and an initial discovery gap instead of requiring terminal setup.", "空项目是有效的 Arckit Desktop 输入；初始化会创建 state、case 和初始 discovery gap，而不是要求先用终端配置。")
+    t(conversationLocale, "Empty projects are valid Arckit Desktop inputs; initialization creates a neutral recoverable Project State that can be advanced through Case and Loop without preselecting workflow strategy.", "空项目是有效的 Arckit Desktop 输入；初始化会创建中性的可恢复 Project State，使其通过 Case 和 Loop 被持续推进，但不预选工作流策略。")
   ];
   record.completion_audit = {
     ...(record.completion_audit || {}),
@@ -197,8 +181,8 @@ async function seedInitialCase(root, caseRef, intent, conversationLocale) {
       agent_continuation_available: true,
       human_decision_required: false,
       trigger_mode: "manual_bridge",
-      responsibility_reason: t(conversationLocale, "The next step is agent-continuable initial discovery from the first Desktop chat.", "下一步是可由 Agent 继续的初始发现，基于第一次 Desktop 对话推进。"),
-      next_prompt: t(conversationLocale, "Continue the initial Arckit project loop from the first Desktop chat. Read project state and this case, then establish source facts, unknowns, implementation boundary, validation evidence, and next loop handoff.", "继续第一次 Desktop 对话启动的初始 Arckit 项目 loop。读取 project state 和本 case，然后建立 source facts、unknowns、implementation boundary、validation evidence 和下一轮 loop handoff。"),
+      responsibility_reason: t(conversationLocale, "The next step is agent-continuable analysis; Runtime does not preselect the workflow route.", "下一步是可由 Agent 继续的分析；Runtime 不预选工作流 route。"),
+      next_prompt: t(conversationLocale, "Continue the Arckit runtime loop. Read project state, the active case, and the operator task, then decide the route, required evidence, execution boundary, and next loop handoff.", "继续 Arckit runtime loop。读取 project state、active case 和用户任务，然后决定 route、所需证据、执行边界和下一轮 loop handoff。"),
       agent_instruction: {
         goal: nextGoal,
         required_context_refs: [
@@ -207,16 +191,16 @@ async function seedInitialCase(root, caseRef, intent, conversationLocale) {
           caseRef
         ],
         required_actions: [
-          t(conversationLocale, "Read the first chat task and local project evidence.", "读取第一次对话任务和本地项目证据。"),
-          t(conversationLocale, "Create or update stable source facts only when justified.", "只有证据充分时才创建或更新稳定 source facts。"),
-          t(conversationLocale, "Route unknowns to pending or loop handoff.", "把 unknowns 路由到 pending 或 loop handoff。")
+          t(conversationLocale, "Read the operator task and local project evidence.", "读取用户任务和本地项目证据。"),
+          t(conversationLocale, "Decide the workflow route from evidence instead of following a runtime default.", "基于证据决定工作流 route，而不是遵循 Runtime 默认编排。"),
+          t(conversationLocale, "Return explicit evidence, risks, unknowns, and next loop handoff.", "返回明确的 evidence、risks、unknowns 和下一轮 loop handoff。")
         ],
         required_checks: [
           "source_projection_check",
           "case_audit",
           "workflow_memory_closeout"
         ],
-        stop_condition: t(conversationLocale, "Stop after the initial source facts, unknowns, validation evidence, and next loop handoff are explicit.", "当初始 source facts、unknowns、validation evidence 和下一轮 loop handoff 明确后停止。")
+        stop_condition: t(conversationLocale, "Stop after route choice, evidence, risks, unknowns, and next loop handoff are explicit.", "当 route choice、evidence、risks、unknowns 和下一轮 loop handoff 明确后停止。")
       },
       human_gate: {
         required: false,
@@ -258,83 +242,30 @@ function applyInitialLoopState(record, { projectName, intent, caseRef, seedIniti
     changed = true;
   }
 
-  const dimensions = record.completeness_dimensions || {};
-  if (seedInitialGap) {
-    changed = tuneDimension(dimensions.project_intent, {
-      target_state: "defined",
-      gap: t(conversationLocale, "Project intent is not established yet.", "项目意图尚未建立。"),
-      next_transition: t(conversationLocale, "Use the first chat task to define project intent, boundaries, success criteria, and immediate development objective.", "使用第一次对话任务定义项目意图、边界、成功标准和直接开发目标。"),
-      priority: "high"
-    }) || changed;
-    changed = tuneDimension(dimensions.problem_scenarios, {
-      target_state: "defined",
-      gap: t(conversationLocale, "Core user/problem scenarios are not established yet.", "核心用户/问题场景尚未建立。"),
-      next_transition: t(conversationLocale, "Extract the first useful scenario set from the chat and repo evidence.", "从对话和仓库证据中提取第一组有用场景。"),
-      priority: "high"
-    }) || changed;
-    changed = tuneDimension(dimensions.product_behavior, {
-      target_state: "defined",
-      gap: t(conversationLocale, "Expected product behavior is not established yet.", "预期产品行为尚未建立。"),
-      next_transition: t(conversationLocale, "Turn the first request into stable behavior expectations or a pending question.", "把第一次请求转成稳定行为预期，或转成 pending question。"),
-      priority: "medium"
-    }) || changed;
-    changed = tuneDimension(dimensions.architecture_foundation, {
-      target_state: "designed",
-      gap: t(conversationLocale, "Architecture and implementation boundary are not established yet.", "架构和实现边界尚未建立。"),
-      next_transition: t(conversationLocale, "Inspect the project surface and define the first safe implementation boundary.", "检查项目表面，并定义第一个安全实现边界。"),
-      priority: "medium"
-    }) || changed;
-    changed = tuneDimension(dimensions.maintainability_handoff, {
-      target_state: "defined",
-      gap: t(conversationLocale, "A future agent cannot yet recover the project state safely.", "后续 Agent 还不能安全恢复项目状态。"),
-      next_transition: t(conversationLocale, "Create enough Arckit ledger evidence for the next round to continue.", "创建足够的 Arckit ledger 证据，让下一轮可以继续。"),
-      priority: "high"
-    }) || changed;
-  }
-
   if (!Array.isArray(record.state_gaps)) {
     record.state_gaps = [];
     changed = true;
   }
-  if (seedInitialGap && !record.state_gaps.some((gap) => gap.id === INITIAL_GAP_ID)) {
-    record.state_gaps.unshift({
-      id: INITIAL_GAP_ID,
-      dimension: "project_intent",
-      current_state: dimensions.project_intent?.current_state || "unknown",
-      target_state: "defined",
-      urgency: "high",
-      risk: "high",
-      impact: t(conversationLocale, "Empty project has no stable Arckit source facts yet; implementation would otherwise guess intent, scope, and validation.", "空项目还没有稳定的 Arckit source facts；如果直接实现，会猜测意图、范围和验证方式。"),
-      next_transition: t(conversationLocale, "Use the current chat task to establish initial source facts, route unknowns to pending, and produce the next bounded implementation handoff.", "使用当前对话任务建立初始 source facts，把 unknowns 路由到 pending，并产出下一步有边界的 implementation handoff。"),
-      dependencies: []
-    });
-    changed = true;
-  }
 
-  const nextTransition = t(conversationLocale, "Use the current chat task to establish initial source facts, route unknowns to pending, and produce the next bounded implementation handoff.", "使用当前对话任务建立初始 source facts，把 unknowns 路由到 pending，并产出下一步有边界的 implementation handoff。");
+  const nextTransition = t(conversationLocale, "Let the agent analyze the current task and project evidence, choose the route, and return the next loop handoff.", "让 Agent 分析当前任务和项目证据，选择 route，并返回下一轮 loop handoff。");
   if (seedInitialGap) {
     record.loop_control = {
       ...(record.loop_control || {}),
-      current_loop_focus: record.loop_control?.current_loop_focus || t(conversationLocale, "Initial project discovery from Desktop chat", "从 Desktop 对话进行初始项目发现"),
+      current_loop_focus: record.loop_control?.current_loop_focus || t(conversationLocale, "Agent-directed runtime loop", "Agent 驱动的 runtime loop"),
       next_transition: record.loop_control?.next_transition || nextTransition,
-      priority_basis: record.loop_control?.priority_basis || t(conversationLocale, "The project has no stable Arckit source facts yet.", "项目还没有稳定的 Arckit source facts。"),
-      stop_condition: record.loop_control?.stop_condition || t(conversationLocale, "Stop after source facts, unknowns, implementation boundary, and loop handoff are explicit.", "当 source facts、unknowns、implementation boundary 和 loop handoff 明确后停止。"),
+      priority_basis: record.loop_control?.priority_basis || t(conversationLocale, "Runtime initialized the loop container; agent analysis must choose the concrete workflow strategy.", "Runtime 已初始化 loop 容器；具体工作流策略必须由 Agent 分析选择。"),
+      stop_condition: record.loop_control?.stop_condition || t(conversationLocale, "Stop after route choice, evidence, risks, unknowns, and next loop handoff are explicit.", "当 route choice、evidence、risks、unknowns 和下一轮 loop handoff 明确后停止。"),
       next_responsibility: record.loop_control?.next_responsibility === "none" ? "agent" : record.loop_control?.next_responsibility || "agent",
       agent_continuation_available: true,
       human_decision_required: record.loop_control?.human_decision_required === true ? true : false,
       trigger_mode: record.loop_control?.trigger_mode === "none" ? "manual_bridge" : record.loop_control?.trigger_mode || "manual_bridge",
-      continuation_prompt: record.loop_control?.continuation_prompt || t(conversationLocale, "Continue the initial Arckit project loop from the first Desktop chat.", "继续第一次 Desktop 对话启动的初始 Arckit 项目 loop。"),
-      responsibility_reason: record.loop_control?.responsibility_reason || t(conversationLocale, "The next step is agent-continuable project discovery; no human decision is required just to initialize the loop.", "下一步是 Agent 可继续的项目发现；仅初始化 loop 不需要人类决策。")
+      continuation_prompt: record.loop_control?.continuation_prompt || t(conversationLocale, "Continue the Arckit runtime loop from the operator task and project evidence.", "基于用户任务和项目证据继续 Arckit runtime loop。"),
+      responsibility_reason: record.loop_control?.responsibility_reason || t(conversationLocale, "The next step is agent-continuable analysis; no human decision is required just to initialize the loop container.", "下一步是 Agent 可继续的分析；仅初始化 loop 容器不需要人类决策。")
     };
 
     record.last_state_delta = {
       ...(record.last_state_delta || {}),
-      changed_dimensions: Array.from(new Set([
-        ...asArray(record.last_state_delta?.changed_dimensions),
-        "project_intent",
-        "problem_scenarios",
-        "maintainability_handoff"
-      ])),
+      changed_dimensions: asArray(record.last_state_delta?.changed_dimensions),
       state_transitions: asArray(record.last_state_delta?.state_transitions),
       deferred_dimensions: asArray(record.last_state_delta?.deferred_dimensions),
       blocked_dimensions: asArray(record.last_state_delta?.blocked_dimensions),
@@ -343,7 +274,9 @@ function applyInitialLoopState(record, { projectName, intent, caseRef, seedIniti
       next_loop_focus: record.loop_control.current_loop_focus,
       updated_at: timestamp
     };
-    record.project.current_phase = record.project.current_phase || "state-discovery";
+    if (!record.project.current_phase) {
+      record.project.current_phase = "runtime-loop";
+    }
     changed = true;
   }
 
@@ -510,36 +443,6 @@ function normalizeEvidenceMaturity(dimension) {
   }[String(value || "").trim()];
   dimension.evidence_maturity = mapped || (Array.isArray(dimension.evidence) && dimension.evidence.length > 0 ? "confirmed" : "none");
   return true;
-}
-
-function tuneDimension(dimension, patch) {
-  if (!dimension) {
-    return false;
-  }
-  let changed = false;
-  for (const [key, value] of Object.entries(patch)) {
-    if (shouldSeedField(dimension, key)) {
-      dimension[key] = value;
-      changed = true;
-    }
-  }
-  return changed;
-}
-
-function shouldSeedField(dimension, key) {
-  if (!dimension[key]) {
-    return true;
-  }
-  if (key === "target_state" && dimension.current_state === "unknown" && dimension.target_state === "accepted") {
-    return true;
-  }
-  if (key === "gap" && /^Move unknown toward accepted\.$/.test(dimension.gap || "")) {
-    return true;
-  }
-  if (key === "priority" && dimension.priority === "medium") {
-    return true;
-  }
-  return false;
 }
 
 async function firstMarkdown(dir) {

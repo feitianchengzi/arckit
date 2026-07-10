@@ -1,109 +1,117 @@
-import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const sourceDir = dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = resolve(sourceDir, "../../..");
-const CODEX_SKILLS_ROOT = join(homedir(), ".codex/skills");
+const here = dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = resolve(here, "../../..");
+const IGNORED_DIRS = new Set([".git", "node_modules", "runtime-results", ".DS_Store"]);
 
-const DEFAULT_CAPABILITY_PATHS = [
-  "entry/skills/using-arckit/arckit.capability.json",
-  "memory/skills/arckit-development-ledger/arckit.capability.json",
-  "memory/skills/arckit-pending/arckit.capability.json",
-  "engineering/skills/arckit-implementation-handoff/arckit.capability.json",
-  "engineering/skills/arckit-debug-diagnosis/arckit.capability.json",
-  "definition/skills/arckit-spec/arckit.capability.json",
-  "thinking/skills/arckit-architecture-decision/arckit.capability.json"
-];
-
-export async function loadRuntimeCapabilities(paths = DEFAULT_CAPABILITY_PATHS) {
-  const capabilitiesById = new Map();
-  for (const relativePath of paths) {
-    const file = join(repositoryRoot, relativePath);
-    if (!existsSync(file)) {
-      continue;
-    }
-    addCapability(capabilitiesById, await readCapabilityFile(file, {
-      manifestPath: relativePath,
-      source: "repository"
-    }));
+export async function loadRuntimeCapabilities(options = {}) {
+  if (Array.isArray(options)) {
+    return normalizeCapabilities(options);
   }
-  for (const capability of await loadInstalledSkillCapabilities()) {
-    if (!capabilitiesById.has(capability.id)) {
-      addCapability(capabilitiesById, capability);
-    }
-  }
-  return [...capabilitiesById.values()];
-}
-
-export function selectCapabilitiesForRound(capabilities, round, task = "") {
-  const selected = new Map();
-  const taskText = String(task || "");
-  const implementationOrDiagnosis = round.dimension === "implementation_coverage"
-    || (/implement|build|code|ship|test|refactor|实现|开发|编码|写代码|重构|测试/i.test(taskText) && round.current_state !== "unknown")
-    || (/bug|error|fail|crash|regression|修复|错误|失败|异常/i.test(taskText) && round.current_state !== "unknown");
-  add("using-arckit");
-  add("arckit-development-ledger");
-  if (implementationOrDiagnosis) {
-    add("arckit-implementation-handoff");
-  }
-  if (/bug|error|fail|crash|regression|修复|错误|失败|异常/i.test(taskText)) {
-    add("arckit-debug-diagnosis");
-  }
-  if (["product_behavior", "problem_scenarios", "project_intent"].includes(round.dimension)) {
-    add("arckit-spec");
-    add("arckit-pending");
-  }
-  if (["architecture_foundation", "integration_boundaries"].includes(round.dimension)) {
-    add("arckit-architecture-decision");
+  if (Array.isArray(options.capabilities)) {
+    return normalizeCapabilities(options.capabilities);
   }
 
-  return [...selected.values()];
-
-  function add(id) {
-    const capability = capabilities.find((item) => item.id === id);
+  const roots = unique([
+    repositoryRoot,
+    options.projectRoot ? resolve(options.projectRoot) : ""
+  ].filter(Boolean));
+  const manifests = [];
+  for (const root of roots) {
+    manifests.push(...await findCapabilityManifests(root));
+  }
+  const loaded = [];
+  for (const manifestPath of manifests) {
+    const capability = await readCapabilityManifest(manifestPath);
     if (capability) {
-      selected.set(id, capability);
+      loaded.push(capability);
     }
+  }
+  return normalizeCapabilities(loaded);
+}
+
+export function selectCapabilitiesForRound(capabilities = []) {
+  return normalizeCapabilities(capabilities);
+}
+
+export function capabilityIds(capabilities = []) {
+  return new Set(normalizeCapabilities(capabilities).map((capability) => capability.id));
+}
+
+async function findCapabilityManifests(root) {
+  const results = [];
+  async function walk(dir, depth = 0) {
+    if (depth > 8) {
+      return;
+    }
+    let entries = [];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (IGNORED_DIRS.has(entry.name)) {
+        continue;
+      }
+      const fullPath = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(fullPath, depth + 1);
+      } else if (entry.isFile() && entry.name === "arckit.capability.json") {
+        results.push(fullPath);
+      }
+    }
+  }
+  await walk(root);
+  return results;
+}
+
+async function readCapabilityManifest(manifestPath) {
+  try {
+    const parsed = JSON.parse(await readFile(manifestPath, "utf8"));
+    if (parsed?.schema_version !== "arckit-capability/v1" || !parsed.id) {
+      return null;
+    }
+    return {
+      ...parsed,
+      manifest_path: relative(repositoryRoot, manifestPath) || manifestPath,
+      source: manifestPath.startsWith(repositoryRoot) ? "repository" : "project"
+    };
+  } catch {
+    return null;
   }
 }
 
-async function loadInstalledSkillCapabilities() {
-  if (!existsSync(CODEX_SKILLS_ROOT)) {
-    return [];
-  }
-  const entries = await readdir(CODEX_SKILLS_ROOT, { withFileTypes: true });
-  const capabilities = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
+function normalizeCapabilities(capabilities = []) {
+  const byId = new Map();
+  for (const capability of capabilities) {
+    if (!capability || typeof capability !== "object" || !capability.id) {
       continue;
     }
-    const manifest = join(CODEX_SKILLS_ROOT, entry.name, "arckit.capability.json");
-    if (!existsSync(manifest)) {
-      continue;
-    }
-    capabilities.push(await readCapabilityFile(manifest, {
-      manifestPath: manifest,
-      source: "installed_codex_skill"
-    }));
+    byId.set(String(capability.id), {
+      schema_version: "arckit-capability/v1",
+      id: String(capability.id),
+      kind: String(capability.kind || ""),
+      runtime_role: arrayOfStrings(capability.runtime_role),
+      summary: String(capability.summary || ""),
+      input_facts: arrayOfStrings(capability.input_facts),
+      outputs: arrayOfStrings(capability.outputs),
+      allowed_write_targets: arrayOfStrings(capability.allowed_write_targets),
+      forbidden_decisions: arrayOfStrings(capability.forbidden_decisions),
+      runtime_notes: arrayOfStrings(capability.runtime_notes),
+      manifest_path: String(capability.manifest_path || ""),
+      source: String(capability.source || "")
+    });
   }
-  return capabilities;
+  return [...byId.values()].sort((left, right) => left.id.localeCompare(right.id));
 }
 
-async function readCapabilityFile(file, { manifestPath, source }) {
-  const capability = JSON.parse(await readFile(file, "utf8"));
-  return {
-    ...capability,
-    manifest_path: manifestPath,
-    source
-  };
+function arrayOfStrings(value) {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
 }
 
-function addCapability(capabilitiesById, capability) {
-  if (!capability?.id) {
-    return;
-  }
-  capabilitiesById.set(capability.id, capability);
+function unique(values) {
+  return [...new Set(values)];
 }

@@ -1,10 +1,7 @@
 import { createInterface } from "node:readline";
 import { resolve } from "node:path";
-import { readFile } from "node:fs/promises";
 import { JsonRpcStdioClient } from "../src/json-rpc-stdio-client.mjs";
 import { AsyncEventQueue } from "../src/async-event-queue.mjs";
-
-const RUNTIME_SCHEMA_URL = new URL("../schemas/runtime-result.schema.json", import.meta.url);
 
 export function createCodexAppServerAdapter(adapterOptions = {}) {
   return {
@@ -61,16 +58,18 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           ? attachStdinControls({ client, queue, state })
           : null;
 
-        const outputSchema = effectiveOptions.outputSchema || JSON.parse(await readFile(RUNTIME_SCHEMA_URL, "utf8"));
-        const turnStartResult = await client.request("turn/start", {
+        const turnStartParams = {
           threadId: state.threadId,
           cwd: projectRoot,
           approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
           approvalsReviewer: "user",
           model: effectiveOptions.model || null,
-          input: [{ type: "text", text: prompt }],
-          outputSchema
-        });
+          input: [{ type: "text", text: prompt }]
+        };
+        if (effectiveOptions.outputSchema) {
+          turnStartParams.outputSchema = effectiveOptions.outputSchema;
+        }
+        const turnStartResult = await client.request("turn/start", turnStartParams);
         state.turnId = readId(turnStartResult?.turn);
         if (!state.turnId) {
           throw new Error("turn/start did not return a turn id.");
@@ -502,7 +501,18 @@ function createInvalidControllerPlan(summary) {
     status: "blocked",
     summary,
     route_plan: {
-      mode: "route_review",
+      mode: "agent_selected_route",
+      selected_gap: {
+        id: "",
+        dimension: "",
+        current_state: "",
+        target_state: "",
+        urgency: "",
+        risk: "",
+        impact: "",
+        next_transition: ""
+      },
+      selected_worker_types: [],
       selected_roles: [],
       reason: summary,
       requires_human_confirmation: false
@@ -518,7 +528,8 @@ function createInvalidWorkerReport(summary) {
   return {
     schema_version: "arckit-worker-report/v1",
     task_id: "",
-    role: "implementation_worker",
+    worker_type: "implementation",
+    role: "agent_defined_worker",
     status: "invalid",
     summary,
     findings: [],

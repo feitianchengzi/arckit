@@ -1,33 +1,40 @@
-const URGENCY_RANK = {
-  critical: 4,
-  high: 3,
-  medium: 2,
-  low: 1
-};
-
 export function selectNextRound(snapshot, options = {}) {
   const gaps = Array.isArray(snapshot.projectState.state_gaps)
     ? snapshot.projectState.state_gaps
     : [];
-  const selectedGap = [...gaps].sort(compareGapPriority)[0] || null;
   const loopControl = snapshot.projectState.loop_control || {};
-  const dimension = selectedGap?.dimension || "unknown";
-  const dimensionState = snapshot.projectState.completeness_dimensions?.[dimension] || {};
-
-  const roundGoal = selectedGap?.next_transition
-    || dimensionState.next_transition
+  const roundGoal = options.task
     || loopControl.next_transition
-    || "Inspect project state and produce a safe next-round handoff.";
+    || "Analyze the operator task, project state, candidate gaps, and evidence; then choose the route and next loop handoff.";
+
+  const candidateGaps = gaps.map((gap) => ({
+    id: gap.id || "",
+    dimension: gap.dimension || "",
+    current_state: gap.current_state || "unknown",
+    target_state: gap.target_state || "unknown",
+    urgency: gap.urgency || "low",
+    risk: gap.risk || "low",
+    impact: gap.impact || "",
+    next_transition: gap.next_transition || "",
+    dependencies: Array.isArray(gap.dependencies) ? gap.dependencies : []
+  }));
 
   return {
-    gap_id: selectedGap?.id || "NO-GAP",
-    dimension,
-    urgency: selectedGap?.urgency || "low",
-    risk: selectedGap?.risk || "low",
-    current_state: selectedGap?.current_state || dimensionState.current_state || "unknown",
-    target_state: selectedGap?.target_state || dimensionState.target_state || "unknown",
-    impact: selectedGap?.impact || dimensionState.gap || "",
+    gap_id: "AGENT-SELECTED",
+    dimension: "agent_selected",
+    urgency: "medium",
+    risk: "medium",
+    current_state: "unknown",
+    target_state: "defined",
+    impact: "Runtime did not preselect a project gap. The agent must choose the concrete workflow target from the operator task, project state, candidate gaps, and evidence.",
     round_goal: roundGoal,
+    candidate_gaps: candidateGaps,
+    loop_control: {
+      current_loop_focus: loopControl.current_loop_focus || "",
+      next_transition: loopControl.next_transition || "",
+      priority_basis: loopControl.priority_basis || "",
+      stop_condition: loopControl.stop_condition || ""
+    },
     conversation_locale: options.conversationLocale || "en",
     required_outputs: [
       "artifact_impact_scan",
@@ -46,21 +53,13 @@ export function selectNextRound(snapshot, options = {}) {
       snapshot.paths.techIndex
     ]),
     stop_conditions: [
-      "Stop if source facts are unknown and the requested change would only update a projection.",
+      "Stop if the route, evidence, risks, unknowns, or next loop handoff are not explicit.",
       "Stop if human_decision_required is true.",
-      "Stop if validation cannot prove progress against the selected state gap.",
+      "Stop if validation cannot prove progress against the agent-selected route or declared state change.",
       "Stop if the turn would require destructive or cross-workspace actions."
     ],
     max_rounds: options.maxRounds || 1
   };
-}
-
-function compareGapPriority(left, right) {
-  const urgencyDelta = (URGENCY_RANK[right.urgency] || 0) - (URGENCY_RANK[left.urgency] || 0);
-  if (urgencyDelta !== 0) {
-    return urgencyDelta;
-  }
-  return (URGENCY_RANK[right.risk] || 0) - (URGENCY_RANK[left.risk] || 0);
 }
 
 function compact(values) {

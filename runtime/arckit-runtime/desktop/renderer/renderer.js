@@ -34,10 +34,8 @@ const els = {
   selectedProjectName: document.getElementById("selectedProjectName"),
   selectedSessionTitle: document.getElementById("selectedSessionTitle"),
   selectedProjectPath: document.getElementById("selectedProjectPath"),
-  projectStateBadge: document.getElementById("projectStateBadge"),
   activeRunBadge: document.getElementById("activeRunBadge"),
   settingsButton: document.getElementById("settingsButton"),
-  projectNarrative: document.getElementById("projectNarrative"),
   inspectorTabs: Array.from(document.querySelectorAll("[data-inspector-tab]")),
   inspectorPanels: Array.from(document.querySelectorAll("[data-inspector-panel]")),
   settingsOverlay: document.getElementById("settingsOverlay"),
@@ -361,7 +359,6 @@ function render() {
   renderSessions();
   renderRuns();
   renderSelectedProject();
-  renderProjectNarrative();
   renderMessages();
   renderActiveRun();
   renderProjectStatus();
@@ -465,69 +462,13 @@ function renderSelectedProject() {
     els.selectedProjectName.textContent = "No project selected";
     els.selectedSessionTitle.textContent = "No chat";
     els.selectedProjectPath.textContent = "Select a project.";
-    els.projectStateBadge.textContent = "No state";
-    els.projectStateBadge.className = "badge";
     els.sendButton.disabled = true;
     return;
   }
   els.selectedProjectName.textContent = project.name;
   els.selectedSessionTitle.textContent = selectedSession()?.title || "No chat";
   els.selectedProjectPath.textContent = project.path;
-  els.projectStateBadge.textContent = project.has_arckit_state ? "Arckit state" : "Missing state";
-  els.projectStateBadge.className = project.has_arckit_state ? "badge ok" : "badge warning";
   els.sendButton.disabled = false;
-}
-
-function renderProjectNarrative() {
-  const project = selectedProject();
-  const status = state.projectStatus;
-  if (!project) {
-    els.projectNarrative.innerHTML = `<div class="empty compact-empty">Select a project to see how Project State advances through Case and Loop.</div>`;
-    return;
-  }
-  if (!status || !status.has_arckit_state) {
-    els.projectNarrative.innerHTML = `
-      <div class="state-story">
-        ${renderStoryStep("Project State", "Not initialized", "First message creates the project ledger.", "pending")}
-        ${renderStoryArrow()}
-        ${renderStoryStep("Case", "No active case", "Initial discovery case will be created.", "pending")}
-        ${renderStoryArrow()}
-        ${renderStoryStep("Loop", "Waiting", "Controller round starts from your next message.", "pending")}
-      </div>
-    `;
-    return;
-  }
-
-  const loop = status.loop_control || {};
-  const gap = status.top_gap || {};
-  const controlState = deriveRuntimeControlState();
-  const activeCase = (status.active_cases || [])[0] || "No active case";
-  const projectLabel = [status.summary?.phase, status.summary?.status].filter(Boolean).join(" · ") || "State loaded";
-  const caseLabel = activeCase.replace(/^arckit\/cases\/active\//, "").replace(/\.md$/, "");
-  const loopLabel = controlState.primary_label || loop.next_transition || controlState.state || "Observe";
-  els.projectNarrative.innerHTML = `
-    <div class="state-story">
-      ${renderStoryStep("Project State", projectLabel, loop.current_loop_focus || loop.next_transition || "Canonical project state is the source of truth.", "complete")}
-      ${renderStoryArrow()}
-      ${renderStoryStep("Case", caseLabel, gap.dimension || "Active case carries the current state gap.", activeCase === "No active case" ? "pending" : "complete")}
-      ${renderStoryArrow()}
-      ${renderStoryStep("Loop", loopLabel, controlState.reason || gap.next_transition || "Runtime decides the next recoverable action.", controlState.state === "running" ? "running" : "")}
-    </div>
-  `;
-}
-
-function renderStoryStep(title, value, detail, status = "") {
-  return `
-    <div class="story-step ${escapeHtml(status)}">
-      <div class="story-kicker">${escapeHtml(title)}</div>
-      <div class="story-value">${escapeHtml(value || "-")}</div>
-      <div class="story-detail">${escapeHtml(detail || "")}</div>
-    </div>
-  `;
-}
-
-function renderStoryArrow() {
-  return `<div class="story-arrow" aria-hidden="true">→</div>`;
 }
 
 function renderMessages() {
@@ -551,7 +492,7 @@ function renderMessages() {
     ...state.messages.map((message) => `
     <article class="message ${escapeHtml(message.role)}">
       <div class="message-meta">
-        <span>${escapeHtml(message.role)}${message.kind ? ` · ${escapeHtml(message.kind)}` : ""}</span>
+        <span>${escapeHtml(messageDisplayRole(message))}${message.kind ? ` · ${escapeHtml(message.kind)}` : ""}</span>
         <span>${escapeHtml(shortTime(message.created_at))}</span>
       </div>
       <div class="message-content">${escapeHtml(message.content)}</div>
@@ -560,6 +501,19 @@ function renderMessages() {
     renderLiveRunCard()
   ].filter(Boolean).join("");
   restoreMessageScroll({ shouldStick, previousScrollTop });
+}
+
+function messageDisplayRole(message) {
+  if (message.role === "assistant") {
+    return "Main agent";
+  }
+  if (message.role === "user") {
+    return "You";
+  }
+  if (message.role === "system") {
+    return "Runtime";
+  }
+  return message.role || "Message";
 }
 
 function isMessageListAtBottom() {
@@ -604,12 +558,13 @@ function renderActiveRun() {
   els.continueButton.textContent = isOperatorEventAction(controlState.primary_action)
     ? controlState.primary_label
     : "Continue";
+  els.sendButton.title = controlActionTooltip(controlState, hasDraftInput);
+  els.continueButton.title = controlActionTooltip(controlState, false);
   els.continueButton.disabled = active || !isOperatorEventAction(controlState.primary_action);
   els.authorizePacketButton.disabled = controlState.primary_action !== "run_packet";
   els.gateButton.disabled = !run || active || !["ledger_gate_ready", "ledger_writeback_ready", "ledger_writeback_blocked"].includes(controlState.state);
   els.writeDryRunButton.disabled = !run || active || controlState.primary_action !== "write_ledger";
   els.writeLedgerButton.disabled = !run || active || controlState.primary_action !== "write_ledger";
-  renderProjectNarrative();
 }
 
 function renderSettingsForm() {
@@ -621,46 +576,56 @@ function renderSettingsForm() {
 
 function renderProjectStatus() {
   const status = state.projectStatus;
+  const project = selectedProject();
+  const session = selectedSession();
+  const run = currentRun();
+  const controlState = deriveRuntimeControlState();
   if (!status || !status.has_arckit_state) {
-    els.loopState.innerHTML = `<div class="empty">Arckit state will be initialized on first message</div>`;
-    els.stateGaps.innerHTML = `<div class="empty">Initial discovery gap will be created automatically</div>`;
+    els.loopState.innerHTML = [
+      stateLine("Project", project?.name || "No project"),
+      stateLine("Chat", session?.title || "No chat"),
+      stateLine("Run", run ? `${run.status || "-"} · ${run.adapter || ""}` : "Idle"),
+      stateLine("Control", controlState.state || "No context")
+    ].join("");
+    els.stateGaps.innerHTML = `<div class="empty">First message will initialize a neutral recoverable state. The agent chooses the concrete route from the request and evidence.</div>`;
     return;
   }
   const loop = status.loop_control || {};
   const gap = status.top_gap || {};
   els.loopState.innerHTML = [
-    stateLine("Project", [status.summary?.phase, status.summary?.status].filter(Boolean).join(" · ") || status.summary?.name || ""),
-    stateLine("Case", (status.active_cases || [])[0] || ""),
-    stateLine("Loop", loop.current_loop_focus || loop.next_transition || ""),
-    stateLine("Owner", loop.next_responsibility || ""),
-    stateLine("Trigger", loop.trigger_mode || ""),
-    stateLine("Gap", gap.id || "")
+    stateLine("Project", project?.name || status.summary?.name || ""),
+    stateLine("Chat", session?.title || "No chat"),
+    stateLine("Run", run ? `${run.status || "-"} · ${run.adapter || ""}` : "Idle"),
+    stateLine("Control", `${controlState.state || "-"}${controlState.primary_label ? ` · ${controlState.primary_label}` : ""}`),
+    stateLine("Next", latestNextPrompt() || loop.next_transition || gap.next_transition || "Waiting for input")
   ].join("");
 
-  const dimensionItems = status.dimensions.map((dimension) => `
+  const signals = [];
+  if (gap.id || gap.next_transition || gap.impact) {
+    signals.push(`
+      <div class="state-item top-gap-item">
+        <div class="state-title">${escapeHtml(gap.id || "Current state signal")}</div>
+        <div class="state-meta">${escapeHtml([gap.current_state, gap.target_state].filter(Boolean).join(" -> "))}${gap.urgency ? ` · ${escapeHtml(gap.urgency)}` : ""}</div>
+        <div class="state-meta">${escapeHtml(gap.next_transition || gap.impact || "")}</div>
+      </div>
+    `);
+  }
+  signals.push(...status.dimensions.slice(0, 5).map((dimension) => `
     <div class="state-item">
       <div class="state-title">${escapeHtml(dimension.name)}</div>
       <div class="state-meta">${escapeHtml(dimension.current_state)} -> ${escapeHtml(dimension.target_state)} · ${escapeHtml(dimension.priority)}</div>
       <div class="state-meta">${escapeHtml(dimension.next_transition || dimension.gap || "")}</div>
     </div>
-  `);
-  if (status.top_gap) {
-    dimensionItems.unshift(`
-      <div class="state-item top-gap-item">
-        <div class="state-title">${escapeHtml(status.top_gap.id)}</div>
-        <div class="state-meta">${escapeHtml(status.top_gap.current_state)} -> ${escapeHtml(status.top_gap.target_state)} · ${escapeHtml(status.top_gap.urgency)}</div>
-        <div class="state-meta">${escapeHtml(status.top_gap.next_transition || status.top_gap.impact || "")}</div>
-      </div>
-    `);
-  }
-  els.stateGaps.innerHTML = dimensionItems.length > 0 ? dimensionItems.join("") : `<div class="empty">No priority gaps</div>`;
+  `));
+  els.stateGaps.innerHTML = signals.length > 0 ? signals.join("") : `<div class="empty">No project signals yet. Use the chat to start or continue the turn.</div>`;
 }
 
 function renderEvents() {
   const run = currentRun();
   const rawEvents = normalizedActivity(run)?.raw_events || [];
+  const evidence = renderArtifactPaths(normalizedActivity(run));
   if (rawEvents.length === 0 && state.events.length === 0) {
-    els.eventList.innerHTML = `<div class="empty">No events</div>`;
+    els.eventList.innerHTML = [evidence, `<div class="empty">No events</div>`].filter(Boolean).join("");
     return;
   }
   const items = rawEvents.length > 0
@@ -678,7 +643,7 @@ function renderEvents() {
       <div>${escapeHtml(formatPayload(event))}</div>
     </div>
   `);
-  els.eventList.innerHTML = items.join("");
+  els.eventList.innerHTML = [evidence, items.join("")].filter(Boolean).join("");
 }
 
 function stateLine(label, value) {
@@ -701,84 +666,6 @@ function renderLiveRunCard() {
   }
   const idle = idleSeconds(activity);
   const stale = run.status === "running" && idle >= 30;
-  const entryCapability = activity.entry_capability || run.entry_capability || "using-arckit";
-  const operator = activity.operator || run.operator || "desktop";
-  const plan = Array.isArray(activity.plan) && activity.plan.length > 0
-    ? `<div class="run-card-section">
-        <div class="run-card-label">Plan</div>
-        <div class="plan-list">${activity.plan.map((item) => `
-          <div class="plan-item">
-            <span class="plan-status">${escapeHtml(item.status || "-")}</span>
-            <span>${escapeHtml(item.text || "")}</span>
-          </div>
-        `).join("")}</div>
-      </div>`
-    : "";
-  const reasoning = activity.reasoning_text
-    ? `<div class="run-card-section">
-        <div class="run-card-label">Thinking Summary</div>
-        <pre class="run-output thinking">${escapeHtml(tail(activity.reasoning_text, 1800))}</pre>
-      </div>`
-    : "";
-  const execution = Array.isArray(activity.execution_events) && activity.execution_events.length > 0
-    ? `<div class="run-card-section">
-        <div class="run-card-label">Execution Details</div>
-        <div class="execution-list">${activity.execution_events.slice(-12).map((item) => `
-          <div class="execution-item ${escapeHtml(item.status || "")}">
-            <div class="execution-title">
-              <span>${escapeHtml(item.title || item.type || "Event")}</span>
-              <span>${escapeHtml(item.status || "")}</span>
-            </div>
-            ${item.detail ? `<div class="execution-detail">${escapeHtml(item.detail)}</div>` : ""}
-          </div>
-        `).join("")}</div>
-      </div>`
-    : "";
-  const agents = Array.isArray(activity.agents) && activity.agents.length > 0
-    ? `<div class="run-card-section">
-        <div class="run-card-label">Worker Loop</div>
-        <div class="agent-grid">${activity.agents.map((agent) => `
-          <div class="agent-tile ${escapeHtml(agent.status || "")}">
-            <div class="agent-tile-head">
-              <span>${escapeHtml(agent.role || agent.task_id || "agent")}</span>
-              <span>${escapeHtml(agent.status || "waiting")}</span>
-            </div>
-            <div class="worker-task">${escapeHtml(agent.current_step || agent.summary || agent.objective || "")}</div>
-            ${renderAgentReportSnapshot(agent)}
-            ${agent.latest_detail ? `<div class="agent-stream-line">${escapeHtml(agent.latest_detail)}</div>` : ""}
-            ${agent.reasoning_text ? `<pre class="agent-stream thinking">${escapeHtml(tail(agent.reasoning_text, 700))}</pre>` : ""}
-            ${renderAgentText(agent.agent_text, agent.report)}
-            ${agent.command_output ? `<pre class="agent-stream command">${escapeHtml(tail(agent.command_output, 700))}</pre>` : ""}
-          </div>
-        `).join("")}</div>
-      </div>`
-    : "";
-  const controller = renderControllerPacket(activity);
-  const reports = Array.isArray(activity.reports) && activity.reports.length > 0
-    ? `<div class="run-card-section">
-        <div class="run-card-label">Worker Reports</div>
-        <div class="report-list">${activity.reports.map((report) => `
-          <div class="report-item ${escapeHtml(report.status || "")}">
-            <div class="report-head">
-              <span>${escapeHtml(report.role || report.task_id || "")}</span>
-              <span>${escapeHtml(report.status || "")}</span>
-            </div>
-            <div class="report-summary">${escapeHtml(report.summary || "")}</div>
-            ${renderReportDetails(report)}
-          </div>
-        `).join("")}</div>
-      </div>`
-    : "";
-  const merge = activity.merge_result
-    ? `<div class="run-card-section">
-        <div class="run-card-label">Merge Gate</div>
-        <div class="merge-box">
-          <div><strong>${escapeHtml(activity.merge_result.decision || "unknown")}</strong> · ${escapeHtml(activity.merge_result.loop_gate?.status || "")}</div>
-          <div>${escapeHtml(activity.merge_result.loop_gate?.reason || "")}</div>
-          ${activity.merge_result.next_prompt ? `<div class="merge-next">${escapeHtml(activity.merge_result.next_prompt)}</div>` : ""}
-        </div>
-      </div>`
-    : "";
   const errors = Array.isArray(activity.errors) && activity.errors.length > 0
     ? `<div class="run-card-section">
         <div class="run-card-label">Errors / Retries</div>
@@ -793,25 +680,12 @@ function renderLiveRunCard() {
         `).join("")}</div>
       </div>`
     : "";
-  const agentText = activity.agent_text
-    ? renderCodexOutputSection(activity.agent_text, activity.reports || [])
-    : "";
-  const commandOutput = activity.command_output
-    ? `<div class="run-card-section">
-        <div class="run-card-label">Command Output</div>
-        <pre class="run-output command">${escapeHtml(tail(activity.command_output, 1600))}</pre>
-      </div>`
-    : "";
   return `
     <article class="run-card ${run.status === "running" ? "live" : ""}">
       <div class="run-card-header">
         <div>
-          <div class="run-card-title">${escapeHtml(activity.phase_label || run.status || "Run")}</div>
-          <div class="run-card-meta">${escapeHtml(run.id)} · ${escapeHtml(run.adapter || "")}</div>
-          <div class="entry-chip-row">
-            <span class="entry-chip">${escapeHtml(entryCapability)}</span>
-            <span class="entry-chip muted">${escapeHtml(operator)} operator</span>
-          </div>
+          <div class="run-card-title">Main agent is working</div>
+          <div class="run-card-meta">${escapeHtml(activity.phase_label || run.status || "Run")} · ${escapeHtml(run.adapter || "")}</div>
         </div>
         <span class="badge ${run.status === "running" ? "warning" : run.status === "completed" ? "ok" : ["failed", "aborted"].includes(run.status) ? "danger" : ""}">
           ${escapeHtml(run.status)}
@@ -824,39 +698,126 @@ function renderLiveRunCard() {
         <span>${activity.controls?.steer ? "Steer available" : "Steer unavailable"}</span>
       </div>
       ${stale ? `<div class="run-warning">No runtime events for ${idle}s. You can steer with the chat box or stop the run.</div>` : ""}
-      ${renderLiveRunCompactDetails(activity)}
+      ${renderMainAgentPanel(activity)}
+      ${renderWorkerStatusPanel(activity)}
+      ${renderMergePanel(activity)}
       ${errors}
     </article>
   `;
 }
 
-function renderLiveRunCompactDetails(activity) {
+function renderMainAgentPanel(activity) {
+  const output = activity.agent_text
+    ? renderCodexOutputSection(activity.agent_text, activity.reports || [])
+    : "";
+  const thinking = activity.reasoning_text
+    ? `<details class="agent-disclosure">
+        <summary>Reasoning summary</summary>
+        <pre class="run-output thinking">${escapeHtml(tail(activity.reasoning_text, 1800))}</pre>
+      </details>`
+    : "";
+  const commandOutput = activity.command_output
+    ? `<details class="agent-disclosure">
+        <summary>Command output</summary>
+        <pre class="run-output command">${escapeHtml(tail(activity.command_output, 1600))}</pre>
+      </details>`
+    : "";
+  if (!output && !thinking && !commandOutput) {
+    return "";
+  }
+  return `
+    <div class="main-agent-panel">
+      <div class="run-card-label">Main agent</div>
+      ${output}
+      ${thinking}
+      ${commandOutput}
+    </div>
+  `;
+}
+
+function renderWorkerStatusPanel(activity) {
   const workers = Array.isArray(activity.agents) ? activity.agents : [];
   const reports = Array.isArray(activity.reports) ? activity.reports : [];
   const packets = Array.isArray(activity.worker_packets) ? activity.worker_packets : [];
-  const merge = activity.merge_result || null;
-  const workerSummary = workers.length
-    ? workers.map((agent) => `${agent.role || agent.task_id}:${agent.status || "waiting"}`).slice(0, 5).join(" · ")
-    : packets.length
-      ? `${packets.length} packet${packets.length === 1 ? "" : "s"} ready`
-      : "No worker activity yet";
-  return `
-    <div class="run-card-section compact-run-details">
-      <div class="compact-run-grid">
-        <div>
-          <div class="run-card-label">Worker Loop</div>
-          <div class="compact-run-value">${escapeHtml(workerSummary)}</div>
-        </div>
-        <div>
-          <div class="run-card-label">Reports</div>
-          <div class="compact-run-value">${escapeHtml(String(reports.length))}</div>
-        </div>
-        <div>
-          <div class="run-card-label">Merge</div>
-          <div class="compact-run-value">${escapeHtml(merge?.loop_gate?.status || merge?.decision || "pending")}</div>
-        </div>
+  const cards = workers.length
+    ? workers.map((agent) => renderWorkerCard(agent)).join("")
+    : packets.map((packet) => renderPendingWorkerPacket(packet)).join("");
+  const reportCards = reports
+    .filter((report) => !workers.some((agent) => agent.task_id && agent.task_id === report.task_id))
+    .map((report) => renderStructuredReportCard(report))
+    .join("");
+  if (!cards && !reportCards) {
+    return `
+      <div class="run-card-section compact-run-details">
+        <div class="run-card-label">Workers</div>
+        <div class="compact-run-reason">No worker activity yet. The main agent is still planning or running directly.</div>
       </div>
-      ${merge?.loop_gate?.reason ? `<div class="compact-run-reason">${escapeHtml(merge.loop_gate.reason)}</div>` : ""}
+    `;
+  }
+  return `
+    <div class="run-card-section">
+      <div class="worker-section-head">
+        <div class="run-card-label">Workers</div>
+        <div class="run-card-meta">${escapeHtml(String(workers.length || packets.length))} active · ${escapeHtml(String(reports.length))} reports</div>
+      </div>
+      <div class="agent-grid">${cards}${reportCards}</div>
+    </div>
+  `;
+}
+
+function renderWorkerCard(agent) {
+  return `
+    <div class="agent-tile ${escapeHtml(agent.status || "")}">
+      <div class="agent-tile-head">
+        <span>${escapeHtml(workerDisplayName(agent))}</span>
+        <span>${escapeHtml(agent.status || "waiting")}</span>
+      </div>
+      <div class="worker-task">${escapeHtml(agent.current_step || agent.summary || agent.objective || "")}</div>
+      ${renderAgentReportSnapshot(agent)}
+      ${agent.latest_detail ? `<div class="agent-stream-line">${escapeHtml(agent.latest_detail)}</div>` : ""}
+      ${agent.reasoning_text ? `<details class="agent-disclosure compact"><summary>Reasoning</summary><pre class="agent-stream thinking">${escapeHtml(tail(agent.reasoning_text, 700))}</pre></details>` : ""}
+      ${renderAgentText(agent.agent_text, agent.report)}
+      ${agent.command_output ? `<details class="agent-disclosure compact"><summary>Command</summary><pre class="agent-stream command">${escapeHtml(tail(agent.command_output, 700))}</pre></details>` : ""}
+    </div>
+  `;
+}
+
+function renderPendingWorkerPacket(packet) {
+  return `
+    <div class="agent-tile pending">
+      <div class="agent-tile-head">
+        <span>${escapeHtml(workerDisplayName(packet))}</span>
+        <span>ready</span>
+      </div>
+      <div class="worker-task">${escapeHtml(packet.task || "")}</div>
+      ${Array.isArray(packet.context_refs) && packet.context_refs.length
+        ? `<div class="agent-stream-line">${escapeHtml(packet.context_refs.slice(0, 4).join(" · "))}</div>`
+        : ""}
+    </div>
+  `;
+}
+
+function workerDisplayName(worker) {
+  const workerType = worker?.worker_type || "";
+  const role = worker?.role || worker?.task_id || worker?.worker_id || "";
+  if (workerType && role && workerType !== role) {
+    return `${workerType} · ${role}`;
+  }
+  return role || workerType || "worker";
+}
+
+function renderMergePanel(activity) {
+  if (!activity.merge_result) {
+    return "";
+  }
+  return `
+    <div class="run-card-section">
+      <div class="run-card-label">Main agent merge</div>
+      <div class="merge-box">
+        <div><strong>${escapeHtml(activity.merge_result.decision || "unknown")}</strong> · ${escapeHtml(activity.merge_result.loop_gate?.status || "")}</div>
+        <div>${escapeHtml(activity.merge_result.loop_gate?.reason || "")}</div>
+        ${activity.merge_result.next_prompt ? `<div class="merge-next">${escapeHtml(activity.merge_result.next_prompt)}</div>` : ""}
+      </div>
     </div>
   `;
 }
@@ -873,7 +834,7 @@ function renderCodexOutputSection(text, reports = []) {
       </div>`;
   }
   return `<div class="run-card-section">
-        <div class="run-card-label">Codex Output</div>
+        <div class="run-card-label">Message</div>
         <pre class="run-output">${escapeHtml(tail(text, 1800))}</pre>
       </div>`;
 }
@@ -912,7 +873,7 @@ function renderStructuredReportCard(report) {
   return `
     <div class="report-item ${escapeHtml(report.status || "")}">
       <div class="report-head">
-        <span>${escapeHtml(report.role || report.task_id || "worker")}</span>
+        <span>${escapeHtml(workerDisplayName(report))}</span>
         <span>${escapeHtml(report.status || "")}</span>
       </div>
       <div class="report-summary">${escapeHtml(report.summary || "")}</div>
@@ -987,9 +948,9 @@ function renderFocusActionSummary(run, activity, controlState) {
   const reason = controlState.reason || loopGate.reason || activity?.current_step || "";
   const detailRows = [
     ["Run", `${run.status || "-"}${run.round_result ? ` · ${run.round_result}` : ""}`],
-    ["Loop", `${activity?.round_state || loopGate.status || "-"}${ledgerStage.status ? ` · ${ledgerStage.status}` : ""}`],
+    ["Round", `${activity?.round_state || loopGate.status || "-"}${ledgerStage.status ? ` · ${ledgerStage.status}` : ""}`],
     ["Reports", `${reports.length} returned${Array.isArray(reportIntake.missing) && reportIntake.missing.length ? ` · ${reportIntake.missing.length} missing` : ""}`],
-    ["Workers", workers.length ? workers.map((agent) => `${agent.role || agent.task_id}:${agent.status || "waiting"}`).slice(0, 3).join(" · ") : "No worker activity yet"]
+    ["Workers", workers.length ? workers.map((agent) => `${workerDisplayName(agent)}:${agent.status || "waiting"}`).slice(0, 3).join(" · ") : "No worker activity yet"]
   ];
   return `
     <div class="focus-summary ${escapeHtml(controlState.state)}">
@@ -1014,8 +975,6 @@ function renderRunInspector(run, activity) {
   if (!activity) {
     return escapeHtml(`${run.id}\n${run.adapter}${run.round_result ? ` · ${run.round_result}` : ""}`);
   }
-  const entryCapability = activity.entry_capability || run.entry_capability || "using-arckit";
-  const operator = activity.operator || run.operator || "desktop";
   const timeline = (activity.timeline || []).slice(-8).reverse().map((item) => `
     <div class="timeline-item">
       <div class="timeline-dot"></div>
@@ -1027,7 +986,7 @@ function renderRunInspector(run, activity) {
   `).join("");
   const agents = (activity.agents || []).map((agent) => `
     <div class="mini-agent ${escapeHtml(agent.status || "")}">
-      <span>${escapeHtml(agent.role || agent.task_id || "")}</span>
+      <span>${escapeHtml(workerDisplayName(agent))}</span>
       <strong>${escapeHtml(agent.status || "waiting")}</strong>
     </div>
   `).join("");
@@ -1040,11 +999,8 @@ function renderRunInspector(run, activity) {
   return `
     <div class="active-run-panel">
       <div class="active-run-id">${escapeHtml(run.id)}</div>
-      <div class="entry-chip-row compact">
-        <span class="entry-chip">${escapeHtml(entryCapability)}</span>
-        <span class="entry-chip muted">${escapeHtml(operator)} operator</span>
-      </div>
-      <div class="active-run-phase">${escapeHtml(activity.phase_label || run.status)} · ${escapeHtml(activity.current_step || "")}</div>
+      <div class="active-run-phase">${escapeHtml(activity.phase_label || run.status)} · ${escapeHtml(run.adapter || "")}</div>
+      <div class="active-run-excerpt"><strong>Now</strong><span>${escapeHtml(activity.current_step || "")}</span></div>
       <div class="active-run-excerpt"><strong>Control</strong><span>${escapeHtml(controlState.state)}${controlState.primary_label ? ` · ${escapeHtml(controlState.primary_label)}` : ""}</span></div>
       <div class="active-run-excerpt"><strong>Round</strong><span>${escapeHtml(activity.round_state || "-")}${activity.ledger_stage?.status ? ` · ${escapeHtml(activity.ledger_stage.status)}` : ""}</span></div>
       <div class="active-run-excerpt"><strong>Gate</strong><span>${escapeHtml(gate.status || "-")} · ${escapeHtml(binding.executor || "no executor")}</span></div>
@@ -1052,10 +1008,8 @@ function renderRunInspector(run, activity) {
       ${ledgerWrite ? `<div class="active-run-excerpt"><strong>Ledger</strong><span>${ledgerWrite.written ? "written" : "not written"}${Array.isArray(ledgerWrite.changed_files) && ledgerWrite.changed_files.length ? ` · ${escapeHtml(ledgerWrite.changed_files.length)} files` : ""}</span></div>` : ""}
       <div class="active-run-meta">Elapsed ${escapeHtml(durationSince(activity.started_at || run.started_at))} · Last event ${escapeHtml(formatIdle(idle))}</div>
       ${run.status === "running" && idle >= 30 ? `<div class="run-warning compact">No events for ${idle}s</div>` : ""}
-      ${agents ? `<div class="mini-agent-list">${agents}</div>` : ""}
+      ${agents ? `<div class="mini-agent-list">${agents}</div>` : `<div class="empty compact-empty">No worker activity yet</div>`}
       ${activity.merge_result ? `<div class="active-run-excerpt"><strong>Merge</strong><span>${escapeHtml(activity.merge_result.loop_gate?.reason || activity.merge_result.decision || "")}</span></div>` : ""}
-      ${activity.reasoning_text ? `<div class="active-run-excerpt"><strong>Thinking</strong><span>${escapeHtml(tail(activity.reasoning_text, 280))}</span></div>` : ""}
-      ${activity.agent_text ? `<div class="active-run-excerpt"><strong>Agent</strong><span>${escapeHtml(tail(activity.agent_text, 280))}</span></div>` : ""}
       <div class="timeline-list">${timeline || `<div class="empty compact-empty">No timeline yet</div>`}</div>
     </div>
   `;
@@ -1127,7 +1081,7 @@ function normalizedActivity(run) {
     loop_handoff: null,
     errors: [],
     plan: [],
-    entry_capability: run.entry_capability || "using-arckit",
+    entry_capability: run.entry_capability || "runtime",
     operator: run.operator || "desktop"
   };
 }
@@ -1143,7 +1097,7 @@ function renderControllerPacket(activity) {
   const packetRows = packets.slice(0, 8).map((packet) => `
     <div class="worker-packet">
       <div class="worker-packet-head">
-        <span>${escapeHtml(packet.role || packet.worker_id || "")}</span>
+        <span>${escapeHtml(workerDisplayName(packet))}</span>
         <span>${escapeHtml(packet.worker_id || "")}</span>
       </div>
       <div class="worker-packet-task">${escapeHtml(packet.task || "")}</div>
@@ -1173,7 +1127,7 @@ function renderControllerPacket(activity) {
 }
 
 function renderArtifactPaths(activity) {
-  const paths = activity.artifact_paths || {};
+  const paths = activity?.artifact_paths || {};
   const rows = [
     ["Raw JSONL", paths.raw_events_file],
     ["Normalized", paths.events_file],
@@ -1275,6 +1229,8 @@ function deriveRuntimeControlState() {
 
 function isOperatorEventAction(action) {
   return [
+    "auto_continue",
+    "continue_next_round",
     "respond_to_gate",
     "resume",
     "resume_with_update",
@@ -1284,6 +1240,34 @@ function isOperatorEventAction(action) {
     "start_next_round",
     "review_reports"
   ].includes(action);
+}
+
+function controlActionTooltip(controlState, hasDraftInput) {
+  if (hasDraftInput) {
+    return "Send your message to the Controller as additional context for the next runtime turn.";
+  }
+  switch (controlState.primary_action) {
+    case "auto_continue":
+      return "The loop handoff allows automatic agent continuation. Click to start the next round now.";
+    case "continue_next_round":
+      return "Start the next runtime round using the current loop handoff and worker reports.";
+    case "resolve_blocker":
+      return "A hard blocker remains. Start a recovery round with the blocker evidence attached.";
+    case "respond_to_gate":
+      return "A human decision is required before the loop can continue.";
+    case "write_ledger":
+      return "Write validated runtime progress into the project ledger.";
+    case "run_packet":
+      return "Authorize and execute the previewed worker packet.";
+    case "review_reports":
+      return "Resume Controller review for worker reports that need attention.";
+    case "resume_with_update":
+      return "Resume the loop with external or corrected context.";
+    case "diagnose":
+      return "Start a diagnostic round for the failed or invalid runtime result.";
+    default:
+      return "";
+  }
 }
 
 async function handleRuntimePrimaryAction(controlState) {

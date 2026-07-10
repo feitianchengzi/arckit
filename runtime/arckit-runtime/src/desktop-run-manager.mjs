@@ -26,6 +26,7 @@ import {
   summarizeRuntimeResult,
   updateRunActivity
 } from "./projection/run-event-projector.mjs";
+import { buildControllerOperatorTask, buildDesktopOperatorEvent } from "./kernel/operator-event.mjs";
 
 export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = process.env.ARCKIT_NODE_BIN || "node" }) {
   const emitter = new EventEmitter();
@@ -311,11 +312,13 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
       project_path: project.path,
       task: input.task || sourceRun?.task || "",
       authorized_from_run_id: sourceRun?.id || "",
-      entry_capability: "using-arckit",
+      entry_capability: "runtime",
       operator: "desktop",
       adapter: input.dryRun ? "dry-run" : input.adapter || "codex-app-server",
       codex_proxy_enabled: Boolean(store.settings?.codex_proxy?.enabled),
       codex_proxy_url: store.settings?.codex_proxy?.enabled ? store.settings?.codex_proxy?.url || "" : "",
+      auto_continue_from_run_id: input.autoContinueFromRunId || "",
+      auto_continue_depth: Number(input.autoContinueDepth || 0),
       status: "running",
       started_at: new Date().toISOString(),
       finished_at: "",
@@ -486,6 +489,11 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     if (shouldRunAutomaticLedgerStage(run, status, parsedResult)) {
       await runAutomaticLedgerStage(run);
     }
+    run.status = status;
+    run.finished_at = new Date().toISOString();
+    run.exit_code = exitCode;
+    run.validation_valid = parsedResult?.validation?.valid ?? null;
+    run.round_result = parsedResult?.runtime_result?.round_result || (status === "aborted" ? "aborted" : "");
     await appendJsonLine(run.raw_events_file, {
       at: new Date().toISOString(),
       event: {
@@ -502,11 +510,11 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
       if (index >= 0) {
         store.runs[index] = {
           ...store.runs[index],
-          status,
-          finished_at: new Date().toISOString(),
-          exit_code: exitCode,
-          validation_valid: parsedResult?.validation?.valid ?? null,
-          round_result: parsedResult?.runtime_result?.round_result || (status === "aborted" ? "aborted" : ""),
+          status: run.status,
+          finished_at: run.finished_at,
+          exit_code: run.exit_code,
+          validation_valid: run.validation_valid,
+          round_result: run.round_result,
           activity: run.activity
         };
       }
@@ -520,6 +528,15 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
       session_id: run.session_id
     });
     emit("run.finished", { runId, status, exitCode, result: parsedResult, activity: run.activity });
+    try {
+      await maybeStartAutoContinue(run, parsedResult);
+    } catch (error) {
+      await appendText(run.error_file, `\nAuto-continue failed: ${error?.message || String(error)}\n`);
+      emit("run.auto_continue.failed", {
+        sourceRunId: run.id,
+        message: error?.message || String(error)
+      });
+    }
   }
 
   async function abortActiveRuns({ reason = "Desktop is quitting; active runs were aborted.", graceMs = 750 } = {}) {
@@ -733,6 +750,88 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
         activity: run.activity || null
       });
     }
+  }
+
+  async function maybeStartAutoContinue(sourceRun, parsedResult) {
+    const runtimeResult = parsedResult?.runtime_result || null;
+    const handoff = runtimeResult?.loop_handoff || {};
+    const progressGuard = handoff.progress_guard || {};
+    const currentDepth = Number(sourceRun.auto_continue_depth || 0);
+    const maxAutoRounds = nonNegativeInteger(progressGuard.max_auto_rounds, 0);
+    const noProgressLimit = nonNegativeInteger(progressGuard.no_progress_limit, maxAutoRounds);
+    const autoRoundLimit = Math.min(maxAutoRounds, noProgressLimit);
+    const ledgerWriteRequired = runtimeResult?.ledger_stage?.writeback_required === true;
+    const ledgerWritten = sourceRun.activity?.ledger_write_result?.parsed?.written === true;
+    if (sourceRun.status !== "completed"
+      || sourceRun.adapter === "dry-run"
+      || parsedResult?.validation?.valid === false
+      || (ledgerWriteRequired && !ledgerWritten)
+      || handoff.trigger_mode !== "auto_bridge"
+      || handoff.next_responsibility !== "agent"
+      || handoff.agent_continuation_available !== true
+      || handoff.human_decision_required === true
+      || !handoff.next_prompt
+      || autoRoundLimit <= currentDepth) {
+      return null;
+    }
+    for (const active of activeRuns.values()) {
+      if (active.run.project_id === sourceRun.project_id && active.run.session_id === sourceRun.session_id) {
+        return null;
+      }
+    }
+    const store = await readStore();
+    const project = store.projects.find((item) => item.id === sourceRun.project_id);
+    if (!project) {
+      return null;
+    }
+    const session = getSession(store, project.id, sourceRun.session_id);
+    const projectStatus = await getProjectStatus(project.id);
+    const controlState = {
+      state: "agent_auto_continue_ready",
+      primary_action: "auto_continue",
+      primary_label: "Auto Continue",
+      reason: handoff.responsibility_reason || "Loop handoff allows automatic agent continuation.",
+      run_id: sourceRun.id
+    };
+    const operatorEvent = buildDesktopOperatorEvent({
+      action: "auto_continue",
+      userInput: "",
+      controlState,
+      project,
+      session,
+      run: sourceRun,
+      activity: sourceRun.activity,
+      projectStatus,
+      latestNextPrompt: handoff.next_prompt
+    });
+    const task = buildControllerOperatorTask(operatorEvent);
+    await addMessage(project.id, {
+      role: "user",
+      kind: "auto-continue",
+      content: task,
+      run_id: sourceRun.id,
+      session_id: sourceRun.session_id
+    });
+    const nextRun = await startRun({
+      projectId: project.id,
+      sessionId: sourceRun.session_id,
+      task,
+      adapter: sourceRun.adapter,
+      approvalPolicy: "on-request",
+      autoContinueFromRunId: sourceRun.id,
+      autoContinueDepth: currentDepth + 1
+    });
+    emit("run.auto_continue.started", {
+      sourceRunId: sourceRun.id,
+      runId: nextRun.id,
+      depth: currentDepth + 1
+    });
+    return nextRun;
+  }
+
+  function nonNegativeInteger(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? Math.floor(number) : fallback;
   }
 
   async function persistRunCommandResult(runId, commandType, result) {

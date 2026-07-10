@@ -2,7 +2,7 @@ function createRunActivity(run) {
   const timestamp = run.started_at || new Date().toISOString();
   return {
     schema_version: "desktop-run-activity/v1",
-    entry_capability: run.entry_capability || "using-arckit",
+    entry_capability: run.entry_capability || "runtime",
     operator: run.operator || "desktop",
     status: run.status || "running",
     phase: run.adapter === "dry-run" ? "dry-run" : "starting",
@@ -42,7 +42,7 @@ function createRunActivity(run) {
         at: timestamp,
         type: "runtime.started",
         label: `${run.adapter || "runtime"} started`,
-        detail: `${run.entry_capability || "using-arckit"}: ${run.task || run.id}`
+        detail: `${run.entry_capability || "runtime"}: ${run.task || run.id}`
       }
     ],
     raw_events: [],
@@ -219,6 +219,7 @@ function applyRunEvent(run, { line, parsed }) {
     case "runtime.agent_task.started":
       upsertAgent(activity, {
         task_id: event.task_id,
+        worker_type: event.worker_type || "",
         role: event.role,
         objective: event.objective,
         status: "running",
@@ -246,6 +247,7 @@ function applyRunEvent(run, { line, parsed }) {
     case "runtime.agent_task.fail_fast":
       upsertAgent(activity, {
         task_id: event.task_id,
+        worker_type: event.worker_type || "",
         role: event.role,
         status: "failed",
         updated_at: new Date().toISOString(),
@@ -267,6 +269,7 @@ function applyRunEvent(run, { line, parsed }) {
     case "runtime.worker_report.completed":
       upsertAgent(activity, {
         task_id: event.task_id,
+        worker_type: event.worker_type || event.report?.worker_type || "",
         role: event.role,
         status: event.status || event.report?.status || "completed",
         updated_at: new Date().toISOString(),
@@ -641,6 +644,7 @@ function handleCodexItem(activity, event, status) {
     if (event.task_id && report) {
       upsertAgent(activity, {
         task_id: event.task_id,
+        worker_type: event.worker_type || report.worker_type || "",
         role: event.role || report.role || "",
         status: report.status || status || "completed",
         summary: report.summary || "",

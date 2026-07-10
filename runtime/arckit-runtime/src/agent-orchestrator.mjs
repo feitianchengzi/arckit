@@ -3,13 +3,13 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createAgentAdapter } from "./agent-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
-import { loadRuntimeCapabilities, selectCapabilitiesForRound } from "./capability-registry.mjs";
+import { capabilityIds, loadRuntimeCapabilities, selectCapabilitiesForRound } from "./capability-registry.mjs";
 import { conversationLocaleInstruction } from "./conversation-locale.mjs";
 import { buildArtifactOwnershipScan, normalizeArtifactPathReferences } from "./artifact-ownership-map.mjs";
 import { reduceWorkerReports } from "./controller-reducer.mjs";
 import { createRoundStateMachine, transitionRoundState } from "./round-state-machine.mjs";
 import { createRuntimeResultFromMerge, stateFromMergeResult } from "./kernel/runtime-result-builder.mjs";
-import { DEFAULT_ROLES, ROLE_DEFINITIONS } from "./orchestration/role-definitions.mjs";
+import { WORKER_TYPES, normalizeWorkerType, workerTypeDefinitionFor } from "./orchestration/role-definitions.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const workerReportSchemaPath = join(here, "../schemas/worker-report.schema.json");
@@ -20,7 +20,7 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
   const conversationLocale = options.conversationLocale || compiledPrompt.conversation_locale || round.conversation_locale || "en";
   round.conversation_locale = conversationLocale;
   const packetEnvelope = options.packetEnvelope || null;
-  const capabilities = packetEnvelope ? [] : await loadRuntimeCapabilities();
+  const capabilities = packetEnvelope ? [] : await loadRuntimeCapabilities({ projectRoot });
   const selectedCapabilities = packetEnvelope ? [] : selectCapabilitiesForRound(capabilities, round, options.task || "");
   const loopFrame = packetEnvelope
     ? authorizePacketLoopFrame(packetEnvelope.loop_frame, options)
@@ -65,7 +65,6 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
       snapshot,
       task: options.task || "",
       selectedCapabilities,
-      roles: routePlan.selected_roles,
       controllerPlan: controllerPlan?.usable ? controllerPlan.plan : null
     }) : [];
   loopFrame.round_execution_packet.worker_packets = agentTasks.map(toWorkerPacket);
@@ -192,6 +191,7 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
       event: {
         type: "runtime.agent_task.started",
         task_id: effectiveAgentTask.id,
+        worker_type: effectiveAgentTask.worker_type,
         role: effectiveAgentTask.role,
         objective: effectiveAgentTask.objective,
         task: effectiveAgentTask
@@ -213,6 +213,7 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
       const failFastEvent = {
         type: "runtime.agent_task.fail_fast",
         task_id: report.task_id,
+        worker_type: report.worker_type,
         role: report.role,
         reason: report.summary
       };
@@ -298,6 +299,7 @@ async function executeAgentTask({ adapter, projectRoot, agentTask, previousRepor
     const wrapped = {
       ...event,
       task_id: agentTask.id,
+      worker_type: agentTask.worker_type,
       role: agentTask.role
     };
     events.push(wrapped);
@@ -314,6 +316,7 @@ async function executeAgentTask({ adapter, projectRoot, agentTask, previousRepor
   const completedEvent = {
     type: "runtime.worker_report.completed",
     task_id: report.task_id,
+    worker_type: report.worker_type,
     role: report.role,
     status: report.status,
     report
@@ -442,15 +445,22 @@ function compileControllerPlanPrompt({ loopFrame, round, snapshot, task, selecte
     "## Operator Task",
     task || round.round_goal || "",
     "",
-    "## Selected Capabilities",
+    "## Worker Types",
+    JSON.stringify(WORKER_TYPES, null, 2),
+    "",
+    "## Capability Registry",
     JSON.stringify(selectedCapabilities.map(toCapabilityContext), null, 2),
     "",
+    "## Runtime Capability Policy",
+    "Runtime provides worker types and capability manifest metadata. Choose the minimum worker_type/role set and bind allowed_skills for each worker from the Capability Registry.",
+    "Do not invent skill ids. Do not treat the registry as a fixed workflow; select only capabilities that match this round's state gap, evidence, and packet boundaries.",
+    "",
     "## Planning Rules",
-    "- Select only the worker roles needed for this round.",
-    "- Include controller_state_reader for every dispatchable worker route.",
-    "- Prefer source fact work before implementation when project state or selected gap is unknown.",
-    "- Include verification when a worker may change files, source facts, implementation evidence, or pending context.",
-    "- Include closeout_controller unless the route is blocked before workers can run.",
+    "- Select only the worker types and roles needed for this round; role names are agent-defined and must be justified.",
+    "- Choose the route mode from the operator task, project state, candidate gaps, local evidence, and protocol constraints.",
+    "- For every worker_intent, provide worker_type, role, objective, reason, and allowed_skills.",
+    "- Keep route_plan.selected_worker_types and route_plan.selected_roles consistent with worker_intents.",
+    "- Include independent verification or closeout work only when your route requires it, and explain why.",
     "- Do not use workers to make human-owned product, aesthetic, business, release, or risk-acceptance decisions.",
     "- If a route requires human confirmation, set status=needs_human and explain the needed decision.",
     "- Keep worker_intents concise and role-scoped. Runtime will enforce role permissions and block the round if your plan is invalid.",
@@ -469,19 +479,23 @@ function normalizeControllerPlan(plan) {
     status: ["planned", "needs_human", "blocked"].includes(plan.status) ? plan.status : "blocked",
     summary: stringValue(plan.summary, ""),
     route_plan: {
-      mode: ["source_fact_establishment", "implementation_execution", "route_review", "packet_execution"].includes(plan.route_plan?.mode) ? plan.route_plan.mode : "route_review",
-      selected_roles: unique(arrayOfStrings(plan.route_plan?.selected_roles).filter((role) => ROLE_DEFINITIONS[role])),
+      mode: stringValue(plan.route_plan?.mode, "agent_selected_route"),
+      selected_gap: normalizeSelectedGap(plan.route_plan?.selected_gap),
+      selected_worker_types: unique(arrayOfStrings(plan.route_plan?.selected_worker_types).map(normalizeWorkerType)),
+      selected_roles: unique(arrayOfStrings(plan.route_plan?.selected_roles)),
       reason: stringValue(plan.route_plan?.reason, ""),
       requires_human_confirmation: plan.route_plan?.requires_human_confirmation === true
     },
     worker_intents: Array.isArray(plan.worker_intents)
       ? plan.worker_intents
-        .filter((intent) => ROLE_DEFINITIONS[intent?.role])
         .map((intent) => ({
-          role: intent.role,
+          worker_type: normalizeWorkerType(intent.worker_type),
+          role: stringValue(intent.role, ""),
           objective: stringValue(intent.objective, ""),
-          reason: stringValue(intent.reason, "")
+          reason: stringValue(intent.reason, ""),
+          allowed_skills: arrayOfStrings(intent.allowed_skills)
         }))
+        .filter((intent) => intent.role)
       : [],
     risks: arrayOfStrings(plan.risks),
     unknowns: arrayOfStrings(plan.unknowns),
@@ -499,18 +513,8 @@ function controllerPlanFailureReason(plan) {
   if (plan.status !== "planned") {
     return `Controller Agent plan status is ${plan.status}.`;
   }
-  if (!Array.isArray(plan.route_plan?.selected_roles) || plan.route_plan.selected_roles.length === 0) {
-    return "Controller Agent did not select any worker roles.";
-  }
-  if (!plan.route_plan.selected_roles.includes("controller_state_reader")) {
-    return "Controller Agent did not include controller_state_reader for the dispatchable route.";
-  }
-  if (plan.route_plan.selected_roles.some((role) => ["source_fact_worker", "implementation_worker"].includes(role))
-    && !plan.route_plan.selected_roles.includes("verification_worker")) {
-    return "Controller Agent did not include verification_worker for a route that may change files, source facts, implementation evidence, or pending context.";
-  }
-  if (!plan.route_plan.selected_roles.includes("closeout_controller")) {
-    return "Controller Agent did not include closeout_controller for the dispatchable route.";
+  if (!Array.isArray(plan.worker_intents) || plan.worker_intents.length === 0) {
+    return "Controller Agent did not select any worker intents.";
   }
   return "";
 }
@@ -537,7 +541,9 @@ function createControllerPlanFailure(summary) {
     status: "blocked",
     summary,
     route_plan: {
-      mode: "route_review",
+      mode: "agent_selected_route",
+      selected_gap: emptySelectedGap(),
+      selected_worker_types: [],
       selected_roles: [],
       reason: summary,
       requires_human_confirmation: false
@@ -732,7 +738,8 @@ export function createLoopFrame({ snapshot, round, task, selectedCapabilities = 
       target_state: round.target_state,
       urgency: round.urgency,
       risk: round.risk,
-      impact: round.impact
+      impact: round.impact,
+      next_transition: loopControl.next_transition || ""
     },
     source_projection_check: {
       source_facts: {
@@ -786,11 +793,13 @@ export function createLoopFrame({ snapshot, round, task, selectedCapabilities = 
 
 function createRoutePlanFromPacket(loopFrame) {
   const roles = (loopFrame.worker_packets || []).map((packet) => packet.role).filter(Boolean);
+  const workerTypes = (loopFrame.worker_packets || []).map((packet) => packet.worker_type).filter(Boolean);
   return {
     schema_version: "arckit-dynamic-route-plan/v1",
     mode: "packet_execution",
     selected_roles: unique(roles),
-    suppressed_roles: DEFAULT_ROLES.filter((role) => !roles.includes(role)),
+    selected_worker_types: unique(workerTypes),
+    suppressed_roles: [],
     selected_gap: loopFrame.selected_gap || {},
     reason: "Executing roles from an existing authorized packet.",
     requires_human_confirmation: false
@@ -798,13 +807,15 @@ function createRoutePlanFromPacket(loopFrame) {
 }
 
 function createRoutePlanFromControllerPlan({ controllerPlan, loopFrame }) {
-  const plannedRoles = unique(arrayOfStrings(controllerPlan?.route_plan?.selected_roles).filter((role) => ROLE_DEFINITIONS[role]));
+  const plannedRoles = unique(arrayOfStrings(controllerPlan?.worker_intents?.map((intent) => intent.role)));
+  const plannedWorkerTypes = unique(arrayOfStrings(controllerPlan?.worker_intents?.map((intent) => intent.worker_type)).map(normalizeWorkerType));
   return {
     schema_version: "arckit-dynamic-route-plan/v1",
-    mode: controllerPlan?.route_plan?.mode || "route_review",
+    mode: controllerPlan?.route_plan?.mode || "agent_selected_route",
     selected_roles: plannedRoles,
-    suppressed_roles: DEFAULT_ROLES.filter((role) => !plannedRoles.includes(role)),
-    selected_gap: loopFrame.selected_gap,
+    selected_worker_types: plannedWorkerTypes,
+    suppressed_roles: [],
+    selected_gap: normalizeSelectedGap(controllerPlan?.route_plan?.selected_gap) || loopFrame.selected_gap,
     reason: [
       controllerPlan?.route_plan?.reason || "",
       controllerPlan?.summary ? `Controller Agent: ${controllerPlan.summary}` : ""
@@ -813,28 +824,26 @@ function createRoutePlanFromControllerPlan({ controllerPlan, loopFrame }) {
   };
 }
 
-export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCapabilities = [], roles = DEFAULT_ROLES, controllerPlan = null }) {
-  return roles.map((role, index) => {
-    const definition = ROLE_DEFINITIONS[role];
-    if (!definition) {
-      throw new Error(`Unknown Arckit worker role: ${role}`);
-    }
+export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCapabilities = [], controllerPlan = null }) {
+  const intents = Array.isArray(controllerPlan?.worker_intents) ? controllerPlan.worker_intents : [];
+  const availableCapabilityIds = capabilityIds(selectedCapabilities);
+  return intents.map((intent, index) => {
+    const workerType = normalizeWorkerType(intent.worker_type);
+    const role = intent.role || workerType;
+    const definition = workerTypeDefinitionFor(workerType);
+    const allowedSkills = unique(arrayOfStrings(intent.allowed_skills).filter((skill) => availableCapabilityIds.has(skill)));
     const capabilityContexts = selectedCapabilities
-      .filter((capability) => definition.allowed_skills.includes(capability.id))
+      .filter((capability) => allowedSkills.includes(capability.id))
       .map(toCapabilityContext);
-    const workerIntent = Array.isArray(controllerPlan?.worker_intents)
-      ? controllerPlan.worker_intents.find((intent) => intent.role === role)
-      : null;
-    const objective = workerIntent?.objective
-      ? workerIntent.objective
-      : role === "implementation_worker" && task
+    const objective = intent.objective
+      ? intent.objective
+      : task
         ? `${definition.objective} Operator task: ${task}`
-        : role === "source_fact_worker" && task
-          ? `${definition.objective} Operator task: ${task}`
-          : definition.objective;
+        : definition.objective;
     return {
       schema_version: "arckit-worker-task/v1",
       id: `TASK-${String(index + 1).padStart(2, "0")}-${role}`,
+      worker_type: workerType,
       role,
       objective,
       conversation_locale: loopFrame.conversation_locale || round.conversation_locale || "en",
@@ -843,7 +852,7 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
         round_goal: loopFrame.round_goal,
         conversation_locale: loopFrame.conversation_locale || round.conversation_locale || "en",
         selected_gap: loopFrame.selected_gap,
-        selected_capabilities: loopFrame.selected_capabilities,
+        selected_capabilities: allowedSkills,
         stop_conditions: loopFrame.stop_conditions
       },
       inputs: {
@@ -860,7 +869,7 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
       },
       scope: {
         allowed_paths: allowedPathsForRole(role, round.required_context_refs),
-        allowed_skills: definition.allowed_skills,
+        allowed_skills: allowedSkills,
         allowed_actions: definition.allowed_actions,
         forbidden_actions: definition.forbidden_actions
       },
@@ -868,6 +877,7 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
         format: "arckit-worker-report/v1",
         required_fields: [
           "task_id",
+          "worker_type",
           "role",
           "status",
           "summary",
@@ -912,8 +922,8 @@ function compileAgentTaskPrompt({ agentTask, previousReports }) {
     "",
     "## Required Behavior",
     "- Do only the task packet's role.",
-    "- Use the explicit skill triggers above when an installed skill is needed.",
-    "- Do not infer additional skills from capability context metadata.",
+    "- Use the explicit skill triggers above when an allowed skill is needed for this packet.",
+    "- Do not use Arckit skills that are not listed in allowed_skills.",
     "- Treat capability context as routing and boundary metadata, not as the skill body or runtime architecture source.",
     "- Do not close the case or decide the final loop gate.",
     "- Do not change the project direction or invalidate other packets.",
@@ -926,6 +936,14 @@ function compileAgentTaskPrompt({ agentTask, previousReports }) {
     "## Output Contract",
     "Return a JSON object with schema_version=arckit-worker-report/v1. Do not wrap it in Markdown."
   ].join("\n");
+}
+
+function formatExplicitSkillTriggers(skills) {
+  const allowedSkills = unique(Array.isArray(skills) ? skills.map((skill) => String(skill)).filter(Boolean) : []);
+  if (allowedSkills.length === 0) {
+    return "[]";
+  }
+  return allowedSkills.map((skill) => `- $${skill}`).join("\n");
 }
 
 function expandAgentTaskScopeWithPreviousChanges(agentTask, previousReports, previousPackets = []) {
@@ -968,19 +986,14 @@ function artifactAllowedByPacket(artifact, packet) {
   }
   return allowedPaths.some((allowed) => {
     const normalized = normalizeArtifactPathReferences([allowed])[0] || String(allowed || "").trim().replaceAll("\\", "/").replace(/^\.\//, "");
+    if (normalized === "." || normalized === "./") {
+      return true;
+    }
     if (!normalized) {
       return false;
     }
     return normalized.endsWith("/") ? artifact.startsWith(normalized) : artifact === normalized;
   });
-}
-
-function formatExplicitSkillTriggers(skills) {
-  const allowedSkills = unique(Array.isArray(skills) ? skills.map((skill) => String(skill)) : []);
-  if (allowedSkills.length === 0) {
-    return "[]";
-  }
-  return allowedSkills.map((skill) => `- $${skill}`).join("\n");
 }
 
 function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun, controllerReview }) {
@@ -1107,6 +1120,21 @@ function applyRuntimeGuardToLoopGate({ reviewLoopGate, reducerResult, reviewUsab
       }
     };
   }
+  if (runtimeGuard.status === "agent_recoverable" && reviewLoopGate.status === "done") {
+    return {
+      runtime_guard: {
+        ...runtimeGuard,
+        vetoed_controller_review: true
+      },
+      loop_gate: {
+        status: "continue",
+        next_responsibility: "agent",
+        trigger_mode: "auto_bridge",
+        human_decision_required: false,
+        reason: t(conversationLocale, `Runtime Guard found agent-recoverable follow-up work: ${runtimeGuard.reason}`, `Runtime Guard 发现可由 Agent 继续处理的后续工作：${runtimeGuard.reason}`)
+      }
+    };
+  }
   if (runtimeGuard.status === "needs_human" && reviewLoopGate.status === "continue") {
     return {
       runtime_guard: {
@@ -1139,7 +1167,7 @@ function normalizeRuntimeGuardBlockers(blockers) {
     if (blocker && typeof blocker === "object") {
       return {
         type: stringValue(blocker.type, "unknown"),
-        severity: ["recoverable", "needs_human", "blocked"].includes(blocker.severity) ? blocker.severity : "blocked",
+      severity: ["recoverable", "needs_human", "blocked"].includes(blocker.severity) ? blocker.severity : "blocked",
         recoverable_by: ["agent", "human", "runtime", "none"].includes(blocker.recoverable_by) ? blocker.recoverable_by : "none",
         target: stringValue(blocker.target, ""),
         suggested_action: stringValue(blocker.suggested_action, ""),
@@ -1344,7 +1372,9 @@ function reportIsComplete(report) {
   const arrays = ["findings", "evidence", "changes", "artifact_impacts", "risks", "unknowns"];
   return report.schema_version === "arckit-worker-report/v1"
     && Boolean(report.task_id)
-    && Boolean(ROLE_DEFINITIONS[report.role])
+    && WORKER_TYPES.includes(report.worker_type)
+    && typeof report.role === "string"
+    && report.role.length > 0
     && ["completed", "partial", "blocked", "failed", "invalid"].includes(report.status)
     && typeof report.summary === "string"
     && typeof report.recommendation === "string"
@@ -1478,7 +1508,8 @@ function normalizePacketWorkerTasks(tasks, loopFrame) {
     ...task,
     schema_version: "arckit-worker-task/v1",
     id: task.id || task.worker_id || `TASK-${String(index + 1).padStart(2, "0")}-${task.role || "worker"}`,
-    role: task.role || "implementation_worker",
+    worker_type: normalizeWorkerType(task.worker_type),
+    role: task.role || "agent_defined_worker",
     objective: task.objective || task.task || "",
     conversation_locale: task.conversation_locale || loopFrame.conversation_locale || "en",
     loop_frame_excerpt: task.loop_frame_excerpt || {
@@ -1507,6 +1538,7 @@ function normalizePacketWorkerTasks(tasks, loopFrame) {
       format: "arckit-worker-report/v1",
       required_fields: [
         "task_id",
+        "worker_type",
         "role",
         "status",
         "summary",
@@ -1583,6 +1615,7 @@ function toWorkerPacket(agentTask) {
   return {
     schema_version: "arckit-worker-packet/v1",
     worker_id: agentTask.id,
+    worker_type: agentTask.worker_type,
     role: agentTask.role,
     task: agentTask.objective,
     context_refs: agentTask.inputs.known_state_paths,
@@ -1602,6 +1635,7 @@ function normalizeAgentReport(report, agentTask) {
   return {
     schema_version: report.schema_version === "arckit-worker-report/v1" ? report.schema_version : "arckit-worker-report/v1",
     task_id: report.task_id === agentTask.id ? report.task_id : agentTask.id,
+    worker_type: normalizeWorkerType(report.worker_type || agentTask.worker_type),
     role: report.role === agentTask.role ? report.role : agentTask.role,
     status: ["completed", "partial", "blocked", "failed", "invalid"].includes(report.status) ? report.status : "invalid",
     summary: stringValue(report.summary, t(agentTask.conversation_locale, "Worker returned a report without summary.", "Worker 返回的 report 缺少 summary。")),
@@ -1637,6 +1671,7 @@ function createInvalidAgentReport(agentTask, message) {
   return {
     schema_version: "arckit-worker-report/v1",
     task_id: agentTask.id,
+    worker_type: agentTask.worker_type,
     role: agentTask.role,
     status: "invalid",
     summary: message,
@@ -1653,18 +1688,37 @@ function createInvalidAgentReport(agentTask, message) {
 }
 
 function allowedPathsForRole(role, requiredContextRefs) {
-  if (role === "implementation_worker") {
-    return ["."];
+  return unique([".", ...requiredContextRefs]);
+}
+
+function normalizeSelectedGap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
   }
-  if (role === "source_fact_worker") {
-    return unique([
-      ...requiredContextRefs,
-      "arckit/spec/",
-      "arckit/pending/",
-      "arckit/tech/"
-    ]);
-  }
-  return requiredContextRefs.length > 0 ? requiredContextRefs : ["arckit/"];
+  const normalized = {
+    id: stringValue(value.id, ""),
+    dimension: stringValue(value.dimension, ""),
+    current_state: stringValue(value.current_state, ""),
+    target_state: stringValue(value.target_state, ""),
+    urgency: stringValue(value.urgency, ""),
+    risk: stringValue(value.risk, ""),
+    impact: stringValue(value.impact, ""),
+    next_transition: stringValue(value.next_transition, "")
+  };
+  return Object.values(normalized).some(Boolean) ? normalized : null;
+}
+
+function emptySelectedGap() {
+  return {
+    id: "",
+    dimension: "",
+    current_state: "",
+    target_state: "",
+    urgency: "",
+    risk: "",
+    impact: "",
+    next_transition: ""
+  };
 }
 
 function yieldEvent({ events, event, stream }) {

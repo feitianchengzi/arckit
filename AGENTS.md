@@ -19,9 +19,11 @@ external-adapter handoff, but should not become silent final-decision skills in 
 
 ## Arckit Architecture
 
-Arckit is organized around Project State as the recoverable software-project object: Case advances one state gap, Loop advances a Case, and Desktop Runtime automates the control loop around Codex-like coding agents and installed skills.
+Arckit is organized around the product axis that `Project State` 通过 `Case` 和 `Loop` 被持续推进。Project State is the recoverable software-project object; Case carries an explicit project-state advancement context; Loop is the bounded runtime cycle that produces evidence, handoffs, and verifiable state impact.
 
 Desktop owns product/runtime control architecture; Codex-like coding agents own semantic reasoning, workspace execution, evidence collection, and structured claims; skills are installed agent capability packages that provide reusable protocols, methods, scripts, and artifact maintenance rules at the bottom layer.
+
+Runtime kernel must preserve this product axis while staying policy-neutral: do not seed fixed initial gaps, route modes, worker roles, skill names, capability-selection heuristics, or ledger writeback dimension inferences; those choices must come from agent analysis or an explicit policy layer.
 
 ## Directory Map
 

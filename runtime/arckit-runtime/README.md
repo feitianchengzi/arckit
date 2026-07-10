@@ -57,12 +57,12 @@ Each run now produces:
 - `runtime_result`
 - raw and normalized event evidence
 
-Worker roles are selected by the dynamic route plan. Runtime does not trigger every role on every run.
+Worker types are stable capability classes (`product`, `tech`, `implementation`, `verification`, `diagnosis`, `closeout`). Worker roles are per-round semantic names selected by the dynamic route plan. Runtime does not trigger every worker type on every run.
 
 In executing Codex mode, Runtime first asks a bounded Controller Agent for an `arckit-controller-plan/v1`.
 The Controller Agent proposes the minimum worker route and role-scoped worker intents from project state,
-selected gap, capability manifests, and operator task. Runtime still owns final validation: it normalizes
-the proposed route and validates required guard roles such as state read, verification, and closeout.
+candidate gaps, local evidence, and operator task. Runtime still owns final validation: it normalizes
+the proposed route and validates schema, authorization, evidence, report intake, and ledger gates.
 If the Controller plan is invalid, blocked, or unavailable, the round is blocked instead of silently using
 a code-rule route or auto-adding missing workers. Dry-run mode does not start the Controller Agent, so it cannot fabricate worker packets.
 
@@ -82,33 +82,13 @@ Runtime Guard blockers are structured with `type`, `severity`, `recoverable_by`,
 it marks whether the gap is agent-recoverable, human-owned, or runtime-blocked so the Controller/loop policy can
 decide the next repair round.
 
-Available roles include:
-
-- `controller_state_reader`
-- `controller_route_auditor`
-- `source_fact_worker`
-- `implementation_worker`
-- `verification_worker`
-- `closeout_controller`
-
-For an empty or state-discovery project, the first execution route is source-fact establishment. Runtime must not start `implementation_worker` just because the user message says "build" or "develop"; implementation requires enough source facts, boundaries, and validation expectations to avoid product guessing.
+Worker roles and route modes are agent-defined within the stable worker type set. Runtime does not preselect a first route for empty projects and does not infer implementation, discovery, verification, or closeout strategy from keywords. The Controller Agent must justify the route, selected worker types, selected roles, skill bindings, evidence requirements, and next loop handoff.
 
 Dry-run mode is Controller Preview: it generates the controller frame and execution gate without starting Codex, running Controller Agent planning, fabricating worker packets, or fabricating worker reports.
 
-## Capability Manifests
+## Capability And Skill Selection
 
-Runtime reads `arckit.capability.json` manifests from core Arckit skills. `SKILL.md` remains human/agent guidance, but Runtime routing uses machine-readable capability metadata where available.
-
-Capability manifests are routing and boundary metadata only. Runtime does not read `SKILL.md` bodies as control logic and does not inject skill bodies into worker prompts. Worker prompts list allowed skills as explicit `$skill-name` triggers so Codex-like Agents can use their own installed skill mechanism.
-
-Current manifest-backed capabilities include:
-
-- `using-arckit`
-- `arckit-development-ledger`
-- `arckit-implementation-handoff`
-- `arckit-debug-diagnosis`
-- `arckit-spec`
-- `arckit-architecture-decision`
+Runtime scans capability manifests and exposes their metadata to the Controller Agent as a capability registry. The Controller chooses `worker_type`, `role`, and `allowed_skills` for each worker intent from the registry and current state gap. Runtime may inject the selected `$skill-name` triggers into the corresponding worker prompt, but it must not hard-code per-round workflow routes, fixed worker order, fixed skill sequences, or business-specific first gaps.
 
 ## Commands
 

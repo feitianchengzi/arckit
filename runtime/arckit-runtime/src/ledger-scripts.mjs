@@ -3,8 +3,8 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const sourceDir = dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = resolve(sourceDir, "../../..");
-const ledgerScriptsDir = join(repositoryRoot, "memory/skills/arckit-development-ledger/scripts");
+const runtimeRoot = resolve(sourceDir, "..");
+const ledgerScriptsDir = join(runtimeRoot, "ledger-scripts");
 
 export function runLedgerScript(projectRoot, args, { nodeBin = process.execPath } = {}) {
   const [script, ...rest] = args;
@@ -22,4 +22,3 @@ export function runLedgerScript(projectRoot, args, { nodeBin = process.execPath 
     status: result.status
   };
 }
-

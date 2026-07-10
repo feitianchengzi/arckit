@@ -1,47 +1,58 @@
-export const ROLE_DEFINITIONS = {
-  controller_state_reader: {
-    objective: "Recover the project state, active case context, and known fact-source surfaces before any work is attempted.",
-    allowed_actions: ["read_files", "inspect_state", "report_evidence"],
-    allowed_skills: ["arckit-development-ledger", "arckit-agent-context"],
-    forbidden_actions: ["edit_files", "decide_case_closed", "change_loop_status_directly"]
+export const WORKER_TYPES = [
+  "product",
+  "tech",
+  "implementation",
+  "verification",
+  "diagnosis",
+  "closeout"
+];
+
+export const DEFAULT_WORKER_TYPE = "implementation";
+
+const BASE_FORBIDDEN_ACTIONS = [
+  "silently_expand_scope",
+  "decide_human_gate",
+  "decide_case_closed",
+  "write_ledger_directly"
+];
+
+const WORKER_TYPE_DEFINITIONS = {
+  product: {
+    objective: "Clarify or maintain product expectations, acceptance boundaries, scenarios, open questions, and pending product facts.",
+    allowed_actions: ["read_files", "edit_allowed_paths", "report_evidence", "route_unknowns_to_pending"],
+    forbidden_actions: [...BASE_FORBIDDEN_ACTIONS, "write_code_without_implementation_handoff"]
   },
-  controller_route_auditor: {
-    objective: "Audit source/projection boundaries and choose the minimum capability set required for this round.",
-    allowed_actions: ["inspect_state", "propose_routes", "report_evidence"],
-    allowed_skills: ["using-arckit", "arckit-development-ledger", "arckit-pending", "arckit-tech", "arckit-spec"],
-    forbidden_actions: ["edit_files", "rewrite_source_truth_without_result_skill", "decide_case_closed"]
-  },
-  source_fact_worker: {
-    objective: "Establish or update the minimum stable source facts for the selected gap, and route unsupported assumptions to pending context.",
+  tech: {
+    objective: "Clarify or maintain technical facts, architecture decisions, constraints, implementation handoff inputs, and unresolved technical risks.",
     allowed_actions: ["read_files", "edit_allowed_paths", "run_non_destructive_checks", "report_evidence"],
-    allowed_skills: ["using-arckit", "arckit-spec", "arckit-pending", "arckit-tech", "arckit-development-ledger", "arckit-architecture-decision"],
-    forbidden_actions: ["implement_product_code", "write_ledger_directly", "silently_expand_scope", "decide_human_gate", "decide_case_closed"]
+    forbidden_actions: [...BASE_FORBIDDEN_ACTIONS, "make_unconfirmed_product_decisions"]
   },
-  implementation_worker: {
-    objective: "Execute only the bounded worker packet after the runtime has authorized execution and bound an executor.",
+  implementation: {
+    objective: "Execute a bounded implementation or implementation-handoff task using confirmed facts, allowed paths, and explicit verification expectations.",
     allowed_actions: ["read_files", "edit_allowed_paths", "run_non_destructive_checks", "report_evidence"],
-    allowed_skills: ["arckit-implementation-handoff", "arckit-debug-diagnosis", "arckit-tech", "arckit-spec"],
-    forbidden_actions: ["silently_expand_scope", "decide_human_gate", "decide_case_closed"]
+    forbidden_actions: [...BASE_FORBIDDEN_ACTIONS, "invent_product_behavior", "change_unrelated_files"]
   },
-  verification_worker: {
-    objective: "Verify the work output, command evidence, schema shape, and state-write readiness independently.",
+  verification: {
+    objective: "Verify facts, reports, implementation evidence, artifact impacts, and closeout readiness without expanding product scope.",
     allowed_actions: ["read_files", "run_non_destructive_checks", "report_evidence"],
-    allowed_skills: ["arckit-development-ledger"],
-    forbidden_actions: ["edit_files", "fix_issues_without_task_authorization", "decide_case_closed"]
+    forbidden_actions: [...BASE_FORBIDDEN_ACTIONS, "make_unverified_completion_claim"]
   },
-  closeout_controller: {
-    objective: "Check whether the round can close, continue, block, or require a human decision.",
-    allowed_actions: ["inspect_reports", "audit_loop_gate", "report_evidence"],
-    allowed_skills: ["arckit-development-ledger", "arckit-workflow-memory"],
-    forbidden_actions: ["write_ledger_directly", "decide_next_responsibility_without_main_agent"]
+  diagnosis: {
+    objective: "Diagnose defects, regressions, failures, inconsistencies, or runtime problems using evidence and bounded investigation.",
+    allowed_actions: ["read_files", "run_non_destructive_checks", "report_evidence", "propose_fix"],
+    forbidden_actions: [...BASE_FORBIDDEN_ACTIONS, "rewrite_architecture_without_decision"]
+  },
+  closeout: {
+    objective: "Audit whether the round can close, continue, wait, block, or request human decision based on worker reports and evidence.",
+    allowed_actions: ["read_files", "report_evidence", "summarize_handoff"],
+    forbidden_actions: [...BASE_FORBIDDEN_ACTIONS, "write_ledger_directly"]
   }
 };
 
-export const DEFAULT_ROLES = [
-  "controller_state_reader",
-  "controller_route_auditor",
-  "source_fact_worker",
-  "implementation_worker",
-  "verification_worker",
-  "closeout_controller"
-];
+export function workerTypeDefinitionFor(workerType) {
+  return WORKER_TYPE_DEFINITIONS[workerType] || WORKER_TYPE_DEFINITIONS[DEFAULT_WORKER_TYPE];
+}
+
+export function normalizeWorkerType(value) {
+  return WORKER_TYPES.includes(value) ? value : DEFAULT_WORKER_TYPE;
+}

@@ -6,6 +6,7 @@
   "required": [
     "schema_version",
     "worker_id",
+    "worker_type",
     "role",
     "task",
     "context_refs",
@@ -19,16 +20,13 @@
   "properties": {
     "schema_version": { "type": "string", "const": "arckit-worker-packet/v1" },
     "worker_id": { "type": "string" },
+    "worker_type": {
+      "type": "string",
+      "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"]
+    },
     "role": {
       "type": "string",
-      "enum": [
-        "controller_state_reader",
-        "controller_route_auditor",
-        "source_fact_worker",
-        "implementation_worker",
-        "verification_worker",
-        "closeout_controller"
-      ]
+      "minLength": 1
     },
     "task": { "type": "string" },
     "context_refs": {

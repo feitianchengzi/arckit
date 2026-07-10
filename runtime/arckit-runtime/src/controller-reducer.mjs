@@ -16,14 +16,11 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
     ...(report.artifact_impacts || []).flatMap((impact) => impact.evidence || [])
   ]));
   const artifactImpactAudit = auditArtifactImpacts({ reports, expectedPackets });
+  const workerTypeAudit = auditWorkerTypes({ reports, expectedPackets });
   const allChanges = artifactImpactAudit.changedArtifactPaths;
   const allRisks = unique(reports.flatMap((report) => report.risks || []));
   const allUnknowns = unique(reports.flatMap((report) => report.unknowns || []));
   const ownershipScan = buildArtifactOwnershipScan(allChanges);
-  const sourceFactRound = loopFrame.route_plan?.mode === "source_fact_establishment";
-  const sourceFactEvidenceSatisfied = !sourceFactRound
-    || ownershipScan.source_facts_changed.length > 0
-    || allEvidence.some((item) => /^arckit\/(spec|tech|interaction|visual)\//.test(item));
   const humanDecisionRequired = humanDecisionReports.length > 0;
   const infrastructureFailures = reports.filter(isInfrastructureFailureReport);
   const infrastructureFailureIds = new Set(infrastructureFailures.map((report) => report.task_id));
@@ -94,19 +91,10 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
       suggested_action: humanDecisionRequired ? "request_human_decision" : "resolve_unknown",
       summary: `unknown: ${unknown}`
     })),
+    ...workerTypeAudit.blockers,
     ...artifactImpactAudit.blockers
   ];
 
-  if (sourceFactRound && !sourceFactEvidenceSatisfied) {
-    blockers.push(createGateBlocker({
-      type: "source_fact_evidence_missing",
-      severity: "recoverable",
-      recoverable_by: "agent",
-      target: loopFrame.selected_gap?.id || round.gap_id || "",
-      suggested_action: "establish_source_fact",
-      summary: "source_fact_establishment claim lacks source-fact evidence accepted by protocol conditions."
-    }));
-  }
   if (expectedWorkerIds.length === 0) {
     blockers.push(createGateBlocker({
       type: "no_expected_worker_packets",
@@ -166,7 +154,6 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
     && allUnknowns.length === 0
     && blockers.length === 0
     && allEvidence.length > 0
-    && sourceFactEvidenceSatisfied
     && !humanDecisionRequired;
 
   const hardGateStatus = canClose
@@ -175,7 +162,9 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
       ? "blocked"
       : blockers.some((blocker) => blocker.severity === "needs_human")
         ? "needs_human"
-        : "continue";
+        : blockers.some((blocker) => blocker.severity === "recoverable")
+          ? "agent_recoverable"
+          : "continue";
   const hardGateReason = gateReason({ dryRun, infrastructureFailures, blockers, reducerActions, canClose, conversationLocale });
   const loopStatus = infrastructureFailures.length > 0
     ? "blocked"
@@ -212,7 +201,7 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
 	    source_projection_check: {
 	      source_facts_changed: ownershipScan.source_facts_changed,
 	      projection_artifacts_changed: ownershipScan.projection_artifacts_changed,
-	      source_unknown: allUnknowns.length > 0 || rejected.length > 0 || blocked.length > 0 || missingReports.length > 0 || (sourceFactRound && !sourceFactEvidenceSatisfied),
+	      source_unknown: allUnknowns.length > 0 || rejected.length > 0 || blocked.length > 0 || missingReports.length > 0,
 	      deferred_projections: dryRun ? ["real worker execution", "ledger writeback"] : [],
 	      blocked_projections: blockers.map(formatGateBlocker)
 	    },
@@ -276,6 +265,8 @@ function reportIsComplete(report) {
   const arrays = ["findings", "evidence", "changes", "artifact_impacts", "risks", "unknowns"];
   return report.schema_version === "arckit-worker-report/v1"
     && Boolean(report.task_id)
+    && typeof report.worker_type === "string"
+    && report.worker_type.length > 0
     && Boolean(report.role)
     && ["completed", "partial", "blocked", "failed", "invalid"].includes(report.status)
     && typeof report.summary === "string"
@@ -356,6 +347,28 @@ function auditArtifactImpacts({ reports, expectedPackets }) {
   };
 }
 
+function auditWorkerTypes({ reports, expectedPackets }) {
+  const packetByWorkerId = new Map(expectedPackets.map((packet) => [packet.worker_id, packet]));
+  const blockers = [];
+  for (const report of reports) {
+    const packet = packetByWorkerId.get(report.task_id);
+    if (!packet || !packet.worker_type) {
+      continue;
+    }
+    if (report.worker_type !== packet.worker_type) {
+      blockers.push(createGateBlocker({
+        type: "worker_type_mismatch",
+        severity: "recoverable",
+        recoverable_by: "agent",
+        target: report.task_id || report.role || "unknown",
+        suggested_action: "request_valid_report",
+        summary: `${report.task_id || report.role || "unknown"}: report.worker_type=${report.worker_type || "missing"} does not match packet.worker_type=${packet.worker_type}.`
+      }));
+    }
+  }
+  return { blockers };
+}
+
 function isMutatingOperation(operation) {
   return ["created", "updated", "deleted"].includes(operation);
 }
@@ -367,6 +380,9 @@ function pathAllowedByPacket(path, packet) {
   }
   return allowedPaths.some((allowed) => {
     const normalized = normalizeArtifactPathReferences([allowed])[0] || String(allowed || "").trim().replaceAll("\\", "/").replace(/^\.\//, "");
+    if (normalized === "." || normalized === "./") {
+      return true;
+    }
     if (!normalized) {
       return false;
     }

@@ -1,7 +1,7 @@
 interface:
   display_name: "Using Arckit"
   short_description: "Arckit project conversation Controller for execution packets, worker reports, closeout, and next prompts."
-  default_prompt: "Use $using-arckit when an input will change, recover, advance, verify, correct, pause, or hand off a real software project state, or when the user brings back worker reports. Act as Controller: recover project state and previous handoff, classify turn_delta, create controller_frame, execution_gate, executor_binding, worker_packets, report_intake_rules, closeout_rules, source_projection_check, completion_audit, and loop_handoff. Do not execute worker packets yourself unless execution_gate is explicitly authorized and executor_binding selects current_agent; otherwise wait for human-runtime, runtime executor, or external executor reports."
+  default_prompt: "Use $using-arckit when an input will change, recover, advance, verify, correct, pause, or hand off a real software project state, or when the user brings back worker reports. Act as Controller: recover project state and previous handoff, classify turn_delta, create controller_frame, execution_gate, executor_binding, worker_packets, report_intake_rules, closeout_rules, source_projection_check, completion_audit, and loop_handoff. Choose worker_type, role, and allowed_skills dynamically from state gaps, capability manifests, and packet boundaries. Do not execute worker packets yourself unless execution_gate is explicitly authorized and executor_binding selects current_agent; otherwise wait for human-runtime, runtime executor, or external executor reports."
 policy:
   allow_implicit_invocation: true
   turn_level_only: false
@@ -20,7 +20,7 @@ workflow:
   boundaries:
     - "This capability is a Controller; it does not execute worker packets by itself."
     - "Do not bind current_agent as executor unless explicitly authorized."
-    - "This capability coordinates packet and report flow; it does not replace result fact skills such as arckit-spec, arckit-tech, arckit-interaction, or arckit-visual."
+    - "This capability coordinates packet and report flow; it does not hard-code per-round workflow routes, fixed worker order, or fixed skill sequences. Bind allowed skills dynamically from capability manifests, packet goals, and evidence boundaries."
     - "Do not include operator-specific implementation details in the capability result."
     - "Do not claim case closure, final human gate, stable fact writes, or ledger writeback unless the responsible capability or execution environment actually performed them."
     - "Implementation artifacts are evidence until an appropriate result fact source accepts them as stable project facts."

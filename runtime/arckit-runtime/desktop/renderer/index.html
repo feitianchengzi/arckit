@@ -42,13 +42,10 @@
             <p><span id="selectedSessionTitle">No chat</span> · <span id="selectedProjectPath">Select a project.</span></p>
           </div>
           <div class="header-actions">
-            <span id="projectStateBadge" class="badge">No state</span>
             <span id="activeRunBadge" class="badge">Idle</span>
             <button id="settingsButton" class="secondary-button">Settings</button>
           </div>
         </header>
-
-        <section id="projectNarrative" class="project-narrative"></section>
 
         <section id="messageList" class="message-list"></section>
 
@@ -75,15 +72,15 @@
 
       <aside class="state-rail">
         <div class="inspector-tabs" role="tablist" aria-label="Desktop inspector">
-          <button class="inspector-tab active" data-inspector-tab="focus" type="button">Focus</button>
-          <button class="inspector-tab" data-inspector-tab="run" type="button">Run</button>
+          <button class="inspector-tab active" data-inspector-tab="focus" type="button">Control</button>
+          <button class="inspector-tab" data-inspector-tab="run" type="button">Workers</button>
           <button class="inspector-tab" data-inspector-tab="evidence" type="button">Evidence</button>
         </div>
 
         <section class="inspector-panel active" data-inspector-panel="focus">
           <section class="inspector-section primary-inspector">
             <div class="section-header">
-              <h3>Project Advancement</h3>
+              <h3>Current Turn</h3>
               <button id="refreshButton" class="quiet-button">Refresh</button>
             </div>
             <div id="loopState" class="state-block"></div>
@@ -91,14 +88,14 @@
 
           <section class="inspector-section">
             <div class="section-header">
-              <h3>Next State Gap</h3>
+              <h3>Useful Signals</h3>
             </div>
             <div id="stateGaps" class="state-list"></div>
           </section>
 
           <section class="inspector-section">
             <div class="section-header">
-              <h3>Next Action</h3>
+              <h3>Actions</h3>
             </div>
             <div class="focus-action">
               <div id="activeRunSummary" class="run-summary">No active run.</div>
@@ -116,13 +113,13 @@
         <section class="inspector-panel" data-inspector-panel="run">
           <section class="inspector-section">
             <div class="section-header">
-              <h3>Runs</h3>
+              <h3>Run History</h3>
             </div>
             <div id="runList" class="run-list"></div>
           </section>
           <section class="inspector-section run-detail-section">
             <div class="section-header">
-              <h3>Run Details</h3>
+              <h3>Worker Detail</h3>
             </div>
             <div id="runDetailSummary" class="run-summary">No active run.</div>
           </section>

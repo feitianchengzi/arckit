@@ -135,12 +135,21 @@ export function deriveRuntimeControlState({ run, project, session, activity, lat
       reason: handoff.responsibility_reason || "The loop is waiting on an external result."
     };
   }
+  if (isAgentRecoverable(activity)) {
+    return {
+      ...base,
+      state: handoff.trigger_mode === "auto_bridge" ? "agent_auto_continue_ready" : "agent_recoverable",
+      primary_action: handoff.trigger_mode === "auto_bridge" ? "auto_continue" : "continue_next_round",
+      primary_label: handoff.trigger_mode === "auto_bridge" ? "Auto Continue" : "Continue Next Round",
+      reason: handoff.responsibility_reason || loopGate.reason || "Agent can continue with the available loop handoff."
+    };
+  }
   if (handoff.status === "blocked" || loopGate.status === "blocked") {
     return {
       ...base,
-      state: "blocked",
+      state: "hard_blocked",
       primary_action: "resolve_blocker",
-      primary_label: "Resolve Blocker",
+      primary_label: "Resolve Hard Blocker",
       reason: handoff.responsibility_reason || loopGate.reason || "Loop is blocked."
     };
   }
@@ -171,8 +180,8 @@ export function deriveRuntimeControlState({ run, project, session, activity, lat
     return {
       ...base,
       state: "agent_resumable",
-      primary_action: "resume",
-      primary_label: "Resume",
+      primary_action: "continue_next_round",
+      primary_label: "Continue Next Round",
       reason: handoff.responsibility_reason || loopGate.reason || "Agent continuation is available."
     };
   }
@@ -180,6 +189,15 @@ export function deriveRuntimeControlState({ run, project, session, activity, lat
     ...base,
     reason: "No runtime control action is available."
   };
+}
+
+export function isAgentRecoverable(activity) {
+  const handoff = activity?.loop_handoff || {};
+  const loopGate = activity?.merge_result?.loop_gate || {};
+  return handoff.agent_continuation_available === true
+    && handoff.next_responsibility === "agent"
+    && handoff.human_decision_required !== true
+    && (handoff.status === "blocked" || loopGate.status === "blocked");
 }
 
 export function requiresHumanDecision(activity) {

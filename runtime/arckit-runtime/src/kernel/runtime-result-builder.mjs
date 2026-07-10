@@ -39,6 +39,7 @@ export function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, 
   const needsHuman = mergeResult.loop_gate.human_decision_required === true;
   const ledgerWritebackReady = shouldPrepareLedgerWriteback(mergeResult);
   const progressWriteback = ledgerWritebackReady && !loopDone;
+  const autoContinuationEligible = shouldAutoContinueAfterRound({ mergeResult, dryRun, loopDone, needsHuman });
   const roundResult = loopDone ? "done" : needsHuman ? "needs_human" : loopBlocked ? "blocked" : "continue";
   const handoffStatus = loopDone ? "done" : needsHuman ? "needs_human" : loopBlocked ? "blocked" : "continue";
   const runModeText = dryRun
@@ -91,7 +92,7 @@ export function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, 
       next_responsibility: loopDone ? "none" : needsHuman ? "human" : "agent",
       agent_continuation_available: !loopDone && !needsHuman,
       human_decision_required: needsHuman,
-      trigger_mode: loopDone ? "none" : needsHuman ? "user_decision" : "manual_bridge",
+      trigger_mode: loopDone ? "none" : needsHuman ? "user_decision" : autoContinuationEligible ? "auto_bridge" : "manual_bridge",
       responsibility_reason: mergeResult.loop_gate.reason,
       next_prompt: mergeResult.next_prompt,
       agent_instruction: {
@@ -135,6 +136,23 @@ export function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, 
       }
     }
   };
+}
+
+function shouldAutoContinueAfterRound({ mergeResult, dryRun, loopDone, needsHuman }) {
+  if (dryRun || loopDone || needsHuman) {
+    return false;
+  }
+  if (mergeResult.loop_gate.status !== "continue" || mergeResult.loop_gate.next_responsibility !== "agent") {
+    return false;
+  }
+  const intake = mergeResult.report_intake || {};
+  const unresolved = [
+    ...(intake.rejected || []),
+    ...(intake.needs_revision || []),
+    ...(intake.needs_human_decision || []),
+    ...(intake.missing || [])
+  ];
+  return unresolved.length === 0;
 }
 
 function unique(values) {
