@@ -1,3 +1,6 @@
+import { canAuthorizeRun as canAuthorizeRuntimeRun, deriveRuntimeControlState as deriveCanonicalRuntimeControlState } from "../../src/kernel/control-state.mjs";
+import { buildControllerOperatorTask, buildDesktopOperatorEvent } from "../../src/kernel/operator-event.mjs";
+
 const api = window.arckitDesktop;
 
 const state = {
@@ -1259,202 +1262,15 @@ function currentRun() {
   return state.runs.find((run) => run.id === state.activeRunId) || null;
 }
 
-function canAuthorizeRun(run) {
-  const activity = normalizedActivity(run);
-  return Boolean(run)
-    && run.status !== "running"
-    && run.adapter === "dry-run"
-    && activity?.execution_gate?.status === "pending"
-    && Array.isArray(activity.worker_packets)
-    && activity.worker_packets.length > 0;
-}
-
 function deriveRuntimeControlState() {
   const run = currentRun();
-  const project = selectedProject();
-  const session = selectedSession();
-  const activity = normalizedActivity(run);
-  const base = {
-    state: "no_context",
-    primary_action: "none",
-    primary_label: "",
-    reason: "No selected project, chat, or run.",
-    run_id: run?.id || ""
-  };
-  if (!project || !session || !run) {
-    return base;
-  }
-  if (run.status === "running") {
-    return {
-      ...base,
-      state: "running",
-      reason: activity?.current_step || "Run is still active."
-    };
-  }
-  if (canAuthorizeRun(run)) {
-    return {
-      ...base,
-      state: "packet_pending_authorization",
-      primary_action: "run_packet",
-      primary_label: "Run Packet",
-      reason: "Preview packet has a pending execution gate."
-    };
-  }
-  if (activity?.pending_controller_event) {
-    return {
-      ...base,
-      state: "interrupted_pending_controller_event",
-      primary_action: "resume_with_update",
-      primary_label: "Resume With Update",
-      reason: "Interrupted run has controller input that still needs recovery."
-    };
-  }
-
-  const ledgerWrite = activity?.ledger_write_result?.parsed || null;
-  const gateResult = activity?.gate_result?.parsed || ledgerWrite?.gate || null;
-  const ledgerStage = activity?.ledger_stage || null;
-  if (ledgerWrite?.written === true || ledgerStage?.status === "written") {
-    return {
-      ...base,
-      state: "ledger_written",
-      primary_action: "start_next_round",
-      primary_label: "Start Next Round",
-      reason: "Ledger writeback has updated project state."
-    };
-  }
-  if (ledgerStage?.status === "gate_blocked") {
-    return {
-      ...base,
-      state: "ledger_writeback_blocked",
-      primary_action: "resolve_gate",
-      primary_label: "Resolve Gate",
-      reason: ledgerStage.reason || "Ledger gate blocked writeback."
-    };
-  }
-  if (run.status === "failed" || activity?.validation_valid === false) {
-    return {
-      ...base,
-      state: "failed_or_invalid",
-      primary_action: "diagnose",
-      primary_label: "Diagnose",
-      reason: run.status === "failed" ? "Run failed." : "Runtime result validation failed."
-    };
-  }
-
-  if (ledgerStage?.status === "gate_ready" && ledgerStage?.writeback_required === true) {
-    return {
-      ...base,
-      state: activity?.round_state === "ledger_gate_ready" ? "ledger_gate_ready" : "ledger_writeback_ready",
-      primary_action: "write_ledger",
-      primary_label: "Write Ledger",
-      reason: ledgerStage.reason || "Runtime result has validated progress and awaits ledger writeback."
-    };
-  }
-
-  const runtimeDone = run.round_result === "done"
-    || activity?.round_result === "done"
-    || activity?.loop_handoff?.status === "done"
-    || activity?.merge_result?.loop_gate?.status === "done";
-  if (runtimeDone) {
-    if (gateResult?.allowed === false || ledgerWrite?.written === false && ledgerWrite?.gate?.allowed === false) {
-      return {
-        ...base,
-        state: "ledger_writeback_blocked",
-        primary_action: "resolve_gate",
-        primary_label: "Resolve Gate",
-        reason: (gateResult?.reasons || ledgerWrite?.gate?.reasons || []).join(" | ") || "Ledger gate blocked writeback."
-      };
-    }
-    return {
-      ...base,
-      state: activity?.round_state === "ledger_gate_ready" ? "ledger_gate_ready" : "ledger_writeback_ready",
-      primary_action: "write_ledger",
-      primary_label: "Write Ledger",
-      reason: "Runtime result is done and awaits ledger writeback."
-    };
-  }
-
-  const handoff = activity?.loop_handoff || {};
-  const loopGate = activity?.merge_result?.loop_gate || {};
-  const reportIntake = activity?.report_intake || activity?.merge_result?.report_intake || {};
-  const reports = Array.isArray(activity?.reports) ? activity.reports : [];
-  const workerPackets = Array.isArray(activity?.worker_packets) ? activity.worker_packets : [];
-  const missing = Array.isArray(reportIntake.missing) ? reportIntake.missing : [];
-  const needsRevision = Array.isArray(reportIntake.needs_revision) ? reportIntake.needs_revision : [];
-  const rejected = Array.isArray(reportIntake.rejected) ? reportIntake.rejected : [];
-
-  if (requiresHumanDecision(activity)) {
-    return {
-      ...base,
-      state: "human_gate_required",
-      primary_action: "respond_to_gate",
-      primary_label: "Respond To Gate",
-      reason: handoff.responsibility_reason || loopGate.reason || "Human decision is required."
-    };
-  }
-  if (handoff.next_responsibility === "external" || handoff.trigger_mode === "external_wait" || run.round_result === "external_wait") {
-    return {
-      ...base,
-      state: "external_wait",
-      primary_action: "resume_with_update",
-      primary_label: "Resume With Update",
-      reason: handoff.responsibility_reason || "The loop is waiting on an external result."
-    };
-  }
-  if (handoff.status === "blocked" || loopGate.status === "blocked") {
-    return {
-      ...base,
-      state: "blocked",
-      primary_action: "resolve_blocker",
-      primary_label: "Resolve Blocker",
-      reason: handoff.responsibility_reason || loopGate.reason || "Loop is blocked."
-    };
-  }
-  if (reports.length > 0 && (missing.length > 0 || needsRevision.length > 0 || rejected.length > 0)) {
-    return {
-      ...base,
-      state: "reviewing_reports",
-      primary_action: "review_reports",
-      primary_label: "Resume Review",
-      reason: "Worker reports need controller review or revision."
-    };
-  }
-  if (workerPackets.length > 0 && missing.length > 0) {
-    return {
-      ...base,
-      state: "waiting_worker_reports",
-      primary_action: "review_reports",
-      primary_label: "Review Reports",
-      reason: "Worker packets exist and required reports are missing."
-    };
-  }
-  if (latestNextPrompt() && (
-    handoff.agent_continuation_available === true
-    || handoff.next_responsibility === "agent"
-    || handoff.status === "continue"
-    || loopGate.status === "continue"
-  )) {
-    return {
-      ...base,
-      state: "agent_resumable",
-      primary_action: "resume",
-      primary_label: "Resume",
-      reason: handoff.responsibility_reason || loopGate.reason || "Agent continuation is available."
-    };
-  }
-  return {
-    ...base,
-    reason: "No runtime control action is available."
-  };
-}
-
-function requiresHumanDecision(activity) {
-  return activity?.loop_handoff?.human_decision_required === true
-    || activity?.loop_handoff?.next_responsibility === "human"
-    || activity?.loop_handoff?.trigger_mode === "user_decision"
-    || activity?.merge_result?.loop_gate?.human_decision_required === true
-    || activity?.merge_result?.loop_gate?.next_responsibility === "human"
-    || activity?.merge_result?.loop_gate?.trigger_mode === "user_decision";
+  return deriveCanonicalRuntimeControlState({
+    run,
+    project: selectedProject(),
+    session: selectedSession(),
+    activity: normalizedActivity(run),
+    latestNextPrompt: latestNextPrompt()
+  });
 }
 
 function isOperatorEventAction(action) {
@@ -1505,18 +1321,7 @@ async function runControllerOperatorEvent(controlState, { userInput = "", action
     action: action || controlState.primary_action,
     userInput
   });
-  const task = [
-    "Arckit Desktop operator event.",
-    "",
-    "Controller instruction:",
-    "- Recover project state, latest run activity, loop handoff, report intake, gate result, and ledger write result.",
-    "- Classify user_input as supplement, correction, goal_change, report_intake, status_query, new_case, or continuation.",
-    "- Decide the next business step from Arckit state. Do not assume the UI action determines the business path.",
-    "- If a packet is stale, say so and generate a replacement packet or ask for a human decision.",
-    "- If ledger writeback is blocked, explain the gate evidence and produce the next recoverable action.",
-    "",
-    JSON.stringify(operatorEvent, null, 2)
-  ].join("\n");
+  const task = buildControllerOperatorTask(operatorEvent);
   await api.addMessage(project.id, {
     role: "user",
     kind: "operator-event",
@@ -1539,83 +1344,23 @@ async function runControllerOperatorEvent(controlState, { userInput = "", action
 function buildOperatorEvent(controlState, { action, userInput }) {
   const run = currentRun();
   const activity = normalizedActivity(run);
-  return {
-    schema_version: "arckit-desktop-operator-event/v1",
+  return buildDesktopOperatorEvent({
     action,
-    user_input: userInput || "",
-    control_state: {
-      state: controlState.state,
-      primary_action: controlState.primary_action,
-      primary_label: controlState.primary_label,
-      reason: controlState.reason
-    },
-    project: selectedProject()
-      ? {
-        id: selectedProject().id,
-        name: selectedProject().name,
-        path: selectedProject().path
-      }
-      : null,
-    session: selectedSession()
-      ? {
-        id: selectedSession().id,
-        title: selectedSession().title || ""
-      }
-      : null,
-    source_run: run
-      ? {
-        id: run.id,
-        status: run.status,
-        adapter: run.adapter || "",
-        round_result: run.round_result || activity?.round_result || "",
-        validation_valid: run.validation_valid ?? activity?.validation_valid ?? null,
-        result_file: run.result_file || "",
-        activity_file: run.activity_file || ""
-      }
-      : null,
-    controller_context: {
-      controller_frame: activity?.controller_frame || null,
-      execution_gate: activity?.execution_gate || null,
-      executor_binding: activity?.executor_binding || null,
-      worker_packets: summarizeWorkerPackets(activity?.worker_packets || []),
-      report_intake: activity?.report_intake || activity?.merge_result?.report_intake || null,
-      worker_reports: summarizeWorkerReports(activity?.reports || []),
-      merge_gate: activity?.merge_result?.loop_gate || null,
-      loop_handoff: activity?.loop_handoff || null,
-      pending_controller_event: activity?.pending_controller_event || null,
-      gate_result: activity?.gate_result?.parsed || activity?.ledger_write_result?.parsed?.gate || null,
-      ledger_write_result: activity?.ledger_write_result?.parsed || null,
-      latest_next_prompt: latestNextPrompt()
-    },
-    project_loop_control: state.projectStatus?.loop_control || null,
-    project_top_gap: state.projectStatus?.top_gap || null
-  };
-}
-
-function summarizeWorkerPackets(packets) {
-  return (Array.isArray(packets) ? packets : []).map((packet) => ({
-    worker_id: packet.worker_id || packet.id || "",
-    role: packet.role || "",
-    task: packet.task || packet.objective || "",
-    context_refs: Array.isArray(packet.context_refs) ? packet.context_refs : packet.inputs?.known_state_paths || []
-  }));
-}
-
-function summarizeWorkerReports(reports) {
-  return (Array.isArray(reports) ? reports : []).map((report) => ({
-    task_id: report.task_id || "",
-    role: report.role || "",
-    status: report.status || "",
-    summary: report.summary || "",
-    recommendation: report.recommendation || "",
-    requires_main_agent_decision: report.requires_main_agent_decision === true
-  }));
+    userInput,
+    controlState,
+    project: selectedProject(),
+    session: selectedSession(),
+    run,
+    activity,
+    projectStatus: state.projectStatus,
+    latestNextPrompt: latestNextPrompt()
+  });
 }
 
 async function authorizeCurrentPacket() {
   const project = selectedProject();
   const packetRun = currentRun();
-  if (!project || !packetRun || !canAuthorizeRun(packetRun)) {
+  if (!project || !packetRun || !canAuthorizeRuntimeRun({ run: packetRun, activity: normalizedActivity(packetRun) })) {
     return;
   }
   await api.addMessage(project.id, {
