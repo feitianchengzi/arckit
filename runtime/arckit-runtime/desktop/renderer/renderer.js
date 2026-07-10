@@ -584,7 +584,7 @@ function renderActiveRun() {
   const controlState = deriveRuntimeControlState();
   const hasDraftInput = els.chatInput.value.trim().length > 0;
   els.activeRunBadge.textContent = run ? run.status : "Idle";
-  els.activeRunBadge.className = `badge ${active ? "warning" : run?.status === "completed" ? "ok" : run?.status === "failed" ? "danger" : ""}`;
+  els.activeRunBadge.className = `badge ${active ? "warning" : run?.status === "completed" ? "ok" : ["failed", "aborted"].includes(run?.status) ? "danger" : ""}`;
   els.activeRunSummary.innerHTML = run
     ? renderFocusActionSummary(run, activity, controlState)
     : "No active run.";
@@ -813,7 +813,7 @@ function renderLiveRunCard() {
             <span class="entry-chip muted">${escapeHtml(operator)} operator</span>
           </div>
         </div>
-        <span class="badge ${run.status === "running" ? "warning" : run.status === "completed" ? "ok" : run.status === "failed" ? "danger" : ""}">
+        <span class="badge ${run.status === "running" ? "warning" : run.status === "completed" ? "ok" : ["failed", "aborted"].includes(run.status) ? "danger" : ""}">
           ${escapeHtml(run.status)}
         </span>
       </div>
@@ -1086,7 +1086,7 @@ function applyRunEventToState(event) {
       ...state.runs[index],
       status: event.status || state.runs[index].status,
       exit_code: event.exitCode ?? state.runs[index].exit_code,
-      round_result: event.result?.runtime_result?.round_result || state.runs[index].round_result || "",
+      round_result: event.result?.runtime_result?.round_result || (event.status === "aborted" ? "aborted" : state.runs[index].round_result || ""),
       validation_valid: event.result?.validation?.valid ?? state.runs[index].validation_valid ?? null
     };
   }

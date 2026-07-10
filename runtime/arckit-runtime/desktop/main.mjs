@@ -8,6 +8,7 @@ const runtimeRoot = dirname(desktopDir);
 
 let mainWindow;
 let runManager;
+let quitAfterCleanup = false;
 
 app.whenReady().then(async () => {
   runManager = createDesktopRunManager({
@@ -20,6 +21,23 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
+    app.quit();
+  }
+});
+
+app.on("before-quit", async (event) => {
+  if (quitAfterCleanup || !runManager) {
+    return;
+  }
+  event.preventDefault();
+  quitAfterCleanup = true;
+  try {
+    await runManager.abortActiveRuns({
+      reason: "Arckit Desktop is quitting; active runs were aborted."
+    });
+  } catch (error) {
+    console.error("Failed to abort active runs during Desktop shutdown:", error);
+  } finally {
     app.quit();
   }
 });

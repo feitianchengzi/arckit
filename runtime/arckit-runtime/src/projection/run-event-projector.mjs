@@ -608,6 +608,16 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
         detail: parsedResult?.runtime_result?.summary || `exit ${exitCode}`
       }
     });
+  } else if (status === "aborted") {
+    updateRunActivity(run, {
+      phase: "aborted",
+      current_step: errorMessage || "Run aborted before completion",
+      timeline: {
+        type: "runtime.aborted",
+        label: "Run aborted",
+        detail: errorMessage || "aborted"
+      }
+    });
   } else {
     updateRunActivity(run, {
       phase: "failed",
@@ -956,6 +966,7 @@ function phaseLabel(phase) {
     result: "Parsing result",
     "turn-completed": "Turn completed",
     finished: "Finished",
+    aborted: "Aborted",
     failed: "Failed",
     "dry-run": "Dry run"
   };
@@ -981,6 +992,9 @@ function parseEventLine(line) {
 }
 
 function summarizeRuntimeResult(status, parsedResult, errorMessage) {
+  if (status === "aborted") {
+    return errorMessage ? `Run aborted: ${errorMessage}` : "Run aborted.";
+  }
   if (errorMessage) {
     return `Run failed: ${errorMessage}`;
   }
@@ -1010,5 +1024,6 @@ export {
   normalizeCommandResult,
   parseEventLine,
   summarizeCommandResult,
-  summarizeRuntimeResult
+  summarizeRuntimeResult,
+  updateRunActivity
 };

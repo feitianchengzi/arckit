@@ -23,7 +23,8 @@ import {
   finalizeRunActivity,
   normalizeCommandResult,
   parseEventLine,
-  summarizeRuntimeResult
+  summarizeRuntimeResult,
+  updateRunActivity
 } from "./projection/run-event-projector.mjs";
 
 export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = process.env.ARCKIT_NODE_BIN || "node" }) {
@@ -378,13 +379,18 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     const child = spawn(nodeBin, args, {
       cwd: runtimeRoot,
       stdio: ["pipe", "pipe", "pipe"],
+      detached: process.platform !== "win32",
       env: buildRuntimeEnv({
         ...process.env,
         FORCE_COLOR: "0"
       }, store.settings)
     });
 
-    activeRuns.set(runId, { child, run });
+    const activeRun = { child, run, stdout: "", aborting: false };
+    activeRuns.set(runId, activeRun);
+    child.stdin.on("error", () => {
+      // The runtime may already be exiting when Desktop sends interrupt/abort input.
+    });
     await addMessage(project.id, {
       role: "system",
       kind: "run-started",
@@ -394,10 +400,9 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     });
     emit("run.started", { run });
 
-    let stdout = "";
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
-      stdout += chunk;
+      activeRun.stdout += chunk;
       emit("run.stdout", { runId, chunk });
     });
 
@@ -421,7 +426,13 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     });
 
     child.on("error", async (error) => {
-      await finishRun(runId, "failed", null, error.message, stdout);
+      await finishRun(
+        runId,
+        activeRun.aborting ? "aborted" : "failed",
+        null,
+        activeRun.aborting ? "Desktop terminated the active run before completion." : error.message,
+        activeRun.stdout
+      );
     });
 
     child.on("close", async (code) => {
@@ -437,7 +448,13 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
         const activity = applyRunEvent(run, { line, parsed });
         emit("run.event_line", { runId, line, parsed, activity });
       }
-      await finishRun(runId, code === 0 ? "completed" : "failed", code, "", stdout);
+      await finishRun(
+        runId,
+        activeRun.aborting ? "aborted" : code === 0 ? "completed" : "failed",
+        code,
+        activeRun.aborting ? "Desktop terminated the active run before completion." : "",
+        activeRun.stdout
+      );
     });
 
     return run;
@@ -450,14 +467,14 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     }
     activeRuns.delete(runId);
     const { run } = active;
-    if (stdout.trim()) {
+    if (stdout.trim() && status !== "aborted") {
       await writeFile(run.result_file, stdout, "utf8");
     }
     if (errorMessage) {
       await appendText(run.error_file, `${errorMessage}\n`);
     }
     let parsedResult = null;
-    if (stdout.trim()) {
+    if (stdout.trim() && status !== "aborted") {
       try {
         parsedResult = JSON.parse(stdout);
       } catch (error) {
@@ -476,7 +493,7 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
         run_id: run.id,
         status,
         exit_code: exitCode,
-        round_result: parsedResult?.runtime_result?.round_result || ""
+        round_result: parsedResult?.runtime_result?.round_result || (status === "aborted" ? "aborted" : "")
       }
     });
     await writeJson(run.activity_file, run.activity);
@@ -489,7 +506,7 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
           finished_at: new Date().toISOString(),
           exit_code: exitCode,
           validation_valid: parsedResult?.validation?.valid ?? null,
-          round_result: parsedResult?.runtime_result?.round_result || "",
+          round_result: parsedResult?.runtime_result?.round_result || (status === "aborted" ? "aborted" : ""),
           activity: run.activity
         };
       }
@@ -503,6 +520,52 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
       session_id: run.session_id
     });
     emit("run.finished", { runId, status, exitCode, result: parsedResult, activity: run.activity });
+  }
+
+  async function abortActiveRuns({ reason = "Desktop is quitting; active runs were aborted.", graceMs = 750 } = {}) {
+    const entries = Array.from(activeRuns.entries());
+    if (entries.length === 0) {
+      return { aborted: 0 };
+    }
+
+    for (const [runId, active] of entries) {
+      if (!activeRuns.has(runId)) {
+        continue;
+      }
+      active.aborting = true;
+      sendInterrupt(active.child);
+      updateRunActivity(active.run, {
+        phase: "aborted",
+        current_step: reason,
+        timeline: {
+          type: "desktop.run.abort_requested",
+          label: "Abort requested",
+          detail: reason
+        }
+      });
+      await appendJsonLine(active.run.raw_events_file, {
+        at: new Date().toISOString(),
+        event: {
+          type: "desktop.run.abort_requested",
+          run_id: runId,
+          reason
+        }
+      });
+      emit("run.abort_requested", { runId, reason, activity: active.run.activity });
+    }
+
+    await delay(graceMs);
+
+    let aborted = 0;
+    for (const [runId, active] of entries) {
+      if (!activeRuns.has(runId)) {
+        continue;
+      }
+      terminateChildTree(active.child, "SIGTERM");
+      await finishRun(runId, "aborted", null, reason, active.stdout);
+      aborted += 1;
+    }
+    return { aborted };
   }
 
   async function controlRun(runId, control) {
@@ -726,9 +789,41 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     updateSettings,
     startRun,
     controlRun,
+    abortActiveRuns,
     gateRun,
     writeLedgerForRun
   };
+}
+
+function sendInterrupt(child) {
+  try {
+    if (child?.stdin?.writable) {
+      child.stdin.write("/interrupt\n");
+    }
+  } catch {
+    // The process may already be exiting; abort finalization still marks the run.
+  }
+}
+
+function terminateChildTree(child, signal) {
+  if (!child || child.exitCode !== null || child.signalCode) {
+    return;
+  }
+  try {
+    if (process.platform !== "win32" && child.pid) {
+      process.kill(-child.pid, signal);
+      return;
+    }
+    child.kill(signal);
+  } catch (error) {
+    if (error?.code !== "ESRCH") {
+      throw error;
+    }
+  }
+}
+
+function delay(ms) {
+  return new Promise((resolvePromise) => setTimeout(resolvePromise, ms));
 }
 
 function shouldRunAutomaticLedgerStage(run, status, parsedResult) {

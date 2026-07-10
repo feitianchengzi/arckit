@@ -4,6 +4,7 @@ Project-level unresolved items captured during agent collaboration.
 
 | Item | State | Type | Updated | Summary | Revisit When |
 |---|---|---|---:|---|---|
+| [Desktop Interrupt And Restore Model](items/2026-07-10-desktop-interrupt-restore-model.md) | parked | technical | 2026-07-10 | 暂存 Desktop 退出、active run 中断、Codex CLI 式继续对话和 daemon 式恢复的模型讨论。 | 继续设计 Desktop run/session 生命周期或要求实现 interrupt/continue 恢复体验时。 |
 
 ## Archived
 
