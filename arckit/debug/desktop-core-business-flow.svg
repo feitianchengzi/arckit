@@ -1,0 +1,232 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1280" viewBox="0 0 1800 1280">
+  <defs>
+    <style>
+      .bg { fill: #f7f5ef; }
+      .lane { fill: #fffdf8; stroke: #d5ccba; stroke-width: 1.5; }
+      .lane-title { font: 700 22px Arial, sans-serif; fill: #2b2d33; }
+      .node { fill: #ffffff; stroke: #4b5563; stroke-width: 2; }
+      .decision { fill: #fff7d6; stroke: #9a6a00; stroke-width: 2; }
+      .runtime { fill: #eef7ff; stroke: #1f6fa8; stroke-width: 2; }
+      .worker { fill: #effaf2; stroke: #2f7d46; stroke-width: 2; }
+      .gate { fill: #f7efff; stroke: #6d42a8; stroke-width: 2; }
+      .blocked { fill: #fff0ef; stroke: #b23a2f; stroke-width: 2; }
+      .done { fill: #eef9f0; stroke: #248043; stroke-width: 2.5; }
+      .text { font: 17px Arial, sans-serif; fill: #23272f; }
+      .small { font: 14px Arial, sans-serif; fill: #4b5563; }
+      .label { font: 13px Arial, sans-serif; fill: #374151; }
+      .arrow { stroke: #374151; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .soft-arrow { stroke: #6b7280; stroke-width: 1.8; fill: none; stroke-dasharray: 7 6; marker-end: url(#arrow); }
+      .note { fill: #fff8e8; stroke: #d09a26; stroke-width: 1.5; }
+      .note-text { font: 15px Arial, sans-serif; fill: #5b3d00; }
+      .title { font: 800 34px Arial, sans-serif; fill: #1f2937; }
+      .subtitle { font: 17px Arial, sans-serif; fill: #4b5563; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#374151" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1800" height="1280" />
+  <text class="title" x="60" y="62">Arckit Desktop 核心业务流程</text>
+  <text class="subtitle" x="60" y="92">当前代码理解：Desktop 负责项目/会话/授权/观察，Runtime 负责确定性控制，Worker 只执行 bounded packet，Ledger 只在 done + gate 通过后写回。</text>
+
+  <rect class="lane" x="40" y="125" width="390" height="1065" rx="14" />
+  <rect class="lane" x="470" y="125" width="430" height="1065" rx="14" />
+  <rect class="lane" x="940" y="125" width="390" height="1065" rx="14" />
+  <rect class="lane" x="1370" y="125" width="390" height="1065" rx="14" />
+
+  <text class="lane-title" x="70" y="165">Desktop UI / Run Manager</text>
+  <text class="lane-title" x="500" y="165">Runtime Controller</text>
+  <text class="lane-title" x="970" y="165">Controller Agent / Workers</text>
+  <text class="lane-title" x="1400" y="165">Gate / Ledger / Project State</text>
+
+  <!-- Desktop lane -->
+  <rect class="node" x="80" y="205" width="300" height="74" rx="10" />
+  <text class="text" x="112" y="237">选择或添加项目</text>
+  <text class="small" x="112" y="262">project list / chats / runs</text>
+
+  <path class="decision" d="M230 315 L360 385 L230 455 L100 385 Z" />
+  <text class="text" x="161" y="381">是否已有</text>
+  <text class="text" x="151" y="405">Arckit state?</text>
+
+  <rect class="node" x="80" y="495" width="300" height="78" rx="10" />
+  <text class="text" x="113" y="526">读取项目状态</text>
+  <text class="small" x="113" y="551">loop_control / top_gap / sessions</text>
+
+  <rect class="node" x="80" y="615" width="300" height="82" rx="10" />
+  <text class="text" x="112" y="646">用户输入或按钮</text>
+  <text class="small" x="112" y="671">Run / Preview / Continue / Stop</text>
+
+  <path class="decision" d="M230 735 L362 805 L230 875 L98 805 Z" />
+  <text class="text" x="165" y="792">当前是否</text>
+  <text class="text" x="174" y="817">有运行?</text>
+
+  <rect class="blocked" x="80" y="920" width="300" height="82" rx="10" />
+  <text class="text" x="117" y="952">运行中输入</text>
+  <text class="small" x="117" y="977">发送 controller-input 并 interrupt</text>
+
+  <rect class="node" x="80" y="1045" width="300" height="76" rx="10" />
+  <text class="text" x="117" y="1076">空闲输入</text>
+  <text class="small" x="117" y="1101">启动 Preview 或 Run</text>
+
+  <!-- Runtime lane -->
+  <rect class="runtime" x="530" y="205" width="310" height="82" rx="10" />
+  <text class="text" x="563" y="237">ensureArckitProject</text>
+  <text class="small" x="563" y="262">缺失则初始化 project/case/gap</text>
+
+  <rect class="runtime" x="530" y="335" width="310" height="82" rx="10" />
+  <text class="text" x="564" y="367">selectNextRound</text>
+  <text class="small" x="564" y="392">从 canonical state 选择 gap</text>
+
+  <path class="decision" d="M685 465 L840 535 L685 605 L530 535 Z" />
+  <text class="text" x="610" y="522">运行模式?</text>
+  <text class="small" x="605" y="547">dry-run / execute / packet</text>
+
+  <rect class="gate" x="530" y="650" width="310" height="94" rx="10" />
+  <text class="text" x="561" y="682">Preview Control</text>
+  <text class="small" x="561" y="707">只生成 control frame</text>
+  <text class="small" x="561" y="729">不执行 planner，不执行 worker</text>
+
+  <rect class="runtime" x="530" y="790" width="310" height="94" rx="10" />
+  <text class="text" x="562" y="822">执行型 Runtime</text>
+  <text class="small" x="562" y="847">创建 loop_frame / execution_gate</text>
+  <text class="small" x="562" y="869">授权 executor=desktop_runtime</text>
+
+  <rect class="runtime" x="530" y="930" width="310" height="82" rx="10" />
+  <text class="text" x="562" y="962">事件与活动记录</text>
+  <text class="small" x="562" y="987">events/raw-events/activity/result</text>
+
+  <!-- Worker lane -->
+  <rect class="worker" x="985" y="205" width="300" height="86" rx="10" />
+  <text class="text" x="1016" y="237">Controller Planning</text>
+  <text class="small" x="1016" y="262">输出 route_plan + worker_intents</text>
+
+  <path class="decision" d="M1135 330 L1285 400 L1135 470 L985 400 Z" />
+  <text class="text" x="1067" y="388">plan 是否</text>
+  <text class="text" x="1082" y="413">有效?</text>
+
+  <rect class="blocked" x="985" y="515" width="300" height="86" rx="10" />
+  <text class="text" x="1026" y="547">blocked / needs_human</text>
+  <text class="small" x="1026" y="572">不静默补 worker，不猜路由</text>
+
+  <rect class="worker" x="985" y="650" width="300" height="94" rx="10" />
+  <text class="text" x="1016" y="682">创建 worker packets</text>
+  <text class="small" x="1016" y="707">按角色限定 scope / paths / skills</text>
+  <text class="small" x="1016" y="729">state_reader / source_fact / impl / verify...</text>
+
+  <rect class="worker" x="985" y="790" width="300" height="94" rx="10" />
+  <text class="text" x="1016" y="822">逐个 dispatch Worker</text>
+  <text class="small" x="1016" y="847">Codex app-server turn</text>
+  <text class="small" x="1016" y="869">返回 worker-report/v1</text>
+
+  <rect class="worker" x="985" y="930" width="300" height="86" rx="10" />
+  <text class="text" x="1016" y="962">Controller Review</text>
+  <text class="small" x="1016" y="987">语义判断 done/continue/blocked</text>
+
+  <rect class="gate" x="985" y="1060" width="300" height="86" rx="10" />
+  <text class="text" x="1016" y="1092">Runtime Guard / Merge</text>
+  <text class="small" x="1016" y="1117">证据、report、scope、风险硬门禁</text>
+
+  <!-- Ledger lane -->
+  <path class="decision" d="M1565 215 L1715 285 L1565 355 L1415 285 Z" />
+  <text class="text" x="1505" y="272">round_result</text>
+  <text class="text" x="1525" y="297">是否 done?</text>
+
+  <rect class="blocked" x="1415" y="400" width="300" height="92" rx="10" />
+  <text class="text" x="1448" y="432">不能写 ledger</text>
+  <text class="small" x="1448" y="457">continue / blocked / needs_human</text>
+  <text class="small" x="1448" y="477">Desktop 派生下一步操作</text>
+
+  <rect class="gate" x="1415" y="545" width="300" height="92" rx="10" />
+  <text class="text" x="1448" y="577">Ledger Gate</text>
+  <text class="small" x="1448" y="602">schema / evidence / ownership</text>
+  <text class="small" x="1448" y="622">human gate / unsafe path</text>
+
+  <path class="decision" d="M1565 680 L1715 750 L1565 820 L1415 750 Z" />
+  <text class="text" x="1505" y="737">gate 是否</text>
+  <text class="text" x="1528" y="762">允许?</text>
+
+  <rect class="blocked" x="1415" y="865" width="300" height="86" rx="10" />
+  <text class="text" x="1450" y="897">Resolve Gate</text>
+  <text class="small" x="1450" y="922">解释阻塞原因，进入下一轮</text>
+
+  <rect class="done" x="1415" y="1000" width="300" height="104" rx="10" />
+  <text class="text" x="1448" y="1032">write-ledger</text>
+  <text class="small" x="1448" y="1057">runtime execution record</text>
+  <text class="small" x="1448" y="1077">project / iteration / case / indexes</text>
+
+  <rect class="done" x="1415" y="1140" width="300" height="62" rx="10" />
+  <text class="text" x="1450" y="1177">刷新 Desktop，进入下一轮</text>
+
+  <!-- Arrows desktop -->
+  <path class="arrow" d="M230 279 V315" />
+  <path class="arrow" d="M230 455 V495" />
+  <path class="arrow" d="M230 573 V615" />
+  <path class="arrow" d="M230 697 V735" />
+  <path class="arrow" d="M180 850 C130 885 120 900 160 920" />
+  <text class="label" x="103" y="893">是</text>
+  <path class="arrow" d="M280 850 C340 900 335 1000 280 1045" />
+  <text class="label" x="333" y="920">否</text>
+
+  <!-- Desktop to Runtime -->
+  <path class="arrow" d="M380 242 H530" />
+  <path class="arrow" d="M380 1082 C445 1082 455 375 530 375" />
+  <path class="soft-arrow" d="M380 960 C450 960 450 968 530 968" />
+  <text class="label" x="397" y="945">interrupt 后由下一轮 Controller 分类</text>
+
+  <!-- Runtime -->
+  <path class="arrow" d="M685 287 V335" />
+  <path class="arrow" d="M685 417 V465" />
+  <path class="arrow" d="M610 588 C560 612 555 627 600 650" />
+  <text class="label" x="546" y="623">dry-run</text>
+  <path class="arrow" d="M745 588 C820 650 820 740 745 790" />
+  <text class="label" x="810" y="691">execute</text>
+  <path class="arrow" d="M840 535 C910 535 930 670 985 690" />
+  <text class="label" x="870" y="616">packet-file</text>
+  <path class="arrow" d="M840 837 H985" />
+  <path class="soft-arrow" d="M685 744 V790" />
+  <text class="label" x="704" y="774">Run Packet 授权后</text>
+  <path class="arrow" d="M685 884 V930" />
+
+  <!-- Runtime to worker -->
+  <path class="arrow" d="M840 837 C910 837 920 248 985 248" />
+  <path class="arrow" d="M1135 291 V330" />
+  <path class="arrow" d="M1065 455 C1010 485 1015 500 1050 515" />
+  <text class="label" x="1005" y="492">否</text>
+  <path class="arrow" d="M1205 455 C1295 560 1285 625 1215 650" />
+  <text class="label" x="1287" y="562">是</text>
+  <path class="arrow" d="M1135 744 V790" />
+  <path class="arrow" d="M1135 884 V930" />
+  <path class="arrow" d="M1135 1016 V1060" />
+
+  <!-- Worker to ledger -->
+  <path class="arrow" d="M1285 1103 C1370 1103 1375 285 1415 285" />
+  <path class="arrow" d="M1495 340 C1425 365 1428 382 1480 400" />
+  <text class="label" x="1424" y="371">否</text>
+  <path class="arrow" d="M1635 340 C1720 430 1700 505 1635 545" />
+  <text class="label" x="1700" y="438">是</text>
+  <path class="arrow" d="M1565 637 V680" />
+  <path class="arrow" d="M1495 805 C1430 835 1433 850 1485 865" />
+  <text class="label" x="1428" y="838">否</text>
+  <path class="arrow" d="M1635 805 C1710 870 1700 958 1635 1000" />
+  <text class="label" x="1702" y="890">是</text>
+  <path class="arrow" d="M1565 1104 V1140" />
+
+  <!-- Feedback loops -->
+  <path class="soft-arrow" d="M1415 446 C900 446 900 625 380 656" />
+  <text class="label" x="862" y="432">Desktop 显示 Resume / Resolve / Respond To Gate / Diagnose</text>
+  <path class="soft-arrow" d="M1415 908 C900 908 895 645 380 656" />
+  <text class="label" x="900" y="895">gate 阻塞作为 operator-event 进入下一轮</text>
+  <path class="soft-arrow" d="M1415 1170 H380" />
+  <text class="label" x="820" y="1156">刷新 project status / loop_control / top_gap</text>
+
+  <!-- Notes -->
+  <rect class="note" x="60" y="1210" width="520" height="46" rx="8" />
+  <text class="note-text" x="78" y="1239">关键约束 1：Preview 不是执行，只证明控制形状和授权缺口。</text>
+
+  <rect class="note" x="620" y="1210" width="520" height="46" rx="8" />
+  <text class="note-text" x="638" y="1239">关键约束 2：Controller Agent 做语义路由和复核，Runtime Guard 可否决 done。</text>
+
+  <rect class="note" x="1180" y="1210" width="560" height="46" rx="8" />
+  <text class="note-text" x="1198" y="1239">关键约束 3：只有 done + gate_ready + gate allowed 才能写回 ledger。</text>
+</svg>

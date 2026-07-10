@@ -1,4 +1,4 @@
-import { buildArtifactOwnershipScan } from "./artifact-ownership-map.mjs";
+import { buildArtifactOwnershipScan, normalizeArtifactPathReferences } from "./artifact-ownership-map.mjs";
 
 export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = false, conversationLocale = "en" }) {
   const expectedPackets = Array.isArray(loopFrame.worker_packets) ? loopFrame.worker_packets : [];
@@ -11,8 +11,12 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
   const controllerDecisionReports = reports.filter((report) => report.requires_main_agent_decision === true);
   const incompleteReports = reports.filter((report) => !reportIsComplete(report));
   const missingReports = expectedWorkerIds.filter((workerId) => !reports.some((report) => report.task_id === workerId));
-  const allEvidence = unique(reports.flatMap((report) => report.evidence || []));
-  const allChanges = unique(reports.flatMap((report) => report.changes || []));
+  const allEvidence = unique(reports.flatMap((report) => [
+    ...(report.evidence || []),
+    ...(report.artifact_impacts || []).flatMap((impact) => impact.evidence || [])
+  ]));
+  const artifactImpactAudit = auditArtifactImpacts({ reports, expectedPackets });
+  const allChanges = artifactImpactAudit.changedArtifactPaths;
   const allRisks = unique(reports.flatMap((report) => report.risks || []));
   const allUnknowns = unique(reports.flatMap((report) => report.unknowns || []));
   const ownershipScan = buildArtifactOwnershipScan(allChanges);
@@ -21,24 +25,127 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
     || ownershipScan.source_facts_changed.length > 0
     || allEvidence.some((item) => /^arckit\/(spec|tech|interaction|visual)\//.test(item));
   const humanDecisionRequired = humanDecisionReports.length > 0;
+  const infrastructureFailures = reports.filter(isInfrastructureFailureReport);
+  const infrastructureFailureIds = new Set(infrastructureFailures.map((report) => report.task_id));
   const blockers = [
-    ...rejected.map((report) => `${report.task_id}: rejected (${report.status}) - ${report.summary}`),
-    ...blocked.map((report) => `${report.task_id}: blocked - ${report.summary}`),
-    ...partial.map((report) => `${report.task_id}: partial - ${report.summary}`),
-    ...incompleteReports.map((report) => `${report.task_id || report.role || "unknown"}: incomplete report shape`),
-    ...missingReports.map((workerId) => `${workerId}: missing worker report`),
-    ...allRisks.map((risk) => `risk: ${risk}`),
-    ...allUnknowns.map((unknown) => `unknown: ${unknown}`)
+    ...infrastructureFailures.map((report) => createGateBlocker({
+      type: "infrastructure_failure",
+      severity: "blocked",
+      recoverable_by: "runtime",
+      target: report.task_id || report.role || "unknown",
+      suggested_action: "fix_runtime_infrastructure",
+      summary: `${report.task_id || report.role || "unknown"}: runtime infrastructure failed - ${report.summary}`
+    })),
+    ...rejected
+      .filter((report) => !infrastructureFailureIds.has(report.task_id))
+      .map((report) => createGateBlocker({
+        type: report.status === "invalid" ? "invalid_report" : "failed_report",
+        severity: "recoverable",
+        recoverable_by: "agent",
+        target: report.task_id || report.role || "unknown",
+        suggested_action: report.status === "invalid" ? "request_valid_report" : "rerun_worker",
+        summary: `${report.task_id || report.role || "unknown"}: ${report.status} report - ${report.summary}`
+      })),
+    ...blocked.map((report) => createGateBlocker({
+      type: "blocked_report",
+      severity: report.requires_human_decision === true ? "needs_human" : "blocked",
+      recoverable_by: report.requires_human_decision === true ? "human" : "runtime",
+      target: report.task_id || report.role || "unknown",
+      suggested_action: report.requires_human_decision === true ? "request_human_decision" : "inspect_blocker",
+      summary: `${report.task_id || report.role || "unknown"}: blocked - ${report.summary}`
+    })),
+    ...partial.map((report) => createGateBlocker({
+      type: "partial_report",
+      severity: "recoverable",
+      recoverable_by: "agent",
+      target: report.task_id || report.role || "unknown",
+      suggested_action: "revise_worker",
+      summary: `${report.task_id || report.role || "unknown"}: partial - ${report.summary}`
+    })),
+    ...incompleteReports.map((report) => createGateBlocker({
+      type: "incomplete_report",
+      severity: "recoverable",
+      recoverable_by: "agent",
+      target: report.task_id || report.role || "unknown",
+      suggested_action: "request_valid_report",
+      summary: `${report.task_id || report.role || "unknown"}: incomplete report shape`
+    })),
+    ...missingReports.map((workerId) => createGateBlocker({
+      type: "missing_report",
+      severity: "recoverable",
+      recoverable_by: "agent",
+      target: workerId,
+      suggested_action: "rerun_worker",
+      summary: `${workerId}: missing worker report`
+    })),
+    ...allRisks.map((risk) => createGateBlocker({
+      type: "risk",
+      severity: humanDecisionRequired ? "needs_human" : "recoverable",
+      recoverable_by: humanDecisionRequired ? "human" : "agent",
+      target: "",
+      suggested_action: humanDecisionRequired ? "request_human_decision" : "resolve_risk",
+      summary: `risk: ${risk}`
+    })),
+    ...allUnknowns.map((unknown) => createGateBlocker({
+      type: "unknown",
+      severity: humanDecisionRequired ? "needs_human" : "recoverable",
+      recoverable_by: humanDecisionRequired ? "human" : "agent",
+      target: "",
+      suggested_action: humanDecisionRequired ? "request_human_decision" : "resolve_unknown",
+      summary: `unknown: ${unknown}`
+    })),
+    ...artifactImpactAudit.blockers
   ];
 
   if (sourceFactRound && !sourceFactEvidenceSatisfied) {
-    blockers.push("source_fact_establishment claim lacks source-fact evidence accepted by protocol conditions.");
+    blockers.push(createGateBlocker({
+      type: "source_fact_evidence_missing",
+      severity: "recoverable",
+      recoverable_by: "agent",
+      target: loopFrame.selected_gap?.id || round.gap_id || "",
+      suggested_action: "establish_source_fact",
+      summary: "source_fact_establishment claim lacks source-fact evidence accepted by protocol conditions."
+    }));
+  }
+  if (expectedWorkerIds.length === 0) {
+    blockers.push(createGateBlocker({
+      type: "no_expected_worker_packets",
+      severity: "blocked",
+      recoverable_by: "agent",
+      target: loopFrame.case_id || round.gap_id || "",
+      suggested_action: "retry_controller_planning",
+      summary: "no expected worker packets were issued for this round."
+    }));
+  }
+  if (allEvidence.length === 0) {
+    blockers.push(createGateBlocker({
+      type: "evidence_missing",
+      severity: "recoverable",
+      recoverable_by: "agent",
+      target: "",
+      suggested_action: "collect_evidence",
+      summary: "worker reports did not provide required evidence."
+    }));
   }
   if (loopFrame.execution_gate?.status !== "authorized") {
-    blockers.push(t(conversationLocale, `execution_gate: ${loopFrame.execution_gate?.status || "unknown"} - executor not authorized`, `execution_gate: ${loopFrame.execution_gate?.status || "unknown"} - 执行器未授权`));
+    blockers.push(createGateBlocker({
+      type: "execution_gate_unauthorized",
+      severity: "needs_human",
+      recoverable_by: "human",
+      target: "execution_gate",
+      suggested_action: "request_authorization",
+      summary: t(conversationLocale, `execution_gate: ${loopFrame.execution_gate?.status || "unknown"} - executor not authorized`, `execution_gate: ${loopFrame.execution_gate?.status || "unknown"} - 执行器未授权`)
+    }));
   }
   if (humanDecisionRequired) {
-    blockers.push("requires_human_decision=true from worker report.");
+    blockers.push(createGateBlocker({
+      type: "human_decision_required",
+      severity: "needs_human",
+      recoverable_by: "human",
+      target: humanDecisionReports.map((report) => report.task_id).filter(Boolean).join(", "),
+      suggested_action: "request_human_decision",
+      summary: "requires_human_decision=true from worker report."
+    }));
   }
 
   const reducerActions = controllerDecisionReports.map((report) => ({
@@ -57,11 +164,19 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
     && incompleteReports.length === 0
     && allRisks.length === 0
     && allUnknowns.length === 0
+    && blockers.length === 0
     && allEvidence.length > 0
     && sourceFactEvidenceSatisfied
     && !humanDecisionRequired;
 
-  const infrastructureFailures = reports.filter(isInfrastructureFailureReport);
+  const hardGateStatus = canClose
+    ? "pass"
+    : blockers.some((blocker) => blocker.severity === "blocked")
+      ? "blocked"
+      : blockers.some((blocker) => blocker.severity === "needs_human")
+        ? "needs_human"
+        : "continue";
+  const hardGateReason = gateReason({ dryRun, infrastructureFailures, blockers, reducerActions, canClose, conversationLocale });
   const loopStatus = infrastructureFailures.length > 0
     ? "blocked"
     : humanDecisionRequired
@@ -87,14 +202,20 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
     changed_files: allChanges,
     risks: allRisks,
     unknowns: allUnknowns,
-    artifact_ownership_scan: ownershipScan,
-    source_projection_check: {
-      source_facts_changed: ownershipScan.source_facts_changed,
-      projection_artifacts_changed: ownershipScan.projection_artifacts_changed,
-      source_unknown: allUnknowns.length > 0 || rejected.length > 0 || blocked.length > 0 || missingReports.length > 0 || (sourceFactRound && !sourceFactEvidenceSatisfied),
-      deferred_projections: dryRun ? ["real worker execution", "ledger writeback"] : [],
-      blocked_projections: blockers
-    },
+	    hard_gate: {
+	      status: hardGateStatus,
+	      can_close: canClose,
+	      blockers,
+	      reason: hardGateReason
+	    },
+	    artifact_ownership_scan: ownershipScan,
+	    source_projection_check: {
+	      source_facts_changed: ownershipScan.source_facts_changed,
+	      projection_artifacts_changed: ownershipScan.projection_artifacts_changed,
+	      source_unknown: allUnknowns.length > 0 || rejected.length > 0 || blocked.length > 0 || missingReports.length > 0 || (sourceFactRound && !sourceFactEvidenceSatisfied),
+	      deferred_projections: dryRun ? ["real worker execution", "ledger writeback"] : [],
+	      blocked_projections: blockers.map(formatGateBlocker)
+	    },
     report_intake: {
       accepted: accepted.map((report) => report.task_id),
       rejected: rejected.map((report) => report.task_id),
@@ -108,20 +229,21 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
       next_responsibility: canClose ? "none" : humanDecisionRequired ? "human" : "agent",
       trigger_mode: canClose ? "none" : humanDecisionRequired ? "user_decision" : "manual_bridge",
       human_decision_required: humanDecisionRequired,
-      reason: gateReason({ dryRun, infrastructureFailures, blockers, reducerActions, canClose, conversationLocale })
+      reason: hardGateReason
     }
   };
 }
 
 function gateReason({ dryRun, infrastructureFailures, blockers, reducerActions, canClose, conversationLocale }) {
   if (dryRun) {
-    return t(conversationLocale, "Dry-run proves orchestration shape but not real software progress.", "Packet Preview 只证明编排形状，不代表真实软件进展。");
+    return t(conversationLocale, "Dry-run proves orchestration shape but not real software progress.", "Controller Preview 只证明编排形状，不代表真实软件进展。");
   }
   if (infrastructureFailures.length > 0) {
     return t(conversationLocale, `Runtime infrastructure blocked execution: ${infrastructureFailures[0].summary}`, `Runtime 基础设施阻塞执行：${infrastructureFailures[0].summary}`);
   }
   if (blockers.length > 0) {
-    return t(conversationLocale, `Loop cannot close: ${blockers.slice(0, 5).join(" | ")}`, `本轮不能关闭：${blockers.slice(0, 5).join(" | ")}`);
+    const summaries = blockers.slice(0, 5).map(formatGateBlocker).join(" | ");
+    return t(conversationLocale, `Loop cannot close: ${summaries}`, `本轮不能关闭：${summaries}`);
   }
   if (reducerActions.length > 0 && !canClose) {
     return t(conversationLocale, `Controller reducer consumed ${reducerActions.length} internal decision request(s).`, `Controller Reducer 已消费 ${reducerActions.length} 个内部决策请求。`);
@@ -129,11 +251,29 @@ function gateReason({ dryRun, infrastructureFailures, blockers, reducerActions, 
   return t(conversationLocale, "All required worker reports are complete, risk-free, and supported by evidence.", "所有必需 worker report 均已完成、无风险，并有证据支持。");
 }
 
+function createGateBlocker({ type, severity, recoverable_by, target, suggested_action, summary }) {
+  return {
+    type,
+    severity,
+    recoverable_by,
+    target: target || "",
+    suggested_action,
+    summary
+  };
+}
+
+function formatGateBlocker(blocker) {
+  if (typeof blocker === "string") {
+    return blocker;
+  }
+  return blocker?.summary || "";
+}
+
 function reportIsComplete(report) {
   if (!report || typeof report !== "object") {
     return false;
   }
-  const arrays = ["findings", "evidence", "changes", "risks", "unknowns"];
+  const arrays = ["findings", "evidence", "changes", "artifact_impacts", "risks", "unknowns"];
   return report.schema_version === "arckit-worker-report/v1"
     && Boolean(report.task_id)
     && Boolean(report.role)
@@ -143,6 +283,95 @@ function reportIsComplete(report) {
     && typeof report.requires_main_agent_decision === "boolean"
     && typeof report.requires_human_decision === "boolean"
     && arrays.every((key) => Array.isArray(report[key]));
+}
+
+function auditArtifactImpacts({ reports, expectedPackets }) {
+  const packetByWorkerId = new Map(expectedPackets.map((packet) => [packet.worker_id, packet]));
+  const changedArtifactPaths = [];
+  const blockers = [];
+  for (const report of reports) {
+    const impacts = Array.isArray(report.artifact_impacts) ? report.artifact_impacts : [];
+    if ((report.changes || []).length > 0 && impacts.length === 0) {
+      blockers.push(createGateBlocker({
+        type: "artifact_impacts_missing",
+        severity: "recoverable",
+        recoverable_by: "agent",
+        target: report.task_id || report.role || "unknown",
+        suggested_action: "request_valid_report",
+        summary: `${report.task_id || report.role || "unknown"}: report.changes is descriptive but artifact_impacts is empty; Runtime requires structured artifact references for gates.`
+      }));
+    }
+    const packet = packetByWorkerId.get(report.task_id);
+    for (const impact of impacts) {
+      const artifact = normalizeArtifactPathReferences([impact.artifact])[0] || "";
+      if (!artifact) {
+        blockers.push(createGateBlocker({
+          type: "invalid_artifact_reference",
+          severity: "recoverable",
+          recoverable_by: "agent",
+          target: report.task_id || report.role || "unknown",
+          suggested_action: "request_valid_report",
+          summary: `${report.task_id || report.role || "unknown"}: artifact impact has an invalid artifact reference.`
+        }));
+        continue;
+      }
+      if (packet && !pathAllowedByPacket(artifact, packet)) {
+        blockers.push(createGateBlocker({
+          type: "artifact_outside_worker_scope",
+          severity: "blocked",
+          recoverable_by: "runtime",
+          target: artifact,
+          suggested_action: "revise_worker_packet_scope",
+          summary: `${report.task_id || report.role || "unknown"}: artifact impact is outside worker allowed_paths: ${artifact}`
+        }));
+      }
+      if (!impact.claim || !impact.summary) {
+        blockers.push(createGateBlocker({
+          type: "artifact_claim_incomplete",
+          severity: "recoverable",
+          recoverable_by: "agent",
+          target: artifact,
+          suggested_action: "request_valid_report",
+          summary: `${report.task_id || report.role || "unknown"}: artifact impact lacks claim or summary: ${artifact}`
+        }));
+      }
+      if (isMutatingOperation(impact.operation)) {
+        changedArtifactPaths.push(artifact);
+        if (!Array.isArray(impact.evidence) || impact.evidence.length === 0) {
+          blockers.push(createGateBlocker({
+            type: "artifact_evidence_missing",
+            severity: "recoverable",
+            recoverable_by: "agent",
+            target: artifact,
+            suggested_action: "collect_evidence",
+            summary: `${report.task_id || report.role || "unknown"}: mutating artifact impact lacks evidence: ${artifact}`
+          }));
+        }
+      }
+    }
+  }
+  return {
+    changedArtifactPaths: unique(changedArtifactPaths),
+    blockers
+  };
+}
+
+function isMutatingOperation(operation) {
+  return ["created", "updated", "deleted"].includes(operation);
+}
+
+function pathAllowedByPacket(path, packet) {
+  const allowedPaths = Array.isArray(packet.allowed_paths) ? packet.allowed_paths : [];
+  if (allowedPaths.length === 0) {
+    return true;
+  }
+  return allowedPaths.some((allowed) => {
+    const normalized = normalizeArtifactPathReferences([allowed])[0] || String(allowed || "").trim().replaceAll("\\", "/").replace(/^\.\//, "");
+    if (!normalized) {
+      return false;
+    }
+    return normalized.endsWith("/") ? path.startsWith(normalized) : path === normalized;
+  });
 }
 
 function isInfrastructureFailureReport(report) {

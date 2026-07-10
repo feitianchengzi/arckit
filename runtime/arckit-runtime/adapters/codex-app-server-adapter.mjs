@@ -379,6 +379,44 @@ function readId(value) {
 }
 
 function parseWorkerOutput({ text, completionParams, resultKind, error }) {
+  if (resultKind === "controller-review") {
+    if (error) {
+      return {
+        type: "runtime.controller_review",
+        review: createInvalidControllerReview(`Codex controller failed before returning an arckit-controller-review/v1 JSON object: ${codexErrorMessage(error)}`)
+      };
+    }
+    try {
+      return {
+        type: "runtime.controller_review",
+        review: parseJsonFromText(text)
+      };
+    } catch (error) {
+      return {
+        type: "runtime.controller_review",
+        review: createInvalidControllerReview(`Codex controller did not return a valid arckit-controller-review/v1 JSON object: ${error.message}`)
+      };
+    }
+  }
+  if (resultKind === "controller-plan") {
+    if (error) {
+      return {
+        type: "runtime.controller_plan",
+        plan: createInvalidControllerPlan(`Codex controller failed before returning an arckit-controller-plan/v1 JSON object: ${codexErrorMessage(error)}`)
+      };
+    }
+    try {
+      return {
+        type: "runtime.controller_plan",
+        plan: parseJsonFromText(text)
+      };
+    } catch (error) {
+      return {
+        type: "runtime.controller_plan",
+        plan: createInvalidControllerPlan(`Codex controller did not return a valid arckit-controller-plan/v1 JSON object: ${error.message}`)
+      };
+    }
+  }
   if (resultKind === "worker-report") {
     if (error) {
       return {
@@ -444,6 +482,38 @@ function parseJsonFromText(text) {
   throw new Error("No parseable JSON object found in final assistant text.");
 }
 
+function createInvalidControllerReview(summary) {
+  return {
+    schema_version: "arckit-controller-review/v1",
+    status: "blocked",
+    summary,
+    accepted_reports: [],
+    rejected_reports: [],
+    risks: [summary],
+    unknowns: [],
+    next_prompt: "Retry Controller review with the required arckit-controller-review/v1 output contract.",
+    human_decision_required: false
+  };
+}
+
+function createInvalidControllerPlan(summary) {
+  return {
+    schema_version: "arckit-controller-plan/v1",
+    status: "blocked",
+    summary,
+    route_plan: {
+      mode: "route_review",
+      selected_roles: [],
+      reason: summary,
+      requires_human_confirmation: false
+    },
+    worker_intents: [],
+    risks: [summary],
+    unknowns: [],
+    next_controller_action: "Retry Controller planning with the required arckit-controller-plan/v1 output contract."
+  };
+}
+
 function createInvalidWorkerReport(summary) {
   return {
     schema_version: "arckit-worker-report/v1",
@@ -454,6 +524,7 @@ function createInvalidWorkerReport(summary) {
     findings: [],
     evidence: [],
     changes: [],
+    artifact_impacts: [],
     risks: [summary],
     unknowns: [],
     recommendation: "Retry the worker with the required arckit-worker-report/v1 output contract.",

@@ -85,6 +85,10 @@ export function buildArtifactOwnershipScan(paths = []) {
   };
 }
 
+export function normalizeArtifactPathReferences(values = []) {
+  return unique(values.map(normalizeArtifactPath).filter(Boolean));
+}
+
 export function createArtifactImpactScan(ownershipScan, { dryRun = false } = {}) {
   const ownerImpact = new Map();
   for (const item of ownershipScan.classified || []) {
@@ -130,11 +134,21 @@ function impactForKind(kind) {
 }
 
 function normalizeArtifactPath(path) {
-  const value = String(path || "").trim();
-  if (!value || value.startsWith("/") || value.includes("\0")) {
+  const value = String(path || "").trim().replaceAll("\\", "/").replace(/^\.\//, "");
+  if (!isValidArtifactPathReference(value)) {
     return "";
   }
-  return value.replaceAll("\\", "/").replace(/^\.\//, "");
+  return value;
+}
+
+function isValidArtifactPathReference(value) {
+  return Boolean(value)
+    && (/^(?:arckit\/|AGENTS\.md$)/.test(value)
+    || /^[A-Za-z0-9._-]+\/[A-Za-z0-9._/-]+(?:\.[A-Za-z0-9]+)?$/.test(value))
+    && !value.startsWith("/")
+    && !value.includes("..")
+    && !value.includes("\0")
+    && !/\s/.test(value);
 }
 
 function unique(values) {

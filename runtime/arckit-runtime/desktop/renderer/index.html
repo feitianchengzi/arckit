@@ -33,9 +33,6 @@
           <button id="newChatButton" class="quiet-button small-button">New</button>
         </div>
         <div id="sessionList" class="session-list"></div>
-
-        <div class="rail-heading">Runs</div>
-        <div id="runList" class="run-list"></div>
       </aside>
 
       <main class="chat-column">
@@ -51,11 +48,13 @@
           </div>
         </header>
 
+        <section id="projectNarrative" class="project-narrative"></section>
+
         <section id="messageList" class="message-list"></section>
 
         <footer class="composer">
           <div class="composer-options">
-            <label><input type="radio" name="mode" value="dry-run" checked> Packet Preview</label>
+            <label><input type="radio" name="mode" value="dry-run" checked> Controller Preview</label>
             <label><input type="radio" name="mode" value="codex-app-server"> Run Codex</label>
             <select id="approvalPolicy">
               <option value="on-request">on-request</option>
@@ -75,41 +74,68 @@
       </main>
 
       <aside class="state-rail">
-        <section class="inspector-section">
-          <div class="section-header">
-            <h3>Loop State</h3>
-            <button id="refreshButton" class="quiet-button">Refresh</button>
-          </div>
-          <div id="loopState" class="state-block"></div>
+        <div class="inspector-tabs" role="tablist" aria-label="Desktop inspector">
+          <button class="inspector-tab active" data-inspector-tab="focus" type="button">Focus</button>
+          <button class="inspector-tab" data-inspector-tab="run" type="button">Run</button>
+          <button class="inspector-tab" data-inspector-tab="evidence" type="button">Evidence</button>
+        </div>
+
+        <section class="inspector-panel active" data-inspector-panel="focus">
+          <section class="inspector-section primary-inspector">
+            <div class="section-header">
+              <h3>Project Advancement</h3>
+              <button id="refreshButton" class="quiet-button">Refresh</button>
+            </div>
+            <div id="loopState" class="state-block"></div>
+          </section>
+
+          <section class="inspector-section">
+            <div class="section-header">
+              <h3>Next State Gap</h3>
+            </div>
+            <div id="stateGaps" class="state-list"></div>
+          </section>
+
+          <section class="inspector-section">
+            <div class="section-header">
+              <h3>Next Action</h3>
+            </div>
+            <div class="focus-action">
+              <div id="activeRunSummary" class="run-summary">No active run.</div>
+              <div class="control-grid">
+                <button id="continueButton" class="secondary-button">Continue</button>
+                <button id="authorizePacketButton" class="primary-button">Run Packet</button>
+                <button id="gateButton" class="secondary-button">Gate</button>
+                <button id="writeDryRunButton" class="secondary-button">Preview</button>
+                <button id="writeLedgerButton" class="primary-button">Write</button>
+              </div>
+            </div>
+          </section>
         </section>
 
-        <section class="inspector-section">
-          <div class="section-header">
-            <h3>State Gaps</h3>
-          </div>
-          <div id="stateGaps" class="state-list"></div>
+        <section class="inspector-panel" data-inspector-panel="run">
+          <section class="inspector-section">
+            <div class="section-header">
+              <h3>Runs</h3>
+            </div>
+            <div id="runList" class="run-list"></div>
+          </section>
+          <section class="inspector-section run-detail-section">
+            <div class="section-header">
+              <h3>Run Details</h3>
+            </div>
+            <div id="runDetailSummary" class="run-summary">No active run.</div>
+          </section>
         </section>
 
-        <section class="inspector-section">
-          <div class="section-header">
-            <h3>Run Control</h3>
-          </div>
-          <div id="activeRunSummary" class="run-summary">No active run.</div>
-          <div class="control-grid">
-            <button id="continueButton" class="secondary-button">Continue</button>
-            <button id="authorizePacketButton" class="primary-button">Run Packet</button>
-            <button id="gateButton" class="secondary-button">Gate</button>
-            <button id="writeDryRunButton" class="secondary-button">Preview</button>
-            <button id="writeLedgerButton" class="primary-button">Write</button>
-          </div>
-        </section>
-
-        <section class="inspector-section events-section">
-          <div class="section-header">
-            <h3>Raw Events</h3>
-            <button id="clearEventsButton" class="quiet-button">Clear</button>
-          </div>
-          <div id="eventList" class="event-list"></div>
+        <section class="inspector-panel" data-inspector-panel="evidence">
+          <section class="inspector-section events-section">
+            <div class="section-header">
+              <h3>Raw Events</h3>
+              <button id="clearEventsButton" class="quiet-button">Clear</button>
+            </div>
+            <div id="eventList" class="event-list"></div>
+          </section>
         </section>
       </aside>
     </div>

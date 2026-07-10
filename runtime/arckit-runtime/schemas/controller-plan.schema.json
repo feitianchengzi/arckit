@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arckit.local/schema/controller-plan.schema.json",
+  "title": "Arckit Controller Plan",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "summary",
+    "route_plan",
+    "worker_intents",
+    "risks",
+    "unknowns",
+    "next_controller_action"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "arckit-controller-plan/v1" },
+    "status": {
+      "type": "string",
+      "enum": ["planned", "needs_human", "blocked"]
+    },
+    "summary": { "type": "string" },
+    "route_plan": {
+      "type": "object",
+      "required": [
+        "mode",
+        "selected_roles",
+        "reason",
+        "requires_human_confirmation"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "source_fact_establishment",
+            "implementation_execution",
+            "route_review",
+            "packet_execution"
+          ]
+        },
+        "selected_roles": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "controller_state_reader",
+              "controller_route_auditor",
+              "source_fact_worker",
+              "implementation_worker",
+              "verification_worker",
+              "closeout_controller"
+            ]
+          }
+        },
+        "reason": { "type": "string" },
+        "requires_human_confirmation": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "worker_intents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["role", "objective", "reason"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "controller_state_reader",
+              "controller_route_auditor",
+              "source_fact_worker",
+              "implementation_worker",
+              "verification_worker",
+              "closeout_controller"
+            ]
+          },
+          "objective": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "next_controller_action": { "type": "string" }
+  },
+  "additionalProperties": false
+}

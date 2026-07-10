@@ -16,6 +16,7 @@ const state = {
   selectedProjectId: "",
   selectedSessionId: "",
   activeRunId: "",
+  inspectorTab: "focus",
   messageAutoStick: true
 };
 
@@ -33,6 +34,9 @@ const els = {
   projectStateBadge: document.getElementById("projectStateBadge"),
   activeRunBadge: document.getElementById("activeRunBadge"),
   settingsButton: document.getElementById("settingsButton"),
+  projectNarrative: document.getElementById("projectNarrative"),
+  inspectorTabs: Array.from(document.querySelectorAll("[data-inspector-tab]")),
+  inspectorPanels: Array.from(document.querySelectorAll("[data-inspector-panel]")),
   settingsOverlay: document.getElementById("settingsOverlay"),
   closeSettingsButton: document.getElementById("closeSettingsButton"),
   codexProxyEnabled: document.getElementById("codexProxyEnabled"),
@@ -50,6 +54,7 @@ const els = {
   writeDryRunButton: document.getElementById("writeDryRunButton"),
   writeLedgerButton: document.getElementById("writeLedgerButton"),
   activeRunSummary: document.getElementById("activeRunSummary"),
+  runDetailSummary: document.getElementById("runDetailSummary"),
   loopState: document.getElementById("loopState"),
   stateGaps: document.getElementById("stateGaps"),
   eventList: document.getElementById("eventList"),
@@ -154,6 +159,13 @@ function wireEvents() {
   });
 
   els.refreshButton.addEventListener("click", () => refreshAll());
+
+  for (const tab of els.inspectorTabs) {
+    tab.addEventListener("click", () => {
+      state.inspectorTab = tab.dataset.inspectorTab || "focus";
+      renderInspectorTabs();
+    });
+  }
 
   els.settingsButton.addEventListener("click", () => {
     renderSettingsForm();
@@ -346,10 +358,23 @@ function render() {
   renderSessions();
   renderRuns();
   renderSelectedProject();
+  renderProjectNarrative();
   renderMessages();
   renderActiveRun();
   renderProjectStatus();
   renderEvents();
+  renderInspectorTabs();
+}
+
+function renderInspectorTabs() {
+  for (const tab of els.inspectorTabs) {
+    const active = tab.dataset.inspectorTab === state.inspectorTab;
+    tab.classList.toggle("active", active);
+    tab.setAttribute("aria-selected", active ? "true" : "false");
+  }
+  for (const panel of els.inspectorPanels) {
+    panel.classList.toggle("active", panel.dataset.inspectorPanel === state.inspectorTab);
+  }
 }
 
 function renderProjects() {
@@ -450,6 +475,58 @@ function renderSelectedProject() {
   els.sendButton.disabled = false;
 }
 
+function renderProjectNarrative() {
+  const project = selectedProject();
+  const status = state.projectStatus;
+  if (!project) {
+    els.projectNarrative.innerHTML = `<div class="empty compact-empty">Select a project to see how Project State advances through Case and Loop.</div>`;
+    return;
+  }
+  if (!status || !status.has_arckit_state) {
+    els.projectNarrative.innerHTML = `
+      <div class="state-story">
+        ${renderStoryStep("Project State", "Not initialized", "First message creates the project ledger.", "pending")}
+        ${renderStoryArrow()}
+        ${renderStoryStep("Case", "No active case", "Initial discovery case will be created.", "pending")}
+        ${renderStoryArrow()}
+        ${renderStoryStep("Loop", "Waiting", "Controller round starts from your next message.", "pending")}
+      </div>
+    `;
+    return;
+  }
+
+  const loop = status.loop_control || {};
+  const gap = status.top_gap || {};
+  const controlState = deriveRuntimeControlState();
+  const activeCase = (status.active_cases || [])[0] || "No active case";
+  const projectLabel = [status.summary?.phase, status.summary?.status].filter(Boolean).join(" · ") || "State loaded";
+  const caseLabel = activeCase.replace(/^arckit\/cases\/active\//, "").replace(/\.md$/, "");
+  const loopLabel = controlState.primary_label || loop.next_transition || controlState.state || "Observe";
+  els.projectNarrative.innerHTML = `
+    <div class="state-story">
+      ${renderStoryStep("Project State", projectLabel, loop.current_loop_focus || loop.next_transition || "Canonical project state is the source of truth.", "complete")}
+      ${renderStoryArrow()}
+      ${renderStoryStep("Case", caseLabel, gap.dimension || "Active case carries the current state gap.", activeCase === "No active case" ? "pending" : "complete")}
+      ${renderStoryArrow()}
+      ${renderStoryStep("Loop", loopLabel, controlState.reason || gap.next_transition || "Runtime decides the next recoverable action.", controlState.state === "running" ? "running" : "")}
+    </div>
+  `;
+}
+
+function renderStoryStep(title, value, detail, status = "") {
+  return `
+    <div class="story-step ${escapeHtml(status)}">
+      <div class="story-kicker">${escapeHtml(title)}</div>
+      <div class="story-value">${escapeHtml(value || "-")}</div>
+      <div class="story-detail">${escapeHtml(detail || "")}</div>
+    </div>
+  `;
+}
+
+function renderStoryArrow() {
+  return `<div class="story-arrow" aria-hidden="true">→</div>`;
+}
+
 function renderMessages() {
   const shouldStick = state.messageAutoStick || isMessageListAtBottom();
   const previousScrollTop = els.messageList.scrollTop;
@@ -506,15 +583,20 @@ function renderActiveRun() {
   els.activeRunBadge.textContent = run ? run.status : "Idle";
   els.activeRunBadge.className = `badge ${active ? "warning" : run?.status === "completed" ? "ok" : run?.status === "failed" ? "danger" : ""}`;
   els.activeRunSummary.innerHTML = run
-    ? renderRunInspector(run, activity)
+    ? renderFocusActionSummary(run, activity, controlState)
     : "No active run.";
+  if (els.runDetailSummary) {
+    els.runDetailSummary.innerHTML = run
+      ? renderRunInspector(run, activity)
+      : "No active run.";
+  }
   els.sendButton.textContent = active
     ? "Send To Controller"
     : !hasDraftInput && controlState.primary_label
       ? controlState.primary_label
       : hasDraftInput && controlState.state !== "no_context"
         ? "Send To Controller"
-        : selectedMode() === "dry-run" ? "Preview Packet" : "Run";
+        : selectedMode() === "dry-run" ? "Preview Control" : "Run";
   els.interruptButton.disabled = !active;
   els.continueButton.textContent = isOperatorEventAction(controlState.primary_action)
     ? controlState.primary_label
@@ -524,6 +606,7 @@ function renderActiveRun() {
   els.gateButton.disabled = !run || active || !["ledger_gate_ready", "ledger_writeback_ready", "ledger_writeback_blocked"].includes(controlState.state);
   els.writeDryRunButton.disabled = !run || active || controlState.primary_action !== "write_ledger";
   els.writeLedgerButton.disabled = !run || active || controlState.primary_action !== "write_ledger";
+  renderProjectNarrative();
 }
 
 function renderSettingsForm() {
@@ -543,11 +626,12 @@ function renderProjectStatus() {
   const loop = status.loop_control || {};
   const gap = status.top_gap || {};
   els.loopState.innerHTML = [
-    stateLine("Focus", loop.current_loop_focus || ""),
-    stateLine("Next", loop.next_transition || ""),
+    stateLine("Project", [status.summary?.phase, status.summary?.status].filter(Boolean).join(" · ") || status.summary?.name || ""),
+    stateLine("Case", (status.active_cases || [])[0] || ""),
+    stateLine("Loop", loop.current_loop_focus || loop.next_transition || ""),
     stateLine("Owner", loop.next_responsibility || ""),
     stateLine("Trigger", loop.trigger_mode || ""),
-    stateLine("Top gap", gap.id || "")
+    stateLine("Gap", gap.id || "")
   ].join("");
 
   const dimensionItems = status.dimensions.map((dimension) => `
@@ -559,7 +643,7 @@ function renderProjectStatus() {
   `);
   if (status.top_gap) {
     dimensionItems.unshift(`
-      <div class="state-item">
+      <div class="state-item top-gap-item">
         <div class="state-title">${escapeHtml(status.top_gap.id)}</div>
         <div class="state-meta">${escapeHtml(status.top_gap.current_state)} -> ${escapeHtml(status.top_gap.target_state)} · ${escapeHtml(status.top_gap.urgency)}</div>
         <div class="state-meta">${escapeHtml(status.top_gap.next_transition || status.top_gap.impact || "")}</div>
@@ -737,18 +821,40 @@ function renderLiveRunCard() {
         <span>${activity.controls?.steer ? "Steer available" : "Steer unavailable"}</span>
       </div>
       ${stale ? `<div class="run-warning">No runtime events for ${idle}s. You can steer with the chat box or stop the run.</div>` : ""}
-      ${controller}
-      ${agents}
-      ${reports}
-      ${merge}
-      ${reasoning}
-      ${plan}
-      ${execution}
-      ${agentText}
-      ${commandOutput}
+      ${renderLiveRunCompactDetails(activity)}
       ${errors}
-      ${renderArtifactPaths(activity)}
     </article>
+  `;
+}
+
+function renderLiveRunCompactDetails(activity) {
+  const workers = Array.isArray(activity.agents) ? activity.agents : [];
+  const reports = Array.isArray(activity.reports) ? activity.reports : [];
+  const packets = Array.isArray(activity.worker_packets) ? activity.worker_packets : [];
+  const merge = activity.merge_result || null;
+  const workerSummary = workers.length
+    ? workers.map((agent) => `${agent.role || agent.task_id}:${agent.status || "waiting"}`).slice(0, 5).join(" · ")
+    : packets.length
+      ? `${packets.length} packet${packets.length === 1 ? "" : "s"} ready`
+      : "No worker activity yet";
+  return `
+    <div class="run-card-section compact-run-details">
+      <div class="compact-run-grid">
+        <div>
+          <div class="run-card-label">Worker Loop</div>
+          <div class="compact-run-value">${escapeHtml(workerSummary)}</div>
+        </div>
+        <div>
+          <div class="run-card-label">Reports</div>
+          <div class="compact-run-value">${escapeHtml(String(reports.length))}</div>
+        </div>
+        <div>
+          <div class="run-card-label">Merge</div>
+          <div class="compact-run-value">${escapeHtml(merge?.loop_gate?.status || merge?.decision || "pending")}</div>
+        </div>
+      </div>
+      ${merge?.loop_gate?.reason ? `<div class="compact-run-reason">${escapeHtml(merge.loop_gate.reason)}</div>` : ""}
+    </div>
   `;
 }
 
@@ -867,6 +973,38 @@ function parseJsonObjectsFromText(text) {
     }
   }
   return values;
+}
+
+function renderFocusActionSummary(run, activity, controlState) {
+  const loopGate = activity?.merge_result?.loop_gate || {};
+  const ledgerStage = activity?.ledger_stage || {};
+  const reportIntake = activity?.report_intake || activity?.merge_result?.report_intake || {};
+  const reports = Array.isArray(activity?.reports) ? activity.reports : [];
+  const workers = Array.isArray(activity?.agents) ? activity.agents : [];
+  const reason = controlState.reason || loopGate.reason || activity?.current_step || "";
+  const detailRows = [
+    ["Run", `${run.status || "-"}${run.round_result ? ` · ${run.round_result}` : ""}`],
+    ["Loop", `${activity?.round_state || loopGate.status || "-"}${ledgerStage.status ? ` · ${ledgerStage.status}` : ""}`],
+    ["Reports", `${reports.length} returned${Array.isArray(reportIntake.missing) && reportIntake.missing.length ? ` · ${reportIntake.missing.length} missing` : ""}`],
+    ["Workers", workers.length ? workers.map((agent) => `${agent.role || agent.task_id}:${agent.status || "waiting"}`).slice(0, 3).join(" · ") : "No worker activity yet"]
+  ];
+  return `
+    <div class="focus-summary ${escapeHtml(controlState.state)}">
+      <div class="focus-state-row">
+        <span class="focus-state">${escapeHtml(controlState.state.replaceAll("_", " "))}</span>
+        ${controlState.primary_label ? `<span class="focus-primary">${escapeHtml(controlState.primary_label)}</span>` : ""}
+      </div>
+      <div class="focus-reason">${escapeHtml(reason || "No runtime control action is available.")}</div>
+      <div class="focus-facts">
+        ${detailRows.map(([label, value]) => `
+          <div class="focus-fact">
+            <span>${escapeHtml(label)}</span>
+            <strong>${escapeHtml(value)}</strong>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function renderRunInspector(run, activity) {
@@ -1200,6 +1338,16 @@ function deriveRuntimeControlState() {
       primary_action: "diagnose",
       primary_label: "Diagnose",
       reason: run.status === "failed" ? "Run failed." : "Runtime result validation failed."
+    };
+  }
+
+  if (ledgerStage?.status === "gate_ready" && ledgerStage?.writeback_required === true) {
+    return {
+      ...base,
+      state: activity?.round_state === "ledger_gate_ready" ? "ledger_gate_ready" : "ledger_writeback_ready",
+      primary_action: "write_ledger",
+      primary_label: "Write Ledger",
+      reason: ledgerStage.reason || "Runtime result has validated progress and awaits ledger writeback."
     };
   }
 

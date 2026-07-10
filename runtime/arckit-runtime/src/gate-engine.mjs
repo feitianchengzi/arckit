@@ -9,12 +9,20 @@ export function evaluateRuntimeGates({ runtimeResult, snapshot = null, envelope 
     reasons.push(...validation.issues.map((issue) => `${issue.path}: ${issue.message}`));
   }
 
-  if (runtimeResult?.round_result !== "done") {
-    reasons.push(`round_result=${runtimeResult?.round_result || "unknown"} is not eligible for automatic ledger writeback.`);
+  const roundResult = runtimeResult?.round_result || "unknown";
+  const ledgerStage = runtimeResult?.ledger_stage || {};
+  const progressWriteback = roundResult === "continue"
+    && ledgerStage.status === "gate_ready"
+    && ledgerStage.writeback_required === true
+    && runtimeResult?.loop_handoff?.next_responsibility === "agent"
+    && runtimeResult?.loop_handoff?.human_decision_required !== true;
+
+  if (roundResult !== "done" && !progressWriteback) {
+    reasons.push(`round_result=${roundResult} is not eligible for automatic ledger writeback.`);
   }
 
-  if (runtimeResult?.ledger_stage?.status && runtimeResult.ledger_stage.status !== "gate_ready") {
-    reasons.push(`ledger_stage.status=${runtimeResult.ledger_stage.status} is not eligible for automatic ledger writeback.`);
+  if (ledgerStage.status && ledgerStage.status !== "gate_ready") {
+    reasons.push(`ledger_stage.status=${ledgerStage.status} is not eligible for automatic ledger writeback.`);
   }
 
   if (runtimeResult?.loop_handoff?.human_decision_required === true) {
@@ -44,6 +52,7 @@ export function evaluateRuntimeGates({ runtimeResult, snapshot = null, envelope 
   const ownership = runtimeResult?.artifact_ownership_scan || {};
   const ownedSourceChanged = Array.isArray(ownership.source_facts_changed) ? ownership.source_facts_changed : [];
   const ownedProjectionsChanged = Array.isArray(ownership.projection_artifacts_changed) ? ownership.projection_artifacts_changed : [];
+  const ownedPendingItems = Array.isArray(ownership.pending_items) ? ownership.pending_items : [];
   const unknownArtifacts = Array.isArray(ownership.unknown_artifacts) ? ownership.unknown_artifacts : [];
   if (sourceProjection.source_unknown === true && sourceChanged.length === 0 && projectionsChanged.length > 0) {
     reasons.push("source_unknown=true with projection-only changes blocks ledger writeback.");
@@ -57,8 +66,28 @@ export function evaluateRuntimeGates({ runtimeResult, snapshot = null, envelope 
     reasons.push(`artifact ownership map contains unknown artifacts: ${unknownArtifacts.join(", ")}`);
   }
 
-  if (Array.isArray(sourceProjection.blocked_projections) && sourceProjection.blocked_projections.length > 0) {
+  const blockedProjections = Array.isArray(sourceProjection.blocked_projections) ? sourceProjection.blocked_projections : [];
+  if (blockedProjections.length > 0 && !progressWriteback) {
     reasons.push("blocked_projections is non-empty.");
+  } else if (blockedProjections.length > 0) {
+    warnings.push("blocked_projections remain unresolved; progress writeback will record evidence without closing the loop.");
+  }
+
+  if (progressWriteback) {
+    const intake = runtimeResult?.report_intake || {};
+    const unresolvedReports = [
+      ...(Array.isArray(intake.rejected) ? intake.rejected : []),
+      ...(Array.isArray(intake.needs_revision) ? intake.needs_revision : []),
+      ...(Array.isArray(intake.needs_human_decision) ? intake.needs_human_decision : []),
+      ...(Array.isArray(intake.missing) ? intake.missing : [])
+    ];
+    if (unresolvedReports.length > 0) {
+      reasons.push(`progress writeback requires resolved report intake; unresolved reports: ${unresolvedReports.join(", ")}`);
+    }
+    const ledgerOwnedChanged = (runtimeResult?.changed_files || []).some((path) => /^arckit\/(project|cases)\//.test(path));
+    if (sourceChanged.length === 0 && ownedSourceChanged.length === 0 && ownedPendingItems.length === 0 && !ledgerOwnedChanged) {
+      reasons.push("progress writeback requires source facts, pending items, or ledger-owned changed files.");
+    }
   }
 
   const unsafeChangedFiles = findUnsafeChangedFiles(runtimeResult?.changed_files || []);

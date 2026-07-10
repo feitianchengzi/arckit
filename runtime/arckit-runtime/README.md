@@ -59,6 +59,29 @@ Each run now produces:
 
 Worker roles are selected by the dynamic route plan. Runtime does not trigger every role on every run.
 
+In executing Codex mode, Runtime first asks a bounded Controller Agent for an `arckit-controller-plan/v1`.
+The Controller Agent proposes the minimum worker route and role-scoped worker intents from project state,
+selected gap, capability manifests, and operator task. Runtime still owns final validation: it normalizes
+the proposed route and validates required guard roles such as state read, verification, and closeout.
+If the Controller plan is invalid, blocked, or unavailable, the round is blocked instead of silently using
+a code-rule route or auto-adding missing workers. Dry-run mode does not start the Controller Agent, so it cannot fabricate worker packets.
+
+After workers report, Runtime reduces report evidence into a deterministic Runtime Guard result before applying
+Controller Review closeout. Controller Review may decide semantic `continue`, `needs_human`, or `blocked`, but it
+cannot upgrade a round to `done` unless the Runtime Guard proves required reports, evidence, source/projection
+checks, execution authorization, and risk/unknown gates are clean.
+
+Worker reports separate human-readable change descriptions from machine-readable artifact impact claims.
+`changes` is prose for display and review only. Runtime Guard uses `artifact_impacts[]` as the protocol input:
+each item binds one artifact path to an operation, semantic claim, summary, and evidence. Runtime classifies those
+artifact paths with the ownership map, checks them against worker `allowed_paths`, and blocks closeout when a report
+describes changes without structured artifact impacts.
+
+Runtime Guard blockers are structured with `type`, `severity`, `recoverable_by`, `target`, `suggested_action`, and
+`summary`. Guard does not auto-repair missing reports, invalid reports, missing evidence, or human gates by itself;
+it marks whether the gap is agent-recoverable, human-owned, or runtime-blocked so the Controller/loop policy can
+decide the next repair round.
+
 Available roles include:
 
 - `controller_state_reader`
@@ -70,7 +93,7 @@ Available roles include:
 
 For an empty or state-discovery project, the first execution route is source-fact establishment. Runtime must not start `implementation_worker` just because the user message says "build" or "develop"; implementation requires enough source facts, boundaries, and validation expectations to avoid product guessing.
 
-Dry-run mode is Packet Preview: it generates controller frame, execution gate and worker packets without starting Codex or fabricating worker reports.
+Dry-run mode is Controller Preview: it generates the controller frame and execution gate without starting Codex, running Controller Agent planning, fabricating worker packets, or fabricating worker reports.
 
 ## Capability Manifests
 
@@ -95,7 +118,7 @@ Initialize an empty or existing local project:
 node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project .
 ```
 
-Run an agentic preview:
+Run a controller preview:
 
 ```bash
 node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project . --task "build the first feature" --dry-run --json
@@ -154,7 +177,7 @@ Desktop is the intended product surface:
 - Center: continuous project chat and live work cards.
 - Right rail: loop state, state gaps, controller packet, execution gate, worker status, merge gate, controls, raw events.
 
-Sending a message when idle starts a controller round. Packet Preview generates the execution packet and leaves `execution_gate=pending`. Run Packet authorizes the same packet and binds Desktop Runtime as executor. Sending a message while a run is active sends Controller input and interrupts the current execution so the next round can classify the correction or supplement. Stop interrupts the active Codex turn.
+Sending a message when idle starts a controller round. Controller Preview shows the recoverable control frame without executing Controller Agent planning or workers. Run Codex asks the Controller Agent to plan the worker route, dispatches bounded workers, then asks the Controller Agent to review reports before merge and ledger gating. Running an existing packet authorizes that packet and still requires Controller Agent review after worker reports are collected. Sending a message while a run is active sends Controller input and interrupts the current execution so the next round can classify the correction or supplement. Stop interrupts the active Codex turn.
 
 Empty projects are valid inputs. Adding a project initializes `arckit/project`, active case state, and the first project-discovery gap automatically.
 
@@ -166,12 +189,13 @@ Runtime owns:
 - state recovery
 - round state machine
 - loop frame compilation
-- capability manifest routing
-- worker packet creation
+- capability manifest loading
+- Controller Agent planning/review schema enforcement
+- worker packet creation from Controller Agent plans
 - worker lifecycle
 - event storage
 - report validation
-- controller reducer and deterministic merge
+- report reduction, Runtime Guard hard gates, Controller Agent closeout review, and ledger gate preparation
 - artifact ownership classification
 - source/projection gates
 - ledger writeback
@@ -188,6 +212,6 @@ Desktop owns:
 
 - human observation
 - chat-driven task entry
-- packet preview, execution authorization, pause, interrupt, continue
+- controller preview, execution authorization, pause, interrupt, continue
 - evidence and gate visibility
 - automatic ledger gate/writeback after eligible `round_result=done`

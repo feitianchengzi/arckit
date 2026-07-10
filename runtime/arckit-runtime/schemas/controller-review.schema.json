@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arckit.local/schema/controller-review.schema.json",
+  "title": "Arckit Controller Review",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "status",
+    "summary",
+    "accepted_reports",
+    "rejected_reports",
+    "risks",
+    "unknowns",
+    "next_prompt",
+    "human_decision_required"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "arckit-controller-review/v1" },
+    "status": {
+      "type": "string",
+      "enum": ["done", "continue", "needs_human", "blocked"]
+    },
+    "summary": { "type": "string" },
+    "accepted_reports": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "rejected_reports": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "unknowns": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "next_prompt": { "type": "string" },
+    "human_decision_required": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

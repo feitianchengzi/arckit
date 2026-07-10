@@ -734,8 +734,9 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
 function shouldRunAutomaticLedgerStage(run, status, parsedResult) {
   return status === "completed"
     && run.adapter !== "dry-run"
-    && parsedResult?.runtime_result?.round_result === "done"
-    && parsedResult?.runtime_result?.ledger_stage?.status === "gate_ready";
+    && ["done", "continue"].includes(parsedResult?.runtime_result?.round_result)
+    && parsedResult?.runtime_result?.ledger_stage?.status === "gate_ready"
+    && parsedResult?.runtime_result?.ledger_stage?.writeback_required === true;
 }
 
 function normalizeStore(store) {
@@ -1056,6 +1057,34 @@ function applyRunEvent(run, { line, parsed }) {
         }
       });
       break;
+    case "runtime.controller_plan.completed":
+      activity.controller_plan = event.controller_plan || null;
+      activity.controller_plan_status = event.status || "";
+      activity.controller_plan_failure_reason = event.failure_reason || "";
+      updateRunActivity(run, {
+        phase: "controller-planning",
+        current_step: controllerPlanStepLabel(event.status),
+        timeline: {
+          type: event.type,
+          label: "Controller plan",
+          detail: event.controller_plan?.summary || event.failure_reason || event.status || ""
+        }
+      });
+      break;
+    case "runtime.controller_review.completed":
+      activity.controller_review = event.controller_review || null;
+      activity.controller_review_status = event.status || "";
+      activity.controller_review_failure_reason = event.failure_reason || "";
+      updateRunActivity(run, {
+        phase: "controller-review",
+        current_step: event.status === "reviewed" ? "Controller Agent reviewed worker reports" : "Controller Agent review failed",
+        timeline: {
+          type: event.type,
+          label: "Controller review",
+          detail: event.controller_review?.summary || event.failure_reason || event.status || ""
+        }
+      });
+      break;
     case "runtime.agent_task.started":
       upsertAgent(activity, {
         task_id: event.task_id,
@@ -1343,6 +1372,19 @@ function applyRunEvent(run, { line, parsed }) {
       break;
   }
   return activity;
+}
+
+function controllerPlanStepLabel(status) {
+  if (status === "planned") {
+    return "Controller Agent planned worker route";
+  }
+  if (status === "needs_human") {
+    return "Controller Agent requested human decision";
+  }
+  if (status === "blocked") {
+    return "Controller Agent blocked worker dispatch";
+  }
+  return "Controller Agent planning failed";
 }
 
 function updateRunActivity(run, update) {

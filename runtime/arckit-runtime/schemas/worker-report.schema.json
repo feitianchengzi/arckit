@@ -12,6 +12,7 @@
     "findings",
     "evidence",
     "changes",
+    "artifact_impacts",
     "risks",
     "unknowns",
     "recommendation",
@@ -48,6 +49,27 @@
     "changes": {
       "type": "array",
       "items": { "type": "string" }
+    },
+    "artifact_impacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["artifact", "operation", "claim", "summary", "evidence"],
+        "properties": {
+          "artifact": { "type": "string" },
+          "operation": {
+            "type": "string",
+            "enum": ["created", "updated", "deleted", "read", "none"]
+          },
+          "claim": { "type": "string" },
+          "summary": { "type": "string" },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      }
     },
     "risks": {
       "type": "array",

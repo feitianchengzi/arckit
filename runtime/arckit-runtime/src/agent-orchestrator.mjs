@@ -5,12 +5,14 @@ import { createAgentAdapter } from "./agent-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
 import { loadRuntimeCapabilities, selectCapabilitiesForRound } from "./capability-registry.mjs";
 import { conversationLocaleInstruction } from "./conversation-locale.mjs";
-import { buildArtifactOwnershipScan, createArtifactImpactScan } from "./artifact-ownership-map.mjs";
+import { buildArtifactOwnershipScan, createArtifactImpactScan, normalizeArtifactPathReferences } from "./artifact-ownership-map.mjs";
 import { reduceWorkerReports } from "./controller-reducer.mjs";
 import { createRoundStateMachine, stateFromLoopGate, transitionRoundState } from "./round-state-machine.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const workerReportSchemaPath = join(here, "../schemas/worker-report.schema.json");
+const controllerPlanSchemaPath = join(here, "../schemas/controller-plan.schema.json");
+const controllerReviewSchemaPath = join(here, "../schemas/controller-review.schema.json");
 
 const ROLE_DEFINITIONS = {
   controller_state_reader: {
@@ -69,20 +71,53 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
   const loopFrame = packetEnvelope
     ? authorizePacketLoopFrame(packetEnvelope.loop_frame, options)
     : createLoopFrame({ snapshot, round, task: options.task || "", selectedCapabilities, options });
+  const adapterName = options.dryRun ? "dry-run" : options.adapter || "codex-app-server";
+  const adapter = createAgentAdapter(adapterName, options);
+  const controllerPlanSchema = JSON.parse(await readFile(controllerPlanSchemaPath, "utf8"));
+  const controllerReviewSchema = JSON.parse(await readFile(controllerReviewSchemaPath, "utf8"));
+  const workerReportSchema = JSON.parse(await readFile(workerReportSchemaPath, "utf8"));
+  const events = [];
+  const controllerPlan = packetEnvelope
+    ? {
+      usable: false,
+      plan: null,
+      failure_reason: "Existing packet execution uses the packet route without Controller Agent replanning."
+    }
+    : await maybeRunControllerPlanner({
+      adapter,
+      projectRoot,
+      loopFrame,
+      round,
+      snapshot,
+      task: options.task || "",
+      selectedCapabilities,
+      controllerPlanSchema,
+      options,
+      events
+    });
   const routePlan = packetEnvelope
     ? createRoutePlanFromPacket(loopFrame)
-    : planDynamicRoute({ loopFrame, round, snapshot, task: options.task || "", selectedCapabilities, options });
+    : createRoutePlanFromControllerPlan({ controllerPlan: controllerPlan.plan, loopFrame });
+  loopFrame.controller_frame.controller_plan = controllerPlan?.plan || null;
+  loopFrame.controller_frame.controller_plan_source = packetEnvelope ? "packet" : "controller_agent";
+  loopFrame.controller_frame.controller_plan_failure_reason = controllerPlan?.failure_reason || "";
   loopFrame.route_plan = routePlan;
   loopFrame.controller_frame.route_plan = routePlan;
   const agentTasks = packetEnvelope
     ? normalizePacketWorkerTasks(packetEnvelope.worker_tasks || [], loopFrame)
-    : createAgentTasks({ loopFrame, round, snapshot, task: options.task || "", selectedCapabilities, roles: routePlan.selected_roles });
+    : controllerPlan?.usable ? createAgentTasks({
+      loopFrame,
+      round,
+      snapshot,
+      task: options.task || "",
+      selectedCapabilities,
+      roles: routePlan.selected_roles,
+      controllerPlan: controllerPlan?.usable ? controllerPlan.plan : null
+    }) : [];
   loopFrame.round_execution_packet.worker_packets = agentTasks.map(toWorkerPacket);
   loopFrame.worker_packets = loopFrame.round_execution_packet.worker_packets;
   const roundState = createRoundStateMachine("planned", "Controller reducer created the round plan.");
   const reports = [];
-  const events = [];
-  const workerReportSchema = JSON.parse(await readFile(workerReportSchemaPath, "utf8"));
 
   yieldEvent({
     events,
@@ -99,8 +134,46 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
     emitRoundState({ events, roundState, stream: options.streamEvents });
   }
 
-  const adapterName = options.dryRun ? "dry-run" : options.adapter || "codex-app-server";
-  const adapter = createAgentAdapter(adapterName, options);
+  if (!packetEnvelope && !controllerPlan?.usable && !options.dryRun) {
+    const mergeResult = createControllerUnavailableMergeResult({ loopFrame, round, controllerPlan, conversationLocale });
+    yieldEvent({
+      events,
+      event: {
+        type: "runtime.merge.completed",
+        merge_result: mergeResult
+      },
+      stream: options.streamEvents
+    });
+    const runtimeResult = createRuntimeResultFromMerge({
+      mergeResult,
+      reports,
+      loopFrame,
+      round,
+      compiledPrompt,
+      dryRun: false,
+      roundState
+    });
+    const validation = validateRuntimeResult(runtimeResult);
+    yieldEvent({
+      events,
+      event: {
+        type: "runtime.result",
+        result: runtimeResult,
+        validation
+      },
+      stream: options.streamEvents
+    });
+    return {
+      adapter,
+      loopFrame,
+      agentTasks,
+      agentReports: reports,
+      mergeResult,
+      events,
+      runtimeResult,
+      validation
+    };
+  }
 
   if (options.dryRun) {
     const mergeResult = createPacketPreviewMergeResult({ loopFrame, round });
@@ -155,15 +228,19 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
   transitionRoundState(roundState, "workers_running", "Runtime started bounded worker dispatch.");
   emitRoundState({ events, roundState, stream: options.streamEvents });
 
-  for (const agentTask of agentTasks) {
+  for (const [taskIndex, agentTask] of agentTasks.entries()) {
+    const effectiveAgentTask = expandAgentTaskScopeWithPreviousChanges(agentTask, reports, loopFrame.worker_packets.slice(0, taskIndex));
+    agentTasks[taskIndex] = effectiveAgentTask;
+    loopFrame.worker_packets[taskIndex] = toWorkerPacket(effectiveAgentTask);
+    loopFrame.round_execution_packet.worker_packets = loopFrame.worker_packets;
     yieldEvent({
       events,
       event: {
         type: "runtime.agent_task.started",
-        task_id: agentTask.id,
-        role: agentTask.role,
-        objective: agentTask.objective,
-        task: agentTask
+        task_id: effectiveAgentTask.id,
+        role: effectiveAgentTask.role,
+        objective: effectiveAgentTask.objective,
+        task: effectiveAgentTask
       },
       stream: options.streamEvents
     });
@@ -171,7 +248,7 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
     const report = await executeAgentTask({
       adapter,
       projectRoot,
-      agentTask,
+      agentTask: effectiveAgentTask,
       previousReports: reports,
       workerReportSchema,
       options,
@@ -195,11 +272,21 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
 
   transitionRoundState(roundState, "reports_collected", "Runtime collected available worker reports.");
   emitRoundState({ events, roundState, stream: options.streamEvents });
+  const controllerReview = await maybeRunControllerReviewer({
+    adapter,
+    projectRoot,
+    loopFrame,
+    round,
+    reports,
+    controllerReviewSchema,
+    options,
+    events
+  });
   transitionRoundState(roundState, "merge_ready", "Controller reducer is ready to merge reports.");
   emitRoundState({ events, roundState, stream: options.streamEvents });
 
-  const mergeResult = mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun: options.dryRun });
-  transitionRoundState(roundState, stateFromLoopGate(mergeResult.loop_gate), mergeResult.loop_gate?.reason || "Controller reducer produced next control state.");
+  const mergeResult = mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun: options.dryRun, controllerReview });
+  transitionRoundState(roundState, stateFromMergeResult(mergeResult), mergeResult.loop_gate?.reason || "Controller reducer produced next control state.");
   yieldEvent({
     events,
     event: {
@@ -284,6 +371,393 @@ async function executeAgentTask({ adapter, projectRoot, agentTask, previousRepor
   return report;
 }
 
+async function maybeRunControllerPlanner({
+  adapter,
+  projectRoot,
+  loopFrame,
+  round,
+  snapshot,
+  task,
+  selectedCapabilities,
+  controllerPlanSchema,
+  options,
+  events
+}) {
+  if (options.dryRun || options.controllerAgent === "disabled") {
+    return {
+      usable: false,
+      plan: null,
+      failure_reason: options.dryRun
+        ? "Dry-run cannot create a worker route without executing a Controller Agent."
+        : "Controller Agent planning is disabled by runtime options."
+    };
+  }
+
+  const prompt = compileControllerPlanPrompt({
+    loopFrame,
+    round,
+    snapshot,
+    task,
+    selectedCapabilities
+  });
+  let plan = null;
+  try {
+    for await (const event of adapter.runTurn({
+      projectRoot,
+      prompt,
+      options: {
+        ...options,
+        outputSchema: controllerPlanSchema,
+        resultKind: "controller-plan"
+      }
+    })) {
+      const wrapped = {
+        ...event,
+        controller_role: "controller_planner"
+      };
+      events.push(wrapped);
+      if (options.streamEvents) {
+        console.error(JSON.stringify({ event: wrapped }));
+      }
+      if (event.type === "runtime.controller_plan") {
+        plan = normalizeControllerPlan(event.plan);
+      }
+    }
+  } catch (error) {
+    const failureReason = error?.message || String(error);
+    const failedPlan = createControllerPlanFailure(`Controller Agent planning failed before route selection: ${failureReason}`);
+    const completedEvent = {
+      type: "runtime.controller_plan.completed",
+      status: "planning_failed",
+      controller_plan: failedPlan,
+      failure_reason: failureReason
+    };
+    events.push(completedEvent);
+    if (options.streamEvents) {
+      console.error(JSON.stringify({ event: completedEvent }));
+    }
+    return {
+      usable: false,
+      plan: failedPlan,
+      failure_reason: failureReason
+    };
+  }
+
+  const failureReason = controllerPlanFailureReason(plan);
+  const completedStatus = controllerPlanCompletedStatus({ plan, failureReason });
+  const completedEvent = {
+    type: "runtime.controller_plan.completed",
+    status: completedStatus,
+    controller_plan: plan || null,
+    failure_reason: failureReason
+  };
+  events.push(completedEvent);
+  if (options.streamEvents) {
+    console.error(JSON.stringify({ event: completedEvent }));
+  }
+  return {
+    usable: !failureReason,
+    plan: plan || createControllerPlanFailure("Controller Agent planning completed without a controller plan."),
+    failure_reason: failureReason
+  };
+}
+
+function compileControllerPlanPrompt({ loopFrame, round, snapshot, task, selectedCapabilities }) {
+  const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || "en";
+  return [
+    "# Arckit Controller Planning Turn",
+    "",
+    "You are the Controller Agent inside Arckit Runtime. Your job is to plan the minimum bounded worker set for this runtime round.",
+    "",
+    "The Runtime owns final validation, permission boundaries, worker execution, report intake, ledger writeback, and stop conditions. You provide semantic routing evidence; do not execute worker tasks yourself.",
+    "",
+    "## Conversation Locale",
+    `- conversation_locale: ${conversationLocale}`,
+    `- ${conversationLocaleInstruction(conversationLocale)}`,
+    "",
+    "## Project Snapshot",
+    JSON.stringify({
+      project_root: snapshot.projectRoot || "",
+      summary: snapshot.summary || {},
+      selected_gap: loopFrame.selected_gap,
+      loop_control: loopFrame.loop_control,
+      required_context_refs: round.required_context_refs,
+      stop_conditions: round.stop_conditions
+    }, null, 2),
+    "",
+    "## Operator Task",
+    task || round.round_goal || "",
+    "",
+    "## Selected Capabilities",
+    JSON.stringify(selectedCapabilities.map(toCapabilityContext), null, 2),
+    "",
+    "## Planning Rules",
+    "- Select only the worker roles needed for this round.",
+    "- Include controller_state_reader for every dispatchable worker route.",
+    "- Prefer source fact work before implementation when project state or selected gap is unknown.",
+    "- Include verification when a worker may change files, source facts, implementation evidence, or pending context.",
+    "- Include closeout_controller unless the route is blocked before workers can run.",
+    "- Do not use workers to make human-owned product, aesthetic, business, release, or risk-acceptance decisions.",
+    "- If a route requires human confirmation, set status=needs_human and explain the needed decision.",
+    "- Keep worker_intents concise and role-scoped. Runtime will enforce role permissions and block the round if your plan is invalid.",
+    "",
+    "## Output Contract",
+    "Return only a JSON object with schema_version=arckit-controller-plan/v1. Do not wrap it in Markdown."
+  ].join("\n");
+}
+
+function normalizeControllerPlan(plan) {
+  if (!plan || typeof plan !== "object") {
+    return null;
+  }
+  return {
+    schema_version: plan.schema_version === "arckit-controller-plan/v1" ? plan.schema_version : "arckit-controller-plan/v1",
+    status: ["planned", "needs_human", "blocked"].includes(plan.status) ? plan.status : "blocked",
+    summary: stringValue(plan.summary, ""),
+    route_plan: {
+      mode: ["source_fact_establishment", "implementation_execution", "route_review", "packet_execution"].includes(plan.route_plan?.mode) ? plan.route_plan.mode : "route_review",
+      selected_roles: unique(arrayOfStrings(plan.route_plan?.selected_roles).filter((role) => ROLE_DEFINITIONS[role])),
+      reason: stringValue(plan.route_plan?.reason, ""),
+      requires_human_confirmation: plan.route_plan?.requires_human_confirmation === true
+    },
+    worker_intents: Array.isArray(plan.worker_intents)
+      ? plan.worker_intents
+        .filter((intent) => ROLE_DEFINITIONS[intent?.role])
+        .map((intent) => ({
+          role: intent.role,
+          objective: stringValue(intent.objective, ""),
+          reason: stringValue(intent.reason, "")
+        }))
+      : [],
+    risks: arrayOfStrings(plan.risks),
+    unknowns: arrayOfStrings(plan.unknowns),
+    next_controller_action: stringValue(plan.next_controller_action, "")
+  };
+}
+
+function controllerPlanFailureReason(plan) {
+  if (!plan) {
+    return "Controller Agent did not return a usable plan.";
+  }
+  if (plan.schema_version !== "arckit-controller-plan/v1") {
+    return "Controller Agent returned an unsupported plan schema.";
+  }
+  if (plan.status !== "planned") {
+    return `Controller Agent plan status is ${plan.status}.`;
+  }
+  if (!Array.isArray(plan.route_plan?.selected_roles) || plan.route_plan.selected_roles.length === 0) {
+    return "Controller Agent did not select any worker roles.";
+  }
+  if (!plan.route_plan.selected_roles.includes("controller_state_reader")) {
+    return "Controller Agent did not include controller_state_reader for the dispatchable route.";
+  }
+  if (plan.route_plan.selected_roles.some((role) => ["source_fact_worker", "implementation_worker"].includes(role))
+    && !plan.route_plan.selected_roles.includes("verification_worker")) {
+    return "Controller Agent did not include verification_worker for a route that may change files, source facts, implementation evidence, or pending context.";
+  }
+  if (!plan.route_plan.selected_roles.includes("closeout_controller")) {
+    return "Controller Agent did not include closeout_controller for the dispatchable route.";
+  }
+  return "";
+}
+
+function controllerPlanCompletedStatus({ plan, failureReason }) {
+  if (!plan) {
+    return "planning_failed";
+  }
+  if (plan.status === "needs_human") {
+    return "needs_human";
+  }
+  if (plan.status === "blocked") {
+    return "blocked";
+  }
+  if (failureReason) {
+    return "planning_failed";
+  }
+  return "planned";
+}
+
+function createControllerPlanFailure(summary) {
+  return {
+    schema_version: "arckit-controller-plan/v1",
+    status: "blocked",
+    summary,
+    route_plan: {
+      mode: "route_review",
+      selected_roles: [],
+      reason: summary,
+      requires_human_confirmation: false
+    },
+    worker_intents: [],
+    risks: [summary],
+    unknowns: [],
+    next_controller_action: "Retry Controller planning with a valid arckit-controller-plan/v1 output."
+  };
+}
+
+async function maybeRunControllerReviewer({
+  adapter,
+  projectRoot,
+  loopFrame,
+  round,
+  reports,
+  controllerReviewSchema,
+  options,
+  events
+}) {
+  if (options.dryRun || options.controllerAgent === "disabled") {
+    return {
+      usable: false,
+      review: null,
+      failure_reason: options.dryRun
+        ? "Dry-run cannot review worker reports without executing a Controller Agent."
+        : "Controller Agent review is disabled by runtime options."
+    };
+  }
+
+  const prompt = compileControllerReviewPrompt({ loopFrame, round, reports });
+  let review = null;
+  try {
+    for await (const event of adapter.runTurn({
+      projectRoot,
+      prompt,
+      options: {
+        ...options,
+        outputSchema: controllerReviewSchema,
+        resultKind: "controller-review"
+      }
+    })) {
+      const wrapped = {
+        ...event,
+        controller_role: "controller_reviewer"
+      };
+      events.push(wrapped);
+      if (options.streamEvents) {
+        console.error(JSON.stringify({ event: wrapped }));
+      }
+      if (event.type === "runtime.controller_review") {
+        review = normalizeControllerReview(event.review);
+      }
+    }
+  } catch (error) {
+    const failureReason = error?.message || String(error);
+    const failedReview = createControllerReviewFailure(`Controller Agent review failed before merge: ${failureReason}`);
+    const completedEvent = {
+      type: "runtime.controller_review.completed",
+      status: "review_failed",
+      controller_review: failedReview,
+      failure_reason: failureReason
+    };
+    events.push(completedEvent);
+    if (options.streamEvents) {
+      console.error(JSON.stringify({ event: completedEvent }));
+    }
+    return {
+      usable: false,
+      review: failedReview,
+      failure_reason: failureReason
+    };
+  }
+
+  const failureReason = controllerReviewFailureReason(review);
+  const completedEvent = {
+    type: "runtime.controller_review.completed",
+    status: failureReason ? "review_failed" : "reviewed",
+    controller_review: review || null,
+    failure_reason: failureReason
+  };
+  events.push(completedEvent);
+  if (options.streamEvents) {
+    console.error(JSON.stringify({ event: completedEvent }));
+  }
+  return {
+    usable: !failureReason,
+    review: review || createControllerReviewFailure("Controller Agent review completed without a controller review."),
+    failure_reason: failureReason
+  };
+}
+
+function compileControllerReviewPrompt({ loopFrame, round, reports }) {
+  const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || "en";
+  return [
+    "# Arckit Controller Review Turn",
+    "",
+    "You are the Controller Agent inside Arckit Runtime. Review bounded worker reports and decide the next loop state.",
+    "",
+    "The Runtime owns schema validation, permission boundaries, and ledger writeback. You provide the semantic closeout judgment for this round.",
+    "",
+    "## Conversation Locale",
+    `- conversation_locale: ${conversationLocale}`,
+    `- ${conversationLocaleInstruction(conversationLocale)}`,
+    "",
+    "## Loop Frame",
+    JSON.stringify({
+      case_id: loopFrame.case_id,
+      round_goal: loopFrame.round_goal,
+      selected_gap: loopFrame.selected_gap,
+      route_plan: loopFrame.route_plan,
+      stop_conditions: loopFrame.stop_conditions
+    }, null, 2),
+    "",
+    "## Worker Reports",
+    JSON.stringify(reports, null, 2),
+    "",
+    "## Review Rules",
+    "- Return done only when worker evidence proves the round goal is satisfied and no risk or unknown blocks closeout.",
+    "- Return continue when the next step is still agent/runtime work.",
+    "- Return needs_human only when a human decision, risk acceptance, or product/business judgment is required.",
+    "- Return blocked when required reports, permissions, schemas, tools, or evidence are missing.",
+    "- Do not perform ledger writeback; only describe the next prompt and closeout judgment.",
+    "",
+    "## Output Contract",
+    "Return only a JSON object with schema_version=arckit-controller-review/v1. Do not wrap it in Markdown."
+  ].join("\n");
+}
+
+function normalizeControllerReview(review) {
+  if (!review || typeof review !== "object") {
+    return null;
+  }
+  return {
+    schema_version: review.schema_version === "arckit-controller-review/v1" ? review.schema_version : "arckit-controller-review/v1",
+    status: ["done", "continue", "needs_human", "blocked"].includes(review.status) ? review.status : "blocked",
+    summary: stringValue(review.summary, ""),
+    accepted_reports: arrayOfStrings(review.accepted_reports),
+    rejected_reports: arrayOfStrings(review.rejected_reports),
+    risks: arrayOfStrings(review.risks),
+    unknowns: arrayOfStrings(review.unknowns),
+    next_prompt: stringValue(review.next_prompt, ""),
+    human_decision_required: review.human_decision_required === true
+  };
+}
+
+function controllerReviewFailureReason(review) {
+  if (!review) {
+    return "Controller Agent did not return a usable review.";
+  }
+  if (review.schema_version !== "arckit-controller-review/v1") {
+    return "Controller Agent returned an unsupported review schema.";
+  }
+  if (!["done", "continue", "needs_human", "blocked"].includes(review.status)) {
+    return "Controller Agent returned an unsupported review status.";
+  }
+  return "";
+}
+
+function createControllerReviewFailure(summary) {
+  return {
+    schema_version: "arckit-controller-review/v1",
+    status: "blocked",
+    summary,
+    accepted_reports: [],
+    rejected_reports: [],
+    risks: [summary],
+    unknowns: [],
+    next_prompt: "Retry Controller review with a valid arckit-controller-review/v1 output.",
+    human_decision_required: false
+  };
+}
+
 export function createLoopFrame({ snapshot, round, task, selectedCapabilities = [], options = {} }) {
   const loopControl = snapshot.projectState.loop_control || {};
   const frame = {
@@ -356,45 +830,6 @@ export function createLoopFrame({ snapshot, round, task, selectedCapabilities = 
   return frame;
 }
 
-function planDynamicRoute({ loopFrame, round, snapshot, task }) {
-  const dimension = round.dimension || "";
-  const currentState = round.current_state || "";
-  const projectPhase = snapshot.summary?.current_phase || snapshot.projectState?.project?.current_phase || "";
-  const taskText = String(task || "");
-  const roles = ["controller_state_reader"];
-  const reasons = [];
-
-  const sourceFactRound = isSourceFactRound({ dimension, currentState, projectPhase });
-  const implementationRound = isImplementationRound({ dimension, currentState, taskText });
-  const diagnosisRound = /bug|error|fail|crash|regression|修复|错误|失败|异常/i.test(taskText);
-
-  if (sourceFactRound) {
-    roles.push("source_fact_worker");
-    reasons.push(t(loopFrame.conversation_locale, `Selected source_fact_worker because ${dimension || "the selected gap"} is ${currentState || "not established"}.`, `选择 source_fact_worker，因为 ${dimension || "当前 gap"} 仍是 ${currentState || "未建立"}。`));
-  } else if (implementationRound || diagnosisRound) {
-    roles.push("implementation_worker");
-    reasons.push(t(loopFrame.conversation_locale, "Selected implementation_worker because source facts are no longer unknown and this round is implementation-oriented.", "选择 implementation_worker，因为 source facts 不再是 unknown，且本轮目标偏实现。"));
-  } else {
-    roles.push("controller_route_auditor");
-    reasons.push(t(loopFrame.conversation_locale, "Selected route auditor because the next executable capability is not obvious from the selected state gap.", "选择 route auditor，因为仅凭当前 state gap 还不能确定下一类可执行能力。"));
-  }
-
-  if (roles.some((role) => ["source_fact_worker", "implementation_worker"].includes(role))) {
-    roles.push("verification_worker");
-  }
-  roles.push("closeout_controller");
-
-  return {
-    schema_version: "arckit-dynamic-route-plan/v1",
-    mode: sourceFactRound ? "source_fact_establishment" : (implementationRound || diagnosisRound) ? "implementation_execution" : "route_review",
-    selected_roles: unique(roles),
-    suppressed_roles: DEFAULT_ROLES.filter((role) => !roles.includes(role)),
-    selected_gap: loopFrame.selected_gap,
-    reason: reasons.join(" "),
-    requires_human_confirmation: false
-  };
-}
-
 function createRoutePlanFromPacket(loopFrame) {
   const roles = (loopFrame.worker_packets || []).map((packet) => packet.role).filter(Boolean);
   return {
@@ -408,40 +843,23 @@ function createRoutePlanFromPacket(loopFrame) {
   };
 }
 
-function isSourceFactRound({ dimension, currentState, projectPhase }) {
-  if (currentState === "unknown") {
-    return true;
-  }
-  if (projectPhase === "state-discovery") {
-    return true;
-  }
-  return [
-    "project_intent",
-    "users_and_stakeholders",
-    "problem_scenarios",
-    "product_behavior",
-    "user_experience",
-    "runtime_surfaces",
-    "identity_access",
-    "data_state",
-    "integration_boundaries",
-    "architecture_foundation",
-    "maintainability_handoff",
-    "iteration_governance"
-  ].includes(dimension) && ["unknown", "needed"].includes(currentState);
+function createRoutePlanFromControllerPlan({ controllerPlan, loopFrame }) {
+  const plannedRoles = unique(arrayOfStrings(controllerPlan?.route_plan?.selected_roles).filter((role) => ROLE_DEFINITIONS[role]));
+  return {
+    schema_version: "arckit-dynamic-route-plan/v1",
+    mode: controllerPlan?.route_plan?.mode || "route_review",
+    selected_roles: plannedRoles,
+    suppressed_roles: DEFAULT_ROLES.filter((role) => !plannedRoles.includes(role)),
+    selected_gap: loopFrame.selected_gap,
+    reason: [
+      controllerPlan?.route_plan?.reason || "",
+      controllerPlan?.summary ? `Controller Agent: ${controllerPlan.summary}` : ""
+    ].filter(Boolean).join(" "),
+    requires_human_confirmation: controllerPlan?.route_plan?.requires_human_confirmation === true
+  };
 }
 
-function isImplementationRound({ dimension, currentState, taskText }) {
-  if (currentState === "unknown") {
-    return false;
-  }
-  if (dimension === "implementation_coverage") {
-    return true;
-  }
-  return /implement|build|code|ship|test|refactor|实现|开发|编码|写代码|重构|测试/i.test(taskText);
-}
-
-export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCapabilities = [], roles = DEFAULT_ROLES }) {
+export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCapabilities = [], roles = DEFAULT_ROLES, controllerPlan = null }) {
   return roles.map((role, index) => {
     const definition = ROLE_DEFINITIONS[role];
     if (!definition) {
@@ -450,15 +868,21 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
     const capabilityContexts = selectedCapabilities
       .filter((capability) => definition.allowed_skills.includes(capability.id))
       .map(toCapabilityContext);
+    const workerIntent = Array.isArray(controllerPlan?.worker_intents)
+      ? controllerPlan.worker_intents.find((intent) => intent.role === role)
+      : null;
+    const objective = workerIntent?.objective
+      ? workerIntent.objective
+      : role === "implementation_worker" && task
+        ? `${definition.objective} Operator task: ${task}`
+        : role === "source_fact_worker" && task
+          ? `${definition.objective} Operator task: ${task}`
+          : definition.objective;
     return {
       schema_version: "arckit-worker-task/v1",
       id: `TASK-${String(index + 1).padStart(2, "0")}-${role}`,
       role,
-      objective: role === "implementation_worker" && task
-        ? `${definition.objective} Operator task: ${task}`
-        : role === "source_fact_worker" && task
-          ? `${definition.objective} Operator task: ${task}`
-        : definition.objective,
+      objective,
       conversation_locale: loopFrame.conversation_locale || round.conversation_locale || "en",
       loop_frame_excerpt: {
         case_id: loopFrame.case_id,
@@ -496,6 +920,7 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
           "findings",
           "evidence",
           "changes",
+          "artifact_impacts",
           "risks",
           "unknowns",
           "recommendation",
@@ -539,11 +964,61 @@ function compileAgentTaskPrompt({ agentTask, previousReports }) {
     "- Do not close the case or decide the final loop gate.",
     "- Do not change the project direction or invalidate other packets.",
     "- Do not silently expand scope.",
+    "- Use report.artifact_impacts for every artifact you created, updated, deleted, or read as evidence.",
+    "- Each artifact_impacts item must bind one relative artifact path to operation, claim, summary, and evidence.",
+    "- Keep report.changes as human-readable prose only; Runtime will not use changes for source/projection gates.",
     "- Return only valid JSON matching arckit-worker-report/v1.",
     "",
     "## Output Contract",
     "Return a JSON object with schema_version=arckit-worker-report/v1. Do not wrap it in Markdown."
   ].join("\n");
+}
+
+function expandAgentTaskScopeWithPreviousChanges(agentTask, previousReports, previousPackets = []) {
+  const changedPaths = normalizeArtifactPathReferences(previousReports.flatMap((report) => artifactPathsFromReport(report, previousPackets)));
+  if (changedPaths.length === 0) {
+    return agentTask;
+  }
+  return {
+    ...agentTask,
+    inputs: {
+      ...agentTask.inputs,
+      known_state_paths: unique([
+        ...(agentTask.inputs?.known_state_paths || []),
+        ...changedPaths
+      ])
+    },
+    scope: {
+      ...agentTask.scope,
+      allowed_paths: unique([
+        ...(agentTask.scope?.allowed_paths || []),
+        ...changedPaths
+      ])
+    }
+  };
+}
+
+function artifactPathsFromReport(report, previousPackets = []) {
+  const packet = previousPackets.find((item) => item.worker_id === report?.task_id);
+  return Array.isArray(report?.artifact_impacts)
+    ? report.artifact_impacts
+      .map((impact) => normalizeArtifactPathReferences([impact.artifact])[0] || "")
+      .filter((artifact) => artifact && (!packet || artifactAllowedByPacket(artifact, packet)))
+    : [];
+}
+
+function artifactAllowedByPacket(artifact, packet) {
+  const allowedPaths = Array.isArray(packet.allowed_paths) ? packet.allowed_paths : [];
+  if (allowedPaths.length === 0) {
+    return true;
+  }
+  return allowedPaths.some((allowed) => {
+    const normalized = normalizeArtifactPathReferences([allowed])[0] || String(allowed || "").trim().replaceAll("\\", "/").replace(/^\.\//, "");
+    if (!normalized) {
+      return false;
+    }
+    return normalized.endsWith("/") ? artifact.startsWith(normalized) : artifact === normalized;
+  });
 }
 
 function formatExplicitSkillTriggers(skills) {
@@ -554,7 +1029,7 @@ function formatExplicitSkillTriggers(skills) {
   return allowedSkills.map((skill) => `- $${skill}`).join("\n");
 }
 
-function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun }) {
+function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun, controllerReview }) {
   const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || compiledPrompt.conversation_locale || "en";
   const reducerResult = reduceWorkerReports({
     reports,
@@ -563,36 +1038,266 @@ function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun }
     dryRun,
     conversationLocale
   });
+  const review = controllerReview?.review || null;
+  const reviewUsable = controllerReview?.usable === true;
+  const reviewStatus = reviewUsable ? review.status : "blocked";
+  const reviewLoopGate = reviewUsable
+    ? {
+      status: reviewStatus,
+      next_responsibility: reviewStatus === "done" ? "none" : review.human_decision_required || reviewStatus === "needs_human" ? "human" : "agent",
+      trigger_mode: reviewStatus === "done" ? "none" : review.human_decision_required || reviewStatus === "needs_human" ? "user_decision" : "manual_bridge",
+      human_decision_required: review.human_decision_required || reviewStatus === "needs_human",
+      reason: review.summary
+    }
+    : {
+      status: "blocked",
+      next_responsibility: "agent",
+      trigger_mode: "manual_bridge",
+      human_decision_required: false,
+      reason: controllerReview?.failure_reason || "Controller Agent review is required before merge can close."
+    };
+  const guarded = applyRuntimeGuardToLoopGate({
+    reviewLoopGate,
+    reducerResult,
+    reviewUsable,
+    conversationLocale
+  });
+  const loopGate = guarded.loop_gate;
+  const decision = loopGate.status === "done" ? "accepted" : loopGate.status === "blocked" ? "blocked" : "continue";
 
   return {
     schema_version: "arckit-merge-result/v1",
-    decision: reducerResult.decision,
-    accepted_reports: reducerResult.accepted_reports,
+    decision,
+    accepted_reports: reviewUsable ? review.accepted_reports : reducerResult.accepted_reports,
     partial_reports: reducerResult.partial_reports,
     blocked_reports: reducerResult.blocked_reports,
-    rejected_reports: reducerResult.rejected_reports,
+    rejected_reports: reviewUsable ? review.rejected_reports : reducerResult.rejected_reports,
     evidence: reducerResult.evidence,
     changed_files: reducerResult.changed_files,
-    risks: reducerResult.risks,
-    unknowns: reducerResult.unknowns,
+    risks: unique([...reducerResult.risks, ...(reviewUsable ? review.risks : [])]),
+    unknowns: unique([...reducerResult.unknowns, ...(reviewUsable ? review.unknowns : [])]),
     artifact_ownership_scan: reducerResult.artifact_ownership_scan,
     source_projection_check: reducerResult.source_projection_check,
     controller_frame: loopFrame.controller_frame,
     execution_gate: loopFrame.execution_gate,
     executor_binding: loopFrame.executor_binding,
     report_intake: reducerResult.report_intake,
-    loop_gate: reducerResult.loop_gate,
-    controller_reducer_result: reducerResult,
-    next_prompt: dryRun
+    loop_gate: loopGate,
+    controller_reducer_result: {
+      ...reducerResult,
+      controller_review: review || null,
+      controller_review_failure_reason: controllerReview?.failure_reason || "",
+      controller_review_loop_gate: reviewLoopGate,
+      runtime_guard: guarded.runtime_guard,
+      decision,
+      loop_gate: loopGate
+    },
+    next_prompt: reviewUsable && review.next_prompt ? review.next_prompt : dryRun
       ? t(conversationLocale, `Use the generated worker packets for ${loopFrame.case_id || round.gap_id}, then return worker reports to the Arckit Controller.`, `使用为 ${loopFrame.case_id || round.gap_id} 生成的 worker packets，然后把 worker reports 返回给 Arckit Controller。`)
       : t(conversationLocale, `Continue Arckit loop for ${loopFrame.case_id || round.gap_id}: resolve remaining risks and write eligible ledger updates.`, `继续 ${loopFrame.case_id || round.gap_id} 的 Arckit loop：解决剩余风险，并写入符合条件的 ledger 更新。`)
+  };
+}
+
+function applyRuntimeGuardToLoopGate({ reviewLoopGate, reducerResult, reviewUsable, conversationLocale }) {
+  const hardGate = reducerResult?.hard_gate || {
+    status: reducerResult?.loop_gate?.status === "done" ? "pass" : reducerResult?.loop_gate?.status || "blocked",
+    can_close: reducerResult?.loop_gate?.status === "done",
+    blockers: reducerResult?.source_projection_check?.blocked_projections || [],
+    reason: reducerResult?.loop_gate?.reason || "Runtime Guard could not prove the round can close."
+  };
+  const runtimeGuard = {
+    schema_version: "arckit-runtime-guard/v1",
+    status: hardGate.status,
+    can_close: hardGate.can_close === true,
+    blockers: normalizeRuntimeGuardBlockers(hardGate.blockers),
+    reason: hardGate.reason || ""
+  };
+  if (!reviewUsable) {
+    return {
+      runtime_guard: runtimeGuard,
+      loop_gate: reviewLoopGate
+    };
+  }
+  if (reviewLoopGate.status === "done" && !runtimeGuard.can_close) {
+    const status = runtimeGuard.status === "needs_human"
+      ? "needs_human"
+      : runtimeGuard.status === "blocked"
+        ? "blocked"
+        : "continue";
+    return {
+      runtime_guard: {
+        ...runtimeGuard,
+        vetoed_controller_review: true
+      },
+      loop_gate: {
+        status,
+        next_responsibility: status === "needs_human" ? "human" : "agent",
+        trigger_mode: status === "needs_human" ? "user_decision" : "manual_bridge",
+        human_decision_required: status === "needs_human",
+        reason: t(conversationLocale, `Runtime Guard vetoed Controller Review done: ${runtimeGuard.reason}`, `Runtime Guard 否决了 Controller Review 的 done 判断：${runtimeGuard.reason}`)
+      }
+    };
+  }
+  if (runtimeGuard.status === "blocked" && !["blocked", "needs_human"].includes(reviewLoopGate.status)) {
+    return {
+      runtime_guard: {
+        ...runtimeGuard,
+        vetoed_controller_review: true
+      },
+      loop_gate: {
+        status: "blocked",
+        next_responsibility: "agent",
+        trigger_mode: "manual_bridge",
+        human_decision_required: false,
+        reason: t(conversationLocale, `Runtime Guard blocked merge: ${runtimeGuard.reason}`, `Runtime Guard 阻断了 merge：${runtimeGuard.reason}`)
+      }
+    };
+  }
+  if (runtimeGuard.status === "needs_human" && reviewLoopGate.status === "continue") {
+    return {
+      runtime_guard: {
+        ...runtimeGuard,
+        vetoed_controller_review: true
+      },
+      loop_gate: {
+        status: "needs_human",
+        next_responsibility: "human",
+        trigger_mode: "user_decision",
+        human_decision_required: true,
+        reason: t(conversationLocale, `Runtime Guard requires human decision: ${runtimeGuard.reason}`, `Runtime Guard 要求人类决策：${runtimeGuard.reason}`)
+      }
+    };
+  }
+  return {
+    runtime_guard: {
+      ...runtimeGuard,
+      vetoed_controller_review: false
+    },
+    loop_gate: reviewLoopGate
+  };
+}
+
+function normalizeRuntimeGuardBlockers(blockers) {
+  if (!Array.isArray(blockers)) {
+    return [];
+  }
+  return blockers.map((blocker) => {
+    if (blocker && typeof blocker === "object") {
+      return {
+        type: stringValue(blocker.type, "unknown"),
+        severity: ["recoverable", "needs_human", "blocked"].includes(blocker.severity) ? blocker.severity : "blocked",
+        recoverable_by: ["agent", "human", "runtime", "none"].includes(blocker.recoverable_by) ? blocker.recoverable_by : "none",
+        target: stringValue(blocker.target, ""),
+        suggested_action: stringValue(blocker.suggested_action, ""),
+        summary: stringValue(blocker.summary, "")
+      };
+    }
+    return {
+      type: "unknown",
+      severity: "blocked",
+      recoverable_by: "none",
+      target: "",
+      suggested_action: "",
+      summary: String(blocker || "")
+    };
+  }).filter((blocker) => blocker.summary);
+}
+
+function createControllerUnavailableMergeResult({ loopFrame, round, controllerPlan, conversationLocale }) {
+  const reason = controllerPlan?.failure_reason || "Controller Agent planning is required before worker dispatch.";
+  const needsHuman = controllerPlan?.plan?.status === "needs_human"
+    || controllerPlan?.plan?.route_plan?.requires_human_confirmation === true;
+  const loopStatus = needsHuman ? "needs_human" : "blocked";
+  const decision = needsHuman ? "continue" : "blocked";
+  const nextResponsibility = needsHuman ? "human" : "agent";
+  const triggerMode = needsHuman ? "user_decision" : "manual_bridge";
+  const artifactOwnershipScan = buildArtifactOwnershipScan([]);
+  return {
+    schema_version: "arckit-merge-result/v1",
+    decision,
+    accepted_reports: [],
+    partial_reports: [],
+    blocked_reports: [],
+    rejected_reports: [],
+    evidence: ["controller_plan"],
+    changed_files: [],
+    risks: [reason],
+    unknowns: [],
+    artifact_ownership_scan: artifactOwnershipScan,
+    source_projection_check: {
+      source_facts_changed: [],
+      projection_artifacts_changed: [],
+      source_unknown: true,
+      deferred_projections: [],
+      blocked_projections: [reason]
+    },
+    controller_frame: loopFrame.controller_frame,
+    execution_gate: loopFrame.execution_gate,
+    executor_binding: loopFrame.executor_binding,
+    report_intake: {
+      accepted: [],
+      rejected: [],
+      needs_revision: [],
+      needs_controller_decision: [],
+      needs_human_decision: needsHuman ? [reason] : [],
+      missing: []
+    },
+    loop_gate: {
+      status: loopStatus,
+      next_responsibility: nextResponsibility,
+      trigger_mode: triggerMode,
+      human_decision_required: needsHuman,
+      reason
+    },
+    controller_reducer_result: {
+      schema_version: "arckit-controller-reducer-result/v1",
+      decision,
+      reducer_actions: [],
+      accepted_reports: [],
+      partial_reports: [],
+      blocked_reports: [],
+      rejected_reports: [],
+      evidence: ["controller_plan"],
+      changed_files: [],
+      risks: [reason],
+      unknowns: [],
+      artifact_ownership_scan: artifactOwnershipScan,
+      source_projection_check: {
+        source_facts_changed: [],
+        projection_artifacts_changed: [],
+        source_unknown: true,
+        deferred_projections: [],
+        blocked_projections: [reason]
+      },
+      report_intake: {
+        accepted: [],
+        rejected: [],
+        needs_revision: [],
+        needs_controller_decision: [],
+        needs_human_decision: needsHuman ? [reason] : [],
+        missing: []
+      },
+      loop_gate: {
+        status: loopStatus,
+        next_responsibility: nextResponsibility,
+        trigger_mode: triggerMode,
+        human_decision_required: needsHuman,
+        reason
+      },
+      controller_plan: controllerPlan?.plan || null
+    },
+    next_prompt: needsHuman
+      ? t(conversationLocale, `Resolve the Controller Agent human decision for ${loopFrame.case_id || round.gap_id}, then run Controller planning again.`, `先处理 ${loopFrame.case_id || round.gap_id} 的 Controller Agent 人类决策，再重新执行 Controller planning。`)
+      : t(conversationLocale, `Retry Controller planning for ${loopFrame.case_id || round.gap_id} and return a valid arckit-controller-plan/v1.`, `重新为 ${loopFrame.case_id || round.gap_id} 执行 Controller planning，并返回有效的 arckit-controller-plan/v1。`)
   };
 }
 
 function createPacketPreviewMergeResult({ loopFrame, round }) {
   const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || "en";
   const missingWorkers = (loopFrame.worker_packets || []).map((packet) => packet.worker_id).filter(Boolean);
-  const reason = t(conversationLocale, "Packet preview generated worker packets only; execution is pending authorization.", "Packet Preview 只生成 worker packets；执行仍在等待授权。");
+  const reason = missingWorkers.length > 0
+    ? t(conversationLocale, "Controller preview loaded existing worker packets only; execution is pending authorization.", "Controller Preview 只加载已有 worker packets；执行仍在等待授权。")
+    : t(conversationLocale, "Controller preview cannot generate worker packets without executing Controller Agent planning.", "没有执行 Controller Agent planning 时，Controller Preview 不能生成 worker packets。");
   const artifactOwnershipScan = buildArtifactOwnershipScan([]);
   return {
     schema_version: "arckit-merge-result/v1",
@@ -615,7 +1320,7 @@ function createPacketPreviewMergeResult({ loopFrame, round }) {
       source_facts_changed: [],
       projection_artifacts_changed: [],
       source_unknown: false,
-      deferred_projections: ["worker execution", "worker report intake", "ledger writeback"],
+      deferred_projections: missingWorkers.length > 0 ? ["worker execution", "worker report intake", "ledger writeback"] : ["controller planning", "worker execution", "worker report intake", "ledger writeback"],
       blocked_projections: [t(conversationLocale, `execution_gate: ${loopFrame.execution_gate?.status || "unknown"} - executor not authorized`, `execution_gate: ${loopFrame.execution_gate?.status || "unknown"} - 执行器未授权`)]
     },
     controller_frame: loopFrame.controller_frame,
@@ -653,7 +1358,7 @@ function createPacketPreviewMergeResult({ loopFrame, round }) {
         source_facts_changed: [],
         projection_artifacts_changed: [],
         source_unknown: false,
-        deferred_projections: ["worker execution", "worker report intake", "ledger writeback"],
+          deferred_projections: missingWorkers.length > 0 ? ["worker execution", "worker report intake", "ledger writeback"] : ["controller planning", "worker execution", "worker report intake", "ledger writeback"],
         blocked_projections: [t(conversationLocale, `execution_gate: ${loopFrame.execution_gate?.status || "unknown"} - executor not authorized`, `execution_gate: ${loopFrame.execution_gate?.status || "unknown"} - 执行器未授权`)]
       },
       report_intake: {
@@ -672,7 +1377,9 @@ function createPacketPreviewMergeResult({ loopFrame, round }) {
         reason
       }
     },
-    next_prompt: t(conversationLocale, `Authorize execution for ${loopFrame.case_id || round.gap_id}, or copy the generated worker packets to worker Agent chats and return reports to the Arckit Controller.`, `授权执行 ${loopFrame.case_id || round.gap_id}，或把生成的 worker packets 复制到 worker Agent 对话，再把 reports 返回给 Arckit Controller。`)
+    next_prompt: missingWorkers.length > 0
+      ? t(conversationLocale, `Authorize execution for ${loopFrame.case_id || round.gap_id}, or copy the existing worker packets to worker Agent chats and return reports to the Arckit Controller.`, `授权执行 ${loopFrame.case_id || round.gap_id}，或把已有 worker packets 复制到 worker Agent 对话，再把 reports 返回给 Arckit Controller。`)
+      : t(conversationLocale, `Run Controller Agent planning for ${loopFrame.case_id || round.gap_id} before worker packet execution.`, `先为 ${loopFrame.case_id || round.gap_id} 执行 Controller Agent planning，再执行 worker packets。`)
   };
 }
 
@@ -680,7 +1387,7 @@ function reportIsComplete(report) {
   if (!report || typeof report !== "object") {
     return false;
   }
-  const arrays = ["findings", "evidence", "changes", "risks", "unknowns"];
+  const arrays = ["findings", "evidence", "changes", "artifact_impacts", "risks", "unknowns"];
   return report.schema_version === "arckit-worker-report/v1"
     && Boolean(report.task_id)
     && Boolean(ROLE_DEFINITIONS[report.role])
@@ -720,15 +1427,53 @@ function toCapabilityContext(capability) {
   };
 }
 
+function stateFromMergeResult(mergeResult) {
+  return shouldPrepareLedgerWriteback(mergeResult)
+    ? "ledger_gate_ready"
+    : stateFromLoopGate(mergeResult.loop_gate);
+}
+
+function shouldPrepareLedgerWriteback(mergeResult) {
+  const loopGate = mergeResult?.loop_gate || {};
+  if (loopGate.status === "done") {
+    return true;
+  }
+  if (loopGate.status !== "continue") {
+    return false;
+  }
+  if (loopGate.human_decision_required === true || ["human", "external"].includes(loopGate.next_responsibility)) {
+    return false;
+  }
+  const intake = mergeResult?.report_intake || {};
+  const unresolvedReports = [
+    ...(Array.isArray(intake.rejected) ? intake.rejected : []),
+    ...(Array.isArray(intake.needs_revision) ? intake.needs_revision : []),
+    ...(Array.isArray(intake.needs_human_decision) ? intake.needs_human_decision : []),
+    ...(Array.isArray(intake.missing) ? intake.missing : [])
+  ];
+  if (unresolvedReports.length > 0) {
+    return false;
+  }
+  const ownership = mergeResult?.artifact_ownership_scan || {};
+  const changedFiles = Array.isArray(mergeResult?.changed_files) ? mergeResult.changed_files : [];
+  const sourceChanged = Array.isArray(ownership.source_facts_changed) && ownership.source_facts_changed.length > 0;
+  const pendingChanged = Array.isArray(ownership.pending_items) && ownership.pending_items.length > 0;
+  const ledgerChanged = changedFiles.some((path) => /^arckit\/(project|cases)\//.test(path));
+  const evidence = Array.isArray(mergeResult?.evidence) ? mergeResult.evidence : [];
+  return evidence.length > 0 && (sourceChanged || pendingChanged || ledgerChanged);
+}
+
 function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, round, compiledPrompt, dryRun, roundState }) {
   const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || compiledPrompt.conversation_locale || "en";
   const loopDone = mergeResult.loop_gate.status === "done";
   const loopBlocked = mergeResult.loop_gate.status === "blocked";
   const needsHuman = mergeResult.loop_gate.human_decision_required === true;
+  const ledgerWritebackReady = shouldPrepareLedgerWriteback(mergeResult);
+  const progressWriteback = ledgerWritebackReady && !loopDone;
   const roundResult = loopDone ? "done" : needsHuman ? "needs_human" : loopBlocked ? "blocked" : "continue";
   const handoffStatus = loopDone ? "done" : needsHuman ? "needs_human" : loopBlocked ? "blocked" : "continue";
   const runModeText = dryRun
-    ? t(conversationLocale, "packet preview", "执行包预览")
+    ? t(conversationLocale, "controller preview", "Controller 预览")
     : t(conversationLocale, "execution", "执行");
   const summary = [
     t(conversationLocale, `Agentic loop ${runModeText} completed with ${reports.length} worker reports.`, `Agentic loop ${runModeText}已完成，收到 ${reports.length} 个 worker reports。`),
@@ -754,17 +1499,21 @@ function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, round, 
     report_intake: mergeResult.report_intake,
     ledger_stage: {
       schema_version: "arckit-ledger-stage/v1",
-      status: loopDone ? "gate_ready" : needsHuman ? "human_blocked" : loopBlocked ? "blocked" : "not_ready",
-      gate_required: loopDone,
-      writeback_required: loopDone,
+      status: ledgerWritebackReady ? "gate_ready" : needsHuman ? "human_blocked" : loopBlocked ? "blocked" : "not_ready",
+      gate_required: ledgerWritebackReady,
+      writeback_required: ledgerWritebackReady,
       reason: loopDone
         ? t(conversationLocale, "Runtime result is eligible for deterministic ledger gate evaluation.", "Runtime result 可以进入确定性 ledger gate。")
+        : progressWriteback
+          ? t(conversationLocale, "Runtime result has validated progress that must be written before the next round.", "Runtime result 已产生经过验证的阶段进展，进入下一轮前必须先写回 ledger。")
         : mergeResult.loop_gate.reason
     },
     validation_evidence: unique([
       ...mergeResult.evidence,
       "runtime/arckit-runtime/schemas/worker-packet.schema.json",
       "runtime/arckit-runtime/schemas/worker-report.schema.json",
+      "runtime/arckit-runtime/schemas/controller-plan.schema.json",
+      "runtime/arckit-runtime/schemas/controller-review.schema.json",
       compiledPrompt.output_schema
     ]),
     loop_handoff: {
@@ -786,6 +1535,11 @@ function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, round, 
               t(conversationLocale, "Review worker reports that require a main-agent or human decision.", "审核需要主 Agent 或人类决策的 worker reports。"),
               t(conversationLocale, "Decide whether to continue, narrow scope, or change project facts before the next runtime round.", "在下一轮 runtime round 前，决定是继续、收窄范围，还是变更项目事实。")
             ]
+            : progressWriteback
+              ? [
+                t(conversationLocale, "Write this validated progress to the project ledger before starting the next round.", "进入下一轮前，先把本轮经过验证的阶段进展写回项目 ledger。"),
+                t(conversationLocale, "Keep the active case open and continue from the ledger handoff after writeback.", "保持 active case 打开，并在写回后按 ledger handoff 继续。")
+              ]
             : [
               t(conversationLocale, "Authorize execution or return worker reports to the Arckit Controller.", "授权执行，或把 worker reports 返回给 Arckit Controller。"),
               t(conversationLocale, "Resolve blocked, partial, or unknown worker report items.", "解决 blocked、partial 或 unknown 的 worker report 项。"),
@@ -862,7 +1616,7 @@ function createExecutorBinding({ options }) {
       schema_version: "arckit-executor-binding/v1",
       executor: "none",
       authorization_source: "none",
-      reason: t(conversationLocale, "Dry-run generates worker packets without executing them.", "Packet Preview 只生成 worker packets，不执行。")
+      reason: t(conversationLocale, "Dry-run does not execute Controller Agent planning or worker turns.", "Dry-run 不执行 Controller Agent planning 或 worker turns。")
     };
   }
   return {
@@ -946,6 +1700,7 @@ function normalizePacketWorkerTasks(tasks, loopFrame) {
         "findings",
         "evidence",
         "changes",
+        "artifact_impacts",
         "risks",
         "unknowns",
         "recommendation",
@@ -997,7 +1752,7 @@ function createCloseoutRules() {
     continue_when: [
       "next step is still agent/runtime work",
       "worker reports are missing or need revision",
-      "dry-run generated packets but no execution evidence"
+      "dry-run has no Controller Agent plan or worker execution evidence"
     ],
     needs_human_when: [
       "human judgment, authorization, priority, aesthetics, risk acceptance, or release responsibility is required"
@@ -1040,12 +1795,28 @@ function normalizeAgentReport(report, agentTask) {
     findings: arrayOfStrings(report.findings),
     evidence: arrayOfStrings(report.evidence),
     changes: arrayOfStrings(report.changes),
+    artifact_impacts: normalizeArtifactImpacts(report.artifact_impacts),
     risks: arrayOfStrings(report.risks),
     unknowns: arrayOfStrings(report.unknowns),
     recommendation: stringValue(report.recommendation, ""),
     requires_main_agent_decision: report.requires_main_agent_decision === true,
     requires_human_decision: report.requires_human_decision === true
   };
+}
+
+function normalizeArtifactImpacts(impacts) {
+  if (!Array.isArray(impacts)) {
+    return [];
+  }
+  return impacts
+    .filter((impact) => impact && typeof impact === "object")
+    .map((impact) => ({
+      artifact: stringValue(impact.artifact, ""),
+      operation: ["created", "updated", "deleted", "read", "none"].includes(impact.operation) ? impact.operation : "none",
+      claim: stringValue(impact.claim, ""),
+      summary: stringValue(impact.summary, ""),
+      evidence: arrayOfStrings(impact.evidence)
+    }));
 }
 
 function createInvalidAgentReport(agentTask, message) {
@@ -1059,6 +1830,7 @@ function createInvalidAgentReport(agentTask, message) {
     findings: [],
     evidence: [],
     changes: [],
+    artifact_impacts: [],
     risks: [message],
     unknowns: [],
     recommendation: t(conversationLocale, "Retry this worker task with a valid arckit-worker-report/v1 output.", "使用有效的 arckit-worker-report/v1 输出重新运行这个 worker task。"),

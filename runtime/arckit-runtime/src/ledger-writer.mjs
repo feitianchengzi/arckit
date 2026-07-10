@@ -21,6 +21,7 @@ export async function writeLedger({ projectRoot, runtimeResult, envelope, snapsh
   const timestamp = new Date().toISOString();
   const runId = `RUN-${timestamp.replaceAll(/[-:.]/g, "").replace("T", "-").replace("Z", "Z")}`;
   const selectedRound = envelope?.selected_round || {};
+  const finalWriteback = isFinalWriteback(runtimeResult);
   const projectStatePath = join(root, "arckit/project/state.record.json");
   const iterationPath = snapshot?.projectState?.active_iteration_ref
     ? join(root, snapshot.projectState.active_iteration_ref)
@@ -59,6 +60,7 @@ export async function writeLedger({ projectRoot, runtimeResult, envelope, snapsh
     schema_version: "arckit-runtime-execution-record/v1",
     id: runId,
     created_at: timestamp,
+    writeback_mode: finalWriteback ? "final" : "progress",
     selected_round: selectedRound,
     runtime_result: runtimeResult,
     gate
@@ -66,20 +68,20 @@ export async function writeLedger({ projectRoot, runtimeResult, envelope, snapsh
   changedFiles.push(relativeRuntimeRecordPath);
 
   const projectState = await readJson(projectStatePath);
-  applyProjectStateWriteback(projectState, { timestamp, runtimeResult, selectedRound, runtimeRecordPath: relativeRuntimeRecordPath });
+  applyProjectStateWriteback(projectState, { timestamp, runtimeResult, selectedRound, runtimeRecordPath: relativeRuntimeRecordPath, finalWriteback });
   await writeJson(projectStatePath, projectState);
   changedFiles.push("arckit/project/state.record.json");
 
   if (iterationPath && existsSync(iterationPath)) {
     const iteration = await readJson(iterationPath);
-    applyIterationWriteback(iteration, { timestamp, runtimeResult, selectedRound, runtimeRecordPath: relativeRuntimeRecordPath });
+    applyIterationWriteback(iteration, { timestamp, runtimeResult, selectedRound, runtimeRecordPath: relativeRuntimeRecordPath, finalWriteback });
     await writeJson(iterationPath, iteration);
     changedFiles.push(relativeToProject(root, iterationPath));
   }
 
   if (activeCasePath) {
     const { text, record } = await readCaseRecord(activeCasePath);
-    applyCaseWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath: relativeRuntimeRecordPath });
+    applyCaseWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath: relativeRuntimeRecordPath, finalWriteback });
     await writeCaseRecord(activeCasePath, text, record);
     changedFiles.push(relativeToProject(root, activeCasePath));
   }
@@ -106,22 +108,34 @@ export async function writeLedger({ projectRoot, runtimeResult, envelope, snapsh
   };
 }
 
-function applyProjectStateWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath }) {
+function isFinalWriteback(runtimeResult) {
+  return runtimeResult?.round_result === "done" || runtimeResult?.loop_handoff?.next_responsibility === "none";
+}
+
+function applyProjectStateWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath, finalWriteback }) {
   record.project.updated_at = timestamp;
   const dimension = selectedRound.dimension;
   if (dimension && record.completeness_dimensions?.[dimension]) {
     const item = record.completeness_dimensions[dimension];
-    item.current_state = selectedRound.target_state || item.target_state || item.current_state;
-    item.state_reason = `Runtime accepted result for ${selectedRound.gap_id || dimension}: ${runtimeResult.summary}`;
+    if (finalWriteback) {
+      item.current_state = selectedRound.target_state || item.target_state || item.current_state;
+    }
+    item.state_reason = finalWriteback
+      ? `Runtime accepted result for ${selectedRound.gap_id || dimension}: ${runtimeResult.summary}`
+      : `Runtime recorded progress for ${selectedRound.gap_id || dimension}: ${runtimeResult.summary}`;
     item.evidence = mergeEvidence(item.evidence, [runtimeRecordPath, ...(runtimeResult.validation_evidence || []), ...(runtimeResult.changed_files || [])]);
-    item.evidence_maturity = "validated";
-    item.gap = "";
+    item.evidence_maturity = finalWriteback ? "validated" : "confirmed";
+    if (finalWriteback) {
+      item.gap = "";
+    }
     item.next_transition = runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.next_prompt || "";
-    item.priority = item.current_state === item.target_state ? "none" : item.priority;
-    item.confidence = "high";
+    if (finalWriteback) {
+      item.priority = item.current_state === item.target_state ? "none" : item.priority;
+      item.confidence = "high";
+    }
   }
 
-  if (selectedRound.gap_id) {
+  if (finalWriteback && selectedRound.gap_id) {
     record.state_gaps = (record.state_gaps || []).filter((gap) => gap.id !== selectedRound.gap_id);
   }
 
@@ -139,14 +153,14 @@ function applyProjectStateWriteback(record, { timestamp, runtimeResult, selected
 
   record.last_state_delta = {
     changed_dimensions: Array.from(new Set([selectedRound.dimension, "quality_validation", "maintainability_handoff"].filter(Boolean))),
-    state_transitions: [
+    state_transitions: finalWriteback ? [
       {
         dimension: selectedRound.dimension || "quality_validation",
         from_state: selectedRound.current_state || "verified",
         to_state: selectedRound.target_state || "accepted",
         reason: `Runtime ledger writeback accepted ${selectedRound.gap_id || "selected round"}: ${runtimeResult.summary}`
       }
-    ],
+    ] : [],
     deferred_dimensions: runtimeResult.source_projection_check?.deferred_projections || [],
     blocked_dimensions: [],
     case_refs: record.active_case_refs || [],
@@ -158,15 +172,17 @@ function applyProjectStateWriteback(record, { timestamp, runtimeResult, selected
   record.canonical_artifact_refs = mergeEvidence(record.canonical_artifact_refs, [runtimeRecordPath]);
 }
 
-function applyIterationWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath }) {
+function applyIterationWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath, finalWriteback }) {
   record.updated_at = timestamp;
   record.current_state_delta = [
     ...(record.current_state_delta || []),
     {
       dimension: selectedRound.dimension || "quality_validation",
       from_state: selectedRound.current_state || "verified",
-      to_state: selectedRound.target_state || "accepted",
-      reason: `Runtime ledger writeback accepted ${selectedRound.gap_id || "selected round"}: ${runtimeResult.summary}`,
+      to_state: finalWriteback ? selectedRound.target_state || "accepted" : selectedRound.current_state || "verified",
+      reason: finalWriteback
+        ? `Runtime ledger writeback accepted ${selectedRound.gap_id || "selected round"}: ${runtimeResult.summary}`
+        : `Runtime ledger writeback recorded progress for ${selectedRound.gap_id || "selected round"}: ${runtimeResult.summary}`,
       evidence: [runtimeRecordPath, ...(runtimeResult.validation_evidence || [])]
     }
   ];
@@ -187,7 +203,7 @@ function applyIterationWriteback(record, { timestamp, runtimeResult, selectedRou
   };
 }
 
-function applyCaseWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath }) {
+function applyCaseWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath, finalWriteback }) {
   const nextRound = (record.rounds || []).length + 1;
   record.updated_at = timestamp;
   record.current_round_goal = runtimeResult.loop_handoff?.agent_instruction?.goal || "";
@@ -208,7 +224,9 @@ function applyCaseWriteback(record, { timestamp, runtimeResult, selectedRound, r
       round: nextRound,
       goal: selectedRound.round_goal || selectedRound.next_transition || "Runtime ledger writeback",
       actions: [
-        `Accepted runtime result and wrote ledger execution record ${runtimeRecordPath}.`
+        finalWriteback
+          ? `Accepted runtime result and wrote ledger execution record ${runtimeRecordPath}.`
+          : `Recorded runtime progress and wrote ledger execution record ${runtimeRecordPath}.`
       ],
       verification: runtimeResult.validation_evidence || [],
       source_projection_check: runtimeResult.source_projection_check || {}
