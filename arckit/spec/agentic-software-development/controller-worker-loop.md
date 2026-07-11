@@ -196,11 +196,17 @@ Desktop 自动化的是 Human Runtime 的动作：
 
 Desktop 不改变 Controller Worker Loop。它只减少人类复制 packet、收集 report 和判断 gate 的操作成本。
 
+Desktop operator event 是 Controller 输入 envelope，不是 case goal、project transition 或 worker objective。Desktop 可以把 operator event 保存到 chat、run raw events 或 runtime execution record 中用于审计；传给 Controller 的 event 只携带当前动作、人类输入、source run refs、上一轮 handoff 摘要、worker report 摘要、gate/ledger 状态摘要和必要 context refs。完整 controller frame、activity、ledger write result、worker stream JSON 和上一轮 prompt 只能通过文件路径引用，不内嵌到下一轮 operator event。
+
+Controller Agent 是唯一负责把 operator event 解释为本轮语义意图的组件。Controller plan 必须显式输出 route plan、selected gap、worker intents 和下一步 continuation intent。Runtime 只能校验这些结构化字段是否存在、是否有界、是否不含 raw event marker，并把它们投影到 loop frame、worker task 和 ledger writeback；Runtime 不得自行从 operator event 中推理“最小语义目标”。
+
 ## 动态 Controller Loop
 
 Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当前项目状态、active case、iteration state、用户输入和上一轮 handoff 生成动态 route plan，再按 route plan 派发最小必要 worker。
 
 动态 route plan 必须同时说明业务路线、worker 类型和 skill 绑定。业务路线表达本轮要补的状态缺口；worker 类型表达需要哪类执行能力；skill 绑定表达每个 worker packet 允许调用哪些 Arckit skill。没有 skill 绑定的 worker 仍可执行一般工具任务，但不能声称已经维护对应 Arckit 事实源。
+
+动态 route plan 还必须提供可写入 runtime 和 ledger 的短语义字段。`selected_gap.next_transition` 表达本轮或下一轮要推进的状态转移；worker intent `objective` 表达单个 worker 的 bounded task；Controller review `next_prompt` 表达下一轮可复制触发文本。这些字段不能复制 Desktop operator event、完整 previous activity、完整 loop handoff 或完整 ledger result。字段缺失、超长或包含 raw event marker 时，本轮不能写 Project State 或 Case State。
 
 动态 loop 的标准顺序是：
 

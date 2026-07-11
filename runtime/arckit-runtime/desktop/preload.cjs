@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   listProjects: () => ipcRenderer.invoke("arckit:list-projects"),
   removeProject: (projectId) => ipcRenderer.invoke("arckit:remove-project", projectId),
   projectStatus: (projectId) => ipcRenderer.invoke("arckit:project-status", projectId),
-  listRuns: () => ipcRenderer.invoke("arckit:list-runs"),
+  listRuns: (filter) => ipcRenderer.invoke("arckit:list-runs", filter),
   listSessions: (projectId) => ipcRenderer.invoke("arckit:list-sessions", projectId),
   createSession: (projectId, input) => ipcRenderer.invoke("arckit:create-session", projectId, input),
   listMessages: (projectId, sessionId) => ipcRenderer.invoke("arckit:list-messages", projectId, sessionId),

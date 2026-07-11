@@ -41,6 +41,8 @@ schema/development-case-record.schema.json
 - 迭代状态属于项目状态推进层，必须放在 `arckit/project/iterations/`，并由 `arckit/project/ITERATIONS.md` 索引。
 - 每个迭代使用 `*.record.json` 作为 canonical iteration state，配套 `.md` 作为 generated iteration decision brief；不要在迭代 Markdown 中维护完整 JSON。
 - case 是状态变化的证据和过程记录，不是全局状态本身。
+- runtime raw evidence、Desktop operator event、完整 activity、完整 controller frame、完整 ledger/gate result、完整 worker stream 和上一轮完整 prompt 不是 Project State 或 Case State 的语义字段。它们只能通过 runtime execution record、raw events、audit log 或 evidence ref 被追溯；不得写入 `loop_control.next_transition`、`last_state_delta.next_loop_focus`、case `current_round_goal/current_round_gap`、`completion_audit.next_round_goal`、`agent_instruction.goal` 或 `progress_guard.expected_state_change`。
+- 账本维护者只消费 Controller Agent、Worker Report、人类确认或稳定事实源明确给出的结构化语义字段。若输入只提供 raw operator event 或完整 prompt，而没有短语义目标、下一步状态转移和 evidence refs，应阻塞写回或写 pending，不得自行把 raw event 摘要成项目状态。
 - skill、代码、文档、CLI、Web、App、API、服务端和 agent workflow 都只是软件实现产物形态；不能因为项目是 skill 类产物就默认排除登录、权限、数据、部署、运行表面或运维维度。
 - 一个维度是否需要，不由产物类型先验决定，而由项目目标、用户场景、运行环境、风险边界、交付方式和维护方式决定。
 - 完成度不能用百分比表达；必须表达当前状态、目标状态、证据成熟度、gap、next transition、优先级和 confidence。
@@ -100,6 +102,7 @@ unknown -> needed -> defined -> designed -> implemented -> integrated -> verifie
 - 维护 `state_gaps`，只放当前最影响 loop 决策的状态缺口，不把所有问题都塞进去。
 - 维护 `loop_control`，让下一轮能直接知道当前 loop focus、next transition、priority basis 和 stop condition。
 - 维护 `loop_control` 的续轮职责字段：`next_responsibility=agent|human|external|none`、`agent_continuation_available`、`human_decision_required`、`trigger_mode`、`continuation_prompt` 和 `responsibility_reason`。先判断下一步本质上应由谁处理，再判断当前缺少自动桥时是否需要人类手动触发；不要把 manual bridge 写成人类决策。
+- `loop_control.next_transition` 和 `continuation_prompt` 是短状态转移/触发文本，不是运行日志、完整 handoff、Desktop operator event 或上一轮 activity。若候选内容包含 `arckit-desktop-operator-event/v1`、`Arckit Desktop operator event.`、完整 JSON envelope 或超长 prompt，应保留 evidence ref，并要求 Controller 重新提供结构化 continuation intent。
 - `active_constraints` 只放仍然有效的项目级约束和决策，不放历史过程。
 - `canonical_artifact_refs` 只放当前状态判断所依赖的权威事实源入口；它不是资料导航页。
 - 每轮替换 `last_state_delta`，不要累计历史 delta。
@@ -163,6 +166,7 @@ case record 至少维护：
   - `next_responsibility=external` 表示等待外部系统或人工在系统外完成的结果；必须写恢复条件。
   - `next_responsibility=none` 表示 case 已完成或无需继续。
 - case 只记录当前研发事项状态和过程证据，不替代 project state、iteration state、pending、workflow memory 或稳定事实源。
+- case 的 `current_round_goal`、`current_round_gap`、`project_state_delta.next_project_question`、`completion_audit.next_round_goal` 和 `completion_audit.loop_handoff.agent_instruction.goal` 必须是短语义字段。它们不能保存 Desktop operator event、完整 previous prompt、完整 runtime activity、完整 ledger result 或 app-server stream。完整过程材料只进入 `rounds[].runtime_result_ref`、evidence refs、debug/audit 或 runtime execution record。
 
 退出条件：case record 可被未来 agent 读回，并能解释一次状态转移或下一轮继续条件。
 

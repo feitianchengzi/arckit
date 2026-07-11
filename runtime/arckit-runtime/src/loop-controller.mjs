@@ -1,10 +1,14 @@
+import { safeSemanticText, SEMANTIC_LIMITS } from "./context-boundary.mjs";
+
 export function selectNextRound(snapshot, options = {}) {
   const gaps = Array.isArray(snapshot.projectState.state_gaps)
     ? snapshot.projectState.state_gaps
     : [];
   const loopControl = snapshot.projectState.loop_control || {};
-  const roundGoal = options.task
-    || loopControl.next_transition
+  const taskGoal = safeSemanticText(options.task, { maxLength: SEMANTIC_LIMITS.goal });
+  const loopTransition = safeSemanticText(loopControl.next_transition, { maxLength: SEMANTIC_LIMITS.transition });
+  const roundGoal = taskGoal
+    || loopTransition
     || "Analyze the operator task, project state, candidate gaps, and evidence; then choose the route and next loop handoff.";
 
   const candidateGaps = gaps.map((gap) => ({
@@ -30,10 +34,10 @@ export function selectNextRound(snapshot, options = {}) {
     round_goal: roundGoal,
     candidate_gaps: candidateGaps,
     loop_control: {
-      current_loop_focus: loopControl.current_loop_focus || "",
-      next_transition: loopControl.next_transition || "",
-      priority_basis: loopControl.priority_basis || "",
-      stop_condition: loopControl.stop_condition || ""
+      current_loop_focus: safeSemanticText(loopControl.current_loop_focus || "", { maxLength: SEMANTIC_LIMITS.transition }),
+      next_transition: loopTransition,
+      priority_basis: safeSemanticText(loopControl.priority_basis || "", { maxLength: SEMANTIC_LIMITS.reason }),
+      stop_condition: safeSemanticText(loopControl.stop_condition || "", { maxLength: SEMANTIC_LIMITS.reason })
     },
     conversation_locale: options.conversationLocale || "en",
     required_outputs: [

@@ -7,7 +7,8 @@
     "arckit-runtime": "./bin/arckit-runtime.mjs"
   },
   "scripts": {
-    "check": "node --check bin/arckit-runtime.mjs && node --check src/*.mjs && node --check src/kernel/*.mjs && node --check src/projection/*.mjs && node --check src/desktop/*.mjs && node --check src/orchestration/*.mjs && node --check adapters/*.mjs && node --check desktop/main.mjs && node --check desktop/preload.cjs && node --check desktop/renderer/renderer.js",
+    "check": "node --check bin/arckit-runtime.mjs && node --check src/*.mjs && node --check src/kernel/*.mjs && node --check src/projection/*.mjs && node --check src/desktop/*.mjs && node --check src/orchestration/*.mjs && node --check adapters/*.mjs && node --check desktop/main.mjs && node --check desktop/preload.cjs && node --check desktop/renderer/renderer.js && node --test test/*.test.mjs",
+    "test": "node --test test/*.test.mjs",
     "desktop": "electron desktop/main.mjs",
     "smoke": "node bin/arckit-runtime.mjs run --project ../.. --dry-run --json",
     "probe:app-server": "node bin/arckit-runtime.mjs probe-app-server --project ../.. --json",

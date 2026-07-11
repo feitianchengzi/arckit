@@ -42,7 +42,7 @@ function createRunActivity(run) {
         at: timestamp,
         type: "runtime.started",
         label: `${run.adapter || "runtime"} started`,
-        detail: `${run.entry_capability || "runtime"}: ${run.task || run.id}`
+        detail: truncate(`${run.entry_capability || "runtime"}: ${run.task || run.id}`, 360)
       }
     ],
     raw_events: [],
@@ -180,7 +180,7 @@ function applyRunEvent(run, { line, parsed }) {
       activity.closeout_rules = event.loop_frame?.closeout_rules || null;
       updateRunActivity(run, {
         phase: "controller-frame",
-        current_step: event.loop_frame?.controller_frame?.round_goal || event.loop_frame?.round_goal || "Controller frame created",
+        current_step: truncate(event.loop_frame?.controller_frame?.round_goal || event.loop_frame?.round_goal || "Controller frame created", 280),
         timeline: {
           type: event.type,
           label: "Controller frame",
@@ -654,13 +654,13 @@ function handleCodexItem(activity, event, status) {
         updated_at: new Date().toISOString()
       });
     } else if (text) {
-      activity.agent_text = appendLimited(activity.agent_text, text, 8000);
+      activity.agent_text = mergeCompletedText(activity.agent_text, text, 8000);
     }
   }
   if (type === "reasoning") {
     const text = item.summary || item.text || textFromContent(item.content);
     if (text) {
-      activity.reasoning_text = appendLimited(activity.reasoning_text, text, 4000);
+      activity.reasoning_text = mergeCompletedText(activity.reasoning_text, text, 4000);
     }
   }
   addExecutionEvent(activity, {
@@ -883,12 +883,97 @@ function addTimeline(activity, entry) {
 }
 
 function addRawEvent(activity, line, event) {
+  if (isDeltaEvent(event)) {
+    appendRawDeltaEvent(activity, event);
+    return;
+  }
   activity.raw_events.push({
     at: new Date().toISOString(),
     type: event?.type || "raw",
-    text: truncate(line, 1000)
+    text: summarizeRawEventForActivity(event, line)
   });
   activity.raw_events = activity.raw_events.slice(-80);
+}
+
+function isDeltaEvent(event) {
+  return [
+    "codex.agent_message.delta",
+    "codex.reasoning.delta",
+    "codex.command.output.delta"
+  ].includes(event?.type);
+}
+
+function appendRawDeltaEvent(activity, event) {
+  const key = rawDeltaKey(event);
+  const chunk = event.text || "";
+  const existingIndex = activity.raw_events.findLastIndex((item) => item.delta_key === key);
+  const existing = existingIndex >= 0 ? activity.raw_events[existingIndex] : null;
+  const next = {
+    at: new Date().toISOString(),
+    type: event.type,
+    text: deltaEventLabel(event),
+    delta_key: key,
+    delta_chunks: (existing?.delta_chunks || 0) + 1,
+    delta_chars: (existing?.delta_chars || 0) + chunk.length,
+    stream_text: appendLimited(existing?.stream_text || "", chunk, event.type === "codex.reasoning.delta" ? 1200 : 2400)
+  };
+  next.text = `${deltaEventLabel(event)} · ${next.delta_chars} chars · ${next.delta_chunks} chunks`;
+  if (existingIndex >= 0) {
+    activity.raw_events.splice(existingIndex, 1);
+    activity.raw_events.push(next);
+  } else {
+    activity.raw_events.push(next);
+  }
+  activity.raw_events = activity.raw_events.slice(-80);
+}
+
+function rawDeltaKey(event) {
+  return [
+    event.type,
+    event.task_id || "",
+    event.item_id || "",
+    event.role || ""
+  ].join(":");
+}
+
+function deltaEventLabel(event) {
+  switch (event.type) {
+    case "codex.agent_message.delta":
+      return `Agent message stream${event.task_id ? ` · ${event.task_id}` : ""}`;
+    case "codex.reasoning.delta":
+      return `Reasoning stream${event.task_id ? ` · ${event.task_id}` : ""}`;
+    case "codex.command.output.delta":
+      return `Command output stream${event.task_id ? ` · ${event.task_id}` : ""}`;
+    default:
+      return event.type || "Delta stream";
+  }
+}
+
+function summarizeRawEventForActivity(event, line) {
+  if (!event) {
+    return truncate(line, 1000);
+  }
+  switch (event.type) {
+    case "codex.agent_message.delta":
+      return `Agent message delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
+    case "codex.reasoning.delta":
+      return `Reasoning delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
+    case "codex.command.output.delta":
+      return `Command output delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
+    case "runtime.loop_frame.created":
+      return `Controller frame · ${event.loop_frame?.execution_gate?.status || "gate"} · ${(event.loop_frame?.worker_packets || []).length} workers`;
+    case "runtime.controller_plan.completed":
+      return `Controller plan · ${event.status || ""}${event.controller_plan?.summary ? ` · ${truncate(event.controller_plan.summary, 700)}` : ""}`;
+    case "runtime.worker_report.completed":
+      return `${event.role || event.task_id || "worker"} report · ${event.status || event.report?.status || ""}${event.report?.summary ? ` · ${truncate(event.report.summary, 700)}` : ""}`;
+    case "runtime.merge.completed":
+      return `Merge · ${event.merge_result?.decision || "unknown"}${event.merge_result?.loop_gate?.reason ? ` · ${truncate(event.merge_result.loop_gate.reason, 700)}` : ""}`;
+    case "codex.item.started":
+    case "codex.item.completed":
+      return `${event.params?.item?.type || "item"} ${event.type.endsWith("completed") ? "completed" : "started"}${event.params?.item?.id ? ` · ${event.params.item.id}` : ""}`;
+    default:
+      return truncate([event.message, event.params?.message, event.status, event.type].filter(Boolean).join(" · "), 1000);
+  }
 }
 
 function normalizePlan(plan) {
@@ -980,6 +1065,24 @@ function phaseLabel(phase) {
 function appendLimited(current, chunk, limit) {
   const next = `${current || ""}${chunk || ""}`;
   return next.length > limit ? next.slice(next.length - limit) : next;
+}
+
+function mergeCompletedText(current, completed, limit) {
+  const currentText = String(current || "");
+  const completedText = String(completed || "");
+  if (!completedText) {
+    return currentText;
+  }
+  if (!currentText) {
+    return appendLimited("", completedText, limit);
+  }
+  if (currentText.endsWith(completedText)) {
+    return currentText;
+  }
+  if (completedText.endsWith(currentText) || completedText.includes(currentText)) {
+    return appendLimited("", completedText, limit);
+  }
+  return appendLimited(currentText, completedText, limit);
 }
 
 function truncate(value, limit) {

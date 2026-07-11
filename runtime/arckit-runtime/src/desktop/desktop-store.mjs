@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 export function createDesktopStore({ dataDir, runsDir, storePath }) {
+  let storeQueue = Promise.resolve();
+
   async function ensureStore() {
     await mkdir(dataDir, { recursive: true });
     await mkdir(runsDir, { recursive: true });
@@ -12,17 +14,27 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     }
   }
 
-  async function readStore() {
+  async function readStoreFile() {
     await ensureStore();
-    const store = JSON.parse(await readFile(storePath, "utf8"));
+    const store = await readJsonWithRetry(storePath);
     return normalizeStore(store);
   }
 
+  async function readStore() {
+    await storeQueue;
+    return readStoreFile();
+  }
+
   async function updateStore(updater) {
-    const store = await readStore();
-    const next = await updater(store) || store;
-    await writeJson(storePath, next);
-    return next;
+    const operation = storeQueue.catch(() => {}).then(async () => {
+      const store = await readStoreFile();
+      const next = await updater(store) || store;
+      const persisted = normalizeStore(next);
+      await writeJson(storePath, persisted);
+      return persisted;
+    });
+    storeQueue = operation.then(() => {}, () => {});
+    return operation;
   }
 
   return {
@@ -55,11 +67,12 @@ export function normalizeStore(store) {
     }
   }
   normalized.runs = normalized.runs.map((run) => {
-    if (run.session_id) {
-      return run;
+    const { activity: _activity, ...runRecord } = run || {};
+    if (run?.session_id) {
+      return runRecord;
     }
-    const session = ensureProjectSession(normalized, run.project_id);
-    return { ...run, session_id: session.id };
+    const session = ensureProjectSession(normalized, runRecord.project_id);
+    return { ...runRecord, session_id: session.id };
   });
   return normalized;
 }
@@ -148,7 +161,14 @@ export function projectId(projectPath) {
 
 export async function writeJson(path, value) {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  const tempPath = `${path}.${process.pid}.${Date.now()}.${Math.random().toString(16).slice(2)}.tmp`;
+  try {
+    await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+    await rename(tempPath, path);
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  }
 }
 
 export async function appendText(path, text) {
@@ -158,4 +178,24 @@ export async function appendText(path, text) {
 
 export async function appendJsonLine(path, value) {
   await appendText(path, `${JSON.stringify(value)}\n`);
+}
+
+async function readJsonWithRetry(path) {
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return JSON.parse(await readFile(path, "utf8"));
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof SyntaxError) || attempt === 3) {
+        break;
+      }
+      await delay(25 * (attempt + 1));
+    }
+  }
+  throw lastError;
+}
+
+function delay(ms) {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
 }

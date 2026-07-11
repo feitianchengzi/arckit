@@ -89,9 +89,20 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     });
   }
 
-  async function listRuns() {
+  async function listRuns(filter = {}) {
     const store = await readStore();
-    return Promise.all(store.runs.map(async (run) => ({
+    const projectFilter = filter.projectId || filter.project_id || "";
+    const sessionFilter = filter.sessionId || filter.session_id || "";
+    const runs = store.runs.filter((run) => {
+      if (projectFilter && run.project_id !== projectFilter) {
+        return false;
+      }
+      if (sessionFilter && run.session_id !== sessionFilter) {
+        return false;
+      }
+      return true;
+    });
+    return Promise.all(runs.map(async (run) => ({
       ...run,
       activity: await loadRunActivity(run)
     })));
@@ -134,21 +145,25 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
   }
 
   async function listSessions(projectIdValue) {
-    const store = await updateStore((draft) => {
-      ensureProjectSession(draft, projectIdValue);
-      return draft;
-    });
+    let store = await readStore();
+    if (!store.sessions[projectIdValue]?.length) {
+      store = await updateStore((draft) => {
+        ensureProjectSession(draft, projectIdValue);
+        return draft;
+      });
+    }
     return store.sessions[projectIdValue] || [];
   }
 
   async function createSession(projectIdValue, input = {}) {
-    const store = await updateStore((draft) => {
+    let session;
+    await updateStore((draft) => {
       const project = draft.projects.find((item) => item.id === projectIdValue);
       if (!project) {
         throw new Error(`Unknown project: ${projectIdValue}`);
       }
       draft.sessions[projectIdValue] ||= [];
-      const session = {
+      session = {
         id: `SESSION-${new Date().toISOString().replace(/[-:.]/g, "").replace("T", "-").replace("Z", "Z")}-${Math.random().toString(16).slice(2, 8)}`,
         project_id: projectIdValue,
         title: input.title || "New chat",
@@ -157,12 +172,8 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
       };
       draft.sessions[projectIdValue].unshift(session);
       draft.messages[session.id] = [];
-      draft.created_session = session;
       return draft;
     });
-    const session = store.created_session;
-    delete store.created_session;
-    await writeJson(storePath, store);
     emit("session.created", { projectId: projectIdValue, session });
     return session;
   }
@@ -389,7 +400,7 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
       }, store.settings)
     });
 
-    const activeRun = { child, run, stdout: "", aborting: false };
+    const activeRun = { child, run, stdout: "", aborting: false, eventWrite: Promise.resolve() };
     activeRuns.set(runId, activeRun);
     child.stdin.on("error", () => {
       // The runtime may already be exiting when Desktop sends interrupt/abort input.
@@ -411,20 +422,20 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
 
     let stderrLineBuffer = "";
     child.stderr.setEncoding("utf8");
-    child.stderr.on("data", async (chunk) => {
-      await appendText(run.events_file, chunk);
+    child.stderr.on("data", (chunk) => {
+      queueRunWrite(activeRun, () => appendText(run.events_file, chunk));
       stderrLineBuffer += chunk;
       const lines = stderrLineBuffer.split(/\r?\n/);
       stderrLineBuffer = lines.pop() || "";
       for (const line of lines.filter(Boolean)) {
         const parsed = parseEventLine(line);
-        await appendJsonLine(run.raw_events_file, {
+        const activity = applyRunEvent(run, { line, parsed });
+        emit("run.event_line", { runId, line, parsed, activity });
+        queueRunWrite(activeRun, () => appendJsonLine(run.raw_events_file, {
           at: new Date().toISOString(),
           line,
           parsed
-        });
-        const activity = applyRunEvent(run, { line, parsed });
-        emit("run.event_line", { runId, line, parsed, activity });
+        }));
       }
     });
 
@@ -443,13 +454,13 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
         const line = stderrLineBuffer;
         stderrLineBuffer = "";
         const parsed = parseEventLine(line);
-        await appendJsonLine(run.raw_events_file, {
+        const activity = applyRunEvent(run, { line, parsed });
+        emit("run.event_line", { runId, line, parsed, activity });
+        queueRunWrite(activeRun, () => appendJsonLine(run.raw_events_file, {
           at: new Date().toISOString(),
           line,
           parsed
-        });
-        const activity = applyRunEvent(run, { line, parsed });
-        emit("run.event_line", { runId, line, parsed, activity });
+        }));
       }
       await finishRun(
         runId,
@@ -494,6 +505,7 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     run.exit_code = exitCode;
     run.validation_valid = parsedResult?.validation?.valid ?? null;
     run.round_result = parsedResult?.runtime_result?.round_result || (status === "aborted" ? "aborted" : "");
+    await active.eventWrite;
     await appendJsonLine(run.raw_events_file, {
       at: new Date().toISOString(),
       event: {
@@ -827,6 +839,15 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
       depth: currentDepth + 1
     });
     return nextRun;
+  }
+
+  function queueRunWrite(activeRun, operation) {
+    activeRun.eventWrite = (activeRun.eventWrite || Promise.resolve())
+      .then(operation)
+      .catch((error) => {
+        console.error("Failed to persist run stream event:", error);
+      });
+    return activeRun.eventWrite;
   }
 
   function nonNegativeInteger(value, fallback) {

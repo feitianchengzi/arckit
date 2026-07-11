@@ -9,6 +9,7 @@
     "summary",
     "route_plan",
     "worker_intents",
+    "continuation_intent",
     "risks",
     "unknowns",
     "next_controller_action"
@@ -19,7 +20,7 @@
       "type": "string",
       "enum": ["planned", "needs_human", "blocked"]
     },
-    "summary": { "type": "string" },
+    "summary": { "type": "string", "maxLength": 1200 },
     "route_plan": {
       "type": "object",
       "required": [
@@ -50,12 +51,12 @@
           "properties": {
             "id": { "type": "string" },
             "dimension": { "type": "string" },
-            "current_state": { "type": "string" },
-            "target_state": { "type": "string" },
+            "current_state": { "type": "string", "maxLength": 1200 },
+            "target_state": { "type": "string", "maxLength": 1200 },
             "urgency": { "type": "string" },
             "risk": { "type": "string" },
-            "impact": { "type": "string" },
-            "next_transition": { "type": "string" }
+            "impact": { "type": "string", "maxLength": 1200 },
+            "next_transition": { "type": "string", "maxLength": 800 }
           },
           "additionalProperties": false
         },
@@ -73,7 +74,7 @@
             "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"]
           }
         },
-        "reason": { "type": "string" },
+        "reason": { "type": "string", "maxLength": 1200 },
         "requires_human_confirmation": { "type": "boolean" }
       },
       "additionalProperties": false
@@ -92,8 +93,8 @@
             "type": "string",
             "minLength": 1
           },
-          "objective": { "type": "string" },
-          "reason": { "type": "string" },
+          "objective": { "type": "string", "maxLength": 800 },
+          "reason": { "type": "string", "maxLength": 1200 },
           "allowed_skills": {
             "type": "array",
             "items": { "type": "string" }
@@ -102,15 +103,25 @@
         "additionalProperties": false
       }
     },
+    "continuation_intent": {
+      "type": "object",
+      "required": ["goal", "state_transition", "next_prompt"],
+      "properties": {
+        "goal": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "state_transition": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "next_prompt": { "type": "string", "minLength": 1, "maxLength": 1200 }
+      },
+      "additionalProperties": false
+    },
     "risks": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": { "type": "string", "maxLength": 1200 }
     },
     "unknowns": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": { "type": "string", "maxLength": 1200 }
     },
-    "next_controller_action": { "type": "string" }
+    "next_controller_action": { "type": "string", "maxLength": 1200 }
   },
   "additionalProperties": false
 }

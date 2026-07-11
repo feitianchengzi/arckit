@@ -1,3 +1,5 @@
+import { semanticFieldIssue, SEMANTIC_LIMITS } from "./context-boundary.mjs";
+
 const ARTIFACT_KEYS = [
   "project",
   "intake",
@@ -91,6 +93,11 @@ export function validateRuntimeResult(result) {
   requireString(result?.loop_handoff?.progress_guard?.actual_state_change, "loop_handoff.progress_guard.actual_state_change", issues);
   requireInteger(result?.loop_handoff?.progress_guard?.no_progress_limit, "loop_handoff.progress_guard.no_progress_limit", issues);
   requireInteger(result?.loop_handoff?.progress_guard?.max_auto_rounds, "loop_handoff.progress_guard.max_auto_rounds", issues);
+  requireSemanticField(result?.controller_frame?.round_goal, "controller_frame.round_goal", issues, SEMANTIC_LIMITS.goal);
+  requireSemanticField(result?.controller_frame?.route_plan?.selected_gap?.next_transition, "controller_frame.route_plan.selected_gap.next_transition", issues, SEMANTIC_LIMITS.transition);
+  requireSemanticField(result?.loop_handoff?.next_prompt, "loop_handoff.next_prompt", issues, SEMANTIC_LIMITS.nextPrompt);
+  requireSemanticField(result?.loop_handoff?.agent_instruction?.goal, "loop_handoff.agent_instruction.goal", issues, SEMANTIC_LIMITS.goal);
+  requireSemanticField(result?.loop_handoff?.progress_guard?.expected_state_change, "loop_handoff.progress_guard.expected_state_change", issues, SEMANTIC_LIMITS.transition);
 
   if (result?.loop_handoff?.human_decision_required && result?.loop_handoff?.next_responsibility !== "human") {
     issues.push({
@@ -127,6 +134,13 @@ function requireArray(value, path, issues) {
 function requireString(value, path, issues) {
   if (typeof value !== "string") {
     issues.push({ path, message: "Expected string." });
+  }
+}
+
+function requireSemanticField(value, path, issues, maxLength) {
+  const issue = semanticFieldIssue(value, path, { maxLength });
+  if (issue) {
+    issues.push(issue);
   }
 }
 

@@ -23,6 +23,8 @@ const state = {
   messageAutoStick: true
 };
 
+let liveRunRenderScheduled = false;
+
 const els = {
   pickProjectButton: document.getElementById("pickProjectButton"),
   projectPathInput: document.getElementById("projectPathInput"),
@@ -200,9 +202,19 @@ function wireEvents() {
   }));
 
   api.onEvent((event) => {
-    state.events.unshift(event);
-    state.events = state.events.slice(0, 200);
+    const isStreamEvent = event.type === "run.event_line" || event.type === "run.stdout";
+    if (!isStreamEvent) {
+      state.events.unshift(event);
+      state.events = state.events.slice(0, 200);
+    }
     applyRunEventToState(event);
+    if (event.type === "run.event_line") {
+      scheduleLiveRunRender();
+      return;
+    }
+    if (event.type === "run.stdout") {
+      return;
+    }
     if (event.type === "run.started") {
       if (eventBelongsToSelectedProject(event)) {
         state.activeRunId = event.run.id;
@@ -227,6 +239,19 @@ function wireEvents() {
       refreshRuns();
     }
     render();
+  });
+}
+
+function scheduleLiveRunRender() {
+  if (liveRunRenderScheduled) {
+    return;
+  }
+  liveRunRenderScheduled = true;
+  window.requestAnimationFrame(() => {
+    liveRunRenderScheduled = false;
+    renderMessages();
+    renderActiveRun();
+    renderEvents();
   });
 }
 
@@ -258,7 +283,7 @@ async function sendChat() {
         projectId: project.id,
         sessionId: session.id,
         task: text,
-        dryRun: selectedMode() === "dry-run",
+        dryRun: false,
         adapter: "codex-app-server",
         approvalPolicy: els.approvalPolicy.value,
         model: els.modelInput.value.trim()
@@ -270,21 +295,24 @@ async function sendChat() {
 }
 
 async function refreshAll() {
-  const [projects, runs] = await Promise.all([
-    api.listProjects(),
-    api.listRuns()
-  ]);
+  const projects = await api.listProjects();
   state.projects = projects;
-  state.runs = runs;
   if (!state.selectedProjectId && projects.length > 0) {
     state.selectedProjectId = projects[0].id;
   }
   await refreshSessions();
+  state.runs = await api.listRuns(runListFilter());
   selectDefaultRun();
-  await Promise.all([
+  renderProjectShell();
+  const refreshResults = await Promise.allSettled([
     refreshProjectConversation(),
     refreshProjectStatus()
   ]);
+  for (const result of refreshResults) {
+    if (result.status === "rejected") {
+      addUiEvent("ui.refresh-warning", result.reason?.message || String(result.reason));
+    }
+  }
   render();
 }
 
@@ -294,7 +322,7 @@ async function refreshSettings() {
 }
 
 async function refreshRuns() {
-  state.runs = await api.listRuns();
+  state.runs = await api.listRuns(runListFilter());
   renderRuns();
   renderActiveRun();
 }
@@ -355,14 +383,19 @@ async function refreshProjectStatus() {
 }
 
 function render() {
+  renderProjectShell();
+  renderMessages();
+  renderProjectStatus();
+  renderEvents();
+  renderInspectorTabs();
+}
+
+function renderProjectShell() {
   renderProjects();
   renderSessions();
   renderRuns();
   renderSelectedProject();
-  renderMessages();
   renderActiveRun();
-  renderProjectStatus();
-  renderEvents();
   renderInspectorTabs();
 }
 
@@ -393,8 +426,6 @@ function renderProjects() {
       state.selectedProjectId = item.dataset.projectId;
       state.selectedSessionId = "";
       resetMessageScrollStick();
-      await refreshSessions();
-      selectDefaultRun();
       await refreshAll();
     });
   }
@@ -420,6 +451,7 @@ function renderSessions() {
       state.selectedSessionId = item.dataset.sessionId;
       resetMessageScrollStick();
       selectDefaultRun();
+      renderActiveRun();
       await refreshProjectConversation();
       render();
     });
@@ -448,6 +480,7 @@ function renderRuns() {
         state.selectedSessionId = run.session_id;
       }
       resetMessageScrollStick();
+      renderActiveRun();
       renderRuns();
       renderSessions();
       refreshProjectConversation();
@@ -539,21 +572,13 @@ function renderActiveRun() {
   const hasDraftInput = els.chatInput.value.trim().length > 0;
   els.activeRunBadge.textContent = run ? run.status : "Idle";
   els.activeRunBadge.className = `badge ${active ? "warning" : run?.status === "completed" ? "ok" : ["failed", "aborted"].includes(run?.status) ? "danger" : ""}`;
-  els.activeRunSummary.innerHTML = run
-    ? renderFocusActionSummary(run, activity, controlState)
-    : "No active run.";
-  if (els.runDetailSummary) {
-    els.runDetailSummary.innerHTML = run
-      ? renderRunInspector(run, activity)
-      : "No active run.";
-  }
   els.sendButton.textContent = active
     ? "Send To Controller"
     : !hasDraftInput && controlState.primary_label
       ? controlState.primary_label
       : hasDraftInput && controlState.state !== "no_context"
         ? "Send To Controller"
-        : selectedMode() === "dry-run" ? "Preview Control" : "Run";
+        : "Run";
   els.interruptButton.disabled = !active;
   els.continueButton.textContent = isOperatorEventAction(controlState.primary_action)
     ? controlState.primary_label
@@ -565,6 +590,22 @@ function renderActiveRun() {
   els.gateButton.disabled = !run || active || !["ledger_gate_ready", "ledger_writeback_ready", "ledger_writeback_blocked"].includes(controlState.state);
   els.writeDryRunButton.disabled = !run || active || controlState.primary_action !== "write_ledger";
   els.writeLedgerButton.disabled = !run || active || controlState.primary_action !== "write_ledger";
+  els.activeRunSummary.innerHTML = run
+    ? safeRenderRunPanel(() => renderFocusActionSummary(run, activity, controlState), "Run summary")
+    : "No active run.";
+  if (els.runDetailSummary) {
+    els.runDetailSummary.innerHTML = run
+      ? safeRenderRunPanel(() => renderRunInspector(run, activity), "Worker detail")
+      : "No active run.";
+  }
+}
+
+function safeRenderRunPanel(renderFn, label) {
+  try {
+    return renderFn();
+  } catch (error) {
+    return `<div class="run-warning compact">${escapeHtml(label)} could not render: ${escapeHtml(error?.message || String(error))}</div>`;
+  }
 }
 
 function renderSettingsForm() {
@@ -629,11 +670,11 @@ function renderEvents() {
     return;
   }
   const items = rawEvents.length > 0
-    ? rawEvents.slice().reverse().map((event) => `
+    ? groupedActivityEventsForDisplay(rawEvents).slice().reverse().map((event) => `
       <div class="event-item">
         <div class="event-title">${escapeHtml(event.type || "raw")}</div>
         <div class="event-meta">${escapeHtml(shortTime(event.at || ""))}</div>
-        <div>${escapeHtml(event.text || "")}</div>
+        <div>${escapeHtml(formatActivityEvent(event))}${event.count > 1 ? ` · ${escapeHtml(String(event.count))} events` : ""}</div>
       </div>
     `)
     : state.events.map((event) => `
@@ -644,6 +685,51 @@ function renderEvents() {
     </div>
   `);
   els.eventList.innerHTML = [evidence, items.join("")].filter(Boolean).join("");
+}
+
+function groupedActivityEventsForDisplay(events) {
+  const groups = [];
+  for (const event of events) {
+    const key = activityEventDisplayKey(event);
+    const previous = groups.at(-1);
+    if (previous?.display_key === key) {
+      previous.at = event.at || previous.at;
+      previous.type = activityEventDisplayType(event);
+      previous.text = event.text || previous.text;
+      previous.stream_text = event.stream_text || previous.stream_text;
+      previous.delta_chunks = event.delta_chunks || previous.delta_chunks;
+      previous.delta_chars = event.delta_chars || previous.delta_chars;
+      previous.count += 1;
+      continue;
+    }
+    groups.push({
+      ...event,
+      display_key: key,
+      type: activityEventDisplayType(event),
+      count: 1
+    });
+  }
+  return groups;
+}
+
+function activityEventDisplayKey(event = {}) {
+  if (event.delta_key) {
+    return `delta:${event.delta_key}`;
+  }
+  if (event.type === "codex.item.started" || event.type === "codex.item.completed") {
+    return `codex.item:${timelineBaseLabel(event.text || event.type || "")}`;
+  }
+  if (event.type === "codex.thread.status.changed") {
+    return "codex.thread.status";
+  }
+  return `${event.type || "raw"}:${timelineStableDetail(event.text || "")}`;
+}
+
+function activityEventDisplayType(event = {}) {
+  if (event.type === "codex.item.started" || event.type === "codex.item.completed") {
+    return timelineBaseLabel(event.text || "Codex item");
+  }
+  return event.type || "raw";
 }
 
 function stateLine(label, value) {
@@ -708,7 +794,7 @@ function renderLiveRunCard() {
 
 function renderMainAgentPanel(activity) {
   const output = activity.agent_text
-    ? renderCodexOutputSection(activity.agent_text, activity.reports || [])
+    ? renderCodexOutputSection(activity.agent_text, activity.reports || [], activity)
     : "";
   const thinking = activity.reasoning_text
     ? `<details class="agent-disclosure">
@@ -774,6 +860,7 @@ function renderWorkerCard(agent) {
       </div>
       <div class="worker-task">${escapeHtml(agent.current_step || agent.summary || agent.objective || "")}</div>
       ${renderAgentReportSnapshot(agent)}
+      ${renderWorkerReportDetails(agent)}
       ${agent.latest_detail ? `<div class="agent-stream-line">${escapeHtml(agent.latest_detail)}</div>` : ""}
       ${agent.reasoning_text ? `<details class="agent-disclosure compact"><summary>Reasoning</summary><pre class="agent-stream thinking">${escapeHtml(tail(agent.reasoning_text, 700))}</pre></details>` : ""}
       ${renderAgentText(agent.agent_text, agent.report)}
@@ -822,9 +909,12 @@ function renderMergePanel(activity) {
   `;
 }
 
-function renderCodexOutputSection(text, reports = []) {
+function renderCodexOutputSection(text, reports = [], activity = {}) {
   const parsedReports = parseWorkerReportsFromText(text);
   if ((Array.isArray(reports) && reports.length > 0) && looksLikeWorkerReportStream(text)) {
+    return "";
+  }
+  if ((activity.controller_plan || activity.controller_frame) && looksLikeStructuredControllerStream(text)) {
     return "";
   }
   if (parsedReports.length > 0) {
@@ -848,6 +938,16 @@ function looksLikeWorkerReportStream(text) {
     );
 }
 
+function looksLikeStructuredControllerStream(text) {
+  return typeof text === "string"
+    && (
+      text.includes("arckit-controller-plan/v1")
+      || text.includes("arckit-desktop-operator-event/v1")
+      || text.includes("\"route_plan\"")
+      || text.includes("\"worker_intents\"")
+    );
+}
+
 function renderAgentReportSnapshot(agent) {
   const report = agent.report || firstWorkerReportFromText(agent.agent_text || "");
   if (!report) {
@@ -859,6 +959,20 @@ function renderAgentReportSnapshot(agent) {
       ${report.recommendation ? `<div class="agent-report-recommendation">${escapeHtml(report.recommendation)}</div>` : ""}
       ${report.requires_main_agent_decision ? `<div class="agent-report-warning">Controller decision required</div>` : ""}
     </div>
+  `;
+}
+
+function renderWorkerReportDetails(agent) {
+  const report = agent.report || firstWorkerReportFromText(agent.agent_text || "");
+  const details = report ? renderReportDetails(report) : "";
+  if (!details) {
+    return "";
+  }
+  return `
+    <details class="agent-disclosure compact worker-report-details" open>
+      <summary>Details</summary>
+      <div class="worker-report-detail-list">${details}</div>
+    </details>
   `;
 }
 
@@ -975,12 +1089,12 @@ function renderRunInspector(run, activity) {
   if (!activity) {
     return escapeHtml(`${run.id}\n${run.adapter}${run.round_result ? ` · ${run.round_result}` : ""}`);
   }
-  const timeline = (activity.timeline || []).slice(-8).reverse().map((item) => `
+  const timeline = groupedTimelineForDisplay(activity.timeline || []).slice(-8).reverse().map((item) => `
     <div class="timeline-item">
       <div class="timeline-dot"></div>
       <div>
         <div class="timeline-title">${escapeHtml(item.label || item.type || "")}</div>
-        <div class="timeline-meta">${escapeHtml(shortTime(item.at || ""))}${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}</div>
+        <div class="timeline-meta">${escapeHtml(shortTime(item.at || ""))}${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}${item.count > 1 ? ` · ${escapeHtml(String(item.count))} events` : ""}</div>
       </div>
     </div>
   `).join("");
@@ -1013,6 +1127,67 @@ function renderRunInspector(run, activity) {
       <div class="timeline-list">${timeline || `<div class="empty compact-empty">No timeline yet</div>`}</div>
     </div>
   `;
+}
+
+function groupedTimelineForDisplay(timeline) {
+  const groups = [];
+  for (const item of timeline) {
+    const key = timelineDisplayKey(item);
+    const previous = groups.at(-1);
+    if (previous?.display_key === key) {
+      previous.at = item.at || previous.at;
+      previous.type = item.type || previous.type;
+      previous.label = timelineDisplayLabel(item);
+      previous.detail = timelineDisplayDetail(item) || previous.detail;
+      previous.count += 1;
+      continue;
+    }
+    groups.push({
+      ...item,
+      display_key: key,
+      label: timelineDisplayLabel(item),
+      detail: timelineDisplayDetail(item),
+      count: 1
+    });
+  }
+  return groups;
+}
+
+function timelineDisplayKey(item = {}) {
+  const label = timelineBaseLabel(item.label || item.type || "");
+  if (item.type === "codex.item.started" || item.type === "codex.item.completed") {
+    return `codex.item:${label}`;
+  }
+  if (item.type === "codex.thread.status.changed") {
+    return "codex.thread.status";
+  }
+  return `${item.type || label}:${label}:${timelineStableDetail(item.detail || "")}`;
+}
+
+function timelineDisplayLabel(item = {}) {
+  return timelineBaseLabel(item.label || item.type || "");
+}
+
+function timelineDisplayDetail(item = {}) {
+  const detail = item.detail || "";
+  if (looksLikeStructuredControllerStream(detail) || looksLikeWorkerReportStream(detail)) {
+    return "Structured output received";
+  }
+  return truncate(detail, 360);
+}
+
+function timelineBaseLabel(label) {
+  return String(label || "")
+    .replace(/\s+(started|completed)(\s*·.*)?$/i, "")
+    .trim();
+}
+
+function timelineStableDetail(detail) {
+  const text = String(detail || "");
+  if (/^(msg|item|turn|thread)_[a-z0-9]+/i.test(text)) {
+    return "";
+  }
+  return truncate(text, 80);
 }
 
 function applyRunEventToState(event) {
@@ -1316,7 +1491,7 @@ async function runControllerOperatorEvent(controlState, { userInput = "", action
     projectId: project.id,
     sessionId: session.id,
     task,
-    dryRun: selectedMode() === "dry-run",
+    dryRun: false,
     adapter: "codex-app-server",
     approvalPolicy: els.approvalPolicy.value,
     model: els.modelInput.value.trim()
@@ -1382,6 +1557,13 @@ function selectDefaultRun() {
   state.activeRunId = latestRun?.id || "";
 }
 
+function runListFilter() {
+  return {
+    projectId: state.selectedProjectId,
+    sessionId: state.selectedSessionId
+  };
+}
+
 async function ensureSelectedSession(projectId) {
   const current = selectedSession();
   if (current) {
@@ -1391,10 +1573,6 @@ async function ensureSelectedSession(projectId) {
   state.selectedSessionId = session.id;
   await refreshSessions();
   return session;
-}
-
-function selectedMode() {
-  return document.querySelector("input[name='mode']:checked")?.value || "dry-run";
 }
 
 function normalizeSettings(settings = {}) {
@@ -1413,13 +1591,74 @@ function formatPayload(event) {
   const copy = { ...event };
   delete copy.type;
   delete copy.at;
+  delete copy.activity;
+  delete copy.run;
+  delete copy.result;
   if (copy.parsed?.event?.type) {
-    return `${copy.parsed.event.type} ${copy.parsed.event.message || ""}`.trim();
+    return summarizeRuntimeEvent(copy.parsed.event);
   }
   if (copy.message?.content) {
-    return copy.message.content;
+    return truncate(copy.message.content, 1200);
   }
-  return JSON.stringify(copy, null, 2);
+  if (event.activity?.current_step) {
+    return event.activity.current_step;
+  }
+  if (event.run?.id) {
+    return `${event.run.id} ${event.run.status || ""}`.trim();
+  }
+  return truncate(JSON.stringify(copy, null, 2), 1200);
+}
+
+function formatActivityEvent(entry) {
+  if (entry?.stream_text) {
+    if (looksLikeWorkerReportStream(entry.stream_text) || looksLikeStructuredControllerStream(entry.stream_text)) {
+      return entry.text || "Structured stream";
+    }
+    return `${entry.text || "Delta stream"}\n${tail(entry.stream_text, 900)}`;
+  }
+  const parsed = parseActivityEventText(entry.text || "");
+  if (parsed?.event) {
+    return summarizeRuntimeEvent(parsed.event);
+  }
+  return truncate(entry.text || "", 1200);
+}
+
+function parseActivityEventText(text) {
+  if (!text || typeof text !== "string" || !text.trim().startsWith("{")) {
+    return null;
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function summarizeRuntimeEvent(event) {
+  if (!event || typeof event !== "object") {
+    return "";
+  }
+  switch (event.type) {
+    case "codex.agent_message.delta":
+      return `Agent message delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
+    case "codex.reasoning.delta":
+      return `Reasoning delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
+    case "codex.command.output.delta":
+      return `Command output delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
+    case "runtime.loop_frame.created":
+      return `Controller frame · ${event.loop_frame?.execution_gate?.status || "gate"} · ${(event.loop_frame?.worker_packets || []).length} workers`;
+    case "runtime.controller_plan.completed":
+      return `Controller plan · ${event.status || ""}${event.controller_plan?.summary ? ` · ${truncate(event.controller_plan.summary, 700)}` : ""}`;
+    case "runtime.worker_report.completed":
+      return `${event.role || event.task_id || "worker"} report · ${event.status || event.report?.status || ""}${event.report?.summary ? ` · ${truncate(event.report.summary, 700)}` : ""}`;
+    case "runtime.merge.completed":
+      return `Merge · ${event.merge_result?.decision || "unknown"}${event.merge_result?.loop_gate?.reason ? ` · ${truncate(event.merge_result.loop_gate.reason, 700)}` : ""}`;
+    case "codex.item.started":
+    case "codex.item.completed":
+      return `${event.params?.item?.type || "item"} ${event.type.endsWith("completed") ? "completed" : "started"}${event.params?.item?.id ? ` · ${event.params.item.id}` : ""}`;
+    default:
+      return truncate([event.message, event.params?.message, event.status, event.type].filter(Boolean).join(" · "), 1200);
+  }
 }
 
 function formatCommandResult(result) {

@@ -12,6 +12,7 @@
     "risks",
     "unknowns",
     "next_prompt",
+    "continuation_intent",
     "human_decision_required"
   ],
   "properties": {
@@ -20,7 +21,7 @@
       "type": "string",
       "enum": ["done", "continue", "needs_human", "blocked"]
     },
-    "summary": { "type": "string" },
+    "summary": { "type": "string", "maxLength": 1200 },
     "accepted_reports": {
       "type": "array",
       "items": { "type": "string" }
@@ -31,13 +32,23 @@
     },
     "risks": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": { "type": "string", "maxLength": 1200 }
     },
     "unknowns": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": { "type": "string", "maxLength": 1200 }
     },
-    "next_prompt": { "type": "string" },
+    "next_prompt": { "type": "string", "maxLength": 1200 },
+    "continuation_intent": {
+      "type": "object",
+      "required": ["goal", "state_transition", "next_prompt"],
+      "properties": {
+        "goal": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "state_transition": { "type": "string", "minLength": 1, "maxLength": 800 },
+        "next_prompt": { "type": "string", "minLength": 1, "maxLength": 1200 }
+      },
+      "additionalProperties": false
+    },
     "human_decision_required": { "type": "boolean" }
   },
   "additionalProperties": false

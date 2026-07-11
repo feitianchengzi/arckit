@@ -1,8 +1,12 @@
 import { conversationLocaleInstruction } from "./conversation-locale.mjs";
+import { safeSemanticText, SEMANTIC_LIMITS } from "./context-boundary.mjs";
 
 export function compilePrompt(snapshot, round, options = {}) {
   const runtimeResultSchemaPath = "runtime/arckit-runtime/schemas/runtime-result.schema.json";
   const conversationLocale = options.conversationLocale || round.conversation_locale || "en";
+  const nextTransition = safeSemanticText(snapshot.summary.next_transition, { maxLength: SEMANTIC_LIMITS.transition });
+  const roundGoal = safeSemanticText(round.round_goal, { maxLength: SEMANTIC_LIMITS.goal })
+    || "Controller must derive the round goal from the operator task, project state, candidate gaps, and local evidence.";
   const prompt = [
     "# Arckit Supervised Runtime Turn",
     "",
@@ -16,7 +20,7 @@ export function compilePrompt(snapshot, round, options = {}) {
     `- Project: ${snapshot.summary.project_name}`,
     `- Current phase: ${snapshot.summary.current_phase}`,
     `- Loop focus: ${snapshot.summary.loop_focus}`,
-    `- Next transition: ${snapshot.summary.next_transition}`,
+    `- Next transition: ${nextTransition || "Not available as a safe semantic field; inspect context refs if needed."}`,
     "",
     "## Runtime Selection Frame",
     "Runtime has not preselected the workflow strategy. Treat the following values as a neutral frame for agent analysis, not as a semantic decision.",
@@ -32,7 +36,7 @@ export function compilePrompt(snapshot, round, options = {}) {
     JSON.stringify(round.candidate_gaps || [], null, 2),
     "",
     "## Round Goal",
-    round.round_goal,
+    roundGoal,
     "",
     ...(options.task ? [
       "## Operator Task",

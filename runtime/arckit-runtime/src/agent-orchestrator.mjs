@@ -10,6 +10,7 @@ import { reduceWorkerReports } from "./controller-reducer.mjs";
 import { createRoundStateMachine, transitionRoundState } from "./round-state-machine.mjs";
 import { createRuntimeResultFromMerge, stateFromMergeResult } from "./kernel/runtime-result-builder.mjs";
 import { WORKER_TYPES, normalizeWorkerType, workerTypeDefinitionFor } from "./orchestration/role-definitions.mjs";
+import { firstSafeSemanticText, safeSemanticText, SEMANTIC_LIMITS } from "./context-boundary.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const workerReportSchemaPath = join(here, "../schemas/worker-report.schema.json");
@@ -52,6 +53,11 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
   const routePlan = packetEnvelope
     ? createRoutePlanFromPacket(loopFrame)
     : createRoutePlanFromControllerPlan({ controllerPlan: controllerPlan.plan, loopFrame });
+  const controllerSemanticGoal = semanticGoalFromControllerPlan(controllerPlan?.plan, routePlan, loopFrame.round_goal);
+  if (controllerSemanticGoal) {
+    loopFrame.round_goal = controllerSemanticGoal;
+    loopFrame.controller_frame.round_goal = controllerSemanticGoal;
+  }
   loopFrame.controller_frame.controller_plan = controllerPlan?.plan || null;
   loopFrame.controller_frame.controller_plan_source = packetEnvelope ? "packet" : "controller_agent";
   loopFrame.controller_frame.controller_plan_failure_reason = controllerPlan?.failure_reason || "";
@@ -458,6 +464,7 @@ function compileControllerPlanPrompt({ loopFrame, round, snapshot, task, selecte
     "## Planning Rules",
     "- Select only the worker types and roles needed for this round; role names are agent-defined and must be justified.",
     "- Choose the route mode from the operator task, project state, candidate gaps, local evidence, and protocol constraints.",
+    "- Produce continuation_intent as the bounded semantic meaning of this round: goal, state_transition, and next_prompt must be concise and must not copy the Desktop operator event or raw activity JSON.",
     "- For every worker_intent, provide worker_type, role, objective, reason, and allowed_skills.",
     "- Keep route_plan.selected_worker_types and route_plan.selected_roles consistent with worker_intents.",
     "- Include independent verification or closeout work only when your route requires it, and explain why.",
@@ -497,6 +504,7 @@ function normalizeControllerPlan(plan) {
         }))
         .filter((intent) => intent.role)
       : [],
+    continuation_intent: normalizeContinuationIntent(plan.continuation_intent),
     risks: arrayOfStrings(plan.risks),
     unknowns: arrayOfStrings(plan.unknowns),
     next_controller_action: stringValue(plan.next_controller_action, "")
@@ -515,6 +523,9 @@ function controllerPlanFailureReason(plan) {
   }
   if (!Array.isArray(plan.worker_intents) || plan.worker_intents.length === 0) {
     return "Controller Agent did not select any worker intents.";
+  }
+  if (!plan.continuation_intent?.goal || !plan.continuation_intent?.state_transition || !plan.continuation_intent?.next_prompt) {
+    return "Controller Agent did not return a complete continuation_intent.";
   }
   return "";
 }
@@ -549,6 +560,11 @@ function createControllerPlanFailure(summary) {
       requires_human_confirmation: false
     },
     worker_intents: [],
+    continuation_intent: {
+      goal: "",
+      state_transition: "",
+      next_prompt: ""
+    },
     risks: [summary],
     unknowns: [],
     next_controller_action: "Retry Controller planning with a valid arckit-controller-plan/v1 output."
@@ -667,6 +683,7 @@ function compileControllerReviewPrompt({ loopFrame, round, reports }) {
     "- Return continue when the next step is still agent/runtime work.",
     "- Return needs_human only when a human decision, risk acceptance, or product/business judgment is required.",
     "- Return blocked when required reports, permissions, schemas, tools, or evidence are missing.",
+    "- Produce continuation_intent as concise structured fields for ledger and next prompt projection; do not copy Desktop operator event text or raw activity JSON.",
     "- Do not perform ledger writeback; only describe the next prompt and closeout judgment.",
     "",
     "## Output Contract",
@@ -687,6 +704,7 @@ function normalizeControllerReview(review) {
     risks: arrayOfStrings(review.risks),
     unknowns: arrayOfStrings(review.unknowns),
     next_prompt: stringValue(review.next_prompt, ""),
+    continuation_intent: normalizeContinuationIntent(review.continuation_intent),
     human_decision_required: review.human_decision_required === true
   };
 }
@@ -701,6 +719,9 @@ function controllerReviewFailureReason(review) {
   if (!["done", "continue", "needs_human", "blocked"].includes(review.status)) {
     return "Controller Agent returned an unsupported review status.";
   }
+  if (!review.continuation_intent?.goal || !review.continuation_intent?.state_transition || !review.continuation_intent?.next_prompt) {
+    return "Controller Agent review did not return a complete continuation_intent.";
+  }
   return "";
 }
 
@@ -714,21 +735,33 @@ function createControllerReviewFailure(summary) {
     risks: [summary],
     unknowns: [],
     next_prompt: "Retry Controller review with a valid arckit-controller-review/v1 output.",
+    continuation_intent: {
+      goal: "",
+      state_transition: "",
+      next_prompt: ""
+    },
     human_decision_required: false
   };
 }
 
 export function createLoopFrame({ snapshot, round, task, selectedCapabilities = [], options = {} }) {
   const loopControl = snapshot.projectState.loop_control || {};
+  const initialRoundGoal = firstSafeSemanticText([
+    task,
+    round.round_goal,
+    loopControl.next_transition
+  ], { maxLength: SEMANTIC_LIMITS.goal })
+    || "Controller must derive this round goal from the operator task, project state, candidate gaps, and evidence.";
+  const loopNextTransition = safeSemanticText(loopControl.next_transition || "", { maxLength: SEMANTIC_LIMITS.transition });
   const frame = {
     schema_version: "arckit-loop-frame/v1",
     case_id: first(snapshot.projectState.active_case_refs) || "",
     project_name: snapshot.summary.project_name,
     project_root: snapshot.projectRoot || "",
     operator_task: task,
-    round_goal: task || round.round_goal,
+    round_goal: initialRoundGoal,
     conversation_locale: options.conversationLocale || round.conversation_locale || "en",
-    controller_frame: createControllerFrame({ snapshot, round, task }),
+    controller_frame: createControllerFrame({ snapshot, round, task, roundGoal: initialRoundGoal }),
     execution_gate: createExecutionGate({ options }),
     executor_binding: createExecutorBinding({ options }),
     selected_gap: {
@@ -739,7 +772,7 @@ export function createLoopFrame({ snapshot, round, task, selectedCapabilities = 
       urgency: round.urgency,
       risk: round.risk,
       impact: round.impact,
-      next_transition: loopControl.next_transition || ""
+      next_transition: loopNextTransition
     },
     source_projection_check: {
       source_facts: {
@@ -768,8 +801,8 @@ export function createLoopFrame({ snapshot, round, task, selectedCapabilities = 
     loop_control: {
       next_responsibility: loopControl.next_responsibility || "agent",
       trigger_mode: loopControl.trigger_mode || "manual_bridge",
-      current_loop_focus: loopControl.current_loop_focus || "",
-      next_transition: loopControl.next_transition || ""
+      current_loop_focus: safeSemanticText(loopControl.current_loop_focus || "", { maxLength: SEMANTIC_LIMITS.transition }),
+      next_transition: loopNextTransition
     },
     report_intake_rules: createReportIntakeRules(),
     closeout_rules: createCloseoutRules(),
@@ -827,6 +860,11 @@ function createRoutePlanFromControllerPlan({ controllerPlan, loopFrame }) {
 export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCapabilities = [], controllerPlan = null }) {
   const intents = Array.isArray(controllerPlan?.worker_intents) ? controllerPlan.worker_intents : [];
   const availableCapabilityIds = capabilityIds(selectedCapabilities);
+  const userRequestExcerpt = firstSafeSemanticText([
+    controllerPlan?.continuation_intent?.goal,
+    loopFrame.round_goal,
+    task
+  ], { maxLength: SEMANTIC_LIMITS.workerUserRequest });
   return intents.map((intent, index) => {
     const workerType = normalizeWorkerType(intent.worker_type);
     const role = intent.role || workerType;
@@ -849,14 +887,14 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
       conversation_locale: loopFrame.conversation_locale || round.conversation_locale || "en",
       loop_frame_excerpt: {
         case_id: loopFrame.case_id,
-        round_goal: loopFrame.round_goal,
+        round_goal: safeSemanticText(loopFrame.round_goal, { maxLength: SEMANTIC_LIMITS.goal }),
         conversation_locale: loopFrame.conversation_locale || round.conversation_locale || "en",
         selected_gap: loopFrame.selected_gap,
         selected_capabilities: allowedSkills,
         stop_conditions: loopFrame.stop_conditions
       },
       inputs: {
-        user_request_excerpt: task,
+        user_request_excerpt: userRequestExcerpt,
         known_state_paths: round.required_context_refs,
         known_facts: [
           `project=${snapshot.summary.project_name}`,
@@ -1411,7 +1449,7 @@ function toCapabilityContext(capability) {
   };
 }
 
-function createControllerFrame({ snapshot, round, task }) {
+function createControllerFrame({ snapshot, round, task, roundGoal = "" }) {
   const hasTask = Boolean(String(task || "").trim());
   return {
     schema_version: "arckit-controller-frame/v1",
@@ -1421,7 +1459,7 @@ function createControllerFrame({ snapshot, round, task }) {
       reason: hasTask ? "Operator supplied a project task for this round." : "No explicit task supplied; continue from project state and loop handoff.",
       packet_effect: hasTask ? "revise" : "keep"
     },
-    round_goal: task || round.round_goal,
+    round_goal: roundGoal || safeSemanticText(round.round_goal, { maxLength: SEMANTIC_LIMITS.goal }),
     round_status: "planning",
     old_packet_valid: true,
     selected_gap: {
@@ -1521,7 +1559,10 @@ function normalizePacketWorkerTasks(tasks, loopFrame) {
       stop_conditions: loopFrame.stop_conditions || []
     },
     inputs: task.inputs || {
-      user_request_excerpt: loopFrame.operator_task || "",
+      user_request_excerpt: firstSafeSemanticText([
+        loopFrame.round_goal,
+        loopFrame.operator_task
+      ], { maxLength: SEMANTIC_LIMITS.workerUserRequest }),
       known_state_paths: task.context_refs || [],
       known_facts: [],
       capability_contexts: [],
@@ -1698,14 +1739,34 @@ function normalizeSelectedGap(value) {
   const normalized = {
     id: stringValue(value.id, ""),
     dimension: stringValue(value.dimension, ""),
-    current_state: stringValue(value.current_state, ""),
-    target_state: stringValue(value.target_state, ""),
+    current_state: safeSemanticText(value.current_state, { maxLength: SEMANTIC_LIMITS.reason }),
+    target_state: safeSemanticText(value.target_state, { maxLength: SEMANTIC_LIMITS.reason }),
     urgency: stringValue(value.urgency, ""),
     risk: stringValue(value.risk, ""),
-    impact: stringValue(value.impact, ""),
-    next_transition: stringValue(value.next_transition, "")
+    impact: safeSemanticText(value.impact, { maxLength: SEMANTIC_LIMITS.reason }),
+    next_transition: safeSemanticText(value.next_transition, { maxLength: SEMANTIC_LIMITS.transition })
   };
   return Object.values(normalized).some(Boolean) ? normalized : null;
+}
+
+function normalizeContinuationIntent(value) {
+  const goal = safeSemanticText(value?.goal || "", { maxLength: SEMANTIC_LIMITS.goal });
+  const stateTransition = safeSemanticText(value?.state_transition || "", { maxLength: SEMANTIC_LIMITS.transition });
+  const nextPrompt = safeSemanticText(value?.next_prompt || "", { maxLength: SEMANTIC_LIMITS.nextPrompt });
+  return {
+    goal,
+    state_transition: stateTransition,
+    next_prompt: nextPrompt
+  };
+}
+
+function semanticGoalFromControllerPlan(plan, routePlan, fallback = "") {
+  return firstSafeSemanticText([
+    plan?.continuation_intent?.goal,
+    plan?.continuation_intent?.state_transition,
+    routePlan?.selected_gap?.next_transition,
+    fallback
+  ], { maxLength: SEMANTIC_LIMITS.goal });
 }
 
 function emptySelectedGap() {

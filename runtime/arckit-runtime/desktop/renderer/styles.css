@@ -905,7 +905,7 @@ h3 {
 
 .composer-options {
   display: grid;
-  grid-template-columns: auto auto minmax(120px, 150px) minmax(90px, 150px);
+  grid-template-columns: minmax(120px, 150px) minmax(90px, 150px);
   align-items: center;
   gap: 10px;
   margin-bottom: 10px;

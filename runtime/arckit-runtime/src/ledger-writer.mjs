@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { evaluateRuntimeGates } from "./gate-engine.mjs";
 import { runLedgerScript } from "./ledger-scripts.mjs";
+import { firstSafeSemanticText, safeSemanticText, SEMANTIC_LIMITS } from "./context-boundary.mjs";
 
 export async function writeLedger({ projectRoot, runtimeResult, envelope, snapshot, dryRun = false }) {
   const root = resolve(projectRoot);
@@ -114,6 +115,7 @@ function isFinalWriteback(runtimeResult) {
 
 function applyProjectStateWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath, finalWriteback }) {
   record.project.updated_at = timestamp;
+  const semantic = deriveLedgerSemanticFields({ runtimeResult, selectedRound });
   const dimension = selectedRound.dimension;
   if (dimension && record.completeness_dimensions?.[dimension]) {
     const item = record.completeness_dimensions[dimension];
@@ -128,7 +130,7 @@ function applyProjectStateWriteback(record, { timestamp, runtimeResult, selected
     if (finalWriteback) {
       item.gap = "";
     }
-    item.next_transition = runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.next_prompt || "";
+    item.next_transition = semantic.next_transition;
     if (finalWriteback) {
       item.priority = item.current_state === item.target_state ? "none" : item.priority;
       item.confidence = "high";
@@ -141,14 +143,14 @@ function applyProjectStateWriteback(record, { timestamp, runtimeResult, selected
 
   record.loop_control = {
     ...record.loop_control,
-    next_transition: runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.next_prompt || runtimeResult.summary,
+    next_transition: semantic.next_transition,
     priority_basis: `Accepted runtime result ${runtimeRecordPath}: ${runtimeResult.summary}`,
     next_responsibility: runtimeResult.loop_handoff?.next_responsibility || "none",
     agent_continuation_available: runtimeResult.loop_handoff?.agent_continuation_available === true,
     human_decision_required: runtimeResult.loop_handoff?.human_decision_required === true,
     trigger_mode: runtimeResult.loop_handoff?.trigger_mode || "none",
-    continuation_prompt: runtimeResult.loop_handoff?.next_prompt || "",
-    responsibility_reason: runtimeResult.loop_handoff?.responsibility_reason || ""
+    continuation_prompt: semantic.continuation_prompt,
+    responsibility_reason: semantic.responsibility_reason
   };
 
   record.last_state_delta = {
@@ -165,7 +167,7 @@ function applyProjectStateWriteback(record, { timestamp, runtimeResult, selected
     blocked_dimensions: [],
     case_refs: record.active_case_refs || [],
     iteration_ref: record.active_iteration_ref || "",
-    next_loop_focus: runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.next_prompt || "",
+    next_loop_focus: semantic.next_transition,
     updated_at: timestamp
   };
 
@@ -174,6 +176,7 @@ function applyProjectStateWriteback(record, { timestamp, runtimeResult, selected
 
 function applyIterationWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath, finalWriteback }) {
   record.updated_at = timestamp;
+  const semantic = deriveLedgerSemanticFields({ runtimeResult, selectedRound });
   record.current_state_delta = [
     ...(record.current_state_delta || []),
     {
@@ -192,30 +195,31 @@ function applyIterationWriteback(record, { timestamp, runtimeResult, selectedRou
     evidence: mergeEvidence(record.acceptance_state?.evidence, [runtimeRecordPath]),
     remaining_gaps: runtimeResult.loop_handoff?.next_responsibility === "none"
       ? []
-      : [runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.next_prompt || "Continue runtime-supervised loop."]
+      : [semantic.next_transition || "Continue runtime-supervised loop."]
   };
   record.last_iteration_delta = {
     changed: selectedRound.dimension && selectedRound.dimension !== "agent_selected" ? [selectedRound.dimension] : [],
     blocked: [],
     deferred: runtimeResult.source_projection_check?.deferred_projections || [],
-    next_iteration_focus: runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.next_prompt || "",
+    next_iteration_focus: semantic.next_transition,
     updated_at: timestamp
   };
 }
 
 function applyCaseWriteback(record, { timestamp, runtimeResult, selectedRound, runtimeRecordPath, finalWriteback }) {
   const nextRound = (record.rounds || []).length + 1;
+  const semantic = deriveLedgerSemanticFields({ runtimeResult, selectedRound });
   record.updated_at = timestamp;
-  record.current_round_goal = runtimeResult.loop_handoff?.agent_instruction?.goal || "";
+  record.current_round_goal = semantic.case_goal;
   record.current_round_gap = runtimeResult.loop_handoff?.next_responsibility === "none"
     ? "none"
-    : runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.responsibility_reason || "Continue runtime loop.";
+    : semantic.case_gap || "Continue runtime loop.";
   record.project_state_delta = {
     changed: selectedRound.dimension && selectedRound.dimension !== "agent_selected" ? [selectedRound.dimension] : [],
     unchanged_unknown: [],
     deferred: runtimeResult.source_projection_check?.deferred_projections || [],
     blocked: [],
-    next_project_question: runtimeResult.loop_handoff?.agent_instruction?.goal || runtimeResult.loop_handoff?.next_prompt || "",
+    next_project_question: semantic.next_transition,
     updated_at: timestamp
   };
   record.rounds = [
@@ -235,8 +239,8 @@ function applyCaseWriteback(record, { timestamp, runtimeResult, selectedRound, r
   record.completion_audit = {
     ...(record.completion_audit || {}),
     status: runtimeResult.loop_handoff?.next_responsibility === "none" ? "complete" : "incomplete",
-    next_round_goal: runtimeResult.loop_handoff?.agent_instruction?.goal || "",
-    loop_handoff: runtimeResult.loop_handoff,
+    next_round_goal: semantic.case_goal,
+    loop_handoff: sanitizeLoopHandoffForLedger(runtimeResult.loop_handoff, semantic),
     updated_at: timestamp
   };
 }
@@ -251,11 +255,65 @@ function resolveSelectedRound({ envelope, runtimeResult }) {
       dimension: routeGap.dimension || envelopeRound.dimension || "",
       current_state: routeGap.current_state || envelopeRound.current_state || "",
       target_state: routeGap.target_state || envelopeRound.target_state || "",
-      round_goal: routeGap.next_transition || envelopeRound.round_goal || runtimeResult?.loop_handoff?.agent_instruction?.goal || "",
-      next_transition: routeGap.next_transition || envelopeRound.next_transition || ""
+      round_goal: safeSemanticText(routeGap.next_transition || envelopeRound.round_goal || runtimeResult?.loop_handoff?.agent_instruction?.goal || "", { maxLength: SEMANTIC_LIMITS.goal }),
+      next_transition: safeSemanticText(routeGap.next_transition || envelopeRound.next_transition || "", { maxLength: SEMANTIC_LIMITS.transition })
     };
   }
-  return envelopeRound;
+  return {
+    ...envelopeRound,
+    round_goal: safeSemanticText(envelopeRound.round_goal || runtimeResult?.loop_handoff?.agent_instruction?.goal || "", { maxLength: SEMANTIC_LIMITS.goal }),
+    next_transition: safeSemanticText(envelopeRound.next_transition || "", { maxLength: SEMANTIC_LIMITS.transition })
+  };
+}
+
+function deriveLedgerSemanticFields({ runtimeResult, selectedRound }) {
+  const handoff = runtimeResult?.loop_handoff || {};
+  const routeGap = runtimeResult?.controller_frame?.route_plan?.selected_gap || runtimeResult?.controller_reducer_result?.controller_frame?.route_plan?.selected_gap || {};
+  const nextTransition = firstSafeSemanticText([
+    handoff.agent_instruction?.goal,
+    routeGap.next_transition,
+    selectedRound.next_transition,
+    selectedRound.round_goal,
+    handoff.next_prompt,
+    runtimeResult?.summary
+  ], { maxLength: SEMANTIC_LIMITS.transition, fallback: "Continue the active Arckit case from runtime evidence refs." });
+  const continuationPrompt = firstSafeSemanticText([
+    handoff.next_prompt,
+    nextTransition
+  ], { maxLength: SEMANTIC_LIMITS.nextPrompt, fallback: nextTransition });
+  return {
+    next_transition: nextTransition,
+    continuation_prompt: continuationPrompt,
+    responsibility_reason: safeSemanticText(handoff.responsibility_reason || "", { maxLength: SEMANTIC_LIMITS.reason }),
+    case_goal: firstSafeSemanticText([
+      handoff.agent_instruction?.goal,
+      routeGap.next_transition,
+      selectedRound.round_goal,
+      nextTransition
+    ], { maxLength: SEMANTIC_LIMITS.goal, fallback: nextTransition }),
+    case_gap: firstSafeSemanticText([
+      routeGap.current_state && routeGap.target_state ? `${routeGap.current_state} -> ${routeGap.target_state}` : "",
+      routeGap.next_transition,
+      handoff.responsibility_reason,
+      nextTransition
+    ], { maxLength: SEMANTIC_LIMITS.transition, fallback: nextTransition })
+  };
+}
+
+function sanitizeLoopHandoffForLedger(handoff = {}, semantic) {
+  return {
+    ...handoff,
+    next_prompt: semantic.continuation_prompt,
+    responsibility_reason: semantic.responsibility_reason,
+    agent_instruction: {
+      ...(handoff.agent_instruction || {}),
+      goal: semantic.case_goal
+    },
+    progress_guard: {
+      ...(handoff.progress_guard || {}),
+      expected_state_change: semantic.next_transition
+    }
+  };
 }
 
 async function readJson(path) {

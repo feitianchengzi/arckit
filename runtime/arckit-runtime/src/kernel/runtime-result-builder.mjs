@@ -1,5 +1,6 @@
 import { buildArtifactOwnershipScan, createArtifactImpactScan } from "../artifact-ownership-map.mjs";
 import { stateFromLoopGate } from "../round-state-machine.mjs";
+import { firstSafeSemanticText, SEMANTIC_LIMITS } from "../context-boundary.mjs";
 
 export function stateFromMergeResult(mergeResult) {
   return shouldPrepareLedgerWriteback(mergeResult)
@@ -50,6 +51,7 @@ export function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, 
     t(conversationLocale, `Merge decision: ${mergeResult.decision}.`, `合并决策：${mergeResult.decision}。`),
     mergeResult.loop_gate.reason
   ].join(" ");
+  const continuation = deriveContinuationFields({ mergeResult, loopFrame, round });
 
   return {
     schema_version: "arckit-runtime-result/v1",
@@ -94,9 +96,9 @@ export function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, 
       human_decision_required: needsHuman,
       trigger_mode: loopDone ? "none" : needsHuman ? "user_decision" : autoContinuationEligible ? "auto_bridge" : "manual_bridge",
       responsibility_reason: mergeResult.loop_gate.reason,
-      next_prompt: mergeResult.next_prompt,
+      next_prompt: continuation.next_prompt,
       agent_instruction: {
-        goal: loopDone ? t(conversationLocale, "No continuation required.", "无需继续。") : loopFrame.round_goal || round.round_goal,
+        goal: loopDone ? t(conversationLocale, "No continuation required.", "无需继续。") : continuation.goal,
         required_context_refs: round.required_context_refs,
         required_actions: loopDone
           ? []
@@ -129,7 +131,7 @@ export function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, 
         decision_needed: needsHuman ? t(conversationLocale, "Resolve worker report recommendations that require main-agent decision.", "处理需要主 Agent 决策的 worker report 建议。") : ""
       },
       progress_guard: {
-        expected_state_change: loopFrame.round_goal || round.round_goal,
+        expected_state_change: continuation.state_transition,
         actual_state_change: loopDone ? summary : t(conversationLocale, "Agentic loop produced reports but did not close the round.", "Agentic loop 已生成 reports，但本轮尚未关闭。"),
         no_progress_limit: 1,
         max_auto_rounds: 1
@@ -153,6 +155,36 @@ function shouldAutoContinueAfterRound({ mergeResult, dryRun, loopDone, needsHuma
     ...(intake.missing || [])
   ];
   return unresolved.length === 0;
+}
+
+function deriveContinuationFields({ mergeResult, loopFrame, round }) {
+  const reviewIntent = mergeResult.controller_reducer_result?.controller_review?.continuation_intent || {};
+  const planIntent = loopFrame.controller_frame?.controller_plan?.continuation_intent || {};
+  const routeGap = loopFrame.controller_frame?.route_plan?.selected_gap || loopFrame.route_plan?.selected_gap || {};
+  const goal = firstSafeSemanticText([
+    reviewIntent.goal,
+    planIntent.goal,
+    routeGap.next_transition,
+    loopFrame.round_goal,
+    round.round_goal
+  ], { maxLength: SEMANTIC_LIMITS.goal, fallback: "Continue the active Arckit case from structured controller output and evidence refs." });
+  const stateTransition = firstSafeSemanticText([
+    reviewIntent.state_transition,
+    planIntent.state_transition,
+    routeGap.next_transition,
+    goal
+  ], { maxLength: SEMANTIC_LIMITS.transition, fallback: goal });
+  const nextPrompt = firstSafeSemanticText([
+    reviewIntent.next_prompt,
+    mergeResult.next_prompt,
+    planIntent.next_prompt,
+    stateTransition
+  ], { maxLength: SEMANTIC_LIMITS.nextPrompt, fallback: stateTransition });
+  return {
+    goal,
+    state_transition: stateTransition,
+    next_prompt: nextPrompt
+  };
 }
 
 function unique(values) {
