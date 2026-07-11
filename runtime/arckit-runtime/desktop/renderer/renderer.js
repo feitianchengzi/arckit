@@ -674,17 +674,25 @@ function renderEvents() {
       <div class="event-item">
         <div class="event-title">${escapeHtml(event.type || "raw")}</div>
         <div class="event-meta">${escapeHtml(shortTime(event.at || ""))}</div>
-        <div>${escapeHtml(formatActivityEvent(event))}${event.count > 1 ? ` · ${escapeHtml(String(event.count))} events` : ""}</div>
+        <div>${escapeHtml(safeFormatEvent(() => formatActivityEvent(event)))}${event.count > 1 ? ` · ${escapeHtml(String(event.count))} events` : ""}</div>
       </div>
     `)
     : state.events.map((event) => `
     <div class="event-item">
       <div class="event-title">${escapeHtml(event.type)}</div>
       <div class="event-meta">${escapeHtml(shortTime(event.at || ""))}${event.runId ? ` · ${escapeHtml(event.runId)}` : ""}</div>
-      <div>${escapeHtml(formatPayload(event))}</div>
+      <div>${escapeHtml(safeFormatEvent(() => formatPayload(event)))}</div>
     </div>
   `);
   els.eventList.innerHTML = [evidence, items.join("")].filter(Boolean).join("");
+}
+
+function safeFormatEvent(formatFn) {
+  try {
+    return formatFn();
+  } catch (error) {
+    return `Event could not render: ${error?.message || String(error)}`;
+  }
 }
 
 function groupedActivityEventsForDisplay(events) {
@@ -1722,6 +1730,14 @@ function formatIdle(seconds) {
 function tail(value, limit) {
   const text = String(value || "");
   return text.length > limit ? text.slice(text.length - limit) : text;
+}
+
+function truncate(value, limit) {
+  const text = String(value || "");
+  if (text.length <= limit) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, limit - 1))}…`;
 }
 
 function escapeHtml(value) {
