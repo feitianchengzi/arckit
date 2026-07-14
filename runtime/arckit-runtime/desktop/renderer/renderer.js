@@ -24,11 +24,18 @@ const state = {
 };
 
 let liveRunRenderScheduled = false;
+let sidebarContextAction = null;
+let projectSectionHeight = 220;
+const MIN_PROJECT_SECTION_HEIGHT = 120;
+const MIN_CHAT_SECTION_HEIGHT = 120;
 
 const els = {
+  projectRail: document.getElementById("projectRail"),
+  projectSection: document.getElementById("projectSection"),
+  sidebarDivider: document.getElementById("sidebarDivider"),
+  sidebarContextMenu: document.getElementById("sidebarContextMenu"),
+  sidebarContextDelete: document.getElementById("sidebarContextDelete"),
   pickProjectButton: document.getElementById("pickProjectButton"),
-  projectPathInput: document.getElementById("projectPathInput"),
-  addProjectPathButton: document.getElementById("addProjectPathButton"),
   projectList: document.getElementById("projectList"),
   sessionList: document.getElementById("sessionList"),
   newChatButton: document.getElementById("newChatButton"),
@@ -80,24 +87,30 @@ async function boot() {
 }
 
 function wireEvents() {
+  wireSidebarDivider();
+  els.sidebarContextDelete.addEventListener("click", () => handleSidebarDelete());
+  document.addEventListener("pointerdown", (event) => {
+    if (!els.sidebarContextMenu.contains(event.target)) {
+      hideSidebarContextMenu();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hideSidebarContextMenu();
+    }
+  });
+  window.addEventListener("blur", hideSidebarContextMenu);
+  window.addEventListener("resize", () => {
+    hideSidebarContextMenu();
+    setProjectSectionHeight(projectSectionHeight);
+  });
+
   els.pickProjectButton.addEventListener("click", () => runAction(async () => {
     const project = await api.pickProject();
     if (project) {
       state.selectedProjectId = project.id;
       resetMessageScrollStick();
     }
-    await refreshAll();
-  }));
-
-  els.addProjectPathButton.addEventListener("click", () => runAction(async () => {
-    const value = els.projectPathInput.value.trim();
-    if (!value) {
-      return;
-    }
-    const project = await api.addProject(value);
-    state.selectedProjectId = project.id;
-    resetMessageScrollStick();
-    els.projectPathInput.value = "";
     await refreshAll();
   }));
 
@@ -226,11 +239,18 @@ function wireEvents() {
         state.selectedSessionId = event.session.id;
       }
     }
+    if (event.type === "session.deleted" && eventBelongsToSelectedProject(event)) {
+      if (state.selectedSessionId === event.sessionId) {
+        state.selectedSessionId = event.nextSessionId || "";
+        state.activeRunId = "";
+        resetMessageScrollStick();
+      }
+    }
     if (event.type === "settings.updated") {
       state.settings = normalizeSettings(event.settings);
       renderSettingsForm();
     }
-    if (event.type === "run.finished" || event.type === "message.added" || event.type === "session.created") {
+    if (event.type === "run.finished" || event.type === "message.added" || event.type === "session.created" || event.type === "session.deleted") {
       const belongs = eventBelongsToSelectedProject(event);
       if (belongs) {
         refreshProjectConversation();
@@ -422,11 +442,20 @@ function renderProjects() {
     </div>
   `).join("");
   for (const item of els.projectList.querySelectorAll(".project-item")) {
+    item.title = "Right-click to remove this project from Arckit Desktop";
     item.addEventListener("click", async () => {
       state.selectedProjectId = item.dataset.projectId;
       state.selectedSessionId = "";
       resetMessageScrollStick();
       await refreshAll();
+    });
+    item.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      showSidebarContextMenu(event, {
+        kind: "project",
+        projectId: item.dataset.projectId
+      });
     });
   }
 }
@@ -443,10 +472,10 @@ function renderSessions() {
   els.sessionList.innerHTML = state.sessions.map((session) => `
     <div class="session-item ${session.id === state.selectedSessionId ? "selected" : ""}" data-session-id="${escapeHtml(session.id)}">
       <div class="session-title">${escapeHtml(session.title || "Untitled chat")}</div>
-      <div class="session-meta">${escapeHtml(shortTime(session.updated_at || session.created_at))}</div>
     </div>
   `).join("");
   for (const item of els.sessionList.querySelectorAll(".session-item")) {
+    item.title = "Right-click to delete this chat";
     item.addEventListener("click", async () => {
       state.selectedSessionId = item.dataset.sessionId;
       resetMessageScrollStick();
@@ -455,7 +484,121 @@ function renderSessions() {
       await refreshProjectConversation();
       render();
     });
+    item.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      showSidebarContextMenu(event, {
+        kind: "session",
+        projectId: state.selectedProjectId,
+        sessionId: item.dataset.sessionId
+      });
+    });
   }
+}
+
+function showSidebarContextMenu(event, action) {
+  sidebarContextAction = action;
+  els.sidebarContextMenu.classList.remove("hidden");
+  const menuWidth = els.sidebarContextMenu.offsetWidth;
+  const menuHeight = els.sidebarContextMenu.offsetHeight;
+  const left = Math.max(4, Math.min(event.clientX, window.innerWidth - menuWidth - 4));
+  const top = Math.max(4, Math.min(event.clientY, window.innerHeight - menuHeight - 4));
+  els.sidebarContextMenu.style.left = `${left}px`;
+  els.sidebarContextMenu.style.top = `${top}px`;
+  els.sidebarContextDelete.focus();
+}
+
+function hideSidebarContextMenu() {
+  sidebarContextAction = null;
+  els.sidebarContextMenu.classList.add("hidden");
+}
+
+async function handleSidebarDelete() {
+  const action = sidebarContextAction;
+  hideSidebarContextMenu();
+  if (!action) {
+    return;
+  }
+  if (action.kind === "project") {
+    const project = state.projects.find((entry) => entry.id === action.projectId);
+    if (!project || !window.confirm(`Remove “${project.name}” from Arckit Desktop?\n\nProject files will not be deleted.`)) {
+      return;
+    }
+    await runAction(async () => {
+      await api.removeProject(project.id);
+      if (state.selectedProjectId === project.id) {
+        state.selectedProjectId = "";
+        state.selectedSessionId = "";
+        state.activeRunId = "";
+        resetMessageScrollStick();
+      }
+      await refreshAll();
+    });
+    return;
+  }
+  const project = state.projects.find((entry) => entry.id === action.projectId);
+  const session = state.sessions.find((entry) => entry.id === action.sessionId);
+  if (!project || !session || !window.confirm(`Delete chat “${session.title || "Untitled chat"}”?\n\nIts messages will be removed from Arckit Desktop.`)) {
+    return;
+  }
+  await runAction(async () => {
+    const result = await api.deleteSession(project.id, session.id);
+    if (state.selectedSessionId === session.id) {
+      state.selectedSessionId = result.next_session_id || "";
+      state.activeRunId = "";
+      resetMessageScrollStick();
+    }
+    await refreshAll();
+  });
+}
+
+function wireSidebarDivider() {
+  let dragStartY = 0;
+  let dragStartHeight = projectSectionHeight;
+  els.sidebarDivider.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    dragStartY = event.clientY;
+    dragStartHeight = els.projectSection.getBoundingClientRect().height;
+    els.sidebarDivider.classList.add("dragging");
+    els.sidebarDivider.setPointerCapture(event.pointerId);
+  });
+  els.sidebarDivider.addEventListener("pointermove", (event) => {
+    if (!els.sidebarDivider.hasPointerCapture(event.pointerId)) {
+      return;
+    }
+    setProjectSectionHeight(dragStartHeight + event.clientY - dragStartY);
+  });
+  const finishDrag = (event) => {
+    if (els.sidebarDivider.hasPointerCapture(event.pointerId)) {
+      els.sidebarDivider.releasePointerCapture(event.pointerId);
+    }
+    els.sidebarDivider.classList.remove("dragging");
+  };
+  els.sidebarDivider.addEventListener("pointerup", finishDrag);
+  els.sidebarDivider.addEventListener("pointercancel", finishDrag);
+  els.sidebarDivider.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
+      return;
+    }
+    event.preventDefault();
+    setProjectSectionHeight(projectSectionHeight + (event.key === "ArrowDown" ? 12 : -12));
+  });
+  setProjectSectionHeight(projectSectionHeight);
+}
+
+function setProjectSectionHeight(requestedHeight) {
+  const sectionTop = els.projectSection.offsetTop;
+  const maxHeight = Math.max(
+    MIN_PROJECT_SECTION_HEIGHT,
+    els.projectRail.clientHeight - sectionTop - els.sidebarDivider.offsetHeight - MIN_CHAT_SECTION_HEIGHT
+  );
+  projectSectionHeight = Math.round(Math.min(maxHeight, Math.max(MIN_PROJECT_SECTION_HEIGHT, requestedHeight)));
+  els.projectRail.style.setProperty("--project-section-height", `${projectSectionHeight}px`);
+  els.sidebarDivider.setAttribute("aria-valuemax", String(Math.round(maxHeight)));
+  els.sidebarDivider.setAttribute("aria-valuenow", String(projectSectionHeight));
 }
 
 function renderRuns() {

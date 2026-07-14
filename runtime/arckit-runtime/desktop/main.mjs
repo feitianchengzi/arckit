@@ -96,6 +96,7 @@ function registerIpc() {
   ipcMain.handle("arckit:list-runs", async (_event, filter) => runManager.listRuns(filter));
   ipcMain.handle("arckit:list-sessions", async (_event, projectId) => runManager.listSessions(projectId));
   ipcMain.handle("arckit:create-session", async (_event, projectId, input) => runManager.createSession(projectId, input));
+  ipcMain.handle("arckit:delete-session", async (_event, projectId, sessionId) => runManager.deleteSession(projectId, sessionId));
   ipcMain.handle("arckit:list-messages", async (_event, projectId, sessionId) => runManager.listMessages(projectId, sessionId));
   ipcMain.handle("arckit:add-message", async (_event, projectId, message) => runManager.addMessage(projectId, message));
   ipcMain.handle("arckit:get-settings", async () => runManager.getSettings());

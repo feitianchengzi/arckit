@@ -155,6 +155,17 @@ export function findSession(store, projectIdValue, sessionIdValue = "") {
   return session;
 }
 
+export function deleteProjectSession(store, projectIdValue, sessionIdValue) {
+  const sessions = store.sessions?.[projectIdValue] || [];
+  const session = sessions.find((item) => item.id === sessionIdValue);
+  if (!session) {
+    return null;
+  }
+  store.sessions[projectIdValue] = sessions.filter((item) => item.id !== sessionIdValue);
+  delete store.messages?.[sessionIdValue];
+  return session;
+}
+
 export function projectId(projectPath) {
   return createHash("sha256").update(resolve(projectPath)).digest("hex").slice(0, 16);
 }

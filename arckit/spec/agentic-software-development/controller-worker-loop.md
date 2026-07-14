@@ -194,6 +194,8 @@ Desktop 自动化的是 Human Runtime 的动作：
 - 用户纠错对应 `correction` 或 `goal_change`。
 - 右侧状态展示 controller frame、execution gate、executor binding、worker packets、worker reports、merge gate 和 next prompt。
 
+Desktop 左侧栏按 Projects 和 Chats 两个可调整高度的分区展示内容。项目条目保持名称与路径两行的固定高度布局，Chat 条目保持标题单行的固定高度布局；列表剩余空间不拉伸条目，长内容在条目边界内省略，条目数量超出分区时由分区独立滚动。
+
 Desktop 不改变 Controller Worker Loop。它只减少人类复制 packet、收集 report 和判断 gate 的操作成本。
 
 Desktop operator event 是 Controller 输入 envelope，不是 case goal、project transition 或 worker objective。Desktop 可以把 operator event 保存到 chat、run raw events 或 runtime execution record 中用于审计；传给 Controller 的 event 只携带当前动作、人类输入、source run refs、上一轮 handoff 摘要、worker report 摘要、gate/ledger 状态摘要和必要 context refs。完整 controller frame、activity、ledger write result、worker stream JSON 和上一轮 prompt 只能通过文件路径引用，不内嵌到下一轮 operator event。
@@ -297,5 +299,7 @@ Desktop 主动作只表达控制态，不表达具体业务决策：
 - Closeout 能清楚说明本轮对 case 和 Project State 的影响，或说明 no-change closure、pending-only、external wait、human gate、blocked 的原因。
 - 下一轮 prompt 能让 Controller 对话从上一轮 handoff 恢复。
 - Desktop 能把同一套人工流程自动化，而不是另起一套执行语义。
+- Projects 和 Chats 分区分别在 1 个、2 个及溢出数量条目下保持一致的条目高度、内部行布局和内容省略规则。
+- 调整 Projects 和 Chats 分区高度只改变各分区可见范围，不改变条目尺寸、右键菜单、删除保护、滚动或已保存数据。
 - Desktop 重启后能从最新 run 派生有限控制态，并通过 operator event 交给 Controller 判断具体下一步，而不是靠 UI 层不断补业务 if。
 - Desktop 在 runtime result 完成后区分 execution done、ledger writeback ready、ledger writeback blocked 和 ledger written，避免下一轮读取旧 project state。

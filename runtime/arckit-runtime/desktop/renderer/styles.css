@@ -87,8 +87,14 @@ textarea {
 }
 
 .project-rail {
+  --project-section-height: 220px;
+  --project-item-height: 56px;
+  --session-item-height: 36px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   border-right: 1px solid var(--border);
-  padding: 18px 14px;
+  padding: 14px;
 }
 
 .state-rail {
@@ -103,7 +109,7 @@ textarea {
   display: flex;
   align-items: center;
   gap: 11px;
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .brand-mark {
@@ -152,15 +158,8 @@ h3 {
   display: grid;
 }
 
-.path-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  margin-top: 8px;
-}
-
 .rail-heading {
-  margin: 18px 0 8px;
+  margin: 14px 0 6px;
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
@@ -183,7 +182,71 @@ h3 {
 
 .project-list,
 .session-list {
-  max-height: calc((100vh - 260px) / 2);
+  align-content: start;
+  min-width: 0;
+  width: 100%;
+}
+
+.project-list {
+  grid-auto-rows: var(--project-item-height);
+}
+
+.session-list {
+  grid-auto-rows: var(--session-item-height);
+}
+
+.sidebar-section {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.project-section {
+  flex: 0 0 var(--project-section-height);
+  height: var(--project-section-height);
+  min-height: 120px;
+}
+
+.chat-section {
+  flex: 1 1 0;
+  min-height: 120px;
+}
+
+.project-list,
+.session-list {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.sidebar-divider {
+  position: relative;
+  flex: 0 0 13px;
+  height: 13px;
+  margin: 3px 0;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.sidebar-divider::before {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--border);
+  content: "";
+}
+
+.sidebar-divider:hover::before,
+.sidebar-divider:focus-visible::before,
+.sidebar-divider.dragging::before {
+  height: 2px;
+  background: var(--accent);
+}
+
+.sidebar-divider:focus-visible {
+  outline: none;
 }
 
 .run-list {
@@ -204,8 +267,38 @@ h3 {
 .project-item,
 .session-item,
 .run-item {
-  padding: 10px;
+  min-width: 0;
+  width: 100%;
+  padding: 8px 9px;
   cursor: pointer;
+}
+
+.project-item {
+  display: grid;
+  height: var(--project-item-height);
+  grid-template-rows: 20px 18px;
+  align-content: center;
+  overflow: hidden;
+}
+
+.session-item {
+  display: flex;
+  height: var(--session-item-height);
+  align-items: center;
+  overflow: hidden;
+  padding: 7px 9px;
+}
+
+.project-name {
+  line-height: 20px;
+}
+
+.project-path {
+  line-height: 18px;
+}
+
+.session-title {
+  line-height: 20px;
 }
 
 .project-item.selected,
@@ -223,14 +316,50 @@ h3 {
   font-weight: 700;
 }
 
+.project-name,
+.session-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .project-path,
-.session-meta,
 .run-meta,
 .state-meta {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
+}
+
+.sidebar-context-menu {
+  position: fixed;
+  z-index: 40;
+  min-width: 132px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  box-shadow: 0 12px 28px rgba(20, 26, 34, 0.18);
+  padding: 4px;
+}
+
+.sidebar-context-menu.hidden {
+  display: none;
+}
+
+.sidebar-context-delete {
+  width: 100%;
+  min-height: 30px;
+  background: transparent;
+  color: var(--danger);
+  text-align: left;
+}
+
+.sidebar-context-delete:hover,
+.sidebar-context-delete:focus-visible {
+  background: #fff1f0;
+  outline: none;
 }
 
 .chat-column {

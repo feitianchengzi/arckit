@@ -4,6 +4,7 @@ Project-level unresolved items captured during agent collaboration.
 
 | Item | State | Type | Updated | Summary | Revisit When |
 |---|---|---|---:|---|---|
+| [AI 原生软件产品研发平台整体规划](items/2026-07-14-ai-native-software-product-development-platform-blueprint.md) | candidate | process_handoff | 2026-07-14 | 团队讨论稿：正向描述完整 AI 原生软件研发平台、各端与模块串联、人机分工、现有能力整合和 iOS MVP。 | 团队完成整体规划评审，或准备提升为正式 spec/tech 时。 |
 | [Desktop Interrupt And Restore Model](items/2026-07-10-desktop-interrupt-restore-model.md) | parked | technical | 2026-07-10 | 暂存 Desktop 退出、active run 中断、Codex CLI 式继续对话和 daemon 式恢复的模型讨论。 | 继续设计 Desktop run/session 生命周期或要求实现 interrupt/continue 恢复体验时。 |
 
 ## Archived

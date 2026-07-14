@@ -8,7 +8,7 @@
   </head>
   <body>
     <div class="app-shell">
-      <aside class="project-rail">
+      <aside id="projectRail" class="project-rail">
         <div class="brand">
           <div class="brand-mark">A</div>
           <div>
@@ -20,19 +20,21 @@
         <div class="add-project-row">
           <button id="pickProjectButton" class="primary-button">Add Project</button>
         </div>
-        <div class="path-row">
-          <input id="projectPathInput" type="text" placeholder="/path/to/project">
-          <button id="addProjectPathButton" class="secondary-button">Add</button>
-        </div>
 
-        <div class="rail-heading">Projects</div>
-        <div id="projectList" class="project-list"></div>
+        <section id="projectSection" class="sidebar-section project-section">
+          <div class="rail-heading">Projects</div>
+          <div id="projectList" class="project-list"></div>
+        </section>
 
-        <div class="rail-heading rail-heading-row">
-          <span>Chats</span>
-          <button id="newChatButton" class="quiet-button small-button">New</button>
-        </div>
-        <div id="sessionList" class="session-list"></div>
+        <div id="sidebarDivider" class="sidebar-divider" role="separator" aria-label="Resize Projects and Chats" aria-orientation="horizontal" aria-valuemin="120" aria-valuenow="220" tabindex="0"></div>
+
+        <section class="sidebar-section chat-section">
+          <div class="rail-heading rail-heading-row">
+            <span>Chats</span>
+            <button id="newChatButton" class="quiet-button small-button">New</button>
+          </div>
+          <div id="sessionList" class="session-list"></div>
+        </section>
       </aside>
 
       <main class="chat-column">
@@ -164,6 +166,9 @@
           </div>
         </div>
       </section>
+    </div>
+    <div id="sidebarContextMenu" class="sidebar-context-menu hidden" role="menu">
+      <button id="sidebarContextDelete" class="sidebar-context-delete" type="button" role="menuitem">Delete</button>
     </div>
     <script type="module" src="./renderer.js"></script>
   </body>

@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createDesktopStore } from "../src/desktop/desktop-store.mjs";
+import { createDesktopStore, deleteProjectSession } from "../src/desktop/desktop-store.mjs";
 
 test("desktop store serializes concurrent reads and updates", async () => {
   const root = await mkdtemp(join(tmpdir(), "arckit-store-"));
@@ -52,4 +52,28 @@ test("desktop store serializes concurrent reads and updates", async () => {
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("deleteProjectSession removes only the selected chat and its messages", () => {
+  const store = {
+    projects: [{ id: "PROJECT-1" }],
+    sessions: {
+      "PROJECT-1": [
+        { id: "SESSION-1", project_id: "PROJECT-1" },
+        { id: "SESSION-2", project_id: "PROJECT-1" }
+      ]
+    },
+    messages: {
+      "SESSION-1": [{ id: "MESSAGE-1" }],
+      "SESSION-2": [{ id: "MESSAGE-2" }]
+    }
+  };
+
+  const deleted = deleteProjectSession(store, "PROJECT-1", "SESSION-1");
+
+  assert.equal(deleted.id, "SESSION-1");
+  assert.deepEqual(store.sessions["PROJECT-1"].map((session) => session.id), ["SESSION-2"]);
+  assert.equal("SESSION-1" in store.messages, false);
+  assert.deepEqual(store.messages["SESSION-2"], [{ id: "MESSAGE-2" }]);
+  assert.equal(deleteProjectSession(store, "PROJECT-1", "UNKNOWN"), null);
 });

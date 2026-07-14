@@ -9,6 +9,7 @@ import {
   appendText,
   buildRuntimeEnv,
   createDesktopStore,
+  deleteProjectSession,
   ensureProjectSession,
   findSession,
   getSession,
@@ -28,7 +29,13 @@ import {
 } from "./projection/run-event-projector.mjs";
 import { buildControllerOperatorTask, buildDesktopOperatorEvent } from "./kernel/operator-event.mjs";
 
-export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = process.env.ARCKIT_NODE_BIN || "node" }) {
+export function createDesktopRunManager({
+  runtimeRoot,
+  dataDir,
+  nodeBin = process.env.ARCKIT_NODE_BIN || "node",
+  spawnProcess = spawn,
+  ensureProject = ensureArckitProject
+}) {
   const emitter = new EventEmitter();
   const storePath = join(dataDir, "desktop-store.json");
   const runsDir = join(dataDir, "runs");
@@ -49,7 +56,7 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     if (!existsSync(root)) {
       throw new Error(`Project path does not exist: ${root}`);
     }
-    const initialization = await ensureArckitProject({
+    const initialization = await ensureProject({
       projectRoot: root,
       projectName: basename(root) || root,
       intent: "Added to Arckit Desktop as a managed software project.",
@@ -79,6 +86,12 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
   }
 
   async function removeProject(projectIdValue) {
+    const activeRun = Array.from(activeRuns.values()).find(({ run }) => (
+      run.project_id === projectIdValue && run.status === "running"
+    ));
+    if (activeRun) {
+      throw new Error("Stop the active run before removing this project.");
+    }
     await updateStore((store) => {
       store.projects = store.projects.filter((project) => project.id !== projectIdValue);
       for (const session of store.sessions[projectIdValue] || []) {
@@ -176,6 +189,36 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     });
     emit("session.created", { projectId: projectIdValue, session });
     return session;
+  }
+
+  async function deleteSession(projectIdValue, sessionIdValue) {
+    const activeRun = Array.from(activeRuns.values()).find(({ run }) => (
+      run.project_id === projectIdValue
+      && run.session_id === sessionIdValue
+      && run.status === "running"
+    ));
+    if (activeRun) {
+      throw new Error("Stop the active run before deleting this chat.");
+    }
+
+    let deletedSession = null;
+    const store = await updateStore((draft) => {
+      deletedSession = deleteProjectSession(draft, projectIdValue, sessionIdValue);
+      return draft;
+    });
+    if (!deletedSession) {
+      throw new Error(`Unknown session: ${sessionIdValue}`);
+    }
+    const nextSessionId = store.sessions[projectIdValue]?.[0]?.id || "";
+    emit("session.deleted", {
+      projectId: projectIdValue,
+      sessionId: sessionIdValue,
+      nextSessionId
+    });
+    return {
+      deleted_session_id: sessionIdValue,
+      next_session_id: nextSessionId
+    };
   }
 
   async function listMessages(projectIdValue, sessionIdValue = "") {
@@ -297,7 +340,7 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     if (!project) {
       throw new Error("Select a project before starting a run.");
     }
-    const initialization = await ensureArckitProject({
+    const initialization = await ensureProject({
       projectRoot: project.path,
       projectName: project.name,
       intent: input.task || "Start an Arckit Desktop supervised runtime turn.",
@@ -390,7 +433,7 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
       }
     }
 
-    const child = spawn(nodeBin, args, {
+    const child = spawnProcess(nodeBin, args, {
       cwd: runtimeRoot,
       stdio: ["pipe", "pipe", "pipe"],
       detached: process.platform !== "win32",
@@ -713,7 +756,7 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
 
   async function runRuntimeCommand(run, args) {
     return new Promise((resolvePromise, rejectPromise) => {
-      const child = spawn(nodeBin, [runtimeBin, ...args], {
+      const child = spawnProcess(nodeBin, [runtimeBin, ...args], {
         cwd: runtimeRoot,
         stdio: ["ignore", "pipe", "pipe"]
       });
@@ -903,6 +946,7 @@ export function createDesktopRunManager({ runtimeRoot, dataDir, nodeBin = proces
     listRuns,
     listSessions,
     createSession,
+    deleteSession,
     listMessages,
     addMessage,
     getSettings,
