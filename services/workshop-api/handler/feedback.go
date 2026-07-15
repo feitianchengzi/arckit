@@ -200,6 +200,14 @@ func CreateFeedback(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "请求参数错误: "+err.Error(), nil))
 		return
 	}
+	if isV2APIKeyRequest(c) {
+		customUserID := trimStringPtr(req.CustomUserID)
+		if customUserID == nil {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "V2 API Key 创建反馈时 custom_user_id 为必填项", nil))
+			return
+		}
+		req.CustomUserID = customUserID
+	}
 
 	db := middleware.GetDB(c)
 	if db == nil {
@@ -251,6 +259,19 @@ func CreateFeedback(c *gin.Context) {
 				return errFeedbackShortIDExists
 			}
 			return err
+		}
+		if isV2Request(c) {
+			senderType := models.FeedbackMessageSenderDeveloper
+			senderUserID := &userID
+			var senderCustomUserID *string
+			if isAPIKeyRequest(c) {
+				senderType = models.FeedbackMessageSenderCustomer
+				senderUserID = nil
+				senderCustomUserID = req.CustomUserID
+			}
+			if _, err := createInitialFeedbackMessage(tx, feedback, senderType, senderUserID, senderCustomUserID); err != nil {
+				return err
+			}
 		}
 		if req.CallbackURL != nil && strings.TrimSpace(*req.CallbackURL) != "" {
 			if err := callFeedbackCallback(*req.CallbackURL, shortID); err != nil {
@@ -528,6 +549,10 @@ func GetFeedbacks(c *gin.Context) {
 		strings.TrimSpace(req.UserEmail) == "" &&
 		strings.TrimSpace(req.CustomUserID) == "" {
 		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "查询参数至少需要提供一个条件", nil))
+		return
+	}
+	if isV2APIKeyRequest(c) && strings.TrimSpace(req.CustomUserID) == "" {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "V2 API Key 查询反馈时 custom_user_id 为必填项", nil))
 		return
 	}
 

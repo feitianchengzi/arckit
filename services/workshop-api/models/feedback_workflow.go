@@ -44,11 +44,12 @@ const (
 // FeedbackMessage 反馈沟通消息表
 type FeedbackMessage struct {
 	ID                 uint           `json:"id" gorm:"primaryKey;autoIncrement"`
-	FeedbackID         uint           `json:"feedback_id" gorm:"not null;index;index:idx_feedback_messages_feedback_created,priority:1"`
+	FeedbackID         uint           `json:"feedback_id" gorm:"not null;index;index:idx_feedback_messages_feedback_created,priority:1;uniqueIndex:uniq_feedback_messages_customer_client_active,priority:1,where:sender_type = 'customer' AND sender_custom_user_id IS NOT NULL AND client_message_id IS NOT NULL AND delete_at IS NULL"`
 	ProjectID          uint           `json:"project_id" gorm:"not null;index;index:idx_feedback_messages_project_created,priority:1"`
 	SenderType         string         `json:"sender_type" gorm:"type:varchar(32);not null;index"`
 	SenderUserID       *uint          `json:"sender_user_id,omitempty" gorm:"index"`
-	SenderCustomUserID *string        `json:"sender_custom_user_id,omitempty" gorm:"type:varchar(128);index"`
+	SenderCustomUserID *string        `json:"sender_custom_user_id,omitempty" gorm:"type:varchar(128);index;uniqueIndex:uniq_feedback_messages_customer_client_active,priority:2,where:sender_type = 'customer' AND sender_custom_user_id IS NOT NULL AND client_message_id IS NOT NULL AND delete_at IS NULL"`
+	ClientMessageID    *string        `json:"client_message_id,omitempty" gorm:"type:varchar(128);index;uniqueIndex:uniq_feedback_messages_customer_client_active,priority:3,where:sender_type = 'customer' AND sender_custom_user_id IS NOT NULL AND client_message_id IS NOT NULL AND delete_at IS NULL"`
 	MessageType        string         `json:"message_type" gorm:"type:varchar(32);not null;default:'text';index"`
 	Content            string         `json:"content" gorm:"type:text;not null;default:''"`
 	Metadata           *string        `json:"metadata,omitempty" gorm:"type:jsonb"`

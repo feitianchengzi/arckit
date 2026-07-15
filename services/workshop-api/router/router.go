@@ -54,6 +54,7 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		registerBusinessRoutes(userGroup)
 		if enableFeedbackWorkflow {
 			registerFeedbackWorkflowRoutes(userGroup)
+			userGroup.POST("/feedback-sessions", handler.CreateFeedbackSession)
 		}
 		userGroup.POST("/projects/:id/feedback-access-keys", handler.CreateProjectFeedbackAccessKey)           // 创建项目反馈访问 key（管理员/所有者）
 		userGroup.GET("/projects/:id/feedback-access-keys", handler.GetProjectFeedbackAccessKeys)              // 查询项目反馈访问 key 列表（管理员/所有者）
@@ -67,6 +68,13 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		registerBusinessRoutes(apikeyGroup)
 		if enableFeedbackWorkflow {
 			registerFeedbackWorkflowRoutes(apikeyGroup)
+			apikeyGroup.POST("/feedback-sessions", handler.CreateFeedbackSession)
+
+			// feedback 是仅供 SDK 使用的窄权限认证级别。范围由网关校验
+			// 的短期 token 注入，不能复用 API Key 的项目成员权限。
+			feedbackGroup := versionGroup.Group("/feedback")
+			feedbackGroup.Use(middleware.ExtractFeedbackSessionScope())
+			registerFeedbackSessionRoutes(feedbackGroup)
 		}
 	}
 }
@@ -176,4 +184,13 @@ func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
 	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessages)           // 查询反馈消息
 	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessage)        // 创建反馈消息
 	group.POST("/feedbacks/:id/convert-to-task", handler.ConvertFeedbackToTask) // 将反馈流转为待办
+}
+
+func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
+	group.POST("/upload-policies", handler.CreateFeedbackUploadPolicy)
+	group.GET("/oss/credentials", handler.GetFeedbackSessionOSSTempCredentials)
+	group.POST("/feedbacks", handler.CreateFeedbackFromSession)
+	group.GET("/feedbacks", handler.GetFeedbacksFromSession)
+	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessagesFromSession)
+	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessageFromSession)
 }

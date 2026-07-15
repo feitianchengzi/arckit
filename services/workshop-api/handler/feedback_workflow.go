@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -29,10 +30,11 @@ type FeedbackMessageAttachmentInput struct {
 }
 
 type CreateFeedbackMessageRequest struct {
-	Content      string                           `json:"content,omitempty"`
-	CustomUserID *string                          `json:"custom_user_id,omitempty"`
-	Metadata     json.RawMessage                  `json:"metadata,omitempty"`
-	Attachments  []FeedbackMessageAttachmentInput `json:"attachments,omitempty"`
+	Content         string                           `json:"content,omitempty"`
+	CustomUserID    *string                          `json:"custom_user_id,omitempty"`
+	ClientMessageID *string                          `json:"client_message_id,omitempty"`
+	Metadata        json.RawMessage                  `json:"metadata,omitempty"`
+	Attachments     []FeedbackMessageAttachmentInput `json:"attachments,omitempty"`
 }
 
 type FeedbackMessageAttachmentResponse struct {
@@ -55,6 +57,7 @@ type FeedbackMessageResponse struct {
 	SenderType         string                              `json:"sender_type"`
 	SenderUserID       *uint                               `json:"sender_user_id,omitempty"`
 	SenderCustomUserID *string                             `json:"sender_custom_user_id,omitempty"`
+	ClientMessageID    *string                             `json:"client_message_id,omitempty"`
 	MessageType        string                              `json:"message_type"`
 	Content            string                              `json:"content"`
 	Metadata           interface{}                         `json:"metadata,omitempty"`
@@ -100,6 +103,14 @@ var errFeedbackAlreadyConverted = errors.New("feedback already converted")
 
 func isAPIKeyRequest(c *gin.Context) bool {
 	return strings.Contains(c.FullPath(), "/apikey/") || strings.Contains(c.Request.URL.Path, "/apikey/")
+}
+
+func isV2Request(c *gin.Context) bool {
+	return strings.Contains(c.FullPath(), "/v2/") || strings.Contains(c.Request.URL.Path, "/v2/")
+}
+
+func isV2APIKeyRequest(c *gin.Context) bool {
+	return isV2Request(c) && isAPIKeyRequest(c)
 }
 
 func parseFeedbackIDParam(c *gin.Context) (uint, bool) {
@@ -187,27 +198,117 @@ func normalizeMetadata(raw json.RawMessage) (*string, bool) {
 	return &text, true
 }
 
-func buildFeedbackMessageAttachment(input FeedbackMessageAttachmentInput) (models.FeedbackMessageAttachment, error) {
+func buildFeedbackMessageAttachment(input FeedbackMessageAttachmentInput, objectKeyPrefix string) (models.FeedbackMessageAttachment, error) {
 	attachmentType := strings.ToLower(strings.TrimSpace(input.Type))
 	if !models.IsValidFeedbackAttachmentType(attachmentType) {
 		return models.FeedbackMessageAttachment{}, fmt.Errorf("无效的附件类型")
 	}
 	objectKey := trimStringPtr(input.ObjectKey)
 	urlValue := trimStringPtr(input.URL)
-	if objectKey == nil && urlValue == nil {
-		return models.FeedbackMessageAttachment{}, fmt.Errorf("附件必须提供 object_key 或 url")
+	mimeType := trimStringPtr(input.MimeType)
+
+	if attachmentType == models.FeedbackAttachmentTypeURL {
+		if objectKey != nil || urlValue == nil {
+			return models.FeedbackMessageAttachment{}, fmt.Errorf("url 类型附件必须且只能提供 https url")
+		}
+		parsed, err := url.Parse(*urlValue)
+		if err != nil || parsed.Scheme != "https" || parsed.Host == "" {
+			return models.FeedbackMessageAttachment{}, fmt.Errorf("外链附件必须使用有效的 https URL")
+		}
+		return models.FeedbackMessageAttachment{
+			Type:     attachmentType,
+			URL:      urlValue,
+			FileName: trimStringPtr(input.FileName),
+		}, nil
 	}
-	if input.Size != nil && *input.Size < 0 {
-		return models.FeedbackMessageAttachment{}, fmt.Errorf("附件大小不能为负数")
+
+	if objectKey == nil || urlValue != nil {
+		return models.FeedbackMessageAttachment{}, fmt.Errorf("image/file 类型附件必须且只能提供 object_key")
+	}
+	if objectKeyPrefix != "" && !strings.HasPrefix(*objectKey, objectKeyPrefix) {
+		return models.FeedbackMessageAttachment{}, fmt.Errorf("附件 object_key 不属于当前反馈会话范围")
+	}
+	if mimeType == nil {
+		return models.FeedbackMessageAttachment{}, fmt.Errorf("image/file 类型附件必须提供 mime_type")
+	}
+	if input.Size == nil || *input.Size <= 0 {
+		return models.FeedbackMessageAttachment{}, fmt.Errorf("image/file 类型附件必须提供大于 0 的 size")
+	}
+	normalizedMIME, err := validateFeedbackAttachmentMetadata(attachmentType, *mimeType, *input.Size)
+	if err != nil {
+		return models.FeedbackMessageAttachment{}, err
 	}
 	return models.FeedbackMessageAttachment{
 		Type:      attachmentType,
 		ObjectKey: objectKey,
-		URL:       urlValue,
 		FileName:  trimStringPtr(input.FileName),
-		MimeType:  trimStringPtr(input.MimeType),
+		MimeType:  &normalizedMIME,
 		Size:      input.Size,
 	}, nil
+}
+
+func validateFeedbackAttachmentMetadata(attachmentType, mimeType string, size int64) (string, error) {
+	attachmentType = strings.ToLower(strings.TrimSpace(attachmentType))
+	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
+	if size <= 0 {
+		return "", fmt.Errorf("附件大小必须大于 0")
+	}
+
+	maxSize := feedbackFileMaxSize
+	switch attachmentType {
+	case models.FeedbackAttachmentTypeImage:
+		allowed := map[string]bool{
+			"image/jpeg": true,
+			"image/png":  true,
+			"image/webp": true,
+			"image/gif":  true,
+		}
+		if !allowed[mimeType] {
+			return "", fmt.Errorf("不支持的图片 MIME 类型")
+		}
+		maxSize = feedbackImageMaxSize
+	case models.FeedbackAttachmentTypeFile:
+		allowed := map[string]bool{
+			"application/pdf": true,
+			"text/plain":      true,
+			"text/csv":        true,
+			"application/zip": true,
+			"application/vnd.openxmlformats-officedocument.wordprocessingml.document":   true,
+			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":         true,
+			"application/vnd.openxmlformats-officedocument.presentationml.presentation": true,
+		}
+		if !allowed[mimeType] {
+			return "", fmt.Errorf("不支持的文件 MIME 类型")
+		}
+	default:
+		return "", fmt.Errorf("仅 image/file 类型附件支持上传")
+	}
+	if size > maxSize {
+		return "", fmt.Errorf("附件大小超过限制")
+	}
+	return mimeType, nil
+}
+
+func buildFeedbackMessageAttachments(inputs []FeedbackMessageAttachmentInput, objectKeyPrefix string) ([]models.FeedbackMessageAttachment, error) {
+	if len(inputs) > 10 {
+		return nil, fmt.Errorf("单条消息最多支持 10 个附件")
+	}
+	attachments := make([]models.FeedbackMessageAttachment, 0, len(inputs))
+	var totalSize int64
+	for _, input := range inputs {
+		attachment, err := buildFeedbackMessageAttachment(input, objectKeyPrefix)
+		if err != nil {
+			return nil, err
+		}
+		if attachment.Size != nil {
+			totalSize += *attachment.Size
+		}
+		attachments = append(attachments, attachment)
+	}
+	if totalSize > feedbackFileMaxSize {
+		return nil, fmt.Errorf("单条消息的附件总大小超过限制")
+	}
+	return attachments, nil
 }
 
 func buildFeedbackMessageAttachmentResponse(attachment models.FeedbackMessageAttachment) FeedbackMessageAttachmentResponse {
@@ -249,6 +350,7 @@ func buildFeedbackMessageResponse(message models.FeedbackMessage) FeedbackMessag
 		SenderType:         message.SenderType,
 		SenderUserID:       message.SenderUserID,
 		SenderCustomUserID: message.SenderCustomUserID,
+		ClientMessageID:    message.ClientMessageID,
 		MessageType:        message.MessageType,
 		Content:            message.Content,
 		Metadata:           parseMetadataForResponse(message.Metadata),
@@ -285,13 +387,14 @@ func updateFeedbackMessageTimestamps(tx *gorm.DB, feedbackID uint, senderType st
 	return tx.Model(&models.Feedback{}).Where("id = ?", feedbackID).Updates(updates).Error
 }
 
-func createFeedbackMessageRecord(tx *gorm.DB, feedback models.Feedback, senderType string, senderUserID *uint, senderCustomUserID *string, messageType string, content string, metadata *string, attachments []models.FeedbackMessageAttachment) (models.FeedbackMessage, error) {
+func createFeedbackMessageRecord(tx *gorm.DB, feedback models.Feedback, senderType string, senderUserID *uint, senderCustomUserID *string, clientMessageID *string, messageType string, content string, metadata *string, attachments []models.FeedbackMessageAttachment) (models.FeedbackMessage, error) {
 	message := models.FeedbackMessage{
 		FeedbackID:         feedback.ID,
 		ProjectID:          feedback.ProjectID,
 		SenderType:         senderType,
 		SenderUserID:       senderUserID,
 		SenderCustomUserID: senderCustomUserID,
+		ClientMessageID:    clientMessageID,
 		MessageType:        messageType,
 		Content:            content,
 		Metadata:           metadata,
@@ -318,6 +421,74 @@ func createFeedbackMessageRecord(tx *gorm.DB, feedback models.Feedback, senderTy
 		return message, err
 	}
 	return message, nil
+}
+
+func findCustomerMessageByClientID(tx *gorm.DB, feedbackID uint, customUserID string, clientMessageID string) (models.FeedbackMessage, bool, error) {
+	var message models.FeedbackMessage
+	err := tx.Where("feedback_id = ? AND sender_type = ? AND sender_custom_user_id = ? AND client_message_id = ?", feedbackID, models.FeedbackMessageSenderCustomer, customUserID, clientMessageID).
+		Preload("Attachments", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at ASC").Order("id ASC")
+		}).
+		First(&message).Error
+	if err == nil {
+		return message, true, nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return models.FeedbackMessage{}, false, nil
+	}
+	return models.FeedbackMessage{}, false, err
+}
+
+func createCustomerMessageWithIdempotency(tx *gorm.DB, feedback models.Feedback, customUserID *string, clientMessageID *string, content string, metadata *string, attachments []models.FeedbackMessageAttachment) (models.FeedbackMessage, bool, error) {
+	if customUserID == nil {
+		return models.FeedbackMessage{}, false, fmt.Errorf("缺少 customer 消息归属")
+	}
+	if clientMessageID != nil {
+		if existing, found, err := findCustomerMessageByClientID(tx, feedback.ID, *customUserID, *clientMessageID); err != nil {
+			return existing, false, err
+		} else if found {
+			return existing, false, nil
+		}
+	}
+
+	message, err := createFeedbackMessageRecord(tx, feedback, models.FeedbackMessageSenderCustomer, nil, customUserID, clientMessageID, models.FeedbackMessageTypeText, content, metadata, attachments)
+	if err == nil {
+		return message, true, nil
+	}
+	if clientMessageID != nil && isUniqueViolation(err, "uniq_feedback_messages_customer_client_active") {
+		existing, found, findErr := findCustomerMessageByClientID(tx, feedback.ID, *customUserID, *clientMessageID)
+		if findErr != nil {
+			return existing, false, findErr
+		}
+		if found {
+			return existing, false, nil
+		}
+	}
+	return message, false, err
+}
+
+func initialFeedbackMessageMetadata(legacy bool) *string {
+	metadata, _ := json.Marshal(map[string]interface{}{
+		"source": "feedback_initial",
+		"legacy": legacy,
+	})
+	value := string(metadata)
+	return &value
+}
+
+func createInitialFeedbackMessage(tx *gorm.DB, feedback models.Feedback, senderType string, senderUserID *uint, senderCustomUserID *string) (models.FeedbackMessage, error) {
+	return createFeedbackMessageRecord(
+		tx,
+		feedback,
+		senderType,
+		senderUserID,
+		senderCustomUserID,
+		nil,
+		models.FeedbackMessageTypeText,
+		feedback.Content,
+		initialFeedbackMessageMetadata(false),
+		nil,
+	)
 }
 
 // GetFeedbackMessages 查询反馈消息列表
@@ -441,20 +612,35 @@ func CreateFeedbackMessage(c *gin.Context) {
 		return
 	}
 
-	attachments := make([]models.FeedbackMessageAttachment, 0, len(req.Attachments))
-	for _, item := range req.Attachments {
-		attachment, err := buildFeedbackMessageAttachment(item)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
-			return
-		}
-		attachments = append(attachments, attachment)
+	objectKeyPrefix := ""
+	if isV2APIKeyRequest(c) && senderCustomUserID != nil {
+		objectKeyPrefix = feedbackAttachmentPrefix(feedback.ProjectID, *senderCustomUserID)
+	}
+	attachments, err := buildFeedbackMessageAttachments(req.Attachments, objectKeyPrefix)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, err.Error(), nil))
+		return
+	}
+
+	clientMessageID := trimStringPtr(req.ClientMessageID)
+	if clientMessageID != nil && len(*clientMessageID) > 128 {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "client_message_id 最大长度为 128", nil))
+		return
+	}
+	if clientMessageID != nil && senderType != models.FeedbackMessageSenderCustomer {
+		c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "client_message_id 仅支持 customer 消息", nil))
+		return
 	}
 
 	var message models.FeedbackMessage
+	created := true
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		var err error
-		message, err = createFeedbackMessageRecord(tx, feedback, senderType, senderUserID, senderCustomUserID, models.FeedbackMessageTypeText, content, metadata, attachments)
+		if senderType == models.FeedbackMessageSenderCustomer && clientMessageID != nil {
+			message, created, err = createCustomerMessageWithIdempotency(tx, feedback, senderCustomUserID, clientMessageID, content, metadata, attachments)
+			return err
+		}
+		message, err = createFeedbackMessageRecord(tx, feedback, senderType, senderUserID, senderCustomUserID, nil, models.FeedbackMessageTypeText, content, metadata, attachments)
 		return err
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackCreateFailed, "创建反馈消息失败: "+err.Error(), nil))
@@ -462,8 +648,12 @@ func CreateFeedbackMessage(c *gin.Context) {
 	}
 
 	resp := buildFeedbackMessageResponse(message)
-	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.message.created", resp)
-	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
+	if created {
+		notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.message.created", resp)
+		c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
+		return
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
 func parseFeedbackPayload(data *string) map[string]interface{} {
@@ -677,6 +867,7 @@ func syncLinkedFeedbacksFromTask(tx *gorm.DB, task models.Task, oldState string,
 			models.FeedbackMessageSenderSystem,
 			&actorID,
 			nil,
+			nil,
 			models.FeedbackMessageTypeStatusChange,
 			fmt.Sprintf("关联待办 #%d 状态已更新为 %s", task.ID, task.State),
 			&metadata,
@@ -854,6 +1045,7 @@ func ConvertFeedbackToTask(c *gin.Context) {
 			feedback,
 			models.FeedbackMessageSenderSystem,
 			&userID,
+			nil,
 			nil,
 			models.FeedbackMessageTypeTaskLink,
 			fmt.Sprintf("反馈已流转为待办 #%d", task.ID),

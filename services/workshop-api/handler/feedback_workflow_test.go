@@ -1,9 +1,15 @@
 package handler
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"todo/models"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestMapTaskStateToFeedbackStatus(t *testing.T) {
@@ -33,5 +39,73 @@ func TestFeedbackStatusFromData(t *testing.T) {
 	invalid := `not-json`
 	if actual := feedbackStatusFromData(&invalid, models.FeedbackStatusAccepted); actual != models.FeedbackStatusAccepted {
 		t.Fatalf("invalid data fallback = %s, want %s", actual, models.FeedbackStatusAccepted)
+	}
+}
+
+func TestFeedbackSessionAttachmentConstraints(t *testing.T) {
+	t.Setenv("OSS_ROOT_PATH", "/workshop")
+	prefix := feedbackAttachmentPrefix(12, "customer-42")
+	size := int64(1024)
+	objectKey := prefix + "screenshot.png"
+	mimeType := "image/png"
+
+	attachment, err := buildFeedbackMessageAttachment(FeedbackMessageAttachmentInput{
+		Type:      "image",
+		ObjectKey: &objectKey,
+		MimeType:  &mimeType,
+		Size:      &size,
+	}, prefix)
+	if err != nil {
+		t.Fatalf("valid scoped image attachment rejected: %v", err)
+	}
+	if attachment.ObjectKey == nil || *attachment.ObjectKey != objectKey {
+		t.Fatalf("object key = %#v, want %q", attachment.ObjectKey, objectKey)
+	}
+
+	outsideKey := "workshop/feedbacks/v2/other-user/screenshot.png"
+	if _, err := buildFeedbackMessageAttachment(FeedbackMessageAttachmentInput{
+		Type:      "image",
+		ObjectKey: &outsideKey,
+		MimeType:  &mimeType,
+		Size:      &size,
+	}, prefix); err == nil {
+		t.Fatal("attachment outside session prefix should be rejected")
+	}
+
+	httpURL := "http://example.com/image.png"
+	if _, err := buildFeedbackMessageAttachment(FeedbackMessageAttachmentInput{
+		Type: "url",
+		URL:  &httpURL,
+	}, prefix); err == nil {
+		t.Fatal("non-HTTPS URL attachment should be rejected")
+	}
+}
+
+func TestV2APIKeyFeedbackRequiresCustomUserID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	context, _ := gin.CreateTestContext(recorder)
+	request := httptest.NewRequest(http.MethodPost, "/workshop/v2/apikey/feedbacks", strings.NewReader(`{"project_id":1,"title":"test","content":"test"}`))
+	request.Header.Set("Content-Type", "application/json")
+	context.Request = request
+
+	CreateFeedback(context)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusBadRequest, recorder.Body.String())
+	}
+}
+
+func TestInitialFeedbackMessageMetadataHasStableSource(t *testing.T) {
+	metadata := initialFeedbackMessageMetadata(false)
+	if metadata == nil {
+		t.Fatal("initial feedback metadata should not be nil")
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal([]byte(*metadata), &parsed); err != nil {
+		t.Fatalf("metadata is invalid json: %v", err)
+	}
+	if parsed["source"] != "feedback_initial" {
+		t.Fatalf("metadata source = %v", parsed["source"])
 	}
 }
