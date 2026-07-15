@@ -35,7 +35,7 @@ func notifyProjectEvent(c *gin.Context, db *gorm.DB, projectID uint, actorID uin
 		return
 	}
 	actor := buildActor(c, db, actorID)
-	realtime.NotifyProject(projectID, actor, event, data)
+	go realtime.NotifyProject(projectID, actor, event, data)
 }
 
 func notifyProjectEventByTaskID(c *gin.Context, db *gorm.DB, taskID uint, actorID uint, event string, data any) {

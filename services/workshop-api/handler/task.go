@@ -375,6 +375,7 @@ func UpdateTask(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
 		return
 	}
+	oldState := task.State
 
 	// 6. 验证权限（canModifyTask内部会查询项目成员表）
 	canModify, err := canModifyTask(db, userID, task)
@@ -490,13 +491,28 @@ func UpdateTask(c *gin.Context) {
 		updates["completion_at"] = nil
 	}
 
+	var feedbackEvents []feedbackWorkflowEvent
 	if len(updates) > 0 {
-		if err := db.Model(&task).Updates(updates).Error; err != nil {
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&task).Updates(updates).Error; err != nil {
+				return err
+			}
+			// 重新查询任务以获取最新数据
+			if err := tx.First(&task, task.ID).Error; err != nil {
+				return err
+			}
+			if req.State != nil && strings.TrimSpace(*req.State) != oldState {
+				var err error
+				feedbackEvents, err = syncLinkedFeedbacksFromTask(tx, task, oldState, userID)
+				if err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
 			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskUpdateFailed, "更新任务失败: "+err.Error(), nil))
 			return
 		}
-		// 重新查询任务以获取最新数据
-		db.First(&task, task.ID)
 	}
 
 	// 11. 返回成功响应
@@ -521,6 +537,7 @@ func UpdateTask(c *gin.Context) {
 		CompletionAt: completionAt,
 	}
 	notifyProjectEvent(c, db, task.ProjectID, userID, "task.updated", resp)
+	notifyFeedbackWorkflowEvents(c, db, userID, feedbackEvents)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 

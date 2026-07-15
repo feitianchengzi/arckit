@@ -125,6 +125,9 @@ func InitDB() error {
 			&models.Tag{},
 			&models.TaskAttachment{},
 			&models.Feedback{},
+			&models.FeedbackMessage{},
+			&models.FeedbackMessageAttachment{},
+			&models.FeedbackTaskLink{},
 			&models.ProjectFeedbackAccessKey{},
 		)
 		if err != nil {

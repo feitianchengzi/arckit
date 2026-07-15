@@ -37,6 +37,7 @@ type UpdateFeedbackRequest struct {
 	ShortID      *string `json:"short_id,omitempty"`       // 短ID（可选）
 	Title        *string `json:"title,omitempty"`          // 标题（可选）
 	Content      *string `json:"content,omitempty"`        // 内容（可选）
+	Status       *string `json:"status,omitempty"`         // 反馈状态（可选）
 	CustomUserID *string `json:"custom_user_id,omitempty"` // 自定义用户ID（可选）
 	UserPhone    *string `json:"user_phone,omitempty"`     // 用户手机号（可选）
 	UserEmail    *string `json:"user_email,omitempty"`     // 用户邮箱（可选）
@@ -51,6 +52,7 @@ type FeedbackResponse struct {
 	ShortID      string  `json:"short_id"`             // 短ID
 	Title        string  `json:"title"`                // 标题
 	Content      string  `json:"content"`              // 内容
+	Status       string  `json:"status"`               // 反馈状态
 	CustomUserID *string `json:"custom_user_id"`       // 自定义用户ID
 	UserPhone    *string `json:"user_phone"`           // 用户手机号
 	UserEmail    *string `json:"user_email"`           // 用户邮箱
@@ -59,6 +61,10 @@ type FeedbackResponse struct {
 	CreatedAt    string  `json:"created_at"`           // 创建时间
 	UpdatedAt    string  `json:"updated_at"`           // 更新时间
 	DeletedAt    *string `json:"deleted_at,omitempty"` // 删除时间（如果存在）
+
+	LastMessageAt          *string `json:"last_message_at,omitempty"`           // 最近消息时间
+	LastCustomerMessageAt  *string `json:"last_customer_message_at,omitempty"`  // 最近用户消息时间
+	LastDeveloperMessageAt *string `json:"last_developer_message_at,omitempty"` // 最近开发者消息时间
 }
 
 // GetFeedbacksRequest 查询反馈请求结构
@@ -85,6 +91,17 @@ func buildFeedbackResponse(feedback models.Feedback) FeedbackResponse {
 		deletedAtStr := feedback.DeletedAt.Time.Format("2006-01-02T15:04:05Z07:00")
 		deletedAt = &deletedAtStr
 	}
+	formatTimePtr := func(value *time.Time) *string {
+		if value == nil {
+			return nil
+		}
+		formatted := value.Format("2006-01-02T15:04:05Z07:00")
+		return &formatted
+	}
+	status := canonicalFeedbackStatus(feedback.Status)
+	if status == "" {
+		status = feedbackStatusFromData(feedback.Data, models.FeedbackStatusPending)
+	}
 
 	return FeedbackResponse{
 		ID:           feedback.ID,
@@ -92,6 +109,7 @@ func buildFeedbackResponse(feedback models.Feedback) FeedbackResponse {
 		ShortID:      feedback.ShortID,
 		Title:        feedback.Title,
 		Content:      feedback.Content,
+		Status:       status,
 		CustomUserID: feedback.CustomUserID,
 		UserPhone:    feedback.UserPhone,
 		UserEmail:    feedback.UserEmail,
@@ -100,6 +118,10 @@ func buildFeedbackResponse(feedback models.Feedback) FeedbackResponse {
 		CreatedAt:    feedback.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:    feedback.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		DeletedAt:    deletedAt,
+
+		LastMessageAt:          formatTimePtr(feedback.LastMessageAt),
+		LastCustomerMessageAt:  formatTimePtr(feedback.LastCustomerMessageAt),
+		LastDeveloperMessageAt: formatTimePtr(feedback.LastDeveloperMessageAt),
 	}
 }
 
@@ -215,6 +237,7 @@ func CreateFeedback(c *gin.Context) {
 		ShortID:      shortID,
 		Title:        req.Title,
 		Content:      req.Content,
+		Status:       feedbackStatusFromData(req.Data, models.FeedbackStatusPending),
 		CustomUserID: req.CustomUserID,
 		UserPhone:    req.UserPhone,
 		UserEmail:    req.UserEmail,
@@ -339,6 +362,16 @@ func UpdateFeedback(c *gin.Context) {
 		updates["short_id"] = trimmed
 	}
 
+	if req.Status != nil {
+		status := canonicalFeedbackStatus(*req.Status)
+		if status == "" {
+			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "无效的反馈状态", nil))
+			return
+		}
+		updates["status"] = status
+		updates["data"] = mergeFeedbackData(feedback.Data, status, nil)
+	}
+
 	if req.CustomUserID != nil {
 		trimmed := strings.TrimSpace(*req.CustomUserID)
 		if trimmed == "" {
@@ -376,7 +409,16 @@ func UpdateFeedback(c *gin.Context) {
 		if trimmed == "" {
 			updates["data"] = nil
 		} else {
-			updates["data"] = trimmed
+			if statusValue, statusSet := updates["status"]; statusSet {
+				if statusText, ok := statusValue.(string); ok {
+					updates["data"] = mergeFeedbackData(&trimmed, statusText, nil)
+				} else {
+					updates["data"] = trimmed
+				}
+			} else {
+				updates["data"] = trimmed
+				updates["status"] = feedbackStatusFromData(&trimmed, feedback.Status)
+			}
 		}
 	}
 
@@ -500,7 +542,7 @@ func GetFeedbacks(c *gin.Context) {
 		return
 	}
 
-	query := db.Model(&models.Feedback{}).Order("created_at DESC").Order("id DESC")
+	query := db.Model(&models.Feedback{})
 	if req.IncludeDeleted {
 		query = query.Unscoped()
 	}
@@ -542,7 +584,7 @@ func GetFeedbacks(c *gin.Context) {
 		return
 	}
 
-	query = query.Offset(pagination.Offset).Limit(pagination.Limit)
+	query = query.Order("created_at DESC").Order("id DESC").Offset(pagination.Offset).Limit(pagination.Limit)
 	var feedbacks []models.Feedback
 	if err := query.Find(&feedbacks).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询反馈失败: "+err.Error(), nil))

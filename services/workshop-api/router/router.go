@@ -28,13 +28,19 @@ func SetupRouter(serviceName string) *gin.Engine {
 	r.Use(middleware.ExtractHeaderInfo())
 	r.Use(middleware.InjectDB())
 
-	// v1接口组
-	// 路由格式: /{service}/v1/{auth_level}/{path}
-	v1 := r.Group("/" + serviceName + "/v1")
+	registerVersionRoutes(r, serviceName, "v1", false)
+	registerVersionRoutes(r, serviceName, "v2", true)
+
+	return r
+}
+
+func registerVersionRoutes(r *gin.Engine, serviceName string, version string, enableFeedbackWorkflow bool) {
+	// 路由格式: /{service}/{version}/{auth_level}/{path}
+	versionGroup := r.Group("/" + serviceName + "/" + version)
 	{
 		// public级别路由 - 无需认证
 		// 示例：GET /todo-service/v1/public/health
-		publicGroup := v1.Group("/public")
+		publicGroup := versionGroup.Group("/public")
 		{
 			publicGroup.GET("/health", handler.HealthCheck)
 			publicGroup.GET("/feedbacks", handler.GetPublicFeedbacksByKey) // 通过 key 查询反馈（独立 public 接口）
@@ -43,9 +49,12 @@ func SetupRouter(serviceName string) *gin.Engine {
 		// user级别路由 - 需要JWT认证
 		// 网关已经验证了认证，如果请求到达这里，说明认证通过
 		// 示例：GET /todo-service/v1/user/header-info
-		userGroup := v1.Group("/user")
+		userGroup := versionGroup.Group("/user")
 		userGroup.Use(middleware.ExtractUserID()) // 提取用户ID中间件
 		registerBusinessRoutes(userGroup)
+		if enableFeedbackWorkflow {
+			registerFeedbackWorkflowRoutes(userGroup)
+		}
 		userGroup.POST("/projects/:id/feedback-access-keys", handler.CreateProjectFeedbackAccessKey)           // 创建项目反馈访问 key（管理员/所有者）
 		userGroup.GET("/projects/:id/feedback-access-keys", handler.GetProjectFeedbackAccessKeys)              // 查询项目反馈访问 key 列表（管理员/所有者）
 		userGroup.DELETE("/projects/:id/feedback-access-keys/:key_id", handler.DeleteProjectFeedbackAccessKey) // 删除项目反馈访问 key（管理员/所有者）
@@ -53,12 +62,13 @@ func SetupRouter(serviceName string) *gin.Engine {
 		// apikey级别路由 - 需要API密钥认证
 		// 网关已经验证了认证，如果请求到达这里，说明认证通过
 		// 示例：GET /todo-service/v1/apikey/header-info
-		apikeyGroup := v1.Group("/apikey")
+		apikeyGroup := versionGroup.Group("/apikey")
 		apikeyGroup.Use(middleware.ExtractUserID()) // 提取用户ID中间件
 		registerBusinessRoutes(apikeyGroup)
+		if enableFeedbackWorkflow {
+			registerFeedbackWorkflowRoutes(apikeyGroup)
+		}
 	}
-
-	return r
 }
 
 // getCORSConfig 从环境变量读取 CORS 配置
@@ -160,4 +170,10 @@ func registerBusinessRoutes(group *gin.RouterGroup) {
 	group.POST("/projects/:id/tags", handler.CreateTag)                                // 创建标签
 	group.PUT("/tags/:id", handler.UpdateTag)                                          // 更新标签
 	group.DELETE("/tags/:id", handler.DeleteTag)                                       // 删除标签
+}
+
+func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
+	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessages)           // 查询反馈消息
+	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessage)        // 创建反馈消息
+	group.POST("/feedbacks/:id/convert-to-task", handler.ConvertFeedbackToTask) // 将反馈流转为待办
 }

@@ -237,9 +237,7 @@ func GetPublicFeedbacksByKey(c *gin.Context) {
 	}
 
 	query := db.Model(&models.Feedback{}).
-		Where("project_id = ?", accessKey.ProjectID).
-		Order("created_at DESC").
-		Order("id DESC")
+		Where("project_id = ?", accessKey.ProjectID)
 
 	if shortID := strings.TrimSpace(c.Query("short_id")); shortID != "" {
 		query = query.Where("short_id = ?", shortID)
@@ -263,7 +261,7 @@ func GetPublicFeedbacksByKey(c *gin.Context) {
 	}
 
 	var feedbacks []models.Feedback
-	if err := query.Offset(pagination.Offset).Limit(pagination.Limit).Find(&feedbacks).Error; err != nil {
+	if err := query.Order("created_at DESC").Order("id DESC").Offset(pagination.Offset).Limit(pagination.Limit).Find(&feedbacks).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询反馈失败: "+err.Error(), nil))
 		return
 	}
