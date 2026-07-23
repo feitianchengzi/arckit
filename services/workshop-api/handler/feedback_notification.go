@@ -2,6 +2,8 @@ package handler
 
 import (
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +17,22 @@ import (
 )
 
 const maxFeedbackNotificationReadIDs = 100
+
+// FEEDBACK_V2_NOTIFICATION_PROJECT_IDS is deliberately an opt-in server-side
+// rollout gate. An empty value means deployed V2 clients retain their current
+// behavior and no notification rows are written.
+func feedbackNotificationsEnabledForProject(projectID uint) bool {
+	if projectID == 0 {
+		return false
+	}
+	for _, rawID := range strings.Split(os.Getenv("FEEDBACK_V2_NOTIFICATION_PROJECT_IDS"), ",") {
+		parsed, err := strconv.ParseUint(strings.TrimSpace(rawID), 10, 64)
+		if err == nil && uint(parsed) == projectID {
+			return true
+		}
+	}
+	return false
+}
 
 type feedbackNotificationRecipient struct {
 	ProjectID     uint
@@ -81,6 +99,9 @@ func feedbackNotificationTypeForMessage(message models.FeedbackMessage) string {
 // the message write. A notification therefore can never point at a message
 // that was rolled back, and retries remain safe through the partial indexes.
 func createFeedbackNotificationsForMessage(tx *gorm.DB, feedback models.Feedback, message models.FeedbackMessage) error {
+	if !feedbackNotificationsEnabledForProject(feedback.ProjectID) {
+		return nil
+	}
 	notificationType := feedbackNotificationTypeForMessage(message)
 	if notificationType == "" {
 		return nil
@@ -135,6 +156,14 @@ func feedbackNotificationRecipientQuery(db *gorm.DB, recipient feedbackNotificat
 		query = query.Where("recipient_custom_user_id = ?", *recipient.CustomUserID)
 	}
 	return query
+}
+
+func requireFeedbackNotificationsEnabled(c *gin.Context, projectID uint) bool {
+	if feedbackNotificationsEnabledForProject(projectID) {
+		return true
+	}
+	c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeNotFound, "该项目尚未启用 V2 通知能力", nil))
+	return false
 }
 
 func feedbackNotificationPreview(content string) string {
@@ -329,6 +358,9 @@ func GetFeedbackNotifications(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !requireFeedbackNotificationsEnabled(c, recipient.ProjectID) {
+		return
+	}
 	listFeedbackNotifications(c, db, recipient, query)
 }
 
@@ -346,6 +378,9 @@ func MarkFeedbackNotificationsRead(c *gin.Context) {
 	}
 	recipient, ok := requireFeedbackNotificationProjectMember(c, db, request.ProjectID, "标记反馈通知已读")
 	if !ok {
+		return
+	}
+	if !requireFeedbackNotificationsEnabled(c, recipient.ProjectID) {
 		return
 	}
 	markFeedbackNotificationsRead(c, db, recipient, request)
@@ -368,6 +403,9 @@ func GetFeedbackNotificationsByAPIKey(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !requireFeedbackNotificationsEnabled(c, recipient.ProjectID) {
+		return
+	}
 	db := middleware.GetDB(c)
 	if db == nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
@@ -388,6 +426,9 @@ func MarkFeedbackNotificationsReadByAPIKey(c *gin.Context) {
 	}
 	recipient, ok := requireFeedbackNotificationAPIKeyRecipient(c, request.ProjectID, request.CustomUserID)
 	if !ok {
+		return
+	}
+	if !requireFeedbackNotificationsEnabled(c, recipient.ProjectID) {
 		return
 	}
 	db := middleware.GetDB(c)
@@ -416,6 +457,9 @@ func GetFeedbackNotificationsFromSession(c *gin.Context) {
 		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeFeedbackNoPermission, "custom_user_id 与反馈会话范围不匹配", nil))
 		return
 	}
+	if !requireFeedbackNotificationsEnabled(c, recipient.ProjectID) {
+		return
+	}
 	db := middleware.GetDB(c)
 	if db == nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
@@ -440,6 +484,9 @@ func MarkFeedbackNotificationsReadFromSession(c *gin.Context) {
 	}
 	if customUserID := strings.TrimSpace(request.CustomUserID); customUserID != "" && recipient.CustomUserID != nil && customUserID != *recipient.CustomUserID {
 		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeFeedbackNoPermission, "custom_user_id 与反馈会话范围不匹配", nil))
+		return
+	}
+	if !requireFeedbackNotificationsEnabled(c, recipient.ProjectID) {
 		return
 	}
 	db := middleware.GetDB(c)

@@ -50,6 +50,21 @@ func TestFeedbackNotificationTypeForMessage(t *testing.T) {
 	}
 }
 
+func TestFeedbackNotificationsEnabledForProject(t *testing.T) {
+	t.Setenv("FEEDBACK_V2_NOTIFICATION_PROJECT_IDS", " 78,not-a-number, 91 ")
+	if !feedbackNotificationsEnabledForProject(78) || !feedbackNotificationsEnabledForProject(91) {
+		t.Fatal("configured notification rollout projects should be enabled")
+	}
+	if feedbackNotificationsEnabledForProject(79) || feedbackNotificationsEnabledForProject(0) {
+		t.Fatal("unconfigured projects must keep notifications disabled")
+	}
+
+	t.Setenv("FEEDBACK_V2_NOTIFICATION_PROJECT_IDS", "")
+	if feedbackNotificationsEnabledForProject(78) {
+		t.Fatal("an empty rollout allowlist must disable notification writes")
+	}
+}
+
 func TestNormalizeFeedbackNotificationIDs(t *testing.T) {
 	ids, valid := normalizeFeedbackNotificationIDs([]uint{4, 2, 4, 9})
 	if !valid {

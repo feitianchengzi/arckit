@@ -190,6 +190,8 @@ Content-Type: application/json
 
 通知接口是独立于反馈列表和消息接口的新 V2 API。不开启客户端通知开关时，SDK 不会调用它们，因此既有 V2 集成的请求与展示完全不变。
 
+服务端还必须在 `FEEDBACK_V2_NOTIFICATION_PROJECT_IDS` 中显式加入项目 ID；默认空值不写入通知记录，通知接口返回 `404`。先只配置测试项目，再打开客户端开关。
+
 用户创建或补充反馈时，项目成员收到 `customer_message`；开发者回复时，用户收到 `developer_message`；待办状态回写、流转或忽略时，用户收到 `status_change`。消息和通知在同一事务中写入，重试不会生成重复通知。
 
 ```http
