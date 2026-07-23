@@ -4,10 +4,10 @@
 
 - V1 基础反馈：`/workshop/v1/{user|apikey}/feedbacks`
 - V2 基础反馈：`/workshop/v2/{user|apikey}/feedbacks`
-- V2 工作流扩展：`/workshop/v2/{user|apikey}/feedbacks/:id/messages`、`/workshop/v2/user/feedbacks/:id/convert-to-task`
+- V2 工作流扩展：`/workshop/v2/{user|apikey}/feedbacks/:id/messages`、`/workshop/v2/{user|apikey}/feedbacks/:id/attachments/:attachment_id/oss/credentials`、`/workshop/v2/user/feedbacks/:id/convert-to-task`、`/workshop/v2/user/feedbacks/:id/ignore`
 
 认证：JWT；中间件 `ExtractUserID` 已注入当前用户 ID  
-权限：项目成员可创建/查询/更新；删除仅项目管理员/所有者
+权限：项目成员可创建/查询/更新/删除；删除为软删除
 
 V2 部署在同一套服务、同一套数据库中，不需要新建 OSS/ECS。数据库只做增量扩展：保留 `feedbacks` 作为主表，新增消息、附件和待办关联表，V1 不暴露消息与流转接口。
 
@@ -41,6 +41,7 @@ V2 部署在同一套服务、同一套数据库中，不需要新建 OSS/ECS。
 | callback_url | string | 否 | 回调地址（仅创建时使用，不会存储） |
 | file | string | 否 | 单个附件文件地址 |
 | data | string | 否 | JSON字符串 |
+| attachments | array | V2 `apikey` 可选 | 首条消息附件；仅 V2 API Key 路径支持，需先申请 V2 上传策略 |
 
 **请求示例**:
 
@@ -319,7 +320,7 @@ curl -X GET "http://localhost:8081/workshop/v1/user/feedbacks?project_id=1&user_
 
 **认证级别**: `user`（需要JWT认证）
 
-**权限要求**: 仅项目管理员/所有者
+**权限要求**: 项目成员
 
 **路径参数**:
 
@@ -343,9 +344,9 @@ curl -X GET "http://localhost:8081/workshop/v1/user/feedbacks?project_id=1&user_
 **403 Forbidden**:
 ```json
 {
-  "code": "FEEDBACK_NO_PERMISSION",
+  "code": "FEEDBACK_NOT_MEMBER",
   "error": {
-    "message": "只有项目管理员或所有者可以删除反馈",
+    "message": "您不是该项目的成员，无法删除反馈",
     "details": null
   }
 }
@@ -464,7 +465,57 @@ curl -X GET "http://localhost:8081/workshop/v1/user/feedbacks?project_id=1&user_
 
 ---
 
-## 7. 将反馈流转为待办
+## 7. V2 API Key 附件策略与读取
+
+### 开发者回复上传
+
+**接口**: `POST /workshop/v2/user/feedbacks/:id/upload-policies`
+
+**权限要求**: 当前登录用户必须是该反馈所属项目的成员。
+
+请求体与 API Key 上传策略相同：`type`、`file_name`、`mime_type`、`size` 均为必填项。服务端会返回一个仅允许向单个 object key 写入、有效期 10 分钟的 OSS PostObject 策略；控制台必须将返回的 `fields` 写入 `FormData`，最后追加 `file` 字段并以 `POST` 上传。上传成功后，将返回的 `object_key` 放入开发者消息的 `attachments`。
+
+开发者附件固定写在项目和当前成员隔离的对象前缀下，不能写入用户附件空间，也不会暴露通用可写 STS 凭据。
+
+直连 API Key 模式不需要换取反馈会话 token。所有请求均使用 `Authorization: Bearer <api-key>`，并且 API Key 所属用户必须仍是对应项目成员。
+
+### 签发上传策略
+
+**接口**: `POST /workshop/v2/apikey/feedbacks/upload-policies`
+
+```json
+{
+  "project_id": 1,
+  "custom_user_id": "sdk_user_123",
+  "type": "image",
+  "file_name": "screen.png",
+  "mime_type": "image/png",
+  "size": 120034
+}
+```
+
+响应返回精确限制 object key、MIME 类型、文件字节数和 10 分钟有效期的 OSS PostObject 策略。上传成功后，将返回的 `object_key` 连同 `type`、`file_name`、`mime_type`、`size` 写入创建反馈或创建消息的 `attachments`。
+
+### 读取私有附件
+
+**接口**: `GET /workshop/v2/apikey/feedbacks/oss/credentials?project_id=1&custom_user_id=sdk_user_123`
+
+返回只允许读取该项目和该 `custom_user_id` 附件前缀的 15 分钟 STS 凭证。不得使用它上传文件或将 STS 密钥持久化。
+
+### 读取会话中的指定附件
+
+当附件由开发者在控制台上传时，对象不位于用户附件前缀。SDK 必须按反馈和附件 ID 申请精确的只读凭据，不能复用前缀凭据：
+
+```text
+GET /workshop/v2/feedback/feedbacks/:id/attachments/:attachment_id/oss/credentials
+GET /workshop/v2/apikey/feedbacks/:id/attachments/:attachment_id/oss/credentials?custom_user_id=sdk_user_123
+```
+
+前者使用反馈会话 token，后者使用直连 API Key。服务端会先校验反馈归属，再签发仅允许 `GetObject` 该一个 object key、有效期不超过 15 分钟的 STS 凭据。V2 `user` 路径也可供项目成员读取其项目下的指定附件。
+
+---
+
+## 8. 将反馈流转为待办
 
 **接口**: `POST /workshop/v2/user/feedbacks/:id/convert-to-task`
 
@@ -486,7 +537,15 @@ curl -X GET "http://localhost:8081/workshop/v1/user/feedbacks?project_id=1&user_
 **行为说明**:
 
 - 后端在一个事务中创建待办、创建 `feedback_task_links`、更新反馈状态、写入系统消息。
+- 流转时已存在的会话图片、文件和 HTTPS 链接会按原消息写为待办沟通记录；用户补充和开发者回复会保留各自的文字上下文。图片在待办内联预览，文件可打开或下载。
+- 流转完成后，用户从 SDK 继续发送的每条 V2 消息会自动追加为该待办的一条评论，纯文本和图片、文件、HTTPS 链接都会保留；带 `client_message_id` 的重试不会重复创建评论。开发者在控制台的后续回复仍保留在反馈会话中，不会自动镜像为待办评论。
 - 后续关联待办状态更新时，会通过 `feedback_task_links` 反写反馈状态，并追加系统消息。
+
+待办中的反馈附件需要通过以下 V2 `user` 接口读取临时凭据，服务端会同时校验待办成员权限、待办-反馈关联以及附件引用关系：
+
+```text
+GET /workshop/v2/user/tasks/attachments/:id/oss/credentials?object_key={object_key}
+```
 
 **响应示例** (`201 Created`):
 ```json

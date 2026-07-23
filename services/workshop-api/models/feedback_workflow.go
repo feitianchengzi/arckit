@@ -17,6 +17,12 @@ const (
 )
 
 const (
+	FeedbackTriagePending  = "pending"  // 待判断
+	FeedbackTriageAccepted = "accepted" // 有效，已进入待办流转
+	FeedbackTriageIgnored  = "ignored"  // 暂不处理
+)
+
+const (
 	FeedbackMessageSenderCustomer  = "customer"
 	FeedbackMessageSenderDeveloper = "developer"
 	FeedbackMessageSenderSystem    = "system"
@@ -122,6 +128,15 @@ func IsValidFeedbackStatus(status string) bool {
 		FeedbackStatusCompleted,
 		FeedbackStatusIgnored,
 		FeedbackStatusReleased:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidFeedbackTriageStatus(status string) bool {
+	switch status {
+	case FeedbackTriagePending, FeedbackTriageAccepted, FeedbackTriageIgnored:
 		return true
 	default:
 		return false

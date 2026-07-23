@@ -264,9 +264,16 @@ func CreateFeedbackMessageFromSession(c *gin.Context) {
 	customUserID := scope.CustomUserID
 	var message models.FeedbackMessage
 	created := true
+	var taskComments []models.TaskAttachment
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		var err error
 		message, created, err = createCustomerMessageWithIdempotency(tx, feedback, &customUserID, clientMessageID, content, metadata, attachments)
+		if err != nil {
+			return err
+		}
+		if created {
+			taskComments, err = createCustomerFeedbackTaskComments(tx, feedback, message)
+		}
 		return err
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackCreateFailed, "创建反馈消息失败: "+err.Error(), nil))
@@ -276,6 +283,7 @@ func CreateFeedbackMessageFromSession(c *gin.Context) {
 	result := buildFeedbackMessageResponse(message)
 	if created {
 		notifyProjectEvent(c, db, feedback.ProjectID, 0, "feedback.message.created", result)
+		notifyFeedbackTaskAttachmentCreated(c, db, feedback.ProjectID, 0, taskComments)
 		c.JSON(http.StatusCreated, response.NewSuccessResponse(result))
 		return
 	}

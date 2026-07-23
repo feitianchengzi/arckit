@@ -6,8 +6,9 @@
 
 - V2 使用现有 Workshop 服务、数据库和 OSS Bucket，不新增 ECS 或 OSS 资源。
 - V1 Web SDK、iOS SDK、既有控制台继续使用 V1，不受 V2 开关影响。
-- V2 SDK 的浏览器请求不能携带 Workshop API Key。API Key 只能保存在宿主应用服务端。
-- V2 SDK 使用短期、单用户、单项目的反馈会话 token；token 仅能访问 `/workshop/v2/feedback/*`。
+- V2 支持两种互斥的 SDK 鉴权模式：宿主服务换取短期 token，或客户端直连 API Key。两种模式的反馈、消息和附件能力保持一致。
+- 宿主服务模式的 SDK 仅使用短期、单用户、单项目的反馈会话 token；token 仅能访问 `/workshop/v2/feedback/*`。
+- 直连 API Key 模式接受将 API Key 打包进客户端的风险，不要求客户端创建、保存或刷新反馈会话 token。
 - 控制台开发者继续走 `/workshop/v2/user/*`，拥有项目成员权限。SDK 不使用 WebSocket，采用拉取刷新。
 
 生产基础地址：
@@ -22,7 +23,7 @@ https://api.feitianchengzi.com/workshop/v2
 http://localhost:8081/workshop/v2
 ```
 
-## 认证模型
+## 鉴权模式
 
 ```mermaid
 sequenceDiagram
@@ -40,9 +41,9 @@ sequenceDiagram
   Gateway->>Workshop: 校验签名并注入不可伪造的范围 Header
 ```
 
-### 1. 宿主服务交换会话 token
+### 1. 宿主服务换取会话 token（默认安全模式）
 
-这是唯一允许使用 API Key 的接口，必须由宿主应用服务端调用，绝不能由浏览器 SDK 直接调用。
+这是安全模式下唯一允许使用 API Key 的接口，必须由宿主应用服务端调用。
 
 ```http
 POST /workshop/v2/apikey/feedback-sessions
@@ -76,7 +77,7 @@ token 固定有效期为 15 分钟。SDK 在过期前刷新；收到 `401` 后�
 
 已登录的反馈控制台可走等价的 `POST /workshop/v2/user/feedback-sessions`，使用控制台 JWT 而非 API Key。它仅用于控制台自身的项目开关灰度，不能替代第三方宿主服务的 token 交换端点。
 
-### 2. 浏览器调用反馈会话接口
+#### SDK 调用反馈会话接口
 
 SDK 仅使用：
 
@@ -90,12 +91,42 @@ Authorization: Bearer <feedback-session-token>
 | --- | --- | --- |
 | 签发附件上传策略 | POST | `/workshop/v2/feedback/upload-policies` |
 | 获取受限只读 OSS 凭证 | GET | `/workshop/v2/feedback/oss/credentials` |
+| 获取会话指定附件凭证 | GET | `/workshop/v2/feedback/feedbacks/:id/attachments/:attachment_id/oss/credentials` |
 | 创建反馈与首条消息 | POST | `/workshop/v2/feedback/feedbacks` |
 | 查询我的反馈 | GET | `/workshop/v2/feedback/feedbacks` |
 | 查询会话消息 | GET | `/workshop/v2/feedback/feedbacks/:id/messages` |
 | 用户追加消息 | POST | `/workshop/v2/feedback/feedbacks/:id/messages` |
 
 这些接口均不能枚举其他项目或其他 `custom_user_id` 的数据。
+
+### 2. 客户端直连 API Key（风险接受模式）
+
+该模式适用于希望以 V1 相同的简单配置接入 V2 的 WebView、移动端和 Web SDK。SDK 直接保留 API Key、`project_id` 与稳定的 `custom_user_id`，调用方不需要理解 token 或处理刷新。
+
+```ts
+window.FeedbackSDK.configure({
+  feedbackV2Enabled: true,
+  feedbackV2AuthMode: 'apiKey',
+  apiKey: 'ak_<project-scoped-key>',
+  projectId: 78,
+  customUserId: 'stable-high-entropy-install-or-user-id',
+  gatewayUrl: 'https://api.feitianchengzi.com',
+})
+```
+
+| 能力 | 方法 | 路径 | 额外范围字段 |
+| --- | --- | --- | --- |
+| 创建反馈与首条消息 | POST | `/workshop/v2/apikey/feedbacks` | body: `project_id`、`custom_user_id` |
+| 查询我的反馈 | GET | `/workshop/v2/apikey/feedbacks` | query: `project_id`、`custom_user_id` |
+| 查询会话消息 | GET | `/workshop/v2/apikey/feedbacks/:id/messages` | query: `custom_user_id` |
+| 用户追加消息 | POST | `/workshop/v2/apikey/feedbacks/:id/messages` | body: `custom_user_id` |
+| 签发附件上传策略 | POST | `/workshop/v2/apikey/feedbacks/upload-policies` | body: `project_id`、`custom_user_id` |
+| 获取只读附件凭证 | GET | `/workshop/v2/apikey/feedbacks/oss/credentials` | query: `project_id`、`custom_user_id` |
+| 获取会话指定附件凭证 | GET | `/workshop/v2/apikey/feedbacks/:id/attachments/:attachment_id/oss/credentials` | query: `custom_user_id` |
+
+所有请求使用 `Authorization: Bearer <api-key>`。网关验证 API Key 后，Workshop 再验证 API Key 所属用户仍是项目成员。创建反馈时 `data` 保持 API Key 基础接口的兼容格式，为 JSON 字符串；官方 SDK 会自动处理这个格式差异。
+
+API Key 打包在客户端中不是秘密。此模式必须由接入方显式选择，建议使用项目专用、可轮换的 Key，并配置限流、吊销与滥用监控。没有宿主服务身份时，`custom_user_id` 应是本地持久化的高熵随机 ID，不能使用可猜测的账号编号或明文 PII。
 
 ## 功能接口
 
@@ -132,7 +163,7 @@ GET /workshop/v2/feedback/feedbacks/10/messages?page=1&page_size=50
 Authorization: Bearer <feedback-session-token>
 ```
 
-按 `created_at ASC, id ASC` 返回。开发者消息、系统状态消息与用户消息均在同一时间线中。客户端应在进入会话、窗口重新获得焦点、发送成功后刷新；活跃会话可每 30 秒轮询，非活跃会话不要持续轮询。
+按 `created_at ASC, id ASC` 返回。开发者消息、系统状态消息与用户消息均在同一时间线中。SDK 应在进入会话、窗口重新获得焦点、发送成功后刷新；活跃会话可每 30 秒轮询，非活跃会话不要持续轮询。控制台订阅项目 WebSocket 的 `feedback.*` 事件并立即刷新，同时以可见页轮询作为断线兜底。
 
 ### 追加用户消息与幂等
 
@@ -194,9 +225,20 @@ if (result.status !== 201) throw new Error('attachment upload failed')
 
 上传成功后，创建反馈或消息时只提交 `object_key` 及原申请的 `type`、`file_name`、`mime_type`、`size`。服务端再次校验 object key 是否属于当前会话范围。
 
+直连 API Key 模式调用 `/workshop/v2/apikey/feedbacks/upload-policies`，并在请求体中增加 `project_id` 与 `custom_user_id`；返回和上传方式完全相同。服务端用同一项目/用户哈希前缀校验后续消息附件。
+
 ### 3. 读取私有附件
 
-`GET /feedback/oss/credentials` 返回的 STS 凭证只允许当前用户范围内的 `GetObject`，有效期不超过 15 分钟。SDK 可使用该凭证为 `object_key` 生成短期 HTTPS 访问 URL。不得调用 `put`、不得缓存 STS 密钥，也不得把对象键拼成公开 URL。
+`GET /feedback/oss/credentials` 返回的 STS 凭证只允许当前用户范围内的 `GetObject`，有效期不超过 15 分钟。直连 API Key 模式使用 `/apikey/feedbacks/oss/credentials?project_id=...&custom_user_id=...`，权限范围相同。SDK 可使用该凭证为用户上传的 `object_key` 生成短期 HTTPS 访问 URL。不得调用 `put`、不得缓存 STS 密钥，也不得把对象键拼成公开 URL。
+
+开发者上传的附件可能位于控制台专用 OSS 路径，不属于用户前缀。读取任意消息附件时，SDK 应优先使用消息响应中的 `feedback_id`、附件 `id` 与 `object_key` 调用精确凭据接口：
+
+```text
+GET /workshop/v2/feedback/feedbacks/:feedback_id/attachments/:attachment_id/oss/credentials
+GET /workshop/v2/apikey/feedbacks/:feedback_id/attachments/:attachment_id/oss/credentials?custom_user_id=...
+```
+
+该凭据仅允许读取一个 object key；SDK 可据此生成临时 HTTPS URL。图片应直接预览，PDF 应在内嵌阅读器中打开，其他文件保留下载或新窗口打开。
 
 外链附件不经 OSS，必须是 HTTPS URL。
 
@@ -212,14 +254,13 @@ if (result.status !== 201) throw new Error('attachment upload failed')
 SDK 与控制台各自增加独立的 V2 feedback client，不改全局 API client。建议项目级开关：
 
 ```ts
-type FeedbackV2Config = {
-  enabled: boolean
-  getSessionToken: () => Promise<string>
-}
+type FeedbackV2Config =
+  | { enabled: true; authMode: 'session'; getSessionToken: () => Promise<string> }
+  | { enabled: true; authMode: 'apiKey'; apiKey: string; projectId: number; customUserId: string }
 ```
 
-1. 先在独立测试项目启用，使用可轮换 API Key 的宿主服务交换 token。
-2. SDK 启用后仅该项目使用 `/v2/feedback/*`；V1 SDK/iOS/控制台默认路径不变。
+1. 先在独立测试项目启用，分别验证安全 token 与直连 API Key 模式。
+2. SDK 启用后仅该项目使用 V2 路径；V1 SDK/iOS/控制台默认路径不变。
 3. 验证创建、首条消息、跨用户隔离、附件策略、幂等重试、开发者回复和待办状态回写。
 4. 观察错误率与轮询负载后，按项目逐步放量。关闭开关即可停止新增 V2 SDK 请求，不涉及数据库回滚。
 

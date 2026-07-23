@@ -55,6 +55,7 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		if enableFeedbackWorkflow {
 			registerFeedbackWorkflowRoutes(userGroup)
 			userGroup.POST("/feedback-sessions", handler.CreateFeedbackSession)
+			userGroup.POST("/feedbacks/:id/upload-policies", handler.CreateFeedbackDeveloperUploadPolicy)
 		}
 		userGroup.POST("/projects/:id/feedback-access-keys", handler.CreateProjectFeedbackAccessKey)           // 创建项目反馈访问 key（管理员/所有者）
 		userGroup.GET("/projects/:id/feedback-access-keys", handler.GetProjectFeedbackAccessKeys)              // 查询项目反馈访问 key 列表（管理员/所有者）
@@ -69,6 +70,8 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		if enableFeedbackWorkflow {
 			registerFeedbackWorkflowRoutes(apikeyGroup)
 			apikeyGroup.POST("/feedback-sessions", handler.CreateFeedbackSession)
+			apikeyGroup.POST("/feedbacks/upload-policies", handler.CreateFeedbackUploadPolicyByAPIKey)
+			apikeyGroup.GET("/feedbacks/oss/credentials", handler.GetFeedbackAPIKeyOSSTempCredentials)
 
 			// feedback 是仅供 SDK 使用的窄权限认证级别。范围由网关校验
 			// 的短期 token 注入，不能复用 API Key 的项目成员权限。
@@ -181,9 +184,12 @@ func registerBusinessRoutes(group *gin.RouterGroup) {
 }
 
 func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
-	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessages)           // 查询反馈消息
-	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessage)        // 创建反馈消息
+	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessages)    // 查询反馈消息
+	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessage) // 创建反馈消息
+	group.GET("/feedbacks/:id/attachments/:attachment_id/oss/credentials", handler.GetFeedbackAttachmentOSSCredentials)
 	group.POST("/feedbacks/:id/convert-to-task", handler.ConvertFeedbackToTask) // 将反馈流转为待办
+	group.POST("/feedbacks/:id/ignore", handler.IgnoreFeedback)                 // 标记反馈为暂不处理
+	group.GET("/tasks/attachments/:id/oss/credentials", handler.GetFeedbackTaskAttachmentOSSCredentials)
 }
 
 func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
@@ -193,4 +199,5 @@ func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
 	group.GET("/feedbacks", handler.GetFeedbacksFromSession)
 	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessagesFromSession)
 	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessageFromSession)
+	group.GET("/feedbacks/:id/attachments/:attachment_id/oss/credentials", handler.GetFeedbackAttachmentOSSCredentialsFromSession)
 }

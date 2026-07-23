@@ -476,7 +476,7 @@ func initialFeedbackMessageMetadata(legacy bool) *string {
 	return &value
 }
 
-func createInitialFeedbackMessage(tx *gorm.DB, feedback models.Feedback, senderType string, senderUserID *uint, senderCustomUserID *string) (models.FeedbackMessage, error) {
+func createInitialFeedbackMessage(tx *gorm.DB, feedback models.Feedback, senderType string, senderUserID *uint, senderCustomUserID *string, attachments []models.FeedbackMessageAttachment) (models.FeedbackMessage, error) {
 	return createFeedbackMessageRecord(
 		tx,
 		feedback,
@@ -487,7 +487,7 @@ func createInitialFeedbackMessage(tx *gorm.DB, feedback models.Feedback, senderT
 		models.FeedbackMessageTypeText,
 		feedback.Content,
 		initialFeedbackMessageMetadata(false),
-		nil,
+		attachments,
 	)
 }
 
@@ -615,6 +615,8 @@ func CreateFeedbackMessage(c *gin.Context) {
 	objectKeyPrefix := ""
 	if isV2APIKeyRequest(c) && senderCustomUserID != nil {
 		objectKeyPrefix = feedbackAttachmentPrefix(feedback.ProjectID, *senderCustomUserID)
+	} else if isV2Request(c) {
+		objectKeyPrefix = feedbackDeveloperAttachmentPrefix(feedback.ProjectID, userID)
 	}
 	attachments, err := buildFeedbackMessageAttachments(req.Attachments, objectKeyPrefix)
 	if err != nil {
@@ -634,13 +636,20 @@ func CreateFeedbackMessage(c *gin.Context) {
 
 	var message models.FeedbackMessage
 	created := true
+	var taskComments []models.TaskAttachment
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		var err error
 		if senderType == models.FeedbackMessageSenderCustomer && clientMessageID != nil {
 			message, created, err = createCustomerMessageWithIdempotency(tx, feedback, senderCustomUserID, clientMessageID, content, metadata, attachments)
+		} else {
+			message, err = createFeedbackMessageRecord(tx, feedback, senderType, senderUserID, senderCustomUserID, nil, models.FeedbackMessageTypeText, content, metadata, attachments)
+		}
+		if err != nil {
 			return err
 		}
-		message, err = createFeedbackMessageRecord(tx, feedback, senderType, senderUserID, senderCustomUserID, nil, models.FeedbackMessageTypeText, content, metadata, attachments)
+		if created && senderType == models.FeedbackMessageSenderCustomer {
+			taskComments, err = createCustomerFeedbackTaskComments(tx, feedback, message)
+		}
 		return err
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackCreateFailed, "创建反馈消息失败: "+err.Error(), nil))
@@ -650,6 +659,7 @@ func CreateFeedbackMessage(c *gin.Context) {
 	resp := buildFeedbackMessageResponse(message)
 	if created {
 		notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.message.created", resp)
+		notifyFeedbackTaskAttachmentCreated(c, db, feedback.ProjectID, userID, taskComments)
 		c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 		return
 	}
@@ -690,6 +700,102 @@ func canonicalFeedbackStatus(raw string) string {
 		return models.FeedbackStatusAccepted
 	default:
 		return ""
+	}
+}
+
+func canonicalFeedbackTriageStatus(raw string) string {
+	status := strings.ToLower(strings.TrimSpace(raw))
+	if models.IsValidFeedbackTriageStatus(status) {
+		return status
+	}
+	return ""
+}
+
+func feedbackTriageStatus(feedback models.Feedback) string {
+	if status := canonicalFeedbackTriageStatus(feedback.TriageStatus); status != "" {
+		return status
+	}
+
+	switch canonicalFeedbackStatus(feedback.Status) {
+	case models.FeedbackStatusIgnored:
+		return models.FeedbackTriageIgnored
+	case models.FeedbackStatusAccepted,
+		models.FeedbackStatusConverted,
+		models.FeedbackStatusInProgress,
+		models.FeedbackStatusCompleted,
+		models.FeedbackStatusReleased:
+		return models.FeedbackTriageAccepted
+	default:
+		return models.FeedbackTriagePending
+	}
+}
+
+func feedbackTaskIDFromPayload(value interface{}) *uint {
+	var parsed uint64
+	var err error
+	switch typed := value.(type) {
+	case float64:
+		if typed <= 0 || typed != float64(uint64(typed)) {
+			return nil
+		}
+		parsed = uint64(typed)
+	case string:
+		parsed, err = strconv.ParseUint(strings.TrimSpace(typed), 10, 64)
+		if err != nil {
+			return nil
+		}
+	case json.Number:
+		parsed, err = strconv.ParseUint(string(typed), 10, 64)
+		if err != nil {
+			return nil
+		}
+	case uint:
+		parsed = uint64(typed)
+	case uint64:
+		parsed = typed
+	case int:
+		if typed <= 0 {
+			return nil
+		}
+		parsed = uint64(typed)
+	default:
+		return nil
+	}
+	if parsed == 0 || uint64(uint(parsed)) != parsed {
+		return nil
+	}
+	result := uint(parsed)
+	return &result
+}
+
+func feedbackTaskInfoFromData(data *string) (*uint, string) {
+	payload := parseFeedbackPayload(data)
+	taskID := feedbackTaskIDFromPayload(payload["converted_task_id"])
+	taskState, _ := payload["task_state"].(string)
+	return taskID, strings.TrimSpace(taskState)
+}
+
+func customerStatusFromFeedback(feedback models.Feedback) string {
+	if feedbackTriageStatus(feedback) == models.FeedbackTriageIgnored {
+		return "ignored"
+	}
+
+	switch canonicalFeedbackStatus(feedback.Status) {
+	case models.FeedbackStatusAccepted, models.FeedbackStatusConverted:
+		return "reviewing"
+	case models.FeedbackStatusInProgress:
+		return "developing"
+	case models.FeedbackStatusCompleted:
+		return "completed"
+	case models.FeedbackStatusReleased:
+		return "released"
+	case models.FeedbackStatusIgnored:
+		return "ignored"
+	default:
+		if feedbackTriageStatus(feedback) == models.FeedbackTriageAccepted {
+			return "reviewing"
+		}
+		return "submitted"
 	}
 }
 
@@ -802,6 +908,181 @@ func buildFeedbackTaskContent(feedback models.Feedback) string {
 		return "[反馈] " + title
 	}
 	return "[反馈]"
+}
+
+func isInitialFeedbackMessage(message models.FeedbackMessage) bool {
+	if message.Metadata == nil || strings.TrimSpace(*message.Metadata) == "" {
+		return false
+	}
+	var metadata struct {
+		Source string `json:"source"`
+	}
+	return json.Unmarshal([]byte(*message.Metadata), &metadata) == nil && metadata.Source == "feedback_initial"
+}
+
+func buildFeedbackTaskAttachmentComment(feedback models.Feedback, message models.FeedbackMessage, attachments []models.FeedbackMessageAttachment) string {
+	parts := make([]string, 0, len(attachments))
+	seen := make(map[string]struct{})
+	appendObject := func(marker, value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		key := marker + "\x00" + value
+		if _, exists := seen[key]; exists {
+			return
+		}
+		seen[key] = struct{}{}
+		parts = append(parts, fmt.Sprintf("[%s](%s)", marker, value))
+	}
+
+	for _, attachment := range attachments {
+		if attachment.ObjectKey != nil {
+			marker := "file"
+			if attachment.Type == models.FeedbackAttachmentTypeImage {
+				marker = "image"
+			}
+			appendObject(marker, *attachment.ObjectKey)
+			continue
+		}
+		if attachment.URL != nil {
+			appendObject("link", *attachment.URL)
+		}
+	}
+	initialMessage := isInitialFeedbackMessage(message)
+	content := strings.TrimSpace(message.Content)
+	if len(parts) == 0 && (initialMessage || content == "") {
+		return ""
+	}
+	shortID := strings.TrimSpace(feedback.ShortID)
+	if shortID == "" {
+		shortID = strconv.FormatUint(uint64(feedback.ID), 10)
+	}
+
+	heading := "反馈 #" + shortID + " 的附件："
+	if initialMessage {
+		heading = "来源反馈 #" + shortID + " 的附件："
+	} else if message.SenderType == models.FeedbackMessageSenderCustomer {
+		heading = "用户补充（反馈 #" + shortID + "）："
+	} else if message.SenderType == models.FeedbackMessageSenderDeveloper {
+		heading = "开发者回复（反馈 #" + shortID + "）："
+	}
+
+	lines := []string{heading}
+	if !initialMessage && content != "" {
+		lines = append(lines, content)
+	}
+	return strings.Join(append(lines, parts...), "\n")
+}
+
+func buildLegacyFeedbackTaskAttachmentComment(feedback models.Feedback) string {
+	if feedback.File == nil || strings.TrimSpace(*feedback.File) == "" {
+		return ""
+	}
+	file := strings.TrimSpace(*feedback.File)
+	attachment := models.FeedbackMessageAttachment{Type: models.FeedbackAttachmentTypeFile}
+	if strings.HasPrefix(strings.ToLower(file), "https://") {
+		attachment.Type = models.FeedbackAttachmentTypeURL
+		attachment.URL = &file
+	} else {
+		attachment.ObjectKey = &file
+	}
+	metadata := initialFeedbackMessageMetadata(true)
+	return buildFeedbackTaskAttachmentComment(feedback, models.FeedbackMessage{
+		SenderType: models.FeedbackMessageSenderCustomer,
+		Metadata:   metadata,
+	}, []models.FeedbackMessageAttachment{attachment})
+}
+
+func loadFeedbackTaskAttachmentComments(tx *gorm.DB, feedback models.Feedback) ([]string, error) {
+	var messages []models.FeedbackMessage
+	if err := tx.Where("feedback_id = ?", feedback.ID).
+		Preload("Attachments", func(db *gorm.DB) *gorm.DB {
+			return db.Order("created_at ASC").Order("id ASC")
+		}).
+		Order("created_at ASC").
+		Order("id ASC").
+		Find(&messages).Error; err != nil {
+		return nil, err
+	}
+	comments := make([]string, 0)
+	for _, message := range messages {
+		if message.SenderType == models.FeedbackMessageSenderSystem || len(message.Attachments) == 0 {
+			continue
+		}
+		if content := buildFeedbackTaskAttachmentComment(feedback, message, message.Attachments); content != "" {
+			comments = append(comments, content)
+		}
+	}
+	if legacyContent := buildLegacyFeedbackTaskAttachmentComment(feedback); legacyContent != "" {
+		comments = append(comments, legacyContent)
+	}
+	return comments, nil
+}
+
+// createCustomerFeedbackTaskComments mirrors a newly created customer follow-up
+// into the primary converted task. The feedback message and task comment share
+// one transaction, so a failed comment write never leaves a partial sync.
+func createCustomerFeedbackTaskComments(tx *gorm.DB, feedback models.Feedback, message models.FeedbackMessage) ([]models.TaskAttachment, error) {
+	if message.SenderType != models.FeedbackMessageSenderCustomer || isInitialFeedbackMessage(message) {
+		return nil, nil
+	}
+	content := buildFeedbackTaskAttachmentComment(feedback, message, message.Attachments)
+	if content == "" {
+		return nil, nil
+	}
+
+	var links []models.FeedbackTaskLink
+	if err := tx.Where("feedback_id = ? AND relation_type = ? AND is_primary = ?", feedback.ID, models.FeedbackTaskRelationConvertedTo, true).
+		Order("id ASC").
+		Find(&links).Error; err != nil {
+		return nil, err
+	}
+
+	comments := make([]models.TaskAttachment, 0, len(links))
+	for _, link := range links {
+		var task models.Task
+		if err := tx.First(&task, link.TaskID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				continue
+			}
+			return nil, err
+		}
+
+		creatorID := task.CreatorID
+		if link.CreatedBy != nil && *link.CreatedBy != 0 {
+			creatorID = *link.CreatedBy
+		}
+		comment := models.TaskAttachment{
+			TaskID:    task.ID,
+			CreatorID: creatorID,
+			Type:      models.AttachmentTypeText,
+			Content:   content,
+		}
+		if err := tx.Create(&comment).Error; err != nil {
+			return nil, err
+		}
+		comments = append(comments, comment)
+	}
+	return comments, nil
+}
+
+func buildFeedbackTaskAttachmentCreatedResponse(attachment models.TaskAttachment) CreateTaskAttachmentResponse {
+	return CreateTaskAttachmentResponse{
+		ID:        attachment.ID,
+		TaskID:    attachment.TaskID,
+		CreatorID: attachment.CreatorID,
+		Type:      attachment.Type,
+		Content:   attachment.Content,
+		CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: attachment.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+}
+
+func notifyFeedbackTaskAttachmentCreated(c *gin.Context, db *gorm.DB, projectID, actorID uint, attachments []models.TaskAttachment) {
+	for _, attachment := range attachments {
+		notifyProjectEvent(c, db, projectID, actorID, "task_attachment.created", buildFeedbackTaskAttachmentCreatedResponse(attachment))
+	}
 }
 
 func mapTaskStateToFeedbackStatus(taskState string) string {
@@ -931,6 +1212,93 @@ func validateFeedbackTaskTarget(c *gin.Context, db *gorm.DB, projectID uint, req
 	return true
 }
 
+// IgnoreFeedback 标记 V2 反馈为暂不处理。受理决定只允许在尚未流转待办时修改。
+func IgnoreFeedback(c *gin.Context) {
+	if isAPIKeyRequest(c) {
+		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeFeedbackNoPermission, "API Key 认证不允许变更反馈受理决定", nil))
+		return
+	}
+
+	feedbackID, ok := parseFeedbackIDParam(c)
+	if !ok {
+		return
+	}
+	db := middleware.GetDB(c)
+	if db == nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeDatabaseNotInit, "数据库连接未初始化", nil))
+		return
+	}
+	feedback, ok := loadFeedbackByID(c, db, feedbackID)
+	if !ok {
+		return
+	}
+	userID, ok := requireFeedbackProjectMember(c, db, feedback.ProjectID, "忽略反馈")
+	if !ok {
+		return
+	}
+
+	var message models.FeedbackMessage
+	changed := false
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		var link models.FeedbackTaskLink
+		err := tx.Where("feedback_id = ? AND is_primary = ?", feedback.ID, true).First(&link).Error
+		if err == nil {
+			return errFeedbackAlreadyConverted
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+
+		if feedbackTriageStatus(feedback) == models.FeedbackTriageIgnored {
+			return nil
+		}
+		if err := tx.Model(&feedback).Update("triage_status", models.FeedbackTriageIgnored).Error; err != nil {
+			return err
+		}
+		feedback.TriageStatus = models.FeedbackTriageIgnored
+		if err := updateFeedbackStatusFields(tx, &feedback, models.FeedbackStatusIgnored, nil); err != nil {
+			return err
+		}
+
+		metadataBytes, _ := json.Marshal(map[string]interface{}{
+			"triage_status": models.FeedbackTriageIgnored,
+		})
+		metadata := string(metadataBytes)
+		var createErr error
+		message, createErr = createFeedbackMessageRecord(
+			tx,
+			feedback,
+			models.FeedbackMessageSenderSystem,
+			&userID,
+			nil,
+			nil,
+			models.FeedbackMessageTypeStatusChange,
+			"反馈已标记为暂不处理",
+			&metadata,
+			nil,
+		)
+		if createErr != nil {
+			return createErr
+		}
+		changed = true
+		return nil
+	}); err != nil {
+		if errors.Is(err, errFeedbackAlreadyConverted) {
+			c.JSON(http.StatusConflict, response.NewErrorResponse(response.CodeBadRequest, "反馈已流转为待办，不能再标记为忽略", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackUpdateFailed, "忽略反馈失败: "+err.Error(), nil))
+		return
+	}
+
+	feedbackResp := buildFeedbackResponse(feedback)
+	if changed {
+		notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.updated", feedbackResp)
+		notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.message.created", buildFeedbackMessageResponse(message))
+	}
+	c.JSON(http.StatusOK, response.NewSuccessResponse(feedbackResp))
+}
+
 // ConvertFeedbackToTask 将反馈原子流转为待办
 func ConvertFeedbackToTask(c *gin.Context) {
 	if isAPIKeyRequest(c) {
@@ -964,6 +1332,10 @@ func ConvertFeedbackToTask(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if feedbackTriageStatus(feedback) == models.FeedbackTriageIgnored {
+		c.JSON(http.StatusConflict, response.NewErrorResponse(response.CodeBadRequest, "反馈已标记为暂不处理，不能流转待办", nil))
+		return
+	}
 	if !validateFeedbackTaskTarget(c, db, feedback.ProjectID, req) {
 		return
 	}
@@ -980,6 +1352,7 @@ func ConvertFeedbackToTask(c *gin.Context) {
 	var task models.Task
 	var link models.FeedbackTaskLink
 	var message models.FeedbackMessage
+	var taskAttachments []models.TaskAttachment
 	var existingTaskID uint
 
 	if err := db.Transaction(func(tx *gorm.DB) error {
@@ -1021,6 +1394,27 @@ func ConvertFeedbackToTask(c *gin.Context) {
 		if err := tx.Create(&link).Error; err != nil {
 			return err
 		}
+		if err := tx.Model(&feedback).Update("triage_status", models.FeedbackTriageAccepted).Error; err != nil {
+			return err
+		}
+		feedback.TriageStatus = models.FeedbackTriageAccepted
+
+		attachmentComments, err := loadFeedbackTaskAttachmentComments(tx, feedback)
+		if err != nil {
+			return err
+		}
+		for _, attachmentContent := range attachmentComments {
+			attachment := models.TaskAttachment{
+				TaskID:    task.ID,
+				CreatorID: userID,
+				Type:      models.AttachmentTypeText,
+				Content:   attachmentContent,
+			}
+			if err := tx.Create(&attachment).Error; err != nil {
+				return err
+			}
+			taskAttachments = append(taskAttachments, attachment)
+		}
 
 		extra := map[string]interface{}{
 			"converted_task_id": task.ID,
@@ -1039,7 +1433,6 @@ func ConvertFeedbackToTask(c *gin.Context) {
 			"feedback_status": nextStatus,
 		})
 		metadata := string(metadataBytes)
-		var err error
 		message, err = createFeedbackMessageRecord(
 			tx,
 			feedback,
@@ -1071,6 +1464,7 @@ func ConvertFeedbackToTask(c *gin.Context) {
 	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.updated", feedbackResp)
 	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.task_link.created", linkResp)
 	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.message.created", messageResp)
+	notifyFeedbackTaskAttachmentCreated(c, db, feedback.ProjectID, userID, taskAttachments)
 
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(ConvertFeedbackToTaskResponse{
 		Feedback: feedbackResp,
