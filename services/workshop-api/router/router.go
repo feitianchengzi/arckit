@@ -54,6 +54,7 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		registerBusinessRoutes(userGroup)
 		if enableFeedbackWorkflow {
 			registerFeedbackWorkflowRoutes(userGroup)
+			registerFeedbackNotificationRoutes(userGroup)
 			userGroup.POST("/feedback-sessions", handler.CreateFeedbackSession)
 			userGroup.POST("/feedbacks/:id/upload-policies", handler.CreateFeedbackDeveloperUploadPolicy)
 		}
@@ -69,6 +70,7 @@ func registerVersionRoutes(r *gin.Engine, serviceName string, version string, en
 		registerBusinessRoutes(apikeyGroup)
 		if enableFeedbackWorkflow {
 			registerFeedbackWorkflowRoutes(apikeyGroup)
+			registerFeedbackNotificationAPIKeyRoutes(apikeyGroup)
 			apikeyGroup.POST("/feedback-sessions", handler.CreateFeedbackSession)
 			apikeyGroup.POST("/feedbacks/upload-policies", handler.CreateFeedbackUploadPolicyByAPIKey)
 			apikeyGroup.GET("/feedbacks/oss/credentials", handler.GetFeedbackAPIKeyOSSTempCredentials)
@@ -195,9 +197,21 @@ func registerFeedbackWorkflowRoutes(group *gin.RouterGroup) {
 func registerFeedbackSessionRoutes(group *gin.RouterGroup) {
 	group.POST("/upload-policies", handler.CreateFeedbackUploadPolicy)
 	group.GET("/oss/credentials", handler.GetFeedbackSessionOSSTempCredentials)
+	group.GET("/notifications", handler.GetFeedbackNotificationsFromSession)
+	group.POST("/notifications/read", handler.MarkFeedbackNotificationsReadFromSession)
 	group.POST("/feedbacks", handler.CreateFeedbackFromSession)
 	group.GET("/feedbacks", handler.GetFeedbacksFromSession)
 	group.GET("/feedbacks/:id/messages", handler.GetFeedbackMessagesFromSession)
 	group.POST("/feedbacks/:id/messages", handler.CreateFeedbackMessageFromSession)
 	group.GET("/feedbacks/:id/attachments/:attachment_id/oss/credentials", handler.GetFeedbackAttachmentOSSCredentialsFromSession)
+}
+
+func registerFeedbackNotificationRoutes(group *gin.RouterGroup) {
+	group.GET("/feedback-notifications", handler.GetFeedbackNotifications)
+	group.POST("/feedback-notifications/read", handler.MarkFeedbackNotificationsRead)
+}
+
+func registerFeedbackNotificationAPIKeyRoutes(group *gin.RouterGroup) {
+	group.GET("/feedback-notifications", handler.GetFeedbackNotificationsByAPIKey)
+	group.POST("/feedback-notifications/read", handler.MarkFeedbackNotificationsReadByAPIKey)
 }

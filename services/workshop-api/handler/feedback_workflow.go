@@ -649,8 +649,16 @@ func CreateFeedbackMessage(c *gin.Context) {
 		}
 		if created && senderType == models.FeedbackMessageSenderCustomer {
 			taskComments, err = createCustomerFeedbackTaskComments(tx, feedback, message)
+			if err != nil {
+				return err
+			}
 		}
-		return err
+		if created {
+			if err := createFeedbackNotificationsForMessage(tx, feedback, message); err != nil {
+				return err
+			}
+		}
+		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackCreateFailed, "创建反馈消息失败: "+err.Error(), nil))
 		return
@@ -1157,6 +1165,9 @@ func syncLinkedFeedbacksFromTask(tx *gorm.DB, task models.Task, oldState string,
 		if err != nil {
 			return nil, err
 		}
+		if err := createFeedbackNotificationsForMessage(tx, feedback, message); err != nil {
+			return nil, err
+		}
 
 		events = append(events,
 			feedbackWorkflowEvent{
@@ -1278,6 +1289,9 @@ func IgnoreFeedback(c *gin.Context) {
 			nil,
 		)
 		if createErr != nil {
+			return createErr
+		}
+		if createErr := createFeedbackNotificationsForMessage(tx, feedback, message); createErr != nil {
 			return createErr
 		}
 		changed = true
@@ -1445,7 +1459,10 @@ func ConvertFeedbackToTask(c *gin.Context) {
 			&metadata,
 			nil,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+		return createFeedbackNotificationsForMessage(tx, feedback, message)
 	}); err != nil {
 		if errors.Is(err, errFeedbackAlreadyConverted) {
 			c.JSON(http.StatusConflict, response.NewErrorResponse(response.CodeBadRequest, fmt.Sprintf("反馈已流转为待办 #%d", existingTaskID), nil))

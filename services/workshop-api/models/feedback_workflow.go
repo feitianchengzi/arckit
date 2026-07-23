@@ -29,6 +29,17 @@ const (
 )
 
 const (
+	FeedbackNotificationRecipientCustomer  = "customer"
+	FeedbackNotificationRecipientDeveloper = "developer"
+)
+
+const (
+	FeedbackNotificationTypeCustomerMessage  = "customer_message"
+	FeedbackNotificationTypeDeveloperMessage = "developer_message"
+	FeedbackNotificationTypeStatusChange     = "status_change"
+)
+
+const (
 	FeedbackMessageTypeText         = "text"
 	FeedbackMessageTypeStatusChange = "status_change"
 	FeedbackMessageTypeTaskLink     = "task_link"
@@ -96,6 +107,31 @@ func (FeedbackMessageAttachment) TableName() string {
 	return "feedback_message_attachments"
 }
 
+// FeedbackNotification stores one in-app notification per recipient. It is
+// deliberately separate from Feedback so V1 and existing V2 payloads remain
+// unchanged while clients migrate to the notification APIs.
+type FeedbackNotification struct {
+	ID                    uint           `json:"id" gorm:"primaryKey;autoIncrement"`
+	ProjectID             uint           `json:"project_id" gorm:"not null;index;index:idx_feedback_notifications_recipient_created,priority:1"`
+	FeedbackID            uint           `json:"feedback_id" gorm:"not null;index;index:idx_feedback_notifications_feedback_recipient_created,priority:1"`
+	MessageID             uint           `json:"message_id" gorm:"not null;index"`
+	RecipientType         string         `json:"recipient_type" gorm:"type:varchar(32);not null;index;index:idx_feedback_notifications_recipient_created,priority:2;index:idx_feedback_notifications_feedback_recipient_created,priority:2"`
+	RecipientUserID       *uint          `json:"recipient_user_id,omitempty" gorm:"index;index:idx_feedback_notifications_recipient_created,priority:3;index:idx_feedback_notifications_feedback_recipient_created,priority:3"`
+	RecipientCustomUserID *string        `json:"recipient_custom_user_id,omitempty" gorm:"type:varchar(128);index;index:idx_feedback_notifications_recipient_created,priority:4;index:idx_feedback_notifications_feedback_recipient_created,priority:4"`
+	Type                  string         `json:"type" gorm:"type:varchar(32);not null;index"`
+	ReadAt                *time.Time     `json:"read_at,omitempty" gorm:"index"`
+	CreatedAt             time.Time      `json:"created_at" gorm:"autoCreateTime;index:idx_feedback_notifications_recipient_created,priority:6,sort:desc;index:idx_feedback_notifications_feedback_recipient_created,priority:6,sort:desc"`
+	UpdatedAt             time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt             gorm.DeletedAt `json:"deleted_at,omitempty" gorm:"index;column:delete_at;index:idx_feedback_notifications_recipient_created,priority:5;index:idx_feedback_notifications_feedback_recipient_created,priority:5"`
+
+	Feedback Feedback        `json:"feedback,omitempty" gorm:"foreignKey:FeedbackID;references:ID;constraint:OnDelete:CASCADE"`
+	Message  FeedbackMessage `json:"message,omitempty" gorm:"foreignKey:MessageID;references:ID;constraint:OnDelete:CASCADE"`
+}
+
+func (FeedbackNotification) TableName() string {
+	return "feedback_notifications"
+}
+
 // FeedbackTaskLink 反馈与待办关联表
 type FeedbackTaskLink struct {
 	ID           uint           `json:"id" gorm:"primaryKey;autoIncrement"`
@@ -148,6 +184,26 @@ func IsValidFeedbackMessageSenderType(senderType string) bool {
 	case FeedbackMessageSenderCustomer,
 		FeedbackMessageSenderDeveloper,
 		FeedbackMessageSenderSystem:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidFeedbackNotificationRecipientType(recipientType string) bool {
+	switch recipientType {
+	case FeedbackNotificationRecipientCustomer, FeedbackNotificationRecipientDeveloper:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsValidFeedbackNotificationType(notificationType string) bool {
+	switch notificationType {
+	case FeedbackNotificationTypeCustomerMessage,
+		FeedbackNotificationTypeDeveloperMessage,
+		FeedbackNotificationTypeStatusChange:
 		return true
 	default:
 		return false

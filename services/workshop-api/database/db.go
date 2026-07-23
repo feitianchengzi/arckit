@@ -127,6 +127,7 @@ func InitDB() error {
 			&models.Feedback{},
 			&models.FeedbackMessage{},
 			&models.FeedbackMessageAttachment{},
+			&models.FeedbackNotification{},
 			&models.FeedbackTaskLink{},
 			&models.ProjectFeedbackAccessKey{},
 		)

@@ -277,6 +277,7 @@ func CreateFeedback(c *gin.Context) {
 		initialMessageAttachments = attachments
 	}
 
+	var initialMessage models.FeedbackMessage
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&feedback).Error; err != nil {
 			if isUniqueViolation(err, "uniq_feedback_short_id") {
@@ -293,7 +294,11 @@ func CreateFeedback(c *gin.Context) {
 				senderUserID = nil
 				senderCustomUserID = req.CustomUserID
 			}
-			if _, err := createInitialFeedbackMessage(tx, feedback, senderType, senderUserID, senderCustomUserID, initialMessageAttachments); err != nil {
+			initialMessage, err = createInitialFeedbackMessage(tx, feedback, senderType, senderUserID, senderCustomUserID, initialMessageAttachments)
+			if err != nil {
+				return err
+			}
+			if err := createFeedbackNotificationsForMessage(tx, feedback, initialMessage); err != nil {
 				return err
 			}
 		}
@@ -546,7 +551,12 @@ func DeleteFeedback(c *gin.Context) {
 	}
 
 	deletedAt := time.Now()
-	if err := db.Delete(&feedback).Error; err != nil {
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("feedback_id = ?", feedback.ID).Delete(&models.FeedbackNotification{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&feedback).Error
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackDeleteFailed, "删除反馈失败: "+err.Error(), nil))
 		return
 	}

@@ -43,6 +43,8 @@ func TestFeedbackWorkflowRoutesAreV2Only(t *testing.T) {
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/apikey/feedbacks/oss/credentials")
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedback-sessions")
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedbacks/:id/upload-policies")
+	requireRoute(t, engine, http.MethodGet, "/workshop/v2/user/feedback-notifications")
+	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedback-notifications/read")
 
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/user/feedbacks/:id/messages")
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/user/feedbacks/:id/messages")
@@ -54,7 +56,11 @@ func TestFeedbackWorkflowRoutesAreV2Only(t *testing.T) {
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/apikey/feedbacks/:id/messages")
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/apikey/feedbacks/:id/attachments/:attachment_id/oss/credentials")
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/apikey/tasks/attachments/:id/oss/credentials")
+	requireRoute(t, engine, http.MethodGet, "/workshop/v2/apikey/feedback-notifications")
+	requireRoute(t, engine, http.MethodPost, "/workshop/v2/apikey/feedback-notifications/read")
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/feedback/oss/credentials")
+	requireRoute(t, engine, http.MethodGet, "/workshop/v2/feedback/notifications")
+	requireRoute(t, engine, http.MethodPost, "/workshop/v2/feedback/notifications/read")
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/feedback/upload-policies")
 	requireRoute(t, engine, http.MethodPost, "/workshop/v2/feedback/feedbacks")
 	requireRoute(t, engine, http.MethodGet, "/workshop/v2/feedback/feedbacks")
@@ -76,4 +82,7 @@ func TestFeedbackWorkflowRoutesAreV2Only(t *testing.T) {
 	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/apikey/feedbacks/oss/credentials")
 	forbidRoute(t, engine, http.MethodPost, "/workshop/v1/user/feedback-sessions")
 	forbidRoute(t, engine, http.MethodPost, "/workshop/v1/feedback/feedbacks")
+	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/user/feedback-notifications")
+	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/apikey/feedback-notifications")
+	forbidRoute(t, engine, http.MethodGet, "/workshop/v1/feedback/notifications")
 }

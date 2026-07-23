@@ -107,7 +107,10 @@ func CreateFeedbackFromSession(c *gin.Context) {
 			initialFeedbackMessageMetadata(false),
 			attachments,
 		)
-		return err
+		if err != nil {
+			return err
+		}
+		return createFeedbackNotificationsForMessage(tx, feedback, initialMessage)
 	}); err != nil {
 		if errors.Is(err, errFeedbackShortIDExists) {
 			c.JSON(http.StatusConflict, response.NewErrorResponse(response.CodeBadRequest, "短 ID 冲突，请重试", nil))
@@ -273,8 +276,12 @@ func CreateFeedbackMessageFromSession(c *gin.Context) {
 		}
 		if created {
 			taskComments, err = createCustomerFeedbackTaskComments(tx, feedback, message)
+			if err != nil {
+				return err
+			}
+			return createFeedbackNotificationsForMessage(tx, feedback, message)
 		}
-		return err
+		return nil
 	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackCreateFailed, "创建反馈消息失败: "+err.Error(), nil))
 		return

@@ -96,6 +96,8 @@ Authorization: Bearer <feedback-session-token>
 | 查询我的反馈 | GET | `/workshop/v2/feedback/feedbacks` |
 | 查询会话消息 | GET | `/workshop/v2/feedback/feedbacks/:id/messages` |
 | 用户追加消息 | POST | `/workshop/v2/feedback/feedbacks/:id/messages` |
+| 查询通知与未读数 | GET | `/workshop/v2/feedback/notifications` |
+| 标记通知已读 | POST | `/workshop/v2/feedback/notifications/read` |
 
 这些接口均不能枚举其他项目或其他 `custom_user_id` 的数据。
 
@@ -123,6 +125,8 @@ window.FeedbackSDK.configure({
 | 签发附件上传策略 | POST | `/workshop/v2/apikey/feedbacks/upload-policies` | body: `project_id`、`custom_user_id` |
 | 获取只读附件凭证 | GET | `/workshop/v2/apikey/feedbacks/oss/credentials` | query: `project_id`、`custom_user_id` |
 | 获取会话指定附件凭证 | GET | `/workshop/v2/apikey/feedbacks/:id/attachments/:attachment_id/oss/credentials` | query: `custom_user_id` |
+| 查询通知与未读数 | GET | `/workshop/v2/apikey/feedback-notifications` | query: `project_id`、`custom_user_id` |
+| 标记通知已读 | POST | `/workshop/v2/apikey/feedback-notifications/read` | body: `project_id`、`custom_user_id` |
 
 所有请求使用 `Authorization: Bearer <api-key>`。网关验证 API Key 后，Workshop 再验证 API Key 所属用户仍是项目成员。创建反馈时 `data` 保持 API Key 基础接口的兼容格式，为 JSON 字符串；官方 SDK 会自动处理这个格式差异。
 
@@ -181,6 +185,25 @@ Content-Type: application/json
 ```
 
 `content` 和附件至少提供一个。`client_message_id` 必填、最大 128 字符，推荐 UUID/ULID；同一 `feedback_id + custom_user_id + client_message_id` 重试返回原消息而不重复创建。首次成功返回 `201`，幂等重试返回 `200`。
+
+### 通知与未读（独立灰度）
+
+通知接口是独立于反馈列表和消息接口的新 V2 API。不开启客户端通知开关时，SDK 不会调用它们，因此既有 V2 集成的请求与展示完全不变。
+
+用户创建或补充反馈时，项目成员收到 `customer_message`；开发者回复时，用户收到 `developer_message`；待办状态回写、流转或忽略时，用户收到 `status_change`。消息和通知在同一事务中写入，重试不会生成重复通知。
+
+```http
+GET /workshop/v2/feedback/notifications?unread_only=true&page=1&page_size=100
+Authorization: Bearer <feedback-session-token>
+
+POST /workshop/v2/feedback/notifications/read
+Authorization: Bearer <feedback-session-token>
+Content-Type: application/json
+
+{"feedback_id": 10}
+```
+
+列表 `data` 包含 `notifications` 和 `unread_count`。打开某条反馈会话后只应标记该 `feedback_id` 的通知为已读，不要将其他反馈的未读同时清空。直连 API Key 模式的列表 query 和已读 body 需要增加 `project_id`、`custom_user_id`。
 
 ## 附件上传与读取
 
@@ -262,7 +285,8 @@ type FeedbackV2Config =
 1. 先在独立测试项目启用，分别验证安全 token 与直连 API Key 模式。
 2. SDK 启用后仅该项目使用 V2 路径；V1 SDK/iOS/控制台默认路径不变。
 3. 验证创建、首条消息、跨用户隔离、附件策略、幂等重试、开发者回复和待办状态回写。
-4. 观察错误率与轮询负载后，按项目逐步放量。关闭开关即可停止新增 V2 SDK 请求，不涉及数据库回滚。
+4. 通知另行开启 `feedbackV2NotificationsEnabled: true`，验证未读、已读和跨用户隔离后再放量；Console 则配置独立的 `VITE_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS` 项目白名单。
+5. 观察错误率与轮询负载后，按项目逐步放量。关闭开关即可停止新增 V2 SDK 请求，不涉及数据库回滚。
 
 ## 部署前置条件
 
