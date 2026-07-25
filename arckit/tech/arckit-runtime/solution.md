@@ -137,7 +137,6 @@ Gate Engine 在高风险状态下中断或阻塞继续执行：
 - cross-workspace write
 - case closeout without ledger update
 - missing artifact impact scan
-- missing workflow memory closeout when workflow correction exists
 
 ### Validator
 
@@ -158,7 +157,6 @@ Ledger Writer 负责后续将验证后的结果写回：
 - iteration state delta
 - development case record
 - pending handoff
-- workflow memory execution record
 
 Ledger writeback 是 Runtime Kernel 的必经阶段，不依赖 worker 建议。Desktop 执行型 run 在 `round_result=done` 且 `ledger_stage.status=gate_ready` 后会自动运行 gate；gate 允许时自动写 ledger，gate 不允许时保留 blocker 给 UI 和下一轮 Controller 处理。
 

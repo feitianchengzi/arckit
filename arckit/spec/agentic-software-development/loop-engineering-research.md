@@ -89,11 +89,11 @@
 |---|---|
 | Trigger | `workflow-orchestration-memory.md` 中的 runtime compiler、turn adaptation 和 workflow patch overlay |
 | Goal / Constraints | Controller frame、execution gate、worker packet 和显式约束 |
-| Memory | development ledger、pending、agent context、workflow memory 和 spec/tech/interaction/visual 事实源 |
+| Memory | development ledger、pending、仓库上下文和 spec/tech/interaction/visual 事实源 |
 | Execution Fabric | Human Runtime、Desktop Runtime、external agent、外部 adapter 和 skills |
 | Verifier | report intake rules、closeout rules、评测集、实现证据和验证证据 |
 | Stop Rule | done、continue、needs_human、blocked、external_wait 与 loop handoff |
-| Handoff | implementation handoff、pending handoff、Loop Handoff 和 next prompt |
+| Handoff | implementation worker packet、pending handoff、Loop Handoff 和 next prompt |
 
 该对应关系说明 Arckit 已经覆盖 loop engineering 的多个结构点，但当前文档需要进一步判断是否要把 trigger、verifier、stop rule 和 memory 组合成更明确的 loop specification artifact。
 
@@ -114,7 +114,7 @@ Loop engineering 对 Arckit 的候选含义包括：
 
 - Arckit 是否需要定义独立的 `loop_specification` artifact。
 - `Loop Handoff` 与 `loop_specification` 是同一对象的不同阶段，还是两个不同对象。
-- Trigger 应该属于 workflow memory、development ledger、Desktop Runtime，还是独立的 runtime adapter 契约。
+- Trigger 应该属于 development ledger、Desktop Runtime、独立 runtime adapter，还是未来重新设计的 procedural-memory extension。
 - Verifier 应该作为通用产品概念，还是只在质量、实现和 closeout 场景中出现。
 - External Feedback Loop 应该进入 spec、pending、idea、quality 评测集，还是由外部产品运营系统承接。
 - Graph/DAG runtime 是否是 Arckit 的产品语义，还是外部平台的实现细节。

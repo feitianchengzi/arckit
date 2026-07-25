@@ -1,7 +1,7 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Updated: 2026-07-08T10:38:56.763Z
+Updated: 2026-07-25T08:11:23.000Z
 Canonical Record: state.record.json
 
 ## Purpose

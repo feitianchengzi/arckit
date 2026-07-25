@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-07-08T10:38:56.763Z",
+    "updated_at": "2026-07-25T08:11:23.000Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -171,7 +171,7 @@
     "data_state": {
       "current_state": "designed",
       "target_state": "accepted",
-      "state_reason": "项目数据分为 canonical project state record、STATE.md decision brief、canonical iteration state、iteration decision brief、case evidence、pending、stable facts 和 workflow memory，各自有不同职责。",
+      "state_reason": "项目数据分为 canonical project state record、STATE.md decision brief、canonical iteration state、iteration decision brief、case evidence、pending 和 stable facts，各自有不同职责。",
       "evidence": [
         "memory/skills/arckit-development-ledger/SKILL.md",
         "arckit/project/state.record.json",
@@ -205,12 +205,10 @@
     "architecture_foundation": {
       "current_state": "implemented",
       "target_state": "accepted",
-      "state_reason": "入口编排、状态账本、case 管理、pending、agent context、handoff、workflow memory、Runtime 控制面和 Desktop Supervisor 已形成分层架构。",
+      "state_reason": "入口编排、状态账本、case 管理、pending、有界 worker packet、Runtime 控制面和 Desktop Supervisor 已形成分层架构。",
       "evidence": [
         "entry/skills/using-arckit/SKILL.md",
         "memory/skills/arckit-development-ledger/SKILL.md",
-        "memory/skills/arckit-agent-context/SKILL.md",
-        "engineering/skills/arckit-implementation-handoff/SKILL.md",
         "arckit/tech/arckit-runtime/solution.md",
         "runtime/arckit-runtime/src/loop-controller.mjs",
         "runtime/arckit-runtime/src/prompt-compiler.mjs",
@@ -407,11 +405,9 @@
     "maintainability_handoff": {
       "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "状态机制已明确 state.record.json、STATE.md decision brief、iteration record、case、Loop Handoff、pending、事实源、workflow memory 和 Runtime controlled turn 的边界，使后续 agent 或自动化平台能按状态差距接手。",
+      "state_reason": "状态机制已明确 state.record.json、STATE.md decision brief、iteration record、case、Loop Handoff、pending、事实源、有界 worker packet 和 Runtime controlled turn 的边界，使后续 agent 或自动化平台能按状态差距接手。",
       "evidence": [
         "arckit/spec/agentic-software-development/skill-architecture.md",
-        "arckit/spec/workflow-orchestration-memory.md",
-        "arckit/tech/workflow-orchestration-memory/solution.md",
         "arckit/tech/arckit-runtime/solution.md",
         "memory/skills/arckit-development-ledger/SKILL.md",
         "entry/skills/using-arckit/SKILL.md",
@@ -560,40 +556,30 @@
   ],
   "last_state_delta": {
     "changed_dimensions": [
-      "runtime_surfaces",
-      "implementation_coverage",
-      "observability_support",
+      "architecture_foundation",
       "maintainability_handoff"
     ],
     "state_transitions": [
       {
-        "dimension": "implementation_coverage",
-        "from_state": "verified",
-        "to_state": "verified",
-        "reason": "Runtime now produces loop_frame, agent_tasks, agent_reports, merge_result, and runtime_result."
-      },
-      {
-        "dimension": "observability_support",
-        "from_state": "verified",
-        "to_state": "verified",
-        "reason": "Desktop activity now shows Agent Loop, Agent Reports, Merge Gate, raw events, and saved evidence."
+        "dimension": "architecture_foundation",
+        "from_state": "implemented",
+        "to_state": "implemented",
+        "reason": "Current skill routing and Runtime worker contracts no longer depend on the four deliberately removed skills."
       },
       {
         "dimension": "maintainability_handoff",
         "from_state": "verified",
         "to_state": "verified",
-        "reason": "Core skills now include runtime capability manifests and using-arckit is repositioned as protocol/fallback."
+        "reason": "Implementation continuation now uses bounded Controller worker packets or external adapter handoffs instead of a dedicated skill package."
       }
     ],
-    "deferred_dimensions": [
-      "accepted transition until real Codex worker done/gate/write result"
-    ],
+    "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
       "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "next_loop_focus": "通过 Desktop 在 ../arckit-demo 或真实项目中运行 Codex app-server agentic worker loop，获得 done result 后 gate/write-ledger。",
-    "updated_at": "2026-07-08T10:38:56.763Z"
+    "updated_at": "2026-07-25T08:11:23.000Z"
   }
 }

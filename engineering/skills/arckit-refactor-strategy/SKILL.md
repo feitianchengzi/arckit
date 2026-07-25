@@ -19,7 +19,7 @@ description: 为代码结构治理、模块拆分、依赖整理、状态管理�
 
 ### 1. 判断是否需要重构策略
 
-输入：用户请求、代码结构线索、debug 证据、implementation handoff、测试结果、project/case 状态。
+输入：用户请求、代码结构线索、debug 证据、有边界的 implementation worker packet、测试结果、project/case 状态。
 
 动作：
 - 区分 bug 修复、正向开发、局部整理、系统性重构和架构决策。
@@ -51,7 +51,7 @@ description: 为代码结构治理、模块拆分、依赖整理、状态管理�
 动作：
 - 输出 `refactor_strategy_handoff`。
 - 标记是否需要先补测试、先做 architecture decision、先做人类确认或先冻结功能变化。
-- 写清完成后需要回写的 case、tech、pending 或 workflow memory。
+- 写清完成后需要回写的 case、project state、tech 或 pending。
 
 退出条件：接收方能按阶段执行、验证和停止。
 
@@ -79,12 +79,11 @@ refactor_strategy_handoff:
   prerequisite_handoffs:
     - arckit-architecture-decision
     - arckit-debug-diagnosis
-    - arckit-implementation-handoff
   arckit_writeback:
     case: ""
+    project_state: ""
     tech: []
     pending: []
-    workflow_memory: []
   open_questions: []
 ```
 

@@ -197,8 +197,7 @@ async function seedInitialCase(root, caseRef, intent, conversationLocale) {
         ],
         required_checks: [
           "source_projection_check",
-          "case_audit",
-          "workflow_memory_closeout"
+          "case_audit"
         ],
         stop_condition: t(conversationLocale, "Stop after route choice, evidence, risks, unknowns, and next loop handoff are explicit.", "当 route choice、evidence、risks、unknowns 和下一轮 loop handoff 明确后停止。")
       },

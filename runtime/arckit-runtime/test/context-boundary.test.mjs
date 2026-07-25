@@ -158,8 +158,6 @@ function minimalRuntimeResult() {
       tech: "none",
       debug: "none",
       pending: "none",
-      workflow_memory: "none",
-      agent_context: "none",
       handoff: "none"
     },
     artifact_ownership_scan: {

@@ -141,7 +141,7 @@ Updated: 2026-07-05T16:33:06.419Z
       "evidence_maturity": "none",
       "next": ""
     },
-    "workflow_memory_signals": {
+    "process_notes": {
       "status": "satisfied",
       "reason": "真实 subagent 验证证明状态机制能初始化和审计 demo 项目，同时暴露并修复了索引维护缺口。",
       "evidence": [
@@ -161,7 +161,7 @@ Updated: 2026-07-05T16:33:06.419Z
     "project-iteration new/migrate 自动刷新 ITERATIONS.md；audit 检查 index 缺失或 stale。"
   ],
   "pending_handoffs": [],
-  "workflow_memory_signals": [],
+  "process_notes": [],
   "rounds": [
     {
       "round": 1,
@@ -190,7 +190,7 @@ Updated: 2026-07-05T16:33:06.419Z
       "verification_state",
       "open_questions",
       "pending_handoffs",
-      "workflow_memory_signals"
+      "process_notes"
     ],
     "remaining": [],
     "blocked": [],

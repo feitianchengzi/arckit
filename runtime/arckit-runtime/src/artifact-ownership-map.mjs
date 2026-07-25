@@ -14,8 +14,7 @@ const ARTIFACT_RULES = [
   { owner: "pending", kind: "candidate_context", prefix: "arckit/pending/" },
   { owner: "intake", kind: "raw_input", prefix: "arckit/intake/" },
   { owner: "debug", kind: "evidence", prefix: "arckit/debug/" },
-  { owner: "workflow_memory", kind: "runtime_memory", prefix: "arckit/workflow-memory/" },
-  { owner: "agent_context", kind: "source_fact", prefix: "AGENTS.md" },
+  { owner: "project_context", kind: "source_fact", prefix: "AGENTS.md" },
   { owner: "runtime", kind: "runtime_log", prefix: "arckit/project/runtime-results/" },
   { owner: "runtime", kind: "runtime_log", suffix: "activity.json" },
   { owner: "runtime", kind: "runtime_log", suffix: "events.jsonl" },
@@ -96,7 +95,7 @@ export function createArtifactImpactScan(ownershipScan, { dryRun = false } = {})
   }
 
   return {
-    project: ownerImpact.get("project_ledger") || (dryRun ? "read" : "none"),
+    project: ownerImpact.get("project_ledger") || ownerImpact.get("project_context") || (dryRun ? "read" : "none"),
     intake: ownerImpact.get("intake") || "none",
     cases: ownerImpact.get("case_ledger") || (dryRun ? "read" : "none"),
     spec: ownerImpact.get("spec") || "none",
@@ -105,8 +104,6 @@ export function createArtifactImpactScan(ownershipScan, { dryRun = false } = {})
     tech: ownerImpact.get("tech") || "none",
     debug: ownerImpact.get("debug") || "none",
     pending: ownerImpact.get("pending") || "none",
-    workflow_memory: ownerImpact.get("workflow_memory") || "none",
-    agent_context: ownerImpact.get("agent_context") || "none",
     handoff: dryRun ? "generated" : "candidate_update"
   };
 }
@@ -123,9 +120,6 @@ function impactForKind(kind) {
   }
   if (kind === "evidence" || kind === "implementation_artifact") {
     return "evidence_update";
-  }
-  if (kind === "runtime_memory") {
-    return "runtime_memory_update";
   }
   if (kind === "runtime_log") {
     return "runtime_log";

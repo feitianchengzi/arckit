@@ -76,8 +76,6 @@
         "tech",
         "debug",
         "pending",
-        "workflow_memory",
-        "agent_context",
         "handoff"
       ],
       "properties": {
@@ -90,8 +88,6 @@
         "tech": { "type": "string" },
         "debug": { "type": "string" },
         "pending": { "type": "string" },
-        "workflow_memory": { "type": "string" },
-        "agent_context": { "type": "string" },
         "handoff": { "type": "string" }
       },
       "additionalProperties": false

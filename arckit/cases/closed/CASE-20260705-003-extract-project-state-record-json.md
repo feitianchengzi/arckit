@@ -144,7 +144,7 @@ Updated: 2026-07-05T15:54:24.572Z
       "evidence_maturity": "none",
       "next": "需要发布或同步时再处理。"
     },
-    "workflow_memory_signals": {
+    "process_notes": {
       "status": "satisfied",
       "reason": "本轮强化了状态驱动 loop 的存储规则：机器状态与阅读投影分离。",
       "evidence": [
@@ -165,7 +165,7 @@ Updated: 2026-07-05T15:54:24.572Z
   "pending_handoffs": [
     "如需要分发到已安装 skill，后续走 ArcForge 漂移/应用流程。"
   ],
-  "workflow_memory_signals": [
+  "process_notes": [
     "状态驱动 loop 的机器状态应优先使用 canonical JSON，Markdown 只作为投影。"
   ],
   "rounds": [
@@ -200,7 +200,7 @@ Updated: 2026-07-05T15:54:24.572Z
       "verification_state",
       "open_questions",
       "pending_handoffs",
-      "workflow_memory_signals"
+      "process_notes"
     ],
     "remaining": [],
     "blocked": [],

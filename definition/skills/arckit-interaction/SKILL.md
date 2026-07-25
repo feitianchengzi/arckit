@@ -9,7 +9,7 @@ description: "维护 arckit/interaction/ 下的页面级交互策略、灰度线
 
 ## 过程 Handoff 接收规则
 
-本 skill 是结果型 skill，`arckit/interaction/` 仍是页面级交互事实的 source of truth。可以接收 `arckit-explore-product-design`、`arckit-draft-spec` 或 `arckit-decision-framework` 的 handoff，也可以接收用户或外部 adapter 提供的明确材料，但接收不等于自动写入。
+本 skill 是结果型 skill，`arckit/interaction/` 仍是页面级交互事实的 source of truth。可以接收 `arckit-explore-product-design`、`arckit-draft-spec`、用户或外部 adapter 提供的明确材料，但接收不等于自动写入。
 
 - 先把 handoff 当作候选输入，按页面归属、交互策略确认和投影一致性规则决定如何落地。
 - 只把已确认的页面任务、主路径、状态、反馈、导航和异常恢复写入交互源与投影。

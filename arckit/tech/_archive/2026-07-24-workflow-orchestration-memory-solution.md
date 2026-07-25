@@ -1,4 +1,6 @@
-# 工作流编排与自然沉淀技术方案
+# 归档：工作流编排与自然沉淀技术方案
+
+归档日期：2026-07-24。该技术方案依赖的专用 workflow-memory 能力已退出当前维护源；本文仅保留为后续重新设计时的历史材料，不参与当前 runtime schema、artifact ownership 或 ledger closeout。
 
 更新时间：2026-06-27
 

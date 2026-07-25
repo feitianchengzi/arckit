@@ -9,7 +9,7 @@ description: "维护 arckit/visual/ 下的视觉风格策略、Design Tokens、�
 
 ## 过程 Handoff 接收规则
 
-本 skill 是结果型 skill，`arckit/visual/` 仍是视觉策略、Design Tokens、主题和组件视觉规格的 source of truth。可以接收 `arckit-explore-product-design` 或 `arckit-decision-framework` 的 handoff，也可以接收用户或外部 adapter 提供的明确材料，但接收不等于自动写入。
+本 skill 是结果型 skill，`arckit/visual/` 仍是视觉策略、Design Tokens、主题和组件视觉规格的 source of truth。可以接收 `arckit-explore-product-design`、用户或外部 adapter 提供的明确材料，但接收不等于自动写入。
 
 - 先把 handoff 当作候选输入，按视觉域归属、视觉策略确认和投影一致性规则决定如何落地。
 - 只把已确认的品牌气质、信息层级、色彩角色、字体节奏、空间密度、组件性格和状态表达写入结果文档。

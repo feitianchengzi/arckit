@@ -39,7 +39,7 @@
 
 现有产品方案仍需要通过后续讨论确认以下内容：
 
-- 是否需要在产品方案中明确“评测资产”与 spec、skill、pending、workflow memory 的关系。
+- 是否需要在产品方案中明确“评测资产”与 spec、skill、case 和 pending 的关系。
 - 是否需要分别定义 skill 作为最终产物、code 作为最终产物时的验收生命周期。
 - 是否需要把 artifact impact scan 作为入口编排的固定要求。
 - 是否需要为“只做评测、不改产物”的用户意图建立明确阶段。

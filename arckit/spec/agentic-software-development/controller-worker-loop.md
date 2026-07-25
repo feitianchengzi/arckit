@@ -224,17 +224,17 @@ Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当�
 10. Ledger writeback：只有在 runtime result 通过 closeout 和 gate 后，才写回 project、iteration、case 和 runtime execution record。
 11. 下一轮推荐：如果 iteration 仍未满足，输出下一轮 packet 或 next prompt；如果 iteration 满足，根据 project state 推荐下一轮 iteration 目标。
 
-空项目首轮必须先建立可恢复状态，而不是直接把 prompt 当作可实现规格。Controller 可以选择 product、tech、implementation handoff、pending 或其他 worker 类型来建立最小稳定产品意图、行为事实、未确认问题和恢复 handoff；不能因为用户输入包含“开发”或“实现”就绕过状态建模和执行授权，直接派发 implementation worker。
+空项目首轮必须先建立可恢复状态，而不是直接把 prompt 当作可实现规格。Controller 可以选择 product、tech、pending 或其他 worker 类型来建立最小稳定产品意图、行为事实、未确认问题和恢复 handoff；不能因为用户输入包含“开发”或“实现”就绕过状态建模和执行授权，直接派发 implementation worker。
 
 实现 worker 只有在以下条件满足时才可派发：
 
-- 目标状态不再是 `unknown`，且本轮 gap 指向 implementation coverage、明确的实现边界、诊断修复或已确认的 implementation handoff。
+- 目标状态不再是 `unknown`，且本轮 gap 指向 implementation coverage、明确的实现边界、诊断修复或已确认的 implementation worker packet。
 - 所需 source facts、pending 边界和验证口径足以避免 worker 猜测产品行为、运行表面或验收标准。
 - execution gate 已授权并绑定 executor。
 
 source-fact worker 负责建立或更新稳定事实源，并把未确认内容路由到 pending。它不实现产品代码、不直接写 ledger、不关闭 case、不决定人类 gate。
 
-product、tech、diagnosis、implementation、verification 和 closeout worker 不是固定顺序。它们是 Controller 可选择的能力类型：product worker 维护产品预期事实或产品 handoff；tech worker 维护技术事实或技术 handoff；diagnosis worker 收敛实现异常和根因证据；implementation worker 执行已具备边界的实现或实现交接；verification worker 验证事实、实现和报告；closeout worker 判断本轮是否满足 closeout 条件。每类 worker 可绑定一个或多个 allowed skills，也可以在没有匹配 skill 时只执行通用工具任务并显式说明能力缺口。
+product、tech、diagnosis、implementation、verification 和 closeout worker 不是固定顺序。它们是 Controller 可选择的能力类型：product worker 维护产品预期事实或产品 handoff；tech worker 维护技术事实或技术 handoff；diagnosis worker 收敛实现异常和根因证据；implementation worker 按已确认边界执行实现，或为后续 executor 准备有界 packet；verification worker 验证事实、实现和报告；closeout worker 判断本轮是否满足 closeout 条件。每类 worker 可绑定一个或多个 allowed skills，也可以在没有匹配 skill 时只执行通用工具任务并显式说明能力缺口。
 
 verification worker 不是每轮都必须出现。只有本轮产生了可验证事实源变更、实现变更、诊断结论、handoff 或状态写回准备时才需要派发。没有执行产物时，verification worker 不应只做“没有东西可验”的空审计。
 

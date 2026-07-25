@@ -174,7 +174,7 @@ Updated: 2026-07-05T15:25:00.000Z
       "evidence_maturity": "formalized",
       "next": ""
     },
-    "workflow_memory_signals": {
+    "process_notes": {
       "status": "deferred",
       "reason": "本轮形成了可复用治理信号，但 workflow memory 写入目标在用户级 ~/.arckit，不在当前仓库治理范围内。",
       "evidence": [
@@ -207,7 +207,7 @@ Updated: 2026-07-05T15:25:00.000Z
       "confirmation": "需要用户确认目标目录和治理动作。"
     }
   ],
-  "workflow_memory_signals": [
+  "process_notes": [
     "Arckit skill governance should prefer protocol, handoff, context, and boundary capabilities over human-value final-decision skills."
   ],
   "rounds": [
@@ -243,7 +243,7 @@ Updated: 2026-07-05T15:25:00.000Z
       "verification_state",
       "open_questions",
       "pending_handoffs",
-      "workflow_memory_signals"
+      "process_notes"
     ],
     "remaining": [],
     "blocked": [],

@@ -10,8 +10,6 @@ const ARTIFACT_KEYS = [
   "tech",
   "debug",
   "pending",
-  "workflow_memory",
-  "agent_context",
   "handoff"
 ];
 

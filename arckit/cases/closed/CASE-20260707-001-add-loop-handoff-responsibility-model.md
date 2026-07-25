@@ -163,7 +163,7 @@ Updated: 2026-07-07T11:20:00.000Z
       "evidence_maturity": "confirmed",
       "next": "如继续自动桥实现，读取 loop_handoff 并按 next_responsibility/agent_continuation_available/human_decision_required 调度。"
     },
-    "workflow_memory_signals": {
+    "process_notes": {
       "status": "satisfied",
       "reason": "用户纠偏已固化为 workflow framing 规则：manual_bridge 是 agent continuation 的触发缺口，不是 human decision。",
       "evidence": [
@@ -188,7 +188,7 @@ Updated: 2026-07-07T11:20:00.000Z
   "pending_handoffs": [
     "自动桥 controller 实现留作后续。"
   ],
-  "workflow_memory_signals": [
+  "process_notes": [
     "ArcKit loop closeout 应区分责任归属和触发机制，避免把 agent continuation 的人工触发缺口误写成人类决策。"
   ],
   "rounds": [
@@ -247,7 +247,7 @@ Updated: 2026-07-07T11:20:00.000Z
       "verification_state",
       "open_questions",
       "pending_handoffs",
-      "workflow_memory_signals"
+      "process_notes"
     ],
     "remaining": [],
     "blocked": [],

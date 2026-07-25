@@ -148,7 +148,7 @@ Updated: 2026-07-05T16:13:39.580Z
       "evidence_maturity": "none",
       "next": "需要同步安装副本时走 ArcForge。"
     },
-    "workflow_memory_signals": {
+    "process_notes": {
       "status": "satisfied",
       "reason": "强化流程规则：Markdown projection 应是有损 decision brief，不是 canonical state 的可读副本。",
       "evidence": [
@@ -170,7 +170,7 @@ Updated: 2026-07-05T16:13:39.580Z
   "pending_handoffs": [
     "已安装 skill 同步和漂移治理后续处理。"
   ],
-  "workflow_memory_signals": [
+  "process_notes": [
     "agent-driven platform 也应读写 canonical JSON；Markdown brief 只用于快速语义定位。"
   ],
   "rounds": [
@@ -210,7 +210,7 @@ Updated: 2026-07-05T16:13:39.580Z
       "verification_state",
       "open_questions",
       "pending_handoffs",
-      "workflow_memory_signals"
+      "process_notes"
     ],
     "remaining": [],
     "blocked": [],

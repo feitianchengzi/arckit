@@ -20,15 +20,15 @@ const WORKER_TYPE_DEFINITIONS = {
   product: {
     objective: "Clarify or maintain product expectations, acceptance boundaries, scenarios, open questions, and pending product facts.",
     allowed_actions: ["read_files", "edit_allowed_paths", "report_evidence", "route_unknowns_to_pending"],
-    forbidden_actions: [...BASE_FORBIDDEN_ACTIONS, "write_code_without_implementation_handoff"]
+    forbidden_actions: [...BASE_FORBIDDEN_ACTIONS, "write_code_without_confirmed_scope"]
   },
   tech: {
-    objective: "Clarify or maintain technical facts, architecture decisions, constraints, implementation handoff inputs, and unresolved technical risks.",
+    objective: "Clarify or maintain technical facts, architecture decisions, constraints, implementation packet inputs, and unresolved technical risks.",
     allowed_actions: ["read_files", "edit_allowed_paths", "run_non_destructive_checks", "report_evidence"],
     forbidden_actions: [...BASE_FORBIDDEN_ACTIONS, "make_unconfirmed_product_decisions"]
   },
   implementation: {
-    objective: "Execute a bounded implementation or implementation-handoff task using confirmed facts, allowed paths, and explicit verification expectations.",
+    objective: "Execute a bounded implementation task or prepare its worker packet using confirmed facts, allowed paths, and explicit verification expectations.",
     allowed_actions: ["read_files", "edit_allowed_paths", "run_non_destructive_checks", "report_evidence"],
     forbidden_actions: [...BASE_FORBIDDEN_ACTIONS, "invent_product_behavior", "change_unrelated_files"]
   },

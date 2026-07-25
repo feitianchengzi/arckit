@@ -19,7 +19,7 @@
     "open_questions",
     "decisions",
     "pending_handoffs",
-    "workflow_memory_signals",
+    "process_notes",
     "rounds",
     "completion_audit"
   ],
@@ -55,7 +55,7 @@
         "verification_state",
         "open_questions",
         "pending_handoffs",
-        "workflow_memory_signals"
+        "process_notes"
       ],
       "properties": {
         "product_expectation": { "$ref": "#/$defs/structure_state" },
@@ -66,14 +66,14 @@
         "verification_state": { "$ref": "#/$defs/structure_state" },
         "open_questions": { "$ref": "#/$defs/structure_state" },
         "pending_handoffs": { "$ref": "#/$defs/structure_state" },
-        "workflow_memory_signals": { "$ref": "#/$defs/structure_state" }
+        "process_notes": { "$ref": "#/$defs/structure_state" }
       },
       "additionalProperties": false
     },
     "open_questions": { "type": "array" },
     "decisions": { "type": "array" },
     "pending_handoffs": { "type": "array" },
-    "workflow_memory_signals": { "type": "array" },
+    "process_notes": { "type": "array" },
     "rounds": { "type": "array" },
     "completion_audit": { "$ref": "#/$defs/completion_audit" }
   },

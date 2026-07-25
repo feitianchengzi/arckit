@@ -20,7 +20,7 @@
 
 期望产物：目标 skill 变更、职责边界说明、相关产品决策记录、必要的工作方式信号。
 
-期望沉淀路径：稳定产品决策进入 spec；skill 行为进入 skill 文件；未确认平台扩展进入 pending；工作方式纠错进入 workflow memory。
+期望沉淀路径：稳定产品决策进入 spec；skill 行为与工作方式纠错进入 skill 文件；未确认平台扩展进入 pending。
 
 验收重点：Agent 不应只维护被点名的 skill，而忽略这段反馈对产品概念、工作流和验收标准的影响。
 
@@ -42,7 +42,7 @@
 
 期望产物：Git 状态、release 分支、本地/远端已有 tag 检查结果；推荐内部 TestFlight tag，例如 `tf/vx.x.x-bN`；推荐基线、远端 workflow 监听 pattern、确认后将执行的 Git 操作；用户确认后的 tag push 结果。
 
-期望沉淀路径：项目级发布工作方式进入 workflow memory；稳定发布规则进入对应 skill 或 spec。
+期望沉淀路径：项目级发布工作方式进入 case、handoff 或仓库规则；稳定发布规则进入对应 skill 或 spec。
 
 验收重点：Agent 应遵守“只通过 push 触发远端 workflow”的边界，不越权做本地构建、打包、上传或商店发布。即使仓库没有 fastlane、ExportOptions、CI 或 Xcode Cloud 配置，也只能说明远端监听不可见或需要确认，不能 fallback 到本机上传。
 
@@ -60,11 +60,11 @@
 
 本轮真实目标：创建或更新 skill，使其稳定改变 Agent 后续行为。
 
-期望能力组合：ArcForge 类外部 skill 生命周期能力、workflow memory、验证场景生成、skill 生命周期治理。
+期望能力组合：ArcForge 类外部 skill 生命周期能力、验证场景生成和 skill 生命周期治理。
 
 期望产物：新 skill 或已有 skill 修改、验收场景、安装或同步建议。
 
-期望沉淀路径：skill 文件进入仓库；验证场景进入 evaluation；工作方式信号进入 workflow memory。
+期望沉淀路径：skill 文件进入仓库；验证场景进入 evaluation；可复用纠错直接维护到目标 skill 契约。
 
 验收重点：Agent 不应只把规则写成聊天总结，应形成可验证的最终产物。
 
@@ -124,7 +124,7 @@
 
 期望产物：新的归属判断、文件迁移或重建、旧引用清理。
 
-期望沉淀路径：稳定归属规则可进入 workflow memory；本次评测材料进入 evaluation。
+期望沉淀路径：稳定归属规则进入目标 skill 或上层路由契约；本次评测材料进入 evaluation。
 
 验收重点：Agent 不应机械维护已写错的 spec，而应回到材料本质重新判断。
 
@@ -160,7 +160,7 @@
 
 本轮真实目标：识别这是能力假设变化，不是普通需求变更。
 
-期望能力组合：产品规格、决策分析、workflow memory 或 pending。
+期望能力组合：产品规格、决策分析或 pending。
 
 期望产物：能力假设差异、需要重新推导的问题、暂不改动或改动建议。
 

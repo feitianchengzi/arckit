@@ -91,7 +91,7 @@ Updated: 2026-07-04T18:01:45.213Z
       "evidence": [],
       "next": ""
     },
-    "workflow_memory_signals": {
+    "process_notes": {
       "status": "deferred",
       "reason": "本轮已完成结构和脚本落地；是否形成可复用 workflow signal 需要后续真实任务试跑后判断。",
       "evidence": [],
@@ -110,7 +110,7 @@ Updated: 2026-07-04T18:01:45.213Z
     }
   ],
   "pending_handoffs": [],
-  "workflow_memory_signals": [],
+  "process_notes": [],
   "rounds": [
     {
       "id": "round-001",
@@ -135,7 +135,7 @@ Updated: 2026-07-04T18:01:45.213Z
       "verification_state",
       "open_questions",
       "pending_handoffs",
-      "workflow_memory_signals"
+      "process_notes"
     ],
     "remaining": [],
     "blocked": [],

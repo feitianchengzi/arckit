@@ -32,7 +32,7 @@ const STRUCTURE_KEYS = [
   'verification_state',
   'open_questions',
   'pending_handoffs',
-  'workflow_memory_signals',
+  'process_notes',
 ];
 const EVIDENCE_REQUIRED_ON_SATISFIED = new Set([
   'product_expectation',
@@ -51,7 +51,7 @@ const NEXT_GOAL_BY_STRUCTURE = {
   verification_state: 'Run or document the required verification, then update the case audit.',
   open_questions: 'Resolve or route the open questions, then update the case audit.',
   pending_handoffs: 'Resolve or record the pending handoffs, then update the case audit.',
-  workflow_memory_signals: 'Complete workflow memory closeout, then update the case audit.',
+  process_notes: 'Resolve or record process-level notes, then update the case audit.',
 };
 
 function usage(exitCode = 0) {
@@ -198,7 +198,6 @@ function defaultLoopHandoff({ status = 'continue', nextRoundGoal = '', remaining
       required_checks: [
         'source_projection_check',
         'case_audit',
-        'workflow_memory_closeout',
       ],
       stop_condition: done
         ? 'Stop; no continuation is required.'
@@ -269,12 +268,12 @@ function createRecord({ title, artifactType = 'unknown', intent = '' }) {
       verification_state: defaultStructure(),
       open_questions: defaultStructure(),
       pending_handoffs: defaultStructure(),
-      workflow_memory_signals: defaultStructure(),
+      process_notes: defaultStructure(),
     },
     open_questions: [],
     decisions: [],
     pending_handoffs: [],
-    workflow_memory_signals: [],
+    process_notes: [],
     rounds: [],
     completion_audit: defaultCompletionAudit(timestamp),
   };
@@ -468,7 +467,7 @@ function validateRecord(record, file = '<record>') {
       }
     }
   }
-  for (const key of ['open_questions', 'decisions', 'pending_handoffs', 'workflow_memory_signals', 'rounds']) {
+  for (const key of ['open_questions', 'decisions', 'pending_handoffs', 'process_notes', 'rounds']) {
     if (!Array.isArray(record[key])) {
       errors.push(`${file}: ${key} must be an array`);
     }

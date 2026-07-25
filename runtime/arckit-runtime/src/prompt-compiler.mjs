@@ -50,7 +50,7 @@ export function compilePrompt(snapshot, round, options = {}) {
     "- Read the project state before acting.",
     "- Decide the route, state target, and evidence requirements from the operator task, project state, candidate gaps, and local evidence.",
     "- Identify whether the turn changes source facts, projection artifacts, implementation evidence, pending context, or only runtime evidence.",
-    "- Produce an artifact impact scan covering project, cases, spec, interaction, visual, tech, pending, workflow_memory, agent_context, and handoff.",
+    "- Produce an artifact impact scan covering project, cases, spec, interaction, visual, tech, debug, pending, and handoff.",
     "- Produce a Loop Handoff that separates next_responsibility from trigger_mode.",
     "- Do not close the round if the route, evidence, risks, unknowns, or required validation are missing.",
     "",

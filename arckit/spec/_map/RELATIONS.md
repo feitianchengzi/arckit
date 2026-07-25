@@ -2,7 +2,7 @@
 
 ## Agent 软件研发操作层
 
-阅读顺序是 `problem-background.md`、`solution-principles.md`、`product-concepts.md`、`product-architecture.md`、`skill-architecture.md`、`controller-worker-loop.md`。`loop-engineering-research.md` 是研究输入，按需在修订 loop、runtime、workflow memory 或外部 adapter 相关规格前读取。
+阅读顺序是 `problem-background.md`、`solution-principles.md`、`product-concepts.md`、`product-architecture.md`、`skill-architecture.md`、`controller-worker-loop.md`。`loop-engineering-research.md` 是研究输入，按需在修订 loop、runtime 或外部 adapter 相关规格前读取。
 
 `agentic-software-development/problem-background.md` 定义 Agent 软件研发操作层要解决的根问题，是本模块的决策起点。
 

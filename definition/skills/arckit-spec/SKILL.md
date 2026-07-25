@@ -9,7 +9,7 @@ description: "维护 arckit/spec/ 下的产品功能规格、行为规则、验�
 
 ## 过程 Handoff 接收规则
 
-本 skill 是结果型 skill，`arckit/spec/` 仍是产品功能事实的 source of truth。可以接收 `arckit-draft-spec`、`arckit-domain-modeling` 或 `arckit-decision-framework` 的 handoff，也可以接收用户或外部 adapter 提供的明确材料，但接收不等于自动写入。
+本 skill 是结果型 skill，`arckit/spec/` 仍是产品功能事实的 source of truth。可以接收 `arckit-draft-spec`、`arckit-domain-modeling`、用户或外部 adapter 提供的明确材料，但接收不等于自动写入。
 
 - 先把 handoff 当作候选输入，按下方 INDEX 全局分析和域归属判定决定并入、新建、拆分、归档或暂不采纳。
 - 只把稳定行为、规则、验收口径和已确认边界写入主文档。

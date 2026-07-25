@@ -57,9 +57,9 @@ arckit/
   entry/
     skills/        首轮入口编排、后续消息变更控制和场景 workflow frame
   memory/
-    skills/        项目连续状态、原始输入、未决议题、workflow memory 和跨会话导航
+    skills/        项目连续状态、原始输入、未决议题和跨会话导航
   thinking/
-    skills/        跨生命周期过程型思考能力、决策框架、草案生成、候选比较和 handoff 准备
+    skills/        跨生命周期过程型思考能力、决策分析、草案生成、候选比较和 handoff 准备
   definition/
     skills/        产品规格、交互设计、视觉设计和技术方案
   engineering/
@@ -86,17 +86,15 @@ arckit/
 - `arckit-development-ledger`
 - `arckit-intake`
 - `arckit-pending`
-- `arckit-workflow-memory`
 
 ### `thinking/`
 
-用于跨生命周期的过程型思考能力，包括决策框架、结构化分析、问题重构、草案生成、候选方案比较、批评修正和结果入库前的 handoff 准备。
+用于跨生命周期的过程型思考能力，包括决策分析、结构化分析、问题重构、草案生成、候选方案比较、批评修正和结果入库前的 handoff 准备。
 
 如果一个 skill 承担的是可替换的分析、推理、生成、比较、批评或 handoff 准备，而不是某个阶段的长期产物维护流程，应放在 `thinking/skills/`。
 
 当前保留：
 
-- `arckit-decision-framework`
 - `arckit-draft-spec`
 - `arckit-explore-product-design`
 - `arckit-architecture-decision`
@@ -140,6 +138,7 @@ Arckit 不维护“某个技术栈具体如何编码”的 skill。SwiftUI、前
 当前保留：
 
 - `arckit-debug-diagnosis`
+- `arckit-refactor-strategy`
 
 ## Skill 组合原则
 

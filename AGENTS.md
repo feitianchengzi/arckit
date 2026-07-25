@@ -9,7 +9,7 @@ agent capability types over time. Reusable skills must live under that directory
 
 Arckit is a software-development agent collaboration and handoff protocol layer. It should help humans,
 Codex-like single agents, and multi-agent automation platforms work from the same project facts, case state,
-handoffs, pending items, workflow memory, and agent startup context.
+handoffs, pending items, and repository context.
 
 Skills in this repository should primarily improve agent reliability in real software projects: context recovery,
 fact-source governance, handoff quality, implementation boundaries, diagnosis, and safe continuation after a human
@@ -29,7 +29,7 @@ Runtime kernel must preserve this product axis while staying policy-neutral: do 
 
 - `entry/`: cross-lifecycle entry points, skill routing, workflow composition, and scenario-to-skill orchestration.
 - `idea/`: opportunity discovery, idea collection, idea analysis, user feedback synthesis, and early problem framing.
-- `thinking/`: cross-lifecycle process thinking capabilities, including reasoning, decision frameworks, structured analysis, draft generation, candidate comparison, critique, and handoff preparation.
+- `thinking/`: cross-lifecycle process thinking capabilities, including reasoning, decision analysis, structured analysis, draft generation, candidate comparison, critique, and handoff preparation.
 - `iteration/`: project iteration management, milestone planning, version rhythm, prioritization, and execution cadence.
 - `definition/`: project definition artifacts, including product specifications, interaction design, visual design, and technical solutions.
 - `memory/`: agent memory entry points and repository context navigation, such as maintaining `AGENTS.md`, `CLAUDE.md`, project indexes, and context maps.
@@ -68,7 +68,7 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - Project iteration management: `iteration/skills/`
 - Product-level development work item discovery: `iteration/skills/`
 - Workshop Desktop execution bridge: `iteration/skills/`
-- Cross-lifecycle process thinking, decision frameworks, draft generation, and handoff preparation: `thinking/skills/`
+- Cross-lifecycle process thinking, decision analysis, draft generation, and handoff preparation: `thinking/skills/`
 - Idea collection and analysis: `idea/skills/`
 - Product specification: `definition/skills/`
 - Interaction: `definition/skills/`
@@ -80,7 +80,7 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - Project pending context management: `memory/skills/`
 - Media production, video, and social operations: `media/skills/`
 - General debug diagnosis and implementation troubleshooting: `engineering/skills/`
-- Implementation handoff and refactor strategy: `engineering/skills/`
+- Refactor strategy and bounded implementation coordination: `engineering/skills/`
 - Real software development scenario evaluation: `quality/skills/`
 - Technology-stack-specific coding skills: maintained in `arckit-code`, not this repository.
 - Server deployment: `delivery/skills/`

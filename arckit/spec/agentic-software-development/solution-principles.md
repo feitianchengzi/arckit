@@ -18,7 +18,7 @@
 
 Arckit 不绑定单一运行形态。它既服务人类在 Codex 类 Agent 中完成日常软件项目开发，也服务多 Agent + Loop 的全自动化 AI 平台推进日常研发任务。
 
-两种形态共享同一套项目事实、case 状态、pending、handoff、workflow memory 和 agent context。差异在于执行调度层：Codex 类协作由人和单 Agent 对话推进；自动化平台由多 Agent 角色和 loop 推进。Arckit 不负责替代平台调度、队列、权限、运行环境和通知系统，而负责让这些执行体围绕同一套软件项目语义工作。
+两种形态共享同一套项目事实、case 状态、pending、handoff 和仓库上下文。差异在于执行调度层：Codex 类协作由人和单 Agent 对话推进；自动化平台由多 Agent 角色和 loop 推进。Arckit 不负责替代平台调度、队列、权限、运行环境和通知系统，而负责让这些执行体围绕同一套软件项目语义工作。
 
 ## 保留人类接手能力
 

@@ -38,7 +38,7 @@ Skill 不拥有 Desktop Runtime 架构，不定义产品级状态机，不决定
 
 多 Agent 自动化平台是由多个 AI 角色、loop 控制、工具执行、状态管理和人类接手机制组成的软件研发执行环境。
 
-平台可以自动推进日常软件项目开发，例如规划任务、生成 handoff、修改代码、诊断失败、运行验证、回写状态和请求人类确认。平台不等同于 Arckit。平台负责调度、权限、队列、环境、重试、通知和用户界面；Arckit 负责定义平台和人类共同读写的项目事实、case 状态、handoff、pending、workflow memory 和 agent context。
+平台可以自动推进日常软件项目开发，例如规划任务、生成 handoff、修改代码、诊断失败、运行验证、回写状态和请求人类确认。平台不等同于 Arckit。平台负责调度、权限、队列、环境、重试、通知和用户界面；Arckit 负责定义平台和人类共同读写的项目事实、case 状态、handoff、pending 和仓库上下文。
 
 ## Arckit 协议层
 
@@ -48,7 +48,7 @@ Arckit 协议层是位于人类、单 Agent、多 Agent 自动化平台和外部
 
 Arckit 协议层的核心价值是让协作可恢复。无论上一轮由人类、Codex 类 Agent 还是自动化平台执行，下一轮执行体都能通过 Arckit 记录理解当前状态并继续。
 
-Arckit 协议层的最高层产品对象是 Project State。Case 和 Loop 都服务于 Project State 的持续推进。Agent、skill、runtime、Desktop、handoff、ledger 和 workflow memory 是推进、保护或恢复状态变化的机制，不是最高层产品对象。
+Arckit 协议层的最高层产品对象是 Project State。Case 和 Loop 都服务于 Project State 的持续推进。Agent、skill、runtime、Desktop、handoff 和 ledger 是推进、保护或恢复状态变化的机制，不是最高层产品对象。
 
 ## AI 能力假设
 
@@ -70,7 +70,7 @@ Prompt 的特点是高压缩、多义、上下文依赖和持续演化。系统�
 
 Agent 启动上下文是 Agent 或自动化平台进入项目时必须先知道的稳定操作规则。
 
-它包括仓库导航、事实源读取顺序、AGENTS.md 规则、长期协作约定、禁止范围、目录级约束和 durable context 路由。它不保存聊天记录，不承载产品功能事实，也不替代 spec、tech、interaction、visual、pending 或 workflow memory。
+它包括仓库导航、事实源读取顺序、AGENTS.md 规则、长期协作约定、禁止范围和目录级约束。它不保存聊天记录，不承载产品功能事实，也不替代 spec、tech、interaction、visual 或 pending。
 
 ## 显式约束
 
@@ -168,7 +168,7 @@ Loop 的核心输出不是 Agent 输出了什么，而是本轮是否推进了 c
 
 阶段产物是当前阶段应该交付的结果。
 
-阶段产物可以是概念澄清、价值假设、决策结论、需求草案、正式规格、体验规则、技术约束、任务拆解、implementation handoff、refactor strategy handoff、实现变更、验证报告、审查结论、发布判断、运行观察或待确认事项。
+阶段产物可以是概念澄清、价值假设、决策结论、需求草案、正式规格、体验规则、技术约束、任务拆解、implementation worker packet、refactor strategy handoff、实现变更、验证报告、审查结论、发布判断、运行观察或待确认事项。
 
 阶段产物不是最终完成状态。它表达当前轮次推进到了哪里。
 

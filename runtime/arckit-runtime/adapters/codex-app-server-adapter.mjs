@@ -573,8 +573,6 @@ function createBlockedRuntimeResult({ summary, completionParams }) {
       tech: "none",
       debug: "none",
       pending: "none",
-      workflow_memory: "none",
-      agent_context: "none",
       handoff: "none"
     },
     source_projection_check: {

@@ -9,7 +9,7 @@ description: "维护 arckit/tech/ 下的技术方案、架构说明、数据模�
 
 ## 过程 Handoff 接收规则
 
-本 skill 是结果型 skill，`arckit/tech/` 仍是技术方案、模型和契约事实的 source of truth。可以接收 `arckit-architecture-decision`、`arckit-domain-modeling` 或 `arckit-decision-framework` 的 handoff，也可以接收用户、实现结果或外部 adapter 提供的明确材料，但接收不等于自动写入。
+本 skill 是结果型 skill，`arckit/tech/` 仍是技术方案、模型和契约事实的 source of truth。可以接收 `arckit-architecture-decision`、`arckit-domain-modeling`、用户、实现结果或外部 adapter 提供的明确材料，但接收不等于自动写入。
 
 - 先把 handoff 当作候选输入，按下方 INDEX 全局分析和技术域归属判定决定并入、新建、拆分、归档或暂不采纳。
 - 只把已确认的架构结论、约束、模型、接口和决策理由写入结果文档。

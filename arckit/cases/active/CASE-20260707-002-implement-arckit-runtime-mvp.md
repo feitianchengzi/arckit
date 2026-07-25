@@ -257,7 +257,7 @@ Updated: 2026-07-08T13:23:43.000Z
       "evidence_maturity": "confirmed",
       "next": "下一轮用 Desktop Chat 跑真实 Codex app-server done/gate/write 验证。"
     },
-    "workflow_memory_signals": {
+    "process_notes": {
       "status": "satisfied",
       "reason": "本轮产品判断已沉淀为 Runtime-first：skill 不再承担 loop 执行，Desktop/Runtime 作为外部编排层。",
       "evidence": [
@@ -292,12 +292,12 @@ Updated: 2026-07-08T13:23:43.000Z
   ],
   "pending_handoffs": [
     {
-      "kind": "implementation_handoff",
+      "kind": "implementation_worker_packet",
       "target": "next agent round",
       "summary": "通过 Electron Desktop Chat 发起真实 Codex app-server supervised turn：添加真实项目、发送任务消息、观察右侧状态和 events、用运行中 Chat 消息测试 steer，获得 round_result=done 后执行 gate-result 和 write-ledger。"
     }
   ],
-  "workflow_memory_signals": [],
+  "process_notes": [],
   "rounds": [
     {
       "round": 1,
@@ -927,7 +927,7 @@ Updated: 2026-07-08T13:23:43.000Z
       "technical_expectation",
       "implementation_state",
       "open_questions",
-      "workflow_memory_signals"
+      "process_notes"
     ],
     "remaining": [
       "verification_state",

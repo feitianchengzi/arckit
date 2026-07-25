@@ -161,7 +161,7 @@ Project State 是事实系统的恢复视图，不替代各事实源。Project S
 - 多 Agent 自动化平台角色：需要结构化 handoff、停止条件、回写位置和失败上报方式。
 - 外部 adapter：需要输入、输出、确认点、权限边界和结果回传位置。
 
-接力系统的核心产物包括 `implementation_handoff`、`refactor_strategy_handoff`、`external_adapter_handoff`、pending handoff 和人类接手材料。
+接力系统的核心产物包括 implementation worker packet、`refactor_strategy_handoff`、`external_adapter_handoff`、pending handoff 和人类接手材料。
 
 接力系统不替代执行。它定义执行前后的共享接口，使自动化平台可以继续推进，也使人类可以在平台无法继续时接手。
 

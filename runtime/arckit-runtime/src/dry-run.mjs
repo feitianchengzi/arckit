@@ -14,8 +14,6 @@ export function createDryRunResult(snapshot, round, compiledPrompt) {
       tech: "none",
       debug: "none",
       pending: "none",
-      workflow_memory: "none",
-      agent_context: "none",
       handoff: "generated"
     },
     source_projection_check: {

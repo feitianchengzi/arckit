@@ -149,7 +149,7 @@ case record 至少维护：
 - `verification_state`
 - `open_questions`
 - `pending_handoffs`
-- `workflow_memory_signals`
+- `process_notes`
 - `project_state_delta`
 - `completion_audit`
 
@@ -165,7 +165,7 @@ case record 至少维护：
   - `next_responsibility=human` 表示需要人类判断、授权、审美、商业取舍或发布责任；必须写 `human_decision_required=true` 和 `decision_needed`。
   - `next_responsibility=external` 表示等待外部系统或人工在系统外完成的结果；必须写恢复条件。
   - `next_responsibility=none` 表示 case 已完成或无需继续。
-- case 只记录当前研发事项状态和过程证据，不替代 project state、iteration state、pending、workflow memory 或稳定事实源。
+- case 只记录当前研发事项状态和过程证据，不替代 project state、iteration state、pending 或稳定事实源。
 - case 的 `current_round_goal`、`current_round_gap`、`project_state_delta.next_project_question`、`completion_audit.next_round_goal` 和 `completion_audit.loop_handoff.agent_instruction.goal` 必须是短语义字段。它们不能保存 Desktop operator event、完整 previous prompt、完整 runtime activity、完整 ledger result 或 app-server stream。完整过程材料只进入 `rounds[].runtime_result_ref`、evidence refs、debug/audit 或 runtime execution record。
 
 退出条件：case record 可被未来 agent 读回，并能解释一次状态转移或下一轮继续条件。

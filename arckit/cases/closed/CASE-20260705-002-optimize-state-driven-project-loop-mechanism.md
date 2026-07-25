@@ -162,7 +162,7 @@ Updated: 2026-07-05T15:33:56.140Z
       "evidence_maturity": "confirmed",
       "next": "需要发布或同步时运行 ArcForge 漂移/应用流程。"
     },
-    "workflow_memory_signals": {
+    "process_notes": {
       "status": "satisfied",
       "reason": "本轮产生明确工作方式信号：后续软件项目协作应以 state gap 和 next transition 驱动 loop。",
       "evidence": [
@@ -186,7 +186,7 @@ Updated: 2026-07-05T15:33:56.140Z
     "真实复杂项目 loop 验证留在 ITER-20260705-001 的 remaining gap 中继续推进。",
     "安装副本同步或 ArcForge 漂移治理按需要后续处理。"
   ],
-  "workflow_memory_signals": [
+  "process_notes": [
     "软件项目协作应围绕 project state 的 state_gaps 和 loop_control 做下一轮行动选择。"
   ],
   "rounds": [
@@ -227,7 +227,7 @@ Updated: 2026-07-05T15:33:56.140Z
       "verification_state",
       "open_questions",
       "pending_handoffs",
-      "workflow_memory_signals"
+      "process_notes"
     ],
     "remaining": [],
     "blocked": [],
