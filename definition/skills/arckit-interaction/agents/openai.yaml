@@ -1,0 +1,17 @@
+interface:
+  display_name: "ArcKit Interaction"
+  short_description: "维护稳定页面交互、状态响应和灰度线框"
+  default_prompt: "使用 $arckit-interaction 查询、创建、更新或审计 arckit/interaction 下的页面级交互事实。先读取 INDEX 并判断查询或变更；只接收用户、Controller worker report、稳定产品事实或 external adapter 提供的明确材料。未解决的探索缺口保留在 active case 的 open_questions 或 pending_handoffs，不强行创建页面。最终输出 document_scope。"
+policy:
+  allow_implicit_invocation: true
+workflow:
+  first_steps:
+    - "读取 arckit/interaction/INDEX.md 并判断查询或变更。"
+    - "变更时先做页面归属、状态覆盖和投影一致性分析。"
+    - "只把稳定触发、响应、状态、异常和恢复行为写入事实源。"
+  boundaries:
+    - "本能力可由 Runtime 绑定给 Worker，但只能在 packet 的 allowed_skills、allowed_paths 和事实边界内执行。"
+    - "不把视觉审美、技术实现或未确认探索写成交互事实。"
+    - "不依赖已移除 skill；开放问题和待处理 handoff 保留在 active case。"
+  output:
+    - "document_scope"

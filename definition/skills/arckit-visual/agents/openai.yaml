@@ -1,0 +1,17 @@
+interface:
+  display_name: "ArcKit Visual"
+  short_description: "维护稳定视觉策略、Design Tokens 和组件规格"
+  default_prompt: "使用 $arckit-visual 查询、创建、更新或审计 arckit/visual 下的稳定视觉事实。先读取 INDEX 并判断查询或变更；只接收用户、Controller worker report、稳定产品/交互事实或 external adapter 提供的明确材料。缺少人类确认或既有视觉依据时，把待确认项保留在 active case 并标记 human_decision_required。最终输出 document_scope。"
+policy:
+  allow_implicit_invocation: true
+workflow:
+  first_steps:
+    - "读取 arckit/visual/INDEX.md 并判断查询或变更。"
+    - "变更时先确认视觉域归属、用户依据和投影一致性。"
+    - "只把稳定视觉策略、token、主题和组件状态写入事实源。"
+  boundaries:
+    - "本能力可由 Runtime 绑定给 Worker，但只能在 packet 的 allowed_skills、allowed_paths 和事实边界内执行。"
+    - "不由 agent 静默决定品牌方向、审美批准或组件性格。"
+    - "不依赖已移除 skill；需要人类判断时创建 human gate。"
+  output:
+    - "document_scope"

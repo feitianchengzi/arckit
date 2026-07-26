@@ -34,6 +34,12 @@ description: Arckit 项目对话 Controller skill。用于把真实软件项目�
 - 用户明确说不用 Arckit。
 - Worker Agent 已收到具体 worker packet，只需要执行该 packet。
 
+## Runtime 调用契约
+
+在 Arckit Runtime 中，本 skill 不是仅供 Capability Registry 展示的元数据。`arckit.capability.json` 必须把 Controller planning 和 Controller review 声明为 `agent_skill` invocation；Runtime 发给 Controller Agent 的 turn 必须以 manifest 声明的 `$using-arckit` trigger 开始，由 Agent 原生 skill 机制加载并执行本文件。
+
+Runtime 只提供项目快照、用户任务、可用 capability、输出 schema 和不可绕过的授权/门禁边界，不得在 prompt 中复制一份本 skill 的 Controller 流程、动态路由、report intake 或 closeout 语义。若 trigger 缺失、phase 不匹配或 capability 不唯一，Runtime 应 fail closed，而不是退回内置 Controller 策略。
+
 ## Controller 流程
 
 每次触发都按以下顺序处理：
@@ -56,7 +62,7 @@ Controller 不默认派发固定 worker 组合，不预设 route mode，也不�
 
 - 空项目首轮也不使用固定默认 route；Controller 必须基于用户输入和项目证据判断是澄清、建模、实现、验证、等待人类、等待外部还是其他路线。
 - 用户输入包含“开发、实现、修复、编码”不自动等于可实现，也不自动禁止实现；Controller 必须说明判断依据、风险和验证口径。
-- 如果需要能力或 skill，Controller 必须基于 Capability Registry 为 packet 绑定 `allowed_skills`；Runtime 可以把这些允许的 skill 触发名注入给对应 Worker，但不能写死每轮 skill 序列或业务路线。
+- 如果需要能力或 skill，Controller 必须只从 Capability Registry 的 Worker 分组为 packet 绑定 `allowed_skills`；Controller 分组的 `using-arckit` 和 Runtime 分组的 `arckit-development-ledger` 不能进入 Worker packet。Runtime 可以把合法 Worker skill 触发名注入给对应 Worker，但不能写死每轮 skill 序列或业务路线。
 - verification、closeout、handoff 是否需要独立 worker，由 Controller 根据本轮风险、证据和执行边界判断。
 
 `requires_main_agent_decision` 表示 Controller 需要继续合并、修订或生成下一轮；`human_decision_required` 只用于真正需要用户授权、取舍、风险接受、审美或发布责任的情况。
@@ -194,6 +200,7 @@ Worker 不允许：
 - 自行扩大目标。
 - 自行决定项目方向。
 - 关闭 case。
+- 在 `allowed_skills` 中绑定 Controller 协议能力或 Runtime 状态账本能力。
 - 把候选判断直接写入稳定事实。
 - 跳过 report schema。
 
@@ -267,6 +274,7 @@ worker_report:
 ## 能力边界
 
 - `using-arckit` 负责 Controller 协议：任务处境、turn delta、controller frame、execution gate、worker packets、report intake、closeout 和 loop handoff。
+- 在 Arckit Runtime 中，`using-arckit` 属于 Controller execution plane，只提供 Controller 协议语义，不作为普通 Worker 的 `allowed_skills`。
 - `using-arckit` 不硬编码每轮业务路线、固定 worker 顺序或固定 skill 序列；它要求 Controller 基于 Capability Registry、状态 gap 和 packet 边界动态选择 `worker_type`、`role` 与 `allowed_skills`。
 - 执行环境可以自动分发 packet、收集 report、展示状态和执行 gate，但不改变 Controller 协议。
 - 没有自动执行环境时，人类搬运 packet/report 是正常流程。

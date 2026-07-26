@@ -59,12 +59,14 @@ Each run now produces:
 
 Worker types are stable capability classes (`product`, `tech`, `implementation`, `verification`, `diagnosis`, `closeout`). Worker roles are per-round semantic names selected by the dynamic route plan. Runtime does not trigger every worker type on every run.
 
-In executing Codex mode, Runtime first asks a bounded Controller Agent for an `arckit-controller-plan/v1`.
+In executing Codex mode, Runtime first invokes the manifest-declared `$using-arckit` Agent skill in a bounded Controller turn and asks for an `arckit-controller-plan/v1`.
 The Controller Agent proposes the minimum worker route and role-scoped worker intents from project state,
 candidate gaps, local evidence, and operator task. Runtime still owns final validation: it normalizes
 the proposed route and validates schema, authorization, evidence, report intake, and ledger gates.
 If the Controller plan is invalid, blocked, or unavailable, the round is blocked instead of silently using
 a code-rule route or auto-adding missing workers. Dry-run mode does not start the Controller Agent, so it cannot fabricate worker packets.
+
+The same `$using-arckit` invocation is used for Controller Review after worker reports arrive. Runtime supplies the state/context envelope, capability registries, output schema, and hard constraints; the loaded skill remains the semantic source for planning, report intake, and closeout. Runtime does not keep a second copy of that Controller workflow in prompt templates.
 
 After workers report, Runtime reduces report evidence into a deterministic Runtime Guard result before applying
 Controller Review closeout. Controller Review may decide semantic `continue`, `needs_human`, or `blocked`, but it
@@ -88,7 +90,11 @@ Dry-run mode is Controller Preview: it generates the controller frame and execut
 
 ## Capability And Skill Selection
 
-Runtime scans capability manifests and exposes their metadata to the Controller Agent as a capability registry. The Controller chooses `worker_type`, `role`, and `allowed_skills` for each worker intent from the registry and current state gap. Runtime may inject the selected `$skill-name` triggers into the corresponding worker prompt, but it must not hard-code per-round workflow routes, fixed worker order, fixed skill sequences, or business-specific first gaps.
+Runtime scans capability manifests, applies `config/capability-policy.json`, and exposes only the retained Arckit capabilities. The current v2 policy divides the seven retained capabilities into mutually exclusive execution planes: Controller (`using-arckit`), Runtime (`arckit-development-ledger`), and Worker (`arckit-spec`, `arckit-interaction`, `arckit-visual`, `arckit-tech`, `arckit-debug-diagnosis`). A project manifest outside the policy is ignored.
+
+Manifests also declare how Runtime invokes a capability. Controller phases use the Agent-native `$using-arckit` trigger. Project initialization and ledger writeback resolve repository-trusted `runtime_entrypoints` from `arckit-development-ledger`; entrypoints cannot escape the skill directory, and a target project's same-id manifest cannot shadow the repository implementation. Runtime retains deterministic schema, authorization, path, lifecycle, and ledger hard gates, while the skill owns ledger scripts and semantic writeback. No copied ledger scripts live under Runtime.
+
+The Controller chooses `worker_type`, `role`, and `allowed_skills` for each worker intent only from the filtered Worker registry and current state gap. Controller and Runtime capabilities remain visible as protocol/service context but cannot be bound to Workers. The policy file is the explicit capability-selection boundary; Runtime kernel code remains generic and does not hard-code per-round workflow routes, fixed worker order, fixed skill sequences, or business-specific first gaps. Runtime injects selected `$skill-name` triggers only after policy and manifest binding checks. A Controller plan or existing packet with a Controller, Runtime, unknown, or unavailable Worker capability fails closed instead of silently dropping the invalid ID.
 
 ## Commands
 

@@ -43,7 +43,7 @@ Arckit 的执行产品形态采用三层分工：
 
 该分层保证 Desktop 控制运行，Agent 处理语义和执行，Skill 只增强 Agent 的可复用能力。Project State、Case 和 Loop 的产品语义不由单个 skill 决定。
 
-Worker 是 Loop 中的执行角色，Skill 是 Worker 可调用的能力包。Runtime 保留稳定 worker 类型和 skill 绑定协议，但不固定某一轮必须派发哪些 worker，也不把具体业务路线写死为源码分支。Controller 根据 Project State、Case State、用户输入、证据和 Capability Registry 选择本轮 worker 类型、具体 role、allowed skills 和停止条件。
+Worker 是 Loop 中的执行角色；Skill 是可安装的能力包，其中只有 capability policy 的 Worker 分组可绑定给 Worker。`using-arckit` 属于 Controller execution plane，`arckit-development-ledger` 属于 Runtime execution plane。Runtime 保留稳定 worker 类型和 skill 绑定协议，但不固定某一轮必须派发哪些 worker，也不把具体业务路线写死为源码分支。Controller 根据 Project State、Case State、用户输入、证据和 Worker Capability Registry 选择本轮 worker 类型、具体 role、allowed skills 和停止条件。
 
 ## 概念关系
 
@@ -55,10 +55,10 @@ Worker 是 Loop 中的执行角色，Skill 是 Worker 可调用的能力包。Ru
 4. 系统根据 Project State 判断当前是否存在可推进的状态缺口。
 5. 当状态缺口需要持续推进、验证、接力或关闭时，系统创建或选择 case。
 6. 当前阶段和真实软件预期决定本轮应该产生阶段产物还是最终产物；最终产物类型用于选择实现承载和验证证据。
-7. Loop 在 case 边界内推进本轮目标，并产出证据、报告、变更、pending 或 handoff。
+7. Loop 在 case 边界内推进本轮目标，并产出证据、报告、变更、开放问题或 handoff。
 8. 产物进入对应事实系统，成为预期事实、实现事实、过程事实或工作方式事实。
 9. 当本轮不能或不应由当前执行体继续时，接力系统生成 handoff、接力状态、Loop Handoff 或人类接手材料。
-10. 真实场景预期和外部反馈先进入 intake、pending 或评测集，再根据 triage 结果决定是否创建或更新 case。
+10. 真实场景预期和外部反馈先进入 case 开放问题、待处理 handoff、可选低承诺数据 surface 或评测集，再根据 triage 结果决定是否创建或更新 case。
 11. 验证活动比较预期事实、实现事实和评测集中的场景化预期。
 12. 经过验证或确认的 state delta 更新 Project State；不稳定信息进入低承诺空间。
 13. 用户纠错、评测结果、执行结果和接力结果反向影响后续阶段判断、事实边界、case 状态和工作方式。
@@ -79,7 +79,7 @@ Loop 是 case 的推进循环。一个 case 可以经历多个 loop。每个 loo
 2. 系统创建或选择 case。
 3. Case 定义目标状态、边界和证据要求。
 4. Loop 被触发并推进 case。
-5. Loop 产出 evidence、report、change、pending 或 handoff。
+5. Loop 产出 evidence、report、change、open question 或 handoff。
 6. Case 判断继续、等待、阻塞、人类判断或关闭。
 7. Project State 根据验证后的 state delta 更新。
 
@@ -144,7 +144,7 @@ Case 和 Loop 也属于过程产物。Case 承载研发事项的持续推进状�
 
 Agent 启动上下文是事实系统的入口辅助层。它不保存产品功能事实，而是保存 Agent 进入项目时的读取顺序、仓库导航、长期协作规则和事实源路由规则。
 
-Project State 是事实系统的恢复视图，不替代各事实源。Project State 读取事实源、case、pending、验证证据和工作方式事实形成可恢复状态；写回 Project State 时必须保留来源依据和状态变化原因。
+Project State 是事实系统的恢复视图，不替代各事实源。Project State 读取事实源、case、验证证据和工作方式事实形成可恢复状态；写回 Project State 时必须保留来源依据和状态变化原因。
 
 传输 envelope 和原始 runtime evidence 属于过程证据，不属于 Project State 或 Case State 的语义字段。Desktop operator event、完整 activity、完整 controller frame、完整 worker packet、完整 ledger write result、app-server stream output 和 raw prompt transcript 可以保存在 runtime execution record、raw events 或 audit 记录中，并通过路径引用进入状态；它们不得写入 `loop_control.next_transition`、`current_round_goal`、`current_round_gap`、`agent_instruction.goal` 或 `progress_guard.expected_state_change`。
 
@@ -161,7 +161,7 @@ Project State 是事实系统的恢复视图，不替代各事实源。Project S
 - 多 Agent 自动化平台角色：需要结构化 handoff、停止条件、回写位置和失败上报方式。
 - 外部 adapter：需要输入、输出、确认点、权限边界和结果回传位置。
 
-接力系统的核心产物包括 implementation worker packet、`refactor_strategy_handoff`、`external_adapter_handoff`、pending handoff 和人类接手材料。
+接力系统的核心产物包括 bounded implementation/refactor worker packet、`external_adapter_handoff`、case `pending_handoffs` 和人类接手材料。
 
 接力系统不替代执行。它定义执行前后的共享接口，使自动化平台可以继续推进，也使人类可以在平台无法继续时接手。
 
@@ -206,7 +206,7 @@ Loop Handoff 不是 Project State 更新本身。它说明本轮影响和下一�
 6. 产物系统判断本轮涉及的最终产物和过程产物。
 7. 事实系统判断信息进入预期事实、实现事实、过程事实、工作方式事实或低承诺空间。
 8. 接力系统生成 controller frame、execution gate、worker packet、report intake rules 和 closeout rules；只有 execution gate 被授权并绑定 executor 后，执行体才开始本轮 loop。
-9. 当用户输入是场景化预期或外部反馈时，系统先把它维护为评测集、pending 或 intake，而不是直接提升为需求或 Project State。
+9. 当用户输入是场景化预期或外部反馈时，系统先把它维护为评测集、case 开放问题、待处理 handoff 或可选低承诺数据记录，而不是直接提升为需求或 Project State。
 10. 执行结果以 worker report、实现证据、验证证据或外部结果形式回到 Controller。
 11. Controller 根据 report intake rules 和 closeout rules 判断 `done`、`continue`、`needs_human`、`blocked` 或 `external_wait`，并输出 Loop Handoff。
 12. 验证比较预期事实、实现事实和评测场景。
@@ -222,7 +222,7 @@ Loop Handoff 不是 Project State 更新本身。它说明本轮影响和下一�
 - 能说明真实软件预期和当前阶段的关系。
 - 能说明 Project State、Case 和 Loop 的主轴关系。
 - 能说明 Project State 如何通过验证后的 state delta 更新，而不是被 loop 静默改写。
-- 能说明哪些事项应创建 case，哪些内容应保留在 pending、intake 或 evaluation。
+- 能说明哪些事项应创建 case，哪些内容应保留在 case 开放问题、待处理 handoff、可选低承诺数据 surface 或 evaluation。
 - 能说明阶段产物、最终产物和过程产物的关系。
 - 能说明最终产物类型如何影响实现承载、实现事实和验证证据，而不拆分前置软件流程。
 - 能说明显式约束如何影响执行边界，而不是把表达清晰度作为流程主轴。

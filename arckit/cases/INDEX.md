@@ -8,7 +8,7 @@ Use the project ledger tools to create, validate, audit, close, and re-index rec
 
 | ID | Status | Title | Current Gap | Updated |
 | --- | --- | --- | --- | --- |
-| [CASE-20260707-002](active/CASE-20260707-002-implement-arckit-runtime-mvp.md) | active | Implement Arckit Runtime MVP | Desktop 全流程已修正为 Packet Preview 不执行 worker、Run Packet 授权同一 packet、运行中输入回到 Controller、worker packet/report 协议统一；剩余缺口是真实 Codex worker done result 与 ledger writeback 闭环。 | 2026-07-08T13:23:43.000Z |
+| [CASE-20260707-002](active/CASE-20260707-002-implement-arckit-runtime-mvp.md) | active | Implement Arckit Runtime MVP | Runtime 已通过 Agent trigger 直接调用 using-arckit，并通过受信任 skill entrypoint 直接调用 development ledger；剩余缺口是真实 Desktop Codex worker done result 与 ledger writeback 闭环。 | 2026-07-25T15:50:58.000Z |
 
 ## Closed Cases
 

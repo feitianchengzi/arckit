@@ -3,6 +3,12 @@
   "id": "using-arckit",
   "kind": "project_conversation_controller",
   "runtime_role": ["controller", "packet_compiler", "report_intake", "closeout"],
+  "binding_targets": ["controller"],
+  "invocation": {
+    "type": "agent_skill",
+    "skill_trigger": "$using-arckit",
+    "phases": ["controller_plan", "controller_review"]
+  },
   "summary": "Turns a software-development input into a controller frame, execution gate, worker packets, report intake rules, closeout rules, and loop handoff. It does not execute work by itself; an executor must be explicitly authorized and bound.",
   "input_facts": [
     "user_message",
@@ -38,10 +44,11 @@
     "stable_fact_write_without_owner_capability"
   ],
   "runtime_notes": [
-    "Use this capability as Controller protocol guidance for human-runtime, current-agent, CLI, or external runtime operation.",
+    "Runtime must invoke this capability through the Agent skill trigger for Controller planning and Controller review; manifest metadata alone is not execution.",
     "Default execution_gate.status is pending unless the user message, runtime authorization, auto-run policy, or external platform explicitly authorizes execution.",
     "When no automated executor is available, humans may manually copy worker packets to worker Agent chats and bring worker reports back to this Controller.",
     "The selected execution environment may automate worker creation, observation, merge, gates, or writeback, but the Controller semantics stay the same.",
-    "Do not hard-code per-round workflow routes, fixed worker order, or fixed skill sequences; bind allowed skills dynamically from capability manifests, packet goals, and evidence boundaries."
+    "Do not hard-code per-round workflow routes, fixed worker order, or fixed skill sequences; bind allowed skills dynamically from capability manifests, packet goals, and evidence boundaries.",
+    "Runtime must not bind this Controller protocol capability into an ordinary Worker allowed_skills list."
   ]
 }

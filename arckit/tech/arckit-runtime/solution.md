@@ -30,9 +30,9 @@ Runtime Kernel 不把 raw input envelope 当作 semantic state。Desktop operato
 
 Desktop UI 只展示 Runtime Kernel 的 control state，不自己猜测业务流程。Skills 继续提供能力说明、事实源维护规则和 worker 协议；它们不能替代 Runtime Kernel 做 loop 控制。
 
-Skill layer 位于系统底层。Skills 只承载可复用能力、底层协议、事实源维护规则和 worker 可执行边界，不沉淀 Desktop Runtime 的产品架构、状态机、自动写回策略或控制内核决策。这类上层架构事实只写入 `arckit/tech` 与 runtime 代码。
+Skill layer 位于系统底层。Skills 只承载可复用能力、底层协议、事实源维护规则和各 execution plane 的能力边界，不沉淀 Desktop Runtime 的产品架构、状态机、自动写回策略或控制内核决策。这类上层架构事实只写入 `arckit/tech` 与 runtime 代码。
 
-Runtime 只读取 `arckit.capability.json` 作为能力路由和边界元数据。Runtime 不读取 `SKILL.md` 正文作为控制逻辑来源，也不把 skill 内容注入 worker prompt 来替代 Agent 侧的 skill 加载机制。Codex 类 Agent 在执行 worker packet 时按自身安装的 skill 机制加载和使用允许的 skills。
+Runtime 只解析 `arckit.capability.json`，不自行读取或注入 `SKILL.md` 正文。Manifest 除了路由和边界元数据，还声明调用方式：Controller turn 以 `$using-arckit` trigger 交给 Agent 原生 skill 机制加载正文；Worker turn 同样只注入已授权 `$skill-name` trigger；确定性 ledger 能力则由 Runtime 直接调用 `arckit-development-ledger` manifest 声明的受信任 entrypoint。Runtime 不复制这些 skill 的语义或脚本实现。
 
 ### Runtime Kernel
 
@@ -59,7 +59,7 @@ State Store 读取目标项目的 Arckit 状态入口：
 
 ### Loop Controller
 
-Loop Controller 从 `state_gaps` 和 `loop_control` 选择本轮目标。选择依据优先使用 gap 的 `urgency` 和 `risk`，再回退到 `loop_control.next_transition`。
+Loop Controller 从 `state_gaps` 和 `loop_control` 形成候选上下文，由通过 `$using-arckit` 调用的 Controller Agent 选择本轮目标并解释依据。Runtime 不根据 `urgency`、`risk`、关键词或固定优先级自行拍板业务 gap。
 
 本轮目标必须形成：
 
@@ -73,23 +73,32 @@ Loop Controller 读取 `loop_control.next_transition` 时必须把它当作 Proj
 
 ### Capability Registry
 
-Capability Registry 读取 repository 和已安装 skill 中的 `arckit.capability.json` manifest。Manifest 只提供 runtime 可读的能力元数据：
+Capability Registry 读取 repository 和目标项目中的 `arckit.capability.json` manifest，并在暴露给 Controller 前应用 `runtime/arckit-runtime/config/capability-policy.json`。当前 v2 policy 只允许七个保留能力，并把它们分到三个互斥 execution plane：Controller 组为 `using-arckit`，Runtime 组为 `arckit-development-ledger`，Worker 组为 `arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech` 和 `arckit-debug-diagnosis`。策略外 manifest 不进入本轮能力地图。
+
+Manifest 只提供 runtime 可读的能力元数据：
 
 - capability id
 - runtime role
+- binding targets
 - input facts
 - outputs
 - allowed write targets
 - forbidden decisions
 - runtime notes
+- invocation type、skill trigger 和 phases
+- Runtime capability 的受信任 entrypoints
 
-Capability Registry 不把 `SKILL.md` 当作 Runtime 架构事实，也不把 skill 正文作为 Desktop 控制决策输入。
+Capability policy 是显式 policy layer，不是 Runtime Kernel 的固定路由。Registry 只有在 policy 分组允许且 manifest 的 `binding_targets` 声明兼容时才形成对应 execution plane registry。Capability Registry 不把 `SKILL.md` 当作 Runtime 架构事实，也不把 skill 正文作为 Desktop 控制决策输入；Kernel 不内置每轮 gap、route、worker role、skill 序列或能力选择启发式。
+
+Registry 对 Runtime entrypoint 使用更严格的信任规则：只能选择 repository source，目标项目同 ID manifest 不能覆盖；解析后的入口必须位于 capability root 内。Controller phase 必须且只能匹配一个 `agent_skill` invocation，否则 fail closed。
+
+Controller planning prompt 分别展示 Controller 协议、Runtime 服务和 Worker registry，但 `worker_intents[].allowed_skills` 只能引用 Worker registry。Controller plan 和既有授权 packet 都经过同一 Worker binding gate；Controller/Runtime/未知 capability ID 会阻塞执行，不会被静默过滤。
 
 ### Prompt Compiler
 
 Prompt Compiler 把项目状态、选中 gap、上下文路径、停止条件和输出 schema 编译成一个 bounded agent instruction。
 
-Prompt Compiler 不要求 agent 自己发现 Runtime 协议；它把本轮必须满足的 packet、report schema、停止条件和 allowed skill ids 显式注入当前 turn。Worker prompt 会把 allowed skill ids 写成显式 `$skill-name` 触发项，但不注入 skill 正文。具体 skill 行为由 Codex 类 Agent 的已安装 skill 包负责。
+Prompt Compiler 不要求 agent 猜测要使用哪个 skill。Controller planning/review prompt 以 manifest 声明的 `$using-arckit` 开始；Worker prompt 把通过 binding gate 的 Worker skill ids 写成显式 `$skill-name` 触发项。Prompt 只提供 Runtime envelope、schema 与 hard constraints，不注入 skill 正文，也不复刻 skill 工作流；具体行为由 Codex 类 Agent 的已安装 skill 包负责。
 
 Prompt Compiler 只注入有界的 prompt projection。Project State、Case State 和 operator event 中的 raw evidence 以 refs 进入 prompt；只有 Controller Agent 或 Worker Report 明确产出的结构化短字段可以作为目标、下一步和 worker objective 注入。Prompt Compiler 对语义字段执行 marker 和长度检查，发现 `arckit-desktop-operator-event/v1`、`Arckit Desktop operator event.` 或超预算内容时，不把该字段注入下一轮 prompt。
 
@@ -151,14 +160,16 @@ Validator 校验 agent 的最终 `arckit-runtime-result/v1`，至少要求：
 
 ### Ledger Writer
 
-Ledger Writer 负责后续将验证后的结果写回：
+Ledger Writer 是 Runtime hard gate 与 ledger skill entrypoint 之间的薄适配器。Runtime 先确定性计算 gate；只有 gate 允许时，才从受信任 `arckit-development-ledger` manifest 解析并调用 `scripts/runtime-writeback.mjs`。账本语义、字段映射、渲染和索引由 skill 内实现负责，Runtime 不维护副本。
+
+Ledger capability 负责将验证后的结果写回：
 
 - project state delta
 - iteration state delta
 - development case record
 - pending handoff
 
-Ledger writeback 是 Runtime Kernel 的必经阶段，不依赖 worker 建议。Desktop 执行型 run 在 `round_result=done` 且 `ledger_stage.status=gate_ready` 后会自动运行 gate；gate 允许时自动写 ledger，gate 不允许时保留 blocker 给 UI 和下一轮 Controller 处理。
+Ledger writeback 是 Runtime Kernel 的必经阶段，不依赖 worker 建议。Desktop 执行型 run 在 `round_result=done` 且 `ledger_stage.status=gate_ready` 后会自动运行 gate；gate 允许时调用 skill entrypoint，gate 不允许时不加载 writeback entrypoint，并保留 blocker 给 UI 和下一轮 Controller 处理。
 
 Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。Project State 和 Case State 写回不得使用 raw operator task fallback。写入前必须检查以下字段不含 raw event marker 且满足长度预算：`loop_control.next_transition`、`loop_control.continuation_prompt`、`last_state_delta.next_loop_focus`、case `current_round_goal`、case `current_round_gap`、`completion_audit.next_round_goal`、`loop_handoff.agent_instruction.goal` 和 `progress_guard.expected_state_change`。检查失败时 gate 阻止写回，只保留 runtime execution record 或 raw evidence ref。
 
@@ -212,6 +223,10 @@ M2 将 gate 和 validator 结果接入 `arckit-development-ledger`，当前实�
 
 - `runtime/arckit-runtime/src/gate-engine.mjs`
 - `runtime/arckit-runtime/src/ledger-writer.mjs`
+- `entry/skills/arckit-development-ledger/scripts/runtime-writeback.mjs`
+- `entry/skills/arckit-development-ledger/scripts/project-state.mjs`
+- `entry/skills/arckit-development-ledger/scripts/project-iteration.mjs`
+- `entry/skills/arckit-development-ledger/scripts/development-case.mjs`
 
 - 自动创建或更新 case
 - 校验 loop handoff
@@ -280,6 +295,7 @@ Arckit Runtime 满足方案时表现为：
 - 能展示 Runtime Kernel 输出的 round state、controller reducer result、artifact ownership scan 和 ledger stage。
 - 能拒绝缺少 artifact impact scan、source-projection check 或 loop handoff 的结果。
 - 能把 LLM/worker 的语义判断限制为结构化 claim，再由代码验证协议、证据、路径归属和门禁条件。
+- 能按 Controller、Runtime、Worker 三个 execution plane 注册七个保留 capability，并拒绝所有非法 Worker skill binding。
 - 能把 agent 续轮、人工决策、外部等待和完成状态区分为不同 loop handoff。
 - 能只把 `requires_human_decision=true` 当作人工门禁；`requires_main_agent_decision=true` 进入 Controller Reducer 内部动作，不默认阻塞 closeout。
 - 能在不改 agent core 的情况下先接 Codex app-server，并保留 opencode、多 agent adapter 的扩展边界。

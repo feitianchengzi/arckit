@@ -18,7 +18,8 @@ workflow:
     - "Keep source facts, projection artifacts, implementation evidence, and pending context separate."
     - "Return round_execution_packet, completion_audit, and loop_handoff."
   boundaries:
-    - "This capability is a Controller; it does not execute worker packets by itself."
+    - "In Arckit Runtime, invoke this capability through the manifest-declared $using-arckit Agent skill trigger for Controller planning and review; do not duplicate this skill's semantic workflow in Runtime prompts."
+    - "This capability is a Controller; it does not execute worker packets by itself and Runtime must not bind it into a Worker allowed_skills list."
     - "Do not bind current_agent as executor unless explicitly authorized."
     - "This capability coordinates packet and report flow; it does not hard-code per-round workflow routes, fixed worker order, or fixed skill sequences. Bind allowed skills dynamically from capability manifests, packet goals, and evidence boundaries."
     - "Do not include operator-specific implementation details in the capability result."

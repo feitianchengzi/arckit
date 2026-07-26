@@ -7,7 +7,7 @@ Arckit 是飞天橙子团队的 AI Agent Skills 中心，用来沉淀、维护�
 - 团队在真实 2B 和 2C 项目交付中沉淀出来的 skills
 - 从外部发现、筛选、审查，并适配到我们研发流程中的优质 skills
 
-Arckit 的目标不是简单堆放提示词，而是把可复用的软件项目定义、产品设计、技术方案、项目记忆和诊断经验整理成 agent 能稳定执行的工作流。
+Arckit 的目标不是简单堆放提示词，而是把可复用的软件项目状态、定义事实和诊断方法整理成 agent 能稳定执行的能力包。
 
 ## 推荐安装方式
 
@@ -30,23 +30,23 @@ ArcForge 安装完成后会进入推荐 Skill 项目阶段。此时可以让 age
 - ArcForge 会先区分来源、维护源和应用目标，再由 agent 执行安装或同步，减少漏文件、旧文件残留和误覆盖。
 - ArcForge 可以保存来源关系，后续用 drift 检查已安装副本是否偏离本仓库。
 
-如果后续某个项目只需要具体技术栈 coding skills，应从 `arckit-code` 选择；如果只需要 Arckit 中的定义、思考、记忆或诊断 skills，应通过 ArcForge 的推荐安装或治理流程选择，而不是复制整个 Arckit 仓库。
+如果后续某个项目只需要具体技术栈 coding skills，应从 `arckit-code` 选择；如果只需要 Arckit 中的状态驱动 loop、定义事实或诊断 skills，应通过 ArcForge 的推荐安装或治理流程选择，而不是复制整个 Arckit 仓库。
 
 ---
 
 ## 定位
 
-Arckit 面向 AI-agent-assisted software development，目标是指导 agent 辅助人类完成软件项目开发。当前仓库围绕真实开发协作中最基础、最高频的工作面组织能力：入口编排、项目记忆、定义前思考、产品/交互/视觉/技术事实维护，以及通用 debug 诊断。
+Arckit 面向 AI-agent-assisted software development，目标是指导 agent 辅助人类完成软件项目开发。当前仓库刻意收敛为验证 `Project State -> Case -> Loop` 所需的最小能力面：项目对话 Controller、研发状态账本、产品/交互/视觉/技术事实维护，以及通用 debug 诊断。
 
 它关注的问题包括：
 
-- 如何把想法定义成可执行的产品、交互、视觉和技术方案
-- 如何把一句自然语言需求维护成跨轮次的研发事项记录，并持续补齐未满足的软件工程结构
-- 如何让 agent 在不同项目和会话中复用上下文
+- 如何把用户输入转成受控 round，并由项目状态和 case gap 驱动下一轮
+- 如何把产品、交互、视觉和技术结论维护为稳定事实
+- 如何把研发事项维护成跨轮次、可恢复、可验证的状态记录
 - 如何沉淀工程诊断和回归定位经验
-- 如何让团队使用同一套经过审查的 skills，而不是各自维护零散提示词
+- 如何让 Runtime 只从明确的保留能力集合中选择 skill
 
-当用户诉求进入项目治理、代码审查、质量评测、发布出包、运行运维、Workshop Desktop、多角色协作或长期想法管理时，Arckit 先沉淀可复用的开发事实、决策依据、定义文档、诊断证据和 `arckit-pending` 交接项，再交给 `arckit-code`、ArcForge、项目自身工具或对应外部 adapter 继续执行。
+当用户诉求超出当前保留能力，例如代码审查、发布出包、运行运维、商业决策或专用技术栈编码时，Controller 把边界写入 active case 的 `open_questions`、`pending_handoffs` 或 `human_decision_required`，再交给 `arckit-code`、ArcForge、项目自身工具或对应 external adapter。
 
 项目中的 `arckit/project/` 和 `arckit/cases/` 用于保存研发状态账本数据。`arckit-development-ledger` 维护 project state、development case record、project_state_delta、completion audit 和索引；schema 与脚本属于 skill，自身不写入目标项目数据区。
 
@@ -55,50 +55,25 @@ Arckit 面向 AI-agent-assisted software development，目标是指导 agent 辅
 ```text
 arckit/
   entry/
-    skills/        首轮入口编排、后续消息变更控制和场景 workflow frame
-  memory/
-    skills/        项目连续状态、原始输入、未决议题和跨会话导航
-  thinking/
-    skills/        跨生命周期过程型思考能力、决策分析、草案生成、候选比较和 handoff 准备
+    skills/        项目对话 Controller 与 development ledger
   definition/
     skills/        产品规格、交互设计、视觉设计和技术方案
   engineering/
     skills/        通用工程诊断、回归定位和代码调查工作流
+  runtime/
+    arckit-runtime/ 只消费当前保留 capability policy 的控制面
 ```
 
 ## 分类说明
 
 ### `entry/`
 
-用于软件项目协作入口、场景 workflow resolution、workflow frame 编译和后续用户消息适配。
+用于软件项目对话 Controller、执行门禁、worker packet、report intake、closeout，以及 Project State/iteration/case 账本维护。
 
 当前保留：
 
 - `using-arckit`
-- `arckit-turn-adaptation`
-
-### `memory/`
-
-用于帮助 agent 理解、维护和复用项目上下文。
-
-当前保留：
-
 - `arckit-development-ledger`
-- `arckit-intake`
-- `arckit-pending`
-
-### `thinking/`
-
-用于跨生命周期的过程型思考能力，包括决策分析、结构化分析、问题重构、草案生成、候选方案比较、批评修正和结果入库前的 handoff 准备。
-
-如果一个 skill 承担的是可替换的分析、推理、生成、比较、批评或 handoff 准备，而不是某个阶段的长期产物维护流程，应放在 `thinking/skills/`。
-
-当前保留：
-
-- `arckit-draft-spec`
-- `arckit-explore-product-design`
-- `arckit-architecture-decision`
-- `arckit-domain-modeling`
 
 ### `definition/`
 
@@ -122,7 +97,7 @@ arckit/
 
 ### `engineering/`
 
-用于技术栈无关的工程诊断、实现协作、变更收敛和代码层面问题处理。
+用于技术栈无关的工程诊断、回归分析和代码层面问题处理。
 
 Arckit 不维护“某个技术栈具体如何编码”的 skill。SwiftUI、前端框架、后端框架、平台 SDK、认证接入等具体 coding workflow 统一放到 `arckit-code` 中维护。
 
@@ -132,24 +107,27 @@ Arckit 不维护“某个技术栈具体如何编码”的 skill。SwiftUI、前
 - 回归分析
 - 实现问题排查
 - 代码调查路径
-- 重构边界判断
-- 跨技术栈通用的工程协作流程
+- 证据驱动的必要修复建议
 
 当前保留：
 
 - `arckit-debug-diagnosis`
-- `arckit-refactor-strategy`
+
+### Runtime capability policy
+
+Runtime 的显式能力策略位于 `runtime/arckit-runtime/config/capability-policy.json`。该文件把上面 7 个保留 skill 分成三个互斥 execution plane：`using-arckit` 只用于 Controller 协议，`arckit-development-ledger` 只作为 Runtime 状态与写回能力，其余 5 个 skill 才能绑定给 Worker。Runtime 注册表扫描 manifest、应用策略分组并解析 invocation：Controller planning/review 通过 manifest 声明的 `$using-arckit` Agent skill trigger 执行；项目初始化与 ledger writeback 直接调用 `arckit-development-ledger` 声明的受信任 runtime entrypoint。Runtime 不复制这两个 skill 的语义流程或账本脚本，也不在内核代码中写死每轮路线或 skill 序列。Controller plan 或既有 packet 绑定非法 Worker skill 时会失败关闭。
+
+`arckit/intake/`、`arckit/pending/`、`arckit/spec/_archive/`、closed cases 和 runtime evidence 中可能保存历史 `SKILL.md` 文本或已移除名称；它们是项目数据和历史证据，不属于当前 skill source，也不会进入 Runtime capability policy。
 
 ## Skill 组合原则
 
-Skill 可以形成软组合，但不应设计成运行时硬依赖。Agent 的 skill 机制主要依靠触发描述加载对应 `SKILL.md`，没有稳定的 `import` 或 `require` 语义来保证一个 skill 自动加载另一个 skill。
+Skill 之间可以形成软组合，但不应让一个 skill 隐式 import 另一个 skill。Runtime execution plane 可以通过 capability manifest 显式绑定某个 skill：Agent 语义能力使用 `$skill-name` trigger，确定性脚本能力使用受信任 `runtime_entrypoints`。这种绑定属于 Runtime 调用 skill，不是 skill 间隐藏依赖。
 
 推荐做法：
 
-- 过程型方法放在横向能力目录，例如 `thinking/skills/arckit-decision-analysis/` 或 `thinking/skills/arckit-draft-spec/`。
-- 产物型 skill 可以在正文中说明“可参考”某个方法型 skill 的结论，但仍应能独立完成自己的产物维护。
+- 产物型 skill 可以接收用户、Controller worker report、稳定事实源或 external adapter 的明确材料，但仍应能独立完成自己的产物维护。
 - 不要把关键执行步骤藏在另一个 skill 里；如果必须复用，写清楚输入、输出和人工触发条件。
-- 多 skill 协作时，优先把关系设计成“上游分析结果 -> 下游产物沉淀”，而不是“下游必须自动调用上游”。
+- 未确认内容保留在 active case 的 `open_questions` 或 `pending_handoffs`；不得发明已移除 skill 作为隐式前置依赖。
 
 ## Skill 收录原则
 

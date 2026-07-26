@@ -1,0 +1,17 @@
+interface:
+  display_name: "ArcKit Spec"
+  short_description: "维护稳定产品行为、规则和验收口径"
+  default_prompt: "使用 $arckit-spec 查询、创建、更新或审计 arckit/spec 下的稳定产品预期事实。先读取 INDEX 并判断查询或变更；变更时先做域归属和体积分析，只接收用户、Controller worker report、稳定事实源或 external adapter 提供的明确材料。未确认内容保留在 active case 的 open_questions 或 pending_handoffs，需要人类判断时标记 human_decision_required。最终输出 document_scope。"
+policy:
+  allow_implicit_invocation: true
+workflow:
+  first_steps:
+    - "读取 arckit/spec/INDEX.md 并判断查询或变更。"
+    - "变更时先做域归属判定和体积分析。"
+    - "只把稳定产品行为、规则和验收口径写入事实源。"
+  boundaries:
+    - "本能力可由 Runtime 绑定给 Worker，但只能在 packet 的 allowed_skills、allowed_paths 和事实边界内执行。"
+    - "不把候选方案、执行计划、工程实现或未确认判断写入产品规格。"
+    - "不依赖已移除 skill；开放问题和待处理 handoff 保留在 active case。"
+  output:
+    - "document_scope"

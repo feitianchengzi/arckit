@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { runLedgerScript } from "./ledger-scripts.mjs";
 import { detectConversationLocale } from "./conversation-locale.mjs";
+import { loadRuntimeCapabilityForEntrypoint } from "./capability-registry.mjs";
 
 const VALID_STATE_VALUE = new Set([
   "unknown",
@@ -44,21 +45,26 @@ export async function ensureArckitProject({ projectRoot, projectName = "", inten
     throw new Error(`Project path does not exist: ${root}`);
   }
 
+  const ledgerCapability = await loadRuntimeCapabilityForEntrypoint({
+    projectRoot: root,
+    entrypoint: "project_state"
+  });
+
   const createdState = !existsSync(statePath);
   if (createdState) {
-    runLedgerScript(root, [
+    await runLedgerScript(root, [
       "project-state.mjs",
       "init",
       "--name",
       projectName || basename(root) || root,
       "--intent",
       intent || t(conversationLocale, "Initialized from Arckit Desktop for a first supervised development conversation.", "从 Arckit Desktop 初始化，用于第一次受监督的软件开发对话。")
-    ], { nodeBin });
+    ], { nodeBin, capability: ledgerCapability });
     changedFiles.push("arckit/project/state.record.json", "arckit/project/STATE.md");
     result.initialized = true;
   }
 
-  const caseRef = await ensureInitialCase(root, intent, nodeBin, conversationLocale);
+  const caseRef = await ensureInitialCase(root, intent, nodeBin, conversationLocale, ledgerCapability);
   if (caseRef.created) {
     changedFiles.push(caseRef.ref);
     result.initialized = true;
@@ -85,16 +91,16 @@ export async function ensureArckitProject({ projectRoot, projectName = "", inten
     result.repaired = true;
   }
 
-  runLedgerScript(root, ["project-state.mjs", "render", "arckit/project/state.record.json"], { nodeBin });
-  runLedgerScript(root, ["project-state.mjs", "audit", "arckit/project/state.record.json"], { nodeBin });
-  runLedgerScript(root, ["development-case.mjs", "index"], { nodeBin });
+  await runLedgerScript(root, ["project-state.mjs", "render", "arckit/project/state.record.json"], { nodeBin, capability: ledgerCapability });
+  await runLedgerScript(root, ["project-state.mjs", "audit", "arckit/project/state.record.json"], { nodeBin, capability: ledgerCapability });
+  await runLedgerScript(root, ["development-case.mjs", "index"], { nodeBin, capability: ledgerCapability });
   changedFiles.push("arckit/project/STATE.md", "arckit/cases/INDEX.md");
 
   result.changed_files = Array.from(new Set(changedFiles));
   return result;
 }
 
-async function ensureInitialCase(root, intent, nodeBin, conversationLocale) {
+async function ensureInitialCase(root, intent, nodeBin, conversationLocale, ledgerCapability) {
   const activeDir = join(root, "arckit/cases/active");
   if (existsSync(activeDir)) {
     const existing = await firstMarkdown(activeDir);
@@ -103,7 +109,7 @@ async function ensureInitialCase(root, intent, nodeBin, conversationLocale) {
     }
   }
 
-  const output = runLedgerScript(root, [
+  const output = await runLedgerScript(root, [
     "development-case.mjs",
     "new",
     "--title",
@@ -112,7 +118,7 @@ async function ensureInitialCase(root, intent, nodeBin, conversationLocale) {
     "mixed",
     "--intent",
     intent || t(conversationLocale, "Start a new Arckit-managed software project from the first Desktop chat.", "从第一次 Desktop 对话开始一个由 Arckit 管理的软件项目。")
-  ], { nodeBin });
+  ], { nodeBin, capability: ledgerCapability });
   const file = output.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);
   return {
     ref: relativeToProject(root, file),

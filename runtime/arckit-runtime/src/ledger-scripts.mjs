@@ -1,14 +1,27 @@
 import { spawnSync } from "node:child_process";
-import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename } from "node:path";
+import {
+  loadRuntimeCapabilityForEntrypoint,
+  resolveCapabilityEntrypoint
+} from "./capability-registry.mjs";
 
-const sourceDir = dirname(fileURLToPath(import.meta.url));
-const runtimeRoot = resolve(sourceDir, "..");
-const ledgerScriptsDir = join(runtimeRoot, "ledger-scripts");
+const SCRIPT_ENTRYPOINTS = {
+  "project-state.mjs": "project_state",
+  "project-iteration.mjs": "project_iteration",
+  "development-case.mjs": "development_case"
+};
 
-export function runLedgerScript(projectRoot, args, { nodeBin = process.execPath } = {}) {
+export async function runLedgerScript(projectRoot, args, { nodeBin = process.execPath, capability = null } = {}) {
   const [script, ...rest] = args;
-  const scriptPath = join(ledgerScriptsDir, script);
+  const entrypoint = SCRIPT_ENTRYPOINTS[script];
+  if (!entrypoint) {
+    throw new Error(`Unsupported ledger capability script: ${script}`);
+  }
+  const selectedCapability = capability || await loadRuntimeCapabilityForEntrypoint({
+    projectRoot,
+    entrypoint
+  });
+  const scriptPath = resolveCapabilityEntrypoint(selectedCapability, entrypoint);
   const result = spawnSync(nodeBin, [scriptPath, ...rest], {
     cwd: projectRoot,
     encoding: "utf8"

@@ -3,7 +3,15 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createAgentAdapter } from "./agent-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
-import { capabilityIds, loadRuntimeCapabilities, selectCapabilitiesForRound } from "./capability-registry.mjs";
+import {
+  agentSkillInvocationForPhase,
+  capabilitiesForBinding,
+  capabilityIds,
+  invalidCapabilityBindings,
+  loadCapabilityPolicy,
+  loadRuntimeCapabilities,
+  selectCapabilitiesForRound
+} from "./capability-registry.mjs";
 import { conversationLocaleInstruction } from "./conversation-locale.mjs";
 import { buildArtifactOwnershipScan, normalizeArtifactPathReferences } from "./artifact-ownership-map.mjs";
 import { reduceWorkerReports } from "./controller-reducer.mjs";
@@ -21,11 +29,28 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
   const conversationLocale = options.conversationLocale || compiledPrompt.conversation_locale || round.conversation_locale || "en";
   round.conversation_locale = conversationLocale;
   const packetEnvelope = options.packetEnvelope || null;
-  const capabilities = packetEnvelope ? [] : await loadRuntimeCapabilities({ projectRoot });
-  const selectedCapabilities = packetEnvelope ? [] : selectCapabilitiesForRound(capabilities, round, options.task || "");
+  const capabilityPolicy = await loadCapabilityPolicy();
+  const capabilities = await loadRuntimeCapabilities({ projectRoot, capabilityPolicy });
+  const controllerCapabilities = capabilitiesForBinding(capabilities, capabilityPolicy, "controller");
+  const runtimeCapabilities = capabilitiesForBinding(capabilities, capabilityPolicy, "runtime");
+  const workerCapabilities = capabilitiesForBinding(capabilities, capabilityPolicy, "worker");
+  const selectedCapabilities = selectCapabilitiesForRound(workerCapabilities, round, options.task || "");
   const loopFrame = packetEnvelope
     ? authorizePacketLoopFrame(packetEnvelope.loop_frame, options)
-    : createLoopFrame({ snapshot, round, task: options.task || "", selectedCapabilities, options });
+    : createLoopFrame({
+      snapshot,
+      round,
+      task: options.task || "",
+      selectedCapabilities,
+      controllerCapabilities,
+      runtimeCapabilities,
+      options
+    });
+  loopFrame.capability_bindings = capabilityBindings({
+    controllerCapabilities,
+    runtimeCapabilities,
+    workerCapabilities: selectedCapabilities
+  });
   const adapterName = options.dryRun ? "dry-run" : options.adapter || "codex-app-server";
   const adapter = createAgentAdapter(adapterName, options);
   const controllerPlanSchema = JSON.parse(await readFile(controllerPlanSchemaPath, "utf8"));
@@ -46,6 +71,8 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
       snapshot,
       task: options.task || "",
       selectedCapabilities,
+      controllerCapabilities,
+      runtimeCapabilities,
       controllerPlanSchema,
       options,
       events
@@ -64,7 +91,7 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
   loopFrame.route_plan = routePlan;
   loopFrame.controller_frame.route_plan = routePlan;
   const agentTasks = packetEnvelope
-    ? normalizePacketWorkerTasks(packetEnvelope.worker_tasks || [], loopFrame)
+    ? normalizePacketWorkerTasks(packetEnvelope.worker_tasks || [], loopFrame, selectedCapabilities)
     : controllerPlan?.usable ? createAgentTasks({
       loopFrame,
       round,
@@ -239,6 +266,7 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
     loopFrame,
     round,
     reports,
+    controllerCapabilities,
     controllerReviewSchema,
     options,
     events
@@ -342,6 +370,8 @@ async function maybeRunControllerPlanner({
   snapshot,
   task,
   selectedCapabilities,
+  controllerCapabilities,
+  runtimeCapabilities,
   controllerPlanSchema,
   options,
   events
@@ -361,7 +391,9 @@ async function maybeRunControllerPlanner({
     round,
     snapshot,
     task,
-    selectedCapabilities
+    selectedCapabilities,
+    controllerCapabilities,
+    runtimeCapabilities
   });
   let plan = null;
   try {
@@ -406,7 +438,7 @@ async function maybeRunControllerPlanner({
     };
   }
 
-  const failureReason = controllerPlanFailureReason(plan);
+  const failureReason = controllerPlanFailureReason(plan, selectedCapabilities);
   const completedStatus = controllerPlanCompletedStatus({ plan, failureReason });
   const completedEvent = {
     type: "runtime.controller_plan.completed",
@@ -425,14 +457,24 @@ async function maybeRunControllerPlanner({
   };
 }
 
-function compileControllerPlanPrompt({ loopFrame, round, snapshot, task, selectedCapabilities }) {
+export function compileControllerPlanPrompt({
+  loopFrame,
+  round,
+  snapshot,
+  task,
+  selectedCapabilities,
+  controllerCapabilities,
+  runtimeCapabilities
+}) {
   const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || "en";
+  const invocation = agentSkillInvocationForPhase(controllerCapabilities, "controller_plan");
   return [
-    "# Arckit Controller Planning Turn",
+    invocation.skill_trigger,
     "",
-    "You are the Controller Agent inside Arckit Runtime. Your job is to plan the minimum bounded worker set for this runtime round.",
+    "# Arckit Runtime Controller Capability Invocation",
     "",
-    "The Runtime owns final validation, permission boundaries, worker execution, report intake, ledger writeback, and stop conditions. You provide semantic routing evidence; do not execute worker tasks yourself.",
+    `Runtime is invoking ${invocation.capability.id} for phase=${invocation.phase}. Follow the loaded skill as the semantic source for Controller planning.`,
+    "Runtime owns schema validation, authorization, permission boundaries, worker execution, and hard gates. Produce Controller semantic output; do not execute worker tasks or write ledger state.",
     "",
     "## Conversation Locale",
     `- conversation_locale: ${conversationLocale}`,
@@ -454,23 +496,18 @@ function compileControllerPlanPrompt({ loopFrame, round, snapshot, task, selecte
     "## Worker Types",
     JSON.stringify(WORKER_TYPES, null, 2),
     "",
-    "## Capability Registry",
+    "## Runtime Service Capabilities",
+    JSON.stringify(runtimeCapabilities.map(toCapabilityContext), null, 2),
+    "Runtime invokes these services for state, gates, closeout, or writeback. They are not Worker skills and must never appear in worker_intents[].allowed_skills.",
+    "",
+    "## Worker Capability Registry",
     JSON.stringify(selectedCapabilities.map(toCapabilityContext), null, 2),
     "",
-    "## Runtime Capability Policy",
-    "Runtime provides worker types and capability manifest metadata. Choose the minimum worker_type/role set and bind allowed_skills for each worker from the Capability Registry.",
-    "Do not invent skill ids. Do not treat the registry as a fixed workflow; select only capabilities that match this round's state gap, evidence, and packet boundaries.",
-    "",
-    "## Planning Rules",
-    "- Select only the worker types and roles needed for this round; role names are agent-defined and must be justified.",
-    "- Choose the route mode from the operator task, project state, candidate gaps, local evidence, and protocol constraints.",
-    "- Produce continuation_intent as the bounded semantic meaning of this round: goal, state_transition, and next_prompt must be concise and must not copy the Desktop operator event or raw activity JSON.",
-    "- For every worker_intent, provide worker_type, role, objective, reason, and allowed_skills.",
-    "- Keep route_plan.selected_worker_types and route_plan.selected_roles consistent with worker_intents.",
-    "- Include independent verification or closeout work only when your route requires it, and explain why.",
-    "- Do not use workers to make human-owned product, aesthetic, business, release, or risk-acceptance decisions.",
-    "- If a route requires human confirmation, set status=needs_human and explain the needed decision.",
-    "- Keep worker_intents concise and role-scoped. Runtime will enforce role permissions and block the round if your plan is invalid.",
+    "## Runtime-owned Constraints",
+    "- worker_intents[].allowed_skills may reference only ids from the Worker Capability Registry.",
+    "- Controller and Runtime capabilities cannot be bound to Workers.",
+    "- Semantic goal, state_transition, objective, and next_prompt fields must be concise and must not copy raw Desktop operator envelopes.",
+    "- Runtime will fail closed if the skill output violates schema, authorization, or capability binding boundaries.",
     "",
     "## Output Contract",
     "Return only a JSON object with schema_version=arckit-controller-plan/v1. Do not wrap it in Markdown."
@@ -511,7 +548,7 @@ function normalizeControllerPlan(plan) {
   };
 }
 
-function controllerPlanFailureReason(plan) {
+export function controllerPlanFailureReason(plan, workerCapabilities = []) {
   if (!plan) {
     return "Controller Agent did not return a usable plan.";
   }
@@ -523,6 +560,13 @@ function controllerPlanFailureReason(plan) {
   }
   if (!Array.isArray(plan.worker_intents) || plan.worker_intents.length === 0) {
     return "Controller Agent did not select any worker intents.";
+  }
+  const invalidBindings = invalidCapabilityBindings(
+    plan.worker_intents.flatMap((intent) => arrayOfStrings(intent.allowed_skills)),
+    workerCapabilities
+  );
+  if (invalidBindings.length > 0) {
+    return `Controller Agent bound non-worker or unavailable capabilities: ${invalidBindings.join(", ")}.`;
   }
   if (!plan.continuation_intent?.goal || !plan.continuation_intent?.state_transition || !plan.continuation_intent?.next_prompt) {
     return "Controller Agent did not return a complete continuation_intent.";
@@ -577,6 +621,7 @@ async function maybeRunControllerReviewer({
   loopFrame,
   round,
   reports,
+  controllerCapabilities,
   controllerReviewSchema,
   options,
   events
@@ -591,7 +636,7 @@ async function maybeRunControllerReviewer({
     };
   }
 
-  const prompt = compileControllerReviewPrompt({ loopFrame, round, reports });
+  const prompt = compileControllerReviewPrompt({ loopFrame, round, reports, controllerCapabilities });
   let review = null;
   try {
     for await (const event of adapter.runTurn({
@@ -653,14 +698,16 @@ async function maybeRunControllerReviewer({
   };
 }
 
-function compileControllerReviewPrompt({ loopFrame, round, reports }) {
+export function compileControllerReviewPrompt({ loopFrame, round, reports, controllerCapabilities }) {
   const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || "en";
+  const invocation = agentSkillInvocationForPhase(controllerCapabilities, "controller_review");
   return [
-    "# Arckit Controller Review Turn",
+    invocation.skill_trigger,
     "",
-    "You are the Controller Agent inside Arckit Runtime. Review bounded worker reports and decide the next loop state.",
+    "# Arckit Runtime Controller Capability Invocation",
     "",
-    "The Runtime owns schema validation, permission boundaries, and ledger writeback. You provide the semantic closeout judgment for this round.",
+    `Runtime is invoking ${invocation.capability.id} for phase=${invocation.phase}. Follow the loaded skill as the semantic source for report intake and closeout.`,
+    "Runtime owns schema validation, permission boundaries, hard gates, and ledger execution. Produce the Controller semantic closeout judgment; do not write ledger state.",
     "",
     "## Conversation Locale",
     `- conversation_locale: ${conversationLocale}`,
@@ -678,13 +725,10 @@ function compileControllerReviewPrompt({ loopFrame, round, reports }) {
     "## Worker Reports",
     JSON.stringify(reports, null, 2),
     "",
-    "## Review Rules",
-    "- Return done only when worker evidence proves the round goal is satisfied and no risk or unknown blocks closeout.",
-    "- Return continue when the next step is still agent/runtime work.",
-    "- Return needs_human only when a human decision, risk acceptance, or product/business judgment is required.",
-    "- Return blocked when required reports, permissions, schemas, tools, or evidence are missing.",
-    "- Produce continuation_intent as concise structured fields for ledger and next prompt projection; do not copy Desktop operator event text or raw activity JSON.",
-    "- Do not perform ledger writeback; only describe the next prompt and closeout judgment.",
+    "## Runtime-owned Constraints",
+    "- accepted_reports and rejected_reports must reference issued task ids.",
+    "- continuation_intent fields must be concise and must not copy raw Desktop operator envelopes.",
+    "- Runtime Guard may downgrade or block the semantic closeout result but may not invent a stronger completion claim.",
     "",
     "## Output Contract",
     "Return only a JSON object with schema_version=arckit-controller-review/v1. Do not wrap it in Markdown."
@@ -744,7 +788,15 @@ function createControllerReviewFailure(summary) {
   };
 }
 
-export function createLoopFrame({ snapshot, round, task, selectedCapabilities = [], options = {} }) {
+export function createLoopFrame({
+  snapshot,
+  round,
+  task,
+  selectedCapabilities = [],
+  controllerCapabilities = [],
+  runtimeCapabilities = [],
+  options = {}
+}) {
   const loopControl = snapshot.projectState.loop_control || {};
   const initialRoundGoal = firstSafeSemanticText([
     task,
@@ -793,10 +845,16 @@ export function createLoopFrame({ snapshot, round, task, selectedCapabilities = 
       id: capability.id,
       kind: capability.kind,
       runtime_role: capability.runtime_role || [],
+      binding_targets: capability.binding_targets || [],
       manifest_path: capability.manifest_path,
       source: capability.source || ""
     })),
     selected_capability_contexts: selectedCapabilities.map(toCapabilityContext),
+    capability_bindings: capabilityBindings({
+      controllerCapabilities,
+      runtimeCapabilities,
+      workerCapabilities: selectedCapabilities
+    }),
     stop_conditions: round.stop_conditions,
     loop_control: {
       next_responsibility: loopControl.next_responsibility || "agent",
@@ -869,7 +927,11 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
     const workerType = normalizeWorkerType(intent.worker_type);
     const role = intent.role || workerType;
     const definition = workerTypeDefinitionFor(workerType);
-    const allowedSkills = unique(arrayOfStrings(intent.allowed_skills).filter((skill) => availableCapabilityIds.has(skill)));
+    const allowedSkills = unique(arrayOfStrings(intent.allowed_skills));
+    const invalidBindings = allowedSkills.filter((skill) => !availableCapabilityIds.has(skill));
+    if (invalidBindings.length > 0) {
+      throw new Error(`Worker intent ${role} bound non-worker or unavailable capabilities: ${invalidBindings.join(", ")}.`);
+    }
     const capabilityContexts = selectedCapabilities
       .filter((capability) => allowedSkills.includes(capability.id))
       .map(toCapabilityContext);
@@ -1438,6 +1500,7 @@ function toCapabilityContext(capability) {
     id: capability.id,
     kind: capability.kind || "",
     runtime_role: capability.runtime_role || [],
+    binding_targets: capability.binding_targets || [],
     summary: capability.summary || "",
     input_facts: capability.input_facts || [],
     outputs: capability.outputs || [],
@@ -1446,6 +1509,15 @@ function toCapabilityContext(capability) {
     runtime_notes: capability.runtime_notes || [],
     manifest_path: capability.manifest_path || "",
     source: capability.source || ""
+  };
+}
+
+function capabilityBindings({ controllerCapabilities = [], runtimeCapabilities = [], workerCapabilities = [] }) {
+  return {
+    schema_version: "arckit-capability-bindings/v1",
+    controller_capability_ids: [...capabilityIds(controllerCapabilities)],
+    runtime_capability_ids: [...capabilityIds(runtimeCapabilities)],
+    worker_capability_ids: [...capabilityIds(workerCapabilities)]
   };
 }
 
@@ -1541,61 +1613,71 @@ function authorizePacketLoopFrame(loopFrame, options) {
   return frame;
 }
 
-function normalizePacketWorkerTasks(tasks, loopFrame) {
-  return tasks.map((task, index) => ({
-    ...task,
-    schema_version: "arckit-worker-task/v1",
-    id: task.id || task.worker_id || `TASK-${String(index + 1).padStart(2, "0")}-${task.role || "worker"}`,
-    worker_type: normalizeWorkerType(task.worker_type),
-    role: task.role || "agent_defined_worker",
-    objective: task.objective || task.task || "",
-    conversation_locale: task.conversation_locale || loopFrame.conversation_locale || "en",
-    loop_frame_excerpt: task.loop_frame_excerpt || {
-      case_id: loopFrame.case_id || "",
-      round_goal: loopFrame.round_goal || "",
-      conversation_locale: loopFrame.conversation_locale || task.conversation_locale || "en",
-      selected_gap: loopFrame.selected_gap || {},
-      selected_capabilities: loopFrame.selected_capabilities || [],
-      stop_conditions: loopFrame.stop_conditions || []
-    },
-    inputs: task.inputs || {
-      user_request_excerpt: firstSafeSemanticText([
-        loopFrame.round_goal,
-        loopFrame.operator_task
-      ], { maxLength: SEMANTIC_LIMITS.workerUserRequest }),
-      known_state_paths: task.context_refs || [],
-      known_facts: [],
-      capability_contexts: [],
-      assumptions: [],
-      pending_questions: []
-    },
-    scope: task.scope || {
-      allowed_paths: task.allowed_paths || [],
-      allowed_skills: [],
-      allowed_actions: task.allowed_actions || [],
-      forbidden_actions: task.forbidden_actions || []
-    },
-    expected_output: task.expected_output || {
-      format: "arckit-worker-report/v1",
-      required_fields: [
-        "task_id",
-        "worker_type",
-        "role",
-        "status",
-        "summary",
-        "findings",
-        "evidence",
-        "changes",
-        "artifact_impacts",
-        "risks",
-        "unknowns",
-        "recommendation",
-        "requires_main_agent_decision",
-        "requires_human_decision"
-      ]
-    },
-    stop_condition: task.stop_condition || ""
-  }));
+export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities = []) {
+  return tasks.map((task, index) => {
+    const requestedSkills = unique(arrayOfStrings(task.scope?.allowed_skills || task.allowed_skills));
+    const invalidBindings = invalidCapabilityBindings(requestedSkills, workerCapabilities);
+    if (invalidBindings.length > 0) {
+      throw new Error(`Authorized packet worker ${task.role || task.id || index + 1} bound non-worker or unavailable capabilities: ${invalidBindings.join(", ")}.`);
+    }
+    return {
+      ...task,
+      schema_version: "arckit-worker-task/v1",
+      id: task.id || task.worker_id || `TASK-${String(index + 1).padStart(2, "0")}-${task.role || "worker"}`,
+      worker_type: normalizeWorkerType(task.worker_type),
+      role: task.role || "agent_defined_worker",
+      objective: task.objective || task.task || "",
+      conversation_locale: task.conversation_locale || loopFrame.conversation_locale || "en",
+      loop_frame_excerpt: task.loop_frame_excerpt || {
+        case_id: loopFrame.case_id || "",
+        round_goal: loopFrame.round_goal || "",
+        conversation_locale: loopFrame.conversation_locale || task.conversation_locale || "en",
+        selected_gap: loopFrame.selected_gap || {},
+        selected_capabilities: requestedSkills,
+        stop_conditions: loopFrame.stop_conditions || []
+      },
+      inputs: task.inputs || {
+        user_request_excerpt: firstSafeSemanticText([
+          loopFrame.round_goal,
+          loopFrame.operator_task
+        ], { maxLength: SEMANTIC_LIMITS.workerUserRequest }),
+        known_state_paths: task.context_refs || [],
+        known_facts: [],
+        capability_contexts: [],
+        assumptions: [],
+        pending_questions: []
+      },
+      scope: task.scope ? {
+        ...task.scope,
+        allowed_skills: requestedSkills
+      } : {
+        allowed_paths: task.allowed_paths || [],
+        allowed_skills: requestedSkills,
+        allowed_actions: task.allowed_actions || [],
+        forbidden_actions: task.forbidden_actions || []
+      },
+      expected_output: task.expected_output || {
+        format: "arckit-worker-report/v1",
+        required_fields: [
+          "task_id",
+          "worker_type",
+          "role",
+          "status",
+          "summary",
+          "findings",
+          "evidence",
+          "changes",
+          "artifact_impacts",
+          "risks",
+          "unknowns",
+          "recommendation",
+          "requires_main_agent_decision",
+          "requires_human_decision"
+        ]
+      },
+      stop_condition: task.stop_condition || ""
+    };
+  });
 }
 
 function createReportIntakeRules() {

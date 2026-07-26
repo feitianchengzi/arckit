@@ -1,0 +1,46 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-development-ledger",
+  "kind": "state_ledger",
+  "runtime_role": ["state_reader", "closeout_auditor", "ledger_writer"],
+  "binding_targets": ["runtime"],
+  "invocation": {
+    "type": "runtime_entrypoint",
+    "skill_trigger": "$arckit-development-ledger",
+    "phases": ["project_initialization", "ledger_writeback"]
+  },
+  "runtime_entrypoints": {
+    "project_state": "scripts/project-state.mjs",
+    "project_iteration": "scripts/project-iteration.mjs",
+    "development_case": "scripts/development-case.mjs",
+    "writeback": "scripts/runtime-writeback.mjs"
+  },
+  "summary": "Maintains project state, iteration state, development cases, audits, renders, and indexes.",
+  "input_facts": [
+    "project_state_record",
+    "iteration_state_record",
+    "development_case_record",
+    "runtime_result",
+    "merge_result"
+  ],
+  "outputs": [
+    "state_audit",
+    "case_audit",
+    "ledger_write_plan",
+    "updated_state",
+    "updated_case"
+  ],
+  "allowed_write_targets": [
+    "arckit/project/**",
+    "arckit/cases/**"
+  ],
+  "forbidden_decisions": [
+    "product_requirement_final",
+    "visual_approval",
+    "release_authorization"
+  ],
+  "runtime_notes": [
+    "Runtime must resolve and call the trusted entrypoints declared by this capability instead of maintaining copied ledger scripts.",
+    "Runtime exposes ledger snapshots and references to Workers when needed; ordinary Workers must not bind this capability or write ledger state directly."
+  ]
+}

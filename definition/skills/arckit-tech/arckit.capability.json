@@ -1,0 +1,29 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-tech",
+  "kind": "result_fact_source",
+  "runtime_role": ["route_auditor", "work_executor", "verification_agent"],
+  "binding_targets": ["worker"],
+  "summary": "Maintains stable technical solutions, architecture boundaries, data models, and API contracts.",
+  "input_facts": [
+    "confirmed_technical_expectation",
+    "implementation_evidence",
+    "validated_constraint"
+  ],
+  "outputs": [
+    "tech_update",
+    "tech_audit",
+    "technical_contract"
+  ],
+  "allowed_write_targets": [
+    "arckit/tech/**"
+  ],
+  "forbidden_decisions": [
+    "unconfirmed_tradeoff_as_fact",
+    "product_requirement_final",
+    "release_authorization"
+  ],
+  "runtime_notes": [
+    "Use only for stable technical facts; keep unresolved tradeoffs in active-case open_questions and create a human gate when required."
+  ]
+}

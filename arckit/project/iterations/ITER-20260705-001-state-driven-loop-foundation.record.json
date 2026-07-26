@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-07-08T10:38:56.763Z",
+  "updated_at": "2026-07-25T13:44:55.000Z",
   "iteration_goal": "将 Arckit 状态机制从记录型账本升级为可驱动真实软件项目开发 loop 的项目完整性状态与迭代状态控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "target_state_delta": [
@@ -352,9 +352,9 @@
   "acceptance_state": {
     "current_state": "verified",
     "evidence": [
-      "memory/skills/arckit-development-ledger/SKILL.md",
-      "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
-      "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+      "entry/skills/arckit-development-ledger/SKILL.md",
+      "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
+      "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
       "arckit/project/STATE.md",
       "arckit/project/state.record.json",
       "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md",
@@ -406,10 +406,10 @@
   "close_condition": "当状态机制通过结构校验，并至少经过一次真实复杂项目的 state gap -> case -> verification -> state delta 闭环验证后关闭本迭代。",
   "last_iteration_delta": {
     "changed": [
-      "agentic_runtime_orchestrator",
-      "desktop_agent_loop_ui",
+      "retained_skill_set",
+      "runtime_capability_policy",
       "capability_manifests",
-      "empty_project_initialization_path"
+      "current_documentation"
     ],
     "deferred": [
       "real Codex worker done/gate/write"
@@ -417,10 +417,11 @@
     "blocked": [],
     "evidence": [
       "npm run check",
-      "Runtime agentic dry-run smoke",
-      "Desktop manager empty-project agentic dry-run smoke"
+      "runtime/arckit-runtime/test/capability-registry.test.mjs",
+      "runtime/arckit-runtime/config/capability-policy.json",
+      "arckit/spec/arckit-skill-system.md"
     ],
-    "updated_at": "2026-07-08T10:39:15.366Z",
+    "updated_at": "2026-07-25T13:44:55.000Z",
     "next_iteration_focus": "Run real Desktop-started Codex app-server agentic worker loop and write ledger after done/gate."
   },
   "current_focus": "Runtime/Desktop agentic worker loop implemented; next validate real Codex worker done/gate/write.",

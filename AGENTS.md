@@ -9,7 +9,7 @@ agent capability types over time. Reusable skills must live under that directory
 
 Arckit is a software-development agent collaboration and handoff protocol layer. It should help humans,
 Codex-like single agents, and multi-agent automation platforms work from the same project facts, case state,
-handoffs, pending items, and repository context.
+bounded worker packets, handoffs, and repository context.
 
 Skills in this repository should primarily improve agent reliability in real software projects: context recovery,
 fact-source governance, handoff quality, implementation boundaries, diagnosis, and safe continuation after a human
@@ -23,11 +23,11 @@ Arckit is organized around the product axis that `Project State` 通过 `Case` �
 
 Desktop owns product/runtime control architecture; Codex-like coding agents own semantic reasoning, workspace execution, evidence collection, and structured claims; skills are installed agent capability packages that provide reusable protocols, methods, scripts, and artifact maintenance rules at the bottom layer.
 
-Runtime kernel must preserve this product axis while staying policy-neutral: do not seed fixed initial gaps, route modes, worker roles, skill names, capability-selection heuristics, or ledger writeback dimension inferences; those choices must come from agent analysis or an explicit policy layer.
+Runtime kernel must preserve this product axis while staying policy-neutral: do not seed fixed initial gaps, route modes, worker roles, skill names, capability-selection heuristics, or ledger writeback dimension inferences; those choices must come from agent analysis or an explicit policy layer. Runtime invokes semantic Controller behavior through the manifest-declared `using-arckit` Agent skill trigger and invokes deterministic ledger behavior through trusted entrypoints declared by `arckit-development-ledger`; do not duplicate either skill's workflow inside Runtime.
 
 ## Directory Map
 
-- `entry/`: cross-lifecycle entry points, skill routing, workflow composition, and scenario-to-skill orchestration.
+- `entry/`: project conversation control, skill routing, loop composition, and the development ledger that advances Project State through Case and Loop.
 - `idea/`: opportunity discovery, idea collection, idea analysis, user feedback synthesis, and early problem framing.
 - `thinking/`: cross-lifecycle process thinking capabilities, including reasoning, decision analysis, structured analysis, draft generation, candidate comparison, critique, and handoff preparation.
 - `iteration/`: project iteration management, milestone planning, version rhythm, prioritization, and execution cadence.
@@ -42,7 +42,7 @@ Runtime kernel must preserve this product axis while staying policy-neutral: do 
 
 Use the skill's primary purpose to choose a directory:
 
-- If it is the top-level entry point that routes user scenarios across multiple lifecycle skills, place it under `entry/skills/`.
+- If it controls project conversation rounds, routes across lifecycle skills, or maintains the ledger that drives the core Project State/Case/Loop entry, place it under `entry/skills/`.
 - If it helps decide whether an idea is worth pursuing, place it under `idea/skills/`.
 - If it provides reusable process capabilities such as reasoning, decision analysis, critique, draft generation, candidate comparison, or handoff preparation across multiple lifecycle stages, place it under `thinking/skills/`.
 - If it manages when and how work moves forward, place it under `iteration/skills/`.
@@ -58,32 +58,23 @@ When a skill could fit multiple directories, choose the one closest to the actio
 
 ## Skill Composition Rules
 
-Skills may reference each other as soft collaborators, but should not require runtime skill imports. A product or artifact skill can say that it may use the output of a method skill, but it must still describe its own inputs, outputs, and maintenance workflow. Prefer the relationship "upstream analysis output -> downstream artifact maintenance" over hidden automatic invocation.
+Skills may reference each other as soft collaborators, but should not require hidden skill-to-skill runtime imports. A product or artifact skill can say that it may use the output of a method skill, but it must still describe its own inputs, outputs, and maintenance workflow. Prefer the relationship "upstream analysis output -> downstream artifact maintenance" over hidden automatic invocation. Explicit Runtime-to-skill invocation is allowed only through a capability manifest: use an Agent skill trigger for semantic work or a trusted in-skill entrypoint for deterministic script work.
 
 For example, an authentication architecture note belongs in `definition/skills/`, a step-by-step gateway login implementation skill belongs in `arckit-code`, and a general debugging or regression-diagnosis workflow belongs in `engineering/skills/`.
 
 ## Current Skill Placement
 
-- Arckit entry routing and workflow composition: `entry/skills/`
-- Project iteration management: `iteration/skills/`
-- Product-level development work item discovery: `iteration/skills/`
-- Workshop Desktop execution bridge: `iteration/skills/`
-- Cross-lifecycle process thinking, decision analysis, draft generation, and handoff preparation: `thinking/skills/`
-- Idea collection and analysis: `idea/skills/`
-- Product specification: `definition/skills/`
-- Interaction: `definition/skills/`
-- Visual: `definition/skills/`
-- Technical solution: `definition/skills/`
-- Development ledger and project continuous state: `memory/skills/`
-- Agent startup context and AGENTS.md governance: `memory/skills/`
-- Project input intake: `memory/skills/`
-- Project pending context management: `memory/skills/`
-- Media production, video, and social operations: `media/skills/`
-- General debug diagnosis and implementation troubleshooting: `engineering/skills/`
-- Refactor strategy and bounded implementation coordination: `engineering/skills/`
-- Real software development scenario evaluation: `quality/skills/`
+- Project conversation Controller: `entry/skills/using-arckit/`
+- Development ledger and continuous Project State/Case/Loop state: `entry/skills/arckit-development-ledger/`
+- Product specification: `definition/skills/arckit-spec/`
+- Interaction: `definition/skills/arckit-interaction/`
+- Visual: `definition/skills/arckit-visual/`
+- Technical solution: `definition/skills/arckit-tech/`
+- General debug diagnosis and implementation troubleshooting: `engineering/skills/arckit-debug-diagnosis/`
+- Runtime capability selection: `runtime/arckit-runtime/config/capability-policy.json`, restricted to the seven retained skills above and split into mutually exclusive Controller, Runtime, and Worker execution planes. `using-arckit` is Controller-only and is invoked with its manifest-declared Agent skill trigger; `arckit-development-ledger` is Runtime-only and is invoked through its trusted in-skill entrypoints; only the other five skills may enter Worker `allowed_skills`.
 - Technology-stack-specific coding skills: maintained in `arckit-code`, not this repository.
-- Server deployment: `delivery/skills/`
+
+Directories not listed above are reserved capability domains and currently contain no retained Arckit skills. Do not restore a removed skill reference as a dependency; unresolved work stays in the active case or is handed to an external adapter.
 
 ## Skill Folder Convention
 

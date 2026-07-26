@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-07-25T08:11:23.000Z",
+    "updated_at": "2026-07-25T13:44:55.000Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -519,14 +519,15 @@
     "arckit/spec/agentic-software-development/product-concepts.md",
     "arckit/spec/agentic-software-development/product-architecture.md",
     "arckit/spec/agentic-software-development/skill-architecture.md",
-    "arckit/spec/workflow-orchestration-memory.md",
-    "arckit/tech/workflow-orchestration-memory/solution.md",
+    "arckit/spec/arckit-skill-system.md",
     "entry/skills/using-arckit/SKILL.md",
-    "memory/skills/arckit-development-ledger/SKILL.md",
-    "memory/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-    "memory/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-    "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
-    "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+    "entry/skills/using-arckit/arckit.capability.json",
+    "entry/skills/arckit-development-ledger/SKILL.md",
+    "entry/skills/arckit-development-ledger/arckit.capability.json",
+    "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
+    "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
+    "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
+    "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
     "arckit/project/state.record.json",
     "arckit/project/STATE.md",
     "arckit/project/ITERATIONS.md",
@@ -534,6 +535,8 @@
     "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md",
     "arckit/tech/arckit-runtime/solution.md",
     "runtime/arckit-runtime/README.md",
+    "runtime/arckit-runtime/config/capability-policy.json",
+    "runtime/arckit-runtime/src/capability-registry.mjs",
     "runtime/arckit-runtime/package-lock.json",
     "runtime/arckit-runtime/bin/arckit-runtime.mjs",
     "runtime/arckit-runtime/src/desktop-run-manager.mjs",
@@ -557,6 +560,7 @@
   "last_state_delta": {
     "changed_dimensions": [
       "architecture_foundation",
+      "implementation_coverage",
       "maintainability_handoff"
     ],
     "state_transitions": [
@@ -564,13 +568,19 @@
         "dimension": "architecture_foundation",
         "from_state": "implemented",
         "to_state": "implemented",
-        "reason": "Current skill routing and Runtime worker contracts no longer depend on the four deliberately removed skills."
+        "reason": "The repository now has one explicit seven-skill capability set, and Runtime applies the same set through an external policy file instead of kernel hard-coding."
+      },
+      {
+        "dimension": "implementation_coverage",
+        "from_state": "verified",
+        "to_state": "verified",
+        "reason": "All seven retained skills expose capability manifests and the Runtime registry rejects policy-external manifests; the complete Runtime check suite passes."
       },
       {
         "dimension": "maintainability_handoff",
         "from_state": "verified",
         "to_state": "verified",
-        "reason": "Implementation continuation now uses bounded Controller worker packets or external adapter handoffs instead of a dedicated skill package."
+        "reason": "README, AGENTS, stable skill specifications and surviving skill contracts now describe only the retained capability set and active-case/external-adapter fallbacks."
       }
     ],
     "deferred_dimensions": [],
@@ -580,6 +590,6 @@
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "next_loop_focus": "通过 Desktop 在 ../arckit-demo 或真实项目中运行 Codex app-server agentic worker loop，获得 done result 后 gate/write-ledger。",
-    "updated_at": "2026-07-25T08:11:23.000Z"
+    "updated_at": "2026-07-25T13:44:55.000Z"
   }
 }

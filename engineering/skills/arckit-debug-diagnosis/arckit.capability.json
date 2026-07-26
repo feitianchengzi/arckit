@@ -3,6 +3,7 @@
   "id": "arckit-debug-diagnosis",
   "kind": "diagnosis",
   "runtime_role": ["work_executor", "verification_agent"],
+  "binding_targets": ["worker"],
   "summary": "Diagnoses bugs, regressions, failures, data issues, UI defects, and performance symptoms using evidence.",
   "input_facts": [
     "symptom",

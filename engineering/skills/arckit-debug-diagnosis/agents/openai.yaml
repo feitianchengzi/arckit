@@ -17,3 +17,5 @@ workflow:
     - "问题表现、逻辑分析、根因结论、修复说明和清理状态由最终输出或项目已有 case/pending 等记录载体承载。"
     - "临时 console/log/trace/debug flag 必须有唯一标记，例如 ARC_DEBUG:<issue-slug>。"
     - "保留长期结构化日志时必须说明诊断价值、脱敏边界和为什么不是临时噪声。"
+  boundaries:
+    - "本能力可由 Runtime 绑定给 Worker，但只能在 packet 的 allowed_skills、allowed_paths 和诊断边界内执行。"

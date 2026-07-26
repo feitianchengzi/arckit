@@ -3,6 +3,7 @@
   "id": "arckit-spec",
   "kind": "result_fact_source",
   "runtime_role": ["route_auditor", "work_executor", "verification_agent"],
+  "binding_targets": ["worker"],
   "summary": "Maintains stable product behavior, rules, feature specs, and acceptance criteria.",
   "input_facts": [
     "confirmed_product_expectation",
@@ -23,6 +24,6 @@
     "visual_or_technical_fact_ownership"
   ],
   "runtime_notes": [
-    "Only use for stable product expectation facts; route unknowns to pending."
+    "Only use for stable product expectation facts; keep unknowns in the active case open_questions or pending_handoffs."
   ]
 }

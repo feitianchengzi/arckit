@@ -3,8 +3,8 @@
 Case: CASE-20260707-002
 Status: active
 Artifact Type: code
-Current Gap: Desktop 全流程已修正为 Packet Preview 不执行 worker、Run Packet 授权同一 packet、运行中输入回到 Controller、worker packet/report 协议统一；剩余缺口是真实 Codex worker done result 与 ledger writeback 闭环。
-Updated: 2026-07-08T13:23:43.000Z
+Current Gap: Runtime 已通过 Agent trigger 直接调用 using-arckit，并通过受信任 skill entrypoint 直接调用 development ledger；剩余缺口是真实 Desktop Codex worker done result 与 ledger writeback 闭环。
+Updated: 2026-07-25T15:50:58.000Z
 
 ## User Intent
 
@@ -20,11 +20,11 @@ Updated: 2026-07-08T13:23:43.000Z
   "status": "active",
   "artifact_type": "code",
   "created_at": "2026-07-07T15:49:29.148Z",
-  "updated_at": "2026-07-08T13:23:43.000Z",
+  "updated_at": "2026-07-25T15:50:58.000Z",
   "user_intent": "拆解并开始实施 Arckit Runtime + Supervisor 方案，先落地可运行的单 agent runtime MVP。",
-  "expected_outcome": "Arckit Runtime/Desktop 从单 agent supervised turn 升级为外部确定性多 agent 编排层：Runtime 负责任务拆解、worker 生命周期、report 校验、merge gate 和 ledger 写回；Desktop 负责项目、会话、Chat、agent loop 状态、暂停/纠偏/继续与证据展示；skills 降级为能力契约和 Runtime manifest。",
+  "expected_outcome": "Arckit Runtime/Desktop 从单 agent supervised turn 升级为外部确定性多 agent 编排层：Runtime 负责任务拆解、worker 生命周期、report 校验、merge gate 和 ledger hard gate；Desktop 负责项目、会话、Chat、agent loop 状态、暂停/纠偏/继续与证据展示；skills 通过 manifest-declared Agent trigger 或 trusted runtime entrypoint 提供实际语义与执行能力。",
   "current_round_goal": "在真实 Codex app-server 环境中用 Desktop Chat 跑通 agentic worker loop，获得可 gate/write-ledger 的 done result。",
-  "current_round_gap": "Desktop 全流程已修正为 Packet Preview 不执行 worker、Run Packet 授权同一 packet、运行中输入回到 Controller、worker packet/report 协议统一；剩余缺口是真实 Codex worker done result 与 ledger writeback 闭环。",
+  "current_round_gap": "Runtime 已通过 Agent trigger 直接调用 using-arckit，并通过受信任 skill entrypoint 直接调用 development ledger；剩余缺口是真实 Desktop Codex worker done result 与 ledger writeback 闭环。",
   "project_state_ref": "arckit/project/state.record.json",
   "project_state_delta": {
     "changed": [
@@ -176,7 +176,7 @@ Updated: 2026-07-08T13:23:43.000Z
         "runtime/arckit-runtime/schemas/agent-report.schema.json",
         "entry/skills/using-arckit/SKILL.md",
         "entry/skills/using-arckit/arckit.capability.json",
-        "memory/skills/arckit-development-ledger/arckit.capability.json",
+        "entry/skills/arckit-development-ledger/arckit.capability.json",
         "node bin/arckit-runtime.mjs run --project ../.. --dry-run --json",
         "desktop-run-manager empty-project agentic dry-run smoke"
       ],
@@ -275,7 +275,7 @@ Updated: 2026-07-08T13:23:43.000Z
         "desktop-run-manager empty-project agentic dry-run smoke"
       ],
       "evidence_maturity": "formalized",
-      "next": "后续把更多 capability manifest 接入 Runtime routing。"
+      "next": "用真实 Controller/Worker run 验证三层 capability binding 和 ledger writeback 闭环。"
     }
   },
   "open_questions": [
@@ -295,6 +295,68 @@ Updated: 2026-07-08T13:23:43.000Z
       "kind": "implementation_worker_packet",
       "target": "next agent round",
       "summary": "通过 Electron Desktop Chat 发起真实 Codex app-server supervised turn：添加真实项目、发送任务消息、观察右侧状态和 events、用运行中 Chat 消息测试 steer，获得 round_result=done 后执行 gate-result 和 write-ledger。"
+    },
+    {
+      "round": 18,
+      "goal": "Align the retained Arckit skill set, Runtime capability policy, and current documentation.",
+      "actions": [
+        "Confirmed the repository retains exactly seven skills and preserved the user-owned pending blueprint/prototype changes.",
+        "Moved the development ledger's current placement and documentation to entry/skills as the state-driven loop entry pair with using-arckit.",
+        "Removed surviving definition-skill dependencies on retired skills and replaced them with active-case open_questions, pending_handoffs, human gates, and external adapters.",
+        "Added capability manifests for arckit-interaction, arckit-visual, and arckit-tech so all retained skills are Runtime-visible.",
+        "Added an explicit seven-ID Runtime capability policy and filtered registry loading without hard-coding skill names in the Runtime kernel.",
+        "Updated README, AGENTS, current skill-system specifications, capability documentation, Project State references, and iteration evidence."
+      ],
+      "verification": [
+        "npm run check",
+        "node --test runtime/arckit-runtime/test/capability-registry.test.mjs",
+        "JSON parse validation for all retained capability manifests and Runtime capability policy",
+        "Active-source removed-skill reference scan",
+        "Development ledger project, iteration, and case validation"
+      ],
+      "source_projection_check": {
+        "source_facts_changed": [
+          "README.md",
+          "AGENTS.md",
+          "definition/skills/arckit-spec/SKILL.md",
+          "definition/skills/arckit-spec/agents/openai.yaml",
+          "definition/skills/arckit-interaction/SKILL.md",
+          "definition/skills/arckit-interaction/agents/openai.yaml",
+          "definition/skills/arckit-visual/SKILL.md",
+          "definition/skills/arckit-visual/agents/openai.yaml",
+          "definition/skills/arckit-tech/SKILL.md",
+          "definition/skills/arckit-tech/agents/openai.yaml",
+          "arckit/spec/arckit-skill-system.md",
+          "arckit/spec/agentic-software-development/skill-architecture.md",
+          "arckit/spec/agentic-software-development/product-concepts.md",
+          "arckit/spec/agentic-software-development/product-architecture.md",
+          "arckit/tech/arckit-runtime/solution.md",
+          "arckit/tech/INDEX.md"
+        ],
+        "projection_artifacts_changed": [
+          "definition/skills/arckit-interaction/arckit.capability.json",
+          "definition/skills/arckit-visual/arckit.capability.json",
+          "definition/skills/arckit-tech/arckit.capability.json",
+          "runtime/arckit-runtime/config/capability-policy.json",
+          "runtime/arckit-runtime/src/capability-registry.mjs",
+          "runtime/arckit-runtime/test/capability-registry.test.mjs",
+          "runtime/arckit-runtime/arckit/pending/items/2026-07-12-runtime-worker-skill-decoupling.md",
+          "arckit/pending/INDEX.md",
+          "arckit/pending/items/2026-07-14-ai-native-software-product-development-platform-blueprint.md",
+          "arckit/pending/items/2026-07-14-ai-native-desktop-platform-prototype.md",
+          "arckit/project/state.record.json",
+          "arckit/project/STATE.md",
+          "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
+          "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md",
+          "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+        ],
+        "source_unknown": false,
+        "deferred_projections": [
+          "Real Desktop Codex done/gate/write validation remains the active iteration acceptance gap",
+          "User-level installed skill directories are not synchronized in this repository-maintenance round"
+        ],
+        "blocked_projections": []
+      }
     }
   ],
   "process_notes": [],
@@ -916,6 +978,107 @@ Updated: 2026-07-08T13:23:43.000Z
         ],
         "blocked_projections": []
       }
+    },
+    {
+      "round": 19,
+      "goal": "Separate Controller, Runtime, and Worker capability execution planes.",
+      "actions": [
+        "Upgraded capability policy to v2 with mutually exclusive Controller, Runtime, and Worker capability groups.",
+        "Marked using-arckit as Controller-only, arckit-development-ledger as Runtime-only, and the five fact/diagnosis skills as Worker-bindable in capability manifests.",
+        "Changed Controller planning context to expose three registries while allowing worker_intents[].allowed_skills to reference only the Worker registry.",
+        "Added fail-closed validation for both Controller plans and existing authorized packets so illegal Worker bindings are never silently filtered.",
+        "Synchronized skill prompts, Runtime docs, README, AGENTS, product specifications, and Runtime technical facts."
+      ],
+      "verification": [
+        "npm run check",
+        "npm run smoke",
+        "JSON parse validation for capability policy and seven retained manifests",
+        "YAML parse validation for seven retained agents/openai.yaml files",
+        "Development ledger project, iteration, and case validation"
+      ],
+      "source_projection_check": {
+        "source_facts_changed": [
+          "README.md",
+          "AGENTS.md",
+          "entry/skills/using-arckit/SKILL.md",
+          "entry/skills/arckit-development-ledger/SKILL.md",
+          "arckit/spec/arckit-skill-system.md",
+          "arckit/spec/agentic-software-development/skill-architecture.md",
+          "arckit/spec/agentic-software-development/product-architecture.md",
+          "arckit/spec/agentic-software-development/controller-worker-loop.md",
+          "arckit/tech/arckit-runtime/solution.md"
+        ],
+        "projection_artifacts_changed": [
+          "runtime/arckit-runtime/config/capability-policy.json",
+          "runtime/arckit-runtime/src/capability-registry.mjs",
+          "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+          "runtime/arckit-runtime/test/capability-registry.test.mjs",
+          "runtime/arckit-runtime/README.md",
+          "entry/skills/using-arckit/arckit.capability.json",
+          "entry/skills/arckit-development-ledger/arckit.capability.json",
+          "definition/skills/arckit-spec/arckit.capability.json",
+          "definition/skills/arckit-interaction/arckit.capability.json",
+          "definition/skills/arckit-visual/arckit.capability.json",
+          "definition/skills/arckit-tech/arckit.capability.json",
+          "engineering/skills/arckit-debug-diagnosis/arckit.capability.json"
+        ],
+        "source_unknown": false,
+        "deferred_projections": [
+          "Real Desktop Codex run validation of Controller planning and Worker dispatch remains the active acceptance gap",
+          "User-level installed skill directories remain unsynchronized until explicitly requested"
+        ],
+        "blocked_projections": []
+      }
+    },
+    {
+      "round": 20,
+      "goal": "Make Runtime invoke using-arckit and arckit-development-ledger instead of duplicating their behavior.",
+      "actions": [
+        "Declared controller_plan and controller_review as manifest-driven $using-arckit Agent skill invocations and reduced Controller prompts to Runtime envelopes, registries, schemas, and hard constraints.",
+        "Declared project initialization and ledger writeback entrypoints in arckit-development-ledger, moved semantic writeback and its safety boundary into the skill, and removed copied Runtime ledger scripts.",
+        "Kept schema, authorization, path, lifecycle, binding, and ledger hard gates in Runtime while adding repository-source trust, duplicate-ID shadow protection, and capability-root traversal checks.",
+        "Updated both skills, Runtime documentation, README, AGENTS, product specifications, and technical facts to make invocation ownership explicit.",
+        "Added regression coverage for both Controller skill phases, trusted entrypoint resolution, project-manifest shadow rejection, traversal rejection, project initialization, and gated dry-run ledger delegation."
+      ],
+      "verification": [
+        "npm run check",
+        "npm run smoke",
+        "node --test test/capability-registry.test.mjs",
+        "Temporary-project init-project smoke through manifest-resolved development-ledger scripts",
+        "Temporary-project project-state audit and development-case validation"
+      ],
+      "source_projection_check": {
+        "source_facts_changed": [
+          "README.md",
+          "AGENTS.md",
+          "entry/skills/using-arckit/SKILL.md",
+          "entry/skills/arckit-development-ledger/SKILL.md",
+          "arckit/spec/arckit-skill-system.md",
+          "arckit/spec/agentic-software-development/skill-architecture.md",
+          "arckit/spec/agentic-software-development/controller-worker-loop.md",
+          "arckit/tech/arckit-runtime/solution.md"
+        ],
+        "projection_artifacts_changed": [
+          "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+          "runtime/arckit-runtime/src/capability-registry.mjs",
+          "runtime/arckit-runtime/src/ledger-scripts.mjs",
+          "runtime/arckit-runtime/src/ledger-writer.mjs",
+          "runtime/arckit-runtime/src/project-initializer.mjs",
+          "runtime/arckit-runtime/test/capability-registry.test.mjs",
+          "runtime/arckit-runtime/README.md",
+          "entry/skills/using-arckit/arckit.capability.json",
+          "entry/skills/arckit-development-ledger/arckit.capability.json",
+          "entry/skills/arckit-development-ledger/scripts/runtime-writeback.mjs",
+          "entry/skills/arckit-development-ledger/scripts/semantic-boundary.mjs"
+        ],
+        "source_unknown": false,
+        "deferred_projections": [
+          "Real Desktop Codex run validation of native using-arckit loading and live worker dispatch remains the active acceptance gap",
+          "A real done result followed by non-dry-run development-ledger writeback remains pending",
+          "User-level installed skill directories remain unsynchronized until explicitly requested"
+        ],
+        "blocked_projections": []
+      }
     }
   ],
   "completion_audit": {
@@ -973,13 +1136,13 @@ Updated: 2026-07-08T13:23:43.000Z
       },
       "progress_guard": {
         "expected_state_change": "在真实 Codex app-server 环境中用 Desktop Chat 跑通 agentic worker loop，获得可 gate/write-ledger 的 done result。",
-        "actual_state_change": "Runtime/Desktop Controller/Worker flow is validated for Packet Preview without fake reports, same-packet authorization path, Controller input interruption, worker packet/report schema, and Desktop structured display; real Codex done result remains pending.",
+        "actual_state_change": "Runtime now invokes using-arckit through its Agent skill trigger and delegates project initialization and semantic ledger writeback to trusted arckit-development-ledger entrypoints; unit, Runtime smoke, and temporary-project ledger smoke pass, while a real Desktop Codex done result remains pending.",
         "no_progress_limit": 1,
         "max_auto_rounds": 1
       },
       "blocked_reason": ""
     },
-    "updated_at": "2026-07-08T13:23:43.000Z"
+    "updated_at": "2026-07-25T15:50:58.000Z"
   }
 }
 ```

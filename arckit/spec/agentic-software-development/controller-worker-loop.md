@@ -94,7 +94,7 @@ next_prompt:
 
 Controller 面向人类的输出必须能直接复制到 Worker 对话，且必须说明当前是否等待执行授权或等待 worker report。
 
-`worker_type` 是稳定能力类型，用于表达本 worker 在软件研发 loop 中承担的职责；`role` 是本轮 Controller 可命名的具体执行身份。Runtime 和 Controller 可以基于 `worker_type` 选择默认权限、报告要求和 UI 展示方式，但不得把 `worker_type` 组合成固定流水线。`allowed_skills` 是本 worker 可调用的 skill 能力边界，来自当前 Capability Registry 和 Controller 对本轮状态缺口的判断。
+`worker_type` 是稳定能力类型，用于表达本 worker 在软件研发 loop 中承担的职责；`role` 是本轮 Controller 可命名的具体执行身份。Runtime 和 Controller 可以基于 `worker_type` 选择默认权限、报告要求和 UI 展示方式，但不得把 `worker_type` 组合成固定流水线。`allowed_skills` 是本 worker 可调用的 skill 能力边界，只能来自当前 Worker Capability Registry 和 Controller 对本轮状态缺口的判断；Controller 协议能力与 Runtime 状态能力不能绑定给 Worker。
 
 ## 执行授权
 
@@ -202,6 +202,8 @@ Desktop operator event 是 Controller 输入 envelope，不是 case goal、proje
 
 Controller Agent 是唯一负责把 operator event 解释为本轮语义意图的组件。Controller plan 必须显式输出 route plan、selected gap、worker intents 和下一步 continuation intent。Runtime 只能校验这些结构化字段是否存在、是否有界、是否不含 raw event marker，并把它们投影到 loop frame、worker task 和 ledger writeback；Runtime 不得自行从 operator event 中推理“最小语义目标”。
 
+在 Runtime 执行形态中，Controller planning 与 report review 都通过 capability manifest 声明的 `$using-arckit` Agent skill trigger 启动。Runtime 只编译项目快照、operator context、可用 capability、输出 schema 和 hard constraints；Controller 流程、动态路由、report intake 与 closeout 语义以实际加载的 `using-arckit` skill 为唯一来源。
+
 ## 动态 Controller Loop
 
 Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当前项目状态、active case、iteration state、用户输入和上一轮 handoff 生成动态 route plan，再按 route plan 派发最小必要 worker。
@@ -221,7 +223,7 @@ Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当�
 7. Report intake：审核 worker report 是否匹配 packet、是否越权、是否有证据、是否需要补 worker 或 Controller 决策。
 8. Verification/closeout：验证本轮是否真的推进了目标状态，并判断 `done`、`continue`、`needs_human`、`blocked` 或 `external_wait`。
 9. Case impact decision：判断本轮对 active case 和 Project State 的影响，区分 state delta、pending-only、no-change closure、external wait、human gate 和 blocked。
-10. Ledger writeback：只有在 runtime result 通过 closeout 和 gate 后，才写回 project、iteration、case 和 runtime execution record。
+10. Ledger writeback：只有在 runtime result 通过 closeout 和 Runtime hard gate 后，才调用 `arckit-development-ledger` manifest 声明的受信任 writeback entrypoint，写回 project、iteration、case 和 runtime execution record。
 11. 下一轮推荐：如果 iteration 仍未满足，输出下一轮 packet 或 next prompt；如果 iteration 满足，根据 project state 推荐下一轮 iteration 目标。
 
 空项目首轮必须先建立可恢复状态，而不是直接把 prompt 当作可实现规格。Controller 可以选择 product、tech、pending 或其他 worker 类型来建立最小稳定产品意图、行为事实、未确认问题和恢复 handoff；不能因为用户输入包含“开发”或“实现”就绕过状态建模和执行授权，直接派发 implementation worker。
@@ -234,7 +236,7 @@ Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当�
 
 source-fact worker 负责建立或更新稳定事实源，并把未确认内容路由到 pending。它不实现产品代码、不直接写 ledger、不关闭 case、不决定人类 gate。
 
-product、tech、diagnosis、implementation、verification 和 closeout worker 不是固定顺序。它们是 Controller 可选择的能力类型：product worker 维护产品预期事实或产品 handoff；tech worker 维护技术事实或技术 handoff；diagnosis worker 收敛实现异常和根因证据；implementation worker 按已确认边界执行实现，或为后续 executor 准备有界 packet；verification worker 验证事实、实现和报告；closeout worker 判断本轮是否满足 closeout 条件。每类 worker 可绑定一个或多个 allowed skills，也可以在没有匹配 skill 时只执行通用工具任务并显式说明能力缺口。
+product、tech、diagnosis、implementation、verification 和 closeout worker 不是固定顺序。它们是 Controller 可选择的能力类型：product worker 维护产品预期事实或产品 handoff；tech worker 维护技术事实或技术 handoff；diagnosis worker 收敛实现异常和根因证据；implementation worker 按已确认边界执行实现，或为后续 executor 准备有界 packet；verification worker 验证事实、实现和报告；closeout worker 判断本轮是否满足 closeout 条件。每类 worker 可绑定一个或多个 Worker 分组 allowed skills，也可以在没有匹配 skill 时只执行通用工具任务并显式说明能力缺口。非法绑定必须由 Runtime 拒绝，不能静默降级。
 
 verification worker 不是每轮都必须出现。只有本轮产生了可验证事实源变更、实现变更、诊断结论、handoff 或状态写回准备时才需要派发。没有执行产物时，verification worker 不应只做“没有东西可验”的空审计。
 

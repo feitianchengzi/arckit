@@ -1,0 +1,794 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Workshop Desktop Prototype</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <svg class="svg-sprite" aria-hidden="true">
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.8 12 3l9 7.8v9.4a.8.8 0 0 1-.8.8H15v-6H9v6H3.8a.8.8 0 0 1-.8-.8z"/></symbol>
+    <symbol id="i-product" viewBox="0 0 24 24"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z"/><path d="M8 8h8M8 12h5M8 16h7"/></symbol>
+    <symbol id="i-work" viewBox="0 0 24 24"><path d="M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="m8 12 2.2 2.2L16.5 8"/></symbol>
+    <symbol id="i-automation" viewBox="0 0 24 24"><path d="M8.5 6.5 12 3l3.5 3.5M12 3v7M15.5 17.5 12 21l-3.5-3.5M12 21v-7M6.5 8.5 3 12l3.5 3.5M3 12h7M17.5 8.5 21 12l-3.5 3.5M21 12h-7"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m9 6-6 6 6 6M15 6l6 6-6 6M14 3l-4 18"/></symbol>
+    <symbol id="i-rocket" viewBox="0 0 24 24"><path d="M14.5 5.5c2.2-2.2 4.7-2.3 6-2-.3 1.3-.4 3.8-2.6 6l-5.2 5.2-3.4-3.4z"/><path d="m9.3 11.3-4.6.8L3 16l5-.3M12.7 14.7l-.8 4.6L8 21l.3-5M15 8.5h.01"/></symbol>
+    <symbol id="i-feedback" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-5.5 4v-4A2.5 2.5 0 0 1 3 13.5v-8z"/><path d="M8 8h8M8 12h5"/></symbol>
+    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5z"/><path d="m3 12 9 5 9-5M3 16l9 5 9-5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 7 3 7 3 8H3c0-1 3-1 3-8zM9.5 21h5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-command" viewBox="0 0 24 24"><path d="M9 7H7a3 3 0 1 1 3-3v16a3 3 0 1 1-3-3h10a3 3 0 1 1-3 3V4a3 3 0 1 1 3 3z"/></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M12 2.8a9.3 9.3 0 0 0-2.9 18.1c.5.1.7-.2.7-.5v-1.8c-2.8.6-3.4-1.2-3.4-1.2-.5-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 0 1.6 1 1.6 1 .9 1.6 2.4 1.1 2.9.9.1-.7.4-1.1.7-1.4-2.3-.3-4.6-1.1-4.6-5a3.9 3.9 0 0 1 1-2.7c-.1-.3-.5-1.3.1-2.7 0 0 .9-.3 2.8 1a9.6 9.6 0 0 1 5.1 0c2-1.3 2.8-1 2.8-1 .6 1.4.2 2.4.1 2.7a3.9 3.9 0 0 1 1 2.7c0 3.9-2.4 4.8-4.6 5 .4.3.7.9.7 1.8v2.7c0 .3.2.6.7.5A9.3 9.3 0 0 0 12 2.8z"/></symbol>
+    <symbol id="i-branch" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="19" r="2"/><path d="M6 7v10M8 12h4a6 6 0 0 0 6-4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.1 1.1M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.1-1.1"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5.2-3.4 8.4-8 10-4.6-1.6-8-4.8-8-10V6z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 2 1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7zM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7z"/></symbol>
+  </svg>
+
+  <main id="login-screen" class="login-screen">
+    <section class="login-story">
+      <div class="prototype-flag">INTERACTION PROTOTYPE · DESKTOP</div>
+      <div class="brand-lockup brand-lockup--large">
+        <div class="brand-mark"><span></span><span></span><span></span></div>
+        <div>
+          <strong>Workshop</strong>
+          <small>Product Development OS</small>
+        </div>
+      </div>
+      <div class="login-copy">
+        <p class="eyebrow">从想法，到用户手中</p>
+        <h1>让产品始终<br>保持向前。</h1>
+        <p>统一产品上下文、团队工作、AI 执行、版本交付与真实用户反馈。</p>
+      </div>
+      <div class="life-rail life-rail--login">
+        <div class="life-node is-complete"><span>01</span><strong>构思</strong><small>产品机会</small></div>
+        <div class="life-node is-complete"><span>02</span><strong>建设</strong><small>人机协作</small></div>
+        <div class="life-node is-current"><span>03</span><strong>交付</strong><small>TestFlight</small></div>
+        <div class="life-node"><span>04</span><strong>学习</strong><small>真实反馈</small></div>
+      </div>
+      <div class="login-footnote">所有状态均为演示数据 · 原型不会连接真实服务</div>
+    </section>
+
+    <section class="login-panel">
+      <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <form id="login-form" class="login-form">
+        <div class="login-form-head">
+          <span class="avatar avatar--outline">G</span>
+          <div>
+            <h2>欢迎回来</h2>
+            <p>登录你的团队工作区</p>
+          </div>
+        </div>
+        <label class="field">
+          <span>邮箱</span>
+          <input id="login-email" type="email" value="glare@workshop.team" autocomplete="email">
+        </label>
+        <label class="field">
+          <span>密码</span>
+          <input type="password" value="workshop" autocomplete="current-password">
+        </label>
+        <div class="login-options">
+          <label class="check-label"><input type="checkbox" checked><span>保持登录</span></label>
+          <button class="text-button" type="button" data-toast="原型中已为你跳过密码找回">忘记密码？</button>
+        </div>
+        <button id="login-button" class="primary-button primary-button--large" type="submit">
+          <span>进入 Feitian Studio</span>
+          <svg class="icon"><use href="#i-arrow"></use></svg>
+        </button>
+        <div class="login-divider"><span>或者</span></div>
+        <button class="oauth-button" type="button" data-login>
+          <svg class="icon"><use href="#i-github"></use></svg>
+          使用 GitHub 登录
+        </button>
+        <p class="security-note"><svg class="icon"><use href="#i-shield"></use></svg> 企业工作区将使用本机安全存储保存会话</p>
+      </form>
+    </section>
+  </main>
+
+  <main id="desktop-app" class="desktop-app is-hidden">
+    <header class="titlebar">
+      <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="titlebar-drag">Workshop</div>
+      <div class="sync-state"><span class="presence-dot"></span> 云端已同步</div>
+    </header>
+
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark brand-mark--small"><span></span><span></span><span></span></div>
+        <strong>Workshop</strong>
+        <button class="icon-button icon-button--dark" data-action="collapse-sidebar" aria-label="折叠侧边栏">
+          <svg class="icon"><use href="#i-chevron"></use></svg>
+        </button>
+      </div>
+
+      <button class="workspace-switcher" data-modal="workspace-modal">
+        <span class="workspace-logo">飞</span>
+        <span><strong>Feitian Studio</strong><small>团队工作区</small></span>
+        <svg class="icon"><use href="#i-chevron"></use></svg>
+      </button>
+
+      <nav class="primary-nav" aria-label="主导航">
+        <button class="nav-item is-active" data-route="today">
+          <svg class="icon"><use href="#i-home"></use></svg><span>今日</span><kbd>1</kbd>
+        </button>
+        <div class="nav-label">产品研发</div>
+        <button class="nav-item" data-route="products">
+          <svg class="icon"><use href="#i-product"></use></svg><span>产品</span><kbd>2</kbd>
+        </button>
+        <button class="nav-item" data-route="work">
+          <svg class="icon"><use href="#i-work"></use></svg><span>工作</span><em class="nav-badge">6</em><kbd>3</kbd>
+        </button>
+        <button class="nav-item" data-route="automations">
+          <svg class="icon"><use href="#i-automation"></use></svg><span>自动化</span><i class="live-pip"></i><kbd>4</kbd>
+        </button>
+        <button class="nav-item nav-item--local" data-route="workbench">
+          <svg class="icon"><use href="#i-code"></use></svg><span>开发工作台</span><small>本机</small><kbd>5</kbd>
+        </button>
+        <button class="nav-item" data-route="releases">
+          <svg class="icon"><use href="#i-rocket"></use></svg><span>交付</span><kbd>6</kbd>
+        </button>
+        <button class="nav-item" data-route="feedback">
+          <svg class="icon"><use href="#i-feedback"></use></svg><span>反馈</span><em class="nav-badge nav-badge--warm">12</em><kbd>7</kbd>
+        </button>
+        <button class="nav-item" data-route="capabilities">
+          <svg class="icon"><use href="#i-layers"></use></svg><span>能力</span><kbd>8</kbd>
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button class="local-status" data-route="workbench">
+          <span class="device-icon">M2</span>
+          <span><strong>Glare’s MacBook</strong><small><i></i> 本地运行时在线</small></span>
+          <svg class="icon"><use href="#i-chevron"></use></svg>
+        </button>
+        <button class="profile-button" data-action="toggle-user-menu">
+          <span class="avatar">G</span>
+          <span><strong>Glare</strong><small>产品负责人</small></span>
+          <svg class="icon"><use href="#i-more"></use></svg>
+        </button>
+        <div id="user-menu" class="floating-menu is-hidden">
+          <button data-toast="个人设置将在下一版开放">个人设置</button>
+          <button data-toast="团队设置将在下一版开放">团队设置</button>
+          <hr>
+          <button data-action="logout">退出登录</button>
+        </div>
+      </div>
+    </aside>
+
+    <section class="app-stage">
+      <header class="commandbar">
+        <div class="breadcrumbs" id="breadcrumbs"><strong>今日</strong></div>
+        <div class="commandbar-actions">
+          <button class="search-trigger" data-action="open-command">
+            <svg class="icon"><use href="#i-search"></use></svg>
+            <span>搜索或运行命令</span>
+            <kbd>⌘ K</kbd>
+          </button>
+          <button class="icon-button" data-action="toggle-notifications" aria-label="通知">
+            <svg class="icon"><use href="#i-bell"></use></svg><i class="notification-dot"></i>
+          </button>
+          <button class="create-button" data-modal="create-modal">
+            <svg class="icon"><use href="#i-plus"></use></svg><span>新建</span>
+          </button>
+        </div>
+      </header>
+
+      <div id="view-host" class="view-host">
+        <section class="app-view is-active" data-view="today">
+          <div class="page page--dashboard">
+            <div class="page-heading page-heading--split">
+              <div>
+                <p class="eyebrow">7 月 14 日 · 星期二</p>
+                <h1>早上好，Glare</h1>
+                <p>有 3 件事需要你判断，2 个自动化正在推进。</p>
+              </div>
+              <button class="secondary-button" data-route="products">查看产品全景 <svg class="icon"><use href="#i-arrow"></use></svg></button>
+            </div>
+
+            <section class="pulse-panel">
+              <div class="section-title-row">
+                <div><span class="product-avatar product-avatar--indigo">拾</span><div><h2>拾光 · 情绪日记</h2><p>iOS · MVP 验证中 · TestFlight #18</p></div></div>
+                <button class="text-button" data-route="products">打开产品</button>
+              </div>
+              <div class="product-pulse">
+                <div class="pulse-step is-done"><i></i><span>产品定义</span><small>已确认</small></div>
+                <div class="pulse-step is-done"><i></i><span>工程初始化</span><small>12 项完成</small></div>
+                <div class="pulse-step is-current"><i></i><span>核心体验</span><small>进行中 · 68%</small></div>
+                <div class="pulse-step"><i></i><span>TestFlight</span><small>准备中</small></div>
+                <div class="pulse-step"><i></i><span>用户学习</span><small>12 条反馈</small></div>
+              </div>
+              <div class="pulse-meta">
+                <span><i class="status-dot status-dot--green"></i> 项目事实已同步</span>
+                <span><svg class="icon"><use href="#i-branch"></use></svg> feature/mood-insight</span>
+                <span><svg class="icon"><use href="#i-clock"></use></svg> 8 分钟前更新</span>
+              </div>
+            </section>
+
+            <div class="dashboard-grid">
+              <section class="attention-panel">
+                <div class="section-title-row">
+                  <div><h2>需要你的判断</h2><p>平台已整理好上下文</p></div>
+                  <span class="count-chip">3</span>
+                </div>
+                <button class="attention-item" data-action="open-handoff">
+                  <span class="attention-icon attention-icon--warn"><svg class="icon"><use href="#i-shield"></use></svg></span>
+                  <span class="attention-copy"><strong>允许访问 App Store Connect</strong><small>自动化准备创建 TestFlight Build，需要一次性授权</small><em>交付 · 5 分钟前</em></span>
+                  <svg class="icon"><use href="#i-chevron"></use></svg>
+                </button>
+                <button class="attention-item" data-route="feedback" data-select-feedback="fb-101">
+                  <span class="attention-icon attention-icon--violet"><svg class="icon"><use href="#i-feedback"></use></svg></span>
+                  <span class="attention-copy"><strong>确认 8 条反馈是否属于同一问题</strong><small>AI 发现“情绪卡片丢失”可能与离线同步有关</small><em>反馈 · 18 分钟前</em></span>
+                  <svg class="icon"><use href="#i-chevron"></use></svg>
+                </button>
+                <button class="attention-item" data-route="work" data-select-work="work-203">
+                  <span class="attention-icon attention-icon--blue"><svg class="icon"><use href="#i-product"></use></svg></span>
+                  <span class="attention-copy"><strong>选择首页洞察的第一版范围</strong><small>两个候选方案已完成产品与实现成本比较</small><em>产品 · 今天 09:12</em></span>
+                  <svg class="icon"><use href="#i-chevron"></use></svg>
+                </button>
+              </section>
+
+              <section class="activity-panel">
+                <div class="section-title-row">
+                  <div><h2>正在推进</h2><p>来自本机与云端的运行</p></div>
+                  <button class="text-button" data-route="automations">全部运行</button>
+                </div>
+                <div class="run-card">
+                  <div class="run-card-head">
+                    <span class="agent-orb"><i></i></span>
+                    <div><strong>实现情绪趋势洞察</strong><small>Codex · Glare’s MacBook</small></div>
+                    <span class="status-pill status-pill--running">运行中</span>
+                  </div>
+                  <div class="run-progress"><i style="width: 64%"></i></div>
+                  <div class="run-current"><span class="spinner"></span>正在补充 TrendChartView 的空状态测试…</div>
+                  <div class="run-footer"><span>Case #42 · Loop 3</span><button data-route="workbench">打开工作台</button></div>
+                </div>
+                <div class="run-card run-card--compact">
+                  <div class="run-card-head">
+                    <span class="agent-orb agent-orb--cloud"><i></i></span>
+                    <div><strong>归并新增用户反馈</strong><small>Feedback AI · 云端</small></div>
+                    <span class="status-pill status-pill--soft">分析中</span>
+                  </div>
+                  <div class="run-footer"><span>已处理 21 / 34 条</span><button data-route="feedback">查看反馈</button></div>
+                </div>
+              </section>
+            </div>
+
+            <section class="today-work">
+              <div class="section-title-row">
+                <div><h2>接下来</h2><p>按产品状态和依赖排序</p></div>
+                <button class="filter-button"><svg class="icon"><use href="#i-filter"></use></svg> 我的工作</button>
+              </div>
+              <div class="work-table work-table--compact">
+                <button class="work-row" data-route="work" data-select-work="work-201">
+                  <span class="priority priority--high"></span>
+                  <span class="work-title"><strong>完善情绪洞察空状态</strong><small>拾光 · 核心体验</small></span>
+                  <span class="type-tag">iOS</span><span class="assignee"><i class="avatar avatar--xs">G</i>我</span><span class="due">今天</span>
+                </button>
+                <button class="work-row" data-route="work" data-select-work="work-202">
+                  <span class="priority priority--medium"></span>
+                  <span class="work-title"><strong>接入反馈入口的截图附件</strong><small>拾光 · Feedback Capability</small></span>
+                  <span class="type-tag">能力</span><span class="assignee"><i class="agent-mini"></i>AI 优先</span><span class="due">明天</span>
+                </button>
+                <button class="work-row" data-route="work" data-select-work="work-204">
+                  <span class="priority priority--low"></span>
+                  <span class="work-title"><strong>准备 TestFlight 测试说明</strong><small>拾光 · Build 18</small></span>
+                  <span class="type-tag">交付</span><span class="assignee"><i class="avatar avatar--xs avatar--teal">Y</i>Yuki</span><span class="due">7 月 16 日</span>
+                </button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="products">
+          <div class="page">
+            <div class="page-heading page-heading--split">
+              <div><p class="eyebrow">PRODUCT STUDIO</p><h1>产品</h1><p>从候选创意到真实用户，保持每个产品的完整生命线。</p></div>
+              <button class="primary-button" data-modal="idea-modal"><svg class="icon"><use href="#i-plus"></use></svg> 新建产品创意</button>
+            </div>
+            <div class="segmented-control" data-segment-group="products">
+              <button class="is-active">进行中 <span>3</span></button><button>候选创意 <span>8</span></button><button>观察中 <span>4</span></button>
+            </div>
+            <section class="featured-product">
+              <div class="featured-main">
+                <div class="product-heading">
+                  <span class="product-avatar product-avatar--large product-avatar--indigo">拾</span>
+                  <div><span class="status-pill status-pill--running">MVP 验证中</span><h2>拾光 · 情绪日记</h2><p>帮助用户用十秒记录情绪，并从长期趋势中理解自己。</p></div>
+                </div>
+                <div class="metric-strip">
+                  <div><strong>68%</strong><span>MVP 完成度</span></div>
+                  <div><strong>18</strong><span>最新 Build</span></div>
+                  <div><strong>24</strong><span>测试用户</span></div>
+                  <div><strong>12</strong><span>开放反馈</span></div>
+                </div>
+              </div>
+              <div class="featured-side">
+                <div class="mini-pulse">
+                  <div class="mini-pulse-line"><i class="done"></i><i class="done"></i><i class="active"></i><i></i><i></i></div>
+                  <strong>核心体验建设中</strong>
+                  <p>下一里程碑：TestFlight 外部测试</p>
+                </div>
+                <button class="primary-button" data-action="open-product-detail">打开产品工作区</button>
+              </div>
+            </section>
+            <div class="product-list-grid">
+              <button class="product-tile" data-toast="「轻羽」产品工作区为演示占位">
+                <div><span class="product-avatar product-avatar--teal">轻</span><span class="status-pill status-pill--soft">内测</span></div>
+                <h3>轻羽 · 每日习惯</h3><p>极简习惯与轻量陪伴</p>
+                <div class="tile-progress"><i style="width:82%"></i></div>
+                <footer><span>Build 31</span><span>7 个开放工作</span></footer>
+              </button>
+              <button class="product-tile" data-toast="「远山」产品工作区为演示占位">
+                <div><span class="product-avatar product-avatar--amber">山</span><span class="status-pill">定义中</span></div>
+                <h3>远山 · 徒步记录</h3><p>面向轻户外用户的旅程记录</p>
+                <div class="tile-progress"><i style="width:34%"></i></div>
+                <footer><span>尚未构建</span><span>3 个待决策</span></footer>
+              </button>
+              <button class="product-tile product-tile--idea" data-modal="idea-modal">
+                <span class="idea-plus"><svg class="icon"><use href="#i-plus"></use></svg></span>
+                <h3>探索新的产品机会</h3><p>从一段观察、用户问题或灵感开始</p>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="work">
+          <div class="split-view">
+            <section class="list-pane">
+              <div class="pane-header">
+                <div><p class="eyebrow">WORK HUB</p><h1>我的工作</h1></div>
+                <button class="icon-button" data-modal="create-work-modal"><svg class="icon"><use href="#i-plus"></use></svg></button>
+              </div>
+              <div class="work-filters">
+                <button class="is-active">待处理 <span>6</span></button><button>进行中 <span>3</span></button><button>已完成</button>
+              </div>
+              <div class="list-section-label"><span>需要判断</span><em>2</em></div>
+              <button class="work-list-item is-selected" data-work-id="work-203">
+                <span class="work-kind work-kind--decision"><svg class="icon"><use href="#i-spark"></use></svg></span>
+                <span><strong>选择首页洞察的第一版范围</strong><small>产品决策 · 拾光</small><em>两个候选方案等待确认</em></span>
+                <span class="item-time">9:12</span>
+              </button>
+              <button class="work-list-item" data-work-id="work-205">
+                <span class="work-kind work-kind--handoff"><svg class="icon"><use href="#i-shield"></use></svg></span>
+                <span><strong>允许访问 App Store Connect</strong><small>人工接力 · TestFlight</small><em>自动化正在等待</em></span>
+                <span class="item-time">8:56</span>
+              </button>
+              <div class="list-section-label"><span>接下来</span><em>4</em></div>
+              <button class="work-list-item" data-work-id="work-201">
+                <span class="work-kind work-kind--code"><svg class="icon"><use href="#i-code"></use></svg></span>
+                <span><strong>完善情绪洞察空状态</strong><small>iOS · 拾光</small><em>AI 已完成初步实现</em></span>
+                <span class="item-time">今天</span>
+              </button>
+              <button class="work-list-item" data-work-id="work-202">
+                <span class="work-kind work-kind--cap"><svg class="icon"><use href="#i-layers"></use></svg></span>
+                <span><strong>接入反馈截图附件</strong><small>Capability · 拾光</small><em>建议由 AI 执行</em></span>
+                <span class="item-time">明天</span>
+              </button>
+              <button class="work-list-item" data-work-id="work-204">
+                <span class="work-kind work-kind--release"><svg class="icon"><use href="#i-rocket"></use></svg></span>
+                <span><strong>准备 TestFlight 测试说明</strong><small>交付 · Build 18</small><em>等待 Build 完成</em></span>
+                <span class="item-time">周四</span>
+              </button>
+            </section>
+            <section class="detail-pane" id="work-detail">
+              <div class="detail-toolbar">
+                <span class="status-pill status-pill--warm">需要决策</span>
+                <div><button class="icon-button"><svg class="icon"><use href="#i-link"></use></svg></button><button class="icon-button"><svg class="icon"><use href="#i-more"></use></svg></button></div>
+              </div>
+              <div class="detail-scroll">
+                <p class="eyebrow">WORK-203 · 产品决策</p>
+                <h1>选择首页洞察的第一版范围</h1>
+                <p class="detail-lead">为了让测试用户更快感受到长期记录的价值，需要确定第一版情绪洞察的表现范围。</p>
+                <div class="property-grid">
+                  <span>产品</span><strong><i class="mini-product">拾</i> 拾光</strong>
+                  <span>负责人</span><strong><i class="avatar avatar--xs">G</i> Glare</strong>
+                  <span>关联 Case</span><strong class="linkish">Case #42 · 核心体验</strong>
+                  <span>截止时间</span><strong>今天 18:00</strong>
+                </div>
+                <div class="ai-brief">
+                  <div class="ai-brief-head"><span class="agent-orb"><i></i></span><div><strong>AI 决策摘要</strong><small>基于产品规格、8 条反馈和当前工程状态</small></div><button data-toast="摘要已重新生成">重新生成</button></div>
+                  <p>建议采用<strong>方案 A：七日趋势 + 一句洞察</strong>。它能验证核心价值，预计 1.5 天完成；方案 B 的情绪分类对比更完整，但需要额外的数据校准和空状态设计。</p>
+                  <div class="evidence-links"><button>产品规格 §3.2</button><button>用户反馈 × 8</button><button>实现评估</button></div>
+                </div>
+                <h3 class="subheading">候选方案</h3>
+                <label class="choice-card is-selected">
+                  <input type="radio" name="insight-plan" checked>
+                  <span class="choice-marker"></span>
+                  <span><strong>方案 A · 七日趋势 + 一句洞察</strong><small>更快验证用户是否理解趋势价值</small><em>预计 1.5 天 · 影响 6 个文件</em></span>
+                  <span class="recommend-chip">推荐</span>
+                </label>
+                <label class="choice-card">
+                  <input type="radio" name="insight-plan">
+                  <span class="choice-marker"></span>
+                  <span><strong>方案 B · 情绪分类对比</strong><small>信息更丰富，首版理解成本更高</small><em>预计 3 天 · 需要调整数据模型</em></span>
+                </label>
+                <div class="comment-box">
+                  <span class="avatar">G</span>
+                  <textarea placeholder="补充决定原因或给 AI 的说明…"></textarea>
+                </div>
+              </div>
+              <div class="detail-actions">
+                <button class="secondary-button" data-toast="已保存为稍后处理">稍后决定</button>
+                <button class="primary-button" data-action="confirm-decision"><svg class="icon"><use href="#i-check"></use></svg> 确认并开始执行</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="automations">
+          <div class="page">
+            <div class="page-heading page-heading--split">
+              <div><p class="eyebrow">AUTOMATION RUNTIME</p><h1>自动化</h1><p>观察 AI 如何在明确边界与证据要求下推进产品状态。</p></div>
+              <div class="heading-actions"><span class="runtime-health"><i></i> Runtime 正常</span><button class="secondary-button" data-toast="已打开运行策略草案">自动化策略</button></div>
+            </div>
+            <div class="automation-layout">
+              <section class="run-list-panel">
+                <div class="panel-tabs"><button class="is-active">运行中 <span>2</span></button><button>等待中 <span>1</span></button><button>最近完成</button></div>
+                <button class="automation-item is-selected">
+                  <span class="agent-orb"><i></i></span>
+                  <span><strong>实现情绪趋势洞察</strong><small>Case #42 · Loop 3</small><em><i class="live-pip"></i> 正在执行测试</em></span>
+                  <span>08:14</span>
+                </button>
+                <button class="automation-item">
+                  <span class="agent-orb agent-orb--cloud"><i></i></span>
+                  <span><strong>归并新增用户反馈</strong><small>Feedback Intelligence</small><em><i class="live-pip"></i> 已处理 21 / 34</em></span>
+                  <span>03:42</span>
+                </button>
+                <div class="list-section-label"><span>等待处理</span><em>1</em></div>
+                <button class="automation-item automation-item--waiting" data-action="open-handoff">
+                  <span class="work-kind work-kind--handoff"><svg class="icon"><use href="#i-shield"></use></svg></span>
+                  <span><strong>创建 TestFlight Build</strong><small>Release #18</small><em>等待 App Store Connect 授权</em></span>
+                  <svg class="icon"><use href="#i-chevron"></use></svg>
+                </button>
+              </section>
+              <section class="run-inspector">
+                <div class="run-inspector-head">
+                  <div><p class="eyebrow">RUN-8421 · 本地执行</p><h2>实现情绪趋势洞察</h2><p>Codex · Glare’s MacBook · feature/mood-insight</p></div>
+                  <div><button class="secondary-button secondary-button--small" data-toast="运行已暂停（原型）">暂停</button><button class="icon-button"><svg class="icon"><use href="#i-more"></use></svg></button></div>
+                </div>
+                <div class="run-stage-strip">
+                  <div class="is-done"><i><svg class="icon"><use href="#i-check"></use></svg></i><span>理解上下文</span><small>42 秒</small></div>
+                  <div class="is-done"><i><svg class="icon"><use href="#i-check"></use></svg></i><span>实现</span><small>5 分 18 秒</small></div>
+                  <div class="is-active"><i><span class="spinner"></span></i><span>验证</span><small>进行中</small></div>
+                  <div><i>4</i><span>收口</span><small>待开始</small></div>
+                </div>
+                <div class="run-content-grid">
+                  <div class="run-timeline">
+                    <h3>运行时间线</h3>
+                    <div class="timeline-event is-done"><i></i><span><strong>读取项目上下文</strong><small>已加载 Product、Case、spec、tech 和 3 个相关文件</small></span><time>10:18:03</time></div>
+                    <div class="timeline-event is-done"><i></i><span><strong>选择 SwiftUI 能力</strong><small>arckit-code-swiftui · v1.8.2</small></span><time>10:18:44</time></div>
+                    <div class="timeline-event is-done"><i></i><span><strong>修改 6 个文件</strong><small>新增 TrendInsightCard，调整 DashboardViewModel</small></span><time>10:23:52</time></div>
+                    <div class="timeline-event is-active"><i></i><span><strong>执行静态验证</strong><small>正在检查空状态、可访问性和遗漏测试</small><em class="terminal-line">$ swift test --filter TrendInsight</em></span><time>10:25:17</time></div>
+                  </div>
+                  <aside class="run-context">
+                    <h3>本轮边界</h3>
+                    <dl><dt>目标</dt><dd>完成方案 A 的首版实现</dd><dt>允许</dt><dd>修改 Dashboard Feature 与测试</dd><dt>禁止</dt><dd>迁移数据模型、发布 Build</dd><dt>完成证据</dt><dd>静态检查、测试结果、变更摘要</dd></dl>
+                    <h3>文件影响</h3>
+                    <div class="file-impact"><span>6</span> 修改 <b>+184</b> <em>−27</em></div>
+                    <button class="ghost-button" data-toast="已打开模拟 Diff 视图"><svg class="icon"><use href="#i-code"></use></svg> 查看变更</button>
+                  </aside>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="workbench">
+          <div class="workbench-view">
+            <header class="workbench-header">
+              <div class="repo-identity"><span class="product-avatar product-avatar--small product-avatar--indigo">拾</span><div><strong>拾光 iOS</strong><small>~/Developer/shiguang-ios</small></div><span class="connected-chip"><i></i> 已连接</span></div>
+              <div class="repo-meta"><span><svg class="icon"><use href="#i-branch"></use></svg> feature/mood-insight</span><span>6 个本地修改</span><button class="secondary-button secondary-button--small" data-toast="项目事实已同步">同步项目事实</button></div>
+            </header>
+            <div class="workbench-grid">
+              <aside class="context-pane">
+                <div class="workbench-pane-title"><span>当前上下文</span><button><svg class="icon"><use href="#i-more"></use></svg></button></div>
+                <div class="context-product"><span class="mini-product">拾</span><div><strong>拾光</strong><small>核心体验 · 68%</small></div></div>
+                <div class="context-block">
+                  <label>当前工作</label>
+                  <strong>实现情绪趋势洞察</strong>
+                  <small>WORK-203 · CASE-42</small>
+                </div>
+                <div class="context-block">
+                  <label>完成条件</label>
+                  <ul><li class="is-done">七日趋势正确显示</li><li class="is-done">空状态符合规格</li><li>VoiceOver 标签完整</li><li>测试通过并形成摘要</li></ul>
+                </div>
+                <div class="context-block">
+                  <label>已加载事实</label>
+                  <button class="fact-link"><svg class="icon"><use href="#i-product"></use></svg> product-spec.md <span>3.2</span></button>
+                  <button class="fact-link"><svg class="icon"><use href="#i-code"></use></svg> ios-architecture.md</button>
+                  <button class="fact-link"><svg class="icon"><use href="#i-feedback"></use></svg> 相关反馈 <span>8</span></button>
+                </div>
+                <div class="context-block">
+                  <label>能力</label>
+                  <div class="skill-chip"><span>Swift</span> arckit-code-swiftui <i>1.8.2</i></div>
+                  <div class="skill-chip"><span>Arc</span> arckit-development-ledger <i>1.3</i></div>
+                </div>
+              </aside>
+              <section class="agent-pane">
+                <div class="agent-pane-tabs"><button class="is-active"><span class="agent-orb agent-orb--tiny"><i></i></span> Codex <i class="live-pip"></i></button><button>变更 <em>6</em></button><button>验证</button><button class="new-thread-button" data-toast="已创建空白会话"><svg class="icon"><use href="#i-plus"></use></svg></button></div>
+                <div id="agent-conversation" class="agent-conversation">
+                  <div class="conversation-start"><span class="agent-orb agent-orb--large"><i></i></span><div><strong>正在推进 CASE-42</strong><small>上下文来自 Product、Work、Arckit facts 和本地仓库</small></div></div>
+                  <article class="message message--assistant">
+                    <header><span class="agent-orb agent-orb--tiny"><i></i></span><strong>Codex</strong><time>10:18</time></header>
+                    <p>我已读取首页洞察的方案 A、现有 Dashboard Feature 和相关反馈。接下来会先补齐趋势卡片与空状态，再检查可访问性和测试。</p>
+                    <div class="message-plan"><span class="is-done"><i><svg class="icon"><use href="#i-check"></use></svg></i>理解产品与工程上下文</span><span class="is-done"><i><svg class="icon"><use href="#i-check"></use></svg></i>实现 TrendInsightCard</span><span class="is-active"><i><span class="spinner"></span></i>补充空状态与 VoiceOver</span><span><i>4</i>执行验证并收口</span></div>
+                  </article>
+                  <article class="tool-call">
+                    <header><svg class="icon"><use href="#i-code"></use></svg><strong>编辑文件</strong><span>6 个文件</span><button>展开</button></header>
+                    <div class="diff-summary"><span>TrendInsightCard.swift</span><b>+86</b><em>−0</em></div>
+                    <div class="diff-summary"><span>DashboardViewModel.swift</span><b>+41</b><em>−18</em></div>
+                    <div class="diff-summary"><span>TrendInsightTests.swift</span><b>+57</b><em>−9</em></div>
+                  </article>
+                  <article class="message message--assistant">
+                    <header><span class="agent-orb agent-orb--tiny"><i></i></span><strong>Codex</strong><time>刚刚</time></header>
+                    <p>界面实现已经完成。我发现现有空状态缺少对“记录不足七天”的区分，正在按产品规格补齐，并会把这个差异写入结果摘要。</p>
+                  </article>
+                  <div id="prototype-run-output" class="prototype-run-output is-hidden">
+                    <article class="tool-call tool-call--running"><header><span class="spinner"></span><strong>运行静态检查</strong><span>进行中</span></header><div class="terminal-output"><span>$ swift test --filter TrendInsight</span><span>Building for debugging…</span><span class="terminal-cursor">Checking accessibility labels…</span></div></article>
+                  </div>
+                </div>
+                <div class="composer">
+                  <textarea id="agent-input" placeholder="给 Codex 补充说明，或使用 / 选择能力…"></textarea>
+                  <div class="composer-footer">
+                    <div><button title="添加上下文">＋</button><button><span class="context-count">12</span> 上下文</button><button><svg class="icon"><use href="#i-shield"></use></svg> 受控执行</button></div>
+                    <button id="run-agent-button" class="send-button"><span>继续执行</span><svg class="icon"><use href="#i-arrow"></use></svg></button>
+                  </div>
+                </div>
+              </section>
+              <aside class="evidence-pane">
+                <div class="workbench-pane-title"><span>运行与证据</span><button><svg class="icon"><use href="#i-more"></use></svg></button></div>
+                <div class="run-health"><span class="agent-orb"><i></i></span><div><strong>RUN-8421</strong><small><i></i> 正在验证</small></div><time>08:14</time></div>
+                <div class="evidence-progress"><div><span>本轮进度</span><strong>3 / 4</strong></div><i><b style="width:75%"></b></i></div>
+                <div class="evidence-list">
+                  <div class="is-done"><i><svg class="icon"><use href="#i-check"></use></svg></i><span><strong>上下文读取</strong><small>12 项事实</small></span></div>
+                  <div class="is-done"><i><svg class="icon"><use href="#i-check"></use></svg></i><span><strong>代码变更</strong><small>6 个文件</small></span></div>
+                  <div class="is-active"><i><span class="spinner"></span></i><span><strong>验证结果</strong><small>正在执行</small></span></div>
+                  <div><i>4</i><span><strong>状态写回</strong><small>等待 Gate</small></span></div>
+                </div>
+                <div class="workspace-actions">
+                  <button data-toast="已打开模拟 Xcode"><span class="app-tool app-tool--xcode">X</span><span><strong>在 Xcode 中打开</strong><small>当前 Workspace</small></span><svg class="icon"><use href="#i-arrow"></use></svg></button>
+                  <button data-toast="已打开模拟终端"><span class="app-tool app-tool--terminal">&gt;_</span><span><strong>打开终端</strong><small>项目根目录</small></span><svg class="icon"><use href="#i-arrow"></use></svg></button>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="releases">
+          <div class="page">
+            <div class="page-heading page-heading--split">
+              <div><p class="eyebrow">DELIVERY CENTER</p><h1>交付</h1><p>把研发结果推进为测试用户真正可以安装和验证的版本。</p></div>
+              <button class="primary-button" data-modal="release-modal"><svg class="icon"><use href="#i-rocket"></use></svg> 准备新 Build</button>
+            </div>
+            <section class="release-hero">
+              <div class="release-number"><span>BUILD</span><strong>18</strong></div>
+              <div class="release-summary"><span class="status-pill status-pill--warm">准备中</span><h2>TestFlight 外部测试候选</h2><p>包含情绪趋势洞察、反馈截图附件和 4 项稳定性修复。</p><div><span><svg class="icon"><use href="#i-branch"></use></svg> 8f3a2c1</span><span>12 个 WorkItem</span><span>3 个反馈修复</span></div></div>
+              <button class="secondary-button" data-toast="已生成版本变更摘要">生成发布说明</button>
+            </section>
+            <div class="delivery-grid">
+              <section class="release-checklist">
+                <div class="section-title-row"><div><h2>发布准备</h2><p>6 / 8 项已完成</p></div><span class="ring-progress">75%</span></div>
+                <label class="release-check is-done"><input type="checkbox" checked><i><svg class="icon"><use href="#i-check"></use></svg></i><span><strong>代码与目标 commit 已确认</strong><small>8f3a2c1 · main</small></span></label>
+                <label class="release-check is-done"><input type="checkbox" checked><i><svg class="icon"><use href="#i-check"></use></svg></i><span><strong>自动化测试通过</strong><small>128 passed · 0 failed</small></span></label>
+                <label class="release-check is-done"><input type="checkbox" checked><i><svg class="icon"><use href="#i-check"></use></svg></i><span><strong>隐私清单无新增变更</strong><small>AI 检查 + 人工确认</small></span></label>
+                <label class="release-check"><input type="checkbox"><i></i><span><strong>完成真机冒烟测试</strong><small>负责人：Yuki</small></span><button data-toast="已提醒 Yuki">提醒</button></label>
+                <label class="release-check"><input type="checkbox"><i></i><span><strong>确认 TestFlight 测试说明</strong><small>AI 草案已生成</small></span><button data-toast="已打开测试说明草案">编辑</button></label>
+              </section>
+              <section class="release-risk">
+                <div class="section-title-row"><div><h2>AI 发布审查</h2><p>基于本版本的变更与反馈</p></div><span class="risk-level">中低风险</span></div>
+                <div class="risk-item"><span class="risk-icon">!</span><div><strong>趋势卡片是新增用户路径</strong><p>建议重点测试记录不足七天、无网络和大字体三种状态。</p></div></div>
+                <div class="risk-item risk-item--info"><span class="risk-icon">i</span><div><strong>3 条反馈将在本版本修复</strong><p>发布后可自动邀请对应用户验证。</p></div></div>
+                <button class="ghost-button" data-toast="已打开完整发布审查">查看完整审查</button>
+              </section>
+            </div>
+            <div class="release-footer-bar"><div><span class="appstore-icon">A</span><span><strong>App Store Connect</strong><small>凭证可用 · 上次同步 2 分钟前</small></span></div><button class="primary-button" data-action="open-handoff">授权并上传 Build</button></div>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="feedback">
+          <div class="split-view split-view--feedback">
+            <section class="list-pane">
+              <div class="pane-header">
+                <div><p class="eyebrow">FEEDBACK HUB</p><h1>用户反馈</h1></div>
+                <button class="icon-button" data-toast="反馈数据已刷新"><svg class="icon"><use href="#i-automation"></use></svg></button>
+              </div>
+              <div class="feedback-summary"><span><strong>34</strong>待处理</span><span><strong>12</strong>高影响</span><span><strong>4.6h</strong>平均响应</span></div>
+              <div class="feedback-filterbar"><button class="is-active">智能分组</button><button>全部反馈</button><button><svg class="icon"><use href="#i-filter"></use></svg></button></div>
+              <button class="feedback-item is-selected" data-feedback-id="fb-101">
+                <span class="feedback-heat feedback-heat--high">8</span>
+                <span><strong>情绪卡片在离线后消失</strong><small>AI 归并 · 8 位用户 · Build 17–18</small><em><i class="severity severity--high"></i> 高影响 · 信息完整</em></span>
+                <time>18 分钟前</time>
+              </button>
+              <button class="feedback-item" data-feedback-id="fb-102">
+                <span class="feedback-heat">5</span>
+                <span><strong>希望趋势图支持月视图</strong><small>产品建议 · 5 位用户</small><em><i class="severity severity--medium"></i> 中等影响 · 待评估</em></span>
+                <time>1 小时前</time>
+              </button>
+              <button class="feedback-item" data-feedback-id="fb-103">
+                <span class="feedback-heat">3</span>
+                <span><strong>Face ID 偶尔没有弹出</strong><small>问题 · 3 位用户 · iOS 19</small><em><i class="severity severity--medium"></i> 需要更多日志</em></span>
+                <time>昨天</time>
+              </button>
+              <button class="feedback-item" data-feedback-id="fb-104">
+                <span class="feedback-heat feedback-heat--low">1</span>
+                <span><strong>导出图片字体太小</strong><small>体验改进 · 1 位用户</small><em><i class="severity"></i> 低影响</em></span>
+                <time>昨天</time>
+              </button>
+            </section>
+            <section class="detail-pane feedback-detail">
+              <div class="detail-toolbar">
+                <span class="status-pill status-pill--danger">高影响</span>
+                <div><button class="secondary-button secondary-button--small" data-toast="已生成用户回复草案">回复用户</button><button class="icon-button"><svg class="icon"><use href="#i-more"></use></svg></button></div>
+              </div>
+              <div class="detail-scroll">
+                <p class="eyebrow">反馈组 FB-101 · AI 建议置信度 92%</p>
+                <h1>情绪卡片在离线后消失</h1>
+                <p class="detail-lead">8 位用户报告在弱网或离线记录后，回到首页看不到刚刚创建的情绪卡片。</p>
+                <div class="feedback-facts">
+                  <div><span>影响用户</span><strong>8</strong><small>占测试用户 33%</small></div><div><span>关联版本</span><strong>17–18</strong><small>iOS 18.5 / 19 beta</small></div><div><span>首次出现</span><strong>2 天前</strong><small>Build 17 发布后</small></div>
+                </div>
+                <div class="ai-brief ai-brief--feedback">
+                  <div class="ai-brief-head"><span class="agent-orb agent-orb--cloud"><i></i></span><div><strong>AI 问题判断</strong><small>综合反馈文本、设备信息和已有代码上下文</small></div><span class="confidence">92%</span></div>
+                  <p>这些反馈很可能属于同一问题：本地记录已写入，但首页在同步失败时只读取服务端快照。建议建立一个 Bug WorkItem，并将 8 条反馈共同关联。</p>
+                  <div class="evidence-links"><button>相似文本 × 8</button><button>Build 分布</button><button>可能代码位置 × 2</button></div>
+                </div>
+                <h3 class="subheading">代表反馈</h3>
+                <article class="user-feedback-card">
+                  <header><span class="avatar avatar--teal">L</span><div><strong>Lin</strong><small>iPhone 16 Pro · iOS 18.5 · Build 18</small></div><time>今天 09:41</time></header>
+                  <p>地铁里记了一条，回首页以后就不见了。联网后过了一会儿又出现，我以为刚刚没有保存成功。</p>
+                  <footer><button>查看截图</button><button>设备日志</button><button>完整对话</button></footer>
+                </article>
+                <h3 class="subheading">处理建议</h3>
+                <div class="resolution-path">
+                  <div class="is-active"><i>1</i><span><strong>确认为 Bug</strong><small>合并 8 条反馈</small></span></div><div><i>2</i><span><strong>创建研发工作</strong><small>建议 AI 优先诊断</small></span></div><div><i>3</i><span><strong>关联修复 Build</strong><small>发布后邀请验证</small></span></div>
+                </div>
+              </div>
+              <div class="detail-actions">
+                <button class="secondary-button" data-toast="已标记为需要更多信息">请求补充信息</button>
+                <button id="feedback-to-work" class="primary-button" data-action="feedback-to-work"><svg class="icon"><use href="#i-work"></use></svg> 确认并转为工作项</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="app-view" data-view="capabilities">
+          <div class="page">
+            <div class="page-heading page-heading--split">
+              <div><p class="eyebrow">CAPABILITY HUB</p><h1>产品能力</h1><p>选择已经被验证的软件能力，让每个新产品从更高的起点开始。</p></div>
+              <button class="secondary-button" data-toast="已打开 Capability 提案草案"><svg class="icon"><use href="#i-plus"></use></svg> 提议新能力</button>
+            </div>
+            <div class="capability-banner">
+              <span class="spark-badge"><svg class="icon"><use href="#i-spark"></use></svg></span>
+              <div><strong>拾光还有 2 项推荐能力未启用</strong><p>根据当前 Product Blueprint，建议在外部测试前接入崩溃诊断和远程配置。</p></div>
+              <button class="primary-button" data-toast="已显示推荐能力">查看建议</button>
+            </div>
+            <div class="capability-tabs"><button class="is-active">全部能力 <span>12</span></button><button>已用于拾光 <span>6</span></button><button>可升级 <span>2</span></button></div>
+            <div class="capability-grid">
+              <article class="capability-card">
+                <header><span class="cap-icon cap-icon--swift">S</span><div><span class="status-pill status-pill--success">已启用</span><h3>SwiftUI 默认工程</h3></div></header>
+                <p>统一 Feature 结构、导航、状态、网络、本地数据和测试约定。</p>
+                <div class="cap-meta"><span>v1.8.2</span><span>验证于 Build 18</span></div>
+                <footer><div class="skill-stack"><i>Arc</i><i>Swift</i><span>+3</span></div><button data-toast="已打开能力详情">查看详情</button></footer>
+              </article>
+              <article class="capability-card">
+                <header><span class="cap-icon cap-icon--feedback"><svg class="icon"><use href="#i-feedback"></use></svg></span><div><span class="status-pill status-pill--success">已启用</span><h3>App 内反馈</h3></div></header>
+                <p>反馈 SDK、用户身份、截图附件、我的反馈与状态同步。</p>
+                <div class="cap-meta"><span>v2.3.0</span><span>12 条开放反馈</span></div>
+                <footer><div class="skill-stack"><i>SDK</i><i>API</i><span>+2</span></div><button data-toast="已打开能力详情">查看详情</button></footer>
+              </article>
+              <article class="capability-card">
+                <header><span class="cap-icon cap-icon--auth"><svg class="icon"><use href="#i-shield"></use></svg></span><div><span class="status-pill status-pill--success">已启用</span><h3>账号与身份</h3></div></header>
+                <p>Apple 登录、游客身份迁移、Keychain 与服务端会话管理。</p>
+                <div class="cap-meta"><span>v1.4.1</span><span>配置完整</span></div>
+                <footer><div class="skill-stack"><i>Auth</i><i>iOS</i><span>+1</span></div><button data-toast="已打开能力详情">查看详情</button></footer>
+              </article>
+              <article class="capability-card capability-card--recommended">
+                <header><span class="cap-icon cap-icon--crash">!</span><div><span class="status-pill status-pill--warm">推荐</span><h3>崩溃诊断</h3></div></header>
+                <p>自动采集崩溃、关联 Build 与用户反馈，并生成诊断 Case。</p>
+                <div class="cap-meta"><span>v1.1.0</span><span>预计接入 45 分钟</span></div>
+                <footer><div class="skill-stack"><i>SDK</i><i>Debug</i><span>+2</span></div><button class="install-capability" data-action="install-capability">启用</button></footer>
+              </article>
+              <article class="capability-card">
+                <header><span class="cap-icon cap-icon--cloud">☁</span><div><span class="status-pill">可用</span><h3>OSS 资源访问</h3></div></header>
+                <p>稳定资源 URL、短时签名访问、客户端缓存和安全迁移。</p>
+                <div class="cap-meta"><span>v2.0.0</span><span>3 个产品在使用</span></div>
+                <footer><div class="skill-stack"><i>OSS</i><i>API</i><span>+3</span></div><button data-toast="已打开能力详情">查看详情</button></footer>
+              </article>
+              <article class="capability-card">
+                <header><span class="cap-icon cap-icon--flight">TF</span><div><span class="status-pill status-pill--success">已启用</span><h3>TestFlight 准备</h3></div></header>
+                <p>签名检查、隐私清单、发布资料、测试说明与人工 Gate。</p>
+                <div class="cap-meta"><span>v1.6.0</span><span>6 / 8 项完成</span></div>
+                <footer><div class="skill-stack"><i>iOS</i><i>Release</i><span>+2</span></div><button data-route="releases">继续准备</button></footer>
+              </article>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+
+    <aside id="notification-drawer" class="notification-drawer">
+      <div class="drawer-head"><div><p class="eyebrow">INBOX</p><h2>通知</h2></div><button class="icon-button" data-action="toggle-notifications"><svg class="icon"><use href="#i-close"></use></svg></button></div>
+      <div class="notification-section"><span>需要处理</span><em>3</em></div>
+      <button class="notification-item" data-action="open-handoff"><i class="notification-icon notification-icon--warn"><svg class="icon"><use href="#i-shield"></use></svg></i><span><strong>自动化需要授权</strong><small>创建 TestFlight Build</small><time>5 分钟前</time></span></button>
+      <button class="notification-item" data-route="feedback"><i class="notification-icon"><svg class="icon"><use href="#i-feedback"></use></svg></i><span><strong>新的高影响反馈组</strong><small>8 位用户报告离线问题</small><time>18 分钟前</time></span></button>
+      <button class="notification-item" data-route="work"><i class="notification-icon notification-icon--blue"><svg class="icon"><use href="#i-spark"></use></svg></i><span><strong>产品方案等待确认</strong><small>首页洞察第一版范围</small><time>今天 09:12</time></span></button>
+      <div class="notification-section"><span>动态</span></div>
+      <button class="notification-item is-read" data-route="automations"><i class="notification-icon notification-icon--green"><svg class="icon"><use href="#i-check"></use></svg></i><span><strong>自动化已完成</strong><small>反馈 SDK 截图权限检查</small><time>昨天</time></span></button>
+    </aside>
+
+    <div id="command-palette" class="overlay is-hidden">
+      <div class="command-palette">
+        <div class="command-input"><svg class="icon"><use href="#i-search"></use></svg><input id="command-input" placeholder="搜索产品、工作、反馈或运行命令…"><kbd>ESC</kbd></div>
+        <div class="command-group"><label>快速前往</label>
+          <button data-route="today"><svg class="icon"><use href="#i-home"></use></svg><span>今日</span><kbd>1</kbd></button>
+          <button data-route="workbench"><svg class="icon"><use href="#i-code"></use></svg><span>开发工作台</span><kbd>5</kbd></button>
+          <button data-route="feedback"><svg class="icon"><use href="#i-feedback"></use></svg><span>用户反馈</span><kbd>7</kbd></button>
+        </div>
+        <div class="command-group"><label>最近</label>
+          <button data-route="work"><span class="mini-product">拾</span><span>WORK-203 · 选择首页洞察范围</span></button>
+          <button data-route="automations"><span class="agent-orb agent-orb--tiny"><i></i></span><span>RUN-8421 · 实现情绪趋势洞察</span></button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-layer" class="overlay is-hidden">
+      <section id="handoff-modal" class="modal is-hidden">
+        <div class="modal-icon modal-icon--warn"><svg class="icon"><use href="#i-shield"></use></svg></div>
+        <div class="modal-head"><p class="eyebrow">HUMAN GATE · RELEASE #18</p><h2>允许访问 App Store Connect？</h2><p>自动化已完成本地构建准备，需要使用团队凭证上传 TestFlight Build。凭证只会在本机安全存储中使用。</p></div>
+        <div class="permission-summary"><div><span>将要执行</span><strong>上传拾光 Build 18</strong></div><div><span>目标团队</span><strong>Feitian Studio</strong></div><div><span>有效期</span><strong>仅本次运行</strong></div></div>
+        <label class="approval-note"><span>给自动化的说明（可选）</span><textarea placeholder="例如：只上传，不要提交外部测试审核"></textarea></label>
+        <div class="modal-actions"><button class="secondary-button" data-action="close-modal">暂不处理</button><button class="primary-button" data-action="approve-handoff"><svg class="icon"><use href="#i-check"></use></svg> 允许本次操作</button></div>
+      </section>
+
+      <section id="create-modal" class="modal modal--compact is-hidden">
+        <div class="modal-head"><p class="eyebrow">CREATE</p><h2>新建</h2><p>从你当前所在的位置开始。</p></div>
+        <div class="create-grid"><button data-modal="idea-modal"><span class="work-kind work-kind--decision"><svg class="icon"><use href="#i-spark"></use></svg></span><strong>产品创意</strong><small>记录并分析一个机会</small></button><button data-modal="create-work-modal"><span class="work-kind work-kind--code"><svg class="icon"><use href="#i-work"></use></svg></span><strong>工作项</strong><small>安排需要处理的工作</small></button><button data-toast="新的反馈会话已创建"><span class="work-kind work-kind--cap"><svg class="icon"><use href="#i-feedback"></use></svg></span><strong>反馈会话</strong><small>代用户录入反馈</small></button><button data-toast="Capability 提案已创建"><span class="work-kind work-kind--release"><svg class="icon"><use href="#i-layers"></use></svg></span><strong>能力提案</strong><small>沉淀可复用能力</small></button></div>
+        <div class="modal-actions"><button class="secondary-button" data-action="close-modal">取消</button></div>
+      </section>
+
+      <section id="idea-modal" class="modal is-hidden">
+        <div class="modal-head"><p class="eyebrow">PRODUCT IDEA</p><h2>从一段观察开始</h2><p>不用先写完整方案，AI 会帮你整理成可讨论的产品候选。</p></div>
+        <label class="field"><span>我观察到…</span><textarea class="idea-input" placeholder="描述目标用户遇到的问题、你的灵感或看到的机会">很多人坚持记录了情绪，却很难从长期记录中真正理解自己的变化。</textarea></label>
+        <div class="idea-sources"><span>补充材料</span><button>＋ 网页</button><button>＋ 图片</button><button>＋ 反馈</button><button>＋ 本地文档</button></div>
+        <div class="modal-actions"><button class="secondary-button" data-action="close-modal">保存草稿</button><button class="primary-button" data-action="create-idea"><svg class="icon"><use href="#i-spark"></use></svg> 让 AI 整理创意</button></div>
+      </section>
+
+      <section id="create-work-modal" class="modal modal--compact is-hidden">
+        <div class="modal-head"><p class="eyebrow">WORK ITEM</p><h2>新建工作项</h2></div>
+        <label class="field"><span>标题</span><input value="完善 TestFlight 外部测试说明"></label>
+        <label class="field"><span>所属产品</span><select><option>拾光 · 情绪日记</option><option>轻羽 · 每日习惯</option></select></label>
+        <label class="field"><span>执行方式</span><select><option>由 AI 先分析</option><option>分配给我</option><option>稍后决定</option></select></label>
+        <div class="modal-actions"><button class="secondary-button" data-action="close-modal">取消</button><button class="primary-button" data-action="create-work">创建工作项</button></div>
+      </section>
+
+      <section id="workspace-modal" class="modal modal--compact is-hidden">
+        <div class="modal-head"><p class="eyebrow">WORKSPACE</p><h2>切换团队工作区</h2></div>
+        <button class="workspace-option is-selected"><span class="workspace-logo">飞</span><span><strong>Feitian Studio</strong><small>3 个产品 · 6 位成员</small></span><svg class="icon"><use href="#i-check"></use></svg></button>
+        <button class="workspace-option"><span class="workspace-logo workspace-logo--personal">G</span><span><strong>Glare 的个人空间</strong><small>2 个探索项目</small></span></button>
+        <div class="modal-actions"><button class="secondary-button" data-action="close-modal">关闭</button></div>
+      </section>
+
+      <section id="release-modal" class="modal modal--compact is-hidden">
+        <div class="modal-head"><p class="eyebrow">NEW BUILD</p><h2>准备新 Build</h2><p>平台将根据当前 Project State 检查是否具备交付条件。</p></div>
+        <label class="field"><span>产品</span><select><option>拾光 · 情绪日记</option></select></label>
+        <label class="field"><span>目标渠道</span><select><option>TestFlight 内部测试</option><option>TestFlight 外部测试</option></select></label>
+        <div class="preflight-check"><span class="spinner"></span><div><strong>正在检查项目状态…</strong><small>代码、测试、版本号、隐私清单和发布说明</small></div></div>
+        <div class="modal-actions"><button class="secondary-button" data-action="close-modal">取消</button><button class="primary-button" data-action="prepare-build">创建交付计划</button></div>
+      </section>
+    </div>
+
+    <div id="toast-region" class="toast-region" aria-live="polite"></div>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

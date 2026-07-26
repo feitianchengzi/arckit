@@ -1,0 +1,29 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-interaction",
+  "kind": "result_fact_source",
+  "runtime_role": ["route_auditor", "work_executor", "verification_agent"],
+  "binding_targets": ["worker"],
+  "summary": "Maintains stable page-level interaction behavior, states, transitions, error handling, and wireframe artifacts.",
+  "input_facts": [
+    "confirmed_product_expectation",
+    "confirmed_interaction_expectation",
+    "validated_scenario"
+  ],
+  "outputs": [
+    "interaction_update",
+    "interaction_audit",
+    "interaction_acceptance_criteria"
+  ],
+  "allowed_write_targets": [
+    "arckit/interaction/**"
+  ],
+  "forbidden_decisions": [
+    "unconfirmed_assumption_as_fact",
+    "visual_direction_final_without_human_basis",
+    "technical_fact_ownership"
+  ],
+  "runtime_notes": [
+    "Use only for stable interaction expectation facts; keep unresolved exploration in the active case."
+  ]
+}

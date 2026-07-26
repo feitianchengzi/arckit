@@ -4,108 +4,85 @@
 
 ## 1. 系统定位
 
-Arckit 是围绕本仓库维护的软件开发 Agent 协作与接力协议层。它的工程目标是指导人类、Codex 类单 agent 和多 agent 自动化平台围绕同一套项目事实完成日常软件项目开发，让执行体能理解任务处境、维护项目事实、形成可执行交接、定位实现问题，并把过程经验沉淀为可复用工作方式。
+Arckit 是软件开发 Agent 的协作与接力协议层。当前能力集刻意收敛为验证 `Project State -> Case -> Loop` 所需的最小闭环：一个项目对话 Controller、一个研发状态账本、四个定义事实维护能力和一个证据驱动诊断能力。
 
-当前能力体系覆盖：
+Arckit 不把技术栈编码、商业优先级、审美批准、发布授权、多 Agent 基础设施或外部系统操作伪装成当前 skill 能力。超出当前能力集的工作由 Controller 记录在 active case 的 `open_questions`、`pending_handoffs` 或 `human_decision_required`，并交给 `arckit-code`、项目工具、人类或 external adapter。
 
-- 入口编排、后续消息变更控制和研发状态账本。
-- 项目状态、研发事项 case record、完成度审计和下一轮缺口判断。
-- 原始输入、未决上下文、项目连续状态和仓库启动上下文。
-- 草案、设计探索、架构决策和领域建模。
-- 产品、交互、视觉和技术事实源维护。
-- 有界实现执行包、重构策略和基于证据的 debug 诊断。
+## 2. 当前保留能力
 
-技术栈专属编码实践由独立的代码实践仓库承载，例如 `arckit-code`。多 agent 调度、loop 控制、权限、队列、环境、通知和人类接手机制属于自动化平台层，不要求全部来自 Arckit。项目治理、代码审查、评测、发布出包、运行运维、Workshop Desktop、多角色编排和长期想法管理进入 Arckit 时，先沉淀为决策依据、定义事实、诊断证据、有界 worker packet、pending 交接项或 external adapter handoff。
+| Skill | 目录 | 作用 |
+|---|---|---|
+| `using-arckit` | `entry/skills/using-arckit/` | Controller execution plane；把项目输入转成 controller frame、execution gate、worker packets、report intake、closeout 和 loop handoff。 |
+| `arckit-development-ledger` | `entry/skills/arckit-development-ledger/` | Runtime execution plane；维护 canonical Project State、iteration state、development case、投影视图和状态审计。 |
+| `arckit-spec` | `definition/skills/arckit-spec/` | 维护稳定产品行为、规则和验收口径。 |
+| `arckit-interaction` | `definition/skills/arckit-interaction/` | 维护页面级交互、状态、响应和线框事实。 |
+| `arckit-visual` | `definition/skills/arckit-visual/` | 维护视觉策略、Design Tokens、主题和组件视觉规格。 |
+| `arckit-tech` | `definition/skills/arckit-tech/` | 维护技术方案、架构边界、数据模型和 API 契约。 |
+| `arckit-debug-diagnosis` | `engineering/skills/arckit-debug-diagnosis/` | 基于代码、日志、测试和运行证据诊断实现问题并指导必要修复。 |
 
-## 2. 入口路由
+上述目录构成当前完整 Arckit skill 集。其他顶层能力域可以保留为仓库分类，但当前不包含已保留 skill。
 
-Arckit 使用 `using-arckit` 作为入口 skill。该 skill 独立位于 `entry/skills/using-arckit/`，负责把用户请求编译为连续项目状态、`development_case_record` 和本轮 `workflow_frame`，路由 `arckit-development-ledger` 维护研发状态账本，选择足以支撑真实项目推进的 skill 组合，并组织当前轮执行顺序。
+## 3. Project State / Case / Loop 主轴
 
-`using-arckit` 支持以下行为：
+`using-arckit` 是 Controller 协议入口。它恢复 Project State、active case、iteration state 和上一轮 handoff，判断用户输入与上一轮的关系，选择本轮最小 worker 能力，并生成受控执行包。它不自动执行 worker，也不直接写回 ledger。
 
-- 根据用户目标识别当前阶段、期望产物和当前最关键未满足结构。
-- 在选择下游 skill 前执行源-投影门禁：识别本轮改变的是源事实还是投影产物，避免只更新 skill、代码、配置、AGENTS 或投影文档就误判完成。
-- 通过 `arckit-development-ledger` 创建或更新 `arckit/project/STATE.md`、`arckit/cases/active/` 下的 development case record，并在每轮结束前完成 completion audit。
-- 选择当前能力体系中足以覆盖事实、架构、验证、交接和上下文治理缺口的 skill 组合，保持 agent 的行动聚焦但不牺牲真实项目正确性。
-- 把稳定产品、交互、视觉和技术事实交给对应结果型 skill。
-- 把需要后续确认、外部执行或跨工具承接的事项交给 `arckit-pending`。
-- 将长期 agent 协作约定和仓库导航规则直接维护在简短、稳定、可执行的 `AGENTS.md` 中；产品、技术、交互、视觉和未决事实仍进入各自事实源。
-- 将已确认事实到实现执行的接力编码为 execution gate 约束下的 implementation worker packet；需要跨出当前执行面时形成 external adapter handoff。
-- 将高风险结构治理和行为不变重构交给 `arckit-refactor-strategy`。
-- 在现有 frame 内处理继续、补充、纠错、目标变化、暂停和恢复，并据此修订或废止当前 worker packet。
+`arckit-development-ledger` 是状态持久化能力。它维护：
 
-入口以当前维护源中的 skill 集合为准；历史文档、用户级安装副本或外部仓库中的旧名称只作为背景材料，实际编排以本仓库当前源码为准。
+- `arckit/project/state.record.json` canonical Project State。
+- `arckit/project/STATE.md` 状态决策投影。
+- `arckit/project/iterations/*.record.json` canonical iteration state。
+- `arckit/project/iterations/*.md` iteration 决策投影。
+- `arckit/cases/active/` 和 `arckit/cases/closed/` 中的事项证据。
 
-## 3. 当前技能角色
+一次 loop 的标准关系是：Project State 暴露 gap，Controller 选择或创建 case，worker packet 推进有界目标，worker report 返回证据，Controller 完成 report intake 和 closeout，ledger 在验证门禁后写回 state delta。
 
-| Skill | 角色 |
-| --- | --- |
-| `using-arckit` | Arckit 软件项目入口路由、runtime situation 建模和 workflow frame 编译。 |
-| `arckit-development-ledger` | 项目状态、研发事项 case、后续迭代状态、completion audit 和账本索引维护。 |
-| `arckit-intake` | 原始项目输入材料登记和忠实保存。 |
-| `arckit-pending` | 未决讨论项、开放问题、过程 handoff 和外部 adapter handoff 保存。 |
-| `arckit-draft-spec` | 将原始输入、想法或讨论材料整理成规格草案或 spec handoff。 |
-| `arckit-explore-product-design` | 在正式交互或视觉事实入库前探索页面方案、状态表达和设计风险。 |
-| `arckit-architecture-decision` | 在技术事实入库前形成架构决策、ADR、系统拆分和方案权衡。 |
-| `arckit-domain-modeling` | 梳理实体、值对象、状态、不变量、事件和上下文边界。 |
-| `arckit-spec` | `arckit/spec/` 下的稳定产品行为、规则和验收口径维护。 |
-| `arckit-interaction` | `arckit/interaction/` 下的页面级交互策略、灰度线框 HTML 和交互文档维护。 |
-| `arckit-visual` | `arckit/visual/` 下的视觉策略、design tokens、主题和组件视觉规格维护。 |
-| `arckit-tech` | `arckit/tech/` 下的技术方案、架构、数据模型和 API 契约维护。 |
-| `arckit-refactor-strategy` | 形成行为不变、分阶段、可验证的重构策略和 handoff。 |
-| `arckit-debug-diagnosis` | 基于证据的 bug、回归、数据异常、显示错误和性能退化诊断。 |
+## 4. 定义事实能力
 
-项目级研发状态账本位于 `arckit/project/`、`arckit/cases/` 和后续 `arckit/iterations/`，由 `using-arckit` 路由 `arckit-development-ledger` 维护。它为入口编排提供跨轮次、跨上下文的项目状态承载。
+四个 definition skill 分别拥有自己的稳定事实源，不通过隐式 skill import 获取前置结论。它们可以接收用户、Controller worker report、其他稳定事实源、实现证据或 external adapter 提供的明确材料。
 
-## 4. 规格边界
+输入不满足稳定事实门禁时：
 
-每个执行型 skill 必须通过 frontmatter description、触发条件、使用场景和产物边界自描述。技能正文不承担主要触发职责。
+- 普通未知项写入 active case 的 `open_questions`。
+- 等待另一个执行体或系统的事项写入 `pending_handoffs`。
+- 需要授权、商业取舍、审美判断或风险接受时设置 `human_decision_required`。
+- 不创建已移除 skill 的名字作为占位依赖。
 
-skill description 是主要触发表面，必须说明：
+## 5. 诊断能力
 
-- skill 拥有的产物或操作。
-- 适用的用户意图。
-- 稳定输出形态。
-- 主要职责边界。
+`arckit-debug-diagnosis` 处理 bug、回归、偶发失败、数据异常、接口错误、显示错误和性能退化。它依据实现事实收敛根因，不拥有产品规格、架构重写、case 关闭或发布授权。
 
-执行型 skill 不依赖正文中的“不要用本 skill，改用其他 skill”来修正触发。若需要此类正文说明才能避免误触发，说明 description 或技能划分需要修订。
+重构或正向实现如果超出诊断所需的局部修复，由 Controller 生成带行为护栏、允许路径、验证要求和停止条件的有界 worker packet，交给当前 agent、`arckit-code` 或 external adapter。当前能力集不依赖独立重构策略或实现 handoff skill。
 
-跨 skill 组合主要由 `using-arckit` 或横向方法 skill 自身 description 负责。产品产物型 skill 描述自己的流程、产物和关键判断点，不硬编码已删除 skill 名称。
+## 6. Runtime capability policy
 
-源-投影关系由入口和账本维护，不由单个结果型 skill 独自承担。结果型 skill 负责维护自己范围内的 source of truth；入口负责判断当前轮是否只更新了投影，账本负责记录源事实和投影产物的同步状态。
+每个保留 skill 通过 `arckit.capability.json` 向 Runtime 暴露最小能力元数据：skill id、kind、runtime role、binding targets、invocation、input facts、outputs、allowed write targets、forbidden decisions 和 runtime notes。确定性 Runtime capability 还可以声明位于 skill 根目录内的 `runtime_entrypoints`。
 
-## 5. 外部阶段交接
+Runtime 的显式能力策略位于 `runtime/arckit-runtime/config/capability-policy.json`。策略文件只允许当前七个保留 skill，并分成互斥的 Controller、Runtime 和 Worker 三组。Capability Registry 可以扫描仓库和项目 manifest，但必须在交给 Controller 前应用该策略并核对 manifest binding target，拒绝策略外或分组不兼容的能力。
 
-当软件项目开发进入下列阶段时，Arckit 负责先整理可交接的项目事实、决策依据、风险、输入输出和确认点：
+能力策略属于显式 policy layer，不属于 Runtime kernel 的业务路由。Runtime kernel 不写死每轮 gap、route mode、worker role、skill 序列或能力选择启发式；Controller 基于状态、证据和过滤后的 Worker Capability Registry 动态选择本轮最小能力。Runtime 对 Controller planning/review 使用 manifest 声明的 `$using-arckit` Agent skill trigger，对初始化和 ledger writeback 使用 `arckit-development-ledger` 的受信任 runtime entrypoint；不在 Runtime 内复制两者的语义实现。二者不进入 Worker `allowed_skills`，非法绑定会阻塞执行而不是被静默过滤。
 
-- 长期商机或产品创意库。
-- 市场研究和外部竞品证据采集。
-- 项目治理、排期、任务分发和责任归属。
-- 代码审查和质量门禁。
-- 真实研发场景评测集维护。
-- 发布出包、应用商店素材、运行监控和运维。
-- Workshop Desktop、本地任务派发和多角色编排。
-- 多 Agent 自动化平台执行、失败上报和人类接手。
+## 7. Soft composition
 
-`using-arckit` 将这些阶段拆成当前可处理的定义、技术、诊断、implementation worker packet、refactor strategy、未决记录或 external adapter handoff，便于人类、单 agent、多 agent 平台或外部工具继续推进。
+Skill 之间使用软组合：
 
-## 6. 开发与验证规则
+- Controller packet 可以声明 `allowed_skills`，但不能要求 Runtime 注入 skill 正文；Runtime 只传 `$skill-name` 触发名，由 Agent 自己的 skill 机制加载正文。
+- Worker 只能使用 packet 允许且 Worker Capability Registry 可见的 skill。
+- 结果型 skill 必须独立说明输入、写入边界和输出契约。
+- Worker report 只提交结构化 claim 和 evidence，不能自行关闭 case 或写回 Project State。
+- Ledger 只消费 Controller、worker report、人类确认或稳定事实源明确给出的语义字段。
 
-在 Arckit 源仓库内开发或验证 skill 时，agent 优先读取当前仓库中的源 skill 路径，而不是用户级已安装副本。用户级安装副本可能落后于当前源码。
+## 8. 验收口径
 
-Skill 变更可以使用 Skill First 模拟验证。子代理模拟用于测试另一个 agent 是否能在没有隐藏上下文的情况下遵守技能边界。
+当前技能系统满足规格时：
 
-当前验证重点：
-
-- `using-arckit` 暴露当前能力体系。
-- 结果型 skill 不接收已删除 skill 的 handoff 名称。
-- 入口、README 和 agents metadata 以当前维护源中的能力集合为路由依据。
-
-## 7. 后续规格关注点
-
-后续可继续完善：
-
-- 为当前能力体系建立真实任务试跑样本。
-- 基于真实项目反馈扩展治理、质量、交付、运营和自动化平台 adapter，但保持 Arckit 作为协议层而非平台本体。
-- 扩展新能力时，先明确其目录归属、description 触发边界、handoff 契约和与当前能力体系的交接方式。
-- 当多 skill workflow 的 token 成本成为实际问题时，把长方法细节继续拆到 references 中。
+- 仓库可枚举且只包含七个保留 skill。
+- 七个保留 skill 都有 Runtime capability manifest。
+- Runtime 默认能力策略与仓库保留集完全一致。
+- 七个保留能力精确分为一个 Controller、一个 Runtime 和五个 Worker capability。
+- Controller plan 或既有 packet 绑定非 Worker capability 时失败关闭。
+- Runtime 扫描到策略外 manifest 时不会将其暴露给 Controller。
+- Controller planning 和 review 的 Agent turn 都以 manifest 声明的 `$using-arckit` trigger 开始，Runtime prompt 不复制 Controller 语义流程。
+- Runtime 初始化和 ledger writeback 只调用 repository-trusted `arckit-development-ledger` entrypoint，且 Runtime 中不存在复制的 ledger 脚本或语义写回实现。
+- 当前 skill、README、AGENTS 和稳定规格不把已移除 skill 当作可用依赖。
+- 未确认工作可以通过 case 字段或 external adapter 继续，不因精简 skill 而丢失。
+- Project State、Case 和 Loop 仍能恢复、执行、验证、closeout 和写回。
