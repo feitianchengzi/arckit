@@ -1,286 +1,108 @@
 ---
 name: using-arckit
-description: Arckit 项目对话 Controller skill。用于把真实软件项目中的一次用户输入转成可执行但不自动执行的 controller frame、execution gate、worker packets、report intake rules、closeout rules 和 loop handoff。适用于新建/继续/补充/纠错/暂停/恢复项目任务，以及接收 worker report 后判断本轮是否 done、continue、needs_human、blocked 或 external_wait。
+description: "Arckit 项目对话 Controller。把真实软件开发输入或 Worker reports 转成 Project 选 Case、Case 选 gap、Loop 执行一次状态转移的结构化语义。适用于人工在 Codex 类 Agent 中直接协作，也适用于 Runtime 自动桥接；两者必须产生相同的 Case transition、closeout 和 handoff。它不执行 Worker 工作、不写 ledger、不按固定顺序调用 skills。"
 ---
 
 # Using Arckit
 
-`using-arckit` 把真实软件项目中的一次用户输入整理成可授权、可分发、可观察、可回收、可继续的软件研发 round。
+本 skill 是语义 Controller。软件开发顺序可以是规格先行、代码先行或混合推进，但每轮必须从 Case State 的真实 gap 出发，并以有证据的 Case State delta 结束。Runtime 与人工多对话只是两种执行桥，不能改变 Controller 语义。
 
-```text
-这次项目对话输入如何变成一个可授权、可分发、可观察、可回收、可继续的软件研发 round？
-```
+## 硬边界
 
-它产出 controller frame、execution gate、worker packets、report intake rules、closeout rules 和 loop handoff，供当前对话、人工分发或外部执行环境继续推进。
+- Project State 只表达软件整体位置、项目级 gap、active Case 与 Case 选择，不保存轮次职责或 continuation prompt。
+- Case State 保存一次有边界研发事项的 definition、implementation、verification、问题、handoff、内容 revision、完成态复审、candidate gaps 和 resolution。
+- Loop 只执行一次计划状态转移，产生 evidence、claims、accepted delta 和 handoff。
+- state 描述 gap，不保存 skill 名。Controller 根据 gap、capability manifest 和证据边界动态选择 Worker 能力，不固定 skill 顺序。
+- Controller 不执行 Worker 工作、不写 ledger、不把 round 完成等同 Case resolved，也不把 Case resolved 等同 Project 维度已提升。
+- `deferred` 不是完成。未处理项仍是 unresolved；只有有 owner 与恢复条件的 handoff 才能转移责任。
+- 六个 facet 都完成不等于 Case resolved。Controller 必须继续处理 ledger 派生的 `completion_review`/`review_findings` gap；复审上限耗尽后只能接受人工处置或有证据的人工追加预算。
 
-## 触发时机
+## 主流程
 
-当用户输入会影响真实软件项目的状态、事实、执行包、worker report、closeout 或 handoff 时触发。
+### 1. 恢复 Project 与 Case
 
-应该触发：
+输入：用户消息或 operator event、`project-state-record/v3`、active Case records、iteration、稳定事实源引用、上一轮 handoff。
 
-- 新建、继续或恢复一个项目任务。
-- 要求把一个想法、需求、bug、实现、验证、重构或发布事项推进为可执行 round。
-- 用户说继续、暂停、恢复、补充、纠错、目标变更或“做到哪了”。
-- 用户带回一个或多个 worker report，需要判断是否接受、退回、补 worker 或 closeout。
-- 用户反馈 Arckit loop、worker packet、report intake 或 skill 边界不符合预期。
-- 已处在 Arckit managed project chat 中，且输入影响下一步行动或项目状态。
+动作：
 
-不应该触发：
+- 判断输入是补充、纠错、目标变化、report intake、状态查询、新 Case 或继续。
+- 由 Project State 选择已有 Case 或提出创建新 Case；Project 级 gap 只能用于选 Case，不能直接成为 Worker 的任务状态。
+- 读取完整 selected Case，拒绝只凭 Project brief 或上一轮 prompt 推断任务细节。
 
-- 与项目状态无关的普通问答。
-- 单段代码或单个概念的一次性解释。
-- 纯聊天。
-- 用户明确说不用 Arckit。
-- Worker Agent 已收到具体 worker packet，只需要执行该 packet。
-
-## Runtime 调用契约
-
-在 Arckit Runtime 中，本 skill 不是仅供 Capability Registry 展示的元数据。`arckit.capability.json` 必须把 Controller planning 和 Controller review 声明为 `agent_skill` invocation；Runtime 发给 Controller Agent 的 turn 必须以 manifest 声明的 `$using-arckit` trigger 开始，由 Agent 原生 skill 机制加载并执行本文件。
-
-Runtime 只提供项目快照、用户任务、可用 capability、输出 schema 和不可绕过的授权/门禁边界，不得在 prompt 中复制一份本 skill 的 Controller 流程、动态路由、report intake 或 closeout 语义。若 trigger 缺失、phase 不匹配或 capability 不唯一，Runtime 应 fail closed，而不是退回内置 Controller 策略。
-
-## Controller 流程
-
-每次触发都按以下顺序处理：
-
-1. 恢复上下文：读取 `AGENTS.md`、`arckit/project/state.record.json`、`arckit/project/STATE.md`、active case、iteration state、上一轮 `loop_handoff` 和相关事实源；缺失状态必须显式记录。
-2. 判断 `turn_delta`：首轮、新 case、继续、补充、纠错、目标变化、暂停、恢复、report intake 或状态查询。
-3. 分析当前状态和候选 gap：由 Controller 基于用户输入、项目状态、证据和约束选择本轮目标；不要让 Runtime 或本 skill 预设固定路线。
-4. 生成 `controller_frame`：说明当前 case、本轮目标、round 状态、事实边界和旧 packet 是否仍有效。
-5. 生成动态 `route_plan`：只选择本轮最小必要 worker，不把 reader、route、implementation、verification、closeout 当作固定流水线。
-6. 生成 `execution_gate`：默认 pending；只有输入或运行环境明确授权时才 authorized。
-7. 生成 `worker_packets`：每个 packet 只交给一个 Worker 执行一个有边界的任务。
-8. 生成 `report_intake_rules`：定义什么 report 可接受、何时退回、何时需要补 worker、何时要 Controller 或人类判断。
-9. 生成 `closeout_rules`：定义本轮 done、continue、needs_human、blocked、external_wait 的判断条件。
-10. 接收 worker report 时，按 intake rules 审核 report、更新 controller frame，并决定是否 ready_to_close。
-11. closeout：输出本轮状态、证据、source/projection 影响、下一步责任、trigger mode 和 `next_prompt`。
-
-## 动态路由规则
-
-Controller 不默认派发固定 worker 组合，不预设 route mode，也不要求固定 role 名称。每轮只在稳定 `worker_type` 集合内选择必要能力类型，再生成能推进当前目标的最小 packet 集，并解释 route、worker_type、role、skill 绑定、证据要求和停止条件。
-
-- 空项目首轮也不使用固定默认 route；Controller 必须基于用户输入和项目证据判断是澄清、建模、实现、验证、等待人类、等待外部还是其他路线。
-- 用户输入包含“开发、实现、修复、编码”不自动等于可实现，也不自动禁止实现；Controller 必须说明判断依据、风险和验证口径。
-- 如果需要能力或 skill，Controller 必须只从 Capability Registry 的 Worker 分组为 packet 绑定 `allowed_skills`；Controller 分组的 `using-arckit` 和 Runtime 分组的 `arckit-development-ledger` 不能进入 Worker packet。Runtime 可以把合法 Worker skill 触发名注入给对应 Worker，但不能写死每轮 skill 序列或业务路线。
-- verification、closeout、handoff 是否需要独立 worker，由 Controller 根据本轮风险、证据和执行边界判断。
-
-`requires_main_agent_decision` 表示 Controller 需要继续合并、修订或生成下一轮；`human_decision_required` 只用于真正需要用户授权、取舍、风险接受、审美或发布责任的情况。
-
-## 执行门禁
-
-`using-arckit` 不自动执行。默认：
-
-```yaml
-execution_gate:
-  status: pending
-  executor_binding_required: true
-  bound_executor: null
-```
-
-以下情况可以授权执行：
-
-- 用户明确说执行、开始实施、由你执行、继续执行或同义表达。
-- 运行环境传入明确授权，或会话配置了明确 auto-run policy。
-- 外部平台传入已授权 execution packet。
-
-授权后必须绑定 executor：
-
-```yaml
-executor_binding:
-  executor: human_runtime | runtime_executor | current_agent | external_agent | none
-  authorization_source: user_message | runtime_authorization | auto_run_policy | external_platform | none
-  reason: ""
-```
-
-普通 Chat 中，当前 Agent 只有在用户明确授权时才能临时兼任 executor。否则它只输出 packet，等待人类分发或确认。
-
-## 输出契约
-
-最小输出是 `round_execution_packet`：
-
-```yaml
-  round_execution_packet:
-  controller_frame:
-    case_id: ""
-    turn_delta:
-      relation_to_previous_loop: first_turn | new_case | resume_next_prompt | continue_case | supplement | correction | goal_change | pause_or_stop | report_intake | status_query
-      reason: ""
-      packet_effect: keep | revise | replace | invalidate | close | none
-    round_goal: ""
-    round_status: planning | waiting_authorization | waiting_worker | reviewing_worker | ready_to_close | done | blocked
-    old_packet_valid: true
-    source_projection_check:
-      source_facts_changed: []
-      projection_artifacts_changed: []
-      implementation_evidence: []
-      pending_items: []
-      source_unknown: false
-
-  execution_gate:
-    status: pending | authorized | blocked | not_required
-    required_decision: ""
-    allowed_executors:
-      - human_runtime
-      - runtime_executor
-      - current_agent
-      - external_agent
-    executor_binding_required: true
-
-  route_plan:
-    mode: "<agent-defined route mode>"
-    selected_worker_types: []
-    selected_roles: []
-    suppressed_roles: []
-    selected_gap: {}
-    reason: ""
-
-  executor_binding:
-    executor: null
-    authorization_source: none
-    reason: ""
-
-  worker_packets:
-    - worker_id: ""
-      worker_type: product | tech | implementation | verification | diagnosis | closeout
-      role: "<agent-defined worker role>"
-      task: ""
-      context_refs: []
-      allowed_actions: []
-      forbidden_actions: []
-      allowed_skills: []
-      expected_report_schema: arckit-worker-report/v1
-
-  report_intake_rules:
-    accept_when: []
-    reject_when: []
-    needs_revision_when: []
-    needs_more_workers_when: []
-
-  closeout_rules:
-    done_when: []
-    continue_when: []
-    needs_human_when: []
-    blocked_when: []
-    external_wait_when: []
-
-  loop_handoff:
-    status: continue | done | needs_human | blocked | deferred
-    next_responsibility: agent | human | external | none
-    agent_continuation_available: true
-    human_decision_required: false
-    trigger_mode: manual_bridge | auto_bridge | user_decision | external_wait | none
-    next_prompt: ""
-
-```
-
-面向用户的输出要短，但必须说明：
-
-- 当前 round 状态。
-- 是否等待授权、等待 worker、正在审核 report 或已完成。
-- 可复制给 Worker 的 packet。
-- 如果本轮已 closeout，下一轮 `next_prompt`。
-
-## Worker Packet 规则
-
-Worker packet 必须能被复制到另一个 Agent 对话中独立执行。
-
-Worker packet 必须说明：
-
-- worker 身份和任务。
-- 目标项目、case、round goal。
-- 必读上下文。
-- 允许修改范围。
-- 禁止动作。
-- 停止条件。
-- report schema。
-
-Worker 不允许：
-
-- 自行扩大目标。
-- 自行决定项目方向。
-- 关闭 case。
-- 在 `allowed_skills` 中绑定 Controller 协议能力或 Runtime 状态账本能力。
-- 把候选判断直接写入稳定事实。
-- 跳过 report schema。
-
-## Worker Report Intake
-
-接收 worker report 时，Controller 必须判断：
-
-- report 是否匹配 packet。
-- 任务是否完成。
-- 是否越权。
-- 是否有 evidence。
-- 是否有 risks 或 unknowns。
-- 是否需要退回、补 worker、人类判断或 closeout。
-
-推荐 report 形状：
-
-```yaml
-worker_report:
-  schema_version: arckit-worker-report/v1
-  task_id: ""
-  worker_type: product | tech | implementation | verification | diagnosis | closeout
-  role: ""
-  status: completed | partial | blocked | failed | invalid
-  summary: ""
-  findings: []
-  evidence: []
-  changes: []
-  artifact_impacts: []
-  risks: []
-  unknowns: []
-  recommendation: ""
-  requires_main_agent_decision: false
-  requires_human_decision: false
-```
-
-## 补充、纠错和目标变化
-
-用户补充或纠错时，应回到 Controller 对话处理。
-
-- `supplement`：补充上下文，可能修订当前 packet。
-- `correction`：纠正事实或误解，必须定位受影响的事实、packet 或 report。
-- `goal_change`：改变目标，可能使旧 packet 失效、暂停旧 case 或新开 case。
-- `pause_or_stop`：停止分发旧 packet，并输出可恢复 handoff。
-
-如果旧 packet 失效，必须明确输出：
-
-```text
-旧 worker packet 已失效，请停止使用。
-```
-
-然后生成新 packet 或等待用户确认。
-
-## Closeout 判断
-
-本轮只有在以下条件满足时才能 `done`：
-
-- `round_goal` 已完成。
-- 必需 worker report 已接收并通过 intake rules。
-- 产物、文件变更、事实更新或 handoff 可定位。
-- 验证证据足够；未验证部分已明确记录。
-- source fact、projection artifact、implementation evidence 和 pending 已分清。
-- active case 或 loop handoff 已更新到可恢复状态。
-
-否则：
-
-- `continue`：下一步仍由 Agent 或 Runtime 继续。
-- `needs_human`：需要人类判断、授权、审美、商业取舍、风险接受或发布责任。
-- `blocked`：缺状态、权限、工具、依赖或有效 report。
-- `external_wait`：等待外部系统或系统外操作。
-
-## 能力边界
-
-- `using-arckit` 负责 Controller 协议：任务处境、turn delta、controller frame、execution gate、worker packets、report intake、closeout 和 loop handoff。
-- 在 Arckit Runtime 中，`using-arckit` 属于 Controller execution plane，只提供 Controller 协议语义，不作为普通 Worker 的 `allowed_skills`。
-- `using-arckit` 不硬编码每轮业务路线、固定 worker 顺序或固定 skill 序列；它要求 Controller 基于 Capability Registry、状态 gap 和 packet 边界动态选择 `worker_type`、`role` 与 `allowed_skills`。
-- 执行环境可以自动分发 packet、收集 report、展示状态和执行 gate，但不改变 Controller 协议。
-- 没有自动执行环境时，人类搬运 packet/report 是正常流程。
-
-## References
-
-- `references/controller-conversation-protocol.md`
-- `references/worker-packet-and-report.md`
-- `references/closeout-handoff.md`
+退出条件：有唯一 `case_id`；否则返回 `needs_human` 或创建 Case 的 ledger handoff，不派发 Worker。
+
+### 2. 选择 Case gap 与计划 transition
+
+输入：selected Case 的 `case_resolution.candidate_gaps`、全部 facets、open questions、pending handoffs、用户本轮增量。
+
+动作：
+
+- 结合用户意图、现有代码、稳定事实和风险，从 `candidate_gaps` 动态选择一个 `scope=case` 的具体 gap；列表顺序不表达执行优先级。用户纠错可使既有 definition alignment 退回 stale/diverged。
+- 输出 `planned_transition.goal` 和 `expected_state_change`。
+- 顺序由事实决定：可以先 formalize definition、先实现、先验证、或从实现反向补齐稳定事实。
+- 对不适用 facet 也必须计划形成 evidence-backed `not_required` 判断；不能通过跳过来完成。
+- `completion_review` 只在 `base_ready=true` 后选择，必须覆盖错误、遗漏、多余三个维度并绑定当前 `content_revision`；`review_findings` 必须先修复或有证据地处置，再进行新一轮复审。
+- human-responsibility completion review gap 不能自动桥接。人类可直接复审、处置 findings，或授权有限追加轮次；Controller 不重置既有复审次数。
+
+退出条件：`selected_gap`、目标变化和 evidence requirement 明确。
+
+### 3. 形成执行边界
+
+需要人工或 Runtime 派发 Worker 时，读取 [references/worker-packet-and-report.md](references/worker-packet-and-report.md)。
+
+动作：
+
+- 根据 gap 选择必要 Worker role 和 capability manifest；允许零个或多个 definition/engineering/verification 能力，但不固定顺序。
+- 当用户本轮输入、Controller 已读取的稳定事实或现有验证证据已经足以完成一个 transition 时，使用零 Worker 计划并直接在 Controller Review 中提交 evidence-backed delta；不得为满足流程形状而派发空转 Worker。
+- 每个 packet 声明 `case_context`、`expected_case_impact`、路径、动作、skills 与停止条件。
+- 默认 execution gate 为 pending；只有用户、Runtime policy 或外部平台明确授权才可执行。
+
+退出条件：packet 可由当前 Agent、人工复制桥或 Runtime 自动桥等价执行。
+
+### 4. 接收 reports 并接受 Case claims
+
+输入：`arckit-worker-report/v2`。
+
+动作：
+
+- 校验 packet 身份、scope、证据、artifact impact、risk/unknown 与 `case_state_claims`。
+- Worker 只能提 claim；Controller 明确接受或拒绝，形成 `accepted_case_state_delta`。零 Worker 时，Controller 必须在 `evidence` 中列出直接采用的用户确认或稳定事实来源。
+- definition skill 的 `fact_result` 可转为对应 facet claim；实现或验证证据可更新其 facet，并使相关 definition alignment 变 stale/diverged。
+- 人类判断、外部等待和 agent 可继续工作必须分别归责。
+
+退出条件：所有 report 有 intake 结果，accepted delta 与 evidence 可追溯。
+
+### 5. 分离 closeout 语义
+
+closeout 前读取 [references/closeout-handoff.md](references/closeout-handoff.md)。
+
+必须分别输出：
+
+- `round_outcome`：本轮执行是否完成、部分、阻塞、需人或外部等待。
+- `case_resolution`：Controller 对 Case 是 unresolved、resolved 或 blocked 的声明及剩余项。
+- `project_impact_candidate`：仅在 Case resolved 时提出的显式项目维度变化；没有就用 `none`。
+- `case_transition`：Case id 与 expected `case_updated_at` revision、完整 selected gap、planned transition、accepted delta、evidence、unresolved、上述结果。
+- `loop_handoff/v2`：下一责任方和桥接方式。
+
+确定性 ledger 可以拒绝强于 Case 实际状态的 resolved 声明。Controller 不因 report 齐全、测试通过或代码存在而静默关闭 Case。
+
+退出条件：形成一个可交给 `arckit-development-ledger` 的 `arckit-case-transition/v2`，或明确不能写回的阻塞原因。
+
+## 人工与 Runtime 等价性
+
+- 当前 Codex Agent 可在同一对话执行 packet；人类可复制 packet/report；Runtime 可自动创建 Worker、收集 report、过 gate 与调用 ledger。
+- 对相同 Project/Case facts 和 reports，三种桥接应得到相同 selected Case gap、accepted delta、case resolution 与 next responsibility。
+- Runtime hard gate 只校验 schema、证据、授权、路径和合法 transition；业务适用性与事实接受由 Controller 声明，最终合法性由 ledger 派生。
+- 每次成功 ledger writeback 后重新读取 Case State 再规划下一轮；不得复用上一轮 revision、selected gap 或 controller frame。自动桥接以真实 ledger 进展、`no_progress_limit` 与 `max_auto_rounds` 共同停止。
+
+## 输出
+
+- `controller_frame`
+- `execution_gate` 与 `executor_binding`
+- `worker_packets` 与 `report_intake`
+- `round_outcome`
+- `case_resolution`
+- `project_impact_candidate`
+- `case_transition`
+- `loop_handoff/v2`
+- `ledger_handoff`：trusted `case_transition` entrypoint、Case ref 与是否允许 Project 聚合

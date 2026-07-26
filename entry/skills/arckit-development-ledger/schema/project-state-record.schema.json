@@ -10,14 +10,14 @@
     "active_case_refs",
     "completeness_dimensions",
     "state_gaps",
-    "loop_control",
+    "case_control",
     "active_constraints",
     "open_questions",
     "canonical_artifact_refs",
     "last_state_delta"
   ],
   "properties": {
-    "schema_version": { "const": "project-state-record/v2" },
+    "schema_version": { "const": "project-state-record/v3" },
     "project": {
       "type": "object",
       "required": ["name", "status", "created_at", "updated_at", "original_intent"],
@@ -85,12 +85,11 @@
       "type": "array",
       "items": { "$ref": "#/$defs/state_gap" }
     },
-    "loop_control": { "$ref": "#/$defs/loop_control" },
+    "case_control": { "$ref": "#/$defs/case_control" },
     "active_constraints": { "type": "array" },
     "open_questions": { "type": "array" },
     "canonical_artifact_refs": { "type": "array" },
-    "last_state_delta": { "$ref": "#/$defs/project_state_delta" },
-    "legacy_record_refs": { "type": "array" }
+    "last_state_delta": { "$ref": "#/$defs/project_state_delta" }
   },
   "$defs": {
     "state_value": {
@@ -179,33 +178,23 @@
       },
       "additionalProperties": true
     },
-    "loop_control": {
+    "case_control": {
       "type": "object",
       "required": [
-        "current_loop_focus",
-        "next_transition",
+        "selected_case_ref",
+        "selection_reason",
+        "next_case_intent",
         "priority_basis",
         "stop_condition"
       ],
       "properties": {
-        "current_loop_focus": { "type": "string" },
-        "next_transition": { "type": "string" },
+        "selected_case_ref": { "type": "string" },
+        "selection_reason": { "type": "string" },
+        "next_case_intent": { "type": "string" },
         "priority_basis": { "type": "string" },
-        "stop_condition": { "type": "string" },
-        "next_responsibility": {
-          "type": "string",
-          "enum": ["agent", "human", "external", "none"]
-        },
-        "agent_continuation_available": { "type": "boolean" },
-        "human_decision_required": { "type": "boolean" },
-        "trigger_mode": {
-          "type": "string",
-          "enum": ["manual_bridge", "auto_bridge", "user_decision", "external_wait", "none"]
-        },
-        "continuation_prompt": { "type": "string" },
-        "responsibility_reason": { "type": "string" }
+        "stop_condition": { "type": "string" }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
     "project_state_delta": {
       "type": "object",
@@ -214,7 +203,7 @@
         "state_transitions",
         "deferred_dimensions",
         "blocked_dimensions",
-        "next_loop_focus",
+        "next_project_focus",
         "updated_at"
       ],
       "properties": {
@@ -224,7 +213,7 @@
         "blocked_dimensions": { "type": "array" },
         "case_refs": { "type": "array" },
         "iteration_ref": { "type": "string" },
-        "next_loop_focus": { "type": "string" },
+        "next_project_focus": { "type": "string" },
         "updated_at": { "type": "string" }
       },
       "additionalProperties": true

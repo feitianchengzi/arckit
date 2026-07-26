@@ -1,7 +1,7 @@
 interface:
   display_name: "ArcKit Tech"
   short_description: "维护稳定技术方案、架构边界、模型和契约"
-  default_prompt: "使用 $arckit-tech 查询、创建、更新或审计 arckit/tech 下的稳定技术事实。先读取 INDEX 并判断查询或变更；只接收用户、Controller worker report、实现证据、稳定事实源或 external adapter 提供的明确材料。未解决权衡保留在 active case 的 open_questions，外部事项写入 pending_handoffs，需要人类取舍时标记 human_decision_required。最终输出 document_scope。"
+  default_prompt: "使用 $arckit-tech 维护稳定技术事实。收到 case_fact_gap 时先读取共享 Case Fact Contract，结合代码、配置、测试和运行证据输出 document_scope 与 fact_result；不从实现存在推断方案已接受。不写 Case/Project State、不决定 Case 完成。无 gap 时使用 standalone 模式。"
 policy:
   allow_implicit_invocation: true
 workflow:
@@ -15,3 +15,4 @@ workflow:
     - "不依赖已移除 skill；开放问题、待处理 handoff 和 human gate 保留在 active case。"
   output:
     - "document_scope"
+    - "fact_result"

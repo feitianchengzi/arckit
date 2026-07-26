@@ -80,6 +80,16 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
   const routePlan = packetEnvelope
     ? createRoutePlanFromPacket(loopFrame)
     : createRoutePlanFromControllerPlan({ controllerPlan: controllerPlan.plan, loopFrame });
+  loopFrame.selected_gap = routePlan.selected_gap;
+  loopFrame.case_id = routePlan.selected_gap?.case_id || loopFrame.case_id;
+  const routedCase = (snapshot.activeCases || []).find((item) => item.record?.id === loopFrame.case_id);
+  if (packetEnvelope) {
+    const packetFailure = authorizedPacketFailureReason({ loopFrame, routePlan, snapshot, routedCase });
+    if (packetFailure) throw new Error(packetFailure);
+  }
+  loopFrame.case_updated_at = routedCase?.record?.updated_at || loopFrame.case_updated_at;
+  loopFrame.controller_frame.case_id = loopFrame.case_id;
+  loopFrame.controller_frame.selected_gap = routePlan.selected_gap;
   const controllerSemanticGoal = semanticGoalFromControllerPlan(controllerPlan?.plan, routePlan, loopFrame.round_goal);
   if (controllerSemanticGoal) {
     loopFrame.round_goal = controllerSemanticGoal;
@@ -345,7 +355,7 @@ async function executeAgentTask({ adapter, projectRoot, agentTask, previousRepor
     }
   }
   if (!report) {
-    report = createInvalidAgentReport(agentTask, t(agentTask.conversation_locale, "Worker completed without returning an arckit-worker-report/v1 object.", "Worker 已完成，但没有返回 arckit-worker-report/v1 对象。"));
+    report = createInvalidAgentReport(agentTask, t(agentTask.conversation_locale, "Worker completed without returning an arckit-worker-report/v2 object.", "Worker 已完成，但没有返回 arckit-worker-report/v2 对象。"));
   }
   const completedEvent = {
     type: "runtime.worker_report.completed",
@@ -438,7 +448,7 @@ async function maybeRunControllerPlanner({
     };
   }
 
-  const failureReason = controllerPlanFailureReason(plan, selectedCapabilities);
+  const failureReason = controllerPlanFailureReason(plan, selectedCapabilities, loopFrame);
   const completedStatus = controllerPlanCompletedStatus({ plan, failureReason });
   const completedEvent = {
     type: "runtime.controller_plan.completed",
@@ -485,7 +495,9 @@ export function compileControllerPlanPrompt({
       project_root: snapshot.projectRoot || "",
       summary: snapshot.summary || {},
       selected_gap: loopFrame.selected_gap,
-      loop_control: loopFrame.loop_control,
+      candidate_case_gaps: loopFrame.candidate_case_gaps || [],
+      case_control: loopFrame.case_control,
+      active_cases: snapshot.activeCases || [],
       required_context_refs: round.required_context_refs,
       stop_conditions: round.stop_conditions
     }, null, 2),
@@ -506,11 +518,13 @@ export function compileControllerPlanPrompt({
     "## Runtime-owned Constraints",
     "- worker_intents[].allowed_skills may reference only ids from the Worker Capability Registry.",
     "- Controller and Runtime capabilities cannot be bound to Workers.",
+    "- route_plan.selected_gap must use scope=case and identify one unresolved gap from the selected Case candidate_case_gaps; array order is not priority.",
+    "- planned_transition describes one bounded Case State change; it must not target a Project dimension directly.",
     "- Semantic goal, state_transition, objective, and next_prompt fields must be concise and must not copy raw Desktop operator envelopes.",
     "- Runtime will fail closed if the skill output violates schema, authorization, or capability binding boundaries.",
     "",
     "## Output Contract",
-    "Return only a JSON object with schema_version=arckit-controller-plan/v1. Do not wrap it in Markdown."
+    "Return only a JSON object with schema_version=arckit-controller-plan/v2. Do not wrap it in Markdown."
   ].join("\n");
 }
 
@@ -519,7 +533,7 @@ function normalizeControllerPlan(plan) {
     return null;
   }
   return {
-    schema_version: plan.schema_version === "arckit-controller-plan/v1" ? plan.schema_version : "arckit-controller-plan/v1",
+    schema_version: plan.schema_version === "arckit-controller-plan/v2" ? plan.schema_version : "arckit-controller-plan/v2",
     status: ["planned", "needs_human", "blocked"].includes(plan.status) ? plan.status : "blocked",
     summary: stringValue(plan.summary, ""),
     route_plan: {
@@ -537,10 +551,15 @@ function normalizeControllerPlan(plan) {
           role: stringValue(intent.role, ""),
           objective: stringValue(intent.objective, ""),
           reason: stringValue(intent.reason, ""),
-          allowed_skills: arrayOfStrings(intent.allowed_skills)
+          allowed_skills: arrayOfStrings(intent.allowed_skills),
+          expected_case_impact: stringValue(intent.expected_case_impact, "")
         }))
         .filter((intent) => intent.role)
       : [],
+    planned_transition: {
+      goal: safeSemanticText(plan.planned_transition?.goal || "", { maxLength: SEMANTIC_LIMITS.goal }),
+      expected_state_change: safeSemanticText(plan.planned_transition?.expected_state_change || "", { maxLength: SEMANTIC_LIMITS.transition })
+    },
     continuation_intent: normalizeContinuationIntent(plan.continuation_intent),
     risks: arrayOfStrings(plan.risks),
     unknowns: arrayOfStrings(plan.unknowns),
@@ -548,18 +567,43 @@ function normalizeControllerPlan(plan) {
   };
 }
 
-export function controllerPlanFailureReason(plan, workerCapabilities = []) {
+export function controllerPlanFailureReason(plan, workerCapabilities = [], loopFrame = null) {
   if (!plan) {
     return "Controller Agent did not return a usable plan.";
   }
-  if (plan.schema_version !== "arckit-controller-plan/v1") {
+  if (plan.schema_version !== "arckit-controller-plan/v2") {
     return "Controller Agent returned an unsupported plan schema.";
   }
   if (plan.status !== "planned") {
     return `Controller Agent plan status is ${plan.status}.`;
   }
-  if (!Array.isArray(plan.worker_intents) || plan.worker_intents.length === 0) {
-    return "Controller Agent did not select any worker intents.";
+  if (!Array.isArray(plan.worker_intents)) {
+    return "Controller Agent worker_intents must be an array.";
+  }
+  if (plan.route_plan?.selected_gap?.scope !== "case" || !plan.route_plan?.selected_gap?.case_id || !plan.route_plan?.selected_gap?.facet) {
+    return "Controller Agent must select a concrete Case State gap.";
+  }
+  if (loopFrame?.case_id && plan.route_plan.selected_gap.case_id !== loopFrame.case_id) {
+    return `Controller Agent selected Case ${plan.route_plan.selected_gap.case_id}, but Project State selected ${loopFrame.case_id}.`;
+  }
+  if (loopFrame) {
+    const selectedCaseCandidate = (loopFrame.candidate_cases || []).find((candidate) => candidate.case_id === plan.route_plan.selected_gap.case_id);
+    const allowedGaps = loopFrame.case_id ? loopFrame.candidate_case_gaps || [] : selectedCaseCandidate?.candidate_gaps || [];
+    const activeGap = allowedGaps.find((gap) => gap.id === plan.route_plan.selected_gap.id && gap.facet === plan.route_plan.selected_gap.facet);
+    if (!activeGap) {
+      return "Controller Agent selected a gap that is not in the selected Case candidate_gaps.";
+    }
+    for (const field of ["responsibility", "current_state", "target_state", "next_transition"]) {
+      if (activeGap[field] !== plan.route_plan.selected_gap[field]) {
+        return `Controller Agent selected a stale Case gap: ${field} no longer matches candidate_gaps.`;
+      }
+    }
+  }
+  if (!plan.planned_transition?.goal || !plan.planned_transition?.expected_state_change) {
+    return "Controller Agent did not return a complete planned_transition.";
+  }
+  if (plan.worker_intents.some((intent) => !intent.expected_case_impact)) {
+    return "Every worker intent must declare expected_case_impact.";
   }
   const invalidBindings = invalidCapabilityBindings(
     plan.worker_intents.flatMap((intent) => arrayOfStrings(intent.allowed_skills)),
@@ -571,6 +615,23 @@ export function controllerPlanFailureReason(plan, workerCapabilities = []) {
   if (!plan.continuation_intent?.goal || !plan.continuation_intent?.state_transition || !plan.continuation_intent?.next_prompt) {
     return "Controller Agent did not return a complete continuation_intent.";
   }
+  return "";
+}
+
+export function authorizedPacketFailureReason({ loopFrame, routePlan, snapshot, routedCase = null }) {
+  const selectedGap = routePlan?.selected_gap || {};
+  const activeCase = routedCase || (snapshot?.activeCases || []).find((item) => item.record?.id === selectedGap.case_id);
+  if (!activeCase) return `Authorized packet targets a Case that is no longer active: ${selectedGap.case_id || '<missing>'}.`;
+  if (!loopFrame?.case_updated_at || loopFrame.case_updated_at !== activeCase.record.updated_at) {
+    return `Authorized packet is stale for ${activeCase.record.id}: expected Case revision ${activeCase.record.updated_at}, received ${loopFrame?.case_updated_at || '<missing>'}.`;
+  }
+  const activeGap = (activeCase.record.case_resolution?.candidate_gaps || []).find((gap) => gap.id === selectedGap.id && gap.facet === selectedGap.facet);
+  if (!activeGap) return `Authorized packet selected gap is no longer unresolved: ${selectedGap.id || '<missing>'}.`;
+  for (const field of ["responsibility", "current_state", "target_state", "next_transition"]) {
+    if (activeGap[field] !== selectedGap[field]) return `Authorized packet selected gap is stale: ${field} no longer matches Case State.`;
+  }
+  const selectedCaseRef = snapshot?.projectState?.case_control?.selected_case_ref || "";
+  if (selectedCaseRef && selectedCaseRef !== activeCase.ref) return `Authorized packet Case no longer matches Project selection: ${selectedCaseRef}.`;
   return "";
 }
 
@@ -592,7 +653,7 @@ function controllerPlanCompletedStatus({ plan, failureReason }) {
 
 function createControllerPlanFailure(summary) {
   return {
-    schema_version: "arckit-controller-plan/v1",
+    schema_version: "arckit-controller-plan/v2",
     status: "blocked",
     summary,
     route_plan: {
@@ -604,6 +665,10 @@ function createControllerPlanFailure(summary) {
       requires_human_confirmation: false
     },
     worker_intents: [],
+    planned_transition: {
+      goal: "",
+      expected_state_change: ""
+    },
     continuation_intent: {
       goal: "",
       state_transition: "",
@@ -611,7 +676,7 @@ function createControllerPlanFailure(summary) {
     },
     risks: [summary],
     unknowns: [],
-    next_controller_action: "Retry Controller planning with a valid arckit-controller-plan/v1 output."
+    next_controller_action: "Retry Controller planning with a valid arckit-controller-plan/v2 output."
   };
 }
 
@@ -727,11 +792,19 @@ export function compileControllerReviewPrompt({ loopFrame, round, reports, contr
     "",
     "## Runtime-owned Constraints",
     "- accepted_reports and rejected_reports must reference issued task ids.",
+    "- A round may issue zero Worker packets when operator input or existing stable facts already provide enough evidence for one Case transition.",
+    "- evidence must include every source used to accept the Case delta, including direct operator or existing-fact evidence in a zero-Worker round.",
+    "- Accept only evidence-backed Worker case_state_claims into accepted_case_state_delta.",
+    "- When selected_gap.facet=completion_review, bind the result to the current content_revision and cover correctness, completeness, and minimality. Do not combine a clean review with content changes.",
+    "- When selected_gap.facet=review_findings, resolve or dismiss only evidence-backed findings; the resulting content revision requires a fresh completion review.",
+    "- A human-responsibility completion_review gap cannot be auto-cleared: only record an explicit human review, finding disposition, or bounded review_budget_extension from operator evidence.",
+    "- case_resolution is a semantic claim; deterministic ledger audit may reject a stronger completion claim.",
+    "- project_impact_candidate may be accepted only with a resolved Case and explicit project dimension transitions.",
     "- continuation_intent fields must be concise and must not copy raw Desktop operator envelopes.",
     "- Runtime Guard may downgrade or block the semantic closeout result but may not invent a stronger completion claim.",
     "",
     "## Output Contract",
-    "Return only a JSON object with schema_version=arckit-controller-review/v1. Do not wrap it in Markdown."
+    "Return only a JSON object with schema_version=arckit-controller-review/v3. Do not wrap it in Markdown."
   ].join("\n");
 }
 
@@ -740,11 +813,19 @@ function normalizeControllerReview(review) {
     return null;
   }
   return {
-    schema_version: review.schema_version === "arckit-controller-review/v1" ? review.schema_version : "arckit-controller-review/v1",
-    status: ["done", "continue", "needs_human", "blocked"].includes(review.status) ? review.status : "blocked",
+    schema_version: review.schema_version === "arckit-controller-review/v3" ? review.schema_version : "arckit-controller-review/v3",
+    status: ["done", "continue", "needs_human", "blocked", "external_wait"].includes(review.status) ? review.status : "blocked",
     summary: stringValue(review.summary, ""),
     accepted_reports: arrayOfStrings(review.accepted_reports),
     rejected_reports: arrayOfStrings(review.rejected_reports),
+    accepted_case_state_delta: normalizeAcceptedCaseStateDelta(review.accepted_case_state_delta),
+    evidence: arrayOfStrings(review.evidence),
+    case_resolution: {
+      claimed_status: ["unresolved", "resolved", "blocked"].includes(review.case_resolution?.claimed_status) ? review.case_resolution.claimed_status : "blocked",
+      reason: stringValue(review.case_resolution?.reason, ""),
+      unresolved: arrayOfStrings(review.case_resolution?.unresolved)
+    },
+    project_impact_candidate: normalizeProjectImpactCandidate(review.project_impact_candidate),
     risks: arrayOfStrings(review.risks),
     unknowns: arrayOfStrings(review.unknowns),
     next_prompt: stringValue(review.next_prompt, ""),
@@ -757,28 +838,38 @@ function controllerReviewFailureReason(review) {
   if (!review) {
     return "Controller Agent did not return a usable review.";
   }
-  if (review.schema_version !== "arckit-controller-review/v1") {
+  if (review.schema_version !== "arckit-controller-review/v3") {
     return "Controller Agent returned an unsupported review schema.";
   }
-  if (!["done", "continue", "needs_human", "blocked"].includes(review.status)) {
+  if (!["done", "continue", "needs_human", "blocked", "external_wait"].includes(review.status)) {
     return "Controller Agent returned an unsupported review status.";
   }
   if (!review.continuation_intent?.goal || !review.continuation_intent?.state_transition || !review.continuation_intent?.next_prompt) {
     return "Controller Agent review did not return a complete continuation_intent.";
+  }
+  if (!review.accepted_case_state_delta || !review.case_resolution || !review.project_impact_candidate) {
+    return "Controller Agent review did not return Case State closeout semantics.";
+  }
+  if (caseDeltaHasChanges(review.accepted_case_state_delta) && (!Array.isArray(review.evidence) || review.evidence.length === 0)) {
+    return "Controller Agent review accepted a Case State delta without evidence.";
   }
   return "";
 }
 
 function createControllerReviewFailure(summary) {
   return {
-    schema_version: "arckit-controller-review/v1",
+    schema_version: "arckit-controller-review/v3",
     status: "blocked",
     summary,
     accepted_reports: [],
     rejected_reports: [],
+    accepted_case_state_delta: { facets: [], resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null },
+    evidence: [],
+    case_resolution: { claimed_status: "blocked", reason: summary, unresolved: [summary] },
+    project_impact_candidate: { status: "none", changes: [], evidence: [] },
     risks: [summary],
     unknowns: [],
-    next_prompt: "Retry Controller review with a valid arckit-controller-review/v1 output.",
+    next_prompt: "Retry Controller review with a valid arckit-controller-review/v3 output.",
     continuation_intent: {
       goal: "",
       state_transition: "",
@@ -797,17 +888,17 @@ export function createLoopFrame({
   runtimeCapabilities = [],
   options = {}
 }) {
-  const loopControl = snapshot.projectState.loop_control || {};
   const initialRoundGoal = firstSafeSemanticText([
     task,
     round.round_goal,
-    loopControl.next_transition
+    round.next_transition
   ], { maxLength: SEMANTIC_LIMITS.goal })
     || "Controller must derive this round goal from the operator task, project state, candidate gaps, and evidence.";
-  const loopNextTransition = safeSemanticText(loopControl.next_transition || "", { maxLength: SEMANTIC_LIMITS.transition });
+  const caseNextTransition = safeSemanticText(round.next_transition || "", { maxLength: SEMANTIC_LIMITS.transition });
   const frame = {
     schema_version: "arckit-loop-frame/v1",
-    case_id: first(snapshot.projectState.active_case_refs) || "",
+    case_id: round.case_id || "",
+    case_updated_at: round.case_updated_at || "",
     project_name: snapshot.summary.project_name,
     project_root: snapshot.projectRoot || "",
     operator_task: task,
@@ -818,13 +909,14 @@ export function createLoopFrame({
     executor_binding: createExecutorBinding({ options }),
     selected_gap: {
       id: round.gap_id,
-      dimension: round.dimension,
+      scope: "case",
+      case_id: round.case_id || "",
+      facet: round.facet || "",
+      responsibility: round.responsibility || "agent",
       current_state: round.current_state,
       target_state: round.target_state,
-      urgency: round.urgency,
-      risk: round.risk,
       impact: round.impact,
-      next_transition: loopNextTransition
+      next_transition: caseNextTransition
     },
     source_projection_check: {
       source_facts: {
@@ -856,12 +948,9 @@ export function createLoopFrame({
       workerCapabilities: selectedCapabilities
     }),
     stop_conditions: round.stop_conditions,
-    loop_control: {
-      next_responsibility: loopControl.next_responsibility || "agent",
-      trigger_mode: loopControl.trigger_mode || "manual_bridge",
-      current_loop_focus: safeSemanticText(loopControl.current_loop_focus || "", { maxLength: SEMANTIC_LIMITS.transition }),
-      next_transition: loopNextTransition
-    },
+    case_control: round.case_control || {},
+    candidate_cases: round.candidate_cases || [],
+    candidate_case_gaps: round.candidate_case_gaps || [],
     report_intake_rules: createReportIntakeRules(),
     closeout_rules: createCloseoutRules(),
     round_execution_packet: {
@@ -949,9 +1038,10 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
       conversation_locale: loopFrame.conversation_locale || round.conversation_locale || "en",
       loop_frame_excerpt: {
         case_id: loopFrame.case_id,
+        case_updated_at: loopFrame.case_updated_at,
         round_goal: safeSemanticText(loopFrame.round_goal, { maxLength: SEMANTIC_LIMITS.goal }),
         conversation_locale: loopFrame.conversation_locale || round.conversation_locale || "en",
-        selected_gap: loopFrame.selected_gap,
+        selected_gap: loopFrame.route_plan?.selected_gap || loopFrame.selected_gap,
         selected_capabilities: allowedSkills,
         stop_conditions: loopFrame.stop_conditions
       },
@@ -961,7 +1051,7 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
         known_facts: [
           `project=${snapshot.summary.project_name}`,
           `phase=${snapshot.summary.current_phase}`,
-          `selected_gap=${round.gap_id}`
+          `selected_gap=${loopFrame.route_plan?.selected_gap?.id || round.gap_id}`
         ],
         capability_contexts: capabilityContexts,
         assumptions: [],
@@ -974,7 +1064,7 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
         forbidden_actions: definition.forbidden_actions
       },
       expected_output: {
-        format: "arckit-worker-report/v1",
+        format: "arckit-worker-report/v2",
         required_fields: [
           "task_id",
           "worker_type",
@@ -985,6 +1075,7 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
           "evidence",
           "changes",
           "artifact_impacts",
+          "case_state_claims",
           "risks",
           "unknowns",
           "recommendation",
@@ -992,6 +1083,7 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
           "requires_human_decision"
         ]
       },
+      expected_case_impact: intent.expected_case_impact,
       stop_condition: round.stop_conditions.join(" ")
     };
   });
@@ -1031,10 +1123,11 @@ function compileAgentTaskPrompt({ agentTask, previousReports }) {
     "- Use report.artifact_impacts for every artifact you created, updated, deleted, or read as evidence.",
     "- Each artifact_impacts item must bind one relative artifact path to operation, claim, summary, and evidence.",
     "- Keep report.changes as human-readable prose only; Runtime will not use changes for source/projection gates.",
-    "- Return only valid JSON matching arckit-worker-report/v1.",
+    "- Put semantic Case facet claims in case_state_claims; Workers propose claims, while the Controller accepts or rejects them.",
+    "- Return only valid JSON matching arckit-worker-report/v2.",
     "",
     "## Output Contract",
-    "Return a JSON object with schema_version=arckit-worker-report/v1. Do not wrap it in Markdown."
+    "Return a JSON object with schema_version=arckit-worker-report/v2. Do not wrap it in Markdown."
   ].join("\n");
 }
 
@@ -1098,21 +1191,26 @@ function artifactAllowedByPacket(artifact, packet) {
 
 function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun, controllerReview }) {
   const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || compiledPrompt.conversation_locale || "en";
+  const review = controllerReview?.review || null;
+  const reviewUsable = controllerReview?.usable === true;
+  const zeroWorkerTransition = (loopFrame.worker_packets || []).length === 0
+    && reviewUsable
+    && caseDeltaHasChanges(review.accepted_case_state_delta);
   const reducerResult = reduceWorkerReports({
     reports,
     loopFrame,
     round,
     dryRun,
-    conversationLocale
+    conversationLocale,
+    allowNoWorkers: zeroWorkerTransition,
+    controllerEvidence: reviewUsable ? review.evidence : []
   });
-  const review = controllerReview?.review || null;
-  const reviewUsable = controllerReview?.usable === true;
   const reviewStatus = reviewUsable ? review.status : "blocked";
   const reviewLoopGate = reviewUsable
     ? {
       status: reviewStatus,
-      next_responsibility: reviewStatus === "done" ? "none" : review.human_decision_required || reviewStatus === "needs_human" ? "human" : "agent",
-      trigger_mode: reviewStatus === "done" ? "none" : review.human_decision_required || reviewStatus === "needs_human" ? "user_decision" : "manual_bridge",
+      next_responsibility: reviewStatus === "done" ? "none" : reviewStatus === "external_wait" ? "external" : review.human_decision_required || reviewStatus === "needs_human" ? "human" : "agent",
+      trigger_mode: reviewStatus === "done" ? "none" : reviewStatus === "external_wait" ? "external_wait" : review.human_decision_required || reviewStatus === "needs_human" ? "user_decision" : "manual_bridge",
       human_decision_required: review.human_decision_required || reviewStatus === "needs_human",
       reason: review.summary
     }
@@ -1370,7 +1468,7 @@ function createControllerUnavailableMergeResult({ loopFrame, round, controllerPl
     },
     next_prompt: needsHuman
       ? t(conversationLocale, `Resolve the Controller Agent human decision for ${loopFrame.case_id || round.gap_id}, then run Controller planning again.`, `先处理 ${loopFrame.case_id || round.gap_id} 的 Controller Agent 人类决策，再重新执行 Controller planning。`)
-      : t(conversationLocale, `Retry Controller planning for ${loopFrame.case_id || round.gap_id} and return a valid arckit-controller-plan/v1.`, `重新为 ${loopFrame.case_id || round.gap_id} 执行 Controller planning，并返回有效的 arckit-controller-plan/v1。`)
+      : t(conversationLocale, `Retry Controller planning for ${loopFrame.case_id || round.gap_id} and return a valid arckit-controller-plan/v2.`, `重新为 ${loopFrame.case_id || round.gap_id} 执行 Controller planning，并返回有效的 arckit-controller-plan/v2。`)
   };
 }
 
@@ -1469,8 +1567,8 @@ function reportIsComplete(report) {
   if (!report || typeof report !== "object") {
     return false;
   }
-  const arrays = ["findings", "evidence", "changes", "artifact_impacts", "risks", "unknowns"];
-  return report.schema_version === "arckit-worker-report/v1"
+  const arrays = ["findings", "evidence", "changes", "artifact_impacts", "case_state_claims", "risks", "unknowns"];
+  return report.schema_version === "arckit-worker-report/v2"
     && Boolean(report.task_id)
     && WORKER_TYPES.includes(report.worker_type)
     && typeof report.role === "string"
@@ -1525,7 +1623,7 @@ function createControllerFrame({ snapshot, round, task, roundGoal = "" }) {
   const hasTask = Boolean(String(task || "").trim());
   return {
     schema_version: "arckit-controller-frame/v1",
-    case_id: first(snapshot.projectState.active_case_refs) || "",
+    case_id: round.case_id || "",
     turn_delta: {
       relation_to_previous_loop: hasTask ? "continue_case" : "resume_next_prompt",
       reason: hasTask ? "Operator supplied a project task for this round." : "No explicit task supplied; continue from project state and loop handoff.",
@@ -1536,7 +1634,10 @@ function createControllerFrame({ snapshot, round, task, roundGoal = "" }) {
     old_packet_valid: true,
     selected_gap: {
       id: round.gap_id,
-      dimension: round.dimension
+      scope: "case",
+      case_id: round.case_id || "",
+      facet: round.facet || "",
+      responsibility: round.responsibility || "agent"
     },
     source_projection_check: {
       source_facts_changed: [],
@@ -1615,6 +1716,15 @@ function authorizePacketLoopFrame(loopFrame, options) {
 
 export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities = []) {
   return tasks.map((task, index) => {
+    const taskFrame = task.loop_frame_excerpt;
+    if (!taskFrame?.case_updated_at || taskFrame.case_updated_at !== loopFrame.case_updated_at || taskFrame.case_id !== loopFrame.case_id) {
+      throw new Error(`Authorized packet worker ${task.role || task.id || index + 1} is not bound to the current Case revision.`);
+    }
+    for (const field of ["id", "facet", "responsibility", "current_state", "target_state", "next_transition"]) {
+      if (taskFrame.selected_gap?.[field] !== loopFrame.selected_gap?.[field]) {
+        throw new Error(`Authorized packet worker ${task.role || task.id || index + 1} has a stale selected gap: ${field} differs.`);
+      }
+    }
     const requestedSkills = unique(arrayOfStrings(task.scope?.allowed_skills || task.allowed_skills));
     const invalidBindings = invalidCapabilityBindings(requestedSkills, workerCapabilities);
     if (invalidBindings.length > 0) {
@@ -1630,6 +1740,7 @@ export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities 
       conversation_locale: task.conversation_locale || loopFrame.conversation_locale || "en",
       loop_frame_excerpt: task.loop_frame_excerpt || {
         case_id: loopFrame.case_id || "",
+        case_updated_at: loopFrame.case_updated_at || "",
         round_goal: loopFrame.round_goal || "",
         conversation_locale: loopFrame.conversation_locale || task.conversation_locale || "en",
         selected_gap: loopFrame.selected_gap || {},
@@ -1657,7 +1768,7 @@ export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities 
         forbidden_actions: task.forbidden_actions || []
       },
       expected_output: task.expected_output || {
-        format: "arckit-worker-report/v1",
+        format: "arckit-worker-report/v2",
         required_fields: [
           "task_id",
           "worker_type",
@@ -1668,6 +1779,7 @@ export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities 
           "evidence",
           "changes",
           "artifact_impacts",
+          "case_state_claims",
           "risks",
           "unknowns",
           "recommendation",
@@ -1675,6 +1787,7 @@ export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities 
           "requires_human_decision"
         ]
       },
+      expected_case_impact: task.expected_case_impact || loopFrame.selected_gap?.next_transition || 'Produce evidence for the selected Case gap.',
       stop_condition: task.stop_condition || ""
     };
   });
@@ -1736,17 +1849,23 @@ function createCloseoutRules() {
 
 function toWorkerPacket(agentTask) {
   return {
-    schema_version: "arckit-worker-packet/v1",
+    schema_version: "arckit-worker-packet/v2",
     worker_id: agentTask.id,
     worker_type: agentTask.worker_type,
     role: agentTask.role,
     task: agentTask.objective,
+    case_context: {
+      case_id: agentTask.loop_frame_excerpt.case_id,
+      case_updated_at: agentTask.loop_frame_excerpt.case_updated_at,
+      selected_gap: agentTask.loop_frame_excerpt.selected_gap
+    },
+    expected_case_impact: agentTask.expected_case_impact,
     context_refs: agentTask.inputs.known_state_paths,
     allowed_actions: agentTask.scope.allowed_actions,
     forbidden_actions: agentTask.scope.forbidden_actions,
     allowed_paths: agentTask.scope.allowed_paths,
     allowed_skills: agentTask.scope.allowed_skills,
-    expected_report_schema: "arckit-worker-report/v1",
+    expected_report_schema: "arckit-worker-report/v2",
     stop_condition: agentTask.stop_condition
   };
 }
@@ -1756,7 +1875,7 @@ function normalizeAgentReport(report, agentTask) {
     return createInvalidAgentReport(agentTask, t(agentTask.conversation_locale, "Worker returned a non-object report.", "Worker 返回了非对象 report。"));
   }
   return {
-    schema_version: report.schema_version === "arckit-worker-report/v1" ? report.schema_version : "arckit-worker-report/v1",
+    schema_version: report.schema_version === "arckit-worker-report/v2" ? report.schema_version : "arckit-worker-report/v2",
     task_id: report.task_id === agentTask.id ? report.task_id : agentTask.id,
     worker_type: normalizeWorkerType(report.worker_type || agentTask.worker_type),
     role: report.role === agentTask.role ? report.role : agentTask.role,
@@ -1766,6 +1885,7 @@ function normalizeAgentReport(report, agentTask) {
     evidence: arrayOfStrings(report.evidence),
     changes: arrayOfStrings(report.changes),
     artifact_impacts: normalizeArtifactImpacts(report.artifact_impacts),
+    case_state_claims: normalizeCaseStateClaims(report.case_state_claims),
     risks: arrayOfStrings(report.risks),
     unknowns: arrayOfStrings(report.unknowns),
     recommendation: stringValue(report.recommendation, ""),
@@ -1789,10 +1909,92 @@ function normalizeArtifactImpacts(impacts) {
     }));
 }
 
+function normalizeCaseStateClaims(claims) {
+  if (!Array.isArray(claims)) return [];
+  return claims.filter((claim) => claim && typeof claim === "object").map((claim) => ({
+    facet: stringValue(claim.facet, ""),
+    set: claim.set && typeof claim.set === "object" && !Array.isArray(claim.set) ? claim.set : {},
+    evidence: arrayOfStrings(claim.evidence),
+    unresolved: arrayOfStrings(claim.unresolved)
+  }));
+}
+
+function normalizeAcceptedCaseStateDelta(delta) {
+  return {
+    facets: normalizeCaseStateClaims(delta?.facets),
+    resolved_open_questions: arrayOfStrings(delta?.resolved_open_questions),
+    completed_handoffs: arrayOfStrings(delta?.completed_handoffs),
+    completion_review_result: normalizeCompletionReviewResult(delta?.completion_review_result),
+    resolved_review_findings: normalizeResolvedReviewFindings(delta?.resolved_review_findings),
+    review_budget_extension: normalizeReviewBudgetExtension(delta?.review_budget_extension)
+  };
+}
+
+function caseDeltaHasChanges(delta) {
+  return (delta?.facets || []).length > 0
+    || (delta?.resolved_open_questions || []).length > 0
+    || (delta?.completed_handoffs || []).length > 0
+    || delta?.completion_review_result != null
+    || (delta?.resolved_review_findings || []).length > 0
+    || delta?.review_budget_extension != null;
+}
+
+function normalizeCompletionReviewResult(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    outcome: ["clean", "findings", "needs_human"].includes(value.outcome) ? value.outcome : "needs_human",
+    reviewer: ["agent", "human"].includes(value.reviewer) ? value.reviewer : "agent",
+    reviewed_content_revision: Number.isInteger(value.reviewed_content_revision) ? value.reviewed_content_revision : -1,
+    dimensions: {
+      correctness: ["clean", "findings"].includes(value.dimensions?.correctness) ? value.dimensions.correctness : "findings",
+      completeness: ["clean", "findings"].includes(value.dimensions?.completeness) ? value.dimensions.completeness : "findings",
+      minimality: ["clean", "findings"].includes(value.dimensions?.minimality) ? value.dimensions.minimality : "findings"
+    },
+    findings: Array.isArray(value.findings) ? value.findings.filter((item) => item && typeof item === "object").map((item) => ({
+      id: stringValue(item.id, ""),
+      kind: ["error", "omission", "excess"].includes(item.kind) ? item.kind : "error",
+      statement: stringValue(item.statement, ""),
+      responsibility: ["agent", "human", "external"].includes(item.responsibility) ? item.responsibility : "agent",
+      affected_facets: arrayOfStrings(item.affected_facets),
+      artifact_refs: arrayOfStrings(item.artifact_refs),
+      evidence: arrayOfStrings(item.evidence)
+    })) : [],
+    evidence: arrayOfStrings(value.evidence)
+  };
+}
+
+function normalizeResolvedReviewFindings(values) {
+  if (!Array.isArray(values)) return [];
+  return values.filter((item) => item && typeof item === "object").map((item) => ({
+    id: stringValue(item.id, ""),
+    resolution: ["resolved", "dismissed"].includes(item.resolution) ? item.resolution : "resolved",
+    reason: stringValue(item.reason, ""),
+    evidence: arrayOfStrings(item.evidence)
+  }));
+}
+
+function normalizeReviewBudgetExtension(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    additional_cycles: Number.isInteger(value.additional_cycles) ? value.additional_cycles : 0,
+    authorized_by: value.authorized_by === "human" ? "human" : "",
+    reason: stringValue(value.reason, ""),
+    evidence: arrayOfStrings(value.evidence)
+  };
+}
+
+function normalizeProjectImpactCandidate(value) {
+  return {
+    status: ["none", "proposed", "accepted"].includes(value?.status) ? value.status : "none",
+    changes: Array.isArray(value?.changes) ? value.changes.filter((item) => item && typeof item === "object") : [],
+    evidence: arrayOfStrings(value?.evidence)
+  };
+}
+
 function createInvalidAgentReport(agentTask, message) {
   const conversationLocale = agentTask.conversation_locale || "en";
   return {
-    schema_version: "arckit-worker-report/v1",
+    schema_version: "arckit-worker-report/v2",
     task_id: agentTask.id,
     worker_type: agentTask.worker_type,
     role: agentTask.role,
@@ -1802,9 +2004,10 @@ function createInvalidAgentReport(agentTask, message) {
     evidence: [],
     changes: [],
     artifact_impacts: [],
+    case_state_claims: [],
     risks: [message],
     unknowns: [],
-    recommendation: t(conversationLocale, "Retry this worker task with a valid arckit-worker-report/v1 output.", "使用有效的 arckit-worker-report/v1 输出重新运行这个 worker task。"),
+    recommendation: t(conversationLocale, "Retry this worker task with a valid arckit-worker-report/v2 output.", "使用有效的 arckit-worker-report/v2 输出重新运行这个 worker task。"),
     requires_main_agent_decision: true,
     requires_human_decision: false
   };
@@ -1820,11 +2023,12 @@ function normalizeSelectedGap(value) {
   }
   const normalized = {
     id: stringValue(value.id, ""),
-    dimension: stringValue(value.dimension, ""),
+    scope: value.scope === "case" ? "case" : "",
+    case_id: stringValue(value.case_id, ""),
+    facet: stringValue(value.facet, ""),
+    responsibility: ["agent", "human", "external"].includes(value.responsibility) ? value.responsibility : "agent",
     current_state: safeSemanticText(value.current_state, { maxLength: SEMANTIC_LIMITS.reason }),
     target_state: safeSemanticText(value.target_state, { maxLength: SEMANTIC_LIMITS.reason }),
-    urgency: stringValue(value.urgency, ""),
-    risk: stringValue(value.risk, ""),
     impact: safeSemanticText(value.impact, { maxLength: SEMANTIC_LIMITS.reason }),
     next_transition: safeSemanticText(value.next_transition, { maxLength: SEMANTIC_LIMITS.transition })
   };
@@ -1854,11 +2058,12 @@ function semanticGoalFromControllerPlan(plan, routePlan, fallback = "") {
 function emptySelectedGap() {
   return {
     id: "",
-    dimension: "",
+    scope: "case",
+    case_id: "",
+    facet: "",
+    responsibility: "agent",
     current_state: "",
     target_state: "",
-    urgency: "",
-    risk: "",
     impact: "",
     next_transition: ""
   };

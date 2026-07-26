@@ -98,21 +98,19 @@ Agent 启动上下文是 Agent 或自动化平台进入项目时必须先知道�
 
 Project State 是一个软件项目在 Arckit 视角下的当前可恢复状态。
 
-Project State 不等同于单个 Markdown 文件、JSON 文件或任务列表。它由事实源、case、验证证据、接力状态和工作方式事实共同表达。
+Project State 不等同于单个 Markdown 文件、JSON 文件或任务列表。它是软件整体的宏观恢复与选择状态，由项目维度、project gaps、active Case 引用、Case 选择和证据引用共同表达。
 
 Project State 至少包含以下维度：
 
 - 目标状态：项目当前要解决什么真实软件预期。
-- 预期事实状态：产品、交互、视觉、技术、验收口径等是否清楚。
-- 实现事实状态：当前软件、skill、workflow 或文档系统实际上是什么。
-- 验证状态：哪些预期已经被证据验证，哪些仍缺证据。
-- 协作状态：当前谁能继续、下一步由谁负责、如何恢复。
-- 风险和未决状态：哪些内容进入 case 的 `open_questions` 或 `pending_handoffs`，哪些需要外部或人类判断。
-- 工作方式状态：哪些协作经验影响后续默认 loop。
+- 宏观完整性：哪些项目能力维度已达到目标，哪些仍存在项目级 gap。
+- Case 集合：哪些 bounded matters 处于 active、blocked 或 closed，以及当前选择哪个 Case。
+- 迭代位置：项目当前阶段性目标与可追溯的状态变化。
+- 证据引用：宏观状态判断由哪些稳定事实、Case 结果和验证证据支撑。
 
 Project State 的作用是让项目在跨人、跨 Agent、跨会话、跨时间后仍能被恢复，而不是依赖上一轮对话记忆。
 
-Project State 可以按维度演进，而不是只有单一全局状态。常见维度状态包括 `unknown`、`defined`、`in_progress`、`verified`、`accepted` 和 `stale`。
+Project State 可以按维度演进，而不是只有单一全局状态。它不保存单个事项的产品/交互/视觉/技术/实现/验证满足度，也不保存本轮 continuation；这些属于 Case 与 Loop。
 
 系统不在缺少来源依据、case 或明确用户授权时静默更新 Project State。
 
@@ -122,6 +120,14 @@ Case 是围绕一个具体研发事项推进 Project State 的承载单元。
 
 Case 把一个状态缺口、目标状态、边界、证据要求和推进记录聚合到一起。Case 不是普通待办，也不承载所有想法、聊天内容或普通上下文。只有当一个事项需要持续推进、验证、接力、等待、阻塞判断或关闭时，它才成为 case。
 
+Case 对单次研发事项维护六个彼此正交的结果 facet：product expectation、interaction expectation、visual expectation、technical expectation、implementation state 和 verification state。每个 facet 分别表达适用性、当前与目标成熟度、当前与目标对齐度、resolution、理由和证据。开放问题、外部 handoff 与过程备注保持独立，不伪装成结果 facet。
+
+Case 不预设 facet 的推进顺序。规格先行时可以先 formalize definition；代码先行时可以先建立 implementation evidence，再把从代码观察到的预期补充并与实现对齐；混合任务可以在任意 facet 之间往返。Case State 确定性派生全部 unresolved `candidate_gaps`，Controller 根据用户意图、代码、事实和风险选择本轮 gap，数组顺序不代表优先级。
+
+六个 facet、open questions 和 pending handoffs 全部满足后，Case 进入 `base_ready`，但还不能关闭。ledger 随后派生跨 facet 的 `completion_review`：针对当前 `content_revision` 从 correctness（错误）、completeness（遗漏）和 minimality（多余）三个视角复审完整结果。复审不是普通 facet，也不要求显式调用固定 skill；Controller 根据 gap 和风险动态选择零个或多个执行者。
+
+复审 finding 成为 Case 内的结构化未解决事实并驱动修复。任何修复或有证据的处置都会提升 `content_revision`，使旧 clean 结论失效；只有最后一次内容变化之后的复审 clean 才能关闭 Case。Case 在创建时从显式 policy 快照自主复审上限；最后一个授权轮次仍不 clean 时进入 `needs_human`，Agent 不得自行重置计数或追加预算。人类可以复审、处置 finding，或带理由和证据追加有限轮次。
+
 普通想法、未确认风险、外部反馈、过程判断和候选方向默认进入低承诺空间；当前最小能力集使用 active case 的 `open_questions`、`pending_handoffs` 或 evaluation 记录承载。它们只有在需要被持续推进时才创建或更新 case。
 
 Case 至少表达：
@@ -129,11 +135,12 @@ Case 至少表达：
 - 当前要推进哪个 Project State gap。
 - 本事项的目标状态是什么。
 - 哪些事实源、开放问题、handoff、约束和证据是依据。
+- 六个结果 facet 中哪些达到 evidence-backed required target，哪些经证据判断为 not_required，哪些仍 unresolved。
 - 哪些动作允许，哪些动作禁止。
 - 当前处于规划、执行、验证、等待、人类判断、阻塞还是关闭。
 - 关闭后 Project State 如何变化，或为什么可以无事实变化关闭。
 
-Case 关闭必须产生可解释的状态影响。该影响可以是产品、技术、实现、验证、未决项或工作方式上的 Project State delta，也可以是明确的 no-change closure。
+Case 关闭前，每个结果 facet 都必须达到 evidence-backed required target，或形成有理由和证据的 not_required 判断；所有 open question 与 pending handoff 也必须被解决或完成；当前 `content_revision` 还必须获得三维 clean 完成态复审且没有 open finding。Case 关闭后才允许聚合显式 Project State delta，也可以形成明确的 no-change closure。
 
 No-change closure 只在事项被证明重复、无效、过期、不再需要、合并到另一个 case、明确放弃或转移到外部责任方时成立。系统不能把 Agent 停止工作或没有更多输出当成 case 关闭。
 
@@ -146,15 +153,17 @@ Loop 不等同于一次模型调用，也不等同于 Agent 内部工具调用�
 Loop 至少表达：
 
 - 本轮为什么启动。
-- 本轮推进哪个 case 或 Project State gap。
+- 本轮推进 selected Case 的哪个 candidate gap。
 - 本轮允许哪些执行体参与。
 - 本轮产生了什么证据、报告、变更、开放问题或 handoff。
 - 本轮是否实际推进了状态。
 - 下一步由 Agent、人类、外部系统还是无人继续。
 
-Loop 的核心输出不是 Agent 输出了什么，而是本轮是否推进了 case 和 Project State，以及下一步由谁继续。
+Loop 的核心输出不是 Agent 输出了什么，而是一项 planned Case transition 是否产生并被接受为有证据的 Case delta，以及下一步由谁继续。
 
-一个 loop 结束时必须说明它对 case 和 Project State 的影响：推进、未推进、等待、阻塞、需要人类或完成。Loop 不能因为 Agent 停止输出就被视为完成；完成必须依赖目标满足和证据通过。
+Loop 可以派发零个、一个或多个 Worker。若用户本轮确认、现有稳定事实或已有验证证据已经足以推进 selected gap，Controller 可以不派发 Worker，直接形成可追溯 evidence 与 accepted delta。每个 transition 必须绑定 Case revision；写回后下一轮重新读取状态，不能复用过期判断。
+
+一个 loop 结束时必须分别说明 round outcome、Case resolution claim、Project impact candidate 与 handoff。单轮可以完成而 Case 仍 unresolved；Case 未 resolved 时不更新 Project 维度。Loop 不能因为 Agent 停止输出就被视为完成；完成必须依赖目标满足和证据通过。
 
 ## 当前阶段
 

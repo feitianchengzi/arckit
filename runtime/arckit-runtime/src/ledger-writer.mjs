@@ -13,10 +13,10 @@ export async function writeLedger({
   dryRun = false,
   ledgerCapability = null
 }) {
-  const gate = evaluateRuntimeGates({ runtimeResult, snapshot, envelope });
+  const gate = await evaluateRuntimeGates({ runtimeResult, snapshot, envelope, projectRoot });
   if (!gate.allowed) {
     return {
-      schema_version: "arckit-ledger-write/v1",
+      schema_version: "arckit-ledger-write/v2",
       written: false,
       dry_run: dryRun,
       gate,

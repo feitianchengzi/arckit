@@ -45,8 +45,16 @@ export function deriveRuntimeControlState({ run, project, session, activity, lat
   }
 
   const ledgerWrite = activity?.ledger_write_result?.parsed || null;
-  const gateResult = activity?.gate_result?.parsed || ledgerWrite?.gate || null;
   const ledgerStage = activity?.ledger_stage || null;
+  if ((ledgerWrite?.written === true || ledgerStage?.status === "written") && requiresHumanDecision(activity)) {
+    return {
+      ...base,
+      state: "human_gate_required",
+      primary_action: "respond_to_gate",
+      primary_label: "Respond To Gate",
+      reason: activity?.loop_handoff?.responsibility_reason || "Ledger writeback requires human handling before another autonomous round."
+    };
+  }
   if (ledgerWrite?.written === true || ledgerStage?.status === "written") {
     return {
       ...base,
@@ -82,29 +90,6 @@ export function deriveRuntimeControlState({ run, project, session, activity, lat
       primary_action: "write_ledger",
       primary_label: "Write Ledger",
       reason: ledgerStage.reason || "Runtime result has validated progress and awaits ledger writeback."
-    };
-  }
-
-  const runtimeDone = run.round_result === "done"
-    || activity?.round_result === "done"
-    || activity?.loop_handoff?.status === "done"
-    || activity?.merge_result?.loop_gate?.status === "done";
-  if (runtimeDone) {
-    if (gateResult?.allowed === false || ledgerWrite?.written === false && ledgerWrite?.gate?.allowed === false) {
-      return {
-        ...base,
-        state: "ledger_writeback_blocked",
-        primary_action: "resolve_gate",
-        primary_label: "Resolve Gate",
-        reason: (gateResult?.reasons || ledgerWrite?.gate?.reasons || []).join(" | ") || "Ledger gate blocked writeback."
-      };
-    }
-    return {
-      ...base,
-      state: activity?.round_state === "ledger_gate_ready" ? "ledger_gate_ready" : "ledger_writeback_ready",
-      primary_action: "write_ledger",
-      primary_label: "Write Ledger",
-      reason: "Runtime result is done and awaits ledger writeback."
     };
   }
 

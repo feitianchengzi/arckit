@@ -16,6 +16,10 @@ description: "维护 arckit/tech/ 下的技术方案、架构说明、数据模�
 - 候选方案讨论、实现过程、排期、临时绕过和未验证推断不得写入 tech 主线。
 - 仍需讨论的权衡保留在 active case 的 `open_questions`；影响外部推进的内容写入 `pending_handoffs`，需要人类技术取舍时标记 `human_decision_required`。
 
+## Case State 驱动模式
+
+收到 `case_fact_gap` 时，先读取 [`../_arckit_shared/case-fact-contract.md`](../_arckit_shared/case-fact-contract.md)，并进入 managed-case 模式。代码、配置、测试与运行结果可以作为候选技术事实；稳定结论需要被正式化并与实现对齐。本 skill 返回 `fact_result`，不写 Case/Project State、不从实现存在推断架构已接受。没有 `case_fact_gap` 时使用 standalone 模式。
+
 ## 核心结构
 
 ```
@@ -93,7 +97,7 @@ tech/
 
 ### 最终输出：document_scope（每次调用结束前必须输出）
 
-本 Skill 的**唯一 Output Contract** 是 `document_scope`：调用方据此知道本次在 `arckit/tech/` 下涉及了哪些文件，以及每项的一句话总结。
+本 Skill 必须输出 `document_scope`；同时按 Case Fact Contract 输出 `fact_result`。managed-case 模式的 `fact_result` 是 Controller 可接受的技术事实 claim，standalone 模式只描述本次事实影响。
 
 **查询结束时**（只读，无写操作）：
 ```yaml

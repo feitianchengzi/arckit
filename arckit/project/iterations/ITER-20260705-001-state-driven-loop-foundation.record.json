@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-07-25T13:44:55.000Z",
+  "updated_at": "2026-07-26T19:20:08.209Z",
   "iteration_goal": "将 Arckit 状态机制从记录型账本升级为可驱动真实软件项目开发 loop 的项目完整性状态与迭代状态控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "target_state_delta": [
@@ -25,7 +25,7 @@
       "to_state": "verified",
       "reason": "project-state 脚本新增 migrate/render，并默认使用 state.record.json。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
         "arckit/project/state.record.json"
       ]
     },
@@ -35,7 +35,7 @@
       "to_state": "designed",
       "reason": "把项目状态重新定义为全局完整性状态控制面，支持状态驱动 loop。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/SKILL.md"
+        "entry/skills/arckit-development-ledger/SKILL.md"
       ]
     },
     {
@@ -44,8 +44,8 @@
       "to_state": "implemented",
       "reason": "将迭代状态管理放入 arckit/project 命名空间，并表达迭代级目标状态转移。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs"
+        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs"
       ]
     },
     {
@@ -54,9 +54,9 @@
       "to_state": "accepted",
       "reason": "完成本轮结构校验，并把真实复杂项目 loop 验证列为下一状态 gap。",
       "evidence": [
-        "node memory/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
-        "node memory/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
-        "node memory/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md"
+        "node entry/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
+        "node entry/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
+        "node entry/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md"
       ]
     }
   ],
@@ -80,7 +80,7 @@
       "evidence": [
         "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
         "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md",
-        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs"
+        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs"
       ]
     },
     {
@@ -100,7 +100,7 @@
       "to_state": "verified",
       "reason": "project-state 脚本新增 migrate/render，并默认使用 state.record.json。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
         "arckit/project/state.record.json"
       ]
     },
@@ -110,7 +110,7 @@
       "to_state": "designed",
       "reason": "development-ledger 的职责、维度、状态语言和 loop 控制语义已重写。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/SKILL.md"
+        "entry/skills/arckit-development-ledger/SKILL.md"
       ]
     },
     {
@@ -119,8 +119,8 @@
       "to_state": "implemented",
       "reason": "增加 iteration state schema、project-iteration 脚本和当前迭代记录。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
         "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md"
       ]
     },
@@ -130,9 +130,9 @@
       "to_state": "verified",
       "reason": "project state、iteration state、case record 和 ledger scripts 已通过结构校验。",
       "evidence": [
-        "node memory/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
-        "node memory/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
-        "node memory/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md"
+        "node entry/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
+        "node entry/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
+        "node entry/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md"
       ]
     },
     {
@@ -141,11 +141,11 @@
       "to_state": "verified",
       "reason": "project-state v2、iteration-state v1、脚本和当前项目状态样例已落地并通过校验。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-        "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
         "arckit/project/STATE.md",
-        "node --check memory/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "node --check memory/skills/arckit-development-ledger/scripts/project-iteration.mjs"
+        "node --check entry/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "node --check entry/skills/arckit-development-ledger/scripts/project-iteration.mjs"
       ]
     },
     {
@@ -166,7 +166,7 @@
       "to_state": "implemented",
       "reason": "demo 验证发现 ITERATIONS.md 不由 new 自动生成；已修复 project-iteration new/migrate 自动刷新索引，并由 audit 检查索引缺失或漂移。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
         "../arckit-demo/arckit/project/ITERATIONS.md",
         "node /Users/Glare/.codex/skills/arckit-development-ledger/scripts/project-iteration.mjs audit"
       ]
@@ -300,8 +300,8 @@
         "runtime/arckit-runtime/desktop/renderer/renderer.js",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
         "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
         "npm run check"
       ]
@@ -343,9 +343,23 @@
         "runtime/arckit-runtime/src/project-initializer.mjs",
         "npm run check",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json"
+      ]
+    },
+    {
+      "dimension": "product_behavior",
+      "from_state": "designed",
+      "to_state": "implemented",
+      "reason": "Project/Case/Loop separation, unordered Case candidate-gap selection, definition completeness, and equivalent human/Runtime transition semantics are implemented and locally verified.",
+      "evidence": [
+        "arckit/spec/agentic-software-development/product-concepts.md",
+        "entry/skills/using-arckit/SKILL.md",
+        "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
+        "runtime/arckit-runtime/src/loop-controller.mjs",
+        "runtime/arckit-runtime/test/case-transition.test.mjs",
+        "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md"
       ]
     }
   ],
@@ -376,8 +390,8 @@
       "runtime/arckit-runtime/desktop/renderer/renderer.js",
       "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
       "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-      "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-      "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+      "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+      "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
       "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
       "npm run check",
       "runtime/arckit-runtime/desktop/renderer/styles.css",
@@ -385,7 +399,7 @@
       "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
       "node --input-type=module -e detail smoke",
       "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
-      "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
+      "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
       "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
       "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json"
     ],
@@ -401,28 +415,18 @@
     "arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md",
     "arckit/cases/closed/CASE-20260705-003-extract-project-state-record-json.md",
     "arckit/cases/closed/CASE-20260705-004-refine-generated-state-decision-briefs.md",
-    "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md"
+    "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md",
+    "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md",
+    "arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md",
+    "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md"
   ],
   "close_condition": "当状态机制通过结构校验，并至少经过一次真实复杂项目的 state gap -> case -> verification -> state delta 闭环验证后关闭本迭代。",
   "last_iteration_delta": {
-    "changed": [
-      "retained_skill_set",
-      "runtime_capability_policy",
-      "capability_manifests",
-      "current_documentation"
-    ],
-    "deferred": [
-      "real Codex worker done/gate/write"
-    ],
+    "changed": [],
     "blocked": [],
-    "evidence": [
-      "npm run check",
-      "runtime/arckit-runtime/test/capability-registry.test.mjs",
-      "runtime/arckit-runtime/config/capability-policy.json",
-      "arckit/spec/arckit-skill-system.md"
-    ],
-    "updated_at": "2026-07-25T13:44:55.000Z",
-    "next_iteration_focus": "Run real Desktop-started Codex app-server agentic worker loop and write ledger after done/gate."
+    "deferred": [],
+    "next_iteration_focus": "",
+    "updated_at": "2026-07-26T19:20:08.209Z"
   },
   "current_focus": "Runtime/Desktop agentic worker loop implemented; next validate real Codex worker done/gate/write.",
   "loop_control": {

@@ -294,8 +294,9 @@ export function createDesktopRunManager({
         project,
         has_arckit_state: false,
         summary: null,
-        top_gap: null,
-        loop_control: null,
+        project_gaps: [],
+        case_control: null,
+        case_state: null,
         dimensions: [],
         active_cases: [],
         cases_index_excerpt: ""
@@ -316,6 +317,12 @@ export function createDesktopRunManager({
       .filter((dimension) => dimension.priority && dimension.priority !== "none")
       .slice(0, 8);
 
+    const selectedCaseRef = projectState.case_control?.selected_case_ref || "";
+    const selectedCasePath = selectedCaseRef ? join(project.path, selectedCaseRef) : "";
+    const caseState = selectedCasePath && existsSync(selectedCasePath)
+      ? parseCaseRecord(await readFile(selectedCasePath, "utf8"))
+      : null;
+
     return {
       project,
       has_arckit_state: true,
@@ -324,14 +331,20 @@ export function createDesktopRunManager({
         phase: projectState.project?.current_phase || "",
         status: projectState.project?.status || ""
       },
-      top_gap: gaps[0] || null,
-      loop_control: projectState.loop_control || null,
+      project_gaps: gaps,
+      case_control: projectState.case_control || null,
+      case_state: caseState,
       dimensions,
       active_cases: projectState.active_case_refs || [],
       cases_index_excerpt: existsSync(caseIndexPath)
         ? (await readFile(caseIndexPath, "utf8")).split("\n").slice(0, 24).join("\n")
         : ""
     };
+  }
+
+  function parseCaseRecord(text) {
+    const match = text.match(/## Structured Record[\s\S]*?```json\s*\n([\s\S]*?)\n```/);
+    return match ? JSON.parse(match[1]) : null;
   }
 
   async function startRun(input) {
@@ -373,6 +386,8 @@ export function createDesktopRunManager({
       codex_proxy_url: store.settings?.codex_proxy?.enabled ? store.settings?.codex_proxy?.url || "" : "",
       auto_continue_from_run_id: input.autoContinueFromRunId || "",
       auto_continue_depth: Number(input.autoContinueDepth || 0),
+      auto_no_progress_streak: Number(input.autoNoProgressStreak || 0),
+      max_auto_rounds: nonNegativeInteger(input.maxAutoRounds ?? sourceRun?.max_auto_rounds, 8),
       status: "running",
       started_at: new Date().toISOString(),
       finished_at: "",
@@ -420,6 +435,7 @@ export function createDesktopRunManager({
     if (run.task) {
       args.push("--task", run.task);
     }
+    args.push("--max-auto-rounds", String(run.max_auto_rounds));
     args.push("--stream-events");
     if (input.dryRun) {
       args.push("--dry-run");
@@ -809,14 +825,16 @@ export function createDesktopRunManager({
 
   async function maybeStartAutoContinue(sourceRun, parsedResult) {
     const runtimeResult = parsedResult?.runtime_result || null;
-    const handoff = runtimeResult?.loop_handoff || {};
+    const ledgerHandoff = sourceRun.activity?.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff || null;
+    const handoff = ledgerHandoff || runtimeResult?.loop_handoff || {};
     const progressGuard = handoff.progress_guard || {};
     const currentDepth = Number(sourceRun.auto_continue_depth || 0);
-    const maxAutoRounds = nonNegativeInteger(progressGuard.max_auto_rounds, 0);
-    const noProgressLimit = nonNegativeInteger(progressGuard.no_progress_limit, maxAutoRounds);
-    const autoRoundLimit = Math.min(maxAutoRounds, noProgressLimit);
+    const maxAutoRounds = nonNegativeInteger(sourceRun.max_auto_rounds, nonNegativeInteger(progressGuard.max_auto_rounds, 0));
+    const noProgressLimit = nonNegativeInteger(progressGuard.no_progress_limit, 2);
     const ledgerWriteRequired = runtimeResult?.ledger_stage?.writeback_required === true;
     const ledgerWritten = sourceRun.activity?.ledger_write_result?.parsed?.written === true;
+    const currentNoProgressStreak = nonNegativeInteger(sourceRun.auto_no_progress_streak, 0);
+    const nextNoProgressStreak = ledgerWritten ? 0 : currentNoProgressStreak + 1;
     if (sourceRun.status !== "completed"
       || sourceRun.adapter === "dry-run"
       || parsedResult?.validation?.valid === false
@@ -826,7 +844,8 @@ export function createDesktopRunManager({
       || handoff.agent_continuation_available !== true
       || handoff.human_decision_required === true
       || !handoff.next_prompt
-      || autoRoundLimit <= currentDepth) {
+      || maxAutoRounds <= currentDepth
+      || nextNoProgressStreak >= noProgressLimit) {
       return null;
     }
     for (const active of activeRuns.values()) {
@@ -874,7 +893,9 @@ export function createDesktopRunManager({
       adapter: sourceRun.adapter,
       approvalPolicy: "on-request",
       autoContinueFromRunId: sourceRun.id,
-      autoContinueDepth: currentDepth + 1
+      autoContinueDepth: currentDepth + 1,
+      autoNoProgressStreak: nextNoProgressStreak,
+      maxAutoRounds
     });
     emit("run.auto_continue.started", {
       sourceRunId: sourceRun.id,

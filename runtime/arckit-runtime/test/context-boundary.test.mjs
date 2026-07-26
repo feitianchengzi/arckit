@@ -48,9 +48,9 @@ test("desktop operator event summarizes prior activity instead of embedding raw 
       }
     },
     projectStatus: {
-      loop_control: {
-        next_transition: rawOperatorTask,
-        continuation_prompt: rawOperatorTask
+      case_control: {
+        next_case_intent: rawOperatorTask,
+        selection_reason: rawOperatorTask
       }
     },
     latestNextPrompt: "继续下一轮"
@@ -58,16 +58,16 @@ test("desktop operator event summarizes prior activity instead of embedding raw 
 
   assert.equal(event.controller_context.controller_frame.round_goal, "");
   assert.equal(event.controller_context.loop_handoff.next_prompt, "");
-  assert.equal(event.project_loop_control.next_transition, "");
+  assert.equal(event.project_case_control.next_case_intent, "");
   assert.equal(event.source_run.id, "RUN-1");
 });
 
-test("polluted loop control does not become the next round goal", () => {
+test("polluted Project case control does not become the next Case round goal", () => {
   const snapshot = {
     projectState: {
       state_gaps: [],
-      loop_control: {
-        next_transition: rawOperatorTask
+      case_control: {
+        next_case_intent: rawOperatorTask
       }
     },
     paths: {
@@ -78,17 +78,14 @@ test("polluted loop control does not become the next round goal", () => {
   };
   const round = selectNextRound(snapshot, {});
   assert.ok(!round.round_goal.includes("arckit-desktop-operator-event/v1"));
-  assert.equal(round.loop_control.next_transition, "");
+  assert.equal(round.case_control.next_case_intent, "");
 });
 
 test("loop frame and worker task keep raw operator task out of semantic fields", () => {
   const snapshot = {
     projectState: {
       active_case_refs: ["arckit/cases/active/CASE-1.md"],
-      loop_control: {
-        next_responsibility: "agent",
-        trigger_mode: "manual_bridge"
-      }
+      case_control: { selected_case_ref: "arckit/cases/active/CASE-20260726-001.md" }
     },
     summary: {
       project_name: "demo",
@@ -100,11 +97,11 @@ test("loop frame and worker task keep raw operator task out of semantic fields",
     round_goal: "实现并验证双模式任务管理应用。",
     conversation_locale: "zh-Hans",
     gap_id: "AGENT-SELECTED",
-    dimension: "agent_selected",
+    scope: "case",
+    case_id: "CASE-20260726-001",
+    facet: "implementation_state",
     current_state: "unknown",
     target_state: "defined",
-    urgency: "medium",
-    risk: "medium",
     impact: "",
     required_context_refs: ["arckit/project/state.record.json"],
     stop_conditions: []
@@ -122,7 +119,7 @@ test("loop frame and worker task keep raw operator task out of semantic fields",
         next_prompt: "继续实现并验证。"
       },
       worker_intents: [
-        { worker_type: "implementation", role: "实现者", objective: "实现应用。", allowed_skills: [] }
+        { worker_type: "implementation", role: "实现者", objective: "实现应用。", allowed_skills: [], expected_case_impact: "推进 implementation_state。" }
       ]
     }
   });
@@ -143,8 +140,24 @@ test("runtime validator rejects raw operator event in handoff semantic fields", 
 
 function minimalRuntimeResult() {
   return {
-    schema_version: "arckit-runtime-result/v1",
+    schema_version: "arckit-runtime-result/v2",
     round_result: "continue",
+    round_outcome: { status: "completed", reason: "claims accepted" },
+    case_outcome: { status: "unresolved", reason: "more work", unresolved: ["verification_state"] },
+    project_impact: { status: "none", changes: [], evidence: [] },
+    case_transition: {
+      schema_version: "arckit-case-transition/v2",
+      case_id: "CASE-20260726-001",
+      case_updated_at: "2026-07-26T00:00:00.000Z",
+      selected_gap: { id: "CASE-20260726-001:implementation_state", facet: "implementation_state", responsibility: "agent", current_state: "unresolved", target_state: "resolved", next_transition: "继续实现并验证。", evidence_required: [] },
+      planned_transition: { goal: "继续实现并验证。", expected_state_change: "implementation_state unresolved -> resolved" },
+      accepted_state_delta: { facets: [], resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null },
+      evidence: ["test"],
+      unresolved: ["verification_state"],
+      round_outcome: "completed",
+      case_resolution: { claimed_status: "unresolved", reason: "more work" },
+      project_impact_candidate: { status: "none", changes: [], evidence: [] }
+    },
     round_state: "ledger_gate_ready",
     round_state_history: [],
     changed_files: ["arckit/project/state.record.json"],
@@ -199,7 +212,7 @@ function minimalRuntimeResult() {
     },
     validation_evidence: ["test"],
     loop_handoff: {
-      version: "loop-handoff/v1",
+      version: "loop-handoff/v2",
       status: "continue",
       next_responsibility: "agent",
       agent_continuation_available: true,

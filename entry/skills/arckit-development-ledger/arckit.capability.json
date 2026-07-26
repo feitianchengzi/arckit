@@ -7,19 +7,21 @@
   "invocation": {
     "type": "runtime_entrypoint",
     "skill_trigger": "$arckit-development-ledger",
-    "phases": ["project_initialization", "ledger_writeback"]
+    "phases": ["project_initialization", "case_transition", "ledger_writeback"]
   },
   "runtime_entrypoints": {
     "project_state": "scripts/project-state.mjs",
     "project_iteration": "scripts/project-iteration.mjs",
     "development_case": "scripts/development-case.mjs",
+    "case_transition": "scripts/case-transition.mjs",
     "writeback": "scripts/runtime-writeback.mjs"
   },
-  "summary": "Maintains project state, iteration state, development cases, audits, renders, and indexes.",
+  "summary": "Maintains macro Project State, bounded Case State, deterministic audits, and the shared human/Runtime Case transition commit path.",
   "input_facts": [
     "project_state_record",
     "iteration_state_record",
     "development_case_record",
+    "case_transition",
     "runtime_result",
     "merge_result"
   ],
@@ -28,7 +30,8 @@
     "case_audit",
     "ledger_write_plan",
     "updated_state",
-    "updated_case"
+    "updated_case",
+    "case_transition_result"
   ],
   "allowed_write_targets": [
     "arckit/project/**",
@@ -41,6 +44,8 @@
   ],
   "runtime_notes": [
     "Runtime must resolve and call the trusted entrypoints declared by this capability instead of maintaining copied ledger scripts.",
+    "Case transitions use optimistic revision binding and exact candidate-gap matching; stale Controller frames fail closed.",
+    "Case, Project, iteration, projections, and indexes are committed as one rollback-capable ledger operation.",
     "Runtime exposes ledger snapshots and references to Workers when needed; ordinary Workers must not bind this capability or write ledger state directly."
   ]
 }

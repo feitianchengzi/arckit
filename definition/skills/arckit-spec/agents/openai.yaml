@@ -1,7 +1,7 @@
 interface:
   display_name: "ArcKit Spec"
   short_description: "维护稳定产品行为、规则和验收口径"
-  default_prompt: "使用 $arckit-spec 查询、创建、更新或审计 arckit/spec 下的稳定产品预期事实。先读取 INDEX 并判断查询或变更；变更时先做域归属和体积分析，只接收用户、Controller worker report、稳定事实源或 external adapter 提供的明确材料。未确认内容保留在 active case 的 open_questions 或 pending_handoffs，需要人类判断时标记 human_decision_required。最终输出 document_scope。"
+  default_prompt: "使用 $arckit-spec 维护稳定产品预期事实。收到 case_fact_gap 时先读取共享 Case Fact Contract，在 managed-case 模式下允许规格先行、代码先行或混合推进，输出 document_scope 与 evidence-backed fact_result；不写 Case/Project State、不决定 Case 完成。无 gap 时使用 standalone 模式。"
 policy:
   allow_implicit_invocation: true
 workflow:
@@ -15,3 +15,4 @@ workflow:
     - "不依赖已移除 skill；开放问题和待处理 handoff 保留在 active case。"
   output:
     - "document_scope"
+    - "fact_result"

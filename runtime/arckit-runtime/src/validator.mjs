@@ -17,8 +17,28 @@ export function validateRuntimeResult(result) {
   const issues = [];
 
   requireObject(result, "result", issues);
-  requireEqual(result?.schema_version, "arckit-runtime-result/v1", "schema_version", issues);
+  requireEqual(result?.schema_version, "arckit-runtime-result/v2", "schema_version", issues);
   requireEnum(result?.round_result, ["done", "continue", "blocked", "needs_human", "external_wait"], "round_result", issues);
+  requireObject(result?.round_outcome, "round_outcome", issues);
+  requireEnum(result?.round_outcome?.status, ["completed", "partial", "blocked", "needs_human", "external_wait"], "round_outcome.status", issues);
+  requireString(result?.round_outcome?.reason, "round_outcome.reason", issues);
+  requireObject(result?.case_outcome, "case_outcome", issues);
+  requireEnum(result?.case_outcome?.status, ["unresolved", "resolved", "blocked"], "case_outcome.status", issues);
+  requireString(result?.case_outcome?.reason, "case_outcome.reason", issues);
+  requireArray(result?.case_outcome?.unresolved, "case_outcome.unresolved", issues);
+  requireObject(result?.project_impact, "project_impact", issues);
+  requireEnum(result?.project_impact?.status, ["none", "proposed", "accepted"], "project_impact.status", issues);
+  requireArray(result?.project_impact?.changes, "project_impact.changes", issues);
+  requireArray(result?.project_impact?.evidence, "project_impact.evidence", issues);
+  requireObject(result?.case_transition, "case_transition", issues);
+  requireEqual(result?.case_transition?.schema_version, "arckit-case-transition/v2", "case_transition.schema_version", issues);
+  requireString(result?.case_transition?.case_id, "case_transition.case_id", issues);
+  requireString(result?.case_transition?.case_updated_at, "case_transition.case_updated_at", issues);
+  requireObject(result?.case_transition?.selected_gap, "case_transition.selected_gap", issues);
+  requireObject(result?.case_transition?.planned_transition, "case_transition.planned_transition", issues);
+  requireObject(result?.case_transition?.accepted_state_delta, "case_transition.accepted_state_delta", issues);
+  requireArray(result?.case_transition?.evidence, "case_transition.evidence", issues);
+  requireArray(result?.case_transition?.unresolved, "case_transition.unresolved", issues);
   requireEnum(result?.round_state, [
     "planned",
     "authorized",
@@ -68,8 +88,8 @@ export function validateRuntimeResult(result) {
   requireString(result?.ledger_stage?.reason, "ledger_stage.reason", issues);
   requireArray(result?.validation_evidence, "validation_evidence", issues);
   requireObject(result?.loop_handoff, "loop_handoff", issues);
-  requireEqual(result?.loop_handoff?.version, "loop-handoff/v1", "loop_handoff.version", issues);
-  requireEnum(result?.loop_handoff?.status, ["continue", "done", "needs_human", "blocked", "deferred"], "loop_handoff.status", issues);
+  requireEqual(result?.loop_handoff?.version, "loop-handoff/v2", "loop_handoff.version", issues);
+  requireEnum(result?.loop_handoff?.status, ["continue", "done", "needs_human", "blocked", "external_wait"], "loop_handoff.status", issues);
   requireEnum(result?.loop_handoff?.next_responsibility, ["agent", "human", "external", "none"], "loop_handoff.next_responsibility", issues);
   requireBoolean(result?.loop_handoff?.agent_continuation_available, "loop_handoff.agent_continuation_available", issues);
   requireBoolean(result?.loop_handoff?.human_decision_required, "loop_handoff.human_decision_required", issues);

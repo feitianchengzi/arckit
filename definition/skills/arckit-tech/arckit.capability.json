@@ -8,12 +8,14 @@
   "input_facts": [
     "confirmed_technical_expectation",
     "implementation_evidence",
-    "validated_constraint"
+    "validated_constraint",
+    "case_fact_gap"
   ],
   "outputs": [
     "tech_update",
     "tech_audit",
-    "technical_contract"
+    "technical_contract",
+    "fact_result"
   ],
   "allowed_write_targets": [
     "arckit/tech/**"
@@ -24,6 +26,7 @@
     "release_authorization"
   ],
   "runtime_notes": [
-    "Use only for stable technical facts; keep unresolved tradeoffs in active-case open_questions and create a human gate when required."
+    "Managed-case mode accepts a technical_expectation Case gap and returns an evidence-backed fact_result; standalone mode remains available.",
+    "Use only for stable technical facts; keep unresolved tradeoffs in the active Case and never claim Case resolution."
   ]
 }

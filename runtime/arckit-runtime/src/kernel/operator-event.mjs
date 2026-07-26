@@ -59,8 +59,8 @@ export function buildDesktopOperatorEvent({
       ledger_write_result: summarizeLedgerWriteResult(activity?.ledger_write_result?.parsed),
       latest_next_prompt: latestNextPrompt
     },
-    project_loop_control: summarizeLoopControl(projectStatus?.loop_control),
-    project_top_gap: projectStatus?.top_gap || null
+    project_case_control: summarizeCaseControl(projectStatus?.case_control),
+    project_gaps: projectStatus?.project_gaps || []
   };
 }
 
@@ -128,7 +128,9 @@ function summarizeRoutePlan(routePlan) {
     selected_gap: routePlan.selected_gap
       ? {
         id: routePlan.selected_gap.id || "",
-        dimension: routePlan.selected_gap.dimension || "",
+        scope: routePlan.selected_gap.scope || "",
+        case_id: routePlan.selected_gap.case_id || "",
+        facet: routePlan.selected_gap.facet || "",
         current_state: compactText(routePlan.selected_gap.current_state || "", SEMANTIC_LIMITS.reason),
         target_state: compactText(routePlan.selected_gap.target_state || "", SEMANTIC_LIMITS.reason),
         next_transition: safeSemanticText(routePlan.selected_gap.next_transition || "", { maxLength: SEMANTIC_LIMITS.transition })
@@ -179,7 +181,7 @@ function summarizeLoopHandoff(handoff) {
     return null;
   }
   return {
-    version: handoff.version || "loop-handoff/v1",
+    version: handoff.version || "loop-handoff/v2",
     status: handoff.status || "",
     next_responsibility: handoff.next_responsibility || "",
     agent_continuation_available: handoff.agent_continuation_available === true,
@@ -228,20 +230,15 @@ function summarizeLedgerWriteResult(result) {
   };
 }
 
-function summarizeLoopControl(loopControl) {
-  if (!loopControl || typeof loopControl !== "object") {
+function summarizeCaseControl(caseControl) {
+  if (!caseControl || typeof caseControl !== "object") {
     return null;
   }
   return {
-    current_loop_focus: safeSemanticText(loopControl.current_loop_focus || "", { maxLength: SEMANTIC_LIMITS.transition }),
-    next_transition: safeSemanticText(loopControl.next_transition || "", { maxLength: SEMANTIC_LIMITS.transition }),
-    priority_basis: compactText(loopControl.priority_basis || "", SEMANTIC_LIMITS.reason),
-    stop_condition: compactText(loopControl.stop_condition || "", SEMANTIC_LIMITS.reason),
-    next_responsibility: loopControl.next_responsibility || "",
-    agent_continuation_available: loopControl.agent_continuation_available === true,
-    human_decision_required: loopControl.human_decision_required === true,
-    trigger_mode: loopControl.trigger_mode || "",
-    continuation_prompt: safeSemanticText(loopControl.continuation_prompt || "", { maxLength: SEMANTIC_LIMITS.nextPrompt }),
-    responsibility_reason: compactText(loopControl.responsibility_reason || "", SEMANTIC_LIMITS.reason)
+    selected_case_ref: caseControl.selected_case_ref || "",
+    selection_reason: compactText(caseControl.selection_reason || "", SEMANTIC_LIMITS.reason),
+    next_case_intent: safeSemanticText(caseControl.next_case_intent || "", { maxLength: SEMANTIC_LIMITS.transition }),
+    priority_basis: compactText(caseControl.priority_basis || "", SEMANTIC_LIMITS.reason),
+    stop_condition: compactText(caseControl.stop_condition || "", SEMANTIC_LIMITS.reason)
   };
 }

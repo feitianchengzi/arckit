@@ -3,51 +3,17 @@
   "$id": "https://arckit.local/schema/worker-report.schema.json",
   "title": "Arckit Worker Report",
   "type": "object",
-  "required": [
-    "schema_version",
-    "task_id",
-    "worker_type",
-    "role",
-    "status",
-    "summary",
-    "findings",
-    "evidence",
-    "changes",
-    "artifact_impacts",
-    "risks",
-    "unknowns",
-    "recommendation",
-    "requires_main_agent_decision",
-    "requires_human_decision"
-  ],
+  "required": ["schema_version", "task_id", "worker_type", "role", "status", "summary", "findings", "evidence", "changes", "artifact_impacts", "case_state_claims", "risks", "unknowns", "recommendation", "requires_main_agent_decision", "requires_human_decision"],
   "properties": {
-    "schema_version": { "type": "string", "const": "arckit-worker-report/v1" },
+    "schema_version": { "const": "arckit-worker-report/v2" },
     "task_id": { "type": "string" },
-    "worker_type": {
-      "type": "string",
-      "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"]
-    },
-    "role": {
-      "type": "string",
-      "minLength": 1
-    },
-    "status": {
-      "type": "string",
-      "enum": ["completed", "partial", "blocked", "failed", "invalid"]
-    },
+    "worker_type": { "type": "string", "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"] },
+    "role": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "enum": ["completed", "partial", "blocked", "failed", "invalid"] },
     "summary": { "type": "string" },
-    "findings": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "evidence": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
-    "changes": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
+    "findings": { "type": "array", "items": { "type": "string" } },
+    "evidence": { "type": "array", "items": { "type": "string" } },
+    "changes": { "type": "array", "items": { "type": "string" } },
     "artifact_impacts": {
       "type": "array",
       "items": {
@@ -55,28 +21,30 @@
         "required": ["artifact", "operation", "claim", "summary", "evidence"],
         "properties": {
           "artifact": { "type": "string" },
-          "operation": {
-            "type": "string",
-            "enum": ["created", "updated", "deleted", "read", "none"]
-          },
+          "operation": { "type": "string", "enum": ["created", "updated", "deleted", "read", "none"] },
           "claim": { "type": "string" },
           "summary": { "type": "string" },
-          "evidence": {
-            "type": "array",
-            "items": { "type": "string" }
-          }
+          "evidence": { "type": "array", "items": { "type": "string" } }
         },
         "additionalProperties": false
       }
     },
-    "risks": {
+    "case_state_claims": {
       "type": "array",
-      "items": { "type": "string" }
+      "items": {
+        "type": "object",
+        "required": ["facet", "set", "evidence", "unresolved"],
+        "properties": {
+          "facet": { "type": "string", "enum": ["product_expectation", "interaction_expectation", "visual_expectation", "technical_expectation", "implementation_state", "verification_state"] },
+          "set": { "type": "object", "minProperties": 1 },
+          "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "unresolved": { "type": "array", "items": { "type": "string" } }
+        },
+        "additionalProperties": false
+      }
     },
-    "unknowns": {
-      "type": "array",
-      "items": { "type": "string" }
-    },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "unknowns": { "type": "array", "items": { "type": "string" } },
     "recommendation": { "type": "string" },
     "requires_main_agent_decision": { "type": "boolean" },
     "requires_human_decision": { "type": "boolean" }

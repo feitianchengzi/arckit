@@ -8,12 +8,14 @@
   "input_facts": [
     "confirmed_product_expectation",
     "accepted_decision",
-    "validated_scenario"
+    "validated_scenario",
+    "case_fact_gap"
   ],
   "outputs": [
     "spec_update",
     "spec_audit",
-    "acceptance_criteria"
+    "acceptance_criteria",
+    "fact_result"
   ],
   "allowed_write_targets": [
     "arckit/spec/**"
@@ -24,6 +26,7 @@
     "visual_or_technical_fact_ownership"
   ],
   "runtime_notes": [
-    "Only use for stable product expectation facts; keep unknowns in the active case open_questions or pending_handoffs."
+    "Managed-case mode accepts a product_expectation Case gap and returns an evidence-backed fact_result; standalone mode remains available.",
+    "Only use for stable product expectation facts; keep unknowns in the active Case and never claim Case resolution."
   ]
 }

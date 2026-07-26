@@ -1,3 +1,26 @@
-display_name: ArcKit Development Ledger
-short_description: 维护 arckit/project 下的 canonical 项目/迭代状态、生成式 decision brief、arckit/cases 研发事项证据和可续轮 loop handoff。
-default_prompt: 使用 $arckit-development-ledger 创建、读取、迁移、渲染、校验、审计和更新目标项目的 project_state_record、STATE.md loop decision brief、iteration_state_record、iteration decision brief、development_case_record、state delta、completion audit、loop_handoff 和状态索引；*.record.json 是权威结构化状态，Markdown 是有损决策投影，不是追加日志或第二事实源。在 Arckit Runtime 内，本能力由 Runtime execution plane 使用：Runtime 保留 hard gate，但必须通过 manifest 声明的受信任 runtime_entrypoints 直接调用本 skill 的初始化、状态脚本和 semantic writeback，不得复制实现；本能力不得绑定到普通 Worker 的 allowed_skills，Worker 只能读取 packet 授权的状态快照或路径。每轮 closeout 必须先判断下一步职责归属 next_responsibility=agent|human|external|none，再判断触发方式 trigger_mode=manual_bridge|auto_bridge|user_decision|external_wait|none；manual_bridge 只表示当前缺少自动续轮机制、由人手动触发本应由 agent 继续的下一轮，不等于 human_decision_required。只有审美判断、商业取舍、产品确认、权限授权、破坏性操作确认或发布责任才写 next_responsibility=human 和 human_decision_required=true。agent 可继续时必须提供 next_prompt、agent_instruction、required_checks 和 progress_guard，便于人工桥或未来自动桥消费。
+interface:
+  display_name: "Arckit Development Ledger"
+  short_description: "确定性维护 Project/Case/Loop 状态与 transition"
+  default_prompt: "使用 $arckit-development-ledger 维护 project-state-record/v3 与 development-case-record/v3。Project 只管理宏观完整性和 Case 选择；Case 用 facets、content_revision 与 completion_review 管理 definition/implementation/verification 和最终收敛。人工与 Runtime 都通过 revision-bound arckit-case-transition/v2 写回；ledger 精确匹配 candidate gap，要求当前 revision 的错误/遗漏/多余三维 clean，复审上限耗尽则派生 human-only handoff，并以可回滚提交更新 records/projections。只在 Case resolved 后聚合显式 Project impact。"
+policy:
+  allow_implicit_invocation: true
+workflow:
+  first_steps:
+    - "读取 Project v3、selected Case v3 和 iteration。"
+    - "从 Case 派生无序 candidate gaps，由 Controller 选择；不从 Project dimension 或列表顺序直接派发 Loop。"
+    - "通过 trusted case_transition entrypoint 校验 revision 和完整 gap，再应用 accepted delta。"
+    - "Case resolved 后才聚合显式 Project impact。"
+    - "base_ready 后派生 completion review；修复 findings 提升 content revision，最后授权轮次仍不 clean 时转人工。"
+  boundaries:
+    - "Runtime 只能调用 manifest-declared trusted entrypoints，不能复制 ledger 语义。"
+    - "普通 Worker 不得直接写 ledger。"
+    - "不把 raw prompt、runtime event、skill 名或固定 workflow 写入状态。"
+    - "Case、Project、iteration 与 projections/index 任一步失败时恢复提交前状态。"
+    - "Agent 不得修改快照的初始复审预算；只有 human-responsibility transition 可追加有限轮次。"
+  output:
+    - "case_transition_result"
+    - "case_record_delta"
+    - "loop_handoff_delta"
+    - "project_state_delta"
+    - "iteration_state_delta"
+    - "ledger_validation"

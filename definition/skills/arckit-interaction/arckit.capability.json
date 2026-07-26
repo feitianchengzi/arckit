@@ -8,12 +8,14 @@
   "input_facts": [
     "confirmed_product_expectation",
     "confirmed_interaction_expectation",
-    "validated_scenario"
+    "validated_scenario",
+    "case_fact_gap"
   ],
   "outputs": [
     "interaction_update",
     "interaction_audit",
-    "interaction_acceptance_criteria"
+    "interaction_acceptance_criteria",
+    "fact_result"
   ],
   "allowed_write_targets": [
     "arckit/interaction/**"
@@ -24,6 +26,7 @@
     "technical_fact_ownership"
   ],
   "runtime_notes": [
-    "Use only for stable interaction expectation facts; keep unresolved exploration in the active case."
+    "Managed-case mode accepts an interaction_expectation Case gap and returns an evidence-backed fact_result; standalone mode remains available.",
+    "Use only for stable interaction expectation facts; keep unresolved exploration in the active Case and never claim Case resolution."
   ]
 }

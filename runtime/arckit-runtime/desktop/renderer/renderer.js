@@ -774,21 +774,34 @@ function renderProjectStatus() {
     els.stateGaps.innerHTML = `<div class="empty">First message will initialize a neutral recoverable state. The agent chooses the concrete route from the request and evidence.</div>`;
     return;
   }
-  const loop = status.loop_control || {};
-  const gap = status.top_gap || {};
+  const caseControl = status.case_control || {};
+  const caseState = status.case_state || {};
+  const caseResolution = caseState.case_resolution || {};
+  const completionReview = caseState.completion_review || {};
+  const reviewLimit = (completionReview.policy?.initial_max_cycles || 0) + (completionReview.additional_cycles_authorized || 0);
+  const openReviewFindings = (completionReview.findings || []).filter((finding) => finding.status === "open").length;
+  const candidateCaseGaps = caseResolution.candidate_gaps || [];
+  const selectedCaseGap = caseState.current_round?.selected_gap || null;
+  const roundState = normalizedActivity(run)?.round_state || run?.status || "Idle";
+  const projectGaps = status.project_gaps || [];
   els.loopState.innerHTML = [
-    stateLine("Project", project?.name || status.summary?.name || ""),
+    stateLine("Project", `${project?.name || status.summary?.name || ""} · ${status.summary?.status || ""}`),
+    stateLine("Project focus", caseControl.next_case_intent || (projectGaps.length ? `Select from ${projectGaps.length} Project gap candidates` : "No Project gap selected")),
+    stateLine("Case", caseState.id ? `${caseState.id} · ${caseResolution.stage || caseResolution.status || caseState.status || ""}` : "No selected Case"),
+    stateLine("Completion review", caseState.id ? `${completionReview.status || "pending"} · autonomous cycles ${completionReview.cycle_count || 0}/${reviewLimit || "-"} · content revision ${caseState.content_revision ?? "-"} · open findings ${openReviewFindings}` : "No selected Case"),
+    stateLine("Case gaps", selectedCaseGap?.next_transition || (candidateCaseGaps.length ? `${candidateCaseGaps.length} candidates · Controller selects from evidence` : "No unresolved Case gap")),
+    stateLine("Round", roundState),
     stateLine("Chat", session?.title || "No chat"),
     stateLine("Run", run ? `${run.status || "-"} · ${run.adapter || ""}` : "Idle"),
     stateLine("Control", `${controlState.state || "-"}${controlState.primary_label ? ` · ${controlState.primary_label}` : ""}`),
-    stateLine("Next", latestNextPrompt() || loop.next_transition || gap.next_transition || "Waiting for input")
+    stateLine("Next", latestNextPrompt() || caseResolution.loop_handoff?.next_prompt || (candidateCaseGaps.length ? `Select one of ${candidateCaseGaps.length} Case candidate gaps` : "Waiting for input"))
   ].join("");
 
   const signals = [];
-  if (gap.id || gap.next_transition || gap.impact) {
+  for (const gap of projectGaps.slice(0, 3)) {
     signals.push(`
       <div class="state-item top-gap-item">
-        <div class="state-title">${escapeHtml(gap.id || "Current state signal")}</div>
+        <div class="state-title">${escapeHtml(gap.id || "Project gap candidate")}</div>
         <div class="state-meta">${escapeHtml([gap.current_state, gap.target_state].filter(Boolean).join(" -> "))}${gap.urgency ? ` · ${escapeHtml(gap.urgency)}` : ""}</div>
         <div class="state-meta">${escapeHtml(gap.next_transition || gap.impact || "")}</div>
       </div>
@@ -1083,7 +1096,7 @@ function renderCodexOutputSection(text, reports = [], activity = {}) {
 function looksLikeWorkerReportStream(text) {
   return typeof text === "string"
     && (
-      text.includes("arckit-worker-report/v1")
+      text.includes("arckit-worker-report/v2")
       || text.includes("\"task_id\":\"TASK-")
       || text.includes("\"requires_main_agent_decision\"")
     );
@@ -1092,7 +1105,7 @@ function looksLikeWorkerReportStream(text) {
 function looksLikeStructuredControllerStream(text) {
   return typeof text === "string"
     && (
-      text.includes("arckit-controller-plan/v1")
+      text.includes("arckit-controller-plan/v2")
       || text.includes("arckit-desktop-operator-event/v1")
       || text.includes("\"route_plan\"")
       || text.includes("\"worker_intents\"")
@@ -1156,7 +1169,7 @@ function parseWorkerReportsFromText(text) {
     return [];
   }
   return parseJsonObjectsFromText(text)
-    .filter((item) => item?.schema_version === "arckit-worker-report/v1");
+    .filter((item) => item?.schema_version === "arckit-worker-report/v2");
 }
 
 function parseJsonObjectsFromText(text) {
@@ -1699,7 +1712,7 @@ function latestNextPrompt() {
   const activity = normalizedActivity(run);
   return activity?.loop_handoff?.next_prompt
     || activity?.merge_result?.next_prompt
-    || state.projectStatus?.loop_control?.continuation_prompt
+    || state.projectStatus?.case_state?.case_resolution?.loop_handoff?.next_prompt
     || "";
 }
 

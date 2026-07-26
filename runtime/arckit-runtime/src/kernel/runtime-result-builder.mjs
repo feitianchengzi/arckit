@@ -1,61 +1,66 @@
-import { buildArtifactOwnershipScan, createArtifactImpactScan } from "../artifact-ownership-map.mjs";
-import { stateFromLoopGate } from "../round-state-machine.mjs";
-import { firstSafeSemanticText, SEMANTIC_LIMITS } from "../context-boundary.mjs";
+import { buildArtifactOwnershipScan, createArtifactImpactScan } from '../artifact-ownership-map.mjs';
+import { stateFromLoopGate } from '../round-state-machine.mjs';
+import { firstSafeSemanticText, SEMANTIC_LIMITS } from '../context-boundary.mjs';
 
 export function stateFromMergeResult(mergeResult) {
-  return shouldPrepareLedgerWriteback(mergeResult)
-    ? "ledger_gate_ready"
-    : stateFromLoopGate(mergeResult.loop_gate);
+  return shouldPrepareLedgerWriteback(mergeResult) ? 'ledger_gate_ready' : stateFromLoopGate(mergeResult.loop_gate);
 }
 
 export function shouldPrepareLedgerWriteback(mergeResult) {
-  if (mergeResult.loop_gate.status === "done") {
-    return true;
-  }
-  if (mergeResult.loop_gate.status !== "continue") {
-    return false;
-  }
-  const reportIntake = mergeResult.report_intake || {};
-  const unresolved = [
-    ...(reportIntake.rejected || []),
-    ...(reportIntake.needs_revision || []),
-    ...(reportIntake.needs_human_decision || []),
-    ...(reportIntake.missing || [])
+  const review = mergeResult.controller_reducer_result?.controller_review;
+  if (!review || mergeResult.controller_reducer_result?.controller_review_failure_reason) return false;
+  const intake = mergeResult.report_intake || {};
+  const unresolvedReports = [
+    ...(intake.rejected || []),
+    ...(intake.needs_revision || []),
+    ...(intake.missing || []),
   ];
-  if (unresolved.length > 0) {
-    return false;
-  }
-  const ownership = mergeResult.artifact_ownership_scan || {};
-  return [
-    ...(ownership.source_facts_changed || []),
-    ...(ownership.pending_items || []),
-    ...(ownership.runtime_logs || [])
-  ].length > 0;
+  if (unresolvedReports.length) return false;
+  const delta = review.accepted_case_state_delta || {};
+  return (delta.facets || []).length > 0
+    || (delta.resolved_open_questions || []).length > 0
+    || (delta.completed_handoffs || []).length > 0
+    || delta.completion_review_result != null
+    || (delta.resolved_review_findings || []).length > 0
+    || delta.review_budget_extension != null;
 }
 
 export function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, round, compiledPrompt, dryRun, roundState }) {
-  const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || compiledPrompt.conversation_locale || "en";
-  const loopDone = mergeResult.loop_gate.status === "done";
-  const loopBlocked = mergeResult.loop_gate.status === "blocked";
-  const needsHuman = mergeResult.loop_gate.human_decision_required === true;
-  const ledgerWritebackReady = shouldPrepareLedgerWriteback(mergeResult);
-  const progressWriteback = ledgerWritebackReady && !loopDone;
-  const autoContinuationEligible = shouldAutoContinueAfterRound({ mergeResult, dryRun, loopDone, needsHuman });
-  const roundResult = loopDone ? "done" : needsHuman ? "needs_human" : loopBlocked ? "blocked" : "continue";
-  const handoffStatus = loopDone ? "done" : needsHuman ? "needs_human" : loopBlocked ? "blocked" : "continue";
-  const runModeText = dryRun
-    ? t(conversationLocale, "controller preview", "Controller 预览")
-    : t(conversationLocale, "execution", "执行");
-  const summary = [
-    t(conversationLocale, `Agentic loop ${runModeText} completed with ${reports.length} worker reports.`, `Agentic loop ${runModeText}已完成，收到 ${reports.length} 个 worker reports。`),
-    t(conversationLocale, `Merge decision: ${mergeResult.decision}.`, `合并决策：${mergeResult.decision}。`),
-    mergeResult.loop_gate.reason
-  ].join(" ");
+  const locale = loopFrame.conversation_locale || round.conversation_locale || compiledPrompt.conversation_locale || 'en';
+  const review = mergeResult.controller_reducer_result?.controller_review || null;
+  const ledgerReady = !dryRun && shouldPrepareLedgerWriteback(mergeResult);
+  const roundOutcome = deriveRoundOutcome(mergeResult, reports, dryRun);
+  const caseOutcome = review?.case_resolution || {
+    claimed_status: 'blocked',
+    reason: mergeResult.loop_gate.reason || 'Controller review did not produce a Case outcome.',
+    unresolved: ['controller_review'],
+  };
+  const projectImpact = review?.project_impact_candidate || { status: 'none', changes: [], evidence: [] };
   const continuation = deriveContinuationFields({ mergeResult, loopFrame, round });
+  const loopHandoff = buildLoopHandoff({ caseOutcome, review, continuation, round, ledgerReady, locale });
+  const caseTransition = buildCaseTransition({ loopFrame, round, review, mergeResult, roundOutcome, caseOutcome, projectImpact });
+  const roundResult = caseOutcome.claimed_status === 'resolved'
+    ? 'done'
+    : loopHandoff.next_responsibility === 'human'
+      ? 'needs_human'
+      : loopHandoff.next_responsibility === 'external'
+        ? 'external_wait'
+        : caseOutcome.claimed_status === 'blocked'
+          ? 'blocked'
+          : 'continue';
+  const summary = [
+    t(locale, `Round outcome: ${roundOutcome.status}.`, `本轮结果：${roundOutcome.status}。`),
+    t(locale, `Case outcome claim: ${caseOutcome.claimed_status}.`, `Case 结果声明：${caseOutcome.claimed_status}。`),
+    mergeResult.loop_gate.reason,
+  ].filter(Boolean).join(' ');
 
   return {
-    schema_version: "arckit-runtime-result/v1",
+    schema_version: 'arckit-runtime-result/v2',
     round_result: roundResult,
+    round_outcome: { status: roundOutcome.status, reason: roundOutcome.reason },
+    case_outcome: { status: caseOutcome.claimed_status, reason: caseOutcome.reason, unresolved: caseOutcome.unresolved || [] },
+    project_impact: projectImpact,
+    case_transition: caseTransition,
     round_state: roundState?.state || stateFromLoopGate(mergeResult.loop_gate),
     round_state_history: Array.isArray(roundState?.history) ? roundState.history : [],
     summary,
@@ -70,121 +75,108 @@ export function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, 
     worker_packets: loopFrame.worker_packets,
     report_intake: mergeResult.report_intake,
     ledger_stage: {
-      schema_version: "arckit-ledger-stage/v1",
-      status: ledgerWritebackReady ? "gate_ready" : needsHuman ? "human_blocked" : loopBlocked ? "blocked" : "not_ready",
-      gate_required: ledgerWritebackReady,
-      writeback_required: ledgerWritebackReady,
-      reason: loopDone
-        ? t(conversationLocale, "Runtime result is eligible for deterministic ledger gate evaluation.", "Runtime result 可以进入确定性 ledger gate。")
-        : progressWriteback
-          ? t(conversationLocale, "Runtime result has validated progress that must be written before the next round.", "Runtime result 已产生经过验证的阶段进展，进入下一轮前必须先写回 ledger。")
-          : mergeResult.loop_gate.reason
+      schema_version: 'arckit-ledger-stage/v1',
+      status: ledgerReady ? 'gate_ready' : dryRun ? 'not_ready' : loopHandoff.next_responsibility === 'human' ? 'human_blocked' : 'blocked',
+      gate_required: ledgerReady,
+      writeback_required: ledgerReady,
+      reason: ledgerReady
+        ? t(locale, 'Controller accepted an evidence-backed Case transition for deterministic ledger application.', 'Controller 已接受有证据支持的 Case transition，可进入确定性 ledger 写回。')
+        : mergeResult.loop_gate.reason,
     },
     validation_evidence: unique([
       ...mergeResult.evidence,
-      "runtime/arckit-runtime/schemas/worker-packet.schema.json",
-      "runtime/arckit-runtime/schemas/worker-report.schema.json",
-      "runtime/arckit-runtime/schemas/controller-plan.schema.json",
-      "runtime/arckit-runtime/schemas/controller-review.schema.json",
-      compiledPrompt.output_schema
+      'runtime/arckit-runtime/schemas/worker-packet.schema.json',
+      'runtime/arckit-runtime/schemas/worker-report.schema.json',
+      'runtime/arckit-runtime/schemas/controller-plan.schema.json',
+      'runtime/arckit-runtime/schemas/controller-review.schema.json',
+      compiledPrompt.output_schema,
     ]),
-    loop_handoff: {
-      version: "loop-handoff/v1",
-      status: handoffStatus,
-      next_responsibility: loopDone ? "none" : needsHuman ? "human" : "agent",
-      agent_continuation_available: !loopDone && !needsHuman,
-      human_decision_required: needsHuman,
-      trigger_mode: loopDone ? "none" : needsHuman ? "user_decision" : autoContinuationEligible ? "auto_bridge" : "manual_bridge",
-      responsibility_reason: mergeResult.loop_gate.reason,
-      next_prompt: continuation.next_prompt,
-      agent_instruction: {
-        goal: loopDone ? t(conversationLocale, "No continuation required.", "无需继续。") : continuation.goal,
-        required_context_refs: round.required_context_refs,
-        required_actions: loopDone
-          ? []
-          : needsHuman
-            ? [
-              t(conversationLocale, "Review worker reports that require a main-agent or human decision.", "审核需要主 Agent 或人类决策的 worker reports。"),
-              t(conversationLocale, "Decide whether to continue, narrow scope, or change project facts before the next runtime round.", "在下一轮 runtime round 前，决定是继续、收窄范围，还是变更项目事实。")
-            ]
-            : progressWriteback
-              ? [
-                t(conversationLocale, "Write this validated progress to the project ledger before starting the next round.", "进入下一轮前，先把本轮经过验证的阶段进展写回项目 ledger。"),
-                t(conversationLocale, "Keep the active case open and continue from the ledger handoff after writeback.", "保持 active case 打开，并在写回后按 ledger handoff 继续。")
-              ]
-              : [
-                t(conversationLocale, "Authorize execution or return worker reports to the Arckit Controller.", "授权执行，或把 worker reports 返回给 Arckit Controller。"),
-                t(conversationLocale, "Resolve blocked, partial, or unknown worker report items.", "解决 blocked、partial 或 unknown 的 worker report 项。"),
-                t(conversationLocale, "Return structured reports and a validated runtime result.", "返回结构化 reports 和通过验证的 runtime result。")
-              ],
-        required_checks: [
-          "worker_reports",
-          "merge_result",
-          "source_projection_check",
-          "loop_handoff"
-        ],
-        stop_condition: round.stop_conditions.join(" ")
-      },
-      human_gate: {
-        required: needsHuman,
-        reason: needsHuman ? mergeResult.loop_gate.reason : "",
-        decision_needed: needsHuman ? t(conversationLocale, "Resolve worker report recommendations that require main-agent decision.", "处理需要主 Agent 决策的 worker report 建议。") : ""
-      },
-      progress_guard: {
-        expected_state_change: continuation.state_transition,
-        actual_state_change: loopDone ? summary : t(conversationLocale, "Agentic loop produced reports but did not close the round.", "Agentic loop 已生成 reports，但本轮尚未关闭。"),
-        no_progress_limit: 1,
-        max_auto_rounds: 1
-      }
-    }
+    loop_handoff: loopHandoff,
   };
 }
 
-function shouldAutoContinueAfterRound({ mergeResult, dryRun, loopDone, needsHuman }) {
-  if (dryRun || loopDone || needsHuman) {
-    return false;
-  }
-  if (mergeResult.loop_gate.status !== "continue" || mergeResult.loop_gate.next_responsibility !== "agent") {
-    return false;
-  }
-  const intake = mergeResult.report_intake || {};
-  const unresolved = [
-    ...(intake.rejected || []),
-    ...(intake.needs_revision || []),
-    ...(intake.needs_human_decision || []),
-    ...(intake.missing || [])
-  ];
-  return unresolved.length === 0;
+function deriveRoundOutcome(mergeResult, reports, dryRun) {
+  if (dryRun) return { status: 'partial', reason: 'Preview produced no executed Case transition.' };
+  if (mergeResult.loop_gate.status === 'blocked') return { status: 'blocked', reason: mergeResult.loop_gate.reason };
+  if (mergeResult.loop_gate.status === 'needs_human') return { status: 'needs_human', reason: mergeResult.loop_gate.reason };
+  if (mergeResult.loop_gate.status === 'external_wait') return { status: 'external_wait', reason: mergeResult.loop_gate.reason };
+  const partial = reports.some((report) => report.status !== 'completed');
+  return { status: partial ? 'partial' : 'completed', reason: mergeResult.loop_gate.reason };
+}
+
+function buildCaseTransition({ loopFrame, round, review, mergeResult, roundOutcome, caseOutcome, projectImpact }) {
+  const selected = loopFrame.controller_frame?.route_plan?.selected_gap || loopFrame.selected_gap || {};
+  const plan = loopFrame.controller_frame?.controller_plan?.planned_transition || {
+    goal: round.round_goal,
+    expected_state_change: selected.next_transition || round.next_transition || round.round_goal,
+  };
+  return {
+    schema_version: 'arckit-case-transition/v2',
+    case_id: selected.case_id || loopFrame.case_id || '',
+    case_updated_at: loopFrame.case_updated_at || '',
+    selected_gap: {
+      id: selected.id || round.gap_id || '',
+      facet: selected.facet || round.facet || '',
+      responsibility: selected.responsibility || 'agent',
+      current_state: selected.current_state || round.current_state || '',
+      target_state: selected.target_state || round.target_state || '',
+      next_transition: selected.next_transition || round.next_transition || plan.expected_state_change,
+      evidence_required: ['accepted Worker evidence', 'Controller closeout judgment'],
+    },
+    planned_transition: plan,
+    accepted_state_delta: review?.accepted_case_state_delta || { facets: [], resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null },
+    evidence: unique(mergeResult.evidence),
+    unresolved: caseOutcome.unresolved || [],
+    round_outcome: roundOutcome.status,
+    case_resolution: { claimed_status: caseOutcome.claimed_status, reason: caseOutcome.reason },
+    project_impact_candidate: projectImpact,
+  };
+}
+
+function buildLoopHandoff({ caseOutcome, review, continuation, round, ledgerReady, locale }) {
+  const resolved = caseOutcome.claimed_status === 'resolved';
+  const external = review?.status === 'external_wait';
+  const needsHuman = review?.human_decision_required === true || review?.status === 'needs_human';
+  const blocked = caseOutcome.claimed_status === 'blocked' || review?.status === 'blocked';
+  const responsibility = resolved ? 'none' : external ? 'external' : needsHuman ? 'human' : 'agent';
+  return {
+    version: 'loop-handoff/v2',
+    status: resolved ? 'done' : external ? 'external_wait' : needsHuman ? 'needs_human' : blocked ? 'blocked' : 'continue',
+    next_responsibility: responsibility,
+    agent_continuation_available: responsibility === 'agent',
+    human_decision_required: responsibility === 'human',
+    trigger_mode: responsibility === 'none' ? 'none' : responsibility === 'human' ? 'user_decision' : responsibility === 'external' ? 'external_wait' : 'auto_bridge',
+    responsibility_reason: caseOutcome.reason || review?.summary || '',
+    next_prompt: responsibility === 'agent' ? continuation.next_prompt : '',
+    agent_instruction: {
+      goal: resolved ? t(locale, 'No continuation required.', '无需继续。') : continuation.goal,
+      required_context_refs: round.required_context_refs,
+      required_actions: responsibility === 'agent' ? [ledgerReady ? 'Apply the accepted Case transition, then select one transition from the newly derived candidate gaps.' : continuation.goal] : [],
+      required_checks: ['case_transition', 'derived case_resolution', 'loop_handoff'],
+      stop_condition: round.stop_conditions.join(' '),
+    },
+    human_gate: {
+      required: responsibility === 'human',
+      reason: responsibility === 'human' ? caseOutcome.reason : '',
+      decision_needed: responsibility === 'human' ? review?.next_prompt || continuation.goal : '',
+    },
+    progress_guard: {
+      expected_state_change: continuation.state_transition,
+      actual_state_change: ledgerReady ? 'Controller accepted a Case transition pending deterministic writeback.' : '',
+      no_progress_limit: 1,
+      max_auto_rounds: Number.isInteger(round.max_auto_rounds) ? round.max_auto_rounds : 8,
+    },
+  };
 }
 
 function deriveContinuationFields({ mergeResult, loopFrame, round }) {
   const reviewIntent = mergeResult.controller_reducer_result?.controller_review?.continuation_intent || {};
   const planIntent = loopFrame.controller_frame?.controller_plan?.continuation_intent || {};
-  const routeGap = loopFrame.controller_frame?.route_plan?.selected_gap || loopFrame.route_plan?.selected_gap || {};
-  const goal = firstSafeSemanticText([
-    reviewIntent.goal,
-    planIntent.goal,
-    routeGap.next_transition,
-    loopFrame.round_goal,
-    round.round_goal
-  ], { maxLength: SEMANTIC_LIMITS.goal, fallback: "Continue the active Arckit case from structured controller output and evidence refs." });
-  const stateTransition = firstSafeSemanticText([
-    reviewIntent.state_transition,
-    planIntent.state_transition,
-    routeGap.next_transition,
-    goal
-  ], { maxLength: SEMANTIC_LIMITS.transition, fallback: goal });
-  const nextPrompt = firstSafeSemanticText([
-    reviewIntent.next_prompt,
-    mergeResult.next_prompt,
-    planIntent.next_prompt,
-    stateTransition
-  ], { maxLength: SEMANTIC_LIMITS.nextPrompt, fallback: stateTransition });
-  return {
-    goal,
-    state_transition: stateTransition,
-    next_prompt: nextPrompt
-  };
+  const routeGap = loopFrame.controller_frame?.route_plan?.selected_gap || {};
+  const goal = firstSafeSemanticText([reviewIntent.goal, planIntent.goal, routeGap.next_transition, round.round_goal], { maxLength: SEMANTIC_LIMITS.goal, fallback: 'Inspect the selected Case candidate gaps and choose one bounded transition.' });
+  const stateTransition = firstSafeSemanticText([reviewIntent.state_transition, planIntent.state_transition, routeGap.next_transition, goal], { maxLength: SEMANTIC_LIMITS.transition, fallback: goal });
+  const nextPrompt = firstSafeSemanticText([reviewIntent.next_prompt, mergeResult.next_prompt, planIntent.next_prompt, stateTransition], { maxLength: SEMANTIC_LIMITS.nextPrompt, fallback: stateTransition });
+  return { goal, state_transition: stateTransition, next_prompt: nextPrompt };
 }
 
 function unique(values) {
@@ -192,5 +184,5 @@ function unique(values) {
 }
 
 function t(language, english, zhHans) {
-  return language === "zh-Hans" ? zhHans : english;
+  return language === 'zh-Hans' ? zhHans : english;
 }

@@ -9,13 +9,14 @@
     "skill_trigger": "$using-arckit",
     "phases": ["controller_plan", "controller_review"]
   },
-  "summary": "Turns a software-development input into a controller frame, execution gate, worker packets, report intake rules, closeout rules, and loop handoff. It does not execute work by itself; an executor must be explicitly authorized and bound.",
+  "summary": "Selects a Case and Case gap, plans one evidence-backed Case transition, accepts Worker claims, and separates round outcome, Case resolution, Project impact, and loop handoff across human or Runtime bridges.",
   "input_facts": [
     "user_message",
     "project_state",
     "active_case",
     "iteration_state",
     "loop_handoff",
+    "case_fact_gap",
     "capability_manifests",
     "operator_input",
     "worker_reports"
@@ -30,13 +31,16 @@
     "report_intake_rules",
     "closeout_rules",
     "source_projection_check",
-    "completion_audit",
-    "loop_handoff"
+    "round_outcome",
+    "case_resolution",
+    "project_impact_candidate",
+    "case_transition",
+    "loop_handoff_v2"
   ],
   "allowed_write_targets": [],
   "forbidden_decisions": [
     "ledger_writeback",
-    "case_closed",
+    "case_resolution_writeback",
     "human_gate_final",
     "executor_auto_binding_without_authorization",
     "worker_task_execution",
@@ -48,7 +52,11 @@
     "Default execution_gate.status is pending unless the user message, runtime authorization, auto-run policy, or external platform explicitly authorizes execution.",
     "When no automated executor is available, humans may manually copy worker packets to worker Agent chats and bring worker reports back to this Controller.",
     "The selected execution environment may automate worker creation, observation, merge, gates, or writeback, but the Controller semantics stay the same.",
-    "Do not hard-code per-round workflow routes, fixed worker order, or fixed skill sequences; bind allowed skills dynamically from capability manifests, packet goals, and evidence boundaries.",
+    "A valid plan may contain zero Worker intents when direct operator or stable-fact evidence is sufficient; Controller Review must identify that evidence before accepting a Case delta.",
+    "Project State selects a Case; the selected Case State exposes unordered candidate gaps for Controller selection; Runtime must not route Workers directly from a Project dimension or list order.",
+    "Do not hard-code per-round workflow routes, fixed worker order, or fixed skill sequences; bind allowed skills dynamically from Case gap, capability manifests, and evidence boundaries.",
+    "Every Case transition binds the expected Case updated_at revision and the complete selected candidate gap; each successful writeback requires a fresh state read before replanning.",
+    "Round completion, Case resolution, and Project impact are distinct outputs; only deterministic ledger audit may finalize resolution and aggregation.",
     "Runtime must not bind this Controller protocol capability into an ordinary Worker allowed_skills list."
   ]
 }

@@ -54,7 +54,7 @@ export async function main(argv) {
     const options = parseGateOptions(argv.slice(1));
     const { envelope, runtimeResult } = await loadRuntimeResultFile(options.file);
     const snapshot = await readOptionalSnapshot(options.project);
-    const gate = evaluateRuntimeGates({ runtimeResult, snapshot, envelope });
+    const gate = await evaluateRuntimeGates({ runtimeResult, snapshot, envelope, projectRoot: resolve(options.project) });
     if (options.json) {
       console.log(JSON.stringify(gate, null, 2));
     } else {
@@ -163,7 +163,7 @@ function parseRunOptions(args) {
     adapter: "dry-run",
     dryRun: false,
     json: false,
-    maxRounds: 1,
+    maxAutoRounds: 8,
     streamEvents: false,
     superviseStdin: false,
     approvalPolicy: "on-request",
@@ -195,10 +195,10 @@ function parseRunOptions(args) {
       options.codexBin = requiredValue(args, ++index, arg);
     } else if (arg === "--packet-file") {
       options.packetFile = requiredValue(args, ++index, arg);
-    } else if (arg === "--max-rounds") {
-      options.maxRounds = Number(requiredValue(args, ++index, arg));
-      if (!Number.isInteger(options.maxRounds) || options.maxRounds < 1) {
-        throw new Error("--max-rounds must be a positive integer.");
+    } else if (arg === "--max-auto-rounds") {
+      options.maxAutoRounds = Number(requiredValue(args, ++index, arg));
+      if (!Number.isInteger(options.maxAutoRounds) || options.maxAutoRounds < 1) {
+        throw new Error("--max-auto-rounds must be a positive integer.");
       }
     } else {
       throw new Error(`Unknown run option: ${arg}`);

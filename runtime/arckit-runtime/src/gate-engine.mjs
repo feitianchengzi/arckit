@@ -1,130 +1,77 @@
-import { validateRuntimeResult } from "./validator.mjs";
+import { validateRuntimeResult } from './validator.mjs';
+import { pathToFileURL } from 'node:url';
+import { loadRuntimeCapabilityForEntrypoint, resolveCapabilityEntrypoint } from './capability-registry.mjs';
 
-export function evaluateRuntimeGates({ runtimeResult, snapshot = null, envelope = null }) {
+export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, projectRoot = '' }) {
   const validation = validateRuntimeResult(runtimeResult);
-  const reasons = [];
+  const reasons = validation.issues.map((issue) => `${issue.path}: ${issue.message}`);
   const warnings = [];
-
-  if (!validation.valid) {
-    reasons.push(...validation.issues.map((issue) => `${issue.path}: ${issue.message}`));
+  const transition = runtimeResult?.case_transition;
+  const root = projectRoot || snapshot?.projectRoot || '';
+  if (root && transition) {
+    const capability = await loadRuntimeCapabilityForEntrypoint({ projectRoot: root, entrypoint: 'case_transition' });
+    const entrypoint = await import(pathToFileURL(resolveCapabilityEntrypoint(capability, 'case_transition')).href);
+    for (const issue of entrypoint.validateCaseTransition(transition, 'case_transition')) reasons.push(issue);
   }
 
-  const roundResult = runtimeResult?.round_result || "unknown";
-  const ledgerStage = runtimeResult?.ledger_stage || {};
-  const progressWriteback = roundResult === "continue"
-    && ledgerStage.status === "gate_ready"
-    && ledgerStage.writeback_required === true
-    && runtimeResult?.loop_handoff?.next_responsibility === "agent"
-    && runtimeResult?.loop_handoff?.human_decision_required !== true;
-
-  if (roundResult !== "done" && !progressWriteback) {
-    reasons.push(`round_result=${roundResult} is not eligible for automatic ledger writeback.`);
+  if (runtimeResult?.ledger_stage?.status !== 'gate_ready' || runtimeResult?.ledger_stage?.writeback_required !== true) {
+    reasons.push('ledger_stage must explicitly mark an accepted Case transition as gate_ready and writeback_required.');
   }
-
-  if (ledgerStage.status && ledgerStage.status !== "gate_ready") {
-    reasons.push(`ledger_stage.status=${ledgerStage.status} is not eligible for automatic ledger writeback.`);
+  if (!transition || transition.schema_version !== 'arckit-case-transition/v2') reasons.push('case_transition must use arckit-case-transition/v2.');
+  if (!transition?.case_id || !transition?.selected_gap?.id || !transition?.selected_gap?.facet) reasons.push('case_transition must identify a concrete Case gap.');
+  if (!transition?.case_updated_at) reasons.push('case_transition must bind the expected Case updated_at revision.');
+  if (!transition?.planned_transition?.goal || !transition?.planned_transition?.expected_state_change) reasons.push('case_transition.planned_transition is incomplete.');
+  if (!Array.isArray(transition?.evidence) || transition.evidence.length === 0) reasons.push('case_transition.evidence must be non-empty.');
+  const delta = transition?.accepted_state_delta;
+  if (!delta || !Array.isArray(delta.facets) || !Array.isArray(delta.resolved_open_questions) || !Array.isArray(delta.completed_handoffs) || !Array.isArray(delta.resolved_review_findings) || !Object.hasOwn(delta, 'completion_review_result') || !Object.hasOwn(delta, 'review_budget_extension')) reasons.push('case_transition.accepted_state_delta is incomplete.');
+  for (const claim of delta?.facets || []) {
+    if (!claim.facet || !claim.set || !Array.isArray(claim.evidence) || claim.evidence.length === 0) reasons.push('Every accepted facet delta must identify a facet, state update, and evidence.');
   }
+  const selectedFacet = transition?.selected_gap?.facet;
+  const selectedFindingId = transition?.selected_gap?.id?.split(':review-finding:')[1] || '';
+  const selectedGapAdvanced = (delta?.facets || []).some((claim) => claim.facet === selectedFacet)
+    || (selectedFacet === 'open_questions' && (delta?.resolved_open_questions || []).length > 0)
+    || (selectedFacet === 'pending_handoffs' && (delta?.completed_handoffs || []).length > 0)
+    || (selectedFacet === 'review_findings' && (delta?.resolved_review_findings || []).some((item) => item.id === selectedFindingId))
+    || (selectedFacet === 'completion_review' && (delta?.completion_review_result || delta?.review_budget_extension || (delta?.resolved_review_findings || []).length > 0));
+  if (!selectedGapAdvanced) reasons.push('case_transition.accepted_state_delta must advance the selected Case gap.');
+  if (transition?.round_outcome === 'blocked') reasons.push('A blocked round is not eligible for automatic Case transition writeback.');
+  if (transition?.project_impact_candidate?.status === 'accepted' && transition?.case_resolution?.claimed_status !== 'resolved') reasons.push('Accepted project impact requires a Controller claim that the Case is resolved.');
 
-  if (runtimeResult?.loop_handoff?.human_decision_required === true) {
-    reasons.push("human_decision_required=true blocks automatic ledger writeback.");
-  }
-
-  if (runtimeResult?.loop_handoff?.next_responsibility === "human") {
-    reasons.push("next_responsibility=human blocks automatic ledger writeback.");
-  }
-
-  if (runtimeResult?.loop_handoff?.trigger_mode === "user_decision") {
-    reasons.push("trigger_mode=user_decision blocks automatic ledger writeback.");
-  }
-
-  const validationEvidence = runtimeResult?.validation_evidence;
-  if (!Array.isArray(validationEvidence) || validationEvidence.length === 0) {
-    reasons.push("validation_evidence must be non-empty for ledger writeback.");
-  }
-
-  const sourceProjection = runtimeResult?.source_projection_check || {};
-  const sourceChanged = Array.isArray(sourceProjection.source_facts_changed)
-    ? sourceProjection.source_facts_changed
-    : [];
-  const projectionsChanged = Array.isArray(sourceProjection.projection_artifacts_changed)
-    ? sourceProjection.projection_artifacts_changed
-    : [];
-  const ownership = runtimeResult?.artifact_ownership_scan || {};
-  const ownedSourceChanged = Array.isArray(ownership.source_facts_changed) ? ownership.source_facts_changed : [];
-  const ownedProjectionsChanged = Array.isArray(ownership.projection_artifacts_changed) ? ownership.projection_artifacts_changed : [];
-  const ownedPendingItems = Array.isArray(ownership.pending_items) ? ownership.pending_items : [];
-  const unknownArtifacts = Array.isArray(ownership.unknown_artifacts) ? ownership.unknown_artifacts : [];
-  if (sourceProjection.source_unknown === true && sourceChanged.length === 0 && projectionsChanged.length > 0) {
-    reasons.push("source_unknown=true with projection-only changes blocks ledger writeback.");
-  }
-
-  if (ownedProjectionsChanged.length > 0 && ownedSourceChanged.length === 0 && sourceChanged.length === 0) {
-    reasons.push(`artifact ownership map detected projection-only changes: ${ownedProjectionsChanged.join(", ")}`);
-  }
-
-  if (unknownArtifacts.length > 0) {
-    reasons.push(`artifact ownership map contains unknown artifacts: ${unknownArtifacts.join(", ")}`);
-  }
-
-  const blockedProjections = Array.isArray(sourceProjection.blocked_projections) ? sourceProjection.blocked_projections : [];
-  if (blockedProjections.length > 0 && !progressWriteback) {
-    reasons.push("blocked_projections is non-empty.");
-  } else if (blockedProjections.length > 0) {
-    warnings.push("blocked_projections remain unresolved; progress writeback will record evidence without closing the loop.");
-  }
-
-  if (progressWriteback) {
-    const intake = runtimeResult?.report_intake || {};
-    const unresolvedReports = [
-      ...(Array.isArray(intake.rejected) ? intake.rejected : []),
-      ...(Array.isArray(intake.needs_revision) ? intake.needs_revision : []),
-      ...(Array.isArray(intake.needs_human_decision) ? intake.needs_human_decision : []),
-      ...(Array.isArray(intake.missing) ? intake.missing : [])
-    ];
-    if (unresolvedReports.length > 0) {
-      reasons.push(`progress writeback requires resolved report intake; unresolved reports: ${unresolvedReports.join(", ")}`);
-    }
-    const ledgerOwnedChanged = (runtimeResult?.changed_files || []).some((path) => /^arckit\/(project|cases)\//.test(path));
-    if (sourceChanged.length === 0 && ownedSourceChanged.length === 0 && ownedPendingItems.length === 0 && !ledgerOwnedChanged) {
-      reasons.push("progress writeback requires source facts, pending items, or ledger-owned changed files.");
+  const activeCase = (snapshot?.activeCases || []).find((item) => item.record?.id === transition?.case_id);
+  if (snapshot && !activeCase) reasons.push(`case_transition.case_id is not an active Case: ${transition?.case_id || '<missing>'}`);
+  if (activeCase?.record?.case_resolution?.status === 'resolved') reasons.push(`Case ${transition.case_id} is already resolved.`);
+  if (activeCase && activeCase.record.updated_at !== transition?.case_updated_at) reasons.push(`case_transition is stale for ${transition.case_id}.`);
+  const activeGap = (activeCase?.record?.case_resolution?.candidate_gaps || []).find((gap) => gap.id === transition?.selected_gap?.id && gap.facet === transition?.selected_gap?.facet);
+  if (activeCase && !activeGap) {
+    reasons.push(`case_transition.selected_gap is not an unresolved candidate of ${transition.case_id}.`);
+  } else if (activeGap) {
+    for (const field of ['responsibility', 'current_state', 'target_state', 'next_transition']) {
+      if (activeGap[field] !== transition.selected_gap[field]) reasons.push(`case_transition.selected_gap.${field} is stale for ${transition.case_id}.`);
     }
   }
 
   const unsafeChangedFiles = findUnsafeChangedFiles(runtimeResult?.changed_files || []);
-  if (unsafeChangedFiles.length > 0) {
-    reasons.push(`changed_files contains unsafe paths: ${unsafeChangedFiles.join(", ")}`);
-  }
-
-  const selectedRound = envelope?.selected_round || null;
-  if (!selectedRound?.gap_id) {
-    warnings.push("runtime envelope has no selected_round.gap_id; ledger writeback will record evidence but cannot close a selected gap.");
-  }
-  if (snapshot && selectedRound?.gap_id) {
-    const exists = (snapshot.projectState?.state_gaps || []).some((gap) => gap.id === selectedRound.gap_id);
-    if (!exists) {
-      warnings.push(`selected_round.gap_id is not present in current project state: ${selectedRound.gap_id}`);
-    }
+  if (unsafeChangedFiles.length) reasons.push(`changed_files contains unsafe paths: ${unsafeChangedFiles.join(', ')}`);
+  if (runtimeResult?.artifact_ownership_scan?.unknown_artifacts?.length) reasons.push(`artifact ownership contains unknown artifacts: ${runtimeResult.artifact_ownership_scan.unknown_artifacts.join(', ')}`);
+  const projection = runtimeResult?.source_projection_check || {};
+  if (projection.source_unknown === true && (projection.projection_artifacts_changed || []).length > 0 && (projection.source_facts_changed || []).length === 0) reasons.push('projection-only changes with unknown source facts cannot update Case State.');
+  if (runtimeResult?.loop_handoff?.next_responsibility === 'human' || runtimeResult?.loop_handoff?.next_responsibility === 'external') {
+    warnings.push('The accepted transition may be written, but Runtime must stop after writeback for the human/external handoff.');
   }
 
   return {
-    schema_version: "arckit-runtime-gate/v1",
+    schema_version: 'arckit-runtime-gate/v2',
     allowed: reasons.length === 0,
-    decision: reasons.length === 0 ? "allow" : "block",
+    decision: reasons.length === 0 ? 'allow' : 'block',
     reasons,
     warnings,
-    write_scope: reasons.length === 0
-      ? ["runtime_execution_record", "project_state", "iteration_state", "active_case", "indexes_and_projections"]
-      : [],
+    write_scope: reasons.length === 0 ? ['runtime_execution_record', 'case_transition', 'resolved_case_project_aggregation', 'indexes_and_projections'] : [],
     validation,
-    selected_round: selectedRound
+    case_id: transition?.case_id || '',
   };
 }
 
 function findUnsafeChangedFiles(paths) {
-  return paths.filter((item) => {
-    if (typeof item !== "string" || item.length === 0) {
-      return true;
-    }
-    return item.startsWith("/") || item.includes("..") || item.includes("\0");
-  });
+  return paths.filter((item) => typeof item !== 'string' || !item || item.startsWith('/') || item.includes('..') || item.includes('\0'));
 }

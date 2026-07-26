@@ -1,6 +1,6 @@
 import { buildArtifactOwnershipScan, normalizeArtifactPathReferences } from "./artifact-ownership-map.mjs";
 
-export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = false, conversationLocale = "en" }) {
+export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = false, conversationLocale = "en", allowNoWorkers = false, controllerEvidence = [] }) {
   const expectedPackets = Array.isArray(loopFrame.worker_packets) ? loopFrame.worker_packets : [];
   const expectedWorkerIds = expectedPackets.map((packet) => packet.worker_id).filter(Boolean);
   const rejected = reports.filter((report) => ["failed", "invalid"].includes(report.status));
@@ -11,10 +11,10 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
   const controllerDecisionReports = reports.filter((report) => report.requires_main_agent_decision === true);
   const incompleteReports = reports.filter((report) => !reportIsComplete(report));
   const missingReports = expectedWorkerIds.filter((workerId) => !reports.some((report) => report.task_id === workerId));
-  const allEvidence = unique(reports.flatMap((report) => [
+  const allEvidence = unique([...controllerEvidence, ...reports.flatMap((report) => [
     ...(report.evidence || []),
     ...(report.artifact_impacts || []).flatMap((impact) => impact.evidence || [])
-  ]));
+  ])]);
   const artifactImpactAudit = auditArtifactImpacts({ reports, expectedPackets });
   const workerTypeAudit = auditWorkerTypes({ reports, expectedPackets });
   const allChanges = artifactImpactAudit.changedArtifactPaths;
@@ -95,7 +95,7 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
     ...artifactImpactAudit.blockers
   ];
 
-  if (expectedWorkerIds.length === 0) {
+  if (expectedWorkerIds.length === 0 && !allowNoWorkers) {
     blockers.push(createGateBlocker({
       type: "no_expected_worker_packets",
       severity: "blocked",
@@ -143,7 +143,7 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
   }));
   const canClose = !dryRun
     && loopFrame.execution_gate?.status === "authorized"
-    && expectedWorkerIds.length > 0
+    && (expectedWorkerIds.length > 0 || allowNoWorkers)
     && reports.length >= expectedWorkerIds.length
     && missingReports.length === 0
     && rejected.length === 0
@@ -237,7 +237,7 @@ function gateReason({ dryRun, infrastructureFailures, blockers, reducerActions, 
   if (reducerActions.length > 0 && !canClose) {
     return t(conversationLocale, `Controller reducer consumed ${reducerActions.length} internal decision request(s).`, `Controller Reducer 已消费 ${reducerActions.length} 个内部决策请求。`);
   }
-  return t(conversationLocale, "All required worker reports are complete, risk-free, and supported by evidence.", "所有必需 worker report 均已完成、无风险，并有证据支持。");
+  return t(conversationLocale, "The bounded transition has complete evidence and no unresolved runtime blockers.", "本次有边界状态转移证据完整，且没有未解决的 Runtime 阻塞。" );
 }
 
 function createGateBlocker({ type, severity, recoverable_by, target, suggested_action, summary }) {
@@ -262,8 +262,8 @@ function reportIsComplete(report) {
   if (!report || typeof report !== "object") {
     return false;
   }
-  const arrays = ["findings", "evidence", "changes", "artifact_impacts", "risks", "unknowns"];
-  return report.schema_version === "arckit-worker-report/v1"
+  const arrays = ["findings", "evidence", "changes", "artifact_impacts", "case_state_claims", "risks", "unknowns"];
+  return report.schema_version === "arckit-worker-report/v2"
     && Boolean(report.task_id)
     && typeof report.worker_type === "string"
     && report.worker_type.length > 0

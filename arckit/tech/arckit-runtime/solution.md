@@ -4,7 +4,7 @@
 
 Arckit Runtime 是 Arckit 的执行控制面。它把原先依赖 agent 自觉遵守的 loop 行为外移为可执行程序，使 Codex、opencode 或多 agent worker 只作为受控执行器参与一轮研发任务。
 
-Runtime 不替代 Arckit skills。Skills 继续承载方法、事实源维护规则、输出契约和模板；Runtime 负责读取状态、选择缺口、编译受控指令、观察执行事件、处理暂停修正、校验结构化结果和回写账本。
+Runtime 不替代 Arckit skills。Skills 继续承载方法、事实源维护规则、输出契约和模板；Runtime 负责读取 Project/Case 状态、调用 Controller Agent 选择 Case gap、编译受控指令、观察执行事件、校验结构化结果，并调用 trusted ledger entrypoint。
 
 ## 架构组件
 
@@ -26,7 +26,7 @@ Runtime Kernel 是产品级执行内核，不是“启动多个 Codex worker 的
 
 Runtime Kernel 不充当 semantic truth judge。代码不判断产品概念、架构取舍或业务语义是否“真的正确”；这些语义判断来自 bounded Worker、Controller LLM 或人类。Runtime Kernel 负责把这些语义判断压成结构化 claim，并验证 claim 是否满足协议、证据、artifact ownership、human gate 和 ledger gate 条件。
 
-Runtime Kernel 不把 raw input envelope 当作 semantic state。Desktop operator event、完整 activity、完整 controller frame、完整 ledger write result、worker stream JSON 和上一轮完整 prompt 只属于 raw evidence 或 audit。Runtime 可以保存引用、摘要和结构化 claim，但不能把 raw envelope 写入 `round_goal`、`controller_frame.round_goal`、`loop_handoff.agent_instruction.goal`、`progress_guard.expected_state_change`、Project State `loop_control.next_transition` 或 Case State `current_round_goal/current_round_gap`。
+Runtime Kernel 不把 raw input envelope 当作 semantic state。Desktop operator event、完整 activity、完整 controller frame、完整 ledger write result、worker stream JSON 和上一轮完整 prompt 只属于 raw evidence 或 audit。Runtime 可以保存引用、摘要和结构化 claim，但不能把 raw envelope 写入 `round_goal`、`controller_frame.round_goal`、`loop_handoff.agent_instruction.goal`、`progress_guard.expected_state_change`、Project State `case_control` 或 Case State `current_round`。
 
 Desktop UI 只展示 Runtime Kernel 的 control state，不自己猜测业务流程。Skills 继续提供能力说明、事实源维护规则和 worker 协议；它们不能替代 Runtime Kernel 做 loop 控制。
 
@@ -51,25 +51,28 @@ State Store 读取目标项目的 Arckit 状态入口：
 - `arckit/project/STATE.md`
 - `arckit/project/iterations/*.record.json`
 - `arckit/cases/INDEX.md`
-- `arckit/pending/INDEX.md`
+- `arckit/cases/active/*.md` 的完整 `development-case-record/v3`
 - `arckit/spec/INDEX.md`
+- `arckit/interaction/INDEX.md`
+- `arckit/visual/INDEX.md`
 - `arckit/tech/INDEX.md`
 
 `state.record.json` 是 canonical record；Markdown brief 只作为 loop 决策摘要。
 
 ### Loop Controller
 
-Loop Controller 从 `state_gaps` 和 `loop_control` 形成候选上下文，由通过 `$using-arckit` 调用的 Controller Agent 选择本轮目标并解释依据。Runtime 不根据 `urgency`、`risk`、关键词或固定优先级自行拍板业务 gap。
+Loop Controller 先读取 Project State 的 `case_control` 和全部 active Case。Project gap 只作为选择/创建 Case 的宏观依据；selected Case 的全部 `case_resolution.candidate_gaps` 进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Controller Agent 结合 operator intent、代码、稳定事实和风险选择一个 `scope=case` 的具体 gap，并解释依据。Runtime 只验证该 gap 属于候选集，不根据关键词、固定优先级或 facet-to-skill 映射拍板业务 route。
 
 本轮目标必须形成：
 
-- selected gap
+- selected Case gap
 - round goal
+- planned Case transition
 - required context refs
 - required outputs
 - stop conditions
 
-Loop Controller 读取 `loop_control.next_transition` 时必须把它当作 Project State 的短状态转移说明，而不是原始 prompt 或 Desktop operator event。若该字段包含 raw event marker、超过语义字段预算或无法作为短状态转移使用，Runtime 将它降级为不可注入状态并要求 Controller 重新产生结构化 continuation intent。Loop Controller 不从 raw operator event 中自行抽取语义目标。
+Loop Controller 不从 Project State 读取轮次 continuation。Project `case_control.next_case_intent` 只说明选择哪个 Case 的宏观意图；下一轮目标由 Controller 从 Case candidate gaps、本轮 operator task 和新增证据中形成。Loop Controller 不从 raw operator event 中自行抽取并持久化语义目标。
 
 ### Capability Registry
 
@@ -102,7 +105,7 @@ Prompt Compiler 不要求 agent 猜测要使用哪个 skill。Controller plannin
 
 Prompt Compiler 只注入有界的 prompt projection。Project State、Case State 和 operator event 中的 raw evidence 以 refs 进入 prompt；只有 Controller Agent 或 Worker Report 明确产出的结构化短字段可以作为目标、下一步和 worker objective 注入。Prompt Compiler 对语义字段执行 marker 和长度检查，发现 `arckit-desktop-operator-event/v1`、`Arckit Desktop operator event.` 或超预算内容时，不把该字段注入下一轮 prompt。
 
-Desktop operator context 被分为两层：raw operator event 保存在 chat、raw events 或 runtime record 中；Controller prompt 使用 operator context pack。Context pack 只包含 action、user input、source run refs、上一轮 handoff 摘要、worker report 摘要、gate/ledger 状态摘要、project loop control 摘要和 required context refs。完整 activity、controller frame、ledger result 和 stream JSON 不内嵌进 context pack。
+Desktop operator context 被分为两层：raw operator event 保存在 chat、raw events 或 runtime record 中；Controller prompt 使用 operator context pack。Context pack 只包含 action、user input、source run refs、上一轮 handoff 摘要、worker report 摘要、gate/ledger 状态摘要、Project Case 选择摘要和 required context refs。完整 activity、controller frame、ledger result 和 stream JSON 不内嵌进 context pack。
 
 ### Agent Adapter
 
@@ -149,8 +152,12 @@ Gate Engine 在高风险状态下中断或阻塞继续执行：
 
 ### Validator
 
-Validator 校验 agent 的最终 `arckit-runtime-result/v1`，至少要求：
+Validator 校验 agent 的最终 `arckit-runtime-result/v2`，至少要求：
 
+- `round_outcome`
+- `case_outcome`
+- `project_impact`
+- `case_transition`
 - `artifact_impact_scan`
 - `source_projection_check`
 - `validation_evidence`
@@ -164,21 +171,25 @@ Ledger Writer 是 Runtime hard gate 与 ledger skill entrypoint 之间的薄适�
 
 Ledger capability 负责将验证后的结果写回：
 
-- project state delta
-- iteration state delta
-- development case record
-- pending handoff
+- `arckit-case-transition/v2`
+- development Case record 与 derived candidate gaps/resolution
+- resolved Case 的显式 Project/iteration impact
+- runtime execution record 与 indexes
 
-Ledger writeback 是 Runtime Kernel 的必经阶段，不依赖 worker 建议。Desktop 执行型 run 在 `round_result=done` 且 `ledger_stage.status=gate_ready` 后会自动运行 gate；gate 允许时调用 skill entrypoint，gate 不允许时不加载 writeback entrypoint，并保留 blocker 给 UI 和下一轮 Controller 处理。
+Ledger writeback 是已接受 Case transition 的必经阶段。Desktop 执行型 run 在 Controller 接受 evidence-backed delta 且 `ledger_stage.status=gate_ready` 后运行 gate；即使 Case 仍 unresolved 或下一责任方是 human/external，也可以先安全写入本轮 accepted delta，再停止桥接。
 
-Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。Project State 和 Case State 写回不得使用 raw operator task fallback。写入前必须检查以下字段不含 raw event marker 且满足长度预算：`loop_control.next_transition`、`loop_control.continuation_prompt`、`last_state_delta.next_loop_focus`、case `current_round_goal`、case `current_round_gap`、`completion_audit.next_round_goal`、`loop_handoff.agent_instruction.goal` 和 `progress_guard.expected_state_change`。检查失败时 gate 阻止写回，只保留 runtime execution record 或 raw evidence ref。
+每个 transition 绑定 Case `updated_at` revision，并逐字段复现当前 candidate gap。Gate 通过 trusted ledger `case_transition` entrypoint 做 canonical validation；revision 或 responsibility/current/target/next transition 已变化时 fail closed。Ledger 在写入前预校验完整 Case、Project 与 iteration 目标状态，并把 Case、Project、iteration、projections、indexes 作为可回滚提交；Runtime execution record 与该提交协调失败时不得留下伪成功记录。
+
+Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前检查 Case id/gap、planned transition、accepted delta、evidence、round outcome、Case resolution claim 和 Project impact candidate；raw operator task 不能作为 fallback。语义字段含 raw event marker、超长或 transition shape 不完整时，gate 阻止写回。
 
 写回策略按层分工：
 
-- Project State 写项目级 checkpoint：dimension 状态、state gaps、active case refs、短 loop control、last state delta 和 evidence refs。
-- Case State 写事项级 checkpoint：case 目标、当前 gap、结构化满足度、round summary、runtime result ref、completion audit 和短 loop handoff。
+- Project State 写宏观 checkpoint：dimension 状态、project gaps、active Case refs、`case_control`、last state delta 和 evidence refs。
+- Case State 写事项级 checkpoint：六个 facets、content revision、completion review policy/cycles/findings/escalation、open questions、pending handoffs、round records、derived resolution、candidate gaps 和 loop handoff。
 - Runtime execution record 写完整过程证据：runtime result、gate、selected round、raw event refs 和可审计输出。
-- Worker Loop 不直接写 Project State 或 Case State；它通过 report、artifact impact 和 runtime result 提供证据。
+- Worker 不直接写 Project/Case State；Worker 提交 claims，Controller 接受后形成 transition，ledger 确定性应用。
+
+Controller plan 可以包含零个 Worker。当 operator input、现有稳定事实或已有验证证据足以支持一个 Case transition 时，Controller Review 直接列出 evidence 并形成 accepted delta；Runtime Guard 不把零 Worker 当缺失 packet。每次成功写回后 Runtime 重新读取状态和 revision，再由 Controller 选择下一 gap。自动桥接由实际 ledger 进展、no-progress streak 与 `max_auto_rounds` 共同约束。
 
 ## M0 实现范围
 
@@ -274,12 +285,12 @@ Desktop Client 不重新实现 Runtime。它通过 Electron main 进程调用同
 - 空闲时发送 Chat message 会启动 dry-run 或 Codex app-server run。
 - 运行中发送 Chat message 会转为 steer。
 - 左侧 Chats 列表支持创建新会话；Runs 列表只切换执行详情，不承担会话切换语义。
-- 右侧展示 loop_control、top state gap、priority dimensions、normalized loop events 和 gate/write 控制。
+- 右侧分别展示 Project case selection、selected Case resolution/candidate gaps、当前 Round control、normalized events 和 gate/write 控制。
 - 在运行中发送 interrupt。
 - run 完成后如果 runtime result 到达 `ledger_gate_ready`，自动执行 gate-result；gate 允许时自动 write-ledger，gate 阻塞时展示阻塞原因。
 - 将项目注册表、run history、result 和 events 存在 Electron userData。
 
-当前 Desktop Client 已验证语法检查、project status 读取、project conversation persistence、run manager dry-run smoke 和 Electron 启动。完整验收还需要用桌面端执行一次真实 Codex app-server run，产出 `round_result=done` 并通过 gate/write-ledger。
+当前 Desktop Client 已验证语法检查、project status 读取、project conversation persistence、run manager dry-run smoke 和 Electron 启动。完整验收还需要用桌面端执行真实 Codex app-server 动态 loop，覆盖零个或多个 Worker、gate-ready transition、ledger writeback、fresh-state auto continuation 与停止条件。
 
 ### M4：可替换 agent adapter
 

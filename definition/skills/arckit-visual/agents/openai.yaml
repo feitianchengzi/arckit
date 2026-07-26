@@ -1,7 +1,7 @@
 interface:
   display_name: "ArcKit Visual"
   short_description: "维护稳定视觉策略、Design Tokens 和组件规格"
-  default_prompt: "使用 $arckit-visual 查询、创建、更新或审计 arckit/visual 下的稳定视觉事实。先读取 INDEX 并判断查询或变更；只接收用户、Controller worker report、稳定产品/交互事实或 external adapter 提供的明确材料。缺少人类确认或既有视觉依据时，把待确认项保留在 active case 并标记 human_decision_required。最终输出 document_scope。"
+  default_prompt: "使用 $arckit-visual 维护稳定视觉事实。收到 case_fact_gap 时先读取共享 Case Fact Contract，输出 document_scope 与 fact_result；代码和截图只提供观察证据，缺少品牌或审美依据时返回 needs_human。不写 Case/Project State、不决定 Case 完成。无 gap 时使用 standalone 模式。"
 policy:
   allow_implicit_invocation: true
 workflow:
@@ -15,3 +15,4 @@ workflow:
     - "不依赖已移除 skill；需要人类判断时创建 human gate。"
   output:
     - "document_scope"
+    - "fact_result"

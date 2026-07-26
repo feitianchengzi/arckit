@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-07-25T13:44:55.000Z
+Updated: 2026-07-26T19:20:08.209Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -11,8 +11,8 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Next State Transition
 
-- Transition: quality_validation: verified -> accepted
-- Why: 完成本轮结构校验，并把真实复杂项目 loop 验证列为下一状态 gap。
+- Transition: product_behavior: implemented -> designed
+- Why: 把项目状态重新定义为全局完整性状态控制面，支持状态驱动 loop。
 
 ## Acceptance
 
@@ -25,11 +25,11 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Recent State Changes
 
-- user_experience: implemented -> implemented; Desktop Client 从控制面板改为左项目列表、中间连续 Chat、右 Arckit 状态检查器；Chat 空闲时启动 runtime turn，运行中消息转为 steer。
 - implementation_coverage: verified -> verified; Arckit Runtime and Desktop now support empty project initialization from first chat/run.
 - observability_support: defined -> implemented; Desktop live run observability now shows phase, timeline, plan, output streams and idle state.
 - observability_support: implemented -> implemented; Desktop now persists raw run events and renders detailed agent activity sections.
 - implementation_coverage: verified -> verified; Desktop runtime now repairs safe old-ledger enum drift before start-run.
+- product_behavior: designed -> implemented; Project/Case/Loop separation, unordered Case candidate-gap selection, definition completeness, and equivalent human/Runtime transition semantics are implemented and locally verified.
 
 ## Blocking Gaps
 
@@ -40,9 +40,9 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
 - arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md
-- arckit/cases/closed/CASE-20260705-003-extract-project-state-record-json.md
-- arckit/cases/closed/CASE-20260705-004-refine-generated-state-decision-briefs.md
-- arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md
+- arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md
+- arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md
+- arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md
 
 ## Notes
 

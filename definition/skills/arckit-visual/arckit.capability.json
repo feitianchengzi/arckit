@@ -8,12 +8,14 @@
   "input_facts": [
     "confirmed_visual_expectation",
     "existing_visual_strategy",
-    "human_visual_decision"
+    "human_visual_decision",
+    "case_fact_gap"
   ],
   "outputs": [
     "visual_update",
     "visual_audit",
-    "visual_acceptance_criteria"
+    "visual_acceptance_criteria",
+    "fact_result"
   ],
   "allowed_write_targets": [
     "arckit/visual/**"
@@ -24,6 +26,7 @@
     "product_or_technical_fact_ownership"
   ],
   "runtime_notes": [
-    "Use only when visual direction has an explicit human or stable fact basis; otherwise create a human gate in the active case."
+    "Managed-case mode accepts a visual_expectation Case gap and returns an evidence-backed fact_result; standalone mode remains available.",
+    "Use only when visual direction has an explicit human or stable fact basis; otherwise return needs_human and never claim Case resolution."
   ]
 }

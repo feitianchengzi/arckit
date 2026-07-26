@@ -16,6 +16,10 @@ description: "维护 arckit/interaction/ 下的页面级交互策略、灰度线
 - 设计探索过程、候选方向、未确认推断和角色讨论不得写入交互事实主线。
 - 如果输入只说明“需要继续探索”，不要强行创建页面；把探索缺口保留在 active case 的 `open_questions` 或 `pending_handoffs`。
 
+## Case State 驱动模式
+
+收到 `case_fact_gap` 时，先读取 [`../_arckit_shared/case-fact-contract.md`](../_arckit_shared/case-fact-contract.md)，并进入 managed-case 模式。实现代码、运行界面或测试可作为候选交互证据，但不能因界面存在就直接判定交互事实完成；本 skill 维护稳定交互事实并返回 `fact_result`，不写 Case/Project State。没有 `case_fact_gap` 时使用 standalone 模式。
+
 ## 核心结构
 
 ```
@@ -125,7 +129,7 @@ interaction/
 
 ### 最终输出：document_scope（每次调用结束前必须输出）
 
-本 Skill 的**唯一 Output Contract** 是 `document_scope`：调用方据此知道本次在 `arckit/interaction/` 下涉及了哪些页面文件，以及每项的一句话总结。
+本 Skill 必须输出 `document_scope`；同时按 Case Fact Contract 输出 `fact_result`。managed-case 模式的 `fact_result` 是 Controller 可接受的交互事实 claim，standalone 模式只描述本次事实影响。
 
 **查询结束时**（只读，无写操作）：
 ```yaml

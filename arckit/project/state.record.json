@@ -1,10 +1,10 @@
 {
-  "schema_version": "project-state-record/v2",
+  "schema_version": "project-state-record/v3",
   "project": {
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-07-25T13:44:55.000Z",
+    "updated_at": "2026-07-26T19:20:08.209Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -60,20 +60,25 @@
       "confidence": "high"
     },
     "product_behavior": {
-      "current_state": "designed",
+      "current_state": "implemented",
       "target_state": "accepted",
-      "state_reason": "状态机制已从记录型账本重新设计为全局项目完整性状态、项目内迭代状态、case 证据和 Loop Handoff 的分层模型；每轮 closeout 先判断下一步职责归属，再判断触发方式。",
+      "state_reason": "Project/Case/Loop separation, unordered Case candidate-gap selection, definition completeness, and equivalent human/Runtime transition semantics are implemented and locally verified.",
       "evidence": [
         "arckit/spec/agentic-software-development/product-concepts.md",
         "arckit/spec/agentic-software-development/product-architecture.md",
         "arckit/spec/workflow-orchestration-memory.md",
-        "memory/skills/arckit-development-ledger/SKILL.md",
-        "memory/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-        "memory/skills/arckit-development-ledger/schema/iteration-state-record.schema.json"
+        "entry/skills/arckit-development-ledger/SKILL.md",
+        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
+        "entry/skills/using-arckit/SKILL.md",
+        "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
+        "runtime/arckit-runtime/src/loop-controller.mjs",
+        "runtime/arckit-runtime/test/case-transition.test.mjs",
+        "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md"
       ],
-      "evidence_maturity": "formalized",
-      "gap": "需要在真实 agent loop 中确认字段是否足以驱动下一轮行动选择、验证和关闭。",
-      "next_transition": "将状态机制用于下一轮真实开发任务，观察 loop_control 和 state_gaps 是否能正确驱动行动。",
+      "evidence_maturity": "validated",
+      "gap": "The behavior still needs isolated real-agent scenario evaluation before project-level acceptance.",
+      "next_transition": "Run Skill First scenarios with fresh agents for spec-first, code-first, mixed, and not_required Case paths.",
       "blockers": [],
       "priority": "high",
       "confidence": "high"
@@ -86,7 +91,7 @@
         "arckit/spec/agentic-software-development/product-concepts.md",
         "arckit/spec/agentic-software-development/product-architecture.md",
         "entry/skills/using-arckit/SKILL.md",
-        "memory/skills/arckit-development-ledger/SKILL.md",
+        "entry/skills/arckit-development-ledger/SKILL.md",
         "runtime/arckit-runtime/desktop/main.mjs",
         "runtime/arckit-runtime/desktop/preload.cjs",
         "runtime/arckit-runtime/src/desktop-run-manager.mjs",
@@ -98,8 +103,8 @@
         "runtime/arckit-runtime/src/cli.mjs",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
         "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
         "npm run check",
         "node --input-type=module -e activity smoke",
@@ -119,9 +124,9 @@
       "state_reason": "当前运行表面包括 Codex skills、canonical JSON 记录、Markdown decision brief、development-ledger 脚本、Arckit Runtime CLI、Codex app-server supervisor adapter、Electron Desktop Client，以及空项目自动初始化入口。",
       "evidence": [
         "arckit/project/state.record.json",
-        "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "memory/skills/arckit-development-ledger/scripts/development-case.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "entry/skills/arckit-development-ledger/scripts/development-case.mjs",
         "runtime/arckit-runtime/package.json",
         "runtime/arckit-runtime/package-lock.json",
         "runtime/arckit-runtime/bin/arckit-runtime.mjs",
@@ -138,8 +143,8 @@
         "runtime/arckit-runtime/desktop/renderer/renderer.js",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
         "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
         "npm run check",
         "runtime/arckit-runtime/src/agent-orchestrator.mjs",
@@ -159,7 +164,7 @@
       "target_state": "not_required",
       "state_reason": "当前仓库本身是本地 skill 与文档仓库，不需要账号体系；但 Arckit 的通用完整性模型保留 identity/access 维度，目标项目是否需要登录由目标场景决定，不能由 skill 或 code 产物类型先验排除。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/SKILL.md"
+        "entry/skills/arckit-development-ledger/SKILL.md"
       ],
       "evidence_maturity": "formalized",
       "gap": "",
@@ -173,7 +178,7 @@
       "target_state": "accepted",
       "state_reason": "项目数据分为 canonical project state record、STATE.md decision brief、canonical iteration state、iteration decision brief、case evidence、pending 和 stable facts，各自有不同职责。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/SKILL.md",
+        "entry/skills/arckit-development-ledger/SKILL.md",
         "arckit/project/state.record.json",
         "arckit/project/STATE.md",
         "arckit/cases/INDEX.md",
@@ -208,7 +213,7 @@
       "state_reason": "入口编排、状态账本、case 管理、pending、有界 worker packet、Runtime 控制面和 Desktop Supervisor 已形成分层架构。",
       "evidence": [
         "entry/skills/using-arckit/SKILL.md",
-        "memory/skills/arckit-development-ledger/SKILL.md",
+        "entry/skills/arckit-development-ledger/SKILL.md",
         "arckit/tech/arckit-runtime/solution.md",
         "runtime/arckit-runtime/src/loop-controller.mjs",
         "runtime/arckit-runtime/src/prompt-compiler.mjs",
@@ -229,13 +234,13 @@
       "state_reason": "Runtime M0/M1/M2、Electron Desktop、空项目 onboarding、运行可观测性和旧账本 schema 漂移修复已实现；Desktop start-run 会先归一化可安全修复的 project state 枚举字段。",
       "evidence": [
         "arckit/project/state.record.json",
-        "memory/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-        "memory/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-        "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
         "entry/skills/using-arckit/SKILL.md",
-        "node --check memory/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "node --check memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "node --check entry/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "node --check entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
         "runtime/arckit-runtime/src/state-store.mjs",
         "runtime/arckit-runtime/src/validator.mjs",
         "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
@@ -261,12 +266,12 @@
         "runtime/arckit-runtime/src/cli.mjs",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
         "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
         "npm run check",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json",
         "runtime/arckit-runtime/src/agent-orchestrator.mjs",
@@ -289,10 +294,10 @@
         "arckit/spec/workflow-orchestration-memory.md",
         "arckit/tech/workflow-orchestration-memory/solution.md",
         "arckit/tech/arckit-runtime/solution.md",
-        "memory/skills/arckit-development-ledger/SKILL.md",
-        "node memory/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
-        "node memory/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
-        "node memory/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md",
+        "entry/skills/arckit-development-ledger/SKILL.md",
+        "node entry/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
+        "node entry/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
+        "node entry/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-m1-smoke.json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs probe-app-server --project . --json",
         "arckit/project/runtime-results/RUN-20260707-161744356Z.json",
@@ -326,15 +331,15 @@
         "runtime/arckit-runtime/desktop/renderer/renderer.js",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
         "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
         "runtime/arckit-runtime/desktop/renderer/styles.css",
         "node --input-type=module -e activity smoke",
         "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
         "node --input-type=module -e detail smoke",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json"
       ],
@@ -350,8 +355,8 @@
       "target_state": "verified",
       "state_reason": "状态模型保留 identity/access、security/privacy、data_state 等维度，避免因实现产物是 skill 或代码而跳过安全边界判断。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/SKILL.md",
-        "memory/skills/arckit-development-ledger/schema/project-state-record.schema.json"
+        "entry/skills/arckit-development-ledger/SKILL.md",
+        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json"
       ],
       "evidence_maturity": "formalized",
       "gap": "目标项目级凭证、权限和敏感数据场景还需要在具体项目中验证。",
@@ -379,9 +384,9 @@
       "target_state": "accepted",
       "state_reason": "Desktop runtime observability now stores raw-events.jsonl and activity.json for every run, and renders app-server reasoning summaries, item lifecycle, errors, warnings, agent output, command output and evidence paths.",
       "evidence": [
-        "memory/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "memory/skills/arckit-development-ledger/scripts/development-case.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "entry/skills/arckit-development-ledger/scripts/development-case.mjs",
         "runtime/arckit-runtime/src/desktop-run-manager.mjs",
         "runtime/arckit-runtime/desktop/renderer/renderer.js",
         "runtime/arckit-runtime/desktop/renderer/styles.css",
@@ -409,7 +414,7 @@
       "evidence": [
         "arckit/spec/agentic-software-development/skill-architecture.md",
         "arckit/tech/arckit-runtime/solution.md",
-        "memory/skills/arckit-development-ledger/SKILL.md",
+        "entry/skills/arckit-development-ledger/SKILL.md",
         "entry/skills/using-arckit/SKILL.md",
         "arckit/project/state.record.json",
         "arckit/project/STATE.md",
@@ -423,8 +428,8 @@
         "runtime/arckit-runtime/desktop/renderer/renderer.js",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/memory/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
+        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
         "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
         "npm run check",
         "runtime/arckit-runtime/src/agent-orchestrator.mjs",
@@ -444,8 +449,8 @@
       "target_state": "accepted",
       "state_reason": "迭代状态已移动到 arckit/project 命名空间，并用 iteration state record 表达目标状态转移、当前状态转移、验收状态和关闭条件；Markdown 只作为 generated iteration decision brief。",
       "evidence": [
-        "memory/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-        "memory/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
         "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
         "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md"
       ],
@@ -472,7 +477,7 @@
         "observability_support",
         "maintainability_handoff"
       ],
-      "next_transition": "用 Desktop Codex 模式在 ../arckit-demo 或真实项目运行 agentic worker loop，验证 5 个 worker reports、merge gate、raw events 和 done result 后写回 ledger。"
+      "next_transition": "用 Desktop Codex 模式在 ../arckit-demo 或真实项目运行动态 agentic loop，覆盖零个或多个 Worker、Controller Review、canonical gate、ledger writeback、fresh-state continuation 与终止条件。"
     },
     {
       "id": "GAP-cross-record-audit",
@@ -488,18 +493,6 @@
       "next_transition": "根据后续使用反馈决定是否增加跨记录 audit 命令。"
     }
   ],
-  "loop_control": {
-    "current_loop_focus": "实现 Arckit Runtime/Desktop agentic worker loop。",
-    "next_transition": "通过 Desktop 在 ../arckit-demo 或真实项目中运行 Codex app-server agentic worker loop，获得 done result 后 gate/write-ledger。",
-    "priority_basis": "Runtime 已具备 agent task/report/merge gate/capability manifest，Desktop 已能展示 Agent Loop；剩余缺口是真实 Codex worker 执行闭环。",
-    "stop_condition": "停止条件是 Desktop-started real Codex worker loop 产生 valid done runtime_result 并通过 gate/write-ledger，或明确记录外部环境阻塞。",
-    "next_responsibility": "agent",
-    "agent_continuation_available": true,
-    "human_decision_required": false,
-    "trigger_mode": "manual_bridge",
-    "continuation_prompt": "启动 Desktop，选择 ../arckit-demo 或真实项目，用 Codex 模式发起从 0 开始的开发任务，观察 agent reports 和 merge gate，done 后 gate/write-ledger。",
-    "responsibility_reason": "下一步是 agent 可继续的真实环境验证，不需要人类产品决策。"
-  },
   "active_constraints": [
     "Arckit 项目状态机制服务于基于状态的 loop 工程，而不是记录型日志。",
     "state.record.json 是全局项目完整性状态的 canonical machine-readable record。",
@@ -555,41 +548,28 @@
     "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/events.jsonl",
     "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-result.json",
     "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-events.jsonl",
-    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/MANIFEST.md"
+    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/MANIFEST.md",
+    "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md",
+    "arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md",
+    "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md"
   ],
   "last_state_delta": {
-    "changed_dimensions": [
-      "architecture_foundation",
-      "implementation_coverage",
-      "maintainability_handoff"
-    ],
-    "state_transitions": [
-      {
-        "dimension": "architecture_foundation",
-        "from_state": "implemented",
-        "to_state": "implemented",
-        "reason": "The repository now has one explicit seven-skill capability set, and Runtime applies the same set through an external policy file instead of kernel hard-coding."
-      },
-      {
-        "dimension": "implementation_coverage",
-        "from_state": "verified",
-        "to_state": "verified",
-        "reason": "All seven retained skills expose capability manifests and the Runtime registry rejects policy-external manifests; the complete Runtime check suite passes."
-      },
-      {
-        "dimension": "maintainability_handoff",
-        "from_state": "verified",
-        "to_state": "verified",
-        "reason": "README, AGENTS, stable skill specifications and surviving skill contracts now describe only the retained capability set and active-case/external-adapter fallbacks."
-      }
-    ],
+    "changed_dimensions": [],
+    "state_transitions": [],
     "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "next_loop_focus": "通过 Desktop 在 ../arckit-demo 或真实项目中运行 Codex app-server agentic worker loop，获得 done result 后 gate/write-ledger。",
-    "updated_at": "2026-07-25T13:44:55.000Z"
+    "next_project_focus": "Select or create the next bounded Case from the remaining Project state_gaps.",
+    "updated_at": "2026-07-26T19:20:08.209Z"
+  },
+  "case_control": {
+    "selected_case_ref": "",
+    "selection_reason": "Resolved Case arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md.",
+    "next_case_intent": "Select or create the next bounded Case from the remaining Project state_gaps.",
+    "priority_basis": "Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.",
+    "stop_condition": "Stop after selecting or creating the next bounded Case."
   }
 }

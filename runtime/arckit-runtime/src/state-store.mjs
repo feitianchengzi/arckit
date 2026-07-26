@@ -1,82 +1,97 @@
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 
 export function createStateStore(projectRoot) {
   const root = resolve(projectRoot);
-
   return {
     root,
     async readSnapshot() {
-      const projectStatePath = join(root, "arckit/project/state.record.json");
-      if (!existsSync(projectStatePath)) {
-        throw new Error(`Missing project state record: ${projectStatePath}`);
+      const projectStatePath = join(root, 'arckit/project/state.record.json');
+      if (!existsSync(projectStatePath)) throw new Error(`Missing project state record: ${projectStatePath}`);
+      const projectState = await readJson(projectStatePath);
+      if (projectState.schema_version !== 'project-state-record/v3') throw new Error('Runtime requires project-state-record/v3');
+
+      const activeCaseRefs = Array.isArray(projectState.active_case_refs) ? projectState.active_case_refs : [];
+      const activeCases = [];
+      for (const ref of activeCaseRefs) {
+        const record = await readCaseRecordIfExists(join(root, ref));
+        if (!record) throw new Error(`Active Case ref cannot be read: ${ref}`);
+        if (record.schema_version !== 'development-case-record/v3') throw new Error(`Runtime requires development-case-record/v3: ${ref}`);
+        activeCases.push({ ref, record });
       }
 
-      const projectState = await readJson(projectStatePath);
-      const stateBrief = await readTextIfExists(join(root, "arckit/project/STATE.md"));
       const iterationRecord = projectState.active_iteration_ref
         ? await readJsonIfExists(join(root, projectState.active_iteration_ref))
         : null;
-      const casesIndex = await readTextIfExists(join(root, "arckit/cases/INDEX.md"));
-      const pendingIndex = await readTextIfExists(join(root, "arckit/pending/INDEX.md"));
-      const techIndex = await readTextIfExists(join(root, "arckit/tech/INDEX.md"));
-      const specIndex = await readTextIfExists(join(root, "arckit/spec/INDEX.md"));
+      const documents = await Promise.all([
+        readTextIfExists(join(root, 'arckit/project/STATE.md')),
+        readTextIfExists(join(root, 'arckit/cases/INDEX.md')),
+        readTextIfExists(join(root, 'arckit/spec/INDEX.md')),
+        readTextIfExists(join(root, 'arckit/interaction/INDEX.md')),
+        readTextIfExists(join(root, 'arckit/visual/INDEX.md')),
+        readTextIfExists(join(root, 'arckit/tech/INDEX.md')),
+      ]);
+      const [stateBrief, casesIndex, specIndex, interactionIndex, visualIndex, techIndex] = documents;
 
       return {
         projectRoot: root,
         paths: {
-          projectState: "arckit/project/state.record.json",
-          stateBrief: "arckit/project/STATE.md",
-          activeIteration: projectState.active_iteration_ref || "",
-          activeCases: Array.isArray(projectState.active_case_refs) ? projectState.active_case_refs : [],
-          casesIndex: "arckit/cases/INDEX.md",
-          pendingIndex: "arckit/pending/INDEX.md",
-          specIndex: "arckit/spec/INDEX.md",
-          techIndex: "arckit/tech/INDEX.md"
+          projectState: 'arckit/project/state.record.json',
+          stateBrief: 'arckit/project/STATE.md',
+          activeIteration: projectState.active_iteration_ref || '',
+          activeCases: activeCaseRefs,
+          casesIndex: 'arckit/cases/INDEX.md',
+          specIndex: 'arckit/spec/INDEX.md',
+          interactionIndex: 'arckit/interaction/INDEX.md',
+          visualIndex: 'arckit/visual/INDEX.md',
+          techIndex: 'arckit/tech/INDEX.md',
         },
         projectState,
         stateBrief,
         iterationRecord,
+        activeCases,
         casesIndex,
-        pendingIndex,
         specIndex,
+        interactionIndex,
+        visualIndex,
         techIndex,
-        summary: summarize(projectState, iterationRecord)
+        summary: summarize(projectState, iterationRecord, activeCases),
       };
-    }
+    },
   };
 }
 
-async function readJson(path) {
-  return JSON.parse(await readFile(path, "utf8"));
+async function readJson(file) {
+  return JSON.parse(await readFile(file, 'utf8'));
 }
 
-async function readJsonIfExists(path) {
-  if (!existsSync(path)) {
-    return null;
-  }
-  return readJson(path);
+async function readJsonIfExists(file) {
+  return existsSync(file) ? readJson(file) : null;
 }
 
-async function readTextIfExists(path) {
-  if (!existsSync(path)) {
-    return "";
-  }
-  return readFile(path, "utf8");
+async function readTextIfExists(file) {
+  return existsSync(file) ? readFile(file, 'utf8') : '';
 }
 
-function summarize(projectState, iterationRecord) {
+async function readCaseRecordIfExists(file) {
+  if (!existsSync(file)) return null;
+  const text = await readFile(file, 'utf8');
+  const match = text.match(/## Structured Record[\s\S]*?```json\s*\n([\s\S]*?)\n```/);
+  if (!match) throw new Error(`${file}: missing Structured Record json block`);
+  return JSON.parse(match[1]);
+}
+
+function summarize(projectState, iterationRecord, activeCases) {
   const gaps = Array.isArray(projectState.state_gaps) ? projectState.state_gaps : [];
-  const topGap = gaps[0];
   return {
-    project_name: projectState.project?.name || "",
-    project_status: projectState.project?.status || "",
-    current_phase: projectState.project?.current_phase || "",
-    active_iteration: iterationRecord?.id || "",
-    loop_focus: projectState.loop_control?.current_loop_focus || "",
-    next_transition: projectState.loop_control?.next_transition || "",
-    top_gap: topGap?.id || "",
-    top_gap_dimension: topGap?.dimension || ""
+    project_name: projectState.project?.name || '',
+    project_status: projectState.project?.status || '',
+    current_phase: projectState.project?.current_phase || '',
+    active_iteration: iterationRecord?.id || '',
+    selected_case_ref: projectState.case_control?.selected_case_ref || '',
+    next_case_intent: projectState.case_control?.next_case_intent || '',
+    active_case_count: activeCases.length,
+    project_gap_count: gaps.length,
   };
 }

@@ -6,6 +6,10 @@
   "required": [
     "schema_version",
     "round_result",
+    "round_outcome",
+    "case_outcome",
+    "project_impact",
+    "case_transition",
     "round_state",
     "round_state_history",
     "summary",
@@ -24,11 +28,41 @@
     "loop_handoff"
   ],
   "properties": {
-    "schema_version": { "type": "string", "const": "arckit-runtime-result/v1" },
+    "schema_version": { "type": "string", "const": "arckit-runtime-result/v2" },
     "round_result": {
       "type": "string",
       "enum": ["done", "continue", "blocked", "needs_human", "external_wait"]
     },
+    "round_outcome": {
+      "type": "object",
+      "required": ["status", "reason"],
+      "properties": {
+        "status": { "type": "string", "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "case_outcome": {
+      "type": "object",
+      "required": ["status", "reason", "unresolved"],
+      "properties": {
+        "status": { "type": "string", "enum": ["unresolved", "resolved", "blocked"] },
+        "reason": { "type": "string" },
+        "unresolved": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "project_impact": {
+      "type": "object",
+      "required": ["status", "changes", "evidence"],
+      "properties": {
+        "status": { "type": "string", "enum": ["none", "proposed", "accepted"] },
+        "changes": { "type": "array" },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "case_transition": { "type": "object" },
     "round_state": {
       "type": "string",
       "enum": [
@@ -220,10 +254,10 @@
         "progress_guard"
       ],
       "properties": {
-        "version": { "type": "string", "const": "loop-handoff/v1" },
+        "version": { "type": "string", "const": "loop-handoff/v2" },
         "status": {
           "type": "string",
-          "enum": ["continue", "done", "needs_human", "blocked", "deferred"]
+          "enum": ["continue", "done", "needs_human", "blocked", "external_wait"]
         },
         "next_responsibility": {
           "type": "string",

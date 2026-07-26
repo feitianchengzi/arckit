@@ -16,6 +16,10 @@ description: "维护 arckit/spec/ 下的产品功能规格、行为规则、验�
 - 调研过程、候选方案、未验证推断、执行计划和角色分工不得写入 spec 主线。
 - 输入中的来源和风险可转为 `source_basis`；开放问题保留在 active case 的 `open_questions` 或 `pending_handoffs`，需要人类判断时标记 `human_decision_required`。
 
+## Case State 驱动模式
+
+收到 `case_fact_gap` 时，先读取 [`../_arckit_shared/case-fact-contract.md`](../_arckit_shared/case-fact-contract.md)，并进入 managed-case 模式。当前 gap 可以来自规格先行、代码先行或混合推进；本 skill 只维护稳定产品事实并返回 `fact_result`，不写 Case/Project State、不决定 Case 完成。没有 `case_fact_gap` 时使用 standalone 模式。
+
 ## 核心结构
 
 ```
@@ -80,7 +84,7 @@ spec/
 
 ### 最终输出：document_scope（每次调用结束前必须输出）
 
-本 Skill 的**唯一 Output Contract** 是 `document_scope`：调用方据此知道本次在 `arckit/spec/` 下涉及了哪些文件，以及每项的一句话总结。
+本 Skill 必须输出 `document_scope`；同时按 Case Fact Contract 输出 `fact_result`。managed-case 模式的 `fact_result` 是 Controller 可接受的产品事实 claim，standalone 模式只描述本次事实影响。
 
 **查询结束时**（只读，无写操作）：
 ```yaml

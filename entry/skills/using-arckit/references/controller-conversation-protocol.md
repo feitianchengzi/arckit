@@ -1,61 +1,29 @@
 # Controller Conversation Protocol
 
-`using-arckit` controls one project conversation round. It does not execute worker tasks by itself.
+Controller 每次处理输入都遵循同一语义序列：
 
-## Turn Delta
+```text
+Project State 选择/创建 Case
+-> 读取完整 Case State
+-> 选择一个 Case gap
+-> 计划一次 Case transition
+-> 按证据需要授权并执行零个或多个 bounded Worker packets
+-> 接收 Worker claims 或 Controller 直接证据
+-> Controller 接受 Case delta
+-> ledger 确定性应用并派生 candidate gaps/resolution
+-> 基础内容完成后进入 completion review；findings 驱动修复和新 revision
+-> 自主复审预算耗尽仍不 clean 时转人工
+-> Case resolved 后才聚合 Project impact
+```
 
-Classify every input:
+## 输入分类
 
-- `first_turn`: no prior project loop is available.
-- `new_case`: the input starts a new development case.
-- `resume_next_prompt`: the user says continue from the previous handoff.
-- `continue_case`: the user continues the same case with a new instruction.
-- `supplement`: the user adds context that may revise packet context.
-- `correction`: the user corrects a misunderstanding, fact, packet, or report.
-- `goal_change`: the user changes the objective enough that old packets may be invalid.
-- `pause_or_stop`: the user asks to stop, pause, or defer.
-- `report_intake`: the user brings back one or more worker reports.
-- `status_query`: the user asks what is happening or what remains.
+- supplement/correction：更新当前 Case 理解；纠错可使既有 alignment 退回 stale/diverged。
+- goal_change/new_case：回到 Project 层选择或创建 Case。
+- report_intake：从 Worker claims 形成 accepted delta。
+- status_query：只报告 Project、Case、Round 三层状态，不执行。
+- continuation：重新读取 Case `candidate_gaps`，结合新增输入和证据选择下一项，不从 Project gap、列表顺序或旧 prompt 猜测任务。
 
-## Round Status
+## 环境
 
-Use one controller status at a time:
-
-- `planning`: controller is forming the round.
-- `waiting_authorization`: execution gate is pending.
-- `waiting_worker`: worker packets have been issued and reports are missing.
-- `reviewing_worker`: reports are being checked against intake rules.
-- `ready_to_close`: required reports and evidence are enough for closeout.
-- `done`: this round is closed.
-- `blocked`: controller cannot progress without missing state, permission, tool, report, or external result.
-
-## Execution Gate
-
-Default to pending unless the current input or operator explicitly authorizes execution.
-
-Allowed authorization sources:
-
-- `user_message`
-- `runtime_authorization`
-- `auto_run_policy`
-- `external_platform`
-- `none`
-
-Allowed executors:
-
-- `human_runtime`
-- `runtime_executor`
-- `current_agent`
-- `external_agent`
-- `none`
-
-## Human Bridge
-
-When no automated executor is available, the human can bridge packets and reports:
-
-1. Copy worker packets to worker Agent chats.
-2. Bring worker reports back to the Controller chat.
-3. Send corrections and supplements to Controller first.
-4. Use the Controller's next prompt to continue the next round.
-
-The human is not responsible for Controller judgment unless `human_decision_required=true`.
+单 Agent、人工多对话与 Desktop Runtime 使用同一 protocol。环境只决定 execution gate、executor binding、事件存储和 bridge mode，不决定业务 route、Worker 顺序、skill 选择或 ledger 维度推断。复制或保存的 packet 必须携带 Case revision；执行前 revision 或 selected gap 已变化时直接失效，不自动迁移旧 packet。

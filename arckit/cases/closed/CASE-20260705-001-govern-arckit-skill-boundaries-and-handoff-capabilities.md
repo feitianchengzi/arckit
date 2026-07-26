@@ -3,8 +3,8 @@
 Case: CASE-20260705-001
 Status: closed
 Artifact Type: skill
-Current Gap: none
-Updated: 2026-07-05T15:25:00.000Z
+Selected Gap: none
+Updated: 2026-07-26T18:58:51.435Z
 
 ## User Intent
 
@@ -14,76 +14,28 @@ Updated: 2026-07-05T15:25:00.000Z
 
 ```json
 {
-  "schema_version": "development-case-record/v1",
+  "schema_version": "development-case-record/v3",
   "id": "CASE-20260705-001",
   "title": "Govern Arckit skill boundaries and handoff capabilities",
   "status": "closed",
   "artifact_type": "skill",
   "created_at": "2026-07-05T13:32:49.355Z",
-  "updated_at": "2026-07-05T15:25:00.000Z",
+  "updated_at": "2026-07-26T18:58:51.435Z",
   "user_intent": "按 Arckit 作为软件开发 Agent 协作与接力协议层的定位，治理现有 skill，补齐 agent-context、implementation-handoff、refactor-strategy，收紧易越界能力边界",
   "expected_outcome": "当前 arckit 项目形成更清晰的软件开发 Agent 协作与接力协议层边界，新增必要协议型 skills，补齐产品概念层定义，并收紧现有易越界 skill 的人类判断边界。",
-  "current_round_goal": "完成本地治理落地：新增三个协议型 skill，更新产品概念、产品架构、入口路由和 skill 架构，归档已实现 pending，补项目级 scope 原则，重构 using-arckit，并完成全局去最小化偏置治理。",
-  "current_round_gap": "none",
   "project_state_ref": "arckit/project/STATE.md",
-  "project_state_delta": {
-    "changed": [
-      "project_goal",
-      "core_scenarios",
-      "technical_foundation",
-      "iteration_strategy"
-    ],
-    "unchanged_unknown": [
-      "platform_targets",
-      "client_surface",
-      "server_need",
-      "account_identity",
-      "data_persistence",
-      "sync_collaboration",
-      "deployment_distribution"
-    ],
-    "deferred": [
-      "quality_bar"
-    ],
-    "blocked": [],
-    "next_project_question": "是否要用 Skill First 对 arckit-agent-context、arckit-implementation-handoff 和 arckit-refactor-strategy 做真实任务隔离验证。",
-    "updated_at": "2026-07-05T15:25:00.000Z"
+  "current_round": {
+    "goal": "",
+    "selected_gap": null
   },
-  "round_strategy_decision": {
-    "selected_route": "selected",
-    "reason": "用户要求完整治理当前 Arckit skill 体系；本轮最有效路线是本地 skill 维护和边界收紧，而不是继续抽象讨论或引入平台层实现。",
-    "considered_routes": [
-      {
-        "route": "继续定位讨论",
-        "decision": "deferred",
-        "reason": "用户已经要求执行治理，定位判断足够支撑本轮改动。"
-      },
-      {
-        "route": "新增协议型 skills",
-        "decision": "selected",
-        "reason": "agent-context、implementation-handoff、refactor-strategy 都直接支撑人机协作和多 agent 接力。"
-      },
-      {
-        "route": "删除现有 thinking/design skills",
-        "decision": "deferred",
-        "reason": "现有 skill 大体仍符合 Arckit，只需收紧边界，未发现必须删除的越界能力。"
-      },
-      {
-        "route": "引入全自动平台能力",
-        "decision": "deferred",
-        "reason": "平台调度、loop、权限、队列和人类接手机制属于外部平台层，不在本轮 Arckit 仓库内实现。"
-      }
-    ],
-    "next_route_triggers": [
-      "用户要求真实隔离验证时交给 arckit-skill-first",
-      "用户要求同步到已安装 agent 目录或做治理审计时交给 arcforge",
-      "后续真实任务暴露 skill 执行问题时回到对应 skill 维护"
-    ],
-    "user_visible_summary": "本轮按协议层定位治理：补接力基础设施，收紧人类判断边界，不把 Arckit 扩成全自动平台本体。"
-  },
-  "structures": {
+  "facets": {
     "product_expectation": {
-      "status": "satisfied",
+      "applicability": "required",
+      "maturity": "formalized",
+      "target_maturity": "formalized",
+      "alignment": "aligned",
+      "target_alignment": "aligned",
+      "resolution": "resolved",
       "reason": "Arckit 作为软件开发 Agent 协作与接力协议层的产品定位已写入问题背景、解决思路、产品概念、产品架构、skill 架构和项目级规则。",
       "evidence": [
         "AGENTS.md",
@@ -93,25 +45,41 @@ Updated: 2026-07-05T15:25:00.000Z
         "arckit/spec/agentic-software-development/product-architecture.md",
         "arckit/spec/agentic-software-development/skill-architecture.md"
       ],
-      "evidence_maturity": "formalized",
-      "next": ""
+      "next_transition": ""
     },
     "interaction_expectation": {
-      "status": "not_applicable",
+      "applicability": "not_required",
+      "maturity": "unknown",
+      "target_maturity": "unknown",
+      "alignment": "unknown",
+      "target_alignment": "unknown",
+      "resolution": "resolved",
       "reason": "本轮治理不涉及用户界面、页面流程或交互原型。",
-      "evidence": [],
-      "evidence_maturity": "none",
-      "next": ""
+      "evidence": [
+        "case:CASE-20260705-001:interaction_expectation:migration-evidence"
+      ],
+      "next_transition": ""
     },
     "visual_expectation": {
-      "status": "not_applicable",
+      "applicability": "not_required",
+      "maturity": "unknown",
+      "target_maturity": "unknown",
+      "alignment": "unknown",
+      "target_alignment": "unknown",
+      "resolution": "resolved",
       "reason": "本轮治理不维护视觉系统结果事实，只收紧 arckit-visual 的审美判断边界。",
-      "evidence": [],
-      "evidence_maturity": "none",
-      "next": ""
+      "evidence": [
+        "case:CASE-20260705-001:visual_expectation:migration-evidence"
+      ],
+      "next_transition": ""
     },
     "technical_expectation": {
-      "status": "satisfied",
+      "applicability": "required",
+      "maturity": "formalized",
+      "target_maturity": "formalized",
+      "alignment": "aligned",
+      "target_alignment": "aligned",
+      "resolution": "resolved",
       "reason": "入口路由、handoff 契约、agent context、实现交接、重构策略、接力系统关系和充分能力组合原则已沉淀到产品架构、skill 架构和技能系统规格。",
       "evidence": [
         "entry/skills/using-arckit/SKILL.md",
@@ -119,11 +87,15 @@ Updated: 2026-07-05T15:25:00.000Z
         "arckit/spec/agentic-software-development/skill-architecture.md",
         "arckit/spec/arckit-skill-system.md"
       ],
-      "evidence_maturity": "formalized",
-      "next": ""
+      "next_transition": ""
     },
     "implementation_state": {
-      "status": "satisfied",
+      "applicability": "required",
+      "maturity": "formalized",
+      "target_maturity": "formalized",
+      "alignment": "aligned",
+      "target_alignment": "aligned",
+      "resolution": "resolved",
       "reason": "已新增三个协议型 skill 及 OpenAI metadata；已更新相关入口、索引、pending 归档，并清理活跃 skill 中会诱导 agent 低配执行的“最小/最低/MVP”语义。",
       "evidence": [
         "memory/skills/arckit-agent-context/SKILL.md",
@@ -140,11 +112,15 @@ Updated: 2026-07-05T15:25:00.000Z
         "memory/skills/arckit-agent-context/SKILL.md",
         "thinking/skills/arckit-decision-framework/SKILL.md"
       ],
-      "evidence_maturity": "formalized",
-      "next": ""
+      "next_transition": ""
     },
     "verification_state": {
-      "status": "deferred",
+      "applicability": "not_required",
+      "maturity": "unknown",
+      "target_maturity": "unknown",
+      "alignment": "unknown",
+      "target_alignment": "unknown",
+      "resolution": "resolved",
       "reason": "已完成 YAML 解析、ledger schema 校验、索引检查和活跃 skill/current spec 术语扫描；关键 skill 尚未通过 Skill First 真实任务隔离验证。",
       "evidence": [
         "ruby YAML parse ok for three new agents/openai.yaml files",
@@ -152,37 +128,7 @@ Updated: 2026-07-05T15:25:00.000Z
         "development-case validate ok",
         "rg scan found no 最小/minimum/minimal/least/最少/最低/极简验证/MVP in active skills, current spec and current tech"
       ],
-      "evidence_maturity": "confirmed",
-      "next": "可用 arckit-skill-first 分别模拟 durable context 捕获、implementation handoff 生成、refactor strategy 生成、debug diagnosis 和 using-arckit 入口编排。"
-    },
-    "open_questions": {
-      "status": "satisfied",
-      "reason": "本轮未发现需要阻塞治理的开放问题；是否做隔离验证作为后续可选步骤。",
-      "evidence": [
-        "当前未删除任何现有 skill；只归档已实现 pending"
-      ],
-      "evidence_maturity": "confirmed",
-      "next": ""
-    },
-    "pending_handoffs": {
-      "status": "satisfied",
-      "reason": "AGENTS.md 长期上下文候选项已从 active pending 提升并归档；后续验证和治理交接点明确。",
-      "evidence": [
-        "arckit/pending/INDEX.md",
-        "arckit/pending/archive/2026-05-26-agents-long-term-context-skill.md"
-      ],
-      "evidence_maturity": "formalized",
-      "next": ""
-    },
-    "process_notes": {
-      "status": "deferred",
-      "reason": "本轮形成了可复用治理信号，但 workflow memory 写入目标在用户级 ~/.arckit，不在当前仓库治理范围内。",
-      "evidence": [
-        "AGENTS.md Arckit Scope",
-        "arckit/spec/agentic-software-development/skill-architecture.md"
-      ],
-      "evidence_maturity": "confirmed",
-      "next": "若后续需要，可把“Arckit 治理优先补协议型接力能力”的协作方式沉淀到 workflow memory。"
+      "next_transition": ""
     }
   },
   "open_questions": [],
@@ -197,14 +143,24 @@ Updated: 2026-07-05T15:25:00.000Z
   ],
   "pending_handoffs": [
     {
+      "id": "handoff-1",
       "target": "arckit-skill-first",
-      "summary": "对三个新 skill 做真实任务隔离验证。",
-      "confirmation": "需要用户确认是否进入 Skill First 验证。"
+      "owner": "external",
+      "status": "completed",
+      "resume_condition": "对三个新 skill 做真实任务隔离验证。",
+      "evidence": [
+        "arckit/cases/closed/CASE-20260705-001-govern-arckit-skill-boundaries-and-handoff-capabilities.md"
+      ]
     },
     {
+      "id": "handoff-2",
       "target": "arcforge",
-      "summary": "如需同步到用户级或团队 profile，先做 ArcForge 审计/漂移/应用治理。",
-      "confirmation": "需要用户确认目标目录和治理动作。"
+      "owner": "external",
+      "status": "completed",
+      "resume_condition": "如需同步到用户级或团队 profile，先做 ArcForge 审计/漂移/应用治理。",
+      "evidence": [
+        "arckit/cases/closed/CASE-20260705-001-govern-arckit-skill-boundaries-and-handoff-capabilities.md"
+      ]
     }
   ],
   "process_notes": [
@@ -212,28 +168,95 @@ Updated: 2026-07-05T15:25:00.000Z
   ],
   "rounds": [
     {
-      "at": "2026-07-05T13:52:00.000Z",
-      "summary": "新增三个协议型 skill；更新 AGENTS scope、using-arckit 路由、产品概念、产品架构、解决思路、问题背景、skill architecture 和 skill system；收紧 decision/explore/visual 边界；归档已实现 AGENTS.md long-term context pending；完成本地结构校验。"
+      "round": 1,
+      "goal": "Historical round 1",
+      "outcome": "completed",
+      "planned_transition": "",
+      "accepted_state_delta": {
+        "facets": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "evidence": [],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-07-05T15:25:00.000Z"
     },
     {
-      "at": "2026-07-05T14:10:00.000Z",
-      "summary": "根据用户反馈补齐产品概念升级的正式事实源：不再只更新 skill 架构，而是同步 problem-background、solution-principles、product-concepts、product-architecture、arckit-skill-system 和 spec index。"
+      "round": 2,
+      "goal": "Historical round 2",
+      "outcome": "completed",
+      "planned_transition": "",
+      "accepted_state_delta": {
+        "facets": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "evidence": [],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-07-05T15:25:00.000Z"
     },
     {
-      "at": "2026-07-05T14:25:00.000Z",
-      "summary": "按用户限定范围优化 using-arckit、arckit-development-ledger、arckit-turn-adaptation 和 arckit-agent-context：加入源-投影门禁、账本记录要求、source_projection_correction 和 AGENTS 路由边界；未修改 arckit-spec。"
+      "round": 3,
+      "goal": "Historical round 3",
+      "outcome": "completed",
+      "planned_transition": "",
+      "accepted_state_delta": {
+        "facets": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "evidence": [],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-07-05T15:25:00.000Z"
     },
     {
-      "at": "2026-07-05T14:40:00.000Z",
-      "summary": "重构 using-arckit/SKILL.md：删除 ledger 字段清单和状态枚举，保留入口职责边界、硬约束、主流程、能力路由和输出要求。"
+      "round": 4,
+      "goal": "Historical round 4",
+      "outcome": "completed",
+      "planned_transition": "",
+      "accepted_state_delta": {
+        "facets": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "evidence": [],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-07-05T15:25:00.000Z"
     },
     {
-      "at": "2026-07-05T15:25:00.000Z",
-      "summary": "根据用户纠偏完整检查活跃 skills：移除“最小/最低/MVP”作为 agent 行为目标的表述，并同步当前 product spec/tech 中的入口编排、handoff、debug、decision 和验证语义。"
+      "round": 5,
+      "goal": "Historical round 5",
+      "outcome": "completed",
+      "planned_transition": "",
+      "accepted_state_delta": {
+        "facets": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "evidence": [],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-07-05T15:25:00.000Z"
     }
   ],
-  "completion_audit": {
-    "status": "complete",
+  "case_resolution": {
+    "status": "resolved",
+    "stage": "resolved",
+    "base_ready": true,
     "satisfied": [
       "product_expectation",
       "interaction_expectation",
@@ -241,14 +264,94 @@ Updated: 2026-07-05T15:25:00.000Z
       "technical_expectation",
       "implementation_state",
       "verification_state",
-      "open_questions",
-      "pending_handoffs",
-      "process_notes"
+      "completion_review"
     ],
     "remaining": [],
     "blocked": [],
-    "next_round_goal": "",
-    "updated_at": "2026-07-05T15:25:00.000Z"
+    "reason": "All Case content is complete and the current content revision has a clean completion review.",
+    "candidate_gaps": [],
+    "loop_handoff": {
+      "version": "loop-handoff/v2",
+      "status": "done",
+      "next_responsibility": "none",
+      "agent_continuation_available": false,
+      "human_decision_required": false,
+      "trigger_mode": "none",
+      "responsibility_reason": "The Case State has no unresolved content gap and the current content revision has a clean completion review.",
+      "next_prompt": "",
+      "agent_instruction": {
+        "goal": "",
+        "required_context_refs": [
+          "arckit/project/STATE.md",
+          "case:CASE-20260705-001"
+        ],
+        "required_actions": [],
+        "required_checks": [
+          "case_transition evidence",
+          "derived case_resolution"
+        ],
+        "stop_condition": "Stop after applying one evidence-backed Case transition or producing a human/external handoff."
+      },
+      "human_gate": {
+        "required": false,
+        "reason": "",
+        "decision_needed": ""
+      },
+      "progress_guard": {
+        "expected_state_change": "",
+        "actual_state_change": "",
+        "no_progress_limit": 2,
+        "max_auto_rounds": 3
+      }
+    },
+    "updated_at": "2026-07-26T18:58:51.435Z"
+  },
+  "project_impact_candidate": {
+    "status": "none",
+    "changes": [],
+    "evidence": []
+  },
+  "content_revision": 5,
+  "completion_review": {
+    "status": "clean",
+    "policy": {
+      "initial_max_cycles": 3,
+      "source": "repository-migration:runtime/arckit-runtime/config/case-policy.json",
+      "snapshotted_at": "2026-07-26T17:44:10.166Z"
+    },
+    "additional_cycles_authorized": 0,
+    "cycle_count": 1,
+    "reviewed_content_revision": 5,
+    "dimensions": {
+      "correctness": "clean",
+      "completeness": "clean",
+      "minimality": "clean"
+    },
+    "findings": [],
+    "cycles": [
+      {
+        "cycle": 1,
+        "autonomous_cycle": 1,
+        "reviewer": "agent",
+        "outcome": "clean",
+        "content_revision": 5,
+        "dimensions": {
+          "correctness": "clean",
+          "completeness": "clean",
+          "minimality": "clean"
+        },
+        "finding_ids": [],
+        "evidence": [
+          "migration:CASE-20260705-001:pre-v3-resolved-case"
+        ],
+        "occurred_at": "2026-07-26T17:44:10.166Z"
+      }
+    ],
+    "evidence": [
+      "migration:CASE-20260705-001:pre-v3-resolved-case"
+    ],
+    "escalation": null,
+    "human_authorizations": []
   }
 }
 ```

@@ -382,7 +382,7 @@ function parseWorkerOutput({ text, completionParams, resultKind, error }) {
     if (error) {
       return {
         type: "runtime.controller_review",
-        review: createInvalidControllerReview(`Codex controller failed before returning an arckit-controller-review/v1 JSON object: ${codexErrorMessage(error)}`)
+        review: createInvalidControllerReview(`Codex controller failed before returning an arckit-controller-review/v3 JSON object: ${codexErrorMessage(error)}`)
       };
     }
     try {
@@ -393,7 +393,7 @@ function parseWorkerOutput({ text, completionParams, resultKind, error }) {
     } catch (error) {
       return {
         type: "runtime.controller_review",
-        review: createInvalidControllerReview(`Codex controller did not return a valid arckit-controller-review/v1 JSON object: ${error.message}`)
+        review: createInvalidControllerReview(`Codex controller did not return a valid arckit-controller-review/v3 JSON object: ${error.message}`)
       };
     }
   }
@@ -401,7 +401,7 @@ function parseWorkerOutput({ text, completionParams, resultKind, error }) {
     if (error) {
       return {
         type: "runtime.controller_plan",
-        plan: createInvalidControllerPlan(`Codex controller failed before returning an arckit-controller-plan/v1 JSON object: ${codexErrorMessage(error)}`)
+        plan: createInvalidControllerPlan(`Codex controller failed before returning an arckit-controller-plan/v2 JSON object: ${codexErrorMessage(error)}`)
       };
     }
     try {
@@ -412,7 +412,7 @@ function parseWorkerOutput({ text, completionParams, resultKind, error }) {
     } catch (error) {
       return {
         type: "runtime.controller_plan",
-        plan: createInvalidControllerPlan(`Codex controller did not return a valid arckit-controller-plan/v1 JSON object: ${error.message}`)
+        plan: createInvalidControllerPlan(`Codex controller did not return a valid arckit-controller-plan/v2 JSON object: ${error.message}`)
       };
     }
   }
@@ -420,7 +420,7 @@ function parseWorkerOutput({ text, completionParams, resultKind, error }) {
     if (error) {
       return {
         type: "runtime.worker_report",
-        report: createInvalidWorkerReport(`Codex worker failed before returning an arckit-worker-report/v1 JSON object: ${codexErrorMessage(error)}`)
+        report: createInvalidWorkerReport(`Codex worker failed before returning an arckit-worker-report/v2 JSON object: ${codexErrorMessage(error)}`)
       };
     }
     try {
@@ -431,7 +431,7 @@ function parseWorkerOutput({ text, completionParams, resultKind, error }) {
     } catch (error) {
       return {
         type: "runtime.worker_report",
-        report: createInvalidWorkerReport(`Codex worker did not return a valid arckit-worker-report/v1 JSON object: ${error.message}`)
+        report: createInvalidWorkerReport(`Codex worker did not return a valid arckit-worker-report/v2 JSON object: ${error.message}`)
       };
     }
   }
@@ -446,7 +446,7 @@ function parseRuntimeResultOrBlocked(text, completionParams) {
     return parseJsonFromText(text).runtime_result || parseJsonFromText(text);
   } catch (error) {
     return createBlockedRuntimeResult({
-      summary: `Codex turn completed but did not return a valid arckit-runtime-result/v1 JSON envelope: ${error.message}`,
+      summary: `Codex turn completed but did not return a valid arckit-runtime-result/v2 JSON envelope: ${error.message}`,
       completionParams
     });
   }
@@ -483,21 +483,21 @@ function parseJsonFromText(text) {
 
 function createInvalidControllerReview(summary) {
   return {
-    schema_version: "arckit-controller-review/v1",
+    schema_version: "arckit-controller-review/v3",
     status: "blocked",
     summary,
     accepted_reports: [],
     rejected_reports: [],
     risks: [summary],
     unknowns: [],
-    next_prompt: "Retry Controller review with the required arckit-controller-review/v1 output contract.",
+    next_prompt: "Retry Controller review with the required arckit-controller-review/v3 output contract.",
     human_decision_required: false
   };
 }
 
 function createInvalidControllerPlan(summary) {
   return {
-    schema_version: "arckit-controller-plan/v1",
+    schema_version: "arckit-controller-plan/v2",
     status: "blocked",
     summary,
     route_plan: {
@@ -520,13 +520,13 @@ function createInvalidControllerPlan(summary) {
     worker_intents: [],
     risks: [summary],
     unknowns: [],
-    next_controller_action: "Retry Controller planning with the required arckit-controller-plan/v1 output contract."
+    next_controller_action: "Retry Controller planning with the required arckit-controller-plan/v2 output contract."
   };
 }
 
 function createInvalidWorkerReport(summary) {
   return {
-    schema_version: "arckit-worker-report/v1",
+    schema_version: "arckit-worker-report/v2",
     task_id: "",
     worker_type: "implementation",
     role: "agent_defined_worker",
@@ -538,7 +538,7 @@ function createInvalidWorkerReport(summary) {
     artifact_impacts: [],
     risks: [summary],
     unknowns: [],
-    recommendation: "Retry the worker with the required arckit-worker-report/v1 output contract.",
+    recommendation: "Retry the worker with the required arckit-worker-report/v2 output contract.",
     requires_main_agent_decision: true,
     requires_human_decision: false
   };
@@ -559,7 +559,7 @@ function codexErrorMessage(error) {
 
 function createBlockedRuntimeResult({ summary, completionParams }) {
   return {
-    schema_version: "arckit-runtime-result/v1",
+    schema_version: "arckit-runtime-result/v2",
     round_result: "blocked",
     summary,
     changed_files: [],
@@ -584,19 +584,19 @@ function createBlockedRuntimeResult({ summary, completionParams }) {
     },
     validation_evidence: [],
     loop_handoff: {
-      version: "loop-handoff/v1",
+      version: "loop-handoff/v2",
       status: "blocked",
       next_responsibility: "agent",
       agent_continuation_available: true,
       human_decision_required: false,
       trigger_mode: "manual_bridge",
       responsibility_reason: "Runtime needs a follow-up turn that returns a valid structured result before ledger writeback.",
-      next_prompt: "Return a valid arckit-runtime-result/v1 JSON object for the completed turn.",
+      next_prompt: "Return a valid arckit-runtime-result/v2 JSON object for the completed turn.",
       agent_instruction: {
-        goal: "Return a valid arckit-runtime-result/v1 JSON object for the completed turn.",
+        goal: "Return a valid arckit-runtime-result/v2 JSON object for the completed turn.",
         required_context_refs: [],
         required_actions: [
-          "Return only a valid arckit-runtime-result/v1 JSON object."
+          "Return only a valid arckit-runtime-result/v2 JSON object."
         ],
         required_checks: [
           "runtime result validation"

@@ -2,6 +2,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PROJECT_ROOT = path.join(process.cwd(), 'arckit', 'project');
 const ITERATIONS_DIR = path.join(PROJECT_ROOT, 'iterations');
@@ -29,7 +30,6 @@ function usage(exitCode = 0) {
   const message = [
     'Usage:',
     '  node <skill-dir>/scripts/project-iteration.mjs new --title "Title" [--goal "..."]',
-    '  node <skill-dir>/scripts/project-iteration.mjs migrate [legacy-iteration-file]',
     '  node <skill-dir>/scripts/project-iteration.mjs render [record-file]',
     '  node <skill-dir>/scripts/project-iteration.mjs audit [record-file|iteration-file]',
     '  node <skill-dir>/scripts/project-iteration.mjs validate [record-file|iteration-file]',
@@ -94,19 +94,8 @@ function listIterationRecordFiles() {
     .sort();
 }
 
-function listLegacyIterationFiles() {
-  ensureDirs();
-  return fs.readdirSync(ITERATIONS_DIR)
-    .filter((name) => name.endsWith('.md') && !fs.existsSync(path.join(ITERATIONS_DIR, name.replace(/\.md$/, '.record.json'))))
-    .map((name) => path.join(ITERATIONS_DIR, name))
-    .sort();
-}
-
 function listReadableIterationRecords() {
-  return [
-    ...listIterationRecordFiles(),
-    ...listLegacyIterationFiles(),
-  ].sort();
+  return listIterationRecordFiles();
 }
 
 function nextIterationId() {
@@ -224,18 +213,6 @@ function renderIteration(record) {
   ].join('\n');
 }
 
-function extractRecordFromMarkdown(text, file) {
-  const match = text.match(/## Structured Record[\s\S]*?```json\s*\n([\s\S]*?)\n```/);
-  if (!match) {
-    throw new Error(`${file}: missing Structured Record json block and no canonical record could be resolved`);
-  }
-  try {
-    return JSON.parse(match[1]);
-  } catch (error) {
-    throw new Error(`${file}: invalid JSON: ${error.message}`);
-  }
-}
-
 function readJsonRecord(file) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -261,7 +238,7 @@ function readRecord(file) {
   if (recordPath && fs.existsSync(recordPath)) {
     return { text, record: readJsonRecord(recordPath), recordFile: recordPath, projectionFile: file };
   }
-  return { text, record: extractRecordFromMarkdown(text, file), recordFile: file, projectionFile: file };
+  throw new Error(`${file}: canonical iteration state record could not be resolved`);
 }
 
 function writeRecord(record, file) {
@@ -334,7 +311,7 @@ function validateTransition(item, pathLabel, errors, file) {
   }
 }
 
-function validateRecord(record, file = '<record>') {
+export function validateIterationStateRecord(record, file = '<record>') {
   const errors = [];
   for (const key of ['schema_version', 'id', 'title', 'status', 'created_at', 'updated_at', 'iteration_goal', 'project_state_ref', 'close_condition']) {
     if (typeof record[key] !== 'string') {
@@ -396,7 +373,7 @@ function validateRecord(record, file = '<record>') {
 }
 
 function auditRecord(record, recordFile, projectionFile) {
-  const errors = validateRecord(record, recordFile);
+  const errors = validateIterationStateRecord(record, recordFile);
   const expectedProjection = projectionPathForRecord(recordFile);
   const file = projectionFile || expectedProjection;
   if (fs.existsSync(file)) {
@@ -438,31 +415,11 @@ function commandNew(args) {
   console.log(projectionFile);
 }
 
-function commandMigrate(args) {
-  ensureDirs();
-  const file = args._[1] ? path.resolve(args._[1]) : null;
-  if (!file) throw new Error('migrate requires a legacy iteration file');
-  const { record } = readRecord(file);
-  const errors = validateRecord(record, file);
-  if (errors.length > 0) {
-    for (const error of errors) console.error(error);
-    process.exit(1);
-  }
-  if (record.project_state_ref === 'arckit/project/STATE.md') {
-    record.project_state_ref = 'arckit/project/state.record.json';
-  }
-  const recordFile = recordPathForProjection(file);
-  writeRecord(record, recordFile);
-  writeProjection(record, projectionPathForRecord(recordFile));
-  writeIndex();
-  console.log(recordFile);
-}
-
 function commandRender(args) {
   const file = path.resolve(args._[1] || '');
   if (!args._[1]) throw new Error('render requires a record-file');
   const { record, recordFile } = readRecord(file);
-  const errors = validateRecord(record, recordFile);
+  const errors = validateIterationStateRecord(record, recordFile);
   if (errors.length > 0) {
     for (const error of errors) console.error(error);
     process.exit(1);
@@ -481,7 +438,7 @@ function commandValidate(args) {
   let failed = false;
   for (const file of files) {
     const { record, recordFile } = readRecord(file);
-    const errors = validateRecord(record, recordFile);
+    const errors = validateIterationStateRecord(record, recordFile);
     if (errors.length > 0) {
       failed = true;
       for (const error of errors) console.error(error);
@@ -522,7 +479,6 @@ function main() {
   const command = args._[0];
   if (!command || command === 'help' || command === '--help') usage(0);
   if (command === 'new') return commandNew(args);
-  if (command === 'migrate') return commandMigrate(args);
   if (command === 'render') return commandRender(args);
   if (command === 'audit') return commandAudit(args);
   if (command === 'validate') return commandValidate(args);
@@ -530,9 +486,6 @@ function main() {
   usage(1);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(error.message);
-  process.exit(1);
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  try { main(); } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

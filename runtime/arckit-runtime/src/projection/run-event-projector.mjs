@@ -84,6 +84,7 @@ function applyRunCommandResult(run, commandType, result) {
     if (written) {
       activity.ledger_written_at = new Date().toISOString();
       activity.round_state = "ledger_written";
+      activity.loop_handoff = normalized.parsed?.case_transition_result?.case_resolution?.loop_handoff || activity.loop_handoff;
       activity.ledger_stage = {
         ...(activity.ledger_stage || { schema_version: "arckit-ledger-stage/v1" }),
         status: "written",
@@ -825,7 +826,7 @@ function parseWorkerReportText(text) {
   }
   try {
     const parsed = JSON.parse(text);
-    return parsed?.schema_version === "arckit-worker-report/v1" ? parsed : null;
+    return parsed?.schema_version === "arckit-worker-report/v2" ? parsed : null;
   } catch {
     return null;
   }
