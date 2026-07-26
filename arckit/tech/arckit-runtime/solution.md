@@ -185,6 +185,7 @@ Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前�
 写回策略按层分工：
 
 - Project State 写宏观 checkpoint：dimension 状态、project gaps、active Case refs、`case_control`、last state delta 和 evidence refs。
+- Iteration State v2 写阶段性 Project targets、带 closed Case 的 accepted Project changes、acceptance、blocking Project gaps 和 Case refs；不写 Loop continuation 或同态日志。
 - Case State 写事项级 checkpoint：六个 facets、content revision、completion review policy/cycles/findings/escalation、open questions、pending handoffs、round records、derived resolution、candidate gaps 和 loop handoff。
 - Runtime execution record 写完整过程证据：runtime result、gate、selected round、raw event refs 和可审计输出。
 - Worker 不直接写 Project/Case State；Worker 提交 claims，Controller 接受后形成 transition，ledger 确定性应用。

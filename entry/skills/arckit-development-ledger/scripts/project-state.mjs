@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const PROJECT_ROOT = path.join(process.cwd(), 'arckit', 'project');
 const STATE_PATH = path.join(PROJECT_ROOT, 'STATE.md');
 const STATE_RECORD_PATH = path.join(PROJECT_ROOT, 'state.record.json');
+const ITERATIONS_INDEX_PATH = path.join(PROJECT_ROOT, 'ITERATIONS.md');
 
 const VALID_STATE_VALUE = new Set([
   'unknown',
@@ -33,6 +35,25 @@ const VALID_EVIDENCE_MATURITY = new Set([
 const VALID_PROJECT_STATUS = new Set(['active', 'paused', 'archived']);
 const VALID_PRIORITY = new Set(['none', 'low', 'medium', 'high', 'critical']);
 const VALID_CONFIDENCE = new Set(['low', 'medium', 'high']);
+const PROJECT_KEYS = new Set([
+  'schema_version', 'project', 'active_iteration_ref', 'active_case_refs',
+  'completeness_dimensions', 'state_gaps', 'case_control', 'active_constraints',
+  'open_questions', 'canonical_artifact_refs', 'last_state_delta',
+]);
+const PROJECT_INFO_KEYS = new Set(['name', 'status', 'created_at', 'updated_at', 'original_intent', 'current_phase']);
+const DIMENSION_KEYS = new Set([
+  'current_state', 'target_state', 'state_reason', 'evidence', 'evidence_maturity',
+  'gap', 'next_transition', 'blockers', 'priority', 'confidence',
+]);
+const GAP_KEYS = new Set([
+  'id', 'dimension', 'current_state', 'target_state', 'impact', 'urgency', 'risk',
+  'dependencies', 'covered_dimensions', 'next_transition', 'candidate_case_ref',
+]);
+const CASE_CONTROL_KEYS = new Set(['selected_case_ref', 'selection_reason', 'next_case_intent', 'priority_basis', 'stop_condition']);
+const LAST_DELTA_KEYS = new Set([
+  'changed_dimensions', 'state_transitions', 'deferred_dimensions', 'blocked_dimensions',
+  'case_refs', 'iteration_ref', 'next_project_focus', 'updated_at',
+]);
 
 const COMPLETENESS_DIMENSION_KEYS = [
   'project_intent',
@@ -262,8 +283,33 @@ function resolveProjectPath(ref) {
   return path.resolve(process.cwd(), ref);
 }
 
+function sortedUnique(values) {
+  return [...new Set((values || []).filter(Boolean))].sort();
+}
+
+function rejectUnknownKeys(value, allowed, pathLabel, errors, file) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
+  for (const key of Object.keys(value)) if (!allowed.has(key)) errors.push(`${file}: ${pathLabel}.${key} is not allowed`);
+}
+
+function isVolatileEvidenceRef(value) {
+  return typeof value === 'string' && (value.startsWith('/tmp/') || value.startsWith('/private/tmp/') || value.startsWith('/var/folders/'));
+}
+
+function validateStringArray(value, label, errors, file, { nonEmpty = false, unique = false } = {}) {
+  if (!Array.isArray(value)) {
+    errors.push(`${file}: ${label} must be an array`);
+    return;
+  }
+  for (const [index, item] of value.entries()) {
+    if (typeof item !== 'string' || (nonEmpty && item.length === 0)) errors.push(`${file}: ${label}[${index}] must be ${nonEmpty ? 'a non-empty string' : 'a string'}`);
+  }
+  if (unique && new Set(value).size !== value.length) errors.push(`${file}: ${label} must be unique`);
+}
+
 function auditRecord(record, recordFile = STATE_RECORD_PATH) {
   const errors = validateProjectStateRecord(record, recordFile);
+  if (errors.length) return errors;
   if (fs.existsSync(STATE_PATH)) {
     const expected = normalizeText(renderState(record));
     const actual = normalizeText(fs.readFileSync(STATE_PATH, 'utf8'));
@@ -276,7 +322,15 @@ function auditRecord(record, recordFile = STATE_RECORD_PATH) {
   if (record.active_iteration_ref && !fs.existsSync(resolveProjectPath(record.active_iteration_ref))) {
     errors.push(`${recordFile}: active_iteration_ref does not exist: ${record.active_iteration_ref}`);
   }
+  if (record.active_iteration_ref && fs.existsSync(resolveProjectPath(record.active_iteration_ref))) {
+    const iterationPath = resolveProjectPath(record.active_iteration_ref);
+    const iteration = readJsonRecord(iterationPath);
+    if (iteration.schema_version !== 'iteration-state-record/v2') errors.push(`${iterationPath}: active iteration must use iteration-state-record/v2`);
+    if (iteration.project_state_ref !== path.relative(process.cwd(), recordFile)) errors.push(`${iterationPath}: project_state_ref must reference ${path.relative(process.cwd(), recordFile)}`);
+    if (JSON.stringify(sortedUnique(iteration.active_case_refs)) !== JSON.stringify(sortedUnique(record.active_case_refs))) errors.push(`${iterationPath}: active_case_refs must match Project active_case_refs`);
+  }
   for (const ref of record.active_case_refs || []) {
+    if (typeof ref !== 'string') continue;
     if (!fs.existsSync(resolveProjectPath(ref))) {
       errors.push(`${recordFile}: active_case_ref does not exist: ${ref}`);
     }
@@ -290,6 +344,14 @@ function auditRecord(record, recordFile = STATE_RECORD_PATH) {
   }
   if (selectedCaseRef && !fs.existsSync(resolveProjectPath(selectedCaseRef))) {
     errors.push(`${recordFile}: case_control.selected_case_ref does not exist: ${selectedCaseRef}`);
+  }
+  for (const gap of record.state_gaps || []) {
+    if (typeof gap?.candidate_case_ref === 'string' && gap.candidate_case_ref && (!(record.active_case_refs || []).includes(gap.candidate_case_ref) || !fs.existsSync(resolveProjectPath(gap.candidate_case_ref)))) {
+      errors.push(`${recordFile}: state gap ${gap.id} candidate_case_ref must be an active Case: ${gap.candidate_case_ref}`);
+    }
+  }
+  for (const ref of record.canonical_artifact_refs || []) {
+    if (typeof ref === 'string' && !path.isAbsolute(ref) && !fs.existsSync(resolveProjectPath(ref))) errors.push(`${recordFile}: canonical_artifact_ref does not exist: ${ref}`);
   }
   return errors;
 }
@@ -305,6 +367,7 @@ function validateDimension(item, key, errors, file) {
     errors.push(`${file}: completeness_dimensions.${key} is required`);
     return;
   }
+  rejectUnknownKeys(item, DIMENSION_KEYS, `completeness_dimensions.${key}`, errors, file);
   if (!VALID_STATE_VALUE.has(item.current_state)) {
     errors.push(`${file}: completeness_dimensions.${key}.current_state must be one of ${Array.from(VALID_STATE_VALUE).join(', ')}`);
   }
@@ -318,13 +381,16 @@ function validateDimension(item, key, errors, file) {
   }
   if (!Array.isArray(item.evidence)) {
     errors.push(`${file}: completeness_dimensions.${key}.evidence must be an array`);
+  } else {
+    for (const [index, evidence] of item.evidence.entries()) {
+      if (typeof evidence !== 'string' || evidence.length === 0) errors.push(`${file}: completeness_dimensions.${key}.evidence[${index}] must be a non-empty string`);
+      if (isVolatileEvidenceRef(evidence)) errors.push(`${file}: completeness_dimensions.${key}.evidence contains volatile ref: ${evidence}`);
+    }
   }
   if (!VALID_EVIDENCE_MATURITY.has(item.evidence_maturity)) {
     errors.push(`${file}: completeness_dimensions.${key}.evidence_maturity must be one of ${Array.from(VALID_EVIDENCE_MATURITY).join(', ')}`);
   }
-  if (item.blockers !== undefined && !Array.isArray(item.blockers)) {
-    errors.push(`${file}: completeness_dimensions.${key}.blockers must be an array when present`);
-  }
+  if (item.blockers !== undefined) validateStringArray(item.blockers, `completeness_dimensions.${key}.blockers`, errors, file, { nonEmpty: true, unique: true });
   if (!VALID_PRIORITY.has(item.priority)) {
     errors.push(`${file}: completeness_dimensions.${key}.priority must be one of ${Array.from(VALID_PRIORITY).join(', ')}`);
   }
@@ -333,7 +399,7 @@ function validateDimension(item, key, errors, file) {
   }
   if (
     ['defined', 'designed', 'implemented', 'integrated', 'verified', 'accepted', 'released', 'operational'].includes(item.current_state) &&
-    item.evidence.length === 0
+    (!Array.isArray(item.evidence) || item.evidence.length === 0)
   ) {
     errors.push(`${file}: completeness_dimensions.${key}.evidence must not be empty when current_state is ${item.current_state}`);
   }
@@ -344,6 +410,7 @@ function validateStateGap(gap, index, errors, file) {
     errors.push(`${file}: state_gaps[${index}] must be an object`);
     return;
   }
+  rejectUnknownKeys(gap, GAP_KEYS, `state_gaps[${index}]`, errors, file);
   for (const field of ['id', 'dimension', 'impact', 'next_transition']) {
     if (typeof gap[field] !== 'string' || gap[field].length === 0) {
       errors.push(`${file}: state_gaps[${index}].${field} must be a non-empty string`);
@@ -355,25 +422,34 @@ function validateStateGap(gap, index, errors, file) {
   if (!VALID_STATE_VALUE.has(gap.target_state)) {
     errors.push(`${file}: state_gaps[${index}].target_state must be one of ${Array.from(VALID_STATE_VALUE).join(', ')}`);
   }
-  if (!VALID_PRIORITY.has(gap.urgency)) {
+  if (!VALID_PRIORITY.has(gap.urgency) || gap.urgency === 'none') {
     errors.push(`${file}: state_gaps[${index}].urgency must be one of ${Array.from(VALID_PRIORITY).filter((item) => item !== 'none').join(', ')}`);
   }
-  if (!VALID_PRIORITY.has(gap.risk)) {
+  if (!VALID_PRIORITY.has(gap.risk) || gap.risk === 'none') {
     errors.push(`${file}: state_gaps[${index}].risk must be one of ${Array.from(VALID_PRIORITY).filter((item) => item !== 'none').join(', ')}`);
   }
-  if (gap.dependencies !== undefined && !Array.isArray(gap.dependencies)) {
-    errors.push(`${file}: state_gaps[${index}].dependencies must be an array when present`);
+  if (gap.dependencies !== undefined) validateStringArray(gap.dependencies, `state_gaps[${index}].dependencies`, errors, file, { nonEmpty: true, unique: true });
+  if (gap.candidate_case_ref !== undefined && (typeof gap.candidate_case_ref !== 'string' || !gap.candidate_case_ref)) errors.push(`${file}: state_gaps[${index}].candidate_case_ref must be a non-empty string when present`);
+  if (!Array.isArray(gap.covered_dimensions) || gap.covered_dimensions.length === 0) {
+    errors.push(`${file}: state_gaps[${index}].covered_dimensions must be non-empty`);
+  } else {
+    if (!gap.covered_dimensions.includes(gap.dimension)) errors.push(`${file}: state_gaps[${index}].covered_dimensions must include its primary dimension`);
+    if (new Set(gap.covered_dimensions).size !== gap.covered_dimensions.length) errors.push(`${file}: state_gaps[${index}].covered_dimensions must be unique`);
+    for (const dimension of gap.covered_dimensions) if (!COMPLETENESS_DIMENSION_KEYS.includes(dimension)) errors.push(`${file}: state_gaps[${index}] covers unknown dimension: ${dimension}`);
   }
 }
 
 export function validateProjectStateRecord(record, file = '<record>') {
   const errors = [];
+  if (!record || typeof record !== 'object' || Array.isArray(record)) return [`${file}: project state must be an object`];
+  rejectUnknownKeys(record, PROJECT_KEYS, 'record', errors, file);
   if (record.schema_version !== 'project-state-record/v3') {
     errors.push(`${file}: schema_version must be project-state-record/v3`);
   }
   if (!record.project || typeof record.project !== 'object' || Array.isArray(record.project)) {
     errors.push(`${file}: project must be an object`);
   } else {
+    rejectUnknownKeys(record.project, PROJECT_INFO_KEYS, 'project', errors, file);
     if (typeof record.project.name !== 'string' || record.project.name.length === 0) {
       errors.push(`${file}: project.name must be a non-empty string`);
     }
@@ -385,14 +461,14 @@ export function validateProjectStateRecord(record, file = '<record>') {
         errors.push(`${file}: project.${key} must be a string`);
       }
     }
+    if (record.project.current_phase !== undefined && typeof record.project.current_phase !== 'string') errors.push(`${file}: project.current_phase must be a string when present`);
   }
   validateString(record, 'active_iteration_ref', errors, file);
-  if (!Array.isArray(record.active_case_refs)) {
-    errors.push(`${file}: active_case_refs must be an array`);
-  }
+  validateStringArray(record.active_case_refs, 'active_case_refs', errors, file, { nonEmpty: true, unique: true });
   if (!record.completeness_dimensions || typeof record.completeness_dimensions !== 'object' || Array.isArray(record.completeness_dimensions)) {
     errors.push(`${file}: completeness_dimensions must be an object`);
   } else {
+    rejectUnknownKeys(record.completeness_dimensions, new Set(COMPLETENESS_DIMENSION_KEYS), 'completeness_dimensions', errors, file);
     for (const key of COMPLETENESS_DIMENSION_KEYS) {
       validateDimension(record.completeness_dimensions[key], key, errors, file);
     }
@@ -401,29 +477,53 @@ export function validateProjectStateRecord(record, file = '<record>') {
     errors.push(`${file}: state_gaps must be an array`);
   } else {
     record.state_gaps.forEach((gap, index) => validateStateGap(gap, index, errors, file));
+    const validGaps = record.state_gaps.filter((gap) => gap && typeof gap === 'object' && !Array.isArray(gap));
+    const gapIds = validGaps.map((gap) => gap.id);
+    if (new Set(gapIds).size !== gapIds.length) errors.push(`${file}: state_gaps ids must be unique`);
+    const coveredDimensions = new Set(validGaps.flatMap((gap) => Array.isArray(gap.covered_dimensions) ? gap.covered_dimensions : []));
+    for (const [dimension, value] of Object.entries(record.completeness_dimensions || {})) {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+      const actionable = value.current_state !== value.target_state && Boolean(value.gap) && value.priority !== 'none';
+      if (actionable && !coveredDimensions.has(dimension)) errors.push(`${file}: actionable Project dimension is not covered by state_gaps: ${dimension}`);
+    }
+    for (const [index, gap] of validGaps.entries()) {
+      const primary = record.completeness_dimensions?.[gap.dimension];
+      if (primary && (gap.current_state !== primary.current_state || gap.target_state !== primary.target_state)) errors.push(`${file}: state_gaps[${index}] states must match primary dimension ${gap.dimension}`);
+    }
   }
   if (!record.case_control || typeof record.case_control !== 'object' || Array.isArray(record.case_control)) {
     errors.push(`${file}: case_control must be an object`);
   } else {
+    rejectUnknownKeys(record.case_control, CASE_CONTROL_KEYS, 'case_control', errors, file);
     for (const key of ['selected_case_ref', 'selection_reason', 'next_case_intent', 'priority_basis', 'stop_condition']) {
       if (typeof record.case_control[key] !== 'string') {
         errors.push(`${file}: case_control.${key} must be a string`);
       }
     }
   }
-  for (const key of ['active_constraints', 'open_questions', 'canonical_artifact_refs']) {
-    if (!Array.isArray(record[key])) {
-      errors.push(`${file}: ${key} must be an array`);
-    }
+  for (const key of ['active_constraints', 'open_questions', 'canonical_artifact_refs']) validateStringArray(record[key], key, errors, file, { nonEmpty: true, unique: true });
+  for (const ref of Array.isArray(record.canonical_artifact_refs) ? record.canonical_artifact_refs : []) {
+    if (isVolatileEvidenceRef(ref)) errors.push(`${file}: canonical_artifact_refs contains volatile ref: ${ref}`);
   }
   if (!record.last_state_delta || typeof record.last_state_delta !== 'object' || Array.isArray(record.last_state_delta)) {
     errors.push(`${file}: last_state_delta must be an object`);
   } else {
-    for (const key of ['changed_dimensions', 'state_transitions', 'deferred_dimensions', 'blocked_dimensions']) {
-      if (!Array.isArray(record.last_state_delta[key])) {
-        errors.push(`${file}: last_state_delta.${key} must be an array`);
+    rejectUnknownKeys(record.last_state_delta, LAST_DELTA_KEYS, 'last_state_delta', errors, file);
+    for (const key of ['changed_dimensions', 'deferred_dimensions', 'blocked_dimensions', 'case_refs']) {
+      validateStringArray(record.last_state_delta[key], `last_state_delta.${key}`, errors, file, { nonEmpty: true, unique: true });
+    }
+    if (!Array.isArray(record.last_state_delta.state_transitions)) {
+      errors.push(`${file}: last_state_delta.state_transitions must be an array`);
+    } else {
+      for (const [index, transition] of record.last_state_delta.state_transitions.entries()) {
+        const label = `last_state_delta.state_transitions[${index}]`;
+        rejectUnknownKeys(transition, new Set(['dimension', 'from_state', 'to_state', 'reason']), label, errors, file);
+        if (!COMPLETENESS_DIMENSION_KEYS.includes(transition?.dimension)) errors.push(`${file}: ${label}.dimension is invalid`);
+        if (!VALID_STATE_VALUE.has(transition?.from_state) || !VALID_STATE_VALUE.has(transition?.to_state) || transition?.from_state === transition?.to_state) errors.push(`${file}: ${label} states must describe a real Project state change`);
+        if (typeof transition?.reason !== 'string' || !transition.reason) errors.push(`${file}: ${label}.reason must be a non-empty string`);
       }
     }
+    if (typeof record.last_state_delta.iteration_ref !== 'string') errors.push(`${file}: last_state_delta.iteration_ref must be a string`);
     if (typeof record.last_state_delta.next_project_focus !== 'string') {
       errors.push(`${file}: last_state_delta.next_project_focus must be a string`);
     }
@@ -498,9 +598,42 @@ function commandSelectCase(args) {
     next_project_focus: args.intent || '',
     updated_at: timestamp,
   };
-  writeRecord(record, STATE_RECORD_PATH);
-  writeStateProjection(record, STATE_PATH);
+  const projectErrors = validateProjectStateRecord(record, STATE_RECORD_PATH);
+  if (projectErrors.length) throw new Error(projectErrors.join('\n'));
+  const iterationPath = record.active_iteration_ref ? resolveProjectPath(record.active_iteration_ref) : '';
+  if (iterationPath && !fs.existsSync(iterationPath)) throw new Error(`${iterationPath}: active_iteration_ref must exist before selecting a Case`);
+  const iteration = iterationPath && fs.existsSync(iterationPath) ? readJsonRecord(iterationPath) : null;
+  if (iteration) {
+    if (iteration.schema_version !== 'iteration-state-record/v2') throw new Error(`${iterationPath}: active iteration must use iteration-state-record/v2`);
+    if (iteration.project_state_ref !== path.relative(process.cwd(), STATE_RECORD_PATH)) throw new Error(`${iterationPath}: project_state_ref must reference ${path.relative(process.cwd(), STATE_RECORD_PATH)}`);
+    iteration.active_case_refs = sortedUnique([...(iteration.active_case_refs || []), caseRef]);
+    iteration.updated_at = timestamp;
+  }
+  const snapshots = [STATE_RECORD_PATH, STATE_PATH, iterationPath, iterationPath ? iterationPath.replace(/\.record\.json$/, '.md') : '', ITERATIONS_INDEX_PATH]
+    .filter(Boolean)
+    .map((file) => ({ file, exists: fs.existsSync(file), content: fs.existsSync(file) ? fs.readFileSync(file) : null }));
+  try {
+    writeRecord(record, STATE_RECORD_PATH);
+    writeStateProjection(record, STATE_PATH);
+    if (iteration) {
+      writeRecord(iteration, iterationPath);
+      runIterationScript(['render', record.active_iteration_ref]);
+      runIterationScript(['index']);
+    }
+  } catch (error) {
+    for (const snapshot of snapshots) {
+      if (snapshot.exists) fs.writeFileSync(snapshot.file, snapshot.content);
+      else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file);
+    }
+    throw error;
+  }
   console.log(STATE_RECORD_PATH);
+}
+
+function runIterationScript(args) {
+  const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'project-iteration.mjs');
+  const result = spawnSync(process.execPath, [script, ...args], { cwd: process.cwd(), encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`project-iteration.mjs ${args.join(' ')} failed\n${result.stderr || result.stdout}`);
 }
 
 function commandRender(args) {

@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-07-26T19:20:08.209Z",
+    "updated_at": "2026-07-26T20:30:03.815Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -174,19 +174,25 @@
       "confidence": "high"
     },
     "data_state": {
-      "current_state": "designed",
+      "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "项目数据分为 canonical project state record、STATE.md decision brief、canonical iteration state、iteration decision brief、case evidence、pending 和 stable facts，各自有不同职责。",
+      "state_reason": "Project v3 and Iteration v2 now have strict schemas, durable evidence rules, explicit gap coverage, generated projections, and deterministic cross-record audits that pass on the canonical repository state.",
       "evidence": [
         "entry/skills/arckit-development-ledger/SKILL.md",
         "arckit/project/state.record.json",
         "arckit/project/STATE.md",
         "arckit/cases/INDEX.md",
-        "arckit/pending/INDEX.md"
+        "arckit/pending/INDEX.md",
+        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
+        "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
+        "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
       ],
-      "evidence_maturity": "formalized",
-      "gap": "canonical record 与 projection 已拆分；跨 project、iteration、case 的更强一致性审计仍未实现。",
-      "next_transition": "增加或验证跨 project、iteration、case 的一致性审计。",
+      "evidence_maturity": "validated",
+      "gap": "Strict canonical state governance is locally verified; real complex-project use is still required to advance from verified to accepted.",
+      "next_transition": "Exercise the strict Project/Iteration/Case audit contract in a real complex software project and retain durable acceptance evidence.",
       "blockers": [],
       "priority": "medium",
       "confidence": "medium"
@@ -324,7 +330,6 @@
         "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-result.json",
         "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-events.jsonl",
         "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/MANIFEST.md",
-        "/tmp/arckit-runtime-real-turn-4-last-agent-result.json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-real-turn-4-last-agent-result.json",
         "runtime/arckit-runtime/src/project-initializer.mjs",
         "runtime/arckit-runtime/src/ledger-scripts.mjs",
@@ -373,8 +378,8 @@
         "AGENTS.md"
       ],
       "evidence_maturity": "confirmed",
-      "gap": "状态机制升级后尚未执行同步、漂移审计或安装副本更新。",
-      "next_transition": "需要发布或同步时用 ArcForge 检查源与已安装 skill 的漂移。",
+      "gap": "上一版状态机制已同步并通过 clean drift；当前治理 revision 完成后仍需重新应用并验证安装副本。",
+      "next_transition": "当前治理 Case resolved 后，用 ArcForge 对本 revision 执行 drift、apply 和安装后 clean drift。",
       "blockers": [],
       "priority": "medium",
       "confidence": "medium"
@@ -445,24 +450,43 @@
       "confidence": "medium"
     },
     "iteration_governance": {
-      "current_state": "implemented",
+      "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "迭代状态已移动到 arckit/project 命名空间，并用 iteration state record 表达目标状态转移、当前状态转移、验收状态和关闭条件；Markdown 只作为 generated iteration decision brief。",
+      "state_reason": "Iteration v2 now contains only macro Project targets and resolved-Case aggregation, rejects legacy and Loop control fields, derives projections from fresh Project State, and stays aligned through deterministic closeout.",
       "evidence": [
         "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
         "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
         "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md"
+        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md",
+        "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
+        "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
+        "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
       ],
-      "evidence_maturity": "formalized",
-      "gap": "当前迭代已完成机制落地 case closeout，但还缺真实复杂项目 loop 验证。",
-      "next_transition": "保持该 iteration active，用真实复杂项目验证状态驱动 loop。",
+      "evidence_maturity": "validated",
+      "gap": "Iteration governance is locally verified but still needs acceptance through a real complex Project gap-to-Case loop.",
+      "next_transition": "Use the active iteration in a real complex project loop and accept it only after durable end-to-end evidence.",
       "blockers": [],
       "priority": "high",
       "confidence": "medium"
     }
   },
   "state_gaps": [
+    {
+      "id": "GAP-agent-scenario-evaluation",
+      "dimension": "product_behavior",
+      "current_state": "implemented",
+      "target_state": "accepted",
+      "impact": "状态驱动定义完整性需要在 fresh-agent 的 spec-first、code-first、mixed 和 not_required 路径中证明，并校准人类、单 Agent 与多 Agent 的责任边界。",
+      "urgency": "high",
+      "risk": "high",
+      "dependencies": [],
+      "covered_dimensions": [
+        "users_and_stakeholders",
+        "problem_scenarios",
+        "product_behavior"
+      ],
+      "next_transition": "运行隔离的真实软件任务场景，收集 Case gap 选择、事实补齐和最终复审证据。"
+    },
     {
       "id": "GAP-runtime-real-supervised-turn",
       "dimension": "quality_validation",
@@ -477,20 +501,80 @@
         "observability_support",
         "maintainability_handoff"
       ],
-      "next_transition": "用 Desktop Codex 模式在 ../arckit-demo 或真实项目运行动态 agentic loop，覆盖零个或多个 Worker、Controller Review、canonical gate、ledger writeback、fresh-state continuation 与终止条件。"
+      "covered_dimensions": [
+        "user_experience",
+        "runtime_surfaces",
+        "implementation_coverage",
+        "quality_validation",
+        "observability_support",
+        "maintainability_handoff"
+      ],
+      "next_transition": "用 Desktop Codex 模式在 ../arckit-demo 或真实项目运行动态 agentic loop，覆盖零个或多个 Worker、Controller Review、canonical gate、ledger writeback、fresh-state continuation 与终止条件。",
+      "candidate_case_ref": "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+    },
+    {
+      "id": "GAP-runtime-resilience-and-adapters",
+      "dimension": "architecture_foundation",
+      "current_state": "implemented",
+      "target_state": "accepted",
+      "impact": "Runtime 的 timeout、transcript compaction 和多 adapter 边界尚未形成可接受的长期运行能力。",
+      "urgency": "medium",
+      "risk": "high",
+      "dependencies": [
+        "GAP-runtime-real-supervised-turn"
+      ],
+      "covered_dimensions": [
+        "integration_boundaries",
+        "architecture_foundation"
+      ],
+      "next_transition": "在真实 Codex loop 证据稳定后，实现并验证 timeout、compaction 和下一个明确需要的 adapter。"
+    },
+    {
+      "id": "GAP-security-real-project-validation",
+      "dimension": "security_privacy",
+      "current_state": "defined",
+      "target_state": "verified",
+      "impact": "凭证、权限和敏感数据规则尚未在包含远程服务或受控资源的真实项目中验证。",
+      "urgency": "medium",
+      "risk": "high",
+      "dependencies": [],
+      "covered_dimensions": [
+        "security_privacy"
+      ],
+      "next_transition": "选择带真实权限边界的项目，形成安全事实、执行限制和验证证据。"
+    },
+    {
+      "id": "GAP-delivery-governance",
+      "dimension": "delivery_operation",
+      "current_state": "defined",
+      "target_state": "accepted",
+      "impact": "当前治理 revision 尚未完成应用目录同步、安装后漂移确认和后续发布接受。",
+      "urgency": "medium",
+      "risk": "medium",
+      "dependencies": [
+        "GAP-cross-record-audit"
+      ],
+      "covered_dimensions": [
+        "delivery_operation"
+      ],
+      "next_transition": "治理 Case resolved 后通过 ArcForge 重新应用当前 profile，并保存 clean drift 证据。"
     },
     {
       "id": "GAP-cross-record-audit",
       "dimension": "data_state",
-      "current_state": "designed",
+      "current_state": "verified",
       "target_state": "accepted",
-      "impact": "project、iteration 和 case 之间如果缺少一致性审计，长期 loop 可能出现引用漂移或状态不一致。",
-      "urgency": "medium",
-      "risk": "medium",
+      "impact": "Project、Iteration 和 Case 之间需要严格 schema、durable evidence 和跨记录一致性审计，避免结构合法但语义漂移。",
+      "urgency": "high",
+      "risk": "high",
       "dependencies": [
         "observability_support"
       ],
-      "next_transition": "根据后续使用反馈决定是否增加跨记录 audit 命令。"
+      "covered_dimensions": [
+        "data_state",
+        "iteration_governance"
+      ],
+      "next_transition": "完成严格 iteration v2、durable evidence、Project gap coverage 和跨记录 audit；再通过真实项目使用把 verified 推进到 accepted。"
     }
   ],
   "active_constraints": [
@@ -500,12 +584,11 @@
     "迭代 Markdown 是由对应 iteration *.record.json 生成的 iteration decision brief，不内嵌完整 JSON。",
     "迭代状态属于项目状态推进层，放在 arckit/project/iterations/。",
     "case 是状态变化的证据和过程记录，不替代全局状态或迭代状态。",
-    "Loop Handoff 先判断 next_responsibility，再判断 trigger_mode；manual_bridge 不等于 human_decision_required。",
+    "Project 与 Iteration canonical state 不保存 next responsibility、trigger mode、continuation prompt、Worker 顺序或 round goal。",
     "skill、code、document、CLI、Web、App、API 和服务端都只是软件实现产物形态，不能先验排除身份、权限、数据、部署或运维维度。"
   ],
   "open_questions": [
-    "是否用一个真实复杂项目执行 state gap -> case -> verification -> state delta 的完整 loop 验证。",
-    "是否增加跨 project/iteration/case 的一致性 audit 命令。"
+    "是否用一个真实复杂项目执行 state gap -> case -> verification -> state delta 的完整 loop 验证。"
   ],
   "canonical_artifact_refs": [
     "AGENTS.md",
@@ -551,23 +634,42 @@
     "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/MANIFEST.md",
     "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md",
     "arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md",
-    "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md"
+    "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md",
+    "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
+    "entry/skills/arckit-development-ledger/schema/case-transition.schema.json",
+    "entry/skills/arckit-development-ledger/scripts/case-transition.mjs"
   ],
   "last_state_delta": {
-    "changed_dimensions": [],
-    "state_transitions": [],
+    "changed_dimensions": [
+      "data_state",
+      "iteration_governance"
+    ],
+    "state_transitions": [
+      {
+        "dimension": "data_state",
+        "from_state": "designed",
+        "to_state": "verified",
+        "reason": "Project v3 and Iteration v2 now have strict schemas, durable evidence rules, explicit gap coverage, generated projections, and deterministic cross-record audits that pass on the canonical repository state."
+      },
+      {
+        "dimension": "iteration_governance",
+        "from_state": "implemented",
+        "to_state": "verified",
+        "reason": "Iteration v2 now contains only macro Project targets and resolved-Case aggregation, rejects legacy and Loop control fields, derives projections from fresh Project State, and stays aligned through deterministic closeout."
+      }
+    ],
     "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md"
+      "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "next_project_focus": "Select or create the next bounded Case from the remaining Project state_gaps.",
-    "updated_at": "2026-07-26T19:20:08.209Z"
+    "updated_at": "2026-07-26T20:30:03.815Z"
   },
   "case_control": {
     "selected_case_ref": "",
-    "selection_reason": "Resolved Case arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md.",
+    "selection_reason": "Resolved Case arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md.",
     "next_case_intent": "Select or create the next bounded Case from the remaining Project state_gaps.",
     "priority_basis": "Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.",
     "stop_condition": "Stop after selecting or creating the next bounded Case."

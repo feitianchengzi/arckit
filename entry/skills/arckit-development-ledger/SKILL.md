@@ -11,13 +11,16 @@ description: "维护 arckit/project 与 arckit/cases 的 Project State、Case St
 
 - `arckit/project/state.record.json`：`project-state-record/v3`，宏观软件完整性、project gaps、active Case refs 与 `case_control`。
 - `arckit/project/STATE.md`：Project record 的有损决策投影。
-- `arckit/project/iterations/*.record.json`：阶段性 Project 状态转移容器。
+- `arckit/project/iterations/*.record.json`：`iteration-state-record/v2`，只保存阶段性 Project 目标、resolved Case 聚合、验收状态和 Case refs。
 - `arckit/cases/{active,closed}/*.md`：`development-case-record/v3`，单个有边界事项的完整 Case State、内容 revision 与完成态复审。
 - Runtime execution records：raw process/evidence，只被状态引用，不成为状态语义字段。
 
 ## 硬边界
 
 - Project State 不保存 next responsibility、trigger mode、continuation prompt、Worker 顺序或轮次目标；这些属于 Case handoff/Loop。
+- Iteration State 同样不保存 Loop continuation、当前 Worker 路线或日志型同态变化；每条 accepted Project change 必须改变状态、绑定 closed Case 并提供持久证据。
+- 每个尚未达到 target、带明确 gap 且 priority 非 none 的 Project dimension，必须被至少一个 `state_gap.covered_dimensions` 覆盖；覆盖关系用于 Case 选择，不表达固定顺序。
+- canonical state 不接受 `/tmp`、`/private/tmp` 或其他临时目录作为 evidence ref；命令可以引用临时 fixture，但被状态依赖的证据必须持久可恢复。
 - Project 维度初始化为 `unknown -> unknown`。只有项目目标和证据明确时才设置 target；不为所有项目预置 accepted 义务。
 - Case 的六个结果 facets 是 product、interaction、visual、technical、implementation、verification；open questions、pending handoffs 和 process notes 不是同一种 facet。
 - facet 使用正交状态：`applicability`、`maturity/target_maturity`、`alignment/target_alignment`、`resolution`。
@@ -76,12 +79,13 @@ Case 未 resolved 时不修改 Project dimensions，不把 round progress 投影
 - 只应用 `project_impact_candidate.changes` 中显式、from_state 匹配的维度变化。
 - 更新 `case_control`，让 Project 再选择下一个 Case。
 - iteration 只记录同一组显式变化和 Case evidence。
+- resolved Case 未完成全部 covered dimensions 时，Project gap 保留并清除已关闭的 `candidate_case_ref`，不能因为一次 Case closeout 静默丢失剩余宏观 gap。
 
 ### 5. 渲染与校验
 
 每次写 canonical record 后重新渲染 STATE/iteration brief 和 Case index。raw operator event、完整 prompt、worker stream 或 runtime envelope 只能进入 runtime record/evidence ref。
 
-Project audit 必须保证 `case_control.selected_case_ref` 存在、属于 `active_case_refs` 且指向 active Case；`select-case` 只能选择并注册文件系统中真实存在的 active Case，不能接受悬空或非 active 路径。
+Project/Iteration audit 必须保证 active iteration 使用 v2、两侧 `active_case_refs` 完全一致、`case_control.selected_case_ref` 属于 active Cases、gap candidate 指向真实 active Case、closed Case evidence 可解析、所有 actionable dimensions 有 gap 覆盖，且 canonical evidence 不依赖临时文件。`select-case` 必须把 Case 原子注册到 Project 与 active Iteration，不能接受悬空或非 active 路径。
 
 ## Trusted entrypoints
 

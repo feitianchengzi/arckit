@@ -2,36 +2,36 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-07-26T19:20:08.209Z
+Updated: 2026-07-26T20:30:03.815Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
 
-将 Arckit 状态机制从记录型账本升级为可驱动真实软件项目开发 loop 的项目完整性状态与迭代状态控制面。
+将 Arckit 状态机制从记录型账本升级为由 Project State 选择 Case、Case State 暴露完整性 gap、Loop 产生证据并经确定性 ledger 聚合的软件项目控制面。
 
-## Next State Transition
+## Next Project State Target
 
-- Transition: product_behavior: implemented -> designed
-- Why: 把项目状态重新定义为全局完整性状态控制面，支持状态驱动 loop。
+- Transition: problem_scenarios: defined -> accepted
+- Why: 通过真实复杂软件项目证明状态驱动 loop 能持续推进而不是只在协议样例中成立。
 
 ## Acceptance
 
-- Current state: verified
-- Close condition: 当状态机制通过结构校验，并至少经过一次真实复杂项目的 state gap -> case -> verification -> state delta 闭环验证后关闭本迭代。
+- Status: verified
+- Close condition: 当严格跨记录审计稳定通过，并至少完成一次真实复杂项目的 Project gap -> Case -> Worker evidence -> completion review -> Project impact 闭环后关闭本迭代。
 
-## Remaining Gaps
+## Remaining Project Gaps
 
-- 通过 Electron Desktop Chat 在可联网环境中重跑真实 Codex supervised turn，获得 round_result=done 并通过 gate/write-ledger。
+- GAP-agent-scenario-evaluation: 状态驱动定义完整性需要在 fresh-agent 的 spec-first、code-first、mixed 和 not_required 路径中证明，并校准人类、单 Agent 与多 Agent 的责任边界。
+- GAP-runtime-real-supervised-turn: Runtime/Desktop 已从单 agent supervised turn 升级为 agentic worker loop：task packet、agent report、capability manifest、merge gate、Desktop Agent Loop UI 和空项目初始化 smoke 均已验证；仍缺真实 Codex worker done/gate/write 闭环。
+- GAP-cross-record-audit: Project、Iteration 和 Case 之间需要严格 schema、durable evidence 和跨记录一致性审计，避免结构合法但语义漂移。
 
-## Recent State Changes
+## Accepted Project Changes
 
-- implementation_coverage: verified -> verified; Arckit Runtime and Desktop now support empty project initialization from first chat/run.
-- observability_support: defined -> implemented; Desktop live run observability now shows phase, timeline, plan, output streams and idle state.
-- observability_support: implemented -> implemented; Desktop now persists raw run events and renders detailed agent activity sections.
-- implementation_coverage: verified -> verified; Desktop runtime now repairs safe old-ledger enum drift before start-run.
-- product_behavior: designed -> implemented; Project/Case/Loop separation, unordered Case candidate-gap selection, definition completeness, and equivalent human/Runtime transition semantics are implemented and locally verified.
+- product_behavior: designed -> implemented; Case=arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md; Project/Case/Loop separation, unordered Case candidate-gap selection, definition completeness, and equivalent human/Runtime transition semantics are implemented and locally verified.
+- data_state: designed -> verified; Case=arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md; Project v3 and Iteration v2 now have strict schemas, durable evidence rules, explicit gap coverage, generated projections, and deterministic cross-record audits that pass on the canonical repository state.
+- iteration_governance: implemented -> verified; Case=arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md; Iteration v2 now contains only macro Project targets and resolved-Case aggregation, rejects legacy and Loop control fields, derives projections from fresh Project State, and stays aligned through deterministic closeout.
 
-## Blocking Gaps
+## Blocking Project Gaps
 
 - none
 
@@ -40,11 +40,12 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
 - arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md
-- arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md
 - arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md
 - arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md
+- arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md
 
 ## Notes
 
 - This Markdown file is a generated iteration decision brief.
-- Update the canonical `*.record.json` file and render this projection.
+- Iteration State contains macro targets and resolved-Case aggregation only; Case handoff and Loop continuation are not stored here.
+- Update the canonical `*.record.json` through the development ledger and render this projection.

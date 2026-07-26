@@ -16,7 +16,7 @@
     "case_transition": "scripts/case-transition.mjs",
     "writeback": "scripts/runtime-writeback.mjs"
   },
-  "summary": "Maintains macro Project State, bounded Case State, deterministic audits, and the shared human/Runtime Case transition commit path.",
+  "summary": "Maintains macro Project State, strict Iteration v2 aggregation, bounded Case State, durable cross-record audits, and the shared human/Runtime Case transition commit path.",
   "input_facts": [
     "project_state_record",
     "iteration_state_record",
@@ -46,6 +46,8 @@
     "Runtime must resolve and call the trusted entrypoints declared by this capability instead of maintaining copied ledger scripts.",
     "Case transitions use optimistic revision binding and exact candidate-gap matching; stale Controller frames fail closed.",
     "Case, Project, iteration, projections, and indexes are committed as one rollback-capable ledger operation.",
+    "Iteration v2 contains only macro targets, accepted Project changes bound to closed Cases, acceptance state, and Case refs; Loop continuation is forbidden.",
+    "Project and Iteration audits reject uncovered actionable dimensions, volatile evidence refs, and active Case reference drift.",
     "Runtime exposes ledger snapshots and references to Workers when needed; ordinary Workers must not bind this capability or write ledger state directly."
   ]
 }

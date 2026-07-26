@@ -112,6 +112,12 @@ Project State 的作用是让项目在跨人、跨 Agent、跨会话、跨时间
 
 Project State 可以按维度演进，而不是只有单一全局状态。它不保存单个事项的产品/交互/视觉/技术/实现/验证满足度，也不保存本轮 continuation；这些属于 Case 与 Loop。
 
+每个尚未达到 target、具有明确 gap 且需要继续推进的 Project dimension，必须被一个或多个 Project gap 的 `covered_dimensions` 覆盖。Project gap 可以跨多个宏观维度，但必须声明主维度、覆盖范围、风险、依赖和下一状态转移；它只用于选择或创建 Case，不直接成为 Worker 任务。
+
+Iteration State 是 Project State 的阶段性目标与 resolved-Case 聚合，不是第二个 Loop 控制器。它只保存目标 Project states、带 closed Case 与持久证据的 accepted Project changes、验收状态、blocking Project gaps 和 Case refs。它不保存 next responsibility、trigger mode、continuation prompt、Worker 顺序、round goal 或同态历史日志。
+
+Project 与 Iteration canonical evidence 必须跨会话可恢复。`/tmp`、`/private/tmp`、进程内对象和只存在于某次对话的输出不能作为 canonical evidence ref；需要保留的 Runtime、安装或验证证据必须进入持久路径或由 closed Case 引用。
+
 系统不在缺少来源依据、case 或明确用户授权时静默更新 Project State。
 
 ## Case

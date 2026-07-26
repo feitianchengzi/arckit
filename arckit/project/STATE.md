@@ -1,7 +1,7 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Updated: 2026-07-26T19:20:08.209Z
+Updated: 2026-07-26T20:30:03.815Z
 Canonical Record: state.record.json
 
 ## Purpose
@@ -15,15 +15,16 @@ Select or create the next bounded Case from the remaining Project state_gaps.
 ## Case Selection
 
 - Selected case: TBD
-- Case selection reason: Resolved Case arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md.
+- Case selection reason: Resolved Case arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md.
 - Next case intent: Select or create the next bounded Case from the remaining Project state_gaps.
 - Priority basis: Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.
 
 ## Project Gap Candidates
 
 - Array order is not execution priority; Controller compares intent, impact, urgency, risk, and dependencies.
+- GAP-agent-scenario-evaluation: 状态驱动定义完整性需要在 fresh-agent 的 spec-first、code-first、mixed 和 not_required 路径中证明，并校准人类、单 Agent 与多 Agent 的责任边界。 Risk=high Urgency=high
 - GAP-runtime-real-supervised-turn: Runtime/Desktop 已从单 agent supervised turn 升级为 agentic worker loop：task packet、agent report、capability manifest、merge gate、Desktop Agent Loop UI 和空项目初始化 smoke 均已验证；仍缺真实 Codex worker done/gate/write 闭环。 Risk=high Urgency=critical
-- GAP-cross-record-audit: project、iteration 和 case 之间如果缺少一致性审计，长期 loop 可能出现引用漂移或状态不一致。 Risk=medium Urgency=medium
+- GAP-runtime-resilience-and-adapters: Runtime 的 timeout、transcript compaction 和多 adapter 边界尚未形成可接受的长期运行能力。 Risk=high Urgency=medium
 
 ## Do Not Treat As Complete
 
@@ -49,7 +50,6 @@ Select or create the next bounded Case from the remaining Project state_gaps.
 ## Open Questions
 
 - 是否用一个真实复杂项目执行 state gap -> case -> verification -> state delta 的完整 loop 验证。
-- 是否增加跨 project/iteration/case 的一致性 audit 命令。
 
 ## Notes
 

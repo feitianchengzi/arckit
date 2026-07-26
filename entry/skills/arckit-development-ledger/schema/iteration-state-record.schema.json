@@ -12,62 +12,56 @@
     "updated_at",
     "iteration_goal",
     "project_state_ref",
-    "target_state_delta",
-    "current_state_delta",
-    "acceptance_state",
-    "blocking_gaps",
+    "target_project_states",
+    "accepted_project_changes",
+    "acceptance",
+    "blocking_project_gaps",
     "active_case_refs",
+    "closed_case_refs",
     "close_condition",
-    "last_iteration_delta"
+    "last_case_aggregation"
   ],
   "properties": {
-    "schema_version": { "const": "iteration-state-record/v1" },
+    "schema_version": { "const": "iteration-state-record/v2" },
     "id": { "type": "string", "pattern": "^ITER-[0-9]{8}-[0-9]{3}$" },
     "title": { "type": "string", "minLength": 1 },
-    "status": {
-      "type": "string",
-      "enum": ["planned", "active", "blocked", "deferred", "closed"]
-    },
-    "created_at": { "type": "string" },
-    "updated_at": { "type": "string" },
+    "status": { "type": "string", "enum": ["planned", "active", "blocked", "closed"] },
+    "created_at": { "type": "string", "minLength": 1 },
+    "updated_at": { "type": "string", "minLength": 1 },
     "iteration_goal": { "type": "string" },
-    "project_state_ref": { "type": "string" },
-    "target_state_delta": {
+    "project_state_ref": { "type": "string", "minLength": 1 },
+    "target_project_states": {
       "type": "array",
-      "items": { "$ref": "#/$defs/state_transition" }
+      "items": { "$ref": "#/$defs/target_project_state" }
     },
-    "current_state_delta": {
+    "accepted_project_changes": {
       "type": "array",
-      "items": { "$ref": "#/$defs/state_transition" }
+      "items": { "$ref": "#/$defs/accepted_project_change" }
     },
-    "acceptance_state": {
+    "acceptance": {
       "type": "object",
-      "required": ["current_state", "evidence", "remaining_gaps"],
+      "required": ["status", "evidence", "remaining_project_gaps"],
       "properties": {
-        "current_state": {
-          "type": "string",
-          "enum": ["unknown", "defined", "implemented", "verified", "accepted", "blocked"]
-        },
-        "evidence": { "type": "array" },
-        "remaining_gaps": { "type": "array" }
+        "status": { "type": "string", "enum": ["working", "verified", "accepted", "blocked"] },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "remaining_project_gaps": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     },
-    "blocking_gaps": { "type": "array" },
-    "active_case_refs": { "type": "array" },
-    "closed_case_refs": { "type": "array" },
+    "blocking_project_gaps": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "active_case_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "closed_case_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
     "close_condition": { "type": "string" },
-    "last_iteration_delta": {
+    "last_case_aggregation": {
       "type": "object",
-      "required": ["changed", "blocked", "deferred", "next_iteration_focus", "updated_at"],
+      "required": ["case_ref", "project_changes", "evidence", "updated_at"],
       "properties": {
-        "changed": { "type": "array" },
-        "blocked": { "type": "array" },
-        "deferred": { "type": "array" },
-        "next_iteration_focus": { "type": "string" },
-        "updated_at": { "type": "string" }
+        "case_ref": { "type": "string" },
+        "project_changes": { "type": "array", "items": { "$ref": "#/$defs/project_change_summary" } },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "updated_at": { "type": "string", "minLength": 1 }
       },
-      "additionalProperties": true
+      "additionalProperties": false
     }
   },
   "$defs": {
@@ -89,17 +83,39 @@
         "blocked"
       ]
     },
-    "state_transition": {
+    "target_project_state": {
       "type": "object",
-      "required": ["dimension", "from_state", "to_state", "reason"],
+      "required": ["dimension", "target_state", "reason"],
       "properties": {
-        "dimension": { "type": "string" },
+        "dimension": { "type": "string", "minLength": 1 },
+        "target_state": { "$ref": "#/$defs/state_value" },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "accepted_project_change": {
+      "type": "object",
+      "required": ["dimension", "from_state", "to_state", "reason", "evidence", "case_ref"],
+      "properties": {
+        "dimension": { "type": "string", "minLength": 1 },
         "from_state": { "$ref": "#/$defs/state_value" },
         "to_state": { "$ref": "#/$defs/state_value" },
-        "reason": { "type": "string" },
-        "evidence": { "type": "array" }
+        "reason": { "type": "string", "minLength": 1 },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
+        "case_ref": { "type": "string", "minLength": 1 }
       },
-      "additionalProperties": true
+      "additionalProperties": false
+    },
+    "project_change_summary": {
+      "type": "object",
+      "required": ["dimension", "from_state", "to_state"],
+      "properties": {
+        "dimension": { "type": "string", "minLength": 1 },
+        "from_state": { "$ref": "#/$defs/state_value" },
+        "to_state": { "$ref": "#/$defs/state_value" }
+      },
+      "additionalProperties": false
     }
-  }
+  },
+  "additionalProperties": false
 }

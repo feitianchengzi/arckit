@@ -1,7 +1,7 @@
 interface:
   display_name: "Arckit Development Ledger"
   short_description: "确定性维护 Project/Case/Loop 状态与 transition"
-  default_prompt: "使用 $arckit-development-ledger 维护 project-state-record/v3 与 development-case-record/v3。Project 只管理宏观完整性和 Case 选择；Case 用 facets、content_revision 与 completion_review 管理 definition/implementation/verification 和最终收敛。人工与 Runtime 都通过 revision-bound arckit-case-transition/v2 写回；ledger 精确匹配 candidate gap，要求当前 revision 的错误/遗漏/多余三维 clean，复审上限耗尽则派生 human-only handoff，并以可回滚提交更新 records/projections。只在 Case resolved 后聚合显式 Project impact。"
+  default_prompt: "使用 $arckit-development-ledger 维护 project-state-record/v3、iteration-state-record/v2 与 development-case-record/v3。Project 只管理宏观完整性、有覆盖关系的 Project gaps 和 Case 选择；Iteration 只保存宏观目标与 resolved-Case 聚合；Case 用 facets、content_revision 与 completion_review 管理事项完整性。人工与 Runtime 都通过 revision-bound arckit-case-transition/v2 写回；拒绝临时 evidence、Loop 字段进入 Project/Iteration、同态 Project change、跨记录引用漂移和未覆盖的 actionable dimension。"
 policy:
   allow_implicit_invocation: true
 workflow:
@@ -16,6 +16,8 @@ workflow:
     - "普通 Worker 不得直接写 ledger。"
     - "不把 raw prompt、runtime event、skill 名或固定 workflow 写入状态。"
     - "Case、Project、iteration 与 projections/index 任一步失败时恢复提交前状态。"
+    - "Iteration 必须使用 v2，不保留 v1、loop_control、continuation prompt 或同态历史兼容路径。"
+    - "Project/Iteration audit 必须检查 gap coverage、durable evidence、active Case 对齐和 Case refs。"
     - "Agent 不得修改快照的初始复审预算；只有 human-responsibility transition 可追加有限轮次。"
   output:
     - "case_transition_result"

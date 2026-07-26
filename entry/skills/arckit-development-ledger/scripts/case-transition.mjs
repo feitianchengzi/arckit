@@ -326,6 +326,7 @@ export async function applyCaseTransition({ projectRoot, casePath = '', transiti
         closedCaseRef,
         projectImpact: nextRecord.project_impact_candidate,
         runtimeResultRef,
+        projectState,
       });
     }
   }
@@ -410,7 +411,22 @@ function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCa
     dimension.next_transition = change.next_transition || '';
     dimension.priority = dimension.current_state === dimension.target_state ? 'none' : dimension.priority;
   }
-  record.state_gaps = (record.state_gaps || []).filter((gap) => gap.candidate_case_ref !== activeCaseRef);
+  record.state_gaps = (record.state_gaps || []).map((gap) => {
+    const coveredDimensions = unique(gap.covered_dimensions || [gap.dimension]);
+    const stillUnresolved = coveredDimensions.some((key) => {
+      const dimension = record.completeness_dimensions?.[key];
+      return dimension && dimension.current_state !== dimension.target_state;
+    });
+    if (!stillUnresolved) return null;
+    const primary = record.completeness_dimensions?.[gap.dimension];
+    const next = {
+      ...gap,
+      current_state: primary?.current_state || gap.current_state,
+      target_state: primary?.target_state || gap.target_state,
+    };
+    if (gap.candidate_case_ref === activeCaseRef) delete next.candidate_case_ref;
+    return next;
+  }).filter(Boolean);
   record.case_control = {
     selected_case_ref: '',
     selection_reason: `Resolved Case ${closedCaseRef}.`,
@@ -433,29 +449,44 @@ function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCa
     next_project_focus: record.case_control.next_case_intent,
     updated_at: timestamp,
   };
-  record.canonical_artifact_refs = unique([...(record.canonical_artifact_refs || []), closedCaseRef, runtimeResultRef]);
+  record.canonical_artifact_refs = unique([
+    ...(record.canonical_artifact_refs || []).map((ref) => ref === activeCaseRef ? closedCaseRef : ref),
+    closedCaseRef,
+    runtimeResultRef,
+  ]);
 }
 
-function applyResolvedCaseToIteration(record, { timestamp, activeCaseRef, closedCaseRef, projectImpact, runtimeResultRef }) {
+function applyResolvedCaseToIteration(record, { timestamp, activeCaseRef, closedCaseRef, projectImpact, runtimeResultRef, projectState }) {
   const transitions = projectImpact.status === 'accepted' ? projectImpact.changes : [];
   record.updated_at = timestamp;
-  record.active_case_refs = (record.active_case_refs || []).filter((ref) => ref !== activeCaseRef);
+  record.active_case_refs = unique(projectState.active_case_refs || []).filter((ref) => ref !== activeCaseRef);
   record.closed_case_refs = unique([...(record.closed_case_refs || []), closedCaseRef]);
-  record.current_state_delta = [
-    ...(record.current_state_delta || []),
+  record.accepted_project_changes = [
+    ...(record.accepted_project_changes || []),
     ...transitions.map((change) => ({
       dimension: change.dimension,
       from_state: change.from_state,
       to_state: change.to_state,
       reason: change.reason,
       evidence: unique([...(change.evidence || []), closedCaseRef, runtimeResultRef]),
+      case_ref: closedCaseRef,
     })),
   ];
-  record.last_iteration_delta = {
-    changed: transitions.map((change) => change.dimension),
-    blocked: [],
-    deferred: [],
-    next_iteration_focus: record.blocking_gaps?.length ? 'Select the next iteration focus from blocking_gaps using current evidence; array order is not priority.' : '',
+  const targetDimensions = new Set((record.target_project_states || []).map((target) => target.dimension));
+  record.acceptance.remaining_project_gaps = (projectState.state_gaps || [])
+    .filter((gap) => (gap.covered_dimensions || [gap.dimension]).some((dimension) => targetDimensions.has(dimension)))
+    .map((gap) => gap.id);
+  const targetsSatisfied = (record.target_project_states || []).every((target) => projectState.completeness_dimensions?.[target.dimension]?.current_state === target.target_state);
+  if (targetsSatisfied) record.acceptance.status = 'accepted';
+  record.acceptance.evidence = unique([...(record.acceptance.evidence || []), closedCaseRef, runtimeResultRef]);
+  record.last_case_aggregation = {
+    case_ref: closedCaseRef,
+    project_changes: transitions.map((change) => ({
+      dimension: change.dimension,
+      from_state: change.from_state,
+      to_state: change.to_state,
+    })),
+    evidence: unique([closedCaseRef, runtimeResultRef, ...transitions.flatMap((change) => change.evidence || [])]),
     updated_at: timestamp,
   };
 }

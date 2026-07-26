@@ -24,6 +24,9 @@ export function createStateStore(projectRoot) {
       const iterationRecord = projectState.active_iteration_ref
         ? await readJsonIfExists(join(root, projectState.active_iteration_ref))
         : null;
+      if (iterationRecord && iterationRecord.schema_version !== 'iteration-state-record/v2') {
+        throw new Error(`Runtime requires iteration-state-record/v2: ${projectState.active_iteration_ref}`);
+      }
       const documents = await Promise.all([
         readTextIfExists(join(root, 'arckit/project/STATE.md')),
         readTextIfExists(join(root, 'arckit/cases/INDEX.md')),
