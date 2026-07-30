@@ -20,7 +20,9 @@ description: "维护 arckit/project 与 arckit/cases 的 Project State、Case St
 - Project State 不保存 next responsibility、trigger mode、continuation prompt、Worker 顺序或轮次目标；这些属于 Case handoff/Loop。
 - Iteration State 同样不保存 Loop continuation、当前 Worker 路线或日志型同态变化；每条 accepted Project change 必须改变状态、绑定 closed Case 并提供持久证据。
 - 每个尚未达到 target、带明确 gap 且 priority 非 none 的 Project dimension，必须被至少一个 `state_gap.covered_dimensions` 覆盖；覆盖关系用于 Case 选择，不表达固定顺序。
-- canonical state 不接受 `/tmp`、`/private/tmp` 或其他临时目录作为 evidence ref；命令可以引用临时 fixture，但被状态依赖的证据必须持久可恢复。
+- `arckit-case-transition/v2` 是语义对象，不以临时文件为状态载体。Runtime 直接传递对象；人工或 Agent CLI 对一次性载荷优先使用 stdin。只有调用环境不能传 stdin 时才创建调用方拥有的临时文件，并负责限制权限、最终清理且绝不把路径写入 evidence。详细 transport 规则见 [references/transition-transport.md](references/transition-transport.md)。
+- canonical state 不接受 `/tmp`、`/private/tmp` 或其他临时目录作为 evidence ref；被状态依赖的证据必须持久可恢复。
+- Case renderer 必须把 transition、命令和 evidence 当作不透明数据逐字往返；不得为了避开序列化字符而改写真实证据。dry-run 必须覆盖 Structured Record 渲染重解析和 Case 索引输入预检。
 - Project 维度初始化为 `unknown -> unknown`。只有项目目标和证据明确时才设置 target；不为所有项目预置 accepted 义务。
 - Case 的六个结果 facets 是 product、interaction、visual、technical、implementation、verification；open questions、pending handoffs 和 process notes 不是同一种 facet。
 - facet 使用正交状态：`applicability`、`maturity/target_maturity`、`alignment/target_alignment`、`resolution`。
@@ -58,13 +60,15 @@ open question 只有 resolved/transferred 后才不阻塞；pending handoff 只�
 
 人工或 Runtime 都向 `case-transition.mjs` 提交 `arckit-case-transition/v2`。入口只接受：Case id、预期 `case_updated_at` revision、完整 concrete Case gap（含 responsibility）、planned transition、accepted state delta、evidence、unresolved、round outcome、Controller case resolution claim、Project impact candidate。
 
+人工或 Agent 直接调用 CLI、需要选择 stdin/文件输入或处理临时载荷时，先读取 [references/transition-transport.md](references/transition-transport.md)。CLI 不删除调用方提供的文件；临时输入的生命周期由创建方管理。
+
 入口按顺序：
 
 1. 校验 Case id、expected revision、gap、delta 字段和证据。
 2. 对照当前 Case 精确校验 selected gap 的 id、facet、responsibility、current/target state 与 next transition；过期 transition 必须重做 Controller 判断。
 3. 在副本上应用 accepted facet/question/handoff/review delta并重新审计完整 Case；内容修改和 clean 复审不能在同一个 transition 中提交。
 4. 拒绝强于派生结果的 resolved claim，以及无真实状态变化或证据不完整的 Project impact。
-5. 预校验 Case、Project 和 iteration 的完整目标状态。
+5. 预校验 Case、Project 和 iteration 的完整目标状态，并对渲染后的 Structured Record 做逐字语义往返检查、对 Case 索引现有输入做只读预检。
 6. 作为一个提交写 Case、Project、iteration 与 projections/index；任一步失败都恢复提交前状态。
 7. 重新生成 candidate gaps 与 loop handoff；resolved 时关闭并移动 Case。
 8. Case resolved 时同步关闭 Project/Iteration 对该 Case 的引用；仅当 Project impact 为 accepted 时应用显式维度变化。
@@ -110,10 +114,10 @@ node scripts/development-case.mjs new --title "..." --artifact-type mixed --inte
 node scripts/development-case.mjs validate [case]
 node scripts/development-case.mjs audit <case> --write true
 node scripts/development-case.mjs close <case>
-node scripts/development-case.mjs index
+node scripts/development-case.mjs index [--dry-run true]
 
-node scripts/case-transition.mjs validate <transition.json>
-node scripts/case-transition.mjs apply --case <case.md> --transition <transition.json> [--dry-run true]
+node scripts/case-transition.mjs validate <transition.json|->
+node scripts/case-transition.mjs apply --case <case.md> --transition <transition.json|-> [--dry-run true]
 ```
 
 ## 输出

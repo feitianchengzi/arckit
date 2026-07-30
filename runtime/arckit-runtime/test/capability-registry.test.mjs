@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -263,6 +264,43 @@ test("runtime resolves trusted development-ledger entrypoints from the skill sou
   }, "writeback"), /escapes its capability root/);
 });
 
+test("case transition CLI accepts ephemeral transition input from stdin", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-transition-stdin-"));
+  await ensureArckitProject({
+    projectRoot,
+    projectName: "Transition Stdin Test",
+    intent: "Verify fileless Case transition transport."
+  });
+  const snapshot = await createStateStore(projectRoot).readSnapshot();
+  const activeCase = snapshot.activeCases[0];
+  const transition = validProgressRuntimeResult(activeCase.record).case_transition;
+  const script = resolve(testDir, "../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs");
+  const input = JSON.stringify(transition);
+
+  const validation = spawnSync(process.execPath, [script, "validate", "-"], {
+    cwd: projectRoot,
+    input,
+    encoding: "utf8"
+  });
+  assert.equal(validation.status, 0, validation.stderr || validation.stdout);
+  assert.match(validation.stdout, /<stdin>: ok/);
+
+  const preview = spawnSync(process.execPath, [
+    script,
+    "apply",
+    "--case", activeCase.ref,
+    "--transition", "-",
+    "--dry-run", "true"
+  ], {
+    cwd: projectRoot,
+    input,
+    encoding: "utf8"
+  });
+  assert.equal(preview.status, 0, preview.stderr || preview.stdout);
+  assert.equal(JSON.parse(preview.stdout).dry_run, true);
+  assert.equal((await createStateStore(projectRoot).readSnapshot()).activeCases[0].record.updated_at, activeCase.record.updated_at);
+});
+
 test("runtime ledger gate delegates dry-run writeback to the development-ledger skill", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-ledger-writeback-"));
   await ensureArckitProject({
@@ -295,6 +333,49 @@ test("runtime ledger gate delegates dry-run writeback to the development-ledger 
   assert.equal(result.dry_run, true);
   assert.equal(result.written, false);
   assert.ok(result.plan.some((item) => item.action === "apply_case_transition"));
+});
+
+test("Case transition dry-run and apply preserve replacement-token evidence verbatim", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-case-render-roundtrip-"));
+  await ensureArckitProject({
+    projectRoot,
+    projectName: "Case Renderer Round Trip Test",
+    intent: "Preserve arbitrary command evidence through Case rendering."
+  });
+  const snapshot = await createStateStore(projectRoot).readSnapshot();
+  const activeCase = snapshot.activeCases[0];
+  const runtimeResult = validProgressRuntimeResult(activeCase.record);
+  const evidence = [
+    "ctest -R 'test_mixed_effect_random_settings_dialog$'",
+    "shell $$ and replacement $& with prefix $` and capture $1",
+    `literal quote: "double", slash: \\, line break: first
+second, Unicode: 雪`
+  ];
+  runtimeResult.case_transition.evidence = evidence;
+  runtimeResult.case_transition.accepted_state_delta.facets[0].evidence = evidence;
+
+  const preview = await writeLedger({
+    projectRoot,
+    runtimeResult,
+    envelope: { selected_round: runtimeResult.case_transition.selected_gap },
+    snapshot,
+    dryRun: true
+  });
+  assert.equal(preview.gate.allowed, true, JSON.stringify(preview.gate.reasons));
+  assert.equal(preview.dry_run, true);
+
+  const applied = await writeLedger({
+    projectRoot,
+    runtimeResult,
+    envelope: { selected_round: runtimeResult.case_transition.selected_gap },
+    snapshot,
+    dryRun: false
+  });
+  assert.equal(applied.written, true, JSON.stringify(applied.gate?.reasons || applied));
+  const updated = (await createStateStore(projectRoot).readSnapshot()).activeCases[0].record;
+  assert.deepEqual(updated.facets.product_expectation.evidence, evidence);
+  assert.deepEqual(updated.rounds.at(-1).evidence, evidence);
+  assert.deepEqual(updated.rounds.at(-1).accepted_state_delta.facets[0].evidence, evidence);
 });
 
 test("Runtime leaves existing active Cases for Controller selection and the accepted transition binds that selection", async () => {
@@ -461,6 +542,15 @@ test("ledger commit rolls Case and Project files back when a projection step fai
   const caseBefore = readFileSync(casePath, "utf8");
   const projectBefore = readFileSync(projectPath, "utf8");
   await writeFile(join(projectRoot, "arckit/cases/active/BROKEN.md"), "not a development Case\n");
+
+  await assert.rejects(() => applyCaseTransition({
+    projectRoot,
+    casePath: activeCase.ref,
+    transition,
+    dryRun: true
+  }), /Development ledger script failed/);
+  assert.equal(readFileSync(casePath, "utf8"), caseBefore);
+  assert.equal(readFileSync(projectPath, "utf8"), projectBefore);
 
   await assert.rejects(() => applyCaseTransition({
     projectRoot,

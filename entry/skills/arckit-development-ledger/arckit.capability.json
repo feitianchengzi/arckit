@@ -48,6 +48,8 @@
     "Case, Project, iteration, projections, and indexes are committed as one rollback-capable ledger operation.",
     "Iteration v2 contains only macro targets, accepted Project changes bound to closed Cases, acceptance state, and Case refs; Loop continuation is forbidden.",
     "Project and Iteration audits reject uncovered actionable dimensions, volatile evidence refs, and active Case reference drift.",
+    "Runtime passes the semantic Case transition object directly; stdin and caller-owned files are CLI transports and volatile paths never become evidence.",
+    "Case rendering is content-transparent and dry-run preflights Structured Record round trips plus existing Case index inputs.",
     "Runtime exposes ledger snapshots and references to Workers when needed; ordinary Workers must not bind this capability or write ledger state directly."
   ]
 }

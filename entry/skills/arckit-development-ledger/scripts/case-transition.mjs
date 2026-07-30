@@ -9,6 +9,7 @@ import {
   auditCaseRecord,
   findCasePath,
   readCaseRecord,
+  renderCaseRecord,
   validateCaseRecord,
   writeCaseRecord,
 } from './development-case.mjs';
@@ -338,6 +339,8 @@ export async function applyCaseTransition({ projectRoot, casePath = '', transiti
     const iterationErrors = validateIterationStateRecord(iteration, path.join(root, iterationRef));
     if (iterationErrors.length) throw new Error(iterationErrors.join('\n'));
   }
+  renderCaseRecord(text, nextRecord, resolvedCasePath);
+  runLedgerScript(root, ['development-case.mjs', 'index', '--dry-run', 'true']);
   let writtenCasePath = resolvedCasePath;
   if (!dryRun) {
     const closedCasePath = path.join(root, 'arckit', 'cases', 'closed', path.basename(resolvedCasePath));
@@ -547,15 +550,16 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args._[0] === 'validate') {
-    const transition = JSON.parse(fs.readFileSync(path.resolve(args._[1]), 'utf8'));
-    const errors = validateCaseTransition(transition, args._[1]);
+    if (!args._[1]) throw new Error('validate requires <transition.json|->');
+    const transition = readTransitionInput(args._[1]);
+    const errors = validateCaseTransition(transition, inputLabel(args._[1]));
     if (errors.length) throw new Error(errors.join('\n'));
-    console.log(`${args._[1]}: ok`);
+    console.log(`${inputLabel(args._[1])}: ok`);
     return;
   }
   if (args._[0] === 'apply') {
     if (!args.case || !args.transition) throw new Error('apply requires --case and --transition');
-    const transition = JSON.parse(fs.readFileSync(path.resolve(args.transition), 'utf8'));
+    const transition = readTransitionInput(args.transition);
     console.log(JSON.stringify(await applyCaseTransition({
       projectRoot: process.cwd(),
       casePath: args.case,
@@ -564,7 +568,20 @@ async function main() {
     }), null, 2));
     return;
   }
-  console.log('Usage: case-transition.mjs validate <transition.json> | apply --case <case.md> --transition <transition.json> [--dry-run true]');
+  console.log('Usage: case-transition.mjs validate <transition.json|-> | apply --case <case.md> --transition <transition.json|-> [--dry-run true]');
+}
+
+function readTransitionInput(input) {
+  const text = input === '-' ? fs.readFileSync(0, 'utf8') : fs.readFileSync(path.resolve(input), 'utf8');
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${inputLabel(input)}: invalid transition json: ${error.message}`);
+  }
+}
+
+function inputLabel(input) {
+  return input === '-' ? '<stdin>' : input;
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

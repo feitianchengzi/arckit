@@ -31,6 +31,7 @@ const REVIEW_FINDING_KINDS = new Set(['error', 'omission', 'excess']);
 const REVIEW_FINDING_STATUSES = new Set(['open', 'resolved', 'dismissed']);
 const REVIEW_OUTCOMES_FOR_RECORD = new Set(['clean', 'findings', 'needs_human']);
 const RESPONSIBILITIES = new Set(['agent', 'human', 'external']);
+const STRUCTURED_RECORD_PATTERN = /(## Structured Record[\s\S]*?```json\s*\n)([\s\S]*?)(\n```)/;
 
 function nowIso() {
   return new Date().toISOString();
@@ -468,22 +469,39 @@ export function validateCaseRecord(record, file = '<record>') {
   return errors;
 }
 
-export function readCaseRecord(file) {
-  const text = fs.readFileSync(file, 'utf8');
-  const match = text.match(/## Structured Record[\s\S]*?```json\s*\n([\s\S]*?)\n```/);
+export function parseCaseRecordText(text, file = '<case>') {
+  const match = text.match(STRUCTURED_RECORD_PATTERN);
   if (!match) throw new Error(`${file}: missing Structured Record json block`);
-  return { text, record: JSON.parse(match[1]) };
+  try {
+    return JSON.parse(match[2]);
+  } catch (error) {
+    throw new Error(`${file}: invalid Structured Record json: ${error.message}`);
+  }
 }
 
-export function writeCaseRecord(file, text, record) {
+export function readCaseRecord(file) {
+  const text = fs.readFileSync(file, 'utf8');
+  return { text, record: parseCaseRecordText(text, file) };
+}
+
+export function renderCaseRecord(text, record, file = '<case>') {
   const json = JSON.stringify(record, null, 2);
   const gap = record.current_round?.selected_gap?.id || 'none';
   const next = text
-    .replace(/^Status: .*$/m, `Status: ${record.status}`)
-    .replace(/^Artifact Type: .*$/m, `Artifact Type: ${record.artifact_type}`)
-    .replace(/^Selected Gap: .*$/m, `Selected Gap: ${gap}`)
-    .replace(/^Updated: .*$/m, `Updated: ${record.updated_at}`)
-    .replace(/(## Structured Record[\s\S]*?```json\s*\n)([\s\S]*?)(\n```)/, `$1${json}$3`);
+    .replace(/^Status: .*$/m, () => `Status: ${record.status}`)
+    .replace(/^Artifact Type: .*$/m, () => `Artifact Type: ${record.artifact_type}`)
+    .replace(/^Selected Gap: .*$/m, () => `Selected Gap: ${gap}`)
+    .replace(/^Updated: .*$/m, () => `Updated: ${record.updated_at}`)
+    .replace(STRUCTURED_RECORD_PATTERN, (_match, prefix, _existingJson, suffix) => `${prefix}${json}${suffix}`);
+  const roundTripRecord = parseCaseRecordText(next, file);
+  if (JSON.stringify(roundTripRecord) !== JSON.stringify(record)) {
+    throw new Error(`${file}: Structured Record render did not preserve the Case record exactly`);
+  }
+  return next;
+}
+
+export function writeCaseRecord(file, text, record) {
+  const next = renderCaseRecord(text, record, file);
   fs.writeFileSync(file, next);
 }
 
@@ -601,7 +619,7 @@ function tableEscape(value) {
   return String(value || '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 }
 
-function commandIndex() {
+function commandIndex(args = {}) {
   ensureDirs();
   const active = [];
   const closed = [];
@@ -628,8 +646,9 @@ function commandIndex() {
     ...closed.map(({ file, record }) => `| [${record.id}](${rel(file)}) | ${tableEscape(record.status)} | ${tableEscape(record.title)} | ${tableEscape(record.updated_at)} |`),
     '',
   ].join('\n');
-  fs.writeFileSync(INDEX_PATH, content);
+  if (args['dry-run'] !== 'true') fs.writeFileSync(INDEX_PATH, content);
   console.log(INDEX_PATH);
+  return content;
 }
 
 function usage() {
@@ -639,7 +658,7 @@ function usage() {
     '  development-case.mjs validate [case-file]',
     '  development-case.mjs audit <case-file> [--write true]',
     '  development-case.mjs close <case-file>',
-    '  development-case.mjs index',
+    '  development-case.mjs index [--dry-run true]',
   ].join('\n'));
 }
 
@@ -650,7 +669,7 @@ function main() {
   if (command === 'validate') return commandValidate(args);
   if (command === 'audit') return commandAudit(args);
   if (command === 'close') return commandClose(args);
-  if (command === 'index') return commandIndex();
+  if (command === 'index') return commandIndex(args);
   usage();
 }
 
