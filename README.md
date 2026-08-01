@@ -84,25 +84,62 @@ Project Repository
 
 Runtime 的详细行为和命令见 [Arckit Runtime](runtime/arckit-runtime/README.md)。
 
-## 当前能力面
+## 能力分层与可替换边界
 
-当前仓库统一维护 Arckit 协作能力与技术栈 coding skills。其中 Runtime 自动编排仍刻意收敛为验证产品主轴所需的 7 个能力，并通过 [capability policy](runtime/arckit-runtime/config/capability-policy.json) 分到三个互斥执行平面：
+当前仓库中的所有 skills，都是飞天橙子团队在真实项目中持续实践、验证和沉淀下来的 Arckit 能力。分层是为了说明每类能力在完整框架中承担什么职责，以及它们如何协作；它不是重要性排序，也不表示 `entry/` 之外的能力可有可无。按它们在 state-driven loop 中承担的职责，可以分成三层：
 
-| 执行平面 | Skill | 主要职责 |
+```text
+状态驱动核心    entry/                         Controller 语义 + canonical ledger
+事实与工程能力  definition/ + engineering/     预期事实维护 + 通用工程诊断
+具体编码能力    code/                          项目技术栈实践 + 专项接入
+                         ↑
+                  ArcForge 管理来源、类型、安装与 drift
+```
+
+### 第一层：`entry/` 状态驱动核心系统
+
+`entry/` 下的两个 skill 共同构成 Arckit 在 skills 层的最小核心系统：一个负责理解和推进状态，另一个负责可靠保存状态。
+
+| 执行平面 | Skill | 核心职责 |
 | --- | --- | --- |
-| Controller | [`using-arckit`](entry/skills/using-arckit/) | 选择 Project/Case gap，计划一次 transition，形成 Worker packet，接收 report，区分 round outcome、Case resolution、Project impact 与 handoff |
-| Runtime | [`arckit-development-ledger`](entry/skills/arckit-development-ledger/) | 维护 Project、Iteration、Case canonical state，通过 trusted entrypoint 审计并原子提交 transition |
-| Worker | [`arckit-spec`](definition/skills/arckit-spec/) | 维护产品行为、业务规则、功能规格与验收口径 |
-| Worker | [`arckit-interaction`](definition/skills/arckit-interaction/) | 维护页面级交互策略、状态、异常恢复、灰度线框与交互规范 |
-| Worker | [`arckit-visual`](definition/skills/arckit-visual/) | 维护视觉策略、Design Tokens、主题、组件视觉规格与预览 |
-| Worker | [`arckit-tech`](definition/skills/arckit-tech/) | 维护技术方案、架构边界、数据模型、API 契约与技术决策 |
-| Worker | [`arckit-debug-diagnosis`](engineering/skills/arckit-debug-diagnosis/) | 通过复现、日志、代码和测试证据定位 bug、回归、数据异常与性能退化，并约束必要修复 |
+| Controller | [`using-arckit`](entry/skills/using-arckit/) | 从 Project State 选择 Case、从 Case 选择真实 gap，计划一次 transition，形成 Worker packet，接收 report，并区分 round outcome、Case resolution、Project impact 与 handoff |
+| Runtime | [`arckit-development-ledger`](entry/skills/arckit-development-ledger/) | 维护 Project、Iteration、Case canonical state，通过 trusted entrypoint 审计 transition、原子写回并重新派生 gap 与 handoff |
 
-Controller 能力不能绑定给普通 Worker，ledger 只能由 Runtime 调用其受信任入口，其余 5 个能力才可以进入 Worker 的 `allowed_skills`。非法、未知或越过执行平面的绑定会失败关闭，而不是被静默忽略。
+`using-arckit` 提供 state-driven loop 的语义：每一轮为什么开始、选择什么 gap、接受哪些 claims、下一步交给谁。`arckit-development-ledger` 提供确定性状态内核：schema、revision、审计、原子提交和可恢复投影。前者不直接写 ledger，后者不替 Agent 做语义判断；两者合在一起，才让人工对话和 Runtime 自动桥接能够沿同一条 Project State → Case → Loop 主轴推进。
+
+这里的“核心系统”特指 skills 层的状态驱动内核。Desktop 仍负责产品与人工控制，Runtime 仍负责调度、gate 和 writeback 协调，Codex 类 Agent 仍负责语义推理与工作区执行。`entry/` 让项目能够按同一套状态语义持续推进，后续两层则让每次 Loop 拥有经过实践验证的事实维护、工程诊断和具体实现能力；三层共同组成完整的 Arckit 能力框架。
+
+Controller 不能绑定给普通 Worker，ledger 也只能由 Runtime 调用其受信任入口。非法、未知或越过执行平面的绑定会失败关闭，而不是被静默忽略。
+
+### 第二层：`definition/` 与 `engineering/` 事实与工程能力
+
+这一层把 state-driven loop 落到真实软件项目的事实治理和工程推进中。`definition/` 负责把已经确认的产品、交互、视觉和技术预期维护成稳定事实，使下一轮 Agent 不依赖对话记忆重新猜测项目；`engineering/` 提供开发过程中可复用、技术栈无关的工程能力，让问题诊断和必要修复建立在可复现证据上。这些都是 Arckit 随仓库交付的一等 Worker 能力。
+
+| 能力域 | Skill | 主要职责 |
+| --- | --- | --- |
+| Definition | [`arckit-spec`](definition/skills/arckit-spec/) | 维护产品行为、业务规则、功能规格与验收口径 |
+| Definition | [`arckit-interaction`](definition/skills/arckit-interaction/) | 维护页面级交互策略、状态、异常恢复、灰度线框与交互规范 |
+| Definition | [`arckit-visual`](definition/skills/arckit-visual/) | 维护视觉策略、Design Tokens、主题、组件视觉规格与预览 |
+| Definition | [`arckit-tech`](definition/skills/arckit-tech/) | 维护技术方案、架构边界、数据模型、API 契约与技术决策 |
+| Engineering | [`arckit-debug-diagnosis`](engineering/skills/arckit-debug-diagnosis/) | 通过复现、日志、代码和测试证据定位 bug、回归、数据异常与性能退化，并约束必要修复 |
 
 定义类 skill 既可在 managed Case 中返回 `fact_result`，也可独立查询或维护对应事实源。它们只接受已经确认的稳定预期；未确认假设、方案权衡或视觉方向应继续留在 active Case，而不是写成事实。
 
-技术栈和平台专用的编码方法统一维护在 `code/skills/`，但不会因此自动进入 Runtime capability policy。当前包含 SwiftUI / Apple 客户端编码实践、反馈平台接入和阿里云 OSS 图片可控访问；代码审查、发布、运维、商业决策等当前未保留能力仍交给项目工具或明确的 external adapter。
+Arckit 推荐直接使用这些经过验证的能力，形成从状态识别、稳定事实维护到工程诊断的完整闭环。框架同时保留能力扩展边界：如果用户已经拥有职责等价、同样成熟的规格、设计、架构或诊断 skill，可以把自己的能力接入 Worker 层，而不必改变 Controller 和 ledger 的核心语义。这里的“等价”不是名称相似，而是能够接受有边界的 Worker packet、遵守事实与写入边界，并返回可验证 evidence 和结构化 claims。
+
+当前 Runtime policy 刻意收敛为 7 个受管能力：1 个 Controller、1 个 Runtime ledger 和上述 5 个 Worker，并通过 [capability policy](runtime/arckit-runtime/config/capability-policy.json) 分到互斥执行平面。若要让自动化 Runtime 调用用户自己的等价 Worker，必须显式提供相应 capability manifest 并修改 policy，或者把工作交给明确的 external adapter；只替换已安装目录中的 skill 名称不会自动生效。
+
+### 第三层：`code/` 具体编码与专项接入能力
+
+`code/` 面向具体语言、框架、平台、SDK 或云服务，把上游已经明确的目标和事实真正落成高质量实现。它们沉淀了飞天橙子在具体技术栈和专项接入中的工程实践，并按适用范围进入相关项目或在需要时加载。它们不会仅因为位于本仓库就自动进入 Runtime capability policy，而是由 Agent、项目上下文或显式 policy 在合适的 Loop 中选择。
+
+| Skill | 推荐可用性 | 主要职责 |
+| --- | --- | --- |
+| [`arckit-code-swiftui`](code/skills/arckit-code-swiftui/) | 项目级常驻 `project-ambient` | 为实际采用 SwiftUI 的 Apple 客户端项目提供默认架构、工程结构、状态模型、平台能力和验证实践 |
+| [`arckit-feedback-platform-integration`](code/skills/arckit-feedback-platform-integration/) | 用户级按需 `user-on-demand` | 在需要时指导 Web、iOS、Android 或 WebView 产品接入反馈平台 |
+| [`oss-controlled-image-access`](code/skills/oss-controlled-image-access/) | 用户级按需 `user-on-demand` | 在需要时推进阿里云 OSS 图片资源从公开直链迁移到服务端可控访问 |
+
+项目级 skill 只应安装到满足适用条件的目标项目；用户级按需 skill 进入 ArcForge catalog，在用户明确调用时再加载，不应长期暴露在每个 Agent 的常驻 skill 列表中。代码审查、发布、运维、商业决策等当前未保留能力仍交给项目工具、用户自选 skill 或明确的 external adapter。
 
 ## 项目中的事实与状态
 
@@ -121,9 +158,20 @@ Controller 能力不能绑定给普通 Worker，ledger 只能由 Runtime 调用�
 
 canonical state 只引用持久、可恢复的 evidence，不把 `/tmp` 等临时路径当成事实依据。Case transition 绑定 expected revision 和完整 selected gap；成功写回后必须重新读取状态再规划下一轮。
 
-## 推荐安装方式
+## 为什么使用 ArcForge 安装
 
-推荐通过 [ArcForge](https://github.com/feitianchengzi/arcforge.git) 安装和治理 Arckit。ArcForge 是本地优先、GitHub 优先的 Agent skill 治理工作台：它负责识别来源、审计、应用、同步和 drift 检查，不替代 Codex、Claude、Cursor 等 Agent Runtime。
+推荐通过 [ArcForge](https://github.com/feitianchengzi/arcforge.git) 安装和治理 Arckit。ArcForge 是本地优先、GitHub 优先的 Agent skill 治理工作台：它负责识别来源、审计、应用、同步和 drift 检查，不替代 Codex、Claude、Cursor 等 Agent Runtime，也不是 Arckit 执行时必须依赖的上层 Runtime。
+
+Arckit 不适合靠“复制整个仓库到用户 skills 目录”安装，原因是三层能力具有不同的适用范围和生命周期：
+
+- **保持完整框架的职责分层**：核心、事实与工程、具体编码能力各自进入合适位置，不因安装方式混在同一个用户级目录中。
+- **把 skill 放到正确位置**：用户常驻、项目常驻和用户按需是三种不同的可用性；ArcForge 会按 `arcforge.skill-project.json` 解析目标，而不是把所有内容都塞进用户级目录。
+- **检查项目适用性**：`arckit-code-swiftui` 只有在目标项目确实包含 SwiftUI / Apple 客户端工作时才应进入项目目录。
+- **提供按需发现**：反馈平台与 OSS 能力保存在用户级 catalog，通过轻量 loader 显式加载，减少常驻上下文和误触发。
+- **维持来源与应用目标分离**：当前仓库是维护源和 source of truth，Codex、Claude、Cursor 的用户级或项目级目录只是消费副本。
+- **支持安全更新**：安装前可以先看 plan 与 drift，识别缺失、变更、旧副本和覆盖风险；在支持的应用模式中还可以保存来源关系，便于后续复查和重新应用。
+
+推荐安装 `entry/`、`definition/` 与 `engineering/` 下的完整协作能力，让状态驱动内核、预期事实维护和通用工程诊断可以直接闭环工作；`code/` 下的能力再按项目适用性或显式按需调用安装。已经拥有成熟等价能力的团队，可以在保持 Worker packet、evidence、claims、写入边界和 capability manifest 契约的前提下，用自己的 skill 替换对应职责。
 
 如果还没有安装 ArcForge，请打开 ArcForge 仓库并让 Agent 执行：
 
@@ -131,7 +179,7 @@ canonical state 只引用持久、可恢复的 evidence，不把 `/tmp` 等临�
 执行 skills/arcforge-install
 ```
 
-安装完成后，选择 `arckit` 作为统一维护源。仓库根目录的 `arcforge.skill-project.json` 声明每个 skill 的推荐可用性：现有协作 skills 为用户级常驻，`arckit-code-swiftui` 为项目级常驻，`arckit-feedback-platform-integration` 与 `oss-controlled-image-access` 为用户级按需。推荐保持以下关系：
+安装完成后，选择 `arckit` 作为统一维护源。仓库根目录的 `arcforge.skill-project.json` 声明每个 skill 的推荐可用性：核心、事实维护与工程协作 skills 为用户级常驻，`arckit-code-swiftui` 为项目级常驻，`arckit-feedback-platform-integration` 与 `oss-controlled-image-access` 为用户级按需。推荐保持以下关系：
 
 ```text
 GitHub / 本地 Skill 项目     维护源与 source of truth
@@ -139,7 +187,7 @@ GitHub / 本地 Skill 项目     维护源与 source of truth
 Agent 用户级或项目级目录     应用目标
 ```
 
-不要把 Codex、Claude 或 Cursor 的已安装目录反过来当作维护源，也不建议手动复制整个仓库。ArcForge 会保存来源关系，减少漏文件、旧副本残留和误覆盖。
+不要把 Codex、Claude 或 Cursor 的已安装目录反过来当作维护源，也不建议手动复制整个仓库。ArcForge 通过来源策略、plan、drift、catalog 和受确认的 apply 减少漏文件、旧副本残留和误覆盖。
 
 ## 使用方式
 
