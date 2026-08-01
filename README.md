@@ -86,7 +86,7 @@ Runtime 的详细行为和命令见 [Arckit Runtime](runtime/arckit-runtime/READ
 
 ## 当前能力面
 
-当前仓库刻意收敛为验证上述产品主轴所需的 7 个能力，并通过 [capability policy](runtime/arckit-runtime/config/capability-policy.json) 分到三个互斥执行平面：
+当前仓库统一维护 Arckit 协作能力与技术栈 coding skills。其中 Runtime 自动编排仍刻意收敛为验证产品主轴所需的 7 个能力，并通过 [capability policy](runtime/arckit-runtime/config/capability-policy.json) 分到三个互斥执行平面：
 
 | 执行平面 | Skill | 主要职责 |
 | --- | --- | --- |
@@ -102,7 +102,7 @@ Controller 能力不能绑定给普通 Worker，ledger 只能由 Runtime 调用�
 
 定义类 skill 既可在 managed Case 中返回 `fact_result`，也可独立查询或维护对应事实源。它们只接受已经确认的稳定预期；未确认假设、方案权衡或视觉方向应继续留在 active Case，而不是写成事实。
 
-技术栈和平台专用的编码方法不属于本仓库。SwiftUI、前后端框架、SDK 接入等 coding skills 在 `arckit-code` 维护；代码审查、发布、运维、商业决策等当前未保留能力应交给项目工具或明确的 external adapter。
+技术栈和平台专用的编码方法统一维护在 `code/skills/`，但不会因此自动进入 Runtime capability policy。当前包含 SwiftUI / Apple 客户端编码实践、反馈平台接入和阿里云 OSS 图片可控访问；代码审查、发布、运维、商业决策等当前未保留能力仍交给项目工具或明确的 external adapter。
 
 ## 项目中的事实与状态
 
@@ -131,7 +131,7 @@ canonical state 只引用持久、可恢复的 evidence，不把 `/tmp` 等临�
 执行 skills/arcforge-install
 ```
 
-安装完成后，可按项目需要选择 `arckit`、`arckit-code` 或两者。推荐保持以下关系：
+安装完成后，选择 `arckit` 作为统一维护源。仓库根目录的 `arcforge.skill-project.json` 声明每个 skill 的推荐可用性：现有协作 skills 为用户级常驻，`arckit-code-swiftui` 为项目级常驻，`arckit-feedback-platform-integration` 与 `oss-controlled-image-access` 为用户级按需。推荐保持以下关系：
 
 ```text
 GitHub / 本地 Skill 项目     维护源与 source of truth
@@ -169,6 +169,7 @@ npm run desktop
 entry/                         项目对话 Controller 与 development ledger
 definition/                    产品、交互、视觉和技术稳定事实维护
 engineering/                   技术栈无关的工程诊断
+code/                          语言、框架、平台、SDK 与云服务 coding skills
 runtime/arckit-runtime/        Desktop 与状态驱动 Runtime 控制面
 arckit/                        本仓库自身的项目状态、历史材料和验证证据
 ```
@@ -186,7 +187,7 @@ Skill 之间可以软协作，但不能依赖隐藏的 skill-to-skill import。�
 - 来自真实项目中的高频或高价值问题，而不是抽象角色想象。
 - 触发场景、输入、输出、停止条件和事实边界足够明确。
 - 能产生可验证结果，不绕过授权、人类判断或项目已有改动。
-- primary purpose 符合所在能力域；具体语言、框架、平台 coding workflow 应进入 `arckit-code`。
+- primary purpose 符合所在能力域；具体语言、框架、平台、SDK 或云服务 coding workflow 应进入 `code/skills/`。
 - 外部内容已注明来源、完成安全审查，并说明本地化适配原因。
 - 修改经过真实场景验证，且没有恢复已移除 skill 的隐式依赖。
 

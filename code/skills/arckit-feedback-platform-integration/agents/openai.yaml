@@ -1,0 +1,24 @@
+interface:
+  display_name: "反馈平台接入"
+  short_description: "接入 SDK WebView V2 或独立原生 API，支持客户端 Key、宿主 Session 和未读角标"
+  default_prompt: "使用 $arckit-feedback-platform-integration 接入或升级反馈平台。先选择 sdk-webview 或独立 native-api；只有 SDK WebView 才选择 V2 apiKey/session 与通知开关。通过安全参数流采集配置，默认做单一反馈中心入口，并明确凭证、稳定用户身份、验证证据和未知平台契约。"
+
+policy:
+  allow_implicit_invocation: true
+
+behavior:
+  language: "zh-Hans"
+  hard_boundaries:
+    - "SDK WebView V2 与原生 API 是独立接入方式；不得把 V2 SDK 认证、Session 换取或未读协议声明为原生 API 契约。"
+    - "V2 对应原生 API 未获平台文档时，标记为产品缺口，不推测 endpoint、schema、认证或通知能力。"
+    - "客户端 apiKey 模式必须使用项目专用且可轮换的 Key，并明确客户端可提取。"
+    - "session 模式由宿主服务保存 API Key；客户端不把 API Key 或短期 token 写入 URL、日志和持久化。"
+    - "Session WebView 必须消费 feedback-sdk:refresh-session 主动事件并合并并发刷新；失败后重试只作为有限兜底。"
+    - "常规 SDK 接入直接使用 skill 内置 V2 契约；不得下载或反向分析 /sdk-v2/assets/ 来重新发现已记录协议。"
+    - "先区分原生 WebView、已具备 SDK global 的 Web 同页和跨域 iframe；跨域 iframe 使用 ready/configure/open 宿主协议并严格校验 origin/source。"
+    - "默认通过参数 UI 或等价安全通道采集；任何模式都不在日志或最终回复输出完整凭证。"
+  required_outputs:
+    - "说明目标平台、已有实现属于客户端壳、占位实现还是完整接入。"
+    - "说明 integrationMode；SDK WebView 还要说明承载方式、sdkAuthMode 和 notificationsEnabled。"
+    - "说明平台官网引导、反馈入口形态以及 Project ID、API Key、Session token、customUserId 的来源和生命周期策略。"
+    - "列出修改文件、验证证据、未完成风险和原生 API 的已确认版本。"

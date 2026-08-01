@@ -35,6 +35,7 @@ Runtime kernel must preserve this product axis while staying policy-neutral: do 
 - `memory/`: agent memory entry points and repository context navigation, such as maintaining `AGENTS.md`, `CLAUDE.md`, project indexes, and context maps.
 - `media/`: media production and operations capabilities, including video production, social media operations, publishing workflows, and cross-platform adaptation.
 - `engineering/`: technology-agnostic engineering workflows, including debugging, regression diagnosis, implementation coordination, refactoring strategy, and code-level investigation patterns.
+- `code/`: language-, framework-, platform-, SDK-, and infrastructure-specific coding and integration workflows.
 - `quality/`: validation-focused capabilities, including code review, testing strategy, regression checks, acceptance checks, real-scenario evaluation, and release readiness review.
 - `delivery/`: deployment, release, runtime environment, operations, monitoring, and incident handling.
 
@@ -50,7 +51,7 @@ Use the skill's primary purpose to choose a directory:
 - If it helps agents understand and reuse project context across sessions, place it under `memory/skills/`.
 - If it supports media production, video creation, social media operations, publishing, or platform adaptation, place it under `media/skills/`.
 - If it guides technology-agnostic engineering diagnosis, implementation coordination, refactoring strategy, or code-level investigation, place it under `engineering/skills/`.
-- If it tells agents how to code in a specific language, framework, platform, or stack, do not place it in this repository; maintain it in `arckit-code`.
+- If it tells agents how to code or integrate a specific language, framework, platform, SDK, cloud service, or stack, place it under `code/skills/`.
 - If it checks whether implementation is correct and reliable, or maintains evaluation scenarios for validating product plans and agent workflows, place it under `quality/skills/`.
 - If it helps ship, deploy, operate, or recover the system, place it under `delivery/skills/`.
 
@@ -60,7 +61,7 @@ When a skill could fit multiple directories, choose the one closest to the actio
 
 Skills may reference each other as soft collaborators, but should not require hidden skill-to-skill runtime imports. A product or artifact skill can say that it may use the output of a method skill, but it must still describe its own inputs, outputs, and maintenance workflow. Prefer the relationship "upstream analysis output -> downstream artifact maintenance" over hidden automatic invocation. Explicit Runtime-to-skill invocation is allowed only through a capability manifest: use an Agent skill trigger for semantic work or a trusted in-skill entrypoint for deterministic script work.
 
-For example, an authentication architecture note belongs in `definition/skills/`, a step-by-step gateway login implementation skill belongs in `arckit-code`, and a general debugging or regression-diagnosis workflow belongs in `engineering/skills/`.
+For example, an authentication architecture note belongs in `definition/skills/`, a step-by-step gateway login implementation skill belongs in `code/skills/`, and a general debugging or regression-diagnosis workflow belongs in `engineering/skills/`.
 
 ## Current Skill Placement
 
@@ -71,8 +72,12 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - Visual: `definition/skills/arckit-visual/`
 - Technical solution: `definition/skills/arckit-tech/`
 - General debug diagnosis and implementation troubleshooting: `engineering/skills/arckit-debug-diagnosis/`
-- Runtime capability selection: `runtime/arckit-runtime/config/capability-policy.json`, restricted to the seven retained skills above and split into mutually exclusive Controller, Runtime, and Worker execution planes. `using-arckit` is Controller-only and is invoked with its manifest-declared Agent skill trigger; `arckit-development-ledger` is Runtime-only and is invoked through its trusted in-skill entrypoints; only the other five skills may enter Worker `allowed_skills`.
-- Technology-stack-specific coding skills: maintained in `arckit-code`, not this repository.
+- SwiftUI and Apple client coding practice: `code/skills/arckit-code-swiftui/`
+- Feedback platform integration: `code/skills/arckit-feedback-platform-integration/`
+- Alibaba Cloud OSS controlled image access: `code/skills/oss-controlled-image-access/`
+- Runtime capability selection: `runtime/arckit-runtime/config/capability-policy.json`, restricted to the seven Runtime-managed collaboration skills and split into mutually exclusive Controller, Runtime, and Worker execution planes. `using-arckit` is Controller-only and is invoked with its manifest-declared Agent skill trigger; `arckit-development-ledger` is Runtime-only and is invoked through its trusted in-skill entrypoints; only the five definition/diagnosis skills may enter Worker `allowed_skills`.
+
+The three `code/skills/` capabilities are distributed from this repository but do not enter Runtime `allowed_skills` unless a future explicit capability policy adds them.
 
 Directories not listed above are reserved capability domains and currently contain no retained Arckit skills. Do not restore a removed skill reference as a dependency; unresolved work stays in the active case or is handed to an external adapter.
 

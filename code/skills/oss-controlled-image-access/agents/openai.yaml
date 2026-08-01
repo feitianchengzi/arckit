@@ -1,0 +1,4 @@
+interface:
+  display_name: "OSS 图片可控访问"
+  short_description: "协作接入 OSS 签名图片网关并迁移客户端消费"
+  default_prompt: "使用 $oss-controlled-image-access 识别当前仓库角色、凭证模式、部署形态、公网入口拓扑和客户端图片消费入口，按“服务端网关 -> 前端/客户端稳定 URL 消费 -> 公网全链路验证 -> 私有化 Bucket”的顺序，协调 agent 可做的代码/配置/验证与我需要完成的 RAM、部署、网关和云控制台操作。"

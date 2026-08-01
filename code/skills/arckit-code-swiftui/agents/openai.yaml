@@ -1,0 +1,4 @@
+interface:
+  display_name: "ArcKit SwiftUI Architecture"
+  short_description: "SwiftUI 默认架构、代码形状、边界与验证实践"
+  default_prompt: "使用 $arckit-code-swiftui 按 ArcKit SwiftUI 默认架构实现功能，先定结构和边界，再落代码和验证。"

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "sourceDir": ".",
+  "availability": {
+    "defaultMode": "user-ambient",
+    "skills": [
+      {
+        "path": "code/skills/arckit-code-swiftui",
+        "mode": "project-ambient",
+        "projectApplicability": {
+          "summary": "适用于项目范围明确包含使用 SwiftUI 开发或维护 Apple 平台客户端的项目。",
+          "conditions": [
+            {
+              "id": "swiftui-apple-client-work",
+              "kind": "required",
+              "description": "目标项目当前或已明确规划的工作包含使用 SwiftUI 开发、维护或演进 Apple 平台客户端。"
+            }
+          ],
+          "evidenceGuidance": [
+            "检查项目规格、技术方案、源码和当前任务，确认 SwiftUI 与 Apple 平台客户端属于实际项目范围。"
+          ],
+          "clarifyingQuestions": [
+            "这个项目是否确定使用 SwiftUI 开发或维护 Apple 平台客户端？"
+          ]
+        }
+      },
+      {
+        "path": "code/skills/arckit-feedback-platform-integration",
+        "mode": "user-on-demand"
+      },
+      {
+        "path": "code/skills/oss-controlled-image-access",
+        "mode": "user-on-demand"
+      }
+    ]
+  }
+}
