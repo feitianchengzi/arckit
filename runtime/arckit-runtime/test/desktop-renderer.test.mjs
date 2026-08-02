@@ -8,59 +8,91 @@ const rendererStylesPath = new URL("../desktop/renderer/styles.css", import.meta
 const desktopMainPath = new URL("../desktop/main.mjs", import.meta.url);
 const desktopPreloadPath = new URL("../desktop/preload.cjs", import.meta.url);
 
-test("desktop renderer defines every text truncation helper it calls", async () => {
-  const source = await readFile(rendererPath, "utf8");
-
-  assert.match(source, /function truncate\(value, limit\)/);
-  assert.match(source, /function safeFormatEvent\(formatFn\)/);
-  assert.match(source, /safeFormatEvent\(\(\) => formatActivityEvent\(event\)\)/);
-  assert.match(source, /safeFormatEvent\(\(\) => formatPayload\(event\)\)/);
-});
-
-test("desktop sidebar uses a single-delete-item context menu", async () => {
-  const [source, html, styles, main, preload] = await Promise.all([
-    readFile(rendererPath, "utf8"),
-    readFile(rendererHtmlPath, "utf8"),
-    readFile(rendererStylesPath, "utf8"),
-    readFile(desktopMainPath, "utf8"),
-    readFile(desktopPreloadPath, "utf8")
-  ]);
-
-  assert.doesNotMatch(html, /projectPathInput|addProjectPathButton/);
-  assert.match(source, /item\.addEventListener\("contextmenu"/);
-  assert.match(source, /showSidebarContextMenu\(event,/);
-  assert.match(source, /api\.removeProject\(project\.id\)/);
-  assert.match(source, /api\.deleteSession\(project\.id, session\.id\)/);
-  assert.match(source, /window\.confirm/);
-  assert.match(html, /<div id="sidebarContextMenu"[^>]*role="menu">\s*<button[^>]*role="menuitem">Delete<\/button>\s*<\/div>/);
-  assert.equal((html.match(/role="menuitem"/g) || []).length, 1);
-  assert.doesNotMatch(source, /contextmenu[\s\S]{0,300}window\.confirm/);
-  assert.match(styles, /\.project-name,[\s\S]*text-overflow: ellipsis;/);
-  assert.match(main, /ipcMain\.handle\("arckit:delete-session"/);
-  assert.match(preload, /deleteSession: \(projectId, sessionId\)/);
-});
-
-test("desktop sidebar keeps one-line chats and a bounded resizable Projects section", async () => {
+test("desktop primary surface is the project-sourced automation Command Center", async () => {
   const [source, html, styles] = await Promise.all([
     readFile(rendererPath, "utf8"),
     readFile(rendererHtmlPath, "utf8"),
     readFile(rendererStylesPath, "utf8")
   ]);
 
-  assert.match(html, /id="projectSection" class="sidebar-section project-section"/);
-  assert.match(html, /id="sidebarDivider"[^>]*role="separator"[^>]*aria-valuemin="120"[^>]*aria-valuenow="220"/);
-  assert.match(html, /class="sidebar-section chat-section"/);
-  assert.doesNotMatch(source, /class="session-meta"/);
-  assert.match(styles, /--project-section-height: 220px;/);
-  assert.match(styles, /\.project-section \{[\s\S]*flex: 0 0 var\(--project-section-height\);[\s\S]*min-height: 120px;/);
-  assert.match(styles, /\.chat-section \{[\s\S]*min-height: 120px;/);
-  assert.match(styles, /\.project-list,[\s\S]*align-content: start;/);
-  assert.match(styles, /\.project-list \{[\s\S]*grid-auto-rows: var\(--project-item-height\);/);
-  assert.match(styles, /\.session-list \{[\s\S]*grid-auto-rows: var\(--session-item-height\);/);
-  assert.match(styles, /\.project-item \{[\s\S]*height: var\(--project-item-height\);[\s\S]*grid-template-rows: 20px 18px;/);
-  assert.match(styles, /\.session-item \{[\s\S]*height: var\(--session-item-height\);[\s\S]*align-items: center;/);
-  assert.match(source, /MIN_PROJECT_SECTION_HEIGHT = 120/);
-  assert.match(source, /MIN_CHAT_SECTION_HEIGHT = 120/);
-  assert.match(source, /setPointerCapture\(event\.pointerId\)/);
-  assert.match(source, /setProjectSectionHeight\(dragStartHeight \+ event\.clientY - dragStartY\)/);
+  assert.match(html, /AUTOMATION COMMAND CENTER/);
+  assert.match(html, /id="projectNavigation"/);
+  assert.match(html, /id="statusNavigation"/);
+  assert.match(html, /id="queueTable"/);
+  assert.match(html, /id="currentRunPanel"/);
+  assert.match(source, /const TASK_STATES = \["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"\]/);
+  assert.match(source, /api\.automationSnapshot/);
+  assert.match(source, /api\.setAutomationEnabled/);
+  assert.match(source, /api\.bindAutomationProject/);
+  assert.match(styles, /--sidebar-width: 228px;/);
+  assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
+  assert.doesNotMatch(html, /class="chat-column"|id="chatInput"|>Chats</);
+});
+
+test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views", async () => {
+  const [source, html] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererHtmlPath, "utf8")
+  ]);
+
+  assert.match(html, /data-page-view="tasks"/);
+  assert.match(html, /INTERVENTION WORKBENCH/);
+  assert.match(html, /data-page-view="workbench"/);
+  assert.match(html, /AUTOMATION RECOVERY CENTER/);
+  assert.match(html, /data-page-view="recovery"/);
+  assert.match(source, /openWorkbench\("intervention"\)/);
+  assert.match(source, /state\.workbenchMode !== "intervention"/);
+  assert.match(html, /id="interveneCurrentButton"/);
+  assert.match(source, /state\.interventionSubmitting = true/);
+  assert.match(source, /api\.submitIntervention/);
+  assert.match(source, /api\.resolveAutomationRecovery/);
+  assert.match(source, /api\.updateAutomationTaskState/);
+  assert.match(source, /state\.workbenchRun \|\| state\.snapshot\.active_run/);
+  assert.match(source, /state\.workbenchCompletion\?\.local_project_id/);
+  assert.match(source, /api\.listMessages\(localProjectId, run\.session_id\)/);
+  assert.match(source, /renderRunPlan\(activity\)/);
+  assert.match(source, /renderExecutionEvidence\(activity\)/);
+  assert.match(source, /artifact_ownership_scan\?\.implementation_evidence/);
+});
+
+test("desktop main and preload expose bounded automation IPC without a generic network bridge", async () => {
+  const [main, preload, source] = await Promise.all([
+    readFile(desktopMainPath, "utf8"),
+    readFile(desktopPreloadPath, "utf8"),
+    readFile(rendererPath, "utf8")
+  ]);
+
+  for (const channel of [
+    "arckit:automation-snapshot",
+    "arckit:automation-sync",
+    "arckit:automation-enabled",
+    "arckit:automation-pause",
+    "arckit:automation-bind-project",
+    "arckit:automation-project-participation",
+    "arckit:automation-task-state",
+    "arckit:automation-intervene",
+    "arckit:automation-stop",
+    "arckit:automation-recovery"
+  ]) {
+    assert.match(main, new RegExp(channel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  }
+  assert.match(preload, /automationSnapshot: \(filter\)/);
+  assert.match(preload, /onAutomationEvent: \(listener\)/);
+  assert.doesNotMatch(preload, /fetch|httpRequest|requestUrl/);
+  assert.doesNotMatch(preload, /startRun:|controlRun:|gateRun:|writeLedger:/);
+  assert.doesNotMatch(preload, /addMessage:|createSession:|deleteSession:|addProject:/);
+  assert.doesNotMatch(main, /arckit:start-run|arckit:control-run|arckit:gate-run|arckit:write-ledger/);
+  assert.doesNotMatch(source, /\bfetch\s*\(/);
+});
+
+test("task source settings keep the access token write-only in Renderer", async () => {
+  const [source, html] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererHtmlPath, "utf8")
+  ]);
+
+  assert.match(html, /id="taskSourceToken" type="password"/);
+  assert.match(source, /access_token_configured/);
+  assert.match(source, /els\.taskSourceToken\.value = ""/);
+  assert.doesNotMatch(source, /task_source\.access_token\s*\)/);
 });

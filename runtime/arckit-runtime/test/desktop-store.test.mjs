@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { createDesktopStore, deleteProjectSession } from "../src/desktop/desktop-store.mjs";
+import { createDesktopStore, deleteProjectSession, normalizeStore, publicSettings } from "../src/desktop/desktop-store.mjs";
 
 test("desktop store serializes concurrent reads and updates", async () => {
   const root = await mkdtemp(join(tmpdir(), "arckit-store-"));
@@ -76,4 +76,37 @@ test("deleteProjectSession removes only the selected chat and its messages", () 
   assert.equal("SESSION-1" in store.messages, false);
   assert.deepEqual(store.messages["SESSION-2"], [{ id: "MESSAGE-2" }]);
   assert.equal(deleteProjectSession(store, "PROJECT-1", "UNKNOWN"), null);
+});
+
+test("desktop store upgrades automation state and keeps task source tokens out of public settings", () => {
+  const store = normalizeStore({
+    version: 4,
+    settings: {
+      task_source: {
+        enabled: true,
+        base_url: "https://workshop.example/",
+        access_token: "top-secret"
+      }
+    },
+    automation: {
+      snapshot: {
+        source_status: "degraded",
+        errors: [{ code: "request_failed", status: 500, message: "Project tasks unavailable", project_id: "12" }]
+      }
+    }
+  });
+
+  assert.equal(store.version, 5);
+  assert.equal(store.automation.snapshot.source_status, "degraded");
+  assert.deepEqual(store.automation.project_bindings, {});
+  const visible = publicSettings(store.settings);
+  assert.equal(visible.task_source.access_token, "");
+  assert.equal(visible.task_source.access_token_configured, true);
+  assert.equal(visible.task_source.base_url, "https://workshop.example");
+  assert.deepEqual(store.automation.snapshot.errors[0], {
+    code: "request_failed",
+    status: 500,
+    message: "Project tasks unavailable",
+    project_id: "12"
+  });
 });

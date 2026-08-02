@@ -1,0 +1,27 @@
+# Interaction Relations
+
+## Automation Workspace
+
+`automation-workspace/interaction.md` 定义待办自动化的交互源；`automation-workspace/default.html` 投影常驻 Automation Command Center，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理与只读审查工作台。
+
+`task-browser/interaction.md` 定义七种服务器任务状态的浏览与人工处置；`task-browser/default.html` 是同一策略的灰度线框投影。Command Center 的任务状态导航携带当前项目范围进入 Task Browser，Task Browser 返回时恢复该项目范围，不改变自动队列策略。
+
+该页面先消费当前用户可访问的 Workshop 项目，再按项目消费七种任务状态，并把 `待处理 → 进行中 → 已完成` 作为自动执行链路。“所有项目”只聚合这些项目的待办，不构成独立任务来源。项目、任务归属与任务状态由远端任务服务器拥有；本地工作区绑定、自动化参与状态、执行子状态、事件和 ledger 证据由 Arckit Runtime 拥有。
+
+按需 Chat 从 Command Center 的人工关注项或历史运行进入。需要人工输入时，Workbench 使用上下文、对话、证据三栏结构；处理完成后返回 Command Center 并恢复当前任务。普通运行审查进入同一 Workbench 的只读模式，不形成常驻 Chat 主页面。
+
+`automation-workspace/runtime-recovery.html` 是 Command Center 的恢复子视图，承接条件式领取冲突、任务已进行中但 Runtime 启动失败、主动安全停止、活动任务外部状态变化、多个进行中任务、任务源完整性异常和会话失效。恢复完成后返回原运行或队列，不通过 Task Browser 静默改写 Runtime。
+
+交互模式参考：
+
+- `arckit/pending/prototypes/desktop-platform/index.html`（桌面应用壳、运行态势和独立工作台的信息架构参考，不作为稳定产品事实）
+- `arckit/pending/prototypes/desktop-platform/styles.css`（密度、层级与桌面布局参考，不继承视觉品牌）
+
+相关稳定事实：
+
+- `arckit/spec/agentic-software-development/product-architecture.md`
+- `arckit/spec/agentic-software-development/controller-worker-loop.md`
+- `arckit/tech/arckit-runtime/solution.md`
+- `runtime/arckit-runtime/desktop/renderer/index.html`
+- `../../hoewo/workshop-desktop/docs/domain.md`
+- `../../hoewo/workshop-desktop/docs/decisions.md`（D-006、D-018：项目任务源与本地工作区绑定边界）

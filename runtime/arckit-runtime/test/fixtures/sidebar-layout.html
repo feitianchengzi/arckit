@@ -1,33 +1,22 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8">
     <link rel="stylesheet" href="../../desktop/renderer/styles.css">
-    <style>
-      body {
-        min-width: 0;
-        height: auto;
-        padding: 16px;
-      }
-
-      .project-list,
-      .session-list {
-        width: 220px;
-      }
-
-      .project-list {
-        height: 180px;
-      }
-
-      .session-list {
-        height: 120px;
-      }
-    </style>
   </head>
   <body>
-    <aside class="project-rail">
-      <div id="projectList" class="project-list"></div>
-      <div id="sessionList" class="session-list"></div>
-    </aside>
+    <div class="desktop-app">
+      <header class="titlebar"><div class="window-dots"><i></i><i></i><i></i></div><div class="titlebar-drag">Arckit Automation</div><div class="sync-state">ready</div></header>
+      <aside class="sidebar"><div class="sidebar-brand"><span class="brand-mark">A</span><strong>Arckit</strong></div></aside>
+      <main class="app-stage">
+        <header class="commandbar"><div class="breadcrumbs"><strong>所有项目</strong></div></header>
+        <div class="view-host">
+          <section class="app-view is-active" data-page-view="command"><div class="page"><div class="metric-grid"><div></div><div></div><div></div><div></div></div><div class="command-grid"><div></div><aside></aside></div></div></section>
+          <section class="app-view" data-page-view="tasks"></section>
+          <section class="app-view" data-page-view="workbench"></section>
+          <section class="app-view" data-page-view="recovery"></section>
+        </div>
+      </main>
+    </div>
   </body>
 </html>

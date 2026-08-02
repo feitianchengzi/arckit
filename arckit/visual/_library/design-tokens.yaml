@@ -1,0 +1,89 @@
+metadata:
+  project: Arckit Runtime Desktop
+  last_updated: "2026-08-02"
+  brief: ./brief.md
+
+colors:
+  ink:
+    "950": { value: "#0D1119", description: 深色窗口与标题栏背景 }
+    "900": { value: "#121722", description: 主侧栏背景和最深正文 }
+    "800": { value: "#1D2431", description: 深色控件悬停面 }
+    "700": { value: "#313A49", description: 强次级文字 }
+    "600": { value: "#4B5567", description: 次级文字 }
+    "500": { value: "#687386", description: 辅助说明 }
+    "400": { value: "#8D97A8", description: 弱提示文字 }
+    "300": { value: "#B6BDC8", description: 强边界 }
+    "200": { value: "#D7DCE4", description: 控件边界 }
+    "150": { value: "#E4E7EC", description: 常规分隔线 }
+    "100": { value: "#ECEFF3", description: 选中与悬停背景 }
+    "75": { value: "#F2F4F7", description: 页面背景 }
+    "50": { value: "#F7F8FA", description: 次级表面 }
+  paper: { value: "#FFFFFF", description: 主工作区与卡片表面 }
+  accent:
+    strong: { value: "#4B46C7", description: 主操作按下态与深色文字 }
+    base: { value: "#5C55E6", description: 主操作、活动 Runtime 与当前选择 }
+    hover: { value: "#706AF2", description: 主操作悬停态 }
+    soft: { value: "#ECEBFF", description: 紫色选中和运行背景 }
+    faint: { value: "#F5F4FF", description: 紫色最低强调背景 }
+  info:
+    base: { value: "#2574D8", description: 同步、外部信息与可导航证据 }
+    soft: { value: "#E8F2FF", description: 信息提示背景 }
+  accepted:
+    base: { value: "#13867B", description: 已验收和稳定外部确认 }
+    soft: { value: "#DFF7F2", description: 已验收状态背景 }
+  success:
+    base: { value: "#23875B", description: 健康、完成和恢复成功 }
+    soft: { value: "#E4F6ED", description: 成功状态背景 }
+  warning:
+    strong: { value: "#A45A14", description: 阻塞和高注意文字 }
+    base: { value: "#C5741D", description: 待处理和人工注意 }
+    soft: { value: "#FFF0D8", description: 待处理和人工事项背景 }
+  danger:
+    base: { value: "#C5434D", description: 错误、取消和破坏操作 }
+    soft: { value: "#FDE9EA", description: 错误与取消状态背景 }
+
+typography:
+  family:
+    interface: { value: "Inter, -apple-system, BlinkMacSystemFont, SF Pro Display, PingFang SC, sans-serif", description: 界面默认字体 }
+    mono: { value: "SFMono-Regular, Consolas, monospace", description: 标识符、时间和命令字体 }
+  display: { size: 29, line_height: 34, weight: 750, description: 页面主标题 }
+  title: { size: 18, line_height: 24, weight: 700, description: 主要区块标题 }
+  heading: { size: 14, line_height: 20, weight: 700, description: 卡片与 Inspector 标题 }
+  body: { size: 13, line_height: 20, weight: 450, description: 数据型正文 }
+  conversation: { size: 14, line_height: 22, weight: 450, description: 人工对话与长说明 }
+  label: { size: 11, line_height: 16, weight: 700, description: 按钮、导航和状态标签 }
+  caption: { size: 10, line_height: 15, weight: 550, description: 辅助状态与元数据 }
+  micro: { size: 8, line_height: 12, weight: 750, description: 计数和紧凑标识 }
+
+spacing:
+  "1": { value: 2, description: 状态点和微调 }
+  "2": { value: 4, description: 紧凑内间距 }
+  "3": { value: 8, description: 基础网格 }
+  "4": { value: 12, description: 控件内间距 }
+  "5": { value: 16, description: 卡片与列表节奏 }
+  "6": { value: 20, description: 中型区块间距 }
+  "7": { value: 24, description: 页面区块间距 }
+  "8": { value: 32, description: 页面水平留白 }
+
+layout:
+  sidebar_width: { value: 228, description: 项目与状态主导航宽度 }
+  titlebar_height: { value: 35, description: 原生窗口标题栏高度 }
+  commandbar_height: { value: 58, description: 顶部命令栏高度 }
+  inspector_width: { value: 312, description: 运行边界和证据检查器宽度 }
+  min_window_width: { value: 1100, description: 桌面布局最小宽度 }
+  min_window_height: { value: 720, description: 桌面布局最小高度 }
+
+corner_radius:
+  small: { value: 6, description: 导航行、按钮和标签 }
+  medium: { value: 10, description: 卡片、Inspector 与浮层 }
+  large: { value: 16, description: 强调面板和空状态 }
+  pill: { value: 999, description: 状态点和胶囊标签 }
+
+shadows:
+  small: { value: "0 1px 2px rgba(22,28,38,.06), 0 4px 12px rgba(22,28,38,.05)", description: 轻量浮层和人工事项 }
+  large: { value: "0 24px 80px rgba(13,17,25,.25), 0 4px 16px rgba(13,17,25,.12)", description: 菜单、对话框和独立 Workbench }
+
+animation:
+  fast: { duration_ms: 120, easing: "cubic-bezier(.2,.8,.2,1)", description: hover 和状态点 }
+  normal: { duration_ms: 160, easing: "cubic-bezier(.2,.8,.2,1)", description: 页面投影与控件状态 }
+  deliberate: { duration_ms: 240, easing: "cubic-bezier(.2,.8,.2,1)", description: Inspector 和恢复面板进入 }

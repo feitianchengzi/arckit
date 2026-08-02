@@ -16,4 +16,6 @@
 
 `agentic-software-development/controller-worker-loop.md` 定义人类 Runtime、Controller Agent、Worker Agent 和 Desktop Runtime 如何围绕同一轮软件研发任务协作，并规定 Desktop 恢复控制态和 ledger 写回门禁。
 
+`agentic-software-development/runtime-automation-workspace.md` 定义 Desktop 如何以任务服务器项目和待办驱动 Runtime loop，是 `controller-worker-loop.md` 在用户任务来源、串行调度、按需人工介入与异常恢复上的产品表面约束；对应交互事实位于 `arckit/interaction/automation-workspace/` 和 `arckit/interaction/task-browser/`。
+
 `agentic-software-development/loop-engineering-research.md` 保存吴恩达三层 loop 与 2026 loop engineering 架构调研结果，是候选输入，不直接作为已确认产品需求。

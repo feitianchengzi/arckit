@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-07-26T20:30:03.815Z
+Updated: 2026-08-01T18:09:34.420Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -40,9 +40,9 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
 - arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md
-- arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md
 - arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md
 - arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md
+- arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md
 
 ## Notes
 

@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automation Command Center - 线框图</title>
+    <link rel="stylesheet" href="../wireframe-style.css">
+</head>
+<body>
+    <div class="wireframe-container">
+        <header>
+            <h1>Automation Command Center</h1>
+            <div class="meta-info">
+                <div>View: <code>AutomationWorkspace</code></div>
+                <div>平台: <strong>macOS</strong></div>
+                <div>定位: <strong>自动化指挥中心 · Chat 按需调起</strong></div>
+            </div>
+        </header>
+
+        <details open>
+            <summary>Command Center 待命</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>任务源同步成功、自动化开启、当前没有未收束的 Runtime。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit</strong><span>任务源已同步 · 10:32</span></div>
+                        <div class="workspace-shell">
+                            <aside class="app-sidebar" data-kit="List(sidebar)">
+                                <div class="app-identity">
+                                    <div class="app-mark">A</div>
+                                    <div><strong>Arckit</strong><small>Automation Runtime</small></div>
+                                </div>
+                                <div class="nav-group">
+                                    <div class="nav-label">工作区</div>
+                                    <div class="nav-row active">
+                                        <span class="nav-glyph">⌁</span><span>自动化总览</span><span class="count">4</span>
+                                    </div>
+                                    <div class="nav-row">
+                                        <span class="nav-glyph">☷</span><span>任务</span><span class="count">30</span>
+                                    </div>
+                                    <div class="nav-row">
+                                        <span class="nav-glyph">!</span><span>需要处理</span><span class="count">0</span>
+                                    </div>
+                                </div>
+                                <div class="nav-group" data-kit="List(projects)">
+                                    <div class="nav-label">项目</div>
+                                    <div class="nav-row active"><span class="nav-glyph">▦</span><span>所有项目</span><span class="count">3</span></div>
+                                    <div class="nav-row"><span class="nav-glyph">A</span><span>Atlas</span><span class="count">3</span></div>
+                                    <div class="nav-row"><span class="nav-glyph">B</span><span>Beam</span><span class="count">1</span></div>
+                                    <div class="nav-row"><span class="nav-glyph">L</span><span>Lumen</span><span class="count">0</span></div>
+                                    <div class="nav-row"><span class="nav-glyph">+</span><span>管理项目来源</span></div>
+                                </div>
+                                <div class="nav-group">
+                                    <div class="nav-label">任务浏览 · 所有项目</div>
+                                    <div class="nav-row"><span class="nav-glyph">P</span><span>待处理</span><span class="count">4</span></div>
+                                    <div class="nav-row"><span class="nav-glyph">R</span><span>进行中</span><span class="count">0</span></div>
+                                    <div class="nav-row"><span class="nav-glyph">V</span><span>待评审</span><span class="count">3</span></div>
+                                    <div class="nav-row"><span class="nav-glyph">D</span><span>已完成</span><span class="count">12</span></div>
+                                    <div class="nav-row"><span class="nav-glyph">A</span><span>已验收</span><span class="count">8</span></div>
+                                    <div class="nav-row"><span class="nav-glyph">C</span><span>已取消</span><span class="count">1</span></div>
+                                    <div class="nav-row"><span class="nav-glyph">B</span><span>已阻塞</span><span class="count">2</span></div>
+                                </div>
+                                <div class="sidebar-status">
+                                    <strong>本机 Runtime</strong>
+                                    <div class="status-line"><i class="status-dot active"></i><span>在线 · 等待任务</span></div>
+                                </div>
+                            </aside>
+                            <section class="workspace-column">
+                                <div class="command-bar" data-kit="toolbar">
+                                    <div class="breadcrumbs"><strong>所有项目</strong><span>/</span><span>自动化总览</span></div>
+                                    <div class="command-spacer"></div>
+                                    <div class="command-search">⌘ K 搜索任务或运行</div>
+                                    <button class="compact-action">刷新</button>
+                                    <button class="compact-action primary">暂停队列</button>
+                                </div>
+                                <div class="page-content">
+                                    <div class="page-header">
+                                        <div>
+                                            <div class="eyebrow">Automation Command Center</div>
+                                            <h2>自动化已就绪</h2>
+                                            <p>已从 3 个项目汇总 4 项可执行任务，下一项将在状态确认后启动。</p>
+                                        </div>
+                                        <div class="page-actions">
+                                            <button class="compact-action">执行策略</button>
+                                            <button class="compact-action">任务源</button>
+                                        </div>
+                                    </div>
+                                    <div class="metric-grid">
+                                        <div class="metric-card"><span>项目来源</span><strong>3 / 3</strong><small>待办同步正常</small></div>
+                                        <div class="metric-card"><span>需要处理</span><strong>0</strong><small>没有人工 Gate</small></div>
+                                        <div class="metric-card"><span>运行中</span><strong>0</strong><small>串行槽位可用</small></div>
+                                        <div class="metric-card emphasis"><span>待处理</span><strong>4</strong><small>最高优先级 1 项</small></div>
+                                    </div>
+                                    <div class="attention-strip quiet">
+                                        <div class="run-orb">✓</div>
+                                        <div>
+                                            <strong>没有需要你判断的事项</strong>
+                                            <small>系统会在需要授权、补充事实或产品判断时提醒你。</small>
+                                        </div>
+                                        <button class="compact-action">查看规则</button>
+                                    </div>
+                                    <div class="content-grid">
+                                        <div class="stack">
+                                            <section class="surface"><div class="surface-header"><strong>下一项自动执行</strong><span>队列 #1</span></div><div class="surface-body"><div class="run-identity"><div class="run-orb">01</div><div><strong>升级搜索结果排序策略</strong><small>Project Atlas · 高优先级 · 工作区已绑定</small></div><span class="badge active">准备领取</span></div><div class="stage-strip"><div class="stage-item current"><i class="stage-marker">1</i><strong>确认状态</strong><small>等待写回</small></div><div class="stage-item"><i class="stage-marker">2</i><strong>执行</strong><small>待开始</small></div><div class="stage-item"><i class="stage-marker">3</i><strong>验证</strong><small>待开始</small></div><div class="stage-item"><i class="stage-marker">4</i><strong>收口</strong><small>待开始</small></div></div><div class="current-action"><strong>即将把任务更新为“进行中”</strong><small>服务器确认后才会启动 Controller Plan。</small></div></div></section>
+                                            <section class="surface"><div class="surface-header"><strong>执行队列</strong><span>优先级 → 确认时间 → 稳定 ID</span></div><div class="data-table" data-kit="Table"><div class="table-head"><span>#</span><span>任务</span><span>项目</span><span>资格</span><span>状态</span></div><div class="table-row selected"><i class="priority-mark high"></i><div><strong>升级搜索结果排序策略</strong><small>队列 #1 · P0 · 确认于 10:28</small></div><span>Atlas</span><span>可执行</span><span class="badge active">待处理</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>修复导出文件名规则</strong><small>队列 #2 · P1 · 确认于昨天</small></div><span>Atlas</span><span>可执行</span><span class="badge">待处理</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>接入新的反馈服务</strong><small>暂不进入队列 · 工作区未绑定</small></div><span>Beam</span><span>不可执行</span><span class="badge">待处理</span></div></div></section>
+                                        </div>
+                                        <aside class="stack" data-kit="Inspector">
+                                            <section class="surface"><div class="surface-header"><strong>项目来源</strong><span>3 个</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">A</span><div><strong>Atlas</strong><small>3 项待处理 · 工作区已绑定</small></div><span class="badge active">参与自动化</span></div><div class="activity-row"><span class="run-orb">B</span><div><strong>Beam</strong><small>1 项待处理 · 工作区未绑定</small></div><span class="badge">不可执行</span></div><div class="activity-row"><span class="run-orb">L</span><div><strong>Lumen</strong><small>没有待处理任务</small></div><span class="badge">参与自动化</span></div></div></section>
+                                            <section class="surface"><div class="surface-header"><strong>自动化边界</strong><span>串行</span></div><div class="surface-body"><dl class="key-value-list"><dt>领取状态</dt><dd>仅待处理</dd><dt>并发上限</dt><dd>1 个活动任务</dd><dt>人工等待</dt><dd>保持进行中</dd><dt>异常策略</dt><dd>冻结下一任务</dd></dl></div></section>
+                                            <section class="surface"><div class="surface-header"><strong>最近完成</strong><span>今天</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">✓</span><div><strong>修复任务索引漂移</strong><small>Case 已写回 · 18 分钟前</small></div><button class="compact-action">审查</button></div><div class="activity-row"><span class="run-orb">✓</span><div><strong>补齐状态校验</strong><small>7 项测试通过 · 1 小时前</small></div><button class="compact-action">结果</button></div></div></section>
+                                        </aside>
+                                    </div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>桌面应用壳、项目列表与七状态导航</li><li>项目来源摘要与四项核心运行指标</li><li>attention strip</li><li>下一项阶段条与跨项目执行队列表格</li><li>自动化边界和最近完成 Inspector</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>选择项目</code> → 指标、状态数量、队列与历史切换到该项目，不改变自动化策略</div><div class="interaction-item"><code>选择任务状态</code> → 携带当前项目范围进入 Task Browser</div><div class="interaction-item"><code>暂停队列</code> → 仅停止领取新任务，当前运行继续</div><div class="interaction-item"><code>选择队列任务</code> → 在右侧展示所属项目、资格、边界与历史证据</div><div class="interaction-item"><code>审查</code> → 进入只读 Intervention Workbench</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>项目列表与范围切换</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>用户从左侧项目列表选择 Atlas；页面只聚焦该项目的待办和运行，跨项目自动队列策略保持不变。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit</strong><span>3 个项目已同步</span></div>
+                        <div class="workspace-shell">
+                            <aside class="app-sidebar" data-kit="List(projects)">
+                                <div class="app-identity"><div class="app-mark">A</div><div><strong>Arckit</strong><small>Automation Runtime</small></div></div>
+                                <div class="nav-group"><div class="nav-label">项目</div><div class="nav-row"><span class="nav-glyph">▦</span><span>所有项目</span><span class="count">3</span></div><div class="nav-row active"><span class="nav-glyph">A</span><span>Atlas</span><span class="count">3</span></div><div class="nav-row"><span class="nav-glyph">B</span><span>Beam</span><span class="count">1</span></div><div class="nav-row"><span class="nav-glyph">L</span><span>Lumen</span><span class="count">0</span></div></div>
+                                <div class="nav-group"><div class="nav-label">Atlas · 任务状态</div><div class="nav-row active"><span class="nav-glyph">P</span><span>待处理</span><span class="count">3</span></div><div class="nav-row"><span class="nav-glyph">R</span><span>进行中</span><span class="count">0</span></div><div class="nav-row"><span class="nav-glyph">V</span><span>待评审</span><span class="count">2</span></div><div class="nav-row"><span class="nav-glyph">D</span><span>已完成</span><span class="count">9</span></div></div>
+                                <div class="sidebar-status"><strong>Atlas</strong><div class="status-line"><i class="status-dot active"></i><span>任务源与工作区就绪</span></div></div>
+                            </aside>
+                            <section class="workspace-column">
+                                <div class="command-bar"><div class="breadcrumbs"><strong>Atlas</strong><span>/</span><span>自动化总览</span></div><div class="command-spacer"></div><button class="compact-action">项目设置</button><button class="compact-action">返回所有项目</button></div>
+                                <div class="page-content">
+                                    <div class="page-header"><div><div class="eyebrow">Project Source · Atlas</div><h2>Atlas 项目待办</h2><p>远端项目 #98 · 本地工作区 ~/Projects/atlas · 参与跨项目自动化</p></div><div class="page-actions"><button class="compact-action">打开工作区</button><button class="compact-action primary">暂停此项目队列</button></div></div>
+                                    <div class="metric-grid"><div class="metric-card"><span>待处理</span><strong>3</strong><small>全部可执行</small></div><div class="metric-card"><span>进行中</span><strong>0</strong><small>没有活动 Runtime</small></div><div class="metric-card"><span>待评审</span><strong>2</strong><small>不进入自动队列</small></div><div class="metric-card emphasis"><span>最近完成</span><strong>9</strong><small>今天完成 2 项</small></div></div>
+                                    <div class="content-grid"><section class="surface"><div class="surface-header"><strong>Atlas 执行队列</strong><span>跨项目顺序 #1、#2、#4</span></div><div class="data-table" data-kit="Table"><div class="table-head"><span>#</span><span>任务</span><span>项目</span><span>资格</span><span>状态</span></div><div class="table-row selected"><i class="priority-mark high"></i><div><strong>升级搜索结果排序策略</strong><small>跨项目队列 #1</small></div><span>Atlas</span><span>可执行</span><span class="badge active">待处理</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>修复导出文件名规则</strong><small>跨项目队列 #2</small></div><span>Atlas</span><span>可执行</span><span class="badge">待处理</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>补齐搜索回归样例</strong><small>跨项目队列 #4</small></div><span>Atlas</span><span>可执行</span><span class="badge">待处理</span></div></div></section><aside class="stack"><section class="surface"><div class="surface-header"><strong>项目来源</strong><span>已连接</span></div><div class="surface-body"><dl class="key-value-list"><dt>远端项目</dt><dd>Atlas #98</dd><dt>本地工作区</dt><dd>已绑定</dd><dt>自动化</dt><dd>参与</dd><dt>最近同步</dt><dd>刚刚</dd></dl></div></section><section class="surface"><div class="surface-header"><strong>范围说明</strong><span>仅观察</span></div><div class="surface-body"><p>当前筛选不改变跨项目领取顺序。暂停此项目队列后，其待办才会退出后续领取。</p></div></section></aside></div>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>项目列表与当前项目高亮</li><li>项目范围内七状态数量</li><li>项目来源、工作区与自动化参与状态</li><li>保留跨项目顺序的项目待办表格</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>选择 Atlas</code> → 页面进入项目范围，所有指标与列表限定到 Atlas</div><div class="interaction-item"><code>选择任务状态</code> → 进入 Atlas 范围的 Task Browser</div><div class="interaction-item"><code>返回所有项目</code> → 恢复跨项目聚合视图</div><div class="interaction-item"><code>暂停此项目队列</code> → 显式把 Atlas 排除出后续自动领取，不影响当前任务</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>启动同步</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>应用启动、账号切换或手动刷新；系统正在恢复任务与 Runtime 事实。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit</strong><span>正在恢复工作区</span></div>
+                        <div class="workspace-shell">
+                            <aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>Arckit</strong><small>Automation Runtime</small></div></div><div class="nav-group"><div class="nav-label">工作区</div><div class="nav-row active"><span class="nav-glyph">⌁</span><span>自动化总览</span><span class="count">—</span></div></div><div class="sidebar-status"><strong>恢复中</strong><div class="status-line"><i class="status-dot"></i><span>等待任务源</span></div></div></aside>
+                            <section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>自动化</strong><span>/</span><span>恢复上下文</span></div><div class="command-spacer"></div><button class="compact-action">设置</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Workspace Recovery</div><h2>正在恢复项目与自动化上下文</h2><p>先确认项目和项目待办事实，再恢复本地运行；期间不会领取新任务。</p></div></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>恢复进度</strong><span>3 / 5</span></div><div class="surface-body"><div class="timeline-list"><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>读取当前账号</strong><small>已确认任务源身份</small></div><time>完成</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>同步当前用户项目</strong><small>已确认 3 个项目来源</small></div><time>完成</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>按项目同步待办</strong><small>正在合并 30 项任务状态</small></div><time>完成</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>恢复进行中任务</strong><small>检查项目、工作区与本地 run 对应关系</small></div><time>进行中</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>开放跨项目串行队列</strong><small>等待状态一致性确认</small></div><time>待开始</time></div></div></div></section><aside class="surface"><div class="surface-header"><strong>恢复原则</strong><span>Fail closed</span></div><div class="surface-body"><div class="skeleton-line medium"></div><div class="skeleton-line"></div><div class="skeleton-line short"></div><div class="current-action"><strong>不会猜测项目或任务归属</strong><small>存在冲突时进入人工恢复中心。</small></div></div></aside></div></div></section>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>稳定应用壳</li><li>账号、项目、项目待办与 Runtime 分阶段恢复时间线</li><li>Fail-closed 原则卡</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>打开设置</code> → 处理账号或任务源连接，返回后重新恢复</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>自动执行中</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>远端任务已确认更新为进行中，Runtime 正在执行一个有界 Loop。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit</strong><span>Runtime 在线 · RUN-8421</span></div>
+                        <div class="workspace-shell">
+                            <aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>Arckit</strong><small>Automation Runtime</small></div></div><div class="nav-group"><div class="nav-label">工作区</div><div class="nav-row active"><span class="nav-glyph">⌁</span><span>自动化总览</span><span class="count">4</span></div><div class="nav-row"><span class="nav-glyph">!</span><span>需要处理</span><span class="count">0</span></div></div><div class="nav-group"><div class="nav-label">任务状态</div><div class="nav-row active"><span class="nav-glyph">R</span><span>进行中</span><span class="count">1</span></div><div class="nav-row"><span class="nav-glyph">P</span><span>待处理</span><span class="count">3</span></div><div class="nav-row"><span class="nav-glyph">V</span><span>待评审</span><span class="count">3</span></div><div class="nav-row"><span class="nav-glyph">D</span><span>已完成</span><span class="count">12</span></div></div><div class="sidebar-status"><strong>RUN-8421</strong><div class="status-line"><i class="status-dot active"></i><span>Controller Review</span></div></div></aside>
+                            <section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>自动化</strong><span>/</span><span>RUN-8421</span></div><div class="command-spacer"></div><div class="command-search">⌘ K 搜索任务或运行</div><button class="compact-action">暂停队列</button><button class="compact-action">停止当前运行</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">RUN-8421 · 本地执行</div><h2>升级搜索结果排序策略</h2><p>Project Atlas · CASE-20260801-001 · 已运行 08:14</p></div><div class="page-actions"><button class="compact-action">查看对话</button><button class="compact-action">全部事件</button></div></div><div class="metric-grid"><div class="metric-card"><span>任务状态</span><strong>进行中</strong><small>服务器已确认</small></div><div class="metric-card"><span>Runtime 阶段</span><strong>Review</strong><small>Controller 收口</small></div><div class="metric-card"><span>Worker</span><strong>2 / 2</strong><small>报告已回收</small></div><div class="metric-card emphasis"><span>下一队列</span><strong>3</strong><small>等待当前任务</small></div></div><div class="attention-strip quiet"><div class="run-orb">AI</div><div><strong>自动化正在推进，无需人工操作</strong><small>只有 Controller 明确声明 requires_human 时才会开放输入模式。</small></div><button class="compact-action">运行边界</button></div><div class="content-grid"><div class="stack"><section class="surface"><div class="surface-header"><strong>当前运行</strong><span>Controller / Worker / Gate / Ledger</span></div><div class="surface-body"><div class="run-identity"><div class="run-orb">AI</div><div><strong>Controller 正在核对 Worker 证据</strong><small>检查路径、风险、unknown 和 Case claim</small></div><span class="badge active">执行中</span></div><div class="stage-strip"><div class="stage-item done"><i class="stage-marker">✓</i><strong>理解</strong><small>42 秒</small></div><div class="stage-item done"><i class="stage-marker">✓</i><strong>执行</strong><small>5 分 18 秒</small></div><div class="stage-item current"><i class="stage-marker">3</i><strong>验证</strong><small>进行中</small></div><div class="stage-item"><i class="stage-marker">4</i><strong>收口</strong><small>待开始</small></div></div><div class="progress-bar"><div class="progress-fill p-70"></div></div><div class="timeline-list"><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>读取项目与 Case 上下文</strong><small>12 项事实已载入</small></div><time>10:18:03</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>实现 Worker 完成</strong><small>修改 6 个文件，报告已校验</small></div><time>10:23:52</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>Controller Review</strong><small>正在确认测试与 artifact impact</small></div><time>10:25:17</time></div></div></div></section><section class="surface"><div class="surface-header"><strong>下一队列</strong><span>当前任务收束后领取</span></div><div class="data-table"><div class="table-head"><span>#</span><span>任务</span><span>项目</span><span>资格</span><span>状态</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>修复导出文件名规则</strong><small>普通优先级</small></div><span>Atlas</span><span>可执行</span><span class="badge">待处理</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>接入新的反馈服务</strong><small>工作区未绑定</small></div><span>Beam</span><span>不可执行</span><span class="badge">待处理</span></div></div></section></div><aside class="stack"><section class="surface"><div class="surface-header"><strong>本轮边界</strong><span>Case gap</span></div><div class="surface-body"><dl class="key-value-list"><dt>目标</dt><dd>确认排序策略</dd><dt>允许</dt><dd>规格与测试</dd><dt>禁止</dt><dd>数据迁移、发布</dd><dt>停止条件</dt><dd>证据可写回</dd></dl></div></section><section class="surface"><div class="surface-header"><strong>证据</strong><span>3 项</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">✓</span><div><strong>测试结果</strong><small>12 项通过</small></div><span class="badge">verified</span></div><div class="activity-row"><span class="run-orb">6</span><div><strong>文件影响</strong><small>+184 / −27</small></div><button class="compact-action">Diff</button></div><div class="activity-row"><span class="run-orb">2</span><div><strong>Worker report</strong><small>全部有效</small></div><button class="compact-action">报告</button></div></div></section></aside></div></div></section>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>Runtime 阶段与可理解当前动作</li><li>事件时间线</li><li>下一队列</li><li>本轮边界与证据 Inspector</li><li>只读对话入口</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>查看对话</code> → 进入只读 Intervention Workbench，不改变当前运行</div><div class="interaction-item"><code>暂停队列</code> → 当前运行继续，不领取下一项</div><div class="interaction-item"><code>停止当前运行</code> → 显示影响确认，安全停止后任务保持进行中并进入恢复中心</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>人工介入入口</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>Controller 明确请求授权、补充事实或产品判断；主页面提升 attention item，但不自动打开 Chat。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit</strong><span>需要你的处理</span></div>
+                        <div class="workspace-shell">
+                            <aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>Arckit</strong><small>Automation Runtime</small></div></div><div class="nav-group"><div class="nav-label">工作区</div><div class="nav-row active"><span class="nav-glyph">⌁</span><span>自动化总览</span><span class="count">4</span></div><div class="nav-row active"><span class="nav-glyph">!</span><span>需要处理</span><span class="count">1</span></div></div><div class="nav-group"><div class="nav-label">任务状态</div><div class="nav-row"><span class="nav-glyph">R</span><span>进行中</span><span class="count">1</span></div><div class="nav-row"><span class="nav-glyph">P</span><span>待处理</span><span class="count">3</span></div></div><div class="sidebar-status"><strong>队列已冻结</strong><div class="status-line"><i class="status-dot"></i><span>等待人工输入</span></div></div></aside>
+                            <section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>自动化</strong><span>/</span><span>需要处理</span></div><div class="command-spacer"></div><button class="compact-action">稍后处理</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Human Intervention · RUN-8421</div><h2>有一项判断阻止当前任务继续</h2><p>远端任务仍为进行中；待处理队列不会领取下一项。</p></div></div><div class="metric-grid"><div class="metric-card emphasis"><span>需要处理</span><strong>1</strong><small>产品判断</small></div><div class="metric-card"><span>任务状态</span><strong>进行中</strong><small>服务器事实</small></div><div class="metric-card"><span>执行子状态</span><strong>等待人工</strong><small>Runtime 暂停</small></div><div class="metric-card"><span>队列冻结</span><strong>3</strong><small>不领取下一项</small></div></div><div class="attention-strip"><div class="run-orb">!</div><div><strong>确认排序规则与现有规格的冲突处置</strong><small>Controller 已整理冲突位置、两个安全选项和影响范围。</small></div><button class="compact-action primary">进入处理工作台</button></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>请求摘要</strong><span>产品判断</span></div><div class="surface-body"><div class="run-identity"><div class="run-orb">AI</div><div><strong>稳定排序还是更新时间优先？</strong><small>现有规格要求稳定排序，新任务描述要求同分时更新时间倒序。</small></div><span class="badge active">等待处理</span></div><div class="current-action"><strong>建议默认保留稳定排序</strong><small>变更影响 2 个规格段落、1 个实现分支和 4 项测试。</small></div><div class="stage-strip"><div class="stage-item done"><i class="stage-marker">✓</i><strong>理解</strong><small>完成</small></div><div class="stage-item done"><i class="stage-marker">✓</i><strong>执行</strong><small>完成</small></div><div class="stage-item current"><i class="stage-marker">!</i><strong>人工判断</strong><small>等待中</small></div><div class="stage-item"><i class="stage-marker">4</i><strong>收口</strong><small>暂停</small></div></div></div></section><aside class="stack"><section class="surface"><div class="surface-header"><strong>你将看到</strong><span>Workbench</span></div><div class="surface-body"><dl class="key-value-list"><dt>左侧</dt><dd>上下文与边界</dd><dt>中间</dt><dd>对话与输入</dd><dt>右侧</dt><dd>证据与恢复</dd></dl></div></section><section class="surface"><div class="surface-header"><strong>恢复条件</strong><span>1 项</span></div><div class="surface-body"><p>提交明确的排序处置，Controller 接受后继续当前 Case。</p></div></section></aside></div></div></section>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>高优先级 attention strip</li><li>服务器状态与 Runtime 子状态分离</li><li>请求摘要、建议与影响范围</li><li>Intervention Workbench 入口</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>进入处理工作台</code> → 打开 intervention-workbench.html 的人工处理模式</div><div class="interaction-item"><code>稍后处理</code> → 保持进行中和队列冻结</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>完成并串行续接</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>Runtime、ledger 与远端完成状态全部确认；系统开始领取下一项。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit</strong><span>上一项已完成</span></div>
+                        <div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>Arckit</strong><small>Automation Runtime</small></div></div><div class="nav-group"><div class="nav-label">任务状态</div><div class="nav-row active"><span class="nav-glyph">R</span><span>进行中</span><span class="count">1</span></div><div class="nav-row"><span class="nav-glyph">P</span><span>待处理</span><span class="count">2</span></div><div class="nav-row"><span class="nav-glyph">D</span><span>已完成</span><span class="count">13</span></div></div><div class="sidebar-status"><strong>自动续接</strong><div class="status-line"><i class="status-dot active"></i><span>正在领取下一项</span></div></div></aside><section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>自动化</strong><span>/</span><span>续接</span></div><div class="command-spacer"></div><button class="compact-action primary">暂停队列</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Continuous Execution</div><h2>上一项已完成，下一项正在启动</h2><p>状态写回已确认，串行队列继续推进。</p></div></div><div class="attention-strip quiet"><div class="run-orb">✓</div><div><strong>升级搜索结果排序策略已完成</strong><small>Case transition 已写回，12 项测试通过，证据可恢复。</small></div><button class="compact-action">查看结果</button></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>续接状态</strong><span>任务 #2</span></div><div class="surface-body"><div class="run-identity"><div class="run-orb">02</div><div><strong>修复导出文件名规则</strong><small>正在请求服务器更新为进行中</small></div><span class="badge active">领取中</span></div><div class="stage-strip"><div class="stage-item current"><i class="stage-marker">1</i><strong>确认状态</strong><small>进行中</small></div><div class="stage-item"><i class="stage-marker">2</i><strong>执行</strong><small>待开始</small></div><div class="stage-item"><i class="stage-marker">3</i><strong>验证</strong><small>待开始</small></div><div class="stage-item"><i class="stage-marker">4</i><strong>收口</strong><small>待开始</small></div></div></div></section><aside class="surface"><div class="surface-header"><strong>上一项证据</strong><span>完整</span></div><div class="surface-body"><dl class="key-value-list"><dt>Case</dt><dd>已写回</dd><dt>测试</dt><dd>12 项通过</dd><dt>远端状态</dt><dd>已完成</dd><dt>对话</dt><dd>可审查</dd></dl><button class="compact-action">只读审查</button></div></aside></div></div></section></div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>完成结果 attention strip</li><li>下一任务阶段条</li><li>上一项证据 Inspector</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>只读审查</code> → 进入 Workbench 只读模式</div><div class="interaction-item"><code>暂停队列</code> → 当前领取完成后停止后续任务</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>无可执行任务</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>当前用户没有进行中或待处理任务；待评审任务不具备自动执行资格。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit</strong><span>任务源已同步</span></div>
+                        <div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>Arckit</strong><small>Automation Runtime</small></div></div><div class="nav-group"><div class="nav-label">任务状态</div><div class="nav-row active"><span class="nav-glyph">P</span><span>待处理</span><span class="count">0</span></div><div class="nav-row"><span class="nav-glyph">R</span><span>进行中</span><span class="count">0</span></div><div class="nav-row"><span class="nav-glyph">V</span><span>待评审</span><span class="count">3</span></div></div><div class="sidebar-status"><strong>自动化开启</strong><div class="status-line"><i class="status-dot active"></i><span>等待新任务</span></div></div></aside><section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>自动化</strong><span>/</span><span>总览</span></div><div class="command-spacer"></div><button class="compact-action">刷新</button><button class="compact-action primary">暂停队列</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Automation Command Center</div><h2>当前没有可自动执行的任务</h2><p>系统保持监听，待评审任务确认后会进入待处理队列。</p></div></div><section class="surface"><div class="empty-panel" data-kit="ContentUnavailableView"><div class="run-orb">✓</div><strong>队列已清空</strong><p>最近一次同步于刚刚完成。待评审任务不会被自动领取，你可以查看它们或继续保持后台监听。</p><div class="page-actions"><button class="compact-action">查看待评审 3</button><button class="compact-action primary">立即刷新</button></div></div></section></div></section></div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>稳定应用壳</li><li>明确空状态与监听状态</li><li>待评审入口和刷新动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>查看待评审</code> → 切换筛选，不触发自动执行</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>项目同步或写回异常</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>任务拉取、状态更新或完成写回失败，服务器事实状态不确定。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit</strong><span>自动领取已冻结</span></div>
+                        <div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>Arckit</strong><small>Automation Runtime</small></div></div><div class="nav-group"><div class="nav-label">工作区</div><div class="nav-row active"><span class="nav-glyph">!</span><span>需要处理</span><span class="count">1</span></div></div><div class="nav-group"><div class="nav-label">任务状态</div><div class="nav-row"><span class="nav-glyph">R</span><span>进行中</span><span class="count">1?</span></div><div class="nav-row"><span class="nav-glyph">P</span><span>待处理</span><span class="count">3</span></div></div><div class="sidebar-status"><strong>任务源异常</strong><div class="status-line"><i class="status-dot"></i><span>等待状态确认</span></div></div></aside><section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>自动化</strong><span>/</span><span>恢复中心</span></div><div class="command-spacer"></div><button class="compact-action primary">重试回写</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Recovery Center · RUN-8421</div><h2>本地已完成，服务器尚未确认</h2><p>系统保留所有本地证据，并停止领取下一任务以避免重复执行。</p></div></div><div class="attention-strip"><div class="run-orb">!</div><div><strong>“进行中 → 已完成”写回失败</strong><small>第 2 次尝试 · 最近错误：任务源暂时不可用</small></div><button class="compact-action primary">立即重试</button></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>恢复时间线</strong><span>责任方：任务源</span></div><div class="surface-body"><div class="timeline-list"><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>Runtime 完成</strong><small>Controller Review 与 Gate 通过</small></div><time>10:29:02</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>Ledger 写回</strong><small>Case transition 已提交</small></div><time>10:29:05</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>远端任务状态写回</strong><small>等待服务器确认 completed</small></div><time>失败</time></div></div></div></section><aside class="stack"><section class="surface"><div class="surface-header"><strong>本地证据</strong><span>安全</span></div><div class="surface-body"><dl class="key-value-list"><dt>Runtime</dt><dd>done</dd><dt>Ledger</dt><dd>written</dd><dt>测试</dt><dd>12 项通过</dd><dt>下一队列</dt><dd>已冻结</dd></dl><button class="compact-action">查看完整证据</button></div></section><section class="surface"><div class="surface-header"><strong>可用动作</strong><span>2 项</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">↻</span><div><strong>重试远端写回</strong><small>不会重复执行 Runtime</small></div></div><div class="activity-row"><span class="run-orb">⚙</span><div><strong>打开任务源设置</strong><small>检查账号和服务连接</small></div></div></div></section></aside></div></div></section></div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>恢复中心标题与责任方</li><li>本地完成/远端未确认分层</li><li>恢复时间线和证据 Inspector</li><li>明确冻结下一队列</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>立即重试</code> → 只重试远端状态写回，不重复执行 Runtime</div><div class="interaction-item"><code>查看完整证据</code> → 打开只读运行详情</div></div>
+            </div>
+        </details>
+    </div>
+</body>
+</html>

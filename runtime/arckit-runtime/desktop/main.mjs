@@ -2,21 +2,39 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
+import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
 
 let mainWindow;
 let runManager;
+let automationCoordinator;
 let quitAfterCleanup = false;
+let syncTimer;
 
 app.whenReady().then(async () => {
   runManager = createDesktopRunManager({
     runtimeRoot,
     dataDir: join(app.getPath("userData"), "runtime")
   });
+  automationCoordinator = createAutomationCoordinator({ runManager });
+  runManager.onEvent((event) => {
+    if (!mainWindow?.isDestroyed()) {
+      mainWindow.webContents.send("arckit:event", event);
+    }
+  });
+  automationCoordinator.onEvent((event) => {
+    if (!mainWindow?.isDestroyed()) {
+      mainWindow.webContents.send("arckit:automation-event", event);
+    }
+  });
   registerIpc();
   createWindow();
+  automationCoordinator.sync().catch((error) => console.error("Initial task sync failed:", error));
+  syncTimer = setInterval(() => {
+    automationCoordinator.sync().catch((error) => console.error("Background task sync failed:", error));
+  }, 60_000);
 });
 
 app.on("window-all-closed", () => {
@@ -32,6 +50,11 @@ app.on("before-quit", async (event) => {
   event.preventDefault();
   quitAfterCleanup = true;
   try {
+    if (syncTimer) {
+      clearInterval(syncTimer);
+      syncTimer = null;
+    }
+    automationCoordinator?.dispose();
     await runManager.abortActiveRuns({
       reason: "Arckit Desktop is quitting; active runs were aborted."
     });
@@ -63,21 +86,10 @@ function createWindow() {
     }
   });
 
-  runManager.onEvent((event) => {
-    if (!mainWindow?.isDestroyed()) {
-      mainWindow.webContents.send("arckit:event", event);
-    }
-  });
-
   mainWindow.loadFile(join(desktopDir, "renderer/index.html"));
 }
 
 function registerIpc() {
-  ipcMain.handle("arckit:runtime-info", async () => ({
-    runtimeRoot,
-    userData: app.getPath("userData")
-  }));
-
   ipcMain.handle("arckit:pick-project", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ["openDirectory"],
@@ -89,20 +101,22 @@ function registerIpc() {
     return runManager.addProject(result.filePaths[0]);
   });
 
-  ipcMain.handle("arckit:add-project", async (_event, projectPath) => runManager.addProject(projectPath));
-  ipcMain.handle("arckit:list-projects", async () => runManager.listProjects());
-  ipcMain.handle("arckit:remove-project", async (_event, projectId) => runManager.removeProject(projectId));
-  ipcMain.handle("arckit:project-status", async (_event, projectId) => runManager.getProjectStatus(projectId));
   ipcMain.handle("arckit:list-runs", async (_event, filter) => runManager.listRuns(filter));
-  ipcMain.handle("arckit:list-sessions", async (_event, projectId) => runManager.listSessions(projectId));
-  ipcMain.handle("arckit:create-session", async (_event, projectId, input) => runManager.createSession(projectId, input));
-  ipcMain.handle("arckit:delete-session", async (_event, projectId, sessionId) => runManager.deleteSession(projectId, sessionId));
   ipcMain.handle("arckit:list-messages", async (_event, projectId, sessionId) => runManager.listMessages(projectId, sessionId));
-  ipcMain.handle("arckit:add-message", async (_event, projectId, message) => runManager.addMessage(projectId, message));
   ipcMain.handle("arckit:get-settings", async () => runManager.getSettings());
   ipcMain.handle("arckit:update-settings", async (_event, input) => runManager.updateSettings(input));
-  ipcMain.handle("arckit:start-run", async (_event, input) => runManager.startRun(input));
-  ipcMain.handle("arckit:control-run", async (_event, runId, control) => runManager.controlRun(runId, control));
-  ipcMain.handle("arckit:gate-run", async (_event, runId) => runManager.gateRun(runId));
-  ipcMain.handle("arckit:write-ledger", async (_event, runId, options) => runManager.writeLedgerForRun(runId, options));
+  ipcMain.handle("arckit:automation-snapshot", async (_event, filter) => automationCoordinator.getSnapshot(filter));
+  ipcMain.handle("arckit:automation-sync", async () => automationCoordinator.sync());
+  ipcMain.handle("arckit:automation-enabled", async (_event, enabled) => automationCoordinator.setEnabled(enabled));
+  ipcMain.handle("arckit:automation-pause", async (_event, paused) => automationCoordinator.setQueuePaused(paused));
+  ipcMain.handle("arckit:automation-bind-project", async (_event, remoteProjectId, localProjectId) => (
+    automationCoordinator.bindProject(remoteProjectId, localProjectId)
+  ));
+  ipcMain.handle("arckit:automation-project-participation", async (_event, remoteProjectId, participating) => (
+    automationCoordinator.setProjectParticipation(remoteProjectId, participating)
+  ));
+  ipcMain.handle("arckit:automation-task-state", async (_event, input) => automationCoordinator.updateTaskState(input));
+  ipcMain.handle("arckit:automation-intervene", async (_event, input) => automationCoordinator.submitIntervention(input));
+  ipcMain.handle("arckit:automation-stop", async () => automationCoordinator.stopCurrent());
+  ipcMain.handle("arckit:automation-recovery", async (_event, input) => automationCoordinator.resolveRecovery(input));
 }

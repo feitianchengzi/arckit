@@ -10,7 +10,15 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(dataDir, { recursive: true });
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
-      await writeJson(storePath, { version: 4, projects: [], runs: [], sessions: {}, messages: {}, settings: defaultSettings() });
+      await writeJson(storePath, {
+        version: 5,
+        projects: [],
+        runs: [],
+        sessions: {},
+        messages: {},
+        settings: defaultSettings(),
+        automation: defaultAutomationState()
+      });
     }
   }
 
@@ -46,12 +54,13 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
 
 export function normalizeStore(store) {
   const normalized = {
-    version: 4,
+    version: 5,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
     messages: store.messages && typeof store.messages === "object" ? store.messages : {},
-    settings: normalizeSettings(store.settings || {})
+    settings: normalizeSettings(store.settings || {}),
+    automation: normalizeAutomationState(store.automation || {})
   };
   for (const project of normalized.projects) {
     const legacyMessages = Array.isArray(normalized.messages[project.id]) ? normalized.messages[project.id] : null;
@@ -82,6 +91,17 @@ export function defaultSettings() {
     codex_proxy: {
       enabled: false,
       url: "http://127.0.0.1:7890"
+    },
+    task_source: {
+      enabled: false,
+      base_url: "",
+      service_name: "workshop",
+      auth_mode: "bearer",
+      access_token: "",
+      user_id: "",
+      username: "",
+      app_id: "arckit-runtime",
+      session_id: ""
     }
   };
 }
@@ -91,11 +111,83 @@ export function normalizeSettings(settings = {}) {
   const proxy = settings.codex_proxy && typeof settings.codex_proxy === "object"
     ? settings.codex_proxy
     : {};
+  const taskSource = settings.task_source && typeof settings.task_source === "object"
+    ? settings.task_source
+    : {};
   return {
     codex_proxy: {
       enabled: Boolean(proxy.enabled),
       url: String(proxy.url || defaults.codex_proxy.url).trim() || defaults.codex_proxy.url
+    },
+    task_source: {
+      enabled: Boolean(taskSource.enabled),
+      base_url: String(taskSource.base_url || "").trim().replace(/\/+$/, ""),
+      service_name: safeIdentifier(taskSource.service_name, defaults.task_source.service_name),
+      auth_mode: ["bearer", "headers"].includes(taskSource.auth_mode) ? taskSource.auth_mode : defaults.task_source.auth_mode,
+      access_token: String(taskSource.access_token || "").trim(),
+      user_id: String(taskSource.user_id || "").trim(),
+      username: String(taskSource.username || "").trim(),
+      app_id: String(taskSource.app_id || defaults.task_source.app_id).trim() || defaults.task_source.app_id,
+      session_id: String(taskSource.session_id || "").trim()
     }
+  };
+}
+
+export function publicSettings(settings = {}) {
+  const normalized = normalizeSettings(settings);
+  return {
+    codex_proxy: normalized.codex_proxy,
+    task_source: {
+      ...normalized.task_source,
+      access_token: "",
+      access_token_configured: Boolean(normalized.task_source.access_token)
+    }
+  };
+}
+
+export function defaultAutomationState() {
+  return {
+    enabled: false,
+    queue_paused: false,
+    project_bindings: {},
+    project_participation: {},
+    snapshot: {
+      user: null,
+      projects: [],
+      tasks: [],
+      synced_at: "",
+      source_status: "unconfigured",
+      errors: []
+    },
+    active_task: null,
+    attention_items: [],
+    recovery_items: [],
+    recent_completions: []
+  };
+}
+
+export function normalizeAutomationState(value = {}) {
+  const defaults = defaultAutomationState();
+  const snapshot = value.snapshot && typeof value.snapshot === "object" ? value.snapshot : {};
+  return {
+    enabled: Boolean(value.enabled),
+    queue_paused: Boolean(value.queue_paused),
+    project_bindings: stringMap(value.project_bindings),
+    project_participation: booleanMap(value.project_participation),
+    snapshot: {
+      user: snapshot.user && typeof snapshot.user === "object" ? snapshot.user : null,
+      projects: Array.isArray(snapshot.projects) ? snapshot.projects : [],
+      tasks: Array.isArray(snapshot.tasks) ? snapshot.tasks : [],
+      synced_at: String(snapshot.synced_at || ""),
+      source_status: ["unconfigured", "syncing", "healthy", "degraded", "unauthenticated", "error"].includes(snapshot.source_status)
+        ? snapshot.source_status
+        : defaults.snapshot.source_status,
+      errors: Array.isArray(snapshot.errors) ? snapshot.errors.map(normalizeAutomationError).slice(0, 50) : []
+    },
+    active_task: value.active_task && typeof value.active_task === "object" ? value.active_task : null,
+    attention_items: Array.isArray(value.attention_items) ? value.attention_items.slice(0, 50) : [],
+    recovery_items: Array.isArray(value.recovery_items) ? value.recovery_items.slice(0, 50) : [],
+    recent_completions: Array.isArray(value.recent_completions) ? value.recent_completions.slice(0, 30) : []
   };
 }
 
@@ -209,4 +301,42 @@ async function readJsonWithRetry(path) {
 
 function delay(ms) {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, ms));
+}
+
+function safeIdentifier(value, fallback) {
+  const text = String(value || "").trim();
+  return /^[a-zA-Z0-9_-]+$/.test(text) ? text : fallback;
+}
+
+function stringMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return Object.fromEntries(Object.entries(value)
+    .map(([key, item]) => [String(key), String(item || "").trim()])
+    .filter(([, item]) => item));
+}
+
+function booleanMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [String(key), Boolean(item)]));
+}
+
+function normalizeAutomationError(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {
+      code: "task_source_error",
+      status: 0,
+      message: String(value || "Task source error"),
+      project_id: ""
+    };
+  }
+  return {
+    code: String(value.code || "task_source_error"),
+    status: Number(value.status || 0),
+    message: String(value.message || "Task source error"),
+    project_id: String(value.project_id || "")
+  };
 }

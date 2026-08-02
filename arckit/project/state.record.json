@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-07-26T20:30:03.815Z",
+    "updated_at": "2026-08-01T18:09:34.420Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -637,39 +637,24 @@
     "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md",
     "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
     "entry/skills/arckit-development-ledger/schema/case-transition.schema.json",
-    "entry/skills/arckit-development-ledger/scripts/case-transition.mjs"
+    "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
+    "arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md"
   ],
   "last_state_delta": {
-    "changed_dimensions": [
-      "data_state",
-      "iteration_governance"
-    ],
-    "state_transitions": [
-      {
-        "dimension": "data_state",
-        "from_state": "designed",
-        "to_state": "verified",
-        "reason": "Project v3 and Iteration v2 now have strict schemas, durable evidence rules, explicit gap coverage, generated projections, and deterministic cross-record audits that pass on the canonical repository state."
-      },
-      {
-        "dimension": "iteration_governance",
-        "from_state": "implemented",
-        "to_state": "verified",
-        "reason": "Iteration v2 now contains only macro Project targets and resolved-Case aggregation, rejects legacy and Loop control fields, derives projections from fresh Project State, and stays aligned through deterministic closeout."
-      }
-    ],
+    "changed_dimensions": [],
+    "state_transitions": [],
     "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
+      "arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "next_project_focus": "Select or create the next bounded Case from the remaining Project state_gaps.",
-    "updated_at": "2026-07-26T20:30:03.815Z"
+    "updated_at": "2026-08-01T18:09:34.420Z"
   },
   "case_control": {
     "selected_case_ref": "",
-    "selection_reason": "Resolved Case arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md.",
+    "selection_reason": "Resolved Case arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md.",
     "next_case_intent": "Select or create the next bounded Case from the remaining Project state_gaps.",
     "priority_basis": "Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.",
     "stop_condition": "Stop after selecting or creating the next bounded Case."

@@ -1,175 +1,126 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Arckit Desktop</title>
+    <title>Arckit Automation</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
-    <div class="app-shell">
-      <aside id="projectRail" class="project-rail">
-        <div class="brand">
-          <div class="brand-mark">A</div>
-          <div>
-            <h1>Arckit</h1>
-            <p>Desktop</p>
-          </div>
+    <div class="desktop-app">
+      <header class="titlebar">
+        <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="titlebar-drag">Arckit Automation</div>
+        <div id="titlebarSync" class="sync-state"><i></i><span>准备同步</span></div>
+      </header>
+
+      <aside class="sidebar">
+        <div class="sidebar-brand"><span class="brand-mark">A</span><strong>Arckit</strong></div>
+
+        <nav class="primary-nav" aria-label="主导航">
+          <p class="nav-label">AUTOMATION</p>
+          <button class="nav-item is-active" data-page="command" type="button"><span>◉</span><strong>Command Center</strong><em id="attentionNavCount">0</em></button>
+
+          <p class="nav-label">PROJECTS</p>
+          <div id="projectNavigation" class="nav-group"></div>
+
+          <p class="nav-label">TASK STATUS</p>
+          <div id="statusNavigation" class="nav-group"></div>
+        </nav>
+
+        <div class="sidebar-footer">
+          <button id="sourceHealthButton" class="local-status" type="button"><span>↻</span><strong>任务源</strong><small id="sourceHealthText">未配置</small></button>
+          <button id="runtimeHealthButton" class="local-status" type="button"><span>◇</span><strong>本地 Runtime</strong><small id="runtimeHealthText">待命</small></button>
+          <button id="pickProjectButton" class="profile-button" type="button"><span>＋</span><strong>添加本地项目</strong><small>绑定远端项目</small></button>
         </div>
-
-        <div class="add-project-row">
-          <button id="pickProjectButton" class="primary-button">Add Project</button>
-        </div>
-
-        <section id="projectSection" class="sidebar-section project-section">
-          <div class="rail-heading">Projects</div>
-          <div id="projectList" class="project-list"></div>
-        </section>
-
-        <div id="sidebarDivider" class="sidebar-divider" role="separator" aria-label="Resize Projects and Chats" aria-orientation="horizontal" aria-valuemin="120" aria-valuenow="220" tabindex="0"></div>
-
-        <section class="sidebar-section chat-section">
-          <div class="rail-heading rail-heading-row">
-            <span>Chats</span>
-            <button id="newChatButton" class="quiet-button small-button">New</button>
-          </div>
-          <div id="sessionList" class="session-list"></div>
-        </section>
       </aside>
 
-      <main class="chat-column">
-        <header class="chat-header">
-          <div>
-            <h2 id="selectedProjectName">No project selected</h2>
-            <p><span id="selectedSessionTitle">No chat</span> · <span id="selectedProjectPath">Select a project.</span></p>
-          </div>
-          <div class="header-actions">
-            <span id="activeRunBadge" class="badge">Idle</span>
-            <button id="settingsButton" class="secondary-button">Settings</button>
+      <main class="app-stage">
+        <header class="commandbar">
+          <div class="breadcrumbs"><strong id="scopeTitle">所有项目</strong><span id="pageTitle">自动化总览</span></div>
+          <div class="commandbar-actions">
+            <button id="searchButton" class="search-trigger" type="button"><span>搜索任务、项目或 Run</span><kbd>⌘ K</kbd></button>
+            <label class="automation-toggle"><input id="automationEnabled" type="checkbox"><span></span><strong>自动化</strong></label>
+            <button id="syncButton" class="icon-button" type="button" title="同步任务源">↻</button>
+            <button id="settingsButton" class="icon-button" type="button" title="设置">⚙</button>
           </div>
         </header>
 
-        <section id="messageList" class="message-list"></section>
+        <div class="view-host">
+          <section id="commandView" class="app-view is-active" data-page-view="command">
+            <div class="page page-dashboard">
+              <div class="page-heading split-heading">
+                <div><p class="eyebrow">AUTOMATION COMMAND CENTER</p><h1 id="commandHeading">执行态势</h1><p id="commandSummary">同步项目和任务后显示自动化队列。</p></div>
+                <div class="heading-actions"><span id="healthBadge" class="health-badge">任务源未配置</span><button id="queuePauseButton" class="secondary-button" type="button">暂停队列</button></div>
+              </div>
 
-        <footer class="composer">
-          <div class="composer-options">
-            <select id="approvalPolicy">
-              <option value="on-request">on-request</option>
-              <option value="never">never</option>
-              <option value="on-failure">on-failure</option>
-            </select>
-            <input id="modelInput" type="text" placeholder="model">
-          </div>
-          <div class="composer-input-row">
-            <textarea id="chatInput" rows="3" placeholder="Tell the Arckit Controller what changed, what to run, or paste worker reports..."></textarea>
-            <div class="composer-buttons">
-              <button id="sendButton" class="primary-button">Run</button>
-              <button id="interruptButton" class="danger-button">Stop</button>
-            </div>
-          </div>
-        </footer>
-      </main>
+              <div id="metricGrid" class="metric-grid"></div>
+              <div id="attentionHost"></div>
 
-      <aside class="state-rail">
-        <div class="inspector-tabs" role="tablist" aria-label="Desktop inspector">
-          <button class="inspector-tab active" data-inspector-tab="focus" type="button">Control</button>
-          <button class="inspector-tab" data-inspector-tab="run" type="button">Workers</button>
-          <button class="inspector-tab" data-inspector-tab="evidence" type="button">Evidence</button>
-        </div>
+              <div class="command-grid">
+                <div class="command-main">
+                  <section class="panel-card current-run-card">
+                    <div class="section-title-row"><div><span class="section-icon">▶</span><div><h2>当前运行</h2><p>Runtime、Controller、Worker 与 ledger 的收束状态</p></div></div><div id="currentRunActions"></div></div>
+                    <div id="currentRunPanel" class="current-run-panel"></div>
+                  </section>
 
-        <section class="inspector-panel active" data-inspector-panel="focus">
-          <section class="inspector-section primary-inspector">
-            <div class="section-header">
-              <h3>Current Turn</h3>
-              <button id="refreshButton" class="quiet-button">Refresh</button>
-            </div>
-            <div id="loopState" class="state-block"></div>
-          </section>
+                  <section class="panel-card queue-card">
+                    <div class="section-title-row"><div><span class="section-icon">≡</span><div><h2>下一队列</h2><p>确定性跨项目串行顺序</p></div></div><button id="viewPendingButton" class="text-button" type="button">查看全部待处理</button></div>
+                    <div id="queueTable"></div>
+                  </section>
 
-          <section class="inspector-section">
-            <div class="section-header">
-              <h3>Useful Signals</h3>
-            </div>
-            <div id="stateGaps" class="state-list"></div>
-          </section>
+                  <section class="panel-card completions-card">
+                    <div class="section-title-row"><div><span class="section-icon">✓</span><div><h2>最近完成</h2><p>本地证据与远端完成确认</p></div></div></div>
+                    <div id="recentCompletions" class="completion-list"></div>
+                  </section>
+                </div>
 
-          <section class="inspector-section">
-            <div class="section-header">
-              <h3>Actions</h3>
-            </div>
-            <div class="focus-action">
-              <div id="activeRunSummary" class="run-summary">No active run.</div>
-              <div class="control-grid">
-                <button id="continueButton" class="secondary-button">Continue</button>
-                <button id="authorizePacketButton" class="primary-button">Run Packet</button>
-                <button id="gateButton" class="secondary-button">Gate</button>
-                <button id="writeDryRunButton" class="secondary-button">Preview</button>
-                <button id="writeLedgerButton" class="primary-button">Write</button>
+                <aside class="command-inspector">
+                  <section class="inspector-card"><h3>项目源</h3><div id="projectSourceSummary"></div></section>
+                  <section class="inspector-card"><h3>执行边界</h3><div id="executionBoundary"></div></section>
+                  <section class="inspector-card"><h3>项目绑定</h3><div id="projectBindingList"></div></section>
+                </aside>
               </div>
             </div>
           </section>
-        </section>
 
-        <section class="inspector-panel" data-inspector-panel="run">
-          <section class="inspector-section">
-            <div class="section-header">
-              <h3>Run History</h3>
+          <section id="taskView" class="app-view" data-page-view="tasks">
+            <div class="page browser-page">
+              <div class="page-heading split-heading"><div><p class="eyebrow">TASK BROWSER</p><h1 id="taskBrowserHeading">待处理</h1><p id="taskBrowserSummary">当前范围内的服务器任务</p></div><button id="backToCommandButton" class="secondary-button" type="button">返回自动化</button></div>
+              <div class="browser-grid">
+                <section class="panel-card"><div class="browser-toolbar"><span id="taskSnapshotTime">尚未同步</span><input id="taskFilterInput" type="search" placeholder="筛选当前列表"></div><div id="taskTable"></div></section>
+                <aside class="inspector-card task-inspector"><div id="taskInspector"></div></aside>
+              </div>
             </div>
-            <div id="runList" class="run-list"></div>
           </section>
-          <section class="inspector-section run-detail-section">
-            <div class="section-header">
-              <h3>Worker Detail</h3>
-            </div>
-            <div id="runDetailSummary" class="run-summary">No active run.</div>
-          </section>
-        </section>
 
-        <section class="inspector-panel" data-inspector-panel="evidence">
-          <section class="inspector-section events-section">
-            <div class="section-header">
-              <h3>Raw Events</h3>
-              <button id="clearEventsButton" class="quiet-button">Clear</button>
+          <section id="workbenchView" class="app-view" data-page-view="workbench">
+            <div class="workbench-layout">
+              <aside class="workbench-context"><button id="backFromWorkbenchButton" class="text-button" type="button">← 返回自动化</button><div id="workbenchContext"></div></aside>
+              <section class="workbench-transcript"><div class="workbench-heading"><div><p class="eyebrow">INTERVENTION WORKBENCH</p><h1 id="workbenchTitle">人工介入</h1></div><div class="workbench-mode-actions"><button id="interveneCurrentButton" class="secondary-button hidden" type="button">介入当前运行</button><span id="workbenchMode" class="status-pill pending_review">只读审查</span></div></div><div id="transcriptList" class="transcript-list"></div><div id="interventionComposer" class="intervention-composer hidden"><textarea id="interventionInput" rows="4" placeholder="提供授权、事实或决策，并说明恢复条件…"></textarea><button id="submitInterventionButton" class="primary-button" type="button">提交并恢复自动化</button></div></section>
+              <aside class="workbench-evidence"><h3>Runtime 与证据</h3><div id="workbenchEvidence"></div></aside>
             </div>
-            <div id="eventList" class="event-list"></div>
           </section>
-        </section>
-      </aside>
+
+          <section id="recoveryView" class="app-view" data-page-view="recovery">
+            <div class="page recovery-page"><div class="page-heading split-heading"><div><p class="eyebrow">AUTOMATION RECOVERY CENTER</p><h1>恢复一致性</h1><p>对齐服务器任务、本地 Runtime 和 ledger 证据后再恢复队列。</p></div><button id="backFromRecoveryButton" class="secondary-button" type="button">返回自动化</button></div><div id="recoveryList" class="recovery-list"></div></div>
+          </section>
+        </div>
+      </main>
     </div>
 
-    <div id="settingsOverlay" class="settings-overlay hidden">
+    <div id="settingsOverlay" class="modal-overlay hidden">
       <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-        <div class="settings-header">
-          <div>
-            <h2 id="settingsTitle">Settings</h2>
-            <p>Applies to new Codex app-server runs.</p>
-          </div>
-          <button id="closeSettingsButton" class="quiet-button">Close</button>
+        <div class="settings-header"><div><p class="eyebrow">DESKTOP SETTINGS</p><h2 id="settingsTitle">Runtime 与任务源</h2></div><button id="closeSettingsButton" class="icon-button" type="button">×</button></div>
+        <div class="settings-sections">
+          <section><h3>Workshop 任务源</h3><label class="toggle-row"><input id="taskSourceEnabled" type="checkbox"><span><strong>启用任务源</strong><small>通过主进程同步当前用户项目与待办</small></span></label><label class="field"><span>服务根地址</span><input id="taskSourceBaseUrl" type="url" placeholder="https://example.com"></label><div class="field-grid"><label class="field"><span>服务名</span><input id="taskSourceServiceName" type="text" placeholder="workshop"></label><label class="field"><span>认证模式</span><select id="taskSourceAuthMode"><option value="bearer">Bearer Token</option><option value="headers">用户请求头</option></select></label></div><label class="field"><span>访问令牌</span><input id="taskSourceToken" type="password" placeholder="保留为空则不修改现有令牌"></label><div id="headerAuthFields" class="field-grid"><label class="field"><span>用户 ID</span><input id="taskSourceUserId" type="text"></label><label class="field"><span>用户名</span><input id="taskSourceUsername" type="text"></label><label class="field"><span>App ID</span><input id="taskSourceAppId" type="text"></label><label class="field"><span>Session ID</span><input id="taskSourceSessionId" type="text"></label></div></section>
+          <section><h3>Codex Runtime</h3><label class="toggle-row"><input id="codexProxyEnabled" type="checkbox"><span><strong>使用代理</strong><small>仅注入新启动的 Codex app-server run</small></span></label><label class="field"><span>代理地址</span><input id="codexProxyUrl" type="text" placeholder="http://127.0.0.1:7890"></label></section>
         </div>
-
-        <div class="settings-form">
-          <label class="toggle-row">
-            <input id="codexProxyEnabled" type="checkbox">
-            <span>
-              <strong>Codex proxy</strong>
-              <small>Inject HTTP_PROXY and HTTPS_PROXY when launching Codex.</small>
-            </span>
-          </label>
-
-          <label class="field-row">
-            <span>Proxy address</span>
-            <input id="codexProxyUrl" type="text" placeholder="http://127.0.0.1:7890">
-          </label>
-
-          <div class="settings-actions">
-            <button id="saveSettingsButton" class="primary-button">Save</button>
-          </div>
-        </div>
+        <div class="settings-actions"><button id="saveSettingsButton" class="primary-button" type="button">保存并同步</button></div>
       </section>
     </div>
-    <div id="sidebarContextMenu" class="sidebar-context-menu hidden" role="menu">
-      <button id="sidebarContextDelete" class="sidebar-context-delete" type="button" role="menuitem">Delete</button>
-    </div>
+
+    <div id="toast" class="toast hidden" role="status"></div>
     <script type="module" src="./renderer.js"></script>
   </body>
 </html>

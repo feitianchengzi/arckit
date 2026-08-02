@@ -1,1899 +1,682 @@
-import { canAuthorizeRun as canAuthorizeRuntimeRun, deriveRuntimeControlState as deriveCanonicalRuntimeControlState } from "../../src/kernel/control-state.mjs";
-import { buildControllerOperatorTask, buildDesktopOperatorEvent } from "../../src/kernel/operator-event.mjs";
-
 const api = window.arckitDesktop;
 
+const TASK_STATES = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
+const STATE_LABELS = {
+  pending_review: "待评审",
+  pending: "待处理",
+  in_progress: "进行中",
+  completed: "已完成",
+  accepted: "已验收",
+  cancelled: "已取消",
+  blocked: "已阻塞"
+};
+const STATE_ICONS = {
+  pending_review: "○",
+  pending: "●",
+  in_progress: "◌",
+  completed: "✓",
+  accepted: "◆",
+  cancelled: "×",
+  blocked: "!"
+};
+const RECOVERY_LABELS = {
+  claim_failed: "领取任务失败",
+  start_failed: "Runtime 启动失败",
+  runtime_incomplete: "Runtime 尚未收束",
+  completion_writeback_failed: "完成状态写回失败",
+  external_state_change: "活动任务被外部修改",
+  task_missing: "活动任务缺失",
+  discovered_in_progress: "发现可恢复的进行中任务",
+  multiple_active_tasks: "存在多个进行中任务",
+  runtime_process_missing: "Runtime 进程未连接",
+  safe_stop_requested: "正在安全停止"
+};
+const RECOVERY_ACTION_LABELS = {
+  retry_sync: "重新同步",
+  retry_start: "重试同一任务",
+  retry_complete: "重试完成写回",
+  accept_server_state: "接受服务器事实",
+  mark_blocked: "标记为已阻塞"
+};
+
 const state = {
-  projects: [],
-  runs: [],
-  sessions: [],
-  messages: [],
-  events: [],
-  settings: {
-    codex_proxy: {
-      enabled: false,
-      url: "http://127.0.0.1:7890"
-    }
-  },
-  projectStatus: null,
-  selectedProjectId: "",
-  selectedSessionId: "",
-  activeRunId: "",
-  inspectorTab: "focus",
-  messageAutoStick: true
+  page: "command",
+  selectedProjectId: "all",
+  selectedState: "pending",
+  selectedTaskId: "",
+  snapshot: emptySnapshot(),
+  settings: defaultSettings(),
+  transcript: [],
+  workbenchMode: "review",
+  workbenchRun: null,
+  workbenchCompletion: null,
+  interventionSubmitting: false,
+  taskFilter: "",
+  refreshing: false
 };
 
-let liveRunRenderScheduled = false;
-let sidebarContextAction = null;
-let projectSectionHeight = 220;
-const MIN_PROJECT_SECTION_HEIGHT = 120;
-const MIN_CHAT_SECTION_HEIGHT = 120;
-
-const els = {
-  projectRail: document.getElementById("projectRail"),
-  projectSection: document.getElementById("projectSection"),
-  sidebarDivider: document.getElementById("sidebarDivider"),
-  sidebarContextMenu: document.getElementById("sidebarContextMenu"),
-  sidebarContextDelete: document.getElementById("sidebarContextDelete"),
-  pickProjectButton: document.getElementById("pickProjectButton"),
-  projectList: document.getElementById("projectList"),
-  sessionList: document.getElementById("sessionList"),
-  newChatButton: document.getElementById("newChatButton"),
-  runList: document.getElementById("runList"),
-  selectedProjectName: document.getElementById("selectedProjectName"),
-  selectedSessionTitle: document.getElementById("selectedSessionTitle"),
-  selectedProjectPath: document.getElementById("selectedProjectPath"),
-  activeRunBadge: document.getElementById("activeRunBadge"),
-  settingsButton: document.getElementById("settingsButton"),
-  inspectorTabs: Array.from(document.querySelectorAll("[data-inspector-tab]")),
-  inspectorPanels: Array.from(document.querySelectorAll("[data-inspector-panel]")),
-  settingsOverlay: document.getElementById("settingsOverlay"),
-  closeSettingsButton: document.getElementById("closeSettingsButton"),
-  codexProxyEnabled: document.getElementById("codexProxyEnabled"),
-  codexProxyUrl: document.getElementById("codexProxyUrl"),
-  saveSettingsButton: document.getElementById("saveSettingsButton"),
-  messageList: document.getElementById("messageList"),
-  chatInput: document.getElementById("chatInput"),
-  approvalPolicy: document.getElementById("approvalPolicy"),
-  modelInput: document.getElementById("modelInput"),
-  sendButton: document.getElementById("sendButton"),
-  interruptButton: document.getElementById("interruptButton"),
-  continueButton: document.getElementById("continueButton"),
-  authorizePacketButton: document.getElementById("authorizePacketButton"),
-  gateButton: document.getElementById("gateButton"),
-  writeDryRunButton: document.getElementById("writeDryRunButton"),
-  writeLedgerButton: document.getElementById("writeLedgerButton"),
-  activeRunSummary: document.getElementById("activeRunSummary"),
-  runDetailSummary: document.getElementById("runDetailSummary"),
-  loopState: document.getElementById("loopState"),
-  stateGaps: document.getElementById("stateGaps"),
-  eventList: document.getElementById("eventList"),
-  clearEventsButton: document.getElementById("clearEventsButton"),
-  refreshButton: document.getElementById("refreshButton")
-};
+const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map((element) => [element.id, element]));
+let refreshQueued = false;
+let toastTimer;
 
 boot();
 
 async function boot() {
   wireEvents();
-  await refreshSettings();
-  await refreshAll();
-  window.setInterval(() => {
-    if (currentRun()?.status === "running") {
-      renderMessages();
-      renderActiveRun();
+  state.settings = normalizeSettings(await api.getSettings());
+  await refreshSnapshot();
+  api.onAutomationEvent(() => scheduleRefresh());
+  api.onEvent((event) => {
+    if (["run.started", "run.finished", "run.event_line", "run.command_result", "message.added"].includes(event.type)) {
+      scheduleRefresh(event.type === "run.event_line" ? 250 : 0);
     }
-  }, 5000);
+  });
+  window.setInterval(() => refreshSnapshot({ quiet: true }), 30_000);
 }
 
 function wireEvents() {
-  wireSidebarDivider();
-  els.sidebarContextDelete.addEventListener("click", () => handleSidebarDelete());
-  document.addEventListener("pointerdown", (event) => {
-    if (!els.sidebarContextMenu.contains(event.target)) {
-      hideSidebarContextMenu();
+  document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
+  els.pickProjectButton.addEventListener("click", () => runAction(async () => {
+    await api.pickProject();
+    await refreshSnapshot();
+  }));
+  els.syncButton.addEventListener("click", () => runAction(async () => {
+    await api.syncAutomation();
+    await refreshSnapshot();
+  }));
+  els.automationEnabled.addEventListener("change", () => runAction(async () => {
+    await api.setAutomationEnabled(els.automationEnabled.checked);
+    await refreshSnapshot();
+  }));
+  els.queuePauseButton.addEventListener("click", () => runAction(async () => {
+    await api.setQueuePaused(!state.snapshot.queue_paused);
+    await refreshSnapshot();
+  }));
+  els.settingsButton.addEventListener("click", openSettings);
+  els.sourceHealthButton.addEventListener("click", () => {
+    if (state.snapshot.recovery_items.length > 0) showPage("recovery");
+    else openSettings();
+  });
+  els.runtimeHealthButton.addEventListener("click", () => {
+    if (state.snapshot.active_task) openWorkbench("review");
+  });
+  els.closeSettingsButton.addEventListener("click", closeSettings);
+  els.settingsOverlay.addEventListener("click", (event) => {
+    if (event.target === els.settingsOverlay) closeSettings();
+  });
+  els.saveSettingsButton.addEventListener("click", () => runAction(saveSettings));
+  els.taskSourceAuthMode.addEventListener("change", renderAuthMode);
+  els.viewPendingButton.addEventListener("click", () => openTaskBrowser("pending"));
+  els.backToCommandButton.addEventListener("click", () => showPage("command"));
+  els.backFromWorkbenchButton.addEventListener("click", () => showPage("command"));
+  els.backFromRecoveryButton.addEventListener("click", () => showPage("command"));
+  els.interveneCurrentButton.addEventListener("click", () => {
+    if (!state.snapshot.active_task || state.workbenchCompletion) return;
+    state.workbenchMode = "intervention";
+    renderWorkbench();
+    els.interventionInput.focus();
+  });
+  els.taskFilterInput.addEventListener("input", () => {
+    state.taskFilter = els.taskFilterInput.value.trim().toLowerCase();
+    renderTaskTable();
+  });
+  els.submitInterventionButton.addEventListener("click", () => runAction(async () => {
+    const active = state.snapshot.active_task;
+    if (!active) throw new Error("当前没有活动任务。");
+    state.interventionSubmitting = true;
+    renderWorkbench();
+    try {
+      await api.submitIntervention({ taskId: active.task_id, message: els.interventionInput.value });
+      els.interventionInput.value = "";
+      await refreshSnapshot();
+      showPage("command");
+    } finally {
+      state.interventionSubmitting = false;
+      if (state.page === "workbench") renderWorkbench();
     }
+  }));
+  els.searchButton.addEventListener("click", () => {
+    openTaskBrowser(state.selectedState || "pending");
+    els.taskFilterInput.focus();
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
-      hideSidebarContextMenu();
+      closeSettings();
+      if (["tasks", "workbench", "recovery"].includes(state.page)) showPage("command");
     }
-  });
-  window.addEventListener("blur", hideSidebarContextMenu);
-  window.addEventListener("resize", () => {
-    hideSidebarContextMenu();
-    setProjectSectionHeight(projectSectionHeight);
-  });
-
-  els.pickProjectButton.addEventListener("click", () => runAction(async () => {
-    const project = await api.pickProject();
-    if (project) {
-      state.selectedProjectId = project.id;
-      resetMessageScrollStick();
-    }
-    await refreshAll();
-  }));
-
-  els.sendButton.addEventListener("click", () => sendChat());
-  els.newChatButton.addEventListener("click", () => runAction(async () => {
-    const project = selectedProject();
-    if (!project) {
-      return;
-    }
-    const session = await api.createSession(project.id, { title: "New chat" });
-    state.selectedSessionId = session.id;
-    state.activeRunId = "";
-    resetMessageScrollStick();
-    await refreshAll();
-  }));
-  els.chatInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
       event.preventDefault();
-      sendChat();
+      openTaskBrowser(state.selectedState || "pending");
+      els.taskFilterInput.focus();
     }
-  });
-  els.chatInput.addEventListener("input", () => renderActiveRun());
-  els.messageList.addEventListener("scroll", () => {
-    state.messageAutoStick = isMessageListAtBottom();
-  });
-
-  els.interruptButton.addEventListener("click", () => runAction(async () => {
-    const run = currentRun();
-    if (!run || run.status !== "running") {
-      return;
-    }
-    await api.controlRun(run.id, { type: "interrupt" });
-    await refreshProjectConversation();
-  }));
-
-  els.continueButton.addEventListener("click", () => runAction(async () => {
-    await handleRuntimePrimaryAction(deriveRuntimeControlState());
-  }));
-
-  els.authorizePacketButton.addEventListener("click", () => runAction(async () => {
-    await authorizeCurrentPacket();
-  }));
-
-  els.gateButton.addEventListener("click", () => runAction(async () => {
-    const result = await api.gateRun(state.activeRunId);
-    await addSystemMessage(`Gate: ${formatCommandResult(result)}`);
-    addUiEvent("gate-result", result.parsed || result.stderr || result.stdout);
-    await refreshAll();
-  }));
-
-  els.writeDryRunButton.addEventListener("click", () => runAction(async () => {
-    await writeLedgerForCurrentRun({ dryRun: true });
-  }));
-
-  els.writeLedgerButton.addEventListener("click", () => runAction(async () => {
-    await writeLedgerForCurrentRun({ dryRun: false });
-  }));
-
-  els.clearEventsButton.addEventListener("click", () => {
-    state.events = [];
-    renderEvents();
-  });
-
-  els.refreshButton.addEventListener("click", () => refreshAll());
-
-  for (const tab of els.inspectorTabs) {
-    tab.addEventListener("click", () => {
-      state.inspectorTab = tab.dataset.inspectorTab || "focus";
-      renderInspectorTabs();
-    });
-  }
-
-  els.settingsButton.addEventListener("click", () => {
-    renderSettingsForm();
-    els.settingsOverlay.classList.remove("hidden");
-  });
-
-  els.closeSettingsButton.addEventListener("click", () => {
-    els.settingsOverlay.classList.add("hidden");
-  });
-
-  els.settingsOverlay.addEventListener("click", (event) => {
-    if (event.target === els.settingsOverlay) {
-      els.settingsOverlay.classList.add("hidden");
-    }
-  });
-
-  els.saveSettingsButton.addEventListener("click", () => runAction(async () => {
-    const url = els.codexProxyUrl.value.trim() || "http://127.0.0.1:7890";
-    state.settings = await api.updateSettings({
-      codex_proxy: {
-        enabled: els.codexProxyEnabled.checked,
-        url
-      }
-    });
-    renderSettingsForm();
-    els.settingsOverlay.classList.add("hidden");
-    addUiEvent("settings.saved", {
-      codex_proxy_enabled: state.settings.codex_proxy.enabled,
-      codex_proxy_url: state.settings.codex_proxy.url
-    });
-  }));
-
-  api.onEvent((event) => {
-    const isStreamEvent = event.type === "run.event_line" || event.type === "run.stdout";
-    if (!isStreamEvent) {
-      state.events.unshift(event);
-      state.events = state.events.slice(0, 200);
-    }
-    applyRunEventToState(event);
-    if (event.type === "run.event_line") {
-      scheduleLiveRunRender();
-      return;
-    }
-    if (event.type === "run.stdout") {
-      return;
-    }
-    if (event.type === "run.started") {
-      if (eventBelongsToSelectedProject(event)) {
-        state.activeRunId = event.run.id;
-        state.selectedSessionId = event.run.session_id || state.selectedSessionId;
-      }
-    }
-    if (event.type === "session.created") {
-      if (eventBelongsToSelectedProject(event)) {
-        state.selectedSessionId = event.session.id;
-      }
-    }
-    if (event.type === "session.deleted" && eventBelongsToSelectedProject(event)) {
-      if (state.selectedSessionId === event.sessionId) {
-        state.selectedSessionId = event.nextSessionId || "";
-        state.activeRunId = "";
-        resetMessageScrollStick();
-      }
-    }
-    if (event.type === "settings.updated") {
-      state.settings = normalizeSettings(event.settings);
-      renderSettingsForm();
-    }
-    if (event.type === "run.finished" || event.type === "message.added" || event.type === "session.created" || event.type === "session.deleted") {
-      const belongs = eventBelongsToSelectedProject(event);
-      if (belongs) {
-        refreshProjectConversation();
-        refreshProjectStatus();
-      }
-      refreshRuns();
-    }
-    render();
   });
 }
 
-function scheduleLiveRunRender() {
-  if (liveRunRenderScheduled) {
+async function refreshSnapshot({ quiet = false } = {}) {
+  if (state.refreshing) return;
+  state.refreshing = true;
+  if (!quiet) renderSyncing(true);
+  try {
+    state.snapshot = await api.automationSnapshot({
+      project_id: state.selectedProjectId,
+      state: state.page === "tasks" ? state.selectedState : ""
+    });
+    if (state.selectedProjectId !== "all" && !state.snapshot.projects.some((project) => String(project.id) === state.selectedProjectId)) {
+      state.selectedProjectId = "all";
+    }
+    if (state.selectedTaskId && !state.snapshot.tasks.some((task) => String(task.id) === state.selectedTaskId)) {
+      state.selectedTaskId = state.snapshot.tasks[0]?.id || "";
+    }
+    if (!state.selectedTaskId && state.snapshot.tasks.length > 0) {
+      state.selectedTaskId = state.snapshot.tasks[0].id;
+    }
+    if (state.page === "workbench") await loadTranscript();
+    render();
+  } finally {
+    state.refreshing = false;
+    renderSyncing(false);
+  }
+}
+
+function scheduleRefresh(delay = 80) {
+  if (refreshQueued) return;
+  refreshQueued = true;
+  window.setTimeout(async () => {
+    refreshQueued = false;
+    await refreshSnapshot({ quiet: true }).catch((error) => showToast(error.message));
+  }, delay);
+}
+
+function render() {
+  renderPageVisibility();
+  renderNavigation();
+  renderCommandBar();
+  renderCommandCenter();
+  renderTaskBrowser();
+  renderWorkbench();
+  renderRecovery();
+}
+
+function renderPageVisibility() {
+  document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));
+  document.querySelectorAll("[data-page]").forEach((button) => button.classList.toggle("is-active", button.dataset.page === state.page));
+}
+
+function renderNavigation() {
+  const snapshot = state.snapshot;
+  const allPending = snapshot.projects.reduce((sum, project) => sum + Number(project.task_counts?.pending || 0), 0);
+  els.projectNavigation.innerHTML = [
+    navProject({ id: "all", name: "所有项目", count: allPending }),
+    ...snapshot.projects.map((project) => navProject({ id: project.id, name: project.name, count: project.task_counts?.pending || 0, warning: !project.eligible }))
+  ].join("");
+  els.projectNavigation.querySelectorAll("[data-project-id]").forEach((button) => button.addEventListener("click", async () => {
+    state.selectedProjectId = button.dataset.projectId;
+    state.selectedTaskId = "";
+    await refreshSnapshot();
+  }));
+
+  els.statusNavigation.innerHTML = TASK_STATES.map((taskState) => `
+    <button class="nav-item ${state.page === "tasks" && state.selectedState === taskState ? "is-active" : ""}" data-task-state="${taskState}" type="button">
+      <span>${STATE_ICONS[taskState]}</span><strong>${STATE_LABELS[taskState]}</strong><em>${state.snapshot.state_counts?.[taskState] || 0}</em>
+    </button>
+  `).join("");
+  els.statusNavigation.querySelectorAll("[data-task-state]").forEach((button) => button.addEventListener("click", () => openTaskBrowser(button.dataset.taskState)));
+  els.attentionNavCount.textContent = String(snapshot.attention_items.length + snapshot.recovery_items.length);
+  els.sourceHealthText.textContent = sourceStatusLabel(snapshot.source_status);
+  els.runtimeHealthText.textContent = snapshot.health?.label || "待命";
+  els.titlebarSync.className = `sync-state ${snapshot.source_status === "healthy" ? "healthy" : ["error", "unauthenticated"].includes(snapshot.source_status) ? "error" : ""}`;
+  els.titlebarSync.querySelector("span").textContent = snapshot.source_status === "syncing" ? "同步中" : snapshot.synced_at ? `同步于 ${formatTime(snapshot.synced_at)}` : sourceStatusLabel(snapshot.source_status);
+}
+
+function renderCommandBar() {
+  const project = currentProject();
+  els.scopeTitle.textContent = project?.name || "所有项目";
+  els.pageTitle.textContent = { command: "自动化总览", tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心" }[state.page];
+  els.automationEnabled.checked = Boolean(state.snapshot.enabled);
+}
+
+function renderCommandCenter() {
+  const snapshot = state.snapshot;
+  const scopedProjects = state.selectedProjectId === "all" ? snapshot.projects : snapshot.projects.filter((project) => String(project.id) === state.selectedProjectId);
+  const scopedQueue = state.selectedProjectId === "all" ? snapshot.queue : snapshot.queue.filter((task) => String(task.project_id) === state.selectedProjectId);
+  els.commandHeading.textContent = state.selectedProjectId === "all" ? "跨项目自动化态势" : `${currentProject()?.name || "项目"} 自动化态势`;
+  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.eligible).length} 个可执行 · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
+  els.healthBadge.className = `health-badge ${snapshot.health?.tone === "success" ? "success" : snapshot.health?.tone === "danger" ? "danger" : snapshot.health?.tone === "warning" ? "warning" : ""}`;
+  els.healthBadge.textContent = snapshot.health?.label || "待命";
+  els.queuePauseButton.textContent = snapshot.queue_paused ? "恢复队列" : "暂停队列";
+  els.queuePauseButton.disabled = !snapshot.enabled;
+
+  const runningCount = snapshot.active_task && (state.selectedProjectId === "all" || String(snapshot.active_task.project_id) === state.selectedProjectId) ? 1 : 0;
+  const attentionCount = snapshot.attention_items.filter(scopedTaskFilter).length + snapshot.recovery_items.filter(scopedTaskFilter).length;
+  els.metricGrid.innerHTML = [
+    metric("自动化健康", snapshot.health?.label || "待命", sourceStatusLabel(snapshot.source_status), snapshot.health?.tone === "success" ? "healthy" : ""),
+    metric("需要人工处理", attentionCount, attentionCount ? "队列保持冻结" : "没有待处理人工事项", attentionCount ? "attention" : ""),
+    metric("运行中", runningCount, snapshot.active_task?.phase || "没有活动任务", runningCount ? "running" : ""),
+    metric("待处理队列", scopedQueue.length, scopedQueue[0] ? `下一项 ${scopedQueue[0].id}` : "没有可执行任务", "")
+  ].join("");
+  renderAttention();
+  renderCurrentRun();
+  renderQueue(scopedQueue);
+  renderRecentCompletions();
+  renderCommandInspector(scopedProjects);
+}
+
+function renderAttention() {
+  const attention = state.snapshot.attention_items.find(scopedTaskFilter);
+  const recovery = state.snapshot.recovery_items.find(scopedTaskFilter);
+  if (!attention && !recovery) {
+    els.attentionHost.innerHTML = `<div class="attention-strip"><span>✓</span><div class="attention-copy"><strong>当前不需要人工处理</strong><p>Chat 保持按需隐藏，自动化可以继续运行。</p></div></div>`;
     return;
   }
-  liveRunRenderScheduled = true;
-  window.requestAnimationFrame(() => {
-    liveRunRenderScheduled = false;
-    renderMessages();
-    renderActiveRun();
-    renderEvents();
-  });
-}
-
-async function sendChat() {
-  await runAction(async () => {
-    const project = selectedProject();
-    if (!project) {
-      throw new Error("Select a project first.");
-    }
-    const text = els.chatInput.value.trim();
-    const controlState = deriveRuntimeControlState();
-    if (!text && controlState.primary_action !== "none") {
-      await handleRuntimePrimaryAction(controlState);
-      return;
-    }
-    if (!text) {
-      return;
-    }
-    els.chatInput.value = "";
-    const active = currentRun()?.status === "running";
-    if (active) {
-      await api.controlRun(state.activeRunId, { type: "controller-input", message: text });
-    } else if (currentRun() && controlState.state !== "no_context") {
-      await runControllerOperatorEvent(controlState, { userInput: text, action: "user_input" });
-    } else {
-      const session = await ensureSelectedSession(project.id);
-      await api.addMessage(project.id, { role: "user", kind: "task", content: text, session_id: session.id });
-      const run = await api.startRun({
-        projectId: project.id,
-        sessionId: session.id,
-        task: text,
-        dryRun: false,
-        adapter: "codex-app-server",
-        approvalPolicy: els.approvalPolicy.value,
-        model: els.modelInput.value.trim()
-      });
-      state.activeRunId = run.id;
-    }
-    await refreshAll();
-  });
-}
-
-async function refreshAll() {
-  const projects = await api.listProjects();
-  state.projects = projects;
-  if (!state.selectedProjectId && projects.length > 0) {
-    state.selectedProjectId = projects[0].id;
+  if (recovery) {
+    els.attentionHost.innerHTML = `<div class="attention-strip danger"><span>!</span><div class="attention-copy"><strong>${escapeHtml(RECOVERY_LABELS[recovery.type] || "需要恢复")}</strong><p>${escapeHtml(recovery.message)}</p></div><button id="openRecoveryButton" class="primary-button" type="button">进入恢复中心</button></div>`;
+    document.getElementById("openRecoveryButton").addEventListener("click", () => showPage("recovery"));
+    return;
   }
-  await refreshSessions();
-  state.runs = await api.listRuns(runListFilter());
-  selectDefaultRun();
-  renderProjectShell();
-  const refreshResults = await Promise.allSettled([
-    refreshProjectConversation(),
-    refreshProjectStatus()
+  els.attentionHost.innerHTML = `<div class="attention-strip"><span>?</span><div class="attention-copy"><strong>${escapeHtml(attention.reason || "Runtime 需要人工判断")}</strong><p>${escapeHtml(attention.question || "查看请求并提供处理结果。")}</p></div><button id="openAttentionButton" class="primary-button" type="button">处理</button></div>`;
+  document.getElementById("openAttentionButton").addEventListener("click", () => openWorkbench("intervention"));
+}
+
+function renderCurrentRun() {
+  const active = state.snapshot.active_task;
+  const run = state.snapshot.active_run;
+  if (!active || (state.selectedProjectId !== "all" && String(active.project_id) !== state.selectedProjectId)) {
+    els.currentRunPanel.innerHTML = `<div class="run-empty"><div><strong>没有活动任务</strong><p>${state.snapshot.queue.length ? "自动化将从下一队列领取一项任务。" : "同步后继续监听待处理任务。"}</p></div></div>`;
+    els.currentRunActions.innerHTML = "";
+    return;
+  }
+  const phases = runtimeStages(active.phase, run);
+  els.currentRunPanel.innerHTML = `<div class="run-heading"><div><h3>${escapeHtml(active.task_title || active.task_id)}</h3><p>${escapeHtml(active.project_id)} · ${escapeHtml(active.run_id || "等待 Runtime 启动")}</p></div><span class="status-pill in_progress">${escapeHtml(active.phase || "进行中")}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>`;
+  els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="stopRunButton" class="secondary-button" type="button">停止当前运行</button>`;
+  document.getElementById("reviewRunButton").addEventListener("click", () => openWorkbench("review"));
+  document.getElementById("stopRunButton").addEventListener("click", () => runAction(async () => {
+    if (!window.confirm("停止请求会在安全停止点中断 Runtime，远端任务仍保持进行中。继续吗？")) return;
+    await api.stopAutomationRun();
+    await refreshSnapshot();
+    showPage("recovery");
+  }));
+}
+
+function renderQueue(queue) {
+  if (queue.length === 0) {
+    els.queueTable.innerHTML = `<div class="empty-state">当前范围没有符合资格的待处理任务。</div>`;
+    return;
+  }
+  els.queueTable.innerHTML = `<table class="data-table"><colgroup><col style="width:42px"><col><col style="width:130px"><col style="width:76px"><col style="width:100px"></colgroup><thead><tr><th>#</th><th>任务</th><th>项目</th><th>优先级</th><th>状态</th></tr></thead><tbody>${queue.slice(0, 8).map((task) => `<tr data-queue-task="${escapeHtml(task.id)}"><td class="queue-number">${task.queue_position}</td><td class="task-title-cell">${escapeHtml(task.title)}</td><td>${escapeHtml(task.project_name)}</td><td>${formatPriority(task.priority)}</td><td><span class="status-pill pending">待处理</span></td></tr>`).join("")}</tbody></table>`;
+  els.queueTable.querySelectorAll("[data-queue-task]").forEach((row) => row.addEventListener("click", () => openTaskBrowser("pending", row.dataset.queueTask)));
+}
+
+function renderRecentCompletions() {
+  const items = state.snapshot.recent_completions.filter(scopedTaskFilter).slice(0, 5);
+  els.recentCompletions.innerHTML = items.length ? items.map((item) => `<button class="completion-item" data-completion-run="${escapeHtml(item.run_id)}" type="button"><span><strong>${escapeHtml(item.title || item.task_id)}</strong><small>${escapeHtml(item.project_id)} · ${formatDateTime(item.completed_at)}</small></span><span class="status-pill completed">已完成</span></button>`).join("") : `<div class="empty-state">暂无由自动化完成的任务。</div>`;
+  els.recentCompletions.querySelectorAll("[data-completion-run]").forEach((button) => button.addEventListener("click", () => openWorkbench("review", button.dataset.completionRun)));
+}
+
+function renderCommandInspector(projects) {
+  const snapshot = state.snapshot;
+  els.projectSourceSummary.innerHTML = factRows([
+    ["任务源", sourceStatusLabel(snapshot.source_status)],
+    ["认证用户", snapshot.user?.name || "未确认"],
+    ["远端项目", String(projects.length)],
+    ["最近同步", snapshot.synced_at ? formatDateTime(snapshot.synced_at) : "尚未同步"]
   ]);
-  for (const result of refreshResults) {
-    if (result.status === "rejected") {
-      addUiEvent("ui.refresh-warning", result.reason?.message || String(result.reason));
-    }
+  els.executionBoundary.innerHTML = factRows([
+    ["自动化", snapshot.enabled ? snapshot.queue_paused ? "已开启 · 队列暂停" : "已开启" : "已关闭"],
+    ["活动任务", snapshot.active_task?.task_id || "无"],
+    ["当前责任方", snapshot.attention_items.length ? "Human" : snapshot.active_task ? "Runtime" : "Automation Coordinator"],
+    ["并发边界", "单活动任务"]
+  ]);
+  els.projectBindingList.innerHTML = projects.length ? projects.map((project) => {
+    const options = [`<option value="">未绑定</option>`, ...snapshot.local_projects.map((local) => `<option value="${escapeHtml(local.id)}" ${local.id === project.local_project_id ? "selected" : ""}>${escapeHtml(local.name)}</option>`)].join("");
+    return `<div class="binding-row" data-binding-project="${escapeHtml(project.id)}"><strong>${escapeHtml(project.name)}</strong><select aria-label="${escapeHtml(project.name)} 本地工作区">${options}</select><label class="participation-row"><input type="checkbox" ${project.participating ? "checked" : ""} ${project.local_project_id ? "" : "disabled"}>参与自动化 · ${project.eligible ? "可执行" : escapeHtml(project.local_project_id ? project.source_status : "未绑定")}</label></div>`;
+  }).join("") : `<div class="empty-state">同步后可绑定远端项目。</div>`;
+  els.projectBindingList.querySelectorAll("[data-binding-project]").forEach((row) => {
+    const remoteId = row.dataset.bindingProject;
+    const select = row.querySelector("select");
+    const checkbox = row.querySelector("input[type=checkbox]");
+    select.addEventListener("change", () => runAction(async () => {
+      await api.bindAutomationProject(remoteId, select.value);
+      await refreshSnapshot();
+    }));
+    checkbox.addEventListener("change", () => runAction(async () => {
+      await api.setProjectParticipation(remoteId, checkbox.checked);
+      await refreshSnapshot();
+    }));
+  });
+}
+
+function renderTaskBrowser() {
+  els.taskBrowserHeading.textContent = STATE_LABELS[state.selectedState];
+  els.taskBrowserSummary.textContent = `${currentProject()?.name || "所有项目"} · ${state.snapshot.tasks.length} 项 · 选择只改变观察范围`;
+  els.taskSnapshotTime.textContent = state.snapshot.synced_at ? `服务器快照 ${formatDateTime(state.snapshot.synced_at)}` : "尚未同步";
+  els.taskFilterInput.value = state.taskFilter;
+  renderTaskTable();
+  renderTaskInspector();
+}
+
+function renderTaskTable() {
+  const tasks = state.snapshot.tasks.filter((task) => !state.taskFilter || `${task.title} ${task.content} ${task.project_name} ${task.id}`.toLowerCase().includes(state.taskFilter));
+  if (!tasks.length) {
+    els.taskTable.innerHTML = `<div class="empty-state">当前筛选没有${STATE_LABELS[state.selectedState]}任务。</div>`;
+    return;
+  }
+  els.taskTable.innerHTML = `<table class="data-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:96px"><col style="width:86px"></colgroup><thead><tr><th>任务</th><th>内容</th><th>项目</th><th>更新时间</th><th>状态</th></tr></thead><tbody>${tasks.map((task) => `<tr class="${String(task.id) === String(state.selectedTaskId) ? "selected" : ""}" data-task-id="${escapeHtml(task.id)}"><td>${escapeHtml(task.id)}</td><td class="task-title-cell">${escapeHtml(task.title)}</td><td>${escapeHtml(task.project_name)}</td><td>${formatTime(task.updated_at || task.state_changed_at)}</td><td><span class="status-pill ${task.state}">${escapeHtml(task.state_label)}</span></td></tr>`).join("")}</tbody></table>`;
+  els.taskTable.querySelectorAll("[data-task-id]").forEach((row) => row.addEventListener("click", () => {
+    state.selectedTaskId = row.dataset.taskId;
+    renderTaskTable();
+    renderTaskInspector();
+  }));
+}
+
+function renderTaskInspector() {
+  const task = selectedTask();
+  if (!task) {
+    els.taskInspector.innerHTML = `<div class="empty-state">选择任务查看详情与允许操作。</div>`;
+    return;
+  }
+  els.taskInspector.innerHTML = `<h2>${escapeHtml(task.title)}</h2><p>${escapeHtml(task.content || "没有补充内容")}</p><span class="status-pill ${task.state}">${escapeHtml(task.state_label)}</span>${factRows([
+    ["任务标识", task.id],
+    ["所属项目", task.project_name],
+    ["本地工作区", task.local_project_path || "未绑定"],
+    ["自动执行资格", task.eligible ? `队列第 ${task.queue_position} 项` : task.state === "pending" ? "当前不可执行" : "不适用于当前状态"],
+    ["服务器版本", task.version || "未提供"]
+  ])}<div id="taskActions" class="task-actions"></div>`;
+  const actions = taskActions(task);
+  document.getElementById("taskActions").innerHTML = actions.map((action) => `<button class="${action.primary ? "primary-button" : "secondary-button"}" data-task-action="${action.id}" type="button">${action.label}</button>`).join("");
+  document.getElementById("taskActions").querySelectorAll("[data-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeTaskAction(task, button.dataset.taskAction))));
+}
+
+async function executeTaskAction(task, action) {
+  if (action === "review") {
+    const completion = state.snapshot.recent_completions.find((item) => String(item.task_id) === String(task.id));
+    return openWorkbench("review", completion?.run_id || "");
+  }
+  const transitions = {
+    confirm: ["pending", "pending_review"],
+    accept: ["accepted", "completed"],
+    cancel: ["cancelled", task.state],
+    block: ["blocked", "in_progress"],
+    resume: ["pending", "blocked"]
+  };
+  const transition = transitions[action];
+  if (!transition) return;
+  if (["cancel", "block", "resume"].includes(action) && !window.confirm(`确认将任务 ${task.id} 更新为${STATE_LABELS[transition[0]]}？`)) return;
+  await api.updateAutomationTaskState({ taskId: task.id, state: transition[0], expectedState: transition[1] });
+  await refreshSnapshot();
+}
+
+async function openWorkbench(mode = "review", runId = "") {
+  state.workbenchMode = mode;
+  state.workbenchCompletion = runId
+    ? state.snapshot.recent_completions.find((item) => item.run_id === runId) || null
+    : null;
+  state.workbenchRun = runId && state.snapshot.active_run?.id !== runId
+    ? (await api.listRuns({})).find((run) => run.id === runId) || null
+    : null;
+  await loadTranscript();
+  showPage("workbench");
+}
+
+async function loadTranscript() {
+  const active = state.snapshot.active_task;
+  const run = state.workbenchRun || state.snapshot.active_run;
+  const localProjectId = state.workbenchCompletion?.local_project_id || active?.local_project_id || run?.project_id || "";
+  if (!localProjectId || !run?.session_id) {
+    state.transcript = [];
+    return;
+  }
+  state.transcript = await api.listMessages(localProjectId, run.session_id);
+}
+
+function renderWorkbench() {
+  const active = state.snapshot.active_task;
+  const completion = state.workbenchCompletion;
+  const run = state.workbenchRun || state.snapshot.active_run;
+  const activity = run?.activity || {};
+  const attention = state.snapshot.attention_items.find((item) => !active || item.task_id === active.task_id);
+  const taskId = completion?.task_id || active?.task_id || "";
+  const projectId = completion?.project_id || active?.project_id || "";
+  els.workbenchTitle.textContent = completion?.title || active?.task_title || "执行对话审查";
+  els.workbenchMode.className = `status-pill ${state.workbenchMode === "intervention" ? "pending" : "pending_review"}`;
+  els.workbenchMode.textContent = state.workbenchMode === "intervention" ? "人工处理" : "只读审查";
+  els.interventionComposer.classList.toggle("hidden", state.workbenchMode !== "intervention");
+  els.interveneCurrentButton.classList.toggle("hidden", state.workbenchMode === "intervention" || !active || Boolean(completion));
+  els.interventionInput.disabled = state.interventionSubmitting;
+  els.submitInterventionButton.disabled = state.interventionSubmitting;
+  els.submitInterventionButton.textContent = state.interventionSubmitting ? "正在提交…" : "提交并恢复自动化";
+  const selectedGap = activity.controller_frame?.selected_gap || activity.controller_plan?.selected_gap || null;
+  const sourceFacts = activity.artifact_ownership_scan?.source_facts_changed || [];
+  const implementationEvidence = activity.artifact_ownership_scan?.implementation_evidence || [];
+  els.workbenchContext.innerHTML = taskId ? factRows([
+    ["任务", taskId],
+    ["远端项目", projectId],
+    ["本地工作区", active?.local_project_path || completion?.local_project_id || "已归档"],
+    ["审查范围", completion ? "历史完成 Run · 只读" : state.workbenchMode === "intervention" ? "当前 Run · 人工处理" : "当前 Run · 只读"],
+    ["Selected Gap", selectedGap?.id || "尚未选择"],
+    ["已加载事实", `${sourceFacts.length} 项源事实 · ${implementationEvidence.length} 项实现证据`],
+    ["执行边界", activity.controller_frame?.round_goal || run?.task || "由当前任务与 Case 限定"],
+    ["人工请求", completion ? "不适用" : attention?.reason || "无"],
+    ["恢复条件", completion ? "只读审查不改变任务状态" : attention?.question || "返回自动化观察"]
+  ]) : `<div class="empty-state">没有可审查的任务上下文。</div>`;
+  const messages = state.transcript.length
+    ? state.transcript.map((message) => `<article class="message ${escapeHtml(message.role)}"><div class="message-head"><span>${escapeHtml(message.role)}</span><time>${formatTime(message.created_at)}</time></div><p>${escapeHtml(message.content)}</p></article>`).join("")
+    : `<div class="empty-state compact">当前没有已加载的对话。Chat 仅在 Runtime 产生 transcript 后出现。</div>`;
+  els.transcriptList.innerHTML = `${messages}${renderRunPlan(activity)}${renderExecutionEvidence(activity)}`;
+  els.workbenchEvidence.innerHTML = factRows([
+    ["Run", run?.id || "无"],
+    ["Run 状态", run?.status || "未启动"],
+    ["远端任务", completion ? "已完成" : active?.phase || "无活动任务"],
+    ["当前步骤", activity.current_step || "无"],
+    ["Controller", activity.controller_plan_status || activity.controller_review_status || "尚未收束"],
+    ["Worker", `${activity.agents?.length || 0} 个 · ${activity.reports?.length || 0} 份报告`],
+    ["验证", activity.validation_valid === true ? "有效" : activity.validation_valid === false ? "失败" : "未确认"],
+    ["Gate", activity.gate_result?.parsed?.allowed === true ? "允许" : activity.gate_result?.parsed?.allowed === false ? "阻止" : "未执行"],
+    ["Ledger", activity.ledger_write_result?.parsed?.written ? "已写回" : "未确认"],
+    ["影响", `${activity.artifact_ownership_scan?.classified?.length || 0} 个已分类 artifact`],
+    ["原始证据", `${activity.raw_events?.length || 0} 个事件 · ${activity.artifact_paths?.activity_file ? "已归档" : "未归档"}`]
+  ]);
+}
+
+function renderRunPlan(activity) {
+  const planItems = Array.isArray(activity.plan) ? activity.plan : [];
+  const fallback = [
+    activity.controller_frame?.round_goal,
+    activity.controller_plan?.summary,
+    activity.controller_review?.summary
+  ].filter(Boolean);
+  const items = planItems.length ? planItems : fallback;
+  return `<section class="activity-section"><div class="activity-section-heading"><strong>计划</strong><span>${items.length}</span></div>${items.length
+    ? items.slice(0, 12).map((item) => `<div class="activity-line"><i></i><span>${escapeHtml(typeof item === "string" ? item : item.step || item.title || item.objective || JSON.stringify(item))}</span><em>${escapeHtml(typeof item === "object" ? item.status || "" : "")}</em></div>`).join("")
+    : `<p>Controller 尚未生成可投影计划。</p>`}</section>`;
+}
+
+function renderExecutionEvidence(activity) {
+  const events = Array.isArray(activity.execution_events) && activity.execution_events.length
+    ? activity.execution_events
+    : Array.isArray(activity.timeline) ? activity.timeline : [];
+  return `<section class="activity-section"><div class="activity-section-heading"><strong>工具调用与执行证据</strong><span>${events.length}</span></div>${events.length
+    ? events.slice(-12).reverse().map((event) => `<div class="activity-line"><i class="${escapeHtml(event.status || "")}"></i><span><b>${escapeHtml(event.title || event.label || event.type || "Runtime event")}</b><small>${escapeHtml(event.detail || "")}</small></span><em>${escapeHtml(event.status || "")}</em></div>`).join("")
+    : `<p>当前 Run 尚未产生工具或执行事件。</p>`}</section>`;
+}
+
+function renderRecovery() {
+  const items = state.snapshot.recovery_items;
+  if (!items.length) {
+    els.recoveryList.innerHTML = `<div class="panel-card empty-state"><div><strong>没有待恢复事项</strong><p>服务器事实、本地 Runtime 与队列状态一致。</p></div></div>`;
+    return;
+  }
+  els.recoveryList.innerHTML = items.map((item) => `<article class="recovery-card"><div class="recovery-marker"></div><div class="recovery-body"><h2>${escapeHtml(RECOVERY_LABELS[item.type] || item.type)}</h2><p>${escapeHtml(item.message)}</p><div class="recovery-meta"><span>任务 ${escapeHtml(item.task_id)}</span><span>冻结范围 ${escapeHtml(item.freeze_scope)}</span><span>责任方 ${escapeHtml(item.responsibility)}</span></div><div class="recovery-actions">${item.actions.map((action) => `<button class="${action === "mark_blocked" ? "secondary-button" : "primary-button"}" data-recovery-id="${escapeHtml(item.id)}" data-recovery-action="${escapeHtml(action)}" type="button">${escapeHtml(RECOVERY_ACTION_LABELS[action] || action)}</button>`).join("")}</div></div></article>`).join("");
+  els.recoveryList.querySelectorAll("[data-recovery-action]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
+    const action = button.dataset.recoveryAction;
+    if (action === "mark_blocked" && !window.confirm("标记阻塞会更新远端任务状态并释放活动任务。继续吗？")) return;
+    await api.resolveAutomationRecovery({ recoveryId: button.dataset.recoveryId, action });
+    await refreshSnapshot();
+    if (!state.snapshot.recovery_items.length) showPage("command");
+  })));
+}
+
+function openTaskBrowser(taskState = "pending", taskId = "") {
+  state.selectedState = TASK_STATES.includes(taskState) ? taskState : "pending";
+  state.selectedTaskId = taskId;
+  state.page = "tasks";
+  refreshSnapshot().catch((error) => showToast(error.message));
+}
+
+function showPage(page) {
+  state.page = page;
+  if (page === "tasks") {
+    refreshSnapshot().catch((error) => showToast(error.message));
+    return;
   }
   render();
 }
 
-async function refreshSettings() {
-  state.settings = normalizeSettings(await api.getSettings());
+function openSettings() {
   renderSettingsForm();
+  els.settingsOverlay.classList.remove("hidden");
 }
 
-async function refreshRuns() {
-  state.runs = await api.listRuns(runListFilter());
-  renderRuns();
-  renderActiveRun();
-}
-
-async function refreshSessions() {
-  const projectId = state.selectedProjectId;
-  if (!projectId) {
-    state.sessions = [];
-    state.selectedSessionId = "";
-    return;
-  }
-  const sessions = await api.listSessions(projectId);
-  if (state.selectedProjectId !== projectId) {
-    return;
-  }
-  state.sessions = sessions;
-  if (!state.selectedSessionId || !state.sessions.some((session) => session.id === state.selectedSessionId)) {
-    state.selectedSessionId = state.sessions[0]?.id || "";
-  }
-}
-
-async function refreshProjectConversation() {
-  const projectId = state.selectedProjectId;
-  const sessionId = state.selectedSessionId;
-  if (!projectId || !sessionId) {
-    state.messages = [];
-    return;
-  }
-  if (!state.sessions.some((session) => session.id === sessionId)) {
-    state.messages = [];
-    renderMessages();
-    return;
-  }
-  const messages = await api.listMessages(projectId, sessionId);
-  if (state.selectedProjectId !== projectId || state.selectedSessionId !== sessionId) {
-    return;
-  }
-  state.messages = messages;
-  renderMessages();
-}
-
-function resetMessageScrollStick() {
-  state.messageAutoStick = true;
-}
-
-async function refreshProjectStatus() {
-  const projectId = state.selectedProjectId;
-  if (!projectId) {
-    state.projectStatus = null;
-    return;
-  }
-  const projectStatus = await api.projectStatus(projectId);
-  if (state.selectedProjectId !== projectId) {
-    return;
-  }
-  state.projectStatus = projectStatus;
-  renderProjectStatus();
-}
-
-function render() {
-  renderProjectShell();
-  renderMessages();
-  renderProjectStatus();
-  renderEvents();
-  renderInspectorTabs();
-}
-
-function renderProjectShell() {
-  renderProjects();
-  renderSessions();
-  renderRuns();
-  renderSelectedProject();
-  renderActiveRun();
-  renderInspectorTabs();
-}
-
-function renderInspectorTabs() {
-  for (const tab of els.inspectorTabs) {
-    const active = tab.dataset.inspectorTab === state.inspectorTab;
-    tab.classList.toggle("active", active);
-    tab.setAttribute("aria-selected", active ? "true" : "false");
-  }
-  for (const panel of els.inspectorPanels) {
-    panel.classList.toggle("active", panel.dataset.inspectorPanel === state.inspectorTab);
-  }
-}
-
-function renderProjects() {
-  if (state.projects.length === 0) {
-    els.projectList.innerHTML = `<div class="empty">No projects</div>`;
-    return;
-  }
-  els.projectList.innerHTML = state.projects.map((project) => `
-    <div class="project-item ${project.id === state.selectedProjectId ? "selected" : ""}" data-project-id="${escapeHtml(project.id)}">
-      <div class="project-name">${escapeHtml(project.name)}</div>
-      <div class="project-path">${escapeHtml(project.path)}</div>
-    </div>
-  `).join("");
-  for (const item of els.projectList.querySelectorAll(".project-item")) {
-    item.title = "Right-click to remove this project from Arckit Desktop";
-    item.addEventListener("click", async () => {
-      state.selectedProjectId = item.dataset.projectId;
-      state.selectedSessionId = "";
-      resetMessageScrollStick();
-      await refreshAll();
-    });
-    item.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      showSidebarContextMenu(event, {
-        kind: "project",
-        projectId: item.dataset.projectId
-      });
-    });
-  }
-}
-
-function renderSessions() {
-  if (!state.selectedProjectId) {
-    els.sessionList.innerHTML = `<div class="empty">No project</div>`;
-    return;
-  }
-  if (state.sessions.length === 0) {
-    els.sessionList.innerHTML = `<div class="empty">No chats</div>`;
-    return;
-  }
-  els.sessionList.innerHTML = state.sessions.map((session) => `
-    <div class="session-item ${session.id === state.selectedSessionId ? "selected" : ""}" data-session-id="${escapeHtml(session.id)}">
-      <div class="session-title">${escapeHtml(session.title || "Untitled chat")}</div>
-    </div>
-  `).join("");
-  for (const item of els.sessionList.querySelectorAll(".session-item")) {
-    item.title = "Right-click to delete this chat";
-    item.addEventListener("click", async () => {
-      state.selectedSessionId = item.dataset.sessionId;
-      resetMessageScrollStick();
-      selectDefaultRun();
-      renderActiveRun();
-      await refreshProjectConversation();
-      render();
-    });
-    item.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      showSidebarContextMenu(event, {
-        kind: "session",
-        projectId: state.selectedProjectId,
-        sessionId: item.dataset.sessionId
-      });
-    });
-  }
-}
-
-function showSidebarContextMenu(event, action) {
-  sidebarContextAction = action;
-  els.sidebarContextMenu.classList.remove("hidden");
-  const menuWidth = els.sidebarContextMenu.offsetWidth;
-  const menuHeight = els.sidebarContextMenu.offsetHeight;
-  const left = Math.max(4, Math.min(event.clientX, window.innerWidth - menuWidth - 4));
-  const top = Math.max(4, Math.min(event.clientY, window.innerHeight - menuHeight - 4));
-  els.sidebarContextMenu.style.left = `${left}px`;
-  els.sidebarContextMenu.style.top = `${top}px`;
-  els.sidebarContextDelete.focus();
-}
-
-function hideSidebarContextMenu() {
-  sidebarContextAction = null;
-  els.sidebarContextMenu.classList.add("hidden");
-}
-
-async function handleSidebarDelete() {
-  const action = sidebarContextAction;
-  hideSidebarContextMenu();
-  if (!action) {
-    return;
-  }
-  if (action.kind === "project") {
-    const project = state.projects.find((entry) => entry.id === action.projectId);
-    if (!project || !window.confirm(`Remove “${project.name}” from Arckit Desktop?\n\nProject files will not be deleted.`)) {
-      return;
-    }
-    await runAction(async () => {
-      await api.removeProject(project.id);
-      if (state.selectedProjectId === project.id) {
-        state.selectedProjectId = "";
-        state.selectedSessionId = "";
-        state.activeRunId = "";
-        resetMessageScrollStick();
-      }
-      await refreshAll();
-    });
-    return;
-  }
-  const project = state.projects.find((entry) => entry.id === action.projectId);
-  const session = state.sessions.find((entry) => entry.id === action.sessionId);
-  if (!project || !session || !window.confirm(`Delete chat “${session.title || "Untitled chat"}”?\n\nIts messages will be removed from Arckit Desktop.`)) {
-    return;
-  }
-  await runAction(async () => {
-    const result = await api.deleteSession(project.id, session.id);
-    if (state.selectedSessionId === session.id) {
-      state.selectedSessionId = result.next_session_id || "";
-      state.activeRunId = "";
-      resetMessageScrollStick();
-    }
-    await refreshAll();
-  });
-}
-
-function wireSidebarDivider() {
-  let dragStartY = 0;
-  let dragStartHeight = projectSectionHeight;
-  els.sidebarDivider.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-    dragStartY = event.clientY;
-    dragStartHeight = els.projectSection.getBoundingClientRect().height;
-    els.sidebarDivider.classList.add("dragging");
-    els.sidebarDivider.setPointerCapture(event.pointerId);
-  });
-  els.sidebarDivider.addEventListener("pointermove", (event) => {
-    if (!els.sidebarDivider.hasPointerCapture(event.pointerId)) {
-      return;
-    }
-    setProjectSectionHeight(dragStartHeight + event.clientY - dragStartY);
-  });
-  const finishDrag = (event) => {
-    if (els.sidebarDivider.hasPointerCapture(event.pointerId)) {
-      els.sidebarDivider.releasePointerCapture(event.pointerId);
-    }
-    els.sidebarDivider.classList.remove("dragging");
-  };
-  els.sidebarDivider.addEventListener("pointerup", finishDrag);
-  els.sidebarDivider.addEventListener("pointercancel", finishDrag);
-  els.sidebarDivider.addEventListener("keydown", (event) => {
-    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
-      return;
-    }
-    event.preventDefault();
-    setProjectSectionHeight(projectSectionHeight + (event.key === "ArrowDown" ? 12 : -12));
-  });
-  setProjectSectionHeight(projectSectionHeight);
-}
-
-function setProjectSectionHeight(requestedHeight) {
-  const sectionTop = els.projectSection.offsetTop;
-  const maxHeight = Math.max(
-    MIN_PROJECT_SECTION_HEIGHT,
-    els.projectRail.clientHeight - sectionTop - els.sidebarDivider.offsetHeight - MIN_CHAT_SECTION_HEIGHT
-  );
-  projectSectionHeight = Math.round(Math.min(maxHeight, Math.max(MIN_PROJECT_SECTION_HEIGHT, requestedHeight)));
-  els.projectRail.style.setProperty("--project-section-height", `${projectSectionHeight}px`);
-  els.sidebarDivider.setAttribute("aria-valuemax", String(Math.round(maxHeight)));
-  els.sidebarDivider.setAttribute("aria-valuenow", String(projectSectionHeight));
-}
-
-function renderRuns() {
-  const projectRuns = state.selectedProjectId
-    ? state.runs.filter((run) => run.project_id === state.selectedProjectId && (!state.selectedSessionId || run.session_id === state.selectedSessionId))
-    : state.runs;
-  if (projectRuns.length === 0) {
-    els.runList.innerHTML = `<div class="empty">No runs</div>`;
-    return;
-  }
-  els.runList.innerHTML = projectRuns.slice(0, 20).map((run) => `
-    <div class="run-item ${run.id === state.activeRunId ? "selected" : ""}" data-run-id="${escapeHtml(run.id)}">
-      <div class="run-title">${escapeHtml(run.id)}</div>
-      <div class="run-meta">${escapeHtml(run.status)} · ${escapeHtml(run.adapter || "")}${run.round_result ? ` · ${escapeHtml(run.round_result)}` : ""}</div>
-    </div>
-  `).join("");
-  for (const item of els.runList.querySelectorAll(".run-item")) {
-    item.addEventListener("click", () => {
-      state.activeRunId = item.dataset.runId;
-      const run = currentRun();
-      if (run?.session_id) {
-        state.selectedSessionId = run.session_id;
-      }
-      resetMessageScrollStick();
-      renderActiveRun();
-      renderRuns();
-      renderSessions();
-      refreshProjectConversation();
-      renderActiveRun();
-    });
-  }
-}
-
-function renderSelectedProject() {
-  const project = selectedProject();
-  if (!project) {
-    els.selectedProjectName.textContent = "No project selected";
-    els.selectedSessionTitle.textContent = "No chat";
-    els.selectedProjectPath.textContent = "Select a project.";
-    els.sendButton.disabled = true;
-    return;
-  }
-  els.selectedProjectName.textContent = project.name;
-  els.selectedSessionTitle.textContent = selectedSession()?.title || "No chat";
-  els.selectedProjectPath.textContent = project.path;
-  els.sendButton.disabled = false;
-}
-
-function renderMessages() {
-  const shouldStick = state.messageAutoStick || isMessageListAtBottom();
-  const previousScrollTop = els.messageList.scrollTop;
-  if (!state.selectedProjectId) {
-    els.messageList.innerHTML = `<div class="empty">No project selected</div>`;
-    return;
-  }
-  if (!state.selectedSessionId) {
-    els.messageList.innerHTML = `<div class="empty">No chat selected</div>`;
-    return;
-  }
-  if (state.messages.length === 0) {
-    const runCard = renderLiveRunCard();
-    els.messageList.innerHTML = runCard || `<div class="empty">No messages</div>`;
-    restoreMessageScroll({ shouldStick, previousScrollTop });
-    return;
-  }
-  els.messageList.innerHTML = [
-    ...state.messages.map((message) => `
-    <article class="message ${escapeHtml(message.role)}">
-      <div class="message-meta">
-        <span>${escapeHtml(messageDisplayRole(message))}${message.kind ? ` · ${escapeHtml(message.kind)}` : ""}</span>
-        <span>${escapeHtml(shortTime(message.created_at))}</span>
-      </div>
-      <div class="message-content">${escapeHtml(message.content)}</div>
-    </article>
-  `),
-    renderLiveRunCard()
-  ].filter(Boolean).join("");
-  restoreMessageScroll({ shouldStick, previousScrollTop });
-}
-
-function messageDisplayRole(message) {
-  if (message.role === "assistant") {
-    return "Main agent";
-  }
-  if (message.role === "user") {
-    return "You";
-  }
-  if (message.role === "system") {
-    return "Runtime";
-  }
-  return message.role || "Message";
-}
-
-function isMessageListAtBottom() {
-  const threshold = 80;
-  return els.messageList.scrollHeight - els.messageList.scrollTop - els.messageList.clientHeight <= threshold;
-}
-
-function restoreMessageScroll({ shouldStick, previousScrollTop }) {
-  if (shouldStick) {
-    els.messageList.scrollTop = els.messageList.scrollHeight;
-    state.messageAutoStick = true;
-    return;
-  }
-  els.messageList.scrollTop = previousScrollTop;
-  state.messageAutoStick = isMessageListAtBottom();
-}
-
-function renderActiveRun() {
-  const run = currentRun();
-  const active = run?.status === "running";
-  const activity = normalizedActivity(run);
-  const controlState = deriveRuntimeControlState();
-  const hasDraftInput = els.chatInput.value.trim().length > 0;
-  els.activeRunBadge.textContent = run ? run.status : "Idle";
-  els.activeRunBadge.className = `badge ${active ? "warning" : run?.status === "completed" ? "ok" : ["failed", "aborted"].includes(run?.status) ? "danger" : ""}`;
-  els.sendButton.textContent = active
-    ? "Send To Controller"
-    : !hasDraftInput && controlState.primary_label
-      ? controlState.primary_label
-      : hasDraftInput && controlState.state !== "no_context"
-        ? "Send To Controller"
-        : "Run";
-  els.interruptButton.disabled = !active;
-  els.continueButton.textContent = isOperatorEventAction(controlState.primary_action)
-    ? controlState.primary_label
-    : "Continue";
-  els.sendButton.title = controlActionTooltip(controlState, hasDraftInput);
-  els.continueButton.title = controlActionTooltip(controlState, false);
-  els.continueButton.disabled = active || !isOperatorEventAction(controlState.primary_action);
-  els.authorizePacketButton.disabled = controlState.primary_action !== "run_packet";
-  els.gateButton.disabled = !run || active || !["ledger_gate_ready", "ledger_writeback_ready", "ledger_writeback_blocked"].includes(controlState.state);
-  els.writeDryRunButton.disabled = !run || active || controlState.primary_action !== "write_ledger";
-  els.writeLedgerButton.disabled = !run || active || controlState.primary_action !== "write_ledger";
-  els.activeRunSummary.innerHTML = run
-    ? safeRenderRunPanel(() => renderFocusActionSummary(run, activity, controlState), "Run summary")
-    : "No active run.";
-  if (els.runDetailSummary) {
-    els.runDetailSummary.innerHTML = run
-      ? safeRenderRunPanel(() => renderRunInspector(run, activity), "Worker detail")
-      : "No active run.";
-  }
-}
-
-function safeRenderRunPanel(renderFn, label) {
-  try {
-    return renderFn();
-  } catch (error) {
-    return `<div class="run-warning compact">${escapeHtml(label)} could not render: ${escapeHtml(error?.message || String(error))}</div>`;
-  }
+function closeSettings() {
+  els.settingsOverlay.classList.add("hidden");
 }
 
 function renderSettingsForm() {
-  const settings = normalizeSettings(state.settings);
-  state.settings = settings;
-  els.codexProxyEnabled.checked = Boolean(settings.codex_proxy.enabled);
-  els.codexProxyUrl.value = settings.codex_proxy.url || "http://127.0.0.1:7890";
+  const settings = state.settings;
+  els.taskSourceEnabled.checked = settings.task_source.enabled;
+  els.taskSourceBaseUrl.value = settings.task_source.base_url;
+  els.taskSourceServiceName.value = settings.task_source.service_name;
+  els.taskSourceAuthMode.value = settings.task_source.auth_mode;
+  els.taskSourceToken.value = "";
+  els.taskSourceToken.placeholder = settings.task_source.access_token_configured ? "已配置；保留为空不修改" : "输入访问令牌";
+  els.taskSourceUserId.value = settings.task_source.user_id;
+  els.taskSourceUsername.value = settings.task_source.username;
+  els.taskSourceAppId.value = settings.task_source.app_id;
+  els.taskSourceSessionId.value = settings.task_source.session_id;
+  els.codexProxyEnabled.checked = settings.codex_proxy.enabled;
+  els.codexProxyUrl.value = settings.codex_proxy.url;
+  renderAuthMode();
 }
 
-function renderProjectStatus() {
-  const status = state.projectStatus;
-  const project = selectedProject();
-  const session = selectedSession();
-  const run = currentRun();
-  const controlState = deriveRuntimeControlState();
-  if (!status || !status.has_arckit_state) {
-    els.loopState.innerHTML = [
-      stateLine("Project", project?.name || "No project"),
-      stateLine("Chat", session?.title || "No chat"),
-      stateLine("Run", run ? `${run.status || "-"} · ${run.adapter || ""}` : "Idle"),
-      stateLine("Control", controlState.state || "No context")
-    ].join("");
-    els.stateGaps.innerHTML = `<div class="empty">First message will initialize a neutral recoverable state. The agent chooses the concrete route from the request and evidence.</div>`;
-    return;
-  }
-  const caseControl = status.case_control || {};
-  const caseState = status.case_state || {};
-  const caseResolution = caseState.case_resolution || {};
-  const completionReview = caseState.completion_review || {};
-  const reviewLimit = (completionReview.policy?.initial_max_cycles || 0) + (completionReview.additional_cycles_authorized || 0);
-  const openReviewFindings = (completionReview.findings || []).filter((finding) => finding.status === "open").length;
-  const candidateCaseGaps = caseResolution.candidate_gaps || [];
-  const selectedCaseGap = caseState.current_round?.selected_gap || null;
-  const roundState = normalizedActivity(run)?.round_state || run?.status || "Idle";
-  const projectGaps = status.project_gaps || [];
-  els.loopState.innerHTML = [
-    stateLine("Project", `${project?.name || status.summary?.name || ""} · ${status.summary?.status || ""}`),
-    stateLine("Project focus", caseControl.next_case_intent || (projectGaps.length ? `Select from ${projectGaps.length} Project gap candidates` : "No Project gap selected")),
-    stateLine("Case", caseState.id ? `${caseState.id} · ${caseResolution.stage || caseResolution.status || caseState.status || ""}` : "No selected Case"),
-    stateLine("Completion review", caseState.id ? `${completionReview.status || "pending"} · autonomous cycles ${completionReview.cycle_count || 0}/${reviewLimit || "-"} · content revision ${caseState.content_revision ?? "-"} · open findings ${openReviewFindings}` : "No selected Case"),
-    stateLine("Case gaps", selectedCaseGap?.next_transition || (candidateCaseGaps.length ? `${candidateCaseGaps.length} candidates · Controller selects from evidence` : "No unresolved Case gap")),
-    stateLine("Round", roundState),
-    stateLine("Chat", session?.title || "No chat"),
-    stateLine("Run", run ? `${run.status || "-"} · ${run.adapter || ""}` : "Idle"),
-    stateLine("Control", `${controlState.state || "-"}${controlState.primary_label ? ` · ${controlState.primary_label}` : ""}`),
-    stateLine("Next", latestNextPrompt() || caseResolution.loop_handoff?.next_prompt || (candidateCaseGaps.length ? `Select one of ${candidateCaseGaps.length} Case candidate gaps` : "Waiting for input"))
-  ].join("");
-
-  const signals = [];
-  for (const gap of projectGaps.slice(0, 3)) {
-    signals.push(`
-      <div class="state-item top-gap-item">
-        <div class="state-title">${escapeHtml(gap.id || "Project gap candidate")}</div>
-        <div class="state-meta">${escapeHtml([gap.current_state, gap.target_state].filter(Boolean).join(" -> "))}${gap.urgency ? ` · ${escapeHtml(gap.urgency)}` : ""}</div>
-        <div class="state-meta">${escapeHtml(gap.next_transition || gap.impact || "")}</div>
-      </div>
-    `);
-  }
-  signals.push(...status.dimensions.slice(0, 5).map((dimension) => `
-    <div class="state-item">
-      <div class="state-title">${escapeHtml(dimension.name)}</div>
-      <div class="state-meta">${escapeHtml(dimension.current_state)} -> ${escapeHtml(dimension.target_state)} · ${escapeHtml(dimension.priority)}</div>
-      <div class="state-meta">${escapeHtml(dimension.next_transition || dimension.gap || "")}</div>
-    </div>
-  `));
-  els.stateGaps.innerHTML = signals.length > 0 ? signals.join("") : `<div class="empty">No project signals yet. Use the chat to start or continue the turn.</div>`;
+function renderAuthMode() {
+  els.headerAuthFields.classList.toggle("hidden", els.taskSourceAuthMode.value !== "headers");
 }
 
-function renderEvents() {
-  const run = currentRun();
-  const rawEvents = normalizedActivity(run)?.raw_events || [];
-  const evidence = renderArtifactPaths(normalizedActivity(run));
-  if (rawEvents.length === 0 && state.events.length === 0) {
-    els.eventList.innerHTML = [evidence, `<div class="empty">No events</div>`].filter(Boolean).join("");
-    return;
-  }
-  const items = rawEvents.length > 0
-    ? groupedActivityEventsForDisplay(rawEvents).slice().reverse().map((event) => `
-      <div class="event-item">
-        <div class="event-title">${escapeHtml(event.type || "raw")}</div>
-        <div class="event-meta">${escapeHtml(shortTime(event.at || ""))}</div>
-        <div>${escapeHtml(safeFormatEvent(() => formatActivityEvent(event)))}${event.count > 1 ? ` · ${escapeHtml(String(event.count))} events` : ""}</div>
-      </div>
-    `)
-    : state.events.map((event) => `
-    <div class="event-item">
-      <div class="event-title">${escapeHtml(event.type)}</div>
-      <div class="event-meta">${escapeHtml(shortTime(event.at || ""))}${event.runId ? ` · ${escapeHtml(event.runId)}` : ""}</div>
-      <div>${escapeHtml(safeFormatEvent(() => formatPayload(event)))}</div>
-    </div>
-  `);
-  els.eventList.innerHTML = [evidence, items.join("")].filter(Boolean).join("");
-}
-
-function safeFormatEvent(formatFn) {
-  try {
-    return formatFn();
-  } catch (error) {
-    return `Event could not render: ${error?.message || String(error)}`;
-  }
-}
-
-function groupedActivityEventsForDisplay(events) {
-  const groups = [];
-  for (const event of events) {
-    const key = activityEventDisplayKey(event);
-    const previous = groups.at(-1);
-    if (previous?.display_key === key) {
-      previous.at = event.at || previous.at;
-      previous.type = activityEventDisplayType(event);
-      previous.text = event.text || previous.text;
-      previous.stream_text = event.stream_text || previous.stream_text;
-      previous.delta_chunks = event.delta_chunks || previous.delta_chunks;
-      previous.delta_chars = event.delta_chars || previous.delta_chars;
-      previous.count += 1;
-      continue;
-    }
-    groups.push({
-      ...event,
-      display_key: key,
-      type: activityEventDisplayType(event),
-      count: 1
-    });
-  }
-  return groups;
-}
-
-function activityEventDisplayKey(event = {}) {
-  if (event.delta_key) {
-    return `delta:${event.delta_key}`;
-  }
-  if (event.type === "codex.item.started" || event.type === "codex.item.completed") {
-    return `codex.item:${timelineBaseLabel(event.text || event.type || "")}`;
-  }
-  if (event.type === "codex.thread.status.changed") {
-    return "codex.thread.status";
-  }
-  return `${event.type || "raw"}:${timelineStableDetail(event.text || "")}`;
-}
-
-function activityEventDisplayType(event = {}) {
-  if (event.type === "codex.item.started" || event.type === "codex.item.completed") {
-    return timelineBaseLabel(event.text || "Codex item");
-  }
-  return event.type || "raw";
-}
-
-function stateLine(label, value) {
-  return `
-    <div class="state-line">
-      <div class="state-label">${escapeHtml(label)}</div>
-      <div class="state-value">${escapeHtml(value || "-")}</div>
-    </div>
-  `;
-}
-
-function renderLiveRunCard() {
-  const run = currentRun();
-  if (!run || run.session_id !== state.selectedSessionId) {
-    return "";
-  }
-  const activity = normalizedActivity(run);
-  if (!activity || (run.status !== "running" && !activity.timeline?.length)) {
-    return "";
-  }
-  const idle = idleSeconds(activity);
-  const stale = run.status === "running" && idle >= 30;
-  const errors = Array.isArray(activity.errors) && activity.errors.length > 0
-    ? `<div class="run-card-section">
-        <div class="run-card-label">Errors / Retries</div>
-        <div class="execution-list">${activity.errors.slice(-5).map((item) => `
-          <div class="execution-item ${item.will_retry ? "retrying" : "failed"}">
-            <div class="execution-title">
-              <span>${item.will_retry ? "Retrying" : "Error"}</span>
-              <span>${escapeHtml(shortTime(item.at || ""))}</span>
-            </div>
-            <div class="execution-detail">${escapeHtml(item.message || "")}</div>
-          </div>
-        `).join("")}</div>
-      </div>`
-    : "";
-  return `
-    <article class="run-card ${run.status === "running" ? "live" : ""}">
-      <div class="run-card-header">
-        <div>
-          <div class="run-card-title">Main agent is working</div>
-          <div class="run-card-meta">${escapeHtml(activity.phase_label || run.status || "Run")} · ${escapeHtml(run.adapter || "")}</div>
-        </div>
-        <span class="badge ${run.status === "running" ? "warning" : run.status === "completed" ? "ok" : ["failed", "aborted"].includes(run.status) ? "danger" : ""}">
-          ${escapeHtml(run.status)}
-        </span>
-      </div>
-      <div class="run-card-step">${escapeHtml(activity.current_step || "Waiting for runtime events")}</div>
-      <div class="run-card-metrics">
-        <span>Elapsed ${escapeHtml(durationSince(activity.started_at || run.started_at))}</span>
-        <span class="${stale ? "stale" : ""}">Last event ${escapeHtml(formatIdle(idle))}</span>
-        <span>${activity.controls?.steer ? "Steer available" : "Steer unavailable"}</span>
-      </div>
-      ${stale ? `<div class="run-warning">No runtime events for ${idle}s. You can steer with the chat box or stop the run.</div>` : ""}
-      ${renderMainAgentPanel(activity)}
-      ${renderWorkerStatusPanel(activity)}
-      ${renderMergePanel(activity)}
-      ${errors}
-    </article>
-  `;
-}
-
-function renderMainAgentPanel(activity) {
-  const output = activity.agent_text
-    ? renderCodexOutputSection(activity.agent_text, activity.reports || [], activity)
-    : "";
-  const thinking = activity.reasoning_text
-    ? `<details class="agent-disclosure">
-        <summary>Reasoning summary</summary>
-        <pre class="run-output thinking">${escapeHtml(tail(activity.reasoning_text, 1800))}</pre>
-      </details>`
-    : "";
-  const commandOutput = activity.command_output
-    ? `<details class="agent-disclosure">
-        <summary>Command output</summary>
-        <pre class="run-output command">${escapeHtml(tail(activity.command_output, 1600))}</pre>
-      </details>`
-    : "";
-  if (!output && !thinking && !commandOutput) {
-    return "";
-  }
-  return `
-    <div class="main-agent-panel">
-      <div class="run-card-label">Main agent</div>
-      ${output}
-      ${thinking}
-      ${commandOutput}
-    </div>
-  `;
-}
-
-function renderWorkerStatusPanel(activity) {
-  const workers = Array.isArray(activity.agents) ? activity.agents : [];
-  const reports = Array.isArray(activity.reports) ? activity.reports : [];
-  const packets = Array.isArray(activity.worker_packets) ? activity.worker_packets : [];
-  const cards = workers.length
-    ? workers.map((agent) => renderWorkerCard(agent)).join("")
-    : packets.map((packet) => renderPendingWorkerPacket(packet)).join("");
-  const reportCards = reports
-    .filter((report) => !workers.some((agent) => agent.task_id && agent.task_id === report.task_id))
-    .map((report) => renderStructuredReportCard(report))
-    .join("");
-  if (!cards && !reportCards) {
-    return `
-      <div class="run-card-section compact-run-details">
-        <div class="run-card-label">Workers</div>
-        <div class="compact-run-reason">No worker activity yet. The main agent is still planning or running directly.</div>
-      </div>
-    `;
-  }
-  return `
-    <div class="run-card-section">
-      <div class="worker-section-head">
-        <div class="run-card-label">Workers</div>
-        <div class="run-card-meta">${escapeHtml(String(workers.length || packets.length))} active · ${escapeHtml(String(reports.length))} reports</div>
-      </div>
-      <div class="agent-grid">${cards}${reportCards}</div>
-    </div>
-  `;
-}
-
-function renderWorkerCard(agent) {
-  return `
-    <div class="agent-tile ${escapeHtml(agent.status || "")}">
-      <div class="agent-tile-head">
-        <span>${escapeHtml(workerDisplayName(agent))}</span>
-        <span>${escapeHtml(agent.status || "waiting")}</span>
-      </div>
-      <div class="worker-task">${escapeHtml(agent.current_step || agent.summary || agent.objective || "")}</div>
-      ${renderAgentReportSnapshot(agent)}
-      ${renderWorkerReportDetails(agent)}
-      ${agent.latest_detail ? `<div class="agent-stream-line">${escapeHtml(agent.latest_detail)}</div>` : ""}
-      ${agent.reasoning_text ? `<details class="agent-disclosure compact"><summary>Reasoning</summary><pre class="agent-stream thinking">${escapeHtml(tail(agent.reasoning_text, 700))}</pre></details>` : ""}
-      ${renderAgentText(agent.agent_text, agent.report)}
-      ${agent.command_output ? `<details class="agent-disclosure compact"><summary>Command</summary><pre class="agent-stream command">${escapeHtml(tail(agent.command_output, 700))}</pre></details>` : ""}
-    </div>
-  `;
-}
-
-function renderPendingWorkerPacket(packet) {
-  return `
-    <div class="agent-tile pending">
-      <div class="agent-tile-head">
-        <span>${escapeHtml(workerDisplayName(packet))}</span>
-        <span>ready</span>
-      </div>
-      <div class="worker-task">${escapeHtml(packet.task || "")}</div>
-      ${Array.isArray(packet.context_refs) && packet.context_refs.length
-        ? `<div class="agent-stream-line">${escapeHtml(packet.context_refs.slice(0, 4).join(" · "))}</div>`
-        : ""}
-    </div>
-  `;
-}
-
-function workerDisplayName(worker) {
-  const workerType = worker?.worker_type || "";
-  const role = worker?.role || worker?.task_id || worker?.worker_id || "";
-  if (workerType && role && workerType !== role) {
-    return `${workerType} · ${role}`;
-  }
-  return role || workerType || "worker";
-}
-
-function renderMergePanel(activity) {
-  if (!activity.merge_result) {
-    return "";
-  }
-  return `
-    <div class="run-card-section">
-      <div class="run-card-label">Main agent merge</div>
-      <div class="merge-box">
-        <div><strong>${escapeHtml(activity.merge_result.decision || "unknown")}</strong> · ${escapeHtml(activity.merge_result.loop_gate?.status || "")}</div>
-        <div>${escapeHtml(activity.merge_result.loop_gate?.reason || "")}</div>
-        ${activity.merge_result.next_prompt ? `<div class="merge-next">${escapeHtml(activity.merge_result.next_prompt)}</div>` : ""}
-      </div>
-    </div>
-  `;
-}
-
-function renderCodexOutputSection(text, reports = [], activity = {}) {
-  const parsedReports = parseWorkerReportsFromText(text);
-  if ((Array.isArray(reports) && reports.length > 0) && looksLikeWorkerReportStream(text)) {
-    return "";
-  }
-  if ((activity.controller_plan || activity.controller_frame) && looksLikeStructuredControllerStream(text)) {
-    return "";
-  }
-  if (parsedReports.length > 0) {
-    return `<div class="run-card-section">
-        <div class="run-card-label">Structured Agent Output</div>
-        <div class="report-list">${parsedReports.map((report) => renderStructuredReportCard(report)).join("")}</div>
-      </div>`;
-  }
-  return `<div class="run-card-section">
-        <div class="run-card-label">Message</div>
-        <pre class="run-output">${escapeHtml(tail(text, 1800))}</pre>
-      </div>`;
-}
-
-function looksLikeWorkerReportStream(text) {
-  return typeof text === "string"
-    && (
-      text.includes("arckit-worker-report/v2")
-      || text.includes("\"task_id\":\"TASK-")
-      || text.includes("\"requires_main_agent_decision\"")
-    );
-}
-
-function looksLikeStructuredControllerStream(text) {
-  return typeof text === "string"
-    && (
-      text.includes("arckit-controller-plan/v2")
-      || text.includes("arckit-desktop-operator-event/v1")
-      || text.includes("\"route_plan\"")
-      || text.includes("\"worker_intents\"")
-    );
-}
-
-function renderAgentReportSnapshot(agent) {
-  const report = agent.report || firstWorkerReportFromText(agent.agent_text || "");
-  if (!report) {
-    return "";
-  }
-  return `
-    <div class="agent-report-snapshot">
-      <div>${escapeHtml(report.summary || "")}</div>
-      ${report.recommendation ? `<div class="agent-report-recommendation">${escapeHtml(report.recommendation)}</div>` : ""}
-      ${report.requires_main_agent_decision ? `<div class="agent-report-warning">Controller decision required</div>` : ""}
-    </div>
-  `;
-}
-
-function renderWorkerReportDetails(agent) {
-  const report = agent.report || firstWorkerReportFromText(agent.agent_text || "");
-  const details = report ? renderReportDetails(report) : "";
-  if (!details) {
-    return "";
-  }
-  return `
-    <details class="agent-disclosure compact worker-report-details" open>
-      <summary>Details</summary>
-      <div class="worker-report-detail-list">${details}</div>
-    </details>
-  `;
-}
-
-function renderAgentText(text, report) {
-  if (!text || report || firstWorkerReportFromText(text)) {
-    return "";
-  }
-  return `<pre class="agent-stream">${escapeHtml(tail(text, 900))}</pre>`;
-}
-
-function renderStructuredReportCard(report) {
-  return `
-    <div class="report-item ${escapeHtml(report.status || "")}">
-      <div class="report-head">
-        <span>${escapeHtml(workerDisplayName(report))}</span>
-        <span>${escapeHtml(report.status || "")}</span>
-      </div>
-      <div class="report-summary">${escapeHtml(report.summary || "")}</div>
-      ${renderReportDetails(report)}
-    </div>
-  `;
-}
-
-function firstWorkerReportFromText(text) {
-  return parseWorkerReportsFromText(text)[0] || null;
-}
-
-function parseWorkerReportsFromText(text) {
-  if (!text || typeof text !== "string") {
-    return [];
-  }
-  return parseJsonObjectsFromText(text)
-    .filter((item) => item?.schema_version === "arckit-worker-report/v2");
-}
-
-function parseJsonObjectsFromText(text) {
-  const values = [];
-  let depth = 0;
-  let start = -1;
-  let inString = false;
-  let escaped = false;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    if (inString) {
-      if (escaped) {
-        escaped = false;
-      } else if (char === "\\") {
-        escaped = true;
-      } else if (char === "\"") {
-        inString = false;
-      }
-      continue;
-    }
-    if (char === "\"") {
-      inString = true;
-      continue;
-    }
-    if (char === "{") {
-      if (depth === 0) {
-        start = index;
-      }
-      depth += 1;
-      continue;
-    }
-    if (char === "}" && depth > 0) {
-      depth -= 1;
-      if (depth === 0 && start >= 0) {
-        const candidate = text.slice(start, index + 1);
-        try {
-          values.push(JSON.parse(candidate));
-        } catch {
-          // Ignore partial or corrupted historical stream fragments.
-        }
-        start = -1;
-      }
-    }
-  }
-  return values;
-}
-
-function renderFocusActionSummary(run, activity, controlState) {
-  const loopGate = activity?.merge_result?.loop_gate || {};
-  const ledgerStage = activity?.ledger_stage || {};
-  const reportIntake = activity?.report_intake || activity?.merge_result?.report_intake || {};
-  const reports = Array.isArray(activity?.reports) ? activity.reports : [];
-  const workers = Array.isArray(activity?.agents) ? activity.agents : [];
-  const reason = controlState.reason || loopGate.reason || activity?.current_step || "";
-  const detailRows = [
-    ["Run", `${run.status || "-"}${run.round_result ? ` · ${run.round_result}` : ""}`],
-    ["Round", `${activity?.round_state || loopGate.status || "-"}${ledgerStage.status ? ` · ${ledgerStage.status}` : ""}`],
-    ["Reports", `${reports.length} returned${Array.isArray(reportIntake.missing) && reportIntake.missing.length ? ` · ${reportIntake.missing.length} missing` : ""}`],
-    ["Workers", workers.length ? workers.map((agent) => `${workerDisplayName(agent)}:${agent.status || "waiting"}`).slice(0, 3).join(" · ") : "No worker activity yet"]
-  ];
-  return `
-    <div class="focus-summary ${escapeHtml(controlState.state)}">
-      <div class="focus-state-row">
-        <span class="focus-state">${escapeHtml(controlState.state.replaceAll("_", " "))}</span>
-        ${controlState.primary_label ? `<span class="focus-primary">${escapeHtml(controlState.primary_label)}</span>` : ""}
-      </div>
-      <div class="focus-reason">${escapeHtml(reason || "No runtime control action is available.")}</div>
-      <div class="focus-facts">
-        ${detailRows.map(([label, value]) => `
-          <div class="focus-fact">
-            <span>${escapeHtml(label)}</span>
-            <strong>${escapeHtml(value)}</strong>
-          </div>
-        `).join("")}
-      </div>
-    </div>
-  `;
-}
-
-function renderRunInspector(run, activity) {
-  if (!activity) {
-    return escapeHtml(`${run.id}\n${run.adapter}${run.round_result ? ` · ${run.round_result}` : ""}`);
-  }
-  const timeline = groupedTimelineForDisplay(activity.timeline || []).slice(-8).reverse().map((item) => `
-    <div class="timeline-item">
-      <div class="timeline-dot"></div>
-      <div>
-        <div class="timeline-title">${escapeHtml(item.label || item.type || "")}</div>
-        <div class="timeline-meta">${escapeHtml(shortTime(item.at || ""))}${item.detail ? ` · ${escapeHtml(item.detail)}` : ""}${item.count > 1 ? ` · ${escapeHtml(String(item.count))} events` : ""}</div>
-      </div>
-    </div>
-  `).join("");
-  const agents = (activity.agents || []).map((agent) => `
-    <div class="mini-agent ${escapeHtml(agent.status || "")}">
-      <span>${escapeHtml(workerDisplayName(agent))}</span>
-      <strong>${escapeHtml(agent.status || "waiting")}</strong>
-    </div>
-  `).join("");
-  const idle = idleSeconds(activity);
-  const gate = activity.execution_gate || {};
-  const binding = activity.executor_binding || {};
-  const controlState = deriveRuntimeControlState();
-  const persistedGate = activity.gate_result?.parsed || activity.ledger_write_result?.parsed?.gate || null;
-  const ledgerWrite = activity.ledger_write_result?.parsed || null;
-  return `
-    <div class="active-run-panel">
-      <div class="active-run-id">${escapeHtml(run.id)}</div>
-      <div class="active-run-phase">${escapeHtml(activity.phase_label || run.status)} · ${escapeHtml(run.adapter || "")}</div>
-      <div class="active-run-excerpt"><strong>Now</strong><span>${escapeHtml(activity.current_step || "")}</span></div>
-      <div class="active-run-excerpt"><strong>Control</strong><span>${escapeHtml(controlState.state)}${controlState.primary_label ? ` · ${escapeHtml(controlState.primary_label)}` : ""}</span></div>
-      <div class="active-run-excerpt"><strong>Round</strong><span>${escapeHtml(activity.round_state || "-")}${activity.ledger_stage?.status ? ` · ${escapeHtml(activity.ledger_stage.status)}` : ""}</span></div>
-      <div class="active-run-excerpt"><strong>Gate</strong><span>${escapeHtml(gate.status || "-")} · ${escapeHtml(binding.executor || "no executor")}</span></div>
-      ${persistedGate ? `<div class="active-run-excerpt"><strong>Write Gate</strong><span>${escapeHtml(persistedGate.decision || "")}${Array.isArray(persistedGate.reasons) && persistedGate.reasons.length ? ` · ${escapeHtml(persistedGate.reasons[0])}` : ""}</span></div>` : ""}
-      ${ledgerWrite ? `<div class="active-run-excerpt"><strong>Ledger</strong><span>${ledgerWrite.written ? "written" : "not written"}${Array.isArray(ledgerWrite.changed_files) && ledgerWrite.changed_files.length ? ` · ${escapeHtml(ledgerWrite.changed_files.length)} files` : ""}</span></div>` : ""}
-      <div class="active-run-meta">Elapsed ${escapeHtml(durationSince(activity.started_at || run.started_at))} · Last event ${escapeHtml(formatIdle(idle))}</div>
-      ${run.status === "running" && idle >= 30 ? `<div class="run-warning compact">No events for ${idle}s</div>` : ""}
-      ${agents ? `<div class="mini-agent-list">${agents}</div>` : `<div class="empty compact-empty">No worker activity yet</div>`}
-      ${activity.merge_result ? `<div class="active-run-excerpt"><strong>Merge</strong><span>${escapeHtml(activity.merge_result.loop_gate?.reason || activity.merge_result.decision || "")}</span></div>` : ""}
-      <div class="timeline-list">${timeline || `<div class="empty compact-empty">No timeline yet</div>`}</div>
-    </div>
-  `;
-}
-
-function groupedTimelineForDisplay(timeline) {
-  const groups = [];
-  for (const item of timeline) {
-    const key = timelineDisplayKey(item);
-    const previous = groups.at(-1);
-    if (previous?.display_key === key) {
-      previous.at = item.at || previous.at;
-      previous.type = item.type || previous.type;
-      previous.label = timelineDisplayLabel(item);
-      previous.detail = timelineDisplayDetail(item) || previous.detail;
-      previous.count += 1;
-      continue;
-    }
-    groups.push({
-      ...item,
-      display_key: key,
-      label: timelineDisplayLabel(item),
-      detail: timelineDisplayDetail(item),
-      count: 1
-    });
-  }
-  return groups;
-}
-
-function timelineDisplayKey(item = {}) {
-  const label = timelineBaseLabel(item.label || item.type || "");
-  if (item.type === "codex.item.started" || item.type === "codex.item.completed") {
-    return `codex.item:${label}`;
-  }
-  if (item.type === "codex.thread.status.changed") {
-    return "codex.thread.status";
-  }
-  return `${item.type || label}:${label}:${timelineStableDetail(item.detail || "")}`;
-}
-
-function timelineDisplayLabel(item = {}) {
-  return timelineBaseLabel(item.label || item.type || "");
-}
-
-function timelineDisplayDetail(item = {}) {
-  const detail = item.detail || "";
-  if (looksLikeStructuredControllerStream(detail) || looksLikeWorkerReportStream(detail)) {
-    return "Structured output received";
-  }
-  return truncate(detail, 360);
-}
-
-function timelineBaseLabel(label) {
-  return String(label || "")
-    .replace(/\s+(started|completed)(\s*·.*)?$/i, "")
-    .trim();
-}
-
-function timelineStableDetail(detail) {
-  const text = String(detail || "");
-  if (/^(msg|item|turn|thread)_[a-z0-9]+/i.test(text)) {
-    return "";
-  }
-  return truncate(text, 80);
-}
-
-function applyRunEventToState(event) {
-  const runId = event.run?.id || event.runId;
-  if (!runId) {
-    return;
-  }
-  const index = state.runs.findIndex((run) => run.id === runId);
-  const incomingRun = event.run || null;
-  if (index < 0 && incomingRun) {
-    state.runs.unshift(incomingRun);
-    return;
-  }
-  if (index < 0) {
-    return;
-  }
-  if (incomingRun) {
-    state.runs[index] = { ...state.runs[index], ...incomingRun };
-  }
-  if (event.activity) {
-    state.runs[index] = { ...state.runs[index], activity: event.activity };
-  }
-  if (event.type === "run.finished") {
-    state.runs[index] = {
-      ...state.runs[index],
-      status: event.status || state.runs[index].status,
-      exit_code: event.exitCode ?? state.runs[index].exit_code,
-      round_result: event.result?.runtime_result?.round_result || (event.status === "aborted" ? "aborted" : state.runs[index].round_result || ""),
-      validation_valid: event.result?.validation?.valid ?? state.runs[index].validation_valid ?? null
-    };
-  }
-}
-
-function eventBelongsToSelectedProject(event) {
-  const projectId = event.run?.project_id || event.projectId || event.project_id || "";
-  return Boolean(projectId && projectId === state.selectedProjectId);
-}
-
-function normalizedActivity(run) {
-  if (!run) {
-    return null;
-  }
-  return run.activity || {
-    status: run.status || "",
-    phase_label: run.status || "",
-    current_step: run.status === "running" ? "Waiting for runtime events" : "",
-    started_at: run.started_at || "",
-    last_event_at: run.started_at || "",
-    controls: {
-      steer: run.status === "running",
-      interrupt: run.status === "running"
+async function saveSettings() {
+  state.settings = normalizeSettings(await api.updateSettings({
+    task_source: {
+      enabled: els.taskSourceEnabled.checked,
+      base_url: els.taskSourceBaseUrl.value,
+      service_name: els.taskSourceServiceName.value,
+      auth_mode: els.taskSourceAuthMode.value,
+      access_token: els.taskSourceToken.value,
+      user_id: els.taskSourceUserId.value,
+      username: els.taskSourceUsername.value,
+      app_id: els.taskSourceAppId.value,
+      session_id: els.taskSourceSessionId.value
     },
-    timeline: [],
-    raw_events: [],
-    execution_events: [],
-    agents: [],
-    reports: [],
-    merge_result: null,
-    controller_frame: null,
-    execution_gate: null,
-    executor_binding: null,
-    worker_packets: [],
-    report_intake_rules: null,
-    closeout_rules: null,
-    report_intake: null,
-    loop_handoff: null,
-    errors: [],
-    plan: [],
-    entry_capability: run.entry_capability || "runtime",
-    operator: run.operator || "desktop"
-  };
+    codex_proxy: {
+      enabled: els.codexProxyEnabled.checked,
+      url: els.codexProxyUrl.value
+    }
+  }));
+  closeSettings();
+  await api.syncAutomation();
+  await refreshSnapshot();
+  showToast("设置已保存并完成同步。");
 }
 
-function renderControllerPacket(activity) {
-  const frame = activity.controller_frame || {};
-  const gate = activity.execution_gate || {};
-  const binding = activity.executor_binding || {};
-  const packets = Array.isArray(activity.worker_packets) ? activity.worker_packets : [];
-  if (!frame.round_goal && !gate.status && packets.length === 0) {
-    return "";
-  }
-  const packetRows = packets.slice(0, 8).map((packet) => `
-    <div class="worker-packet">
-      <div class="worker-packet-head">
-        <span>${escapeHtml(workerDisplayName(packet))}</span>
-        <span>${escapeHtml(packet.worker_id || "")}</span>
-      </div>
-      <div class="worker-packet-task">${escapeHtml(packet.task || "")}</div>
-      ${Array.isArray(packet.context_refs) && packet.context_refs.length
-        ? `<div class="worker-packet-meta">${escapeHtml(packet.context_refs.slice(0, 4).join(" · "))}</div>`
-        : ""}
-    </div>
-  `).join("");
-  const intake = activity.report_intake || {};
-  const intakeLine = intake.accepted || intake.missing || intake.needs_revision
-    ? `<div class="packet-line"><strong>Report intake</strong><span>accepted ${escapeHtml((intake.accepted || []).length)} · missing ${escapeHtml((intake.missing || []).length)} · revision ${escapeHtml((intake.needs_revision || []).length)}</span></div>`
-    : "";
-  return `
-    <div class="run-card-section">
-      <div class="run-card-label">Controller Packet</div>
-      <div class="controller-packet">
-        <div class="packet-line"><strong>Round</strong><span>${escapeHtml(frame.round_goal || "")}</span></div>
-        <div class="packet-line"><strong>Status</strong><span>${escapeHtml(frame.round_status || activity.phase || "")}</span></div>
-        <div class="packet-line"><strong>Turn</strong><span>${escapeHtml(frame.turn_delta?.relation_to_previous_loop || "")}${frame.turn_delta?.packet_effect ? ` · ${escapeHtml(frame.turn_delta.packet_effect)}` : ""}</span></div>
-        <div class="packet-line"><strong>Gate</strong><span>${escapeHtml(gate.status || "-")} · ${escapeHtml(gate.required_decision || "")}</span></div>
-        <div class="packet-line"><strong>Executor</strong><span>${escapeHtml(binding.executor || "none")} · ${escapeHtml(binding.authorization_source || "none")}</span></div>
-        ${intakeLine}
-        ${packetRows ? `<div class="worker-packet-list">${packetRows}</div>` : ""}
-      </div>
-    </div>
-  `;
+function currentProject() {
+  return state.selectedProjectId === "all" ? null : state.snapshot.projects.find((project) => String(project.id) === state.selectedProjectId) || null;
 }
 
-function renderArtifactPaths(activity) {
-  const paths = activity?.artifact_paths || {};
-  const rows = [
-    ["Raw JSONL", paths.raw_events_file],
-    ["Normalized", paths.events_file],
-    ["Activity", paths.activity_file],
-    ["Result", paths.result_file]
-  ].filter(([, value]) => value);
-  if (rows.length === 0) {
-    return "";
-  }
-  return `
-    <div class="run-card-section">
-      <div class="run-card-label">Saved Evidence</div>
-      <div class="artifact-paths">${rows.map(([label, value]) => `
-        <div class="artifact-path"><span>${escapeHtml(label)}</span><code>${escapeHtml(value)}</code></div>
-      `).join("")}</div>
-    </div>
-  `;
+function selectedTask() {
+  return state.snapshot.tasks.find((task) => String(task.id) === String(state.selectedTaskId)) || null;
 }
 
-function renderReportDetails(report) {
-  return [
-    renderReportList("Findings", report.findings),
-    renderReportList("Evidence", report.evidence),
-    renderReportList("Changes", report.changes),
-    renderReportList("Risks", report.risks),
-    renderReportList("Unknowns", report.unknowns),
-    report.recommendation ? `<div class="report-detail"><strong>Recommendation</strong><span>${escapeHtml(report.recommendation)}</span></div>` : "",
-    report.requires_main_agent_decision ? `<div class="report-detail warning"><strong>Decision</strong><span>Main-agent decision required</span></div>` : ""
-  ].filter(Boolean).join("");
+function scopedTaskFilter(item) {
+  return state.selectedProjectId === "all" || String(item.project_id) === state.selectedProjectId;
 }
 
-function renderReportList(label, values) {
-  if (!Array.isArray(values) || values.length === 0) {
-    return "";
-  }
-  return `
-    <div class="report-detail">
-      <strong>${escapeHtml(label)}</strong>
-      <span>${escapeHtml(values.slice(0, 6).join(" · "))}${values.length > 6 ? ` · +${values.length - 6}` : ""}</span>
-    </div>
-  `;
+function navProject({ id, name, count, warning = false }) {
+  return `<button class="nav-item ${String(id) === state.selectedProjectId ? "is-active" : ""} ${warning ? "warning" : ""}" data-project-id="${escapeHtml(id)}" type="button"><span>${String(id) === "all" ? "◆" : "◇"}</span><strong>${escapeHtml(name)}</strong><em>${count}</em></button>`;
 }
 
-async function addSystemMessage(content) {
-  const project = selectedProject();
-  if (!project) {
-    return;
-  }
-  await api.addMessage(project.id, {
-    role: "system",
-    kind: "command",
-    content,
-    run_id: state.activeRunId,
-    session_id: state.selectedSessionId
-  });
-  await refreshProjectConversation();
+function metric(label, value, description, className) {
+  return `<article class="metric-card ${className}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(description)}</small></article>`;
 }
 
-function addUiEvent(type, payload) {
-  state.events.unshift({
-    type,
-    at: new Date().toISOString(),
-    payload
-  });
-  state.events = state.events.slice(0, 200);
-  renderEvents();
+function factRows(rows) {
+  return rows.map(([label, value]) => `<div class="fact-row"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? "")}</strong></div>`).join("");
+}
+
+function taskActions(task) {
+  if (task.state === "pending_review") return [{ id: "confirm", label: "确认可处理", primary: true }, { id: "cancel", label: "取消" }];
+  if (task.state === "pending") return [{ id: "cancel", label: "取消" }];
+  if (task.state === "in_progress") return [{ id: "review", label: "查看运行", primary: true }, { id: "block", label: "标记阻塞" }];
+  if (task.state === "completed") return [{ id: "review", label: "审查结果" }, { id: "accept", label: "标记已验收", primary: true }];
+  if (task.state === "blocked") return [{ id: "resume", label: "返回待处理", primary: true }, { id: "cancel", label: "取消" }];
+  return [];
+}
+
+function runtimeStages(phase, run) {
+  const order = ["sync", "controller", "worker", "writeback"];
+  const labels = ["1 同步并领取", "2 Controller", "3 Worker 执行", "4 Gate 与写回"];
+  const phaseIndex = ["starting", "running", "awaiting_human", "completing", "recovery"].indexOf(phase);
+  return order.map((_, index) => ({
+    label: labels[index],
+    state: phase === "recovery" && index === Math.max(1, phaseIndex) ? "error" : run?.status === "completed" || index < Math.max(1, phaseIndex) ? "complete" : index === Math.min(3, Math.max(0, phaseIndex)) ? "active" : ""
+  }));
+}
+
+function sourceStatusLabel(value) {
+  return {
+    unconfigured: "未配置",
+    syncing: "同步中",
+    healthy: "同步正常",
+    degraded: "部分项目异常",
+    unauthenticated: "认证失效",
+    error: "同步失败"
+  }[value] || "未知";
+}
+
+function formatPriority(value) {
+  const number = Number(value || 0);
+  if (number >= 100) return "P0";
+  if (number > 0 && number <= 100) return `P${Math.max(0, 100 - number)}`;
+  return "普通";
+}
+
+function formatTime(value) {
+  if (!value) return "--:--";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "--:--" : new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function formatDateTime(value) {
+  if (!value) return "尚未确认";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function renderSyncing(active) {
+  els.syncButton.disabled = active;
+  els.syncButton.textContent = active ? "…" : "↻";
 }
 
 async function runAction(action) {
   try {
     await action();
   } catch (error) {
-    addUiEvent("ui.error", error.message || String(error));
+    console.error(error);
+    showToast(error?.message || String(error));
   }
 }
 
-function selectedProject() {
-  return state.projects.find((project) => project.id === state.selectedProjectId) || null;
-}
-
-function selectedSession() {
-  return state.sessions.find((session) => session.id === state.selectedSessionId) || null;
-}
-
-function currentRun() {
-  return state.runs.find((run) => run.id === state.activeRunId) || null;
-}
-
-function deriveRuntimeControlState() {
-  const run = currentRun();
-  return deriveCanonicalRuntimeControlState({
-    run,
-    project: selectedProject(),
-    session: selectedSession(),
-    activity: normalizedActivity(run),
-    latestNextPrompt: latestNextPrompt()
-  });
-}
-
-function isOperatorEventAction(action) {
-  return [
-    "auto_continue",
-    "continue_next_round",
-    "respond_to_gate",
-    "resume",
-    "resume_with_update",
-    "resolve_blocker",
-    "resolve_gate",
-    "diagnose",
-    "start_next_round",
-    "review_reports"
-  ].includes(action);
-}
-
-function controlActionTooltip(controlState, hasDraftInput) {
-  if (hasDraftInput) {
-    return "Send your message to the Controller as additional context for the next runtime turn.";
-  }
-  switch (controlState.primary_action) {
-    case "auto_continue":
-      return "The loop handoff allows automatic agent continuation. Click to start the next round now.";
-    case "continue_next_round":
-      return "Start the next runtime round using the current loop handoff and worker reports.";
-    case "resolve_blocker":
-      return "A hard blocker remains. Start a recovery round with the blocker evidence attached.";
-    case "respond_to_gate":
-      return "A human decision is required before the loop can continue.";
-    case "write_ledger":
-      return "Write validated runtime progress into the project ledger.";
-    case "run_packet":
-      return "Authorize and execute the previewed worker packet.";
-    case "review_reports":
-      return "Resume Controller review for worker reports that need attention.";
-    case "resume_with_update":
-      return "Resume the loop with external or corrected context.";
-    case "diagnose":
-      return "Start a diagnostic round for the failed or invalid runtime result.";
-    default:
-      return "";
-  }
-}
-
-async function handleRuntimePrimaryAction(controlState) {
-  if (controlState.primary_action === "run_packet") {
-    await authorizeCurrentPacket();
-    return;
-  }
-  if (controlState.primary_action === "write_ledger") {
-    await writeLedgerForCurrentRun({ dryRun: false });
-    return;
-  }
-  if (isOperatorEventAction(controlState.primary_action)) {
-    await runControllerOperatorEvent(controlState, { action: controlState.primary_action });
-  }
-}
-
-async function writeLedgerForCurrentRun({ dryRun }) {
-  const run = currentRun();
-  if (!run || run.status === "running") {
-    return;
-  }
-  const result = await api.writeLedger(run.id, { dryRun });
-  await addSystemMessage(`${dryRun ? "Ledger preview" : "Ledger write"}: ${formatCommandResult(result)}`);
-  addUiEvent(dryRun ? "write-ledger dry-run" : "write-ledger", result.parsed || result.stderr || result.stdout);
-  await refreshAll();
-}
-
-async function runControllerOperatorEvent(controlState, { userInput = "", action = "" } = {}) {
-  const project = selectedProject();
-  if (!project) {
-    return;
-  }
-  const session = await ensureSelectedSession(project.id);
-  const operatorEvent = buildOperatorEvent(controlState, {
-    action: action || controlState.primary_action,
-    userInput
-  });
-  const task = buildControllerOperatorTask(operatorEvent);
-  await api.addMessage(project.id, {
-    role: "user",
-    kind: "operator-event",
-    content: task,
-    session_id: session.id
-  });
-  const run = await api.startRun({
-    projectId: project.id,
-    sessionId: session.id,
-    task,
-    dryRun: false,
-    adapter: "codex-app-server",
-    approvalPolicy: els.approvalPolicy.value,
-    model: els.modelInput.value.trim()
-  });
-  state.activeRunId = run.id;
-  await refreshAll();
-}
-
-function buildOperatorEvent(controlState, { action, userInput }) {
-  const run = currentRun();
-  const activity = normalizedActivity(run);
-  return buildDesktopOperatorEvent({
-    action,
-    userInput,
-    controlState,
-    project: selectedProject(),
-    session: selectedSession(),
-    run,
-    activity,
-    projectStatus: state.projectStatus,
-    latestNextPrompt: latestNextPrompt()
-  });
-}
-
-async function authorizeCurrentPacket() {
-  const project = selectedProject();
-  const packetRun = currentRun();
-  if (!project || !packetRun || !canAuthorizeRuntimeRun({ run: packetRun, activity: normalizedActivity(packetRun) })) {
-    return;
-  }
-  await api.addMessage(project.id, {
-    role: "user",
-    kind: "authorize-packet",
-    content: `Authorize execution for packet ${packetRun.id}.`,
-    run_id: packetRun.id,
-    session_id: state.selectedSessionId
-  });
-  const run = await api.startRun({
-    projectId: project.id,
-    sessionId: state.selectedSessionId,
-    authorizeRunId: packetRun.id,
-    task: packetRun.task || "",
-    dryRun: false,
-    adapter: "codex-app-server",
-    approvalPolicy: els.approvalPolicy.value,
-    model: els.modelInput.value.trim()
-  });
-  state.activeRunId = run.id;
-  await refreshAll();
-}
-
-function latestNextPrompt() {
-  const run = currentRun();
-  const activity = normalizedActivity(run);
-  return activity?.loop_handoff?.next_prompt
-    || activity?.merge_result?.next_prompt
-    || state.projectStatus?.case_state?.case_resolution?.loop_handoff?.next_prompt
-    || "";
-}
-
-function selectDefaultRun() {
-  const latestRun = state.runs.find((run) => run.project_id === state.selectedProjectId && (!state.selectedSessionId || run.session_id === state.selectedSessionId));
-  state.activeRunId = latestRun?.id || "";
-}
-
-function runListFilter() {
-  return {
-    projectId: state.selectedProjectId,
-    sessionId: state.selectedSessionId
-  };
-}
-
-async function ensureSelectedSession(projectId) {
-  const current = selectedSession();
-  if (current) {
-    return current;
-  }
-  const session = await api.createSession(projectId, { title: "New chat" });
-  state.selectedSessionId = session.id;
-  await refreshSessions();
-  return session;
-}
-
-function normalizeSettings(settings = {}) {
-  const proxy = settings.codex_proxy && typeof settings.codex_proxy === "object"
-    ? settings.codex_proxy
-    : {};
-  return {
-    codex_proxy: {
-      enabled: Boolean(proxy.enabled),
-      url: String(proxy.url || "http://127.0.0.1:7890").trim() || "http://127.0.0.1:7890"
-    }
-  };
-}
-
-function formatPayload(event) {
-  const copy = { ...event };
-  delete copy.type;
-  delete copy.at;
-  delete copy.activity;
-  delete copy.run;
-  delete copy.result;
-  if (copy.parsed?.event?.type) {
-    return summarizeRuntimeEvent(copy.parsed.event);
-  }
-  if (copy.message?.content) {
-    return truncate(copy.message.content, 1200);
-  }
-  if (event.activity?.current_step) {
-    return event.activity.current_step;
-  }
-  if (event.run?.id) {
-    return `${event.run.id} ${event.run.status || ""}`.trim();
-  }
-  return truncate(JSON.stringify(copy, null, 2), 1200);
-}
-
-function formatActivityEvent(entry) {
-  if (entry?.stream_text) {
-    if (looksLikeWorkerReportStream(entry.stream_text) || looksLikeStructuredControllerStream(entry.stream_text)) {
-      return entry.text || "Structured stream";
-    }
-    return `${entry.text || "Delta stream"}\n${tail(entry.stream_text, 900)}`;
-  }
-  const parsed = parseActivityEventText(entry.text || "");
-  if (parsed?.event) {
-    return summarizeRuntimeEvent(parsed.event);
-  }
-  return truncate(entry.text || "", 1200);
-}
-
-function parseActivityEventText(text) {
-  if (!text || typeof text !== "string" || !text.trim().startsWith("{")) {
-    return null;
-  }
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
-function summarizeRuntimeEvent(event) {
-  if (!event || typeof event !== "object") {
-    return "";
-  }
-  switch (event.type) {
-    case "codex.agent_message.delta":
-      return `Agent message delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
-    case "codex.reasoning.delta":
-      return `Reasoning delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
-    case "codex.command.output.delta":
-      return `Command output delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
-    case "runtime.loop_frame.created":
-      return `Controller frame · ${event.loop_frame?.execution_gate?.status || "gate"} · ${(event.loop_frame?.worker_packets || []).length} workers`;
-    case "runtime.controller_plan.completed":
-      return `Controller plan · ${event.status || ""}${event.controller_plan?.summary ? ` · ${truncate(event.controller_plan.summary, 700)}` : ""}`;
-    case "runtime.worker_report.completed":
-      return `${event.role || event.task_id || "worker"} report · ${event.status || event.report?.status || ""}${event.report?.summary ? ` · ${truncate(event.report.summary, 700)}` : ""}`;
-    case "runtime.merge.completed":
-      return `Merge · ${event.merge_result?.decision || "unknown"}${event.merge_result?.loop_gate?.reason ? ` · ${truncate(event.merge_result.loop_gate.reason, 700)}` : ""}`;
-    case "codex.item.started":
-    case "codex.item.completed":
-      return `${event.params?.item?.type || "item"} ${event.type.endsWith("completed") ? "completed" : "started"}${event.params?.item?.id ? ` · ${event.params.item.id}` : ""}`;
-    default:
-      return truncate([event.message, event.params?.message, event.status, event.type].filter(Boolean).join(" · "), 1200);
-  }
-}
-
-function formatCommandResult(result) {
-  if (result.parsed?.decision) {
-    return `${result.parsed.decision}${result.parsed.reasons?.length ? `\n${result.parsed.reasons.join("\n")}` : ""}`;
-  }
-  if (typeof result.parsed?.written === "boolean") {
-    return result.parsed.written ? "written" : result.parsed.gate?.decision || "not written";
-  }
-  return result.stderr || result.stdout || `exit ${result.code}`;
-}
-
-function shortTime(value) {
-  if (!value) {
-    return "";
-  }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString();
-}
-
-function durationSince(value) {
-  if (!value) {
-    return "-";
-  }
-  const start = new Date(value).getTime();
-  if (Number.isNaN(start)) {
-    return "-";
-  }
-  const seconds = Math.max(0, Math.round((Date.now() - start) / 1000));
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  const rest = seconds % 60;
-  return `${minutes}m ${rest}s`;
-}
-
-function idleSeconds(activity) {
-  const value = activity?.last_event_at || activity?.updated_at || activity?.started_at;
-  const time = new Date(value || "").getTime();
-  if (Number.isNaN(time)) {
-    return 0;
-  }
-  return Math.max(0, Math.round((Date.now() - time) / 1000));
-}
-
-function formatIdle(seconds) {
-  if (seconds < 3) {
-    return "just now";
-  }
-  if (seconds < 60) {
-    return `${seconds}s ago`;
-  }
-  const minutes = Math.floor(seconds / 60);
-  return `${minutes}m ago`;
-}
-
-function tail(value, limit) {
-  const text = String(value || "");
-  return text.length > limit ? text.slice(text.length - limit) : text;
-}
-
-function truncate(value, limit) {
-  const text = String(value || "");
-  if (text.length <= limit) {
-    return text;
-  }
-  return `${text.slice(0, Math.max(0, limit - 1))}…`;
+function showToast(message) {
+  window.clearTimeout(toastTimer);
+  els.toast.textContent = message;
+  els.toast.classList.remove("hidden");
+  toastTimer = window.setTimeout(() => els.toast.classList.add("hidden"), 4200);
 }
 
 function escapeHtml(value) {
@@ -1903,4 +686,41 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function normalizeSettings(value = {}) {
+  const defaults = defaultSettings();
+  return {
+    codex_proxy: { ...defaults.codex_proxy, ...(value.codex_proxy || {}) },
+    task_source: { ...defaults.task_source, ...(value.task_source || {}) }
+  };
+}
+
+function defaultSettings() {
+  return {
+    codex_proxy: { enabled: false, url: "http://127.0.0.1:7890" },
+    task_source: { enabled: false, base_url: "", service_name: "workshop", auth_mode: "bearer", access_token_configured: false, user_id: "", username: "", app_id: "arckit-runtime", session_id: "" }
+  };
+}
+
+function emptySnapshot() {
+  return {
+    enabled: false,
+    queue_paused: false,
+    source_status: "unconfigured",
+    source_errors: [],
+    synced_at: "",
+    user: null,
+    local_projects: [],
+    projects: [],
+    state_counts: Object.fromEntries(TASK_STATES.map((taskState) => [taskState, 0])),
+    tasks: [],
+    queue: [],
+    active_task: null,
+    active_run: null,
+    attention_items: [],
+    recovery_items: [],
+    recent_completions: [],
+    health: { state: "unconfigured", label: "任务源未配置", tone: "neutral" }
+  };
 }

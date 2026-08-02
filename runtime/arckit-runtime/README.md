@@ -6,7 +6,7 @@ Arckit Runtime is the control plane for state-driven agentic software developmen
 
 ```text
 Arckit Desktop
-  project list, sessions, chat, live work, agent status, evidence, gates
+  current-user projects, server tasks, automation queue, on-demand intervention, evidence, recovery
 
 Arckit Runtime
   runtime kernel, controller reducer, round state machine, artifact ownership map, ledger gate, ledger writeback
@@ -164,11 +164,17 @@ npm run desktop
 
 Desktop is the intended product surface:
 
-- Left rail: projects, chats, runs.
-- Center: continuous project chat and live work cards.
-- Right rail: loop state, state gaps, controller packet, execution gate, worker status, merge gate, controls, raw events.
+- Left rail: current-user projects, seven server task states, task-source health, and local Runtime health.
+- Center: Automation Command Center, project-scoped Task Browser, on-demand Intervention Workbench, and Recovery Center.
+- Right inspector: project source, local workspace binding, execution boundary, evidence, and controlled recovery actions.
 
-Sending a message when idle starts a controller round. Controller Preview shows the recoverable control frame without executing Controller Agent planning or workers. Run Codex asks the Controller Agent to plan the worker route, dispatches bounded workers, then asks the Controller Agent to review reports before merge and ledger gating. Running an existing packet authorizes that packet and still requires Controller Agent review after worker reports are collected. Sending a message while a run is active sends Controller input and interrupts the current execution so the next round can classify the correction or supplement. Stop interrupts the active Codex turn.
+The Command Center synchronizes the current Workshop user, projects, and project-owned tasks through a main-process-only adapter. Each remote project can be bound to one local Arckit project and explicitly opted into automation. The queue contains only eligible `pending` tasks and sorts them by priority, pending time, project id, and task id.
+
+Automation conditionally claims one task as `in_progress`, persists the remote-task/local-project/run association, and starts the existing Runtime loop. It never starts a second active task. After Runtime and ledger close with a complete handoff, it writes the remote task as `completed` before selecting another task.
+
+Chat is not a permanent navigation surface. The Intervention Workbench loads transcript and evidence when a user reviews a run or the Runtime requires human input. Read-only review has no composer; explicit intervention submits a steer or fresh continuation for the same active task. Recovery Center preserves state for claim, start, run, external-change, and completion-writeback failures.
+
+Task source settings support the Workshop `/workshop/v1/user` contract used by Workshop Desktop. Credentials stay in the Electron main-process store and the access token is never returned to Renderer. Without a configured task source, Desktop remains usable for local project registration and Runtime history but automatic claiming stays disabled.
 
 Empty projects are valid inputs. Adding a project initializes `arckit/project` and one neutral active Case whose unresolved facets are exposed as `candidate_gaps`. Runtime does not choose a first business gap; the Controller selects one from the current Case facts and operator intent.
 
@@ -203,8 +209,8 @@ Workers own:
 
 Desktop owns:
 
-- human observation
-- chat-driven task entry
-- controller preview, execution authorization, pause, interrupt, continue
-- evidence and gate visibility
+- project-sourced task observation and explicit local-workspace binding
+- deterministic single-task automation controls, pause, interrupt, and recovery
+- on-demand read-only review and human intervention for the active Runtime
+- Controller/Worker progress, evidence, gate, and ledger visibility
 - automatic ledger gate/writeback whenever an evidence-backed Case transition is gate-ready, including unresolved Cases that should continue

@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-07-26T20:30:03.815Z",
+  "updated_at": "2026-08-01T18:09:34.420Z",
   "iteration_goal": "将 Arckit 状态机制从记录型账本升级为由 Project State 选择 Case、Case State 暴露完整性 gap、Loop 产生证据并经确定性 ledger 聚合的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "target_project_states": [
@@ -97,7 +97,8 @@
       "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md",
       "arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md",
       "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md",
-      "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
+      "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
+      "arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md"
     ],
     "remaining_project_gaps": [
       "GAP-agent-scenario-evaluation",
@@ -118,33 +119,16 @@
     "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md",
     "arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md",
     "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md",
-    "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
+    "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
+    "arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md"
   ],
   "close_condition": "当严格跨记录审计稳定通过，并至少完成一次真实复杂项目的 Project gap -> Case -> Worker evidence -> completion review -> Project impact 闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
-    "project_changes": [
-      {
-        "dimension": "data_state",
-        "from_state": "designed",
-        "to_state": "verified"
-      },
-      {
-        "dimension": "iteration_governance",
-        "from_state": "implemented",
-        "to_state": "verified"
-      }
-    ],
+    "case_ref": "arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md",
+    "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
-      "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-      "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-      "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
-      "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-      "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
-      "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
-      "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json"
+      "arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md"
     ],
-    "updated_at": "2026-07-26T20:30:03.815Z"
+    "updated_at": "2026-08-01T18:09:34.420Z"
   }
 }

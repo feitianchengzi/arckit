@@ -14,6 +14,7 @@ import {
   findSession,
   getSession,
   normalizeSettings,
+  publicSettings,
   projectId,
   writeJson
 } from "./desktop/desktop-store.mjs";
@@ -260,7 +261,7 @@ export function createDesktopRunManager({
 
   async function getSettings() {
     const store = await readStore();
-    return store.settings;
+    return publicSettings(store.settings);
   }
 
   async function updateSettings(input = {}) {
@@ -272,13 +273,21 @@ export function createDesktopRunManager({
         codex_proxy: {
           ...store.settings?.codex_proxy,
           ...input.codex_proxy
+        },
+        task_source: {
+          ...store.settings?.task_source,
+          ...input.task_source,
+          access_token: input.task_source?.access_token
+            ? input.task_source.access_token
+            : store.settings?.task_source?.access_token || ""
         }
       });
       store.settings = nextSettings;
       return store;
     });
-    emit("settings.updated", { settings: nextSettings });
-    return nextSettings;
+    const visibleSettings = publicSettings(nextSettings);
+    emit("settings.updated", { settings: visibleSettings });
+    return visibleSettings;
   }
 
   async function getProjectStatus(projectIdValue) {
@@ -965,6 +974,9 @@ export function createDesktopRunManager({
     removeProject,
     getProjectStatus,
     listRuns,
+    isRunActive(runId) {
+      return activeRuns.has(runId);
+    },
     listSessions,
     createSession,
     deleteSession,
@@ -976,7 +988,9 @@ export function createDesktopRunManager({
     controlRun,
     abortActiveRuns,
     gateRun,
-    writeLedgerForRun
+    writeLedgerForRun,
+    readDesktopStore: readStore,
+    updateDesktopStore: updateStore
   };
 }
 

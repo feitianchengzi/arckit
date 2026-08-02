@@ -23,3 +23,4 @@
 | [CASE-20260726-002](closed/CASE-20260726-002-govern-state-driven-loop-correctness.md) | closed | Govern State Driven Loop Correctness | 2026-07-26T18:58:52.062Z |
 | [CASE-20260726-003](closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md) | closed | Implement bounded Case completion review convergence | 2026-07-26T19:20:08.209Z |
 | [CASE-20260726-004](closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md) | closed | Govern project and iteration state to strict new boundaries | 2026-07-26T20:30:03.815Z |
+| [CASE-20260801-001](closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md) | closed | Upgrade Runtime Desktop to Todo Automation Workspace | 2026-08-01T18:09:34.420Z |

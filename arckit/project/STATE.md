@@ -1,7 +1,7 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Updated: 2026-07-26T20:30:03.815Z
+Updated: 2026-08-01T18:09:34.420Z
 Canonical Record: state.record.json
 
 ## Purpose
@@ -15,7 +15,7 @@ Select or create the next bounded Case from the remaining Project state_gaps.
 ## Case Selection
 
 - Selected case: TBD
-- Case selection reason: Resolved Case arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md.
+- Case selection reason: Resolved Case arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md.
 - Next case intent: Select or create the next bounded Case from the remaining Project state_gaps.
 - Priority basis: Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.
 

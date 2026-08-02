@@ -59,6 +59,104 @@ State Store 读取目标项目的 Arckit 状态入口：
 
 `state.record.json` 是 canonical record；Markdown brief 只作为 loop 决策摘要。
 
+### Task Source Adapter
+
+Task Source Adapter 是远端项目与任务服务器的唯一访问边界。Renderer 和 Runtime worker 不持有服务凭证，也不直接构造远端请求。Electron main 进程创建 adapter，并通过受限 IPC 暴露投影和显式命令。
+
+Adapter 提供以下语义操作：
+
+- 读取当前认证用户。
+- 读取当前用户可访问的项目。
+- 按项目和可选状态读取任务。
+- 基于任务最新版本条件式更新状态。
+- 区分未认证、无权限、版本冲突、服务不可用和无效响应。
+
+Workshop task source 实现沿用 Workshop Desktop 的服务契约：先读取 `/projects` 的独立项目与 `/organizations`，再按 `organization_id` 合并组织项目；任务由带 `project_id` 的 `/tasks` 返回，任务状态由 `/tasks/{task_id}` 更新。认证配置和令牌只保存在主进程设置中。Adapter 将服务端字段归一化为 Runtime task source model，不把 Workshop 专属响应形状泄漏给 Renderer。
+
+任务状态枚举固定为 `pending_review`、`pending`、`in_progress`、`completed`、`accepted`、`cancelled` 和 `blocked`。未知状态保留原始值用于诊断，但不进入自动队列。
+
+远端状态更新携带调用方最后读取的版本标识或等价条件。服务端不支持条件更新时，adapter 先读取最新任务并拒绝已变化状态；该检查降低冲突概率，但不能替代服务端原子并发控制，因此该能力在 UI 中标记为弱一致领取。
+
+### Automation Store
+
+Desktop Store 在现有项目、会话、消息和 run history 之外保存自动化控制状态：
+
+- task source 配置的非敏感投影和认证状态。
+- 远端项目到本地 Arckit 工作区的绑定。
+- 每个远端项目是否参与自动化。
+- 自动化总开关和项目级暂停状态。
+- 最近一次成功的项目、任务和状态计数快照。
+- 当前活动任务与待启动 Runtime 的关联意图。
+- 人工事项、恢复原因和最近同步时间。
+
+访问令牌不进入 Renderer store 投影、runtime result、raw event 或 ledger evidence。持久化写入沿用 Desktop Store 的原子文件替换方式，读取时对新增字段做默认值归一化，旧版本 store 可以无损升级。
+
+活动任务关联至少包含远端项目标识、远端任务标识、服务器版本、任务状态、本地项目标识、本地路径、run 标识、领取时间和当前自动化阶段。该关联在服务器确认进行中后、启动 Runtime 前持久化，使进程崩溃后能够区分“未领取”“已领取未启动”和“已启动”。
+
+### Automation Coordinator
+
+Automation Coordinator 位于 Electron main 进程，组合 Task Source Adapter、Desktop Store 和 Desktop Run Manager。它不复制 Loop Controller、Gate 或 ledger 语义，只负责远端任务生命周期与一个本地 Runtime run 的串行协调。
+
+Coordinator 状态机包含：
+
+```text
+disabled -> syncing -> idle -> claiming -> starting -> running
+running -> awaiting_human -> running
+running -> completing -> idle
+claiming | starting | running | completing -> recovery
+recovery -> syncing | starting | running | idle
+```
+
+每次同步先读取当前用户与项目，再并发读取各项目任务并按项目保存结果。只有完整项目列表可确认时才允许全局领取；单项目任务读取失败只排除该项目。同步周期使用单飞锁，后发请求复用或等待当前同步，避免并发刷新覆盖较新的状态。
+
+Coordinator 生成队列时只选择已绑定本地工作区、参与自动化、任务源健康且状态为 `pending` 的任务。排序按优先级降序、进入待处理时间升序、项目标识和任务标识稳定排序。
+
+Coordinator 在领取前重新读取候选任务，随后提交条件式 `pending -> in_progress`。确认成功后写入活动任务和启动意图，再调用 Desktop Run Manager。领取冲突刷新候选并继续；其他写回错误进入 recovery。
+
+Desktop Run Manager 接受远端任务上下文，并把任务内容编译为 operator task。run 事件继续由既有 projector 投影。Coordinator 只读取稳定的 run status、loop handoff、human gate 和 ledger stage，不解析模型文本推断状态。
+
+run 到达人工 Gate 时，Coordinator 创建 attention item 并保持活动任务。人工输入通过现有 steer/operator event 通道进入同一个 run 或 fresh continuation；Controller 接受后清理 attention item 并恢复 running。
+
+run 完成且 ledger 写回成功后，Coordinator 提交 `in_progress -> completed`。完成写回确认后清除活动任务并触发下一次同步与领取。run 失败、ledger gate 未收束或完成写回失败均保留活动任务并进入 recovery。
+
+### Recovery Model
+
+Recovery 状态是持久化的一致性差异，不是只存在于 Renderer 的错误提示。每个 recovery item 包含类型、远端任务快照、本地活动关联、证据引用、冻结范围、责任方和允许动作。
+
+恢复类型至少包括：
+
+- claim conflict：刷新任务并选择下一候选，不创建 run。
+- start failed：重试同一启动意图，或由用户显式标记阻塞。
+- completion writeback failed：重试完成写回，不领取下一任务。
+- external terminal change：请求当前 run 安全停止，再以服务器事实收束。
+- multiple active tasks：冻结队列，由用户选择唯一恢复目标。
+- project or task source invalid：排除受影响范围并重新同步。
+- authentication expired：清除可执行资格，重新认证后完整同步。
+
+Coordinator 启动时先对齐本地活动关联、Desktop Run Manager 的活动 run 与服务器进行中任务。三者一致时恢复观察或执行；无法确定唯一活动任务时进入 multiple active tasks recovery。
+
+### Desktop IPC Boundary
+
+Preload 只暴露面向产品动作的 API，不暴露通用 HTTP、文件系统或任意 Runtime 命令。IPC 分为：
+
+- 查询：automation snapshot、项目、状态计数、任务、活动任务、attention、recovery。
+- 配置：任务源连接、项目工作区绑定、项目自动化参与状态、自动化总开关。
+- 同步与调度：刷新、暂停/恢复队列、重试恢复动作。
+- 任务状态：确认待处理、验收、取消、标记阻塞和受控恢复。
+- Runtime 控制：查看 run、只读 transcript、人工介入、提交输入、安全停止。
+
+每个写 IPC 在 main 进程重新校验任务、项目、权限、服务器版本和当前 coordinator 状态。Renderer 传入的 eligibility、queue order、task status 或 run ownership 只作为选择提示，不作为可信事实。
+
+Main 进程在 store、任务快照、活动 run 或同步状态变化时发送单一 automation changed 事件。Renderer 收到事件后重新读取 snapshot，避免维护第二套业务状态机。
+
+### Renderer Projection
+
+Renderer 以 Automation Snapshot 作为唯一页面状态输入。Snapshot 包含当前范围、项目投影、七状态计数、队列、活动任务、attention、recent completions、同步健康和 recovery 摘要。
+
+Command Center、Task Browser、Intervention Workbench 和 Recovery Center 是同一 snapshot 的不同投影。页面切换、项目范围和任务状态筛选只保存在 Renderer 导航状态；自动化开关、项目参与状态、活动任务和恢复状态由 main 进程持久化。
+
+Chat session 和 message store 保留为 transcript 与人工介入基础设施，但不再是主页面信息架构。只读审查不创建消息或 steer；人工模式的提交通过显式 action 进入 coordinator。
+
 ### Loop Controller
 
 Loop Controller 先读取 Project State 的 `case_control` 和全部 active Case。Project gap 只作为选择/创建 Case 的宏观依据；selected Case 的全部 `case_resolution.candidate_gaps` 进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Controller Agent 结合 operator intent、代码、稳定事实和风险选择一个 `scope=case` 的具体 gap，并解释依据。Runtime 只验证该 gap 属于候选集，不根据关键词、固定优先级或 facet-to-skill 映射拍板业务 route。
@@ -277,21 +375,20 @@ M3 增加本地桌面控制端，当前实现位于：
 - `runtime/arckit-runtime/desktop/renderer/*`
 - `runtime/arckit-runtime/src/desktop-run-manager.mjs`
 
-Desktop Client 不重新实现 Runtime。它通过 Electron main 进程调用同一个 `bin/arckit-runtime.mjs`，并把运行过程投影成桌面交互：
+Desktop Client 不重新实现 Runtime。它通过 Electron main 进程调用同一个 `bin/arckit-runtime.mjs`，并把运行过程投影成桌面交互。默认表面是待办自动化 Command Center；Chat session 作为 transcript 与人工介入基础设施按需出现。
 
 - 添加本地 Arckit 项目。
-- 使用左侧项目列表、中间连续 Chat、右侧 Arckit 状态检查器的三栏工作台。
+- 使用左侧项目与任务状态导航、中间运行态势、右侧执行边界与证据的 Command Center。
 - 将 Chat session 和 Run 分离：session 是连续对话，run 是某个 session 内的一次执行记录。
-- 通过中间 Chat 输入 operator task，并通过 `--task` 注入 supervised turn。
-- 空闲时发送 Chat message 会启动 dry-run 或 Codex app-server run。
-- 运行中发送 Chat message 会转为 steer。
-- 左侧 Chats 列表支持创建新会话；Runs 列表只切换执行详情，不承担会话切换语义。
+- 由 Coordinator 从已领取的远端任务构造 operator task，并通过 `--task` 注入 supervised turn。
+- Runtime 请求人工输入时按需打开 Intervention Workbench；提交内容转为 steer 或 fresh continuation。
+- transcript 与 run history 从任务详情和审查入口访问，不作为常驻主导航。
 - 右侧分别展示 Project case selection、selected Case resolution/candidate gaps、当前 Round control、normalized events 和 gate/write 控制。
-- 在运行中发送 interrupt。
+- 在运行中通过显式停止动作发送 interrupt，并保留远端进行中状态进入恢复流程。
 - run 完成后如果 runtime result 到达 `ledger_gate_ready`，自动执行 gate-result；gate 允许时自动 write-ledger，gate 阻塞时展示阻塞原因。
 - 将项目注册表、run history、result 和 events 存在 Electron userData。
 
-当前 Desktop Client 已验证语法检查、project status 读取、project conversation persistence、run manager dry-run smoke 和 Electron 启动。完整验收还需要用桌面端执行真实 Codex app-server 动态 loop，覆盖零个或多个 Worker、gate-ready transition、ledger writeback、fresh-state auto continuation 与停止条件。
+Desktop Client 的验收覆盖任务源 mock、确定性队列、单活动任务、状态写回门禁、人工 Gate、恢复状态、project status、run manager、Renderer 状态投影和 Electron 启动。真实服务验收还需要有效 Workshop 会话和可操作任务。
 
 ### M4：可替换 agent adapter
 

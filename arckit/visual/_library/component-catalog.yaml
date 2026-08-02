@@ -1,0 +1,124 @@
+metadata:
+  project: Arckit Runtime Desktop
+  last_updated: "2026-08-02"
+  tokens: ./design-tokens.yaml
+
+components:
+  AppShell:
+    role: 建立深色控制层与亮色工作区的稳定桌面框架
+    variants:
+      command_center: { sidebar: "{colors.ink.900}", workspace: "{colors.ink.75}" }
+      workbench: { sidebar: "{colors.ink.900}", workspace: "{colors.paper}" }
+    sizes:
+      desktop: { sidebar: "{layout.sidebar_width}", titlebar: "{layout.titlebar_height}", commandbar: "{layout.commandbar_height}" }
+    states: [loading, ready, degraded]
+    token_refs: [colors.ink.900, colors.ink.75, layout.sidebar_width, layout.commandbar_height]
+
+  NavigationRow:
+    role: 表达项目范围、任务状态和本地 Runtime 入口
+    variants:
+      default: { foreground: "rgba(255,255,255,.54)", background: transparent }
+      selected: { foreground: "{colors.paper}", background: "rgba(112,106,242,.17)", indicator: "{colors.accent.hover}" }
+      attention: { foreground: "{colors.warning.soft}", badge: "{colors.warning.base}" }
+    sizes:
+      compact: { height: 34, padding_x: "{spacing.4}", typography: "{typography.label}" }
+    states: [default, hover, selected, disabled, attention]
+    token_refs: [colors.accent.hover, colors.warning.base, typography.label, corner_radius.small]
+
+  MetricCard:
+    role: 在首屏提供自动化健康、人工事项、运行中和待处理数量
+    variants:
+      neutral: { surface: "{colors.paper}", value: "{colors.ink.900}" }
+      running: { surface: "{colors.accent.faint}", value: "{colors.accent.strong}" }
+      healthy: { surface: "{colors.success.soft}", value: "{colors.success.base}" }
+      attention: { surface: "{colors.warning.soft}", value: "{colors.warning.strong}" }
+    sizes:
+      standard: { min_height: 92, padding: "{spacing.5}" }
+    states: [default, hover, filtered]
+    token_refs: [colors.paper, colors.accent.faint, colors.success.soft, colors.warning.soft]
+
+  StatusPill:
+    role: 用文本和语义色表达七种服务器任务状态
+    variants:
+      pending_review: { foreground: "{colors.ink.600}", background: "{colors.ink.100}" }
+      pending: { foreground: "{colors.warning.strong}", background: "{colors.warning.soft}" }
+      in_progress: { foreground: "{colors.accent.strong}", background: "{colors.accent.soft}" }
+      completed: { foreground: "{colors.success.base}", background: "{colors.success.soft}" }
+      accepted: { foreground: "{colors.accepted.base}", background: "{colors.accepted.soft}" }
+      cancelled: { foreground: "{colors.danger.base}", background: "{colors.danger.soft}" }
+      blocked: { foreground: "{colors.warning.strong}", background: "{colors.warning.soft}", border: "{colors.warning.base}" }
+    sizes:
+      compact: { height: 20, padding_x: "{spacing.3}", typography: "{typography.micro}" }
+    states: [default, stale, conflict]
+    token_refs: [colors.ink.100, colors.warning.soft, colors.accent.soft, colors.success.soft, colors.accepted.soft, colors.danger.soft]
+    accessibility:
+      requirement: 标签始终显示状态文本，颜色不作为唯一信息
+
+  TaskTable:
+    role: 展示确定性队列、完整状态列表和任务执行资格
+    variants:
+      queue: { header: "{colors.ink.50}", current_indicator: "{colors.accent.base}" }
+      browser: { header: "{colors.ink.50}", selected: "{colors.accent.faint}" }
+    sizes:
+      dense: { row_height: 42, header_height: 34, cell_padding_x: "{spacing.4}" }
+    states: [loading, ready, empty, selected, stale, conflict, disabled]
+    token_refs: [colors.ink.50, colors.ink.150, colors.accent.base, colors.accent.faint, typography.caption]
+
+  RuntimeStage:
+    role: 投影同步、Controller、Worker、Gate 与写回的可理解阶段
+    variants:
+      idle: { indicator: "{colors.ink.300}", foreground: "{colors.ink.600}" }
+      active: { indicator: "{colors.accent.base}", foreground: "{colors.ink.900}" }
+      complete: { indicator: "{colors.success.base}", foreground: "{colors.success.base}" }
+      failed: { indicator: "{colors.danger.base}", foreground: "{colors.danger.base}" }
+    sizes:
+      standard: { height: 44, gap: "{spacing.3}" }
+    states: [idle, active, complete, failed, awaiting_human]
+    token_refs: [colors.accent.base, colors.success.base, colors.danger.base, typography.caption]
+
+  AttentionStrip:
+    role: 提升必须由用户处理的人工事项但不自动打开 Chat
+    variants:
+      normal: { surface: "{colors.ink.50}", border: "{colors.ink.150}" }
+      required: { surface: "{colors.warning.soft}", border: "{colors.warning.base}" }
+      destructive: { surface: "{colors.danger.soft}", border: "{colors.danger.base}" }
+    sizes:
+      standard: { min_height: 52, padding: "{spacing.5}" }
+    states: [empty, required, submitting, accepted, error]
+    token_refs: [colors.warning.soft, colors.warning.base, colors.danger.soft, shadows.small]
+
+  RecoveryCard:
+    role: 展示远端与本地事实差异、冻结范围、责任方和恢复动作
+    variants:
+      warning: { surface: "{colors.warning.soft}", marker: "{colors.warning.base}" }
+      critical: { surface: "{colors.danger.soft}", marker: "{colors.danger.base}" }
+      informational: { surface: "{colors.info.soft}", marker: "{colors.info.base}" }
+    sizes:
+      standard: { padding: "{spacing.6}", radius: "{corner_radius.medium}" }
+    states: [open, retrying, resolved, external_wait]
+    token_refs: [colors.warning.soft, colors.danger.soft, colors.info.soft, corner_radius.medium]
+
+  Button:
+    role: 表达主操作、次操作、低风险导航和破坏操作
+    variants:
+      primary: { foreground: "{colors.paper}", background: "{colors.accent.base}", border: "{colors.accent.strong}" }
+      secondary: { foreground: "{colors.ink.700}", background: "{colors.paper}", border: "{colors.ink.200}" }
+      ghost: { foreground: "{colors.accent.strong}", background: transparent, border: transparent }
+      destructive: { foreground: "{colors.paper}", background: "{colors.danger.base}", border: "{colors.danger.base}" }
+    sizes:
+      compact: { height: 30, padding_x: "{spacing.4}", typography: "{typography.label}" }
+      standard: { height: 36, padding_x: "{spacing.5}", typography: "{typography.label}" }
+    states: [default, hover, active, focus, disabled, busy]
+    token_refs: [colors.accent.base, colors.danger.base, colors.ink.200, corner_radius.small, animation.fast]
+    accessibility:
+      focus: 2px 半透明紫色轮廓并保留 2px offset
+
+  WorkbenchTranscript:
+    role: 在只读审查和人工处理模式中展示对话、工具与证据
+    variants:
+      review: { surface: "{colors.paper}", composer: hidden }
+      intervention: { surface: "{colors.paper}", composer: visible }
+    sizes:
+      readable: { max_content_width: 760, padding: "{spacing.7}", typography: "{typography.conversation}" }
+    states: [loading, review, intervention, submitting, accepted, error]
+    token_refs: [colors.paper, colors.ink.150, typography.conversation, shadows.large]
