@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-02T16:40:52.995Z",
+  "updated_at": "2026-08-03T12:33:35.508Z",
   "iteration_goal": "将 Arckit 状态机制从记录型账本升级为由 Project State 选择 Case、Case State 暴露完整性 gap、Loop 产生证据并经确定性 ledger 聚合的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "target_project_states": [
@@ -104,7 +104,8 @@
       "arckit/cases/closed/CASE-20260802-003-lighten-runtime-login-background.md",
       "arckit/cases/closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md",
       "arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md",
-      "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md"
+      "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
+      "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md"
     ],
     "remaining_project_gaps": [
       "GAP-agent-scenario-evaluation",
@@ -132,15 +133,16 @@
     "arckit/cases/closed/CASE-20260802-003-lighten-runtime-login-background.md",
     "arckit/cases/closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md",
     "arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md",
-    "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md"
+    "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
+    "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md"
   ],
   "close_condition": "当严格跨记录审计稳定通过，并至少完成一次真实复杂项目的 Project gap -> Case -> Worker evidence -> completion review -> Project impact 闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
+    "case_ref": "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md"
+      "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md"
     ],
-    "updated_at": "2026-08-02T13:36:58.576Z"
+    "updated_at": "2026-08-03T12:33:35.508Z"
   }
 }

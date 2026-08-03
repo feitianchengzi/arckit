@@ -11,6 +11,7 @@ const STATE_LABELS = Object.freeze({
   cancelled: "已取消",
   blocked: "已阻塞"
 });
+const COMMIT_AGENT_TASK = "git commit";
 
 export function createAutomationCoordinator({
   runManager,
@@ -442,6 +443,11 @@ export function createAutomationCoordinator({
       await completeRemoteTask();
       return getSnapshot();
     }
+    if (action === "retry_commit") {
+      await removeRecovery(recoveryId);
+      await startCommitAgent();
+      return getSnapshot();
+    }
     if (action === "accept_server_state") {
       const taskId = recovery.task_id || store.automation.active_task?.task_id;
       await patchAutomation((automation) => {
@@ -632,6 +638,19 @@ export function createAutomationCoordinator({
     if (!active || active.run_id !== event.runId) {
       return;
     }
+    if (active.phase === "committing") {
+      if (event.status === "completed") {
+        await completeRemoteTask();
+      } else {
+        await addRecovery({
+          type: "commit_failed",
+          task: active,
+          message: `Commit agent finished with status ${event.status}.`,
+          actions: ["retry_commit", "mark_blocked"]
+        });
+      }
+      return;
+    }
     const runtimeResult = event.result?.runtime_result || null;
     const handoff = event.activity?.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff
       || runtimeResult?.loop_handoff
@@ -665,7 +684,7 @@ export function createAutomationCoordinator({
     }
     const caseComplete = handoff.next_responsibility === "none" || handoff.status === "complete";
     if (event.status === "completed" && caseComplete && (!ledgerRequired || ledgerWritten)) {
-      await completeRemoteTask();
+      await startCommitAgent();
       return;
     }
     await addRecovery({
@@ -676,6 +695,47 @@ export function createAutomationCoordinator({
         : `Runtime finished with status ${event.status}.`,
       actions: ["retry_start", "mark_blocked"]
     });
+  }
+
+  async function startCommitAgent() {
+    const store = await runManager.readDesktopStore();
+    const active = store.automation.active_task;
+    if (!active) return null;
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id === active.task_id) {
+        automation.active_task.phase = "committing";
+      }
+    });
+    try {
+      const session = (await runManager.listSessions(active.local_project_id))[0];
+      if (!session) {
+        throw new Error("The commit agent requires an existing project session.");
+      }
+      const run = await runManager.startAgentTask({
+        projectId: active.local_project_id,
+        sessionId: session.id,
+        task: COMMIT_AGENT_TASK,
+        adapter: "codex-app-server",
+        approvalPolicy: "on-request"
+      });
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.case_run_id ||= active.run_id;
+        automation.active_task.run_id = run.id;
+        automation.active_task.commit_run_id = run.id;
+        automation.active_task.phase = "committing";
+      });
+      emit("automation.changed", { reason: "commit-agent-started", taskId: active.task_id, runId: run.id });
+      return run;
+    } catch (error) {
+      await addRecovery({
+        type: "commit_start_failed",
+        task: active,
+        message: error.message,
+        actions: ["retry_commit", "mark_blocked"]
+      });
+      return null;
+    }
   }
 
   async function completeRemoteTask({ syncAfter = true } = {}) {
@@ -758,7 +818,31 @@ export function createAutomationCoordinator({
       if (!child) break;
       latest = child;
     }
-    if (!latest || latest.status !== "completed") return null;
+    if (!latest) return null;
+
+    if (active.phase === "committing" && latest.entry_capability === "agent-task" && latest.status !== "completed") {
+      if (["failed", "aborted"].includes(latest.status)) {
+        await addRecovery({
+          type: "commit_failed",
+          task: { ...active, run_id: latest.id },
+          message: `Commit agent finished with status ${latest.status}.`,
+          actions: ["retry_commit", "mark_blocked"]
+        });
+      }
+      return null;
+    }
+
+    if (latest.status !== "completed") return null;
+
+    if (active.phase === "committing" && latest.entry_capability === "agent-task") {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.run_id = latest.id;
+        automation.active_task.phase = "completing";
+        automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
+      });
+      return completeRemoteTask({ syncAfter: false });
+    }
 
     const activity = latest.activity || {};
     const handoff = activity.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff
@@ -777,7 +861,7 @@ export function createAutomationCoordinator({
       automation.active_task.phase = "completing";
       automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
     });
-    return completeRemoteTask({ syncAfter: false });
+    return startCommitAgent();
   }
 
   async function addRecovery({ type, task, message, actions, freezeScope = "global" }) {
@@ -811,6 +895,15 @@ export function createAutomationCoordinator({
     const active = store.automation.active_task;
     if (!active || ["starting", "continuing", "awaiting_human", "completing", "recovery"].includes(active.phase)) return;
     if (active.run_id && runManager.isRunActive?.(active.run_id)) return;
+    if (active.phase === "committing") {
+      await addRecovery({
+        type: "commit_process_missing",
+        task: active,
+        message: "The commit agent run is no longer attached locally.",
+        actions: ["retry_commit", "mark_blocked"]
+      });
+      return;
+    }
     await addRecovery({
       type: "runtime_process_missing",
       task: active,

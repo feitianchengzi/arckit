@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-02T16:40:52.995Z
+Updated: 2026-08-03T12:33:35.508Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -40,9 +40,9 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
 - arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md
-- arckit/cases/closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md
 - arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md
 - arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md
+- arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md
 
 ## Notes
 

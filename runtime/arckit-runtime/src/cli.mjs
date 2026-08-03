@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { createStateStore } from "./state-store.mjs";
 import { selectNextRound } from "./loop-controller.mjs";
 import { compilePrompt } from "./prompt-compiler.mjs";
-import { probeCodexAppServer } from "../adapters/codex-app-server-adapter.mjs";
+import { createCodexAppServerAdapter, probeCodexAppServer } from "../adapters/codex-app-server-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
 import { loadRuntimeResultFile } from "./runtime-result-file.mjs";
 import { evaluateRuntimeGates } from "./gate-engine.mjs";
@@ -27,6 +27,18 @@ export async function main(argv) {
     } else {
       printRunSummary(result);
     }
+    return;
+  }
+
+  if (command === "agent-task") {
+    const options = parseAgentTaskOptions(argv.slice(1));
+    const result = await runAgentTask(options);
+    if (options.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(`Agent task: ${result.status}`);
+    }
+    process.exitCode = result.status === "completed" ? 0 : 1;
     return;
   }
 
@@ -158,6 +170,34 @@ async function run(options) {
   };
 }
 
+async function runAgentTask(options) {
+  const projectRoot = resolve(options.project);
+  const adapter = createCodexAppServerAdapter();
+  let result = null;
+  for await (const event of adapter.runTurn({
+    projectRoot,
+    prompt: options.task,
+    options: {
+      resultKind: "agent-task",
+      approvalPolicy: options.approvalPolicy,
+      superviseStdin: options.superviseStdin,
+      model: options.model,
+      codexBin: options.codexBin
+    }
+  })) {
+    if (options.streamEvents) {
+      console.error(JSON.stringify({ event }));
+    }
+    if (event.type === "runtime.agent_task.result") {
+      result = event.result;
+    }
+  }
+  if (!result) {
+    throw new Error("Agent task completed without an arckit-agent-task-result/v1 result.");
+  }
+  return result;
+}
+
 function parseRunOptions(args) {
   const options = {
     project: ".",
@@ -208,6 +248,45 @@ function parseRunOptions(args) {
     }
   }
 
+  return options;
+}
+
+function parseAgentTaskOptions(args) {
+  const options = {
+    project: ".",
+    task: "",
+    json: false,
+    streamEvents: false,
+    superviseStdin: false,
+    approvalPolicy: "on-request",
+    codexBin: "codex",
+    model: null
+  };
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--project") {
+      options.project = requiredValue(args, ++index, arg);
+    } else if (arg === "--task") {
+      options.task = requiredValue(args, ++index, arg);
+    } else if (arg === "--json") {
+      options.json = true;
+    } else if (arg === "--stream-events") {
+      options.streamEvents = true;
+    } else if (arg === "--supervise-stdin") {
+      options.superviseStdin = true;
+    } else if (arg === "--approval-policy") {
+      options.approvalPolicy = requiredValue(args, ++index, arg);
+    } else if (arg === "--model") {
+      options.model = requiredValue(args, ++index, arg);
+    } else if (arg === "--codex-bin") {
+      options.codexBin = requiredValue(args, ++index, arg);
+    } else {
+      throw new Error(`Unknown agent-task option: ${arg}`);
+    }
+  }
+  if (!options.task) {
+    throw new Error("agent-task requires --task <text>.");
+  }
   return options;
 }
 
@@ -357,6 +436,7 @@ Usage:
   arckit-runtime init-project [--project <path>] [--name <name>] [--intent <text>]
   arckit-runtime run [--project <path>] [--task <text>] [--runtime-context <json>] [--dry-run] [--json]
   arckit-runtime run --adapter codex-app-server [--stream-events] [--supervise-stdin]
+  arckit-runtime agent-task --project <path> --task <text> [--json] [--stream-events]
   arckit-runtime probe-app-server [--project <path>] [--json]
   arckit-runtime validate-result --file <runtime-result.json>
   arckit-runtime gate-result --file <runtime-result.json> [--project <path>] [--json]

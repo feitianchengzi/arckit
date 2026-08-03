@@ -138,7 +138,7 @@ Desktop Run Manager 接受远端任务上下文；传给 Controller 的 `operato
 
 run 到达人工 Gate 时，Coordinator 创建 attention item 并保持活动任务。人工提交内容以原文通过 steer 进入当前 turn，或作为 fresh continuation 的唯一 `operator_input`；任务标识、恢复指令和重新读取 Case State 的要求不拼接进人工内容。Controller 接受后清理 attention item 并恢复 running。只有 human responsibility、`human_decision_required` 或 user-decision trigger 进入该路径；Agent continuation 和运行一致性恢复不创建人工事项。
 
-run 完成且 ledger 写回成功后，Coordinator 提交 `in_progress -> completed`。完成写回确认后清除活动任务并触发下一次同步与领取。run 失败、ledger gate 未收束或完成写回失败均保留活动任务并进入 recovery。
+run 完成、ledger 写回成功且 terminal handoff 证明 Case 已关闭后，Coordinator 把活动任务切到 `committing`，通过独立 `agent-task` 执行面向 Codex app-server 发送精确输入 `git commit`。该执行面不进入 Controller/Case loop、不创建 Chat message、不提供提交信息或 Runtime 上下文。agent-task 成功后 Coordinator 才提交 `in_progress -> completed`；启动或执行失败进入只重试 commit 的 recovery，已关闭 Case 不重新执行。完成写回确认后清除活动任务并触发下一次同步与领取。
 
 ### Recovery Model
 

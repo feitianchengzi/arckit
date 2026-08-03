@@ -430,6 +430,7 @@ export function createDesktopRunManager({
     const runDir = join(runsDir, runId);
     await mkdir(runDir, { recursive: true });
 
+    const directAgentTask = input.entryCapability === "agent-task";
     const run = {
       id: runId,
       project_id: project.id,
@@ -438,7 +439,7 @@ export function createDesktopRunManager({
       project_path: project.path,
       task: input.task || sourceRun?.task || "",
       authorized_from_run_id: sourceRun?.id || "",
-      entry_capability: "runtime",
+      entry_capability: directAgentTask ? "agent-task" : "runtime",
       operator: "desktop",
       adapter: input.dryRun ? "dry-run" : input.adapter || "codex-app-server",
       codex_proxy_enabled: Boolean(store.settings?.codex_proxy?.enabled),
@@ -448,8 +449,8 @@ export function createDesktopRunManager({
       auto_no_progress_streak: Number(input.autoNoProgressStreak || 0),
       auto_rounds_since_progress: Number(input.autoRoundsSinceProgress || 0),
       max_auto_rounds: nonNegativeInteger(input.maxAutoRounds ?? sourceRun?.max_auto_rounds, 8),
-      continuation_policy: normalizeContinuationPolicy(input.continuationPolicy ?? sourceRun?.continuation_policy),
-      runtime_context: normalizeRuntimeContext(input.runtimeContext),
+      continuation_policy: directAgentTask ? "" : normalizeContinuationPolicy(input.continuationPolicy ?? sourceRun?.continuation_policy),
+      runtime_context: directAgentTask ? null : normalizeRuntimeContext(input.runtimeContext),
       status: "running",
       started_at: new Date().toISOString(),
       finished_at: "",
@@ -487,26 +488,26 @@ export function createDesktopRunManager({
     });
     await writeJson(run.activity_file, run.activity);
 
-    const args = [
-      runtimeBin,
-      "run",
-      "--project",
-      project.path,
-      "--json"
-    ];
+    const args = [runtimeBin, directAgentTask ? "agent-task" : "run", "--project", project.path, "--json"];
     if (run.task) {
       args.push("--task", run.task);
     }
-    if (run.runtime_context) {
+    if (!directAgentTask && run.runtime_context) {
       args.push("--runtime-context", JSON.stringify(run.runtime_context));
     }
-    args.push("--max-auto-rounds", String(run.max_auto_rounds));
+    if (!directAgentTask) {
+      args.push("--max-auto-rounds", String(run.max_auto_rounds));
+    }
     args.push("--stream-events");
     if (input.dryRun) {
       args.push("--dry-run");
     } else {
-      args.push("--adapter", run.adapter, "--supervise-stdin", "--approval-policy", input.approvalPolicy || "on-request");
-      if (sourceRun) {
+      if (directAgentTask) {
+        args.push("--supervise-stdin", "--approval-policy", input.approvalPolicy || "on-request");
+      } else {
+        args.push("--adapter", run.adapter, "--supervise-stdin", "--approval-policy", input.approvalPolicy || "on-request");
+      }
+      if (!directAgentTask && sourceRun) {
         args.push("--packet-file", sourceRun.result_file);
       }
       if (input.model) {
@@ -529,13 +530,15 @@ export function createDesktopRunManager({
     child.stdin.on("error", () => {
       // The runtime may already be exiting when Desktop sends interrupt/abort input.
     });
-    await addMessage(project.id, {
-      role: "system",
-      kind: "run-started",
-      content: `${run.entry_capability} entry started via ${run.operator}: ${run.id}`,
-      run_id: run.id,
-      session_id: run.session_id
-    });
+    if (!directAgentTask) {
+      await addMessage(project.id, {
+        role: "system",
+        kind: "run-started",
+        content: `${run.entry_capability} entry started via ${run.operator}: ${run.id}`,
+        run_id: run.id,
+        session_id: run.session_id
+      });
+    }
     emit("run.started", { run });
 
     child.stdout.setEncoding("utf8");
@@ -656,13 +659,15 @@ export function createDesktopRunManager({
       }
       return store;
     });
-    await addMessage(run.project_id, {
-      role: status === "completed" ? "assistant" : "system",
-      kind: "run-finished",
-      content: summarizeRuntimeResult(status, parsedResult, errorMessage),
-      run_id: runId,
-      session_id: run.session_id
-    });
+    if (run.entry_capability !== "agent-task") {
+      await addMessage(run.project_id, {
+        role: status === "completed" ? "assistant" : "system",
+        kind: "run-finished",
+        content: summarizeRuntimeResult(status, parsedResult, errorMessage),
+        run_id: runId,
+        session_id: run.session_id
+      });
+    }
     emit("run.finished", { runId, status, exitCode, result: parsedResult, activity: run.activity });
     try {
       const continuation = await maybeStartAutoContinue(run, parsedResult);
@@ -1024,6 +1029,14 @@ export function createDesktopRunManager({
     replaceTaskSourceSettings,
     updateSettings,
     startRun,
+    startAgentTask(input) {
+      return startRun({
+        ...input,
+        entryCapability: "agent-task",
+        runtimeContext: null,
+        continuationPolicy: ""
+      });
+    },
     controlRun,
     resumeAutoContinuation,
     abortActiveRuns,

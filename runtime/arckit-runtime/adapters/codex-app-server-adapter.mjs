@@ -382,6 +382,17 @@ function readId(value) {
 }
 
 function parseWorkerOutput({ text, completionParams, resultKind, error }) {
+  if (resultKind === "agent-task") {
+    return {
+      type: "runtime.agent_task.result",
+      result: {
+        schema_version: "arckit-agent-task-result/v1",
+        status: error ? "failed" : "completed",
+        output: text,
+        error: error ? codexErrorMessage(error) : ""
+      }
+    };
+  }
   if (resultKind === "controller-review") {
     if (error) {
       return {

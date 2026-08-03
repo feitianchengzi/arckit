@@ -126,6 +126,18 @@ node runtime/arckit-runtime/bin/arckit-runtime.mjs run \
   --supervise-stdin
 ```
 
+Run a direct agent task without entering the Controller/Case loop:
+
+```bash
+node runtime/arckit-runtime/bin/arckit-runtime.mjs agent-task \
+  --project . \
+  --task "git commit" \
+  --json \
+  --stream-events
+```
+
+Desktop uses this execution plane after a task's Case closes. The commit invocation supplies only `git commit`; it does not add a Chat message, Runtime context, or commit message.
+
 Authorize and run an existing preview packet:
 
 ```bash
@@ -174,7 +186,7 @@ Desktop is the intended product surface:
 
 The Command Center signs in to Workshop with an email or SMS verification code, then synchronizes the current user, standalone and organization projects, and only tasks whose `executor_id` matches the current project member through one main-process-only service. Creator-only, unassigned, and other-user tasks are excluded from views, counts, and automation. Access tokens refresh before expiry and after the first `401`, with concurrent refreshes sharing one request. Each remote project can be bound to one local Arckit project and explicitly allowed for auto-claiming. The global Auto-claim switch controls whether new work is claimed across those authorized projects, while Pause claiming temporarily freezes the next claim without stopping the active task. The queue contains only eligible `pending` tasks and sorts them by priority, pending time, project id, and task id.
 
-Automation conditionally claims one task as `in_progress`, persists the remote-task/local-project/run association, and starts the existing Runtime loop. It never starts a second active task. After Runtime and ledger close with a complete handoff, it writes the remote task as `completed` before selecting another task.
+Automation conditionally claims one task as `in_progress`, persists the remote-task/local-project/run association, and starts the existing Runtime loop. It never starts a second active task. After Runtime and ledger close with a complete handoff, it starts the direct commit agent and keeps the remote task `in_progress`; only a successful commit-agent run permits the `completed` writeback and selection of another task.
 
 Chat is not a permanent navigation surface. The Intervention Workbench loads transcript and evidence when a user reviews a run or the Runtime requires human input. Read-only review has no composer; explicit intervention submits a steer or fresh continuation for the same active task. Recovery Center preserves state for claim, start, run, external-change, and completion-writeback failures.
 

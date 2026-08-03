@@ -30,3 +30,4 @@
 | [CASE-20260802-004](closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md) | closed | Decouple Runtime authentication from task-source enablement | 2026-08-02T10:28:38.596Z |
 | [CASE-20260802-005](closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md) | closed | Scope Runtime todos to the current executor | 2026-08-02T12:11:24.760Z |
 | [CASE-20260802-006](closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md) | closed | Minimize Runtime Prompts to Human Intent and Skill-Owned Semantics | 2026-08-02T13:36:58.576Z |
+| [CASE-20260803-001](closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md) | closed | Commit completed Runtime work before updating remote todo | 2026-08-03T12:33:35.508Z |

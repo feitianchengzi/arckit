@@ -41,6 +41,7 @@ test("automation coordinator claims one eligible pending task and starts one Run
   });
   const runs = [];
   const runInputs = [];
+  const agentTaskInputs = [];
   const messages = [];
   const executorFilters = [];
   const runManager = {
@@ -52,6 +53,7 @@ test("automation coordinator claims one eligible pending task and starts one Run
     async listSessions() { return [{ id: "SESSION-1" }]; },
     async addMessage(_projectId, message) { messages.push(message); return message; },
     async startRun(input) { runInputs.push(input); const run = { id: "RUN-1", project_id: input.projectId, session_id: input.sessionId, status: "running" }; runs.push(run); return run; },
+    async startAgentTask(input) { agentTaskInputs.push(input); const run = { id: "RUN-COMMIT", project_id: input.projectId, session_id: input.sessionId, status: "running", entry_capability: "agent-task" }; runs.push(run); return run; },
     async controlRun() { return { ok: true }; }
   };
   const remote = {
@@ -93,6 +95,27 @@ test("automation coordinator claims one eligible pending task and starts one Run
       }
     },
     activity: { ledger_write_result: { parsed: { written: true } } }
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const committingSnapshot = await coordinator.getSnapshot();
+  assert.equal(remote.task.state, "in_progress");
+  assert.equal(committingSnapshot.active_task.phase, "committing");
+  assert.equal(committingSnapshot.active_task.run_id, "RUN-COMMIT");
+  assert.deepEqual(agentTaskInputs, [{
+    projectId: "LOCAL-1",
+    sessionId: "SESSION-1",
+    task: "git commit",
+    adapter: "codex-app-server",
+    approvalPolicy: "on-request"
+  }]);
+  assert.equal(messages.length, 1);
+
+  events.emit("event", {
+    type: "run.finished",
+    runId: "RUN-COMMIT",
+    status: "completed",
+    result: { schema_version: "arckit-agent-task-result/v1", status: "completed" },
+    activity: {}
   });
   await new Promise((resolve) => setTimeout(resolve, 20));
   const completedSnapshot = await coordinator.getSnapshot();
@@ -154,7 +177,64 @@ test("automation coordinator keeps an eligible ledger manual bridge in the autom
   coordinator.dispose();
 });
 
-test("startup sync completes a remote task from the terminal descendant of a detached auto-continuation chain", async () => {
+test("a failed commit agent keeps the todo in progress and recovery retries only git commit", async () => {
+  const events = new EventEmitter();
+  let store = normalizeStore({
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+    automation: {
+      snapshot: {
+        user: { id: "USER-1" },
+        projects: [{ id: "REMOTE-1", current_user_id: "USER-1" }],
+        tasks: [{ id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", version: "v2" }],
+        source_status: "healthy"
+      },
+      active_task: {
+        task_id: "TASK-1",
+        project_id: "REMOTE-1",
+        local_project_id: "LOCAL-1",
+        run_id: "RUN-COMMIT-1",
+        phase: "committing"
+      }
+    }
+  });
+  const agentTaskInputs = [];
+  const runManager = {
+    onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
+    async readDesktopStore() { return store; },
+    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
+    async listProjects() { return store.projects; },
+    async listRuns() { return []; },
+    async listSessions() { return [{ id: "SESSION-1" }]; },
+    async startAgentTask(input) {
+      agentTaskInputs.push(input);
+      return { id: "RUN-COMMIT-2", status: "running", entry_capability: "agent-task" };
+    }
+  };
+  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => ({}) });
+
+  events.emit("event", {
+    type: "run.finished",
+    runId: "RUN-COMMIT-1",
+    status: "failed",
+    result: null,
+    activity: {}
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  let snapshot = await coordinator.getSnapshot();
+  assert.equal(snapshot.tasks[0].state, "in_progress");
+  assert.equal(snapshot.active_task.phase, "recovery");
+  assert.deepEqual(snapshot.recovery_items[0].actions, ["retry_commit", "mark_blocked"]);
+
+  await coordinator.resolveRecovery({ recoveryId: snapshot.recovery_items[0].id, action: "retry_commit" });
+  snapshot = await coordinator.getSnapshot();
+  assert.equal(snapshot.active_task.phase, "committing");
+  assert.equal(snapshot.active_task.run_id, "RUN-COMMIT-2");
+  assert.deepEqual(agentTaskInputs.map((input) => input.task), ["git commit"]);
+  coordinator.dispose();
+});
+
+test("startup sync commits the terminal descendant of a detached auto-continuation chain before completing the remote task", async () => {
   let store = normalizeStore({
     projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
     settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
@@ -212,7 +292,19 @@ test("startup sync completes a remote task from the terminal descendant of a det
     async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
     async listProjects() { return store.projects; },
     async listRuns() { return runs; },
-    isRunActive() { return false; }
+    async listSessions() { return [{ id: "SESSION-1" }]; },
+    async startAgentTask(input) {
+      const run = {
+        id: "RUN-COMMIT",
+        project_id: input.projectId,
+        session_id: input.sessionId,
+        status: "running",
+        entry_capability: "agent-task"
+      };
+      runs.push(run);
+      return run;
+    },
+    isRunActive(runId) { return runs.some((run) => run.id === runId && run.status === "running"); }
   };
   let remoteTask = {
     id: "TASK-1",
@@ -234,13 +326,68 @@ test("startup sync completes a remote task from the terminal descendant of a det
   };
   const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
 
+  const committingSnapshot = await coordinator.sync({ dispatch: false });
+
+  assert.equal(remoteTask.state, "in_progress");
+  assert.equal(committingSnapshot.active_task.phase, "committing");
+  assert.equal(committingSnapshot.active_task.run_id, "RUN-COMMIT");
+
+  runs.at(-1).status = "completed";
   const snapshot = await coordinator.sync({ dispatch: false });
 
   assert.equal(remoteTask.state, "completed");
   assert.equal(snapshot.active_task, null);
   assert.equal(snapshot.recovery_items.length, 0);
   assert.equal(snapshot.recent_completions[0].task_id, "TASK-1");
-  assert.equal(snapshot.recent_completions[0].run_id, "RUN-3");
+  assert.equal(snapshot.recent_completions[0].run_id, "RUN-COMMIT");
+  coordinator.dispose();
+});
+
+test("startup sync restores a detached failed commit as retry_commit recovery", async () => {
+  let store = normalizeStore({
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
+    automation: {
+      enabled: true,
+      project_bindings: { "REMOTE-1": "LOCAL-1" },
+      project_participation: { "REMOTE-1": true },
+      active_task: {
+        task_id: "TASK-1",
+        project_id: "REMOTE-1",
+        local_project_id: "LOCAL-1",
+        run_id: "RUN-COMMIT",
+        phase: "committing"
+      }
+    }
+  });
+  const runs = [{
+    id: "RUN-COMMIT",
+    project_id: "LOCAL-1",
+    status: "failed",
+    entry_capability: "agent-task",
+    activity: {}
+  }];
+  const runManager = {
+    onEvent() { return () => {}; },
+    async readDesktopStore() { return store; },
+    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
+    async listProjects() { return store.projects; },
+    async listRuns() { return runs; },
+    isRunActive() { return false; }
+  };
+  const remoteTask = { id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", executor_id: "USER-1", version: "v2" };
+  const taskSource = {
+    async getCurrentUser() { return { id: "USER-1" }; },
+    async listProjects() { return [{ id: "REMOTE-1", current_user_id: "USER-1" }]; },
+    async listTasks() { return [remoteTask]; }
+  };
+  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
+
+  const snapshot = await coordinator.sync({ dispatch: false });
+
+  assert.equal(snapshot.active_task.phase, "recovery");
+  assert.equal(snapshot.recovery_items[0].type, "commit_failed");
+  assert.deepEqual(snapshot.recovery_items[0].actions, ["retry_commit", "mark_blocked"]);
   coordinator.dispose();
 });
 

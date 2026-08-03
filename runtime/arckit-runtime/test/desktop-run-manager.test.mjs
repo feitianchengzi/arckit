@@ -309,6 +309,71 @@ test("desktop run manager refuses to remove a project with an active run", async
   }
 });
 
+test("desktop run manager starts a silent direct agent task with only the requested prompt", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arckit-direct-agent-task-"));
+  const storePath = join(dataDir, "desktop-store.json");
+  await writeFile(storePath, `${JSON.stringify({
+    version: 4,
+    projects: [{ id: "PROJECT-1", name: "Project", path: dataDir }],
+    runs: [],
+    sessions: { "PROJECT-1": [{ id: "SESSION-1", project_id: "PROJECT-1", title: "Chat" }] },
+    messages: { "SESSION-1": [] },
+    settings: {}
+  }, null, 2)}\n`, "utf8");
+
+  const children = [];
+  const spawnCalls = [];
+  const spawnProcess = (command, args) => {
+    spawnCalls.push({ command, args });
+    const child = new EventEmitter();
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.exitCode = 0;
+    child.signalCode = null;
+    children.push(child);
+    return child;
+  };
+  const manager = createDesktopRunManager({
+    runtimeRoot: dataDir,
+    dataDir,
+    spawnProcess,
+    ensureProject: async () => ({ initialized: false, repaired: false })
+  });
+
+  try {
+    const run = await manager.startAgentTask({
+      projectId: "PROJECT-1",
+      sessionId: "SESSION-1",
+      task: "git commit",
+      adapter: "codex-app-server",
+      approvalPolicy: "on-request"
+    });
+
+    assert.equal(run.entry_capability, "agent-task");
+    assert.deepEqual(spawnCalls[0].args.slice(0, 7), [
+      join(dataDir, "bin/arckit-runtime.mjs"),
+      "agent-task",
+      "--project", dataDir,
+      "--json",
+      "--task", "git commit"
+    ]);
+    assert.equal(spawnCalls[0].args.includes("--runtime-context"), false);
+    assert.equal(spawnCalls[0].args.includes("--max-auto-rounds"), false);
+    assert.equal(spawnCalls[0].args.includes("--packet-file"), false);
+    assert.equal(spawnCalls[0].args.includes("--adapter"), false);
+    assert.deepEqual(await manager.listMessages("PROJECT-1", "SESSION-1"), []);
+  } finally {
+    await manager.abortActiveRuns({ graceMs: 0 });
+    for (const child of children) {
+      child.stdin.destroy();
+      child.stdout.destroy();
+      child.stderr.destroy();
+    }
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 function autoBridgeRun({
   noProgressStreak,
   continuationPolicy = "",

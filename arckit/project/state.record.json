@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-02T16:40:52.995Z",
+    "updated_at": "2026-08-03T12:33:35.508Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -644,7 +644,8 @@
     "arckit/cases/closed/CASE-20260802-003-lighten-runtime-login-background.md",
     "arckit/cases/closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md",
     "arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md",
-    "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md"
+    "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
+    "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md"
   ],
   "last_state_delta": {
     "changed_dimensions": [],
@@ -652,17 +653,17 @@
     "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "next_project_focus": "修复真实 Codex Controller output schema 被 response_format 拒绝，并恢复 Runtime supervised turn",
-    "updated_at": "2026-08-02T16:40:52.995Z"
+    "next_project_focus": "Select or create the next bounded Case from the remaining Project state_gaps.",
+    "updated_at": "2026-08-03T12:33:35.508Z"
   },
   "case_control": {
-    "selected_case_ref": "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md",
-    "selection_reason": "用户报告来自当前 Runtime 真实 supervised turn，直接推进 GAP-runtime-real-supervised-turn 与现有待完成 handoff",
-    "next_case_intent": "修复真实 Codex Controller output schema 被 response_format 拒绝，并恢复 Runtime supervised turn",
-    "priority_basis": "用户报告来自当前 Runtime 真实 supervised turn，直接推进 GAP-runtime-real-supervised-turn 与现有待完成 handoff",
-    "stop_condition": "Stop project-level selection after the Case is bound; Case State determines subsequent Loops."
+    "selected_case_ref": "",
+    "selection_reason": "Resolved Case arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md.",
+    "next_case_intent": "Select or create the next bounded Case from the remaining Project state_gaps.",
+    "priority_basis": "Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.",
+    "stop_condition": "Stop after selecting or creating the next bounded Case."
   }
 }

@@ -88,7 +88,7 @@ Runtime 只自动推进“待处理 → 进行中 → 已完成”。评审、�
 
 Runtime 按 Case State 驱动 Controller、Worker、Review、Gate 与 ledger writeback。主页面把执行阶段、当前动作、最近事件和证据摘要投影为可观察状态。
 
-Runtime 和 ledger 均成功收束后，系统基于最新服务器版本提交“进行中 → 已完成”。服务器确认完成后，系统清理活动任务并继续领取下一项。
+Runtime 和 ledger 均成功收束、Case 已关闭后，系统先在绑定的本地工作区启动独立 commit agent。该 agent 的唯一输入是 `git commit`；系统不附加提交信息、任务上下文或其他消息，由 agent 自主检查变更并完成提交。只有 commit agent 成功完成，系统才基于最新服务器版本提交“进行中 → 已完成”。服务器确认完成后，系统清理活动任务并继续领取下一项。
 
 首次执行传给 Controller 的人类输入只有待办正文；远端任务、项目、run 和队列信息作为 Runtime 元数据关联。自动化管理的 run 显式携带自动续轮策略；ledger 写回后，只要 handoff 仍由 Agent 负责、允许 Agent 继续且不需要人类决策，系统就启动 fresh invocation 并重新读取 Case State。ledger 的策略中立 `manual_bridge` 不会把这种 Agent continuation 降级为人工事项。确定性 ledger 写回表示本轮取得 canonical state 进展，并续订自动轮次安全预算；`max_auto_rounds` 只限制连续未产生 ledger 进展的自动轮次，不能截断持续推进 Case State 的任务。自动续轮没有新增人类输入，不构造新的用户消息，也不把 `next_prompt` 伪装成人工输入。
 
@@ -102,7 +102,7 @@ Runtime 和 ledger 均成功收束后，系统基于最新服务器版本提交�
 
 Runtime 执行失败时，系统保留 run、事件和 ledger 证据，并根据可恢复性提供重试、人工介入或标记阻塞。系统不自动取消任务，也不静默回退到待处理。
 
-“进行中 → 已完成”写回失败时，系统保留本地完成证据并冻结下一任务，直到服务器确认、用户选择受控恢复动作或任务被明确转为阻塞。
+commit agent 启动或执行失败时，远端任务保持进行中，系统保留已关闭 Case 与 run 证据并冻结下一任务，恢复动作只重试 commit agent，不重新执行已关闭 Case。commit 成功后的“进行中 → 已完成”写回失败时，系统保留本地完成证据并冻结下一任务，直到服务器确认、用户选择受控恢复动作或任务被明确转为阻塞。
 
 ## 人工介入
 
