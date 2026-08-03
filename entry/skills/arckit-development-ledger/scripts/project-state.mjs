@@ -54,6 +54,8 @@ const LAST_DELTA_KEYS = new Set([
   'changed_dimensions', 'state_transitions', 'deferred_dimensions', 'blocked_dimensions',
   'case_refs', 'iteration_ref', 'next_project_focus', 'updated_at',
 ]);
+const LEGACY_RUNTIME_RESULT_REF_PATTERN = /^arckit\/project\/runtime-results\/(RUN-[A-Za-z0-9][A-Za-z0-9._-]*)\.json$/;
+const OPAQUE_RUNTIME_RESULT_REF_PATTERN = /^arckit-runtime:\/\/runs\/(RUN-[A-Za-z0-9][A-Za-z0-9._-]*)$/;
 
 const COMPLETENESS_DIMENSION_KEYS = [
   'project_intent',
@@ -80,6 +82,7 @@ function usage(exitCode = 0) {
     'Usage:',
     '  node <skill-dir>/scripts/project-state.mjs init --name "Project Name" [--intent "..."]',
     '  node <skill-dir>/scripts/project-state.mjs select-case --case-ref "arckit/cases/active/CASE-...md" [--intent "..."] [--reason "..."]',
+    '  node <skill-dir>/scripts/project-state.mjs repair-runtime-refs [record-file]',
     '  node <skill-dir>/scripts/project-state.mjs render [record-file]',
     '  node <skill-dir>/scripts/project-state.mjs audit [record-file|state-file]',
     '  node <skill-dir>/scripts/project-state.mjs validate [record-file|state-file]',
@@ -649,6 +652,60 @@ function commandRender(args) {
   console.log(STATE_PATH);
 }
 
+function commandRepairRuntimeRefs(args) {
+  ensureDirs();
+  const file = path.resolve(args._[1] || STATE_RECORD_PATH);
+  const { record, recordFile } = readRecord(file);
+  const canonicalRecordFile = path.resolve(recordFile || file);
+  if (canonicalRecordFile !== path.resolve(STATE_RECORD_PATH)) {
+    throw new Error(`repair-runtime-refs requires ${path.resolve(STATE_RECORD_PATH)}`);
+  }
+  const errors = validateProjectStateRecord(record, canonicalRecordFile);
+  if (errors.length > 0) throw new Error(errors.join('\n'));
+
+  const removedRefs = (record.canonical_artifact_refs || []).filter((ref) => (
+    OPAQUE_RUNTIME_RESULT_REF_PATTERN.test(ref)
+    || (LEGACY_RUNTIME_RESULT_REF_PATTERN.test(ref) && !fs.existsSync(resolveProjectPath(ref)))
+  ));
+  if (removedRefs.length === 0) {
+    console.log(JSON.stringify({
+      schema_version: 'project-state-runtime-ref-repair/v1',
+      repaired: false,
+      removed_canonical_artifact_refs: [],
+      changed_files: [],
+    }, null, 2));
+    return;
+  }
+
+  const removed = new Set(removedRefs);
+  record.canonical_artifact_refs = record.canonical_artifact_refs.filter((ref) => !removed.has(ref));
+  record.project.updated_at = nowIso();
+  const repairedErrors = validateProjectStateRecord(record, canonicalRecordFile);
+  if (repairedErrors.length > 0) throw new Error(repairedErrors.join('\n'));
+
+  const snapshots = [canonicalRecordFile, STATE_PATH].map((snapshotFile) => ({
+    file: snapshotFile,
+    exists: fs.existsSync(snapshotFile),
+    content: fs.existsSync(snapshotFile) ? fs.readFileSync(snapshotFile) : null,
+  }));
+  try {
+    writeRecord(record, canonicalRecordFile);
+    writeStateProjection(record, STATE_PATH);
+  } catch (error) {
+    for (const snapshot of snapshots) {
+      if (snapshot.exists) fs.writeFileSync(snapshot.file, snapshot.content);
+      else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file);
+    }
+    throw error;
+  }
+  console.log(JSON.stringify({
+    schema_version: 'project-state-runtime-ref-repair/v1',
+    repaired: true,
+    removed_canonical_artifact_refs: removedRefs,
+    changed_files: ['arckit/project/state.record.json', 'arckit/project/STATE.md'],
+  }, null, 2));
+}
+
 function commandAudit(args) {
   const file = path.resolve(args._[1] || STATE_RECORD_PATH);
   const { record, recordFile } = readRecord(file);
@@ -688,6 +745,7 @@ function main() {
   if (!command || command === 'help' || command === '--help') usage(0);
   if (command === 'init') return commandInit(args);
   if (command === 'select-case') return commandSelectCase(args);
+  if (command === 'repair-runtime-refs') return commandRepairRuntimeRefs(args);
   if (command === 'render') return commandRender(args);
   if (command === 'audit') return commandAudit(args);
   if (command === 'validate') return commandValidate(args);

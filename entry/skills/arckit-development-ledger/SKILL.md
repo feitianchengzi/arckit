@@ -112,6 +112,7 @@ Runtime 不得把本 skill 绑定给普通 Worker，也不得复制其 schema �
 ```text
 node scripts/project-state.mjs init --name "Project" --intent "..."
 node scripts/project-state.mjs select-case --case-ref "arckit/cases/active/CASE-...md" --intent "..." --reason "..."
+node scripts/project-state.mjs repair-runtime-refs [record]
 node scripts/project-state.mjs render|audit|validate|summary [record]
 
 node scripts/development-case.mjs new --title "..." --artifact-type mixed --intent "..." --max-review-cycles 3 --review-policy-source "explicit-policy-ref"

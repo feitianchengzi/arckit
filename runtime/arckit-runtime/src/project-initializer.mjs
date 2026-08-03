@@ -27,8 +27,19 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
     changedFiles.push('arckit/project/state.record.json', 'arckit/project/STATE.md');
   }
 
-  const state = JSON.parse(await readFile(statePath, 'utf8'));
+  let state = JSON.parse(await readFile(statePath, 'utf8'));
   if (state.schema_version !== 'project-state-record/v3') throw new Error('Runtime requires a project-state-record/v3 project. Reinitialize or replace the unsupported state record before running Runtime.');
+
+  const runtimeRefRepair = JSON.parse((await runLedgerScript(root, [
+    'project-state.mjs',
+    'repair-runtime-refs',
+    'arckit/project/state.record.json',
+  ], { nodeBin, capability: projectCapability })).stdout);
+  if (runtimeRefRepair.repaired) {
+    changedFiles.push(...runtimeRefRepair.changed_files);
+    repaired = true;
+    state = JSON.parse(await readFile(statePath, 'utf8'));
+  }
 
   const caseRef = state.case_control?.selected_case_ref || '';
   if (caseRef && !existsSync(join(root, caseRef))) {

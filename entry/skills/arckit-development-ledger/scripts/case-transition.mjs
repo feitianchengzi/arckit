@@ -316,7 +316,6 @@ export async function applyCaseTransition({ projectRoot, casePath = '', transiti
       activeCaseRef,
       closedCaseRef,
       projectImpact: nextRecord.project_impact_candidate,
-      runtimeResultRef,
     });
     projectStateChanged = true;
     iterationRef = projectState.active_iteration_ref || '';
@@ -327,7 +326,6 @@ export async function applyCaseTransition({ projectRoot, casePath = '', transiti
         activeCaseRef,
         closedCaseRef,
         projectImpact: nextRecord.project_impact_candidate,
-        runtimeResultRef,
         projectState,
       });
     }
@@ -397,7 +395,7 @@ export async function applyCaseTransition({ projectRoot, casePath = '', transiti
   };
 }
 
-function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCaseRef, projectImpact, runtimeResultRef }) {
+function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCaseRef, projectImpact }) {
   record.project.updated_at = timestamp;
   record.active_case_refs = (record.active_case_refs || []).filter((ref) => ref !== activeCaseRef);
   const transitions = projectImpact.status === 'accepted' ? projectImpact.changes : [];
@@ -409,7 +407,7 @@ function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCa
     }
     dimension.current_state = change.to_state;
     dimension.state_reason = change.reason;
-    dimension.evidence = unique([...dimension.evidence, ...(change.evidence || []), runtimeResultRef, closedCaseRef]);
+    dimension.evidence = unique([...dimension.evidence, ...(change.evidence || []), closedCaseRef]);
     dimension.evidence_maturity = change.evidence_maturity || 'confirmed';
     dimension.gap = change.gap || (dimension.current_state === dimension.target_state ? '' : dimension.gap);
     dimension.next_transition = change.next_transition || '';
@@ -456,11 +454,10 @@ function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCa
   record.canonical_artifact_refs = unique([
     ...(record.canonical_artifact_refs || []).map((ref) => ref === activeCaseRef ? closedCaseRef : ref),
     closedCaseRef,
-    runtimeResultRef,
   ]);
 }
 
-function applyResolvedCaseToIteration(record, { timestamp, activeCaseRef, closedCaseRef, projectImpact, runtimeResultRef, projectState }) {
+function applyResolvedCaseToIteration(record, { timestamp, activeCaseRef, closedCaseRef, projectImpact, projectState }) {
   const transitions = projectImpact.status === 'accepted' ? projectImpact.changes : [];
   record.updated_at = timestamp;
   record.active_case_refs = unique(projectState.active_case_refs || []).filter((ref) => ref !== activeCaseRef);
@@ -472,7 +469,7 @@ function applyResolvedCaseToIteration(record, { timestamp, activeCaseRef, closed
       from_state: change.from_state,
       to_state: change.to_state,
       reason: change.reason,
-      evidence: unique([...(change.evidence || []), closedCaseRef, runtimeResultRef]),
+      evidence: unique([...(change.evidence || []), closedCaseRef]),
       case_ref: closedCaseRef,
     })),
   ];
@@ -482,7 +479,7 @@ function applyResolvedCaseToIteration(record, { timestamp, activeCaseRef, closed
     .map((gap) => gap.id);
   const targetsSatisfied = (record.target_project_states || []).every((target) => projectState.completeness_dimensions?.[target.dimension]?.current_state === target.target_state);
   if (targetsSatisfied) record.acceptance.status = 'accepted';
-  record.acceptance.evidence = unique([...(record.acceptance.evidence || []), closedCaseRef, runtimeResultRef]);
+  record.acceptance.evidence = unique([...(record.acceptance.evidence || []), closedCaseRef]);
   record.last_case_aggregation = {
     case_ref: closedCaseRef,
     project_changes: transitions.map((change) => ({
@@ -490,7 +487,7 @@ function applyResolvedCaseToIteration(record, { timestamp, activeCaseRef, closed
       from_state: change.from_state,
       to_state: change.to_state,
     })),
-    evidence: unique([closedCaseRef, runtimeResultRef, ...transitions.flatMap((change) => change.evidence || [])]),
+    evidence: unique([closedCaseRef, ...transitions.flatMap((change) => change.evidence || [])]),
     updated_at: timestamp,
   };
 }

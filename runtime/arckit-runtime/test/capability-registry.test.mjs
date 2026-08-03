@@ -261,6 +261,67 @@ test("Runtime initialization repairs persisted candidate-gap projections through
   assert.equal(round.candidate_case_gaps[0].next_transition, expected.next_transition);
 });
 
+test("Runtime initialization removes only stale Runtime refs from Project canonical artifacts", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-runtime-ref-repair-"));
+  await ensureArckitProject({
+    projectRoot,
+    projectName: "Runtime Ref Repair",
+    intent: "Repair a historical Runtime artifact reference."
+  });
+  const statePath = join(projectRoot, "arckit/project/state.record.json");
+  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  const danglingLegacyRef = "arckit/project/runtime-results/RUN-20260803-074008648Z.json";
+  const misplacedOpaqueRef = "arckit-runtime://runs/RUN-20260803-074008648Z";
+  state.canonical_artifact_refs.push(danglingLegacyRef, misplacedOpaqueRef);
+  await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  await runLedgerScript(projectRoot, ["project-state.mjs", "render", "arckit/project/state.record.json"]);
+
+  await assert.rejects(
+    runLedgerScript(projectRoot, ["project-state.mjs", "audit", "arckit/project/state.record.json"]),
+    /canonical_artifact_ref does not exist/
+  );
+  const initialization = await ensureArckitProject({
+    projectRoot,
+    intent: "Continue from repaired canonical Project State."
+  });
+  const repairedState = JSON.parse(readFileSync(statePath, "utf8"));
+
+  assert.equal(initialization.repaired, true);
+  assert.ok(initialization.changed_files.includes("arckit/project/state.record.json"));
+  assert.ok(initialization.changed_files.includes("arckit/project/STATE.md"));
+  assert.equal(repairedState.canonical_artifact_refs.includes(danglingLegacyRef), false);
+  assert.equal(repairedState.canonical_artifact_refs.includes(misplacedOpaqueRef), false);
+  await assert.doesNotReject(
+    runLedgerScript(projectRoot, ["project-state.mjs", "audit", "arckit/project/state.record.json"])
+  );
+});
+
+test("Runtime ref repair preserves valid legacy artifacts and fails closed for unrelated dangling refs", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-runtime-ref-repair-scope-"));
+  await ensureArckitProject({
+    projectRoot,
+    projectName: "Runtime Ref Repair Scope",
+    intent: "Keep repair scope narrow."
+  });
+  const statePath = join(projectRoot, "arckit/project/state.record.json");
+  const existingLegacyRef = "arckit/project/runtime-results/RUN-EXISTING.json";
+  const unrelatedDanglingRef = "arckit/spec/missing-canonical-artifact.md";
+  await mkdir(join(projectRoot, "arckit/project/runtime-results"), { recursive: true });
+  await writeFile(join(projectRoot, existingLegacyRef), "{}\n");
+  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  state.canonical_artifact_refs.push(existingLegacyRef, unrelatedDanglingRef);
+  await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  await runLedgerScript(projectRoot, ["project-state.mjs", "render", "arckit/project/state.record.json"]);
+
+  await assert.rejects(
+    ensureArckitProject({ projectRoot, intent: "Do not hide unrelated state corruption." }),
+    /canonical_artifact_ref does not exist: arckit\/spec\/missing-canonical-artifact\.md/
+  );
+  const unchangedState = JSON.parse(readFileSync(statePath, "utf8"));
+  assert.ok(unchangedState.canonical_artifact_refs.includes(existingLegacyRef));
+  assert.ok(unchangedState.canonical_artifact_refs.includes(unrelatedDanglingRef));
+});
+
 test("authorized packet rejects a stale Case revision before Worker execution", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-stale-packet-"));
   await initializeProjectWithCase({ projectRoot, intent: "Create a packet revision fixture." });
@@ -894,6 +955,7 @@ test("a final clean review closes the selected Case and aggregates it through th
       required_actions: []
     }
   };
+  const runtimeRecordRef = runtimeRecordRefForRun("RUN-RESOLVED-001");
   const result = await writeLedger({
     projectRoot,
     runtimeResult: reviewedResult,
@@ -910,11 +972,13 @@ test("a final clean review closes the selected Case and aggregates it through th
       }
     },
     snapshot,
-    dryRun: false
+    dryRun: false,
+    runtimeRecordRef
   });
 
   const projectState = JSON.parse(readFileSync(join(projectRoot, "arckit/project/state.record.json"), "utf8"));
   const closedRef = activeCase.ref.replace("/active/", "/closed/");
+  const closedCase = readCaseRecord(join(projectRoot, closedRef)).record;
   assert.equal(result.written, true, JSON.stringify(result.gate?.reasons || result));
   assert.equal(result.case_transition_result.case_resolution.status, "resolved");
   assert.equal(existsSync(join(projectRoot, activeCase.ref)), false);
@@ -922,6 +986,11 @@ test("a final clean review closes the selected Case and aggregates it through th
   assert.deepEqual(projectState.active_case_refs, []);
   assert.equal(projectState.case_control.selected_case_ref, "");
   assert.ok(projectState.canonical_artifact_refs.includes(closedRef));
+  assert.equal(closedCase.rounds.at(-1).runtime_result_ref, runtimeRecordRef);
+  assert.equal(JSON.stringify(projectState).includes(runtimeRecordRef), false);
+  await assert.doesNotReject(
+    runLedgerScript(projectRoot, ["project-state.mjs", "audit", "arckit/project/state.record.json"])
+  );
 });
 
 test("ledger commit rolls Case and Project files back when a projection step fails", async () => {

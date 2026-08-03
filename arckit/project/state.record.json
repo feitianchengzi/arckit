@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-03T12:33:35.508Z",
+    "updated_at": "2026-08-03T16:07:53.169Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -653,17 +653,17 @@
     "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md"
+      "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "next_project_focus": "Select or create the next bounded Case from the remaining Project state_gaps.",
-    "updated_at": "2026-08-03T12:33:35.508Z"
+    "next_project_focus": "恢复 JuSong 真实项目的 Runtime 启动，继续完成 Desktop/Codex loop、gate 与 ledger writeback 验证。",
+    "updated_at": "2026-08-03T16:07:53.169Z"
   },
   "case_control": {
-    "selected_case_ref": "",
-    "selection_reason": "Resolved Case arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md.",
-    "next_case_intent": "Select or create the next bounded Case from the remaining Project state_gaps.",
-    "priority_basis": "Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.",
-    "stop_condition": "Stop after selecting or creating the next bounded Case."
+    "selected_case_ref": "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md",
+    "selection_reason": "JuSong Runtime 启动被 canonical artifact 缺失 audit 阻断，直接属于唯一 active Runtime MVP Case 的真实项目闭环 gap。",
+    "next_case_intent": "恢复 JuSong 真实项目的 Runtime 启动，继续完成 Desktop/Codex loop、gate 与 ledger writeback 验证。",
+    "priority_basis": "JuSong Runtime 启动被 canonical artifact 缺失 audit 阻断，直接属于唯一 active Runtime MVP Case 的真实项目闭环 gap。",
+    "stop_condition": "Stop project-level selection after the Case is bound; Case State determines subsequent Loops."
   }
 }
