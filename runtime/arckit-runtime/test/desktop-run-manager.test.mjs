@@ -269,6 +269,7 @@ test("desktop run manager refuses to remove a project with an active run", async
       projectId: "PROJECT-1",
       sessionId: "SESSION-1",
       task: "Keep running",
+      maxAutoRounds: 0,
       runtimeContext: {
         kind: "auto_continuation",
         source_run_id: "RUN-SOURCE",
@@ -284,6 +285,9 @@ test("desktop run manager refuses to remove a project with an active run", async
       source_run_id: "RUN-SOURCE",
       continuation: { next_prompt: "Continue from fresh Case State." }
     });
+    const maxAutoRoundsIndex = spawnCalls[0].args.indexOf("--max-auto-rounds");
+    assert.ok(maxAutoRoundsIndex > 0);
+    assert.equal(spawnCalls[0].args[maxAutoRoundsIndex + 1], "1");
 
     await assert.rejects(
       manager.removeProject("PROJECT-1"),

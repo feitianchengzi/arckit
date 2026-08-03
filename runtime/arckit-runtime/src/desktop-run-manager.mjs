@@ -448,7 +448,7 @@ export function createDesktopRunManager({
       auto_continue_depth: Number(input.autoContinueDepth || 0),
       auto_no_progress_streak: Number(input.autoNoProgressStreak || 0),
       auto_rounds_since_progress: Number(input.autoRoundsSinceProgress || 0),
-      max_auto_rounds: nonNegativeInteger(input.maxAutoRounds ?? sourceRun?.max_auto_rounds, 8),
+      max_auto_rounds: positiveInteger(input.maxAutoRounds ?? sourceRun?.max_auto_rounds, 8),
       continuation_policy: directAgentTask ? "" : normalizeContinuationPolicy(input.continuationPolicy ?? sourceRun?.continuation_policy),
       runtime_context: directAgentTask ? null : normalizeRuntimeContext(input.runtimeContext),
       status: "running",
@@ -958,9 +958,9 @@ export function createDesktopRunManager({
     return activeRun.eventWrite;
   }
 
-  function nonNegativeInteger(value, fallback) {
+  function positiveInteger(value, fallback) {
     const number = Number(value);
-    return Number.isFinite(number) && number >= 0 ? Math.floor(number) : fallback;
+    return Number.isFinite(number) ? Math.max(1, Math.floor(number)) : fallback;
   }
 
   function normalizeRuntimeContext(value) {

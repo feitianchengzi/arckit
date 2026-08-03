@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-03T16:07:53.169Z",
+  "updated_at": "2026-08-03T18:08:35.523Z",
   "iteration_goal": "将 Arckit 状态机制从记录型账本升级为由 Project State 选择 Case、Case State 暴露完整性 gap、Loop 产生证据并经确定性 ledger 聚合的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "target_project_states": [
@@ -83,6 +83,81 @@
         "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
       ],
       "case_ref": "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
+    },
+    {
+      "dimension": "user_experience",
+      "from_state": "implemented",
+      "to_state": "accepted",
+      "reason": "Desktop supervised operation, live event visibility, and in-run Chat steer were exercised successfully in the real Runtime loop.",
+      "evidence": [
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+    },
+    {
+      "dimension": "runtime_surfaces",
+      "from_state": "verified",
+      "to_state": "accepted",
+      "reason": "The Desktop-to-runtime-to-app-server-to-ledger surface completed a real bounded transition.",
+      "evidence": [
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+    },
+    {
+      "dimension": "implementation_coverage",
+      "from_state": "verified",
+      "to_state": "accepted",
+      "reason": "Controller normalization, Worker routing, review intake, steer handling, gate, and deterministic writeback are covered by implementation and passing tests.",
+      "evidence": [
+        "npm run check",
+        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+        "runtime/arckit-runtime/test/capability-registry.test.mjs",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+    },
+    {
+      "dimension": "quality_validation",
+      "from_state": "verified",
+      "to_state": "accepted",
+      "reason": "A real Desktop Codex run produced successful steer delivery, gate allow, written ledger transition, and a clean completion review.",
+      "evidence": [
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "npm run check",
+        "git diff --check",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+    },
+    {
+      "dimension": "observability_support",
+      "from_state": "verified",
+      "to_state": "accepted",
+      "reason": "The persisted Desktop event stream exposed Controller phases, operator steer, runtime result, gate result, and ledger write result.",
+      "evidence": [
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "runtime/arckit-runtime/src/projection/run-event-projector.mjs",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+    },
+    {
+      "dimension": "maintainability_handoff",
+      "from_state": "verified",
+      "to_state": "accepted",
+      "reason": "The Case closed with durable tests, opaque run evidence, deterministic ledger transition, and a clean three-dimensional review.",
+      "evidence": [
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "runtime/arckit-runtime/test/codex-app-server-adapter.test.mjs",
+        "runtime/arckit-runtime/test/desktop-run-manager.test.mjs",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
     }
   ],
   "acceptance": {
@@ -105,18 +180,16 @@
       "arckit/cases/closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md",
       "arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md",
       "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
-      "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md"
+      "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md",
+      "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
     ],
     "remaining_project_gaps": [
       "GAP-agent-scenario-evaluation",
-      "GAP-runtime-real-supervised-turn",
       "GAP-cross-record-audit"
     ]
   },
   "blocking_project_gaps": [],
-  "active_case_refs": [
-    "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-  ],
+  "active_case_refs": [],
   "closed_case_refs": [
     "arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md",
     "arckit/cases/closed/CASE-20260705-003-extract-project-state-record-json.md",
@@ -134,15 +207,57 @@
     "arckit/cases/closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md",
     "arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md",
     "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
-    "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md"
+    "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md",
+    "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
   ],
   "close_condition": "当严格跨记录审计稳定通过，并至少完成一次真实复杂项目的 Project gap -> Case -> Worker evidence -> completion review -> Project impact 闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md",
-    "project_changes": [],
-    "evidence": [
-      "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md"
+    "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
+    "project_changes": [
+      {
+        "dimension": "user_experience",
+        "from_state": "implemented",
+        "to_state": "accepted"
+      },
+      {
+        "dimension": "runtime_surfaces",
+        "from_state": "verified",
+        "to_state": "accepted"
+      },
+      {
+        "dimension": "implementation_coverage",
+        "from_state": "verified",
+        "to_state": "accepted"
+      },
+      {
+        "dimension": "quality_validation",
+        "from_state": "verified",
+        "to_state": "accepted"
+      },
+      {
+        "dimension": "observability_support",
+        "from_state": "verified",
+        "to_state": "accepted"
+      },
+      {
+        "dimension": "maintainability_handoff",
+        "from_state": "verified",
+        "to_state": "accepted"
+      }
     ],
-    "updated_at": "2026-08-03T12:33:35.508Z"
+    "evidence": [
+      "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
+      "arckit-runtime://runs/RUN-20260803-180157597Z",
+      "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+      "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+      "npm run check",
+      "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+      "runtime/arckit-runtime/test/capability-registry.test.mjs",
+      "git diff --check",
+      "runtime/arckit-runtime/src/projection/run-event-projector.mjs",
+      "runtime/arckit-runtime/test/codex-app-server-adapter.test.mjs",
+      "runtime/arckit-runtime/test/desktop-run-manager.test.mjs"
+    ],
+    "updated_at": "2026-08-03T18:08:35.523Z"
   }
 }

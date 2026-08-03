@@ -21,10 +21,12 @@ import {
   compileAgentTaskPrompt,
   compileControllerPlanPrompt,
   compileControllerReviewPrompt,
+  canonicalizeControllerPlanSelectedGap,
   controllerPlanFailureReason,
   authorizedPacketFailureReason,
   createAgentTasks,
   mergeAgentReports,
+  normalizeControllerReviewReportReferences,
   normalizePacketWorkerTasks,
   shouldRetryControllerPlan
 } from "../src/agent-orchestrator.mjs";
@@ -208,7 +210,7 @@ test("Controller may plan an evidence-backed Case transition with zero Workers",
   assert.equal(controllerPlanFailureReason(plan, workers), "");
 });
 
-test("Controller plan rejects a stale candidate-gap field before Worker dispatch", async () => {
+test("Runtime canonicalizes descriptive Controller gap fields without retrying planning", async () => {
   const policy = await loadCapabilityPolicy();
   const capabilities = await loadRuntimeCapabilities({ capabilityPolicy: policy });
   const workers = capabilitiesForBinding(capabilities, policy, "worker");
@@ -217,16 +219,45 @@ test("Controller plan rejects a stale candidate-gap field before Worker dispatch
     id: plan.route_plan.selected_gap.id,
     facet: plan.route_plan.selected_gap.facet,
     responsibility: "agent",
-    current_state: "unresolved",
-    target_state: "resolved",
+    current_state: "applicability=unknown; maturity=unknown; alignment=unknown; resolution=unresolved",
+    target_state: "evidence-backed applicability and same-facet advancement as far as accepted evidence supports",
     next_transition: "Use the current Case evidence."
   };
 
-  assert.match(controllerPlanFailureReason(plan, workers, {
+  const loopFrame = {
     case_id: plan.route_plan.selected_gap.case_id,
     candidate_case_gaps: [candidate],
     candidate_cases: []
-  }), /stale Case gap: next_transition/);
+  };
+  const canonicalized = canonicalizeControllerPlanSelectedGap(plan, loopFrame);
+
+  assert.deepEqual(canonicalized.normalized_fields, ["current_state", "target_state", "next_transition"]);
+  assert.deepEqual(canonicalized.plan.route_plan.selected_gap, {
+    ...plan.route_plan.selected_gap,
+    responsibility: candidate.responsibility,
+    current_state: candidate.current_state,
+    target_state: candidate.target_state,
+    next_transition: candidate.next_transition
+  });
+  assert.equal(controllerPlanFailureReason(canonicalized.plan, workers, loopFrame), "");
+  assert.equal(shouldRetryControllerPlan({
+    plan: canonicalized.plan,
+    failureReason: controllerPlanFailureReason(canonicalized.plan, workers, loopFrame),
+    attempt: 1
+  }), false);
+});
+
+test("Controller review canonicalizes a uniquely annotated report id", () => {
+  const taskId = "TASK-01-产品定义与稳定规格维护 Worker";
+  const review = {
+    accepted_reports: [`${taskId}：报告身份与证据均有效。`],
+    rejected_reports: ["UNKNOWN：仍应被门禁拒绝。"]
+  };
+
+  const normalized = normalizeControllerReviewReportReferences(review, [{ task_id: taskId }]);
+
+  assert.deepEqual(normalized.accepted_reports, [taskId]);
+  assert.deepEqual(normalized.rejected_reports, ["UNKNOWN：仍应被门禁拒绝。"]);
 });
 
 test("Runtime initialization repairs persisted candidate-gap projections through the trusted ledger", async () => {
@@ -343,6 +374,30 @@ test("authorized packet rejects a stale Case revision before Worker execution", 
     snapshot,
     routedCase: activeCase
   }), /Authorized packet is stale/);
+});
+
+test("authorized packet does not reject descriptive gap text when identity and revision are current", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-canonical-packet-gap-"));
+  await initializeProjectWithCase({ projectRoot, intent: "Canonicalize packet gap semantics." });
+  const snapshot = await createStateStore(projectRoot).readSnapshot();
+  const activeCase = snapshot.activeCases[0];
+  const gap = activeCase.record.case_resolution.candidate_gaps[0];
+  const routePlan = {
+    selected_gap: {
+      ...gap,
+      scope: "case",
+      case_id: activeCase.record.id,
+      impact: "Advance the selected Case.",
+      target_state: "A more specific Controller description."
+    }
+  };
+
+  assert.equal(authorizedPacketFailureReason({
+    loopFrame: { case_updated_at: activeCase.record.updated_at },
+    routePlan,
+    snapshot,
+    routedCase: activeCase
+  }), "");
 });
 
 test("Controller evidence can close a zero-Worker runtime gate", () => {

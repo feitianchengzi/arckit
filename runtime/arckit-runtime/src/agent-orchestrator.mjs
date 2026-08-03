@@ -90,6 +90,12 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
     const packetFailure = authorizedPacketFailureReason({ loopFrame, routePlan, snapshot, routedCase });
     if (packetFailure) throw new Error(packetFailure);
   }
+  const routedGap = (routedCase?.record?.case_resolution?.candidate_gaps || []).find(
+    (gap) => gap.id === routePlan.selected_gap?.id && gap.facet === routePlan.selected_gap?.facet
+  );
+  if (routedGap) {
+    routePlan.selected_gap = canonicalizeSelectedGap(routePlan.selected_gap, routedGap).selected_gap;
+  }
   loopFrame.case_updated_at = routedCase?.record?.updated_at || loopFrame.case_updated_at;
   loopFrame.controller_frame.case_id = loopFrame.case_id;
   loopFrame.controller_frame.selected_gap = routePlan.selected_gap;
@@ -494,6 +500,17 @@ async function maybeRunControllerPlanner({
       if (options.streamEvents) console.error(JSON.stringify({ event: completedEvent }));
       return { usable: false, plan: failedPlan, failure_reason: failureReason };
     }
+    const canonicalized = canonicalizeControllerPlanSelectedGap(plan, loopFrame);
+    plan = canonicalized.plan;
+    if (canonicalized.normalized_fields.length > 0) {
+      const normalizedEvent = {
+        type: "runtime.controller_plan.normalized",
+        selected_gap_id: plan.route_plan.selected_gap.id,
+        normalized_fields: canonicalized.normalized_fields
+      };
+      events.push(normalizedEvent);
+      if (options.streamEvents) console.error(JSON.stringify({ event: normalizedEvent }));
+    }
     failureReason = controllerPlanFailureReason(plan, selectedCapabilities, loopFrame);
     if (!shouldRetryControllerPlan({ plan, failureReason, attempt, maxAttempts: 2 })) break;
   }
@@ -633,6 +650,28 @@ export function caseControlRuntimeAction(plan) {
   return actions.find((action) => action?.type === "case_control") || null;
 }
 
+function activeCandidateGap(loopFrame, selectedGap) {
+  const selectedCaseCandidate = (loopFrame?.candidate_cases || []).find(
+    (candidate) => candidate.case_id === selectedGap?.case_id
+  );
+  const allowedGaps = loopFrame?.case_id
+    ? loopFrame.candidate_case_gaps || []
+    : selectedCaseCandidate?.candidate_gaps || [];
+  return allowedGaps.find((gap) => gap.id === selectedGap?.id && gap.facet === selectedGap?.facet) || null;
+}
+
+function canonicalizeSelectedGap(selectedGap, activeGap) {
+  const canonicalFields = ["responsibility", "current_state", "target_state", "next_transition"];
+  const normalizedFields = canonicalFields.filter((field) => selectedGap?.[field] !== activeGap?.[field]);
+  return {
+    selected_gap: {
+      ...selectedGap,
+      ...Object.fromEntries(canonicalFields.map((field) => [field, activeGap?.[field] || ""]))
+    },
+    normalized_fields: normalizedFields
+  };
+}
+
 export function controllerPlanFailureReason(plan, workerCapabilities = [], loopFrame = null) {
   if (!plan) {
     return "Controller Agent did not return a usable plan.";
@@ -704,16 +743,9 @@ export function controllerPlanFailureReason(plan, workerCapabilities = [], loopF
     return `Controller Agent selected Case ${plan.route_plan.selected_gap.case_id}, but Project State selected ${loopFrame.case_id}.`;
   }
   if (loopFrame) {
-    const selectedCaseCandidate = (loopFrame.candidate_cases || []).find((candidate) => candidate.case_id === plan.route_plan.selected_gap.case_id);
-    const allowedGaps = loopFrame.case_id ? loopFrame.candidate_case_gaps || [] : selectedCaseCandidate?.candidate_gaps || [];
-    const activeGap = allowedGaps.find((gap) => gap.id === plan.route_plan.selected_gap.id && gap.facet === plan.route_plan.selected_gap.facet);
+    const activeGap = activeCandidateGap(loopFrame, plan.route_plan.selected_gap);
     if (!activeGap) {
       return "Controller Agent selected a gap that is not in the selected Case candidate_gaps.";
-    }
-    for (const field of ["responsibility", "current_state", "target_state", "next_transition"]) {
-      if (activeGap[field] !== plan.route_plan.selected_gap[field]) {
-        return `Controller Agent selected a stale Case gap: ${field} no longer matches candidate_gaps.`;
-      }
     }
   }
   if (!plan.planned_transition?.goal || !plan.planned_transition?.expected_state_change) {
@@ -768,12 +800,27 @@ export function authorizedPacketFailureReason({ loopFrame, routePlan, snapshot, 
   }
   const activeGap = (activeCase.record.case_resolution?.candidate_gaps || []).find((gap) => gap.id === selectedGap.id && gap.facet === selectedGap.facet);
   if (!activeGap) return `Authorized packet selected gap is no longer unresolved: ${selectedGap.id || '<missing>'}.`;
-  for (const field of ["responsibility", "current_state", "target_state", "next_transition"]) {
-    if (activeGap[field] !== selectedGap[field]) return `Authorized packet selected gap is stale: ${field} no longer matches Case State.`;
-  }
   const selectedCaseRef = snapshot?.projectState?.case_control?.selected_case_ref || "";
   if (selectedCaseRef && selectedCaseRef !== activeCase.ref) return `Authorized packet Case no longer matches Project selection: ${selectedCaseRef}.`;
   return "";
+}
+
+export function canonicalizeControllerPlanSelectedGap(plan, loopFrame = null) {
+  const selectedGap = plan?.route_plan?.selected_gap;
+  if (!selectedGap || !loopFrame) return { plan, normalized_fields: [] };
+  const activeGap = activeCandidateGap(loopFrame, selectedGap);
+  if (!activeGap) return { plan, normalized_fields: [] };
+  const { selected_gap, normalized_fields } = canonicalizeSelectedGap(selectedGap, activeGap);
+  return {
+    plan: {
+      ...plan,
+      route_plan: {
+        ...plan.route_plan,
+        selected_gap
+      }
+    },
+    normalized_fields
+  };
 }
 
 function controllerPlanCompletedStatus({ plan, failureReason }) {
@@ -865,7 +912,7 @@ async function maybeRunControllerReviewer({
         console.error(JSON.stringify({ event: wrapped }));
       }
       if (event.type === "runtime.controller_review") {
-        review = normalizeControllerReview(event.review);
+        review = normalizeControllerReviewReportReferences(normalizeControllerReview(event.review), reports);
       }
     }
   } catch (error) {
@@ -959,6 +1006,26 @@ function normalizeControllerReview(review) {
     continuation_intent: normalizeContinuationIntent(review.continuation_intent),
     human_decision_required: review.human_decision_required === true
   };
+}
+
+export function normalizeControllerReviewReportReferences(review, reports = []) {
+  if (!review) return review;
+  const reportIds = reports.map((report) => report?.task_id).filter(Boolean);
+  return {
+    ...review,
+    accepted_reports: unique(arrayOfStrings(review.accepted_reports).map((value) => canonicalReportReference(value, reportIds))),
+    rejected_reports: unique(arrayOfStrings(review.rejected_reports).map((value) => canonicalReportReference(value, reportIds)))
+  };
+}
+
+function canonicalReportReference(value, reportIds) {
+  if (reportIds.includes(value)) return value;
+  const matches = reportIds.filter((reportId) => {
+    if (!value.startsWith(reportId)) return false;
+    const suffix = value.slice(reportId.length);
+    return /^[\s:：\-—(（]/.test(suffix);
+  });
+  return matches.length === 1 ? matches[0] : value;
 }
 
 function controllerReviewFailureReason(review, reports = []) {

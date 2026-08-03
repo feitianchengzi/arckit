@@ -4,14 +4,12 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-03T16:07:53.169Z",
+    "updated_at": "2026-08-03T18:08:35.523Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
   "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-  "active_case_refs": [
-    "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-  ],
+  "active_case_refs": [],
   "completeness_dimensions": {
     "project_intent": {
       "current_state": "accepted",
@@ -84,9 +82,9 @@
       "confidence": "high"
     },
     "user_experience": {
-      "current_state": "implemented",
+      "current_state": "accepted",
       "target_state": "accepted",
-      "state_reason": "Electron Desktop Client 支持左侧项目列表、中间连续 Chat、右侧状态检查器；本轮将 Live Run Card 从时间/JSON 展示升级为 Thinking Summary、Plan、Execution Details、Agent Output、Command Output、Errors/Retries 和 Saved Evidence 分区。",
+      "state_reason": "Desktop supervised operation, live event visibility, and in-run Chat steer were exercised successfully in the real Runtime loop.",
       "evidence": [
         "arckit/spec/agentic-software-development/product-concepts.md",
         "arckit/spec/agentic-software-development/product-architecture.md",
@@ -109,19 +107,21 @@
         "npm run check",
         "node --input-type=module -e activity smoke",
         "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-        "node --input-type=module -e detail smoke"
+        "node --input-type=module -e detail smoke",
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
       ],
       "evidence_maturity": "validated",
-      "gap": "Desktop 已能把 Codex app-server 事件翻译成人类可读的思考摘要、计划、执行项目、错误重试和输出流；还需要用 ../arckit-demo 真实 Codex run 复测事件覆盖。",
-      "next_transition": "用 ../arckit-demo 通过 Desktop Chat 发起 codex-app-server run，确认 Thinking Summary、Execution Details 和 raw-events.jsonl 能支持问题反馈复盘。",
+      "gap": "",
+      "next_transition": "",
       "blockers": [],
-      "priority": "high",
+      "priority": "none",
       "confidence": "medium"
     },
     "runtime_surfaces": {
-      "current_state": "verified",
+      "current_state": "accepted",
       "target_state": "accepted",
-      "state_reason": "当前运行表面包括 Codex skills、canonical JSON 记录、Markdown decision brief、development-ledger 脚本、Arckit Runtime CLI、Codex app-server supervisor adapter、Electron Desktop Client，以及空项目自动初始化入口。",
+      "state_reason": "The Desktop-to-runtime-to-app-server-to-ledger surface completed a real bounded transition.",
       "evidence": [
         "arckit/project/state.record.json",
         "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
@@ -150,13 +150,15 @@
         "runtime/arckit-runtime/src/agent-orchestrator.mjs",
         "runtime/arckit-runtime/src/capability-registry.mjs",
         "Runtime agentic dry-run smoke",
-        "Desktop manager empty-project agentic dry-run smoke"
+        "Desktop manager empty-project agentic dry-run smoke",
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
       ],
-      "evidence_maturity": "confirmed",
-      "gap": "CLI、Gate、ledger writeback、Desktop Chat workspace、project conversation persistence 和空项目初始化已实现；尚缺一次通过 Desktop 发起的真实 Codex done result 闭环。",
-      "next_transition": "Run and accept a real Desktop-started Codex app-server agentic loop.",
+      "evidence_maturity": "validated",
+      "gap": "",
+      "next_transition": "",
       "blockers": [],
-      "priority": "high",
+      "priority": "none",
       "confidence": "medium"
     },
     "identity_access": {
@@ -235,9 +237,9 @@
       "confidence": "high"
     },
     "implementation_coverage": {
-      "current_state": "verified",
+      "current_state": "accepted",
       "target_state": "accepted",
-      "state_reason": "Runtime M0/M1/M2、Electron Desktop、空项目 onboarding、运行可观测性和旧账本 schema 漂移修复已实现；Desktop start-run 会先归一化可安全修复的 project state 枚举字段。",
+      "state_reason": "Controller normalization, Worker routing, review intake, steer handling, gate, and deterministic writeback are covered by implementation and passing tests.",
       "evidence": [
         "arckit/project/state.record.json",
         "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
@@ -283,19 +285,21 @@
         "runtime/arckit-runtime/src/agent-orchestrator.mjs",
         "runtime/arckit-runtime/src/capability-registry.mjs",
         "Runtime agentic dry-run smoke",
-        "Desktop manager empty-project agentic dry-run smoke"
+        "Desktop manager empty-project agentic dry-run smoke",
+        "runtime/arckit-runtime/test/capability-registry.test.mjs",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
       ],
-      "evidence_maturity": "confirmed",
-      "gap": "旧账本枚举漂移已可自动修复；真实 Desktop/Codex done result 仍需在可联网环境中通过 Desktop 复测。",
-      "next_transition": "Run and accept a real Desktop-started Codex app-server agentic loop.",
+      "evidence_maturity": "validated",
+      "gap": "",
+      "next_transition": "",
       "blockers": [],
-      "priority": "high",
+      "priority": "none",
       "confidence": "medium"
     },
     "quality_validation": {
-      "current_state": "verified",
+      "current_state": "accepted",
       "target_state": "accepted",
-      "state_reason": "真实 codex-app-server supervised turn 已执行并保存 transcript；event stream、/steer 和 /interrupt 控制路径得到证据。本轮补充验证了空项目 init-project、run 自动初始化、ledger audit、case validate、Desktop manager empty-project dry-run smoke。",
+      "state_reason": "A real Desktop Codex run produced successful steer delivery, gate allow, written ledger transition, and a clean completion review.",
       "evidence": [
         "arckit/spec/workflow-orchestration-memory.md",
         "arckit/tech/workflow-orchestration-memory/solution.md",
@@ -346,13 +350,16 @@
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
         "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
         "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json"
+        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json",
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "git diff --check",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
       ],
       "evidence_maturity": "validated",
-      "gap": "旧账本 evidence_maturity 漂移修复、audit 和 dry-run start 路径已验证；完整 accepted loop 仍缺一次真实 Desktop Chat Codex done/gate/write 闭环。",
-      "next_transition": "在可访问 OpenAI Responses API 的环境中用 Desktop Chat 重跑 supervised turn，保留 steer/interrupt 证据，并在 gate 允许后执行 write-ledger。",
+      "gap": "",
+      "next_transition": "",
       "blockers": [],
-      "priority": "critical",
+      "priority": "none",
       "confidence": "medium"
     },
     "security_privacy": {
@@ -385,9 +392,9 @@
       "confidence": "medium"
     },
     "observability_support": {
-      "current_state": "verified",
+      "current_state": "accepted",
       "target_state": "accepted",
-      "state_reason": "Desktop runtime observability now stores raw-events.jsonl and activity.json for every run, and renders app-server reasoning summaries, item lifecycle, errors, warnings, agent output, command output and evidence paths.",
+      "state_reason": "The persisted Desktop event stream exposed Controller phases, operator steer, runtime result, gate result, and ledger write result.",
       "evidence": [
         "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
         "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
@@ -403,19 +410,22 @@
         "runtime/arckit-runtime/src/agent-orchestrator.mjs",
         "runtime/arckit-runtime/src/capability-registry.mjs",
         "Runtime agentic dry-run smoke",
-        "Desktop manager empty-project agentic dry-run smoke"
+        "Desktop manager empty-project agentic dry-run smoke",
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "runtime/arckit-runtime/src/projection/run-event-projector.mjs",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
       ],
-      "evidence_maturity": "confirmed",
-      "gap": "真实 Codex app-server run 的 item 类型覆盖仍需在 ../arckit-demo 这类实际项目中复测。",
-      "next_transition": "Run and accept a real Desktop-started Codex app-server agentic loop.",
+      "evidence_maturity": "validated",
+      "gap": "",
+      "next_transition": "",
       "blockers": [],
-      "priority": "high",
+      "priority": "none",
       "confidence": "medium"
     },
     "maintainability_handoff": {
-      "current_state": "verified",
+      "current_state": "accepted",
       "target_state": "accepted",
-      "state_reason": "状态机制已明确 state.record.json、STATE.md decision brief、iteration record、case、Loop Handoff、pending、事实源、有界 worker packet 和 Runtime controlled turn 的边界，使后续 agent 或自动化平台能按状态差距接手。",
+      "state_reason": "The Case closed with durable tests, opaque run evidence, deterministic ledger transition, and a clean three-dimensional review.",
       "evidence": [
         "arckit/spec/agentic-software-development/skill-architecture.md",
         "arckit/tech/arckit-runtime/solution.md",
@@ -440,13 +450,17 @@
         "runtime/arckit-runtime/src/agent-orchestrator.mjs",
         "runtime/arckit-runtime/src/capability-registry.mjs",
         "Runtime agentic dry-run smoke",
-        "Desktop manager empty-project agentic dry-run smoke"
+        "Desktop manager empty-project agentic dry-run smoke",
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "runtime/arckit-runtime/test/codex-app-server-adapter.test.mjs",
+        "runtime/arckit-runtime/test/desktop-run-manager.test.mjs",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
       ],
-      "evidence_maturity": "confirmed",
-      "gap": "空项目 onboarding 现在会创建可接手 state/case；还需要真实 supervised turn transcript 作为 accepted loop 证据。",
-      "next_transition": "Run and accept a real Desktop-started Codex app-server agentic loop.",
+      "evidence_maturity": "validated",
+      "gap": "",
+      "next_transition": "",
       "blockers": [],
-      "priority": "high",
+      "priority": "none",
       "confidence": "medium"
     },
     "iteration_governance": {
@@ -486,31 +500,6 @@
         "product_behavior"
       ],
       "next_transition": "运行隔离的真实软件任务场景，收集 Case gap 选择、事实补齐和最终复审证据。"
-    },
-    {
-      "id": "GAP-runtime-real-supervised-turn",
-      "dimension": "quality_validation",
-      "current_state": "verified",
-      "target_state": "accepted",
-      "impact": "Runtime/Desktop 已从单 agent supervised turn 升级为 agentic worker loop：task packet、agent report、capability manifest、merge gate、Desktop Agent Loop UI 和空项目初始化 smoke 均已验证；仍缺真实 Codex worker done/gate/write 闭环。",
-      "urgency": "critical",
-      "risk": "high",
-      "dependencies": [
-        "runtime_surfaces",
-        "implementation_coverage",
-        "observability_support",
-        "maintainability_handoff"
-      ],
-      "covered_dimensions": [
-        "user_experience",
-        "runtime_surfaces",
-        "implementation_coverage",
-        "quality_validation",
-        "observability_support",
-        "maintainability_handoff"
-      ],
-      "next_transition": "用 Desktop Codex 模式在 ../arckit-demo 或真实项目运行动态 agentic loop，覆盖零个或多个 Worker、Controller Review、canonical gate、ledger writeback、fresh-state continuation 与终止条件。",
-      "candidate_case_ref": "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
     },
     {
       "id": "GAP-runtime-resilience-and-adapters",
@@ -623,7 +612,7 @@
     "runtime/arckit-runtime/desktop/renderer/styles.css",
     "runtime/arckit-runtime/schemas/runtime-result.schema.json",
     "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-    "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md",
+    "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
     "arckit/cases/closed/CASE-20260707-001-add-loop-handoff-responsibility-model.md",
     "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md",
     "arckit/project/runtime-results/RUN-20260707-161744356Z.json",
@@ -648,22 +637,66 @@
     "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md"
   ],
   "last_state_delta": {
-    "changed_dimensions": [],
-    "state_transitions": [],
+    "changed_dimensions": [
+      "user_experience",
+      "runtime_surfaces",
+      "implementation_coverage",
+      "quality_validation",
+      "observability_support",
+      "maintainability_handoff"
+    ],
+    "state_transitions": [
+      {
+        "dimension": "user_experience",
+        "from_state": "implemented",
+        "to_state": "accepted",
+        "reason": "Desktop supervised operation, live event visibility, and in-run Chat steer were exercised successfully in the real Runtime loop."
+      },
+      {
+        "dimension": "runtime_surfaces",
+        "from_state": "verified",
+        "to_state": "accepted",
+        "reason": "The Desktop-to-runtime-to-app-server-to-ledger surface completed a real bounded transition."
+      },
+      {
+        "dimension": "implementation_coverage",
+        "from_state": "verified",
+        "to_state": "accepted",
+        "reason": "Controller normalization, Worker routing, review intake, steer handling, gate, and deterministic writeback are covered by implementation and passing tests."
+      },
+      {
+        "dimension": "quality_validation",
+        "from_state": "verified",
+        "to_state": "accepted",
+        "reason": "A real Desktop Codex run produced successful steer delivery, gate allow, written ledger transition, and a clean completion review."
+      },
+      {
+        "dimension": "observability_support",
+        "from_state": "verified",
+        "to_state": "accepted",
+        "reason": "The persisted Desktop event stream exposed Controller phases, operator steer, runtime result, gate result, and ledger write result."
+      },
+      {
+        "dimension": "maintainability_handoff",
+        "from_state": "verified",
+        "to_state": "accepted",
+        "reason": "The Case closed with durable tests, opaque run evidence, deterministic ledger transition, and a clean three-dimensional review."
+      }
+    ],
     "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "next_project_focus": "恢复 JuSong 真实项目的 Runtime 启动，继续完成 Desktop/Codex loop、gate 与 ledger writeback 验证。",
-    "updated_at": "2026-08-03T16:07:53.169Z"
+    "next_project_focus": "Select or create the next bounded Case from the remaining Project state_gaps.",
+    "updated_at": "2026-08-03T18:08:35.523Z"
   },
   "case_control": {
-    "selected_case_ref": "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md",
-    "selection_reason": "JuSong Runtime 启动被 canonical artifact 缺失 audit 阻断，直接属于唯一 active Runtime MVP Case 的真实项目闭环 gap。",
-    "next_case_intent": "恢复 JuSong 真实项目的 Runtime 启动，继续完成 Desktop/Codex loop、gate 与 ledger writeback 验证。",
-    "priority_basis": "JuSong Runtime 启动被 canonical artifact 缺失 audit 阻断，直接属于唯一 active Runtime MVP Case 的真实项目闭环 gap。",
-    "stop_condition": "Stop project-level selection after the Case is bound; Case State determines subsequent Loops."
+    "selected_case_ref": "",
+    "selection_reason": "Resolved Case arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md.",
+    "next_case_intent": "Select or create the next bounded Case from the remaining Project state_gaps.",
+    "priority_basis": "Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.",
+    "stop_condition": "Stop after selecting or creating the next bounded Case."
   }
 }

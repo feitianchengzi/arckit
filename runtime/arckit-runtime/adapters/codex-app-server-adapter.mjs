@@ -21,6 +21,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         lastCompletedAgentText: "",
         lastError: null,
         completed: false,
+        turnStarted: false,
         resultKind: "runtime-result"
       };
       let stdinControls = null;
@@ -214,6 +215,7 @@ function handleNotification({ message, queue, state, client }) {
   if (message.method === "turn/started") {
     state.threadId = message.params?.threadId || state.threadId;
     state.turnId = readId(message.params?.turn) || state.turnId;
+    state.turnStarted = true;
   }
   if (message.method === "item/agentMessage/delta") {
     state.agentText += message.params?.delta || "";
@@ -228,6 +230,7 @@ function handleNotification({ message, queue, state, client }) {
     state.lastError = null;
   }
   if (message.method === "turn/completed") {
+    state.turnStarted = false;
     state.completed = true;
     const parsed = parseWorkerOutput({
       text: state.lastCompletedAgentText || state.agentText,
@@ -318,7 +321,7 @@ function attachStdinControls({ client, queue, state }) {
     }
     try {
       if (trimmed === "/interrupt") {
-        requireActiveTurn(state);
+        await waitForActiveTurn(state);
         const result = await client.request("turn/interrupt", {
           threadId: state.threadId,
           turnId: state.turnId
@@ -332,7 +335,7 @@ function attachStdinControls({ client, queue, state }) {
         return;
       }
       if (trimmed.startsWith("/steer ")) {
-        requireActiveTurn(state);
+        await waitForActiveTurn(state);
         const text = trimmed.slice("/steer ".length).trim();
         if (!text) {
           throw new Error("/steer requires non-empty text.");
@@ -365,10 +368,14 @@ function attachStdinControls({ client, queue, state }) {
   return readline;
 }
 
-function requireActiveTurn(state) {
-  if (!state.threadId || !state.turnId) {
-    throw new Error("No active Codex turn is available yet.");
+export async function waitForActiveTurn(state, { timeoutMs = 5_000, pollIntervalMs = 10 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (!state?.turnStarted) {
+    if (state?.completed) throw new Error("The Codex turn already completed before the operator command could be sent.");
+    if (Date.now() >= deadline) throw new Error("No active Codex turn became available before the operator command timeout.");
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, pollIntervalMs));
   }
+  if (!state.threadId || !state.turnId) throw new Error("No active Codex turn is available yet.");
 }
 
 function readId(value) {

@@ -1,10 +1,10 @@
 # Implement Arckit Runtime MVP
 
 Case: CASE-20260707-002
-Status: active
+Status: closed
 Artifact Type: code
 Selected Gap: none
-Updated: 2026-07-26T17:44:09.907Z
+Updated: 2026-08-03T18:08:35.523Z
 
 ## User Intent
 
@@ -17,10 +17,10 @@ Updated: 2026-07-26T17:44:09.907Z
   "schema_version": "development-case-record/v3",
   "id": "CASE-20260707-002",
   "title": "Implement Arckit Runtime MVP",
-  "status": "active",
+  "status": "closed",
   "artifact_type": "code",
   "created_at": "2026-07-07T15:49:29.148Z",
-  "updated_at": "2026-07-26T17:44:09.907Z",
+  "updated_at": "2026-08-03T18:08:35.523Z",
   "user_intent": "拆解并开始实施 Arckit Runtime + Supervisor 方案，先落地可运行的单 agent runtime MVP。",
   "expected_outcome": "Arckit Runtime/Desktop 从单 agent supervised turn 升级为外部确定性多 agent 编排层：Runtime 负责任务拆解、worker 生命周期、report 校验、merge gate 和 ledger hard gate；Desktop 负责项目、会话、Chat、agent loop 状态、暂停/纠偏/继续与证据展示；skills 通过 manifest-declared Agent trigger 或 trusted runtime entrypoint 提供实际语义与执行能力。",
   "project_state_ref": "arckit/project/state.record.json",
@@ -250,9 +250,15 @@ Updated: 2026-07-26T17:44:09.907Z
       "id": "handoff-1",
       "target": "next agent round",
       "owner": "agent",
-      "status": "pending",
+      "status": "completed",
       "resume_condition": "通过 Electron Desktop Chat 发起真实 Codex app-server supervised turn：添加真实项目、发送任务消息、观察右侧状态和 events、用运行中 Chat 消息测试 steer，获得 round_result=done 后执行 gate-result 和 write-ledger。",
-      "evidence": []
+      "evidence": [
+        "输入绑定唯一 Case CASE-20260707-002 及 expected revision 2026-07-26T17:44:09.907Z，并逐字段提供当前 candidate gap CASE-20260707-002:handoff:handoff-1。",
+        "route_plan 明确记录 operator 已确认真实 Desktop supervised round、Controller Review 和 allow gate 有效。",
+        "本次运行中的 Desktop Chat 纠偏消息被明确提供为 steer delivery 成功证据，补齐 handoff-1 的最后验证要求。",
+        "execution_authorization.status=authorized 且 executor=desktop_runtime，允许 Runtime 执行后续 gate-result 与 ledger writeback。",
+        "worker_reports 为空；现有用户输入和 Runtime 上下文已足以支持该单一 handoff transition，无需派发 Worker。"
+      ]
     },
     {
       "id": "handoff-2",
@@ -701,56 +707,111 @@ Updated: 2026-07-26T17:44:09.907Z
       ],
       "runtime_result_ref": "",
       "occurred_at": "2026-07-25T15:50:58.000Z"
+    },
+    {
+      "round": 20,
+      "goal": "仅将 pending_handoffs.handoff-1 从 pending 更新为 completed。",
+      "outcome": "completed",
+      "planned_transition": "completed_handoffs 增加 handoff-1并附带真实 round、allow gate和本条 Desktop Chat steer 证据；不修改 facets、源码或 completion_review，不在本轮关闭 Case。",
+      "accepted_state_delta": {
+        "facets": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [
+          "handoff-1"
+        ],
+        "completion_review_result": null,
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "evidence": [
+        "输入绑定唯一 Case CASE-20260707-002 及 expected revision 2026-07-26T17:44:09.907Z，并逐字段提供当前 candidate gap CASE-20260707-002:handoff:handoff-1。",
+        "route_plan 明确记录 operator 已确认真实 Desktop supervised round、Controller Review 和 allow gate 有效。",
+        "本次运行中的 Desktop Chat 纠偏消息被明确提供为 steer delivery 成功证据，补齐 handoff-1 的最后验证要求。",
+        "execution_authorization.status=authorized 且 executor=desktop_runtime，允许 Runtime 执行后续 gate-result 与 ledger writeback。",
+        "worker_reports 为空；现有用户输入和 Runtime 上下文已足以支持该单一 handoff transition，无需派发 Worker。"
+      ],
+      "runtime_result_ref": "arckit-runtime://runs/RUN-20260803-180157597Z",
+      "occurred_at": "2026-08-03T18:03:45.381Z"
+    },
+    {
+      "round": 21,
+      "goal": "Review the complete Runtime MVP Case at content_revision=19 for correctness, completeness, and minimality.",
+      "outcome": "completed",
+      "planned_transition": "completion_review pending -> clean; CASE-20260707-002 unresolved -> resolved",
+      "accepted_state_delta": {
+        "facets": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": {
+          "outcome": "clean",
+          "reviewer": "agent",
+          "reviewed_content_revision": 19,
+          "dimensions": {
+            "correctness": "clean",
+            "completeness": "clean",
+            "minimality": "clean"
+          },
+          "findings": [],
+          "evidence": [
+            "npm run check: 110 passed, 0 failed, 1 optional Electron layout test skipped",
+            "node --test test/codex-app-server-adapter.test.mjs test/desktop-run-manager.test.mjs test/capability-registry.test.mjs: 41 passed, 0 failed",
+            "git diff --check",
+            "arckit-runtime://runs/RUN-20260803-180157597Z",
+            "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+            "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+            "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+            "runtime/arckit-runtime/test/capability-registry.test.mjs",
+            "runtime/arckit-runtime/test/codex-app-server-adapter.test.mjs",
+            "runtime/arckit-runtime/test/desktop-run-manager.test.mjs"
+          ]
+        },
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "evidence": [
+        "Completion review covered correctness, completeness, and minimality for content_revision=19.",
+        "npm run check: 110 passed, 0 failed, 1 optional Electron layout test skipped",
+        "node --test test/codex-app-server-adapter.test.mjs test/desktop-run-manager.test.mjs test/capability-registry.test.mjs: 41 passed, 0 failed",
+        "git diff --check",
+        "arckit-runtime://runs/RUN-20260803-180157597Z"
+      ],
+      "runtime_result_ref": "",
+      "occurred_at": "2026-08-03T18:08:35.523Z"
     }
   ],
   "case_resolution": {
-    "status": "unresolved",
-    "stage": "working",
-    "base_ready": false,
+    "status": "resolved",
+    "stage": "resolved",
+    "base_ready": true,
     "satisfied": [
       "product_expectation",
       "interaction_expectation",
       "visual_expectation",
       "technical_expectation",
       "implementation_state",
-      "verification_state"
+      "verification_state",
+      "completion_review"
     ],
-    "remaining": [
-      "pending_handoffs"
-    ],
+    "remaining": [],
     "blocked": [],
-    "reason": "Case State still has 1 unresolved area(s).",
-    "candidate_gaps": [
-      {
-        "id": "CASE-20260707-002:handoff:handoff-1",
-        "facet": "pending_handoffs",
-        "responsibility": "agent",
-        "current_state": "pending",
-        "target_state": "completed_or_cancelled",
-        "next_transition": "通过 Electron Desktop Chat 发起真实 Codex app-server supervised turn：添加真实项目、发送任务消息、观察右侧状态和 events、用运行中 Chat 消息测试 steer，获得 round_result=done 后执行 gate-result 和 write-ledger。",
-        "evidence_required": [
-          "handoff completion or cancellation evidence"
-        ]
-      }
-    ],
+    "reason": "All Case content is complete and the current content revision has a clean completion review.",
+    "candidate_gaps": [],
     "loop_handoff": {
       "version": "loop-handoff/v2",
-      "status": "continue",
-      "next_responsibility": "agent",
-      "agent_continuation_available": true,
+      "status": "done",
+      "next_responsibility": "none",
+      "agent_continuation_available": false,
       "human_decision_required": false,
-      "trigger_mode": "manual_bridge",
-      "responsibility_reason": "The Case State exposes 1 unresolved candidate gap(s) for Controller selection.",
-      "next_prompt": "Continue CASE-20260707-002: inspect candidate_gaps and select one bounded evidence-backed transition.",
+      "trigger_mode": "none",
+      "responsibility_reason": "The Case State has no unresolved content gap and the current content revision has a clean completion review.",
+      "next_prompt": "",
       "agent_instruction": {
-        "goal": "Select one evidence-backed transition from 1 unresolved Case gap(s).",
+        "goal": "",
         "required_context_refs": [
           "arckit/project/state.record.json",
           "case:CASE-20260707-002"
         ],
-        "required_actions": [
-          "Select one evidence-backed transition from 1 unresolved Case gap(s)."
-        ],
+        "required_actions": [],
         "required_checks": [
           "case_transition evidence",
           "derived case_resolution"
@@ -763,38 +824,150 @@ Updated: 2026-07-26T17:44:09.907Z
         "decision_needed": ""
       },
       "progress_guard": {
-        "expected_state_change": "Select one evidence-backed transition from 1 unresolved Case gap(s).",
+        "expected_state_change": "",
         "actual_state_change": "",
         "no_progress_limit": 2,
         "max_auto_rounds": 3
       }
     },
-    "updated_at": "2026-07-26T17:44:09.907Z"
+    "updated_at": "2026-08-03T18:08:35.523Z"
   },
   "project_impact_candidate": {
-    "status": "none",
-    "changes": [],
-    "evidence": []
+    "status": "accepted",
+    "changes": [
+      {
+        "dimension": "user_experience",
+        "from_state": "implemented",
+        "to_state": "accepted",
+        "reason": "Desktop supervised operation, live event visibility, and in-run Chat steer were exercised successfully in the real Runtime loop.",
+        "evidence": [
+          "arckit-runtime://runs/RUN-20260803-180157597Z",
+          "runtime/arckit-runtime/src/desktop-run-manager.mjs"
+        ],
+        "evidence_maturity": "validated"
+      },
+      {
+        "dimension": "runtime_surfaces",
+        "from_state": "verified",
+        "to_state": "accepted",
+        "reason": "The Desktop-to-runtime-to-app-server-to-ledger surface completed a real bounded transition.",
+        "evidence": [
+          "arckit-runtime://runs/RUN-20260803-180157597Z",
+          "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs"
+        ],
+        "evidence_maturity": "validated"
+      },
+      {
+        "dimension": "implementation_coverage",
+        "from_state": "verified",
+        "to_state": "accepted",
+        "reason": "Controller normalization, Worker routing, review intake, steer handling, gate, and deterministic writeback are covered by implementation and passing tests.",
+        "evidence": [
+          "npm run check",
+          "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+          "runtime/arckit-runtime/test/capability-registry.test.mjs"
+        ],
+        "evidence_maturity": "validated"
+      },
+      {
+        "dimension": "quality_validation",
+        "from_state": "verified",
+        "to_state": "accepted",
+        "reason": "A real Desktop Codex run produced successful steer delivery, gate allow, written ledger transition, and a clean completion review.",
+        "evidence": [
+          "arckit-runtime://runs/RUN-20260803-180157597Z",
+          "npm run check",
+          "git diff --check"
+        ],
+        "evidence_maturity": "validated"
+      },
+      {
+        "dimension": "observability_support",
+        "from_state": "verified",
+        "to_state": "accepted",
+        "reason": "The persisted Desktop event stream exposed Controller phases, operator steer, runtime result, gate result, and ledger write result.",
+        "evidence": [
+          "arckit-runtime://runs/RUN-20260803-180157597Z",
+          "runtime/arckit-runtime/src/projection/run-event-projector.mjs"
+        ],
+        "evidence_maturity": "validated"
+      },
+      {
+        "dimension": "maintainability_handoff",
+        "from_state": "verified",
+        "to_state": "accepted",
+        "reason": "The Case closed with durable tests, opaque run evidence, deterministic ledger transition, and a clean three-dimensional review.",
+        "evidence": [
+          "arckit-runtime://runs/RUN-20260803-180157597Z",
+          "runtime/arckit-runtime/test/codex-app-server-adapter.test.mjs",
+          "runtime/arckit-runtime/test/desktop-run-manager.test.mjs"
+        ],
+        "evidence_maturity": "validated"
+      }
+    ],
+    "evidence": [
+      "arckit-runtime://runs/RUN-20260803-180157597Z",
+      "npm run check",
+      "git diff --check"
+    ]
   },
   "content_revision": 19,
   "completion_review": {
-    "status": "pending",
+    "status": "clean",
     "policy": {
       "initial_max_cycles": 3,
       "source": "repository-migration:runtime/arckit-runtime/config/case-policy.json",
       "snapshotted_at": "2026-07-26T17:44:09.907Z"
     },
     "additional_cycles_authorized": 0,
-    "cycle_count": 0,
-    "reviewed_content_revision": null,
+    "cycle_count": 1,
+    "reviewed_content_revision": 19,
     "dimensions": {
-      "correctness": "unknown",
-      "completeness": "unknown",
-      "minimality": "unknown"
+      "correctness": "clean",
+      "completeness": "clean",
+      "minimality": "clean"
     },
     "findings": [],
-    "cycles": [],
-    "evidence": [],
+    "cycles": [
+      {
+        "cycle": 1,
+        "autonomous_cycle": 1,
+        "reviewer": "agent",
+        "outcome": "clean",
+        "content_revision": 19,
+        "dimensions": {
+          "correctness": "clean",
+          "completeness": "clean",
+          "minimality": "clean"
+        },
+        "finding_ids": [],
+        "evidence": [
+          "npm run check: 110 passed, 0 failed, 1 optional Electron layout test skipped",
+          "node --test test/codex-app-server-adapter.test.mjs test/desktop-run-manager.test.mjs test/capability-registry.test.mjs: 41 passed, 0 failed",
+          "git diff --check",
+          "arckit-runtime://runs/RUN-20260803-180157597Z",
+          "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+          "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+          "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+          "runtime/arckit-runtime/test/capability-registry.test.mjs",
+          "runtime/arckit-runtime/test/codex-app-server-adapter.test.mjs",
+          "runtime/arckit-runtime/test/desktop-run-manager.test.mjs"
+        ],
+        "occurred_at": "2026-08-03T18:08:35.523Z"
+      }
+    ],
+    "evidence": [
+      "npm run check: 110 passed, 0 failed, 1 optional Electron layout test skipped",
+      "node --test test/codex-app-server-adapter.test.mjs test/desktop-run-manager.test.mjs test/capability-registry.test.mjs: 41 passed, 0 failed",
+      "git diff --check",
+      "arckit-runtime://runs/RUN-20260803-180157597Z",
+      "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+      "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+      "runtime/arckit-runtime/src/desktop-run-manager.mjs",
+      "runtime/arckit-runtime/test/capability-registry.test.mjs",
+      "runtime/arckit-runtime/test/codex-app-server-adapter.test.mjs",
+      "runtime/arckit-runtime/test/desktop-run-manager.test.mjs"
+    ],
     "escalation": null,
     "human_authorizations": []
   }
