@@ -65,18 +65,7 @@ export function buildDesktopOperatorEvent({
 }
 
 export function buildControllerOperatorTask(operatorEvent) {
-  return [
-    "Arckit Desktop operator event.",
-    "",
-    "Controller instruction:",
-    "- Recover project state, latest run activity, loop handoff, report intake, gate result, and ledger write result.",
-    "- Classify user_input as supplement, correction, goal_change, report_intake, status_query, new_case, or continuation.",
-    "- Decide the next business step from Arckit state. Do not assume the UI action determines the business path.",
-    "- If a packet is stale, say so and generate a replacement packet or ask for a human decision.",
-    "- If ledger writeback is blocked, explain the gate evidence and produce the next recoverable action.",
-    "",
-    JSON.stringify(operatorEvent, null, 2)
-  ].join("\n");
+  return String(operatorEvent?.user_input || "").trim();
 }
 
 function summarizeWorkerPackets(packets) {

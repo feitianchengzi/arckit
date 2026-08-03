@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["schema_version", "task_id", "worker_type", "role", "status", "summary", "findings", "evidence", "changes", "artifact_impacts", "case_state_claims", "risks", "unknowns", "recommendation", "requires_main_agent_decision", "requires_human_decision"],
   "properties": {
-    "schema_version": { "const": "arckit-worker-report/v2" },
+    "schema_version": { "type": "string", "const": "arckit-worker-report/v2" },
     "task_id": { "type": "string" },
     "worker_type": { "type": "string", "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"] },
     "role": { "type": "string", "minLength": 1 },
@@ -36,7 +36,7 @@
         "required": ["facet", "set", "evidence", "unresolved"],
         "properties": {
           "facet": { "type": "string", "enum": ["product_expectation", "interaction_expectation", "visual_expectation", "technical_expectation", "implementation_state", "verification_state"] },
-          "set": { "type": "object", "minProperties": 1 },
+          "set": { "$ref": "#/$defs/facet_set" },
           "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
           "unresolved": { "type": "array", "items": { "type": "string" } }
         },
@@ -48,6 +48,23 @@
     "recommendation": { "type": "string" },
     "requires_main_agent_decision": { "type": "boolean" },
     "requires_human_decision": { "type": "boolean" }
+  },
+  "$defs": {
+    "facet_set": {
+      "type": "object",
+      "required": ["applicability", "maturity", "target_maturity", "alignment", "target_alignment", "resolution", "reason", "next_transition"],
+      "properties": {
+        "applicability": { "type": ["string", "null"], "enum": ["unknown", "required", "not_required", null] },
+        "maturity": { "type": ["string", "null"], "enum": ["unknown", "exploratory", "confirmed", "formalized", null] },
+        "target_maturity": { "type": ["string", "null"], "enum": ["unknown", "exploratory", "confirmed", "formalized", null] },
+        "alignment": { "type": ["string", "null"], "enum": ["unknown", "unreconciled", "stale", "diverged", "aligned", null] },
+        "target_alignment": { "type": ["string", "null"], "enum": ["unknown", "unreconciled", "stale", "diverged", "aligned", null] },
+        "resolution": { "type": ["string", "null"], "enum": ["unresolved", "resolved", "blocked", null] },
+        "reason": { "type": ["string", "null"] },
+        "next_transition": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }

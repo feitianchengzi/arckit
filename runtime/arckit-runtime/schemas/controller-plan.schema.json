@@ -3,34 +3,57 @@
   "$id": "https://arckit.local/schema/controller-plan.schema.json",
   "title": "Arckit Controller Plan",
   "type": "object",
-  "required": ["schema_version", "status", "summary", "route_plan", "worker_intents", "planned_transition", "continuation_intent", "risks", "unknowns", "next_controller_action"],
+  "required": ["schema_version", "status", "summary", "execution_plan", "route_plan", "worker_intents", "planned_transition", "continuation_intent", "risks", "unknowns", "next_controller_action"],
   "properties": {
-    "schema_version": { "const": "arckit-controller-plan/v2" },
+    "schema_version": { "type": "string", "const": "arckit-controller-plan/v3" },
     "status": { "type": "string", "enum": ["planned", "needs_human", "blocked"] },
     "summary": { "type": "string", "maxLength": 1200 },
+    "execution_plan": {
+      "type": "object",
+      "required": ["plane", "runtime_actions"],
+      "properties": {
+        "plane": { "type": "string", "enum": ["runtime", "worker", "none"] },
+        "runtime_actions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "action", "case_id", "title", "intent", "artifact_type", "selection_reason"],
+            "properties": {
+              "type": { "type": "string", "const": "case_control" },
+              "action": { "type": "string", "enum": ["select_existing_case", "create_case"] },
+              "case_id": { "type": "string", "maxLength": 32 },
+              "title": { "type": "string", "maxLength": 240 },
+              "intent": { "type": "string", "maxLength": 1200 },
+              "artifact_type": { "type": "string", "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"] },
+              "selection_reason": { "type": "string", "maxLength": 1200 }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "route_plan": {
       "type": "object",
-      "required": ["mode", "selected_gap", "selected_worker_types", "selected_roles", "reason", "requires_human_confirmation"],
+      "required": ["mode", "selected_gap", "reason", "requires_human_confirmation"],
       "properties": {
         "mode": { "type": "string", "minLength": 1 },
         "selected_gap": {
           "type": "object",
           "required": ["id", "scope", "case_id", "facet", "responsibility", "current_state", "target_state", "impact", "next_transition"],
           "properties": {
-            "id": { "type": "string", "minLength": 1 },
-            "scope": { "const": "case" },
-            "case_id": { "type": "string", "pattern": "^CASE-[0-9]{8}-[0-9]{3}$" },
-            "facet": { "type": "string", "minLength": 1 },
+            "id": { "type": "string" },
+            "scope": { "type": "string", "enum": ["case", "project"] },
+            "case_id": { "type": "string", "maxLength": 32 },
+            "facet": { "type": "string" },
             "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
             "current_state": { "type": "string", "maxLength": 1200 },
             "target_state": { "type": "string", "maxLength": 1200 },
             "impact": { "type": "string", "maxLength": 1200 },
-            "next_transition": { "type": "string", "minLength": 1, "maxLength": 800 }
+            "next_transition": { "type": "string", "maxLength": 800 }
           },
           "additionalProperties": false
         },
-        "selected_roles": { "type": "array", "items": { "type": "string", "minLength": 1 } },
-        "selected_worker_types": { "type": "array", "items": { "type": "string", "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"] } },
         "reason": { "type": "string", "maxLength": 1200 },
         "requires_human_confirmation": { "type": "boolean" }
       },
@@ -40,14 +63,18 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["worker_type", "role", "objective", "reason", "allowed_skills", "expected_case_impact"],
+        "required": ["worker_type", "role", "objective", "reason", "allowed_paths", "allowed_actions", "forbidden_actions", "allowed_skills", "expected_case_impact", "stop_condition"],
         "properties": {
           "worker_type": { "type": "string", "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"] },
           "role": { "type": "string", "minLength": 1 },
           "objective": { "type": "string", "maxLength": 800 },
           "reason": { "type": "string", "maxLength": 1200 },
+          "allowed_paths": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "allowed_actions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "forbidden_actions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
           "allowed_skills": { "type": "array", "items": { "type": "string" } },
-          "expected_case_impact": { "type": "string", "minLength": 1, "maxLength": 800 }
+          "expected_case_impact": { "type": "string", "minLength": 1, "maxLength": 800 },
+          "stop_condition": { "type": "string", "minLength": 1, "maxLength": 800 }
         },
         "additionalProperties": false
       }

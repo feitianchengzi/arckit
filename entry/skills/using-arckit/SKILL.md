@@ -14,6 +14,7 @@ description: "Arckit 项目对话 Controller。把真实软件开发输入或 Wo
 - Loop 只执行一次计划状态转移，产生 evidence、claims、accepted delta 和 handoff。
 - state 描述 gap，不保存 skill 名。Controller 根据 gap、capability manifest 和证据边界动态选择 Worker 能力，不固定 skill 顺序。
 - Controller 不执行 Worker 工作、不写 ledger、不把 round 完成等同 Case resolved，也不把 Case resolved 等同 Project 维度已提升。
+- Case 是否沿用、切换或新建由 Controller 根据输入与 Project/Case facts 判断；Runtime 不从任务文本、列表位置或 route mode 推断 Case control 动作。
 - `deferred` 不是完成。未处理项仍是 unresolved；只有有 owner 与恢复条件的 handoff 才能转移责任。
 - 六个 facet 都完成不等于 Case resolved。Controller 必须继续处理 ledger 派生的 `completion_review`/`review_findings` gap；复审上限耗尽后只能接受人工处置或有证据的人工追加预算。
 
@@ -29,7 +30,7 @@ description: "Arckit 项目对话 Controller。把真实软件开发输入或 Wo
 - 由 Project State 选择已有 Case 或提出创建新 Case；Project 级 gap 只能用于选 Case，不能直接成为 Worker 的任务状态。
 - 读取完整 selected Case，拒绝只凭 Project brief 或上一轮 prompt 推断任务细节。
 
-退出条件：有唯一 `case_id`；否则返回 `needs_human` 或创建 Case 的 ledger handoff，不派发 Worker。
+退出条件：有唯一 `case_id`；否则返回 `needs_human`，或输出 `execution_plan.plane=runtime` 与唯一 `runtime_actions[type=case_control]`，其 action 为 `select_existing_case|create_case`，同时保持 `worker_intents=[]`。`create_case` 必须给出 title、intent、artifact_type 与 selection_reason；`select_existing_case` 必须指向输入中的 active Case。Runtime 把该语义动作封装成 `arckit-case-control-handoff/v1`，绑定 Project revision 和显式复审 policy 后调用 ledger；成功写回并重新读取 Project/Case State 后才能选择 gap。
 
 ### 2. 选择 Case gap 与计划 transition
 
@@ -98,6 +99,7 @@ closeout 前读取 [references/closeout-handoff.md](references/closeout-handoff.
 ## 输出
 
 - `controller_frame`
+- `execution_plan`：`runtime`、`worker` 或 `none` 三个互斥执行面；Runtime action 只进入 `runtime_actions`，Worker 只进入 `worker_intents`
 - `execution_gate` 与 `executor_binding`
 - `worker_packets` 与 `report_intake`
 - `round_outcome`
@@ -105,4 +107,4 @@ closeout 前读取 [references/closeout-handoff.md](references/closeout-handoff.
 - `project_impact_candidate`
 - `case_transition`
 - `loop_handoff/v2`
-- `ledger_handoff`：trusted `case_transition` entrypoint、Case ref 与是否允许 Project 聚合
+- `ledger_handoff`：新建/切换 Case 时由 Runtime 把 `runtime_actions[type=case_control]` 封装后使用 trusted `case_control` entrypoint；推进 Case gap 时使用 trusted `case_transition` entrypoint

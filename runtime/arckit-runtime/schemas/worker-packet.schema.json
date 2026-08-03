@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["schema_version", "worker_id", "worker_type", "role", "task", "case_context", "expected_case_impact", "context_refs", "allowed_actions", "forbidden_actions", "allowed_paths", "allowed_skills", "expected_report_schema", "stop_condition"],
   "properties": {
-    "schema_version": { "const": "arckit-worker-packet/v2" },
+    "schema_version": { "type": "string", "const": "arckit-worker-packet/v2" },
     "worker_id": { "type": "string" },
     "worker_type": { "type": "string", "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"] },
     "role": { "type": "string", "minLength": 1 },
@@ -26,7 +26,7 @@
     "forbidden_actions": { "type": "array", "items": { "type": "string" } },
     "allowed_paths": { "type": "array", "items": { "type": "string" } },
     "allowed_skills": { "type": "array", "items": { "type": "string" } },
-    "expected_report_schema": { "const": "arckit-worker-report/v2" },
+    "expected_report_schema": { "type": "string", "const": "arckit-worker-report/v2" },
     "stop_condition": { "type": "string" }
   },
   "additionalProperties": false

@@ -138,9 +138,25 @@ function facetStateText(facet) {
 }
 
 function facetTargetText(facet) {
-  if (facet.applicability === 'unknown') return 'applicability=required|not_required with evidence';
+  if (facet.applicability === 'unknown') return 'evidence-backed applicability and same-facet advancement as far as accepted evidence supports';
   if (facet.applicability === 'not_required') return 'not_required judgment with reason and evidence';
-  return `maturity=${facet.target_maturity}; alignment=${facet.target_alignment}; resolution=resolved`;
+  if (!requiredFacetTargetDefined(facet)) {
+    return 'evidence-backed target definition and same-facet advancement toward that target';
+  }
+  if (!requiredFacetTargetReached(facet)) {
+    return `maturity=${facet.target_maturity}; alignment=${facet.target_alignment}`;
+  }
+  return 'resolution=resolved with evidence';
+}
+
+function requiredFacetTargetDefined(facet) {
+  return facet.target_maturity !== 'unknown' && facet.target_alignment === 'aligned';
+}
+
+function requiredFacetTargetReached(facet) {
+  return requiredFacetTargetDefined(facet)
+    && MATURITY_ORDER.indexOf(facet.maturity) >= MATURITY_ORDER.indexOf(facet.target_maturity)
+    && facet.alignment === facet.target_alignment;
 }
 
 function facetSatisfied(facet) {
@@ -149,25 +165,26 @@ function facetSatisfied(facet) {
     return facet.resolution === 'resolved' && facet.reason.trim().length > 0 && facet.evidence.length > 0;
   }
   if (facet.applicability !== 'required') return false;
-  if (facet.target_maturity === 'unknown' || facet.target_alignment !== 'aligned') return false;
+  if (!requiredFacetTargetReached(facet)) return false;
   return facet.resolution === 'resolved'
-    && MATURITY_ORDER.indexOf(facet.maturity) >= MATURITY_ORDER.indexOf(facet.target_maturity)
-    && facet.alignment === facet.target_alignment
     && facet.evidence.length > 0;
 }
 
 function nextTransitionForFacet(key, facet) {
-  if (facet.next_transition) return facet.next_transition;
   if (facet.applicability === 'unknown') {
-    return `Decide whether ${key} is required for this case and record the evidence-backed judgment.`;
+    return `Decide whether ${key} is required and, within this same bounded facet, advance it as far as the accepted evidence supports.`;
   }
   if (facet.applicability === 'not_required') {
     return `Record why ${key} is not required and bind that judgment to evidence.`;
   }
-  if (facet.target_maturity === 'unknown' || facet.target_alignment === 'unknown') {
-    return `Define the target maturity and alignment for ${key}.`;
+  if (!requiredFacetTargetDefined(facet)) {
+    return `Define the evidence-backed target for ${key}, perform the bounded work needed to reach it, and resolve the facet when the target is demonstrably reached.`;
   }
-  return `Advance ${key} to maturity=${facet.target_maturity}, alignment=${facet.target_alignment}, then reconcile it with implementation evidence.`;
+  if (!requiredFacetTargetReached(facet)) {
+    const evidenceKind = key === 'implementation_state' ? 'implementation' : key === 'verification_state' ? 'verification' : 'fact and reconciliation';
+    return `Advance ${key} to maturity=${facet.target_maturity} and alignment=${facet.target_alignment}, with ${evidenceKind} evidence.`;
+  }
+  return `Resolve ${key} from the evidence-backed target already reached.`;
 }
 
 function gapForFacet(caseId, key, facet) {

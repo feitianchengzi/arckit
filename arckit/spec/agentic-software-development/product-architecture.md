@@ -89,7 +89,7 @@ Project State 和 Case State 的字段定义不是普通配置项。它们表达
 
 Project State、Case State 和 Worker Loop 通过分层上下文保持长期连续性。Project State 是项目级 checkpoint，只保存项目维度状态、active case refs、project gaps、Case 选择、状态 delta 摘要和 evidence refs。Case State 是事项级 checkpoint，保存当前事项的六类结果 facet、content revision、completion review cycles/findings/budget、candidate gaps、open questions、pending handoffs、轮次摘要、resolution 和短 loop handoff。Worker Loop 是一次执行过程，只产生 worker report、artifact impact、runtime result 和原始运行证据，不把自己的完整 prompt、activity、controller frame、ledger result 或 Desktop operator event 写入 Project State 或 Case State。
 
-跨对话和跨生命周期恢复依赖 checkpoint 与引用链，而不是复制完整历史上下文。新的执行体恢复项目时先读 Project State，再读 selected Case、derived resolution 的短 loop handoff、candidate gaps 和 required context refs；只有证据不足或需要审计时才打开 runtime result、activity 或 raw events。该机制保证上下文可追溯，同时避免把上一轮传输 envelope、工具输出或 runtime 私有结构变成长期语义状态。
+跨对话和跨生命周期恢复依赖 checkpoint 与引用链，而不是复制完整历史上下文。新的执行体恢复项目时先读 Project State，再读 selected Case、derived resolution 的短 loop handoff、candidate gaps 和 required context refs；只有证据不足或需要审计时，Runtime 宿主才按 opaque run ref 打开其管理的 result、activity 或 raw events。项目即使无法访问 Runtime 宿主记录，也能从 Case round 的 accepted delta 与 evidence 恢复语义状态。
 
 ## 语义入口
 
@@ -146,7 +146,7 @@ Agent 启动上下文是事实系统的入口辅助层。它不保存产品功�
 
 Project State 是事实系统的恢复视图，不替代各事实源。Project State 读取事实源、case、验证证据和工作方式事实形成可恢复状态；写回 Project State 时必须保留来源依据和状态变化原因。
 
-传输 envelope 和原始 runtime evidence 属于过程证据，不属于 Project State 或 Case State 的语义字段。Desktop operator event、完整 activity、完整 controller frame、完整 worker packet、完整 ledger write result、app-server stream output 和 raw prompt transcript 可以保存在 runtime execution record、raw events 或 audit 记录中，并通过路径引用进入状态；它们不得写入 Project `case_control`、Case `current_round`、`agent_instruction.goal` 或 `progress_guard.expected_state_change`。
+传输 envelope 和原始 runtime evidence 属于过程证据，不属于 Project State 或 Case State 的语义字段。Desktop operator event、完整 activity、完整 controller frame、完整 worker packet、完整 ledger write result、app-server stream output 和 raw prompt transcript 保存在 Runtime 宿主拥有的 execution record、raw events 或 audit 记录中，不复制到目标项目目录。Case round 可以保存不含宿主文件系统路径的 opaque run ref；该引用不替代 accepted delta 或持久 evidence，也不得进入 Project `case_control`、Case `current_round`、`agent_instruction.goal` 或 `progress_guard.expected_state_change`。
 
 Project State 只维护宏观完整性、project gaps、active Case refs 和 Case 选择。Case State 维护单事项的 product/interaction/visual/technical expectation、implementation、verification、open questions、pending handoffs、content revision、completion review、derived candidate gaps 与 resolution。Loop 只承载一次 planned/accepted Case transition。candidate gaps 不携带固定顺序；Controller 根据真实上下文动态选择代码先行、规格先行或混合推进。最终每个 facet 必须有 evidence-backed required target，或明确的 evidence-backed not_required 判断；随后当前 content revision 必须经过错误、遗漏、多余三维复审并 clean。自主复审预算耗尽仍不 clean 时，Case 转人工而不是继续自动 loop。
 

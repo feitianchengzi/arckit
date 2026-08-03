@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import { createWorkshopTaskSource, TASK_STATES, TaskSourceError } from "./task-source-adapter.mjs";
+import { isAgentContinuationHandoff } from "./kernel/continuation-policy.mjs";
 
 const STATE_LABELS = Object.freeze({
   pending_review: "待评审",
@@ -19,9 +20,13 @@ export function createAutomationCoordinator({
   const emitter = new EventEmitter();
   let syncPromise = null;
   let dispatchPromise = null;
+  let remoteSessionEpoch = 0;
+  let runEventQueue = Promise.resolve();
 
   const unsubscribeRunManager = runManager.onEvent((event) => {
-    handleRunEvent(event).catch((error) => emit("automation.error", { message: error.message }));
+    runEventQueue = runEventQueue
+      .then(() => handleRunEvent(event))
+      .catch((error) => emit("automation.error", { message: error.message }));
   });
 
   async function getSnapshot(filter = {}) {
@@ -51,7 +56,12 @@ export function createAutomationCoordinator({
         task_counts: taskCounts.byProject[remoteId] || emptyStateCounts()
       };
     });
-    const queue = buildQueue(automation.snapshot.tasks, automation, projectIndex, localIndex);
+    const pendingCandidates = buildPendingCandidates(automation.snapshot.tasks, automation, projectIndex, localIndex);
+    const queue = pendingCandidates
+      .filter((task) => task.eligible)
+      .sort(compareQueueTasks)
+      .map((task, index) => ({ ...task, queue_position: index + 1 }));
+    const blockedPendingTasks = pendingCandidates.filter((task) => !task.eligible);
     const activeRun = automation.active_task?.run_id
       ? runs.find((run) => run.id === automation.active_task.run_id) || null
       : null;
@@ -72,7 +82,8 @@ export function createAutomationCoordinator({
         automation,
         project: projectIndex.get(String(task.project_id)),
         localProject: localIndex.get(automation.project_bindings[String(task.project_id)] || ""),
-        queue
+        queue,
+        pendingCandidates
       }));
     return {
       generated_at: now(),
@@ -91,6 +102,7 @@ export function createAutomationCoordinator({
         : taskCounts.byProject[selectedProjectId] || emptyStateCounts(),
       tasks,
       queue,
+      blocked_pending_tasks: blockedPendingTasks,
       active_task: activeTask,
       active_run: activeRun,
       attention_items: automation.attention_items,
@@ -104,7 +116,7 @@ export function createAutomationCoordinator({
           run_status: run?.status || ""
         };
       }),
-      health: deriveHealth(automation, queue)
+      health: deriveHealth(automation, queue, blockedPendingTasks)
     };
   }
 
@@ -113,6 +125,7 @@ export function createAutomationCoordinator({
       return syncPromise;
     }
     syncPromise = (async () => {
+      const syncEpoch = remoteSessionEpoch;
       await patchAutomation((automation) => {
         automation.snapshot.source_status = "syncing";
         automation.snapshot.errors = [];
@@ -131,24 +144,60 @@ export function createAutomationCoordinator({
         return getSnapshot();
       }
 
+      if (typeof taskSource.getAuthStatus === "function") {
+        const authentication = await taskSource.getAuthStatus();
+        if (syncEpoch !== remoteSessionEpoch) return getSnapshot();
+        if (!authentication.authenticated) {
+          await patchAutomation((automation) => {
+            if (authentication.status === "expired") {
+              automation.snapshot.source_status = "unauthenticated";
+              automation.snapshot.errors = [{ code: "unauthenticated", message: authentication.error || "Workshop 登录已过期，请重新登录。" }];
+            } else {
+              automation.snapshot = {
+                user: null,
+                projects: [],
+                tasks: [],
+                synced_at: "",
+                source_status: "logged_out",
+                errors: []
+              };
+            }
+          });
+          emit("automation.changed", { reason: "sync-requires-login" });
+          return getSnapshot();
+        }
+      }
+
       try {
         const [user, projects] = await Promise.all([
           taskSource.getCurrentUser(),
           taskSource.listProjects()
         ]);
-        const taskResults = await Promise.all(projects.map(async (project) => {
+        const taskResults = await mapWithConcurrency(projects, 4, async (project) => {
+          const executorId = currentExecutorId(project, user);
           try {
-            return { project, tasks: await taskSource.listTasks(project.id), error: null };
+            if (!executorId) {
+              throw new TaskSourceError("Cannot identify the current Workshop user in this project.", {
+                code: "current_user_unresolved"
+              });
+            }
+            return {
+              project,
+              executorId,
+              tasks: await taskSource.listTasks(project.id, { executorId }),
+              error: null
+            };
           } catch (error) {
-            return { project, tasks: [], error };
+            return { project, executorId, tasks: [], error };
           }
-        }));
+        });
         const errors = taskResults
           .filter((result) => result.error)
           .map((result) => errorRecord(result.error, result.project.id));
         const tasks = taskResults.flatMap((result) => result.error
-          ? store.automation.snapshot.tasks.filter((task) => String(task.project_id) === String(result.project.id))
+          ? retainAssignedSnapshotTasks(store.automation.snapshot.tasks, result.project.id, result.executorId)
           : result.tasks);
+        if (syncEpoch !== remoteSessionEpoch) return getSnapshot();
         await patchAutomation((automation) => {
           automation.snapshot = {
             user,
@@ -167,14 +216,17 @@ export function createAutomationCoordinator({
           reconcileActiveTask(automation);
           reconcileUnassociatedInProgress(automation, now());
         });
+        await reconcileDetachedRunCompletion();
         await stopRuntimeForExternalChange();
         await reconcileRuntimePresence();
+        await resumeEligibleAgentRecovery();
         emit("automation.changed", { reason: "sync-complete" });
         if (dispatch) {
           await maybeStartNext();
         }
         return getSnapshot();
       } catch (error) {
+        if (syncEpoch !== remoteSessionEpoch) return getSnapshot();
         await patchAutomation((automation) => {
           automation.snapshot.source_status = error.code === "unauthenticated" ? "unauthenticated" : "error";
           automation.snapshot.errors = [errorRecord(error)];
@@ -210,6 +262,27 @@ export function createAutomationCoordinator({
     if (!paused) {
       await maybeStartNext();
     }
+    return getSnapshot();
+  }
+
+  async function clearRemoteSession() {
+    remoteSessionEpoch += 1;
+    await patchAutomation((automation) => {
+      automation.enabled = false;
+      automation.queue_paused = false;
+      automation.snapshot = {
+        user: null,
+        projects: [],
+        tasks: [],
+        synced_at: "",
+        source_status: "logged_out",
+        errors: []
+      };
+      automation.active_task = null;
+      automation.attention_items = [];
+      automation.recovery_items = [];
+    });
+    emit("automation.changed", { reason: "remote-session-cleared" });
     return getSnapshot();
   }
 
@@ -252,11 +325,19 @@ export function createAutomationCoordinator({
       throw new Error(`Task ${task.id} is ${task.state}, expected ${expectedState}.`);
     }
     const source = taskSourceFactory({ settings: store.settings.task_source });
+    const project = store.automation.snapshot.projects.find((item) => String(item.id) === String(task.project_id));
+    const executorId = requireCurrentExecutorId(project, store.automation.snapshot.user);
+    const latest = await source.getTask(task.id, task.project_id, { executorId });
+    if (!latest) {
+      scheduleSync("task-reassigned");
+      throw new TaskSourceError("Task is no longer assigned to the current user.", { code: "not_assigned" });
+    }
     const updated = await source.updateTask({
       taskId: task.id,
       projectId: task.project_id,
+      executorId,
       state,
-      expectedVersion: task.version
+      expectedVersion: latest.version
     });
     await patchAutomation((automation) => replaceTask(automation, updated));
     emit("automation.changed", { reason: "task-state", taskId: task.id, state });
@@ -276,6 +357,7 @@ export function createAutomationCoordinator({
     }
     const runs = await runManager.listRuns({ projectId: active.local_project_id });
     const run = runs.find((item) => item.id === active.run_id);
+    const attention = store.automation.attention_items.find((item) => String(item.task_id) === String(active.task_id));
     if (run?.status === "running") {
       await runManager.controlRun(run.id, { type: "steer", message: text });
       await patchAutomation((automation) => {
@@ -293,9 +375,20 @@ export function createAutomationCoordinator({
       const nextRun = await runManager.startRun({
         projectId: active.local_project_id,
         sessionId: session.id,
-        task: buildInterventionTask(active, text),
+        task: buildInterventionTask(text),
+        runtimeContext: {
+          kind: "human_intervention",
+          source_run_id: run?.id || active.run_id || "",
+          source_result_ref: run?.result_file || "",
+          source_activity_ref: run?.activity_file || "",
+          human_gate: {
+            reason: attention?.reason || "",
+            decision_needed: attention?.question || ""
+          }
+        },
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
+        continuationPolicy: "automatic",
         maxAutoRounds: 8
       });
       await patchAutomation((automation) => {
@@ -395,7 +488,11 @@ export function createAutomationCoordinator({
       }
       const taskSource = taskSourceFactory({ settings: store.settings.task_source });
       try {
-        const latest = await taskSource.getTask(candidate.id, candidate.project_id);
+        const executorId = requireCurrentExecutorId(
+          projectIndex.get(String(candidate.project_id)),
+          automation.snapshot.user
+        );
+        const latest = await taskSource.getTask(candidate.id, candidate.project_id, { executorId });
         if (!latest || latest.state !== "pending" || (candidate.version && latest.version && candidate.version !== latest.version)) {
           scheduleSync("candidate-changed");
           return null;
@@ -403,6 +500,7 @@ export function createAutomationCoordinator({
         const claimed = await taskSource.updateTask({
           taskId: candidate.id,
           projectId: candidate.project_id,
+          executorId,
           state: "in_progress",
           expectedVersion: latest.version
         });
@@ -477,6 +575,7 @@ export function createAutomationCoordinator({
         task: buildAutomationTask(task),
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
+        continuationPolicy: "automatic",
         maxAutoRounds: 8
       });
       await patchAutomation((automation) => {
@@ -502,11 +601,27 @@ export function createAutomationCoordinator({
     if (event.type === "run.auto_continue.started") {
       await patchAutomation((automation) => {
         if (automation.active_task?.run_id === event.sourceRunId) {
+          const taskId = automation.active_task.task_id;
           automation.active_task.run_id = event.runId;
           automation.active_task.phase = "running";
+          automation.recovery_items = automation.recovery_items.filter((item) => (
+            item.task_id !== taskId || !["runtime_incomplete", "runtime_continuation_stopped", "runtime_process_missing"].includes(item.type)
+          ));
         }
       });
       emit("automation.changed", { reason: "runtime-auto-continue", runId: event.runId });
+      return;
+    }
+    if (["run.auto_continue.not_started", "run.auto_continue.failed"].includes(event.type)) {
+      const store = await runManager.readDesktopStore();
+      const active = store.automation.active_task;
+      if (!active || active.run_id !== event.sourceRunId) return;
+      await addRecovery({
+        type: "runtime_continuation_stopped",
+        task: active,
+        message: event.message || `Runtime auto-continuation stopped: ${event.reason || "unknown reason"}.`,
+        actions: ["retry_start", "mark_blocked"]
+      });
       return;
     }
     if (event.type !== "run.finished") {
@@ -539,18 +654,12 @@ export function createAutomationCoordinator({
       emit("automation.changed", { reason: "awaiting-human", taskId: active.task_id });
       return;
     }
-    if (event.status === "completed"
-      && handoff.next_responsibility === "agent"
-      && handoff.agent_continuation_available === true
-      && handoff.trigger_mode === "auto_bridge") {
+    if (event.status === "completed" && isAgentContinuationHandoff(handoff)) {
       await patchAutomation((automation) => {
         if (automation.active_task?.run_id === event.runId) {
           automation.active_task.phase = "continuing";
         }
       });
-      setTimeout(() => {
-        recoverIfAutoContinueDidNotStart(event.runId, active).catch((error) => emit("automation.error", { message: error.message }));
-      }, 500);
       emit("automation.changed", { reason: "runtime-continuing", taskId: active.task_id });
       return;
     }
@@ -569,7 +678,7 @@ export function createAutomationCoordinator({
     });
   }
 
-  async function completeRemoteTask() {
+  async function completeRemoteTask({ syncAfter = true } = {}) {
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
     if (!active) return null;
@@ -579,11 +688,20 @@ export function createAutomationCoordinator({
       if (automation.active_task) automation.active_task.phase = "completing";
     });
     try {
+      const project = store.automation.snapshot.projects.find((item) => String(item.id) === String(active.project_id));
+      const executorId = requireCurrentExecutorId(project, store.automation.snapshot.user);
+      const latest = await source.getTask(active.task_id, active.project_id, { executorId });
+      if (!latest || latest.state !== "in_progress") {
+        throw new TaskSourceError("Task is no longer assigned to the current user or is no longer in progress.", {
+          code: "not_assigned"
+        });
+      }
       const completed = await source.updateTask({
         taskId: active.task_id,
         projectId: active.project_id,
+        executorId,
         state: "completed",
-        expectedVersion: task?.version || active.server_version
+        expectedVersion: latest.version || task?.version || active.server_version
       });
       await patchAutomation((automation) => {
         replaceTask(automation, completed);
@@ -601,7 +719,9 @@ export function createAutomationCoordinator({
         automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
       });
       emit("automation.changed", { reason: "task-completed", taskId: completed.id });
-      await sync();
+      if (syncAfter) {
+        await sync();
+      }
       return completed;
     } catch (error) {
       await addRecovery({
@@ -614,17 +734,50 @@ export function createAutomationCoordinator({
     }
   }
 
-  async function recoverIfAutoContinueDidNotStart(sourceRunId, active) {
+  async function reconcileDetachedRunCompletion() {
     const store = await runManager.readDesktopStore();
-    if (store.automation.active_task?.run_id !== sourceRunId || store.automation.active_task?.phase !== "continuing") {
-      return;
+    const active = store.automation.active_task;
+    if (!active?.run_id || runManager.isRunActive?.(active.run_id)) return null;
+
+    const runs = await runManager.listRuns({ projectId: active.local_project_id });
+    const runByParent = new Map();
+    for (const run of runs) {
+      const parentId = String(run.auto_continue_from_run_id || "").trim();
+      if (!parentId) continue;
+      const existing = runByParent.get(parentId);
+      if (!existing || compareRunRecency(existing, run) < 0) {
+        runByParent.set(parentId, run);
+      }
     }
-    await addRecovery({
-      type: "runtime_incomplete",
-      task: active,
-      message: "Runtime requested agent continuation, but no fresh continuation run started.",
-      actions: ["retry_start", "mark_blocked"]
+
+    let latest = runs.find((run) => run.id === active.run_id) || null;
+    const visited = new Set();
+    while (latest && !visited.has(latest.id)) {
+      visited.add(latest.id);
+      const child = runByParent.get(latest.id);
+      if (!child) break;
+      latest = child;
+    }
+    if (!latest || latest.status !== "completed") return null;
+
+    const activity = latest.activity || {};
+    const handoff = activity.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff
+      || activity.loop_handoff
+      || {};
+    const caseComplete = handoff.next_responsibility === "none"
+      || handoff.status === "done"
+      || handoff.status === "complete";
+    const ledgerRequired = activity.ledger_stage?.writeback_required === true;
+    const ledgerWritten = activity.ledger_write_result?.parsed?.written === true;
+    if (!caseComplete || (ledgerRequired && !ledgerWritten)) return null;
+
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== active.task_id) return;
+      automation.active_task.run_id = latest.id;
+      automation.active_task.phase = "completing";
+      automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
     });
+    return completeRemoteTask({ syncAfter: false });
   }
 
   async function addRecovery({ type, task, message, actions, freezeScope = "global" }) {
@@ -639,7 +792,7 @@ export function createAutomationCoordinator({
         run_id: task?.run_id || "",
         message,
         freeze_scope: freezeScope,
-        responsibility: "human",
+        responsibility: "operator",
         actions,
         created_at: now()
       });
@@ -656,7 +809,7 @@ export function createAutomationCoordinator({
   async function reconcileRuntimePresence() {
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
-    if (!active || ["awaiting_human", "completing", "recovery"].includes(active.phase)) return;
+    if (!active || ["starting", "continuing", "awaiting_human", "completing", "recovery"].includes(active.phase)) return;
     if (active.run_id && runManager.isRunActive?.(active.run_id)) return;
     await addRecovery({
       type: "runtime_process_missing",
@@ -666,6 +819,47 @@ export function createAutomationCoordinator({
         : "The server task is in progress, but no Runtime run is attached locally.",
       actions: ["retry_start", "mark_blocked"]
     });
+  }
+
+  async function resumeEligibleAgentRecovery() {
+    const store = await runManager.readDesktopStore();
+    const active = store.automation.active_task;
+    if (!active || active.phase !== "recovery" || !active.run_id) return;
+    const recovery = store.automation.recovery_items.find((item) => (
+      item.task_id === active.task_id
+      && item.run_id === active.run_id
+      && ["runtime_incomplete", "runtime_continuation_stopped"].includes(item.type)
+    ));
+    if (!recovery || typeof runManager.resumeAutoContinuation !== "function") return;
+    const runs = await runManager.listRuns({ projectId: active.local_project_id });
+    const run = runs.find((item) => item.id === active.run_id);
+    if (run?.status !== "completed" || !isAgentContinuationHandoff(run.activity?.loop_handoff)) return;
+
+    await patchAutomation((automation) => {
+      if (automation.active_task?.run_id !== active.run_id) return;
+      automation.active_task.phase = "continuing";
+      automation.recovery_items = automation.recovery_items.filter((item) => (
+        item.task_id !== active.task_id || !["runtime_incomplete", "runtime_continuation_stopped", "runtime_process_missing"].includes(item.type)
+      ));
+    });
+    try {
+      const result = await runManager.resumeAutoContinuation(active.run_id);
+      if (result?.status !== "started") {
+        await addRecovery({
+          type: "runtime_continuation_stopped",
+          task: active,
+          message: result?.message || "Runtime automatic continuation did not start.",
+          actions: ["retry_start", "mark_blocked"]
+        });
+      }
+    } catch (error) {
+      await addRecovery({
+        type: "runtime_continuation_stopped",
+        task: active,
+        message: error.message,
+        actions: ["retry_start", "mark_blocked"]
+      });
+    }
   }
 
   async function stopRuntimeForExternalChange() {
@@ -725,6 +919,7 @@ export function createAutomationCoordinator({
     sync,
     setEnabled,
     setQueuePaused,
+    clearRemoteSession,
     bindProject,
     setProjectParticipation,
     updateTaskState,
@@ -736,6 +931,13 @@ export function createAutomationCoordinator({
 }
 
 export function buildQueue(tasks, automation, projectIndex, localIndex) {
+  return buildPendingCandidates(tasks, automation, projectIndex, localIndex)
+    .filter((task) => task.eligible)
+    .sort(compareQueueTasks)
+    .map((task, index) => ({ ...task, queue_position: index + 1 }));
+}
+
+export function buildPendingCandidates(tasks, automation, projectIndex, localIndex) {
   return tasks
     .filter((task) => task.state === "pending")
     .map((task) => {
@@ -753,13 +955,15 @@ export function buildQueue(tasks, automation, projectIndex, localIndex) {
         eligibility_reason: !localProject
           ? "未绑定本地工作区"
           : automation.project_participation[remoteId] !== true
-            ? "项目未参与自动化"
-            : projectError ? "任务源异常" : "可执行"
+            ? "项目未允许自动领取"
+            : projectError ? "任务源异常" : "可执行",
+        eligibility_code: !localProject
+          ? "project_unbound"
+          : automation.project_participation[remoteId] !== true
+            ? "project_not_participating"
+            : projectError ? "task_source_error" : "eligible"
       };
-    })
-    .filter((task) => task.eligible)
-    .sort(compareQueueTasks)
-    .map((task, index) => ({ ...task, queue_position: index + 1 }));
+    });
 }
 
 export function compareQueueTasks(left, right) {
@@ -786,8 +990,44 @@ function emptyStateCounts() {
   return Object.fromEntries(TASK_STATES.map((state) => [state, 0]));
 }
 
-function enrichTask(task, { automation, project, localProject, queue }) {
+function compareRunRecency(left, right) {
+  const depthDelta = Number(left?.auto_continue_depth || 0) - Number(right?.auto_continue_depth || 0);
+  if (depthDelta !== 0) return depthDelta;
+  const timeDelta = String(left?.started_at || "").localeCompare(String(right?.started_at || ""));
+  if (timeDelta !== 0) return timeDelta;
+  return String(left?.id || "").localeCompare(String(right?.id || ""));
+}
+
+function currentExecutorId(project, user) {
+  const direct = scalarId(project?.current_user_id ?? project?.currentUserId);
+  if (direct) return direct;
+  const members = Array.isArray(project?.raw?.members)
+    ? project.raw.members
+    : Array.isArray(project?.members) ? project.members : [];
+  const currentMember = members.find((member) => member?.is_me === true)
+    || members.find((member) => user?.name && String(member?.username || "") === String(user.name));
+  return scalarId(currentMember?.user_id ?? user?.id);
+}
+
+function requireCurrentExecutorId(project, user) {
+  const executorId = currentExecutorId(project, user);
+  if (!executorId) {
+    throw new TaskSourceError("Cannot identify the current Workshop user in this project.", {
+      code: "current_user_unresolved"
+    });
+  }
+  return executorId;
+}
+
+function retainAssignedSnapshotTasks(tasks, projectId, executorId) {
+  if (!executorId) return [];
+  return tasks.filter((task) => String(task.project_id) === String(projectId))
+    .filter((task) => scalarId(task.executor_id ?? task.raw?.executor_id) === executorId);
+}
+
+function enrichTask(task, { automation, project, localProject, queue, pendingCandidates }) {
   const queueItem = queue.find((item) => item.id === task.id);
+  const pendingCandidate = pendingCandidates.find((item) => item.id === task.id);
   return {
     ...task,
     state_label: STATE_LABELS[task.state] || task.state,
@@ -796,17 +1036,22 @@ function enrichTask(task, { automation, project, localProject, queue }) {
     local_project_path: localProject?.path || "",
     participating: automation.project_participation[String(task.project_id)] === true,
     eligible: Boolean(queueItem),
+    eligibility_code: pendingCandidate?.eligibility_code || "not_pending",
+    eligibility_reason: pendingCandidate?.eligibility_reason || "任务当前不是待处理状态",
     queue_position: queueItem?.queue_position || null
   };
 }
 
-function deriveHealth(automation, queue) {
+function deriveHealth(automation, queue, blockedPendingTasks = []) {
   if (automation.recovery_items.length > 0) return { state: "recovery", label: "需要恢复", tone: "danger" };
   if (automation.attention_items.length > 0) return { state: "attention", label: "等待人工", tone: "warning" };
+  if (automation.snapshot.source_status === "logged_out") return { state: "logged_out", label: "Workshop 未登录", tone: "neutral" };
+  if (automation.snapshot.source_status === "unauthenticated") return { state: "unauthenticated", label: "认证已失效", tone: "danger" };
   if (automation.snapshot.source_status !== "healthy") return { state: automation.snapshot.source_status, label: "任务源异常", tone: "warning" };
-  if (!automation.enabled) return { state: "disabled", label: "自动化已关闭", tone: "neutral" };
-  if (automation.queue_paused) return { state: "paused", label: "队列已暂停", tone: "neutral" };
+  if (!automation.enabled) return { state: "disabled", label: "自动领取已关闭", tone: "neutral" };
+  if (automation.queue_paused) return { state: "paused", label: "领取已暂停", tone: "neutral" };
   if (automation.active_task) return { state: "running", label: "自动执行中", tone: "accent" };
+  if (blockedPendingTasks.length > 0) return { state: "configuration_required", label: "待处理任务尚不可领取", tone: "warning" };
   if (queue.length === 0) return { state: "idle", label: "队列已清空", tone: "success" };
   return { state: "ready", label: "准备领取", tone: "success" };
 }
@@ -831,7 +1076,7 @@ function reconcileActiveTask(automation) {
       run_id: active.run_id,
       message: "The active task is missing from the latest server snapshot.",
       freeze_scope: "global",
-      responsibility: "human",
+      responsibility: "operator",
       actions: ["retry_sync"],
       created_at: new Date().toISOString()
     });
@@ -846,7 +1091,7 @@ function reconcileActiveTask(automation) {
       run_id: active.run_id,
       message: `The active task changed to ${task.state} on the server.`,
       freeze_scope: "global",
-      responsibility: "human",
+      responsibility: "operator",
       actions: ["retry_sync", "accept_server_state"],
       created_at: new Date().toISOString()
     });
@@ -877,7 +1122,7 @@ function reconcileUnassociatedInProgress(automation, occurredAt) {
       run_id: "",
       message: `Multiple server tasks are in progress (${candidates.map((task) => task.id).join(", ")}). Mark non-target tasks blocked in Task Browser, then retry sync.`,
       freeze_scope: "global",
-      responsibility: "human",
+      responsibility: "operator",
       actions: ["retry_sync"],
       created_at: occurredAt
     });
@@ -905,7 +1150,7 @@ function reconcileUnassociatedInProgress(automation, occurredAt) {
     run_id: "",
     message: "A unique in-progress server task was restored. Confirm resuming the same task or mark it blocked.",
     freeze_scope: "global",
-    responsibility: "human",
+    responsibility: "operator",
     actions: ["retry_start", "mark_blocked"],
     created_at: occurredAt
   });
@@ -914,6 +1159,19 @@ function reconcileUnassociatedInProgress(automation, occurredAt) {
 function upsertById(items, item) {
   const filtered = items.filter((candidate) => candidate.id !== item.id);
   return [item, ...filtered].slice(0, 50);
+}
+
+async function mapWithConcurrency(items, limit, mapper) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await mapper(items[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 function errorRecord(error, projectId = "") {
@@ -931,25 +1189,21 @@ function requiredId(value, label) {
   return id;
 }
 
+function scalarId(value) {
+  return ["string", "number"].includes(typeof value) && String(value).trim()
+    ? String(value).trim()
+    : "";
+}
+
 function timestamp(value) {
   const result = Date.parse(value || "");
   return Number.isFinite(result) ? result : Number.MAX_SAFE_INTEGER;
 }
 
-function buildAutomationTask(task) {
-  return [
-    "Continue the active Arckit Case loop until the bounded server task is complete.",
-    `Remote task: ${task.id}`,
-    `Remote project: ${task.project_id}`,
-    `Task content: ${task.content || task.title}`,
-    "Use the selected project's canonical Project State and Case State. Apply evidence-backed ledger transitions and stop only when the Case handoff is complete, human, external, or blocked."
-  ].join("\n");
+export function buildAutomationTask(task) {
+  return String(task?.content || task?.title || "").trim();
 }
 
-function buildInterventionTask(active, message) {
-  return [
-    `Resume remote task ${active.task_id} in project ${active.project_id}.`,
-    `Human intervention: ${message}`,
-    "Re-read the current Case State before planning the next transition."
-  ].join("\n");
+export function buildInterventionTask(message) {
+  return String(message || "").trim();
 }

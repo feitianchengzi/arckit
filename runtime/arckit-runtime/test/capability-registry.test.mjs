@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -9,6 +9,7 @@ import test from "node:test";
 
 import {
   agentSkillInvocationForPhase,
+  assertInstalledAgentSkillCompatibility,
   capabilitiesForBinding,
   invalidCapabilityBindings,
   loadCapabilityPolicy,
@@ -17,16 +18,20 @@ import {
   runtimeCapabilityForEntrypoint
 } from "../src/capability-registry.mjs";
 import {
+  compileAgentTaskPrompt,
   compileControllerPlanPrompt,
   compileControllerReviewPrompt,
   controllerPlanFailureReason,
   authorizedPacketFailureReason,
   createAgentTasks,
-  normalizePacketWorkerTasks
+  mergeAgentReports,
+  normalizePacketWorkerTasks,
+  shouldRetryControllerPlan
 } from "../src/agent-orchestrator.mjs";
 import { writeLedger } from "../src/ledger-writer.mjs";
 import { ensureArckitProject } from "../src/project-initializer.mjs";
 import { createStateStore } from "../src/state-store.mjs";
+import { selectNextRound } from "../src/loop-controller.mjs";
 import { runLedgerScript } from "../src/ledger-scripts.mjs";
 import { reduceWorkerReports } from "../src/controller-reducer.mjs";
 import {
@@ -36,6 +41,10 @@ import {
   writeCaseRecord
 } from "../../../entry/skills/arckit-development-ledger/scripts/development-case.mjs";
 import { applyCaseTransition } from "../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs";
+import { applyRuntimeCaseControl } from "../../../entry/skills/arckit-development-ledger/scripts/runtime-case-control.mjs";
+import { createCaseControlRuntimeResult } from "../src/kernel/runtime-result-builder.mjs";
+import { shouldPrepareLedgerWriteback } from "../src/kernel/runtime-result-builder.mjs";
+import { runtimeRecordRefForRun } from "../src/runtime-record-ref.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 
@@ -79,6 +88,41 @@ test("default capability policy exposes exactly the retained skills in one execu
     assert.deepEqual(bound.map((capability) => capability.id), expectedIds);
     assert.ok(bound.every((capability) => capability.binding_targets.includes(bindingTarget)));
   }
+});
+
+test("Runtime verifies the installed Controller skill matches the repository protocol source", async () => {
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "arckit-controller-skill-compat-"));
+  const sourceRoot = join(fixtureRoot, "source", "using-arckit");
+  const codexHome = join(fixtureRoot, "codex-home");
+  const installedRoot = join(codexHome, "skills", "using-arckit");
+  await mkdir(sourceRoot, { recursive: true });
+  await mkdir(installedRoot, { recursive: true });
+  const manifest = {
+    schema_version: "arckit-capability/v1",
+    id: "using-arckit",
+    protocol_revision: "controller-runtime-actions/v1",
+    binding_targets: ["controller"],
+    invocation: { type: "agent_skill", skill_trigger: "$using-arckit", phases: ["controller_plan"] }
+  };
+  const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
+  await writeFile(join(sourceRoot, "arckit.capability.json"), manifestText);
+  await writeFile(join(sourceRoot, "SKILL.md"), "# Controller protocol\n");
+  await writeFile(join(installedRoot, "arckit.capability.json"), manifestText);
+  await writeFile(join(installedRoot, "SKILL.md"), "# Controller protocol\n");
+  const capability = {
+    ...manifest,
+    capability_root: sourceRoot,
+    source: "repository"
+  };
+
+  const checked = await assertInstalledAgentSkillCompatibility([capability], { codexHome });
+  assert.equal(checked[0].protocol_revision, "controller-runtime-actions/v1");
+
+  await writeFile(join(installedRoot, "SKILL.md"), "# Stale controller protocol\n");
+  await assert.rejects(
+    () => assertInstalledAgentSkillCompatibility([capability], { codexHome }),
+    /has drifted/
+  );
 });
 
 test("worker binding validation rejects controller, runtime, and unknown capability ids", async () => {
@@ -129,13 +173,36 @@ test("worker binding validation rejects controller, runtime, and unknown capabil
   }, workers), /non-worker or unavailable/);
 });
 
+test("Controller runtime actions and Worker dispatch are structurally exclusive", () => {
+  const plan = controllerPlan([]);
+  plan.execution_plan = {
+    plane: "runtime",
+    runtime_actions: [{
+      type: "case_control",
+      action: "create_case",
+      case_id: "",
+      title: "Create a bounded Case",
+      intent: "Bind the operator request before Case work starts.",
+      artifact_type: "code",
+      selection_reason: "No active Case represents the request."
+    }]
+  };
+  assert.match(controllerPlanFailureReason(plan, []), /mutually exclusive/);
+  assert.equal(shouldRetryControllerPlan({ plan, failureReason: "mutually exclusive", attempt: 1 }), true);
+  assert.equal(shouldRetryControllerPlan({ plan, failureReason: "mutually exclusive", attempt: 2 }), false);
+  assert.equal(shouldRetryControllerPlan({
+    plan: { status: "blocked", summary: "Codex controller did not return a valid arckit-controller-plan/v3 JSON object." },
+    failureReason: "invalid output",
+    attempt: 1
+  }), true);
+});
+
 test("Controller may plan an evidence-backed Case transition with zero Workers", async () => {
   const policy = await loadCapabilityPolicy();
   const capabilities = await loadRuntimeCapabilities({ capabilityPolicy: policy });
   const workers = capabilitiesForBinding(capabilities, policy, "worker");
   const plan = controllerPlan([]);
-  plan.route_plan.selected_worker_types = [];
-  plan.route_plan.selected_roles = [];
+  plan.execution_plan.plane = "none";
   plan.worker_intents = [];
 
   assert.equal(controllerPlanFailureReason(plan, workers), "");
@@ -162,9 +229,41 @@ test("Controller plan rejects a stale candidate-gap field before Worker dispatch
   }), /stale Case gap: next_transition/);
 });
 
+test("Runtime initialization repairs persisted candidate-gap projections through the trusted ledger", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-derived-case-gaps-"));
+  await initializeProjectWithCase({ projectRoot, intent: "Verify fresh candidate-gap derivation." });
+  const initial = await createStateStore(projectRoot).readSnapshot();
+  const activeCase = initial.activeCases[0];
+  const casePath = join(projectRoot, activeCase.ref);
+  const { text, record } = readCaseRecord(casePath);
+  const selectedGap = record.case_resolution.candidate_gaps[0];
+  const staleTransition = "Replay a persisted Runtime continuation instruction.";
+  selectedGap.next_transition = staleTransition;
+  record.current_round.selected_gap = { ...selectedGap };
+  writeCaseRecord(casePath, text, record);
+
+  const initialization = await ensureArckitProject({
+    projectRoot,
+    intent: "Continue from the latest authoritative Case state."
+  });
+  const snapshot = await createStateStore(projectRoot).readSnapshot();
+  const refreshedRecord = snapshot.activeCases[0].record;
+  const expected = auditCaseRecord(record, record.updated_at).candidate_gaps[0];
+  const refreshed = refreshedRecord.case_resolution.candidate_gaps[0];
+  const round = selectNextRound(snapshot);
+
+  assert.equal(initialization.repaired, true);
+  assert.ok(initialization.changed_files.includes(activeCase.ref));
+  assert.equal(refreshed.next_transition, expected.next_transition);
+  assert.notEqual(refreshed.next_transition, staleTransition);
+  assert.equal(refreshedRecord.current_round.selected_gap, null);
+  assert.equal(round.gap_id, "CASE-GAP-AGENT-SELECTED");
+  assert.equal(round.candidate_case_gaps[0].next_transition, expected.next_transition);
+});
+
 test("authorized packet rejects a stale Case revision before Worker execution", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-stale-packet-"));
-  await ensureArckitProject({ projectRoot, intent: "Create a packet revision fixture." });
+  await initializeProjectWithCase({ projectRoot, intent: "Create a packet revision fixture." });
   const snapshot = await createStateStore(projectRoot).readSnapshot();
   const activeCase = snapshot.activeCases[0];
   const gap = activeCase.record.case_resolution.candidate_gaps[0];
@@ -204,6 +303,113 @@ test("Controller evidence can close a zero-Worker runtime gate", () => {
   assert.deepEqual(result.evidence, ["arckit/spec/example.md"]);
 });
 
+test("Controller explicitly authorizes a verification Worker to add focused executable coverage", () => {
+  const plan = controllerPlan([]);
+  plan.worker_intents[0] = {
+    ...plan.worker_intents[0],
+    worker_type: "verification",
+    role: "behavior-verifier",
+    objective: "Add and run focused executable behavior coverage.",
+    allowed_paths: ["sources/tests/test_data_conversion_tool.cpp", "sources/tests/CMakeLists.txt"],
+    allowed_actions: ["read_files", "edit_allowed_paths", "run_non_destructive_checks", "report_evidence"],
+    forbidden_actions: ["write_ledger_directly", "change_unrelated_files"],
+    stop_condition: "Stop after the focused tests pass or return an evidence-backed blocker."
+  };
+
+  assert.equal(controllerPlanFailureReason(plan, []), "");
+  const [task] = createAgentTasks({ ...taskFixture(), controllerPlan: plan });
+  assert.equal(task.worker_type, "verification");
+  assert.ok(task.scope.allowed_actions.includes("edit_allowed_paths"));
+  assert.deepEqual(task.scope.allowed_paths, plan.worker_intents[0].allowed_paths);
+  assert.equal(task.stop_condition, plan.worker_intents[0].stop_condition);
+});
+
+test("Controller-accepted negative Worker evidence can write a repair transition", () => {
+  const taskId = "TASK-01-behavior-verifier";
+  const loopFrame = {
+    case_id: "CASE-20260726-001",
+    case_updated_at: "2026-07-26T00:00:00.000Z",
+    conversation_locale: "en",
+    selected_gap: controllerPlan([]).route_plan.selected_gap,
+    controller_frame: { controller_plan: controllerPlan([]), route_plan: controllerPlan([]).route_plan },
+    execution_gate: { status: "authorized" },
+    executor_binding: { executor: "desktop_runtime" },
+    worker_packets: [{
+      worker_id: taskId,
+      worker_type: "verification",
+      role: "behavior-verifier",
+      allowed_paths: ["sources/tests/"],
+      allowed_actions: ["read_files", "run_non_destructive_checks", "report_evidence"]
+    }]
+  };
+  const report = {
+    schema_version: "arckit-worker-report/v2",
+    task_id: taskId,
+    worker_type: "verification",
+    role: "behavior-verifier",
+    status: "blocked",
+    summary: "Executable coverage is missing and the current packet does not authorize editing tests.",
+    findings: ["The existing test target does not cover the requested field-label routing behavior."],
+    evidence: ["sources/tests/test_data_conversion_tool.cpp"],
+    changes: [],
+    artifact_impacts: [],
+    case_state_claims: [],
+    risks: [],
+    unknowns: [],
+    recommendation: "Authorize a focused test edit and rerun verification.",
+    requires_main_agent_decision: true,
+    requires_human_decision: false
+  };
+  const review = {
+    schema_version: "arckit-controller-review/v3",
+    status: "continue",
+    summary: "Accept the negative verification evidence and record the repair gap.",
+    accepted_reports: [taskId],
+    rejected_reports: [],
+    accepted_case_state_delta: {
+      facets: [{
+        facet: "implementation_state",
+        set: { resolution: "unresolved", alignment: "diverged", reason: "Focused executable behavior coverage is missing.", next_transition: "Add and run the focused test." },
+        evidence: ["sources/tests/test_data_conversion_tool.cpp"],
+        unresolved: ["Focused executable behavior coverage is missing."]
+      }],
+      resolved_open_questions: [],
+      completed_handoffs: [],
+      completion_review_result: null,
+      resolved_review_findings: [],
+      review_budget_extension: null
+    },
+    evidence: ["sources/tests/test_data_conversion_tool.cpp"],
+    case_resolution: { claimed_status: "unresolved", reason: "The Agent can add the focused test next.", unresolved: ["Focused executable behavior coverage is missing."] },
+    project_impact_candidate: { status: "none", changes: [], evidence: [] },
+    risks: [],
+    unknowns: [],
+    next_prompt: "Add and run the focused executable behavior coverage.",
+    continuation_intent: {
+      goal: "Add and run the focused executable behavior coverage.",
+      state_transition: "verification diverged -> aligned",
+      next_prompt: "Authorize a Worker to edit only the focused test files and run the tests."
+    },
+    human_decision_required: false
+  };
+  const merge = mergeAgentReports({
+    reports: [report],
+    loopFrame,
+    round: { gap_id: loopFrame.selected_gap.id, conversation_locale: "en" },
+    compiledPrompt: { conversation_locale: "en" },
+    dryRun: false,
+    controllerReview: { usable: true, review, failure_reason: "" }
+  });
+
+  assert.equal(merge.decision, "continue");
+  assert.equal(merge.loop_gate.status, "continue");
+  assert.equal(merge.controller_reducer_result.runtime_guard.status, "agent_recoverable");
+  assert.equal(merge.controller_reducer_result.runtime_guard.vetoed_controller_review, false);
+  assert.deepEqual(merge.report_intake.accepted, [taskId]);
+  assert.deepEqual(merge.report_intake.needs_controller_decision, []);
+  assert.equal(shouldPrepareLedgerWriteback(merge), true);
+});
+
 test("controller phases invoke using-arckit through the native skill trigger", async () => {
   const policy = await loadCapabilityPolicy();
   const capabilities = await loadRuntimeCapabilities({ capabilityPolicy: policy });
@@ -219,8 +425,24 @@ test("controller phases invoke using-arckit through the native skill trigger", a
     runtimeCapabilities: capabilitiesForBinding(capabilities, policy, "runtime")
   });
   assert.ok(planPrompt.startsWith("$using-arckit\n"));
-  assert.match(planPrompt, /phase=controller_plan/);
-  assert.doesNotMatch(planPrompt, /Every round must follow these steps/i);
+  assert.match(planPrompt, /"phase": "controller_plan"/);
+  assert.match(planPrompt, /"operator_input": "Implement the bounded change\."/);
+  assert.match(planPrompt, /"kind": "auto_continuation"/);
+  assert.doesNotMatch(planPrompt, /Project Snapshot|active_cases|Runtime-owned Constraints|Output Contract/);
+  assert.doesNotMatch(planPrompt, /Select one bounded Case gap|planned_transition describes|Return only/);
+
+  const repairPrompt = compileControllerPlanPrompt({
+    ...taskFixture(),
+    selectedCapabilities: capabilitiesForBinding(capabilities, policy, "worker"),
+    controllerCapabilities: controllers,
+    runtimeCapabilities: capabilitiesForBinding(capabilities, policy, "runtime"),
+    controllerFeedback: {
+      validation_error: "Runtime actions and Worker dispatch are mutually exclusive.",
+      rejected_plan: { execution_plan: { plane: "runtime" }, worker_intents: [{}] }
+    }
+  });
+  assert.match(repairPrompt, /"controller_feedback"/);
+  assert.match(repairPrompt, /mutually exclusive/);
 
   const reviewPrompt = compileControllerReviewPrompt({
     loopFrame: taskFixture().loopFrame,
@@ -229,7 +451,22 @@ test("controller phases invoke using-arckit through the native skill trigger", a
     controllerCapabilities: controllers
   });
   assert.ok(reviewPrompt.startsWith("$using-arckit\n"));
-  assert.match(reviewPrompt, /phase=controller_review/);
+  assert.match(reviewPrompt, /"phase": "controller_review"/);
+  assert.match(reviewPrompt, /"kind": "auto_continuation"/);
+  assert.doesNotMatch(reviewPrompt, /Runtime-owned Constraints|Output Contract|human-responsibility completion_review/);
+
+  const workerPrompt = compileAgentTaskPrompt({
+    agentTask: createAgentTasks({
+      ...taskFixture(),
+      selectedCapabilities: capabilitiesForBinding(capabilities, policy, "worker"),
+      controllerPlan: controllerPlan(["arckit-tech"])
+    })[0],
+    previousReports: []
+  });
+  assert.ok(workerPrompt.startsWith("$arckit-tech\n"));
+  assert.match(workerPrompt, /"phase": "worker"/);
+  assert.match(workerPrompt, /"schema_version": "arckit-worker-packet\/v2"/);
+  assert.doesNotMatch(workerPrompt, /Required Behavior|Allowed Capability Context|Output Contract|You are one bounded Worker/);
 });
 
 test("runtime resolves trusted development-ledger entrypoints from the skill source", async () => {
@@ -252,6 +489,7 @@ test("runtime resolves trusted development-ledger entrypoints from the skill sou
   assert.equal(ledger.source, "repository");
   assert.match(resolveCapabilityEntrypoint(ledger, "writeback"), /entry\/skills\/arckit-development-ledger\/scripts\/runtime-writeback\.mjs$/);
   assert.match(resolveCapabilityEntrypoint(ledger, "project_state"), /entry\/skills\/arckit-development-ledger\/scripts\/project-state\.mjs$/);
+  assert.match(resolveCapabilityEntrypoint(ledger, "case_control"), /entry\/skills\/arckit-development-ledger\/scripts\/runtime-case-control\.mjs$/);
   assert.match(resolveCapabilityEntrypoint(ledger, "case_transition"), /entry\/skills\/arckit-development-ledger\/scripts\/case-transition\.mjs$/);
   for (const script of ["project-state.mjs", "project-iteration.mjs", "development-case.mjs"]) {
     assert.equal(existsSync(resolve(testDir, "../ledger-scripts", script)), false);
@@ -264,9 +502,126 @@ test("runtime resolves trusted development-ledger entrypoints from the skill sou
   }, "writeback"), /escapes its capability root/);
 });
 
+test("Runtime applies an Agent-directed create_case handoff and selects the fresh Case", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-case-control-create-"));
+  await ensureArckitProject({
+    projectRoot,
+    projectName: "Agent Directed Case Control",
+    intent: "Let the Controller decide whether a Case is needed."
+  });
+  const snapshot = await createStateStore(projectRoot).readSnapshot();
+  assert.equal(snapshot.activeCases.length, 0);
+  assert.equal(snapshot.projectState.case_control.selected_case_ref, "");
+
+  const plan = {
+    ...controllerPlan([]),
+    summary: "The operator request is a new bounded development concern.",
+    execution_plan: {
+      plane: "runtime",
+      runtime_actions: [{
+        type: "case_control",
+        action: "create_case",
+        case_id: "",
+        title: "Add demand-driven Case control",
+        intent: "Create and select a Case chosen by Controller semantics.",
+        artifact_type: "code",
+        selection_reason: "No active Case represents the operator request."
+      }]
+    },
+    route_plan: {
+      mode: "case_control",
+      selected_gap: {
+        id: "",
+        scope: "project",
+        case_id: "",
+        facet: "",
+        responsibility: "agent",
+        current_state: "No matching Case is selected.",
+        target_state: "A bounded Case is selected.",
+        impact: "Bind the operator request before Worker execution.",
+        next_transition: "Create and select the Controller-defined Case."
+      },
+      reason: "Case control must complete before Case gap planning.",
+      requires_human_confirmation: false
+    },
+    worker_intents: [],
+    planned_transition: {
+      goal: "Create and select the Controller-defined Case.",
+      expected_state_change: "Project Case selection becomes bound to a fresh active Case."
+    },
+    continuation_intent: {
+      goal: "Plan the first evidence-backed transition of the fresh Case.",
+      state_transition: "Fresh Case State exposes candidate gaps.",
+      next_prompt: "Reload Project and Case State, then select one candidate gap."
+    },
+    risks: [],
+    unknowns: [],
+    next_controller_action: "Continue after deterministic Case control writeback."
+  };
+  assert.equal(controllerPlanFailureReason(plan, [], { candidate_cases: [], candidate_case_gaps: [] }), "");
+
+  const loopFrame = {
+    conversation_locale: "en",
+    controller_frame: { round_goal: plan.planned_transition.goal, route_plan: plan.route_plan, controller_plan: plan },
+    execution_gate: { status: "authorized" },
+    executor_binding: { executor: "desktop_runtime" }
+  };
+  const runtimeResult = await createCaseControlRuntimeResult({
+    controllerPlan: plan,
+    loopFrame,
+    round: { conversation_locale: "en", required_context_refs: ["arckit/project/state.record.json"], stop_conditions: [], max_auto_rounds: 8 },
+    snapshot,
+    compiledPrompt: { conversation_locale: "en", output_schema: "runtime/arckit-runtime/schemas/runtime-result.schema.json" },
+    roundState: { state: "planned", history: [] }
+  });
+  const result = await writeLedger({ projectRoot, runtimeResult, envelope: {}, snapshot, dryRun: false });
+  const freshSnapshot = await createStateStore(projectRoot).readSnapshot();
+
+  assert.equal(result.written, true, JSON.stringify(result.gate?.reasons || result));
+  assert.equal(result.case_control_result.action, "create_case");
+  assert.equal(freshSnapshot.activeCases.length, 1);
+  assert.equal(freshSnapshot.projectState.case_control.selected_case_ref, result.case_control_result.selected_case_ref);
+  assert.equal(freshSnapshot.activeCases[0].record.title, plan.execution_plan.runtime_actions[0].title);
+  assert.equal(freshSnapshot.activeCases[0].record.user_intent, plan.execution_plan.runtime_actions[0].intent);
+  assert.equal(existsSync(join(projectRoot, "arckit/project/runtime-results")), false);
+});
+
+test("Agent-directed Case creation rolls back when Project selection cannot commit", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-case-control-rollback-"));
+  await ensureArckitProject({ projectRoot, projectName: "Case Control Rollback", intent: "Verify atomic control writeback." });
+  const snapshot = await createStateStore(projectRoot).readSnapshot();
+  const statePath = join(projectRoot, "arckit/project/state.record.json");
+  const state = JSON.parse(readFileSync(statePath, "utf8"));
+  state.active_iteration_ref = "arckit/project/iterations/MISSING.record.json";
+  await writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`);
+  const runtimeResult = {
+    case_control_handoff: {
+      schema_version: "arckit-case-control-handoff/v1",
+      action: "create_case",
+      expected_project_updated_at: state.project.updated_at,
+      case_id: "",
+      title: "Rollback fixture",
+      intent: "No partial Case survives a failed selection.",
+      artifact_type: "code",
+      selection_reason: "The Controller chose a fresh bounded Case.",
+      review_policy: { max_autonomous_cycles: 3, source: "test-fixture" }
+    }
+  };
+
+  await assert.rejects(() => applyRuntimeCaseControl({
+    projectRoot,
+    runtimeResult,
+    snapshot,
+    gate: { allowed: true },
+    dryRun: false
+  }), /active_iteration_ref must exist/);
+  assert.deepEqual(fsCaseNames(projectRoot), []);
+  assert.equal(JSON.parse(readFileSync(statePath, "utf8")).case_control.selected_case_ref, "");
+});
+
 test("case transition CLI accepts ephemeral transition input from stdin", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-transition-stdin-"));
-  await ensureArckitProject({
+  await initializeProjectWithCase({
     projectRoot,
     projectName: "Transition Stdin Test",
     intent: "Verify fileless Case transition transport."
@@ -303,7 +658,7 @@ test("case transition CLI accepts ephemeral transition input from stdin", async 
 
 test("runtime ledger gate delegates dry-run writeback to the development-ledger skill", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-ledger-writeback-"));
-  await ensureArckitProject({
+  await initializeProjectWithCase({
     projectRoot,
     projectName: "Ledger Writeback Test",
     intent: "Verify direct runtime capability invocation."
@@ -333,11 +688,71 @@ test("runtime ledger gate delegates dry-run writeback to the development-ledger 
   assert.equal(result.dry_run, true);
   assert.equal(result.written, false);
   assert.ok(result.plan.some((item) => item.action === "apply_case_transition"));
+  assert.equal(result.plan.some((item) => item.action === "write_runtime_execution_record"), false);
+});
+
+test("runtime ledger stores an opaque Desktop run reference without writing raw results into the project", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-external-runtime-record-"));
+  await initializeProjectWithCase({
+    projectRoot,
+    projectName: "External Runtime Record Test",
+    intent: "Keep raw Runtime evidence outside the project ledger."
+  });
+  const snapshot = await createStateStore(projectRoot).readSnapshot();
+  const runtimeResult = validProgressRuntimeResult(snapshot.activeCases[0].record);
+  const runtimeRecordRef = runtimeRecordRefForRun("RUN-TEST-001");
+
+  const result = await writeLedger({
+    projectRoot,
+    runtimeResult,
+    envelope: { selected_round: runtimeResult.case_transition.selected_gap },
+    snapshot,
+    dryRun: false,
+    runtimeRecordRef
+  });
+
+  const updated = (await createStateStore(projectRoot).readSnapshot()).activeCases[0].record;
+  assert.equal(result.written, true, JSON.stringify(result.gate?.reasons || result));
+  assert.equal(result.runtime_result_ref, runtimeRecordRef);
+  assert.equal(updated.rounds.at(-1).runtime_result_ref, runtimeRecordRef);
+  assert.equal(result.changed_files.some((item) => item.startsWith("arckit/project/runtime-results/")), false);
+  assert.equal(existsSync(join(projectRoot, "arckit/project/runtime-results")), false);
+});
+
+test("runtime ledger writeback returns a structured recoverable rejection for an invalid Case transition", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-ledger-rejection-"));
+  await initializeProjectWithCase({
+    projectRoot,
+    projectName: "Ledger Rejection Test",
+    intent: "Reject an internally inconsistent Case transition without mutating the ledger."
+  });
+  const snapshot = await createStateStore(projectRoot).readSnapshot();
+  const runtimeResult = validProgressRuntimeResult(snapshot.activeCases[0].record);
+  runtimeResult.case_transition.accepted_state_delta.facets[0].set = {
+    applicability: "required",
+    resolution: "resolved",
+    reason: "The proposed transition incorrectly resolves a required facet before defining its target."
+  };
+
+  const result = await writeLedger({
+    projectRoot,
+    runtimeResult,
+    envelope: { selected_round: runtimeResult.case_transition.selected_gap },
+    snapshot,
+    dryRun: false
+  });
+
+  assert.equal(result.written, false);
+  assert.equal(result.gate.allowed, true);
+  assert.equal(result.rejection.kind, "case_transition_rejected");
+  assert.equal(result.rejection.recoverable, true);
+  assert.match(result.rejection.reason, /claims resolved without reaching its evidence-backed target/);
+  assert.equal((await createStateStore(projectRoot).readSnapshot()).activeCases[0].record.updated_at, snapshot.activeCases[0].record.updated_at);
 });
 
 test("Case transition dry-run and apply preserve replacement-token evidence verbatim", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-case-render-roundtrip-"));
-  await ensureArckitProject({
+  await initializeProjectWithCase({
     projectRoot,
     projectName: "Case Renderer Round Trip Test",
     intent: "Preserve arbitrary command evidence through Case rendering."
@@ -380,7 +795,7 @@ second, Unicode: 雪`
 
 test("Runtime leaves existing active Cases for Controller selection and the accepted transition binds that selection", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-controller-case-selection-"));
-  await ensureArckitProject({
+  await initializeProjectWithCase({
     projectRoot,
     projectName: "Controller Case Selection Test",
     intent: "Create one neutral Case."
@@ -430,7 +845,7 @@ test("Runtime leaves existing active Cases for Controller selection and the acce
 
 test("a final clean review closes the selected Case and aggregates it through the shared ledger path", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-ledger-commit-"));
-  await ensureArckitProject({
+  await initializeProjectWithCase({
     projectRoot,
     projectName: "Ledger Commit Test",
     intent: "Verify the shared Case transition commit path."
@@ -511,7 +926,7 @@ test("a final clean review closes the selected Case and aggregates it through th
 
 test("ledger commit rolls Case and Project files back when a projection step fails", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-ledger-rollback-"));
-  await ensureArckitProject({
+  await initializeProjectWithCase({
     projectRoot,
     projectName: "Ledger Rollback Test",
     intent: "Verify rollback after a late projection failure."
@@ -565,8 +980,12 @@ test("ledger commit rolls Case and Project files back when a projection step fai
 
 function controllerPlan(allowedSkills) {
   return {
-    schema_version: "arckit-controller-plan/v2",
+    schema_version: "arckit-controller-plan/v3",
     status: "planned",
+    execution_plan: {
+      plane: "worker",
+      runtime_actions: []
+    },
     route_plan: {
       mode: "case_gap",
       selected_gap: {
@@ -580,8 +999,6 @@ function controllerPlan(allowedSkills) {
         impact: "Advance the bounded Case.",
         next_transition: "Implement the bounded change."
       },
-      selected_worker_types: ["implementation"],
-      selected_roles: ["implementer"],
       reason: "The Case gap requires implementation evidence.",
       requires_human_confirmation: false
     },
@@ -590,8 +1007,12 @@ function controllerPlan(allowedSkills) {
       role: "implementer",
       objective: "Implement the bounded change.",
       reason: "The state gap requires implementation evidence.",
+      allowed_paths: ["."],
+      allowed_actions: ["read_files", "edit_allowed_paths", "run_non_destructive_checks", "report_evidence"],
+      forbidden_actions: ["write_ledger_directly", "change_unrelated_files"],
       allowed_skills: allowedSkills,
-      expected_case_impact: "Advance implementation_state with evidence."
+      expected_case_impact: "Advance implementation_state with evidence.",
+      stop_condition: "Stop after the bounded change is implemented and verified, or return an evidence-backed blocker."
     }],
     planned_transition: {
       goal: "Implement the bounded change.",
@@ -605,11 +1026,44 @@ function controllerPlan(allowedSkills) {
   };
 }
 
+async function initializeProjectWithCase({ projectRoot, projectName = "Fixture Project", intent = "Create a bounded fixture Case." }) {
+  await ensureArckitProject({ projectRoot, projectName, intent });
+  const created = await runLedgerScript(projectRoot, [
+    "development-case.mjs",
+    "new",
+    "--title", "Fixture Case",
+    "--artifact-type", "mixed",
+    "--intent", intent,
+    "--max-review-cycles", "3",
+    "--review-policy-source", "test-fixture"
+  ]);
+  const absoluteCasePath = created.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1);
+  const normalized = absoluteCasePath.replaceAll("\\", "/");
+  const marker = normalized.lastIndexOf("/arckit/cases/");
+  assert.ok(marker >= 0, `Unexpected Case path: ${absoluteCasePath}`);
+  const caseRef = normalized.slice(marker + 1);
+  await runLedgerScript(projectRoot, [
+    "project-state.mjs",
+    "select-case",
+    "--case-ref", caseRef,
+    "--intent", intent,
+    "--reason", "Test fixture explicitly selected this Case."
+  ]);
+  await runLedgerScript(projectRoot, ["development-case.mjs", "index"]);
+  return { caseRef };
+}
+
+function fsCaseNames(projectRoot) {
+  const activeDir = join(projectRoot, "arckit/cases/active");
+  return existsSync(activeDir) ? readdirSync(activeDir).filter((name) => name.endsWith(".md")) : [];
+}
+
 function taskFixture() {
   return {
     loopFrame: {
       round_goal: "Implement the bounded change.",
       conversation_locale: "en",
+      runtime_context: { kind: "auto_continuation", source_run_id: "RUN-1" },
       selected_gap: {},
       stop_conditions: [],
       case_id: "CASE-20260726-001"

@@ -68,7 +68,7 @@ Capability Registry 扫描仓库和项目中的 manifest，但只将显式 capab
 
 策略过滤和业务路由分离。策略层决定能力可见性和可绑定 execution plane；Controller 只从 Worker 组决定本轮 `allowed_skills`；Runtime kernel 只执行解析、过滤、schema、授权、事件、report 和 gate 规则。Controller plan 或既有授权 packet 只要把 Controller/Runtime/未知能力绑定给 Worker，Runtime 必须失败关闭，不能静默删除非法 ID 后继续执行。
 
-Execution plane 不等于只读取 metadata。Controller planning 和 review 必须通过 `using-arckit` manifest 声明的 `$using-arckit` Agent skill trigger 执行；Runtime prompt 只承载输入 envelope、registry、输出 schema 和 hard constraints，不复制 Controller 流程。项目初始化和 ledger writeback 必须解析 repository-trusted `arckit-development-ledger` entrypoint；Runtime 保留 hard gate，但 ledger 脚本、semantic boundary 和 semantic writeback 只在 skill 内维护。目标项目同名 manifest 不得覆盖 repository runtime capability，entrypoint 也不得逃逸 skill 根目录。
+Execution plane 不等于只读取 metadata。Controller planning 和 review 必须通过 `using-arckit` manifest 声明的 `$using-arckit` Agent skill trigger 执行；Runtime invocation 只承载 phase、人类原始输入、事实/证据引用、revision、execution authorization 和 capability refs，不复制 Controller 流程、输出字段说明或 closeout 规则。输出 schema 通过 Agent Adapter 的机器参数传递。项目初始化和 ledger writeback 必须解析 repository-trusted `arckit-development-ledger` entrypoint；Runtime 保留 hard gate，但 ledger 脚本、semantic boundary 和 semantic writeback 只在 skill 内维护。目标项目同名 manifest 不得覆盖 repository runtime capability，entrypoint 也不得逃逸 skill 根目录。
 
 ## Worker packet 与 report
 

@@ -175,7 +175,7 @@
         "planned_transition": { "type": "string" },
         "accepted_state_delta": { "$ref": "#/$defs/round_delta" },
         "evidence": { "type": "array", "items": { "type": "string" } },
-        "runtime_result_ref": { "type": "string" },
+        "runtime_result_ref": { "type": "string", "description": "Optional opaque Runtime-host run reference; legacy project-relative record paths remain readable." },
         "occurred_at": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false

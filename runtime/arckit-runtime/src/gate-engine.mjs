@@ -7,47 +7,58 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
   const reasons = validation.issues.map((issue) => `${issue.path}: ${issue.message}`);
   const warnings = [];
   const transition = runtimeResult?.case_transition;
+  const caseControlHandoff = runtimeResult?.case_control_handoff;
+  const isCaseControl = Boolean(caseControlHandoff && typeof caseControlHandoff === 'object' && !Array.isArray(caseControlHandoff));
   const root = projectRoot || snapshot?.projectRoot || '';
-  if (root && transition) {
-    const capability = await loadRuntimeCapabilityForEntrypoint({ projectRoot: root, entrypoint: 'case_transition' });
-    const entrypoint = await import(pathToFileURL(resolveCapabilityEntrypoint(capability, 'case_transition')).href);
-    for (const issue of entrypoint.validateCaseTransition(transition, 'case_transition')) reasons.push(issue);
+  if (root) {
+    const entrypointName = isCaseControl ? 'case_control' : 'case_transition';
+    const capability = await loadRuntimeCapabilityForEntrypoint({ projectRoot: root, entrypoint: entrypointName });
+    const entrypoint = await import(pathToFileURL(resolveCapabilityEntrypoint(capability, entrypointName)).href);
+    const entrypointIssues = isCaseControl
+      ? entrypoint.validateCaseControlHandoff(caseControlHandoff, 'case_control_handoff')
+      : entrypoint.validateCaseTransition(transition, 'case_transition');
+    for (const issue of entrypointIssues) reasons.push(issue);
   }
 
   if (runtimeResult?.ledger_stage?.status !== 'gate_ready' || runtimeResult?.ledger_stage?.writeback_required !== true) {
     reasons.push('ledger_stage must explicitly mark an accepted Case transition as gate_ready and writeback_required.');
   }
-  if (!transition || transition.schema_version !== 'arckit-case-transition/v2') reasons.push('case_transition must use arckit-case-transition/v2.');
-  if (!transition?.case_id || !transition?.selected_gap?.id || !transition?.selected_gap?.facet) reasons.push('case_transition must identify a concrete Case gap.');
-  if (!transition?.case_updated_at) reasons.push('case_transition must bind the expected Case updated_at revision.');
-  if (!transition?.planned_transition?.goal || !transition?.planned_transition?.expected_state_change) reasons.push('case_transition.planned_transition is incomplete.');
-  if (!Array.isArray(transition?.evidence) || transition.evidence.length === 0) reasons.push('case_transition.evidence must be non-empty.');
-  const delta = transition?.accepted_state_delta;
-  if (!delta || !Array.isArray(delta.facets) || !Array.isArray(delta.resolved_open_questions) || !Array.isArray(delta.completed_handoffs) || !Array.isArray(delta.resolved_review_findings) || !Object.hasOwn(delta, 'completion_review_result') || !Object.hasOwn(delta, 'review_budget_extension')) reasons.push('case_transition.accepted_state_delta is incomplete.');
-  for (const claim of delta?.facets || []) {
-    if (!claim.facet || !claim.set || !Array.isArray(claim.evidence) || claim.evidence.length === 0) reasons.push('Every accepted facet delta must identify a facet, state update, and evidence.');
-  }
-  const selectedFacet = transition?.selected_gap?.facet;
-  const selectedFindingId = transition?.selected_gap?.id?.split(':review-finding:')[1] || '';
-  const selectedGapAdvanced = (delta?.facets || []).some((claim) => claim.facet === selectedFacet)
-    || (selectedFacet === 'open_questions' && (delta?.resolved_open_questions || []).length > 0)
-    || (selectedFacet === 'pending_handoffs' && (delta?.completed_handoffs || []).length > 0)
-    || (selectedFacet === 'review_findings' && (delta?.resolved_review_findings || []).some((item) => item.id === selectedFindingId))
-    || (selectedFacet === 'completion_review' && (delta?.completion_review_result || delta?.review_budget_extension || (delta?.resolved_review_findings || []).length > 0));
-  if (!selectedGapAdvanced) reasons.push('case_transition.accepted_state_delta must advance the selected Case gap.');
-  if (transition?.round_outcome === 'blocked') reasons.push('A blocked round is not eligible for automatic Case transition writeback.');
-  if (transition?.project_impact_candidate?.status === 'accepted' && transition?.case_resolution?.claimed_status !== 'resolved') reasons.push('Accepted project impact requires a Controller claim that the Case is resolved.');
+  if (isCaseControl) {
+    if (snapshot?.projectState?.project?.updated_at !== caseControlHandoff.expected_project_updated_at) reasons.push('case_control_handoff is stale for Project State.');
+    if (caseControlHandoff.action === 'select_existing_case' && !(snapshot?.activeCases || []).some((item) => item.record?.id === caseControlHandoff.case_id)) reasons.push(`case_control_handoff.case_id is not an active Case: ${caseControlHandoff.case_id || '<missing>'}`);
+  } else {
+    if (!transition || transition.schema_version !== 'arckit-case-transition/v2') reasons.push('case_transition must use arckit-case-transition/v2.');
+    if (!transition?.case_id || !transition?.selected_gap?.id || !transition?.selected_gap?.facet) reasons.push('case_transition must identify a concrete Case gap.');
+    if (!transition?.case_updated_at) reasons.push('case_transition must bind the expected Case updated_at revision.');
+    if (!transition?.planned_transition?.goal || !transition?.planned_transition?.expected_state_change) reasons.push('case_transition.planned_transition is incomplete.');
+    if (!Array.isArray(transition?.evidence) || transition.evidence.length === 0) reasons.push('case_transition.evidence must be non-empty.');
+    const delta = transition?.accepted_state_delta;
+    if (!delta || !Array.isArray(delta.facets) || !Array.isArray(delta.resolved_open_questions) || !Array.isArray(delta.completed_handoffs) || !Array.isArray(delta.resolved_review_findings) || !Object.hasOwn(delta, 'completion_review_result') || !Object.hasOwn(delta, 'review_budget_extension')) reasons.push('case_transition.accepted_state_delta is incomplete.');
+    for (const claim of delta?.facets || []) {
+      if (!claim.facet || !claim.set || !Array.isArray(claim.evidence) || claim.evidence.length === 0) reasons.push('Every accepted facet delta must identify a facet, state update, and evidence.');
+    }
+    const selectedFacet = transition?.selected_gap?.facet;
+    const selectedFindingId = transition?.selected_gap?.id?.split(':review-finding:')[1] || '';
+    const selectedGapAdvanced = (delta?.facets || []).some((claim) => claim.facet === selectedFacet)
+      || (selectedFacet === 'open_questions' && (delta?.resolved_open_questions || []).length > 0)
+      || (selectedFacet === 'pending_handoffs' && (delta?.completed_handoffs || []).length > 0)
+      || (selectedFacet === 'review_findings' && (delta?.resolved_review_findings || []).some((item) => item.id === selectedFindingId))
+      || (selectedFacet === 'completion_review' && (delta?.completion_review_result || delta?.review_budget_extension || (delta?.resolved_review_findings || []).length > 0));
+    if (!selectedGapAdvanced) reasons.push('case_transition.accepted_state_delta must advance the selected Case gap.');
+    if (transition?.round_outcome === 'blocked') reasons.push('A blocked round is not eligible for automatic Case transition writeback.');
+    if (transition?.project_impact_candidate?.status === 'accepted' && transition?.case_resolution?.claimed_status !== 'resolved') reasons.push('Accepted project impact requires a Controller claim that the Case is resolved.');
 
-  const activeCase = (snapshot?.activeCases || []).find((item) => item.record?.id === transition?.case_id);
-  if (snapshot && !activeCase) reasons.push(`case_transition.case_id is not an active Case: ${transition?.case_id || '<missing>'}`);
-  if (activeCase?.record?.case_resolution?.status === 'resolved') reasons.push(`Case ${transition.case_id} is already resolved.`);
-  if (activeCase && activeCase.record.updated_at !== transition?.case_updated_at) reasons.push(`case_transition is stale for ${transition.case_id}.`);
-  const activeGap = (activeCase?.record?.case_resolution?.candidate_gaps || []).find((gap) => gap.id === transition?.selected_gap?.id && gap.facet === transition?.selected_gap?.facet);
-  if (activeCase && !activeGap) {
-    reasons.push(`case_transition.selected_gap is not an unresolved candidate of ${transition.case_id}.`);
-  } else if (activeGap) {
-    for (const field of ['responsibility', 'current_state', 'target_state', 'next_transition']) {
-      if (activeGap[field] !== transition.selected_gap[field]) reasons.push(`case_transition.selected_gap.${field} is stale for ${transition.case_id}.`);
+    const activeCase = (snapshot?.activeCases || []).find((item) => item.record?.id === transition?.case_id);
+    if (snapshot && !activeCase) reasons.push(`case_transition.case_id is not an active Case: ${transition?.case_id || '<missing>'}`);
+    if (activeCase?.record?.case_resolution?.status === 'resolved') reasons.push(`Case ${transition.case_id} is already resolved.`);
+    if (activeCase && activeCase.record.updated_at !== transition?.case_updated_at) reasons.push(`case_transition is stale for ${transition.case_id}.`);
+    const activeGap = (activeCase?.record?.case_resolution?.candidate_gaps || []).find((gap) => gap.id === transition?.selected_gap?.id && gap.facet === transition?.selected_gap?.facet);
+    if (activeCase && !activeGap) {
+      reasons.push(`case_transition.selected_gap is not an unresolved candidate of ${transition.case_id}.`);
+    } else if (activeGap) {
+      for (const field of ['responsibility', 'current_state', 'target_state', 'next_transition']) {
+        if (activeGap[field] !== transition.selected_gap[field]) reasons.push(`case_transition.selected_gap.${field} is stale for ${transition.case_id}.`);
+      }
     }
   }
 
@@ -66,9 +77,13 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
     decision: reasons.length === 0 ? 'allow' : 'block',
     reasons,
     warnings,
-    write_scope: reasons.length === 0 ? ['runtime_execution_record', 'case_transition', 'resolved_case_project_aggregation', 'indexes_and_projections'] : [],
+    write_scope: reasons.length === 0
+      ? isCaseControl
+        ? ['case_creation_or_selection', 'project_case_binding', 'indexes_and_projections']
+        : ['case_transition', 'resolved_case_project_aggregation', 'indexes_and_projections']
+      : [],
     validation,
-    case_id: transition?.case_id || '',
+    case_id: isCaseControl ? caseControlHandoff.case_id || '' : transition?.case_id || '',
   };
 }
 

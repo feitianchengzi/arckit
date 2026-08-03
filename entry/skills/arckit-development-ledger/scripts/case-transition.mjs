@@ -131,6 +131,7 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
     record.facets[delta.facet] = {
       ...record.facets[delta.facet],
       ...delta.set,
+      next_transition: '',
       evidence: unique([...record.facets[delta.facet].evidence, ...delta.evidence]),
     };
   }

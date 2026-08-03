@@ -1,6 +1,13 @@
 import { buildArtifactOwnershipScan, createArtifactImpactScan } from '../artifact-ownership-map.mjs';
 import { stateFromLoopGate } from '../round-state-machine.mjs';
 import { firstSafeSemanticText, SEMANTIC_LIMITS } from '../context-boundary.mjs';
+import { readFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const runtimeRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
+const casePolicyRef = 'runtime/arckit-runtime/config/case-policy.json';
+const casePolicyPath = join(runtimeRoot, 'config/case-policy.json');
 
 export function stateFromMergeResult(mergeResult) {
   return shouldPrepareLedgerWriteback(mergeResult) ? 'ledger_gate_ready' : stateFromLoopGate(mergeResult.loop_gate);
@@ -25,6 +32,110 @@ export function shouldPrepareLedgerWriteback(mergeResult) {
     || delta.review_budget_extension != null;
 }
 
+export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame, round, snapshot, compiledPrompt, roundState }) {
+  const policy = JSON.parse(await readFile(casePolicyPath, 'utf8'));
+  const maxReviewCycles = policy?.completion_review?.max_autonomous_cycles;
+  if (policy?.schema_version !== 'arckit-case-policy/v1' || !Number.isInteger(maxReviewCycles) || maxReviewCycles < 1) {
+    throw new Error(`Invalid Runtime Case policy: ${casePolicyPath}`);
+  }
+  const control = (controllerPlan?.execution_plan?.runtime_actions || []).find((action) => action?.type === 'case_control');
+  if (!control) {
+    throw new Error('Controller plan does not contain a case_control Runtime action.');
+  }
+  const locale = loopFrame.conversation_locale || round.conversation_locale || compiledPrompt.conversation_locale || 'en';
+  const reason = control.action === 'create_case'
+    ? t(locale, `Controller requested creation and selection of a bounded Case: ${control.title}.`, `Controller 请求创建并选中有边界的 Case：${control.title}。`)
+    : t(locale, `Controller requested selection of active Case ${control.case_id}.`, `Controller 请求选中 active Case ${control.case_id}。`);
+  const handoff = {
+    schema_version: 'arckit-case-control-handoff/v1',
+    action: control.action,
+    expected_project_updated_at: snapshot.projectState?.project?.updated_at || '',
+    case_id: control.case_id || '',
+    title: control.title || '',
+    intent: control.intent || '',
+    artifact_type: control.artifact_type || 'unknown',
+    selection_reason: control.selection_reason || '',
+    review_policy: {
+      max_autonomous_cycles: maxReviewCycles,
+      source: casePolicyRef,
+    },
+  };
+  const emptyOwnership = buildArtifactOwnershipScan([]);
+  const nextPrompt = controllerPlan.continuation_intent.next_prompt;
+  const controlRoundState = {
+    ...(roundState || {}),
+    state: 'ledger_gate_ready',
+    history: [
+      ...(roundState?.history || []),
+      { state: 'ledger_gate_ready', at: new Date().toISOString(), reason },
+    ],
+  };
+  return {
+    schema_version: 'arckit-runtime-result/v2',
+    round_result: 'continue',
+    round_outcome: { status: 'completed', reason },
+    case_outcome: { status: 'unresolved', reason, unresolved: ['case_control'] },
+    project_impact: { status: 'none', changes: [], evidence: [] },
+    case_transition: null,
+    case_control_handoff: handoff,
+    round_state: controlRoundState.state,
+    round_state_history: controlRoundState.history,
+    summary: reason,
+    changed_files: [],
+    artifact_impact_scan: createArtifactImpactScan(emptyOwnership, { dryRun: false }),
+    artifact_ownership_scan: emptyOwnership,
+    source_projection_check: {
+      source_facts_changed: [],
+      projection_artifacts_changed: [],
+      source_unknown: false,
+      deferred_projections: ['Case creation/selection is pending deterministic ledger application.'],
+      blocked_projections: [],
+    },
+    controller_reducer_result: { controller_plan: controllerPlan, control_handoff: handoff },
+    controller_frame: loopFrame.controller_frame,
+    execution_gate: loopFrame.execution_gate,
+    executor_binding: loopFrame.executor_binding,
+    worker_packets: [],
+    report_intake: { accepted: [], rejected: [], needs_revision: [], needs_controller_decision: [], needs_human_decision: [], missing: [] },
+    ledger_stage: {
+      schema_version: 'arckit-ledger-stage/v1',
+      status: 'gate_ready',
+      gate_required: true,
+      writeback_required: true,
+      reason,
+    },
+    validation_evidence: unique([
+      'runtime/arckit-runtime/schemas/controller-plan.schema.json',
+      casePolicyRef,
+      compiledPrompt.output_schema,
+    ]),
+    loop_handoff: {
+      version: 'loop-handoff/v2',
+      status: 'continue',
+      next_responsibility: 'agent',
+      agent_continuation_available: true,
+      human_decision_required: false,
+      trigger_mode: 'auto_bridge',
+      responsibility_reason: reason,
+      next_prompt: nextPrompt,
+      agent_instruction: {
+        goal: controllerPlan.continuation_intent.goal,
+        required_context_refs: round.required_context_refs,
+        required_actions: ['Reload Project and Case State after the deterministic Case control handoff is applied.'],
+        required_checks: ['selected Case ref', 'fresh Case revision', 'derived candidate_gaps'],
+        stop_condition: round.stop_conditions.join(' '),
+      },
+      human_gate: { required: false, reason: '', decision_needed: '' },
+      progress_guard: {
+        expected_state_change: controllerPlan.continuation_intent.state_transition,
+        actual_state_change: 'Controller produced an authorized Case control handoff pending deterministic ledger application.',
+        no_progress_limit: 1,
+        max_auto_rounds: Number.isInteger(round.max_auto_rounds) ? round.max_auto_rounds : 8,
+      },
+    },
+  };
+}
+
 export function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, round, compiledPrompt, dryRun, roundState }) {
   const locale = loopFrame.conversation_locale || round.conversation_locale || compiledPrompt.conversation_locale || 'en';
   const review = mergeResult.controller_reducer_result?.controller_review || null;
@@ -37,7 +148,15 @@ export function createRuntimeResultFromMerge({ mergeResult, reports, loopFrame, 
   };
   const projectImpact = review?.project_impact_candidate || { status: 'none', changes: [], evidence: [] };
   const continuation = deriveContinuationFields({ mergeResult, loopFrame, round });
-  const loopHandoff = buildLoopHandoff({ caseOutcome, review, continuation, round, ledgerReady, locale });
+  const loopHandoff = buildLoopHandoff({
+    caseOutcome,
+    review,
+    loopGate: mergeResult.loop_gate,
+    continuation,
+    round,
+    ledgerReady,
+    locale,
+  });
   const caseTransition = buildCaseTransition({ loopFrame, round, review, mergeResult, roundOutcome, caseOutcome, projectImpact });
   const roundResult = caseOutcome.claimed_status === 'resolved'
     ? 'done'
@@ -133,11 +252,19 @@ function buildCaseTransition({ loopFrame, round, review, mergeResult, roundOutco
   };
 }
 
-function buildLoopHandoff({ caseOutcome, review, continuation, round, ledgerReady, locale }) {
+function buildLoopHandoff({ caseOutcome, review, loopGate = {}, continuation, round, ledgerReady, locale }) {
   const resolved = caseOutcome.claimed_status === 'resolved';
-  const external = review?.status === 'external_wait';
-  const needsHuman = review?.human_decision_required === true || review?.status === 'needs_human';
-  const blocked = caseOutcome.claimed_status === 'blocked' || review?.status === 'blocked';
+  const external = loopGate.status === 'external_wait'
+    || loopGate.next_responsibility === 'external'
+    || review?.status === 'external_wait';
+  const needsHuman = loopGate.status === 'needs_human'
+    || loopGate.next_responsibility === 'human'
+    || loopGate.human_decision_required === true
+    || review?.human_decision_required === true
+    || review?.status === 'needs_human';
+  const blocked = loopGate.status === 'blocked'
+    || caseOutcome.claimed_status === 'blocked'
+    || review?.status === 'blocked';
   const responsibility = resolved ? 'none' : external ? 'external' : needsHuman ? 'human' : 'agent';
   return {
     version: 'loop-handoff/v2',
@@ -146,7 +273,7 @@ function buildLoopHandoff({ caseOutcome, review, continuation, round, ledgerRead
     agent_continuation_available: responsibility === 'agent',
     human_decision_required: responsibility === 'human',
     trigger_mode: responsibility === 'none' ? 'none' : responsibility === 'human' ? 'user_decision' : responsibility === 'external' ? 'external_wait' : 'auto_bridge',
-    responsibility_reason: caseOutcome.reason || review?.summary || '',
+    responsibility_reason: loopGate.reason || caseOutcome.reason || review?.summary || '',
     next_prompt: responsibility === 'agent' ? continuation.next_prompt : '',
     agent_instruction: {
       goal: resolved ? t(locale, 'No continuation required.', '无需继续。') : continuation.goal,
@@ -158,7 +285,7 @@ function buildLoopHandoff({ caseOutcome, review, continuation, round, ledgerRead
     human_gate: {
       required: responsibility === 'human',
       reason: responsibility === 'human' ? caseOutcome.reason : '',
-      decision_needed: responsibility === 'human' ? review?.next_prompt || continuation.goal : '',
+      decision_needed: responsibility === 'human' ? review?.next_prompt || continuation.next_prompt || continuation.goal : '',
     },
     progress_guard: {
       expected_state_change: continuation.state_transition,

@@ -62,7 +62,31 @@
       },
       "additionalProperties": false
     },
-    "case_transition": { "type": "object" },
+    "case_transition": { "type": ["object", "null"] },
+    "case_control_handoff": {
+      "type": "object",
+      "required": ["schema_version", "action", "expected_project_updated_at", "case_id", "title", "intent", "artifact_type", "selection_reason", "review_policy"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "arckit-case-control-handoff/v1" },
+        "action": { "type": "string", "enum": ["select_existing_case", "create_case"] },
+        "expected_project_updated_at": { "type": "string" },
+        "case_id": { "type": "string" },
+        "title": { "type": "string" },
+        "intent": { "type": "string" },
+        "artifact_type": { "type": "string", "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"] },
+        "selection_reason": { "type": "string" },
+        "review_policy": {
+          "type": "object",
+          "required": ["max_autonomous_cycles", "source"],
+          "properties": {
+            "max_autonomous_cycles": { "type": "integer", "minimum": 1 },
+            "source": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "round_state": {
       "type": "string",
       "enum": [

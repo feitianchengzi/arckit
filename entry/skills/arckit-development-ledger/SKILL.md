@@ -5,7 +5,7 @@ description: "维护 arckit/project 与 arckit/cases 的 Project State、Case St
 
 # Arckit Development Ledger
 
-本 skill 是 Project State -> Case -> Loop 的 canonical ledger。人工直接使用与 Runtime 调用必须经过同一 `case_transition` 入口；Runtime 只负责 gate 和调用 trusted entrypoint，不复制写回语义。
+本 skill 是 Project State -> Case -> Loop 的 canonical ledger。人工直接使用与 Runtime 调用通过同一组 `case_control` / `case_transition` 可信入口；Runtime 只负责 gate 和调用 trusted entrypoint，不复制写回语义。
 
 ## 受管理对象
 
@@ -13,7 +13,7 @@ description: "维护 arckit/project 与 arckit/cases 的 Project State、Case St
 - `arckit/project/STATE.md`：Project record 的有损决策投影。
 - `arckit/project/iterations/*.record.json`：`iteration-state-record/v2`，只保存阶段性 Project 目标、resolved Case 聚合、验收状态和 Case refs。
 - `arckit/cases/{active,closed}/*.md`：`development-case-record/v3`，单个有边界事项的完整 Case State、内容 revision 与完成态复审。
-- Runtime execution records：raw process/evidence，只被状态引用，不成为状态语义字段。
+- Runtime execution records：raw process/evidence，由 Runtime 宿主在项目目录外管理；Case 只保存可选 opaque run ref，不依赖该记录恢复语义状态。
 
 ## 硬边界
 
@@ -22,6 +22,7 @@ description: "维护 arckit/project 与 arckit/cases 的 Project State、Case St
 - 每个尚未达到 target、带明确 gap 且 priority 非 none 的 Project dimension，必须被至少一个 `state_gap.covered_dimensions` 覆盖；覆盖关系用于 Case 选择，不表达固定顺序。
 - `arckit-case-transition/v2` 是语义对象，不以临时文件为状态载体。Runtime 直接传递对象；人工或 Agent CLI 对一次性载荷优先使用 stdin。只有调用环境不能传 stdin 时才创建调用方拥有的临时文件，并负责限制权限、最终清理且绝不把路径写入 evidence。详细 transport 规则见 [references/transition-transport.md](references/transition-transport.md)。
 - canonical state 不接受 `/tmp`、`/private/tmp` 或其他临时目录作为 evidence ref；被状态依赖的证据必须持久可恢复。
+- ledger entrypoint 不在目标项目创建完整 Runtime result、activity、events 或 transcript。Desktop run 使用 `arckit-runtime://runs/RUN-...` 作为可选追踪引用；非 Desktop 调用可以留空，且两种情况都必须依靠 Case round 的 accepted delta 与 evidence 独立恢复。
 - Case renderer 必须把 transition、命令和 evidence 当作不透明数据逐字往返；不得为了避开序列化字符而改写真实证据。dry-run 必须覆盖 Structured Record 渲染重解析和 Case 索引输入预检。
 - Project 维度初始化为 `unknown -> unknown`。只有项目目标和证据明确时才设置 target；不为所有项目预置 accepted 义务。
 - Case 的六个结果 facets 是 product、interaction、visual、technical、implementation、verification；open questions、pending handoffs 和 process notes 不是同一种 facet。
@@ -37,6 +38,8 @@ description: "维护 arckit/project 与 arckit/cases 的 Project State、Case St
 ### 1. 绑定 Project 与 Case
 
 读取 Project v3、active iteration、`case_control` 和全部 active Case v3。Project 先选择已有 Case，或创建一个承载当前项目推进意图的新 Case；新 Case 必须从显式 Case/Runtime policy 快照 `max_review_cycles`，不能由 ledger 内置业务默认值。随后 Controller 只能从 selected Case 的 `case_resolution.candidate_gaps` 选择本轮 transition。
+
+Runtime 收到 Controller 的 `arckit-case-control-handoff/v1` 后，`case_control` 入口校验 Project revision 和 active Case 范围。`create_case` 由 ledger 分配 Case id，并使用 Controller 给出的 title、intent、artifact type 与 selection reason；复审上限来自 Runtime 显式 policy 快照。创建/选择、Project 与 iteration 注册、投影和 Case index 作为可回滚操作提交。Runtime 不得以任务文本或固定规则补造这些语义字段。
 
 退出条件：Project 有明确 selected Case ref，Case record 可恢复。
 
@@ -73,7 +76,7 @@ open question 只有 resolved/transferred 后才不阻塞；pending handoff 只�
 7. 重新生成 candidate gaps 与 loop handoff；resolved 时关闭并移动 Case。
 8. Case resolved 时同步关闭 Project/Iteration 对该 Case 的引用；仅当 Project impact 为 accepted 时应用显式维度变化。
 
-退出条件：Case record 是 transition 后的唯一事实，或整个 ledger commit 无副作用地失败。Runtime execution record 与 ledger commit 协调失败时也必须移除未提交的 runtime record。
+退出条件：Case record 是 transition 后的唯一事实，或整个 ledger commit 无副作用地失败。外部 Runtime 记录不参与 canonical ledger 原子提交。
 
 ### 4. 聚合 Project/Iteration
 
@@ -87,7 +90,7 @@ Case 未 resolved 时不修改 Project dimensions，不把 round progress 投影
 
 ### 5. 渲染与校验
 
-每次写 canonical record 后重新渲染 STATE/iteration brief 和 Case index。raw operator event、完整 prompt、worker stream 或 runtime envelope 只能进入 runtime record/evidence ref。
+每次写 canonical record 后重新渲染 STATE/iteration brief 和 Case index。raw operator event、完整 prompt、worker stream 或 runtime envelope 只能进入 Runtime 宿主拥有的外部记录；Case round 最多保存 opaque run ref，不能保存宿主文件系统路径或复制 raw envelope。
 
 Project/Iteration audit 必须保证 active iteration 使用 v2、两侧 `active_case_refs` 完全一致、`case_control.selected_case_ref` 属于 active Cases、gap candidate 指向真实 active Case、closed Case evidence 可解析、所有 actionable dimensions 有 gap 覆盖，且 canonical evidence 不依赖临时文件。`select-case` 必须把 Case 原子注册到 Project 与 active Iteration，不能接受悬空或非 active 路径。
 
@@ -98,6 +101,7 @@ Project/Iteration audit 必须保证 active iteration 使用 v2、两侧 `active
 - `project_state`: `scripts/project-state.mjs`
 - `project_iteration`: `scripts/project-iteration.mjs`
 - `development_case`: `scripts/development-case.mjs`
+- `case_control`: `scripts/runtime-case-control.mjs`
 - `case_transition`: `scripts/case-transition.mjs`
 - `writeback`: `scripts/runtime-writeback.mjs`
 
@@ -124,6 +128,7 @@ node scripts/case-transition.mjs apply --case <case.md> --transition <transition
 
 - `ledger_paths`
 - `case_transition_result`
+- `case_control_result`
 - `case_record_delta`：facets、content revision、completion review、candidate gaps、derived resolution
 - `round_outcome`
 - `loop_handoff_delta`

@@ -67,13 +67,14 @@ export function semanticFieldIssue(value, path, {
 }
 
 export function firstSafeSemanticText(values, options = {}) {
+  const { fallback = "", ...candidateOptions } = options;
   for (const value of values) {
-    const text = safeSemanticText(value, options);
+    const text = safeSemanticText(value, { ...candidateOptions, fallback: "" });
     if (text) {
       return text;
     }
   }
-  return options.fallback || "";
+  return fallback;
 }
 
 function stringValue(value) {

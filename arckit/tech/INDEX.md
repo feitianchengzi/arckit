@@ -2,5 +2,5 @@
 
 ✅ 已采用 | 🔬 调研中 | 📋 调研完成 | ❌ 已废弃 | ⚪ 待定
 
-- arckit-runtime/ Arckit Runtime：Runtime Kernel、Round State Machine、Controller Reducer、Artifact Ownership Map、Agent Adapter、Gate 与自动账本回写。🔬
-  - solution.md Arckit Runtime 技术方案：定义 Case loop、任务源适配、串行自动调度、恢复模型、IPC 边界、Codex adapter 与 Desktop。🔬 (410行)
+- arckit-runtime/ Arckit Runtime：Runtime Kernel、Workshop 认证、任务源、Controller/Worker、Gate 与自动账本回写。✅
+  - solution.md Arckit Runtime 技术方案：定义 Controller Plan v3、自动续轮策略、skill 漂移门禁、待办串行调度与 IPC 边界。✅ (444行)

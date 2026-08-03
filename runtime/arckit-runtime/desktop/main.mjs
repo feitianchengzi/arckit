@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
+import { createWorkshopTaskSource } from "../src/task-source-adapter.mjs";
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
@@ -10,6 +11,7 @@ const runtimeRoot = dirname(desktopDir);
 let mainWindow;
 let runManager;
 let automationCoordinator;
+let workshopService;
 let quitAfterCleanup = false;
 let syncTimer;
 
@@ -18,7 +20,14 @@ app.whenReady().then(async () => {
     runtimeRoot,
     dataDir: join(app.getPath("userData"), "runtime")
   });
-  automationCoordinator = createAutomationCoordinator({ runManager });
+  workshopService = createWorkshopTaskSource({
+    readSettings: () => runManager.getTaskSourceSettings(),
+    saveSettings: (settings) => runManager.replaceTaskSourceSettings(settings)
+  });
+  automationCoordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: () => workshopService
+  });
   runManager.onEvent((event) => {
     if (!mainWindow?.isDestroyed()) {
       mainWindow.webContents.send("arckit:event", event);
@@ -105,6 +114,29 @@ function registerIpc() {
   ipcMain.handle("arckit:list-messages", async (_event, projectId, sessionId) => runManager.listMessages(projectId, sessionId));
   ipcMain.handle("arckit:get-settings", async () => runManager.getSettings());
   ipcMain.handle("arckit:update-settings", async (_event, input) => runManager.updateSettings(input));
+  ipcMain.handle("arckit:auth-status", async () => workshopService.getAuthStatus());
+  ipcMain.handle("arckit:auth-send-verification", async (_event, input) => workshopService.sendVerification(input));
+  ipcMain.handle("arckit:auth-login", async (_event, input) => {
+    const authentication = await workshopService.loginWithCode(input);
+    await automationCoordinator.sync();
+    return authentication;
+  });
+  ipcMain.handle("arckit:auth-logout", async (_event, input = {}) => {
+    const snapshot = await automationCoordinator.getSnapshot();
+    if (snapshot.active_task && !input.confirm_active_task) {
+      return {
+        requires_confirmation: true,
+        active_task: snapshot.active_task,
+        authentication: await workshopService.getAuthStatus()
+      };
+    }
+    if (snapshot.active_task) {
+      await automationCoordinator.stopCurrent();
+    }
+    const authentication = await workshopService.logout();
+    await automationCoordinator.clearRemoteSession();
+    return { requires_confirmation: false, authentication };
+  });
   ipcMain.handle("arckit:automation-snapshot", async (_event, filter) => automationCoordinator.getSnapshot(filter));
   ipcMain.handle("arckit:automation-sync", async () => automationCoordinator.sync());
   ipcMain.handle("arckit:automation-enabled", async (_event, enabled) => automationCoordinator.setEnabled(enabled));

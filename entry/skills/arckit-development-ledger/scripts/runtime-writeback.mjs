@@ -1,8 +1,7 @@
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
-import { basename, dirname, join, resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { applyCaseTransition } from './case-transition.mjs';
 
-export async function applyRuntimeLedgerWriteback({ projectRoot, runtimeResult, snapshot, gate, dryRun = false }) {
+export async function applyRuntimeLedgerWriteback({ projectRoot, runtimeResult, snapshot, gate, dryRun = false, runtimeRecordRef = '' }) {
   const root = resolve(projectRoot);
   if (!gate?.allowed) return emptyResult(gate, dryRun);
 
@@ -10,19 +9,19 @@ export async function applyRuntimeLedgerWriteback({ projectRoot, runtimeResult, 
   const activeCaseRef = resolveActiveCaseRef(snapshot, transition.case_id);
   if (!activeCaseRef) throw new Error(`No active Case ref matches ${transition.case_id}`);
 
-  const timestamp = new Date().toISOString();
-  const runId = `RUN-${timestamp.replaceAll(/[-:.]/g, '').replace('T', '-').replace('Z', 'Z')}`;
-  const runtimeRecordPath = join(root, 'arckit/project/runtime-results', `${runId}.json`);
-  const runtimeRecordRef = relativeToProject(root, runtimeRecordPath);
-  const preflight = await applyCaseTransition({
-    projectRoot: root,
-    casePath: activeCaseRef,
-    transition: { ...transition, runtime_result_ref: runtimeRecordRef },
-    runtimeResultRef: runtimeRecordRef,
-    dryRun: true,
-  });
+  let preflight;
+  try {
+    preflight = await applyCaseTransition({
+      projectRoot: root,
+      casePath: activeCaseRef,
+      transition: { ...transition, runtime_result_ref: runtimeRecordRef },
+      runtimeResultRef: runtimeRecordRef,
+      dryRun: true,
+    });
+  } catch (error) {
+    return transitionRejectionResult({ gate, dryRun, error, transition });
+  }
   const plan = [
-    { action: 'write_runtime_execution_record', path: runtimeRecordRef },
     { action: 'apply_case_transition', path: activeCaseRef },
     { action: 'render_case_index', path: 'arckit/cases/INDEX.md' },
   ];
@@ -37,44 +36,47 @@ export async function applyRuntimeLedgerWriteback({ projectRoot, runtimeResult, 
       written: false,
       dry_run: true,
       gate,
-      run_id: runId,
+      runtime_result_ref: runtimeRecordRef,
       plan,
       changed_files: [],
     };
   }
 
-  await mkdir(dirname(runtimeRecordPath), { recursive: true });
-  await writeJson(runtimeRecordPath, {
-    schema_version: 'arckit-runtime-execution-record/v2',
-    id: runId,
-    created_at: timestamp,
-    case_id: transition.case_id,
-    runtime_result: runtimeResult,
-    gate,
+  const caseResult = await applyCaseTransition({
+    projectRoot: root,
+    casePath: activeCaseRef,
+    transition: { ...transition, runtime_result_ref: runtimeRecordRef },
+    runtimeResultRef: runtimeRecordRef,
   });
-
-  let caseResult;
-  try {
-    caseResult = await applyCaseTransition({
-      projectRoot: root,
-      casePath: activeCaseRef,
-      transition: { ...transition, runtime_result_ref: runtimeRecordRef },
-      runtimeResultRef: runtimeRecordRef,
-    });
-  } catch (error) {
-    await unlink(runtimeRecordPath).catch(() => {});
-    throw error;
-  }
-  const changedFiles = [runtimeRecordRef, ...caseResult.changed_files];
   return {
     schema_version: 'arckit-ledger-write/v2',
     written: true,
     dry_run: false,
     gate,
-    run_id: runId,
+    runtime_result_ref: runtimeRecordRef,
     plan,
     case_transition_result: caseResult,
-    changed_files: [...new Set(changedFiles)],
+    changed_files: [...new Set(caseResult.changed_files)],
+  };
+}
+
+function transitionRejectionResult({ gate, dryRun, error, transition }) {
+  return {
+    schema_version: 'arckit-ledger-write/v2',
+    written: false,
+    dry_run: dryRun,
+    gate,
+    rejection: {
+      kind: 'case_transition_rejected',
+      recoverable: true,
+      responsibility: 'agent',
+      reason: error?.message || String(error),
+      case_id: transition?.case_id || '',
+      selected_gap_id: transition?.selected_gap?.id || '',
+      recovery_action: 'replan_from_fresh_state',
+    },
+    plan: [],
+    changed_files: [],
   };
 }
 
@@ -92,12 +94,4 @@ function emptyResult(gate, dryRun) {
 function resolveActiveCaseRef(snapshot, caseId) {
   const refs = snapshot?.paths?.activeCases || snapshot?.projectState?.active_case_refs || [];
   return refs.find((ref) => basename(ref).startsWith(`${caseId}-`)) || '';
-}
-
-async function writeJson(file, value) {
-  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
-}
-
-function relativeToProject(root, file) {
-  return file.startsWith(root) ? file.slice(root.length + 1) : file;
 }

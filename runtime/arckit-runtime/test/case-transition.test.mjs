@@ -45,6 +45,50 @@ test('code-first progress leaves observed definition facts unreconciled and driv
   assert.ok(next.case_resolution.candidate_gaps.some((gap) => gap.facet === 'product_expectation'));
 });
 
+test('required facet gaps are derived from current state instead of a stale persisted continuation', () => {
+  const record = caseRecord();
+  record.facets.implementation_state = {
+    ...record.facets.implementation_state,
+    applicability: 'required',
+    reason: 'The requested behavior requires a source change.',
+    evidence: ['src/example.mjs'],
+    next_transition: 'Write back only implementation_state.applicability=required, then reload the Case.'
+  };
+
+  let gap = auditCaseRecord(record, record.updated_at).candidate_gaps.find((item) => item.facet === 'implementation_state');
+  assert.equal(gap.target_state, 'evidence-backed target definition and same-facet advancement toward that target');
+  assert.equal(gap.next_transition, 'Define the evidence-backed target for implementation_state, perform the bounded work needed to reach it, and resolve the facet when the target is demonstrably reached.');
+
+  record.facets.implementation_state.target_maturity = 'formalized';
+  record.facets.implementation_state.target_alignment = 'aligned';
+  gap = auditCaseRecord(record, record.updated_at).candidate_gaps.find((item) => item.facet === 'implementation_state');
+  assert.equal(gap.target_state, 'maturity=formalized; alignment=aligned');
+  assert.equal(gap.next_transition, 'Advance implementation_state to maturity=formalized and alignment=aligned, with implementation evidence.');
+
+  record.facets.implementation_state.maturity = 'formalized';
+  record.facets.implementation_state.alignment = 'aligned';
+  gap = auditCaseRecord(record, record.updated_at).candidate_gaps.find((item) => item.facet === 'implementation_state');
+  assert.equal(gap.target_state, 'resolution=resolved with evidence');
+  assert.equal(gap.next_transition, 'Resolve implementation_state from the evidence-backed target already reached.');
+});
+
+test('accepted facet transitions clear transport-oriented next_transition text from durable Case state', () => {
+  const record = caseRecord();
+  const next = applyCaseTransitionToRecord(record, transition(record, {
+    facet: 'implementation_state',
+    set: {
+      applicability: 'required',
+      reason: 'The requested behavior requires a source change.',
+      next_transition: 'Desktop Runtime must write this transition and reload the Case.'
+    },
+    evidence: ['src/example.mjs']
+  }));
+
+  assert.equal(next.facets.implementation_state.next_transition, '');
+  const gap = next.case_resolution.candidate_gaps.find((item) => item.facet === 'implementation_state');
+  assert.equal(gap.next_transition, 'Define the evidence-backed target for implementation_state, perform the bounded work needed to reach it, and resolve the facet when the target is demonstrably reached.');
+});
+
 test('not-required judgments need evidence and lead to completion review without creating artificial documents', () => {
   const record = caseRecord();
   for (const key of FACET_KEYS) {

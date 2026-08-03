@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
-import { dirname, relative, resolve, sep } from "node:path";
+import { homedir } from "node:os";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -111,6 +112,73 @@ export async function loadRuntimeCapabilityForEntrypoint({ projectRoot, entrypoi
   return runtimeCapabilityForEntrypoint(runtimeCapabilities, entrypoint);
 }
 
+export async function assertInstalledAgentSkillCompatibility(capabilities = [], options = {}) {
+  const codexHome = resolve(options.codexHome || process.env.CODEX_HOME || join(homedir(), ".codex"));
+  const checked = [];
+  for (const capability of normalizeCapabilities(capabilities).filter((item) => item.invocation.type === "agent_skill")) {
+    if (capability.source !== "repository") {
+      throw new Error(`Agent skill compatibility requires a repository capability source: ${capability.id}.`);
+    }
+    const installedRoot = join(codexHome, "skills", capability.id);
+    const installedManifestPath = join(installedRoot, "arckit.capability.json");
+    const installedSkillPath = join(installedRoot, "SKILL.md");
+    let installedManifestText;
+    let installedSkillText;
+    try {
+      [installedManifestText, installedSkillText] = await Promise.all([
+        readFile(installedManifestPath, "utf8"),
+        readFile(installedSkillPath, "utf8")
+      ]);
+    } catch {
+      throw new Error(`Installed Controller skill is missing: ${capability.id}. Sync it from ${capability.capability_root} to ${installedRoot}.`);
+    }
+    const sourceManifestText = await readFile(join(capability.capability_root, "arckit.capability.json"), "utf8");
+    let installedManifest;
+    try {
+      installedManifest = JSON.parse(installedManifestText);
+    } catch {
+      throw new Error(`Installed Controller capability manifest is invalid JSON: ${installedManifestPath}.`);
+    }
+    if (!capability.protocol_revision || installedManifest.protocol_revision !== capability.protocol_revision) {
+      throw new Error(`Installed Controller skill protocol is incompatible: ${capability.id} expected ${capability.protocol_revision || "<missing>"}, found ${installedManifest.protocol_revision || "<missing>"}. Sync the repository skill before starting Runtime.`);
+    }
+    const [sourceFiles, installedFiles] = await Promise.all([
+      readComparableSkillFiles(capability.capability_root),
+      readComparableSkillFiles(installedRoot)
+    ]);
+    if (installedManifestText !== sourceManifestText || installedSkillText.length === 0 || !sameSkillFiles(sourceFiles, installedFiles)) {
+      throw new Error(`Installed Controller skill has drifted from the Runtime repository source: ${capability.id}. Sync ${capability.capability_root} to ${installedRoot}.`);
+    }
+    checked.push({ id: capability.id, protocol_revision: capability.protocol_revision, installed_root: installedRoot });
+  }
+  return checked;
+}
+
+async function readComparableSkillFiles(root) {
+  const files = new Map();
+  async function walk(dir, prefix = "") {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name === ".DS_Store") continue;
+      const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const absolutePath = join(dir, entry.name);
+      if (entry.isDirectory()) await walk(absolutePath, relativePath);
+      else if (entry.isFile()) files.set(relativePath, await readFile(absolutePath));
+    }
+  }
+  await walk(root);
+  return files;
+}
+
+function sameSkillFiles(left, right) {
+  if (left.size !== right.size) return false;
+  for (const [path, content] of left) {
+    const candidate = right.get(path);
+    if (!candidate || !content.equals(candidate)) return false;
+  }
+  return true;
+}
+
 export async function loadCapabilityPolicy(options = {}) {
   const policyPath = options.policyPath ? resolve(options.policyPath) : defaultPolicyPath;
   const parsed = JSON.parse(await readFile(policyPath, "utf8"));
@@ -171,6 +239,7 @@ function normalizeCapabilities(capabilities = []) {
     const normalized = {
       schema_version: "arckit-capability/v1",
       id: String(capability.id),
+      protocol_revision: String(capability.protocol_revision || ""),
       kind: String(capability.kind || ""),
       runtime_role: arrayOfStrings(capability.runtime_role),
       binding_targets: arrayOfStrings(capability.binding_targets),

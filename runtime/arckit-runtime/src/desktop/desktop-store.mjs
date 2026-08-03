@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { authProjection, DEFAULT_WORKSHOP_BASE_URL, normalizeTaskSourceSettings } from "../task-source-adapter.mjs";
 
 export function createDesktopStore({ dataDir, runsDir, storePath }) {
   let storeQueue = Promise.resolve();
@@ -11,7 +12,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-        version: 5,
+        version: 6,
         projects: [],
         runs: [],
         sessions: {},
@@ -54,7 +55,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
 
 export function normalizeStore(store) {
   const normalized = {
-    version: 5,
+    version: 6,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
@@ -93,11 +94,17 @@ export function defaultSettings() {
       url: "http://127.0.0.1:7890"
     },
     task_source: {
-      enabled: false,
-      base_url: "",
+      enabled: true,
+      base_url: DEFAULT_WORKSHOP_BASE_URL,
       service_name: "workshop",
-      auth_mode: "bearer",
+      auth_mode: "nebula",
       access_token: "",
+      refresh_token: "",
+      token_type: "Bearer",
+      access_token_expires_at: 0,
+      refresh_token_expires_at: 0,
+      auth_state: "logged_out",
+      auth_error: "",
       user_id: "",
       username: "",
       app_id: "arckit-runtime",
@@ -119,28 +126,34 @@ export function normalizeSettings(settings = {}) {
       enabled: Boolean(proxy.enabled),
       url: String(proxy.url || defaults.codex_proxy.url).trim() || defaults.codex_proxy.url
     },
-    task_source: {
-      enabled: Boolean(taskSource.enabled),
-      base_url: String(taskSource.base_url || "").trim().replace(/\/+$/, ""),
+    task_source: normalizeTaskSourceSettings({
+      ...defaults.task_source,
+      ...taskSource,
       service_name: safeIdentifier(taskSource.service_name, defaults.task_source.service_name),
-      auth_mode: ["bearer", "headers"].includes(taskSource.auth_mode) ? taskSource.auth_mode : defaults.task_source.auth_mode,
-      access_token: String(taskSource.access_token || "").trim(),
-      user_id: String(taskSource.user_id || "").trim(),
-      username: String(taskSource.username || "").trim(),
-      app_id: String(taskSource.app_id || defaults.task_source.app_id).trim() || defaults.task_source.app_id,
-      session_id: String(taskSource.session_id || "").trim()
-    }
+      app_id: safeIdentifier(taskSource.app_id, defaults.task_source.app_id)
+    })
   };
 }
 
 export function publicSettings(settings = {}) {
   const normalized = normalizeSettings(settings);
+  const taskSource = normalized.task_source;
+  const exposesDebugHeaders = taskSource.auth_mode === "headers";
   return {
     codex_proxy: normalized.codex_proxy,
     task_source: {
-      ...normalized.task_source,
+      enabled: taskSource.enabled,
+      base_url: taskSource.base_url,
+      service_name: taskSource.service_name,
+      auth_mode: taskSource.auth_mode,
+      user_id: exposesDebugHeaders ? taskSource.user_id : "",
+      username: exposesDebugHeaders ? taskSource.username : "",
+      app_id: taskSource.app_id,
+      session_id: exposesDebugHeaders ? taskSource.session_id : "",
       access_token: "",
-      access_token_configured: Boolean(normalized.task_source.access_token)
+      access_token_configured: Boolean(taskSource.access_token),
+      refresh_session_configured: Boolean(taskSource.refresh_token),
+      authentication: authProjection(taskSource)
     }
   };
 }
@@ -156,7 +169,7 @@ export function defaultAutomationState() {
       projects: [],
       tasks: [],
       synced_at: "",
-      source_status: "unconfigured",
+      source_status: "logged_out",
       errors: []
     },
     active_task: null,
@@ -179,14 +192,16 @@ export function normalizeAutomationState(value = {}) {
       projects: Array.isArray(snapshot.projects) ? snapshot.projects : [],
       tasks: Array.isArray(snapshot.tasks) ? snapshot.tasks : [],
       synced_at: String(snapshot.synced_at || ""),
-      source_status: ["unconfigured", "syncing", "healthy", "degraded", "unauthenticated", "error"].includes(snapshot.source_status)
+      source_status: ["logged_out", "unconfigured", "syncing", "healthy", "degraded", "unauthenticated", "error"].includes(snapshot.source_status)
         ? snapshot.source_status
         : defaults.snapshot.source_status,
       errors: Array.isArray(snapshot.errors) ? snapshot.errors.map(normalizeAutomationError).slice(0, 50) : []
     },
     active_task: value.active_task && typeof value.active_task === "object" ? value.active_task : null,
     attention_items: Array.isArray(value.attention_items) ? value.attention_items.slice(0, 50) : [],
-    recovery_items: Array.isArray(value.recovery_items) ? value.recovery_items.slice(0, 50) : [],
+    recovery_items: Array.isArray(value.recovery_items)
+      ? value.recovery_items.slice(0, 50).map((item) => ({ ...item, responsibility: "operator" }))
+      : [],
     recent_completions: Array.isArray(value.recent_completions) ? value.recent_completions.slice(0, 30) : []
   };
 }

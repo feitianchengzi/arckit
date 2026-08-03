@@ -205,17 +205,19 @@ Desktop 左侧栏按 Projects 和 Chats 两个可调整高度的分区展示内�
 
 Desktop 不改变 Controller Worker Loop。它只减少人类复制 packet、收集 report 和判断 gate 的操作成本。
 
-Desktop operator event 是 Controller 输入 envelope，不是 case goal、project transition 或 worker objective。Desktop 可以把 operator event 保存到 chat、run raw events 或 runtime execution record 中用于审计；传给 Controller 的 event 只携带当前动作、人类输入、source run refs、上一轮 handoff 摘要、worker report 摘要、gate/ledger 状态摘要和必要 context refs。完整 controller frame、activity、ledger write result、worker stream JSON 和上一轮 prompt 只能通过文件路径引用，不内嵌到下一轮 operator event。
+Controller 的 `operator_input` 只承载真实人类语义：初始任务意图、人工决策、补充或纠正。任务 ID、项目 ID、source run、执行动作、续轮深度、gate 和 ledger 状态属于 Runtime 控制面元数据，不拼接成人类 prompt。完整 Project/Case record、controller frame、activity、ledger write result、worker stream JSON 和上一轮 prompt 只能通过 canonical 路径或 runtime evidence ref 读取。
 
-Controller Agent 是唯一负责把 operator event 解释为本轮语义意图的组件。Controller plan 必须显式输出 route plan、selected gap、worker intents 和下一步 continuation intent。Runtime 只能校验这些结构化字段是否存在、是否有界、是否不含 raw event marker，并把它们投影到 loop frame、worker task 和 ledger writeback；Runtime 不得自行从 operator event 中推理“最小语义目标”。
+Controller Agent 是唯一负责把人类输入、canonical state 和新增证据解释为本轮语义意图的组件。Controller plan 必须显式输出互斥的 execution plane、Runtime actions、route plan、selected gap、worker intents 和下一步 continuation intent。`runtime` plane 只包含确定性 Runtime action，`worker` plane 只包含 Worker intents，`none` plane 表示由 Controller 直接证据完成零 Worker transition。Runtime 只校验这些结构化字段、执行授权和 capability binding，并把结果投影到 loop frame、worker task 和 ledger writeback；Runtime 不从控制元数据推理业务目标。
 
-在 Runtime 执行形态中，Controller planning 与 report review 都通过 capability manifest 声明的 `$using-arckit` Agent skill trigger 启动。Runtime 只编译项目快照、operator context、可用 capability、输出 schema 和 hard constraints；Controller 流程、动态路由、report intake 与 closeout 语义以实际加载的 `using-arckit` skill 为唯一来源。
+在 Runtime 执行形态中，Controller planning 与 report review 都通过 capability manifest 声明的 `$using-arckit` Agent skill trigger 启动。Planning invocation 只携带人类原始输入、canonical state refs、revision、execution authorization 和允许的 capability refs；Review invocation 只增加本轮必要的 Loop Frame 与 Worker reports。输出形状由 App Server `outputSchema` 和 Runtime Validator 约束；Controller 流程、动态路由、report intake 与 closeout 语义以实际加载的 `using-arckit` skill 为唯一来源。
+
+自动续轮没有新增人类输入。Runtime 在上一轮 ledger 写回成功后启动 fresh Controller invocation，并令其从最新 Case State 恢复；Desktop 自动化策略可以把满足“下一责任方为 Agent、允许 Agent continuation、无需人类决策”的策略中立 `manual_bridge` 自动接续，但不能提升 `user_decision` 或 human gate。系统不复制 `next_prompt` 伪装成新用户消息，也不把 Desktop control event 写入 `role=user` transcript。人工介入只提交用户实际输入，steer 与 fresh continuation 均不得附加 Runtime 生成的恢复指令。
 
 ## 动态 Controller Loop
 
 Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当前 Project State、全部 active Cases、selected Case、iteration state、用户输入和上一轮 handoff 生成动态 route plan，再按 route plan 派发零个或多个最小必要 Worker。
 
-动态 route plan 必须同时说明业务路线、worker 类型和 skill 绑定。业务路线表达本轮要补的状态缺口；worker 类型表达需要哪类执行能力；skill 绑定表达每个 worker packet 允许调用哪些 Arckit skill。没有 skill 绑定的 worker 仍可执行一般工具任务，但不能声称已经维护对应 Arckit 事实源。
+动态 route plan 说明业务路线和 selected gap；`worker_intents` 分别声明 worker 类型、语义 role 和 skill 绑定。业务路线表达本轮要补的状态缺口；worker 类型表达需要哪类执行能力；skill 绑定表达每个 worker packet 允许调用哪些 Arckit skill。没有 skill 绑定的 worker 仍可执行一般工具任务，但不能声称已经维护对应 Arckit 事实源。
 
 动态 route plan 还必须提供可写入 runtime 和 ledger 的短语义字段。`selected_gap.next_transition` 表达本轮或下一轮要推进的状态转移；worker intent `objective` 表达单个 worker 的 bounded task；Controller review `next_prompt` 表达下一轮可复制触发文本。这些字段不能复制 Desktop operator event、完整 previous activity、完整 loop handoff 或完整 ledger result。字段缺失、超长或包含 raw event marker 时，本轮不能写 Project State 或 Case State。
 
@@ -223,7 +225,7 @@ Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当�
 
 1. 输入分析：识别用户输入是新任务、继续、补充、纠错、暂停、恢复、report intake、状态查询还是目标变更。
 2. 状态恢复：读取或初始化 project state、active case、iteration state、source fact indexes、pending 和上一轮 loop handoff。
-3. Case/gap 选择：Project State 只选择 Case；Controller 再从 selected Case 的 unordered `candidate_gaps` 选择一个 concrete gap，并绑定当前 Case revision。
+3. Case/gap 选择：Project State 只选择 Case；需要创建或切换 Case 时，Controller 输出独占本轮的 `case_control` Runtime action，不派发 Worker。已有唯一 selected Case 时，Controller 从其 unordered `candidate_gaps` 选择一个 concrete gap，并绑定当前 Case revision。
 4. Route plan：判断本轮要补的状态缺口、所需 worker 类型、allowed skills、执行边界和停止条件。
 5. Execution gate：如果需要执行，确认是否已授权 executor；未授权时只输出 packet preview。
 6. Worker dispatch：只启动 route plan 需要的 Worker；如果 operator input 或已读取的稳定事实已足够支持 transition，则派发零 Worker。
@@ -232,9 +234,9 @@ Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当�
    当 ledger 派生 `completion_review` 时，Controller 必须检查完整 Case 的错误、遗漏和多余；findings 进入 Case 驱动修复，修复后的新 content revision 必须重新复审。最后一个授权自主轮次仍不 clean 时，本轮必须 `needs_human`。
 9. Case impact decision：判断本轮对 active case 和 Project State 的影响，区分 state delta、pending-only、no-change closure、external wait、human gate 和 blocked。
 10. Ledger writeback：只有在 runtime result 通过 closeout 和 Runtime hard gate 后，才调用 `arckit-development-ledger` manifest 声明的受信任 writeback entrypoint；canonical ledger 校验 expected Case revision 和完整 selected gap，并原子提交 Case 及必要的 Project/iteration projection。
-11. Fresh-state continuation：写回成功后重新读取 ledger，再选择下一 gap；以真实状态进展、no-progress limit 和 max-auto-rounds 约束自动桥接。
+11. Fresh-state continuation：写回成功后重新读取 ledger，再选择下一 gap；若确定性 gate 仅因 Project/Case revision 或 candidate gap 新鲜度变化而拒绝写回，Runtime 允许一次受 no-progress budget 约束的 fresh-state Controller replan，不把它升级为人工决策。确定性 ledger 写回续订自动轮次预算；no-progress limit 和 max-auto-rounds 约束连续无 canonical state 进展的轮次，而不是限制完成一个 Case 所需的累计轮数。
 
-空项目首轮必须先建立 neutral Project/Case 可恢复状态，而不是直接把 prompt 当作可实现规格。首个 gap、是否先写规格、是否直接实现、是否需要 Worker，均由 Controller 根据用户输入、代码和证据决定；Runtime 不预置首轮业务路线。
+空项目首轮只建立 neutral Project 可恢复状态，而不是直接把 prompt 当作可实现规格。Controller 判断是否创建 Case，并通过 `case_control` Runtime action 请求确定性 ledger 创建和选择；首个 Case gap、是否先写规格、是否直接实现、是否需要 Worker，均由 Controller 根据用户输入、代码和证据决定，Runtime 不预置首轮业务路线。
 
 实现 worker 只有在以下条件满足时才可派发：
 
@@ -279,7 +281,7 @@ Desktop 只穷举运行时控制态。控制态是 UI 可稳定恢复的有限�
 - `failed_or_invalid`：run 失败、runtime result 无效或无法解析。
 - `ledger_writeback_ready`：runtime result 包含已接受且 gate-ready 的 Case transition，但尚未写回 ledger；Case 可以仍是 unresolved。
 - `ledger_writeback_blocked`：runtime result 已生成，但 gate result 阻止自动 ledger writeback。
-- `ledger_written`：ledger writeback 已成功写入 project、case、iteration 或 runtime execution record，下一轮可以读取新的项目状态。
+- `ledger_written`：ledger writeback 已成功提交 project、case、iteration 及其 projection/index；Runtime 宿主记录不参与该完成条件，下一轮可以直接读取新的项目状态。
 
 Desktop 主动作只表达控制态，不表达具体业务决策：
 

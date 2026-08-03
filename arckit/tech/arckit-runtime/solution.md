@@ -59,6 +59,27 @@ State Store 读取目标项目的 Arckit 状态入口：
 
 `state.record.json` 是 canonical record；Markdown brief 只作为 loop 决策摘要。
 
+### Workshop Authenticated Service
+
+Electron main 进程创建单个长生命周期 Workshop Authenticated Service，并把它同时作为认证服务和 Task Source Adapter 使用。该实例通过 Desktop Run Manager 的私有设置接口按请求读取最新会话，并通过同一接口持久化 token 轮换；Renderer、Worker 和 Runtime 子进程不能获得该私有接口。
+
+认证服务固定提供以下有界操作：
+
+- 发送邮箱或手机号登录验证码。
+- 使用目标地址、验证码和验证码类型登录。
+- 读取不含 token 的认证状态投影。
+- 退出登录并清除远端身份。
+
+验证码请求发送到 `auth-server/v1/public/send_verification`，固定携带 `purpose=login`。登录请求发送到 `auth-server/v1/public/login`，邮箱使用 `email` 字段，手机号使用 `phone` 字段。登录响应中的 access token、refresh token、相对或绝对过期时间被归一化后写入主进程私有设置。
+
+业务请求前，服务重新读取私有设置。NebulaAuth access token 距过期不足五分钟时先刷新；业务请求首次返回 401 时也刷新并重试一次。所有并发刷新共享一个 in-flight Promise，成功后使用新 access token 重放原请求，失败后清除不可用 access token 并返回稳定的 `unauthenticated` 错误。刷新请求发送到 `auth-server/v1/public/refresh_token`，只携带 refresh token。认证服务与 Coordinator 分别维护会话代际；登录或退出使旧代际的在途刷新和同步结果失效，禁止旧响应在退出后恢复 token 或远端快照。
+
+认证状态投影只有 `logged_out`、`authenticated`、`refreshing` 和 `expired`。投影包含脱敏账号标识、是否具备可刷新会话和可解释错误，不包含 access token、refresh token、原始登录响应或精确 token 过期值。
+
+默认连接配置是正式 Workshop 服务根地址、`workshop` 业务服务和 `nebula` 认证模式。旧 store 的手填 bearer/debug headers 配置继续可被高级连接设置读取，但普通登录成功后切换为 `nebula`。
+
+退出登录先停止新的远端请求并清除 access token、refresh token、过期时间和远端用户字段。Coordinator 随后清除远端项目/任务快照、attention/recovery 中的身份依赖项和自动领取资格；本地项目、工作区绑定、run history、transcript 与 Codex proxy 设置不受影响。存在活动任务时，main 进程要求显式确认并先请求安全停止，避免退出后失去任务状态写回能力。
+
 ### Task Source Adapter
 
 Task Source Adapter 是远端项目与任务服务器的唯一访问边界。Renderer 和 Runtime worker 不持有服务凭证，也不直接构造远端请求。Electron main 进程创建 adapter，并通过受限 IPC 暴露投影和显式命令。
@@ -71,7 +92,7 @@ Adapter 提供以下语义操作：
 - 基于任务最新版本条件式更新状态。
 - 区分未认证、无权限、版本冲突、服务不可用和无效响应。
 
-Workshop task source 实现沿用 Workshop Desktop 的服务契约：先读取 `/projects` 的独立项目与 `/organizations`，再按 `organization_id` 合并组织项目；任务由带 `project_id` 的 `/tasks` 返回，任务状态由 `/tasks/{task_id}` 更新。认证配置和令牌只保存在主进程设置中。Adapter 将服务端字段归一化为 Runtime task source model，不把 Workshop 专属响应形状泄漏给 Renderer。
+Workshop task source 实现沿用 Workshop Desktop 的服务契约：先读取 `/projects` 的独立项目与 `/organizations`，再按 `organization_id` 合并组织项目；组织项目拉取采用有界并发，项目按服务器标识去重。Adapter 从项目成员的 `is_me` 标记或登录用户名解析当前用户的数字 `user_id`，并把它作为 `/tasks` 的 `executor_id` 查询条件；响应归一化后再次按 `executor_id` 等值过滤，因此创建人、未分配和其他执行人的任务不会进入 Automation Snapshot。无法解析项目内当前用户标识时，该项目任务同步关闭而不是退化为全量任务。任务状态由 `/tasks/{task_id}` 更新。认证配置和令牌只保存在主进程设置中，Workshop 专属响应形状不泄漏给 Renderer。
 
 任务状态枚举固定为 `pending_review`、`pending`、`in_progress`、`completed`、`accepted`、`cancelled` 和 `blocked`。未知状态保留原始值用于诊断，但不进入自动队列。
 
@@ -81,7 +102,7 @@ Workshop task source 实现沿用 Workshop Desktop 的服务契约：先读取 `
 
 Desktop Store 在现有项目、会话、消息和 run history 之外保存自动化控制状态：
 
-- task source 配置的非敏感投影和认证状态。
+- task source 连接设置与主进程私有认证会话；公开设置只生成非敏感账号投影和认证状态。
 - 远端项目到本地 Arckit 工作区的绑定。
 - 每个远端项目是否参与自动化。
 - 自动化总开关和项目级暂停状态。
@@ -89,7 +110,7 @@ Desktop Store 在现有项目、会话、消息和 run history 之外保存自�
 - 当前活动任务与待启动 Runtime 的关联意图。
 - 人工事项、恢复原因和最近同步时间。
 
-访问令牌不进入 Renderer store 投影、runtime result、raw event 或 ledger evidence。持久化写入沿用 Desktop Store 的原子文件替换方式，读取时对新增字段做默认值归一化，旧版本 store 可以无损升级。
+access token、refresh token 与过期时间不进入 Renderer store 投影、runtime result、raw event、错误详情或 ledger evidence。持久化写入沿用 Desktop Store 的原子文件替换方式，读取时对新增字段做默认值归一化，旧版本 store 可以无损升级。
 
 活动任务关联至少包含远端项目标识、远端任务标识、服务器版本、任务状态、本地项目标识、本地路径、run 标识、领取时间和当前自动化阶段。该关联在服务器确认进行中后、启动 Runtime 前持久化，使进程崩溃后能够区分“未领取”“已领取未启动”和“已启动”。
 
@@ -113,15 +134,15 @@ Coordinator 生成队列时只选择已绑定本地工作区、参与自动化�
 
 Coordinator 在领取前重新读取候选任务，随后提交条件式 `pending -> in_progress`。确认成功后写入活动任务和启动意图，再调用 Desktop Run Manager。领取冲突刷新候选并继续；其他写回错误进入 recovery。
 
-Desktop Run Manager 接受远端任务上下文，并把任务内容编译为 operator task。run 事件继续由既有 projector 投影。Coordinator 只读取稳定的 run status、loop handoff、human gate 和 ledger stage，不解析模型文本推断状态。
+Desktop Run Manager 接受远端任务上下文；传给 Controller 的 `operator_input` 只保留待办正文，远端任务、项目、run 与调度状态作为 Runtime 元数据保存。Coordinator 启动的 run 持久化 `continuation_policy=automatic`，并在自动续轮中继承；该策略只把满足 Agent responsibility、Agent continuation available、无 human decision 且 trigger 为 `manual_bridge|auto_bridge` 的 handoff 自动接续。Run 同时保留累计 `auto_continue_depth` 和可重置的 `auto_rounds_since_progress`：成功的确定性 ledger write 把后者归零，未写回轮次递增后者，`max_auto_rounds` 只检查后者。`user_decision`、external wait、缺少 next prompt、no-progress limit 和无进展轮次上限不受自动策略提升。run 事件继续由既有 projector 投影。Coordinator 只读取稳定的 run status、loop handoff、human gate 和 ledger stage，不解析模型文本推断状态。
 
-run 到达人工 Gate 时，Coordinator 创建 attention item 并保持活动任务。人工输入通过现有 steer/operator event 通道进入同一个 run 或 fresh continuation；Controller 接受后清理 attention item 并恢复 running。
+run 到达人工 Gate 时，Coordinator 创建 attention item 并保持活动任务。人工提交内容以原文通过 steer 进入当前 turn，或作为 fresh continuation 的唯一 `operator_input`；任务标识、恢复指令和重新读取 Case State 的要求不拼接进人工内容。Controller 接受后清理 attention item 并恢复 running。只有 human responsibility、`human_decision_required` 或 user-decision trigger 进入该路径；Agent continuation 和运行一致性恢复不创建人工事项。
 
 run 完成且 ledger 写回成功后，Coordinator 提交 `in_progress -> completed`。完成写回确认后清除活动任务并触发下一次同步与领取。run 失败、ledger gate 未收束或完成写回失败均保留活动任务并进入 recovery。
 
 ### Recovery Model
 
-Recovery 状态是持久化的一致性差异，不是只存在于 Renderer 的错误提示。每个 recovery item 包含类型、远端任务快照、本地活动关联、证据引用、冻结范围、责任方和允许动作。
+Recovery 状态是持久化的一致性差异，不是只存在于 Renderer 的错误提示。每个 recovery item 包含类型、远端任务快照、本地活动关联、证据引用、冻结范围、操作责任方和允许动作。Recovery responsibility 使用 `operator`，与需要用户提供业务语义的 attention item 分离。启动同步发现历史 `runtime_incomplete` 实际对应可继续的 Agent `manual_bridge` 时，Coordinator 清理错误 recovery，并通过 source run 的 result/activity 引用启动 fresh continuation。
 
 恢复类型至少包括：
 
@@ -135,17 +156,22 @@ Recovery 状态是持久化的一致性差异，不是只存在于 Renderer 的�
 
 Coordinator 启动时先对齐本地活动关联、Desktop Run Manager 的活动 run 与服务器进行中任务。三者一致时恢复观察或执行；无法确定唯一活动任务时进入 multiple active tasks recovery。
 
+Coordinator 只消费 Adapter 返回的当前执行人任务。项目级同步失败时，旧快照仅保留能够由 `executor_id` 证明仍属于当前用户的任务；身份无法解析时不保留该项目任务。领取、人工状态变更和完成写回前均以项目内当前用户标识重新读取任务，任务已改派或不再处于预期状态时停止写回并触发重新同步或恢复流程。
+
 ### Desktop IPC Boundary
 
 Preload 只暴露面向产品动作的 API，不暴露通用 HTTP、文件系统或任意 Runtime 命令。IPC 分为：
 
 - 查询：automation snapshot、项目、状态计数、任务、活动任务、attention、recovery。
+- 认证：读取认证状态、发送验证码、提交验证码登录、受控退出。
 - 配置：任务源连接、项目工作区绑定、项目自动化参与状态、自动化总开关。
 - 同步与调度：刷新、暂停/恢复队列、重试恢复动作。
 - 任务状态：确认待处理、验收、取消、标记阻塞和受控恢复。
 - Runtime 控制：查看 run、只读 transcript、人工介入、提交输入、安全停止。
 
 每个写 IPC 在 main 进程重新校验任务、项目、权限、服务器版本和当前 coordinator 状态。Renderer 传入的 eligibility、queue order、task status 或 run ownership 只作为选择提示，不作为可信事实。
+
+认证 IPC 校验 `code_type`、目标地址和验证码长度，不接受服务名、URL、header 或 token 参数。发送验证码和登录返回归一化账号投影；退出登录由 main 进程根据活动任务决定是否需要确认，Renderer 不能直接清理凭证文件。
 
 Main 进程在 store、任务快照、活动 run 或同步状态变化时发送单一 automation changed 事件。Renderer 收到事件后重新读取 snapshot，避免维护第二套业务状态机。
 
@@ -193,17 +219,25 @@ Capability policy 是显式 policy layer，不是 Runtime Kernel 的固定路由
 
 Registry 对 Runtime entrypoint 使用更严格的信任规则：只能选择 repository source，目标项目同 ID manifest 不能覆盖；解析后的入口必须位于 capability root 内。Controller phase 必须且只能匹配一个 `agent_skill` invocation，否则 fail closed。
 
-Controller planning prompt 分别展示 Controller 协议、Runtime 服务和 Worker registry，但 `worker_intents[].allowed_skills` 只能引用 Worker registry。Controller plan 和既有授权 packet 都经过同一 Worker binding gate；Controller/Runtime/未知 capability ID 会阻塞执行，不会被静默过滤。
+Controller planning invocation 只暴露 policy 允许的 capability id、protocol revision、binding target、invocation 类型、phase、trusted entrypoint 名称与 manifest ref；不复制 Controller 协议或 capability manifest 正文。`worker_intents[].allowed_skills` 只能引用 Worker registry。Controller plan 和既有授权 packet 都经过同一 Worker binding gate；Controller/Runtime/未知 capability ID 会阻塞执行，不会被静默过滤。Codex 执行前，Runtime 比对 repository Controller capability 与实际安装副本的 protocol revision、manifest 和 `SKILL.md`；漂移时在启动 Agent 前 fail closed，避免由过期 skill 产生表面合法但语义不兼容的计划。
 
 ### Prompt Compiler
 
-Prompt Compiler 把项目状态、选中 gap、上下文路径、停止条件和输出 schema 编译成一个 bounded agent instruction。
+Prompt Compiler 为 Controller planning、Worker execution 和 Controller review 生成最小 Agent invocation。旧的 supervised-turn compiled prompt 只保留 operator input 与机器元数据兼容投影，不作为 agentic 主链路的 Codex turn 输入。
 
-Prompt Compiler 不要求 agent 猜测要使用哪个 skill。Controller planning/review prompt 以 manifest 声明的 `$using-arckit` 开始；Worker prompt 把通过 binding gate 的 Worker skill ids 写成显式 `$skill-name` 触发项。Prompt 只提供 Runtime envelope、schema 与 hard constraints，不注入 skill 正文，也不复刻 skill 工作流；具体行为由 Codex 类 Agent 的已安装 skill 包负责。
+Prompt Compiler 不要求 agent 猜测要使用哪个 skill。Controller planning/review invocation 以 manifest 声明的 `$using-arckit` 开始；Worker invocation 以通过 binding gate 的 `$skill-name` 开始。其余内容只有 phase、locale、operator input、state/report refs 或本轮必要结构化证据、revision、execution authorization 和 capability refs。具体行为由 Codex 类 Agent 的已安装 skill 包负责。
 
-Prompt Compiler 只注入有界的 prompt projection。Project State、Case State 和 operator event 中的 raw evidence 以 refs 进入 prompt；只有 Controller Agent 或 Worker Report 明确产出的结构化短字段可以作为目标、下一步和 worker objective 注入。Prompt Compiler 对语义字段执行 marker 和长度检查，发现 `arckit-desktop-operator-event/v1`、`Arckit Desktop operator event.` 或超预算内容时，不把该字段注入下一轮 prompt。
+Project State 与 Case State 通过 canonical refs 进入 planning invocation，不内嵌完整 Project record、active Case record 或 Markdown 正文。Controller review 可直接接收本轮 bounded Worker reports，因为它们是尚未写回的必要运行证据；Worker 只接收一个 `arckit-worker-packet/v2` 与确有依赖的 prior reports。输出形状由 Codex app-server `outputSchema`、Runtime schema validation 和 hard gate 承担，不在 prompt 中重复输出字段、closeout 规则或 skill 工作流。
 
-Desktop operator context 被分为两层：raw operator event 保存在 chat、raw events 或 runtime record 中；Controller prompt 使用 operator context pack。Context pack 只包含 action、user input、source run refs、上一轮 handoff 摘要、worker report 摘要、gate/ledger 状态摘要、Project Case 选择摘要和 required context refs。完整 activity、controller frame、ledger result 和 stream JSON 不内嵌进 context pack。
+Controller Plan、Worker Report 和 Controller Review 的 `outputSchema` 遵循 Codex 严格结构化输出子集：`const` 同时声明显式 `type`，对象关闭额外属性并把全部属性列入 `required`，数组声明 `items`。Runtime 在创建 app-server thread 前递归预检这些约束，使无效 Schema 作为本地配置错误终止，而不是启动 turn 后才收到远端 `invalid_json_schema`。
+
+Controller Plan v3 通过 `execution_plan.plane` 明确区分 `runtime`、`worker` 和 `none`。选择已有 active Case 或创建新 Case 使用唯一 `runtime_actions[type=case_control]`，并要求 `worker_intents=[]`；沿用 selected Case 不生成 Runtime action，直接规划 Case gap 的 Worker 或零 Worker transition。标题、意图、artifact type 与选择理由来自 Controller 语义判断，Runtime 不解析待办关键词或 route mode 推导这些字段。
+
+Runtime 把选择/创建 Runtime action 绑定到当前 Project revision 和 Case review policy，形成 `arckit-case-control-handoff/v1`，再调用 `arckit-development-ledger` manifest 声明的 `case_control` 可信入口。ledger 分配 Case id，并把 Case 创建、Project/iteration 注册、selected Case 更新和投影索引作为可回滚提交。成功后 auto bridge 启动 fresh Controller invocation 并重新读取状态；revision 或 candidate-gap 新鲜度冲突不产生部分写入，并进入一次有 no-progress budget 的 fresh-state replan。Controller plan 若违反 execution plane 互斥或其他结构 gate，Runtime 把校验原因与被拒计划作为机器反馈交给 `$using-arckit` 自动重规划一次，仍失败才输出可恢复阻塞。
+
+Case facet 的局部更新在模型边界使用封闭的 nullable 字段集合表达；模型为未更新字段返回 `null`，Runtime normalization 在形成 Case claim 前移除 `null`。因此模型输出保持严格可验证，ledger 仍只接收有实际值的 facet patch。
+
+人类输入只有初始任务意图、人工决策/纠正和显式控制动作。初始 Runtime run 使用待办正文原文；人工 fresh continuation 使用人工输入原文；自动续轮没有新增 operator input，也不创建 `role=user` transcript，而是由 Runtime 在写回后启动 fresh Controller invocation 并重新读取 Case State。任务 ID、项目 ID、source run、auto-round depth、gate 和 ledger 状态保持为 Runtime 控制面元数据。
 
 ### Agent Adapter
 
@@ -272,11 +306,11 @@ Ledger capability 负责将验证后的结果写回：
 - `arckit-case-transition/v2`
 - development Case record 与 derived candidate gaps/resolution
 - resolved Case 的显式 Project/iteration impact
-- runtime execution record 与 indexes
+- Case、Project、iteration 的 indexes 与 projections
 
 Ledger writeback 是已接受 Case transition 的必经阶段。Desktop 执行型 run 在 Controller 接受 evidence-backed delta 且 `ledger_stage.status=gate_ready` 后运行 gate；即使 Case 仍 unresolved 或下一责任方是 human/external，也可以先安全写入本轮 accepted delta，再停止桥接。
 
-每个 transition 绑定 Case `updated_at` revision，并逐字段复现当前 candidate gap。Gate 通过 trusted ledger `case_transition` entrypoint 做 canonical validation；revision 或 responsibility/current/target/next transition 已变化时 fail closed。Ledger 在写入前预校验完整 Case、Project 与 iteration 目标状态，并把 Case、Project、iteration、projections、indexes 作为可回滚提交；Runtime execution record 与该提交协调失败时不得留下伪成功记录。
+每个 transition 绑定 Case `updated_at` revision，并逐字段复现当前 candidate gap。Gate 通过 trusted ledger `case_transition` entrypoint 做 canonical validation；revision 或 responsibility/current/target/next transition 已变化时 fail closed。Ledger 在写入前预校验完整 Case、Project 与 iteration 目标状态，并把 Case、Project、iteration、projections、indexes 作为可回滚提交。
 
 Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前检查 Case id/gap、planned transition、accepted delta、evidence、round outcome、Case resolution claim 和 Project impact candidate；raw operator task 不能作为 fallback。语义字段含 raw event marker、超长或 transition shape 不完整时，gate 阻止写回。
 
@@ -284,11 +318,11 @@ Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前�
 
 - Project State 写宏观 checkpoint：dimension 状态、project gaps、active Case refs、`case_control`、last state delta 和 evidence refs。
 - Iteration State v2 写阶段性 Project targets、带 closed Case 的 accepted Project changes、acceptance、blocking Project gaps 和 Case refs；不写 Loop continuation 或同态日志。
-- Case State 写事项级 checkpoint：六个 facets、content revision、completion review policy/cycles/findings/escalation、open questions、pending handoffs、round records、derived resolution、candidate gaps 和 loop handoff。
-- Runtime execution record 写完整过程证据：runtime result、gate、selected round、raw event refs 和可审计输出。
+- Case State 写事项级 checkpoint：六个 facets、content revision、completion review policy/cycles/findings/escalation、open questions、pending handoffs、round records、derived resolution、candidate gaps 和 loop handoff。每条 round 可保存 `arckit-runtime://runs/RUN-...` opaque ref，但不保存 Runtime 宿主的绝对路径。
+- Runtime 宿主在目标项目之外管理完整过程证据：runtime result、gate、selected round、activity、raw events 和 transcript。Desktop 使用 Electron userData；ledger 不复制这些记录，且 Case 语义恢复不依赖它们仍然存在。
 - Worker 不直接写 Project/Case State；Worker 提交 claims，Controller 接受后形成 transition，ledger 确定性应用。
 
-Controller plan 可以包含零个 Worker。当 operator input、现有稳定事实或已有验证证据足以支持一个 Case transition 时，Controller Review 直接列出 evidence 并形成 accepted delta；Runtime Guard 不把零 Worker 当缺失 packet。每次成功写回后 Runtime 重新读取状态和 revision，再由 Controller 选择下一 gap。自动桥接由实际 ledger 进展、no-progress streak 与 `max_auto_rounds` 共同约束。
+Controller plan 可以包含零个 Worker。当 operator input、现有稳定事实或已有验证证据足以支持一个 Case transition 时，Controller Review 直接列出 evidence 并形成 accepted delta；Runtime Guard 不把零 Worker 当缺失 packet。每次成功写回后 Runtime 重新读取状态和 revision，再由 Controller 选择下一 gap。自动桥接由实际 ledger 进展、no-progress streak 与连续无进展轮次预算共同约束；累计自动轮次仅用于审计，不作为持续产生 canonical state 进展时的停止条件。
 
 ## M0 实现范围
 
@@ -360,10 +394,10 @@ Gate 的写回准入条件：
 
 `write-ledger` 的写回范围：
 
-- 写入 `arckit/project/runtime-results/RUN-*.json` execution record。
 - 更新 `arckit/project/state.record.json` 和投影 `STATE.md`。
 - 更新 active iteration record、iteration brief 和 `ITERATIONS.md`。
 - 更新 active case record 和 `arckit/cases/INDEX.md`。
+- 将可选 `arckit-runtime://runs/RUN-...` opaque ref 写入 Case round；完整 Runtime 记录继续由调用方宿主管理。
 - 默认支持 `--dry-run` 只输出计划，不改文件。
 
 ### M3：Electron Desktop Client
@@ -380,7 +414,7 @@ Desktop Client 不重新实现 Runtime。它通过 Electron main 进程调用同
 - 添加本地 Arckit 项目。
 - 使用左侧项目与任务状态导航、中间运行态势、右侧执行边界与证据的 Command Center。
 - 将 Chat session 和 Run 分离：session 是连续对话，run 是某个 session 内的一次执行记录。
-- 由 Coordinator 从已领取的远端任务构造 operator task，并通过 `--task` 注入 supervised turn。
+- 由 Coordinator 把已领取远端任务的正文作为唯一 operator input，并通过 `--task` 注入 Controller turn；任务与项目标识保留在 Runtime 元数据。
 - Runtime 请求人工输入时按需打开 Intervention Workbench；提交内容转为 steer 或 fresh continuation。
 - transcript 与 run history 从任务详情和审查入口访问，不作为常驻主导航。
 - 右侧分别展示 Project case selection、selected Case resolution/candidate gaps、当前 Round control、normalized events 和 gate/write 控制。

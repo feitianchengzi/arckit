@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - 线框图</title>
+    <link rel="stylesheet" href="../wireframe-style.css">
+</head>
+<body>
+    <div class="wireframe-container">
+        <header>
+            <h1>Login</h1>
+            <div class="meta-info"><div>View: <code>LoginView</code></div><div>平台: <strong>macOS</strong></div></div>
+        </header>
+
+        <details open>
+            <summary>会话恢复</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>应用启动，主进程正在恢复 Workshop 认证状态。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="VStack">
+                    <div class="content-area"><div class="card"><div class="icon-placeholder">A</div><h2>Arckit Automation</h2><p>正在恢复 Workshop 会话…</p><div class="spinner"></div></div></div>
+                </div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>产品标识</li><li>认证恢复说明</li><li>ProgressView</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>认证有效</code> → 进入 Command Center</div><div class="interaction-item"><code>未登录</code> → 原位切换为登录表单</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>未登录入口</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>认证恢复完成，当前没有有效或可刷新的 Workshop 会话。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="VStack">
+                    <div class="content-area"><div class="card"><div class="icon-placeholder">A</div><h2>登录 Workshop</h2><p>登录后同步你的项目和待办。</p><div class="picker" data-kit="Picker(segmented)"><span>邮箱</span><span>手机号</span></div><div class="input-field">邮箱</div><div class="input-field">验证码</div><div class="button">获取验证码</div><div class="button primary">登录并同步</div></div></div>
+                </div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>产品标识与用途</li><li>验证码类型 Picker</li><li>目标和验证码字段</li><li>发送与登录动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>切换类型</code> → 更新目标字段标签和校验</div><div class="interaction-item"><code>登录并同步</code> → 成功后进入 Command Center</div><div class="interaction-item"><code>关闭或跳过</code> → 不提供</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>验证码已发送</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>认证服务确认验证码已发送。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="VStack">
+                    <div class="content-area"><div class="card"><div class="icon-placeholder">A</div><h2>检查你的邮箱</h2><div class="badge">验证码已发送至 gl•••@example.com</div><div class="input-field">glare@example.com</div><div class="input-field">输入验证码</div><div class="button">54 秒后重试</div><div class="button primary">登录并同步</div></div></div>
+                </div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>脱敏发送反馈</li><li>保留的目标字段</li><li>验证码字段</li><li>重发倒计时</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>编辑目标或验证码</code> → 保持当前页面</div><div class="interaction-item"><code>倒计时结束</code> → 恢复发送动作</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>登录失败</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>目标或验证码校验失败，或认证服务拒绝请求。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="VStack">
+                    <div class="content-area"><div class="card"><div class="icon-placeholder">A</div><h2>登录 Workshop</h2><div class="badge">验证码无效或已过期，请检查后重试。</div><div class="input-field">glare@example.com</div><div class="input-field">123456</div><div class="button">重新发送验证码</div><div class="button primary">重新登录</div></div></div>
+                </div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>原位错误反馈</li><li>保留的目标和验证码</li><li>重发与重新登录动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>修正输入</code> → 保持错误说明直到下一次提交</div><div class="interaction-item"><code>重新登录</code> → 成功后进入 Command Center</div></div>
+            </div>
+        </details>
+    </div>
+</body>
+</html>

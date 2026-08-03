@@ -6,7 +6,10 @@
     <title>Arckit Automation</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
-  <body>
+  <body class="auth-pending">
+    <div id="authBootScreen" class="auth-boot-screen" role="status" aria-live="polite">
+      <div class="auth-boot-card"><span class="brand-mark">A</span><strong>Arckit Automation</strong><p>正在恢复 Workshop 会话…</p><i aria-hidden="true"></i></div>
+    </div>
     <div class="desktop-app">
       <header class="titlebar">
         <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -40,7 +43,7 @@
           <div class="breadcrumbs"><strong id="scopeTitle">所有项目</strong><span id="pageTitle">自动化总览</span></div>
           <div class="commandbar-actions">
             <button id="searchButton" class="search-trigger" type="button"><span>搜索任务、项目或 Run</span><kbd>⌘ K</kbd></button>
-            <label class="automation-toggle"><input id="automationEnabled" type="checkbox"><span></span><strong>自动化</strong></label>
+            <label class="automation-toggle" title="控制是否领取新任务；仅作用于已绑定且已授权的项目，不停止当前任务"><input id="automationEnabled" type="checkbox"><span></span><strong>自动领取</strong></label>
             <button id="syncButton" class="icon-button" type="button" title="同步任务源">↻</button>
             <button id="settingsButton" class="icon-button" type="button" title="设置">⚙</button>
           </div>
@@ -51,7 +54,7 @@
             <div class="page page-dashboard">
               <div class="page-heading split-heading">
                 <div><p class="eyebrow">AUTOMATION COMMAND CENTER</p><h1 id="commandHeading">执行态势</h1><p id="commandSummary">同步项目和任务后显示自动化队列。</p></div>
-                <div class="heading-actions"><span id="healthBadge" class="health-badge">任务源未配置</span><button id="queuePauseButton" class="secondary-button" type="button">暂停队列</button></div>
+                <div class="heading-actions"><span id="healthBadge" class="health-badge">任务源未配置</span><button id="queuePauseButton" class="secondary-button" type="button">暂停领取</button></div>
               </div>
 
               <div id="metricGrid" class="metric-grid"></div>
@@ -110,11 +113,31 @@
     </div>
 
     <div id="settingsOverlay" class="modal-overlay hidden">
-      <section class="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-        <div class="settings-header"><div><p class="eyebrow">DESKTOP SETTINGS</p><h2 id="settingsTitle">Runtime 与任务源</h2></div><button id="closeSettingsButton" class="icon-button" type="button">×</button></div>
+      <section id="settingsPanel" class="settings-panel" aria-labelledby="settingsTitle">
+        <div class="settings-header">
+          <div class="settings-title-copy"><div class="login-brand" aria-hidden="true"><span class="brand-mark">A</span><strong>Arckit Automation</strong></div><p id="settingsEyebrow" class="eyebrow">DESKTOP SETTINGS</p><h2 id="settingsTitle">账户与 Runtime</h2><p id="settingsLead" class="settings-lead">管理 Workshop 账户、任务源与本地 Runtime。</p></div>
+          <button id="closeSettingsButton" class="icon-button" type="button" aria-label="关闭设置">×</button>
+        </div>
         <div class="settings-sections">
-          <section><h3>Workshop 任务源</h3><label class="toggle-row"><input id="taskSourceEnabled" type="checkbox"><span><strong>启用任务源</strong><small>通过主进程同步当前用户项目与待办</small></span></label><label class="field"><span>服务根地址</span><input id="taskSourceBaseUrl" type="url" placeholder="https://example.com"></label><div class="field-grid"><label class="field"><span>服务名</span><input id="taskSourceServiceName" type="text" placeholder="workshop"></label><label class="field"><span>认证模式</span><select id="taskSourceAuthMode"><option value="bearer">Bearer Token</option><option value="headers">用户请求头</option></select></label></div><label class="field"><span>访问令牌</span><input id="taskSourceToken" type="password" placeholder="保留为空则不修改现有令牌"></label><div id="headerAuthFields" class="field-grid"><label class="field"><span>用户 ID</span><input id="taskSourceUserId" type="text"></label><label class="field"><span>用户名</span><input id="taskSourceUsername" type="text"></label><label class="field"><span>App ID</span><input id="taskSourceAppId" type="text"></label><label class="field"><span>Session ID</span><input id="taskSourceSessionId" type="text"></label></div></section>
-          <section><h3>Codex Runtime</h3><label class="toggle-row"><input id="codexProxyEnabled" type="checkbox"><span><strong>使用代理</strong><small>仅注入新启动的 Codex app-server run</small></span></label><label class="field"><span>代理地址</span><input id="codexProxyUrl" type="text" placeholder="http://127.0.0.1:7890"></label></section>
+          <section class="account-settings-section">
+            <h3>Workshop 账户</h3>
+            <div class="account-card">
+              <div class="account-summary"><span id="authStatusPill" class="account-status logged-out">未登录</span><div><strong id="authIdentity">登录后同步你的项目和待办</strong><small id="authDescription">验证码和令牌仅由主进程处理。</small></div></div>
+              <div id="authLoginPanel" class="auth-form">
+                <div class="auth-type" role="group" aria-label="验证码类型"><button class="auth-type-button is-active" data-auth-type="email" type="button">邮箱</button><button class="auth-type-button" data-auth-type="sms" type="button">手机号</button></div>
+                <label class="field"><span id="authTargetLabel">邮箱</span><input id="authTarget" type="text" autocomplete="username" placeholder="name@example.com"></label>
+                <div class="verification-row"><label class="field"><span>验证码</span><input id="authCode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="输入验证码"></label><button id="sendVerificationButton" class="secondary-button" type="button">获取验证码</button></div>
+                <button id="loginButton" class="primary-button" type="button">登录并同步</button>
+              </div>
+              <div id="authSessionPanel" class="auth-session hidden"><button id="logoutButton" class="secondary-button" type="button">退出登录</button></div>
+              <p id="authFeedback" class="auth-feedback" aria-live="polite"></p>
+            </div>
+            <details class="settings-advanced">
+              <summary>高级任务源设置</summary>
+              <div class="settings-advanced-content"><label class="toggle-row"><input id="taskSourceEnabled" type="checkbox"><span><strong>启用任务源</strong><small>通过主进程同步当前用户项目与待办</small></span></label><label class="field"><span>服务根地址</span><input id="taskSourceBaseUrl" type="url" placeholder="https://api.feitianchengzi.com"></label><div class="field-grid"><label class="field"><span>服务名</span><input id="taskSourceServiceName" type="text" placeholder="workshop"></label><label class="field"><span>认证模式</span><select id="taskSourceAuthMode"><option value="nebula">Workshop 登录</option><option value="bearer">Bearer Token（调试）</option><option value="headers">用户请求头（调试）</option></select></label></div><div id="tokenAuthFields"><label class="field"><span>访问令牌</span><input id="taskSourceToken" type="password" placeholder="保留为空则不修改现有令牌"></label></div><div id="headerAuthFields" class="field-grid"><label class="field"><span>用户 ID</span><input id="taskSourceUserId" type="text"></label><label class="field"><span>用户名</span><input id="taskSourceUsername" type="text"></label><label class="field"><span>App ID</span><input id="taskSourceAppId" type="text"></label><label class="field"><span>Session ID</span><input id="taskSourceSessionId" type="text"></label></div></div>
+            </details>
+          </section>
+          <section class="codex-settings-section"><h3>Codex Runtime</h3><label class="toggle-row"><input id="codexProxyEnabled" type="checkbox"><span><strong>使用代理</strong><small>仅注入新启动的 Codex app-server run</small></span></label><label class="field"><span>代理地址</span><input id="codexProxyUrl" type="text" placeholder="http://127.0.0.1:7890"></label></section>
         </div>
         <div class="settings-actions"><button id="saveSettingsButton" class="primary-button" type="button">保存并同步</button></div>
       </section>

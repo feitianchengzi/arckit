@@ -12,7 +12,7 @@
 - 临时文件由创建方拥有，必须在成功、失败或取消后的 finally/cleanup 阶段删除；只有用户明确要求保留调试输入时才能留下并报告路径与敏感性。
 - `case-transition.mjs` 不自动删除文件参数，因为它无法判断该文件是一次性载荷还是用户需要保留的复现 fixture。
 - 不在项目仓库中保存一次性 transition，不把 `/tmp`、`/private/tmp`、`/var/folders` 或其他临时路径写入 evidence、Case、Project、Iteration 或 handoff。
-- 需要持久审计时使用 Runtime writeback 生成的 `arckit/project/runtime-results/*.json`，不要把临时输入提升为 evidence。
+- 需要过程审计时使用 Runtime 宿主在项目目录外管理的 run result/activity/events。Desktop 只向 Case round 写入 `arckit-runtime://runs/RUN-...` opaque ref；不要把宿主绝对路径或临时输入提升为 evidence。
 
 ## 内容透明性
 
@@ -25,4 +25,4 @@ transition 中的命令、正则、路径、引号、反斜杠、换行、Unicod
 
 ## 失败处理
 
-输入解析、往返检查、索引预检或正式提交任一步失败时停止写回并报告原始错误。不得绕过校验、手工改账本或用“等价”证据替换原始事实。正式提交开始后的失败继续由 ledger 原子回滚恢复；Runtime execution record 与 ledger commit 协调失败时按主流程清理未提交记录。
+输入解析、往返检查、索引预检或正式提交任一步失败时停止写回并报告原始错误。不得绕过校验、手工改账本或用“等价”证据替换原始事实。正式提交开始后的失败继续由 ledger 原子回滚恢复；Runtime 宿主记录独立于 canonical ledger 提交并由宿主自己的生命周期管理。

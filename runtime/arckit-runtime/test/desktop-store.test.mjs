@@ -85,23 +85,34 @@ test("desktop store upgrades automation state and keeps task source tokens out o
       task_source: {
         enabled: true,
         base_url: "https://workshop.example/",
-        access_token: "top-secret"
+        auth_mode: "nebula",
+        access_token: "top-secret",
+        refresh_token: "refresh-secret",
+        username: "glare@example.com"
       }
     },
     automation: {
       snapshot: {
         source_status: "degraded",
         errors: [{ code: "request_failed", status: 500, message: "Project tasks unavailable", project_id: "12" }]
-      }
+      },
+      recovery_items: [{ id: "RECOVERY-1", responsibility: "human" }]
     }
   });
 
-  assert.equal(store.version, 5);
+  assert.equal(store.version, 6);
   assert.equal(store.automation.snapshot.source_status, "degraded");
   assert.deepEqual(store.automation.project_bindings, {});
+  assert.equal(store.automation.recovery_items[0].responsibility, "operator");
   const visible = publicSettings(store.settings);
   assert.equal(visible.task_source.access_token, "");
   assert.equal(visible.task_source.access_token_configured, true);
+  assert.equal(visible.task_source.refresh_session_configured, true);
+  assert.equal("refresh_token" in visible.task_source, false);
+  assert.equal(visible.task_source.authentication.status, "authenticated");
+  assert.equal(visible.task_source.authentication.masked_identity, "gl•••@example.com");
+  assert.equal(visible.task_source.username, "");
+  assert.doesNotMatch(JSON.stringify(visible), /top-secret|refresh-secret|glare@example\.com/);
   assert.equal(visible.task_source.base_url, "https://workshop.example");
   assert.deepEqual(store.automation.snapshot.errors[0], {
     code: "request_failed",

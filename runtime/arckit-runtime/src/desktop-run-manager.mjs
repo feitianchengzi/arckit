@@ -28,7 +28,13 @@ import {
   summarizeRuntimeResult,
   updateRunActivity
 } from "./projection/run-event-projector.mjs";
-import { buildControllerOperatorTask, buildDesktopOperatorEvent } from "./kernel/operator-event.mjs";
+import { buildControllerOperatorTask } from "./kernel/operator-event.mjs";
+import {
+  AUTOMATIC_CONTINUATION_POLICY,
+  normalizeContinuationPolicy,
+  shouldAutomaticallyBridge
+} from "./kernel/continuation-policy.mjs";
+import { runtimeRecordRefForRun } from "./runtime-record-ref.mjs";
 
 export function createDesktopRunManager({
   runtimeRoot,
@@ -264,9 +270,59 @@ export function createDesktopRunManager({
     return publicSettings(store.settings);
   }
 
+  async function getTaskSourceSettings() {
+    const store = await readStore();
+    return { ...store.settings.task_source };
+  }
+
+  async function replaceTaskSourceSettings(input = {}) {
+    let taskSourceSettings;
+    let visibleSettings;
+    await updateStore((store) => {
+      const nextSettings = normalizeSettings({
+        ...store.settings,
+        task_source: input
+      });
+      store.settings = nextSettings;
+      taskSourceSettings = { ...nextSettings.task_source };
+      visibleSettings = publicSettings(nextSettings);
+      return store;
+    });
+    emit("settings.updated", { settings: visibleSettings });
+    return taskSourceSettings;
+  }
+
   async function updateSettings(input = {}) {
     let nextSettings;
     await updateStore((store) => {
+      const currentTaskSource = store.settings?.task_source || {};
+      const incomingTaskSource = input.task_source && typeof input.task_source === "object" ? input.task_source : null;
+      let taskSource = currentTaskSource;
+      if (incomingTaskSource) {
+        const nextAuthMode = incomingTaskSource.auth_mode || currentTaskSource.auth_mode || "nebula";
+        const sameAuthMode = nextAuthMode === currentTaskSource.auth_mode;
+        const accessToken = incomingTaskSource.access_token || (sameAuthMode ? currentTaskSource.access_token : "") || "";
+        const headerUserId = "user_id" in incomingTaskSource ? incomingTaskSource.user_id : currentTaskSource.user_id;
+        const headerAuthenticated = nextAuthMode === "headers" && Boolean(String(headerUserId || "").trim());
+        taskSource = {
+          ...currentTaskSource,
+          ...incomingTaskSource,
+          auth_mode: nextAuthMode,
+          access_token: accessToken,
+          refresh_token: nextAuthMode === "nebula" && sameAuthMode ? currentTaskSource.refresh_token || "" : "",
+          access_token_expires_at: nextAuthMode === "nebula" && sameAuthMode ? currentTaskSource.access_token_expires_at || 0 : 0,
+          refresh_token_expires_at: nextAuthMode === "nebula" && sameAuthMode ? currentTaskSource.refresh_token_expires_at || 0 : 0,
+          user_id: nextAuthMode === "headers" ? String(headerUserId || "") : "",
+          username: nextAuthMode === "headers"
+            ? String("username" in incomingTaskSource ? incomingTaskSource.username || "" : currentTaskSource.username || "")
+            : nextAuthMode === "nebula" && sameAuthMode ? currentTaskSource.username || "" : "",
+          session_id: nextAuthMode === "headers"
+            ? String("session_id" in incomingTaskSource ? incomingTaskSource.session_id || "" : currentTaskSource.session_id || "")
+            : "",
+          auth_state: accessToken || headerAuthenticated ? "authenticated" : "logged_out",
+          auth_error: ""
+        };
+      }
       nextSettings = normalizeSettings({
         ...store.settings,
         ...input,
@@ -274,13 +330,7 @@ export function createDesktopRunManager({
           ...store.settings?.codex_proxy,
           ...input.codex_proxy
         },
-        task_source: {
-          ...store.settings?.task_source,
-          ...input.task_source,
-          access_token: input.task_source?.access_token
-            ? input.task_source.access_token
-            : store.settings?.task_source?.access_token || ""
-        }
+        task_source: taskSource
       });
       store.settings = nextSettings;
       return store;
@@ -396,7 +446,10 @@ export function createDesktopRunManager({
       auto_continue_from_run_id: input.autoContinueFromRunId || "",
       auto_continue_depth: Number(input.autoContinueDepth || 0),
       auto_no_progress_streak: Number(input.autoNoProgressStreak || 0),
+      auto_rounds_since_progress: Number(input.autoRoundsSinceProgress || 0),
       max_auto_rounds: nonNegativeInteger(input.maxAutoRounds ?? sourceRun?.max_auto_rounds, 8),
+      continuation_policy: normalizeContinuationPolicy(input.continuationPolicy ?? sourceRun?.continuation_policy),
+      runtime_context: normalizeRuntimeContext(input.runtimeContext),
       status: "running",
       started_at: new Date().toISOString(),
       finished_at: "",
@@ -443,6 +496,9 @@ export function createDesktopRunManager({
     ];
     if (run.task) {
       args.push("--task", run.task);
+    }
+    if (run.runtime_context) {
+      args.push("--runtime-context", JSON.stringify(run.runtime_context));
     }
     args.push("--max-auto-rounds", String(run.max_auto_rounds));
     args.push("--stream-events");
@@ -609,7 +665,14 @@ export function createDesktopRunManager({
     });
     emit("run.finished", { runId, status, exitCode, result: parsedResult, activity: run.activity });
     try {
-      await maybeStartAutoContinue(run, parsedResult);
+      const continuation = await maybeStartAutoContinue(run, parsedResult);
+      if (continuation.requested && continuation.status !== "started") {
+        emit("run.auto_continue.not_started", {
+          sourceRunId: run.id,
+          reason: continuation.reason,
+          message: continuation.message
+        });
+      }
     } catch (error) {
       await appendText(run.error_file, `\nAuto-continue failed: ${error?.message || String(error)}\n`);
       emit("run.auto_continue.failed", {
@@ -758,10 +821,7 @@ export function createDesktopRunManager({
 
   async function writeLedgerForRun(runId, { dryRun = true } = {}) {
     const run = await findRun(runId);
-    const args = ["write-ledger", "--project", run.project_path, "--file", run.result_file, "--json"];
-    if (dryRun) {
-      args.push("--dry-run");
-    }
+    const args = buildWriteLedgerCommandArgs(run, { dryRun });
     const result = await runRuntimeCommand(run, args);
     await persistRunCommandResult(run.id, dryRun ? "write-ledger-preview" : "write-ledger", result);
     return result;
@@ -821,7 +881,7 @@ export function createDesktopRunManager({
       activity: run.activity || null
     });
     if (gateResult.parsed?.allowed === true) {
-      const writeResult = await runRuntimeCommand(run, ["write-ledger", "--project", run.project_path, "--file", run.result_file, "--json"]);
+      const writeResult = await runRuntimeCommand(run, buildWriteLedgerCommandArgs(run));
       applyRunCommandResult(run, "write-ledger", writeResult);
       emit("run.command_result", {
         runId: run.id,
@@ -833,85 +893,55 @@ export function createDesktopRunManager({
   }
 
   async function maybeStartAutoContinue(sourceRun, parsedResult) {
+    const decision = evaluateAutoContinuation({ sourceRun, parsedResult });
+    if (!decision.allowed) return decision;
     const runtimeResult = parsedResult?.runtime_result || null;
     const ledgerHandoff = sourceRun.activity?.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff || null;
     const handoff = ledgerHandoff || runtimeResult?.loop_handoff || {};
-    const progressGuard = handoff.progress_guard || {};
     const currentDepth = Number(sourceRun.auto_continue_depth || 0);
-    const maxAutoRounds = nonNegativeInteger(sourceRun.max_auto_rounds, nonNegativeInteger(progressGuard.max_auto_rounds, 0));
-    const noProgressLimit = nonNegativeInteger(progressGuard.no_progress_limit, 2);
-    const ledgerWriteRequired = runtimeResult?.ledger_stage?.writeback_required === true;
-    const ledgerWritten = sourceRun.activity?.ledger_write_result?.parsed?.written === true;
-    const currentNoProgressStreak = nonNegativeInteger(sourceRun.auto_no_progress_streak, 0);
-    const nextNoProgressStreak = ledgerWritten ? 0 : currentNoProgressStreak + 1;
-    if (sourceRun.status !== "completed"
-      || sourceRun.adapter === "dry-run"
-      || parsedResult?.validation?.valid === false
-      || (ledgerWriteRequired && !ledgerWritten)
-      || handoff.trigger_mode !== "auto_bridge"
-      || handoff.next_responsibility !== "agent"
-      || handoff.agent_continuation_available !== true
-      || handoff.human_decision_required === true
-      || !handoff.next_prompt
-      || maxAutoRounds <= currentDepth
-      || nextNoProgressStreak >= noProgressLimit) {
-      return null;
-    }
     for (const active of activeRuns.values()) {
       if (active.run.project_id === sourceRun.project_id && active.run.session_id === sourceRun.session_id) {
-        return null;
+        return autoContinueDecision("active_run_conflict", "Another Runtime run is already active for this project conversation.");
       }
     }
     const store = await readStore();
     const project = store.projects.find((item) => item.id === sourceRun.project_id);
     if (!project) {
-      return null;
+      return autoContinueDecision("project_missing", "The project is no longer available in Desktop.");
     }
-    const session = getSession(store, project.id, sourceRun.session_id);
-    const projectStatus = await getProjectStatus(project.id);
-    const controlState = {
-      state: "agent_auto_continue_ready",
-      primary_action: "auto_continue",
-      primary_label: "Auto Continue",
-      reason: handoff.responsibility_reason || "Loop handoff allows automatic agent continuation.",
-      run_id: sourceRun.id
-    };
-    const operatorEvent = buildDesktopOperatorEvent({
-      action: "auto_continue",
-      userInput: "",
-      controlState,
-      project,
-      session,
-      run: sourceRun,
-      activity: sourceRun.activity,
-      projectStatus,
-      latestNextPrompt: handoff.next_prompt
-    });
-    const task = buildControllerOperatorTask(operatorEvent);
-    await addMessage(project.id, {
-      role: "user",
-      kind: "auto-continue",
-      content: task,
-      run_id: sourceRun.id,
-      session_id: sourceRun.session_id
-    });
+    getSession(store, project.id, sourceRun.session_id);
+    const task = buildControllerOperatorTask({ user_input: "" });
     const nextRun = await startRun({
       projectId: project.id,
       sessionId: sourceRun.session_id,
       task,
+      runtimeContext: buildAutoContinuationRuntimeContext(sourceRun, handoff, decision),
       adapter: sourceRun.adapter,
       approvalPolicy: "on-request",
       autoContinueFromRunId: sourceRun.id,
       autoContinueDepth: currentDepth + 1,
-      autoNoProgressStreak: nextNoProgressStreak,
-      maxAutoRounds
+      autoNoProgressStreak: decision.next_no_progress_streak,
+      autoRoundsSinceProgress: decision.next_rounds_since_progress,
+      maxAutoRounds: decision.max_auto_rounds,
+      continuationPolicy: sourceRun.continuation_policy
     });
     emit("run.auto_continue.started", {
       sourceRunId: sourceRun.id,
       runId: nextRun.id,
       depth: currentDepth + 1
     });
-    return nextRun;
+    return { ...decision, status: "started", run: nextRun };
+  }
+
+  async function resumeAutoContinuation(sourceRunId) {
+    const storedRun = await findRun(sourceRunId);
+    const sourceRun = {
+      ...storedRun,
+      activity: await loadRunActivity(storedRun),
+      continuation_policy: AUTOMATIC_CONTINUATION_POLICY
+    };
+    const parsedResult = JSON.parse(await readFile(sourceRun.result_file, "utf8"));
+    return maybeStartAutoContinue(sourceRun, parsedResult);
   }
 
   function queueRunWrite(activeRun, operation) {
@@ -926,6 +956,13 @@ export function createDesktopRunManager({
   function nonNegativeInteger(value, fallback) {
     const number = Number(value);
     return Number.isFinite(number) && number >= 0 ? Math.floor(number) : fallback;
+  }
+
+  function normalizeRuntimeContext(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return null;
+    }
+    return JSON.parse(JSON.stringify(value));
   }
 
   async function persistRunCommandResult(runId, commandType, result) {
@@ -983,15 +1020,148 @@ export function createDesktopRunManager({
     listMessages,
     addMessage,
     getSettings,
+    getTaskSourceSettings,
+    replaceTaskSourceSettings,
     updateSettings,
     startRun,
     controlRun,
+    resumeAutoContinuation,
     abortActiveRuns,
     gateRun,
     writeLedgerForRun,
     readDesktopStore: readStore,
     updateDesktopStore: updateStore
   };
+}
+
+export function buildWriteLedgerCommandArgs(run, { dryRun = false } = {}) {
+  const args = [
+    "write-ledger",
+    "--project", run.project_path,
+    "--file", run.result_file,
+    "--runtime-record-ref", runtimeRecordRefForRun(run.id),
+    "--json"
+  ];
+  if (dryRun) args.push("--dry-run");
+  return args;
+}
+
+export function evaluateAutoContinuation({ sourceRun, parsedResult }) {
+  const runtimeResult = parsedResult?.runtime_result || null;
+  const ledgerHandoff = sourceRun?.activity?.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff || null;
+  const handoff = ledgerHandoff || runtimeResult?.loop_handoff || {};
+  const requested = shouldAutomaticallyBridge(handoff, sourceRun?.continuation_policy);
+  if (!requested) return autoContinueDecision("not_requested", "Runtime did not request agent auto-continuation.", false);
+  if (sourceRun?.status !== "completed") return autoContinueDecision("run_not_completed", `Source run status is ${sourceRun?.status || "unknown"}.`);
+  if (sourceRun?.adapter === "dry-run") return autoContinueDecision("dry_run", "Dry-run does not start an automatic continuation.");
+  if (parsedResult?.validation?.valid === false) return autoContinueDecision("invalid_result", "Runtime result validation failed.");
+  if (handoff.human_decision_required === true) return autoContinueDecision("human_decision_required", "Runtime handoff requires a human decision.");
+  if (!handoff.next_prompt) return autoContinueDecision("next_prompt_missing", "Runtime handoff did not provide a continuation intent.");
+
+  const progressGuard = handoff.progress_guard || {};
+  const currentDepth = Number(sourceRun?.auto_continue_depth || 0);
+  const maxAutoRounds = moduleNonNegativeInteger(sourceRun?.max_auto_rounds, moduleNonNegativeInteger(progressGuard.max_auto_rounds, 0));
+
+  const ledgerWriteRequired = runtimeResult?.ledger_stage?.writeback_required === true;
+  const ledgerWritten = sourceRun?.activity?.ledger_write_result?.parsed?.written === true;
+  const gate = sourceRun?.activity?.gate_result?.parsed || null;
+  const ledgerRejection = recoverableLedgerRejection(sourceRun?.activity?.ledger_write_result);
+  const recoverableFreshStateReplan = ledgerWriteRequired && !ledgerWritten && isRecoverableFreshnessGate(gate);
+  const recoverableTransitionReplan = ledgerWriteRequired && !ledgerWritten && ledgerRejection?.recoverable === true;
+  const recoverableStateReplan = recoverableFreshStateReplan || recoverableTransitionReplan;
+  const automationPolicyBridge = handoff.trigger_mode === "manual_bridge"
+    && sourceRun?.continuation_policy === AUTOMATIC_CONTINUATION_POLICY;
+  if (ledgerWriteRequired && !ledgerWritten && !recoverableStateReplan) {
+    return autoContinueDecision("ledger_writeback_incomplete", "Required deterministic ledger writeback did not complete.");
+  }
+
+  const currentRoundsSinceProgress = moduleNonNegativeInteger(sourceRun?.auto_rounds_since_progress, 0);
+  if (!ledgerWritten && maxAutoRounds <= currentRoundsSinceProgress) {
+    return autoContinueDecision("max_auto_rounds", "Automatic continuation reached max_auto_rounds without deterministic ledger progress.");
+  }
+
+  const currentNoProgressStreak = moduleNonNegativeInteger(sourceRun?.auto_no_progress_streak, 0);
+  const noProgressLimit = moduleNonNegativeInteger(progressGuard.no_progress_limit, 2);
+  if (!ledgerWritten && currentNoProgressStreak >= noProgressLimit) {
+    return autoContinueDecision("no_progress_limit", "Automatic continuation exhausted its no-progress retry budget.");
+  }
+  return {
+    status: "ready",
+    requested: true,
+    allowed: true,
+    reason: recoverableTransitionReplan ? "state_replan" : recoverableFreshStateReplan ? "fresh_state_replan" : automationPolicyBridge ? "automation_policy" : "auto_bridge",
+    message: recoverableTransitionReplan
+      ? "The deterministic ledger rejected the proposed Case transition; start one fresh-state Controller replan."
+      : recoverableFreshStateReplan
+      ? "The deterministic ledger gate rejected stale state; start one fresh-state Controller replan."
+      : automationPolicyBridge
+        ? "Desktop automation promotes an eligible agent manual bridge to automatic continuation."
+        : "Runtime handoff is eligible for automatic continuation.",
+    recoverable_state_replan: recoverableStateReplan,
+    recoverable_fresh_state_replan: recoverableFreshStateReplan,
+    ledger_rejection: recoverableTransitionReplan ? ledgerRejection : null,
+    gate_reasons: recoverableFreshStateReplan ? gate.reasons : [],
+    next_no_progress_streak: ledgerWritten ? 0 : currentNoProgressStreak + 1,
+    next_rounds_since_progress: ledgerWritten ? 0 : currentRoundsSinceProgress + 1,
+    max_auto_rounds: maxAutoRounds
+  };
+}
+
+export function buildAutoContinuationRuntimeContext(sourceRun, handoff, decision = {}) {
+  const stateReplan = decision.recoverable_state_replan === true || decision.recoverable_fresh_state_replan === true;
+  return {
+    kind: "auto_continuation",
+    source_run_id: sourceRun?.id || "",
+    source_result_ref: sourceRun?.result_file || "",
+    source_activity_ref: sourceRun?.activity_file || "",
+    continuation: {
+      next_prompt: handoff?.next_prompt || "",
+      responsibility_reason: handoff?.responsibility_reason || ""
+    },
+    ...(stateReplan ? {
+      recovery: {
+        kind: decision.reason === "state_replan" ? "state_replan" : "fresh_state_replan",
+        reason: decision.message,
+        gate_reasons: decision.gate_reasons || [],
+        ledger_rejection: decision.ledger_rejection || null
+      }
+    } : {})
+  };
+}
+
+function autoContinueDecision(reason, message, requested = true) {
+  return { status: "not_started", requested, allowed: false, reason, message };
+}
+
+function isRecoverableFreshnessGate(gate) {
+  const reasons = Array.isArray(gate?.reasons) ? gate.reasons : [];
+  return gate?.allowed === false && reasons.length > 0 && reasons.every((reason) => (
+    / is stale for | is not an active Case| is already resolved| is not an unresolved candidate/.test(String(reason))
+  ));
+}
+
+function recoverableLedgerRejection(commandResult) {
+  const structured = commandResult?.parsed?.rejection;
+  if (structured?.recoverable === true) return structured;
+  const stderr = String(commandResult?.stderr || '');
+  if (commandResult?.code === 1
+    && stderr.includes('at applyCaseTransitionToRecord')
+    && stderr.includes('at applyRuntimeLedgerWriteback')) {
+    return {
+      kind: 'case_transition_rejected',
+      recoverable: true,
+      responsibility: 'agent',
+      reason: stderr.split(/\r?\n/, 1)[0].replace(/^Error:\s*/, '') || 'The deterministic ledger rejected the proposed Case transition.',
+      recovery_action: 'replan_from_fresh_state',
+      legacy_record: true
+    };
+  }
+  return null;
+}
+
+function moduleNonNegativeInteger(value, fallback) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : fallback;
 }
 
 function sendInterrupt(child) {

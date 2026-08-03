@@ -75,14 +75,15 @@ export async function main(argv) {
       runtimeResult,
       envelope,
       snapshot,
-      dryRun: options.dryRun
+      dryRun: options.dryRun,
+      runtimeRecordRef: options.runtimeRecordRef
     });
     if (options.json) {
       console.log(JSON.stringify(result, null, 2));
     } else {
       printWriteLedgerSummary(result);
     }
-    process.exitCode = result.gate.allowed ? 0 : 1;
+    process.exitCode = result.gate.allowed && (options.dryRun || result.written) ? 0 : 1;
     return;
   }
 
@@ -195,6 +196,8 @@ function parseRunOptions(args) {
       options.codexBin = requiredValue(args, ++index, arg);
     } else if (arg === "--packet-file") {
       options.packetFile = requiredValue(args, ++index, arg);
+    } else if (arg === "--runtime-context") {
+      options.runtimeContext = parseJsonObject(requiredValue(args, ++index, arg), arg);
     } else if (arg === "--max-auto-rounds") {
       options.maxAutoRounds = Number(requiredValue(args, ++index, arg));
       if (!Number.isInteger(options.maxAutoRounds) || options.maxAutoRounds < 1) {
@@ -206,6 +209,19 @@ function parseRunOptions(args) {
   }
 
   return options;
+}
+
+function parseJsonObject(value, flag) {
+  let parsed;
+  try {
+    parsed = JSON.parse(value);
+  } catch (error) {
+    throw new Error(`${flag} must contain valid JSON: ${error.message}`);
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${flag} must contain a JSON object.`);
+  }
+  return parsed;
 }
 
 function parseInitProjectOptions(args) {
@@ -305,6 +321,8 @@ function parseWriteLedgerOptions(args) {
       options.json = true;
     } else if (arg === "--dry-run") {
       options.dryRun = true;
+    } else if (arg === "--runtime-record-ref") {
+      options.runtimeRecordRef = requiredValue(args, ++index, arg);
     } else {
       throw new Error(`Unknown write-ledger option: ${arg}`);
     }
@@ -337,17 +355,17 @@ function printHelp() {
 
 Usage:
   arckit-runtime init-project [--project <path>] [--name <name>] [--intent <text>]
-  arckit-runtime run [--project <path>] [--task <text>] [--dry-run] [--json]
+  arckit-runtime run [--project <path>] [--task <text>] [--runtime-context <json>] [--dry-run] [--json]
   arckit-runtime run --adapter codex-app-server [--stream-events] [--supervise-stdin]
   arckit-runtime probe-app-server [--project <path>] [--json]
   arckit-runtime validate-result --file <runtime-result.json>
   arckit-runtime gate-result --file <runtime-result.json> [--project <path>] [--json]
-  arckit-runtime write-ledger --file <runtime-result.json> [--project <path>] [--dry-run] [--json]
+  arckit-runtime write-ledger --file <runtime-result.json> [--project <path>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
 
 MVP behavior:
   - reads arckit/project state
-  - selects the highest-priority state gap
-  - compiles a supervised agent prompt
+  - lets the manifest-triggered Controller select one Case gap
+  - sends only skill triggers, human input, and bounded Runtime facts to Agent turns
   - validates the required runtime result envelope
   - gates runtime results before ledger writeback
   - writes accepted runtime results back to project, iteration, and active case ledgers
@@ -371,7 +389,7 @@ function printRunSummary(result) {
     }
   }
   console.log("");
-  console.log("Compiled prompt:");
+  console.log("Operator input:");
   console.log(result.compiled_prompt.prompt);
 }
 

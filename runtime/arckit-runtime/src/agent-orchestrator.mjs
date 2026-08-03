@@ -5,6 +5,7 @@ import { createAgentAdapter } from "./agent-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
 import {
   agentSkillInvocationForPhase,
+  assertInstalledAgentSkillCompatibility,
   capabilitiesForBinding,
   capabilityIds,
   invalidCapabilityBindings,
@@ -12,12 +13,11 @@ import {
   loadRuntimeCapabilities,
   selectCapabilitiesForRound
 } from "./capability-registry.mjs";
-import { conversationLocaleInstruction } from "./conversation-locale.mjs";
 import { buildArtifactOwnershipScan, normalizeArtifactPathReferences } from "./artifact-ownership-map.mjs";
 import { reduceWorkerReports } from "./controller-reducer.mjs";
 import { createRoundStateMachine, transitionRoundState } from "./round-state-machine.mjs";
-import { createRuntimeResultFromMerge, stateFromMergeResult } from "./kernel/runtime-result-builder.mjs";
-import { WORKER_TYPES, normalizeWorkerType, workerTypeDefinitionFor } from "./orchestration/role-definitions.mjs";
+import { createCaseControlRuntimeResult, createRuntimeResultFromMerge, stateFromMergeResult } from "./kernel/runtime-result-builder.mjs";
+import { WORKER_TYPES, normalizeWorkerType } from "./orchestration/role-definitions.mjs";
 import { firstSafeSemanticText, safeSemanticText, SEMANTIC_LIMITS } from "./context-boundary.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -52,6 +52,9 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
     workerCapabilities: selectedCapabilities
   });
   const adapterName = options.dryRun ? "dry-run" : options.adapter || "codex-app-server";
+  if (adapterName === "codex-app-server") {
+    await assertInstalledAgentSkillCompatibility(controllerCapabilities, { codexHome: options.codexHome });
+  }
   const adapter = createAgentAdapter(adapterName, options);
   const controllerPlanSchema = JSON.parse(await readFile(controllerPlanSchemaPath, "utf8"));
   const controllerReviewSchema = JSON.parse(await readFile(controllerReviewSchemaPath, "utf8"));
@@ -100,6 +103,52 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
   loopFrame.controller_frame.controller_plan_failure_reason = controllerPlan?.failure_reason || "";
   loopFrame.route_plan = routePlan;
   loopFrame.controller_frame.route_plan = routePlan;
+  const roundState = createRoundStateMachine("planned", "Controller reducer created the round plan.");
+  const caseControlAction = caseControlRuntimeAction(controllerPlan?.plan);
+  if (!packetEnvelope && controllerPlan?.usable && caseControlAction) {
+    yieldEvent({ events, event: { type: "runtime.loop_frame.created", loop_frame: loopFrame }, stream: options.streamEvents });
+    emitRoundState({ events, roundState, stream: options.streamEvents });
+    if (loopFrame.execution_gate?.status === "authorized") {
+      transitionRoundState(roundState, "authorized", "Execution gate authorized deterministic Case control for this round.");
+      emitRoundState({ events, roundState, stream: options.streamEvents });
+    }
+    const runtimeResult = await createCaseControlRuntimeResult({
+      controllerPlan: controllerPlan.plan,
+      loopFrame,
+      round,
+      snapshot,
+      compiledPrompt,
+      roundState
+    });
+    const validation = validateRuntimeResult(runtimeResult);
+    yieldEvent({
+      events,
+      event: {
+        type: "runtime.case_control.ready",
+        case_control_handoff: runtimeResult.case_control_handoff
+      },
+      stream: options.streamEvents
+    });
+    yieldEvent({
+      events,
+      event: {
+        type: "runtime.result",
+        result: runtimeResult,
+        validation
+      },
+      stream: options.streamEvents
+    });
+    return {
+      adapter,
+      loopFrame,
+      agentTasks: [],
+      agentReports: [],
+      mergeResult: null,
+      events,
+      runtimeResult,
+      validation
+    };
+  }
   const agentTasks = packetEnvelope
     ? normalizePacketWorkerTasks(packetEnvelope.worker_tasks || [], loopFrame, selectedCapabilities)
     : controllerPlan?.usable ? createAgentTasks({
@@ -112,7 +161,6 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
     }) : [];
   loopFrame.round_execution_packet.worker_packets = agentTasks.map(toWorkerPacket);
   loopFrame.worker_packets = loopFrame.round_execution_packet.worker_packets;
-  const roundState = createRoundStateMachine("planned", "Controller reducer created the round plan.");
   const reports = [];
 
   yieldEvent({
@@ -396,65 +444,67 @@ async function maybeRunControllerPlanner({
     };
   }
 
-  const prompt = compileControllerPlanPrompt({
-    loopFrame,
-    round,
-    snapshot,
-    task,
-    selectedCapabilities,
-    controllerCapabilities,
-    runtimeCapabilities
-  });
   let plan = null;
-  try {
-    for await (const event of adapter.runTurn({
-      projectRoot,
-      prompt,
-      options: {
-        ...options,
-        outputSchema: controllerPlanSchema,
-        resultKind: "controller-plan"
+  let failureReason = "";
+  let attempts = 0;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    attempts = attempt;
+    if (attempt > 1) {
+      const retryEvent = { type: "runtime.controller_plan.retry", attempt, failure_reason: failureReason };
+      events.push(retryEvent);
+      if (options.streamEvents) console.error(JSON.stringify({ event: retryEvent }));
+    }
+    const prompt = compileControllerPlanPrompt({
+      loopFrame,
+      round,
+      snapshot,
+      task,
+      selectedCapabilities,
+      controllerCapabilities,
+      runtimeCapabilities,
+      controllerFeedback: attempt > 1 ? { validation_error: failureReason, rejected_plan: plan } : null
+    });
+    plan = null;
+    try {
+      for await (const event of adapter.runTurn({
+        projectRoot,
+        prompt,
+        options: {
+          ...options,
+          outputSchema: controllerPlanSchema,
+          resultKind: "controller-plan"
+        }
+      })) {
+        const wrapped = { ...event, controller_role: "controller_planner", controller_attempt: attempt };
+        events.push(wrapped);
+        if (options.streamEvents) console.error(JSON.stringify({ event: wrapped }));
+        if (event.type === "runtime.controller_plan") plan = normalizeControllerPlan(event.plan);
       }
-    })) {
-      const wrapped = {
-        ...event,
-        controller_role: "controller_planner"
+    } catch (error) {
+      failureReason = error?.message || String(error);
+      const failedPlan = createControllerPlanFailure(`Controller Agent planning failed before route selection: ${failureReason}`);
+      const completedEvent = {
+        type: "runtime.controller_plan.completed",
+        status: "planning_failed",
+        controller_plan: failedPlan,
+        failure_reason: failureReason,
+        attempts
       };
-      events.push(wrapped);
-      if (options.streamEvents) {
-        console.error(JSON.stringify({ event: wrapped }));
-      }
-      if (event.type === "runtime.controller_plan") {
-        plan = normalizeControllerPlan(event.plan);
-      }
+      events.push(completedEvent);
+      if (options.streamEvents) console.error(JSON.stringify({ event: completedEvent }));
+      return { usable: false, plan: failedPlan, failure_reason: failureReason };
     }
-  } catch (error) {
-    const failureReason = error?.message || String(error);
-    const failedPlan = createControllerPlanFailure(`Controller Agent planning failed before route selection: ${failureReason}`);
-    const completedEvent = {
-      type: "runtime.controller_plan.completed",
-      status: "planning_failed",
-      controller_plan: failedPlan,
-      failure_reason: failureReason
-    };
-    events.push(completedEvent);
-    if (options.streamEvents) {
-      console.error(JSON.stringify({ event: completedEvent }));
-    }
-    return {
-      usable: false,
-      plan: failedPlan,
-      failure_reason: failureReason
-    };
+    failureReason = controllerPlanFailureReason(plan, selectedCapabilities, loopFrame);
+    if (!shouldRetryControllerPlan({ plan, failureReason, attempt, maxAttempts: 2 })) break;
   }
 
-  const failureReason = controllerPlanFailureReason(plan, selectedCapabilities, loopFrame);
   const completedStatus = controllerPlanCompletedStatus({ plan, failureReason });
   const completedEvent = {
     type: "runtime.controller_plan.completed",
     status: completedStatus,
     controller_plan: plan || null,
-    failure_reason: failureReason
+    failure_reason: failureReason,
+    attempts
   };
   events.push(completedEvent);
   if (options.streamEvents) {
@@ -467,6 +517,12 @@ async function maybeRunControllerPlanner({
   };
 }
 
+export function shouldRetryControllerPlan({ plan, failureReason, attempt, maxAttempts = 2 }) {
+  const adapterStructureFailure = plan?.status === "blocked"
+    && /failed before returning|did not return a valid arckit-controller-plan/i.test(plan?.summary || "");
+  return Boolean(failureReason) && (plan?.status === "planned" || adapterStructureFailure) && attempt < maxAttempts;
+}
+
 export function compileControllerPlanPrompt({
   loopFrame,
   round,
@@ -474,57 +530,37 @@ export function compileControllerPlanPrompt({
   task,
   selectedCapabilities,
   controllerCapabilities,
-  runtimeCapabilities
+  runtimeCapabilities,
+  controllerFeedback = null
 }) {
   const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || "en";
   const invocation = agentSkillInvocationForPhase(controllerCapabilities, "controller_plan");
+  const runtimeInput = {
+    schema_version: "arckit-agent-invocation/v1",
+    phase: invocation.phase,
+    conversation_locale: conversationLocale,
+    operator_input: task || "",
+    state: {
+      required_context_refs: round.required_context_refs || [],
+      expected_project_updated_at: snapshot.projectState?.project?.updated_at || "",
+      expected_case_id: loopFrame.case_id || round.case_id || "",
+      expected_case_updated_at: loopFrame.case_updated_at || round.case_updated_at || ""
+    },
+    execution_authorization: {
+      status: loopFrame.execution_gate?.status || "",
+      executor: loopFrame.executor_binding?.executor || ""
+    },
+    runtime_context: loopFrame.runtime_context || null,
+    ...(controllerFeedback ? { controller_feedback: controllerFeedback } : {}),
+    capabilities: {
+      runtime: runtimeCapabilities.map(toCapabilityRef),
+      workers: selectedCapabilities.map(toCapabilityRef)
+    }
+  };
   return [
     invocation.skill_trigger,
     "",
-    "# Arckit Runtime Controller Capability Invocation",
-    "",
-    `Runtime is invoking ${invocation.capability.id} for phase=${invocation.phase}. Follow the loaded skill as the semantic source for Controller planning.`,
-    "Runtime owns schema validation, authorization, permission boundaries, worker execution, and hard gates. Produce Controller semantic output; do not execute worker tasks or write ledger state.",
-    "",
-    "## Conversation Locale",
-    `- conversation_locale: ${conversationLocale}`,
-    `- ${conversationLocaleInstruction(conversationLocale)}`,
-    "",
-    "## Project Snapshot",
-    JSON.stringify({
-      project_root: snapshot.projectRoot || "",
-      summary: snapshot.summary || {},
-      selected_gap: loopFrame.selected_gap,
-      candidate_case_gaps: loopFrame.candidate_case_gaps || [],
-      case_control: loopFrame.case_control,
-      active_cases: snapshot.activeCases || [],
-      required_context_refs: round.required_context_refs,
-      stop_conditions: round.stop_conditions
-    }, null, 2),
-    "",
-    "## Operator Task",
-    task || round.round_goal || "",
-    "",
-    "## Worker Types",
-    JSON.stringify(WORKER_TYPES, null, 2),
-    "",
-    "## Runtime Service Capabilities",
-    JSON.stringify(runtimeCapabilities.map(toCapabilityContext), null, 2),
-    "Runtime invokes these services for state, gates, closeout, or writeback. They are not Worker skills and must never appear in worker_intents[].allowed_skills.",
-    "",
-    "## Worker Capability Registry",
-    JSON.stringify(selectedCapabilities.map(toCapabilityContext), null, 2),
-    "",
-    "## Runtime-owned Constraints",
-    "- worker_intents[].allowed_skills may reference only ids from the Worker Capability Registry.",
-    "- Controller and Runtime capabilities cannot be bound to Workers.",
-    "- route_plan.selected_gap must use scope=case and identify one unresolved gap from the selected Case candidate_case_gaps; array order is not priority.",
-    "- planned_transition describes one bounded Case State change; it must not target a Project dimension directly.",
-    "- Semantic goal, state_transition, objective, and next_prompt fields must be concise and must not copy raw Desktop operator envelopes.",
-    "- Runtime will fail closed if the skill output violates schema, authorization, or capability binding boundaries.",
-    "",
-    "## Output Contract",
-    "Return only a JSON object with schema_version=arckit-controller-plan/v2. Do not wrap it in Markdown."
+    JSON.stringify(runtimeInput, null, 2)
   ].join("\n");
 }
 
@@ -533,14 +569,18 @@ function normalizeControllerPlan(plan) {
     return null;
   }
   return {
-    schema_version: plan.schema_version === "arckit-controller-plan/v2" ? plan.schema_version : "arckit-controller-plan/v2",
+    schema_version: plan.schema_version === "arckit-controller-plan/v3" ? plan.schema_version : "arckit-controller-plan/v3",
     status: ["planned", "needs_human", "blocked"].includes(plan.status) ? plan.status : "blocked",
     summary: stringValue(plan.summary, ""),
+    execution_plan: {
+      plane: ["runtime", "worker", "none"].includes(plan.execution_plan?.plane) ? plan.execution_plan.plane : "none",
+      runtime_actions: Array.isArray(plan.execution_plan?.runtime_actions)
+        ? plan.execution_plan.runtime_actions.map(normalizeRuntimeAction).filter(Boolean)
+        : []
+    },
     route_plan: {
       mode: stringValue(plan.route_plan?.mode, "agent_selected_route"),
       selected_gap: normalizeSelectedGap(plan.route_plan?.selected_gap),
-      selected_worker_types: unique(arrayOfStrings(plan.route_plan?.selected_worker_types).map(normalizeWorkerType)),
-      selected_roles: unique(arrayOfStrings(plan.route_plan?.selected_roles)),
       reason: stringValue(plan.route_plan?.reason, ""),
       requires_human_confirmation: plan.route_plan?.requires_human_confirmation === true
     },
@@ -551,8 +591,12 @@ function normalizeControllerPlan(plan) {
           role: stringValue(intent.role, ""),
           objective: stringValue(intent.objective, ""),
           reason: stringValue(intent.reason, ""),
+          allowed_paths: arrayOfStrings(intent.allowed_paths),
+          allowed_actions: arrayOfStrings(intent.allowed_actions),
+          forbidden_actions: arrayOfStrings(intent.forbidden_actions),
           allowed_skills: arrayOfStrings(intent.allowed_skills),
-          expected_case_impact: stringValue(intent.expected_case_impact, "")
+          expected_case_impact: stringValue(intent.expected_case_impact, ""),
+          stop_condition: stringValue(intent.stop_condition, "")
         }))
         .filter((intent) => intent.role)
       : [],
@@ -567,11 +611,33 @@ function normalizeControllerPlan(plan) {
   };
 }
 
+function normalizeRuntimeAction(action) {
+  if (!action || typeof action !== "object" || action.type !== "case_control") {
+    return null;
+  }
+  return {
+    type: "case_control",
+    action: ["select_existing_case", "create_case"].includes(action.action) ? action.action : "",
+    case_id: stringValue(action.case_id, ""),
+    title: safeSemanticText(action.title || "", { maxLength: 240 }),
+    intent: safeSemanticText(action.intent || "", { maxLength: SEMANTIC_LIMITS.reason }),
+    artifact_type: ["code", "skill", "document", "workflow", "mixed", "unknown"].includes(action.artifact_type)
+      ? action.artifact_type
+      : "unknown",
+    selection_reason: safeSemanticText(action.selection_reason || "", { maxLength: SEMANTIC_LIMITS.reason })
+  };
+}
+
+export function caseControlRuntimeAction(plan) {
+  const actions = Array.isArray(plan?.execution_plan?.runtime_actions) ? plan.execution_plan.runtime_actions : [];
+  return actions.find((action) => action?.type === "case_control") || null;
+}
+
 export function controllerPlanFailureReason(plan, workerCapabilities = [], loopFrame = null) {
   if (!plan) {
     return "Controller Agent did not return a usable plan.";
   }
-  if (plan.schema_version !== "arckit-controller-plan/v2") {
+  if (plan.schema_version !== "arckit-controller-plan/v3") {
     return "Controller Agent returned an unsupported plan schema.";
   }
   if (plan.status !== "planned") {
@@ -579,6 +645,57 @@ export function controllerPlanFailureReason(plan, workerCapabilities = [], loopF
   }
   if (!Array.isArray(plan.worker_intents)) {
     return "Controller Agent worker_intents must be an array.";
+  }
+  const executionPlan = plan.execution_plan || {};
+  if (!["runtime", "worker", "none"].includes(executionPlan.plane) || !Array.isArray(executionPlan.runtime_actions)) {
+    return "Controller Agent must return a supported execution_plan.";
+  }
+  if (executionPlan.runtime_actions.length > 1) {
+    return "Controller Agent may request at most one Runtime action per plan.";
+  }
+  const caseControl = caseControlRuntimeAction(plan);
+  if (executionPlan.plane === "runtime") {
+    if (!caseControl || executionPlan.runtime_actions.length !== 1) {
+      return "Controller Agent runtime execution plane requires exactly one supported Runtime action.";
+    }
+    if (plan.worker_intents.length > 0) {
+      return "Controller Agent runtime actions and Worker dispatch are mutually exclusive.";
+    }
+    if (plan.route_plan?.requires_human_confirmation === true) {
+      return "Controller Agent runtime action cannot also request human confirmation.";
+    }
+  } else if (executionPlan.runtime_actions.length > 0) {
+    return `Controller Agent execution plane ${executionPlan.plane} cannot contain Runtime actions.`;
+  }
+  if (executionPlan.plane === "worker" && plan.worker_intents.length === 0) {
+    return "Controller Agent worker execution plane requires at least one Worker intent.";
+  }
+  if (executionPlan.plane === "none" && plan.worker_intents.length > 0) {
+    return "Controller Agent none execution plane cannot contain Worker intents.";
+  }
+  if (executionPlan.plane === "runtime") {
+    if (!["select_existing_case", "create_case"].includes(caseControl.action)) {
+      return "Controller Agent must return a supported case_control Runtime action.";
+    }
+  if (caseControl.action === "create_case") {
+    if (!caseControl.title || !caseControl.intent || !caseControl.selection_reason) {
+      return "Controller Agent create_case handoff must include title, intent, and selection_reason.";
+    }
+    if (caseControl.case_id) {
+      return "Controller Agent must leave case_control.case_id empty for create_case; the ledger allocates it.";
+    }
+    return completeControllerControlPlanFailureReason(plan);
+  }
+  if (caseControl.action === "select_existing_case") {
+    const candidate = (loopFrame?.candidate_cases || []).find((item) => item.case_id === caseControl.case_id);
+    if (!caseControl.case_id || (loopFrame && !candidate)) {
+      return `Controller Agent selected an unavailable active Case: ${caseControl.case_id || "<missing>"}.`;
+    }
+    if (!caseControl.intent || !caseControl.selection_reason) {
+      return "Controller Agent select_existing_case handoff must include intent and selection_reason.";
+    }
+    return completeControllerControlPlanFailureReason(plan);
+  }
   }
   if (plan.route_plan?.selected_gap?.scope !== "case" || !plan.route_plan?.selected_gap?.case_id || !plan.route_plan?.selected_gap?.facet) {
     return "Controller Agent must select a concrete Case State gap.";
@@ -605,6 +722,20 @@ export function controllerPlanFailureReason(plan, workerCapabilities = [], loopF
   if (plan.worker_intents.some((intent) => !intent.expected_case_impact)) {
     return "Every worker intent must declare expected_case_impact.";
   }
+  if (plan.worker_intents.some((intent) => !intent.objective || !intent.stop_condition)) {
+    return "Every worker intent must declare objective and stop_condition.";
+  }
+  if (plan.worker_intents.some((intent) => arrayOfStrings(intent.allowed_paths).length === 0 || arrayOfStrings(intent.allowed_actions).length === 0)) {
+    return "Every worker intent must declare non-empty allowed_paths and allowed_actions.";
+  }
+  const invalidPaths = plan.worker_intents.flatMap((intent) => arrayOfStrings(intent.allowed_paths)).filter((path) => !isProjectRelativeAllowedPath(path));
+  if (invalidPaths.length > 0) {
+    return `Worker intent allowed_paths must stay within the project: ${unique(invalidPaths).join(", ")}.`;
+  }
+  const runtimeOwnedActions = plan.worker_intents.flatMap((intent) => arrayOfStrings(intent.allowed_actions)).filter(isRuntimeOwnedAction);
+  if (runtimeOwnedActions.length > 0) {
+    return `Worker intent cannot authorize Runtime-owned actions: ${unique(runtimeOwnedActions).join(", ")}.`;
+  }
   const invalidBindings = invalidCapabilityBindings(
     plan.worker_intents.flatMap((intent) => arrayOfStrings(intent.allowed_skills)),
     workerCapabilities
@@ -614,6 +745,16 @@ export function controllerPlanFailureReason(plan, workerCapabilities = [], loopF
   }
   if (!plan.continuation_intent?.goal || !plan.continuation_intent?.state_transition || !plan.continuation_intent?.next_prompt) {
     return "Controller Agent did not return a complete continuation_intent.";
+  }
+  return "";
+}
+
+function completeControllerControlPlanFailureReason(plan) {
+  if (!plan.planned_transition?.goal || !plan.planned_transition?.expected_state_change) {
+    return "Controller Agent did not return a complete planned_transition for Case control.";
+  }
+  if (!plan.continuation_intent?.goal || !plan.continuation_intent?.state_transition || !plan.continuation_intent?.next_prompt) {
+    return "Controller Agent did not return a complete continuation_intent for Case control.";
   }
   return "";
 }
@@ -653,14 +794,16 @@ function controllerPlanCompletedStatus({ plan, failureReason }) {
 
 function createControllerPlanFailure(summary) {
   return {
-    schema_version: "arckit-controller-plan/v2",
+    schema_version: "arckit-controller-plan/v3",
     status: "blocked",
     summary,
+    execution_plan: {
+      plane: "none",
+      runtime_actions: []
+    },
     route_plan: {
       mode: "agent_selected_route",
       selected_gap: emptySelectedGap(),
-      selected_worker_types: [],
-      selected_roles: [],
       reason: summary,
       requires_human_confirmation: false
     },
@@ -676,7 +819,7 @@ function createControllerPlanFailure(summary) {
     },
     risks: [summary],
     unknowns: [],
-    next_controller_action: "Retry Controller planning with a valid arckit-controller-plan/v2 output."
+    next_controller_action: "Retry Controller planning with a valid arckit-controller-plan/v3 output."
   };
 }
 
@@ -745,7 +888,7 @@ async function maybeRunControllerReviewer({
     };
   }
 
-  const failureReason = controllerReviewFailureReason(review);
+  const failureReason = controllerReviewFailureReason(review, reports);
   const completedEvent = {
     type: "runtime.controller_review.completed",
     status: failureReason ? "review_failed" : "reviewed",
@@ -766,45 +909,29 @@ async function maybeRunControllerReviewer({
 export function compileControllerReviewPrompt({ loopFrame, round, reports, controllerCapabilities }) {
   const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || "en";
   const invocation = agentSkillInvocationForPhase(controllerCapabilities, "controller_review");
+  const runtimeInput = {
+    schema_version: "arckit-agent-invocation/v1",
+    phase: invocation.phase,
+    conversation_locale: conversationLocale,
+    case_context: {
+      case_id: loopFrame.case_id || "",
+      case_updated_at: loopFrame.case_updated_at || "",
+      round_goal: loopFrame.round_goal || "",
+      selected_gap: loopFrame.selected_gap || null,
+      route_plan: loopFrame.route_plan || null,
+      planned_transition: loopFrame.controller_frame?.controller_plan?.planned_transition || null
+    },
+    execution_authorization: {
+      status: loopFrame.execution_gate?.status || "",
+      executor: loopFrame.executor_binding?.executor || ""
+    },
+    runtime_context: loopFrame.runtime_context || null,
+    worker_reports: reports
+  };
   return [
     invocation.skill_trigger,
     "",
-    "# Arckit Runtime Controller Capability Invocation",
-    "",
-    `Runtime is invoking ${invocation.capability.id} for phase=${invocation.phase}. Follow the loaded skill as the semantic source for report intake and closeout.`,
-    "Runtime owns schema validation, permission boundaries, hard gates, and ledger execution. Produce the Controller semantic closeout judgment; do not write ledger state.",
-    "",
-    "## Conversation Locale",
-    `- conversation_locale: ${conversationLocale}`,
-    `- ${conversationLocaleInstruction(conversationLocale)}`,
-    "",
-    "## Loop Frame",
-    JSON.stringify({
-      case_id: loopFrame.case_id,
-      round_goal: loopFrame.round_goal,
-      selected_gap: loopFrame.selected_gap,
-      route_plan: loopFrame.route_plan,
-      stop_conditions: loopFrame.stop_conditions
-    }, null, 2),
-    "",
-    "## Worker Reports",
-    JSON.stringify(reports, null, 2),
-    "",
-    "## Runtime-owned Constraints",
-    "- accepted_reports and rejected_reports must reference issued task ids.",
-    "- A round may issue zero Worker packets when operator input or existing stable facts already provide enough evidence for one Case transition.",
-    "- evidence must include every source used to accept the Case delta, including direct operator or existing-fact evidence in a zero-Worker round.",
-    "- Accept only evidence-backed Worker case_state_claims into accepted_case_state_delta.",
-    "- When selected_gap.facet=completion_review, bind the result to the current content_revision and cover correctness, completeness, and minimality. Do not combine a clean review with content changes.",
-    "- When selected_gap.facet=review_findings, resolve or dismiss only evidence-backed findings; the resulting content revision requires a fresh completion review.",
-    "- A human-responsibility completion_review gap cannot be auto-cleared: only record an explicit human review, finding disposition, or bounded review_budget_extension from operator evidence.",
-    "- case_resolution is a semantic claim; deterministic ledger audit may reject a stronger completion claim.",
-    "- project_impact_candidate may be accepted only with a resolved Case and explicit project dimension transitions.",
-    "- continuation_intent fields must be concise and must not copy raw Desktop operator envelopes.",
-    "- Runtime Guard may downgrade or block the semantic closeout result but may not invent a stronger completion claim.",
-    "",
-    "## Output Contract",
-    "Return only a JSON object with schema_version=arckit-controller-review/v3. Do not wrap it in Markdown."
+    JSON.stringify(runtimeInput, null, 2)
   ].join("\n");
 }
 
@@ -834,7 +961,7 @@ function normalizeControllerReview(review) {
   };
 }
 
-function controllerReviewFailureReason(review) {
+function controllerReviewFailureReason(review, reports = []) {
   if (!review) {
     return "Controller Agent did not return a usable review.";
   }
@@ -852,6 +979,21 @@ function controllerReviewFailureReason(review) {
   }
   if (caseDeltaHasChanges(review.accepted_case_state_delta) && (!Array.isArray(review.evidence) || review.evidence.length === 0)) {
     return "Controller Agent review accepted a Case State delta without evidence.";
+  }
+  const reportIds = reports.map((report) => report.task_id).filter(Boolean);
+  const accepted = new Set(review.accepted_reports);
+  const rejected = new Set(review.rejected_reports);
+  const overlapping = reportIds.filter((id) => accepted.has(id) && rejected.has(id));
+  if (overlapping.length > 0) {
+    return `Controller Agent review both accepted and rejected reports: ${unique(overlapping).join(", ")}.`;
+  }
+  const unknown = [...accepted, ...rejected].filter((id) => !reportIds.includes(id));
+  if (unknown.length > 0) {
+    return `Controller Agent review referenced unknown reports: ${unique(unknown).join(", ")}.`;
+  }
+  const unreviewed = reportIds.filter((id) => !accepted.has(id) && !rejected.has(id));
+  if (unreviewed.length > 0) {
+    return `Controller Agent review did not accept or reject reports: ${unique(unreviewed).join(", ")}.`;
   }
   return "";
 }
@@ -902,6 +1044,7 @@ export function createLoopFrame({
     project_name: snapshot.summary.project_name,
     project_root: snapshot.projectRoot || "",
     operator_task: task,
+    runtime_context: options.runtimeContext || null,
     round_goal: initialRoundGoal,
     conversation_locale: options.conversationLocale || round.conversation_locale || "en",
     controller_frame: createControllerFrame({ snapshot, round, task, roundGoal: initialRoundGoal }),
@@ -1015,7 +1158,6 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
   return intents.map((intent, index) => {
     const workerType = normalizeWorkerType(intent.worker_type);
     const role = intent.role || workerType;
-    const definition = workerTypeDefinitionFor(workerType);
     const allowedSkills = unique(arrayOfStrings(intent.allowed_skills));
     const invalidBindings = allowedSkills.filter((skill) => !availableCapabilityIds.has(skill));
     if (invalidBindings.length > 0) {
@@ -1024,17 +1166,12 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
     const capabilityContexts = selectedCapabilities
       .filter((capability) => allowedSkills.includes(capability.id))
       .map(toCapabilityContext);
-    const objective = intent.objective
-      ? intent.objective
-      : task
-        ? `${definition.objective} Operator task: ${task}`
-        : definition.objective;
     return {
       schema_version: "arckit-worker-task/v1",
       id: `TASK-${String(index + 1).padStart(2, "0")}-${role}`,
       worker_type: workerType,
       role,
-      objective,
+      objective: intent.objective,
       conversation_locale: loopFrame.conversation_locale || round.conversation_locale || "en",
       loop_frame_excerpt: {
         case_id: loopFrame.case_id,
@@ -1058,10 +1195,10 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
         pending_questions: []
       },
       scope: {
-        allowed_paths: allowedPathsForRole(role, round.required_context_refs),
+        allowed_paths: intent.allowed_paths,
         allowed_skills: allowedSkills,
-        allowed_actions: definition.allowed_actions,
-        forbidden_actions: definition.forbidden_actions
+        allowed_actions: intent.allowed_actions,
+        forbidden_actions: intent.forbidden_actions
       },
       expected_output: {
         format: "arckit-worker-report/v2",
@@ -1084,59 +1221,31 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
         ]
       },
       expected_case_impact: intent.expected_case_impact,
-      stop_condition: round.stop_conditions.join(" ")
+      stop_condition: intent.stop_condition
     };
   });
 }
 
-function compileAgentTaskPrompt({ agentTask, previousReports }) {
-  const conversationLocale = agentTask.conversation_locale || agentTask.loop_frame_excerpt?.conversation_locale || "en";
+export function compileAgentTaskPrompt({ agentTask, previousReports }) {
+  const runtimeInput = {
+    schema_version: "arckit-agent-invocation/v1",
+    phase: "worker",
+    conversation_locale: agentTask.conversation_locale || agentTask.loop_frame_excerpt?.conversation_locale || "en",
+    task_packet: toWorkerPacket(agentTask),
+    previous_reports: previousReports
+  };
   return [
-    "# Arckit Worker Packet",
-    "",
-    "You are one bounded Worker inside Arckit Runtime. The Controller owns turn delta, packet validity, report intake, closeout, ledger writeback, and next responsibility.",
-    "",
-    "## Conversation Locale",
-    `- conversation_locale: ${conversationLocale}`,
-    `- ${conversationLocaleInstruction(conversationLocale)}`,
-    "",
-    "## Task Packet",
-    JSON.stringify(agentTask, null, 2),
-    "",
-    "## Previous Reports",
-    previousReports.length > 0 ? JSON.stringify(previousReports, null, 2) : "[]",
-    "",
-    "## Explicit Skill Triggers",
     formatExplicitSkillTriggers(agentTask.scope?.allowed_skills),
-    "",
-    "## Allowed Capability Context",
-    JSON.stringify(agentTask.inputs.capability_contexts || [], null, 2),
-    "",
-    "## Required Behavior",
-    "- Do only the task packet's role.",
-    "- Use the explicit skill triggers above when an allowed skill is needed for this packet.",
-    "- Do not use Arckit skills that are not listed in allowed_skills.",
-    "- Treat capability context as routing and boundary metadata, not as the skill body or runtime architecture source.",
-    "- Do not close the case or decide the final loop gate.",
-    "- Do not change the project direction or invalidate other packets.",
-    "- Do not silently expand scope.",
-    "- Use report.artifact_impacts for every artifact you created, updated, deleted, or read as evidence.",
-    "- Each artifact_impacts item must bind one relative artifact path to operation, claim, summary, and evidence.",
-    "- Keep report.changes as human-readable prose only; Runtime will not use changes for source/projection gates.",
-    "- Put semantic Case facet claims in case_state_claims; Workers propose claims, while the Controller accepts or rejects them.",
-    "- Return only valid JSON matching arckit-worker-report/v2.",
-    "",
-    "## Output Contract",
-    "Return a JSON object with schema_version=arckit-worker-report/v2. Do not wrap it in Markdown."
-  ].join("\n");
+    JSON.stringify(runtimeInput, null, 2)
+  ].filter(Boolean).join("\n\n");
 }
 
 function formatExplicitSkillTriggers(skills) {
   const allowedSkills = unique(Array.isArray(skills) ? skills.map((skill) => String(skill)).filter(Boolean) : []);
   if (allowedSkills.length === 0) {
-    return "[]";
+    return "";
   }
-  return allowedSkills.map((skill) => `- $${skill}`).join("\n");
+  return allowedSkills.map((skill) => `$${skill}`).join("\n");
 }
 
 function expandAgentTaskScopeWithPreviousChanges(agentTask, previousReports, previousPackets = []) {
@@ -1189,7 +1298,7 @@ function artifactAllowedByPacket(artifact, packet) {
   });
 }
 
-function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun, controllerReview }) {
+export function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun, controllerReview }) {
   const conversationLocale = loopFrame.conversation_locale || round.conversation_locale || compiledPrompt.conversation_locale || "en";
   const review = controllerReview?.review || null;
   const reviewUsable = controllerReview?.usable === true;
@@ -1229,6 +1338,9 @@ function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun, 
   });
   const loopGate = guarded.loop_gate;
   const decision = loopGate.status === "done" ? "accepted" : loopGate.status === "blocked" ? "blocked" : "continue";
+  const reportIntake = reviewUsable
+    ? reviewedReportIntake(reducerResult.report_intake, review)
+    : reducerResult.report_intake;
 
   return {
     schema_version: "arckit-merge-result/v1",
@@ -1246,7 +1358,7 @@ function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun, 
     controller_frame: loopFrame.controller_frame,
     execution_gate: loopFrame.execution_gate,
     executor_binding: loopFrame.executor_binding,
-    report_intake: reducerResult.report_intake,
+    report_intake: reportIntake,
     loop_gate: loopGate,
     controller_reducer_result: {
       ...reducerResult,
@@ -1260,6 +1372,17 @@ function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun, 
     next_prompt: reviewUsable && review.next_prompt ? review.next_prompt : dryRun
       ? t(conversationLocale, `Use the generated worker packets for ${loopFrame.case_id || round.gap_id}, then return worker reports to the Arckit Controller.`, `使用为 ${loopFrame.case_id || round.gap_id} 生成的 worker packets，然后把 worker reports 返回给 Arckit Controller。`)
       : t(conversationLocale, `Continue Arckit loop for ${loopFrame.case_id || round.gap_id}: resolve remaining risks and write eligible ledger updates.`, `继续 ${loopFrame.case_id || round.gap_id} 的 Arckit loop：解决剩余风险，并写入符合条件的 ledger 更新。`)
+  };
+}
+
+function reviewedReportIntake(reducerIntake, review) {
+  const accepted = new Set(review.accepted_reports || []);
+  return {
+    ...reducerIntake,
+    accepted: [...accepted],
+    rejected: [...(review.rejected_reports || [])],
+    needs_revision: (reducerIntake.needs_revision || []).filter((id) => !accepted.has(id)),
+    needs_controller_decision: (reducerIntake.needs_controller_decision || []).filter((id) => !accepted.has(id))
   };
 }
 
@@ -1468,7 +1591,7 @@ function createControllerUnavailableMergeResult({ loopFrame, round, controllerPl
     },
     next_prompt: needsHuman
       ? t(conversationLocale, `Resolve the Controller Agent human decision for ${loopFrame.case_id || round.gap_id}, then run Controller planning again.`, `先处理 ${loopFrame.case_id || round.gap_id} 的 Controller Agent 人类决策，再重新执行 Controller planning。`)
-      : t(conversationLocale, `Retry Controller planning for ${loopFrame.case_id || round.gap_id} and return a valid arckit-controller-plan/v2.`, `重新为 ${loopFrame.case_id || round.gap_id} 执行 Controller planning，并返回有效的 arckit-controller-plan/v2。`)
+      : t(conversationLocale, `Retry Controller planning for ${loopFrame.case_id || round.gap_id} and return a valid arckit-controller-plan/v3.`, `重新为 ${loopFrame.case_id || round.gap_id} 执行 Controller planning，并返回有效的 arckit-controller-plan/v3。`)
   };
 }
 
@@ -1596,6 +1719,7 @@ function isInfrastructureFailureReport(report) {
 function toCapabilityContext(capability) {
   return {
     id: capability.id,
+    protocol_revision: capability.protocol_revision || "",
     kind: capability.kind || "",
     runtime_role: capability.runtime_role || [],
     binding_targets: capability.binding_targets || [],
@@ -1605,6 +1729,21 @@ function toCapabilityContext(capability) {
     allowed_write_targets: capability.allowed_write_targets || [],
     forbidden_decisions: capability.forbidden_decisions || [],
     runtime_notes: capability.runtime_notes || [],
+    manifest_path: capability.manifest_path || "",
+    source: capability.source || ""
+  };
+}
+
+function toCapabilityRef(capability) {
+  return {
+    id: capability.id,
+    protocol_revision: capability.protocol_revision || "",
+    binding_targets: capability.binding_targets || [],
+    invocation: {
+      type: capability.invocation?.type || "none",
+      phases: capability.invocation?.phases || []
+    },
+    runtime_entrypoints: Object.keys(capability.runtime_entrypoints || {}).sort(),
     manifest_path: capability.manifest_path || "",
     source: capability.source || ""
   };
@@ -1913,10 +2052,26 @@ function normalizeCaseStateClaims(claims) {
   if (!Array.isArray(claims)) return [];
   return claims.filter((claim) => claim && typeof claim === "object").map((claim) => ({
     facet: stringValue(claim.facet, ""),
-    set: claim.set && typeof claim.set === "object" && !Array.isArray(claim.set) ? claim.set : {},
+    set: normalizeFacetSet(claim.set),
     evidence: arrayOfStrings(claim.evidence),
     unresolved: arrayOfStrings(claim.unresolved)
   }));
+}
+
+function normalizeFacetSet(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const allowed = new Set([
+    "applicability",
+    "maturity",
+    "target_maturity",
+    "alignment",
+    "target_alignment",
+    "resolution",
+    "reason",
+    "next_transition"
+  ]);
+  return Object.fromEntries(Object.entries(value)
+    .filter(([key, fieldValue]) => allowed.has(key) && fieldValue !== null && fieldValue !== undefined));
 }
 
 function normalizeAcceptedCaseStateDelta(delta) {
@@ -1986,7 +2141,16 @@ function normalizeReviewBudgetExtension(value) {
 function normalizeProjectImpactCandidate(value) {
   return {
     status: ["none", "proposed", "accepted"].includes(value?.status) ? value.status : "none",
-    changes: Array.isArray(value?.changes) ? value.changes.filter((item) => item && typeof item === "object") : [],
+    changes: Array.isArray(value?.changes) ? value.changes
+      .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+      .map((item) => ({
+        dimension: stringValue(item.dimension, ""),
+        from_state: stringValue(item.from_state, ""),
+        to_state: stringValue(item.to_state, ""),
+        reason: stringValue(item.reason, ""),
+        evidence: arrayOfStrings(item.evidence),
+        ...(item.evidence_maturity == null ? {} : { evidence_maturity: stringValue(item.evidence_maturity, "") })
+      })) : [],
     evidence: arrayOfStrings(value?.evidence)
   };
 }
@@ -2013,8 +2177,14 @@ function createInvalidAgentReport(agentTask, message) {
   };
 }
 
-function allowedPathsForRole(role, requiredContextRefs) {
-  return unique([".", ...requiredContextRefs]);
+function isProjectRelativeAllowedPath(value) {
+  const path = String(value || "").trim().replaceAll("\\", "/");
+  if (!path || path.startsWith("/") || /^[A-Za-z]:\//.test(path)) return false;
+  return !path.split("/").some((segment) => segment === "..");
+}
+
+function isRuntimeOwnedAction(value) {
+  return ["write_ledger_directly", "apply_ledger_writeback", "create_case", "select_existing_case"].includes(value);
 }
 
 function normalizeSelectedGap(value) {
@@ -2023,7 +2193,7 @@ function normalizeSelectedGap(value) {
   }
   const normalized = {
     id: stringValue(value.id, ""),
-    scope: value.scope === "case" ? "case" : "",
+    scope: ["case", "project"].includes(value.scope) ? value.scope : "",
     case_id: stringValue(value.case_id, ""),
     facet: stringValue(value.facet, ""),
     responsibility: ["agent", "human", "external"].includes(value.responsibility) ? value.responsibility : "agent",

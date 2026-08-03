@@ -44,7 +44,7 @@
       "additionalProperties": false
     },
     "project_impact_candidate": { "$ref": "development-case-record.schema.json#/$defs/project_impact_candidate" },
-    "runtime_result_ref": { "type": "string" }
+    "runtime_result_ref": { "type": "string", "description": "Optional opaque Runtime-host run reference; ledger writeback owns this value." }
   },
   "$defs": {
     "accepted_state_delta": {

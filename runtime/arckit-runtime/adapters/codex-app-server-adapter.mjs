@@ -2,12 +2,16 @@ import { createInterface } from "node:readline";
 import { resolve } from "node:path";
 import { JsonRpcStdioClient } from "../src/json-rpc-stdio-client.mjs";
 import { AsyncEventQueue } from "../src/async-event-queue.mjs";
+import { assertCodexOutputSchema } from "../src/codex-output-schema.mjs";
 
 export function createCodexAppServerAdapter(adapterOptions = {}) {
   return {
     name: "codex-app-server",
     async *runTurn({ projectRoot, prompt, options = {} }) {
       const effectiveOptions = { ...adapterOptions, ...options };
+      if (effectiveOptions.outputSchema) {
+        assertCodexOutputSchema(effectiveOptions.outputSchema, { name: `${effectiveOptions.resultKind || "turn"}.outputSchema` });
+      }
       const queue = new AsyncEventQueue();
       const client = createClient(projectRoot, effectiveOptions);
       const state = {
@@ -401,7 +405,7 @@ function parseWorkerOutput({ text, completionParams, resultKind, error }) {
     if (error) {
       return {
         type: "runtime.controller_plan",
-        plan: createInvalidControllerPlan(`Codex controller failed before returning an arckit-controller-plan/v2 JSON object: ${codexErrorMessage(error)}`)
+        plan: createInvalidControllerPlan(`Codex controller failed before returning an arckit-controller-plan/v3 JSON object: ${codexErrorMessage(error)}`)
       };
     }
     try {
@@ -412,7 +416,7 @@ function parseWorkerOutput({ text, completionParams, resultKind, error }) {
     } catch (error) {
       return {
         type: "runtime.controller_plan",
-        plan: createInvalidControllerPlan(`Codex controller did not return a valid arckit-controller-plan/v2 JSON object: ${error.message}`)
+        plan: createInvalidControllerPlan(`Codex controller did not return a valid arckit-controller-plan/v3 JSON object: ${error.message}`)
       };
     }
   }
@@ -497,30 +501,35 @@ function createInvalidControllerReview(summary) {
 
 function createInvalidControllerPlan(summary) {
   return {
-    schema_version: "arckit-controller-plan/v2",
+    schema_version: "arckit-controller-plan/v3",
     status: "blocked",
     summary,
+    execution_plan: {
+      plane: "none",
+      runtime_actions: []
+    },
     route_plan: {
       mode: "agent_selected_route",
       selected_gap: {
         id: "",
-        dimension: "",
+        scope: "case",
+        case_id: "",
+        facet: "",
+        responsibility: "agent",
         current_state: "",
         target_state: "",
-        urgency: "",
-        risk: "",
         impact: "",
         next_transition: ""
       },
-      selected_worker_types: [],
-      selected_roles: [],
       reason: summary,
       requires_human_confirmation: false
     },
     worker_intents: [],
+    planned_transition: { goal: "Retry Controller planning.", expected_state_change: "No state change was accepted." },
+    continuation_intent: { goal: "Retry Controller planning.", state_transition: "invalid plan -> valid plan", next_prompt: "Retry Controller planning." },
     risks: [summary],
     unknowns: [],
-    next_controller_action: "Retry Controller planning with the required arckit-controller-plan/v2 output contract."
+    next_controller_action: "Retry Controller planning with the required arckit-controller-plan/v3 output contract."
   };
 }
 

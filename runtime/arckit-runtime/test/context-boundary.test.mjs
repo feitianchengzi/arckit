@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildDesktopOperatorEvent } from "../src/kernel/operator-event.mjs";
+import { buildControllerOperatorTask, buildDesktopOperatorEvent } from "../src/kernel/operator-event.mjs";
+import { compilePrompt } from "../src/prompt-compiler.mjs";
 import { selectNextRound } from "../src/loop-controller.mjs";
 import { createLoopFrame, createAgentTasks } from "../src/agent-orchestrator.mjs";
 import { validateRuntimeResult } from "../src/validator.mjs";
@@ -14,9 +15,10 @@ const rawOperatorTask = [
   "}"
 ].join("\n");
 
-test("desktop operator event summarizes prior activity instead of embedding raw semantic pollution", () => {
+test("desktop operator context never becomes generated human prompt content", () => {
   const event = buildDesktopOperatorEvent({
     action: "auto_continue",
+    userInput: "人类真实输入",
     controlState: {
       state: "agent_auto_continue_ready",
       primary_action: "auto_continue",
@@ -60,6 +62,21 @@ test("desktop operator event summarizes prior activity instead of embedding raw 
   assert.equal(event.controller_context.loop_handoff.next_prompt, "");
   assert.equal(event.project_case_control.next_case_intent, "");
   assert.equal(event.source_run.id, "RUN-1");
+  assert.equal(buildControllerOperatorTask(event), "人类真实输入");
+  assert.equal(buildControllerOperatorTask({ ...event, user_input: "" }), "");
+});
+
+test("legacy compiled prompt preserves only operator input and machine metadata", () => {
+  const compiled = compilePrompt({}, {
+    conversation_locale: "zh-Hans",
+    required_outputs: ["case_transition"],
+    required_context_refs: ["arckit/project/state.record.json"]
+  }, { task: "实现并验证任务。" });
+
+  assert.equal(compiled.prompt, "实现并验证任务。");
+  assert.equal(compiled.operator_input, "实现并验证任务。");
+  assert.deepEqual(compiled.context_refs, ["arckit/project/state.record.json"]);
+  assert.doesNotMatch(compiled.prompt, /Arckit Supervised Runtime Turn|Required Checks|Stop Conditions/);
 });
 
 test("polluted Project case control does not become the next Case round goal", () => {
@@ -119,7 +136,17 @@ test("loop frame and worker task keep raw operator task out of semantic fields",
         next_prompt: "继续实现并验证。"
       },
       worker_intents: [
-        { worker_type: "implementation", role: "实现者", objective: "实现应用。", allowed_skills: [], expected_case_impact: "推进 implementation_state。" }
+        {
+          worker_type: "implementation",
+          role: "实现者",
+          objective: "实现应用。",
+          allowed_paths: ["src/"],
+          allowed_actions: ["read_files", "edit_allowed_paths", "run_non_destructive_checks"],
+          forbidden_actions: ["write_ledger_directly"],
+          allowed_skills: [],
+          expected_case_impact: "推进 implementation_state。",
+          stop_condition: "实现和验证证据齐全后停止。"
+        }
       ]
     }
   });

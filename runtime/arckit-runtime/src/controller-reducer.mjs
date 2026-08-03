@@ -45,8 +45,8 @@ export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = f
       })),
     ...blocked.map((report) => createGateBlocker({
       type: "blocked_report",
-      severity: report.requires_human_decision === true ? "needs_human" : "blocked",
-      recoverable_by: report.requires_human_decision === true ? "human" : "runtime",
+      severity: report.requires_human_decision === true ? "needs_human" : "recoverable",
+      recoverable_by: report.requires_human_decision === true ? "human" : "agent",
       target: report.task_id || report.role || "unknown",
       suggested_action: report.requires_human_decision === true ? "request_human_decision" : "inspect_blocker",
       summary: `${report.task_id || report.role || "unknown"}: blocked - ${report.summary}`

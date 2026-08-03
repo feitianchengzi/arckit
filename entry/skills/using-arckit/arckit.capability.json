@@ -1,6 +1,7 @@
 {
   "schema_version": "arckit-capability/v1",
   "id": "using-arckit",
+  "protocol_revision": "controller-runtime-actions/v1",
   "kind": "project_conversation_controller",
   "runtime_role": ["controller", "packet_compiler", "report_intake", "closeout"],
   "binding_targets": ["controller"],
@@ -34,6 +35,7 @@
     "round_outcome",
     "case_resolution",
     "project_impact_candidate",
+    "case_control_plan",
     "case_transition",
     "loop_handoff_v2"
   ],
@@ -54,6 +56,7 @@
     "The selected execution environment may automate worker creation, observation, merge, gates, or writeback, but the Controller semantics stay the same.",
     "A valid plan may contain zero Worker intents when direct operator or stable-fact evidence is sufficient; Controller Review must identify that evidence before accepting a Case delta.",
     "Project State selects a Case; the selected Case State exposes unordered candidate gaps for Controller selection; Runtime must not route Workers directly from a Project dimension or list order.",
+    "When the operator input requires a new or different Case, Controller emits execution_plan.plane=runtime with one case_control Runtime action and no Worker intents; Runtime may only bind revision/policy and invoke the trusted ledger entrypoint.",
     "Do not hard-code per-round workflow routes, fixed worker order, or fixed skill sequences; bind allowed skills dynamically from Case gap, capability manifests, and evidence boundaries.",
     "Every Case transition binds the expected Case updated_at revision and the complete selected candidate gap; each successful writeback requires a fresh state read before replanning.",
     "Round completion, Case resolution, and Project impact are distinct outputs; only deterministic ledger audit may finalize resolution and aggregation.",

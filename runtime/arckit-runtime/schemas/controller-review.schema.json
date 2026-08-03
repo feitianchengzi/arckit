@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["schema_version", "status", "summary", "accepted_reports", "rejected_reports", "accepted_case_state_delta", "evidence", "case_resolution", "project_impact_candidate", "risks", "unknowns", "next_prompt", "continuation_intent", "human_decision_required"],
   "properties": {
-    "schema_version": { "const": "arckit-controller-review/v3" },
+    "schema_version": { "type": "string", "const": "arckit-controller-review/v3" },
     "status": { "type": "string", "enum": ["done", "continue", "needs_human", "blocked", "external_wait"] },
     "summary": { "type": "string" },
     "accepted_reports": { "type": "array", "items": { "type": "string" } },
@@ -21,7 +21,7 @@
             "required": ["facet", "set", "evidence", "unresolved"],
             "properties": {
               "facet": { "type": "string", "enum": ["product_expectation", "interaction_expectation", "visual_expectation", "technical_expectation", "implementation_state", "verification_state"] },
-              "set": { "type": "object", "additionalProperties": true },
+              "set": { "$ref": "#/$defs/facet_set" },
               "evidence": { "type": "array", "items": { "type": "string" } },
               "unresolved": { "type": "array", "items": { "type": "string" } }
             },
@@ -52,7 +52,7 @@
       "required": ["status", "changes", "evidence"],
       "properties": {
         "status": { "type": "string", "enum": ["none", "proposed", "accepted"] },
-        "changes": { "type": "array" },
+        "changes": { "type": "array", "items": { "$ref": "#/$defs/project_impact_change" } },
         "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
@@ -126,9 +126,37 @@
       "required": ["additional_cycles", "authorized_by", "reason", "evidence"],
       "properties": {
         "additional_cycles": { "type": "integer", "minimum": 1 },
-        "authorized_by": { "const": "human" },
+        "authorized_by": { "type": "string", "const": "human" },
         "reason": { "type": "string" },
         "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "facet_set": {
+      "type": "object",
+      "required": ["applicability", "maturity", "target_maturity", "alignment", "target_alignment", "resolution", "reason", "next_transition"],
+      "properties": {
+        "applicability": { "type": ["string", "null"], "enum": ["unknown", "required", "not_required", null] },
+        "maturity": { "type": ["string", "null"], "enum": ["unknown", "exploratory", "confirmed", "formalized", null] },
+        "target_maturity": { "type": ["string", "null"], "enum": ["unknown", "exploratory", "confirmed", "formalized", null] },
+        "alignment": { "type": ["string", "null"], "enum": ["unknown", "unreconciled", "stale", "diverged", "aligned", null] },
+        "target_alignment": { "type": ["string", "null"], "enum": ["unknown", "unreconciled", "stale", "diverged", "aligned", null] },
+        "resolution": { "type": ["string", "null"], "enum": ["unresolved", "resolved", "blocked", null] },
+        "reason": { "type": ["string", "null"] },
+        "next_transition": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "project_impact_change": {
+      "type": "object",
+      "required": ["dimension", "from_state", "to_state", "reason", "evidence", "evidence_maturity"],
+      "properties": {
+        "dimension": { "type": "string", "enum": ["project_intent", "users_and_stakeholders", "problem_scenarios", "product_behavior", "user_experience", "runtime_surfaces", "identity_access", "data_state", "integration_boundaries", "architecture_foundation", "implementation_coverage", "quality_validation", "security_privacy", "delivery_operation", "observability_support", "maintainability_handoff", "iteration_governance"] },
+        "from_state": { "type": "string", "enum": ["unknown", "not_required", "needed", "defined", "designed", "implemented", "integrated", "verified", "accepted", "released", "operational", "deferred", "blocked"] },
+        "to_state": { "type": "string", "enum": ["unknown", "not_required", "needed", "defined", "designed", "implemented", "integrated", "verified", "accepted", "released", "operational", "deferred", "blocked"] },
+        "reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "evidence_maturity": { "type": ["string", "null"], "enum": ["none", "exploratory", "confirmed", "formalized", "validated", null] }
       },
       "additionalProperties": false
     }

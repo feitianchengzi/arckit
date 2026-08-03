@@ -24,3 +24,9 @@
 | [CASE-20260726-003](closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md) | closed | Implement bounded Case completion review convergence | 2026-07-26T19:20:08.209Z |
 | [CASE-20260726-004](closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md) | closed | Govern project and iteration state to strict new boundaries | 2026-07-26T20:30:03.815Z |
 | [CASE-20260801-001](closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md) | closed | Upgrade Runtime Desktop to Todo Automation Workspace | 2026-08-01T18:09:34.420Z |
+| [CASE-20260802-001](closed/CASE-20260802-001-add-runtime-login-and-workshop-todo-synchronization.md) | closed | Add Runtime Login and Workshop Todo Synchronization | 2026-08-02T09:23:46.203Z |
+| [CASE-20260802-002](closed/CASE-20260802-002-gate-runtime-startup-behind-login.md) | closed | Gate Runtime Startup Behind Login | 2026-08-02T09:58:28.604Z |
+| [CASE-20260802-003](closed/CASE-20260802-003-lighten-runtime-login-background.md) | closed | Lighten Runtime Login Background | 2026-08-02T10:17:23.063Z |
+| [CASE-20260802-004](closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md) | closed | Decouple Runtime authentication from task-source enablement | 2026-08-02T10:28:38.596Z |
+| [CASE-20260802-005](closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md) | closed | Scope Runtime todos to the current executor | 2026-08-02T12:11:24.760Z |
+| [CASE-20260802-006](closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md) | closed | Minimize Runtime Prompts to Human Intent and Skill-Owned Semantics | 2026-08-02T13:36:58.576Z |

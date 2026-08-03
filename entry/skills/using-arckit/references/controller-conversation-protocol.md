@@ -16,6 +16,8 @@ Project State 选择/创建 Case
 -> Case resolved 后才聚合 Project impact
 ```
 
+选择/创建 Case 是独立的 Runtime 控制转移：Controller 输出 `execution_plan.plane=runtime` 与唯一 `runtime_actions[type=case_control]`，action 为 `select_existing_case` 或 `create_case`，并保持 `worker_intents=[]`。沿用当前 selected Case 时不生成 Runtime action，直接从 Case candidate gaps 规划 Worker 或零 Worker transition。Runtime 只绑定当前 Project revision 与显式 Runtime policy，并调用 ledger manifest 的 `case_control` 入口。ledger 成功提交后必须重新读取状态，才能进入 Case gap 选择。
+
 ## 输入分类
 
 - supplement/correction：更新当前 Case 理解；纠错可使既有 alignment 退回 stale/diverged。

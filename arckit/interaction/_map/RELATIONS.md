@@ -2,7 +2,9 @@
 
 ## Automation Workspace
 
-`automation-workspace/interaction.md` 定义待办自动化的交互源；`automation-workspace/default.html` 投影常驻 Automation Command Center，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理与只读审查工作台。
+`login/interaction.md` 定义应用启动时的认证门禁；`login/default.html` 投影会话恢复、未登录入口、验证码已发送和登录失败。未登录时 Login 是唯一可交互主页面，认证成功后才进入 Automation Command Center，退出登录后返回 Login。
+
+`automation-workspace/interaction.md` 定义登录后的待办自动化交互源；`automation-workspace/default.html` 投影常驻 Automation Command Center，`automation-workspace/authentication.html` 投影设置覆盖层中的已登录账号摘要和失效会话恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理与只读审查工作台。
 
 `task-browser/interaction.md` 定义七种服务器任务状态的浏览与人工处置；`task-browser/default.html` 是同一策略的灰度线框投影。Command Center 的任务状态导航携带当前项目范围进入 Task Browser，Task Browser 返回时恢复该项目范围，不改变自动队列策略。
 

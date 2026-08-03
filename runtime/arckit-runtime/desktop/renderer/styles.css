@@ -47,6 +47,15 @@
 * { box-sizing: border-box; }
 html, body { width: 100%; height: 100%; min-width: 1100px; min-height: 720px; margin: 0; overflow: hidden; }
 body { font-size: 13px; line-height: 1.5; }
+body.auth-pending .desktop-app { visibility: hidden; }
+.auth-boot-screen { position: fixed; inset: 0; z-index: 110; display: none; place-items: center; color: var(--ink-900); background: radial-gradient(circle at 50% 0, var(--violet-100) 0, var(--violet-50) 30%, var(--ink-75) 70%, var(--ink-50) 100%); }
+.auth-pending .auth-boot-screen { display: grid; }
+.auth-boot-card { display: grid; justify-items: center; gap: 10px; }
+.auth-boot-card .brand-mark { width: 42px; height: 42px; margin-bottom: 5px; font-size: 17px; }
+.auth-boot-card strong { font-size: 14px; }
+.auth-boot-card p { margin: 0; color: var(--ink-500); font-size: 10px; }
+.auth-boot-card i { width: 18px; height: 18px; margin-top: 8px; border: 2px solid var(--ink-200); border-top-color: var(--violet-500); border-radius: 50%; animation: auth-spin .8s linear infinite; }
+@keyframes auth-spin { to { transform: rotate(360deg); } }
 button, input, textarea, select { font: inherit; }
 button { color: inherit; cursor: pointer; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid rgba(92, 85, 230, .45); outline-offset: 2px; }
@@ -249,8 +258,33 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .settings-panel { width: min(780px, 100%); max-height: calc(100vh - 64px); overflow: auto; border: 1px solid rgba(255, 255, 255, .2); border-radius: 14px; background: #fff; box-shadow: var(--shadow-lg); }
 .settings-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 20px 22px 14px; border-bottom: 1px solid var(--ink-150); }
 .settings-header h2 { margin: 0; font-size: 19px; }
+.settings-lead { margin: 5px 0 0; color: var(--ink-500); font-size: 9px; }
+.login-brand { display: none; align-items: center; gap: 9px; margin-bottom: 28px; }
+.login-brand strong { font-size: 12px; }
 .settings-sections { display: grid; grid-template-columns: 1.25fr .75fr; gap: 24px; padding: 20px 22px; }
 .settings-sections section > h3 { margin: 0 0 14px; font-size: 12px; }
+.account-card { margin-bottom: 14px; padding: 13px; border: 1px solid var(--ink-150); border-radius: 10px; background: var(--ink-50); }
+.account-summary { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px; }
+.account-summary strong, .account-summary small { display: block; }
+.account-summary strong { font-size: 10px; }
+.account-summary small { margin-top: 2px; color: var(--ink-500); font-size: 8px; }
+.account-status { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 999px; color: var(--ink-600); background: var(--ink-100); font-size: 8px; font-weight: 800; white-space: nowrap; }
+.account-status.authenticated { color: var(--green-600); background: var(--green-100); }
+.account-status.refreshing { color: var(--blue-600); background: var(--blue-100); }
+.account-status.expired { color: var(--red-600); background: var(--red-100); }
+.auth-form { display: grid; gap: 10px; margin-top: 14px; }
+.auth-form .field { margin: 0; }
+.auth-type { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 3px; border-radius: 7px; background: var(--ink-100); }
+.auth-type-button { height: 27px; border: 0; border-radius: 5px; color: var(--ink-500); background: transparent; font-size: 9px; font-weight: 750; }
+.auth-type-button.is-active { color: var(--ink-900); background: #fff; box-shadow: var(--shadow-sm); }
+.verification-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; }
+.verification-row .secondary-button { height: 36px; white-space: nowrap; }
+.auth-session { display: flex; justify-content: flex-end; margin-top: 12px; }
+.auth-feedback { min-height: 16px; margin: 9px 0 0; color: var(--green-600); font-size: 9px; }
+.auth-feedback.error { color: var(--red-600); }
+.settings-advanced { border-top: 1px solid var(--ink-150); }
+.settings-advanced summary { padding: 11px 2px 0; color: var(--ink-600); cursor: pointer; font-size: 9px; font-weight: 750; }
+.settings-advanced-content { padding-top: 12px; }
 .field, .toggle-row { display: block; margin-bottom: 13px; }
 .field > span { display: block; margin-bottom: 5px; color: var(--ink-600); font-size: 9px; font-weight: 750; }
 .field input, .field select { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--ink-200); border-radius: 7px; background: #fff; font-size: 10px; }
@@ -260,6 +294,26 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .toggle-row strong { font-size: 10px; }
 .toggle-row small { margin-top: 2px; color: var(--ink-500); font-size: 8px; }
 .settings-actions { display: flex; justify-content: flex-end; padding: 14px 22px 20px; border-top: 1px solid var(--ink-150); }
+.modal-overlay.login-gate { padding: 72px 32px 48px; background: radial-gradient(circle at 50% 0, var(--violet-100) 0, var(--violet-50) 30%, var(--ink-75) 70%, var(--ink-50) 100%); backdrop-filter: none; }
+.login-gate .settings-panel { width: min(440px, 100%); max-height: calc(100vh - 120px); border-color: var(--ink-150); border-radius: 18px; box-shadow: 0 24px 80px rgba(49, 58, 73, .14), 0 4px 16px rgba(49, 58, 73, .08); }
+.login-gate .settings-header { padding: 24px 28px 18px; border-bottom: 0; }
+.login-gate .login-brand { display: flex; }
+.login-gate .settings-header h2 { font-size: 24px; letter-spacing: -.03em; }
+.login-gate .settings-lead { margin-top: 7px; font-size: 10px; }
+.login-gate .settings-sections { display: block; padding: 4px 28px 28px; }
+.login-gate .account-settings-section > h3,
+.login-gate .codex-settings-section,
+.login-gate .settings-advanced,
+.login-gate .settings-actions,
+.login-gate #closeSettingsButton { display: none; }
+.login-gate .account-card { margin: 0; padding: 0; border: 0; background: transparent; }
+.login-gate .auth-form { gap: 12px; margin-top: 18px; }
+.login-gate .auth-type { padding: 4px; }
+.login-gate .auth-type-button { height: 32px; }
+.login-gate .field input { height: 40px; }
+.login-gate .verification-row .secondary-button { height: 40px; }
+.login-gate #loginButton { min-height: 40px; }
+.login-gate .auth-feedback { min-height: 18px; margin-top: 11px; }
 .toast { position: fixed; right: 20px; bottom: 20px; z-index: 200; max-width: 360px; padding: 11px 14px; border-radius: 8px; color: #fff; background: var(--ink-900); box-shadow: var(--shadow-lg); font-size: 10px; }
 
 @media (max-width: 1180px) {

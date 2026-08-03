@@ -113,6 +113,32 @@ components:
     accessibility:
       focus: 2px 半透明紫色轮廓并保留 2px offset
 
+  LoginGate:
+    role: 在启动恢复和未登录状态建立轻量、聚焦且不可绕过的认证画布
+    variants:
+      restoring: { canvas: "{colors.ink.75}", glow: "{colors.accent.soft}", content: "{colors.ink.900}" }
+      logged_out: { canvas: "{colors.ink.75}", glow: "{colors.accent.faint}", panel: "{colors.paper}" }
+    sizes:
+      desktop: { panel_width: 440, panel_padding: "{spacing.7}", radius: "{corner_radius.large}" }
+    states: [restoring, logged_out, verification_sent, signing_in, error]
+    token_refs: [colors.ink.75, colors.ink.50, colors.paper, colors.accent.soft, colors.accent.faint, colors.ink.900, corner_radius.large, shadows.large]
+    accessibility:
+      requirement: 浅色画布与正文保持 AA 对比度；进度与错误状态不只依赖颜色
+
+  AccountPanel:
+    role: 在独立认证页和设置覆盖层表达 Workshop 登录输入、会话状态与退出边界
+    variants:
+      logged_out: { surface: "{colors.paper}", status: "{colors.ink.500}", primary_action: "{colors.accent.base}" }
+      verification_sent: { surface: "{colors.info.soft}", status: "{colors.info.base}", primary_action: "{colors.accent.base}" }
+      authenticated: { surface: "{colors.success.soft}", status: "{colors.success.base}", primary_action: "{colors.info.base}" }
+      expired: { surface: "{colors.danger.soft}", status: "{colors.danger.base}", primary_action: "{colors.accent.base}" }
+    sizes:
+      standard: { width: 560, padding: "{spacing.7}", field_height: 36, gap: "{spacing.5}" }
+    states: [logged_out, sending_code, verification_sent, signing_in, authenticated, refreshing, expired, signing_out]
+    token_refs: [colors.paper, colors.info.soft, colors.success.soft, colors.danger.soft, colors.accent.base, typography.body, corner_radius.medium, shadows.large]
+    accessibility:
+      requirement: 状态同时显示图标、文本和说明；错误紧邻表单；账号可脱敏但 token 永不显示
+
   WorkbenchTranscript:
     role: 在只读审查和人工处理模式中展示对话、工具与证据
     variants:

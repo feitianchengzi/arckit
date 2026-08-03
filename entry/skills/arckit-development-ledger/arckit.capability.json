@@ -1,18 +1,20 @@
 {
   "schema_version": "arckit-capability/v1",
   "id": "arckit-development-ledger",
+  "protocol_revision": "case-control-runtime-entrypoint/v2",
   "kind": "state_ledger",
   "runtime_role": ["state_reader", "closeout_auditor", "ledger_writer"],
   "binding_targets": ["runtime"],
   "invocation": {
     "type": "runtime_entrypoint",
     "skill_trigger": "$arckit-development-ledger",
-    "phases": ["project_initialization", "case_transition", "ledger_writeback"]
+    "phases": ["project_initialization", "case_control", "case_transition", "ledger_writeback"]
   },
   "runtime_entrypoints": {
     "project_state": "scripts/project-state.mjs",
     "project_iteration": "scripts/project-iteration.mjs",
     "development_case": "scripts/development-case.mjs",
+    "case_control": "scripts/runtime-case-control.mjs",
     "case_transition": "scripts/case-transition.mjs",
     "writeback": "scripts/runtime-writeback.mjs"
   },
@@ -22,6 +24,7 @@
     "iteration_state_record",
     "development_case_record",
     "case_transition",
+    "case_control_handoff",
     "runtime_result",
     "merge_result"
   ],
@@ -31,7 +34,8 @@
     "ledger_write_plan",
     "updated_state",
     "updated_case",
-    "case_transition_result"
+    "case_transition_result",
+    "case_control_result"
   ],
   "allowed_write_targets": [
     "arckit/project/**",
@@ -44,11 +48,13 @@
   ],
   "runtime_notes": [
     "Runtime must resolve and call the trusted entrypoints declared by this capability instead of maintaining copied ledger scripts.",
+    "Agent-directed Case creation/selection enters through case_control; ledger allocates ids and atomically updates Project, iteration, projections, and indexes.",
     "Case transitions use optimistic revision binding and exact candidate-gap matching; stale Controller frames fail closed.",
     "Case, Project, iteration, projections, and indexes are committed as one rollback-capable ledger operation.",
     "Iteration v2 contains only macro targets, accepted Project changes bound to closed Cases, acceptance state, and Case refs; Loop continuation is forbidden.",
     "Project and Iteration audits reject uncovered actionable dimensions, volatile evidence refs, and active Case reference drift.",
     "Runtime passes the semantic Case transition object directly; stdin and caller-owned files are CLI transports and volatile paths never become evidence.",
+    "Runtime-owned result, activity, event, and transcript records stay outside the target project; Desktop may pass an arckit-runtime://runs/RUN-... opaque reference for Case round traceability.",
     "Case rendering is content-transparent and dry-run preflights Structured Record round trips plus existing Case index inputs.",
     "Runtime exposes ledger snapshots and references to Workers when needed; ordinary Workers must not bind this capability or write ledger state directly."
   ]

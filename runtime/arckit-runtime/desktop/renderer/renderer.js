@@ -46,6 +46,12 @@ const state = {
   selectedTaskId: "",
   snapshot: emptySnapshot(),
   settings: defaultSettings(),
+  authentication: defaultAuthentication(),
+  loginGate: false,
+  authType: "email",
+  verificationCooldown: 0,
+  authBusy: { verification: false, login: false, logout: false },
+  authFeedback: { message: "", error: false },
   transcript: [],
   workbenchMode: "review",
   workbenchRun: null,
@@ -58,12 +64,15 @@ const state = {
 const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map((element) => [element.id, element]));
 let refreshQueued = false;
 let toastTimer;
+let verificationTimer;
 
 boot();
 
 async function boot() {
   wireEvents();
-  state.settings = normalizeSettings(await api.getSettings());
+  const [settings, authentication] = await Promise.all([api.getSettings(), api.getAuthStatus()]);
+  state.settings = normalizeSettings(settings);
+  state.authentication = normalizeAuthentication(authentication);
   await refreshSnapshot();
   api.onAutomationEvent(() => scheduleRefresh());
   api.onEvent((event) => {
@@ -92,10 +101,10 @@ function wireEvents() {
     await api.setQueuePaused(!state.snapshot.queue_paused);
     await refreshSnapshot();
   }));
-  els.settingsButton.addEventListener("click", openSettings);
+  els.settingsButton.addEventListener("click", () => runAction(() => openSettings({ loginGate: false })));
   els.sourceHealthButton.addEventListener("click", () => {
     if (state.snapshot.recovery_items.length > 0) showPage("recovery");
-    else openSettings();
+    else runAction(() => openSettings({ loginGate: false }));
   });
   els.runtimeHealthButton.addEventListener("click", () => {
     if (state.snapshot.active_task) openWorkbench("review");
@@ -106,6 +115,13 @@ function wireEvents() {
   });
   els.saveSettingsButton.addEventListener("click", () => runAction(saveSettings));
   els.taskSourceAuthMode.addEventListener("change", renderAuthMode);
+  document.querySelectorAll("[data-auth-type]").forEach((button) => button.addEventListener("click", () => {
+    state.authType = button.dataset.authType;
+    renderAuthPanel();
+  }));
+  els.sendVerificationButton.addEventListener("click", () => runAction(sendVerification));
+  els.loginButton.addEventListener("click", () => runAction(login));
+  els.logoutButton.addEventListener("click", () => runAction(logout));
   els.viewPendingButton.addEventListener("click", () => openTaskBrowser("pending"));
   els.backToCommandButton.addEventListener("click", () => showPage("command"));
   els.backFromWorkbenchButton.addEventListener("click", () => showPage("command"));
@@ -157,10 +173,15 @@ async function refreshSnapshot({ quiet = false } = {}) {
   state.refreshing = true;
   if (!quiet) renderSyncing(true);
   try {
-    state.snapshot = await api.automationSnapshot({
-      project_id: state.selectedProjectId,
-      state: state.page === "tasks" ? state.selectedState : ""
-    });
+    const [snapshot, authentication] = await Promise.all([
+      api.automationSnapshot({
+        project_id: state.selectedProjectId,
+        state: state.page === "tasks" ? state.selectedState : ""
+      }),
+      api.getAuthStatus()
+    ]);
+    state.snapshot = snapshot;
+    state.authentication = normalizeAuthentication(authentication);
     if (state.selectedProjectId !== "all" && !state.snapshot.projects.some((project) => String(project.id) === state.selectedProjectId)) {
       state.selectedProjectId = "all";
     }
@@ -172,6 +193,7 @@ async function refreshSnapshot({ quiet = false } = {}) {
     }
     if (state.page === "workbench") await loadTranscript();
     render();
+    routeAuthentication();
   } finally {
     state.refreshing = false;
     renderSyncing(false);
@@ -233,39 +255,63 @@ function renderCommandBar() {
   els.scopeTitle.textContent = project?.name || "所有项目";
   els.pageTitle.textContent = { command: "自动化总览", tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心" }[state.page];
   els.automationEnabled.checked = Boolean(state.snapshot.enabled);
+  els.automationEnabled.disabled = !state.authentication.authenticated;
 }
 
 function renderCommandCenter() {
   const snapshot = state.snapshot;
   const scopedProjects = state.selectedProjectId === "all" ? snapshot.projects : snapshot.projects.filter((project) => String(project.id) === state.selectedProjectId);
   const scopedQueue = state.selectedProjectId === "all" ? snapshot.queue : snapshot.queue.filter((task) => String(task.project_id) === state.selectedProjectId);
-  els.commandHeading.textContent = state.selectedProjectId === "all" ? "跨项目自动化态势" : `${currentProject()?.name || "项目"} 自动化态势`;
-  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.eligible).length} 个可执行 · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
+  const scopedBlockedPending = (snapshot.blocked_pending_tasks || []).filter(scopedTaskFilter);
+  els.commandHeading.textContent = state.selectedProjectId === "all" ? "跨项目自动领取态势" : `${currentProject()?.name || "项目"} 自动领取态势`;
+  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
   els.healthBadge.className = `health-badge ${snapshot.health?.tone === "success" ? "success" : snapshot.health?.tone === "danger" ? "danger" : snapshot.health?.tone === "warning" ? "warning" : ""}`;
   els.healthBadge.textContent = snapshot.health?.label || "待命";
-  els.queuePauseButton.textContent = snapshot.queue_paused ? "恢复队列" : "暂停队列";
+  els.queuePauseButton.textContent = snapshot.queue_paused ? "继续领取" : "暂停领取";
   els.queuePauseButton.disabled = !snapshot.enabled;
 
   const runningCount = snapshot.active_task && (state.selectedProjectId === "all" || String(snapshot.active_task.project_id) === state.selectedProjectId) ? 1 : 0;
-  const attentionCount = snapshot.attention_items.filter(scopedTaskFilter).length + snapshot.recovery_items.filter(scopedTaskFilter).length;
+  const humanAttentionCount = snapshot.attention_items.filter(scopedTaskFilter).length;
+  const recoveryCount = snapshot.recovery_items.filter(scopedTaskFilter).length;
+  const attentionCount = humanAttentionCount + recoveryCount;
   els.metricGrid.innerHTML = [
-    metric("自动化健康", snapshot.health?.label || "待命", sourceStatusLabel(snapshot.source_status), snapshot.health?.tone === "success" ? "healthy" : ""),
-    metric("需要人工处理", attentionCount, attentionCount ? "队列保持冻结" : "没有待处理人工事项", attentionCount ? "attention" : ""),
+    metric("自动领取", snapshot.health?.label || "待命", sourceStatusLabel(snapshot.source_status), snapshot.health?.tone === "success" ? "healthy" : ""),
+    metric("待处理事项", attentionCount, humanAttentionCount
+      ? `${humanAttentionCount} 项需要人工决策`
+      : recoveryCount
+        ? `${recoveryCount} 项需要恢复自动化`
+        : "没有待处理事项", attentionCount ? "attention" : ""),
     metric("运行中", runningCount, snapshot.active_task?.phase || "没有活动任务", runningCount ? "running" : ""),
-    metric("待处理队列", scopedQueue.length, scopedQueue[0] ? `下一项 ${scopedQueue[0].id}` : "没有可执行任务", "")
+    metric("待处理队列", scopedQueue.length, scopedQueue[0] ? `下一项 ${scopedQueue[0].id}` : scopedBlockedPending.length ? `${scopedBlockedPending.length} 项尚未启用` : "没有可执行任务", scopedBlockedPending.length ? "attention" : "")
   ].join("");
-  renderAttention();
-  renderCurrentRun();
-  renderQueue(scopedQueue);
+  renderAttention(scopedBlockedPending);
+  renderCurrentRun(scopedBlockedPending);
+  renderQueue(scopedQueue, scopedBlockedPending);
   renderRecentCompletions();
   renderCommandInspector(scopedProjects);
 }
 
-function renderAttention() {
+function renderAttention(blockedPendingTasks = []) {
   const attention = state.snapshot.attention_items.find(scopedTaskFilter);
   const recovery = state.snapshot.recovery_items.find(scopedTaskFilter);
+  const blocked = blockedPendingTasks.find((task) => task.eligibility_code === "project_not_participating") || blockedPendingTasks[0];
+  if (!attention && !recovery && state.snapshot.enabled && blocked) {
+    const project = state.snapshot.projects.find((item) => String(item.id) === String(blocked.project_id));
+    const canEnable = blocked.eligibility_code === "project_not_participating" && project?.local_project_id;
+    els.attentionHost.innerHTML = `<div class="attention-strip"><span>!</span><div class="attention-copy"><strong>${blockedPendingTasks.length} 项待处理尚不可领取</strong><p>${escapeHtml(blocked.eligibility_reason)}；${escapeHtml(project?.name || blocked.project_name || blocked.project_id)} 不会进入自动领取队列。</p></div>${canEnable ? `<button id="enableBlockedProjectButton" class="primary-button" type="button">允许此项目自动领取</button>` : `<button id="configureBlockedProjectButton" class="primary-button" type="button">配置项目</button>`}</div>`;
+    const button = document.getElementById(canEnable ? "enableBlockedProjectButton" : "configureBlockedProjectButton");
+    button.addEventListener("click", () => runAction(async () => {
+      if (canEnable) {
+        await api.setProjectParticipation(project.id, true);
+        await refreshSnapshot();
+        return;
+      }
+      els.projectBindingList.scrollIntoView({ behavior: "smooth", block: "center" });
+    }));
+    return;
+  }
   if (!attention && !recovery) {
-    els.attentionHost.innerHTML = `<div class="attention-strip"><span>✓</span><div class="attention-copy"><strong>当前不需要人工处理</strong><p>Chat 保持按需隐藏，自动化可以继续运行。</p></div></div>`;
+    els.attentionHost.innerHTML = `<div class="attention-strip"><span>✓</span><div class="attention-copy"><strong>当前无需处理</strong><p>Chat 保持按需隐藏，自动化可以继续运行。</p></div></div>`;
     return;
   }
   if (recovery) {
@@ -277,11 +323,11 @@ function renderAttention() {
   document.getElementById("openAttentionButton").addEventListener("click", () => openWorkbench("intervention"));
 }
 
-function renderCurrentRun() {
+function renderCurrentRun(blockedPendingTasks = []) {
   const active = state.snapshot.active_task;
   const run = state.snapshot.active_run;
   if (!active || (state.selectedProjectId !== "all" && String(active.project_id) !== state.selectedProjectId)) {
-    els.currentRunPanel.innerHTML = `<div class="run-empty"><div><strong>没有活动任务</strong><p>${state.snapshot.queue.length ? "自动化将从下一队列领取一项任务。" : "同步后继续监听待处理任务。"}</p></div></div>`;
+    els.currentRunPanel.innerHTML = `<div class="run-empty"><div><strong>没有活动任务</strong><p>${state.snapshot.queue.length ? "自动化将从下一队列领取一项任务。" : blockedPendingTasks.length ? "存在待处理任务，但项目尚未满足自动执行条件。" : "同步后继续监听待处理任务。"}</p></div></div>`;
     els.currentRunActions.innerHTML = "";
     return;
   }
@@ -297,9 +343,9 @@ function renderCurrentRun() {
   }));
 }
 
-function renderQueue(queue) {
+function renderQueue(queue, blockedPendingTasks = []) {
   if (queue.length === 0) {
-    els.queueTable.innerHTML = `<div class="empty-state">当前范围没有符合资格的待处理任务。</div>`;
+    els.queueTable.innerHTML = `<div class="empty-state">${blockedPendingTasks.length ? `${blockedPendingTasks.length} 项待处理被项目执行条件阻止，请先完成上方提示。` : "当前范围没有符合资格的待处理任务。"}</div>`;
     return;
   }
   els.queueTable.innerHTML = `<table class="data-table"><colgroup><col style="width:42px"><col><col style="width:130px"><col style="width:76px"><col style="width:100px"></colgroup><thead><tr><th>#</th><th>任务</th><th>项目</th><th>优先级</th><th>状态</th></tr></thead><tbody>${queue.slice(0, 8).map((task) => `<tr data-queue-task="${escapeHtml(task.id)}"><td class="queue-number">${task.queue_position}</td><td class="task-title-cell">${escapeHtml(task.title)}</td><td>${escapeHtml(task.project_name)}</td><td>${formatPriority(task.priority)}</td><td><span class="status-pill pending">待处理</span></td></tr>`).join("")}</tbody></table>`;
@@ -321,14 +367,15 @@ function renderCommandInspector(projects) {
     ["最近同步", snapshot.synced_at ? formatDateTime(snapshot.synced_at) : "尚未同步"]
   ]);
   els.executionBoundary.innerHTML = factRows([
-    ["自动化", snapshot.enabled ? snapshot.queue_paused ? "已开启 · 队列暂停" : "已开启" : "已关闭"],
+    ["自动领取总闸", snapshot.enabled ? snapshot.queue_paused ? "已开启 · 暂停领取" : "已开启" : "已关闭"],
     ["活动任务", snapshot.active_task?.task_id || "无"],
     ["当前责任方", snapshot.attention_items.length ? "Human" : snapshot.active_task ? "Runtime" : "Automation Coordinator"],
     ["并发边界", "单活动任务"]
   ]);
   els.projectBindingList.innerHTML = projects.length ? projects.map((project) => {
     const options = [`<option value="">未绑定</option>`, ...snapshot.local_projects.map((local) => `<option value="${escapeHtml(local.id)}" ${local.id === project.local_project_id ? "selected" : ""}>${escapeHtml(local.name)}</option>`)].join("");
-    return `<div class="binding-row" data-binding-project="${escapeHtml(project.id)}"><strong>${escapeHtml(project.name)}</strong><select aria-label="${escapeHtml(project.name)} 本地工作区">${options}</select><label class="participation-row"><input type="checkbox" ${project.participating ? "checked" : ""} ${project.local_project_id ? "" : "disabled"}>参与自动化 · ${project.eligible ? "可执行" : escapeHtml(project.local_project_id ? project.source_status : "未绑定")}</label></div>`;
+    const qualification = !project.local_project_id ? "先绑定工作区" : project.participating ? project.source_status === "healthy" ? "已具备资格" : project.source_status : "尚未允许";
+    return `<div class="binding-row" data-binding-project="${escapeHtml(project.id)}"><strong>${escapeHtml(project.name)}</strong><select aria-label="${escapeHtml(project.name)} 本地工作区">${options}</select><label class="participation-row"><input type="checkbox" ${project.participating ? "checked" : ""} ${project.local_project_id ? "" : "disabled"}>允许自动领取 · ${escapeHtml(qualification)}</label></div>`;
   }).join("") : `<div class="empty-state">同步后可绑定远端项目。</div>`;
   els.projectBindingList.querySelectorAll("[data-binding-project]").forEach((row) => {
     const remoteId = row.dataset.bindingProject;
@@ -378,7 +425,7 @@ function renderTaskInspector() {
     ["任务标识", task.id],
     ["所属项目", task.project_name],
     ["本地工作区", task.local_project_path || "未绑定"],
-    ["自动执行资格", task.eligible ? `队列第 ${task.queue_position} 项` : task.state === "pending" ? "当前不可执行" : "不适用于当前状态"],
+    ["自动执行资格", task.eligible ? `队列第 ${task.queue_position} 项` : task.eligibility_reason || "不适用于当前状态"],
     ["服务器版本", task.version || "未提供"]
   ])}<div id="taskActions" class="task-actions"></div>`;
   const actions = taskActions(task);
@@ -505,7 +552,7 @@ function renderRecovery() {
     els.recoveryList.innerHTML = `<div class="panel-card empty-state"><div><strong>没有待恢复事项</strong><p>服务器事实、本地 Runtime 与队列状态一致。</p></div></div>`;
     return;
   }
-  els.recoveryList.innerHTML = items.map((item) => `<article class="recovery-card"><div class="recovery-marker"></div><div class="recovery-body"><h2>${escapeHtml(RECOVERY_LABELS[item.type] || item.type)}</h2><p>${escapeHtml(item.message)}</p><div class="recovery-meta"><span>任务 ${escapeHtml(item.task_id)}</span><span>冻结范围 ${escapeHtml(item.freeze_scope)}</span><span>责任方 ${escapeHtml(item.responsibility)}</span></div><div class="recovery-actions">${item.actions.map((action) => `<button class="${action === "mark_blocked" ? "secondary-button" : "primary-button"}" data-recovery-id="${escapeHtml(item.id)}" data-recovery-action="${escapeHtml(action)}" type="button">${escapeHtml(RECOVERY_ACTION_LABELS[action] || action)}</button>`).join("")}</div></div></article>`).join("");
+  els.recoveryList.innerHTML = items.map((item) => `<article class="recovery-card"><div class="recovery-marker"></div><div class="recovery-body"><h2>${escapeHtml(RECOVERY_LABELS[item.type] || item.type)}</h2><p>${escapeHtml(item.message)}</p><div class="recovery-meta"><span>任务 ${escapeHtml(item.task_id)}</span><span>冻结范围 ${escapeHtml(item.freeze_scope)}</span><span>责任方 ${escapeHtml(item.responsibility === "operator" ? "Runtime 操作员" : item.responsibility)}</span></div><div class="recovery-actions">${item.actions.map((action) => `<button class="${action === "mark_blocked" ? "secondary-button" : "primary-button"}" data-recovery-id="${escapeHtml(item.id)}" data-recovery-action="${escapeHtml(action)}" type="button">${escapeHtml(RECOVERY_ACTION_LABELS[action] || action)}</button>`).join("")}</div></div></article>`).join("");
   els.recoveryList.querySelectorAll("[data-recovery-action]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
     const action = button.dataset.recoveryAction;
     if (action === "mark_blocked" && !window.confirm("标记阻塞会更新远端任务状态并释放活动任务。继续吗？")) return;
@@ -531,13 +578,55 @@ function showPage(page) {
   render();
 }
 
-function openSettings() {
+async function openSettings({ loginGate = false } = {}) {
+  const [settings, authentication] = await Promise.all([api.getSettings(), api.getAuthStatus()]);
+  state.settings = normalizeSettings(settings);
+  state.authentication = normalizeAuthentication(authentication);
+  state.loginGate = loginGate || state.authentication.status === "logged_out";
+  setAuthFeedback("");
   renderSettingsForm();
+  renderSettingsSurface();
   els.settingsOverlay.classList.remove("hidden");
+  document.body.classList.remove("auth-pending");
 }
 
-function closeSettings() {
+function closeSettings({ force = false } = {}) {
+  if (state.loginGate && !force) return;
   els.settingsOverlay.classList.add("hidden");
+  els.settingsOverlay.classList.remove("login-gate");
+  state.loginGate = false;
+}
+
+function routeAuthentication() {
+  if (state.authentication.status === "logged_out") {
+    showLoginGate();
+    return;
+  }
+  document.body.classList.remove("auth-pending");
+  if (state.loginGate) closeSettings({ force: true });
+  else if (!els.settingsOverlay.classList.contains("hidden")) renderAuthPanel();
+}
+
+function showLoginGate() {
+  state.loginGate = true;
+  renderSettingsForm();
+  renderSettingsSurface();
+  els.settingsOverlay.classList.remove("hidden");
+  document.body.classList.remove("auth-pending");
+}
+
+function renderSettingsSurface() {
+  els.settingsOverlay.classList.toggle("login-gate", state.loginGate);
+  if (state.loginGate) {
+    els.settingsPanel.removeAttribute("role");
+    els.settingsPanel.removeAttribute("aria-modal");
+  } else {
+    els.settingsPanel.setAttribute("role", "dialog");
+    els.settingsPanel.setAttribute("aria-modal", "true");
+  }
+  els.settingsEyebrow.textContent = state.loginGate ? "WORKSHOP ACCOUNT" : "DESKTOP SETTINGS";
+  els.settingsTitle.textContent = state.loginGate ? "登录 Workshop" : "账户与 Runtime";
+  els.settingsLead.textContent = state.loginGate ? "登录后同步你的项目与待办，并启动自动化队列。" : "管理 Workshop 账户、任务源与本地 Runtime。";
 }
 
 function renderSettingsForm() {
@@ -555,10 +644,112 @@ function renderSettingsForm() {
   els.codexProxyEnabled.checked = settings.codex_proxy.enabled;
   els.codexProxyUrl.value = settings.codex_proxy.url;
   renderAuthMode();
+  renderAuthPanel();
 }
 
 function renderAuthMode() {
   els.headerAuthFields.classList.toggle("hidden", els.taskSourceAuthMode.value !== "headers");
+  els.tokenAuthFields.classList.toggle("hidden", els.taskSourceAuthMode.value !== "bearer");
+}
+
+function renderAuthPanel() {
+  const auth = state.authentication;
+  const authenticated = auth.authenticated;
+  const expired = auth.status === "expired";
+  document.querySelectorAll("[data-auth-type]").forEach((button) => button.classList.toggle("is-active", button.dataset.authType === state.authType));
+  els.authTargetLabel.textContent = state.authType === "email" ? "邮箱" : "手机号";
+  els.authTarget.placeholder = state.authType === "email" ? "name@example.com" : "+86 13800000000";
+  els.authStatusPill.className = `account-status ${auth.status}`;
+  els.authStatusPill.textContent = { authenticated: "已登录", refreshing: "刷新中", expired: "登录已过期", logged_out: "未登录" }[auth.status] || "未登录";
+  els.authIdentity.textContent = authenticated ? auth.masked_identity || auth.identity || "Workshop 用户" : expired ? "请重新登录 Workshop" : "登录后同步你的项目和待办";
+  els.authDescription.textContent = authenticated ? "项目和待办将按当前账户同步。" : "验证码和令牌仅由主进程处理。";
+  els.authLoginPanel.classList.toggle("hidden", authenticated);
+  els.authSessionPanel.classList.toggle("hidden", !authenticated);
+  els.authFeedback.textContent = auth.error || state.authFeedback.message;
+  els.authFeedback.classList.toggle("error", Boolean(auth.error || state.authFeedback.error));
+  els.sendVerificationButton.textContent = state.authBusy.verification ? "正在发送…" : state.verificationCooldown > 0 ? `${state.verificationCooldown} 秒后重试` : "获取验证码";
+  els.sendVerificationButton.disabled = state.authBusy.verification || state.verificationCooldown > 0;
+  els.loginButton.disabled = state.authBusy.login;
+  els.loginButton.textContent = state.authBusy.login ? "正在登录…" : "登录并同步";
+  els.logoutButton.disabled = state.authBusy.logout;
+  els.logoutButton.textContent = state.authBusy.logout ? "正在退出…" : "退出登录";
+}
+
+async function sendVerification() {
+  state.authBusy.verification = true;
+  setAuthFeedback("");
+  renderAuthPanel();
+  try {
+    const result = await api.sendAuthVerification({ code_type: state.authType, target: els.authTarget.value });
+    state.verificationCooldown = Number(result.cooldown_seconds || 60);
+    setAuthFeedback(`验证码已发送至 ${result.masked_target || "目标账户"}。`);
+    startVerificationCooldown();
+  } finally {
+    state.authBusy.verification = false;
+    renderAuthPanel();
+  }
+}
+
+async function login() {
+  state.authBusy.login = true;
+  setAuthFeedback("");
+  renderAuthPanel();
+  try {
+    state.authentication = normalizeAuthentication(await api.loginWithCode({
+      code_type: state.authType,
+      target: els.authTarget.value,
+      code: els.authCode.value
+    }));
+    state.settings = normalizeSettings(await api.getSettings());
+    els.authCode.value = "";
+    await refreshSnapshot();
+    closeSettings({ force: true });
+    showToast(["healthy", "degraded"].includes(state.snapshot.source_status)
+      ? "登录成功，项目和待办已同步。"
+      : "登录成功，但项目同步未完成，请稍后重试。");
+  } finally {
+    state.authBusy.login = false;
+    renderAuthPanel();
+  }
+}
+
+async function logout() {
+  state.authBusy.logout = true;
+  setAuthFeedback("");
+  renderAuthPanel();
+  try {
+    let result = await api.logoutAuth({ confirm_active_task: false });
+    if (result.requires_confirmation) {
+      const taskName = result.active_task?.task_title || result.active_task?.task_id || "当前任务";
+      if (!window.confirm(`退出会安全停止“${taskName}”并清空远端项目快照，继续吗？`)) return;
+      result = await api.logoutAuth({ confirm_active_task: true });
+    }
+    state.authentication = normalizeAuthentication(result.authentication);
+    state.settings = normalizeSettings(await api.getSettings());
+    state.snapshot = emptySnapshot();
+    renderSettingsForm();
+    render();
+    showLoginGate();
+    showToast("已退出 Workshop，远端项目与待办快照已清空。");
+  } finally {
+    state.authBusy.logout = false;
+    renderAuthPanel();
+  }
+}
+
+function setAuthFeedback(message, error = false) {
+  state.authFeedback = { message, error };
+  els.authFeedback.textContent = message;
+  els.authFeedback.classList.toggle("error", error);
+}
+
+function startVerificationCooldown() {
+  window.clearInterval(verificationTimer);
+  verificationTimer = window.setInterval(() => {
+    state.verificationCooldown = Math.max(0, state.verificationCooldown - 1);
+    renderAuthPanel();
+    if (!state.verificationCooldown) window.clearInterval(verificationTimer);
+  }, 1000);
 }
 
 async function saveSettings() {
@@ -579,10 +770,15 @@ async function saveSettings() {
       url: els.codexProxyUrl.value
     }
   }));
+  state.authentication = normalizeAuthentication(await api.getAuthStatus());
   closeSettings();
   await api.syncAutomation();
   await refreshSnapshot();
-  showToast("设置已保存并完成同步。");
+  showToast(!state.authentication.authenticated
+    ? "设置已保存，请登录 Workshop 后同步。"
+    : ["healthy", "degraded"].includes(state.snapshot.source_status)
+      ? "设置已保存并完成同步。"
+      : "设置已保存，但任务同步未完成。");
 }
 
 function currentProject() {
@@ -630,6 +826,7 @@ function runtimeStages(phase, run) {
 
 function sourceStatusLabel(value) {
   return {
+    logged_out: "未登录",
     unconfigured: "未配置",
     syncing: "同步中",
     healthy: "同步正常",
@@ -659,7 +856,7 @@ function formatDateTime(value) {
 }
 
 function renderSyncing(active) {
-  els.syncButton.disabled = active;
+  els.syncButton.disabled = active || !state.authentication.authenticated;
   els.syncButton.textContent = active ? "…" : "↻";
 }
 
@@ -668,6 +865,7 @@ async function runAction(action) {
     await action();
   } catch (error) {
     console.error(error);
+    if (!els.settingsOverlay.classList.contains("hidden")) setAuthFeedback(error?.message || String(error), true);
     showToast(error?.message || String(error));
   }
 }
@@ -699,15 +897,23 @@ function normalizeSettings(value = {}) {
 function defaultSettings() {
   return {
     codex_proxy: { enabled: false, url: "http://127.0.0.1:7890" },
-    task_source: { enabled: false, base_url: "", service_name: "workshop", auth_mode: "bearer", access_token_configured: false, user_id: "", username: "", app_id: "arckit-runtime", session_id: "" }
+    task_source: { enabled: true, base_url: "https://api.feitianchengzi.com", service_name: "workshop", auth_mode: "nebula", access_token_configured: false, user_id: "", username: "", app_id: "arckit-runtime", session_id: "" }
   };
+}
+
+function normalizeAuthentication(value = {}) {
+  return { ...defaultAuthentication(), ...value };
+}
+
+function defaultAuthentication() {
+  return { status: "logged_out", authenticated: false, identity: "", masked_identity: "", can_refresh: false, error: "" };
 }
 
 function emptySnapshot() {
   return {
     enabled: false,
     queue_paused: false,
-    source_status: "unconfigured",
+    source_status: "logged_out",
     source_errors: [],
     synced_at: "",
     user: null,
@@ -716,11 +922,12 @@ function emptySnapshot() {
     state_counts: Object.fromEntries(TASK_STATES.map((taskState) => [taskState, 0])),
     tasks: [],
     queue: [],
+    blocked_pending_tasks: [],
     active_task: null,
     active_run: null,
     attention_items: [],
     recovery_items: [],
     recent_completions: [],
-    health: { state: "unconfigured", label: "任务源未配置", tone: "neutral" }
+    health: { state: "logged_out", label: "等待登录", tone: "neutral" }
   };
 }
