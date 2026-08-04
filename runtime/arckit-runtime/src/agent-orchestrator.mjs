@@ -13,7 +13,7 @@ import {
   loadRuntimeCapabilities,
   selectCapabilitiesForRound
 } from "./capability-registry.mjs";
-import { buildArtifactOwnershipScan, normalizeArtifactPathReferences } from "./artifact-ownership-map.mjs";
+import { artifactPathAllowedByPatterns, buildArtifactOwnershipScan, normalizeArtifactPathReferences } from "./artifact-ownership-map.mjs";
 import { reduceWorkerReports } from "./controller-reducer.mjs";
 import { createRoundStateMachine, transitionRoundState } from "./round-state-machine.mjs";
 import { createCaseControlRuntimeResult, createRuntimeResultFromMerge, stateFromMergeResult } from "./kernel/runtime-result-builder.mjs";
@@ -55,7 +55,7 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
   if (adapterName === "codex-app-server") {
     await assertInstalledAgentSkillCompatibility(controllerCapabilities, { codexHome: options.codexHome });
   }
-  const adapter = createAgentAdapter(adapterName, options);
+  const adapter = options.agentAdapter || createAgentAdapter(adapterName, options);
   const controllerPlanSchema = JSON.parse(await readFile(controllerPlanSchemaPath, "utf8"));
   const controllerReviewSchema = JSON.parse(await readFile(controllerReviewSchemaPath, "utf8"));
   const workerReportSchema = JSON.parse(await readFile(workerReportSchemaPath, "utf8"));
@@ -477,6 +477,7 @@ async function maybeRunControllerPlanner({
         prompt,
         options: {
           ...options,
+          threadKey: "controller",
           outputSchema: controllerPlanSchema,
           resultKind: "controller-plan"
         }
@@ -882,6 +883,7 @@ async function maybeRunControllerReviewer({
       prompt,
       options: {
         ...options,
+        threadKey: "controller",
         outputSchema: controllerReviewSchema,
         resultKind: "controller-review"
       }
@@ -1333,20 +1335,7 @@ function artifactPathsFromReport(report, previousPackets = []) {
 }
 
 function artifactAllowedByPacket(artifact, packet) {
-  const allowedPaths = Array.isArray(packet.allowed_paths) ? packet.allowed_paths : [];
-  if (allowedPaths.length === 0) {
-    return true;
-  }
-  return allowedPaths.some((allowed) => {
-    const normalized = normalizeArtifactPathReferences([allowed])[0] || String(allowed || "").trim().replaceAll("\\", "/").replace(/^\.\//, "");
-    if (normalized === "." || normalized === "./") {
-      return true;
-    }
-    if (!normalized) {
-      return false;
-    }
-    return normalized.endsWith("/") ? artifact.startsWith(normalized) : artifact === normalized;
-  });
+  return artifactPathAllowedByPatterns(artifact, packet.allowed_paths);
 }
 
 export function mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun, controllerReview }) {

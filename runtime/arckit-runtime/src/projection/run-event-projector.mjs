@@ -172,6 +172,36 @@ function applyRunEvent(run, { line, parsed }) {
   }
 
   switch (event.type) {
+    case "runtime.session_round.started":
+      updateRunActivity(run, {
+        phase: "controller-planning",
+        current_step: `Starting state-driven round ${event.round_index}`,
+        timeline: {
+          type: event.type,
+          label: `Round ${event.round_index} started`,
+          detail: event.project_updated_at || "Fresh ledger snapshot loaded"
+        }
+      });
+      break;
+    case "runtime.session_round.completed":
+      updateRunActivity(run, {
+        phase: event.ledger_written ? "write-ledger" : "merge",
+        current_step: `Round ${event.round_index} completed with ${event.round_result || "unknown"}`,
+        timeline: {
+          type: event.type,
+          label: `Round ${event.round_index} completed`,
+          detail: event.ledger_written ? "Ledger written; continuing from fresh state" : event.round_result || ""
+        }
+      });
+      break;
+    case "runtime.ledger_write.completed":
+      applyRunCommandResult(run, "write-ledger", {
+        code: event.result?.written === true ? 0 : 1,
+        parsed: event.result || null,
+        stderr: "",
+        stdout: ""
+      });
+      break;
     case "runtime.loop_frame.created":
       activity.controller_frame = event.loop_frame?.controller_frame || null;
       activity.execution_gate = event.loop_frame?.execution_gate || null;
@@ -571,6 +601,14 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
     activity.controller_reducer_result = parsedResult.runtime_result.controller_reducer_result || activity.controller_reducer_result || null;
     activity.artifact_ownership_scan = parsedResult.runtime_result.artifact_ownership_scan || activity.artifact_ownership_scan || null;
     activity.ledger_stage = parsedResult.runtime_result.ledger_stage || activity.ledger_stage || null;
+  }
+  if (parsedResult?.ledger_write_result) {
+    applyRunCommandResult(run, "write-ledger", {
+      code: parsedResult.ledger_write_result.written === true ? 0 : 1,
+      parsed: parsedResult.ledger_write_result,
+      stderr: "",
+      stdout: ""
+    });
   }
   if (Array.isArray(parsedResult?.worker_tasks)) {
     activity.agents = parsedResult.worker_tasks.map((task) => {

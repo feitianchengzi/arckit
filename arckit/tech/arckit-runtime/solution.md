@@ -134,7 +134,7 @@ Coordinator 生成队列时只选择已绑定本地工作区、参与自动化�
 
 Coordinator 在领取前重新读取候选任务，随后提交条件式 `pending -> in_progress`。确认成功后写入活动任务和启动意图，再调用 Desktop Run Manager。领取冲突刷新候选并继续；其他写回错误进入 recovery。
 
-Desktop Run Manager 接受远端任务上下文；传给 Controller 的 `operator_input` 只保留待办正文，远端任务、项目、run 与调度状态作为 Runtime 元数据保存。Coordinator 启动的 run 持久化 `continuation_policy=automatic`，并在自动续轮中继承；该策略只把满足 Agent responsibility、Agent continuation available、无 human decision 且 trigger 为 `manual_bridge|auto_bridge` 的 handoff 自动接续。Run 同时保留累计 `auto_continue_depth` 和可重置的 `auto_rounds_since_progress`：成功的确定性 ledger write 把后者归零，未写回轮次递增后者，`max_auto_rounds` 只检查后者。`user_decision`、external wait、缺少 next prompt、no-progress limit 和无进展轮次上限不受自动策略提升。run 事件继续由既有 projector 投影。Coordinator 只读取稳定的 run status、loop handoff、human gate 和 ledger stage，不解析模型文本推断状态。
+Desktop Run Manager 接受远端任务上下文；传给 Controller 的 `operator_input` 只保留待办正文，远端任务、项目、run 与调度状态作为 Runtime 元数据保存。一个 Desktop run 对应一个长生命周期 Runtime 子进程；agent-owned continuation、ledger gate、writeback 和 fresh-state replan 都在该进程内完成，Desktop 不为每个 Loop 另起子进程，也不重复执行 ledger stage。`max_auto_rounds` 只限制连续无 ledger 进展的重规划；成功写回重置预算。`user_decision`、external wait、缺少 next prompt 和无进展上限停止进程内 loop。run 事件继续由既有 projector 投影。Coordinator 只读取稳定的 run status、loop handoff、human gate 和 ledger stage，不解析模型文本推断状态。
 
 run 到达人工 Gate 时，Coordinator 创建 attention item 并保持活动任务。人工提交内容以原文通过 steer 进入当前 turn，或作为 fresh continuation 的唯一 `operator_input`；任务标识、恢复指令和重新读取 Case State 的要求不拼接进人工内容。Controller 接受后清理 attention item 并恢复 running。只有 human responsibility、`human_decision_required` 或 user-decision trigger 进入该路径；Agent continuation 和运行一致性恢复不创建人工事项。
 
@@ -142,7 +142,7 @@ run 完成、ledger 写回成功且 terminal handoff 证明 Case 已关闭后，
 
 ### Recovery Model
 
-Recovery 状态是持久化的一致性差异，不是只存在于 Renderer 的错误提示。每个 recovery item 包含类型、远端任务快照、本地活动关联、证据引用、冻结范围、操作责任方和允许动作。Recovery responsibility 使用 `operator`，与需要用户提供业务语义的 attention item 分离。启动同步发现历史 `runtime_incomplete` 实际对应可继续的 Agent `manual_bridge` 时，Coordinator 清理错误 recovery，并通过 source run 的 result/activity 引用启动 fresh continuation。
+Recovery 状态是持久化的一致性差异，不是只存在于 Renderer 的错误提示。每个 recovery item 包含类型、远端任务快照、本地活动关联、证据引用、冻结范围、操作责任方和允许动作。Recovery responsibility 使用 `operator`，与需要用户提供业务语义的 attention item 分离。历史跨进程 continuation run 仍可被启动同步识别和收束；新的 state-driven run 在原 Runtime 进程内消化 agent continuation。
 
 恢复类型至少包括：
 
@@ -233,15 +233,32 @@ Controller Plan、Worker Report 和 Controller Review 的 `outputSchema` 遵循 
 
 Controller Plan v3 通过 `execution_plan.plane` 明确区分 `runtime`、`worker` 和 `none`。选择已有 active Case 是当前 Loop 的 Controller route plan，不生成 Project 写入；创建新 Case 使用唯一 `runtime_actions[type=case_control, action=create_case]`，并要求 `worker_intents=[]`。标题、意图、artifact type 与创建理由来自 Controller 语义判断，Runtime 不解析待办关键词或 route mode 推导这些字段。
 
-Runtime 把创建 Runtime action 绑定到当前 Project revision 和 Case review policy，形成 `arckit-case-control-handoff/v1`，再调用 `arckit-development-ledger` manifest 声明的 `case_control` 可信入口。ledger 分配 Case id，并在 Project commit lock 中把 Case 创建、Project/iteration 注册和投影索引作为可回滚提交；Project 不保存独占 selected Case。成功后 auto bridge 启动 fresh Controller invocation 并重新读取状态；revision 或 candidate-gap 新鲜度冲突不产生部分写入，并进入一次有 no-progress budget 的 fresh-state replan。Controller plan 若违反 execution plane 互斥或其他结构 gate，Runtime 把校验原因与被拒计划作为机器反馈交给 `$using-arckit` 自动重规划一次，仍失败才输出可恢复阻塞。
+Runtime 把创建 Runtime action 绑定到当前 Project revision 和 Case review policy，形成 `arckit-case-control-handoff/v1`，再调用 `arckit-development-ledger` manifest 声明的 `case_control` 可信入口。ledger 分配 Case id，并在 Project commit lock 中把 Case 创建、Project/iteration 注册和投影索引作为可回滚提交；Project 不保存独占 selected Case。成功后同一 Runtime 进程重新读取 canonical state，再由同一 Controller thread 发起下一轮 planning；revision 或 candidate-gap 新鲜度冲突不产生部分写入，并进入有 no-progress budget 的 fresh-state replan。Controller plan 若违反 execution plane 互斥或其他结构 gate，Runtime 把校验原因与被拒计划作为机器反馈交给 `$using-arckit` 自动重规划一次，仍失败才输出可恢复阻塞。
 
 Case facet 的局部更新在模型边界使用封闭的 nullable 字段集合表达；模型为未更新字段返回 `null`，Runtime normalization 在形成 Case claim 前移除 `null`。因此模型输出保持严格可验证，ledger 仍只接收有实际值的 facet patch。
 
-人类输入只有初始任务意图、人工决策/纠正和显式控制动作。初始 Runtime run 使用待办正文原文；人工 fresh continuation 使用人工输入原文；自动续轮没有新增 operator input，也不创建 `role=user` transcript，而是由 Runtime 在写回后启动 fresh Controller invocation 并重新读取 Case State。任务 ID、项目 ID、source run、auto-round depth、gate 和 ledger 状态保持为 Runtime 控制面元数据。
+人类输入只有初始任务意图、人工决策/纠正和显式控制动作。初始 Runtime run 使用待办正文原文；人工 fresh continuation 使用人工输入原文；自动续轮没有新增 operator input，也不创建 `role=user` transcript，而是由 Runtime 在写回后重新读取 Case State 并在当前会话中继续。任务 ID、项目 ID、source run、round index、gate 和 ledger 状态保持为 Runtime 控制面元数据。
 
 ### Agent Adapter
 
 Agent Adapter 是外部执行器边界。M0 提供 dry-run adapter；M1 已接 Codex app-server stdio JSON-RPC；后续可以接 opencode 或多 agent runtime。
+
+Codex adapter 的生命周期与一次 state-driven Runtime session 对齐。Runtime 只启动一个 `codex app-server --stdio` 子进程并完成一次 initialize；各 Agent turn 通过该连接串行执行。Controller Plan、结构纠正和 Controller Review 使用稳定的 `threadKey=controller`，因此同一 Case session 内复用一个 Controller thread。每个 Worker packet 不带共享 thread key，Runtime 为其创建独立 ephemeral thread，避免不同职责的执行上下文相互污染。
+
+adapter 的 `close` 只在 session 完成、人工/外部 handoff、失败、interrupt 或安全预算终止时调用。单个 turn 完成只关闭该 turn 的事件队列，不关闭 app-server。stdin supervisor 在 adapter 生命周期内只绑定一次，并把 `/steer` 与 `/interrupt` 路由到当前 active turn。
+
+### State-driven Session
+
+执行模式把多个 Loop 保持在一个 Runtime 进程内：
+
+```text
+fresh read -> Controller Plan -> Worker(s) -> Controller Review
+  -> deterministic ledger write -> fresh read -> next Loop
+```
+
+每次 ledger 写回后的下一轮必须从 State Store 重读 Project revision、active Case revisions 和 candidate gaps；内存中的旧 snapshot 与授权 packet 不可跨写回复用。Case 创建也遵循同一规则：可信入口注册新 Case 后，下一轮从 fresh state 选择该 Case gap。
+
+Runtime 仅在 handoff 明确要求 human responsibility 时标记 `paused_for_human=true`。Agent responsibility 无论是 `auto_bridge` 还是受自动策略允许的 `manual_bridge` 都在当前进程继续。External responsibility 以 `external_wait` 终止当前执行而不伪装成人工决策；连续无 ledger 进展达到预算时以安全停止收束，不创建人工语义。
 
 统一 adapter 语义是：
 
@@ -419,7 +436,7 @@ Desktop Client 不重新实现 Runtime。它通过 Electron main 进程调用同
 - transcript 与 run history 从任务详情和审查入口访问，不作为常驻主导航。
 - 右侧展示 Project active Case 集合与选择依据、各 Case resolution/candidate gaps、当前 Round 所选 Case、normalized events 和 gate/write 控制。
 - 在运行中通过显式停止动作发送 interrupt，并保留远端进行中状态进入恢复流程。
-- run 完成后如果 runtime result 到达 `ledger_gate_ready`，自动执行 gate-result；gate 允许时自动 write-ledger，gate 阻塞时展示阻塞原因。
+- Runtime 进程在每轮到达 `ledger_gate_ready` 后执行 trusted ledger writeback，并把每轮 gate/write 事件投影给 Desktop；Desktop 不重复写 ledger。
 - 将项目注册表、run history、result 和 events 存在 Electron userData。
 
 Desktop Client 的验收覆盖任务源 mock、确定性队列、单活动任务、状态写回门禁、人工 Gate、恢复状态、project status、run manager、Renderer 状态投影和 Electron 启动。真实服务验收还需要有效 Workshop 会话和可操作任务。
@@ -440,5 +457,6 @@ Arckit Runtime 满足方案时表现为：
 - 能把 LLM/worker 的语义判断限制为结构化 claim，再由代码验证协议、证据、路径归属和门禁条件。
 - 能按 Controller、Runtime、Worker 三个 execution plane 注册七个保留 capability，并拒绝所有非法 Worker skill binding。
 - 能把 agent 续轮、人工决策、外部等待和完成状态区分为不同 loop handoff。
+- 能在一个 app-server 与一个 Runtime 进程内执行多轮 Loop，复用 Controller thread、隔离 Worker thread，并在每次写回后 fresh-read state。
 - 能只把 `requires_human_decision=true` 当作人工门禁；`requires_main_agent_decision=true` 进入 Controller Reducer 内部动作，不默认阻塞 closeout。
 - 能在不改 agent core 的情况下先接 Codex app-server，并保留 opencode、多 agent adapter 的扩展边界。

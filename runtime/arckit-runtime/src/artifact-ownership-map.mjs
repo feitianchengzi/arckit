@@ -88,6 +88,32 @@ export function normalizeArtifactPathReferences(values = []) {
   return unique(values.map(normalizeArtifactPath).filter(Boolean));
 }
 
+export function artifactPathAllowedByPatterns(path, allowedPaths = []) {
+  const artifact = normalizeArtifactPath(path);
+  if (!artifact) {
+    return false;
+  }
+  if (!Array.isArray(allowedPaths) || allowedPaths.length === 0) {
+    return true;
+  }
+  return allowedPaths.some((allowed) => {
+    const pattern = normalizeAllowedPathPattern(allowed);
+    if (!pattern) {
+      return false;
+    }
+    if (pattern === ".") {
+      return true;
+    }
+    if (pattern.endsWith("/")) {
+      return artifact.startsWith(pattern);
+    }
+    if (!pattern.includes("*") && !pattern.includes("?")) {
+      return artifact === pattern;
+    }
+    return globPatternToRegExp(pattern).test(artifact);
+  });
+}
+
 export function createArtifactImpactScan(ownershipScan, { dryRun = false } = {}) {
   const ownerImpact = new Map();
   for (const item of ownershipScan.classified || []) {
@@ -133,6 +159,44 @@ function normalizeArtifactPath(path) {
     return "";
   }
   return value;
+}
+
+function normalizeAllowedPathPattern(path) {
+  const value = String(path || "").trim().replaceAll("\\", "/").replace(/^\.\//, "");
+  if (!value || value.startsWith("/") || /^[A-Za-z]:\//.test(value) || value.includes("\0") || /\s/.test(value)) {
+    return "";
+  }
+  if (value.split("/").some((segment) => segment === "..")) {
+    return "";
+  }
+  return value.replace(/\/{2,}/g, "/");
+}
+
+function globPatternToRegExp(pattern) {
+  let source = "^";
+  for (let index = 0; index < pattern.length; index += 1) {
+    const character = pattern[index];
+    if (character === "*") {
+      if (pattern[index + 1] === "*") {
+        index += 1;
+        if (pattern[index + 1] === "/") {
+          index += 1;
+          source += "(?:.*/)?";
+        } else {
+          source += ".*";
+        }
+      } else {
+        source += "[^/]*";
+      }
+      continue;
+    }
+    if (character === "?") {
+      source += "[^/]";
+      continue;
+    }
+    source += character.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+  }
+  return new RegExp(`${source}$`);
 }
 
 function isValidArtifactPathReference(value) {

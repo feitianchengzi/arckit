@@ -1,16 +1,14 @@
 import { resolve } from "node:path";
 import { readFile } from "node:fs/promises";
 import { createStateStore } from "./state-store.mjs";
-import { selectNextRound } from "./loop-controller.mjs";
-import { compilePrompt } from "./prompt-compiler.mjs";
 import { createCodexAppServerAdapter, probeCodexAppServer } from "../adapters/codex-app-server-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
 import { loadRuntimeResultFile } from "./runtime-result-file.mjs";
 import { evaluateRuntimeGates } from "./gate-engine.mjs";
 import { writeLedger } from "./ledger-writer.mjs";
 import { ensureArckitProject } from "./project-initializer.mjs";
-import { runAgenticLoop } from "./agent-orchestrator.mjs";
 import { detectConversationLocale } from "./conversation-locale.mjs";
+import { runStateDrivenSession } from "./state-driven-runner.mjs";
 
 export async function main(argv) {
   const command = argv[0];
@@ -117,7 +115,7 @@ export async function main(argv) {
   throw new Error(`Unknown command: ${command}`);
 }
 
-async function run(options) {
+export async function run(options) {
   const projectRoot = resolve(options.project);
   if (options.packetFile) {
     options.packetEnvelope = JSON.parse(await readFile(resolve(options.packetFile), "utf8"));
@@ -127,8 +125,6 @@ async function run(options) {
     intent: options.task || "Initialize Arckit project state before supervised runtime execution."
   });
   const stateStore = createStateStore(projectRoot);
-  const snapshot = await stateStore.readSnapshot();
-  snapshot.projectRoot = projectRoot;
   options.conversationLocale = options.conversationLocale
     || options.packetEnvelope?.conversation_locale
     || options.packetEnvelope?.response_language
@@ -137,60 +133,38 @@ async function run(options) {
     || options.packetEnvelope?.loop_frame?.conversation_locale
     || options.packetEnvelope?.loop_frame?.response_language
     || detectConversationLocale(options.task || options.packetEnvelope?.selected_round?.round_goal || "");
-  const round = options.packetEnvelope?.selected_round || selectNextRound(snapshot, options);
-  const compiledPrompt = options.packetEnvelope?.compiled_prompt || compilePrompt(snapshot, round, options);
-  const loop = await runAgenticLoop({
+  return runStateDrivenSession({
     projectRoot,
-    snapshot,
-    round,
-    compiledPrompt,
+    stateStore,
     options
   });
-  const validation = loop.validation || validateRuntimeResult(loop.runtimeResult);
-
-  return {
-    runtime_version: "arckit-runtime/v0.2-agentic",
-    project_root: projectRoot,
-    mode: options.dryRun ? "dry-run" : "execute",
-    adapter: loop.adapter.name,
-    snapshot_summary: snapshot.summary,
-    selected_round: round,
-    conversation_locale: options.conversationLocale,
-    compiled_prompt: compiledPrompt,
-    loop_frame: loop.loopFrame,
-    worker_tasks: loop.agentTasks,
-    worker_reports: loop.agentReports,
-    merge_result: loop.mergeResult,
-    events: loop.events,
-    runtime_result: loop.runtimeResult,
-    validation,
-    next_action: validation.valid
-      ? "Write validated runtime result back to project/case ledger, or continue to the next loop round."
-      : "Fix the runtime result shape before ledger writeback."
-  };
 }
 
 async function runAgentTask(options) {
   const projectRoot = resolve(options.project);
   const adapter = createCodexAppServerAdapter();
   let result = null;
-  for await (const event of adapter.runTurn({
-    projectRoot,
-    prompt: options.task,
-    options: {
-      resultKind: "agent-task",
-      approvalPolicy: options.approvalPolicy,
-      superviseStdin: options.superviseStdin,
-      model: options.model,
-      codexBin: options.codexBin
+  try {
+    for await (const event of adapter.runTurn({
+      projectRoot,
+      prompt: options.task,
+      options: {
+        resultKind: "agent-task",
+        approvalPolicy: options.approvalPolicy,
+        superviseStdin: options.superviseStdin,
+        model: options.model,
+        codexBin: options.codexBin
+      }
+    })) {
+      if (options.streamEvents) {
+        console.error(JSON.stringify({ event }));
+      }
+      if (event.type === "runtime.agent_task.result") {
+        result = event.result;
+      }
     }
-  })) {
-    if (options.streamEvents) {
-      console.error(JSON.stringify({ event }));
-    }
-    if (event.type === "runtime.agent_task.result") {
-      result = event.result;
-    }
+  } finally {
+    adapter.close();
   }
   if (!result) {
     throw new Error("Agent task completed without an arckit-agent-task-result/v1 result.");
@@ -236,6 +210,8 @@ function parseRunOptions(args) {
       options.codexBin = requiredValue(args, ++index, arg);
     } else if (arg === "--packet-file") {
       options.packetFile = requiredValue(args, ++index, arg);
+    } else if (arg === "--runtime-record-ref") {
+      options.runtimeRecordRef = requiredValue(args, ++index, arg);
     } else if (arg === "--runtime-context") {
       options.runtimeContext = parseJsonObject(requiredValue(args, ++index, arg), arg);
     } else if (arg === "--max-auto-rounds") {
@@ -434,7 +410,7 @@ function printHelp() {
 
 Usage:
   arckit-runtime init-project [--project <path>] [--name <name>] [--intent <text>]
-  arckit-runtime run [--project <path>] [--task <text>] [--runtime-context <json>] [--dry-run] [--json]
+  arckit-runtime run [--project <path>] [--task <text>] [--runtime-context <json>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
   arckit-runtime run --adapter codex-app-server [--stream-events] [--supervise-stdin]
   arckit-runtime agent-task --project <path> --task <text> [--json] [--stream-events]
   arckit-runtime probe-app-server [--project <path>] [--json]
@@ -444,11 +420,13 @@ Usage:
 
 MVP behavior:
   - reads arckit/project state
-  - lets the manifest-triggered Controller select one Case gap
+  - keeps one Codex app-server alive for the full state-driven session
+  - reuses one Controller thread for planning and review while isolating Worker threads
+  - lets the manifest-triggered Controller select one Case gap per round
   - sends only skill triggers, human input, and bounded Runtime facts to Agent turns
   - validates the required runtime result envelope
   - gates runtime results before ledger writeback
-  - writes accepted runtime results back to project, iteration, and active case ledgers
+  - writes accepted results, fresh-reads the ledger, and continues until complete or human/external responsibility
 
 Codex app-server controls:
   - --stream-events prints normalized runtime events as JSONL on stderr

@@ -9,7 +9,7 @@ Arckit Desktop
   current-user projects, server tasks, automation queue, on-demand intervention, evidence, recovery
 
 Arckit Runtime
-  runtime kernel, controller reducer, round state machine, artifact ownership map, ledger gate, ledger writeback
+  one state-driven process, persistent app-server, controller reducer, ledger gate and writeback
 
 Agent Workers
   Codex app-server turns that execute one worker packet and return one worker report
@@ -44,7 +44,13 @@ Desktop displays this runtime control state. It does not infer business state fr
 
 ## Agentic Loop
 
-Each run now produces:
+Each run is one state-driven session and produces a final-round compatibility envelope plus:
+
+- `session_mode=state-driven`
+- `round_count`
+- `session_rounds`
+- `ledger_write_result`
+- `stop_reason` and `paused_for_human`
 
 - `loop_frame`
 - `route_plan`
@@ -69,6 +75,8 @@ the proposed route and validates schema, authorization, evidence, report intake,
 If a planned Controller result fails structural validation, Runtime returns the validation reason and rejected plan to `$using-arckit` for one automatic correction attempt; it never silently deletes contradictory fields, invents a code-rule route, or auto-adds missing workers. A semantic `needs_human`/`blocked`, an unavailable Controller, or a second invalid plan stops the round. Dry-run mode does not start the Controller Agent, so it cannot fabricate worker packets.
 
 The same `$using-arckit` invocation is used for Controller Review after worker reports arrive, or immediately when operator input and existing stable facts already supply enough evidence. Agent text input contains only the skill trigger and the minimum phase facts: verbatim human input, canonical state or runtime evidence refs, revision, execution authorization, and allowed capability refs. Codex app-server receives the output schema as a machine parameter. Runtime does not keep a second copy of Controller workflow, output-field instructions, or closeout rules in prompt templates.
+
+One executing Runtime session owns one long-lived Codex app-server process. Controller planning, plan correction, and review reuse the `controller` thread across all rounds. Worker packets use separate ephemeral threads. Turn completion closes only the turn event queue; the adapter closes the app-server when the state-driven session terminates.
 
 After workers report, Runtime reduces report evidence into a deterministic Runtime Guard result before applying
 Controller Review closeout. Controller Review may decide semantic `continue`, `needs_human`, or `blocked`, but it
@@ -96,7 +104,7 @@ Runtime scans capability manifests, applies `config/capability-policy.json`, and
 
 Manifests also declare how Runtime invokes a capability. Controller phases use the Agent-native `$using-arckit` trigger. Project initialization, Agent-directed Case creation/registration, and Case transition writeback resolve repository-trusted `runtime_entrypoints` from `arckit-development-ledger`; entrypoints cannot escape the skill directory, and a target project's same-id manifest cannot shadow the repository implementation. Runtime retains deterministic schema, authorization, path, lifecycle, and ledger hard gates, while the skill owns ledger scripts and semantic writeback. No copied ledger scripts live under Runtime.
 
-Every accepted transition binds `case_updated_at` and the complete selected candidate gap. The gate delegates canonical transition validation to the ledger capability, rejects stale Controller frames, and the ledger commits Case, Project, iteration, projections, and indexes with rollback on failure. A gate rejection caused only by Project/Case revision or candidate-gap freshness starts one bounded fresh-state Controller replan instead of a human recovery. `no_progress_limit` counts the number of retries that may start, and explicit auto-continuation outcome events replace timer-based recovery guesses. Automation-managed runs persist an automatic continuation policy, so an eligible agent-owned ledger `manual_bridge` continues without becoming a human recovery. Successful deterministic ledger writeback resets `auto_rounds_since_progress`; `--max-auto-rounds` limits only consecutive rounds without ledger progress, while total `auto_continue_depth` remains audit metadata. Human decisions, external waits, missing continuation intent, and exhausted no-progress budgets still stop the loop. Auto continuation always starts from a fresh state read.
+Every accepted transition binds `case_updated_at` and the complete selected candidate gap. The gate delegates canonical transition validation to the ledger capability, rejects stale Controller frames, and the ledger commits Case, Project, iteration, projections, and indexes with rollback on failure. The same Runtime process performs trusted writeback, emits the ledger result, fresh-reads canonical state, and immediately starts the next agent-owned round. Recoverable gate or transition rejection also replans from a fresh read within the no-progress budget. Successful writeback resets that budget; `--max-auto-rounds` limits consecutive rounds without ledger progress rather than total productive rounds. Human decisions set `paused_for_human=true`; external waits and exhausted safety budgets terminate without being misreported as human intervention. Desktop skips its legacy post-run ledger and cross-process auto-continue stages for `session_mode=state-driven`.
 
 The Controller chooses `worker_type`, `role`, and `allowed_skills` for each worker intent only from the filtered Worker registry and current state gap. Controller and Runtime capabilities remain visible as protocol/service context but cannot be bound to Workers. The policy file is the explicit capability-selection boundary; Runtime kernel code remains generic and does not hard-code per-round workflow routes, fixed worker order, fixed skill sequences, or business-specific first gaps. Runtime injects selected `$skill-name` triggers only after policy and manifest binding checks. A Controller plan or existing packet with a Controller, Runtime, unknown, or unavailable Worker capability fails closed instead of silently dropping the invalid ID.
 

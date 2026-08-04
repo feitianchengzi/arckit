@@ -5,15 +5,28 @@ import { AsyncEventQueue } from "../src/async-event-queue.mjs";
 import { assertCodexOutputSchema } from "../src/codex-output-schema.mjs";
 
 export function createCodexAppServerAdapter(adapterOptions = {}) {
-  return {
+  let client = null;
+  let initialized = false;
+  let initializedProjectRoot = "";
+  let initializeResult = null;
+  let activeTurn = null;
+  let stdinControls = null;
+  const threads = new Map();
+
+  const adapter = {
     name: "codex-app-server",
     async *runTurn({ projectRoot, prompt, options = {} }) {
       const effectiveOptions = { ...adapterOptions, ...options };
       if (effectiveOptions.outputSchema) {
         assertCodexOutputSchema(effectiveOptions.outputSchema, { name: `${effectiveOptions.resultKind || "turn"}.outputSchema` });
       }
+      if (activeTurn) {
+        throw new Error("Codex app-server adapter supports one active turn at a time.");
+      }
+      if (initializedProjectRoot && initializedProjectRoot !== resolve(projectRoot)) {
+        throw new Error(`Codex app-server adapter is already bound to ${initializedProjectRoot}.`);
+      }
       const queue = new AsyncEventQueue();
-      const client = createClient(projectRoot, effectiveOptions);
       const state = {
         threadId: null,
         turnId: null,
@@ -24,44 +37,73 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         turnStarted: false,
         resultKind: "runtime-result"
       };
-      let stdinControls = null;
-
-      client.onNotification((message) => {
-        handleNotification({ message, queue, state, client });
-      });
-      client.onRequest((message) => handleServerRequest({ message, queue, options: effectiveOptions }));
-      client.onClose(({ error }) => {
-        if (!state.completed) {
-          queue.fail(error || new Error("Codex app-server exited before turn completion."));
-        }
-      });
+      activeTurn = { queue, state, options: effectiveOptions };
 
       try {
-        const initializeResult = await initializeClient(client);
+        if (!client) {
+          client = createClient(projectRoot, effectiveOptions);
+          initializedProjectRoot = resolve(projectRoot);
+          client.onNotification((message) => {
+            if (activeTurn) {
+              handleNotification({ message, queue: activeTurn.queue, state: activeTurn.state });
+            }
+          });
+          client.onRequest((message) => handleServerRequest({
+            message,
+            queue: activeTurn?.queue || new AsyncEventQueue(),
+            options: activeTurn?.options || effectiveOptions
+          }));
+          client.onClose(({ error }) => {
+            if (activeTurn && !activeTurn.state.completed) {
+              activeTurn.queue.fail(error || new Error("Codex app-server exited before turn completion."));
+            }
+            client = null;
+            initialized = false;
+            threads.clear();
+          });
+        }
+        if (!initialized) {
+          initializeResult = await initializeClient(client);
+          initialized = true;
+        }
         state.resultKind = effectiveOptions.resultKind || "runtime-result";
         queue.push({ type: "codex.initialize.completed", result: initializeResult });
 
-        const threadStartResult = await client.request("thread/start", {
-          cwd: projectRoot,
-          ephemeral: true,
-          approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
-          approvalsReviewer: "user",
-          model: effectiveOptions.model || null,
-          runtimeWorkspaceRoots: [projectRoot]
-        });
-        state.threadId = readId(threadStartResult?.thread);
-        if (!state.threadId) {
-          throw new Error("thread/start did not return a thread id.");
+        const threadKey = String(effectiveOptions.threadKey || "").trim();
+        state.threadId = effectiveOptions.threadId || (threadKey ? threads.get(threadKey) : null) || null;
+        if (state.threadId) {
+          queue.push({
+            type: "codex.thread.reused",
+            thread_id: state.threadId,
+            thread_key: threadKey || null
+          });
+        } else {
+          const threadStartResult = await client.request("thread/start", {
+            cwd: projectRoot,
+            ephemeral: true,
+            approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
+            approvalsReviewer: "user",
+            model: effectiveOptions.model || null,
+            runtimeWorkspaceRoots: [projectRoot]
+          });
+          state.threadId = readId(threadStartResult?.thread);
+          if (!state.threadId) {
+            throw new Error("thread/start did not return a thread id.");
+          }
+          if (threadKey) {
+            threads.set(threadKey, state.threadId);
+          }
+          queue.push({
+            type: "codex.thread.start.completed",
+            thread_id: state.threadId,
+            thread_key: threadKey || null,
+            thread: threadStartResult?.thread || null
+          });
         }
-        queue.push({
-          type: "codex.thread.start.completed",
-          thread_id: state.threadId,
-          thread: threadStartResult?.thread || null
-        });
 
-        stdinControls = effectiveOptions.superviseStdin
-          ? attachStdinControls({ client, queue, state })
-          : null;
+        if (effectiveOptions.superviseStdin && !stdinControls) {
+          stdinControls = attachStdinControls({ client, getActiveTurn: () => activeTurn });
+        }
 
         const turnStartParams = {
           threadId: state.threadId,
@@ -86,8 +128,13 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           turn: turnStartResult?.turn || null
         });
       } catch (error) {
-        stdinControls?.close();
-        client.close();
+        activeTurn = null;
+        client?.close();
+        client = null;
+        initialized = false;
+        initializedProjectRoot = "";
+        initializeResult = null;
+        threads.clear();
         throw error;
       }
 
@@ -96,11 +143,25 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           yield event;
         }
       } finally {
-        stdinControls?.close();
-        client.close();
+        if (activeTurn?.state === state) {
+          activeTurn = null;
+        }
       }
+    },
+    close() {
+      stdinControls?.close();
+      stdinControls = null;
+      activeTurn?.queue.fail(new Error("Codex app-server adapter closed during an active turn."));
+      activeTurn = null;
+      client?.close();
+      client = null;
+      initialized = false;
+      initializedProjectRoot = "";
+      initializeResult = null;
+      threads.clear();
     }
   };
+  return adapter;
 }
 
 function handleServerRequest({ message, queue, options }) {
@@ -182,6 +243,9 @@ export async function probeCodexAppServer(options = {}) {
 }
 
 function createClient(projectRoot, options) {
+  if (typeof options.clientFactory === "function") {
+    return options.clientFactory({ projectRoot, options });
+  }
   return new JsonRpcStdioClient({
     command: options.codexBin || "codex",
     args: ["app-server", "--stdio"],
@@ -205,7 +269,7 @@ async function initializeClient(client) {
   return result;
 }
 
-function handleNotification({ message, queue, state, client }) {
+function handleNotification({ message, queue, state }) {
   const event = normalizeNotification(message);
   queue.push(event);
 
@@ -240,7 +304,6 @@ function handleNotification({ message, queue, state, client }) {
     });
     queue.push(parsed);
     queue.close();
-    client.close();
   }
 }
 
@@ -312,13 +375,18 @@ function normalizeNotification(message) {
   }
 }
 
-function attachStdinControls({ client, queue, state }) {
+function attachStdinControls({ client, getActiveTurn }) {
   const readline = createInterface({ input: process.stdin, terminal: false });
   readline.on("line", async (line) => {
     const trimmed = line.trim();
     if (!trimmed) {
       return;
     }
+    const active = getActiveTurn();
+    if (!active) {
+      return;
+    }
+    const { queue, state } = active;
     try {
       if (trimmed === "/interrupt") {
         await waitForActiveTurn(state);

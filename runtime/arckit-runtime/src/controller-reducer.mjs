@@ -1,4 +1,4 @@
-import { buildArtifactOwnershipScan, normalizeArtifactPathReferences } from "./artifact-ownership-map.mjs";
+import { artifactPathAllowedByPatterns, buildArtifactOwnershipScan, normalizeArtifactPathReferences } from "./artifact-ownership-map.mjs";
 
 export function reduceWorkerReports({ reports = [], loopFrame, round, dryRun = false, conversationLocale = "en", allowNoWorkers = false, controllerEvidence = [] }) {
   const expectedPackets = Array.isArray(loopFrame.worker_packets) ? loopFrame.worker_packets : [];
@@ -374,20 +374,7 @@ function isMutatingOperation(operation) {
 }
 
 function pathAllowedByPacket(path, packet) {
-  const allowedPaths = Array.isArray(packet.allowed_paths) ? packet.allowed_paths : [];
-  if (allowedPaths.length === 0) {
-    return true;
-  }
-  return allowedPaths.some((allowed) => {
-    const normalized = normalizeArtifactPathReferences([allowed])[0] || String(allowed || "").trim().replaceAll("\\", "/").replace(/^\.\//, "");
-    if (normalized === "." || normalized === "./") {
-      return true;
-    }
-    if (!normalized) {
-      return false;
-    }
-    return normalized.endsWith("/") ? path.startsWith(normalized) : path === normalized;
-  });
+  return artifactPathAllowedByPatterns(path, packet.allowed_paths);
 }
 
 function isInfrastructureFailureReport(report) {

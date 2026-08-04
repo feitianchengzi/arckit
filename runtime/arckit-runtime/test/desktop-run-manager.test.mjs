@@ -142,6 +142,24 @@ test("a stale deterministic ledger gate triggers a bounded fresh-state replan", 
   assert.equal(context.continuation.next_prompt, "Reload fresh state and continue.");
 });
 
+test("a historical blocked-round ledger gate triggers a bounded Controller replan", () => {
+  const sourceRun = autoBridgeRun({ noProgressStreak: 0 });
+  sourceRun.activity.gate_result = {
+    parsed: {
+      allowed: false,
+      reasons: ["A blocked round is not eligible for automatic Case transition writeback."]
+    }
+  };
+  const parsedResult = autoBridgeResult({ noProgressLimit: 1, ledgerWriteRequired: true });
+  const decision = evaluateAutoContinuation({ sourceRun, parsedResult });
+  const context = buildAutoContinuationRuntimeContext(sourceRun, parsedResult.runtime_result.loop_handoff, decision);
+
+  assert.equal(decision.allowed, true);
+  assert.equal(decision.reason, "blocked_round_replan");
+  assert.equal(context.recovery.kind, "blocked_round_replan");
+  assert.deepEqual(context.recovery.gate_reasons, ["A blocked round is not eligible for automatic Case transition writeback."]);
+});
+
 test("a deterministic Case transition rejection triggers a bounded state replan", () => {
   const sourceRun = autoBridgeRun({ noProgressStreak: 0 });
   sourceRun.activity.ledger_write_result = {

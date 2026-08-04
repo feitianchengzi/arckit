@@ -16,6 +16,7 @@ export function stateFromMergeResult(mergeResult) {
 export function shouldPrepareLedgerWriteback(mergeResult) {
   const review = mergeResult.controller_reducer_result?.controller_review;
   if (!review || mergeResult.controller_reducer_result?.controller_review_failure_reason) return false;
+  if (mergeResult.loop_gate?.status === 'blocked') return false;
   const intake = mergeResult.report_intake || {};
   const unresolvedReports = [
     ...(intake.rejected || []),

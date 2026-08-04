@@ -498,6 +498,7 @@ export function createDesktopRunManager({
     }
     if (!directAgentTask) {
       args.push("--max-auto-rounds", String(run.max_auto_rounds));
+      args.push("--runtime-record-ref", runtimeRecordRefForRun(run.id));
     }
     args.push("--stream-events");
     if (input.dryRun) {
@@ -671,7 +672,9 @@ export function createDesktopRunManager({
     }
     emit("run.finished", { runId, status, exitCode, result: parsedResult, activity: run.activity });
     try {
-      const continuation = await maybeStartAutoContinue(run, parsedResult);
+      const continuation = parsedResult?.session_mode === "state-driven"
+        ? autoContinueDecision("managed_in_process", "State-driven Runtime already handled continuation in the active process.", false)
+        : await maybeStartAutoContinue(run, parsedResult);
       if (continuation.requested && continuation.status !== "started") {
         emit("run.auto_continue.not_started", {
           sourceRunId: run.id,
@@ -1082,7 +1085,8 @@ export function evaluateAutoContinuation({ sourceRun, parsedResult }) {
   const ledgerRejection = recoverableLedgerRejection(sourceRun?.activity?.ledger_write_result);
   const recoverableFreshStateReplan = ledgerWriteRequired && !ledgerWritten && isRecoverableFreshnessGate(gate);
   const recoverableTransitionReplan = ledgerWriteRequired && !ledgerWritten && ledgerRejection?.recoverable === true;
-  const recoverableStateReplan = recoverableFreshStateReplan || recoverableTransitionReplan;
+  const recoverableBlockedRoundReplan = ledgerWriteRequired && !ledgerWritten && isRecoverableBlockedRoundGate(gate);
+  const recoverableStateReplan = recoverableFreshStateReplan || recoverableTransitionReplan || recoverableBlockedRoundReplan;
   const automationPolicyBridge = handoff.trigger_mode === "manual_bridge"
     && sourceRun?.continuation_policy === AUTOMATIC_CONTINUATION_POLICY;
   if (ledgerWriteRequired && !ledgerWritten && !recoverableStateReplan) {
@@ -1103,18 +1107,21 @@ export function evaluateAutoContinuation({ sourceRun, parsedResult }) {
     status: "ready",
     requested: true,
     allowed: true,
-    reason: recoverableTransitionReplan ? "state_replan" : recoverableFreshStateReplan ? "fresh_state_replan" : automationPolicyBridge ? "automation_policy" : "auto_bridge",
+    reason: recoverableTransitionReplan ? "state_replan" : recoverableFreshStateReplan ? "fresh_state_replan" : recoverableBlockedRoundReplan ? "blocked_round_replan" : automationPolicyBridge ? "automation_policy" : "auto_bridge",
     message: recoverableTransitionReplan
       ? "The deterministic ledger rejected the proposed Case transition; start one fresh-state Controller replan."
       : recoverableFreshStateReplan
       ? "The deterministic ledger gate rejected stale state; start one fresh-state Controller replan."
+      : recoverableBlockedRoundReplan
+        ? "The deterministic ledger gate rejected a blocked round; start one bounded Controller replan without assuming ledger progress."
       : automationPolicyBridge
         ? "Desktop automation promotes an eligible agent manual bridge to automatic continuation."
         : "Runtime handoff is eligible for automatic continuation.",
     recoverable_state_replan: recoverableStateReplan,
     recoverable_fresh_state_replan: recoverableFreshStateReplan,
+    recoverable_blocked_round_replan: recoverableBlockedRoundReplan,
     ledger_rejection: recoverableTransitionReplan ? ledgerRejection : null,
-    gate_reasons: recoverableFreshStateReplan ? gate.reasons : [],
+    gate_reasons: recoverableFreshStateReplan || recoverableBlockedRoundReplan ? gate.reasons : [],
     next_no_progress_streak: ledgerWritten ? 0 : currentNoProgressStreak + 1,
     next_rounds_since_progress: ledgerWritten ? 0 : currentRoundsSinceProgress + 1,
     max_auto_rounds: maxAutoRounds
@@ -1134,7 +1141,11 @@ export function buildAutoContinuationRuntimeContext(sourceRun, handoff, decision
     },
     ...(stateReplan ? {
       recovery: {
-        kind: decision.reason === "state_replan" ? "state_replan" : "fresh_state_replan",
+        kind: decision.reason === "state_replan"
+          ? "state_replan"
+          : decision.reason === "blocked_round_replan"
+            ? "blocked_round_replan"
+            : "fresh_state_replan",
         reason: decision.message,
         gate_reasons: decision.gate_reasons || [],
         ledger_rejection: decision.ledger_rejection || null
@@ -1151,6 +1162,13 @@ function isRecoverableFreshnessGate(gate) {
   const reasons = Array.isArray(gate?.reasons) ? gate.reasons : [];
   return gate?.allowed === false && reasons.length > 0 && reasons.every((reason) => (
     / is stale for | is not an active Case| is already resolved| is not an unresolved candidate/.test(String(reason))
+  ));
+}
+
+function isRecoverableBlockedRoundGate(gate) {
+  const reasons = Array.isArray(gate?.reasons) ? gate.reasons : [];
+  return gate?.allowed === false && reasons.length > 0 && reasons.every((reason) => (
+    String(reason) === "A blocked round is not eligible for automatic Case transition writeback."
   ));
 }
 
@@ -1211,6 +1229,7 @@ function delay(ms) {
 
 function shouldRunAutomaticLedgerStage(run, status, parsedResult) {
   return status === "completed"
+    && parsedResult?.session_mode !== "state-driven"
     && run.adapter !== "dry-run"
     && ["done", "continue"].includes(parsedResult?.runtime_result?.round_result)
     && parsedResult?.runtime_result?.ledger_stage?.status === "gate_ready"
