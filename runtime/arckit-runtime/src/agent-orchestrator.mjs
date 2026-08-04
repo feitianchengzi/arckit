@@ -290,6 +290,7 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
         task_id: effectiveAgentTask.id,
         worker_type: effectiveAgentTask.worker_type,
         role: effectiveAgentTask.role,
+        worker_thread_key: effectiveAgentTask.worker_thread_key,
         objective: effectiveAgentTask.objective,
         task: effectiveAgentTask
       },
@@ -307,11 +308,13 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
     });
     reports.push(report);
     if (isInfrastructureFailureReport(report)) {
+      adapter.discardThread?.(effectiveAgentTask.worker_thread_key);
       const failFastEvent = {
         type: "runtime.agent_task.fail_fast",
         task_id: report.task_id,
         worker_type: report.worker_type,
         role: report.role,
+        worker_thread_key: effectiveAgentTask.worker_thread_key,
         reason: report.summary
       };
       events.push(failFastEvent);
@@ -390,6 +393,7 @@ async function executeAgentTask({ adapter, projectRoot, agentTask, previousRepor
     prompt,
     options: {
       ...options,
+      threadKey: agentTask.worker_thread_key,
       outputSchema: workerReportSchema,
       resultKind: "worker-report"
     }
@@ -398,7 +402,8 @@ async function executeAgentTask({ adapter, projectRoot, agentTask, previousRepor
       ...event,
       task_id: agentTask.id,
       worker_type: agentTask.worker_type,
-      role: agentTask.role
+      role: agentTask.role,
+      worker_thread_key: agentTask.worker_thread_key
     };
     events.push(wrapped);
     if (options.streamEvents) {
@@ -416,6 +421,7 @@ async function executeAgentTask({ adapter, projectRoot, agentTask, previousRepor
     task_id: report.task_id,
     worker_type: report.worker_type,
     role: report.role,
+    worker_thread_key: agentTask.worker_thread_key,
     status: report.status,
     report
   };
@@ -1219,7 +1225,7 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
     const capabilityContexts = selectedCapabilities
       .filter((capability) => allowedSkills.includes(capability.id))
       .map(toCapabilityContext);
-    return {
+    const agentTask = {
       schema_version: "arckit-worker-task/v1",
       id: `TASK-${String(index + 1).padStart(2, "0")}-${role}`,
       worker_type: workerType,
@@ -1276,7 +1282,21 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
       expected_case_impact: intent.expected_case_impact,
       stop_condition: intent.stop_condition
     };
+    return {
+      ...agentTask,
+      worker_thread_key: workerThreadKeyForTask(agentTask)
+    };
   });
+}
+
+export function workerThreadKeyForTask(agentTask) {
+  const caseId = String(agentTask?.loop_frame_excerpt?.case_id || "").trim();
+  const workerType = normalizeWorkerType(agentTask?.worker_type);
+  if (!caseId) {
+    return "";
+  }
+  const lane = workerType === "verification" ? "verifier" : "builder";
+  return `worker:${caseId}:${lane}`;
 }
 
 export function compileAgentTaskPrompt({ agentTask, previousReports }) {
@@ -1284,6 +1304,10 @@ export function compileAgentTaskPrompt({ agentTask, previousReports }) {
     schema_version: "arckit-agent-invocation/v1",
     phase: "worker",
     conversation_locale: agentTask.conversation_locale || agentTask.loop_frame_excerpt?.conversation_locale || "en",
+    execution_context: {
+      thread_key: agentTask.worker_thread_key || "",
+      authorization_rule: "current_task_packet_supersedes_prior_thread_context"
+    },
     task_packet: toWorkerPacket(agentTask),
     previous_reports: previousReports
   };
@@ -1909,7 +1933,7 @@ export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities 
     if (invalidBindings.length > 0) {
       throw new Error(`Authorized packet worker ${task.role || task.id || index + 1} bound non-worker or unavailable capabilities: ${invalidBindings.join(", ")}.`);
     }
-    return {
+    const agentTask = {
       ...task,
       schema_version: "arckit-worker-task/v1",
       id: task.id || task.worker_id || `TASK-${String(index + 1).padStart(2, "0")}-${task.role || "worker"}`,
@@ -1968,6 +1992,10 @@ export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities 
       },
       expected_case_impact: task.expected_case_impact || loopFrame.selected_gap?.next_transition || 'Produce evidence for the selected Case gap.',
       stop_condition: task.stop_condition || ""
+    };
+    return {
+      ...agentTask,
+      worker_thread_key: workerThreadKeyForTask(agentTask)
     };
   });
 }

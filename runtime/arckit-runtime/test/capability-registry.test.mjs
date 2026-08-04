@@ -581,6 +581,8 @@ test("controller phases invoke using-arckit through the native skill trigger", a
   });
   assert.ok(workerPrompt.startsWith("$arckit-tech\n"));
   assert.match(workerPrompt, /"phase": "worker"/);
+  assert.match(workerPrompt, /"thread_key": "worker:CASE-20260726-001:builder"/);
+  assert.match(workerPrompt, /"authorization_rule": "current_task_packet_supersedes_prior_thread_context"/);
   assert.match(workerPrompt, /"schema_version": "arckit-worker-packet\/v2"/);
   assert.doesNotMatch(workerPrompt, /Required Behavior|Allowed Capability Context|Output Contract|You are one bounded Worker/);
 });

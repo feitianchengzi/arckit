@@ -33,3 +33,4 @@
 | [CASE-20260803-001](closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md) | closed | Commit completed Runtime work before updating remote todo | 2026-08-03T12:33:35.508Z |
 | [CASE-20260803-002](closed/CASE-20260803-002-support-parallel-case-execution-with-serialized-project-aggregat.md) | closed | Support parallel Case execution with serialized Project aggregation | 2026-08-03T19:06:09.500Z |
 | [CASE-20260804-001](closed/CASE-20260804-001-persist-runtime-sessions-and-execute-state-driven-loops-in-proce.md) | closed | Persist Runtime sessions and execute state-driven loops in-process | 2026-08-04T14:13:13.493Z |
+| [CASE-20260804-002](closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md) | closed | Reuse Worker threads by Case workstream | 2026-08-04T15:31:35.227Z |

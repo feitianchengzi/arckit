@@ -243,7 +243,11 @@ Case facet 的局部更新在模型边界使用封闭的 nullable 字段集合�
 
 Agent Adapter 是外部执行器边界。M0 提供 dry-run adapter；M1 已接 Codex app-server stdio JSON-RPC；后续可以接 opencode 或多 agent runtime。
 
-Codex adapter 的生命周期与一次 state-driven Runtime session 对齐。Runtime 只启动一个 `codex app-server --stdio` 子进程并完成一次 initialize；各 Agent turn 通过该连接串行执行。Controller Plan、结构纠正和 Controller Review 使用稳定的 `threadKey=controller`，因此同一 Case session 内复用一个 Controller thread。每个 Worker packet 不带共享 thread key，Runtime 为其创建独立 ephemeral thread，避免不同职责的执行上下文相互污染。
+Codex adapter 的生命周期与一次 state-driven Runtime session 对齐。Runtime 只启动一个 `codex app-server --stdio` 子进程并完成一次 initialize；各 Agent turn 通过该连接串行执行。Controller Plan、结构纠正和 Controller Review 使用稳定的 `threadKey=controller`，因此同一 Case session 内复用一个 Controller thread。
+
+Worker thread 按 Case 分为 Builder 与 Verifier 两条稳定通道。除 verification 外，specification、interaction、visual、technical、diagnosis、implementation 与 closeout Worker 都复用 `worker:{case_id}:builder`；verification Worker 复用独立的 `worker:{case_id}:verifier`，因此验证不继承 Builder 对话历史。Controller、Builder、Verifier 构成一次 Runtime session 的三条逻辑会话通道。
+
+每个 turn 的 fresh packet 是当前唯一授权，已复用 thread 中的历史 packet 和讨论只提供上下文，不能扩大当前 `allowed_skills`、`allowed_paths`、动作边界、Case revision 或 selected gap。role、capability、路径范围和 revision 变化不会轮换通道；Case 变化会创建新的 Builder 与 Verifier 通道。基础设施失败使对应通道 key 失效，下次重试创建新 thread。
 
 adapter 的 `close` 只在 session 完成、人工/外部 handoff、失败、interrupt 或安全预算终止时调用。单个 turn 完成只关闭该 turn 的事件队列，不关闭 app-server。stdin supervisor 在 adapter 生命周期内只绑定一次，并把 `/steer` 与 `/interrupt` 路由到当前 active turn。
 

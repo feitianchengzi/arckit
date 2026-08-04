@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-04T14:13:13.493Z
+Updated: 2026-08-04T15:31:35.227Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -40,9 +40,9 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
-- arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md
 - arckit/cases/closed/CASE-20260803-002-support-parallel-case-execution-with-serialized-project-aggregat.md
 - arckit/cases/closed/CASE-20260804-001-persist-runtime-sessions-and-execute-state-driven-loops-in-proce.md
+- arckit/cases/closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md
 
 ## Notes
 

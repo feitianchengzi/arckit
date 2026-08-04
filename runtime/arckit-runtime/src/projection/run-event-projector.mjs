@@ -251,6 +251,7 @@ function applyRunEvent(run, { line, parsed }) {
       upsertAgent(activity, {
         task_id: event.task_id,
         worker_type: event.worker_type || "",
+        worker_thread_key: event.worker_thread_key || "",
         role: event.role,
         objective: event.objective,
         status: "running",
@@ -279,6 +280,7 @@ function applyRunEvent(run, { line, parsed }) {
       upsertAgent(activity, {
         task_id: event.task_id,
         worker_type: event.worker_type || "",
+        worker_thread_key: event.worker_thread_key || "",
         role: event.role,
         status: "failed",
         updated_at: new Date().toISOString(),
@@ -301,6 +303,7 @@ function applyRunEvent(run, { line, parsed }) {
       upsertAgent(activity, {
         task_id: event.task_id,
         worker_type: event.worker_type || event.report?.worker_type || "",
+        worker_thread_key: event.worker_thread_key || "",
         role: event.role,
         status: event.status || event.report?.status || "completed",
         updated_at: new Date().toISOString(),
@@ -618,6 +621,7 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
         ...existing,
         task_id: task.id,
         role: task.role,
+        worker_thread_key: task.worker_thread_key || existing.worker_thread_key || "",
         objective: task.objective,
         status: report?.status || "completed",
         summary: report?.summary || "",

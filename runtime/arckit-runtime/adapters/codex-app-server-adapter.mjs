@@ -159,6 +159,10 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
       initializedProjectRoot = "";
       initializeResult = null;
       threads.clear();
+    },
+    discardThread(threadKey) {
+      const normalized = String(threadKey || "").trim();
+      return normalized ? threads.delete(normalized) : false;
     }
   };
   return adapter;
