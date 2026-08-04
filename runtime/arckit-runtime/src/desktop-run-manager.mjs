@@ -356,6 +356,7 @@ export function createDesktopRunManager({
         project_gaps: [],
         case_control: null,
         case_state: null,
+        active_case_states: [],
         dimensions: [],
         active_cases: [],
         cases_index_excerpt: ""
@@ -376,11 +377,10 @@ export function createDesktopRunManager({
       .filter((dimension) => dimension.priority && dimension.priority !== "none")
       .slice(0, 8);
 
-    const selectedCaseRef = projectState.case_control?.selected_case_ref || "";
-    const selectedCasePath = selectedCaseRef ? join(project.path, selectedCaseRef) : "";
-    const caseState = selectedCasePath && existsSync(selectedCasePath)
-      ? parseCaseRecord(await readFile(selectedCasePath, "utf8"))
-      : null;
+    const activeCaseStates = (await Promise.all((projectState.active_case_refs || []).map(async (caseRef) => {
+      const casePath = join(project.path, caseRef);
+      return existsSync(casePath) ? parseCaseRecord(await readFile(casePath, "utf8")) : null;
+    }))).filter(Boolean);
 
     return {
       project,
@@ -392,7 +392,8 @@ export function createDesktopRunManager({
       },
       project_gaps: gaps,
       case_control: projectState.case_control || null,
-      case_state: caseState,
+      case_state: null,
+      active_case_states: activeCaseStates,
       dimensions,
       active_cases: projectState.active_case_refs || [],
       cases_index_excerpt: existsSync(caseIndexPath)

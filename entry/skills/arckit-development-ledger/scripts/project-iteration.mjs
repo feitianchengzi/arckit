@@ -355,7 +355,7 @@ export function auditIterationStateRecord(record, recordFile, projectionFile = p
     errors.push(`${recordFile}: project_state_ref does not exist: ${record.project_state_ref}`);
     return errors;
   }
-  if (projectState.schema_version !== 'project-state-record/v3') errors.push(`${recordFile}: project_state_ref must use project-state-record/v3`);
+  if (projectState.schema_version !== 'project-state-record/v4') errors.push(`${recordFile}: project_state_ref must use project-state-record/v4`);
   const relativeRecord = path.relative(process.cwd(), recordFile);
   if (record.status === 'active' && projectState.active_iteration_ref !== relativeRecord) errors.push(`${recordFile}: active iteration must match Project active_iteration_ref`);
   if (JSON.stringify(sortedUnique(record.active_case_refs)) !== JSON.stringify(sortedUnique(projectState.active_case_refs))) errors.push(`${recordFile}: active_case_refs must match Project active_case_refs`);

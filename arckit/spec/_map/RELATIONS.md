@@ -10,7 +10,7 @@
 
 `agentic-software-development/product-concepts.md` 基于解决思路定义产品概念，是产品架构的概念词典；其中 Project State 是最高层产品对象，Case 和 Loop 服务于 Project State 的持续推进，Desktop Runtime、Codex 类 Agent 和 Skill 是分层协作机制。
 
-`agentic-software-development/product-architecture.md` 描述产品概念如何组合成系统整体，避免混入具体实现细节；主轴是 Project State 通过 Case 和 Loop 被持续推进，并定义 Desktop Runtime、Codex 类 Agent 和 Skill 的产品职责边界。
+`agentic-software-development/product-architecture.md` 描述产品概念如何组合成系统整体，避免混入具体实现细节；主轴是 Project State 通过多个可并行 Case Loops 持续推进、通过串行 canonical commit 聚合，并定义 Desktop Runtime、Codex 类 Agent 和 Skill 的产品职责边界。
 
 `agentic-software-development/skill-architecture.md` 基于产品架构从 skill 角度定义 Arckit 预期如何实现。
 

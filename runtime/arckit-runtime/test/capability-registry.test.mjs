@@ -225,9 +225,9 @@ test("Runtime canonicalizes descriptive Controller gap fields without retrying p
   };
 
   const loopFrame = {
-    case_id: plan.route_plan.selected_gap.case_id,
-    candidate_case_gaps: [candidate],
-    candidate_cases: []
+    case_id: '',
+    candidate_case_gaps: [],
+    candidate_cases: [{ case_id: plan.route_plan.selected_gap.case_id, candidate_gaps: [candidate] }]
   };
   const canonicalized = canonicalizeControllerPlanSelectedGap(plan, loopFrame);
 
@@ -289,7 +289,7 @@ test("Runtime initialization repairs persisted candidate-gap projections through
   assert.notEqual(refreshed.next_transition, staleTransition);
   assert.equal(refreshedRecord.current_round.selected_gap, null);
   assert.equal(round.gap_id, "CASE-GAP-AGENT-SELECTED");
-  assert.equal(round.candidate_case_gaps[0].next_transition, expected.next_transition);
+  assert.equal(round.candidate_cases[0].candidate_gaps[0].next_transition, expected.next_transition);
 });
 
 test("Runtime initialization removes only stale Runtime refs from Project canonical artifacts", async () => {
@@ -618,7 +618,7 @@ test("runtime resolves trusted development-ledger entrypoints from the skill sou
   }, "writeback"), /escapes its capability root/);
 });
 
-test("Runtime applies an Agent-directed create_case handoff and selects the fresh Case", async () => {
+test("Runtime applies an Agent-directed create_case handoff and registers the fresh Case", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-case-control-create-"));
   await ensureArckitProject({
     projectRoot,
@@ -627,7 +627,7 @@ test("Runtime applies an Agent-directed create_case handoff and selects the fres
   });
   const snapshot = await createStateStore(projectRoot).readSnapshot();
   assert.equal(snapshot.activeCases.length, 0);
-  assert.equal(snapshot.projectState.case_control.selected_case_ref, "");
+  assert.equal(Object.hasOwn(snapshot.projectState.case_control, "selected_case_ref"), false);
 
   const plan = {
     ...controllerPlan([]),
@@ -639,7 +639,7 @@ test("Runtime applies an Agent-directed create_case handoff and selects the fres
         action: "create_case",
         case_id: "",
         title: "Add demand-driven Case control",
-        intent: "Create and select a Case chosen by Controller semantics.",
+        intent: "Create and register a Case chosen by Controller semantics.",
         artifact_type: "code",
         selection_reason: "No active Case represents the operator request."
       }]
@@ -652,18 +652,18 @@ test("Runtime applies an Agent-directed create_case handoff and selects the fres
         case_id: "",
         facet: "",
         responsibility: "agent",
-        current_state: "No matching Case is selected.",
-        target_state: "A bounded Case is selected.",
-        impact: "Bind the operator request before Worker execution.",
-        next_transition: "Create and select the Controller-defined Case."
+        current_state: "No matching Case is active.",
+        target_state: "A bounded Case is registered.",
+        impact: "Register the operator request before Worker execution.",
+        next_transition: "Create and register the Controller-defined Case."
       },
       reason: "Case control must complete before Case gap planning.",
       requires_human_confirmation: false
     },
     worker_intents: [],
     planned_transition: {
-      goal: "Create and select the Controller-defined Case.",
-      expected_state_change: "Project Case selection becomes bound to a fresh active Case."
+      goal: "Create and register the Controller-defined Case.",
+      expected_state_change: "Project active Case refs include a fresh bounded Case."
     },
     continuation_intent: {
       goal: "Plan the first evidence-backed transition of the fresh Case.",
@@ -696,13 +696,13 @@ test("Runtime applies an Agent-directed create_case handoff and selects the fres
   assert.equal(result.written, true, JSON.stringify(result.gate?.reasons || result));
   assert.equal(result.case_control_result.action, "create_case");
   assert.equal(freshSnapshot.activeCases.length, 1);
-  assert.equal(freshSnapshot.projectState.case_control.selected_case_ref, result.case_control_result.selected_case_ref);
+  assert.equal(freshSnapshot.activeCases[0].ref, result.case_control_result.registered_case_ref);
   assert.equal(freshSnapshot.activeCases[0].record.title, plan.execution_plan.runtime_actions[0].title);
   assert.equal(freshSnapshot.activeCases[0].record.user_intent, plan.execution_plan.runtime_actions[0].intent);
   assert.equal(existsSync(join(projectRoot, "arckit/project/runtime-results")), false);
 });
 
-test("Agent-directed Case creation rolls back when Project selection cannot commit", async () => {
+test("Agent-directed Case creation rolls back when Project registration cannot commit", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-case-control-rollback-"));
   await ensureArckitProject({ projectRoot, projectName: "Case Control Rollback", intent: "Verify atomic control writeback." });
   const snapshot = await createStateStore(projectRoot).readSnapshot();
@@ -732,7 +732,7 @@ test("Agent-directed Case creation rolls back when Project selection cannot comm
     dryRun: false
   }), /active_iteration_ref must exist/);
   assert.deepEqual(fsCaseNames(projectRoot), []);
-  assert.equal(JSON.parse(readFileSync(statePath, "utf8")).case_control.selected_case_ref, "");
+  assert.equal(Object.hasOwn(JSON.parse(readFileSync(statePath, "utf8")).case_control, "selected_case_ref"), false);
 });
 
 test("case transition CLI accepts ephemeral transition input from stdin", async () => {
@@ -744,7 +744,7 @@ test("case transition CLI accepts ephemeral transition input from stdin", async 
   });
   const snapshot = await createStateStore(projectRoot).readSnapshot();
   const activeCase = snapshot.activeCases[0];
-  const transition = validProgressRuntimeResult(activeCase.record).case_transition;
+  const transition = validProgressRuntimeResult(activeCase.record, snapshot.projectState.project.updated_at).case_transition;
   const script = resolve(testDir, "../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs");
   const input = JSON.stringify(transition);
 
@@ -780,7 +780,7 @@ test("runtime ledger gate delegates dry-run writeback to the development-ledger 
     intent: "Verify direct runtime capability invocation."
   });
   const snapshot = await createStateStore(projectRoot).readSnapshot();
-  const runtimeResult = validProgressRuntimeResult(snapshot.activeCases[0].record);
+  const runtimeResult = validProgressRuntimeResult(snapshot.activeCases[0].record, snapshot.projectState.project.updated_at);
   const result = await writeLedger({
     projectRoot,
     runtimeResult,
@@ -815,7 +815,7 @@ test("runtime ledger stores an opaque Desktop run reference without writing raw 
     intent: "Keep raw Runtime evidence outside the project ledger."
   });
   const snapshot = await createStateStore(projectRoot).readSnapshot();
-  const runtimeResult = validProgressRuntimeResult(snapshot.activeCases[0].record);
+  const runtimeResult = validProgressRuntimeResult(snapshot.activeCases[0].record, snapshot.projectState.project.updated_at);
   const runtimeRecordRef = runtimeRecordRefForRun("RUN-TEST-001");
 
   const result = await writeLedger({
@@ -843,7 +843,7 @@ test("runtime ledger writeback returns a structured recoverable rejection for an
     intent: "Reject an internally inconsistent Case transition without mutating the ledger."
   });
   const snapshot = await createStateStore(projectRoot).readSnapshot();
-  const runtimeResult = validProgressRuntimeResult(snapshot.activeCases[0].record);
+  const runtimeResult = validProgressRuntimeResult(snapshot.activeCases[0].record, snapshot.projectState.project.updated_at);
   runtimeResult.case_transition.accepted_state_delta.facets[0].set = {
     applicability: "required",
     resolution: "resolved",
@@ -875,7 +875,7 @@ test("Case transition dry-run and apply preserve replacement-token evidence verb
   });
   const snapshot = await createStateStore(projectRoot).readSnapshot();
   const activeCase = snapshot.activeCases[0];
-  const runtimeResult = validProgressRuntimeResult(activeCase.record);
+  const runtimeResult = validProgressRuntimeResult(activeCase.record, snapshot.projectState.project.updated_at);
   const evidence = [
     "ctest -R 'test_mixed_effect_random_settings_dialog$'",
     "shell $$ and replacement $& with prefix $` and capture $1",
@@ -909,7 +909,7 @@ second, Unicode: 雪`
   assert.deepEqual(updated.rounds.at(-1).accepted_state_delta.facets[0].evidence, evidence);
 });
 
-test("Runtime leaves existing active Cases for Controller selection and the accepted transition binds that selection", async () => {
+test("Runtime lets the Controller advance an existing active Case without a Project selection write", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-controller-case-selection-"));
   await initializeProjectWithCase({
     projectRoot,
@@ -918,10 +918,7 @@ test("Runtime leaves existing active Cases for Controller selection and the acce
   });
   const statePath = join(projectRoot, "arckit/project/state.record.json");
   const state = JSON.parse(readFileSync(statePath, "utf8"));
-  const existingCaseRef = state.active_case_refs[0];
   state.case_control = {
-    selected_case_ref: "",
-    selection_reason: "No Case is selected yet.",
     next_case_intent: "Select from existing active Cases.",
     priority_basis: "Controller compares current evidence; array order is not priority.",
     stop_condition: "Stop after selecting one bounded Case."
@@ -934,7 +931,8 @@ test("Runtime leaves existing active Cases for Controller selection and the acce
   assert.equal(initialization.case_ref, "");
   assert.equal(snapshot.activeCases.length, 1);
 
-  const runtimeResult = validProgressRuntimeResult(snapshot.activeCases[0].record);
+  const projectRevision = snapshot.projectState.project.updated_at;
+  const runtimeResult = validProgressRuntimeResult(snapshot.activeCases[0].record, projectRevision);
   const writeResult = await writeLedger({
     projectRoot,
     runtimeResult,
@@ -955,7 +953,8 @@ test("Runtime leaves existing active Cases for Controller selection and the acce
   });
   snapshot = await createStateStore(projectRoot).readSnapshot();
   assert.equal(writeResult.written, true, JSON.stringify(writeResult.gate?.reasons || writeResult));
-  assert.equal(snapshot.projectState.case_control.selected_case_ref, existingCaseRef);
+  assert.equal(snapshot.projectState.project.updated_at, projectRevision);
+  assert.equal(Object.hasOwn(snapshot.projectState.case_control, "selected_case_ref"), false);
   assert.equal(snapshot.activeCases.length, 1);
 });
 
@@ -984,7 +983,7 @@ test("a final clean review closes the selected Case and aggregates it through th
   writeCaseRecord(casePath, text, record);
 
   snapshot = await createStateStore(projectRoot).readSnapshot();
-  const runtimeResult = validProgressRuntimeResult(record);
+  const runtimeResult = validProgressRuntimeResult(record, snapshot.projectState.project.updated_at);
   const firstWrite = await writeLedger({
     projectRoot,
     runtimeResult,
@@ -1039,7 +1038,7 @@ test("a final clean review closes the selected Case and aggregates it through th
   assert.equal(existsSync(join(projectRoot, activeCase.ref)), false);
   assert.equal(existsSync(join(projectRoot, closedRef)), true);
   assert.deepEqual(projectState.active_case_refs, []);
-  assert.equal(projectState.case_control.selected_case_ref, "");
+  assert.equal(Object.hasOwn(projectState.case_control, "selected_case_ref"), false);
   assert.ok(projectState.canonical_artifact_refs.includes(closedRef));
   assert.equal(closedCase.rounds.at(-1).runtime_result_ref, runtimeRecordRef);
   assert.equal(JSON.stringify(projectState).includes(runtimeRecordRef), false);
@@ -1071,7 +1070,7 @@ test("ledger commit rolls Case and Project files back when a projection step fai
   record.case_resolution = auditCaseRecord(record, record.updated_at);
   record.current_round = { goal: "", selected_gap: null };
   writeCaseRecord(casePath, text, record);
-  const progressResult = validProgressRuntimeResult(record);
+  const progressResult = validProgressRuntimeResult(record, snapshot.projectState.project.updated_at);
   await applyCaseTransition({ projectRoot, casePath: activeCase.ref, transition: progressResult.case_transition });
   const progressed = createStateStore(projectRoot);
   const progressedSnapshot = await progressed.readSnapshot();
@@ -1168,7 +1167,7 @@ async function initializeProjectWithCase({ projectRoot, projectName = "Fixture P
   const caseRef = normalized.slice(marker + 1);
   await runLedgerScript(projectRoot, [
     "project-state.mjs",
-    "select-case",
+    "register-case",
     "--case-ref", caseRef,
     "--intent", intent,
     "--reason", "Test fixture explicitly selected this Case."
@@ -1208,7 +1207,7 @@ function taskFixture() {
   };
 }
 
-function validProgressRuntimeResult(caseRecord) {
+function validProgressRuntimeResult(caseRecord, projectUpdatedAt) {
   const caseId = caseRecord.id;
   const selectedGap = caseRecord.case_resolution.candidate_gaps.find((gap) => gap.facet === "product_expectation");
   assert.ok(selectedGap, "Expected a product_expectation candidate gap");
@@ -1222,9 +1221,10 @@ function validProgressRuntimeResult(caseRecord) {
     case_outcome: { status: "unresolved", reason: "Other Case facets remain.", unresolved: ["interaction_expectation"] },
     project_impact: { status: "none", changes: [], evidence: [] },
     case_transition: {
-      schema_version: "arckit-case-transition/v2",
+      schema_version: "arckit-case-transition/v3",
       case_id: caseId,
       case_updated_at: caseRecord.updated_at,
+      project_updated_at: projectUpdatedAt,
       selected_gap: selectedGap,
       planned_transition: { goal: "Judge product expectation applicability.", expected_state_change: "product_expectation unknown -> not_required" },
       accepted_state_delta: {
@@ -1318,9 +1318,10 @@ function completionReviewRuntimeResult(base, caseRecord) {
   result.round_result = "done";
   result.case_outcome = { status: "resolved", reason: "The current content revision passed completion review.", unresolved: [] };
   result.case_transition = {
-    schema_version: "arckit-case-transition/v2",
+    schema_version: "arckit-case-transition/v3",
     case_id: caseRecord.id,
     case_updated_at: caseRecord.updated_at,
+    project_updated_at: base.case_transition.project_updated_at,
     selected_gap: selectedGap,
     planned_transition: { goal: selectedGap.next_transition, expected_state_change: "completion_review pending -> clean" },
     accepted_state_delta: {

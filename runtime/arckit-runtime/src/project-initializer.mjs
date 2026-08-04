@@ -28,7 +28,17 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
   }
 
   let state = JSON.parse(await readFile(statePath, 'utf8'));
-  if (state.schema_version !== 'project-state-record/v3') throw new Error('Runtime requires a project-state-record/v3 project. Reinitialize or replace the unsupported state record before running Runtime.');
+  if (state.schema_version === 'project-state-record/v3') {
+    const migration = JSON.parse((await runLedgerScript(root, [
+      'project-state.mjs',
+      'migrate-v4',
+      'arckit/project/state.record.json',
+    ], { nodeBin, capability: projectCapability })).stdout);
+    changedFiles.push(...migration.changed_files);
+    repaired = migration.migrated || repaired;
+    state = JSON.parse(await readFile(statePath, 'utf8'));
+  }
+  if (state.schema_version !== 'project-state-record/v4') throw new Error('Runtime requires a project-state-record/v4 project. Migrate or replace the unsupported state record before running Runtime.');
 
   const runtimeRefRepair = JSON.parse((await runLedgerScript(root, [
     'project-state.mjs',
@@ -39,11 +49,6 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
     changedFiles.push(...runtimeRefRepair.changed_files);
     repaired = true;
     state = JSON.parse(await readFile(statePath, 'utf8'));
-  }
-
-  const caseRef = state.case_control?.selected_case_ref || '';
-  if (caseRef && !existsSync(join(root, caseRef))) {
-    throw new Error(`Project State selected Case does not exist: ${caseRef}`);
   }
 
   await runLedgerScript(root, ['project-state.mjs', 'audit', 'arckit/project/state.record.json'], { nodeBin, capability: projectCapability });
@@ -75,7 +80,7 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
     repaired,
     project_root: root,
     state_path: 'arckit/project/state.record.json',
-    case_ref: caseRef,
+    case_ref: '',
     changed_files: [...new Set(changedFiles)],
   };
 }

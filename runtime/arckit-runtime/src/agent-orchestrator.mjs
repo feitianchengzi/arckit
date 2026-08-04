@@ -634,7 +634,7 @@ function normalizeRuntimeAction(action) {
   }
   return {
     type: "case_control",
-    action: ["select_existing_case", "create_case"].includes(action.action) ? action.action : "",
+    action: action.action === "create_case" ? action.action : "",
     case_id: stringValue(action.case_id, ""),
     title: safeSemanticText(action.title || "", { maxLength: 240 }),
     intent: safeSemanticText(action.intent || "", { maxLength: SEMANTIC_LIMITS.reason }),
@@ -654,9 +654,7 @@ function activeCandidateGap(loopFrame, selectedGap) {
   const selectedCaseCandidate = (loopFrame?.candidate_cases || []).find(
     (candidate) => candidate.case_id === selectedGap?.case_id
   );
-  const allowedGaps = loopFrame?.case_id
-    ? loopFrame.candidate_case_gaps || []
-    : selectedCaseCandidate?.candidate_gaps || [];
+  const allowedGaps = selectedCaseCandidate?.candidate_gaps || [];
   return allowedGaps.find((gap) => gap.id === selectedGap?.id && gap.facet === selectedGap?.facet) || null;
 }
 
@@ -713,39 +711,26 @@ export function controllerPlanFailureReason(plan, workerCapabilities = [], loopF
     return "Controller Agent none execution plane cannot contain Worker intents.";
   }
   if (executionPlan.plane === "runtime") {
-    if (!["select_existing_case", "create_case"].includes(caseControl.action)) {
+    if (caseControl.action !== "create_case") {
       return "Controller Agent must return a supported case_control Runtime action.";
     }
-  if (caseControl.action === "create_case") {
-    if (!caseControl.title || !caseControl.intent || !caseControl.selection_reason) {
-      return "Controller Agent create_case handoff must include title, intent, and selection_reason.";
+    if (caseControl.action === "create_case") {
+      if (!caseControl.title || !caseControl.intent || !caseControl.selection_reason) {
+        return "Controller Agent create_case handoff must include title, intent, and selection_reason.";
+      }
+      if (caseControl.case_id) {
+        return "Controller Agent must leave case_control.case_id empty for create_case; the ledger allocates it.";
+      }
+      return completeControllerControlPlanFailureReason(plan);
     }
-    if (caseControl.case_id) {
-      return "Controller Agent must leave case_control.case_id empty for create_case; the ledger allocates it.";
-    }
-    return completeControllerControlPlanFailureReason(plan);
-  }
-  if (caseControl.action === "select_existing_case") {
-    const candidate = (loopFrame?.candidate_cases || []).find((item) => item.case_id === caseControl.case_id);
-    if (!caseControl.case_id || (loopFrame && !candidate)) {
-      return `Controller Agent selected an unavailable active Case: ${caseControl.case_id || "<missing>"}.`;
-    }
-    if (!caseControl.intent || !caseControl.selection_reason) {
-      return "Controller Agent select_existing_case handoff must include intent and selection_reason.";
-    }
-    return completeControllerControlPlanFailureReason(plan);
-  }
   }
   if (plan.route_plan?.selected_gap?.scope !== "case" || !plan.route_plan?.selected_gap?.case_id || !plan.route_plan?.selected_gap?.facet) {
     return "Controller Agent must select a concrete Case State gap.";
   }
-  if (loopFrame?.case_id && plan.route_plan.selected_gap.case_id !== loopFrame.case_id) {
-    return `Controller Agent selected Case ${plan.route_plan.selected_gap.case_id}, but Project State selected ${loopFrame.case_id}.`;
-  }
   if (loopFrame) {
     const activeGap = activeCandidateGap(loopFrame, plan.route_plan.selected_gap);
     if (!activeGap) {
-      return "Controller Agent selected a gap that is not in the selected Case candidate_gaps.";
+      return "Controller Agent selected a gap that is not in the active Case candidate_gaps.";
     }
   }
   if (!plan.planned_transition?.goal || !plan.planned_transition?.expected_state_change) {
@@ -800,8 +785,6 @@ export function authorizedPacketFailureReason({ loopFrame, routePlan, snapshot, 
   }
   const activeGap = (activeCase.record.case_resolution?.candidate_gaps || []).find((gap) => gap.id === selectedGap.id && gap.facet === selectedGap.facet);
   if (!activeGap) return `Authorized packet selected gap is no longer unresolved: ${selectedGap.id || '<missing>'}.`;
-  const selectedCaseRef = snapshot?.projectState?.case_control?.selected_case_ref || "";
-  if (selectedCaseRef && selectedCaseRef !== activeCase.ref) return `Authorized packet Case no longer matches Project selection: ${selectedCaseRef}.`;
   return "";
 }
 
@@ -1108,6 +1091,7 @@ export function createLoopFrame({
     schema_version: "arckit-loop-frame/v1",
     case_id: round.case_id || "",
     case_updated_at: round.case_updated_at || "",
+    project_updated_at: snapshot.projectState?.project?.updated_at || "",
     project_name: snapshot.summary.project_name,
     project_root: snapshot.projectRoot || "",
     operator_task: task,
@@ -2251,7 +2235,7 @@ function isProjectRelativeAllowedPath(value) {
 }
 
 function isRuntimeOwnedAction(value) {
-  return ["write_ledger_directly", "apply_ledger_writeback", "create_case", "select_existing_case"].includes(value);
+  return ["write_ledger_directly", "apply_ledger_writeback", "create_case"].includes(value);
 }
 
 function normalizeSelectedGap(value) {

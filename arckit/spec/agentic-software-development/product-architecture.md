@@ -76,20 +76,20 @@ Loop 是 case 的推进循环。一个 case 可以经历多个 loop。每个 loo
 一次状态推进的标准关系是：
 
 1. Project State 暴露 gap。
-2. 系统创建或选择 case。
+2. Controller 为当前 Loop 从全部 active Cases 中选择一个 case，或请求创建新 case。
 3. Case 定义目标状态、边界和证据要求。
 4. Loop 绑定当前 Case revision，由 Controller 选择 gap，并按证据需要使用零个或多个 Worker 推进 case。
 5. Loop 产出 evidence、report、change、open question 或 handoff。
 6. Case 判断继续、等待、阻塞、人类判断或关闭。
-7. Ledger 原子提交 Case transition；基础内容完成后先派生 completion review，当前 content revision clean 后 Case 才 resolved 并聚合显式 Project State delta，随后下一轮从 fresh state 恢复。
+7. Ledger 在跨进程 Project commit lock 中原子提交 Case transition；基础内容完成后先派生 completion review，当前 content revision clean 后 Case 才 resolved，并在 Project revision 匹配时聚合显式 Project State delta，随后下一轮从 fresh state 恢复。
 
 Project State 不由 loop 直接静默改写。Loop 的输出必须先通过 report intake、验证、case closeout 或 ledger gate，才能成为 Project State delta。
 
 Project State 和 Case State 的字段定义不是普通配置项。它们表达软件项目持续推进所需的工程能力维度，包括产品意图、目标用户、核心场景、平台表面、技术基础、事实成熟度、实现覆盖、验证证据、open questions、handoff 和工作方式信号。字段定义综合真实软件研发抽象和 Arckit skill 体系的产品理念，使 Controller 能根据状态值判断本轮应补事实、定义、实现、诊断、验证、收口还是等待人类或外部系统。
 
-Project State、Case State 和 Worker Loop 通过分层上下文保持长期连续性。Project State 是项目级 checkpoint，只保存项目维度状态、active case refs、project gaps、Case 选择、状态 delta 摘要和 evidence refs。Case State 是事项级 checkpoint，保存当前事项的六类结果 facet、content revision、completion review cycles/findings/budget、candidate gaps、open questions、pending handoffs、轮次摘要、resolution 和短 loop handoff。Worker Loop 是一次执行过程，只产生 worker report、artifact impact、runtime result 和原始运行证据，不把自己的完整 prompt、activity、controller frame、ledger result 或 Desktop operator event 写入 Project State 或 Case State。
+Project State、Case State 和 Worker Loop 通过分层上下文保持长期连续性。Project State 是项目级 checkpoint，只保存项目维度状态、active case refs、project gaps、Case 选择依据、状态 delta 摘要和 evidence refs，不保存独占 Loop selection。Case State 是事项级 checkpoint，保存当前事项的六类结果 facet、content revision、completion review cycles/findings/budget、candidate gaps、open questions、pending handoffs、轮次摘要、resolution 和短 loop handoff。Worker Loop 是一次执行过程，只产生 worker report、artifact impact、runtime result 和原始运行证据，不把自己的完整 prompt、activity、controller frame、ledger result 或 Desktop operator event 写入 Project State 或 Case State。
 
-跨对话和跨生命周期恢复依赖 checkpoint 与引用链，而不是复制完整历史上下文。新的执行体恢复项目时先读 Project State，再读 selected Case、derived resolution 的短 loop handoff、candidate gaps 和 required context refs；只有证据不足或需要审计时，Runtime 宿主才按 opaque run ref 打开其管理的 result、activity 或 raw events。项目即使无法访问 Runtime 宿主记录，也能从 Case round 的 accepted delta 与 evidence 恢复语义状态。
+跨对话和跨生命周期恢复依赖 checkpoint 与引用链，而不是复制完整历史上下文。新的执行体恢复项目时先读 Project State 与全部 active Cases，再由 Controller 为当前 Loop 选择一个 Case，并读取其 derived resolution、短 loop handoff、candidate gaps 和 required context refs；只有证据不足或需要审计时，Runtime 宿主才按 opaque run ref 打开其管理的 result、activity 或 raw events。项目即使无法访问 Runtime 宿主记录，也能从 Case round 的 accepted delta 与 evidence 恢复语义状态。
 
 ## 语义入口
 
@@ -148,7 +148,7 @@ Project State 是事实系统的恢复视图，不替代各事实源。Project S
 
 传输 envelope 和原始 runtime evidence 属于过程证据，不属于 Project State 或 Case State 的语义字段。Desktop operator event、完整 activity、完整 controller frame、完整 worker packet、完整 ledger write result、app-server stream output 和 raw prompt transcript 保存在 Runtime 宿主拥有的 execution record、raw events 或 audit 记录中，不复制到目标项目目录。Case round 可以保存不含宿主文件系统路径的 opaque run ref；该引用不替代 accepted delta 或持久 evidence，也不得进入 Project `case_control`、Case `current_round`、`agent_instruction.goal` 或 `progress_guard.expected_state_change`。
 
-Project State 只维护宏观完整性、project gaps、active Case refs 和 Case 选择。Case State 维护单事项的 product/interaction/visual/technical expectation、implementation、verification、open questions、pending handoffs、content revision、completion review、derived candidate gaps 与 resolution。Loop 只承载一次 planned/accepted Case transition。candidate gaps 不携带固定顺序；Controller 根据真实上下文动态选择代码先行、规格先行或混合推进。最终每个 facet 必须有 evidence-backed required target，或明确的 evidence-backed not_required 判断；随后当前 content revision 必须经过错误、遗漏、多余三维复审并 clean。自主复审预算耗尽仍不 clean 时，Case 转人工而不是继续自动 loop。
+Project State 只维护宏观完整性、project gaps、active Case refs 和 Case 选择依据。Case State 维护单事项的 product/interaction/visual/technical expectation、implementation、verification、open questions、pending handoffs、content revision、completion review、derived candidate gaps 与 resolution。Loop 只承载一个 Case 的一次 planned/accepted transition；多个 Loop 可以并行推进不同 Case。candidate gaps 不携带固定顺序；Controller 根据真实上下文动态选择代码先行、规格先行或混合推进。最终每个 facet 必须有 evidence-backed required target，或明确的 evidence-backed not_required 判断；随后当前 content revision 必须经过错误、遗漏、多余三维复审并 clean。自主复审预算耗尽仍不 clean 时，Case 转人工而不是继续自动 loop。
 
 语义字段必须由 Controller Agent、Worker Report、人类输入或稳定事实源显式产生。Runtime 可以选择、校验和拒绝结构化字段，但不能把原始 operator event 自行理解为项目目标，也不能把 raw task fallback 写成下一轮状态。结构化语义字段缺失、超长或包含 Desktop operator event marker 时，本轮应进入 blocked、needs revision 或 ledger gate blocked，而不是静默截断后写回长期状态。
 

@@ -25,11 +25,11 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
   }
   if (isCaseControl) {
     if (snapshot?.projectState?.project?.updated_at !== caseControlHandoff.expected_project_updated_at) reasons.push('case_control_handoff is stale for Project State.');
-    if (caseControlHandoff.action === 'select_existing_case' && !(snapshot?.activeCases || []).some((item) => item.record?.id === caseControlHandoff.case_id)) reasons.push(`case_control_handoff.case_id is not an active Case: ${caseControlHandoff.case_id || '<missing>'}`);
   } else {
-    if (!transition || transition.schema_version !== 'arckit-case-transition/v2') reasons.push('case_transition must use arckit-case-transition/v2.');
+    if (!transition || transition.schema_version !== 'arckit-case-transition/v3') reasons.push('case_transition must use arckit-case-transition/v3.');
     if (!transition?.case_id || !transition?.selected_gap?.id || !transition?.selected_gap?.facet) reasons.push('case_transition must identify a concrete Case gap.');
     if (!transition?.case_updated_at) reasons.push('case_transition must bind the expected Case updated_at revision.');
+    if (!transition?.project_updated_at) reasons.push('case_transition must bind the observed Project updated_at revision.');
     if (!transition?.planned_transition?.goal || !transition?.planned_transition?.expected_state_change) reasons.push('case_transition.planned_transition is incomplete.');
     if (!Array.isArray(transition?.evidence) || transition.evidence.length === 0) reasons.push('case_transition.evidence must be non-empty.');
     const delta = transition?.accepted_state_delta;
@@ -47,6 +47,7 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
     if (!selectedGapAdvanced) reasons.push('case_transition.accepted_state_delta must advance the selected Case gap.');
     if (transition?.round_outcome === 'blocked') reasons.push('A blocked round is not eligible for automatic Case transition writeback.');
     if (transition?.project_impact_candidate?.status === 'accepted' && transition?.case_resolution?.claimed_status !== 'resolved') reasons.push('Accepted project impact requires a Controller claim that the Case is resolved.');
+    if (transition?.case_resolution?.claimed_status === 'resolved' && snapshot?.projectState?.project?.updated_at !== transition?.project_updated_at) reasons.push('Resolving case_transition is stale for Project State.');
 
     const activeCase = (snapshot?.activeCases || []).find((item) => item.record?.id === transition?.case_id);
     if (snapshot && !activeCase) reasons.push(`case_transition.case_id is not an active Case: ${transition?.case_id || '<missing>'}`);

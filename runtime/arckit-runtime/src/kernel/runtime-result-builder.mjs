@@ -43,9 +43,7 @@ export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame
     throw new Error('Controller plan does not contain a case_control Runtime action.');
   }
   const locale = loopFrame.conversation_locale || round.conversation_locale || compiledPrompt.conversation_locale || 'en';
-  const reason = control.action === 'create_case'
-    ? t(locale, `Controller requested creation and selection of a bounded Case: ${control.title}.`, `Controller 请求创建并选中有边界的 Case：${control.title}。`)
-    : t(locale, `Controller requested selection of active Case ${control.case_id}.`, `Controller 请求选中 active Case ${control.case_id}。`);
+  const reason = t(locale, `Controller requested creation and registration of a bounded Case: ${control.title}.`, `Controller 请求创建并登记有边界的 Case：${control.title}。`);
   const handoff = {
     schema_version: 'arckit-case-control-handoff/v1',
     action: control.action,
@@ -122,7 +120,7 @@ export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame
         goal: controllerPlan.continuation_intent.goal,
         required_context_refs: round.required_context_refs,
         required_actions: ['Reload Project and Case State after the deterministic Case control handoff is applied.'],
-        required_checks: ['selected Case ref', 'fresh Case revision', 'derived candidate_gaps'],
+        required_checks: ['registered Case ref', 'fresh Case revision', 'derived candidate_gaps'],
         stop_condition: round.stop_conditions.join(' '),
       },
       human_gate: { required: false, reason: '', decision_needed: '' },
@@ -230,9 +228,10 @@ function buildCaseTransition({ loopFrame, round, review, mergeResult, roundOutco
     expected_state_change: selected.next_transition || round.next_transition || round.round_goal,
   };
   return {
-    schema_version: 'arckit-case-transition/v2',
+    schema_version: 'arckit-case-transition/v3',
     case_id: selected.case_id || loopFrame.case_id || '',
     case_updated_at: loopFrame.case_updated_at || '',
+    project_updated_at: loopFrame.project_updated_at || '',
     selected_gap: {
       id: selected.id || round.gap_id || '',
       facet: selected.facet || round.facet || '',

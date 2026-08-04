@@ -24,7 +24,7 @@ Arckit 不把技术栈编码、商业优先级、审美批准、发布授权、�
 
 ## 3. Project State / Case / Loop 主轴
 
-`using-arckit` 是 Controller 协议入口。它恢复 Project State、active case、iteration state 和上一轮 handoff，判断用户输入与上一轮的关系，选择本轮最小 worker 能力，并生成受控执行包。它不自动执行 worker，也不直接写回 ledger。
+`using-arckit` 是 Controller 协议入口。它恢复 Project State、全部 active cases、iteration state 和上一轮 handoff，为当前 Loop 选择唯一 Case，判断用户输入与上一轮的关系，选择本轮最小 worker 能力，并生成受控执行包。不同 Loop 可以并行推进不同 Case；它不自动执行 worker，也不直接写回 ledger。
 
 `arckit-development-ledger` 是状态持久化能力。它维护：
 
@@ -34,7 +34,7 @@ Arckit 不把技术栈编码、商业优先级、审美批准、发布授权、�
 - `arckit/project/iterations/*.md` iteration 决策投影。
 - `arckit/cases/active/` 和 `arckit/cases/closed/` 中的事项证据。
 
-一次 loop 的标准关系是：Project State 暴露 gap，Controller 选择或创建 case，worker packet 推进有界目标，worker report 返回证据，Controller 完成 report intake 和 closeout，ledger 在验证门禁后写回 state delta。
+一次 loop 的标准关系是：Project State 暴露 gap 和 active Case 集合，Controller 为当前 Loop 选择一个 Case 或请求创建，worker packet 推进有界目标，worker report 返回证据，Controller 完成 report intake 和 closeout，ledger 在验证门禁后写回 state delta。不同 Case 的执行可以并行，canonical ledger commit 按 Project 串行化。
 
 ## 4. 定义事实能力
 

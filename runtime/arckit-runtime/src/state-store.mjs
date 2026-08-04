@@ -10,7 +10,7 @@ export function createStateStore(projectRoot) {
       const projectStatePath = join(root, 'arckit/project/state.record.json');
       if (!existsSync(projectStatePath)) throw new Error(`Missing project state record: ${projectStatePath}`);
       const projectState = await readJson(projectStatePath);
-      if (projectState.schema_version !== 'project-state-record/v3') throw new Error('Runtime requires project-state-record/v3');
+      if (projectState.schema_version !== 'project-state-record/v4') throw new Error('Runtime requires project-state-record/v4');
 
       const activeCaseRefs = Array.isArray(projectState.active_case_refs) ? projectState.active_case_refs : [];
       const activeCases = [];
@@ -92,7 +92,6 @@ function summarize(projectState, iterationRecord, activeCases) {
     project_status: projectState.project?.status || '',
     current_phase: projectState.project?.current_phase || '',
     active_iteration: iterationRecord?.id || '',
-    selected_case_ref: projectState.case_control?.selected_case_ref || '',
     next_case_intent: projectState.case_control?.next_case_intent || '',
     active_case_count: activeCases.length,
     project_gap_count: gaps.length,

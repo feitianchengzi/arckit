@@ -98,13 +98,13 @@ Agent 启动上下文是 Agent 或自动化平台进入项目时必须先知道�
 
 Project State 是一个软件项目在 Arckit 视角下的当前可恢复状态。
 
-Project State 不等同于单个 Markdown 文件、JSON 文件或任务列表。它是软件整体的宏观恢复与选择状态，由项目维度、project gaps、active Case 引用、Case 选择和证据引用共同表达。
+Project State 不等同于单个 Markdown 文件、JSON 文件或任务列表。它是软件整体的宏观恢复与选择状态，由项目维度、project gaps、active Case 引用、Case 选择依据和证据引用共同表达。具体 Case 由每个 Loop 的 Controller 独立选择，Project State 不保存某个 Runtime 或 Loop 的独占 selected Case。
 
 Project State 至少包含以下维度：
 
 - 目标状态：项目当前要解决什么真实软件预期。
 - 宏观完整性：哪些项目能力维度已达到目标，哪些仍存在项目级 gap。
-- Case 集合：哪些 bounded matters 处于 active、blocked 或 closed，以及当前选择哪个 Case。
+- Case 集合：哪些 bounded matters 处于 active、blocked 或 closed，以及 Controller 选择本轮 Case 所需的依据。
 - 迭代位置：项目当前阶段性目标与可追溯的状态变化。
 - 证据引用：宏观状态判断由哪些稳定事实、Case 结果和验证证据支撑。
 
@@ -152,7 +152,7 @@ No-change closure 只在事项被证明重复、无效、过期、不再需要�
 
 ## Loop
 
-Loop 是推动一个 case 前进并尝试产生可验证状态变化的一次协作循环。
+Loop 是推动一个 case 前进并尝试产生可验证状态变化的一次协作循环。每个 Loop 只绑定一个 Case；多个 Loop 可以同时绑定不同 active Cases 并行执行。
 
 Loop 不等同于一次模型调用，也不等同于 Agent 内部工具调用循环。Loop 是从触发、恢复上下文、选择目标、执行或等待、验证、接力到生成下一步状态的完整业务循环。
 
@@ -167,7 +167,7 @@ Loop 至少表达：
 
 Loop 的核心输出不是 Agent 输出了什么，而是一项 planned Case transition 是否产生并被接受为有证据的 Case delta，以及下一步由谁继续。
 
-Loop 可以派发零个、一个或多个 Worker。若用户本轮确认、现有稳定事实或已有验证证据已经足以推进 selected gap，Controller 可以不派发 Worker，直接形成可追溯 evidence 与 accepted delta。每个 transition 必须绑定 Case revision；写回后下一轮重新读取状态，不能复用过期判断。
+Loop 可以派发零个、一个或多个 Worker。若用户本轮确认、现有稳定事实或已有验证证据已经足以推进 selected gap，Controller 可以不派发 Worker，直接形成可追溯 evidence 与 accepted delta。每个 transition 必须绑定 Case revision 和本轮观察到的 Project revision。不同 Case 的执行可以并行；canonical ledger commit 按 Project 串行化。未 resolved transition 只校验自己的 Case revision，resolved transition 聚合 Project 时还必须匹配最新 Project revision；冲突后从 fresh state 重新聚合。
 
 一个 loop 结束时必须分别说明 round outcome、Case resolution claim、Project impact candidate 与 handoff。单轮可以完成而 Case 仍 unresolved；Case 未 resolved 时不更新 Project 维度。Loop 不能因为 Agent 停止输出就被视为完成；完成必须依赖目标满足和证据通过。
 

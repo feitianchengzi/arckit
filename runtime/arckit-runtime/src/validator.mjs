@@ -37,9 +37,10 @@ export function validateRuntimeResult(result) {
     if (result?.case_transition !== null) issues.push({ path: "case_transition", message: "Case control writeback must not include a Case transition." });
   } else {
     requireObject(result?.case_transition, "case_transition", issues);
-    requireEqual(result?.case_transition?.schema_version, "arckit-case-transition/v2", "case_transition.schema_version", issues);
+    requireEqual(result?.case_transition?.schema_version, "arckit-case-transition/v3", "case_transition.schema_version", issues);
     requireString(result?.case_transition?.case_id, "case_transition.case_id", issues);
     requireString(result?.case_transition?.case_updated_at, "case_transition.case_updated_at", issues);
+    requireString(result?.case_transition?.project_updated_at, "case_transition.project_updated_at", issues);
     requireObject(result?.case_transition?.selected_gap, "case_transition.selected_gap", issues);
     requireObject(result?.case_transition?.planned_transition, "case_transition.planned_transition", issues);
     requireObject(result?.case_transition?.accepted_state_delta, "case_transition.accepted_state_delta", issues);
@@ -146,7 +147,7 @@ export function validateRuntimeResult(result) {
 
 function validateCaseControlHandoff(handoff, issues) {
   requireEqual(handoff.schema_version, "arckit-case-control-handoff/v1", "case_control_handoff.schema_version", issues);
-  requireEnum(handoff.action, ["select_existing_case", "create_case"], "case_control_handoff.action", issues);
+  requireEqual(handoff.action, "create_case", "case_control_handoff.action", issues);
   requireString(handoff.expected_project_updated_at, "case_control_handoff.expected_project_updated_at", issues);
   requireString(handoff.case_id, "case_control_handoff.case_id", issues);
   requireString(handoff.title, "case_control_handoff.title", issues);
@@ -158,9 +159,6 @@ function validateCaseControlHandoff(handoff, issues) {
   requireString(handoff.review_policy?.source, "case_control_handoff.review_policy.source", issues);
   if (handoff.action === "create_case" && (!handoff.title || !handoff.intent || !handoff.selection_reason)) {
     issues.push({ path: "case_control_handoff", message: "create_case requires title, intent, and selection_reason." });
-  }
-  if (handoff.action === "select_existing_case" && (!handoff.case_id || !handoff.intent || !handoff.selection_reason)) {
-    issues.push({ path: "case_control_handoff", message: "select_existing_case requires case_id, intent, and selection_reason." });
   }
 }
 

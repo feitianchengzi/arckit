@@ -224,8 +224,6 @@ function summarizeCaseControl(caseControl) {
     return null;
   }
   return {
-    selected_case_ref: caseControl.selected_case_ref || "",
-    selection_reason: compactText(caseControl.selection_reason || "", SEMANTIC_LIMITS.reason),
     next_case_intent: safeSemanticText(caseControl.next_case_intent || "", { maxLength: SEMANTIC_LIMITS.transition }),
     priority_basis: compactText(caseControl.priority_basis || "", SEMANTIC_LIMITS.reason),
     stop_condition: compactText(caseControl.stop_condition || "", SEMANTIC_LIMITS.reason)

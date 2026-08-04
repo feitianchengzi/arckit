@@ -17,7 +17,7 @@
     "last_state_delta"
   ],
   "properties": {
-    "schema_version": { "const": "project-state-record/v3" },
+    "schema_version": { "const": "project-state-record/v4" },
     "project": {
       "type": "object",
       "required": ["name", "status", "created_at", "updated_at", "original_intent"],
@@ -189,15 +189,11 @@
     "case_control": {
       "type": "object",
       "required": [
-        "selected_case_ref",
-        "selection_reason",
         "next_case_intent",
         "priority_basis",
         "stop_condition"
       ],
       "properties": {
-        "selected_case_ref": { "type": "string" },
-        "selection_reason": { "type": "string" },
         "next_case_intent": { "type": "string" },
         "priority_basis": { "type": "string" },
         "stop_condition": { "type": "string" }

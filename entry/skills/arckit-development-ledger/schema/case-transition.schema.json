@@ -7,6 +7,7 @@
     "schema_version",
     "case_id",
     "case_updated_at",
+    "project_updated_at",
     "selected_gap",
     "planned_transition",
     "accepted_state_delta",
@@ -17,9 +18,10 @@
     "project_impact_candidate"
   ],
   "properties": {
-    "schema_version": { "const": "arckit-case-transition/v2" },
+    "schema_version": { "const": "arckit-case-transition/v3" },
     "case_id": { "type": "string", "pattern": "^CASE-[0-9]{8}-[0-9]{3}$" },
     "case_updated_at": { "type": "string", "minLength": 1 },
+    "project_updated_at": { "type": "string", "minLength": 1 },
     "selected_gap": { "$ref": "development-case-record.schema.json#/$defs/case_gap" },
     "planned_transition": {
       "type": "object",

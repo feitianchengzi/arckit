@@ -102,7 +102,7 @@ test("loop frame and worker task keep raw operator task out of semantic fields",
   const snapshot = {
     projectState: {
       active_case_refs: ["arckit/cases/active/CASE-1.md"],
-      case_control: { selected_case_ref: "arckit/cases/active/CASE-20260726-001.md" }
+      case_control: { next_case_intent: "Select one active Case for this Loop." }
     },
     summary: {
       project_name: "demo",
@@ -173,9 +173,10 @@ function minimalRuntimeResult() {
     case_outcome: { status: "unresolved", reason: "more work", unresolved: ["verification_state"] },
     project_impact: { status: "none", changes: [], evidence: [] },
     case_transition: {
-      schema_version: "arckit-case-transition/v2",
+      schema_version: "arckit-case-transition/v3",
       case_id: "CASE-20260726-001",
       case_updated_at: "2026-07-26T00:00:00.000Z",
+      project_updated_at: "2026-07-26T00:00:00.000Z",
       selected_gap: { id: "CASE-20260726-001:implementation_state", facet: "implementation_state", responsibility: "agent", current_state: "unresolved", target_state: "resolved", next_transition: "继续实现并验证。", evidence_required: [] },
       planned_transition: { goal: "继续实现并验证。", expected_state_change: "implementation_state unresolved -> resolved" },
       accepted_state_delta: { facets: [], resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null },

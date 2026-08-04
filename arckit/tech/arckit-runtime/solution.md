@@ -185,7 +185,7 @@ Chat session 和 message store 保留为 transcript 与人工介入基础设施�
 
 ### Loop Controller
 
-Loop Controller 先读取 Project State 的 `case_control` 和全部 active Case。Project gap 只作为选择/创建 Case 的宏观依据；selected Case 的全部 `case_resolution.candidate_gaps` 进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Controller Agent 结合 operator intent、代码、稳定事实和风险选择一个 `scope=case` 的具体 gap，并解释依据。Runtime 只验证该 gap 属于候选集，不根据关键词、固定优先级或 facet-to-skill 映射拍板业务 route。
+Loop Controller 先读取 Project State 的 `case_control` 选择依据和全部 active Cases。Project gap 只作为选择/创建 Case 的宏观依据；每个 active Case 的 `case_resolution.candidate_gaps` 都进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Controller Agent 先为当前 Loop 选择唯一 Case，再选择一个 `scope=case` 的具体 gap并解释依据。Runtime 只验证该 Case 与 gap 当前 active，不根据关键词、固定优先级或 facet-to-skill 映射拍板业务 route。多个 Runtime Loops 可以并行选择不同 Cases。
 
 本轮目标必须形成：
 
@@ -227,13 +227,13 @@ Prompt Compiler 为 Controller planning、Worker execution 和 Controller review
 
 Prompt Compiler 不要求 agent 猜测要使用哪个 skill。Controller planning/review invocation 以 manifest 声明的 `$using-arckit` 开始；Worker invocation 以通过 binding gate 的 `$skill-name` 开始。其余内容只有 phase、locale、operator input、state/report refs 或本轮必要结构化证据、revision、execution authorization 和 capability refs。具体行为由 Codex 类 Agent 的已安装 skill 包负责。
 
-Project State 与 Case State 通过 canonical refs 进入 planning invocation，不内嵌完整 Project record、active Case record 或 Markdown 正文。Controller review 可直接接收本轮 bounded Worker reports，因为它们是尚未写回的必要运行证据；Worker 只接收一个 `arckit-worker-packet/v2` 与确有依赖的 prior reports。输出形状由 Codex app-server `outputSchema`、Runtime schema validation 和 hard gate 承担，不在 prompt 中重复输出字段、closeout 规则或 skill 工作流。
+Project State 与全部 active Case States 通过 canonical refs 进入 planning invocation，不内嵌完整 Project record、Case record 或 Markdown 正文。Controller review 可直接接收本轮 bounded Worker reports，因为它们是尚未写回的必要运行证据；Worker 只接收一个 `arckit-worker-packet/v2` 与确有依赖的 prior reports。输出形状由 Codex app-server `outputSchema`、Runtime schema validation 和 hard gate 承担，不在 prompt 中重复输出字段、closeout 规则或 skill 工作流。
 
 Controller Plan、Worker Report 和 Controller Review 的 `outputSchema` 遵循 Codex 严格结构化输出子集：`const` 同时声明显式 `type`，对象关闭额外属性并把全部属性列入 `required`，数组声明 `items`。Runtime 在创建 app-server thread 前递归预检这些约束，使无效 Schema 作为本地配置错误终止，而不是启动 turn 后才收到远端 `invalid_json_schema`。
 
-Controller Plan v3 通过 `execution_plan.plane` 明确区分 `runtime`、`worker` 和 `none`。选择已有 active Case 或创建新 Case 使用唯一 `runtime_actions[type=case_control]`，并要求 `worker_intents=[]`；沿用 selected Case 不生成 Runtime action，直接规划 Case gap 的 Worker 或零 Worker transition。标题、意图、artifact type 与选择理由来自 Controller 语义判断，Runtime 不解析待办关键词或 route mode 推导这些字段。
+Controller Plan v3 通过 `execution_plan.plane` 明确区分 `runtime`、`worker` 和 `none`。选择已有 active Case 是当前 Loop 的 Controller route plan，不生成 Project 写入；创建新 Case 使用唯一 `runtime_actions[type=case_control, action=create_case]`，并要求 `worker_intents=[]`。标题、意图、artifact type 与创建理由来自 Controller 语义判断，Runtime 不解析待办关键词或 route mode 推导这些字段。
 
-Runtime 把选择/创建 Runtime action 绑定到当前 Project revision 和 Case review policy，形成 `arckit-case-control-handoff/v1`，再调用 `arckit-development-ledger` manifest 声明的 `case_control` 可信入口。ledger 分配 Case id，并把 Case 创建、Project/iteration 注册、selected Case 更新和投影索引作为可回滚提交。成功后 auto bridge 启动 fresh Controller invocation 并重新读取状态；revision 或 candidate-gap 新鲜度冲突不产生部分写入，并进入一次有 no-progress budget 的 fresh-state replan。Controller plan 若违反 execution plane 互斥或其他结构 gate，Runtime 把校验原因与被拒计划作为机器反馈交给 `$using-arckit` 自动重规划一次，仍失败才输出可恢复阻塞。
+Runtime 把创建 Runtime action 绑定到当前 Project revision 和 Case review policy，形成 `arckit-case-control-handoff/v1`，再调用 `arckit-development-ledger` manifest 声明的 `case_control` 可信入口。ledger 分配 Case id，并在 Project commit lock 中把 Case 创建、Project/iteration 注册和投影索引作为可回滚提交；Project 不保存独占 selected Case。成功后 auto bridge 启动 fresh Controller invocation 并重新读取状态；revision 或 candidate-gap 新鲜度冲突不产生部分写入，并进入一次有 no-progress budget 的 fresh-state replan。Controller plan 若违反 execution plane 互斥或其他结构 gate，Runtime 把校验原因与被拒计划作为机器反馈交给 `$using-arckit` 自动重规划一次，仍失败才输出可恢复阻塞。
 
 Case facet 的局部更新在模型边界使用封闭的 nullable 字段集合表达；模型为未更新字段返回 `null`，Runtime normalization 在形成 Case claim 前移除 `null`。因此模型输出保持严格可验证，ledger 仍只接收有实际值的 facet patch。
 
@@ -303,26 +303,26 @@ Ledger Writer 是 Runtime hard gate 与 ledger skill entrypoint 之间的薄适�
 
 Ledger capability 负责将验证后的结果写回：
 
-- `arckit-case-transition/v2`
+- `arckit-case-transition/v3`
 - development Case record 与 derived candidate gaps/resolution
 - resolved Case 的显式 Project/iteration impact
 - Case、Project、iteration 的 indexes 与 projections
 
 Ledger writeback 是已接受 Case transition 的必经阶段。Desktop 执行型 run 在 Controller 接受 evidence-backed delta 且 `ledger_stage.status=gate_ready` 后运行 gate；即使 Case 仍 unresolved 或下一责任方是 human/external，也可以先安全写入本轮 accepted delta，再停止桥接。
 
-每个 transition 绑定 Case `updated_at` revision，并逐字段复现当前 candidate gap。Gate 通过 trusted ledger `case_transition` entrypoint 做 canonical validation；revision 或 responsibility/current/target/next transition 已变化时 fail closed。Ledger 在写入前预校验完整 Case、Project 与 iteration 目标状态，并把 Case、Project、iteration、projections、indexes 作为可回滚提交。
+每个 transition 绑定 Case `updated_at` 和本轮观察到的 Project `updated_at`，并逐字段复现当前 candidate gap。Gate 通过 trusted ledger `case_transition` entrypoint 做 canonical validation；Case revision 或 responsibility/current/target/next transition 已变化时 fail closed。普通 unresolved transition 不改变 Project revision，允许不同 Cases 使用同一观察 revision 独立推进；resolved transition 聚合前必须再次匹配 Project revision。Ledger 在写入前预校验完整 Case、Project 与 iteration 目标状态，并通过操作系统临时目录中的跨进程 Project lock，把 Case、Project、iteration、projections、indexes 串行作为可回滚提交；锁不进入 canonical evidence。
 
 Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前检查 Case id/gap、planned transition、accepted delta、evidence、round outcome、Case resolution claim 和 Project impact candidate；raw operator task 不能作为 fallback。语义字段含 raw event marker、超长或 transition shape 不完整时，gate 阻止写回。
 
 写回策略按层分工：
 
-- Project State 写宏观 checkpoint：dimension 状态、project gaps、active Case refs、`case_control`、last state delta 和 evidence refs。
+- Project State v4 写宏观 checkpoint：dimension 状态、project gaps、active Case refs、不含独占 selection 的 `case_control` 选择依据、last state delta 和 evidence refs。
 - Iteration State v2 写阶段性 Project targets、带 closed Case 的 accepted Project changes、acceptance、blocking Project gaps 和 Case refs；不写 Loop continuation 或同态日志。
 - Case State 写事项级 checkpoint：六个 facets、content revision、completion review policy/cycles/findings/escalation、open questions、pending handoffs、round records、derived resolution、candidate gaps 和 loop handoff。每条 round 可保存 `arckit-runtime://runs/RUN-...` opaque ref，但不保存 Runtime 宿主的绝对路径。
 - Runtime 宿主在目标项目之外管理完整过程证据：runtime result、gate、selected round、activity、raw events 和 transcript。Desktop 使用 Electron userData；ledger 不复制这些记录，且 Case 语义恢复不依赖它们仍然存在。
 - Worker 不直接写 Project/Case State；Worker 提交 claims，Controller 接受后形成 transition，ledger 确定性应用。
 
-Controller plan 可以包含零个 Worker。当 operator input、现有稳定事实或已有验证证据足以支持一个 Case transition 时，Controller Review 直接列出 evidence 并形成 accepted delta；Runtime Guard 不把零 Worker 当缺失 packet。每次成功写回后 Runtime 重新读取状态和 revision，再由 Controller 选择下一 gap。自动桥接由实际 ledger 进展、no-progress streak 与连续无进展轮次预算共同约束；累计自动轮次仅用于审计，不作为持续产生 canonical state 进展时的停止条件。
+Controller plan 可以包含零个 Worker。当 operator input、现有稳定事实或已有验证证据足以支持一个 Case transition 时，Controller Review 直接列出 evidence 并形成 accepted delta；Runtime Guard 不把零 Worker 当缺失 packet。每次成功写回后对应 Loop 重新读取状态和 revision，再由 Controller 选择下一 gap。不同 Case Loops 可以并行执行，ledger commit 短暂串行；Project aggregation 冲突只使相关 closeout 从 fresh state 重规划。自动桥接由实际 ledger 进展、no-progress streak 与连续无进展轮次预算共同约束；累计自动轮次仅用于审计，不作为持续产生 canonical state 进展时的停止条件。
 
 ## M0 实现范围
 
@@ -417,7 +417,7 @@ Desktop Client 不重新实现 Runtime。它通过 Electron main 进程调用同
 - 由 Coordinator 把已领取远端任务的正文作为唯一 operator input，并通过 `--task` 注入 Controller turn；任务与项目标识保留在 Runtime 元数据。
 - Runtime 请求人工输入时按需打开 Intervention Workbench；提交内容转为 steer 或 fresh continuation。
 - transcript 与 run history 从任务详情和审查入口访问，不作为常驻主导航。
-- 右侧分别展示 Project case selection、selected Case resolution/candidate gaps、当前 Round control、normalized events 和 gate/write 控制。
+- 右侧展示 Project active Case 集合与选择依据、各 Case resolution/candidate gaps、当前 Round 所选 Case、normalized events 和 gate/write 控制。
 - 在运行中通过显式停止动作发送 interrupt，并保留远端进行中状态进入恢复流程。
 - run 完成后如果 runtime result 到达 `ledger_gate_ready`，自动执行 gate-result；gate 允许时自动 write-ledger，gate 阻塞时展示阻塞原因。
 - 将项目注册表、run history、result 和 events 存在 Electron userData。

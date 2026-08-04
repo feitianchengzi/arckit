@@ -215,7 +215,7 @@ Controller Agent 是唯一负责把人类输入、canonical state 和新增证�
 
 ## 动态 Controller Loop
 
-Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当前 Project State、全部 active Cases、selected Case、iteration state、用户输入和上一轮 handoff 生成动态 route plan，再按 route plan 派发零个或多个最小必要 Worker。
+Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当前 Project State、全部 active Cases、iteration state、用户输入和上一轮 handoff 选择当前 Loop 的唯一 Case 并生成动态 route plan，再按 route plan 派发零个或多个最小必要 Worker。不同 Loop 可以并行选择不同 active Cases。
 
 动态 route plan 说明业务路线和 selected gap；`worker_intents` 分别声明 worker 类型、语义 role 和 skill 绑定。业务路线表达本轮要补的状态缺口；worker 类型表达需要哪类执行能力；skill 绑定表达每个 worker packet 允许调用哪些 Arckit skill。没有 skill 绑定的 worker 仍可执行一般工具任务，但不能声称已经维护对应 Arckit 事实源。
 
@@ -224,8 +224,8 @@ Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当�
 动态 loop 的标准顺序是：
 
 1. 输入分析：识别用户输入是新任务、继续、补充、纠错、暂停、恢复、report intake、状态查询还是目标变更。
-2. 状态恢复：读取或初始化 project state、active case、iteration state、source fact indexes、pending 和上一轮 loop handoff。
-3. Case/gap 选择：Project State 只选择 Case；需要创建或切换 Case 时，Controller 输出独占本轮的 `case_control` Runtime action，不派发 Worker。已有唯一 selected Case 时，Controller 从其 unordered `candidate_gaps` 选择一个 concrete gap，并绑定当前 Case revision。
+2. 状态恢复：读取或初始化 project state、全部 active Cases、iteration state、source fact indexes、pending 和上一轮 loop handoff。
+3. Case/gap 选择：Project State 提供 active Cases 与项目级选择依据，不保存独占 selected Case。Controller 为当前 Loop 从全部 active Cases 中选择唯一 Case，再从其 unordered `candidate_gaps` 选择一个 concrete gap。选择已有 Case 不写 Project State；只有没有合适 Case 时才输出独占本轮的 `create_case` Runtime action并停止 Worker 派发。
 4. Route plan：判断本轮要补的状态缺口、所需 worker 类型、allowed skills、执行边界和停止条件。
 5. Execution gate：如果需要执行，确认是否已授权 executor；未授权时只输出 packet preview。
 6. Worker dispatch：只启动 route plan 需要的 Worker；如果 operator input 或已读取的稳定事实已足够支持 transition，则派发零 Worker。
@@ -233,10 +233,10 @@ Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当�
 8. Verification/closeout：验证本轮是否真的推进了目标状态，并判断 `done`、`continue`、`needs_human`、`blocked` 或 `external_wait`。
    当 ledger 派生 `completion_review` 时，Controller 必须检查完整 Case 的错误、遗漏和多余；findings 进入 Case 驱动修复，修复后的新 content revision 必须重新复审。最后一个授权自主轮次仍不 clean 时，本轮必须 `needs_human`。
 9. Case impact decision：判断本轮对 active case 和 Project State 的影响，区分 state delta、pending-only、no-change closure、external wait、human gate 和 blocked。
-10. Ledger writeback：只有在 runtime result 通过 closeout 和 Runtime hard gate 后，才调用 `arckit-development-ledger` manifest 声明的受信任 writeback entrypoint；canonical ledger 校验 expected Case revision 和完整 selected gap，并原子提交 Case 及必要的 Project/iteration projection。
-11. Fresh-state continuation：写回成功后重新读取 ledger，再选择下一 gap；若确定性 gate 仅因 Project/Case revision 或 candidate gap 新鲜度变化而拒绝写回，Runtime 允许一次受 no-progress budget 约束的 fresh-state Controller replan，不把它升级为人工决策。确定性 ledger 写回续订自动轮次预算；no-progress limit 和 max-auto-rounds 约束连续无 canonical state 进展的轮次，而不是限制完成一个 Case 所需的累计轮数。
+10. Ledger writeback：只有在 runtime result 通过 closeout 和 Runtime hard gate 后，才调用 `arckit-development-ledger` manifest 声明的受信任 writeback entrypoint；canonical ledger 校验 expected Case revision、observed Project revision 和完整 selected gap。不同 Case 的执行可以并行，Case/Project/iteration/projection/index commit 在跨进程 Project lock 中串行完成。
+11. Fresh-state continuation：写回成功后重新读取 ledger，再选择下一 gap；若确定性 gate 仅因 Project/Case revision 或 candidate gap 新鲜度变化而拒绝写回，Runtime 允许一次受 no-progress budget 约束的 fresh-state Controller replan，不把它升级为人工决策。另一个 Case 的普通 transition 不改变 Project revision；resolved Case 聚合发生冲突时必须基于 fresh Project State 重新判断影响。确定性 ledger 写回续订自动轮次预算；no-progress limit 和 max-auto-rounds 约束连续无 canonical state 进展的轮次，而不是限制完成一个 Case 所需的累计轮数。
 
-空项目首轮只建立 neutral Project 可恢复状态，而不是直接把 prompt 当作可实现规格。Controller 判断是否创建 Case，并通过 `case_control` Runtime action 请求确定性 ledger 创建和选择；首个 Case gap、是否先写规格、是否直接实现、是否需要 Worker，均由 Controller 根据用户输入、代码和证据决定，Runtime 不预置首轮业务路线。
+空项目首轮只建立 neutral Project 可恢复状态，而不是直接把 prompt 当作可实现规格。Controller 判断是否创建 Case，并通过 `case_control` Runtime action 请求确定性 ledger 创建和注册；首个 Case gap、是否先写规格、是否直接实现、是否需要 Worker，均由 Controller 根据用户输入、代码和证据决定，Runtime 不预置首轮业务路线。
 
 实现 worker 只有在以下条件满足时才可派发：
 

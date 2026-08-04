@@ -171,12 +171,12 @@ test('only a human gap can extend exhausted review budget without resetting prio
   assert.equal(extended.case_resolution.candidate_gaps[0].facet, 'review_findings');
 });
 
-test('Runtime exposes all selected Case candidate gaps without imposing a facet order', () => {
+test('Runtime exposes every active Case and lets the Controller select one per Loop', () => {
   const record = caseRecord();
   const ref = 'arckit/cases/active/CASE-20260726-901-case-state.md';
   const round = selectNextRound({
     projectState: {
-      case_control: { selected_case_ref: ref, next_case_intent: 'Advance this Case.' },
+      case_control: { next_case_intent: 'Advance one active Case.' },
       state_gaps: [{ id: 'PROJECT-GAP', dimension: 'quality_validation', current_state: 'unknown', target_state: 'verified', next_transition: 'Create a validation Case.' }]
     },
     activeCases: [{ ref, record }],
@@ -184,10 +184,10 @@ test('Runtime exposes all selected Case candidate gaps without imposing a facet 
   });
 
   assert.equal(round.scope, 'case');
-  assert.equal(round.case_id, record.id);
+  assert.equal(round.case_id, '');
   assert.equal(round.facet, '');
-  assert.equal(round.candidate_case_gaps.length, FACET_KEYS.length);
-  assert.deepEqual(round.candidate_case_gaps.map((gap) => gap.facet), FACET_KEYS);
+  assert.equal(round.candidate_case_gaps.length, 0);
+  assert.deepEqual(round.candidate_cases[0].candidate_gaps.map((gap) => gap.facet), FACET_KEYS);
   assert.equal(round.candidate_project_gaps[0].id, 'PROJECT-GAP');
 });
 
@@ -309,9 +309,10 @@ function transition(record, { facet, set, evidence, extraFacets = [], claimedSta
   const gap = record.case_resolution.candidate_gaps.find((item) => item.facet === facet);
   assert.ok(gap, `Expected ${facet} in candidate_gaps`);
   return {
-    schema_version: 'arckit-case-transition/v2',
+    schema_version: 'arckit-case-transition/v3',
     case_id: record.id,
     case_updated_at: record.updated_at,
+    project_updated_at: '2026-07-26T00:00:00.000Z',
     selected_gap: gap,
     planned_transition: { goal: gap.next_transition, expected_state_change: `${facet} advances from evidence.` },
     accepted_state_delta: {
@@ -351,9 +352,10 @@ function reviewTransition(record, completionReviewResult) {
   const gap = record.case_resolution.candidate_gaps.find((item) => item.facet === 'completion_review');
   assert.ok(gap, 'Expected completion_review in candidate_gaps');
   return {
-    schema_version: 'arckit-case-transition/v2',
+    schema_version: 'arckit-case-transition/v3',
     case_id: record.id,
     case_updated_at: record.updated_at,
+    project_updated_at: '2026-07-26T00:00:00.000Z',
     selected_gap: gap,
     planned_transition: { goal: gap.next_transition, expected_state_change: 'Record a completion review result for the current content revision.' },
     accepted_state_delta: {
@@ -406,9 +408,10 @@ function findingResolutionTransition(record, id) {
   const gap = record.case_resolution.candidate_gaps.find((item) => item.id.endsWith(`:review-finding:${id}`));
   assert.ok(gap, `Expected finding ${id} in candidate_gaps`);
   return {
-    schema_version: 'arckit-case-transition/v2',
+    schema_version: 'arckit-case-transition/v3',
     case_id: record.id,
     case_updated_at: record.updated_at,
+    project_updated_at: '2026-07-26T00:00:00.000Z',
     selected_gap: gap,
     planned_transition: { goal: gap.next_transition, expected_state_change: `Resolve ${id} and advance the content revision.` },
     accepted_state_delta: {
@@ -431,9 +434,10 @@ function humanExtensionTransition(record, additionalCycles) {
   const gap = record.case_resolution.candidate_gaps.find((item) => item.facet === 'completion_review' && item.responsibility === 'human');
   assert.ok(gap, 'Expected a human completion_review gap');
   return {
-    schema_version: 'arckit-case-transition/v2',
+    schema_version: 'arckit-case-transition/v3',
     case_id: record.id,
     case_updated_at: record.updated_at,
+    project_updated_at: '2026-07-26T00:00:00.000Z',
     selected_gap: gap,
     planned_transition: { goal: gap.next_transition, expected_state_change: 'Authorize a bounded autonomous review extension.' },
     accepted_state_delta: {

@@ -15,6 +15,7 @@ import {
 } from './development-case.mjs';
 import { validateProjectStateRecord } from './project-state.mjs';
 import { validateIterationStateRecord } from './project-iteration.mjs';
+import { withProjectCommitLock } from './project-commit-lock.mjs';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -51,9 +52,10 @@ function unique(values) {
 export function validateCaseTransition(transition, file = '<transition>') {
   const errors = [];
   if (!transition || typeof transition !== 'object' || Array.isArray(transition)) return [`${file}: transition must be an object`];
-  if (transition.schema_version !== 'arckit-case-transition/v2') errors.push(`${file}: schema_version must be arckit-case-transition/v2`);
+  if (transition.schema_version !== 'arckit-case-transition/v3') errors.push(`${file}: schema_version must be arckit-case-transition/v3`);
   if (!/^CASE-\d{8}-\d{3}$/.test(transition.case_id || '')) errors.push(`${file}: invalid case_id`);
   if (typeof transition.case_updated_at !== 'string' || !transition.case_updated_at) errors.push(`${file}: case_updated_at must be non-empty`);
+  if (typeof transition.project_updated_at !== 'string' || !transition.project_updated_at) errors.push(`${file}: project_updated_at must be non-empty`);
   if (!transition.selected_gap?.id || !transition.selected_gap?.facet || !transition.selected_gap?.next_transition
     || !['agent', 'human', 'external'].includes(transition.selected_gap?.responsibility)
     || typeof transition.selected_gap?.current_state !== 'string'
@@ -277,39 +279,39 @@ function applyCompletionReviewResult(record, result, candidate, timestamp) {
 }
 
 export async function applyCaseTransition({ projectRoot, casePath = '', transition, runtimeResultRef = '', dryRun = false }) {
+  if (dryRun) return applyCaseTransitionUnlocked({ projectRoot, casePath, transition, runtimeResultRef, dryRun });
+  return withProjectCommitLock(projectRoot, () => applyCaseTransitionUnlocked({
+    projectRoot,
+    casePath,
+    transition,
+    runtimeResultRef,
+    dryRun: false,
+  }));
+}
+
+async function applyCaseTransitionUnlocked({ projectRoot, casePath = '', transition, runtimeResultRef = '', dryRun = false }) {
   const root = path.resolve(projectRoot);
   const resolvedCasePath = casePath
     ? path.resolve(root, casePath)
     : findCasePath(transition.case_id);
   if (!resolvedCasePath || !resolvedCasePath.startsWith(root + path.sep)) throw new Error(`Case path is missing or outside project root for ${transition.case_id}`);
   const { text, record } = readCaseRecord(resolvedCasePath);
-  const nextRecord = applyCaseTransitionToRecord(structuredClone(record), transition, { runtimeResultRef });
   const activeCaseRef = path.relative(root, resolvedCasePath);
   const projectStatePath = path.join(root, 'arckit', 'project', 'state.record.json');
   const projectState = readJson(projectStatePath);
-  const selectedCaseRef = projectState.case_control?.selected_case_ref || '';
   if (!(projectState.active_case_refs || []).includes(activeCaseRef)) {
     throw new Error(`Case transition target is not registered in Project active_case_refs: ${activeCaseRef}`);
   }
-  if (selectedCaseRef && selectedCaseRef !== activeCaseRef) {
-    throw new Error(`Case transition must target the Project-selected Case: expected ${selectedCaseRef}, received ${activeCaseRef}`);
-  }
+  const timestamp = nextRevisionTimestamp(record.updated_at, projectState.project?.updated_at);
+  const nextRecord = applyCaseTransitionToRecord(structuredClone(record), transition, { timestamp, runtimeResultRef });
   let projectStateChanged = false;
-  if (!selectedCaseRef) {
-    projectState.project.updated_at = nextRecord.updated_at;
-    projectState.case_control = {
-      selected_case_ref: activeCaseRef,
-      selection_reason: `Accepted Case transition selected ${nextRecord.id}.`,
-      next_case_intent: nextRecord.user_intent || nextRecord.title,
-      priority_basis: `Controller selected ${transition.selected_gap.id} from this Case candidate_gaps.`,
-      stop_condition: 'Stop project-level selection after binding this Case; subsequent Loops select from its candidate_gaps.',
-    };
-    projectStateChanged = true;
-  }
   let iteration = null;
   let iterationRef = '';
   const changedFiles = [];
   if (nextRecord.case_resolution.status === 'resolved') {
+    if (projectState.project?.updated_at !== transition.project_updated_at) {
+      throw new Error(`Stale Project aggregation for ${nextRecord.id}: expected updated_at=${projectState.project?.updated_at || '<missing>'}, received ${transition.project_updated_at}`);
+    }
     const closedCaseRef = activeCaseRef.replace('/active/', '/closed/');
     applyResolvedCaseToProject(projectState, {
       timestamp: nextRecord.updated_at,
@@ -395,6 +397,11 @@ export async function applyCaseTransition({ projectRoot, casePath = '', transiti
   };
 }
 
+function nextRevisionTimestamp(...revisions) {
+  const latestRevision = Math.max(0, ...revisions.map((revision) => Date.parse(revision || '') || 0));
+  return new Date(Math.max(Date.now(), latestRevision + 1)).toISOString();
+}
+
 function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCaseRef, projectImpact }) {
   record.project.updated_at = timestamp;
   record.active_case_refs = (record.active_case_refs || []).filter((ref) => ref !== activeCaseRef);
@@ -430,11 +437,11 @@ function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCa
     return next;
   }).filter(Boolean);
   record.case_control = {
-    selected_case_ref: '',
-    selection_reason: `Resolved Case ${closedCaseRef}.`,
-    next_case_intent: record.state_gaps.length ? 'Select or create the next bounded Case from the remaining Project state_gaps.' : '',
+    next_case_intent: record.active_case_refs.length
+      ? 'Select one active Case for each independent Loop.'
+      : record.state_gaps.length ? 'Create the next bounded Case from the remaining Project state_gaps.' : '',
     priority_basis: record.state_gaps.length ? 'Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.' : 'No remaining Project state gap requires selection.',
-    stop_condition: record.state_gaps.length ? 'Stop after selecting or creating the next bounded Case.' : 'Stop when no further project-level advancement is intended.',
+    stop_condition: record.active_case_refs.length || record.state_gaps.length ? 'Stop after one active Case and one candidate gap are selected for the current Loop.' : 'Stop when no further project-level advancement is intended.',
   };
   record.last_state_delta = {
     changed_dimensions: transitions.map((change) => change.dimension),

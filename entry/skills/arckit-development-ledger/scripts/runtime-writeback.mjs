@@ -42,12 +42,17 @@ export async function applyRuntimeLedgerWriteback({ projectRoot, runtimeResult, 
     };
   }
 
-  const caseResult = await applyCaseTransition({
-    projectRoot: root,
-    casePath: activeCaseRef,
-    transition: { ...transition, runtime_result_ref: runtimeRecordRef },
-    runtimeResultRef: runtimeRecordRef,
-  });
+  let caseResult;
+  try {
+    caseResult = await applyCaseTransition({
+      projectRoot: root,
+      casePath: activeCaseRef,
+      transition: { ...transition, runtime_result_ref: runtimeRecordRef },
+      runtimeResultRef: runtimeRecordRef,
+    });
+  } catch (error) {
+    return transitionRejectionResult({ gate, dryRun: false, error, transition });
+  }
   return {
     schema_version: 'arckit-ledger-write/v2',
     written: true,

@@ -11,9 +11,10 @@
 ## Case transition
 
 ```yaml
-schema_version: arckit-case-transition/v2
+schema_version: arckit-case-transition/v3
 case_id: CASE-YYYYMMDD-NNN
 case_updated_at: "expected Case updated_at revision"
+project_updated_at: "observed Project updated_at revision"
 selected_gap: {}
 planned_transition:
   goal: "..."
@@ -37,7 +38,7 @@ project_impact_candidate:
   evidence: []
 ```
 
-`selected_gap` 必须逐字段复现当前 candidate gap，包括 `responsibility`、`current_state`、`target_state` 和 `next_transition`。ledger 重新审计全部 Case facets：revision 或 gap 已过期就拒绝；resolved claim 强于派生状态时拒绝；unresolved claim 弱于派生状态时允许 ledger 得出 resolved。Case/Project/iteration/projections/index 必须作为一个可回滚提交写入。
+`selected_gap` 必须逐字段复现当前 candidate gap，包括 `responsibility`、`current_state`、`target_state` 和 `next_transition`。ledger 重新审计全部 Case facets：Case revision 或 gap 已过期就拒绝；resolved transition 的 Project revision 已变化也拒绝并要求从 fresh state 重新聚合；unresolved transition 因不聚合 Project State，不以 Project revision 变化作为拒绝条件；resolved claim 强于派生状态时拒绝；unresolved claim 弱于派生状态时允许 ledger 得出 resolved。不同 Case 可以并行执行，canonical Case/Project/iteration/projections/index commit 按 Project 串行化并保持可回滚。
 
 基础内容全部完成后，Controller 仍应声明 unresolved，直到 `completion_review_result` 对当前 `content_revision` 给出三维 clean。复审发现问题时把结构化 findings 写入 Case；修复 findings 后由内容 revision 变化驱动下一轮复审。clean 结果不能与内容修改同轮提交。
 

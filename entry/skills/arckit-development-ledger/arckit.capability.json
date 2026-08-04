@@ -1,7 +1,7 @@
 {
   "schema_version": "arckit-capability/v1",
   "id": "arckit-development-ledger",
-  "protocol_revision": "case-control-runtime-entrypoint/v2",
+  "protocol_revision": "parallel-case-ledger/v3",
   "kind": "state_ledger",
   "runtime_role": ["state_reader", "closeout_auditor", "ledger_writer"],
   "binding_targets": ["runtime"],
@@ -48,9 +48,9 @@
   ],
   "runtime_notes": [
     "Runtime must resolve and call the trusted entrypoints declared by this capability instead of maintaining copied ledger scripts.",
-    "Agent-directed Case creation/selection enters through case_control; ledger allocates ids and atomically updates Project, iteration, projections, and indexes.",
-    "Case transitions use optimistic revision binding and exact candidate-gap matching; stale Controller frames fail closed.",
-    "Case, Project, iteration, projections, and indexes are committed as one rollback-capable ledger operation.",
+    "Agent-directed Case creation enters through case_control; ledger allocates ids and atomically registers the Case in Project and iteration refs.",
+    "Case transitions use Case revision binding and exact candidate-gap matching; resolved transitions also bind the observed Project revision.",
+    "Different Cases may execute concurrently; Case, Project, iteration, projections, and indexes commit under one cross-process Project lock with rollback.",
     "Iteration v2 contains only macro targets, accepted Project changes bound to closed Cases, acceptance state, and Case refs; Loop continuation is forbidden.",
     "Project and Iteration audits reject uncovered actionable dimensions, volatile evidence refs, and active Case reference drift.",
     "Runtime passes the semantic Case transition object directly; stdin and caller-owned files are CLI transports and volatile paths never become evidence.",

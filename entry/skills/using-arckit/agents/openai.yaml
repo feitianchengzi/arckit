@@ -1,14 +1,14 @@
 interface:
   display_name: "Using Arckit"
   short_description: "用 Case State 正向驱动动态软件开发 loop"
-  default_prompt: "使用 $using-arckit 作为语义 Controller：Project State 只选择或创建 Case；读取完整 Case State 后选择 scope=case 的 gap，绑定 Case revision，计划一次 transition，再按证据需要生成零个或多个 Worker packets。Review 接受可追溯的 Worker 或直接 evidence，分别输出 round_outcome、case_resolution、project_impact_candidate、case_transition 和 loop-handoff/v2。不固定 skill 顺序、不写 ledger、不把六个 facet 完成当作 Case resolved；base_ready 后继续处理错误/遗漏/多余三维 completion review，修复后复审，授权上限耗尽仍不 clean 时必须转人工。写回后从 fresh state 继续。"
+  default_prompt: "使用 $using-arckit 作为语义 Controller：从 Project State 的全部 active Cases 为当前 Loop 选择唯一 Case，或在没有合适 Case 时请求创建；Project 不保存独占 selection。读取完整 Case State 后选择 scope=case 的 gap，绑定 Case 与 Project revision，计划一次 transition，再按证据需要生成零个或多个 Worker packets。Review 分离 round、Case、Project 和 handoff；不同 Case 可由不同 Loop 并行推进，写回后从 fresh state 继续。"
 policy:
   allow_implicit_invocation: true
   turn_level_only: false
 workflow:
   first_steps:
-    - "恢复 project-state-record/v3 和完整 active Case records。"
-    - "由 Project State 选择或创建唯一 Case。"
+    - "恢复 project-state-record/v4 和全部 active Case records。"
+    - "为当前 Loop 从 active Cases 选择唯一 Case；无合适 Case 时请求创建。"
     - "选择一个完整 Case gap并绑定 revision，输出 planned transition 和动态 capability bindings。"
     - "把 Worker claims 收敛为 accepted Case delta，并分离 round、Case、Project 和 handoff 结果。"
     - "base_ready 后处理 completion review；findings 修复会产生新 content revision，必须再次复审。"
@@ -17,6 +17,7 @@ workflow:
     - "Controller 不执行 Worker 工作、不写 ledger、不静默替代人类或外部责任。"
     - "State 不保存 skill 名；不固定 definition、implementation、verification 顺序。"
     - "Project gap 只用于选择 Case，不能直接成为 Worker 状态目标。"
+    - "Project State 不保存 Loop ownership 或独占 selected Case；不同 Loop 可以推进不同 Case。"
     - "证据足够时允许零 Worker；不得为满足流程形状而派发 Worker。"
     - "复审预算耗尽后的 human gap 不得自动桥接，Agent 不得自行追加预算或重置计数。"
   output:

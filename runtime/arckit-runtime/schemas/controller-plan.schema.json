@@ -20,7 +20,7 @@
             "required": ["type", "action", "case_id", "title", "intent", "artifact_type", "selection_reason"],
             "properties": {
               "type": { "type": "string", "const": "case_control" },
-              "action": { "type": "string", "enum": ["select_existing_case", "create_case"] },
+              "action": { "type": "string", "const": "create_case" },
               "case_id": { "type": "string", "maxLength": 32 },
               "title": { "type": "string", "maxLength": 240 },
               "intent": { "type": "string", "maxLength": 1200 },

@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-03T18:08:35.523Z",
+  "updated_at": "2026-08-03T19:06:09.500Z",
   "iteration_goal": "将 Arckit 状态机制从记录型账本升级为由 Project State 选择 Case、Case State 暴露完整性 gap、Loop 产生证据并经确定性 ledger 聚合的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "target_project_states": [
@@ -181,7 +181,8 @@
       "arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md",
       "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
       "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md",
-      "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
+      "arckit/cases/closed/CASE-20260803-002-support-parallel-case-execution-with-serialized-project-aggregat.md"
     ],
     "remaining_project_gaps": [
       "GAP-agent-scenario-evaluation",
@@ -208,56 +209,16 @@
     "arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md",
     "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
     "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md",
-    "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+    "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
+    "arckit/cases/closed/CASE-20260803-002-support-parallel-case-execution-with-serialized-project-aggregat.md"
   ],
   "close_condition": "当严格跨记录审计稳定通过，并至少完成一次真实复杂项目的 Project gap -> Case -> Worker evidence -> completion review -> Project impact 闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
-    "project_changes": [
-      {
-        "dimension": "user_experience",
-        "from_state": "implemented",
-        "to_state": "accepted"
-      },
-      {
-        "dimension": "runtime_surfaces",
-        "from_state": "verified",
-        "to_state": "accepted"
-      },
-      {
-        "dimension": "implementation_coverage",
-        "from_state": "verified",
-        "to_state": "accepted"
-      },
-      {
-        "dimension": "quality_validation",
-        "from_state": "verified",
-        "to_state": "accepted"
-      },
-      {
-        "dimension": "observability_support",
-        "from_state": "verified",
-        "to_state": "accepted"
-      },
-      {
-        "dimension": "maintainability_handoff",
-        "from_state": "verified",
-        "to_state": "accepted"
-      }
-    ],
+    "case_ref": "arckit/cases/closed/CASE-20260803-002-support-parallel-case-execution-with-serialized-project-aggregat.md",
+    "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
-      "arckit-runtime://runs/RUN-20260803-180157597Z",
-      "runtime/arckit-runtime/src/desktop-run-manager.mjs",
-      "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-      "npm run check",
-      "runtime/arckit-runtime/src/agent-orchestrator.mjs",
-      "runtime/arckit-runtime/test/capability-registry.test.mjs",
-      "git diff --check",
-      "runtime/arckit-runtime/src/projection/run-event-projector.mjs",
-      "runtime/arckit-runtime/test/codex-app-server-adapter.test.mjs",
-      "runtime/arckit-runtime/test/desktop-run-manager.test.mjs"
+      "arckit/cases/closed/CASE-20260803-002-support-parallel-case-execution-with-serialized-project-aggregat.md"
     ],
-    "updated_at": "2026-08-03T18:08:35.523Z"
+    "updated_at": "2026-08-03T19:06:09.500Z"
   }
 }

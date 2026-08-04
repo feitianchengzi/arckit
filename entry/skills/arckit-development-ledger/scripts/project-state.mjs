@@ -49,7 +49,7 @@ const GAP_KEYS = new Set([
   'id', 'dimension', 'current_state', 'target_state', 'impact', 'urgency', 'risk',
   'dependencies', 'covered_dimensions', 'next_transition', 'candidate_case_ref',
 ]);
-const CASE_CONTROL_KEYS = new Set(['selected_case_ref', 'selection_reason', 'next_case_intent', 'priority_basis', 'stop_condition']);
+const CASE_CONTROL_KEYS = new Set(['next_case_intent', 'priority_basis', 'stop_condition']);
 const LAST_DELTA_KEYS = new Set([
   'changed_dimensions', 'state_transitions', 'deferred_dimensions', 'blocked_dimensions',
   'case_refs', 'iteration_ref', 'next_project_focus', 'updated_at',
@@ -81,7 +81,8 @@ function usage(exitCode = 0) {
   const message = [
     'Usage:',
     '  node <skill-dir>/scripts/project-state.mjs init --name "Project Name" [--intent "..."]',
-    '  node <skill-dir>/scripts/project-state.mjs select-case --case-ref "arckit/cases/active/CASE-...md" [--intent "..."] [--reason "..."]',
+    '  node <skill-dir>/scripts/project-state.mjs register-case --case-ref "arckit/cases/active/CASE-...md" [--intent "..."] [--reason "..."]',
+    '  node <skill-dir>/scripts/project-state.mjs migrate-v4 [record-file]',
     '  node <skill-dir>/scripts/project-state.mjs repair-runtime-refs [record-file]',
     '  node <skill-dir>/scripts/project-state.mjs render [record-file]',
     '  node <skill-dir>/scripts/project-state.mjs audit [record-file|state-file]',
@@ -137,7 +138,7 @@ function defaultDimension(currentState = 'unknown', targetState = 'unknown', sta
 function createRecord({ name, intent = '' }) {
   const timestamp = nowIso();
   return {
-    schema_version: 'project-state-record/v3',
+    schema_version: 'project-state-record/v4',
     project: {
       name,
       status: 'active',
@@ -153,8 +154,6 @@ function createRecord({ name, intent = '' }) {
     ),
     state_gaps: [],
     case_control: {
-      selected_case_ref: '',
-      selection_reason: '',
       next_case_intent: '',
       priority_basis: '',
       stop_condition: '',
@@ -201,12 +200,12 @@ function renderState(record) {
     '',
     record.case_control?.next_case_intent || 'TBD',
     '',
-    '## Case Selection',
+    '## Case Selection Basis',
     '',
-    `- Selected case: ${record.case_control?.selected_case_ref || 'TBD'}`,
-    `- Case selection reason: ${record.case_control?.selection_reason || 'TBD'}`,
+    `- Active cases: ${(record.active_case_refs || []).length}`,
     `- Next case intent: ${record.case_control?.next_case_intent || 'TBD'}`,
     `- Priority basis: ${record.case_control?.priority_basis || 'TBD'}`,
+    '- Each Loop selects exactly one active Case; Project State does not hold an exclusive execution selection.',
     '',
     '## Project Gap Candidates',
     '',
@@ -341,13 +340,6 @@ function auditRecord(record, recordFile = STATE_RECORD_PATH) {
       errors.push(`${recordFile}: active_case_ref should point under arckit/cases/active: ${ref}`);
     }
   }
-  const selectedCaseRef = record.case_control?.selected_case_ref || '';
-  if (selectedCaseRef && !(record.active_case_refs || []).includes(selectedCaseRef)) {
-    errors.push(`${recordFile}: case_control.selected_case_ref must belong to active_case_refs: ${selectedCaseRef}`);
-  }
-  if (selectedCaseRef && !fs.existsSync(resolveProjectPath(selectedCaseRef))) {
-    errors.push(`${recordFile}: case_control.selected_case_ref does not exist: ${selectedCaseRef}`);
-  }
   for (const gap of record.state_gaps || []) {
     if (typeof gap?.candidate_case_ref === 'string' && gap.candidate_case_ref && (!(record.active_case_refs || []).includes(gap.candidate_case_ref) || !fs.existsSync(resolveProjectPath(gap.candidate_case_ref)))) {
       errors.push(`${recordFile}: state gap ${gap.id} candidate_case_ref must be an active Case: ${gap.candidate_case_ref}`);
@@ -446,8 +438,8 @@ export function validateProjectStateRecord(record, file = '<record>') {
   const errors = [];
   if (!record || typeof record !== 'object' || Array.isArray(record)) return [`${file}: project state must be an object`];
   rejectUnknownKeys(record, PROJECT_KEYS, 'record', errors, file);
-  if (record.schema_version !== 'project-state-record/v3') {
-    errors.push(`${file}: schema_version must be project-state-record/v3`);
+  if (record.schema_version !== 'project-state-record/v4') {
+    errors.push(`${file}: schema_version must be project-state-record/v4`);
   }
   if (!record.project || typeof record.project !== 'object' || Array.isArray(record.project)) {
     errors.push(`${file}: project must be an object`);
@@ -498,7 +490,7 @@ export function validateProjectStateRecord(record, file = '<record>') {
     errors.push(`${file}: case_control must be an object`);
   } else {
     rejectUnknownKeys(record.case_control, CASE_CONTROL_KEYS, 'case_control', errors, file);
-    for (const key of ['selected_case_ref', 'selection_reason', 'next_case_intent', 'priority_basis', 'stop_condition']) {
+    for (const key of ['next_case_intent', 'priority_basis', 'stop_condition']) {
       if (typeof record.case_control[key] !== 'string') {
         errors.push(`${file}: case_control.${key} must be a string`);
       }
@@ -576,19 +568,17 @@ function commandInit(args) {
   console.log(STATE_RECORD_PATH);
 }
 
-function commandSelectCase(args) {
+function commandRegisterCase(args) {
   const caseRef = args['case-ref'];
-  if (!caseRef) throw new Error('select-case requires --case-ref');
+  if (!caseRef) throw new Error('register-case requires --case-ref');
   const { record } = readRecord(STATE_RECORD_PATH);
-  if (!caseRef.includes('/active/') || !fs.existsSync(resolveProjectPath(caseRef))) throw new Error(`select-case target must be an existing active Case: ${caseRef}`);
+  if (!caseRef.includes('/active/') || !fs.existsSync(resolveProjectPath(caseRef))) throw new Error(`register-case target must be an existing active Case: ${caseRef}`);
   const timestamp = nowIso();
   if (!record.active_case_refs.includes(caseRef)) record.active_case_refs.push(caseRef);
   record.case_control = {
-    selected_case_ref: caseRef,
-    selection_reason: args.reason || 'Project State selected this bounded Case for advancement.',
     next_case_intent: args.intent || '',
-    priority_basis: args.reason || 'The selected Case carries the current project advancement context.',
-    stop_condition: 'Stop project-level selection after the Case is bound; Case State determines subsequent Loops.',
+    priority_basis: args.reason || 'Controller compares the active Cases against current intent, impact, risk, and dependencies for each Loop.',
+    stop_condition: 'Stop after one active Case and one of its candidate gaps are selected for the current Loop.',
   };
   record.project.updated_at = timestamp;
   record.last_state_delta = {
@@ -631,6 +621,64 @@ function commandSelectCase(args) {
     throw error;
   }
   console.log(STATE_RECORD_PATH);
+}
+
+export function migrateProjectStateV4(record, { timestamp = nowIso() } = {}) {
+  if (record?.schema_version === 'project-state-record/v4') return { record, migrated: false };
+  if (record?.schema_version !== 'project-state-record/v3') {
+    throw new Error(`Unsupported Project State migration source: ${record?.schema_version || '<missing>'}`);
+  }
+  const previousControl = record.case_control || {};
+  const next = structuredClone(record);
+  next.schema_version = 'project-state-record/v4';
+  next.project.updated_at = timestamp;
+  next.case_control = {
+    next_case_intent: previousControl.next_case_intent || (next.active_case_refs?.length
+      ? 'Select one active Case for each independent Loop.'
+      : 'Create a bounded Case from the remaining Project state gaps.'),
+    priority_basis: previousControl.priority_basis || 'Controller compares current intent, impact, urgency, risk, and dependencies; array order is not priority.',
+    stop_condition: 'Stop after one active Case and one of its candidate gaps are selected for the current Loop.',
+  };
+  next.last_state_delta = {
+    ...(next.last_state_delta || {}),
+    next_project_focus: next.case_control.next_case_intent,
+    updated_at: timestamp,
+  };
+  return { record: next, migrated: true };
+}
+
+function commandMigrateV4(args) {
+  ensureDirs();
+  const file = path.resolve(args._[1] || STATE_RECORD_PATH);
+  const { record, recordFile } = readRecord(file);
+  const canonicalFile = path.resolve(recordFile || file);
+  const migration = migrateProjectStateV4(record);
+  if (!migration.migrated) {
+    console.log(JSON.stringify({ schema_version: 'project-state-migration/v1', migrated: false, changed_files: [] }, null, 2));
+    return;
+  }
+  const errors = validateProjectStateRecord(migration.record, canonicalFile);
+  if (errors.length) throw new Error(errors.join('\n'));
+  const snapshots = [canonicalFile, STATE_PATH].map((snapshotFile) => ({
+    file: snapshotFile,
+    exists: fs.existsSync(snapshotFile),
+    content: fs.existsSync(snapshotFile) ? fs.readFileSync(snapshotFile) : null,
+  }));
+  try {
+    writeRecord(migration.record, canonicalFile);
+    writeStateProjection(migration.record, STATE_PATH);
+  } catch (error) {
+    for (const snapshot of snapshots) {
+      if (snapshot.exists) fs.writeFileSync(snapshot.file, snapshot.content);
+      else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file);
+    }
+    throw error;
+  }
+  console.log(JSON.stringify({
+    schema_version: 'project-state-migration/v1',
+    migrated: true,
+    changed_files: ['arckit/project/state.record.json', 'arckit/project/STATE.md'],
+  }, null, 2));
 }
 
 function runIterationScript(args) {
@@ -744,7 +792,8 @@ function main() {
   const command = args._[0];
   if (!command || command === 'help' || command === '--help') usage(0);
   if (command === 'init') return commandInit(args);
-  if (command === 'select-case') return commandSelectCase(args);
+  if (command === 'register-case' || command === 'select-case') return commandRegisterCase(args);
+  if (command === 'migrate-v4') return commandMigrateV4(args);
   if (command === 'repair-runtime-refs') return commandRepairRuntimeRefs(args);
   if (command === 'render') return commandRender(args);
   if (command === 'audit') return commandAudit(args);
