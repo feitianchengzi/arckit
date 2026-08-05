@@ -97,6 +97,49 @@ test("automatic Desktop policy never promotes a human decision handoff", () => {
   assert.equal(decision.requested, false);
 });
 
+test("final Runtime handoff overrides an older ledger continuation handoff", () => {
+  const sourceRun = autoBridgeRun({ noProgressStreak: 0, continuationPolicy: "automatic", ledgerWritten: true });
+  sourceRun.activity.ledger_write_result.parsed.case_transition_result = {
+    case_resolution: {
+      loop_handoff: autoBridgeResult({
+        noProgressLimit: 1,
+        triggerMode: "manual_bridge"
+      }).runtime_result.loop_handoff
+    }
+  };
+  const finalHumanResult = autoBridgeResult({
+    noProgressLimit: 1,
+    triggerMode: "user_decision",
+    nextResponsibility: "human",
+    humanDecisionRequired: true
+  });
+
+  const decision = evaluateAutoContinuation({ sourceRun, parsedResult: finalHumanResult });
+
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.requested, false);
+});
+
+test("final Runtime continuation overrides an older ledger human handoff", () => {
+  const sourceRun = autoBridgeRun({ noProgressStreak: 0, continuationPolicy: "automatic", ledgerWritten: true });
+  sourceRun.activity.ledger_write_result.parsed.case_transition_result = {
+    case_resolution: {
+      loop_handoff: autoBridgeResult({
+        noProgressLimit: 1,
+        triggerMode: "user_decision",
+        nextResponsibility: "human",
+        humanDecisionRequired: true
+      }).runtime_result.loop_handoff
+    }
+  };
+  const finalAgentResult = autoBridgeResult({ noProgressLimit: 1, triggerMode: "manual_bridge" });
+
+  const decision = evaluateAutoContinuation({ sourceRun, parsedResult: finalAgentResult });
+
+  assert.equal(decision.allowed, true);
+  assert.equal(decision.reason, "automation_policy");
+});
+
 test("deterministic ledger progress renews the max_auto_rounds safety budget", () => {
   const progressed = evaluateAutoContinuation({
     sourceRun: autoBridgeRun({

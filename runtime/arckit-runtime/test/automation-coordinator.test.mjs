@@ -177,6 +177,157 @@ test("automation coordinator keeps an eligible ledger manual bridge in the autom
   coordinator.dispose();
 });
 
+test("automation coordinator pauses for the final human handoff instead of an older ledger continuation", async () => {
+  const events = new EventEmitter();
+  let store = normalizeStore({
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+    automation: {
+      active_task: {
+        task_id: "TASK-1",
+        project_id: "REMOTE-1",
+        local_project_id: "LOCAL-1",
+        run_id: "RUN-1",
+        phase: "running"
+      }
+    }
+  });
+  const runManager = {
+    onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
+    async readDesktopStore() { return store; },
+    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
+    async listProjects() { return store.projects; },
+    async listRuns() { return []; }
+  };
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: () => ({}),
+    now: () => "2026-08-05T00:14:43.000Z"
+  });
+
+  events.emit("event", {
+    type: "run.finished",
+    runId: "RUN-1",
+    status: "completed",
+    result: {
+      runtime_result: {
+        loop_handoff: {
+          status: "needs_human",
+          next_responsibility: "human",
+          human_decision_required: true,
+          trigger_mode: "user_decision",
+          responsibility_reason: "Verification requires approval.",
+          human_gate: { decision_needed: "Allow the verification build?" }
+        }
+      }
+    },
+    activity: {
+      ledger_write_result: {
+        parsed: {
+          written: true,
+          case_transition_result: {
+            case_resolution: {
+              loop_handoff: {
+                status: "continue",
+                next_responsibility: "agent",
+                agent_continuation_available: true,
+                human_decision_required: false,
+                trigger_mode: "manual_bridge",
+                next_prompt: "Continue from fresh state."
+              }
+            }
+          }
+        }
+      }
+    }
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  assert.equal(store.automation.active_task.phase, "awaiting_human");
+  assert.equal(store.automation.attention_items.length, 1);
+  assert.equal(store.automation.attention_items[0].question, "Allow the verification build?");
+  coordinator.dispose();
+});
+
+test("startup sync restores the final human handoff from a stale continuing projection", async () => {
+  let store = normalizeStore({
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
+    automation: {
+      enabled: true,
+      project_bindings: { "REMOTE-1": "LOCAL-1" },
+      project_participation: { "REMOTE-1": true },
+      snapshot: {
+        user: { id: "USER-1" },
+        projects: [{ id: "REMOTE-1", current_user_id: "USER-1" }],
+        tasks: [{ id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", executor_id: "USER-1", version: "v1" }],
+        source_status: "healthy"
+      },
+      active_task: {
+        task_id: "TASK-1",
+        project_id: "REMOTE-1",
+        local_project_id: "LOCAL-1",
+        run_id: "RUN-1",
+        phase: "continuing"
+      }
+    }
+  });
+  const finalHumanHandoff = {
+    status: "needs_human",
+    next_responsibility: "human",
+    human_decision_required: true,
+    trigger_mode: "user_decision",
+    responsibility_reason: "Verification requires approval.",
+    human_gate: { decision_needed: "Allow the verification build?" }
+  };
+  const runs = [{
+    id: "RUN-1",
+    project_id: "LOCAL-1",
+    status: "completed",
+    activity: {
+      loop_handoff: finalHumanHandoff,
+      ledger_write_result: {
+        parsed: {
+          written: true,
+          case_transition_result: {
+            case_resolution: {
+              loop_handoff: {
+                status: "continue",
+                next_responsibility: "agent",
+                agent_continuation_available: true,
+                human_decision_required: false,
+                trigger_mode: "manual_bridge",
+                next_prompt: "Continue from fresh state."
+              }
+            }
+          }
+        }
+      }
+    }
+  }];
+  const runManager = {
+    onEvent() { return () => {}; },
+    async readDesktopStore() { return store; },
+    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
+    async listProjects() { return store.projects; },
+    async listRuns() { return runs; },
+    isRunActive() { return false; }
+  };
+  const taskSource = {
+    async getCurrentUser() { return { id: "USER-1" }; },
+    async listProjects() { return [{ id: "REMOTE-1", current_user_id: "USER-1" }]; },
+    async listTasks() { return [{ id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", executor_id: "USER-1", version: "v1" }]; }
+  };
+  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
+
+  const snapshot = await coordinator.sync({ dispatch: false });
+
+  assert.equal(snapshot.active_task.phase, "awaiting_human");
+  assert.equal(snapshot.attention_items.length, 1);
+  assert.equal(snapshot.attention_items[0].question, "Allow the verification build?");
+  assert.equal(snapshot.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
 test("a failed commit agent keeps the todo in progress and recovery retries only git commit", async () => {
   const events = new EventEmitter();
   let store = normalizeStore({

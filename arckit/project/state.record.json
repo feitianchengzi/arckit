@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-04T15:31:35.227Z",
+    "updated_at": "2026-08-04T17:01:16.287Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -637,7 +637,8 @@
     "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md",
     "arckit/cases/closed/CASE-20260803-002-support-parallel-case-execution-with-serialized-project-aggregat.md",
     "arckit/cases/closed/CASE-20260804-001-persist-runtime-sessions-and-execute-state-driven-loops-in-proce.md",
-    "arckit/cases/closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md"
+    "arckit/cases/closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md",
+    "arckit/cases/closed/CASE-20260804-003-prioritize-final-handoff-freshness-in-todo-automation.md"
   ],
   "last_state_delta": {
     "changed_dimensions": [],
@@ -645,11 +646,11 @@
     "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md"
+      "arckit/cases/closed/CASE-20260804-003-prioritize-final-handoff-freshness-in-todo-automation.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "next_project_focus": "Create the next bounded Case from the remaining Project state_gaps.",
-    "updated_at": "2026-08-04T15:31:35.227Z"
+    "updated_at": "2026-08-04T17:01:16.287Z"
   },
   "case_control": {
     "next_case_intent": "Create the next bounded Case from the remaining Project state_gaps.",

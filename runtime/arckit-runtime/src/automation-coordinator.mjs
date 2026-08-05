@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { createWorkshopTaskSource, TASK_STATES, TaskSourceError } from "./task-source-adapter.mjs";
 import { isAgentContinuationHandoff } from "./kernel/continuation-policy.mjs";
+import { selectEffectiveLoopHandoff } from "./kernel/effective-handoff.mjs";
 
 const STATE_LABELS = Object.freeze({
   pending_review: "待评审",
@@ -652,25 +653,11 @@ export function createAutomationCoordinator({
       return;
     }
     const runtimeResult = event.result?.runtime_result || null;
-    const handoff = event.activity?.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff
-      || runtimeResult?.loop_handoff
-      || {};
+    const handoff = selectEffectiveLoopHandoff({ runtimeResult, activity: event.activity });
     const ledgerRequired = runtimeResult?.ledger_stage?.writeback_required === true;
     const ledgerWritten = event.activity?.ledger_write_result?.parsed?.written === true;
     if (handoff.next_responsibility === "human" || handoff.human_decision_required === true) {
-      await patchAutomation((automation) => {
-        automation.active_task.phase = "awaiting_human";
-        automation.attention_items = upsertById(automation.attention_items, {
-          id: `ATTENTION-${automation.active_task.task_id}`,
-          task_id: automation.active_task.task_id,
-          project_id: automation.active_task.project_id,
-          run_id: event.runId,
-          reason: handoff.responsibility_reason || "Runtime requires a human decision.",
-          question: handoff.human_gate?.decision_needed || handoff.next_prompt || "Review the Runtime request and provide direction.",
-          created_at: now()
-        });
-      });
-      emit("automation.changed", { reason: "awaiting-human", taskId: active.task_id });
+      await setAwaitingHuman({ active, runId: event.runId, handoff });
       return;
     }
     if (event.status === "completed" && isAgentContinuationHandoff(handoff)) {
@@ -845,9 +832,11 @@ export function createAutomationCoordinator({
     }
 
     const activity = latest.activity || {};
-    const handoff = activity.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff
-      || activity.loop_handoff
-      || {};
+    const handoff = selectEffectiveLoopHandoff({ activity });
+    if (handoff.next_responsibility === "human" || handoff.human_decision_required === true) {
+      await setAwaitingHuman({ active, runId: latest.id, handoff });
+      return null;
+    }
     const caseComplete = handoff.next_responsibility === "none"
       || handoff.status === "done"
       || handoff.status === "complete";
@@ -862,6 +851,28 @@ export function createAutomationCoordinator({
       automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
     });
     return startCommitAgent();
+  }
+
+  async function setAwaitingHuman({ active, runId, handoff }) {
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== active.task_id) return;
+      automation.active_task.run_id = runId;
+      automation.active_task.phase = "awaiting_human";
+      automation.recovery_items = automation.recovery_items.filter((item) => (
+        item.task_id !== active.task_id
+        || !["runtime_incomplete", "runtime_continuation_stopped", "runtime_process_missing"].includes(item.type)
+      ));
+      automation.attention_items = upsertById(automation.attention_items, {
+        id: `ATTENTION-${automation.active_task.task_id}`,
+        task_id: automation.active_task.task_id,
+        project_id: automation.active_task.project_id,
+        run_id: runId,
+        reason: handoff.responsibility_reason || "Runtime requires a human decision.",
+        question: handoff.human_gate?.decision_needed || handoff.next_prompt || "Review the Runtime request and provide direction.",
+        created_at: now()
+      });
+    });
+    emit("automation.changed", { reason: "awaiting-human", taskId: active.task_id });
   }
 
   async function addRecovery({ type, task, message, actions, freezeScope = "global" }) {
@@ -926,7 +937,8 @@ export function createAutomationCoordinator({
     if (!recovery || typeof runManager.resumeAutoContinuation !== "function") return;
     const runs = await runManager.listRuns({ projectId: active.local_project_id });
     const run = runs.find((item) => item.id === active.run_id);
-    if (run?.status !== "completed" || !isAgentContinuationHandoff(run.activity?.loop_handoff)) return;
+    const handoff = selectEffectiveLoopHandoff({ activity: run?.activity });
+    if (run?.status !== "completed" || !isAgentContinuationHandoff(handoff)) return;
 
     await patchAutomation((automation) => {
       if (automation.active_task?.run_id !== active.run_id) return;

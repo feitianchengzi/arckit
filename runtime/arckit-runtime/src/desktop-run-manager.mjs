@@ -29,6 +29,7 @@ import {
   updateRunActivity
 } from "./projection/run-event-projector.mjs";
 import { buildControllerOperatorTask } from "./kernel/operator-event.mjs";
+import { selectEffectiveLoopHandoff } from "./kernel/effective-handoff.mjs";
 import {
   AUTOMATIC_CONTINUATION_POLICY,
   normalizeContinuationPolicy,
@@ -905,8 +906,7 @@ export function createDesktopRunManager({
     const decision = evaluateAutoContinuation({ sourceRun, parsedResult });
     if (!decision.allowed) return decision;
     const runtimeResult = parsedResult?.runtime_result || null;
-    const ledgerHandoff = sourceRun.activity?.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff || null;
-    const handoff = ledgerHandoff || runtimeResult?.loop_handoff || {};
+    const handoff = selectEffectiveLoopHandoff({ runtimeResult, activity: sourceRun.activity });
     const currentDepth = Number(sourceRun.auto_continue_depth || 0);
     for (const active of activeRuns.values()) {
       if (active.run.project_id === sourceRun.project_id && active.run.session_id === sourceRun.session_id) {
@@ -1065,8 +1065,7 @@ export function buildWriteLedgerCommandArgs(run, { dryRun = false } = {}) {
 
 export function evaluateAutoContinuation({ sourceRun, parsedResult }) {
   const runtimeResult = parsedResult?.runtime_result || null;
-  const ledgerHandoff = sourceRun?.activity?.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff || null;
-  const handoff = ledgerHandoff || runtimeResult?.loop_handoff || {};
+  const handoff = selectEffectiveLoopHandoff({ runtimeResult, activity: sourceRun?.activity });
   const requested = shouldAutomaticallyBridge(handoff, sourceRun?.continuation_policy);
   if (!requested) return autoContinueDecision("not_requested", "Runtime did not request agent auto-continuation.", false);
   if (sourceRun?.status !== "completed") return autoContinueDecision("run_not_completed", `Source run status is ${sourceRun?.status || "unknown"}.`);
