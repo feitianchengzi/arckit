@@ -328,7 +328,7 @@ function auditRecord(record, recordFile = STATE_RECORD_PATH) {
     const iterationPath = resolveProjectPath(record.active_iteration_ref);
     const iteration = readJsonRecord(iterationPath);
     if (iteration.schema_version !== 'iteration-state-record/v2') errors.push(`${iterationPath}: active iteration must use iteration-state-record/v2`);
-    if (iteration.project_state_ref !== path.relative(process.cwd(), recordFile)) errors.push(`${iterationPath}: project_state_ref must reference ${path.relative(process.cwd(), recordFile)}`);
+    if (iteration.project_state_ref !== path.relative(process.cwd(), recordFile).replaceAll('\\', '/')) errors.push(`${iterationPath}: project_state_ref must reference ${path.relative(process.cwd(), recordFile)}`);
     if (JSON.stringify(sortedUnique(iteration.active_case_refs)) !== JSON.stringify(sortedUnique(record.active_case_refs))) errors.push(`${iterationPath}: active_case_refs must match Project active_case_refs`);
   }
   for (const ref of record.active_case_refs || []) {
@@ -598,7 +598,7 @@ function commandRegisterCase(args) {
   const iteration = iterationPath && fs.existsSync(iterationPath) ? readJsonRecord(iterationPath) : null;
   if (iteration) {
     if (iteration.schema_version !== 'iteration-state-record/v2') throw new Error(`${iterationPath}: active iteration must use iteration-state-record/v2`);
-    if (iteration.project_state_ref !== path.relative(process.cwd(), STATE_RECORD_PATH)) throw new Error(`${iterationPath}: project_state_ref must reference ${path.relative(process.cwd(), STATE_RECORD_PATH)}`);
+    if (iteration.project_state_ref !== path.relative(process.cwd(), STATE_RECORD_PATH).replaceAll('\\', '/')) throw new Error(`${iterationPath}: project_state_ref must reference ${path.relative(process.cwd(), STATE_RECORD_PATH)}`);
     iteration.active_case_refs = sortedUnique([...(iteration.active_case_refs || []), caseRef]);
     iteration.updated_at = timestamp;
   }

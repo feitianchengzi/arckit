@@ -1,0 +1,18 @@
+# 统一行尾规范：仓库统一用 LF；checkout 到工作区按平台转换（Windows 默认 CRLF）。
+# git 按规范化行尾比较，因此本地 CRLF 与 LF 的差异会在 diff/status 中被忽略。
+* text=auto
+
+# 显式声明常见文本类型，避免被二进制检测误判
+*.mjs text
+*.cjs text
+*.js text
+*.mts text
+*.cts text
+*.ts text
+*.json text
+*.md text
+*.yml text
+*.yaml text
+*.css text
+*.html text
+*.sh text

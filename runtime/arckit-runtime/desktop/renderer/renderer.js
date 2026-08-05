@@ -86,7 +86,8 @@ async function boot() {
 function wireEvents() {
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
   els.pickProjectButton.addEventListener("click", () => runAction(async () => {
-    await api.pickProject();
+    const project = await api.pickProject();
+    if (project) showToast(`已添加本地项目：${project.name}`);
     await refreshSnapshot();
   }));
   els.syncButton.addEventListener("click", () => runAction(async () => {
@@ -217,6 +218,7 @@ function render() {
   renderTaskBrowser();
   renderWorkbench();
   renderRecovery();
+  renderLocalProjects();
 }
 
 function renderPageVisibility() {
@@ -390,6 +392,13 @@ function renderCommandInspector(projects) {
       await refreshSnapshot();
     }));
   });
+}
+
+function renderLocalProjects() {
+  const projects = state.snapshot.local_projects || [];
+  els.localProjectList.innerHTML = projects.length
+    ? projects.map((project) => `<div class="local-project-item"><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.path)}</small><span class="status-pill ${project.has_arckit_state ? "completed" : "pending"}">${project.has_arckit_state ? "已初始化" : "待初始化"}</span></div>`).join("")
+    : `<div class="empty-state">尚未添加本地项目，点击左侧「添加本地项目」。</div>`;
 }
 
 function renderTaskBrowser() {

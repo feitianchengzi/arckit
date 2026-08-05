@@ -323,3 +323,9 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   .workbench-layout { grid-template-columns: 220px minmax(400px, 1fr); }
   .workbench-evidence { display: none; }
 }
+
+.local-project-item { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border: 1px solid var(--ink-150); border-radius: 8px; margin-bottom: 6px; }
+.local-project-item strong { font-size: 11px; color: var(--ink-950); }
+.local-project-item small { font-size: 9px; color: var(--ink-75); word-break: break-all; }
+.local-project-item .status-pill { align-self: flex-start; margin-top: 4px; }
+
