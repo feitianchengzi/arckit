@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { createAgentAdapter } from "./agent-adapter.mjs";
@@ -289,8 +290,13 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
         type: "runtime.agent_task.started",
         task_id: effectiveAgentTask.id,
         worker_type: effectiveAgentTask.worker_type,
+        workstream_id: effectiveAgentTask.workstream_id,
         role: effectiveAgentTask.role,
         worker_thread_key: effectiveAgentTask.worker_thread_key,
+        context_scope_signature: workerContextScopeSignature(effectiveAgentTask),
+        context_digest_version: effectiveAgentTask.inputs?.context_digest?.schema_version || "",
+        context_ref_count: effectiveAgentTask.inputs?.context_digest?.context_refs?.length || 0,
+        prior_report_count: reports.length,
         objective: effectiveAgentTask.objective,
         task: effectiveAgentTask
       },
@@ -313,6 +319,7 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
         type: "runtime.agent_task.fail_fast",
         task_id: report.task_id,
         worker_type: report.worker_type,
+        workstream_id: effectiveAgentTask.workstream_id,
         role: report.role,
         worker_thread_key: effectiveAgentTask.worker_thread_key,
         reason: report.summary
@@ -402,6 +409,7 @@ async function executeAgentTask({ adapter, projectRoot, agentTask, previousRepor
       ...event,
       task_id: agentTask.id,
       worker_type: agentTask.worker_type,
+      workstream_id: agentTask.workstream_id,
       role: agentTask.role,
       worker_thread_key: agentTask.worker_thread_key
     };
@@ -420,6 +428,7 @@ async function executeAgentTask({ adapter, projectRoot, agentTask, previousRepor
     type: "runtime.worker_report.completed",
     task_id: report.task_id,
     worker_type: report.worker_type,
+    workstream_id: agentTask.workstream_id,
     role: report.role,
     worker_thread_key: agentTask.worker_thread_key,
     status: report.status,
@@ -483,7 +492,7 @@ async function maybeRunControllerPlanner({
         prompt,
         options: {
           ...options,
-          threadKey: "controller",
+          threadKey: controllerThreadKey({ phase: "planning" }),
           outputSchema: controllerPlanSchema,
           resultKind: "controller-plan"
         }
@@ -579,6 +588,12 @@ export function compileControllerPlanPrompt({
     capabilities: {
       runtime: runtimeCapabilities.map(toCapabilityRef),
       workers: selectedCapabilities.map(toCapabilityRef)
+    },
+    threading_contract: {
+      controller_planning_scope: "project",
+      controller_review_scope: "case",
+      worker_thread_scope: "case + worker_type + stable workstream_id",
+      workstream_rule: "Reuse a workstream_id only for a coherent objective and path domain across rounds; assign a different stable id to an independent sub-workstream. Runtime does not infer this semantic identity."
     }
   };
   return [
@@ -612,6 +627,7 @@ function normalizeControllerPlan(plan) {
       ? plan.worker_intents
         .map((intent) => ({
           worker_type: normalizeWorkerType(intent.worker_type),
+          workstream_id: normalizeWorkstreamId(intent.workstream_id, ""),
           role: stringValue(intent.role, ""),
           objective: stringValue(intent.objective, ""),
           reason: stringValue(intent.reason, ""),
@@ -745,6 +761,9 @@ export function controllerPlanFailureReason(plan, workerCapabilities = [], loopF
   }
   if (plan.worker_intents.some((intent) => !intent.expected_case_impact)) {
     return "Every worker intent must declare expected_case_impact.";
+  }
+  if (plan.worker_intents.some((intent) => !isValidWorkstreamId(intent.workstream_id))) {
+    return "Every worker intent must declare a stable lowercase workstream_id.";
   }
   if (plan.worker_intents.some((intent) => !intent.objective || !intent.stop_condition)) {
     return "Every worker intent must declare objective and stop_condition.";
@@ -889,7 +908,7 @@ async function maybeRunControllerReviewer({
       prompt,
       options: {
         ...options,
-        threadKey: "controller",
+        threadKey: controllerThreadKey({ phase: "review", caseId: loopFrame.case_id }),
         outputSchema: controllerReviewSchema,
         resultKind: "controller-review"
       }
@@ -1010,13 +1029,20 @@ export function normalizeControllerReviewReportReferences(review, reports = []) 
 }
 
 function canonicalReportReference(value, reportIds) {
-  if (reportIds.includes(value)) return value;
+  const reference = String(value || "").trim();
+  if (reportIds.includes(reference)) return reference;
   const matches = reportIds.filter((reportId) => {
-    if (!value.startsWith(reportId)) return false;
-    const suffix = value.slice(reportId.length);
+    if (!reference.startsWith(reportId)) return false;
+    const suffix = reference.slice(reportId.length);
     return /^[\s:：\-—(（]/.test(suffix);
   });
-  return matches.length === 1 ? matches[0] : value;
+  if (matches.length === 1) return matches[0];
+  const ordinal = reference.match(/^TASK-(\d{2})(?:\D|$)/)?.[1] || "";
+  if (ordinal) {
+    const ordinalMatches = reportIds.filter((reportId) => reportId.startsWith(`TASK-${ordinal}-`));
+    if (ordinalMatches.length === 1) return ordinalMatches[0];
+  }
+  return reference;
 }
 
 function controllerReviewFailureReason(review, reports = []) {
@@ -1209,6 +1235,8 @@ function createRoutePlanFromControllerPlan({ controllerPlan, loopFrame }) {
 export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCapabilities = [], controllerPlan = null }) {
   const intents = Array.isArray(controllerPlan?.worker_intents) ? controllerPlan.worker_intents : [];
   const availableCapabilityIds = capabilityIds(selectedCapabilities);
+  const contextRefs = workerContextRefs({ snapshot, round, caseId: loopFrame.case_id });
+  const contextDigest = createWorkerContextDigest({ snapshot, loopFrame, contextRefs });
   const userRequestExcerpt = firstSafeSemanticText([
     controllerPlan?.continuation_intent?.goal,
     loopFrame.round_goal,
@@ -1229,6 +1257,7 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
       schema_version: "arckit-worker-task/v1",
       id: `TASK-${String(index + 1).padStart(2, "0")}-${role}`,
       worker_type: workerType,
+      workstream_id: normalizeWorkstreamId(intent.workstream_id),
       role,
       objective: intent.objective,
       conversation_locale: loopFrame.conversation_locale || round.conversation_locale || "en",
@@ -1243,7 +1272,8 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
       },
       inputs: {
         user_request_excerpt: userRequestExcerpt,
-        known_state_paths: round.required_context_refs,
+        known_state_paths: contextRefs,
+        context_digest: contextDigest,
         known_facts: [
           `project=${snapshot.summary.project_name}`,
           `phase=${snapshot.summary.current_phase}`,
@@ -1292,11 +1322,34 @@ export function createAgentTasks({ loopFrame, round, snapshot, task, selectedCap
 export function workerThreadKeyForTask(agentTask) {
   const caseId = String(agentTask?.loop_frame_excerpt?.case_id || "").trim();
   const workerType = normalizeWorkerType(agentTask?.worker_type);
+  const workstreamId = normalizeWorkstreamId(agentTask?.workstream_id);
   if (!caseId) {
     return "";
   }
-  const lane = workerType === "verification" ? "verifier" : "builder";
-  return `worker:${caseId}:${lane}`;
+  return `worker:${caseId}:${workerType}:${workstreamId}`;
+}
+
+export function controllerThreadKey({ phase, caseId = "" } = {}) {
+  if (phase === "review" && String(caseId || "").trim()) {
+    return `controller:case:${String(caseId).trim()}:review`;
+  }
+  return "controller:project:planning";
+}
+
+export function normalizeWorkstreamId(value, fallback = "default") {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "")
+    .slice(0, 80);
+  return normalized || fallback;
+}
+
+export function workerContextScopeSignature(agentTask) {
+  const paths = arrayOfStrings(agentTask?.scope?.allowed_paths).map(normalizeScopeValue).sort();
+  const skills = arrayOfStrings(agentTask?.scope?.allowed_skills).map(normalizeScopeValue).sort();
+  return createHash("sha256").update(JSON.stringify({ paths, skills })).digest("hex").slice(0, 16);
 }
 
 export function compileAgentTaskPrompt({ agentTask, previousReports }) {
@@ -1306,6 +1359,7 @@ export function compileAgentTaskPrompt({ agentTask, previousReports }) {
     conversation_locale: agentTask.conversation_locale || agentTask.loop_frame_excerpt?.conversation_locale || "en",
     execution_context: {
       thread_key: agentTask.worker_thread_key || "",
+      workstream_id: agentTask.workstream_id || "",
       authorization_rule: "current_task_packet_supersedes_prior_thread_context"
     },
     task_packet: toWorkerPacket(agentTask),
@@ -1315,6 +1369,80 @@ export function compileAgentTaskPrompt({ agentTask, previousReports }) {
     formatExplicitSkillTriggers(agentTask.scope?.allowed_skills),
     JSON.stringify(runtimeInput, null, 2)
   ].filter(Boolean).join("\n\n");
+}
+
+export function createWorkerContextDigest({ snapshot, loopFrame, contextRefs = [] }) {
+  const caseId = String(loopFrame?.case_id || "").trim();
+  const activeCase = (snapshot?.activeCases || []).find((item) => item.record?.id === caseId);
+  const record = activeCase?.record || {};
+  const selectedGap = loopFrame?.route_plan?.selected_gap || loopFrame?.selected_gap || {};
+  const facet = String(selectedGap.facet || "");
+  const facetState = record.facets?.[facet] || {};
+  return {
+    schema_version: "arckit-worker-context-digest/v1",
+    authority: "current_packet_and_canonical_facts_supersede_thread_history",
+    case_id: caseId,
+    case_updated_at: String(record.updated_at || loopFrame?.case_updated_at || ""),
+    case_intent: safeSemanticText(record.user_intent || "", { maxLength: SEMANTIC_LIMITS.contextSummary }),
+    expected_outcome: safeSemanticText(record.expected_outcome || "", { maxLength: SEMANTIC_LIMITS.contextSummary }),
+    selected_facet: facet,
+    facet_state: {
+      applicability: String(facetState.applicability || "unknown"),
+      maturity: String(facetState.maturity || "unknown"),
+      alignment: String(facetState.alignment || "unknown"),
+      resolution: String(facetState.resolution || "unresolved"),
+      reason: safeSemanticText(facetState.reason || "", { maxLength: SEMANTIC_LIMITS.reason }),
+      evidence: arrayOfStrings(facetState.evidence).slice(-12)
+    },
+    recent_transitions: (Array.isArray(record.rounds) ? record.rounds : []).slice(-3).map((item, index) => ({
+      round: Number(item.round || Math.max(1, (record.rounds?.length || 0) - 2 + index)),
+      goal: safeSemanticText(item.goal || "", { maxLength: SEMANTIC_LIMITS.goal }),
+      outcome: String(item.outcome || ""),
+      state_change: safeSemanticText(item.planned_transition || "", { maxLength: SEMANTIC_LIMITS.transition }),
+      evidence: arrayOfStrings(item.evidence).slice(-8)
+    })),
+    open_questions: summarizeCaseItems(record.open_questions, 8),
+    pending_handoffs: summarizeCaseItems(record.pending_handoffs, 8),
+    context_refs: unique(arrayOfStrings(contextRefs)).slice(0, 24)
+  };
+}
+
+export function workerContextRefs({ snapshot, round, caseId }) {
+  const activeCase = (snapshot?.activeCases || []).find((item) => item.record?.id === caseId);
+  const refs = unique([
+    ...(round?.required_context_refs || []),
+    activeCase?.ref || ""
+  ].map((value) => String(value || "").trim()));
+  return refs.filter((ref) => {
+    if (!ref.includes("arckit/cases/active/") && !ref.startsWith("case:")) return true;
+    return ref.includes(String(caseId || ""));
+  });
+}
+
+function normalizeWorkerContextDigest(value, loopFrame, contextRefs) {
+  if (value?.schema_version === "arckit-worker-context-digest/v1") {
+    return value;
+  }
+  return createWorkerContextDigest({ snapshot: { activeCases: [] }, loopFrame, contextRefs });
+}
+
+function summarizeCaseItems(items, limit) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => !["resolved", "completed", "cancelled"].includes(String(item?.status || "")))
+    .map((item) => safeSemanticText(
+      typeof item === "string" ? item : item?.question || item?.statement || item?.summary || item?.reason || item?.id || "",
+      { maxLength: SEMANTIC_LIMITS.reason }
+    ))
+    .filter(Boolean)
+    .slice(0, limit);
+}
+
+function normalizeScopeValue(value) {
+  return String(value || "").trim().replaceAll("\\", "/").replace(/^\.\//, "");
+}
+
+function isValidWorkstreamId(value) {
+  return /^[a-z0-9][a-z0-9._-]{0,79}$/.test(String(value || ""));
 }
 
 function formatExplicitSkillTriggers(skills) {
@@ -1929,6 +2057,8 @@ export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities 
       }
     }
     const requestedSkills = unique(arrayOfStrings(task.scope?.allowed_skills || task.allowed_skills));
+    const packetContextRefs = unique(arrayOfStrings(task.inputs?.known_state_paths || task.context_refs));
+    const packetContextDigest = normalizeWorkerContextDigest(task.inputs?.context_digest || task.context_digest, loopFrame, packetContextRefs);
     const invalidBindings = invalidCapabilityBindings(requestedSkills, workerCapabilities);
     if (invalidBindings.length > 0) {
       throw new Error(`Authorized packet worker ${task.role || task.id || index + 1} bound non-worker or unavailable capabilities: ${invalidBindings.join(", ")}.`);
@@ -1938,6 +2068,7 @@ export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities 
       schema_version: "arckit-worker-task/v1",
       id: task.id || task.worker_id || `TASK-${String(index + 1).padStart(2, "0")}-${task.role || "worker"}`,
       worker_type: normalizeWorkerType(task.worker_type),
+      workstream_id: normalizeWorkstreamId(task.workstream_id, "legacy"),
       role: task.role || "agent_defined_worker",
       objective: task.objective || task.task || "",
       conversation_locale: task.conversation_locale || loopFrame.conversation_locale || "en",
@@ -1950,12 +2081,17 @@ export function normalizePacketWorkerTasks(tasks, loopFrame, workerCapabilities 
         selected_capabilities: requestedSkills,
         stop_conditions: loopFrame.stop_conditions || []
       },
-      inputs: task.inputs || {
+      inputs: task.inputs ? {
+        ...task.inputs,
+        known_state_paths: packetContextRefs,
+        context_digest: packetContextDigest
+      } : {
         user_request_excerpt: firstSafeSemanticText([
           loopFrame.round_goal,
           loopFrame.operator_task
         ], { maxLength: SEMANTIC_LIMITS.workerUserRequest }),
-        known_state_paths: task.context_refs || [],
+        known_state_paths: packetContextRefs,
+        context_digest: packetContextDigest,
         known_facts: [],
         capability_contexts: [],
         assumptions: [],
@@ -2059,6 +2195,7 @@ function toWorkerPacket(agentTask) {
     schema_version: "arckit-worker-packet/v2",
     worker_id: agentTask.id,
     worker_type: agentTask.worker_type,
+    workstream_id: normalizeWorkstreamId(agentTask.workstream_id, "legacy"),
     role: agentTask.role,
     task: agentTask.objective,
     case_context: {
@@ -2066,6 +2203,7 @@ function toWorkerPacket(agentTask) {
       case_updated_at: agentTask.loop_frame_excerpt.case_updated_at,
       selected_gap: agentTask.loop_frame_excerpt.selected_gap
     },
+    context_digest: agentTask.inputs.context_digest,
     expected_case_impact: agentTask.expected_case_impact,
     context_refs: agentTask.inputs.known_state_paths,
     allowed_actions: agentTask.scope.allowed_actions,

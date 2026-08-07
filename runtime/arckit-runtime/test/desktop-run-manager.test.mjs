@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -374,6 +374,93 @@ test("desktop run manager refuses to remove a project with an active run", async
   }
 });
 
+test("desktop run manager persists semantic messages without duplicating high-frequency delta logs", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arckit-message-stream-"));
+  const storePath = join(dataDir, "desktop-store.json");
+  await writeFile(storePath, `${JSON.stringify({
+    version: 7,
+    projects: [{ id: "PROJECT-1", name: "Project", path: dataDir }],
+    runs: [],
+    sessions: { "PROJECT-1": [{ id: "SESSION-1", project_id: "PROJECT-1", title: "Task" }] },
+    messages: { "SESSION-1": [] },
+    settings: {}
+  }, null, 2)}\n`, "utf8");
+
+  const children = [];
+  const spawnProcess = () => {
+    const child = new EventEmitter();
+    child.stdin = new PassThrough();
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    child.exitCode = 0;
+    child.signalCode = null;
+    children.push(child);
+    return child;
+  };
+  const manager = createDesktopRunManager({
+    runtimeRoot: dataDir,
+    dataDir,
+    spawnProcess,
+    ensureProject: async () => ({ initialized: false, repaired: false })
+  });
+  const emitted = [];
+  manager.onEvent((event) => emitted.push(event));
+
+  try {
+    const run = await manager.startRun({
+      projectId: "PROJECT-1",
+      sessionId: "SESSION-1",
+      taskId: "TASK-1",
+      task: "Test compact messages",
+      dryRun: true
+    });
+    const child = children[0];
+    for (let index = 0; index < 500; index += 1) {
+      child.stderr.write(`${JSON.stringify({ event: {
+        type: "codex.reasoning.delta",
+        controller_role: "controller_planner",
+        thread_id: "THREAD-1",
+        turn_id: "TURN-1",
+        item_id: "REASON-1",
+        text: "x"
+      } })}\n`);
+    }
+    child.stderr.write(`${JSON.stringify({ event: {
+      type: "codex.item.completed",
+      controller_role: "controller_planner",
+      thread_id: "THREAD-1",
+      turn_id: "TURN-1",
+      params: { item: { id: "REASON-1", type: "reasoning", summary: "Controller inspected the current state." } }
+    } })}\n`);
+    await new Promise((resolve) => setTimeout(resolve, 240));
+
+    const records = (await readFile(run.messages_file, "utf8")).trim().split(/\r?\n/).map((line) => JSON.parse(line));
+    const runFiles = await readdir(join(dataDir, "runs", run.id));
+    assert.equal(records.length, 2);
+    assert.equal(records[1].message.content, "Controller inspected the current state.");
+    assert.equal(runFiles.includes("events.jsonl"), false);
+    assert.equal(runFiles.includes("raw-events.jsonl"), false);
+    assert.equal(runFiles.includes("messages.jsonl"), true);
+    assert.ok(emitted.filter((event) => event.type === "run.activity_changed").length <= 2);
+    const recoveredManager = createDesktopRunManager({
+      runtimeRoot: dataDir,
+      dataDir,
+      spawnProcess,
+      ensureProject: async () => ({ initialized: false, repaired: false })
+    });
+    const recoveredRun = (await recoveredManager.listRuns({})).find((item) => item.id === run.id);
+    assert.equal(recoveredRun.activity.messages.some((message) => message.content === "Controller inspected the current state."), true);
+  } finally {
+    await manager.abortActiveRuns({ graceMs: 0 });
+    for (const child of children) {
+      child.stdin.destroy();
+      child.stdout.destroy();
+      child.stderr.destroy();
+    }
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("desktop run manager starts a silent direct agent task with only the requested prompt", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "arckit-direct-agent-task-"));
   const storePath = join(dataDir, "desktop-store.json");
@@ -407,9 +494,30 @@ test("desktop run manager starts a silent direct agent task with only the reques
   });
 
   try {
+    const firstTaskSession = await manager.createSession("PROJECT-1", {
+      title: "待办 · First",
+      kind: "automation-task",
+      task_id: "TASK-1",
+      remote_project_id: "REMOTE-1"
+    });
+    const secondTaskSession = await manager.createSession("PROJECT-1", {
+      title: "待办 · Second",
+      kind: "automation-task",
+      task_id: "TASK-2",
+      remote_project_id: "REMOTE-1"
+    });
+    assert.notEqual(firstTaskSession.id, secondTaskSession.id);
+    assert.equal(firstTaskSession.task_id, "TASK-1");
+    assert.equal(secondTaskSession.task_id, "TASK-2");
+    await manager.addMessage("PROJECT-1", { session_id: firstTaskSession.id, task_id: "TASK-1", role: "user", content: "First task" });
+    await manager.addMessage("PROJECT-1", { session_id: secondTaskSession.id, task_id: "TASK-2", role: "user", content: "Second task" });
+    assert.deepEqual((await manager.listMessages("PROJECT-1", firstTaskSession.id)).map((message) => message.task_id), ["TASK-1"]);
+    assert.deepEqual((await manager.listMessages("PROJECT-1", secondTaskSession.id)).map((message) => message.task_id), ["TASK-2"]);
+
     const run = await manager.startAgentTask({
       projectId: "PROJECT-1",
-      sessionId: "SESSION-1",
+      sessionId: firstTaskSession.id,
+      taskId: "TASK-1",
       task: "git commit",
       adapter: "codex-app-server",
       approvalPolicy: "on-request"
@@ -427,7 +535,7 @@ test("desktop run manager starts a silent direct agent task with only the reques
     assert.equal(spawnCalls[0].args.includes("--max-auto-rounds"), false);
     assert.equal(spawnCalls[0].args.includes("--packet-file"), false);
     assert.equal(spawnCalls[0].args.includes("--adapter"), false);
-    assert.deepEqual(await manager.listMessages("PROJECT-1", "SESSION-1"), []);
+    assert.equal(run.session_id, firstTaskSession.id);
   } finally {
     await manager.abortActiveRuns({ graceMs: 0 });
     for (const child of children) {

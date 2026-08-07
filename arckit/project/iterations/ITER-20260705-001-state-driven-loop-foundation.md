@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-04T17:01:16.287Z
+Updated: 2026-08-06T20:10:36.429Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -40,9 +40,9 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
-- arckit/cases/closed/CASE-20260804-001-persist-runtime-sessions-and-execute-state-driven-loops-in-proce.md
-- arckit/cases/closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md
-- arckit/cases/closed/CASE-20260804-003-prioritize-final-handoff-freshness-in-todo-automation.md
+- arckit/cases/closed/CASE-20260806-001-runtime-token.md
+- arckit/cases/closed/CASE-20260806-002-strengthen-runtime-context-handoff-and-workstream-thread-isolati.md
+- arckit/cases/closed/CASE-20260806-003-runtime.md
 
 ## Notes
 

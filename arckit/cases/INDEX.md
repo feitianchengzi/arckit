@@ -35,3 +35,6 @@
 | [CASE-20260804-001](closed/CASE-20260804-001-persist-runtime-sessions-and-execute-state-driven-loops-in-proce.md) | closed | Persist Runtime sessions and execute state-driven loops in-process | 2026-08-04T14:13:13.493Z |
 | [CASE-20260804-002](closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md) | closed | Reuse Worker threads by Case workstream | 2026-08-04T15:31:35.227Z |
 | [CASE-20260804-003](closed/CASE-20260804-003-prioritize-final-handoff-freshness-in-todo-automation.md) | closed | Prioritize final handoff freshness in todo automation | 2026-08-04T17:01:16.287Z |
+| [CASE-20260806-001](closed/CASE-20260806-001-runtime-token.md) | closed | 优化 Runtime 会话隔离、执行效率与 Token 可观测性 | 2026-08-06T18:09:56.302Z |
+| [CASE-20260806-002](closed/CASE-20260806-002-strengthen-runtime-context-handoff-and-workstream-thread-isolati.md) | closed | Strengthen Runtime context handoff and workstream thread isolation | 2026-08-06T18:56:06.750Z |
+| [CASE-20260806-003](closed/CASE-20260806-003-runtime.md) | closed | 将 Runtime 执行过程收敛为轻量对话消息流 | 2026-08-06T20:10:36.429Z |

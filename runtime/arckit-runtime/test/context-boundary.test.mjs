@@ -108,6 +108,28 @@ test("loop frame and worker task keep raw operator task out of semantic fields",
       project_name: "demo",
       current_phase: "implementation"
     },
+    activeCases: [{
+      ref: "arckit/cases/active/CASE-20260726-001-demo.md",
+      record: {
+        id: "CASE-20260726-001",
+        updated_at: "2026-07-26T00:00:00.000Z",
+        user_intent: "实现并验证双模式任务管理应用。",
+        expected_outcome: "实现证据可恢复。",
+        facets: {
+          implementation_state: {
+            applicability: "required",
+            maturity: "confirmed",
+            alignment: "diverged",
+            resolution: "unresolved",
+            reason: "实现尚未完成。",
+            evidence: ["arckit/spec/demo.md"]
+          }
+        },
+        rounds: [{ round: 1, goal: "确认范围。", outcome: "completed", planned_transition: "范围已确认。", evidence: ["arckit/spec/demo.md"] }],
+        open_questions: [{ id: "Q-1", status: "open", question: "是否覆盖恢复路径？" }],
+        pending_handoffs: []
+      }
+    }],
     projectRoot: "/tmp/demo"
   };
   const round = {
@@ -120,7 +142,11 @@ test("loop frame and worker task keep raw operator task out of semantic fields",
     current_state: "unknown",
     target_state: "defined",
     impact: "",
-    required_context_refs: ["arckit/project/state.record.json"],
+    required_context_refs: [
+      "arckit/project/state.record.json",
+      "arckit/cases/active/CASE-20260726-001-demo.md",
+      "arckit/cases/active/CASE-OTHER-unrelated.md"
+    ],
     stop_conditions: []
   };
   const frame = createLoopFrame({ snapshot, round, task: rawOperatorTask });
@@ -138,6 +164,7 @@ test("loop frame and worker task keep raw operator task out of semantic fields",
       worker_intents: [
         {
           worker_type: "implementation",
+          workstream_id: "application-core",
           role: "实现者",
           objective: "实现应用。",
           allowed_paths: ["src/"],
@@ -154,6 +181,10 @@ test("loop frame and worker task keep raw operator task out of semantic fields",
   assert.equal(frame.round_goal, "实现并验证双模式任务管理应用。");
   assert.equal(frame.controller_frame.round_goal, "实现并验证双模式任务管理应用。");
   assert.equal(tasks[0].inputs.user_request_excerpt, "实现并验证双模式任务管理应用。");
+  assert.equal(tasks[0].inputs.context_digest.case_updated_at, "2026-07-26T00:00:00.000Z");
+  assert.equal(tasks[0].inputs.context_digest.facet_state.reason, "实现尚未完成。");
+  assert.deepEqual(tasks[0].inputs.context_digest.open_questions, ["是否覆盖恢复路径？"]);
+  assert.equal(tasks[0].inputs.context_digest.context_refs.includes("arckit/cases/active/CASE-OTHER-unrelated.md"), false);
   assert.ok(!tasks[0].loop_frame_excerpt.round_goal.includes("arckit-desktop-operator-event/v1"));
 });
 

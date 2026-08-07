@@ -2,7 +2,11 @@
 
 ## Packet v2
 
-`arckit-worker-packet/v2` 必须包含：Worker 身份与 role、task、`case_context.case_id`、`case_context.case_updated_at`、完整 selected Case gap、`expected_case_impact`、context refs、allowed/forbidden actions、allowed paths、allowed skills、report schema 与 stop condition。保存后再执行的 packet 必须先对照 fresh Case State 校验 revision 和 gap；不兼容旧 packet。
+`arckit-worker-packet/v2` 必须包含：Worker 身份与 role、稳定 `workstream_id`、task、`case_context.case_id`、`case_context.case_updated_at`、完整 selected Case gap、`context_digest`、`expected_case_impact`、context refs、allowed/forbidden actions、allowed paths、allowed skills、report schema 与 stop condition。保存后再执行的 packet 必须先对照 fresh Case State 校验 revision 和 gap；不兼容旧 packet。
+
+`workstream_id` 由 Controller 根据当前 Case gap、目标连续性和路径域显式声明。同一 Case、同一 Worker 类型中，只有需要继承连续上下文的工作才复用同一 id；独立目标使用不同 id。Runtime 只校验和组合 thread key，不从 role、task 文本、skill 或路径关键词推断 workstream。
+
+`context_digest` 从 fresh canonical Case record 确定性派生，只保存当前 Case revision、意图、selected facet 状态、最近已接受 transition、未解决问题和必要 context refs。它不保存 raw transcript、reasoning 或未接受 claim。同一轮 prior Worker reports 作为独立输入传递，不能混入 digest 冒充 canonical facts；当前 packet 与 canonical facts 始终覆盖复用 thread 中的历史授权和讨论。
 
 `allowed_skills` 只能来自 Worker binding capability manifests。state 不保存 skill 名，Controller 也不能因为 facet 名固定映射 skill；应根据事实源 owner、实现边界和当前证据选择能力。
 

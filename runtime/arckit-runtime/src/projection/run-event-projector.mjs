@@ -1,7 +1,9 @@
 function createRunActivity(run) {
   const timestamp = run.started_at || new Date().toISOString();
   return {
-    schema_version: "desktop-run-activity/v1",
+    schema_version: "desktop-run-activity/v2",
+    run_id: run.id || "",
+    task_id: run.task_id || "",
     entry_capability: run.entry_capability || "runtime",
     operator: run.operator || "desktop",
     status: run.status || "running",
@@ -11,6 +13,7 @@ function createRunActivity(run) {
     started_at: timestamp,
     updated_at: timestamp,
     last_event_at: timestamp,
+    round_index: 0,
     thread_id: "",
     turn_id: "",
     plan: [],
@@ -23,6 +26,7 @@ function createRunActivity(run) {
     loop_handoff: null,
     pending_controller_event: null,
     agents: [],
+    worker_contexts: [],
     reports: [],
     merge_result: null,
     controller_reducer_result: null,
@@ -35,7 +39,29 @@ function createRunActivity(run) {
     agent_text: "",
     reasoning_text: "",
     command_output: "",
+    messages: [normalizeRunMessage({
+      id: `runtime:${run.id || "run"}:started`,
+      role: "system",
+      actor: "runtime",
+      actor_label: "Runtime",
+      kind: "status",
+      content: run.task ? `开始执行：${truncate(run.task, 600)}` : "Runtime 已启动。",
+      status: "running",
+      run_id: run.id || "",
+      task_id: run.task_id || "",
+      created_at: timestamp,
+      updated_at: timestamp
+    })],
     execution_events: [],
+    token_usage: emptyTokenUsage(),
+    usage_warnings: [],
+    performance: {
+      rounds: [],
+      turns: [],
+      commands: [],
+      model_time_ms: 0,
+      command_time_ms: 0
+    },
     errors: [],
     timeline: [
       {
@@ -45,7 +71,6 @@ function createRunActivity(run) {
         detail: truncate(`${run.entry_capability || "runtime"}: ${run.task || run.id}`, 360)
       }
     ],
-    raw_events: [],
     controls: {
       steer: run.status === "running",
       interrupt: run.status === "running"
@@ -53,8 +78,7 @@ function createRunActivity(run) {
     validation_valid: null,
     round_result: "",
     artifact_paths: {
-      events_file: run.events_file || "",
-      raw_events_file: run.raw_events_file || "",
+      messages_file: run.messages_file || run.events_file || "",
       activity_file: run.activity_file || "",
       result_file: run.result_file || "",
       error_file: run.error_file || ""
@@ -122,6 +146,18 @@ function applyRunCommandResult(run, commandType, result) {
       detail: summarizeCommandResult(normalized)
     }
   });
+  addRunMessage(activity, {
+    id: `runtime:${activity.run_id || "run"}:${commandType}:${activity.round_index || 0}`,
+    role: "system",
+    actor: "runtime",
+    actor_label: "Runtime",
+    kind: commandType === "gate-result" ? "gate" : "ledger",
+    content: commandType === "gate-result"
+      ? allowed ? "确定性 Gate 已允许 ledger 写回。" : `确定性 Gate 已阻止写回：${summarizeCommandResult(normalized)}`
+      : written ? "Ledger 写回完成，Case State 已更新。" : `Ledger 未写回：${summarizeCommandResult(normalized)}`,
+    status: allowed || written ? "completed" : "warning",
+    round_index: activity.round_index || 0
+  });
 }
 
 function normalizeCommandResult(result) {
@@ -156,9 +192,17 @@ function applyRunEvent(run, { line, parsed }) {
   run.activity = activity;
   activity.updated_at = new Date().toISOString();
   activity.last_event_at = activity.updated_at;
-  addRawEvent(activity, line, event);
 
   if (!event) {
+    addRunMessage(activity, {
+      id: `runtime:${activity.run_id || "run"}:stderr:${activity.messages?.length || 0}`,
+      role: "system",
+      actor: "runtime",
+      actor_label: "Runtime",
+      kind: "warning",
+      content: truncate(line, 1000),
+      status: "warning"
+    });
     updateRunActivity(run, {
       phase: "runtime-output",
       current_step: "Runtime emitted output",
@@ -173,6 +217,8 @@ function applyRunEvent(run, { line, parsed }) {
 
   switch (event.type) {
     case "runtime.session_round.started":
+      activity.round_index = Number(event.round_index || 0);
+      startTiming(activity.performance.rounds, "round_index", activity.round_index, { started_at: Date.now() });
       updateRunActivity(run, {
         phase: "controller-planning",
         current_step: `Starting state-driven round ${event.round_index}`,
@@ -182,8 +228,19 @@ function applyRunEvent(run, { line, parsed }) {
           detail: event.project_updated_at || "Fresh ledger snapshot loaded"
         }
       });
+      addRunMessage(activity, {
+        id: `runtime:${activity.run_id || "run"}:round:${activity.round_index}:started`,
+        role: "system",
+        actor: "runtime",
+        actor_label: "Runtime",
+        kind: "round",
+        content: `第 ${activity.round_index} 轮开始，已加载最新 Project/Case State。`,
+        status: "running",
+        round_index: activity.round_index
+      });
       break;
     case "runtime.session_round.completed":
+      finishTiming(activity.performance.rounds, "round_index", Number(event.round_index || activity.round_index || 0));
       updateRunActivity(run, {
         phase: event.ledger_written ? "write-ledger" : "merge",
         current_step: `Round ${event.round_index} completed with ${event.round_result || "unknown"}`,
@@ -192,6 +249,18 @@ function applyRunEvent(run, { line, parsed }) {
           label: `Round ${event.round_index} completed`,
           detail: event.ledger_written ? "Ledger written; continuing from fresh state" : event.round_result || ""
         }
+      });
+      addRunMessage(activity, {
+        id: `runtime:${activity.run_id || "run"}:round:${event.round_index || activity.round_index}:completed`,
+        role: "system",
+        actor: "runtime",
+        actor_label: "Runtime",
+        kind: "round",
+        content: event.ledger_written
+          ? `第 ${event.round_index} 轮完成，ledger 已写回。`
+          : `第 ${event.round_index} 轮结束：${event.round_result || "unknown"}。`,
+        status: event.round_result === "blocked" ? "warning" : "completed",
+        round_index: Number(event.round_index || activity.round_index || 0)
       });
       break;
     case "runtime.ledger_write.completed":
@@ -232,6 +301,16 @@ function applyRunEvent(run, { line, parsed }) {
           detail: event.controller_plan?.summary || event.failure_reason || event.status || ""
         }
       });
+      addRunMessage(activity, {
+        id: `controller:${activity.run_id || "run"}:round:${activity.round_index}:plan`,
+        role: "assistant",
+        actor: "controller",
+        actor_label: "Controller",
+        kind: "plan",
+        content: event.controller_plan?.summary || event.failure_reason || controllerPlanStepLabel(event.status),
+        status: event.status === "planned" ? "completed" : event.status === "needs_human" ? "waiting" : "warning",
+        round_index: activity.round_index
+      });
       break;
     case "runtime.controller_review.completed":
       activity.controller_review = event.controller_review || null;
@@ -246,11 +325,32 @@ function applyRunEvent(run, { line, parsed }) {
           detail: event.controller_review?.summary || event.failure_reason || event.status || ""
         }
       });
+      addRunMessage(activity, {
+        id: `controller:${activity.run_id || "run"}:round:${activity.round_index}:review`,
+        role: "assistant",
+        actor: "controller",
+        actor_label: "Controller Review",
+        kind: "review",
+        content: event.controller_review?.summary || event.failure_reason || event.status || "Controller Review 已完成。",
+        status: event.status === "reviewed" ? "completed" : "warning",
+        round_index: activity.round_index
+      });
+      if (event.status !== "reviewed") {
+        addUsageWarning(activity, {
+          id: `controller-review-${activity.round_index || 0}`,
+          type: "controller_review_failed",
+          lane: "controller",
+          message: event.failure_reason || "Controller Review failed or returned unusable report references.",
+          evidence: event.controller_review?.summary || event.status || "review_failed"
+        });
+      }
       break;
     case "runtime.agent_task.started":
+      recordWorkerContext(activity, event);
       upsertAgent(activity, {
         task_id: event.task_id,
         worker_type: event.worker_type || "",
+        workstream_id: event.workstream_id || "",
         worker_thread_key: event.worker_thread_key || "",
         role: event.role,
         objective: event.objective,
@@ -275,11 +375,23 @@ function applyRunEvent(run, { line, parsed }) {
         current_step: `${event.role} is running`,
         timeline: { type: event.type, label: `${event.role} started`, detail: event.task_id || "" }
       });
+      addRunMessage(activity, {
+        id: `agent:${event.task_id}:status`,
+        role: "assistant",
+        actor: "agent",
+        actor_label: event.role || workerLabel(event.worker_type),
+        kind: "task",
+        content: event.objective || `${event.role || "Worker Agent"} 已开始执行。`,
+        status: "running",
+        task_id: event.task_id,
+        round_index: activity.round_index
+      });
       break;
     case "runtime.agent_task.fail_fast":
       upsertAgent(activity, {
         task_id: event.task_id,
         worker_type: event.worker_type || "",
+        workstream_id: event.workstream_id || "",
         worker_thread_key: event.worker_thread_key || "",
         role: event.role,
         status: "failed",
@@ -298,11 +410,23 @@ function applyRunEvent(run, { line, parsed }) {
         current_step: event.reason || "Runtime stopped remaining workers.",
         timeline: { type: event.type, label: "Worker chain stopped", detail: event.reason || "" }
       });
+      addRunMessage(activity, {
+        id: `agent:${event.task_id}:status`,
+        role: "assistant",
+        actor: "agent",
+        actor_label: event.role || workerLabel(event.worker_type),
+        kind: "task",
+        content: event.reason || "Runtime 已停止剩余 Worker。",
+        status: "failed",
+        task_id: event.task_id,
+        round_index: activity.round_index
+      });
       break;
     case "runtime.worker_report.completed":
       upsertAgent(activity, {
         task_id: event.task_id,
         worker_type: event.worker_type || event.report?.worker_type || "",
+        workstream_id: event.workstream_id || "",
         worker_thread_key: event.worker_thread_key || "",
         role: event.role,
         status: event.status || event.report?.status || "completed",
@@ -323,6 +447,18 @@ function applyRunEvent(run, { line, parsed }) {
         current_step: `${event.role} returned ${event.status || event.report?.status || "report"}`,
         timeline: { type: event.type, label: `${event.role} report`, detail: event.report?.summary || "" }
       });
+      addRunMessage(activity, {
+        id: `agent:${event.task_id}:report`,
+        role: "assistant",
+        actor: "agent",
+        actor_label: event.role || workerLabel(event.worker_type || event.report?.worker_type),
+        kind: "report",
+        content: event.report?.summary || event.status || "Worker report 已返回。",
+        detail: event.report?.recommendation || "",
+        status: ["completed", "success"].includes(event.status || event.report?.status) ? "completed" : event.status || event.report?.status || "completed",
+        task_id: event.task_id,
+        round_index: activity.round_index
+      });
       break;
     case "runtime.merge.completed":
       activity.merge_result = event.merge_result || null;
@@ -336,6 +472,16 @@ function applyRunEvent(run, { line, parsed }) {
           label: "Reports merged",
           detail: event.merge_result?.loop_gate?.reason || event.merge_result?.decision || ""
         }
+      });
+      addRunMessage(activity, {
+        id: `runtime:${activity.run_id || "run"}:round:${activity.round_index}:merge`,
+        role: "system",
+        actor: "runtime",
+        actor_label: "Runtime",
+        kind: "result",
+        content: event.merge_result?.loop_gate?.reason || `报告合并结果：${event.merge_result?.decision || "unknown"}。`,
+        status: event.merge_result?.decision === "blocked" ? "warning" : "completed",
+        round_index: activity.round_index
       });
       break;
     case "runtime.round_state.changed":
@@ -378,6 +524,12 @@ function applyRunEvent(run, { line, parsed }) {
     case "codex.turn.start.completed":
       activity.thread_id = event.thread_id || activity.thread_id;
       activity.turn_id = event.turn_id || activity.turn_id;
+      startTiming(activity.performance.turns, "turn_id", event.turn_id || activity.turn_id, {
+        thread_id: event.thread_id || activity.thread_id,
+        lane: tokenLane(activity, event),
+        round_index: Number(activity.round_index || 0),
+        started_at: Date.now()
+      });
       updateRunActivity(run, {
         phase: "turn-started",
         current_step: "Codex turn is running",
@@ -394,9 +546,19 @@ function applyRunEvent(run, { line, parsed }) {
       break;
     case "codex.reasoning.delta":
       activity.reasoning_text = appendLimited(activity.reasoning_text, event.text || "", 4000);
-      appendAgentStream(activity, event, "reasoning_text", event.text || "", {
-        title: "Reasoning summary",
-        status: "streaming"
+      appendRunMessageContent(activity, {
+        id: streamMessageId(activity, event, "progress"),
+        role: "assistant",
+        actor: event.controller_role ? "controller" : "agent",
+        actor_label: event.controller_role ? controllerRoleLabel(event.controller_role) : event.role || workerLabel(event.worker_type),
+        kind: "progress",
+        text: event.text || "",
+        status: "streaming",
+        task_id: event.task_id || "",
+        thread_id: event.thread_id || activity.thread_id,
+        turn_id: event.turn_id || activity.turn_id,
+        item_id: event.item_id || "",
+        round_index: activity.round_index
       });
       updateRunActivity(run, {
         phase: "reasoning",
@@ -415,10 +577,21 @@ function applyRunEvent(run, { line, parsed }) {
         });
       } else {
         activity.agent_text = appendLimited(activity.agent_text, event.text || "", 8000);
-        appendAgentStream(activity, event, "agent_text", event.text || "", {
-          title: "Agent output",
-          status: "streaming"
-        });
+        if (!event.controller_role || activity.entry_capability === "agent-task") {
+          appendRunMessageContent(activity, {
+            id: streamMessageId(activity, event, "response"),
+            role: "assistant",
+            actor: "agent",
+            actor_label: activity.entry_capability === "agent-task" ? "Commit Agent" : "Agent",
+            kind: "response",
+            text: event.text || "",
+            status: "streaming",
+            thread_id: event.thread_id || activity.thread_id,
+            turn_id: event.turn_id || activity.turn_id,
+            item_id: event.item_id || "",
+            round_index: activity.round_index
+          });
+        }
       }
       updateRunActivity(run, {
         phase: "responding",
@@ -426,20 +599,44 @@ function applyRunEvent(run, { line, parsed }) {
       });
       break;
     case "codex.command.output.delta":
-      activity.command_output = appendLimited(activity.command_output, event.text || "", 8000);
-      appendAgentStream(activity, event, "command_output", event.text || "", {
-        title: "Command output",
-        status: "streaming"
-      });
-      addExecutionEvent(activity, {
-        type: "command_output",
-        title: "Command output",
-        detail: event.text || "",
-        status: "streaming"
-      });
       updateRunActivity(run, {
         phase: "tool-output",
         current_step: "Receiving command output"
+      });
+      break;
+    case "codex.thread.tokenUsage.updated":
+      applyTokenUsage(activity, event);
+      updateRunActivity(run, {
+        phase: activity.phase,
+        current_step: activity.current_step
+      });
+      break;
+    case "codex.command.duplicate.suppressed":
+      addUsageWarning(activity, {
+        id: `duplicate-command-${event.item_id || activity.usage_warnings.length}`,
+        type: "duplicate_command",
+        lane: tokenLane(activity, event),
+        message: event.warning || "An equivalent command was suppressed while the first process was still running.",
+        evidence: [event.cwd, event.command, event.active_item_id].filter(Boolean).join(" · ")
+      });
+      addExecutionEvent(activity, {
+        type: "duplicate_command",
+        title: "Duplicate command suppressed",
+        detail: [event.cwd, event.command].filter(Boolean).join(" · "),
+        status: "warning"
+      });
+      addRunMessage(activity, {
+        id: `tool:${event.item_id || activity.messages?.length}:duplicate`,
+        role: "assistant",
+        actor: "tool",
+        actor_label: "工具",
+        kind: "warning",
+        content: event.warning || "等价命令已在当前工作区运行，本次调用未启动重复进程。",
+        detail: [event.cwd, event.command].filter(Boolean).join(" · "),
+        status: "warning",
+        task_id: event.task_id || "",
+        item_id: event.item_id || "",
+        round_index: activity.round_index
       });
       break;
     case "codex.item.started":
@@ -473,6 +670,17 @@ function applyRunEvent(run, { line, parsed }) {
         current_step: errorText(event),
         timeline: { type: event.type, label: event.params?.willRetry ? "Retrying after error" : "Codex error", detail: errorText(event) }
       });
+      addRunMessage(activity, {
+        id: `runtime:${activity.run_id || "run"}:error:${activity.errors.length}`,
+        role: "system",
+        actor: event.task_id ? "agent" : "runtime",
+        actor_label: event.role || (event.task_id ? workerLabel(event.worker_type) : "Runtime"),
+        kind: "error",
+        content: errorText(event),
+        status: event.params?.willRetry ? "warning" : "failed",
+        task_id: event.task_id || "",
+        round_index: activity.round_index
+      });
       break;
     case "codex.warning":
       addExecutionEvent(activity, {
@@ -485,6 +693,17 @@ function applyRunEvent(run, { line, parsed }) {
         phase: "warning",
         current_step: event.params?.message || "Warning",
         timeline: { type: event.type, label: "Warning", detail: event.params?.message || "" }
+      });
+      addRunMessage(activity, {
+        id: `runtime:${activity.run_id || "run"}:warning:${activity.messages?.length || 0}`,
+        role: "system",
+        actor: event.task_id ? "agent" : "runtime",
+        actor_label: event.role || (event.task_id ? workerLabel(event.worker_type) : "Runtime"),
+        kind: "warning",
+        content: event.params?.message || describeEvent(event),
+        status: "warning",
+        task_id: event.task_id || "",
+        round_index: activity.round_index
       });
       break;
     case "codex.thread.status.changed":
@@ -521,8 +740,20 @@ function applyRunEvent(run, { line, parsed }) {
         current_step: "Runtime result received",
         timeline: { type: event.type, label: "Runtime result", detail: event.result?.summary || activity.round_result || "" }
       });
+      addRunMessage(activity, {
+        id: `runtime:${activity.run_id || "run"}:result:${activity.round_index || 0}`,
+        role: "system",
+        actor: "runtime",
+        actor_label: "Runtime",
+        kind: "result",
+        content: event.result?.summary || `本轮结果：${activity.round_result || "unknown"}。`,
+        status: activity.round_result === "blocked" ? "warning" : "completed",
+        round_index: activity.round_index
+      });
       break;
     case "codex.turn.completed":
+      finishTiming(activity.performance.turns, "turn_id", event.turn_id || activity.turn_id);
+      activity.performance.model_time_ms = sumDurations(activity.performance.turns);
       updateRunActivity(run, {
         phase: "turn-completed",
         current_step: "Codex turn completed",
@@ -621,6 +852,8 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
         ...existing,
         task_id: task.id,
         role: task.role,
+        worker_type: task.worker_type || existing.worker_type || "",
+        workstream_id: task.workstream_id || existing.workstream_id || "",
         worker_thread_key: task.worker_thread_key || existing.worker_thread_key || "",
         objective: task.objective,
         status: report?.status || "completed",
@@ -635,8 +868,7 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
     activity.merge_result = parsedResult.merge_result;
   }
   activity.artifact_paths = {
-    events_file: run.events_file || "",
-    raw_events_file: run.raw_events_file || "",
+    messages_file: run.messages_file || run.events_file || "",
     activity_file: run.activity_file || "",
     result_file: run.result_file || "",
     error_file: run.error_file || ""
@@ -654,6 +886,16 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
         detail: parsedResult?.runtime_result?.summary || `exit ${exitCode}`
       }
     });
+    addRunMessage(activity, {
+      id: `runtime:${activity.run_id || "run"}:finished`,
+      role: "system",
+      actor: "runtime",
+      actor_label: "Runtime",
+      kind: "result",
+      content: parsedResult?.runtime_result?.summary || (activity.round_result ? `执行结束：${activity.round_result}。` : "执行已完成。"),
+      status: "completed",
+      round_index: activity.round_index
+    });
   } else if (status === "aborted") {
     updateRunActivity(run, {
       phase: "aborted",
@@ -663,6 +905,16 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
         label: "Run aborted",
         detail: errorMessage || "aborted"
       }
+    });
+    addRunMessage(activity, {
+      id: `runtime:${activity.run_id || "run"}:finished`,
+      role: "system",
+      actor: "runtime",
+      actor_label: "Runtime",
+      kind: "error",
+      content: errorMessage || "执行已中止。",
+      status: "failed",
+      round_index: activity.round_index
     });
   } else {
     updateRunActivity(run, {
@@ -674,6 +926,16 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
         detail: errorMessage || `exit ${exitCode}`
       }
     });
+    addRunMessage(activity, {
+      id: `runtime:${activity.run_id || "run"}:finished`,
+      role: "system",
+      actor: "runtime",
+      actor_label: "Runtime",
+      kind: "error",
+      content: errorMessage || `Runtime 失败，exit code ${exitCode}。`,
+      status: "failed",
+      round_index: activity.round_index
+    });
   }
   activity.status = status;
 }
@@ -681,6 +943,7 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
 function handleCodexItem(activity, event, status) {
   const item = event.params?.item || {};
   const type = item.type || "item";
+  const itemId = String(item.id || event.params?.itemId || event.item_id || "");
   if (type === "agentMessage") {
     const text = item.text || textFromContent(item.content);
     const report = parseWorkerReportText(text);
@@ -698,13 +961,88 @@ function handleCodexItem(activity, event, status) {
       });
     } else if (text) {
       activity.agent_text = mergeCompletedText(activity.agent_text, text, 8000);
+      if (!event.controller_role || activity.entry_capability === "agent-task") {
+        addRunMessage(activity, {
+          id: streamMessageId(activity, { ...event, item_id: itemId }, "response"),
+          role: "assistant",
+          actor: "agent",
+          actor_label: activity.entry_capability === "agent-task" ? "Commit Agent" : "Agent",
+          kind: "response",
+          content: text,
+          status,
+          thread_id: event.thread_id || activity.thread_id,
+          turn_id: event.turn_id || activity.turn_id,
+          item_id: itemId,
+          round_index: activity.round_index
+        });
+      }
     }
   }
   if (type === "reasoning") {
     const text = item.summary || item.text || textFromContent(item.content);
     if (text) {
       activity.reasoning_text = mergeCompletedText(activity.reasoning_text, text, 4000);
+      addRunMessage(activity, {
+        id: streamMessageId(activity, { ...event, item_id: itemId }, "progress"),
+        role: "assistant",
+        actor: event.controller_role ? "controller" : "agent",
+        actor_label: event.controller_role ? controllerRoleLabel(event.controller_role) : event.role || workerLabel(event.worker_type),
+        kind: "progress",
+        content: text,
+        status,
+        task_id: event.task_id || "",
+        thread_id: event.thread_id || activity.thread_id,
+        turn_id: event.turn_id || activity.turn_id,
+        item_id: itemId,
+        round_index: activity.round_index
+      });
     }
+  }
+  if (type === "commandExecution") {
+    const commandExitCode = item.exitCode ?? item.exit_code;
+    if (status === "started") {
+      startTiming(activity.performance.commands, "item_id", itemId, {
+        command: firstString([item.command, item.cmd]),
+        cwd: String(item.cwd || ""),
+        lane: tokenLane(activity, event),
+        turn_id: String(event.params?.turnId || activity.turn_id || ""),
+        started_at: nonNegativeNumber(item.startedAtMs) || Date.now()
+      });
+    } else {
+      finishTiming(activity.performance.commands, "item_id", itemId, nonNegativeNumber(item.completedAtMs) || Date.now());
+      activity.performance.command_time_ms = sumDurations(activity.performance.commands);
+    }
+    addRunMessage(activity, {
+      id: `tool:${itemId || activity.messages?.length || 0}`,
+      role: "assistant",
+      actor: "tool",
+      actor_label: "工具",
+      kind: "command",
+      content: firstString([item.command, item.cmd]) || "执行命令",
+      detail: commandMessageDetail(item, status),
+      status: commandExitCode === 0 ? "completed" : commandExitCode !== undefined && commandExitCode !== null ? "failed" : status,
+      task_id: event.task_id || "",
+      thread_id: event.thread_id || activity.thread_id,
+      turn_id: event.turn_id || activity.turn_id,
+      item_id: itemId,
+      round_index: activity.round_index
+    });
+  }
+  if (["fileChange", "toolCall", "webSearch"].includes(type)) {
+    addRunMessage(activity, {
+      id: `tool:${itemId || activity.messages?.length || 0}`,
+      role: "assistant",
+      actor: "tool",
+      actor_label: "工具",
+      kind: type,
+      content: itemDetail(item) || describeItem(item, status),
+      status,
+      task_id: event.task_id || "",
+      thread_id: event.thread_id || activity.thread_id,
+      turn_id: event.turn_id || activity.turn_id,
+      item_id: itemId,
+      round_index: activity.round_index
+    });
   }
   addExecutionEvent(activity, {
     type,
@@ -712,6 +1050,212 @@ function handleCodexItem(activity, event, status) {
     detail: itemDetail(item),
     status
   });
+}
+
+function emptyTokenUsage() {
+  return {
+    schema_version: "runtime-token-usage/v1",
+    summary: tokenCounts(),
+    model_context_window: 0,
+    max_context_utilization: 0,
+    threads: [],
+    turns: [],
+    lanes: [],
+    updated_at: ""
+  };
+}
+
+function applyTokenUsage(activity, event) {
+  const params = event.params || event.raw_rpc?.params || {};
+  const usage = params.tokenUsage || {};
+  const threadId = String(params.threadId || event.thread_id || "").trim();
+  const turnId = String(params.turnId || event.turn_id || "").trim();
+  if (!threadId || !turnId || !usage.total) return;
+  const projection = activity.token_usage?.schema_version === "runtime-token-usage/v1"
+    ? activity.token_usage
+    : emptyTokenUsage();
+  activity.token_usage = projection;
+  const currentTotal = normalizeTokenCounts(usage.total);
+  const lastRequest = normalizeTokenCounts(usage.last);
+  const contextWindow = nonNegativeNumber(usage.modelContextWindow);
+  const contextUtilization = contextWindow > 0 ? Math.min(lastRequest.input_tokens / contextWindow, 1) : 0;
+  const existingThreadIndex = projection.threads.findIndex((item) => item.thread_id === threadId);
+  const existingThread = existingThreadIndex >= 0 ? projection.threads[existingThreadIndex] : null;
+  const turnIndex = projection.turns.findIndex((item) => item.thread_id === threadId && item.turn_id === turnId);
+  const lane = tokenLane(activity, event);
+  const baseline = turnIndex >= 0
+    ? projection.turns[turnIndex].baseline_total
+    : existingThread?.latest_total || tokenCounts();
+  const timestamp = new Date().toISOString();
+  const thread = {
+    thread_id: threadId,
+    lane,
+    worker_type: String(event.worker_type || existingThread?.worker_type || ""),
+    workstream_id: String(event.workstream_id || existingThread?.workstream_id || ""),
+    latest_total: currentTotal,
+    model_context_window: contextWindow,
+    updated_at: timestamp
+  };
+  if (existingThreadIndex >= 0) projection.threads[existingThreadIndex] = thread;
+  else projection.threads.push(thread);
+  const turn = {
+    thread_id: threadId,
+    turn_id: turnId,
+    lane,
+    worker_type: String(event.worker_type || ""),
+    workstream_id: String(event.workstream_id || ""),
+    round_index: Number(activity.round_index || 0),
+    baseline_total: baseline,
+    usage: subtractTokenCounts(currentTotal, baseline),
+    last_request: lastRequest,
+    model_context_window: contextWindow,
+    context_utilization: contextUtilization,
+    updated_at: timestamp
+  };
+  if (turnIndex >= 0) projection.turns[turnIndex] = turn;
+  else projection.turns.push(turn);
+  projection.summary = sumTokenCounts(projection.threads.map((item) => item.latest_total));
+  projection.model_context_window = Math.max(0, ...projection.threads.map((item) => item.model_context_window || 0));
+  projection.max_context_utilization = Math.max(0, ...projection.turns.map((item) => item.context_utilization || 0));
+  projection.lanes = [...new Set(projection.threads.map((item) => item.lane))].map((laneName) => ({
+    lane: laneName,
+    ...sumTokenCounts(projection.threads.filter((item) => item.lane === laneName).map((item) => item.latest_total))
+  }));
+  projection.updated_at = timestamp;
+  if (contextUtilization >= 0.8) {
+    addUsageWarning(activity, {
+      id: `context-pressure-${threadId}-${turnId}`,
+      type: "context_pressure",
+      lane,
+      thread_id: threadId,
+      turn_id: turnId,
+      message: `Latest model request uses ${(contextUtilization * 100).toFixed(1)}% of the context window.`,
+      evidence: `${lastRequest.input_tokens} / ${contextWindow} input tokens`
+    });
+  }
+}
+
+function tokenLane(activity, event) {
+  if ((activity.entry_capability || "") === "agent-task") return "commit";
+  if (event.controller_role) return "controller";
+  if (event.task_id) return event.worker_type === "verification" ? "verifier" : "builder";
+  return "controller";
+}
+
+function tokenCounts(values = {}) {
+  const input = nonNegativeNumber(values.input_tokens ?? values.inputTokens);
+  const cached = Math.min(input, nonNegativeNumber(values.cached_input_tokens ?? values.cachedInputTokens));
+  return {
+    logical_total_tokens: nonNegativeNumber(values.logical_total_tokens ?? values.totalTokens),
+    input_tokens: input,
+    cached_input_tokens: cached,
+    uncached_input_tokens: Math.max(0, input - cached),
+    output_tokens: nonNegativeNumber(values.output_tokens ?? values.outputTokens),
+    reasoning_output_tokens: nonNegativeNumber(values.reasoning_output_tokens ?? values.reasoningOutputTokens)
+  };
+}
+
+function normalizeTokenCounts(values) {
+  return tokenCounts(values || {});
+}
+
+function subtractTokenCounts(current, baseline) {
+  return Object.fromEntries(Object.keys(tokenCounts()).map((key) => [key, Math.max(0, (current[key] || 0) - (baseline[key] || 0))]));
+}
+
+function sumTokenCounts(items) {
+  const total = tokenCounts();
+  for (const item of items) {
+    for (const key of Object.keys(total)) total[key] += nonNegativeNumber(item?.[key]);
+  }
+  return total;
+}
+
+function recordWorkerContext(activity, event) {
+  const threadKey = String(event.worker_thread_key || "").trim();
+  if (!threadKey) return;
+  activity.worker_contexts ||= [];
+  const index = activity.worker_contexts.findIndex((item) => item.worker_thread_key === threadKey);
+  const existing = index >= 0 ? activity.worker_contexts[index] : null;
+  const signature = String(event.context_scope_signature || "");
+  const timestamp = new Date().toISOString();
+  if (existing?.latest_scope_signature && signature && existing.latest_scope_signature !== signature) {
+    addUsageWarning(activity, {
+      id: `worker-context-scope-${threadKey}-${signature}`,
+      type: "worker_context_scope_changed",
+      lane: tokenLane(activity, event),
+      message: `Worker thread ${threadKey} was reused with a different authorized path/skill scope.`,
+      evidence: `${existing.latest_scope_signature} -> ${signature}; workstream=${event.workstream_id || ""}`
+    });
+  }
+  const entry = {
+    worker_thread_key: threadKey,
+    case_id: String(event.task?.loop_frame_excerpt?.case_id || existing?.case_id || ""),
+    worker_type: String(event.worker_type || existing?.worker_type || ""),
+    workstream_id: String(event.workstream_id || existing?.workstream_id || ""),
+    task_count: Number(existing?.task_count || 0) + 1,
+    scope_signatures: [...new Set([...(existing?.scope_signatures || []), signature].filter(Boolean))].slice(-8),
+    latest_scope_signature: signature || existing?.latest_scope_signature || "",
+    context_digest_version: String(event.context_digest_version || existing?.context_digest_version || ""),
+    context_digest_revision: String(event.task?.inputs?.context_digest?.case_updated_at || existing?.context_digest_revision || ""),
+    context_ref_count: Number(event.context_ref_count || 0),
+    prior_report_count: Number(event.prior_report_count || 0),
+    updated_at: timestamp
+  };
+  if (index >= 0) activity.worker_contexts[index] = entry;
+  else activity.worker_contexts.push(entry);
+  activity.worker_contexts = activity.worker_contexts.slice(-50);
+}
+
+function addUsageWarning(activity, warning) {
+  activity.usage_warnings ||= [];
+  const entry = {
+    id: String(warning.id || `${warning.type}-${activity.usage_warnings.length}`),
+    type: String(warning.type || "usage_warning"),
+    lane: String(warning.lane || ""),
+    thread_id: String(warning.thread_id || ""),
+    turn_id: String(warning.turn_id || ""),
+    message: String(warning.message || "Runtime usage warning."),
+    evidence: String(warning.evidence || ""),
+    detected_at: new Date().toISOString(),
+    blocking: false
+  };
+  const index = activity.usage_warnings.findIndex((item) => item.id === entry.id);
+  if (index >= 0) activity.usage_warnings[index] = entry;
+  else activity.usage_warnings.push(entry);
+  activity.usage_warnings = activity.usage_warnings.slice(-50);
+}
+
+function nonNegativeNumber(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) && number > 0 ? number : 0;
+}
+
+function startTiming(items, key, value, fields) {
+  if (!value || !Array.isArray(items)) return;
+  const index = items.findIndex((item) => item[key] === value);
+  const entry = {
+    ...(index >= 0 ? items[index] : {}),
+    [key]: value,
+    ...fields,
+    started_at: index >= 0 ? items[index].started_at || fields.started_at : fields.started_at,
+    finished_at: index >= 0 ? items[index].finished_at || 0 : 0,
+    duration_ms: index >= 0 ? items[index].duration_ms || 0 : 0
+  };
+  if (index >= 0) items[index] = entry;
+  else items.push(entry);
+}
+
+function finishTiming(items, key, value, finishedAt = Date.now()) {
+  if (!value || !Array.isArray(items)) return;
+  const item = items.find((entry) => entry[key] === value);
+  if (!item || item.finished_at) return;
+  item.finished_at = finishedAt;
+  item.duration_ms = Math.max(0, finishedAt - Number(item.started_at || finishedAt));
+}
+
+function sumDurations(items) {
+  return (items || []).reduce((total, item) => total + nonNegativeNumber(item.duration_ms), 0);
 }
 
 function addExecutionEvent(activity, entry) {
@@ -730,45 +1274,6 @@ function addExecutionEvent(activity, entry) {
     status: entry.status || ""
   });
   activity.execution_events = activity.execution_events.slice(-80);
-}
-
-function appendAgentStream(activity, event, field, text, entry) {
-  if (!event.task_id || !text) {
-    return;
-  }
-  const existing = (activity.agents || []).find((item) => item.task_id === event.task_id) || {};
-  const limit = field === "reasoning_text" ? 4000 : 8000;
-  upsertAgent(activity, {
-    task_id: event.task_id,
-    role: event.role || existing.role || "",
-    status: existing.status || "running",
-    updated_at: new Date().toISOString(),
-    [field]: appendLimited(existing[field] || "", text, limit),
-    current_step: entry.title || existing.current_step || "",
-    latest_detail: truncate(text, 360),
-    execution_events: appendLimitedEvents(existing.execution_events || [], {
-      at: new Date().toISOString(),
-      type: field,
-      title: entry.title || field,
-      detail: truncate(text, 1200),
-      status: entry.status || ""
-    })
-  });
-}
-
-function appendLimitedEvents(events, entry) {
-  const last = events.at(-1);
-  if (last?.type === entry.type && last?.title === entry.title && last?.detail === entry.detail) {
-    return [
-      ...events.slice(0, -1),
-      {
-        ...last,
-        status: entry.status || last.status,
-        at: entry.at
-      }
-    ].slice(-40);
-  }
-  return [...events, entry].slice(-40);
 }
 
 function upsertAgent(activity, agent) {
@@ -925,98 +1430,96 @@ function addTimeline(activity, entry) {
   activity.timeline = activity.timeline.slice(-50);
 }
 
-function addRawEvent(activity, line, event) {
-  if (isDeltaEvent(event)) {
-    appendRawDeltaEvent(activity, event);
-    return;
-  }
-  activity.raw_events.push({
-    at: new Date().toISOString(),
-    type: event?.type || "raw",
-    text: summarizeRawEventForActivity(event, line)
+function addRunMessage(activity, input) {
+  activity.messages ||= [];
+  const id = String(input.id || `message:${activity.run_id || "run"}:${activity.messages.length}`);
+  const index = activity.messages.findIndex((message) => message.id === id);
+  const existing = index >= 0 ? activity.messages[index] : null;
+  const timestamp = new Date().toISOString();
+  const next = normalizeRunMessage({
+    ...existing,
+    ...input,
+    id,
+    run_id: input.run_id || existing?.run_id || activity.run_id || "",
+    task_id: input.task_id || existing?.task_id || activity.task_id || "",
+    created_at: existing?.created_at || input.created_at || timestamp,
+    updated_at: input.updated_at || timestamp,
+    revision: Number(existing?.revision || 0) + 1
   });
-  activity.raw_events = activity.raw_events.slice(-80);
+  if (index >= 0) activity.messages[index] = next;
+  else activity.messages.push(next);
+  activity.messages = activity.messages.slice(-200);
+  return next;
 }
 
-function isDeltaEvent(event) {
-  return [
-    "codex.agent_message.delta",
-    "codex.reasoning.delta",
-    "codex.command.output.delta"
-  ].includes(event?.type);
+function appendRunMessageContent(activity, input) {
+  const existing = (activity.messages || []).find((message) => message.id === input.id);
+  return addRunMessage(activity, {
+    ...input,
+    content: appendLimited(existing?.content || "", input.text || "", 6000)
+  });
 }
 
-function appendRawDeltaEvent(activity, event) {
-  const key = rawDeltaKey(event);
-  const chunk = event.text || "";
-  const existingIndex = activity.raw_events.findLastIndex((item) => item.delta_key === key);
-  const existing = existingIndex >= 0 ? activity.raw_events[existingIndex] : null;
-  const next = {
-    at: new Date().toISOString(),
-    type: event.type,
-    text: deltaEventLabel(event),
-    delta_key: key,
-    delta_chunks: (existing?.delta_chunks || 0) + 1,
-    delta_chars: (existing?.delta_chars || 0) + chunk.length,
-    stream_text: appendLimited(existing?.stream_text || "", chunk, event.type === "codex.reasoning.delta" ? 1200 : 2400)
+function normalizeRunMessage(message = {}) {
+  return {
+    schema_version: "desktop-run-message/v1",
+    id: String(message.id || ""),
+    role: String(message.role || "system"),
+    actor: String(message.actor || "runtime"),
+    actor_label: String(message.actor_label || "Runtime"),
+    kind: String(message.kind || "status"),
+    content: truncate(message.content || "", 6000),
+    detail: truncate(message.detail || "", 1800),
+    status: String(message.status || "completed"),
+    run_id: String(message.run_id || ""),
+    task_id: String(message.task_id || ""),
+    round_index: Number(message.round_index || 0),
+    thread_id: String(message.thread_id || ""),
+    turn_id: String(message.turn_id || ""),
+    item_id: String(message.item_id || ""),
+    created_at: String(message.created_at || new Date().toISOString()),
+    updated_at: String(message.updated_at || message.created_at || new Date().toISOString()),
+    revision: Math.max(1, Number(message.revision || 1))
   };
-  next.text = `${deltaEventLabel(event)} · ${next.delta_chars} chars · ${next.delta_chunks} chunks`;
-  if (existingIndex >= 0) {
-    activity.raw_events.splice(existingIndex, 1);
-    activity.raw_events.push(next);
-  } else {
-    activity.raw_events.push(next);
-  }
-  activity.raw_events = activity.raw_events.slice(-80);
 }
 
-function rawDeltaKey(event) {
+function streamMessageId(activity, event, kind) {
   return [
-    event.type,
-    event.task_id || "",
-    event.item_id || "",
-    event.role || ""
+    event.controller_role ? "controller" : "agent",
+    event.task_id || event.controller_role || activity.entry_capability || "agent",
+    kind,
+    event.item_id || event.turn_id || activity.turn_id || activity.messages?.length || 0
   ].join(":");
 }
 
-function deltaEventLabel(event) {
-  switch (event.type) {
-    case "codex.agent_message.delta":
-      return `Agent message stream${event.task_id ? ` · ${event.task_id}` : ""}`;
-    case "codex.reasoning.delta":
-      return `Reasoning stream${event.task_id ? ` · ${event.task_id}` : ""}`;
-    case "codex.command.output.delta":
-      return `Command output stream${event.task_id ? ` · ${event.task_id}` : ""}`;
-    default:
-      return event.type || "Delta stream";
-  }
+function controllerRoleLabel(role) {
+  if (role === "review") return "Controller Review";
+  if (role === "correction") return "Controller Correction";
+  return "Controller";
 }
 
-function summarizeRawEventForActivity(event, line) {
-  if (!event) {
-    return truncate(line, 1000);
-  }
-  switch (event.type) {
-    case "codex.agent_message.delta":
-      return `Agent message delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
-    case "codex.reasoning.delta":
-      return `Reasoning delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
-    case "codex.command.output.delta":
-      return `Command output delta · ${String(event.text || "").length} chars${event.task_id ? ` · ${event.task_id}` : ""}`;
-    case "runtime.loop_frame.created":
-      return `Controller frame · ${event.loop_frame?.execution_gate?.status || "gate"} · ${(event.loop_frame?.worker_packets || []).length} workers`;
-    case "runtime.controller_plan.completed":
-      return `Controller plan · ${event.status || ""}${event.controller_plan?.summary ? ` · ${truncate(event.controller_plan.summary, 700)}` : ""}`;
-    case "runtime.worker_report.completed":
-      return `${event.role || event.task_id || "worker"} report · ${event.status || event.report?.status || ""}${event.report?.summary ? ` · ${truncate(event.report.summary, 700)}` : ""}`;
-    case "runtime.merge.completed":
-      return `Merge · ${event.merge_result?.decision || "unknown"}${event.merge_result?.loop_gate?.reason ? ` · ${truncate(event.merge_result.loop_gate.reason, 700)}` : ""}`;
-    case "codex.item.started":
-    case "codex.item.completed":
-      return `${event.params?.item?.type || "item"} ${event.type.endsWith("completed") ? "completed" : "started"}${event.params?.item?.id ? ` · ${event.params.item.id}` : ""}`;
-    default:
-      return truncate([event.message, event.params?.message, event.status, event.type].filter(Boolean).join(" · "), 1000);
-  }
+function workerLabel(workerType) {
+  const labels = {
+    product: "产品 Agent",
+    interaction: "交互 Agent",
+    visual: "视觉 Agent",
+    tech: "技术 Agent",
+    diagnosis: "诊断 Agent",
+    implementation: "实现 Agent",
+    verification: "验证 Agent",
+    closeout: "收束 Agent"
+  };
+  return labels[String(workerType || "")] || "Worker Agent";
+}
+
+function commandMessageDetail(item, status) {
+  const parts = [String(item.cwd || "")];
+  const exitCode = item.exitCode ?? item.exit_code;
+  if (exitCode !== undefined && exitCode !== null) parts.push(`exit ${exitCode}`);
+  else parts.push(status);
+  const output = firstString([item.aggregatedOutput, item.output, item.stdout, item.stderr]);
+  if (output) parts.push(truncate(output, 1200));
+  return parts.filter(Boolean).join(" · ");
 }
 
 function normalizePlan(plan) {
@@ -1167,6 +1670,7 @@ function summarizeRuntimeResult(status, parsedResult, errorMessage) {
 }
 
 export {
+  addRunMessage,
   applyRunCommandResult,
   applyRunEvent,
   createRunActivity,

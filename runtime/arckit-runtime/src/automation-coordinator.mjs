@@ -118,6 +118,10 @@ export function createAutomationCoordinator({
           run_status: run?.status || ""
         };
       }),
+      usage_baseline: buildUsageBaseline(runs, {
+        projectId: activeTask?.local_project_id || "",
+        excludeRunId: activeRun?.id || ""
+      }),
       health: deriveHealth(automation, queue, blockedPendingTasks)
     };
   }
@@ -367,16 +371,19 @@ export function createAutomationCoordinator({
         automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
       });
     } else {
-      const session = (await runManager.listSessions(active.local_project_id))[0];
+      const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id));
+      const session = await ensureTaskSession(active, task);
       await runManager.addMessage(active.local_project_id, {
         session_id: session.id,
         role: "user",
         kind: "intervention",
-        content: text
+        content: text,
+        task_id: active.task_id
       });
       const nextRun = await runManager.startRun({
         projectId: active.local_project_id,
         sessionId: session.id,
+        taskId: active.task_id,
         task: buildInterventionTask(text),
         runtimeContext: {
           kind: "human_intervention",
@@ -522,6 +529,7 @@ export function createAutomationCoordinator({
             server_version: claimed.version,
             phase: "starting",
             run_id: "",
+            session_id: "",
             claimed_at: now(),
             started_at: ""
           };
@@ -569,16 +577,18 @@ export function createAutomationCoordinator({
       return null;
     }
     try {
-      const session = (await runManager.listSessions(project.id))[0];
+      const session = await ensureTaskSession(active, task);
       await runManager.addMessage(project.id, {
         session_id: session.id,
         role: "user",
         kind: "automation-task",
-        content: task.content || task.title
+        content: task.content || task.title,
+        task_id: active.task_id
       });
       const run = await runManager.startRun({
         projectId: project.id,
         sessionId: session.id,
+        taskId: active.task_id,
         task: buildAutomationTask(task),
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
@@ -694,13 +704,12 @@ export function createAutomationCoordinator({
       }
     });
     try {
-      const session = (await runManager.listSessions(active.local_project_id))[0];
-      if (!session) {
-        throw new Error("The commit agent requires an existing project session.");
-      }
+      const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id));
+      const session = await ensureTaskSession(active, task);
       const run = await runManager.startAgentTask({
         projectId: active.local_project_id,
         sessionId: session.id,
+        taskId: active.task_id,
         task: COMMIT_AGENT_TASK,
         adapter: "codex-app-server",
         approvalPolicy: "on-request"
@@ -756,8 +765,10 @@ export function createAutomationCoordinator({
           task_id: completed.id,
           project_id: completed.project_id,
           title: completed.title,
-          run_id: active.run_id,
+          run_id: active.case_run_id || active.run_id,
+          commit_run_id: active.commit_run_id || "",
           local_project_id: active.local_project_id,
+          session_id: active.session_id || "",
           completed_at: now()
         });
         automation.recent_completions = automation.recent_completions.slice(0, 30);
@@ -851,6 +862,32 @@ export function createAutomationCoordinator({
       automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
     });
     return startCommitAgent();
+  }
+
+  async function ensureTaskSession(active, task) {
+    const sessions = await runManager.listSessions(active.local_project_id);
+    if (active.session_id) {
+      const existing = sessions.find((item) => item.id === active.session_id);
+      if (!existing) {
+        throw new Error(`The task session no longer exists: ${active.session_id}`);
+      }
+      if (existing.task_id && String(existing.task_id) !== String(active.task_id)) {
+        throw new Error(`The task session belongs to another task: ${existing.task_id}`);
+      }
+      return existing;
+    }
+    const session = await runManager.createSession(active.local_project_id, {
+      title: `待办 · ${task?.title || active.task_title || active.task_id}`,
+      kind: "automation-task",
+      task_id: active.task_id,
+      remote_project_id: active.project_id
+    });
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id === active.task_id) {
+        automation.active_task.session_id = session.id;
+      }
+    });
+    return session;
   }
 
   async function setAwaitingHuman({ active, runId, handoff }) {
@@ -1244,6 +1281,7 @@ function reconcileUnassociatedInProgress(automation, occurredAt) {
     server_version: task.version,
     phase: "recovery",
     run_id: "",
+    session_id: "",
     claimed_at: "",
     started_at: ""
   };
@@ -1311,4 +1349,32 @@ export function buildAutomationTask(task) {
 
 export function buildInterventionTask(message) {
   return String(message || "").trim();
+}
+
+export function buildUsageBaseline(runs, { projectId = "", excludeRunId = "" } = {}) {
+  const samples = (runs || []).filter((run) => (
+    run.id !== excludeRunId
+    && (!projectId || run.project_id === projectId)
+    && (run.entry_capability || "runtime") === "runtime"
+    && run.status === "completed"
+    && Number(run.activity?.token_usage?.summary?.logical_total_tokens || 0) > 0
+  )).slice(0, 20);
+  return {
+    schema_version: "runtime-usage-baseline/v1",
+    kind: "runtime_history_median",
+    sample_size: samples.length,
+    logical_total_tokens: median(samples.map((run) => run.activity.token_usage.summary.logical_total_tokens)),
+    cached_input_tokens: median(samples.map((run) => run.activity.token_usage.summary.cached_input_tokens)),
+    uncached_input_tokens: median(samples.map((run) => run.activity.token_usage.summary.uncached_input_tokens)),
+    output_tokens: median(samples.map((run) => run.activity.token_usage.summary.output_tokens)),
+    model_time_ms: median(samples.map((run) => run.activity?.performance?.model_time_ms || 0)),
+    command_time_ms: median(samples.map((run) => run.activity?.performance?.command_time_ms || 0))
+  };
+}
+
+function median(values) {
+  const sorted = values.map(Number).filter(Number.isFinite).sort((left, right) => left - right);
+  if (sorted.length === 0) return 0;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
 }

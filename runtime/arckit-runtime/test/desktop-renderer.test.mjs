@@ -56,8 +56,23 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /state\.workbenchRun \|\| state\.snapshot\.active_run/);
   assert.match(source, /state\.workbenchCompletion\?\.local_project_id/);
   assert.match(source, /api\.listMessages\(localProjectId, run\.session_id\)/);
-  assert.match(source, /renderRunPlan\(activity\)/);
-  assert.match(source, /renderExecutionEvidence\(activity\)/);
+  assert.match(source, /message\.task_id/);
+  assert.match(source, /Task Session/);
+  assert.match(source, /Token 逻辑总量/);
+  assert.match(source, /cached_input_tokens/);
+  assert.match(source, /uncached_input_tokens/);
+  assert.match(source, /usage_warnings/);
+  assert.match(source, /模型 Turn 耗时/);
+  assert.match(source, /命令累计耗时/);
+  assert.match(source, /历史基线/);
+  assert.match(source, /相对历史中位数/);
+  assert.match(source, /Worker 上下文/);
+  assert.match(source, /worker_contexts/);
+  assert.match(source, /activity\?\.messages/);
+  assert.match(source, /renderConversationMessage/);
+  assert.match(source, /run\.activity_changed/);
+  assert.match(source, /artifact_paths\?\.messages_file/);
+  assert.doesNotMatch(source, /renderRunPlan\(activity\)|renderExecutionEvidence\(activity\)|raw_events/);
   assert.match(source, /artifact_ownership_scan\?\.implementation_evidence/);
 });
 

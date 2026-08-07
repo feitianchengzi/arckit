@@ -12,6 +12,8 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
   let activeTurn = null;
   let stdinControls = null;
   const threads = new Map();
+  const activeCommands = new Map();
+  const commandItems = new Map();
 
   const adapter = {
     name: "codex-app-server",
@@ -45,13 +47,15 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           initializedProjectRoot = resolve(projectRoot);
           client.onNotification((message) => {
             if (activeTurn) {
-              handleNotification({ message, queue: activeTurn.queue, state: activeTurn.state });
+              handleNotification({ message, queue: activeTurn.queue, state: activeTurn.state, activeCommands, commandItems });
             }
           });
           client.onRequest((message) => handleServerRequest({
             message,
             queue: activeTurn?.queue || new AsyncEventQueue(),
-            options: activeTurn?.options || effectiveOptions
+            options: activeTurn?.options || effectiveOptions,
+            activeCommands,
+            commandItems
           }));
           client.onClose(({ error }) => {
             if (activeTurn && !activeTurn.state.completed) {
@@ -60,6 +64,8 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             client = null;
             initialized = false;
             threads.clear();
+            activeCommands.clear();
+            commandItems.clear();
           });
         }
         if (!initialized) {
@@ -135,6 +141,8 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         initializedProjectRoot = "";
         initializeResult = null;
         threads.clear();
+        activeCommands.clear();
+        commandItems.clear();
         throw error;
       }
 
@@ -159,6 +167,8 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
       initializedProjectRoot = "";
       initializeResult = null;
       threads.clear();
+      activeCommands.clear();
+      commandItems.clear();
     },
     discardThread(threadKey) {
       const normalized = String(threadKey || "").trim();
@@ -168,7 +178,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
   return adapter;
 }
 
-function handleServerRequest({ message, queue, options }) {
+function handleServerRequest({ message, queue, options, activeCommands, commandItems }) {
   queue.push({
     type: `codex.server_request.${message.method.replaceAll("/", ".")}`,
     method: message.method,
@@ -180,8 +190,29 @@ function handleServerRequest({ message, queue, options }) {
     case "currentTime/read":
       return { currentTimeAt: Math.floor(Date.now() / 1000) };
     case "item/commandExecution/requestApproval":
-    case "execCommandApproval":
+    case "execCommandApproval": {
+      if ((options.approvalPolicy || "on-request") === "never") {
+        return approvalDecision(options, "command");
+      }
+      const duplicate = registerCommandApproval(message.params, activeCommands, commandItems);
+      if (duplicate) {
+        queue.push({
+          type: "codex.command.duplicate.suppressed",
+          command: message.params?.command || "",
+          cwd: message.params?.cwd || "",
+          item_id: message.params?.itemId || null,
+          active_item_id: duplicate.item_id || null,
+          active_started_at_ms: duplicate.started_at_ms || null,
+          warning: "An equivalent command is already running in this workspace."
+        });
+        return {
+          decision: "denied",
+          approved: false,
+          reason: `Equivalent command already running as ${duplicate.item_id || "an active item"}; observe that command instead of starting another process.`
+        };
+      }
       return approvalDecision(options, "command");
+    }
     case "item/fileChange/requestApproval":
     case "applyPatchApproval":
       return approvalDecision(options, "fileChange");
@@ -194,6 +225,34 @@ function handleServerRequest({ message, queue, options }) {
     default:
       throw new Error(`Unhandled server request: ${message.method}`);
   }
+}
+
+function registerCommandApproval(params = {}, activeCommands, commandItems) {
+  const command = String(params.command || "").trim();
+  if (!command || !activeCommands || !commandItems) return null;
+  const itemId = String(params.itemId || "").trim();
+  const fingerprint = `${String(params.cwd || "").trim()}\n${canonicalCommand(command)}`;
+  const existing = activeCommands.get(fingerprint);
+  if (existing && existing.item_id !== itemId) return existing;
+  const entry = {
+    fingerprint,
+    item_id: itemId,
+    command,
+    cwd: String(params.cwd || ""),
+    started_at_ms: Number(params.startedAtMs || Date.now())
+  };
+  activeCommands.set(fingerprint, entry);
+  if (itemId) commandItems.set(itemId, fingerprint);
+  return null;
+}
+
+function canonicalCommand(command) {
+  const normalized = String(command || "").trim().replace(/\s+/g, " ");
+  if (!/\bcmake\s+--build\b/.test(normalized)) return normalized;
+  return normalized
+    .replace(/\s(?:-j\s*\d+|-j\d+|--parallel(?:[=\s]\d+)?)(?=\s|['"]|$)/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function approvalDecision(options, kind) {
@@ -273,7 +332,7 @@ async function initializeClient(client) {
   return result;
 }
 
-function handleNotification({ message, queue, state }) {
+function handleNotification({ message, queue, state, activeCommands, commandItems }) {
   const event = normalizeNotification(message);
   queue.push(event);
 
@@ -291,6 +350,9 @@ function handleNotification({ message, queue, state }) {
   if (message.method === "item/completed" && message.params?.item?.type === "agentMessage") {
     state.lastCompletedAgentText = message.params.item.text || state.lastCompletedAgentText;
   }
+  if (message.method === "item/completed") {
+    releaseCommand(message.params?.item?.id || message.params?.itemId, activeCommands, commandItems);
+  }
   if (message.method === "error" && message.params?.willRetry !== true) {
     state.lastError = message.params?.error || message.params || message;
   }
@@ -307,8 +369,18 @@ function handleNotification({ message, queue, state }) {
       error: state.lastError
     });
     queue.push(parsed);
+    activeCommands?.clear();
+    commandItems?.clear();
     queue.close();
   }
+}
+
+function releaseCommand(itemId, activeCommands, commandItems) {
+  const normalized = String(itemId || "").trim();
+  if (!normalized || !commandItems) return;
+  const fingerprint = commandItems.get(normalized);
+  if (fingerprint) activeCommands?.delete(fingerprint);
+  commandItems.delete(normalized);
 }
 
 function normalizeNotification(message) {

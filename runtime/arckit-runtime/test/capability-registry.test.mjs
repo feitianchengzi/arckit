@@ -260,6 +260,16 @@ test("Controller review canonicalizes a uniquely annotated report id", () => {
   assert.deepEqual(normalized.rejected_reports, ["UNKNOWN：仍应被门禁拒绝。"]);
 });
 
+test("Controller review canonicalizes a unique TASK ordinal with a descriptive suffix", () => {
+  const taskId = "TASK-01-Qt UI 缺陷诊断 Worker";
+  const normalized = normalizeControllerReviewReportReferences({
+    accepted_reports: ["TASK-01 的诊断报告"],
+    rejected_reports: []
+  }, [{ task_id: taskId }]);
+
+  assert.deepEqual(normalized.accepted_reports, [taskId]);
+});
+
 test("Runtime initialization repairs persisted candidate-gap projections through the trusted ledger", async () => {
   const projectRoot = await mkdtemp(join(tmpdir(), "arckit-derived-case-gaps-"));
   await initializeProjectWithCase({ projectRoot, intent: "Verify fresh candidate-gap derivation." });
@@ -581,7 +591,8 @@ test("controller phases invoke using-arckit through the native skill trigger", a
   });
   assert.ok(workerPrompt.startsWith("$arckit-tech\n"));
   assert.match(workerPrompt, /"phase": "worker"/);
-  assert.match(workerPrompt, /"thread_key": "worker:CASE-20260726-001:builder"/);
+  assert.match(workerPrompt, /"thread_key": "worker:CASE-20260726-001:implementation:runtime-core"/);
+  assert.match(workerPrompt, /"context_digest"/);
   assert.match(workerPrompt, /"authorization_rule": "current_task_packet_supersedes_prior_thread_context"/);
   assert.match(workerPrompt, /"schema_version": "arckit-worker-packet\/v2"/);
   assert.doesNotMatch(workerPrompt, /Required Behavior|Allowed Capability Context|Output Contract|You are one bounded Worker/);
@@ -1129,6 +1140,7 @@ function controllerPlan(allowedSkills) {
     },
     worker_intents: [{
       worker_type: "implementation",
+      workstream_id: "runtime-core",
       role: "implementer",
       objective: "Implement the bounded change.",
       reason: "The state gap requires implementation evidence.",

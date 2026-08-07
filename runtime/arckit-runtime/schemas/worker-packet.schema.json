@@ -3,11 +3,12 @@
   "$id": "https://arckit.local/schema/worker-packet.schema.json",
   "title": "Arckit Worker Packet",
   "type": "object",
-  "required": ["schema_version", "worker_id", "worker_type", "role", "task", "case_context", "expected_case_impact", "context_refs", "allowed_actions", "forbidden_actions", "allowed_paths", "allowed_skills", "expected_report_schema", "stop_condition"],
+  "required": ["schema_version", "worker_id", "worker_type", "workstream_id", "role", "task", "case_context", "context_digest", "expected_case_impact", "context_refs", "allowed_actions", "forbidden_actions", "allowed_paths", "allowed_skills", "expected_report_schema", "stop_condition"],
   "properties": {
     "schema_version": { "type": "string", "const": "arckit-worker-packet/v2" },
     "worker_id": { "type": "string" },
     "worker_type": { "type": "string", "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"] },
+    "workstream_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$" },
     "role": { "type": "string", "minLength": 1 },
     "task": { "type": "string" },
     "case_context": {
@@ -17,6 +18,51 @@
         "case_id": { "type": "string" },
         "case_updated_at": { "type": "string", "minLength": 1 },
         "selected_gap": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "context_digest": {
+      "type": "object",
+      "required": ["schema_version", "authority", "case_id", "case_updated_at", "case_intent", "expected_outcome", "selected_facet", "facet_state", "recent_transitions", "open_questions", "pending_handoffs", "context_refs"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "arckit-worker-context-digest/v1" },
+        "authority": { "type": "string", "const": "current_packet_and_canonical_facts_supersede_thread_history" },
+        "case_id": { "type": "string" },
+        "case_updated_at": { "type": "string" },
+        "case_intent": { "type": "string" },
+        "expected_outcome": { "type": "string" },
+        "selected_facet": { "type": "string" },
+        "facet_state": {
+          "type": "object",
+          "required": ["applicability", "maturity", "alignment", "resolution", "reason", "evidence"],
+          "properties": {
+            "applicability": { "type": "string" },
+            "maturity": { "type": "string" },
+            "alignment": { "type": "string" },
+            "resolution": { "type": "string" },
+            "reason": { "type": "string" },
+            "evidence": { "type": "array", "items": { "type": "string" } }
+          },
+          "additionalProperties": false
+        },
+        "recent_transitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["round", "goal", "outcome", "state_change", "evidence"],
+            "properties": {
+              "round": { "type": "integer" },
+              "goal": { "type": "string" },
+              "outcome": { "type": "string" },
+              "state_change": { "type": "string" },
+              "evidence": { "type": "array", "items": { "type": "string" } }
+            },
+            "additionalProperties": false
+          }
+        },
+        "open_questions": { "type": "array", "items": { "type": "string" } },
+        "pending_handoffs": { "type": "array", "items": { "type": "string" } },
+        "context_refs": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },

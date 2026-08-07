@@ -12,7 +12,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-        version: 6,
+        version: 7,
         projects: [],
         runs: [],
         sessions: {},
@@ -55,7 +55,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
 
 export function normalizeStore(store) {
   const normalized = {
-    version: 6,
+    version: 7,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},

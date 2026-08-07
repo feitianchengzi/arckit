@@ -19,13 +19,13 @@ import {
   writeJson
 } from "./desktop/desktop-store.mjs";
 import {
+  addRunMessage,
   applyRunCommandResult,
   applyRunEvent,
   createRunActivity,
   finalizeRunActivity,
   normalizeCommandResult,
   parseEventLine,
-  summarizeRuntimeResult,
   updateRunActivity
 } from "./projection/run-event-projector.mjs";
 import { buildControllerOperatorTask } from "./kernel/operator-event.mjs";
@@ -139,7 +139,8 @@ export function createDesktopRunManager({
     }
     if (run.activity_file && existsSync(run.activity_file)) {
       try {
-        return JSON.parse(await readFile(run.activity_file, "utf8"));
+        const activity = JSON.parse(await readFile(run.activity_file, "utf8"));
+        return loadPersistedRunMessages(run, activity);
       } catch {
         // Fall through to result reconstruction.
       }
@@ -165,6 +166,26 @@ export function createDesktopRunManager({
     return createRunActivity(run);
   }
 
+  async function loadPersistedRunMessages(run, activity) {
+    if (!run.messages_file || !existsSync(run.messages_file)) return activity;
+    const latest = new Map((activity.messages || []).map((message) => [message.id, message]));
+    const lines = (await readFile(run.messages_file, "utf8")).split(/\r?\n/).filter(Boolean);
+    for (const line of lines) {
+      try {
+        const message = JSON.parse(line)?.message;
+        if (!message?.id) continue;
+        const existing = latest.get(message.id);
+        if (!existing || Number(message.revision || 0) >= Number(existing.revision || 0)) latest.set(message.id, message);
+      } catch {
+        // Ignore an incomplete trailing record left by a process interruption.
+      }
+    }
+    activity.messages = [...latest.values()]
+      .sort((left, right) => String(left.created_at || "").localeCompare(String(right.created_at || "")))
+      .slice(-200);
+    return activity;
+  }
+
   async function listSessions(projectIdValue) {
     let store = await readStore();
     if (!store.sessions[projectIdValue]?.length) {
@@ -188,6 +209,9 @@ export function createDesktopRunManager({
         id: `SESSION-${new Date().toISOString().replace(/[-:.]/g, "").replace("T", "-").replace("Z", "Z")}-${Math.random().toString(16).slice(2, 8)}`,
         project_id: projectIdValue,
         title: input.title || "New chat",
+        kind: input.kind || "chat",
+        task_id: String(input.task_id || ""),
+        remote_project_id: String(input.remote_project_id || ""),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -247,6 +271,7 @@ export function createDesktopRunManager({
       kind: message.kind || "text",
       content: String(message.content || ""),
       run_id: message.run_id || "",
+      task_id: String(message.task_id || ""),
       created_at: new Date().toISOString()
     };
     let selectedSession;
@@ -437,6 +462,7 @@ export function createDesktopRunManager({
       id: runId,
       project_id: project.id,
       session_id: input.sessionId || "",
+      task_id: String(input.taskId || ""),
       project_name: project.name,
       project_path: project.path,
       task: input.task || sourceRun?.task || "",
@@ -457,8 +483,7 @@ export function createDesktopRunManager({
       started_at: new Date().toISOString(),
       finished_at: "",
       result_file: join(runDir, "result.json"),
-      events_file: join(runDir, "events.jsonl"),
-      raw_events_file: join(runDir, "raw-events.jsonl"),
+      messages_file: join(runDir, "messages.jsonl"),
       activity_file: join(runDir, "activity.json"),
       error_file: join(runDir, "stderr.log"),
       exit_code: null
@@ -470,24 +495,11 @@ export function createDesktopRunManager({
 
     await updateStore((draft) => {
       getSession(draft, project.id, run.session_id).updated_at = run.started_at;
-      draft.runs.unshift(run);
+      draft.runs.unshift(storedRunRecord(run));
       draft.runs = draft.runs.slice(0, 100);
       return draft;
     });
-    await appendJsonLine(run.raw_events_file, {
-      at: new Date().toISOString(),
-      event: {
-        type: "desktop.run.started",
-        run_id: run.id,
-        adapter: run.adapter,
-        codex_proxy_enabled: run.codex_proxy_enabled,
-        codex_proxy_url: run.codex_proxy_url,
-        entry_capability: run.entry_capability,
-        operator: run.operator,
-        project_path: run.project_path,
-        task: run.task
-      }
-    });
+    await appendJsonLine(run.messages_file, messageRecord(run.activity.messages[0]));
     await writeJson(run.activity_file, run.activity);
 
     const args = [runtimeBin, directAgentTask ? "agent-task" : "run", "--project", project.path, "--json"];
@@ -528,44 +540,39 @@ export function createDesktopRunManager({
       }, store.settings)
     });
 
-    const activeRun = { child, run, stdout: "", aborting: false, eventWrite: Promise.resolve() };
+    const activeRun = {
+      child,
+      run,
+      stdout: "",
+      aborting: false,
+      eventWrite: Promise.resolve(),
+      persistedMessageRevisions: new Map([[run.activity.messages[0].id, run.activity.messages[0].revision]]),
+      activityEmitTimer: null
+    };
     activeRuns.set(runId, activeRun);
     child.stdin.on("error", () => {
       // The runtime may already be exiting when Desktop sends interrupt/abort input.
     });
-    if (!directAgentTask) {
-      await addMessage(project.id, {
-        role: "system",
-        kind: "run-started",
-        content: `${run.entry_capability} entry started via ${run.operator}: ${run.id}`,
-        run_id: run.id,
-        session_id: run.session_id
-      });
-    }
     emit("run.started", { run });
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
       activeRun.stdout += chunk;
-      emit("run.stdout", { runId, chunk });
     });
 
     let stderrLineBuffer = "";
     child.stderr.setEncoding("utf8");
     child.stderr.on("data", (chunk) => {
-      queueRunWrite(activeRun, () => appendText(run.events_file, chunk));
       stderrLineBuffer += chunk;
       const lines = stderrLineBuffer.split(/\r?\n/);
       stderrLineBuffer = lines.pop() || "";
       for (const line of lines.filter(Boolean)) {
         const parsed = parseEventLine(line);
-        const activity = applyRunEvent(run, { line, parsed });
-        emit("run.event_line", { runId, line, parsed, activity });
-        queueRunWrite(activeRun, () => appendJsonLine(run.raw_events_file, {
-          at: new Date().toISOString(),
-          line,
-          parsed
-        }));
+        applyRunEvent(run, { line, parsed });
+        scheduleActivityEmit(activeRun);
+        if (isMessagePersistenceBoundary(parsed?.event)) {
+          queueRunWrite(activeRun, () => persistPendingMessages(activeRun));
+        }
       }
     });
 
@@ -584,13 +591,10 @@ export function createDesktopRunManager({
         const line = stderrLineBuffer;
         stderrLineBuffer = "";
         const parsed = parseEventLine(line);
-        const activity = applyRunEvent(run, { line, parsed });
-        emit("run.event_line", { runId, line, parsed, activity });
-        queueRunWrite(activeRun, () => appendJsonLine(run.raw_events_file, {
-          at: new Date().toISOString(),
-          line,
-          parsed
-        }));
+        applyRunEvent(run, { line, parsed });
+        if (isMessagePersistenceBoundary(parsed?.event)) {
+          queueRunWrite(activeRun, () => persistPendingMessages(activeRun));
+        }
       }
       await finishRun(
         runId,
@@ -610,6 +614,10 @@ export function createDesktopRunManager({
       return;
     }
     activeRuns.delete(runId);
+    if (active.activityEmitTimer) {
+      clearTimeout(active.activityEmitTimer);
+      active.activityEmitTimer = null;
+    }
     const { run } = active;
     if (stdout.trim() && status !== "aborted") {
       await writeFile(run.result_file, stdout, "utf8");
@@ -636,41 +644,22 @@ export function createDesktopRunManager({
     run.validation_valid = parsedResult?.validation?.valid ?? null;
     run.round_result = parsedResult?.runtime_result?.round_result || (status === "aborted" ? "aborted" : "");
     await active.eventWrite;
-    await appendJsonLine(run.raw_events_file, {
-      at: new Date().toISOString(),
-      event: {
-        type: "desktop.run.finished",
-        run_id: run.id,
-        status,
-        exit_code: exitCode,
-        round_result: parsedResult?.runtime_result?.round_result || (status === "aborted" ? "aborted" : "")
-      }
-    });
+    await persistPendingMessages(active);
     await writeJson(run.activity_file, run.activity);
     await updateStore((store) => {
       const index = store.runs.findIndex((item) => item.id === runId);
       if (index >= 0) {
-        store.runs[index] = {
+        store.runs[index] = storedRunRecord({
           ...store.runs[index],
           status: run.status,
           finished_at: run.finished_at,
           exit_code: run.exit_code,
           validation_valid: run.validation_valid,
-          round_result: run.round_result,
-          activity: run.activity
-        };
+          round_result: run.round_result
+        });
       }
       return store;
     });
-    if (run.entry_capability !== "agent-task") {
-      await addMessage(run.project_id, {
-        role: status === "completed" ? "assistant" : "system",
-        kind: "run-finished",
-        content: summarizeRuntimeResult(status, parsedResult, errorMessage),
-        run_id: runId,
-        session_id: run.session_id
-      });
-    }
     emit("run.finished", { runId, status, exitCode, result: parsedResult, activity: run.activity });
     try {
       const continuation = parsedResult?.session_mode === "state-driven"
@@ -713,14 +702,17 @@ export function createDesktopRunManager({
           detail: reason
         }
       });
-      await appendJsonLine(active.run.raw_events_file, {
-        at: new Date().toISOString(),
-        event: {
-          type: "desktop.run.abort_requested",
-          run_id: runId,
-          reason
-        }
+      addRunMessage(active.run.activity, {
+        id: `operator:${runId}:abort`,
+        role: "user",
+        actor: "operator",
+        actor_label: "你",
+        kind: "control",
+        content: "停止当前运行。",
+        detail: reason,
+        status: "completed"
       });
+      queueRunWrite(active, () => persistPendingMessages(active));
       emit("run.abort_requested", { runId, reason, activity: active.run.activity });
     }
 
@@ -754,13 +746,16 @@ export function createDesktopRunManager({
           detail: "The runtime sent /interrupt to the active Codex turn."
         }
       });
-      await addMessage(active.run.project_id, {
+      const operatorMessage = await addMessage(active.run.project_id, {
         role: "user",
         kind: "interrupt",
         content: "Interrupt current run.",
         run_id: runId,
+        task_id: active.run.task_id || "",
         session_id: active.run.session_id
       });
+      addOperatorRunMessage(active, operatorMessage);
+      queueRunWrite(active, () => persistPendingMessages(active));
       emit("run.control", { runId, type: "interrupt", activity: active.run.activity });
       return { ok: true };
     }
@@ -779,13 +774,16 @@ export function createDesktopRunManager({
           detail: message
         }
       });
-      await addMessage(active.run.project_id, {
+      const operatorMessage = await addMessage(active.run.project_id, {
         role: "user",
         kind: "steer",
         content: message,
         run_id: runId,
+        task_id: active.run.task_id || "",
         session_id: active.run.session_id
       });
+      addOperatorRunMessage(active, operatorMessage);
+      queueRunWrite(active, () => persistPendingMessages(active));
       emit("run.control", { runId, type: "steer", message, activity: active.run.activity });
       return { ok: true };
     }
@@ -809,13 +807,16 @@ export function createDesktopRunManager({
         message,
         created_at: new Date().toISOString()
       };
-      await addMessage(active.run.project_id, {
+      const operatorMessage = await addMessage(active.run.project_id, {
         role: "user",
         kind: "controller-input",
         content: message,
         run_id: runId,
+        task_id: active.run.task_id || "",
         session_id: active.run.session_id
       });
+      addOperatorRunMessage(active, operatorMessage);
+      queueRunWrite(active, () => persistPendingMessages(active));
       emit("run.control", { runId, type: "controller-input", message, activity: active.run.activity });
       return { ok: true };
     }
@@ -953,6 +954,61 @@ export function createDesktopRunManager({
     return maybeStartAutoContinue(sourceRun, parsedResult);
   }
 
+  function scheduleActivityEmit(activeRun) {
+    if (activeRun.activityEmitTimer) return;
+    activeRun.activityEmitTimer = setTimeout(() => {
+      activeRun.activityEmitTimer = null;
+      if (activeRuns.has(activeRun.run.id)) {
+        emit("run.activity_changed", { runId: activeRun.run.id });
+      }
+    }, 160);
+  }
+
+  async function persistPendingMessages(activeRun) {
+    const messages = Array.isArray(activeRun.run.activity?.messages) ? activeRun.run.activity.messages : [];
+    for (const message of messages) {
+      if (!message?.id || message.status === "streaming") continue;
+      const persistedRevision = Number(activeRun.persistedMessageRevisions.get(message.id) || 0);
+      if (Number(message.revision || 0) <= persistedRevision) continue;
+      await appendJsonLine(activeRun.run.messages_file, messageRecord(message));
+      activeRun.persistedMessageRevisions.set(message.id, Number(message.revision || 0));
+    }
+  }
+
+  function addOperatorRunMessage(activeRun, message) {
+    addRunMessage(activeRun.run.activity, {
+      id: message.id,
+      role: "user",
+      actor: "operator",
+      actor_label: "你",
+      kind: message.kind || "input",
+      content: message.content,
+      status: "completed",
+      run_id: activeRun.run.id,
+      task_id: activeRun.run.task_id || "",
+      created_at: message.created_at,
+      updated_at: message.created_at
+    });
+  }
+
+  function isMessagePersistenceBoundary(event) {
+    return ![
+      "codex.agent_message.delta",
+      "codex.reasoning.delta",
+      "codex.command.output.delta",
+      "codex.thread.tokenUsage.updated",
+      "codex.thread.status.changed"
+    ].includes(event?.type);
+  }
+
+  function messageRecord(message) {
+    return {
+      schema_version: "desktop-run-message-record/v1",
+      at: message.updated_at || new Date().toISOString(),
+      message
+    };
+  }
+
   function queueRunWrite(activeRun, operation) {
     activeRun.eventWrite = (activeRun.eventWrite || Promise.resolve())
       .then(operation)
@@ -984,11 +1040,8 @@ export function createDesktopRunManager({
       const run = store.runs[index];
       run.activity = await loadRunActivity(run);
       applyRunCommandResult(run, commandType, result);
-      store.runs[index] = {
-        ...run,
-        activity: run.activity
-      };
-      updatedRun = store.runs[index];
+      updatedRun = { ...run };
+      store.runs[index] = storedRunRecord(run);
       return store;
     });
     if (updatedRun?.activity_file) {
@@ -1008,6 +1061,11 @@ export function createDesktopRunManager({
       at: new Date().toISOString(),
       ...payload
     });
+  }
+
+  function storedRunRecord(run) {
+    const { activity: _activity, ...record } = run;
+    return record;
   }
 
   return {

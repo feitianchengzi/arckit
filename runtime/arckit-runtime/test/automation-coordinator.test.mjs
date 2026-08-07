@@ -5,6 +5,7 @@ import {
   buildAutomationTask,
   buildInterventionTask,
   buildQueue,
+  buildUsageBaseline,
   compareQueueTasks,
   createAutomationCoordinator
 } from "../src/automation-coordinator.mjs";
@@ -33,6 +34,30 @@ test("automation and intervention tasks contain only human-authored intent", () 
   assert.equal(buildInterventionTask("  保留兼容性，但删除重复 prompt。  "), "保留兼容性，但删除重复 prompt。");
 });
 
+test("usage baseline uses recent completed Runtime medians without becoming a limit", () => {
+  const run = (id, total, status = "completed") => ({
+    id,
+    project_id: "LOCAL-1",
+    entry_capability: "runtime",
+    status,
+    activity: {
+      token_usage: { summary: { logical_total_tokens: total, cached_input_tokens: total / 2, uncached_input_tokens: total / 4, output_tokens: total / 10 } },
+      performance: { model_time_ms: total, command_time_ms: total * 2 }
+    }
+  });
+  const baseline = buildUsageBaseline([
+    run("RUN-1", 100),
+    run("RUN-2", 300),
+    run("RUN-3", 900),
+    run("RUN-ACTIVE", 10_000, "running")
+  ], { projectId: "LOCAL-1", excludeRunId: "RUN-ACTIVE" });
+
+  assert.equal(baseline.kind, "runtime_history_median");
+  assert.equal(baseline.sample_size, 3);
+  assert.equal(baseline.logical_total_tokens, 300);
+  assert.equal("limit" in baseline, false);
+});
+
 test("automation coordinator claims one eligible pending task and starts one Runtime", async () => {
   const events = new EventEmitter();
   let store = normalizeStore({
@@ -44,13 +69,15 @@ test("automation coordinator claims one eligible pending task and starts one Run
   const agentTaskInputs = [];
   const messages = [];
   const executorFilters = [];
+  const sessions = [{ id: "SESSION-1" }];
   const runManager = {
     onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
     async readDesktopStore() { return store; },
     async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
     async listProjects() { return store.projects; },
     async listRuns() { return runs; },
-    async listSessions() { return [{ id: "SESSION-1" }]; },
+    async listSessions() { return sessions; },
+    async createSession(_projectId, input) { const session = { id: "SESSION-TASK-1", ...input }; sessions.unshift(session); return session; },
     async addMessage(_projectId, message) { messages.push(message); return message; },
     async startRun(input) { runInputs.push(input); const run = { id: "RUN-1", project_id: input.projectId, session_id: input.sessionId, status: "running" }; runs.push(run); return run; },
     async startAgentTask(input) { agentTaskInputs.push(input); const run = { id: "RUN-COMMIT", project_id: input.projectId, session_id: input.sessionId, status: "running", entry_capability: "agent-task" }; runs.push(run); return run; },
@@ -77,10 +104,12 @@ test("automation coordinator claims one eligible pending task and starts one Run
   assert.equal(remote.task.state, "in_progress");
   assert.equal(runs.length, 1);
   assert.equal(runInputs[0].task, "Implement automation");
+  assert.equal(runInputs[0].sessionId, "SESSION-TASK-1");
   assert.equal(runInputs[0].continuationPolicy, "automatic");
   assert.equal(messages.length, 1);
   assert.equal(snapshot.active_task.task_id, "TASK-1");
   assert.equal(snapshot.active_task.run_id, "RUN-1");
+  assert.equal(snapshot.active_task.session_id, "SESSION-TASK-1");
   assert.equal(snapshot.active_task.phase, "running");
   assert.equal(snapshot.queue.length, 0);
 
@@ -103,7 +132,8 @@ test("automation coordinator claims one eligible pending task and starts one Run
   assert.equal(committingSnapshot.active_task.run_id, "RUN-COMMIT");
   assert.deepEqual(agentTaskInputs, [{
     projectId: "LOCAL-1",
-    sessionId: "SESSION-1",
+    sessionId: "SESSION-TASK-1",
+    taskId: "TASK-1",
     task: "git commit",
     adapter: "codex-app-server",
     approvalPolicy: "on-request"
@@ -122,6 +152,9 @@ test("automation coordinator claims one eligible pending task and starts one Run
   assert.equal(remote.task.state, "completed");
   assert.equal(completedSnapshot.active_task, null);
   assert.equal(completedSnapshot.recent_completions[0].task_id, "TASK-1");
+  assert.equal(completedSnapshot.recent_completions[0].run_id, "RUN-1");
+  assert.equal(completedSnapshot.recent_completions[0].commit_run_id, "RUN-COMMIT");
+  assert.equal(completedSnapshot.recent_completions[0].session_id, "SESSION-TASK-1");
   assert.deepEqual(new Set(executorFilters), new Set(["USER-1"]));
   coordinator.dispose();
 });
@@ -349,13 +382,15 @@ test("a failed commit agent keeps the todo in progress and recovery retries only
     }
   });
   const agentTaskInputs = [];
+  const sessions = [{ id: "SESSION-1" }];
   const runManager = {
     onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
     async readDesktopStore() { return store; },
     async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
     async listProjects() { return store.projects; },
     async listRuns() { return []; },
-    async listSessions() { return [{ id: "SESSION-1" }]; },
+    async listSessions() { return sessions; },
+    async createSession(_projectId, input) { const session = { id: "SESSION-TASK-1", ...input }; sessions.unshift(session); return session; },
     async startAgentTask(input) {
       agentTaskInputs.push(input);
       return { id: "RUN-COMMIT-2", status: "running", entry_capability: "agent-task" };
@@ -437,13 +472,15 @@ test("startup sync commits the terminal descendant of a detached auto-continuati
       loop_handoff: terminalHandoff
     }
   }];
+  const sessions = [{ id: "SESSION-1" }];
   const runManager = {
     onEvent() { return () => {}; },
     async readDesktopStore() { return store; },
     async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
     async listProjects() { return store.projects; },
     async listRuns() { return runs; },
-    async listSessions() { return [{ id: "SESSION-1" }]; },
+    async listSessions() { return sessions; },
+    async createSession(_projectId, input) { const session = { id: "SESSION-TASK-1", ...input }; sessions.unshift(session); return session; },
     async startAgentTask(input) {
       const run = {
         id: "RUN-COMMIT",
@@ -490,7 +527,8 @@ test("startup sync commits the terminal descendant of a detached auto-continuati
   assert.equal(snapshot.active_task, null);
   assert.equal(snapshot.recovery_items.length, 0);
   assert.equal(snapshot.recent_completions[0].task_id, "TASK-1");
-  assert.equal(snapshot.recent_completions[0].run_id, "RUN-COMMIT");
+  assert.equal(snapshot.recent_completions[0].run_id, "RUN-3");
+  assert.equal(snapshot.recent_completions[0].commit_run_id, "RUN-COMMIT");
   coordinator.dispose();
 });
 
@@ -640,6 +678,7 @@ test("enabled automation reports pending tasks blocked by project participation 
     }
   });
   const runs = [];
+  const sessions = [{ id: "SESSION-1" }];
   const remote = {
     task: { id: "TASK-1", project_id: "REMOTE", title: "Ready but excluded", state: "pending", executor_id: "USER-1", version: "v1" }
   };
@@ -649,7 +688,8 @@ test("enabled automation reports pending tasks blocked by project participation 
     async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
     async listProjects() { return store.projects; },
     async listRuns() { return runs; },
-    async listSessions() { return [{ id: "SESSION-1" }]; },
+    async listSessions() { return sessions; },
+    async createSession(_projectId, input) { const session = { id: "SESSION-TASK-1", ...input }; sessions.unshift(session); return session; },
     async addMessage() {},
     async startRun(input) { const run = { id: "RUN-1", project_id: input.projectId, session_id: input.sessionId, status: "running" }; runs.push(run); return run; }
   };

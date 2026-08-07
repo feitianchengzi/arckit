@@ -63,9 +63,10 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["worker_type", "role", "objective", "reason", "allowed_paths", "allowed_actions", "forbidden_actions", "allowed_skills", "expected_case_impact", "stop_condition"],
+        "required": ["worker_type", "workstream_id", "role", "objective", "reason", "allowed_paths", "allowed_actions", "forbidden_actions", "allowed_skills", "expected_case_impact", "stop_condition"],
         "properties": {
           "worker_type": { "type": "string", "enum": ["product", "tech", "implementation", "verification", "diagnosis", "closeout"] },
+          "workstream_id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$" },
           "role": { "type": "string", "minLength": 1 },
           "objective": { "type": "string", "maxLength": 800 },
           "reason": { "type": "string", "maxLength": 1200 },

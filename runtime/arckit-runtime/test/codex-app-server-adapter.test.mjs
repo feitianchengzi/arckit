@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCodexAppServerAdapter, waitForActiveTurn } from "../adapters/codex-app-server-adapter.mjs";
 
-test("one app-server client reuses Controller, Case builder, and Case verifier threads", async () => {
+test("one app-server client reuses Controller and same-type Worker threads while isolating verification", async () => {
   const client = new FakeClient();
   const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
 
@@ -14,17 +14,17 @@ test("one app-server client reuses Controller, Case builder, and Case verifier t
   const specWorker = await collect(adapter.runTurn({
     projectRoot: "/workspace/project",
     prompt: "specify",
-    options: { resultKind: "agent-task", threadKey: "worker:CASE-1:builder" }
+    options: { resultKind: "agent-task", threadKey: "worker:CASE-1:product" }
   }));
   const resumedSpecWorker = await collect(adapter.runTurn({
     projectRoot: "/workspace/project",
     prompt: "reconcile spec",
-    options: { resultKind: "agent-task", threadKey: "worker:CASE-1:builder" }
+    options: { resultKind: "agent-task", threadKey: "worker:CASE-1:product" }
   }));
   await collect(adapter.runTurn({
     projectRoot: "/workspace/project",
     prompt: "verify",
-    options: { resultKind: "agent-task", threadKey: "worker:CASE-1:verifier" }
+    options: { resultKind: "agent-task", threadKey: "worker:CASE-1:verification" }
   }));
   const controllerReview = await collect(adapter.runTurn({
     projectRoot: "/workspace/project",
@@ -51,7 +51,7 @@ test("one app-server client reuses Controller, Case builder, and Case verifier t
 test("discarding a failed Worker lane forces a fresh thread on retry", async () => {
   const client = new FakeClient();
   const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
-  const threadKey = "worker:CASE-1:builder";
+  const threadKey = "worker:CASE-1:implementation";
 
   await collect(adapter.runTurn({ projectRoot: "/workspace/project", prompt: "first", options: { resultKind: "agent-task", threadKey } }));
   assert.equal(adapter.discardThread(threadKey), true);
@@ -61,6 +61,22 @@ test("discarding a failed Worker lane forces a fresh thread on retry", async () 
   const turnStarts = client.requests.filter(({ method }) => method === "turn/start");
   assert.equal(turnStarts[0].params.threadId, "THREAD-1");
   assert.equal(turnStarts[1].params.threadId, "THREAD-2");
+});
+
+test("equivalent active commands are single-flight and become a soft event", async () => {
+  const client = new DuplicateCommandClient();
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  const events = await collect(adapter.runTurn({
+    projectRoot: "/workspace/project",
+    prompt: "build once",
+    options: { resultKind: "agent-task", threadKey: "worker:CASE-1:implementation" }
+  }));
+  adapter.close();
+
+  assert.equal(client.commandDecisions[0].decision, "approve");
+  assert.equal(client.commandDecisions[1].decision, "denied");
+  assert.equal(client.commandDecisions[2].decision, "approve");
+  assert.equal(events.filter(({ type }) => type === "codex.command.duplicate.suppressed").length, 1);
 });
 
 test("operator control waits for turn/started after turn/start returns", async () => {
@@ -128,5 +144,37 @@ class FakeClient {
 
   close() {
     this.closeCount += 1;
+  }
+}
+
+class DuplicateCommandClient extends FakeClient {
+  constructor() {
+    super();
+    this.commandDecisions = [];
+  }
+
+  async request(method, params) {
+    if (method !== "turn/start") return super.request(method, params);
+    this.requests.push({ method, params });
+    const turn = { id: `TURN-${++this.turnCount}` };
+    queueMicrotask(async () => {
+      this.emit("turn/started", { threadId: params.threadId, turn });
+      const approve = this.requestHandlers[0];
+      const base = {
+        threadId: params.threadId,
+        turnId: turn.id,
+        command: "cmake --build build --target tests -j4",
+        cwd: "/workspace/project",
+        startedAtMs: 100
+      };
+      this.commandDecisions.push(await approve({ method: "item/commandExecution/requestApproval", params: { ...base, itemId: "CMD-1" } }));
+      this.commandDecisions.push(await approve({ method: "item/commandExecution/requestApproval", params: { ...base, command: "cmake --build build --target tests -j2", itemId: "CMD-2", startedAtMs: 200 } }));
+      this.emit("item/completed", { item: { id: "CMD-1", type: "commandExecution", command: base.command } });
+      this.commandDecisions.push(await approve({ method: "item/commandExecution/requestApproval", params: { ...base, command: "cmake --build build --target tests -j2", itemId: "CMD-3", startedAtMs: 300 } }));
+      this.emit("item/completed", { item: { id: "CMD-3", type: "commandExecution", command: base.command } });
+      this.emit("item/completed", { item: { type: "agentMessage", text: "completed" } });
+      this.emit("turn/completed", { threadId: params.threadId, turn });
+    });
+    return { turn };
   }
 }

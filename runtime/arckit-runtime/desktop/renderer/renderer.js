@@ -53,6 +53,9 @@ const state = {
   authBusy: { verification: false, login: false, logout: false },
   authFeedback: { message: "", error: false },
   transcript: [],
+  transcriptSessionId: "",
+  transcriptSessionMessages: [],
+  transcriptRuns: [],
   workbenchMode: "review",
   workbenchRun: null,
   workbenchCompletion: null,
@@ -76,8 +79,11 @@ async function boot() {
   await refreshSnapshot();
   api.onAutomationEvent(() => scheduleRefresh());
   api.onEvent((event) => {
-    if (["run.started", "run.finished", "run.event_line", "run.command_result", "message.added"].includes(event.type)) {
-      scheduleRefresh(event.type === "run.event_line" ? 250 : 0);
+    if (["run.started", "run.finished", "message.added"].includes(event.type)) {
+      state.transcriptSessionId = "";
+    }
+    if (["run.started", "run.finished", "run.activity_changed", "run.command_result", "message.added"].includes(event.type)) {
+      scheduleRefresh(event.type === "run.activity_changed" ? 120 : 0);
     }
   });
   window.setInterval(() => refreshSnapshot({ quiet: true }), 30_000);
@@ -460,19 +466,50 @@ async function openWorkbench(mode = "review", runId = "") {
   state.workbenchRun = runId && state.snapshot.active_run?.id !== runId
     ? (await api.listRuns({})).find((run) => run.id === runId) || null
     : null;
-  await loadTranscript();
+  state.transcriptSessionId = "";
+  await loadTranscript({ force: true });
   showPage("workbench");
 }
 
-async function loadTranscript() {
+async function loadTranscript({ force = false } = {}) {
   const active = state.snapshot.active_task;
   const run = state.workbenchRun || state.snapshot.active_run;
   const localProjectId = state.workbenchCompletion?.local_project_id || active?.local_project_id || run?.project_id || "";
   if (!localProjectId || !run?.session_id) {
     state.transcript = [];
+    state.transcriptSessionId = "";
+    state.transcriptSessionMessages = [];
+    state.transcriptRuns = [];
     return;
   }
-  state.transcript = await api.listMessages(localProjectId, run.session_id);
+  const taskId = state.workbenchCompletion?.task_id || active?.task_id || "";
+  const sessionKey = `${localProjectId}:${run.session_id}:${taskId}`;
+  if (force || state.transcriptSessionId !== sessionKey) {
+    const [messages, runs] = await Promise.all([
+      api.listMessages(localProjectId, run.session_id),
+      api.listRuns({ projectId: localProjectId, sessionId: run.session_id })
+    ]);
+    state.transcriptSessionId = sessionKey;
+    state.transcriptSessionMessages = messages.filter((message) => !message.task_id || String(message.task_id) === String(taskId));
+    state.transcriptRuns = runs.filter((item) => !item.task_id || String(item.task_id) === String(taskId));
+  }
+  const currentRunIndex = state.transcriptRuns.findIndex((item) => item.id === run.id);
+  if (currentRunIndex >= 0) state.transcriptRuns[currentRunIndex] = run;
+  else state.transcriptRuns.push(run);
+  const projectedMessages = state.transcriptRuns.flatMap((item) => (
+    Array.isArray(item.activity?.messages) ? item.activity.messages : []
+  ));
+  const sessionMessages = projectedMessages.length
+    ? state.transcriptSessionMessages.filter((message) => message.role === "user")
+    : state.transcriptSessionMessages;
+  const byId = new Map();
+  for (const message of [...sessionMessages, ...projectedMessages]) {
+    if (message.task_id && String(message.task_id) !== String(taskId)) continue;
+    byId.set(`${message.run_id || "session"}:${message.id}`, message);
+  }
+  state.transcript = [...byId.values()].sort((left, right) => (
+    String(left.created_at || left.updated_at || "").localeCompare(String(right.created_at || right.updated_at || ""))
+  ));
 }
 
 function renderWorkbench() {
@@ -494,8 +531,19 @@ function renderWorkbench() {
   const selectedGap = activity.controller_frame?.selected_gap || activity.controller_plan?.selected_gap || null;
   const sourceFacts = activity.artifact_ownership_scan?.source_facts_changed || [];
   const implementationEvidence = activity.artifact_ownership_scan?.implementation_evidence || [];
+  const taskSessionId = completion?.session_id || active?.session_id || run?.session_id || "";
+  const tokenUsage = activity.token_usage?.summary || {};
+  const cachedShare = tokenUsage.input_tokens > 0
+    ? tokenUsage.cached_input_tokens / tokenUsage.input_tokens
+    : 0;
+  const usageWarnings = Array.isArray(activity.usage_warnings) ? activity.usage_warnings : [];
+  const workerContexts = Array.isArray(activity.worker_contexts) ? activity.worker_contexts : [];
+  const performance = activity.performance || {};
+  const slowestCommand = [...(performance.commands || [])].sort((left, right) => Number(right.duration_ms || 0) - Number(left.duration_ms || 0))[0] || null;
+  const usageBaseline = state.snapshot.usage_baseline || {};
   els.workbenchContext.innerHTML = taskId ? factRows([
     ["任务", taskId],
+    ["Task Session", taskSessionId || "未建立"],
     ["远端项目", projectId],
     ["本地工作区", active?.local_project_path || completion?.local_project_id || "已归档"],
     ["审查范围", completion ? "历史完成 Run · 只读" : state.workbenchMode === "intervention" ? "当前 Run · 人工处理" : "当前 Run · 只读"],
@@ -506,9 +554,11 @@ function renderWorkbench() {
     ["恢复条件", completion ? "只读审查不改变任务状态" : attention?.question || "返回自动化观察"]
   ]) : `<div class="empty-state">没有可审查的任务上下文。</div>`;
   const messages = state.transcript.length
-    ? state.transcript.map((message) => `<article class="message ${escapeHtml(message.role)}"><div class="message-head"><span>${escapeHtml(message.role)}</span><time>${formatTime(message.created_at)}</time></div><p>${escapeHtml(message.content)}</p></article>`).join("")
+    ? state.transcript.map(renderConversationMessage).join("")
     : `<div class="empty-state compact">当前没有已加载的对话。Chat 仅在 Runtime 产生 transcript 后出现。</div>`;
-  els.transcriptList.innerHTML = `${messages}${renderRunPlan(activity)}${renderExecutionEvidence(activity)}`;
+  const keepAtBottom = els.transcriptList.scrollHeight - els.transcriptList.scrollTop - els.transcriptList.clientHeight < 80;
+  els.transcriptList.innerHTML = messages;
+  if (keepAtBottom) els.transcriptList.scrollTop = els.transcriptList.scrollHeight;
   els.workbenchEvidence.innerHTML = factRows([
     ["Run", run?.id || "无"],
     ["Run 状态", run?.status || "未启动"],
@@ -516,34 +566,32 @@ function renderWorkbench() {
     ["当前步骤", activity.current_step || "无"],
     ["Controller", activity.controller_plan_status || activity.controller_review_status || "尚未收束"],
     ["Worker", `${activity.agents?.length || 0} 个 · ${activity.reports?.length || 0} 份报告`],
+    ["Token 逻辑总量", formatTokenCount(tokenUsage.logical_total_tokens)],
+    ["缓存输入", `${formatTokenCount(tokenUsage.cached_input_tokens)} · ${formatPercent(cachedShare)}`],
+    ["非缓存输入", formatTokenCount(tokenUsage.uncached_input_tokens)],
+    ["输出 / Reasoning", `${formatTokenCount(tokenUsage.output_tokens)} / ${formatTokenCount(tokenUsage.reasoning_output_tokens)}`],
+    ["上下文峰值", formatPercent(activity.token_usage?.max_context_utilization || 0)],
+    ["用量软提示", usageWarnings.length ? `${usageWarnings.length} 项 · ${usageWarnings.at(-1)?.message || "查看诊断证据"}` : "无"],
+    ["Worker 上下文", workerContexts.length ? `${workerContexts.length} 个 workstream · ${workerContexts.reduce((sum, item) => sum + Number(item.task_count || 0), 0)} 次任务` : "尚未建立"],
+    ["模型 Turn 耗时", formatDuration(performance.model_time_ms)],
+    ["命令累计耗时", formatDuration(performance.command_time_ms)],
+    ["最慢命令", slowestCommand ? `${formatDuration(slowestCommand.duration_ms)} · ${slowestCommand.command || slowestCommand.item_id}` : "无"],
+    ["历史基线", usageBaseline.sample_size ? `${usageBaseline.sample_size} 个 Run 中位数 · ${formatTokenCount(usageBaseline.logical_total_tokens)}` : "尚无可比 Run"],
+    ["相对历史中位数", usageBaseline.logical_total_tokens > 0 ? `${(Number(tokenUsage.logical_total_tokens || 0) / usageBaseline.logical_total_tokens).toFixed(2)}×` : "待积累"],
     ["验证", activity.validation_valid === true ? "有效" : activity.validation_valid === false ? "失败" : "未确认"],
     ["Gate", activity.gate_result?.parsed?.allowed === true ? "允许" : activity.gate_result?.parsed?.allowed === false ? "阻止" : "未执行"],
     ["Ledger", activity.ledger_write_result?.parsed?.written ? "已写回" : "未确认"],
     ["影响", `${activity.artifact_ownership_scan?.classified?.length || 0} 个已分类 artifact`],
-    ["原始证据", `${activity.raw_events?.length || 0} 个事件 · ${activity.artifact_paths?.activity_file ? "已归档" : "未归档"}`]
+    ["执行消息", `${activity.messages?.length || 0} 条 · ${activity.artifact_paths?.messages_file ? "已归档" : "未归档"}`]
   ]);
 }
 
-function renderRunPlan(activity) {
-  const planItems = Array.isArray(activity.plan) ? activity.plan : [];
-  const fallback = [
-    activity.controller_frame?.round_goal,
-    activity.controller_plan?.summary,
-    activity.controller_review?.summary
-  ].filter(Boolean);
-  const items = planItems.length ? planItems : fallback;
-  return `<section class="activity-section"><div class="activity-section-heading"><strong>计划</strong><span>${items.length}</span></div>${items.length
-    ? items.slice(0, 12).map((item) => `<div class="activity-line"><i></i><span>${escapeHtml(typeof item === "string" ? item : item.step || item.title || item.objective || JSON.stringify(item))}</span><em>${escapeHtml(typeof item === "object" ? item.status || "" : "")}</em></div>`).join("")
-    : `<p>Controller 尚未生成可投影计划。</p>`}</section>`;
-}
-
-function renderExecutionEvidence(activity) {
-  const events = Array.isArray(activity.execution_events) && activity.execution_events.length
-    ? activity.execution_events
-    : Array.isArray(activity.timeline) ? activity.timeline : [];
-  return `<section class="activity-section"><div class="activity-section-heading"><strong>工具调用与执行证据</strong><span>${events.length}</span></div>${events.length
-    ? events.slice(-12).reverse().map((event) => `<div class="activity-line"><i class="${escapeHtml(event.status || "")}"></i><span><b>${escapeHtml(event.title || event.label || event.type || "Runtime event")}</b><small>${escapeHtml(event.detail || "")}</small></span><em>${escapeHtml(event.status || "")}</em></div>`).join("")
-    : `<p>当前 Run 尚未产生工具或执行事件。</p>`}</section>`;
+function renderConversationMessage(message) {
+  const actor = message.actor || (message.role === "user" ? "operator" : message.role === "system" ? "runtime" : "agent");
+  const label = message.actor_label || (message.role === "user" ? "你" : message.role === "system" ? "Runtime" : "Agent");
+  const status = message.status || "completed";
+  const detail = message.detail ? `<small>${escapeHtml(message.detail)}</small>` : "";
+  return `<article class="message ${escapeHtml(message.role || "system")} actor-${escapeHtml(actor)} status-${escapeHtml(status)}"><div class="message-head"><span><b>${escapeHtml(label)}</b>${message.kind ? `<em>${escapeHtml(message.kind)}</em>` : ""}</span><time>${formatTime(message.updated_at || message.created_at)}</time></div><p>${escapeHtml(message.content)}</p>${detail}</article>`;
 }
 
 function renderRecovery() {
@@ -853,6 +901,28 @@ function formatDateTime(value) {
   if (!value) return "尚未确认";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function formatTokenCount(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number) || number <= 0) return "0";
+  if (number >= 1_000_000) return `${(number / 1_000_000).toFixed(number >= 10_000_000 ? 1 : 2)}M`;
+  if (number >= 1_000) return `${(number / 1_000).toFixed(number >= 100_000 ? 0 : 1)}K`;
+  return String(Math.round(number));
+}
+
+function formatPercent(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) && number > 0 ? `${(number * 100).toFixed(1)}%` : "0%";
+}
+
+function formatDuration(value) {
+  const milliseconds = Number(value || 0);
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return "0s";
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ${seconds % 60}s`;
 }
 
 function renderSyncing(active) {
