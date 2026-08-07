@@ -42,3 +42,4 @@
 | [CASE-20260807-002](closed/CASE-20260807-002-buzz-dashi-arckit.md) | closed | 沉淀 Buzz、Dashi 与 Arckit 核心产品概念调研报告 | 2026-08-07T05:11:58.083Z |
 | [CASE-20260807-003](closed/CASE-20260807-003-development-case.md) | closed | 深化三项目平台能力推导与真实研发场景对比 | 2026-08-07T06:31:47.773Z |
 | [CASE-20260807-004](closed/CASE-20260807-004-runtime-canonical-case.md) | closed | 修复未登录重启时 Runtime 未按 canonical Case 收尾 | 2026-08-07T06:34:28.989Z |
+| [CASE-20260807-005](closed/CASE-20260807-005-development-case.md) | closed | 追加三项目第一性原理方向判断 | 2026-08-07T07:30:38.681Z |
