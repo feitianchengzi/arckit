@@ -29,6 +29,9 @@ test("desktop primary surface is the project-sourced automation Command Center",
   assert.match(html, /控制是否领取新任务；仅作用于已绑定且已授权的项目，不停止当前任务/);
   assert.match(source, /允许此项目自动领取/);
   assert.match(source, /允许自动领取 ·/);
+  assert.match(source, /Case 已完成，等待远端收尾/);
+  assert.match(source, /Automation Coordinator \/ 任务源/);
+  assert.match(source, /phase === "remote_completion_pending"/);
   assert.match(source, /api\.setProjectParticipation\(project\.id, true\)/);
   assert.match(styles, /--sidebar-width: 228px;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
@@ -93,6 +96,9 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     "arckit:automation-task-state",
     "arckit:automation-intervene",
     "arckit:automation-stop",
+    "arckit:automation-handoff-cli",
+    "arckit:automation-reopen-cli",
+    "arckit:automation-resume-runtime",
     "arckit:automation-recovery",
     "arckit:auth-status",
     "arckit:auth-send-verification",
@@ -106,6 +112,10 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(preload, /sendAuthVerification: \(input\)/);
   assert.match(preload, /loginWithCode: \(input\)/);
   assert.match(preload, /logoutAuth: \(input\)/);
+  assert.match(preload, /handoffAutomationToCli/);
+  assert.match(preload, /resumeAutomationRuntime/);
+  assert.match(source, /切换到 Codex CLI/);
+  assert.match(source, /Codex CLI 接管/);
   assert.doesNotMatch(preload, /fetch|httpRequest|requestUrl/);
   assert.doesNotMatch(preload, /startRun:|controlRun:|gateRun:|writeLedger:/);
   assert.doesNotMatch(preload, /addMessage:|createSession:|deleteSession:|addProject:/);

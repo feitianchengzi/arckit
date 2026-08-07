@@ -391,6 +391,7 @@ Desktop Client 不重新实现 Runtime。它通过 Electron main 进程调用同
 - transcript 与 run history 从任务详情和审查入口访问，并按 task session 隔离；用量按 Run、round、turn 与 lane 投影。
 - 右侧展示 Project active Case 集合与选择依据、各 Case resolution/candidate gaps、当前 Round 所选 Case、normalized events 和 gate/write 控制。
 - 在运行中通过显式停止动作发送 interrupt，并保留远端进行中状态进入恢复流程。
+- 在运行中通过显式切换动作安全 interrupt 当前 run，再由主进程终端启动器打开交互式 `codex`；活动任务以 `case_id` 绑定 canonical Case，并在返回时读取 fresh active/closed Case 决定续跑、人工处理或完成收尾。
 - Runtime 进程在每轮到达 `ledger_gate_ready` 后执行 trusted ledger writeback，并把每轮 gate/write 事件投影给 Desktop；Desktop 不重复写 ledger。
 - 将项目注册表、run history、result 和 events 存在 Electron userData。
 
@@ -415,5 +416,6 @@ Arckit Runtime 满足方案时表现为：
 - 能在一个 app-server 与一个 Runtime 进程内执行多轮 Loop，隔离项目级 Controller planning、Case review 与 Case/type/workstream Worker thread，并在每次写回后 fresh-read state。
 - 能为每个 Worker turn 生成有界、可恢复的 context digest，并在同一 workstream 的授权路径签名变化时投影非阻断软提示。
 - 能为每个远端待办创建独立 Desktop session，按 thread 最新累计快照去重 Token 用量，并以软异常而非硬 Token/轮次限制治理浪费。
+- 能把同一活动任务从 Runtime 安全交给用户可参与的交互式 Codex CLI，并以 canonical Case State 而非旧 Run 或终端退出状态完成恢复对账。
 - 能只把 `requires_human_decision=true` 当作人工门禁；`requires_main_agent_decision=true` 进入 Controller Reducer 内部动作，不默认阻塞 closeout。
 - 能在不改 agent core 的情况下先接 Codex app-server，并保留 opencode、多 agent adapter 的扩展边界。

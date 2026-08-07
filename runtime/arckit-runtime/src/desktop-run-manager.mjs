@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { ensureArckitProject } from "./project-initializer.mjs";
 import {
@@ -426,6 +426,43 @@ export function createDesktopRunManager({
         ? (await readFile(caseIndexPath, "utf8")).split("\n").slice(0, 24).join("\n")
         : ""
     };
+  }
+
+  async function listProjectCaseStates(projectIdValue) {
+    const store = await readStore();
+    const project = store.projects.find((item) => item.id === projectIdValue);
+    if (!project) throw new Error(`Unknown project: ${projectIdValue}`);
+    const statePath = join(project.path, "arckit/project/state.record.json");
+    if (!existsSync(statePath)) return [];
+
+    const projectState = JSON.parse(await readFile(statePath, "utf8"));
+    const cases = [];
+    for (const caseRef of projectState.active_case_refs || []) {
+      const casePath = join(project.path, caseRef);
+      if (!existsSync(casePath)) continue;
+      const record = parseCaseRecord(await readFile(casePath, "utf8"));
+      if (record) cases.push({ case_id: record.id, location: "active", case_ref: caseRef, record });
+    }
+
+    const closedDir = join(project.path, "arckit/cases/closed");
+    if (existsSync(closedDir)) {
+      const entries = (await readdir(closedDir, { withFileTypes: true }))
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+        .sort((left, right) => left.name.localeCompare(right.name));
+      for (const entry of entries) {
+        const caseRef = `arckit/cases/closed/${entry.name}`;
+        const record = parseCaseRecord(await readFile(join(closedDir, entry.name), "utf8"));
+        if (record) cases.push({ case_id: record.id, location: "closed", case_ref: caseRef, record });
+      }
+    }
+    return cases;
+  }
+
+  async function getProjectCaseState(projectIdValue, caseId) {
+    const id = String(caseId || "").trim();
+    if (!/^CASE-\d{8}-\d{3}$/.test(id)) return null;
+    const cases = await listProjectCaseStates(projectIdValue);
+    return cases.find((item) => item.case_id === id) || null;
   }
 
   function parseCaseRecord(text) {
@@ -1077,6 +1114,8 @@ export function createDesktopRunManager({
     addProject,
     removeProject,
     getProjectStatus,
+    listProjectCaseStates,
+    getProjectCaseState,
     listRuns,
     isRunActive(runId) {
       return activeRuns.has(runId);

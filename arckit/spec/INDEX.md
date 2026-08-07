@@ -10,6 +10,6 @@
   - product-architecture.md 产品架构：描述每个 Loop 从 active Cases 选择 Case、跨进程串行 ledger commit，以及 Desktop/Agent/Skill 与事实系统如何组合。⚪ (239行)
   - skill-architecture.md Skill 架构：把产品架构转化为七项保留 skill、Controller/Runtime/Worker capability policy、Agent trigger、trusted runtime entrypoint、ledger 写回和外部 adapter 接力。⚪ (146行)
   - controller-worker-loop.md Controller Worker Loop：定义互斥执行面、每 Loop 单 Case、不同 Case 并行、双 revision ledger 写回和 fresh-state continuation。⚪ (319行)
-  - runtime-automation-workspace.md Runtime 待办自动化工作区：定义待办独立会话、跨 thread 统一消息流、workstream 上下文与 Token 软治理。🟢 (219行)
+  - runtime-automation-workspace.md Runtime 待办自动化工作区：定义待办独立会话、跨 thread 统一消息流、交互式 Codex CLI 接管、本地优先 Case 恢复与三段收尾检查点。🟢 (246行)
   - loop-engineering-research.md Loop Engineering 研究输入：保存吴恩达三层 loop、2026 loop 工程架构、Arckit 对应关系和开放问题。⚪ (132行)
 - all-integration-strategy.md all 候选 Skill 整合策略草案：历史迁移记录，保留 all 角色型研发流水线 skill 包的早期拆解和归并思路，不作为当前路由依据。⚪ (902行)

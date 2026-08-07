@@ -12,7 +12,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-        version: 7,
+        version: 8,
         projects: [],
         runs: [],
         sessions: {},
@@ -55,7 +55,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
 
 export function normalizeStore(store) {
   const normalized = {
-    version: 7,
+    version: 8,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
@@ -197,12 +197,33 @@ export function normalizeAutomationState(value = {}) {
         : defaults.snapshot.source_status,
       errors: Array.isArray(snapshot.errors) ? snapshot.errors.map(normalizeAutomationError).slice(0, 50) : []
     },
-    active_task: value.active_task && typeof value.active_task === "object" ? value.active_task : null,
+    active_task: normalizeActiveTask(value.active_task),
     attention_items: Array.isArray(value.attention_items) ? value.attention_items.slice(0, 50) : [],
     recovery_items: Array.isArray(value.recovery_items)
       ? value.recovery_items.slice(0, 50).map((item) => ({ ...item, responsibility: "operator" }))
       : [],
     recent_completions: Array.isArray(value.recent_completions) ? value.recent_completions.slice(0, 30) : []
+  };
+}
+
+function normalizeActiveTask(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const caseStatuses = new Set(["unbound", "unknown", "active", "resolved"]);
+  const commitStatuses = new Set(["pending", "running", "completed", "failed"]);
+  const remoteCompletionStatuses = new Set(["pending", "writing", "failed"]);
+  const caseId = String(value.case_id || "");
+  return {
+    ...value,
+    case_id: caseId,
+    case_status: caseStatuses.has(value.case_status) ? value.case_status : caseId ? "unknown" : "unbound",
+    case_resolved_at: String(value.case_resolved_at || ""),
+    commit_status: commitStatuses.has(value.commit_status)
+      ? value.commit_status
+      : value.commit_completed_at ? "completed" : "pending",
+    commit_completed_at: String(value.commit_completed_at || ""),
+    remote_completion_status: remoteCompletionStatuses.has(value.remote_completion_status)
+      ? value.remote_completion_status
+      : "pending"
   };
 }
 

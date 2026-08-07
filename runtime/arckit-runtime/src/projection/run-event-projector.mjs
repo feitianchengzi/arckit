@@ -4,6 +4,7 @@ function createRunActivity(run) {
     schema_version: "desktop-run-activity/v2",
     run_id: run.id || "",
     task_id: run.task_id || "",
+    case_id: "",
     entry_capability: run.entry_capability || "runtime",
     operator: run.operator || "desktop",
     status: run.status || "running",
@@ -18,6 +19,7 @@ function createRunActivity(run) {
     turn_id: "",
     plan: [],
     controller_frame: null,
+    controller_plan: null,
     execution_gate: null,
     executor_binding: null,
     worker_packets: [],
@@ -272,6 +274,7 @@ function applyRunEvent(run, { line, parsed }) {
       });
       break;
     case "runtime.loop_frame.created":
+      activity.case_id = event.loop_frame?.case_id || event.loop_frame?.selected_gap?.case_id || activity.case_id || "";
       activity.controller_frame = event.loop_frame?.controller_frame || null;
       activity.execution_gate = event.loop_frame?.execution_gate || null;
       activity.executor_binding = event.loop_frame?.executor_binding || null;
@@ -290,6 +293,7 @@ function applyRunEvent(run, { line, parsed }) {
       break;
     case "runtime.controller_plan.completed":
       activity.controller_plan = event.controller_plan || null;
+      activity.case_id = event.controller_plan?.route_plan?.selected_gap?.case_id || activity.case_id || "";
       activity.controller_plan_status = event.status || "";
       activity.controller_plan_failure_reason = event.failure_reason || "";
       updateRunActivity(run, {
@@ -816,6 +820,7 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
     activity.reports = parsedResult.worker_reports;
   }
   if (parsedResult?.loop_frame) {
+    activity.case_id = parsedResult.loop_frame.case_id || parsedResult.loop_frame.selected_gap?.case_id || activity.case_id || "";
     activity.controller_frame = parsedResult.loop_frame.controller_frame || activity.controller_frame || null;
     activity.execution_gate = parsedResult.loop_frame.execution_gate || activity.execution_gate || null;
     activity.executor_binding = parsedResult.loop_frame.executor_binding || activity.executor_binding || null;
@@ -824,6 +829,7 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
     activity.closeout_rules = parsedResult.loop_frame.closeout_rules || activity.closeout_rules || null;
   }
   if (parsedResult?.runtime_result) {
+    activity.case_id = parsedResult.runtime_result.case_transition?.case_id || activity.case_id || "";
     activity.controller_frame = parsedResult.runtime_result.controller_frame || activity.controller_frame || null;
     activity.execution_gate = parsedResult.runtime_result.execution_gate || activity.execution_gate || null;
     activity.executor_binding = parsedResult.runtime_result.executor_binding || activity.executor_binding || null;

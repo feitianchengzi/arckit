@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-06T20:10:36.429Z
+Updated: 2026-08-07T06:34:28.989Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -40,9 +40,9 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
-- arckit/cases/closed/CASE-20260806-001-runtime-token.md
-- arckit/cases/closed/CASE-20260806-002-strengthen-runtime-context-handoff-and-workstream-thread-isolati.md
-- arckit/cases/closed/CASE-20260806-003-runtime.md
+- arckit/cases/closed/CASE-20260807-001-runtime-codex-cli-case.md
+- arckit/cases/closed/CASE-20260807-003-development-case.md
+- arckit/cases/closed/CASE-20260807-004-runtime-canonical-case.md
 
 ## Notes
 

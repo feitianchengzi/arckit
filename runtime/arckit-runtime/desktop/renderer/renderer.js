@@ -29,11 +29,14 @@ const RECOVERY_LABELS = {
   discovered_in_progress: "发现可恢复的进行中任务",
   multiple_active_tasks: "存在多个进行中任务",
   runtime_process_missing: "Runtime 进程未连接",
-  safe_stop_requested: "正在安全停止"
+  safe_stop_requested: "正在安全停止",
+  cli_handoff_failed: "Codex CLI 接管失败",
+  case_reconciliation_failed: "Case 对账失败"
 };
 const RECOVERY_ACTION_LABELS = {
   retry_sync: "重新同步",
   retry_start: "重试同一任务",
+  retry_cli_handoff: "重试切换到 CLI",
   retry_complete: "重试完成写回",
   accept_server_state: "接受服务器事实",
   mark_blocked: "标记为已阻塞"
@@ -338,10 +341,31 @@ function renderCurrentRun(blockedPendingTasks = []) {
     return;
   }
   const phases = runtimeStages(active.phase, run);
-  els.currentRunPanel.innerHTML = `<div class="run-heading"><div><h3>${escapeHtml(active.task_title || active.task_id)}</h3><p>${escapeHtml(active.project_id)} · ${escapeHtml(active.run_id || "等待 Runtime 启动")}</p></div><span class="status-pill in_progress">${escapeHtml(active.phase || "进行中")}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>`;
-  els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="stopRunButton" class="secondary-button" type="button">停止当前运行</button>`;
+  const executionRef = active.case_id || active.run_id || "等待 Runtime 启动";
+  els.currentRunPanel.innerHTML = `<div class="run-heading"><div><h3>${escapeHtml(active.task_title || active.task_id)}</h3><p>${escapeHtml(active.project_id)} · ${escapeHtml(executionRef)}</p></div><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(active.phase))}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>`;
+  if (active.phase === "cli_handoff") {
+    els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="reopenCliButton" class="text-button" type="button">重新打开终端</button><button id="resumeRuntimeButton" class="primary-button" type="button">恢复自动执行</button>`;
+  } else if (active.phase === "switching_to_cli") {
+    els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button class="secondary-button" type="button" disabled>正在安全切换…</button>`;
+  } else if (["starting", "running", "continuing"].includes(active.phase)) {
+    els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="handoffCliButton" class="primary-button" type="button">切换到 Codex CLI</button><button id="stopRunButton" class="secondary-button" type="button">停止当前运行</button>`;
+  } else {
+    els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button>`;
+  }
   document.getElementById("reviewRunButton").addEventListener("click", () => openWorkbench("review"));
-  document.getElementById("stopRunButton").addEventListener("click", () => runAction(async () => {
+  document.getElementById("handoffCliButton")?.addEventListener("click", () => runAction(async () => {
+    await api.handoffAutomationToCli();
+    await refreshSnapshot();
+  }));
+  document.getElementById("reopenCliButton")?.addEventListener("click", () => runAction(async () => {
+    await api.reopenAutomationCli();
+    await refreshSnapshot();
+  }));
+  document.getElementById("resumeRuntimeButton")?.addEventListener("click", () => runAction(async () => {
+    await api.resumeAutomationRuntime();
+    await refreshSnapshot();
+  }));
+  document.getElementById("stopRunButton")?.addEventListener("click", () => runAction(async () => {
     if (!window.confirm("停止请求会在安全停止点中断 Runtime，远端任务仍保持进行中。继续吗？")) return;
     await api.stopAutomationRun();
     await refreshSnapshot();
@@ -375,7 +399,13 @@ function renderCommandInspector(projects) {
   els.executionBoundary.innerHTML = factRows([
     ["自动领取总闸", snapshot.enabled ? snapshot.queue_paused ? "已开启 · 暂停领取" : "已开启" : "已关闭"],
     ["活动任务", snapshot.active_task?.task_id || "无"],
-    ["当前责任方", snapshot.attention_items.length ? "Human" : snapshot.active_task ? "Runtime" : "Automation Coordinator"],
+    ["当前责任方", snapshot.attention_items.length
+      ? "Human"
+      : snapshot.active_task?.phase === "cli_handoff"
+        ? "Codex CLI"
+        : snapshot.active_task?.phase === "remote_completion_pending"
+          ? "Automation Coordinator / 任务源"
+          : snapshot.active_task ? "Runtime" : "Automation Coordinator"],
     ["并发边界", "单活动任务"]
   ]);
   els.projectBindingList.innerHTML = projects.length ? projects.map((project) => {
@@ -863,6 +893,22 @@ function taskActions(task) {
 }
 
 function runtimeStages(phase, run) {
+  if (["switching_to_cli", "cli_handoff"].includes(phase)) {
+    return [
+      { label: "1 Runtime 安全停止", state: phase === "switching_to_cli" ? "active" : "complete" },
+      { label: "2 CLI 接管", state: phase === "cli_handoff" ? "active" : "" },
+      { label: "3 Case 对账", state: "" },
+      { label: "4 完成收尾", state: "" }
+    ];
+  }
+  if (phase === "remote_completion_pending") {
+    return [
+      { label: "1 Case 已完成", state: "complete" },
+      { label: "2 变更已提交", state: "complete" },
+      { label: "3 等待任务源可用", state: "active" },
+      { label: "4 远端收尾", state: "" }
+    ];
+  }
   const order = ["sync", "controller", "worker", "writeback"];
   const labels = ["1 同步并领取", "2 Controller", "3 Worker 执行", "4 Gate 与写回"];
   const phaseIndex = ["starting", "running", "awaiting_human", "completing", "recovery"].indexOf(phase);
@@ -870,6 +916,21 @@ function runtimeStages(phase, run) {
     label: labels[index],
     state: phase === "recovery" && index === Math.max(1, phaseIndex) ? "error" : run?.status === "completed" || index < Math.max(1, phaseIndex) ? "complete" : index === Math.min(3, Math.max(0, phaseIndex)) ? "active" : ""
   }));
+}
+
+function automationPhaseLabel(phase) {
+  return {
+    starting: "正在启动",
+    running: "自动执行中",
+    continuing: "自动续轮",
+    switching_to_cli: "正在切换到 CLI",
+    cli_handoff: "Codex CLI 接管",
+    awaiting_human: "等待人工",
+    committing: "提交变更",
+    remote_completion_pending: "Case 已完成，等待远端收尾",
+    completing: "完成写回",
+    recovery: "需要恢复"
+  }[phase] || phase || "进行中";
 }
 
 function sourceStatusLabel(value) {

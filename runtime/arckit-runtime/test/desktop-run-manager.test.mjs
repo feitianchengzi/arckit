@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -22,6 +22,44 @@ test("Desktop ledger commands reference the userData run without copying it into
     "--json"
   ]);
   assert.equal(args.some((item) => item.includes("arckit/project/runtime-results")), false);
+});
+
+test("desktop run manager reads canonical active and closed Case records for reconciliation", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arckit-case-reader-"));
+  const projectDir = join(dataDir, "project");
+  await mkdir(join(projectDir, "arckit/project"), { recursive: true });
+  await mkdir(join(projectDir, "arckit/cases/active"), { recursive: true });
+  await mkdir(join(projectDir, "arckit/cases/closed"), { recursive: true });
+  await writeFile(join(dataDir, "desktop-store.json"), `${JSON.stringify({
+    version: 7,
+    projects: [{ id: "PROJECT-1", name: "Project", path: projectDir }],
+    runs: [], sessions: {}, messages: {}, settings: {}, automation: {}
+  }, null, 2)}\n`, "utf8");
+  await writeFile(join(projectDir, "arckit/project/state.record.json"), `${JSON.stringify({
+    active_case_refs: ["arckit/cases/active/CASE-20260807-001-active.md"]
+  })}\n`, "utf8");
+  await writeCaseFixture(join(projectDir, "arckit/cases/active/CASE-20260807-001-active.md"), {
+    id: "CASE-20260807-001", status: "active", case_resolution: { status: "unresolved" }
+  });
+  await writeCaseFixture(join(projectDir, "arckit/cases/closed/CASE-20260806-001-closed.md"), {
+    id: "CASE-20260806-001", status: "closed", case_resolution: { status: "resolved" }
+  });
+
+  try {
+    const manager = createDesktopRunManager({ runtimeRoot: new URL("..", import.meta.url).pathname, dataDir });
+    const cases = await manager.listProjectCaseStates("PROJECT-1");
+    const active = await manager.getProjectCaseState("PROJECT-1", "CASE-20260807-001");
+    const closed = await manager.getProjectCaseState("PROJECT-1", "CASE-20260806-001");
+
+    assert.deepEqual(cases.map((item) => [item.case_id, item.location]), [
+      ["CASE-20260807-001", "active"],
+      ["CASE-20260806-001", "closed"]
+    ]);
+    assert.equal(active.record.case_resolution.status, "unresolved");
+    assert.equal(closed.record.case_resolution.status, "resolved");
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
 });
 
 test("auto continuation carries machine context without creating operator input", () => {
@@ -568,6 +606,20 @@ function autoBridgeRun({
       ledger_write_result: ledgerWritten ? { parsed: { written: true } } : null
     }
   };
+}
+
+async function writeCaseFixture(file, record) {
+  const fenced = [
+    `# ${record.id}`,
+    "",
+    "## Structured Record",
+    "",
+    "```json",
+    JSON.stringify(record, null, 2),
+    "```",
+    ""
+  ].join("\n");
+  await writeFile(file, fenced, "utf8");
 }
 
 function autoBridgeResult({

@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import { createWorkshopTaskSource, TASK_STATES, TaskSourceError } from "./task-source-adapter.mjs";
 import { isAgentContinuationHandoff } from "./kernel/continuation-policy.mjs";
 import { selectEffectiveLoopHandoff } from "./kernel/effective-handoff.mjs";
+import { buildCodexCliHandoffPrompt, createInteractiveCodexCliLauncher } from "./interactive-cli-launcher.mjs";
 
 const STATE_LABELS = Object.freeze({
   pending_review: "待评审",
@@ -17,7 +18,10 @@ const COMMIT_AGENT_TASK = "git commit";
 export function createAutomationCoordinator({
   runManager,
   taskSourceFactory = createWorkshopTaskSource,
-  now = () => new Date().toISOString()
+  now = () => new Date().toISOString(),
+  cliLauncher = createInteractiveCodexCliLauncher(),
+  wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  safeStopTimeoutMs = 8_000
 }) {
   const emitter = new EventEmitter();
   let syncPromise = null;
@@ -137,6 +141,8 @@ export function createAutomationCoordinator({
         automation.snapshot.errors = [];
       });
       emit("automation.syncing", {});
+      await reconcileDetachedRunCompletion({ allowRemoteCompletion: false });
+      await reconcileCanonicalCaseState({ allowRemoteCompletion: false });
       const store = await runManager.readDesktopStore();
       let taskSource;
       try {
@@ -222,7 +228,8 @@ export function createAutomationCoordinator({
           reconcileActiveTask(automation);
           reconcileUnassociatedInProgress(automation, now());
         });
-        await reconcileDetachedRunCompletion();
+        await reconcileDetachedRunCompletion({ allowRemoteCompletion: true });
+        await reconcileCanonicalCaseState({ allowRemoteCompletion: true });
         await stopRuntimeForExternalChange();
         await reconcileRuntimePresence();
         await resumeEligibleAgentRecovery();
@@ -426,6 +433,118 @@ export function createAutomationCoordinator({
     return getSnapshot();
   }
 
+  async function handoffToCodexCli() {
+    const store = await runManager.readDesktopStore();
+    const active = store.automation.active_task;
+    if (!active) throw new Error("No active task to hand off to Codex CLI.");
+    if (["committing", "completing", "awaiting_human"].includes(active.phase)) {
+      throw new Error(`The active task cannot switch to Codex CLI while phase=${active.phase}.`);
+    }
+    if (active.phase === "cli_handoff") return reopenCodexCli();
+
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id === active.task_id) {
+        automation.active_task.phase = "switching_to_cli";
+        automation.active_task.cli_handoff_source_run_id = active.run_id || "";
+      }
+    });
+    emit("automation.changed", { reason: "cli-handoff-stopping-runtime", taskId: active.task_id });
+
+    try {
+      if (active.run_id && runManager.isRunActive?.(active.run_id)) {
+        await runManager.controlRun(active.run_id, { type: "interrupt" });
+        const stopped = await waitForRunStop(active.run_id);
+        if (!stopped) {
+          throw new Error("Runtime did not stop within the safe handoff window; Codex CLI was not launched.");
+        }
+      }
+      return launchCodexCliForActiveTask(active);
+    } catch (error) {
+      await addRecovery({
+        type: "cli_handoff_failed",
+        task: active,
+        message: error.message,
+        actions: ["retry_cli_handoff", "retry_start", "mark_blocked"]
+      });
+      return getSnapshot();
+    }
+  }
+
+  async function reopenCodexCli() {
+    const store = await runManager.readDesktopStore();
+    const active = store.automation.active_task;
+    if (!active || active.phase !== "cli_handoff") {
+      throw new Error("The active task is not currently handed off to Codex CLI.");
+    }
+    try {
+      return await launchCodexCliForActiveTask(active);
+    } catch (error) {
+      await addRecovery({
+        type: "cli_handoff_failed",
+        task: active,
+        message: error.message,
+        actions: ["retry_cli_handoff", "retry_start", "mark_blocked"]
+      });
+      return getSnapshot();
+    }
+  }
+
+  async function resumeRuntimeFromCodexCli() {
+    const store = await runManager.readDesktopStore();
+    const active = store.automation.active_task;
+    if (!active || !["cli_handoff", "recovery"].includes(active.phase)) {
+      throw new Error("No Codex CLI handoff is available to return to Runtime.");
+    }
+    const outcome = await reconcileCanonicalCaseState({ allowAgentResume: true, requireCase: true });
+    if (outcome === "agent_resumed" || outcome === "resolved" || outcome === "human") {
+      return getSnapshot();
+    }
+    return getSnapshot();
+  }
+
+  async function launchCodexCliForActiveTask(active) {
+    const store = await runManager.readDesktopStore();
+    const current = store.automation.active_task;
+    if (!current || current.task_id !== active.task_id) throw new Error("The active task changed during CLI handoff.");
+    const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(current.task_id));
+    const project = store.projects.find((item) => item.id === current.local_project_id);
+    if (!task || !project?.path) throw new Error("The local project binding or remote task snapshot is missing.");
+
+    const runs = await runManager.listRuns({ projectId: current.local_project_id });
+    const sourceRun = runs.find((run) => run.id === current.run_id) || null;
+    const caseId = current.case_id || extractCaseIdFromRun(sourceRun);
+    const allCases = typeof runManager.listProjectCaseStates === "function"
+      ? await runManager.listProjectCaseStates(current.local_project_id)
+      : [];
+    const prompt = buildCodexCliHandoffPrompt({
+      caseId,
+      taskTitle: task.title || current.task_title,
+      taskIntent: buildAutomationTask(task)
+    });
+    await cliLauncher.launch({ projectPath: project.path, prompt });
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== current.task_id) return;
+      automation.active_task.phase = "cli_handoff";
+      automation.active_task.case_id = caseId || "";
+      automation.active_task.cli_handoff_at ||= now();
+      automation.active_task.cli_handoff_case_ids ||= allCases.map((item) => item.case_id);
+      automation.recovery_items = automation.recovery_items.filter((item) => (
+        item.task_id !== current.task_id || !["cli_handoff_failed", "safe_stop_requested", "runtime_process_missing"].includes(item.type)
+      ));
+    });
+    emit("automation.changed", { reason: "cli-handoff-started", taskId: current.task_id, caseId: caseId || "" });
+    return getSnapshot();
+  }
+
+  async function waitForRunStop(runId) {
+    if (typeof runManager.isRunActive !== "function") return true;
+    const deadline = Date.now() + Math.max(0, safeStopTimeoutMs);
+    while (runManager.isRunActive(runId) && Date.now() < deadline) {
+      await wait(Math.min(100, Math.max(1, safeStopTimeoutMs)));
+    }
+    return !runManager.isRunActive(runId);
+  }
+
   async function resolveRecovery({ recoveryId, action }) {
     const store = await runManager.readDesktopStore();
     const recovery = store.automation.recovery_items.find((item) => item.id === recoveryId);
@@ -446,6 +565,10 @@ export function createAutomationCoordinator({
       });
       await startRuntimeForActiveTask();
       return getSnapshot();
+    }
+    if (action === "retry_cli_handoff") {
+      await removeRecovery(recoveryId);
+      return launchCodexCliForActiveTask(store.automation.active_task);
     }
     if (action === "retry_complete") {
       await completeRemoteTask();
@@ -528,6 +651,12 @@ export function createAutomationCoordinator({
             local_project_path: candidate.local_project_path,
             server_version: claimed.version,
             phase: "starting",
+            case_id: "",
+            case_status: "unbound",
+            case_resolved_at: "",
+            commit_status: "pending",
+            commit_completed_at: "",
+            remote_completion_status: "pending",
             run_id: "",
             session_id: "",
             claimed_at: now(),
@@ -649,10 +778,27 @@ export function createAutomationCoordinator({
     if (!active || active.run_id !== event.runId) {
       return;
     }
+    const eventCaseId = extractCaseIdFromRun({ activity: event.activity, result: event.result });
+    if (eventCaseId && eventCaseId !== active.case_id) {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.run_id === event.runId) automation.active_task.case_id = eventCaseId;
+      });
+    }
+    if (active.cli_handoff_source_run_id === event.runId
+      && ["switching_to_cli", "cli_handoff", "recovery"].includes(active.phase)) return;
     if (active.phase === "committing") {
       if (event.status === "completed") {
-        await completeRemoteTask();
+        await markCommitCompleted(active, event.runId);
+        const refreshed = await runManager.readDesktopStore();
+        if (isRemoteSourceReady(refreshed.automation.snapshot.source_status)) {
+          await completeRemoteTask();
+        } else {
+          emit("automation.changed", { reason: "remote-completion-pending", taskId: active.task_id });
+        }
       } else {
+        await patchAutomation((automation) => {
+          if (automation.active_task?.task_id === active.task_id) automation.active_task.commit_status = "failed";
+        });
         await addRecovery({
           type: "commit_failed",
           task: active,
@@ -698,9 +844,11 @@ export function createAutomationCoordinator({
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
     if (!active) return null;
+    if (active.commit_status === "completed") return null;
     await patchAutomation((automation) => {
       if (automation.active_task?.task_id === active.task_id) {
         automation.active_task.phase = "committing";
+        automation.active_task.commit_status = "running";
       }
     });
     try {
@@ -720,10 +868,14 @@ export function createAutomationCoordinator({
         automation.active_task.run_id = run.id;
         automation.active_task.commit_run_id = run.id;
         automation.active_task.phase = "committing";
+        automation.active_task.commit_status = "running";
       });
       emit("automation.changed", { reason: "commit-agent-started", taskId: active.task_id, runId: run.id });
       return run;
     } catch (error) {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id === active.task_id) automation.active_task.commit_status = "failed";
+      });
       await addRecovery({
         type: "commit_start_failed",
         task: active,
@@ -739,11 +891,14 @@ export function createAutomationCoordinator({
     const active = store.automation.active_task;
     if (!active) return null;
     const task = store.automation.snapshot.tasks.find((item) => item.id === active.task_id);
-    const source = taskSourceFactory({ settings: store.settings.task_source });
     await patchAutomation((automation) => {
-      if (automation.active_task) automation.active_task.phase = "completing";
+      if (automation.active_task) {
+        automation.active_task.phase = "completing";
+        automation.active_task.remote_completion_status = "writing";
+      }
     });
     try {
+      const source = taskSourceFactory({ settings: store.settings.task_source });
       const project = store.automation.snapshot.projects.find((item) => String(item.id) === String(active.project_id));
       const executorId = requireCurrentExecutorId(project, store.automation.snapshot.user);
       const latest = await source.getTask(active.task_id, active.project_id, { executorId });
@@ -782,6 +937,11 @@ export function createAutomationCoordinator({
       }
       return completed;
     } catch (error) {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id === active.task_id) {
+          automation.active_task.remote_completion_status = "failed";
+        }
+      });
       await addRecovery({
         type: "completion_writeback_failed",
         task: active,
@@ -792,9 +952,10 @@ export function createAutomationCoordinator({
     }
   }
 
-  async function reconcileDetachedRunCompletion() {
+  async function reconcileDetachedRunCompletion({ allowRemoteCompletion = true } = {}) {
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
+    if (["switching_to_cli", "cli_handoff"].includes(active?.phase)) return null;
     if (!active?.run_id || runManager.isRunActive?.(active.run_id)) return null;
 
     const runs = await runManager.listRuns({ projectId: active.local_project_id });
@@ -818,8 +979,13 @@ export function createAutomationCoordinator({
     }
     if (!latest) return null;
 
-    if (active.phase === "committing" && latest.entry_capability === "agent-task" && latest.status !== "completed") {
+    const isCommitRun = latest.entry_capability === "agent-task"
+      && (active.phase === "committing" || active.commit_run_id === latest.id);
+    if (isCommitRun && latest.status !== "completed") {
       if (["failed", "aborted"].includes(latest.status)) {
+        await patchAutomation((automation) => {
+          if (automation.active_task?.task_id === active.task_id) automation.active_task.commit_status = "failed";
+        });
         await addRecovery({
           type: "commit_failed",
           task: { ...active, run_id: latest.id },
@@ -832,14 +998,10 @@ export function createAutomationCoordinator({
 
     if (latest.status !== "completed") return null;
 
-    if (active.phase === "committing" && latest.entry_capability === "agent-task") {
-      await patchAutomation((automation) => {
-        if (automation.active_task?.task_id !== active.task_id) return;
-        automation.active_task.run_id = latest.id;
-        automation.active_task.phase = "completing";
-        automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
-      });
-      return completeRemoteTask({ syncAfter: false });
+    if (isCommitRun) {
+      await markCommitCompleted(active, latest.id, latest.finished_at || "");
+      if (allowRemoteCompletion) return completeRemoteTask({ syncAfter: false });
+      return "remote_completion_pending";
     }
 
     const activity = latest.activity || {};
@@ -862,6 +1024,119 @@ export function createAutomationCoordinator({
       automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
     });
     return startCommitAgent();
+  }
+
+  async function reconcileCanonicalCaseState({ allowAgentResume = false, requireCase = false, allowRemoteCompletion = true } = {}) {
+    if (typeof runManager.getProjectCaseState !== "function") return "unsupported";
+    const store = await runManager.readDesktopStore();
+    const active = store.automation.active_task;
+    if (!active || ["committing", "completing"].includes(active.phase)) return "not_applicable";
+    if (active.phase === "switching_to_cli") return "handoff_in_progress";
+    if (active.run_id && runManager.isRunActive?.(active.run_id) && active.phase !== "cli_handoff") return "runtime_active";
+
+    const runs = await runManager.listRuns({ projectId: active.local_project_id });
+    const run = runs.find((item) => item.id === active.run_id) || null;
+    let caseId = active.case_id || extractCaseIdFromRun(run);
+    if (!caseId && typeof runManager.listProjectCaseStates === "function") {
+      const allCases = await runManager.listProjectCaseStates(active.local_project_id);
+      const baseline = new Set(active.cli_handoff_case_ids || []);
+      const candidates = allCases.filter((item) => !baseline.has(item.case_id));
+      if (candidates.length === 1) caseId = candidates[0].case_id;
+      else if (candidates.length === 0 && allCases.length === 1) caseId = allCases[0].case_id;
+    }
+    if (!caseId) {
+      if (requireCase || active.phase === "cli_handoff") {
+        await addRecovery({
+          type: "case_reconciliation_failed",
+          task: active,
+          message: "No unique canonical Case can be bound to this active task. Runtime will not infer completion from the old Run or terminal state.",
+          actions: ["retry_cli_handoff", "retry_start", "mark_blocked"]
+        });
+        return "missing";
+      }
+      return "unbound";
+    }
+
+    if (caseId !== active.case_id) {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id === active.task_id) automation.active_task.case_id = caseId;
+      });
+    }
+    let caseState;
+    try {
+      caseState = await runManager.getProjectCaseState(active.local_project_id, caseId);
+    } catch (error) {
+      if (!requireCase && active.phase !== "cli_handoff") return "unreadable";
+      await addRecovery({
+        type: "case_reconciliation_failed",
+        task: { ...active, case_id: caseId },
+        message: `Canonical Case ${caseId} could not be read: ${error.message}`,
+        actions: ["retry_sync", "retry_start", "mark_blocked"]
+      });
+      return "unreadable";
+    }
+    if (!caseState?.record) {
+      if (!requireCase && active.phase !== "cli_handoff") return "missing";
+      await addRecovery({
+        type: "case_reconciliation_failed",
+        task: { ...active, case_id: caseId },
+        message: `Canonical Case ${caseId} is neither an active Project Case nor a closed Case.`,
+        actions: ["retry_sync", "retry_start", "mark_blocked"]
+      });
+      return "missing";
+    }
+
+    const record = caseState.record;
+    const resolution = record.case_resolution || {};
+    if (caseState.location === "closed" || record.status === "closed" || resolution.status === "resolved") {
+      const commitRun = active.commit_run_id
+        ? runs.find((item) => item.id === active.commit_run_id) || null
+        : null;
+      const commitCompleted = active.commit_status === "completed" || commitRun?.status === "completed";
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.case_id = caseId;
+        automation.active_task.case_status = "resolved";
+        automation.active_task.case_resolved_at ||= record.updated_at || now();
+        automation.active_task.remote_completion_status = "pending";
+        if (commitCompleted) {
+          automation.active_task.commit_status = "completed";
+          automation.active_task.commit_completed_at ||= commitRun?.finished_at || now();
+          automation.active_task.phase = "remote_completion_pending";
+        }
+        automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
+      });
+      if (commitCompleted) {
+        if (allowRemoteCompletion) await completeRemoteTask({ syncAfter: false });
+        return allowRemoteCompletion ? "resolved" : "remote_completion_pending";
+      }
+      await startCommitAgent();
+      return "resolved";
+    }
+
+    const handoff = resolution.loop_handoff || {};
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== active.task_id) return;
+      automation.active_task.case_id = caseId;
+      automation.active_task.case_status = "active";
+    });
+    if (handoff.next_responsibility === "human" || handoff.human_decision_required === true) {
+      await setAwaitingHuman({ active: { ...active, case_id: caseId }, runId: active.run_id, handoff });
+      return "human";
+    }
+
+    if (allowAgentResume && caseState.location === "active") {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.case_id = caseId;
+        automation.active_task.phase = "starting";
+        automation.active_task.cli_handoff_ended_at = now();
+        automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
+      });
+      await startRuntimeForActiveTask();
+      return "agent_resumed";
+    }
+    return "active";
   }
 
   async function ensureTaskSession(active, task) {
@@ -912,6 +1187,22 @@ export function createAutomationCoordinator({
     emit("automation.changed", { reason: "awaiting-human", taskId: active.task_id });
   }
 
+  async function markCommitCompleted(active, runId, finishedAt = "") {
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== active.task_id) return;
+      automation.active_task.run_id = runId;
+      automation.active_task.commit_run_id = runId;
+      automation.active_task.commit_status = "completed";
+      automation.active_task.commit_completed_at ||= finishedAt || now();
+      automation.active_task.remote_completion_status = "pending";
+      automation.active_task.phase = "remote_completion_pending";
+      automation.recovery_items = automation.recovery_items.filter((item) => (
+        item.task_id !== active.task_id
+        || !["commit_failed", "commit_start_failed", "runtime_process_missing"].includes(item.type)
+      ));
+    });
+  }
+
   async function addRecovery({ type, task, message, actions, freezeScope = "global" }) {
     await patchAutomation((automation) => {
       const taskId = task?.task_id || task?.id || "unknown";
@@ -941,7 +1232,7 @@ export function createAutomationCoordinator({
   async function reconcileRuntimePresence() {
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
-    if (!active || ["starting", "continuing", "awaiting_human", "completing", "recovery"].includes(active.phase)) return;
+    if (!active || ["starting", "continuing", "switching_to_cli", "cli_handoff", "awaiting_human", "remote_completion_pending", "completing", "recovery"].includes(active.phase)) return;
     if (active.run_id && runManager.isRunActive?.(active.run_id)) return;
     if (active.phase === "committing") {
       await addRecovery({
@@ -1067,6 +1358,9 @@ export function createAutomationCoordinator({
     updateTaskState,
     submitIntervention,
     stopCurrent,
+    handoffToCodexCli,
+    reopenCodexCli,
+    resumeRuntimeFromCodexCli,
     resolveRecovery,
     maybeStartNext
   };
@@ -1338,6 +1632,10 @@ function scalarId(value) {
     : "";
 }
 
+function isRemoteSourceReady(sourceStatus) {
+  return sourceStatus === "healthy" || sourceStatus === "degraded";
+}
+
 function timestamp(value) {
   const result = Date.parse(value || "");
   return Number.isFinite(result) ? result : Number.MAX_SAFE_INTEGER;
@@ -1349,6 +1647,27 @@ export function buildAutomationTask(task) {
 
 export function buildInterventionTask(message) {
   return String(message || "").trim();
+}
+
+export function extractCaseIdFromRun(run) {
+  const activity = run?.activity || {};
+  const parsedLedger = activity.ledger_write_result?.parsed || {};
+  const candidates = [
+    run?.case_id,
+    activity.case_id,
+    activity.controller_frame?.case_id,
+    activity.controller_plan?.case_id,
+    activity.controller_plan?.controller_frame?.case_id,
+    activity.controller_plan?.route_plan?.selected_gap?.case_id,
+    activity.selected_round?.case_id,
+    parsedLedger.case_transition_result?.case_id,
+    parsedLedger.case_control_result?.case_id,
+    parsedLedger.case_transition_result?.case_resolution?.case_id,
+    run?.result?.runtime_result?.case_transition?.case_id,
+    run?.result?.runtime_result?.controller_frame?.case_id
+  ];
+  return candidates.map((value) => String(value || "").trim())
+    .find((value) => /^CASE-\d{8}-\d{3}$/.test(value)) || "";
 }
 
 export function buildUsageBaseline(runs, { projectId = "", excludeRunId = "" } = {}) {

@@ -7,7 +7,8 @@ import {
   buildQueue,
   buildUsageBaseline,
   compareQueueTasks,
-  createAutomationCoordinator
+  createAutomationCoordinator,
+  extractCaseIdFromRun
 } from "../src/automation-coordinator.mjs";
 import { normalizeStore } from "../src/desktop/desktop-store.mjs";
 
@@ -56,6 +57,371 @@ test("usage baseline uses recent completed Runtime medians without becoming a li
   assert.equal(baseline.sample_size, 3);
   assert.equal(baseline.logical_total_tokens, 300);
   assert.equal("limit" in baseline, false);
+});
+
+test("Case binding is recovered from the Runtime activity projection", () => {
+  assert.equal(extractCaseIdFromRun({
+    activity: { controller_plan: { route_plan: { selected_gap: { case_id: "CASE-20260807-001" } } } }
+  }), "CASE-20260807-001");
+  assert.equal(extractCaseIdFromRun({ activity: { case_id: "not-a-case" } }), "");
+});
+
+test("automation coordinator safely hands one active Case to interactive Codex CLI and resumes from fresh state", async () => {
+  const events = new EventEmitter();
+  let runActive = true;
+  let store = normalizeStore({
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+    automation: {
+      snapshot: {
+        user: { id: "USER-1" },
+        projects: [{ id: "REMOTE-1", current_user_id: "USER-1" }],
+        tasks: [{ id: "TASK-1", project_id: "REMOTE-1", title: "接力任务", content: "完成同一 Case。", state: "in_progress", version: "v2" }],
+        source_status: "healthy"
+      },
+      active_task: {
+        task_id: "TASK-1",
+        task_title: "接力任务",
+        project_id: "REMOTE-1",
+        local_project_id: "LOCAL-1",
+        run_id: "RUN-1",
+        session_id: "SESSION-1",
+        phase: "running"
+      }
+    }
+  });
+  const runs = [{ id: "RUN-1", project_id: "LOCAL-1", status: "running", activity: { case_id: "CASE-20260807-001" } }];
+  const launchInputs = [];
+  const runInputs = [];
+  const runManager = {
+    onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
+    async readDesktopStore() { return store; },
+    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
+    async listProjects() { return store.projects; },
+    async listRuns() { return runs; },
+    async listSessions() { return [{ id: "SESSION-1", task_id: "TASK-1" }]; },
+    async addMessage() {},
+    async controlRun(runId, control) {
+      assert.equal(runId, "RUN-1");
+      assert.equal(control.type, "interrupt");
+      runActive = false;
+      runs[0].status = "aborted";
+      return { ok: true };
+    },
+    isRunActive() { return runActive; },
+    async listProjectCaseStates() {
+      return [{ case_id: "CASE-20260807-001", location: "active", record: { id: "CASE-20260807-001" } }];
+    },
+    async getProjectCaseState() {
+      return {
+        case_id: "CASE-20260807-001",
+        location: "active",
+        record: {
+          id: "CASE-20260807-001",
+          status: "active",
+          case_resolution: { status: "unresolved", loop_handoff: { next_responsibility: "agent", human_decision_required: false } }
+        }
+      };
+    },
+    async startRun(input) {
+      runInputs.push(input);
+      const run = { id: "RUN-2", project_id: input.projectId, status: "running", activity: {} };
+      runs.push(run);
+      return run;
+    }
+  };
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: () => ({}),
+    cliLauncher: { async launch(input) { launchInputs.push(input); return { launched: true }; } },
+    now: () => "2026-08-07T05:10:00.000Z"
+  });
+
+  let snapshot = await coordinator.handoffToCodexCli();
+
+  assert.equal(snapshot.active_task.phase, "cli_handoff");
+  assert.equal(snapshot.active_task.case_id, "CASE-20260807-001");
+  assert.equal(launchInputs.length, 1);
+  assert.equal(launchInputs[0].projectPath, "/workspace/local");
+  assert.match(launchInputs[0].prompt, /^\$using-arckit/);
+  assert.match(launchInputs[0].prompt, /CASE-20260807-001/);
+  assert.match(launchInputs[0].prompt, /完成同一 Case/);
+
+  snapshot = await coordinator.resumeRuntimeFromCodexCli();
+
+  assert.equal(snapshot.active_task.phase, "running");
+  assert.equal(snapshot.active_task.run_id, "RUN-2");
+  assert.equal(runInputs.length, 1);
+  assert.equal(runInputs[0].task, "完成同一 Case。");
+  coordinator.dispose();
+});
+
+test("startup reconciliation treats a fresh closed Case as completion instead of reviving the old Run", async () => {
+  let store = normalizeStore({
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
+    automation: {
+      enabled: true,
+      project_bindings: { "REMOTE-1": "LOCAL-1" },
+      project_participation: { "REMOTE-1": true },
+      active_task: {
+        task_id: "TASK-1",
+        task_title: "接力任务",
+        project_id: "REMOTE-1",
+        local_project_id: "LOCAL-1",
+        run_id: "RUN-OLD",
+        session_id: "SESSION-1",
+        case_id: "CASE-20260807-001",
+        phase: "cli_handoff"
+      }
+    }
+  });
+  const runs = [{ id: "RUN-OLD", project_id: "LOCAL-1", status: "aborted", activity: { case_id: "CASE-20260807-001" } }];
+  const commitInputs = [];
+  const runManager = {
+    onEvent() { return () => {}; },
+    async readDesktopStore() { return store; },
+    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
+    async listProjects() { return store.projects; },
+    async listRuns() { return runs; },
+    async listSessions() { return [{ id: "SESSION-1", task_id: "TASK-1" }]; },
+    isRunActive(runId) { return runId === "RUN-COMMIT"; },
+    async getProjectCaseState() {
+      return {
+        case_id: "CASE-20260807-001",
+        location: "closed",
+        record: { id: "CASE-20260807-001", status: "closed", case_resolution: { status: "resolved" } }
+      };
+    },
+    async startAgentTask(input) {
+      commitInputs.push(input);
+      const run = { id: "RUN-COMMIT", project_id: input.projectId, status: "running", entry_capability: "agent-task", activity: {} };
+      runs.push(run);
+      return run;
+    }
+  };
+  const remoteTask = { id: "TASK-1", project_id: "REMOTE-1", title: "接力任务", state: "in_progress", executor_id: "USER-1", version: "v2" };
+  const taskSource = {
+    async getCurrentUser() { return { id: "USER-1" }; },
+    async listProjects() { return [{ id: "REMOTE-1", current_user_id: "USER-1" }]; },
+    async listTasks() { return [remoteTask]; }
+  };
+  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
+
+  const snapshot = await coordinator.sync({ dispatch: false });
+
+  assert.equal(snapshot.active_task.phase, "committing");
+  assert.equal(snapshot.active_task.run_id, "RUN-COMMIT");
+  assert.equal(commitInputs.length, 1);
+  assert.equal(commitInputs[0].task, "git commit");
+  assert.equal(snapshot.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
+test("startup reconciles a closed canonical Case before expired task-source authentication", async () => {
+  let store = normalizeStore({
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+    settings: { task_source: { enabled: true, base_url: "https://workshop.example" } },
+    automation: {
+      enabled: true,
+      snapshot: {
+        user: { id: "USER-1" },
+        projects: [{ id: "REMOTE-1", current_user_id: "USER-1" }],
+        tasks: [{ id: "TASK-1", project_id: "REMOTE-1", title: "接力任务", state: "in_progress", version: "v2" }],
+        source_status: "healthy",
+        synced_at: "2026-08-07T02:58:27.742Z"
+      },
+      active_task: {
+        task_id: "TASK-1",
+        task_title: "接力任务",
+        project_id: "REMOTE-1",
+        local_project_id: "LOCAL-1",
+        run_id: "RUN-OLD",
+        session_id: "SESSION-1",
+        phase: "recovery"
+      },
+      recovery_items: [{ id: "RECOVERY-runtime_process_missing-TASK-1", task_id: "TASK-1", type: "runtime_process_missing" }]
+    }
+  });
+  const runs = [{
+    id: "RUN-OLD",
+    project_id: "LOCAL-1",
+    status: "aborted",
+    activity: { controller_frame: { case_id: "CASE-20260807-001" } }
+  }];
+  const commitInputs = [];
+  const runManager = {
+    onEvent() { return () => {}; },
+    async readDesktopStore() { return store; },
+    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
+    async listProjects() { return store.projects; },
+    async listRuns() { return runs; },
+    async listSessions() { return [{ id: "SESSION-1", task_id: "TASK-1" }]; },
+    isRunActive(runId) { return runId === "RUN-COMMIT"; },
+    async getProjectCaseState(_projectId, caseId) {
+      assert.equal(caseId, "CASE-20260807-001");
+      return {
+        case_id: caseId,
+        location: "closed",
+        record: { id: caseId, status: "closed", updated_at: "2026-08-06T19:45:24.021Z", case_resolution: { status: "resolved" } }
+      };
+    },
+    async startAgentTask(input) {
+      commitInputs.push(input);
+      const run = { id: "RUN-COMMIT", project_id: input.projectId, status: "running", entry_capability: "agent-task", activity: {} };
+      runs.push(run);
+      return run;
+    }
+  };
+  const taskSource = {
+    async getAuthStatus() { return { status: "expired", authenticated: false, error: "Session expired" }; }
+  };
+  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
+
+  const snapshot = await coordinator.sync({ dispatch: false });
+
+  assert.equal(snapshot.source_status, "unauthenticated");
+  assert.equal(snapshot.active_task.case_id, "CASE-20260807-001");
+  assert.equal(snapshot.active_task.case_status, "resolved");
+  assert.equal(snapshot.active_task.case_resolved_at, "2026-08-06T19:45:24.021Z");
+  assert.equal(snapshot.active_task.phase, "committing");
+  assert.equal(snapshot.active_task.commit_status, "running");
+  assert.equal(commitInputs.length, 1);
+  assert.equal(snapshot.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
+test("startup preserves a completed commit checkpoint and waits for authentication without recommitting", async () => {
+  let authenticated = false;
+  let store = normalizeStore({
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+    settings: { task_source: { enabled: true, base_url: "https://workshop.example" } },
+    automation: {
+      enabled: true,
+      snapshot: {
+        user: { id: "USER-1" },
+        projects: [{ id: "REMOTE-1", current_user_id: "USER-1" }],
+        tasks: [{ id: "TASK-1", project_id: "REMOTE-1", title: "接力任务", state: "in_progress", version: "v2" }],
+        source_status: "healthy",
+        synced_at: "2026-08-07T02:58:27.742Z"
+      },
+      active_task: {
+        task_id: "TASK-1",
+        task_title: "接力任务",
+        project_id: "REMOTE-1",
+        local_project_id: "LOCAL-1",
+        run_id: "RUN-COMMIT",
+        commit_run_id: "RUN-COMMIT",
+        session_id: "SESSION-1",
+        case_id: "CASE-20260807-001",
+        phase: "recovery"
+      }
+    }
+  });
+  const runs = [{
+    id: "RUN-COMMIT",
+    project_id: "LOCAL-1",
+    status: "completed",
+    finished_at: "2026-08-07T03:50:00.000Z",
+    entry_capability: "agent-task",
+    activity: {}
+  }];
+  const commitInputs = [];
+  const remoteUpdates = [];
+  const runManager = {
+    onEvent() { return () => {}; },
+    async readDesktopStore() { return store; },
+    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
+    async listProjects() { return store.projects; },
+    async listRuns() { return runs; },
+    async listSessions() { return [{ id: "SESSION-1", task_id: "TASK-1" }]; },
+    isRunActive() { return false; },
+    async getProjectCaseState() {
+      return {
+        case_id: "CASE-20260807-001",
+        location: "closed",
+        record: { id: "CASE-20260807-001", status: "closed", updated_at: "2026-08-06T19:45:24.021Z", case_resolution: { status: "resolved" } }
+      };
+    },
+    async startAgentTask(input) { commitInputs.push(input); }
+  };
+  const remoteTask = { id: "TASK-1", project_id: "REMOTE-1", title: "接力任务", state: "in_progress", executor_id: "USER-1", version: "v2" };
+  const taskSource = {
+    async getAuthStatus() {
+      return authenticated
+        ? { status: "authenticated", authenticated: true }
+        : { status: "expired", authenticated: false, error: "Session expired" };
+    },
+    async getCurrentUser() { return { id: "USER-1" }; },
+    async listProjects() { return [{ id: "REMOTE-1", current_user_id: "USER-1" }]; },
+    async listTasks() { return [remoteTask]; },
+    async getTask() { return remoteTask; },
+    async updateTask(input) {
+      remoteUpdates.push(input);
+      return { ...remoteTask, state: "completed", version: "v3" };
+    }
+  };
+  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
+
+  let snapshot = await coordinator.sync({ dispatch: false });
+
+  assert.equal(snapshot.source_status, "unauthenticated");
+  assert.equal(snapshot.active_task.phase, "remote_completion_pending");
+  assert.equal(snapshot.active_task.case_status, "resolved");
+  assert.equal(snapshot.active_task.commit_status, "completed");
+  assert.equal(snapshot.active_task.commit_completed_at, "2026-08-07T03:50:00.000Z");
+  assert.equal(commitInputs.length, 0);
+  assert.equal(remoteUpdates.length, 0);
+
+  authenticated = true;
+  snapshot = await coordinator.sync({ dispatch: false });
+
+  assert.equal(snapshot.active_task, null);
+  assert.equal(commitInputs.length, 0);
+  assert.equal(remoteUpdates.length, 1);
+  assert.equal(remoteUpdates[0].state, "completed");
+  coordinator.dispose();
+});
+
+test("periodic Case reconciliation never starts commit while the Runtime process still owns execution", async () => {
+  let store = normalizeStore({
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
+    automation: {
+      enabled: true,
+      project_bindings: { "REMOTE-1": "LOCAL-1" },
+      project_participation: { "REMOTE-1": true },
+      active_task: {
+        task_id: "TASK-1", project_id: "REMOTE-1", local_project_id: "LOCAL-1",
+        run_id: "RUN-ACTIVE", case_id: "CASE-20260807-001", phase: "running"
+      }
+    }
+  });
+  const commitInputs = [];
+  const runManager = {
+    onEvent() { return () => {}; },
+    async readDesktopStore() { return store; },
+    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
+    async listProjects() { return store.projects; },
+    async listRuns() { return [{ id: "RUN-ACTIVE", project_id: "LOCAL-1", status: "running", activity: { case_id: "CASE-20260807-001" } }]; },
+    isRunActive(runId) { return runId === "RUN-ACTIVE"; },
+    async getProjectCaseState() {
+      return { location: "closed", record: { id: "CASE-20260807-001", status: "closed", case_resolution: { status: "resolved" } } };
+    },
+    async startAgentTask(input) { commitInputs.push(input); }
+  };
+  const task = { id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", executor_id: "USER-1", version: "v2" };
+  const taskSource = {
+    async getCurrentUser() { return { id: "USER-1" }; },
+    async listProjects() { return [{ id: "REMOTE-1", current_user_id: "USER-1" }]; },
+    async listTasks() { return [task]; }
+  };
+  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
+
+  const snapshot = await coordinator.sync({ dispatch: false });
+
+  assert.equal(snapshot.active_task.phase, "running");
+  assert.equal(commitInputs.length, 0);
+  coordinator.dispose();
 });
 
 test("automation coordinator claims one eligible pending task and starts one Runtime", async () => {
@@ -417,6 +783,52 @@ test("a failed commit agent keeps the todo in progress and recovery retries only
   assert.equal(snapshot.active_task.phase, "committing");
   assert.equal(snapshot.active_task.run_id, "RUN-COMMIT-2");
   assert.deepEqual(agentTaskInputs.map((input) => input.task), ["git commit"]);
+  coordinator.dispose();
+});
+
+test("startup reports a missing commit process instead of leaving the task stuck in committing", async () => {
+  let store = normalizeStore({
+    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
+    automation: {
+      enabled: true,
+      snapshot: {
+        user: { id: "USER-1" },
+        projects: [{ id: "REMOTE-1", current_user_id: "USER-1" }],
+        tasks: [{ id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", version: "v2" }],
+        source_status: "healthy"
+      },
+      active_task: {
+        task_id: "TASK-1",
+        project_id: "REMOTE-1",
+        local_project_id: "LOCAL-1",
+        run_id: "RUN-COMMIT-MISSING",
+        commit_run_id: "RUN-COMMIT-MISSING",
+        phase: "committing",
+        commit_status: "running"
+      }
+    }
+  });
+  const runManager = {
+    onEvent() { return () => {}; },
+    async readDesktopStore() { return store; },
+    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
+    async listProjects() { return store.projects; },
+    async listRuns() { return []; },
+    isRunActive() { return false; }
+  };
+  const taskSource = {
+    async getCurrentUser() { return { id: "USER-1" }; },
+    async listProjects() { return [{ id: "REMOTE-1", current_user_id: "USER-1" }]; },
+    async listTasks() { return [{ id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", version: "v2" }]; }
+  };
+  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
+
+  const snapshot = await coordinator.sync({ dispatch: false });
+
+  assert.equal(snapshot.active_task.phase, "recovery");
+  assert.equal(snapshot.recovery_items[0].type, "commit_process_missing");
+  assert.deepEqual(snapshot.recovery_items[0].actions, ["retry_commit", "mark_blocked"]);
   coordinator.dispose();
 });
 

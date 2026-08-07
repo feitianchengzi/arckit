@@ -38,3 +38,7 @@
 | [CASE-20260806-001](closed/CASE-20260806-001-runtime-token.md) | closed | 优化 Runtime 会话隔离、执行效率与 Token 可观测性 | 2026-08-06T18:09:56.302Z |
 | [CASE-20260806-002](closed/CASE-20260806-002-strengthen-runtime-context-handoff-and-workstream-thread-isolati.md) | closed | Strengthen Runtime context handoff and workstream thread isolation | 2026-08-06T18:56:06.750Z |
 | [CASE-20260806-003](closed/CASE-20260806-003-runtime.md) | closed | 将 Runtime 执行过程收敛为轻量对话消息流 | 2026-08-06T20:10:36.429Z |
+| [CASE-20260807-001](closed/CASE-20260807-001-runtime-codex-cli-case.md) | closed | 支持 Runtime 切换到交互式 Codex CLI 并按 Case 恢复 | 2026-08-07T05:17:05.142Z |
+| [CASE-20260807-002](closed/CASE-20260807-002-buzz-dashi-arckit.md) | closed | 沉淀 Buzz、Dashi 与 Arckit 核心产品概念调研报告 | 2026-08-07T05:11:58.083Z |
+| [CASE-20260807-003](closed/CASE-20260807-003-development-case.md) | closed | 深化三项目平台能力推导与真实研发场景对比 | 2026-08-07T06:31:47.773Z |
+| [CASE-20260807-004](closed/CASE-20260807-004-runtime-canonical-case.md) | closed | 修复未登录重启时 Runtime 未按 canonical Case 收尾 | 2026-08-07T06:34:28.989Z |

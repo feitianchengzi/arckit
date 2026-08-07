@@ -82,6 +82,33 @@ Preload 继续只暴露任务范围内的查询与动作。Automation Snapshot �
 
 Intervention Workbench 展示当前任务 ID、task session 和 Run 边界，并把 session message 与各 Run 的 projected messages 按时间合并。Token Inspector 展示分项汇总、lane 明细、上下文占用和软异常；只读审查不创建消息，人工提交仅写入当前 task session 和当前 Run message projection，并进入当前活动任务的 steer 或 fresh continuation。
 
+## 交互式 Codex CLI 执行权接力
+
+Automation Coordinator 为当前活动任务持久化可选 `case_id` 和本地 `phase=cli_handoff`。`case_id` 从 Runtime activity 中已接受的 Controller frame 或 ledger result 提取；它只把远端待办绑定到 canonical Case，不把 Run、Desktop phase 或 CLI 会话写入 Case State。Run 是可丢弃的执行实例，Case 是 Runtime、CLI 和重启恢复共享的语义事实。
+
+`handoffToCodexCli` 采用串行控制：先向当前 Runtime run 发送 interrupt，再等待 Desktop Run Manager 确认该 run 不再 active；停止超时则进入恢复状态且不启动 CLI。停止成功后，主进程通过平台终端启动器打开新终端，工作目录固定为绑定项目，并执行交互式 `codex --no-alt-screen -C <project> <prompt>`。启动器以参数数组和平台级转义生成命令，不经 Renderer shell；Renderer 只调用有界 IPC。
+
+初始 prompt 包含 `$using-arckit`、待办原始意图、已知 `case_id` 和“从 fresh Project/Case State 自动推进，仅在需要人工介入时暂停”的要求。它不包含 Runtime 内部 thread、raw event、隐藏 transcript、Controller/Worker prompt 或未写回 claim。没有 `case_id` 时，prompt 明确要求 Controller 从 fresh Project State 选择或创建 Case。
+
+CLI 启动成功后，活动任务进入 `cli_handoff`，远端任务保持 `in_progress`，下一队列继续冻结。Desktop 不读取终端 transcript，也不把终端关闭视为执行结果；“重新打开终端”只重复同一有界启动动作。
+
+Case Reader 根据 `case_id` 先匹配 Project `active_case_refs`，再在 `arckit/cases/closed/` 中查找同一 Case，并返回完整 `development-case-record/v3`。Coordinator 在同步和“恢复自动执行”时使用该 fresh record 对账：
+
+- `active` 且 handoff 由 Agent 负责：显式交还执行权后启动 fresh Runtime run。
+- `active/handoff` 且需要 human：创建 attention item。
+- `closed` 且 resolution 为 resolved：跳过研发 run，进入 commit agent 与远端完成写回。
+- Case 缺失、解析失败或状态歧义：进入 `case_reconciliation_failed`，不得回退依据旧 run 猜测完成。
+
+`cli_handoff` 本身阻止 Runtime presence recovery 将其误报为丢失进程，也阻止同步自动启动并发 Runtime。只有用户显式“恢复自动执行”或 fresh Case 已 resolved 才结束 CLI 所有权；后者可安全收尾，因为 canonical Case 已声明研发闭环完成。
+
+### 本地优先恢复与收尾检查点
+
+Automation Store v8 把活动任务收尾拆成三个持久检查点：`case_status/case_resolved_at`、`commit_status/commit_completed_at` 和 `remote_completion_status`。`phase` 只投影当前控制动作，不再承担全部完成事实。旧 Store 在 normalize 时补齐 unknown 或 pending 值；Coordinator 可以从绑定 Run 的 Controller/ledger activity 恢复 `case_id`，并从已完成的 `commit_run_id` 恢复 commit checkpoint。
+
+启动同步先执行 detached Run 与 canonical Case 的本地对账，再创建任务源 adapter 或检查认证。该阶段不调用远端 API：active Case 保持现状，closed/resolved Case 记录单调的本地完成事实；未完成 commit 时启动一次 commit agent，已完成 commit 时进入 `remote_completion_pending`。任务源未配置、未登录、认证失效或不可达都不能跳过或回退该对账。
+
+认证和远端项目/待办快照成功后，Coordinator 再执行允许远端写回的对账。`commit_status=completed` 时只提交任务 `in_progress -> completed`；成功后清理活动任务。commit Run 的 completed 状态会先持久化为 checkpoint，再尝试远端写回，因此应用退出、401 或网络失败后不会重复 commit。`remote_completion_pending` 不属于 Runtime process ownership，Presence Recovery 不得生成 Runtime 丢失错误。
+
 ## 恢复与兼容
 
 旧 Store 中没有 `session_id` 的未完成自动化任务在恢复启动时创建一次专属 task session，并立即持久化；旧历史 run 保持原 session，不自动猜测拆分历史消息。无法证明任务归属的旧 transcript 标记为 legacy，不在新的待办 Workbench 中隐式展示。
@@ -99,3 +126,7 @@ session 创建成功但 Runtime 启动失败时保留 session，`retry_start` �
 - Round、turn 与 command 耗时可重算，Workbench 能指出最慢活动而不重复启动命令。
 - Workbench 区分缓存输入、非缓存输入和输出，并展示上下文窗口占用。
 - 任意用量警告都不会自动设置 Token 总上限、硬总轮次或终止 Case。
+- 当前 Runtime 可以在确认安全停止后打开用户可见且可输入的交互式 Codex CLI；两者不会并发拥有同一活动任务的执行权。
+- CLI 与 Runtime 只通过待办意图和 canonical Case State 接力；关闭终端不推断完成，恢复自动执行前读取 fresh active/closed Case。
+- 未登录或认证失效的启动路径仍先读取本地 canonical Case；closed Case 显示为等待远端收尾，不显示 Runtime 仍在执行。
+- commit completed checkpoint 可以从 Store 或历史 commit Run 恢复；认证恢复后只重试远端完成写回，不启动第二个 commit agent。

@@ -200,6 +200,10 @@ The Command Center signs in to Workshop with an email or SMS verification code, 
 
 Automation conditionally claims one task as `in_progress`, persists the remote-task/local-project/run association, and starts the existing Runtime loop. It never starts a second active task. After Runtime and ledger close with a complete handoff, it starts the direct commit agent and keeps the remote task `in_progress`; only a successful commit-agent run permits the `completed` writeback and selection of another task.
 
+An active task can be switched to an interactive Codex CLI from the Command Center. Desktop first interrupts the Runtime and waits for its process to stop, then opens a visible terminal in the bound project with plain interactive `codex`, `$using-arckit`, the original todo intent, and the known Case id. The CLI does not inherit Runtime-internal threads. While CLI owns execution, the remote task stays `in_progress` and the queue remains frozen. “Resume automation” and Desktop startup read the fresh active/closed Case: an active agent-owned Case starts a fresh Runtime, a human handoff opens intervention, and a resolved Case skips directly to commit and completion writeback. Closing the terminal alone never marks the task complete.
+
+Desktop startup reconciles local Run and canonical Case facts before task-source authentication. Store v8 persists separate Case, commit, and remote-completion checkpoints. If authentication is unavailable after a resolved Case, the UI reports “Case complete, waiting for remote closeout”; restoring authentication retries only the remote `completed` writeback and never repeats Runtime or an already completed commit agent.
+
 Chat is not a permanent navigation surface. The Intervention Workbench loads the task message stream and evidence when a user reviews a run or the Runtime requires human input. High-frequency text, reasoning, and command deltas update an in-memory message; only semantic message snapshots are persisted and Renderer refresh notifications are coalesced. Read-only review has no composer; explicit intervention submits a steer or fresh continuation for the same active task. Recovery Center preserves state for claim, start, run, external-change, and completion-writeback failures.
 
 Task source settings default to the production Workshop and NebulaAuth contracts used by Workshop Desktop. Credentials stay in the Electron main-process store; neither access nor refresh tokens are returned to Renderer. Logout clears the account-scoped remote snapshot while preserving local projects, bindings, run history, and proxy settings. Without a valid session, Desktop remains usable for local project registration and Runtime history but synchronization and automatic claiming stay disabled.
@@ -239,6 +243,7 @@ Desktop owns:
 
 - project-sourced task observation and explicit local-workspace binding
 - deterministic single-task automation controls, pause, interrupt, and recovery
+- safe execution ownership handoff between Runtime and an interactive Codex CLI, reconciled through canonical Case State
 - on-demand read-only review and human intervention for the active Runtime
 - Controller/Worker progress, evidence, gate, and ledger visibility
 - automatic ledger gate/writeback whenever an evidence-backed Case transition is gate-ready, including unresolved Cases that should continue
