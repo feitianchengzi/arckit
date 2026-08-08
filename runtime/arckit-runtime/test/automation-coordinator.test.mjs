@@ -435,6 +435,9 @@ test("automation coordinator claims one eligible pending task and starts one Run
   const agentTaskInputs = [];
   const messages = [];
   const executorFilters = [];
+  const lifecycleSpans = [];
+  let lifecycleSpanId = 0;
+  const finishedTraces = [];
   const sessions = [{ id: "SESSION-1" }];
   const runManager = {
     onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
@@ -447,7 +450,36 @@ test("automation coordinator claims one eligible pending task and starts one Run
     async addMessage(_projectId, message) { messages.push(message); return message; },
     async startRun(input) { runInputs.push(input); const run = { id: "RUN-1", project_id: input.projectId, session_id: input.sessionId, status: "running" }; runs.push(run); return run; },
     async startAgentTask(input) { agentTaskInputs.push(input); const run = { id: "RUN-COMMIT", project_id: input.projectId, session_id: input.sessionId, status: "running", entry_capability: "agent-task" }; runs.push(run); return run; },
-    async controlRun() { return { ok: true }; }
+    async controlRun() { return { ok: true }; },
+    async startLifecycleTrace() {
+      return {
+        trace_id: "TRACE-TASK-1",
+        root_span_id: "SPAN-ROOT",
+        events_file: "/trace/TRACE-TASK-1/events.jsonl",
+        summary_file: "/trace/TRACE-TASK-1/summary.json"
+      };
+    },
+    startLifecycleSpan(_context, input) {
+      const span = { span_id: `SPAN-${++lifecycleSpanId}`, name: input.name };
+      lifecycleSpans.push({ type: "started", ...span });
+      return span;
+    },
+    endLifecycleSpan(_context, span, input) { lifecycleSpans.push({ type: "completed", ...span, status: input.status }); },
+    async finishLifecycleTrace(context, input) {
+      finishedTraces.push({ trace_id: context.trace_id, status: input.status });
+      return {
+        schema_version: "arckit-lifecycle-summary/v1",
+        trace_id: context.trace_id,
+        status: "completed",
+        total_ms: 123,
+        span_count: 8,
+        open_span_count: 0,
+        error_span_count: 0,
+        cost_centers: [{ name: "orchestration", exclusive_ms: 80 }],
+        phase_hotspots: [{ name: "controller.plan", exclusive_ms: 50 }],
+        diagnosis: { tendency: "architecture_overhead" }
+      };
+    }
   };
   const remote = {
     task: { id: "TASK-1", project_id: "REMOTE-1", title: "Implement", content: "Implement automation", state: "pending", priority: 100, version: "v1", state_changed_at: "2026-08-02T08:00:00Z" }
@@ -472,6 +504,8 @@ test("automation coordinator claims one eligible pending task and starts one Run
   assert.equal(runInputs[0].task, "Implement automation");
   assert.equal(runInputs[0].sessionId, "SESSION-TASK-1");
   assert.equal(runInputs[0].continuationPolicy, "automatic");
+  assert.equal(runInputs[0].lifecycleTraceId, "TRACE-TASK-1");
+  assert.equal(runInputs[0].lifecycleRootSpanId, "SPAN-ROOT");
   assert.equal(messages.length, 1);
   assert.equal(snapshot.active_task.task_id, "TASK-1");
   assert.equal(snapshot.active_task.run_id, "RUN-1");
@@ -502,7 +536,12 @@ test("automation coordinator claims one eligible pending task and starts one Run
     taskId: "TASK-1",
     task: "git commit",
     adapter: "codex-app-server",
-    approvalPolicy: "on-request"
+    approvalPolicy: "on-request",
+    lifecycleTraceId: "TRACE-TASK-1",
+    lifecycleRootSpanId: "SPAN-ROOT",
+    lifecycleParentSpanId: "SPAN-ROOT",
+    lifecycleEventsFile: "/trace/TRACE-TASK-1/events.jsonl",
+    lifecycleSummaryFile: "/trace/TRACE-TASK-1/summary.json"
   }]);
   assert.equal(messages.length, 1);
 
@@ -521,6 +560,27 @@ test("automation coordinator claims one eligible pending task and starts one Run
   assert.equal(completedSnapshot.recent_completions[0].run_id, "RUN-1");
   assert.equal(completedSnapshot.recent_completions[0].commit_run_id, "RUN-COMMIT");
   assert.equal(completedSnapshot.recent_completions[0].session_id, "SESSION-TASK-1");
+  assert.equal(completedSnapshot.recent_completions[0].lifecycle_trace_id, "TRACE-TASK-1");
+  assert.equal(completedSnapshot.recent_completions[0].lifecycle_summary.diagnosis.tendency, "architecture_overhead");
+  assert.deepEqual(finishedTraces, [{ trace_id: "TRACE-TASK-1", status: "ok" }]);
+  assert.deepEqual(lifecycleSpans.map((item) => `${item.type}:${item.name}`), [
+    "started:task_source.claim",
+    "started:task_source.get_candidate",
+    "completed:task_source.get_candidate",
+    "started:task_source.mark_in_progress",
+    "completed:task_source.mark_in_progress",
+    "completed:task_source.claim",
+    "started:desktop.runtime_start",
+    "completed:desktop.runtime_start",
+    "started:desktop.commit_start",
+    "completed:desktop.commit_start",
+    "started:task_source.complete",
+    "started:task_source.get_for_completion",
+    "completed:task_source.get_for_completion",
+    "started:task_source.mark_completed",
+    "completed:task_source.mark_completed",
+    "completed:task_source.complete"
+  ]);
   assert.deepEqual(new Set(executorFilters), new Set(["USER-1"]));
   coordinator.dispose();
 });

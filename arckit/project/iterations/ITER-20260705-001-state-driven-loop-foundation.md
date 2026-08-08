@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-07T07:30:38.681Z
+Updated: 2026-08-07T15:52:18.510Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -40,9 +40,9 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
-- arckit/cases/closed/CASE-20260807-003-development-case.md
 - arckit/cases/closed/CASE-20260807-004-runtime-canonical-case.md
 - arckit/cases/closed/CASE-20260807-005-development-case.md
+- arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md
 
 ## Notes
 

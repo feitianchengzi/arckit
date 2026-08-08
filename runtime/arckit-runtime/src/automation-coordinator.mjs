@@ -623,24 +623,59 @@ export function createAutomationCoordinator({
       if (!candidate) {
         return null;
       }
+      const lifecycleContext = await startTodoLifecycleTrace(candidate);
+      const claimSpan = startTodoLifecycleSpan(lifecycleContext, {
+        name: "task_source.claim",
+        category: "task_source",
+        cost_center: "external",
+        attributes: { task_id: candidate.id, project_id: candidate.project_id }
+      });
       const taskSource = taskSourceFactory({ settings: store.settings.task_source });
       try {
         const executorId = requireCurrentExecutorId(
           projectIndex.get(String(candidate.project_id)),
           automation.snapshot.user
         );
-        const latest = await taskSource.getTask(candidate.id, candidate.project_id, { executorId });
+        const readSpan = startTodoLifecycleSpan(lifecycleContext, {
+          parent_span_id: claimSpan?.span_id,
+          name: "task_source.get_candidate",
+          category: "task_source",
+          cost_center: "external"
+        });
+        let latest;
+        try {
+          latest = await taskSource.getTask(candidate.id, candidate.project_id, { executorId });
+          endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "ok" });
+        } catch (error) {
+          endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "error", error });
+          throw error;
+        }
         if (!latest || latest.state !== "pending" || (candidate.version && latest.version && candidate.version !== latest.version)) {
+          endTodoLifecycleSpan(lifecycleContext, claimSpan, { status: "cancelled", attributes: { reason: "candidate_changed" } });
+          await finishTodoLifecycleTrace(lifecycleContext, { status: "cancelled", attributes: { reason: "candidate_changed" } });
           scheduleSync("candidate-changed");
           return null;
         }
-        const claimed = await taskSource.updateTask({
-          taskId: candidate.id,
-          projectId: candidate.project_id,
-          executorId,
-          state: "in_progress",
-          expectedVersion: latest.version
+        const updateSpan = startTodoLifecycleSpan(lifecycleContext, {
+          parent_span_id: claimSpan?.span_id,
+          name: "task_source.mark_in_progress",
+          category: "task_source",
+          cost_center: "external"
         });
+        let claimed;
+        try {
+          claimed = await taskSource.updateTask({
+            taskId: candidate.id,
+            projectId: candidate.project_id,
+            executorId,
+            state: "in_progress",
+            expectedVersion: latest.version
+          });
+          endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "ok" });
+        } catch (error) {
+          endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "error", error });
+          throw error;
+        }
         await patchAutomation((next) => {
           replaceTask(next, claimed);
           next.active_task = {
@@ -660,12 +695,22 @@ export function createAutomationCoordinator({
             run_id: "",
             session_id: "",
             claimed_at: now(),
-            started_at: ""
+            started_at: "",
+            lifecycle_trace_id: lifecycleContext?.trace_id || "",
+            lifecycle_root_span_id: lifecycleContext?.root_span_id || "",
+            lifecycle_events_file: lifecycleContext?.events_file || "",
+            lifecycle_summary_file: lifecycleContext?.summary_file || ""
           };
+        });
+        endTodoLifecycleSpan(lifecycleContext, claimSpan, {
+          status: "ok",
+          attributes: { remote_state: claimed.state || "in_progress" }
         });
         emit("automation.changed", { reason: "task-claimed", taskId: claimed.id });
         return startRuntimeForActiveTask();
       } catch (error) {
+        endTodoLifecycleSpan(lifecycleContext, claimSpan, { status: "error", error });
+        await finishTodoLifecycleTrace(lifecycleContext, { status: "error", error });
         if (error instanceof TaskSourceError && error.code === "version_conflict") {
           emit("automation.claim-conflict", { taskId: candidate.id });
           scheduleSync("claim-conflict");
@@ -705,6 +750,13 @@ export function createAutomationCoordinator({
       });
       return null;
     }
+    const lifecycleContext = lifecycleContextFromActive(active);
+    const startSpan = startTodoLifecycleSpan(lifecycleContext, {
+      name: "desktop.runtime_start",
+      category: "desktop",
+      cost_center: "orchestration",
+      attributes: { task_id: active.task_id, project_id: active.project_id }
+    });
     try {
       const session = await ensureTaskSession(active, task);
       await runManager.addMessage(project.id, {
@@ -722,7 +774,8 @@ export function createAutomationCoordinator({
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
         continuationPolicy: "automatic",
-        maxAutoRounds: 8
+        maxAutoRounds: 8,
+        ...lifecycleRunInput(lifecycleContext)
       });
       await patchAutomation((automation) => {
         if (!automation.active_task || automation.active_task.task_id !== active.task_id) return;
@@ -730,9 +783,11 @@ export function createAutomationCoordinator({
         automation.active_task.phase = "running";
         automation.active_task.started_at = now();
       });
+      endTodoLifecycleSpan(lifecycleContext, startSpan, { status: "ok", attributes: { run_id: run.id } });
       emit("automation.changed", { reason: "runtime-started", taskId: active.task_id, runId: run.id });
       return run;
     } catch (error) {
+      endTodoLifecycleSpan(lifecycleContext, startSpan, { status: "error", error });
       await addRecovery({
         type: "start_failed",
         task: active,
@@ -845,6 +900,13 @@ export function createAutomationCoordinator({
     const active = store.automation.active_task;
     if (!active) return null;
     if (active.commit_status === "completed") return null;
+    const lifecycleContext = lifecycleContextFromActive(active);
+    const startSpan = startTodoLifecycleSpan(lifecycleContext, {
+      name: "desktop.commit_start",
+      category: "desktop",
+      cost_center: "closeout",
+      attributes: { task_id: active.task_id }
+    });
     await patchAutomation((automation) => {
       if (automation.active_task?.task_id === active.task_id) {
         automation.active_task.phase = "committing";
@@ -860,7 +922,8 @@ export function createAutomationCoordinator({
         taskId: active.task_id,
         task: COMMIT_AGENT_TASK,
         adapter: "codex-app-server",
-        approvalPolicy: "on-request"
+        approvalPolicy: "on-request",
+        ...lifecycleRunInput(lifecycleContext)
       });
       await patchAutomation((automation) => {
         if (automation.active_task?.task_id !== active.task_id) return;
@@ -870,9 +933,11 @@ export function createAutomationCoordinator({
         automation.active_task.phase = "committing";
         automation.active_task.commit_status = "running";
       });
+      endTodoLifecycleSpan(lifecycleContext, startSpan, { status: "ok", attributes: { run_id: run.id } });
       emit("automation.changed", { reason: "commit-agent-started", taskId: active.task_id, runId: run.id });
       return run;
     } catch (error) {
+      endTodoLifecycleSpan(lifecycleContext, startSpan, { status: "error", error });
       await patchAutomation((automation) => {
         if (automation.active_task?.task_id === active.task_id) automation.active_task.commit_status = "failed";
       });
@@ -890,6 +955,13 @@ export function createAutomationCoordinator({
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
     if (!active) return null;
+    const lifecycleContext = lifecycleContextFromActive(active);
+    const completionSpan = startTodoLifecycleSpan(lifecycleContext, {
+      name: "task_source.complete",
+      category: "task_source",
+      cost_center: "external",
+      attributes: { task_id: active.task_id, project_id: active.project_id }
+    });
     const task = store.automation.snapshot.tasks.find((item) => item.id === active.task_id);
     await patchAutomation((automation) => {
       if (automation.active_task) {
@@ -901,19 +973,45 @@ export function createAutomationCoordinator({
       const source = taskSourceFactory({ settings: store.settings.task_source });
       const project = store.automation.snapshot.projects.find((item) => String(item.id) === String(active.project_id));
       const executorId = requireCurrentExecutorId(project, store.automation.snapshot.user);
-      const latest = await source.getTask(active.task_id, active.project_id, { executorId });
+      const readSpan = startTodoLifecycleSpan(lifecycleContext, {
+        parent_span_id: completionSpan?.span_id,
+        name: "task_source.get_for_completion",
+        category: "task_source",
+        cost_center: "external"
+      });
+      let latest;
+      try {
+        latest = await source.getTask(active.task_id, active.project_id, { executorId });
+        endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "ok" });
+      } catch (error) {
+        endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "error", error });
+        throw error;
+      }
       if (!latest || latest.state !== "in_progress") {
         throw new TaskSourceError("Task is no longer assigned to the current user or is no longer in progress.", {
           code: "not_assigned"
         });
       }
-      const completed = await source.updateTask({
-        taskId: active.task_id,
-        projectId: active.project_id,
-        executorId,
-        state: "completed",
-        expectedVersion: latest.version || task?.version || active.server_version
+      const updateSpan = startTodoLifecycleSpan(lifecycleContext, {
+        parent_span_id: completionSpan?.span_id,
+        name: "task_source.mark_completed",
+        category: "task_source",
+        cost_center: "external"
       });
+      let completed;
+      try {
+        completed = await source.updateTask({
+          taskId: active.task_id,
+          projectId: active.project_id,
+          executorId,
+          state: "completed",
+          expectedVersion: latest.version || task?.version || active.server_version
+        });
+        endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "ok" });
+      } catch (error) {
+        endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "error", error });
+        throw error;
+      }
       await patchAutomation((automation) => {
         replaceTask(automation, completed);
         automation.recent_completions.unshift({
@@ -924,19 +1022,34 @@ export function createAutomationCoordinator({
           commit_run_id: active.commit_run_id || "",
           local_project_id: active.local_project_id,
           session_id: active.session_id || "",
-          completed_at: now()
+          completed_at: now(),
+          lifecycle_trace_id: active.lifecycle_trace_id || "",
+          lifecycle_events_file: active.lifecycle_events_file || "",
+          lifecycle_summary_file: active.lifecycle_summary_file || ""
         });
         automation.recent_completions = automation.recent_completions.slice(0, 30);
         automation.active_task = null;
         automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
         automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
       });
+      endTodoLifecycleSpan(lifecycleContext, completionSpan, { status: "ok", attributes: { remote_state: "completed" } });
+      const lifecycleSummary = await finishTodoLifecycleTrace(lifecycleContext, {
+        status: "ok",
+        attributes: { task_id: active.task_id, final_state: "completed" }
+      });
+      if (lifecycleSummary) {
+        await patchAutomation((automation) => {
+          const completion = automation.recent_completions.find((item) => String(item.task_id) === String(active.task_id));
+          if (completion) completion.lifecycle_summary = compactLifecycleSummary(lifecycleSummary);
+        });
+      }
       emit("automation.changed", { reason: "task-completed", taskId: completed.id });
       if (syncAfter) {
         await sync();
       }
       return completed;
     } catch (error) {
+      endTodoLifecycleSpan(lifecycleContext, completionSpan, { status: "error", error });
       await patchAutomation((automation) => {
         if (automation.active_task?.task_id === active.task_id) {
           automation.active_task.remote_completion_status = "failed";
@@ -1334,6 +1447,51 @@ export function createAutomationCoordinator({
     emitter.emit("event", { type, at: now(), ...payload });
   }
 
+  async function startTodoLifecycleTrace(task) {
+    if (typeof runManager.startLifecycleTrace !== "function") return null;
+    try {
+      return await runManager.startLifecycleTrace({
+        task_id: task.id,
+        project_id: task.project_id,
+        local_project_id: task.local_project_id || "",
+        trigger: "automation_queue"
+      });
+    } catch (error) {
+      emit("automation.error", { reason: "lifecycle-trace-start", message: error.message });
+      return null;
+    }
+  }
+
+  function startTodoLifecycleSpan(context, input) {
+    if (!context || typeof runManager.startLifecycleSpan !== "function") return null;
+    try {
+      return runManager.startLifecycleSpan(context, input);
+    } catch (error) {
+      emit("automation.error", { reason: "lifecycle-span-start", message: error.message });
+      return null;
+    }
+  }
+
+  function endTodoLifecycleSpan(context, span, input) {
+    if (!context || !span || typeof runManager.endLifecycleSpan !== "function") return null;
+    try {
+      return runManager.endLifecycleSpan(context, span, input);
+    } catch (error) {
+      emit("automation.error", { reason: "lifecycle-span-end", message: error.message });
+      return null;
+    }
+  }
+
+  async function finishTodoLifecycleTrace(context, input) {
+    if (!context || typeof runManager.finishLifecycleTrace !== "function") return null;
+    try {
+      return await runManager.finishLifecycleTrace(context, input);
+    } catch (error) {
+      emit("automation.error", { reason: "lifecycle-trace-finish", message: error.message });
+      return null;
+    }
+  }
+
   function scheduleSync(reason) {
     setTimeout(() => {
       sync().catch((error) => emit("automation.error", { reason, message: error.message }));
@@ -1634,6 +1792,43 @@ function scalarId(value) {
 
 function isRemoteSourceReady(sourceStatus) {
   return sourceStatus === "healthy" || sourceStatus === "degraded";
+}
+
+function lifecycleContextFromActive(active = {}) {
+  const traceId = String(active.lifecycle_trace_id || "").trim();
+  if (!traceId) return null;
+  return {
+    trace_id: traceId,
+    root_span_id: String(active.lifecycle_root_span_id || "").trim(),
+    events_file: String(active.lifecycle_events_file || "").trim(),
+    summary_file: String(active.lifecycle_summary_file || "").trim()
+  };
+}
+
+function lifecycleRunInput(context, parentSpanId = "") {
+  if (!context?.trace_id) return {};
+  return {
+    lifecycleTraceId: context.trace_id,
+    lifecycleRootSpanId: context.root_span_id || "",
+    lifecycleParentSpanId: parentSpanId || context.root_span_id || "",
+    lifecycleEventsFile: context.events_file || "",
+    lifecycleSummaryFile: context.summary_file || ""
+  };
+}
+
+function compactLifecycleSummary(summary = {}) {
+  return {
+    schema_version: summary.schema_version || "arckit-lifecycle-summary/v1",
+    trace_id: summary.trace_id || "",
+    status: summary.status || "",
+    total_ms: Number(summary.total_ms || 0),
+    span_count: Number(summary.span_count || 0),
+    open_span_count: Number(summary.open_span_count || 0),
+    error_span_count: Number(summary.error_span_count || 0),
+    cost_centers: Array.isArray(summary.cost_centers) ? summary.cost_centers.slice(0, 8) : [],
+    phase_hotspots: Array.isArray(summary.phase_hotspots) ? summary.phase_hotspots.slice(0, 10) : [],
+    diagnosis: summary.diagnosis || null
+  };
 }
 
 function timestamp(value) {

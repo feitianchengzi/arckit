@@ -83,7 +83,9 @@ function createRunActivity(run) {
       messages_file: run.messages_file || run.events_file || "",
       activity_file: run.activity_file || "",
       result_file: run.result_file || "",
-      error_file: run.error_file || ""
+      error_file: run.error_file || "",
+      lifecycle_events_file: run.lifecycle_events_file || "",
+      lifecycle_summary_file: run.lifecycle_summary_file || ""
     }
   };
 }
@@ -218,6 +220,11 @@ function applyRunEvent(run, { line, parsed }) {
   }
 
   switch (event.type) {
+    case "runtime.lifecycle.span.started":
+    case "runtime.lifecycle.span.completed":
+      // Lifecycle spans are persisted by Desktop's dedicated trace store. They
+      // must not replace the user-facing phase/current-step projection.
+      break;
     case "runtime.session_round.started":
       activity.round_index = Number(event.round_index || 0);
       startTiming(activity.performance.rounds, "round_index", activity.round_index, { started_at: Date.now() });
@@ -877,7 +884,9 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
     messages_file: run.messages_file || run.events_file || "",
     activity_file: run.activity_file || "",
     result_file: run.result_file || "",
-    error_file: run.error_file || ""
+    error_file: run.error_file || "",
+    lifecycle_events_file: run.lifecycle_events_file || "",
+    lifecycle_summary_file: run.lifecycle_summary_file || ""
   };
   activity.controls = { steer: false, interrupt: false };
   if (status === "completed") {

@@ -4,6 +4,7 @@ import { selectNextRound } from "./loop-controller.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
 import { writeLedger } from "./ledger-writer.mjs";
 import { runAgenticLoop } from "./agent-orchestrator.mjs";
+import { endLifecycleSpan, startLifecycleSpan } from "./observability/lifecycle-trace.mjs";
 
 export async function runStateDrivenSession({ projectRoot, stateStore, options = {}, dependencies = {} }) {
   const createAdapter = dependencies.createAdapter || createAgentAdapter;
@@ -17,10 +18,42 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
   let noProgressRounds = 0;
   let finalEnvelope = null;
   let stopReason = "";
+  const sessionSpan = startLifecycleSpan(options, {
+    name: "runtime.session",
+    category: "runtime",
+    cost_center: "orchestration",
+    attributes: { run_id: options.lifecycleRunId || "", adapter: adapterName }
+  });
+  const sessionOptions = {
+    ...options,
+    lifecycleParentSpanId: sessionSpan?.span_id || options.lifecycleParentSpanId,
+    lifecycleCostCenter: "orchestration"
+  };
+  let activeRoundSpan = null;
+  let sessionFailure = null;
 
   try {
     for (let roundIndex = 1; ; roundIndex += 1) {
+      activeRoundSpan = startLifecycleSpan(sessionOptions, {
+        name: "runtime.round",
+        category: "runtime",
+        cost_center: "orchestration",
+        attributes: { round_index: roundIndex }
+      });
+      const snapshotSpan = startLifecycleSpan({
+        ...sessionOptions,
+        lifecycleParentSpanId: activeRoundSpan?.span_id || sessionOptions.lifecycleParentSpanId
+      }, {
+        name: "runtime.snapshot_read",
+        category: "state",
+        cost_center: "orchestration",
+        attributes: { round_index: roundIndex }
+      });
       const snapshot = await stateStore.readSnapshot();
+      endLifecycleSpan(sessionOptions, snapshotSpan, {
+        status: "ok",
+        attributes: { active_case_count: (snapshot.activeCases || []).length }
+      });
       snapshot.projectRoot = projectRoot;
       emitSessionEvent(options, {
         type: "runtime.session_round.started",
@@ -33,13 +66,22 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       });
 
       const roundOptions = {
-        ...options,
+        ...sessionOptions,
         task: nextTask,
         packetEnvelope,
-        agentAdapter: adapter
+        agentAdapter: adapter,
+        lifecycleRoundIndex: roundIndex,
+        lifecycleParentSpanId: activeRoundSpan?.span_id || sessionOptions.lifecycleParentSpanId
       };
+      const preparationSpan = startLifecycleSpan(roundOptions, {
+        name: "runtime.round_prepare",
+        category: "runtime",
+        cost_center: "orchestration",
+        attributes: { round_index: roundIndex }
+      });
       const round = packetEnvelope?.selected_round || selectNextRound(snapshot, roundOptions);
       const compiledPrompt = packetEnvelope?.compiled_prompt || compilePrompt(snapshot, round, roundOptions);
+      endLifecycleSpan(roundOptions, preparationSpan, { status: "ok" });
       const loop = await runRound({
         projectRoot,
         snapshot,
@@ -61,6 +103,12 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       let ledgerWriteResult = null;
 
       if (!options.dryRun && validation.valid && requiresLedgerWrite(loop.runtimeResult)) {
+        const ledgerSpan = startLifecycleSpan(roundOptions, {
+          name: "ledger.write",
+          category: "ledger",
+          cost_center: "orchestration",
+          attributes: { round_index: roundIndex }
+        });
         try {
           ledgerWriteResult = await writeRoundLedger({
             projectRoot,
@@ -86,6 +134,14 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
             changed_files: []
           };
         }
+        endLifecycleSpan(roundOptions, ledgerSpan, {
+          status: ledgerWriteResult?.written === true ? "ok" : "error",
+          attributes: {
+            written: ledgerWriteResult?.written === true,
+            changed_file_count: ledgerWriteResult?.changed_files?.length || 0
+          },
+          error: ledgerWriteResult?.rejection?.reason || null
+        });
         emitSessionEvent(options, {
           type: "runtime.ledger_write.completed",
           round_index: roundIndex,
@@ -110,6 +166,15 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         type: "runtime.session_round.completed",
         ...rounds.at(-1)
       });
+      endLifecycleSpan(roundOptions, activeRoundSpan, {
+        status: validation.valid ? "ok" : "error",
+        attributes: {
+          round_index: roundIndex,
+          round_result: loop.runtimeResult?.round_result || "",
+          ledger_written: ledgerWriteResult?.written === true
+        }
+      });
+      activeRoundSpan = null;
 
       packetEnvelope = null;
       if (options.dryRun) {
@@ -137,8 +202,23 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       noProgressRounds = decision.madeProgress ? 0 : noProgressRounds + 1;
       nextTask = handoff?.next_prompt || "Reload fresh Project and Case State, then advance the next agent-owned gap.";
     }
+  } catch (error) {
+    sessionFailure = error;
+    endLifecycleSpan(sessionOptions, activeRoundSpan, { status: "error", error });
+    throw error;
   } finally {
+    const closeSpan = startLifecycleSpan(sessionOptions, {
+      name: "runtime.adapter_close",
+      category: "runtime",
+      cost_center: "orchestration"
+    });
     await adapter.close?.();
+    endLifecycleSpan(sessionOptions, closeSpan, { status: "ok" });
+    endLifecycleSpan(options, sessionSpan, {
+      status: sessionFailure ? "error" : "ok",
+      attributes: { stop_reason: stopReason || "unknown", round_count: rounds.length },
+      error: sessionFailure
+    });
   }
 
   if (!finalEnvelope) {

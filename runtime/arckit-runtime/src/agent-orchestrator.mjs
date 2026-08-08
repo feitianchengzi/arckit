@@ -20,18 +20,56 @@ import { createRoundStateMachine, transitionRoundState } from "./round-state-mac
 import { createCaseControlRuntimeResult, createRuntimeResultFromMerge, stateFromMergeResult } from "./kernel/runtime-result-builder.mjs";
 import { WORKER_TYPES, normalizeWorkerType } from "./orchestration/role-definitions.mjs";
 import { firstSafeSemanticText, safeSemanticText, SEMANTIC_LIMITS } from "./context-boundary.mjs";
+import { endLifecycleSpan, startLifecycleSpan } from "./observability/lifecycle-trace.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const workerReportSchemaPath = join(here, "../schemas/worker-report.schema.json");
 const controllerPlanSchemaPath = join(here, "../schemas/controller-plan.schema.json");
 const controllerReviewSchemaPath = join(here, "../schemas/controller-review.schema.json");
 
-export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPrompt, options = {} }) {
+export async function runAgenticLoop(input) {
+  const options = input.options || {};
+  const span = startLifecycleSpan(options, {
+    name: "runtime.agentic_loop",
+    category: "runtime",
+    cost_center: "orchestration",
+    attributes: { round_index: options.lifecycleRoundIndex || input.round?.round_index || 0 }
+  });
+  try {
+    const result = await runAgenticLoopInner({
+      ...input,
+      options: {
+        ...options,
+        lifecycleParentSpanId: span?.span_id || options.lifecycleParentSpanId,
+        lifecycleCostCenter: "orchestration"
+      }
+    });
+    endLifecycleSpan(options, span, {
+      status: "ok",
+      attributes: { round_result: result.runtimeResult?.round_result || "" }
+    });
+    return result;
+  } catch (error) {
+    endLifecycleSpan(options, span, { status: "error", error });
+    throw error;
+  }
+}
+
+async function runAgenticLoopInner({ projectRoot, snapshot, round, compiledPrompt, options = {} }) {
   const conversationLocale = options.conversationLocale || compiledPrompt.conversation_locale || round.conversation_locale || "en";
   round.conversation_locale = conversationLocale;
   const packetEnvelope = options.packetEnvelope || null;
+  const capabilitySpan = startLifecycleSpan(options, {
+    name: "runtime.capability_load",
+    category: "runtime",
+    cost_center: "orchestration"
+  });
   const capabilityPolicy = await loadCapabilityPolicy();
   const capabilities = await loadRuntimeCapabilities({ projectRoot, capabilityPolicy });
+  endLifecycleSpan(options, capabilitySpan, {
+    status: "ok",
+    attributes: { capability_count: capabilities.length }
+  });
   const controllerCapabilities = capabilitiesForBinding(capabilities, capabilityPolicy, "controller");
   const runtimeCapabilities = capabilitiesForBinding(capabilities, capabilityPolicy, "runtime");
   const workerCapabilities = capabilitiesForBinding(capabilities, capabilityPolicy, "worker");
@@ -61,6 +99,11 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
   const controllerReviewSchema = JSON.parse(await readFile(controllerReviewSchemaPath, "utf8"));
   const workerReportSchema = JSON.parse(await readFile(workerReportSchemaPath, "utf8"));
   const events = [];
+  const plannerSpan = packetEnvelope ? null : startLifecycleSpan(options, {
+    name: "controller.plan",
+    category: "controller",
+    cost_center: "orchestration"
+  });
   const controllerPlan = packetEnvelope
     ? {
       usable: false,
@@ -78,9 +121,18 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
       controllerCapabilities,
       runtimeCapabilities,
       controllerPlanSchema,
-      options,
+      options: {
+        ...options,
+        lifecycleParentSpanId: plannerSpan?.span_id || options.lifecycleParentSpanId,
+        lifecycleCostCenter: "orchestration"
+      },
       events
     });
+  endLifecycleSpan(options, plannerSpan, {
+    status: controllerPlan?.usable ? "ok" : options.dryRun ? "cancelled" : "error",
+    attributes: { usable: controllerPlan?.usable === true, attempts: controllerPlan?.attempts || 0 },
+    error: controllerPlan?.usable || options.dryRun ? null : controllerPlan?.failure_reason || null
+  });
   const routePlan = packetEnvelope
     ? createRoutePlanFromPacket(loopFrame)
     : createRoutePlanFromControllerPlan({ controllerPlan: controllerPlan.plan, loopFrame });
@@ -303,15 +355,42 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
       stream: options.streamEvents
     });
 
-    const report = await executeAgentTask({
-      adapter,
-      projectRoot,
-      agentTask: effectiveAgentTask,
-      previousReports: reports,
-      workerReportSchema,
-      options,
-      events
+    const workerSpan = startLifecycleSpan(options, {
+      name: "worker.execute",
+      category: "worker",
+      cost_center: "task_execution",
+      attributes: {
+        task_id: effectiveAgentTask.id,
+        worker_type: effectiveAgentTask.worker_type,
+        workstream_id: effectiveAgentTask.workstream_id,
+        role: effectiveAgentTask.role,
+        skill_ids: arrayOfStrings(effectiveAgentTask.scope?.allowed_skills).join(",")
+      }
     });
+    let report;
+    try {
+      report = await executeAgentTask({
+        adapter,
+        projectRoot,
+        agentTask: effectiveAgentTask,
+        previousReports: reports,
+        workerReportSchema,
+        options: {
+          ...options,
+          lifecycleParentSpanId: workerSpan?.span_id || options.lifecycleParentSpanId,
+          lifecycleCostCenter: "task_execution"
+        },
+        events
+      });
+      endLifecycleSpan(options, workerSpan, {
+        status: ["completed", "success"].includes(report?.status) ? "ok" : "error",
+        attributes: { report_status: report?.status || "missing" },
+        error: ["completed", "success"].includes(report?.status) ? null : report?.summary || null
+      });
+    } catch (error) {
+      endLifecycleSpan(options, workerSpan, { status: "error", error });
+      throw error;
+    }
     reports.push(report);
     if (isInfrastructureFailureReport(report)) {
       adapter.discardThread?.(effectiveAgentTask.worker_thread_key);
@@ -334,6 +413,12 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
 
   transitionRoundState(roundState, "reports_collected", "Runtime collected available worker reports.");
   emitRoundState({ events, roundState, stream: options.streamEvents });
+  const reviewerSpan = startLifecycleSpan(options, {
+    name: "controller.review",
+    category: "controller",
+    cost_center: "orchestration",
+    attributes: { report_count: reports.length }
+  });
   const controllerReview = await maybeRunControllerReviewer({
     adapter,
     projectRoot,
@@ -342,13 +427,32 @@ export async function runAgenticLoop({ projectRoot, snapshot, round, compiledPro
     reports,
     controllerCapabilities,
     controllerReviewSchema,
-    options,
+    options: {
+      ...options,
+      lifecycleParentSpanId: reviewerSpan?.span_id || options.lifecycleParentSpanId,
+      lifecycleCostCenter: "orchestration"
+    },
     events
+  });
+  endLifecycleSpan(options, reviewerSpan, {
+    status: controllerReview?.usable ? "ok" : "error",
+    attributes: { usable: controllerReview?.usable === true },
+    error: controllerReview?.usable ? null : controllerReview?.failure_reason || null
   });
   transitionRoundState(roundState, "merge_ready", "Controller reducer is ready to merge reports.");
   emitRoundState({ events, roundState, stream: options.streamEvents });
 
+  const mergeSpan = startLifecycleSpan(options, {
+    name: "runtime.report_merge",
+    category: "runtime",
+    cost_center: "orchestration",
+    attributes: { report_count: reports.length }
+  });
   const mergeResult = mergeAgentReports({ reports, loopFrame, round, compiledPrompt, dryRun: options.dryRun, controllerReview });
+  endLifecycleSpan(options, mergeSpan, {
+    status: mergeResult?.decision === "blocked" ? "error" : "ok",
+    attributes: { decision: mergeResult?.decision || "" }
+  });
   transitionRoundState(roundState, stateFromMergeResult(mergeResult), mergeResult.loop_gate?.reason || "Controller reducer produced next control state.");
   yieldEvent({
     events,
@@ -514,7 +618,7 @@ async function maybeRunControllerPlanner({
       };
       events.push(completedEvent);
       if (options.streamEvents) console.error(JSON.stringify({ event: completedEvent }));
-      return { usable: false, plan: failedPlan, failure_reason: failureReason };
+      return { usable: false, plan: failedPlan, failure_reason: failureReason, attempts };
     }
     const canonicalized = canonicalizeControllerPlanSelectedGap(plan, loopFrame);
     plan = canonicalized.plan;
@@ -546,7 +650,8 @@ async function maybeRunControllerPlanner({
   return {
     usable: !failureReason,
     plan: plan || createControllerPlanFailure("Controller Agent planning completed without a controller plan."),
-    failure_reason: failureReason
+    failure_reason: failureReason,
+    attempts
   };
 }
 

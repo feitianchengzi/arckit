@@ -179,6 +179,15 @@ node runtime/arckit-runtime/bin/arckit-runtime.mjs write-ledger --project . --fi
 node runtime/arckit-runtime/bin/arckit-runtime.mjs write-ledger --project . --file result.json --json
 ```
 
+Analyze a Desktop todo lifecycle trace after a completed, failed, or interrupted execution:
+
+```bash
+node runtime/arckit-runtime/bin/arckit-runtime.mjs analyze-lifecycle \
+  --file "/path/to/userData/lifecycle-traces/TRACE-.../events.jsonl"
+```
+
+Every automatically claimed todo owns one trace across task-source claim, Runtime rounds, Controller planning/review, Workers, Codex turns, tools, ledger writeback, commit agent, and remote completion. Desktop persists redacted `events.jsonl` and derived `summary.json` under `userData/lifecycle-traces/<trace_id>/`; Run activity exposes those paths and recent completion records also expose a compact summary. The summary uses parent-child exclusive time and reports an initial `architecture_overhead`, `task_specific`, `external_dependency`, `closeout_overhead`, `insufficient_attribution`, or `mixed` tendency. Uncovered root time remains `unclassified`, so interruption or manual handoff is not silently blamed on Runtime architecture. The trace records identifiers, phase/status/duration, and bounded scalar attributes only; prompt text, response text, command arguments, environment values, credentials, and hidden reasoning are excluded.
+
 `write-ledger` only commits canonical Project/Case/Iteration state. It does not copy the full Runtime result into the target repository. Desktop owns the result, final activity, compact `messages.jsonl`, and error log under Electron `userData`; it does not duplicate the raw delta stream into `events.jsonl` and `raw-events.jsonl`. Desktop passes an opaque `arckit-runtime://runs/RUN-...` reference during writeback. Direct CLI callers may omit the reference.
 
 ## Desktop Client

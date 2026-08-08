@@ -9,6 +9,7 @@ import { writeLedger } from "./ledger-writer.mjs";
 import { ensureArckitProject } from "./project-initializer.mjs";
 import { detectConversationLocale } from "./conversation-locale.mjs";
 import { runStateDrivenSession } from "./state-driven-runner.mjs";
+import { analyzeLifecycleTrace, endLifecycleSpan, startLifecycleSpan } from "./observability/lifecycle-trace.mjs";
 
 export async function main(argv) {
   const command = argv[0];
@@ -112,6 +113,13 @@ export async function main(argv) {
     return;
   }
 
+  if (command === "analyze-lifecycle") {
+    const options = parseLifecycleAnalysisOptions(argv.slice(1));
+    const result = await analyzeLifecycleTrace(options.file);
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
   throw new Error(`Unknown command: ${command}`);
 }
 
@@ -143,6 +151,12 @@ export async function run(options) {
 async function runAgentTask(options) {
   const projectRoot = resolve(options.project);
   const adapter = createCodexAppServerAdapter();
+  const lifecycleSpan = startLifecycleSpan({ ...options, lifecycleCostCenter: "closeout" }, {
+    name: "commit.agent_task",
+    category: "commit",
+    cost_center: "closeout",
+    attributes: { run_id: options.lifecycleRunId || "" }
+  });
   let result = null;
   try {
     for await (const event of adapter.runTurn({
@@ -153,7 +167,11 @@ async function runAgentTask(options) {
         approvalPolicy: options.approvalPolicy,
         superviseStdin: options.superviseStdin,
         model: options.model,
-        codexBin: options.codexBin
+        codexBin: options.codexBin,
+        lifecycleTraceId: options.lifecycleTraceId,
+        lifecycleParentSpanId: lifecycleSpan?.span_id || options.lifecycleParentSpanId,
+        lifecycleCostCenter: "closeout",
+        lifecycleRunId: options.lifecycleRunId
       }
     })) {
       if (options.streamEvents) {
@@ -163,6 +181,13 @@ async function runAgentTask(options) {
         result = event.result;
       }
     }
+    endLifecycleSpan(options, lifecycleSpan, {
+      status: result ? "ok" : "error",
+      attributes: { result_status: result?.status || "missing" }
+    });
+  } catch (error) {
+    endLifecycleSpan(options, lifecycleSpan, { status: "error", error });
+    throw error;
   } finally {
     adapter.close();
   }
@@ -219,6 +244,12 @@ function parseRunOptions(args) {
       if (!Number.isInteger(options.maxAutoRounds) || options.maxAutoRounds < 1) {
         throw new Error("--max-auto-rounds must be a positive integer.");
       }
+    } else if (arg === "--lifecycle-trace-id") {
+      options.lifecycleTraceId = requiredValue(args, ++index, arg);
+    } else if (arg === "--lifecycle-parent-span-id") {
+      options.lifecycleParentSpanId = requiredValue(args, ++index, arg);
+    } else if (arg === "--lifecycle-run-id") {
+      options.lifecycleRunId = requiredValue(args, ++index, arg);
     } else {
       throw new Error(`Unknown run option: ${arg}`);
     }
@@ -256,6 +287,12 @@ function parseAgentTaskOptions(args) {
       options.model = requiredValue(args, ++index, arg);
     } else if (arg === "--codex-bin") {
       options.codexBin = requiredValue(args, ++index, arg);
+    } else if (arg === "--lifecycle-trace-id") {
+      options.lifecycleTraceId = requiredValue(args, ++index, arg);
+    } else if (arg === "--lifecycle-parent-span-id") {
+      options.lifecycleParentSpanId = requiredValue(args, ++index, arg);
+    } else if (arg === "--lifecycle-run-id") {
+      options.lifecycleRunId = requiredValue(args, ++index, arg);
     } else {
       throw new Error(`Unknown agent-task option: ${arg}`);
     }
@@ -263,6 +300,17 @@ function parseAgentTaskOptions(args) {
   if (!options.task) {
     throw new Error("agent-task requires --task <text>.");
   }
+  return options;
+}
+
+function parseLifecycleAnalysisOptions(args) {
+  const options = { file: "" };
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--file") options.file = requiredValue(args, ++index, arg);
+    else throw new Error(`Unknown analyze-lifecycle option: ${arg}`);
+  }
+  if (!options.file) throw new Error("analyze-lifecycle requires --file <events.jsonl>.");
   return options;
 }
 
@@ -414,6 +462,7 @@ Usage:
   arckit-runtime run --adapter codex-app-server [--stream-events] [--supervise-stdin]
   arckit-runtime agent-task --project <path> --task <text> [--json] [--stream-events]
   arckit-runtime probe-app-server [--project <path>] [--json]
+  arckit-runtime analyze-lifecycle --file <events.jsonl>
   arckit-runtime validate-result --file <runtime-result.json>
   arckit-runtime gate-result --file <runtime-result.json> [--project <path>] [--json]
   arckit-runtime write-ledger --file <runtime-result.json> [--project <path>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
@@ -431,6 +480,7 @@ MVP behavior:
 Codex app-server controls:
   - --stream-events prints normalized runtime events as JSONL on stderr
   - --supervise-stdin accepts "/steer <text>" and "/interrupt" while a turn runs
+  - Desktop todo runs persist correlated lifecycle spans and analyze them with analyze-lifecycle
 `);
 }
 

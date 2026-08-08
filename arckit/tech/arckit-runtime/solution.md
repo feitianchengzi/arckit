@@ -239,6 +239,24 @@ Event Bus 将执行过程投影给 Supervisor，包括：
 
 Runtime 不依赖完整隐藏推理链作为控制接口；它依赖可审计事件、工具行为和结构化结果。
 
+### 待办生命周期追踪
+
+Desktop 为每个自动领取的远端待办创建一个稳定 `trace_id`。同一待办的领取、Runtime Run、多轮 Loop、Controller、Worker、Codex turn、工具调用、ledger、commit agent 和远端完成写回共享该 trace；Run、round、turn、tool 等执行单元使用 `span_id` 与 `parent_span_id` 形成父子关系。恢复、重试和多 Run 继续沿用原 trace，不以单个进程或单个 Case round 作为追踪边界。
+
+生命周期事件采用 `arckit-lifecycle-event/v1`，同时记录 ISO wall clock 与进程内 monotonic duration。事件只包含关联 ID、阶段名、成本中心、状态、耗时和受限标量属性，不保存 prompt、响应正文、命令参数、环境变量、token、凭证或隐藏推理。原始事件由 Desktop 写入 Electron `userData/lifecycle-traces/<trace_id>/events.jsonl`；完成时生成同目录 `summary.json`，Run activity 保存两个文件的宿主路径，Automation completion record 同时保存路径与有界 summary 投影。
+
+成本中心固定区分：
+
+- `orchestration`：Desktop 启动、Runtime snapshot/round、Controller plan/review、deterministic merge、ledger 和 adapter 生命周期。
+- `task_execution`：承担 Case gap 的 Worker turn 与其工具调用。
+- `external`：Workshop task source 的领取与完成写回。
+- `closeout`：Case resolved 后的 commit agent 与收尾执行。
+- `unclassified`：根 span 未被已知子阶段覆盖的间隔，用于暴露中断、恢复、人工/CLI 接力或缺失埋点，不能并入架构开销。
+
+汇总以父子 span 的 interval union 计算 exclusive time，避免把 Worker、Codex turn 和 tool 的嵌套耗时重复相加。Summary 同时输出各成本中心、类别与阶段的 inclusive/exclusive 总量、最大耗时、错误数、未闭合 span、热点 span 和诊断倾向。`architecture_overhead` 表示 orchestration exclusive time 占主导，`task_specific` 表示 Worker/model/tool 占主导，`external_dependency` 与 `closeout_overhead` 分别表示外部任务源或收尾阶段占主导；大量根区间无法归属时返回 `insufficient_attribution`，避免把人工接力或缺失埋点误判为架构开销。该倾向是性能定位入口，不替代基于原始事件的根因确认。
+
+CLI 的 `analyze-lifecycle --file <events.jsonl>` 可在待办完成或异常停止后重新生成汇总。运行中保留 started 但未 completed 的 span，使进程中断或长时间等待仍能定位最后进入的边界。
+
 ### Policy / Gate Engine
 
 Gate Engine 在高风险状态下中断或阻塞继续执行：
@@ -416,6 +434,7 @@ Arckit Runtime 满足方案时表现为：
 - 能在一个 app-server 与一个 Runtime 进程内执行多轮 Loop，隔离项目级 Controller planning、Case review 与 Case/type/workstream Worker thread，并在每次写回后 fresh-read state。
 - 能为每个 Worker turn 生成有界、可恢复的 context digest，并在同一 workstream 的授权路径签名变化时投影非阻断软提示。
 - 能为每个远端待办创建独立 Desktop session，按 thread 最新累计快照去重 Token 用量，并以软异常而非硬 Token/轮次限制治理浪费。
+- 能为一个待办从远端领取到 completed 写回建立跨 Run 的父子 span，持久化脱敏 JSONL，并用 exclusive time 区分 orchestration、task execution、external 与 closeout 热点。
 - 能把同一活动任务从 Runtime 安全交给用户可参与的交互式 Codex CLI，并以 canonical Case State 而非旧 Run 或终端退出状态完成恢复对账。
 - 能只把 `requires_human_decision=true` 当作人工门禁；`requires_main_agent_decision=true` 进入 Controller Reducer 内部动作，不默认阻塞 closeout。
 - 能在不改 agent core 的情况下先接 Codex app-server，并保留 opencode、多 agent adapter 的扩展边界。

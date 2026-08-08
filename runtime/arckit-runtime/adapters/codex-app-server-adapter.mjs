@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { JsonRpcStdioClient } from "../src/json-rpc-stdio-client.mjs";
 import { AsyncEventQueue } from "../src/async-event-queue.mjs";
 import { assertCodexOutputSchema } from "../src/codex-output-schema.mjs";
+import { endLifecycleSpan, startLifecycleSpan } from "../src/observability/lifecycle-trace.mjs";
 
 export function createCodexAppServerAdapter(adapterOptions = {}) {
   let client = null;
@@ -29,6 +30,12 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         throw new Error(`Codex app-server adapter is already bound to ${initializedProjectRoot}.`);
       }
       const queue = new AsyncEventQueue();
+      const tracedOptions = {
+        ...effectiveOptions,
+        lifecycleEventSink(event) {
+          if (effectiveOptions.streamEvents) console.error(JSON.stringify({ event }));
+        }
+      };
       const state = {
         threadId: null,
         turnId: null,
@@ -37,9 +44,11 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         lastError: null,
         completed: false,
         turnStarted: false,
-        resultKind: "runtime-result"
+        resultKind: "runtime-result",
+        turnSpan: null,
+        itemSpans: new Map()
       };
-      activeTurn = { queue, state, options: effectiveOptions };
+      activeTurn = { queue, state, options: tracedOptions };
 
       try {
         if (!client) {
@@ -47,13 +56,20 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           initializedProjectRoot = resolve(projectRoot);
           client.onNotification((message) => {
             if (activeTurn) {
-              handleNotification({ message, queue: activeTurn.queue, state: activeTurn.state, activeCommands, commandItems });
+              handleNotification({
+                message,
+                queue: activeTurn.queue,
+                state: activeTurn.state,
+                options: activeTurn.options,
+                activeCommands,
+                commandItems
+              });
             }
           });
           client.onRequest((message) => handleServerRequest({
             message,
             queue: activeTurn?.queue || new AsyncEventQueue(),
-            options: activeTurn?.options || effectiveOptions,
+            options: activeTurn?.options || tracedOptions,
             activeCommands,
             commandItems
           }));
@@ -69,35 +85,65 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           });
         }
         if (!initialized) {
-          initializeResult = await initializeClient(client);
-          initialized = true;
+          const initializeSpan = startLifecycleSpan(tracedOptions, {
+            name: "codex.initialize",
+            category: "agent_runtime",
+            cost_center: tracedOptions.lifecycleCostCenter || "orchestration"
+          });
+          try {
+            initializeResult = await initializeClient(client);
+            initialized = true;
+            endLifecycleSpan(tracedOptions, initializeSpan, { status: "ok" });
+          } catch (error) {
+            endLifecycleSpan(tracedOptions, initializeSpan, { status: "error", error });
+            throw error;
+          }
         }
         state.resultKind = effectiveOptions.resultKind || "runtime-result";
         queue.push({ type: "codex.initialize.completed", result: initializeResult });
 
         const threadKey = String(effectiveOptions.threadKey || "").trim();
         state.threadId = effectiveOptions.threadId || (threadKey ? threads.get(threadKey) : null) || null;
+        const threadWasReused = Boolean(state.threadId);
         if (state.threadId) {
+          const reuseSpan = startLifecycleSpan(tracedOptions, {
+            name: "codex.thread_reuse",
+            category: "agent_runtime",
+            cost_center: tracedOptions.lifecycleCostCenter || "orchestration"
+          });
           queue.push({
             type: "codex.thread.reused",
             thread_id: state.threadId,
             thread_key: threadKey || null
           });
+          endLifecycleSpan(tracedOptions, reuseSpan, { status: "ok", attributes: { reused: true } });
         } else {
-          const threadStartResult = await client.request("thread/start", {
-            cwd: projectRoot,
-            ephemeral: true,
-            approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
-            approvalsReviewer: "user",
-            model: effectiveOptions.model || null,
-            runtimeWorkspaceRoots: [projectRoot]
+          const threadSpan = startLifecycleSpan(tracedOptions, {
+            name: "codex.thread_start",
+            category: "agent_runtime",
+            cost_center: tracedOptions.lifecycleCostCenter || "orchestration"
           });
-          state.threadId = readId(threadStartResult?.thread);
-          if (!state.threadId) {
-            throw new Error("thread/start did not return a thread id.");
-          }
-          if (threadKey) {
-            threads.set(threadKey, state.threadId);
+          let threadStartResult;
+          try {
+            threadStartResult = await client.request("thread/start", {
+              cwd: projectRoot,
+              ephemeral: true,
+              approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
+              approvalsReviewer: "user",
+              model: effectiveOptions.model || null,
+              runtimeWorkspaceRoots: [projectRoot]
+            });
+            state.threadId = readId(threadStartResult?.thread);
+            if (!state.threadId) {
+              throw new Error("thread/start did not return a thread id.");
+            }
+            if (threadKey) {
+              threads.set(threadKey, state.threadId);
+            }
+            endLifecycleSpan(tracedOptions, threadSpan, { status: "ok", attributes: { reused: false } });
+          } catch (error) {
+            endLifecycleSpan(tracedOptions, threadSpan, { status: "error", error });
+            throw error;
           }
           queue.push({
             type: "codex.thread.start.completed",
@@ -122,6 +168,15 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         if (effectiveOptions.outputSchema) {
           turnStartParams.outputSchema = effectiveOptions.outputSchema;
         }
+        state.turnSpan = startLifecycleSpan(tracedOptions, {
+          name: "codex.turn",
+          category: "agent",
+          cost_center: tracedOptions.lifecycleCostCenter || "unclassified",
+          attributes: {
+            result_kind: state.resultKind,
+            thread_reused: threadWasReused
+          }
+        });
         const turnStartResult = await client.request("turn/start", turnStartParams);
         state.turnId = readId(turnStartResult?.turn);
         if (!state.turnId) {
@@ -134,6 +189,8 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           turn: turnStartResult?.turn || null
         });
       } catch (error) {
+        endLifecycleSpan(tracedOptions, state.turnSpan, { status: "error", error });
+        for (const span of state.itemSpans.values()) endLifecycleSpan(tracedOptions, span, { status: "error", error });
         activeTurn = null;
         client?.close();
         client = null;
@@ -151,6 +208,15 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           yield event;
         }
       } finally {
+        if (!state.completed) {
+          endLifecycleSpan(tracedOptions, state.turnSpan, {
+            status: "cancelled",
+            attributes: { reason: "turn_stream_closed" }
+          });
+          for (const span of state.itemSpans.values()) {
+            endLifecycleSpan(tracedOptions, span, { status: "cancelled", attributes: { reason: "turn_stream_closed" } });
+          }
+        }
         if (activeTurn?.state === state) {
           activeTurn = null;
         }
@@ -332,9 +398,30 @@ async function initializeClient(client) {
   return result;
 }
 
-function handleNotification({ message, queue, state, activeCommands, commandItems }) {
+function handleNotification({ message, queue, state, options, activeCommands, commandItems }) {
   const event = normalizeNotification(message);
   queue.push(event);
+
+  if (message.method === "item/started") {
+    const item = message.params?.item || {};
+    const itemId = String(item.id || message.params?.itemId || "").trim();
+    if (itemId && ["commandExecution", "toolCall", "webSearch", "fileChange"].includes(item.type)) {
+      const span = startLifecycleSpan({
+        ...options,
+        lifecycleParentSpanId: state.turnSpan?.span_id || options.lifecycleParentSpanId
+      }, {
+        name: `codex.tool.${item.type}`,
+        category: "tool",
+        cost_center: options.lifecycleCostCenter || "unclassified",
+        attributes: {
+          item_id: itemId,
+          item_type: item.type,
+          command_family: item.type === "commandExecution" ? commandFamily(item.command || item.cmd) : ""
+        }
+      });
+      if (span) state.itemSpans.set(itemId, span);
+    }
+  }
 
   if (message.method === "thread/started") {
     state.threadId = message.params?.threadId || readId(message.params?.thread) || state.threadId;
@@ -351,7 +438,22 @@ function handleNotification({ message, queue, state, activeCommands, commandItem
     state.lastCompletedAgentText = message.params.item.text || state.lastCompletedAgentText;
   }
   if (message.method === "item/completed") {
-    releaseCommand(message.params?.item?.id || message.params?.itemId, activeCommands, commandItems);
+    const item = message.params?.item || {};
+    const itemId = String(item.id || message.params?.itemId || "").trim();
+    releaseCommand(itemId, activeCommands, commandItems);
+    const span = state.itemSpans.get(itemId);
+    if (span) {
+      const exitCode = item.exitCode ?? item.exit_code;
+      endLifecycleSpan(options, span, {
+        status: exitCode === undefined || exitCode === null || exitCode === 0 ? "ok" : "error",
+        attributes: {
+          item_id: itemId,
+          exit_code: Number.isInteger(exitCode) ? exitCode : -1
+        },
+        error: Number.isInteger(exitCode) && exitCode !== 0 ? `Tool exited with code ${exitCode}` : null
+      });
+      state.itemSpans.delete(itemId);
+    }
   }
   if (message.method === "error" && message.params?.willRetry !== true) {
     state.lastError = message.params?.error || message.params || message;
@@ -362,6 +464,15 @@ function handleNotification({ message, queue, state, activeCommands, commandItem
   if (message.method === "turn/completed") {
     state.turnStarted = false;
     state.completed = true;
+    for (const span of state.itemSpans.values()) {
+      endLifecycleSpan(options, span, { status: "cancelled", attributes: { reason: "turn_completed" } });
+    }
+    state.itemSpans.clear();
+    endLifecycleSpan(options, state.turnSpan, {
+      status: state.lastError ? "error" : "ok",
+      attributes: { turn_id: state.turnId || "" },
+      error: state.lastError
+    });
     const parsed = parseWorkerOutput({
       text: state.lastCompletedAgentText || state.agentText,
       completionParams: message.params,
@@ -373,6 +484,12 @@ function handleNotification({ message, queue, state, activeCommands, commandItem
     commandItems?.clear();
     queue.close();
   }
+}
+
+function commandFamily(value) {
+  const command = String(value || "").trim();
+  if (!command) return "";
+  return command.split(/\s+/)[0].split("/").at(-1).slice(0, 80);
 }
 
 function releaseCommand(itemId, activeCommands, commandItems) {

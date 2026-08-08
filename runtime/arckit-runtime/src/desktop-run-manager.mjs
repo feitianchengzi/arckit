@@ -36,6 +36,7 @@ import {
   shouldAutomaticallyBridge
 } from "./kernel/continuation-policy.mjs";
 import { runtimeRecordRefForRun } from "./runtime-record-ref.mjs";
+import { createLifecycleTraceStore } from "./observability/lifecycle-trace.mjs";
 
 export function createDesktopRunManager({
   runtimeRoot,
@@ -50,6 +51,7 @@ export function createDesktopRunManager({
   const runtimeBin = join(runtimeRoot, "bin/arckit-runtime.mjs");
   const activeRuns = new Map();
   const { readStore, updateStore } = createDesktopStore({ dataDir, runsDir, storePath });
+  const lifecycleTraces = createLifecycleTraceStore({ rootDir: join(dataDir, "lifecycle-traces") });
 
   async function listProjects() {
     const store = await readStore();
@@ -495,6 +497,18 @@ export function createDesktopRunManager({
     await mkdir(runDir, { recursive: true });
 
     const directAgentTask = input.entryCapability === "agent-task";
+    const lifecycleContext = lifecycleContextFromInput(input);
+    const lifecycleRunSpan = lifecycleTraces.startSpan(lifecycleContext, {
+      parent_span_id: input.lifecycleParentSpanId || lifecycleContext?.root_span_id || "",
+      name: directAgentTask ? "desktop.commit_agent_run" : "desktop.runtime_run",
+      category: "desktop",
+      cost_center: directAgentTask ? "closeout" : "orchestration",
+      attributes: {
+        run_id: runId,
+        task_id: input.taskId || "",
+        entry_capability: directAgentTask ? "agent-task" : "runtime"
+      }
+    });
     const run = {
       id: runId,
       project_id: project.id,
@@ -523,6 +537,11 @@ export function createDesktopRunManager({
       messages_file: join(runDir, "messages.jsonl"),
       activity_file: join(runDir, "activity.json"),
       error_file: join(runDir, "stderr.log"),
+      lifecycle_trace_id: lifecycleContext?.trace_id || "",
+      lifecycle_parent_span_id: input.lifecycleParentSpanId || lifecycleContext?.root_span_id || "",
+      lifecycle_run_span_id: lifecycleRunSpan?.span_id || "",
+      lifecycle_events_file: lifecycleContext?.events_file || "",
+      lifecycle_summary_file: lifecycleContext?.summary_file || "",
       exit_code: null
     };
     run.activity = createRunActivity(run);
@@ -549,6 +568,11 @@ export function createDesktopRunManager({
     if (!directAgentTask) {
       args.push("--max-auto-rounds", String(run.max_auto_rounds));
       args.push("--runtime-record-ref", runtimeRecordRefForRun(run.id));
+    }
+    if (run.lifecycle_trace_id) {
+      args.push("--lifecycle-trace-id", run.lifecycle_trace_id);
+      args.push("--lifecycle-parent-span-id", run.lifecycle_run_span_id || run.lifecycle_parent_span_id);
+      args.push("--lifecycle-run-id", run.id);
     }
     args.push("--stream-events");
     if (input.dryRun) {
@@ -580,6 +604,7 @@ export function createDesktopRunManager({
     const activeRun = {
       child,
       run,
+      lifecycleRunSpan,
       stdout: "",
       aborting: false,
       eventWrite: Promise.resolve(),
@@ -605,6 +630,7 @@ export function createDesktopRunManager({
       stderrLineBuffer = lines.pop() || "";
       for (const line of lines.filter(Boolean)) {
         const parsed = parseEventLine(line);
+        recordChildLifecycleEvent(run, parsed?.event);
         applyRunEvent(run, { line, parsed });
         scheduleActivityEmit(activeRun);
         if (isMessagePersistenceBoundary(parsed?.event)) {
@@ -628,6 +654,7 @@ export function createDesktopRunManager({
         const line = stderrLineBuffer;
         stderrLineBuffer = "";
         const parsed = parseEventLine(line);
+        recordChildLifecycleEvent(run, parsed?.event);
         applyRunEvent(run, { line, parsed });
         if (isMessagePersistenceBoundary(parsed?.event)) {
           queueRunWrite(activeRun, () => persistPendingMessages(activeRun));
@@ -680,6 +707,15 @@ export function createDesktopRunManager({
     run.exit_code = exitCode;
     run.validation_valid = parsedResult?.validation?.valid ?? null;
     run.round_result = parsedResult?.runtime_result?.round_result || (status === "aborted" ? "aborted" : "");
+    lifecycleTraces.endSpan(lifecycleContextFromRun(run), active.lifecycleRunSpan, {
+      status: status === "completed" ? "ok" : status === "aborted" ? "cancelled" : "error",
+      attributes: {
+        run_id: run.id,
+        exit_code: Number.isInteger(exitCode) ? exitCode : -1,
+        round_result: run.round_result || ""
+      },
+      error: status === "failed" ? errorMessage || `Runtime exited with code ${exitCode}` : null
+    });
     await active.eventWrite;
     await persistPendingMessages(active);
     await writeJson(run.activity_file, run.activity);
@@ -1034,7 +1070,9 @@ export function createDesktopRunManager({
       "codex.reasoning.delta",
       "codex.command.output.delta",
       "codex.thread.tokenUsage.updated",
-      "codex.thread.status.changed"
+      "codex.thread.status.changed",
+      "runtime.lifecycle.span.started",
+      "runtime.lifecycle.span.completed"
     ].includes(event?.type);
   }
 
@@ -1100,6 +1138,19 @@ export function createDesktopRunManager({
     });
   }
 
+  function recordChildLifecycleEvent(run, event) {
+    if (event?.type !== "runtime.lifecycle.span.started" && event?.type !== "runtime.lifecycle.span.completed") return;
+    if (!run.lifecycle_trace_id || event.trace_id !== run.lifecycle_trace_id) return;
+    lifecycleTraces.recordEvent({
+      ...event,
+      attributes: {
+        ...(event.attributes || {}),
+        run_id: run.id,
+        task_id: run.task_id || ""
+      }
+    });
+  }
+
   function storedRunRecord(run) {
     const { activity: _activity, ...record } = run;
     return record;
@@ -1143,8 +1194,42 @@ export function createDesktopRunManager({
     abortActiveRuns,
     gateRun,
     writeLedgerForRun,
+    startLifecycleTrace(metadata) {
+      return lifecycleTraces.startTrace(metadata);
+    },
+    startLifecycleSpan(context, input) {
+      return lifecycleTraces.startSpan(context, input);
+    },
+    endLifecycleSpan(context, span, input) {
+      return lifecycleTraces.endSpan(context, span, input);
+    },
+    finishLifecycleTrace(context, input) {
+      return lifecycleTraces.finishTrace(context, input);
+    },
     readDesktopStore: readStore,
     updateDesktopStore: updateStore
+  };
+}
+
+function lifecycleContextFromInput(input = {}) {
+  const traceId = String(input.lifecycleTraceId || "").trim();
+  if (!traceId) return null;
+  return {
+    trace_id: traceId,
+    root_span_id: String(input.lifecycleRootSpanId || input.lifecycleParentSpanId || "").trim(),
+    events_file: String(input.lifecycleEventsFile || "").trim(),
+    summary_file: String(input.lifecycleSummaryFile || "").trim()
+  };
+}
+
+function lifecycleContextFromRun(run = {}) {
+  const traceId = String(run.lifecycle_trace_id || "").trim();
+  if (!traceId) return null;
+  return {
+    trace_id: traceId,
+    root_span_id: String(run.lifecycle_parent_span_id || "").trim(),
+    events_file: String(run.lifecycle_events_file || "").trim(),
+    summary_file: String(run.lifecycle_summary_file || "").trim()
   };
 }
 
