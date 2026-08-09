@@ -37,7 +37,7 @@ Runtime 只解析 `arckit.capability.json`，不自行解释或复制 `SKILL.md`
 
 Runtime Kernel 当前由以下确定性阶段组成：
 
-- Readiness Preflight：在远端任务从 pending 变为 in_progress 前检查本地工作区、canonical state、Codex adapter、Controller skill 兼容性与 trusted ledger entrypoint；失败只形成本地 readiness recovery，不先占用远端任务。
+- Readiness Preflight：在远端任务从 pending 变为 in_progress 前检查本地工作区、canonical state、Codex adapter、Runtime capability policy、manifest 结构与 trusted ledger entrypoint；失败只形成本地 readiness recovery，不先占用远端任务。Codex skill 的发现、版本选择和加载由 Codex 自身负责，不属于 Runtime readiness。
 - Session State Machine：记录 `preflight -> claimed -> agent_running -> ledger_gate_ready -> ledger_written -> next_turn_ready`，并支持 `blocked`、`human_gate_required`、`external_wait`、`failed` 等控制态。
 - Artifact Ownership Map：把 Agent 声明的 changed files 归类为 source fact、projection、runtime log、pending/raw input、implementation evidence 等，提供结构与安全校验，不推断业务正确性。
 - Ledger Stage：当 Agent result 携带可写 Case control/transition 时做 deterministic gate；gate 允许则自动写 ledger，拒绝则从 fresh state 重规划或形成明确 handoff。
@@ -100,7 +100,7 @@ Workshop task source 实现沿用 Workshop Desktop 的服务契约：先读取 `
 
 远端状态更新携带调用方最后读取的版本标识或等价条件。服务端不支持条件更新时，adapter 先读取最新任务并拒绝已变化状态；该检查降低冲突概率，但不能替代服务端原子并发控制，因此该能力在 UI 中标记为弱一致领取。
 
-Coordinator 在远端领取前调用 Desktop Run Manager readiness preflight。Preflight 只读检查本地绑定、canonical state、Runtime capability policy、installed `$using-arckit` compatibility 与 trusted ledger entrypoints；全部通过后才读取任务最新版本并提交 `pending -> in_progress`。Preflight 失败产生 `readiness_failed` recovery，远端任务保持 pending。领取后的启动失败仍按 `start_failed` 恢复，因为远端状态已经合法变为 in_progress。
+Coordinator 在远端领取前调用 Desktop Run Manager readiness preflight。Preflight 只读检查本地绑定、canonical state、Runtime capability policy、repository capability manifest 与 trusted ledger entrypoints；它不推导 Codex skill 安装路径，不读取安装版 `SKILL.md`，也不比较 skill 版本或目录漂移。全部通过后才读取任务最新版本并提交 `pending -> in_progress`。Preflight 失败产生 `readiness_failed` recovery，远端任务保持 pending。领取后的启动失败仍按 `start_failed` 恢复，因为远端状态已经合法变为 in_progress。
 
 ### Desktop Execution Plane
 
@@ -164,7 +164,7 @@ Capability policy 只形成 Agent 入口与 trusted Runtime entrypoint。Capabil
 
 Registry 对 Runtime entrypoint 使用更严格的信任规则：只能选择 repository source，目标项目同 ID manifest 不能覆盖；解析后的入口必须位于 capability root 内。默认 Agent Loop phase 必须且只能匹配一个 `agent_skill` invocation，否则 fail closed。
 
-Agent Loop invocation 只使用已验证 capability manifest 声明的自然 trigger，并提供 fresh canonical digest、operator input 与授权；不显式添加第二份 skill input，也不复制 Controller 协议或 capability manifest 正文。Codex 执行前，Runtime 比对 repository Controller capability 与实际安装副本的 protocol revision、manifest 和 skill 文件；该检查在远端 claim 前的 readiness preflight 完成，漂移时不把任务先置为 `in_progress`。
+Agent Loop invocation 只使用 repository capability manifest 声明的自然 trigger，并提供 fresh canonical digest、operator input 与授权；不显式添加第二份 skill input，也不复制 Controller 协议或 capability manifest 正文。Runtime 不访问 Codex skill 安装目录，不读取或比较安装副本的 manifest、`SKILL.md`、protocol revision 或其他文件；Codex 按自身发现机制决定实际加载的 skill。
 
 ### Prompt Compiler
 

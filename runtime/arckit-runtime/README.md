@@ -65,7 +65,7 @@ Each gap turn begins with the manifest-declared natural trigger:
 $using-arckit
 ```
 
-The remaining input is a compact invocation containing the original user intent on the first turn, the current continuation increment, fresh canonical Project/Case facts, revisions, locale, and execution authorization. Runtime does not duplicate `SKILL.md`, inject a second skill input item, list other installed skills, or encode which skill the Agent should choose.
+The remaining input is a compact invocation containing the original user intent on the first turn, the current continuation increment, fresh canonical Project/Case facts, revisions, locale, and execution authorization. Runtime does not locate or read Codex-installed `SKILL.md` files, compare installed skill versions or directory drift, duplicate skill contents, inject a second skill input item, list other installed skills, or encode which skill the Agent should choose.
 
 Codex structured output uses `schemas/agent-loop-result.schema.json`. Runtime persists semantic activity rather than raw prompt transcripts or high-frequency deltas.
 

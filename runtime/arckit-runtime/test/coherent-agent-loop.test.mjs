@@ -1,7 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
@@ -12,12 +10,6 @@ const testDir = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDir, "../../..");
 
 test("default execution uses one coherent using-arckit Agent turn for one Case gap", async () => {
-  const fixtureRoot = await mkdtemp(join(tmpdir(), "arckit-coherent-agent-loop-"));
-  const codexHome = join(fixtureRoot, "codex-home");
-  const installedSkill = join(codexHome, "skills", "using-arckit");
-  await mkdir(dirname(installedSkill), { recursive: true });
-  await cp(join(repositoryRoot, "entry/skills/using-arckit"), installedSkill, { recursive: true });
-
   const gap = {
     id: "CASE-1:implementation_state",
     facet: "implementation_state",
@@ -95,7 +87,7 @@ test("default execution uses one coherent using-arckit Agent turn for one Case g
       task: "Implement the bounded change.",
       originalTask: "Implement the bounded change.",
       taskId: "TASK-1",
-      codexHome,
+      codexHome: "/runtime-must-not-read-codex-home",
       agentAdapter,
       adapter: "codex-app-server",
       conversationLocale: "en"

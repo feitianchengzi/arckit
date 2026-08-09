@@ -20,6 +20,31 @@ test("Desktop ledger commands reference the userData run without copying it into
   ]);
 });
 
+test("readiness preflight validates repository capabilities without inspecting Codex-installed skills", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arckit-capability-preflight-"));
+  await writeStore(dataDir, dataDir);
+  const manager = createDesktopRunManager({
+    runtimeRoot: new URL("..", import.meta.url).pathname,
+    dataDir,
+    ensureProject: async () => ({ initialized: false, repaired: false })
+  });
+
+  try {
+    const result = await manager.preflightRun({
+      projectId: "PROJECT-1",
+      task: "Run without reading an installed skill tree.",
+      adapter: "codex-app-server",
+      codexHome: "/runtime-must-not-read-codex-home"
+    });
+    assert.equal(result.ready, true);
+    assert.equal(result.controller_trigger, "$using-arckit");
+    assert.equal("installed_skills" in result, false);
+    assert.deepEqual(Object.keys(result.trusted_entrypoints).sort(), ["case_control", "writeback"]);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("desktop run manager reads canonical active and closed Case records for reconciliation", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "arckit-case-reader-"));
   const projectDir = join(dataDir, "project");

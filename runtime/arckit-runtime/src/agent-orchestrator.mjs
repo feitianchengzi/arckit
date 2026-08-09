@@ -5,7 +5,6 @@ import { createAgentAdapter } from "./agent-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
 import {
   agentSkillInvocationForPhase,
-  assertInstalledAgentSkillCompatibility,
   capabilitiesForBinding,
   capabilityIds,
   loadCapabilityPolicy,
@@ -55,7 +54,6 @@ async function runCoherentAgentLoop({ projectRoot, snapshot, round, compiledProm
   const capabilities = await loadRuntimeCapabilities({ projectRoot, capabilityPolicy });
   const controllerCapabilities = capabilitiesForBinding(capabilities, capabilityPolicy, "controller");
   const runtimeCapabilities = capabilitiesForBinding(capabilities, capabilityPolicy, "runtime");
-  if (!options.dryRun) await assertInstalledAgentSkillCompatibility(controllerCapabilities, { codexHome: options.codexHome });
   const adapter = options.agentAdapter || createAgentAdapter(options.dryRun ? "dry-run" : options.adapter || "codex-app-server", options);
   const outputSchema = JSON.parse(await readFile(agentLoopResultSchemaPath, "utf8"));
   const loopFrame = createLoopFrame({ snapshot, round, task: options.task || "", controllerCapabilities, runtimeCapabilities, options });

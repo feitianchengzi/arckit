@@ -32,7 +32,7 @@ import {
 import { runtimeRecordRefForRun } from "./runtime-record-ref.mjs";
 import { createLifecycleTraceStore } from "./observability/lifecycle-trace.mjs";
 import {
-  assertInstalledAgentSkillCompatibility,
+  agentSkillInvocationForPhase,
   capabilitiesForBinding,
   loadCapabilityPolicy,
   loadRuntimeCapabilities,
@@ -97,7 +97,7 @@ export function createDesktopRunManager({
     return project;
   }
 
-  async function preflightRun({ projectId: projectIdValue, task = "", adapter = "codex-app-server", codexHome = "" } = {}) {
+  async function preflightRun({ projectId: projectIdValue, task = "" } = {}) {
     const store = await readStore();
     const project = store.projects.find((item) => item.id === projectIdValue);
     if (!project) throw new Error(`Unknown project: ${projectIdValue || "<missing>"}`);
@@ -110,9 +110,7 @@ export function createDesktopRunManager({
     const policy = await loadCapabilityPolicy();
     const capabilities = await loadRuntimeCapabilities({ projectRoot: project.path, capabilityPolicy: policy });
     const controllerCapabilities = capabilitiesForBinding(capabilities, policy, "controller");
-    const installedSkills = adapter === "codex-app-server"
-      ? await assertInstalledAgentSkillCompatibility(controllerCapabilities, { codexHome: codexHome || undefined })
-      : [];
+    const controllerInvocation = agentSkillInvocationForPhase(controllerCapabilities, "agent_loop");
     const runtimeCapabilities = capabilitiesForBinding(capabilities, policy, "runtime");
     const trustedEntrypoints = {};
     for (const entrypoint of ["case_control", "writeback"]) {
@@ -125,7 +123,7 @@ export function createDesktopRunManager({
       project_path: project.path,
       initialized: initialization.initialized === true,
       repaired: initialization.repaired === true,
-      installed_skills: installedSkills,
+      controller_trigger: controllerInvocation.skill_trigger,
       trusted_entrypoints: trustedEntrypoints
     };
   }
