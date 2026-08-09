@@ -20,9 +20,11 @@ Desktop session 与 Codex thread 是不同层级：session 是面向用户的待
 
 ### 统一消息投影
 
-Run Projector 把 Runtime、Agent、工具与 operator event 归一为 `desktop-run-message/v1`。消息至少包含稳定 `id`、`role`、`actor`、`actor_label`、`kind`、`content`、`status`、时间、`run_id`，并可携带 `round_index`、`task_id`、`thread_id`、`turn_id` 与 `item_id` 作为诊断归因。Renderer 只按时间读取消息并用来源标签区分角色，不按 Run 建立平行 transcript。
+Run Projector 把 Runtime、Agent、工具与 operator event 归一为 `desktop-run-message/v1`。消息至少包含稳定 `id`、`role`、`actor`、`actor_label`、`kind`、`content`、`status`、时间、`run_id`，并可携带 `round_index`、`task_id`、`thread_id`、`turn_id` 与 `item_id` 作为诊断归因。Renderer 只按时间读取消息，不按 Run 建立平行 transcript，并把消息进一步投影为 `loop-status`、`agent-message`、`tool-activity` 或 `user-message` 四类可见行。
 
-流式 Agent 和 reasoning delta 通过稳定消息 ID 更新同一个内存对象。命令 delta 只更新活动命令摘要，不形成逐块消息；`item/completed`、Agent Loop result、Runtime round、Gate、ledger、compaction、warning、error 和 operator input 形成可持久化的语义消息边界。
+流式 Agent 和 reasoning delta 通过稳定消息 ID 更新同一个内存对象。命令、文件变更和其他工具 item 使用 `item_id` 稳定标识，started、completed 与 failed 更新同一条 `tool-activity`；output delta 只进入运行证据和活动摘要，不形成逐块消息。`item/completed`、Agent Loop result、Runtime round、Gate、ledger、compaction、warning、error 和 operator input 形成可持久化的语义消息边界。
+
+Renderer 的工具摘要是展示投影，不修改上游消息、Agent 上下文或 Runtime 证据。读取类从结构化 action 或命令中提取相对文件路径并显示“读取 <path>”；编辑、搜索、构建和测试显示稳定动词、目标及完成状态。无法可靠分类时显示工具名和有界目标，不回退渲染完整 `content`、`detail`、aggregated output 或协议 payload。
 
 ### 轻量持久化与刷新
 
@@ -82,7 +84,9 @@ Runtime 保存可解释、非阻断的 `usage_warnings`。首批检测包括：
 
 Preload 继续只暴露任务范围内的查询与动作。Automation Snapshot 的活动任务和最近完成项携带 `session_id`；Run activity 携带 `token_usage` 与 `usage_warnings`。Renderer 不自行解析 raw JSONL 或估算 Token。
 
-Intervention Workbench 展示当前任务 ID、task session 和 Run 边界，并把 session message 与各 Run 的 projected messages 按时间合并。Token Inspector 展示分项汇总、lane 明细、上下文占用和软异常；只读审查不创建消息，人工提交仅写入当前 task session 和当前 Run message projection，并进入当前活动任务的 steer 或 fresh continuation。
+Intervention Workbench 展示当前任务 ID、task session 和 Run 边界，并把 session message 与各 Run 的 projected messages 按时间合并。Workbench 根容器使用受限视口高度和 `min-height: 0` 的三栏 grid；左右栏各自可滚动，中间栏由固定 header、`overflow-y: auto` 的 transcript 和固定 composer 组成，页面根不随 transcript 增长。
+
+Renderer 在刷新前记录 transcript 是否位于底部阈值内。位于阈值内时渲染后滚动到最新；用户主动上滚时保留相对阅读位置并显示回到最新入口。Token Inspector 展示分项汇总、lane 明细、上下文占用和软异常；只读审查不创建消息，人工提交仅写入当前 task session 和当前 Run message projection，并进入当前活动任务的 steer 或 fresh continuation。
 
 ## 交互式 Codex CLI 执行权接力
 
@@ -126,6 +130,8 @@ session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_
 - Token 快照按 thread 最新累计值去重，Run 与 lane 汇总可由 turn 明细重算。
 - Round、turn 与 command 耗时可重算，Workbench 能指出最慢活动而不重复启动命令。
 - Workbench 区分缓存输入、非缓存输入和输出，并展示上下文窗口占用。
+- Workbench 的页面根、左右栏和 Composer 不随 transcript 增长；只有中间消息列表滚动，用户阅读历史时新消息不会强制改变位置。
+- Renderer 将 Loop 状态和 Agent 输出作为主要信息，把每个 tool item 投影为一条原位更新的单行活动；文件正文、完整 diff、stdout/stderr 与 raw payload 不进入可见消息正文，但继续保留在上游上下文或诊断证据中。
 - 任意用量警告都不会自动设置 Token 总上限、硬总轮次或终止 Case。
 - 当前 Runtime 可以在确认安全停止后打开用户可见且可输入的交互式 Codex CLI；两者不会并发拥有同一活动任务的执行权。
 - CLI 与 Runtime 通过同一持久 thread 和 canonical Case State 接力；关闭终端不推断完成，恢复自动执行前读取 fresh active/closed Case。

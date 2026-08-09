@@ -1,3 +1,5 @@
+const VISIBLE_TOOL_ITEM_TYPES = new Set(["commandExecution", "toolCall", "webSearch", "fileChange"]);
+
 function createRunActivity(run) {
   const timestamp = run.started_at || new Date().toISOString();
   return {
@@ -302,8 +304,12 @@ function markTurn(activity, event, status) {
 
 function startCommand(activity, event) {
   const item = event.item || event.params?.item || event.raw_rpc?.params?.item || {};
-  if (item.type !== "commandExecution") return;
-  activity.performance.commands.push({ item_id: item.id || event.item_id || "", lane: "agent", command: item.command || item.cmd || "", cwd: item.cwd || "", started_at_ms: Number(item.startedAtMs || Date.now()), completed_at_ms: 0, duration_ms: 0, status: "running" });
+  if (!VISIBLE_TOOL_ITEM_TYPES.has(item.type)) return;
+  if (item.type === "commandExecution") activity.performance.commands.push({ item_id: item.id || event.item_id || "", lane: "agent", command: item.command || item.cmd || "", cwd: item.cwd || "", started_at_ms: Number(item.startedAtMs || Date.now()), completed_at_ms: 0, duration_ms: 0, status: "running" });
+  upsertMessage(activity, {
+    id: `tool:item:${item.id || event.item_id}`, role: "tool", actor: "tool", actor_label: "Tool", kind: toolItemKind(item.type),
+    content: toolItemContent(item), status: "streaming", item_id: item.id || event.item_id || ""
+  });
 }
 function finishCommand(activity, event) {
   const item = event.item || event.params?.item || event.raw_rpc?.params?.item || {};
@@ -323,13 +329,27 @@ function projectCompletedItem(activity, event) {
       content: item.summary, status: "completed", item_id: item.id
     });
   }
-  if (item.type === "commandExecution") {
+  if (VISIBLE_TOOL_ITEM_TYPES.has(item.type)) {
     upsertMessage(activity, {
-      id: `tool:item:${item.id}`, role: "tool", actor: "tool", actor_label: "Tool", kind: "command",
-      content: item.command || item.cmd || "Command completed.", detail: item.aggregatedOutput || "",
+      id: `tool:item:${item.id}`, role: "tool", actor: "tool", actor_label: "Tool", kind: toolItemKind(item.type),
+      content: toolItemContent(item), detail: item.type === "commandExecution" ? item.aggregatedOutput || "" : "",
       status: Number(item.exitCode ?? 0) === 0 ? "completed" : "failed", item_id: item.id
     });
   }
+}
+
+function toolItemKind(type) {
+  return ({ commandExecution: "command", toolCall: "tool_call", webSearch: "web_search", fileChange: "file_change" })[type] || "tool";
+}
+
+function toolItemContent(item) {
+  if (item.type === "commandExecution") return item.command || item.cmd || "Command";
+  if (item.type === "webSearch") return item.query || item.searchQuery || "Web search";
+  if (item.type === "fileChange") {
+    const paths = (item.changes || []).map((change) => change.path || change.filePath).filter(Boolean);
+    return paths.join(", ") || item.path || item.filePath || "Files changed";
+  }
+  return item.tool || item.name || item.server || "Tool call";
 }
 
 function updateCompaction(activity, event, status) {

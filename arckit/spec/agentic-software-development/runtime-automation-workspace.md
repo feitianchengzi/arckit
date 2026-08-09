@@ -62,11 +62,13 @@ access token 在到期前五分钟刷新；业务请求收到未认证响应时�
 
 ### 执行消息流
 
-待办执行会话提供一条按发生时间排序的消息流。Runtime 状态、Agent 进展、工具执行摘要、人工输入和最终收束结果使用同一消息模型；内部 Codex turn 和 round 只作为每条消息的归因元数据，不把消息拆成多个面向用户的对话。
+待办执行会话提供一条按发生时间排序的消息流。消息流的主要内容是 state-driven loop 的可理解状态和 Agent 自然语言输出；人工输入保持明确区分，工具活动作为次级单行记录。内部 Codex turn 和 round 只作为归因元数据，不把消息拆成多个面向用户的对话。
 
-消息流只包含用户可以理解和采取行动的语义信息。Agent 使用目标、进展、证据与 closeout 摘要，命令使用命令、工作目录、执行状态与有界结果摘要，显式受托 Agent 使用 packet/report 摘要，Runtime 使用轮次、Gate、ledger、警告和结束状态。原始 JSON envelope、逐 token 文本 delta、逐字符 reasoning delta 和连续命令输出不作为独立消息持久化或渲染。
+消息流只包含用户可以理解和采取行动的语义信息。Round 开始、selected gap、阶段变化、transition 写回、handoff 和 Case 收束以紧凑状态提示表达；Agent 使用目标、进展、判断、证据与 closeout 摘要表达工作内容。每个工具调用只呈现一行状态、动作、目标和可选结果摘要；读取操作只显示文件路径，命令操作只显示命令意图与成功、失败或进行中状态。文件正文、完整 diff、stdout/stderr、原始工具参数、JSON envelope、逐 token 文本 delta和逐字符 reasoning delta不作为消息正文持久化或渲染。
 
 流式内容更新当前消息；相同消息的增量不会持续创建新记录或 DOM 节点。用于 Token、耗时、错误和恢复判断的结构化投影继续保留在 Run activity 与证据 Inspector 中，不要求用户阅读原始事件日志。
+
+Workbench 保持窗口壳、左右信息栏和底部输入区稳定，只有中间消息列表垂直滚动。用户位于列表底部时新消息自动跟随；用户向上审查历史后保持阅读位置，并提供返回最新消息的明确动作。只读模式没有输入区，但使用相同的固定壳层和消息滚动边界。
 
 ### 人工事项
 
@@ -244,6 +246,8 @@ Renderer 不持有任务服务器凭证，也不直接请求任意远端 API。�
 - 用户能够以只读方式审查当前或历史对话，并通过显式操作进入可输入的人工介入模式。
 - 每个自动待办拥有独立 transcript；当前或历史待办页面不会出现同项目其他待办的消息，不同待办也不会复用 Codex thread。
 - 同一待办中的 Runtime、Agent、工具摘要和人工输入组成一条按时间排序的消息流；界面不要求用户理解 turn 层级，也不把原始 JSON 或 delta 当作消息展示。
+- Workbench 的左右栏、会话标题和底部输入区不会随消息数量增长而离开视口；中间消息列表可以独立上下滚动，用户上滚后不会被新消息强制拉回底部。
+- Round/gap/writeback/handoff 等 Loop 状态和 Agent 输出构成消息流的主要信息层级；每个工具调用只占一行，读取文件、执行命令、编辑和验证均不把原始内容或连续输出铺进消息正文。
 - 高频 agent、reasoning 和命令输出 delta 只更新内存中的当前消息；持久化和 Renderer 更新以语义消息或有界合并为单位，长运行不会按 delta 数量线性扩大日志和 DOM。
 - 每个 Agent turn 都携带可从 fresh Project/Case State 重建的紧凑上下文摘要；进程重启同时恢复持久 thread 并以 canonical facts 校正历史。
 - 同一自动待办从执行、验证、修复到 Git commit 只使用一个持久 Codex thread，并按 gap 发起多个 turn；进程恢复不更换 thread。

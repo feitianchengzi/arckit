@@ -1,3 +1,5 @@
+import { statusGlyph, summarizeLoopStatus, summarizeToolActivity, transcriptMessageType } from "../../src/desktop/transcript-presentation.mjs";
+
 const api = window.arckitDesktop;
 
 const TASK_STATES = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
@@ -59,6 +61,7 @@ const state = {
   transcriptSessionId: "",
   transcriptSessionMessages: [],
   transcriptRuns: [],
+  transcriptFollowingLatest: true,
   workbenchMode: "review",
   workbenchRun: null,
   workbenchCompletion: null,
@@ -141,6 +144,8 @@ function wireEvents() {
     renderWorkbench();
     els.interventionInput.focus();
   });
+  els.transcriptList.addEventListener("scroll", handleTranscriptScroll, { passive: true });
+  els.jumpToLatestButton.addEventListener("click", () => scrollTranscriptToLatest({ behavior: "smooth" }));
   els.taskFilterInput.addEventListener("input", () => {
     state.taskFilter = els.taskFilterInput.value.trim().toLowerCase();
     renderTaskTable();
@@ -497,6 +502,7 @@ async function openWorkbench(mode = "review", runId = "") {
     ? (await api.listRuns({})).find((run) => run.id === runId) || null
     : null;
   state.transcriptSessionId = "";
+  state.transcriptFollowingLatest = true;
   await loadTranscript({ force: true });
   showPage("workbench");
 }
@@ -586,9 +592,12 @@ function renderWorkbench() {
   const messages = state.transcript.length
     ? state.transcript.map(renderConversationMessage).join("")
     : `<div class="empty-state compact">当前没有已加载的对话。Chat 仅在 Runtime 产生 transcript 后出现。</div>`;
-  const keepAtBottom = els.transcriptList.scrollHeight - els.transcriptList.scrollTop - els.transcriptList.clientHeight < 80;
+  const previousScrollTop = els.transcriptList.scrollTop;
+  const shouldFollowLatest = state.transcriptFollowingLatest || isTranscriptNearBottom();
   els.transcriptList.innerHTML = messages;
-  if (keepAtBottom) els.transcriptList.scrollTop = els.transcriptList.scrollHeight;
+  if (shouldFollowLatest) scrollTranscriptToLatest();
+  else els.transcriptList.scrollTop = previousScrollTop;
+  updateJumpToLatestButton();
   els.workbenchEvidence.innerHTML = factRows([
     ["Run", run?.id || "无"],
     ["Run 状态", run?.status || "未启动"],
@@ -618,11 +627,42 @@ function renderWorkbench() {
 }
 
 function renderConversationMessage(message) {
-  const actor = message.actor || (message.role === "user" ? "operator" : message.role === "system" ? "runtime" : "agent");
-  const label = message.actor_label || (message.role === "user" ? "你" : message.role === "system" ? "Runtime" : "Agent");
+  const type = transcriptMessageType(message);
+  if (type === "tool") return renderToolActivity(message);
+  if (type === "loop") return renderLoopStatus(message);
+  const label = type === "user" ? "你" : message.actor_label || "Agent";
   const status = message.status || "completed";
-  const detail = message.detail ? `<small>${escapeHtml(message.detail)}</small>` : "";
-  return `<article class="message ${escapeHtml(message.role || "system")} actor-${escapeHtml(actor)} status-${escapeHtml(status)}"><div class="message-head"><span><b>${escapeHtml(label)}</b>${message.kind ? `<em>${escapeHtml(message.kind)}</em>` : ""}</span><time>${formatTime(message.updated_at || message.created_at)}</time></div><p>${escapeHtml(message.content)}</p>${detail}</article>`;
+  return `<article class="message ${type}-message status-${escapeHtml(status)}"><div class="message-head"><span><b>${escapeHtml(label)}</b>${message.kind ? `<em>${escapeHtml(message.kind)}</em>` : ""}</span><time>${formatTime(message.updated_at || message.created_at)}</time></div><p>${escapeHtml(message.content)}</p></article>`;
+}
+
+function renderLoopStatus(message) {
+  const status = message.status || "completed";
+  return `<article class="loop-status status-${escapeHtml(status)}"><span class="activity-glyph" aria-hidden="true">${statusGlyph(status)}</span><span class="loop-status-copy"><b>Loop</b><span>${escapeHtml(summarizeLoopStatus(message))}</span></span><time>${formatTime(message.updated_at || message.created_at)}</time></article>`;
+}
+
+function renderToolActivity(message) {
+  const status = message.status || "completed";
+  const summary = summarizeToolActivity(message);
+  return `<article class="tool-activity status-${escapeHtml(status)}" title="${escapeHtml(summary)}"><span class="activity-glyph" aria-hidden="true">${statusGlyph(status)}</span><span class="tool-activity-label">Tool</span><span class="tool-activity-summary">${escapeHtml(summary)}</span><time>${formatTime(message.updated_at || message.created_at)}</time></article>`;
+}
+
+function isTranscriptNearBottom() {
+  return els.transcriptList.scrollHeight - els.transcriptList.scrollTop - els.transcriptList.clientHeight < 72;
+}
+
+function handleTranscriptScroll() {
+  state.transcriptFollowingLatest = isTranscriptNearBottom();
+  updateJumpToLatestButton();
+}
+
+function scrollTranscriptToLatest({ behavior = "auto" } = {}) {
+  state.transcriptFollowingLatest = true;
+  els.transcriptList.scrollTo({ top: els.transcriptList.scrollHeight, behavior });
+  updateJumpToLatestButton();
+}
+
+function updateJumpToLatestButton() {
+  els.jumpToLatestButton.classList.toggle("hidden", state.transcriptFollowingLatest || isTranscriptNearBottom());
 }
 
 function renderRecovery() {

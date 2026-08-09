@@ -49,3 +49,4 @@
 | [CASE-20260809-002](closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md) | closed | Simplify Arckit Runtime around a coherent Codex Agent loop | 2026-08-09T08:21:07.227Z |
 | [CASE-20260809-003](closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md) | closed | Converge Arckit Runtime on one persistent Codex task thread | 2026-08-09T12:50:07.343Z |
 | [CASE-20260809-004](closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md) | closed | Remove Runtime skill installation drift enforcement | 2026-08-09T13:51:24.557Z |
+| [CASE-20260809-005](closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md) | closed | Optimize Desktop conversation transcript interaction | 2026-08-09T14:55:14.667Z |

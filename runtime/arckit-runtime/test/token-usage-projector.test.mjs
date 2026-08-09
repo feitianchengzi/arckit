@@ -58,6 +58,9 @@ test("Agent command timings are projected from Codex item lifecycle events", () 
     type: "codex.item.started",
     params: { item: { id: "CMD-1", type: "commandExecution", command: "npm test", cwd: "/workspace", startedAtMs: 1_000 } }
   }));
+  const startedMessage = run.activity.messages.find((message) => message.item_id === "CMD-1");
+  assert.equal(startedMessage.status, "streaming");
+  assert.equal(startedMessage.content, "npm test");
   applyRunEvent(run, wrapped({
     type: "codex.item.completed",
     params: { item: { id: "CMD-1", type: "commandExecution", command: "npm test", cwd: "/workspace", completedAtMs: 4_000 } }
@@ -65,6 +68,10 @@ test("Agent command timings are projected from Codex item lifecycle events", () 
 
   assert.equal(run.activity.performance.command_time_ms, 3_000);
   assert.equal(run.activity.performance.commands[0].lane, "agent");
+  const completedMessages = run.activity.messages.filter((message) => message.item_id === "CMD-1");
+  assert.equal(completedMessages.length, 1);
+  assert.equal(completedMessages[0].status, "completed");
+  assert.equal(completedMessages[0].revision, 2);
 });
 
 test("one coherent Agent loop projects bounded Agent and tool messages", () => {
@@ -97,6 +104,26 @@ test("one coherent Agent loop projects bounded Agent and tool messages", () => {
   assert.equal(run.activity.messages.some((message) => message.actor === "agent" && message.item_id === "REASON-1"), true);
   assert.equal(run.activity.messages.some((message) => message.actor === "tool" && message.item_id === "CMD-1"), true);
   assert.equal(run.activity.messages.at(-1).content, "Advanced and verified one Case gap.");
+});
+
+test("non-command Codex tools update one stable transcript item from started to completed", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  applyRunEvent(run, wrapped({
+    type: "codex.item.started",
+    params: { item: { id: "EDIT-1", type: "fileChange", changes: [{ path: "src/view.js" }] } }
+  }));
+  applyRunEvent(run, wrapped({
+    type: "codex.item.completed",
+    params: { item: { id: "EDIT-1", type: "fileChange", changes: [{ path: "src/view.js" }] } }
+  }));
+
+  const messages = run.activity.messages.filter((message) => message.item_id === "EDIT-1");
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].kind, "file_change");
+  assert.equal(messages[0].content, "src/view.js");
+  assert.equal(messages[0].status, "completed");
+  assert.equal(messages[0].revision, 2);
 });
 
 test("context compaction is recorded against the source turn on the same thread", () => {

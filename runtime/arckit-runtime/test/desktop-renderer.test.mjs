@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { statusGlyph, summarizeLoopStatus, summarizeToolActivity, transcriptMessageType } from "../src/desktop/transcript-presentation.mjs";
 
 const rendererPath = new URL("../desktop/renderer/renderer.js", import.meta.url);
 const rendererHtmlPath = new URL("../desktop/renderer/index.html", import.meta.url);
@@ -39,9 +40,10 @@ test("desktop primary surface is the project-sourced automation Command Center",
 });
 
 test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views", async () => {
-  const [source, html] = await Promise.all([
+  const [source, html, styles] = await Promise.all([
     readFile(rendererPath, "utf8"),
-    readFile(rendererHtmlPath, "utf8")
+    readFile(rendererHtmlPath, "utf8"),
+    readFile(rendererStylesPath, "utf8")
   ]);
 
   assert.match(html, /data-page-view="tasks"/);
@@ -79,6 +81,34 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /artifact_paths\?\.messages_file/);
   assert.doesNotMatch(source, /renderRunPlan\(activity\)|renderExecutionEvidence\(activity\)|raw_events/);
   assert.match(source, /artifact_ownership_scan\?\.implementation_evidence/);
+  assert.match(html, /class="transcript-scroll-area"/);
+  assert.match(html, /id="jumpToLatestButton"/);
+  assert.match(source, /transcriptFollowingLatest/);
+  assert.match(source, /isTranscriptNearBottom/);
+  assert.match(source, /renderLoopStatus/);
+  assert.match(source, /renderToolActivity/);
+  assert.match(styles, /#workbenchView\.is-active \{ overflow: hidden; \}/);
+  assert.match(styles, /\.workbench-layout[^}]+height: 100%[^}]+overflow: hidden/);
+  assert.match(styles, /\.workbench-context, \.workbench-evidence[^}]+overflow-y: auto/);
+  assert.match(styles, /\.transcript-list[^}]+overflow-y: auto/);
+  assert.match(styles, /\.tool-activity-summary[^}]+text-overflow: ellipsis[^}]+white-space: nowrap/);
+});
+
+test("workbench transcript prioritizes Loop and Agent output while reducing tools to one-line summaries", () => {
+  assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "result" }), "agent");
+  assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "status" }), "loop");
+  assert.equal(transcriptMessageType({ role: "tool", actor: "tool", kind: "command" }), "tool");
+  assert.equal(transcriptMessageType({ role: "user" }), "user");
+
+  assert.equal(summarizeToolActivity({ content: "sed -n '1,240p' runtime/arckit-runtime/desktop/renderer/renderer.js" }), "读取 runtime/arckit-runtime/desktop/renderer/renderer.js");
+  assert.equal(summarizeToolActivity({ content: "npm test" }), "运行测试 · npm test");
+  assert.equal(summarizeToolActivity({ content: "git diff --check" }), "查看工作区变更");
+  assert.equal(summarizeToolActivity({ kind: "file_change" }), "更新文件");
+  assert.equal(summarizeToolActivity({ kind: "file_change", content: "src/view.js" }), "更新 src/view.js");
+  assert.equal(summarizeToolActivity({ kind: "web_search", content: "Codex app transcript" }), "搜索网络 · Codex app transcript");
+  assert.equal(summarizeLoopStatus({ content: "Agent\n正在推进一个 Case gap。" }), "Agent 正在推进一个 Case gap。");
+  assert.equal(statusGlyph("streaming"), "◌");
+  assert.equal(statusGlyph("failed"), "×");
 });
 
 test("desktop main and preload expose bounded automation IPC without a generic network bridge", async () => {

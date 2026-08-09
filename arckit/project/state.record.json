@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-09T13:51:24.557Z",
+    "updated_at": "2026-08-09T14:55:14.667Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -668,7 +668,8 @@
     "arckit/cases/closed/CASE-20260809-001-controller-thread.md",
     "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
     "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md",
-    "arckit/cases/closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md"
+    "arckit/cases/closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md",
+    "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md"
   ],
   "last_state_delta": {
     "changed_dimensions": [],
@@ -676,11 +677,11 @@
     "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md"
+      "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "next_project_focus": "Create the next bounded Case from the remaining Project state_gaps.",
-    "updated_at": "2026-08-09T13:51:24.557Z"
+    "updated_at": "2026-08-09T14:55:14.667Z"
   },
   "case_control": {
     "next_case_intent": "Create the next bounded Case from the remaining Project state_gaps.",

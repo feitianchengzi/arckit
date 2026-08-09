@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-09T13:51:24.557Z
+Updated: 2026-08-09T14:55:14.667Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -40,9 +40,9 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
-- arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md
 - arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md
 - arckit/cases/closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md
+- arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md
 
 ## Notes
 
