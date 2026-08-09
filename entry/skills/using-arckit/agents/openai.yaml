@@ -1,33 +1,23 @@
 interface:
   display_name: "Using Arckit"
-  short_description: "用 Case State 正向驱动动态软件开发 loop"
-  default_prompt: "使用 $using-arckit 作为语义 Controller：从 Project State 的全部 active Cases 为当前 Loop 选择唯一 Case，或在没有合适 Case 时请求创建；Project 不保存独占 selection。读取完整 Case State 后选择 scope=case 的 gap，绑定 Case 与 Project revision，计划一次 transition，再按证据需要生成零个或多个 Worker packets。Review 分离 round、Case、Project 和 handoff；不同 Case 可由不同 Loop 并行推进，写回后从 fresh state 继续。"
+  short_description: "用同一 Agent 按 Case gap 持续推进软件开发"
+  default_prompt: "使用 $using-arckit 从 fresh Project/Case facts 选择唯一 Case 和一个 gap，在当前 Agent turn 内自行使用必要 skills/tools 执行、验证和审查，并返回一个有证据的 transition 或明确 handoff。不要默认拆成 Plan/Worker/Review，也不要直接写 ledger。"
 policy:
   allow_implicit_invocation: true
   turn_level_only: false
 workflow:
   first_steps:
-    - "恢复 project-state-record/v4 和全部 active Case records。"
-    - "为当前 Loop 从 active Cases 选择唯一 Case；无合适 Case 时请求创建。"
-    - "选择一个完整 Case gap并绑定 revision，输出 planned transition 和动态 capability bindings。"
-    - "把 Worker claims 收敛为 accepted Case delta，并分离 round、Case、Project 和 handoff 结果。"
-    - "base_ready 后处理 completion review；findings 修复会产生新 content revision，必须再次复审。"
+    - "恢复 fresh Project State 和全部 active Cases。"
+    - "选择一个 Case 和一个完整 candidate gap；无合适 Case 时请求 create_case。"
+    - "在当前 Agent turn 内使用必要 skills/tools 完成一个 gap并收集证据。"
+    - "分离 round、Case、Project impact 与 handoff，提交 transition claim。"
   boundaries:
-    - "Runtime 通过 manifest 声明的 $using-arckit Agent skill trigger 调用 Controller planning/review，不复制语义工作流。"
-    - "Controller 不执行 Worker 工作、不写 ledger、不静默替代人类或外部责任。"
-    - "State 不保存 skill 名；不固定 definition、implementation、verification 顺序。"
-    - "Project gap 只用于选择 Case，不能直接成为 Worker 状态目标。"
-    - "Project State 不保存 Loop ownership 或独占 selected Case；不同 Loop 可以推进不同 Case。"
-    - "证据足够时允许零 Worker；不得为满足流程形状而派发 Worker。"
-    - "复审预算耗尽后的 human gap 不得自动桥接，Agent 不得自行追加预算或重置计数。"
+    - "Runtime 只自动化外部控制、授权、续轮和 trusted ledger 调用，不替代 Agent 语义与工作区执行。"
+    - "不要为了计划、执行或复审阶段制造额外 Agent invocation。"
+    - "每个 Loop 只推进一个 gap；成功写回后 fresh-read，并在同一活动 thread 继续下一 turn。"
+    - "只在需要人类责任时暂停；长命令和生产性 Round 不构成停止条件。"
   output:
-    - "controller_frame"
-    - "execution_gate"
-    - "executor_binding"
-    - "worker_packets"
-    - "report_intake"
-    - "round_outcome"
-    - "case_resolution"
-    - "project_impact_candidate"
-    - "case_transition"
-    - "loop_handoff/v2"
+    - "selected Case/gap or case_control"
+    - "evidence and accepted Case delta"
+    - "case_transition or responsibility handoff"
+    - "loop-handoff/v2"

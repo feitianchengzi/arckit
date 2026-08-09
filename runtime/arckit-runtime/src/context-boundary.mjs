@@ -8,8 +8,6 @@ export const SEMANTIC_LIMITS = {
   transition: 800,
   nextPrompt: 1200,
   reason: 1200,
-  workerObjective: 800,
-  workerUserRequest: 1200,
   contextSummary: 1600
 };
 

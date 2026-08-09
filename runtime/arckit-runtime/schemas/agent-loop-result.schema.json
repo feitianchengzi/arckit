@@ -1,0 +1,227 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arckit.local/schema/agent-loop-result.schema.json",
+  "title": "Arckit Coherent Agent Loop Result",
+  "type": "object",
+  "required": ["schema_version", "action", "summary", "case_control", "case_transition", "changed_files", "artifact_impacts", "risks", "unknowns", "handoff"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "arckit-agent-loop-result/v1" },
+    "action": { "type": "string", "enum": ["case_control", "case_transition", "handoff"] },
+    "summary": { "type": "string" },
+    "case_control": { "anyOf": [{ "$ref": "#/$defs/case_control" }, { "type": "null" }] },
+    "case_transition": { "anyOf": [{ "$ref": "#/$defs/case_transition" }, { "type": "null" }] },
+    "changed_files": { "type": "array", "items": { "type": "string" } },
+    "artifact_impacts": { "type": "array", "items": { "$ref": "#/$defs/artifact_impact" } },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "unknowns": { "type": "array", "items": { "type": "string" } },
+    "handoff": { "$ref": "#/$defs/handoff" }
+  },
+  "$defs": {
+    "case_control": {
+      "type": "object",
+      "required": ["action", "title", "intent", "artifact_type", "selection_reason"],
+      "properties": {
+        "action": { "type": "string", "const": "create_case" },
+        "title": { "type": "string" },
+        "intent": { "type": "string" },
+        "artifact_type": { "type": "string", "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"] },
+        "selection_reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "case_transition": {
+      "type": "object",
+      "required": ["schema_version", "case_id", "case_updated_at", "project_updated_at", "selected_gap", "planned_transition", "accepted_state_delta", "evidence", "unresolved", "round_outcome", "case_resolution", "project_impact_candidate"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "arckit-case-transition/v3" },
+        "case_id": { "type": "string" },
+        "case_updated_at": { "type": "string" },
+        "project_updated_at": { "type": "string" },
+        "selected_gap": { "$ref": "#/$defs/selected_gap" },
+        "planned_transition": { "$ref": "#/$defs/planned_transition" },
+        "accepted_state_delta": { "$ref": "#/$defs/accepted_state_delta" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "unresolved": { "type": "array", "items": { "type": "string" } },
+        "round_outcome": { "type": "string", "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] },
+        "case_resolution": { "$ref": "#/$defs/case_resolution" },
+        "project_impact_candidate": { "$ref": "#/$defs/project_impact" }
+      },
+      "additionalProperties": false
+    },
+    "selected_gap": {
+      "type": "object",
+      "required": ["id", "facet", "responsibility", "current_state", "target_state", "next_transition", "evidence_required"],
+      "properties": {
+        "id": { "type": "string" },
+        "facet": { "type": "string" },
+        "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
+        "current_state": { "type": "string" },
+        "target_state": { "type": "string" },
+        "next_transition": { "type": "string" },
+        "evidence_required": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "planned_transition": {
+      "type": "object",
+      "required": ["goal", "expected_state_change"],
+      "properties": {
+        "goal": { "type": "string" },
+        "expected_state_change": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "accepted_state_delta": {
+      "type": "object",
+      "required": ["facets", "resolved_open_questions", "completed_handoffs", "completion_review_result", "resolved_review_findings", "review_budget_extension"],
+      "properties": {
+        "facets": { "type": "array", "items": { "$ref": "#/$defs/facet_claim" } },
+        "resolved_open_questions": { "type": "array", "items": { "type": "string" } },
+        "completed_handoffs": { "type": "array", "items": { "type": "string" } },
+        "completion_review_result": { "anyOf": [{ "$ref": "#/$defs/completion_review_result" }, { "type": "null" }] },
+        "resolved_review_findings": { "type": "array", "items": { "$ref": "#/$defs/resolved_review_finding" } },
+        "review_budget_extension": { "anyOf": [{ "$ref": "#/$defs/review_budget_extension" }, { "type": "null" }] }
+      },
+      "additionalProperties": false
+    },
+    "facet_claim": {
+      "type": "object",
+      "required": ["facet", "set", "evidence", "unresolved"],
+      "properties": {
+        "facet": { "type": "string", "enum": ["product_expectation", "interaction_expectation", "visual_expectation", "technical_expectation", "implementation_state", "verification_state"] },
+        "set": { "$ref": "#/$defs/facet_set" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "unresolved": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "facet_set": {
+      "type": "object",
+      "required": ["applicability", "maturity", "target_maturity", "alignment", "target_alignment", "resolution", "reason", "next_transition"],
+      "properties": {
+        "applicability": { "type": ["string", "null"], "enum": ["unknown", "required", "not_required", null] },
+        "maturity": { "type": ["string", "null"], "enum": ["unknown", "exploratory", "confirmed", "formalized", null] },
+        "target_maturity": { "type": ["string", "null"], "enum": ["unknown", "exploratory", "confirmed", "formalized", null] },
+        "alignment": { "type": ["string", "null"], "enum": ["unknown", "unreconciled", "stale", "diverged", "aligned", null] },
+        "target_alignment": { "type": ["string", "null"], "enum": ["unknown", "unreconciled", "stale", "diverged", "aligned", null] },
+        "resolution": { "type": ["string", "null"], "enum": ["unresolved", "resolved", "blocked", null] },
+        "reason": { "type": ["string", "null"] },
+        "next_transition": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "completion_review_result": {
+      "type": "object",
+      "required": ["outcome", "reviewer", "reviewed_content_revision", "dimensions", "findings", "evidence"],
+      "properties": {
+        "outcome": { "type": "string", "enum": ["clean", "findings", "needs_human"] },
+        "reviewer": { "type": "string", "enum": ["agent", "human"] },
+        "reviewed_content_revision": { "type": "integer", "minimum": 0 },
+        "dimensions": { "$ref": "#/$defs/review_dimensions" },
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/new_review_finding" } },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "review_dimensions": {
+      "type": "object",
+      "required": ["correctness", "completeness", "minimality"],
+      "properties": {
+        "correctness": { "type": "string", "enum": ["clean", "findings"] },
+        "completeness": { "type": "string", "enum": ["clean", "findings"] },
+        "minimality": { "type": "string", "enum": ["clean", "findings"] }
+      },
+      "additionalProperties": false
+    },
+    "new_review_finding": {
+      "type": "object",
+      "required": ["id", "kind", "statement", "responsibility", "affected_facets", "artifact_refs", "evidence"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string", "enum": ["error", "omission", "excess"] },
+        "statement": { "type": "string" },
+        "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
+        "affected_facets": { "type": "array", "items": { "type": "string" } },
+        "artifact_refs": { "type": "array", "items": { "type": "string" } },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "resolved_review_finding": {
+      "type": "object",
+      "required": ["id", "resolution", "reason", "evidence"],
+      "properties": {
+        "id": { "type": "string" },
+        "resolution": { "type": "string", "enum": ["resolved", "dismissed"] },
+        "reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "review_budget_extension": {
+      "type": "object",
+      "required": ["additional_cycles", "authorized_by", "reason", "evidence"],
+      "properties": {
+        "additional_cycles": { "type": "integer", "minimum": 1 },
+        "authorized_by": { "type": "string", "const": "human" },
+        "reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "case_resolution": {
+      "type": "object",
+      "required": ["claimed_status", "reason"],
+      "properties": {
+        "claimed_status": { "type": "string", "enum": ["unresolved", "resolved", "blocked"] },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "project_impact": {
+      "type": "object",
+      "required": ["status", "changes", "evidence"],
+      "properties": {
+        "status": { "type": "string", "enum": ["none", "proposed", "accepted"] },
+        "changes": { "type": "array", "items": { "$ref": "#/$defs/project_impact_change" } },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "project_impact_change": {
+      "type": "object",
+      "required": ["dimension", "from_state", "to_state", "reason", "evidence", "evidence_maturity"],
+      "properties": {
+        "dimension": { "type": "string" },
+        "from_state": { "type": "string" },
+        "to_state": { "type": "string" },
+        "reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "evidence_maturity": { "type": ["string", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "artifact_impact": {
+      "type": "object",
+      "required": ["path", "claim", "summary"],
+      "properties": {
+        "path": { "type": "string" },
+        "claim": { "type": "string" },
+        "summary": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "handoff": {
+      "type": "object",
+      "required": ["next_responsibility", "reason", "next_prompt", "human_decision_required"],
+      "properties": {
+        "next_responsibility": { "type": "string", "enum": ["agent", "human", "external", "none"] },
+        "reason": { "type": "string" },
+        "next_prompt": { "type": "string" },
+        "human_decision_required": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

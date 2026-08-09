@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-07T15:52:18.510Z",
+    "updated_at": "2026-08-09T12:50:07.343Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -58,9 +58,9 @@
       "confidence": "high"
     },
     "product_behavior": {
-      "current_state": "implemented",
+      "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "Project/Case/Loop separation, unordered Case candidate-gap selection, definition completeness, and equivalent human/Runtime transition semantics are implemented and locally verified.",
+      "state_reason": "The Runtime automation contract is now persisted and locally verified: one coherent Codex Agent turn advances one serial Case gap while Runtime provides readiness, structural gates, trusted ledger writeback, continuation, and compact persistence.",
       "evidence": [
         "arckit/spec/agentic-software-development/product-concepts.md",
         "arckit/spec/agentic-software-development/product-architecture.md",
@@ -72,11 +72,15 @@
         "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
         "runtime/arckit-runtime/src/loop-controller.mjs",
         "runtime/arckit-runtime/test/case-transition.test.mjs",
-        "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md"
+        "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/spec/agentic-software-development/controller-worker-loop.md",
+        "runtime/arckit-runtime/test/coherent-agent-loop.test.mjs",
+        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
       ],
       "evidence_maturity": "validated",
-      "gap": "The behavior still needs isolated real-agent scenario evaluation before project-level acceptance.",
-      "next_transition": "Run Skill First scenarios with fresh agents for spec-first, code-first, mixed, and not_required Case paths.",
+      "gap": "The coherent Agent Loop behavior still needs a fresh real long-running Runtime task before project-level acceptance.",
+      "next_transition": "Run a real long-running Codex Runtime task and compare its semantic progress, stability, and wall-clock overhead with direct single-agent use.",
       "blockers": [],
       "priority": "high",
       "confidence": "high"
@@ -216,9 +220,9 @@
       "confidence": "medium"
     },
     "architecture_foundation": {
-      "current_state": "implemented",
+      "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "入口编排、状态账本、case 管理、pending、有界 worker packet、Runtime 控制面和 Desktop Supervisor 已形成分层架构。",
+      "state_reason": "The simplified architecture is implemented and locally verified: Codex owns semantic reasoning and native skill/tool use; Runtime is a policy-neutral automation supervisor with a stable task thread, one turn per gap, structural gates, and deterministic ledger boundaries.",
       "evidence": [
         "entry/skills/using-arckit/SKILL.md",
         "entry/skills/arckit-development-ledger/SKILL.md",
@@ -227,11 +231,18 @@
         "runtime/arckit-runtime/src/prompt-compiler.mjs",
         "runtime/arckit-runtime/src/desktop-run-manager.mjs",
         "runtime/arckit-runtime/schemas/runtime-result.schema.json",
-        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs"
+        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
+        "AGENTS.md",
+        "arckit/tech/arckit-runtime/desktop-execution-solution.md",
+        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+        "runtime/arckit-runtime/src/automation-coordinator.mjs",
+        "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
+        "verification:npm-prefix-runtime-arckit-runtime-run-check:164-tests-163-pass-0-fail-1-conditional-skip",
+        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
       ],
-      "evidence_maturity": "formalized",
-      "gap": "Runtime 需要补超时/外层 interrupt 自动收束策略，避免长时间真实 turn 无边界等待。",
-      "next_transition": "为 codex-app-server adapter 增加 turn timeout 和 transcript compaction 策略。",
+      "evidence_maturity": "validated",
+      "gap": "The verified architecture still needs fresh real-task evidence before acceptance; long-running builds remain intentionally unbounded and are not treated as failures.",
+      "next_transition": "Exercise the architecture on a real Case with a long-running build and retain Agent-loop, gate, ledger, and timing evidence.",
       "blockers": [],
       "priority": "high",
       "confidence": "high"
@@ -378,15 +389,20 @@
       "confidence": "medium"
     },
     "delivery_operation": {
-      "current_state": "defined",
+      "current_state": "verified",
       "target_state": "accepted",
-      "state_reason": "当前仓库作为 skill 维护源，分发、同步、漂移和 profile 治理与 ArcForge 类能力相关。",
+      "state_reason": "The maintained using-arckit v5 source was audited, applied to the Codex application target, loaded through the real compatibility path, and confirmed with clean post-apply drift.",
       "evidence": [
-        "AGENTS.md"
+        "AGENTS.md",
+        "entry/skills/using-arckit/SKILL.md",
+        "entry/skills/using-arckit/arckit.capability.json",
+        "/Users/Glare/.codex/skills/using-arckit/SKILL.md",
+        "verification:arcforge-using-arckit-post-apply-drift-clean",
+        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
       ],
-      "evidence_maturity": "confirmed",
-      "gap": "上一版状态机制已同步并通过 clean drift；当前治理 revision 完成后仍需重新应用并验证安装副本。",
-      "next_transition": "当前治理 Case resolved 后，用 ArcForge 对本 revision 执行 drift、apply 和安装后 clean drift。",
+      "evidence_maturity": "validated",
+      "gap": "The installed revision is verified locally; broader release or team distribution acceptance is outside this Case.",
+      "next_transition": "Use the installed skill in a fresh real Runtime task, then decide whether release or team distribution evidence is required.",
       "blockers": [],
       "priority": "medium",
       "confidence": "medium"
@@ -488,7 +504,7 @@
     {
       "id": "GAP-agent-scenario-evaluation",
       "dimension": "product_behavior",
-      "current_state": "implemented",
+      "current_state": "verified",
       "target_state": "accepted",
       "impact": "状态驱动定义完整性需要在 fresh-agent 的 spec-first、code-first、mixed 和 not_required 路径中证明，并校准人类、单 Agent 与多 Agent 的责任边界。",
       "urgency": "high",
@@ -504,7 +520,7 @@
     {
       "id": "GAP-runtime-resilience-and-adapters",
       "dimension": "architecture_foundation",
-      "current_state": "implemented",
+      "current_state": "verified",
       "target_state": "accepted",
       "impact": "Runtime 的 timeout、transcript compaction 和多 adapter 边界尚未形成可接受的长期运行能力。",
       "urgency": "medium",
@@ -535,7 +551,7 @@
     {
       "id": "GAP-delivery-governance",
       "dimension": "delivery_operation",
-      "current_state": "defined",
+      "current_state": "verified",
       "target_state": "accepted",
       "impact": "当前治理 revision 尚未完成应用目录同步、安装后漂移确认和后续发布接受。",
       "urgency": "medium",
@@ -647,7 +663,11 @@
     "arckit/cases/closed/CASE-20260807-003-development-case.md",
     "arckit/cases/closed/CASE-20260807-004-runtime-canonical-case.md",
     "arckit/cases/closed/CASE-20260807-005-development-case.md",
-    "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md"
+    "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md",
+    "arckit/cases/closed/CASE-20260808-001-using-arckit-codex-runtime-controller.md",
+    "arckit/cases/closed/CASE-20260809-001-controller-thread.md",
+    "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
+    "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md"
   ],
   "last_state_delta": {
     "changed_dimensions": [],
@@ -655,11 +675,11 @@
     "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md"
+      "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "next_project_focus": "Create the next bounded Case from the remaining Project state_gaps.",
-    "updated_at": "2026-08-07T15:52:18.510Z"
+    "updated_at": "2026-08-09T12:50:07.343Z"
   },
   "case_control": {
     "next_case_intent": "Create the next bounded Case from the remaining Project state_gaps.",

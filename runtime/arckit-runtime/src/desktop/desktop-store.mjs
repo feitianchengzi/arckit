@@ -209,7 +209,7 @@ export function normalizeAutomationState(value = {}) {
 function normalizeActiveTask(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const caseStatuses = new Set(["unbound", "unknown", "active", "resolved"]);
-  const commitStatuses = new Set(["pending", "running", "completed", "failed"]);
+  const closeoutStatuses = new Set(["pending", "running", "completed", "failed"]);
   const remoteCompletionStatuses = new Set(["pending", "writing", "failed"]);
   const caseId = String(value.case_id || "");
   return {
@@ -217,10 +217,13 @@ function normalizeActiveTask(value) {
     case_id: caseId,
     case_status: caseStatuses.has(value.case_status) ? value.case_status : caseId ? "unknown" : "unbound",
     case_resolved_at: String(value.case_resolved_at || ""),
-    commit_status: commitStatuses.has(value.commit_status)
-      ? value.commit_status
-      : value.commit_completed_at ? "completed" : "pending",
-    commit_completed_at: String(value.commit_completed_at || ""),
+    thread_id: String(value.thread_id || ""),
+    thread_bound_at: String(value.thread_bound_at || ""),
+    last_compaction_turn_id: String(value.last_compaction_turn_id || ""),
+    closeout_status: closeoutStatuses.has(value.closeout_status)
+      ? value.closeout_status
+      : value.closeout_completed_at ? "completed" : "pending",
+    closeout_completed_at: String(value.closeout_completed_at || ""),
     remote_completion_status: remoteCompletionStatuses.has(value.remote_completion_status)
       ? value.remote_completion_status
       : "pending"

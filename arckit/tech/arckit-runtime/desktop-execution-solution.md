@@ -12,17 +12,17 @@ Automation Store 为活动任务与最近完成项保存 `session_id`。Coordina
 - 会话类型 `automation-task` 和任务标题。
 - 创建时间与最后活动时间。
 
-一个远端待办的初始 Runtime、进程内自动续轮、跨进程 continuation、人工介入、恢复重试和 commit agent 共用该 `session_id`。不同远端待办不共用 session；项目默认 Chat 只服务人工普通对话，不作为自动化任务缺失归属时的兜底。
+一个远端待办的初始 Runtime、自动续轮、跨进程恢复、人工介入和 Git 收尾共用该 `session_id`。不同远端待办不共用 session；项目默认 Chat 只服务人工普通对话，不作为自动化任务缺失归属时的兜底。
 
-消息记录携带 `session_id`、`task_id` 和可选 `run_id`。Workbench 只根据活动任务或最近完成项的 `session_id` 读取消息；session 不存在或归属与任务不符时返回空 transcript 和可诊断错误，不读取项目首个 session。最近完成项保存 Case Runtime 的 `run_id`、独立的 `commit_run_id` 与 `session_id`，因此历史审查打开的是 Case 执行而不是 commit agent。
+消息记录携带 `session_id`、`task_id` 和可选 `run_id`。Workbench 只根据活动任务或最近完成项的 `session_id` 读取消息；session 不存在或归属与任务不符时返回空 transcript 和可诊断错误，不读取项目首个 session。最近完成项保存最终 `run_id`、持久 `thread_id` 与 `session_id`，历史审查打开同一待办的完整执行链。
 
-Desktop session 与 Codex thread 是不同层级：session 是面向用户的待办 transcript 容器，Codex thread 是单个 Runtime 进程内的模型上下文。Desktop session 可以跨 Run 延续，但不要求复用同一 Codex thread。
+Desktop session 与 Codex thread 是不同层级：session 是面向用户的待办 transcript 容器，Codex thread 是 Codex 持久化的连续模型对话。一个待办从首轮到验证、修复和 Git 收尾只有一个 thread；Desktop session 和 Codex thread 都可以跨 Runtime 进程延续，但只有 thread 承担 Agent 上下文连续性。
 
 ### 统一消息投影
 
-Run Projector 把 Runtime、Controller、Worker Agent、工具与 operator event 归一为 `desktop-run-message/v1`。消息至少包含稳定 `id`、`role`、`actor`、`actor_label`、`kind`、`content`、`status`、时间、`run_id`，并可携带 `round_index`、`task_id`、`thread_id`、`turn_id` 与 `item_id` 作为诊断归因。Renderer 只按时间读取消息并用来源标签区分角色，不按 thread 建立平行 transcript。
+Run Projector 把 Runtime、Agent、工具与 operator event 归一为 `desktop-run-message/v1`。消息至少包含稳定 `id`、`role`、`actor`、`actor_label`、`kind`、`content`、`status`、时间、`run_id`，并可携带 `round_index`、`task_id`、`thread_id`、`turn_id` 与 `item_id` 作为诊断归因。Renderer 只按时间读取消息并用来源标签区分角色，不按 Run 建立平行 transcript。
 
-流式 Agent 和 reasoning delta 通过稳定消息 ID 更新同一个内存对象。命令 delta 只更新活动命令摘要，不形成逐块消息；`item/completed`、Worker report、Controller plan/review、Runtime round、Gate、ledger、warning、error 和 operator input 形成可持久化的语义消息边界。
+流式 Agent 和 reasoning delta 通过稳定消息 ID 更新同一个内存对象。命令 delta 只更新活动命令摘要，不形成逐块消息；`item/completed`、Agent Loop result、Runtime round、Gate、ledger、compaction、warning、error 和 operator input 形成可持久化的语义消息边界。
 
 ### 轻量持久化与刷新
 
@@ -32,11 +32,13 @@ Desktop 仍实时解析 Runtime stderr 以维护内存中的 activity、Token、
 
 ## Codex Thread 边界
 
-Controller planning 与结构纠正使用项目级 thread，Case review 使用 Case 级 thread。Worker thread key 为 `worker:{case_id}:{worker_type}:{workstream_id}`；`product`、`tech`、`diagnosis`、`implementation`、`verification` 和 `closeout` 分别形成语义通道，同类型且同 workstream 的后续 turn 可以复用，不同职责或独立目标不继承完整对话。
+Automation Store 以本地项目身份和远端任务 ID 为键保存唯一 `thread_id`、绑定状态、最后 turn、最后压缩检查点与更新时间。首次 `thread/start` 使用非 ephemeral 模式；Desktop 必须在首个 `turn/start` 前持久化返回的 id。Run Manager 为活动任务持有单 owner lease，阻止 Runtime、CLI 或重复恢复并发使用同一 thread。
 
-每个 fresh Worker packet 是当前唯一授权，并携带从 fresh Case State 派生的有界 context digest。跨 thread 的必要事实通过 canonical Case State、稳定事实文档、结构化 Worker report 和显式 prior report ref 传递，不依赖隐藏历史。基础设施失败使对应 key 失效并在重试时创建新 thread。
+进程重启时，Run Manager 把已持久化 `thread_id` 传给 Runtime；Codex adapter initialize 后先执行 `thread/resume`，再 fresh-read Project/Case State 发起下一 turn。瞬时 resume 失败保持原绑定进入 recovery；只有 Codex 明确确认 thread 永久不存在时，才记录可审计的 `thread_recovery_fallback` 并从 canonical state 创建新的持久 thread。canonical facts 不足时暂停并要求人工介入。
 
-Controller Review 的报告引用先做确定性归一化：精确 ID 优先；带说明后缀的完整 ID 和唯一 `TASK-nn` 序号可以映射到本轮唯一报告。无法唯一映射的引用继续 fail closed，避免错误接受其他 Worker 报告。
+当前 turn 的 fresh digest、revision 与授权覆盖 thread 中冲突的旧事实。首个 turn 携带完整待办意图；后续 turn 只携带任务标识、当前增量、fresh canonical digest/revisions、授权与输出契约，不重复历史 prompt、状态正文或旧报告。每个 turn 只选择并完成一个 Case gap，但验证、修复和 Git closeout 仍在同一 thread 中完成。
+
+每次成功 ledger 写回后、下一 gap 前，Coordinator 读取最新请求的 `inputTokens / modelContextWindow`。达到 80% 且上一个 Agent turn 后尚未压缩时，调用同一 thread 的 `thread/compact/start`，等待压缩完成并保存 checkpoint，再继续 fresh-state loop。累计 Token 只用于观测，不触发压缩或停止。
 
 ## 命令单飞与等待
 
@@ -53,7 +55,7 @@ Codex adapter 对需要批准的 command 以规范化 `cwd + command` 建立进�
 - 最近一次模型请求的输入、缓存输入、输出和 `modelContextWindow`。
 - 最新请求上下文占用比例与事件时间。
 
-Lane 固定为 `controller`、`builder`、`verifier` 或 `commit`。Worker 的具体 `worker_type` 作为明细维度保留；Controller planner/reviewer/correction 归入 Controller。commit agent 的独立 Desktop Run 归入 Commit。
+Lane 固定为 `agent`；gap 执行、验证、修复、compaction 和 Git closeout 用 stage 区分，不拆成多个 Agent lane 或 Run。Runtime 不保留旧 `controller`、`builder`、`verifier`、`delegated`、`commit` lane 的兼容分支。
 
 app-server 的 `tokenUsage.total` 是 thread 累计快照。Projector 对每个 thread 只保留最新累计值，Run 汇总为各 thread 最新值之和，不累加每次 notification。Turn 用量通过当前累计值减去该 turn 首次事件前的 thread 基线得到；同一 turn 的重复快照只更新结果，不重复计数。
 
@@ -71,8 +73,8 @@ Runtime 保存可解释、非阻断的 `usage_warnings`。首批检测包括：
 
 - 相同工作目录的等价 command 在前一实例完成前重复请求。
 - 最近模型请求的输入接近模型上下文窗口。
-- Controller Review 报告引用无法归一化或 review 失败。
-- 同一 Case/type/workstream thread 的授权路径签名发生变化，需要检查 workstream 是否仍然连贯。
+- Agent transition 结构不合法或因 stale revision 被拒绝。
+- 同一待办 Agent thread 的目标、授权或 canonical refs 发生异常漂移。
 
 警告包含类型、lane、thread/turn 或 command item、检测时间和证据摘要。警告不改变 round outcome、Case resolution、`max_auto_rounds` 或 handoff，不触发基于固定 Token 总量的中断。后续治理可以基于历史分位数和直接 Codex CLI 基线增加趋势告警，但基线属于比较证据而不是执行门禁。
 
@@ -86,9 +88,9 @@ Intervention Workbench 展示当前任务 ID、task session 和 Run 边界，并
 
 Automation Coordinator 为当前活动任务持久化可选 `case_id` 和本地 `phase=cli_handoff`。`case_id` 从 Runtime activity 中已接受的 Controller frame 或 ledger result 提取；它只把远端待办绑定到 canonical Case，不把 Run、Desktop phase 或 CLI 会话写入 Case State。Run 是可丢弃的执行实例，Case 是 Runtime、CLI 和重启恢复共享的语义事实。
 
-`handoffToCodexCli` 采用串行控制：先向当前 Runtime run 发送 interrupt，再等待 Desktop Run Manager 确认该 run 不再 active；停止超时则进入恢复状态且不启动 CLI。停止成功后，主进程通过平台终端启动器打开新终端，工作目录固定为绑定项目，并执行交互式 `codex --no-alt-screen -C <project> <prompt>`。启动器以参数数组和平台级转义生成命令，不经 Renderer shell；Renderer 只调用有界 IPC。
+`handoffToCodexCli` 采用串行控制：先向当前 Runtime run 发送 interrupt，再等待 Desktop Run Manager 释放 thread lease；停止超时则进入恢复状态且不启动 CLI。停止成功后，主进程通过平台终端启动器打开新终端，工作目录固定为绑定项目，并执行交互式 `codex resume <thread_id>`。启动器以参数数组和平台级转义生成命令，不经 Renderer shell；Renderer 只调用有界 IPC。
 
-初始 prompt 包含 `$using-arckit`、待办原始意图、已知 `case_id` 和“从 fresh Project/Case State 自动推进，仅在需要人工介入时暂停”的要求。它不包含 Runtime 内部 thread、raw event、隐藏 transcript、Controller/Worker prompt 或未写回 claim。没有 `case_id` 时，prompt 明确要求 Controller 从 fresh Project State 选择或创建 Case。
+CLI resume 后追加一条自然 `$using-arckit` 指令，包含已知 `case_id` 和“从 fresh Project/Case State 自动推进，仅在需要人工介入时暂停”的要求。它不重复待办全文，不包含 raw event、隐藏 transcript 或未写回 claim；Agent 从同一 thread 与 fresh canonical state 继续。
 
 CLI 启动成功后，活动任务进入 `cli_handoff`，远端任务保持 `in_progress`，下一队列继续冻结。Desktop 不读取终端 transcript，也不把终端关闭视为执行结果；“重新打开终端”只重复同一有界启动动作。
 
@@ -96,37 +98,37 @@ Case Reader 根据 `case_id` 先匹配 Project `active_case_refs`，再在 `arck
 
 - `active` 且 handoff 由 Agent 负责：显式交还执行权后启动 fresh Runtime run。
 - `active/handoff` 且需要 human：创建 attention item。
-- `closed` 且 resolution 为 resolved：跳过研发 run，进入 commit agent 与远端完成写回。
+- `closed` 且 Git closeout checkpoint 已完成：进入远端完成写回。
+- `closed` 且 Git closeout 尚未完成：resume 同一 thread 执行 closeout turn。
 - Case 缺失、解析失败或状态歧义：进入 `case_reconciliation_failed`，不得回退依据旧 run 猜测完成。
 
 `cli_handoff` 本身阻止 Runtime presence recovery 将其误报为丢失进程，也阻止同步自动启动并发 Runtime。只有用户显式“恢复自动执行”或 fresh Case 已 resolved 才结束 CLI 所有权；后者可安全收尾，因为 canonical Case 已声明研发闭环完成。
 
 ### 本地优先恢复与收尾检查点
 
-Automation Store v8 把活动任务收尾拆成三个持久检查点：`case_status/case_resolved_at`、`commit_status/commit_completed_at` 和 `remote_completion_status`。`phase` 只投影当前控制动作，不再承担全部完成事实。旧 Store 在 normalize 时补齐 unknown 或 pending 值；Coordinator 可以从绑定 Run 的 Controller/ledger activity 恢复 `case_id`，并从已完成的 `commit_run_id` 恢复 commit checkpoint。
+Automation Store 把活动任务收尾拆成 `case_status/case_resolved_at`、`closeout_status/closeout_completed_at` 和 `remote_completion_status` 三个持久检查点，并始终保留 `thread_id`。`phase` 只投影当前控制动作，不承担全部完成事实。Coordinator 可以从 ledger activity 恢复 `case_id`，但 closeout checkpoint 只接受同一 thread 的结构化 success/no-op 结果。
 
-启动同步先执行 detached Run 与 canonical Case 的本地对账，再创建任务源 adapter 或检查认证。该阶段不调用远端 API：active Case 保持现状，closed/resolved Case 记录单调的本地完成事实；未完成 commit 时启动一次 commit agent，已完成 commit 时进入 `remote_completion_pending`。任务源未配置、未登录、认证失效或不可达都不能跳过或回退该对账。
+启动同步先执行 detached Run、持久 thread binding 与 canonical Case 的本地对账，再创建任务源 adapter 或检查认证。该阶段不调用远端 API：active Case resume 同一 thread 继续 loop；closed/resolved Case 若未 closeout 则 resume 同一 thread 执行收尾，已完成 closeout 时进入 `remote_completion_pending`。任务源未配置、未登录、认证失效或不可达都不能跳过或回退该对账。
 
-认证和远端项目/待办快照成功后，Coordinator 再执行允许远端写回的对账。`commit_status=completed` 时只提交任务 `in_progress -> completed`；成功后清理活动任务。commit Run 的 completed 状态会先持久化为 checkpoint，再尝试远端写回，因此应用退出、401 或网络失败后不会重复 commit。`remote_completion_pending` 不属于 Runtime process ownership，Presence Recovery 不得生成 Runtime 丢失错误。
+认证和远端项目/待办快照成功后，Coordinator 再执行允许远端写回的对账。`closeout_status=completed` 时只提交任务 `in_progress -> completed`；成功后清理活动任务。closeout 状态先持久化再尝试远端写回，因此应用退出、401 或网络失败后不会重复 Git 操作。`remote_completion_pending` 不属于 Runtime process ownership，Presence Recovery 不得生成 Runtime 丢失错误。
 
-## 恢复与兼容
+## 恢复
 
-旧 Store 中没有 `session_id` 的未完成自动化任务在恢复启动时创建一次专属 task session，并立即持久化；旧历史 run 保持原 session，不自动猜测拆分历史消息。无法证明任务归属的旧 transcript 标记为 legacy，不在新的待办 Workbench 中隐式展示。
-
-session 创建成功但 Runtime 启动失败时保留 session，`retry_start` 复用它。任务完成后 session 与消息留作审查；删除项目时沿用项目级清理规则。退出登录只清除远端身份与快照，不删除本地 task session、Run activity 或用量历史。
+session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_start` 必须复用它。任务完成后 session、thread id 与消息留作审查；删除项目时沿用项目级清理规则。退出登录只清除远端身份与快照，不删除本地 task session、thread binding、Run activity 或用量历史。
 
 ## 验收口径
 
 - 两个连续远端待办在同一项目中获得不同 `session_id`，Workbench transcript 不交叉。
-- 同一待办的 intervention、continuation 与 commit 保持同一 Desktop session，历史入口打开 Case Runtime 而不是 commit Run。
-- diagnosis 与 implementation 使用不同 Codex thread；同一 Worker 类型和 workstream 的后续 turn 可以复用，独立 workstream 不复用。
-- 项目级 Controller planning 与 Case review 使用不同 thread；Worker packet 包含可从 canonical facts 重建的 context digest。
+- 同一待办的 intervention、continuation、验证、修复和 Git closeout 保持同一 Desktop session 与 Codex thread。
+- thread id 在首个 turn 前持久化；进程重启和 Runtime Run 切换都 resume 同一 thread。
+- 不同待办不共享 Codex thread；同一待办不会创建 Controller、Worker、Review 或 commit thread。
 - 同一 `cwd + command` 的并发请求只批准一个进程，并留下可审查软异常。
 - Token 快照按 thread 最新累计值去重，Run 与 lane 汇总可由 turn 明细重算。
 - Round、turn 与 command 耗时可重算，Workbench 能指出最慢活动而不重复启动命令。
 - Workbench 区分缓存输入、非缓存输入和输出，并展示上下文窗口占用。
 - 任意用量警告都不会自动设置 Token 总上限、硬总轮次或终止 Case。
 - 当前 Runtime 可以在确认安全停止后打开用户可见且可输入的交互式 Codex CLI；两者不会并发拥有同一活动任务的执行权。
-- CLI 与 Runtime 只通过待办意图和 canonical Case State 接力；关闭终端不推断完成，恢复自动执行前读取 fresh active/closed Case。
+- CLI 与 Runtime 通过同一持久 thread 和 canonical Case State 接力；关闭终端不推断完成，恢复自动执行前读取 fresh active/closed Case。
 - 未登录或认证失效的启动路径仍先读取本地 canonical Case；closed Case 显示为等待远端收尾，不显示 Runtime 仍在执行。
-- commit completed checkpoint 可以从 Store 或历史 commit Run 恢复；认证恢复后只重试远端完成写回，不启动第二个 commit agent。
+- closeout completed checkpoint 只能由同一 thread 的结构化 success/no-op 结果形成；认证恢复后只重试远端完成写回，不重复 Git closeout。
+- 最新请求上下文占用达到 80% 时，Runtime 在 gap 间压缩同一 thread 并保存 checkpoint；压缩不创建新 thread。

@@ -17,6 +17,7 @@ export function validateRuntimeResult(result) {
   const issues = [];
   const caseControlHandoff = result?.case_control_handoff;
   const isCaseControl = Boolean(caseControlHandoff && typeof caseControlHandoff === "object" && !Array.isArray(caseControlHandoff));
+  const hasCaseTransition = Boolean(result?.case_transition && typeof result.case_transition === "object" && !Array.isArray(result.case_transition));
 
   requireObject(result, "result", issues);
   requireEqual(result?.schema_version, "arckit-runtime-result/v2", "schema_version", issues);
@@ -35,7 +36,7 @@ export function validateRuntimeResult(result) {
   if (isCaseControl) {
     validateCaseControlHandoff(caseControlHandoff, issues);
     if (result?.case_transition !== null) issues.push({ path: "case_transition", message: "Case control writeback must not include a Case transition." });
-  } else {
+  } else if (hasCaseTransition) {
     requireObject(result?.case_transition, "case_transition", issues);
     requireEqual(result?.case_transition?.schema_version, "arckit-case-transition/v3", "case_transition.schema_version", issues);
     requireString(result?.case_transition?.case_id, "case_transition.case_id", issues);
@@ -46,13 +47,12 @@ export function validateRuntimeResult(result) {
     requireObject(result?.case_transition?.accepted_state_delta, "case_transition.accepted_state_delta", issues);
     requireArray(result?.case_transition?.evidence, "case_transition.evidence", issues);
     requireArray(result?.case_transition?.unresolved, "case_transition.unresolved", issues);
+  } else if (result?.ledger_stage?.writeback_required === true || result?.ledger_stage?.status === "gate_ready") {
+    issues.push({ path: "case_transition", message: "Ledger-ready results require a Case transition." });
   }
   requireEnum(result?.round_state, [
     "planned",
     "authorized",
-    "workers_running",
-    "reports_collected",
-    "merge_ready",
     "ledger_gate_ready",
     "ledger_written",
     "next_round_ready",
@@ -82,12 +82,10 @@ export function validateRuntimeResult(result) {
   requireBoolean(result?.source_projection_check?.source_unknown, "source_projection_check.source_unknown", issues);
   requireArray(result?.source_projection_check?.deferred_projections, "source_projection_check.deferred_projections", issues);
   requireArray(result?.source_projection_check?.blocked_projections, "source_projection_check.blocked_projections", issues);
-  requireObject(result?.controller_reducer_result, "controller_reducer_result", issues);
+  requireObject(result?.agent_loop_result, "agent_loop_result", issues);
   requireObject(result?.controller_frame, "controller_frame", issues);
   requireObject(result?.execution_gate, "execution_gate", issues);
   requireObject(result?.executor_binding, "executor_binding", issues);
-  requireArray(result?.worker_packets, "worker_packets", issues);
-  requireObject(result?.report_intake, "report_intake", issues);
   requireObject(result?.ledger_stage, "ledger_stage", issues);
   requireEqual(result?.ledger_stage?.schema_version, "arckit-ledger-stage/v1", "ledger_stage.schema_version", issues);
   requireEnum(result?.ledger_stage?.status, ["not_ready", "gate_ready", "gate_blocked", "human_blocked", "blocked", "written"], "ledger_stage.status", issues);
@@ -120,7 +118,7 @@ export function validateRuntimeResult(result) {
   requireInteger(result?.loop_handoff?.progress_guard?.no_progress_limit, "loop_handoff.progress_guard.no_progress_limit", issues);
   requireInteger(result?.loop_handoff?.progress_guard?.max_auto_rounds, "loop_handoff.progress_guard.max_auto_rounds", issues);
   requireSemanticField(result?.controller_frame?.round_goal, "controller_frame.round_goal", issues, SEMANTIC_LIMITS.goal);
-  if (!isCaseControl) requireSemanticField(result?.controller_frame?.route_plan?.selected_gap?.next_transition, "controller_frame.route_plan.selected_gap.next_transition", issues, SEMANTIC_LIMITS.transition);
+  if (hasCaseTransition) requireSemanticField(result?.controller_frame?.route_plan?.selected_gap?.next_transition, "controller_frame.route_plan.selected_gap.next_transition", issues, SEMANTIC_LIMITS.transition);
   requireSemanticField(result?.loop_handoff?.next_prompt, "loop_handoff.next_prompt", issues, SEMANTIC_LIMITS.nextPrompt);
   requireSemanticField(result?.loop_handoff?.agent_instruction?.goal, "loop_handoff.agent_instruction.goal", issues, SEMANTIC_LIMITS.goal);
   requireSemanticField(result?.loop_handoff?.progress_guard?.expected_state_change, "loop_handoff.progress_guard.expected_state_change", issues, SEMANTIC_LIMITS.transition);

@@ -558,7 +558,7 @@ function renderWorkbench() {
   els.interventionInput.disabled = state.interventionSubmitting;
   els.submitInterventionButton.disabled = state.interventionSubmitting;
   els.submitInterventionButton.textContent = state.interventionSubmitting ? "正在提交…" : "提交并恢复自动化";
-  const selectedGap = activity.controller_frame?.selected_gap || activity.controller_plan?.selected_gap || null;
+  const selectedGap = activity.controller_frame?.selected_gap || null;
   const sourceFacts = activity.artifact_ownership_scan?.source_facts_changed || [];
   const implementationEvidence = activity.artifact_ownership_scan?.implementation_evidence || [];
   const taskSessionId = completion?.session_id || active?.session_id || run?.session_id || "";
@@ -567,7 +567,7 @@ function renderWorkbench() {
     ? tokenUsage.cached_input_tokens / tokenUsage.input_tokens
     : 0;
   const usageWarnings = Array.isArray(activity.usage_warnings) ? activity.usage_warnings : [];
-  const workerContexts = Array.isArray(activity.worker_contexts) ? activity.worker_contexts : [];
+  const contextCompactions = Array.isArray(activity.context_compactions) ? activity.context_compactions : [];
   const performance = activity.performance || {};
   const slowestCommand = [...(performance.commands || [])].sort((left, right) => Number(right.duration_ms || 0) - Number(left.duration_ms || 0))[0] || null;
   const usageBaseline = state.snapshot.usage_baseline || {};
@@ -594,15 +594,15 @@ function renderWorkbench() {
     ["Run 状态", run?.status || "未启动"],
     ["远端任务", completion ? "已完成" : active?.phase || "无活动任务"],
     ["当前步骤", activity.current_step || "无"],
-    ["Controller", activity.controller_plan_status || activity.controller_review_status || "尚未收束"],
-    ["Worker", `${activity.agents?.length || 0} 个 · ${activity.reports?.length || 0} 份报告`],
+    ["Codex Thread", activity.thread_id || active?.thread_id || "尚未绑定"],
+    ["Agent Loop", activity.agent_loop_result?.summary || "尚未收束"],
     ["Token 逻辑总量", formatTokenCount(tokenUsage.logical_total_tokens)],
     ["缓存输入", `${formatTokenCount(tokenUsage.cached_input_tokens)} · ${formatPercent(cachedShare)}`],
     ["非缓存输入", formatTokenCount(tokenUsage.uncached_input_tokens)],
     ["输出 / Reasoning", `${formatTokenCount(tokenUsage.output_tokens)} / ${formatTokenCount(tokenUsage.reasoning_output_tokens)}`],
     ["上下文峰值", formatPercent(activity.token_usage?.max_context_utilization || 0)],
     ["用量软提示", usageWarnings.length ? `${usageWarnings.length} 项 · ${usageWarnings.at(-1)?.message || "查看诊断证据"}` : "无"],
-    ["Worker 上下文", workerContexts.length ? `${workerContexts.length} 个 workstream · ${workerContexts.reduce((sum, item) => sum + Number(item.task_count || 0), 0)} 次任务` : "尚未建立"],
+    ["上下文压缩", contextCompactions.length ? `${contextCompactions.length} 次 · ${contextCompactions.at(-1)?.status || "未知"}` : "尚未触发"],
     ["模型 Turn 耗时", formatDuration(performance.model_time_ms)],
     ["命令累计耗时", formatDuration(performance.command_time_ms)],
     ["最慢命令", slowestCommand ? `${formatDuration(slowestCommand.duration_ms)} · ${slowestCommand.command || slowestCommand.item_id}` : "无"],
@@ -611,6 +611,7 @@ function renderWorkbench() {
     ["验证", activity.validation_valid === true ? "有效" : activity.validation_valid === false ? "失败" : "未确认"],
     ["Gate", activity.gate_result?.parsed?.allowed === true ? "允许" : activity.gate_result?.parsed?.allowed === false ? "阻止" : "未执行"],
     ["Ledger", activity.ledger_write_result?.parsed?.written ? "已写回" : "未确认"],
+    ["Git 收尾", activity.closeout_result?.status === "completed" ? activity.closeout_result?.outcome || "已完成" : activity.closeout_result?.status || "未开始"],
     ["影响", `${activity.artifact_ownership_scan?.classified?.length || 0} 个已分类 artifact`],
     ["执行消息", `${activity.messages?.length || 0} 条 · ${activity.artifact_paths?.messages_file ? "已归档" : "未归档"}`]
   ]);
@@ -909,12 +910,18 @@ function runtimeStages(phase, run) {
       { label: "4 远端收尾", state: "" }
     ];
   }
-  const order = ["sync", "controller", "worker", "writeback"];
-  const labels = ["1 同步并领取", "2 Controller", "3 Worker 执行", "4 Gate 与写回"];
-  const phaseIndex = ["starting", "running", "awaiting_human", "completing", "recovery"].indexOf(phase);
-  return order.map((_, index) => ({
-    label: labels[index],
-    state: phase === "recovery" && index === Math.max(1, phaseIndex) ? "error" : run?.status === "completed" || index < Math.max(1, phaseIndex) ? "complete" : index === Math.min(3, Math.max(0, phaseIndex)) ? "active" : ""
+  const labels = ["1 同步并领取", "2 Agent Gap Loop", "3 Ledger 与上下文", "4 同线程收尾"];
+  const closeout = ["closeout_starting", "closeout_running", "remote_completion_pending", "completing"].includes(phase);
+  const failed = phase === "recovery";
+  return labels.map((label, index) => ({
+    label,
+    state: failed && index === 1
+      ? "error"
+      : run?.status === "completed" || (closeout && index < 3) || index === 0
+        ? "complete"
+        : (closeout && index === 3) || (!closeout && index === 1)
+          ? "active"
+          : ""
   }));
 }
 
@@ -926,7 +933,8 @@ function automationPhaseLabel(phase) {
     switching_to_cli: "正在切换到 CLI",
     cli_handoff: "Codex CLI 接管",
     awaiting_human: "等待人工",
-    committing: "提交变更",
+    closeout_starting: "准备同线程收尾",
+    closeout_running: "同线程验证与 Git 收尾",
     remote_completion_pending: "Case 已完成，等待远端收尾",
     completing: "完成写回",
     recovery: "需要恢复"

@@ -167,7 +167,7 @@ Loop 至少表达：
 
 Loop 的核心输出不是 Agent 输出了什么，而是一项 planned Case transition 是否产生并被接受为有证据的 Case delta，以及下一步由谁继续。
 
-Loop 可以派发零个、一个或多个 Worker。若用户本轮确认、现有稳定事实或已有验证证据已经足以推进 selected gap，Controller 可以不派发 Worker，直接形成可追溯 evidence 与 accepted delta。每个 transition 必须绑定 Case revision 和本轮观察到的 Project revision。不同 Case 的执行可以并行；canonical ledger commit 按 Project 串行化。未 resolved transition 只校验自己的 Case revision，resolved transition 聚合 Project 时还必须匹配最新 Project revision；冲突后从 fresh state 重新聚合。
+默认 Loop 由同一 Agent在一个 turn 内选择并完成一个 selected gap；该 Agent可以原生使用必要 skills/tools，并直接形成可追溯 evidence 与 accepted delta。Runtime 自动待办把所有 gap、验证、修复和 Git closeout 保持在同一个持久 Codex thread 中。每个 transition 必须绑定 Case revision 和本轮观察到的 Project revision。不同 Case 的执行可以并行；canonical ledger commit 按 Project 串行化。未 resolved transition 只校验自己的 Case revision，resolved transition 聚合 Project 时还必须匹配最新 Project revision；冲突后从 fresh state 重新聚合。
 
 一个 loop 结束时必须分别说明 round outcome、Case resolution claim、Project impact candidate 与 handoff。单轮可以完成而 Case 仍 unresolved；Case 未 resolved 时不更新 Project 维度。Loop 不能因为 Agent 停止输出就被视为完成；完成必须依赖目标满足和证据通过。
 
@@ -183,7 +183,7 @@ Loop 可以派发零个、一个或多个 Worker。若用户本轮确认、现�
 
 阶段产物是当前阶段应该交付的结果。
 
-阶段产物可以是概念澄清、价值假设、决策结论、需求草案、正式规格、体验规则、技术约束、任务拆解、implementation worker packet、refactor strategy handoff、实现变更、验证报告、审查结论、发布判断、运行观察或待确认事项。
+阶段产物可以是概念澄清、价值假设、决策结论、需求草案、正式规格、体验规则、技术约束、任务拆解、refactor strategy handoff、实现变更、验证报告、审查结论、发布判断、运行观察或待确认事项。
 
 阶段产物不是最终完成状态。它表达当前轮次推进到了哪里。
 

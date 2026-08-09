@@ -1,7 +1,7 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Updated: 2026-08-07T15:52:18.510Z
+Updated: 2026-08-09T12:50:07.343Z
 Canonical Record: state.record.json
 
 ## Purpose
@@ -35,8 +35,8 @@ Create the next bounded Case from the remaining Project state_gaps.
 ## High-Priority Dimensions
 
 - problem_scenarios: defined -> accepted; next: 选择一个复杂软件项目作为状态驱动 loop 验证对象。
-- product_behavior: implemented -> accepted; next: Run Skill First scenarios with fresh agents for spec-first, code-first, mixed, and not_required Case paths.
-- architecture_foundation: implemented -> accepted; next: 为 codex-app-server adapter 增加 turn timeout 和 transcript compaction 策略。
+- product_behavior: verified -> accepted; next: Run a real long-running Codex Runtime task and compare its semantic progress, stability, and wall-clock overhead with direct single-agent use.
+- architecture_foundation: verified -> accepted; next: Exercise the architecture on a real Case with a long-running build and retain Agent-loop, gate, ledger, and timing evidence.
 - iteration_governance: verified -> accepted; next: Use the active iteration in a real complex project loop and accept it only after durable end-to-end evidence.
 
 ## Read For Precision

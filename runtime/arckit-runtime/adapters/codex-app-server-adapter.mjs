@@ -11,8 +11,11 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
   let initializedProjectRoot = "";
   let initializeResult = null;
   let activeTurn = null;
+  let activeCompaction = null;
   let stdinControls = null;
   const threads = new Map();
+  const loadedThreadIds = new Set();
+  const latestUsageByThread = new Map();
   const activeCommands = new Map();
   const commandItems = new Map();
 
@@ -55,6 +58,8 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           client = createClient(projectRoot, effectiveOptions);
           initializedProjectRoot = resolve(projectRoot);
           client.onNotification((message) => {
+            rememberTokenUsage(message, latestUsageByThread);
+            settleCompactionNotification(message, activeCompaction);
             if (activeTurn) {
               handleNotification({
                 message,
@@ -80,6 +85,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             client = null;
             initialized = false;
             threads.clear();
+            loadedThreadIds.clear();
             activeCommands.clear();
             commandItems.clear();
           });
@@ -105,7 +111,57 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         const threadKey = String(effectiveOptions.threadKey || "").trim();
         state.threadId = effectiveOptions.threadId || (threadKey ? threads.get(threadKey) : null) || null;
         const threadWasReused = Boolean(state.threadId);
-        if (state.threadId) {
+        let threadWasResumed = threadWasReused;
+        if (state.threadId && !loadedThreadIds.has(state.threadId)) {
+          const resumeSpan = startLifecycleSpan(tracedOptions, {
+            name: "codex.thread_resume",
+            category: "agent_runtime",
+            cost_center: tracedOptions.lifecycleCostCenter || "orchestration"
+          });
+          try {
+            const resumeResult = await client.request("thread/resume", {
+              threadId: state.threadId,
+              cwd: projectRoot,
+              approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
+              model: effectiveOptions.model || null
+            });
+            loadedThreadIds.add(state.threadId);
+            if (threadKey) threads.set(threadKey, state.threadId);
+            queue.push({
+              type: "codex.thread.resume.completed",
+              thread_id: state.threadId,
+              thread_key: threadKey || null,
+              thread: resumeResult?.thread || null
+            });
+            endLifecycleSpan(tracedOptions, resumeSpan, { status: "ok" });
+          } catch (error) {
+            endLifecycleSpan(tracedOptions, resumeSpan, { status: "error", error });
+            if (!isMissingThreadError(error)) {
+              throw new Error(`Unable to resume persisted Codex thread ${state.threadId}: ${error.message}`, { cause: error });
+            }
+            const missingThreadId = state.threadId;
+            const fallback = await client.request("thread/start", {
+              cwd: projectRoot,
+              ephemeral: false,
+              approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
+              approvalsReviewer: "user",
+              model: effectiveOptions.model || null,
+              runtimeWorkspaceRoots: [projectRoot]
+            });
+            state.threadId = readId(fallback?.thread);
+            if (!state.threadId) throw new Error("Thread recovery fallback did not return a thread id.");
+            loadedThreadIds.add(state.threadId);
+            if (threadKey) threads.set(threadKey, state.threadId);
+            threadWasResumed = false;
+            queue.push({
+              type: "codex.thread.recovery_fallback",
+              missing_thread_id: missingThreadId,
+              thread_id: state.threadId,
+              thread_key: threadKey || null,
+              reason: error.message
+            });
+          }
+        } else if (state.threadId) {
           const reuseSpan = startLifecycleSpan(tracedOptions, {
             name: "codex.thread_reuse",
             category: "agent_runtime",
@@ -127,7 +183,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
           try {
             threadStartResult = await client.request("thread/start", {
               cwd: projectRoot,
-              ephemeral: true,
+              ephemeral: false,
               approvalPolicy: effectiveOptions.approvalPolicy || "on-request",
               approvalsReviewer: "user",
               model: effectiveOptions.model || null,
@@ -140,6 +196,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             if (threadKey) {
               threads.set(threadKey, state.threadId);
             }
+            loadedThreadIds.add(state.threadId);
             endLifecycleSpan(tracedOptions, threadSpan, { status: "ok", attributes: { reused: false } });
           } catch (error) {
             endLifecycleSpan(tracedOptions, threadSpan, { status: "error", error });
@@ -150,6 +207,15 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
             thread_id: state.threadId,
             thread_key: threadKey || null,
             thread: threadStartResult?.thread || null
+          });
+        }
+
+        if (typeof effectiveOptions.onThreadBound === "function") {
+          await effectiveOptions.onThreadBound({
+            threadId: state.threadId,
+            threadKey: threadKey || null,
+            resumed: threadWasResumed,
+            boundAt: new Date().toISOString()
           });
         }
 
@@ -198,6 +264,7 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         initializedProjectRoot = "";
         initializeResult = null;
         threads.clear();
+        loadedThreadIds.clear();
         activeCommands.clear();
         commandItems.clear();
         throw error;
@@ -227,21 +294,90 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
       stdinControls = null;
       activeTurn?.queue.fail(new Error("Codex app-server adapter closed during an active turn."));
       activeTurn = null;
+      activeCompaction?.reject(new Error("Codex app-server adapter closed during context compaction."));
+      activeCompaction = null;
       client?.close();
       client = null;
       initialized = false;
       initializedProjectRoot = "";
       initializeResult = null;
       threads.clear();
+      loadedThreadIds.clear();
+      latestUsageByThread.clear();
       activeCommands.clear();
       commandItems.clear();
     },
-    discardThread(threadKey) {
-      const normalized = String(threadKey || "").trim();
-      return normalized ? threads.delete(normalized) : false;
+    threadId(threadKey) {
+      return threads.get(String(threadKey || "").trim()) || null;
+    },
+    latestContextUsage(threadKey) {
+      const threadId = threads.get(String(threadKey || "").trim()) || String(threadKey || "").trim();
+      return latestUsageByThread.get(threadId) || null;
+    },
+    async compactThread({ threadKey = "", threadId = "", options = {} } = {}) {
+      if (activeTurn) throw new Error("Cannot compact a Codex thread while a turn is active.");
+      if (activeCompaction) throw new Error("Codex app-server adapter supports one active compaction at a time.");
+      const id = String(threadId || threads.get(String(threadKey || "").trim()) || "").trim();
+      if (!id || !loadedThreadIds.has(id) || !client || !initialized) throw new Error("Cannot compact an unloaded Codex thread.");
+      const compaction = createCompactionWaiter(id);
+      activeCompaction = compaction;
+      try {
+        const result = await client.request("thread/compact/start", { threadId: id });
+        compaction.turnId = readId(result?.turn) || "";
+        await compaction.promise;
+        return { thread_id: id, turn_id: compaction.turnId, result };
+      } finally {
+        activeCompaction = null;
+      }
     }
   };
   return adapter;
+}
+
+function rememberTokenUsage(message, latestUsageByThread) {
+  if (message?.method !== "thread/tokenUsage/updated") return;
+  const params = message.params || {};
+  const threadId = String(params.threadId || "").trim();
+  const inputTokens = Number(params.tokenUsage?.last?.inputTokens || 0);
+  const modelContextWindow = Number(params.tokenUsage?.modelContextWindow || 0);
+  if (!threadId || !Number.isFinite(inputTokens) || !Number.isFinite(modelContextWindow)) return;
+  latestUsageByThread.set(threadId, {
+    thread_id: threadId,
+    turn_id: String(params.turnId || ""),
+    input_tokens: Math.max(0, inputTokens),
+    model_context_window: Math.max(0, modelContextWindow),
+    context_utilization: modelContextWindow > 0 ? Math.min(Math.max(inputTokens / modelContextWindow, 0), 1) : 0,
+    updated_at: new Date().toISOString()
+  });
+}
+
+function createCompactionWaiter(threadId) {
+  let resolvePromise;
+  let rejectPromise;
+  const promise = new Promise((resolve, reject) => {
+    resolvePromise = resolve;
+    rejectPromise = reject;
+  });
+  return { threadId, turnId: "", promise, resolve: resolvePromise, reject: rejectPromise };
+}
+
+function settleCompactionNotification(message, compaction) {
+  if (!compaction) return;
+  const params = message.params || {};
+  const threadId = String(params.threadId || "");
+  const turnId = String(readId(params.turn) || params.turnId || "");
+  if (threadId && threadId !== compaction.threadId) return;
+  if (compaction.turnId && turnId && turnId !== compaction.turnId) return;
+  if (message.method === "error" && params.willRetry !== true) {
+    compaction.reject(new Error(codexErrorMessage(params.error || params)));
+    return;
+  }
+  if (message.method === "turn/completed") compaction.resolve();
+}
+
+function isMissingThreadError(error) {
+  const text = codexErrorMessage(error).toLowerCase();
+  return /thread/.test(text) && /(not found|unknown|missing|404)/.test(text);
 }
 
 function handleServerRequest({ message, queue, options, activeCommands, commandItems }) {
@@ -255,10 +391,9 @@ function handleServerRequest({ message, queue, options, activeCommands, commandI
   switch (message.method) {
     case "currentTime/read":
       return { currentTimeAt: Math.floor(Date.now() / 1000) };
-    case "item/commandExecution/requestApproval":
-    case "execCommandApproval": {
+    case "item/commandExecution/requestApproval": {
       if ((options.approvalPolicy || "on-request") === "never") {
-        return approvalDecision(options, "command");
+        return modernApprovalDecision(options);
       }
       const duplicate = registerCommandApproval(message.params, activeCommands, commandItems);
       if (duplicate) {
@@ -272,22 +407,34 @@ function handleServerRequest({ message, queue, options, activeCommands, commandI
           warning: "An equivalent command is already running in this workspace."
         });
         return {
-          decision: "denied",
-          approved: false,
-          reason: `Equivalent command already running as ${duplicate.item_id || "an active item"}; observe that command instead of starting another process.`
+          decision: "decline"
         };
       }
-      return approvalDecision(options, "command");
+      return modernApprovalDecision(options);
+    }
+    case "execCommandApproval": {
+      const duplicate = registerCommandApproval(message.params, activeCommands, commandItems);
+      if (duplicate) {
+        return {
+          decision: {
+            denied: {
+              rejection: `Equivalent command already running as ${duplicate.item_id || "an active item"}.`
+            }
+          }
+        };
+      }
+      return legacyApprovalDecision(options);
     }
     case "item/fileChange/requestApproval":
+      return modernApprovalDecision(options);
     case "applyPatchApproval":
-      return approvalDecision(options, "fileChange");
+      return legacyApprovalDecision(options);
     case "item/tool/requestUserInput":
       return { answers: {} };
     case "mcpServer/elicitation/request":
       return { action: "decline", content: null };
     case "item/permissions/requestApproval":
-      return permissionDecision(options);
+      return permissionDecision(options, message.params);
     default:
       throw new Error(`Unhandled server request: ${message.method}`);
   }
@@ -321,27 +468,31 @@ function canonicalCommand(command) {
     .trim();
 }
 
-function approvalDecision(options, kind) {
+function modernApprovalDecision(options) {
   const policy = options.approvalPolicy || "on-request";
   if (policy === "never") {
-    return { decision: kind === "fileChange" ? "decline" : "denied" };
+    return { decision: "decline" };
   }
-  return {
-    decision: "approve",
-    approved: true,
-    reason: `Arckit Runtime approved ${kind} under approvalPolicy=${policy}.`
-  };
+  return { decision: "accept" };
 }
 
-function permissionDecision(options) {
+function legacyApprovalDecision(options) {
   const policy = options.approvalPolicy || "on-request";
   if (policy === "never") {
-    return { decision: "denied", approved: false };
+    return { decision: { denied: { rejection: "Arckit Runtime approval policy denied the request." } } };
   }
+  return { decision: "approved" };
+}
+
+function permissionDecision(options, params = {}) {
+  const policy = options.approvalPolicy || "on-request";
+  const requested = params?.permissions && typeof params.permissions === "object" ? params.permissions : {};
   return {
-    decision: "approve",
-    approved: true,
-    reason: `Arckit Runtime approved requested permissions under approvalPolicy=${policy}.`
+    permissions: policy === "never" ? {} : {
+      ...(Object.hasOwn(requested, "fileSystem") ? { fileSystem: requested.fileSystem } : {}),
+      ...(Object.hasOwn(requested, "network") ? { network: requested.network } : {})
+    },
+    scope: "turn"
   };
 }
 
@@ -473,7 +624,7 @@ function handleNotification({ message, queue, state, options, activeCommands, co
       attributes: { turn_id: state.turnId || "" },
       error: state.lastError
     });
-    const parsed = parseWorkerOutput({
+    const parsed = parseStructuredOutput({
       text: state.lastCompletedAgentText || state.agentText,
       completionParams: message.params,
       resultKind: state.resultKind || "runtime-result",
@@ -649,78 +800,52 @@ function readId(value) {
   return value.id || value.turnId || value.threadId || null;
 }
 
-function parseWorkerOutput({ text, completionParams, resultKind, error }) {
-  if (resultKind === "agent-task") {
-    return {
-      type: "runtime.agent_task.result",
-      result: {
-        schema_version: "arckit-agent-task-result/v1",
-        status: error ? "failed" : "completed",
-        output: text,
-        error: error ? codexErrorMessage(error) : ""
-      }
+function parseStructuredOutput({ text, completionParams, resultKind, error }) {
+  if (resultKind === "task-closeout-result") {
+    if (error) return {
+      type: "runtime.task_closeout_result",
+      result: invalidTaskCloseoutResult(codexErrorMessage(error))
     };
+    try {
+      return { type: "runtime.task_closeout_result", result: parseJsonFromText(text) };
+    } catch (parseError) {
+      return { type: "runtime.task_closeout_result", result: invalidTaskCloseoutResult(parseError.message) };
+    }
   }
-  if (resultKind === "controller-review") {
+  if (resultKind === "agent-loop-result") {
     if (error) {
       return {
-        type: "runtime.controller_review",
-        review: createInvalidControllerReview(`Codex controller failed before returning an arckit-controller-review/v3 JSON object: ${codexErrorMessage(error)}`)
+        type: "runtime.agent_loop_result",
+        result: createInvalidAgentLoopResult(`Codex Agent failed before returning arckit-agent-loop-result/v1: ${codexErrorMessage(error)}`)
       };
     }
     try {
       return {
-        type: "runtime.controller_review",
-        review: parseJsonFromText(text)
+        type: "runtime.agent_loop_result",
+        result: parseJsonFromText(text)
       };
     } catch (error) {
       return {
-        type: "runtime.controller_review",
-        review: createInvalidControllerReview(`Codex controller did not return a valid arckit-controller-review/v3 JSON object: ${error.message}`)
-      };
-    }
-  }
-  if (resultKind === "controller-plan") {
-    if (error) {
-      return {
-        type: "runtime.controller_plan",
-        plan: createInvalidControllerPlan(`Codex controller failed before returning an arckit-controller-plan/v3 JSON object: ${codexErrorMessage(error)}`)
-      };
-    }
-    try {
-      return {
-        type: "runtime.controller_plan",
-        plan: parseJsonFromText(text)
-      };
-    } catch (error) {
-      return {
-        type: "runtime.controller_plan",
-        plan: createInvalidControllerPlan(`Codex controller did not return a valid arckit-controller-plan/v3 JSON object: ${error.message}`)
-      };
-    }
-  }
-  if (resultKind === "worker-report") {
-    if (error) {
-      return {
-        type: "runtime.worker_report",
-        report: createInvalidWorkerReport(`Codex worker failed before returning an arckit-worker-report/v2 JSON object: ${codexErrorMessage(error)}`)
-      };
-    }
-    try {
-      return {
-        type: "runtime.worker_report",
-        report: parseJsonFromText(text)
-      };
-    } catch (error) {
-      return {
-        type: "runtime.worker_report",
-        report: createInvalidWorkerReport(`Codex worker did not return a valid arckit-worker-report/v2 JSON object: ${error.message}`)
+        type: "runtime.agent_loop_result",
+        result: createInvalidAgentLoopResult(`Codex Agent did not return valid arckit-agent-loop-result/v1 JSON: ${error.message}`)
       };
     }
   }
   return {
     type: "runtime.result",
     result: parseRuntimeResultOrBlocked(text, completionParams)
+  };
+}
+
+function invalidTaskCloseoutResult(message) {
+  return {
+    schema_version: "arckit-task-closeout-result/v1",
+    status: "failed",
+    outcome: "none",
+    summary: "Task closeout failed.",
+    evidence: [],
+    commit_hash: "",
+    error: String(message || "unknown_closeout_error")
   };
 }
 
@@ -764,71 +889,23 @@ function parseJsonFromText(text) {
   throw new Error("No parseable JSON object found in final assistant text.");
 }
 
-function createInvalidControllerReview(summary) {
+function createInvalidAgentLoopResult(summary) {
   return {
-    schema_version: "arckit-controller-review/v3",
-    status: "blocked",
+    schema_version: "arckit-agent-loop-result/v1",
+    action: "handoff",
     summary,
-    accepted_reports: [],
-    rejected_reports: [],
-    risks: [summary],
-    unknowns: [],
-    next_prompt: "Retry Controller review with the required arckit-controller-review/v3 output contract.",
-    human_decision_required: false
-  };
-}
-
-function createInvalidControllerPlan(summary) {
-  return {
-    schema_version: "arckit-controller-plan/v3",
-    status: "blocked",
-    summary,
-    execution_plan: {
-      plane: "none",
-      runtime_actions: []
-    },
-    route_plan: {
-      mode: "agent_selected_route",
-      selected_gap: {
-        id: "",
-        scope: "case",
-        case_id: "",
-        facet: "",
-        responsibility: "agent",
-        current_state: "",
-        target_state: "",
-        impact: "",
-        next_transition: ""
-      },
-      reason: summary,
-      requires_human_confirmation: false
-    },
-    worker_intents: [],
-    planned_transition: { goal: "Retry Controller planning.", expected_state_change: "No state change was accepted." },
-    continuation_intent: { goal: "Retry Controller planning.", state_transition: "invalid plan -> valid plan", next_prompt: "Retry Controller planning." },
-    risks: [summary],
-    unknowns: [],
-    next_controller_action: "Retry Controller planning with the required arckit-controller-plan/v3 output contract."
-  };
-}
-
-function createInvalidWorkerReport(summary) {
-  return {
-    schema_version: "arckit-worker-report/v2",
-    task_id: "",
-    worker_type: "implementation",
-    role: "agent_defined_worker",
-    status: "invalid",
-    summary,
-    findings: [],
-    evidence: [],
-    changes: [],
+    case_control: null,
+    case_transition: null,
+    changed_files: [],
     artifact_impacts: [],
     risks: [summary],
     unknowns: [],
-    recommendation: "Retry the worker with the required arckit-worker-report/v2 output contract.",
-    requires_main_agent_decision: true,
-    requires_human_decision: false
+    handoff: {
+      next_responsibility: "agent",
+      reason: summary,
+      next_prompt: "Retry from fresh canonical state.",
+      human_decision_required: false
+    }
   };
 }
 

@@ -9,7 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const schemasDir = join(here, "../schemas");
 
 test("Codex model output schemas satisfy strict structured-output requirements", async () => {
-  for (const filename of ["controller-plan.schema.json", "controller-review.schema.json", "worker-report.schema.json"]) {
+  for (const filename of ["agent-loop-result.schema.json"]) {
     const schema = JSON.parse(await readFile(join(schemasDir, filename), "utf8"));
     assert.doesNotThrow(() => assertCodexOutputSchema(schema, { name: filename }));
   }

@@ -69,8 +69,10 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /命令累计耗时/);
   assert.match(source, /历史基线/);
   assert.match(source, /相对历史中位数/);
-  assert.match(source, /Worker 上下文/);
-  assert.match(source, /worker_contexts/);
+  assert.match(source, /Codex Thread/);
+  assert.match(source, /上下文压缩/);
+  assert.match(source, /context_compactions/);
+  assert.match(source, /Git 收尾/);
   assert.match(source, /activity\?\.messages/);
   assert.match(source, /renderConversationMessage/);
   assert.match(source, /run\.activity_changed/);

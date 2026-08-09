@@ -431,7 +431,7 @@ function diagnose({ totalMs, orchestrationMs, taskExecutionMs, externalMs, close
     reason = "Commit or completion closeout dominates exclusive time.";
   } else if (ratios.task_execution >= 0.5) {
     tendency = "task_specific";
-    reason = "Worker/model/tool execution dominates the lifecycle.";
+    reason = "Agent/model/tool execution dominates the lifecycle.";
   }
   return {
     tendency,

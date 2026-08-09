@@ -1,319 +1,119 @@
-# Controller Worker Loop
+# Agent Loop
 
 ## 定位
 
-Controller Worker Loop 定义没有 Desktop 或自动化平台时，人类、Controller Agent 和 Worker Agent 如何围绕同一轮软件研发任务协作；同时定义 Desktop 后续如何把这个人工过程自动化。
+本规格定义人类直接在 Codex 中使用 Arckit，以及 Desktop Runtime 自动推进同一事项时共享的 `Project State -> Case -> Loop` 语义。
 
-该协议不把入口能力视为执行器。入口能力只负责理解输入、恢复状态、生成执行包、接收 worker report、判断收口和输出下一轮 handoff。真正执行由被显式绑定的 executor 完成。
+默认形态是一个连贯的 Codex Agent 工作单元：同一 Agent 在一个 turn 内恢复 fresh facts、选择一个 Case gap、使用必要 skills/tools 执行、验证、自我审查，并提交 transition 或责任明确的 handoff。Runtime 取代人类在对话外执行的自动化动作，不取代 Agent 的能力。
 
-Controller Worker Loop 是 Project State 通过 Case 和 Loop 被持续推进的对话形态。Controller 先恢复 Project State 和 active case，再判断本轮 loop 是否需要执行、等待、验证、请求人类判断、接收外部反馈或关闭 case。
+Loop 是一次可验证的 Case 状态推进，不等于 Agent 内部每次工具调用；一个 Loop 只处理一个 gap。
 
-该协议不把 loop 等同于 Agent 内部工具调用循环。Loop 是一次业务推进循环，必须说明本轮对 case 和 Project State 的影响。
+## 责任边界
 
-## 角色
-
-| 角色 | 职责 | 不负责 |
+| 参与者 | 职责 | 不负责 |
 |---|---|---|
-| Human Runtime | 在多个 Agent 对话之间搬运执行包、报告、补充和纠错，并决定是否授权执行 | 不替代 Controller 判断旧执行包是否失效 |
-| Controller Agent | 使用 Arckit 状态生成 controller frame、worker packets、report intake rules、closeout rules 和 next prompt | 不直接修改项目、不直接执行 worker packet、不静默关闭 case |
-| Worker Agent | 按 worker packet 执行一个有边界的任务并返回结构化 report | 不自行扩大范围、不决定项目方向、不完成整轮 closeout |
-| Desktop Runtime | 自动化 Human Runtime 的搬运、worker 启动、report 收集、merge gate、暂停和继续 | 不改变 Controller Worker Loop 的语义 |
+| 人类 | 提供目标、补充与纠错；承担取舍、授权、审美、风险接受和发布责任 | 不手工搬运默认流水线中的伪 packet/report |
+| Codex Agent | 选择 Case/gap；原生选择 skills/tools；调查、实现、验证、自我审查；形成语义 claim | 不直接写 ledger；不静默代替人类决策 |
+| Desktop Runtime | readiness、任务领取、授权投影、持久 thread、fresh-state bridge、上下文压缩、结构门禁、trusted ledger、自动续轮、恢复与 commit | 不预选 gap、固定 skill/role/path；不语义复审 Agent 工作 |
 
-## 人工作业形态
+`using-arckit` 是当前 Agent 的对话控制协议，不是另一个必须先规划、后交给当前 Agent 执行的角色。`arckit-development-ledger` 是唯一确定性状态写回能力。
 
-没有 Desktop 时，人类固定保留一个 Controller 对话，并按需打开多个 Worker 对话。
+## 人类直接在 Codex 中工作
 
-Controller 对话只处理项目 loop 控制：
+人类在一个持续对话中调用 `$using-arckit`。当前 Agent：
 
-- 读取或初始化项目状态。
-- 创建、选择或恢复当前 case。
-- 识别本轮输入和上一轮 handoff 的关系。
-- 生成本轮 controller frame。
-- 生成零个或多个 worker packet；现有证据足够时直接进入 Controller Review。
-- 等待人类把 worker report 带回。
-- 审核 report 是否满足 packet 和 closeout rules。
-- 输出本轮状态和下一轮 prompt。
+1. 读取 Project State、全部 active Cases、iteration 和上一 handoff。
+2. 判断用户输入是新事项、继续、补充、纠错、目标变化、暂停或状态查询。
+3. 选择一个 active Case 与一个完整 candidate gap；没有合适 Case 时请求 `case_control.create_case`。
+4. 在当前 turn 内使用适合的事实、skills 和工具完成该 gap 所需工作。
+5. 执行与风险相称的验证和自我审查。
+6. 输出 evidence-backed transition 或 human/external handoff。
+7. ledger 写回成功后，在同一对话基于 fresh state 继续下一个 gap。
 
-Worker 对话只处理 packet：
+用户不需要为概念上的“计划—执行—复审”创建多个对话。验证、修复和提交继续使用当前对话。
 
-- 读取 packet 中列出的上下文。
-- 执行允许范围内的工作。
-- 不修改 packet 外的目标和项目方向。
-- 返回 `worker_report`。
+## Runtime 自动化形态
 
-## 首轮输入
+默认自动执行链路是：
 
-当人类在 Controller 对话中发起项目任务时，Controller 生成执行包而不是直接执行。
-
-执行包至少包含：
-
-```yaml
-controller_frame:
-  case_id: ""
-  turn_delta: first_turn | new_case | resume_next_prompt | supplement | correction | goal_change | pause_or_stop
-  round_goal: ""
-  round_status: planning | waiting_worker | reviewing_worker | ready_to_close | done | blocked
-  source_projection_check: {}
-
-execution_gate:
-  status: pending | authorized | blocked | not_required
-  required_decision: ""
-  allowed_executors:
-    - human_runtime
-    - desktop_runtime
-    - external_agent
-  executor_binding_required: true
-
-worker_packets:
-  - worker_id: ""
-    worker_type: product | tech | implementation | verification | diagnosis | closeout
-    role: ""
-    task: ""
-    case_context:
-      case_id: ""
-      case_updated_at: ""
-      selected_gap: {}
-    expected_case_impact: ""
-    context_refs: []
-    allowed_actions: []
-    forbidden_actions: []
-    allowed_skills: []
-    expected_report_schema: worker_report
-
-report_intake_rules:
-  accept_when: []
-  reject_when: []
-  needs_revision_when: []
-
-closeout_rules:
-  done_when: []
-  continue_when: []
-  needs_human_when: []
-  blocked_when: []
-
-next_prompt:
-  on_done: ""
-  on_continue: ""
-  on_correction: ""
+```text
+local readiness
+  -> remote claim
+  -> fresh Project/Case read
+  -> one $using-arckit Agent turn
+  -> structural/revision/authorization gate
+  -> trusted ledger writeback
+  -> fresh read
+  -> next turn in the same task thread
 ```
 
-存在 worker packet 时，Controller 面向人类的输出必须能直接复制到 Worker 对话，并说明当前是否等待执行授权或等待 worker report。零 Worker 时必须说明采用了哪些 operator/stable-fact evidence，以及这些证据预期推进哪个 Case gap。
+Runtime invocation 只提供自然的 `$using-arckit` 触发、真实用户意图、当前增量、由 canonical records 确定性派生的 bounded facts、revision 与执行授权。Codex output schema 作为机器参数约束返回形状。Runtime 不显式注入一份额外 skill input，不拼接 skill 正文、固定 workflow、Worker role、skill 白名单或预测路径。
 
-`worker_type` 是稳定能力类型，用于表达本 worker 在软件研发 loop 中承担的职责；`role` 是本轮 Controller 可命名的具体执行身份。Runtime 和 Controller 可以基于 `worker_type` 选择默认权限、报告要求和 UI 展示方式，但不得把 `worker_type` 组合成固定流水线。`allowed_skills` 是本 worker 可调用的 skill 能力边界，只能来自当前 Worker Capability Registry 和 Controller 对本轮状态缺口的判断；Controller 协议能力与 Runtime 状态能力不能绑定给 Worker。
+一个远端待办从领取、逐 gap 推进、验证、修复到 Git commit 始终绑定一个持久 Codex thread。Runtime 在第一个 turn 前保存 Codex 返回的 thread id；进程重启后通过该 id 恢复对话并继续追加 turn。fresh canonical facts 与当前授权覆盖冲突的历史内容，ledger 与持久 thread 分别提供事实恢复和语义连续性。
 
-## 执行授权
+每次成功 ledger 写回后，Runtime 用该 thread 最新请求的 input tokens 除以模型 context window 计算上下文占用率。占用率达到 80% 时，Runtime 在同一 thread 完成上下文压缩并等待压缩成功，再发起下一 gap turn。压缩不创建新对话，也不改变 canonical state。
 
-执行必须经过 execution gate。
+自动执行只在以下情况暂停：
 
-默认状态是 `execution_gate.status=pending`。只有在以下情况下可以进入执行：
+- `next_responsibility=human`：需要真实人类判断或授权。
+- `next_responsibility=external`：等待外部结果，且没有其它 agent-owned gap。
+- 连续没有 canonical ledger 进展并触发恢复保护，或确定性基础设施失败。
 
-- 人类明确说执行、由你执行、开始实施、继续执行，或同义表达。
-- Desktop 用户点击 Run 或当前会话配置了明确 auto-run policy。
-- 外部平台传入已经授权的 execution packet。
+总墙钟、生产性 Loop 数和长命令时长不是停止条件。每个 Loop 仍串行推进一个 gap；不通过合并 gap 或默认并发来换取速度。
 
-如果只是生成方案、拆解任务或讨论方向，Controller 不得把当前 Agent 自动绑定为 executor。
+## 输入与授权
 
-## Worker Report
+真实用户输入与 Runtime 控制元数据必须分开。任务 ID、run ID、续轮深度、gate 和 ledger 状态不能伪装成 `role=user` 内容。自动续轮没有新增人类输入，Runtime 只发起下一 turn 并提供 fresh facts。
 
-Worker 完成任务后返回结构化 report。
+执行授权来自用户显式执行意图、Desktop auto-run policy 或外部已授权 packet。Runtime 负责 sandbox、approval 与 workspace 边界；Agent 的 skill/tool 选择不能扩大这些权限。
 
-```yaml
-worker_report:
-  schema_version: arckit-worker-report/v2
-  task_id: ""
-  worker_type: product | tech | implementation | verification | diagnosis | closeout
-  role: ""
-  status: completed | partial | blocked | failed | invalid
-  summary: ""
-  findings: []
-  evidence: []
-  changes: []
-  artifact_impacts: []
-  case_state_claims: []
-  risks: []
-  unknowns: []
-  recommendation: ""
-  requires_main_agent_decision: false
-  requires_human_decision: false
-```
+状态查询只报告，不触发工作区修改。human-responsibility gap 不由自动执行提升为 Agent 责任。
 
-Controller 接收 report 时必须判断：
+## 单 Loop 契约
 
-- report 是否匹配 worker packet。
-- 是否完成 packet 的任务。
-- 是否越权扩大范围。
-- 是否产生稳定事实、实现证据、pending 或新的 handoff。
-- 哪些 `case_state_claims` 有足够证据进入 accepted Case delta。
-- 是否需要补充 worker。
-- 是否产生可验证的 case state 或 Project State 影响。
-- 当前 round 是否可 closeout。
+一个 Loop 的标准步骤是：
 
-## 补充与纠错
+1. 恢复 fresh canonical facts；历史 transcript 只提供连续性。
+2. 从全部 active Cases 中选择一个 Case，再从 unordered `candidate_gaps` 选择一个 gap。
+3. 形成 `planned_transition.goal`、expected state change 与 evidence requirement。
+4. 当前 Agent 自主使用必要 skills/tools 完成事实维护、诊断、实现、构建、测试和自我审查。
+5. 分离 `round_outcome`、`case_resolution`、`project_impact_candidate` 与 handoff。
+6. 提交绑定 Case revision、observed Project revision 和完整 selected gap 的 `arckit-case-transition/v3`。
+7. Runtime 通过结构、revision、授权、路径和 ledger legality gate 后调用 trusted ledger。
+8. 写回成功后 fresh-read，再选择下一个 gap。
 
-人类补充或纠错时应先回到 Controller 对话，而不是直接分发给所有 Worker。
+Runtime 不把 transition 中的一个 facet claim 当成 Case 已关闭，也不让语义 resolved claim 覆盖结构 guard 的否决。Agent 可以提交 unresolved repair transition；有 blocker 的 resolved claim 不能进入 writeback。
 
-Controller 根据输入判断：
+Case 六个 facets 达到目标只表示 `base_ready`。当前 content revision 仍需 correctness、completeness、minimality 复审。复审、finding 修复和复验均由当前 Agent在同一 task thread 完成；最后一个授权自主复审仍有 findings 时转 human responsibility。
 
-- `supplement`：补充信息不必然使当前 packet 失效，但可能改变后续 worker 的上下文。
-- `correction`：纠正事实或误解，需要定位受影响的事实、report 或 packet。
-- `goal_change`：改变目标，可能需要暂停旧 case、新开 case 或要求人类确认。
-- `pause_or_stop`：暂停当前执行包并输出可恢复 handoff。
+## Closeout 与 handoff
 
-当旧 packet 失效时，Controller 必须明确通知人类停止使用旧 packet，并生成新的 packet 或等待确认。
+一轮 Agent turn 结束不等于 round、Case 或 Project 都完成。closeout 必须分别说明：
 
-## 单轮完成判断
+- 本轮工作是否 completed、partial、blocked、needs_human 或 external_wait。
+- Case 是 unresolved、resolved 或 blocked，以及 remaining gaps。
+- Project impact 是 none、proposed 或 accepted。
+- 下一责任方是 agent、human、external 或 none。
 
-一轮完成不等于某个 Agent 停止输出。Controller 只有在以下条件满足时才能标记 `done`：
+结构化输出不足时不得补造可写回 delta。Case 关闭必须有可解释的 Project impact 或明确 no-change closure。No-change closure 只用于重复、无效、过期、不再需要、合并、放弃或外部转移。
 
-- 本轮 `round_goal` 已满足。
-- 所有已派发的必需 worker report 均已接收并通过 intake rules；零 Worker 时 Controller 直接证据已列明并可追溯。
-- 产物、文件变更、事实更新或 handoff 可定位。
-- 验证证据足够，或未验证部分已明确记录。
-- source fact、projection artifact、implementation evidence 和 pending 已分清。
-- active case 或 loop handoff 已更新到可恢复状态。
-- 本轮对 case 和 Project State 的影响已经说明；无状态变化时已说明 no-change closure、等待、阻塞或继续原因。
+## Desktop 控制态
 
-否则只能输出 `continue`、`needs_human`、`blocked` 或 `external_wait`。
+Desktop 只穷举可恢复控制态，不穷举业务路径：`no_context`、`running`、`interrupted`、`human_gate_required`、`agent_resumable`、`external_wait`、`blocked`、`failed_or_invalid`、`ledger_writeback_ready`、`ledger_writeback_blocked`、`ledger_written`、`context_compacting` 与 `committing`。
 
-## 下一轮
+主动作只表达控制操作，如 Run、Respond、Resume、Resolve、Write Ledger 或 Diagnose。Desktop 不根据关键词决定业务下一步；用户补充交给同一 Agent结合 fresh state 解释。
 
-每轮 closeout 必须给出 `next_prompt`。人类可以直接把 `next_prompt` 发回 Controller 对话继续下一轮。
-
-当下一步仍是 Agent 工作但没有 Desktop 自动桥时，状态是：
-
-```yaml
-next_responsibility: agent
-trigger_mode: manual_bridge
-```
-
-这表示人类只负责手动触发下一轮，不表示人类接手项目判断。
-
-## Desktop 自动化
-
-Desktop 自动化的是 Human Runtime 的动作：
-
-- 主 Chat 对应 Controller 对话。
-- Worker 会话对应多个 Codex app-server session。
-- Run 按钮对应 execution gate 授权。
-- Stop 对应 `pause_or_stop`。
-- Continue 对应使用 `loop_handoff.next_prompt`。
-- 用户补充对应 `supplement`。
-- 用户纠错对应 `correction` 或 `goal_change`。
-- 右侧状态展示 controller frame、execution gate、executor binding、worker packets、worker reports、merge gate 和 next prompt。
-
-Desktop 左侧栏按 Projects 和 Chats 两个可调整高度的分区展示内容。项目条目保持名称与路径两行的固定高度布局，Chat 条目保持标题单行的固定高度布局；列表剩余空间不拉伸条目，长内容在条目边界内省略，条目数量超出分区时由分区独立滚动。
-
-Desktop 不改变 Controller Worker Loop。它只减少人类复制 packet、收集 report 和判断 gate 的操作成本。
-
-Controller 的 `operator_input` 只承载真实人类语义：初始任务意图、人工决策、补充或纠正。任务 ID、项目 ID、source run、执行动作、续轮深度、gate 和 ledger 状态属于 Runtime 控制面元数据，不拼接成人类 prompt。完整 Project/Case record、controller frame、activity、ledger write result、worker stream JSON 和上一轮 prompt 只能通过 canonical 路径或 runtime evidence ref 读取。
-
-Controller Agent 是唯一负责把人类输入、canonical state 和新增证据解释为本轮语义意图的组件。Controller plan 必须显式输出互斥的 execution plane、Runtime actions、route plan、selected gap、worker intents 和下一步 continuation intent。`runtime` plane 只包含确定性 Runtime action，`worker` plane 只包含 Worker intents，`none` plane 表示由 Controller 直接证据完成零 Worker transition。Runtime 只校验这些结构化字段、执行授权和 capability binding，并把结果投影到 loop frame、worker task 和 ledger writeback；Runtime 不从控制元数据推理业务目标。
-
-在 Runtime 执行形态中，Controller planning 与 report review 都通过 capability manifest 声明的 `$using-arckit` Agent skill trigger 启动。Planning invocation 只携带人类原始输入、canonical state refs、revision、execution authorization 和允许的 capability refs；Review invocation 只增加本轮必要的 Loop Frame 与 Worker reports。输出形状由 App Server `outputSchema` 和 Runtime Validator 约束；Controller 流程、动态路由、report intake 与 closeout 语义以实际加载的 `using-arckit` skill 为唯一来源。
-
-自动续轮没有新增人类输入。Runtime 在上一轮 ledger 写回成功后启动 fresh Controller invocation，并令其从最新 Case State 恢复；Desktop 自动化策略可以把满足“下一责任方为 Agent、允许 Agent continuation、无需人类决策”的策略中立 `manual_bridge` 自动接续，但不能提升 `user_decision` 或 human gate。系统不复制 `next_prompt` 伪装成新用户消息，也不把 Desktop control event 写入 `role=user` transcript。人工介入只提交用户实际输入，steer 与 fresh continuation 均不得附加 Runtime 生成的恢复指令。
-
-## 动态 Controller Loop
-
-Runtime 不固定触发一组 worker。每轮必须先由 Controller 根据当前 Project State、全部 active Cases、iteration state、用户输入和上一轮 handoff 选择当前 Loop 的唯一 Case 并生成动态 route plan，再按 route plan 派发零个或多个最小必要 Worker。不同 Loop 可以并行选择不同 active Cases。
-
-动态 route plan 说明业务路线和 selected gap；`worker_intents` 分别声明 worker 类型、语义 role 和 skill 绑定。业务路线表达本轮要补的状态缺口；worker 类型表达需要哪类执行能力；skill 绑定表达每个 worker packet 允许调用哪些 Arckit skill。没有 skill 绑定的 worker 仍可执行一般工具任务，但不能声称已经维护对应 Arckit 事实源。
-
-动态 route plan 还必须提供可写入 runtime 和 ledger 的短语义字段。`selected_gap.next_transition` 表达本轮或下一轮要推进的状态转移；worker intent `objective` 表达单个 worker 的 bounded task；Controller review `next_prompt` 表达下一轮可复制触发文本。这些字段不能复制 Desktop operator event、完整 previous activity、完整 loop handoff 或完整 ledger result。字段缺失、超长或包含 raw event marker 时，本轮不能写 Project State 或 Case State。
-
-动态 loop 的标准顺序是：
-
-1. 输入分析：识别用户输入是新任务、继续、补充、纠错、暂停、恢复、report intake、状态查询还是目标变更。
-2. 状态恢复：读取或初始化 project state、全部 active Cases、iteration state、source fact indexes、pending 和上一轮 loop handoff。
-3. Case/gap 选择：Project State 提供 active Cases 与项目级选择依据，不保存独占 selected Case。Controller 为当前 Loop 从全部 active Cases 中选择唯一 Case，再从其 unordered `candidate_gaps` 选择一个 concrete gap。选择已有 Case 不写 Project State；只有没有合适 Case 时才输出独占本轮的 `create_case` Runtime action并停止 Worker 派发。
-4. Route plan：判断本轮要补的状态缺口、所需 worker 类型、allowed skills、执行边界和停止条件。
-5. Execution gate：如果需要执行，确认是否已授权 executor；未授权时只输出 packet preview。
-6. Worker dispatch：只启动 route plan 需要的 Worker；如果 operator input 或已读取的稳定事实已足够支持 transition，则派发零 Worker。
-7. Review/intake：审核 Worker report 是否匹配 packet、是否越权、是否有证据；零 Worker 时审核 Controller 直接证据。由 Controller 形成 accepted Case delta。
-8. Verification/closeout：验证本轮是否真的推进了目标状态，并判断 `done`、`continue`、`needs_human`、`blocked` 或 `external_wait`。
-   当 ledger 派生 `completion_review` 时，Controller 必须检查完整 Case 的错误、遗漏和多余；findings 进入 Case 驱动修复，修复后的新 content revision 必须重新复审。最后一个授权自主轮次仍不 clean 时，本轮必须 `needs_human`。
-9. Case impact decision：判断本轮对 active case 和 Project State 的影响，区分 state delta、pending-only、no-change closure、external wait、human gate 和 blocked。
-10. Ledger writeback：只有在 runtime result 通过 closeout 和 Runtime hard gate 后，才调用 `arckit-development-ledger` manifest 声明的受信任 writeback entrypoint；canonical ledger 校验 expected Case revision、observed Project revision 和完整 selected gap。不同 Case 的执行可以并行，Case/Project/iteration/projection/index commit 在跨进程 Project lock 中串行完成。
-11. Fresh-state continuation：写回成功后重新读取 ledger，再选择下一 gap；若确定性 gate 仅因 Project/Case revision 或 candidate gap 新鲜度变化而拒绝写回，Runtime 允许一次受 no-progress budget 约束的 fresh-state Controller replan，不把它升级为人工决策。另一个 Case 的普通 transition 不改变 Project revision；resolved Case 聚合发生冲突时必须基于 fresh Project State 重新判断影响。确定性 ledger 写回续订自动轮次预算；no-progress limit 和 max-auto-rounds 约束连续无 canonical state 进展的轮次，而不是限制完成一个 Case 所需的累计轮数。
-
-空项目首轮只建立 neutral Project 可恢复状态，而不是直接把 prompt 当作可实现规格。Controller 判断是否创建 Case，并通过 `case_control` Runtime action 请求确定性 ledger 创建和注册；首个 Case gap、是否先写规格、是否直接实现、是否需要 Worker，均由 Controller 根据用户输入、代码和证据决定，Runtime 不预置首轮业务路线。
-
-实现 worker 只有在以下条件满足时才可派发：
-
-- 目标状态不再是 `unknown`，且本轮 gap 指向 implementation coverage、明确的实现边界、诊断修复或已确认的 implementation worker packet。
-- 所需 source facts、pending 边界和验证口径足以避免 worker 猜测产品行为、运行表面或验收标准。
-- execution gate 已授权并绑定 executor。
-
-source-fact worker 负责建立或更新稳定事实源，并把未确认内容路由到 pending。它不实现产品代码、不直接写 ledger、不关闭 case、不决定人类 gate。
-
-product、tech、diagnosis、implementation、verification 和 closeout worker 不是固定顺序。它们是 Controller 可选择的能力类型：product worker 维护产品预期事实或产品 handoff；tech worker 维护技术事实或技术 handoff；diagnosis worker 收敛实现异常和根因证据；implementation worker 按已确认边界执行实现，或为后续 executor 准备有界 packet；verification worker 验证事实、实现和报告；closeout worker 判断本轮是否满足 closeout 条件。每类 worker 可绑定一个或多个 Worker 分组 allowed skills，也可以在没有匹配 skill 时只执行通用工具任务并显式说明能力缺口。非法绑定必须由 Runtime 拒绝，不能静默降级。
-
-verification worker 不是每轮都必须出现。只有本轮产生了可验证事实源变更、实现变更、诊断结论、handoff 或状态写回准备时才需要派发。没有执行产物时，verification worker 不应只做“没有东西可验”的空审计。
-
-closeout controller 也不替代 ledger writeback。它只判断本轮 runtime result 是否可关闭、是否可继续、是否需要人类、是否阻塞或是否等待外部系统。真正的 project、iteration、case 状态更新由 ledger writeback 在 gate 通过后完成。
-
-完成态复审不对应固定 closeout worker 或固定 skill。Controller 可以根据风险使用当前 Agent、fresh Worker 或多个有界视角，但 Case State 只保存复审结果、证据、finding 和责任，不保存 skill 名。Runtime 只验证 transition、轮次预算和 human gate，不判断业务内容是否 clean。
-
-Case 关闭必须产生可解释的状态影响。该影响可以是产品、技术、实现、验证、pending 或工作方式上的 Project State delta，也可以是明确的 no-change closure。No-change closure 只在事项重复、无效、过期、不再需要、合并、放弃或转移到外部责任方时成立。
-
-外部反馈不直接进入 Project State。Controller 收到外部反馈时，先把它归类为 intake、pending 或 evaluation sample；只有可行动并需要持续推进的反馈才创建或更新 case。
-
-`requires_main_agent_decision` 和 `human_decision_required` 是不同状态。前者表示 Controller 需要继续合并报告、修订 packet 或生成下一轮；后者表示需要用户做授权、取舍、风险接受、审美或发布责任判断。Runtime 不得把所有 Controller 决策都升级成人类 gate。
-
-## Desktop Runtime 状态机
-
-Desktop Runtime 状态机覆盖从 packet preview 到 ledger writeback 的完整业务 loop。状态恢复不穷举业务任务类型。业务下一步可能是补充 worker、修订 packet、等待外部结果、请求人类判断或关闭 case，这些路径由 Controller 在恢复上下文后判断。
-
-Desktop 只穷举运行时控制态。控制态是 UI 可稳定恢复的有限集合，来自最新 run、activity、runtime result、merge result、loop handoff、report intake、gate result、ledger write result 和项目状态。
-
-恢复控制态包括：
-
-- `no_context`：没有选中项目、chat 或可恢复状态。
-- `running`：最新 run 仍在执行。
-- `interrupted_pending_controller_event`：运行被人类打断，且存在尚未交给 Controller 处理的输入、纠错或暂停意图。
-- `packet_pending_authorization`：已有 preview packet，`execution_gate.status=pending`，且存在 worker packets。
-- `waiting_worker_reports`：已有 worker packets，但必需 worker reports 缺失，且触发方式是人工桥或外部 worker。
-- `reviewing_reports`：已有 worker reports，但 report intake 仍需要审核、退回、补 worker 或合并判断。
-- `human_gate_required`：`human_decision_required=true`、`next_responsibility=human` 或 `trigger_mode=user_decision`。
-- `agent_resumable`：`agent_continuation_available=true` 且存在 `next_prompt`，并且没有 human gate。
-- `external_wait`：`next_responsibility=external` 或 `trigger_mode=external_wait`。
-- `blocked`：handoff 或 merge gate 标记为 blocked。
-- `failed_or_invalid`：run 失败、runtime result 无效或无法解析。
-- `ledger_writeback_ready`：runtime result 包含已接受且 gate-ready 的 Case transition，但尚未写回 ledger；Case 可以仍是 unresolved。
-- `ledger_writeback_blocked`：runtime result 已生成，但 gate result 阻止自动 ledger writeback。
-- `ledger_written`：ledger writeback 已成功提交 project、case、iteration 及其 projection/index；Runtime 宿主记录不参与该完成条件，下一轮可以直接读取新的项目状态。
-
-Desktop 主动作只表达控制态，不表达具体业务决策：
-
-- `packet_pending_authorization` 显示 Run Packet。
-- `human_gate_required` 显示 Respond To Gate。
-- `agent_resumable` 显示 Resume。
-- `external_wait` 显示 Resume With Update。
-- `blocked` 显示 Resolve Blocker。
-- `failed_or_invalid` 显示 Diagnose。
-- `ledger_writeback_ready` 显示 Write Ledger。
-- `ledger_writeback_blocked` 显示 Resolve Gate。
-- `ledger_written` 显示 Start Next Round。
-
-`packet_pending_authorization` 的 Run Packet 动作授权当前 packet 并绑定 Desktop Runtime 为 executor。`ledger_writeback_ready` 的 Write Ledger 动作运行 gate 和 ledger writeback；写入成功后进入 `ledger_written`。除此之外，点击主动作时 Desktop 不直接决定下一轮要执行的业务路径。Desktop 生成一个 `operator_event`，包含恢复控制态、最新 run id、loop handoff、report intake、worker report 摘要、gate result、ledger write result、用户输入和触发动作，然后启动 Controller run。Controller 根据 `operator_event`、项目状态和事实源判断下一轮应该 revise packet、authorize execution、补 worker、请求人类决策、等待外部系统、诊断失败或 closeout。
-
-当用户在输入框中补充内容时，Desktop 把该内容并入 `operator_event.user_input`，由 Controller 判断它是 supplement、correction、goal_change、report_intake、status_query 还是新的 case。Desktop 不在 UI 层自行判断业务意图。
-
-当 runtime result 的 `ledger_stage.status=gate_ready` 时，Desktop 不直接进入下一轮。系统必须先完成 ledger writeback，或明确展示 gate 阻塞原因。只有 `ledger_written` 状态可以自动启动下一轮，因为下一轮选择依赖已更新的 Project、Case revision 与 iteration state；无进展或达到自动轮次上限时停止。
+readiness 必须在远端 claim 前完成。只有 ledger 写回成功后才能自动发起下一 turn，避免读取旧 Case revision。运行结果持久化语义快照，不保存逐 token/reasoning/command delta 的重复副本。
 
 ## 验收口径
 
-该协议满足规格时，系统表现为：
-
-- 入口能力不会默认把自己变成 executor。
-- 人类能看懂当前是 planning、waiting worker、reviewing worker、ready to close、done 还是 blocked。
-- 人类能复制 worker packet 到其他 Agent 对话执行。
-- Controller 能接收 worker report 并判断旧 packet 是否仍有效。
-- Closeout 能清楚说明本轮是否完成、为什么完成或为什么不能完成。
-- Closeout 能清楚说明本轮对 case 和 Project State 的影响，或说明 no-change closure、pending-only、external wait、human gate、blocked 的原因。
-- 下一轮 prompt 能让 Controller 对话从上一轮 handoff 恢复。
-- Desktop 能把同一套人工流程自动化，而不是另起一套执行语义。
-- Projects 和 Chats 分区分别在 1 个、2 个及溢出数量条目下保持一致的条目高度、内部行布局和内容省略规则。
-- 调整 Projects 和 Chats 分区高度只改变各分区可见范围，不改变条目尺寸、右键菜单、删除保护、滚动或已保存数据。
-- Desktop 重启后能从最新 run 派生有限控制态，并通过 operator event 交给 Controller 判断具体下一步，而不是靠 UI 层不断补业务 if。
-- Desktop 在 runtime result 完成后区分 execution done、ledger writeback ready、ledger writeback blocked 和 ledger written，避免下一轮读取旧 project state。
+- 人类直接在 Codex 中与 Runtime 自动执行产生相同的 Case transition、closeout 和 handoff。
+- 默认每个 gap 只有一次连贯 Agent invocation，不强制 Plan/Worker/Review 三段调用。
+- 同一待办全流程只使用一个持久 Codex thread；进程重启恢复该 thread，验证、修复、压缩和 Git commit 不切换 thread。
+- Agent 可按原生机制使用已安装 skills/tools，Runtime 不维护默认 definition/diagnosis 白名单。
+- Runtime 只替代人类自动化动作，不做语义微编排或二次业务审查。
+- readiness 失败时远端任务仍保持未领取。
+- 只有人类责任暂停自动执行；external wait 与 no-progress recovery 独立表达。
+- 生产性 Loop、总墙钟和长命令没有完成上限。
+- 上下文占用达到 80% 时在同一 thread 压缩完成后继续下一 gap。
+- trusted ledger 是 Project/Case/iteration 状态的唯一写回入口。

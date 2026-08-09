@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-07T15:52:18.510Z
+Updated: 2026-08-09T12:50:07.343Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -26,11 +26,11 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- runtime_surfaces: verified -> accepted; Case=arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md; The Desktop-to-runtime-to-app-server-to-ledger surface completed a real bounded transition.
-- implementation_coverage: verified -> accepted; Case=arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md; Controller normalization, Worker routing, review intake, steer handling, gate, and deterministic writeback are covered by implementation and passing tests.
-- quality_validation: verified -> accepted; Case=arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md; A real Desktop Codex run produced successful steer delivery, gate allow, written ledger transition, and a clean completion review.
 - observability_support: verified -> accepted; Case=arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md; The persisted Desktop event stream exposed Controller phases, operator steer, runtime result, gate result, and ledger write result.
 - maintainability_handoff: verified -> accepted; Case=arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md; The Case closed with durable tests, opaque run evidence, deterministic ledger transition, and a clean three-dimensional review.
+- product_behavior: implemented -> verified; Case=arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md; The Runtime automation contract is now persisted and locally verified: one coherent Codex Agent turn advances one serial Case gap while Runtime provides readiness, structural gates, trusted ledger writeback, continuation, and compact persistence.
+- architecture_foundation: implemented -> verified; Case=arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md; The simplified architecture is implemented and locally verified: Codex owns semantic reasoning and native skill/tool use; Runtime is a policy-neutral automation supervisor with a stable task thread, one turn per gap, structural gates, and deterministic ledger boundaries.
+- delivery_operation: defined -> verified; Case=arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md; The maintained using-arckit v5 source was audited, applied to the Codex application target, loaded through the real compatibility path, and confirmed with clean post-apply drift.
 
 ## Blocking Project Gaps
 
@@ -40,9 +40,9 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 - ITER-20260705-001-state-driven-loop-foundation.record.json
 - arckit/project/state.record.json
-- arckit/cases/closed/CASE-20260807-004-runtime-canonical-case.md
-- arckit/cases/closed/CASE-20260807-005-development-case.md
-- arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md
+- arckit/cases/closed/CASE-20260809-001-controller-thread.md
+- arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md
+- arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md
 
 ## Notes
 

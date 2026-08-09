@@ -12,8 +12,8 @@ test("lifecycle summary uses parent-child exclusive time to distinguish orchestr
   const events = [
     ...span("ROOT", "", "todo.lifecycle", "orchestration", 0, 1_000),
     ...span("PLAN", "ROOT", "controller.plan", "orchestration", 0, 400),
-    ...span("WORKER", "ROOT", "worker.execute", "task_execution", 400, 900),
-    ...span("TOOL", "WORKER", "codex.tool.commandExecution", "task_execution", 500, 700),
+    ...span("AGENT", "ROOT", "agent.execute", "task_execution", 400, 900),
+    ...span("TOOL", "AGENT", "codex.tool.commandExecution", "task_execution", 500, 700),
     ...span("REMOTE", "ROOT", "task_source.complete", "external", 900, 1_000)
   ];
 

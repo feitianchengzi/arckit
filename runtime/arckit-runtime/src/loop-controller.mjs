@@ -38,7 +38,7 @@ export function selectNextRound(snapshot, options = {}) {
     next_transition: '',
     impact: activeCases.length
       ? 'Controller must select one active Case for this Loop and advance one of its current candidate gaps.'
-      : 'Project State has no active Case; Controller must create one before worker execution.',
+      : 'Project State has no active Case; the Agent must create one before gap execution.',
     round_goal: roundGoal,
     candidate_cases: candidateCases,
     candidate_case_gaps: [],
@@ -67,7 +67,7 @@ export function selectNextRound(snapshot, options = {}) {
       'Stop when the next Case gap requires human judgment or an external result.',
       'Stop if the turn would require destructive or cross-workspace actions.',
     ],
-    max_auto_rounds: options.maxAutoRounds || 8,
+    max_auto_rounds: options.maxNoProgressRounds || 8,
   };
 }
 

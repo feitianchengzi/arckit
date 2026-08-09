@@ -10,22 +10,21 @@ export function buildCodexCliHandoffPrompt({ caseId = "", taskTitle = "", taskIn
     "你正在从 Arckit Runtime 接管一个进行中的待办。",
     caseInstruction,
     taskTitle ? `待办：${taskTitle}` : "",
-    "原始待办意图：",
-    String(taskIntent || taskTitle || "").trim(),
-    "",
     "自动执行 state-driven loop 直到 Case 完成，仅在确实需要人工介入时暂停。",
-    "以 Project/Case State 和稳定事实源为准；不要依赖或尝试恢复旧 Runtime Run 的内部 thread。"
+    "继续使用当前对话上下文，并以 fresh Project/Case State 和稳定事实源覆盖冲突的旧事实。"
   ].filter((line, index, lines) => line || (index > 0 && lines[index - 1])).join("\n");
 }
 
-export function buildInteractiveCodexLaunchSpec({ projectPath, prompt, platform = process.platform, env = process.env } = {}) {
+export function buildInteractiveCodexLaunchSpec({ projectPath, threadId, prompt, platform = process.platform, env = process.env } = {}) {
   const root = String(projectPath || "").trim();
   const initialPrompt = String(prompt || "").trim();
   if (!root) throw new Error("A local project path is required to launch Codex CLI.");
+  const persistedThreadId = String(threadId || "").trim();
+  if (!persistedThreadId) throw new Error("A persisted Codex thread id is required to launch Codex CLI.");
   if (!initialPrompt) throw new Error("A handoff prompt is required to launch Codex CLI.");
 
   if (platform === "darwin") {
-    const command = `exec codex --no-alt-screen -C ${quotePosix(root)} ${quotePosix(initialPrompt)}`;
+    const command = `exec codex resume --no-alt-screen -C ${quotePosix(root)} ${quotePosix(persistedThreadId)} ${quotePosix(initialPrompt)}`;
     return {
       command: "osascript",
       args: [
@@ -43,15 +42,15 @@ export function buildInteractiveCodexLaunchSpec({ projectPath, prompt, platform 
   }
 
   if (platform === "win32") {
-    const script = "$projectPath=$args[0];$initialPrompt=$args[1];Start-Process -FilePath 'codex' -WorkingDirectory $projectPath -ArgumentList @('--no-alt-screen','-C',$projectPath,$initialPrompt)";
+    const script = "$projectPath=$args[0];$threadId=$args[1];$initialPrompt=$args[2];Start-Process -FilePath 'codex' -WorkingDirectory $projectPath -ArgumentList @('resume','--no-alt-screen','-C',$projectPath,$threadId,$initialPrompt)";
     return {
       command: "powershell.exe",
-      args: ["-NoProfile", "-Command", script, root, initialPrompt],
+      args: ["-NoProfile", "-Command", script, root, persistedThreadId, initialPrompt],
       options: { detached: true, stdio: "ignore", windowsHide: false }
     };
   }
 
-  const command = `exec codex --no-alt-screen -C ${quotePosix(root)} ${quotePosix(initialPrompt)}`;
+  const command = `exec codex resume --no-alt-screen -C ${quotePosix(root)} ${quotePosix(persistedThreadId)} ${quotePosix(initialPrompt)}`;
   return {
     command: String(env.TERMINAL || "x-terminal-emulator"),
     args: ["-e", "/bin/sh", "-lc", command],

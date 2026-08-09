@@ -17,12 +17,10 @@
     "artifact_impact_scan",
     "artifact_ownership_scan",
     "source_projection_check",
-    "controller_reducer_result",
+    "agent_loop_result",
     "controller_frame",
     "execution_gate",
     "executor_binding",
-    "worker_packets",
-    "report_intake",
     "ledger_stage",
     "validation_evidence",
     "loop_handoff"
@@ -92,9 +90,6 @@
       "enum": [
         "planned",
         "authorized",
-        "workers_running",
-        "reports_collected",
-        "merge_ready",
         "ledger_gate_ready",
         "ledger_written",
         "next_round_ready",
@@ -234,15 +229,10 @@
       },
       "additionalProperties": false
     },
-    "controller_reducer_result": { "type": "object" },
+    "agent_loop_result": { "type": "object" },
     "controller_frame": { "type": "object" },
     "execution_gate": { "type": "object" },
     "executor_binding": { "type": "object" },
-    "worker_packets": {
-      "type": "array",
-      "items": { "type": "object" }
-    },
-    "report_intake": { "type": "object" },
     "ledger_stage": {
       "type": "object",
       "required": ["schema_version", "status", "gate_required", "writeback_required", "reason"],

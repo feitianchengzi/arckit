@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-07T15:52:18.510Z",
+  "updated_at": "2026-08-09T12:50:07.343Z",
   "iteration_goal": "将 Arckit 状态机制从记录型账本升级为由 Project State 选择 Case、Case State 暴露完整性 gap、Loop 产生证据并经确定性 ledger 聚合的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "target_project_states": [
@@ -158,6 +158,51 @@
         "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
       ],
       "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+    },
+    {
+      "dimension": "product_behavior",
+      "from_state": "implemented",
+      "to_state": "verified",
+      "reason": "The Runtime automation contract is now persisted and locally verified: one coherent Codex Agent turn advances one serial Case gap while Runtime provides readiness, structural gates, trusted ledger writeback, continuation, and compact persistence.",
+      "evidence": [
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/spec/agentic-software-development/controller-worker-loop.md",
+        "entry/skills/using-arckit/SKILL.md",
+        "runtime/arckit-runtime/test/coherent-agent-loop.test.mjs",
+        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
+    },
+    {
+      "dimension": "architecture_foundation",
+      "from_state": "implemented",
+      "to_state": "verified",
+      "reason": "The simplified architecture is implemented and locally verified: Codex owns semantic reasoning and native skill/tool use; Runtime is a policy-neutral automation supervisor with a stable task thread, one turn per gap, structural gates, and deterministic ledger boundaries.",
+      "evidence": [
+        "AGENTS.md",
+        "arckit/tech/arckit-runtime/solution.md",
+        "arckit/tech/arckit-runtime/desktop-execution-solution.md",
+        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+        "runtime/arckit-runtime/src/automation-coordinator.mjs",
+        "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
+        "verification:npm-prefix-runtime-arckit-runtime-run-check:164-tests-163-pass-0-fail-1-conditional-skip",
+        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
+    },
+    {
+      "dimension": "delivery_operation",
+      "from_state": "defined",
+      "to_state": "verified",
+      "reason": "The maintained using-arckit v5 source was audited, applied to the Codex application target, loaded through the real compatibility path, and confirmed with clean post-apply drift.",
+      "evidence": [
+        "entry/skills/using-arckit/SKILL.md",
+        "entry/skills/using-arckit/arckit.capability.json",
+        "/Users/Glare/.codex/skills/using-arckit/SKILL.md",
+        "verification:arcforge-using-arckit-post-apply-drift-clean",
+        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
     }
   ],
   "acceptance": {
@@ -194,7 +239,11 @@
       "arckit/cases/closed/CASE-20260807-003-development-case.md",
       "arckit/cases/closed/CASE-20260807-004-runtime-canonical-case.md",
       "arckit/cases/closed/CASE-20260807-005-development-case.md",
-      "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md"
+      "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md",
+      "arckit/cases/closed/CASE-20260808-001-using-arckit-codex-runtime-controller.md",
+      "arckit/cases/closed/CASE-20260809-001-controller-thread.md",
+      "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
+      "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md"
     ],
     "remaining_project_gaps": [
       "GAP-agent-scenario-evaluation",
@@ -234,15 +283,19 @@
     "arckit/cases/closed/CASE-20260807-003-development-case.md",
     "arckit/cases/closed/CASE-20260807-004-runtime-canonical-case.md",
     "arckit/cases/closed/CASE-20260807-005-development-case.md",
-    "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md"
+    "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md",
+    "arckit/cases/closed/CASE-20260808-001-using-arckit-codex-runtime-controller.md",
+    "arckit/cases/closed/CASE-20260809-001-controller-thread.md",
+    "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
+    "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md"
   ],
   "close_condition": "当严格跨记录审计稳定通过，并至少完成一次真实复杂项目的 Project gap -> Case -> Worker evidence -> completion review -> Project impact 闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md",
+    "case_ref": "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md"
+      "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md"
     ],
-    "updated_at": "2026-08-07T15:52:18.510Z"
+    "updated_at": "2026-08-09T12:50:07.343Z"
   }
 }

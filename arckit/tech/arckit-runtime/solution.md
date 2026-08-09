@@ -2,46 +2,48 @@
 
 ## 定位
 
-Arckit Runtime 是 Arckit 的执行控制面。它把原先依赖 agent 自觉遵守的 loop 行为外移为可执行程序，使 Codex、opencode 或多 agent worker 只作为受控执行器参与一轮研发任务。
+Arckit Runtime 是 Arckit 的自动化监督与执行控制面。它替代人类在 Codex 会话外持续触发下一 turn、观察过程、处理恢复、调用 ledger 和衔接远端生命周期的工作；Codex、opencode 或其他 coding agent 继续拥有语义推理、skill 选择、工作区执行、证据收集和 transition claim。
 
-Runtime 不替代 Arckit skills。Skills 继续承载方法、事实源维护规则、输出契约和模板；Runtime 负责读取 Project/Case 状态、调用 Controller Agent 选择 Case gap、编译受控指令、观察执行事件、校验结构化结果，并调用 trusted ledger entrypoint。
+Runtime 不替代 Agent 或 Arckit skills。Skills 继续承载方法、事实源维护规则、输出契约和模板；Runtime 负责 readiness preflight、读取 Project/Case 状态、通过 `$using-arckit` 启动一个连贯 Agent turn、观察执行事件、校验结构/授权/安全边界，并调用 trusted ledger entrypoint。
 
 ## 架构组件
 
 ```text
 User Input
-  -> Runtime Kernel
-      -> Controller Reducer
-      -> Round Plan
-      -> Worker Dispatch
-      -> Report Intake
-      -> Deterministic Merge
-      -> Ledger Gate
-      -> Ledger Writeback
-      -> Next Control State
+  -> Automation Supervisor
+      -> Readiness Preflight
+      -> Task Claim / Workspace Binding
+      -> Fresh Canonical State
+      -> Coherent Codex Agent Turn ($using-arckit)
+      -> Structural / Authorization Gate
+      -> Trusted Ledger Writeback
+      -> Fresh State / Next Turn / Handoff
   -> Desktop UI
 ```
 
-Runtime Kernel 是产品级执行内核，不是“启动多个 Codex worker 的壳”。Worker 只执行 bounded task；worker report 只是输入证据。是否接受 report、是否形成可写回的 source fact change claim、是否允许 ledger writeback、下一轮控制状态，都由 Runtime Kernel 的确定性代码负责。
+Runtime Kernel 是策略中立的自动化内核，不是语义微编排器。一次 Loop 对应同一 Codex thread 中的一个 Agent turn：Agent 选择一个 Case gap、调用必要 skills/tools、执行和验证工作，并返回一个 Case control、Case transition 或 handoff。Runtime 不把这个 turn 再拆成阶段化的多个 Agent invocation。
 
-Runtime Kernel 不充当 semantic truth judge。代码不判断产品概念、架构取舍或业务语义是否“真的正确”；这些语义判断来自 bounded Worker、Controller LLM 或人类。Runtime Kernel 负责把这些语义判断压成结构化 claim，并验证 claim 是否满足协议、证据、artifact ownership、human gate 和 ledger gate 条件。
+Runtime Kernel 不充当 semantic truth judge。代码不判断产品概念、架构取舍、skill 适用性或业务语义是否“真的正确”；这些语义判断来自当前 Agent、人类或显式委派方。Runtime Kernel 只验证 schema、revision、授权、工作区/路径安全、证据存在性和 ledger transition 合法性，不重做 Agent 的语义 review。
 
 Runtime Kernel 不把 raw input envelope 当作 semantic state。Desktop operator event、完整 activity、完整 controller frame、完整 ledger write result、worker stream JSON 和上一轮完整 prompt 只属于 raw evidence 或 audit。Runtime 可以保存引用、摘要和结构化 claim，但不能把 raw envelope 写入 `round_goal`、`controller_frame.round_goal`、`loop_handoff.agent_instruction.goal`、`progress_guard.expected_state_change`、Project State `case_control` 或 Case State `current_round`。
 
-Desktop UI 只展示 Runtime Kernel 的 control state，不自己猜测业务流程。Skills 继续提供能力说明、事实源维护规则和 worker 协议；它们不能替代 Runtime Kernel 做 loop 控制。
+Desktop UI 只展示 Runtime Kernel 的 control state，不自己猜测业务流程。Skills 继续提供能力说明、事实源维护规则和按需委派协议；它们不能替代 Runtime Kernel 做外部生命周期与自动续轮控制。
 
 Skill layer 位于系统底层。Skills 只承载可复用能力、底层协议、事实源维护规则和各 execution plane 的能力边界，不沉淀 Desktop Runtime 的产品架构、状态机、自动写回策略或控制内核决策。这类上层架构事实只写入 `arckit/tech` 与 runtime 代码。
 
-Runtime 只解析 `arckit.capability.json`，不自行读取或注入 `SKILL.md` 正文。Manifest 除了路由和边界元数据，还声明调用方式：Controller turn 以 `$using-arckit` trigger 交给 Agent 原生 skill 机制加载正文；Worker turn 同样只注入已授权 `$skill-name` trigger；确定性 ledger 能力则由 Runtime 直接调用 `arckit-development-ledger` manifest 声明的受信任 entrypoint。Runtime 不复制这些 skill 的语义或脚本实现。
+Runtime 只解析 `arckit.capability.json`，不自行解释或复制 `SKILL.md` 正文。Manifest 声明 Agent Loop 的自然 `$using-arckit` trigger 与确定性 `arckit-development-ledger` trusted entrypoints。当前 Agent 在 turn 内按 Codex 原生机制发现和使用其他已安装 skills；Runtime 不维护 definition、diagnosis、code 或其他 skill 白名单，不复制 skill 语义，也不预先生成 Worker 能力关联。
 
 ### Runtime Kernel
 
 Runtime Kernel 当前由以下确定性阶段组成：
 
-- Round State Machine：记录 `planned -> authorized -> workers_running -> reports_collected -> merge_ready -> ledger_gate_ready -> ledger_written -> next_round_ready`，并支持 `blocked`、`human_gate_required`、`external_wait`、`failed` 等控制态。
-- Controller Reducer：接收 worker reports，按 packet、role、evidence、risk、unknown、source fact establishment 的协议条件做接受/拒绝/继续判断；它验证 claim 的结构化条件，不替代 LLM 或人类判断语义正确性。
-- Artifact Ownership Map：把路径归类为 source fact、projection、runtime log、pending/raw input、implementation evidence 等，避免让 worker 自述决定 source/projection 边界。
-- Ledger Stage：当 runtime result 到达 `ledger_gate_ready` 时，先做 deterministic gate；gate 允许则自动写 ledger，gate 阻塞则把原因投影到 UI。
+- Readiness Preflight：在远端任务从 pending 变为 in_progress 前检查本地工作区、canonical state、Codex adapter、Controller skill 兼容性与 trusted ledger entrypoint；失败只形成本地 readiness recovery，不先占用远端任务。
+- Session State Machine：记录 `preflight -> claimed -> agent_running -> ledger_gate_ready -> ledger_written -> next_turn_ready`，并支持 `blocked`、`human_gate_required`、`external_wait`、`failed` 等控制态。
+- Artifact Ownership Map：把 Agent 声明的 changed files 归类为 source fact、projection、runtime log、pending/raw input、implementation evidence 等，提供结构与安全校验，不推断业务正确性。
+- Ledger Stage：当 Agent result 携带可写 Case control/transition 时做 deterministic gate；gate 允许则自动写 ledger，拒绝则从 fresh state 重规划或形成明确 handoff。
+- Task Thread Registry：为每个待办持久化唯一 Codex thread id、所有权租约、最后 turn 与压缩检查点，支持进程重启后恢复同一对话。
+- Context Governor：在一次 gap ledger 写回后读取最新请求的上下文占用；达到 80% 时先压缩同一 thread，再继续下一 gap。
+- Same-thread Closeout：Case resolved 后由同一 Agent thread 完成验证补漏、必要修复和 Git commit/no-op 收尾，成功后才允许远端完成写回。
 
 ### State Store
 
@@ -98,6 +100,8 @@ Workshop task source 实现沿用 Workshop Desktop 的服务契约：先读取 `
 
 远端状态更新携带调用方最后读取的版本标识或等价条件。服务端不支持条件更新时，adapter 先读取最新任务并拒绝已变化状态；该检查降低冲突概率，但不能替代服务端原子并发控制，因此该能力在 UI 中标记为弱一致领取。
 
+Coordinator 在远端领取前调用 Desktop Run Manager readiness preflight。Preflight 只读检查本地绑定、canonical state、Runtime capability policy、installed `$using-arckit` compatibility 与 trusted ledger entrypoints；全部通过后才读取任务最新版本并提交 `pending -> in_progress`。Preflight 失败产生 `readiness_failed` recovery，远端任务保持 pending。领取后的启动失败仍按 `start_failed` 恢复，因为远端状态已经合法变为 in_progress。
+
 ### Desktop Execution Plane
 
 Automation Store、Coordinator、待办级 session、Workbench transcript、Token Usage 投影、命令单飞与软异常契约由 `desktop-execution-solution.md` 定义。主 Kernel 只向该平面提供结构化 run event、handoff 与 ledger 结果；Desktop 不从模型文本推断控制状态。
@@ -141,7 +145,7 @@ Loop Controller 不从 Project State 读取轮次 continuation。Project `case_c
 
 ### Capability Registry
 
-Capability Registry 读取 repository 和目标项目中的 `arckit.capability.json` manifest，并在暴露给 Controller 前应用 `runtime/arckit-runtime/config/capability-policy.json`。当前 v2 policy 只允许七个保留能力，并把它们分到三个互斥 execution plane：Controller 组为 `using-arckit`，Runtime 组为 `arckit-development-ledger`，Worker 组为 `arckit-spec`、`arckit-interaction`、`arckit-visual`、`arckit-tech` 和 `arckit-debug-diagnosis`。策略外 manifest 不进入本轮能力地图。
+Capability Registry 读取 repository 和目标项目中的 `arckit.capability.json` manifest，并应用 `runtime/arckit-runtime/config/capability-policy.json`。默认 Kernel policy 只绑定两个 Runtime 管理能力：Agent 入口 `using-arckit` 与 trusted Runtime 能力 `arckit-development-ledger`。其他 definition、diagnosis、code 和 quality skills 由当前 Codex Agent 通过原生 skill discovery 在同一 turn 中选择，不进入 Runtime 预测式 route。
 
 Manifest 只提供 runtime 可读的能力元数据：
 
@@ -156,27 +160,27 @@ Manifest 只提供 runtime 可读的能力元数据：
 - invocation type、skill trigger 和 phases
 - Runtime capability 的受信任 entrypoints
 
-Capability policy 是显式 policy layer，不是 Runtime Kernel 的固定路由。Registry 只有在 policy 分组允许且 manifest 的 `binding_targets` 声明兼容时才形成对应 execution plane registry。Capability Registry 不把 `SKILL.md` 当作 Runtime 架构事实，也不把 skill 正文作为 Desktop 控制决策输入；Kernel 不内置每轮 gap、route、worker role、skill 序列或能力选择启发式。
+Capability policy 只形成 Agent 入口与 trusted Runtime entrypoint。Capability Registry 不把 `SKILL.md` 当作 Runtime 架构事实，也不把 skill 正文作为 Desktop 控制决策输入；Kernel 不内置每轮 gap、route、worker role、skill 序列或能力选择启发式，也不存在 Runtime Worker registry。
 
-Registry 对 Runtime entrypoint 使用更严格的信任规则：只能选择 repository source，目标项目同 ID manifest 不能覆盖；解析后的入口必须位于 capability root 内。Controller phase 必须且只能匹配一个 `agent_skill` invocation，否则 fail closed。
+Registry 对 Runtime entrypoint 使用更严格的信任规则：只能选择 repository source，目标项目同 ID manifest 不能覆盖；解析后的入口必须位于 capability root 内。默认 Agent Loop phase 必须且只能匹配一个 `agent_skill` invocation，否则 fail closed。
 
-Controller planning invocation 只暴露 policy 允许的 capability id、protocol revision、binding target、invocation 类型、phase、trusted entrypoint 名称与 manifest ref；不复制 Controller 协议或 capability manifest 正文。`worker_intents[].allowed_skills` 只能引用 Worker registry。Controller plan 和既有授权 packet 都经过同一 Worker binding gate；Controller/Runtime/未知 capability ID 会阻塞执行，不会被静默过滤。Codex 执行前，Runtime 比对 repository Controller capability 与实际安装副本的 protocol revision、manifest 和 `SKILL.md`；漂移时在启动 Agent 前 fail closed，避免由过期 skill 产生表面合法但语义不兼容的计划。
+Agent Loop invocation 只使用已验证 capability manifest 声明的自然 trigger，并提供 fresh canonical digest、operator input 与授权；不显式添加第二份 skill input，也不复制 Controller 协议或 capability manifest 正文。Codex 执行前，Runtime 比对 repository Controller capability 与实际安装副本的 protocol revision、manifest 和 skill 文件；该检查在远端 claim 前的 readiness preflight 完成，漂移时不把任务先置为 `in_progress`。
 
 ### Prompt Compiler
 
-Prompt Compiler 为 Controller planning、Worker execution 和 Controller review 生成最小 Agent invocation。旧的 supervised-turn compiled prompt 只保留 operator input 与机器元数据兼容投影，不作为 agentic 主链路的 Codex turn 输入。
+Prompt Compiler 为 Agent Loop 生成最小 invocation。首个 turn 包含自然 `$using-arckit` trigger、待办原始意图、fresh canonical digest、授权与输出契约；后续 turn 只提供仍稳定的任务标识、当前增量、fresh revisions/digest、授权与契约，不重复拼接旧 prompt、完整状态正文或历史报告。
 
-Prompt Compiler 不要求 agent 猜测要使用哪个 skill。Controller planning/review invocation 以 manifest 声明的 `$using-arckit` 开始；Worker invocation 以通过 binding gate 的 `$skill-name` 开始。其余内容只有 phase、locale、operator input、state/report refs 或本轮必要结构化证据、revision、execution authorization 和 capability refs。具体行为由 Codex 类 Agent 的已安装 skill 包负责。
+默认 invocation 以 manifest 声明的自然 `$using-arckit` 文本 trigger 进入 Codex 原生 skill 机制，不额外发送 `skill` input item。其余内容只有 locale、原始待办意图、当前增量、bounded canonical facts、revision、execution authorization 和 compact output contract。Agent 在 turn 内自行读取必要仓库事实、发现其他 skills、执行工具并完成自我审查；Runtime 不拼接 skill 清单、固定 Worker role 或预测式 allowed paths。
 
-Project State 与全部 active Case States 通过 canonical refs 进入 planning invocation，不内嵌完整 Project record、Case record 或 Markdown 正文。Controller review 可直接接收本轮 bounded Worker reports，因为它们是尚未写回的必要运行证据；Worker 接收一个 `arckit-worker-packet/v2`、由 fresh Case record 确定性派生的 `context_digest` 与确有依赖的 prior reports。输出形状由 Codex app-server `outputSchema`、Runtime schema validation 和 hard gate 承担，不在 prompt 中重复输出字段、closeout 规则或 skill 工作流。
+Runtime 从 fresh Project/Case records 确定性派生 Agent context digest。Digest 包含 Project revision、选择依据、项目级 gaps 和全部 active Cases 的意图、facet 摘要、candidate gaps、open questions、handoffs、completion review 摘要与稳定引用；它不包含 Markdown 正文、raw transcript、模型 reasoning 或未接受 claim。Agent 可以按当前 gap 主动读取引用和仓库事实。输出形状由 `arckit-agent-loop-result/v1`、Codex app-server `outputSchema`、Runtime schema validation 和 trusted ledger gate 承担。
 
-`context_digest` 是有界的恢复索引，不是 transcript 摘要。它包含 Case id/revision、当前 selected gap、用户意图摘要、相关 facet 状态与 evidence、最近已接受 round 摘要、未解决问题和经收窄的 canonical context refs；不包含 raw event、完整历史 prompt、模型 reasoning 或未接受 claim。同一轮 earlier Worker reports 继续作为独立字段传递，避免把尚未经过 Controller intake 的内容伪装成 canonical Case fact。
+`context_digest` 是有界的恢复索引，不是 transcript 摘要。它包含 Project/Case revisions、active Case selection facts、candidate gaps、用户意图摘要、facet 状态与 evidence、最近已接受 round 摘要、未解决问题和 canonical context refs；不包含 raw event、完整历史 prompt、模型 reasoning 或未接受 claim。
 
-Controller Plan、Worker Report 和 Controller Review 的 `outputSchema` 遵循 Codex 严格结构化输出子集：`const` 同时声明显式 `type`，对象关闭额外属性并把全部属性列入 `required`，数组声明 `items`。Runtime 在创建 app-server thread 前递归预检这些约束，使无效 Schema 作为本地配置错误终止，而不是启动 turn 后才收到远端 `invalid_json_schema`。
+`arckit-agent-loop-result/v1` 的 `outputSchema` 遵循 Codex 严格结构化输出子集：`const` 同时声明显式 `type`，对象关闭额外属性并把全部属性列入 `required`，数组声明 `items`。Runtime 在创建 app-server thread 前递归预检这些约束，使无效 Schema 作为本地配置错误终止，而不是启动 turn 后才收到远端 `invalid_json_schema`。
 
-Controller Plan v3 通过 `execution_plan.plane` 明确区分 `runtime`、`worker` 和 `none`。选择已有 active Case 是当前 Loop 的 Controller route plan，不生成 Project 写入；创建新 Case 使用唯一 `runtime_actions[type=case_control, action=create_case]`，并要求 `worker_intents=[]`。标题、意图、artifact type 与创建理由来自 Controller 语义判断，Runtime 不解析待办关键词或 route mode 推导这些字段。
+Agent Loop result 通过互斥 `action=case_control|case_transition|handoff` 表达本轮结果。选择已有 active Case 不生成 Project 写入；没有合适 Case 时返回 `case_control.create_case`。标题、意图、artifact type 与创建理由来自 Agent 语义判断，Runtime 只绑定当前 Project revision与 review policy，不解析待办关键词推导这些字段。
 
-Runtime 把创建 Runtime action 绑定到当前 Project revision 和 Case review policy，形成 `arckit-case-control-handoff/v1`，再调用 `arckit-development-ledger` manifest 声明的 `case_control` 可信入口。ledger 分配 Case id，并在 Project commit lock 中把 Case 创建、Project/iteration 注册和投影索引作为可回滚提交；Project 不保存独占 selected Case。成功后同一 Runtime 进程重新读取 canonical state，再由同一 Controller thread 发起下一轮 planning；revision 或 candidate-gap 新鲜度冲突不产生部分写入，并进入有 no-progress budget 的 fresh-state replan。Controller plan 若违反 execution plane 互斥或其他结构 gate，Runtime 把校验原因与被拒计划作为机器反馈交给 `$using-arckit` 自动重规划一次，仍失败才输出可恢复阻塞。
+Runtime 把创建动作绑定到当前 Project revision 和 Case review policy，形成 `arckit-case-control-handoff/v1`，再调用 `arckit-development-ledger` manifest 声明的 `case_control` 可信入口。ledger 分配 Case id，并在 Project commit lock 中把 Case 创建、Project/iteration 注册和投影索引作为可回滚提交；Project 不保存独占 selected Case。成功后同一 Runtime 进程重新读取 canonical state，并在同一 Agent thread 发起下一 turn。revision 或 candidate-gap 新鲜度冲突不产生部分写入，并进入有 no-progress budget 的 fresh-state replan。
 
 Case facet 的局部更新在模型边界使用封闭的 nullable 字段集合表达；模型为未更新字段返回 `null`，Runtime normalization 在形成 Case claim 前移除 `null`。因此模型输出保持严格可验证，ledger 仍只接收有实际值的 facet patch。
 
@@ -186,17 +190,17 @@ Case facet 的局部更新在模型边界使用封闭的 nullable 字段集合�
 
 Agent Adapter 是外部执行器边界。M0 提供 dry-run adapter；M1 已接 Codex app-server stdio JSON-RPC；后续可以接 opencode 或多 agent runtime。
 
-Codex adapter 的生命周期与一次 state-driven Runtime session 对齐。Runtime 只启动一个 `codex app-server --stdio` 子进程并完成一次 initialize；各 Agent turn 通过该连接串行执行。Controller Plan 与结构纠正使用项目级 `threadKey=controller:project:planning`；Worker reports 的 review 使用 `threadKey=controller:case:{case_id}:review`。项目级选择历史和 Case 级 review 历史不互相继承完整对话。
+Codex adapter 的生命周期与一次 state-driven Runtime session 对齐。Runtime 只启动一个 `codex app-server --stdio` 子进程并完成一次 initialize；同一待办的默认 Agent Loops 通过该连接串行执行，并复用一个稳定 `threadKey=agent-loop:{run_or_task_identity}`。每次 ledger 写回后的 fresh state 进入同一 thread 的下一 turn，保持与人类在一个 Codex 对话中持续工作的语义连续性。
 
-Worker thread 按 Case、`worker_type` 与 Controller 声明的稳定 workstream 形成语义通道：`worker:{case_id}:{worker_type}:{workstream_id}`。同一 Case、同一类型且目标与路径范围连贯的后续 turn 复用 workstream；同类型的独立子域使用不同 id。product、tech、diagnosis、implementation、verification 与 closeout 不跨职责继承完整历史，verification 不从 implementation thread fork。
+当前 invocation 是每个 turn 的事实与授权来源。原始待办意图保持稳定，当前增量、Project/Case revisions、candidate gaps、execution authorization 和 output contract 覆盖 thread 中冲突的旧内容；历史讨论不能扩大 sandbox、approval、工作区或 ledger writeback 权限。Runtime 不生成 `allowed_skills`、预测式 `allowed_paths` 或执行角色 workstream。
 
-Controller Plan v3 的每个 Worker intent 显式提供 `workstream_id`。该字段是路由语义，不是 Runtime 从 objective、role、skill 或路径关键词推断的哈希；Controller 对需要连续上下文的后续 round 保持同一 id，对独立目标声明新 id。Runtime 只做字符规范化、Packet 往返和 thread key 组合，旧授权 packet 缺少该字段时使用兼容 workstream，但不会跨 Case 或跨 Worker 类型合并。
+每个待办只有一个非 ephemeral Codex thread。Desktop 以项目身份与远端任务 id 为键持久化 app-server 返回的 opaque `thread.id`，并在发出首个 `turn/start` 前完成写入；同一时刻只有一个 Runtime/CLI owner 可以持有该 thread lease。进程重启后先 initialize app-server，再 `thread/resume(threadId)`，fresh-read Project/Case State 后从下一 turn 继续，不创建 replacement thread。
 
-每个 turn 的 fresh packet 是当前唯一授权，已复用 thread 中的历史 packet 和讨论只提供上下文，不能扩大当前 `allowed_skills`、`allowed_paths`、动作边界、Case revision 或 selected gap。Packet 携带 `workstream_id` 和 `context_digest`；Case、Worker 类型或 workstream 变化会创建新的语义通道。基础设施失败使对应通道 key 失效，下次重试创建新 thread。
+`thread/resume` 的瞬时失败进入可重试 recovery。只有 app-server 明确确认 thread 永久不存在时，Runtime 才记录 `thread_recovery_fallback` 并从 canonical state 创建、立刻持久化一个新的非 ephemeral thread；若 canonical facts 不足以安全续接则要求人工介入，不能静默丢弃上下文。
 
-Runtime 对同一 worker thread 的任务次数、workstream、授权路径签名、context ref 数量和 digest revision 建立投影。相同 key 后续 turn 的授权路径签名变化时产生 `worker_context_scope_changed` 软提示；该提示不阻断 Worker、不改变 Case resolution，也不根据固定 Token 或轮次阈值轮换 thread。
+Adapter 遵循当前 Codex app-server 协议：每次 `turn/start` 的 `outputSchema` 只约束当前 turn；skill 通过自然文本 trigger 进入 Codex 原生发现机制，不额外发送 `{type: "skill"}` input；command/file approval 的接受值为 `accept`，拒绝值为 `decline` 或 `cancel`。`item/permissions/requestApproval` 返回 granted permission profile，不复用 command approval 的 decision 结构。Runtime 不用 approval 或 sandbox 禁用 Agent 的正常语义与工具能力；协议门禁只负责真实授权与结构合法性。
 
-Codex thread 以 `ephemeral` 模式存在于当前 adapter 生命周期。进程退出、连接失败或 Desktop fresh continuation 不恢复隐藏对话；下一次执行从 ledger、稳定事实与新的 context digest 重建语义。未形成 Worker report 或未写回 ledger 的临时推理不被视为已交接事实。
+每次成功 ledger 写回后，Runtime 使用 `tokenUsage.last.inputTokens / tokenUsage.modelContextWindow` 判断当前请求上下文占用。达到 80% 且自上次 Agent turn 后尚未压缩时，Runtime 对同一 thread 调用 `thread/compact/start`，等待 context compaction item/turn 完成并保存检查点，再 fresh-read state 发起下一 turn。累计 Token 不作为阈值，压缩不创建新 thread，也不设置总 Token、总轮次或墙钟上限。
 
 adapter 的 `close` 只在 session 完成、人工/外部 handoff、失败、interrupt 或安全预算终止时调用。单个 turn 完成只关闭该 turn 的事件队列，不关闭 app-server。stdin supervisor 在 adapter 生命周期内只绑定一次，并把 `/steer` 与 `/interrupt` 路由到当前 active turn。
 
@@ -205,17 +209,18 @@ adapter 的 `close` 只在 session 完成、人工/外部 handoff、失败、int
 执行模式把多个 Loop 保持在一个 Runtime 进程内：
 
 ```text
-fresh read -> Controller Plan -> Worker(s) -> Controller Review
-  -> deterministic ledger write -> fresh read -> next Loop
+fresh read -> one coherent Agent turn -> structural gate
+  -> deterministic ledger write -> fresh read -> next turn
 ```
 
-每次 ledger 写回后的下一轮必须从 State Store 重读 Project revision、active Case revisions 和 candidate gaps；内存中的旧 snapshot 与授权 packet 不可跨写回复用。Case 创建也遵循同一规则：可信入口注册新 Case 后，下一轮从 fresh state 选择该 Case gap。
+每次 ledger 写回后的下一轮必须从 State Store 重读 Project revision、active Case revisions 和 candidate gaps；内存中的旧 snapshot 与 selected gap 不可跨写回复用，但同一 active Agent thread 继续提供对话连续性。Case 创建也遵循同一规则：可信入口注册新 Case 后，下一 turn 从 fresh state 选择该 Case gap。
 
-Runtime 仅在 handoff 明确要求 human responsibility 时标记 `paused_for_human=true`。Agent responsibility 无论是 `auto_bridge` 还是受自动策略允许的 `manual_bridge` 都在当前进程继续。External responsibility 以 `external_wait` 终止当前执行而不伪装成人工决策；连续无 ledger 进展达到预算时以安全停止收束，不创建人工语义。
+Runtime 仅在 handoff 明确要求 human responsibility 时标记 `paused_for_human=true`。Agent responsibility 无论是 `auto_bridge` 还是受自动策略允许的 `manual_bridge` 都在当前进程继续。External responsibility 以 `external_wait` 终止当前执行而不伪装人工决策；连续无 ledger 进展达到恢复预算时安全停止。生产性 ledger 写回会重置该计数，因此它不是总墙钟或生产性 Round 上限；长命令自然运行到完成或显式 interrupt。
 
 统一 adapter 语义是：
 
-- start or resume a thread
+- start、persist or resume the task thread
+- compact the same thread between gaps
 - start a turn
 - stream agent events
 - steer an active turn
@@ -241,19 +246,19 @@ Runtime 不依赖完整隐藏推理链作为控制接口；它依赖可审计事
 
 ### 待办生命周期追踪
 
-Desktop 为每个自动领取的远端待办创建一个稳定 `trace_id`。同一待办的领取、Runtime Run、多轮 Loop、Controller、Worker、Codex turn、工具调用、ledger、commit agent 和远端完成写回共享该 trace；Run、round、turn、tool 等执行单元使用 `span_id` 与 `parent_span_id` 形成父子关系。恢复、重试和多 Run 继续沿用原 trace，不以单个进程或单个 Case round 作为追踪边界。
+Desktop 为每个自动领取的远端待办创建一个稳定 `trace_id`。同一待办的 readiness preflight、领取、Runtime Run、多轮 Agent Loop、Codex turn、工具调用、context compaction、ledger、同线程 Git closeout 和远端完成写回共享该 trace；Run、round、turn、tool 等执行单元使用 `span_id` 与 `parent_span_id` 形成父子关系。恢复、重试和多 Run 继续沿用原 trace，不以单个进程或单个 Case round 作为追踪边界。
 
 生命周期事件采用 `arckit-lifecycle-event/v1`，同时记录 ISO wall clock 与进程内 monotonic duration。事件只包含关联 ID、阶段名、成本中心、状态、耗时和受限标量属性，不保存 prompt、响应正文、命令参数、环境变量、token、凭证或隐藏推理。原始事件由 Desktop 写入 Electron `userData/lifecycle-traces/<trace_id>/events.jsonl`；完成时生成同目录 `summary.json`，Run activity 保存两个文件的宿主路径，Automation completion record 同时保存路径与有界 summary 投影。
 
 成本中心固定区分：
 
-- `orchestration`：Desktop 启动、Runtime snapshot/round、Controller plan/review、deterministic merge、ledger 和 adapter 生命周期。
-- `task_execution`：承担 Case gap 的 Worker turn 与其工具调用。
+- `orchestration`：readiness、Desktop 启动、Runtime snapshot/round、结构 gate、ledger 和 adapter 生命周期。
+- `task_execution`：承担 Case gap 的 Agent turn 与其工具调用。
 - `external`：Workshop task source 的领取与完成写回。
-- `closeout`：Case resolved 后的 commit agent 与收尾执行。
+- `closeout`：Case resolved 后同一 Agent thread 的验证、修复与 Git commit/no-op 收尾。
 - `unclassified`：根 span 未被已知子阶段覆盖的间隔，用于暴露中断、恢复、人工/CLI 接力或缺失埋点，不能并入架构开销。
 
-汇总以父子 span 的 interval union 计算 exclusive time，避免把 Worker、Codex turn 和 tool 的嵌套耗时重复相加。Summary 同时输出各成本中心、类别与阶段的 inclusive/exclusive 总量、最大耗时、错误数、未闭合 span、热点 span 和诊断倾向。`architecture_overhead` 表示 orchestration exclusive time 占主导，`task_specific` 表示 Worker/model/tool 占主导，`external_dependency` 与 `closeout_overhead` 分别表示外部任务源或收尾阶段占主导；大量根区间无法归属时返回 `insufficient_attribution`，避免把人工接力或缺失埋点误判为架构开销。该倾向是性能定位入口，不替代基于原始事件的根因确认。
+汇总以父子 span 的 interval union 计算 exclusive time，避免把 Agent、Codex turn 和 tool 的嵌套耗时重复相加。Summary 同时输出各成本中心、类别与阶段的 inclusive/exclusive 总量、最大耗时、错误数、未闭合 span、热点 span 和诊断倾向。`architecture_overhead` 表示 orchestration exclusive time 占主导，`task_specific` 表示 Agent/model/tool 占主导，`external_dependency` 与 `closeout_overhead` 分别表示外部任务源或收尾阶段占主导；大量根区间无法归属时返回 `insufficient_attribution`，避免把人工接力或缺失埋点误判为架构开销。该倾向是性能定位入口，不替代基于原始事件的根因确认。
 
 CLI 的 `analyze-lifecycle --file <events.jsonl>` 可在待办完成或异常停止后重新生成汇总。运行中保留 started 但未 completed 的 span，使进程中断或长时间等待仍能定位最后进入的边界。
 
@@ -274,18 +279,15 @@ Gate Engine 在高风险状态下中断或阻塞继续执行：
 
 ### Validator
 
-Validator 校验 agent 的最终 `arckit-runtime-result/v2`，至少要求：
+Validator 先校验 Agent 的紧凑 `arckit-agent-loop-result/v1`，Runtime 再派生内部 `arckit-runtime-result/v2` 兼容投影。Agent result 至少要求：
 
-- `round_outcome`
-- `case_outcome`
-- `project_impact`
-- `case_transition`
-- `artifact_impact_scan`
-- `source_projection_check`
-- `validation_evidence`
-- `loop_handoff`
+- 互斥 `action`
+- `summary`
+- `case_control` 或 `case_transition`
+- `changed_files` 与 artifact impacts
+- `risks`、`unknowns` 与 responsibility handoff
 
-`loop_handoff` 必须区分 `next_responsibility` 和 `trigger_mode`。当 `human_decision_required=true` 时，`next_responsibility` 必须是 `human`。
+Runtime 内部 handoff 必须区分 `next_responsibility` 和 `trigger_mode`。当 Agent 声明需要人类时，`next_responsibility` 必须是 `human`。Runtime 只做单调转换，不用第二个 semantic guard 覆盖 Agent closeout；ledger apply 后的派生 handoff 是最终权威结果。
 
 ### Ledger Writer
 
@@ -302,7 +304,7 @@ Ledger writeback 是已接受 Case transition 的必经阶段。Desktop 执行�
 
 每个 transition 绑定 Case `updated_at` 和本轮观察到的 Project `updated_at`，并逐字段复现当前 candidate gap。Gate 通过 trusted ledger `case_transition` entrypoint 做 canonical validation；Case revision 或 responsibility/current/target/next transition 已变化时 fail closed。普通 unresolved transition 不改变 Project revision，允许不同 Cases 使用同一观察 revision 独立推进；resolved transition 聚合前必须再次匹配 Project revision。Ledger 在写入前预校验完整 Case、Project 与 iteration 目标状态，并通过操作系统临时目录中的跨进程 Project lock，把 Case、Project、iteration、projections、indexes 串行作为可回滚提交；锁不进入 canonical evidence。
 
-Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前检查 Case id/gap、planned transition、accepted delta、evidence、round outcome、Case resolution claim 和 Project impact candidate；raw operator task 不能作为 fallback。语义字段含 raw event marker、超长或 transition shape 不完整时，gate 阻止写回。
+Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前检查 Case id/gap、planned transition、accepted delta、evidence、round outcome、Case resolution claim 和 Project impact candidate；raw operator task 不能作为 fallback。语义字段含 raw event marker、超长或 transition shape 不完整时，gate 阻止写回。Gate、result builder 与 handoff 不再各自重判 Case 语义；一次拒绝不能同时被其他分支解释为 resolved 并写回。
 
 写回策略按层分工：
 
@@ -310,9 +312,9 @@ Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前�
 - Iteration State v2 写阶段性 Project targets、带 closed Case 的 accepted Project changes、acceptance、blocking Project gaps 和 Case refs；不写 Loop continuation 或同态日志。
 - Case State 写事项级 checkpoint：六个 facets、content revision、completion review policy/cycles/findings/escalation、open questions、pending handoffs、round records、derived resolution、candidate gaps 和 loop handoff。每条 round 可保存 `arckit-runtime://runs/RUN-...` opaque ref，但不保存 Runtime 宿主的绝对路径。
 - Runtime 宿主在目标项目之外管理完整过程证据：runtime result、gate、selected round、activity、raw events 和 transcript。Desktop 使用 Electron userData；ledger 不复制这些记录，且 Case 语义恢复不依赖它们仍然存在。
-- Worker 不直接写 Project/Case State；Worker 提交 claims，Controller 接受后形成 transition，ledger 确定性应用。
+- Agent 不直接写 Project/Case State；Agent 提交一个 transition claim，ledger 确定性应用。
 
-Controller plan 可以包含零个 Worker。当 operator input、现有稳定事实或已有验证证据足以支持一个 Case transition 时，Controller Review 直接列出 evidence 并形成 accepted delta；Runtime Guard 不把零 Worker 当缺失 packet。每次成功写回后对应 Loop 重新读取状态和 revision，再由 Controller 选择下一 gap。不同 Case Loops 可以并行执行，ledger commit 短暂串行；Project aggregation 冲突只使相关 closeout 从 fresh state 重规划。自动桥接由实际 ledger 进展、no-progress streak 与连续无进展轮次预算共同约束；累计自动轮次仅用于审计，不作为持续产生 canonical state 进展时的停止条件。
+当 operator input、现有稳定事实或 Agent 在 turn 内取得的实现/验证证据足以支持 Case transition 时，Agent 直接提交 accepted delta。每次成功写回后对应 Loop 重新读取状态和 revision，再由同一 thread 的下一 turn 选择下一个 gap。不同 Case Loops 可以并行执行，ledger commit 短暂串行；Project aggregation 冲突只使相关 closeout 从 fresh state 重规划。自动桥接由实际 ledger 进展与 no-progress streak 共同约束；累计自动轮次仅用于审计，不作为持续产生 canonical state 进展时的停止条件。
 
 ## M0 实现范围
 
@@ -335,7 +337,9 @@ M0 的目标是证明 Arckit loop 可以由 runtime 控制，而不是继续依�
 
 M1 接入 Codex app-server JSON-RPC，当前实现位于 `runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs`：
 
-- `thread/start`
+- `thread/start`（非 ephemeral）
+- `thread/resume`
+- `thread/compact/start`
 - `turn/start`
 - streamed item notifications
 - `turn/steer`
@@ -374,7 +378,7 @@ Gate 的写回准入条件：
 - `round_result` 必须是 `done`。
 - `ledger_stage.status` 必须是 `gate_ready`。
 - `validation_evidence` 必须非空。
-- Runtime 只能验证结构化 claim 的协议、证据和 artifact ownership 条件；语义正确性必须来自 worker evidence、人类确认或后续验证，不由 gate 自行推理。
+- Runtime 只能验证结构化 claim 的协议、证据和 artifact ownership 条件；语义正确性必须来自 Agent evidence、人类确认或后续验证，不由 gate 自行推理。
 - `human_decision_required=true`、`next_responsibility=human` 或 `trigger_mode=user_decision` 会阻止自动写回。
 - `source_unknown=true` 且只有 projection artifact 变化会阻止自动写回。
 - `artifact_ownership_scan.projection_artifacts_changed` 非空且没有 source fact change 会阻止自动写回。
@@ -417,7 +421,7 @@ Desktop Client 的验收覆盖任务源 mock、确定性队列、单活动任务
 
 ### M4：可替换 agent adapter
 
-M4 增加 opencode 或多 agent adapter。Runtime 保持同一 loop 控制面，不把状态选择、事实路由和完成审计交给 worker 自行决定。
+M4 可以增加其他支持持久 thread 语义的 agent adapter。Runtime 保持同一 loop 控制面，不把状态选择、事实路由和完成审计编码成 Kernel 策略。
 
 ## 验收口径
 
@@ -426,15 +430,17 @@ Arckit Runtime 满足方案时表现为：
 - 能从 canonical project state 选择下一轮 gap。
 - 能生成包含上下文、停止条件和输出 schema 的受控 agent 指令。
 - 能实时展示 agent 执行事件，支持 steer 和 interrupt。
-- 能展示 Runtime Kernel 输出的 round state、controller reducer result、artifact ownership scan 和 ledger stage。
+- 能展示 Runtime Kernel 输出的 round state、Agent transition、artifact ownership scan 和 ledger stage。
 - 能拒绝缺少 artifact impact scan、source-projection check 或 loop handoff 的结果。
-- 能把 LLM/worker 的语义判断限制为结构化 claim，再由代码验证协议、证据、路径归属和门禁条件。
-- 能按 Controller、Runtime、Worker 三个 execution plane 注册七个保留 capability，并拒绝所有非法 Worker skill binding。
+- 能把 Agent 的语义判断限制为结构化 claim，再由代码验证协议、证据、路径归属和门禁条件。
+- 只绑定 `using-arckit` Agent 入口与 `arckit-development-ledger` trusted entrypoints，并保留 Agent 原生 skill discovery；Runtime 不建立 Worker registry。
 - 能把 agent 续轮、人工决策、外部等待和完成状态区分为不同 loop handoff。
-- 能在一个 app-server 与一个 Runtime 进程内执行多轮 Loop，隔离项目级 Controller planning、Case review 与 Case/type/workstream Worker thread，并在每次写回后 fresh-read state。
-- 能为每个 Worker turn 生成有界、可恢复的 context digest，并在同一 workstream 的授权路径签名变化时投影非阻断软提示。
+- 能让一个待办从首轮到验证、修复和 Git closeout 只使用一个持久 Agent thread，并在进程重启后 resume 同一 thread、每次写回后 fresh-read state。
+- 能以 manifest 声明的自然文本 trigger 触发兼容的 Controller skill，不显式注入 `skill` input item，并按当前 app-server schema 返回 command、file 与 permission approval 响应。
+- 能在最新请求上下文占用达到 80% 时压缩同一 thread，保存压缩检查点后继续下一 gap。
+- 能为每个 Agent turn 生成有界、可恢复的 context digest，并在目标、授权或 canonical refs 异常漂移时投影非阻断软提示。
 - 能为每个远端待办创建独立 Desktop session，按 thread 最新累计快照去重 Token 用量，并以软异常而非硬 Token/轮次限制治理浪费。
 - 能为一个待办从远端领取到 completed 写回建立跨 Run 的父子 span，持久化脱敏 JSONL，并用 exclusive time 区分 orchestration、task execution、external 与 closeout 热点。
 - 能把同一活动任务从 Runtime 安全交给用户可参与的交互式 Codex CLI，并以 canonical Case State 而非旧 Run 或终端退出状态完成恢复对账。
-- 能只把 `requires_human_decision=true` 当作人工门禁；`requires_main_agent_decision=true` 进入 Controller Reducer 内部动作，不默认阻塞 closeout。
+- 能只在 Agent handoff 明确声明 human responsibility 时暂停自动执行，external wait 与结构恢复分别保持独立状态。
 - 能在不改 agent core 的情况下先接 Codex app-server，并保留 opencode、多 agent adapter 的扩展边界。

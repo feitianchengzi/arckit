@@ -8,8 +8,8 @@ agent capability types over time. Reusable skills must live under that directory
 ## Arckit Scope
 
 Arckit is a software-development agent collaboration and handoff protocol layer. It should help humans,
-Codex-like single agents, and multi-agent automation platforms work from the same project facts, case state,
-bounded worker packets, handoffs, and repository context.
+Codex-like single agents, and automation platforms work from the same project facts, Case state,
+bounded gaps, handoffs, and repository context.
 
 Skills in this repository should primarily improve agent reliability in real software projects: context recovery,
 fact-source governance, handoff quality, implementation boundaries, diagnosis, and safe continuation after a human
@@ -21,9 +21,9 @@ external-adapter handoff, but should not become silent final-decision skills in 
 
 Arckit is organized around the product axis that `Project State` 通过 `Case` 和 `Loop` 被持续推进。Project State is the recoverable software-project object; Case carries an explicit project-state advancement context; Loop is the bounded runtime cycle that produces evidence, handoffs, and verifiable state impact.
 
-Desktop owns product/runtime control architecture; Codex-like coding agents own semantic reasoning, workspace execution, evidence collection, and structured claims; skills are installed agent capability packages that provide reusable protocols, methods, scripts, and artifact maintenance rules at the bottom layer.
+Desktop owns product/runtime control architecture; Codex-like coding agents own semantic reasoning, native skill selection, workspace execution, evidence collection, self-review, and structured claims; skills are installed agent capability packages that provide reusable protocols, methods, scripts, and artifact maintenance rules at the bottom layer. Runtime replaces the human automation around a Codex conversation, not the coherent Agent capability inside it.
 
-Runtime kernel must preserve this product axis while staying policy-neutral: do not seed fixed initial gaps, route modes, worker roles, skill names, capability-selection heuristics, or ledger writeback dimension inferences; those choices must come from agent analysis or an explicit policy layer. Runtime invokes semantic Controller behavior through the manifest-declared `using-arckit` Agent skill trigger and invokes deterministic ledger behavior through trusted entrypoints declared by `arckit-development-ledger`; do not duplicate either skill's workflow inside Runtime.
+Runtime kernel must preserve this product axis while staying policy-neutral: do not seed fixed initial gaps, route modes, worker roles, skill names, capability-selection heuristics, predictive path scopes, or ledger writeback dimension inferences; those choices come from the Codex Agent's semantic analysis. Each automated todo owns one persistent Codex thread from its first turn through serial Case gaps, validation, repair, context compaction, and Git closeout. Runtime persists the opaque thread id before the first turn, resumes that same thread after process restart, and compacts it between gaps when the latest request reaches 80% of the model context window. Runtime never creates separate Controller, Worker, Review, validation, repair, or commit threads. It invokes semantic behavior through the manifest-declared natural `$using-arckit` trigger and deterministic ledger behavior through trusted entrypoints declared by `arckit-development-ledger`; do not duplicate either skill's workflow inside Runtime.
 
 ## Directory Map
 
@@ -75,9 +75,9 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - SwiftUI and Apple client coding practice: `code/skills/arckit-code-swiftui/`
 - Feedback platform integration: `code/skills/arckit-feedback-platform-integration/`
 - Alibaba Cloud OSS controlled image access: `code/skills/oss-controlled-image-access/`
-- Runtime capability selection: `runtime/arckit-runtime/config/capability-policy.json`, restricted to the seven Runtime-managed collaboration skills and split into mutually exclusive Controller, Runtime, and Worker execution planes. `using-arckit` is Controller-only and is invoked with its manifest-declared Agent skill trigger; `arckit-development-ledger` is Runtime-only and is invoked through its trusted in-skill entrypoints; only the five definition/diagnosis skills may enter Worker `allowed_skills`.
+- Runtime capability binding: `runtime/arckit-runtime/config/capability-policy.json`, which manages only the `using-arckit` Agent entry and `arckit-development-ledger` trusted Runtime entrypoints. Definition, diagnosis, code, quality, and user-installed skills remain available through Codex native skill discovery inside the coherent Agent thread; Runtime does not maintain a Worker registry.
 
-The three `code/skills/` capabilities are distributed from this repository but do not enter Runtime `allowed_skills` unless a future explicit capability policy adds them.
+The three `code/skills/` capabilities are distributed from this repository and may be selected natively by the Codex Agent; Runtime does not add them to an `allowed_skills` list or pre-associate them with a gap.
 
 Directories not listed above are reserved capability domains and currently contain no retained Arckit skills. Do not restore a removed skill reference as a dependency; unresolved work stays in the active case or is handed to an external adapter.
 

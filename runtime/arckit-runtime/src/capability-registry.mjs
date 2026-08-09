@@ -35,10 +35,6 @@ export async function loadRuntimeCapabilities(options = {}) {
   return filterCapabilities(normalizeCapabilities(loaded), allPolicyCapabilityIds(policy));
 }
 
-export function selectCapabilitiesForRound(capabilities = []) {
-  return normalizeCapabilities(capabilities);
-}
-
 export function capabilityIds(capabilities = []) {
   return new Set(normalizeCapabilities(capabilities).map((capability) => capability.id));
 }
@@ -51,15 +47,10 @@ export function capabilitiesForBinding(capabilities = [], policy, bindingTarget)
 }
 
 export function capabilityIdsForBinding(policy, bindingTarget) {
-  if (!["controller", "runtime", "worker"].includes(bindingTarget)) {
+  if (!["controller", "runtime"].includes(bindingTarget)) {
     throw new Error(`Unsupported capability binding target: ${bindingTarget}`);
   }
   return new Set(arrayOfStrings(policy?.[`${bindingTarget}_capability_ids`]));
-}
-
-export function invalidCapabilityBindings(requestedIds = [], availableCapabilities = []) {
-  const availableIds = capabilityIds(availableCapabilities);
-  return unique(arrayOfStrings(requestedIds)).filter((id) => !availableIds.has(id));
 }
 
 export function agentSkillInvocationForPhase(capabilities = [], phase) {
@@ -269,22 +260,20 @@ function filterCapabilities(capabilities, allowedIds) {
 }
 
 function normalizeCapabilityPolicy(policy, source) {
-  if (policy?.schema_version !== "arckit-capability-policy/v2") {
+  if (policy?.schema_version !== "arckit-capability-policy/v3") {
     throw new Error(`Invalid Arckit capability policy: ${source}`);
   }
   const normalized = {
-    schema_version: "arckit-capability-policy/v2",
+    schema_version: "arckit-capability-policy/v3",
     controller_capability_ids: arrayOfStrings(policy.controller_capability_ids),
-    runtime_capability_ids: arrayOfStrings(policy.runtime_capability_ids),
-    worker_capability_ids: arrayOfStrings(policy.worker_capability_ids)
+    runtime_capability_ids: arrayOfStrings(policy.runtime_capability_ids)
   };
-  if (![policy.controller_capability_ids, policy.runtime_capability_ids, policy.worker_capability_ids].every(Array.isArray)) {
+  if (![policy.controller_capability_ids, policy.runtime_capability_ids].every(Array.isArray)) {
     throw new Error(`Invalid Arckit capability policy: ${source}`);
   }
   const allIds = [
     ...normalized.controller_capability_ids,
-    ...normalized.runtime_capability_ids,
-    ...normalized.worker_capability_ids
+    ...normalized.runtime_capability_ids
   ];
   if (new Set(allIds).size !== allIds.length) {
     throw new Error(`Capability ids must belong to exactly one binding target: ${source}`);
@@ -295,8 +284,7 @@ function normalizeCapabilityPolicy(policy, source) {
 function allPolicyCapabilityIds(policy) {
   return new Set([
     ...capabilityIdsForBinding(policy, "controller"),
-    ...capabilityIdsForBinding(policy, "runtime"),
-    ...capabilityIdsForBinding(policy, "worker")
+    ...capabilityIdsForBinding(policy, "runtime")
   ]);
 }
 

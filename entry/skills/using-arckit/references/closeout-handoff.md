@@ -53,4 +53,4 @@ project_impact_candidate:
 
 `deferred` 不再是 handoff 或 resolution 状态。
 
-Runtime 的 auto bridge 每轮只能在已重新读取 ledger 后启动。成功写回重置 no-progress streak；没有状态写回则累积 streak，并在 `no_progress_limit` 或 `max_auto_rounds` 到达时停止。
+Runtime 的 auto bridge 每轮只能在已重新读取 ledger 后启动。成功写回重置 no-progress streak；没有状态写回才累积恢复计数。该计数不限制总墙钟、持续产生 ledger 进展的 Round 或长时间命令。
