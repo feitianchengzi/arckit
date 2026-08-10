@@ -32,13 +32,15 @@ export function selectNextRound(snapshot, options = {}) {
     scope: 'case',
     case_id: '',
     case_updated_at: '',
-    facet: '',
-    current_state: 'unselected',
-    target_state: 'evidence-backed case transition',
-    next_transition: '',
-    impact: activeCases.length
+    goal: roundGoal,
+    reason: activeCases.length
       ? 'Controller must select one active Case for this Loop and advance one of its current candidate gaps.'
       : 'Project State has no active Case; the Agent must create one before gap execution.',
+    derived_from: activeCases.length ? ['active_cases', 'project_state'] : ['project_state', 'user_intent'],
+    blocked_by: [],
+    priority_basis: { blocking: 'high', uncertainty: 'medium', risk: 'medium', user_impact: 'high' },
+    responsibility: 'agent',
+    evidence_required: ['A semantic Case control or one evidence-backed Case transition.'],
     round_goal: roundGoal,
     candidate_cases: candidateCases,
     candidate_case_gaps: [],

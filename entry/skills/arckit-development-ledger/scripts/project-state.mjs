@@ -35,6 +35,8 @@ const VALID_EVIDENCE_MATURITY = new Set([
 const VALID_PROJECT_STATUS = new Set(['active', 'paused', 'archived']);
 const VALID_PRIORITY = new Set(['none', 'low', 'medium', 'high', 'critical']);
 const VALID_CONFIDENCE = new Set(['low', 'medium', 'high']);
+const VALID_CONDITION_PRIORITY = new Set(['required', 'recommended', 'informational']);
+const VALID_CONDITION_STATUS = new Set(['active', 'retired']);
 const PROJECT_KEYS = new Set([
   'schema_version', 'project', 'active_iteration_ref', 'active_case_refs',
   'completeness_dimensions', 'state_gaps', 'case_control', 'active_constraints',
@@ -43,8 +45,9 @@ const PROJECT_KEYS = new Set([
 const PROJECT_INFO_KEYS = new Set(['name', 'status', 'created_at', 'updated_at', 'original_intent', 'current_phase']);
 const DIMENSION_KEYS = new Set([
   'current_state', 'target_state', 'state_reason', 'evidence', 'evidence_maturity',
-  'gap', 'next_transition', 'blockers', 'priority', 'confidence',
+  'gap', 'next_transition', 'blockers', 'priority', 'confidence', 'desired_conditions',
 ]);
+const CONDITION_KEYS = new Set(['id', 'applies_when', 'must_hold', 'evidence_expectation', 'priority', 'status']);
 const GAP_KEYS = new Set([
   'id', 'dimension', 'current_state', 'target_state', 'impact', 'urgency', 'risk',
   'dependencies', 'covered_dimensions', 'next_transition', 'candidate_case_ref',
@@ -52,11 +55,8 @@ const GAP_KEYS = new Set([
 const CASE_CONTROL_KEYS = new Set(['next_case_intent', 'priority_basis', 'stop_condition']);
 const LAST_DELTA_KEYS = new Set([
   'changed_dimensions', 'state_transitions', 'deferred_dimensions', 'blocked_dimensions',
-  'case_refs', 'iteration_ref', 'next_project_focus', 'updated_at',
+  'case_refs', 'iteration_ref', 'next_project_focus', 'updated_at', 'condition_changes',
 ]);
-const LEGACY_RUNTIME_RESULT_REF_PATTERN = /^arckit\/project\/runtime-results\/(RUN-[A-Za-z0-9][A-Za-z0-9._-]*)\.json$/;
-const OPAQUE_RUNTIME_RESULT_REF_PATTERN = /^arckit-runtime:\/\/runs\/(RUN-[A-Za-z0-9][A-Za-z0-9._-]*)$/;
-
 const COMPLETENESS_DIMENSION_KEYS = [
   'project_intent',
   'users_and_stakeholders',
@@ -82,8 +82,6 @@ function usage(exitCode = 0) {
     'Usage:',
     '  node <skill-dir>/scripts/project-state.mjs init --name "Project Name" [--intent "..."]',
     '  node <skill-dir>/scripts/project-state.mjs register-case --case-ref "arckit/cases/active/CASE-...md" [--intent "..."] [--reason "..."]',
-    '  node <skill-dir>/scripts/project-state.mjs migrate-v4 [record-file]',
-    '  node <skill-dir>/scripts/project-state.mjs repair-runtime-refs [record-file]',
     '  node <skill-dir>/scripts/project-state.mjs render [record-file]',
     '  node <skill-dir>/scripts/project-state.mjs audit [record-file|state-file]',
     '  node <skill-dir>/scripts/project-state.mjs validate [record-file|state-file]',
@@ -132,6 +130,7 @@ function defaultDimension(currentState = 'unknown', targetState = 'unknown', sta
     blockers: [],
     priority: currentState === targetState || currentState === 'not_required' ? 'none' : 'medium',
     confidence: 'medium',
+    desired_conditions: [],
   };
 }
 
@@ -164,6 +163,7 @@ function createRecord({ name, intent = '' }) {
     last_state_delta: {
       changed_dimensions: [],
       state_transitions: [],
+      condition_changes: [],
       deferred_dimensions: [],
       blocked_dimensions: [],
       case_refs: [],
@@ -174,12 +174,27 @@ function createRecord({ name, intent = '' }) {
   };
 }
 
+function normalizeDesiredConditions(record) {
+  let changed = false;
+  for (const dimension of Object.values(record.completeness_dimensions || {})) {
+    if (dimension && !Object.hasOwn(dimension, 'desired_conditions')) {
+      dimension.desired_conditions = [];
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 function renderState(record) {
   const stateGaps = (record.state_gaps || []).slice(0, 3);
   const priorityDimensions = Object.entries(record.completeness_dimensions || {})
     .filter(([, value]) => ['critical', 'high'].includes(value.priority))
     .slice(0, 6)
     .map(([key, value]) => `- ${key}: ${value.current_state} -> ${value.target_state}; next: ${value.next_transition || 'none'}`);
+  const activeConditions = Object.entries(record.completeness_dimensions || {})
+    .flatMap(([dimension, value]) => (value.desired_conditions || [])
+      .filter((condition) => condition.status === 'active')
+      .map((condition) => `- ${dimension}.${condition.id}: ${condition.must_hold}`));
   const readRefs = [
     'state.record.json',
     record.active_iteration_ref || '',
@@ -223,6 +238,10 @@ function renderState(record) {
     '## High-Priority Dimensions',
     '',
     ...(priorityDimensions.length > 0 ? priorityDimensions : ['- none']),
+    '',
+    '## Desired Conditions',
+    '',
+    ...(activeConditions.length > 0 ? activeConditions : ['- none']),
     '',
     '## Read For Precision',
     '',
@@ -392,6 +411,27 @@ function validateDimension(item, key, errors, file) {
   if (!VALID_CONFIDENCE.has(item.confidence)) {
     errors.push(`${file}: completeness_dimensions.${key}.confidence must be one of ${Array.from(VALID_CONFIDENCE).join(', ')}`);
   }
+  const desiredConditions = item.desired_conditions ?? [];
+  if (!Array.isArray(desiredConditions)) {
+    errors.push(`${file}: completeness_dimensions.${key}.desired_conditions must be an array`);
+  } else {
+    const ids = [];
+    for (const [index, condition] of desiredConditions.entries()) {
+      const label = `completeness_dimensions.${key}.desired_conditions[${index}]`;
+      if (!condition || typeof condition !== 'object' || Array.isArray(condition)) {
+        errors.push(`${file}: ${label} must be an object`);
+        continue;
+      }
+      rejectUnknownKeys(condition, CONDITION_KEYS, label, errors, file);
+      for (const field of ['id', 'applies_when', 'must_hold', 'evidence_expectation']) {
+        if (typeof condition[field] !== 'string' || !condition[field].trim()) errors.push(`${file}: ${label}.${field} must be a non-empty string`);
+      }
+      if (!VALID_CONDITION_PRIORITY.has(condition.priority)) errors.push(`${file}: ${label}.priority is invalid`);
+      if (!VALID_CONDITION_STATUS.has(condition.status)) errors.push(`${file}: ${label}.status is invalid`);
+      ids.push(condition.id);
+    }
+    if (new Set(ids).size !== ids.length) errors.push(`${file}: completeness_dimensions.${key}.desired_conditions ids must be unique`);
+  }
   if (
     ['defined', 'designed', 'implemented', 'integrated', 'verified', 'accepted', 'released', 'operational'].includes(item.current_state) &&
     (!Array.isArray(item.evidence) || item.evidence.length === 0)
@@ -518,6 +558,7 @@ export function validateProjectStateRecord(record, file = '<record>') {
         if (typeof transition?.reason !== 'string' || !transition.reason) errors.push(`${file}: ${label}.reason must be a non-empty string`);
       }
     }
+    if (record.last_state_delta.condition_changes !== undefined && !Array.isArray(record.last_state_delta.condition_changes)) errors.push(`${file}: last_state_delta.condition_changes must be an array`);
     if (typeof record.last_state_delta.iteration_ref !== 'string') errors.push(`${file}: last_state_delta.iteration_ref must be a string`);
     if (typeof record.last_state_delta.next_project_focus !== 'string') {
       errors.push(`${file}: last_state_delta.next_project_focus must be a string`);
@@ -538,6 +579,7 @@ function summarize(record) {
     confidence: value.confidence,
     gap: value.gap || '',
     next_transition: value.next_transition || '',
+    desired_conditions: value.desired_conditions || [],
   }));
   return {
     project: record.project?.name || '',
@@ -584,6 +626,7 @@ function commandRegisterCase(args) {
   record.last_state_delta = {
     changed_dimensions: [],
     state_transitions: [],
+    condition_changes: [],
     deferred_dimensions: [],
     blocked_dimensions: [],
     case_refs: [caseRef],
@@ -623,64 +666,6 @@ function commandRegisterCase(args) {
   console.log(STATE_RECORD_PATH);
 }
 
-export function migrateProjectStateV4(record, { timestamp = nowIso() } = {}) {
-  if (record?.schema_version === 'project-state-record/v4') return { record, migrated: false };
-  if (record?.schema_version !== 'project-state-record/v3') {
-    throw new Error(`Unsupported Project State migration source: ${record?.schema_version || '<missing>'}`);
-  }
-  const previousControl = record.case_control || {};
-  const next = structuredClone(record);
-  next.schema_version = 'project-state-record/v4';
-  next.project.updated_at = timestamp;
-  next.case_control = {
-    next_case_intent: previousControl.next_case_intent || (next.active_case_refs?.length
-      ? 'Select one active Case for each independent Loop.'
-      : 'Create a bounded Case from the remaining Project state gaps.'),
-    priority_basis: previousControl.priority_basis || 'Controller compares current intent, impact, urgency, risk, and dependencies; array order is not priority.',
-    stop_condition: 'Stop after one active Case and one of its candidate gaps are selected for the current Loop.',
-  };
-  next.last_state_delta = {
-    ...(next.last_state_delta || {}),
-    next_project_focus: next.case_control.next_case_intent,
-    updated_at: timestamp,
-  };
-  return { record: next, migrated: true };
-}
-
-function commandMigrateV4(args) {
-  ensureDirs();
-  const file = path.resolve(args._[1] || STATE_RECORD_PATH);
-  const { record, recordFile } = readRecord(file);
-  const canonicalFile = path.resolve(recordFile || file);
-  const migration = migrateProjectStateV4(record);
-  if (!migration.migrated) {
-    console.log(JSON.stringify({ schema_version: 'project-state-migration/v1', migrated: false, changed_files: [] }, null, 2));
-    return;
-  }
-  const errors = validateProjectStateRecord(migration.record, canonicalFile);
-  if (errors.length) throw new Error(errors.join('\n'));
-  const snapshots = [canonicalFile, STATE_PATH].map((snapshotFile) => ({
-    file: snapshotFile,
-    exists: fs.existsSync(snapshotFile),
-    content: fs.existsSync(snapshotFile) ? fs.readFileSync(snapshotFile) : null,
-  }));
-  try {
-    writeRecord(migration.record, canonicalFile);
-    writeStateProjection(migration.record, STATE_PATH);
-  } catch (error) {
-    for (const snapshot of snapshots) {
-      if (snapshot.exists) fs.writeFileSync(snapshot.file, snapshot.content);
-      else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file);
-    }
-    throw error;
-  }
-  console.log(JSON.stringify({
-    schema_version: 'project-state-migration/v1',
-    migrated: true,
-    changed_files: ['arckit/project/state.record.json', 'arckit/project/STATE.md'],
-  }, null, 2));
-}
-
 function runIterationScript(args) {
   const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'project-iteration.mjs');
   const result = spawnSync(process.execPath, [script, ...args], { cwd: process.cwd(), encoding: 'utf8' });
@@ -690,68 +675,16 @@ function runIterationScript(args) {
 function commandRender(args) {
   ensureDirs();
   const file = path.resolve(args._[1] || STATE_RECORD_PATH);
-  const { record } = readRecord(file);
+  const { record, recordFile } = readRecord(file);
+  const normalized = normalizeDesiredConditions(record);
   const errors = validateProjectStateRecord(record, file);
   if (errors.length > 0) {
     for (const error of errors) console.error(error);
     process.exit(1);
   }
+  if (normalized) writeRecord(record, recordFile || file);
   writeStateProjection(record);
   console.log(STATE_PATH);
-}
-
-function commandRepairRuntimeRefs(args) {
-  ensureDirs();
-  const file = path.resolve(args._[1] || STATE_RECORD_PATH);
-  const { record, recordFile } = readRecord(file);
-  const canonicalRecordFile = path.resolve(recordFile || file);
-  if (canonicalRecordFile !== path.resolve(STATE_RECORD_PATH)) {
-    throw new Error(`repair-runtime-refs requires ${path.resolve(STATE_RECORD_PATH)}`);
-  }
-  const errors = validateProjectStateRecord(record, canonicalRecordFile);
-  if (errors.length > 0) throw new Error(errors.join('\n'));
-
-  const removedRefs = (record.canonical_artifact_refs || []).filter((ref) => (
-    OPAQUE_RUNTIME_RESULT_REF_PATTERN.test(ref)
-    || (LEGACY_RUNTIME_RESULT_REF_PATTERN.test(ref) && !fs.existsSync(resolveProjectPath(ref)))
-  ));
-  if (removedRefs.length === 0) {
-    console.log(JSON.stringify({
-      schema_version: 'project-state-runtime-ref-repair/v1',
-      repaired: false,
-      removed_canonical_artifact_refs: [],
-      changed_files: [],
-    }, null, 2));
-    return;
-  }
-
-  const removed = new Set(removedRefs);
-  record.canonical_artifact_refs = record.canonical_artifact_refs.filter((ref) => !removed.has(ref));
-  record.project.updated_at = nowIso();
-  const repairedErrors = validateProjectStateRecord(record, canonicalRecordFile);
-  if (repairedErrors.length > 0) throw new Error(repairedErrors.join('\n'));
-
-  const snapshots = [canonicalRecordFile, STATE_PATH].map((snapshotFile) => ({
-    file: snapshotFile,
-    exists: fs.existsSync(snapshotFile),
-    content: fs.existsSync(snapshotFile) ? fs.readFileSync(snapshotFile) : null,
-  }));
-  try {
-    writeRecord(record, canonicalRecordFile);
-    writeStateProjection(record, STATE_PATH);
-  } catch (error) {
-    for (const snapshot of snapshots) {
-      if (snapshot.exists) fs.writeFileSync(snapshot.file, snapshot.content);
-      else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file);
-    }
-    throw error;
-  }
-  console.log(JSON.stringify({
-    schema_version: 'project-state-runtime-ref-repair/v1',
-    repaired: true,
-    removed_canonical_artifact_refs: removedRefs,
-    changed_files: ['arckit/project/state.record.json', 'arckit/project/STATE.md'],
-  }, null, 2));
 }
 
 function commandAudit(args) {
@@ -793,8 +726,6 @@ function main() {
   if (!command || command === 'help' || command === '--help') usage(0);
   if (command === 'init') return commandInit(args);
   if (command === 'register-case' || command === 'select-case') return commandRegisterCase(args);
-  if (command === 'migrate-v4') return commandMigrateV4(args);
-  if (command === 'repair-runtime-refs') return commandRepairRuntimeRefs(args);
   if (command === 'render') return commandRender(args);
   if (command === 'audit') return commandAudit(args);
   if (command === 'validate') return commandValidate(args);

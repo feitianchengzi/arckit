@@ -13,10 +13,11 @@ export function validateCaseControlHandoff(handoff, field = 'case_control_handof
   if (!handoff || typeof handoff !== 'object' || Array.isArray(handoff)) return [`${field} must be an object.`];
   if (handoff.schema_version !== 'arckit-case-control-handoff/v1') issues.push(`${field}.schema_version must be arckit-case-control-handoff/v1.`);
   if (!ACTIONS.has(handoff.action)) issues.push(`${field}.action must be create_case.`);
-  for (const key of ['expected_project_updated_at', 'case_id', 'title', 'intent', 'artifact_type', 'selection_reason']) {
+  for (const key of ['expected_project_updated_at', 'case_id', 'title', 'intent', 'expected_outcome', 'artifact_type', 'selection_reason']) {
     if (typeof handoff[key] !== 'string') issues.push(`${field}.${key} must be a string.`);
   }
   if (!ARTIFACT_TYPES.has(handoff.artifact_type)) issues.push(`${field}.artifact_type is invalid.`);
+  for (const key of ['initial_facts', 'initial_impacts', 'initial_gaps']) if (!Array.isArray(handoff[key])) issues.push(`${field}.${key} must be an array.`);
   if (!handoff.review_policy || typeof handoff.review_policy !== 'object' || Array.isArray(handoff.review_policy)) {
     issues.push(`${field}.review_policy must be an object.`);
   } else {
@@ -24,7 +25,8 @@ export function validateCaseControlHandoff(handoff, field = 'case_control_handof
     if (typeof handoff.review_policy.source !== 'string' || !handoff.review_policy.source.trim()) issues.push(`${field}.review_policy.source must be a non-empty string.`);
   }
   if (handoff.action === 'create_case') {
-    if (!handoff.title?.trim() || !handoff.intent?.trim() || !handoff.selection_reason?.trim()) issues.push(`${field} create_case requires title, intent, and selection_reason.`);
+    if (!handoff.title?.trim() || !handoff.intent?.trim() || !handoff.expected_outcome?.trim() || !handoff.selection_reason?.trim()) issues.push(`${field} create_case requires title, intent, expected_outcome, and selection_reason.`);
+    if (handoff.initial_facts?.length === 0 || handoff.initial_gaps?.length === 0) issues.push(`${field} create_case requires semantic initial_facts and at least one initial_gap.`);
     if (handoff.case_id) issues.push(`${field}.case_id must be empty when action=create_case; the ledger allocates the id.`);
   }
   return issues;
@@ -46,6 +48,8 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
   if (projectState.project?.updated_at !== handoff.expected_project_updated_at) {
     throw new Error(`Case control handoff is stale: expected Project revision ${projectState.project?.updated_at || '<missing>'}, received ${handoff.expected_project_updated_at || '<missing>'}.`);
   }
+  const conditionRefs = new Set(Object.entries(projectState.completeness_dimensions || {}).flatMap(([dimension, state]) => (state.desired_conditions || []).map((condition) => `${dimension}.${condition.id}`)));
+  for (const impact of handoff.initial_impacts) if (!conditionRefs.has(impact.condition_ref)) throw new Error(`Unknown Project desired condition: ${impact.condition_ref}`);
 
   let selectedCaseRef = '';
 
@@ -65,6 +69,10 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
       '--title', handoff.title,
       '--artifact-type', handoff.artifact_type,
       '--intent', handoff.intent,
+      '--expected-outcome', handoff.expected_outcome,
+      '--initial-facts', JSON.stringify(handoff.initial_facts),
+      '--initial-impacts', JSON.stringify(handoff.initial_impacts),
+      '--initial-gaps', JSON.stringify(handoff.initial_gaps),
       '--max-review-cycles', String(handoff.review_policy.max_autonomous_cycles),
       '--review-policy-source', handoff.review_policy.source,
     ]);

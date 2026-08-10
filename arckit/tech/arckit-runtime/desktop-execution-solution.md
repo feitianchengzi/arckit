@@ -98,7 +98,7 @@ CLI resume 后追加一条自然 `$using-arckit` 指令，包含已知 `case_id`
 
 CLI 启动成功后，活动任务进入 `cli_handoff`，远端任务保持 `in_progress`，下一队列继续冻结。Desktop 不读取终端 transcript，也不把终端关闭视为执行结果；“重新打开终端”只重复同一有界启动动作。
 
-Case Reader 根据 `case_id` 先匹配 Project `active_case_refs`，再在 `arckit/cases/closed/` 中查找同一 Case，并返回完整 `development-case-record/v3`。Coordinator 在同步和“恢复自动执行”时使用该 fresh record 对账：
+Case Reader 根据 `case_id` 先匹配 Project `active_case_refs`，再在 `arckit/cases/closed/` 中查找同一 Case，并返回完整 `development-case-record/v4`。不匹配当前协议的记录不进入自动恢复。Coordinator 在同步和“恢复自动执行”时使用该 fresh record 对账：
 
 - `active` 且 handoff 由 Agent 负责：显式交还执行权后启动 fresh Runtime run。
 - `active/handoff` 且需要 human：创建 attention item。

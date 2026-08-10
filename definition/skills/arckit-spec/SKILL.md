@@ -18,7 +18,7 @@ description: "维护 arckit/spec/ 下的产品功能规格、行为规则、验�
 
 ## Case State 驱动模式
 
-收到 `case_fact_gap` 时，先读取 [`../_arckit_shared/case-fact-contract.md`](../_arckit_shared/case-fact-contract.md)，并进入 managed-case 模式。当前 gap 可以来自规格先行、代码先行或混合推进；本 skill 只维护稳定产品事实并返回 `fact_result`，不写 Case/Project State、不决定 Case 完成。没有 `case_fact_gap` 时使用 standalone 模式。
+Agent 判断当前 dynamic gap 需要查询或维护产品事实时，向本 skill 提供 `case_gap`。先读取 [`../_arckit_shared/case-gap-contract.md`](../_arckit_shared/case-gap-contract.md)，再基于完整上下文进入 managed-case 模式。本 skill 只维护稳定产品事实并返回 `fact_result`，不写 Case/Project State、不规定工作顺序、不决定 Case 完成。没有 `case_gap` 时使用 standalone 模式。
 
 ## 核心结构
 
@@ -84,7 +84,7 @@ spec/
 
 ### 最终输出：document_scope（每次调用结束前必须输出）
 
-本 Skill 必须输出 `document_scope`；同时按 Case Fact Contract 输出 `fact_result`。managed-case 模式的 `fact_result` 是 Controller 可接受的产品事实 claim，standalone 模式只描述本次事实影响。
+本 Skill 必须输出 `document_scope`；同时按 Case Gap Contract 输出 `fact_result`。managed-case 模式的结果供当前 Agent 汇总为 transition 证据，standalone 模式只描述本次事实影响。
 
 **查询结束时**（只读，无写操作）：
 ```yaml

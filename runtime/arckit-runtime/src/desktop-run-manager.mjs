@@ -437,6 +437,9 @@ export function createDesktopRunManager({
     }
 
     const projectState = JSON.parse(await readFile(statePath, "utf8"));
+    if (projectState.schema_version !== "project-state-record/v4") {
+      throw new Error("Desktop requires project-state-record/v4. Upgrade this project explicitly before reading its runtime state.");
+    }
     const gaps = Array.isArray(projectState.state_gaps) ? projectState.state_gaps : [];
     const dimensions = Object.entries(projectState.completeness_dimensions || {})
       .map(([name, dimension]) => ({
@@ -452,7 +455,7 @@ export function createDesktopRunManager({
 
     const activeCaseStates = (await Promise.all((projectState.active_case_refs || []).map(async (caseRef) => {
       const casePath = join(project.path, caseRef);
-      return existsSync(casePath) ? parseCaseRecord(await readFile(casePath, "utf8")) : null;
+      return existsSync(casePath) ? parseCaseRecord(await readFile(casePath, "utf8"), { required: true }) : null;
     }))).filter(Boolean);
 
     return {
@@ -483,11 +486,14 @@ export function createDesktopRunManager({
     if (!existsSync(statePath)) return [];
 
     const projectState = JSON.parse(await readFile(statePath, "utf8"));
+    if (projectState.schema_version !== "project-state-record/v4") {
+      throw new Error("Desktop requires project-state-record/v4. Upgrade this project explicitly before reading its Case state.");
+    }
     const cases = [];
     for (const caseRef of projectState.active_case_refs || []) {
       const casePath = join(project.path, caseRef);
       if (!existsSync(casePath)) continue;
-      const record = parseCaseRecord(await readFile(casePath, "utf8"));
+      const record = parseCaseRecord(await readFile(casePath, "utf8"), { required: true });
       if (record) cases.push({ case_id: record.id, location: "active", case_ref: caseRef, record });
     }
 
@@ -512,9 +518,14 @@ export function createDesktopRunManager({
     return cases.find((item) => item.case_id === id) || null;
   }
 
-  function parseCaseRecord(text) {
+  function parseCaseRecord(text, { required = false } = {}) {
     const match = text.match(/## Structured Record[\s\S]*?```json\s*\n([\s\S]*?)\n```/);
-    return match ? JSON.parse(match[1]) : null;
+    const record = match ? JSON.parse(match[1]) : null;
+    if (record?.schema_version === "development-case-record/v4") return record;
+    if (required) {
+      throw new Error(`Desktop requires development-case-record/v4; received ${record?.schema_version || "<missing>"}. Upgrade this project explicitly.`);
+    }
+    return null;
   }
 
   async function startRun(input) {

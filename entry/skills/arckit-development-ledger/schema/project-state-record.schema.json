@@ -143,7 +143,24 @@
         "confidence": {
           "type": "string",
           "enum": ["low", "medium", "high"]
+        },
+        "desired_conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/desired_condition" }
         }
+      },
+      "additionalProperties": false
+    },
+    "desired_condition": {
+      "type": "object",
+      "required": ["id", "applies_when", "must_hold", "evidence_expectation", "priority", "status"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "applies_when": { "type": "string", "minLength": 1 },
+        "must_hold": { "type": "string", "minLength": 1 },
+        "evidence_expectation": { "type": "string", "minLength": 1 },
+        "priority": { "type": "string", "enum": ["required", "recommended", "informational"] },
+        "status": { "type": "string", "enum": ["active", "retired"] }
       },
       "additionalProperties": false
     },
@@ -215,6 +232,19 @@
       "properties": {
         "changed_dimensions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
         "state_transitions": { "type": "array", "items": { "$ref": "#/$defs/project_state_transition" } },
+        "condition_changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["action", "dimension", "condition_id"],
+            "properties": {
+              "action": { "type": "string", "enum": ["add", "update", "retire"] },
+              "dimension": { "type": "string" },
+              "condition_id": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
         "deferred_dimensions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
         "blocked_dimensions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
         "case_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },

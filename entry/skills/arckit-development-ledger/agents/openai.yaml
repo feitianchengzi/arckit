@@ -1,22 +1,22 @@
 interface:
   display_name: "Arckit Development Ledger"
   short_description: "确定性维护 Project/Case/Loop 状态与 transition"
-  default_prompt: "使用 $arckit-development-ledger 维护 project-state-record/v4、iteration-state-record/v2 与 development-case-record/v3。Project 保存 active Case 集合和选择依据，不保存独占 Loop selection；每个 Loop 通过 arckit-case-transition/v3 绑定 Case 与 Project revision。不同 Case 可并行执行，canonical ledger commit 通过跨进程 Project lock 串行化；resolved 聚合必须匹配 Project revision。一次性 transition 优先走 stdin，临时文件不得成为 evidence。"
+  default_prompt: "使用 $arckit-development-ledger 维护 project-state-record/v4、iteration-state-record/v2 与 development-case-record/v4。只接受当前协议；旧项目先基于当前意图、证据和实现显式升级。每个 Loop 通过 arckit-case-transition/v4 绑定 Case 与 Project revision；canonical commit 经 Project lock 原子写入，一次性 transition 优先走 stdin。"
 policy:
   allow_implicit_invocation: true
 workflow:
   first_steps:
-    - "读取 Project v4、全部 active Case v3 和 iteration。"
+    - "读取 Project v4、全部 active Case v4 和 Iteration v2；遇到旧协议立即拒绝。"
     - "从全部 active Cases 恢复候选集；每个 Loop 选择一个 Case 及其无序 candidate gap。"
     - "通过 trusted case_transition entrypoint 校验 revision 和完整 gap，再应用 accepted delta。"
     - "Case resolved 后才聚合显式 Project impact。"
-    - "base_ready 后派生 completion review；修复 findings 提升 content revision，最后授权轮次仍不 clean 时转人工。"
+    - "普通 gaps 全部闭合后派生 completion review；修复 findings 提升 content revision，最后授权轮次仍不 clean 时转人工。"
   boundaries:
     - "Runtime 只能调用 manifest-declared trusted entrypoints，不能复制 ledger 语义。"
-    - "普通 Worker 不得直接写 ledger。"
+    - "Agent 不得直接写 ledger，只能通过 trusted Runtime entrypoint 提交。"
     - "不把 raw prompt、runtime event、skill 名或固定 workflow 写入状态。"
     - "Case、Project、iteration 与 projections/index 任一步失败时恢复提交前状态。"
-    - "arckit-case-transition/v3 是语义对象；stdin/文件只是 CLI transport，临时文件由创建方限制权限并在 finally 中清理。"
+    - "arckit-case-transition/v4 是唯一语义对象；stdin/文件只是 CLI transport，临时文件由创建方限制权限并在 finally 中清理。"
     - "不同 Case 的执行可以并行；Project、Iteration 和索引提交必须经过跨进程 Project lock。"
     - "命令与 evidence 必须逐字往返；不得为避开 `$`、引号或其他序列化字符而改写事实。"
     - "Iteration 必须使用 v2，不保留 v1、loop_control、continuation prompt 或同态历史兼容路径。"

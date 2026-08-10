@@ -17,7 +17,7 @@ export function createStateStore(projectRoot) {
       for (const ref of activeCaseRefs) {
         const record = await readCaseRecordIfExists(join(root, ref));
         if (!record) throw new Error(`Active Case ref cannot be read: ${ref}`);
-        if (record.schema_version !== 'development-case-record/v3') throw new Error(`Runtime requires development-case-record/v3: ${ref}`);
+        if (record.schema_version !== 'development-case-record/v4') throw new Error(`Runtime requires development-case-record/v4: ${ref}`);
         activeCases.push({ ref, record });
       }
 

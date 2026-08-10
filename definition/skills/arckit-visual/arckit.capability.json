@@ -2,14 +2,14 @@
   "schema_version": "arckit-capability/v1",
   "id": "arckit-visual",
   "kind": "result_fact_source",
-  "runtime_role": ["route_auditor", "work_executor", "verification_agent"],
-  "binding_targets": ["worker"],
+  "runtime_role": ["fact_source_maintenance"],
+  "binding_targets": ["agent"],
   "summary": "Maintains stable visual strategy, design tokens, themes, and component visual specifications.",
   "input_facts": [
-    "confirmed_visual_expectation",
+    "relevant_visual_facts",
     "existing_visual_strategy",
     "human_visual_decision",
-    "case_fact_gap"
+    "dynamic_case_gap"
   ],
   "outputs": [
     "visual_update",
@@ -26,7 +26,7 @@
     "product_or_technical_fact_ownership"
   ],
   "runtime_notes": [
-    "Managed-case mode accepts a visual_expectation Case gap and returns an evidence-backed fact_result; standalone mode remains available.",
+    "The Agent invokes managed-case mode only when the current dynamic gap needs visual facts; the skill returns an evidence-backed fact_result and standalone mode remains available.",
     "Use only when visual direction has an explicit human or stable fact basis; otherwise return needs_human and never claim Case resolution."
   ]
 }

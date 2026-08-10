@@ -23,8 +23,12 @@ export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame
     case_id: control.case_id || "",
     title: control.title || "",
     intent: control.intent || "",
+    expected_outcome: control.expected_outcome || "",
     artifact_type: control.artifact_type || "unknown",
     selection_reason: control.selection_reason || "",
+    initial_facts: control.initial_facts || [],
+    initial_impacts: control.initial_impacts || [],
+    initial_gaps: control.initial_gaps || [],
     review_policy: { max_autonomous_cycles: maxReviewCycles, source: casePolicyRef }
   };
   const ownership = buildArtifactOwnershipScan([]);

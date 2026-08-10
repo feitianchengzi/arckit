@@ -56,6 +56,7 @@
       "properties": {
         "status": { "type": "string", "enum": ["none", "proposed", "accepted"] },
         "changes": { "type": "array" },
+        "condition_changes": { "type": "array" },
         "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
@@ -63,7 +64,7 @@
     "case_transition": { "type": ["object", "null"] },
     "case_control_handoff": {
       "type": "object",
-      "required": ["schema_version", "action", "expected_project_updated_at", "case_id", "title", "intent", "artifact_type", "selection_reason", "review_policy"],
+      "required": ["schema_version", "action", "expected_project_updated_at", "case_id", "title", "intent", "expected_outcome", "artifact_type", "selection_reason", "initial_facts", "initial_impacts", "initial_gaps", "review_policy"],
       "properties": {
         "schema_version": { "type": "string", "const": "arckit-case-control-handoff/v1" },
         "action": { "type": "string", "const": "create_case" },
@@ -71,8 +72,12 @@
         "case_id": { "type": "string" },
         "title": { "type": "string" },
         "intent": { "type": "string" },
+        "expected_outcome": { "type": "string" },
         "artifact_type": { "type": "string", "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"] },
         "selection_reason": { "type": "string" },
+        "initial_facts": { "type": "array" },
+        "initial_impacts": { "type": "array" },
+        "initial_gaps": { "type": "array" },
         "review_policy": {
           "type": "object",
           "required": ["max_autonomous_cycles", "source"],

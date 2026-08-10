@@ -58,6 +58,19 @@
       "properties": {
         "case_ref": { "type": "string" },
         "project_changes": { "type": "array", "items": { "$ref": "#/$defs/project_change_summary" } },
+        "condition_changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["action", "dimension", "condition_id"],
+            "properties": {
+              "action": { "type": "string", "enum": ["add", "update", "retire"] },
+              "dimension": { "type": "string", "minLength": 1 },
+              "condition_id": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        },
         "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
         "updated_at": { "type": "string", "minLength": 1 }
       },

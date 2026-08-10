@@ -217,7 +217,7 @@ Token 治理以观察和减少无效工作为目标。软异常包括上下文�
 
 Runtime 优先通过待办边界控制上下文：不同待办隔离 thread，同一待办从首个 Agent turn 到 Git closeout 始终使用一个持久 thread。Runtime 不从任务关键词、facet、skill 或路径派生新的 Agent 身份或 thread。
 
-每个默认 Agent turn 都携带从 fresh Project/Case State 派生的紧凑上下文摘要，包括 revisions、全部 active Case 选择事实、candidate gaps、相关 facet 状态、最近已接受变化、未解决问题和稳定事实引用。当前 operator input、canonical facts 与授权始终覆盖 thread 中的历史讨论；raw transcript、完整 Runtime envelope 和未接受推理不进入上下文摘要。
+每个默认 Agent turn 都携带从 fresh Project/Case State 派生的紧凑上下文摘要，包括 revisions、Project desired conditions、全部 active Case 选择事实、facts、state impacts、open/blocked/ready dynamic gaps、最近已接受变化、未解决问题和稳定事实引用。Runtime 只接受当前 canonical state 协议；未升级的项目在启动 Loop 前失败并给出协议不匹配错误。当前 operator input、canonical facts 与授权始终覆盖 thread 中的历史讨论；raw transcript、完整 Runtime envelope 和未接受推理不进入上下文摘要。
 
 同一默认 Agent turn 内完成 Case/gap 选择、必要工作和 transition closeout，不通过 planning/review thread 分拆制造额外上下文边界。Runtime 在首个 turn 前持久化 Codex thread id；进程重启后恢复该 thread，并用 ledger、稳定事实源和 fresh digest 校正恢复后的当前语义上下文。
 

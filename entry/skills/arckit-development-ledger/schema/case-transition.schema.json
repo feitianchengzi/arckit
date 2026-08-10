@@ -3,136 +3,38 @@
   "$id": "https://arckit.local/schema/case-transition.schema.json",
   "title": "Arckit Case Transition",
   "type": "object",
-  "required": [
-    "schema_version",
-    "case_id",
-    "case_updated_at",
-    "project_updated_at",
-    "selected_gap",
-    "planned_transition",
-    "accepted_state_delta",
-    "evidence",
-    "unresolved",
-    "round_outcome",
-    "case_resolution",
-    "project_impact_candidate"
-  ],
+  "required": ["schema_version", "case_id", "case_updated_at", "project_updated_at", "selected_gap", "planned_transition", "accepted_state_delta", "evidence", "unresolved", "round_outcome", "case_resolution", "project_impact_candidate"],
   "properties": {
-    "schema_version": { "const": "arckit-case-transition/v3" },
+    "schema_version": { "const": "arckit-case-transition/v4" },
     "case_id": { "type": "string", "pattern": "^CASE-[0-9]{8}-[0-9]{3}$" },
     "case_updated_at": { "type": "string", "minLength": 1 },
     "project_updated_at": { "type": "string", "minLength": 1 },
-    "selected_gap": { "$ref": "development-case-record.schema.json#/$defs/case_gap" },
-    "planned_transition": {
-      "type": "object",
-      "required": ["goal", "expected_state_change"],
-      "properties": {
-        "goal": { "type": "string", "minLength": 1 },
-        "expected_state_change": { "type": "string", "minLength": 1 }
-      },
-      "additionalProperties": false
-    },
-    "accepted_state_delta": { "$ref": "#/$defs/accepted_state_delta" },
-    "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-    "unresolved": { "type": "array", "items": { "type": "string" } },
-    "round_outcome": { "type": "string", "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] },
-    "case_resolution": {
-      "type": "object",
-      "required": ["claimed_status", "reason"],
-      "properties": {
-        "claimed_status": { "type": "string", "enum": ["unresolved", "resolved", "blocked"] },
-        "reason": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
-    "project_impact_candidate": { "$ref": "development-case-record.schema.json#/$defs/project_impact_candidate" },
-    "runtime_result_ref": { "type": "string", "description": "Optional opaque Runtime-host run reference; ledger writeback owns this value." }
-  },
-  "$defs": {
+    "selected_gap": { "type": "object" },
+    "planned_transition": { "type": "object" },
     "accepted_state_delta": {
       "type": "object",
-      "required": ["facets", "resolved_open_questions", "completed_handoffs", "completion_review_result", "resolved_review_findings", "review_budget_extension"],
+      "required": ["resolved_gap", "facts_added", "facts_superseded", "impacts_added", "impacts_updated", "gaps_added", "gaps_cancelled", "resolved_open_questions", "completed_handoffs", "completion_review_result", "resolved_review_findings", "review_budget_extension"],
       "properties": {
-        "facets": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["facet", "set", "evidence"],
-            "properties": {
-              "facet": { "type": "string", "enum": ["product_expectation", "interaction_expectation", "visual_expectation", "technical_expectation", "implementation_state", "verification_state"] },
-              "set": { "type": "object", "minProperties": 1 },
-              "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
-            },
-            "additionalProperties": false
-          }
-        },
-        "resolved_open_questions": { "type": "array", "items": { "type": "string" } },
-        "completed_handoffs": { "type": "array", "items": { "type": "string" } },
-        "completion_review_result": { "anyOf": [{ "$ref": "#/$defs/completion_review_result" }, { "type": "null" }] },
-        "resolved_review_findings": { "type": "array", "items": { "$ref": "#/$defs/resolved_review_finding" } },
-        "review_budget_extension": { "anyOf": [{ "$ref": "#/$defs/review_budget_extension" }, { "type": "null" }] }
+        "resolved_gap": { "type": ["object", "null"] },
+        "facts_added": { "type": "array", "items": { "$ref": "development-case-record.schema.json#/$defs/fact" } },
+        "facts_superseded": { "type": "array" },
+        "impacts_added": { "type": "array", "items": { "$ref": "development-case-record.schema.json#/$defs/state_impact" } },
+        "impacts_updated": { "type": "array", "items": { "$ref": "development-case-record.schema.json#/$defs/state_impact" } },
+        "gaps_added": { "type": "array", "items": { "$ref": "development-case-record.schema.json#/$defs/dynamic_gap" } },
+        "gaps_cancelled": { "type": "array" },
+        "resolved_open_questions": { "type": "array" },
+        "completed_handoffs": { "type": "array" },
+        "completion_review_result": { "type": ["object", "null"] },
+        "resolved_review_findings": { "type": "array" },
+        "review_budget_extension": { "type": ["object", "null"] }
       },
       "additionalProperties": false
     },
-    "review_dimensions": {
-      "type": "object",
-      "required": ["correctness", "completeness", "minimality"],
-      "properties": {
-        "correctness": { "type": "string", "enum": ["clean", "findings"] },
-        "completeness": { "type": "string", "enum": ["clean", "findings"] },
-        "minimality": { "type": "string", "enum": ["clean", "findings"] }
-      },
-      "additionalProperties": false
-    },
-    "completion_review_result": {
-      "type": "object",
-      "required": ["outcome", "reviewer", "reviewed_content_revision", "dimensions", "findings", "evidence"],
-      "properties": {
-        "outcome": { "type": "string", "enum": ["clean", "findings", "needs_human"] },
-        "reviewer": { "type": "string", "enum": ["agent", "human"] },
-        "reviewed_content_revision": { "type": "integer", "minimum": 0 },
-        "dimensions": { "$ref": "#/$defs/review_dimensions" },
-        "findings": { "type": "array", "items": { "$ref": "#/$defs/new_review_finding" } },
-        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
-      },
-      "additionalProperties": false
-    },
-    "new_review_finding": {
-      "type": "object",
-      "required": ["id", "kind", "statement", "responsibility", "affected_facets", "artifact_refs", "evidence"],
-      "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "kind": { "type": "string", "enum": ["error", "omission", "excess"] },
-        "statement": { "type": "string", "minLength": 1 },
-        "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
-        "affected_facets": { "type": "array", "items": { "type": "string" } },
-        "artifact_refs": { "type": "array", "items": { "type": "string" } },
-        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
-      },
-      "additionalProperties": false
-    },
-    "resolved_review_finding": {
-      "type": "object",
-      "required": ["id", "resolution", "reason", "evidence"],
-      "properties": {
-        "id": { "type": "string", "minLength": 1 },
-        "resolution": { "type": "string", "enum": ["resolved", "dismissed"] },
-        "reason": { "type": "string", "minLength": 1 },
-        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
-      },
-      "additionalProperties": false
-    },
-    "review_budget_extension": {
-      "type": "object",
-      "required": ["additional_cycles", "authorized_by", "reason", "evidence"],
-      "properties": {
-        "additional_cycles": { "type": "integer", "minimum": 1 },
-        "authorized_by": { "const": "human" },
-        "reason": { "type": "string", "minLength": 1 },
-        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
-      },
-      "additionalProperties": false
-    }
+    "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
+    "unresolved": { "type": "array" },
+    "round_outcome": { "type": "string", "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] },
+    "case_resolution": { "type": "object" },
+    "project_impact_candidate": { "$ref": "development-case-record.schema.json#/$defs/project_impact_candidate" }
   },
   "additionalProperties": false
 }

@@ -1,104 +1,60 @@
 ---
 name: arckit-development-ledger
-description: "维护 arckit/project 与 arckit/cases 的 Project State、Case State、iteration 和确定性 transition。适用于项目初始化、上下文恢复、状态驱动 loop、人工或 Runtime closeout、Case audit 与 Project 聚合。Project 只管理宏观完整性和 Case 选择；Case 管理单事项 definition/implementation/verification 完整性；不把日志、prompt、固定 skill 顺序或 Runtime 策略写入状态。"
+description: "维护 Arckit Project/Iteration/Case canonical state 与确定性 transition。Project 保存宏观 dimensions 和项目具体 desired conditions；Case 保存 facts、state impacts、dynamic gaps 与 implementation-focused completion review。Ledger 只接受当前协议，不编码 skill、路径、固定流程或 Runtime 策略。"
 ---
 
 # Arckit Development Ledger
 
-本 skill 是 Project State -> Case -> Loop 的 canonical ledger。人工直接使用与 Runtime 调用通过同一组 `case_control` / `case_transition` 可信入口；Runtime 只负责 gate 和调用 trusted entrypoint，不复制写回语义。
+本 skill 是 Project State -> Case -> Loop 的可信 ledger。Runtime 与人工调用共享 `case_control` / `case_transition` entrypoint；ledger 只校验结构、引用、revision、责任与证据闭合，不替 Agent 做自然语言相关性或优先级判断。
 
-## 受管理对象
+## Canonical 对象
 
-- `arckit/project/state.record.json`：`project-state-record/v4`，宏观软件完整性、project gaps、active Case refs 与不含独占 selection 的 `case_control` 选择依据。
-- `arckit/project/STATE.md`：Project record 的有损决策投影。
-- `arckit/project/iterations/*.record.json`：`iteration-state-record/v2`，只保存阶段性 Project 目标、resolved Case 聚合、验收状态和 Case refs。
-- `arckit/cases/{active,closed}/*.md`：`development-case-record/v3`，单个有边界事项的完整 Case State、内容 revision 与完成态复审。
-- Runtime execution records：raw process/evidence，由 Runtime 宿主在项目目录外管理；Case 只保存可选 opaque run ref，不依赖该记录恢复语义状态。
+- Project `project-state-record/v4`：宏观 completeness dimensions、Project gaps、active Cases，以及每个 dimension 可为空的 `desired_conditions`。
+- Iteration `iteration-state-record/v2`：阶段目标、resolved Case 聚合、dimension/condition change 摘要与 Case refs。
+- Case `development-case-record/v4`：facts、state_impacts、dynamic gaps、问题、handoff、content revision 和 completion review。
+- Runtime records：宿主在项目外管理；canonical ledger 最多保存 opaque run ref。
 
-## 硬边界
+## 状态边界
 
-- Project State 不保存 next responsibility、trigger mode、continuation prompt、Worker 顺序或轮次目标；这些属于 Case handoff/Loop。
-- Iteration State 同样不保存 Loop continuation、当前 Worker 路线或日志型同态变化；每条 accepted Project change 必须改变状态、绑定 closed Case 并提供持久证据。
-- 每个尚未达到 target、带明确 gap 且 priority 非 none 的 Project dimension，必须被至少一个 `state_gap.covered_dimensions` 覆盖；覆盖关系用于 Case 选择，不表达固定顺序。
-- `arckit-case-transition/v3` 是语义对象，绑定 Case revision 与 observed Project revision，不以临时文件为状态载体。Runtime 直接传递对象；人工或 Agent CLI 对一次性载荷优先使用 stdin。只有调用环境不能传 stdin 时才创建调用方拥有的临时文件，并负责限制权限、最终清理且绝不把路径写入 evidence。详细 transport 规则见 [references/transition-transport.md](references/transition-transport.md)。
-- canonical state 不接受 `/tmp`、`/private/tmp` 或其他临时目录作为 evidence ref；被状态依赖的证据必须持久可恢复。
-- ledger entrypoint 不在目标项目创建完整 Runtime result、activity、events 或 transcript。Desktop run 使用 `arckit-runtime://runs/RUN-...` 作为可选追踪引用；非 Desktop 调用可以留空，且两种情况都必须依靠 Case round 的 accepted delta 与 evidence 独立恢复。
-- Case renderer 必须把 transition、命令和 evidence 当作不透明数据逐字往返；不得为了避开序列化字符而改写真实证据。dry-run 必须覆盖 Structured Record 渲染重解析和 Case 索引输入预检。
-- Project 维度初始化为 `unknown -> unknown`。只有项目目标和证据明确时才设置 target；不为所有项目预置 accepted 义务。
-- Case 的六个结果 facets 是 product、interaction、visual、technical、implementation、verification；open questions、pending handoffs 和 process notes 不是同一种 facet。
-- facet 使用正交状态：`applicability`、`maturity/target_maturity`、`alignment/target_alignment`、`resolution`。
-- 每个 facet 最终必须是 evidence-backed required target，或 evidence-backed not_required。未知、暂缓、只有代码存在、只有文档存在都不能完成。
-- definition alignment 可以因实现变化退回 stale/diverged；状态不是只升不降。
-- 六个 facet、open questions 与 pending handoffs 全部完成只表示 `base_ready`。当前 `content_revision` 必须经过 correctness、completeness、minimality 三维完成态复审并得到 clean，Case 才能 resolved。
-- 完成态复审有 Case 创建时显式快照的自主轮次上限。最后一个授权轮次仍不 clean 时，ledger 必须派生 human-only gap 和 `needs_human` handoff；Agent 不得重置计数或自行追加预算。
-- `deferred` 不是 Case resolution 或 Loop handoff 状态。移交必须有 owner 与恢复条件，并保持 unresolved，直到 ledger 能派生 resolved。
+- `desired_conditions` 只包含 `id/applies_when/must_hold/evidence_expectation/priority/status`。不得包含 skill、path、owner、Worker、固定状态机或执行顺序。
+- Fact 必须有稳定 id、递增 revision、accepted/superseded 状态、statement、basis 与持久 evidence。引用过期 fact revision 的 impact 无效。
+- Impact 只记录实际相关的 condition。`upheld` 需要证据；`threatened/undetermined` 至少绑定一个 open gap。
+- Gap 只有 goal、reason、来源/依赖、开放 priority basis、responsibility、evidence requirement 与 resolution；不含 facet、skill 或工件类别。
+- v4 不保存 not-required checklist。事实不影响某 condition 时不创建 impact。
+- Project/Iteration 不保存 Loop prompt、next responsibility、Worker 路线或运行日志。
+- canonical evidence 不接受临时目录；transition transport 见 [references/transition-transport.md](references/transition-transport.md)。
 
-## 主流程
+## Case control
 
-### 1. 绑定 Project 与 Case
+新 Case 必须由 Controller 提供 title、intent、expected outcome、artifact type、selection reason、至少一个 accepted initial fact、实际相关的 initial impacts 与至少一个具体 initial gap，并显式快照 Review policy。Ledger 分配 id、创建 v4 Case、注册 Project/Iteration、更新投影和索引；不从关键词补造事实、condition 影响或 gap。
 
-读取 Project v4、active iteration、`case_control` 选择依据和全部 active Case v3。Controller 为每个 Loop 从 active Cases 中选择唯一 Case；选择已有 Case 不写 Project State。没有合适 Case 时创建一个承载当前项目推进意图的新 Case；新 Case 必须从显式 Case/Runtime policy 快照 `max_review_cycles`，不能由 ledger 内置业务默认值。随后 Controller 只能从该 Loop 所选 Case 的 `case_resolution.candidate_gaps` 选择本轮 transition。
+## v4 Audit
 
-Runtime 收到 Controller 的 `arckit-case-control-handoff/v1` 后，`case_control` 入口校验 Project revision。`create_case` 由 ledger 分配 Case id，并使用 Controller 给出的 title、intent、artifact type 与 selection reason；复审上限来自 Runtime 显式 policy 快照。创建、Project 与 iteration 注册、投影和 Case index 在 Project commit lock 中作为可回滚操作提交。Runtime 不得以任务文本或固定规则补造这些语义字段。
+`development-case.mjs audit`：
 
-退出条件：Project 已注册全部 active Case refs；每个 Loop 的 Controller plan 有唯一 Case id，Case record 可恢复。
+1. 校验 facts、fact revisions、impacts、gap refs/dependencies、问题、handoff 和 Review。
+2. 拒绝过期 impact；threatened/undetermined impact 没有 open gap 时 fail closed。
+3. 派生所有 open 且 dependencies 已关闭的 unordered candidate gaps。
+4. human-ready gap 形成 human handoff；否则 Agent gap 可继续；仅剩 external 时 external wait；有 open gap 但无 ready gap 时 blocked。
+5. 普通 gaps、问题、handoff 与未闭合 impacts 全部完成后才派生唯一 completion review candidate。
+6. 当前 content revision 五维 clean 后 Case resolved。
 
-### 2. 维护 Case State
+Review 规则见 [references/completion-review.md](references/completion-review.md)。
 
-新 Case 的全部 facet 从 applicability unknown 开始，不预判哪些文档或实现必需。Controller/人工通过实际场景逐项形成 required/not_required 判断；required 时设定 target maturity/alignment。
+## v4 Transition
 
-`development-case.mjs audit` 确定性派生：
+`arckit-case-transition/v4` 绑定 Case/Project revisions、完整 selected candidate snapshot、planned transition、accepted delta、evidence、Case claim 与 Project impact candidate。
 
-- satisfied facets
-- remaining/blocked
-- 全部 unresolved `candidate_gaps`；数组顺序不表示优先级
-- `case_resolution`
-- `loop-handoff/v2`
+- 普通 transition 必须 resolve selected gap；可增加/替换 facts，增改 impacts，增加后续 gaps，或取消有证据失效的其他 gap；不能 resolve 其他 gap。
+- 事实变更、gap 处置或 impact 变更提升 `content_revision` 并使旧 clean Review 失效。
+- clean Review 与内容修改分轮提交。
+- resolved claim 强于 deterministic audit 时拒绝。
+- `project_impact_candidate.condition_changes` 只在 Case resolved 且 Project revision 匹配时原子 add/update/retire condition；Iteration 只保存摘要。
+- 正式 apply 在 Project commit lock 内 fresh-read、校验、写 Case/Project/Iteration/projections/index；失败全部回滚。并行 Case 可并行执行，commit 短暂串行。
 
-open question 只有 resolved/transferred 后才不阻塞；pending handoff 只有 completed/cancelled 后才不阻塞；process notes 从不作为完成 facet。
-
-六个 facets、问题和 handoff 满足后，audit 只派生 `completion_review` gap，不直接 resolved。复审发现项派生 `review_findings` gap；修复或有证据的处置提升 `content_revision`，旧 clean 结论随即失效。应用这类 transition 前读取 [references/completion-review.md](references/completion-review.md)。
-
-### 3. 应用统一 Case transition
-
-人工或 Runtime 都向 `case-transition.mjs` 提交 `arckit-case-transition/v3`。入口只接受：Case id、预期 `case_updated_at` revision、observed `project_updated_at` revision、完整 concrete Case gap（含 responsibility）、planned transition、accepted state delta、evidence、unresolved、round outcome、Controller case resolution claim、Project impact candidate。
-
-人工或 Agent 直接调用 CLI、需要选择 stdin/文件输入或处理临时载荷时，先读取 [references/transition-transport.md](references/transition-transport.md)。CLI 不删除调用方提供的文件；临时输入的生命周期由创建方管理。
-
-入口按顺序：
-
-1. 校验 Case id、expected revision、gap、delta 字段和证据。
-2. 对照当前 Case 精确校验 selected gap 的 id、facet、responsibility、current/target state 与 next transition；过期 transition 必须重做 Controller 判断。
-3. 在副本上应用 accepted facet/question/handoff/review delta并重新审计完整 Case；内容修改和 clean 复审不能在同一个 transition 中提交。
-4. 拒绝强于派生结果的 resolved claim，以及无真实状态变化或证据不完整的 Project impact。
-5. dry-run 可在锁外预校验 Case、Project 和 iteration 的完整目标状态，并对渲染后的 Structured Record 做逐字语义往返检查、对 Case 索引现有输入做只读预检；它不代替正式提交时的校验。
-6. 正式 apply 在跨进程 Project commit lock 中重新读取 canonical state，完成 revision/gap/目标状态校验，再写 Case、Project、iteration 与 projections/index；任一步失败都恢复提交前状态。不同 Case 的 Worker/Controller 执行可以并行，canonical read-validate-commit 短暂串行。
-7. 重新生成 candidate gaps 与 loop handoff；resolved 时关闭并移动 Case。
-8. Case resolved 时同步关闭 Project/Iteration 对该 Case 的引用；仅当 Project impact 为 accepted 时应用显式维度变化。
-
-若正式 apply 因另一个 closeout 已更新 Project revision 而失败，调用方必须重新读取 Project 与仍 active 的 Case，重做 Controller 判断并重建 `project_impact_candidate`；不得只替换 revision 后盲目重试。Runtime 对 preflight 或正式 apply 的这类拒绝统一返回 `recovery_action=replan_from_fresh_state`。
-
-退出条件：Case record 是 transition 后的唯一事实，或整个 ledger commit 无副作用地失败。外部 Runtime 记录不参与 canonical ledger 原子提交。
-
-### 4. 聚合 Project/Iteration
-
-Case 未 resolved 时不修改 Project dimensions，不把 round progress 投影成宏观成熟度。Case resolved 后：
-
-- 从 active refs 移除 Case，保存 closed ref。
-- 只应用 `project_impact_candidate.changes` 中显式、from_state 匹配的维度变化。
-- 更新 `case_control` 的项目级选择依据；其他 active Cases 保持可被独立 Loop 选择。
-- iteration 只记录同一组显式变化和 Case evidence。
-- resolved Case 未完成全部 covered dimensions 时，Project gap 保留并清除已关闭的 `candidate_case_ref`，不能因为一次 Case closeout 静默丢失剩余宏观 gap。
-
-### 5. 渲染与校验
-
-每次写 canonical record 后重新渲染 STATE/iteration brief 和 Case index。raw operator event、完整 prompt、worker stream 或 runtime envelope 只能进入 Runtime 宿主拥有的外部记录；Case round 最多保存 opaque run ref，不能保存宿主文件系统路径或复制 raw envelope。
-
-Project/Iteration audit 必须保证 active iteration 使用 v2、两侧 `active_case_refs` 完全一致、Project 不保存独占 Loop selection、gap candidate 指向真实 active Case、closed Case evidence 可解析、所有 actionable dimensions 有 gap 覆盖，且 canonical evidence 不依赖临时文件。`register-case` 必须把 Case 原子注册到 Project 与 active Iteration，不能接受悬空或非 active 路径。
+旧协议 record/transition 不属于当前 canonical ledger。项目升级必须由 Agent 重新读取当前意图、证据和实现后做显式语义迁移；不得机械翻译旧字段。
 
 ## Trusted entrypoints
-
-`arckit.capability.json` 是 Runtime 唯一绑定契约：
 
 - `project_state`: `scripts/project-state.mjs`
 - `project_iteration`: `scripts/project-iteration.mjs`
@@ -107,36 +63,19 @@ Project/Iteration audit 必须保证 active iteration 使用 v2、两侧 `active
 - `case_transition`: `scripts/case-transition.mjs`
 - `writeback`: `scripts/runtime-writeback.mjs`
 
-Runtime 不得把本 skill 绑定给普通 Worker，也不得复制其 schema 迁移、audit 或聚合逻辑。
-
 ## CLI
 
 ```text
-node scripts/project-state.mjs init --name "Project" --intent "..."
-node scripts/project-state.mjs register-case --case-ref "arckit/cases/active/CASE-...md" --intent "..." --reason "..."
-node scripts/project-state.mjs migrate-v4 [record]
-node scripts/project-state.mjs repair-runtime-refs [record]
-node scripts/project-state.mjs render|audit|validate|summary [record]
-
-node scripts/development-case.mjs new --title "..." --artifact-type mixed --intent "..." --max-review-cycles 3 --review-policy-source "explicit-policy-ref"
-node scripts/development-case.mjs validate [case]
-node scripts/development-case.mjs audit <case> --write true
-node scripts/development-case.mjs close <case>
-node scripts/development-case.mjs index [--dry-run true]
-
+node scripts/development-case.mjs new --title "..." --intent "..." --expected-outcome "..." --initial-facts '<json>' --initial-impacts '<json>' --initial-gaps '<json>' --max-review-cycles 3 --review-policy-source "..."
+node scripts/development-case.mjs validate|audit|close ...
 node scripts/case-transition.mjs validate <transition.json|->
 node scripts/case-transition.mjs apply --case <case.md> --transition <transition.json|-> [--dry-run true]
+node scripts/project-state.mjs render|audit|validate|summary [record]
 ```
 
 ## 输出
 
-- `ledger_paths`
-- `case_transition_result`
-- `case_control_result`
-- `case_record_delta`：facets、content revision、completion review、candidate gaps、derived resolution
-- `round_outcome`
-- `loop_handoff_delta`
-- `project_state_delta`：仅 resolved Case 聚合结果
-- `iteration_state_delta`
-- `ledger_validation`
-- `next_ledger_step`
+- ledger/case control/transition result
+- facts、state impacts、dynamic gaps、content revision 与 derived resolution delta
+- Project dimension/condition delta 与 Iteration aggregation
+- ledger validation 和 fresh-state next step

@@ -50,3 +50,5 @@
 | [CASE-20260809-003](closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md) | closed | Converge Arckit Runtime on one persistent Codex task thread | 2026-08-09T12:50:07.343Z |
 | [CASE-20260809-004](closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md) | closed | Remove Runtime skill installation drift enforcement | 2026-08-09T13:51:24.557Z |
 | [CASE-20260809-005](closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md) | closed | Optimize Desktop conversation transcript interaction | 2026-08-09T14:55:14.667Z |
+| [CASE-20260809-006](closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md) | closed | Replace facet workflow with state-condition-driven dynamic gaps | 2026-08-09T18:05:45.856Z |
+| [CASE-20260809-007](closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md) | closed | Remove legacy facet state protocol compatibility | 2026-08-09T18:42:34.239Z |

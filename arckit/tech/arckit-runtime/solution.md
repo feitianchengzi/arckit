@@ -53,7 +53,7 @@ State Store 读取目标项目的 Arckit 状态入口：
 - `arckit/project/STATE.md`
 - `arckit/project/iterations/*.record.json`
 - `arckit/cases/INDEX.md`
-- `arckit/cases/active/*.md` 的完整 `development-case-record/v3`
+- `arckit/cases/active/*.md` 的完整 `development-case-record/v4`
 - `arckit/spec/INDEX.md`
 - `arckit/interaction/INDEX.md`
 - `arckit/visual/INDEX.md`
@@ -130,7 +130,7 @@ Preload 只暴露产品动作，Renderer 只消费 Automation Snapshot 和 Run a
 
 ### Loop Controller
 
-Loop Controller 先读取 Project State 的 `case_control` 选择依据和全部 active Cases。Project gap 只作为选择/创建 Case 的宏观依据；每个 active Case 的 `case_resolution.candidate_gaps` 都进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Controller Agent 先为当前 Loop 选择唯一 Case，再选择一个 `scope=case` 的具体 gap并解释依据。Runtime 只验证该 Case 与 gap 当前 active，不根据关键词、固定优先级或 facet-to-skill 映射拍板业务 route。多个 Runtime Loops 可以并行选择不同 Cases。
+Loop Controller 先读取 Project State 的 `case_control`、desired conditions 和全部 active Cases。Project gap 只作为选择/创建 Case 的宏观依据；每个 active Case 的 facts、state impacts 与 `case_resolution.candidate_gaps` 都进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Agent 先为当前 Loop 选择唯一 Case，再结合阻塞、风险、信息增益、依赖、用户影响和可验证性选择具体 gap。Runtime 只验证 Case 与 gap 当前 active，不根据关键词、condition、固定优先级或 skill/path 映射拍板业务 route。
 
 本轮目标必须形成：
 
@@ -172,17 +172,17 @@ Prompt Compiler 为 Agent Loop 生成最小 invocation。首个 turn 包含自�
 
 默认 invocation 以 manifest 声明的自然 `$using-arckit` 文本 trigger 进入 Codex 原生 skill 机制，不额外发送 `skill` input item。其余内容只有 locale、原始待办意图、当前增量、bounded canonical facts、revision、execution authorization 和 compact output contract。Agent 在 turn 内自行读取必要仓库事实、发现其他 skills、执行工具并完成自我审查；Runtime 不拼接 skill 清单、固定 Worker role 或预测式 allowed paths。
 
-Runtime 从 fresh Project/Case records 确定性派生 Agent context digest。Digest 包含 Project revision、选择依据、项目级 gaps 和全部 active Cases 的意图、facet 摘要、candidate gaps、open questions、handoffs、completion review 摘要与稳定引用；它不包含 Markdown 正文、raw transcript、模型 reasoning 或未接受 claim。Agent 可以按当前 gap 主动读取引用和仓库事实。输出形状由 `arckit-agent-loop-result/v1`、Codex app-server `outputSchema`、Runtime schema validation 和 trusted ledger gate 承担。
+Runtime 从 fresh Project/Case records 确定性派生 Agent context digest。Digest 包含 Project revision、dimensions/desired conditions、项目级 gaps 和全部 active Cases 的意图、facts、state impacts、open/blocked/ready gaps、questions、handoffs、completion review 摘要与稳定引用。它不包含 raw transcript、模型 reasoning 或未接受 claim；Case schema 不匹配时直接拒绝运行。
 
-`context_digest` 是有界的恢复索引，不是 transcript 摘要。它包含 Project/Case revisions、active Case selection facts、candidate gaps、用户意图摘要、facet 状态与 evidence、最近已接受 round 摘要、未解决问题和 canonical context refs；不包含 raw event、完整历史 prompt、模型 reasoning 或未接受 claim。
+`context_digest` 是有界的恢复索引，不是 transcript 摘要。它包含 Project/Case revisions、desired conditions、active Case selection facts、facts/impacts/candidate gaps、最近已接受 round 摘要、未解决问题和 canonical refs；不包含 raw event、完整历史 prompt、模型 reasoning 或未接受 claim。
 
 `arckit-agent-loop-result/v1` 的 `outputSchema` 遵循 Codex 严格结构化输出子集：`const` 同时声明显式 `type`，对象关闭额外属性并把全部属性列入 `required`，数组声明 `items`。Runtime 在创建 app-server thread 前递归预检这些约束，使无效 Schema 作为本地配置错误终止，而不是启动 turn 后才收到远端 `invalid_json_schema`。
 
-Agent Loop result 通过互斥 `action=case_control|case_transition|handoff` 表达本轮结果。选择已有 active Case 不生成 Project 写入；没有合适 Case 时返回 `case_control.create_case`。标题、意图、artifact type 与创建理由来自 Agent 语义判断，Runtime 只绑定当前 Project revision与 review policy，不解析待办关键词推导这些字段。
+Agent Loop result 通过互斥 `action=case_control|case_transition|handoff` 表达本轮结果。没有合适 Case 时返回包含 expected outcome、initial facts、实际相关 impacts 与至少一个具体 gap 的 `case_control.create_case`；Runtime 只绑定 Project revision 与 review policy，不解析关键词补造语义。
 
 Runtime 把创建动作绑定到当前 Project revision 和 Case review policy，形成 `arckit-case-control-handoff/v1`，再调用 `arckit-development-ledger` manifest 声明的 `case_control` 可信入口。ledger 分配 Case id，并在 Project commit lock 中把 Case 创建、Project/iteration 注册和投影索引作为可回滚提交；Project 不保存独占 selected Case。成功后同一 Runtime 进程重新读取 canonical state，并在同一 Agent thread 发起下一 turn。revision 或 candidate-gap 新鲜度冲突不产生部分写入，并进入有 no-progress budget 的 fresh-state replan。
 
-Case facet 的局部更新在模型边界使用封闭的 nullable 字段集合表达；模型为未更新字段返回 `null`，Runtime normalization 在形成 Case claim 前移除 `null`。因此模型输出保持严格可验证，ledger 仍只接收有实际值的 facet patch。
+Case 的模型边界只使用 v4 fact/impact/gap delta；普通 transition 必须关闭 selected gap，并可在同轮增加事实、更新相关 impacts 或增加后续 gaps。
 
 人类输入只有初始任务意图、人工决策/纠正和显式控制动作。初始 Runtime run 使用待办正文原文；人工 fresh continuation 使用人工输入原文；自动续轮没有新增 operator input，也不创建 `role=user` transcript，而是由 Runtime 在写回后重新读取 Case State 并在当前会话中继续。任务 ID、项目 ID、source run、round index、gate 和 ledger 状态保持为 Runtime 控制面元数据。
 
@@ -295,7 +295,7 @@ Ledger Writer 是 Runtime hard gate 与 ledger skill entrypoint 之间的薄适�
 
 Ledger capability 负责将验证后的结果写回：
 
-- `arckit-case-transition/v3`
+- `arckit-case-transition/v4`
 - development Case record 与 derived candidate gaps/resolution
 - resolved Case 的显式 Project/iteration impact
 - Case、Project、iteration 的 indexes 与 projections
@@ -310,7 +310,7 @@ Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前�
 
 - Project State v4 写宏观 checkpoint：dimension 状态、project gaps、active Case refs、不含独占 selection 的 `case_control` 选择依据、last state delta 和 evidence refs。
 - Iteration State v2 写阶段性 Project targets、带 closed Case 的 accepted Project changes、acceptance、blocking Project gaps 和 Case refs；不写 Loop continuation 或同态日志。
-- Case State 写事项级 checkpoint：六个 facets、content revision、completion review policy/cycles/findings/escalation、open questions、pending handoffs、round records、derived resolution、candidate gaps 和 loop handoff。每条 round 可保存 `arckit-runtime://runs/RUN-...` opaque ref，但不保存 Runtime 宿主的绝对路径。
+- Case State 写事项级 checkpoint：facts、state impacts、dynamic gaps、content revision、completion review policy/cycles/escalation、open questions、pending handoffs、round records、derived resolution 和 loop handoff。每条 round 可保存 opaque run ref，但不保存 Runtime 宿主绝对路径。
 - Runtime 宿主在目标项目之外管理完整过程证据：runtime result、gate、selected round、activity、raw events 和 transcript。Desktop 使用 Electron userData；ledger 不复制这些记录，且 Case 语义恢复不依赖它们仍然存在。
 - Agent 不直接写 Project/Case State；Agent 提交一个 transition claim，ledger 确定性应用。
 

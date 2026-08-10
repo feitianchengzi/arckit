@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import {
-  FACET_KEYS,
+  V4_REVIEW_DIMENSIONS,
   auditCaseRecord,
   findCasePath,
   readCaseRecord,
@@ -19,16 +20,6 @@ import { withProjectCommitLock } from './project-commit-lock.mjs';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 
-const ALLOWED_FACET_FIELDS = new Set([
-  'applicability',
-  'maturity',
-  'target_maturity',
-  'alignment',
-  'target_alignment',
-  'resolution',
-  'reason',
-  'next_transition',
-]);
 const PROJECT_DIMENSIONS = new Set([
   'project_intent', 'users_and_stakeholders', 'problem_scenarios', 'product_behavior',
   'user_experience', 'runtime_surfaces', 'identity_access', 'data_state',
@@ -36,246 +27,204 @@ const PROJECT_DIMENSIONS = new Set([
   'quality_validation', 'security_privacy', 'delivery_operation',
   'observability_support', 'maintainability_handoff', 'iteration_governance',
 ]);
-const PROJECT_STATES = new Set([
-  'unknown', 'not_required', 'needed', 'defined', 'designed', 'implemented',
-  'integrated', 'verified', 'accepted', 'released', 'operational', 'deferred', 'blocked',
-]);
-const EVIDENCE_MATURITY = new Set(['none', 'exploratory', 'confirmed', 'formalized', 'validated']);
-const REVIEW_DIMENSIONS = ['correctness', 'completeness', 'minimality'];
-const REVIEW_OUTCOMES = new Set(['clean', 'findings', 'needs_human']);
 const REVIEW_FINDING_KINDS = new Set(['error', 'omission', 'excess']);
 
 function unique(values) {
   return [...new Set((values || []).filter(Boolean))];
 }
 
-export function validateCaseTransition(transition, file = '<transition>') {
+function effectiveReviewCycleLimit(review) {
+  return review.policy.initial_max_cycles + review.additional_cycles_authorized;
+}
+
+function validateGapV4(gap, label, errors, { candidate = false } = {}) {
+  if (!gap || typeof gap !== 'object' || Array.isArray(gap)) {
+    errors.push(`${label} must be an object`);
+    return;
+  }
+  for (const key of ['id', 'goal', 'reason']) if (typeof gap[key] !== 'string' || !gap[key]) errors.push(`${label}.${key} is required`);
+  if (!['agent', 'human', 'external'].includes(gap.responsibility)) errors.push(`${label}.responsibility is invalid`);
+  for (const key of ['derived_from', 'blocked_by', 'evidence_required']) if (!Array.isArray(gap[key])) errors.push(`${label}.${key} must be an array`);
+  if (!gap.priority_basis || typeof gap.priority_basis !== 'object' || Array.isArray(gap.priority_basis) || Object.keys(gap.priority_basis).length === 0) errors.push(`${label}.priority_basis is required`);
+  if (!candidate && (gap.status !== 'open' || gap.resolution !== null)) errors.push(`${label} new gap must be open with null resolution`);
+}
+
+function validateCaseTransitionV4(transition, file = '<transition>') {
   const errors = [];
-  if (!transition || typeof transition !== 'object' || Array.isArray(transition)) return [`${file}: transition must be an object`];
-  if (transition.schema_version !== 'arckit-case-transition/v3') errors.push(`${file}: schema_version must be arckit-case-transition/v3`);
+  if (transition?.schema_version !== 'arckit-case-transition/v4') return [`${file}: schema_version must be arckit-case-transition/v4`];
   if (!/^CASE-\d{8}-\d{3}$/.test(transition.case_id || '')) errors.push(`${file}: invalid case_id`);
-  if (typeof transition.case_updated_at !== 'string' || !transition.case_updated_at) errors.push(`${file}: case_updated_at must be non-empty`);
-  if (typeof transition.project_updated_at !== 'string' || !transition.project_updated_at) errors.push(`${file}: project_updated_at must be non-empty`);
-  if (!transition.selected_gap?.id || !transition.selected_gap?.facet || !transition.selected_gap?.next_transition
-    || !['agent', 'human', 'external'].includes(transition.selected_gap?.responsibility)
-    || typeof transition.selected_gap?.current_state !== 'string'
-    || typeof transition.selected_gap?.target_state !== 'string') errors.push(`${file}: selected_gap is incomplete`);
+  for (const key of ['case_updated_at', 'project_updated_at']) if (typeof transition[key] !== 'string' || !transition[key]) errors.push(`${file}: ${key} must be non-empty`);
+  validateGapV4(transition.selected_gap, `${file}: selected_gap`, errors, { candidate: true });
   if (!transition.planned_transition?.goal || !transition.planned_transition?.expected_state_change) errors.push(`${file}: planned_transition is incomplete`);
   const delta = transition.accepted_state_delta;
-  if (!delta || !Array.isArray(delta.facets) || !Array.isArray(delta.resolved_open_questions) || !Array.isArray(delta.completed_handoffs) || !Array.isArray(delta.resolved_review_findings) || !Object.hasOwn(delta, 'completion_review_result') || !Object.hasOwn(delta, 'review_budget_extension')) errors.push(`${file}: accepted_state_delta is incomplete`);
-  for (const [index, delta] of (transition.accepted_state_delta?.facets || []).entries()) {
-    if (!FACET_KEYS.includes(delta?.facet)) errors.push(`${file}: accepted_state_delta.facets[${index}].facet is invalid`);
-    if (!delta?.set || typeof delta.set !== 'object' || Array.isArray(delta.set) || Object.keys(delta.set).length === 0) errors.push(`${file}: accepted_state_delta.facets[${index}].set is invalid`);
-    for (const key of Object.keys(delta?.set || {})) if (!ALLOWED_FACET_FIELDS.has(key)) errors.push(`${file}: accepted_state_delta.facets[${index}].set.${key} is not writable`);
-    if (!Array.isArray(delta?.evidence) || delta.evidence.length === 0) errors.push(`${file}: accepted_state_delta.facets[${index}].evidence must be non-empty`);
+  const arrayKeys = ['facts_added', 'facts_superseded', 'impacts_added', 'impacts_updated', 'gaps_added', 'gaps_cancelled', 'resolved_open_questions', 'completed_handoffs', 'resolved_review_findings'];
+  if (!delta || !Object.hasOwn(delta, 'resolved_gap') || !Object.hasOwn(delta, 'completion_review_result') || !Object.hasOwn(delta, 'review_budget_extension')) errors.push(`${file}: accepted_state_delta is incomplete`);
+  for (const key of arrayKeys) if (!Array.isArray(delta?.[key])) errors.push(`${file}: accepted_state_delta.${key} must be an array`);
+  for (const [index, gap] of (delta?.gaps_added || []).entries()) validateGapV4(gap, `${file}: accepted_state_delta.gaps_added[${index}]`, errors);
+  if (delta?.resolved_gap !== null && (!delta.resolved_gap?.id || !['resolved', 'cancelled'].includes(delta.resolved_gap?.status) || !delta.resolved_gap?.outcome || !delta.resolved_gap?.reason || !Array.isArray(delta.resolved_gap?.evidence) || delta.resolved_gap.evidence.length === 0)) errors.push(`${file}: accepted_state_delta.resolved_gap is invalid`);
+  for (const [index, fact] of (delta?.facts_added || []).entries()) if (!fact?.id || !Number.isInteger(fact.revision) || fact.revision < 1 || fact.status !== 'accepted' || !fact.statement || !fact.basis || !Array.isArray(fact.evidence) || fact.evidence.length === 0) errors.push(`${file}: accepted_state_delta.facts_added[${index}] is invalid`);
+  for (const [index, item] of (delta?.facts_superseded || []).entries()) if (!item?.id || !Number.isInteger(item.revision) || !item.reason || !Array.isArray(item.evidence) || item.evidence.length === 0) errors.push(`${file}: accepted_state_delta.facts_superseded[${index}] is invalid`);
+  for (const [index, impact] of [...(delta?.impacts_added || []), ...(delta?.impacts_updated || [])].entries()) if (!impact?.id || !impact.fact_id || !Number.isInteger(impact.fact_revision) || !impact.condition_ref || !['upheld', 'threatened', 'undetermined'].includes(impact.effect) || !impact.reason || !Array.isArray(impact.gap_ids) || !Array.isArray(impact.evidence)) errors.push(`${file}: impact delta[${index}] is invalid`);
+  const review = delta?.completion_review_result;
+  if (review !== null && review !== undefined) {
+    if (!['clean', 'findings', 'needs_human'].includes(review?.outcome) || !['agent', 'human'].includes(review?.reviewer) || !Number.isInteger(review?.reviewed_content_revision) || !Array.isArray(review?.findings) || !Array.isArray(review?.evidence) || review.evidence.length === 0 || !V4_REVIEW_DIMENSIONS.every((key) => ['clean', 'findings'].includes(review?.dimensions?.[key]))) errors.push(`${file}: completion_review_result is invalid`);
+    for (const [index, finding] of (review?.findings || []).entries()) if (!finding?.id || !REVIEW_FINDING_KINDS.has(finding.kind) || !finding.statement || !['agent', 'human', 'external'].includes(finding.responsibility) || !Array.isArray(finding.artifact_refs) || !Array.isArray(finding.evidence) || finding.evidence.length === 0) errors.push(`${file}: completion_review_result.findings[${index}] is invalid`);
   }
-  const reviewResult = delta?.completion_review_result;
-  if (reviewResult !== null && reviewResult !== undefined) {
-    if (!REVIEW_OUTCOMES.has(reviewResult?.outcome) || !['agent', 'human'].includes(reviewResult?.reviewer) || !Number.isInteger(reviewResult?.reviewed_content_revision) || reviewResult.reviewed_content_revision < 0 || !Array.isArray(reviewResult?.findings) || !Array.isArray(reviewResult?.evidence) || reviewResult.evidence.length === 0) errors.push(`${file}: completion_review_result is invalid`);
-    for (const dimension of REVIEW_DIMENSIONS) if (!['clean', 'findings'].includes(reviewResult?.dimensions?.[dimension])) errors.push(`${file}: completion_review_result.dimensions.${dimension} is invalid`);
-    for (const [index, finding] of (reviewResult?.findings || []).entries()) {
-      if (!finding?.id || !REVIEW_FINDING_KINDS.has(finding?.kind) || !finding?.statement || !['agent', 'human', 'external'].includes(finding?.responsibility) || !Array.isArray(finding?.affected_facets) || !Array.isArray(finding?.artifact_refs) || !Array.isArray(finding?.evidence) || finding.evidence.length === 0) errors.push(`${file}: completion_review_result.findings[${index}] is invalid`);
-    }
-  }
-  for (const [index, item] of (delta?.resolved_review_findings || []).entries()) {
-    if (!item?.id || !['resolved', 'dismissed'].includes(item?.resolution) || !item?.reason || !Array.isArray(item?.evidence) || item.evidence.length === 0) errors.push(`${file}: resolved_review_findings[${index}] is invalid`);
-  }
-  const extension = delta?.review_budget_extension;
-  if (extension !== null && extension !== undefined && (!Number.isInteger(extension?.additional_cycles) || extension.additional_cycles < 1 || extension?.authorized_by !== 'human' || !extension?.reason || !Array.isArray(extension?.evidence) || extension.evidence.length === 0)) errors.push(`${file}: review_budget_extension is invalid`);
   if (!Array.isArray(transition.evidence) || transition.evidence.length === 0) errors.push(`${file}: evidence must be non-empty`);
   if (!Array.isArray(transition.unresolved)) errors.push(`${file}: unresolved must be an array`);
   if (!['completed', 'partial', 'blocked', 'needs_human', 'external_wait'].includes(transition.round_outcome)) errors.push(`${file}: invalid round_outcome`);
-  if (!['unresolved', 'resolved', 'blocked'].includes(transition.case_resolution?.claimed_status)) errors.push(`${file}: invalid case_resolution.claimed_status`);
+  if (!['unresolved', 'resolved'].includes(transition.case_resolution?.claimed_status)) errors.push(`${file}: invalid case_resolution.claimed_status`);
   const impact = transition.project_impact_candidate;
-  if (!['none', 'proposed', 'accepted'].includes(impact?.status) || !Array.isArray(impact?.changes) || !Array.isArray(impact?.evidence)) errors.push(`${file}: invalid project_impact_candidate`);
-  for (const [index, change] of (impact?.changes || []).entries()) {
-    if (!PROJECT_DIMENSIONS.has(change?.dimension)) errors.push(`${file}: project_impact_candidate.changes[${index}].dimension is invalid`);
-    if (!PROJECT_STATES.has(change?.from_state) || !PROJECT_STATES.has(change?.to_state)) errors.push(`${file}: project_impact_candidate.changes[${index}] states are invalid`);
-    if (change?.from_state === change?.to_state) errors.push(`${file}: project_impact_candidate.changes[${index}] must change state`);
-    if (typeof change?.reason !== 'string' || !change.reason) errors.push(`${file}: project_impact_candidate.changes[${index}].reason is required`);
-    if (!Array.isArray(change?.evidence) || change.evidence.length === 0) errors.push(`${file}: project_impact_candidate.changes[${index}].evidence must be non-empty`);
-    if (change?.evidence_maturity !== undefined && !EVIDENCE_MATURITY.has(change.evidence_maturity)) errors.push(`${file}: project_impact_candidate.changes[${index}].evidence_maturity is invalid`);
-  }
-  if (impact?.status === 'accepted' && ((impact.changes || []).length === 0 || (impact.evidence || []).length === 0)) errors.push(`${file}: accepted project_impact_candidate requires changes and evidence`);
+  if (!['none', 'proposed', 'accepted'].includes(impact?.status) || !Array.isArray(impact?.changes) || !Array.isArray(impact?.condition_changes) || !Array.isArray(impact?.evidence)) errors.push(`${file}: invalid project_impact_candidate`);
+  for (const [index, change] of (impact?.condition_changes || []).entries()) if (!['add', 'update', 'retire'].includes(change?.action) || !PROJECT_DIMENSIONS.has(change?.dimension) || !change?.condition?.id || !change.reason || !Array.isArray(change.evidence) || change.evidence.length === 0) errors.push(`${file}: project_impact_candidate.condition_changes[${index}] is invalid`);
+  if (impact?.status === 'accepted' && (impact.changes.length + impact.condition_changes.length === 0 || impact.evidence.length === 0)) errors.push(`${file}: accepted project_impact_candidate requires changes and evidence`);
   return errors;
 }
 
-export function applyCaseTransitionToRecord(record, transition, { timestamp = new Date().toISOString(), runtimeResultRef = '' } = {}) {
-  const transitionErrors = validateCaseTransition(transition);
-  if (transitionErrors.length) throw new Error(transitionErrors.join('\n'));
-  if (record.id !== transition.case_id) throw new Error(`Transition case_id ${transition.case_id} does not match ${record.id}`);
-  if (record.updated_at !== transition.case_updated_at) throw new Error(`Stale Case transition for ${record.id}: expected updated_at=${record.updated_at}, received ${transition.case_updated_at}`);
+export function validateCaseTransition(transition, file = '<transition>') {
+  if (transition?.schema_version !== 'arckit-case-transition/v4') {
+    return [`${file}: schema_version must be arckit-case-transition/v4`];
+  }
+  return validateCaseTransitionV4(transition, file);
+}
+
+function sameCandidate(left, right) {
+  return isDeepStrictEqual(left, right);
+}
+
+function applyCaseTransitionToRecordV4(record, transition, { timestamp = new Date().toISOString(), runtimeResultRef = '', conditionRefs = null } = {}) {
+  const errors = validateCaseTransitionV4(transition);
+  if (errors.length) throw new Error(errors.join('\n'));
+  if (record.id !== transition.case_id || record.updated_at !== transition.case_updated_at) throw new Error(`Stale Case transition for ${record.id}`);
   if (record.case_resolution.status === 'resolved') throw new Error(`Case ${record.id} is already resolved`);
-  const candidate = auditCaseRecord(record, record.updated_at).candidate_gaps.find((gap) => gap.id === transition.selected_gap.id && gap.facet === transition.selected_gap.facet);
-  if (!candidate) throw new Error(`Selected gap is not an unresolved candidate of ${record.id}: ${transition.selected_gap.id}`);
-  for (const field of ['responsibility', 'current_state', 'target_state', 'next_transition']) {
-    if (candidate[field] !== transition.selected_gap[field]) throw new Error(`Stale selected gap ${transition.selected_gap.id}: ${field} no longer matches Case State`);
-  }
-  const selectedFacet = transition.selected_gap.facet;
-  const selectedFindingId = transition.selected_gap.id.split(':review-finding:')[1] || '';
-  const selectedFacetAdvanced = transition.accepted_state_delta.facets.some((delta) => delta.facet === selectedFacet)
-    || (selectedFacet === 'open_questions' && transition.accepted_state_delta.resolved_open_questions.length > 0)
-    || (selectedFacet === 'pending_handoffs' && transition.accepted_state_delta.completed_handoffs.length > 0)
-    || (selectedFacet === 'review_findings' && transition.accepted_state_delta.resolved_review_findings.some((item) => item.id === selectedFindingId))
-    || (selectedFacet === 'completion_review' && (transition.accepted_state_delta.completion_review_result || transition.accepted_state_delta.review_budget_extension || transition.accepted_state_delta.resolved_review_findings.length > 0));
-  if (!selectedFacetAdvanced) throw new Error(`Accepted delta does not advance selected Case gap facet: ${selectedFacet}`);
+  const candidate = auditCaseRecord(record, record.updated_at).candidate_gaps.find((gap) => gap.id === transition.selected_gap.id);
+  if (!candidate || !sameCandidate(candidate, transition.selected_gap)) throw new Error(`Selected dynamic gap is stale or not ready: ${transition.selected_gap.id}`);
+  const delta = transition.accepted_state_delta;
+  const isReview = candidate.id.includes(':completion-review:');
+  const selectedQuestionId = candidate.id.split(':open-question:')[1] || '';
+  const selectedHandoffId = candidate.id.split(':handoff:')[1] || '';
+  const isVirtual = Boolean(selectedQuestionId || selectedHandoffId);
+  const contentMutation = delta.facts_added.length || delta.facts_superseded.length || delta.impacts_added.length || delta.impacts_updated.length || delta.gaps_added.length || delta.gaps_cancelled.length || delta.resolved_open_questions.length || delta.completed_handoffs.length || delta.resolved_review_findings.length || delta.resolved_gap;
+  if (isReview && contentMutation) throw new Error('Completion review cannot be committed with a content mutation');
+  if (!isReview && !isVirtual && (!delta.resolved_gap || delta.resolved_gap.id !== candidate.id)) throw new Error('A normal v4 transition must resolve its selected dynamic gap');
+  if (selectedQuestionId && !delta.resolved_open_questions.includes(selectedQuestionId)) throw new Error('Selected open question must be resolved by this transition');
+  if (selectedHandoffId && !delta.completed_handoffs.includes(selectedHandoffId)) throw new Error('Selected handoff must be completed by this transition');
+  if (isReview && !delta.completion_review_result && !delta.review_budget_extension) throw new Error('Completion review candidate requires a review result or human budget extension');
 
-  const hasContentMutation = transition.accepted_state_delta.facets.length > 0
-    || transition.accepted_state_delta.resolved_review_findings.length > 0;
-  if (transition.accepted_state_delta.completion_review_result && hasContentMutation) {
-    throw new Error('A completion review result cannot be committed in the same transition as a content mutation');
+  const facts = new Map(record.facts.filter((fact) => fact.status === 'accepted').map((fact) => [fact.id, fact]));
+  const superseded = new Map();
+  for (const item of delta.facts_superseded) {
+    const fact = facts.get(item.id);
+    if (!fact || fact.status !== 'accepted' || fact.revision !== item.revision) throw new Error(`Cannot supersede missing/current fact ${item.id}@${item.revision}`);
+    fact.status = 'superseded';
+    superseded.set(item.id, fact);
+    facts.delete(item.id);
   }
-  if (transition.accepted_state_delta.completion_review_result && transition.accepted_state_delta.review_budget_extension) {
-    throw new Error('A completion review result and review budget extension require separate transitions');
+  for (const fact of delta.facts_added) {
+    if (facts.has(fact.id)) throw new Error(`Fact ${fact.id} already has an accepted revision`);
+    const prior = superseded.get(fact.id);
+    if (prior && fact.revision <= prior.revision) throw new Error(`Replacement fact ${fact.id} must increment revision beyond ${prior.revision}`);
+    if (!prior && record.facts.some((item) => item.id === fact.id)) throw new Error(`Fact ${fact.id} revision requires explicit supersession`);
+    record.facts.push(structuredClone(fact));
+    facts.set(fact.id, fact);
   }
-
-  for (const delta of transition.accepted_state_delta.facets) {
-    record.facets[delta.facet] = {
-      ...record.facets[delta.facet],
-      ...delta.set,
-      next_transition: '',
-      evidence: unique([...record.facets[delta.facet].evidence, ...delta.evidence]),
-    };
+  const gapMap = new Map(record.gaps.map((gap) => [gap.id, gap]));
+  for (const gap of delta.gaps_added) {
+    if (gapMap.has(gap.id)) throw new Error(`Duplicate gap id: ${gap.id}`);
+    record.gaps.push(structuredClone(gap));
+    gapMap.set(gap.id, gap);
   }
-  for (const id of transition.accepted_state_delta.resolved_open_questions) {
+  if (delta.resolved_gap) {
+    const gap = gapMap.get(delta.resolved_gap.id);
+    if (!gap || gap.status !== 'open') throw new Error(`Selected gap is not open: ${delta.resolved_gap.id}`);
+    gap.status = delta.resolved_gap.status;
+    gap.resolution = { ...structuredClone(delta.resolved_gap), occurred_at: timestamp };
+    delete gap.resolution.id;
+  }
+  for (const item of delta.gaps_cancelled) {
+    const gap = gapMap.get(item.id);
+    if (!gap || gap.status !== 'open' || item.id === candidate.id) throw new Error(`Cannot cancel gap ${item.id}`);
+    gap.status = 'cancelled';
+    gap.resolution = { status: 'cancelled', outcome: item.outcome, reason: item.reason, evidence: unique(item.evidence), occurred_at: timestamp };
+  }
+  const impacts = new Map(record.state_impacts.map((impact) => [impact.id, impact]));
+  for (const impact of delta.impacts_added) {
+    if (impacts.has(impact.id)) throw new Error(`Duplicate impact id: ${impact.id}`);
+    record.state_impacts.push(structuredClone(impact));
+    impacts.set(impact.id, impact);
+  }
+  for (const impact of delta.impacts_updated) {
+    const index = record.state_impacts.findIndex((item) => item.id === impact.id);
+    if (index < 0) throw new Error(`Unknown impact id: ${impact.id}`);
+    record.state_impacts[index] = structuredClone(impact);
+  }
+  if (conditionRefs) for (const impact of record.state_impacts) if (!conditionRefs.has(impact.condition_ref)) throw new Error(`Unknown Project desired condition: ${impact.condition_ref}`);
+  for (const id of delta.resolved_open_questions) {
     const item = record.open_questions.find((question) => question.id === id);
     if (!item) throw new Error(`Unknown open question: ${id}`);
     item.status = 'resolved';
-    item.evidence = unique([...item.evidence, ...transition.evidence]);
+    item.evidence = unique([...(item.evidence || []), ...transition.evidence]);
   }
-  for (const id of transition.accepted_state_delta.completed_handoffs) {
+  for (const id of delta.completed_handoffs) {
     const item = record.pending_handoffs.find((handoff) => handoff.id === id);
     if (!item) throw new Error(`Unknown pending handoff: ${id}`);
     item.status = 'completed';
-    item.evidence = unique([...item.evidence, ...transition.evidence]);
+    item.evidence = unique([...(item.evidence || []), ...transition.evidence]);
   }
-  for (const item of transition.accepted_state_delta.resolved_review_findings) {
-    const finding = record.completion_review.findings.find((candidateFinding) => candidateFinding.id === item.id);
-    if (!finding) throw new Error(`Unknown completion review finding: ${item.id}`);
-    if (finding.status !== 'open') throw new Error(`Completion review finding is already closed: ${item.id}`);
-    finding.status = item.resolution;
-    finding.resolution_reason = item.reason;
-    finding.resolution_evidence = unique([...finding.resolution_evidence, ...item.evidence]);
-  }
-
-  if (hasContentMutation) {
+  if (contentMutation) {
     record.content_revision += 1;
-    record.completion_review.status = record.completion_review.findings.some((finding) => finding.status === 'open') ? 'findings_open' : 'pending';
+    record.completion_review.status = 'pending';
+    record.completion_review.reviewed_content_revision = null;
     record.completion_review.escalation = null;
   }
-
-  const extension = transition.accepted_state_delta.review_budget_extension;
-  if (extension) {
-    if (candidate.responsibility !== 'human') throw new Error('Only a human-responsibility completion review gap may extend the review budget');
+  if (delta.completion_review_result) applyCompletionReviewResultV4(record, delta.completion_review_result, candidate, timestamp);
+  if (delta.review_budget_extension) {
+    const extension = delta.review_budget_extension;
+    if (candidate.responsibility !== 'human' || extension.authorized_by !== 'human' || !Number.isInteger(extension.additional_cycles) || extension.additional_cycles < 1) throw new Error('Invalid human review budget extension');
     record.completion_review.additional_cycles_authorized += extension.additional_cycles;
-    record.completion_review.human_authorizations.push({
-      additional_cycles: extension.additional_cycles,
-      reason: extension.reason,
-      evidence: unique(extension.evidence),
-      authorized_at: timestamp,
-    });
-    record.completion_review.status = record.completion_review.findings.some((finding) => finding.status === 'open') ? 'findings_open' : 'pending';
-    record.completion_review.escalation = null;
-    record.completion_review.evidence = unique([...record.completion_review.evidence, ...extension.evidence]);
+    record.completion_review.human_authorizations.push({ ...structuredClone(extension), authorized_at: timestamp });
+    record.completion_review.status = 'pending';
   }
-
-  const reviewResult = transition.accepted_state_delta.completion_review_result;
-  if (reviewResult) applyCompletionReviewResult(record, reviewResult, candidate, timestamp);
-
-  const provisionalAudit = auditCaseRecord(record, timestamp);
-  if (transition.case_resolution.claimed_status === 'resolved' && provisionalAudit.status !== 'resolved') {
-    throw new Error(`Controller claimed Case resolved, but ledger audit still finds: ${provisionalAudit.remaining.join(', ')}`);
-  }
-  if (transition.project_impact_candidate.status === 'accepted' && provisionalAudit.status !== 'resolved') {
-    throw new Error('Project impact cannot be accepted before Case resolution');
-  }
-
-  record.project_impact_candidate = transition.project_impact_candidate;
-  record.rounds.push({
-    round: record.rounds.length + 1,
-    goal: transition.planned_transition.goal,
-    outcome: transition.round_outcome,
-    planned_transition: transition.planned_transition.expected_state_change,
-    accepted_state_delta: structuredClone(transition.accepted_state_delta),
-    evidence: unique(transition.evidence),
-    runtime_result_ref: runtimeResultRef || transition.runtime_result_ref || '',
-    occurred_at: timestamp,
-  });
+  const provisional = auditCaseRecord(record, timestamp);
+  if (transition.case_resolution.claimed_status === 'resolved' && provisional.status !== 'resolved') throw new Error(`Controller claimed Case resolved, but ledger still finds: ${provisional.remaining.join(', ')}`);
+  if (transition.project_impact_candidate.status === 'accepted' && provisional.status !== 'resolved') throw new Error('Project impact cannot be accepted before Case resolution');
+  record.project_impact_candidate = structuredClone(transition.project_impact_candidate);
+  record.rounds.push({ round: record.rounds.length + 1, goal: transition.planned_transition.goal, outcome: transition.round_outcome, planned_transition: transition.planned_transition.expected_state_change, accepted_state_delta: structuredClone(delta), evidence: unique(transition.evidence), runtime_result_ref: runtimeResultRef || transition.runtime_result_ref || '', occurred_at: timestamp });
   record.updated_at = timestamp;
   record.case_resolution = auditCaseRecord(record, timestamp);
   record.current_round = { goal: '', selected_gap: null };
-  record.status = record.case_resolution.status === 'resolved'
-    ? 'closed'
-    : record.case_resolution.status === 'blocked'
-      ? 'blocked'
-      : ['needs_human', 'external_wait'].includes(record.case_resolution.loop_handoff.status)
-        ? 'handoff'
-        : 'active';
-
+  record.status = record.case_resolution.status === 'resolved' ? 'closed' : record.case_resolution.loop_handoff.next_responsibility === 'human' ? 'handoff' : 'active';
   const recordErrors = validateCaseRecord(record);
   if (recordErrors.length) throw new Error(recordErrors.join('\n'));
   return record;
 }
 
-function applyCompletionReviewResult(record, result, candidate, timestamp) {
-  if (result.reviewed_content_revision !== record.content_revision) throw new Error(`Completion review must cover current content_revision=${record.content_revision}`);
-  if (result.reviewer !== candidate.responsibility) throw new Error(`Completion review reviewer=${result.reviewer} does not match selected gap responsibility=${candidate.responsibility}`);
-  if (record.completion_review.findings.some((finding) => finding.status === 'open')) throw new Error('Completion review cannot run while prior findings remain open');
-  const hasFindingDimension = REVIEW_DIMENSIONS.some((key) => result.dimensions[key] === 'findings');
-  if (result.outcome === 'clean' && (hasFindingDimension || result.findings.length > 0)) throw new Error('A clean completion review cannot contain findings');
-  if (result.outcome === 'findings' && (!hasFindingDimension || result.findings.length === 0)) throw new Error('A findings completion review requires a finding dimension and at least one finding');
-  if (result.outcome === 'needs_human' && candidate.responsibility !== 'human' && result.findings.length === 0) throw new Error('An agent needs_human review result must explain the escalation with findings');
-  const existingIds = new Set(record.completion_review.findings.map((finding) => finding.id));
-  for (const finding of result.findings) {
-    if (existingIds.has(finding.id)) throw new Error(`Duplicate completion review finding id: ${finding.id}`);
-    existingIds.add(finding.id);
-  }
-  const effectiveLimit = record.completion_review.policy.initial_max_cycles + record.completion_review.additional_cycles_authorized;
-  if (result.reviewer === 'agent' && record.completion_review.cycle_count >= effectiveLimit) throw new Error('Autonomous completion review budget is exhausted; human handling is required');
+function applyCompletionReviewResultV4(record, result, candidate, timestamp) {
+  if (result.reviewed_content_revision !== record.content_revision) throw new Error(`Completion review must cover content_revision=${record.content_revision}`);
+  if (result.reviewer !== candidate.responsibility) throw new Error('Completion review responsibility mismatch');
+  const hasFindings = result.findings.length > 0 || V4_REVIEW_DIMENSIONS.some((key) => result.dimensions[key] === 'findings');
+  if ((result.outcome === 'clean') === hasFindings) throw new Error('Completion review outcome and findings disagree');
+  const limit = effectiveReviewCycleLimit(record.completion_review);
+  if (result.reviewer === 'agent' && record.completion_review.cycle_count >= limit) throw new Error('Autonomous completion review budget is exhausted');
   if (result.reviewer === 'agent') record.completion_review.cycle_count += 1;
-  const cycleNumber = record.completion_review.cycles.length + 1;
-  record.completion_review.findings.push(...result.findings.map((finding) => ({
-    ...finding,
-    status: 'open',
-    resolution_reason: '',
-    resolution_evidence: [],
-    discovered_in_cycle: cycleNumber,
-  })));
-  record.completion_review.cycles.push({
-    cycle: cycleNumber,
-    autonomous_cycle: result.reviewer === 'agent' ? record.completion_review.cycle_count : null,
-    reviewer: result.reviewer,
-    outcome: result.outcome,
-    content_revision: record.content_revision,
-    dimensions: { ...result.dimensions },
-    finding_ids: result.findings.map((finding) => finding.id),
-    evidence: unique(result.evidence),
-    occurred_at: timestamp,
-  });
-  record.completion_review.reviewed_content_revision = record.content_revision;
-  record.completion_review.dimensions = { ...result.dimensions };
-  record.completion_review.evidence = unique([...record.completion_review.evidence, ...result.evidence]);
-
-  const limitReachedWithFindings = result.reviewer === 'agent'
-    && result.outcome !== 'clean'
-    && record.completion_review.cycle_count >= effectiveLimit;
-  if (result.outcome === 'clean') {
-    record.completion_review.status = 'clean';
-    record.completion_review.escalation = null;
-  } else if (result.outcome === 'needs_human' || limitReachedWithFindings || result.reviewer === 'human') {
-    record.completion_review.status = 'needs_human';
-    record.completion_review.escalation = {
-      reason: limitReachedWithFindings ? 'review_cycle_limit_reached' : 'review_requires_human',
-      triggered_at_cycle: record.completion_review.cycle_count,
-      effective_max_cycles: effectiveLimit,
-      unresolved_findings: record.completion_review.findings.filter((finding) => finding.status === 'open').map((finding) => finding.id),
-      evidence: unique(result.evidence),
-      triggered_at: timestamp,
-    };
-  } else {
-    record.completion_review.status = 'findings_open';
-    record.completion_review.escalation = null;
+  for (const finding of result.findings) {
+    const gapId = `${record.id}:review-finding:${finding.id}`;
+    if (record.gaps.some((gap) => gap.id === gapId)) throw new Error(`Duplicate review finding: ${finding.id}`);
+    record.gaps.push({ id: gapId, status: 'open', goal: `Resolve review finding: ${finding.statement}`, reason: `${finding.kind} found by completion review`, derived_from: ['completion_review', `content_revision:${record.content_revision}`], blocked_by: [], priority_basis: { blocking: 'high', risk: 'high' }, responsibility: finding.responsibility, evidence_required: unique([...finding.artifact_refs, ...finding.evidence]), resolution: null });
   }
+  record.completion_review.reviewed_content_revision = record.content_revision;
+  record.completion_review.dimensions = structuredClone(result.dimensions);
+  record.completion_review.evidence = unique([...record.completion_review.evidence, ...result.evidence]);
+  record.completion_review.cycles.push({ cycle: record.completion_review.cycles.length + 1, autonomous_cycle: result.reviewer === 'agent' ? record.completion_review.cycle_count : null, reviewer: result.reviewer, outcome: result.outcome, content_revision: record.content_revision, dimensions: structuredClone(result.dimensions), finding_ids: result.findings.map((finding) => finding.id), evidence: unique(result.evidence), occurred_at: timestamp });
+  record.completion_review.status = result.outcome === 'clean' ? 'clean' : result.outcome === 'needs_human' || (result.reviewer === 'agent' && record.completion_review.cycle_count >= limit) ? 'needs_human' : 'findings_open';
+  record.completion_review.escalation = record.completion_review.status === 'needs_human' ? { reason: 'review_requires_human', triggered_at_cycle: record.completion_review.cycle_count, effective_max_cycles: limit, evidence: unique(result.evidence), triggered_at: timestamp } : null;
+}
+
+export function applyCaseTransitionToRecord(record, transition, options = {}) {
+  if (record?.schema_version !== 'development-case-record/v4') {
+    throw new Error(`Unsupported Case State schema: ${record?.schema_version || '<missing>'}; expected development-case-record/v4`);
+  }
+  return applyCaseTransitionToRecordV4(record, transition, options);
 }
 
 export async function applyCaseTransition({ projectRoot, casePath = '', transition, runtimeResultRef = '', dryRun = false }) {
@@ -303,7 +252,8 @@ async function applyCaseTransitionUnlocked({ projectRoot, casePath = '', transit
     throw new Error(`Case transition target is not registered in Project active_case_refs: ${activeCaseRef}`);
   }
   const timestamp = nextRevisionTimestamp(record.updated_at, projectState.project?.updated_at);
-  const nextRecord = applyCaseTransitionToRecord(structuredClone(record), transition, { timestamp, runtimeResultRef });
+  const conditionRefs = new Set(Object.entries(projectState.completeness_dimensions || {}).flatMap(([dimension, state]) => (state.desired_conditions || []).map((condition) => `${dimension}.${condition.id}`)));
+  const nextRecord = applyCaseTransitionToRecord(structuredClone(record), transition, { timestamp, runtimeResultRef, conditionRefs });
   let projectStateChanged = false;
   let iteration = null;
   let iterationRef = '';
@@ -406,6 +356,7 @@ function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCa
   record.project.updated_at = timestamp;
   record.active_case_refs = (record.active_case_refs || []).filter((ref) => ref !== activeCaseRef);
   const transitions = projectImpact.status === 'accepted' ? projectImpact.changes : [];
+  const conditionChanges = projectImpact.status === 'accepted' ? (projectImpact.condition_changes || []) : [];
   for (const change of transitions) {
     const dimension = record.completeness_dimensions?.[change.dimension];
     if (!dimension) throw new Error(`Unknown project impact dimension: ${change.dimension}`);
@@ -419,6 +370,21 @@ function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCa
     dimension.gap = change.gap || (dimension.current_state === dimension.target_state ? '' : dimension.gap);
     dimension.next_transition = change.next_transition || '';
     dimension.priority = dimension.current_state === dimension.target_state ? 'none' : dimension.priority;
+  }
+  for (const change of conditionChanges) {
+    const dimension = record.completeness_dimensions?.[change.dimension];
+    if (!dimension) throw new Error(`Unknown condition dimension: ${change.dimension}`);
+    dimension.desired_conditions ||= [];
+    const index = dimension.desired_conditions.findIndex((condition) => condition.id === change.condition.id);
+    if (change.action === 'add') {
+      if (index >= 0) throw new Error(`Condition already exists: ${change.dimension}.${change.condition.id}`);
+      dimension.desired_conditions.push(structuredClone(change.condition));
+    } else {
+      if (index < 0) throw new Error(`Condition does not exist: ${change.dimension}.${change.condition.id}`);
+      dimension.desired_conditions[index] = change.action === 'retire'
+        ? { ...dimension.desired_conditions[index], status: 'retired' }
+        : structuredClone(change.condition);
+    }
   }
   record.state_gaps = (record.state_gaps || []).map((gap) => {
     const coveredDimensions = unique(gap.covered_dimensions || [gap.dimension]);
@@ -451,6 +417,7 @@ function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCa
       to_state: change.to_state,
       reason: change.reason,
     })),
+    condition_changes: conditionChanges.map((change) => ({ action: change.action, dimension: change.dimension, condition_id: change.condition.id })),
     deferred_dimensions: [],
     blocked_dimensions: [],
     case_refs: [closedCaseRef],
@@ -466,6 +433,7 @@ function applyResolvedCaseToProject(record, { timestamp, activeCaseRef, closedCa
 
 function applyResolvedCaseToIteration(record, { timestamp, activeCaseRef, closedCaseRef, projectImpact, projectState }) {
   const transitions = projectImpact.status === 'accepted' ? projectImpact.changes : [];
+  const conditionChanges = projectImpact.status === 'accepted' ? (projectImpact.condition_changes || []) : [];
   record.updated_at = timestamp;
   record.active_case_refs = unique(projectState.active_case_refs || []).filter((ref) => ref !== activeCaseRef);
   record.closed_case_refs = unique([...(record.closed_case_refs || []), closedCaseRef]);
@@ -494,6 +462,7 @@ function applyResolvedCaseToIteration(record, { timestamp, activeCaseRef, closed
       from_state: change.from_state,
       to_state: change.to_state,
     })),
+    condition_changes: conditionChanges.map((change) => ({ action: change.action, dimension: change.dimension, condition_id: change.condition.id })),
     evidence: unique([closedCaseRef, ...transitions.flatMap((change) => change.evidence || [])]),
     updated_at: timestamp,
   };

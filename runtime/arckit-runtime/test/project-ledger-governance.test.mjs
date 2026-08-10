@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { migrateProjectStateV4, validateProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
+import { validateProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
 import { auditIterationStateRecord, renderIteration, validateIterationStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-iteration.mjs';
 
 const DIMENSIONS = [
@@ -12,25 +12,10 @@ const DIMENSIONS = [
   'observability_support', 'maintainability_handoff', 'iteration_governance',
 ];
 
-test('Project State v3 migration removes exclusive Case selection and preserves active refs', () => {
+test('Project State rejects old protocols instead of migrating them implicitly', () => {
   const legacy = projectRecord();
   legacy.schema_version = 'project-state-record/v3';
-  legacy.active_case_refs = ['arckit/cases/active/CASE-20260726-901-example.md'];
-  legacy.case_control = {
-    selected_case_ref: legacy.active_case_refs[0],
-    selection_reason: 'Legacy exclusive selection.',
-    next_case_intent: 'Advance the bounded work.',
-    priority_basis: 'Legacy priority basis.',
-    stop_condition: 'Legacy stop condition.',
-  };
-
-  const { record, migrated } = migrateProjectStateV4(legacy, { timestamp: '2026-07-27T00:00:00.000Z' });
-  assert.equal(migrated, true);
-  assert.equal(record.schema_version, 'project-state-record/v4');
-  assert.deepEqual(record.active_case_refs, legacy.active_case_refs);
-  assert.equal(Object.hasOwn(record.case_control, 'selected_case_ref'), false);
-  assert.equal(Object.hasOwn(record.case_control, 'selection_reason'), false);
-  assert.deepEqual(validateProjectStateRecord(record), []);
+  assert.match(validateProjectStateRecord(legacy).join('\n'), /project-state-record\/v4/);
 });
 
 test('Iteration v2 rejects Loop state, legacy versions, and no-op Project changes', () => {

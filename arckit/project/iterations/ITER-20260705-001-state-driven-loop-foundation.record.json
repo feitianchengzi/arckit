@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-09T14:55:14.667Z",
+  "updated_at": "2026-08-09T18:42:34.239Z",
   "iteration_goal": "将 Arckit 状态机制从记录型账本升级为由 Project State 选择 Case、Case State 暴露完整性 gap、Loop 产生证据并经确定性 ledger 聚合的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "target_project_states": [
@@ -245,7 +245,9 @@
       "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
       "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md",
       "arckit/cases/closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md",
-      "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md"
+      "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md",
+      "arckit/cases/closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md",
+      "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
     ],
     "remaining_project_gaps": [
       "GAP-agent-scenario-evaluation",
@@ -291,15 +293,18 @@
     "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
     "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md",
     "arckit/cases/closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md",
-    "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md"
+    "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md",
+    "arckit/cases/closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md",
+    "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
   ],
   "close_condition": "当严格跨记录审计稳定通过，并至少完成一次真实复杂项目的 Project gap -> Case -> Worker evidence -> completion review -> Project impact 闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md",
+    "case_ref": "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md",
     "project_changes": [],
+    "condition_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md"
+      "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
     ],
-    "updated_at": "2026-08-09T14:55:14.667Z"
+    "updated_at": "2026-08-09T18:42:34.239Z"
   }
 }

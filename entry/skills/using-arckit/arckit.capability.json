@@ -1,7 +1,7 @@
 {
   "schema_version": "arckit-capability/v1",
   "id": "using-arckit",
-  "protocol_revision": "coherent-agent-loop/v6",
+  "protocol_revision": "state-condition-agent-loop/v7",
   "kind": "project_conversation_controller",
   "runtime_role": ["agent_loop", "case_selection", "gap_execution", "closeout"],
   "binding_targets": ["controller"],
@@ -15,6 +15,7 @@
     "original_user_input",
     "current_operator_increment",
     "project_state",
+    "project_desired_conditions",
     "active_cases",
     "iteration_state",
     "loop_handoff",
@@ -23,7 +24,7 @@
   ],
   "outputs": [
     "case_control",
-    "selected_case_gap",
+    "selected_dynamic_gap",
     "planned_transition",
     "workspace_evidence",
     "accepted_case_state_delta",
@@ -46,10 +47,10 @@
     "Default Runtime execution invokes one agent_loop turn per Case gap and reuses one stable Codex thread for the active todo/session.",
     "The Agent may use native tools and other installed skills inside the same turn; Runtime does not pre-bind a fixed definition/diagnosis skill list or predictive allowed_paths.",
     "Runtime supplies original user intent, current increment, fresh bounded canonical facts, revisions, and execution authorization; these supersede conflicting thread history.",
-    "No suitable active Case produces case_control.create_case; Runtime only binds Project revision and explicit review policy before calling the trusted ledger entrypoint.",
+    "No suitable active Case produces a semantic case_control.create_case with outcome, initial facts, relevant impacts, and at least one dynamic gap; Runtime only binds Project revision and explicit review policy.",
     "Every Case transition binds the expected Case updated_at, observed Project updated_at, and complete current candidate gap.",
     "Runtime gates schema, revision, authorization, workspace safety, and ledger legality; it does not semantically re-review the Agent claim.",
-    "Successful ledger writeback requires a fresh state read before the next turn. Only human or external responsibility pauses automatic continuation.",
+    "Successful ledger writeback requires a fresh state read before the next turn. Human responsibility pauses for operator input; external responsibility remains a recoverable system wait.",
     "Serial one-gap Loops, productive rounds, and long-running commands have no total wall-clock or productive-round limit; no-progress recovery is separate."
   ]
 }

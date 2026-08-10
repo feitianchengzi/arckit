@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isDeepStrictEqual } from "node:util";
 import { createAgentAdapter } from "./agent-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
 import {
@@ -140,12 +141,13 @@ export function createLoopFrame({ snapshot, round, task, controllerCapabilities 
     id: round.gap_id || "",
     scope: "case",
     case_id: round.case_id || "",
-    facet: round.facet || "",
     responsibility: round.responsibility || "agent",
-    current_state: safeSemanticText(round.current_state || "", { maxLength: SEMANTIC_LIMITS.reason }),
-    target_state: safeSemanticText(round.target_state || "", { maxLength: SEMANTIC_LIMITS.reason }),
-    impact: safeSemanticText(round.impact || "", { maxLength: SEMANTIC_LIMITS.reason }),
-    next_transition: safeSemanticText(round.next_transition || "", { maxLength: SEMANTIC_LIMITS.transition })
+    goal: roundGoal,
+    reason: safeSemanticText(round.impact || "", { maxLength: SEMANTIC_LIMITS.reason }),
+    derived_from: [],
+    blocked_by: [],
+    priority_basis: {},
+    evidence_required: []
   };
   return {
     schema_version: "arckit-loop-frame/v1",
@@ -218,7 +220,16 @@ export function createControllerContextDigest({ snapshot, loopFrame }) {
         impact: safeSemanticText(gap?.impact || "", { maxLength: SEMANTIC_LIMITS.reason }),
         next_transition: safeSemanticText(gap?.next_transition || "", { maxLength: SEMANTIC_LIMITS.transition }),
         candidate_case_ref: String(gap?.candidate_case_ref || "")
-      }))
+      })),
+      desired_conditions: Object.entries(projectState?.completeness_dimensions || {}).flatMap(([dimension, state]) =>
+        (state?.desired_conditions || []).map((condition) => ({
+          ref: `${dimension}.${condition.id}`,
+          applies_when: safeSemanticText(condition.applies_when || "", { maxLength: SEMANTIC_LIMITS.reason }),
+          must_hold: safeSemanticText(condition.must_hold || "", { maxLength: SEMANTIC_LIMITS.reason }),
+          evidence_expectation: safeSemanticText(condition.evidence_expectation || "", { maxLength: SEMANTIC_LIMITS.reason }),
+          priority: String(condition.priority || "required"),
+          status: String(condition.status || "active")
+        })))
     },
     selected_case_id: String(loopFrame?.case_id || ""),
     active_cases: activeCases,
@@ -232,7 +243,11 @@ export function createControllerContextDigest({ snapshot, loopFrame }) {
 
 function summarizeCase(item) {
   const record = item?.record || {};
+  if (record.schema_version !== "development-case-record/v4") {
+    throw new Error(`Unsupported Case State schema: ${record.schema_version || "<missing>"}; expected development-case-record/v4`);
+  }
   return {
+    schema_version: String(record.schema_version || ""),
     ref: String(item?.ref || ""),
     case_id: String(record.id || ""),
     title: safeSemanticText(record.title || "", { maxLength: 240 }),
@@ -242,28 +257,14 @@ function summarizeCase(item) {
     user_intent: safeSemanticText(record.user_intent || "", { maxLength: SEMANTIC_LIMITS.contextSummary }),
     expected_outcome: safeSemanticText(record.expected_outcome || "", { maxLength: SEMANTIC_LIMITS.contextSummary }),
     content_revision: Number(record.content_revision || 0),
-    facets: Object.fromEntries(Object.entries(record.facets || {}).map(([facet, state]) => [facet, {
-      applicability: String(state?.applicability || "unknown"),
-      maturity: String(state?.maturity || "unknown"),
-      target_maturity: String(state?.target_maturity || "unknown"),
-      alignment: String(state?.alignment || "unknown"),
-      target_alignment: String(state?.target_alignment || "unknown"),
-      resolution: String(state?.resolution || "unresolved"),
-      reason: safeSemanticText(state?.reason || "", { maxLength: SEMANTIC_LIMITS.reason }),
-      evidence: strings(state?.evidence).slice(-8)
-    }])),
+    facts: (record.facts || []).map((fact) => ({ id: String(fact.id || ""), revision: Number(fact.revision || 0), status: String(fact.status || ""), statement: safeSemanticText(fact.statement || "", { maxLength: SEMANTIC_LIMITS.contextSummary }), basis: safeSemanticText(fact.basis || "", { maxLength: SEMANTIC_LIMITS.reason }), evidence: strings(fact.evidence).slice(-8) })),
+    state_impacts: (record.state_impacts || []).map((impact) => ({ id: String(impact.id || ""), fact_id: String(impact.fact_id || ""), fact_revision: Number(impact.fact_revision || 0), condition_ref: String(impact.condition_ref || ""), effect: String(impact.effect || ""), reason: safeSemanticText(impact.reason || "", { maxLength: SEMANTIC_LIMITS.reason }), gap_ids: strings(impact.gap_ids), evidence: strings(impact.evidence).slice(-8) })),
+    gaps: (record.gaps || []).map((gap) => ({ id: String(gap.id || ""), status: String(gap.status || ""), goal: safeSemanticText(gap.goal || "", { maxLength: SEMANTIC_LIMITS.goal }), reason: safeSemanticText(gap.reason || "", { maxLength: SEMANTIC_LIMITS.reason }), derived_from: strings(gap.derived_from), blocked_by: strings(gap.blocked_by), priority_basis: object(gap.priority_basis) ? gap.priority_basis : {}, responsibility: String(gap.responsibility || "agent"), evidence_required: strings(gap.evidence_required), resolution: objectOrNull(gap.resolution) })),
     case_resolution: {
       status: String(record.case_resolution?.status || "unresolved"),
       stage: String(record.case_resolution?.stage || "working"),
-      base_ready: record.case_resolution?.base_ready === true,
       remaining: strings(record.case_resolution?.remaining),
-      candidate_gaps: (record.case_resolution?.candidate_gaps || []).map((gap) => ({
-        id: String(gap?.id || ""), facet: String(gap?.facet || ""), responsibility: String(gap?.responsibility || "agent"),
-        current_state: safeSemanticText(gap?.current_state || "", { maxLength: SEMANTIC_LIMITS.reason }),
-        target_state: safeSemanticText(gap?.target_state || "", { maxLength: SEMANTIC_LIMITS.reason }),
-        next_transition: safeSemanticText(gap?.next_transition || "", { maxLength: SEMANTIC_LIMITS.transition }),
-        evidence_required: strings(gap?.evidence_required).slice(0, 8)
-      }))
+      candidate_gaps: (record.case_resolution?.candidate_gaps || []).map((gap) => ({ id: String(gap?.id || ""), responsibility: String(gap?.responsibility || "agent"), goal: safeSemanticText(gap?.goal || "", { maxLength: SEMANTIC_LIMITS.goal }), reason: safeSemanticText(gap?.reason || "", { maxLength: SEMANTIC_LIMITS.reason }), derived_from: strings(gap?.derived_from), blocked_by: strings(gap?.blocked_by), priority_basis: object(gap?.priority_basis) ? gap.priority_basis : {}, evidence_required: strings(gap?.evidence_required).slice(0, 8) }))
     },
     completion_review: {
       status: String(record.completion_review?.status || "pending"),
@@ -328,8 +329,8 @@ function agentLoopResultFailureReason(result, snapshot) {
     const activeCase = (snapshot.activeCases || []).find((item) => item.record?.id === transition.case_id);
     if (!activeCase) return `Agent Loop selected a non-active Case: ${transition.case_id || "<missing>"}.`;
     if (activeCase.record.updated_at !== transition.case_updated_at) return `Agent Loop Case revision is stale for ${transition.case_id}.`;
-    const gap = (activeCase.record.case_resolution?.candidate_gaps || []).find((item) => item.id === transition.selected_gap?.id && item.facet === transition.selected_gap?.facet);
-    if (!gap) return `Agent Loop selected a non-candidate gap: ${transition.selected_gap?.id || "<missing>"}.`;
+    const gap = (activeCase.record.case_resolution?.candidate_gaps || []).find((item) => item.id === transition.selected_gap?.id);
+    if (!gap || !isDeepStrictEqual(gap, transition.selected_gap)) return `Agent Loop selected a stale or non-candidate gap: ${transition.selected_gap?.id || "<missing>"}.`;
     if (!Array.isArray(transition.evidence) || transition.evidence.length === 0) return "Agent Loop transition requires evidence.";
   }
   if (result.action === "handoff" && (result.case_control || result.case_transition)) return "handoff action cannot include Case payloads.";
@@ -431,20 +432,19 @@ function agentLoopProjection(result) {
 
 function normalizeAcceptedDelta(delta) {
   return {
-    facets: Array.isArray(delta?.facets) ? delta.facets.filter(object).map((claim) => ({
-      facet: String(claim.facet || ""), set: normalizeFacetSet(claim.set), evidence: strings(claim.evidence), unresolved: strings(claim.unresolved)
-    })) : [],
-    resolved_open_questions: strings(delta?.resolved_open_questions), completed_handoffs: strings(delta?.completed_handoffs),
+    resolved_gap: objectOrNull(delta?.resolved_gap),
+    facts_added: Array.isArray(delta?.facts_added) ? delta.facts_added.filter(object) : [],
+    facts_superseded: Array.isArray(delta?.facts_superseded) ? delta.facts_superseded.filter(object) : [],
+    impacts_added: Array.isArray(delta?.impacts_added) ? delta.impacts_added.filter(object) : [],
+    impacts_updated: Array.isArray(delta?.impacts_updated) ? delta.impacts_updated.filter(object) : [],
+    gaps_added: Array.isArray(delta?.gaps_added) ? delta.gaps_added.filter(object) : [],
+    gaps_cancelled: Array.isArray(delta?.gaps_cancelled) ? delta.gaps_cancelled.filter(object) : [],
+    resolved_open_questions: strings(delta?.resolved_open_questions),
+    completed_handoffs: strings(delta?.completed_handoffs),
     completion_review_result: objectOrNull(delta?.completion_review_result),
     resolved_review_findings: Array.isArray(delta?.resolved_review_findings) ? delta.resolved_review_findings.filter(object) : [],
     review_budget_extension: objectOrNull(delta?.review_budget_extension)
   };
-}
-
-function normalizeFacetSet(value) {
-  if (!object(value)) return {};
-  const allowed = new Set(["applicability", "maturity", "target_maturity", "alignment", "target_alignment", "resolution", "reason", "next_transition"]);
-  return Object.fromEntries(Object.entries(value).filter(([key, field]) => allowed.has(key) && field !== null && field !== undefined));
 }
 
 function emit(events, event, options) {

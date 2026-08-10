@@ -18,7 +18,7 @@ description: "维护 arckit/interaction/ 下的页面级交互策略、灰度线
 
 ## Case State 驱动模式
 
-收到 `case_fact_gap` 时，先读取 [`../_arckit_shared/case-fact-contract.md`](../_arckit_shared/case-fact-contract.md)，并进入 managed-case 模式。实现代码、运行界面或测试可作为候选交互证据，但不能因界面存在就直接判定交互事实完成；本 skill 维护稳定交互事实并返回 `fact_result`，不写 Case/Project State。没有 `case_fact_gap` 时使用 standalone 模式。
+Agent 判断当前 dynamic gap 需要查询或维护交互事实时，向本 skill 提供 `case_gap`。先读取 [`../_arckit_shared/case-gap-contract.md`](../_arckit_shared/case-gap-contract.md)，再基于完整上下文进入 managed-case 模式。实现代码、运行界面或测试只是相关证据；本 skill 维护稳定交互事实并返回 `fact_result`，不写 Case/Project State、不规定工作顺序。没有 `case_gap` 时使用 standalone 模式。
 
 ## 核心结构
 
@@ -129,7 +129,7 @@ interaction/
 
 ### 最终输出：document_scope（每次调用结束前必须输出）
 
-本 Skill 必须输出 `document_scope`；同时按 Case Fact Contract 输出 `fact_result`。managed-case 模式的 `fact_result` 是 Controller 可接受的交互事实 claim，standalone 模式只描述本次事实影响。
+本 Skill 必须输出 `document_scope`；同时按 Case Gap Contract 输出 `fact_result`。managed-case 模式的结果供当前 Agent 汇总为 transition 证据，standalone 模式只描述本次事实影响。
 
 **查询结束时**（只读，无写操作）：
 ```yaml

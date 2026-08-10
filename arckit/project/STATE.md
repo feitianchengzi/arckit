@@ -1,7 +1,7 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Updated: 2026-08-09T14:55:14.667Z
+Updated: 2026-08-09T18:42:34.239Z
 Canonical Record: state.record.json
 
 ## Purpose
@@ -38,6 +38,15 @@ Create the next bounded Case from the remaining Project state_gaps.
 - product_behavior: verified -> accepted; next: Run a real long-running Codex Runtime task and compare its semantic progress, stability, and wall-clock overhead with direct single-agent use.
 - architecture_foundation: verified -> accepted; next: Exercise the architecture on a real Case with a long-running build and retain Agent-loop, gate, ledger, and timing evidence.
 - iteration_governance: verified -> accepted; next: Use the active iteration in a real complex project loop and accept it only after durable end-to-end evidence.
+
+## Desired Conditions
+
+- product_behavior.observable-behavior-has-durable-expectation: The relevant product expectation is accurate, unambiguous, and durably recoverable.
+- user_experience.changed-interactions-remain-recoverable: The changed interaction expectation is coherent and durably recoverable.
+- runtime_surfaces.changed-visual-language-remains-consistent: The changed visual expectation remains consistent with the project visual language and is durably recoverable.
+- architecture_foundation.changed-contracts-remain-explainable: The resulting technical contract is coherent, explainable, and durably recoverable.
+- implementation_coverage.accepted-facts-are-realized: The implementation realizes all relevant accepted facts and upheld desired conditions.
+- quality_validation.material-risks-have-credible-evidence: Material correctness and regression risks are covered by credible, repeatable verification evidence.
 
 ## Read For Precision
 

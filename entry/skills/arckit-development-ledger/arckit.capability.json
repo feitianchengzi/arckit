@@ -1,7 +1,7 @@
 {
   "schema_version": "arckit-capability/v1",
   "id": "arckit-development-ledger",
-  "protocol_revision": "parallel-case-ledger/v3",
+  "protocol_revision": "state-condition-ledger/v4",
   "kind": "state_ledger",
   "runtime_role": ["state_reader", "closeout_auditor", "ledger_writer"],
   "binding_targets": ["runtime"],
@@ -18,7 +18,7 @@
     "case_transition": "scripts/case-transition.mjs",
     "writeback": "scripts/runtime-writeback.mjs"
   },
-  "summary": "Maintains macro Project State, strict Iteration v2 aggregation, bounded Case State, durable cross-record audits, and the shared human/Runtime Case transition commit path.",
+  "summary": "Maintains Project desired conditions, facts/impacts/dynamic-gap Case v4 state, Iteration aggregation, and deterministic human/Runtime transition commits under the current protocol only.",
   "input_facts": [
     "project_state_record",
     "iteration_state_record",
@@ -48,7 +48,7 @@
   ],
   "runtime_notes": [
     "Runtime must resolve and call the trusted entrypoints declared by this capability instead of maintaining copied ledger scripts.",
-    "Agent-directed Case creation enters through case_control; ledger allocates ids and atomically registers the Case in Project and iteration refs.",
+    "Agent-directed Case creation enters through case_control with semantic initial facts, relevant impacts, and at least one gap; ledger allocates ids and atomically registers the v4 Case.",
     "Case transitions use Case revision binding and exact candidate-gap matching; resolved transitions also bind the observed Project revision.",
     "Different Cases may execute concurrently; Case, Project, iteration, projections, and indexes commit under one cross-process Project lock with rollback.",
     "Iteration v2 contains only macro targets, accepted Project changes bound to closed Cases, acceptance state, and Case refs; Loop continuation is forbidden.",
@@ -56,6 +56,6 @@
     "Runtime passes the semantic Case transition object directly; stdin and caller-owned files are CLI transports and volatile paths never become evidence.",
     "Runtime-owned result, activity, event, and transcript records stay outside the target project; Desktop may pass an arckit-runtime://runs/RUN-... opaque reference for Case round traceability.",
     "Case rendering is content-transparent and dry-run preflights Structured Record round trips plus existing Case index inputs.",
-    "Runtime exposes ledger snapshots and references to Workers when needed; ordinary Workers must not bind this capability or write ledger state directly."
+    "Runtime exposes bounded ledger snapshots to the Agent when needed; only trusted Runtime entrypoints may write ledger state."
   ]
 }

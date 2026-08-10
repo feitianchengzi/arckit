@@ -11,12 +11,13 @@ const repositoryRoot = resolve(testDir, "../../..");
 
 test("default execution uses one coherent using-arckit Agent turn for one Case gap", async () => {
   const gap = {
-    id: "CASE-1:implementation_state",
-    facet: "implementation_state",
+    id: "GAP-IMPLEMENT",
     responsibility: "agent",
-    current_state: "unresolved",
-    target_state: "resolved",
-    next_transition: "Implement and verify the bounded change.",
+    goal: "Implement and verify the bounded change.",
+    reason: "The diagnosed behavior now has a bounded implementation path.",
+    derived_from: ["FACT-ROOT-CAUSE"],
+    blocked_by: [],
+    priority_basis: { blocking: "high", uncertainty: "low", risk: "high", user_impact: "high" },
     evidence_required: ["implementation and test evidence"]
   };
   const snapshot = {
@@ -33,9 +34,14 @@ test("default execution uses one coherent using-arckit Agent turn for one Case g
         id: "CASE-1",
         title: "Coherent Agent Loop",
         status: "active",
+        schema_version: "development-case-record/v4",
         updated_at: "2026-08-09T00:01:00.000Z",
         user_intent: "Implement the bounded change.",
-        facets: {},
+        expected_outcome: "The bounded behavior is correct and verified.",
+        facts: [{ id: "FACT-ROOT-CAUSE", revision: 1, status: "accepted", statement: "The root cause is known.", basis: "Trace evidence.", evidence: ["debug/root-cause.md"] }],
+        state_impacts: [],
+        gaps: [{ ...gap, status: "open", resolution: null }],
+        content_revision: 0,
         rounds: [],
         open_questions: [],
         pending_handoffs: [],
@@ -53,11 +59,12 @@ test("default execution uses one coherent using-arckit Agent turn for one Case g
     case_id: "CASE-1",
     case_updated_at: "2026-08-09T00:01:00.000Z",
     gap_id: gap.id,
-    facet: gap.facet,
     responsibility: gap.responsibility,
-    current_state: gap.current_state,
-    target_state: gap.target_state,
-    next_transition: gap.next_transition,
+    goal: gap.goal,
+    reason: gap.reason,
+    derived_from: gap.derived_from,
+    blocked_by: gap.blocked_by,
+    priority_basis: gap.priority_basis,
     evidence_required: gap.evidence_required,
     required_context_refs: ["arckit/cases/active/CASE-1.md"],
     required_outputs: [],
@@ -115,31 +122,23 @@ function agentLoopResult(gap) {
     summary: "Implemented and verified one bounded Case gap.",
     case_control: null,
     case_transition: {
-      schema_version: "arckit-case-transition/v3",
+      schema_version: "arckit-case-transition/v4",
       case_id: "CASE-1",
       case_updated_at: "2026-08-09T00:01:00.000Z",
       project_updated_at: "2026-08-09T00:00:00.000Z",
       selected_gap: gap,
       planned_transition: {
         goal: "Implement and verify the bounded change.",
-        expected_state_change: "implementation_state unresolved -> resolved"
+        expected_state_change: "Resolve GAP-IMPLEMENT with implementation and verification evidence."
       },
       accepted_state_delta: {
-        facets: [{
-          facet: "implementation_state",
-          set: {
-            applicability: "required",
-            maturity: "formalized",
-            target_maturity: "formalized",
-            alignment: "aligned",
-            target_alignment: "aligned",
-            resolution: "resolved",
-            reason: "The bounded change and focused verification are complete.",
-            next_transition: null
-          },
-          evidence: ["test:coherent-agent-loop"],
-          unresolved: []
-        }],
+        resolved_gap: { id: "GAP-IMPLEMENT", status: "resolved", outcome: "The bounded change is implemented and verified.", reason: "Focused implementation and tests passed.", evidence: ["test:coherent-agent-loop"] },
+        facts_added: [],
+        facts_superseded: [],
+        impacts_added: [],
+        impacts_updated: [],
+        gaps_added: [],
+        gaps_cancelled: [],
         resolved_open_questions: [],
         completed_handoffs: [],
         completion_review_result: null,
@@ -147,10 +146,10 @@ function agentLoopResult(gap) {
         review_budget_extension: null
       },
       evidence: ["test:coherent-agent-loop"],
-      unresolved: ["verification_state"],
+      unresolved: ["completion_review"],
       round_outcome: "completed",
       case_resolution: { claimed_status: "unresolved", reason: "Verification remains." },
-      project_impact_candidate: { status: "none", changes: [], evidence: [] }
+      project_impact_candidate: { status: "none", changes: [], condition_changes: [], evidence: [] }
     },
     changed_files: ["runtime/arckit-runtime/src/agent-orchestrator.mjs"],
     artifact_impacts: [{

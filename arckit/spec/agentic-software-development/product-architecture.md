@@ -81,14 +81,14 @@ Loop 是 case 的推进循环。一个 case 可以经历多个 loop。每个 loo
 4. Loop 绑定当前 Case revision，由当前 Agent选择 gap，并在同一 turn 内使用必要 skills/tools 推进 case。
 5. Loop 产出 evidence、transition claim、change、open question 或 handoff；真实独立委派时才包含 report。
 6. Case 判断继续、等待、阻塞、人类判断或关闭。
-7. Ledger 在跨进程 Project commit lock 中原子提交 Case transition；基础内容完成后先派生 completion review，当前 content revision clean 后 Case 才 resolved，并在 Project revision 匹配时聚合显式 Project State delta，随后同一 task thread 从 fresh state 继续。
+7. Ledger 在跨进程 Project commit lock 中原子提交 Case transition；全部相关 facts、state impacts 与动态 gaps 闭合后先派生 completion review，当前 content revision clean 后 Case 才 resolved，并在 Project revision 匹配时聚合显式 Project State delta，随后同一 task thread 从 fresh state 继续。
 8. Runtime 为每个待办持久化唯一 Codex thread id，进程恢复时继续该 thread；每个 gap 写回后在上下文占用达到 80% 时先压缩同一 thread，待办完成后仍由该 thread 执行 Git closeout。
 
 Project State 不由 loop 直接静默改写。Loop 的输出必须先通过验证、case closeout 与 ledger gate，才能成为 Project State delta；独立 report 还必须先经主 Agent intake。
 
-Project State 和 Case State 的字段定义不是普通配置项。它们表达软件项目持续推进所需的工程能力维度，包括产品意图、目标用户、核心场景、平台表面、技术基础、事实成熟度、实现覆盖、验证证据、open questions、handoff 和工作方式信号。字段定义综合真实软件研发抽象和 Arckit skill 体系的产品理念，使 Controller 能根据状态值判断本轮应补事实、定义、实现、诊断、验证、收口还是等待人类或外部系统。
+Project State 和 Case State 的字段定义不是普通配置项。Project dimension 使用通用 condition 结构承载项目具体的软件不变量，包括何时适用、必须成立的性质、证据期望和优先级；condition 内容可以覆盖产品意图、目标用户、核心场景、平台表面、技术基础、实现真实性、验证充分性、交付或组织特有约束，但不绑定 skill、路径和流程。Controller 依据 fresh facts 判断 condition 是否被维持、威胁或尚不确定，再生成当前实际需要的 gap。
 
-Project State、Case State 和 Agent Loop 通过分层上下文保持长期连续性。Project State 是项目级 checkpoint，只保存项目维度状态、active case refs、project gaps、Case 选择依据、状态 delta 摘要和 evidence refs，不保存独占 Loop selection。Case State 是事项级 checkpoint，保存当前事项的六类结果 facet、content revision、completion review cycles/findings/budget、candidate gaps、open questions、pending handoffs、轮次摘要、resolution 和短 loop handoff。Agent Loop 是一次执行过程，只产生 transition/report、artifact impact、runtime result 和原始运行证据，不把完整 prompt、activity、stream delta、ledger result 或 Desktop operator event 写入 Project State 或 Case State。
+Project State、Case State 和 Agent Loop 通过分层上下文保持长期连续性。Project State 是项目级 checkpoint，只保存项目维度状态与 desired conditions、active case refs、project gaps、Case 选择依据、状态 delta 摘要和 evidence refs，不保存独占 Loop selection。Case State 是事项级 checkpoint，保存当前事项的 facts、state impacts、dynamic gaps、content revision、completion review cycles/findings/budget、open questions、pending handoffs、轮次摘要、resolution 和短 loop handoff。Agent Loop 是一次执行过程，只产生 transition/report、runtime result 和原始运行证据，不把完整 prompt、activity、stream delta、ledger result 或 Desktop operator event 写入 Project State 或 Case State。
 
 跨对话和跨生命周期恢复依赖 checkpoint 与引用链，而不是复制完整历史上下文。新的执行体恢复项目时先读 Project State 与全部 active Cases，再由当前 Agent为 Loop 选择一个 Case，并读取其 derived resolution、短 handoff、candidate gaps 和 required context refs；只有证据不足或需要审计时，Runtime 宿主才按 opaque run ref 打开其管理的紧凑 result、activity 或 raw events。项目即使无法访问 Runtime 宿主记录，也能从 Case round 的 accepted delta 与 evidence 恢复语义状态。
 
@@ -149,7 +149,7 @@ Project State 是事实系统的恢复视图，不替代各事实源。Project S
 
 传输 envelope 和原始 runtime evidence 属于过程证据，不属于 Project State 或 Case State 的语义字段。Desktop operator event、完整 activity、完整 controller frame、完整 ledger write result、app-server stream output 和 raw prompt transcript 保存在 Runtime 宿主拥有的 execution record、raw events 或 audit 记录中，不复制到目标项目目录。Case round 可以保存不含宿主文件系统路径的 opaque run ref；该引用不替代 accepted delta 或持久 evidence，也不得进入 Project `case_control`、Case `current_round`、`agent_instruction.goal` 或 `progress_guard.expected_state_change`。
 
-Project State 只维护宏观完整性、project gaps、active Case refs 和 Case 选择依据。Case State 维护单事项的 product/interaction/visual/technical expectation、implementation、verification、open questions、pending handoffs、content revision、completion review、derived candidate gaps 与 resolution。Loop 只承载一个 Case 的一次 planned/accepted transition；多个 Loop 可以并行推进不同 Case。candidate gaps 不携带固定顺序；当前 Agent根据真实上下文动态选择代码先行、规格先行或混合推进。最终每个 facet 必须有 evidence-backed required target，或明确的 evidence-backed not_required 判断；随后当前 content revision 必须经过错误、遗漏、多余三维复审并 clean。自主复审预算耗尽仍不 clean 时，Case 转人工而不是继续自动 loop。
+Project State 只维护宏观完整性、desired conditions、project gaps、active Case refs 和 Case 选择依据。Case State 维护单事项的 facts、state impacts、dynamic gaps、open questions、pending handoffs、content revision、completion review 与 resolution。Loop 只承载一个 Case 的一次 planned/accepted transition；多个 Loop 可以并行推进不同 Case。candidate gaps 不携带固定顺序；当前 Agent根据真实上下文动态选择诊断、定义、实现、验证或持久上下文维护。只有相关 condition impacts 与全部实际 gaps 闭合后才进入以实施正确性、验证可信度、回归风险和最小性为重点的完成态复审。自主复审预算耗尽仍不 clean 时，Case 转人工而不是继续自动 loop。
 
 语义字段必须由当前 Agent、人类输入、稳定事实源或已接受的独立 report 显式产生。Runtime 可以校验和拒绝结构化字段，但不能把原始 operator event 自行理解为项目目标，也不能把 raw task fallback 写成下一轮状态。结构化语义字段缺失、超长或包含 Desktop operator event marker 时，本轮应进入 Agent recoverable、blocked 或 ledger gate blocked，而不是静默截断后写回长期状态。
 

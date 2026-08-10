@@ -4,7 +4,7 @@
     "name": "Arckit Skill Repository",
     "status": "active",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-09T14:55:14.667Z",
+    "updated_at": "2026-08-09T18:42:34.239Z",
     "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
     "current_phase": "state-driven-loop-foundation"
   },
@@ -25,7 +25,8 @@
       "next_transition": "",
       "blockers": [],
       "priority": "none",
-      "confidence": "high"
+      "confidence": "high",
+      "desired_conditions": []
     },
     "users_and_stakeholders": {
       "current_state": "defined",
@@ -40,7 +41,8 @@
       "next_transition": "用真实项目场景验证人类、单 agent 和多 agent 平台如何共同消费 project state、iteration state 和 case evidence。",
       "blockers": [],
       "priority": "medium",
-      "confidence": "high"
+      "confidence": "high",
+      "desired_conditions": []
     },
     "problem_scenarios": {
       "current_state": "defined",
@@ -55,7 +57,8 @@
       "next_transition": "选择一个复杂软件项目作为状态驱动 loop 验证对象。",
       "blockers": [],
       "priority": "high",
-      "confidence": "high"
+      "confidence": "high",
+      "desired_conditions": []
     },
     "product_behavior": {
       "current_state": "verified",
@@ -83,7 +86,17 @@
       "next_transition": "Run a real long-running Codex Runtime task and compare its semantic progress, stability, and wall-clock overhead with direct single-agent use.",
       "blockers": [],
       "priority": "high",
-      "confidence": "high"
+      "confidence": "high",
+      "desired_conditions": [
+        {
+          "id": "observable-behavior-has-durable-expectation",
+          "applies_when": "A Case adds or changes user-observable behavior, business rules, or acceptance semantics.",
+          "must_hold": "The relevant product expectation is accurate, unambiguous, and durably recoverable.",
+          "evidence_expectation": "Persistent evidence sufficient to recover the expected behavior and its acceptance basis.",
+          "priority": "required",
+          "status": "active"
+        }
+      ]
     },
     "user_experience": {
       "current_state": "accepted",
@@ -120,7 +133,17 @@
       "next_transition": "",
       "blockers": [],
       "priority": "none",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": [
+        {
+          "id": "changed-interactions-remain-recoverable",
+          "applies_when": "A Case adds or changes a user journey, interaction rule, navigation, feedback, or operable state.",
+          "must_hold": "The changed interaction expectation is coherent and durably recoverable.",
+          "evidence_expectation": "Persistent evidence sufficient to understand and verify the affected interaction behavior.",
+          "priority": "required",
+          "status": "active"
+        }
+      ]
     },
     "runtime_surfaces": {
       "current_state": "accepted",
@@ -163,7 +186,17 @@
       "next_transition": "",
       "blockers": [],
       "priority": "none",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": [
+        {
+          "id": "changed-visual-language-remains-consistent",
+          "applies_when": "A Case adds or changes visual appearance, layout, theme, token, or component presentation.",
+          "must_hold": "The changed visual expectation remains consistent with the project visual language and is durably recoverable.",
+          "evidence_expectation": "Persistent visual specification or equivalent evidence for the affected surface.",
+          "priority": "required",
+          "status": "active"
+        }
+      ]
     },
     "identity_access": {
       "current_state": "not_required",
@@ -177,7 +210,8 @@
       "next_transition": "",
       "blockers": [],
       "priority": "none",
-      "confidence": "high"
+      "confidence": "high",
+      "desired_conditions": []
     },
     "data_state": {
       "current_state": "verified",
@@ -201,7 +235,8 @@
       "next_transition": "Exercise the strict Project/Iteration/Case audit contract in a real complex software project and retain durable acceptance evidence.",
       "blockers": [],
       "priority": "medium",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": []
     },
     "integration_boundaries": {
       "current_state": "defined",
@@ -217,7 +252,8 @@
       "next_transition": "先用真实 Codex supervised turn 验证 Runtime loop，再考虑替换 adapter。",
       "blockers": [],
       "priority": "medium",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": []
     },
     "architecture_foundation": {
       "current_state": "verified",
@@ -245,7 +281,17 @@
       "next_transition": "Exercise the architecture on a real Case with a long-running build and retain Agent-loop, gate, ledger, and timing evidence.",
       "blockers": [],
       "priority": "high",
-      "confidence": "high"
+      "confidence": "high",
+      "desired_conditions": [
+        {
+          "id": "changed-contracts-remain-explainable",
+          "applies_when": "A Case changes architecture, data models, APIs, integration boundaries, runtime contracts, or important technical constraints.",
+          "must_hold": "The resulting technical contract is coherent, explainable, and durably recoverable.",
+          "evidence_expectation": "Persistent technical evidence sufficient to recover the decision, constraints, and affected boundaries.",
+          "priority": "required",
+          "status": "active"
+        }
+      ]
     },
     "implementation_coverage": {
       "current_state": "accepted",
@@ -305,7 +351,17 @@
       "next_transition": "",
       "blockers": [],
       "priority": "none",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": [
+        {
+          "id": "accepted-facts-are-realized",
+          "applies_when": "A Case requires executable behavior or changes existing implementation.",
+          "must_hold": "The implementation realizes all relevant accepted facts and upheld desired conditions.",
+          "evidence_expectation": "Code and implementation evidence traceable to the relevant Case facts and conditions.",
+          "priority": "required",
+          "status": "active"
+        }
+      ]
     },
     "quality_validation": {
       "current_state": "accepted",
@@ -371,7 +427,17 @@
       "next_transition": "",
       "blockers": [],
       "priority": "none",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": [
+        {
+          "id": "material-risks-have-credible-evidence",
+          "applies_when": "A Case changes behavior, contracts, implementation, data, integration, security, delivery, or another risk-bearing surface.",
+          "must_hold": "Material correctness and regression risks are covered by credible, repeatable verification evidence.",
+          "evidence_expectation": "Tests, checks, inspection, or operational evidence proportionate to the identified risks.",
+          "priority": "required",
+          "status": "active"
+        }
+      ]
     },
     "security_privacy": {
       "current_state": "defined",
@@ -386,7 +452,8 @@
       "next_transition": "在涉及远程服务、账号或受控资源的目标项目中验证安全/隐私维度。",
       "blockers": [],
       "priority": "medium",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": []
     },
     "delivery_operation": {
       "current_state": "verified",
@@ -405,7 +472,8 @@
       "next_transition": "Use the installed skill in a fresh real Runtime task, then decide whether release or team distribution evidence is required.",
       "blockers": [],
       "priority": "medium",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": []
     },
     "observability_support": {
       "current_state": "accepted",
@@ -436,7 +504,8 @@
       "next_transition": "",
       "blockers": [],
       "priority": "none",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": []
     },
     "maintainability_handoff": {
       "current_state": "accepted",
@@ -477,7 +546,8 @@
       "next_transition": "",
       "blockers": [],
       "priority": "none",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": []
     },
     "iteration_governance": {
       "current_state": "verified",
@@ -497,7 +567,8 @@
       "next_transition": "Use the active iteration in a real complex project loop and accept it only after durable end-to-end evidence.",
       "blockers": [],
       "priority": "high",
-      "confidence": "medium"
+      "confidence": "medium",
+      "desired_conditions": []
     }
   },
   "state_gaps": [
@@ -669,19 +740,22 @@
     "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
     "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md",
     "arckit/cases/closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md",
-    "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md"
+    "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md",
+    "arckit/cases/closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md",
+    "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
   ],
   "last_state_delta": {
     "changed_dimensions": [],
     "state_transitions": [],
+    "condition_changes": [],
     "deferred_dimensions": [],
     "blocked_dimensions": [],
     "case_refs": [
-      "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md"
+      "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
     ],
     "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
     "next_project_focus": "Create the next bounded Case from the remaining Project state_gaps.",
-    "updated_at": "2026-08-09T14:55:14.667Z"
+    "updated_at": "2026-08-09T18:42:34.239Z"
   },
   "case_control": {
     "next_case_intent": "Create the next bounded Case from the remaining Project state_gaps.",

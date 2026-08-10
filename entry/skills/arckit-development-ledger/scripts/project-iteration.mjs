@@ -139,7 +139,7 @@ function createRecord({ title, goal = '' }) {
     active_case_refs: [],
     closed_case_refs: [],
     close_condition: '',
-    last_case_aggregation: { case_ref: '', project_changes: [], evidence: [], updated_at: timestamp },
+    last_case_aggregation: { case_ref: '', project_changes: [], condition_changes: [], evidence: [], updated_at: timestamp },
   };
 }
 
@@ -333,9 +333,10 @@ export function validateIterationStateRecord(record, file = '<record>') {
   if (!record.last_case_aggregation || typeof record.last_case_aggregation !== 'object' || Array.isArray(record.last_case_aggregation)) {
     errors.push(`${file}: last_case_aggregation must be an object`);
   } else {
-    rejectUnknownKeys(record.last_case_aggregation, new Set(['case_ref', 'project_changes', 'evidence', 'updated_at']), 'last_case_aggregation', errors, file);
+    rejectUnknownKeys(record.last_case_aggregation, new Set(['case_ref', 'project_changes', 'condition_changes', 'evidence', 'updated_at']), 'last_case_aggregation', errors, file);
     if (typeof record.last_case_aggregation.case_ref !== 'string') errors.push(`${file}: last_case_aggregation.case_ref must be a string`);
     if (!Array.isArray(record.last_case_aggregation.project_changes)) errors.push(`${file}: last_case_aggregation.project_changes must be an array`);
+    if (record.last_case_aggregation.condition_changes !== undefined && !Array.isArray(record.last_case_aggregation.condition_changes)) errors.push(`${file}: last_case_aggregation.condition_changes must be an array`);
     validateStringArray(record.last_case_aggregation.evidence, 'last_case_aggregation.evidence', errors, file, { nonEmpty: true, unique: true });
     for (const evidence of Array.isArray(record.last_case_aggregation.evidence) ? record.last_case_aggregation.evidence : []) if (isVolatileEvidenceRef(evidence)) errors.push(`${file}: last_case_aggregation.evidence contains volatile ref: ${evidence}`);
     if (typeof record.last_case_aggregation.updated_at !== 'string' || !record.last_case_aggregation.updated_at) errors.push(`${file}: last_case_aggregation.updated_at must be non-empty`);

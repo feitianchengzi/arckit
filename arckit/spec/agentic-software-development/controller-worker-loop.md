@@ -26,9 +26,10 @@ Loop 是一次可验证的 Case 状态推进，不等于 Agent 内部每次工�
 2. 判断用户输入是新事项、继续、补充、纠错、目标变化、暂停或状态查询。
 3. 选择一个 active Case 与一个完整 candidate gap；没有合适 Case 时请求 `case_control.create_case`。
 4. 在当前 turn 内使用适合的事实、skills 和工具完成该 gap 所需工作。
-5. 执行与风险相称的验证和自我审查。
-6. 输出 evidence-backed transition 或 human/external handoff。
-7. ledger 写回成功后，在同一对话基于 fresh state 继续下一个 gap。
+5. 记录本轮确认或改变的事实，判断它们对 Project desired conditions 的实际影响，并为 threatened 或 undetermined condition 形成后续 gap。
+6. 执行与风险相称的验证和自我审查。
+7. 输出 evidence-backed transition 或 human/external handoff。
+8. ledger 写回成功后，在同一对话基于 fresh state 继续下一个 gap。
 
 用户不需要为概念上的“计划—执行—复审”创建多个对话。验证、修复和提交继续使用当前对话。
 
@@ -53,11 +54,7 @@ Runtime invocation 只提供自然的 `$using-arckit` 触发、真实用户意�
 
 每次成功 ledger 写回后，Runtime 用该 thread 最新请求的 input tokens 除以模型 context window 计算上下文占用率。占用率达到 80% 时，Runtime 在同一 thread 完成上下文压缩并等待压缩成功，再发起下一 gap turn。压缩不创建新对话，也不改变 canonical state。
 
-自动执行只在以下情况暂停：
-
-- `next_responsibility=human`：需要真实人类判断或授权。
-- `next_responsibility=external`：等待外部结果，且没有其它 agent-owned gap。
-- 连续没有 canonical ledger 进展并触发恢复保护，或确定性基础设施失败。
+自动执行持续到 Case resolved。只有下一步真实需要人类判断或授权时才把控制权交给人类；external wait 保持为可恢复等待而不伪装成人工责任。确定性基础设施失败或连续无 canonical 进展会进入明确恢复状态，不以生产性轮次、总墙钟或长命令时长停止。
 
 总墙钟、生产性 Loop 数和长命令时长不是停止条件。每个 Loop 仍串行推进一个 gap；不通过合并 gap 或默认并发来换取速度。
 
@@ -77,14 +74,15 @@ Runtime invocation 只提供自然的 `$using-arckit` 触发、真实用户意�
 2. 从全部 active Cases 中选择一个 Case，再从 unordered `candidate_gaps` 选择一个 gap。
 3. 形成 `planned_transition.goal`、expected state change 与 evidence requirement。
 4. 当前 Agent 自主使用必要 skills/tools 完成事实维护、诊断、实现、构建、测试和自我审查。
-5. 分离 `round_outcome`、`case_resolution`、`project_impact_candidate` 与 handoff。
-6. 提交绑定 Case revision、observed Project revision 和完整 selected gap 的 `arckit-case-transition/v3`。
-7. Runtime 通过结构、revision、授权、路径和 ledger legality gate 后调用 trusted ledger。
-8. 写回成功后 fresh-read，再选择下一个 gap。
+5. 形成本轮 accepted facts，判断与 Project desired conditions 的 state impacts，并添加必要的后续 dynamic gaps。
+6. 分离 `round_outcome`、`case_resolution`、`project_impact_candidate` 与 handoff。
+7. 提交绑定 Case revision、observed Project revision 和完整 selected gap 的 Case transition。
+8. Runtime 通过结构、revision、授权、路径和 ledger legality gate 后调用 trusted ledger。
+9. 写回成功后 fresh-read，再选择下一个 gap。
 
-Runtime 不把 transition 中的一个 facet claim 当成 Case 已关闭，也不让语义 resolved claim 覆盖结构 guard 的否决。Agent 可以提交 unresolved repair transition；有 blocker 的 resolved claim 不能进入 writeback。
+Runtime 不把单个 gap 完成当成 Case 已关闭，也不让语义 resolved claim 覆盖结构 guard 的否决。Agent 可以提交 unresolved transition，并在同轮添加从新事实发现的后续 gap；有 blocker、未闭合 state impact 或 open gap 的 resolved claim 不能进入 writeback。
 
-Case 六个 facets 达到目标只表示 `base_ready`。当前 content revision 仍需 correctness、completeness、minimality 复审。复审、finding 修复和复验均由当前 Agent在同一 task thread 完成；最后一个授权自主复审仍有 findings 时转 human responsibility。
+Case 的相关 state impacts 与全部实际 gaps 闭合后，当前 content revision 仍需以实现正确性、验证可信度、回归风险和最小性为重点的完成态复审。复审、finding 修复和复验均由当前 Agent在同一 task thread 完成；最后一个授权自主复审仍有 findings 时转 human responsibility。
 
 ## Closeout 与 handoff
 
