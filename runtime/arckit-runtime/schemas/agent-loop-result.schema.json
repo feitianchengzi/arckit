@@ -6,10 +6,10 @@
   "required": ["schema_version", "action", "summary", "case_control", "case_transition", "changed_files", "artifact_impacts", "risks", "unknowns", "handoff"],
   "properties": {
     "schema_version": { "type": "string", "const": "arckit-agent-loop-result/v1" },
-    "action": { "type": "string", "enum": ["case_control", "case_transition", "handoff"] },
+    "action": { "enum": ["case_control", "case_transition", "handoff"] },
     "summary": { "type": "string" },
     "case_control": { "anyOf": [{ "$ref": "#/$defs/case_control" }, { "type": "null" }] },
-    "case_transition": { "anyOf": [{ "$ref": "#/$defs/case_transition_v4" }, { "type": "null" }] },
+    "case_transition": { "anyOf": [{ "$ref": "#/$defs/case_transition" }, { "type": "null" }] },
     "changed_files": { "type": "array", "items": { "type": "string" } },
     "artifact_impacts": { "type": "array", "items": { "$ref": "#/$defs/artifact_impact" } },
     "risks": { "type": "array", "items": { "type": "string" } },
@@ -25,280 +25,219 @@
         "title": { "type": "string" },
         "intent": { "type": "string" },
         "expected_outcome": { "type": "string" },
-        "artifact_type": { "type": "string", "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"] },
+        "artifact_type": { "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"] },
         "selection_reason": { "type": "string" },
-        "initial_facts": { "type": "array", "items": { "$ref": "#/$defs/fact_v4" } },
-        "initial_impacts": { "type": "array", "items": { "$ref": "#/$defs/impact_v4" } },
-        "initial_gaps": { "type": "array", "items": { "$ref": "#/$defs/gap_v4" } }
+        "initial_facts": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
+        "initial_impacts": { "type": "array", "items": { "$ref": "#/$defs/impact" } },
+        "initial_gaps": { "type": "array", "items": { "$ref": "#/$defs/gap" } }
       },
       "additionalProperties": false
     },
-    "case_transition_v4": {
+    "case_transition": {
       "type": "object",
-      "required": ["schema_version", "case_id", "case_updated_at", "project_updated_at", "selected_gap", "planned_transition", "accepted_state_delta", "evidence", "unresolved", "round_outcome", "case_resolution", "project_impact_candidate"],
+      "required": ["schema_version", "case_id", "case_updated_at", "project_revision", "selected_gap", "planned_transition", "accepted_state_delta", "project_state_delta", "evidence", "unresolved", "round_outcome", "case_resolution"],
       "properties": {
-        "schema_version": { "type": "string", "const": "arckit-case-transition/v4" },
+        "schema_version": { "type": "string", "const": "arckit-case-transition/v5" },
         "case_id": { "type": "string" },
         "case_updated_at": { "type": "string" },
-        "project_updated_at": { "type": "string" },
-        "selected_gap": { "$ref": "#/$defs/selected_gap_v4" },
-        "planned_transition": { "$ref": "#/$defs/planned_transition" },
-        "accepted_state_delta": { "$ref": "#/$defs/accepted_state_delta_v4" },
-        "evidence": { "type": "array", "items": { "type": "string" } },
+        "project_revision": { "type": "integer", "minimum": 0 },
+        "selected_gap": { "$ref": "#/$defs/selected_gap" },
+        "planned_transition": {
+          "type": "object",
+          "required": ["goal", "expected_state_change"],
+          "properties": { "goal": { "type": "string" }, "expected_state_change": { "type": "string" } },
+          "additionalProperties": false
+        },
+        "accepted_state_delta": { "$ref": "#/$defs/accepted_state_delta" },
+        "project_state_delta": { "$ref": "#/$defs/project_state_delta" },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "unresolved": { "type": "array", "items": { "type": "string" } },
-        "round_outcome": { "type": "string", "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] },
-        "case_resolution": { "$ref": "#/$defs/case_resolution_v4" },
-        "project_impact_candidate": { "$ref": "#/$defs/project_impact" }
+        "round_outcome": { "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] },
+        "case_resolution": {
+          "type": "object",
+          "required": ["claimed_status", "reason"],
+          "properties": { "claimed_status": { "enum": ["unresolved", "resolved"] }, "reason": { "type": "string" } },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },
-    "selected_gap_v4": {
+    "selected_gap": {
       "type": "object",
       "required": ["id", "responsibility", "goal", "reason", "derived_from", "blocked_by", "priority_basis", "evidence_required"],
       "properties": {
         "id": { "type": "string" },
-        "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
+        "responsibility": { "enum": ["agent", "human", "external"] },
         "goal": { "type": "string" },
         "reason": { "type": "string" },
         "derived_from": { "type": "array", "items": { "type": "string" } },
         "blocked_by": { "type": "array", "items": { "type": "string" } },
-        "priority_basis": { "$ref": "#/$defs/priority_basis_v4" },
+        "priority_basis": { "$ref": "#/$defs/priority_basis" },
         "evidence_required": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },
-    "planned_transition": {
-      "type": "object",
-      "required": ["goal", "expected_state_change"],
-      "properties": {
-        "goal": { "type": "string" },
-        "expected_state_change": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
-    "accepted_state_delta_v4": {
+    "accepted_state_delta": {
       "type": "object",
       "required": ["resolved_gap", "facts_added", "facts_superseded", "impacts_added", "impacts_updated", "gaps_added", "gaps_cancelled", "resolved_open_questions", "completed_handoffs", "completion_review_result", "resolved_review_findings", "review_budget_extension"],
       "properties": {
-        "resolved_gap": { "anyOf": [{ "$ref": "#/$defs/gap_resolution_v4" }, { "type": "null" }] },
-        "facts_added": { "type": "array", "items": { "$ref": "#/$defs/fact_v4" } },
-        "facts_superseded": { "type": "array", "items": { "$ref": "#/$defs/fact_supersession_v4" } },
-        "impacts_added": { "type": "array", "items": { "$ref": "#/$defs/impact_v4" } },
-        "impacts_updated": { "type": "array", "items": { "$ref": "#/$defs/impact_v4" } },
-        "gaps_added": { "type": "array", "items": { "$ref": "#/$defs/gap_v4" } },
-        "gaps_cancelled": { "type": "array", "items": { "$ref": "#/$defs/gap_resolution_v4" } },
+        "resolved_gap": { "type": ["object", "null"] },
+        "facts_added": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
+        "facts_superseded": { "type": "array", "items": { "$ref": "#/$defs/fact_supersession" } },
+        "impacts_added": { "type": "array", "items": { "$ref": "#/$defs/impact" } },
+        "impacts_updated": { "type": "array", "items": { "$ref": "#/$defs/impact" } },
+        "gaps_added": { "type": "array", "items": { "$ref": "#/$defs/gap" } },
+        "gaps_cancelled": { "type": "array", "items": { "$ref": "#/$defs/gap_resolution" } },
         "resolved_open_questions": { "type": "array", "items": { "type": "string" } },
         "completed_handoffs": { "type": "array", "items": { "type": "string" } },
-        "completion_review_result": { "anyOf": [{ "$ref": "#/$defs/completion_review_result_v4" }, { "type": "null" }] },
+        "completion_review_result": { "type": ["object", "null"] },
         "resolved_review_findings": { "type": "array", "items": { "type": "string" } },
-        "review_budget_extension": { "anyOf": [{ "$ref": "#/$defs/review_budget_extension" }, { "type": "null" }] }
+        "review_budget_extension": { "type": ["object", "null"] }
       },
       "additionalProperties": false
     },
-    "priority_basis_v4": {
+    "project_state_delta": {
       "type": "object",
-      "required": ["blocking", "uncertainty", "risk", "user_impact"],
+      "required": ["software_definition_changes", "software_invariant_changes", "project_gap_changes", "selection_context_change", "evidence"],
       "properties": {
-        "blocking": { "type": "string" },
-        "uncertainty": { "type": "string" },
-        "risk": { "type": "string" },
-        "user_impact": { "type": "string" }
+        "software_definition_changes": { "type": "array", "items": { "$ref": "#/$defs/software_definition_change" } },
+        "software_invariant_changes": { "type": "array", "items": { "$ref": "#/$defs/software_invariant_change" } },
+        "project_gap_changes": { "type": "array", "items": { "$ref": "#/$defs/project_gap_change" } },
+        "selection_context_change": { "type": ["object", "null"] },
+        "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },
-    "fact_v4": {
+    "fact": {
       "type": "object",
       "required": ["id", "revision", "status", "statement", "basis", "evidence"],
       "properties": {
-        "id": { "type": "string" },
-        "revision": { "type": "integer" },
-        "status": { "type": "string", "enum": ["accepted", "superseded"] },
-        "statement": { "type": "string" },
-        "basis": { "type": "string" },
-        "evidence": { "type": "array", "items": { "type": "string" } }
+        "id": { "type": "string" }, "revision": { "type": "integer", "minimum": 1 },
+        "status": { "enum": ["accepted", "superseded"] }, "statement": { "type": "string" },
+        "basis": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },
-    "fact_supersession_v4": {
+    "impact": {
       "type": "object",
-      "required": ["id", "revision", "reason", "evidence"],
+      "required": ["id", "fact_id", "fact_revision", "target", "effect", "reason", "gap_ids", "evidence"],
       "properties": {
-        "id": { "type": "string" },
-        "revision": { "type": "integer" },
-        "reason": { "type": "string" },
-        "evidence": { "type": "array", "items": { "type": "string" } }
+        "id": { "type": "string" }, "fact_id": { "type": "string" }, "fact_revision": { "type": "integer", "minimum": 1 },
+        "target": {
+          "type": "object", "required": ["kind", "ref", "revision"],
+          "properties": { "kind": { "enum": ["software_decision", "software_invariant"] }, "ref": { "type": "string" }, "revision": { "type": ["integer", "null"] } },
+          "additionalProperties": false
+        },
+        "effect": { "enum": ["upheld", "threatened", "undetermined"] }, "reason": { "type": "string" },
+        "gap_ids": { "type": "array", "items": { "type": "string" } }, "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },
-    "impact_v4": {
-      "type": "object",
-      "required": ["id", "fact_id", "fact_revision", "condition_ref", "effect", "reason", "gap_ids", "evidence"],
-      "properties": {
-        "id": { "type": "string" },
-        "fact_id": { "type": "string" },
-        "fact_revision": { "type": "integer" },
-        "condition_ref": { "type": "string" },
-        "effect": { "type": "string", "enum": ["upheld", "threatened", "undetermined"] },
-        "reason": { "type": "string" },
-        "gap_ids": { "type": "array", "items": { "type": "string" } },
-        "evidence": { "type": "array", "items": { "type": "string" } }
-      },
-      "additionalProperties": false
-    },
-    "gap_v4": {
+    "gap": {
       "type": "object",
       "required": ["id", "status", "goal", "reason", "derived_from", "blocked_by", "priority_basis", "responsibility", "evidence_required", "resolution"],
       "properties": {
-        "id": { "type": "string" },
-        "status": { "type": "string", "const": "open" },
-        "goal": { "type": "string" },
-        "reason": { "type": "string" },
+        "id": { "type": "string" }, "status": { "enum": ["open", "resolved", "cancelled"] },
+        "goal": { "type": "string" }, "reason": { "type": "string" },
         "derived_from": { "type": "array", "items": { "type": "string" } },
         "blocked_by": { "type": "array", "items": { "type": "string" } },
-        "priority_basis": { "$ref": "#/$defs/priority_basis_v4" },
-        "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
-        "evidence_required": { "type": "array", "items": { "type": "string" } },
-        "resolution": { "type": "null" }
+        "priority_basis": { "$ref": "#/$defs/priority_basis" }, "responsibility": { "enum": ["agent", "human", "external"] },
+        "evidence_required": { "type": "array", "items": { "type": "string" } }, "resolution": { "type": ["object", "null"] }
       },
       "additionalProperties": false
     },
-    "gap_resolution_v4": {
+    "priority_basis": {
+      "type": "object",
+      "required": ["blocking", "uncertainty", "risk", "user_impact"],
+      "properties": {
+        "blocking": { "type": "string" }, "uncertainty": { "type": "string" },
+        "risk": { "type": "string" }, "user_impact": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "fact_supersession": {
+      "type": "object",
+      "required": ["id", "revision", "reason", "evidence"],
+      "properties": {
+        "id": { "type": "string" }, "revision": { "type": "integer", "minimum": 1 },
+        "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "gap_resolution": {
       "type": "object",
       "required": ["id", "status", "outcome", "reason", "evidence"],
       "properties": {
-        "id": { "type": "string" },
-        "status": { "type": "string", "enum": ["resolved", "cancelled"] },
-        "outcome": { "type": "string" },
-        "reason": { "type": "string" },
+        "id": { "type": "string" }, "status": { "enum": ["resolved", "cancelled"] },
+        "outcome": { "type": "string" }, "reason": { "type": "string" },
         "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },
-    "completion_review_result_v4": {
+    "software_definition_change": {
       "type": "object",
-      "required": ["outcome", "reviewer", "reviewed_content_revision", "dimensions", "findings", "evidence"],
+      "required": ["area_ref", "observed_revision", "set_decision", "gap_refs", "reason", "evidence"],
       "properties": {
-        "outcome": { "type": "string", "enum": ["clean", "findings", "needs_human"] },
-        "reviewer": { "type": "string", "enum": ["agent", "human"] },
-        "reviewed_content_revision": { "type": "integer" },
-        "dimensions": { "$ref": "#/$defs/review_dimensions_v4" },
-        "findings": { "type": "array", "items": { "$ref": "#/$defs/new_review_finding_v4" } },
-        "evidence": { "type": "array", "items": { "type": "string" } }
+        "area_ref": { "type": "string" }, "observed_revision": { "type": "integer", "minimum": 0 },
+        "set_decision": { "$ref": "#/$defs/software_decision" },
+        "gap_refs": { "type": "array", "items": { "type": "string" } },
+        "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },
-    "review_dimensions_v4": {
+    "software_invariant_change": {
       "type": "object",
-      "required": ["implementation_correctness", "problem_resolution", "verification_credibility", "regression_risk", "minimality"],
+      "required": ["action", "invariant", "reason", "evidence"],
       "properties": {
-        "implementation_correctness": { "type": "string", "enum": ["clean", "findings"] },
-        "problem_resolution": { "type": "string", "enum": ["clean", "findings"] },
-        "verification_credibility": { "type": "string", "enum": ["clean", "findings"] },
-        "regression_risk": { "type": "string", "enum": ["clean", "findings"] },
-        "minimality": { "type": "string", "enum": ["clean", "findings"] }
+        "action": { "enum": ["add", "update", "retire"] },
+        "invariant": { "$ref": "#/$defs/software_invariant" },
+        "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },
-    "new_review_finding_v4": {
+    "project_gap_change": {
       "type": "object",
-      "required": ["id", "kind", "statement", "responsibility", "artifact_refs", "evidence"],
+      "required": ["action", "gap", "gap_id", "reason", "evidence"],
       "properties": {
-        "id": { "type": "string" },
-        "kind": { "type": "string", "enum": ["error", "omission", "excess"] },
-        "statement": { "type": "string" },
-        "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
-        "artifact_refs": { "type": "array", "items": { "type": "string" } },
-        "evidence": { "type": "array", "items": { "type": "string" } }
+        "action": { "enum": ["add", "update", "resolve"] },
+        "gap": { "type": ["object", "null"] }, "gap_id": { "type": "string" },
+        "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
     },
-    "review_budget_extension": {
+    "software_decision": {
       "type": "object",
-      "required": ["additional_cycles", "authorized_by", "reason", "evidence"],
+      "required": ["status", "statement", "reason", "evidence", "confidence", "resume_condition"],
       "properties": {
-        "additional_cycles": { "type": "integer", "minimum": 1 },
-        "authorized_by": { "type": "string", "const": "human" },
-        "reason": { "type": "string" },
-        "evidence": { "type": "array", "items": { "type": "string" } }
-      },
-      "additionalProperties": false
-    },
-    "case_resolution_v4": {
-      "type": "object",
-      "required": ["claimed_status", "reason"],
-      "properties": {
-        "claimed_status": { "type": "string", "enum": ["unresolved", "resolved"] },
-        "reason": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
-    "project_impact": {
-      "type": "object",
-      "required": ["status", "changes", "condition_changes", "evidence"],
-      "properties": {
-        "status": { "type": "string", "enum": ["none", "proposed", "accepted"] },
-        "changes": { "type": "array", "items": { "$ref": "#/$defs/project_impact_change" } },
-        "condition_changes": { "type": "array", "items": { "$ref": "#/$defs/condition_change" } },
-        "evidence": { "type": "array", "items": { "type": "string" } }
-      },
-      "additionalProperties": false
-    },
-    "condition_change": {
-      "type": "object",
-      "required": ["action", "dimension", "condition", "reason", "evidence"],
-      "properties": {
-        "action": { "type": "string", "enum": ["add", "update", "retire"] },
-        "dimension": { "type": "string" },
-        "condition": { "$ref": "#/$defs/desired_condition" },
-        "reason": { "type": "string" },
-        "evidence": { "type": "array", "items": { "type": "string" } }
-      },
-      "additionalProperties": false
-    },
-    "desired_condition": {
-      "type": "object",
-      "required": ["id", "applies_when", "must_hold", "evidence_expectation", "priority", "status"],
-      "properties": {
-        "id": { "type": "string" },
-        "applies_when": { "type": "string" },
-        "must_hold": { "type": "string" },
-        "evidence_expectation": { "type": "string" },
-        "priority": { "type": "string", "enum": ["required", "recommended", "informational"] },
-        "status": { "type": "string", "enum": ["active", "retired"] }
-      },
-      "additionalProperties": false
-    },
-    "project_impact_change": {
-      "type": "object",
-      "required": ["dimension", "from_state", "to_state", "reason", "evidence", "evidence_maturity"],
-      "properties": {
-        "dimension": { "type": "string" },
-        "from_state": { "type": "string" },
-        "to_state": { "type": "string" },
-        "reason": { "type": "string" },
+        "status": { "enum": ["open", "settled", "deferred", "stale"] },
+        "statement": { "type": "string" }, "reason": { "type": "string" },
         "evidence": { "type": "array", "items": { "type": "string" } },
-        "evidence_maturity": { "type": ["string", "null"] }
+        "confidence": { "enum": ["low", "medium", "high"] }, "resume_condition": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "software_invariant": {
+      "type": "object",
+      "required": ["id", "applies_when", "must_hold", "evidence_expectation", "priority"],
+      "properties": {
+        "id": { "type": "string" }, "applies_when": { "type": "string" },
+        "must_hold": { "type": "string" }, "evidence_expectation": { "type": "string" },
+        "priority": { "enum": ["required", "recommended", "informational"] }
       },
       "additionalProperties": false
     },
     "artifact_impact": {
       "type": "object",
       "required": ["path", "claim", "summary"],
-      "properties": {
-        "path": { "type": "string" },
-        "claim": { "type": "string" },
-        "summary": { "type": "string" }
-      },
+      "properties": { "path": { "type": "string" }, "claim": { "type": "string" }, "summary": { "type": "string" } },
       "additionalProperties": false
     },
     "handoff": {
       "type": "object",
       "required": ["next_responsibility", "reason", "next_prompt", "human_decision_required"],
       "properties": {
-        "next_responsibility": { "type": "string", "enum": ["agent", "human", "external", "none"] },
-        "reason": { "type": "string" },
-        "next_prompt": { "type": "string" },
-        "human_decision_required": { "type": "boolean" }
+        "next_responsibility": { "enum": ["agent", "human", "external", "none"] },
+        "reason": { "type": "string" }, "next_prompt": { "type": "string" }, "human_decision_required": { "type": "boolean" }
       },
       "additionalProperties": false
     }

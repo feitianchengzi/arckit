@@ -12,15 +12,15 @@ import {
 } from '../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs';
 import { selectNextRound } from '../src/loop-controller.mjs';
 
-test('the current ledger rejects old Case and transition protocols', () => {
+test('the ledger accepts only current Case and transition schema versions', () => {
   const record = caseRecord();
-  const legacyRecord = { ...structuredClone(record), schema_version: 'development-case-record/v3' };
-  assert.match(validateCaseRecord(legacyRecord).join('\n'), /development-case-record\/v4/);
-  assert.throws(() => auditCaseRecord(legacyRecord), /expected development-case-record\/v4/);
+  const unsupportedRecord = { ...structuredClone(record), schema_version: 'unsupported-case-state' };
+  assert.match(validateCaseRecord(unsupportedRecord).join('\n'), /development-case-record\/v5/);
+  assert.throws(() => auditCaseRecord(unsupportedRecord), /expected development-case-record\/v5/);
 
-  const legacyTransition = { ...transition(record), schema_version: 'arckit-case-transition/v3' };
-  assert.match(validateCaseTransition(legacyTransition).join('\n'), /arckit-case-transition\/v4/);
-  assert.throws(() => applyCaseTransitionToRecord(legacyRecord, legacyTransition), /expected development-case-record\/v4/);
+  const unsupportedTransition = { ...transition(record), schema_version: 'unsupported-case-transition' };
+  assert.match(validateCaseTransition(unsupportedTransition).join('\n'), /arckit-case-transition\/v5/);
+  assert.throws(() => applyCaseTransitionToRecord(unsupportedRecord, unsupportedTransition), /arckit-case-transition\/v5/);
 });
 
 test('a selected gap must match the complete fresh candidate snapshot', () => {
@@ -105,7 +105,7 @@ test('Runtime exposes all active Cases for Agent selection without preselecting 
   const record = caseRecord();
   const ref = 'arckit/cases/active/CASE-example.md';
   const round = selectNextRound({
-    projectState: { case_control: { next_case_intent: 'Advance the most valuable gap.' }, state_gaps: [] },
+    projectState: { advancement: { selection_context: { next_case_intent: 'Advance the most valuable gap.' }, project_gaps: [] } },
     activeCases: [{ ref, record }],
     paths: { projectState: 'arckit/project/state.record.json', activeCases: [ref] },
   });
@@ -140,16 +140,16 @@ function transition(record, delta = {}) {
 
 function baseTransition(record, selected) {
   return {
-    schema_version: 'arckit-case-transition/v4', case_id: record.id, case_updated_at: record.updated_at,
-    project_updated_at: 'project-rev', selected_gap: structuredClone(selected),
+    schema_version: 'arckit-case-transition/v5', case_id: record.id, case_updated_at: record.updated_at,
+    project_revision: 0, selected_gap: structuredClone(selected),
     planned_transition: { goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
     accepted_state_delta: {
       resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [],
       resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null,
     },
+    project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
     evidence: ['debug/root-cause.md'], unresolved: ['completion_review'], round_outcome: 'completed',
     case_resolution: { claimed_status: 'unresolved', reason: 'More Case work remains.' },
-    project_impact_candidate: { status: 'none', changes: [], condition_changes: [], evidence: [] },
   };
 }
 

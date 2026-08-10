@@ -5,11 +5,13 @@ import test from "node:test";
 
 import { runAgenticLoop } from "../src/agent-orchestrator.mjs";
 import { compilePrompt } from "../src/prompt-compiler.mjs";
+import { createProjectStateRecord } from "../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDir, "../../..");
 
 test("default execution uses one coherent using-arckit Agent turn for one Case gap", async () => {
+  const caseId = "CASE-20260810-001";
   const gap = {
     id: "GAP-IMPLEMENT",
     responsibility: "agent",
@@ -23,18 +25,19 @@ test("default execution uses one coherent using-arckit Agent turn for one Case g
   const snapshot = {
     projectRoot: repositoryRoot,
     summary: { project_name: "Arckit", current_phase: "implementation", active_case_count: 1 },
-    projectState: {
-      project: { updated_at: "2026-08-09T00:00:00.000Z" },
-      state_gaps: [],
-      active_case_refs: ["arckit/cases/active/CASE-1.md"]
-    },
+    projectState: (() => {
+      const state = createProjectStateRecord({ name: "Arckit", intent: "Advance one coherent Agent loop." });
+      state.advancement.active_case_refs = ["arckit/cases/active/CASE-1.md"];
+      return state;
+    })(),
     activeCases: [{
       ref: "arckit/cases/active/CASE-1.md",
       record: {
-        id: "CASE-1",
+        id: caseId,
         title: "Coherent Agent Loop",
         status: "active",
-        schema_version: "development-case-record/v4",
+        schema_version: "development-case-record/v5",
+        artifact_type: "code",
         updated_at: "2026-08-09T00:01:00.000Z",
         user_intent: "Implement the bounded change.",
         expected_outcome: "The bounded behavior is correct and verified.",
@@ -56,7 +59,7 @@ test("default execution uses one coherent using-arckit Agent turn for one Case g
   };
   const round = {
     round_index: 1,
-    case_id: "CASE-1",
+    case_id: caseId,
     case_updated_at: "2026-08-09T00:01:00.000Z",
     gap_id: gap.id,
     responsibility: gap.responsibility,
@@ -70,7 +73,7 @@ test("default execution uses one coherent using-arckit Agent turn for one Case g
     required_outputs: [],
     stop_conditions: [],
     conversation_locale: "en",
-    candidate_cases: [{ case_id: "CASE-1", candidate_gaps: [gap] }],
+    candidate_cases: [{ case_id: caseId, candidate_gaps: [gap] }],
     candidate_case_gaps: [gap]
   };
   const calls = [];
@@ -80,7 +83,7 @@ test("default execution uses one coherent using-arckit Agent turn for one Case g
       calls.push(input);
       yield {
         type: "runtime.agent_loop_result",
-        result: agentLoopResult(gap)
+        result: agentLoopResult(gap, caseId)
       };
     }
   };
@@ -115,17 +118,17 @@ test("default execution uses one coherent using-arckit Agent turn for one Case g
   assert.equal(result.validation.valid, true, JSON.stringify(result.validation.issues));
 });
 
-function agentLoopResult(gap) {
+function agentLoopResult(gap, caseId) {
   return {
     schema_version: "arckit-agent-loop-result/v1",
     action: "case_transition",
     summary: "Implemented and verified one bounded Case gap.",
     case_control: null,
     case_transition: {
-      schema_version: "arckit-case-transition/v4",
-      case_id: "CASE-1",
+      schema_version: "arckit-case-transition/v5",
+      case_id: caseId,
       case_updated_at: "2026-08-09T00:01:00.000Z",
-      project_updated_at: "2026-08-09T00:00:00.000Z",
+      project_revision: 0,
       selected_gap: gap,
       planned_transition: {
         goal: "Implement and verify the bounded change.",
@@ -145,11 +148,14 @@ function agentLoopResult(gap) {
         resolved_review_findings: [],
         review_budget_extension: null
       },
+      project_state_delta: {
+        software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [],
+        selection_context_change: null, evidence: []
+      },
       evidence: ["test:coherent-agent-loop"],
       unresolved: ["completion_review"],
       round_outcome: "completed",
-      case_resolution: { claimed_status: "unresolved", reason: "Verification remains." },
-      project_impact_candidate: { status: "none", changes: [], condition_changes: [], evidence: [] }
+      case_resolution: { claimed_status: "unresolved", reason: "Verification remains." }
     },
     changed_files: ["runtime/arckit-runtime/src/agent-orchestrator.mjs"],
     artifact_impacts: [{

@@ -7,7 +7,7 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   let roundCalls = 0;
   let ledgerCalls = 0;
   const adapter = closeoutAdapter();
-  const snapshots = [snapshot("REV-1"), snapshot("REV-2")];
+  const snapshots = [snapshot(1), snapshot(2)];
   const stateStore = {
     async readSnapshot() {
       return snapshots[reads++];
@@ -28,7 +28,7 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
       async runRound({ snapshot: current, options }) {
         roundCalls += 1;
         assert.equal(options.agentAdapter, adapter);
-        assert.equal(current.projectState.project.updated_at, `REV-${roundCalls}`);
+        assert.equal(current.projectState.project.revision, roundCalls);
         return loopResult(roundCalls === 1 ? agentHandoff() : terminalHandoff());
       },
       async writeRoundLedger() {
@@ -96,7 +96,7 @@ test("state-driven results persist semantic events without raw Agent deltas", as
   const adapter = closeoutAdapter();
   const result = await runStateDrivenSession({
     projectRoot: "/workspace/project",
-    stateStore: { async readSnapshot() { return snapshot("REV-1"); } },
+    stateStore: { async readSnapshot() { return snapshot(1); } },
     options: { agentAdapter: adapter, task: "finish", maxNoProgressRounds: 2 },
     dependencies: {
       async runRound() {
@@ -133,10 +133,10 @@ test("state-driven results persist semantic events without raw Agent deltas", as
 function snapshot(revision) {
   return {
     projectState: {
-      project: { updated_at: revision },
-      case_control: {},
-      state_gaps: [],
-      active_case_refs: []
+      project: { revision },
+      advancement: { selection_context: {}, project_gaps: [], active_case_refs: [] },
+      software_definition: { decision_areas: [] },
+      software_invariants: []
     },
     activeCases: [],
     paths: {

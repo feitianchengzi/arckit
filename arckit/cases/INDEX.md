@@ -52,3 +52,4 @@
 | [CASE-20260809-005](closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md) | closed | Optimize Desktop conversation transcript interaction | 2026-08-09T14:55:14.667Z |
 | [CASE-20260809-006](closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md) | closed | Replace facet workflow with state-condition-driven dynamic gaps | 2026-08-09T18:05:45.856Z |
 | [CASE-20260809-007](closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md) | closed | Remove legacy facet state protocol compatibility | 2026-08-09T18:42:34.239Z |
+| [CASE-20260810-001](closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md) | closed | Implement explicit software-definition Project State | 2026-08-10T14:56:53.200Z |

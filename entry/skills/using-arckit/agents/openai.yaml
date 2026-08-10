@@ -1,7 +1,7 @@
 interface:
   display_name: "Using Arckit"
   short_description: "用同一 Agent 按 Case gap 持续推进软件开发"
-  default_prompt: "使用 $using-arckit 从 fresh Project/Case facts 选择唯一 Case 和一个 gap，在当前 Agent turn 内自行使用必要 skills/tools 执行、验证和审查，并返回一个有证据的 transition 或明确 handoff。不要默认拆成 Plan/Worker/Review，也不要直接写 ledger。"
+  default_prompt: "使用 $using-arckit 从 fresh Project 软件定义决策、抽象软件不变量、推进状态和全部相关 facts 中选择唯一 Case 与一个 gap，在当前 Agent turn 内自行使用必要 skills/tools 执行并验证，再返回带当轮 Project delta 的 transition 或明确 handoff。不要按清单制造流程，也不要直接写 ledger。"
 policy:
   allow_implicit_invocation: true
   turn_level_only: false
@@ -10,12 +10,13 @@ workflow:
     - "恢复 fresh Project State 和全部 active Cases。"
     - "选择一个 Case 和一个完整 candidate gap；无合适 Case 时请求 create_case。"
     - "在当前 Agent turn 内使用必要 skills/tools 完成一个 gap并收集证据。"
-    - "分离 round、Case、Project impact 与 handoff，提交 transition claim。"
+    - "分离 round、Case resolution、当轮 Project State delta 与 handoff，提交 transition claim。"
   boundaries:
     - "Runtime 只自动化外部控制、授权、续轮和 trusted ledger 调用，不替代 Agent 语义与工作区执行。"
     - "不要为了计划、执行或复审阶段制造额外 Agent invocation。"
     - "每个 Loop 只推进一个 gap；成功写回后 fresh-read，并在同一活动 thread 继续下一 turn。"
     - "只在需要人类责任时暂停；长命令和生产性 Round 不构成停止条件。"
+    - "Completion Review 只由 ledger 在普通工作闭合后派生；它不是 fact 或日常文档补齐步骤。"
   output:
     - "selected Case/gap or case_control"
     - "evidence and accepted Case delta"

@@ -8,7 +8,7 @@
     "round_result",
     "round_outcome",
     "case_outcome",
-    "project_impact",
+    "project_state_delta",
     "case_transition",
     "round_state",
     "round_state_history",
@@ -50,13 +50,14 @@
       },
       "additionalProperties": false
     },
-    "project_impact": {
+    "project_state_delta": {
       "type": "object",
-      "required": ["status", "changes", "evidence"],
+      "required": ["software_definition_changes", "software_invariant_changes", "project_gap_changes", "selection_context_change", "evidence"],
       "properties": {
-        "status": { "type": "string", "enum": ["none", "proposed", "accepted"] },
-        "changes": { "type": "array" },
-        "condition_changes": { "type": "array" },
+        "software_definition_changes": { "type": "array" },
+        "software_invariant_changes": { "type": "array" },
+        "project_gap_changes": { "type": "array" },
+        "selection_context_change": { "type": ["object", "null"] },
         "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
@@ -64,11 +65,11 @@
     "case_transition": { "type": ["object", "null"] },
     "case_control_handoff": {
       "type": "object",
-      "required": ["schema_version", "action", "expected_project_updated_at", "case_id", "title", "intent", "expected_outcome", "artifact_type", "selection_reason", "initial_facts", "initial_impacts", "initial_gaps", "review_policy"],
+      "required": ["schema_version", "action", "expected_project_revision", "case_id", "title", "intent", "expected_outcome", "artifact_type", "selection_reason", "initial_facts", "initial_impacts", "initial_gaps", "review_policy"],
       "properties": {
         "schema_version": { "type": "string", "const": "arckit-case-control-handoff/v1" },
         "action": { "type": "string", "const": "create_case" },
-        "expected_project_updated_at": { "type": "string" },
+        "expected_project_revision": { "type": "integer", "minimum": 0 },
         "case_id": { "type": "string" },
         "title": { "type": "string" },
         "intent": { "type": "string" },

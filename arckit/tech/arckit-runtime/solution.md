@@ -53,7 +53,7 @@ State Store 读取目标项目的 Arckit 状态入口：
 - `arckit/project/STATE.md`
 - `arckit/project/iterations/*.record.json`
 - `arckit/cases/INDEX.md`
-- `arckit/cases/active/*.md` 的完整 `development-case-record/v4`
+- `arckit/cases/active/*.md` 的完整 `development-case-record/v5`
 - `arckit/spec/INDEX.md`
 - `arckit/interaction/INDEX.md`
 - `arckit/visual/INDEX.md`
@@ -130,7 +130,7 @@ Preload 只暴露产品动作，Renderer 只消费 Automation Snapshot 和 Run a
 
 ### Loop Controller
 
-Loop Controller 先读取 Project State 的 `case_control`、desired conditions 和全部 active Cases。Project gap 只作为选择/创建 Case 的宏观依据；每个 active Case 的 facts、state impacts 与 `case_resolution.candidate_gaps` 都进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Agent 先为当前 Loop 选择唯一 Case，再结合阻塞、风险、信息增益、依赖、用户影响和可验证性选择具体 gap。Runtime 只验证 Case 与 gap 当前 active，不根据关键词、condition、固定优先级或 skill/path 映射拍板业务 route。
+Loop Controller 先读取 Project State 的 advancement、完整 software definition decisions、software invariants 和全部 active Cases。Project gap 只作为选择/创建 Case 的宏观依据；每个 active Case 的 facts、state impacts 与 `case_resolution.candidate_gaps` 都进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Agent 先为当前 Loop 选择唯一 Case，再结合阻塞、风险、信息增益、依赖、用户影响和可验证性选择具体 gap。Runtime 只验证 Case 与 gap 当前 active，不根据关键词、decision/invariant、固定优先级或 skill/path 映射拍板业务 route。
 
 本轮目标必须形成：
 
@@ -172,9 +172,9 @@ Prompt Compiler 为 Agent Loop 生成最小 invocation。首个 turn 包含自�
 
 默认 invocation 以 manifest 声明的自然 `$using-arckit` 文本 trigger 进入 Codex 原生 skill 机制，不额外发送 `skill` input item。其余内容只有 locale、原始待办意图、当前增量、bounded canonical facts、revision、execution authorization 和 compact output contract。Agent 在 turn 内自行读取必要仓库事实、发现其他 skills、执行工具并完成自我审查；Runtime 不拼接 skill 清单、固定 Worker role 或预测式 allowed paths。
 
-Runtime 从 fresh Project/Case records 确定性派生 Agent context digest。Digest 包含 Project revision、dimensions/desired conditions、项目级 gaps 和全部 active Cases 的意图、facts、state impacts、open/blocked/ready gaps、questions、handoffs、completion review 摘要与稳定引用。它不包含 raw transcript、模型 reasoning 或未接受 claim；Case schema 不匹配时直接拒绝运行。
+Runtime 从 fresh Project/Case records 确定性派生 Agent context digest。Digest 包含 Project revision、software decisions/invariants、advancement/project gaps 和全部 active Cases 的意图、facts、state impacts、open/blocked/ready gaps、questions、handoffs、completion review 摘要与稳定引用。它不包含 raw transcript、模型 reasoning 或未接受 claim；Case schema 不匹配时直接拒绝运行。
 
-`context_digest` 是有界的恢复索引，不是 transcript 摘要。它包含 Project/Case revisions、desired conditions、active Case selection facts、facts/impacts/candidate gaps、最近已接受 round 摘要、未解决问题和 canonical refs；不包含 raw event、完整历史 prompt、模型 reasoning 或未接受 claim。
+`context_digest` 是有界的恢复索引，不是 transcript 摘要。它包含 Project/Case revisions、software decisions/invariants、active Case selection facts、facts/impacts/candidate gaps、最近已接受 round 摘要、未解决问题和 canonical refs；不包含 raw event、完整历史 prompt、模型 reasoning 或未接受 claim。
 
 `arckit-agent-loop-result/v1` 的 `outputSchema` 遵循 Codex 严格结构化输出子集：`const` 同时声明显式 `type`，对象关闭额外属性并把全部属性列入 `required`，数组声明 `items`。Runtime 在创建 app-server thread 前递归预检这些约束，使无效 Schema 作为本地配置错误终止，而不是启动 turn 后才收到远端 `invalid_json_schema`。
 
@@ -295,7 +295,7 @@ Ledger Writer 是 Runtime hard gate 与 ledger skill entrypoint 之间的薄适�
 
 Ledger capability 负责将验证后的结果写回：
 
-- `arckit-case-transition/v4`
+- `arckit-case-transition/v5`
 - development Case record 与 derived candidate gaps/resolution
 - resolved Case 的显式 Project/iteration impact
 - Case、Project、iteration 的 indexes 与 projections

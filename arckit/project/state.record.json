@@ -1,765 +1,505 @@
 {
-  "schema_version": "project-state-record/v4",
+  "schema_version": "project-state-record/v5",
   "project": {
     "name": "Arckit Skill Repository",
     "status": "active",
+    "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-09T18:42:34.239Z",
-    "original_intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议",
-    "current_phase": "state-driven-loop-foundation"
+    "updated_at": "2026-08-10T14:56:53.200Z",
+    "revision": 3
   },
-  "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-  "active_case_refs": [],
-  "completeness_dimensions": {
-    "project_intent": {
-      "current_state": "accepted",
-      "target_state": "accepted",
-      "state_reason": "Arckit 定位为软件开发 Agent 的协作与接力协议层，而不是某一种实现产物或单一自动化平台本体。",
-      "evidence": [
-        "AGENTS.md",
-        "arckit/spec/agentic-software-development/product-concepts.md",
-        "arckit/spec/agentic-software-development/product-architecture.md"
-      ],
-      "evidence_maturity": "formalized",
-      "gap": "",
-      "next_transition": "",
-      "blockers": [],
-      "priority": "none",
-      "confidence": "high",
-      "desired_conditions": []
-    },
-    "users_and_stakeholders": {
-      "current_state": "defined",
-      "target_state": "accepted",
-      "state_reason": "目标协作者包括人类开发者、Codex 类单 agent、多 agent 自动化平台和后续接手的人类或 agent。",
-      "evidence": [
-        "arckit/spec/agentic-software-development/product-concepts.md",
-        "arckit/spec/agentic-software-development/product-architecture.md"
-      ],
-      "evidence_maturity": "formalized",
-      "gap": "不同协作者在状态驱动 loop 中的责任边界仍需通过真实项目执行校准。",
-      "next_transition": "用真实项目场景验证人类、单 agent 和多 agent 平台如何共同消费 project state、iteration state 和 case evidence。",
-      "blockers": [],
-      "priority": "medium",
-      "confidence": "high",
-      "desired_conditions": []
-    },
-    "problem_scenarios": {
-      "current_state": "defined",
-      "target_state": "accepted",
-      "state_reason": "核心问题已收敛为真实软件项目中跨会话、跨 agent、跨人类接手时缺少可靠状态恢复和状态驱动推进机制。",
-      "evidence": [
-        "arckit/spec/agentic-software-development/problem-background.md",
-        "arckit/spec/agentic-software-development/solution-principles.md"
-      ],
-      "evidence_maturity": "formalized",
-      "gap": "复杂项目的多轮 loop 场景仍需要实测验证，而不是只停留在协议文本。",
-      "next_transition": "选择一个复杂软件项目作为状态驱动 loop 验证对象。",
-      "blockers": [],
-      "priority": "high",
-      "confidence": "high",
-      "desired_conditions": []
-    },
-    "product_behavior": {
-      "current_state": "verified",
-      "target_state": "accepted",
-      "state_reason": "The Runtime automation contract is now persisted and locally verified: one coherent Codex Agent turn advances one serial Case gap while Runtime provides readiness, structural gates, trusted ledger writeback, continuation, and compact persistence.",
-      "evidence": [
-        "arckit/spec/agentic-software-development/product-concepts.md",
-        "arckit/spec/agentic-software-development/product-architecture.md",
-        "arckit/spec/workflow-orchestration-memory.md",
-        "entry/skills/arckit-development-ledger/SKILL.md",
-        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-        "entry/skills/using-arckit/SKILL.md",
-        "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
-        "runtime/arckit-runtime/src/loop-controller.mjs",
-        "runtime/arckit-runtime/test/case-transition.test.mjs",
-        "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md",
-        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-        "arckit/spec/agentic-software-development/controller-worker-loop.md",
-        "runtime/arckit-runtime/test/coherent-agent-loop.test.mjs",
-        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "The coherent Agent Loop behavior still needs a fresh real long-running Runtime task before project-level acceptance.",
-      "next_transition": "Run a real long-running Codex Runtime task and compare its semantic progress, stability, and wall-clock overhead with direct single-agent use.",
-      "blockers": [],
-      "priority": "high",
-      "confidence": "high",
-      "desired_conditions": [
-        {
-          "id": "observable-behavior-has-durable-expectation",
-          "applies_when": "A Case adds or changes user-observable behavior, business rules, or acceptance semantics.",
-          "must_hold": "The relevant product expectation is accurate, unambiguous, and durably recoverable.",
-          "evidence_expectation": "Persistent evidence sufficient to recover the expected behavior and its acceptance basis.",
-          "priority": "required",
-          "status": "active"
-        }
-      ]
-    },
-    "user_experience": {
-      "current_state": "accepted",
-      "target_state": "accepted",
-      "state_reason": "Desktop supervised operation, live event visibility, and in-run Chat steer were exercised successfully in the real Runtime loop.",
-      "evidence": [
-        "arckit/spec/agentic-software-development/product-concepts.md",
-        "arckit/spec/agentic-software-development/product-architecture.md",
-        "entry/skills/using-arckit/SKILL.md",
-        "entry/skills/arckit-development-ledger/SKILL.md",
-        "runtime/arckit-runtime/desktop/main.mjs",
-        "runtime/arckit-runtime/desktop/preload.cjs",
-        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
-        "runtime/arckit-runtime/desktop/renderer/index.html",
-        "runtime/arckit-runtime/desktop/renderer/renderer.js",
-        "runtime/arckit-runtime/desktop/renderer/styles.css",
-        "runtime/arckit-runtime/src/project-initializer.mjs",
-        "runtime/arckit-runtime/src/ledger-scripts.mjs",
-        "runtime/arckit-runtime/src/cli.mjs",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
-        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
-        "npm run check",
-        "node --input-type=module -e activity smoke",
-        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-        "node --input-type=module -e detail smoke",
-        "arckit-runtime://runs/RUN-20260803-180157597Z",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "",
-      "next_transition": "",
-      "blockers": [],
-      "priority": "none",
-      "confidence": "medium",
-      "desired_conditions": [
-        {
-          "id": "changed-interactions-remain-recoverable",
-          "applies_when": "A Case adds or changes a user journey, interaction rule, navigation, feedback, or operable state.",
-          "must_hold": "The changed interaction expectation is coherent and durably recoverable.",
-          "evidence_expectation": "Persistent evidence sufficient to understand and verify the affected interaction behavior.",
-          "priority": "required",
-          "status": "active"
-        }
-      ]
-    },
-    "runtime_surfaces": {
-      "current_state": "accepted",
-      "target_state": "accepted",
-      "state_reason": "The Desktop-to-runtime-to-app-server-to-ledger surface completed a real bounded transition.",
-      "evidence": [
-        "arckit/project/state.record.json",
-        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "entry/skills/arckit-development-ledger/scripts/development-case.mjs",
-        "runtime/arckit-runtime/package.json",
-        "runtime/arckit-runtime/package-lock.json",
-        "runtime/arckit-runtime/bin/arckit-runtime.mjs",
-        "runtime/arckit-runtime/README.md",
-        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
-        "runtime/arckit-runtime/desktop/main.mjs",
-        "runtime/arckit-runtime/src/json-rpc-stdio-client.mjs",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs probe-app-server --project . --json",
-        "npm run desktop",
-        "runtime/arckit-runtime/src/project-initializer.mjs",
-        "runtime/arckit-runtime/src/ledger-scripts.mjs",
-        "runtime/arckit-runtime/src/cli.mjs",
-        "runtime/arckit-runtime/desktop/renderer/renderer.js",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
-        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
-        "npm run check",
-        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
-        "runtime/arckit-runtime/src/capability-registry.mjs",
-        "Runtime agentic dry-run smoke",
-        "Desktop manager empty-project agentic dry-run smoke",
-        "arckit-runtime://runs/RUN-20260803-180157597Z",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "",
-      "next_transition": "",
-      "blockers": [],
-      "priority": "none",
-      "confidence": "medium",
-      "desired_conditions": [
-        {
-          "id": "changed-visual-language-remains-consistent",
-          "applies_when": "A Case adds or changes visual appearance, layout, theme, token, or component presentation.",
-          "must_hold": "The changed visual expectation remains consistent with the project visual language and is durably recoverable.",
-          "evidence_expectation": "Persistent visual specification or equivalent evidence for the affected surface.",
-          "priority": "required",
-          "status": "active"
-        }
-      ]
-    },
-    "identity_access": {
-      "current_state": "not_required",
-      "target_state": "not_required",
-      "state_reason": "当前仓库本身是本地 skill 与文档仓库，不需要账号体系；但 Arckit 的通用完整性模型保留 identity/access 维度，目标项目是否需要登录由目标场景决定，不能由 skill 或 code 产物类型先验排除。",
-      "evidence": [
-        "entry/skills/arckit-development-ledger/SKILL.md"
-      ],
-      "evidence_maturity": "formalized",
-      "gap": "",
-      "next_transition": "",
-      "blockers": [],
-      "priority": "none",
-      "confidence": "high",
-      "desired_conditions": []
-    },
-    "data_state": {
-      "current_state": "verified",
-      "target_state": "accepted",
-      "state_reason": "Project v3 and Iteration v2 now have strict schemas, durable evidence rules, explicit gap coverage, generated projections, and deterministic cross-record audits that pass on the canonical repository state.",
-      "evidence": [
-        "entry/skills/arckit-development-ledger/SKILL.md",
-        "arckit/project/state.record.json",
-        "arckit/project/STATE.md",
-        "arckit/cases/INDEX.md",
-        "arckit/pending/INDEX.md",
-        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
-        "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "Strict canonical state governance is locally verified; real complex-project use is still required to advance from verified to accepted.",
-      "next_transition": "Exercise the strict Project/Iteration/Case audit contract in a real complex software project and retain durable acceptance evidence.",
-      "blockers": [],
-      "priority": "medium",
-      "confidence": "medium",
-      "desired_conditions": []
-    },
-    "integration_boundaries": {
-      "current_state": "defined",
-      "target_state": "accepted",
-      "state_reason": "Arckit 与 Codex skill、ArcForge 同步治理、Skill First 验证、多 agent 平台、外部 adapter 和 Runtime worker adapter 之间的边界已有初步定义。",
-      "evidence": [
-        "AGENTS.md",
-        "arckit/spec/agentic-software-development/skill-architecture.md",
-        "entry/skills/using-arckit/SKILL.md"
-      ],
-      "evidence_maturity": "formalized",
-      "gap": "Codex app-server adapter、Gate Engine 和 ledger writeback 已实现；opencode 和多 agent adapter 尚未接入。",
-      "next_transition": "先用真实 Codex supervised turn 验证 Runtime loop，再考虑替换 adapter。",
-      "blockers": [],
-      "priority": "medium",
-      "confidence": "medium",
-      "desired_conditions": []
-    },
-    "architecture_foundation": {
-      "current_state": "verified",
-      "target_state": "accepted",
-      "state_reason": "The simplified architecture is implemented and locally verified: Codex owns semantic reasoning and native skill/tool use; Runtime is a policy-neutral automation supervisor with a stable task thread, one turn per gap, structural gates, and deterministic ledger boundaries.",
-      "evidence": [
-        "entry/skills/using-arckit/SKILL.md",
-        "entry/skills/arckit-development-ledger/SKILL.md",
-        "arckit/tech/arckit-runtime/solution.md",
-        "runtime/arckit-runtime/src/loop-controller.mjs",
-        "runtime/arckit-runtime/src/prompt-compiler.mjs",
-        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
-        "runtime/arckit-runtime/schemas/runtime-result.schema.json",
-        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-        "AGENTS.md",
-        "arckit/tech/arckit-runtime/desktop-execution-solution.md",
-        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
-        "runtime/arckit-runtime/src/automation-coordinator.mjs",
-        "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
-        "verification:npm-prefix-runtime-arckit-runtime-run-check:164-tests-163-pass-0-fail-1-conditional-skip",
-        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "The verified architecture still needs fresh real-task evidence before acceptance; long-running builds remain intentionally unbounded and are not treated as failures.",
-      "next_transition": "Exercise the architecture on a real Case with a long-running build and retain Agent-loop, gate, ledger, and timing evidence.",
-      "blockers": [],
-      "priority": "high",
-      "confidence": "high",
-      "desired_conditions": [
-        {
-          "id": "changed-contracts-remain-explainable",
-          "applies_when": "A Case changes architecture, data models, APIs, integration boundaries, runtime contracts, or important technical constraints.",
-          "must_hold": "The resulting technical contract is coherent, explainable, and durably recoverable.",
-          "evidence_expectation": "Persistent technical evidence sufficient to recover the decision, constraints, and affected boundaries.",
-          "priority": "required",
-          "status": "active"
-        }
-      ]
-    },
-    "implementation_coverage": {
-      "current_state": "accepted",
-      "target_state": "accepted",
-      "state_reason": "Controller normalization, Worker routing, review intake, steer handling, gate, and deterministic writeback are covered by implementation and passing tests.",
-      "evidence": [
-        "arckit/project/state.record.json",
-        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "entry/skills/using-arckit/SKILL.md",
-        "node --check entry/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "node --check entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "runtime/arckit-runtime/src/state-store.mjs",
-        "runtime/arckit-runtime/src/validator.mjs",
-        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-        "runtime/arckit-runtime/src/async-event-queue.mjs",
-        "runtime/arckit-runtime/src/json-rpc-stdio-client.mjs",
-        "runtime/arckit-runtime/src/gate-engine.mjs",
-        "runtime/arckit-runtime/src/ledger-writer.mjs",
-        "runtime/arckit-runtime/src/runtime-result-file.mjs",
-        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
-        "runtime/arckit-runtime/desktop/main.mjs",
-        "runtime/arckit-runtime/desktop/preload.cjs",
-        "runtime/arckit-runtime/desktop/renderer/index.html",
-        "runtime/arckit-runtime/desktop/renderer/renderer.js",
-        "runtime/arckit-runtime/desktop/renderer/styles.css",
-        "node --input-type=module -e 'import { createDesktopRunManager } from \"./runtime/arckit-runtime/src/desktop-run-manager.mjs\"; ...'",
-        "npm run desktop",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project . --dry-run --json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-m1-smoke.json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs probe-app-server --project . --json",
-        "runtime/arckit-runtime/schemas/runtime-result.schema.json",
-        "runtime/arckit-runtime/src/project-initializer.mjs",
-        "runtime/arckit-runtime/src/ledger-scripts.mjs",
-        "runtime/arckit-runtime/src/cli.mjs",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
-        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
-        "npm run check",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json",
-        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
-        "runtime/arckit-runtime/src/capability-registry.mjs",
-        "Runtime agentic dry-run smoke",
-        "Desktop manager empty-project agentic dry-run smoke",
-        "runtime/arckit-runtime/test/capability-registry.test.mjs",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "",
-      "next_transition": "",
-      "blockers": [],
-      "priority": "none",
-      "confidence": "medium",
-      "desired_conditions": [
-        {
-          "id": "accepted-facts-are-realized",
-          "applies_when": "A Case requires executable behavior or changes existing implementation.",
-          "must_hold": "The implementation realizes all relevant accepted facts and upheld desired conditions.",
-          "evidence_expectation": "Code and implementation evidence traceable to the relevant Case facts and conditions.",
-          "priority": "required",
-          "status": "active"
-        }
-      ]
-    },
-    "quality_validation": {
-      "current_state": "accepted",
-      "target_state": "accepted",
-      "state_reason": "A real Desktop Codex run produced successful steer delivery, gate allow, written ledger transition, and a clean completion review.",
-      "evidence": [
-        "arckit/spec/workflow-orchestration-memory.md",
-        "arckit/tech/workflow-orchestration-memory/solution.md",
-        "arckit/tech/arckit-runtime/solution.md",
-        "entry/skills/arckit-development-ledger/SKILL.md",
-        "node entry/skills/arckit-development-ledger/scripts/project-state.mjs validate arckit/project/STATE.md",
-        "node entry/skills/arckit-development-ledger/scripts/project-iteration.mjs validate",
-        "node entry/skills/arckit-development-ledger/scripts/development-case.mjs validate arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-m1-smoke.json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs probe-app-server --project . --json",
-        "arckit/project/runtime-results/RUN-20260707-161744356Z.json",
-        "npm run check",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project . --dry-run --json > /tmp/arckit-runtime-m2-smoke.json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-m2-smoke.json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs gate-result --project . --file /tmp/arckit-runtime-m2-smoke.json --json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs write-ledger --project . --file /tmp/arckit-runtime-m2-done-fixture.json --dry-run --json",
-        "runtime/arckit-runtime/src/gate-engine.mjs",
-        "runtime/arckit-runtime/src/ledger-writer.mjs",
-        "runtime/arckit-runtime/src/runtime-result-file.mjs",
-        "runtime/arckit-runtime/src/cli.mjs",
-        "runtime/arckit-runtime/src/validator.mjs",
-        "runtime/arckit-runtime/package.json",
-        "runtime/arckit-runtime/package-lock.json",
-        "runtime/arckit-runtime/README.md",
-        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
-        "runtime/arckit-runtime/desktop/main.mjs",
-        "runtime/arckit-runtime/desktop/renderer/index.html",
-        "node --input-type=module -e 'import { createDesktopRunManager } from \"./runtime/arckit-runtime/src/desktop-run-manager.mjs\"; ...'",
-        "npm run desktop",
-        "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/result.json",
-        "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/events.jsonl",
-        "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-result.json",
-        "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-events.jsonl",
-        "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/MANIFEST.md",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /tmp/arckit-runtime-real-turn-4-last-agent-result.json",
-        "runtime/arckit-runtime/src/project-initializer.mjs",
-        "runtime/arckit-runtime/src/ledger-scripts.mjs",
-        "runtime/arckit-runtime/desktop/renderer/renderer.js",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
-        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
-        "runtime/arckit-runtime/desktop/renderer/styles.css",
-        "node --input-type=module -e activity smoke",
-        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-        "node --input-type=module -e detail smoke",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-invalid-ledger-smoke --name InvalidLedgerSmoke --intent ...",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-invalid-ledger-smoke/arckit/project/state.record.json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-invalid-ledger-smoke --task \"start run should repair invalid ledger\" --dry-run --json",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs validate-result --file /private/tmp/arckit-invalid-ledger-run.json",
-        "arckit-runtime://runs/RUN-20260803-180157597Z",
-        "git diff --check",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "",
-      "next_transition": "",
-      "blockers": [],
-      "priority": "none",
-      "confidence": "medium",
-      "desired_conditions": [
-        {
-          "id": "material-risks-have-credible-evidence",
-          "applies_when": "A Case changes behavior, contracts, implementation, data, integration, security, delivery, or another risk-bearing surface.",
-          "must_hold": "Material correctness and regression risks are covered by credible, repeatable verification evidence.",
-          "evidence_expectation": "Tests, checks, inspection, or operational evidence proportionate to the identified risks.",
-          "priority": "required",
-          "status": "active"
-        }
-      ]
-    },
-    "security_privacy": {
-      "current_state": "defined",
-      "target_state": "verified",
-      "state_reason": "状态模型保留 identity/access、security/privacy、data_state 等维度，避免因实现产物是 skill 或代码而跳过安全边界判断。",
-      "evidence": [
-        "entry/skills/arckit-development-ledger/SKILL.md",
-        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json"
-      ],
-      "evidence_maturity": "formalized",
-      "gap": "目标项目级凭证、权限和敏感数据场景还需要在具体项目中验证。",
-      "next_transition": "在涉及远程服务、账号或受控资源的目标项目中验证安全/隐私维度。",
-      "blockers": [],
-      "priority": "medium",
-      "confidence": "medium",
-      "desired_conditions": []
-    },
-    "delivery_operation": {
-      "current_state": "verified",
-      "target_state": "accepted",
-      "state_reason": "The maintained using-arckit v5 source was audited, applied to the Codex application target, loaded through the real compatibility path, and confirmed with clean post-apply drift.",
-      "evidence": [
-        "AGENTS.md",
-        "entry/skills/using-arckit/SKILL.md",
-        "entry/skills/using-arckit/arckit.capability.json",
-        "/Users/Glare/.codex/skills/using-arckit/SKILL.md",
-        "verification:arcforge-using-arckit-post-apply-drift-clean",
-        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "The installed revision is verified locally; broader release or team distribution acceptance is outside this Case.",
-      "next_transition": "Use the installed skill in a fresh real Runtime task, then decide whether release or team distribution evidence is required.",
-      "blockers": [],
-      "priority": "medium",
-      "confidence": "medium",
-      "desired_conditions": []
-    },
-    "observability_support": {
-      "current_state": "accepted",
-      "target_state": "accepted",
-      "state_reason": "The persisted Desktop event stream exposed Controller phases, operator steer, runtime result, gate result, and ledger write result.",
-      "evidence": [
-        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "entry/skills/arckit-development-ledger/scripts/development-case.mjs",
-        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
-        "runtime/arckit-runtime/desktop/renderer/renderer.js",
-        "runtime/arckit-runtime/desktop/renderer/styles.css",
-        "runtime/arckit-runtime/desktop/renderer/index.html",
-        "npm run check",
-        "node --input-type=module -e activity smoke",
-        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-        "node --input-type=module -e detail smoke",
-        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
-        "runtime/arckit-runtime/src/capability-registry.mjs",
-        "Runtime agentic dry-run smoke",
-        "Desktop manager empty-project agentic dry-run smoke",
-        "arckit-runtime://runs/RUN-20260803-180157597Z",
-        "runtime/arckit-runtime/src/projection/run-event-projector.mjs",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "",
-      "next_transition": "",
-      "blockers": [],
-      "priority": "none",
-      "confidence": "medium",
-      "desired_conditions": []
-    },
-    "maintainability_handoff": {
-      "current_state": "accepted",
-      "target_state": "accepted",
-      "state_reason": "The Case closed with durable tests, opaque run evidence, deterministic ledger transition, and a clean three-dimensional review.",
-      "evidence": [
-        "arckit/spec/agentic-software-development/skill-architecture.md",
-        "arckit/tech/arckit-runtime/solution.md",
-        "entry/skills/arckit-development-ledger/SKILL.md",
-        "entry/skills/using-arckit/SKILL.md",
-        "arckit/project/state.record.json",
-        "arckit/project/STATE.md",
-        "arckit/project/ITERATIONS.md",
-        "arckit/cases/active/CASE-20260707-002-implement-arckit-runtime-mvp.md",
-        "runtime/arckit-runtime/README.md",
-        "runtime/arckit-runtime/src/project-initializer.mjs",
-        "runtime/arckit-runtime/src/ledger-scripts.mjs",
-        "runtime/arckit-runtime/src/cli.mjs",
-        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
-        "runtime/arckit-runtime/desktop/renderer/renderer.js",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs init-project --project /private/tmp/arckit-empty-smoke --name EmptySmoke --intent ...",
-        "node runtime/arckit-runtime/bin/arckit-runtime.mjs run --project /private/tmp/arckit-empty-smoke --task \"Build a simple todo app\" --dry-run --json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/project-state.mjs audit /private/tmp/arckit-empty-smoke/arckit/project/state.record.json",
-        "node /Users/Glare/Library/Developer/ModularProgram/feitianchengzi/arckit/entry/skills/arckit-development-ledger/scripts/development-case.mjs validate /private/tmp/arckit-empty-smoke/arckit/cases/active/CASE-20260708-001-initial-arckit-project-loop.md",
-        "node --input-type=module -e \"import { createDesktopRunManager } from ./runtime/arckit-runtime/src/desktop-run-manager.mjs; ... empty project smoke ...\"",
-        "npm run check",
-        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
-        "runtime/arckit-runtime/src/capability-registry.mjs",
-        "Runtime agentic dry-run smoke",
-        "Desktop manager empty-project agentic dry-run smoke",
-        "arckit-runtime://runs/RUN-20260803-180157597Z",
-        "runtime/arckit-runtime/test/codex-app-server-adapter.test.mjs",
-        "runtime/arckit-runtime/test/desktop-run-manager.test.mjs",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "",
-      "next_transition": "",
-      "blockers": [],
-      "priority": "none",
-      "confidence": "medium",
-      "desired_conditions": []
-    },
-    "iteration_governance": {
-      "current_state": "verified",
-      "target_state": "accepted",
-      "state_reason": "Iteration v2 now contains only macro Project targets and resolved-Case aggregation, rejects legacy and Loop control fields, derives projections from fresh Project State, and stays aligned through deterministic closeout.",
-      "evidence": [
-        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md",
-        "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
-        "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
-        "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
-      ],
-      "evidence_maturity": "validated",
-      "gap": "Iteration governance is locally verified but still needs acceptance through a real complex Project gap-to-Case loop.",
-      "next_transition": "Use the active iteration in a real complex project loop and accept it only after durable end-to-end evidence.",
-      "blockers": [],
-      "priority": "high",
-      "confidence": "medium",
-      "desired_conditions": []
-    }
-  },
-  "state_gaps": [
-    {
-      "id": "GAP-agent-scenario-evaluation",
-      "dimension": "product_behavior",
-      "current_state": "verified",
-      "target_state": "accepted",
-      "impact": "状态驱动定义完整性需要在 fresh-agent 的 spec-first、code-first、mixed 和 not_required 路径中证明，并校准人类、单 Agent 与多 Agent 的责任边界。",
-      "urgency": "high",
-      "risk": "high",
-      "dependencies": [],
-      "covered_dimensions": [
-        "users_and_stakeholders",
-        "problem_scenarios",
-        "product_behavior"
-      ],
-      "next_transition": "运行隔离的真实软件任务场景，收集 Case gap 选择、事实补齐和最终复审证据。"
-    },
-    {
-      "id": "GAP-runtime-resilience-and-adapters",
-      "dimension": "architecture_foundation",
-      "current_state": "verified",
-      "target_state": "accepted",
-      "impact": "Runtime 的 timeout、transcript compaction 和多 adapter 边界尚未形成可接受的长期运行能力。",
-      "urgency": "medium",
-      "risk": "high",
-      "dependencies": [
-        "GAP-runtime-real-supervised-turn"
-      ],
-      "covered_dimensions": [
-        "integration_boundaries",
-        "architecture_foundation"
-      ],
-      "next_transition": "在真实 Codex loop 证据稳定后，实现并验证 timeout、compaction 和下一个明确需要的 adapter。"
-    },
-    {
-      "id": "GAP-security-real-project-validation",
-      "dimension": "security_privacy",
-      "current_state": "defined",
-      "target_state": "verified",
-      "impact": "凭证、权限和敏感数据规则尚未在包含远程服务或受控资源的真实项目中验证。",
-      "urgency": "medium",
-      "risk": "high",
-      "dependencies": [],
-      "covered_dimensions": [
-        "security_privacy"
-      ],
-      "next_transition": "选择带真实权限边界的项目，形成安全事实、执行限制和验证证据。"
-    },
-    {
-      "id": "GAP-delivery-governance",
-      "dimension": "delivery_operation",
-      "current_state": "verified",
-      "target_state": "accepted",
-      "impact": "当前治理 revision 尚未完成应用目录同步、安装后漂移确认和后续发布接受。",
-      "urgency": "medium",
-      "risk": "medium",
-      "dependencies": [
-        "GAP-cross-record-audit"
-      ],
-      "covered_dimensions": [
-        "delivery_operation"
-      ],
-      "next_transition": "治理 Case resolved 后通过 ArcForge 重新应用当前 profile，并保存 clean drift 证据。"
-    },
-    {
-      "id": "GAP-cross-record-audit",
-      "dimension": "data_state",
-      "current_state": "verified",
-      "target_state": "accepted",
-      "impact": "Project、Iteration 和 Case 之间需要严格 schema、durable evidence 和跨记录一致性审计，避免结构合法但语义漂移。",
-      "urgency": "high",
-      "risk": "high",
-      "dependencies": [
-        "observability_support"
-      ],
-      "covered_dimensions": [
-        "data_state",
-        "iteration_governance"
-      ],
-      "next_transition": "完成严格 iteration v2、durable evidence、Project gap coverage 和跨记录 audit；再通过真实项目使用把 verified 推进到 accepted。"
-    }
-  ],
-  "active_constraints": [
-    "Arckit 项目状态机制服务于基于状态的 loop 工程，而不是记录型日志。",
-    "state.record.json 是全局项目完整性状态的 canonical machine-readable record。",
-    "STATE.md 是由 state.record.json 生成的 loop decision brief，不内嵌完整 JSON，不作为第二事实源。",
-    "迭代 Markdown 是由对应 iteration *.record.json 生成的 iteration decision brief，不内嵌完整 JSON。",
-    "迭代状态属于项目状态推进层，放在 arckit/project/iterations/。",
-    "case 是状态变化的证据和过程记录，不替代全局状态或迭代状态。",
-    "Project 与 Iteration canonical state 不保存 next responsibility、trigger mode、continuation prompt、Worker 顺序或 round goal。",
-    "skill、code、document、CLI、Web、App、API 和服务端都只是软件实现产物形态，不能先验排除身份、权限、数据、部署或运维维度。"
-  ],
-  "open_questions": [
-    "是否用一个真实复杂项目执行 state gap -> case -> verification -> state delta 的完整 loop 验证。"
-  ],
-  "canonical_artifact_refs": [
-    "AGENTS.md",
-    "arckit/spec/agentic-software-development/product-concepts.md",
-    "arckit/spec/agentic-software-development/product-architecture.md",
-    "arckit/spec/agentic-software-development/skill-architecture.md",
-    "arckit/spec/arckit-skill-system.md",
-    "entry/skills/using-arckit/SKILL.md",
-    "entry/skills/using-arckit/arckit.capability.json",
-    "entry/skills/arckit-development-ledger/SKILL.md",
-    "entry/skills/arckit-development-ledger/arckit.capability.json",
-    "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-    "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-    "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
-    "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-    "arckit/project/state.record.json",
-    "arckit/project/STATE.md",
-    "arckit/project/ITERATIONS.md",
-    "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.md",
-    "arckit/tech/arckit-runtime/solution.md",
-    "runtime/arckit-runtime/README.md",
-    "runtime/arckit-runtime/config/capability-policy.json",
-    "runtime/arckit-runtime/src/capability-registry.mjs",
-    "runtime/arckit-runtime/package-lock.json",
-    "runtime/arckit-runtime/bin/arckit-runtime.mjs",
-    "runtime/arckit-runtime/src/desktop-run-manager.mjs",
-    "runtime/arckit-runtime/desktop/main.mjs",
-    "runtime/arckit-runtime/desktop/preload.cjs",
-    "runtime/arckit-runtime/desktop/renderer/index.html",
-    "runtime/arckit-runtime/desktop/renderer/renderer.js",
-    "runtime/arckit-runtime/desktop/renderer/styles.css",
-    "runtime/arckit-runtime/schemas/runtime-result.schema.json",
-    "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-    "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
-    "arckit/cases/closed/CASE-20260707-001-add-loop-handoff-responsibility-model.md",
-    "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md",
-    "arckit/project/runtime-results/RUN-20260707-161744356Z.json",
-    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/result.json",
-    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/events.jsonl",
-    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-result.json",
-    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/interrupt-probe-events.jsonl",
-    "arckit/project/runtime-results/RUN-20260707-173823Z-real-supervised-turn/MANIFEST.md",
-    "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md",
-    "arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md",
-    "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md",
-    "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
-    "entry/skills/arckit-development-ledger/schema/case-transition.schema.json",
-    "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
-    "arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md",
-    "arckit/cases/closed/CASE-20260802-001-add-runtime-login-and-workshop-todo-synchronization.md",
-    "arckit/cases/closed/CASE-20260802-002-gate-runtime-startup-behind-login.md",
-    "arckit/cases/closed/CASE-20260802-003-lighten-runtime-login-background.md",
-    "arckit/cases/closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md",
-    "arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md",
-    "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
-    "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md",
-    "arckit/cases/closed/CASE-20260803-002-support-parallel-case-execution-with-serialized-project-aggregat.md",
-    "arckit/cases/closed/CASE-20260804-001-persist-runtime-sessions-and-execute-state-driven-loops-in-proce.md",
-    "arckit/cases/closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md",
-    "arckit/cases/closed/CASE-20260804-003-prioritize-final-handoff-freshness-in-todo-automation.md",
-    "arckit/cases/closed/CASE-20260806-001-runtime-token.md",
-    "arckit/cases/closed/CASE-20260806-002-strengthen-runtime-context-handoff-and-workstream-thread-isolati.md",
-    "arckit/cases/closed/CASE-20260806-003-runtime.md",
-    "arckit/cases/closed/CASE-20260807-002-buzz-dashi-arckit.md",
-    "arckit/cases/closed/CASE-20260807-001-runtime-codex-cli-case.md",
-    "arckit/cases/closed/CASE-20260807-003-development-case.md",
-    "arckit/cases/closed/CASE-20260807-004-runtime-canonical-case.md",
-    "arckit/cases/closed/CASE-20260807-005-development-case.md",
-    "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md",
-    "arckit/cases/closed/CASE-20260808-001-using-arckit-codex-runtime-controller.md",
-    "arckit/cases/closed/CASE-20260809-001-controller-thread.md",
-    "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
-    "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md",
-    "arckit/cases/closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md",
-    "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md",
-    "arckit/cases/closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md",
-    "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
-  ],
-  "last_state_delta": {
-    "changed_dimensions": [],
-    "state_transitions": [],
-    "condition_changes": [],
-    "deferred_dimensions": [],
-    "blocked_dimensions": [],
-    "case_refs": [
-      "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
+  "advancement": {
+    "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
+    "active_case_refs": [],
+    "project_gaps": [
+      {
+        "id": "GAP-agent-scenario-evaluation",
+        "goal": "Validate dynamic gap selection in isolated real software scenarios.",
+        "reason": "The state-driven model still needs fresh-agent evidence across spec-first, code-first, mixed and irrelevant decision paths.",
+        "affects": [
+          {
+            "kind": "software_decision",
+            "ref": "product_capabilities"
+          },
+          {
+            "kind": "software_decision",
+            "ref": "quality_and_validation"
+          },
+          {
+            "kind": "software_invariant",
+            "ref": "material-risks-have-credible-evidence"
+          }
+        ],
+        "priority_basis": {
+          "uncertainty": "high",
+          "risk": "high"
+        },
+        "dependencies": [],
+        "candidate_case_ref": ""
+      },
+      {
+        "id": "GAP-runtime-resilience-and-adapters",
+        "goal": "Strengthen Runtime timeout, transcript compaction and required adapter boundaries.",
+        "reason": "Long-running supervised execution still has known resilience and adapter acceptance work.",
+        "affects": [
+          {
+            "kind": "software_decision",
+            "ref": "external_integrations"
+          },
+          {
+            "kind": "software_decision",
+            "ref": "observability_and_operation"
+          },
+          {
+            "kind": "software_decision",
+            "ref": "technical_foundation"
+          }
+        ],
+        "priority_basis": {
+          "risk": "high",
+          "urgency": "medium"
+        },
+        "dependencies": [],
+        "candidate_case_ref": ""
+      },
+      {
+        "id": "GAP-security-real-project-validation",
+        "goal": "Validate security boundaries in a real permission-bearing project.",
+        "reason": "Credential, permission and sensitive-data rules need evidence from a project with real controlled resources.",
+        "affects": [
+          {
+            "kind": "software_decision",
+            "ref": "security_privacy_compliance"
+          },
+          {
+            "kind": "software_invariant",
+            "ref": "material-risks-have-credible-evidence"
+          }
+        ],
+        "priority_basis": {
+          "risk": "high",
+          "urgency": "medium"
+        },
+        "dependencies": [],
+        "candidate_case_ref": ""
+      },
+      {
+        "id": "GAP-delivery-governance",
+        "goal": "Complete application-target synchronization, drift verification and release acceptance.",
+        "reason": "Maintained skills require installation and drift evidence before this governance revision is accepted.",
+        "affects": [
+          {
+            "kind": "software_decision",
+            "ref": "delivery_and_distribution"
+          },
+          {
+            "kind": "software_invariant",
+            "ref": "accepted-facts-are-realized"
+          }
+        ],
+        "priority_basis": {
+          "risk": "medium",
+          "urgency": "medium"
+        },
+        "dependencies": [],
+        "candidate_case_ref": ""
+      },
+      {
+        "id": "GAP-cross-record-audit",
+        "goal": "Accept strict Project, Iteration and Case cross-record auditing in real use.",
+        "reason": "Schema-valid records can still drift unless durable evidence and cross-record consistency are exercised in real projects.",
+        "affects": [
+          {
+            "kind": "software_decision",
+            "ref": "data_and_state"
+          },
+          {
+            "kind": "software_decision",
+            "ref": "quality_and_validation"
+          },
+          {
+            "kind": "software_invariant",
+            "ref": "material-risks-have-credible-evidence"
+          }
+        ],
+        "priority_basis": {
+          "risk": "high",
+          "urgency": "high"
+        },
+        "dependencies": [],
+        "candidate_case_ref": ""
+      }
     ],
-    "iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "next_project_focus": "Create the next bounded Case from the remaining Project state_gaps.",
-    "updated_at": "2026-08-09T18:42:34.239Z"
+    "selection_context": {
+      "current_focus": "Validate dynamic gap selection in isolated real software scenarios.",
+      "project_priorities": [
+        "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
+        "Let one Agent select dynamic gaps from all current facts without facet workflows.",
+        "Apply relevant Project State changes atomically in the Gap transition that establishes them."
+      ]
+    }
   },
-  "case_control": {
-    "next_case_intent": "Create the next bounded Case from the remaining Project state_gaps.",
-    "priority_basis": "Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.",
-    "stop_condition": "Stop after one active Case and one candidate gap are selected for the current Loop."
-  }
+  "software_definition": {
+    "summary": "Arckit is a state-driven software-development protocol and optional supervised Runtime. Project State owns explicit software-definition decisions; one Agent advances facts and dynamic gaps through trusted atomic ledger transitions.",
+    "decision_areas": [
+      {
+        "id": "product_intent_and_scope",
+        "question": "What problem does the software solve, for whom, with what success outcome and scope boundary?",
+        "decision_expectation": "State the project outcome, intended users, primary scenarios, success basis, and important non-goals.",
+        "evidence_expectation": "Durable product evidence sufficient to recover the intended outcome and scope.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Arckit is a repository-owned software-development handoff protocol and Runtime that lets one Agent and automation hosts advance durable Project/Case state safely.",
+          "reason": "The repository specifications and AGENTS contract define this product boundary.",
+          "evidence": [
+            "AGENTS.md",
+            "arckit/spec/agentic-software-development/product-architecture.md"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": []
+      },
+      {
+        "id": "product_capabilities",
+        "question": "What core product capabilities must the software provide?",
+        "decision_expectation": "State the capability set, the problem each capability solves, and important capabilities intentionally excluded.",
+        "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Arckit provides Project/Iteration/Case ledgers, dynamic Gap selection, trusted atomic transitions, maintained development skills, and an optional supervised Runtime/Desktop.",
+          "reason": "These are the stable capabilities exposed by the repository and its Runtime.",
+          "evidence": [
+            "arckit/spec/agentic-software-development/product-concepts.md",
+            "entry/skills/using-arckit/SKILL.md",
+            "runtime/arckit-runtime/package.json"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": [
+          "GAP-agent-scenario-evaluation"
+        ]
+      },
+      {
+        "id": "runtime_surfaces",
+        "question": "Which clients, applications, services, or runtime surfaces comprise the software?",
+        "decision_expectation": "State which desktop, web, mobile, server, admin, CLI, extension, or other surfaces exist and the responsibility of each.",
+        "evidence_expectation": "Durable evidence sufficient to recover the system surfaces and their responsibilities.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "The software comprises repository-owned skills and Node.js ledger CLIs plus an optional Electron Desktop, Runtime supervisor, and Codex adapter.",
+          "reason": "The source tree and architecture specification make these responsibilities explicit.",
+          "evidence": [
+            "arckit/spec/agentic-software-development/product-architecture.md",
+            "arckit/tech/arckit-runtime/solution.md"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": []
+      },
+      {
+        "id": "experience_and_interaction",
+        "question": "How do users complete the main journeys and recover from interaction states?",
+        "decision_expectation": "State the important journeys, navigation, inputs, feedback, error recovery, and accessibility expectations.",
+        "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Users can invoke using-arckit conversationally; Desktop users select a project/todo, observe one persistent Agent conversation, steer it, and recover persisted runs.",
+          "reason": "The product and Desktop interaction specifications define these journeys.",
+          "evidence": [
+            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+            "arckit/interaction/arckit-runtime/desktop-workspace.md"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": []
+      },
+      {
+        "id": "visual_language",
+        "question": "What visual language and presentation adaptations does the software require?",
+        "decision_expectation": "State the theme, brand, layout, token, component, responsive, and platform-presentation expectations that matter.",
+        "evidence_expectation": "Durable visual evidence sufficient to recover the project visual language.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native.",
+          "reason": "The repository has an explicit visual source for the Desktop and no separate branding requirement for ledger files.",
+          "evidence": [
+            "arckit/visual/arckit-runtime/desktop-visual-system.md",
+            "arckit/tech/arckit-runtime/desktop-execution-solution.md"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": []
+      },
+      {
+        "id": "identity_and_access",
+        "question": "Does the software require identity, login, roles, permissions, sessions, or entitlement?",
+        "decision_expectation": "State the identity subjects, authentication and authorization boundaries, entitlement behavior, and explicitly excluded access capabilities.",
+        "evidence_expectation": "Durable product and technical evidence sufficient to recover access decisions.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints.",
+          "reason": "Runtime login and execution authorization are documented separately from product entitlement.",
+          "evidence": [
+            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+            "arckit/tech/arckit-runtime/desktop-execution-solution.md"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": []
+      },
+      {
+        "id": "data_and_state",
+        "question": "What data does the software own and how is it stored, synchronized, migrated, backed up, and recovered?",
+        "decision_expectation": "State the important data, sources of truth, local and remote relationships, lifecycle, consistency, migration, and recovery expectations.",
+        "evidence_expectation": "Durable data and technical evidence sufficient to recover the state model.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Canonical project data is Project v5, Iteration v3 and Case v5 in arckit/; Runtime run/session/thread records live outside the target project and only opaque refs enter the ledger.",
+          "reason": "The ledger and Runtime architecture define this source-of-truth boundary.",
+          "evidence": [
+            "entry/skills/arckit-development-ledger/SKILL.md",
+            "arckit/tech/arckit-runtime/solution.md"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": [
+          "GAP-cross-record-audit"
+        ]
+      },
+      {
+        "id": "external_integrations",
+        "question": "Which external platforms, devices, services, protocols, or data formats does the software integrate with?",
+        "decision_expectation": "State each material dependency, its boundary, failure behavior, and required fallback or recovery behavior.",
+        "evidence_expectation": "Durable contract evidence sufficient to recover material integration boundaries.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "The Runtime integrates with Codex app-server/CLI and optional task sources through explicit adapters; trusted ledger entrypoints remain repository-owned.",
+          "reason": "Adapters and integration boundaries are described in Runtime technical evidence.",
+          "evidence": [
+            "arckit/tech/arckit-runtime/solution.md",
+            "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": [
+          "GAP-runtime-resilience-and-adapters"
+        ]
+      },
+      {
+        "id": "feedback_and_support",
+        "question": "Does the software require user feedback, issue reporting, help, or support loops?",
+        "decision_expectation": "State the feedback entry, context collection, handling, status return, and support boundary, or explicitly decide that it is not required.",
+        "evidence_expectation": "Durable product and operational evidence sufficient to recover the feedback decision.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Operational feedback is provided through the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization; no separate public support portal is currently required.",
+          "reason": "Existing product scope provides recovery and feedback within the supervised workspace.",
+          "evidence": [
+            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+            "arckit/tech/arckit-runtime/desktop-execution-solution.md"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": []
+      },
+      {
+        "id": "commercialization_and_entitlement",
+        "question": "Does the software require payment, subscription, licensing, trials, quotas, or feature entitlement?",
+        "decision_expectation": "State the commercial and entitlement model, recovery rules, and intentionally excluded mechanisms.",
+        "evidence_expectation": "Durable product and technical evidence sufficient to recover commercial and entitlement decisions.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Arckit currently has no payment, subscription, trial, quota or commercial feature-entitlement model.",
+          "reason": "The repository product scope is development governance; login controls executor access rather than commercial entitlement.",
+          "evidence": [
+            "AGENTS.md",
+            "arckit/spec/agentic-software-development/product-architecture.md"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": []
+      },
+      {
+        "id": "technical_foundation",
+        "question": "Which technology stack, architecture shape, build system, and engineering organization does the software use?",
+        "decision_expectation": "State the languages, frameworks, build system, architecture boundaries, repository organization, and material technical constraints.",
+        "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
+        "decision": {
+          "status": "settled",
+          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron desktop host, Project State v5, Case/Transition v5, and Iteration v3 with trusted atomic transitions.",
+          "reason": "The accepted state-driven architecture is implemented across canonical schemas, scripts, Runtime consumption, tests, documentation, and installed skills.",
+          "evidence": [
+            "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
+            "entry/skills/arckit-development-ledger/schema/development-case-record.schema.json",
+            "entry/skills/arckit-development-ledger/schema/case-transition.schema.json",
+            "entry/skills/arckit-development-ledger/scripts/project-software-definition.mjs",
+            "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+            "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
+            "runtime/arckit-runtime/schemas/runtime-result.schema.json",
+            "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
+            "runtime/arckit-runtime/test/state-condition-case.test.mjs",
+            "verification:npm-run-check:84-tests-83-pass-1-conditional-skip",
+            "verification:npm-run-smoke:valid-runtime-result",
+            "verification:arcforge-applied-drift:using-arckit-and-ledger-same"
+          ],
+          "confidence": "high",
+          "resume_condition": "",
+          "revision": 2
+        },
+        "gap_refs": [
+          "GAP-runtime-resilience-and-adapters"
+        ]
+      },
+      {
+        "id": "security_privacy_compliance",
+        "question": "What security, privacy, permission, and compliance responsibilities apply?",
+        "decision_expectation": "State sensitive data, credentials, trust boundaries, threats, privacy expectations, and applicable compliance requirements.",
+        "evidence_expectation": "Durable risk and technical evidence sufficient to recover the governing protections.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Secrets stay outside canonical project state; Runtime enforces login/configured-source boundaries, workspace authorization, sandbox/approval rules and trusted deterministic writes.",
+          "reason": "Security and authorization constraints are explicit in repository and Runtime contracts.",
+          "evidence": [
+            "AGENTS.md",
+            "arckit/spec/agentic-software-development/runtime-automation-workspace.md"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": [
+          "GAP-security-real-project-validation"
+        ]
+      },
+      {
+        "id": "quality_and_validation",
+        "question": "How must the project prove correct behavior and control regression risk?",
+        "decision_expectation": "State material quality risks, test layers, inspection, real-environment validation, and acceptance responsibility.",
+        "evidence_expectation": "Durable validation evidence proportionate to the identified risks.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Protocol changes require schema/script validation, cross-record audits, Runtime automated tests, projection checks and risk-proportionate real execution evidence.",
+          "reason": "The ledger review policy and repository tests define the validation model.",
+          "evidence": [
+            "entry/skills/arckit-development-ledger/references/completion-review.md",
+            "runtime/arckit-runtime/test"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": [
+          "GAP-agent-scenario-evaluation",
+          "GAP-cross-record-audit"
+        ]
+      },
+      {
+        "id": "delivery_and_distribution",
+        "question": "How is the software built, released, installed, upgraded, and rolled back?",
+        "decision_expectation": "State target delivery platforms, build artifacts, release channels, version policy, upgrade behavior, and rollback expectations.",
+        "evidence_expectation": "Durable delivery evidence sufficient to recover and verify the release model.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Maintained skills are sourced from entry/skills, synchronized to supported application targets through governed installation, and Runtime/Desktop are built and checked from runtime/arckit-runtime.",
+          "reason": "Repository layout and governance define source, installation and build responsibilities.",
+          "evidence": [
+            "AGENTS.md",
+            "entry/skills/arckit-development-ledger/arckit.capability.json",
+            "runtime/arckit-runtime/package.json"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": [
+          "GAP-delivery-governance"
+        ]
+      },
+      {
+        "id": "observability_and_operation",
+        "question": "How are runtime problems detected, diagnosed, supported, and recovered?",
+        "decision_expectation": "State logging, metrics, crashes, alerts, diagnostics, operational support, recovery, and retention expectations.",
+        "evidence_expectation": "Durable operational evidence sufficient to diagnose and support the software.",
+        "decision": {
+          "revision": 1,
+          "status": "settled",
+          "statement": "Runtime persists lifecycle, activity, messages and timing outside the target project, supports restart reconciliation, and exposes opaque run refs for canonical traceability.",
+          "reason": "Runtime observability and recovery behavior are documented and implemented.",
+          "evidence": [
+            "arckit/tech/arckit-runtime/desktop-execution-solution.md",
+            "runtime/arckit-runtime/src/lifecycle-observer.mjs"
+          ],
+          "confidence": "high",
+          "resume_condition": ""
+        },
+        "gap_refs": [
+          "GAP-runtime-resilience-and-adapters"
+        ]
+      }
+    ]
+  },
+  "software_invariants": [
+    {
+      "id": "observable-behavior-has-durable-expectation",
+      "applies_when": "A Case adds or changes user-observable behavior, business rules, or acceptance semantics.",
+      "must_hold": "The relevant product expectation is accurate, unambiguous, and durably recoverable.",
+      "evidence_expectation": "Persistent evidence sufficient to recover the expected behavior and its acceptance basis.",
+      "priority": "required"
+    },
+    {
+      "id": "changed-interactions-remain-recoverable",
+      "applies_when": "A Case adds or changes a user journey, interaction rule, navigation, feedback, or operable state.",
+      "must_hold": "The changed interaction expectation is coherent and durably recoverable.",
+      "evidence_expectation": "Persistent evidence sufficient to understand and verify the affected interaction behavior.",
+      "priority": "required"
+    },
+    {
+      "id": "changed-visual-language-remains-consistent",
+      "applies_when": "A Case adds or changes visual appearance, layout, theme, token, or component presentation.",
+      "must_hold": "The changed visual expectation remains consistent with the project visual language and is durably recoverable.",
+      "evidence_expectation": "Persistent visual specification or equivalent evidence for the affected surface.",
+      "priority": "required"
+    },
+    {
+      "id": "changed-contracts-remain-explainable",
+      "applies_when": "A Case changes architecture, data models, APIs, integration boundaries, runtime contracts, or important technical constraints.",
+      "must_hold": "The resulting technical contract is coherent, explainable, and durably recoverable.",
+      "evidence_expectation": "Persistent technical evidence sufficient to recover the decision, constraints, and affected boundaries.",
+      "priority": "required"
+    },
+    {
+      "id": "accepted-facts-are-realized",
+      "applies_when": "A Case requires executable behavior or changes existing implementation.",
+      "must_hold": "The implementation realizes all relevant accepted facts and upheld project decisions and invariants.",
+      "evidence_expectation": "Code and implementation evidence traceable to the relevant Case facts and Project State.",
+      "priority": "required"
+    },
+    {
+      "id": "material-risks-have-credible-evidence",
+      "applies_when": "A Case changes behavior, contracts, implementation, data, integration, security, delivery, or another risk-bearing surface.",
+      "must_hold": "Material correctness and regression risks are covered by credible, repeatable verification evidence.",
+      "evidence_expectation": "Tests, checks, inspection, or operational evidence proportionate to the identified risks.",
+      "priority": "required"
+    }
+  ]
 }

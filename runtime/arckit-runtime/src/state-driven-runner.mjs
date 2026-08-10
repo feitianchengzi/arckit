@@ -98,7 +98,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       emitSessionEvent(options, {
         type: "runtime.session_round.started",
         round_index: roundIndex,
-        project_updated_at: snapshot.projectState?.project?.updated_at || "",
+        project_revision: snapshot.projectState?.project?.revision ?? 0,
         active_case_revisions: (snapshot.activeCases || []).map(({ record }) => ({
           case_id: record.id,
           updated_at: record.updated_at

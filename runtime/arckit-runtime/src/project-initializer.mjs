@@ -28,13 +28,13 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
   }
 
   const state = JSON.parse(await readFile(statePath, 'utf8'));
-  if (state.schema_version !== 'project-state-record/v4') throw new Error('Runtime requires project-state-record/v4. Upgrade this project explicitly from its current requirements and evidence before starting Runtime.');
+  if (state.schema_version !== 'project-state-record/v5') throw new Error('Runtime requires project-state-record/v5. Upgrade this project explicitly from its current requirements and evidence before starting Runtime.');
 
   await runLedgerScript(root, ['project-state.mjs', 'audit', 'arckit/project/state.record.json'], { nodeBin, capability: projectCapability });
-  for (const activeCaseRef of state.active_case_refs || []) {
+  for (const activeCaseRef of state.advancement.active_case_refs || []) {
     const casePath = join(root, activeCaseRef);
     const record = parseCaseRecord(await readFile(casePath, 'utf8'), casePath);
-    if (record.schema_version !== 'development-case-record/v4') throw new Error(`Runtime requires development-case-record/v4: ${activeCaseRef}. Upgrade this project explicitly before starting Runtime.`);
+    if (record.schema_version !== 'development-case-record/v5') throw new Error(`Runtime requires development-case-record/v5: ${activeCaseRef}. Upgrade this project explicitly before starting Runtime.`);
     const auditResult = await runLedgerScript(root, [
       'development-case.mjs',
       'audit',

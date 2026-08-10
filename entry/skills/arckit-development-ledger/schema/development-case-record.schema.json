@@ -3,9 +3,9 @@
   "$id": "https://arckit.local/schema/development-case-record.schema.json",
   "title": "Arckit Development Case Record",
   "type": "object",
-  "required": ["schema_version", "id", "title", "status", "artifact_type", "created_at", "updated_at", "user_intent", "expected_outcome", "project_state_ref", "current_round", "facts", "state_impacts", "gaps", "content_revision", "completion_review", "open_questions", "decisions", "pending_handoffs", "process_notes", "rounds", "case_resolution", "project_impact_candidate"],
+  "required": ["schema_version", "id", "title", "status", "artifact_type", "created_at", "updated_at", "user_intent", "expected_outcome", "project_state_ref", "current_round", "facts", "state_impacts", "gaps", "content_revision", "completion_review", "open_questions", "decisions", "pending_handoffs", "process_notes", "rounds", "case_resolution"],
   "properties": {
-    "schema_version": { "const": "development-case-record/v4" },
+    "schema_version": { "const": "development-case-record/v5" },
     "id": { "type": "string", "pattern": "^CASE-[0-9]{8}-[0-9]{3}$" },
     "title": { "type": "string", "minLength": 1 },
     "status": { "type": "string", "enum": ["active", "blocked", "handoff", "closed"] },
@@ -26,8 +26,7 @@
     "pending_handoffs": { "type": "array" },
     "process_notes": { "type": "array" },
     "rounds": { "type": "array" },
-    "case_resolution": { "type": "object" },
-    "project_impact_candidate": { "$ref": "#/$defs/project_impact_candidate" }
+    "case_resolution": { "type": "object" }
   },
   "additionalProperties": false,
   "$defs": {
@@ -44,14 +43,24 @@
       },
       "additionalProperties": false
     },
+    "project_target": {
+      "type": "object",
+      "required": ["kind", "ref", "revision"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["software_decision", "software_invariant"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "revision": { "type": ["integer", "null"], "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
     "state_impact": {
       "type": "object",
-      "required": ["id", "fact_id", "fact_revision", "condition_ref", "effect", "reason", "gap_ids", "evidence"],
+      "required": ["id", "fact_id", "fact_revision", "target", "effect", "reason", "gap_ids", "evidence"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "fact_id": { "type": "string", "minLength": 1 },
         "fact_revision": { "type": "integer", "minimum": 1 },
-        "condition_ref": { "type": "string", "minLength": 3 },
+        "target": { "$ref": "#/$defs/project_target" },
         "effect": { "type": "string", "enum": ["upheld", "threatened", "undetermined"] },
         "reason": { "type": "string", "minLength": 1 },
         "gap_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
@@ -81,20 +90,7 @@
       "required": ["status", "policy", "additional_cycles_authorized", "cycle_count", "reviewed_content_revision", "dimensions", "findings", "cycles", "evidence", "escalation", "human_authorizations"],
       "properties": {
         "status": { "type": "string", "enum": ["pending", "findings_open", "clean", "needs_human"] },
-        "dimensions": {
-          "type": "object",
-          "required": ["implementation_correctness", "problem_resolution", "verification_credibility", "regression_risk", "minimality"]
-        }
-      }
-    },
-    "project_impact_candidate": {
-      "type": "object",
-      "required": ["status", "changes", "condition_changes", "evidence"],
-      "properties": {
-        "status": { "type": "string", "enum": ["none", "proposed", "accepted"] },
-        "changes": { "type": "array" },
-        "condition_changes": { "type": "array" },
-        "evidence": { "type": "array", "items": { "type": "string" } }
+        "dimensions": { "type": "object", "required": ["implementation_correctness", "problem_resolution", "verification_credibility", "regression_risk", "minimality"] }
       }
     }
   }

@@ -26,7 +26,7 @@ Loop 是一次可验证的 Case 状态推进，不等于 Agent 内部每次工�
 2. 判断用户输入是新事项、继续、补充、纠错、目标变化、暂停或状态查询。
 3. 选择一个 active Case 与一个完整 candidate gap；没有合适 Case 时请求 `case_control.create_case`。
 4. 在当前 turn 内使用适合的事实、skills 和工具完成该 gap 所需工作。
-5. 记录本轮确认或改变的事实，判断它们对 Project desired conditions 的实际影响，并为 threatened 或 undetermined condition 形成后续 gap。
+5. 记录本轮确认或改变的事实，判断它们对 Project software decisions/invariants 的实际影响，为 threatened 或 undetermined target 形成后续 gap，并提交当轮相关 Project delta。
 6. 执行与风险相称的验证和自我审查。
 7. 输出 evidence-backed transition 或 human/external handoff。
 8. ledger 写回成功后，在同一对话基于 fresh state 继续下一个 gap。
@@ -74,8 +74,8 @@ Runtime invocation 只提供自然的 `$using-arckit` 触发、真实用户意�
 2. 从全部 active Cases 中选择一个 Case，再从 unordered `candidate_gaps` 选择一个 gap。
 3. 形成 `planned_transition.goal`、expected state change 与 evidence requirement。
 4. 当前 Agent 自主使用必要 skills/tools 完成事实维护、诊断、实现、构建、测试和自我审查。
-5. 形成本轮 accepted facts，判断与 Project desired conditions 的 state impacts，并添加必要的后续 dynamic gaps。
-6. 分离 `round_outcome`、`case_resolution`、`project_impact_candidate` 与 handoff。
+5. 形成本轮 accepted facts，判断与 Project software decisions/invariants 的 state impacts，并添加必要的后续 dynamic gaps。
+6. 分离 `round_outcome`、`case_resolution`、`project_state_delta` 与 handoff。
 7. 提交绑定 Case revision、observed Project revision 和完整 selected gap 的 Case transition。
 8. Runtime 通过结构、revision、授权、路径和 ledger legality gate 后调用 trusted ledger。
 9. 写回成功后 fresh-read，再选择下一个 gap。

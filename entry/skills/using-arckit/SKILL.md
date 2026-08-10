@@ -1,64 +1,58 @@
 ---
 name: using-arckit
-description: "在 Arckit 项目中持续推进真实软件开发事项。依据 fresh Project desired conditions 与 Case facts/state impacts/dynamic gaps，选择一个最值得优先处理的 gap，由同一 Agent 动态使用必要 skills/tools 完成并形成可信 transition；自动续轮直到 resolved，只有 human responsibility 暂停。"
+description: "在 Arckit 项目中持续推进真实软件开发事项。依据 fresh Project 软件定义决策/不变量/推进状态与 Case facts/state impacts/dynamic gaps，选择最值得优先处理的 gap，由同一 Agent 动态使用必要 skills/tools 完成并形成可信 transition；自动续轮直到 resolved，只有 human responsibility 暂停。"
 ---
 
 # Using Arckit
 
-本 skill 是通用的状态驱动控制算法，不编码产品、交互、视觉、技术、代码或测试清单，也不规定 skill、路径与工作顺序。项目差异由 Project State 的具体 `desired_conditions` 表达；事项差异由 Case facts、state impacts 与动态 gaps 表达。
+本 skill 是通用状态驱动控制算法，不硬编码产品、交互、视觉、技术、代码或测试流程，也不规定 skill、路径和工作顺序。项目个性化来自 Project State 的显式软件定义清单及其已沉淀决策；事实变化通过 Case impacts 和动态 gaps 推进。
 
 ## 硬边界
 
-- Project State 保存宏观 completeness dimensions、项目具体 desired conditions、Project gaps 与 active Case refs；condition 只描述何时相关、必须成立什么及证据期望，不包含 skill、path、owner 或流程。
-- 所有 active Case 使用 `development-case-record/v4`：facts、state_impacts、dynamic gaps、问题、handoff、content revision 与 completion review。旧协议项目必须先按当前意图、证据和实现做显式语义升级；本 skill 与 Runtime 不解释或自动迁移旧状态。
-- 当前 Agent 负责语义判断、事实恢复、condition 相关性判断、gap 形成与排序、原生 skill/tool/path 选择、实际执行和验证。Runtime 不预选这些内容。
-- 一个 Loop 只提交一个 selected gap transition。完成当前 gap 时可以接受新事实、更新实际相关的 impacts，并暴露后续 gaps；不能顺手关闭另一个 gap。
-- 文档、诊断、实现、验证和交付使用同一种 gap。没有实际影响时不创建对应状态项，也不提交 not-required 过场。
-- Agent 不直接改 ledger；只提交 Case control、Case transition 或 handoff 给 trusted entrypoint。
-- Review 只在普通 gaps、问题、handoff 与 threatened/undetermined impacts 全部闭合后出现，重点检查实施正确性、问题是否真实解决、验证可信度、回归风险与最小性。
+- Project `project-state-record/v5` 明确给出软件能力决策清单、当前决策、抽象软件不变量和当前推进上下文。Agent 必须逐项理解它们，但不会为每项制造过场 gap。
+- 所有 active Case 使用 `development-case-record/v5`。Case 只记录实际相关的 facts、targeted impacts、dynamic gaps、问题、handoff 和 completion review。
+- 当前 Agent 负责恢复全部相关信息、判断下一 gap 的优先级、动态选择 skills/tools/paths、完成工作并验证。Runtime 不做语义预路由。
+- 一个 Loop 只提交一个 selected gap transition；同一轮可接受新事实、更新相关 impacts、形成后续 gaps，并立即提交相关 Project State 变化。
+- 文档是否更新由当前 Gap 的目标、Project decisions/invariants、长期事实与代码现实共同决定。该更新应在最合适的 Gap 中自然发生，而不是靠最终 Review 常规补齐。
+- Review 只在普通工作闭合后出现，重点检查代码实施正确性、问题是否真实解决、验证可信度、回归风险与最小性。
+- Agent 不直接手改 ledger；只向 trusted entrypoint 提交 Case control、Case transition 或 handoff。
 
 ## 状态驱动 Loop
 
-### 1. 恢复全部相关事实
+### 1. 恢复全部相关信息
 
-读取当前用户增量、fresh Project/Iteration、全部 active Cases、Project desired conditions、Case facts/impacts/gaps 和完成当前工作所需的源码、文档、配置、日志与测试。权威边界见 [references/controller-input-boundary.md](references/controller-input-boundary.md)。状态查询只报告，不执行。
+读取用户当前增量、fresh Project/Iteration、全部 active Cases、15 项软件定义决策、软件不变量，以及完成当前判断所需的长期文档、源码、配置、日志和测试。Project State 是明确的思考框架，不是 skill/path 路由表。输入边界见 [references/controller-input-boundary.md](references/controller-input-boundary.md)。
 
 ### 2. 选择或创建 Case
 
-结合用户意图、Project gaps、风险和 active Case 边界选择唯一 Case。没有合适 Case 时返回 `case_control.create_case`，明确：title、intent、expected_outcome、artifact_type、selection_reason、initial_facts、实际相关的 initial_impacts，以及至少一个具体 initial_gap。Ledger 不从关键词补造语义。
+结合用户意图、Project gaps、active Cases、风险和依赖选择唯一 Case。没有合适 Case 时返回 `case_control.create_case`：明确 intent/outcome、至少一个 accepted fact、实际相关的 decision/invariant impacts，以及至少一个具体 gap。
 
-### 3. 推导并选择下一 gap
+### 3. 动态选择下一 Gap
 
-先判断新事实对哪些 active desired conditions 实际相关：
+在所有 ready gaps 中，根据阻塞程度、风险、信息增益、依赖、用户影响与可验证性选择一个。不要按软件定义清单或数组顺序执行。Bug 根因未知时，通常先选最大幅降低不确定性的诊断 Gap；若产品语义未知，则先澄清产品决策；这来自当前事实而不是固定规则。
 
-- condition 已满足：记录 `upheld` impact 和持久证据。
-- condition 被威胁：记录 `threatened` impact，并由至少一个 open gap 承接。
-- 证据不足：记录 `undetermined` impact，并形成调查、澄清或取证 gap。
-- 不相关：不写 impact，也不创建 not-required 项。
+对 Project target 的判断为：
 
-在所有 ready gaps 中结合阻塞程度、风险、信息增益、依赖、用户影响和可验证性选择一个；数组顺序不表示优先级。根因未知的 bug 通常先选择能最大幅降低不确定性的诊断 gap，但这不是固定路由。human-responsibility gap 交还人类；external wait 保持可恢复，若仍有 agent-ready gap 则继续可执行工作。
+- 已满足：`upheld` + 持久证据。
+- 被威胁：`threatened` + open gap。
+- 证据不足：`undetermined` + 调查/澄清 gap。
+- 不相关：不创建 impact 或 not-required 状态。
 
-### 4. 同一 Agent 完成一个 gap
+### 4. 同一 Agent 完成一个 Gap
 
-围绕 gap goal 读取全部相关上下文，动态发现并使用必要 skills/tools。只做产品定义、只做代码诊断、只维护文档或实现加测试都可以；选择由当前事实和依赖决定。完成标准是 gap 的目标与 evidence requirement 真正满足，而不是某类工件被走过。
+围绕 Gap goal 读取所有相关上下文并动态使用必要 skills/tools。可以只做需求定义、只定位代码根因、维护某份文档，或完成实现与测试；完成标准是目标和 evidence requirement 真实满足。
 
-### 5. 形成 transition
+### 5. 提交 Transition
 
-按 [references/closeout-handoff.md](references/closeout-handoff.md) 提交完整 selected gap 快照、resolved gap、facts/impacts/follow-up gaps、evidence、Case claim 与 Project impact candidate。普通内容变化提升 revision 并使旧 clean Review 失效；clean Review 不与内容变化同轮提交。
+按 [references/closeout-handoff.md](references/closeout-handoff.md) 提交：完整 selected gap、Case facts/impacts/gaps delta、当轮 Project State delta、证据、round outcome 与 Case claim。软件定义决策在被真正澄清的当轮就进入 Project State；实现轮重新读取这些最新决策并据此工作。
 
 ### 6. 自动续轮
 
-Trusted ledger 写回后必须 fresh-read，再从当前 ready gaps 重新判断优先级。Agent-owned gap 自动继续，external wait 可恢复等待，只有 human responsibility 暂停。总墙钟、生产性轮数、构建或命令耗时不构成停止条件；Case resolved 后结束。
-
-## Reference 路由
-
-- 输入权威、事实恢复与停止责任：[references/controller-input-boundary.md](references/controller-input-boundary.md)
-- 连续 Loop 与 Case control：[references/controller-conversation-protocol.md](references/controller-conversation-protocol.md)
-- v4 transition、Project impact 与 handoff：[references/closeout-handoff.md](references/closeout-handoff.md)
+Ledger 写回后 fresh-read，再基于全部当前状态选择下一 Gap。Agent-owned 自动继续；external 保持可恢复等待且可先做其他 agent-ready 工作；只有 human responsibility 暂停。构建时间、总墙钟和生产性轮数不是停止条件；Case resolved 后结束。
 
 ## 输出
 
-- selected Case 与动态 gap，或语义完整的 `case_control.create_case`
-- 使用的 facts/conditions/skills/tools 与 evidence 摘要
-- `arckit-case-transition/v4` 或责任明确的 handoff
-- `round_outcome`、`case_resolution`、`project_impact_candidate`、`loop-handoff/v2`
+- selected Case 和动态 Gap，或完整 `case_control.create_case`
+- 本轮使用的决策、事实、invariants、skills/tools 与 evidence 摘要
+- `arckit-case-transition/v5` 或明确 handoff
+- `round_outcome`、`case_resolution`、`project_state_delta`、`loop-handoff/v2`

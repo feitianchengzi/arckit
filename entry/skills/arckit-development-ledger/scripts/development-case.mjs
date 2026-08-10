@@ -13,7 +13,7 @@ const CASE_STATUS = new Set(['active', 'blocked', 'handoff', 'closed']);
 const ARTIFACT_TYPES = new Set(['code', 'skill', 'document', 'workflow', 'mixed', 'unknown']);
 const REVIEW_STATUSES = new Set(['pending', 'findings_open', 'clean', 'needs_human']);
 const REVIEW_DIMENSION_STATES = new Set(['unknown', 'clean', 'findings']);
-export const V4_REVIEW_DIMENSIONS = ['implementation_correctness', 'problem_resolution', 'verification_credibility', 'regression_risk', 'minimality'];
+export const REVIEW_DIMENSIONS = ['implementation_correctness', 'problem_resolution', 'verification_credibility', 'regression_risk', 'minimality'];
 const RESPONSIBILITIES = new Set(['agent', 'human', 'external']);
 const STRUCTURED_RECORD_PATTERN = /(## Structured Record[\s\S]*?```json\s*\n)([\s\S]*?)(\n```)/;
 
@@ -55,10 +55,6 @@ function slugify(input) {
   return input.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'development-case';
 }
 
-function defaultProjectImpactCandidate() {
-  return { status: 'none', changes: [], condition_changes: [], evidence: [] };
-}
-
 export function defaultCompletionReview({ maxCycles, source, timestamp }) {
   if (!Number.isInteger(maxCycles) || maxCycles < 1) throw new Error('maxReviewCycles must be a positive integer');
   if (typeof source !== 'string' || !source.trim()) throw new Error('reviewPolicySource must be a non-empty string');
@@ -72,7 +68,7 @@ export function defaultCompletionReview({ maxCycles, source, timestamp }) {
     additional_cycles_authorized: 0,
     cycle_count: 0,
     reviewed_content_revision: null,
-    dimensions: Object.fromEntries(V4_REVIEW_DIMENSIONS.map((key) => [key, 'unknown'])),
+    dimensions: Object.fromEntries(REVIEW_DIMENSIONS.map((key) => [key, 'unknown'])),
     findings: [],
     cycles: [],
     evidence: [],
@@ -83,9 +79,9 @@ export function defaultCompletionReview({ maxCycles, source, timestamp }) {
 
 export function createDefaultCaseRecord({ title, artifactType = 'unknown', intent = '', expectedOutcome = '', initialFacts = [], initialImpacts = [], initialGaps = [], maxReviewCycles, reviewPolicySource }) {
   const timestamp = nowIso();
-  if (!Array.isArray(initialGaps) || initialGaps.length === 0) throw new Error('new v4 Case requires at least one semantic initial gap');
+  if (!Array.isArray(initialGaps) || initialGaps.length === 0) throw new Error('new v5 Case requires at least one semantic initial gap');
   const record = {
-    schema_version: 'development-case-record/v4',
+    schema_version: 'development-case-record/v5',
     id: nextCaseId(),
     title,
     status: 'active',
@@ -107,7 +103,6 @@ export function createDefaultCaseRecord({ title, artifactType = 'unknown', inten
     process_notes: [],
     rounds: [],
     case_resolution: null,
-    project_impact_candidate: defaultProjectImpactCandidate(),
   };
   record.case_resolution = auditCaseRecord(record, timestamp);
   record.current_round = emptyCurrentRound();
@@ -127,7 +122,7 @@ function emptyCurrentRound() {
   };
 }
 
-function v4CandidateGap(gap) {
+function candidateGap(gap) {
   return {
     id: gap.id,
     responsibility: gap.responsibility,
@@ -140,7 +135,7 @@ function v4CandidateGap(gap) {
   };
 }
 
-function v4ReviewCandidate(record, responsibility = 'agent') {
+function reviewCandidate(record, responsibility = 'agent') {
   const review = record.completion_review;
   const human = responsibility === 'human';
   return {
@@ -157,7 +152,7 @@ function v4ReviewCandidate(record, responsibility = 'agent') {
   };
 }
 
-function v4LoopHandoff(record, status, stage, candidateGaps) {
+function loopHandoff(record, status, stage, candidateGaps) {
   const human = candidateGaps.find((gap) => gap.responsibility === 'human');
   const agent = candidateGaps.find((gap) => gap.responsibility === 'agent');
   const external = candidateGaps.find((gap) => gap.responsibility === 'external');
@@ -175,11 +170,11 @@ function v4LoopHandoff(record, status, stage, candidateGaps) {
   };
 }
 
-function auditCaseRecordV4(record, timestamp = nowIso()) {
+function auditCaseRecordV5(record, timestamp = nowIso()) {
   const gaps = Array.isArray(record.gaps) ? record.gaps : [];
   const open = gaps.filter((gap) => gap.status === 'open');
   const closedIds = new Set(gaps.filter((gap) => ['resolved', 'cancelled'].includes(gap.status)).map((gap) => gap.id));
-  const ready = open.filter((gap) => gap.blocked_by.every((id) => closedIds.has(id))).map(v4CandidateGap);
+  const ready = open.filter((gap) => gap.blocked_by.every((id) => closedIds.has(id))).map(candidateGap);
   const openQuestions = (record.open_questions || []).filter((item) => item.status === 'open');
   const pendingHandoffs = (record.pending_handoffs || []).filter((item) => item.status === 'pending');
   ready.push(...openQuestions.map((item) => ({
@@ -201,13 +196,13 @@ function auditCaseRecordV4(record, timestamp = nowIso()) {
   const review = record.completion_review;
   const reviewCurrent = review?.status === 'clean'
     && review.reviewed_content_revision === record.content_revision
-    && V4_REVIEW_DIMENSIONS.every((key) => review.dimensions?.[key] === 'clean');
+      && REVIEW_DIMENSIONS.every((key) => review.dimensions?.[key] === 'clean');
   let stage = ordinaryClosed ? 'review_ready' : ready.length ? 'working' : open.length ? 'blocked' : 'working';
   if (ordinaryClosed && reviewCurrent) stage = 'resolved';
   else if (ordinaryClosed) {
     const limit = effectiveReviewCycleLimit(review);
     const responsibility = review.status === 'needs_human' || review.cycle_count >= limit ? 'human' : 'agent';
-    candidateGaps = [v4ReviewCandidate(record, responsibility)];
+    candidateGaps = [reviewCandidate(record, responsibility)];
     if (responsibility === 'human') stage = 'needs_human';
   }
   const status = stage === 'resolved' ? 'resolved' : 'unresolved';
@@ -225,16 +220,16 @@ function auditCaseRecordV4(record, timestamp = nowIso()) {
     blocked: stage === 'blocked' ? open.map((gap) => gap.id) : [],
     reason: status === 'resolved' ? 'All dynamic gaps and state impacts are closed and the current implementation passed completion review.' : `${remaining.length} Case obligation(s) remain.`,
     candidate_gaps: candidateGaps,
-    loop_handoff: v4LoopHandoff(record, status, stage, candidateGaps),
+    loop_handoff: loopHandoff(record, status, stage, candidateGaps),
     updated_at: timestamp,
   };
 }
 
 export function auditCaseRecord(record, timestamp = nowIso()) {
-  if (record?.schema_version !== 'development-case-record/v4') {
-    throw new Error(`Unsupported Case State schema: ${record?.schema_version || '<missing>'}; expected development-case-record/v4`);
+  if (record?.schema_version !== 'development-case-record/v5') {
+    throw new Error(`Unsupported Case State schema: ${record?.schema_version || '<missing>'}; expected development-case-record/v5`);
   }
-  return auditCaseRecordV4(record, timestamp);
+  return auditCaseRecordV5(record, timestamp);
 }
 
 function validateResolution(value, label, errors, file) {
@@ -242,7 +237,7 @@ function validateResolution(value, label, errors, file) {
   if (!value || typeof value !== 'object' || !['resolved', 'cancelled'].includes(value.status) || !value.outcome || !value.reason || !Array.isArray(value.evidence) || value.evidence.length === 0 || !value.occurred_at) errors.push(`${file}: ${label} is invalid`);
 }
 
-function validateCaseRecordV4(record, file = '<record>') {
+function validateCaseRecordV5(record, file = '<record>') {
   const errors = [];
   if (!/^CASE-\d{8}-\d{3}$/.test(record.id || '')) errors.push(`${file}: invalid case id`);
   if (!CASE_STATUS.has(record.status)) errors.push(`${file}: invalid status`);
@@ -272,7 +267,9 @@ function validateCaseRecordV4(record, file = '<record>') {
   for (const [index, gap] of (record.gaps || []).entries()) for (const dependency of gap.blocked_by || []) if (!gaps.has(dependency) || dependency === gap.id) errors.push(`${file}: gaps[${index}] has invalid blocked_by ${dependency}`);
   for (const [index, impact] of (record.state_impacts || []).entries()) {
     const fact = facts.get(impact?.fact_id);
-    if (!impact?.id || !fact || fact.status !== 'accepted' || impact.fact_revision !== fact.revision || !/^[a-z0-9_]+\.[A-Za-z0-9._-]+$/.test(impact.condition_ref || '') || !['upheld', 'threatened', 'undetermined'].includes(impact.effect) || !impact.reason || !Array.isArray(impact.gap_ids) || !Array.isArray(impact.evidence)) errors.push(`${file}: state_impacts[${index}] is invalid`);
+    const target = impact?.target;
+    const targetValid = target && ['software_decision', 'software_invariant'].includes(target.kind) && typeof target.ref === 'string' && target.ref && (target.kind === 'software_decision' ? Number.isInteger(target.revision) && target.revision >= 0 : target.revision === null);
+    if (!impact?.id || !fact || fact.status !== 'accepted' || impact.fact_revision !== fact.revision || !targetValid || !['upheld', 'threatened', 'undetermined'].includes(impact.effect) || !impact.reason || !Array.isArray(impact.gap_ids) || !Array.isArray(impact.evidence)) errors.push(`${file}: state_impacts[${index}] is invalid`);
     if (impact?.effect === 'upheld' && impact.evidence.length === 0) errors.push(`${file}: state_impacts[${index}] upheld requires evidence`);
     if (['threatened', 'undetermined'].includes(impact?.effect)) {
       if (impact.gap_ids.length === 0 || impact.gap_ids.some((id) => !gaps.has(id)) || impact.gap_ids.every((id) => gaps.get(id)?.status !== 'open')) errors.push(`${file}: state_impacts[${index}] must bind at least one open gap`);
@@ -280,21 +277,20 @@ function validateCaseRecordV4(record, file = '<record>') {
   }
   if (!Number.isInteger(record.content_revision) || record.content_revision < 0) errors.push(`${file}: content_revision must be a non-negative integer`);
   const review = record.completion_review;
-  if (!review || !REVIEW_STATUSES.has(review.status) || !Number.isInteger(review.policy?.initial_max_cycles) || review.policy.initial_max_cycles < 1 || !Array.isArray(review.cycles) || !Array.isArray(review.findings) || !V4_REVIEW_DIMENSIONS.every((key) => REVIEW_DIMENSION_STATES.has(review.dimensions?.[key]))) errors.push(`${file}: completion_review is invalid`);
+  if (!review || !REVIEW_STATUSES.has(review.status) || !Number.isInteger(review.policy?.initial_max_cycles) || review.policy.initial_max_cycles < 1 || !Array.isArray(review.cycles) || !Array.isArray(review.findings) || !REVIEW_DIMENSIONS.every((key) => REVIEW_DIMENSION_STATES.has(review.dimensions?.[key]))) errors.push(`${file}: completion_review is invalid`);
   if (!record.current_round || !Object.hasOwn(record.current_round, 'selected_gap')) errors.push(`${file}: current_round is invalid`);
   if (!record.case_resolution || !['unresolved', 'resolved'].includes(record.case_resolution.status)) errors.push(`${file}: case_resolution is invalid`);
-  if (!record.project_impact_candidate || !['none', 'proposed', 'accepted'].includes(record.project_impact_candidate.status)) errors.push(`${file}: project_impact_candidate is invalid`);
-  const derived = errors.length ? null : auditCaseRecordV4(record, record.case_resolution.updated_at);
+  const derived = errors.length ? null : auditCaseRecordV5(record, record.case_resolution.updated_at);
   if (derived && JSON.stringify({ ...derived, updated_at: '' }) !== JSON.stringify({ ...record.case_resolution, updated_at: '' })) errors.push(`${file}: case_resolution is not the deterministic projection of Case State; run audit --write`);
   if (record.status === 'closed' && record.case_resolution?.status !== 'resolved') errors.push(`${file}: closed case must be resolved`);
   return errors;
 }
 
 export function validateCaseRecord(record, file = '<record>') {
-  if (record?.schema_version !== 'development-case-record/v4') {
-    return [`${file}: schema_version must be development-case-record/v4`];
+  if (record?.schema_version !== 'development-case-record/v5') {
+    return [`${file}: schema_version must be development-case-record/v5`];
   }
-  return validateCaseRecordV4(record, file);
+  return validateCaseRecordV5(record, file);
 }
 
 export function parseCaseRecordText(text, file = '<case>') {

@@ -19,7 +19,7 @@ export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame
   const handoff = {
     schema_version: "arckit-case-control-handoff/v1",
     action: control.action,
-    expected_project_updated_at: snapshot.projectState?.project?.updated_at || "",
+    expected_project_revision: snapshot.projectState?.project?.revision ?? 0,
     case_id: control.case_id || "",
     title: control.title || "",
     intent: control.intent || "",
@@ -43,7 +43,13 @@ export async function createCaseControlRuntimeResult({ controllerPlan, loopFrame
     round_result: "continue",
     round_outcome: { status: "completed", reason },
     case_outcome: { status: "unresolved", reason, unresolved: ["case_control"] },
-    project_impact: { status: "none", changes: [], evidence: [] },
+    project_state_delta: {
+      software_definition_changes: [],
+      software_invariant_changes: [],
+      project_gap_changes: [],
+      selection_context_change: null,
+      evidence: []
+    },
     case_transition: null,
     case_control_handoff: handoff,
     round_state: state.state,

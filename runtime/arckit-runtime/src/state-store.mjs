@@ -10,22 +10,22 @@ export function createStateStore(projectRoot) {
       const projectStatePath = join(root, 'arckit/project/state.record.json');
       if (!existsSync(projectStatePath)) throw new Error(`Missing project state record: ${projectStatePath}`);
       const projectState = await readJson(projectStatePath);
-      if (projectState.schema_version !== 'project-state-record/v4') throw new Error('Runtime requires project-state-record/v4');
+      if (projectState.schema_version !== 'project-state-record/v5') throw new Error('Runtime requires project-state-record/v5');
 
-      const activeCaseRefs = Array.isArray(projectState.active_case_refs) ? projectState.active_case_refs : [];
+      const activeCaseRefs = Array.isArray(projectState.advancement?.active_case_refs) ? projectState.advancement.active_case_refs : [];
       const activeCases = [];
       for (const ref of activeCaseRefs) {
         const record = await readCaseRecordIfExists(join(root, ref));
         if (!record) throw new Error(`Active Case ref cannot be read: ${ref}`);
-        if (record.schema_version !== 'development-case-record/v4') throw new Error(`Runtime requires development-case-record/v4: ${ref}`);
+        if (record.schema_version !== 'development-case-record/v5') throw new Error(`Runtime requires development-case-record/v5: ${ref}`);
         activeCases.push({ ref, record });
       }
 
-      const iterationRecord = projectState.active_iteration_ref
-        ? await readJsonIfExists(join(root, projectState.active_iteration_ref))
+      const iterationRecord = projectState.advancement.active_iteration_ref
+        ? await readJsonIfExists(join(root, projectState.advancement.active_iteration_ref))
         : null;
-      if (iterationRecord && iterationRecord.schema_version !== 'iteration-state-record/v2') {
-        throw new Error(`Runtime requires iteration-state-record/v2: ${projectState.active_iteration_ref}`);
+      if (iterationRecord && iterationRecord.schema_version !== 'iteration-state-record/v3') {
+        throw new Error(`Runtime requires iteration-state-record/v3: ${projectState.advancement.active_iteration_ref}`);
       }
       const documents = await Promise.all([
         readTextIfExists(join(root, 'arckit/project/STATE.md')),
@@ -42,7 +42,7 @@ export function createStateStore(projectRoot) {
         paths: {
           projectState: 'arckit/project/state.record.json',
           stateBrief: 'arckit/project/STATE.md',
-          activeIteration: projectState.active_iteration_ref || '',
+          activeIteration: projectState.advancement.active_iteration_ref || '',
           activeCases: activeCaseRefs,
           casesIndex: 'arckit/cases/INDEX.md',
           specIndex: 'arckit/spec/INDEX.md',
@@ -86,13 +86,13 @@ async function readCaseRecordIfExists(file) {
 }
 
 function summarize(projectState, iterationRecord, activeCases) {
-  const gaps = Array.isArray(projectState.state_gaps) ? projectState.state_gaps : [];
+  const gaps = Array.isArray(projectState.advancement?.project_gaps) ? projectState.advancement.project_gaps : [];
   return {
     project_name: projectState.project?.name || '',
     project_status: projectState.project?.status || '',
-    current_phase: projectState.project?.current_phase || '',
+    current_phase: projectState.advancement?.selection_context?.current_focus || '',
     active_iteration: iterationRecord?.id || '',
-    next_case_intent: projectState.case_control?.next_case_intent || '',
+    next_case_intent: projectState.advancement?.selection_context?.current_focus || '',
     active_case_count: activeCases.length,
     project_gap_count: gaps.length,
   };

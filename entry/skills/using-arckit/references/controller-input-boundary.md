@@ -2,13 +2,13 @@
 
 ## 权威顺序
 
-当前用户增量、fresh Project desired conditions、fresh Case facts/impacts/gaps、execution authorization 与已接受 ledger state 高于 thread 历史、旧 gap、旧 revision、旧授权和未接受 claim。Thread 只提供连续性。
+当前用户增量、fresh Project 软件定义决策/软件不变量/推进状态、fresh Case facts/impacts/gaps、execution authorization 与已接受 ledger state 高于 thread 历史、旧 gap、旧 revision、旧授权和未接受 claim。Thread 只提供连续性。
 
-Runtime digest 至少包含 Project revision、dimensions/conditions/Project gaps、全部 active Case revisions、facts、state impacts、open/blocked/ready gaps、问题、handoffs、Review 与 canonical refs。Digest 是恢复索引，不是 transcript；Agent 可以主动读取完成当前 gap 所需的源码、文档、日志、配置和测试。
+Runtime digest 至少包含 Project revision、15 项 software decisions、software invariants、Project gaps、全部 active Case revisions、facts、state impacts、open/blocked/ready gaps、问题、handoffs 与 Review。Digest 是恢复索引，不是 transcript；Agent可以主动读取完成当前 gap 所需的源码、文档、日志、配置和测试。
 
 ## 执行边界
 
-同一 Agent 在一个 turn 中完成选择、事实调查、必要 skill/tool 使用、实现、验证和 transition。Runtime 不依据 condition 文本生成 skill、路径、权限或执行角色。真实权限只来自用户授权、sandbox、approval policy 和 destructive-action 规则。
+同一 Agent 在一个 turn 中完成选择、事实调查、必要 skill/tool 使用、实现、验证和 transition。Runtime 不依据 decision/invariant 文本生成 skill、路径、权限或执行角色。真实权限只来自用户授权、sandbox、approval policy 和 destructive-action 规则。
 
 ## 停止与责任
 

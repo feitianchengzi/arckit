@@ -29,23 +29,24 @@ export function validateRuntimeResult(result) {
   requireEnum(result?.case_outcome?.status, ["unresolved", "resolved", "blocked"], "case_outcome.status", issues);
   requireString(result?.case_outcome?.reason, "case_outcome.reason", issues);
   requireArray(result?.case_outcome?.unresolved, "case_outcome.unresolved", issues);
-  requireObject(result?.project_impact, "project_impact", issues);
-  requireEnum(result?.project_impact?.status, ["none", "proposed", "accepted"], "project_impact.status", issues);
-  requireArray(result?.project_impact?.changes, "project_impact.changes", issues);
-  if (result?.project_impact?.condition_changes !== undefined) requireArray(result?.project_impact?.condition_changes, "project_impact.condition_changes", issues);
-  requireArray(result?.project_impact?.evidence, "project_impact.evidence", issues);
+  requireObject(result?.project_state_delta, "project_state_delta", issues);
+  requireArray(result?.project_state_delta?.software_definition_changes, "project_state_delta.software_definition_changes", issues);
+  requireArray(result?.project_state_delta?.software_invariant_changes, "project_state_delta.software_invariant_changes", issues);
+  requireArray(result?.project_state_delta?.project_gap_changes, "project_state_delta.project_gap_changes", issues);
+  requireArray(result?.project_state_delta?.evidence, "project_state_delta.evidence", issues);
   if (isCaseControl) {
     validateCaseControlHandoff(caseControlHandoff, issues);
     if (result?.case_transition !== null) issues.push({ path: "case_transition", message: "Case control writeback must not include a Case transition." });
   } else if (hasCaseTransition) {
     requireObject(result?.case_transition, "case_transition", issues);
-    requireEqual(result?.case_transition?.schema_version, "arckit-case-transition/v4", "case_transition.schema_version", issues);
+    requireEqual(result?.case_transition?.schema_version, "arckit-case-transition/v5", "case_transition.schema_version", issues);
     requireString(result?.case_transition?.case_id, "case_transition.case_id", issues);
     requireString(result?.case_transition?.case_updated_at, "case_transition.case_updated_at", issues);
-    requireString(result?.case_transition?.project_updated_at, "case_transition.project_updated_at", issues);
+    requireInteger(result?.case_transition?.project_revision, "case_transition.project_revision", issues);
     requireObject(result?.case_transition?.selected_gap, "case_transition.selected_gap", issues);
     requireObject(result?.case_transition?.planned_transition, "case_transition.planned_transition", issues);
     requireObject(result?.case_transition?.accepted_state_delta, "case_transition.accepted_state_delta", issues);
+    requireObject(result?.case_transition?.project_state_delta, "case_transition.project_state_delta", issues);
     requireArray(result?.case_transition?.evidence, "case_transition.evidence", issues);
     requireArray(result?.case_transition?.unresolved, "case_transition.unresolved", issues);
   } else if (result?.ledger_stage?.writeback_required === true || result?.ledger_stage?.status === "gate_ready") {
@@ -147,7 +148,7 @@ export function validateRuntimeResult(result) {
 function validateCaseControlHandoff(handoff, issues) {
   requireEqual(handoff.schema_version, "arckit-case-control-handoff/v1", "case_control_handoff.schema_version", issues);
   requireEqual(handoff.action, "create_case", "case_control_handoff.action", issues);
-  requireString(handoff.expected_project_updated_at, "case_control_handoff.expected_project_updated_at", issues);
+  requireInteger(handoff.expected_project_revision, "case_control_handoff.expected_project_revision", issues);
   requireString(handoff.case_id, "case_control_handoff.case_id", issues);
   requireString(handoff.title, "case_control_handoff.title", issues);
   requireString(handoff.intent, "case_control_handoff.intent", issues);

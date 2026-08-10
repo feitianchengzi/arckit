@@ -25,19 +25,20 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
     reasons.push('ledger_stage must explicitly mark an accepted Case transition as gate_ready and writeback_required.');
   }
   if (isCaseControl) {
-    if (snapshot?.projectState?.project?.updated_at !== caseControlHandoff.expected_project_updated_at) reasons.push('case_control_handoff is stale for Project State.');
+    if (snapshot?.projectState?.project?.revision !== caseControlHandoff.expected_project_revision) reasons.push('case_control_handoff is stale for Project State.');
   } else {
-    if (transition?.schema_version !== 'arckit-case-transition/v4') reasons.push('case_transition must use arckit-case-transition/v4.');
+    if (transition?.schema_version !== 'arckit-case-transition/v5') reasons.push('case_transition must use arckit-case-transition/v5.');
     if (!transition?.case_id || !transition?.selected_gap?.id) reasons.push('case_transition must identify a concrete Case gap.');
     if (!transition?.case_updated_at) reasons.push('case_transition must bind the expected Case updated_at revision.');
-    if (!transition?.project_updated_at) reasons.push('case_transition must bind the observed Project updated_at revision.');
+    if (!Number.isInteger(transition?.project_revision)) reasons.push('case_transition must bind the observed Project revision.');
     if (!transition?.planned_transition?.goal || !transition?.planned_transition?.expected_state_change) reasons.push('case_transition.planned_transition is incomplete.');
     if (!Array.isArray(transition?.evidence) || transition.evidence.length === 0) reasons.push('case_transition.evidence must be non-empty.');
     const delta = transition?.accepted_state_delta;
     if (!delta || !Object.hasOwn(delta, 'resolved_gap') || !Array.isArray(delta.facts_added) || !Array.isArray(delta.impacts_added) || !Array.isArray(delta.impacts_updated) || !Array.isArray(delta.gaps_added)) reasons.push('case_transition.accepted_state_delta is incomplete.');
     if (transition?.round_outcome === 'blocked') reasons.push('A blocked round is not eligible for automatic Case transition writeback.');
-    if (transition?.project_impact_candidate?.status === 'accepted' && transition?.case_resolution?.claimed_status !== 'resolved') reasons.push('Accepted project impact requires a Controller claim that the Case is resolved.');
-    if (transition?.case_resolution?.claimed_status === 'resolved' && snapshot?.projectState?.project?.updated_at !== transition?.project_updated_at) reasons.push('Resolving case_transition is stale for Project State.');
+    const projectDelta = transition?.project_state_delta;
+    const changesProject = Boolean(projectDelta && (projectDelta.software_definition_changes?.length || projectDelta.software_invariant_changes?.length || projectDelta.project_gap_changes?.length || projectDelta.selection_context_change));
+    if (changesProject && snapshot?.projectState?.project?.revision !== transition?.project_revision) reasons.push('Project-changing case_transition is stale for Project State.');
 
     const activeCase = (snapshot?.activeCases || []).find((item) => item.record?.id === transition?.case_id);
     if (snapshot && !activeCase) reasons.push(`case_transition.case_id is not an active Case: ${transition?.case_id || '<missing>'}`);

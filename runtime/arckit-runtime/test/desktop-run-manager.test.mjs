@@ -53,17 +53,17 @@ test("desktop run manager reads canonical active and closed Case records for rec
   await mkdir(join(projectDir, "arckit/cases/closed"), { recursive: true });
   await writeStore(dataDir, projectDir);
   await writeFile(join(projectDir, "arckit/project/state.record.json"), `${JSON.stringify({
-    schema_version: "project-state-record/v4",
-    active_case_refs: ["arckit/cases/active/CASE-20260807-001-active.md"]
+    schema_version: "project-state-record/v5",
+    advancement: { active_case_refs: ["arckit/cases/active/CASE-20260807-001-active.md"] }
   })}\n`, "utf8");
   await writeCaseFixture(join(projectDir, "arckit/cases/active/CASE-20260807-001-active.md"), {
-    schema_version: "development-case-record/v4", id: "CASE-20260807-001", status: "active", case_resolution: { status: "unresolved" }
+    schema_version: "development-case-record/v5", id: "CASE-20260807-001", status: "active", case_resolution: { status: "unresolved" }
   });
   await writeCaseFixture(join(projectDir, "arckit/cases/closed/CASE-20260806-001-closed.md"), {
-    schema_version: "development-case-record/v4", id: "CASE-20260806-001", status: "closed", case_resolution: { status: "resolved" }
+    schema_version: "development-case-record/v5", id: "CASE-20260806-001", status: "closed", case_resolution: { status: "resolved" }
   });
-  await writeCaseFixture(join(projectDir, "arckit/cases/closed/CASE-20260805-001-legacy.md"), {
-    schema_version: "development-case-record/v3", id: "CASE-20260805-001", status: "closed", case_resolution: { status: "resolved" }
+  await writeCaseFixture(join(projectDir, "arckit/cases/closed/CASE-20260805-001-unsupported.md"), {
+    schema_version: "development-case-record/unsupported", id: "CASE-20260805-001", status: "closed", case_resolution: { status: "resolved" }
   });
 
   try {

@@ -3,12 +3,12 @@
   "$id": "https://arckit.local/schema/case-transition.schema.json",
   "title": "Arckit Case Transition",
   "type": "object",
-  "required": ["schema_version", "case_id", "case_updated_at", "project_updated_at", "selected_gap", "planned_transition", "accepted_state_delta", "evidence", "unresolved", "round_outcome", "case_resolution", "project_impact_candidate"],
+  "required": ["schema_version", "case_id", "case_updated_at", "project_revision", "selected_gap", "planned_transition", "accepted_state_delta", "project_state_delta", "evidence", "unresolved", "round_outcome", "case_resolution"],
   "properties": {
-    "schema_version": { "const": "arckit-case-transition/v4" },
+    "schema_version": { "const": "arckit-case-transition/v5" },
     "case_id": { "type": "string", "pattern": "^CASE-[0-9]{8}-[0-9]{3}$" },
     "case_updated_at": { "type": "string", "minLength": 1 },
-    "project_updated_at": { "type": "string", "minLength": 1 },
+    "project_revision": { "type": "integer", "minimum": 0 },
     "selected_gap": { "type": "object" },
     "planned_transition": { "type": "object" },
     "accepted_state_delta": {
@@ -30,11 +30,22 @@
       },
       "additionalProperties": false
     },
+    "project_state_delta": {
+      "type": "object",
+      "required": ["software_definition_changes", "software_invariant_changes", "project_gap_changes", "selection_context_change", "evidence"],
+      "properties": {
+        "software_definition_changes": { "type": "array" },
+        "software_invariant_changes": { "type": "array" },
+        "project_gap_changes": { "type": "array" },
+        "selection_context_change": { "type": ["object", "null"] },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    },
     "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 },
     "unresolved": { "type": "array" },
     "round_outcome": { "type": "string", "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] },
-    "case_resolution": { "type": "object" },
-    "project_impact_candidate": { "$ref": "development-case-record.schema.json#/$defs/project_impact_candidate" }
+    "case_resolution": { "type": "object" }
   },
   "additionalProperties": false
 }

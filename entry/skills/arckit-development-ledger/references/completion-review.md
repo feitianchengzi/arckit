@@ -1,10 +1,12 @@
 # Case Completion Review
 
-Completion Review 是普通动态 gaps、问题、handoff 和 threatened/undetermined impacts 全部闭合后的终态门禁。它不承担常规产品、交互、视觉、技术、代码或验证补齐，也不是普通 facet。
+Completion Review 是普通动态 gaps、问题、handoff 和 threatened/undetermined impacts 全部闭合后的 Case 终态门禁。它不是软件事实、Project decision/invariant 或普通 facet，也不承担常规产品、交互、视觉、技术、代码或验证补齐。
+
+Ledger 在普通工作闭合后派生 Review candidate；Runtime 只负责在同一持久 Agent thread 中继续触发下一轮并调用 trusted ledger，Agent 执行语义审查。Review finding 先转成普通 dynamic gap；只有后续调查确认的稳定结论才可能通过普通 transition 成为 fact。
 
 ## 五个维度
 
-- `implementation_correctness`：实现符合 relevant accepted facts 与 upheld conditions。
+- `implementation_correctness`：实现符合 relevant accepted facts、software decisions 与 upheld invariants。
 - `problem_resolution`：原始问题或目标真实闭合。
 - `verification_credibility`：验证覆盖主要风险并可重复。
 - `regression_risk`：没有未处理的回归与边界破坏。

@@ -1,310 +1,142 @@
 {
-  "schema_version": "iteration-state-record/v2",
+  "schema_version": "iteration-state-record/v3",
   "id": "ITER-20260705-001",
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-09T18:42:34.239Z",
-  "iteration_goal": "将 Arckit 状态机制从记录型账本升级为由 Project State 选择 Case、Case State 暴露完整性 gap、Loop 产生证据并经确定性 ledger 聚合的软件项目控制面。",
+  "updated_at": "2026-08-10T14:56:53.200Z",
+  "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
-  "target_project_states": [
+  "targets": [
     {
-      "dimension": "problem_scenarios",
-      "target_state": "accepted",
-      "reason": "通过真实复杂软件项目证明状态驱动 loop 能持续推进而不是只在协议样例中成立。"
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "expected": "settled on the v5 software-definition ledger and Runtime contract",
+      "reason": "The accepted model must replace the old dimension/condition protocol coherently."
     },
     {
-      "dimension": "product_behavior",
-      "target_state": "accepted",
-      "reason": "通过 fresh-agent 场景接受 spec-first、code-first、mixed 和 not_required 动态路径。"
+      "kind": "project_gap",
+      "ref": "GAP-project-state-v5",
+      "expected": "resolved",
+      "reason": "The new Project/Case/Transition/Iteration contract must be implemented and verified end to end."
     },
     {
-      "dimension": "runtime_surfaces",
-      "target_state": "accepted",
-      "reason": "完成真实 Codex Controller/Worker、gate、ledger writeback 和 fresh-state continuation 闭环。"
+      "kind": "project_gap",
+      "ref": "GAP-agent-scenario-evaluation",
+      "expected": "resolved with isolated real-task evidence",
+      "reason": "Dynamic priority selection must work across different fact and dependency shapes."
     },
     {
-      "dimension": "data_state",
-      "target_state": "accepted",
-      "reason": "Project、Iteration、Case 与投影必须通过严格、可恢复的跨记录审计。"
-    },
-    {
-      "dimension": "quality_validation",
-      "target_state": "accepted",
-      "reason": "以真实运行和 durable evidence 接受完整状态驱动开发 loop。"
-    },
-    {
-      "dimension": "iteration_governance",
-      "target_state": "accepted",
-      "reason": "Iteration 只保存宏观目标和 resolved-Case 聚合，不保存 Loop continuation 或日志型同态变化。"
+      "kind": "software_invariant",
+      "ref": "material-risks-have-credible-evidence",
+      "expected": "upheld by automated and real execution evidence",
+      "reason": "A protocol control plane requires evidence proportionate to cross-record and runtime risk."
     }
   ],
   "accepted_project_changes": [
     {
-      "dimension": "product_behavior",
-      "from_state": "designed",
-      "to_state": "implemented",
-      "reason": "Project/Case/Loop separation, unordered Case candidate-gap selection, definition completeness, and equivalent human/Runtime transition semantics are implemented and locally verified.",
+      "kind": "software_decision",
+      "ref": "runtime_surfaces",
+      "outcome": "The Desktop-to-Runtime-to-Codex-to-ledger surface completed a real bounded transition.",
+      "evidence": [
+        "arckit-runtime://runs/RUN-20260803-180157597Z",
+        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "One coherent Agent turn now owns semantic gap execution while Runtime owns supervision and trusted writeback.",
       "evidence": [
         "arckit/spec/agentic-software-development/product-concepts.md",
-        "entry/skills/using-arckit/SKILL.md",
-        "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
-        "runtime/arckit-runtime/test/case-transition.test.mjs",
-        "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md"
+        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
       ],
-      "case_ref": "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md"
+      "case_ref": "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
     },
     {
-      "dimension": "data_state",
-      "from_state": "designed",
-      "to_state": "verified",
-      "reason": "Project v3 and Iteration v2 now have strict schemas, durable evidence rules, explicit gap coverage, generated projections, and deterministic cross-record audits that pass on the canonical repository state.",
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "Facet workflow compatibility was removed before the explicit software-definition v5 redesign.",
+      "evidence": [
+        "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
+      ],
+      "case_ref": "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
       "evidence": [
         "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-        "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
-        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
-        "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
-      ],
-      "case_ref": "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
-    },
-    {
-      "dimension": "iteration_governance",
-      "from_state": "implemented",
-      "to_state": "verified",
-      "reason": "Iteration v2 now contains only macro Project targets and resolved-Case aggregation, rejects legacy and Loop control fields, derives projections from fresh Project State, and stays aligned through deterministic closeout.",
-      "evidence": [
-        "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-        "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-        "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
-        "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-        "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
-        "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
-      ],
-      "case_ref": "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md"
-    },
-    {
-      "dimension": "user_experience",
-      "from_state": "implemented",
-      "to_state": "accepted",
-      "reason": "Desktop supervised operation, live event visibility, and in-run Chat steer were exercised successfully in the real Runtime loop.",
-      "evidence": [
-        "arckit-runtime://runs/RUN-20260803-180157597Z",
-        "runtime/arckit-runtime/src/desktop-run-manager.mjs",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-    },
-    {
-      "dimension": "runtime_surfaces",
-      "from_state": "verified",
-      "to_state": "accepted",
-      "reason": "The Desktop-to-runtime-to-app-server-to-ledger surface completed a real bounded transition.",
-      "evidence": [
-        "arckit-runtime://runs/RUN-20260803-180157597Z",
-        "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-    },
-    {
-      "dimension": "implementation_coverage",
-      "from_state": "verified",
-      "to_state": "accepted",
-      "reason": "Controller normalization, Worker routing, review intake, steer handling, gate, and deterministic writeback are covered by implementation and passing tests.",
-      "evidence": [
-        "npm run check",
-        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
-        "runtime/arckit-runtime/test/capability-registry.test.mjs",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-    },
-    {
-      "dimension": "quality_validation",
-      "from_state": "verified",
-      "to_state": "accepted",
-      "reason": "A real Desktop Codex run produced successful steer delivery, gate allow, written ledger transition, and a clean completion review.",
-      "evidence": [
-        "arckit-runtime://runs/RUN-20260803-180157597Z",
-        "npm run check",
-        "git diff --check",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-    },
-    {
-      "dimension": "observability_support",
-      "from_state": "verified",
-      "to_state": "accepted",
-      "reason": "The persisted Desktop event stream exposed Controller phases, operator steer, runtime result, gate result, and ledger write result.",
-      "evidence": [
-        "arckit-runtime://runs/RUN-20260803-180157597Z",
-        "runtime/arckit-runtime/src/projection/run-event-projector.mjs",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-    },
-    {
-      "dimension": "maintainability_handoff",
-      "from_state": "verified",
-      "to_state": "accepted",
-      "reason": "The Case closed with durable tests, opaque run evidence, deterministic ledger transition, and a clean three-dimensional review.",
-      "evidence": [
-        "arckit-runtime://runs/RUN-20260803-180157597Z",
-        "runtime/arckit-runtime/test/codex-app-server-adapter.test.mjs",
-        "runtime/arckit-runtime/test/desktop-run-manager.test.mjs",
-        "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-      ],
-      "case_ref": "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md"
-    },
-    {
-      "dimension": "product_behavior",
-      "from_state": "implemented",
-      "to_state": "verified",
-      "reason": "The Runtime automation contract is now persisted and locally verified: one coherent Codex Agent turn advances one serial Case gap while Runtime provides readiness, structural gates, trusted ledger writeback, continuation, and compact persistence.",
-      "evidence": [
-        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-        "arckit/spec/agentic-software-development/controller-worker-loop.md",
-        "entry/skills/using-arckit/SKILL.md",
-        "runtime/arckit-runtime/test/coherent-agent-loop.test.mjs",
-        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
-      ],
-      "case_ref": "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
-    },
-    {
-      "dimension": "architecture_foundation",
-      "from_state": "implemented",
-      "to_state": "verified",
-      "reason": "The simplified architecture is implemented and locally verified: Codex owns semantic reasoning and native skill/tool use; Runtime is a policy-neutral automation supervisor with a stable task thread, one turn per gap, structural gates, and deterministic ledger boundaries.",
-      "evidence": [
-        "AGENTS.md",
-        "arckit/tech/arckit-runtime/solution.md",
-        "arckit/tech/arckit-runtime/desktop-execution-solution.md",
-        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
-        "runtime/arckit-runtime/src/automation-coordinator.mjs",
+        "entry/skills/arckit-development-ledger/schema/development-case-record.schema.json",
+        "entry/skills/arckit-development-ledger/schema/case-transition.schema.json",
+        "entry/skills/arckit-development-ledger/scripts/project-software-definition.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
         "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
-        "verification:npm-prefix-runtime-arckit-runtime-run-check:164-tests-163-pass-0-fail-1-conditional-skip",
-        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
+        "runtime/arckit-runtime/schemas/runtime-result.schema.json",
+        "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
+        "runtime/arckit-runtime/test/state-condition-case.test.mjs",
+        "verification:npm-run-check:84-tests-83-pass-1-conditional-skip",
+        "verification:npm-run-smoke:valid-runtime-result",
+        "verification:arcforge-applied-drift:using-arckit-and-ledger-same",
+        "arckit/cases/active/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
       ],
-      "case_ref": "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
+      "case_ref": "arckit/cases/active/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
     },
     {
-      "dimension": "delivery_operation",
-      "from_state": "defined",
-      "to_state": "verified",
-      "reason": "The maintained using-arckit v5 source was audited, applied to the Codex application target, loaded through the real compatibility path, and confirmed with clean post-apply drift.",
+      "kind": "project_gap",
+      "ref": "GAP-project-state-v5",
+      "outcome": "resolve",
       "evidence": [
-        "entry/skills/using-arckit/SKILL.md",
-        "entry/skills/using-arckit/arckit.capability.json",
-        "/Users/Glare/.codex/skills/using-arckit/SKILL.md",
-        "verification:arcforge-using-arckit-post-apply-drift-clean",
-        "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
+        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/schema/development-case-record.schema.json",
+        "entry/skills/arckit-development-ledger/schema/case-transition.schema.json",
+        "entry/skills/arckit-development-ledger/scripts/project-software-definition.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+        "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
+        "runtime/arckit-runtime/schemas/runtime-result.schema.json",
+        "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
+        "runtime/arckit-runtime/test/state-condition-case.test.mjs",
+        "verification:npm-run-check:84-tests-83-pass-1-conditional-skip",
+        "verification:npm-run-smoke:valid-runtime-result",
+        "verification:arcforge-applied-drift:using-arckit-and-ledger-same",
+        "arckit/cases/active/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
       ],
-      "case_ref": "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md"
+      "case_ref": "arckit/cases/active/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
     }
   ],
   "acceptance": {
-    "status": "verified",
+    "status": "working",
     "evidence": [
-      "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-      "entry/skills/arckit-development-ledger/schema/iteration-state-record.schema.json",
-      "entry/skills/arckit-development-ledger/scripts/project-state.mjs",
-      "entry/skills/arckit-development-ledger/scripts/project-iteration.mjs",
-      "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
-      "runtime/arckit-runtime/test/case-transition.test.mjs",
-      "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md",
-      "arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md",
-      "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md",
-      "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
-      "arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md",
-      "arckit/cases/closed/CASE-20260802-001-add-runtime-login-and-workshop-todo-synchronization.md",
-      "arckit/cases/closed/CASE-20260802-002-gate-runtime-startup-behind-login.md",
-      "arckit/cases/closed/CASE-20260802-003-lighten-runtime-login-background.md",
-      "arckit/cases/closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md",
-      "arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md",
-      "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
-      "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md",
-      "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
-      "arckit/cases/closed/CASE-20260803-002-support-parallel-case-execution-with-serialized-project-aggregat.md",
-      "arckit/cases/closed/CASE-20260804-001-persist-runtime-sessions-and-execute-state-driven-loops-in-proce.md",
-      "arckit/cases/closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md",
-      "arckit/cases/closed/CASE-20260804-003-prioritize-final-handoff-freshness-in-todo-automation.md",
-      "arckit/cases/closed/CASE-20260806-001-runtime-token.md",
-      "arckit/cases/closed/CASE-20260806-002-strengthen-runtime-context-handoff-and-workstream-thread-isolati.md",
-      "arckit/cases/closed/CASE-20260806-003-runtime.md",
-      "arckit/cases/closed/CASE-20260807-002-buzz-dashi-arckit.md",
-      "arckit/cases/closed/CASE-20260807-001-runtime-codex-cli-case.md",
-      "arckit/cases/closed/CASE-20260807-003-development-case.md",
-      "arckit/cases/closed/CASE-20260807-004-runtime-canonical-case.md",
-      "arckit/cases/closed/CASE-20260807-005-development-case.md",
-      "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md",
-      "arckit/cases/closed/CASE-20260808-001-using-arckit-codex-runtime-controller.md",
-      "arckit/cases/closed/CASE-20260809-001-controller-thread.md",
-      "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
-      "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md",
-      "arckit/cases/closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md",
-      "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md",
-      "arckit/cases/closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md",
-      "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
+      "arckit/spec/agentic-software-development/product-concepts.md",
+      "arckit/tech/arckit-runtime/state-condition-ledger-solution.md"
     ],
     "remaining_project_gaps": [
       "GAP-agent-scenario-evaluation",
+      "GAP-runtime-resilience-and-adapters",
+      "GAP-security-real-project-validation",
+      "GAP-delivery-governance",
       "GAP-cross-record-audit"
     ]
   },
   "blocking_project_gaps": [],
   "active_case_refs": [],
   "closed_case_refs": [
-    "arckit/cases/closed/CASE-20260705-002-optimize-state-driven-project-loop-mechanism.md",
-    "arckit/cases/closed/CASE-20260705-003-extract-project-state-record-json.md",
-    "arckit/cases/closed/CASE-20260705-004-refine-generated-state-decision-briefs.md",
-    "arckit/cases/closed/CASE-20260705-005-install-and-demo-validate-arckit-state-loop.md",
-    "arckit/cases/closed/CASE-20260707-001-add-loop-handoff-responsibility-model.md",
-    "arckit/cases/closed/CASE-20260726-001-implement-case-driven-definition-completeness-loop.md",
-    "arckit/cases/closed/CASE-20260726-002-govern-state-driven-loop-correctness.md",
-    "arckit/cases/closed/CASE-20260726-003-implement-bounded-case-completion-review-convergence.md",
-    "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
-    "arckit/cases/closed/CASE-20260801-001-upgrade-runtime-desktop-to-todo-automation-workspace.md",
-    "arckit/cases/closed/CASE-20260802-001-add-runtime-login-and-workshop-todo-synchronization.md",
-    "arckit/cases/closed/CASE-20260802-002-gate-runtime-startup-behind-login.md",
-    "arckit/cases/closed/CASE-20260802-003-lighten-runtime-login-background.md",
-    "arckit/cases/closed/CASE-20260802-004-decouple-runtime-authentication-from-task-source-enablement.md",
-    "arckit/cases/closed/CASE-20260802-005-scope-runtime-todos-to-the-current-executor.md",
-    "arckit/cases/closed/CASE-20260802-006-minimize-runtime-prompts-to-human-intent-and-skill-owned-semanti.md",
-    "arckit/cases/closed/CASE-20260803-001-commit-completed-runtime-work-before-updating-remote-todo.md",
     "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
-    "arckit/cases/closed/CASE-20260803-002-support-parallel-case-execution-with-serialized-project-aggregat.md",
-    "arckit/cases/closed/CASE-20260804-001-persist-runtime-sessions-and-execute-state-driven-loops-in-proce.md",
-    "arckit/cases/closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md",
-    "arckit/cases/closed/CASE-20260804-003-prioritize-final-handoff-freshness-in-todo-automation.md",
-    "arckit/cases/closed/CASE-20260806-001-runtime-token.md",
-    "arckit/cases/closed/CASE-20260806-002-strengthen-runtime-context-handoff-and-workstream-thread-isolati.md",
-    "arckit/cases/closed/CASE-20260806-003-runtime.md",
-    "arckit/cases/closed/CASE-20260807-002-buzz-dashi-arckit.md",
-    "arckit/cases/closed/CASE-20260807-001-runtime-codex-cli-case.md",
-    "arckit/cases/closed/CASE-20260807-003-development-case.md",
-    "arckit/cases/closed/CASE-20260807-004-runtime-canonical-case.md",
-    "arckit/cases/closed/CASE-20260807-005-development-case.md",
-    "arckit/cases/closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md",
-    "arckit/cases/closed/CASE-20260808-001-using-arckit-codex-runtime-controller.md",
-    "arckit/cases/closed/CASE-20260809-001-controller-thread.md",
+    "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
     "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
-    "arckit/cases/closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md",
-    "arckit/cases/closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md",
-    "arckit/cases/closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md",
     "arckit/cases/closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md",
-    "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
+    "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md",
+    "arckit/cases/closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
   ],
-  "close_condition": "当严格跨记录审计稳定通过，并至少完成一次真实复杂项目的 Project gap -> Case -> Worker evidence -> completion review -> Project impact 闭环后关闭本迭代。",
+  "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md",
+    "case_ref": "arckit/cases/closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md",
     "project_changes": [],
-    "condition_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md"
+      "arckit/cases/closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
     ],
-    "updated_at": "2026-08-09T18:42:34.239Z"
+    "updated_at": "2026-08-10T14:56:53.200Z"
   }
 }

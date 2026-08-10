@@ -430,30 +430,29 @@ export function createDesktopRunManager({
         case_control: null,
         case_state: null,
         active_case_states: [],
-        dimensions: [],
+        software_decisions: [],
         active_cases: [],
         cases_index_excerpt: ""
       };
     }
 
     const projectState = JSON.parse(await readFile(statePath, "utf8"));
-    if (projectState.schema_version !== "project-state-record/v4") {
-      throw new Error("Desktop requires project-state-record/v4. Upgrade this project explicitly before reading its runtime state.");
+    if (projectState.schema_version !== "project-state-record/v5") {
+      throw new Error("Desktop requires project-state-record/v5. Update the project state protocol before reading its runtime state.");
     }
-    const gaps = Array.isArray(projectState.state_gaps) ? projectState.state_gaps : [];
-    const dimensions = Object.entries(projectState.completeness_dimensions || {})
-      .map(([name, dimension]) => ({
-        name,
-        current_state: dimension.current_state || "",
-        target_state: dimension.target_state || "",
-        priority: dimension.priority || "",
-        gap: dimension.gap || "",
-        next_transition: dimension.next_transition || ""
-      }))
-      .filter((dimension) => dimension.priority && dimension.priority !== "none")
-      .slice(0, 8);
+    const gaps = Array.isArray(projectState.advancement?.project_gaps) ? projectState.advancement.project_gaps : [];
+    const softwareDecisions = (projectState.software_definition?.decision_areas || [])
+      .map((area) => ({
+        id: area.id,
+        question: area.question || "",
+        status: area.decision?.status || "open",
+        statement: area.decision?.statement || "",
+        reason: area.decision?.reason || "",
+        gap_refs: area.gap_refs || []
+      }));
 
-    const activeCaseStates = (await Promise.all((projectState.active_case_refs || []).map(async (caseRef) => {
+    const activeCaseRefs = projectState.advancement?.active_case_refs || [];
+    const activeCaseStates = (await Promise.all(activeCaseRefs.map(async (caseRef) => {
       const casePath = join(project.path, caseRef);
       return existsSync(casePath) ? parseCaseRecord(await readFile(casePath, "utf8"), { required: true }) : null;
     }))).filter(Boolean);
@@ -463,15 +462,15 @@ export function createDesktopRunManager({
       has_arckit_state: true,
       summary: {
         name: projectState.project?.name || project.name,
-        phase: projectState.project?.current_phase || "",
+        intent: projectState.project?.intent || "",
         status: projectState.project?.status || ""
       },
       project_gaps: gaps,
-      case_control: projectState.case_control || null,
+      case_control: projectState.advancement?.selection_context || null,
       case_state: null,
       active_case_states: activeCaseStates,
-      dimensions,
-      active_cases: projectState.active_case_refs || [],
+      software_decisions: softwareDecisions,
+      active_cases: activeCaseRefs,
       cases_index_excerpt: existsSync(caseIndexPath)
         ? (await readFile(caseIndexPath, "utf8")).split("\n").slice(0, 24).join("\n")
         : ""
@@ -486,11 +485,11 @@ export function createDesktopRunManager({
     if (!existsSync(statePath)) return [];
 
     const projectState = JSON.parse(await readFile(statePath, "utf8"));
-    if (projectState.schema_version !== "project-state-record/v4") {
-      throw new Error("Desktop requires project-state-record/v4. Upgrade this project explicitly before reading its Case state.");
+    if (projectState.schema_version !== "project-state-record/v5") {
+      throw new Error("Desktop requires project-state-record/v5. Update the project state protocol before reading its Case state.");
     }
     const cases = [];
-    for (const caseRef of projectState.active_case_refs || []) {
+    for (const caseRef of projectState.advancement?.active_case_refs || []) {
       const casePath = join(project.path, caseRef);
       if (!existsSync(casePath)) continue;
       const record = parseCaseRecord(await readFile(casePath, "utf8"), { required: true });
@@ -521,9 +520,9 @@ export function createDesktopRunManager({
   function parseCaseRecord(text, { required = false } = {}) {
     const match = text.match(/## Structured Record[\s\S]*?```json\s*\n([\s\S]*?)\n```/);
     const record = match ? JSON.parse(match[1]) : null;
-    if (record?.schema_version === "development-case-record/v4") return record;
+    if (record?.schema_version === "development-case-record/v5") return record;
     if (required) {
-      throw new Error(`Desktop requires development-case-record/v4; received ${record?.schema_version || "<missing>"}. Upgrade this project explicitly.`);
+      throw new Error(`Desktop requires development-case-record/v5; received ${record?.schema_version || "<missing>"}. Update this project protocol first.`);
     }
     return null;
   }
