@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import test from "node:test";
-import { buildWriteLedgerCommandArgs, createDesktopRunManager } from "../src/desktop-run-manager.mjs";
+import { buildWriteLedgerCommandArgs, createDesktopRunManager, runtimeFailureForCompletedProcess } from "../src/desktop-run-manager.mjs";
 
 test("Desktop ledger commands reference the userData run without copying it into the project", () => {
   const args = buildWriteLedgerCommandArgs({
@@ -18,6 +18,19 @@ test("Desktop ledger commands reference the userData run without copying it into
     "write-ledger", "--project", "/workspace/project", "--file", "/desktop-user-data/runs/RUN-20260803-072154820Z/result.json",
     "--runtime-record-ref", "arckit-runtime://runs/RUN-20260803-072154820Z", "--json"
   ]);
+});
+
+test("Desktop does not project a blocked no-progress Runtime result as completed", () => {
+  assert.equal(runtimeFailureForCompletedProcess({
+    validation: { valid: true },
+    stop_reason: "no_progress_limit",
+    runtime_result: { round_result: "blocked", summary: "The same terminal request error repeated." }
+  }), "The same terminal request error repeated.");
+  assert.equal(runtimeFailureForCompletedProcess({
+    validation: { valid: true },
+    stop_reason: "completed",
+    runtime_result: { round_result: "done", summary: "Completed." }
+  }), "");
 });
 
 test("readiness preflight validates repository capabilities without inspecting Codex-installed skills", async () => {

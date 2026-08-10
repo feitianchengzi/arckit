@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-10T14:56:53.200Z",
-    "revision": 3
+    "updated_at": "2026-08-10T17:18:07.967Z",
+    "revision": 13
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -131,7 +131,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Validate dynamic gap selection in isolated real software scenarios.",
+      "current_focus": "Prevent Runtime automation from binding an unassociated todo to an unrelated Case based on repository cardinality or ambiguous fallback data.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -208,16 +208,16 @@
         "decision_expectation": "State the important journeys, navigation, inputs, feedback, error recovery, and accessibility expectations.",
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
-          "revision": 1,
           "status": "settled",
           "statement": "Users can invoke using-arckit conversationally; Desktop users select a project/todo, observe one persistent Agent conversation, steer it, and recover persisted runs.",
-          "reason": "The product and Desktop interaction specifications define these journeys.",
+          "reason": "The current coherent-Agent journey, persistence, steering, recovery, and user-visible message behavior are defined by the Runtime workspace specification and Desktop execution contract.",
           "evidence": [
             "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/arckit-runtime/desktop-workspace.md"
+            "arckit/tech/arckit-runtime/desktop-execution-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": ""
+          "resume_condition": "",
+          "revision": 2
         },
         "gap_refs": []
       },
@@ -227,16 +227,17 @@
         "decision_expectation": "State the theme, brand, layout, token, component, responsive, and platform-presentation expectations that matter.",
         "evidence_expectation": "Durable visual evidence sufficient to recover the project visual language.",
         "decision": {
-          "revision": 1,
           "status": "settled",
           "statement": "Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native.",
-          "reason": "The repository has an explicit visual source for the Desktop and no separate branding requirement for ledger files.",
+          "reason": "The maintained visual brief and token library define the Desktop presentation language, while the shipped renderer stylesheet is its executable surface.",
           "evidence": [
-            "arckit/visual/arckit-runtime/desktop-visual-system.md",
-            "arckit/tech/arckit-runtime/desktop-execution-solution.md"
+            "arckit/visual/_library/brief.md",
+            "arckit/visual/_library/design-tokens.yaml",
+            "runtime/arckit-runtime/desktop/renderer/styles.css"
           ],
           "confidence": "high",
-          "resume_condition": ""
+          "resume_condition": "",
+          "revision": 2
         },
         "gap_refs": []
       },
@@ -347,7 +348,7 @@
         "decision": {
           "status": "settled",
           "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron desktop host, Project State v5, Case/Transition v5, and Iteration v3 with trusted atomic transitions.",
-          "reason": "The accepted state-driven architecture is implemented across canonical schemas, scripts, Runtime consumption, tests, documentation, and installed skills.",
+          "reason": "The accepted v5 cutover is durably represented by canonical schemas, ledger scripts, Runtime contracts, automated regression tests, and its closed implementation Case.",
           "evidence": [
             "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
             "entry/skills/arckit-development-ledger/schema/development-case-record.schema.json",
@@ -358,13 +359,11 @@
             "runtime/arckit-runtime/schemas/runtime-result.schema.json",
             "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
             "runtime/arckit-runtime/test/state-condition-case.test.mjs",
-            "verification:npm-run-check:84-tests-83-pass-1-conditional-skip",
-            "verification:npm-run-smoke:valid-runtime-result",
-            "verification:arcforge-applied-drift:using-arckit-and-ledger-same"
+            "arckit/cases/closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 2
+          "revision": 3
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -441,16 +440,18 @@
         "decision_expectation": "State logging, metrics, crashes, alerts, diagnostics, operational support, recovery, and retention expectations.",
         "evidence_expectation": "Durable operational evidence sufficient to diagnose and support the software.",
         "decision": {
-          "revision": 1,
           "status": "settled",
           "statement": "Runtime persists lifecycle, activity, messages and timing outside the target project, supports restart reconciliation, and exposes opaque run refs for canonical traceability.",
-          "reason": "Runtime observability and recovery behavior are documented and implemented.",
+          "reason": "The Desktop execution contract and current Runtime sources define persistent messages, lifecycle events, timing, restart recovery, and canonical opaque-reference boundaries.",
           "evidence": [
             "arckit/tech/arckit-runtime/desktop-execution-solution.md",
-            "runtime/arckit-runtime/src/lifecycle-observer.mjs"
+            "runtime/arckit-runtime/src/observability/lifecycle-trace.mjs",
+            "runtime/arckit-runtime/src/desktop/desktop-store.mjs",
+            "runtime/arckit-runtime/src/runtime-record-ref.mjs"
           ],
           "confidence": "high",
-          "resume_condition": ""
+          "resume_condition": "",
+          "revision": 2
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"

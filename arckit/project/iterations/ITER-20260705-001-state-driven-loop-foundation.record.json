@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-10T14:56:53.200Z",
+  "updated_at": "2026-08-10T17:18:07.967Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -104,6 +104,61 @@
         "arckit/cases/active/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/tech/arckit-runtime/desktop-execution-solution.md",
+        "arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "visual_language",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/visual/_library/brief.md",
+        "arckit/visual/_library/design-tokens.yaml",
+        "runtime/arckit-runtime/desktop/renderer/styles.css",
+        "arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
+        "entry/skills/arckit-development-ledger/schema/development-case-record.schema.json",
+        "entry/skills/arckit-development-ledger/schema/case-transition.schema.json",
+        "entry/skills/arckit-development-ledger/scripts/project-software-definition.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+        "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
+        "runtime/arckit-runtime/schemas/runtime-result.schema.json",
+        "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
+        "runtime/arckit-runtime/test/state-condition-case.test.mjs",
+        "arckit/cases/closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md",
+        "arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "observability_and_operation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arckit-runtime/desktop-execution-solution.md",
+        "runtime/arckit-runtime/src/observability/lifecycle-trace.mjs",
+        "runtime/arckit-runtime/src/desktop/desktop-store.mjs",
+        "runtime/arckit-runtime/src/runtime-record-ref.mjs",
+        "arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md"
     }
   ],
   "acceptance": {
@@ -128,15 +183,19 @@
     "arckit/cases/closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md",
     "arckit/cases/closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md",
     "arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md",
-    "arckit/cases/closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
+    "arckit/cases/closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md",
+    "arckit/cases/closed/CASE-20260810-002-prevent-runtime-schema-failures-from-entering-retry-loops.md",
+    "arckit/cases/closed/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md",
+    "arckit/cases/closed/CASE-20260810-004-restore-project-state-selection-context-after-content-upgrade.md",
+    "arckit/cases/closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md",
+    "case_ref": "arckit/cases/closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
+      "arckit/cases/closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md"
     ],
-    "updated_at": "2026-08-10T14:56:53.200Z"
+    "updated_at": "2026-08-10T17:18:07.967Z"
   }
 }

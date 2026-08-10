@@ -90,31 +90,35 @@ Renderer 在刷新前记录 transcript 是否位于底部阈值内。位于阈�
 
 ## 交互式 Codex CLI 执行权接力
 
-Automation Coordinator 为当前活动任务持久化可选 `case_id` 和本地 `phase=cli_handoff`。`case_id` 从 Runtime activity 中已接受的 Controller frame 或 ledger result 提取；它只把远端待办绑定到 canonical Case，不把 Run、Desktop phase 或 CLI 会话写入 Case State。Run 是可丢弃的执行实例，Case 是 Runtime、CLI 和重启恢复共享的语义事实。
+Automation Coordinator 为当前活动任务持久化可选 `case_id`、`case_binding_source=runtime_ledger`、`case_binding_run_id`、`case_bound_at` 和本地 `phase=cli_handoff`。只有当前任务 Run 已成功写入 trusted ledger，并由该写入结果返回唯一 `case_id`，才能建立任务到 canonical Case 的权威绑定。绑定只表达任务身份，不把 Run、Desktop phase 或 CLI 会话写入 Case State。Run 是可丢弃的执行实例，Case 是 Runtime、CLI 和重启恢复共享的语义事实。
 
-`handoffToCodexCli` 采用串行控制：先向当前 Runtime run 发送 interrupt，再等待 Desktop Run Manager 释放 thread lease；停止超时则进入恢复状态且不启动 CLI。停止成功后，主进程通过平台终端启动器打开新终端，工作目录固定为绑定项目，并执行交互式 `codex resume <thread_id>`。启动器以参数数组和平台级转义生成命令，不经 Renderer shell；Renderer 只调用有界 IPC。
+`run.case_id`、activity 或 Controller frame 中的缓存字段、未经 ledger 接受的 Agent result、仓库里“唯一/最新/唯一可读”的 Case，以及 CLI 前后 Case 集合差都不是绑定证据。旧 Store 中只有裸 `case_id` 而没有绑定来源的记录按未绑定处理，并在对账时清除。一个任务 Run 若出现多个互相冲突的 trusted ledger Case ID，Coordinator 进入 `case_binding_conflict` recovery，不自行挑选其中任何一个。
+
+首次 Runtime 启动不携带预选 `case_id`。Agent 根据待办意图、fresh Project State 和全部 active Cases 语义选择现有 Case；没有合适 Case 时通过 trusted ledger 创建独立 Case。Runtime 只观察被 ledger 接受的结果。CLI 是已建立身份后的执行权接力通道：权威绑定尚未形成时，Desktop 拒绝 CLI handoff 且不 interrupt 当前 Runtime，待 Agent 完成首个 trusted ledger checkpoint 后再允许切换。
+
+已绑定任务的 `handoffToCodexCli` 采用串行控制：先向当前 Runtime run 发送 interrupt，再等待 Desktop Run Manager 释放 thread lease；停止超时则进入恢复状态且不启动 CLI。停止成功后，主进程通过平台终端启动器打开新终端，工作目录固定为绑定项目，并执行交互式 `codex resume <thread_id>`。启动器以参数数组和平台级转义生成命令，不经 Renderer shell；Renderer 只调用有界 IPC。
 
 CLI resume 后追加一条自然 `$using-arckit` 指令，包含已知 `case_id` 和“从 fresh Project/Case State 自动推进，仅在需要人工介入时暂停”的要求。它不重复待办全文，不包含 raw event、隐藏 transcript 或未写回 claim；Agent 从同一 thread 与 fresh canonical state 继续。
 
 CLI 启动成功后，活动任务进入 `cli_handoff`，远端任务保持 `in_progress`，下一队列继续冻结。Desktop 不读取终端 transcript，也不把终端关闭视为执行结果；“重新打开终端”只重复同一有界启动动作。
 
-Case Reader 根据 `case_id` 先匹配 Project `advancement.active_case_refs`，再在 `arckit/cases/closed/` 中查找同一 Case，并返回完整 `development-case-record/v5`。不匹配当前协议的记录不进入自动恢复。Coordinator 在同步和“恢复自动执行”时使用该 fresh record 对账：
+Case Reader 只在权威绑定已经存在时根据 `case_id` 匹配 Project `advancement.active_case_refs`，或在 `arckit/cases/closed/` 中查找同一 Case，并返回完整 `development-case-record/v5`。不匹配当前协议的记录不进入自动恢复。Coordinator 在同步和“恢复自动执行”时使用该 fresh record 对账：
 
 - `active` 且 handoff 由 Agent 负责：显式交还执行权后启动 fresh Runtime run。
 - `active/handoff` 且需要 human：创建 attention item。
 - `closed` 且 Git closeout checkpoint 已完成：进入远端完成写回。
 - `closed` 且 Git closeout 尚未完成：resume 同一 thread 执行 closeout turn。
-- Case 缺失、解析失败或状态歧义：进入 `case_reconciliation_failed`，不得回退依据旧 run 猜测完成。
+- 权威绑定缺失、冲突，或 Case 缺失、解析失败、状态歧义：进入 recovery，不得扫描仓库、依据旧 run 或利用候选数量猜测身份与完成状态。
 
 `cli_handoff` 本身阻止 Runtime presence recovery 将其误报为丢失进程，也阻止同步自动启动并发 Runtime。只有用户显式“恢复自动执行”或 fresh Case 已 resolved 才结束 CLI 所有权；后者可安全收尾，因为 canonical Case 已声明研发闭环完成。
 
 ### 本地优先恢复与收尾检查点
 
-Automation Store 把活动任务收尾拆成 `case_status/case_resolved_at`、`closeout_status/closeout_completed_at` 和 `remote_completion_status` 三个持久检查点，并始终保留 `thread_id`。`phase` 只投影当前控制动作，不承担全部完成事实。Coordinator 可以从 ledger activity 恢复 `case_id`，但 closeout checkpoint 只接受同一 thread 的结构化 success/no-op 结果。
+Automation Store 把活动任务收尾拆成 `case_status/case_resolved_at`、`closeout_status/closeout_completed_at` 和 `remote_completion_status` 三个持久检查点，并始终保留 `thread_id`。`phase` 只投影当前控制动作，不承担全部完成事实。Coordinator 只能从当前任务 Run 的 trusted ledger write 恢复 `case_id` 及绑定来源；closeout checkpoint 只接受同一 thread 的结构化 success/no-op 结果。
 
-启动同步先执行 detached Run、持久 thread binding 与 canonical Case 的本地对账，再创建任务源 adapter 或检查认证。该阶段不调用远端 API：active Case resume 同一 thread 继续 loop；closed/resolved Case 若未 closeout 则 resume 同一 thread 执行收尾，已完成 closeout 时进入 `remote_completion_pending`。任务源未配置、未登录、认证失效或不可达都不能跳过或回退该对账。
+启动同步先执行 detached Run、持久 thread binding、权威 Case binding 与 canonical Case 的本地对账，再创建任务源 adapter 或检查认证。该阶段不调用远端 API：已绑定的 active Case resume 同一 thread 继续 loop；已绑定的 closed/resolved Case 若未 closeout 则 resume 同一 thread 执行收尾，已完成 closeout 时进入 `remote_completion_pending`。任务源未配置、未登录、认证失效或不可达都不能跳过或回退该对账。未绑定任务不能因仓库碰巧只有一个可读 Case 而进入收尾；`retry_start` 会清除陈旧的 closeout phase/checkpoint 并启动正常 Runtime，让新的 trusted ledger write 建立绑定。
 
-认证和远端项目/待办快照成功后，Coordinator 再执行允许远端写回的对账。`closeout_status=completed` 时只提交任务 `in_progress -> completed`；成功后清理活动任务。closeout 状态先持久化再尝试远端写回，因此应用退出、401 或网络失败后不会重复 Git 操作。`remote_completion_pending` 不属于 Runtime process ownership，Presence Recovery 不得生成 Runtime 丢失错误。
+认证和远端项目/待办快照成功后，Coordinator 再执行允许远端写回的对账。远端完成要求任务已有权威 Case binding，并 fresh-read 到该 Case 的 canonical `closed/resolved` 状态；仅有 `closeout_status=completed`、裸 `case_id` 或 Agent 完成声明都不足以提交 `in_progress -> completed`。成功后清理活动任务。closeout 状态先持久化再尝试远端写回，因此应用退出、401 或网络失败后不会重复 Git 操作。`remote_completion_pending` 不属于 Runtime process ownership，Presence Recovery 不得生成 Runtime 丢失错误。
 
 ## 恢复
 
@@ -134,7 +138,10 @@ session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_
 - Renderer 将 Loop 状态和 Agent 输出作为主要信息，把每个 tool item 投影为一条原位更新的单行活动；文件正文、完整 diff、stdout/stderr 与 raw payload 不进入可见消息正文，但继续保留在上游上下文或诊断证据中。
 - 任意用量警告都不会自动设置 Token 总上限、硬总轮次或终止 Case。
 - 当前 Runtime 可以在确认安全停止后打开用户可见且可输入的交互式 Codex CLI；两者不会并发拥有同一活动任务的执行权。
+- 首次 Runtime 不预选 Case；Agent 语义选择现有 Case 或通过 trusted ledger 创建新 Case，未形成权威绑定时 CLI handoff 不会中断 Runtime。
 - CLI 与 Runtime 通过同一持久 thread 和 canonical Case State 接力；关闭终端不推断完成，恢复自动执行前读取 fresh active/closed Case。
+- 任务到 Case 的绑定只接受当前任务 Run 已成功写入的 trusted ledger 结果；缓存字段、Agent 声明、仓库 Case 数量与 CLI 集合差均不能建立绑定，可信结果冲突时进入 recovery。
+- 缺少权威 Case binding 的任务不会启动 Git closeout 或远端完成；远端完成前还必须 fresh-read 到绑定 Case 的 canonical resolved 状态。
 - 未登录或认证失效的启动路径仍先读取本地 canonical Case；closed Case 显示为等待远端收尾，不显示 Runtime 仍在执行。
 - closeout completed checkpoint 只能由同一 thread 的结构化 success/no-op 结果形成；认证恢复后只重试远端完成写回，不重复 Git closeout。
 - 最新请求上下文占用达到 80% 时，Runtime 在 gap 间压缩同一 thread 并保存 checkpoint；压缩不创建新 thread。

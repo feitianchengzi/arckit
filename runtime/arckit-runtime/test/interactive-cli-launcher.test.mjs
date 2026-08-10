@@ -21,6 +21,13 @@ test("Codex CLI handoff prompt continues the stable Case without repeating the t
   assert.doesNotMatch(prompt, /controller thread|worker thread|raw event/i);
 });
 
+test("Codex CLI handoff prompt refuses an unbound task", () => {
+  assert.throws(
+    () => buildCodexCliHandoffPrompt({ taskTitle: "unbound todo" }),
+    /requires an authoritative Case id/
+  );
+});
+
 test("macOS launch spec opens interactive codex in Terminal without codex exec", () => {
   const spec = buildInteractiveCodexLaunchSpec({
     projectPath: "/workspace/Project with space",

@@ -729,9 +729,6 @@ export function createDesktopRunManager({
     if (stdout.trim() && status !== "aborted") {
       await writeFile(run.result_file, stdout, "utf8");
     }
-    if (errorMessage) {
-      await appendText(run.error_file, `${errorMessage}\n`);
-    }
     let parsedResult = null;
     if (stdout.trim() && status !== "aborted") {
       try {
@@ -740,6 +737,16 @@ export function createDesktopRunManager({
         await appendText(run.error_file, `Failed to parse result JSON: ${error.message}\n`);
         status = "failed";
       }
+    }
+    if (status === "completed") {
+      const semanticFailure = runtimeFailureForCompletedProcess(parsedResult);
+      if (semanticFailure) {
+        status = "failed";
+        errorMessage = semanticFailure;
+      }
+    }
+    if (errorMessage) {
+      await appendText(run.error_file, `${errorMessage}\n`);
     }
     finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage });
     run.status = status;
@@ -1130,6 +1137,21 @@ export function createDesktopRunManager({
     readDesktopStore: readStore,
     updateDesktopStore: updateStore
   };
+}
+
+export function runtimeFailureForCompletedProcess(result) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return "";
+  if (result.validation?.valid === false) {
+    return result.runtime_result?.summary || "Runtime produced an invalid result.";
+  }
+  const stopReason = String(result.stop_reason || "");
+  if (["invalid_result", "no_progress_limit", "ledger_retry_limit", "closeout_failed"].includes(stopReason)) {
+    return result.runtime_result?.summary || result.next_action || `Runtime stopped without completing: ${stopReason}.`;
+  }
+  if (result.runtime_result?.round_result === "blocked") {
+    return result.runtime_result.summary || "Runtime stopped with a blocked result.";
+  }
+  return "";
 }
 
 function stableTaskKey(value) {

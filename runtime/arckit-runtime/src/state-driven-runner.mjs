@@ -238,7 +238,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         ledgerWriteResult,
         handoff,
         noProgressRounds,
-        maxNoProgressRounds: options.maxNoProgressRounds || 8
+        maxNoProgressRounds: effectiveNoProgressLimit(options.maxNoProgressRounds, handoff)
       });
       if (!decision.continue) {
         stopReason = decision.reason;
@@ -408,6 +408,12 @@ export function decideSessionContinuation({
     return { continue: false, madeProgress, reason: "completed" };
   }
   return { continue: false, madeProgress, reason: "terminal_runtime_result" };
+}
+
+export function effectiveNoProgressLimit(configuredLimit, handoff) {
+  const configured = Number.isInteger(configuredLimit) && configuredLimit > 0 ? configuredLimit : 8;
+  const guardLimit = handoff?.progress_guard?.no_progress_limit;
+  return Number.isInteger(guardLimit) && guardLimit > 0 ? Math.min(configured, guardLimit) : configured;
 }
 
 function buildRoundEnvelope({

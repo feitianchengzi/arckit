@@ -1,14 +1,14 @@
 import { spawn } from "node:child_process";
 
 export function buildCodexCliHandoffPrompt({ caseId = "", taskTitle = "", taskIntent = "" } = {}) {
-  const caseInstruction = caseId
-    ? `当前 Case：${caseId}。先读取该 Case 的 fresh canonical state，再继续推进。`
-    : "当前尚未绑定 Case。请从 fresh Project State 和待办意图选择或创建唯一 Case，并继续推进。";
+  if (!/^CASE-\d{8}-\d{3}$/.test(String(caseId))) {
+    throw new Error("Codex CLI handoff requires an authoritative Case id.");
+  }
   return [
     "$using-arckit",
     "",
     "你正在从 Arckit Runtime 接管一个进行中的待办。",
-    caseInstruction,
+    `当前已绑定 Case：${caseId}。先读取该 Case 的 fresh canonical state，再继续推进。`,
     taskTitle ? `待办：${taskTitle}` : "",
     "自动执行 state-driven loop 直到 Case 完成，仅在确实需要人工介入时暂停。",
     "继续使用当前对话上下文，并以 fresh Project/Case State 和稳定事实源覆盖冲突的旧事实。"

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decideSessionContinuation, runStateDrivenSession } from "../src/state-driven-runner.mjs";
+import { decideSessionContinuation, effectiveNoProgressLimit, runStateDrivenSession } from "../src/state-driven-runner.mjs";
 
 test("state-driven session fresh-reads after writeback and stays in one adapter process", async () => {
   let reads = 0;
@@ -90,6 +90,12 @@ test("recoverable ledger rejection automatically replans from fresh state", () =
 
   assert.equal(decision.continue, true);
   assert.equal(decision.reason, "fresh_state_replan");
+});
+
+test("Runtime progress guards can tighten the configured no-progress limit", () => {
+  assert.equal(effectiveNoProgressLimit(8, { progress_guard: { no_progress_limit: 2 } }), 2);
+  assert.equal(effectiveNoProgressLimit(1, { progress_guard: { no_progress_limit: 2 } }), 1);
+  assert.equal(effectiveNoProgressLimit(8, {}), 8);
 });
 
 test("state-driven results persist semantic events without raw Agent deltas", async () => {

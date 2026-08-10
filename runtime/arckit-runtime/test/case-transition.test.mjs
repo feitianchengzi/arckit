@@ -115,6 +115,18 @@ test('Runtime exposes all active Cases for Agent selection without preselecting 
   assert.deepEqual(round.candidate_cases[0].candidate_gaps.map((gap) => gap.id), ['GAP-DIAGNOSE']);
 });
 
+test('Runtime leaves Case identity empty so the Agent can create the first Case', () => {
+  const round = selectNextRound({
+    projectState: { advancement: { selection_context: {}, project_gaps: [] } },
+    activeCases: [],
+    paths: { projectState: 'arckit/project/state.record.json', activeCases: [] },
+  }, { task: 'Implement a new bounded behavior.' });
+
+  assert.equal(round.case_id, '');
+  assert.deepEqual(round.candidate_cases, []);
+  assert.match(round.reason, /Agent must create one/);
+});
+
 function caseRecord() {
   return createDefaultCaseRecord({
     title: 'Restore ordering', artifactType: 'code', intent: 'Fix stale restore behavior', expectedOutcome: 'Newer data is preserved',

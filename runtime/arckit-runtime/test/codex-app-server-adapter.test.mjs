@@ -118,6 +118,28 @@ test("permission approvals return the granted profile shape required by app-serv
   });
 });
 
+test("terminal app-server errors reject an Agent turn instead of creating a retry handoff", async () => {
+  const client = new TerminalErrorClient();
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+
+  await assert.rejects(
+    collect(adapter.runTurn({
+      projectRoot: "/workspace/project",
+      prompt: "invalid schema",
+      options: { resultKind: "agent-loop-result", threadKey: "agent-loop:TASK-1" }
+    })),
+    (error) => {
+      assert.equal(error.name, "CodexTurnError");
+      assert.equal(error.code, "invalid_json_schema");
+      assert.equal(error.retryable, false);
+      assert.match(error.message, /additionalProperties/);
+      return true;
+    }
+  );
+  adapter.close();
+  assert.equal(client.requests.filter(({ method }) => method === "turn/start").length, 1);
+});
+
 test("operator control waits for turn/started after turn/start returns", async () => {
   const state = {
     threadId: "THREAD-1",
@@ -248,6 +270,30 @@ class PermissionClient extends FakeClient {
         }
       });
       this.emit("item/completed", { item: { type: "agentMessage", text: "completed" } });
+      this.emit("turn/completed", { threadId: params.threadId, turn });
+    });
+    return { turn };
+  }
+}
+
+class TerminalErrorClient extends FakeClient {
+  async request(method, params) {
+    if (method !== "turn/start") return super.request(method, params);
+    this.requests.push({ method, params });
+    const turn = { id: `TURN-${++this.turnCount}` };
+    queueMicrotask(() => {
+      this.emit("turn/started", { threadId: params.threadId, turn });
+      this.emit("error", {
+        willRetry: false,
+        error: {
+          message: JSON.stringify({
+            error: {
+              code: "invalid_json_schema",
+              message: "Invalid schema: additionalProperties must be false."
+            }
+          })
+        }
+      });
       this.emit("turn/completed", { threadId: params.threadId, turn });
     });
     return { turn };

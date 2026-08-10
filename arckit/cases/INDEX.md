@@ -53,3 +53,7 @@
 | [CASE-20260809-006](closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md) | closed | Replace facet workflow with state-condition-driven dynamic gaps | 2026-08-09T18:05:45.856Z |
 | [CASE-20260809-007](closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md) | closed | Remove legacy facet state protocol compatibility | 2026-08-09T18:42:34.239Z |
 | [CASE-20260810-001](closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md) | closed | Implement explicit software-definition Project State | 2026-08-10T14:56:53.200Z |
+| [CASE-20260810-002](closed/CASE-20260810-002-prevent-runtime-schema-failures-from-entering-retry-loops.md) | closed | Prevent Runtime schema failures from entering retry loops | 2026-08-10T16:34:22.892Z |
+| [CASE-20260810-003](closed/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md) | closed | Upgrade Project State v5 content evidence | 2026-08-10T16:36:04.384Z |
+| [CASE-20260810-004](closed/CASE-20260810-004-restore-project-state-selection-context-after-content-upgrade.md) | closed | Restore Project State selection context after content upgrade | 2026-08-10T16:37:21.320Z |
+| [CASE-20260810-005](closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md) | closed | Require authoritative task-to-Case binding provenance | 2026-08-10T17:18:07.967Z |

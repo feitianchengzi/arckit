@@ -624,6 +624,12 @@ function handleNotification({ message, queue, state, options, activeCommands, co
       attributes: { turn_id: state.turnId || "" },
       error: state.lastError
     });
+    if (state.lastError && state.resultKind === "agent-loop-result") {
+      activeCommands?.clear();
+      commandItems?.clear();
+      queue.fail(createTerminalCodexTurnError(state.lastError));
+      return;
+    }
     const parsed = parseStructuredOutput({
       text: state.lastCompletedAgentText || state.agentText,
       completionParams: message.params,
@@ -919,6 +925,28 @@ function codexErrorMessage(error) {
     return parsed?.error?.message || parsed?.message || message;
   } catch {
     return message;
+  }
+}
+
+function createTerminalCodexTurnError(error) {
+  const failure = new Error(`Codex Agent turn failed before returning arckit-agent-loop-result/v1: ${codexErrorMessage(error)}`);
+  failure.name = "CodexTurnError";
+  failure.code = codexErrorCode(error) || "codex_turn_failed";
+  failure.retryable = false;
+  return failure;
+}
+
+function codexErrorCode(error) {
+  if (typeof error === "object" && error !== null) {
+    if (typeof error.code === "string") return error.code;
+    if (typeof error.error?.code === "string") return error.error.code;
+  }
+  const message = typeof error === "string" ? error : error?.message || error?.additionalDetails || "";
+  try {
+    const parsed = JSON.parse(message);
+    return parsed?.error?.code || parsed?.code || "";
+  } catch {
+    return "";
   }
 }
 

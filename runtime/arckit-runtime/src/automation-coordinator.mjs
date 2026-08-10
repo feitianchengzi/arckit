@@ -12,6 +12,8 @@ const STATE_LABELS = Object.freeze({
   cancelled: "已取消",
   blocked: "已阻塞"
 });
+const CASE_ID_PATTERN = /^CASE-\d{8}-\d{3}$/;
+const AUTHORITATIVE_CASE_BINDING_SOURCE = "runtime_ledger";
 
 export function createAutomationCoordinator({
   runManager,
@@ -439,6 +441,16 @@ export function createAutomationCoordinator({
     }
     if (active.phase === "cli_handoff") return reopenCodexCli();
 
+    const runs = await runManager.listRuns({ projectId: active.local_project_id });
+    const sourceRun = runs.find((run) => run.id === active.run_id) || null;
+    const caseBinding = await resolveTaskCaseBinding(active, sourceRun);
+    if (caseBinding.status === "conflict") {
+      throw new Error("Codex CLI handoff was refused because authoritative Case bindings conflict.");
+    }
+    if (caseBinding.status !== "bound") {
+      throw new Error("Codex CLI handoff is not available until the Agent selects or creates a Case and a trusted Runtime ledger write establishes the binding.");
+    }
+
     await patchAutomation((automation) => {
       if (automation.active_task?.task_id === active.task_id) {
         automation.active_task.phase = "switching_to_cli";
@@ -509,10 +521,14 @@ export function createAutomationCoordinator({
 
     const runs = await runManager.listRuns({ projectId: current.local_project_id });
     const sourceRun = runs.find((run) => run.id === current.run_id) || null;
-    const caseId = current.case_id || extractCaseIdFromRun(sourceRun);
-    const allCases = typeof runManager.listProjectCaseStates === "function"
-      ? await runManager.listProjectCaseStates(current.local_project_id)
-      : [];
+    const caseBinding = await resolveTaskCaseBinding(current, sourceRun);
+    if (caseBinding.status === "conflict") {
+      throw new Error("Codex CLI handoff was refused because authoritative Case bindings conflict.");
+    }
+    if (caseBinding.status !== "bound") {
+      throw new Error("Codex CLI handoff requires an authoritative task-to-Case binding.");
+    }
+    const caseId = caseBinding.case_id;
     const prompt = buildCodexCliHandoffPrompt({
       caseId,
       taskTitle: task.title || current.task_title,
@@ -525,7 +541,6 @@ export function createAutomationCoordinator({
       automation.active_task.phase = "cli_handoff";
       automation.active_task.case_id = caseId || "";
       automation.active_task.cli_handoff_at ||= now();
-      automation.active_task.cli_handoff_case_ids ||= allCases.map((item) => item.case_id);
       automation.recovery_items = automation.recovery_items.filter((item) => (
         item.task_id !== current.task_id || !["cli_handoff_failed", "safe_stop_requested", "runtime_process_missing"].includes(item.type)
       ));
@@ -559,7 +574,10 @@ export function createAutomationCoordinator({
     if (action === "retry_start") {
       await removeRecovery(recoveryId);
       await patchAutomation((automation) => {
-        if (automation.active_task) automation.active_task.phase = "starting";
+        if (automation.active_task) {
+          automation.active_task.phase = "starting";
+          automation.active_task.closeout_status = "pending";
+        }
       });
       await startRuntimeForActiveTask();
       return getSnapshot();
@@ -712,6 +730,9 @@ export function createAutomationCoordinator({
             case_id: "",
             case_status: "unbound",
             case_resolved_at: "",
+            case_binding_source: "",
+            case_binding_run_id: "",
+            case_bound_at: "",
             thread_id: "",
             thread_bound_at: "",
             last_compaction_turn_id: "",
@@ -795,13 +816,17 @@ export function createAutomationCoordinator({
         });
       }
       const closeoutOnly = active.phase === "closeout_starting" || active.closeout_status === "running";
+      const caseBinding = persistedCaseBinding(active);
+      if (closeoutOnly && caseBinding.status !== "bound") {
+        throw new Error("Task closeout requires an authoritative task-to-Case binding from a trusted Runtime ledger write.");
+      }
       const run = await runManager.startRun({
         projectId: project.id,
         sessionId: session.id,
         taskId: active.task_id,
         task: buildAutomationTask(task),
         threadId: active.thread_id || "",
-        runtimeContext: closeoutOnly ? { closeout_only: true, case_id: active.case_id || "" } : null,
+        runtimeContext: closeoutOnly ? { closeout_only: true, case_id: caseBinding.case_id } : null,
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
         continuationPolicy: "automatic",
@@ -847,15 +872,24 @@ export function createAutomationCoordinator({
         automation.active_task.thread_bound_at ||= now();
       });
     }
-    const eventCaseId = extractCaseIdFromRun({ activity: event.activity, result: event.result });
-    if (eventCaseId && eventCaseId !== active.case_id) {
-      await patchAutomation((automation) => {
-        if (automation.active_task?.run_id === event.runId) automation.active_task.case_id = eventCaseId;
-      });
-    }
+    const caseBinding = await resolveTaskCaseBinding(active, {
+      id: event.runId,
+      activity: event.activity,
+      result: event.result
+    });
+    if (caseBinding.status === "conflict") return;
     if (active.cli_handoff_source_run_id === event.runId
       && ["switching_to_cli", "cli_handoff", "recovery"].includes(active.phase)) return;
     if (["closeout_starting", "closeout_running"].includes(active.phase)) {
+      if (caseBinding.status !== "bound") {
+        await addRecovery({
+          type: "case_binding_missing",
+          task: active,
+          message: "A closeout result was ignored because this task has no authoritative Case binding.",
+          actions: ["retry_start", "mark_blocked"]
+        });
+        return;
+      }
       return finishSameThreadCloseout(active, event);
     }
     const runtimeResult = event.result?.runtime_result || null;
@@ -868,6 +902,15 @@ export function createAutomationCoordinator({
     }
     const caseComplete = handoff.next_responsibility === "none" || handoff.status === "complete";
     if (event.status === "completed" && caseComplete && (!ledgerRequired || ledgerWritten)) {
+      if (caseBinding.status !== "bound") {
+        await addRecovery({
+          type: "case_binding_missing",
+          task: active,
+          message: "Runtime reported completion without an authoritative task-to-Case binding from a trusted ledger write.",
+          actions: ["retry_start", "mark_blocked"]
+        });
+        return;
+      }
       if (event.result?.closeout_result?.status === "completed") {
         await markCloseoutCompleted(active, event.runId, event.result.closeout_result);
         const refreshed = await runManager.readDesktopStore();
@@ -892,6 +935,16 @@ export function createAutomationCoordinator({
     const active = store.automation.active_task;
     if (!active) return null;
     if (active.closeout_status === "completed") return null;
+    const caseBinding = persistedCaseBinding(active);
+    if (caseBinding.status !== "bound") {
+      await addRecovery({
+        type: "case_binding_missing",
+        task: active,
+        message: "Git closeout was refused because this task has no authoritative Case binding.",
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return null;
+    }
     if (!active.thread_id) {
       const binding = await runManager.getTaskThreadBinding?.(active.local_project_id, active.task_id);
       if (binding?.threadId) {
@@ -948,6 +1001,15 @@ export function createAutomationCoordinator({
   }
 
   async function finishSameThreadCloseout(active, event) {
+    if (persistedCaseBinding(active).status !== "bound") {
+      await addRecovery({
+        type: "case_binding_missing",
+        task: active,
+        message: "A closeout result cannot complete the task without an authoritative Case binding.",
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return;
+    }
     const result = event.result?.closeout_result || null;
     if (event.status === "completed" && result?.status === "completed") {
       await markCloseoutCompleted(active, event.runId, result);
@@ -971,6 +1033,33 @@ export function createAutomationCoordinator({
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
     if (!active) return null;
+    const caseBinding = persistedCaseBinding(active);
+    if (caseBinding.status !== "bound") {
+      await addRecovery({
+        type: "case_binding_missing",
+        task: active,
+        message: "Remote completion was refused because this task has no authoritative Case binding.",
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return null;
+    }
+    let canonicalCase = null;
+    try {
+      if (typeof runManager.getProjectCaseState === "function") {
+        canonicalCase = await runManager.getProjectCaseState(active.local_project_id, caseBinding.case_id);
+      }
+    } catch {
+      canonicalCase = null;
+    }
+    if (!isCanonicalCaseResolved(canonicalCase)) {
+      await addRecovery({
+        type: "case_not_resolved",
+        task: active,
+        message: `Remote completion was refused because canonical Case ${caseBinding.case_id} is not resolved.`,
+        actions: ["retry_sync", "retry_start", "mark_blocked"]
+      });
+      return null;
+    }
     const lifecycleContext = lifecycleContextFromActive(active);
     const completionSpan = startTodoLifecycleSpan(lifecycleContext, {
       name: "task_source.complete",
@@ -1091,8 +1180,20 @@ export function createAutomationCoordinator({
     const latest = runs.find((run) => run.id === active.run_id) || null;
     if (!latest) return null;
 
+    const caseBinding = await resolveTaskCaseBinding(active, latest);
+    if (caseBinding.status === "conflict") return null;
+
     if (latest.status !== "completed") return null;
     if (["closeout_starting", "closeout_running"].includes(active.phase)) {
+      if (caseBinding.status !== "bound") {
+        await addRecovery({
+          type: "case_binding_missing",
+          task: active,
+          message: "Detached closeout completion was ignored because this task has no authoritative Case binding.",
+          actions: ["retry_start", "mark_blocked"]
+        });
+        return null;
+      }
       const result = await runManager.readRunResult?.(latest.id).catch(() => null);
       const closeout = result?.closeout_result;
       if (closeout?.status !== "completed") return null;
@@ -1113,6 +1214,15 @@ export function createAutomationCoordinator({
     const ledgerRequired = activity.ledger_stage?.writeback_required === true;
     const ledgerWritten = activity.ledger_write_result?.parsed?.written === true;
     if (!caseComplete || (ledgerRequired && !ledgerWritten)) return null;
+    if (caseBinding.status !== "bound") {
+      await addRecovery({
+        type: "case_binding_missing",
+        task: active,
+        message: "Detached Runtime completion has no authoritative task-to-Case binding; closeout was not started.",
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return null;
+    }
 
     await patchAutomation((automation) => {
       if (automation.active_task?.task_id !== active.task_id) return;
@@ -1133,32 +1243,21 @@ export function createAutomationCoordinator({
 
     const runs = await runManager.listRuns({ projectId: active.local_project_id });
     const run = runs.find((item) => item.id === active.run_id) || null;
-    let caseId = active.case_id || extractCaseIdFromRun(run);
-    if (!caseId && typeof runManager.listProjectCaseStates === "function") {
-      const allCases = await runManager.listProjectCaseStates(active.local_project_id);
-      const baseline = new Set(active.cli_handoff_case_ids || []);
-      const candidates = allCases.filter((item) => !baseline.has(item.case_id));
-      if (candidates.length === 1) caseId = candidates[0].case_id;
-      else if (candidates.length === 0 && allCases.length === 1) caseId = allCases[0].case_id;
-    }
-    if (!caseId) {
+    const caseBinding = await resolveTaskCaseBinding(active, run);
+    if (caseBinding.status === "conflict") return "conflict";
+    if (caseBinding.status !== "bound") {
       if (requireCase || active.phase === "cli_handoff") {
         await addRecovery({
           type: "case_reconciliation_failed",
           task: active,
-          message: "No unique canonical Case can be bound to this active task. Runtime will not infer completion from the old Run or terminal state.",
+          message: "No authoritative Case binding exists for this active task. Runtime will not infer identity from repository contents, an old Run cache, or terminal state.",
           actions: ["retry_cli_handoff", "retry_start", "mark_blocked"]
         });
         return "missing";
       }
       return "unbound";
     }
-
-    if (caseId !== active.case_id) {
-      await patchAutomation((automation) => {
-        if (automation.active_task?.task_id === active.task_id) automation.active_task.case_id = caseId;
-      });
-    }
+    const caseId = caseBinding.case_id;
     let caseState;
     try {
       caseState = await runManager.getProjectCaseState(active.local_project_id, caseId);
@@ -1185,7 +1284,7 @@ export function createAutomationCoordinator({
 
     const record = caseState.record;
     const resolution = record.case_resolution || {};
-    if (caseState.location === "closed" || record.status === "closed" || resolution.status === "resolved") {
+    if (isCanonicalCaseResolved(caseState)) {
       const closeoutCompleted = active.closeout_status === "completed";
       await patchAutomation((automation) => {
         if (automation.active_task?.task_id !== active.task_id) return;
@@ -1255,6 +1354,47 @@ export function createAutomationCoordinator({
       }
     });
     return session;
+  }
+
+  async function resolveTaskCaseBinding(active, run) {
+    const binding = mergeCaseBindings(
+      persistedCaseBinding(active),
+      extractAuthoritativeCaseBindingFromRun(run)
+    );
+    if (binding.status === "conflict") {
+      await addRecovery({
+        type: "case_binding_conflict",
+        task: active,
+        message: `Conflicting authoritative Case bindings were detected (${binding.case_ids.join(", ")}); Runtime refused to choose one.`,
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return binding;
+    }
+    if (binding.status === "bound" && (
+      active.case_id !== binding.case_id
+      || active.case_binding_source !== binding.source
+      || active.case_binding_run_id !== binding.run_id
+    )) {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.case_id = binding.case_id;
+        automation.active_task.case_binding_source = binding.source;
+        automation.active_task.case_binding_run_id = binding.run_id;
+        automation.active_task.case_bound_at ||= now();
+      });
+    }
+    if (binding.status === "unbound" && active.case_id) {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.case_id = "";
+        automation.active_task.case_status = "unbound";
+        automation.active_task.case_resolved_at = "";
+        automation.active_task.case_binding_source = "";
+        automation.active_task.case_binding_run_id = "";
+        automation.active_task.case_bound_at = "";
+      });
+    }
+    return binding;
   }
 
   async function setAwaitingHuman({ active, runId, handoff }) {
@@ -1775,20 +1915,65 @@ export function buildInterventionTask(message) {
 }
 
 export function extractCaseIdFromRun(run) {
-  const activity = run?.activity || {};
-  const parsedLedger = activity.ledger_write_result?.parsed || {};
-  const candidates = [
-    run?.case_id,
-    activity.case_id,
-    activity.controller_frame?.case_id,
-    parsedLedger.case_transition_result?.case_id,
-    parsedLedger.case_control_result?.case_id,
-    parsedLedger.case_transition_result?.case_resolution?.case_id,
-    run?.result?.runtime_result?.case_transition?.case_id,
-    run?.result?.runtime_result?.controller_frame?.case_id
-  ];
-  return candidates.map((value) => String(value || "").trim())
-    .find((value) => /^CASE-\d{8}-\d{3}$/.test(value)) || "";
+  const binding = extractAuthoritativeCaseBindingFromRun(run);
+  return binding.status === "bound" ? binding.case_id : "";
+}
+
+export function extractAuthoritativeCaseBindingFromRun(run) {
+  const ledgers = [
+    { value: run?.activity?.ledger_write_result?.parsed, source: "activity.ledger_write_result" },
+    { value: run?.result?.ledger_write_result, source: "result.ledger_write_result" }
+  ].filter(({ value }) => value?.written === true);
+  const observations = [];
+  for (const ledger of ledgers) {
+    for (const value of [
+      ledger.value.case_control_result?.case_id,
+      ledger.value.case_transition_result?.case_id
+    ]) {
+      const caseId = String(value || "").trim();
+      if (CASE_ID_PATTERN.test(caseId)) observations.push({ case_id: caseId, evidence: ledger.source });
+    }
+  }
+  const caseIds = [...new Set(observations.map((item) => item.case_id))];
+  if (caseIds.length > 1) return { status: "conflict", case_ids: caseIds, observations };
+  if (caseIds.length === 0) return { status: "unbound", case_ids: [], observations: [] };
+  return {
+    status: "bound",
+    case_id: caseIds[0],
+    case_ids: caseIds,
+    source: AUTHORITATIVE_CASE_BINDING_SOURCE,
+    run_id: String(run?.id || ""),
+    observations
+  };
+}
+
+export function persistedCaseBinding(active) {
+  const caseId = String(active?.case_id || "").trim();
+  const source = String(active?.case_binding_source || "");
+  const runId = String(active?.case_binding_run_id || "");
+  if (!CASE_ID_PATTERN.test(caseId) || source !== AUTHORITATIVE_CASE_BINDING_SOURCE || !runId) {
+    return { status: "unbound", case_ids: [], observations: [] };
+  }
+  return { status: "bound", case_id: caseId, case_ids: [caseId], source, run_id: runId, observations: [] };
+}
+
+export function mergeCaseBindings(left, right) {
+  if (left?.status === "conflict") return left;
+  if (right?.status === "conflict") return right;
+  if (left?.status !== "bound") return right?.status === "bound" ? right : { status: "unbound", case_ids: [], observations: [] };
+  if (right?.status !== "bound") return left;
+  if (left.case_id === right.case_id) return right;
+  return {
+    status: "conflict",
+    case_ids: [...new Set([left.case_id, right.case_id])],
+    observations: [...(left.observations || []), ...(right.observations || [])]
+  };
+}
+
+export function isCanonicalCaseResolved(caseState) {
+  return caseState?.location === "closed"
+    && caseState?.record?.status === "closed"
+    && caseState?.record?.case_resolution?.status === "resolved";
 }
 
 export function buildUsageBaseline(runs, { projectId = "", excludeRunId = "" } = {}) {

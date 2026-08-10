@@ -34,7 +34,7 @@ export function selectNextRound(snapshot, options = {}) {
     case_updated_at: '',
     goal: roundGoal,
     reason: activeCases.length
-      ? 'Controller must select one active Case for this Loop and advance one of its current candidate gaps.'
+      ? 'The Agent must semantically select one active Case for this Loop and advance one of its current candidate gaps; Runtime does not preselect Case identity.'
       : 'Project State has no active Case; the Agent must create one before gap execution.',
     derived_from: activeCases.length ? ['active_cases', 'project_state'] : ['project_state', 'user_intent'],
     blocked_by: [],

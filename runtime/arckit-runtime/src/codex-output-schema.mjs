@@ -19,11 +19,12 @@ function visitSchema(schema, path, issues) {
   }
   if (typeof schema.$ref === "string") return;
 
-  if (Object.hasOwn(schema, "const") && !Object.hasOwn(schema, "type")) {
-    issues.push(`${path} uses const without an explicit type.`);
+  if ((Object.hasOwn(schema, "const") || Object.hasOwn(schema, "enum")) && !Object.hasOwn(schema, "type")) {
+    issues.push(`${path} uses const or enum without an explicit type.`);
   }
 
-  if (schema.type === "object") {
+  const types = new Set(Array.isArray(schema.type) ? schema.type : [schema.type].filter(Boolean));
+  if (types.has("object")) {
     const properties = schema.properties;
     if (!properties || typeof properties !== "object" || Array.isArray(properties)) {
       issues.push(`${path} is an object without explicit properties.`);
@@ -41,7 +42,7 @@ function visitSchema(schema, path, issues) {
     }
   }
 
-  if (schema.type === "array") {
+  if (types.has("array")) {
     if (!schema.items) issues.push(`${path} is an array without items.`);
     else visitSchema(schema.items, `${path}.items`, issues);
   }

@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-10T14:56:53.200Z
+Updated: 2026-08-10T17:18:07.967Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -23,6 +23,10 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - software_decision.technical_foundation: Facet workflow compatibility was removed before the explicit software-definition v5 redesign. (arckit/cases/closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260810-001-implement-explicit-software-definition-project-state.md)
 - project_gap.GAP-project-state-v5: resolve (arckit/cases/active/CASE-20260810-001-implement-explicit-software-definition-project-state.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md)
+- software_decision.visual_language: settled (arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md)
+- software_decision.observability_and_operation: settled (arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md)
 
 ## Remaining Project Gaps
 

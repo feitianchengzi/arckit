@@ -6,7 +6,7 @@
   "required": ["schema_version", "action", "summary", "case_control", "case_transition", "changed_files", "artifact_impacts", "risks", "unknowns", "handoff"],
   "properties": {
     "schema_version": { "type": "string", "const": "arckit-agent-loop-result/v1" },
-    "action": { "enum": ["case_control", "case_transition", "handoff"] },
+    "action": { "type": "string", "enum": ["case_control", "case_transition", "handoff"] },
     "summary": { "type": "string" },
     "case_control": { "anyOf": [{ "$ref": "#/$defs/case_control" }, { "type": "null" }] },
     "case_transition": { "anyOf": [{ "$ref": "#/$defs/case_transition" }, { "type": "null" }] },
@@ -25,7 +25,7 @@
         "title": { "type": "string" },
         "intent": { "type": "string" },
         "expected_outcome": { "type": "string" },
-        "artifact_type": { "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"] },
+        "artifact_type": { "type": "string", "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"] },
         "selection_reason": { "type": "string" },
         "initial_facts": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
         "initial_impacts": { "type": "array", "items": { "$ref": "#/$defs/impact" } },
@@ -52,11 +52,11 @@
         "project_state_delta": { "$ref": "#/$defs/project_state_delta" },
         "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
         "unresolved": { "type": "array", "items": { "type": "string" } },
-        "round_outcome": { "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] },
+        "round_outcome": { "type": "string", "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] },
         "case_resolution": {
           "type": "object",
           "required": ["claimed_status", "reason"],
-          "properties": { "claimed_status": { "enum": ["unresolved", "resolved"] }, "reason": { "type": "string" } },
+          "properties": { "claimed_status": { "type": "string", "enum": ["unresolved", "resolved"] }, "reason": { "type": "string" } },
           "additionalProperties": false
         }
       },
@@ -67,7 +67,7 @@
       "required": ["id", "responsibility", "goal", "reason", "derived_from", "blocked_by", "priority_basis", "evidence_required"],
       "properties": {
         "id": { "type": "string" },
-        "responsibility": { "enum": ["agent", "human", "external"] },
+        "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
         "goal": { "type": "string" },
         "reason": { "type": "string" },
         "derived_from": { "type": "array", "items": { "type": "string" } },
@@ -81,7 +81,7 @@
       "type": "object",
       "required": ["resolved_gap", "facts_added", "facts_superseded", "impacts_added", "impacts_updated", "gaps_added", "gaps_cancelled", "resolved_open_questions", "completed_handoffs", "completion_review_result", "resolved_review_findings", "review_budget_extension"],
       "properties": {
-        "resolved_gap": { "type": ["object", "null"] },
+        "resolved_gap": { "anyOf": [{ "$ref": "#/$defs/gap_resolution" }, { "type": "null" }] },
         "facts_added": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
         "facts_superseded": { "type": "array", "items": { "$ref": "#/$defs/fact_supersession" } },
         "impacts_added": { "type": "array", "items": { "$ref": "#/$defs/impact" } },
@@ -90,9 +90,9 @@
         "gaps_cancelled": { "type": "array", "items": { "$ref": "#/$defs/gap_resolution" } },
         "resolved_open_questions": { "type": "array", "items": { "type": "string" } },
         "completed_handoffs": { "type": "array", "items": { "type": "string" } },
-        "completion_review_result": { "type": ["object", "null"] },
+        "completion_review_result": { "anyOf": [{ "$ref": "#/$defs/completion_review_result" }, { "type": "null" }] },
         "resolved_review_findings": { "type": "array", "items": { "type": "string" } },
-        "review_budget_extension": { "type": ["object", "null"] }
+        "review_budget_extension": { "anyOf": [{ "$ref": "#/$defs/review_budget_extension" }, { "type": "null" }] }
       },
       "additionalProperties": false
     },
@@ -103,7 +103,7 @@
         "software_definition_changes": { "type": "array", "items": { "$ref": "#/$defs/software_definition_change" } },
         "software_invariant_changes": { "type": "array", "items": { "$ref": "#/$defs/software_invariant_change" } },
         "project_gap_changes": { "type": "array", "items": { "$ref": "#/$defs/project_gap_change" } },
-        "selection_context_change": { "type": ["object", "null"] },
+        "selection_context_change": { "anyOf": [{ "$ref": "#/$defs/selection_context" }, { "type": "null" }] },
         "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
@@ -113,7 +113,7 @@
       "required": ["id", "revision", "status", "statement", "basis", "evidence"],
       "properties": {
         "id": { "type": "string" }, "revision": { "type": "integer", "minimum": 1 },
-        "status": { "enum": ["accepted", "superseded"] }, "statement": { "type": "string" },
+        "status": { "type": "string", "enum": ["accepted", "superseded"] }, "statement": { "type": "string" },
         "basis": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
@@ -125,10 +125,10 @@
         "id": { "type": "string" }, "fact_id": { "type": "string" }, "fact_revision": { "type": "integer", "minimum": 1 },
         "target": {
           "type": "object", "required": ["kind", "ref", "revision"],
-          "properties": { "kind": { "enum": ["software_decision", "software_invariant"] }, "ref": { "type": "string" }, "revision": { "type": ["integer", "null"] } },
+          "properties": { "kind": { "type": "string", "enum": ["software_decision", "software_invariant"] }, "ref": { "type": "string" }, "revision": { "type": ["integer", "null"] } },
           "additionalProperties": false
         },
-        "effect": { "enum": ["upheld", "threatened", "undetermined"] }, "reason": { "type": "string" },
+        "effect": { "type": "string", "enum": ["upheld", "threatened", "undetermined"] }, "reason": { "type": "string" },
         "gap_ids": { "type": "array", "items": { "type": "string" } }, "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
@@ -137,12 +137,12 @@
       "type": "object",
       "required": ["id", "status", "goal", "reason", "derived_from", "blocked_by", "priority_basis", "responsibility", "evidence_required", "resolution"],
       "properties": {
-        "id": { "type": "string" }, "status": { "enum": ["open", "resolved", "cancelled"] },
+        "id": { "type": "string" }, "status": { "type": "string", "enum": ["open", "resolved", "cancelled"] },
         "goal": { "type": "string" }, "reason": { "type": "string" },
         "derived_from": { "type": "array", "items": { "type": "string" } },
         "blocked_by": { "type": "array", "items": { "type": "string" } },
-        "priority_basis": { "$ref": "#/$defs/priority_basis" }, "responsibility": { "enum": ["agent", "human", "external"] },
-        "evidence_required": { "type": "array", "items": { "type": "string" } }, "resolution": { "type": ["object", "null"] }
+        "priority_basis": { "$ref": "#/$defs/priority_basis" }, "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
+        "evidence_required": { "type": "array", "items": { "type": "string" } }, "resolution": { "anyOf": [{ "$ref": "#/$defs/gap_resolution" }, { "type": "null" }] }
       },
       "additionalProperties": false
     },
@@ -168,7 +168,7 @@
       "type": "object",
       "required": ["id", "status", "outcome", "reason", "evidence"],
       "properties": {
-        "id": { "type": "string" }, "status": { "enum": ["resolved", "cancelled"] },
+        "id": { "type": "string" }, "status": { "type": "string", "enum": ["resolved", "cancelled"] },
         "outcome": { "type": "string" }, "reason": { "type": "string" },
         "evidence": { "type": "array", "items": { "type": "string" } }
       },
@@ -189,7 +189,7 @@
       "type": "object",
       "required": ["action", "invariant", "reason", "evidence"],
       "properties": {
-        "action": { "enum": ["add", "update", "retire"] },
+        "action": { "type": "string", "enum": ["add", "update", "retire"] },
         "invariant": { "$ref": "#/$defs/software_invariant" },
         "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" } }
       },
@@ -199,8 +199,8 @@
       "type": "object",
       "required": ["action", "gap", "gap_id", "reason", "evidence"],
       "properties": {
-        "action": { "enum": ["add", "update", "resolve"] },
-        "gap": { "type": ["object", "null"] }, "gap_id": { "type": "string" },
+        "action": { "type": "string", "enum": ["add", "update", "resolve"] },
+        "gap": { "anyOf": [{ "$ref": "#/$defs/project_gap" }, { "type": "null" }] }, "gap_id": { "type": "string" },
         "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
@@ -209,10 +209,10 @@
       "type": "object",
       "required": ["status", "statement", "reason", "evidence", "confidence", "resume_condition"],
       "properties": {
-        "status": { "enum": ["open", "settled", "deferred", "stale"] },
+        "status": { "type": "string", "enum": ["open", "settled", "deferred", "stale"] },
         "statement": { "type": "string" }, "reason": { "type": "string" },
         "evidence": { "type": "array", "items": { "type": "string" } },
-        "confidence": { "enum": ["low", "medium", "high"] }, "resume_condition": { "type": "string" }
+        "confidence": { "type": "string", "enum": ["low", "medium", "high"] }, "resume_condition": { "type": "string" }
       },
       "additionalProperties": false
     },
@@ -222,7 +222,86 @@
       "properties": {
         "id": { "type": "string" }, "applies_when": { "type": "string" },
         "must_hold": { "type": "string" }, "evidence_expectation": { "type": "string" },
-        "priority": { "enum": ["required", "recommended", "informational"] }
+        "priority": { "type": "string", "enum": ["required", "recommended", "informational"] }
+      },
+      "additionalProperties": false
+    },
+    "completion_review_result": {
+      "type": "object",
+      "required": ["outcome", "reviewer", "reviewed_content_revision", "dimensions", "findings", "evidence"],
+      "properties": {
+        "outcome": { "type": "string", "enum": ["clean", "findings", "needs_human"] },
+        "reviewer": { "type": "string", "enum": ["agent", "human"] },
+        "reviewed_content_revision": { "type": "integer", "minimum": 0 },
+        "dimensions": { "$ref": "#/$defs/review_dimensions" },
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/review_finding" } },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "review_dimensions": {
+      "type": "object",
+      "required": ["implementation_correctness", "problem_resolution", "verification_credibility", "regression_risk", "minimality"],
+      "properties": {
+        "implementation_correctness": { "type": "string", "enum": ["clean", "findings"] },
+        "problem_resolution": { "type": "string", "enum": ["clean", "findings"] },
+        "verification_credibility": { "type": "string", "enum": ["clean", "findings"] },
+        "regression_risk": { "type": "string", "enum": ["clean", "findings"] },
+        "minimality": { "type": "string", "enum": ["clean", "findings"] }
+      },
+      "additionalProperties": false
+    },
+    "review_finding": {
+      "type": "object",
+      "required": ["id", "kind", "statement", "responsibility", "artifact_refs", "evidence"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string", "enum": ["error", "omission", "excess"] },
+        "statement": { "type": "string" },
+        "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
+        "artifact_refs": { "type": "array", "items": { "type": "string" } },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "review_budget_extension": {
+      "type": "object",
+      "required": ["additional_cycles", "authorized_by", "reason", "evidence"],
+      "properties": {
+        "additional_cycles": { "type": "integer", "minimum": 1 },
+        "authorized_by": { "type": "string", "const": "human" },
+        "reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "selection_context": {
+      "type": "object",
+      "required": ["current_focus", "project_priorities"],
+      "properties": {
+        "current_focus": { "type": "string" },
+        "project_priorities": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "project_target_ref": {
+      "type": "object",
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["software_decision", "software_invariant", "project_intent"] },
+        "ref": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "project_gap": {
+      "type": "object",
+      "required": ["id", "goal", "reason", "affects", "priority_basis", "dependencies", "candidate_case_ref"],
+      "properties": {
+        "id": { "type": "string" }, "goal": { "type": "string" }, "reason": { "type": "string" },
+        "affects": { "type": "array", "items": { "$ref": "#/$defs/project_target_ref" }, "minItems": 1 },
+        "priority_basis": { "$ref": "#/$defs/priority_basis" },
+        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "candidate_case_ref": { "type": "string" }
       },
       "additionalProperties": false
     },
@@ -236,7 +315,7 @@
       "type": "object",
       "required": ["next_responsibility", "reason", "next_prompt", "human_decision_required"],
       "properties": {
-        "next_responsibility": { "enum": ["agent", "human", "external", "none"] },
+        "next_responsibility": { "type": "string", "enum": ["agent", "human", "external", "none"] },
         "reason": { "type": "string" }, "next_prompt": { "type": "string" }, "human_decision_required": { "type": "boolean" }
       },
       "additionalProperties": false

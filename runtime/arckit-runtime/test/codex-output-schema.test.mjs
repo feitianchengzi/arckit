@@ -27,16 +27,19 @@ test("Codex output schema preflight reports the failures rejected by app-server"
     type: "object",
     properties: {
       schema_version: { const: "example/v1" },
+      status: { enum: ["ok", "failed"] },
       values: { type: "array" },
-      payload: { type: "object", properties: { value: { type: "string" } }, additionalProperties: true }
+      payload: { type: "object", properties: { value: { type: "string" } }, additionalProperties: true },
+      nullable_payload: { type: ["object", "null"] }
     },
     required: ["schema_version", "values"],
     additionalProperties: false
   });
-  assert.ok(issues.some((issue) => issue.includes("const without an explicit type")));
+  assert.ok(issues.some((issue) => issue.includes("const or enum without an explicit type")));
   assert.ok(issues.some((issue) => issue.includes("array without items")));
   assert.ok(issues.some((issue) => issue.includes("additionalProperties to false")));
   assert.ok(issues.some((issue) => issue.includes("payload.properties.value must be listed in required")));
+  assert.ok(issues.some((issue) => issue.includes("nullable_payload is an object without explicit properties")));
 });
 
 function findUntypedConsts(value, path = "$") {
