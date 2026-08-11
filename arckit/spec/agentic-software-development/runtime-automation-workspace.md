@@ -64,7 +64,7 @@ access token 在到期前五分钟刷新；业务请求收到未认证响应时�
 
 待办执行会话提供一条按发生时间排序的消息流。消息流的主要内容是 state-driven loop 的可理解状态和 Agent 自然语言输出；人工输入保持明确区分，工具活动作为次级单行记录。内部 Codex turn 和 round 只作为归因元数据，不把消息拆成多个面向用户的对话。
 
-消息流只包含用户可以理解和采取行动的语义信息。Round 开始、selected gap、阶段变化、transition 写回、handoff 和 Case 收束以紧凑状态提示表达；Agent 使用目标、进展、判断、证据与 closeout 摘要表达工作内容。每个工具调用只呈现一行状态、动作、目标和可选结果摘要；读取操作只显示文件路径，命令操作只显示命令意图与成功、失败或进行中状态。文件正文、完整 diff、stdout/stderr、原始工具参数、JSON envelope、逐 token 文本 delta和逐字符 reasoning delta不作为消息正文持久化或渲染。
+消息流只包含用户可以理解和采取行动的语义信息。每轮开始先展示 snapshot 中的 persisted candidate catalog；Agent result 到达后原样展示其 persisted/fresh comparison trace 与 selected gap，不由 Runtime 重新排序。transition 写回后展示 ledger 生成的独立 `round_closeout`，再展示带 post-commit token 证明的 `fresh_read`。阶段变化、handoff 和 Case 收束继续以紧凑状态提示表达；Agent 使用目标、进展、判断和证据表达工作内容。每个工具调用只呈现一行状态、动作、目标和可选结果摘要；读取操作只显示文件路径，命令操作只显示命令意图与成功、失败或进行中状态。文件正文、完整 diff、stdout/stderr、原始工具参数、JSON envelope、逐 token 文本 delta和逐字符 reasoning delta不作为消息正文持久化或渲染。
 
 流式内容更新当前消息；相同消息的增量不会持续创建新记录或 DOM 节点。用于 Token、耗时、错误和恢复判断的结构化投影继续保留在 Run activity 与证据 Inspector 中，不要求用户阅读原始事件日志。
 
@@ -112,11 +112,11 @@ Runtime 只自动推进“待处理 → 进行中 → 已完成”。评审、�
 
 Runtime 按 Case State 驱动 Agent turn、结构与授权 Gate、ledger writeback。主页面把当前 gap、Agent 进展、工具执行、Case transition、Gate、ledger 和证据摘要投影为可观察状态；Workbench 把同一 Agent thread 的多个 turn 组合为当前待办的一条消息流。
 
-默认每个 Loop 只发起一次 Codex Agent turn。Runtime 向已加载 `$using-arckit` 的 Agent 提供原始待办意图、当前增量、fresh canonical context digest、revision 与执行授权；Agent 在同一 turn 内选择唯一 Case 和一个 candidate gap，自主发现并使用所需 skills 与工具，执行事实维护、诊断、实现、构建、测试和完成态审查，最后提交一个有证据的 Case transition。`using-arckit` 约束 Agent 如何从 Case gap 开始并形成 closeout，但不把同一个 Agent 强制拆成互相隔离的 Controller 与 Worker 调用。
+默认每个 Loop 只发起一次 Codex Agent turn。Runtime 向已加载 `$using-arckit` 的 Agent 提供原始待办意图、当前增量、trusted ledger snapshot receipt、candidate catalog、revision 与执行授权；Agent 结合完整 Project decisions/invariants 与 fresh Case facts 发现并比较候选，选择唯一 Case 和一个 gap，自主发现并使用所需 skills 与工具，只完成该 Gap 的 acceptance claim 及必要证据，最后提交一个绑定 snapshot token、比较轨迹和证据的 Case transition。执行中暴露的新事实只进入 Case delta 与后续候选，不授权同一 turn 改做另一个独立结果。`using-arckit` 约束 Agent 如何从 Case gap 开始并形成 closeout，但不把同一个 Agent 强制拆成互相隔离的 Controller 与 Worker 调用。
 
 Runtime 不创建固定 Worker、独立复审或其它 Codex thread，也不以固定 definition skill 集合、预测式 `allowed_paths` 或固定 skill 顺序限制 Agent turn；工作区、sandbox、approval policy、外部权限和 ledger transition 校验仍构成确定性安全边界。
 
-Runtime 每次 ledger writeback 后都从 fresh canonical state 重建当前事实与授权，但 fresh state 不等于 fresh conversation thread。Agent thread 提供语义连续性，canonical state 提供事实权威性；历史中的 selected gap、revision、授权或未接受 claim 不能覆盖 fresh state。
+Runtime 每次 ledger writeback 后先原样投影 ledger 的 `round_closeout`，再以 receipt 中的 post-commit token 调 manifest 声明的 trusted snapshot entrypoint，从 fresh canonical state 重建当前事实与授权。Runtime 不自行复刻候选、revision 或 fresh-read 判定，writeback 返回的内存 candidate 也不能充当 fresh state。fresh state 不等于 fresh conversation thread：Agent thread 提供语义连续性，canonical state 提供事实权威性；历史中的 selected gap、revision、授权或未接受 claim 不能覆盖 fresh state。
 
 每个 Loop 仍只推进一个 Case gap，多个 gap 按 fresh ledger state 串行选择。执行效率不通过合并 gap、并行推进同一待办、总墙钟上限、生产性 Round 上限或长命令 watchdog 获得；长时间编译属于 Agent 执行阶段，由执行事件持续投影直至自然完成或收到显式停止请求。
 
@@ -124,7 +124,7 @@ Runtime 对同一工作区内仍在运行的等价命令保持单一执行实例
 
 Runtime 和 ledger 均成功收束、Case 已关闭后，系统继续使用当前待办的持久 Codex thread 发起 closeout turn。当前 Agent检查工作区、验证证据和变更范围并完成 Git commit；不创建独立 commit agent。只有 commit 成功或确认无需提交，系统才基于最新服务器版本提交“进行中 → 已完成”。服务器确认完成后，系统清理活动任务并继续领取下一项。
 
-首次执行传给 Agent 的人类输入只有待办正文；远端任务、项目、run 和队列信息作为 Runtime 元数据关联。自动化管理的 run 显式携带自动续轮策略；ledger 写回后，只要 handoff 仍由 Agent 负责、允许 Agent 继续且不需要人类或外部输入，系统就在同一活动 thread 发起下一 turn，并重新读取 Case State。ledger 的策略中立 `manual_bridge` 不会把这种 Agent continuation 降级为人工事项。确定性 ledger 写回表示本轮取得 canonical state 进展并重置无进展恢复计数；安全计数只限制连续没有 ledger 进展的恢复尝试，不是总墙钟、生产性 Round 或长命令上限。自动续轮没有新增人类输入，不构造新的用户消息，也不把 `next_prompt` 伪装成人工输入。
+首次执行传给 Agent 的人类输入只有待办正文；远端任务、项目、run 和队列信息作为 Runtime 元数据关联。自动化管理的 run 显式携带自动续轮策略；ledger 写回后，只要 handoff 仍由 Agent 负责、允许 Agent 继续且不需要人类或外部输入，系统就在同一活动 thread 依次投影 closeout、完成 post-commit fresh-read，并以新 snapshot 发起下一 turn。ledger 的策略中立 `manual_bridge` 不会把这种 Agent continuation 降级为人工事项。确定性 ledger 写回表示本轮取得 canonical state 进展并重置无进展恢复计数；安全计数只限制连续没有 ledger 进展的恢复尝试，不是总墙钟、生产性 Round 或长命令上限。自动续轮没有新增人类输入，不构造新的用户消息，也不把 `next_prompt` 或 closeout 中的旧选择伪装成人工输入。
 
 自动化总开关关闭时，系统继续同步和展示，但不领取新任务。暂停队列不停止当前活动任务；停止当前运行请求 Runtime 在安全停止点收束，远端任务保持进行中并进入恢复状态。
 
@@ -254,6 +254,7 @@ Renderer 不持有任务服务器凭证，也不直接请求任意远端 API。�
 - 默认一个 Agent turn 能够依据 bounded canonical facts 完成 Case/gap 选择、必要 skill/tool 工作、自我审查和结构化 transition；Runtime 不要求固定 Plan/Worker/Review 三段调用。
 - 人工直接使用 Codex 与 Runtime 自动桥接能够从相同 facts 得到相同 Case transition 和 handoff；两者都保留 Codex 原生 skill 发现与工作区执行能力。
 - 每个 Loop 只推进一个 Case gap，连续 gap 从 fresh ledger state 串行选择；有效进展不因总墙钟、生产性 Round 数或长时间编译达到固定值而终止。
+- Project software invariants 与 fresh Case facts 在每轮驱动动态候选发现；Runtime 不预生成事实域 checklist，也不因某类判断曾经完成而阻止其被后续 facts 重新打开。
 - 同一工作区和目标的等价长时间命令只有一个活动执行实例；等待期间通过执行事件更新状态，不通过重复模型调用或重复命令轮询进度。
 - 当前与历史 Run 能够按 task thread 展示逻辑总 token、缓存输入、非缓存输入、输出、上下文占用和 round/turn 增量；达到 80% 的压缩事件可观察。
 - Token 软异常能够指出无状态进展增长、等待期模型调用、重复命令、授权范围漂移和跨待办 thread 历史等来源，但不会因总 token 或总轮数达到固定值而自动终止有效任务。

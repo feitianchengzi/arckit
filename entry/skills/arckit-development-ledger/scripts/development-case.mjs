@@ -13,6 +13,7 @@ const CASE_STATUS = new Set(['active', 'blocked', 'handoff', 'closed']);
 const ARTIFACT_TYPES = new Set(['code', 'skill', 'document', 'workflow', 'mixed', 'unknown']);
 const REVIEW_STATUSES = new Set(['pending', 'findings_open', 'clean', 'needs_human']);
 const REVIEW_DIMENSION_STATES = new Set(['unknown', 'clean', 'findings']);
+const INVARIANT_DISPOSITIONS = new Set(['not_relevant', 'upheld', 'threatened', 'undetermined']);
 export const REVIEW_DIMENSIONS = ['implementation_correctness', 'problem_resolution', 'verification_credibility', 'regression_risk', 'minimality'];
 const RESPONSIBILITIES = new Set(['agent', 'human', 'external']);
 const STRUCTURED_RECORD_PATTERN = /(## Structured Record[\s\S]*?```json\s*\n)([\s\S]*?)(\n```)/;
@@ -192,7 +193,12 @@ function auditCaseRecordV5(record, timestamp = nowIso()) {
   const externalReady = ready.filter((gap) => gap.responsibility === 'external');
   let candidateGaps = humanReady.length ? humanReady : agentReady.length ? agentReady : externalReady;
   const unsettledImpacts = (record.state_impacts || []).filter((impact) => ['threatened', 'undetermined'].includes(impact.effect));
-  const ordinaryClosed = open.length === 0 && openQuestions.length === 0 && pendingHandoffs.length === 0 && unsettledImpacts.length === 0;
+  const latestRound = (record.rounds || []).at(-1);
+  const latestAssessmentClosed = latestRound?.transition_schema_version !== 'arckit-case-transition/v8'
+    || (Array.isArray(latestRound.invariant_assessment?.judgments)
+      && latestRound.invariant_assessment.judgments.length > 0
+      && latestRound.invariant_assessment.judgments.every((judgment) => ['not_relevant', 'upheld'].includes(judgment.disposition)));
+  const ordinaryClosed = open.length === 0 && openQuestions.length === 0 && pendingHandoffs.length === 0 && unsettledImpacts.length === 0 && latestAssessmentClosed;
   const review = record.completion_review;
   const reviewCurrent = review?.status === 'clean'
     && review.reviewed_content_revision === record.content_revision
@@ -279,6 +285,29 @@ function validateCaseRecordV5(record, file = '<record>') {
   const review = record.completion_review;
   if (!review || !REVIEW_STATUSES.has(review.status) || !Number.isInteger(review.policy?.initial_max_cycles) || review.policy.initial_max_cycles < 1 || !Array.isArray(review.cycles) || !Array.isArray(review.findings) || !REVIEW_DIMENSIONS.every((key) => REVIEW_DIMENSION_STATES.has(review.dimensions?.[key]))) errors.push(`${file}: completion_review is invalid`);
   if (!record.current_round || !Object.hasOwn(record.current_round, 'selected_gap')) errors.push(`${file}: current_round is invalid`);
+  for (const [index, round] of (record.rounds || []).entries()) {
+    if (round?.transition_schema_version !== 'arckit-case-transition/v8') continue;
+    const assessment = round.invariant_assessment;
+    if (!assessment || !Number.isInteger(assessment.project_revision) || !Array.isArray(assessment.judgments) || assessment.judgments.length === 0) {
+      errors.push(`${file}: rounds[${index}].invariant_assessment is invalid`);
+      continue;
+    }
+    const refs = new Set();
+    for (const judgment of assessment.judgments) {
+      const structurallyValid = judgment?.invariant_ref && !refs.has(judgment.invariant_ref)
+        && INVARIANT_DISPOSITIONS.has(judgment.disposition) && judgment.reason
+        && Array.isArray(judgment.fact_refs) && Array.isArray(judgment.evidence) && Array.isArray(judgment.gap_refs);
+      const dispositionValid = structurallyValid && (
+        (judgment.disposition === 'not_relevant' && judgment.evidence.length === 0 && judgment.gap_refs.length === 0)
+        || (judgment.disposition === 'upheld' && judgment.evidence.length > 0 && judgment.gap_refs.length === 0)
+        || (['threatened', 'undetermined'].includes(judgment.disposition) && judgment.fact_refs.length > 0 && judgment.gap_refs.length > 0)
+      );
+      const factRefsValid = structurallyValid && judgment.fact_refs.every((id) => (record.facts || []).some((fact) => fact.id === id));
+      const gapRefsValid = structurallyValid && judgment.gap_refs.every((id) => (record.gaps || []).some((gap) => gap.id === id));
+      if (!dispositionValid || !factRefsValid || !gapRefsValid) errors.push(`${file}: rounds[${index}].invariant_assessment has an invalid judgment`);
+      refs.add(judgment?.invariant_ref);
+    }
+  }
   if (!record.case_resolution || !['unresolved', 'resolved'].includes(record.case_resolution.status)) errors.push(`${file}: case_resolution is invalid`);
   const derived = errors.length ? null : auditCaseRecordV5(record, record.case_resolution.updated_at);
   if (derived && JSON.stringify({ ...derived, updated_at: '' }) !== JSON.stringify({ ...record.case_resolution, updated_at: '' })) errors.push(`${file}: case_resolution is not the deterministic projection of Case State; run audit --write`);

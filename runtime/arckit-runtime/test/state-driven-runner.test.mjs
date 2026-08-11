@@ -6,10 +6,13 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   let reads = 0;
   let roundCalls = 0;
   let ledgerCalls = 0;
+  const readArgs = [];
+  const sessionEvents = [];
   const adapter = closeoutAdapter();
   const snapshots = [snapshot(1), snapshot(2)];
   const stateStore = {
-    async readSnapshot() {
+    async readSnapshot(options = {}) {
+      readArgs.push(options);
       return snapshots[reads++];
     }
   };
@@ -22,19 +25,26 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
       agentAdapter: adapter,
       task: "finish the case",
       conversationLocale: "en",
-      maxNoProgressRounds: 3
+      maxNoProgressRounds: 3,
+      onEvent(event) { sessionEvents.push(event); }
     },
     dependencies: {
       async runRound({ snapshot: current, options }) {
         roundCalls += 1;
         assert.equal(options.agentAdapter, adapter);
         assert.equal(current.projectState.project.revision, roundCalls);
-        return loopResult(roundCalls === 1 ? agentHandoff() : terminalHandoff());
+        const loop = loopResult(roundCalls === 1 ? agentHandoff() : terminalHandoff());
+        loop.agentLoopResult = agentSelectionResult(roundCalls);
+        return loop;
       },
       async writeRoundLedger() {
         ledgerCalls += 1;
         return ledgerCalls === 1
-          ? { written: true, changed_files: ["case.md"], case_control_result: { case_id: "CASE-1" } }
+          ? {
+            written: true, changed_files: ["case.md"], post_commit_snapshot_token: "POST-COMMIT-1",
+            round_closeout: { schema_version: "arckit-round-closeout/v2", status: "accepted", round: 1, case_id: "CASE-1", selected_gap: { id: "GAP-1" }, accepted_state_delta: { facts_added: [], gaps_added: [] }, invariant_assessment: { project_revision: 1, judgments: [] }, resulting_state: { project_revision: 2 } },
+            case_control_result: { case_id: "CASE-1" }
+          }
           : {
             written: true,
             changed_files: ["case.md", "state.record.json"],
@@ -45,6 +55,7 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   });
 
   assert.equal(reads, 2);
+  assert.deepEqual(readArgs, [{}, { afterCommitToken: "POST-COMMIT-1" }]);
   assert.equal(roundCalls, 2);
   assert.equal(ledgerCalls, 2);
   assert.equal(adapter.closed, 1);
@@ -58,6 +69,12 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   assert.match(adapter.prompts[0], /Git-only closeout/);
   assert.match(adapter.prompts[0], /Do not inspect semantic correctness, run validation, edit files, or repair content/);
   assert.doesNotMatch(adapter.prompts[0], /final proportionate checks|repair issues if necessary/);
+  const candidatesIndex = sessionEvents.findIndex((event) => event.type === "runtime.round_candidates");
+  const selectionIndex = sessionEvents.findIndex((event) => event.type === "runtime.round_selection");
+  const closeoutIndex = sessionEvents.findIndex((event) => event.type === "runtime.round_closeout");
+  const freshReadIndex = sessionEvents.findIndex((event) => event.type === "runtime.fresh_read.completed");
+  const nextRoundIndex = sessionEvents.findIndex((event) => event.type === "runtime.session_round.started" && event.round_index === 2);
+  assert.ok(candidatesIndex >= 0 && candidatesIndex < selectionIndex && selectionIndex < closeoutIndex && closeoutIndex < freshReadIndex && freshReadIndex < nextRoundIndex);
 });
 
 test("state-driven continuation pauses only for an explicit human handoff", () => {
@@ -142,6 +159,11 @@ test("state-driven results persist semantic events without raw Agent deltas", as
 
 function snapshot(revision) {
   return {
+    snapshotToken: `SNAPSHOT-${revision}`,
+    candidateCatalog: {
+      persisted_candidates: [{ ref: `case-gap:CASE-1:GAP-${revision}`, case_id: "CASE-1", gap: { id: `GAP-${revision}` } }],
+      persisted_obligations: []
+    },
     projectState: {
       project: { revision },
       advancement: { selection_context: {}, project_gaps: [], active_case_refs: [] },
@@ -161,6 +183,28 @@ function snapshot(revision) {
       techIndex: "arckit/tech/INDEX.md"
     },
     summary: { active_case_count: 0 }
+  };
+}
+
+function agentSelectionResult(round) {
+  const ref = `case-gap:CASE-1:GAP-${round}`;
+  return {
+    schema_version: "arckit-agent-loop-result/v1",
+    action: "case_transition",
+    summary: `Advanced GAP-${round}.`,
+    case_transition: {
+      case_id: "CASE-1",
+      selected_gap: { id: `GAP-${round}` },
+      gap_selection: {
+        mode: "candidate",
+        basis: "Highest current risk.",
+        snapshot_token: `SNAPSHOT-${round}`,
+        selected_ref: ref,
+        comparison_summary: "Compared the persisted candidate with no fresh candidate.",
+        fresh_discovery_summary: "No fresh candidates found.",
+        considered: [{ ref, source: "persisted", eligibility: "ready", disposition: "selected", priority_basis: { risk: "high" }, reason: "Only ready candidate." }]
+      }
+    }
   };
 }
 

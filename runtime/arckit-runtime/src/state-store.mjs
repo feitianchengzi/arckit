@@ -1,32 +1,26 @@
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { loadRuntimeCapabilityForEntrypoint } from './capability-registry.mjs';
+import { runLedgerScript } from './ledger-scripts.mjs';
 
 export function createStateStore(projectRoot) {
   const root = resolve(projectRoot);
+  let snapshotCapabilityPromise = null;
   return {
     root,
-    async readSnapshot() {
-      const projectStatePath = join(root, 'arckit/project/state.record.json');
-      if (!existsSync(projectStatePath)) throw new Error(`Missing project state record: ${projectStatePath}`);
-      const projectState = await readJson(projectStatePath);
-      if (projectState.schema_version !== 'project-state-record/v5') throw new Error('Runtime requires project-state-record/v5');
-
-      const activeCaseRefs = Array.isArray(projectState.advancement?.active_case_refs) ? projectState.advancement.active_case_refs : [];
-      const activeCases = [];
-      for (const ref of activeCaseRefs) {
-        const record = await readCaseRecordIfExists(join(root, ref));
-        if (!record) throw new Error(`Active Case ref cannot be read: ${ref}`);
-        if (record.schema_version !== 'development-case-record/v5') throw new Error(`Runtime requires development-case-record/v5: ${ref}`);
-        activeCases.push({ ref, record });
-      }
-
-      const iterationRecord = projectState.advancement.active_iteration_ref
-        ? await readJsonIfExists(join(root, projectState.advancement.active_iteration_ref))
-        : null;
-      if (iterationRecord && iterationRecord.schema_version !== 'iteration-state-record/v3') {
-        throw new Error(`Runtime requires iteration-state-record/v3: ${projectState.advancement.active_iteration_ref}`);
-      }
+    async readSnapshot({ afterCommitToken = '' } = {}) {
+      snapshotCapabilityPromise ||= loadRuntimeCapabilityForEntrypoint({ projectRoot: root, entrypoint: 'loop_snapshot' });
+      const args = ['loop-snapshot.mjs', 'read'];
+      if (afterCommitToken) args.push('--after-commit', afterCommitToken);
+      const snapshotResult = await runLedgerScript(root, args, {
+        capability: await snapshotCapabilityPromise,
+      });
+      const receipt = JSON.parse(snapshotResult.stdout);
+      const projectState = receipt.canonical?.project_state || {};
+      const activeCases = receipt.canonical?.active_cases || [];
+      const iterationRecord = receipt.canonical?.iteration_record || null;
+      const activeCaseRefs = receipt.paths?.active_cases || [];
       const documents = await Promise.all([
         readTextIfExists(join(root, 'arckit/project/STATE.md')),
         readTextIfExists(join(root, 'arckit/cases/INDEX.md')),
@@ -39,16 +33,19 @@ export function createStateStore(projectRoot) {
 
       return {
         projectRoot: root,
+        ledgerSnapshot: receipt,
+        snapshotToken: receipt.snapshot_token,
+        candidateCatalog: receipt.candidate_catalog,
         paths: {
-          projectState: 'arckit/project/state.record.json',
-          stateBrief: 'arckit/project/STATE.md',
-          activeIteration: projectState.advancement.active_iteration_ref || '',
+          projectState: receipt.paths?.project_state || 'arckit/project/state.record.json',
+          stateBrief: receipt.paths?.state_brief || 'arckit/project/STATE.md',
+          activeIteration: receipt.paths?.active_iteration || '',
           activeCases: activeCaseRefs,
-          casesIndex: 'arckit/cases/INDEX.md',
-          specIndex: 'arckit/spec/INDEX.md',
-          interactionIndex: 'arckit/interaction/INDEX.md',
-          visualIndex: 'arckit/visual/INDEX.md',
-          techIndex: 'arckit/tech/INDEX.md',
+          casesIndex: receipt.paths?.cases_index || 'arckit/cases/INDEX.md',
+          specIndex: receipt.paths?.spec_index || 'arckit/spec/INDEX.md',
+          interactionIndex: receipt.paths?.interaction_index || 'arckit/interaction/INDEX.md',
+          visualIndex: receipt.paths?.visual_index || 'arckit/visual/INDEX.md',
+          techIndex: receipt.paths?.tech_index || 'arckit/tech/INDEX.md',
         },
         projectState,
         stateBrief,
@@ -59,30 +56,22 @@ export function createStateStore(projectRoot) {
         interactionIndex,
         visualIndex,
         techIndex,
-        summary: summarize(projectState, iterationRecord, activeCases),
+        stateAvailability: receipt.state_availability,
+        compatibility: receipt.compatibility?.status === 'compatible' ? null : receipt.compatibility,
+        summary: receipt.state_availability === 'available'
+          ? summarize(projectState, iterationRecord, activeCases)
+          : recoverySummary(projectState),
       };
     },
   };
-}
-
-async function readJson(file) {
-  return JSON.parse(await readFile(file, 'utf8'));
-}
-
-async function readJsonIfExists(file) {
-  return existsSync(file) ? readJson(file) : null;
 }
 
 async function readTextIfExists(file) {
   return existsSync(file) ? readFile(file, 'utf8') : '';
 }
 
-async function readCaseRecordIfExists(file) {
-  if (!existsSync(file)) return null;
-  const text = await readFile(file, 'utf8');
-  const match = text.match(/## Structured Record[\s\S]*?```json\s*\n([\s\S]*?)\n```/);
-  if (!match) throw new Error(`${file}: missing Structured Record json block`);
-  return JSON.parse(match[1]);
+function recoverySummary(projectState) {
+  return { project_name: projectState?.project?.name || '', project_status: projectState?.project?.status || '', current_phase: 'protocol_recovery', active_iteration: '', next_case_intent: '', active_case_count: 0, project_gap_count: 0 };
 }
 
 function summarize(projectState, iterationRecord, activeCases) {

@@ -52,7 +52,7 @@ test("readiness preflight validates repository capabilities without inspecting C
     assert.equal(result.ready, true);
     assert.equal(result.controller_trigger, "$using-arckit");
     assert.equal("installed_skills" in result, false);
-    assert.deepEqual(Object.keys(result.trusted_entrypoints).sort(), ["case_control", "writeback"]);
+    assert.deepEqual(Object.keys(result.trusted_entrypoints).sort(), ["case_control", "loop_snapshot", "protocol_compatibility", "writeback"]);
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }

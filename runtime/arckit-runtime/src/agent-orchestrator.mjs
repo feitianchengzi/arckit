@@ -1,7 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isDeepStrictEqual } from "node:util";
 import { createAgentAdapter } from "./agent-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
 import {
@@ -9,7 +8,8 @@ import {
   capabilitiesForBinding,
   capabilityIds,
   loadCapabilityPolicy,
-  loadRuntimeCapabilities
+  loadRuntimeCapabilities,
+  resolveCapabilityEntrypoint
 } from "./capability-registry.mjs";
 import {
   buildArtifactOwnershipScan,
@@ -107,6 +107,7 @@ async function runCoherentAgentLoop({ projectRoot, snapshot, round, compiledProm
 export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, options = {}, controllerCapabilities = [] }) {
   const invocation = agentSkillInvocationForPhase(controllerCapabilities, "agent_loop");
   const firstTurn = Number(options.lifecycleRoundIndex || 1) === 1;
+  const protocolRecovery = snapshot?.compatibility?.status === "incompatible";
   return [invocation.skill_trigger, "", JSON.stringify({
     schema_version: "arckit-agent-loop-invocation/v1",
     phase: "agent_loop",
@@ -117,17 +118,31 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
     execution_authorization: {
       status: loopFrame.execution_gate.status,
       executor: loopFrame.executor_binding.executor,
-      workspace_root: snapshot.projectRoot || ""
+      workspace_root: snapshot.projectRoot || "",
+      trusted_protocol_recovery: loopFrame.protocol_recovery,
+      trusted_ledger_snapshot: loopFrame.ledger_snapshot
     },
     loop_contract: {
-      one_gap: true,
+      one_gap: !protocolRecovery,
+      one_acceptance_claim: !protocolRecovery,
       execute_in_current_turn: true,
-      fresh_gap_selection: true,
+      fresh_gap_selection: !protocolRecovery,
       future_gap_preplanning: false,
+      newly_discovered_work_must_wait_for_post_commit_fresh_read: !protocolRecovery,
+      complete_project_invariant_assessment_required: !protocolRecovery,
+      invariant_assessment_is_semantic_agent_work: true,
       completion_review_is_only_semantic_self_check: true,
       native_skill_discovery: true,
       ledger_write_forbidden: true,
-      valid_actions: ["case_control", "case_transition", "handoff"]
+      ordinary_ledger_write_forbidden: true,
+      protocol_recovery: protocolRecovery,
+      ordinary_case_progress_forbidden: protocolRecovery,
+      trusted_protocol_reconciliation_allowed: protocolRecovery,
+      snapshot_bound_selection: !protocolRecovery,
+      persisted_candidate_comparison_required: !protocolRecovery,
+      round_closeout_is_ledger_receipt: true,
+      post_write_snapshot_required: true,
+      valid_actions: protocolRecovery ? ["handoff"] : ["case_control", "case_transition", "handoff"]
     }
   }, null, 2)].join("\n");
 }
@@ -142,7 +157,7 @@ export function createLoopFrame({ snapshot, round, task, controllerCapabilities 
     || "Select and advance one evidence-backed Case gap.";
   const selectedGap = {
     id: round.gap_id || "",
-    scope: "case",
+    scope: round.scope || "case",
     case_id: round.case_id || "",
     responsibility: round.responsibility || "agent",
     goal: roundGoal,
@@ -152,6 +167,8 @@ export function createLoopFrame({ snapshot, round, task, controllerCapabilities 
     priority_basis: {},
     evidence_required: []
   };
+  const protocolRecovery = protocolRecoveryBinding(snapshot, runtimeCapabilities);
+  const ledgerSnapshot = ledgerSnapshotBinding(snapshot, runtimeCapabilities);
   return {
     schema_version: "arckit-loop-frame/v1",
     case_id: round.case_id || "",
@@ -161,6 +178,8 @@ export function createLoopFrame({ snapshot, round, task, controllerCapabilities 
     project_root: snapshot.projectRoot || "",
     operator_task: task,
     runtime_context: options.runtimeContext || null,
+    protocol_recovery: protocolRecovery,
+    ledger_snapshot: ledgerSnapshot,
     round_goal: roundGoal,
     conversation_locale: options.conversationLocale || round.conversation_locale || "en",
     controller_frame: {
@@ -195,7 +214,8 @@ export function createLoopFrame({ snapshot, round, task, controllerCapabilities 
     stop_conditions: round.stop_conditions || [],
     case_control: round.case_control || {},
     candidate_cases: round.candidate_cases || [],
-    candidate_case_gaps: round.candidate_case_gaps || []
+    candidate_case_gaps: round.candidate_case_gaps || [],
+    candidate_catalog: snapshot.candidateCatalog || { persisted_candidates: [], persisted_obligations: [] }
   };
 }
 
@@ -206,6 +226,18 @@ export function createControllerContextDigest({ snapshot, loopFrame }) {
     schema_version: "arckit-controller-context-digest/v1",
     authority: "current_operator_input_and_canonical_digest_supersede_thread_history",
     phase: "agent_loop",
+    state_availability: snapshot?.stateAvailability || "available",
+    protocol_compatibility: snapshot?.compatibility || null,
+    protocol_recovery: loopFrame?.protocol_recovery || null,
+    ledger_snapshot: snapshot?.ledgerSnapshot ? {
+      schema_version: snapshot.ledgerSnapshot.schema_version,
+      observed_at: snapshot.ledgerSnapshot.observed_at,
+      snapshot_token: snapshot.ledgerSnapshot.snapshot_token,
+      observed_after_commit: snapshot.ledgerSnapshot.observed_after_commit,
+      project_revision: snapshot.ledgerSnapshot.project_revision,
+      case_revisions: snapshot.ledgerSnapshot.case_revisions,
+    } : null,
+    candidate_catalog: snapshot?.candidateCatalog || { persisted_candidates: [], persisted_obligations: [] },
     project: {
       name: safeSemanticText(snapshot?.summary?.project_name || projectState?.project?.name || "", { maxLength: 240 }),
       phase: safeSemanticText(snapshot?.summary?.current_phase || "", { maxLength: 240 }),
@@ -240,8 +272,44 @@ export function createControllerContextDigest({ snapshot, loopFrame }) {
     context_refs: unique([
       snapshot?.paths?.projectState,
       snapshot?.paths?.activeIteration,
-      ...activeCases.map((item) => item.ref)
+      ...activeCases.map((item) => item.ref),
+      ...(snapshot?.compatibility?.affected_refs || [])
     ]).slice(0, 32)
+  };
+}
+
+function protocolRecoveryBinding(snapshot, runtimeCapabilities) {
+  if (snapshot?.compatibility?.status !== "incompatible") return null;
+  const capability = runtimeCapabilities.find((item) => typeof item?.runtime_entrypoints?.protocol_compatibility === "string");
+  if (!capability) return {
+    authorized: false,
+    entrypoint: "",
+    contract_refs: [],
+    allowed_commands: []
+  };
+  const entrypoint = resolveCapabilityEntrypoint(capability, "protocol_compatibility");
+  return {
+    authorized: true,
+    capability_id: capability.id,
+    entrypoint,
+    contract_refs: [
+      join(capability.capability_root, "schema/protocol-reconciliation.schema.json"),
+      join(capability.capability_root, "references/protocol-reconciliation.md")
+    ],
+    allowed_commands: ["probe", "validate", "reconcile"]
+  };
+}
+
+function ledgerSnapshotBinding(snapshot, runtimeCapabilities) {
+  const capability = runtimeCapabilities.find((item) => typeof item?.runtime_entrypoints?.loop_snapshot === "string");
+  if (!capability) return { authorized: false, capability_id: "", entrypoint: "", snapshot_token: "", allowed_commands: [] };
+  return {
+    authorized: true,
+    capability_id: capability.id,
+    entrypoint: resolveCapabilityEntrypoint(capability, "loop_snapshot"),
+    snapshot_token: snapshot?.snapshotToken || "",
+    contract_refs: [join(capability.capability_root, "schema/ledger-snapshot.schema.json")],
+    allowed_commands: ["read"]
   };
 }
 
@@ -285,6 +353,7 @@ function summarizeCase(item) {
     recent_transitions: (record.rounds || []).slice(-3).map((round) => ({
       round: Number(round?.round || 0), goal: safeSemanticText(round?.goal || "", { maxLength: SEMANTIC_LIMITS.goal }),
       outcome: String(round?.outcome || ""), state_change: safeSemanticText(round?.planned_transition || "", { maxLength: SEMANTIC_LIMITS.transition }),
+      invariant_assessment: objectOrNull(round?.invariant_assessment),
       evidence: strings(round?.evidence).slice(-8)
     }))
   };
@@ -326,20 +395,13 @@ function agentLoopResultFailureReason(result, snapshot) {
   if (result?.schema_version !== "arckit-agent-loop-result/v1") return "Agent Loop returned an unsupported schema version.";
   if (!result.summary) return "Agent Loop result requires a summary.";
   if (!["case_control", "case_transition", "handoff"].includes(result.action)) return "Agent Loop result action is invalid.";
+  if (snapshot?.compatibility?.status === "incompatible" && result.action !== "handoff") {
+    return "Protocol-incompatible canonical state forbids ordinary Case control and transitions; reconcile through the trusted ledger entrypoint first.";
+  }
   if (result.action === "case_control" && (!result.case_control || result.case_transition || result.case_control.action !== "create_case")) return "case_control action is incomplete.";
   if (result.action === "case_transition") {
     if (!result.case_transition || result.case_control) return "case_transition action is incomplete.";
     const transition = result.case_transition;
-    const activeCase = (snapshot.activeCases || []).find((item) => item.record?.id === transition.case_id);
-    if (!activeCase) return `Agent Loop selected a non-active Case: ${transition.case_id || "<missing>"}.`;
-    if (activeCase.record.updated_at !== transition.case_updated_at) return `Agent Loop Case revision is stale for ${transition.case_id}.`;
-    if (transition.gap_selection?.mode === "candidate") {
-      const gap = (activeCase.record.case_resolution?.candidate_gaps || []).find((item) => item.id === transition.selected_gap?.id);
-      if (!gap || !isDeepStrictEqual(gap, transition.selected_gap)) return `Agent Loop selected a stale or non-candidate gap: ${transition.selected_gap?.id || "<missing>"}.`;
-    } else if (transition.gap_selection?.mode === "fresh") {
-      if (activeCase.record.gaps.some((item) => item.id === transition.selected_gap?.id)) return `Agent Loop selected a non-fresh gap: ${transition.selected_gap?.id || "<missing>"}.`;
-      if (transition.selected_gap?.responsibility !== "agent") return "Agent Loop fresh gap must be Agent-owned and completed in the current turn.";
-    } else return "Agent Loop transition requires candidate or fresh gap_selection.";
     if (!Array.isArray(transition.evidence) || transition.evidence.length === 0) return "Agent Loop transition requires evidence.";
   }
   if (result.action === "handoff" && (result.case_control || result.case_transition)) return "handoff action cannot include Case payloads.";

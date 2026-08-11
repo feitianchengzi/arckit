@@ -36,7 +36,7 @@ The first Agent invocation starts a non-ephemeral Codex thread. Runtime writes t
 
 After a process or Desktop restart, the binding file is loaded before spawning Runtime and app-server calls `thread/resume`. A missing persisted thread is the only condition that permits a replacement thread; transient resume failures remain recoverable errors instead of silently discarding context.
 
-After each successful ledger transition, Runtime reads the latest request's context utilization. At 80% or above it runs Codex compaction on the same loaded thread, records the compaction, fresh-reads canonical state, and continues with the next gap.
+After each successful ledger transition, Runtime projects the ledger-owned round closeout, then reads the latest request's context utilization. At 80% or above it runs Codex compaction on the same loaded thread and records the compaction. It then uses the closeout's post-commit token with the trusted ledger snapshot entrypoint; only a verified fresh-read can continue to the next gap.
 
 There is no wall-clock limit, productive-round limit, or long-command watchdog. The configured automatic-round value is only a consecutive no-progress recovery budget and resets after deterministic ledger progress.
 
@@ -45,12 +45,13 @@ There is no wall-clock limit, productive-round limit, or long-command watchdog. 
 ```text
 claim todo
 -> load or establish persistent thread binding
--> fresh-read Project and all active Cases
+-> read the trusted ledger snapshot and persisted candidate catalog
 -> invoke $using-arckit once for one gap
--> Agent executes, verifies, and returns a structured claim
+-> Agent compares persisted/fresh candidates, executes, verifies, and returns a structured claim
 -> Runtime validates and calls trusted ledger writeback
 -> inspect context usage and compact at >= 80%
--> fresh-read and continue automatically
+-> show canonical round closeout
+-> verify a post-commit fresh-read and continue automatically
 -> when Case is resolved, use the same thread for final checks and Git commit
 -> complete the remote todo
 ```
@@ -65,7 +66,7 @@ Each gap turn begins with the manifest-declared natural trigger:
 $using-arckit
 ```
 
-The remaining input is a compact invocation containing the original user intent on the first turn, the current continuation increment, fresh canonical Project/Case facts, revisions, locale, and execution authorization. Runtime does not locate or read Codex-installed `SKILL.md` files, compare installed skill versions or directory drift, duplicate skill contents, inject a second skill input item, list other installed skills, or encode which skill the Agent should choose.
+The remaining input is a compact invocation containing the original user intent on the first turn, the current continuation increment, fresh canonical Project/Case facts, revisions, locale, and execution authorization. If canonical records do not satisfy the manifest-declared ledger protocol, Runtime passes the typed compatibility result to the same Agent thread instead of terminating before Agent execution; the Agent owns semantic reconciliation and the trusted ledger entrypoint owns freshness, validation, and atomic writeback. Runtime does not locate or read Codex-installed `SKILL.md` files, compare installed skill versions or directory drift, duplicate skill contents, inject a second skill input item, list other installed skills, or encode which skill the Agent should choose.
 
 Codex structured output uses `schemas/agent-loop-result.schema.json`. Runtime persists semantic activity rather than raw prompt transcripts or high-frequency deltas.
 

@@ -37,6 +37,13 @@ export function structuredResultPresentation(message = {}) {
     pushField(fields, "Outcome", value?.outcome);
     pushField(fields, "Commit", value?.commit_hash);
     pushField(fields, "Error", value?.error);
+  } else if (schemaVersion === "arckit-round-closeout/v2") {
+    pushField(fields, "Case", value?.case_id);
+    pushField(fields, "Round", value?.round);
+    pushField(fields, "Gap", value?.selected_gap?.id);
+    pushField(fields, "Status", value?.status);
+    pushField(fields, "Project revision", value?.resulting_state?.project_revision);
+    pushField(fields, "Invariant judgments", value?.invariant_assessment?.judgments?.map((item) => `${item.invariant_ref}: ${item.disposition}`));
   } else if (value) {
     for (const [key, fieldValue] of Object.entries(value)) {
       if (["schema_version", "summary"].includes(key) || (fieldValue && typeof fieldValue === "object" && !Array.isArray(fieldValue))) continue;
@@ -114,6 +121,7 @@ function readStructuredValue(message) {
 function structuredResultTitle(schemaVersion) {
   if (schemaVersion === "arckit-agent-loop-result/v1") return "Agent Loop 结果";
   if (schemaVersion === "arckit-task-closeout-result/v1") return "任务收尾结果";
+  if (schemaVersion === "arckit-round-closeout/v2") return "Round Closeout";
   return "结构化结果";
 }
 

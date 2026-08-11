@@ -16,6 +16,7 @@ import {
 } from '../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs';
 import { createProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
 import { defaultSoftwareInvariants } from '../../../entry/skills/arckit-development-ledger/scripts/project-invariants.mjs';
+import { readLedgerSnapshot } from '../../../entry/skills/arckit-development-ledger/scripts/loop-snapshot.mjs';
 import { validateCaseControlHandoff } from '../../../entry/skills/arckit-development-ledger/scripts/runtime-case-control.mjs';
 import { createControllerContextDigest } from '../src/agent-orchestrator.mjs';
 
@@ -36,7 +37,7 @@ test('closing the last gap for a threatened invariant requires the impact to be 
     resolved_gap: resolution('GAP-DIAGNOSE'),
     impacts_updated: [{
       id: 'IMPACT-ARCH', fact_id: 'FACT-BUG', fact_revision: 1,
-      target: { kind: 'software_invariant', ref: 'changed-contracts-remain-explainable', revision: null },
+      target: { kind: 'software_invariant', ref: 'technical-decisions-remain-explainable', revision: null },
       effect: 'upheld', reason: 'The diagnosis identified the exact recovery contract boundary.',
       gap_ids: [], evidence: ['debug/root-cause.md'],
     }],
@@ -101,7 +102,7 @@ test('Case transition cannot rewrite a protocol-defined core software invariant'
   result.project_state_delta.software_invariant_changes = [{
     action: 'update',
     invariant: {
-      id: 'changed-contracts-remain-explainable', applies_when: 'Qt changes.',
+      id: 'technical-decisions-remain-explainable', applies_when: 'Qt changes.',
       must_hold: 'Qt code follows a project-specific rule.', evidence_expectation: 'Qt code.', priority: 'required',
     },
     reason: 'Attempt to replace an abstract invariant with a concrete project rule.', evidence: ['debug/root-cause.md'],
@@ -153,6 +154,12 @@ test('an accepted Gap transition updates its Project decision immediately before
     await writeFile(caseFile, `# Define foundation\n\nStatus: active\nArtifact Type: document\nSelected Gap: none\nUpdated: ${record.updated_at}\n\n## Structured Record\n\n\`\`\`json\n${JSON.stringify(record, null, 2)}\n\`\`\`\n`);
 
     const input = transition(record, { resolved_gap: resolution('GAP-DEFINE') });
+    const ledgerSnapshot = readLedgerSnapshot(root);
+    input.gap_selection.snapshot_token = ledgerSnapshot.selection_tokens[record.id];
+    input.gap_selection.considered.unshift({
+      ref: 'project-gap:GAP-PROJECT-DECISION', source: 'persisted', eligibility: 'case_required', disposition: 'deferred',
+      priority_basis: { blocking: 'high' }, reason: 'The selected registered Case already carries the decision obligation.',
+    });
     input.project_state_delta = {
       software_definition_changes: [{
         area_ref: 'technical_foundation', observed_revision: 0,
@@ -164,7 +171,16 @@ test('an accepted Gap transition updates its Project decision immediately before
       selection_context_change: null,
       evidence: ['package.json'],
     };
+    input.invariant_assessment = invariantAssessment(project, ['package.json']);
     const applied = await applyCaseTransition({ projectRoot: root, casePath: caseRef, transition: input });
+    assert.equal(applied.round_closeout.schema_version, 'arckit-round-closeout/v2');
+    assert.equal(applied.round_closeout.status, 'accepted');
+    assert.equal(applied.round_closeout.prior_selection_token, input.gap_selection.snapshot_token);
+    assert.equal(Object.hasOwn(applied.round_closeout, 'prior_snapshot_token'), false);
+    assert.equal(applied.round_closeout.next_candidate_projection, null);
+    assert.equal(applied.round_closeout.gap_selection.considered.some((item) => item.ref === 'project-gap:GAP-PROJECT-DECISION'), true);
+    const freshAfterWrite = readLedgerSnapshot(root, { afterCommitToken: applied.round_closeout.post_commit_snapshot_token });
+    assert.equal(freshAfterWrite.observed_after_commit, true);
     const nextProject = JSON.parse(await readFile(join(root, 'arckit/project/state.record.json'), 'utf8'));
     const nextDecision = nextProject.software_definition.decision_areas.find((area) => area.id === 'technical_foundation').decision;
     assert.equal(applied.case_resolution.stage, 'review_ready');
@@ -183,7 +199,7 @@ function bugCase({ threatened = false } = {}) {
     initialFacts: [{ id: 'FACT-BUG', revision: 1, status: 'accepted', statement: 'Restoring can overwrite newer data.', basis: 'User report and reproduction.', evidence: ['debug/reproduction.md'] }],
     initialImpacts: threatened ? [{
       id: 'IMPACT-ARCH', fact_id: 'FACT-BUG', fact_revision: 1,
-      target: { kind: 'software_invariant', ref: 'changed-contracts-remain-explainable', revision: null },
+      target: { kind: 'software_invariant', ref: 'technical-decisions-remain-explainable', revision: null },
       effect: 'threatened', reason: 'The recovery contract is not yet understood.', gap_ids: ['GAP-DIAGNOSE'], evidence: [],
     }] : [],
     initialGaps: [{ id: 'GAP-DIAGNOSE', status: 'open', goal: 'Find the root cause.', reason: 'The root cause is unknown and blocks a safe fix.', derived_from: ['case_intent', 'FACT-BUG'], blocked_by: [], priority_basis: { blocking: 'high', uncertainty: 'high', risk: 'high', user_impact: 'high' }, responsibility: 'agent', evidence_required: ['Reproduction and code-path evidence.'], resolution: null }],
@@ -203,12 +219,45 @@ function transition(record, overrides = {}) {
 
 function baseTransition(record, selected) {
   return {
-    schema_version: 'arckit-case-transition/v6', case_id: record.id, case_updated_at: record.updated_at, project_revision: 0,
-    gap_selection: { mode: 'candidate', basis: 'This ledger candidate is the most important current action.' }, selected_gap: structuredClone(selected),
+    schema_version: 'arckit-case-transition/v8', case_id: record.id, case_updated_at: record.updated_at, project_revision: 0,
+    gap_selection: selectionTrace(record, selected), selected_gap: structuredClone(selected),
     planned_transition: { goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
     accepted_state_delta: { resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [], resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null },
     project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
+    invariant_assessment: {
+      project_revision: 0,
+      judgments: defaultSoftwareInvariants().map((invariant) => ({
+        invariant_ref: invariant.id, disposition: 'not_relevant',
+        reason: 'Current fixture facts do not materially involve this invariant.', fact_refs: [], evidence: [], gap_refs: [],
+      })),
+    },
     evidence: ['debug/root-cause.md'], unresolved: ['completion_review'], round_outcome: 'completed',
     case_resolution: { claimed_status: 'unresolved', reason: 'More Case work remains.' },
+  };
+}
+
+function invariantAssessment(project, evidence) {
+  return {
+    project_revision: project.project.revision,
+    judgments: project.software_invariants.map((invariant) => ({
+      invariant_ref: invariant.id,
+      disposition: 'upheld',
+      reason: 'The bounded fixture transition preserves this invariant.',
+      fact_refs: [],
+      evidence,
+      gap_refs: [],
+    })),
+  };
+}
+
+function selectionTrace(record, selected) {
+  return {
+    mode: 'candidate', basis: 'This ledger candidate is the most important current action.', snapshot_token: 'fixture-selection-token',
+    selected_ref: `case-gap:${record.id}:${selected.id}`, comparison_summary: 'Compared the persisted ready candidates.',
+    fresh_discovery_summary: 'No more important fresh candidate was discovered.',
+    considered: (record.case_resolution?.candidate_gaps || []).map((gap) => ({
+      ref: `case-gap:${record.id}:${gap.id}`, source: 'persisted', eligibility: 'ready', disposition: gap.id === selected.id ? 'selected' : 'deferred',
+      priority_basis: gap.priority_basis || {}, reason: gap.id === selected.id ? 'Selected for this round.' : 'Deferred after comparison.',
+    })),
   };
 }

@@ -61,6 +61,8 @@ export async function applyRuntimeLedgerWriteback({ projectRoot, runtimeResult, 
     runtime_result_ref: runtimeRecordRef,
     plan,
     case_transition_result: caseResult,
+    round_closeout: caseResult.round_closeout,
+    post_commit_snapshot_token: caseResult.round_closeout?.post_commit_snapshot_token || '',
     changed_files: [...new Set(caseResult.changed_files)],
   };
 }

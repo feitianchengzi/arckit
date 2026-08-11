@@ -30,6 +30,28 @@ test('Project v5 owns the complete explicit software-definition checklist and in
   assert.deepEqual(validateProjectStateRecord(project), []);
 });
 
+test('core invariants use fresh facts, distinct semantic domains, and non-substitutable evidence responsibilities', () => {
+  assert.deepEqual(CORE_SOFTWARE_INVARIANTS.map((item) => item.id), [
+    'product-expectations-remain-recoverable',
+    'interaction-expectations-remain-recoverable',
+    'visual-language-remains-consistent',
+    'technical-decisions-remain-explainable',
+    'accepted-facts-are-realized',
+    'material-risks-have-credible-evidence',
+  ]);
+
+  const durableExpectations = CORE_SOFTWARE_INVARIANTS.slice(0, 4);
+  for (const invariant of durableExpectations) {
+    assert.match(invariant.applies_when, /^Fresh Case facts /);
+    assert.match(invariant.applies_when, /expose a gap in/);
+    assert.match(invariant.applies_when, /conflict with/);
+    assert.match(invariant.evidence_expectation, /^Authoritative durable evidence /);
+  }
+
+  assert.match(CORE_SOFTWARE_INVARIANTS[4].evidence_expectation, /^Direct, traceable realization evidence /);
+  assert.match(CORE_SOFTWARE_INVARIANTS[5].evidence_expectation, /^Repeatable, proportionate evidence /);
+});
+
 test('the protocol checklist cannot be removed or semantically rewritten by a project', () => {
   const missing = fixtureProject();
   missing.software_definition.decision_areas.shift();

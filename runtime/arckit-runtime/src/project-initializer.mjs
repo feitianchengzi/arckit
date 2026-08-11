@@ -12,9 +12,10 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
   const statePath = join(root, 'arckit/project/state.record.json');
   const changedFiles = [];
   let repaired = false;
-  const [projectCapability, caseCapability] = await Promise.all([
+  const [projectCapability, caseCapability, compatibilityCapability] = await Promise.all([
     loadRuntimeCapabilityForEntrypoint({ projectRoot: root, entrypoint: 'project_state' }),
     loadRuntimeCapabilityForEntrypoint({ projectRoot: root, entrypoint: 'development_case' }),
+    loadRuntimeCapabilityForEntrypoint({ projectRoot: root, entrypoint: 'protocol_compatibility' }),
   ]);
 
   if (!existsSync(statePath)) {
@@ -27,8 +28,25 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
     changedFiles.push('arckit/project/state.record.json', 'arckit/project/STATE.md');
   }
 
+  const compatibilityResult = await runLedgerScript(root, ['protocol-compatibility.mjs', 'probe'], {
+    nodeBin,
+    capability: compatibilityCapability,
+  });
+  const compatibility = JSON.parse(compatibilityResult.stdout);
+  if (compatibility.status !== 'compatible') {
+    return {
+      initialized: changedFiles.length > 0,
+      repaired: false,
+      recovery_required: true,
+      compatibility,
+      project_root: root,
+      state_path: 'arckit/project/state.record.json',
+      case_ref: '',
+      changed_files: [...new Set(changedFiles)],
+    };
+  }
+
   const state = JSON.parse(await readFile(statePath, 'utf8'));
-  if (state.schema_version !== 'project-state-record/v5') throw new Error('Runtime requires project-state-record/v5. Upgrade this project explicitly from its current requirements and evidence before starting Runtime.');
 
   await runLedgerScript(root, ['project-state.mjs', 'audit', 'arckit/project/state.record.json'], { nodeBin, capability: projectCapability });
   for (const activeCaseRef of state.advancement.active_case_refs || []) {
@@ -58,6 +76,8 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
   return {
     initialized: changedFiles.length > 0,
     repaired,
+    recovery_required: false,
+    compatibility,
     project_root: root,
     state_path: 'arckit/project/state.record.json',
     case_ref: '',

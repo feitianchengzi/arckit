@@ -52,6 +52,9 @@ test("default execution accepts candidate and current-turn fresh gaps from one c
         completion_review: { status: "pending", policy: { initial_max_cycles: 3 }, findings: [] }
       }
     }],
+    snapshotToken: "fixture-global-snapshot",
+    candidateCatalog: { persisted_candidates: [{ ref: `case-gap:${caseId}:${gap.id}`, source: "persisted", kind: "case_gap", case_id: caseId, gap }], persisted_obligations: [] },
+    ledgerSnapshot: { schema_version: "arckit-ledger-snapshot/v1", observed_at: "2026-08-09T00:01:00.000Z", snapshot_token: "fixture-global-snapshot", observed_after_commit: false, project_revision: 0, case_revisions: [], selection_tokens: { [caseId]: "fixture-selection-token" } },
     paths: {
       projectState: "arckit/project/state.record.json",
       activeCases: ["arckit/cases/active/CASE-1.md"]
@@ -148,11 +151,11 @@ function agentLoopResult(gap, caseId, mode = "candidate") {
     summary: "Implemented and verified one bounded Case gap.",
     case_control: null,
     case_transition: {
-      schema_version: "arckit-case-transition/v6",
+      schema_version: "arckit-case-transition/v8",
       case_id: caseId,
       case_updated_at: "2026-08-09T00:01:00.000Z",
       project_revision: 0,
-      gap_selection: { mode, basis: mode === "fresh" ? "Current-turn evidence makes this fresh gap the most important current action." : "This ledger candidate is the most important current action." },
+      gap_selection: selectionTrace(gap, caseId, mode),
       selected_gap: gap,
       planned_transition: {
         goal: "Implement and verify the bounded change.",
@@ -176,6 +179,7 @@ function agentLoopResult(gap, caseId, mode = "candidate") {
         software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [],
         selection_context_change: null, evidence: []
       },
+      invariant_assessment: invariantAssessment(),
       evidence: ["test:coherent-agent-loop"],
       unresolved: ["completion_review"],
       round_outcome: "completed",
@@ -195,5 +199,32 @@ function agentLoopResult(gap, caseId, mode = "candidate") {
       next_prompt: "Reload fresh state and advance the next gap.",
       human_decision_required: false
     }
+  };
+}
+
+function invariantAssessment() {
+  const project = createProjectStateRecord({ name: 'Arckit', intent: 'Validate coherent Agent transport.' });
+  return {
+    project_revision: project.project.revision,
+    judgments: project.software_invariants.map((invariant) => ({
+      invariant_ref: invariant.id,
+      disposition: 'not_relevant',
+      reason: 'Current fixture facts do not materially involve this invariant.',
+      fact_refs: [], evidence: [], gap_refs: [],
+    })),
+  };
+}
+
+function selectionTrace(gap, caseId, mode) {
+  const considered = [{
+    ref: `case-gap:${caseId}:GAP-IMPLEMENT`, source: "persisted", eligibility: "ready",
+    disposition: mode === "candidate" ? "selected" : "deferred", priority_basis: { blocking: "high", uncertainty: "low", risk: "high", user_impact: "high" },
+    reason: mode === "candidate" ? "Selected after comparison." : "Fresh race evidence has higher information value."
+  }];
+  if (mode === "fresh") considered.push({ ref: `fresh-gap:${caseId}:${gap.id}`, source: "fresh", eligibility: "ready", disposition: "selected", priority_basis: gap.priority_basis, reason: "Current-turn evidence exposed a more important race." });
+  return {
+    mode, basis: mode === "fresh" ? "Current-turn evidence makes this fresh gap the most important current action." : "This ledger candidate is the most important current action.",
+    snapshot_token: "fixture-selection-token", selected_ref: mode === "fresh" ? `fresh-gap:${caseId}:${gap.id}` : `case-gap:${caseId}:${gap.id}`,
+    comparison_summary: "Compared the persisted candidate with fresh evidence.", fresh_discovery_summary: mode === "fresh" ? "One fresh race candidate was discovered." : "No more important fresh candidate was discovered.", considered
   };
 }

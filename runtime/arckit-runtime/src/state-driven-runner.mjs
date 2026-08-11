@@ -35,6 +35,7 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
   };
   let activeRoundSpan = null;
   let sessionFailure = null;
+  let prefetchedSnapshot = null;
 
   try {
     if (options.runtimeContext?.closeout_only === true) {
@@ -89,7 +90,8 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         cost_center: "orchestration",
         attributes: { round_index: roundIndex }
       });
-      const snapshot = await stateStore.readSnapshot();
+      const snapshot = prefetchedSnapshot || await stateStore.readSnapshot();
+      prefetchedSnapshot = null;
       endLifecycleSpan(sessionOptions, snapshotSpan, {
         status: "ok",
         attributes: { active_case_count: (snapshot.activeCases || []).length }
@@ -103,6 +105,12 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
           case_id: record.id,
           updated_at: record.updated_at
         }))
+      });
+      emitSessionEvent(options, {
+        type: "runtime.round_candidates",
+        round_index: roundIndex,
+        snapshot_token: snapshot.snapshotToken || snapshot.ledgerSnapshot?.snapshot_token || "",
+        candidate_catalog: snapshot.candidateCatalog || { persisted_candidates: [], persisted_obligations: [] }
       });
 
       const roundOptions = {
@@ -131,6 +139,16 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       });
       taskThreadId = adapter.threadId?.(taskThreadKey) || taskThreadId;
       const validation = loop.validation || validateRuntimeResult(loop.runtimeResult);
+      const gapSelection = loop.agentLoopResult?.case_transition?.gap_selection;
+      if (gapSelection) {
+        emitSessionEvent(options, {
+          type: "runtime.round_selection",
+          round_index: roundIndex,
+          case_id: loop.agentLoopResult.case_transition.case_id || "",
+          selected_gap: loop.agentLoopResult.case_transition.selected_gap || null,
+          gap_selection: gapSelection
+        });
+      }
       const roundEnvelope = buildRoundEnvelope({
         projectRoot,
         adapter,
@@ -188,6 +206,23 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
           round_index: roundIndex,
           result: ledgerWriteResult
         });
+        if (ledgerWriteResult?.round_closeout) {
+          emitSessionEvent(options, {
+            type: "runtime.round_closeout",
+            round_index: roundIndex,
+            receipt: ledgerWriteResult.round_closeout
+          });
+        }
+        if (ledgerWriteResult?.written === true && ledgerWriteResult?.post_commit_snapshot_token) {
+          prefetchedSnapshot = await stateStore.readSnapshot({
+            afterCommitToken: ledgerWriteResult.post_commit_snapshot_token
+          });
+          emitSessionEvent(options, {
+            type: "runtime.fresh_read.completed",
+            round_index: roundIndex,
+            receipt: freshReadProjection(prefetchedSnapshot.ledgerSnapshot)
+          });
+        }
       }
 
       finalEnvelope = {
@@ -476,9 +511,22 @@ function authoritativeHandoff(runtimeResult, ledgerWriteResult) {
 }
 
 function emitSessionEvent(options, event) {
+  options.onEvent?.(event);
   if (options.streamEvents) {
     console.error(JSON.stringify({ event }));
   }
+}
+
+function freshReadProjection(receipt) {
+  if (!receipt) return null;
+  return {
+    schema_version: receipt.schema_version,
+    snapshot_token: receipt.snapshot_token,
+    observed_at: receipt.observed_at,
+    observed_after_commit: receipt.observed_after_commit,
+    project_revision: receipt.project_revision,
+    case_revisions: receipt.case_revisions,
+  };
 }
 
 function nextActionForStopReason(stopReason, envelope) {
