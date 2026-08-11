@@ -925,7 +925,7 @@ export function createAutomationCoordinator({
       task: active,
       message: event.status === "completed"
         ? handoff.responsibility_reason || "Runtime stopped before the task reached a complete handoff."
-        : `Runtime finished with status ${event.status}.`,
+        : `Runtime finished with status ${event.status}.${event.activity?.error ? ` ${event.activity.error}` : ""}`,
       actions: ["retry_start", "mark_blocked"]
     });
   }

@@ -12,10 +12,15 @@ export class JsonRpcStdioClient {
     this.requestHandlers = [];
     this.closeHandlers = [];
     this.closed = false;
-    this.proc = spawn(command, args, {
-      cwd,
-      stdio: ["pipe", "pipe", stderr]
-    });
+    const useCmdShim = process.platform === "win32";
+    this.proc = spawn(
+      useCmdShim ? process.env.ComSpec || "cmd.exe" : command,
+      useCmdShim ? ["/c", command, ...args] : args,
+      {
+        cwd,
+        stdio: ["pipe", "pipe", stderr]
+      }
+    );
     this.readline = createInterface({ input: this.proc.stdout });
     this.readline.on("line", (line) => this.#handleLine(line));
     this.proc.on("exit", (code, signal) => {

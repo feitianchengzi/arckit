@@ -649,6 +649,7 @@ export function createDesktopRunManager({
       run,
       lifecycleRunSpan,
       stdout: "",
+      stderrText: "",
       aborting: false,
       eventWrite: Promise.resolve(),
       persistedMessageRevisions: new Map([[run.activity.messages[0].id, run.activity.messages[0].revision]]),
@@ -673,10 +674,15 @@ export function createDesktopRunManager({
       stderrLineBuffer = lines.pop() || "";
       for (const line of lines.filter(Boolean)) {
         const parsed = parseEventLine(line);
-        recordChildLifecycleEvent(run, parsed?.event);
+        if (!parsed) {
+          activeRun.stderrText = `${activeRun.stderrText}${line}\n`.slice(-8000);
+          queueRunWrite(activeRun, () => appendText(run.error_file, `${line}\n`));
+          continue;
+        }
+        recordChildLifecycleEvent(run, parsed.event);
         applyRunEvent(run, { line, parsed });
         scheduleActivityEmit(activeRun);
-        if (isMessagePersistenceBoundary(parsed?.event)) {
+        if (isMessagePersistenceBoundary(parsed.event)) {
           queueRunWrite(activeRun, () => persistPendingMessages(activeRun));
         }
       }
@@ -697,17 +703,22 @@ export function createDesktopRunManager({
         const line = stderrLineBuffer;
         stderrLineBuffer = "";
         const parsed = parseEventLine(line);
-        recordChildLifecycleEvent(run, parsed?.event);
-        applyRunEvent(run, { line, parsed });
-        if (isMessagePersistenceBoundary(parsed?.event)) {
-          queueRunWrite(activeRun, () => persistPendingMessages(activeRun));
+        if (!parsed) {
+          activeRun.stderrText = `${activeRun.stderrText}${line}\n`.slice(-8000);
+          queueRunWrite(activeRun, () => appendText(run.error_file, `${line}\n`));
+        } else {
+          recordChildLifecycleEvent(run, parsed.event);
+          applyRunEvent(run, { line, parsed });
+          if (isMessagePersistenceBoundary(parsed.event)) {
+            queueRunWrite(activeRun, () => persistPendingMessages(activeRun));
+          }
         }
       }
       await finishRun(
         runId,
         activeRun.aborting ? "aborted" : code === 0 ? "completed" : "failed",
         code,
-        activeRun.aborting ? "Desktop terminated the active run before completion." : "",
+        activeRun.aborting ? "Desktop terminated the active run before completion." : stderrFailureDetail(activeRun.stderrText),
         activeRun.stdout
       );
     });
@@ -1156,6 +1167,13 @@ export function runtimeFailureForCompletedProcess(result) {
 
 function stableTaskKey(value) {
   return createHash("sha256").update(String(value || "")).digest("hex").slice(0, 24);
+}
+
+function stderrFailureDetail(text) {
+  const lines = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length === 0) return "";
+  const header = lines.find((line) => !line.startsWith("at ")) || lines[lines.length - 1];
+  return lines.length > 1 ? `${header} (full stderr in stderr.log)` : header;
 }
 
 function lifecycleContextFromInput(input = {}) {
