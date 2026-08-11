@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { statusGlyph, summarizeLoopStatus, summarizeToolActivity, transcriptMessageType } from "../src/desktop/transcript-presentation.mjs";
+import {
+  isTranscriptMessageVisible,
+  statusGlyph,
+  structuredResultPresentation,
+  summarizeLoopStatus,
+  summarizeToolActivity,
+  transcriptMessageType
+} from "../src/desktop/transcript-presentation.mjs";
 
 const rendererPath = new URL("../desktop/renderer/renderer.js", import.meta.url);
 const rendererHtmlPath = new URL("../desktop/renderer/index.html", import.meta.url);
@@ -87,11 +94,15 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /isTranscriptNearBottom/);
   assert.match(source, /renderLoopStatus/);
   assert.match(source, /renderToolActivity/);
+  assert.match(source, /renderReasoningDisclosure/);
+  assert.match(source, /renderStructuredResult/);
   assert.match(styles, /#workbenchView\.is-active \{ overflow: hidden; \}/);
   assert.match(styles, /\.workbench-layout[^}]+height: 100%[^}]+overflow: hidden/);
   assert.match(styles, /\.workbench-context, \.workbench-evidence[^}]+overflow-y: auto/);
   assert.match(styles, /\.transcript-list[^}]+overflow-y: auto/);
   assert.match(styles, /\.tool-activity-summary[^}]+text-overflow: ellipsis[^}]+white-space: nowrap/);
+  assert.match(styles, /\.reasoning-disclosure/);
+  assert.match(styles, /\.structured-result-raw pre[^}]+overflow: auto/);
 });
 
 test("workbench transcript prioritizes Loop and Agent output while reducing tools to one-line summaries", () => {
@@ -99,6 +110,8 @@ test("workbench transcript prioritizes Loop and Agent output while reducing tool
   assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "status" }), "loop");
   assert.equal(transcriptMessageType({ role: "tool", actor: "tool", kind: "command" }), "tool");
   assert.equal(transcriptMessageType({ role: "user" }), "user");
+  assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "reasoning" }), "reasoning");
+  assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "structured" }), "structured");
 
   assert.equal(summarizeToolActivity({ content: "sed -n '1,240p' runtime/arckit-runtime/desktop/renderer/renderer.js" }), "读取 runtime/arckit-runtime/desktop/renderer/renderer.js");
   assert.equal(summarizeToolActivity({ content: "npm test" }), "运行测试 · npm test");
@@ -109,6 +122,33 @@ test("workbench transcript prioritizes Loop and Agent output while reducing tool
   assert.equal(summarizeLoopStatus({ content: "Agent\n正在推进一个 Case gap。" }), "Agent 正在推进一个 Case gap。");
   assert.equal(statusGlyph("streaming"), "◌");
   assert.equal(statusGlyph("failed"), "×");
+});
+
+test("transcript hides empty reasoning and recognizes persisted schema JSON without rewriting it", () => {
+  assert.equal(isTranscriptMessageVisible({ role: "assistant", kind: "reasoning", content: "" }), false);
+  assert.equal(isTranscriptMessageVisible({ role: "assistant", kind: "reasoning", content: "Checked the state." }), true);
+  const value = {
+    schema_version: "arckit-agent-loop-result/v1",
+    action: "case_transition",
+    summary: "Advanced one gap.",
+    case_transition: { case_id: "CASE-1", selected_gap: { id: "GAP-1" } },
+    risks: ["Visual smoke test pending."],
+    unknowns: []
+  };
+  const raw = JSON.stringify(value);
+  const legacyMessage = { role: "assistant", actor: "agent", kind: "message", content: raw };
+  assert.equal(transcriptMessageType(legacyMessage), "structured");
+  assert.equal(isTranscriptMessageVisible(legacyMessage), true);
+  const presentation = structuredResultPresentation(legacyMessage);
+  assert.equal(presentation.title, "Agent Loop 结果");
+  assert.equal(presentation.schema_version, value.schema_version);
+  assert.equal(presentation.raw, raw);
+  assert.deepEqual(presentation.fields, [
+    { label: "Action", values: ["case_transition"] },
+    { label: "Case", values: ["CASE-1"] },
+    { label: "Gap", values: ["GAP-1"] },
+    { label: "Risks", values: ["Visual smoke test pending."] }
+  ]);
 });
 
 test("desktop main and preload expose bounded automation IPC without a generic network bridge", async () => {

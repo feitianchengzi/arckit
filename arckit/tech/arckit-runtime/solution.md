@@ -130,7 +130,7 @@ Preload 只暴露产品动作，Renderer 只消费 Automation Snapshot 和 Run a
 
 ### Loop Controller
 
-Loop Controller 先读取 Project State 的 advancement、完整 software definition decisions、software invariants 和全部 active Cases。Project gap 只作为选择/创建 Case 的宏观依据；每个 active Case 的 facts、state impacts 与 `case_resolution.candidate_gaps` 都进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Agent 先为当前 Loop 选择唯一 Case，再结合阻塞、风险、信息增益、依赖、用户影响和可验证性选择具体 gap。Runtime 只验证 Case 与 gap 当前 active，不根据关键词、decision/invariant、固定优先级或 skill/path 映射拍板业务 route。
+Loop Controller 先读取 Project State 的 advancement、完整 software definition decisions、software invariants 和全部 active Cases。Project gap 只作为选择/创建 Case 的宏观依据；每个 active Case 的 facts、state impacts 与 `case_resolution.candidate_gaps` 都进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Agent 每轮从 fresh state 选择唯一 Case，再结合阻塞、风险、信息增益、依赖、用户影响和可验证性选择已有 candidate，或提出并当轮完成一个 fresh Gap。Runtime 不根据关键词、decision/invariant、固定优先级或 skill/path 映射拍板业务 route，也不要求上一轮预排 impacts 或 gap 链。
 
 本轮目标必须形成：
 
@@ -255,7 +255,7 @@ Desktop 为每个自动领取的远端待办创建一个稳定 `trace_id`。同�
 - `orchestration`：readiness、Desktop 启动、Runtime snapshot/round、结构 gate、ledger 和 adapter 生命周期。
 - `task_execution`：承担 Case gap 的 Agent turn 与其工具调用。
 - `external`：Workshop task source 的领取与完成写回。
-- `closeout`：Case resolved 后同一 Agent thread 的验证、修复与 Git commit/no-op 收尾。
+- `closeout`：Case resolved 且已通过 Completion Review 后，同一 Agent thread 仅执行 Git commit/no-op；禁止重新做语义检查、验证、编辑或修复。
 - `unclassified`：根 span 未被已知子阶段覆盖的间隔，用于暴露中断、恢复、人工/CLI 接力或缺失埋点，不能并入架构开销。
 
 汇总以父子 span 的 interval union 计算 exclusive time，避免把 Agent、Codex turn 和 tool 的嵌套耗时重复相加。Summary 同时输出各成本中心、类别与阶段的 inclusive/exclusive 总量、最大耗时、错误数、未闭合 span、热点 span 和诊断倾向。`architecture_overhead` 表示 orchestration exclusive time 占主导，`task_specific` 表示 Agent/model/tool 占主导，`external_dependency` 与 `closeout_overhead` 分别表示外部任务源或收尾阶段占主导；大量根区间无法归属时返回 `insufficient_attribution`，避免把人工接力或缺失埋点误判为架构开销。该倾向是性能定位入口，不替代基于原始事件的根因确认。
@@ -295,14 +295,14 @@ Ledger Writer 是 Runtime hard gate 与 ledger skill entrypoint 之间的薄适�
 
 Ledger capability 负责将验证后的结果写回：
 
-- `arckit-case-transition/v5`
+- `arckit-case-transition/v6`
 - development Case record 与 derived candidate gaps/resolution
 - resolved Case 的显式 Project/iteration impact
 - Case、Project、iteration 的 indexes 与 projections
 
 Ledger writeback 是已接受 Case transition 的必经阶段。Desktop 执行型 run 在 Controller 接受 evidence-backed delta 且 `ledger_stage.status=gate_ready` 后运行 gate；即使 Case 仍 unresolved 或下一责任方是 human/external，也可以先安全写入本轮 accepted delta，再停止桥接。
 
-每个 transition 绑定 Case `updated_at` 和本轮观察到的 Project `updated_at`，并逐字段复现当前 candidate gap。Gate 通过 trusted ledger `case_transition` entrypoint 做 canonical validation；Case revision 或 responsibility/current/target/next transition 已变化时 fail closed。普通 unresolved transition 不改变 Project revision，允许不同 Cases 使用同一观察 revision 独立推进；resolved transition 聚合前必须再次匹配 Project revision。Ledger 在写入前预校验完整 Case、Project 与 iteration 目标状态，并通过操作系统临时目录中的跨进程 Project lock，把 Case、Project、iteration、projections、indexes 串行作为可回滚提交；锁不进入 canonical evidence。
+每个 transition 绑定 Case `updated_at` 和本轮观察到的 Project numeric revision，并携带 `gap_selection`。`candidate` 逐字段复现当前候选；`fresh` 必须是未持久化、Agent-owned、依赖已闭合且当轮完成的普通 Gap。Gate 通过 trusted ledger `case_transition` entrypoint 做 canonical validation；revision、candidate snapshot 或 fresh 约束失效时 fail closed。普通 unresolved transition 不改变 Project revision，允许不同 Cases 使用同一观察 revision 独立推进；resolved transition 聚合前必须再次匹配 Project revision。Ledger 通过跨进程 Project lock 原子写 Case、Project、iteration、projections 与 indexes。
 
 Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前检查 Case id/gap、planned transition、accepted delta、evidence、round outcome、Case resolution claim 和 Project impact candidate；raw operator task 不能作为 fallback。语义字段含 raw event marker、超长或 transition shape 不完整时，gate 阻止写回。Gate、result builder 与 handoff 不再各自重判 Case 语义；一次拒绝不能同时被其他分支解释为 resolved 并写回。
 
@@ -314,7 +314,7 @@ Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前�
 - Runtime 宿主在目标项目之外管理完整过程证据：runtime result、gate、selected round、activity、raw events 和 transcript。Desktop 使用 Electron userData；ledger 不复制这些记录，且 Case 语义恢复不依赖它们仍然存在。
 - Agent 不直接写 Project/Case State；Agent 提交一个 transition claim，ledger 确定性应用。
 
-当 operator input、现有稳定事实或 Agent 在 turn 内取得的实现/验证证据足以支持 Case transition 时，Agent 直接提交 accepted delta。每次成功写回后对应 Loop 重新读取状态和 revision，再由同一 thread 的下一 turn 选择下一个 gap。不同 Case Loops 可以并行执行，ledger commit 短暂串行；Project aggregation 冲突只使相关 closeout 从 fresh state 重规划。自动桥接由实际 ledger 进展与 no-progress streak 共同约束；累计自动轮次仅用于审计，不作为持续产生 canonical state 进展时的停止条件。
+当 operator input、现有稳定事实或 Agent 在 turn 内取得的实现/验证证据足以支持 Case transition 时，Agent 直接提交 accepted delta。每次成功写回后对应 Loop 重新读取状态和 revision，再由同一 thread 的下一 turn 独立选择下一个 candidate/fresh gap；`gaps_added` 只承接已发现且仍未解决的工作。不同 Case Loops 可以并行执行，ledger commit 短暂串行；Project aggregation 冲突只使相关 transition 从 fresh state 重规划。自动桥接由实际 ledger 进展与 no-progress streak 共同约束。
 
 ## M0 实现范围
 
@@ -435,7 +435,7 @@ Arckit Runtime 满足方案时表现为：
 - 能把 Agent 的语义判断限制为结构化 claim，再由代码验证协议、证据、路径归属和门禁条件。
 - 只绑定 `using-arckit` Agent 入口与 `arckit-development-ledger` trusted entrypoints，并保留 Agent 原生 skill discovery；Runtime 不建立 Worker registry。
 - 能把 agent 续轮、人工决策、外部等待和完成状态区分为不同 loop handoff。
-- 能让一个待办从首轮到验证、修复和 Git closeout 只使用一个持久 Agent thread，并在进程重启后 resume 同一 thread、每次写回后 fresh-read state。
+- 能让一个待办从首轮、普通 Gap、Completion Review、finding 修复到 Git-only closeout 只使用一个持久 Agent thread，并在进程重启后 resume 同一 thread、每次写回后 fresh-read state。
 - 能以 manifest 声明的自然文本 trigger 触发兼容的 Controller skill，不显式注入 `skill` input item，并按当前 app-server schema 返回 command、file 与 permission approval 响应。
 - 能在最新请求上下文占用达到 80% 时压缩同一 thread，保存压缩检查点后继续下一 gap。
 - 能为每个 Agent turn 生成有界、可恢复的 context digest，并在目标、授权或 canonical refs 异常漂移时投影非阻断软提示。

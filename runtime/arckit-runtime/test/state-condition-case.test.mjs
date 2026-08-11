@@ -15,6 +15,7 @@ import {
   validateCaseTransition,
 } from '../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs';
 import { createProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
+import { defaultSoftwareInvariants } from '../../../entry/skills/arckit-development-ledger/scripts/project-invariants.mjs';
 import { validateCaseControlHandoff } from '../../../entry/skills/arckit-development-ledger/scripts/runtime-case-control.mjs';
 import { createControllerContextDigest } from '../src/agent-orchestrator.mjs';
 
@@ -106,7 +107,22 @@ test('Case transition cannot rewrite a protocol-defined core software invariant'
     reason: 'Attempt to replace an abstract invariant with a concrete project rule.', evidence: ['debug/root-cause.md'],
   }];
   result.project_state_delta.evidence = ['debug/root-cause.md'];
-  assert.match(validateCaseTransition(result).join('\n'), /cannot change a protocol-defined core software invariant/);
+  assert.match(validateCaseTransition(result).join('\n'), /cannot add, update, or retire a protocol-defined core software invariant/);
+});
+
+test('Case transition only synchronizes an exact protocol-defined core invariant', () => {
+  const record = bugCase();
+  const exact = baseTransition(record, record.case_resolution.candidate_gaps[0]);
+  exact.project_state_delta.software_invariant_changes = [{
+    action: 'sync_core', invariant: defaultSoftwareInvariants()[0],
+    reason: 'Synchronize the core definition during a protocol upgrade.', evidence: ['scripts/project-invariants.mjs'],
+  }];
+  exact.project_state_delta.evidence = ['scripts/project-invariants.mjs'];
+  assert.deepEqual(validateCaseTransition(exact), []);
+
+  const forged = structuredClone(exact);
+  forged.project_state_delta.software_invariant_changes[0].invariant.must_hold = 'A project-specific replacement.';
+  assert.match(validateCaseTransition(forged).join('\n'), /must exactly synchronize/);
 });
 
 test('an accepted Gap transition updates its Project decision immediately before Case review', async () => {
@@ -187,7 +203,8 @@ function transition(record, overrides = {}) {
 
 function baseTransition(record, selected) {
   return {
-    schema_version: 'arckit-case-transition/v5', case_id: record.id, case_updated_at: record.updated_at, project_revision: 0, selected_gap: structuredClone(selected),
+    schema_version: 'arckit-case-transition/v6', case_id: record.id, case_updated_at: record.updated_at, project_revision: 0,
+    gap_selection: { mode: 'candidate', basis: 'This ledger candidate is the most important current action.' }, selected_gap: structuredClone(selected),
     planned_transition: { goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
     accepted_state_delta: { resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [], resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null },
     project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },

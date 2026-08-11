@@ -3,12 +3,21 @@
   "$id": "https://arckit.local/schema/case-transition.schema.json",
   "title": "Arckit Case Transition",
   "type": "object",
-  "required": ["schema_version", "case_id", "case_updated_at", "project_revision", "selected_gap", "planned_transition", "accepted_state_delta", "project_state_delta", "evidence", "unresolved", "round_outcome", "case_resolution"],
+  "required": ["schema_version", "case_id", "case_updated_at", "project_revision", "gap_selection", "selected_gap", "planned_transition", "accepted_state_delta", "project_state_delta", "evidence", "unresolved", "round_outcome", "case_resolution"],
   "properties": {
-    "schema_version": { "const": "arckit-case-transition/v5" },
+    "schema_version": { "const": "arckit-case-transition/v6" },
     "case_id": { "type": "string", "pattern": "^CASE-[0-9]{8}-[0-9]{3}$" },
     "case_updated_at": { "type": "string", "minLength": 1 },
     "project_revision": { "type": "integer", "minimum": 0 },
+    "gap_selection": {
+      "type": "object",
+      "required": ["mode", "basis"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["candidate", "fresh"] },
+        "basis": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
     "selected_gap": { "type": "object" },
     "planned_transition": { "type": "object" },
     "accepted_state_delta": {

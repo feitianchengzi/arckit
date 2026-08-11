@@ -106,6 +106,76 @@ test("one coherent Agent loop projects bounded Agent and tool messages", () => {
   assert.equal(run.activity.messages.at(-1).content, "Advanced and verified one Case gap.");
 });
 
+test("reasoning projection omits empty summaries and completes non-empty Codex text in place", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  applyRunEvent(run, wrapped({
+    type: "codex.item.completed",
+    turn_id: "TURN-1",
+    params: { item: { id: "REASON-EMPTY", type: "reasoning", summary: [] } }
+  }));
+  assert.equal(run.activity.messages.some((message) => message.item_id === "REASON-EMPTY"), false);
+
+  applyRunEvent(run, wrapped({
+    type: "codex.reasoning.delta",
+    turn_id: "TURN-1",
+    item_id: "REASON-1",
+    text: "Checking the message projection."
+  }));
+  const streaming = run.activity.messages.find((message) => message.item_id === "REASON-1");
+  assert.equal(streaming.kind, "reasoning");
+  assert.equal(streaming.status, "streaming");
+  applyRunEvent(run, wrapped({
+    type: "codex.item.completed",
+    turn_id: "TURN-1",
+    params: { item: { id: "REASON-1", type: "reasoning", summary: [{ text: "Checked the projector." }] } }
+  }));
+  const completed = run.activity.messages.find((message) => message.item_id === "REASON-1");
+  assert.equal(completed.content, "Checked the projector.");
+  assert.equal(completed.status, "completed");
+  assert.equal(run.activity.messages.filter((message) => message.item_id === "REASON-1").length, 1);
+});
+
+test("schema-bound Agent output is preserved as structured data beside the formal summary", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  applyRunEvent(run, wrapped({ type: "codex.turn.started", thread_id: "THREAD-1", turn_id: "TURN-1" }));
+  const result = {
+    schema_version: "arckit-agent-loop-result/v1",
+    action: "case_transition",
+    summary: "Advanced one Case gap.",
+    case_control: null,
+    case_transition: { case_id: "CASE-1", selected_gap: { id: "GAP-1" } },
+    changed_files: [],
+    artifact_impacts: [],
+    risks: [],
+    unknowns: [],
+    handoff: {}
+  };
+  const raw = JSON.stringify(result);
+  applyRunEvent(run, wrapped({ type: "codex.agent_message.delta", turn_id: "TURN-1", item_id: "MESSAGE-1", text: raw }));
+  applyRunEvent(run, wrapped({
+    type: "codex.item.completed",
+    turn_id: "TURN-1",
+    params: { item: { id: "MESSAGE-1", type: "agentMessage", text: raw } }
+  }));
+  applyRunEvent(run, wrapped({ type: "runtime.agent_loop_result", turn_id: "TURN-1", result }));
+  applyRunEvent(run, wrapped({
+    type: "runtime.agent_loop.completed",
+    action: result.action,
+    summary: result.summary,
+    case_id: "CASE-1"
+  }));
+
+  const structured = run.activity.messages.find((message) => message.kind === "structured");
+  assert.equal(structured.content, "");
+  assert.equal(structured.structured_data.schema_version, "arckit-agent-loop-result/v1");
+  assert.deepEqual(structured.structured_data.value, result);
+  assert.equal(structured.structured_data.raw, raw);
+  assert.equal(run.activity.messages.some((message) => message.kind === "message" && message.content === raw), false);
+  assert.equal(run.activity.messages.some((message) => message.kind === "result" && message.content === result.summary), true);
+});
+
 test("non-command Codex tools update one stable transcript item from started to completed", () => {
   const run = runtimeRun();
   run.activity = createRunActivity(run);

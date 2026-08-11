@@ -54,6 +54,10 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   assert.equal(result.paused_for_human, false);
   assert.equal(result.thread_id, "THREAD-1");
   assert.equal(adapter.compacted, 1);
+  assert.equal(adapter.prompts.length, 1);
+  assert.match(adapter.prompts[0], /Git-only closeout/);
+  assert.match(adapter.prompts[0], /Do not inspect semantic correctness, run validation, edit files, or repair content/);
+  assert.doesNotMatch(adapter.prompts[0], /final proportionate checks|repair issues if necessary/);
 });
 
 test("state-driven continuation pauses only for an explicit human handoff", () => {
@@ -165,6 +169,7 @@ function closeoutAdapter() {
     name: "codex-app-server",
     closed: 0,
     compacted: 0,
+    prompts: [],
     threadId() { return "THREAD-1"; },
     latestContextUsage() {
       return { context_utilization: 0.85, turn_id: "TURN-1" };
@@ -173,7 +178,8 @@ function closeoutAdapter() {
       this.compacted += 1;
       return { thread_id: "THREAD-1", turn_id: "TURN-COMPACT" };
     },
-    async *runTurn() {
+    async *runTurn({ prompt }) {
+      this.prompts.push(prompt);
       yield {
         type: "runtime.task_closeout_result",
         result: {

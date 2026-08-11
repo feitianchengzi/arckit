@@ -125,10 +125,11 @@ async function projectWithCases(count) {
 function progressTransition(record, projectRevision, evidence) {
   const gap = record.case_resolution.candidate_gaps.find((item) => item.id === 'GAP-WORK');
   return {
-    schema_version: 'arckit-case-transition/v5',
+    schema_version: 'arckit-case-transition/v6',
     case_id: record.id,
     case_updated_at: record.updated_at,
     project_revision: projectRevision,
+    gap_selection: { mode: 'candidate', basis: 'This ledger candidate is the most important current action.' },
     selected_gap: gap,
     planned_transition: { goal: gap.goal, expected_state_change: 'Open fixture work becomes resolved.' },
     accepted_state_delta: {
@@ -162,10 +163,11 @@ function makeReviewReady(projectRoot, activeCase) {
 function cleanReviewTransition(record, projectRevision, evidence) {
   const gap = record.case_resolution.candidate_gaps.find((item) => item.id.includes(':completion-review:'));
   return {
-    schema_version: 'arckit-case-transition/v5',
+    schema_version: 'arckit-case-transition/v6',
     case_id: record.id,
     case_updated_at: record.updated_at,
     project_revision: projectRevision,
+    gap_selection: { mode: 'candidate', basis: 'Completion Review is the only remaining semantic check.' },
     selected_gap: gap,
     planned_transition: { goal: gap.goal, expected_state_change: 'Record a clean implementation-focused completion review.' },
     accepted_state_delta: {

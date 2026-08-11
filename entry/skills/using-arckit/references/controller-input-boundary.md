@@ -8,11 +8,11 @@ Runtime digest 至少包含 Project revision、15 项 software decisions、softw
 
 ## 执行边界
 
-同一 Agent 在一个 turn 中完成选择、事实调查、必要 skill/tool 使用、实现、验证和 transition。Runtime 不依据 decision/invariant 文本生成 skill、路径、权限或执行角色。真实权限只来自用户授权、sandbox、approval policy 和 destructive-action 规则。
+同一 Agent 在一个 turn 中从 fresh state 独立判断当前最重要动作，完成事实调查、必要 skill/tool 使用、实现、验证和 transition。它可以选择现有 `candidate`，也可以提出并当轮完成一个 `fresh` Gap；上一轮不负责预先编排后续 gaps 或 impacts。Runtime 不依据 decision/invariant 文本生成 skill、路径、权限或执行角色。真实权限只来自用户授权、sandbox、approval policy 和 destructive-action 规则。
 
 ## 停止与责任
 
-- revision 或 selected gap 快照过期：停止写回，fresh-read 后重新规划。
+- revision 或 candidate 快照过期：停止写回，fresh-read 后重新规划。fresh Gap 也必须绑定 fresh Case/Project revision。
 - Agent 可以补齐证据：继续当前工作，不转人工。
 - 需要审美、商业、授权、风险接受或其他只能由人决定的事项：human handoff。
 - 等待系统外结果：external wait，记录恢复条件；若另有 agent-ready gap，先继续。

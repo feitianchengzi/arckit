@@ -10,7 +10,7 @@ import { createProjectStateRecord } from "../../../entry/skills/arckit-developme
 const testDir = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDir, "../../..");
 
-test("default execution uses one coherent using-arckit Agent turn for one Case gap", async () => {
+test("default execution accepts candidate and current-turn fresh gaps from one coherent using-arckit Agent", async () => {
   const caseId = "CASE-20260810-001";
   const gap = {
     id: "GAP-IMPLEMENT",
@@ -116,26 +116,50 @@ test("default execution uses one coherent using-arckit Agent turn for one Case g
   assert.equal(result.runtimeResult.ledger_stage.writeback_required, true);
   assert.equal(result.runtimeResult.case_transition.selected_gap.id, gap.id);
   assert.equal(result.validation.valid, true, JSON.stringify(result.validation.issues));
+
+  const freshGap = {
+    ...gap,
+    id: "GAP-FRESH-RACE",
+    goal: "Verify a race exposed by current-turn evidence.",
+    reason: "Current-turn trace evidence makes this more important than the persisted candidate.",
+    derived_from: ["FACT-ROOT-CAUSE", "trace:fresh-race"]
+  };
+  const freshAdapter = {
+    name: "codex-app-server",
+    async *runTurn() {
+      yield { type: "runtime.agent_loop_result", result: agentLoopResult(freshGap, caseId, "fresh") };
+    }
+  };
+  const freshResult = await runAgenticLoop({
+    projectRoot: repositoryRoot, snapshot, round,
+    compiledPrompt: compilePrompt(snapshot, round, { task: "Verify the newly exposed race." }),
+    options: { task: "Verify the newly exposed race.", taskId: "TASK-2", agentAdapter: freshAdapter, adapter: "codex-app-server", conversationLocale: "en" }
+  });
+  assert.equal(freshResult.runtimeResult.case_transition.gap_selection.mode, "fresh");
+  assert.equal(freshResult.runtimeResult.case_transition.selected_gap.id, freshGap.id);
+  assert.equal(freshResult.runtimeResult.ledger_stage.writeback_required, true);
+  assert.equal(freshResult.validation.valid, true, JSON.stringify(freshResult.validation.issues));
 });
 
-function agentLoopResult(gap, caseId) {
+function agentLoopResult(gap, caseId, mode = "candidate") {
   return {
     schema_version: "arckit-agent-loop-result/v1",
     action: "case_transition",
     summary: "Implemented and verified one bounded Case gap.",
     case_control: null,
     case_transition: {
-      schema_version: "arckit-case-transition/v5",
+      schema_version: "arckit-case-transition/v6",
       case_id: caseId,
       case_updated_at: "2026-08-09T00:01:00.000Z",
       project_revision: 0,
+      gap_selection: { mode, basis: mode === "fresh" ? "Current-turn evidence makes this fresh gap the most important current action." : "This ledger candidate is the most important current action." },
       selected_gap: gap,
       planned_transition: {
         goal: "Implement and verify the bounded change.",
         expected_state_change: "Resolve GAP-IMPLEMENT with implementation and verification evidence."
       },
       accepted_state_delta: {
-        resolved_gap: { id: "GAP-IMPLEMENT", status: "resolved", outcome: "The bounded change is implemented and verified.", reason: "Focused implementation and tests passed.", evidence: ["test:coherent-agent-loop"] },
+        resolved_gap: { id: gap.id, status: "resolved", outcome: "The bounded change is implemented and verified.", reason: "Focused implementation and tests passed.", evidence: ["test:coherent-agent-loop"] },
         facts_added: [],
         facts_superseded: [],
         impacts_added: [],

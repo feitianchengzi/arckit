@@ -9,7 +9,46 @@ export function transcriptMessageType(message = {}) {
   if (role === "user" || actor === "operator" || actor === "user") return "user";
   if (role === "tool" || actor === "tool" || TOOL_KINDS.has(kind)) return "tool";
   if (role === "system" || actor === "runtime" || actor === "system" || LOOP_KINDS.has(kind)) return "loop";
+  if (kind === "reasoning") return "reasoning";
+  if (kind === "structured" || readStructuredValue(message)) return "structured";
   return "agent";
+}
+
+export function isTranscriptMessageVisible(message = {}) {
+  const type = transcriptMessageType(message);
+  if (type === "reasoning") return Boolean(String(message.content || "").trim());
+  if (type === "structured") return Boolean(structuredResultPresentation(message).schema_version);
+  return type === "tool" || Boolean(String(message.content || "").trim());
+}
+
+export function structuredResultPresentation(message = {}) {
+  const value = readStructuredValue(message);
+  const schemaVersion = String(message.structured_data?.schema_version || value?.schema_version || "");
+  const raw = String(message.structured_data?.raw || message.content || (value ? JSON.stringify(value, null, 2) : ""));
+  const fields = [];
+  if (schemaVersion === "arckit-agent-loop-result/v1") {
+    pushField(fields, "Action", value?.action);
+    pushField(fields, "Case", value?.case_transition?.case_id || value?.case_id);
+    pushField(fields, "Gap", value?.case_transition?.selected_gap?.id || value?.selected_gap_id);
+    pushField(fields, "Risks", value?.risks);
+    pushField(fields, "Unknowns", value?.unknowns);
+  } else if (schemaVersion === "arckit-task-closeout-result/v1") {
+    pushField(fields, "Status", value?.status);
+    pushField(fields, "Outcome", value?.outcome);
+    pushField(fields, "Commit", value?.commit_hash);
+    pushField(fields, "Error", value?.error);
+  } else if (value) {
+    for (const [key, fieldValue] of Object.entries(value)) {
+      if (["schema_version", "summary"].includes(key) || (fieldValue && typeof fieldValue === "object" && !Array.isArray(fieldValue))) continue;
+      pushField(fields, key, fieldValue);
+    }
+  }
+  return {
+    title: structuredResultTitle(schemaVersion),
+    schema_version: schemaVersion,
+    fields,
+    raw
+  };
 }
 
 export function summarizeToolActivity(message = {}) {
@@ -57,6 +96,37 @@ function fallbackToolSummary(kind = "") {
   if (normalized === "file_change" || normalized === "edit") return "更新文件";
   if (normalized === "web_search") return "搜索网络";
   return "执行工具";
+}
+
+function readStructuredValue(message) {
+  const stored = message?.structured_data?.value;
+  if (stored && typeof stored === "object" && !Array.isArray(stored)) return stored;
+  const raw = String(message?.structured_data?.raw || message?.content || "").trim();
+  if (!raw.startsWith("{")) return null;
+  try {
+    const value = JSON.parse(raw);
+    return value && typeof value === "object" && !Array.isArray(value) && value.schema_version ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function structuredResultTitle(schemaVersion) {
+  if (schemaVersion === "arckit-agent-loop-result/v1") return "Agent Loop 结果";
+  if (schemaVersion === "arckit-task-closeout-result/v1") return "任务收尾结果";
+  return "结构化结果";
+}
+
+function pushField(fields, label, value) {
+  if (value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0)) return;
+  fields.push({
+    label,
+    values: Array.isArray(value) ? value.map((item) => displayStructuredValue(item)) : [displayStructuredValue(value)]
+  });
+}
+
+function displayStructuredValue(value) {
+  return value && typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
 function shellWords(command) {

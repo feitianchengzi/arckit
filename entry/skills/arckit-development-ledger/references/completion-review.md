@@ -1,8 +1,8 @@
 # Case Completion Review
 
-Completion Review 是普通动态 gaps、问题、handoff 和 threatened/undetermined impacts 全部闭合后的 Case 终态门禁。它不是软件事实、Project decision/invariant 或普通 facet，也不承担常规产品、交互、视觉、技术、代码或验证补齐。
+Completion Review 是普通动态 gaps、问题、handoff 和 threatened/undetermined impacts 全部闭合后的 Case 终态门禁，也是唯一显式语义自查。它不是软件事实、Project decision/invariant 或普通 facet，也不承担常规产品、交互、视觉、技术、代码或验证补齐；普通 Gap 的证据收集和 ledger 校验不构成额外 Review。
 
-Ledger 在普通工作闭合后派生 Review candidate；Runtime 只负责在同一持久 Agent thread 中继续触发下一轮并调用 trusted ledger，Agent 执行语义审查。Review finding 先转成普通 dynamic gap；只有后续调查确认的稳定结论才可能通过普通 transition 成为 fact。
+Ledger 在已持久化普通工作闭合后派生 Review candidate；同一 Agent 若从 fresh state 发现更重要的普通工作，可用 `fresh` 选择先完成它。只有不存在此类工作时才执行语义审查。Review finding 先转成普通 dynamic gap；只有后续调查确认的稳定结论才可能通过普通 transition 成为 fact。clean Review 关闭 Case 后，Runtime 只可执行 Git-only closeout。
 
 ## 五个维度
 

@@ -325,7 +325,7 @@ async function runSameThreadCloseout({ adapter, projectRoot, originalTask, threa
       schema_version: "arckit-task-closeout-invocation/v1",
       phase: "task_closeout",
       original_user_input: originalTask,
-      instruction: "The Case is resolved. In this same conversation, inspect the complete working-tree diff, run any final proportionate checks, repair issues if necessary, and create one intentional Git commit. Return no_changes only when there is genuinely nothing in task scope to commit. Pause only if a human decision is required.",
+      instruction: "The Case already passed Completion Review. Perform Git-only closeout in this same conversation: create one intentional commit from the already-reviewed task-scoped changes, or return no_changes when there is nothing in scope to commit. Do not inspect semantic correctness, run validation, edit files, or repair content. If safe commit scope requires a content change or new semantic judgment, return needs_human.",
       execution_authorization: { workspace_root: projectRoot, git_commit_allowed: true },
       output_contract: "arckit-task-closeout-result/v1"
     }, null, 2)

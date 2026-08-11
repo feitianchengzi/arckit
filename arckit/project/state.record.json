@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-10T17:18:07.967Z",
-    "revision": 13
+    "updated_at": "2026-08-11T05:27:56.752Z",
+    "revision": 18
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -131,7 +131,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Prevent Runtime automation from binding an unassociated todo to an unrelated Case based on repository cardinality or ambiguous fallback data.",
+      "current_focus": "使每轮 Loop 基于 fresh state 独立判断并推进当前最重要的一个 Gap；software invariants 只约束当前接受的 transition，不生成预设工作清单；Completion Review 成为唯一显式语义自查，Review 后 closeout 不再修改内容。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -266,16 +266,28 @@
         "decision_expectation": "State the important data, sources of truth, local and remote relationships, lifecycle, consistency, migration, and recovery expectations.",
         "evidence_expectation": "Durable data and technical evidence sufficient to recover the state model.",
         "decision": {
-          "revision": 1,
           "status": "settled",
-          "statement": "Canonical project data is Project v5, Iteration v3 and Case v5 in arckit/; Runtime run/session/thread records live outside the target project and only opaque refs enter the ledger.",
-          "reason": "The ledger and Runtime architecture define this source-of-truth boundary.",
+          "statement": "Canonical project data is Project v5, Iteration v3 and Case v5 in arckit/; each accepted Loop mutation uses Case Transition v6 with explicit candidate/fresh gap_selection, while Runtime run/session/thread records stay outside the target project and only opaque refs enter the ledger.",
+          "reason": "The ledger now persists explicit per-round selection mode and basis while preserving the existing source-of-truth boundary.",
           "evidence": [
+            "entry/skills/using-arckit/SKILL.md",
             "entry/skills/arckit-development-ledger/SKILL.md",
-            "arckit/tech/arckit-runtime/solution.md"
+            "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
+            "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+            "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+            "runtime/arckit-runtime/src/gate-engine.mjs",
+            "runtime/arckit-runtime/src/state-driven-runner.mjs",
+            "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
+            "runtime/arckit-runtime/test/case-transition.test.mjs",
+            "runtime/arckit-runtime/test/state-condition-case.test.mjs",
+            "runtime/arckit-runtime/test/coherent-agent-loop.test.mjs",
+            "runtime/arckit-runtime/test/state-driven-runner.test.mjs",
+            "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+            "npm --prefix runtime/arckit-runtime run check: 106 tests, 105 passed, 1 environment-gated skip"
           ],
           "confidence": "high",
-          "resume_condition": ""
+          "resume_condition": "",
+          "revision": 2
         },
         "gap_refs": [
           "GAP-cross-record-audit"
@@ -347,23 +359,27 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron desktop host, Project State v5, Case/Transition v5, and Iteration v3 with trusted atomic transitions.",
-          "reason": "The accepted v5 cutover is durably represented by canonical schemas, ledger scripts, Runtime contracts, automated regression tests, and its closed implementation Case.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron desktop host, Project State v5, Case v5, candidate/fresh Case Transition v6, and Iteration v3 with trusted atomic transitions.",
+          "reason": "Transition v6 and its Runtime/ledger enforcement are implemented, documented, and covered by automated regression tests.",
           "evidence": [
-            "entry/skills/arckit-development-ledger/schema/project-state-record.schema.json",
-            "entry/skills/arckit-development-ledger/schema/development-case-record.schema.json",
-            "entry/skills/arckit-development-ledger/schema/case-transition.schema.json",
-            "entry/skills/arckit-development-ledger/scripts/project-software-definition.mjs",
+            "entry/skills/using-arckit/SKILL.md",
+            "entry/skills/arckit-development-ledger/SKILL.md",
+            "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
             "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+            "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+            "runtime/arckit-runtime/src/gate-engine.mjs",
+            "runtime/arckit-runtime/src/state-driven-runner.mjs",
             "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
-            "runtime/arckit-runtime/schemas/runtime-result.schema.json",
-            "runtime/arckit-runtime/test/project-ledger-governance.test.mjs",
+            "runtime/arckit-runtime/test/case-transition.test.mjs",
             "runtime/arckit-runtime/test/state-condition-case.test.mjs",
-            "arckit/cases/closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md"
+            "runtime/arckit-runtime/test/coherent-agent-loop.test.mjs",
+            "runtime/arckit-runtime/test/state-driven-runner.test.mjs",
+            "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+            "npm --prefix runtime/arckit-runtime run check: 106 tests, 105 passed, 1 environment-gated skip"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 3
+          "revision": 4
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -462,44 +478,44 @@
   "software_invariants": [
     {
       "id": "observable-behavior-has-durable-expectation",
-      "applies_when": "A Case adds or changes user-observable behavior, business rules, or acceptance semantics.",
-      "must_hold": "The relevant product expectation is accurate, unambiguous, and durably recoverable.",
-      "evidence_expectation": "Persistent evidence sufficient to recover the expected behavior and its acceptance basis.",
+      "applies_when": "The accepted Case transition adds or changes user-observable behavior, business rules, or acceptance semantics.",
+      "must_hold": "The behavior accepted by this transition has an accurate, unambiguous, and durably recoverable product expectation.",
+      "evidence_expectation": "Persistent evidence sufficient to recover the accepted behavior and its acceptance basis.",
       "priority": "required"
     },
     {
       "id": "changed-interactions-remain-recoverable",
-      "applies_when": "A Case adds or changes a user journey, interaction rule, navigation, feedback, or operable state.",
-      "must_hold": "The changed interaction expectation is coherent and durably recoverable.",
-      "evidence_expectation": "Persistent evidence sufficient to understand and verify the affected interaction behavior.",
+      "applies_when": "The accepted Case transition adds or changes a user journey, interaction rule, navigation, feedback, or operable state.",
+      "must_hold": "The interaction change accepted by this transition is coherent and durably recoverable.",
+      "evidence_expectation": "Persistent evidence sufficient to understand and verify the accepted interaction change.",
       "priority": "required"
     },
     {
       "id": "changed-visual-language-remains-consistent",
-      "applies_when": "A Case adds or changes visual appearance, layout, theme, token, or component presentation.",
-      "must_hold": "The changed visual expectation remains consistent with the project visual language and is durably recoverable.",
-      "evidence_expectation": "Persistent visual specification or equivalent evidence for the affected surface.",
+      "applies_when": "The accepted Case transition adds or changes visual appearance, layout, theme, token, or component presentation.",
+      "must_hold": "The visual change accepted by this transition remains consistent with the project visual language and is durably recoverable.",
+      "evidence_expectation": "Persistent visual specification or equivalent evidence for the accepted visual change.",
       "priority": "required"
     },
     {
       "id": "changed-contracts-remain-explainable",
-      "applies_when": "A Case changes architecture, data models, APIs, integration boundaries, runtime contracts, or important technical constraints.",
-      "must_hold": "The resulting technical contract is coherent, explainable, and durably recoverable.",
-      "evidence_expectation": "Persistent technical evidence sufficient to recover the decision, constraints, and affected boundaries.",
+      "applies_when": "The accepted Case transition changes architecture, data models, APIs, integration boundaries, runtime contracts, or important technical constraints.",
+      "must_hold": "The technical contract accepted by this transition is coherent, explainable, and durably recoverable.",
+      "evidence_expectation": "Persistent technical evidence sufficient to recover the accepted decision, constraints, and affected boundaries.",
       "priority": "required"
     },
     {
       "id": "accepted-facts-are-realized",
-      "applies_when": "A Case requires executable behavior or changes existing implementation.",
-      "must_hold": "The implementation realizes all relevant accepted facts and upheld project decisions and invariants.",
-      "evidence_expectation": "Code and implementation evidence traceable to the relevant Case facts and Project State.",
+      "applies_when": "The accepted Case transition claims executable behavior was added or changed, or that an implementation Gap was resolved.",
+      "must_hold": "The implementation accepted by this transition realizes its relevant accepted facts and upheld project decisions and invariants.",
+      "evidence_expectation": "Code and implementation evidence traceable to the facts and Project State used by this transition.",
       "priority": "required"
     },
     {
       "id": "material-risks-have-credible-evidence",
-      "applies_when": "A Case changes behavior, contracts, implementation, data, integration, security, delivery, or another risk-bearing surface.",
-      "must_hold": "Material correctness and regression risks are covered by credible, repeatable verification evidence.",
-      "evidence_expectation": "Tests, checks, inspection, or operational evidence proportionate to the identified risks.",
+      "applies_when": "The accepted Case transition changes a risk-bearing surface or claims that a material correctness or regression risk is controlled.",
+      "must_hold": "The risk-bearing claims accepted by this transition are supported by credible, repeatable, proportionate evidence.",
+      "evidence_expectation": "Tests, checks, inspection, or operational evidence proportionate to the risks accepted by this transition.",
       "priority": "required"
     }
   ]

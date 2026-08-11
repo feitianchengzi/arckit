@@ -27,7 +27,8 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
   if (isCaseControl) {
     if (snapshot?.projectState?.project?.revision !== caseControlHandoff.expected_project_revision) reasons.push('case_control_handoff is stale for Project State.');
   } else {
-    if (transition?.schema_version !== 'arckit-case-transition/v5') reasons.push('case_transition must use arckit-case-transition/v5.');
+    if (transition?.schema_version !== 'arckit-case-transition/v6') reasons.push('case_transition must use arckit-case-transition/v6.');
+    if (!['candidate', 'fresh'].includes(transition?.gap_selection?.mode) || !transition?.gap_selection?.basis) reasons.push('case_transition.gap_selection is incomplete.');
     if (!transition?.case_id || !transition?.selected_gap?.id) reasons.push('case_transition must identify a concrete Case gap.');
     if (!transition?.case_updated_at) reasons.push('case_transition must bind the expected Case updated_at revision.');
     if (!Number.isInteger(transition?.project_revision)) reasons.push('case_transition must bind the observed Project revision.');
@@ -44,11 +45,14 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
     if (snapshot && !activeCase) reasons.push(`case_transition.case_id is not an active Case: ${transition?.case_id || '<missing>'}`);
     if (activeCase?.record?.case_resolution?.status === 'resolved') reasons.push(`Case ${transition.case_id} is already resolved.`);
     if (activeCase && activeCase.record.updated_at !== transition?.case_updated_at) reasons.push(`case_transition is stale for ${transition.case_id}.`);
-    const activeGap = (activeCase?.record?.case_resolution?.candidate_gaps || []).find((gap) => gap.id === transition?.selected_gap?.id);
-    if (activeCase && !activeGap) {
-      reasons.push(`case_transition.selected_gap is not an unresolved candidate of ${transition.case_id}.`);
-    } else if (activeGap) {
-      if (!isDeepStrictEqual(activeGap, transition.selected_gap)) reasons.push(`case_transition.selected_gap snapshot is stale for ${transition.case_id}.`);
+    if (activeCase && transition?.gap_selection?.mode === 'candidate') {
+      const activeGap = (activeCase.record.case_resolution?.candidate_gaps || []).find((gap) => gap.id === transition?.selected_gap?.id);
+      if (!activeGap) reasons.push(`case_transition.selected_gap is not an unresolved candidate of ${transition.case_id}.`);
+      else if (!isDeepStrictEqual(activeGap, transition.selected_gap)) reasons.push(`case_transition.selected_gap snapshot is stale for ${transition.case_id}.`);
+    } else if (activeCase && transition?.gap_selection?.mode === 'fresh') {
+      const selected = transition?.selected_gap;
+      if (activeCase.record.gaps.some((gap) => gap.id === selected?.id)) reasons.push(`case_transition.selected_gap is not fresh for ${transition.case_id}.`);
+      if (selected?.responsibility !== 'agent') reasons.push('A fresh selected_gap must be Agent-owned and completed in the current turn.');
     }
   }
 

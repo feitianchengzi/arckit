@@ -16,13 +16,15 @@ Automation Store 为活动任务与最近完成项保存 `session_id`。Coordina
 
 消息记录携带 `session_id`、`task_id` 和可选 `run_id`。Workbench 只根据活动任务或最近完成项的 `session_id` 读取消息；session 不存在或归属与任务不符时返回空 transcript 和可诊断错误，不读取项目首个 session。最近完成项保存最终 `run_id`、持久 `thread_id` 与 `session_id`，历史审查打开同一待办的完整执行链。
 
-Desktop session 与 Codex thread 是不同层级：session 是面向用户的待办 transcript 容器，Codex thread 是 Codex 持久化的连续模型对话。一个待办从首轮到验证、修复和 Git 收尾只有一个 thread；Desktop session 和 Codex thread 都可以跨 Runtime 进程延续，但只有 thread 承担 Agent 上下文连续性。
+Desktop session 与 Codex thread 是不同层级：session 是面向用户的待办 transcript 容器，Codex thread 是 Codex 持久化的连续模型对话。一个待办从首轮、普通 Gap、Completion Review、finding 修复到 Git-only 收尾只有一个 thread；Desktop session 和 Codex thread 都可以跨 Runtime 进程延续，但只有 thread 承担 Agent 上下文连续性。
 
 ### 统一消息投影
 
-Run Projector 把 Runtime、Agent、工具与 operator event 归一为 `desktop-run-message/v1`。消息至少包含稳定 `id`、`role`、`actor`、`actor_label`、`kind`、`content`、`status`、时间、`run_id`，并可携带 `round_index`、`task_id`、`thread_id`、`turn_id` 与 `item_id` 作为诊断归因。Renderer 只按时间读取消息，不按 Run 建立平行 transcript，并把消息进一步投影为 `loop-status`、`agent-message`、`tool-activity` 或 `user-message` 四类可见行。
+Run Projector 把 Runtime、Agent、工具与 operator event 归一为 `desktop-run-message/v1`。消息至少包含稳定 `id`、`role`、`actor`、`actor_label`、`kind`、`content`、`status`、时间、`run_id`，并可携带 `round_index`、`task_id`、`thread_id`、`turn_id` 与 `item_id` 作为诊断归因。schema-bound Agent 输出额外携带 `structured_data`，其中保存原始 schema version、解析后的原值和原始文本。Renderer 只按时间读取消息，不按 Run 建立平行 transcript，并把消息进一步投影为 `loop-status`、`reasoning-disclosure`、`agent-message`、`structured-result`、`tool-activity` 或 `user-message` 六类可见行。
 
-流式 Agent 和 reasoning delta 通过稳定消息 ID 更新同一个内存对象。命令、文件变更和其他工具 item 使用 `item_id` 稳定标识，started、completed 与 failed 更新同一条 `tool-activity`；output delta 只进入运行证据和活动摘要，不形成逐块消息。`item/completed`、Agent Loop result、Runtime round、Gate、ledger、compaction、warning、error 和 operator input 形成可持久化的语义消息边界。
+流式 Agent 和 reasoning delta 通过稳定 item/turn 消息 ID 更新同一个内存对象。Reasoning summary 可以是字符串或数组；Projector 只提取其中由 Codex 提供的非空文本，流式时标记为展开态，`item/completed` 后标记为默认收起态，空数组、空字符串和空白内容不创建消息。命令、文件变更和其他工具 item 使用 `item_id` 稳定标识，started、completed 与 failed 更新同一条 `tool-activity`；output delta 只进入运行证据和活动摘要，不形成逐块消息。`item/completed`、Agent Loop result、Runtime round、Gate、ledger、compaction、warning、error 和 operator input 形成可持久化的语义消息边界。
+
+Agent message delta 若形成带 `schema_version` 的 JSON 对象，Projector 将其识别为 structured result，并在完成时同时保存解析对象和未经改写的原始文本；该文本不再作为普通 Agent message。`arckit-agent-loop-result/v1` 和 `arckit-task-closeout-result/v1` 的 Runtime 语义事件仍以其原始 `summary` 字段产生独立正式 Agent 消息。Renderer 的 schema viewer 只选择并标注原始字段值以建立可扫描层级，未知 schema 使用通用树与原始数据展开，不生成替代 summary，也不修改上游 payload。
 
 Renderer 的工具摘要是展示投影，不修改上游消息、Agent 上下文或 Runtime 证据。读取类从结构化 action 或命令中提取相对文件路径并显示“读取 <path>”；编辑、搜索、构建和测试显示稳定动词、目标及完成状态。无法可靠分类时显示工具名和有界目标，不回退渲染完整 `content`、`detail`、aggregated output 或协议 payload。
 
@@ -38,7 +40,7 @@ Automation Store 以本地项目身份和远端任务 ID 为键保存唯一 `thr
 
 进程重启时，Run Manager 把已持久化 `thread_id` 传给 Runtime；Codex adapter initialize 后先执行 `thread/resume`，再 fresh-read Project/Case State 发起下一 turn。瞬时 resume 失败保持原绑定进入 recovery；只有 Codex 明确确认 thread 永久不存在时，才记录可审计的 `thread_recovery_fallback` 并从 canonical state 创建新的持久 thread。canonical facts 不足时暂停并要求人工介入。
 
-当前 turn 的 fresh digest、revision 与授权覆盖 thread 中冲突的旧事实。首个 turn 携带完整待办意图；后续 turn 只携带任务标识、当前增量、fresh canonical digest/revisions、授权与输出契约，不重复历史 prompt、状态正文或旧报告。每个 turn 只选择并完成一个 Case gap，但验证、修复和 Git closeout 仍在同一 thread 中完成。
+当前 turn 的 fresh digest、revision 与授权覆盖 thread 中冲突的旧事实。首个 turn 携带完整待办意图；后续 turn 只携带任务标识、当前增量、fresh canonical digest/revisions、授权与输出契约，不重复历史 prompt、状态正文或旧报告。每个 turn 独立选择并完成一个 candidate/fresh Case gap。Completion Review 是唯一显式语义自查；Case resolved 后的 Git closeout 仍复用同一 thread，但只允许 commit/no-op，不再验证、编辑或修复。
 
 每次成功 ledger 写回后、下一 gap 前，Coordinator 读取最新请求的 `inputTokens / modelContextWindow`。达到 80% 且上一个 Agent turn 后尚未压缩时，调用同一 thread 的 `thread/compact/start`，等待压缩完成并保存 checkpoint，再继续 fresh-state loop。累计 Token 只用于观测，不触发压缩或停止。
 
@@ -57,7 +59,7 @@ Codex adapter 对需要批准的 command 以规范化 `cwd + command` 建立进�
 - 最近一次模型请求的输入、缓存输入、输出和 `modelContextWindow`。
 - 最新请求上下文占用比例与事件时间。
 
-Lane 固定为 `agent`；gap 执行、验证、修复、compaction 和 Git closeout 用 stage 区分，不拆成多个 Agent lane 或 Run。Runtime 不保留旧 `controller`、`builder`、`verifier`、`delegated`、`commit` lane 的兼容分支。
+Lane 固定为 `agent`；gap 执行、Completion Review、finding 修复、compaction 和 Git-only closeout 用 stage 区分，不拆成多个 Agent lane 或 Run。Runtime 不保留旧 `controller`、`builder`、`verifier`、`delegated`、`commit` lane 的兼容分支。
 
 app-server 的 `tokenUsage.total` 是 thread 累计快照。Projector 对每个 thread 只保留最新累计值，Run 汇总为各 thread 最新值之和，不累加每次 notification。Turn 用量通过当前累计值减去该 turn 首次事件前的 thread 基线得到；同一 turn 的重复快照只更新结果，不重复计数。
 
@@ -127,7 +129,7 @@ session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_
 ## 验收口径
 
 - 两个连续远端待办在同一项目中获得不同 `session_id`，Workbench transcript 不交叉。
-- 同一待办的 intervention、continuation、验证、修复和 Git closeout 保持同一 Desktop session 与 Codex thread。
+- 同一待办的 intervention、continuation、普通 Gap、Completion Review、finding 修复和 Git-only closeout 保持同一 Desktop session 与 Codex thread。
 - thread id 在首个 turn 前持久化；进程重启和 Runtime Run 切换都 resume 同一 thread。
 - 不同待办不共享 Codex thread；同一待办不会创建 Controller、Worker、Review 或 commit thread。
 - 同一 `cwd + command` 的并发请求只批准一个进程，并留下可审查软异常。
@@ -135,7 +137,7 @@ session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_
 - Round、turn 与 command 耗时可重算，Workbench 能指出最慢活动而不重复启动命令。
 - Workbench 区分缓存输入、非缓存输入和输出，并展示上下文窗口占用。
 - Workbench 的页面根、左右栏和 Composer 不随 transcript 增长；只有中间消息列表滚动，用户阅读历史时新消息不会强制改变位置。
-- Renderer 将 Loop 状态和 Agent 输出作为主要信息，把每个 tool item 投影为一条原位更新的单行活动；文件正文、完整 diff、stdout/stderr 与 raw payload 不进入可见消息正文，但继续保留在上游上下文或诊断证据中。
+- Renderer 将 Agent 正式输出作为主要信息，把 Loop 状态、非空可折叠 reasoning、专用结构化结果和每个 tool item 的原位单行活动作为次级信息；空 reasoning 不产生消息，文件正文、完整 diff、stdout/stderr 与 raw payload 不进入普通消息正文，但原始结构化 payload 保真进入查看器并继续保留在上游上下文或诊断证据中。
 - 任意用量警告都不会自动设置 Token 总上限、硬总轮次或终止 Case。
 - 当前 Runtime 可以在确认安全停止后打开用户可见且可输入的交互式 Codex CLI；两者不会并发拥有同一活动任务的执行权。
 - 首次 Runtime 不预选 Case；Agent 语义选择现有 Case 或通过 trusted ledger 创建新 Case，未形成权威绑定时 CLI handoff 不会中断 Runtime。

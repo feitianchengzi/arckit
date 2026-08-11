@@ -105,6 +105,11 @@ function applyRunEvent(run, { parsed }) {
       break;
     case "codex.turn.start.completed":
     case "codex.turn.started":
+      if (event.turn_id && event.turn_id !== activity.turn_id) {
+        activity.agent_text = "";
+        activity.reasoning_text = "";
+        activity.command_output = "";
+      }
       activity.thread_id = event.thread_id || activity.thread_id;
       activity.turn_id = event.turn_id || activity.turn_id;
       markTurn(activity, event, "running");
@@ -122,15 +127,26 @@ function applyRunEvent(run, { parsed }) {
       });
       break;
     case "codex.agent_message.delta":
-      activity.agent_text = appendLimited(activity.agent_text, event.text || "", 24_000);
-      upsertMessage(activity, {
-        id: `agent:${activity.turn_id || activity.round_index}:stream`, role: "assistant", actor: "agent", actor_label: "Codex Agent", kind: "message",
-        content: activity.agent_text, status: "streaming"
+      activity.agent_text = appendLimited(activity.agent_text, event.text || "", 256_000);
+      projectAgentOutput(activity, {
+        text: activity.agent_text,
+        itemId: event.item_id || "",
+        turnId: event.turn_id || activity.turn_id,
+        status: "streaming"
       });
       break;
-    case "codex.reasoning.delta":
-      activity.reasoning_text = appendLimited(activity.reasoning_text, event.text || "", 12_000);
+    case "codex.reasoning.delta": {
+      const delta = String(event.text || "");
+      activity.reasoning_text = appendLimited(activity.reasoning_text, delta, 12_000);
+      if (!delta.trim()) break;
+      const id = reasoningMessageId(activity, event.item_id);
+      const existing = activity.messages.find((message) => message.id === id);
+      upsertMessage(activity, {
+        id, role: "assistant", actor: "agent", actor_label: "Codex Agent", kind: "reasoning",
+        content: appendLimited(existing?.content, delta, 12_000), status: "streaming", item_id: event.item_id || ""
+      });
       break;
+    }
     case "codex.command.output.delta":
       activity.command_output = appendLimited(activity.command_output, event.text || "", 12_000);
       break;
@@ -143,9 +159,11 @@ function applyRunEvent(run, { parsed }) {
       break;
     case "runtime.agent_loop_result":
       activity.agent_loop_result = event.result || null;
+      projectStructuredResult(activity, event.result, { turnId: event.turn_id || activity.turn_id, status: "completed" });
       break;
     case "runtime.task_closeout_result":
       activity.closeout_result = event.result || null;
+      projectStructuredResult(activity, event.result, { turnId: event.turn_id || activity.turn_id, status: "completed" });
       updateRunActivity(run, { phase: "closeout", current_step: event.result?.summary || "Task closeout completed" });
       upsertMessage(activity, {
         id: `agent:closeout:${activity.turn_id || "final"}`, role: "assistant", actor: "agent", actor_label: "Codex Agent", kind: "closeout",
@@ -237,7 +255,8 @@ function normalizeRunMessage(message) {
     id: String(message.id || `message:${Date.now()}`), role: message.role || "system", actor: message.actor || "runtime",
     actor_label: message.actor_label || "Runtime", kind: message.kind || "status", content: String(message.content || ""),
     detail: String(message.detail || ""), status: message.status || "completed", created_at: message.created_at || now,
-    updated_at: now, revision: Number(message.revision || 1), item_id: String(message.item_id || "")
+    updated_at: now, revision: Number(message.revision || 1), item_id: String(message.item_id || ""),
+    structured_data: normalizeStructuredData(message.structured_data)
   };
 }
 
@@ -323,10 +342,27 @@ function finishCommand(activity, event) {
 function projectCompletedItem(activity, event) {
   const item = event.item || event.params?.item || event.raw_rpc?.params?.item || {};
   if (!item.id) return;
-  if (item.type === "reasoning" && item.summary) {
-    upsertMessage(activity, {
-      id: `agent:item:${item.id}`, role: "assistant", actor: "agent", actor_label: "Codex Agent", kind: "reasoning",
-      content: item.summary, status: "completed", item_id: item.id
+  if (item.type === "reasoning") {
+    const id = reasoningMessageId(activity, item.id);
+    const existing = activity.messages.find((message) => message.id === id);
+    const content = reasoningSummaryText(item.summary) || String(existing?.content || "").trim();
+    if (content) {
+      upsertMessage(activity, {
+        id, role: "assistant", actor: "agent", actor_label: "Codex Agent", kind: "reasoning",
+        content, status: "completed", item_id: item.id
+      });
+    } else if (existing) {
+      activity.messages = activity.messages.filter((message) => message.id !== id);
+    }
+  }
+  if (item.type === "agentMessage") {
+    const text = String(item.text || activity.agent_text || "");
+    activity.agent_text = text;
+    projectAgentOutput(activity, {
+      text,
+      itemId: item.id,
+      turnId: event.turn_id || activity.turn_id,
+      status: "completed"
     });
   }
   if (VISIBLE_TOOL_ITEM_TYPES.has(item.type)) {
@@ -336,6 +372,88 @@ function projectCompletedItem(activity, event) {
       status: Number(item.exitCode ?? 0) === 0 ? "completed" : "failed", item_id: item.id
     });
   }
+}
+
+function projectAgentOutput(activity, { text, itemId = "", turnId = "", status = "streaming" }) {
+  const structuredData = structuredDataFromText(text, { allowPartial: status === "streaming" });
+  upsertMessage(activity, {
+    id: agentOutputMessageId(activity, turnId), role: "assistant", actor: "agent", actor_label: "Codex Agent",
+    kind: structuredData ? "structured" : "message", content: structuredData ? "" : text, status,
+    item_id: itemId, structured_data: structuredData
+  });
+}
+
+function projectStructuredResult(activity, value, { turnId = "", status = "completed" } = {}) {
+  const id = agentOutputMessageId(activity, turnId);
+  const existing = activity.messages.find((message) => message.id === id);
+  const existingRaw = completeStructuredRaw(existing?.structured_data?.raw, value?.schema_version);
+  const structuredData = structuredDataFromValue(value, existingRaw);
+  if (!structuredData) return;
+  upsertMessage(activity, {
+    id, role: "assistant", actor: "agent", actor_label: "Codex Agent",
+    kind: "structured", content: "", status, structured_data: structuredData
+  });
+}
+
+function completeStructuredRaw(raw, schemaVersion) {
+  const text = String(raw || "");
+  if (!text.trim()) return "";
+  try {
+    const value = JSON.parse(text);
+    return value?.schema_version === schemaVersion ? text : "";
+  } catch {
+    return "";
+  }
+}
+
+function agentOutputMessageId(activity, turnId = "") {
+  return `agent:${turnId || activity.turn_id || activity.round_index}:output`;
+}
+
+function reasoningMessageId(activity, itemId = "") {
+  return `agent:reasoning:${itemId || activity.turn_id || activity.round_index}`;
+}
+
+function reasoningSummaryText(summary) {
+  if (typeof summary === "string") return summary.trim();
+  if (Array.isArray(summary)) {
+    return summary.map((entry) => reasoningSummaryText(entry)).filter(Boolean).join("\n\n").trim();
+  }
+  if (!summary || typeof summary !== "object") return "";
+  return reasoningSummaryText(summary.text ?? summary.content ?? summary.summary ?? "");
+}
+
+function structuredDataFromText(text, { allowPartial = false } = {}) {
+  const raw = String(text || "");
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("{")) return null;
+  try {
+    const value = JSON.parse(trimmed);
+    if (!value || typeof value !== "object" || Array.isArray(value) || !value.schema_version) return null;
+    return structuredDataFromValue(value, raw);
+  } catch {
+    if (!allowPartial) return null;
+    const schemaVersion = trimmed.match(/"schema_version"\s*:\s*"([^"]+)"/)?.[1] || "";
+    return { schema_version: schemaVersion, value: null, raw };
+  }
+}
+
+function structuredDataFromValue(value, raw = "") {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !value.schema_version) return null;
+  return {
+    schema_version: String(value.schema_version),
+    value,
+    raw: raw || JSON.stringify(value, null, 2)
+  };
+}
+
+function normalizeStructuredData(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return {
+    schema_version: String(value.schema_version || value.value?.schema_version || ""),
+    value: value.value && typeof value.value === "object" ? value.value : null,
+    raw: String(value.raw || "")
+  };
 }
 
 function toolItemKind(type) {

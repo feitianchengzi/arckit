@@ -39,10 +39,13 @@ export function validateRuntimeResult(result) {
     if (result?.case_transition !== null) issues.push({ path: "case_transition", message: "Case control writeback must not include a Case transition." });
   } else if (hasCaseTransition) {
     requireObject(result?.case_transition, "case_transition", issues);
-    requireEqual(result?.case_transition?.schema_version, "arckit-case-transition/v5", "case_transition.schema_version", issues);
+    requireEqual(result?.case_transition?.schema_version, "arckit-case-transition/v6", "case_transition.schema_version", issues);
     requireString(result?.case_transition?.case_id, "case_transition.case_id", issues);
     requireString(result?.case_transition?.case_updated_at, "case_transition.case_updated_at", issues);
     requireInteger(result?.case_transition?.project_revision, "case_transition.project_revision", issues);
+    requireObject(result?.case_transition?.gap_selection, "case_transition.gap_selection", issues);
+    requireEnum(result?.case_transition?.gap_selection?.mode, ["candidate", "fresh"], "case_transition.gap_selection.mode", issues);
+    requireString(result?.case_transition?.gap_selection?.basis, "case_transition.gap_selection.basis", issues);
     requireObject(result?.case_transition?.selected_gap, "case_transition.selected_gap", issues);
     requireObject(result?.case_transition?.planned_transition, "case_transition.planned_transition", issues);
     requireObject(result?.case_transition?.accepted_state_delta, "case_transition.accepted_state_delta", issues);

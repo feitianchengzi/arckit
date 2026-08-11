@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { REVIEW_DIMENSIONS, auditCaseRecord, findCasePath, readCaseRecord, renderCaseRecord, validateCaseRecord, writeCaseRecord } from './development-case.mjs';
 import { projectTargetRefs, validateProjectStateRecord } from './project-state.mjs';
-import { coreSoftwareInvariantIds } from './project-invariants.mjs';
+import { coreSoftwareInvariantIds, defaultSoftwareInvariants } from './project-invariants.mjs';
 import { validateIterationStateRecord } from './project-iteration.mjs';
 import { withProjectCommitLock } from './project-commit-lock.mjs';
 
@@ -40,8 +40,11 @@ function validateProjectStateDelta(delta, label, errors) {
     if (!change?.area_ref || !Number.isInteger(change.observed_revision) || !isObject(change.set_decision) || !Array.isArray(change.gap_refs) || !change.reason || !Array.isArray(change.evidence) || change.evidence.length === 0) errors.push(`${label}.software_definition_changes[${index}] is invalid`);
   }
   for (const [index, change] of (delta.software_invariant_changes || []).entries()) {
-    if (!['add', 'update', 'retire'].includes(change?.action) || !change?.invariant?.id || !change.reason || !Array.isArray(change.evidence) || change.evidence.length === 0) errors.push(`${label}.software_invariant_changes[${index}] is invalid`);
-    else if (coreSoftwareInvariantIds().has(change.invariant.id)) errors.push(`${label}.software_invariant_changes[${index}] cannot change a protocol-defined core software invariant`);
+    if (!['add', 'update', 'retire', 'sync_core'].includes(change?.action) || !change?.invariant?.id || !change.reason || !Array.isArray(change.evidence) || change.evidence.length === 0) errors.push(`${label}.software_invariant_changes[${index}] is invalid`);
+    else if (change.action === 'sync_core') {
+      const expected = defaultSoftwareInvariants().find((item) => item.id === change.invariant.id);
+      if (!expected || !isDeepStrictEqual(change.invariant, expected)) errors.push(`${label}.software_invariant_changes[${index}] must exactly synchronize one protocol-defined core invariant`);
+    } else if (coreSoftwareInvariantIds().has(change.invariant.id)) errors.push(`${label}.software_invariant_changes[${index}] cannot add, update, or retire a protocol-defined core software invariant`);
   }
   for (const [index, change] of (delta.project_gap_changes || []).entries()) {
     if (!['add', 'update', 'resolve'].includes(change?.action) || (change.action === 'add' || change.action === 'update' ? !change.gap?.id : !change.gap_id) || !change.reason || !Array.isArray(change.evidence) || change.evidence.length === 0) errors.push(`${label}.project_gap_changes[${index}] is invalid`);
@@ -51,9 +54,10 @@ function validateProjectStateDelta(delta, label, errors) {
 
 export function validateCaseTransition(transition, file = '<transition>') {
   const errors = [];
-  if (transition?.schema_version !== 'arckit-case-transition/v5') return [`${file}: schema_version must be arckit-case-transition/v5`];
+  if (transition?.schema_version !== 'arckit-case-transition/v6') return [`${file}: schema_version must be arckit-case-transition/v6`];
   if (!/^CASE-\d{8}-\d{3}$/.test(transition.case_id || '')) errors.push(`${file}: invalid case_id`);
   if (!transition.case_updated_at || !Number.isInteger(transition.project_revision)) errors.push(`${file}: Case and Project revisions are required`);
+  if (!['candidate', 'fresh'].includes(transition.gap_selection?.mode) || !transition.gap_selection?.basis) errors.push(`${file}: gap_selection is incomplete`);
   validateGap(transition.selected_gap, `${file}: selected_gap`, errors, { candidate: true });
   if (!transition.planned_transition?.goal || !transition.planned_transition?.expected_state_change) errors.push(`${file}: planned_transition is incomplete`);
   const delta = transition.accepted_state_delta;
@@ -106,9 +110,12 @@ function applyProjectStateDelta(record, delta, timestamp) {
     area.gap_refs = unique(change.gap_refs);
   }
   for (const change of delta.software_invariant_changes) {
-    if (coreIds.has(change.invariant.id)) throw new Error(`Core software invariant cannot change: ${change.invariant.id}`);
+    if (coreIds.has(change.invariant.id) && change.action !== 'sync_core') throw new Error(`Core software invariant cannot change outside sync_core: ${change.invariant.id}`);
     const index = record.software_invariants.findIndex((item) => item.id === change.invariant.id);
-    if (change.action === 'add') {
+    if (change.action === 'sync_core') {
+      if (index < 0) throw new Error(`Core software invariant does not exist: ${change.invariant.id}`);
+      record.software_invariants[index] = structuredClone(change.invariant);
+    } else if (change.action === 'add') {
       if (index >= 0) throw new Error(`Software invariant already exists: ${change.invariant.id}`);
       record.software_invariants.push(structuredClone(change.invariant));
     } else if (change.action === 'update') {
@@ -155,8 +162,8 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
   if (record.schema_version !== 'development-case-record/v5') throw new Error(`Unsupported Case State schema: ${record.schema_version || '<missing>'}`);
   if (record.id !== transition.case_id) throw new Error(`Case transition targets ${transition.case_id}, not ${record.id}`);
   if (record.updated_at !== transition.case_updated_at) throw new Error(`Stale Case transition for ${record.id}`);
-  const candidate = auditCaseRecord(record, record.updated_at).candidate_gaps.find((gap) => gap.id === transition.selected_gap.id);
-  if (!candidate || !isDeepStrictEqual(candidate, transition.selected_gap)) throw new Error(`Selected dynamic gap is stale or not ready: ${transition.selected_gap.id}`);
+  const selection = selectTransitionGap(record, transition);
+  const candidate = selection.gap;
   const delta = transition.accepted_state_delta;
   const isReview = candidate.id.includes(':completion-review:');
   const questionId = candidate.id.split(':open-question:')[1] || '';
@@ -179,6 +186,7 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
     record.facts.push(structuredClone(fact));
     acceptedFacts.set(fact.id, fact);
   }
+  if (selection.fresh) record.gaps.push({ ...structuredClone(candidate), status: 'open', resolution: null });
   const gaps = new Map(record.gaps.map((gap) => [gap.id, gap]));
   for (const gap of delta.gaps_added) {
     if (gaps.has(gap.id)) throw new Error(`Duplicate gap id: ${gap.id}`);
@@ -204,7 +212,7 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
   if (isReview) applyReview(record, delta.completion_review_result, candidate, timestamp);
   if (contentMutation) { record.content_revision += 1; record.completion_review.status = 'pending'; record.completion_review.reviewed_content_revision = null; }
   if (projectState) for (const [index, impact] of record.state_impacts.entries()) validateTargetAgainstProject(impact, projectState, `state_impacts[${index}]`);
-  record.rounds.push({ round: record.rounds.length + 1, goal: transition.planned_transition.goal, outcome: transition.round_outcome, selected_gap: structuredClone(transition.selected_gap), planned_transition: structuredClone(transition.planned_transition), accepted_state_delta: structuredClone(delta), project_state_delta: structuredClone(transition.project_state_delta), evidence: unique(transition.evidence), runtime_result_ref: runtimeResultRef, occurred_at: timestamp });
+  record.rounds.push({ round: record.rounds.length + 1, goal: transition.planned_transition.goal, outcome: transition.round_outcome, gap_selection: structuredClone(transition.gap_selection), selected_gap: structuredClone(transition.selected_gap), planned_transition: structuredClone(transition.planned_transition), accepted_state_delta: structuredClone(delta), project_state_delta: structuredClone(transition.project_state_delta), evidence: unique(transition.evidence), runtime_result_ref: runtimeResultRef, occurred_at: timestamp });
   record.updated_at = timestamp;
   record.case_resolution = auditCaseRecord(record, timestamp);
   if (transition.case_resolution.claimed_status === 'resolved' && record.case_resolution.status !== 'resolved') throw new Error('Claimed resolved is stronger than deterministic Case audit');
@@ -212,6 +220,21 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
   const recordErrors = validateCaseRecord(record);
   if (recordErrors.length) throw new Error(recordErrors.join('\n'));
   return record;
+}
+
+function selectTransitionGap(record, transition) {
+  if (transition.gap_selection.mode === 'candidate') {
+    const candidate = auditCaseRecord(record, record.updated_at).candidate_gaps.find((gap) => gap.id === transition.selected_gap.id);
+    if (!candidate || !isDeepStrictEqual(candidate, transition.selected_gap)) throw new Error(`Selected dynamic gap is stale or not ready: ${transition.selected_gap.id}`);
+    return { gap: candidate, fresh: false };
+  }
+  const selected = transition.selected_gap;
+  if (record.gaps.some((gap) => gap.id === selected.id)) throw new Error(`Fresh dynamic gap already exists: ${selected.id}`);
+  if (selected.responsibility !== 'agent') throw new Error('A fresh dynamic gap must be Agent-owned and completed in the current turn');
+  if ([':completion-review:', ':open-question:', ':handoff:', ':review-finding:'].some((marker) => selected.id.includes(marker))) throw new Error(`Fresh dynamic gap uses a reserved id: ${selected.id}`);
+  const closed = new Set(record.gaps.filter((gap) => ['resolved', 'cancelled'].includes(gap.status)).map((gap) => gap.id));
+  if (selected.blocked_by.some((id) => !closed.has(id))) throw new Error(`Fresh dynamic gap is not ready: ${selected.id}`);
+  return { gap: structuredClone(selected), fresh: true };
 }
 
 export async function applyCaseTransition({ projectRoot, casePath = '', transition, runtimeResultRef = '', dryRun = false }) {

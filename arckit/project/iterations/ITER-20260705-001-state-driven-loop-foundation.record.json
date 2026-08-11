@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-10T17:18:07.967Z",
+  "updated_at": "2026-08-11T05:27:56.752Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -159,6 +159,118 @@
         "arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "entry/skills/using-arckit/SKILL.md",
+        "entry/skills/arckit-development-ledger/SKILL.md",
+        "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+        "runtime/arckit-runtime/src/gate-engine.mjs",
+        "runtime/arckit-runtime/src/state-driven-runner.mjs",
+        "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
+        "runtime/arckit-runtime/test/case-transition.test.mjs",
+        "runtime/arckit-runtime/test/state-condition-case.test.mjs",
+        "runtime/arckit-runtime/test/coherent-agent-loop.test.mjs",
+        "runtime/arckit-runtime/test/state-driven-runner.test.mjs",
+        "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+        "npm --prefix runtime/arckit-runtime run check: 106 tests, 105 passed, 1 environment-gated skip",
+        "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "data_and_state",
+      "outcome": "settled",
+      "evidence": [
+        "entry/skills/using-arckit/SKILL.md",
+        "entry/skills/arckit-development-ledger/SKILL.md",
+        "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+        "runtime/arckit-runtime/src/agent-orchestrator.mjs",
+        "runtime/arckit-runtime/src/gate-engine.mjs",
+        "runtime/arckit-runtime/src/state-driven-runner.mjs",
+        "runtime/arckit-runtime/schemas/agent-loop-result.schema.json",
+        "runtime/arckit-runtime/test/case-transition.test.mjs",
+        "runtime/arckit-runtime/test/state-condition-case.test.mjs",
+        "runtime/arckit-runtime/test/coherent-agent-loop.test.mjs",
+        "runtime/arckit-runtime/test/state-driven-runner.test.mjs",
+        "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+        "npm --prefix runtime/arckit-runtime run check: 106 tests, 105 passed, 1 environment-gated skip",
+        "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+    },
+    {
+      "kind": "software_invariant",
+      "ref": "observable-behavior-has-durable-expectation",
+      "outcome": "sync_core",
+      "evidence": [
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+        "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+        "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+    },
+    {
+      "kind": "software_invariant",
+      "ref": "changed-interactions-remain-recoverable",
+      "outcome": "sync_core",
+      "evidence": [
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+        "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+        "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+    },
+    {
+      "kind": "software_invariant",
+      "ref": "changed-visual-language-remains-consistent",
+      "outcome": "sync_core",
+      "evidence": [
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+        "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+        "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+    },
+    {
+      "kind": "software_invariant",
+      "ref": "changed-contracts-remain-explainable",
+      "outcome": "sync_core",
+      "evidence": [
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+        "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+        "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+    },
+    {
+      "kind": "software_invariant",
+      "ref": "accepted-facts-are-realized",
+      "outcome": "sync_core",
+      "evidence": [
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+        "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+        "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+    },
+    {
+      "kind": "software_invariant",
+      "ref": "material-risks-have-credible-evidence",
+      "outcome": "sync_core",
+      "evidence": [
+        "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
+        "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+        "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
     }
   ],
   "acceptance": {
@@ -187,15 +299,17 @@
     "arckit/cases/closed/CASE-20260810-002-prevent-runtime-schema-failures-from-entering-retry-loops.md",
     "arckit/cases/closed/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md",
     "arckit/cases/closed/CASE-20260810-004-restore-project-state-selection-context-after-content-upgrade.md",
-    "arckit/cases/closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md"
+    "arckit/cases/closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md",
+    "arckit/cases/closed/CASE-20260811-001-clarify-runtime-agent-transcript-message-presentation.md",
+    "arckit/cases/closed/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md",
+    "case_ref": "arckit/cases/closed/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md"
+      "arckit/cases/closed/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md"
     ],
-    "updated_at": "2026-08-10T17:18:07.967Z"
+    "updated_at": "2026-08-11T05:27:56.752Z"
   }
 }

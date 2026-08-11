@@ -57,3 +57,5 @@
 | [CASE-20260810-003](closed/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md) | closed | Upgrade Project State v5 content evidence | 2026-08-10T16:36:04.384Z |
 | [CASE-20260810-004](closed/CASE-20260810-004-restore-project-state-selection-context-after-content-upgrade.md) | closed | Restore Project State selection context after content upgrade | 2026-08-10T16:37:21.320Z |
 | [CASE-20260810-005](closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md) | closed | Require authoritative task-to-Case binding provenance | 2026-08-10T17:18:07.967Z |
+| [CASE-20260811-001](closed/CASE-20260811-001-clarify-runtime-agent-transcript-message-presentation.md) | closed | Clarify Runtime Agent transcript message presentation | 2026-08-11T03:16:07.510Z |
+| [CASE-20260811-002](closed/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md) | closed | Align dynamic Gap Loop and invariant semantics | 2026-08-11T05:27:56.752Z |

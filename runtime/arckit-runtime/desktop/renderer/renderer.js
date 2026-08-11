@@ -1,4 +1,11 @@
-import { statusGlyph, summarizeLoopStatus, summarizeToolActivity, transcriptMessageType } from "../../src/desktop/transcript-presentation.mjs";
+import {
+  isTranscriptMessageVisible,
+  statusGlyph,
+  structuredResultPresentation,
+  summarizeLoopStatus,
+  summarizeToolActivity,
+  transcriptMessageType
+} from "../../src/desktop/transcript-presentation.mjs";
 
 const api = window.arckitDesktop;
 
@@ -543,9 +550,11 @@ async function loadTranscript({ force = false } = {}) {
     if (message.task_id && String(message.task_id) !== String(taskId)) continue;
     byId.set(`${message.run_id || "session"}:${message.id}`, message);
   }
-  state.transcript = [...byId.values()].sort((left, right) => (
-    String(left.created_at || left.updated_at || "").localeCompare(String(right.created_at || right.updated_at || ""))
-  ));
+  state.transcript = [...byId.values()]
+    .filter(isTranscriptMessageVisible)
+    .sort((left, right) => (
+      String(left.created_at || left.updated_at || "").localeCompare(String(right.created_at || right.updated_at || ""))
+    ));
 }
 
 function renderWorkbench() {
@@ -630,9 +639,29 @@ function renderConversationMessage(message) {
   const type = transcriptMessageType(message);
   if (type === "tool") return renderToolActivity(message);
   if (type === "loop") return renderLoopStatus(message);
+  if (type === "reasoning") return renderReasoningDisclosure(message);
+  if (type === "structured") return renderStructuredResult(message);
   const label = type === "user" ? "你" : message.actor_label || "Agent";
   const status = message.status || "completed";
   return `<article class="message ${type}-message status-${escapeHtml(status)}"><div class="message-head"><span><b>${escapeHtml(label)}</b>${message.kind ? `<em>${escapeHtml(message.kind)}</em>` : ""}</span><time>${formatTime(message.updated_at || message.created_at)}</time></div><p>${escapeHtml(message.content)}</p></article>`;
+}
+
+function renderReasoningDisclosure(message) {
+  const status = message.status || "completed";
+  const streaming = ["streaming", "started", "running", "in_progress"].includes(status);
+  return `<details class="reasoning-disclosure status-${escapeHtml(status)}"${streaming ? " open" : ""}><summary><span><span class="activity-glyph" aria-hidden="true">${statusGlyph(status)}</span><b>${streaming ? "思考中" : "思考过程"}</b></span><time>${formatTime(message.updated_at || message.created_at)}</time></summary><div class="reasoning-content">${escapeHtml(message.content)}</div></details>`;
+}
+
+function renderStructuredResult(message) {
+  const status = message.status || "completed";
+  const presentation = structuredResultPresentation(message);
+  const fields = presentation.fields.length
+    ? `<dl class="structured-result-fields">${presentation.fields.map((field) => `<div><dt>${escapeHtml(field.label)}</dt><dd>${field.values.map((value) => `<span>${escapeHtml(value)}</span>`).join("")}</dd></div>`).join("")}</dl>`
+    : `<p class="structured-result-pending">结构化字段生成中…</p>`;
+  const raw = presentation.raw
+    ? `<details class="structured-result-raw"><summary>查看原始 JSON</summary><pre>${escapeHtml(presentation.raw)}</pre></details>`
+    : "";
+  return `<details class="structured-result status-${escapeHtml(status)}"><summary><span><span class="activity-glyph" aria-hidden="true">${statusGlyph(status)}</span><b>${escapeHtml(presentation.title)}</b><em>${escapeHtml(presentation.schema_version)}</em></span><time>${formatTime(message.updated_at || message.created_at)}</time></summary><div class="structured-result-body">${fields}${raw}</div></details>`;
 }
 
 function renderLoopStatus(message) {
@@ -974,7 +1003,7 @@ function automationPhaseLabel(phase) {
     cli_handoff: "Codex CLI 接管",
     awaiting_human: "等待人工",
     closeout_starting: "准备同线程收尾",
-    closeout_running: "同线程验证与 Git 收尾",
+    closeout_running: "同线程 Git 收尾",
     remote_completion_pending: "Case 已完成，等待远端收尾",
     completing: "完成写回",
     recovery: "需要恢复"

@@ -50,8 +50,8 @@ Project State 从宏观层面回答三件事：当前怎么推进、这个软件
 - `accepted-facts-are-realized`
 - `material-risks-have-credible-evidence`
 
-它们确保需求、交互、视觉、技术、代码和验证在实际相关时被 Agent 纳入推理，但不形成六个 facet 状态机。核心定义由 `scripts/project-invariants.mjs` 管理；具体需求、Qt/C++、类、模块、文件或一次 Case 发现都不是新 invariant。
+它们约束被接受的 Case transition 在实际相关时不得破坏可恢复性、一致性、事实实现或风险证据，但不负责生成需求、诊断、设计、代码或测试 Gap，也不形成六个 facet 状态机。核心定义由 `scripts/project-invariants.mjs` 管理；具体需求、Qt/C++、类、模块、文件或一次 Case 发现都不是新 invariant。
 
 ## 生效机制
 
-Runtime 把完整 Project State、active Cases 和相关工程上下文交给同一 Agent。Agent 从具体事实判断当前最重要的 Gap，并将实际相关的 decision/invariant 作为 impacts。每次被接受的 transition 可原子更新 Project decision/invariant/gap；下一轮 fresh-read 后立即使用新结论。因此文档、实现和验证能按事项重要性自由排序，同时保持软件定义清单始终可见。
+Runtime 把完整 Project State、active Cases 和相关工程上下文交给同一 Agent。Agent 每轮从具体事实独立判断当前最重要的 Gap；只有当前事实或 transition 对 target 产生实际影响时才记录 decision/invariant impact。每次被接受的 transition 可原子更新 Project decision/invariant/gap；下一轮 fresh-read 后立即使用新结论。因此文档、实现和验证能按事项重要性自由排序，同时保持软件定义清单始终可见。

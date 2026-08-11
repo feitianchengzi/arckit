@@ -122,6 +122,9 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
     loop_contract: {
       one_gap: true,
       execute_in_current_turn: true,
+      fresh_gap_selection: true,
+      future_gap_preplanning: false,
+      completion_review_is_only_semantic_self_check: true,
       native_skill_discovery: true,
       ledger_write_forbidden: true,
       valid_actions: ["case_control", "case_transition", "handoff"]
@@ -330,8 +333,13 @@ function agentLoopResultFailureReason(result, snapshot) {
     const activeCase = (snapshot.activeCases || []).find((item) => item.record?.id === transition.case_id);
     if (!activeCase) return `Agent Loop selected a non-active Case: ${transition.case_id || "<missing>"}.`;
     if (activeCase.record.updated_at !== transition.case_updated_at) return `Agent Loop Case revision is stale for ${transition.case_id}.`;
-    const gap = (activeCase.record.case_resolution?.candidate_gaps || []).find((item) => item.id === transition.selected_gap?.id);
-    if (!gap || !isDeepStrictEqual(gap, transition.selected_gap)) return `Agent Loop selected a stale or non-candidate gap: ${transition.selected_gap?.id || "<missing>"}.`;
+    if (transition.gap_selection?.mode === "candidate") {
+      const gap = (activeCase.record.case_resolution?.candidate_gaps || []).find((item) => item.id === transition.selected_gap?.id);
+      if (!gap || !isDeepStrictEqual(gap, transition.selected_gap)) return `Agent Loop selected a stale or non-candidate gap: ${transition.selected_gap?.id || "<missing>"}.`;
+    } else if (transition.gap_selection?.mode === "fresh") {
+      if (activeCase.record.gaps.some((item) => item.id === transition.selected_gap?.id)) return `Agent Loop selected a non-fresh gap: ${transition.selected_gap?.id || "<missing>"}.`;
+      if (transition.selected_gap?.responsibility !== "agent") return "Agent Loop fresh gap must be Agent-owned and completed in the current turn.";
+    } else return "Agent Loop transition requires candidate or fresh gap_selection.";
     if (!Array.isArray(transition.evidence) || transition.evidence.length === 0) return "Agent Loop transition requires evidence.";
   }
   if (result.action === "handoff" && (result.case_control || result.case_transition)) return "handoff action cannot include Case payloads.";
@@ -387,8 +395,8 @@ async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, ro
     next_prompt: responsibility === "agent" ? handoff.next_prompt : "",
     agent_instruction: {
       goal: responsibility === "agent" ? handoff.next_prompt || "Reload fresh state and advance one gap." : "No automatic continuation.",
-      required_context_refs: round.required_context_refs || [], required_actions: responsibility === "agent" ? ["Reload fresh Project/Case State and advance one candidate gap."] : [],
-      required_checks: ["fresh revisions", "candidate gap", "ledger-derived handoff"], stop_condition: (round.stop_conditions || []).join(" ")
+      required_context_refs: round.required_context_refs || [], required_actions: responsibility === "agent" ? ["Reload fresh Project/Case State and advance the most important candidate or fresh gap."] : [],
+      required_checks: ["fresh revisions", "one selected gap", "ledger-derived handoff"], stop_condition: (round.stop_conditions || []).join(" ")
     },
     human_gate: { required: responsibility === "human", reason: responsibility === "human" ? handoff.reason : "", decision_needed: responsibility === "human" ? handoff.next_prompt : "" },
     progress_guard: {

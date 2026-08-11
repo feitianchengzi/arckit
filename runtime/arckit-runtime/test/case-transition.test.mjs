@@ -19,8 +19,8 @@ test('the ledger accepts only current Case and transition schema versions', () =
   assert.throws(() => auditCaseRecord(unsupportedRecord), /expected development-case-record\/v5/);
 
   const unsupportedTransition = { ...transition(record), schema_version: 'unsupported-case-transition' };
-  assert.match(validateCaseTransition(unsupportedTransition).join('\n'), /arckit-case-transition\/v5/);
-  assert.throws(() => applyCaseTransitionToRecord(unsupportedRecord, unsupportedTransition), /arckit-case-transition\/v5/);
+  assert.match(validateCaseTransition(unsupportedTransition).join('\n'), /arckit-case-transition\/v6/);
+  assert.throws(() => applyCaseTransitionToRecord(unsupportedRecord, unsupportedTransition), /arckit-case-transition\/v6/);
 });
 
 test('a selected gap must match the complete fresh candidate snapshot', () => {
@@ -57,6 +57,50 @@ test('one dynamic gap may produce facts and the next gap without any document ch
   assert.equal(next.facts.at(-1).id, 'FACT-ROOT-CAUSE');
   assert.deepEqual(next.case_resolution.candidate_gaps.map((gap) => gap.id), ['GAP-FIX']);
   assert.equal(Object.hasOwn(next, 'facets'), false);
+});
+
+test('a fresh gap may be selected and completed without being preplanned by the prior transition', () => {
+  let record = caseRecord();
+  record = applyCaseTransitionToRecord(record, transition(record));
+  assert.match(record.case_resolution.candidate_gaps[0].id, /completion-review/);
+
+  const selected = {
+    id: 'GAP-FRESH-VERIFY-RACE',
+    goal: 'Verify the newly discovered restore race.',
+    reason: 'Current-turn trace evidence exposed a material race before completion review.',
+    derived_from: ['FACT-BUG', 'trace:fresh-race'],
+    blocked_by: ['GAP-DIAGNOSE'],
+    priority_basis: { blocking: 'high', uncertainty: 'high', risk: 'high', user_impact: 'high' },
+    responsibility: 'agent',
+    evidence_required: ['Focused race verification.'],
+  };
+  const input = baseTransition(record, selected, 'fresh');
+  input.accepted_state_delta.resolved_gap = resolution(selected.id, 'The race is verified and bounded.');
+  input.evidence = ['trace:fresh-race'];
+  const next = applyCaseTransitionToRecord(record, input);
+
+  assert.equal(next.gaps.find((gap) => gap.id === selected.id)?.status, 'resolved');
+  assert.equal(next.rounds.at(-1).gap_selection.mode, 'fresh');
+  assert.equal(next.completion_review.status, 'pending');
+  assert.match(next.case_resolution.candidate_gaps[0].id, /completion-review/);
+});
+
+test('fresh selection rejects existing, non-Agent, reserved, and blocked gaps', () => {
+  const record = caseRecord();
+  const fresh = (overrides = {}) => {
+    const selected = {
+      id: 'GAP-FRESH', goal: 'Do current-turn work.', reason: 'New evidence makes it the most important next action.',
+      derived_from: ['FACT-BUG'], blocked_by: [], priority_basis: { blocking: 'high' }, responsibility: 'agent',
+      evidence_required: ['Focused evidence.'], ...overrides,
+    };
+    const input = baseTransition(structuredClone(record), selected, 'fresh');
+    input.accepted_state_delta.resolved_gap = resolution(selected.id, 'Fresh work completed.');
+    return input;
+  };
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), fresh({ id: 'GAP-DIAGNOSE' })), /already exists/);
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), fresh({ responsibility: 'human' })), /Agent-owned/);
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), fresh({ id: `${record.id}:completion-review:forged` })), /reserved id/);
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), fresh({ blocked_by: ['GAP-UNKNOWN'] })), /not ready/);
 });
 
 test('completion review findings become ordinary repair gaps and invalidate the old clean revision', () => {
@@ -150,10 +194,10 @@ function transition(record, delta = {}) {
   return input;
 }
 
-function baseTransition(record, selected) {
+function baseTransition(record, selected, mode = 'candidate') {
   return {
-    schema_version: 'arckit-case-transition/v5', case_id: record.id, case_updated_at: record.updated_at,
-    project_revision: 0, selected_gap: structuredClone(selected),
+    schema_version: 'arckit-case-transition/v6', case_id: record.id, case_updated_at: record.updated_at,
+    project_revision: 0, gap_selection: { mode, basis: mode === 'fresh' ? 'Current evidence makes this new gap the most important current action.' : 'This ledger candidate is the most important current action.' }, selected_gap: structuredClone(selected),
     planned_transition: { goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
     accepted_state_delta: {
       resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [],
