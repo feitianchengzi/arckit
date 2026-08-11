@@ -60,6 +60,42 @@ test("closed Case recovery resumes the persisted thread for same-thread closeout
   coordinator.dispose();
 });
 
+test("a case_already_resolved stop is treated as completion and closes out", async () => {
+  const starts = [];
+  const store = recoveryStore({
+    phase: "running",
+    case_id: "CASE-20260809-001",
+    case_status: "active",
+    case_binding_source: "runtime_ledger",
+    case_binding_run_id: "RUN-NEW",
+    case_bound_at: "2026-08-11T00:00:00Z",
+    run_id: "RUN-NEW"
+  });
+  let runEventListener = null;
+  const runManager = fakeRunManager(store, starts, {
+    onEvent(next) { runEventListener = next; return () => { runEventListener = null; }; }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+  assert.equal(typeof runEventListener, "function");
+  await runEventListener({
+    type: "run.finished",
+    runId: "RUN-NEW",
+    status: "completed",
+    result: {
+      stop_reason: "case_already_resolved",
+      thread_id: "THREAD-PERSISTED",
+      runtime_result: null,
+      closeout_result: { status: "completed", outcome: "no_changes" }
+    },
+    activity: {}
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(store.automation.recovery_items.length, 0);
+  assert.equal(store.automation.active_task.closeout_status, "completed");
+  assert.equal(store.automation.active_task.phase, "remote_completion_pending");
+  coordinator.dispose();
+});
+
 test("an unbound task never adopts the sole readable closed Case", async () => {
   const starts = [];
   const store = recoveryStore();

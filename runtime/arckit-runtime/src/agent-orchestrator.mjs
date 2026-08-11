@@ -83,6 +83,7 @@ async function runCoherentAgentLoop({ projectRoot, snapshot, round, compiledProm
     if (event.type === "runtime.agent_loop_result") agentLoopResult = normalizeAgentLoopResult(event.result);
   }
   if (!agentLoopResult) agentLoopResult = invalidAgentLoopResult("Codex Agent completed without returning arckit-agent-loop-result/v1.");
+  const staleGap = staleCandidateGapSelection(agentLoopResult, snapshot);
   const issue = agentLoopResultFailureReason(agentLoopResult, snapshot);
   if (issue) agentLoopResult = invalidAgentLoopResult(issue);
   emit(events, {
@@ -100,8 +101,24 @@ async function runCoherentAgentLoop({ projectRoot, snapshot, round, compiledProm
     events,
     runtimeResult,
     validation,
-    agentLoopResult
+    agentLoopResult,
+    staleGap
   };
+}
+
+export function staleCandidateGapSelection(result, snapshot) {
+  if (result?.schema_version !== "arckit-agent-loop-result/v1") return null;
+  if (result.action !== "case_transition") return null;
+  const transition = result.case_transition;
+  if (transition?.gap_selection?.mode !== "candidate") return null;
+  const selectedId = String(transition.selected_gap?.id || "").trim();
+  if (!selectedId) return null;
+  const activeCase = (snapshot.activeCases || []).find((item) => item.record?.id === transition.case_id);
+  if (!activeCase) return null;
+  if (activeCase.record.updated_at !== transition.case_updated_at) return null;
+  const candidate = (activeCase.record.case_resolution?.candidate_gaps || []).find((item) => item.id === selectedId);
+  if (candidate && isDeepStrictEqual(candidate, transition.selected_gap)) return null;
+  return { case_id: transition.case_id, gap_id: selectedId };
 }
 
 export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, options = {}, controllerCapabilities = [] }) {

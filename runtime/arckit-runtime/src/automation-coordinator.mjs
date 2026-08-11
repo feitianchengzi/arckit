@@ -826,7 +826,7 @@ export function createAutomationCoordinator({
         taskId: active.task_id,
         task: buildAutomationTask(task),
         threadId: active.thread_id || "",
-        runtimeContext: closeoutOnly ? { closeout_only: true, case_id: caseBinding.case_id } : null,
+        runtimeContext: caseBinding.status === "bound" ? { case_id: caseBinding.case_id, closeout_only: closeoutOnly } : null,
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
         continuationPolicy: "automatic",
@@ -900,7 +900,9 @@ export function createAutomationCoordinator({
       await setAwaitingHuman({ active, runId: event.runId, handoff });
       return;
     }
-    const caseComplete = handoff.next_responsibility === "none" || handoff.status === "complete";
+    const caseComplete = handoff.next_responsibility === "none"
+      || handoff.status === "complete"
+      || event.result?.stop_reason === "case_already_resolved";
     if (event.status === "completed" && caseComplete && (!ledgerRequired || ledgerWritten)) {
       if (caseBinding.status !== "bound") {
         await addRecovery({

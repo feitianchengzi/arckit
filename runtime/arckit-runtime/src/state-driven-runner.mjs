@@ -1,4 +1,5 @@
 import { createAgentAdapter } from "./agent-adapter.mjs";
+import { isBoundCaseResolved, readBoundCaseState } from "./bound-case-state.mjs";
 import { compilePrompt } from "./prompt-compiler.mjs";
 import { selectNextRound } from "./loop-controller.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
@@ -95,6 +96,56 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         attributes: { active_case_count: (snapshot.activeCases || []).length }
       });
       snapshot.projectRoot = projectRoot;
+      const boundCaseId = String(options.runtimeContext?.case_id || "").trim();
+      if (!options.dryRun && boundCaseId) {
+        const boundCase = await readBoundCaseState(projectRoot, boundCaseId);
+        if (isBoundCaseResolved(boundCase)) {
+          emitSessionEvent(options, {
+            type: "runtime.bound_case_already_resolved",
+            round_index: roundIndex,
+            case_id: boundCaseId
+          });
+          closeoutResult = await runSameThreadCloseout({
+            adapter,
+            projectRoot,
+            originalTask,
+            threadKey: taskThreadKey,
+            threadId: taskThreadId,
+            options: {
+              ...sessionOptions,
+              task: nextTask,
+              originalTask,
+              agentAdapter: adapter,
+              lifecycleRoundIndex: roundIndex,
+              lifecycleParentSpanId: activeRoundSpan?.span_id || sessionOptions.lifecycleParentSpanId
+            }
+          });
+          taskThreadId = adapter.threadId?.(taskThreadKey) || taskThreadId;
+          stopReason = closeoutResult.status === "completed"
+            ? "case_already_resolved"
+            : closeoutResult.status === "needs_human" ? "human_intervention" : "closeout_failed";
+          finalEnvelope = {
+            runtime_version: "arckit-runtime/v0.3-state-driven",
+            project_root: projectRoot,
+            mode: adapterName === "dry-run" ? "dry-run" : "execute",
+            adapter: adapterName,
+            runtime_result: null,
+            validation: { valid: closeoutResult.status === "completed", issues: [] },
+            ledger_write_result: null
+          };
+          endLifecycleSpan(sessionOptions, activeRoundSpan, {
+            status: closeoutResult.status === "failed" ? "error" : "ok",
+            attributes: {
+              round_index: roundIndex,
+              stop_reason: stopReason,
+              closeout_status: closeoutResult.status
+            },
+            error: closeoutResult.status === "failed" ? closeoutResult.error || closeoutResult.summary : null
+          });
+          activeRoundSpan = null;
+          break;
+        }
+      }
       emitSessionEvent(options, {
         type: "runtime.session_round.started",
         round_index: roundIndex,
@@ -233,6 +284,26 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       }
 
       const handoff = authoritativeHandoff(loop.runtimeResult, ledgerWriteResult);
+      const staleGap = loop.staleGap || null;
+      if (staleGap && !options.dryRun) {
+        const staleCase = (snapshot.activeCases || []).find((item) => item.record?.id === staleGap.case_id);
+        const staleGapRecord = (staleCase?.record?.gaps || []).find((gap) => gap.id === staleGap.gap_id);
+        if (staleGapRecord?.status === "resolved") {
+          emitSessionEvent(options, {
+            type: "runtime.stale_gap_completion_signal",
+            round_index: roundIndex,
+            case_id: staleGap.case_id,
+            gap_id: staleGap.gap_id
+          });
+          if (noProgressRounds + 1 >= effectiveNoProgressLimit(options.maxNoProgressRounds, handoff)) {
+            stopReason = "no_progress_limit";
+            break;
+          }
+          noProgressRounds += 1;
+          nextTask = `The gap selected last round (${staleGap.gap_id}) is already resolved in canonical Case ${staleGap.case_id}. Reload fresh Project and Case State, verify the code facts, and if the remaining Case obligations are already satisfied submit the resolving transition or completion review with durable evidence and return a complete handoff; never select an already resolved gap again.`;
+          continue;
+        }
+      }
       const decision = decideSessionContinuation({
         runtimeResult: loop.runtimeResult,
         ledgerWriteResult,
@@ -483,6 +554,7 @@ function emitSessionEvent(options, event) {
 
 function nextActionForStopReason(stopReason, envelope) {
   if (stopReason === "completed") return "State-driven Runtime session completed.";
+  if (stopReason === "case_already_resolved") return "Bound Case already resolved; same-thread Git closeout completed.";
   if (stopReason === "human_intervention") {
     return envelope.runtime_result?.loop_handoff?.next_prompt || "Wait for the required human decision.";
   }

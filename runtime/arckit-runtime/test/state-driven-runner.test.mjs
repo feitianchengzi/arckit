@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
+import { staleCandidateGapSelection } from "../src/agent-orchestrator.mjs";
+import { isBoundCaseResolved, readBoundCaseState } from "../src/bound-case-state.mjs";
 import { decideSessionContinuation, effectiveNoProgressLimit, runStateDrivenSession } from "../src/state-driven-runner.mjs";
 
 test("state-driven session fresh-reads after writeback and stays in one adapter process", async () => {
@@ -140,6 +145,179 @@ test("state-driven results persist semantic events without raw Agent deltas", as
   });
 });
 
+test("a bound Case already resolved breaks the loop before another Agent turn", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-bound-case-"));
+  await mkdir(join(projectRoot, "arckit", "project"), { recursive: true });
+  await mkdir(join(projectRoot, "arckit", "cases", "closed"), { recursive: true });
+  await writeFile(join(projectRoot, "arckit", "project", "state.record.json"), JSON.stringify({
+    advancement: { active_case_refs: [] }
+  }));
+  await writeFile(join(projectRoot, "arckit", "cases", "closed", "CASE-20260811-001-electron-cutover.md"), [
+    "# Closed Case",
+    "",
+    "## Structured Record",
+    "",
+    "```json",
+    JSON.stringify({
+      schema_version: "development-case-record/v5",
+      id: "CASE-20260811-001",
+      status: "closed",
+      updated_at: "2026-08-11T00:00:00Z",
+      case_resolution: { status: "resolved" },
+      gaps: [{ id: "gap-complete-electron-cutover", status: "resolved" }]
+    }),
+    "```",
+    ""
+  ].join("\n"));
+  const adapter = closeoutAdapter();
+  const lifecycleEvents = [];
+  let roundCalls = 0;
+  const result = await runStateDrivenSession({
+    projectRoot,
+    stateStore: { async readSnapshot() { return snapshot(1); } },
+    options: {
+      agentAdapter: adapter,
+      task: "finish the case",
+      maxNoProgressRounds: 2,
+      lifecycleTraceId: "TRACE-BOUND-CASE",
+      lifecycleEventSink(event) { lifecycleEvents.push(event); },
+      runtimeContext: { case_id: "CASE-20260811-001", closeout_only: false }
+    },
+    dependencies: {
+      async runRound() { roundCalls += 1; return loopResult(terminalHandoff()); },
+      async writeRoundLedger() { return { written: true, changed_files: [] }; }
+    }
+  });
+  assert.equal(roundCalls, 0);
+  assert.equal(result.stop_reason, "case_already_resolved");
+  assert.equal(result.round_count, 0);
+  assert.equal(adapter.prompts.length, 1);
+  assert.match(adapter.prompts[0], /Git-only closeout/);
+  const roundStart = lifecycleEvents.find((event) => event.type === "runtime.lifecycle.span.started" && event.name === "runtime.round");
+  const roundEnd = lifecycleEvents.find((event) => event.type === "runtime.lifecycle.span.completed" && event.span_id === roundStart?.span_id);
+  assert.ok(roundStart);
+  assert.equal(roundEnd?.status, "ok");
+});
+
+test("bound Case lookup rejects legacy and mismatched closed records", async () => {
+  const projectRoot = await mkdtemp(join(tmpdir(), "arckit-bound-case-identity-"));
+  await mkdir(join(projectRoot, "arckit", "project"), { recursive: true });
+  await mkdir(join(projectRoot, "arckit", "cases", "closed"), { recursive: true });
+  await writeFile(join(projectRoot, "arckit", "project", "state.record.json"), JSON.stringify({
+    advancement: { active_case_refs: [] }
+  }));
+  await writeClosedCase(projectRoot, "CASE-20260811-010-legacy.md", {
+    schema_version: "development-case-record/v4",
+    id: "CASE-20260811-010",
+    status: "closed",
+    case_resolution: { status: "resolved" }
+  });
+  await writeClosedCase(projectRoot, "CASE-20260811-011-mismatched.md", {
+    schema_version: "development-case-record/v5",
+    id: "CASE-20260811-099",
+    status: "closed",
+    case_resolution: { status: "resolved" }
+  });
+
+  const legacy = await readBoundCaseState(projectRoot, "CASE-20260811-010");
+  const mismatched = await readBoundCaseState(projectRoot, "CASE-20260811-011");
+  assert.equal(legacy, null);
+  assert.equal(mismatched, null);
+  assert.equal(isBoundCaseResolved(legacy), false);
+  assert.equal(isBoundCaseResolved(mismatched), false);
+});
+
+test("a resolved stale gap becomes a corrective replan instead of a terminal stop", async () => {
+  const tasks = [];
+  const adapter = closeoutAdapter();
+  const activeCaseRecord = {
+    id: "CASE-20260811-002",
+    updated_at: "2026-08-11T01:00:00Z",
+    gaps: [{ id: "gap-complete-electron-cutover", status: "resolved" }],
+    case_resolution: { candidate_gaps: [] }
+  };
+  const stateStore = {
+    async readSnapshot() {
+      const current = snapshot(1);
+      current.activeCases = [{ ref: "arckit/cases/active/CASE-20260811-002-x.md", record: activeCaseRecord }];
+      return current;
+    }
+  };
+  let calls = 0;
+  const result = await runStateDrivenSession({
+    projectRoot: "/workspace/project",
+    stateStore,
+    options: { agentAdapter: adapter, task: "finish", maxNoProgressRounds: 3 },
+    dependencies: {
+      async runRound({ options }) {
+        calls += 1;
+        tasks.push(options.task);
+        if (calls === 1) {
+          return {
+            loopFrame: { selected_gap: null },
+            events: [],
+            staleGap: { case_id: "CASE-20260811-002", gap_id: "gap-complete-electron-cutover" },
+            runtimeResult: {
+              round_result: "continue",
+              ledger_stage: { status: "not_required", writeback_required: false },
+              loop_handoff: agentHandoff()
+            },
+            validation: { valid: true, issues: [] }
+          };
+        }
+        return loopResult(terminalHandoff());
+      },
+      async writeRoundLedger() { return { written: true, changed_files: ["case.md"] }; }
+    }
+  });
+  assert.equal(calls, 2);
+  assert.match(tasks[1], /already resolved in canonical Case CASE-20260811-002/);
+  assert.equal(result.stop_reason, "completed");
+});
+
+test("staleCandidateGapSelection flags a resolved gap that is no longer a candidate", () => {
+  const selectedGap = { id: "GAP-1", status: "resolved" };
+  const snapshot = {
+    activeCases: [{
+      record: {
+        id: "CASE-1",
+        updated_at: "T1",
+        gaps: [{ id: "GAP-1", status: "resolved" }],
+        case_resolution: { candidate_gaps: [] }
+      }
+    }]
+  };
+  const result = {
+    schema_version: "arckit-agent-loop-result/v1",
+    action: "case_transition",
+    case_transition: {
+      case_id: "CASE-1",
+      case_updated_at: "T1",
+      gap_selection: { mode: "candidate" },
+      selected_gap: selectedGap
+    }
+  };
+  assert.deepEqual(staleCandidateGapSelection(result, snapshot), { case_id: "CASE-1", gap_id: "GAP-1" });
+  const matching = {
+    ...result,
+    case_transition: {
+      ...result.case_transition,
+      gap_selection: { mode: "candidate" }
+    }
+  };
+  const candidateSnapshot = {
+    activeCases: [{
+      record: {
+        id: "CASE-1",
+        updated_at: "T1",
+        gaps: [{ id: "GAP-1", status: "open" }],
+        case_resolution: { candidate_gaps: [selectedGap] }
+      }
+    }]
+  };
+  assert.equal(staleCandidateGapSelection(matching, candidateSnapshot), null);
+});
+
 function snapshot(revision) {
   return {
     projectState: {
@@ -162,6 +340,19 @@ function snapshot(revision) {
     },
     summary: { active_case_count: 0 }
   };
+}
+
+async function writeClosedCase(projectRoot, name, record) {
+  await writeFile(join(projectRoot, "arckit", "cases", "closed", name), [
+    "# Closed Case",
+    "",
+    "## Structured Record",
+    "",
+    "```json",
+    JSON.stringify(record),
+    "```",
+    ""
+  ].join("\n"));
 }
 
 function closeoutAdapter() {

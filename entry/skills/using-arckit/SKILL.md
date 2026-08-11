@@ -13,6 +13,7 @@ description: "在 Arckit 项目中持续推进真实软件开发事项。依据 
 - 所有 active Case 使用 `development-case-record/v5`。Case 只记录实际相关的 facts、targeted impacts、dynamic gaps、问题、handoff 和 completion review。
 - 当前 Agent 负责恢复全部相关信息、判断下一 gap 的优先级、动态选择 skills/tools/paths、完成工作并验证。Runtime 不做语义预路由。
 - 一个 Loop 只提交一个 selected gap transition。每轮都从 fresh state 独立判断最重要的当前动作，不预先制定 impacts 或未来 gap 链。
+- 代码事实核查完成快速退出：恢复信息时必须用当前代码事实逐项核对任务目标与每个 open gap 是否已被真实满足。若核查证实工作已完成（含人类或其他 Agent 在外部完成），本轮必须以持久证据 resolve 相关 gap、提交 resolved transition 并返回 complete handoff（`next_responsibility` 为 `none`）跳出 Loop；不得重选已 resolved 的 gap，不得制造过场 gap 或过场工作续转。
 - 文档是否更新由当前 Gap 的目标、Project decisions/invariants、长期事实与代码现实共同决定。该更新应在最合适的 Gap 中自然发生，而不是靠最终 Review 常规补齐。
 - Completion Review 是唯一显式语义自查，只在普通工作闭合后检查实施正确性、问题是否真实解决、验证可信度、回归风险与最小性。普通 Gap 的证据收集和确定性校验不是额外 Review 阶段。
 - Agent 不直接手改 ledger；只向 trusted entrypoint 提交 Case control、Case transition 或 handoff。
@@ -21,7 +22,7 @@ description: "在 Arckit 项目中持续推进真实软件开发事项。依据 
 
 ### 1. 恢复全部相关信息
 
-读取用户当前增量、fresh Project/Iteration、全部 active Cases、15 项软件定义决策、软件不变量，以及完成当前判断所需的长期文档、源码、配置、日志和测试。Project State 是明确的思考框架，不是 skill/path 路由表。正向轮次见 [references/controller-conversation-protocol.md](references/controller-conversation-protocol.md)，输入边界见 [references/controller-input-boundary.md](references/controller-input-boundary.md)。
+读取用户当前增量、fresh Project/Iteration、全部 active Cases、15 项软件定义决策、软件不变量，以及完成当前判断所需的长期文档、源码、配置、日志和测试，并以当前代码事实逐项核对任务目标与每个 open gap 的满足情况。Project State 是明确的思考框架，不是 skill/path 路由表。正向轮次见 [references/controller-conversation-protocol.md](references/controller-conversation-protocol.md)，输入边界见 [references/controller-input-boundary.md](references/controller-input-boundary.md)。
 
 ### 2. 选择或创建 Case
 
@@ -29,7 +30,7 @@ description: "在 Arckit 项目中持续推进真实软件开发事项。依据 
 
 ### 3. 动态选择下一 Gap
 
-根据本轮 fresh state，比较 ledger 已派生的 ready candidates 与当前上下文刚显露、尚未持久化的必要动作，再按阻塞程度、风险、信息增益、依赖、用户影响与可验证性选择一个。`candidate` 逐字段接受当前候选；`fresh` 则显式提出一个 Agent-owned、无未闭合依赖且能在本轮完成的新 Gap，并在同一 transition 中创建和关闭它。不要按软件定义清单或数组顺序执行，也不要为了后续轮次预写 gap 链。Bug 根因未知时，诊断 Gap 通常因信息增益最高自然胜出；若交互语义未知，先澄清交互模式也来自当前事实，而不是框架内置类型规则。
+根据本轮 fresh state，比较 ledger 已派生的 ready candidates 与当前上下文刚显露、尚未持久化的必要动作，再按阻塞程度、风险、信息增益、依赖、用户影响与可验证性选择一个。若事实核查表明全部 open gap 的目标已被现有代码满足，本轮以带证据 resolve 为最重要动作，而不是重选或新建 gap。`candidate` 逐字段接受当前候选；`fresh` 则显式提出一个 Agent-owned、无未闭合依赖且能在本轮完成的新 Gap，并在同一 transition 中创建和关闭它。不要按软件定义清单或数组顺序执行，也不要为了后续轮次预写 gap 链。Bug 根因未知时，诊断 Gap 通常因信息增益最高自然胜出；若交互语义未知，先澄清交互模式也来自当前事实，而不是框架内置类型规则。
 
 只有当前 transition 会对 Project target 形成可接受结论时才记录 impact。Invariant 用来约束该 transition 能否被接受，不负责生成诊断、设计、实现或测试 Gap。对实际相关 target 的判断为：
 
@@ -48,7 +49,7 @@ description: "在 Arckit 项目中持续推进真实软件开发事项。依据 
 
 ### 6. 自动续轮
 
-Ledger 写回后 fresh-read，再独立判断下一 Gap。即使 ledger 此时派生了 Completion Review，只要 fresh state 暴露了更重要的普通工作，本轮仍可选择 `fresh` Gap；只有确实没有普通未完成工作时才执行 Review。Agent-owned 自动继续；external 保持可恢复等待且可先做其他 agent-ready 工作；只有 human responsibility 暂停。Case resolved 后仅允许 Git-only closeout，不再检查语义正确性、运行验证、编辑或修复内容。
+Ledger 写回后 fresh-read，再独立判断下一 Gap。即使 ledger 此时派生了 Completion Review，只要 fresh state 暴露了更重要的普通工作，本轮仍可选择 `fresh` Gap；只有确实没有普通未完成工作时才执行 Review。事实核查已确认当前任务完成时不得续轮制造工作，直接返回 complete handoff。Agent-owned 自动继续；external 保持可恢复等待且可先做其他 agent-ready 工作；只有 human responsibility 暂停。Case resolved 后仅允许 Git-only closeout，不再检查语义正确性、运行验证、编辑或修复内容。
 
 ## 输出
 
