@@ -553,13 +553,13 @@ function dedupeById(items) {
 async function mapWithConcurrency(items, limit, mapper) {
   const results = new Array(items.length);
   let cursor = 0;
-  const workers = Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, async () => {
+  const runners = Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, async () => {
     while (cursor < items.length) {
       const index = cursor++;
       results[index] = await mapper(items[index], index);
     }
   });
-  await Promise.all(workers);
+  await Promise.all(runners);
   return results;
 }
 

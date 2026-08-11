@@ -4,7 +4,7 @@
 
 ## 输入所有权
 
-`arckit-case-transition/v3` 是 ledger 的语义契约；stdin 和 JSON 文件只是 CLI transport，不是 Case State、evidence 或 runtime execution record。
+`arckit-case-transition/v6` 是 ledger 语义契约。stdin 和 JSON 文件只是 CLI transport，不是 Case State、evidence 或 runtime execution record；不满足当前契约的输入直接拒绝。
 
 - 一次性载荷优先通过 `--transition -` 从 stdin 提交。
 - 需要单独验证时，`validate -` 同样从 stdin 读取。

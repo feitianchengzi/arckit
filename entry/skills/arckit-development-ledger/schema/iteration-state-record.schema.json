@@ -3,26 +3,9 @@
   "$id": "https://arckit.local/schema/iteration-state-record.schema.json",
   "title": "Arckit Iteration State Record",
   "type": "object",
-  "required": [
-    "schema_version",
-    "id",
-    "title",
-    "status",
-    "created_at",
-    "updated_at",
-    "iteration_goal",
-    "project_state_ref",
-    "target_project_states",
-    "accepted_project_changes",
-    "acceptance",
-    "blocking_project_gaps",
-    "active_case_refs",
-    "closed_case_refs",
-    "close_condition",
-    "last_case_aggregation"
-  ],
+  "required": ["schema_version", "id", "title", "status", "created_at", "updated_at", "iteration_goal", "project_state_ref", "targets", "accepted_project_changes", "acceptance", "blocking_project_gaps", "active_case_refs", "closed_case_refs", "close_condition", "last_case_aggregation"],
   "properties": {
-    "schema_version": { "const": "iteration-state-record/v2" },
+    "schema_version": { "const": "iteration-state-record/v3" },
     "id": { "type": "string", "pattern": "^ITER-[0-9]{8}-[0-9]{3}$" },
     "title": { "type": "string", "minLength": 1 },
     "status": { "type": "string", "enum": ["planned", "active", "blocked", "closed"] },
@@ -30,14 +13,8 @@
     "updated_at": { "type": "string", "minLength": 1 },
     "iteration_goal": { "type": "string" },
     "project_state_ref": { "type": "string", "minLength": 1 },
-    "target_project_states": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/target_project_state" }
-    },
-    "accepted_project_changes": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/accepted_project_change" }
-    },
+    "targets": { "type": "array", "items": { "$ref": "#/$defs/target" } },
+    "accepted_project_changes": { "type": "array", "items": { "$ref": "#/$defs/change" } },
     "acceptance": {
       "type": "object",
       "required": ["status", "evidence", "remaining_project_gaps"],
@@ -57,65 +34,47 @@
       "required": ["case_ref", "project_changes", "evidence", "updated_at"],
       "properties": {
         "case_ref": { "type": "string" },
-        "project_changes": { "type": "array", "items": { "$ref": "#/$defs/project_change_summary" } },
+        "project_changes": { "type": "array", "items": { "$ref": "#/$defs/change_summary" } },
         "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
         "updated_at": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     }
   },
+  "additionalProperties": false,
   "$defs": {
-    "state_value": {
-      "type": "string",
-      "enum": [
-        "unknown",
-        "not_required",
-        "needed",
-        "defined",
-        "designed",
-        "implemented",
-        "integrated",
-        "verified",
-        "accepted",
-        "released",
-        "operational",
-        "deferred",
-        "blocked"
-      ]
-    },
-    "target_project_state": {
+    "target": {
       "type": "object",
-      "required": ["dimension", "target_state", "reason"],
+      "required": ["kind", "ref", "expected", "reason"],
       "properties": {
-        "dimension": { "type": "string", "minLength": 1 },
-        "target_state": { "$ref": "#/$defs/state_value" },
+        "kind": { "type": "string", "enum": ["software_decision", "software_invariant", "project_gap"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "expected": { "type": "string", "minLength": 1 },
         "reason": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     },
-    "accepted_project_change": {
+    "change": {
       "type": "object",
-      "required": ["dimension", "from_state", "to_state", "reason", "evidence", "case_ref"],
+      "required": ["kind", "ref", "outcome", "evidence", "case_ref"],
       "properties": {
-        "dimension": { "type": "string", "minLength": 1 },
-        "from_state": { "$ref": "#/$defs/state_value" },
-        "to_state": { "$ref": "#/$defs/state_value" },
-        "reason": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["software_decision", "software_invariant", "project_gap"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "outcome": { "type": "string", "minLength": 1 },
         "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
         "case_ref": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     },
-    "project_change_summary": {
+    "change_summary": {
       "type": "object",
-      "required": ["dimension", "from_state", "to_state"],
+      "required": ["kind", "ref", "outcome"],
       "properties": {
-        "dimension": { "type": "string", "minLength": 1 },
-        "from_state": { "$ref": "#/$defs/state_value" },
-        "to_state": { "$ref": "#/$defs/state_value" }
+        "kind": { "type": "string", "enum": ["software_decision", "software_invariant", "project_gap"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "outcome": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     }
-  },
-  "additionalProperties": false
+  }
 }

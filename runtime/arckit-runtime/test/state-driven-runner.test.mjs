@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decideSessionContinuation, runStateDrivenSession } from "../src/state-driven-runner.mjs";
+import { decideSessionContinuation, effectiveNoProgressLimit, runStateDrivenSession } from "../src/state-driven-runner.mjs";
 
 test("state-driven session fresh-reads after writeback and stays in one adapter process", async () => {
   let reads = 0;
   let roundCalls = 0;
   let ledgerCalls = 0;
-  const adapter = { name: "codex-app-server", closed: 0, close() { this.closed += 1; } };
-  const snapshots = [snapshot("REV-1"), snapshot("REV-2")];
+  const adapter = closeoutAdapter();
+  const snapshots = [snapshot(1), snapshot(2)];
   const stateStore = {
     async readSnapshot() {
       return snapshots[reads++];
@@ -22,13 +22,13 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
       agentAdapter: adapter,
       task: "finish the case",
       conversationLocale: "en",
-      maxAutoRounds: 3
+      maxNoProgressRounds: 3
     },
     dependencies: {
       async runRound({ snapshot: current, options }) {
         roundCalls += 1;
         assert.equal(options.agentAdapter, adapter);
-        assert.equal(current.projectState.project.updated_at, `REV-${roundCalls}`);
+        assert.equal(current.projectState.project.revision, roundCalls);
         return loopResult(roundCalls === 1 ? agentHandoff() : terminalHandoff());
       },
       async writeRoundLedger() {
@@ -52,6 +52,12 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   assert.equal(result.round_count, 2);
   assert.equal(result.stop_reason, "completed");
   assert.equal(result.paused_for_human, false);
+  assert.equal(result.thread_id, "THREAD-1");
+  assert.equal(adapter.compacted, 1);
+  assert.equal(adapter.prompts.length, 1);
+  assert.match(adapter.prompts[0], /Git-only closeout/);
+  assert.match(adapter.prompts[0], /Do not inspect semantic correctness, run validation, edit files, or repair content/);
+  assert.doesNotMatch(adapter.prompts[0], /final proportionate checks|repair issues if necessary/);
 });
 
 test("state-driven continuation pauses only for an explicit human handoff", () => {
@@ -90,13 +96,57 @@ test("recoverable ledger rejection automatically replans from fresh state", () =
   assert.equal(decision.reason, "fresh_state_replan");
 });
 
+test("Runtime progress guards can tighten the configured no-progress limit", () => {
+  assert.equal(effectiveNoProgressLimit(8, { progress_guard: { no_progress_limit: 2 } }), 2);
+  assert.equal(effectiveNoProgressLimit(1, { progress_guard: { no_progress_limit: 2 } }), 1);
+  assert.equal(effectiveNoProgressLimit(8, {}), 8);
+});
+
+test("state-driven results persist semantic events without raw Agent deltas", async () => {
+  const adapter = closeoutAdapter();
+  const result = await runStateDrivenSession({
+    projectRoot: "/workspace/project",
+    stateStore: { async readSnapshot() { return snapshot(1); } },
+    options: { agentAdapter: adapter, task: "finish", maxNoProgressRounds: 2 },
+    dependencies: {
+      async runRound() {
+        const loop = loopResult(terminalHandoff());
+        loop.events = [
+          { type: "codex.item.agentMessage.delta", delta: "x".repeat(10_000) },
+          { type: "runtime.agent_loop.completed", summary: "One gap completed." },
+          { type: "runtime.result", result: { raw: "y".repeat(10_000) }, validation: { valid: true, issues: [] } }
+        ];
+        loop.agentLoopResult = { schema_version: "arckit-agent-loop-result/v1", action: "case_transition", summary: "One gap completed.", case_transition: { case_id: "CASE-1", selected_gap: { id: "GAP-1" } } };
+        return loop;
+      },
+      async writeRoundLedger() {
+        return { written: true, changed_files: ["case.md"] };
+      }
+    }
+  });
+
+  assert.deepEqual(result.events, [
+    { type: "runtime.agent_loop.completed", summary: "One gap completed." },
+    { type: "runtime.result", validation: { valid: true, issues: [] } }
+  ]);
+  assert.equal(JSON.stringify(result).includes("x".repeat(100)), false);
+  assert.equal(JSON.stringify(result).includes("y".repeat(100)), false);
+  assert.deepEqual(result.agent_loop_result, {
+    schema_version: "arckit-agent-loop-result/v1",
+    action: "case_transition",
+    summary: "One gap completed.",
+    case_id: "CASE-1",
+    selected_gap_id: "GAP-1"
+  });
+});
+
 function snapshot(revision) {
   return {
     projectState: {
-      project: { updated_at: revision },
-      case_control: {},
-      state_gaps: [],
-      active_case_refs: []
+      project: { revision },
+      advancement: { selection_context: {}, project_gaps: [], active_case_refs: [] },
+      software_definition: { decision_areas: [] },
+      software_invariants: []
     },
     activeCases: [],
     paths: {
@@ -114,12 +164,42 @@ function snapshot(revision) {
   };
 }
 
+function closeoutAdapter() {
+  return {
+    name: "codex-app-server",
+    closed: 0,
+    compacted: 0,
+    prompts: [],
+    threadId() { return "THREAD-1"; },
+    latestContextUsage() {
+      return { context_utilization: 0.85, turn_id: "TURN-1" };
+    },
+    async compactThread() {
+      this.compacted += 1;
+      return { thread_id: "THREAD-1", turn_id: "TURN-COMPACT" };
+    },
+    async *runTurn({ prompt }) {
+      this.prompts.push(prompt);
+      yield {
+        type: "runtime.task_closeout_result",
+        result: {
+          schema_version: "arckit-task-closeout-result/v1",
+          status: "completed",
+          outcome: "no_changes",
+          summary: "No task-scoped changes remain to commit.",
+          evidence: ["git status --short"],
+          commit_hash: "",
+          error: ""
+        }
+      };
+    },
+    close() { this.closed += 1; }
+  };
+}
+
 function loopResult(handoff) {
   return {
     loopFrame: { selected_gap: { id: "GAP-1" } },
-    agentTasks: [],
-    agentReports: [],
-    mergeResult: null,
     events: [],
     runtimeResult: {
       round_result: handoff.next_responsibility === "none" ? "done" : "continue",

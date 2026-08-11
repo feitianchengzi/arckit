@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { createWorkshopTaskSource, TASK_STATES, TaskSourceError } from "./task-source-adapter.mjs";
-import { isAgentContinuationHandoff } from "./kernel/continuation-policy.mjs";
 import { selectEffectiveLoopHandoff } from "./kernel/effective-handoff.mjs";
+import { buildCodexCliHandoffPrompt, createInteractiveCodexCliLauncher } from "./interactive-cli-launcher.mjs";
 
 const STATE_LABELS = Object.freeze({
   pending_review: "待评审",
@@ -12,12 +12,16 @@ const STATE_LABELS = Object.freeze({
   cancelled: "已取消",
   blocked: "已阻塞"
 });
-const COMMIT_AGENT_TASK = "git commit";
+const CASE_ID_PATTERN = /^CASE-\d{8}-\d{3}$/;
+const AUTHORITATIVE_CASE_BINDING_SOURCE = "runtime_ledger";
 
 export function createAutomationCoordinator({
   runManager,
   taskSourceFactory = createWorkshopTaskSource,
-  now = () => new Date().toISOString()
+  now = () => new Date().toISOString(),
+  cliLauncher = createInteractiveCodexCliLauncher(),
+  wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
+  safeStopTimeoutMs = 8_000
 }) {
   const emitter = new EventEmitter();
   let syncPromise = null;
@@ -118,6 +122,10 @@ export function createAutomationCoordinator({
           run_status: run?.status || ""
         };
       }),
+      usage_baseline: buildUsageBaseline(runs, {
+        projectId: activeTask?.local_project_id || "",
+        excludeRunId: activeRun?.id || ""
+      }),
       health: deriveHealth(automation, queue, blockedPendingTasks)
     };
   }
@@ -133,6 +141,8 @@ export function createAutomationCoordinator({
         automation.snapshot.errors = [];
       });
       emit("automation.syncing", {});
+      await reconcileDetachedRunCompletion({ allowRemoteCompletion: false });
+      await reconcileCanonicalCaseState({ allowRemoteCompletion: false });
       const store = await runManager.readDesktopStore();
       let taskSource;
       try {
@@ -218,10 +228,10 @@ export function createAutomationCoordinator({
           reconcileActiveTask(automation);
           reconcileUnassociatedInProgress(automation, now());
         });
-        await reconcileDetachedRunCompletion();
+        await reconcileDetachedRunCompletion({ allowRemoteCompletion: true });
+        await reconcileCanonicalCaseState({ allowRemoteCompletion: true });
         await stopRuntimeForExternalChange();
         await reconcileRuntimePresence();
-        await resumeEligibleAgentRecovery();
         emit("automation.changed", { reason: "sync-complete" });
         if (dispatch) {
           await maybeStartNext();
@@ -367,16 +377,19 @@ export function createAutomationCoordinator({
         automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
       });
     } else {
-      const session = (await runManager.listSessions(active.local_project_id))[0];
+      const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id));
+      const session = await ensureTaskSession(active, task);
       await runManager.addMessage(active.local_project_id, {
         session_id: session.id,
         role: "user",
         kind: "intervention",
-        content: text
+        content: text,
+        task_id: active.task_id
       });
       const nextRun = await runManager.startRun({
         projectId: active.local_project_id,
         sessionId: session.id,
+        taskId: active.task_id,
         task: buildInterventionTask(text),
         runtimeContext: {
           kind: "human_intervention",
@@ -391,7 +404,7 @@ export function createAutomationCoordinator({
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
         continuationPolicy: "automatic",
-        maxAutoRounds: 8
+        maxNoProgressRounds: 8
       });
       await patchAutomation((automation) => {
         automation.active_task.phase = "running";
@@ -419,6 +432,132 @@ export function createAutomationCoordinator({
     return getSnapshot();
   }
 
+  async function handoffToCodexCli() {
+    const store = await runManager.readDesktopStore();
+    const active = store.automation.active_task;
+    if (!active) throw new Error("No active task to hand off to Codex CLI.");
+    if (["closeout_running", "completing", "awaiting_human"].includes(active.phase)) {
+      throw new Error(`The active task cannot switch to Codex CLI while phase=${active.phase}.`);
+    }
+    if (active.phase === "cli_handoff") return reopenCodexCli();
+
+    const runs = await runManager.listRuns({ projectId: active.local_project_id });
+    const sourceRun = runs.find((run) => run.id === active.run_id) || null;
+    const caseBinding = await resolveTaskCaseBinding(active, sourceRun);
+    if (caseBinding.status === "conflict") {
+      throw new Error("Codex CLI handoff was refused because authoritative Case bindings conflict.");
+    }
+    if (caseBinding.status !== "bound") {
+      throw new Error("Codex CLI handoff is not available until the Agent selects or creates a Case and a trusted Runtime ledger write establishes the binding.");
+    }
+
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id === active.task_id) {
+        automation.active_task.phase = "switching_to_cli";
+        automation.active_task.cli_handoff_source_run_id = active.run_id || "";
+      }
+    });
+    emit("automation.changed", { reason: "cli-handoff-stopping-runtime", taskId: active.task_id });
+
+    try {
+      if (active.run_id && runManager.isRunActive?.(active.run_id)) {
+        await runManager.controlRun(active.run_id, { type: "interrupt" });
+        const stopped = await waitForRunStop(active.run_id);
+        if (!stopped) {
+          throw new Error("Runtime did not stop within the safe handoff window; Codex CLI was not launched.");
+        }
+      }
+      return launchCodexCliForActiveTask(active);
+    } catch (error) {
+      await addRecovery({
+        type: "cli_handoff_failed",
+        task: active,
+        message: error.message,
+        actions: ["retry_cli_handoff", "retry_start", "mark_blocked"]
+      });
+      return getSnapshot();
+    }
+  }
+
+  async function reopenCodexCli() {
+    const store = await runManager.readDesktopStore();
+    const active = store.automation.active_task;
+    if (!active || active.phase !== "cli_handoff") {
+      throw new Error("The active task is not currently handed off to Codex CLI.");
+    }
+    try {
+      return await launchCodexCliForActiveTask(active);
+    } catch (error) {
+      await addRecovery({
+        type: "cli_handoff_failed",
+        task: active,
+        message: error.message,
+        actions: ["retry_cli_handoff", "retry_start", "mark_blocked"]
+      });
+      return getSnapshot();
+    }
+  }
+
+  async function resumeRuntimeFromCodexCli() {
+    const store = await runManager.readDesktopStore();
+    const active = store.automation.active_task;
+    if (!active || !["cli_handoff", "recovery"].includes(active.phase)) {
+      throw new Error("No Codex CLI handoff is available to return to Runtime.");
+    }
+    const outcome = await reconcileCanonicalCaseState({ allowAgentResume: true, requireCase: true });
+    if (outcome === "agent_resumed" || outcome === "resolved" || outcome === "human") {
+      return getSnapshot();
+    }
+    return getSnapshot();
+  }
+
+  async function launchCodexCliForActiveTask(active) {
+    const store = await runManager.readDesktopStore();
+    const current = store.automation.active_task;
+    if (!current || current.task_id !== active.task_id) throw new Error("The active task changed during CLI handoff.");
+    const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(current.task_id));
+    const project = store.projects.find((item) => item.id === current.local_project_id);
+    if (!task || !project?.path) throw new Error("The local project binding or remote task snapshot is missing.");
+
+    const runs = await runManager.listRuns({ projectId: current.local_project_id });
+    const sourceRun = runs.find((run) => run.id === current.run_id) || null;
+    const caseBinding = await resolveTaskCaseBinding(current, sourceRun);
+    if (caseBinding.status === "conflict") {
+      throw new Error("Codex CLI handoff was refused because authoritative Case bindings conflict.");
+    }
+    if (caseBinding.status !== "bound") {
+      throw new Error("Codex CLI handoff requires an authoritative task-to-Case binding.");
+    }
+    const caseId = caseBinding.case_id;
+    const prompt = buildCodexCliHandoffPrompt({
+      caseId,
+      taskTitle: task.title || current.task_title,
+      taskIntent: buildAutomationTask(task)
+    });
+    if (!current.thread_id) throw new Error("The active task has no persisted Codex thread to resume in CLI.");
+    await cliLauncher.launch({ projectPath: project.path, threadId: current.thread_id, prompt });
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== current.task_id) return;
+      automation.active_task.phase = "cli_handoff";
+      automation.active_task.case_id = caseId || "";
+      automation.active_task.cli_handoff_at ||= now();
+      automation.recovery_items = automation.recovery_items.filter((item) => (
+        item.task_id !== current.task_id || !["cli_handoff_failed", "safe_stop_requested", "runtime_process_missing"].includes(item.type)
+      ));
+    });
+    emit("automation.changed", { reason: "cli-handoff-started", taskId: current.task_id, caseId: caseId || "" });
+    return getSnapshot();
+  }
+
+  async function waitForRunStop(runId) {
+    if (typeof runManager.isRunActive !== "function") return true;
+    const deadline = Date.now() + Math.max(0, safeStopTimeoutMs);
+    while (runManager.isRunActive(runId) && Date.now() < deadline) {
+      await wait(Math.min(100, Math.max(1, safeStopTimeoutMs)));
+    }
+    return !runManager.isRunActive(runId);
+  }
+
   async function resolveRecovery({ recoveryId, action }) {
     const store = await runManager.readDesktopStore();
     const recovery = store.automation.recovery_items.find((item) => item.id === recoveryId);
@@ -435,18 +574,25 @@ export function createAutomationCoordinator({
     if (action === "retry_start") {
       await removeRecovery(recoveryId);
       await patchAutomation((automation) => {
-        if (automation.active_task) automation.active_task.phase = "starting";
+        if (automation.active_task) {
+          automation.active_task.phase = "starting";
+          automation.active_task.closeout_status = "pending";
+        }
       });
       await startRuntimeForActiveTask();
       return getSnapshot();
+    }
+    if (action === "retry_cli_handoff") {
+      await removeRecovery(recoveryId);
+      return launchCodexCliForActiveTask(store.automation.active_task);
     }
     if (action === "retry_complete") {
       await completeRemoteTask();
       return getSnapshot();
     }
-    if (action === "retry_commit") {
+    if (action === "retry_closeout") {
       await removeRecovery(recoveryId);
-      await startCommitAgent();
+      await startSameThreadCloseout();
       return getSnapshot();
     }
     if (action === "accept_server_state") {
@@ -493,24 +639,84 @@ export function createAutomationCoordinator({
       if (!candidate) {
         return null;
       }
+      const lifecycleContext = await startTodoLifecycleTrace(candidate);
+      const readinessSpan = startTodoLifecycleSpan(lifecycleContext, {
+        name: "runtime.readiness_preflight",
+        category: "desktop",
+        cost_center: "orchestration",
+        attributes: { task_id: candidate.id, project_id: candidate.project_id }
+      });
+      try {
+        await runManager.preflightRun?.({
+          projectId: candidate.local_project_id,
+          task: candidate.content || candidate.title || "",
+          adapter: "codex-app-server"
+        });
+        endTodoLifecycleSpan(lifecycleContext, readinessSpan, { status: "ok" });
+      } catch (error) {
+        endTodoLifecycleSpan(lifecycleContext, readinessSpan, { status: "error", error });
+        await finishTodoLifecycleTrace(lifecycleContext, { status: "error", error });
+        await addRecovery({
+          type: "readiness_failed",
+          task: candidate,
+          message: error.message,
+          actions: ["retry_sync"],
+          freezeScope: "global"
+        });
+        return null;
+      }
+      const claimSpan = startTodoLifecycleSpan(lifecycleContext, {
+        name: "task_source.claim",
+        category: "task_source",
+        cost_center: "external",
+        attributes: { task_id: candidate.id, project_id: candidate.project_id }
+      });
       const taskSource = taskSourceFactory({ settings: store.settings.task_source });
       try {
         const executorId = requireCurrentExecutorId(
           projectIndex.get(String(candidate.project_id)),
           automation.snapshot.user
         );
-        const latest = await taskSource.getTask(candidate.id, candidate.project_id, { executorId });
+        const readSpan = startTodoLifecycleSpan(lifecycleContext, {
+          parent_span_id: claimSpan?.span_id,
+          name: "task_source.get_candidate",
+          category: "task_source",
+          cost_center: "external"
+        });
+        let latest;
+        try {
+          latest = await taskSource.getTask(candidate.id, candidate.project_id, { executorId });
+          endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "ok" });
+        } catch (error) {
+          endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "error", error });
+          throw error;
+        }
         if (!latest || latest.state !== "pending" || (candidate.version && latest.version && candidate.version !== latest.version)) {
+          endTodoLifecycleSpan(lifecycleContext, claimSpan, { status: "cancelled", attributes: { reason: "candidate_changed" } });
+          await finishTodoLifecycleTrace(lifecycleContext, { status: "cancelled", attributes: { reason: "candidate_changed" } });
           scheduleSync("candidate-changed");
           return null;
         }
-        const claimed = await taskSource.updateTask({
-          taskId: candidate.id,
-          projectId: candidate.project_id,
-          executorId,
-          state: "in_progress",
-          expectedVersion: latest.version
+        const updateSpan = startTodoLifecycleSpan(lifecycleContext, {
+          parent_span_id: claimSpan?.span_id,
+          name: "task_source.mark_in_progress",
+          category: "task_source",
+          cost_center: "external"
         });
+        let claimed;
+        try {
+          claimed = await taskSource.updateTask({
+            taskId: candidate.id,
+            projectId: candidate.project_id,
+            executorId,
+            state: "in_progress",
+            expectedVersion: latest.version
+          });
+          endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "ok" });
+        } catch (error) {
+          endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "error", error });
+          throw error;
+        }
         await patchAutomation((next) => {
           replaceTask(next, claimed);
           next.active_task = {
@@ -521,14 +727,37 @@ export function createAutomationCoordinator({
             local_project_path: candidate.local_project_path,
             server_version: claimed.version,
             phase: "starting",
+            case_id: "",
+            case_status: "unbound",
+            case_resolved_at: "",
+            case_binding_source: "",
+            case_binding_run_id: "",
+            case_bound_at: "",
+            thread_id: "",
+            thread_bound_at: "",
+            last_compaction_turn_id: "",
+            closeout_status: "pending",
+            closeout_completed_at: "",
+            remote_completion_status: "pending",
             run_id: "",
+            session_id: "",
             claimed_at: now(),
-            started_at: ""
+            started_at: "",
+            lifecycle_trace_id: lifecycleContext?.trace_id || "",
+            lifecycle_root_span_id: lifecycleContext?.root_span_id || "",
+            lifecycle_events_file: lifecycleContext?.events_file || "",
+            lifecycle_summary_file: lifecycleContext?.summary_file || ""
           };
+        });
+        endTodoLifecycleSpan(lifecycleContext, claimSpan, {
+          status: "ok",
+          attributes: { remote_state: claimed.state || "in_progress" }
         });
         emit("automation.changed", { reason: "task-claimed", taskId: claimed.id });
         return startRuntimeForActiveTask();
       } catch (error) {
+        endTodoLifecycleSpan(lifecycleContext, claimSpan, { status: "error", error });
+        await finishTodoLifecycleTrace(lifecycleContext, { status: "error", error });
         if (error instanceof TaskSourceError && error.code === "version_conflict") {
           emit("automation.claim-conflict", { taskId: candidate.id });
           scheduleSync("claim-conflict");
@@ -568,32 +797,54 @@ export function createAutomationCoordinator({
       });
       return null;
     }
+    const lifecycleContext = lifecycleContextFromActive(active);
+    const startSpan = startTodoLifecycleSpan(lifecycleContext, {
+      name: "desktop.runtime_start",
+      category: "desktop",
+      cost_center: "orchestration",
+      attributes: { task_id: active.task_id, project_id: active.project_id }
+    });
     try {
-      const session = (await runManager.listSessions(project.id))[0];
-      await runManager.addMessage(project.id, {
-        session_id: session.id,
-        role: "user",
-        kind: "automation-task",
-        content: task.content || task.title
-      });
+      const session = await ensureTaskSession(active, task);
+      if (!active.started_at) {
+        await runManager.addMessage(project.id, {
+          session_id: session.id,
+          role: "user",
+          kind: "automation-task",
+          content: task.content || task.title,
+          task_id: active.task_id
+        });
+      }
+      const closeoutOnly = active.phase === "closeout_starting" || active.closeout_status === "running";
+      const caseBinding = persistedCaseBinding(active);
+      if (closeoutOnly && caseBinding.status !== "bound") {
+        throw new Error("Task closeout requires an authoritative task-to-Case binding from a trusted Runtime ledger write.");
+      }
       const run = await runManager.startRun({
         projectId: project.id,
         sessionId: session.id,
+        taskId: active.task_id,
         task: buildAutomationTask(task),
+        threadId: active.thread_id || "",
+        runtimeContext: closeoutOnly ? { closeout_only: true, case_id: caseBinding.case_id } : null,
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
         continuationPolicy: "automatic",
-        maxAutoRounds: 8
+        maxNoProgressRounds: 8,
+        ...lifecycleRunInput(lifecycleContext)
       });
       await patchAutomation((automation) => {
         if (!automation.active_task || automation.active_task.task_id !== active.task_id) return;
         automation.active_task.run_id = run.id;
-        automation.active_task.phase = "running";
+        automation.active_task.thread_id = run.thread_id || automation.active_task.thread_id || "";
+        automation.active_task.phase = closeoutOnly ? "closeout_running" : "running";
         automation.active_task.started_at = now();
       });
+      endTodoLifecycleSpan(lifecycleContext, startSpan, { status: "ok", attributes: { run_id: run.id } });
       emit("automation.changed", { reason: "runtime-started", taskId: active.task_id, runId: run.id });
       return run;
     } catch (error) {
+      endTodoLifecycleSpan(lifecycleContext, startSpan, { status: "error", error });
       await addRecovery({
         type: "start_failed",
         task: active,
@@ -605,32 +856,6 @@ export function createAutomationCoordinator({
   }
 
   async function handleRunEvent(event) {
-    if (event.type === "run.auto_continue.started") {
-      await patchAutomation((automation) => {
-        if (automation.active_task?.run_id === event.sourceRunId) {
-          const taskId = automation.active_task.task_id;
-          automation.active_task.run_id = event.runId;
-          automation.active_task.phase = "running";
-          automation.recovery_items = automation.recovery_items.filter((item) => (
-            item.task_id !== taskId || !["runtime_incomplete", "runtime_continuation_stopped", "runtime_process_missing"].includes(item.type)
-          ));
-        }
-      });
-      emit("automation.changed", { reason: "runtime-auto-continue", runId: event.runId });
-      return;
-    }
-    if (["run.auto_continue.not_started", "run.auto_continue.failed"].includes(event.type)) {
-      const store = await runManager.readDesktopStore();
-      const active = store.automation.active_task;
-      if (!active || active.run_id !== event.sourceRunId) return;
-      await addRecovery({
-        type: "runtime_continuation_stopped",
-        task: active,
-        message: event.message || `Runtime auto-continuation stopped: ${event.reason || "unknown reason"}.`,
-        actions: ["retry_start", "mark_blocked"]
-      });
-      return;
-    }
     if (event.type !== "run.finished") {
       return;
     }
@@ -639,18 +864,33 @@ export function createAutomationCoordinator({
     if (!active || active.run_id !== event.runId) {
       return;
     }
-    if (active.phase === "committing") {
-      if (event.status === "completed") {
-        await completeRemoteTask();
-      } else {
+    const eventThreadId = String(event.result?.thread_id || "");
+    if (eventThreadId && eventThreadId !== active.thread_id) {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.run_id !== event.runId) return;
+        automation.active_task.thread_id = eventThreadId;
+        automation.active_task.thread_bound_at ||= now();
+      });
+    }
+    const caseBinding = await resolveTaskCaseBinding(active, {
+      id: event.runId,
+      activity: event.activity,
+      result: event.result
+    });
+    if (caseBinding.status === "conflict") return;
+    if (active.cli_handoff_source_run_id === event.runId
+      && ["switching_to_cli", "cli_handoff", "recovery"].includes(active.phase)) return;
+    if (["closeout_starting", "closeout_running"].includes(active.phase)) {
+      if (caseBinding.status !== "bound") {
         await addRecovery({
-          type: "commit_failed",
+          type: "case_binding_missing",
           task: active,
-          message: `Commit agent finished with status ${event.status}.`,
-          actions: ["retry_commit", "mark_blocked"]
+          message: "A closeout result was ignored because this task has no authoritative Case binding.",
+          actions: ["retry_start", "mark_blocked"]
         });
+        return;
       }
-      return;
+      return finishSameThreadCloseout(active, event);
     }
     const runtimeResult = event.result?.runtime_result || null;
     const handoff = selectEffectiveLoopHandoff({ runtimeResult, activity: event.activity });
@@ -660,18 +900,24 @@ export function createAutomationCoordinator({
       await setAwaitingHuman({ active, runId: event.runId, handoff });
       return;
     }
-    if (event.status === "completed" && isAgentContinuationHandoff(handoff)) {
-      await patchAutomation((automation) => {
-        if (automation.active_task?.run_id === event.runId) {
-          automation.active_task.phase = "continuing";
-        }
-      });
-      emit("automation.changed", { reason: "runtime-continuing", taskId: active.task_id });
-      return;
-    }
     const caseComplete = handoff.next_responsibility === "none" || handoff.status === "complete";
     if (event.status === "completed" && caseComplete && (!ledgerRequired || ledgerWritten)) {
-      await startCommitAgent();
+      if (caseBinding.status !== "bound") {
+        await addRecovery({
+          type: "case_binding_missing",
+          task: active,
+          message: "Runtime reported completion without an authoritative task-to-Case binding from a trusted ledger write.",
+          actions: ["retry_start", "mark_blocked"]
+        });
+        return;
+      }
+      if (event.result?.closeout_result?.status === "completed") {
+        await markCloseoutCompleted(active, event.runId, event.result.closeout_result);
+        const refreshed = await runManager.readDesktopStore();
+        if (isRemoteSourceReady(refreshed.automation.snapshot.source_status)) await completeRemoteTask();
+      } else {
+        await startSameThreadCloseout();
+      }
       return;
     }
     await addRecovery({
@@ -684,72 +930,193 @@ export function createAutomationCoordinator({
     });
   }
 
-  async function startCommitAgent() {
+  async function startSameThreadCloseout() {
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
     if (!active) return null;
-    await patchAutomation((automation) => {
-      if (automation.active_task?.task_id === active.task_id) {
-        automation.active_task.phase = "committing";
-      }
-    });
-    try {
-      const session = (await runManager.listSessions(active.local_project_id))[0];
-      if (!session) {
-        throw new Error("The commit agent requires an existing project session.");
-      }
-      const run = await runManager.startAgentTask({
-        projectId: active.local_project_id,
-        sessionId: session.id,
-        task: COMMIT_AGENT_TASK,
-        adapter: "codex-app-server",
-        approvalPolicy: "on-request"
-      });
-      await patchAutomation((automation) => {
-        if (automation.active_task?.task_id !== active.task_id) return;
-        automation.active_task.case_run_id ||= active.run_id;
-        automation.active_task.run_id = run.id;
-        automation.active_task.commit_run_id = run.id;
-        automation.active_task.phase = "committing";
-      });
-      emit("automation.changed", { reason: "commit-agent-started", taskId: active.task_id, runId: run.id });
-      return run;
-    } catch (error) {
+    if (active.closeout_status === "completed") return null;
+    const caseBinding = persistedCaseBinding(active);
+    if (caseBinding.status !== "bound") {
       await addRecovery({
-        type: "commit_start_failed",
+        type: "case_binding_missing",
         task: active,
-        message: error.message,
-        actions: ["retry_commit", "mark_blocked"]
+        message: "Git closeout was refused because this task has no authoritative Case binding.",
+        actions: ["retry_start", "mark_blocked"]
       });
       return null;
     }
+    if (!active.thread_id) {
+      const binding = await runManager.getTaskThreadBinding?.(active.local_project_id, active.task_id);
+      if (binding?.threadId) {
+        active.thread_id = String(binding.threadId);
+        await patchAutomation((automation) => {
+          if (automation.active_task?.task_id === active.task_id) {
+            automation.active_task.thread_id = active.thread_id;
+            automation.active_task.thread_bound_at ||= binding.boundAt || now();
+          }
+        });
+      }
+    }
+    if (!active.thread_id) {
+      await addRecovery({
+        type: "thread_binding_missing",
+        task: active,
+        message: "The resolved task has no persisted Codex thread id for same-thread Git closeout.",
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return null;
+    }
+    const lifecycleContext = lifecycleContextFromActive(active);
+    const startSpan = startTodoLifecycleSpan(lifecycleContext, {
+      name: "desktop.same_thread_closeout_start",
+      category: "desktop",
+      cost_center: "closeout",
+      attributes: { task_id: active.task_id }
+    });
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id === active.task_id) {
+        automation.active_task.phase = "closeout_starting";
+        automation.active_task.closeout_status = "running";
+      }
+    });
+    try {
+      const run = await startRuntimeForActiveTask();
+      if (!run) throw new Error("Same-thread closeout Runtime did not start.");
+      endTodoLifecycleSpan(lifecycleContext, startSpan, { status: "ok", attributes: { run_id: run.id } });
+      emit("automation.changed", { reason: "same-thread-closeout-started", taskId: active.task_id, runId: run.id });
+      return run;
+    } catch (error) {
+      endTodoLifecycleSpan(lifecycleContext, startSpan, { status: "error", error });
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id === active.task_id) automation.active_task.closeout_status = "failed";
+      });
+      await addRecovery({
+        type: "closeout_start_failed",
+        task: active,
+        message: error.message,
+        actions: ["retry_closeout", "mark_blocked"]
+      });
+      return null;
+    }
+  }
+
+  async function finishSameThreadCloseout(active, event) {
+    if (persistedCaseBinding(active).status !== "bound") {
+      await addRecovery({
+        type: "case_binding_missing",
+        task: active,
+        message: "A closeout result cannot complete the task without an authoritative Case binding.",
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return;
+    }
+    const result = event.result?.closeout_result || null;
+    if (event.status === "completed" && result?.status === "completed") {
+      await markCloseoutCompleted(active, event.runId, result);
+      const refreshed = await runManager.readDesktopStore();
+      if (isRemoteSourceReady(refreshed.automation.snapshot.source_status)) await completeRemoteTask();
+      else emit("automation.changed", { reason: "remote-completion-pending", taskId: active.task_id });
+      return;
+    }
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id === active.task_id) automation.active_task.closeout_status = "failed";
+    });
+    await addRecovery({
+      type: "closeout_failed",
+      task: active,
+      message: result?.error || `Same-thread closeout finished with status ${event.status}.`,
+      actions: ["retry_closeout", "mark_blocked"]
+    });
   }
 
   async function completeRemoteTask({ syncAfter = true } = {}) {
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
     if (!active) return null;
+    const caseBinding = persistedCaseBinding(active);
+    if (caseBinding.status !== "bound") {
+      await addRecovery({
+        type: "case_binding_missing",
+        task: active,
+        message: "Remote completion was refused because this task has no authoritative Case binding.",
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return null;
+    }
+    let canonicalCase = null;
+    try {
+      if (typeof runManager.getProjectCaseState === "function") {
+        canonicalCase = await runManager.getProjectCaseState(active.local_project_id, caseBinding.case_id);
+      }
+    } catch {
+      canonicalCase = null;
+    }
+    if (!isCanonicalCaseResolved(canonicalCase)) {
+      await addRecovery({
+        type: "case_not_resolved",
+        task: active,
+        message: `Remote completion was refused because canonical Case ${caseBinding.case_id} is not resolved.`,
+        actions: ["retry_sync", "retry_start", "mark_blocked"]
+      });
+      return null;
+    }
+    const lifecycleContext = lifecycleContextFromActive(active);
+    const completionSpan = startTodoLifecycleSpan(lifecycleContext, {
+      name: "task_source.complete",
+      category: "task_source",
+      cost_center: "external",
+      attributes: { task_id: active.task_id, project_id: active.project_id }
+    });
     const task = store.automation.snapshot.tasks.find((item) => item.id === active.task_id);
-    const source = taskSourceFactory({ settings: store.settings.task_source });
     await patchAutomation((automation) => {
-      if (automation.active_task) automation.active_task.phase = "completing";
+      if (automation.active_task) {
+        automation.active_task.phase = "completing";
+        automation.active_task.remote_completion_status = "writing";
+      }
     });
     try {
+      const source = taskSourceFactory({ settings: store.settings.task_source });
       const project = store.automation.snapshot.projects.find((item) => String(item.id) === String(active.project_id));
       const executorId = requireCurrentExecutorId(project, store.automation.snapshot.user);
-      const latest = await source.getTask(active.task_id, active.project_id, { executorId });
+      const readSpan = startTodoLifecycleSpan(lifecycleContext, {
+        parent_span_id: completionSpan?.span_id,
+        name: "task_source.get_for_completion",
+        category: "task_source",
+        cost_center: "external"
+      });
+      let latest;
+      try {
+        latest = await source.getTask(active.task_id, active.project_id, { executorId });
+        endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "ok" });
+      } catch (error) {
+        endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "error", error });
+        throw error;
+      }
       if (!latest || latest.state !== "in_progress") {
         throw new TaskSourceError("Task is no longer assigned to the current user or is no longer in progress.", {
           code: "not_assigned"
         });
       }
-      const completed = await source.updateTask({
-        taskId: active.task_id,
-        projectId: active.project_id,
-        executorId,
-        state: "completed",
-        expectedVersion: latest.version || task?.version || active.server_version
+      const updateSpan = startTodoLifecycleSpan(lifecycleContext, {
+        parent_span_id: completionSpan?.span_id,
+        name: "task_source.mark_completed",
+        category: "task_source",
+        cost_center: "external"
       });
+      let completed;
+      try {
+        completed = await source.updateTask({
+          taskId: active.task_id,
+          projectId: active.project_id,
+          executorId,
+          state: "completed",
+          expectedVersion: latest.version || task?.version || active.server_version
+        });
+        endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "ok" });
+      } catch (error) {
+        endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "error", error });
+        throw error;
+      }
       await patchAutomation((automation) => {
         replaceTask(automation, completed);
         automation.recent_completions.unshift({
@@ -757,20 +1124,42 @@ export function createAutomationCoordinator({
           project_id: completed.project_id,
           title: completed.title,
           run_id: active.run_id,
+          thread_id: active.thread_id || "",
           local_project_id: active.local_project_id,
-          completed_at: now()
+          session_id: active.session_id || "",
+          completed_at: now(),
+          lifecycle_trace_id: active.lifecycle_trace_id || "",
+          lifecycle_events_file: active.lifecycle_events_file || "",
+          lifecycle_summary_file: active.lifecycle_summary_file || ""
         });
         automation.recent_completions = automation.recent_completions.slice(0, 30);
         automation.active_task = null;
         automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
         automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
       });
+      endTodoLifecycleSpan(lifecycleContext, completionSpan, { status: "ok", attributes: { remote_state: "completed" } });
+      const lifecycleSummary = await finishTodoLifecycleTrace(lifecycleContext, {
+        status: "ok",
+        attributes: { task_id: active.task_id, final_state: "completed" }
+      });
+      if (lifecycleSummary) {
+        await patchAutomation((automation) => {
+          const completion = automation.recent_completions.find((item) => String(item.task_id) === String(active.task_id));
+          if (completion) completion.lifecycle_summary = compactLifecycleSummary(lifecycleSummary);
+        });
+      }
       emit("automation.changed", { reason: "task-completed", taskId: completed.id });
       if (syncAfter) {
         await sync();
       }
       return completed;
     } catch (error) {
+      endTodoLifecycleSpan(lifecycleContext, completionSpan, { status: "error", error });
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id === active.task_id) {
+          automation.active_task.remote_completion_status = "failed";
+        }
+      });
       await addRecovery({
         type: "completion_writeback_failed",
         task: active,
@@ -781,54 +1170,36 @@ export function createAutomationCoordinator({
     }
   }
 
-  async function reconcileDetachedRunCompletion() {
+  async function reconcileDetachedRunCompletion({ allowRemoteCompletion = true } = {}) {
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
+    if (["switching_to_cli", "cli_handoff"].includes(active?.phase)) return null;
     if (!active?.run_id || runManager.isRunActive?.(active.run_id)) return null;
 
     const runs = await runManager.listRuns({ projectId: active.local_project_id });
-    const runByParent = new Map();
-    for (const run of runs) {
-      const parentId = String(run.auto_continue_from_run_id || "").trim();
-      if (!parentId) continue;
-      const existing = runByParent.get(parentId);
-      if (!existing || compareRunRecency(existing, run) < 0) {
-        runByParent.set(parentId, run);
-      }
-    }
-
-    let latest = runs.find((run) => run.id === active.run_id) || null;
-    const visited = new Set();
-    while (latest && !visited.has(latest.id)) {
-      visited.add(latest.id);
-      const child = runByParent.get(latest.id);
-      if (!child) break;
-      latest = child;
-    }
+    const latest = runs.find((run) => run.id === active.run_id) || null;
     if (!latest) return null;
 
-    if (active.phase === "committing" && latest.entry_capability === "agent-task" && latest.status !== "completed") {
-      if (["failed", "aborted"].includes(latest.status)) {
-        await addRecovery({
-          type: "commit_failed",
-          task: { ...active, run_id: latest.id },
-          message: `Commit agent finished with status ${latest.status}.`,
-          actions: ["retry_commit", "mark_blocked"]
-        });
-      }
-      return null;
-    }
+    const caseBinding = await resolveTaskCaseBinding(active, latest);
+    if (caseBinding.status === "conflict") return null;
 
     if (latest.status !== "completed") return null;
-
-    if (active.phase === "committing" && latest.entry_capability === "agent-task") {
-      await patchAutomation((automation) => {
-        if (automation.active_task?.task_id !== active.task_id) return;
-        automation.active_task.run_id = latest.id;
-        automation.active_task.phase = "completing";
-        automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
-      });
-      return completeRemoteTask({ syncAfter: false });
+    if (["closeout_starting", "closeout_running"].includes(active.phase)) {
+      if (caseBinding.status !== "bound") {
+        await addRecovery({
+          type: "case_binding_missing",
+          task: active,
+          message: "Detached closeout completion was ignored because this task has no authoritative Case binding.",
+          actions: ["retry_start", "mark_blocked"]
+        });
+        return null;
+      }
+      const result = await runManager.readRunResult?.(latest.id).catch(() => null);
+      const closeout = result?.closeout_result;
+      if (closeout?.status !== "completed") return null;
+      await markCloseoutCompleted(active, latest.id, closeout);
+      if (allowRemoteCompletion) return completeRemoteTask({ syncAfter: false });
+      return "remote_completion_pending";
     }
 
     const activity = latest.activity || {};
@@ -843,6 +1214,15 @@ export function createAutomationCoordinator({
     const ledgerRequired = activity.ledger_stage?.writeback_required === true;
     const ledgerWritten = activity.ledger_write_result?.parsed?.written === true;
     if (!caseComplete || (ledgerRequired && !ledgerWritten)) return null;
+    if (caseBinding.status !== "bound") {
+      await addRecovery({
+        type: "case_binding_missing",
+        task: active,
+        message: "Detached Runtime completion has no authoritative task-to-Case binding; closeout was not started.",
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return null;
+    }
 
     await patchAutomation((automation) => {
       if (automation.active_task?.task_id !== active.task_id) return;
@@ -850,7 +1230,171 @@ export function createAutomationCoordinator({
       automation.active_task.phase = "completing";
       automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
     });
-    return startCommitAgent();
+    return startSameThreadCloseout();
+  }
+
+  async function reconcileCanonicalCaseState({ allowAgentResume = false, requireCase = false, allowRemoteCompletion = true } = {}) {
+    if (typeof runManager.getProjectCaseState !== "function") return "unsupported";
+    const store = await runManager.readDesktopStore();
+    const active = store.automation.active_task;
+    if (!active || ["closeout_running", "completing"].includes(active.phase)) return "not_applicable";
+    if (active.phase === "switching_to_cli") return "handoff_in_progress";
+    if (active.run_id && runManager.isRunActive?.(active.run_id) && active.phase !== "cli_handoff") return "runtime_active";
+
+    const runs = await runManager.listRuns({ projectId: active.local_project_id });
+    const run = runs.find((item) => item.id === active.run_id) || null;
+    const caseBinding = await resolveTaskCaseBinding(active, run);
+    if (caseBinding.status === "conflict") return "conflict";
+    if (caseBinding.status !== "bound") {
+      if (requireCase || active.phase === "cli_handoff") {
+        await addRecovery({
+          type: "case_reconciliation_failed",
+          task: active,
+          message: "No authoritative Case binding exists for this active task. Runtime will not infer identity from repository contents, an old Run cache, or terminal state.",
+          actions: ["retry_cli_handoff", "retry_start", "mark_blocked"]
+        });
+        return "missing";
+      }
+      return "unbound";
+    }
+    const caseId = caseBinding.case_id;
+    let caseState;
+    try {
+      caseState = await runManager.getProjectCaseState(active.local_project_id, caseId);
+    } catch (error) {
+      if (!requireCase && active.phase !== "cli_handoff") return "unreadable";
+      await addRecovery({
+        type: "case_reconciliation_failed",
+        task: { ...active, case_id: caseId },
+        message: `Canonical Case ${caseId} could not be read: ${error.message}`,
+        actions: ["retry_sync", "retry_start", "mark_blocked"]
+      });
+      return "unreadable";
+    }
+    if (!caseState?.record) {
+      if (!requireCase && active.phase !== "cli_handoff") return "missing";
+      await addRecovery({
+        type: "case_reconciliation_failed",
+        task: { ...active, case_id: caseId },
+        message: `Canonical Case ${caseId} is neither an active Project Case nor a closed Case.`,
+        actions: ["retry_sync", "retry_start", "mark_blocked"]
+      });
+      return "missing";
+    }
+
+    const record = caseState.record;
+    const resolution = record.case_resolution || {};
+    if (isCanonicalCaseResolved(caseState)) {
+      const closeoutCompleted = active.closeout_status === "completed";
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.case_id = caseId;
+        automation.active_task.case_status = "resolved";
+        automation.active_task.case_resolved_at ||= record.updated_at || now();
+        automation.active_task.remote_completion_status = "pending";
+        if (closeoutCompleted) {
+          automation.active_task.phase = "remote_completion_pending";
+        }
+        automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
+      });
+      if (closeoutCompleted) {
+        if (allowRemoteCompletion) await completeRemoteTask({ syncAfter: false });
+        return allowRemoteCompletion ? "resolved" : "remote_completion_pending";
+      }
+      await startSameThreadCloseout();
+      return "resolved";
+    }
+
+    const handoff = resolution.loop_handoff || {};
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== active.task_id) return;
+      automation.active_task.case_id = caseId;
+      automation.active_task.case_status = "active";
+    });
+    if (handoff.next_responsibility === "human" || handoff.human_decision_required === true) {
+      await setAwaitingHuman({ active: { ...active, case_id: caseId }, runId: active.run_id, handoff });
+      return "human";
+    }
+
+    if (allowAgentResume && caseState.location === "active") {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.case_id = caseId;
+        automation.active_task.phase = "starting";
+        automation.active_task.cli_handoff_ended_at = now();
+        automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
+      });
+      await startRuntimeForActiveTask();
+      return "agent_resumed";
+    }
+    return "active";
+  }
+
+  async function ensureTaskSession(active, task) {
+    const sessions = await runManager.listSessions(active.local_project_id);
+    if (active.session_id) {
+      const existing = sessions.find((item) => item.id === active.session_id);
+      if (!existing) {
+        throw new Error(`The task session no longer exists: ${active.session_id}`);
+      }
+      if (existing.task_id && String(existing.task_id) !== String(active.task_id)) {
+        throw new Error(`The task session belongs to another task: ${existing.task_id}`);
+      }
+      return existing;
+    }
+    const session = await runManager.createSession(active.local_project_id, {
+      title: `待办 · ${task?.title || active.task_title || active.task_id}`,
+      kind: "automation-task",
+      task_id: active.task_id,
+      remote_project_id: active.project_id
+    });
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id === active.task_id) {
+        automation.active_task.session_id = session.id;
+      }
+    });
+    return session;
+  }
+
+  async function resolveTaskCaseBinding(active, run) {
+    const binding = mergeCaseBindings(
+      persistedCaseBinding(active),
+      extractAuthoritativeCaseBindingFromRun(run)
+    );
+    if (binding.status === "conflict") {
+      await addRecovery({
+        type: "case_binding_conflict",
+        task: active,
+        message: `Conflicting authoritative Case bindings were detected (${binding.case_ids.join(", ")}); Runtime refused to choose one.`,
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return binding;
+    }
+    if (binding.status === "bound" && (
+      active.case_id !== binding.case_id
+      || active.case_binding_source !== binding.source
+      || active.case_binding_run_id !== binding.run_id
+    )) {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.case_id = binding.case_id;
+        automation.active_task.case_binding_source = binding.source;
+        automation.active_task.case_binding_run_id = binding.run_id;
+        automation.active_task.case_bound_at ||= now();
+      });
+    }
+    if (binding.status === "unbound" && active.case_id) {
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.case_id = "";
+        automation.active_task.case_status = "unbound";
+        automation.active_task.case_resolved_at = "";
+        automation.active_task.case_binding_source = "";
+        automation.active_task.case_binding_run_id = "";
+        automation.active_task.case_bound_at = "";
+      });
+    }
+    return binding;
   }
 
   async function setAwaitingHuman({ active, runId, handoff }) {
@@ -860,7 +1404,7 @@ export function createAutomationCoordinator({
       automation.active_task.phase = "awaiting_human";
       automation.recovery_items = automation.recovery_items.filter((item) => (
         item.task_id !== active.task_id
-        || !["runtime_incomplete", "runtime_continuation_stopped", "runtime_process_missing"].includes(item.type)
+        || !["runtime_incomplete", "runtime_process_missing"].includes(item.type)
       ));
       automation.attention_items = upsertById(automation.attention_items, {
         id: `ATTENTION-${automation.active_task.task_id}`,
@@ -873,6 +1417,23 @@ export function createAutomationCoordinator({
       });
     });
     emit("automation.changed", { reason: "awaiting-human", taskId: active.task_id });
+  }
+
+  async function markCloseoutCompleted(active, runId, result) {
+    await patchAutomation((automation) => {
+      if (automation.active_task?.task_id !== active.task_id) return;
+      automation.active_task.run_id = runId;
+      automation.active_task.closeout_status = "completed";
+      automation.active_task.closeout_completed_at ||= now();
+      automation.active_task.closeout_outcome = result?.outcome || "";
+      automation.active_task.closeout_commit_hash = result?.commit_hash || "";
+      automation.active_task.remote_completion_status = "pending";
+      automation.active_task.phase = "remote_completion_pending";
+      automation.recovery_items = automation.recovery_items.filter((item) => (
+        item.task_id !== active.task_id
+        || !["closeout_failed", "closeout_start_failed", "runtime_process_missing"].includes(item.type)
+      ));
+    });
   }
 
   async function addRecovery({ type, task, message, actions, freezeScope = "global" }) {
@@ -904,14 +1465,14 @@ export function createAutomationCoordinator({
   async function reconcileRuntimePresence() {
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
-    if (!active || ["starting", "continuing", "awaiting_human", "completing", "recovery"].includes(active.phase)) return;
+    if (!active || ["starting", "continuing", "switching_to_cli", "cli_handoff", "awaiting_human", "remote_completion_pending", "completing", "recovery"].includes(active.phase)) return;
     if (active.run_id && runManager.isRunActive?.(active.run_id)) return;
-    if (active.phase === "committing") {
+    if (active.phase === "closeout_running") {
       await addRecovery({
-        type: "commit_process_missing",
+        type: "closeout_process_missing",
         task: active,
-        message: "The commit agent run is no longer attached locally.",
-        actions: ["retry_commit", "mark_blocked"]
+        message: "The same-thread closeout Runtime is no longer attached locally.",
+        actions: ["retry_closeout", "mark_blocked"]
       });
       return;
     }
@@ -923,48 +1484,6 @@ export function createAutomationCoordinator({
         : "The server task is in progress, but no Runtime run is attached locally.",
       actions: ["retry_start", "mark_blocked"]
     });
-  }
-
-  async function resumeEligibleAgentRecovery() {
-    const store = await runManager.readDesktopStore();
-    const active = store.automation.active_task;
-    if (!active || active.phase !== "recovery" || !active.run_id) return;
-    const recovery = store.automation.recovery_items.find((item) => (
-      item.task_id === active.task_id
-      && item.run_id === active.run_id
-      && ["runtime_incomplete", "runtime_continuation_stopped"].includes(item.type)
-    ));
-    if (!recovery || typeof runManager.resumeAutoContinuation !== "function") return;
-    const runs = await runManager.listRuns({ projectId: active.local_project_id });
-    const run = runs.find((item) => item.id === active.run_id);
-    const handoff = selectEffectiveLoopHandoff({ activity: run?.activity });
-    if (run?.status !== "completed" || !isAgentContinuationHandoff(handoff)) return;
-
-    await patchAutomation((automation) => {
-      if (automation.active_task?.run_id !== active.run_id) return;
-      automation.active_task.phase = "continuing";
-      automation.recovery_items = automation.recovery_items.filter((item) => (
-        item.task_id !== active.task_id || !["runtime_incomplete", "runtime_continuation_stopped", "runtime_process_missing"].includes(item.type)
-      ));
-    });
-    try {
-      const result = await runManager.resumeAutoContinuation(active.run_id);
-      if (result?.status !== "started") {
-        await addRecovery({
-          type: "runtime_continuation_stopped",
-          task: active,
-          message: result?.message || "Runtime automatic continuation did not start.",
-          actions: ["retry_start", "mark_blocked"]
-        });
-      }
-    } catch (error) {
-      await addRecovery({
-        type: "runtime_continuation_stopped",
-        task: active,
-        message: error.message,
-        actions: ["retry_start", "mark_blocked"]
-      });
-    }
   }
 
   async function stopRuntimeForExternalChange() {
@@ -1006,6 +1525,51 @@ export function createAutomationCoordinator({
     emitter.emit("event", { type, at: now(), ...payload });
   }
 
+  async function startTodoLifecycleTrace(task) {
+    if (typeof runManager.startLifecycleTrace !== "function") return null;
+    try {
+      return await runManager.startLifecycleTrace({
+        task_id: task.id,
+        project_id: task.project_id,
+        local_project_id: task.local_project_id || "",
+        trigger: "automation_queue"
+      });
+    } catch (error) {
+      emit("automation.error", { reason: "lifecycle-trace-start", message: error.message });
+      return null;
+    }
+  }
+
+  function startTodoLifecycleSpan(context, input) {
+    if (!context || typeof runManager.startLifecycleSpan !== "function") return null;
+    try {
+      return runManager.startLifecycleSpan(context, input);
+    } catch (error) {
+      emit("automation.error", { reason: "lifecycle-span-start", message: error.message });
+      return null;
+    }
+  }
+
+  function endTodoLifecycleSpan(context, span, input) {
+    if (!context || !span || typeof runManager.endLifecycleSpan !== "function") return null;
+    try {
+      return runManager.endLifecycleSpan(context, span, input);
+    } catch (error) {
+      emit("automation.error", { reason: "lifecycle-span-end", message: error.message });
+      return null;
+    }
+  }
+
+  async function finishTodoLifecycleTrace(context, input) {
+    if (!context || typeof runManager.finishLifecycleTrace !== "function") return null;
+    try {
+      return await runManager.finishLifecycleTrace(context, input);
+    } catch (error) {
+      emit("automation.error", { reason: "lifecycle-trace-finish", message: error.message });
+      return null;
+    }
+  }
+
   function scheduleSync(reason) {
     setTimeout(() => {
       sync().catch((error) => emit("automation.error", { reason, message: error.message }));
@@ -1030,6 +1594,9 @@ export function createAutomationCoordinator({
     updateTaskState,
     submitIntervention,
     stopCurrent,
+    handoffToCodexCli,
+    reopenCodexCli,
+    resumeRuntimeFromCodexCli,
     resolveRecovery,
     maybeStartNext
   };
@@ -1093,14 +1660,6 @@ function countTasks(tasks) {
 
 function emptyStateCounts() {
   return Object.fromEntries(TASK_STATES.map((state) => [state, 0]));
-}
-
-function compareRunRecency(left, right) {
-  const depthDelta = Number(left?.auto_continue_depth || 0) - Number(right?.auto_continue_depth || 0);
-  if (depthDelta !== 0) return depthDelta;
-  const timeDelta = String(left?.started_at || "").localeCompare(String(right?.started_at || ""));
-  if (timeDelta !== 0) return timeDelta;
-  return String(left?.id || "").localeCompare(String(right?.id || ""));
 }
 
 function currentExecutorId(project, user) {
@@ -1244,6 +1803,7 @@ function reconcileUnassociatedInProgress(automation, occurredAt) {
     server_version: task.version,
     phase: "recovery",
     run_id: "",
+    session_id: "",
     claimed_at: "",
     started_at: ""
   };
@@ -1269,13 +1829,13 @@ function upsertById(items, item) {
 async function mapWithConcurrency(items, limit, mapper) {
   const results = new Array(items.length);
   let cursor = 0;
-  const workers = Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, async () => {
+  const runners = Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, async () => {
     while (cursor < items.length) {
       const index = cursor++;
       results[index] = await mapper(items[index], index);
     }
   });
-  await Promise.all(workers);
+  await Promise.all(runners);
   return results;
 }
 
@@ -1300,6 +1860,47 @@ function scalarId(value) {
     : "";
 }
 
+function isRemoteSourceReady(sourceStatus) {
+  return sourceStatus === "healthy" || sourceStatus === "degraded";
+}
+
+function lifecycleContextFromActive(active = {}) {
+  const traceId = String(active.lifecycle_trace_id || "").trim();
+  if (!traceId) return null;
+  return {
+    trace_id: traceId,
+    root_span_id: String(active.lifecycle_root_span_id || "").trim(),
+    events_file: String(active.lifecycle_events_file || "").trim(),
+    summary_file: String(active.lifecycle_summary_file || "").trim()
+  };
+}
+
+function lifecycleRunInput(context, parentSpanId = "") {
+  if (!context?.trace_id) return {};
+  return {
+    lifecycleTraceId: context.trace_id,
+    lifecycleRootSpanId: context.root_span_id || "",
+    lifecycleParentSpanId: parentSpanId || context.root_span_id || "",
+    lifecycleEventsFile: context.events_file || "",
+    lifecycleSummaryFile: context.summary_file || ""
+  };
+}
+
+function compactLifecycleSummary(summary = {}) {
+  return {
+    schema_version: summary.schema_version || "arckit-lifecycle-summary/v1",
+    trace_id: summary.trace_id || "",
+    status: summary.status || "",
+    total_ms: Number(summary.total_ms || 0),
+    span_count: Number(summary.span_count || 0),
+    open_span_count: Number(summary.open_span_count || 0),
+    error_span_count: Number(summary.error_span_count || 0),
+    cost_centers: Array.isArray(summary.cost_centers) ? summary.cost_centers.slice(0, 8) : [],
+    phase_hotspots: Array.isArray(summary.phase_hotspots) ? summary.phase_hotspots.slice(0, 10) : [],
+    diagnosis: summary.diagnosis || null
+  };
+}
+
 function timestamp(value) {
   const result = Date.parse(value || "");
   return Number.isFinite(result) ? result : Number.MAX_SAFE_INTEGER;
@@ -1311,4 +1912,94 @@ export function buildAutomationTask(task) {
 
 export function buildInterventionTask(message) {
   return String(message || "").trim();
+}
+
+export function extractCaseIdFromRun(run) {
+  const binding = extractAuthoritativeCaseBindingFromRun(run);
+  return binding.status === "bound" ? binding.case_id : "";
+}
+
+export function extractAuthoritativeCaseBindingFromRun(run) {
+  const ledgers = [
+    { value: run?.activity?.ledger_write_result?.parsed, source: "activity.ledger_write_result" },
+    { value: run?.result?.ledger_write_result, source: "result.ledger_write_result" }
+  ].filter(({ value }) => value?.written === true);
+  const observations = [];
+  for (const ledger of ledgers) {
+    for (const value of [
+      ledger.value.case_control_result?.case_id,
+      ledger.value.case_transition_result?.case_id
+    ]) {
+      const caseId = String(value || "").trim();
+      if (CASE_ID_PATTERN.test(caseId)) observations.push({ case_id: caseId, evidence: ledger.source });
+    }
+  }
+  const caseIds = [...new Set(observations.map((item) => item.case_id))];
+  if (caseIds.length > 1) return { status: "conflict", case_ids: caseIds, observations };
+  if (caseIds.length === 0) return { status: "unbound", case_ids: [], observations: [] };
+  return {
+    status: "bound",
+    case_id: caseIds[0],
+    case_ids: caseIds,
+    source: AUTHORITATIVE_CASE_BINDING_SOURCE,
+    run_id: String(run?.id || ""),
+    observations
+  };
+}
+
+export function persistedCaseBinding(active) {
+  const caseId = String(active?.case_id || "").trim();
+  const source = String(active?.case_binding_source || "");
+  const runId = String(active?.case_binding_run_id || "");
+  if (!CASE_ID_PATTERN.test(caseId) || source !== AUTHORITATIVE_CASE_BINDING_SOURCE || !runId) {
+    return { status: "unbound", case_ids: [], observations: [] };
+  }
+  return { status: "bound", case_id: caseId, case_ids: [caseId], source, run_id: runId, observations: [] };
+}
+
+export function mergeCaseBindings(left, right) {
+  if (left?.status === "conflict") return left;
+  if (right?.status === "conflict") return right;
+  if (left?.status !== "bound") return right?.status === "bound" ? right : { status: "unbound", case_ids: [], observations: [] };
+  if (right?.status !== "bound") return left;
+  if (left.case_id === right.case_id) return right;
+  return {
+    status: "conflict",
+    case_ids: [...new Set([left.case_id, right.case_id])],
+    observations: [...(left.observations || []), ...(right.observations || [])]
+  };
+}
+
+export function isCanonicalCaseResolved(caseState) {
+  return caseState?.location === "closed"
+    && caseState?.record?.status === "closed"
+    && caseState?.record?.case_resolution?.status === "resolved";
+}
+
+export function buildUsageBaseline(runs, { projectId = "", excludeRunId = "" } = {}) {
+  const samples = (runs || []).filter((run) => (
+    run.id !== excludeRunId
+    && (!projectId || run.project_id === projectId)
+    && (run.entry_capability || "runtime") === "runtime"
+    && run.status === "completed"
+    && Number(run.activity?.token_usage?.summary?.logical_total_tokens || 0) > 0
+  )).slice(0, 20);
+  return {
+    schema_version: "runtime-usage-baseline/v1",
+    kind: "runtime_history_median",
+    sample_size: samples.length,
+    logical_total_tokens: median(samples.map((run) => run.activity.token_usage.summary.logical_total_tokens)),
+    cached_input_tokens: median(samples.map((run) => run.activity.token_usage.summary.cached_input_tokens)),
+    uncached_input_tokens: median(samples.map((run) => run.activity.token_usage.summary.uncached_input_tokens)),
+    output_tokens: median(samples.map((run) => run.activity.token_usage.summary.output_tokens)),
+    model_time_ms: median(samples.map((run) => run.activity?.performance?.model_time_ms || 0)),
+    command_time_ms: median(samples.map((run) => run.activity?.performance?.command_time_ms || 0))
+  };
+}
+
+function median(values) {
+  const sorted = values.map(Number).filter(Number.isFinite).sort((left, right) => left - right);
+  if (sorted.length === 0) return 0;
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
 }

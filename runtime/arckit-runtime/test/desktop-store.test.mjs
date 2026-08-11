@@ -100,7 +100,7 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     }
   });
 
-  assert.equal(store.version, 6);
+  assert.equal(store.version, 8);
   assert.equal(store.automation.snapshot.source_status, "degraded");
   assert.deepEqual(store.automation.project_bindings, {});
   assert.equal(store.automation.recovery_items[0].responsibility, "operator");

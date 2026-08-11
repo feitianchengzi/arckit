@@ -8,7 +8,6 @@ import { ensureArckitProject } from '../src/project-initializer.mjs';
 import { runLedgerScript } from '../src/ledger-scripts.mjs';
 import { createStateStore } from '../src/state-store.mjs';
 import {
-  FACET_KEYS,
   auditCaseRecord,
   readCaseRecord,
   writeCaseRecord,
@@ -19,7 +18,7 @@ import { applyRuntimeLedgerWriteback } from '../../../entry/skills/arckit-develo
 test('different active Cases advance concurrently without changing Project selection state', async () => {
   const projectRoot = await projectWithCases(2);
   const initial = await createStateStore(projectRoot).readSnapshot();
-  const projectRevision = initial.projectState.project.updated_at;
+  const projectRevision = initial.projectState.project.revision;
   const [first, second] = initial.activeCases;
 
   await Promise.all([
@@ -36,13 +35,10 @@ test('different active Cases advance concurrently without changing Project selec
   ]);
 
   const updated = await createStateStore(projectRoot).readSnapshot();
-  assert.equal(updated.projectState.project.updated_at, projectRevision);
-  assert.equal(Object.hasOwn(updated.projectState.case_control, 'selected_case_ref'), false);
+  assert.equal(updated.projectState.project.revision, projectRevision);
+  assert.equal(Object.hasOwn(updated.projectState.advancement.selection_context, 'selected_case_ref'), false);
   assert.equal(updated.activeCases.length, 2);
-  assert.deepEqual(
-    updated.activeCases.map((item) => item.record.facets.product_expectation.resolution),
-    ['resolved', 'resolved'],
-  );
+  assert.deepEqual(updated.activeCases.map((item) => item.record.gaps[0].status), ['resolved', 'resolved']);
 });
 
 test('parallel resolved closeouts keep one Case active and return a recoverable stale rejection', async () => {
@@ -50,7 +46,7 @@ test('parallel resolved closeouts keep one Case active and return a recoverable 
   let snapshot = await createStateStore(projectRoot).readSnapshot();
   for (const activeCase of snapshot.activeCases) makeReviewReady(projectRoot, activeCase);
   snapshot = await createStateStore(projectRoot).readSnapshot();
-  const projectRevision = snapshot.projectState.project.updated_at;
+  const projectRevision = snapshot.projectState.project.revision;
   const [first, second] = snapshot.activeCases;
   const firstTransition = cleanReviewTransition(first.record, projectRevision, 'review:first');
   const staleSecondTransition = cleanReviewTransition(second.record, projectRevision, 'review:second');
@@ -73,12 +69,12 @@ test('parallel resolved closeouts keep one Case active and return a recoverable 
   const rejected = closeoutResults.find((result) => !result.written);
   assert.equal(rejected.rejection.recoverable, true);
   assert.equal(rejected.rejection.recovery_action, 'replan_from_fresh_state');
-  assert.match(rejected.rejection.reason, /Stale Project aggregation/);
+  assert.match(rejected.rejection.reason, /Stale Project transition/);
 
   snapshot = await createStateStore(projectRoot).readSnapshot();
-  assert.equal(snapshot.projectState.active_case_refs.length, 1);
+  assert.equal(snapshot.projectState.advancement.active_case_refs.length, 1);
   assert.equal(snapshot.activeCases.length, 1);
-  assert.equal(Object.hasOwn(snapshot.projectState.case_control, 'selected_case_ref'), false);
+  assert.equal(Object.hasOwn(snapshot.projectState.advancement.selection_context, 'selected_case_ref'), false);
 
   const remaining = snapshot.activeCases[0];
   await applyCaseTransition({
@@ -86,12 +82,12 @@ test('parallel resolved closeouts keep one Case active and return a recoverable 
     casePath: remaining.ref,
     transition: cleanReviewTransition(
       remaining.record,
-      snapshot.projectState.project.updated_at,
+      snapshot.projectState.project.revision,
       'review:remaining:fresh',
     ),
   });
   snapshot = await createStateStore(projectRoot).readSnapshot();
-  assert.deepEqual(snapshot.projectState.active_case_refs, []);
+  assert.deepEqual(snapshot.projectState.advancement.active_case_refs, []);
 });
 
 async function projectWithCases(count) {
@@ -104,6 +100,10 @@ async function projectWithCases(count) {
       '--title', `Parallel Case ${index + 1}`,
       '--artifact-type', 'mixed',
       '--intent', `Advance parallel Case ${index + 1}.`,
+      '--expected-outcome', `Parallel Case ${index + 1} is complete.`,
+      '--initial-facts', JSON.stringify([{ id: 'FACT-INTENT', revision: 1, status: 'accepted', statement: `Parallel Case ${index + 1} is requested.`, basis: 'test fixture', evidence: [`fixture:intent:${index + 1}`] }]),
+      '--initial-impacts', '[]',
+      '--initial-gaps', JSON.stringify([{ id: 'GAP-WORK', status: 'open', goal: `Complete parallel Case ${index + 1}.`, reason: 'Fixture work remains.', derived_from: ['case_intent', 'FACT-INTENT'], blocked_by: [], priority_basis: { blocking: 'high', uncertainty: 'low', risk: 'low', user_impact: 'medium' }, responsibility: 'agent', evidence_required: ['fixture evidence'], resolution: null }]),
       '--max-review-cycles', '3',
       '--review-policy-source', 'test-policy',
     ]);
@@ -122,81 +122,73 @@ async function projectWithCases(count) {
   return projectRoot;
 }
 
-function progressTransition(record, projectUpdatedAt, evidence) {
-  const gap = record.case_resolution.candidate_gaps.find((item) => item.facet === 'product_expectation');
+function progressTransition(record, projectRevision, evidence) {
+  const gap = record.case_resolution.candidate_gaps.find((item) => item.id === 'GAP-WORK');
   return {
-    schema_version: 'arckit-case-transition/v3',
+    schema_version: 'arckit-case-transition/v6',
     case_id: record.id,
     case_updated_at: record.updated_at,
-    project_updated_at: projectUpdatedAt,
+    project_revision: projectRevision,
+    gap_selection: { mode: 'candidate', basis: 'This ledger candidate is the most important current action.' },
     selected_gap: gap,
-    planned_transition: { goal: gap.next_transition, expected_state_change: 'Resolve product expectation applicability.' },
+    planned_transition: { goal: gap.goal, expected_state_change: 'Open fixture work becomes resolved.' },
     accepted_state_delta: {
-      facets: [{
-        facet: 'product_expectation',
-        set: { applicability: 'not_required', resolution: 'resolved', reason: 'Not required by the parallel ledger fixture.' },
-        evidence: [evidence],
-      }],
+      resolved_gap: { id: gap.id, status: 'resolved', outcome: 'Fixture work completed.', reason: 'The independent transition completed.', evidence: [evidence] },
+      facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [],
       resolved_open_questions: [],
       completed_handoffs: [],
       completion_review_result: null,
       resolved_review_findings: [],
       review_budget_extension: null,
     },
+    project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
     evidence: [evidence],
-    unresolved: ['remaining Case facets'],
+    unresolved: ['completion_review'],
     round_outcome: 'completed',
-    case_resolution: { claimed_status: 'unresolved', reason: 'Other facets remain.' },
-    project_impact_candidate: { status: 'none', changes: [], evidence: [] },
+    case_resolution: { claimed_status: 'unresolved', reason: 'Completion review remains.' },
   };
 }
 
 function makeReviewReady(projectRoot, activeCase) {
   const casePath = join(projectRoot, activeCase.ref);
   const { text, record } = readCaseRecord(casePath);
-  for (const facet of FACET_KEYS) {
-    record.facets[facet] = {
-      ...record.facets[facet],
-      applicability: 'not_required',
-      resolution: 'resolved',
-      reason: `${facet} is outside the closeout fixture.`,
-      evidence: [`fixture:${facet}`],
-    };
-  }
+  record.gaps[0].status = 'resolved';
+  record.gaps[0].resolution = { status: 'resolved', outcome: 'Fixture work completed.', reason: 'Prepared for concurrent closeout.', evidence: ['fixture:ready'], occurred_at: record.updated_at };
   record.content_revision = 1;
   record.case_resolution = auditCaseRecord(record, record.updated_at);
   record.current_round = { goal: '', selected_gap: null };
   writeCaseRecord(casePath, text, record);
 }
 
-function cleanReviewTransition(record, projectUpdatedAt, evidence) {
-  const gap = record.case_resolution.candidate_gaps.find((item) => item.facet === 'completion_review');
+function cleanReviewTransition(record, projectRevision, evidence) {
+  const gap = record.case_resolution.candidate_gaps.find((item) => item.id.includes(':completion-review:'));
   return {
-    schema_version: 'arckit-case-transition/v3',
+    schema_version: 'arckit-case-transition/v6',
     case_id: record.id,
     case_updated_at: record.updated_at,
-    project_updated_at: projectUpdatedAt,
+    project_revision: projectRevision,
+    gap_selection: { mode: 'candidate', basis: 'Completion Review is the only remaining semantic check.' },
     selected_gap: gap,
-    planned_transition: { goal: gap.next_transition, expected_state_change: 'Record a clean completion review.' },
+    planned_transition: { goal: gap.goal, expected_state_change: 'Record a clean implementation-focused completion review.' },
     accepted_state_delta: {
-      facets: [],
+      resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [],
       resolved_open_questions: [],
       completed_handoffs: [],
       completion_review_result: {
         outcome: 'clean',
         reviewer: gap.responsibility,
         reviewed_content_revision: record.content_revision,
-        dimensions: { correctness: 'clean', completeness: 'clean', minimality: 'clean' },
+        dimensions: { implementation_correctness: 'clean', problem_resolution: 'clean', verification_credibility: 'clean', regression_risk: 'clean', minimality: 'clean' },
         findings: [],
         evidence: [evidence],
       },
       resolved_review_findings: [],
       review_budget_extension: null,
     },
+    project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
     evidence: [evidence],
     unresolved: [],
     round_outcome: 'completed',
     case_resolution: { claimed_status: 'resolved', reason: 'The current content revision is clean.' },
-    project_impact_candidate: { status: 'none', changes: [], evidence: [] },
   };
 }

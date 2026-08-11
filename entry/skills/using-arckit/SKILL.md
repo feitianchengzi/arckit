@@ -1,110 +1,58 @@
 ---
 name: using-arckit
-description: "Arckit 项目对话 Controller。把真实软件开发输入或 Worker reports 转成 Project 选 Case、Case 选 gap、Loop 执行一次状态转移的结构化语义。适用于人工在 Codex 类 Agent 中直接协作，也适用于 Runtime 自动桥接；两者必须产生相同的 Case transition、closeout 和 handoff。它不执行 Worker 工作、不写 ledger、不按固定顺序调用 skills。"
+description: "在 Arckit 项目中持续推进真实软件开发事项。依据 fresh Project 软件定义决策/不变量/推进状态与 Case facts/state impacts/dynamic gaps，选择最值得优先处理的 gap，由同一 Agent 动态使用必要 skills/tools 完成并形成可信 transition；自动续轮直到 resolved，只有 human responsibility 暂停。"
 ---
 
 # Using Arckit
 
-本 skill 是语义 Controller。软件开发顺序可以是规格先行、代码先行或混合推进，但每轮必须从 Case State 的真实 gap 出发，并以有证据的 Case State delta 结束。Runtime 与人工多对话只是两种执行桥，不能改变 Controller 语义。
+本 skill 是通用状态驱动控制算法，不硬编码产品、交互、视觉、技术、代码或测试流程，也不规定 skill、路径和工作顺序。项目个性化来自 Project State 的显式软件定义清单及其已沉淀决策；事实变化通过 Case impacts 和动态 gaps 推进。
 
 ## 硬边界
 
-- Project State 只表达软件整体位置、项目级 gap、active Case 集合与选择依据，不保存某个 Runtime/Loop 的独占 selected Case、轮次职责或 continuation prompt。
-- Case State 保存一次有边界研发事项的 definition、implementation、verification、问题、handoff、内容 revision、完成态复审、candidate gaps 和 resolution。
-- Loop 只执行一次计划状态转移，产生 evidence、claims、accepted delta 和 handoff。
-- state 描述 gap，不保存 skill 名。Controller 根据 gap、capability manifest 和证据边界动态选择 Worker 能力，不固定 skill 顺序。
-- Controller 不执行 Worker 工作、不写 ledger、不把 round 完成等同 Case resolved，也不把 Case resolved 等同 Project 维度已提升。
-- 每个 Loop 由 Controller 从全部 active Cases 中选择唯一 Case；不同 Loop 可以并行推进不同 Case。Case 是否沿用或新建由 Controller 根据输入与 Project/Case facts 判断；Runtime 不从任务文本、列表位置或 route mode 推断 Case control 动作。
-- `deferred` 不是完成。未处理项仍是 unresolved；只有有 owner 与恢复条件的 handoff 才能转移责任。
-- 六个 facet 都完成不等于 Case resolved。Controller 必须继续处理 ledger 派生的 `completion_review`/`review_findings` gap；复审上限耗尽后只能接受人工处置或有证据的人工追加预算。
+- Project `project-state-record/v5` 明确给出软件能力决策清单、当前决策、抽象软件不变量和当前推进上下文。Agent 必须逐项理解它们，但不会为每项制造过场 gap。
+- 所有 active Case 使用 `development-case-record/v5`。Case 只记录实际相关的 facts、targeted impacts、dynamic gaps、问题、handoff 和 completion review。
+- 当前 Agent 负责恢复全部相关信息、判断下一 gap 的优先级、动态选择 skills/tools/paths、完成工作并验证。Runtime 不做语义预路由。
+- 一个 Loop 只提交一个 selected gap transition。每轮都从 fresh state 独立判断最重要的当前动作，不预先制定 impacts 或未来 gap 链。
+- 文档是否更新由当前 Gap 的目标、Project decisions/invariants、长期事实与代码现实共同决定。该更新应在最合适的 Gap 中自然发生，而不是靠最终 Review 常规补齐。
+- Completion Review 是唯一显式语义自查，只在普通工作闭合后检查实施正确性、问题是否真实解决、验证可信度、回归风险与最小性。普通 Gap 的证据收集和确定性校验不是额外 Review 阶段。
+- Agent 不直接手改 ledger；只向 trusted entrypoint 提交 Case control、Case transition 或 handoff。
 
-## 主流程
+## 状态驱动 Loop
 
-### 1. 恢复 Project 与 Case
+### 1. 恢复全部相关信息
 
-输入：用户消息或 operator event、`project-state-record/v4`、全部 active Case records、iteration、稳定事实源引用、上一轮 handoff。
+读取用户当前增量、fresh Project/Iteration、全部 active Cases、15 项软件定义决策、软件不变量，以及完成当前判断所需的长期文档、源码、配置、日志和测试。Project State 是明确的思考框架，不是 skill/path 路由表。正向轮次见 [references/controller-conversation-protocol.md](references/controller-conversation-protocol.md)，输入边界见 [references/controller-input-boundary.md](references/controller-input-boundary.md)。
 
-动作：
+### 2. 选择或创建 Case
 
-- 判断输入是补充、纠错、目标变化、report intake、状态查询、新 Case 或继续。
-- 结合 Project State 的选择依据，从全部 active Cases 中选择一个；没有合适 Case 时提出创建新 Case。Project 级 gap 只能用于选 Case，不能直接成为 Worker 的任务状态。
-- 读取完整 selected Case，拒绝只凭 Project brief 或上一轮 prompt 推断任务细节。
+结合用户意图、Project gaps、active Cases、风险和依赖选择唯一 Case。没有合适 Case 时返回 `case_control.create_case`：明确 intent/outcome、至少一个 accepted fact，以及基于当前主要阻塞或不确定性得出的一个具体 initial gap。只有现有证据已经表明某个 Project target 受到实际影响时才创建 initial impact；允许为空，不预测影响范围。
 
-退出条件：当前 Loop 有唯一 `case_id`。已有 active Case 直接进入 gap 选择，不写 Project selection；没有合适 Case 时输出 `execution_plan.plane=runtime` 与唯一 `runtime_actions[type=case_control]`，其 action 为 `create_case`，同时保持 `worker_intents=[]`。`create_case` 必须给出 title、intent、artifact_type 与 selection_reason。Runtime 把该语义动作封装成 `arckit-case-control-handoff/v1`，绑定 Project revision 和显式复审 policy后调用 ledger；成功注册 Case 并重新读取 Project/Case State 后才能选择 gap。
+### 3. 动态选择下一 Gap
 
-### 2. 选择 Case gap 与计划 transition
+根据本轮 fresh state，比较 ledger 已派生的 ready candidates 与当前上下文刚显露、尚未持久化的必要动作，再按阻塞程度、风险、信息增益、依赖、用户影响与可验证性选择一个。`candidate` 逐字段接受当前候选；`fresh` 则显式提出一个 Agent-owned、无未闭合依赖且能在本轮完成的新 Gap，并在同一 transition 中创建和关闭它。不要按软件定义清单或数组顺序执行，也不要为了后续轮次预写 gap 链。Bug 根因未知时，诊断 Gap 通常因信息增益最高自然胜出；若交互语义未知，先澄清交互模式也来自当前事实，而不是框架内置类型规则。
 
-输入：selected Case 的 `case_resolution.candidate_gaps`、全部 facets、open questions、pending handoffs、用户本轮增量。
+只有当前 transition 会对 Project target 形成可接受结论时才记录 impact。Invariant 用来约束该 transition 能否被接受，不负责生成诊断、设计、实现或测试 Gap。对实际相关 target 的判断为：
 
-动作：
+- 已满足：`upheld` + 持久证据。
+- 被威胁：`threatened` + open gap。
+- 证据不足：`undetermined` + 调查/澄清 gap。
+- 不相关：不创建 impact 或 not-required 状态。
 
-- 结合用户意图、现有代码、稳定事实和风险，从 `candidate_gaps` 动态选择一个 `scope=case` 的具体 gap；列表顺序不表达执行优先级。用户纠错可使既有 definition alignment 退回 stale/diverged。
-- 输出 `planned_transition.goal` 和 `expected_state_change`。
-- 顺序由事实决定：可以先 formalize definition、先实现、先验证、或从实现反向补齐稳定事实。
-- 对不适用 facet 也必须计划形成 evidence-backed `not_required` 判断；不能通过跳过来完成。
-- `completion_review` 只在 `base_ready=true` 后选择，必须覆盖错误、遗漏、多余三个维度并绑定当前 `content_revision`；`review_findings` 必须先修复或有证据地处置，再进行新一轮复审。
-- human-responsibility completion review gap 不能自动桥接。人类可直接复审、处置 findings，或授权有限追加轮次；Controller 不重置既有复审次数。
+### 4. 同一 Agent 完成一个 Gap
 
-退出条件：`selected_gap`、目标变化和 evidence requirement 明确。
+围绕 Gap goal 读取所有相关上下文并动态使用必要 skills/tools。可以只做需求定义、只定位代码根因、维护某份文档，或完成实现与测试；完成标准是目标和 evidence requirement 真实满足。这是执行与证明，不引入“执行后自查”步骤。
 
-### 3. 形成执行边界
+### 5. 提交 Transition
 
-需要人工或 Runtime 派发 Worker 时，读取 [references/worker-packet-and-report.md](references/worker-packet-and-report.md)。
+按 [references/closeout-handoff.md](references/closeout-handoff.md) 提交：`gap_selection`、完整 selected gap、Case facts/impacts/gaps delta、当轮 Project State delta、证据、round outcome 与 Case claim。`gaps_added` 只保存本轮已经发现、确实无法在本轮完成且值得后续追踪的真实未解决工作，不作为常规路线图。软件定义决策在被真正澄清的当轮就进入 Project State；实现轮重新读取这些最新决策并据此工作。
 
-动作：
+### 6. 自动续轮
 
-- 根据 gap 选择必要 Worker role 和 capability manifest；允许零个或多个 definition/engineering/verification 能力，但不固定顺序。
-- 当用户本轮输入、Controller 已读取的稳定事实或现有验证证据已经足以完成一个 transition 时，使用零 Worker 计划并直接在 Controller Review 中提交 evidence-backed delta；不得为满足流程形状而派发空转 Worker。
-- 每个 packet 声明 `case_context`、`expected_case_impact`、路径、动作、skills 与停止条件。
-- 默认 execution gate 为 pending；只有用户、Runtime policy 或外部平台明确授权才可执行。
-
-退出条件：packet 可由当前 Agent、人工复制桥或 Runtime 自动桥等价执行。
-
-### 4. 接收 reports 并接受 Case claims
-
-输入：`arckit-worker-report/v2`。
-
-动作：
-
-- 校验 packet 身份、scope、证据、artifact impact、risk/unknown 与 `case_state_claims`。
-- Worker 只能提 claim；Controller 明确接受或拒绝，形成 `accepted_case_state_delta`。零 Worker 时，Controller 必须在 `evidence` 中列出直接采用的用户确认或稳定事实来源。
-- definition skill 的 `fact_result` 可转为对应 facet claim；实现或验证证据可更新其 facet，并使相关 definition alignment 变 stale/diverged。
-- 人类判断、外部等待和 agent 可继续工作必须分别归责。
-
-退出条件：所有 report 有 intake 结果，accepted delta 与 evidence 可追溯。
-
-### 5. 分离 closeout 语义
-
-closeout 前读取 [references/closeout-handoff.md](references/closeout-handoff.md)。
-
-必须分别输出：
-
-- `round_outcome`：本轮执行是否完成、部分、阻塞、需人或外部等待。
-- `case_resolution`：Controller 对 Case 是 unresolved、resolved 或 blocked 的声明及剩余项。
-- `project_impact_candidate`：仅在 Case resolved 时提出的显式项目维度变化；没有就用 `none`。
-- `case_transition`：Case id、expected `case_updated_at` 与 observed `project_updated_at` revisions、完整 selected gap、planned transition、accepted delta、evidence、unresolved、上述结果。
-- `loop_handoff/v2`：下一责任方和桥接方式。
-
-确定性 ledger 可以拒绝强于 Case 实际状态的 resolved 声明。Controller 不因 report 齐全、测试通过或代码存在而静默关闭 Case。
-
-退出条件：形成一个可交给 `arckit-development-ledger` 的 `arckit-case-transition/v3`，或明确不能写回的阻塞原因。
-
-## 人工与 Runtime 等价性
-
-- 当前 Codex Agent 可在同一对话执行 packet；人类可复制 packet/report；Runtime 可自动创建 Worker、收集 report、过 gate 与调用 ledger。
-- 对相同 Project/Case facts 和 reports，三种桥接应得到相同的当前 Loop Case/gap、accepted delta、case resolution 与 next responsibility。
-- Runtime hard gate 只校验 schema、证据、授权、路径和合法 transition；业务适用性与事实接受由 Controller 声明，最终合法性由 ledger 派生。
-- 每次成功 ledger writeback 后重新读取 Case State 再规划下一轮；不得复用上一轮 revision、selected gap 或 controller frame。自动桥接以真实 ledger 进展、`no_progress_limit` 与 `max_auto_rounds` 共同停止。
+Ledger 写回后 fresh-read，再独立判断下一 Gap。即使 ledger 此时派生了 Completion Review，只要 fresh state 暴露了更重要的普通工作，本轮仍可选择 `fresh` Gap；只有确实没有普通未完成工作时才执行 Review。Agent-owned 自动继续；external 保持可恢复等待且可先做其他 agent-ready 工作；只有 human responsibility 暂停。Case resolved 后仅允许 Git-only closeout，不再检查语义正确性、运行验证、编辑或修复内容。
 
 ## 输出
 
-- `controller_frame`
-- `execution_plan`：`runtime`、`worker` 或 `none` 三个互斥执行面；Runtime action 只进入 `runtime_actions`，Worker 只进入 `worker_intents`
-- `execution_gate` 与 `executor_binding`
-- `worker_packets` 与 `report_intake`
-- `round_outcome`
-- `case_resolution`
-- `project_impact_candidate`
-- `case_transition`
-- `loop_handoff/v2`
-- `ledger_handoff`：新建 Case 时由 Runtime 把 `runtime_actions[type=case_control]` 封装后使用 trusted `case_control` entrypoint；推进任一 active Case gap 时使用 trusted `case_transition` entrypoint
+- selected Case 和动态 Gap，或完整 `case_control.create_case`
+- 本轮使用的决策、事实、invariants、skills/tools 与 evidence 摘要
+- `arckit-case-transition/v6` 或明确 handoff
+- `round_outcome`、`case_resolution`、`project_state_delta`、`loop-handoff/v2`

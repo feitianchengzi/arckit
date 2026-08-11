@@ -1,7 +1,7 @@
 interface:
   display_name: "ArcKit Interaction"
   short_description: "维护稳定页面交互、状态响应和灰度线框"
-  default_prompt: "使用 $arckit-interaction 维护稳定页面交互事实。收到 case_fact_gap 时先读取共享 Case Fact Contract，结合规格或实现证据输出 document_scope 与 fact_result；实现存在不等于交互事实已完成。不写 Case/Project State、不决定 Case 完成。无 gap 时使用 standalone 模式。"
+  default_prompt: "使用 $arckit-interaction 维护稳定页面交互事实。Agent 判断 dynamic case_gap 需要交互事实时，先读取共享 Case Gap Contract，并基于完整上下文查询、更新、确认既有事实或判定不适用；输出 document_scope 与 fact_result。实现存在不等于交互事实已确认，不写 State、不规定顺序。"
 policy:
   allow_implicit_invocation: true
 workflow:
@@ -10,7 +10,7 @@ workflow:
     - "变更时先做页面归属、状态覆盖和投影一致性分析。"
     - "只把稳定触发、响应、状态、异常和恢复行为写入事实源。"
   boundaries:
-    - "本能力可由 Runtime 绑定给 Worker，但只能在 packet 的 allowed_skills、allowed_paths 和事实边界内执行。"
+    - "本能力由 Agent 按当前 gap 动态调用，只能在交互事实与 arckit/interaction/ 写入边界内执行。"
     - "不把视觉审美、技术实现或未确认探索写成交互事实。"
     - "不依赖已移除 skill；开放问题和待处理 handoff 保留在 active case。"
   output:

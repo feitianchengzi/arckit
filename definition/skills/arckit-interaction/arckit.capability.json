@@ -2,14 +2,14 @@
   "schema_version": "arckit-capability/v1",
   "id": "arckit-interaction",
   "kind": "result_fact_source",
-  "runtime_role": ["route_auditor", "work_executor", "verification_agent"],
-  "binding_targets": ["worker"],
+  "runtime_role": ["fact_source_maintenance"],
+  "binding_targets": ["agent"],
   "summary": "Maintains stable page-level interaction behavior, states, transitions, error handling, and wireframe artifacts.",
   "input_facts": [
-    "confirmed_product_expectation",
-    "confirmed_interaction_expectation",
+    "relevant_product_facts",
+    "relevant_interaction_facts",
     "validated_scenario",
-    "case_fact_gap"
+    "dynamic_case_gap"
   ],
   "outputs": [
     "interaction_update",
@@ -26,7 +26,7 @@
     "technical_fact_ownership"
   ],
   "runtime_notes": [
-    "Managed-case mode accepts an interaction_expectation Case gap and returns an evidence-backed fact_result; standalone mode remains available.",
+    "The Agent invokes managed-case mode only when the current dynamic gap needs interaction facts; the skill returns an evidence-backed fact_result and standalone mode remains available.",
     "Use only for stable interaction expectation facts; keep unresolved exploration in the active Case and never claim Case resolution."
   ]
 }

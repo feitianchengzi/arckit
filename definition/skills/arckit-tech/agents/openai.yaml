@@ -1,7 +1,7 @@
 interface:
   display_name: "ArcKit Tech"
   short_description: "维护稳定技术方案、架构边界、模型和契约"
-  default_prompt: "使用 $arckit-tech 维护稳定技术事实。收到 case_fact_gap 时先读取共享 Case Fact Contract，结合代码、配置、测试和运行证据输出 document_scope 与 fact_result；不从实现存在推断方案已接受。不写 Case/Project State、不决定 Case 完成。无 gap 时使用 standalone 模式。"
+  default_prompt: "使用 $arckit-tech 维护稳定技术事实。Agent 判断 dynamic case_gap 需要技术事实时，先读取共享 Case Gap Contract，并基于完整上下文查询、更新、确认既有事实或判定不适用；输出 document_scope 与 fact_result。不从实现存在推断方案已接受，不写 State、不规定顺序。"
 policy:
   allow_implicit_invocation: true
 workflow:
@@ -10,7 +10,7 @@ workflow:
     - "变更时先做技术域归属、体积和 source/projection 分析。"
     - "只把稳定架构、数据模型、API 契约和技术约束写入事实源。"
   boundaries:
-    - "本能力可由 Runtime 绑定给 Worker，但只能在 packet 的 allowed_skills、allowed_paths 和事实边界内执行。"
+    - "本能力由 Agent 按当前 gap 动态调用，只能在技术事实与 arckit/tech/ 写入边界内执行。"
     - "不把未确认权衡、产品决策、排期或完整实现代码写入技术事实。"
     - "不依赖已移除 skill；开放问题、待处理 handoff 和 human gate 保留在 active case。"
   output:

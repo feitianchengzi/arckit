@@ -3,238 +3,119 @@
   "$id": "https://arckit.local/schema/project-state-record.schema.json",
   "title": "Arckit Project State Record",
   "type": "object",
-  "required": [
-    "schema_version",
-    "project",
-    "active_iteration_ref",
-    "active_case_refs",
-    "completeness_dimensions",
-    "state_gaps",
-    "case_control",
-    "active_constraints",
-    "open_questions",
-    "canonical_artifact_refs",
-    "last_state_delta"
-  ],
+  "required": ["schema_version", "project", "advancement", "software_definition", "software_invariants"],
   "properties": {
-    "schema_version": { "const": "project-state-record/v4" },
+    "schema_version": { "const": "project-state-record/v5" },
     "project": {
       "type": "object",
-      "required": ["name", "status", "created_at", "updated_at", "original_intent"],
+      "required": ["name", "status", "intent", "created_at", "updated_at", "revision"],
       "properties": {
         "name": { "type": "string", "minLength": 1 },
-        "status": {
-          "type": "string",
-          "enum": ["active", "paused", "archived"]
-        },
-        "created_at": { "type": "string" },
-        "updated_at": { "type": "string" },
-        "original_intent": { "type": "string" },
-        "current_phase": { "type": "string" }
+        "status": { "type": "string", "enum": ["active", "paused", "archived"] },
+        "intent": { "type": "string" },
+        "created_at": { "type": "string", "minLength": 1 },
+        "updated_at": { "type": "string", "minLength": 1 },
+        "revision": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false
     },
-    "active_iteration_ref": { "type": "string" },
-    "active_case_refs": {
-      "type": "array",
-      "items": { "type": "string", "minLength": 1 },
-      "uniqueItems": true
-    },
-    "completeness_dimensions": {
+    "advancement": {
       "type": "object",
-      "required": [
-        "project_intent",
-        "users_and_stakeholders",
-        "problem_scenarios",
-        "product_behavior",
-        "user_experience",
-        "runtime_surfaces",
-        "identity_access",
-        "data_state",
-        "integration_boundaries",
-        "architecture_foundation",
-        "implementation_coverage",
-        "quality_validation",
-        "security_privacy",
-        "delivery_operation",
-        "observability_support",
-        "maintainability_handoff",
-        "iteration_governance"
-      ],
+      "required": ["active_iteration_ref", "active_case_refs", "project_gaps", "selection_context"],
       "properties": {
-        "project_intent": { "$ref": "#/$defs/dimension_state" },
-        "users_and_stakeholders": { "$ref": "#/$defs/dimension_state" },
-        "problem_scenarios": { "$ref": "#/$defs/dimension_state" },
-        "product_behavior": { "$ref": "#/$defs/dimension_state" },
-        "user_experience": { "$ref": "#/$defs/dimension_state" },
-        "runtime_surfaces": { "$ref": "#/$defs/dimension_state" },
-        "identity_access": { "$ref": "#/$defs/dimension_state" },
-        "data_state": { "$ref": "#/$defs/dimension_state" },
-        "integration_boundaries": { "$ref": "#/$defs/dimension_state" },
-        "architecture_foundation": { "$ref": "#/$defs/dimension_state" },
-        "implementation_coverage": { "$ref": "#/$defs/dimension_state" },
-        "quality_validation": { "$ref": "#/$defs/dimension_state" },
-        "security_privacy": { "$ref": "#/$defs/dimension_state" },
-        "delivery_operation": { "$ref": "#/$defs/dimension_state" },
-        "observability_support": { "$ref": "#/$defs/dimension_state" },
-        "maintainability_handoff": { "$ref": "#/$defs/dimension_state" },
-        "iteration_governance": { "$ref": "#/$defs/dimension_state" }
-      },
-      "additionalProperties": false
-    },
-    "state_gaps": {
-      "type": "array",
-      "items": { "$ref": "#/$defs/state_gap" }
-    },
-    "case_control": { "$ref": "#/$defs/case_control" },
-    "active_constraints": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-    "open_questions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-    "canonical_artifact_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-    "last_state_delta": { "$ref": "#/$defs/project_state_delta" }
-  },
-  "$defs": {
-    "state_value": {
-      "type": "string",
-      "enum": [
-        "unknown",
-        "not_required",
-        "needed",
-        "defined",
-        "designed",
-        "implemented",
-        "integrated",
-        "verified",
-        "accepted",
-        "released",
-        "operational",
-        "deferred",
-        "blocked"
-      ]
-    },
-    "dimension_state": {
-      "type": "object",
-      "required": [
-        "current_state",
-        "target_state",
-        "state_reason",
-        "evidence",
-        "evidence_maturity",
-        "gap",
-        "next_transition",
-        "priority",
-        "confidence"
-      ],
-      "properties": {
-        "current_state": { "$ref": "#/$defs/state_value" },
-        "target_state": { "$ref": "#/$defs/state_value" },
-        "state_reason": { "type": "string" },
-        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "evidence_maturity": {
-          "type": "string",
-          "enum": ["none", "exploratory", "confirmed", "formalized", "validated"]
-        },
-        "gap": { "type": "string" },
-        "next_transition": { "type": "string" },
-        "blockers": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "priority": {
-          "type": "string",
-          "enum": ["none", "low", "medium", "high", "critical"]
-        },
-        "confidence": {
-          "type": "string",
-          "enum": ["low", "medium", "high"]
+        "active_iteration_ref": { "type": "string" },
+        "active_case_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "project_gaps": { "type": "array", "items": { "$ref": "#/$defs/project_gap" } },
+        "selection_context": {
+          "type": "object",
+          "required": ["current_focus", "project_priorities"],
+          "properties": {
+            "current_focus": { "type": "string" },
+            "project_priorities": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false
     },
-    "state_gap": {
+    "software_definition": {
       "type": "object",
-      "required": [
-        "id",
-        "dimension",
-        "current_state",
-        "target_state",
-        "impact",
-        "urgency",
-        "risk",
-        "covered_dimensions",
-        "next_transition"
-      ],
+      "required": ["summary", "decision_areas"],
+      "properties": {
+        "summary": { "type": "string" },
+        "decision_areas": { "type": "array", "items": { "$ref": "#/$defs/decision_area" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "software_invariants": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/software_invariant" },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "decision_area": {
+      "type": "object",
+      "required": ["id", "question", "decision_expectation", "evidence_expectation", "decision", "gap_refs"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "question": { "type": "string", "minLength": 1 },
+        "decision_expectation": { "type": "string", "minLength": 1 },
+        "evidence_expectation": { "type": "string", "minLength": 1 },
+        "decision": { "$ref": "#/$defs/software_decision" },
+        "gap_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "software_decision": {
+      "type": "object",
+      "required": ["revision", "status", "statement", "reason", "evidence", "confidence", "resume_condition"],
+      "properties": {
+        "revision": { "type": "integer", "minimum": 0 },
+        "status": { "type": "string", "enum": ["open", "settled", "deferred", "stale"] },
+        "statement": { "type": "string" },
+        "reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "confidence": { "type": "string", "enum": ["low", "medium", "high"] },
+        "resume_condition": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "software_invariant": {
+      "type": "object",
+      "required": ["id", "applies_when", "must_hold", "evidence_expectation", "priority"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
-        "dimension": { "type": "string", "enum": ["project_intent", "users_and_stakeholders", "problem_scenarios", "product_behavior", "user_experience", "runtime_surfaces", "identity_access", "data_state", "integration_boundaries", "architecture_foundation", "implementation_coverage", "quality_validation", "security_privacy", "delivery_operation", "observability_support", "maintainability_handoff", "iteration_governance"] },
-        "current_state": { "$ref": "#/$defs/state_value" },
-        "target_state": { "$ref": "#/$defs/state_value" },
-        "impact": { "type": "string", "minLength": 1 },
-        "urgency": {
-          "type": "string",
-          "enum": ["low", "medium", "high", "critical"]
-        },
-        "risk": {
-          "type": "string",
-          "enum": ["low", "medium", "high", "critical"]
-        },
+        "applies_when": { "type": "string", "minLength": 1 },
+        "must_hold": { "type": "string", "minLength": 1 },
+        "evidence_expectation": { "type": "string", "minLength": 1 },
+        "priority": { "type": "string", "enum": ["required", "recommended", "informational"] }
+      },
+      "additionalProperties": false
+    },
+    "project_target_ref": {
+      "type": "object",
+      "required": ["kind", "ref"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["software_decision", "software_invariant", "project_intent"] },
+        "ref": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "project_gap": {
+      "type": "object",
+      "required": ["id", "goal", "reason", "affects", "priority_basis", "dependencies", "candidate_case_ref"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "goal": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "affects": { "type": "array", "items": { "$ref": "#/$defs/project_target_ref" }, "minItems": 1 },
+        "priority_basis": { "type": "object", "minProperties": 1 },
         "dependencies": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "covered_dimensions": {
-          "type": "array",
-          "items": { "type": "string", "enum": ["project_intent", "users_and_stakeholders", "problem_scenarios", "product_behavior", "user_experience", "runtime_surfaces", "identity_access", "data_state", "integration_boundaries", "architecture_foundation", "implementation_coverage", "quality_validation", "security_privacy", "delivery_operation", "observability_support", "maintainability_handoff", "iteration_governance"] },
-          "minItems": 1,
-          "uniqueItems": true
-        },
-        "next_transition": { "type": "string", "minLength": 1 },
-        "candidate_case_ref": { "type": "string", "minLength": 1 }
-      },
-      "additionalProperties": false
-    },
-    "case_control": {
-      "type": "object",
-      "required": [
-        "next_case_intent",
-        "priority_basis",
-        "stop_condition"
-      ],
-      "properties": {
-        "next_case_intent": { "type": "string" },
-        "priority_basis": { "type": "string" },
-        "stop_condition": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
-    "project_state_delta": {
-      "type": "object",
-      "required": [
-        "changed_dimensions",
-        "state_transitions",
-        "deferred_dimensions",
-        "blocked_dimensions",
-        "case_refs",
-        "iteration_ref",
-        "next_project_focus",
-        "updated_at"
-      ],
-      "properties": {
-        "changed_dimensions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "state_transitions": { "type": "array", "items": { "$ref": "#/$defs/project_state_transition" } },
-        "deferred_dimensions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "blocked_dimensions": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "case_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
-        "iteration_ref": { "type": "string" },
-        "next_project_focus": { "type": "string" },
-        "updated_at": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
-    "project_state_transition": {
-      "type": "object",
-      "required": ["dimension", "from_state", "to_state", "reason"],
-      "properties": {
-        "dimension": { "type": "string", "enum": ["project_intent", "users_and_stakeholders", "problem_scenarios", "product_behavior", "user_experience", "runtime_surfaces", "identity_access", "data_state", "integration_boundaries", "architecture_foundation", "implementation_coverage", "quality_validation", "security_privacy", "delivery_operation", "observability_support", "maintainability_handoff", "iteration_governance"] },
-        "from_state": { "$ref": "#/$defs/state_value" },
-        "to_state": { "$ref": "#/$defs/state_value" },
-        "reason": { "type": "string", "minLength": 1 }
+        "candidate_case_ref": { "type": "string" }
       },
       "additionalProperties": false
     }
-  },
-  "additionalProperties": false
+  }
 }

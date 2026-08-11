@@ -19,6 +19,7 @@ const ARTIFACT_RULES = [
   { owner: "runtime", kind: "runtime_log", suffix: "activity.json" },
   { owner: "runtime", kind: "runtime_log", suffix: "events.jsonl" },
   { owner: "runtime", kind: "runtime_log", suffix: "raw-events.jsonl" },
+  { owner: "runtime", kind: "runtime_log", suffix: "messages.jsonl" },
   { owner: "projection", kind: "projection", suffix: "/INDEX.md" }
 ];
 

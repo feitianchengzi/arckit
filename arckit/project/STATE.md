@@ -1,55 +1,60 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Updated: 2026-08-04T17:01:16.287Z
+Revision: 18
+Updated: 2026-08-11T05:27:56.752Z
 Canonical Record: state.record.json
 
-## Purpose
+## Project Intent
 
-治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和多 Agent 自动化平台的软件开发接力协议
+治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。
 
-## Case Selection Intent
+## Current Focus
 
-Create the next bounded Case from the remaining Project state_gaps.
+使每轮 Loop 基于 fresh state 独立判断并推进当前最重要的一个 Gap；software invariants 只约束当前接受的 transition，不生成预设工作清单；Completion Review 成为唯一显式语义自查，Review 后 closeout 不再修改内容。
 
-## Case Selection Basis
+## Active Work
 
 - Active cases: 0
-- Next case intent: Create the next bounded Case from the remaining Project state_gaps.
-- Priority basis: Controller must compare current intent, impact, urgency, risk, and dependencies; state_gaps array order is not priority.
-- Each Loop selects exactly one active Case; Project State does not hold an exclusive execution selection.
+- Project gaps: 5
+- GAP-agent-scenario-evaluation: Validate dynamic gap selection in isolated real software scenarios.
+- GAP-runtime-resilience-and-adapters: Strengthen Runtime timeout, transcript compaction and required adapter boundaries.
+- GAP-security-real-project-validation: Validate security boundaries in a real permission-bearing project.
+- GAP-delivery-governance: Complete application-target synchronization, drift verification and release acceptance.
+- GAP-cross-record-audit: Accept strict Project, Iteration and Case cross-record auditing in real use.
 
-## Project Gap Candidates
+## Software Definition
 
-- Array order is not execution priority; Controller compares intent, impact, urgency, risk, and dependencies.
-- GAP-agent-scenario-evaluation: 状态驱动定义完整性需要在 fresh-agent 的 spec-first、code-first、mixed 和 not_required 路径中证明，并校准人类、单 Agent 与多 Agent 的责任边界。 Risk=high Urgency=high
-- GAP-runtime-resilience-and-adapters: Runtime 的 timeout、transcript compaction 和多 adapter 边界尚未形成可接受的长期运行能力。 Risk=high Urgency=medium
-- GAP-security-real-project-validation: 凭证、权限和敏感数据规则尚未在包含远程服务或受控资源的真实项目中验证。 Risk=high Urgency=medium
+Arckit is a state-driven software-development protocol and optional supervised Runtime. Project State owns explicit software-definition decisions; one Agent advances facts and dynamic gaps through trusted atomic ledger transitions.
 
-## Do Not Treat As Complete
+| Decision Area | Status | Revision | Current Decision | Project Gaps |
+| --- | --- | ---: | --- | --- |
+| product_intent_and_scope | settled | 1 | Arckit is a repository-owned software-development handoff protocol and Runtime that lets one Agent and automation hosts advance durable Project/Case state safely. | - |
+| product_capabilities | settled | 1 | Arckit provides Project/Iteration/Case ledgers, dynamic Gap selection, trusted atomic transitions, maintained development skills, and an optional supervised Runtime/Desktop. | GAP-agent-scenario-evaluation |
+| runtime_surfaces | settled | 1 | The software comprises repository-owned skills and Node.js ledger CLIs plus an optional Electron Desktop, Runtime supervisor, and Codex adapter. | - |
+| experience_and_interaction | settled | 2 | Users can invoke using-arckit conversationally; Desktop users select a project/todo, observe one persistent Agent conversation, steer it, and recover persisted runs. | - |
+| visual_language | settled | 2 | Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. | - |
+| identity_and_access | settled | 1 | Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints. | - |
+| data_and_state | settled | 2 | Canonical project data is Project v5, Iteration v3 and Case v5 in arckit/; each accepted Loop mutation uses Case Transition v6 with explicit candidate/fresh gap_selection, while Runtime run/session/thread records stay outside the target project and only opaque refs enter the ledger. | GAP-cross-record-audit |
+| external_integrations | settled | 1 | The Runtime integrates with Codex app-server/CLI and optional task sources through explicit adapters; trusted ledger entrypoints remain repository-owned. | GAP-runtime-resilience-and-adapters |
+| feedback_and_support | settled | 1 | Operational feedback is provided through the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization; no separate public support portal is currently required. | - |
+| commercialization_and_entitlement | settled | 1 | Arckit currently has no payment, subscription, trial, quota or commercial feature-entitlement model. | - |
+| technical_foundation | settled | 4 | Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron desktop host, Project State v5, Case v5, candidate/fresh Case Transition v6, and Iteration v3 with trusted atomic transitions. | GAP-runtime-resilience-and-adapters |
+| security_privacy_compliance | settled | 1 | Secrets stay outside canonical project state; Runtime enforces login/configured-source boundaries, workspace authorization, sandbox/approval rules and trusted deterministic writes. | GAP-security-real-project-validation |
+| quality_and_validation | settled | 1 | Protocol changes require schema/script validation, cross-record audits, Runtime automated tests, projection checks and risk-proportionate real execution evidence. | GAP-agent-scenario-evaluation, GAP-cross-record-audit |
+| delivery_and_distribution | settled | 1 | Maintained skills are sourced from entry/skills, synchronized to supported application targets through governed installation, and Runtime/Desktop are built and checked from runtime/arckit-runtime. | GAP-delivery-governance |
+| observability_and_operation | settled | 2 | Runtime persists lifecycle, activity, messages and timing outside the target project, supports restart reconciliation, and exposes opaque run refs for canonical traceability. | GAP-runtime-resilience-and-adapters |
 
-- Stop condition: Stop after one active Case and one candidate gap are selected for the current Loop.
-- Do not edit this file as source state; update `state.record.json` and render this projection.
-- Do not close the active iteration until its close condition is met.
+## Software Invariants
 
-## High-Priority Dimensions
-
-- problem_scenarios: defined -> accepted; next: 选择一个复杂软件项目作为状态驱动 loop 验证对象。
-- product_behavior: implemented -> accepted; next: Run Skill First scenarios with fresh agents for spec-first, code-first, mixed, and not_required Case paths.
-- architecture_foundation: implemented -> accepted; next: 为 codex-app-server adapter 增加 turn timeout 和 transcript compaction 策略。
-- iteration_governance: verified -> accepted; next: Use the active iteration in a real complex project loop and accept it only after durable end-to-end evidence.
+- observable-behavior-has-durable-expectation: The behavior accepted by this transition has an accurate, unambiguous, and durably recoverable product expectation.
+- changed-interactions-remain-recoverable: The interaction change accepted by this transition is coherent and durably recoverable.
+- changed-visual-language-remains-consistent: The visual change accepted by this transition remains consistent with the project visual language and is durably recoverable.
+- changed-contracts-remain-explainable: The technical contract accepted by this transition is coherent, explainable, and durably recoverable.
+- accepted-facts-are-realized: The implementation accepted by this transition realizes its relevant accepted facts and upheld project decisions and invariants.
+- material-risks-have-credible-evidence: The risk-bearing claims accepted by this transition are supported by credible, repeatable, proportionate evidence.
 
 ## Read For Precision
 
 - state.record.json
 - arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json
-
-## Open Questions
-
-- 是否用一个真实复杂项目执行 state gap -> case -> verification -> state delta 的完整 loop 验证。
-
-## Notes
-
-- `state.record.json` is the canonical machine-readable project state.
-- `STATE.md` is a generated Project/Case-selection decision brief. It is intentionally lossy and should not mirror the full JSON record.
-- Store iteration state under `arckit/project/iterations/` and case evidence under `arckit/cases/`.

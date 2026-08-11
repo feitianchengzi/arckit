@@ -27,34 +27,14 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
     changedFiles.push('arckit/project/state.record.json', 'arckit/project/STATE.md');
   }
 
-  let state = JSON.parse(await readFile(statePath, 'utf8'));
-  if (state.schema_version === 'project-state-record/v3') {
-    const migration = JSON.parse((await runLedgerScript(root, [
-      'project-state.mjs',
-      'migrate-v4',
-      'arckit/project/state.record.json',
-    ], { nodeBin, capability: projectCapability })).stdout);
-    changedFiles.push(...migration.changed_files);
-    repaired = migration.migrated || repaired;
-    state = JSON.parse(await readFile(statePath, 'utf8'));
-  }
-  if (state.schema_version !== 'project-state-record/v4') throw new Error('Runtime requires a project-state-record/v4 project. Migrate or replace the unsupported state record before running Runtime.');
-
-  const runtimeRefRepair = JSON.parse((await runLedgerScript(root, [
-    'project-state.mjs',
-    'repair-runtime-refs',
-    'arckit/project/state.record.json',
-  ], { nodeBin, capability: projectCapability })).stdout);
-  if (runtimeRefRepair.repaired) {
-    changedFiles.push(...runtimeRefRepair.changed_files);
-    repaired = true;
-    state = JSON.parse(await readFile(statePath, 'utf8'));
-  }
+  const state = JSON.parse(await readFile(statePath, 'utf8'));
+  if (state.schema_version !== 'project-state-record/v5') throw new Error('Runtime requires project-state-record/v5. Upgrade this project explicitly from its current requirements and evidence before starting Runtime.');
 
   await runLedgerScript(root, ['project-state.mjs', 'audit', 'arckit/project/state.record.json'], { nodeBin, capability: projectCapability });
-  for (const activeCaseRef of state.active_case_refs || []) {
+  for (const activeCaseRef of state.advancement.active_case_refs || []) {
     const casePath = join(root, activeCaseRef);
     const record = parseCaseRecord(await readFile(casePath, 'utf8'), casePath);
+    if (record.schema_version !== 'development-case-record/v5') throw new Error(`Runtime requires development-case-record/v5: ${activeCaseRef}. Upgrade this project explicitly before starting Runtime.`);
     const auditResult = await runLedgerScript(root, [
       'development-case.mjs',
       'audit',

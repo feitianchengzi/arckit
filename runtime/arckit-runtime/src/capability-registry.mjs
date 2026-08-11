@@ -1,5 +1,4 @@
 import { readdir, readFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -35,10 +34,6 @@ export async function loadRuntimeCapabilities(options = {}) {
   return filterCapabilities(normalizeCapabilities(loaded), allPolicyCapabilityIds(policy));
 }
 
-export function selectCapabilitiesForRound(capabilities = []) {
-  return normalizeCapabilities(capabilities);
-}
-
 export function capabilityIds(capabilities = []) {
   return new Set(normalizeCapabilities(capabilities).map((capability) => capability.id));
 }
@@ -51,15 +46,10 @@ export function capabilitiesForBinding(capabilities = [], policy, bindingTarget)
 }
 
 export function capabilityIdsForBinding(policy, bindingTarget) {
-  if (!["controller", "runtime", "worker"].includes(bindingTarget)) {
+  if (!["controller", "runtime"].includes(bindingTarget)) {
     throw new Error(`Unsupported capability binding target: ${bindingTarget}`);
   }
   return new Set(arrayOfStrings(policy?.[`${bindingTarget}_capability_ids`]));
-}
-
-export function invalidCapabilityBindings(requestedIds = [], availableCapabilities = []) {
-  const availableIds = capabilityIds(availableCapabilities);
-  return unique(arrayOfStrings(requestedIds)).filter((id) => !availableIds.has(id));
 }
 
 export function agentSkillInvocationForPhase(capabilities = [], phase) {
@@ -110,73 +100,6 @@ export async function loadRuntimeCapabilityForEntrypoint({ projectRoot, entrypoi
   const capabilities = await loadRuntimeCapabilities({ projectRoot, capabilityPolicy: policy });
   const runtimeCapabilities = capabilitiesForBinding(capabilities, policy, "runtime");
   return runtimeCapabilityForEntrypoint(runtimeCapabilities, entrypoint);
-}
-
-export async function assertInstalledAgentSkillCompatibility(capabilities = [], options = {}) {
-  const codexHome = resolve(options.codexHome || process.env.CODEX_HOME || join(homedir(), ".codex"));
-  const checked = [];
-  for (const capability of normalizeCapabilities(capabilities).filter((item) => item.invocation.type === "agent_skill")) {
-    if (capability.source !== "repository") {
-      throw new Error(`Agent skill compatibility requires a repository capability source: ${capability.id}.`);
-    }
-    const installedRoot = join(codexHome, "skills", capability.id);
-    const installedManifestPath = join(installedRoot, "arckit.capability.json");
-    const installedSkillPath = join(installedRoot, "SKILL.md");
-    let installedManifestText;
-    let installedSkillText;
-    try {
-      [installedManifestText, installedSkillText] = await Promise.all([
-        readFile(installedManifestPath, "utf8"),
-        readFile(installedSkillPath, "utf8")
-      ]);
-    } catch {
-      throw new Error(`Installed Controller skill is missing: ${capability.id}. Sync it from ${capability.capability_root} to ${installedRoot}.`);
-    }
-    const sourceManifestText = await readFile(join(capability.capability_root, "arckit.capability.json"), "utf8");
-    let installedManifest;
-    try {
-      installedManifest = JSON.parse(installedManifestText);
-    } catch {
-      throw new Error(`Installed Controller capability manifest is invalid JSON: ${installedManifestPath}.`);
-    }
-    if (!capability.protocol_revision || installedManifest.protocol_revision !== capability.protocol_revision) {
-      throw new Error(`Installed Controller skill protocol is incompatible: ${capability.id} expected ${capability.protocol_revision || "<missing>"}, found ${installedManifest.protocol_revision || "<missing>"}. Sync the repository skill before starting Runtime.`);
-    }
-    const [sourceFiles, installedFiles] = await Promise.all([
-      readComparableSkillFiles(capability.capability_root),
-      readComparableSkillFiles(installedRoot)
-    ]);
-    if (installedManifestText !== sourceManifestText || installedSkillText.length === 0 || !sameSkillFiles(sourceFiles, installedFiles)) {
-      throw new Error(`Installed Controller skill has drifted from the Runtime repository source: ${capability.id}. Sync ${capability.capability_root} to ${installedRoot}.`);
-    }
-    checked.push({ id: capability.id, protocol_revision: capability.protocol_revision, installed_root: installedRoot });
-  }
-  return checked;
-}
-
-async function readComparableSkillFiles(root) {
-  const files = new Map();
-  async function walk(dir, prefix = "") {
-    const entries = await readdir(dir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.name === ".DS_Store") continue;
-      const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
-      const absolutePath = join(dir, entry.name);
-      if (entry.isDirectory()) await walk(absolutePath, relativePath);
-      else if (entry.isFile()) files.set(relativePath, await readFile(absolutePath));
-    }
-  }
-  await walk(root);
-  return files;
-}
-
-function sameSkillFiles(left, right) {
-  if (left.size !== right.size) return false;
-  for (const [path, content] of left) {
-    const candidate = right.get(path);
-    if (!candidate || !content.equals(candidate)) return false;
-  }
-  return true;
 }
 
 export async function loadCapabilityPolicy(options = {}) {
@@ -269,22 +192,20 @@ function filterCapabilities(capabilities, allowedIds) {
 }
 
 function normalizeCapabilityPolicy(policy, source) {
-  if (policy?.schema_version !== "arckit-capability-policy/v2") {
+  if (policy?.schema_version !== "arckit-capability-policy/v3") {
     throw new Error(`Invalid Arckit capability policy: ${source}`);
   }
   const normalized = {
-    schema_version: "arckit-capability-policy/v2",
+    schema_version: "arckit-capability-policy/v3",
     controller_capability_ids: arrayOfStrings(policy.controller_capability_ids),
-    runtime_capability_ids: arrayOfStrings(policy.runtime_capability_ids),
-    worker_capability_ids: arrayOfStrings(policy.worker_capability_ids)
+    runtime_capability_ids: arrayOfStrings(policy.runtime_capability_ids)
   };
-  if (![policy.controller_capability_ids, policy.runtime_capability_ids, policy.worker_capability_ids].every(Array.isArray)) {
+  if (![policy.controller_capability_ids, policy.runtime_capability_ids].every(Array.isArray)) {
     throw new Error(`Invalid Arckit capability policy: ${source}`);
   }
   const allIds = [
     ...normalized.controller_capability_ids,
-    ...normalized.runtime_capability_ids,
-    ...normalized.worker_capability_ids
+    ...normalized.runtime_capability_ids
   ];
   if (new Set(allIds).size !== allIds.length) {
     throw new Error(`Capability ids must belong to exactly one binding target: ${source}`);
@@ -295,8 +216,7 @@ function normalizeCapabilityPolicy(policy, source) {
 function allPolicyCapabilityIds(policy) {
   return new Set([
     ...capabilityIdsForBinding(policy, "controller"),
-    ...capabilityIdsForBinding(policy, "runtime"),
-    ...capabilityIdsForBinding(policy, "worker")
+    ...capabilityIdsForBinding(policy, "runtime")
   ]);
 }
 

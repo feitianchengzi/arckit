@@ -1,14 +1,5 @@
 # Project Iterations
 
-`arckit/project/iterations` stores macro iteration state. Each `*.record.json` is canonical; each `.md` is a generated decision brief.
-
-## Active Iterations
-
 | ID | Status | Title | Updated |
 | --- | --- | --- | --- |
-| [ITER-20260705-001](iterations/ITER-20260705-001-state-driven-loop-foundation.md) | active | State-driven loop foundation | 2026-08-04T17:01:16.287Z |
-
-## Closed Iterations
-
-| ID | Status | Title | Updated |
-| --- | --- | --- | --- |
+| [ITER-20260705-001](iterations/ITER-20260705-001-state-driven-loop-foundation.md) | active | State-driven loop foundation | 2026-08-11T05:27:56.752Z |

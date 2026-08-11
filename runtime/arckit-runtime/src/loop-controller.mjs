@@ -2,7 +2,7 @@ import { safeSemanticText, SEMANTIC_LIMITS } from './context-boundary.mjs';
 
 export function selectNextRound(snapshot, options = {}) {
   const taskGoal = safeSemanticText(options.task, { maxLength: SEMANTIC_LIMITS.goal });
-  const caseControl = snapshot.projectState.case_control || {};
+  const selectionContext = snapshot.projectState.advancement?.selection_context || {};
   const activeCases = Array.isArray(snapshot.activeCases) ? snapshot.activeCases : [];
   const candidateCases = activeCases.map(({ ref, record }) => ({
     ref,
@@ -14,17 +14,17 @@ export function selectNextRound(snapshot, options = {}) {
     case_resolution: record.case_resolution,
     candidate_gaps: record.case_resolution?.candidate_gaps || [],
   }));
-  const candidateProjectGaps = (snapshot.projectState.state_gaps || []).map((gap) => ({
+  const candidateProjectGaps = (snapshot.projectState.advancement?.project_gaps || []).map((gap) => ({
     id: gap.id || '',
-    dimension: gap.dimension || '',
-    current_state: gap.current_state || 'unknown',
-    target_state: gap.target_state || 'unknown',
-    impact: gap.impact || '',
-    next_transition: gap.next_transition || '',
+    goal: gap.goal || '',
+    reason: gap.reason || '',
+    affects: gap.affects || [],
+    priority_basis: gap.priority_basis || {},
+    dependencies: gap.dependencies || [],
     candidate_case_ref: gap.candidate_case_ref || '',
   }));
   const roundGoal = taskGoal
-    || safeSemanticText(caseControl.next_case_intent, { maxLength: SEMANTIC_LIMITS.transition })
+    || safeSemanticText(selectionContext.next_case_intent, { maxLength: SEMANTIC_LIMITS.transition })
     || 'Select or create a bounded Case, then advance one evidence-backed Case State transition.';
 
   return {
@@ -32,24 +32,26 @@ export function selectNextRound(snapshot, options = {}) {
     scope: 'case',
     case_id: '',
     case_updated_at: '',
-    facet: '',
-    current_state: 'unselected',
-    target_state: 'evidence-backed case transition',
-    next_transition: '',
-    impact: activeCases.length
-      ? 'Controller must select one active Case for this Loop and advance one of its current candidate gaps.'
-      : 'Project State has no active Case; Controller must create one before worker execution.',
+    goal: roundGoal,
+    reason: activeCases.length
+      ? 'The Agent must semantically select one active Case for this Loop and advance one of its current candidate gaps; Runtime does not preselect Case identity.'
+      : 'Project State has no active Case; the Agent must create one before gap execution.',
+    derived_from: activeCases.length ? ['active_cases', 'project_state'] : ['project_state', 'user_intent'],
+    blocked_by: [],
+    priority_basis: { blocking: 'high', uncertainty: 'medium', risk: 'medium', user_impact: 'high' },
+    responsibility: 'agent',
+    evidence_required: ['A semantic Case control or one evidence-backed Case transition.'],
     round_goal: roundGoal,
     candidate_cases: candidateCases,
     candidate_case_gaps: [],
     candidate_project_gaps: candidateProjectGaps,
     case_control: {
-      next_case_intent: safeSemanticText(caseControl.next_case_intent || '', { maxLength: SEMANTIC_LIMITS.transition }),
-      priority_basis: safeSemanticText(caseControl.priority_basis || '', { maxLength: SEMANTIC_LIMITS.reason }),
-      stop_condition: safeSemanticText(caseControl.stop_condition || '', { maxLength: SEMANTIC_LIMITS.reason }),
+      next_case_intent: safeSemanticText(selectionContext.next_case_intent || '', { maxLength: SEMANTIC_LIMITS.transition }),
+      priority_basis: safeSemanticText(selectionContext.priority_basis || '', { maxLength: SEMANTIC_LIMITS.reason }),
+      stop_condition: safeSemanticText(selectionContext.stop_condition || '', { maxLength: SEMANTIC_LIMITS.reason }),
     },
     conversation_locale: options.conversationLocale || 'en',
-    required_outputs: ['case_transition', 'round_outcome', 'case_outcome', 'project_impact', 'loop_handoff'],
+    required_outputs: ['case_transition', 'round_outcome', 'case_outcome', 'project_state_delta', 'loop_handoff'],
     required_context_refs: compact([
       snapshot.paths.projectState,
       snapshot.paths.stateBrief,
@@ -67,7 +69,7 @@ export function selectNextRound(snapshot, options = {}) {
       'Stop when the next Case gap requires human judgment or an external result.',
       'Stop if the turn would require destructive or cross-workspace actions.',
     ],
-    max_auto_rounds: options.maxAutoRounds || 8,
+    max_auto_rounds: options.maxNoProgressRounds || 8,
   };
 }
 

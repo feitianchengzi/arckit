@@ -1,6 +1,6 @@
 metadata:
   project: Arckit Runtime Desktop
-  last_updated: "2026-08-02"
+  last_updated: "2026-08-11"
   tokens: ./design-tokens.yaml
 
 components:
@@ -140,11 +140,20 @@ components:
       requirement: 状态同时显示图标、文本和说明；错误紧邻表单；账号可脱敏但 token 永不显示
 
   WorkbenchTranscript:
-    role: 在只读审查和人工处理模式中展示对话、工具与证据
+    role: 在固定 Workbench 壳层中以 Agent 正式输出为主，并以可折叠 reasoning、结构化结果和单行工具活动保真展示执行对话
     variants:
-      review: { surface: "{colors.paper}", composer: hidden }
-      intervention: { surface: "{colors.paper}", composer: visible }
+      review: { surface: "{colors.paper}", composer: hidden, transcript_scroll: independent }
+      intervention: { surface: "{colors.paper}", composer: fixed, transcript_scroll: independent }
+      loop_status: { surface: "{colors.ink.50}", border: "{colors.ink.150}", typography: "{typography.caption}" }
+      reasoning_disclosure: { surface: transparent, foreground: "{colors.ink.600}", border: "{colors.ink.150}", typography: "{typography.body}", completed: collapsed }
+      agent_message: { surface: transparent, foreground: "{colors.ink.900}", typography: "{typography.conversation}" }
+      structured_result: { surface: "{colors.ink.50}", foreground: "{colors.ink.700}", border: "{colors.ink.150}", typography: "{typography.caption}", raw_payload: nested_disclosure }
+      tool_activity: { surface: transparent, foreground: "{colors.ink.600}", typography: "{typography.caption}", overflow: ellipsis }
+      user_message: { surface: "{colors.accent.faint}", border: "{colors.accent.soft}", typography: "{typography.conversation}" }
     sizes:
-      readable: { max_content_width: 760, padding: "{spacing.7}", typography: "{typography.conversation}" }
-    states: [loading, review, intervention, submitting, accepted, error]
-    token_refs: [colors.paper, colors.ink.150, typography.conversation, shadows.large]
+      shell: { min_height: 0, left_pane: stable, center: flexible, inspector: "{layout.inspector_width}" }
+      readable: { max_content_width: 760, message_padding: "{spacing.7}", tool_row_height: 30, typography: "{typography.conversation}" }
+    states: [loading, review, intervention, reasoning_streaming, reasoning_collapsed, structured_collapsed, structured_expanded, streaming, following_latest, history_position, submitting, accepted, error]
+    token_refs: [colors.paper, colors.ink.50, colors.ink.150, colors.ink.600, colors.ink.900, colors.accent.faint, colors.accent.soft, typography.caption, typography.conversation]
+    accessibility:
+      requirement: reasoning 与结构化结果使用原生可聚焦展开控件并提供可读标题；空 reasoning 不产生控件；原始 JSON 使用预格式化文本且可滚动；Loop 与工具状态同时使用图标和文字；工具目标溢出时保留可访问全称；阅读历史时新消息不强制改变滚动位置

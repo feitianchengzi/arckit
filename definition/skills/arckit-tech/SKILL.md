@@ -18,7 +18,7 @@ description: "维护 arckit/tech/ 下的技术方案、架构说明、数据模�
 
 ## Case State 驱动模式
 
-收到 `case_fact_gap` 时，先读取 [`../_arckit_shared/case-fact-contract.md`](../_arckit_shared/case-fact-contract.md)，并进入 managed-case 模式。代码、配置、测试与运行结果可以作为候选技术事实；稳定结论需要被正式化并与实现对齐。本 skill 返回 `fact_result`，不写 Case/Project State、不从实现存在推断架构已接受。没有 `case_fact_gap` 时使用 standalone 模式。
+Agent 判断当前 dynamic gap 需要查询或维护技术事实时，向本 skill 提供 `case_gap`。先读取 [`../_arckit_shared/case-gap-contract.md`](../_arckit_shared/case-gap-contract.md)，再基于完整上下文进入 managed-case 模式。代码、配置、测试与运行结果只是相关证据；本 skill 返回稳定技术事实，不写 Case/Project State、不规定工作顺序、不从实现存在推断架构已接受。没有 `case_gap` 时使用 standalone 模式。
 
 ## 核心结构
 
@@ -97,7 +97,7 @@ tech/
 
 ### 最终输出：document_scope（每次调用结束前必须输出）
 
-本 Skill 必须输出 `document_scope`；同时按 Case Fact Contract 输出 `fact_result`。managed-case 模式的 `fact_result` 是 Controller 可接受的技术事实 claim，standalone 模式只描述本次事实影响。
+本 Skill 必须输出 `document_scope`；同时按 Case Gap Contract 输出 `fact_result`。managed-case 模式的结果供当前 Agent 汇总为 transition 证据，standalone 模式只描述本次事实影响。
 
 **查询结束时**（只读，无写操作）：
 ```yaml

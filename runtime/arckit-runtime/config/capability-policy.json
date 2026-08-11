@@ -1,16 +1,9 @@
 {
-  "schema_version": "arckit-capability-policy/v2",
+  "schema_version": "arckit-capability-policy/v3",
   "controller_capability_ids": [
     "using-arckit"
   ],
   "runtime_capability_ids": [
     "arckit-development-ledger"
-  ],
-  "worker_capability_ids": [
-    "arckit-spec",
-    "arckit-interaction",
-    "arckit-visual",
-    "arckit-tech",
-    "arckit-debug-diagnosis"
   ]
 }

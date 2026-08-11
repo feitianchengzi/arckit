@@ -1,252 +1,143 @@
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
-import { migrateProjectStateV4, validateProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
-import { auditIterationStateRecord, renderIteration, validateIterationStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-iteration.mjs';
+import {
+  createProjectStateRecord,
+  projectTargetRefs,
+  validateProjectStateRecord,
+} from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
+import {
+  coreDecisionAreaDefinitions,
+} from '../../../entry/skills/arckit-development-ledger/scripts/project-software-definition.mjs';
+import {
+  CORE_SOFTWARE_INVARIANTS,
+} from '../../../entry/skills/arckit-development-ledger/scripts/project-invariants.mjs';
+import {
+  auditIterationStateRecord,
+  validateIterationStateRecord,
+} from '../../../entry/skills/arckit-development-ledger/scripts/project-iteration.mjs';
 
-const DIMENSIONS = [
-  'project_intent', 'users_and_stakeholders', 'problem_scenarios', 'product_behavior',
-  'user_experience', 'runtime_surfaces', 'identity_access', 'data_state',
-  'integration_boundaries', 'architecture_foundation', 'implementation_coverage',
-  'quality_validation', 'security_privacy', 'delivery_operation',
-  'observability_support', 'maintainability_handoff', 'iteration_governance',
-];
-
-test('Project State v3 migration removes exclusive Case selection and preserves active refs', () => {
-  const legacy = projectRecord();
-  legacy.schema_version = 'project-state-record/v3';
-  legacy.active_case_refs = ['arckit/cases/active/CASE-20260726-901-example.md'];
-  legacy.case_control = {
-    selected_case_ref: legacy.active_case_refs[0],
-    selection_reason: 'Legacy exclusive selection.',
-    next_case_intent: 'Advance the bounded work.',
-    priority_basis: 'Legacy priority basis.',
-    stop_condition: 'Legacy stop condition.',
-  };
-
-  const { record, migrated } = migrateProjectStateV4(legacy, { timestamp: '2026-07-27T00:00:00.000Z' });
-  assert.equal(migrated, true);
-  assert.equal(record.schema_version, 'project-state-record/v4');
-  assert.deepEqual(record.active_case_refs, legacy.active_case_refs);
-  assert.equal(Object.hasOwn(record.case_control, 'selected_case_ref'), false);
-  assert.equal(Object.hasOwn(record.case_control, 'selection_reason'), false);
-  assert.deepEqual(validateProjectStateRecord(record), []);
-});
-
-test('Iteration v2 rejects Loop state, legacy versions, and no-op Project changes', () => {
-  const valid = iterationRecord();
-  assert.deepEqual(validateIterationStateRecord(valid), []);
-
-  const withLoopState = structuredClone(valid);
-  withLoopState.loop_control = { trigger_mode: 'manual_bridge' };
-  assert.match(validateIterationStateRecord(withLoopState).join('\n'), /loop_control is not allowed/);
-
-  const legacy = structuredClone(valid);
-  legacy.schema_version = 'iteration-state-record/v1';
-  assert.match(validateIterationStateRecord(legacy).join('\n'), /iteration-state-record\/v2/);
-
-  const noOp = structuredClone(valid);
-  noOp.accepted_project_changes.push({
-    dimension: 'product_behavior',
-    from_state: 'implemented',
-    to_state: 'implemented',
-    reason: 'A no-op must not become an iteration transition.',
-    evidence: ['arckit/cases/closed/CASE-20260726-001-example.md'],
-    case_ref: 'arckit/cases/closed/CASE-20260726-001-example.md',
-  });
-  assert.match(validateIterationStateRecord(noOp).join('\n'), /must change state/);
-});
-
-test('Iteration projection derives the current side from Project State and never renders a stale reverse transition', () => {
-  const record = iterationRecord();
-  record.target_project_states = [{
-    dimension: 'product_behavior',
-    target_state: 'accepted',
-    reason: 'Accept behavior through real-agent scenarios.',
-  }];
-  const project = projectRecord();
-  project.completeness_dimensions.product_behavior = dimension({
-    current: 'implemented',
-    target: 'accepted',
-    gap: 'Real-agent evaluation remains.',
-    priority: 'high',
-  });
-  project.state_gaps = [gap({
-    id: 'GAP-product',
-    dimension: 'product_behavior',
-    current: 'implemented',
-    target: 'accepted',
-    covered: ['product_behavior'],
-  })];
-  record.acceptance.remaining_project_gaps = ['GAP-product'];
-
-  const projection = renderIteration(record, project);
-  assert.match(projection, /product_behavior: implemented -> accepted/);
-  assert.doesNotMatch(projection, /implemented -> designed/);
-});
-
-test('Project State requires every actionable dimension to be covered by a Project gap', () => {
-  const project = projectRecord();
-  project.completeness_dimensions.product_behavior = dimension({
-    current: 'implemented',
-    target: 'accepted',
-    gap: 'Real-agent evaluation remains.',
-    priority: 'high',
-  });
-  assert.match(validateProjectStateRecord(project).join('\n'), /not covered by state_gaps: product_behavior/);
-
-  project.state_gaps = [gap({
-    id: 'GAP-product',
-    dimension: 'product_behavior',
-    current: 'implemented',
-    target: 'accepted',
-    covered: ['product_behavior'],
-  })];
+test('Project v5 owns the complete explicit software-definition checklist and independent invariants', () => {
+  const project = createProjectStateRecord({ name: 'Fixture', intent: 'Build a bounded product.' });
+  assert.equal(project.schema_version, 'project-state-record/v5');
+  assert.deepEqual(project.software_definition.decision_areas.map((area) => area.id), coreDecisionAreaDefinitions().map((area) => area.id));
+  assert.deepEqual(project.software_invariants, structuredClone(CORE_SOFTWARE_INVARIANTS));
+  assert.equal(Object.hasOwn(project, 'completeness_dimensions'), false);
+  assert.equal(Object.hasOwn(project, 'desired_conditions'), false);
   assert.deepEqual(validateProjectStateRecord(project), []);
 });
 
-test('durable state records reject volatile evidence references', () => {
-  const project = projectRecord();
-  project.completeness_dimensions.product_behavior.evidence = ['/tmp/transient-result.json'];
-  project.canonical_artifact_refs = ['/private/tmp/transient-result.json'];
-  const projectErrors = validateProjectStateRecord(project).join('\n');
-  assert.match(projectErrors, /evidence contains volatile ref/);
-  assert.match(projectErrors, /canonical_artifact_refs contains volatile ref/);
+test('the protocol checklist cannot be removed or semantically rewritten by a project', () => {
+  const missing = fixtureProject();
+  missing.software_definition.decision_areas.shift();
+  assert.match(validateProjectStateRecord(missing).join('\n'), /must include core decision area product_intent_and_scope/);
 
-  const iteration = iterationRecord();
-  iteration.acceptance.evidence = ['/tmp/transient-result.json'];
-  assert.match(validateIterationStateRecord(iteration).join('\n'), /volatile ref/);
+  const rewritten = fixtureProject();
+  rewritten.software_definition.decision_areas[0].question = 'Which skill owns product intent?';
+  assert.match(validateProjectStateRecord(rewritten).join('\n'), /must match the current protocol definition exactly/);
 });
 
-test('strict records reject malformed collection entries and duplicate gap identities', () => {
-  const project = projectRecord();
-  project.completeness_dimensions.product_behavior.evidence = [42];
-  project.completeness_dimensions.product_behavior.blockers = ['blocked', 'blocked'];
-  project.state_gaps = [
-    gap({ id: 'GAP-duplicate', dimension: 'product_behavior', current: 'unknown', target: 'unknown', covered: ['product_behavior'] }),
-    gap({ id: 'GAP-duplicate', dimension: 'quality_validation', current: 'unknown', target: 'unknown', covered: ['quality_validation'] }),
-  ];
-  project.last_state_delta.state_transitions = [{ dimension: 'product_behavior', from_state: 'implemented', to_state: 'implemented', reason: '' }];
-  const projectErrors = validateProjectStateRecord(project).join('\n');
-  assert.match(projectErrors, /evidence\[0\] must be a non-empty string/);
-  assert.match(projectErrors, /blockers must be unique/);
-  assert.match(projectErrors, /state_gaps ids must be unique/);
-  assert.match(projectErrors, /states must describe a real Project state change/);
-
-  const iteration = iterationRecord();
-  iteration.active_case_refs = ['arckit/cases/active/CASE-20260726-901.md', 'arckit/cases/active/CASE-20260726-901.md'];
-  iteration.acceptance.remaining_project_gaps = [7];
-  const iterationErrors = validateIterationStateRecord(iteration).join('\n');
-  assert.match(iterationErrors, /active_case_refs must be unique/);
-  assert.match(iterationErrors, /remaining_project_gaps\[0\] must be a non-empty string/);
+test('projects personalize software decisions without inventing concrete software invariants', () => {
+  const project = fixtureProject();
+  const technical = area(project, 'technical_foundation');
+  technical.decision = {
+    revision: 1,
+    status: 'settled',
+    statement: 'The application uses Qt 6, C++20 and CMake.',
+    reason: 'Repository code and build configuration establish the stack.',
+    evidence: ['CMakeLists.txt', 'src/main.cpp'],
+    confidence: 'high',
+    resume_condition: '',
+  };
+  assert.deepEqual(validateProjectStateRecord(project), []);
+  assert.equal(project.software_invariants.some((item) => item.id.includes('qt')), false);
 });
 
-test('strict validation and audit fail closed without dereferencing malformed nested entries', () => {
-  const project = projectRecord();
-  project.completeness_dimensions.product_behavior = null;
-  project.state_gaps = [null];
-  assert.doesNotThrow(() => validateProjectStateRecord(project));
-  assert.match(validateProjectStateRecord(project).join('\n'), /product_behavior is required/);
-  assert.match(validateProjectStateRecord(project).join('\n'), /state_gaps\[0\] must be an object/);
+test('settled, deferred and stale decisions enforce their distinct evidence obligations', () => {
+  const settled = fixtureProject();
+  area(settled, 'product_capabilities').decision.status = 'settled';
+  assert.match(validateProjectStateRecord(settled).join('\n'), /settled requires statement, reason, and durable evidence/);
 
-  const iteration = iterationRecord();
-  iteration.target_project_states = [null];
-  iteration.accepted_project_changes = {};
-  iteration.acceptance.evidence = {};
-  iteration.last_case_aggregation = null;
-  assert.doesNotThrow(() => validateIterationStateRecord(iteration));
-  assert.doesNotThrow(() => auditIterationStateRecord(iteration, '/nonexistent/iteration.record.json'));
-  assert.match(auditIterationStateRecord(iteration, '/nonexistent/iteration.record.json').join('\n'), /target_project_states\[0\].dimension is invalid/);
+  const deferred = fixtureProject();
+  area(deferred, 'commercialization_and_entitlement').decision.status = 'deferred';
+  assert.match(validateProjectStateRecord(deferred).join('\n'), /deferred requires reason and resume_condition/);
+
+  const stale = fixtureProject();
+  area(stale, 'technical_foundation').decision.status = 'stale';
+  assert.match(validateProjectStateRecord(stale).join('\n'), /stale requires an active Project gap/);
 });
 
-function iterationRecord() {
-  return {
-    schema_version: 'iteration-state-record/v2',
-    id: 'ITER-20260726-901',
-    title: 'Strict iteration fixture',
-    status: 'active',
-    created_at: '2026-07-26T00:00:00.000Z',
-    updated_at: '2026-07-26T00:00:00.000Z',
-    iteration_goal: 'Test strict macro aggregation.',
-    project_state_ref: 'arckit/project/state.record.json',
-    target_project_states: [],
-    accepted_project_changes: [],
-    acceptance: { status: 'working', evidence: [], remaining_project_gaps: [] },
-    blocking_project_gaps: [],
-    active_case_refs: [],
-    closed_case_refs: [],
-    close_condition: 'Close after acceptance.',
-    last_case_aggregation: {
-      case_ref: '',
-      project_changes: [],
-      evidence: [],
-      updated_at: '2026-07-26T00:00:00.000Z',
-    },
+test('a real Project gap may affect multiple decisions and invariants without becoming a workflow', () => {
+  const project = fixtureProject();
+  project.advancement.project_gaps.push({
+    id: 'GAP-1', goal: 'Resolve the restore contract.', reason: 'A stale restore can overwrite new data.',
+    affects: [
+      { kind: 'software_decision', ref: 'data_and_state' },
+      { kind: 'software_invariant', ref: 'accepted-facts-are-realized' },
+    ],
+    priority_basis: { risk: 'high', uncertainty: 'high' }, dependencies: [], candidate_case_ref: '',
+  });
+  area(project, 'data_and_state').gap_refs = ['GAP-1'];
+  assert.deepEqual(validateProjectStateRecord(project), []);
+  assert.equal(Object.hasOwn(project.advancement.project_gaps[0], 'skill'), false);
+  assert.equal(Object.hasOwn(project.advancement.project_gaps[0], 'facet'), false);
+});
+
+test('Project evidence remains durable and target refs are explicit', () => {
+  const project = fixtureProject();
+  const technical = area(project, 'technical_foundation');
+  technical.decision = {
+    revision: 1, status: 'settled', statement: 'Use Node.js.', reason: 'The runtime package establishes it.',
+    evidence: ['/tmp/result.json'], confidence: 'high', resume_condition: '',
   };
+  assert.match(validateProjectStateRecord(project).join('\n'), /volatile ref/);
+  const refs = projectTargetRefs(fixtureProject());
+  assert.equal(refs.software_decision.has('technical_foundation'), true);
+  assert.equal(refs.software_invariant.has('accepted-facts-are-realized'), true);
+});
+
+test('Iteration v3 targets software decisions, invariants and Project gaps', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'arckit-iteration-v3-'));
+  try {
+    await mkdir(join(root, 'arckit/project'), { recursive: true });
+    const project = fixtureProject();
+    project.advancement.project_gaps.push({
+      id: 'GAP-1', goal: 'Verify the protocol.', reason: 'Real evidence is pending.',
+      affects: [{ kind: 'software_decision', ref: 'quality_and_validation' }],
+      priority_basis: { risk: 'high' }, dependencies: [], candidate_case_ref: '',
+    });
+    await writeFile(join(root, 'arckit/project/state.record.json'), `${JSON.stringify(project)}\n`);
+    const iteration = iterationFixture();
+    iteration.targets = [
+      { kind: 'software_decision', ref: 'quality_and_validation', expected: 'settled', reason: 'Validation must be explicit.' },
+      { kind: 'software_invariant', ref: 'material-risks-have-credible-evidence', expected: 'upheld', reason: 'Risk needs evidence.' },
+      { kind: 'project_gap', ref: 'GAP-1', expected: 'resolved', reason: 'The evidence gap must close.' },
+    ];
+    assert.deepEqual(validateIterationStateRecord(iteration), []);
+    assert.deepEqual(auditIterationStateRecord(iteration, '<iteration>', root), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+function fixtureProject() {
+  return createProjectStateRecord({ name: 'Fixture', intent: 'Build a bounded product.' });
 }
 
-function projectRecord() {
-  return {
-    schema_version: 'project-state-record/v4',
-    project: {
-      name: 'Fixture',
-      status: 'active',
-      created_at: '2026-07-26T00:00:00.000Z',
-      updated_at: '2026-07-26T00:00:00.000Z',
-      original_intent: 'Test Project governance.',
-      current_phase: 'test',
-    },
-    active_iteration_ref: '',
-    active_case_refs: [],
-    completeness_dimensions: Object.fromEntries(DIMENSIONS.map((key) => [key, dimension({})])),
-    state_gaps: [],
-    case_control: {
-      next_case_intent: '',
-      priority_basis: '',
-      stop_condition: '',
-    },
-    active_constraints: [],
-    open_questions: [],
-    canonical_artifact_refs: [],
-    last_state_delta: {
-      changed_dimensions: [],
-      state_transitions: [],
-      deferred_dimensions: [],
-      blocked_dimensions: [],
-      case_refs: [],
-      iteration_ref: '',
-      next_project_focus: '',
-      updated_at: '2026-07-26T00:00:00.000Z',
-    },
-  };
+function area(project, id) {
+  return project.software_definition.decision_areas.find((item) => item.id === id);
 }
 
-function dimension({ current = 'unknown', target = 'unknown', gap: gapText = '', priority = 'none' }) {
+function iterationFixture() {
   return {
-    current_state: current,
-    target_state: target,
-    state_reason: 'Fixture state.',
-    evidence: current === 'unknown' ? [] : ['fixture:evidence'],
-    evidence_maturity: current === 'unknown' ? 'none' : 'confirmed',
-    gap: gapText,
-    next_transition: gapText ? 'Advance this dimension.' : '',
-    blockers: [],
-    priority,
-    confidence: 'medium',
-  };
-}
-
-function gap({ id, dimension: dimensionKey, current, target, covered }) {
-  return {
-    id,
-    dimension: dimensionKey,
-    current_state: current,
-    target_state: target,
-    impact: 'Fixture impact.',
-    urgency: 'medium',
-    risk: 'medium',
-    dependencies: [],
-    covered_dimensions: covered,
-    next_transition: 'Create or select a bounded Case.',
+    schema_version: 'iteration-state-record/v3', id: 'ITER-20260810-001', title: 'Fixture iteration', status: 'active',
+    created_at: '2026-08-10T00:00:00.000Z', updated_at: '2026-08-10T00:00:00.000Z',
+    iteration_goal: 'Verify State v5.', project_state_ref: 'arckit/project/state.record.json', targets: [],
+    accepted_project_changes: [], acceptance: { status: 'working', evidence: [], remaining_project_gaps: ['GAP-1'] },
+    blocking_project_gaps: [], active_case_refs: [], closed_case_refs: [], close_condition: 'All targets accepted.',
+    last_case_aggregation: { case_ref: '', project_changes: [], evidence: [], updated_at: '2026-08-10T00:00:00.000Z' },
   };
 }

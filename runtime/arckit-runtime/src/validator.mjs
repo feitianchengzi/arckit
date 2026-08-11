@@ -17,6 +17,7 @@ export function validateRuntimeResult(result) {
   const issues = [];
   const caseControlHandoff = result?.case_control_handoff;
   const isCaseControl = Boolean(caseControlHandoff && typeof caseControlHandoff === "object" && !Array.isArray(caseControlHandoff));
+  const hasCaseTransition = Boolean(result?.case_transition && typeof result.case_transition === "object" && !Array.isArray(result.case_transition));
 
   requireObject(result, "result", issues);
   requireEqual(result?.schema_version, "arckit-runtime-result/v2", "schema_version", issues);
@@ -28,31 +29,35 @@ export function validateRuntimeResult(result) {
   requireEnum(result?.case_outcome?.status, ["unresolved", "resolved", "blocked"], "case_outcome.status", issues);
   requireString(result?.case_outcome?.reason, "case_outcome.reason", issues);
   requireArray(result?.case_outcome?.unresolved, "case_outcome.unresolved", issues);
-  requireObject(result?.project_impact, "project_impact", issues);
-  requireEnum(result?.project_impact?.status, ["none", "proposed", "accepted"], "project_impact.status", issues);
-  requireArray(result?.project_impact?.changes, "project_impact.changes", issues);
-  requireArray(result?.project_impact?.evidence, "project_impact.evidence", issues);
+  requireObject(result?.project_state_delta, "project_state_delta", issues);
+  requireArray(result?.project_state_delta?.software_definition_changes, "project_state_delta.software_definition_changes", issues);
+  requireArray(result?.project_state_delta?.software_invariant_changes, "project_state_delta.software_invariant_changes", issues);
+  requireArray(result?.project_state_delta?.project_gap_changes, "project_state_delta.project_gap_changes", issues);
+  requireArray(result?.project_state_delta?.evidence, "project_state_delta.evidence", issues);
   if (isCaseControl) {
     validateCaseControlHandoff(caseControlHandoff, issues);
     if (result?.case_transition !== null) issues.push({ path: "case_transition", message: "Case control writeback must not include a Case transition." });
-  } else {
+  } else if (hasCaseTransition) {
     requireObject(result?.case_transition, "case_transition", issues);
-    requireEqual(result?.case_transition?.schema_version, "arckit-case-transition/v3", "case_transition.schema_version", issues);
+    requireEqual(result?.case_transition?.schema_version, "arckit-case-transition/v6", "case_transition.schema_version", issues);
     requireString(result?.case_transition?.case_id, "case_transition.case_id", issues);
     requireString(result?.case_transition?.case_updated_at, "case_transition.case_updated_at", issues);
-    requireString(result?.case_transition?.project_updated_at, "case_transition.project_updated_at", issues);
+    requireInteger(result?.case_transition?.project_revision, "case_transition.project_revision", issues);
+    requireObject(result?.case_transition?.gap_selection, "case_transition.gap_selection", issues);
+    requireEnum(result?.case_transition?.gap_selection?.mode, ["candidate", "fresh"], "case_transition.gap_selection.mode", issues);
+    requireString(result?.case_transition?.gap_selection?.basis, "case_transition.gap_selection.basis", issues);
     requireObject(result?.case_transition?.selected_gap, "case_transition.selected_gap", issues);
     requireObject(result?.case_transition?.planned_transition, "case_transition.planned_transition", issues);
     requireObject(result?.case_transition?.accepted_state_delta, "case_transition.accepted_state_delta", issues);
+    requireObject(result?.case_transition?.project_state_delta, "case_transition.project_state_delta", issues);
     requireArray(result?.case_transition?.evidence, "case_transition.evidence", issues);
     requireArray(result?.case_transition?.unresolved, "case_transition.unresolved", issues);
+  } else if (result?.ledger_stage?.writeback_required === true || result?.ledger_stage?.status === "gate_ready") {
+    issues.push({ path: "case_transition", message: "Ledger-ready results require a Case transition." });
   }
   requireEnum(result?.round_state, [
     "planned",
     "authorized",
-    "workers_running",
-    "reports_collected",
-    "merge_ready",
     "ledger_gate_ready",
     "ledger_written",
     "next_round_ready",
@@ -82,12 +87,10 @@ export function validateRuntimeResult(result) {
   requireBoolean(result?.source_projection_check?.source_unknown, "source_projection_check.source_unknown", issues);
   requireArray(result?.source_projection_check?.deferred_projections, "source_projection_check.deferred_projections", issues);
   requireArray(result?.source_projection_check?.blocked_projections, "source_projection_check.blocked_projections", issues);
-  requireObject(result?.controller_reducer_result, "controller_reducer_result", issues);
+  requireObject(result?.agent_loop_result, "agent_loop_result", issues);
   requireObject(result?.controller_frame, "controller_frame", issues);
   requireObject(result?.execution_gate, "execution_gate", issues);
   requireObject(result?.executor_binding, "executor_binding", issues);
-  requireArray(result?.worker_packets, "worker_packets", issues);
-  requireObject(result?.report_intake, "report_intake", issues);
   requireObject(result?.ledger_stage, "ledger_stage", issues);
   requireEqual(result?.ledger_stage?.schema_version, "arckit-ledger-stage/v1", "ledger_stage.schema_version", issues);
   requireEnum(result?.ledger_stage?.status, ["not_ready", "gate_ready", "gate_blocked", "human_blocked", "blocked", "written"], "ledger_stage.status", issues);
@@ -120,7 +123,7 @@ export function validateRuntimeResult(result) {
   requireInteger(result?.loop_handoff?.progress_guard?.no_progress_limit, "loop_handoff.progress_guard.no_progress_limit", issues);
   requireInteger(result?.loop_handoff?.progress_guard?.max_auto_rounds, "loop_handoff.progress_guard.max_auto_rounds", issues);
   requireSemanticField(result?.controller_frame?.round_goal, "controller_frame.round_goal", issues, SEMANTIC_LIMITS.goal);
-  if (!isCaseControl) requireSemanticField(result?.controller_frame?.route_plan?.selected_gap?.next_transition, "controller_frame.route_plan.selected_gap.next_transition", issues, SEMANTIC_LIMITS.transition);
+  if (hasCaseTransition) requireSemanticField(result?.controller_frame?.route_plan?.selected_gap?.next_transition, "controller_frame.route_plan.selected_gap.next_transition", issues, SEMANTIC_LIMITS.transition);
   requireSemanticField(result?.loop_handoff?.next_prompt, "loop_handoff.next_prompt", issues, SEMANTIC_LIMITS.nextPrompt);
   requireSemanticField(result?.loop_handoff?.agent_instruction?.goal, "loop_handoff.agent_instruction.goal", issues, SEMANTIC_LIMITS.goal);
   requireSemanticField(result?.loop_handoff?.progress_guard?.expected_state_change, "loop_handoff.progress_guard.expected_state_change", issues, SEMANTIC_LIMITS.transition);
@@ -148,17 +151,21 @@ export function validateRuntimeResult(result) {
 function validateCaseControlHandoff(handoff, issues) {
   requireEqual(handoff.schema_version, "arckit-case-control-handoff/v1", "case_control_handoff.schema_version", issues);
   requireEqual(handoff.action, "create_case", "case_control_handoff.action", issues);
-  requireString(handoff.expected_project_updated_at, "case_control_handoff.expected_project_updated_at", issues);
+  requireInteger(handoff.expected_project_revision, "case_control_handoff.expected_project_revision", issues);
   requireString(handoff.case_id, "case_control_handoff.case_id", issues);
   requireString(handoff.title, "case_control_handoff.title", issues);
   requireString(handoff.intent, "case_control_handoff.intent", issues);
+  requireString(handoff.expected_outcome, "case_control_handoff.expected_outcome", issues);
   requireEnum(handoff.artifact_type, ["code", "skill", "document", "workflow", "mixed", "unknown"], "case_control_handoff.artifact_type", issues);
   requireString(handoff.selection_reason, "case_control_handoff.selection_reason", issues);
+  requireArray(handoff.initial_facts, "case_control_handoff.initial_facts", issues);
+  requireArray(handoff.initial_impacts, "case_control_handoff.initial_impacts", issues);
+  requireArray(handoff.initial_gaps, "case_control_handoff.initial_gaps", issues);
   requireObject(handoff.review_policy, "case_control_handoff.review_policy", issues);
   requireInteger(handoff.review_policy?.max_autonomous_cycles, "case_control_handoff.review_policy.max_autonomous_cycles", issues);
   requireString(handoff.review_policy?.source, "case_control_handoff.review_policy.source", issues);
-  if (handoff.action === "create_case" && (!handoff.title || !handoff.intent || !handoff.selection_reason)) {
-    issues.push({ path: "case_control_handoff", message: "create_case requires title, intent, and selection_reason." });
+  if (handoff.action === "create_case" && (!handoff.title || !handoff.intent || !handoff.expected_outcome || !handoff.selection_reason || handoff.initial_facts?.length === 0 || handoff.initial_gaps?.length === 0)) {
+    issues.push({ path: "case_control_handoff", message: "create_case requires intent, outcome, semantic facts, and at least one gap." });
   }
 }
 

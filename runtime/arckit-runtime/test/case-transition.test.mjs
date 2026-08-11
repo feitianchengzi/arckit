@@ -1,470 +1,221 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
+import test from 'node:test';
 
-import { FACET_KEYS, auditCaseRecord, defaultCompletionReview, defaultFacet, validateCaseRecord } from '../../../entry/skills/arckit-development-ledger/scripts/development-case.mjs';
-import { applyCaseTransitionToRecord } from '../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs';
+import {
+  auditCaseRecord,
+  createDefaultCaseRecord,
+  validateCaseRecord,
+} from '../../../entry/skills/arckit-development-ledger/scripts/development-case.mjs';
+import {
+  applyCaseTransitionToRecord,
+  validateCaseTransition,
+} from '../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs';
 import { selectNextRound } from '../src/loop-controller.mjs';
 
-test('spec-first progress resolves a definition facet without pretending the Case is done', () => {
+test('the ledger accepts only current Case and transition schema versions', () => {
   const record = caseRecord();
-  const next = applyCaseTransitionToRecord(record, transition(record, {
-    facet: 'product_expectation',
-    set: requiredResolved('formalized', 'Product behavior is formalized before implementation.'),
-    evidence: ['arckit/spec/example/feature.md'],
-  }));
+  const unsupportedRecord = { ...structuredClone(record), schema_version: 'unsupported-case-state' };
+  assert.match(validateCaseRecord(unsupportedRecord).join('\n'), /development-case-record\/v5/);
+  assert.throws(() => auditCaseRecord(unsupportedRecord), /expected development-case-record\/v5/);
 
-  assert.equal(next.facets.product_expectation.resolution, 'resolved');
-  assert.equal(next.case_resolution.status, 'unresolved');
-  assert.ok(next.case_resolution.candidate_gaps.some((gap) => gap.facet === 'interaction_expectation'));
+  const unsupportedTransition = { ...transition(record), schema_version: 'unsupported-case-transition' };
+  assert.match(validateCaseTransition(unsupportedTransition).join('\n'), /arckit-case-transition\/v6/);
+  assert.throws(() => applyCaseTransitionToRecord(unsupportedRecord, unsupportedTransition), /arckit-case-transition\/v6/);
 });
 
-test('code-first progress leaves observed definition facts unreconciled and drives the next loop', () => {
+test('a selected gap must match the complete fresh candidate snapshot', () => {
   const record = caseRecord();
-  const next = applyCaseTransitionToRecord(record, transition(record, {
-    facet: 'implementation_state',
-    set: requiredResolved('confirmed', 'Working code exists and is bound to tests.'),
-    evidence: ['src/example.mjs', 'test/example.test.mjs'],
-    extraFacets: [{
-      facet: 'product_expectation',
-      set: {
-        applicability: 'required',
-        maturity: 'exploratory',
-        target_maturity: 'formalized',
-        alignment: 'unreconciled',
-        target_alignment: 'aligned',
-        resolution: 'unresolved',
-        reason: 'Stable behavior was observed from code but is not formalized yet.',
-        next_transition: 'Formalize the observed behavior and reconcile it with implementation.'
-      },
-      evidence: ['src/example.mjs']
-    }]
-  }));
-
-  assert.equal(next.facets.implementation_state.resolution, 'resolved');
-  assert.equal(next.facets.product_expectation.alignment, 'unreconciled');
-  assert.ok(next.case_resolution.candidate_gaps.some((gap) => gap.facet === 'product_expectation'));
+  const input = transition(record);
+  input.selected_gap.reason = 'Stale reason from an earlier revision.';
+  assert.throws(() => applyCaseTransitionToRecord(record, input), /stale or not ready/);
 });
 
-test('required facet gaps are derived from current state instead of a stale persisted continuation', () => {
+test('a transition rejects a stale Case revision', () => {
   const record = caseRecord();
-  record.facets.implementation_state = {
-    ...record.facets.implementation_state,
-    applicability: 'required',
-    reason: 'The requested behavior requires a source change.',
-    evidence: ['src/example.mjs'],
-    next_transition: 'Write back only implementation_state.applicability=required, then reload the Case.'
-  };
-
-  let gap = auditCaseRecord(record, record.updated_at).candidate_gaps.find((item) => item.facet === 'implementation_state');
-  assert.equal(gap.target_state, 'evidence-backed target definition and same-facet advancement toward that target');
-  assert.equal(gap.next_transition, 'Define the evidence-backed target for implementation_state, perform the bounded work needed to reach it, and resolve the facet when the target is demonstrably reached.');
-
-  record.facets.implementation_state.target_maturity = 'formalized';
-  record.facets.implementation_state.target_alignment = 'aligned';
-  gap = auditCaseRecord(record, record.updated_at).candidate_gaps.find((item) => item.facet === 'implementation_state');
-  assert.equal(gap.target_state, 'maturity=formalized; alignment=aligned');
-  assert.equal(gap.next_transition, 'Advance implementation_state to maturity=formalized and alignment=aligned, with implementation evidence.');
-
-  record.facets.implementation_state.maturity = 'formalized';
-  record.facets.implementation_state.alignment = 'aligned';
-  gap = auditCaseRecord(record, record.updated_at).candidate_gaps.find((item) => item.facet === 'implementation_state');
-  assert.equal(gap.target_state, 'resolution=resolved with evidence');
-  assert.equal(gap.next_transition, 'Resolve implementation_state from the evidence-backed target already reached.');
-});
-
-test('accepted facet transitions clear transport-oriented next_transition text from durable Case state', () => {
-  const record = caseRecord();
-  const next = applyCaseTransitionToRecord(record, transition(record, {
-    facet: 'implementation_state',
-    set: {
-      applicability: 'required',
-      reason: 'The requested behavior requires a source change.',
-      next_transition: 'Desktop Runtime must write this transition and reload the Case.'
-    },
-    evidence: ['src/example.mjs']
-  }));
-
-  assert.equal(next.facets.implementation_state.next_transition, '');
-  const gap = next.case_resolution.candidate_gaps.find((item) => item.facet === 'implementation_state');
-  assert.equal(gap.next_transition, 'Define the evidence-backed target for implementation_state, perform the bounded work needed to reach it, and resolve the facet when the target is demonstrably reached.');
-});
-
-test('not-required judgments need evidence and lead to completion review without creating artificial documents', () => {
-  const record = caseRecord();
-  for (const key of FACET_KEYS) {
-    record.facets[key] = {
-      ...defaultFacet(),
-      applicability: 'not_required',
-      resolution: 'resolved',
-      reason: `${key} is outside this bounded non-UI documentation-only Case.`,
-      evidence: [`case-scope:${key}`],
-    };
-  }
-  record.facets.visual_expectation.evidence = [];
-  record.case_resolution = auditCaseRecord(record, record.updated_at);
-  record.current_round = { goal: '', selected_gap: null };
-
-  assert.equal(record.case_resolution.status, 'unresolved');
-  assert.deepEqual(record.case_resolution.candidate_gaps.map((gap) => gap.facet), ['visual_expectation']);
-
-  const next = applyCaseTransitionToRecord(record, transition(record, {
-    facet: 'visual_expectation',
-    set: { applicability: 'not_required', resolution: 'resolved', reason: 'The bounded change has no visual surface.' },
-    evidence: ['case-scope:no-visual-surface'],
-  }));
-  assert.equal(next.case_resolution.status, 'unresolved');
-  assert.equal(next.case_resolution.stage, 'review_ready');
-  assert.equal(next.case_resolution.candidate_gaps[0].facet, 'completion_review');
-});
-
-test('a clean completion review for the current content revision resolves the Case', () => {
-  const record = baseReadyCaseRecord();
-  const next = applyCaseTransitionToRecord(record, reviewTransition(record, cleanReview(record)));
-
-  assert.equal(next.completion_review.status, 'clean');
-  assert.equal(next.completion_review.reviewed_content_revision, next.content_revision);
-  assert.equal(next.case_resolution.status, 'resolved');
-  assert.equal(next.case_resolution.stage, 'resolved');
-  assert.equal(next.status, 'closed');
-});
-
-test('review findings drive repair and require another review after content revision changes', () => {
-  const record = baseReadyCaseRecord();
-  const reviewed = applyCaseTransitionToRecord(record, reviewTransition(record, findingsReview(record, 'CR-1')));
-  assert.equal(reviewed.case_resolution.stage, 'repairing');
-  assert.equal(reviewed.completion_review.cycle_count, 1);
-
-  const reviewedRevision = reviewed.content_revision;
-  const repaired = applyCaseTransitionToRecord(reviewed, findingResolutionTransition(reviewed, 'CR-1'));
-  assert.equal(repaired.content_revision, reviewedRevision + 1);
-  assert.equal(repaired.completion_review.status, 'pending');
-  assert.equal(repaired.case_resolution.stage, 'review_ready');
-  assert.notEqual(repaired.completion_review.reviewed_content_revision, repaired.content_revision);
-
-  const clean = applyCaseTransitionToRecord(repaired, reviewTransition(repaired, cleanReview(repaired)));
-  assert.equal(clean.case_resolution.status, 'resolved');
-  assert.equal(clean.completion_review.cycle_count, 2);
-});
-
-test('the last authorized autonomous review with findings forces a human handoff', () => {
-  const record = baseReadyCaseRecord({ maxReviewCycles: 1 });
-  const next = applyCaseTransitionToRecord(record, reviewTransition(record, findingsReview(record, 'CR-LIMIT')));
-
-  assert.equal(next.completion_review.status, 'needs_human');
-  assert.equal(next.completion_review.escalation.reason, 'review_cycle_limit_reached');
-  assert.equal(next.case_resolution.stage, 'needs_human');
-  assert.equal(next.case_resolution.loop_handoff.status, 'needs_human');
-  assert.equal(next.case_resolution.loop_handoff.next_responsibility, 'human');
-  assert.equal(next.status, 'handoff');
-  assert.equal(next.case_resolution.candidate_gaps[0].responsibility, 'human');
-});
-
-test('only a human gap can extend exhausted review budget without resetting prior usage', () => {
-  const record = baseReadyCaseRecord({ maxReviewCycles: 1 });
-  const exhausted = applyCaseTransitionToRecord(record, reviewTransition(record, findingsReview(record, 'CR-EXTEND')));
-  const extended = applyCaseTransitionToRecord(exhausted, humanExtensionTransition(exhausted, 2));
-
-  assert.equal(extended.completion_review.policy.initial_max_cycles, 1);
-  assert.equal(extended.completion_review.additional_cycles_authorized, 2);
-  assert.equal(extended.completion_review.cycle_count, 1);
-  assert.equal(extended.case_resolution.stage, 'repairing');
-  assert.equal(extended.case_resolution.candidate_gaps[0].facet, 'review_findings');
-});
-
-test('Runtime exposes every active Case and lets the Controller select one per Loop', () => {
-  const record = caseRecord();
-  const ref = 'arckit/cases/active/CASE-20260726-901-case-state.md';
-  const round = selectNextRound({
-    projectState: {
-      case_control: { next_case_intent: 'Advance one active Case.' },
-      state_gaps: [{ id: 'PROJECT-GAP', dimension: 'quality_validation', current_state: 'unknown', target_state: 'verified', next_transition: 'Create a validation Case.' }]
-    },
-    activeCases: [{ ref, record }],
-    paths: { projectState: 'arckit/project/state.record.json', stateBrief: 'arckit/project/STATE.md', activeIteration: '', activeCases: [ref], casesIndex: 'arckit/cases/INDEX.md', specIndex: '', interactionIndex: '', visualIndex: '', techIndex: '' }
-  });
-
-  assert.equal(round.scope, 'case');
-  assert.equal(round.case_id, '');
-  assert.equal(round.facet, '');
-  assert.equal(round.candidate_case_gaps.length, 0);
-  assert.deepEqual(round.candidate_cases[0].candidate_gaps.map((gap) => gap.facet), FACET_KEYS);
-  assert.equal(round.candidate_project_gaps[0].id, 'PROJECT-GAP');
-});
-
-test('agent-actionable Case gaps take precedence over an external pending handoff', () => {
-  const record = caseRecord();
-  record.pending_handoffs.push({
-    id: 'HANDOFF-1',
-    target: 'deployment platform',
-    owner: 'external',
-    status: 'pending',
-    resume_condition: 'Wait for deployment completion.',
-    evidence: []
-  });
-  const audit = auditCaseRecord(record, record.updated_at);
-
-  assert.equal(audit.loop_handoff.next_responsibility, 'agent');
-  assert.equal(audit.loop_handoff.status, 'continue');
-});
-
-test('Case waits externally only when no agent or human gap remains', () => {
-  const record = caseRecord();
-  for (const key of FACET_KEYS) {
-    record.facets[key] = {
-      ...defaultFacet(),
-      applicability: 'not_required',
-      resolution: 'resolved',
-      reason: `${key} is outside this handoff-only fixture.`,
-      evidence: [`fixture:${key}`]
-    };
-  }
-  record.pending_handoffs.push({
-    id: 'HANDOFF-1',
-    target: 'deployment platform',
-    owner: 'external',
-    status: 'pending',
-    resume_condition: 'Wait for deployment completion.',
-    evidence: []
-  });
-  const audit = auditCaseRecord(record, record.updated_at);
-
-  assert.equal(audit.loop_handoff.next_responsibility, 'external');
-  assert.equal(audit.loop_handoff.status, 'external_wait');
-});
-
-test('a human-owned question takes responsibility when the related facet is blocked', () => {
-  const record = caseRecord();
-  for (const key of FACET_KEYS.filter((item) => item !== 'product_expectation')) {
-    record.facets[key] = {
-      ...defaultFacet(),
-      applicability: 'not_required',
-      resolution: 'resolved',
-      reason: `${key} is outside this decision-only fixture.`,
-      evidence: [`fixture:${key}`]
-    };
-  }
-  record.facets.product_expectation = {
-    ...record.facets.product_expectation,
-    applicability: 'required',
-    resolution: 'blocked',
-    reason: 'Product policy requires an explicit owner decision.'
-  };
-  record.open_questions.push({
-    id: 'QUESTION-1',
-    question: 'Which product policy should apply?',
-    owner: 'human',
-    status: 'open',
-    evidence: []
-  });
-  const audit = auditCaseRecord(record, record.updated_at);
-
-  assert.equal(audit.loop_handoff.next_responsibility, 'human');
-  assert.equal(audit.loop_handoff.status, 'needs_human');
-});
-
-test('Case transition rejects a stale Case revision', () => {
-  const record = caseRecord();
-  const input = transition(record, {
-    facet: 'product_expectation',
-    set: requiredResolved('formalized', 'Product behavior is formalized.'),
-    evidence: ['arckit/spec/example/feature.md']
-  });
+  const input = transition(record);
   input.case_updated_at = '2026-07-25T00:00:00.000Z';
-
   assert.throws(() => applyCaseTransitionToRecord(record, input), /Stale Case transition/);
 });
 
-function caseRecord({ maxReviewCycles = 3 } = {}) {
-  const timestamp = '2026-07-26T00:00:00.000Z';
-  const record = {
-    schema_version: 'development-case-record/v3',
-    id: 'CASE-20260726-901',
-    title: 'Case State test',
-    status: 'active',
-    artifact_type: 'mixed',
-    created_at: timestamp,
-    updated_at: timestamp,
-    user_intent: 'Test dynamic ordering.',
-    expected_outcome: 'All required facts are aligned or explicitly not required.',
-    project_state_ref: 'arckit/project/state.record.json',
-    current_round: { goal: '', selected_gap: null },
-    facets: Object.fromEntries(FACET_KEYS.map((key) => [key, defaultFacet()])),
-    content_revision: 0,
-    completion_review: defaultCompletionReview({ maxCycles: maxReviewCycles, source: 'test-policy', timestamp }),
-    open_questions: [],
-    decisions: [],
-    pending_handoffs: [],
-    process_notes: [],
-    rounds: [],
-    case_resolution: null,
-    project_impact_candidate: { status: 'none', changes: [], evidence: [] },
-  };
-  record.case_resolution = auditCaseRecord(record, timestamp);
-  record.current_round = { goal: '', selected_gap: null };
-  assert.deepEqual(validateCaseRecord(record), []);
-  return record;
-}
-
-function transition(record, { facet, set, evidence, extraFacets = [], claimedStatus = 'unresolved' }) {
-  const gap = record.case_resolution.candidate_gaps.find((item) => item.facet === facet);
-  assert.ok(gap, `Expected ${facet} in candidate_gaps`);
-  return {
-    schema_version: 'arckit-case-transition/v3',
-    case_id: record.id,
-    case_updated_at: record.updated_at,
-    project_updated_at: '2026-07-26T00:00:00.000Z',
-    selected_gap: gap,
-    planned_transition: { goal: gap.next_transition, expected_state_change: `${facet} advances from evidence.` },
-    accepted_state_delta: {
-      facets: [{ facet, set, evidence }, ...extraFacets],
-      resolved_open_questions: [],
-      completed_handoffs: [],
-      completion_review_result: null,
-      resolved_review_findings: [],
-      review_budget_extension: null,
-    },
-    evidence,
-    unresolved: claimedStatus === 'resolved' ? [] : ['remaining Case facets'],
-    round_outcome: 'completed',
-    case_resolution: { claimed_status: claimedStatus, reason: claimedStatus === 'resolved' ? 'All Case facets are resolved.' : 'More Case facets remain.' },
-    project_impact_candidate: { status: 'none', changes: [], evidence: [] },
-  };
-}
-
-function baseReadyCaseRecord({ maxReviewCycles = 3 } = {}) {
-  const record = caseRecord({ maxReviewCycles });
-  for (const key of FACET_KEYS) {
-    record.facets[key] = {
-      ...defaultFacet(),
-      applicability: 'not_required',
-      resolution: 'resolved',
-      reason: `${key} is not required by this bounded fixture.`,
-      evidence: [`fixture:${key}`],
-    };
-  }
-  record.content_revision = 1;
-  record.case_resolution = auditCaseRecord(record, record.updated_at);
-  assert.equal(record.case_resolution.stage, 'review_ready');
-  return record;
-}
-
-function reviewTransition(record, completionReviewResult) {
-  const gap = record.case_resolution.candidate_gaps.find((item) => item.facet === 'completion_review');
-  assert.ok(gap, 'Expected completion_review in candidate_gaps');
-  return {
-    schema_version: 'arckit-case-transition/v3',
-    case_id: record.id,
-    case_updated_at: record.updated_at,
-    project_updated_at: '2026-07-26T00:00:00.000Z',
-    selected_gap: gap,
-    planned_transition: { goal: gap.next_transition, expected_state_change: 'Record a completion review result for the current content revision.' },
-    accepted_state_delta: {
-      facets: [],
-      resolved_open_questions: [],
-      completed_handoffs: [],
-      completion_review_result: completionReviewResult,
-      resolved_review_findings: [],
-      review_budget_extension: null,
-    },
-    evidence: completionReviewResult.evidence,
-    unresolved: completionReviewResult.outcome === 'clean' ? [] : ['completion_review'],
-    round_outcome: completionReviewResult.outcome === 'needs_human' ? 'needs_human' : 'completed',
-    case_resolution: { claimed_status: completionReviewResult.outcome === 'clean' ? 'resolved' : 'unresolved', reason: 'Completion review result.' },
-    project_impact_candidate: { status: 'none', changes: [], evidence: [] },
-  };
-}
-
-function cleanReview(record) {
-  return {
-    outcome: 'clean',
-    reviewer: record.case_resolution.candidate_gaps[0].responsibility,
-    reviewed_content_revision: record.content_revision,
-    dimensions: { correctness: 'clean', completeness: 'clean', minimality: 'clean' },
-    findings: [],
-    evidence: ['review:correctness', 'review:completeness', 'review:minimality'],
-  };
-}
-
-function findingsReview(record, id) {
-  return {
-    outcome: 'findings',
-    reviewer: 'agent',
-    reviewed_content_revision: record.content_revision,
-    dimensions: { correctness: 'findings', completeness: 'clean', minimality: 'clean' },
-    findings: [{
-      id,
-      kind: 'error',
-      statement: 'The fixture contains an incorrect behavior.',
-      responsibility: 'agent',
-      affected_facets: ['implementation_state'],
-      artifact_refs: ['src/example.mjs'],
-      evidence: ['review:incorrect-behavior'],
+test('one dynamic gap may produce facts and the next gap without any document checklist', () => {
+  const record = caseRecord();
+  const input = transition(record, {
+    facts_added: [{
+      id: 'FACT-ROOT-CAUSE', revision: 1, status: 'accepted',
+      statement: 'The restore path applies stale data after the freshness guard.',
+      basis: 'Trace and code-path evidence agree.', evidence: ['debug/root-cause.md'],
     }],
-    evidence: ['review:incorrect-behavior'],
+    gaps_added: [{
+      id: 'GAP-FIX', status: 'open', goal: 'Fix and verify the restore ordering.',
+      reason: 'The accepted root cause now makes a bounded fix possible.',
+      derived_from: ['FACT-ROOT-CAUSE'], blocked_by: [],
+      priority_basis: { blocking: 'high', uncertainty: 'low', risk: 'high', user_impact: 'high' },
+      responsibility: 'agent', evidence_required: ['Focused implementation and regression evidence.'], resolution: null,
+    }],
+  });
+  const next = applyCaseTransitionToRecord(record, input);
+  assert.equal(next.facts.at(-1).id, 'FACT-ROOT-CAUSE');
+  assert.deepEqual(next.case_resolution.candidate_gaps.map((gap) => gap.id), ['GAP-FIX']);
+  assert.equal(Object.hasOwn(next, 'facets'), false);
+});
+
+test('a fresh gap may be selected and completed without being preplanned by the prior transition', () => {
+  let record = caseRecord();
+  record = applyCaseTransitionToRecord(record, transition(record));
+  assert.match(record.case_resolution.candidate_gaps[0].id, /completion-review/);
+
+  const selected = {
+    id: 'GAP-FRESH-VERIFY-RACE',
+    goal: 'Verify the newly discovered restore race.',
+    reason: 'Current-turn trace evidence exposed a material race before completion review.',
+    derived_from: ['FACT-BUG', 'trace:fresh-race'],
+    blocked_by: ['GAP-DIAGNOSE'],
+    priority_basis: { blocking: 'high', uncertainty: 'high', risk: 'high', user_impact: 'high' },
+    responsibility: 'agent',
+    evidence_required: ['Focused race verification.'],
   };
+  const input = baseTransition(record, selected, 'fresh');
+  input.accepted_state_delta.resolved_gap = resolution(selected.id, 'The race is verified and bounded.');
+  input.evidence = ['trace:fresh-race'];
+  const next = applyCaseTransitionToRecord(record, input);
+
+  assert.equal(next.gaps.find((gap) => gap.id === selected.id)?.status, 'resolved');
+  assert.equal(next.rounds.at(-1).gap_selection.mode, 'fresh');
+  assert.equal(next.completion_review.status, 'pending');
+  assert.match(next.case_resolution.candidate_gaps[0].id, /completion-review/);
+});
+
+test('fresh selection rejects existing, non-Agent, reserved, and blocked gaps', () => {
+  const record = caseRecord();
+  const fresh = (overrides = {}) => {
+    const selected = {
+      id: 'GAP-FRESH', goal: 'Do current-turn work.', reason: 'New evidence makes it the most important next action.',
+      derived_from: ['FACT-BUG'], blocked_by: [], priority_basis: { blocking: 'high' }, responsibility: 'agent',
+      evidence_required: ['Focused evidence.'], ...overrides,
+    };
+    const input = baseTransition(structuredClone(record), selected, 'fresh');
+    input.accepted_state_delta.resolved_gap = resolution(selected.id, 'Fresh work completed.');
+    return input;
+  };
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), fresh({ id: 'GAP-DIAGNOSE' })), /already exists/);
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), fresh({ responsibility: 'human' })), /Agent-owned/);
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), fresh({ id: `${record.id}:completion-review:forged` })), /reserved id/);
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), fresh({ blocked_by: ['GAP-UNKNOWN'] })), /not ready/);
+});
+
+test('completion review findings become ordinary repair gaps and invalidate the old clean revision', () => {
+  let record = caseRecord();
+  record = applyCaseTransitionToRecord(record, transition(record));
+  const reviewGap = record.case_resolution.candidate_gaps[0];
+  const review = baseTransition(record, reviewGap);
+  review.accepted_state_delta.completion_review_result = {
+    outcome: 'findings', reviewer: 'agent', reviewed_content_revision: record.content_revision,
+    dimensions: reviewDimensions('findings'),
+    findings: [{
+      id: 'CR-1', kind: 'error', statement: 'The boundary case is still incorrect.', responsibility: 'agent',
+      artifact_refs: ['src/restore.mjs'], evidence: ['test:restore-boundary-failure'],
+    }],
+    evidence: ['test:restore-boundary-failure'],
+  };
+  const reviewed = applyCaseTransitionToRecord(record, review);
+  const repairGap = reviewed.case_resolution.candidate_gaps[0];
+  assert.match(repairGap.id, /review-finding:CR-1$/);
+
+  const repair = baseTransition(reviewed, repairGap);
+  repair.accepted_state_delta.resolved_gap = resolution(repairGap.id, 'The boundary case is fixed.');
+  repair.accepted_state_delta.resolved_review_findings = [{ id: 'CR-1', resolution: 'resolved', reason: 'Focused fix passed.', evidence: ['test:restore-boundary-pass'] }];
+  repair.evidence = ['test:restore-boundary-pass'];
+  const repaired = applyCaseTransitionToRecord(reviewed, repair);
+  assert.equal(repaired.completion_review.status, 'pending');
+  assert.equal(repaired.completion_review.reviewed_content_revision, null);
+  assert.equal(repaired.case_resolution.stage, 'review_ready');
+});
+
+test('human questions pause while external handoffs wait only when no Agent gap is ready', () => {
+  const human = caseRecord();
+  human.open_questions.push({ id: 'Q-1', question: 'Which policy is authoritative?', owner: 'human', status: 'open', evidence: [] });
+  const humanAudit = auditCaseRecord(human);
+  assert.equal(humanAudit.loop_handoff.next_responsibility, 'human');
+
+  const external = caseRecord();
+  external.pending_handoffs.push({ id: 'H-1', target: 'deployment', owner: 'external', status: 'pending', resume_condition: 'Wait for deployment evidence.', evidence: [] });
+  assert.equal(auditCaseRecord(external).loop_handoff.next_responsibility, 'agent');
+  external.gaps[0].status = 'resolved';
+  external.gaps[0].resolution = { status: 'resolved', outcome: 'Diagnosis complete.', reason: 'Evidence agrees.', evidence: ['debug/root-cause.md'], occurred_at: new Date().toISOString() };
+  assert.equal(auditCaseRecord(external).loop_handoff.next_responsibility, 'external');
+});
+
+test('Runtime exposes all active Cases for Agent selection without preselecting a gap type', () => {
+  const record = caseRecord();
+  const ref = 'arckit/cases/active/CASE-example.md';
+  const round = selectNextRound({
+    projectState: { advancement: { selection_context: { next_case_intent: 'Advance the most valuable gap.' }, project_gaps: [] } },
+    activeCases: [{ ref, record }],
+    paths: { projectState: 'arckit/project/state.record.json', activeCases: [ref] },
+  });
+  assert.equal(round.case_id, '');
+  assert.equal(round.gap_id, 'CASE-GAP-AGENT-SELECTED');
+  assert.equal(Object.hasOwn(round, 'facet'), false);
+  assert.deepEqual(round.candidate_cases[0].candidate_gaps.map((gap) => gap.id), ['GAP-DIAGNOSE']);
+});
+
+test('Runtime leaves Case identity empty so the Agent can create the first Case', () => {
+  const round = selectNextRound({
+    projectState: { advancement: { selection_context: {}, project_gaps: [] } },
+    activeCases: [],
+    paths: { projectState: 'arckit/project/state.record.json', activeCases: [] },
+  }, { task: 'Implement a new bounded behavior.' });
+
+  assert.equal(round.case_id, '');
+  assert.deepEqual(round.candidate_cases, []);
+  assert.match(round.reason, /Agent must create one/);
+});
+
+function caseRecord() {
+  return createDefaultCaseRecord({
+    title: 'Restore ordering', artifactType: 'code', intent: 'Fix stale restore behavior', expectedOutcome: 'Newer data is preserved',
+    maxReviewCycles: 3, reviewPolicySource: 'test-policy',
+    initialFacts: [{ id: 'FACT-BUG', revision: 1, status: 'accepted', statement: 'Restore can overwrite newer data.', basis: 'Reproduced report.', evidence: ['debug/reproduction.md'] }],
+    initialImpacts: [],
+    initialGaps: [{
+      id: 'GAP-DIAGNOSE', status: 'open', goal: 'Find the root cause.', reason: 'The cause is unknown.',
+      derived_from: ['FACT-BUG'], blocked_by: [], priority_basis: { blocking: 'high', uncertainty: 'high', risk: 'high', user_impact: 'high' },
+      responsibility: 'agent', evidence_required: ['Reproduction and code evidence.'], resolution: null,
+    }],
+  });
 }
 
-function findingResolutionTransition(record, id) {
-  const gap = record.case_resolution.candidate_gaps.find((item) => item.id.endsWith(`:review-finding:${id}`));
-  assert.ok(gap, `Expected finding ${id} in candidate_gaps`);
+function transition(record, delta = {}) {
+  const selected = record.case_resolution.candidate_gaps[0];
+  const input = baseTransition(record, selected);
+  input.accepted_state_delta.resolved_gap = resolution(selected.id, 'The root cause is identified.');
+  Object.assign(input.accepted_state_delta, delta);
+  assert.deepEqual(validateCaseTransition(input), []);
+  return input;
+}
+
+function baseTransition(record, selected, mode = 'candidate') {
   return {
-    schema_version: 'arckit-case-transition/v3',
-    case_id: record.id,
-    case_updated_at: record.updated_at,
-    project_updated_at: '2026-07-26T00:00:00.000Z',
-    selected_gap: gap,
-    planned_transition: { goal: gap.next_transition, expected_state_change: `Resolve ${id} and advance the content revision.` },
+    schema_version: 'arckit-case-transition/v6', case_id: record.id, case_updated_at: record.updated_at,
+    project_revision: 0, gap_selection: { mode, basis: mode === 'fresh' ? 'Current evidence makes this new gap the most important current action.' : 'This ledger candidate is the most important current action.' }, selected_gap: structuredClone(selected),
+    planned_transition: { goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
     accepted_state_delta: {
-      facets: [],
-      resolved_open_questions: [],
-      completed_handoffs: [],
-      completion_review_result: null,
-      resolved_review_findings: [{ id, resolution: 'resolved', reason: 'The incorrect behavior was repaired.', evidence: ['fix:incorrect-behavior'] }],
-      review_budget_extension: null,
+      resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [],
+      resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null,
     },
-    evidence: ['fix:incorrect-behavior'],
-    unresolved: ['completion_review'],
-    round_outcome: 'completed',
-    case_resolution: { claimed_status: 'unresolved', reason: 'A fresh completion review is required.' },
-    project_impact_candidate: { status: 'none', changes: [], evidence: [] },
+    project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
+    evidence: ['debug/root-cause.md'], unresolved: ['completion_review'], round_outcome: 'completed',
+    case_resolution: { claimed_status: 'unresolved', reason: 'More Case work remains.' },
   };
 }
 
-function humanExtensionTransition(record, additionalCycles) {
-  const gap = record.case_resolution.candidate_gaps.find((item) => item.facet === 'completion_review' && item.responsibility === 'human');
-  assert.ok(gap, 'Expected a human completion_review gap');
-  return {
-    schema_version: 'arckit-case-transition/v3',
-    case_id: record.id,
-    case_updated_at: record.updated_at,
-    project_updated_at: '2026-07-26T00:00:00.000Z',
-    selected_gap: gap,
-    planned_transition: { goal: gap.next_transition, expected_state_change: 'Authorize a bounded autonomous review extension.' },
-    accepted_state_delta: {
-      facets: [],
-      resolved_open_questions: [],
-      completed_handoffs: [],
-      completion_review_result: null,
-      resolved_review_findings: [],
-      review_budget_extension: { additional_cycles: additionalCycles, authorized_by: 'human', reason: 'Continue after human scope clarification.', evidence: ['human:review-extension'] },
-    },
-    evidence: ['human:review-extension'],
-    unresolved: ['completion_review'],
-    round_outcome: 'completed',
-    case_resolution: { claimed_status: 'unresolved', reason: 'Human authorized more review cycles.' },
-    project_impact_candidate: { status: 'none', changes: [], evidence: [] },
-  };
+function resolution(id, outcome) {
+  return { id, status: 'resolved', outcome, reason: 'Persistent evidence supports the result.', evidence: ['debug/root-cause.md'] };
 }
 
-function requiredResolved(maturity, reason) {
+function reviewDimensions(implementationCorrectness) {
   return {
-    applicability: 'required',
-    maturity,
-    target_maturity: maturity,
-    alignment: 'aligned',
-    target_alignment: 'aligned',
-    resolution: 'resolved',
-    reason,
-    next_transition: '',
+    implementation_correctness: implementationCorrectness,
+    problem_resolution: 'clean', verification_credibility: 'clean', regression_risk: 'clean', minimality: 'clean',
   };
 }

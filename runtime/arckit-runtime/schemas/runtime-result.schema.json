@@ -8,7 +8,7 @@
     "round_result",
     "round_outcome",
     "case_outcome",
-    "project_impact",
+    "project_state_delta",
     "case_transition",
     "round_state",
     "round_state_history",
@@ -17,12 +17,10 @@
     "artifact_impact_scan",
     "artifact_ownership_scan",
     "source_projection_check",
-    "controller_reducer_result",
+    "agent_loop_result",
     "controller_frame",
     "execution_gate",
     "executor_binding",
-    "worker_packets",
-    "report_intake",
     "ledger_stage",
     "validation_evidence",
     "loop_handoff"
@@ -52,12 +50,14 @@
       },
       "additionalProperties": false
     },
-    "project_impact": {
+    "project_state_delta": {
       "type": "object",
-      "required": ["status", "changes", "evidence"],
+      "required": ["software_definition_changes", "software_invariant_changes", "project_gap_changes", "selection_context_change", "evidence"],
       "properties": {
-        "status": { "type": "string", "enum": ["none", "proposed", "accepted"] },
-        "changes": { "type": "array" },
+        "software_definition_changes": { "type": "array" },
+        "software_invariant_changes": { "type": "array" },
+        "project_gap_changes": { "type": "array" },
+        "selection_context_change": { "type": ["object", "null"] },
         "evidence": { "type": "array", "items": { "type": "string" } }
       },
       "additionalProperties": false
@@ -65,16 +65,20 @@
     "case_transition": { "type": ["object", "null"] },
     "case_control_handoff": {
       "type": "object",
-      "required": ["schema_version", "action", "expected_project_updated_at", "case_id", "title", "intent", "artifact_type", "selection_reason", "review_policy"],
+      "required": ["schema_version", "action", "expected_project_revision", "case_id", "title", "intent", "expected_outcome", "artifact_type", "selection_reason", "initial_facts", "initial_impacts", "initial_gaps", "review_policy"],
       "properties": {
         "schema_version": { "type": "string", "const": "arckit-case-control-handoff/v1" },
         "action": { "type": "string", "const": "create_case" },
-        "expected_project_updated_at": { "type": "string" },
+        "expected_project_revision": { "type": "integer", "minimum": 0 },
         "case_id": { "type": "string" },
         "title": { "type": "string" },
         "intent": { "type": "string" },
+        "expected_outcome": { "type": "string" },
         "artifact_type": { "type": "string", "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"] },
         "selection_reason": { "type": "string" },
+        "initial_facts": { "type": "array" },
+        "initial_impacts": { "type": "array" },
+        "initial_gaps": { "type": "array" },
         "review_policy": {
           "type": "object",
           "required": ["max_autonomous_cycles", "source"],
@@ -92,9 +96,6 @@
       "enum": [
         "planned",
         "authorized",
-        "workers_running",
-        "reports_collected",
-        "merge_ready",
         "ledger_gate_ready",
         "ledger_written",
         "next_round_ready",
@@ -234,15 +235,10 @@
       },
       "additionalProperties": false
     },
-    "controller_reducer_result": { "type": "object" },
+    "agent_loop_result": { "type": "object" },
     "controller_frame": { "type": "object" },
     "execution_gate": { "type": "object" },
     "executor_binding": { "type": "object" },
-    "worker_packets": {
-      "type": "array",
-      "items": { "type": "object" }
-    },
-    "report_intake": { "type": "object" },
     "ledger_stage": {
       "type": "object",
       "required": ["schema_version", "status", "gate_required", "writeback_required", "reason"],

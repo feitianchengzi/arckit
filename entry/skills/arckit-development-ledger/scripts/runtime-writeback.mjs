@@ -27,7 +27,7 @@ export async function applyRuntimeLedgerWriteback({ projectRoot, runtimeResult, 
   ];
   if (preflight.case_resolution.status === 'resolved') {
     plan.push({ action: 'aggregate_resolved_case_to_project', path: 'arckit/project/state.record.json' });
-    if (snapshot?.projectState?.active_iteration_ref) plan.push({ action: 'aggregate_resolved_case_to_iteration', path: snapshot.projectState.active_iteration_ref });
+    if (snapshot?.projectState?.advancement?.active_iteration_ref) plan.push({ action: 'aggregate_resolved_case_to_iteration', path: snapshot.projectState.advancement.active_iteration_ref });
   }
 
   if (dryRun) {
@@ -97,6 +97,6 @@ function emptyResult(gate, dryRun) {
 }
 
 function resolveActiveCaseRef(snapshot, caseId) {
-  const refs = snapshot?.paths?.activeCases || snapshot?.projectState?.active_case_refs || [];
+  const refs = snapshot?.paths?.activeCases || snapshot?.projectState?.advancement?.active_case_refs || [];
   return refs.find((ref) => basename(ref).startsWith(`${caseId}-`)) || '';
 }

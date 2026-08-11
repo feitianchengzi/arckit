@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import {
+  isTranscriptMessageVisible,
+  statusGlyph,
+  structuredResultPresentation,
+  summarizeLoopStatus,
+  summarizeToolActivity,
+  transcriptMessageType
+} from "../src/desktop/transcript-presentation.mjs";
 
 const rendererPath = new URL("../desktop/renderer/renderer.js", import.meta.url);
 const rendererHtmlPath = new URL("../desktop/renderer/index.html", import.meta.url);
@@ -29,6 +37,9 @@ test("desktop primary surface is the project-sourced automation Command Center",
   assert.match(html, /控制是否领取新任务；仅作用于已绑定且已授权的项目，不停止当前任务/);
   assert.match(source, /允许此项目自动领取/);
   assert.match(source, /允许自动领取 ·/);
+  assert.match(source, /Case 已完成，等待远端收尾/);
+  assert.match(source, /Automation Coordinator \/ 任务源/);
+  assert.match(source, /phase === "remote_completion_pending"/);
   assert.match(source, /api\.setProjectParticipation\(project\.id, true\)/);
   assert.match(styles, /--sidebar-width: 228px;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
@@ -36,9 +47,10 @@ test("desktop primary surface is the project-sourced automation Command Center",
 });
 
 test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views", async () => {
-  const [source, html] = await Promise.all([
+  const [source, html, styles] = await Promise.all([
     readFile(rendererPath, "utf8"),
-    readFile(rendererHtmlPath, "utf8")
+    readFile(rendererHtmlPath, "utf8"),
+    readFile(rendererStylesPath, "utf8")
   ]);
 
   assert.match(html, /data-page-view="tasks"/);
@@ -56,9 +68,87 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /state\.workbenchRun \|\| state\.snapshot\.active_run/);
   assert.match(source, /state\.workbenchCompletion\?\.local_project_id/);
   assert.match(source, /api\.listMessages\(localProjectId, run\.session_id\)/);
-  assert.match(source, /renderRunPlan\(activity\)/);
-  assert.match(source, /renderExecutionEvidence\(activity\)/);
+  assert.match(source, /message\.task_id/);
+  assert.match(source, /Task Session/);
+  assert.match(source, /Token 逻辑总量/);
+  assert.match(source, /cached_input_tokens/);
+  assert.match(source, /uncached_input_tokens/);
+  assert.match(source, /usage_warnings/);
+  assert.match(source, /模型 Turn 耗时/);
+  assert.match(source, /命令累计耗时/);
+  assert.match(source, /历史基线/);
+  assert.match(source, /相对历史中位数/);
+  assert.match(source, /Codex Thread/);
+  assert.match(source, /上下文压缩/);
+  assert.match(source, /context_compactions/);
+  assert.match(source, /Git 收尾/);
+  assert.match(source, /activity\?\.messages/);
+  assert.match(source, /renderConversationMessage/);
+  assert.match(source, /run\.activity_changed/);
+  assert.match(source, /artifact_paths\?\.messages_file/);
+  assert.doesNotMatch(source, /renderRunPlan\(activity\)|renderExecutionEvidence\(activity\)|raw_events/);
   assert.match(source, /artifact_ownership_scan\?\.implementation_evidence/);
+  assert.match(html, /class="transcript-scroll-area"/);
+  assert.match(html, /id="jumpToLatestButton"/);
+  assert.match(source, /transcriptFollowingLatest/);
+  assert.match(source, /isTranscriptNearBottom/);
+  assert.match(source, /renderLoopStatus/);
+  assert.match(source, /renderToolActivity/);
+  assert.match(source, /renderReasoningDisclosure/);
+  assert.match(source, /renderStructuredResult/);
+  assert.match(styles, /#workbenchView\.is-active \{ overflow: hidden; \}/);
+  assert.match(styles, /\.workbench-layout[^}]+height: 100%[^}]+overflow: hidden/);
+  assert.match(styles, /\.workbench-context, \.workbench-evidence[^}]+overflow-y: auto/);
+  assert.match(styles, /\.transcript-list[^}]+overflow-y: auto/);
+  assert.match(styles, /\.tool-activity-summary[^}]+text-overflow: ellipsis[^}]+white-space: nowrap/);
+  assert.match(styles, /\.reasoning-disclosure/);
+  assert.match(styles, /\.structured-result-raw pre[^}]+overflow: auto/);
+});
+
+test("workbench transcript prioritizes Loop and Agent output while reducing tools to one-line summaries", () => {
+  assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "result" }), "agent");
+  assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "status" }), "loop");
+  assert.equal(transcriptMessageType({ role: "tool", actor: "tool", kind: "command" }), "tool");
+  assert.equal(transcriptMessageType({ role: "user" }), "user");
+  assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "reasoning" }), "reasoning");
+  assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "structured" }), "structured");
+
+  assert.equal(summarizeToolActivity({ content: "sed -n '1,240p' runtime/arckit-runtime/desktop/renderer/renderer.js" }), "读取 runtime/arckit-runtime/desktop/renderer/renderer.js");
+  assert.equal(summarizeToolActivity({ content: "npm test" }), "运行测试 · npm test");
+  assert.equal(summarizeToolActivity({ content: "git diff --check" }), "查看工作区变更");
+  assert.equal(summarizeToolActivity({ kind: "file_change" }), "更新文件");
+  assert.equal(summarizeToolActivity({ kind: "file_change", content: "src/view.js" }), "更新 src/view.js");
+  assert.equal(summarizeToolActivity({ kind: "web_search", content: "Codex app transcript" }), "搜索网络 · Codex app transcript");
+  assert.equal(summarizeLoopStatus({ content: "Agent\n正在推进一个 Case gap。" }), "Agent 正在推进一个 Case gap。");
+  assert.equal(statusGlyph("streaming"), "◌");
+  assert.equal(statusGlyph("failed"), "×");
+});
+
+test("transcript hides empty reasoning and recognizes persisted schema JSON without rewriting it", () => {
+  assert.equal(isTranscriptMessageVisible({ role: "assistant", kind: "reasoning", content: "" }), false);
+  assert.equal(isTranscriptMessageVisible({ role: "assistant", kind: "reasoning", content: "Checked the state." }), true);
+  const value = {
+    schema_version: "arckit-agent-loop-result/v1",
+    action: "case_transition",
+    summary: "Advanced one gap.",
+    case_transition: { case_id: "CASE-1", selected_gap: { id: "GAP-1" } },
+    risks: ["Visual smoke test pending."],
+    unknowns: []
+  };
+  const raw = JSON.stringify(value);
+  const legacyMessage = { role: "assistant", actor: "agent", kind: "message", content: raw };
+  assert.equal(transcriptMessageType(legacyMessage), "structured");
+  assert.equal(isTranscriptMessageVisible(legacyMessage), true);
+  const presentation = structuredResultPresentation(legacyMessage);
+  assert.equal(presentation.title, "Agent Loop 结果");
+  assert.equal(presentation.schema_version, value.schema_version);
+  assert.equal(presentation.raw, raw);
+  assert.deepEqual(presentation.fields, [
+    { label: "Action", values: ["case_transition"] },
+    { label: "Case", values: ["CASE-1"] },
+    { label: "Gap", values: ["GAP-1"] },
+    { label: "Risks", values: ["Visual smoke test pending."] }
+  ]);
 });
 
 test("desktop main and preload expose bounded automation IPC without a generic network bridge", async () => {
@@ -78,6 +168,9 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     "arckit:automation-task-state",
     "arckit:automation-intervene",
     "arckit:automation-stop",
+    "arckit:automation-handoff-cli",
+    "arckit:automation-reopen-cli",
+    "arckit:automation-resume-runtime",
     "arckit:automation-recovery",
     "arckit:auth-status",
     "arckit:auth-send-verification",
@@ -91,6 +184,10 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(preload, /sendAuthVerification: \(input\)/);
   assert.match(preload, /loginWithCode: \(input\)/);
   assert.match(preload, /logoutAuth: \(input\)/);
+  assert.match(preload, /handoffAutomationToCli/);
+  assert.match(preload, /resumeAutomationRuntime/);
+  assert.match(source, /切换到 Codex CLI/);
+  assert.match(source, /Codex CLI 接管/);
   assert.doesNotMatch(preload, /fetch|httpRequest|requestUrl/);
   assert.doesNotMatch(preload, /startRun:|controlRun:|gateRun:|writeLedger:/);
   assert.doesNotMatch(preload, /addMessage:|createSession:|deleteSession:|addProject:/);

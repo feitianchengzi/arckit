@@ -1,65 +1,58 @@
 {
   "schema_version": "arckit-capability/v1",
   "id": "using-arckit",
-  "protocol_revision": "controller-parallel-cases/v2",
+  "protocol_revision": "software-definition-agent-loop/v8",
   "kind": "project_conversation_controller",
-  "runtime_role": ["controller", "packet_compiler", "report_intake", "closeout"],
+  "runtime_role": ["agent_loop", "case_selection", "gap_execution", "closeout"],
   "binding_targets": ["controller"],
   "invocation": {
     "type": "agent_skill",
     "skill_trigger": "$using-arckit",
-    "phases": ["controller_plan", "controller_review"]
+    "phases": ["agent_loop"]
   },
-  "summary": "Selects a Case and Case gap, plans one evidence-backed Case transition, accepts Worker claims, and separates round outcome, Case resolution, Project impact, and loop handoff across human or Runtime bridges.",
+  "summary": "Runs one coherent Agent turn from explicit Project software decisions, invariants and fresh facts through one selected Case gap, workspace execution, evidence, Project delta, transition claim, and handoff.",
   "input_facts": [
-    "user_message",
+    "original_user_input",
+    "current_operator_increment",
     "project_state",
-    "active_case",
+    "project_software_definition",
+    "project_software_invariants",
+    "active_cases",
     "iteration_state",
     "loop_handoff",
-    "case_fact_gap",
-    "capability_manifests",
-    "operator_input",
-    "worker_reports"
+    "agent_context_digest",
+    "execution_authorization"
   ],
   "outputs": [
-    "round_execution_packet",
-    "controller_frame",
-    "turn_delta",
-    "execution_gate",
-    "executor_binding",
-    "worker_packets",
-    "report_intake_rules",
-    "closeout_rules",
-    "source_projection_check",
+    "case_control",
+    "selected_dynamic_gap",
+    "planned_transition",
+    "workspace_evidence",
+    "accepted_case_state_delta",
     "round_outcome",
     "case_resolution",
-    "project_impact_candidate",
-    "case_control_plan",
+    "project_state_delta",
     "case_transition",
-    "loop_handoff_v2"
+    "loop_handoff_v2",
+    "agent_loop_result"
   ],
   "allowed_write_targets": [],
   "forbidden_decisions": [
     "ledger_writeback",
-    "case_resolution_writeback",
-    "human_gate_final",
-    "executor_auto_binding_without_authorization",
-    "worker_task_execution",
-    "concrete_capability_replacement",
-    "stable_fact_write_without_owner_capability"
+    "silent_human_decision",
+    "silent_external_completion",
+    "fixed_gap_or_skill_routing",
+    "case_resolution_without_evidence"
   ],
   "runtime_notes": [
-    "Runtime must invoke this capability through the Agent skill trigger for Controller planning and Controller review; manifest metadata alone is not execution.",
-    "Default execution_gate.status is pending unless the user message, runtime authorization, auto-run policy, or external platform explicitly authorizes execution.",
-    "When no automated executor is available, humans may manually copy worker packets to worker Agent chats and bring worker reports back to this Controller.",
-    "The selected execution environment may automate worker creation, observation, merge, gates, or writeback, but the Controller semantics stay the same.",
-    "A valid plan may contain zero Worker intents when direct operator or stable-fact evidence is sufficient; Controller Review must identify that evidence before accepting a Case delta.",
-    "Each Controller invocation selects one Case from all active Cases; Project State does not persist an exclusive Runtime or Loop selection.",
-    "When no active Case represents the operator input, Controller emits execution_plan.plane=runtime with one create_case Runtime action and no Worker intents; Runtime may only bind revision/policy and invoke the trusted ledger entrypoint.",
-    "Do not hard-code per-round workflow routes, fixed worker order, or fixed skill sequences; bind allowed skills dynamically from Case gap, capability manifests, and evidence boundaries.",
-    "Every Case transition binds the expected Case updated_at, observed Project updated_at, and complete selected candidate gap; each successful writeback requires a fresh state read before replanning.",
-    "Round completion, Case resolution, and Project impact are distinct outputs; only deterministic ledger audit may finalize resolution and aggregation.",
-    "Runtime must not bind this Controller protocol capability into an ordinary Worker allowed_skills list."
+    "Default Runtime execution invokes one agent_loop turn per Case gap and reuses one stable Codex thread for the active todo/session.",
+    "The Agent may use native tools and other installed skills inside the same turn; Runtime does not pre-bind a fixed definition/diagnosis skill list or predictive allowed_paths.",
+    "Runtime supplies original user intent, current increment, fresh bounded canonical facts, revisions, and execution authorization; these supersede conflicting thread history.",
+    "No suitable active Case produces a semantic case_control.create_case with outcome, initial facts, relevant impacts, and at least one dynamic gap; Runtime only binds Project revision and explicit review policy.",
+    "Every Case transition binds the expected Case updated_at, observed numeric Project revision, and complete current candidate gap.",
+    "The Agent evaluates requirements, documentation, code, configuration and tests against explicit Project decisions and invariants, updating relevant durable artifacts during the owning Gap rather than relying on Review.",
+    "Runtime gates schema, revision, authorization, workspace safety, and ledger legality; it does not semantically re-review the Agent claim.",
+    "Successful ledger writeback requires a fresh state read before the next turn. Human responsibility pauses for operator input; external responsibility remains a recoverable system wait.",
+    "Serial one-gap Loops, productive rounds, and long-running commands have no total wall-clock or productive-round limit; no-progress recovery is separate."
   ]
 }

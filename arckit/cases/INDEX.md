@@ -35,3 +35,27 @@
 | [CASE-20260804-001](closed/CASE-20260804-001-persist-runtime-sessions-and-execute-state-driven-loops-in-proce.md) | closed | Persist Runtime sessions and execute state-driven loops in-process | 2026-08-04T14:13:13.493Z |
 | [CASE-20260804-002](closed/CASE-20260804-002-reuse-worker-threads-by-case-workstream.md) | closed | Reuse Worker threads by Case workstream | 2026-08-04T15:31:35.227Z |
 | [CASE-20260804-003](closed/CASE-20260804-003-prioritize-final-handoff-freshness-in-todo-automation.md) | closed | Prioritize final handoff freshness in todo automation | 2026-08-04T17:01:16.287Z |
+| [CASE-20260806-001](closed/CASE-20260806-001-runtime-token.md) | closed | 优化 Runtime 会话隔离、执行效率与 Token 可观测性 | 2026-08-06T18:09:56.302Z |
+| [CASE-20260806-002](closed/CASE-20260806-002-strengthen-runtime-context-handoff-and-workstream-thread-isolati.md) | closed | Strengthen Runtime context handoff and workstream thread isolation | 2026-08-06T18:56:06.750Z |
+| [CASE-20260806-003](closed/CASE-20260806-003-runtime.md) | closed | 将 Runtime 执行过程收敛为轻量对话消息流 | 2026-08-06T20:10:36.429Z |
+| [CASE-20260807-001](closed/CASE-20260807-001-runtime-codex-cli-case.md) | closed | 支持 Runtime 切换到交互式 Codex CLI 并按 Case 恢复 | 2026-08-07T05:17:05.142Z |
+| [CASE-20260807-002](closed/CASE-20260807-002-buzz-dashi-arckit.md) | closed | 沉淀 Buzz、Dashi 与 Arckit 核心产品概念调研报告 | 2026-08-07T05:11:58.083Z |
+| [CASE-20260807-003](closed/CASE-20260807-003-development-case.md) | closed | 深化三项目平台能力推导与真实研发场景对比 | 2026-08-07T06:31:47.773Z |
+| [CASE-20260807-004](closed/CASE-20260807-004-runtime-canonical-case.md) | closed | 修复未登录重启时 Runtime 未按 canonical Case 收尾 | 2026-08-07T06:34:28.989Z |
+| [CASE-20260807-005](closed/CASE-20260807-005-development-case.md) | closed | 追加三项目第一性原理方向判断 | 2026-08-07T07:30:38.681Z |
+| [CASE-20260807-006](closed/CASE-20260807-006-instrument-runtime-todo-execution-lifecycle-latency.md) | closed | Instrument Runtime todo execution lifecycle latency | 2026-08-07T15:52:18.510Z |
+| [CASE-20260808-001](closed/CASE-20260808-001-using-arckit-codex-runtime-controller.md) | closed | 优化 using-arckit 与 Codex Runtime 的 Controller 执行边界 | 2026-08-08T18:33:55.416Z |
+| [CASE-20260809-001](closed/CASE-20260809-001-controller-thread.md) | closed | 纠正 Controller thread 复用与双桥接边界 | 2026-08-09T05:47:23.397Z |
+| [CASE-20260809-002](closed/CASE-20260809-002-simplify-arckit-runtime-around-a-coherent-codex-agent-loop.md) | closed | Simplify Arckit Runtime around a coherent Codex Agent loop | 2026-08-09T08:21:07.227Z |
+| [CASE-20260809-003](closed/CASE-20260809-003-converge-arckit-runtime-on-one-persistent-codex-task-thread.md) | closed | Converge Arckit Runtime on one persistent Codex task thread | 2026-08-09T12:50:07.343Z |
+| [CASE-20260809-004](closed/CASE-20260809-004-remove-runtime-skill-installation-drift-enforcement.md) | closed | Remove Runtime skill installation drift enforcement | 2026-08-09T13:51:24.557Z |
+| [CASE-20260809-005](closed/CASE-20260809-005-optimize-desktop-conversation-transcript-interaction.md) | closed | Optimize Desktop conversation transcript interaction | 2026-08-09T14:55:14.667Z |
+| [CASE-20260809-006](closed/CASE-20260809-006-replace-facet-workflow-with-state-condition-driven-dynamic-gaps.md) | closed | Replace facet workflow with state-condition-driven dynamic gaps | 2026-08-09T18:05:45.856Z |
+| [CASE-20260809-007](closed/CASE-20260809-007-remove-legacy-facet-state-protocol-compatibility.md) | closed | Remove legacy facet state protocol compatibility | 2026-08-09T18:42:34.239Z |
+| [CASE-20260810-001](closed/CASE-20260810-001-implement-explicit-software-definition-project-state.md) | closed | Implement explicit software-definition Project State | 2026-08-10T14:56:53.200Z |
+| [CASE-20260810-002](closed/CASE-20260810-002-prevent-runtime-schema-failures-from-entering-retry-loops.md) | closed | Prevent Runtime schema failures from entering retry loops | 2026-08-10T16:34:22.892Z |
+| [CASE-20260810-003](closed/CASE-20260810-003-upgrade-project-state-v5-content-evidence.md) | closed | Upgrade Project State v5 content evidence | 2026-08-10T16:36:04.384Z |
+| [CASE-20260810-004](closed/CASE-20260810-004-restore-project-state-selection-context-after-content-upgrade.md) | closed | Restore Project State selection context after content upgrade | 2026-08-10T16:37:21.320Z |
+| [CASE-20260810-005](closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md) | closed | Require authoritative task-to-Case binding provenance | 2026-08-10T17:18:07.967Z |
+| [CASE-20260811-001](closed/CASE-20260811-001-clarify-runtime-agent-transcript-message-presentation.md) | closed | Clarify Runtime Agent transcript message presentation | 2026-08-11T03:16:07.510Z |
+| [CASE-20260811-002](closed/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md) | closed | Align dynamic Gap Loop and invariant semantics | 2026-08-11T05:27:56.752Z |

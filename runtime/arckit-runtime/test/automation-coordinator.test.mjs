@@ -1,979 +1,431 @@
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import test from "node:test";
 import {
   buildAutomationTask,
-  buildInterventionTask,
   buildQueue,
-  compareQueueTasks,
-  createAutomationCoordinator
+  createAutomationCoordinator,
+  extractAuthoritativeCaseBindingFromRun,
+  isCanonicalCaseResolved
 } from "../src/automation-coordinator.mjs";
-import { normalizeStore } from "../src/desktop/desktop-store.mjs";
 
-test("automation queue is deterministic across priority, confirmation time, project, and task id", () => {
-  const items = [
-    { id: "B", project_id: "2", priority: 10, state_changed_at: "2026-08-02T09:00:00Z" },
-    { id: "A", project_id: "1", priority: 10, state_changed_at: "2026-08-02T09:00:00Z" },
-    { id: "C", project_id: "1", priority: 20, state_changed_at: "2026-08-02T10:00:00Z" },
-    { id: "D", project_id: "1", priority: 10, state_changed_at: "2026-08-02T08:00:00Z" }
-  ];
-  assert.deepEqual(items.sort(compareQueueTasks).map((item) => item.id), ["C", "D", "A", "B"]);
+test("automation task preserves only the remote human-authored intent", () => {
+  assert.equal(buildAutomationTask({ title: "Fix login", content: "Repair and verify login." }), "Repair and verify login.");
 });
 
-test("automation and intervention tasks contain only human-authored intent", () => {
-  const task = {
-    id: "TASK-1",
-    project_id: "PROJECT-1",
-    title: "Fallback title",
-    content: "  实现并验证任务。  "
-  };
-
-  assert.equal(buildAutomationTask(task), "实现并验证任务。");
-  assert.equal(buildAutomationTask({ ...task, content: "" }), "Fallback title");
-  assert.equal(buildInterventionTask("  保留兼容性，但删除重复 prompt。  "), "保留兼容性，但删除重复 prompt。");
+test("queue remains deterministic and excludes ineligible tasks", () => {
+  const queue = buildQueue([
+    { id: "2", project_id: "p", state: "pending", priority: 1, confirmed_at: "2026-01-02" },
+    { id: "1", project_id: "p", state: "pending", priority: 2, confirmed_at: "2026-01-01" }
+  ], {
+    project_bindings: { p: "local" },
+    project_participation: { p: true },
+    snapshot: { projects: [{ id: "p" }], errors: [] }
+  }, new Map([["p", { id: "p" }]]), new Map([["local", { id: "local", path: "/workspace" }]]));
+  assert.deepEqual(queue.map((item) => item.id), ["1", "2"]);
 });
 
-test("automation coordinator claims one eligible pending task and starts one Runtime", async () => {
-  const events = new EventEmitter();
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local Runtime", path: "/workspace/runtime" }],
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } }
-  });
-  const runs = [];
-  const runInputs = [];
-  const agentTaskInputs = [];
-  const messages = [];
-  const executorFilters = [];
-  const runManager = {
-    onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return runs; },
-    async listSessions() { return [{ id: "SESSION-1" }]; },
-    async addMessage(_projectId, message) { messages.push(message); return message; },
-    async startRun(input) { runInputs.push(input); const run = { id: "RUN-1", project_id: input.projectId, session_id: input.sessionId, status: "running" }; runs.push(run); return run; },
-    async startAgentTask(input) { agentTaskInputs.push(input); const run = { id: "RUN-COMMIT", project_id: input.projectId, session_id: input.sessionId, status: "running", entry_capability: "agent-task" }; runs.push(run); return run; },
-    async controlRun() { return { ok: true }; }
-  };
-  const remote = {
-    task: { id: "TASK-1", project_id: "REMOTE-1", title: "Implement", content: "Implement automation", state: "pending", priority: 100, version: "v1", state_changed_at: "2026-08-02T08:00:00Z" }
-  };
-  const taskSource = {
-    async getCurrentUser() { return { id: "USER-1", name: "Glare" }; },
-    async listProjects() { return [{ id: "REMOTE-1", name: "Runtime" }]; },
-    async listTasks(_projectId, options) { executorFilters.push(options.executorId); return [remote.task]; },
-    async getTask(_taskId, _projectId, options) { executorFilters.push(options.executorId); return remote.task; },
-    async updateTask({ state }) { remote.task = { ...remote.task, state, version: state === "in_progress" ? "v2" : "v3" }; return remote.task; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource, now: () => "2026-08-02T10:00:00.000Z" });
-
-  await coordinator.sync();
-  await coordinator.bindProject("REMOTE-1", "LOCAL-1");
-  await coordinator.setProjectParticipation("REMOTE-1", true);
-  await coordinator.setEnabled(true);
-
-  const snapshot = await coordinator.getSnapshot();
-  assert.equal(remote.task.state, "in_progress");
-  assert.equal(runs.length, 1);
-  assert.equal(runInputs[0].task, "Implement automation");
-  assert.equal(runInputs[0].continuationPolicy, "automatic");
-  assert.equal(messages.length, 1);
-  assert.equal(snapshot.active_task.task_id, "TASK-1");
-  assert.equal(snapshot.active_task.run_id, "RUN-1");
-  assert.equal(snapshot.active_task.phase, "running");
-  assert.equal(snapshot.queue.length, 0);
-
-  events.emit("event", {
-    type: "run.finished",
-    runId: "RUN-1",
-    status: "completed",
-    result: {
-      runtime_result: {
-        ledger_stage: { writeback_required: true },
-        loop_handoff: { status: "complete", next_responsibility: "none" }
-      }
-    },
-    activity: { ledger_write_result: { parsed: { written: true } } }
-  });
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  const committingSnapshot = await coordinator.getSnapshot();
-  assert.equal(remote.task.state, "in_progress");
-  assert.equal(committingSnapshot.active_task.phase, "committing");
-  assert.equal(committingSnapshot.active_task.run_id, "RUN-COMMIT");
-  assert.deepEqual(agentTaskInputs, [{
-    projectId: "LOCAL-1",
-    sessionId: "SESSION-1",
-    task: "git commit",
-    adapter: "codex-app-server",
-    approvalPolicy: "on-request"
-  }]);
-  assert.equal(messages.length, 1);
-
-  events.emit("event", {
-    type: "run.finished",
-    runId: "RUN-COMMIT",
-    status: "completed",
-    result: { schema_version: "arckit-agent-task-result/v1", status: "completed" },
-    activity: {}
-  });
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  const completedSnapshot = await coordinator.getSnapshot();
-  assert.equal(remote.task.state, "completed");
-  assert.equal(completedSnapshot.active_task, null);
-  assert.equal(completedSnapshot.recent_completions[0].task_id, "TASK-1");
-  assert.deepEqual(new Set(executorFilters), new Set(["USER-1"]));
-  coordinator.dispose();
-});
-
-test("automation coordinator keeps an eligible ledger manual bridge in the automatic path", async () => {
-  const events = new EventEmitter();
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
+test("closed Case recovery resumes the persisted thread for same-thread closeout", async () => {
+  const starts = [];
+  const store = {
+    projects: [{ id: "local", path: "/workspace", name: "demo" }],
+    settings: { task_source: {} },
     automation: {
+      enabled: true,
+      queue_paused: false,
+      project_bindings: { p: "local" },
+      project_participation: { p: true },
+      snapshot: {
+        source_status: "logged_out", errors: [], user: null, projects: [{ id: "p" }],
+        tasks: [{ id: "t", project_id: "p", title: "todo", content: "finish", state: "in_progress" }]
+      },
       active_task: {
-        task_id: "TASK-1",
-        project_id: "REMOTE-1",
-        local_project_id: "LOCAL-1",
-        run_id: "RUN-1",
-        phase: "running"
-      }
+        task_id: "t", project_id: "p", local_project_id: "local", local_project_path: "/workspace",
+        task_title: "todo", phase: "recovery", case_id: "CASE-20260809-001", case_status: "resolved",
+        case_binding_source: "runtime_ledger", case_binding_run_id: "RUN-OLD", case_bound_at: "2026-08-09T00:00:00Z",
+        case_resolved_at: "", closeout_status: "pending", closeout_completed_at: "", remote_completion_status: "pending",
+        run_id: "RUN-OLD", session_id: "SESSION-T", thread_id: "THREAD-PERSISTED", started_at: "2026-08-09T00:00:00Z"
+      },
+      attention_items: [], recovery_items: [], recent_completions: []
     }
-  });
-  const runManager = {
-    onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return []; }
   };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => ({}) });
-
-  events.emit("event", {
-    type: "run.finished",
-    runId: "RUN-1",
-    status: "completed",
-    result: {
-      runtime_result: {
-        ledger_stage: { writeback_required: false },
-        loop_handoff: {
-          status: "continue",
-          next_responsibility: "agent",
-          agent_continuation_available: true,
-          human_decision_required: false,
-          trigger_mode: "manual_bridge",
-          next_prompt: "Reload fresh state."
-        }
-      }
-    },
-    activity: {}
-  });
-  events.emit("event", { type: "run.auto_continue.started", sourceRunId: "RUN-1", runId: "RUN-2" });
-  await new Promise((resolve) => setTimeout(resolve, 20));
-
-  assert.equal(store.automation.active_task.run_id, "RUN-2");
-  assert.equal(store.automation.active_task.phase, "running");
-  assert.deepEqual(store.automation.recovery_items, []);
-  coordinator.dispose();
-});
-
-test("automation coordinator pauses for the final human handoff instead of an older ledger continuation", async () => {
-  const events = new EventEmitter();
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
-    automation: {
-      active_task: {
-        task_id: "TASK-1",
-        project_id: "REMOTE-1",
-        local_project_id: "LOCAL-1",
-        run_id: "RUN-1",
-        phase: "running"
-      }
-    }
-  });
-  const runManager = {
-    onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return []; }
-  };
+  const runManager = fakeRunManager(store, starts);
   const coordinator = createAutomationCoordinator({
     runManager,
-    taskSourceFactory: () => ({}),
-    now: () => "2026-08-05T00:14:43.000Z"
+    taskSourceFactory() { throw Object.assign(new Error("not logged in"), { code: "unconfigured" }); }
   });
+  await coordinator.sync({ dispatch: false });
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].threadId, "THREAD-PERSISTED");
+  assert.deepEqual(starts[0].runtimeContext, { closeout_only: true, case_id: "CASE-20260809-001" });
+  coordinator.dispose();
+});
 
-  events.emit("event", {
-    type: "run.finished",
-    runId: "RUN-1",
-    status: "completed",
-    result: {
-      runtime_result: {
-        loop_handoff: {
-          status: "needs_human",
-          next_responsibility: "human",
-          human_decision_required: true,
-          trigger_mode: "user_decision",
-          responsibility_reason: "Verification requires approval.",
-          human_gate: { decision_needed: "Allow the verification build?" }
-        }
+test("an unbound task never adopts the sole readable closed Case", async () => {
+  const starts = [];
+  const store = recoveryStore();
+  const runManager = fakeRunManager(store, starts, {
+    async listProjectCaseStates() {
+      return [{
+        case_id: "CASE-20260810-003",
+        location: "closed",
+        record: { id: "CASE-20260810-003", status: "closed", case_resolution: { status: "resolved" } }
+      }];
+    },
+    async getProjectCaseState() {
+      throw new Error("An unrelated Case must never be looked up.");
+    }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await coordinator.sync({ dispatch: false });
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.active_task.case_id, "");
+  assert.equal(store.automation.active_task.case_status, "unbound");
+  coordinator.dispose();
+});
+
+test("CLI return does not infer a Case from one concurrent repository addition", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "cli_handoff" });
+  const runManager = fakeRunManager(store, starts, {
+    async listProjectCaseStates() {
+      return [{
+        case_id: "CASE-20260810-003",
+        location: "closed",
+        record: { id: "CASE-20260810-003", status: "closed", case_resolution: { status: "resolved" } }
+      }];
+    }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await coordinator.resumeRuntimeFromCodexCli();
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.active_task.case_id, "");
+  assert.equal(store.automation.recovery_items.at(-1).type, "case_reconciliation_failed");
+  coordinator.dispose();
+});
+
+test("only a trusted ledger write can establish a Case binding", () => {
+  const binding = extractAuthoritativeCaseBindingFromRun({
+    id: "RUN-CURRENT",
+    case_id: "CASE-20260810-099",
+    activity: {
+      case_id: "CASE-20260810-098",
+      controller_frame: { case_id: "CASE-20260810-097" },
+      ledger_write_result: {
+        parsed: { written: true, case_control_result: { case_id: "CASE-20260810-005" } }
       }
     },
-    activity: {
-      ledger_write_result: {
-        parsed: {
-          written: true,
-          case_transition_result: {
-            case_resolution: {
-              loop_handoff: {
-                status: "continue",
-                next_responsibility: "agent",
-                agent_continuation_available: true,
-                human_decision_required: false,
-                trigger_mode: "manual_bridge",
-                next_prompt: "Continue from fresh state."
-              }
-            }
+    result: { runtime_result: { case_transition: { case_id: "CASE-20260810-096" } } }
+  });
+
+  assert.deepEqual(binding, {
+    status: "bound",
+    case_id: "CASE-20260810-005",
+    case_ids: ["CASE-20260810-005"],
+    source: "runtime_ledger",
+    run_id: "RUN-CURRENT",
+    observations: [{ case_id: "CASE-20260810-005", evidence: "activity.ledger_write_result" }]
+  });
+});
+
+test("canonical completion requires a consistently closed and resolved Case", () => {
+  const resolved = {
+    location: "closed",
+    record: { status: "closed", case_resolution: { status: "resolved" } }
+  };
+  assert.equal(isCanonicalCaseResolved(resolved), true);
+  assert.equal(isCanonicalCaseResolved({ ...resolved, location: "active" }), false);
+  assert.equal(isCanonicalCaseResolved({ ...resolved, record: { ...resolved.record, status: "active" } }), false);
+  assert.equal(isCanonicalCaseResolved({
+    ...resolved,
+    record: { ...resolved.record, case_resolution: { status: "unresolved" } }
+  }), false);
+});
+
+test("conflicting trusted ledger Case identifiers enter recovery", async () => {
+  const starts = [];
+  const store = recoveryStore({
+    case_id: "CASE-20260810-005",
+    case_status: "active",
+    case_binding_source: "runtime_ledger",
+    case_binding_run_id: "RUN-BOUND",
+    case_bound_at: "2026-08-10T00:00:00Z"
+  });
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{
+        id: "RUN-OLD", project_id: "local", status: "completed",
+        activity: {
+          ledger_write_result: {
+            parsed: { written: true, case_transition_result: { case_id: "CASE-20260810-006" } }
+          },
+          loop_handoff: { status: "done", next_responsibility: "none" }
+        }
+      }];
+    }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await coordinator.sync({ dispatch: false });
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.active_task.case_id, "CASE-20260810-005");
+  assert.equal(store.automation.recovery_items.at(-1).type, "case_binding_conflict");
+  coordinator.dispose();
+});
+
+test("a Case produced by the task run ledger still resumes resolved closeout", async () => {
+  const starts = [];
+  const store = recoveryStore();
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{
+        id: "RUN-OLD", project_id: "local", status: "failed",
+        activity: {
+          ledger_write_result: {
+            parsed: { written: true, case_control_result: { case_id: "CASE-20260810-005" } }
           }
         }
-      }
-    }
-  });
-  await new Promise((resolve) => setTimeout(resolve, 20));
-
-  assert.equal(store.automation.active_task.phase, "awaiting_human");
-  assert.equal(store.automation.attention_items.length, 1);
-  assert.equal(store.automation.attention_items[0].question, "Allow the verification build?");
-  coordinator.dispose();
-});
-
-test("startup sync restores the final human handoff from a stale continuing projection", async () => {
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
-    automation: {
-      enabled: true,
-      project_bindings: { "REMOTE-1": "LOCAL-1" },
-      project_participation: { "REMOTE-1": true },
-      snapshot: {
-        user: { id: "USER-1" },
-        projects: [{ id: "REMOTE-1", current_user_id: "USER-1" }],
-        tasks: [{ id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", executor_id: "USER-1", version: "v1" }],
-        source_status: "healthy"
-      },
-      active_task: {
-        task_id: "TASK-1",
-        project_id: "REMOTE-1",
-        local_project_id: "LOCAL-1",
-        run_id: "RUN-1",
-        phase: "continuing"
-      }
-    }
-  });
-  const finalHumanHandoff = {
-    status: "needs_human",
-    next_responsibility: "human",
-    human_decision_required: true,
-    trigger_mode: "user_decision",
-    responsibility_reason: "Verification requires approval.",
-    human_gate: { decision_needed: "Allow the verification build?" }
-  };
-  const runs = [{
-    id: "RUN-1",
-    project_id: "LOCAL-1",
-    status: "completed",
-    activity: {
-      loop_handoff: finalHumanHandoff,
-      ledger_write_result: {
-        parsed: {
-          written: true,
-          case_transition_result: {
-            case_resolution: {
-              loop_handoff: {
-                status: "continue",
-                next_responsibility: "agent",
-                agent_continuation_available: true,
-                human_decision_required: false,
-                trigger_mode: "manual_bridge",
-                next_prompt: "Continue from fresh state."
-              }
-            }
-          }
-        }
-      }
-    }
-  }];
-  const runManager = {
-    onEvent() { return () => {}; },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return runs; },
-    isRunActive() { return false; }
-  };
-  const taskSource = {
-    async getCurrentUser() { return { id: "USER-1" }; },
-    async listProjects() { return [{ id: "REMOTE-1", current_user_id: "USER-1" }]; },
-    async listTasks() { return [{ id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", executor_id: "USER-1", version: "v1" }]; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
-
-  const snapshot = await coordinator.sync({ dispatch: false });
-
-  assert.equal(snapshot.active_task.phase, "awaiting_human");
-  assert.equal(snapshot.attention_items.length, 1);
-  assert.equal(snapshot.attention_items[0].question, "Allow the verification build?");
-  assert.equal(snapshot.recovery_items.length, 0);
-  coordinator.dispose();
-});
-
-test("a failed commit agent keeps the todo in progress and recovery retries only git commit", async () => {
-  const events = new EventEmitter();
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
-    automation: {
-      snapshot: {
-        user: { id: "USER-1" },
-        projects: [{ id: "REMOTE-1", current_user_id: "USER-1" }],
-        tasks: [{ id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", version: "v2" }],
-        source_status: "healthy"
-      },
-      active_task: {
-        task_id: "TASK-1",
-        project_id: "REMOTE-1",
-        local_project_id: "LOCAL-1",
-        run_id: "RUN-COMMIT-1",
-        phase: "committing"
-      }
-    }
-  });
-  const agentTaskInputs = [];
-  const runManager = {
-    onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return []; },
-    async listSessions() { return [{ id: "SESSION-1" }]; },
-    async startAgentTask(input) {
-      agentTaskInputs.push(input);
-      return { id: "RUN-COMMIT-2", status: "running", entry_capability: "agent-task" };
-    }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => ({}) });
-
-  events.emit("event", {
-    type: "run.finished",
-    runId: "RUN-COMMIT-1",
-    status: "failed",
-    result: null,
-    activity: {}
-  });
-  await new Promise((resolve) => setTimeout(resolve, 20));
-
-  let snapshot = await coordinator.getSnapshot();
-  assert.equal(snapshot.tasks[0].state, "in_progress");
-  assert.equal(snapshot.active_task.phase, "recovery");
-  assert.deepEqual(snapshot.recovery_items[0].actions, ["retry_commit", "mark_blocked"]);
-
-  await coordinator.resolveRecovery({ recoveryId: snapshot.recovery_items[0].id, action: "retry_commit" });
-  snapshot = await coordinator.getSnapshot();
-  assert.equal(snapshot.active_task.phase, "committing");
-  assert.equal(snapshot.active_task.run_id, "RUN-COMMIT-2");
-  assert.deepEqual(agentTaskInputs.map((input) => input.task), ["git commit"]);
-  coordinator.dispose();
-});
-
-test("startup sync commits the terminal descendant of a detached auto-continuation chain before completing the remote task", async () => {
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
-    automation: {
-      enabled: true,
-      project_bindings: { "REMOTE-1": "LOCAL-1" },
-      project_participation: { "REMOTE-1": true },
-      active_task: {
-        task_id: "TASK-1",
-        project_id: "REMOTE-1",
-        local_project_id: "LOCAL-1",
-        run_id: "RUN-1",
-        phase: "running"
-      }
-    }
-  });
-  const terminalHandoff = {
-    status: "done",
-    next_responsibility: "none",
-    human_decision_required: false
-  };
-  const runs = [{
-    id: "RUN-1",
-    project_id: "LOCAL-1",
-    status: "completed",
-    auto_continue_depth: 0,
-    activity: { loop_handoff: { status: "continue", next_responsibility: "agent" } }
-  }, {
-    id: "RUN-2",
-    project_id: "LOCAL-1",
-    status: "completed",
-    auto_continue_from_run_id: "RUN-1",
-    auto_continue_depth: 1,
-    activity: { loop_handoff: { status: "continue", next_responsibility: "agent" } }
-  }, {
-    id: "RUN-3",
-    project_id: "LOCAL-1",
-    status: "completed",
-    auto_continue_from_run_id: "RUN-2",
-    auto_continue_depth: 2,
-    activity: {
-      ledger_stage: { status: "written", writeback_required: false },
-      ledger_write_result: {
-        parsed: {
-          written: true,
-          case_transition_result: { case_resolution: { loop_handoff: terminalHandoff } }
-        }
-      },
-      loop_handoff: terminalHandoff
-    }
-  }];
-  const runManager = {
-    onEvent() { return () => {}; },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return runs; },
-    async listSessions() { return [{ id: "SESSION-1" }]; },
-    async startAgentTask(input) {
-      const run = {
-        id: "RUN-COMMIT",
-        project_id: input.projectId,
-        session_id: input.sessionId,
-        status: "running",
-        entry_capability: "agent-task"
+      }];
+    },
+    async getProjectCaseState(_projectId, caseId) {
+      assert.equal(caseId, "CASE-20260810-005");
+      return {
+        location: "closed",
+        record: { id: caseId, status: "closed", updated_at: "2026-08-10T00:00:00Z", case_resolution: { status: "resolved" } }
       };
-      runs.push(run);
-      return run;
-    },
-    isRunActive(runId) { return runs.some((run) => run.id === runId && run.status === "running"); }
-  };
-  let remoteTask = {
-    id: "TASK-1",
-    project_id: "REMOTE-1",
-    title: "Finish recovered work",
-    state: "in_progress",
-    executor_id: "USER-1",
-    version: "v2"
-  };
-  const taskSource = {
-    async getCurrentUser() { return { id: "USER-1", name: "Glare" }; },
-    async listProjects() { return [{ id: "REMOTE-1", name: "Remote", current_user_id: "USER-1" }]; },
-    async listTasks() { return [remoteTask]; },
-    async getTask() { return remoteTask; },
-    async updateTask({ state }) {
-      remoteTask = { ...remoteTask, state, version: "v3" };
-      return remoteTask;
     }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
 
-  const committingSnapshot = await coordinator.sync({ dispatch: false });
+  await coordinator.sync({ dispatch: false });
 
-  assert.equal(remoteTask.state, "in_progress");
-  assert.equal(committingSnapshot.active_task.phase, "committing");
-  assert.equal(committingSnapshot.active_task.run_id, "RUN-COMMIT");
-
-  runs.at(-1).status = "completed";
-  const snapshot = await coordinator.sync({ dispatch: false });
-
-  assert.equal(remoteTask.state, "completed");
-  assert.equal(snapshot.active_task, null);
-  assert.equal(snapshot.recovery_items.length, 0);
-  assert.equal(snapshot.recent_completions[0].task_id, "TASK-1");
-  assert.equal(snapshot.recent_completions[0].run_id, "RUN-COMMIT");
+  assert.equal(store.automation.active_task.case_id, "CASE-20260810-005");
+  assert.equal(store.automation.active_task.case_binding_source, "runtime_ledger");
+  assert.equal(store.automation.active_task.case_binding_run_id, "RUN-OLD");
+  assert.equal(starts.length, 1);
+  assert.deepEqual(starts[0].runtimeContext, { closeout_only: true, case_id: "CASE-20260810-005" });
   coordinator.dispose();
 });
 
-test("startup sync restores a detached failed commit as retry_commit recovery", async () => {
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
-    automation: {
-      enabled: true,
-      project_bindings: { "REMOTE-1": "LOCAL-1" },
-      project_participation: { "REMOTE-1": true },
-      active_task: {
-        task_id: "TASK-1",
-        project_id: "REMOTE-1",
-        local_project_id: "LOCAL-1",
-        run_id: "RUN-COMMIT",
-        phase: "committing"
-      }
-    }
+test("retry_start clears stale closeout state and starts a normal Runtime", async () => {
+  const starts = [];
+  const store = recoveryStore({
+    phase: "recovery",
+    case_id: "CASE-20260810-003",
+    case_status: "resolved",
+    closeout_status: "running"
   });
-  const runs = [{
-    id: "RUN-COMMIT",
-    project_id: "LOCAL-1",
-    status: "failed",
-    entry_capability: "agent-task",
-    activity: {}
-  }];
-  const runManager = {
-    onEvent() { return () => {}; },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return runs; },
-    isRunActive() { return false; }
-  };
-  const remoteTask = { id: "TASK-1", project_id: "REMOTE-1", state: "in_progress", executor_id: "USER-1", version: "v2" };
-  const taskSource = {
-    async getCurrentUser() { return { id: "USER-1" }; },
-    async listProjects() { return [{ id: "REMOTE-1", current_user_id: "USER-1" }]; },
-    async listTasks() { return [remoteTask]; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
+  store.automation.recovery_items.push({
+    id: "RECOVERY-closeout-process-missing-t",
+    type: "closeout_process_missing",
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    actions: ["retry_start", "mark_blocked"]
+  });
+  const runManager = fakeRunManager(store, starts);
+  const coordinator = unconfiguredCoordinator(runManager);
 
-  const snapshot = await coordinator.sync({ dispatch: false });
+  await coordinator.resolveRecovery({
+    recoveryId: "RECOVERY-closeout-process-missing-t",
+    action: "retry_start"
+  });
 
-  assert.equal(snapshot.active_task.phase, "recovery");
-  assert.equal(snapshot.recovery_items[0].type, "commit_failed");
-  assert.deepEqual(snapshot.recovery_items[0].actions, ["retry_commit", "mark_blocked"]);
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].runtimeContext, null);
+  assert.equal(store.automation.active_task.phase, "running");
+  assert.equal(store.automation.active_task.closeout_status, "pending");
   coordinator.dispose();
 });
 
-test("automation coordinator resumes a persisted agent continuation recovery and clears stale run-presence recovery", async () => {
-  const events = new EventEmitter();
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
-    automation: {
-      enabled: true,
-      project_bindings: { "REMOTE-1": "LOCAL-1" },
-      project_participation: { "REMOTE-1": true },
-      active_task: {
-        task_id: "TASK-1",
-        project_id: "REMOTE-1",
-        local_project_id: "LOCAL-1",
-        run_id: "RUN-1",
-        phase: "recovery"
-      },
-      recovery_items: [{
-        id: "RECOVERY-runtime_continuation_stopped-TASK-1",
-        type: "runtime_continuation_stopped",
-        task_id: "TASK-1",
-        project_id: "REMOTE-1",
-        run_id: "RUN-1",
-        responsibility: "human",
-        freeze_scope: "global",
-        actions: ["retry_start", "mark_blocked"]
-      }, {
-        id: "RECOVERY-runtime_process_missing-TASK-1",
-        type: "runtime_process_missing",
-        task_id: "TASK-1",
-        project_id: "REMOTE-1",
-        run_id: "RUN-0",
-        responsibility: "human",
-        freeze_scope: "global",
-        actions: ["retry_start", "mark_blocked"]
-      }]
-    }
-  });
-  const handoff = {
-    status: "continue",
-    next_responsibility: "agent",
-    agent_continuation_available: true,
-    human_decision_required: false,
-    trigger_mode: "manual_bridge",
-    next_prompt: "Continue from fresh Case State."
-  };
-  const runs = [{ id: "RUN-1", project_id: "LOCAL-1", status: "completed", activity: { loop_handoff: handoff } }];
-  const resumed = [];
-  const runManager = {
-    onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return runs; },
-    async resumeAutoContinuation(runId) { resumed.push(runId); return { status: "started" }; }
-  };
-  const task = { id: "TASK-1", project_id: "REMOTE-1", title: "Continue", state: "in_progress", executor_id: "USER-1", version: "v1" };
-  const taskSource = {
-    async getCurrentUser() { return { id: "USER-1", name: "Glare" }; },
-    async listProjects() { return [{ id: "REMOTE-1", name: "Remote", current_user_id: "USER-1" }]; },
-    async listTasks() { return [task]; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
-
-  await coordinator.sync();
-
-  assert.deepEqual(resumed, ["RUN-1"]);
-  assert.equal(store.automation.active_task.phase, "continuing");
-  assert.deepEqual(store.automation.recovery_items, []);
-  coordinator.dispose();
-});
-
-test("buildQueue excludes unbound and non-participating project tasks", () => {
-  const tasks = [
-    { id: "1", project_id: "A", state: "pending", priority: 1 },
-    { id: "2", project_id: "B", state: "pending", priority: 2 }
-  ];
-  const automation = {
-    project_bindings: { A: "LOCAL-A" },
-    project_participation: { A: true, B: true },
-    snapshot: { errors: [] }
-  };
-  const queue = buildQueue(tasks, automation, new Map([["A", { name: "A" }], ["B", { name: "B" }]]), new Map([["LOCAL-A", { id: "LOCAL-A", path: "/a" }]]));
-  assert.deepEqual(queue.map((task) => task.id), ["1"]);
-  assert.equal(queue[0].queue_position, 1);
-});
-
-test("enabled automation reports pending tasks blocked by project participation instead of an empty queue", async () => {
-  const events = new EventEmitter();
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
-    automation: {
-      enabled: true,
-      project_bindings: { REMOTE: "LOCAL-1" },
-      project_participation: { REMOTE: false }
-    }
-  });
-  const runs = [];
-  const remote = {
-    task: { id: "TASK-1", project_id: "REMOTE", title: "Ready but excluded", state: "pending", executor_id: "USER-1", version: "v1" }
-  };
-  const runManager = {
-    onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return runs; },
-    async listSessions() { return [{ id: "SESSION-1" }]; },
-    async addMessage() {},
-    async startRun(input) { const run = { id: "RUN-1", project_id: input.projectId, session_id: input.sessionId, status: "running" }; runs.push(run); return run; }
-  };
-  const taskSource = {
-    async getCurrentUser() { return { id: "USER-1", name: "Glare" }; },
-    async listProjects() { return [{ id: "REMOTE", name: "Remote", current_user_id: "USER-1" }]; },
-    async listTasks() { return [remote.task]; },
-    async getTask() { return remote.task; },
-    async updateTask({ state }) { remote.task = { ...remote.task, state, version: "v2" }; return remote.task; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
-
-  const blocked = await coordinator.sync();
-  assert.equal(blocked.queue.length, 0);
-  assert.equal(blocked.blocked_pending_tasks.length, 1);
-  assert.equal(blocked.blocked_pending_tasks[0].eligibility_code, "project_not_participating");
-  assert.equal(blocked.tasks[0].eligibility_reason, "项目未允许自动领取");
-  assert.equal(blocked.health.state, "configuration_required");
-  assert.equal(runs.length, 0);
-
-  const enabled = await coordinator.setProjectParticipation("REMOTE", true);
-  assert.equal(remote.task.state, "in_progress");
-  assert.equal(enabled.active_task.task_id, "TASK-1");
-  assert.equal(runs.length, 1);
-  coordinator.dispose();
-});
-
-test("clearing a remote session disables automation and removes account-scoped snapshots", async () => {
-  let store = normalizeStore({
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
-    automation: {
-      enabled: true,
-      queue_paused: true,
-      snapshot: {
-        user: { id: "USER-1" },
-        projects: [{ id: "REMOTE-1" }],
-        tasks: [{ id: "TASK-1", project_id: "REMOTE-1", state: "pending" }],
-        source_status: "healthy",
-        synced_at: "2026-08-02T10:00:00Z"
-      },
-      active_task: { task_id: "TASK-1", project_id: "REMOTE-1" },
-      attention_items: [{ id: "ATTENTION-1" }],
-      recovery_items: [{ id: "RECOVERY-1" }]
-    }
-  });
-  const runManager = {
-    onEvent() { return () => {}; },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return []; },
-    async listRuns() { return []; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => ({}) });
-
-  const snapshot = await coordinator.clearRemoteSession();
-
-  assert.equal(snapshot.enabled, false);
-  assert.equal(snapshot.queue_paused, false);
-  assert.equal(snapshot.source_status, "logged_out");
-  assert.deepEqual(snapshot.projects, []);
-  assert.deepEqual(snapshot.tasks, []);
-  assert.equal(snapshot.active_task, null);
-  assert.deepEqual(snapshot.attention_items, []);
-  assert.deepEqual(snapshot.recovery_items, []);
-  coordinator.dispose();
-});
-
-test("an expired session keeps the last successful snapshot read-only", async () => {
-  let store = normalizeStore({
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example" } },
-    automation: {
-      enabled: true,
-      snapshot: {
-        user: { id: "USER-1", name: "Glare" },
-        projects: [{ id: "REMOTE-1", name: "Runtime" }],
-        tasks: [{ id: "TASK-1", project_id: "REMOTE-1", state: "pending" }],
-        source_status: "healthy",
-        synced_at: "2026-08-02T10:00:00Z"
-      }
-    }
-  });
-  const runManager = {
-    onEvent() { return () => {}; },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return []; },
-    async listRuns() { return []; }
-  };
-  const taskSource = {
-    async getAuthStatus() { return { status: "expired", authenticated: false, error: "Session expired" }; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
-
-  const snapshot = await coordinator.sync();
-
-  assert.equal(snapshot.source_status, "unauthenticated");
-  assert.equal(snapshot.synced_at, "2026-08-02T10:00:00Z");
-  assert.deepEqual(snapshot.projects.map((project) => project.id), ["REMOTE-1"]);
-  assert.deepEqual(snapshot.tasks.map((task) => task.id), ["TASK-1"]);
-  assert.equal(snapshot.source_errors[0].message, "Session expired");
-  coordinator.dispose();
-});
-
-test("clearing a session invalidates an in-flight remote snapshot", async () => {
-  let store = normalizeStore({
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } }
-  });
-  let releaseProjects;
-  let markProjectsStarted;
-  const projectsStarted = new Promise((resolve) => { markProjectsStarted = resolve; });
-  const runManager = {
-    onEvent() { return () => {}; },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return []; },
-    async listRuns() { return []; }
-  };
-  const taskSource = {
-    async getAuthStatus() { return { status: "authenticated", authenticated: true }; },
-    async getCurrentUser() { return { id: "USER-1", name: "Glare" }; },
-    async listProjects() {
-      markProjectsStarted();
-      await new Promise((resolve) => { releaseProjects = resolve; });
-      return [{ id: "REMOTE-1", name: "Runtime" }];
-    },
-    async listTasks() { return [{ id: "TASK-1", project_id: "REMOTE-1", state: "pending" }]; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
-
-  const syncing = coordinator.sync();
-  await projectsStarted;
-  await coordinator.clearRemoteSession();
-  releaseProjects();
-  await syncing;
-  const snapshot = await coordinator.getSnapshot();
-
-  assert.equal(snapshot.source_status, "logged_out");
-  assert.deepEqual(snapshot.projects, []);
-  assert.deepEqual(snapshot.tasks, []);
-  coordinator.dispose();
-});
-
-test("a project task sync failure preserves its snapshot and only excludes that project from dispatch", async () => {
-  let store = normalizeStore({
-    projects: [
-      { id: "LOCAL-A", name: "Local A", path: "/workspace/a" },
-      { id: "LOCAL-B", name: "Local B", path: "/workspace/b" }
-    ],
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
-    automation: {
-      project_bindings: { A: "LOCAL-A", B: "LOCAL-B" },
-      project_participation: { A: true, B: true },
-      snapshot: {
-        source_status: "healthy",
-        projects: [{ id: "A", name: "Project A" }, { id: "B", name: "Project B" }],
-        tasks: [
-          { id: "STALE-A", project_id: "A", title: "Preserved", state: "pending", executor_id: "USER-1", priority: 50, version: "v1" },
-          { id: "STALE-OTHER", project_id: "A", title: "Assigned elsewhere", state: "pending", executor_id: "USER-2", priority: 60, version: "v1" }
-        ]
-      }
-    }
-  });
-  const runManager = {
-    onEvent() { return () => {}; },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return []; }
-  };
-  const taskSource = {
-    async getCurrentUser() { return { id: "USER-1", name: "Glare" }; },
-    async listProjects() { return [{ id: "A", name: "Project A" }, { id: "B", name: "Project B" }]; },
-    async listTasks(projectId) {
-      if (projectId === "A") throw new Error("Project A unavailable");
-      return [{ id: "FRESH-B", project_id: "B", title: "Executable", state: "pending", priority: 100, version: "v2" }];
-    }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
-
-  const snapshot = await coordinator.sync({ dispatch: false });
-
-  assert.equal(snapshot.source_status, "degraded");
-  assert.deepEqual(snapshot.tasks.map((task) => task.id).sort(), ["FRESH-B", "STALE-A"]);
-  assert.deepEqual(snapshot.queue.map((task) => task.id), ["FRESH-B"]);
-  assert.equal(snapshot.projects.find((project) => project.id === "A").source_status, "error");
-  assert.equal(snapshot.projects.find((project) => project.id === "B").eligible, true);
-  coordinator.dispose();
-});
-
-test("a candidate version change schedules a fresh sync without deadlocking the current sync", async () => {
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
-    automation: {
-      enabled: true,
-      project_bindings: { REMOTE: "LOCAL-1" },
-      project_participation: { REMOTE: true }
-    }
-  });
-  let listCount = 0;
-  const runManager = {
-    onEvent() { return () => {}; },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return []; }
-  };
-  const taskSource = {
-    async getCurrentUser() { return { id: "USER-1", name: "Glare" }; },
-    async listProjects() { return [{ id: "REMOTE", name: "Remote" }]; },
-    async listTasks() {
-      listCount += 1;
-      return [{ id: "TASK-1", project_id: "REMOTE", title: "Changed", state: listCount === 1 ? "pending" : "cancelled", version: "v1" }];
-    },
-    async getTask() { return { id: "TASK-1", project_id: "REMOTE", state: "pending", version: "v2" }; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
-
-  await Promise.race([
-    coordinator.sync(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("sync deadlocked")), 250))
-  ]);
-  await new Promise((resolve) => setTimeout(resolve, 20));
-
-  assert.equal(listCount >= 2, true);
-  assert.equal((await coordinator.getSnapshot()).active_task, null);
-  coordinator.dispose();
-});
-
-test("startup sync restores one in-progress task and freezes on multiple in-progress tasks", async () => {
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
-    automation: {
-      enabled: true,
-      project_bindings: { REMOTE: "LOCAL-1" },
-      project_participation: { REMOTE: true }
-    }
-  });
-  let tasks = [{ id: "TASK-1", project_id: "REMOTE", title: "Resume", state: "in_progress", version: "v2" }];
-  const runManager = {
-    onEvent() { return () => {}; },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return []; }
-  };
-  const taskSource = {
-    async getCurrentUser() { return { id: "USER-1", name: "Glare" }; },
-    async listProjects() { return [{ id: "REMOTE", name: "Remote" }]; },
-    async listTasks() { return tasks; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
-
-  const unique = await coordinator.sync({ dispatch: false });
-  assert.equal(unique.active_task.task_id, "TASK-1");
-  assert.equal(unique.active_task.local_project_path, "/workspace/local");
-  assert.equal(unique.recovery_items[0].type, "discovered_in_progress");
-
-  await runManager.updateDesktopStore((draft) => {
-    draft.automation.active_task = null;
-    draft.automation.recovery_items = [];
-    return draft;
-  });
-  tasks = [
-    { id: "TASK-1", project_id: "REMOTE", title: "First", state: "in_progress", version: "v2" },
-    { id: "TASK-2", project_id: "REMOTE", title: "Second", state: "in_progress", version: "v3" }
-  ];
-  const multiple = await coordinator.sync({ dispatch: false });
-  assert.equal(multiple.active_task, null);
-  assert.equal(multiple.recovery_items[0].type, "multiple_active_tasks");
-  assert.match(multiple.recovery_items[0].message, /TASK-1, TASK-2/);
-  coordinator.dispose();
-});
-
-test("an external terminal state safely stops Runtime and can accept the server fact", async () => {
-  const events = new EventEmitter();
-  let store = normalizeStore({
-    projects: [{ id: "LOCAL-1", name: "Local", path: "/workspace/local" }],
-    settings: { task_source: { enabled: true, base_url: "https://workshop.example", access_token: "token" } },
-    automation: {
-      enabled: true,
-      project_bindings: { REMOTE: "LOCAL-1" },
-      project_participation: { REMOTE: true },
-      active_task: {
-        task_id: "TASK-1",
-        project_id: "REMOTE",
-        task_title: "Changed elsewhere",
-        local_project_id: "LOCAL-1",
-        local_project_path: "/workspace/local",
-        server_version: "v1",
-        phase: "running",
-        run_id: "RUN-1"
-      }
-    }
-  });
+test("CLI handoff does not interrupt Runtime before the Agent establishes a trusted Case binding", async () => {
+  const starts = [];
   const controls = [];
-  const runManager = {
-    onEvent(listener) { events.on("event", listener); return () => events.off("event", listener); },
-    async readDesktopStore() { return store; },
-    async updateDesktopStore(updater) { store = normalizeStore(await updater(store) || store); return store; },
-    async listProjects() { return store.projects; },
-    async listRuns() { return [{ id: "RUN-1", project_id: "LOCAL-1", status: "running" }]; },
-    isRunActive(runId) { return runId === "RUN-1"; },
+  let launches = 0;
+  const store = recoveryStore({ phase: "running" });
+  const runManager = fakeRunManager(store, starts, {
+    isRunActive() { return true; },
     async controlRun(runId, control) { controls.push({ runId, control }); }
-  };
-  const taskSource = {
-    async getCurrentUser() { return { id: "USER-1", name: "Glare" }; },
-    async listProjects() { return [{ id: "REMOTE", name: "Remote" }]; },
-    async listTasks() { return [{ id: "TASK-1", project_id: "REMOTE", title: "Changed elsewhere", state: "cancelled", version: "v2" }]; }
-  };
-  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory: () => taskSource });
-
-  const recoverySnapshot = await coordinator.sync({ dispatch: false });
-  assert.deepEqual(controls, [{ runId: "RUN-1", control: { type: "interrupt" } }]);
-  assert.equal(recoverySnapshot.active_task.phase, "recovery");
-  assert.equal(recoverySnapshot.recovery_items[0].type, "external_state_change");
-  assert.deepEqual(recoverySnapshot.recovery_items[0].actions, ["retry_sync", "accept_server_state"]);
-
-  const accepted = await coordinator.resolveRecovery({
-    recoveryId: recoverySnapshot.recovery_items[0].id,
-    action: "accept_server_state"
   });
-  assert.equal(accepted.active_task, null);
-  assert.equal(accepted.recovery_items.length, 0);
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory() { throw Object.assign(new Error("not logged in"), { code: "unconfigured" }); },
+    cliLauncher: { async launch() { launches += 1; } }
+  });
+
+  await assert.rejects(
+    coordinator.handoffToCodexCli(),
+    /until the Agent selects or creates a Case/
+  );
+
+  assert.deepEqual(controls, []);
+  assert.equal(launches, 0);
+  assert.equal(store.automation.active_task.phase, "running");
   coordinator.dispose();
 });
+
+test("CLI handoff interrupts and resumes the same thread after trusted Case binding", async () => {
+  const starts = [];
+  const controls = [];
+  const launches = [];
+  let running = true;
+  const store = recoveryStore({
+    phase: "running",
+    case_id: "CASE-20260810-005",
+    case_status: "active",
+    case_binding_source: "runtime_ledger",
+    case_binding_run_id: "RUN-OLD",
+    case_bound_at: "2026-08-10T00:00:00Z"
+  });
+  const runManager = fakeRunManager(store, starts, {
+    isRunActive() { return running; },
+    async controlRun(runId, control) {
+      controls.push({ runId, control });
+      running = false;
+    }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory() { throw Object.assign(new Error("not logged in"), { code: "unconfigured" }); },
+    cliLauncher: { async launch(input) { launches.push(input); } }
+  });
+
+  await coordinator.handoffToCodexCli();
+
+  assert.deepEqual(controls, [{ runId: "RUN-OLD", control: { type: "interrupt" } }]);
+  assert.equal(launches.length, 1);
+  assert.equal(launches[0].threadId, "THREAD-PERSISTED");
+  assert.match(launches[0].prompt, /CASE-20260810-005/);
+  assert.equal(store.automation.active_task.phase, "cli_handoff");
+  coordinator.dispose();
+});
+
+test("remote completion refuses an unbound task before contacting the task source", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "recovery", closeout_status: "completed" });
+  store.automation.recovery_items.push({
+    id: "RECOVERY-completion-writeback-failed-t",
+    type: "completion_writeback_failed",
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    actions: ["retry_complete", "mark_blocked"]
+  });
+  const runManager = fakeRunManager(store, starts);
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory() { throw new Error("Task source must not be contacted."); }
+  });
+
+  await coordinator.resolveRecovery({
+    recoveryId: "RECOVERY-completion-writeback-failed-t",
+    action: "retry_complete"
+  });
+
+  assert.equal(store.automation.recovery_items.some((item) => item.type === "case_binding_missing"), true);
+  assert.notEqual(store.automation.active_task.phase, "completing");
+  coordinator.dispose();
+});
+
+test("remote completion refuses a bound but unresolved canonical Case", async () => {
+  const starts = [];
+  const store = recoveryStore({
+    phase: "recovery",
+    case_id: "CASE-20260810-005",
+    case_status: "active",
+    case_binding_source: "runtime_ledger",
+    case_binding_run_id: "RUN-OLD",
+    case_bound_at: "2026-08-10T00:00:00Z",
+    closeout_status: "completed"
+  });
+  store.automation.recovery_items.push({
+    id: "RECOVERY-completion-writeback-failed-t",
+    type: "completion_writeback_failed",
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    actions: ["retry_complete", "mark_blocked"]
+  });
+  const runManager = fakeRunManager(store, starts, {
+    async getProjectCaseState() {
+      return {
+        location: "active",
+        record: { id: "CASE-20260810-005", status: "active", case_resolution: { status: "unresolved" } }
+      };
+    }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory() { throw new Error("Task source must not be contacted."); }
+  });
+
+  await coordinator.resolveRecovery({
+    recoveryId: "RECOVERY-completion-writeback-failed-t",
+    action: "retry_complete"
+  });
+
+  assert.equal(store.automation.recovery_items.some((item) => item.type === "case_not_resolved"), true);
+  assert.notEqual(store.automation.active_task.phase, "completing");
+  coordinator.dispose();
+});
+
+function recoveryStore(overrides = {}) {
+  return {
+    projects: [{ id: "local", path: "/workspace", name: "demo" }],
+    settings: { task_source: {} },
+    automation: {
+      enabled: true,
+      queue_paused: false,
+      project_bindings: { p: "local" },
+      project_participation: { p: true },
+      snapshot: {
+        source_status: "logged_out", errors: [], user: null, projects: [{ id: "p" }],
+        tasks: [{ id: "t", project_id: "p", title: "todo", content: "finish", state: "in_progress" }]
+      },
+      active_task: {
+        task_id: "t", project_id: "p", local_project_id: "local", local_project_path: "/workspace",
+        task_title: "todo", phase: "recovery", case_id: "", case_status: "unbound", case_resolved_at: "",
+        case_binding_source: "", case_binding_run_id: "", case_bound_at: "",
+        closeout_status: "pending", closeout_completed_at: "", remote_completion_status: "pending",
+        run_id: "RUN-OLD", session_id: "SESSION-T", thread_id: "THREAD-PERSISTED",
+        started_at: "2026-08-10T00:00:00Z", ...overrides
+      },
+      attention_items: [], recovery_items: [], recent_completions: []
+    }
+  };
+}
+
+function unconfiguredCoordinator(runManager) {
+  return createAutomationCoordinator({
+    runManager,
+    taskSourceFactory() { throw Object.assign(new Error("not logged in"), { code: "unconfigured" }); }
+  });
+}
+
+function fakeRunManager(store, starts, overrides = {}) {
+  let listener = () => {};
+  return {
+    onEvent(next) { listener = next; return () => { listener = () => {}; }; },
+    async readDesktopStore() { return structuredClone(store); },
+    async updateDesktopStore(updater) { updater(store); return structuredClone(store); },
+    async listProjects() { return store.projects; },
+    async listRuns() { return [{ id: "RUN-OLD", project_id: "local", status: "completed", activity: {} }]; },
+    isRunActive() { return false; },
+    async getProjectCaseState() {
+      return { location: "closed", record: { id: "CASE-20260809-001", status: "closed", updated_at: "2026-08-09T00:00:00Z", case_resolution: { status: "resolved" } } };
+    },
+    async listProjectCaseStates() { return []; },
+    async listSessions() { return [{ id: "SESSION-T", task_id: "t" }]; },
+    async createSession() { return { id: "SESSION-T" }; },
+    async addMessage() {},
+    async startRun(input) {
+      starts.push(input);
+      return { id: "RUN-CLOSEOUT", thread_id: input.threadId, project_id: "local", session_id: input.sessionId };
+    },
+    ...overrides
+  };
+}

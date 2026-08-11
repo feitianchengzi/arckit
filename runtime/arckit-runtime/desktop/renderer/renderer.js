@@ -1,3 +1,12 @@
+import {
+  isTranscriptMessageVisible,
+  statusGlyph,
+  structuredResultPresentation,
+  summarizeLoopStatus,
+  summarizeToolActivity,
+  transcriptMessageType
+} from "../../src/desktop/transcript-presentation.mjs";
+
 const api = window.arckitDesktop;
 
 const TASK_STATES = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
@@ -29,11 +38,14 @@ const RECOVERY_LABELS = {
   discovered_in_progress: "发现可恢复的进行中任务",
   multiple_active_tasks: "存在多个进行中任务",
   runtime_process_missing: "Runtime 进程未连接",
-  safe_stop_requested: "正在安全停止"
+  safe_stop_requested: "正在安全停止",
+  cli_handoff_failed: "Codex CLI 接管失败",
+  case_reconciliation_failed: "Case 对账失败"
 };
 const RECOVERY_ACTION_LABELS = {
   retry_sync: "重新同步",
   retry_start: "重试同一任务",
+  retry_cli_handoff: "重试切换到 CLI",
   retry_complete: "重试完成写回",
   accept_server_state: "接受服务器事实",
   mark_blocked: "标记为已阻塞"
@@ -53,6 +65,10 @@ const state = {
   authBusy: { verification: false, login: false, logout: false },
   authFeedback: { message: "", error: false },
   transcript: [],
+  transcriptSessionId: "",
+  transcriptSessionMessages: [],
+  transcriptRuns: [],
+  transcriptFollowingLatest: true,
   workbenchMode: "review",
   workbenchRun: null,
   workbenchCompletion: null,
@@ -76,8 +92,11 @@ async function boot() {
   await refreshSnapshot();
   api.onAutomationEvent(() => scheduleRefresh());
   api.onEvent((event) => {
-    if (["run.started", "run.finished", "run.event_line", "run.command_result", "message.added"].includes(event.type)) {
-      scheduleRefresh(event.type === "run.event_line" ? 250 : 0);
+    if (["run.started", "run.finished", "message.added"].includes(event.type)) {
+      state.transcriptSessionId = "";
+    }
+    if (["run.started", "run.finished", "run.activity_changed", "run.command_result", "message.added"].includes(event.type)) {
+      scheduleRefresh(event.type === "run.activity_changed" ? 120 : 0);
     }
   });
   window.setInterval(() => refreshSnapshot({ quiet: true }), 30_000);
@@ -133,6 +152,8 @@ function wireEvents() {
     renderWorkbench();
     els.interventionInput.focus();
   });
+  els.transcriptList.addEventListener("scroll", handleTranscriptScroll, { passive: true });
+  els.jumpToLatestButton.addEventListener("click", () => scrollTranscriptToLatest({ behavior: "smooth" }));
   els.taskFilterInput.addEventListener("input", () => {
     state.taskFilter = els.taskFilterInput.value.trim().toLowerCase();
     renderTaskTable();
@@ -334,10 +355,31 @@ function renderCurrentRun(blockedPendingTasks = []) {
     return;
   }
   const phases = runtimeStages(active.phase, run);
-  els.currentRunPanel.innerHTML = `<div class="run-heading"><div><h3>${escapeHtml(active.task_title || active.task_id)}</h3><p>${escapeHtml(active.project_id)} · ${escapeHtml(active.run_id || "等待 Runtime 启动")}</p></div><span class="status-pill in_progress">${escapeHtml(active.phase || "进行中")}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>`;
-  els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="stopRunButton" class="secondary-button" type="button">停止当前运行</button>`;
+  const executionRef = active.case_id || active.run_id || "等待 Runtime 启动";
+  els.currentRunPanel.innerHTML = `<div class="run-heading"><div><h3>${escapeHtml(active.task_title || active.task_id)}</h3><p>${escapeHtml(active.project_id)} · ${escapeHtml(executionRef)}</p></div><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(active.phase))}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>`;
+  if (active.phase === "cli_handoff") {
+    els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="reopenCliButton" class="text-button" type="button">重新打开终端</button><button id="resumeRuntimeButton" class="primary-button" type="button">恢复自动执行</button>`;
+  } else if (active.phase === "switching_to_cli") {
+    els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button class="secondary-button" type="button" disabled>正在安全切换…</button>`;
+  } else if (["starting", "running", "continuing"].includes(active.phase)) {
+    els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="handoffCliButton" class="primary-button" type="button">切换到 Codex CLI</button><button id="stopRunButton" class="secondary-button" type="button">停止当前运行</button>`;
+  } else {
+    els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button>`;
+  }
   document.getElementById("reviewRunButton").addEventListener("click", () => openWorkbench("review"));
-  document.getElementById("stopRunButton").addEventListener("click", () => runAction(async () => {
+  document.getElementById("handoffCliButton")?.addEventListener("click", () => runAction(async () => {
+    await api.handoffAutomationToCli();
+    await refreshSnapshot();
+  }));
+  document.getElementById("reopenCliButton")?.addEventListener("click", () => runAction(async () => {
+    await api.reopenAutomationCli();
+    await refreshSnapshot();
+  }));
+  document.getElementById("resumeRuntimeButton")?.addEventListener("click", () => runAction(async () => {
+    await api.resumeAutomationRuntime();
+    await refreshSnapshot();
+  }));
+  document.getElementById("stopRunButton")?.addEventListener("click", () => runAction(async () => {
     if (!window.confirm("停止请求会在安全停止点中断 Runtime，远端任务仍保持进行中。继续吗？")) return;
     await api.stopAutomationRun();
     await refreshSnapshot();
@@ -371,7 +413,13 @@ function renderCommandInspector(projects) {
   els.executionBoundary.innerHTML = factRows([
     ["自动领取总闸", snapshot.enabled ? snapshot.queue_paused ? "已开启 · 暂停领取" : "已开启" : "已关闭"],
     ["活动任务", snapshot.active_task?.task_id || "无"],
-    ["当前责任方", snapshot.attention_items.length ? "Human" : snapshot.active_task ? "Runtime" : "Automation Coordinator"],
+    ["当前责任方", snapshot.attention_items.length
+      ? "Human"
+      : snapshot.active_task?.phase === "cli_handoff"
+        ? "Codex CLI"
+        : snapshot.active_task?.phase === "remote_completion_pending"
+          ? "Automation Coordinator / 任务源"
+          : snapshot.active_task ? "Runtime" : "Automation Coordinator"],
     ["并发边界", "单活动任务"]
   ]);
   els.projectBindingList.innerHTML = projects.length ? projects.map((project) => {
@@ -469,19 +517,53 @@ async function openWorkbench(mode = "review", runId = "") {
   state.workbenchRun = runId && state.snapshot.active_run?.id !== runId
     ? (await api.listRuns({})).find((run) => run.id === runId) || null
     : null;
-  await loadTranscript();
+  state.transcriptSessionId = "";
+  state.transcriptFollowingLatest = true;
+  await loadTranscript({ force: true });
   showPage("workbench");
 }
 
-async function loadTranscript() {
+async function loadTranscript({ force = false } = {}) {
   const active = state.snapshot.active_task;
   const run = state.workbenchRun || state.snapshot.active_run;
   const localProjectId = state.workbenchCompletion?.local_project_id || active?.local_project_id || run?.project_id || "";
   if (!localProjectId || !run?.session_id) {
     state.transcript = [];
+    state.transcriptSessionId = "";
+    state.transcriptSessionMessages = [];
+    state.transcriptRuns = [];
     return;
   }
-  state.transcript = await api.listMessages(localProjectId, run.session_id);
+  const taskId = state.workbenchCompletion?.task_id || active?.task_id || "";
+  const sessionKey = `${localProjectId}:${run.session_id}:${taskId}`;
+  if (force || state.transcriptSessionId !== sessionKey) {
+    const [messages, runs] = await Promise.all([
+      api.listMessages(localProjectId, run.session_id),
+      api.listRuns({ projectId: localProjectId, sessionId: run.session_id })
+    ]);
+    state.transcriptSessionId = sessionKey;
+    state.transcriptSessionMessages = messages.filter((message) => !message.task_id || String(message.task_id) === String(taskId));
+    state.transcriptRuns = runs.filter((item) => !item.task_id || String(item.task_id) === String(taskId));
+  }
+  const currentRunIndex = state.transcriptRuns.findIndex((item) => item.id === run.id);
+  if (currentRunIndex >= 0) state.transcriptRuns[currentRunIndex] = run;
+  else state.transcriptRuns.push(run);
+  const projectedMessages = state.transcriptRuns.flatMap((item) => (
+    Array.isArray(item.activity?.messages) ? item.activity.messages : []
+  ));
+  const sessionMessages = projectedMessages.length
+    ? state.transcriptSessionMessages.filter((message) => message.role === "user")
+    : state.transcriptSessionMessages;
+  const byId = new Map();
+  for (const message of [...sessionMessages, ...projectedMessages]) {
+    if (message.task_id && String(message.task_id) !== String(taskId)) continue;
+    byId.set(`${message.run_id || "session"}:${message.id}`, message);
+  }
+  state.transcript = [...byId.values()]
+    .filter(isTranscriptMessageVisible)
+    .sort((left, right) => (
+      String(left.created_at || left.updated_at || "").localeCompare(String(right.created_at || right.updated_at || ""))
+    ));
 }
 
 function renderWorkbench() {
@@ -500,11 +582,22 @@ function renderWorkbench() {
   els.interventionInput.disabled = state.interventionSubmitting;
   els.submitInterventionButton.disabled = state.interventionSubmitting;
   els.submitInterventionButton.textContent = state.interventionSubmitting ? "正在提交…" : "提交并恢复自动化";
-  const selectedGap = activity.controller_frame?.selected_gap || activity.controller_plan?.selected_gap || null;
+  const selectedGap = activity.controller_frame?.selected_gap || null;
   const sourceFacts = activity.artifact_ownership_scan?.source_facts_changed || [];
   const implementationEvidence = activity.artifact_ownership_scan?.implementation_evidence || [];
+  const taskSessionId = completion?.session_id || active?.session_id || run?.session_id || "";
+  const tokenUsage = activity.token_usage?.summary || {};
+  const cachedShare = tokenUsage.input_tokens > 0
+    ? tokenUsage.cached_input_tokens / tokenUsage.input_tokens
+    : 0;
+  const usageWarnings = Array.isArray(activity.usage_warnings) ? activity.usage_warnings : [];
+  const contextCompactions = Array.isArray(activity.context_compactions) ? activity.context_compactions : [];
+  const performance = activity.performance || {};
+  const slowestCommand = [...(performance.commands || [])].sort((left, right) => Number(right.duration_ms || 0) - Number(left.duration_ms || 0))[0] || null;
+  const usageBaseline = state.snapshot.usage_baseline || {};
   els.workbenchContext.innerHTML = taskId ? factRows([
     ["任务", taskId],
+    ["Task Session", taskSessionId || "未建立"],
     ["远端项目", projectId],
     ["本地工作区", active?.local_project_path || completion?.local_project_id || "已归档"],
     ["审查范围", completion ? "历史完成 Run · 只读" : state.workbenchMode === "intervention" ? "当前 Run · 人工处理" : "当前 Run · 只读"],
@@ -515,44 +608,99 @@ function renderWorkbench() {
     ["恢复条件", completion ? "只读审查不改变任务状态" : attention?.question || "返回自动化观察"]
   ]) : `<div class="empty-state">没有可审查的任务上下文。</div>`;
   const messages = state.transcript.length
-    ? state.transcript.map((message) => `<article class="message ${escapeHtml(message.role)}"><div class="message-head"><span>${escapeHtml(message.role)}</span><time>${formatTime(message.created_at)}</time></div><p>${escapeHtml(message.content)}</p></article>`).join("")
+    ? state.transcript.map(renderConversationMessage).join("")
     : `<div class="empty-state compact">当前没有已加载的对话。Chat 仅在 Runtime 产生 transcript 后出现。</div>`;
-  els.transcriptList.innerHTML = `${messages}${renderRunPlan(activity)}${renderExecutionEvidence(activity)}`;
+  const previousScrollTop = els.transcriptList.scrollTop;
+  const shouldFollowLatest = state.transcriptFollowingLatest || isTranscriptNearBottom();
+  els.transcriptList.innerHTML = messages;
+  if (shouldFollowLatest) scrollTranscriptToLatest();
+  else els.transcriptList.scrollTop = previousScrollTop;
+  updateJumpToLatestButton();
   els.workbenchEvidence.innerHTML = factRows([
     ["Run", run?.id || "无"],
     ["Run 状态", run?.status || "未启动"],
     ["远端任务", completion ? "已完成" : active?.phase || "无活动任务"],
     ["当前步骤", activity.current_step || "无"],
-    ["Controller", activity.controller_plan_status || activity.controller_review_status || "尚未收束"],
-    ["Worker", `${activity.agents?.length || 0} 个 · ${activity.reports?.length || 0} 份报告`],
+    ["Codex Thread", activity.thread_id || active?.thread_id || "尚未绑定"],
+    ["Agent Loop", activity.agent_loop_result?.summary || "尚未收束"],
+    ["Token 逻辑总量", formatTokenCount(tokenUsage.logical_total_tokens)],
+    ["缓存输入", `${formatTokenCount(tokenUsage.cached_input_tokens)} · ${formatPercent(cachedShare)}`],
+    ["非缓存输入", formatTokenCount(tokenUsage.uncached_input_tokens)],
+    ["输出 / Reasoning", `${formatTokenCount(tokenUsage.output_tokens)} / ${formatTokenCount(tokenUsage.reasoning_output_tokens)}`],
+    ["上下文峰值", formatPercent(activity.token_usage?.max_context_utilization || 0)],
+    ["用量软提示", usageWarnings.length ? `${usageWarnings.length} 项 · ${usageWarnings.at(-1)?.message || "查看诊断证据"}` : "无"],
+    ["上下文压缩", contextCompactions.length ? `${contextCompactions.length} 次 · ${contextCompactions.at(-1)?.status || "未知"}` : "尚未触发"],
+    ["模型 Turn 耗时", formatDuration(performance.model_time_ms)],
+    ["命令累计耗时", formatDuration(performance.command_time_ms)],
+    ["最慢命令", slowestCommand ? `${formatDuration(slowestCommand.duration_ms)} · ${slowestCommand.command || slowestCommand.item_id}` : "无"],
+    ["历史基线", usageBaseline.sample_size ? `${usageBaseline.sample_size} 个 Run 中位数 · ${formatTokenCount(usageBaseline.logical_total_tokens)}` : "尚无可比 Run"],
+    ["相对历史中位数", usageBaseline.logical_total_tokens > 0 ? `${(Number(tokenUsage.logical_total_tokens || 0) / usageBaseline.logical_total_tokens).toFixed(2)}×` : "待积累"],
     ["验证", activity.validation_valid === true ? "有效" : activity.validation_valid === false ? "失败" : "未确认"],
     ["Gate", activity.gate_result?.parsed?.allowed === true ? "允许" : activity.gate_result?.parsed?.allowed === false ? "阻止" : "未执行"],
     ["Ledger", activity.ledger_write_result?.parsed?.written ? "已写回" : "未确认"],
+    ["Git 收尾", activity.closeout_result?.status === "completed" ? activity.closeout_result?.outcome || "已完成" : activity.closeout_result?.status || "未开始"],
     ["影响", `${activity.artifact_ownership_scan?.classified?.length || 0} 个已分类 artifact`],
-    ["原始证据", `${activity.raw_events?.length || 0} 个事件 · ${activity.artifact_paths?.activity_file ? "已归档" : "未归档"}`]
+    ["执行消息", `${activity.messages?.length || 0} 条 · ${activity.artifact_paths?.messages_file ? "已归档" : "未归档"}`]
   ]);
 }
 
-function renderRunPlan(activity) {
-  const planItems = Array.isArray(activity.plan) ? activity.plan : [];
-  const fallback = [
-    activity.controller_frame?.round_goal,
-    activity.controller_plan?.summary,
-    activity.controller_review?.summary
-  ].filter(Boolean);
-  const items = planItems.length ? planItems : fallback;
-  return `<section class="activity-section"><div class="activity-section-heading"><strong>计划</strong><span>${items.length}</span></div>${items.length
-    ? items.slice(0, 12).map((item) => `<div class="activity-line"><i></i><span>${escapeHtml(typeof item === "string" ? item : item.step || item.title || item.objective || JSON.stringify(item))}</span><em>${escapeHtml(typeof item === "object" ? item.status || "" : "")}</em></div>`).join("")
-    : `<p>Controller 尚未生成可投影计划。</p>`}</section>`;
+function renderConversationMessage(message) {
+  const type = transcriptMessageType(message);
+  if (type === "tool") return renderToolActivity(message);
+  if (type === "loop") return renderLoopStatus(message);
+  if (type === "reasoning") return renderReasoningDisclosure(message);
+  if (type === "structured") return renderStructuredResult(message);
+  const label = type === "user" ? "你" : message.actor_label || "Agent";
+  const status = message.status || "completed";
+  return `<article class="message ${type}-message status-${escapeHtml(status)}"><div class="message-head"><span><b>${escapeHtml(label)}</b>${message.kind ? `<em>${escapeHtml(message.kind)}</em>` : ""}</span><time>${formatTime(message.updated_at || message.created_at)}</time></div><p>${escapeHtml(message.content)}</p></article>`;
 }
 
-function renderExecutionEvidence(activity) {
-  const events = Array.isArray(activity.execution_events) && activity.execution_events.length
-    ? activity.execution_events
-    : Array.isArray(activity.timeline) ? activity.timeline : [];
-  return `<section class="activity-section"><div class="activity-section-heading"><strong>工具调用与执行证据</strong><span>${events.length}</span></div>${events.length
-    ? events.slice(-12).reverse().map((event) => `<div class="activity-line"><i class="${escapeHtml(event.status || "")}"></i><span><b>${escapeHtml(event.title || event.label || event.type || "Runtime event")}</b><small>${escapeHtml(event.detail || "")}</small></span><em>${escapeHtml(event.status || "")}</em></div>`).join("")
-    : `<p>当前 Run 尚未产生工具或执行事件。</p>`}</section>`;
+function renderReasoningDisclosure(message) {
+  const status = message.status || "completed";
+  const streaming = ["streaming", "started", "running", "in_progress"].includes(status);
+  return `<details class="reasoning-disclosure status-${escapeHtml(status)}"${streaming ? " open" : ""}><summary><span><span class="activity-glyph" aria-hidden="true">${statusGlyph(status)}</span><b>${streaming ? "思考中" : "思考过程"}</b></span><time>${formatTime(message.updated_at || message.created_at)}</time></summary><div class="reasoning-content">${escapeHtml(message.content)}</div></details>`;
+}
+
+function renderStructuredResult(message) {
+  const status = message.status || "completed";
+  const presentation = structuredResultPresentation(message);
+  const fields = presentation.fields.length
+    ? `<dl class="structured-result-fields">${presentation.fields.map((field) => `<div><dt>${escapeHtml(field.label)}</dt><dd>${field.values.map((value) => `<span>${escapeHtml(value)}</span>`).join("")}</dd></div>`).join("")}</dl>`
+    : `<p class="structured-result-pending">结构化字段生成中…</p>`;
+  const raw = presentation.raw
+    ? `<details class="structured-result-raw"><summary>查看原始 JSON</summary><pre>${escapeHtml(presentation.raw)}</pre></details>`
+    : "";
+  return `<details class="structured-result status-${escapeHtml(status)}"><summary><span><span class="activity-glyph" aria-hidden="true">${statusGlyph(status)}</span><b>${escapeHtml(presentation.title)}</b><em>${escapeHtml(presentation.schema_version)}</em></span><time>${formatTime(message.updated_at || message.created_at)}</time></summary><div class="structured-result-body">${fields}${raw}</div></details>`;
+}
+
+function renderLoopStatus(message) {
+  const status = message.status || "completed";
+  return `<article class="loop-status status-${escapeHtml(status)}"><span class="activity-glyph" aria-hidden="true">${statusGlyph(status)}</span><span class="loop-status-copy"><b>Loop</b><span>${escapeHtml(summarizeLoopStatus(message))}</span></span><time>${formatTime(message.updated_at || message.created_at)}</time></article>`;
+}
+
+function renderToolActivity(message) {
+  const status = message.status || "completed";
+  const summary = summarizeToolActivity(message);
+  return `<article class="tool-activity status-${escapeHtml(status)}" title="${escapeHtml(summary)}"><span class="activity-glyph" aria-hidden="true">${statusGlyph(status)}</span><span class="tool-activity-label">Tool</span><span class="tool-activity-summary">${escapeHtml(summary)}</span><time>${formatTime(message.updated_at || message.created_at)}</time></article>`;
+}
+
+function isTranscriptNearBottom() {
+  return els.transcriptList.scrollHeight - els.transcriptList.scrollTop - els.transcriptList.clientHeight < 72;
+}
+
+function handleTranscriptScroll() {
+  state.transcriptFollowingLatest = isTranscriptNearBottom();
+  updateJumpToLatestButton();
+}
+
+function scrollTranscriptToLatest({ behavior = "auto" } = {}) {
+  state.transcriptFollowingLatest = true;
+  els.transcriptList.scrollTo({ top: els.transcriptList.scrollHeight, behavior });
+  updateJumpToLatestButton();
+}
+
+function updateJumpToLatestButton() {
+  els.jumpToLatestButton.classList.toggle("hidden", state.transcriptFollowingLatest || isTranscriptNearBottom());
 }
 
 function renderRecovery() {
@@ -824,13 +972,51 @@ function taskActions(task) {
 }
 
 function runtimeStages(phase, run) {
-  const order = ["sync", "controller", "worker", "writeback"];
-  const labels = ["1 同步并领取", "2 Controller", "3 Worker 执行", "4 Gate 与写回"];
-  const phaseIndex = ["starting", "running", "awaiting_human", "completing", "recovery"].indexOf(phase);
-  return order.map((_, index) => ({
-    label: labels[index],
-    state: phase === "recovery" && index === Math.max(1, phaseIndex) ? "error" : run?.status === "completed" || index < Math.max(1, phaseIndex) ? "complete" : index === Math.min(3, Math.max(0, phaseIndex)) ? "active" : ""
+  if (["switching_to_cli", "cli_handoff"].includes(phase)) {
+    return [
+      { label: "1 Runtime 安全停止", state: phase === "switching_to_cli" ? "active" : "complete" },
+      { label: "2 CLI 接管", state: phase === "cli_handoff" ? "active" : "" },
+      { label: "3 Case 对账", state: "" },
+      { label: "4 完成收尾", state: "" }
+    ];
+  }
+  if (phase === "remote_completion_pending") {
+    return [
+      { label: "1 Case 已完成", state: "complete" },
+      { label: "2 变更已提交", state: "complete" },
+      { label: "3 等待任务源可用", state: "active" },
+      { label: "4 远端收尾", state: "" }
+    ];
+  }
+  const labels = ["1 同步并领取", "2 Agent Gap Loop", "3 Ledger 与上下文", "4 同线程收尾"];
+  const closeout = ["closeout_starting", "closeout_running", "remote_completion_pending", "completing"].includes(phase);
+  const failed = phase === "recovery";
+  return labels.map((label, index) => ({
+    label,
+    state: failed && index === 1
+      ? "error"
+      : run?.status === "completed" || (closeout && index < 3) || index === 0
+        ? "complete"
+        : (closeout && index === 3) || (!closeout && index === 1)
+          ? "active"
+          : ""
   }));
+}
+
+function automationPhaseLabel(phase) {
+  return {
+    starting: "正在启动",
+    running: "自动执行中",
+    continuing: "自动续轮",
+    switching_to_cli: "正在切换到 CLI",
+    cli_handoff: "Codex CLI 接管",
+    awaiting_human: "等待人工",
+    closeout_starting: "准备同线程收尾",
+    closeout_running: "同线程 Git 收尾",
+    remote_completion_pending: "Case 已完成，等待远端收尾",
+    completing: "完成写回",
+    recovery: "需要恢复"
+  }[phase] || phase || "进行中";
 }
 
 function sourceStatusLabel(value) {
@@ -862,6 +1048,28 @@ function formatDateTime(value) {
   if (!value) return "尚未确认";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function formatTokenCount(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number) || number <= 0) return "0";
+  if (number >= 1_000_000) return `${(number / 1_000_000).toFixed(number >= 10_000_000 ? 1 : 2)}M`;
+  if (number >= 1_000) return `${(number / 1_000).toFixed(number >= 100_000 ? 0 : 1)}K`;
+  return String(Math.round(number));
+}
+
+function formatPercent(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) && number > 0 ? `${(number * 100).toFixed(1)}%` : "0%";
+}
+
+function formatDuration(value) {
+  const milliseconds = Number(value || 0);
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return "0s";
+  const seconds = Math.round(milliseconds / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m ${seconds % 60}s`;
 }
 
 function renderSyncing(active) {

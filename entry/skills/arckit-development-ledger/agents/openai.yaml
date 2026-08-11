@@ -1,26 +1,28 @@
 interface:
   display_name: "Arckit Development Ledger"
   short_description: "确定性维护 Project/Case/Loop 状态与 transition"
-  default_prompt: "使用 $arckit-development-ledger 维护 project-state-record/v4、iteration-state-record/v2 与 development-case-record/v3。Project 保存 active Case 集合和选择依据，不保存独占 Loop selection；每个 Loop 通过 arckit-case-transition/v3 绑定 Case 与 Project revision。不同 Case 可并行执行，canonical ledger commit 通过跨进程 Project lock 串行化；resolved 聚合必须匹配 Project revision。一次性 transition 优先走 stdin，临时文件不得成为 evidence。"
+  default_prompt: "使用 $arckit-development-ledger 维护 project-state-record/v5、iteration-state-record/v3 与 development-case-record/v5。Project 显式保存软件定义决策清单、transition-scoped 软件不变量和推进状态；每个 Loop 通过 arckit-case-transition/v6 原子提交 candidate/fresh Gap 与当轮 Project delta。"
 policy:
   allow_implicit_invocation: true
 workflow:
   first_steps:
-    - "读取 Project v4、全部 active Case v3 和 iteration。"
-    - "从全部 active Cases 恢复候选集；每个 Loop 选择一个 Case 及其无序 candidate gap。"
-    - "通过 trusted case_transition entrypoint 校验 revision 和完整 gap，再应用 accepted delta。"
-    - "Case resolved 后才聚合显式 Project impact。"
-    - "base_ready 后派生 completion review；修复 findings 提升 content revision，最后授权轮次仍不 clean 时转人工。"
+    - "读取 Project v5、全部 active Case v5 和 Iteration v3，校验软件定义清单、核心不变量和 facts/impacts/gaps。"
+    - "从全部 active Cases 恢复候选集；每个 Loop 可选择无序 candidate，或提交一个当轮完成的 fresh gap。"
+    - "通过 trusted case_transition entrypoint 校验 revision、gap_selection 和完整 gap，再应用 accepted delta。"
+    - "每个被接受的 Gap transition 都可立即原子提交相关 Project delta。"
+    - "普通 gaps 全部闭合后派生 completion review；修复 findings 提升 content revision，最后授权轮次仍不 clean 时转人工。"
   boundaries:
     - "Runtime 只能调用 manifest-declared trusted entrypoints，不能复制 ledger 语义。"
-    - "普通 Worker 不得直接写 ledger。"
+    - "Agent 不得直接写 ledger，只能通过 trusted Runtime entrypoint 提交。"
     - "不把 raw prompt、runtime event、skill 名或固定 workflow 写入状态。"
     - "Case、Project、iteration 与 projections/index 任一步失败时恢复提交前状态。"
-    - "arckit-case-transition/v3 是语义对象；stdin/文件只是 CLI transport，临时文件由创建方限制权限并在 finally 中清理。"
+    - "arckit-case-transition/v6 是唯一语义对象；stdin/文件只是 CLI transport，临时文件由创建方限制权限并在 finally 中清理。"
     - "不同 Case 的执行可以并行；Project、Iteration 和索引提交必须经过跨进程 Project lock。"
     - "命令与 evidence 必须逐字往返；不得为避开 `$`、引号或其他序列化字符而改写事实。"
-    - "Iteration 必须使用 v2，不保留 v1、loop_control、continuation prompt 或同态历史兼容路径。"
+    - "Iteration 必须使用 v3，只聚合 Project targets、逐轮 accepted changes 与 Case refs。"
     - "Project/Iteration audit 必须检查 gap coverage、durable evidence、active Case 对齐和 Case refs。"
+    - "Project 软件定义来自协议清单的具体决策；software invariant 只能是跨 Case 的抽象正确性约束。"
+    - "Completion Review 是唯一显式语义自查与 Case 终态门禁，不是 fact、software decision/invariant 或日常文档补齐机制。"
     - "Agent 不得修改快照的初始复审预算；只有 human-responsibility transition 可追加有限轮次。"
   output:
     - "case_transition_result"

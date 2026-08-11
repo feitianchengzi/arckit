@@ -13,10 +13,12 @@ export function validateCaseControlHandoff(handoff, field = 'case_control_handof
   if (!handoff || typeof handoff !== 'object' || Array.isArray(handoff)) return [`${field} must be an object.`];
   if (handoff.schema_version !== 'arckit-case-control-handoff/v1') issues.push(`${field}.schema_version must be arckit-case-control-handoff/v1.`);
   if (!ACTIONS.has(handoff.action)) issues.push(`${field}.action must be create_case.`);
-  for (const key of ['expected_project_updated_at', 'case_id', 'title', 'intent', 'artifact_type', 'selection_reason']) {
+  for (const key of ['case_id', 'title', 'intent', 'expected_outcome', 'artifact_type', 'selection_reason']) {
     if (typeof handoff[key] !== 'string') issues.push(`${field}.${key} must be a string.`);
   }
   if (!ARTIFACT_TYPES.has(handoff.artifact_type)) issues.push(`${field}.artifact_type is invalid.`);
+  if (!Number.isInteger(handoff.expected_project_revision) || handoff.expected_project_revision < 0) issues.push(`${field}.expected_project_revision must be a non-negative integer.`);
+  for (const key of ['initial_facts', 'initial_impacts', 'initial_gaps']) if (!Array.isArray(handoff[key])) issues.push(`${field}.${key} must be an array.`);
   if (!handoff.review_policy || typeof handoff.review_policy !== 'object' || Array.isArray(handoff.review_policy)) {
     issues.push(`${field}.review_policy must be an object.`);
   } else {
@@ -24,7 +26,8 @@ export function validateCaseControlHandoff(handoff, field = 'case_control_handof
     if (typeof handoff.review_policy.source !== 'string' || !handoff.review_policy.source.trim()) issues.push(`${field}.review_policy.source must be a non-empty string.`);
   }
   if (handoff.action === 'create_case') {
-    if (!handoff.title?.trim() || !handoff.intent?.trim() || !handoff.selection_reason?.trim()) issues.push(`${field} create_case requires title, intent, and selection_reason.`);
+    if (!handoff.title?.trim() || !handoff.intent?.trim() || !handoff.expected_outcome?.trim() || !handoff.selection_reason?.trim()) issues.push(`${field} create_case requires title, intent, expected_outcome, and selection_reason.`);
+    if (handoff.initial_facts?.length === 0 || handoff.initial_gaps?.length === 0) issues.push(`${field} create_case requires semantic initial_facts and at least one initial_gap.`);
     if (handoff.case_id) issues.push(`${field}.case_id must be empty when action=create_case; the ledger allocates the id.`);
   }
   return issues;
@@ -43,8 +46,14 @@ export async function applyRuntimeCaseControl({ projectRoot, runtimeResult, snap
 async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, runtimeRecordRef }) {
   const statePath = path.join(root, 'arckit/project/state.record.json');
   const projectState = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-  if (projectState.project?.updated_at !== handoff.expected_project_updated_at) {
-    throw new Error(`Case control handoff is stale: expected Project revision ${projectState.project?.updated_at || '<missing>'}, received ${handoff.expected_project_updated_at || '<missing>'}.`);
+  if (projectState.project?.revision !== handoff.expected_project_revision) {
+    throw new Error(`Case control handoff is stale: expected Project revision ${projectState.project?.revision ?? '<missing>'}, received ${handoff.expected_project_revision ?? '<missing>'}.`);
+  }
+  const decisionRevisions = new Map((projectState.software_definition?.decision_areas || []).map((area) => [area.id, area.decision.revision]));
+  const invariants = new Set((projectState.software_invariants || []).map((item) => item.id));
+  for (const impact of handoff.initial_impacts) {
+    if (impact.target?.kind === 'software_decision' && decisionRevisions.get(impact.target.ref) !== impact.target.revision) throw new Error(`Unknown or stale Project software decision: ${impact.target?.ref}`);
+    if (impact.target?.kind === 'software_invariant' && !invariants.has(impact.target.ref)) throw new Error(`Unknown Project software invariant: ${impact.target?.ref}`);
   }
 
   let selectedCaseRef = '';
@@ -56,7 +65,7 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
   ];
   if (dryRun) return { schema_version: 'arckit-ledger-write/v2', written: false, dry_run: true, gate, runtime_result_ref: runtimeRecordRef, plan, changed_files: [] };
 
-  const snapshots = snapshotMutableFiles(root, projectState.active_iteration_ref || '');
+  const snapshots = snapshotMutableFiles(root, projectState.advancement.active_iteration_ref || '');
   const activeDir = path.join(root, 'arckit/cases/active');
   const initialActiveFiles = new Set(fs.existsSync(activeDir) ? fs.readdirSync(activeDir) : []);
   try {
@@ -65,6 +74,10 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
       '--title', handoff.title,
       '--artifact-type', handoff.artifact_type,
       '--intent', handoff.intent,
+      '--expected-outcome', handoff.expected_outcome,
+      '--initial-facts', JSON.stringify(handoff.initial_facts),
+      '--initial-impacts', JSON.stringify(handoff.initial_impacts),
+      '--initial-gaps', JSON.stringify(handoff.initial_gaps),
       '--max-review-cycles', String(handoff.review_policy.max_autonomous_cycles),
       '--review-policy-source', handoff.review_policy.source,
     ]);
@@ -108,8 +121,8 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
       'arckit/project/state.record.json',
       'arckit/project/STATE.md',
       'arckit/cases/INDEX.md',
-      ...(projectState.active_iteration_ref
-        ? [projectState.active_iteration_ref, projectState.active_iteration_ref.replace(/\.record\.json$/, '.md'), 'arckit/project/ITERATIONS.md']
+      ...(projectState.advancement.active_iteration_ref
+        ? [projectState.advancement.active_iteration_ref, projectState.advancement.active_iteration_ref.replace(/\.record\.json$/, '.md'), 'arckit/project/ITERATIONS.md']
         : []),
     ])],
   };

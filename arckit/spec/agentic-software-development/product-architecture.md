@@ -23,13 +23,13 @@ Arckit 的产品结构由六个核心部分组成：
 
 Arckit 能持续运行依赖五个互补机制：
 
-- 能力层：Worker 类型和 Skill 能力包表达系统可调用的软件研发能力。
+- 能力层：Codex Agent 的原生 tools/skills，以及可选独立受托角色，表达系统可调用的软件研发能力。
 - 状态模型：Project State 和 Case State 的字段定义表达真实软件工程需要具备的状态维度、证据成熟度和缺口。
-- 运行框架：Project State、Case State 和 Worker Loop 共同形成可恢复、可授权、可验证的推进框架。
-- 证据账本：worker report、artifact impact、source/projection 边界、gate 和 ledger writeback 让状态变化可证明。
-- 能力注册：Capability Registry 把已安装 Skill 的 manifest 暴露为 runtime 可读能力地图，使 Controller 能选择 worker 类型和 allowed skills。
+- 运行框架：Project State、Case State 和 Agent Loop 共同形成可恢复、可授权、可验证的推进框架。
+- 证据账本：Agent transition、可选独立 report、artifact impact、source/projection 边界、gate 和 ledger writeback 让状态变化可证明。
+- 能力注册：Capability Registry 只声明 Runtime 直接调用的 Agent entry 与 trusted entrypoints；一般 skill discovery 由 Codex 原生机制负责。
 
-这五个机制共同定义 Arckit 的产品闭环。状态模型说明真实软件工程还缺什么；能力层说明哪些 worker 和 skill 可以补齐缺口；运行框架让 Agent 在受控 loop 中持续行动；证据账本判断结果是否可信；能力注册把具体 skill 接入 loop 而不把单轮业务流程写死到 Runtime。
+这五个机制共同定义 Arckit 的产品闭环。状态模型说明真实软件工程还缺什么；能力层让当前 Agent 选择合适 skills/tools 补齐缺口；运行框架让 Agent 在受控 loop 中持续行动；证据账本判断结果是否可写回；能力注册把语义入口和 trusted scripts 接入 Runtime，而不把单轮业务流程写死到 Runtime。
 
 ## Desktop / Agent / Skill 分层
 
@@ -43,7 +43,7 @@ Arckit 的执行产品形态采用三层分工：
 
 该分层保证 Desktop 控制运行，Agent 处理语义和执行，Skill 只增强 Agent 的可复用能力。Project State、Case 和 Loop 的产品语义不由单个 skill 决定。
 
-Worker 是 Loop 中按需出现的执行角色；Skill 是可安装的能力包，其中只有 capability policy 的 Worker 分组可绑定给 Worker。`using-arckit` 属于 Controller execution plane，`arckit-development-ledger` 属于 Runtime execution plane。Runtime 保留稳定 worker 类型和 skill 绑定协议，但不固定某一轮必须派发哪些 Worker，也不把具体业务路线写死为源码分支。Controller 根据 Project State、Case State、用户输入、证据和 Worker Capability Registry 选择零个或多个 worker type、具体 role、allowed skills 和停止条件。
+默认 Loop 由同一 Codex Agent 完成；Skill 是该 Agent 原生加载的能力包。`using-arckit` 提供 Agent Loop 控制协议，`arckit-development-ledger` 提供 Runtime trusted writeback。Runtime 不固定业务路线、skill、role 或路径，也不为验证、修复或提交创建其它 Agent 身份。
 
 ## 概念关系
 
@@ -76,20 +76,21 @@ Loop 是 case 的推进循环。一个 case 可以经历多个 loop。每个 loo
 一次状态推进的标准关系是：
 
 1. Project State 暴露 gap。
-2. Controller 为当前 Loop 从全部 active Cases 中选择一个 case，或请求创建新 case。
+2. 当前 Agent为当前 Loop 从全部 active Cases 中选择一个 case，或请求创建新 case。
 3. Case 定义目标状态、边界和证据要求。
-4. Loop 绑定当前 Case revision，由 Controller 选择 gap，并按证据需要使用零个或多个 Worker 推进 case。
-5. Loop 产出 evidence、report、change、open question 或 handoff。
+4. Loop 绑定当前 Case revision，由当前 Agent选择 gap，并在同一 turn 内使用必要 skills/tools 推进 case。
+5. Loop 产出 evidence、transition claim、change、open question 或 handoff；真实独立委派时才包含 report。
 6. Case 判断继续、等待、阻塞、人类判断或关闭。
-7. Ledger 在跨进程 Project commit lock 中原子提交 Case transition；基础内容完成后先派生 completion review，当前 content revision clean 后 Case 才 resolved，并在 Project revision 匹配时聚合显式 Project State delta，随后下一轮从 fresh state 恢复。
+7. Ledger 在跨进程 Project commit lock 中原子提交 Case transition；全部相关 facts、state impacts 与动态 gaps 闭合后先派生 completion review，当前 content revision clean 后 Case 才 resolved，并在 Project revision 匹配时聚合显式 Project State delta，随后同一 task thread 从 fresh state 继续。
+8. Runtime 为每个待办持久化唯一 Codex thread id，进程恢复时继续该 thread；每个 gap 写回后在上下文占用达到 80% 时先压缩同一 thread，待办完成后仍由该 thread 执行 Git closeout。
 
-Project State 不由 loop 直接静默改写。Loop 的输出必须先通过 report intake、验证、case closeout 或 ledger gate，才能成为 Project State delta。
+Project State 不由 loop 直接静默改写。Loop 的输出必须先通过验证、case closeout 与 ledger gate，才能成为 Project State delta；独立 report 还必须先经主 Agent intake。
 
-Project State 和 Case State 的字段定义不是普通配置项。它们表达软件项目持续推进所需的工程能力维度，包括产品意图、目标用户、核心场景、平台表面、技术基础、事实成熟度、实现覆盖、验证证据、open questions、handoff 和工作方式信号。字段定义综合真实软件研发抽象和 Arckit skill 体系的产品理念，使 Controller 能根据状态值判断本轮应补事实、定义、实现、诊断、验证、收口还是等待人类或外部系统。
+Project State 和 Case State 的字段定义不是普通配置项。Project State 显式提供 15 项软件能力决策清单，项目在这些 area 中沉淀产品意图、能力、端、交互、视觉、访问、数据、集成、支持、商业、技术、安全、质量、交付和运营结论；协议另行固定产品预期、交互、视觉、技术契约、代码实现和风险验证六条核心软件不变量。Controller 依据 fresh decisions、invariants 和具体 facts 生成当前实际需要的 gap；State 不绑定 skill、路径和流程。
 
-Project State、Case State 和 Worker Loop 通过分层上下文保持长期连续性。Project State 是项目级 checkpoint，只保存项目维度状态、active case refs、project gaps、Case 选择依据、状态 delta 摘要和 evidence refs，不保存独占 Loop selection。Case State 是事项级 checkpoint，保存当前事项的六类结果 facet、content revision、completion review cycles/findings/budget、candidate gaps、open questions、pending handoffs、轮次摘要、resolution 和短 loop handoff。Worker Loop 是一次执行过程，只产生 worker report、artifact impact、runtime result 和原始运行证据，不把自己的完整 prompt、activity、controller frame、ledger result 或 Desktop operator event 写入 Project State 或 Case State。
+Project State、Case State 和 Agent Loop 通过分层上下文保持长期连续性。Project State 是项目级 checkpoint，只保存 advancement、software definition decisions、software invariants 和 evidence，不保存独占 Loop selection。Case State 是事项级 checkpoint，保存当前事项的 facts、targeted impacts、dynamic gaps、content revision、completion review cycles/findings/budget、open questions、pending handoffs、轮次摘要、resolution 和短 loop handoff。Agent Loop 是一次执行过程，只产生 transition/report、runtime result 和原始运行证据，不把完整 prompt、activity、stream delta、ledger result 或 Desktop operator event 写入 Project State 或 Case State。
 
-跨对话和跨生命周期恢复依赖 checkpoint 与引用链，而不是复制完整历史上下文。新的执行体恢复项目时先读 Project State 与全部 active Cases，再由 Controller 为当前 Loop 选择一个 Case，并读取其 derived resolution、短 loop handoff、candidate gaps 和 required context refs；只有证据不足或需要审计时，Runtime 宿主才按 opaque run ref 打开其管理的 result、activity 或 raw events。项目即使无法访问 Runtime 宿主记录，也能从 Case round 的 accepted delta 与 evidence 恢复语义状态。
+跨对话和跨生命周期恢复依赖 checkpoint 与引用链，而不是复制完整历史上下文。新的执行体恢复项目时先读 Project State 与全部 active Cases，再由当前 Agent为 Loop 选择一个 Case，并读取其 derived resolution、短 handoff、candidate gaps 和 required context refs；只有证据不足或需要审计时，Runtime 宿主才按 opaque run ref 打开其管理的紧凑 result、activity 或 raw events。项目即使无法访问 Runtime 宿主记录，也能从 Case round 的 accepted delta 与 evidence 恢复语义状态。
 
 ## 语义入口
 
@@ -146,11 +147,11 @@ Agent 启动上下文是事实系统的入口辅助层。它不保存产品功�
 
 Project State 是事实系统的恢复视图，不替代各事实源。Project State 读取事实源、case、验证证据和工作方式事实形成可恢复状态；写回 Project State 时必须保留来源依据和状态变化原因。
 
-传输 envelope 和原始 runtime evidence 属于过程证据，不属于 Project State 或 Case State 的语义字段。Desktop operator event、完整 activity、完整 controller frame、完整 worker packet、完整 ledger write result、app-server stream output 和 raw prompt transcript 保存在 Runtime 宿主拥有的 execution record、raw events 或 audit 记录中，不复制到目标项目目录。Case round 可以保存不含宿主文件系统路径的 opaque run ref；该引用不替代 accepted delta 或持久 evidence，也不得进入 Project `case_control`、Case `current_round`、`agent_instruction.goal` 或 `progress_guard.expected_state_change`。
+传输 envelope 和原始 runtime evidence 属于过程证据，不属于 Project State 或 Case State 的语义字段。Desktop operator event、完整 activity、完整 controller frame、完整 ledger write result、app-server stream output 和 raw prompt transcript 保存在 Runtime 宿主拥有的 execution record、raw events 或 audit 记录中，不复制到目标项目目录。Case round 可以保存不含宿主文件系统路径的 opaque run ref；该引用不替代 accepted delta 或持久 evidence，也不得进入 Project `case_control`、Case `current_round`、`agent_instruction.goal` 或 `progress_guard.expected_state_change`。
 
-Project State 只维护宏观完整性、project gaps、active Case refs 和 Case 选择依据。Case State 维护单事项的 product/interaction/visual/technical expectation、implementation、verification、open questions、pending handoffs、content revision、completion review、derived candidate gaps 与 resolution。Loop 只承载一个 Case 的一次 planned/accepted transition；多个 Loop 可以并行推进不同 Case。candidate gaps 不携带固定顺序；Controller 根据真实上下文动态选择代码先行、规格先行或混合推进。最终每个 facet 必须有 evidence-backed required target，或明确的 evidence-backed not_required 判断；随后当前 content revision 必须经过错误、遗漏、多余三维复审并 clean。自主复审预算耗尽仍不 clean 时，Case 转人工而不是继续自动 loop。
+Project State 只维护 advancement、明确的软件定义决策和抽象软件不变量。Case State 维护单事项的 facts、targeted impacts、dynamic gaps、open questions、pending handoffs、content revision、completion review 与 resolution。Loop 只承载一个 Case 的一次 planned/accepted transition；多个 Loop 可以并行推进不同 Case。candidate gaps 不携带固定顺序；当前 Agent 根据真实上下文动态选择诊断、定义、实现、验证或持久上下文维护。每个接受的 Gap 可以立即原子沉淀相关 Project delta；只有全部普通工作闭合后才进入以实施正确性、验证可信度、回归风险和最小性为重点的完成态复审。
 
-语义字段必须由 Controller Agent、Worker Report、人类输入或稳定事实源显式产生。Runtime 可以选择、校验和拒绝结构化字段，但不能把原始 operator event 自行理解为项目目标，也不能把 raw task fallback 写成下一轮状态。结构化语义字段缺失、超长或包含 Desktop operator event marker 时，本轮应进入 blocked、needs revision 或 ledger gate blocked，而不是静默截断后写回长期状态。
+语义字段必须由当前 Agent、人类输入、稳定事实源或已接受的独立 report 显式产生。Runtime 可以校验和拒绝结构化字段，但不能把原始 operator event 自行理解为项目目标，也不能把 raw task fallback 写成下一轮状态。结构化语义字段缺失、超长或包含 Desktop operator event marker 时，本轮应进入 Agent recoverable、blocked 或 ledger gate blocked，而不是静默截断后写回长期状态。
 
 ## 接力系统
 
@@ -163,13 +164,11 @@ Project State 只维护宏观完整性、project gaps、active Case refs 和 Cas
 - 多 Agent 自动化平台角色：需要结构化 handoff、停止条件、回写位置和失败上报方式。
 - 外部 adapter：需要输入、输出、确认点、权限边界和结果回传位置。
 
-接力系统的核心产物包括 bounded implementation/refactor worker packet、`external_adapter_handoff`、case `pending_handoffs` 和人类接手材料。
+接力系统的核心产物包括 Loop Handoff、可选 bounded delegation packet、`external_adapter_handoff`、case `pending_handoffs` 和人类接手材料。
 
 接力系统不替代执行。它定义执行前后的共享接口，使自动化平台可以继续推进，也使人类可以在平台无法继续时接手。
 
-Controller Worker Loop 是接力系统在项目对话中的轮次形态。入口能力扮演 Controller：恢复状态、判断 turn delta、生成执行包、接收 worker report、判断 closeout 和输出下一轮 handoff。执行器必须通过 execution gate 显式绑定；绑定对象可以是人类手动分发的 Worker Agent、Desktop Runtime、外部平台或其他被授权执行体。
-
-没有 Desktop 时，人类临时扮演 Runtime，在 Controller 对话和多个 Worker 对话之间搬运 worker packet、worker report、补充和纠错。Desktop 存在时，Desktop 自动化这些搬运动作、worker 生命周期、report intake、merge gate、暂停和继续，但不改变 Controller Worker Loop 的语义。
+默认 Agent Loop 是接力系统在项目对话中的轮次形态。没有 Desktop 时，人类在一个 Codex 对话中触发下一 turn；Desktop 存在时，Runtime 自动完成 readiness、fresh-state bridge、trusted ledger 和续轮。两种形态都由同一 Agent选择并完成一个 gap。只有真实独立委派时，人类或 Desktop 才搬运 packet/report。
 
 每轮结束时，接力系统生成 Loop Handoff。Loop Handoff 先判断 `next_responsibility`，再判断 `trigger_mode`：
 
@@ -207,10 +206,10 @@ Loop Handoff 不是 Project State 更新本身。它说明本轮影响和下一�
 5. 当状态缺口需要持续推进时，系统创建或选择 case。
 6. 产物系统判断本轮涉及的最终产物和过程产物。
 7. 事实系统判断信息进入预期事实、实现事实、过程事实、工作方式事实或低承诺空间。
-8. 接力系统生成 controller frame、execution gate、worker packet、report intake rules 和 closeout rules；只有 execution gate 被授权并绑定 executor 后，执行体才开始本轮 loop。
+8. Runtime 投影 execution authorization 后，当前 Agent在同一 turn 内使用必要 skills/tools 完成一个 gap；真实独立委派时才生成 packet 和 intake rules。
 9. 当用户输入是场景化预期或外部反馈时，系统先把它维护为评测集、case 开放问题、待处理 handoff 或可选低承诺数据记录，而不是直接提升为需求或 Project State。
-10. 执行结果以 worker report、实现证据、验证证据或外部结果形式回到 Controller。
-11. Controller 根据 report intake rules 和 closeout rules 判断 `done`、`continue`、`needs_human`、`blocked` 或 `external_wait`，并输出 Loop Handoff。
+10. 执行结果以 Agent transition、实现证据、验证证据、可选独立 report 或外部结果形成 closeout 输入。
+11. 当前 Agent判断 `done`、`continue`、`needs_human`、`blocked` 或 `external_wait`，并输出 Loop Handoff；Runtime 只做确定性 gate。
 12. 验证比较预期事实、实现事实和评测场景。
 13. Case closeout 判断本事项是否继续、等待、阻塞、关闭或产生 no-change closure。
 14. 经过验证或确认的 state delta 更新 Project State。
@@ -231,8 +230,8 @@ Loop Handoff 不是 Project State 更新本身。它说明本轮影响和下一�
 - 能说明预期事实、实现事实、过程事实和工作方式事实如何分工。
 - 能说明 agent 启动上下文如何帮助不同执行体进入项目。
 - 能说明 handoff 如何支撑人类、单 Agent、多 Agent 平台和外部 adapter 接力。
-- 能说明入口能力为什么不自动执行，以及 execution gate 如何绑定 executor。
-- 能说明没有 Desktop 时人类如何作为 Runtime 搬运 worker packet 和 report。
+- 能说明入口 skill 如何约束当前 Agent完成一个 gap，以及 execution gate 如何限制权限而不拆分 Agent角色。
+- 能说明没有 Desktop 时人类如何在一个 Codex 对话中继续，Desktop 如何只替代自动化动作。
 - 能说明真实场景预期如何先进入评测集，而不是直接混同为需求。
 - 能说明外部反馈如何先进入低承诺入口，再通过 triage、case 和验证影响 Project State。
 - 能说明低承诺空间如何避免信息丢失和事实污染。

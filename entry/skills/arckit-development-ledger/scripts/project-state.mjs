@@ -1,571 +1,232 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { defaultSoftwareDefinition, validateCoreDecisionAreas } from './project-software-definition.mjs';
+import { defaultSoftwareInvariants, validateCoreSoftwareInvariants } from './project-invariants.mjs';
 
 const PROJECT_ROOT = path.join(process.cwd(), 'arckit', 'project');
 const STATE_PATH = path.join(PROJECT_ROOT, 'STATE.md');
 const STATE_RECORD_PATH = path.join(PROJECT_ROOT, 'state.record.json');
-const ITERATIONS_INDEX_PATH = path.join(PROJECT_ROOT, 'ITERATIONS.md');
+const VOLATILE_PREFIXES = ['/tmp/', '/private/tmp/', '/var/folders/'];
+const PROJECT_KEYS = new Set(['schema_version', 'project', 'advancement', 'software_definition', 'software_invariants']);
+const PROJECT_INFO_KEYS = new Set(['name', 'status', 'intent', 'created_at', 'updated_at', 'revision']);
+const ADVANCEMENT_KEYS = new Set(['active_iteration_ref', 'active_case_refs', 'project_gaps', 'selection_context']);
+const AREA_KEYS = new Set(['id', 'question', 'decision_expectation', 'evidence_expectation', 'decision', 'gap_refs']);
+const DECISION_KEYS = new Set(['revision', 'status', 'statement', 'reason', 'evidence', 'confidence', 'resume_condition']);
+const INVARIANT_KEYS = new Set(['id', 'applies_when', 'must_hold', 'evidence_expectation', 'priority']);
+const GAP_KEYS = new Set(['id', 'goal', 'reason', 'affects', 'priority_basis', 'dependencies', 'candidate_case_ref']);
+const TARGET_KEYS = new Set(['kind', 'ref']);
 
-const VALID_STATE_VALUE = new Set([
-  'unknown',
-  'not_required',
-  'needed',
-  'defined',
-  'designed',
-  'implemented',
-  'integrated',
-  'verified',
-  'accepted',
-  'released',
-  'operational',
-  'deferred',
-  'blocked',
-]);
-const VALID_EVIDENCE_MATURITY = new Set([
-  'none',
-  'exploratory',
-  'confirmed',
-  'formalized',
-  'validated',
-]);
-const VALID_PROJECT_STATUS = new Set(['active', 'paused', 'archived']);
-const VALID_PRIORITY = new Set(['none', 'low', 'medium', 'high', 'critical']);
-const VALID_CONFIDENCE = new Set(['low', 'medium', 'high']);
-const PROJECT_KEYS = new Set([
-  'schema_version', 'project', 'active_iteration_ref', 'active_case_refs',
-  'completeness_dimensions', 'state_gaps', 'case_control', 'active_constraints',
-  'open_questions', 'canonical_artifact_refs', 'last_state_delta',
-]);
-const PROJECT_INFO_KEYS = new Set(['name', 'status', 'created_at', 'updated_at', 'original_intent', 'current_phase']);
-const DIMENSION_KEYS = new Set([
-  'current_state', 'target_state', 'state_reason', 'evidence', 'evidence_maturity',
-  'gap', 'next_transition', 'blockers', 'priority', 'confidence',
-]);
-const GAP_KEYS = new Set([
-  'id', 'dimension', 'current_state', 'target_state', 'impact', 'urgency', 'risk',
-  'dependencies', 'covered_dimensions', 'next_transition', 'candidate_case_ref',
-]);
-const CASE_CONTROL_KEYS = new Set(['next_case_intent', 'priority_basis', 'stop_condition']);
-const LAST_DELTA_KEYS = new Set([
-  'changed_dimensions', 'state_transitions', 'deferred_dimensions', 'blocked_dimensions',
-  'case_refs', 'iteration_ref', 'next_project_focus', 'updated_at',
-]);
-const LEGACY_RUNTIME_RESULT_REF_PATTERN = /^arckit\/project\/runtime-results\/(RUN-[A-Za-z0-9][A-Za-z0-9._-]*)\.json$/;
-const OPAQUE_RUNTIME_RESULT_REF_PATTERN = /^arckit-runtime:\/\/runs\/(RUN-[A-Za-z0-9][A-Za-z0-9._-]*)$/;
-
-const COMPLETENESS_DIMENSION_KEYS = [
-  'project_intent',
-  'users_and_stakeholders',
-  'problem_scenarios',
-  'product_behavior',
-  'user_experience',
-  'runtime_surfaces',
-  'identity_access',
-  'data_state',
-  'integration_boundaries',
-  'architecture_foundation',
-  'implementation_coverage',
-  'quality_validation',
-  'security_privacy',
-  'delivery_operation',
-  'observability_support',
-  'maintainability_handoff',
-  'iteration_governance',
-];
-
-function usage(exitCode = 0) {
-  const message = [
-    'Usage:',
-    '  node <skill-dir>/scripts/project-state.mjs init --name "Project Name" [--intent "..."]',
-    '  node <skill-dir>/scripts/project-state.mjs register-case --case-ref "arckit/cases/active/CASE-...md" [--intent "..."] [--reason "..."]',
-    '  node <skill-dir>/scripts/project-state.mjs migrate-v4 [record-file]',
-    '  node <skill-dir>/scripts/project-state.mjs repair-runtime-refs [record-file]',
-    '  node <skill-dir>/scripts/project-state.mjs render [record-file]',
-    '  node <skill-dir>/scripts/project-state.mjs audit [record-file|state-file]',
-    '  node <skill-dir>/scripts/project-state.mjs validate [record-file|state-file]',
-    '  node <skill-dir>/scripts/project-state.mjs summary [record-file|state-file]',
-  ].join('\n');
-  console.log(message);
-  process.exit(exitCode);
-}
+function nowIso() { return new Date().toISOString(); }
+function unique(values) { return [...new Set(values)]; }
+function isObject(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
+function isVolatile(ref) { return VOLATILE_PREFIXES.some((prefix) => String(ref).startsWith(prefix)); }
+function normalize(text) { return String(text).replaceAll('\r\n', '\n').trim(); }
 
 function parseArgs(argv) {
   const args = { _: [] };
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i];
-    if (!token.startsWith('--')) {
-      args._.push(token);
-      continue;
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token.startsWith('--')) args._.push(token);
+    else {
+      const key = token.slice(2);
+      const value = argv[index + 1];
+      if (!value || value.startsWith('--')) throw new Error(`Missing value for --${key}`);
+      args[key] = value;
+      index += 1;
     }
-    const key = token.slice(2);
-    const value = argv[i + 1];
-    if (!value || value.startsWith('--')) {
-      throw new Error(`Missing value for --${key}`);
-    }
-    args[key] = value;
-    i += 1;
   }
   return args;
 }
 
-function ensureDirs() {
-  fs.mkdirSync(PROJECT_ROOT, { recursive: true });
+function rejectUnknownKeys(value, allowed, label, errors, file) {
+  if (!isObject(value)) return;
+  for (const key of Object.keys(value)) if (!allowed.has(key)) errors.push(`${file}: ${label}.${key} is not allowed`);
 }
 
-function nowIso() {
-  return new Date().toISOString();
+function validateStringArray(value, label, errors, file, { nonEmpty = false } = {}) {
+  if (!Array.isArray(value)) return errors.push(`${file}: ${label} must be an array`);
+  if (nonEmpty && value.length === 0) errors.push(`${file}: ${label} must not be empty`);
+  if (new Set(value).size !== value.length) errors.push(`${file}: ${label} must be unique`);
+  value.forEach((item, index) => {
+    if (typeof item !== 'string' || !item) errors.push(`${file}: ${label}[${index}] must be a non-empty string`);
+  });
 }
 
-function defaultDimension(currentState = 'unknown', targetState = 'unknown', stateReason = '') {
-  return {
-    current_state: currentState,
-    target_state: targetState,
-    state_reason: stateReason,
-    evidence: [],
-    evidence_maturity: 'none',
-    gap: currentState === targetState ? '' : `Move ${currentState} toward ${targetState}.`,
-    next_transition: '',
-    blockers: [],
-    priority: currentState === targetState || currentState === 'not_required' ? 'none' : 'medium',
-    confidence: 'medium',
-  };
-}
-
-function createRecord({ name, intent = '' }) {
+export function createProjectStateRecord({ name, intent = '' }) {
   const timestamp = nowIso();
   return {
-    schema_version: 'project-state-record/v4',
-    project: {
-      name,
-      status: 'active',
-      created_at: timestamp,
-      updated_at: timestamp,
-      original_intent: intent,
-      current_phase: 'runtime-loop',
+    schema_version: 'project-state-record/v5',
+    project: { name, status: 'active', intent, created_at: timestamp, updated_at: timestamp, revision: 0 },
+    advancement: {
+      active_iteration_ref: '',
+      active_case_refs: [],
+      project_gaps: [],
+      selection_context: { current_focus: '', project_priorities: [] },
     },
-    active_iteration_ref: '',
-    active_case_refs: [],
-    completeness_dimensions: Object.fromEntries(
-      COMPLETENESS_DIMENSION_KEYS.map((key) => [key, defaultDimension()])
-    ),
-    state_gaps: [],
-    case_control: {
-      next_case_intent: '',
-      priority_basis: '',
-      stop_condition: '',
-    },
-    active_constraints: [],
-    open_questions: [],
-    canonical_artifact_refs: [],
-    last_state_delta: {
-      changed_dimensions: [],
-      state_transitions: [],
-      deferred_dimensions: [],
-      blocked_dimensions: [],
-      case_refs: [],
-      iteration_ref: '',
-      next_project_focus: '',
-      updated_at: timestamp,
-    },
+    software_definition: defaultSoftwareDefinition(),
+    software_invariants: defaultSoftwareInvariants(),
   };
 }
 
-function renderState(record) {
-  const stateGaps = (record.state_gaps || []).slice(0, 3);
-  const priorityDimensions = Object.entries(record.completeness_dimensions || {})
-    .filter(([, value]) => ['critical', 'high'].includes(value.priority))
-    .slice(0, 6)
-    .map(([key, value]) => `- ${key}: ${value.current_state} -> ${value.target_state}; next: ${value.next_transition || 'none'}`);
-  const readRefs = [
-    'state.record.json',
-    record.active_iteration_ref || '',
-    ...(record.active_case_refs || []),
-  ].filter(Boolean);
-  return [
-    `# ${record.project.name} Project State`,
-    '',
-    `Status: ${record.project.status}`,
-    `Updated: ${record.project.updated_at}`,
-    `Canonical Record: state.record.json`,
-    '',
-    '## Purpose',
-    '',
-    record.project.original_intent || 'TBD',
-    '',
-    '## Case Selection Intent',
-    '',
-    record.case_control?.next_case_intent || 'TBD',
-    '',
-    '## Case Selection Basis',
-    '',
-    `- Active cases: ${(record.active_case_refs || []).length}`,
-    `- Next case intent: ${record.case_control?.next_case_intent || 'TBD'}`,
-    `- Priority basis: ${record.case_control?.priority_basis || 'TBD'}`,
-    '- Each Loop selects exactly one active Case; Project State does not hold an exclusive execution selection.',
-    '',
-    '## Project Gap Candidates',
-    '',
-    '- Array order is not execution priority; Controller compares intent, impact, urgency, risk, and dependencies.',
-    ...(stateGaps.length > 0
-      ? stateGaps.map((gap) => `- ${gap.id}: ${gap.impact} Risk=${gap.risk || 'unknown'} Urgency=${gap.urgency || 'unknown'}`)
-      : ['- none']),
-    '',
-    '## Do Not Treat As Complete',
-    '',
-    `- Stop condition: ${record.case_control?.stop_condition || 'TBD'}`,
-    '- Do not edit this file as source state; update `state.record.json` and render this projection.',
-    '- Do not close the active iteration until its close condition is met.',
-    '',
-    '## High-Priority Dimensions',
-    '',
-    ...(priorityDimensions.length > 0 ? priorityDimensions : ['- none']),
-    '',
-    '## Read For Precision',
-    '',
-    ...readRefs.map((ref) => `- ${ref}`),
-    '',
-    '## Open Questions',
-    '',
-    ...((record.open_questions || []).length > 0 ? record.open_questions.map((item) => `- ${item}`) : ['- none']),
-    '',
-    '## Notes',
-    '',
-    '- `state.record.json` is the canonical machine-readable project state.',
-    '- `STATE.md` is a generated Project/Case-selection decision brief. It is intentionally lossy and should not mirror the full JSON record.',
-    '- Store iteration state under `arckit/project/iterations/` and case evidence under `arckit/cases/`.',
-    '',
-  ].join('\n');
+export function projectTargetRefs(record) {
+  return {
+    software_decision: new Set((record?.software_definition?.decision_areas || []).map((area) => area.id)),
+    software_invariant: new Set((record?.software_invariants || []).map((item) => item.id)),
+    project_intent: new Set(['project.intent']),
+  };
 }
 
-function readJsonRecord(file) {
-  try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
-  } catch (error) {
-    throw new Error(`${file}: invalid JSON: ${error.message}`);
+function validateDecisionArea(area, index, gapIds, errors, file) {
+  const label = `software_definition.decision_areas[${index}]`;
+  if (!isObject(area)) return errors.push(`${file}: ${label} must be an object`);
+  rejectUnknownKeys(area, AREA_KEYS, label, errors, file);
+  for (const key of ['id', 'question', 'decision_expectation', 'evidence_expectation']) if (typeof area[key] !== 'string' || !area[key]) errors.push(`${file}: ${label}.${key} must be a non-empty string`);
+  validateStringArray(area.gap_refs, `${label}.gap_refs`, errors, file);
+  for (const gapRef of area.gap_refs || []) if (!gapIds.has(gapRef)) errors.push(`${file}: ${label}.gap_refs references unknown Project gap ${gapRef}`);
+  const decision = area.decision;
+  if (!isObject(decision)) return errors.push(`${file}: ${label}.decision must be an object`);
+  rejectUnknownKeys(decision, DECISION_KEYS, `${label}.decision`, errors, file);
+  if (!Number.isInteger(decision.revision) || decision.revision < 0) errors.push(`${file}: ${label}.decision.revision must be a non-negative integer`);
+  if (!['open', 'settled', 'deferred', 'stale'].includes(decision.status)) errors.push(`${file}: ${label}.decision.status is invalid`);
+  for (const key of ['statement', 'reason', 'resume_condition']) if (typeof decision[key] !== 'string') errors.push(`${file}: ${label}.decision.${key} must be a string`);
+  validateStringArray(decision.evidence, `${label}.decision.evidence`, errors, file);
+  for (const ref of decision.evidence || []) if (isVolatile(ref)) errors.push(`${file}: ${label}.decision.evidence contains volatile ref: ${ref}`);
+  if (!['low', 'medium', 'high'].includes(decision.confidence)) errors.push(`${file}: ${label}.decision.confidence is invalid`);
+  if (decision.status === 'settled' && (!decision.statement || !decision.reason || decision.evidence.length === 0)) errors.push(`${file}: ${label}.decision settled requires statement, reason, and durable evidence`);
+  if (decision.status === 'deferred' && (!decision.reason || !decision.resume_condition)) errors.push(`${file}: ${label}.decision deferred requires reason and resume_condition`);
+  if (decision.status === 'stale' && area.gap_refs.length === 0) errors.push(`${file}: ${label}.decision stale requires an active Project gap`);
+}
+
+function validateInvariant(invariant, index, errors, file) {
+  const label = `software_invariants[${index}]`;
+  if (!isObject(invariant)) return errors.push(`${file}: ${label} must be an object`);
+  rejectUnknownKeys(invariant, INVARIANT_KEYS, label, errors, file);
+  for (const key of ['id', 'applies_when', 'must_hold', 'evidence_expectation']) if (typeof invariant[key] !== 'string' || !invariant[key]) errors.push(`${file}: ${label}.${key} must be a non-empty string`);
+  if (!['required', 'recommended', 'informational'].includes(invariant.priority)) errors.push(`${file}: ${label}.priority is invalid`);
+}
+
+  for (const dimension of gap.covered_dimensions) if (!COMPLETENESS_DIMENSION_KEYS.includes(dimension)) errors.push(`${file}: state_gaps[${index}] covers unknown dimension: ${dimension}`);
+}
+
+function validateProjectGap(gap, index, refs, allGapIds, errors, file) {
+  const label = `advancement.project_gaps[${index}]`;
+  if (!isObject(gap)) return errors.push(`${file}: ${label} must be an object`);
+  rejectUnknownKeys(gap, GAP_KEYS, label, errors, file);
+  for (const key of ['id', 'goal', 'reason', 'candidate_case_ref']) if (typeof gap[key] !== 'string' || (key !== 'candidate_case_ref' && !gap[key])) errors.push(`${file}: ${label}.${key} must be ${key === 'candidate_case_ref' ? 'a string' : 'a non-empty string'}`);
+  if (!isObject(gap.priority_basis) || Object.keys(gap.priority_basis).length === 0) errors.push(`${file}: ${label}.priority_basis must be a non-empty object`);
+  validateStringArray(gap.dependencies, `${label}.dependencies`, errors, file);
+  for (const dependency of gap.dependencies || []) if (!allGapIds.has(dependency)) errors.push(`${file}: ${label}.dependencies references unknown gap ${dependency}`);
+  if (!Array.isArray(gap.affects) || gap.affects.length === 0) errors.push(`${file}: ${label}.affects must be a non-empty array`);
+  for (const [targetIndex, target] of (gap.affects || []).entries()) {
+    const targetLabel = `${label}.affects[${targetIndex}]`;
+    if (!isObject(target)) { errors.push(`${file}: ${targetLabel} must be an object`); continue; }
+    rejectUnknownKeys(target, TARGET_KEYS, targetLabel, errors, file);
+    if (!refs[target.kind]?.has(target.ref)) errors.push(`${file}: ${targetLabel} references unknown ${target.kind || 'target'} ${target.ref || ''}`);
   }
 }
 
-function resolveRecordPathFromState(text, file) {
-  const match = text.match(/^Canonical Record:\s*(.+)$/m);
-  if (!match) return null;
-  const ref = match[1].trim();
-  if (!ref) return null;
-  return path.resolve(path.dirname(file), ref);
-}
-
-function readRecord(file) {
-  const text = fs.readFileSync(file, 'utf8');
-  if (file.endsWith('.json')) {
-    return { text, record: readJsonRecord(file), recordFile: file };
-  }
-  const recordPath = resolveRecordPathFromState(text, file);
-  if (recordPath && fs.existsSync(recordPath)) {
-    return { text, record: readJsonRecord(recordPath), recordFile: recordPath };
-  }
-  throw new Error(`${file}: canonical project state record could not be resolved`);
-}
-
-function writeRecord(record, file = STATE_RECORD_PATH) {
-  fs.writeFileSync(file, `${JSON.stringify(record, null, 2)}\n`);
-}
-
-function writeStateProjection(record, file = STATE_PATH) {
-  fs.writeFileSync(file, renderState(record));
-}
-
-function normalizeText(value) {
-  return value.replace(/\r\n/g, '\n').trimEnd();
-}
-
-function resolveProjectPath(ref) {
-  return path.resolve(process.cwd(), ref);
-}
-
-function sortedUnique(values) {
-  return [...new Set((values || []).filter(Boolean))].sort();
-}
-
-function rejectUnknownKeys(value, allowed, pathLabel, errors, file) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return;
-  for (const key of Object.keys(value)) if (!allowed.has(key)) errors.push(`${file}: ${pathLabel}.${key} is not allowed`);
-}
-
-function isVolatileEvidenceRef(value) {
-  return typeof value === 'string' && (value.startsWith('/tmp/') || value.startsWith('/private/tmp/') || value.startsWith('/var/folders/'));
-}
-
-function validateStringArray(value, label, errors, file, { nonEmpty = false, unique = false } = {}) {
-  if (!Array.isArray(value)) {
-    errors.push(`${file}: ${label} must be an array`);
-    return;
-  }
-  for (const [index, item] of value.entries()) {
-    if (typeof item !== 'string' || (nonEmpty && item.length === 0)) errors.push(`${file}: ${label}[${index}] must be ${nonEmpty ? 'a non-empty string' : 'a string'}`);
-  }
-  if (unique && new Set(value).size !== value.length) errors.push(`${file}: ${label} must be unique`);
-}
-
-function auditRecord(record, recordFile = STATE_RECORD_PATH) {
-  const errors = validateProjectStateRecord(record, recordFile);
-  if (errors.length) return errors;
-  if (fs.existsSync(STATE_PATH)) {
-    const expected = normalizeText(renderState(record));
-    const actual = normalizeText(fs.readFileSync(STATE_PATH, 'utf8'));
-    if (actual !== expected) {
-      errors.push(`${STATE_PATH}: projection is stale; run project-state.mjs render`);
-    }
-  } else {
-    errors.push(`${STATE_PATH}: missing projection; run project-state.mjs render`);
-  }
-  if (record.active_iteration_ref && !fs.existsSync(resolveProjectPath(record.active_iteration_ref))) {
-    errors.push(`${recordFile}: active_iteration_ref does not exist: ${record.active_iteration_ref}`);
-  }
-  if (record.active_iteration_ref && fs.existsSync(resolveProjectPath(record.active_iteration_ref))) {
-    const iterationPath = resolveProjectPath(record.active_iteration_ref);
-    const iteration = readJsonRecord(iterationPath);
-    if (iteration.schema_version !== 'iteration-state-record/v2') errors.push(`${iterationPath}: active iteration must use iteration-state-record/v2`);
-    if (iteration.project_state_ref !== path.relative(process.cwd(), recordFile).replaceAll('\\', '/')) errors.push(`${iterationPath}: project_state_ref must reference ${path.relative(process.cwd(), recordFile)}`);
-    if (JSON.stringify(sortedUnique(iteration.active_case_refs)) !== JSON.stringify(sortedUnique(record.active_case_refs))) errors.push(`${iterationPath}: active_case_refs must match Project active_case_refs`);
-  }
-  for (const ref of record.active_case_refs || []) {
-    if (typeof ref !== 'string') continue;
-    if (!fs.existsSync(resolveProjectPath(ref))) {
-      errors.push(`${recordFile}: active_case_ref does not exist: ${ref}`);
-    }
-    if (!ref.includes('/active/')) {
-      errors.push(`${recordFile}: active_case_ref should point under arckit/cases/active: ${ref}`);
-    }
-  }
-  for (const gap of record.state_gaps || []) {
-    if (typeof gap?.candidate_case_ref === 'string' && gap.candidate_case_ref && (!(record.active_case_refs || []).includes(gap.candidate_case_ref) || !fs.existsSync(resolveProjectPath(gap.candidate_case_ref)))) {
-      errors.push(`${recordFile}: state gap ${gap.id} candidate_case_ref must be an active Case: ${gap.candidate_case_ref}`);
-    }
-  }
-  for (const ref of record.canonical_artifact_refs || []) {
-    if (typeof ref === 'string' && !path.isAbsolute(ref) && !fs.existsSync(resolveProjectPath(ref))) errors.push(`${recordFile}: canonical_artifact_ref does not exist: ${ref}`);
-  }
-  return errors;
-}
-
-function validateString(record, key, errors, file) {
-  if (typeof record[key] !== 'string') {
-    errors.push(`${file}: ${key} must be a string`);
-  }
-}
-
-function validateDimension(item, key, errors, file) {
-  if (!item || typeof item !== 'object' || Array.isArray(item)) {
-    errors.push(`${file}: completeness_dimensions.${key} is required`);
-    return;
-  }
-  rejectUnknownKeys(item, DIMENSION_KEYS, `completeness_dimensions.${key}`, errors, file);
-  if (!VALID_STATE_VALUE.has(item.current_state)) {
-    errors.push(`${file}: completeness_dimensions.${key}.current_state must be one of ${Array.from(VALID_STATE_VALUE).join(', ')}`);
-  }
-  if (!VALID_STATE_VALUE.has(item.target_state)) {
-    errors.push(`${file}: completeness_dimensions.${key}.target_state must be one of ${Array.from(VALID_STATE_VALUE).join(', ')}`);
-  }
-  for (const field of ['state_reason', 'gap', 'next_transition']) {
-    if (typeof item[field] !== 'string') {
-      errors.push(`${file}: completeness_dimensions.${key}.${field} must be a string`);
-    }
-  }
-  if (!Array.isArray(item.evidence)) {
-    errors.push(`${file}: completeness_dimensions.${key}.evidence must be an array`);
-  } else {
-    for (const [index, evidence] of item.evidence.entries()) {
-      if (typeof evidence !== 'string' || evidence.length === 0) errors.push(`${file}: completeness_dimensions.${key}.evidence[${index}] must be a non-empty string`);
-      if (isVolatileEvidenceRef(evidence)) errors.push(`${file}: completeness_dimensions.${key}.evidence contains volatile ref: ${evidence}`);
-    }
-  }
-  if (!VALID_EVIDENCE_MATURITY.has(item.evidence_maturity)) {
-    errors.push(`${file}: completeness_dimensions.${key}.evidence_maturity must be one of ${Array.from(VALID_EVIDENCE_MATURITY).join(', ')}`);
-  }
-  if (item.blockers !== undefined) validateStringArray(item.blockers, `completeness_dimensions.${key}.blockers`, errors, file, { nonEmpty: true, unique: true });
-  if (!VALID_PRIORITY.has(item.priority)) {
-    errors.push(`${file}: completeness_dimensions.${key}.priority must be one of ${Array.from(VALID_PRIORITY).join(', ')}`);
-  }
-  if (!VALID_CONFIDENCE.has(item.confidence)) {
-    errors.push(`${file}: completeness_dimensions.${key}.confidence must be one of ${Array.from(VALID_CONFIDENCE).join(', ')}`);
-  }
-  if (
-    ['defined', 'designed', 'implemented', 'integrated', 'verified', 'accepted', 'released', 'operational'].includes(item.current_state) &&
-    (!Array.isArray(item.evidence) || item.evidence.length === 0)
-  ) {
-    errors.push(`${file}: completeness_dimensions.${key}.evidence must not be empty when current_state is ${item.current_state}`);
-  }
-}
-
-function validateStateGap(gap, index, errors, file) {
-  if (!gap || typeof gap !== 'object' || Array.isArray(gap)) {
-    errors.push(`${file}: state_gaps[${index}] must be an object`);
-    return;
-  }
-  rejectUnknownKeys(gap, GAP_KEYS, `state_gaps[${index}]`, errors, file);
-  for (const field of ['id', 'dimension', 'impact', 'next_transition']) {
-    if (typeof gap[field] !== 'string' || gap[field].length === 0) {
-      errors.push(`${file}: state_gaps[${index}].${field} must be a non-empty string`);
-    }
-  }
-  if (!VALID_STATE_VALUE.has(gap.current_state)) {
-    errors.push(`${file}: state_gaps[${index}].current_state must be one of ${Array.from(VALID_STATE_VALUE).join(', ')}`);
-  }
-  if (!VALID_STATE_VALUE.has(gap.target_state)) {
-    errors.push(`${file}: state_gaps[${index}].target_state must be one of ${Array.from(VALID_STATE_VALUE).join(', ')}`);
-  }
-  if (!VALID_PRIORITY.has(gap.urgency) || gap.urgency === 'none') {
-    errors.push(`${file}: state_gaps[${index}].urgency must be one of ${Array.from(VALID_PRIORITY).filter((item) => item !== 'none').join(', ')}`);
-  }
-  if (!VALID_PRIORITY.has(gap.risk) || gap.risk === 'none') {
-    errors.push(`${file}: state_gaps[${index}].risk must be one of ${Array.from(VALID_PRIORITY).filter((item) => item !== 'none').join(', ')}`);
-  }
-  if (gap.dependencies !== undefined) validateStringArray(gap.dependencies, `state_gaps[${index}].dependencies`, errors, file, { nonEmpty: true, unique: true });
-  if (gap.candidate_case_ref !== undefined && (typeof gap.candidate_case_ref !== 'string' || !gap.candidate_case_ref)) errors.push(`${file}: state_gaps[${index}].candidate_case_ref must be a non-empty string when present`);
-  if (!Array.isArray(gap.covered_dimensions) || gap.covered_dimensions.length === 0) {
-    errors.push(`${file}: state_gaps[${index}].covered_dimensions must be non-empty`);
-  } else {
-    if (!gap.covered_dimensions.includes(gap.dimension)) errors.push(`${file}: state_gaps[${index}].covered_dimensions must include its primary dimension`);
-    if (new Set(gap.covered_dimensions).size !== gap.covered_dimensions.length) errors.push(`${file}: state_gaps[${index}].covered_dimensions must be unique`);
-    for (const dimension of gap.covered_dimensions) if (!COMPLETENESS_DIMENSION_KEYS.includes(dimension)) errors.push(`${file}: state_gaps[${index}] covers unknown dimension: ${dimension}`);
   }
 }
 
 export function validateProjectStateRecord(record, file = '<record>') {
   const errors = [];
-  if (!record || typeof record !== 'object' || Array.isArray(record)) return [`${file}: project state must be an object`];
+  if (!isObject(record)) return [`${file}: record must be an object`];
+  if (record.schema_version !== 'project-state-record/v5') return [`${file}: schema_version must be project-state-record/v5`];
   rejectUnknownKeys(record, PROJECT_KEYS, 'record', errors, file);
-  if (record.schema_version !== 'project-state-record/v4') {
-    errors.push(`${file}: schema_version must be project-state-record/v4`);
-  }
-  if (!record.project || typeof record.project !== 'object' || Array.isArray(record.project)) {
-    errors.push(`${file}: project must be an object`);
-  } else {
+  if (!isObject(record.project)) errors.push(`${file}: project must be an object`);
+  else {
     rejectUnknownKeys(record.project, PROJECT_INFO_KEYS, 'project', errors, file);
-    if (typeof record.project.name !== 'string' || record.project.name.length === 0) {
-      errors.push(`${file}: project.name must be a non-empty string`);
-    }
-    if (!VALID_PROJECT_STATUS.has(record.project.status)) {
-      errors.push(`${file}: project.status must be one of ${Array.from(VALID_PROJECT_STATUS).join(', ')}`);
-    }
-    for (const key of ['created_at', 'updated_at', 'original_intent']) {
-      if (typeof record.project[key] !== 'string') {
-        errors.push(`${file}: project.${key} must be a string`);
-      }
-    }
-    if (record.project.current_phase !== undefined && typeof record.project.current_phase !== 'string') errors.push(`${file}: project.current_phase must be a string when present`);
+    if (!record.project.name || !['active', 'paused', 'archived'].includes(record.project.status) || typeof record.project.intent !== 'string') errors.push(`${file}: project identity is invalid`);
+    if (!Number.isInteger(record.project.revision) || record.project.revision < 0) errors.push(`${file}: project.revision must be a non-negative integer`);
   }
-  validateString(record, 'active_iteration_ref', errors, file);
-  validateStringArray(record.active_case_refs, 'active_case_refs', errors, file, { nonEmpty: true, unique: true });
-  if (!record.completeness_dimensions || typeof record.completeness_dimensions !== 'object' || Array.isArray(record.completeness_dimensions)) {
-    errors.push(`${file}: completeness_dimensions must be an object`);
-  } else {
-    rejectUnknownKeys(record.completeness_dimensions, new Set(COMPLETENESS_DIMENSION_KEYS), 'completeness_dimensions', errors, file);
-    for (const key of COMPLETENESS_DIMENSION_KEYS) {
-      validateDimension(record.completeness_dimensions[key], key, errors, file);
-    }
+  const advancement = record.advancement;
+  if (!isObject(advancement)) errors.push(`${file}: advancement must be an object`);
+  else {
+    rejectUnknownKeys(advancement, ADVANCEMENT_KEYS, 'advancement', errors, file);
+    if (typeof advancement.active_iteration_ref !== 'string') errors.push(`${file}: advancement.active_iteration_ref must be a string`);
+    validateStringArray(advancement.active_case_refs, 'advancement.active_case_refs', errors, file);
+    if (!isObject(advancement.selection_context) || typeof advancement.selection_context?.current_focus !== 'string') errors.push(`${file}: advancement.selection_context is invalid`);
+    else validateStringArray(advancement.selection_context.project_priorities, 'advancement.selection_context.project_priorities', errors, file);
   }
-  if (!Array.isArray(record.state_gaps)) {
-    errors.push(`${file}: state_gaps must be an array`);
-  } else {
-    record.state_gaps.forEach((gap, index) => validateStateGap(gap, index, errors, file));
-    const validGaps = record.state_gaps.filter((gap) => gap && typeof gap === 'object' && !Array.isArray(gap));
-    const gapIds = validGaps.map((gap) => gap.id);
-    if (new Set(gapIds).size !== gapIds.length) errors.push(`${file}: state_gaps ids must be unique`);
-    const coveredDimensions = new Set(validGaps.flatMap((gap) => Array.isArray(gap.covered_dimensions) ? gap.covered_dimensions : []));
-    for (const [dimension, value] of Object.entries(record.completeness_dimensions || {})) {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
-      const actionable = value.current_state !== value.target_state && Boolean(value.gap) && value.priority !== 'none';
-      if (actionable && !coveredDimensions.has(dimension)) errors.push(`${file}: actionable Project dimension is not covered by state_gaps: ${dimension}`);
-    }
-    for (const [index, gap] of validGaps.entries()) {
-      const primary = record.completeness_dimensions?.[gap.dimension];
-      if (primary && (gap.current_state !== primary.current_state || gap.target_state !== primary.target_state)) errors.push(`${file}: state_gaps[${index}] states must match primary dimension ${gap.dimension}`);
-    }
+  if (!isObject(record.software_definition) || typeof record.software_definition?.summary !== 'string' || !Array.isArray(record.software_definition?.decision_areas)) errors.push(`${file}: software_definition is invalid`);
+  if (!Array.isArray(record.software_invariants)) errors.push(`${file}: software_invariants must be an array`);
+  const gaps = Array.isArray(advancement?.project_gaps) ? advancement.project_gaps : [];
+  const gapIds = new Set(gaps.map((gap) => gap?.id).filter(Boolean));
+  if (gapIds.size !== gaps.length) errors.push(`${file}: advancement.project_gaps ids must be unique`);
+  const areas = record.software_definition?.decision_areas || [];
+  const areaIds = areas.map((area) => area?.id);
+  if (new Set(areaIds).size !== areaIds.length) errors.push(`${file}: software_definition.decision_areas ids must be unique`);
+  areas.forEach((area, index) => validateDecisionArea(area, index, gapIds, errors, file));
+  const invariantIds = (record.software_invariants || []).map((item) => item?.id);
+  if (new Set(invariantIds).size !== invariantIds.length) errors.push(`${file}: software_invariants ids must be unique`);
+  (record.software_invariants || []).forEach((item, index) => validateInvariant(item, index, errors, file));
+  const refs = projectTargetRefs(record);
+  gaps.forEach((gap, index) => validateProjectGap(gap, index, refs, gapIds, errors, file));
+  errors.push(...validateCoreDecisionAreas(record, file), ...validateCoreSoftwareInvariants(record, file));
+  return errors;
+}
+
+export function renderProjectState(record) {
+  const areas = record.software_definition.decision_areas;
+  const gaps = record.advancement.project_gaps;
+  return [
+    `# ${record.project.name} Project State`, '',
+    `Status: ${record.project.status}`, `Revision: ${record.project.revision}`, `Updated: ${record.project.updated_at}`, 'Canonical Record: state.record.json', '',
+    '## Project Intent', '', record.project.intent || 'TBD', '',
+    '## Current Focus', '', record.advancement.selection_context.current_focus || 'No explicit focus.', '',
+    '## Active Work', '', `- Active cases: ${record.advancement.active_case_refs.length}`, `- Project gaps: ${gaps.length}`,
+    ...gaps.map((gap) => `- ${gap.id}: ${gap.goal}`), '',
+    '## Software Definition', '', record.software_definition.summary || 'No project summary yet.', '',
+    '| Decision Area | Status | Revision | Current Decision | Project Gaps |',
+    '| --- | --- | ---: | --- | --- |',
+    ...areas.map((area) => `| ${area.id} | ${area.decision.status} | ${area.decision.revision} | ${area.decision.statement || 'TBD'} | ${area.gap_refs.join(', ') || '-'} |`), '',
+    '## Software Invariants', '',
+    ...record.software_invariants.map((item) => `- ${item.id}: ${item.must_hold}`), '',
+    '## Read For Precision', '', '- state.record.json',
+    ...(record.advancement.active_iteration_ref ? [`- ${record.advancement.active_iteration_ref}`] : []),
+    ...record.advancement.active_case_refs.map((ref) => `- ${ref}`),
+  ].join('\n');
+}
+
+function resolveRecord(input = STATE_RECORD_PATH) {
+  const file = path.resolve(input);
+  if (path.extname(file) === '.json') return { record: JSON.parse(fs.readFileSync(file, 'utf8')), file };
+  throw new Error('Project State source must be the canonical state.record.json');
+}
+
+function auditCrossRecords(record, file) {
+  const errors = validateProjectStateRecord(record, file);
+  const root = process.cwd();
+  for (const ref of record.advancement?.active_case_refs || []) {
+    const caseFile = path.join(root, ref);
+    if (!fs.existsSync(caseFile)) { errors.push(`${file}: active Case does not exist: ${ref}`); continue; }
+    const text = fs.readFileSync(caseFile, 'utf8');
+    const match = text.match(/## Structured Record[\s\S]*?```json\s*\n([\s\S]*?)\n```/);
+    const caseRecord = match ? JSON.parse(match[1]) : null;
+    if (caseRecord?.schema_version !== 'development-case-record/v5' || caseRecord.status === 'closed') errors.push(`${file}: active Case must be unfinished development-case-record/v5: ${ref}`);
   }
-  if (!record.case_control || typeof record.case_control !== 'object' || Array.isArray(record.case_control)) {
-    errors.push(`${file}: case_control must be an object`);
-  } else {
-    rejectUnknownKeys(record.case_control, CASE_CONTROL_KEYS, 'case_control', errors, file);
-    for (const key of ['next_case_intent', 'priority_basis', 'stop_condition']) {
-      if (typeof record.case_control[key] !== 'string') {
-        errors.push(`${file}: case_control.${key} must be a string`);
-      }
-    }
+  if (record.advancement?.active_iteration_ref) {
+    const iterationFile = path.join(root, record.advancement.active_iteration_ref);
+    if (!fs.existsSync(iterationFile)) errors.push(`${file}: active iteration does not exist: ${record.advancement.active_iteration_ref}`);
+    else if (JSON.parse(fs.readFileSync(iterationFile, 'utf8')).schema_version !== 'iteration-state-record/v3') errors.push(`${file}: active iteration must use iteration-state-record/v3`);
   }
-  for (const key of ['active_constraints', 'open_questions', 'canonical_artifact_refs']) validateStringArray(record[key], key, errors, file, { nonEmpty: true, unique: true });
-  for (const ref of Array.isArray(record.canonical_artifact_refs) ? record.canonical_artifact_refs : []) {
-    if (isVolatileEvidenceRef(ref)) errors.push(`${file}: canonical_artifact_refs contains volatile ref: ${ref}`);
-  }
-  if (!record.last_state_delta || typeof record.last_state_delta !== 'object' || Array.isArray(record.last_state_delta)) {
-    errors.push(`${file}: last_state_delta must be an object`);
-  } else {
-    rejectUnknownKeys(record.last_state_delta, LAST_DELTA_KEYS, 'last_state_delta', errors, file);
-    for (const key of ['changed_dimensions', 'deferred_dimensions', 'blocked_dimensions', 'case_refs']) {
-      validateStringArray(record.last_state_delta[key], `last_state_delta.${key}`, errors, file, { nonEmpty: true, unique: true });
-    }
-    if (!Array.isArray(record.last_state_delta.state_transitions)) {
-      errors.push(`${file}: last_state_delta.state_transitions must be an array`);
-    } else {
-      for (const [index, transition] of record.last_state_delta.state_transitions.entries()) {
-        const label = `last_state_delta.state_transitions[${index}]`;
-        rejectUnknownKeys(transition, new Set(['dimension', 'from_state', 'to_state', 'reason']), label, errors, file);
-        if (!COMPLETENESS_DIMENSION_KEYS.includes(transition?.dimension)) errors.push(`${file}: ${label}.dimension is invalid`);
-        if (!VALID_STATE_VALUE.has(transition?.from_state) || !VALID_STATE_VALUE.has(transition?.to_state) || transition?.from_state === transition?.to_state) errors.push(`${file}: ${label} states must describe a real Project state change`);
-        if (typeof transition?.reason !== 'string' || !transition.reason) errors.push(`${file}: ${label}.reason must be a non-empty string`);
-      }
-    }
-    if (typeof record.last_state_delta.iteration_ref !== 'string') errors.push(`${file}: last_state_delta.iteration_ref must be a string`);
-    if (typeof record.last_state_delta.next_project_focus !== 'string') {
-      errors.push(`${file}: last_state_delta.next_project_focus must be a string`);
-    }
-    if (typeof record.last_state_delta.updated_at !== 'string') {
-      errors.push(`${file}: last_state_delta.updated_at must be a string`);
-    }
+  if (path.resolve(file) === path.resolve(STATE_RECORD_PATH) && fs.existsSync(STATE_PATH)) {
+    if (normalize(fs.readFileSync(STATE_PATH, 'utf8')) !== normalize(renderProjectState(record))) errors.push(`${STATE_PATH}: projection is stale`);
   }
   return errors;
 }
 
-function summarize(record) {
-  const dimensions = Object.entries(record.completeness_dimensions || {}).map(([key, value]) => ({
-    key,
-    current_state: value.current_state,
-    target_state: value.target_state,
-    priority: value.priority,
-    confidence: value.confidence,
-    gap: value.gap || '',
-    next_transition: value.next_transition || '',
-  }));
-  return {
-    project: record.project?.name || '',
-    status: record.project?.status || '',
-    current_phase: record.project?.current_phase || '',
-    updated_at: record.project?.updated_at || '',
-    active_iteration_ref: record.active_iteration_ref || '',
-    active_case_refs: record.active_case_refs || [],
-    case_control: record.case_control || {},
-    state_gaps: record.state_gaps || [],
-    dimensions,
-    open_questions: record.open_questions || [],
-    last_state_delta: record.last_state_delta || {},
-  };
+function writeRecord(record) {
+  fs.mkdirSync(PROJECT_ROOT, { recursive: true });
+  fs.writeFileSync(STATE_RECORD_PATH, `${JSON.stringify(record, null, 2)}\n`);
+  fs.writeFileSync(STATE_PATH, `${renderProjectState(record)}\n`);
 }
 
-function commandInit(args) {
-  ensureDirs();
-  if (fs.existsSync(STATE_RECORD_PATH)) {
-    console.log(STATE_RECORD_PATH);
-    return;
-  }
-  const name = args.name;
-  if (!name) throw new Error('init requires --name');
-  const record = createRecord({ name, intent: args.intent || '' });
-  writeRecord(record);
-  writeStateProjection(record);
-  console.log(STATE_RECORD_PATH);
+function usage() {
+  console.log('Usage: project-state.mjs init|register-case|render|validate|audit|summary [record]');
 }
 
 function commandRegisterCase(args) {
@@ -605,203 +266,54 @@ function commandRegisterCase(args) {
   const snapshots = [STATE_RECORD_PATH, STATE_PATH, iterationPath, iterationPath ? iterationPath.replace(/\.record\.json$/, '.md') : '', ITERATIONS_INDEX_PATH]
     .filter(Boolean)
     .map((file) => ({ file, exists: fs.existsSync(file), content: fs.existsSync(file) ? fs.readFileSync(file) : null }));
+}
+
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isMain) {
+
   try {
-    writeRecord(record, STATE_RECORD_PATH);
-    writeStateProjection(record, STATE_PATH);
-    if (iteration) {
-      writeRecord(iteration, iterationPath);
-      runIterationScript(['render', record.active_iteration_ref]);
-      runIterationScript(['index']);
+    const args = parseArgs(process.argv.slice(2));
+    const command = args._[0];
+    if (command === 'init') {
+      if (!args.name) throw new Error('init requires --name');
+      writeRecord(createProjectStateRecord({ name: args.name, intent: args.intent || '' }));
+      console.log(STATE_RECORD_PATH);
+    } else if (command === 'register-case') {
+      if (!args['case-ref']) throw new Error('register-case requires --case-ref');
+      const { record } = resolveRecord();
+      const caseRef = args['case-ref'];
+      record.advancement.active_case_refs = unique([...record.advancement.active_case_refs, caseRef]);
+      if (args.intent) record.advancement.selection_context.current_focus = args.intent;
+      record.project.revision += 1;
+      record.project.updated_at = nowIso();
+      const errors = validateProjectStateRecord(record, STATE_RECORD_PATH);
+      if (errors.length) throw new Error(errors.join('\n'));
+      writeRecord(record);
+      console.log(STATE_RECORD_PATH);
+    } else if (['render', 'validate', 'audit', 'summary'].includes(command)) {
+      const { record, file } = resolveRecord(args._[1] || STATE_RECORD_PATH);
+      if (command === 'render') {
+        const errors = validateProjectStateRecord(record, file);
+        if (errors.length) throw new Error(errors.join('\n'));
+        fs.writeFileSync(STATE_PATH, `${renderProjectState(record)}\n`);
+        console.log(STATE_PATH);
+      } else if (command === 'validate') {
+        const errors = validateProjectStateRecord(record, file);
+        if (errors.length) throw new Error(errors.join('\n'));
+        console.log(`${file}: ok`);
+      } else if (command === 'audit') {
+        const errors = auditCrossRecords(record, file);
+        if (errors.length) throw new Error(errors.join('\n'));
+        console.log(`${file}: audit ok`);
+      } else {
+        console.log(JSON.stringify({ project_name: record.project.name, project_status: record.project.status, project_revision: record.project.revision, current_focus: record.advancement.selection_context.current_focus, active_cases: record.advancement.active_case_refs, project_gaps: record.advancement.project_gaps, software_decisions: record.software_definition.decision_areas.map((area) => ({ id: area.id, status: area.decision.status, revision: area.decision.revision, statement: area.decision.statement, gap_refs: area.gap_refs })), software_invariants: record.software_invariants }, null, 2));
+      }
+    } else {
+      usage();
+      if (command) process.exitCode = 1;
     }
   } catch (error) {
-    for (const snapshot of snapshots) {
-      if (snapshot.exists) fs.writeFileSync(snapshot.file, snapshot.content);
-      else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file);
-    }
-    throw error;
+    console.error(error.message);
+    process.exitCode = 1;
   }
-  console.log(STATE_RECORD_PATH);
-}
-
-export function migrateProjectStateV4(record, { timestamp = nowIso() } = {}) {
-  if (record?.schema_version === 'project-state-record/v4') return { record, migrated: false };
-  if (record?.schema_version !== 'project-state-record/v3') {
-    throw new Error(`Unsupported Project State migration source: ${record?.schema_version || '<missing>'}`);
-  }
-  const previousControl = record.case_control || {};
-  const next = structuredClone(record);
-  next.schema_version = 'project-state-record/v4';
-  next.project.updated_at = timestamp;
-  next.case_control = {
-    next_case_intent: previousControl.next_case_intent || (next.active_case_refs?.length
-      ? 'Select one active Case for each independent Loop.'
-      : 'Create a bounded Case from the remaining Project state gaps.'),
-    priority_basis: previousControl.priority_basis || 'Controller compares current intent, impact, urgency, risk, and dependencies; array order is not priority.',
-    stop_condition: 'Stop after one active Case and one of its candidate gaps are selected for the current Loop.',
-  };
-  next.last_state_delta = {
-    ...(next.last_state_delta || {}),
-    next_project_focus: next.case_control.next_case_intent,
-    updated_at: timestamp,
-  };
-  return { record: next, migrated: true };
-}
-
-function commandMigrateV4(args) {
-  ensureDirs();
-  const file = path.resolve(args._[1] || STATE_RECORD_PATH);
-  const { record, recordFile } = readRecord(file);
-  const canonicalFile = path.resolve(recordFile || file);
-  const migration = migrateProjectStateV4(record);
-  if (!migration.migrated) {
-    console.log(JSON.stringify({ schema_version: 'project-state-migration/v1', migrated: false, changed_files: [] }, null, 2));
-    return;
-  }
-  const errors = validateProjectStateRecord(migration.record, canonicalFile);
-  if (errors.length) throw new Error(errors.join('\n'));
-  const snapshots = [canonicalFile, STATE_PATH].map((snapshotFile) => ({
-    file: snapshotFile,
-    exists: fs.existsSync(snapshotFile),
-    content: fs.existsSync(snapshotFile) ? fs.readFileSync(snapshotFile) : null,
-  }));
-  try {
-    writeRecord(migration.record, canonicalFile);
-    writeStateProjection(migration.record, STATE_PATH);
-  } catch (error) {
-    for (const snapshot of snapshots) {
-      if (snapshot.exists) fs.writeFileSync(snapshot.file, snapshot.content);
-      else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file);
-    }
-    throw error;
-  }
-  console.log(JSON.stringify({
-    schema_version: 'project-state-migration/v1',
-    migrated: true,
-    changed_files: ['arckit/project/state.record.json', 'arckit/project/STATE.md'],
-  }, null, 2));
-}
-
-function runIterationScript(args) {
-  const script = path.join(path.dirname(fileURLToPath(import.meta.url)), 'project-iteration.mjs');
-  const result = spawnSync(process.execPath, [script, ...args], { cwd: process.cwd(), encoding: 'utf8' });
-  if (result.status !== 0) throw new Error(`project-iteration.mjs ${args.join(' ')} failed\n${result.stderr || result.stdout}`);
-}
-
-function commandRender(args) {
-  ensureDirs();
-  const file = path.resolve(args._[1] || STATE_RECORD_PATH);
-  const { record } = readRecord(file);
-  const errors = validateProjectStateRecord(record, file);
-  if (errors.length > 0) {
-    for (const error of errors) console.error(error);
-    process.exit(1);
-  }
-  writeStateProjection(record);
-  console.log(STATE_PATH);
-}
-
-function commandRepairRuntimeRefs(args) {
-  ensureDirs();
-  const file = path.resolve(args._[1] || STATE_RECORD_PATH);
-  const { record, recordFile } = readRecord(file);
-  const canonicalRecordFile = path.resolve(recordFile || file);
-  if (canonicalRecordFile !== path.resolve(STATE_RECORD_PATH)) {
-    throw new Error(`repair-runtime-refs requires ${path.resolve(STATE_RECORD_PATH)}`);
-  }
-  const errors = validateProjectStateRecord(record, canonicalRecordFile);
-  if (errors.length > 0) throw new Error(errors.join('\n'));
-
-  const removedRefs = (record.canonical_artifact_refs || []).filter((ref) => (
-    OPAQUE_RUNTIME_RESULT_REF_PATTERN.test(ref)
-    || (LEGACY_RUNTIME_RESULT_REF_PATTERN.test(ref) && !fs.existsSync(resolveProjectPath(ref)))
-  ));
-  if (removedRefs.length === 0) {
-    console.log(JSON.stringify({
-      schema_version: 'project-state-runtime-ref-repair/v1',
-      repaired: false,
-      removed_canonical_artifact_refs: [],
-      changed_files: [],
-    }, null, 2));
-    return;
-  }
-
-  const removed = new Set(removedRefs);
-  record.canonical_artifact_refs = record.canonical_artifact_refs.filter((ref) => !removed.has(ref));
-  record.project.updated_at = nowIso();
-  const repairedErrors = validateProjectStateRecord(record, canonicalRecordFile);
-  if (repairedErrors.length > 0) throw new Error(repairedErrors.join('\n'));
-
-  const snapshots = [canonicalRecordFile, STATE_PATH].map((snapshotFile) => ({
-    file: snapshotFile,
-    exists: fs.existsSync(snapshotFile),
-    content: fs.existsSync(snapshotFile) ? fs.readFileSync(snapshotFile) : null,
-  }));
-  try {
-    writeRecord(record, canonicalRecordFile);
-    writeStateProjection(record, STATE_PATH);
-  } catch (error) {
-    for (const snapshot of snapshots) {
-      if (snapshot.exists) fs.writeFileSync(snapshot.file, snapshot.content);
-      else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file);
-    }
-    throw error;
-  }
-  console.log(JSON.stringify({
-    schema_version: 'project-state-runtime-ref-repair/v1',
-    repaired: true,
-    removed_canonical_artifact_refs: removedRefs,
-    changed_files: ['arckit/project/state.record.json', 'arckit/project/STATE.md'],
-  }, null, 2));
-}
-
-function commandAudit(args) {
-  const file = path.resolve(args._[1] || STATE_RECORD_PATH);
-  const { record, recordFile } = readRecord(file);
-  const errors = auditRecord(record, recordFile || file);
-  if (errors.length > 0) {
-    for (const error of errors) console.error(error);
-    process.exit(1);
-  }
-  console.log(`${recordFile || file}: audit ok`);
-}
-
-function commandValidate(args) {
-  const file = path.resolve(args._[1] || STATE_RECORD_PATH);
-  const { record, recordFile } = readRecord(file);
-  const errors = validateProjectStateRecord(record, recordFile || file);
-  if (errors.length > 0) {
-    for (const error of errors) console.error(error);
-    process.exit(1);
-  }
-  console.log(`${recordFile || file}: ok`);
-}
-
-function commandSummary(args) {
-  const file = path.resolve(args._[1] || STATE_RECORD_PATH);
-  const { record, recordFile } = readRecord(file);
-  const errors = validateProjectStateRecord(record, recordFile || file);
-  if (errors.length > 0) {
-    for (const error of errors) console.error(error);
-    process.exit(1);
-  }
-  console.log(JSON.stringify(summarize(record), null, 2));
-}
-
-function main() {
-  const args = parseArgs(process.argv.slice(2));
-  const command = args._[0];
-  if (!command || command === 'help' || command === '--help') usage(0);
-  if (command === 'init') return commandInit(args);
-  if (command === 'register-case' || command === 'select-case') return commandRegisterCase(args);
-  if (command === 'migrate-v4') return commandMigrateV4(args);
-  if (command === 'repair-runtime-refs') return commandRepairRuntimeRefs(args);
-  if (command === 'render') return commandRender(args);
-  if (command === 'audit') return commandAudit(args);
-  if (command === 'validate') return commandValidate(args);
-  if (command === 'summary') return commandSummary(args);
-  usage(1);
-}
-
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { main(); } catch (error) { console.error(error.message); process.exitCode = 1; }
 }

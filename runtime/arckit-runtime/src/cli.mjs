@@ -1,7 +1,7 @@
-import { resolve } from "node:path";
-import { readFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { mkdir, rename, writeFile } from "node:fs/promises";
 import { createStateStore } from "./state-store.mjs";
-import { createCodexAppServerAdapter, probeCodexAppServer } from "../adapters/codex-app-server-adapter.mjs";
+import { probeCodexAppServer } from "../adapters/codex-app-server-adapter.mjs";
 import { validateRuntimeResult } from "./validator.mjs";
 import { loadRuntimeResultFile } from "./runtime-result-file.mjs";
 import { evaluateRuntimeGates } from "./gate-engine.mjs";
@@ -9,6 +9,7 @@ import { writeLedger } from "./ledger-writer.mjs";
 import { ensureArckitProject } from "./project-initializer.mjs";
 import { detectConversationLocale } from "./conversation-locale.mjs";
 import { runStateDrivenSession } from "./state-driven-runner.mjs";
+import { analyzeLifecycleTrace } from "./observability/lifecycle-trace.mjs";
 
 export async function main(argv) {
   const command = argv[0];
@@ -25,18 +26,6 @@ export async function main(argv) {
     } else {
       printRunSummary(result);
     }
-    return;
-  }
-
-  if (command === "agent-task") {
-    const options = parseAgentTaskOptions(argv.slice(1));
-    const result = await runAgentTask(options);
-    if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
-    } else {
-      console.log(`Agent task: ${result.status}`);
-    }
-    process.exitCode = result.status === "completed" ? 0 : 1;
     return;
   }
 
@@ -112,64 +101,40 @@ export async function main(argv) {
     return;
   }
 
+  if (command === "analyze-lifecycle") {
+    const options = parseLifecycleAnalysisOptions(argv.slice(1));
+    const result = await analyzeLifecycleTrace(options.file);
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
   throw new Error(`Unknown command: ${command}`);
 }
 
 export async function run(options) {
   const projectRoot = resolve(options.project);
-  if (options.packetFile) {
-    options.packetEnvelope = JSON.parse(await readFile(resolve(options.packetFile), "utf8"));
-  }
   await ensureArckitProject({
     projectRoot,
     intent: options.task || "Initialize Arckit project state before supervised runtime execution."
   });
   const stateStore = createStateStore(projectRoot);
+  if (options.threadBindingFile) {
+    options.onThreadBound = async (binding) => {
+      await writeThreadBinding(options.threadBindingFile, {
+        schema_version: "arckit-codex-thread-binding/v1",
+        project_root: projectRoot,
+        task_id: String(options.taskId || ""),
+        ...binding
+      });
+    };
+  }
   options.conversationLocale = options.conversationLocale
-    || options.packetEnvelope?.conversation_locale
-    || options.packetEnvelope?.response_language
-    || options.packetEnvelope?.selected_round?.conversation_locale
-    || options.packetEnvelope?.selected_round?.response_language
-    || options.packetEnvelope?.loop_frame?.conversation_locale
-    || options.packetEnvelope?.loop_frame?.response_language
-    || detectConversationLocale(options.task || options.packetEnvelope?.selected_round?.round_goal || "");
+    || detectConversationLocale(options.task || "");
   return runStateDrivenSession({
     projectRoot,
     stateStore,
     options
   });
-}
-
-async function runAgentTask(options) {
-  const projectRoot = resolve(options.project);
-  const adapter = createCodexAppServerAdapter();
-  let result = null;
-  try {
-    for await (const event of adapter.runTurn({
-      projectRoot,
-      prompt: options.task,
-      options: {
-        resultKind: "agent-task",
-        approvalPolicy: options.approvalPolicy,
-        superviseStdin: options.superviseStdin,
-        model: options.model,
-        codexBin: options.codexBin
-      }
-    })) {
-      if (options.streamEvents) {
-        console.error(JSON.stringify({ event }));
-      }
-      if (event.type === "runtime.agent_task.result") {
-        result = event.result;
-      }
-    }
-  } finally {
-    adapter.close();
-  }
-  if (!result) {
-    throw new Error("Agent task completed without an arckit-agent-task-result/v1 result.");
-  }
-  return result;
 }
 
 function parseRunOptions(args) {
@@ -178,7 +143,7 @@ function parseRunOptions(args) {
     adapter: "dry-run",
     dryRun: false,
     json: false,
-    maxAutoRounds: 8,
+    maxNoProgressRounds: 8,
     streamEvents: false,
     superviseStdin: false,
     approvalPolicy: "on-request",
@@ -208,17 +173,27 @@ function parseRunOptions(args) {
       options.model = requiredValue(args, ++index, arg);
     } else if (arg === "--codex-bin") {
       options.codexBin = requiredValue(args, ++index, arg);
-    } else if (arg === "--packet-file") {
-      options.packetFile = requiredValue(args, ++index, arg);
+    } else if (arg === "--task-id") {
+      options.taskId = requiredValue(args, ++index, arg);
+    } else if (arg === "--thread-id") {
+      options.threadId = requiredValue(args, ++index, arg);
+    } else if (arg === "--thread-binding-file") {
+      options.threadBindingFile = resolve(requiredValue(args, ++index, arg));
     } else if (arg === "--runtime-record-ref") {
       options.runtimeRecordRef = requiredValue(args, ++index, arg);
     } else if (arg === "--runtime-context") {
       options.runtimeContext = parseJsonObject(requiredValue(args, ++index, arg), arg);
-    } else if (arg === "--max-auto-rounds") {
-      options.maxAutoRounds = Number(requiredValue(args, ++index, arg));
-      if (!Number.isInteger(options.maxAutoRounds) || options.maxAutoRounds < 1) {
-        throw new Error("--max-auto-rounds must be a positive integer.");
+    } else if (arg === "--max-no-progress-rounds") {
+      options.maxNoProgressRounds = Number(requiredValue(args, ++index, arg));
+      if (!Number.isInteger(options.maxNoProgressRounds) || options.maxNoProgressRounds < 1) {
+        throw new Error("--max-no-progress-rounds must be a positive integer.");
       }
+    } else if (arg === "--lifecycle-trace-id") {
+      options.lifecycleTraceId = requiredValue(args, ++index, arg);
+    } else if (arg === "--lifecycle-parent-span-id") {
+      options.lifecycleParentSpanId = requiredValue(args, ++index, arg);
+    } else if (arg === "--lifecycle-run-id") {
+      options.lifecycleRunId = requiredValue(args, ++index, arg);
     } else {
       throw new Error(`Unknown run option: ${arg}`);
     }
@@ -227,42 +202,14 @@ function parseRunOptions(args) {
   return options;
 }
 
-function parseAgentTaskOptions(args) {
-  const options = {
-    project: ".",
-    task: "",
-    json: false,
-    streamEvents: false,
-    superviseStdin: false,
-    approvalPolicy: "on-request",
-    codexBin: "codex",
-    model: null
-  };
+function parseLifecycleAnalysisOptions(args) {
+  const options = { file: "" };
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === "--project") {
-      options.project = requiredValue(args, ++index, arg);
-    } else if (arg === "--task") {
-      options.task = requiredValue(args, ++index, arg);
-    } else if (arg === "--json") {
-      options.json = true;
-    } else if (arg === "--stream-events") {
-      options.streamEvents = true;
-    } else if (arg === "--supervise-stdin") {
-      options.superviseStdin = true;
-    } else if (arg === "--approval-policy") {
-      options.approvalPolicy = requiredValue(args, ++index, arg);
-    } else if (arg === "--model") {
-      options.model = requiredValue(args, ++index, arg);
-    } else if (arg === "--codex-bin") {
-      options.codexBin = requiredValue(args, ++index, arg);
-    } else {
-      throw new Error(`Unknown agent-task option: ${arg}`);
-    }
+    if (arg === "--file") options.file = requiredValue(args, ++index, arg);
+    else throw new Error(`Unknown analyze-lifecycle option: ${arg}`);
   }
-  if (!options.task) {
-    throw new Error("agent-task requires --task <text>.");
-  }
+  if (!options.file) throw new Error("analyze-lifecycle requires --file <events.jsonl>.");
   return options;
 }
 
@@ -410,18 +357,18 @@ function printHelp() {
 
 Usage:
   arckit-runtime init-project [--project <path>] [--name <name>] [--intent <text>]
-  arckit-runtime run [--project <path>] [--task <text>] [--runtime-context <json>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
+  arckit-runtime run [--project <path>] [--task <text>] [--task-id <id>] [--thread-id <id>] [--thread-binding-file <path>] [--runtime-context <json>] [--max-no-progress-rounds <count>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
   arckit-runtime run --adapter codex-app-server [--stream-events] [--supervise-stdin]
-  arckit-runtime agent-task --project <path> --task <text> [--json] [--stream-events]
   arckit-runtime probe-app-server [--project <path>] [--json]
+  arckit-runtime analyze-lifecycle --file <events.jsonl>
   arckit-runtime validate-result --file <runtime-result.json>
   arckit-runtime gate-result --file <runtime-result.json> [--project <path>] [--json]
   arckit-runtime write-ledger --file <runtime-result.json> [--project <path>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
 
 MVP behavior:
   - reads arckit/project state
-  - keeps one Codex app-server alive for the full state-driven session
-  - reuses one Controller thread for planning and review while isolating Worker threads
+  - keeps one persistent Codex thread for the full todo, including validation, repair, and Git closeout
+  - resumes the saved thread after process restart and compacts that same thread at 80% context utilization
   - lets the manifest-triggered Controller select one Case gap per round
   - sends only skill triggers, human input, and bounded Runtime facts to Agent turns
   - validates the required runtime result envelope
@@ -431,7 +378,16 @@ MVP behavior:
 Codex app-server controls:
   - --stream-events prints normalized runtime events as JSONL on stderr
   - --supervise-stdin accepts "/steer <text>" and "/interrupt" while a turn runs
+  - Desktop todo runs persist correlated lifecycle spans and analyze them with analyze-lifecycle
 `);
+}
+
+async function writeThreadBinding(file, value) {
+  const target = resolve(file);
+  await mkdir(dirname(target), { recursive: true });
+  const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  await rename(temporary, target);
 }
 
 function printRunSummary(result) {
