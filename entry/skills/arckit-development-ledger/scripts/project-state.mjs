@@ -108,9 +108,6 @@ function validateInvariant(invariant, index, errors, file) {
   if (!['required', 'recommended', 'informational'].includes(invariant.priority)) errors.push(`${file}: ${label}.priority is invalid`);
 }
 
-  for (const dimension of gap.covered_dimensions) if (!COMPLETENESS_DIMENSION_KEYS.includes(dimension)) errors.push(`${file}: state_gaps[${index}] covers unknown dimension: ${dimension}`);
-}
-
 function validateProjectGap(gap, index, refs, allGapIds, errors, file) {
   const label = `advancement.project_gaps[${index}]`;
   if (!isObject(gap)) return errors.push(`${file}: ${label} must be an object`);
@@ -125,9 +122,6 @@ function validateProjectGap(gap, index, refs, allGapIds, errors, file) {
     if (!isObject(target)) { errors.push(`${file}: ${targetLabel} must be an object`); continue; }
     rejectUnknownKeys(target, TARGET_KEYS, targetLabel, errors, file);
     if (!refs[target.kind]?.has(target.ref)) errors.push(`${file}: ${targetLabel} references unknown ${target.kind || 'target'} ${target.ref || ''}`);
-  }
-}
-
   }
 }
 
@@ -229,48 +223,8 @@ function usage() {
   console.log('Usage: project-state.mjs init|register-case|render|validate|audit|summary [record]');
 }
 
-function commandRegisterCase(args) {
-  const caseRef = args['case-ref'];
-  if (!caseRef) throw new Error('register-case requires --case-ref');
-  const { record } = readRecord(STATE_RECORD_PATH);
-  if (!caseRef.includes('/active/') || !fs.existsSync(resolveProjectPath(caseRef))) throw new Error(`register-case target must be an existing active Case: ${caseRef}`);
-  const timestamp = nowIso();
-  if (!record.active_case_refs.includes(caseRef)) record.active_case_refs.push(caseRef);
-  record.case_control = {
-    next_case_intent: args.intent || '',
-    priority_basis: args.reason || 'Controller compares the active Cases against current intent, impact, risk, and dependencies for each Loop.',
-    stop_condition: 'Stop after one active Case and one of its candidate gaps are selected for the current Loop.',
-  };
-  record.project.updated_at = timestamp;
-  record.last_state_delta = {
-    changed_dimensions: [],
-    state_transitions: [],
-    deferred_dimensions: [],
-    blocked_dimensions: [],
-    case_refs: [caseRef],
-    iteration_ref: record.active_iteration_ref || '',
-    next_project_focus: args.intent || '',
-    updated_at: timestamp,
-  };
-  const projectErrors = validateProjectStateRecord(record, STATE_RECORD_PATH);
-  if (projectErrors.length) throw new Error(projectErrors.join('\n'));
-  const iterationPath = record.active_iteration_ref ? resolveProjectPath(record.active_iteration_ref) : '';
-  if (iterationPath && !fs.existsSync(iterationPath)) throw new Error(`${iterationPath}: active_iteration_ref must exist before selecting a Case`);
-  const iteration = iterationPath && fs.existsSync(iterationPath) ? readJsonRecord(iterationPath) : null;
-  if (iteration) {
-    if (iteration.schema_version !== 'iteration-state-record/v2') throw new Error(`${iterationPath}: active iteration must use iteration-state-record/v2`);
-    if (iteration.project_state_ref !== path.relative(process.cwd(), STATE_RECORD_PATH).replaceAll('\\', '/')) throw new Error(`${iterationPath}: project_state_ref must reference ${path.relative(process.cwd(), STATE_RECORD_PATH)}`);
-    iteration.active_case_refs = sortedUnique([...(iteration.active_case_refs || []), caseRef]);
-    iteration.updated_at = timestamp;
-  }
-  const snapshots = [STATE_RECORD_PATH, STATE_PATH, iterationPath, iterationPath ? iterationPath.replace(/\.record\.json$/, '.md') : '', ITERATIONS_INDEX_PATH]
-    .filter(Boolean)
-    .map((file) => ({ file, exists: fs.existsSync(file), content: fs.existsSync(file) ? fs.readFileSync(file) : null }));
-}
-
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (isMain) {
-
   try {
     const args = parseArgs(process.argv.slice(2));
     const command = args._[0];
