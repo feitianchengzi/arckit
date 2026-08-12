@@ -15,7 +15,7 @@
 5. 用户开启顶部“自动领取”总闸。系统从已经绑定工作区且明确允许自动领取的项目中领取一项待处理任务，更新为进行中，执行 Runtime loop，完成后更新为已完成并领取下一项。
 6. Runtime 需要授权、补充事实或产品判断。Command Center 把人工事项提升到首要关注区；用户进入 Intervention Workbench，处理后返回自动化主页面。
 7. 用户主动审查某个任务的执行消息与证据。Intervention Workbench 以只读审查模式打开，Runtime、Controller、Worker、工具摘要和人工输入在同一时间线中呈现；用户显式选择介入后才出现可提交输入。
-8. 项目、待办、状态写回或 Runtime 收束失败。系统保留已知事实与本地证据，冻结受影响的领取范围，并明确展示恢复责任和下一动作。
+8. 项目、待办、状态写回或 Runtime 收束失败。系统保留已知事实与本地证据，冻结受影响的领取范围，并明确展示恢复责任和下一动作；已有持久 Agent 对话时，用户可以在恢复卡直接补充反馈并继续。
 9. 用户判断某次运行是否存在不合理的 Token 或时间消耗。Workbench 按当前待办的 Run、round、turn 和执行 lane 展示逻辑总量、缓存输入、非缓存输入、输出、上下文增长与耗时，并把重复命令、无状态进展的上下文膨胀等异常作为可审查提示，而不是自动终止条件。
 10. 用户希望亲自观察和参与当前任务时，从当前运行直接切换到交互式 Codex CLI；Desktop 安全停止 Runtime 后打开终端，用户在同一 Case 上继续，返回时再显式交还执行权或由已关闭 Case 自动进入收尾。
 
@@ -28,7 +28,7 @@
 5. “自动领取”开启且没有未收束任务时，系统按确定性规则从允许自动领取的项目中选择一项符合条件的待处理任务；存在待处理任务但没有符合资格的项目时，Command Center 显示具体阻断原因和直接配置动作。
 6. 系统基于最新服务器版本条件式提交 `待处理 → 进行中`；领取冲突时刷新队列并选择下一项，不启动 Runtime。
 7. 服务器确认进行中后，系统保存任务、项目、工作区和待启动 Runtime 的关联，再启动 Runtime loop。
-8. Runtime 执行 Controller Plan、Worker、Controller Review、Gate 与 ledger writeback，并把跨内部 thread 的语义进展聚合为当前待办的消息、阶段和证据摘要。
+8. Runtime 在同一持久 Agent thread 中按 Gap 发起 turn、执行必要工具、完成 Gate 与 ledger writeback，并把语义进展聚合为当前待办的消息、阶段和证据摘要。
 9. 用户选择“切换到 Codex CLI”时，系统安全停止当前 run，确认进程退出后在绑定工作区打开可交互终端，并以 `$using-arckit`、Case 标识和待办意图开始接管会话。
 10. CLI 接管期间 Command Center 显示执行权所在、Case 和“恢复自动执行”；同步发现 Case 已关闭时直接进入 commit 与远端完成写回，未关闭时只有用户显式交还执行权才启动 fresh Runtime run。
 11. Runtime 与 ledger 均收束后，系统将远端任务更新为已完成；服务器确认后领取下一项。
@@ -51,13 +51,13 @@
 - 全局自动领取已开启但待处理任务均因未绑定或未授权而不可执行时，页面显示“待处理任务尚不可领取”，列出首要原因并提供“允许此项目自动领取”或“配置项目”动作，不显示“队列已清空”。
 - 人工介入是 Runtime 子状态，不直接等同于远端已阻塞。可恢复的人工等待保持任务为进行中；无法继续或依赖外部条件时才更新为已阻塞。
 - 状态写回失败时，系统不推断服务器结果，不领取下一任务。
-- 服务器已确认进行中但 Runtime 启动失败时，任务保持进行中；系统冻结队列并进入 Recovery Center，主动作是重试启动同一任务，不自动回退为待处理。
+- 服务器已确认进行中但 Runtime 启动失败时，任务保持进行中；系统冻结队列并进入 Recovery Center。用户可重试同一任务；若该任务已有持久 Agent thread，也可输入反馈并继续；系统不自动回退为待处理。
 - 活动任务被外部更新为已取消、已阻塞、转移项目或失去权限时，系统请求 Runtime 在安全停止点收束，保留证据并冻结队列，直到服务器事实与本地运行重新一致。
 - 多个客户端争抢同一任务时，以服务器条件式更新结果为准；失败的客户端不得创建本地 Runtime。
 - 未绑定工作区、缺少项目权限或存在多个进行中任务时，系统进入需处理状态，不静默选择执行目标。
 - 只读审查不会改变 Runtime；用户选择“介入当前运行”后才获得输入与控制能力。
 - 每个远端待办拥有独立的 Workbench 会话。对话区只加载该待办的初始 Run、续接、人工介入和收束消息；项目默认 Chat、其他待办以及归属不明的历史消息不得混入。
-- 同一待办的续接保持在同一 Workbench 会话中，但界面不承诺底层 Codex thread 连续；Worker 目标或职责发生变化时以新 thread 执行，并以结构化报告和最新 Case State 续接事实。
+- 同一待办的续接保持在同一 Workbench 会话和持久 Codex thread 中；fresh Case State 校正事实与授权，Run 或 turn 切换不创建新的待办对话。
 - Workbench 以待办消息流为唯一主时间线。Runtime、Controller、Controller Review、Worker Agent、工具和用户通过消息来源标签区分，不按 Codex thread、Worker thread 或 JSON 事件类型拆成多个对话区。
 - 计划、命令、文件变更、验证和 ledger 结果以有界摘要消息进入时间线；原始 JSON envelope、逐 token 文本 delta、逐字符 reasoning delta 和连续命令输出不直接呈现为普通用户消息。
 - Workbench 的窗口壳、左右信息栏和底部输入区保持固定；只有中间消息列表沿垂直方向滚动。左右信息栏内容超出时在各自区域独立滚动，不推动输入区离开窗口。
@@ -145,7 +145,9 @@
 
 `领取候选 → 条件式更新冲突 → 刷新队列 → 选择下一项`
 
-`服务器已进行中 → Runtime 启动失败 → Recovery Center → 重试同一 Runtime 或标记阻塞`
+`服务器已进行中 → Runtime 启动失败 → Recovery Center → 重试同一 Runtime / 添加反馈并继续 / 标记阻塞`
+
+`Recovery Center 输入反馈 → 校验当前 task session 与持久 thread → 启动同 thread 新 Run → 打开 Workbench 并显示“你”的反馈`
 
 `自动执行中 → 服务器状态外部变化 → 安全停止 → Recovery Center → 对齐后恢复队列`
 
@@ -177,6 +179,7 @@
 - `待处理 → 进行中` 写回失败时不启动 Runtime。
 - 条件式领取冲突时，候选任务显示“已由其他执行端领取”，刷新队列后继续选择下一项。
 - `待处理 → 进行中` 已成功但 Runtime 启动失败时保留任务与启动意图关联，冻结下一任务并提供重试启动。
+- 已绑定持久 Agent thread 的 Runtime 失败卡展示反馈输入与“添加反馈并继续”；空白反馈不提交。提交成功后原文进入当前待办时间线并打开只读审查，新 Run 继续同一 thread；启动失败则保留输入场景和恢复项。
 - `进行中 → 已完成` 写回失败时保留本地完成证据，冻结下一任务，直到服务器确认。
 - 应用重启时先恢复本地活动任务、关联 Run、canonical Case 和 commit 检查点，再恢复远端认证与任务快照；多个进行中任务触发人工恢复中心。
 - closed Case 立即结束 Runtime 执行态；commit 已完成且任务源不可用时显示等待远端收尾，不生成“Runtime 丢失”恢复项，也不重复执行 commit。
@@ -196,7 +199,7 @@
 - `../login/default.html` 投影应用启动时的会话恢复、未登录、验证码已发送和登录失败状态。
 - `authentication.html` 投影 Automation Workspace 账号设置覆盖层的已登录与会话失效状态。
 - `intervention-workbench.html` 投影人工处理模式与只读审查模式。
-- `runtime-recovery.html` 投影领取冲突、Runtime 启动失败、停止当前运行、外部状态变化、多个进行中任务、任务源完整性异常和任务源会话失效。
+- `runtime-recovery.html` 投影领取冲突、Runtime 启动失败、添加反馈并继续、停止当前运行、外部状态变化、多个进行中任务、任务源完整性异常和任务源会话失效。
 - 三个投影保持同一任务上下文和返回路径；Chat 不成为主导航常驻入口。
 
 ## 页面状态
@@ -216,7 +219,8 @@
 | 人工处理模式 | 用户处理人工请求 | NavigationSplitView、TextEditor | 提交并恢复自动化 |
 | 只读审查模式 | 用户查看历史或当前执行消息 | NavigationSplitView、ScrollView | 返回或显式介入 |
 | 领取冲突 | 条件式状态更新失败 | Recovery Center、Table | 刷新并选择下一项 |
-| Runtime 启动失败 | 服务器已进行中但本地进程未启动 | Recovery Center、Inspector | 重试同一任务或标记阻塞 |
+| Runtime 启动失败 | 服务器已进行中但本地进程未启动 | Recovery Center、Inspector | 重试同一任务、添加反馈并继续或标记阻塞 |
+| Runtime 反馈续跑 | 失败项属于当前任务且已有持久 Agent thread | Recovery Center、TextEditor | 提交非空反馈，继续同一 thread 并打开 Workbench |
 | 外部状态变化 | 活动任务被取消、阻塞、转移或撤权 | Recovery Center、Alert | 安全停止并对齐事实 |
 | 多个进行中任务 | 启动恢复发现多个候选 | Recovery Center、Table | 选择唯一恢复任务 |
 | 停止当前运行确认 | 用户主动停止活动 Runtime | ConfirmationDialog | 安全停止或返回运行 |

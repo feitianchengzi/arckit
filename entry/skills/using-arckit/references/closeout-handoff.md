@@ -55,7 +55,7 @@ round_outcome: completed
 case_resolution: { claimed_status: unresolved, reason: "..." }
 ```
 
-`gap_selection.mode=candidate` 时，`selected_gap` 逐字段复现当前 candidate；`mode=fresh` 时，它描述一个尚未持久化、Agent-owned、无未闭合依赖并在本轮完成的普通 Gap。`considered` 覆盖 selected Case scope 的 persisted candidates 和本轮实际发现的 fresh candidates，恰好一项 `selected`。两种模式都只关闭一个验收主张。`gaps_added` 只记录结果型未解决义务，不保存未来 Loop 的执行步骤；新增 Gap 只能在下一次 fresh-read 后被执行。关闭最后一个 threatened/undetermined impact 的承接 gap 时，必须将 impact 更新为 upheld 或绑定新 gap。
+`gap_selection.mode=candidate` 时，`selected_ref` 与 `selected_gap.id` 精确指向当前 candidate；`selected_gap.goal/reason` 允许 Agent 作不改变验收主张的自然语言转述，Ledger 以 snapshot token、Case revision、稳定引用和当前 ready 状态重新解析 canonical candidate，并将 canonical 内容写入 round 与 closeout。`mode=fresh` 时，`selected_gap` 描述一个尚未持久化、Agent-owned、无未闭合依赖并在本轮完成的普通 Gap。`considered` 覆盖 selected Case scope 的 persisted candidates 和本轮实际发现的 fresh candidates，恰好一项 `selected`。两种模式都只关闭一个验收主张。`gaps_added` 只记录结果型未解决义务，不保存未来 Loop 的执行步骤；新增 Gap 只能在下一次 fresh-read 后被执行。关闭最后一个 threatened/undetermined impact 的承接 gap 时，必须将 impact 更新为 upheld 或绑定新 gap。
 
 `selected_gap` 和 `planned_transition` 只能由本轮 trusted snapshot 中已经接受的事实与决定直接支持。本轮 `facts_added` 可以证明 selected Gap，也可以派生 `gaps_added`，但不能在同一 transition 中成为其他下游结果的执行依据；依赖这些事实的结果必须等 closeout 和 post-commit fresh-read 后重新选择。
 

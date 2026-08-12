@@ -196,14 +196,14 @@ case_resolution: {}
 
 assessment 绑定 observed Project revision。Ledger 只校验 invariant 引用全覆盖、disposition 结构、fact/gap 引用和 evidence 闭合，不判断某条 invariant 是否语义相关，也不把 invariant 映射到 Tech、Spec、代码、测试、skill 或路径。Agent 可在后续 round 用新 facts 将过去的 `not_relevant`/`upheld` 判断重新声明为 `threatened`/`undetermined`；round history 保留重新打开的依据。
 
-`gap_selection` 记录 snapshot catalog 中全部 persisted candidates 与本轮 fresh gap 候选，逐项给出 eligibility、priority basis 和 selected/deferred/excluded 理由。Ledger 对当前 Project gaps 与所选 Case persisted candidates 做强覆盖校验；其他 Cases 的条目保留为选择审计但不进入并发锁。`mode=candidate` 时 selected gap 逐字段复现 snapshot catalog；`mode=fresh` 时原子创建并关闭一个此前未持久化、Agent-owned、无未闭合依赖且本轮已完成的普通 Gap。两种模式都只关闭 selected gap；`gaps_added` 仅持久化本轮新事实已经暴露但仍未解决的结果 Gap，不作为未来 Loop 计划，也不能在本轮继续执行。任何一轮都可以提交相关 Project delta，不等待 Case resolved：
+`gap_selection` 记录 snapshot catalog 中全部 persisted candidates 与本轮 fresh gap 候选，逐项给出 eligibility、priority basis 和 selected/deferred/excluded 理由。Ledger 对当前 Project gaps 与所选 Case persisted candidates 做强覆盖校验；其他 Cases 的条目保留为选择审计但不进入并发锁。`mode=candidate` 时，`selected_ref`、Gap id、Case `updated_at`、Project revision、selection token 与当前 ready 状态共同构成稳定 identity/freshness 边界；`selected_gap.goal/reason` 是 Agent 可自然转述的语义投影，不参与逐字身份比较。Apply 在锁内按稳定身份重新解析当前 canonical candidate，并将 canonical object 写入 round 与 closeout，避免 Agent 表达成为第二份事实。`mode=fresh` 时原子创建并关闭一个此前未持久化、Agent-owned、无未闭合依赖且本轮已完成的普通 Gap。两种模式都只关闭 selected gap；`gaps_added` 仅持久化本轮新事实已经暴露但仍未解决的结果 Gap，不作为未来 Loop 计划，也不能在本轮继续执行。任何一轮都可以提交相关 Project delta，不等待 Case resolved：
 
 - 产品或技术结论在被真正澄清的当轮更新对应 decision。
 - 新事实使旧决策失效时标记 stale 并绑定 Project gap。
 - 实现或验证轮可以更新 Project gap 与 selection context。
 - 非核心 invariant 的 add/update/retire 也走显式 change。
 
-Decision change 绑定 observed decision revision并递增；整个 transition 同时绑定 Case-scoped snapshot token 与 observed Project numeric revision。Trusted ledger 在跨进程 Project lock 中重新读取 snapshot、验证 persisted candidate 覆盖与选择 token，并原子写 Case、Project、Iteration、投影和索引；任一步失败全部恢复。Case-scoped selection token 允许无相互影响的 Cases 独立推进，而 Project revision 或所选 Case candidate 变化会 fail closed。
+Decision change 绑定 observed decision revision并递增；整个 transition 同时绑定 Case-scoped snapshot token 与 observed Project numeric revision。Trusted ledger 在跨进程 Project lock 中重新读取 snapshot、验证 persisted candidate 覆盖、稳定 selected ref、选择 token 和当前 readiness，并原子写 Case、Project、Iteration、投影和索引；任一步失败全部恢复。Case-scoped selection token 允许无相互影响的 Cases 独立推进，而 Project revision、Case revision、候选身份或 readiness 变化仍会 fail closed；仅 `goal/reason` 的等义改写不会被误判为 stale。
 
 这保证“当前 Gap 做清楚什么，就把对应长期事实当轮沉淀”，而不是常规依赖最终 Review 补文档，也避免 Case 结束时一次性猜测所有 Project 影响。
 

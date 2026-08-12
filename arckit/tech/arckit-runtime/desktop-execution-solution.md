@@ -126,10 +126,13 @@ Automation Store 把活动任务收尾拆成 `case_status/case_resolved_at`、`c
 
 session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_start` 必须复用它。任务完成后 session、thread id 与消息留作审查；删除项目时沿用项目级清理规则。退出登录只清除远端身份与快照，不删除本地 task session、thread binding、Run activity 或用量历史。
 
+绑定活动任务与持久 `thread_id` 的 Runtime 恢复项同时提供 `feedback_continue`。Coordinator 要求非空用户原文，校验 recovery、active task、task session 和 thread 归属一致，再用该原文作为新 Run 的唯一 task 内容 resume 同一 thread；新 Run 关联来源 recovery、失败 Run、result 与 activity refs。Run 成功建立后，原文以 `role=user`、`kind=recovery_feedback` 写入同一 Desktop session，恢复项才移除；启动失败时恢复项和 recovery phase 保留。Workbench 合并 session 用户消息与所有同 session Run 投影，因此反馈在提交后立即作为“你”的消息出现在当前待办对话，而不创建新对话或覆盖 canonical Case facts。
+
 ## 验收口径
 
 - 两个连续远端待办在同一项目中获得不同 `session_id`，Workbench transcript 不交叉。
 - 同一待办的 intervention、continuation、普通 Gap、Completion Review、finding 修复和 Git-only closeout 保持同一 Desktop session 与 Codex thread。
+- 已绑定持久 thread 的 Runtime 失败项可接收非空用户反馈；反馈启动同 thread 的新 Run、保留来源 refs，并在同一 Workbench transcript 中显示，失败时不提前移除恢复项。
 - thread id 在首个 turn 前持久化；进程重启和 Runtime Run 切换都 resume 同一 thread。
 - 不同待办不共享 Codex thread；同一待办不会创建 Controller、Worker、Review 或 commit thread。
 - 同一 `cwd + command` 的并发请求只批准一个进程，并留下可审查软异常。

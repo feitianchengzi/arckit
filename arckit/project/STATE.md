@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 31
-Updated: 2026-08-12T08:52:29.437Z
+Revision: 34
+Updated: 2026-08-12T10:03:23.445Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-诊断并修复 arckit-runtime 登录会话过早失效，使认证续期符合连续使用预期。
+优化动态 gap transition 的身份与新鲜度校验，使 Agent 可自然表达而不因说明文本改写被拒；在恢复中心提供“添加反馈并继续”，把用户反馈作为同一持久 Agent thread 的新消息，并在对话页面可见。
 
 ## Active Work
 
@@ -32,14 +32,14 @@ Arckit is a state-driven software-development protocol and optional supervised R
 | product_intent_and_scope | settled | 1 | Arckit is a repository-owned software-development handoff protocol and Runtime that lets one Agent and automation hosts advance durable Project/Case state safely. | - |
 | product_capabilities | settled | 3 | Arckit provides Project/Iteration/Case ledgers, fresh-fact-driven invariant-guided dynamic Case Gap discovery, strict single-Gap Rounds, trusted atomic transitions, maintained development skills, and an optional supervised Runtime/Desktop. | GAP-agent-scenario-evaluation |
 | runtime_surfaces | settled | 1 | The software comprises repository-owned skills and Node.js ledger CLIs plus an optional Electron Desktop, Runtime supervisor, and Codex adapter. | - |
-| experience_and_interaction | settled | 4 | Users can invoke using-arckit conversationally; Desktop users observe persisted candidate comparison, accepted round closeout and verified fresh-read in one persistent Agent conversation. Login restoration is silent when a server-backed session remains renewable within the rolling seven-day window; transient refresh failures retain recoverable state, while more than seven days without valid login activity or explicit credential rejection leads to the login recovery surface. | - |
+| experience_and_interaction | settled | 5 | Users invoke using-arckit conversationally and observe persisted candidate comparison, accepted round closeout and verified fresh-read in one persistent Agent conversation. Runtime failures with an existing task thread offer retry, direct feedback continuation or blocking; non-empty feedback starts a new Run on the same thread and appears as the user's message in Workbench. Login restoration remains silent while its server-backed rolling seven-day session is renewable, and transient refresh failures retain recoverable state. | - |
 | visual_language | settled | 2 | Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. | - |
 | identity_and_access | settled | 2 | Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints. Runtime sessions use a server-backed rolling seven-day inactivity window: successful verification login, successful startup session restoration/refresh, or successful token refresh renews the window through rotated server credentials; only more than seven days without such activity, missing or expired credentials, explicit logout, or explicit server rejection/revocation requires login again. | - |
 | data_and_state | settled | 4 | Canonical project data is Project v5, Iteration v3 and Case v5 in arckit/; normal Loop mutation uses Case Transition v8 bound to Ledger Snapshot v1, persists a complete round invariant assessment, produces Round Closeout v2, and requires a verified post-commit snapshot before continuation. Runtime run/session/thread records stay outside the target project and only opaque refs enter the ledger. | GAP-cross-record-audit |
 | external_integrations | settled | 2 | The Runtime integrates with Codex app-server/CLI and optional task sources through explicit adapters; trusted ledger entrypoints remain repository-owned. Workshop authentication renewal uses auth-server/v1/public/refresh_token: Runtime sends the current refresh token, atomically accepts server-rotated credentials and expiry values, never locally extends signed credentials, retries transient transport/service failures without clearing a recoverable session, and treats only explicit invalid/revoked responses or local inactivity/expiry boundaries as reauthentication conditions. | GAP-runtime-resilience-and-adapters |
-| feedback_and_support | settled | 1 | Operational feedback is provided through the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization; no separate public support portal is currently required. | - |
+| feedback_and_support | settled | 2 | Operational feedback is provided through the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization. A Runtime recovery item bound to an existing task thread accepts direct user feedback, continues the same task session/thread and retains that message in Workbench; no separate public support portal is currently required. | - |
 | commercialization_and_entitlement | settled | 1 | Arckit currently has no payment, subscription, trial, quota or commercial feature-entitlement model. | - |
-| technical_foundation | settled | 7 | Arckit uses repository-owned Markdown/JSON state, Node.js ESM Ledger and Runtime scripts, an Electron desktop host, Project State v5, Case v5, Case Transition v8, Ledger Snapshot v1, Round Closeout v2 and Iteration v3. The canonical catalog defines four authoritative durable expectation or decision responsibilities plus realization and risk responsibilities; Ledger validates complete assessments while Runtime does not duplicate semantic relevance or routing. | GAP-runtime-resilience-and-adapters |
+| technical_foundation | settled | 8 | Arckit uses repository-owned Markdown/JSON state, Node.js ESM Ledger and Runtime scripts, an Electron desktop host, Project State v5, Case v5, Case Transition v8, Ledger Snapshot v1, Round Closeout v2 and Iteration v3. Trusted candidate selection separates stable identity/freshness (ref, id, revision, token and readiness) from Agent-authored goal/reason text and persists the re-resolved canonical candidate. Desktop recovery resumes the bound task session and persistent Agent thread for user feedback. | GAP-runtime-resilience-and-adapters |
 | security_privacy_compliance | settled | 1 | Secrets stay outside canonical project state; Runtime enforces login/configured-source boundaries, workspace authorization, sandbox/approval rules and trusted deterministic writes. | GAP-security-real-project-validation |
 | quality_and_validation | settled | 2 | Protocol changes require schema/script validation, cross-record audits, Runtime automated tests, projection checks, direct-Codex no-Case recovery evidence, stale-token checks, read/write/read ordering checks, and risk-proportionate real execution evidence. | GAP-agent-scenario-evaluation, GAP-cross-record-audit |
 | delivery_and_distribution | settled | 1 | Maintained skills are sourced from entry/skills, synchronized to supported application targets through governed installation, and Runtime/Desktop are built and checked from runtime/arckit-runtime. | GAP-delivery-governance |

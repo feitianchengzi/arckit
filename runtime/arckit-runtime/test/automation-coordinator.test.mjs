@@ -242,6 +242,56 @@ test("retry_start clears stale closeout state and starts a normal Runtime", asyn
   coordinator.dispose();
 });
 
+test("recovery feedback continues the same Agent thread and persists the user message", async () => {
+  const starts = [];
+  const messages = [];
+  const store = recoveryStore({ phase: "recovery" });
+  store.automation.recovery_items.push({
+    id: "RECOVERY-runtime-incomplete-t",
+    type: "runtime_incomplete",
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    actions: ["retry_start", "mark_blocked"]
+  });
+  const runManager = fakeRunManager(store, starts, {
+    async addMessage(_projectId, message) { messages.push(message); },
+    async listRuns() {
+      return [{ id: "RUN-OLD", project_id: "local", status: "failed", result_file: "/runs/old/result.json", activity_file: "/runs/old/activity.json", activity: {} }];
+    }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  const snapshot = await coordinator.getSnapshot();
+  assert.deepEqual(snapshot.recovery_items[0].actions, ["retry_start", "feedback_continue", "mark_blocked"]);
+
+  await coordinator.resolveRecovery({
+    recoveryId: "RECOVERY-runtime-incomplete-t",
+    action: "feedback_continue",
+    message: "说明文字可以改写，请从 fresh state 继续。"
+  });
+
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].threadId, "THREAD-PERSISTED");
+  assert.equal(starts[0].sessionId, "SESSION-T");
+  assert.equal(starts[0].task, "说明文字可以改写，请从 fresh state 继续。");
+  assert.deepEqual(starts[0].runtimeContext, {
+    kind: "recovery_feedback",
+    recovery_id: "RECOVERY-runtime-incomplete-t",
+    recovery_type: "runtime_incomplete",
+    source_run_id: "RUN-OLD",
+    source_result_ref: "/runs/old/result.json",
+    source_activity_ref: "/runs/old/activity.json"
+  });
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].role, "user");
+  assert.equal(messages[0].kind, "recovery_feedback");
+  assert.equal(messages[0].content, "说明文字可以改写，请从 fresh state 继续。");
+  assert.equal(store.automation.active_task.phase, "running");
+  assert.equal(store.automation.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
 test("CLI handoff does not interrupt Runtime before the Agent establishes a trusted Case binding", async () => {
   const starts = [];
   const controls = [];

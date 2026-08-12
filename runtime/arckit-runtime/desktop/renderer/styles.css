@@ -296,6 +296,10 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .recovery-body p { margin: 0; color: var(--ink-600); font-size: 10px; }
 .recovery-meta { display: flex; gap: 14px; margin-top: 10px; color: var(--ink-500); font-size: 9px; }
 .recovery-actions { display: flex; gap: 8px; margin-top: 14px; }
+.recovery-feedback { display: grid; gap: 6px; margin-top: 14px; padding: 12px; border: 1px solid var(--ink-200); border-radius: var(--radius-sm); background: var(--ink-50); }
+.recovery-feedback label { color: var(--ink-800); font-size: 10px; font-weight: 700; }
+.recovery-feedback textarea { width: 100%; resize: vertical; }
+.recovery-feedback small { color: var(--ink-500); font-size: 9px; }
 
 .modal-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 32px; background: rgba(13, 17, 25, .55); backdrop-filter: blur(5px); }
 .settings-panel { width: min(780px, 100%); max-height: calc(100vh - 64px); overflow: auto; border: 1px solid rgba(255, 255, 255, .2); border-radius: 14px; background: #fff; box-shadow: var(--shadow-lg); }

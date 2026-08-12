@@ -47,6 +47,7 @@ const RECOVERY_ACTION_LABELS = {
   retry_start: "重试同一任务",
   retry_cli_handoff: "重试切换到 CLI",
   retry_complete: "重试完成写回",
+  feedback_continue: "添加反馈并继续",
   accept_server_state: "接受服务器事实",
   mark_blocked: "标记为已阻塞"
 };
@@ -700,13 +701,17 @@ function renderRecovery() {
     els.recoveryList.innerHTML = `<div class="panel-card empty-state"><div><strong>没有待恢复事项</strong><p>服务器事实、本地 Runtime 与队列状态一致。</p></div></div>`;
     return;
   }
-  els.recoveryList.innerHTML = items.map((item) => `<article class="recovery-card"><div class="recovery-marker"></div><div class="recovery-body"><h2>${escapeHtml(RECOVERY_LABELS[item.type] || item.type)}</h2><p>${escapeHtml(item.message)}</p><div class="recovery-meta"><span>任务 ${escapeHtml(item.task_id)}</span><span>冻结范围 ${escapeHtml(item.freeze_scope)}</span><span>责任方 ${escapeHtml(item.responsibility === "operator" ? "Runtime 操作员" : item.responsibility)}</span></div><div class="recovery-actions">${item.actions.map((action) => `<button class="${action === "mark_blocked" ? "secondary-button" : "primary-button"}" data-recovery-id="${escapeHtml(item.id)}" data-recovery-action="${escapeHtml(action)}" type="button">${escapeHtml(RECOVERY_ACTION_LABELS[action] || action)}</button>`).join("")}</div></div></article>`).join("");
+  els.recoveryList.innerHTML = items.map((item) => `<article class="recovery-card"><div class="recovery-marker"></div><div class="recovery-body"><h2>${escapeHtml(RECOVERY_LABELS[item.type] || item.type)}</h2><p>${escapeHtml(item.message)}</p><div class="recovery-meta"><span>任务 ${escapeHtml(item.task_id)}</span><span>冻结范围 ${escapeHtml(item.freeze_scope)}</span><span>责任方 ${escapeHtml(item.responsibility === "operator" ? "Runtime 操作员" : item.responsibility)}</span></div>${item.actions.includes("feedback_continue") ? `<div class="recovery-feedback"><label for="feedback-${escapeHtml(item.id)}">补充给 Agent 的反馈</label><textarea id="feedback-${escapeHtml(item.id)}" data-recovery-feedback="${escapeHtml(item.id)}" rows="3" placeholder="补充事实、纠正方向或说明希望 Agent 如何继续…"></textarea><small>反馈会发送到当前任务的同一 Agent 对话，并在对话页面保留。</small></div>` : ""}<div class="recovery-actions">${item.actions.map((action) => `<button class="${action === "mark_blocked" ? "secondary-button" : "primary-button"}" data-recovery-id="${escapeHtml(item.id)}" data-recovery-action="${escapeHtml(action)}" type="button">${escapeHtml(RECOVERY_ACTION_LABELS[action] || action)}</button>`).join("")}</div></div></article>`).join("");
   els.recoveryList.querySelectorAll("[data-recovery-action]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
     const action = button.dataset.recoveryAction;
     if (action === "mark_blocked" && !window.confirm("标记阻塞会更新远端任务状态并释放活动任务。继续吗？")) return;
-    await api.resolveAutomationRecovery({ recoveryId: button.dataset.recoveryId, action });
+    const feedback = action === "feedback_continue"
+      ? els.recoveryList.querySelector(`[data-recovery-feedback="${CSS.escape(button.dataset.recoveryId)}"]`)?.value || ""
+      : "";
+    await api.resolveAutomationRecovery({ recoveryId: button.dataset.recoveryId, action, message: feedback });
     await refreshSnapshot();
-    if (!state.snapshot.recovery_items.length) showPage("command");
+    if (action === "feedback_continue") await openWorkbench("review");
+    else if (!state.snapshot.recovery_items.length) showPage("command");
   })));
 }
 

@@ -39,7 +39,7 @@ description: "维护 Arckit Project/Iteration/Case canonical state、协议兼�
 
 ## Transition 与原子写回
 
-- 每轮必须提交绑定 selected Case selection token 的 `gap_selection`，并逐项说明该 Case scope 内 persisted candidates 的 selected/deferred/excluded 结果；`fresh` candidates 只记录 Agent 本轮实际发现的工作。`candidate` 逐字段复现并关闭当前派生候选；`fresh` 原子创建并关闭一个此前未持久化、Agent-owned、无未闭合依赖且本轮已完成的普通 Gap。
+- 每轮必须提交绑定 selected Case selection token 的 `gap_selection`，并逐项说明该 Case scope 内 persisted candidates 的 selected/deferred/excluded 结果；`fresh` candidates 只记录 Agent 本轮实际发现的工作。`candidate` 以 `selected_ref`、Gap id、Case revision、selection token 和当前 ready 状态确认身份与 freshness；Agent 可以用自己的语言表达 `goal/reason`，Ledger 重新解析并持久化当前 canonical candidate，不以描述逐字相等作为身份门禁。`fresh` 原子创建并关闭一个此前未持久化、Agent-owned、无未闭合依赖且本轮已完成的普通 Gap。
 - 每轮只接受 selected Gap 的一个验收主张；新事实可以新增或重开后续 Gap，但不得在同一 Round 执行这些后续结果。
 - `invariant_assessment` 对 observed Project revision 的全部 invariants 恰好判断一次。`not_relevant` 需要理由，`upheld` 需要持久证据，`threatened/undetermined` 需要 accepted facts 和写回后仍 open 的 Case gaps。Ledger 不判断语义相关性或路由 artifact/skill。
 - `project_state_delta` 可在任何被接受的 Gap transition 中更新软件定义决策、不变量、Project gaps 或 selection context，不必等待 Case resolved。

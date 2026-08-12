@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-12T08:52:29.437Z",
+  "updated_at": "2026-08-12T10:03:23.445Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -479,6 +479,42 @@
         "arckit/cases/active/CASE-20260812-001-runtime.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260812-001-runtime.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "feedback_and_support",
+      "outcome": "settled",
+      "evidence": [
+        "FACT-RUNTIME-RECOVERY-FEEDBACK",
+        "FACT-RUNTIME-RECOVERY-IMPLEMENTED",
+        "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+        "arckit/cases/active/CASE-20260812-002-runtime.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260812-002-runtime.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "FACT-RUNTIME-RECOVERY-FEEDBACK",
+        "FACT-RUNTIME-RECOVERY-IMPLEMENTED",
+        "arckit/interaction/automation-workspace/interaction.md",
+        "arckit/cases/active/CASE-20260812-002-runtime.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260812-002-runtime.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "FACT-RUNTIME-SEMANTIC-GAP-IDENTITY",
+        "FACT-RUNTIME-RECOVERY-IMPLEMENTED",
+        "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+        "arckit/cases/active/CASE-20260812-002-runtime.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260812-002-runtime.md"
     }
   ],
   "acceptance": {
@@ -513,15 +549,16 @@
     "arckit/cases/closed/CASE-20260811-003-unify-verifiable-loop-receipts-across-codex-and-runtime.md",
     "arckit/cases/closed/CASE-20260811-004-align-invariant-guided-single-gap-case-loops.md",
     "arckit/cases/closed/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md",
-    "arckit/cases/closed/CASE-20260812-001-runtime.md"
+    "arckit/cases/closed/CASE-20260812-001-runtime.md",
+    "arckit/cases/closed/CASE-20260812-002-runtime.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260812-001-runtime.md",
+    "case_ref": "arckit/cases/closed/CASE-20260812-002-runtime.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260812-001-runtime.md"
+      "arckit/cases/closed/CASE-20260812-002-runtime.md"
     ],
-    "updated_at": "2026-08-12T08:52:29.437Z"
+    "updated_at": "2026-08-12T10:03:23.445Z"
   }
 }

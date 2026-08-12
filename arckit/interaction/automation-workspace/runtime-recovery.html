@@ -44,6 +44,21 @@
         </details>
 
         <details>
+            <summary>添加反馈并继续</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>当前任务的 Runtime 已失败，恢复项仍绑定待办级 session 与持久 Agent thread，用户希望补充事实或纠正方向后继续。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit · Recovery Center</strong><span>等待反馈 · TASK-3112</span></div>
+                        <div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>Arckit</strong><small>Automation Runtime</small></div></div><div class="nav-group"><div class="nav-label">需要处理</div><div class="nav-row active"><span class="nav-glyph">!</span><span>Runtime 失败</span><span class="count">1</span></div></div><div class="sidebar-status"><strong>同一对话已保留</strong><div class="status-line"><i class="status-dot"></i><span>THREAD-28C 可继续</span></div></div></aside><section class="workspace-column"><div class="command-bar"><button class="compact-action">← 自动化总览</button><div class="breadcrumbs"><strong>恢复中心</strong><span>/</span><span>添加反馈</span></div><div class="command-spacer"></div><button class="compact-action">查看已有对话</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Recovery Feedback · RUN-8421</div><h2>补充反馈，让 Agent 从这里继续</h2><p>反馈会作为“你”的消息进入当前待办对话，不会创建新 thread。</p></div></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>给 Agent 的反馈</strong><span>必填</span></div><div class="surface-body"><label for="recovery-feedback"><strong>补充事实、纠正方向或说明预期</strong></label><textarea id="recovery-feedback" rows="7" placeholder="例如：目标和原因可以语义等价改写，请保留 stable gap identity 后继续。"></textarea><div class="current-action"><strong>续跑边界</strong><small>系统校验当前 task session 与持久 thread，使用 fresh canonical state 启动新的 Runtime Run。</small></div><div class="page-actions"><button class="compact-action">取消</button><button class="compact-action primary">添加反馈并继续</button></div></div></section><aside class="stack"><section class="surface"><div class="surface-header"><strong>将保留</strong><span>同一待办</span></div><div class="surface-body"><dl class="key-value-list"><dt>Agent thread</dt><dd>THREAD-28C</dd><dt>对话 session</dt><dd>SESSION-TASK-3112</dd><dt>失败证据</dt><dd>RUN-8421</dd><dt>远端状态</dt><dd>保持进行中</dd></dl></div></section><section class="surface"><div class="surface-header"><strong>其他动作</strong><span>可选</span></div><div class="surface-body"><button class="compact-action">直接重试</button> <button class="compact-action">标记已阻塞</button></div></section></aside></div></div></section></div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>恢复反馈 TextEditor</li><li>同一 task session / Agent thread 归属摘要</li><li>失败 Run 证据引用</li><li>重试、反馈续跑和标记阻塞动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>空白反馈</code> → 保持当前页并提示必填，不启动 Run</div><div class="interaction-item"><code>添加反馈并继续</code> → 同一 thread 启动新 Run，反馈作为“你”的消息持久化并打开 Workbench</div><div class="interaction-item"><code>启动失败</code> → 保留恢复项与反馈入口，不误报已发送</div></div>
+            </div>
+        </details>
+
+        <details>
             <summary>活动任务被外部修改</summary>
             <div class="state-content">
                 <div class="state-description"><strong>触发条件：</strong>运行中的任务被其他客户端取消、阻塞、转移项目或撤销访问权限。</div>

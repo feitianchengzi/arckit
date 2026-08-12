@@ -225,6 +225,7 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
   if (record.updated_at !== transition.case_updated_at) throw new Error(`Stale Case transition for ${record.id}`);
   const selection = selectTransitionGap(record, transition);
   const candidate = selection.gap;
+  const canonicalSelectedGap = structuredClone(candidate);
   const delta = transition.accepted_state_delta;
   const isReview = candidate.id.includes(':completion-review:');
   const questionId = candidate.id.split(':open-question:')[1] || '';
@@ -274,7 +275,7 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
   if (contentMutation) { record.content_revision += 1; record.completion_review.status = 'pending'; record.completion_review.reviewed_content_revision = null; }
   if (projectState) for (const [index, impact] of record.state_impacts.entries()) validateTargetAgainstProject(impact, projectState, `state_impacts[${index}]`);
   if (invariantProjectState) validateInvariantAssessmentAgainstState(transition.invariant_assessment, invariantProjectState, record);
-  record.rounds.push({ round: record.rounds.length + 1, transition_schema_version: transition.schema_version, goal: transition.planned_transition.goal, outcome: transition.round_outcome, gap_selection: structuredClone(transition.gap_selection), selected_gap: structuredClone(transition.selected_gap), planned_transition: structuredClone(transition.planned_transition), accepted_state_delta: structuredClone(delta), project_state_delta: structuredClone(transition.project_state_delta), invariant_assessment: structuredClone(transition.invariant_assessment), evidence: unique(transition.evidence), runtime_result_ref: runtimeResultRef, occurred_at: timestamp });
+  record.rounds.push({ round: record.rounds.length + 1, transition_schema_version: transition.schema_version, goal: transition.planned_transition.goal, outcome: transition.round_outcome, gap_selection: structuredClone(transition.gap_selection), selected_gap: canonicalSelectedGap, planned_transition: structuredClone(transition.planned_transition), accepted_state_delta: structuredClone(delta), project_state_delta: structuredClone(transition.project_state_delta), invariant_assessment: structuredClone(transition.invariant_assessment), evidence: unique(transition.evidence), runtime_result_ref: runtimeResultRef, occurred_at: timestamp });
   record.updated_at = timestamp;
   record.case_resolution = auditCaseRecord(record, timestamp);
   if (transition.case_resolution.claimed_status === 'resolved' && record.case_resolution.status !== 'resolved') throw new Error('Claimed resolved is stronger than deterministic Case audit');
@@ -287,7 +288,7 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
 function selectTransitionGap(record, transition) {
   if (transition.gap_selection.mode === 'candidate') {
     const candidate = auditCaseRecord(record, record.updated_at).candidate_gaps.find((gap) => gap.id === transition.selected_gap.id);
-    if (!candidate || !isDeepStrictEqual(candidate, transition.selected_gap)) throw new Error(`Selected dynamic gap is stale or not ready: ${transition.selected_gap.id}`);
+    if (!candidate) throw new Error(`Selected dynamic gap is stale or not ready: ${transition.selected_gap.id}`);
     return { gap: candidate, fresh: false };
   }
   const selected = transition.selected_gap;
@@ -398,7 +399,7 @@ function roundCloseoutReceipt(transition, nextCase, projectedProject, priorSelec
     case_id: nextCase.id,
     case_ref: caseRef,
     round: nextCase.rounds.length,
-    selected_gap: structuredClone(transition.selected_gap),
+    selected_gap: structuredClone(nextCase.rounds.at(-1)?.selected_gap || transition.selected_gap),
     gap_selection: structuredClone(transition.gap_selection),
     accepted_state_delta: structuredClone(transition.accepted_state_delta),
     project_state_delta: structuredClone(transition.project_state_delta),

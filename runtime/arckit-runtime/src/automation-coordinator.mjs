@@ -112,7 +112,10 @@ export function createAutomationCoordinator({
       active_task: activeTask,
       active_run: activeRun,
       attention_items: automation.attention_items,
-      recovery_items: automation.recovery_items,
+      recovery_items: automation.recovery_items.map((item) => ({
+        ...item,
+        actions: recoveryActionsForItem(item, automation.active_task)
+      })),
       recent_completions: automation.recent_completions.map((item) => {
         const run = runs.find((candidate) => candidate.id === item.run_id) || null;
         return {
@@ -558,13 +561,14 @@ export function createAutomationCoordinator({
     return !runManager.isRunActive(runId);
   }
 
-  async function resolveRecovery({ recoveryId, action }) {
+  async function resolveRecovery({ recoveryId, action, message = "" }) {
     const store = await runManager.readDesktopStore();
     const recovery = store.automation.recovery_items.find((item) => item.id === recoveryId);
     if (!recovery) {
       throw new Error(`Unknown recovery item: ${recoveryId}`);
     }
-    if (!recovery.actions.includes(action)) {
+    const availableActions = recoveryActionsForItem(recovery, store.automation.active_task);
+    if (!availableActions.includes(action)) {
       throw new Error(`Recovery action ${action} is not allowed.`);
     }
     if (action === "retry_sync") {
@@ -581,6 +585,70 @@ export function createAutomationCoordinator({
       });
       await startRuntimeForActiveTask();
       return getSnapshot();
+    }
+    if (action === "feedback_continue") {
+      const text = String(message || "").trim();
+      if (!text) throw new Error("Recovery feedback is required.");
+      const active = store.automation.active_task;
+      if (!active || String(active.task_id) !== String(recovery.task_id)) {
+        throw new Error("The recovery item is not bound to the active task.");
+      }
+      if (!active.thread_id) {
+        throw new Error("Recovery feedback requires the task's persisted Agent thread.");
+      }
+      const project = store.projects.find((item) => item.id === active.local_project_id);
+      const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id));
+      if (!project || !task) throw new Error("The recovery task or its local project binding is missing.");
+      const session = await ensureTaskSession(active, task);
+      const runs = await runManager.listRuns({ projectId: active.local_project_id });
+      const sourceRun = runs.find((item) => item.id === (recovery.run_id || active.run_id)) || null;
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id === active.task_id) automation.active_task.phase = "starting";
+      });
+      try {
+        const nextRun = await runManager.startRun({
+          projectId: project.id,
+          sessionId: session.id,
+          taskId: active.task_id,
+          task: text,
+          threadId: active.thread_id,
+          runtimeContext: {
+            kind: "recovery_feedback",
+            recovery_id: recovery.id,
+            recovery_type: recovery.type,
+            source_run_id: sourceRun?.id || recovery.run_id || active.run_id || "",
+            source_result_ref: sourceRun?.result_file || "",
+            source_activity_ref: sourceRun?.activity_file || ""
+          },
+          adapter: "codex-app-server",
+          approvalPolicy: "on-request",
+          continuationPolicy: "automatic",
+          maxNoProgressRounds: 8,
+          ...lifecycleRunInput(lifecycleContextFromActive(active))
+        });
+        await runManager.addMessage(project.id, {
+          session_id: session.id,
+          role: "user",
+          kind: "recovery_feedback",
+          content: text,
+          run_id: nextRun.id,
+          task_id: active.task_id
+        });
+        await patchAutomation((automation) => {
+          if (automation.active_task?.task_id !== active.task_id) return;
+          automation.active_task.phase = "running";
+          automation.active_task.run_id = nextRun.id;
+          automation.active_task.thread_id = nextRun.thread_id || active.thread_id;
+          automation.recovery_items = automation.recovery_items.filter((item) => item.id !== recoveryId);
+        });
+        emit("automation.changed", { reason: "recovery-feedback-submitted", taskId: active.task_id, runId: nextRun.id });
+        return getSnapshot();
+      } catch (error) {
+        await patchAutomation((automation) => {
+          if (automation.active_task?.task_id === active.task_id) automation.active_task.phase = "recovery";
+        });
+        throw error;
+      }
     }
     if (action === "retry_cli_handoff") {
       await removeRecovery(recoveryId);
@@ -1439,6 +1507,8 @@ export function createAutomationCoordinator({
   async function addRecovery({ type, task, message, actions, freezeScope = "global" }) {
     await patchAutomation((automation) => {
       const taskId = task?.task_id || task?.id || "unknown";
+      const active = automation.active_task;
+      const availableActions = recoveryActionsForItem({ task_id: taskId, actions }, active);
       if (automation.active_task) automation.active_task.phase = "recovery";
       automation.recovery_items = upsertById(automation.recovery_items, {
         id: `RECOVERY-${type}-${taskId}`,
@@ -1449,7 +1519,7 @@ export function createAutomationCoordinator({
         message,
         freeze_scope: freezeScope,
         responsibility: "operator",
-        actions,
+        actions: availableActions,
         created_at: now()
       });
     });
@@ -1824,6 +1894,19 @@ function reconcileUnassociatedInProgress(automation, occurredAt) {
 function upsertById(items, item) {
   const filtered = items.filter((candidate) => candidate.id !== item.id);
   return [item, ...filtered].slice(0, 50);
+}
+
+function recoveryActionsForItem(item, active) {
+  const actions = [...(item?.actions || [])];
+  if (!active
+    || String(active.task_id) !== String(item?.task_id)
+    || !active.thread_id
+    || !actions.includes("retry_start")
+    || actions.includes("feedback_continue")) {
+    return actions;
+  }
+  actions.splice(Math.max(0, actions.indexOf("mark_blocked")), 0, "feedback_continue");
+  return actions;
 }
 
 async function mapWithConcurrency(items, limit, mapper) {

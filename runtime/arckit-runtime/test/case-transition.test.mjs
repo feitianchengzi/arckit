@@ -24,10 +24,23 @@ test('the ledger accepts only current Case and transition schema versions', () =
   assert.throws(() => applyCaseTransitionToRecord(unsupportedRecord, unsupportedTransition), /arckit-case-transition\/v8/);
 });
 
-test('a selected gap must match the complete fresh candidate snapshot', () => {
+test('a selected persisted gap uses canonical identity while allowing Agent-authored descriptions', () => {
   const record = caseRecord();
   const input = transition(record);
-  input.selected_gap.reason = 'Stale reason from an earlier revision.';
+  input.selected_gap.goal = '用 Agent 自己的语言完成当前诊断。';
+  input.selected_gap.reason = '这是同一个 ready gap 的语义等价说明。';
+  const next = applyCaseTransitionToRecord(record, input);
+  assert.equal(next.rounds[0].selected_gap.id, 'GAP-DIAGNOSE');
+  assert.equal(next.rounds[0].selected_gap.goal, 'Find the root cause.');
+  assert.equal(next.rounds[0].selected_gap.reason, 'The cause is unknown.');
+});
+
+test('a selected persisted gap still rejects an identity that is not currently ready', () => {
+  const record = caseRecord();
+  const input = transition(record);
+  input.selected_gap.id = 'GAP-NOT-READY';
+  input.gap_selection.selected_ref = `case-gap:${record.id}:GAP-NOT-READY`;
+  input.gap_selection.considered[0].ref = input.gap_selection.selected_ref;
   assert.throws(() => applyCaseTransitionToRecord(record, input), /stale or not ready/);
 });
 

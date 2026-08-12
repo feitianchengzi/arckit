@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-12T08:52:29.437Z",
-    "revision": 31
+    "updated_at": "2026-08-12T10:03:23.445Z",
+    "revision": 34
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -131,7 +131,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "诊断并修复 arckit-runtime 登录会话过早失效，使认证续期符合连续使用预期。",
+      "current_focus": "优化动态 gap transition 的身份与新鲜度校验，使 Agent 可自然表达而不因说明文本改写被拒；在恢复中心提供“添加反馈并继续”，把用户反馈作为同一持久 Agent thread 的新消息，并在对话页面可见。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -208,17 +208,16 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "Users can invoke using-arckit conversationally; Desktop users observe persisted candidate comparison, accepted round closeout and verified fresh-read in one persistent Agent conversation. Login restoration is silent when a server-backed session remains renewable within the rolling seven-day window; transient refresh failures retain recoverable state, while more than seven days without valid login activity or explicit credential rejection leads to the login recovery surface.",
-          "reason": "The round boundary behavior remains unchanged, while the affected Desktop login and recovery states are now durably specified.",
+          "statement": "Users invoke using-arckit conversationally and observe persisted candidate comparison, accepted round closeout and verified fresh-read in one persistent Agent conversation. Runtime failures with an existing task thread offer retry, direct feedback continuation or blocking; non-empty feedback starts a new Run on the same thread and appears as the user's message in Workbench. Login restoration remains silent while its server-backed rolling seven-day session is renewable, and transient refresh failures retain recoverable state.",
+          "reason": "The affected Runtime recovery journey and its transcript return are now durably specified and implemented without changing established login recovery behavior.",
           "evidence": [
-            "arckit/spec/agentic-software-development/controller-worker-loop.md",
             "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/login/interaction.md",
-            "arckit/interaction/automation-workspace/interaction.md"
+            "arckit/interaction/automation-workspace/interaction.md",
+            "arckit/interaction/automation-workspace/runtime-recovery.html"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 4
+          "revision": 5
         },
         "gap_refs": []
       },
@@ -310,16 +309,17 @@
         "decision_expectation": "State the feedback entry, context collection, handling, status return, and support boundary, or explicitly decide that it is not required.",
         "evidence_expectation": "Durable product and operational evidence sufficient to recover the feedback decision.",
         "decision": {
-          "revision": 1,
           "status": "settled",
-          "statement": "Operational feedback is provided through the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization; no separate public support portal is currently required.",
-          "reason": "Existing product scope provides recovery and feedback within the supervised workspace.",
+          "statement": "Operational feedback is provided through the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization. A Runtime recovery item bound to an existing task thread accepts direct user feedback, continues the same task session/thread and retains that message in Workbench; no separate public support portal is currently required.",
+          "reason": "The Recovery Center is now an explicit feedback entry rather than only a retry/blocking control surface.",
           "evidence": [
             "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/tech/arckit-runtime/desktop-execution-solution.md"
+            "arckit/tech/arckit-runtime/desktop-execution-solution.md",
+            "runtime/arckit-runtime/src/automation-coordinator.mjs"
           ],
           "confidence": "high",
-          "resume_condition": ""
+          "resume_condition": "",
+          "revision": 2
         },
         "gap_refs": []
       },
@@ -349,16 +349,17 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM Ledger and Runtime scripts, an Electron desktop host, Project State v5, Case v5, Case Transition v8, Ledger Snapshot v1, Round Closeout v2 and Iteration v3. The canonical catalog defines four authoritative durable expectation or decision responsibilities plus realization and risk responsibilities; Ledger validates complete assessments while Runtime does not duplicate semantic relevance or routing.",
-          "reason": "The thin-host architecture keeps fresh-fact interpretation and dynamic capability choice in the Agent while the trusted ledger owns exact catalog, coverage, freshness, compatibility and atomic writeback.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM Ledger and Runtime scripts, an Electron desktop host, Project State v5, Case v5, Case Transition v8, Ledger Snapshot v1, Round Closeout v2 and Iteration v3. Trusted candidate selection separates stable identity/freshness (ref, id, revision, token and readiness) from Agent-authored goal/reason text and persists the re-resolved canonical candidate. Desktop recovery resumes the bound task session and persistent Agent thread for user feedback.",
+          "reason": "The trusted boundary remains deterministic without treating natural-language descriptions as identity fields, and the Desktop continuation path preserves one task conversation.",
           "evidence": [
             "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
-            "entry/skills/arckit-development-ledger/scripts/project-invariants.mjs",
-            "arckit/tech/arckit-runtime/solution.md"
+            "arckit/tech/arckit-runtime/desktop-execution-solution.md",
+            "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
+            "runtime/arckit-runtime/src/automation-coordinator.mjs"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 7
+          "revision": 8
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"

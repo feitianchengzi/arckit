@@ -4,9 +4,11 @@
 
 ## Round opening
 
-Agent 从 `arckit-ledger-snapshot/v1.candidate_catalog` 恢复全部 active Cases 与 Project persisted candidates，并记录本轮实际发现的 fresh candidates。用户可见 opening 和 `gap_selection.considered` 必须覆盖 snapshot catalog 中的全部 persisted candidates；每项写明 eligibility、selected/deferred/excluded、priority basis 与理由，让任意候选 B 都能看出是否被考虑。恰好一项 selected，`selected_ref` 与 `selected_gap` 一致。
+Agent 从 `arckit-ledger-snapshot/v1.candidate_catalog` 恢复全部 active Cases 与 Project persisted candidates，并记录本轮实际发现的 fresh candidates。用户可见 opening 和 `gap_selection.considered` 必须覆盖 snapshot catalog 中的全部 persisted candidates；每项写明 eligibility、selected/deferred/excluded、priority basis 与理由，让任意候选 B 都能看出是否被考虑。恰好一项 selected，`selected_ref` 与 `selected_gap.id` 一致。Agent 可以自然转述 persisted candidate 的 `goal/reason`；这两个描述字段不是 identity token，也不替代 canonical candidate。
 
 Ledger 用 Case-scoped selection token 强校验 Project candidates 与 selected Case candidates，避免无关 Case 的并发提交使当前工作无效；其他 Case 的比较项作为同一 snapshot 下的审计证据，不扩大写入锁。若并发变化让新的 snapshot 出现不同候选，下一轮必须重新比较，不能复用旧 trace。
+
+Candidate apply 时，Ledger 依据稳定 `selected_ref`/Gap id 重新读取当前 ready candidate，并把该 canonical object 写入 round 与 closeout。selection token、Project revision、Case `updated_at`、candidate identity 或 readiness 任一失配仍 fail closed；只有 Agent 的语义等价改写不会触发 stale failure。
 
 比较是语义判断，不使用固定分数。Agent 只声明它实际发现的 fresh candidates，不声称已经穷尽所有潜在工作。用户可见 opening 在执行工作前展示候选与选择理由；transition 保存同一 trace 供 ledger 验收和 closeout 回显。
 

@@ -120,6 +120,8 @@ Runtime 不创建固定 Worker、独立复审或其它 Codex thread，也不以�
 
 Runtime 每次 ledger writeback 后先原样投影 ledger 的 `round_closeout`，再以 receipt 中的 post-commit token 调 manifest 声明的 trusted snapshot entrypoint，从 fresh canonical state 重建当前事实与授权。Runtime 不自行复刻候选、revision 或 fresh-read 判定，writeback 返回的内存 candidate 也不能充当 fresh state。fresh state 不等于 fresh conversation thread：Agent thread 提供语义连续性，canonical state 提供事实权威性；历史中的 selected gap、revision、授权或未接受 claim 不能覆盖 fresh state。
 
+Persisted candidate 的稳定身份由 `selected_ref`、Gap id、Case revision、Project revision、selection token 与当前 ready 状态共同确认。Agent 可以用自己的语言表达同一 Gap 的目标和原因；这些描述不要求与 snapshot 逐字一致，也不能替代身份与 freshness 校验。Ledger apply 时重新读取当前 canonical candidate，并以 canonical 内容形成 round 和 closeout；真正的 stale snapshot、错误引用、候选不再 ready 或责任变化仍然拒绝。
+
 每个 Loop 仍只推进一个 Case gap，多个 gap 按 fresh ledger state 串行选择。执行效率不通过合并 gap、并行推进同一待办、总墙钟上限、生产性 Round 上限或长命令 watchdog 获得；长时间编译属于 Agent 执行阶段，由执行事件持续投影直至自然完成或收到显式停止请求。
 
 Runtime 对同一工作区内仍在运行的等价命令保持单一执行实例。后续相同命令观察同一执行状态，不并发启动第二个会修改或编译同一目标的进程。长时间命令的进行中、增量输出和完成状态由执行层持续投影，等待本身不要求 Agent 反复发起模型推理或重复提交命令。
@@ -155,7 +157,9 @@ Runtime 重新打开、同步或由用户选择恢复自动执行时，必须重
 
 “待处理 → 进行中”写回失败时，Runtime 不启动。服务器已确认进行中但 Runtime 启动失败时，任务保持进行中，系统保存启动意图并冻结队列，首要恢复动作是重试启动同一任务。
 
-Runtime 执行失败时，系统保留 run、消息、结构化 activity 和 ledger 证据，并根据可恢复性提供重试、人工介入或标记阻塞。系统不依赖完整原始 delta transcript 恢复控制状态，不自动取消任务，也不静默回退到待处理。
+Runtime 执行失败时，系统保留 run、消息、结构化 activity 和 ledger 证据，并根据可恢复性提供重试、添加反馈并继续、人工介入或标记阻塞。系统不依赖完整原始 delta transcript 恢复控制状态，不自动取消任务，也不静默回退到待处理。
+
+“添加反馈并继续”只在恢复项绑定当前活动任务、待办级 session 和持久 Agent thread 时出现。用户必须输入非空反馈；系统把原文作为新的用户消息发送给同一 Agent thread，以 fresh canonical state 启动新的 Runtime Run，并关联来源 recovery 与失败 Run 证据。新 Run 建立后反馈保存在同一待办 transcript、恢复项移除并打开对话审查；启动失败时保留原恢复项。反馈是新的 operator input，不会直接覆盖 canonical Case State，Agent 必须通过正常 transition 接受其中可成立的事实。
 
 Git closeout turn 启动或执行失败时，远端任务保持进行中，系统保留持久 thread、已关闭 Case 与 run 证据并冻结下一任务；恢复动作在同一 thread 重试 closeout，不重新执行已关闭 Case。commit 成功后的“进行中 → 已完成”写回失败时，系统保留本地完成证据并冻结下一任务，直到服务器确认、用户选择受控恢复动作或任务被明确转为阻塞。
 
@@ -191,7 +195,7 @@ Task Browser 按当前项目范围和七种任务状态展示完整任务列表�
 
 应用重启时优先恢复同一用户的进行中任务及关联 run。存在唯一可恢复任务时，系统继续该任务；存在多个进行中任务时，系统冻结队列并要求用户选择唯一恢复目标。
 
-Recovery Center 统一承接领取冲突、Runtime 启动失败、安全停止、活动任务外部变化、多个进行中任务、任务项目归属异常、权限异常和任务源会话失效。
+Recovery Center 统一承接领取冲突、Runtime 启动失败、安全停止、活动任务外部变化、多个进行中任务、任务项目归属异常、权限异常和任务源会话失效。对已建立持久 Agent thread 的 Runtime 失败，用户可直接补充反馈并在同一对话继续，不必先把任务标记为阻塞。
 
 每个恢复状态展示服务器事实、本地事实、差异、已保留证据、当前操作责任和允许动作。Recovery Center 表示 Runtime 操作或一致性恢复，不等同于 Intervention Workbench 的人工语义判断。恢复动作完成后，系统重新同步服务器并从原观察范围返回 Command Center 或 Task Browser。
 
@@ -243,6 +247,7 @@ Renderer 不持有任务服务器凭证，也不直接请求任意远端 API。�
 - 领取冲突不会启动重复 Runtime，完成写回未确认时不会领取下一任务。
 - 待处理任务在服务器确认进行中后启动 Runtime，在 Runtime 与 ledger 收束且服务器确认后变为已完成。
 - Runtime 需要人工输入时，主页面给出明确提示但不自动打开 Chat；用户提交后能够恢复同一任务。
+- Runtime 失败且已有持久 Agent thread 时，Recovery Center 可以直接提交非空用户反馈并继续；反馈在同一待办对话中可见，且不会因恢复动作创建新 thread。
 - 当前任务可以安全切换到用户可见且可输入的交互式 Codex CLI；CLI 从同一 Case State 和待办意图继续，且不会与原 Runtime run 并发执行。
 - CLI 接管期间关闭终端不会被视为任务完成；Runtime 返回后从 fresh Case State 判断继续自动执行、等待人工或在同一 task thread 进入 commit 与远端完成写回。
 - 用户能够以只读方式审查当前或历史对话，并通过显式操作进入可输入的人工介入模式。
