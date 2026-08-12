@@ -40,7 +40,7 @@ app.whenReady().then(async () => {
   });
   registerIpc();
   createWindow();
-  automationCoordinator.sync().catch((error) => console.error("Initial task sync failed:", error));
+  automationCoordinator.sync({ resumeRecoverable: true }).catch((error) => console.error("Initial task sync failed:", error));
   syncTimer = setInterval(() => {
     automationCoordinator.sync().catch((error) => console.error("Background task sync failed:", error));
   }, 60_000);

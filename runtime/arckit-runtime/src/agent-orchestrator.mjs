@@ -233,6 +233,7 @@ export function createControllerContextDigest({ snapshot, loopFrame }) {
       schema_version: snapshot.ledgerSnapshot.schema_version,
       observed_at: snapshot.ledgerSnapshot.observed_at,
       snapshot_token: snapshot.ledgerSnapshot.snapshot_token,
+      selection_tokens: snapshot.ledgerSnapshot.selection_tokens || {},
       observed_after_commit: snapshot.ledgerSnapshot.observed_after_commit,
       project_revision: snapshot.ledgerSnapshot.project_revision,
       case_revisions: snapshot.ledgerSnapshot.case_revisions,
@@ -308,6 +309,7 @@ function ledgerSnapshotBinding(snapshot, runtimeCapabilities) {
     capability_id: capability.id,
     entrypoint: resolveCapabilityEntrypoint(capability, "loop_snapshot"),
     snapshot_token: snapshot?.snapshotToken || "",
+    selection_tokens: snapshot?.ledgerSnapshot?.selection_tokens || {},
     contract_refs: [join(capability.capability_root, "schema/ledger-snapshot.schema.json")],
     allowed_commands: ["read"]
   };

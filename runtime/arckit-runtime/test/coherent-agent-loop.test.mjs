@@ -113,6 +113,11 @@ test("default execution accepts candidate and current-turn fresh gaps from one c
   assert.equal("skillInputs" in calls[0].options, false);
   assert.ok(calls[0].prompt.startsWith("$using-arckit\n"));
   assert.match(calls[0].prompt, /"execute_in_current_turn": true/);
+  const invocation = JSON.parse(calls[0].prompt.slice(calls[0].prompt.indexOf("\n\n") + 2));
+  assert.equal(invocation.canonical_context.ledger_snapshot.snapshot_token, "fixture-global-snapshot");
+  assert.equal(invocation.canonical_context.ledger_snapshot.selection_tokens[caseId], "fixture-selection-token");
+  assert.equal(invocation.execution_authorization.trusted_ledger_snapshot.snapshot_token, "fixture-global-snapshot");
+  assert.equal(invocation.execution_authorization.trusted_ledger_snapshot.selection_tokens[caseId], "fixture-selection-token");
   assert.equal("agentTasks" in result, false);
   assert.equal("agentReports" in result, false);
   assert.equal("mergeResult" in result, false);

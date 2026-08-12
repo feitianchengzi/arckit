@@ -292,6 +292,70 @@ test("recovery feedback continues the same Agent thread and persists the user me
   coordinator.dispose();
 });
 
+test("initial Desktop sync resumes one recoverable in-progress task on its persisted thread", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "recovery" });
+  store.automation.recovery_items.push({
+    id: "RECOVERY-runtime-incomplete-t",
+    type: "runtime_incomplete",
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    actions: ["retry_start", "mark_blocked"]
+  });
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{ id: "RUN-OLD", project_id: "local", status: "failed", activity: {} }];
+    },
+    async getProjectCaseState() { return null; }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: healthyTaskSourceFactory(store)
+  });
+
+  await coordinator.sync({ dispatch: false, resumeRecoverable: true });
+
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].threadId, "THREAD-PERSISTED");
+  assert.equal(starts[0].sessionId, "SESSION-T");
+  assert.equal(starts[0].task, "finish");
+  assert.equal(starts[0].runtimeContext, null);
+  assert.equal(store.automation.active_task.phase, "running");
+  assert.equal(store.automation.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
+test("periodic sync preserves operator recovery instead of repeatedly restarting it", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "recovery" });
+  store.automation.recovery_items.push({
+    id: "RECOVERY-runtime-incomplete-t",
+    type: "runtime_incomplete",
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    actions: ["retry_start", "mark_blocked"]
+  });
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{ id: "RUN-OLD", project_id: "local", status: "failed", activity: {} }];
+    },
+    async getProjectCaseState() { return null; }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: healthyTaskSourceFactory(store)
+  });
+
+  await coordinator.sync({ dispatch: false });
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.active_task.phase, "recovery");
+  assert.equal(store.automation.recovery_items.length, 1);
+  coordinator.dispose();
+});
+
 test("CLI handoff does not interrupt Runtime before the Agent establishes a trusted Case binding", async () => {
   const starts = [];
   const controls = [];
@@ -453,6 +517,15 @@ function unconfiguredCoordinator(runManager) {
   return createAutomationCoordinator({
     runManager,
     taskSourceFactory() { throw Object.assign(new Error("not logged in"), { code: "unconfigured" }); }
+  });
+}
+
+function healthyTaskSourceFactory(store) {
+  return () => ({
+    async getAuthStatus() { return { authenticated: true, status: "authenticated" }; },
+    async getCurrentUser() { return { id: "u", name: "tester" }; },
+    async listProjects() { return [{ id: "p", current_user_id: "u" }]; },
+    async listTasks() { return structuredClone(store.automation.snapshot.tasks); }
   });
 }
 

@@ -133,7 +133,7 @@ export function createAutomationCoordinator({
     };
   }
 
-  async function sync({ dispatch = true } = {}) {
+  async function sync({ dispatch = true, resumeRecoverable = false } = {}) {
     if (syncPromise) {
       return syncPromise;
     }
@@ -235,6 +235,9 @@ export function createAutomationCoordinator({
         await reconcileCanonicalCaseState({ allowRemoteCompletion: true });
         await stopRuntimeForExternalChange();
         await reconcileRuntimePresence();
+        if (resumeRecoverable) {
+          await resumeRecoverableTaskOnStartup();
+        }
         emit("automation.changed", { reason: "sync-complete" });
         if (dispatch) {
           await maybeStartNext();
@@ -1554,6 +1557,37 @@ export function createAutomationCoordinator({
         : "The server task is in progress, but no Runtime run is attached locally.",
       actions: ["retry_start", "mark_blocked"]
     });
+  }
+
+  async function resumeRecoverableTaskOnStartup() {
+    const store = await runManager.readDesktopStore();
+    const automation = store.automation;
+    const active = automation.active_task;
+    if (!automation.enabled || !active || automation.attention_items.length > 0) return "not_applicable";
+    if (active.run_id && runManager.isRunActive?.(active.run_id)) return "runtime_active";
+    const task = automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id));
+    if (!task || task.state !== "in_progress") return "task_not_in_progress";
+    const recovery = automation.recovery_items.find((item) => (
+      String(item.task_id) === String(active.task_id)
+      && ["runtime_incomplete", "runtime_process_missing"].includes(item.type)
+      && recoveryActionsForItem(item, active).includes("retry_start")
+    ));
+    if (!recovery) return "recovery_not_safe";
+    await removeRecovery(recovery.id);
+    await patchAutomation((next) => {
+      if (next.active_task?.task_id !== active.task_id) return;
+      next.active_task.phase = "starting";
+      next.active_task.closeout_status = "pending";
+    });
+    const run = await startRuntimeForActiveTask();
+    if (!run) return "start_failed";
+    emit("automation.changed", {
+      reason: "startup-recovery-resumed",
+      taskId: active.task_id,
+      sourceRunId: recovery.run_id || active.run_id || "",
+      runId: run.id
+    });
+    return "resumed";
   }
 
   async function stopRuntimeForExternalChange() {
