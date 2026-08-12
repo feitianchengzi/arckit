@@ -387,6 +387,7 @@ export function createDesktopRunManager({
           refresh_token: nextAuthMode === "nebula" && sameAuthMode ? currentTaskSource.refresh_token || "" : "",
           access_token_expires_at: nextAuthMode === "nebula" && sameAuthMode ? currentTaskSource.access_token_expires_at || 0 : 0,
           refresh_token_expires_at: nextAuthMode === "nebula" && sameAuthMode ? currentTaskSource.refresh_token_expires_at || 0 : 0,
+          last_login_activity_at: nextAuthMode === "nebula" && sameAuthMode ? currentTaskSource.last_login_activity_at || 0 : 0,
           user_id: nextAuthMode === "headers" ? String(headerUserId || "") : "",
           username: nextAuthMode === "headers"
             ? String("username" in incomingTaskSource ? incomingTaskSource.username || "" : currentTaskSource.username || "")

@@ -10,6 +10,6 @@
   - product-architecture.md 产品架构：描述单 Agent 默认 Loop、持久 task thread、跨进程串行 ledger commit，以及 Desktop/Agent/Skill 与事实系统如何组合。⚪ (238行)
   - skill-architecture.md Skill 架构：定义原生 Agent skill 使用、默认双能力 Runtime policy、natural trigger 和 trusted ledger。⚪ (95行)
   - controller-worker-loop.md Agent Loop：定义 invariant-guided 候选发现、单 claim Gap 边界、trusted closeout、post-commit fresh-read 与同 thread 自动续轮。⚪ (128行)
-  - runtime-automation-workspace.md Runtime 待办自动化工作区：定义单持久 Agent thread、单 Gap turn、上下文压缩、Git closeout、CLI 接管和低噪声执行消息流。🟢 (265行)
+  - runtime-automation-workspace.md Runtime 待办自动化工作区：定义七天滚动登录会话、单持久 Agent thread、单 Gap turn、Git closeout、CLI 接管和低噪声执行消息流。🟢 (267行)
   - loop-engineering-research.md Loop Engineering 研究输入：保存吴恩达三层 loop、2026 loop 工程架构、Arckit 对应关系和开放问题。⚪ (132行)
 - all-integration-strategy.md all 候选 Skill 整合策略草案：历史迁移记录，保留 all 角色型研发流水线 skill 包的早期拆解和归并思路，不作为当前路由依据。⚪ (902行)

@@ -79,6 +79,7 @@ test("deleteProjectSession removes only the selected chat and its messages", () 
 });
 
 test("desktop store upgrades automation state and keeps task source tokens out of public settings", () => {
+  const activityAt = Date.now();
   const store = normalizeStore({
     version: 4,
     settings: {
@@ -88,6 +89,7 @@ test("desktop store upgrades automation state and keeps task source tokens out o
         auth_mode: "nebula",
         access_token: "top-secret",
         refresh_token: "refresh-secret",
+        last_login_activity_at: activityAt,
         username: "glare@example.com"
       }
     },
@@ -108,6 +110,8 @@ test("desktop store upgrades automation state and keeps task source tokens out o
   assert.equal(visible.task_source.access_token, "");
   assert.equal(visible.task_source.access_token_configured, true);
   assert.equal(visible.task_source.refresh_session_configured, true);
+  assert.equal(store.settings.task_source.last_login_activity_at, activityAt);
+  assert.equal("last_login_activity_at" in visible.task_source, false);
   assert.equal("refresh_token" in visible.task_source, false);
   assert.equal(visible.task_source.authentication.status, "authenticated");
   assert.equal(visible.task_source.authentication.masked_identity, "gl•••@example.com");

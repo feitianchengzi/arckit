@@ -62,3 +62,4 @@
 | [CASE-20260811-003](closed/CASE-20260811-003-unify-verifiable-loop-receipts-across-codex-and-runtime.md) | closed | Unify verifiable Loop receipts across Codex and Runtime | 2026-08-11T10:18:49.525Z |
 | [CASE-20260811-004](closed/CASE-20260811-004-align-invariant-guided-single-gap-case-loops.md) | closed | Align invariant-guided single-Gap Case loops | 2026-08-11T15:14:31.249Z |
 | [CASE-20260811-005](closed/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md) | closed | Clarify software invariant semantic domains and triggers | 2026-08-11T16:52:06.147Z |
+| [CASE-20260812-001](closed/CASE-20260812-001-runtime.md) | closed | 修复 Runtime 登录状态频繁失效 | 2026-08-12T08:52:29.437Z |

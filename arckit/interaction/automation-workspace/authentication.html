@@ -35,11 +35,11 @@
         <details>
             <summary>会话失效 · 重新登录</summary>
             <div class="state-content">
-                <div class="state-description"><strong>触发条件：</strong>refresh token 缺失、过期或刷新失败，服务器事实无法继续确认。</div>
+                <div class="state-description"><strong>触发条件：</strong>连续超过七天没有有效登录活动、refresh token 缺失或过期，或服务端明确拒绝凭据；临时网络与服务错误不进入此状态。</div>
                 <div class="wireframe-canvas">
                     <div class="device-frame desktop" data-kit="Sheet">
                         <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>账号与 Runtime</strong><span>认证失效</span></div>
-                        <div class="page-content"><div class="attention-strip"><div class="run-orb">!</div><div><strong>Workshop 登录已过期</strong><small>自动领取与远端写入已停止；最近快照保持只读。</small></div></div><section class="surface"><div class="surface-header"><strong>恢复账号</strong><span>需要重新验证</span></div><div class="surface-body"><div class="stack"><label>邮箱<input type="email" value="glare@example.com"></label><label>验证码<input type="text" placeholder="6 位验证码"></label></div><div class="page-actions"><button class="compact-action">发送验证码</button><button class="compact-action primary" disabled>重新登录</button></div></div></section></div>
+                        <div class="page-content"><div class="attention-strip"><div class="run-orb">!</div><div><strong>Workshop 登录已过期</strong><small>超过七天未活动或凭据已失效；自动领取与远端写入已停止，最近快照保持只读。</small></div></div><section class="surface"><div class="surface-header"><strong>恢复账号</strong><span>需要重新验证</span></div><div class="surface-body"><div class="stack"><label>邮箱<input type="email" value="glare@example.com"></label><label>验证码<input type="text" placeholder="6 位验证码"></label></div><div class="page-actions"><button class="compact-action">发送验证码</button><button class="compact-action primary" disabled>重新登录</button></div></div></section></div>
                     </div>
                 </div>
                 <div class="component-list"><h3>组件清单</h3><ul><li>认证失效原因</li><li>只读快照说明</li><li>预填账号目标</li><li>重新验证动作</li></ul></div>

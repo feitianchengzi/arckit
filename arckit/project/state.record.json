@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-11T16:52:06.147Z",
-    "revision": 28
+    "updated_at": "2026-08-12T08:52:29.437Z",
+    "revision": 31
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -131,7 +131,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Make core software invariants reliably expose affected durable product, interaction, visual, technical, realization, and risk facts from fresh Case evidence without fixed artifact routing.",
+      "current_focus": "诊断并修复 arckit-runtime 登录会话过早失效，使认证续期符合连续使用预期。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -208,16 +208,17 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "Users can invoke using-arckit conversationally; Desktop users observe the persisted candidate catalog, Agent comparison and exclusion reasons, an independent accepted round closeout, and a verified post-commit fresh-read in one persistent Agent conversation.",
-          "reason": "The round boundary is now explicitly visible without splitting the coherent Agent into planner and worker turns.",
+          "statement": "Users can invoke using-arckit conversationally; Desktop users observe persisted candidate comparison, accepted round closeout and verified fresh-read in one persistent Agent conversation. Login restoration is silent when a server-backed session remains renewable within the rolling seven-day window; transient refresh failures retain recoverable state, while more than seven days without valid login activity or explicit credential rejection leads to the login recovery surface.",
+          "reason": "The round boundary behavior remains unchanged, while the affected Desktop login and recovery states are now durably specified.",
           "evidence": [
             "arckit/spec/agentic-software-development/controller-worker-loop.md",
             "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "runtime/arckit-runtime/src/projection/run-event-projector.mjs"
+            "arckit/interaction/login/interaction.md",
+            "arckit/interaction/automation-workspace/interaction.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 3
+          "revision": 4
         },
         "gap_refs": []
       },
@@ -247,16 +248,17 @@
         "decision_expectation": "State the identity subjects, authentication and authorization boundaries, entitlement behavior, and explicitly excluded access capabilities.",
         "evidence_expectation": "Durable product and technical evidence sufficient to recover access decisions.",
         "decision": {
-          "revision": 1,
           "status": "settled",
-          "statement": "Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints.",
-          "reason": "Runtime login and execution authorization are documented separately from product entitlement.",
+          "statement": "Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints. Runtime sessions use a server-backed rolling seven-day inactivity window: successful verification login, successful startup session restoration/refresh, or successful token refresh renews the window through rotated server credentials; only more than seven days without such activity, missing or expired credentials, explicit logout, or explicit server rejection/revocation requires login again.",
+          "reason": "The operator established the rolling-seven-day outcome, and diagnosis separated valid activity, server credential rotation, local persistence and revocation boundaries.",
           "evidence": [
             "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/tech/arckit-runtime/desktop-execution-solution.md"
+            "arckit/interaction/login/interaction.md",
+            "arckit/tech/arckit-runtime/solution.md"
           ],
           "confidence": "high",
-          "resume_condition": ""
+          "resume_condition": "",
+          "revision": 2
         },
         "gap_refs": []
       },
@@ -286,16 +288,17 @@
         "decision_expectation": "State each material dependency, its boundary, failure behavior, and required fallback or recovery behavior.",
         "evidence_expectation": "Durable contract evidence sufficient to recover material integration boundaries.",
         "decision": {
-          "revision": 1,
           "status": "settled",
-          "statement": "The Runtime integrates with Codex app-server/CLI and optional task sources through explicit adapters; trusted ledger entrypoints remain repository-owned.",
-          "reason": "Adapters and integration boundaries are described in Runtime technical evidence.",
+          "statement": "The Runtime integrates with Codex app-server/CLI and optional task sources through explicit adapters; trusted ledger entrypoints remain repository-owned. Workshop authentication renewal uses auth-server/v1/public/refresh_token: Runtime sends the current refresh token, atomically accepts server-rotated credentials and expiry values, never locally extends signed credentials, retries transient transport/service failures without clearing a recoverable session, and treats only explicit invalid/revoked responses or local inactivity/expiry boundaries as reauthentication conditions.",
+          "reason": "Diagnosis established the Workshop refresh boundary and the distinct failure behavior required to support the rolling-seven-day contract safely.",
           "evidence": [
-            "arckit/tech/arckit-runtime/solution.md",
-            "runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs"
+            "runtime/arckit-runtime/src/task-source-adapter.mjs",
+            "runtime/arckit-runtime/test/task-source-adapter.test.mjs",
+            "arckit/tech/arckit-runtime/solution.md"
           ],
           "confidence": "high",
-          "resume_condition": ""
+          "resume_condition": "",
+          "revision": 2
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"

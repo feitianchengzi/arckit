@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-11T16:52:06.147Z
+Updated: 2026-08-12T08:52:29.437Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,9 +17,6 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.data_and_state: settled (arckit/cases/active/CASE-20260811-004-align-invariant-guided-single-gap-case-loops.md)
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260811-004-align-invariant-guided-single-gap-case-loops.md)
-- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md)
 - software_invariant.product-expectations-remain-recoverable: sync_core (arckit/cases/active/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md)
 - software_invariant.interaction-expectations-remain-recoverable: sync_core (arckit/cases/active/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md)
@@ -27,6 +24,9 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - software_invariant.technical-decisions-remain-explainable: sync_core (arckit/cases/active/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md)
 - software_invariant.accepted-facts-are-realized: sync_core (arckit/cases/active/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md)
 - software_invariant.material-risks-have-credible-evidence: sync_core (arckit/cases/active/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md)
+- software_decision.identity_and_access: settled (arckit/cases/active/CASE-20260812-001-runtime.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260812-001-runtime.md)
+- software_decision.external_integrations: settled (arckit/cases/active/CASE-20260812-001-runtime.md)
 
 ## Remaining Project Gaps
 

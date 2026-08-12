@@ -159,6 +159,7 @@ test("Workshop authentication uses the built-in server even when business synchr
   assert.equal(settings.access_token, "access-1");
   assert.equal(settings.refresh_token, "refresh-1");
   assert.equal(settings.access_token_expires_at, 4_600_000);
+  assert.equal(settings.last_login_activity_at, 1_000_000);
   assert.equal(authentication.status, "authenticated");
   assert.equal(authentication.masked_identity, "gl•••@example.com");
   assert.equal("identity" in authentication, false);
@@ -203,7 +204,270 @@ test("Workshop task source refreshes an expiring session once across concurrent 
 
   assert.equal(refreshCount, 1);
   assert.equal(settings.refresh_token, "refresh-2");
+  assert.equal(settings.last_login_activity_at, timestamp);
   assert.deepEqual(new Set(businessHeaders), new Set(["Bearer new-access"]));
+});
+
+test("Workshop startup recovery rotates a session within the seven-day activity window", async () => {
+  const day = 24 * 60 * 60_000;
+  let timestamp = 20 * day;
+  let settings = {
+    enabled: true,
+    base_url: "https://workshop.example",
+    service_name: "workshop",
+    auth_mode: "nebula",
+    access_token: "old-access",
+    refresh_token: "refresh-1",
+    access_token_expires_at: timestamp + day,
+    refresh_token_expires_at: timestamp + 14 * day,
+    last_login_activity_at: timestamp - 7 * day
+  };
+  let refreshCount = 0;
+  let releaseStartupRefresh;
+  let markStartupRefreshStarted;
+  const startupRefreshStarted = new Promise((resolve) => { markStartupRefreshStarted = resolve; });
+  const source = createWorkshopTaskSource({
+    readSettings: async () => settings,
+    saveSettings: async (next) => { settings = next; return settings; },
+    now: () => timestamp,
+    fetchImpl: async (url) => {
+      const pathname = new URL(url).pathname;
+      if (pathname.endsWith("/users")) return jsonResponse({ data: { user: { id: 1, username: "glare" } } });
+      assert.equal(pathname.endsWith("/refresh_token"), true);
+      refreshCount += 1;
+      markStartupRefreshStarted();
+      await new Promise((resolve) => { releaseStartupRefresh = resolve; });
+      return jsonResponse({ data: {
+        access_token: `access-${refreshCount + 1}`,
+        refresh_token: `refresh-${refreshCount + 1}`,
+        expires_in: 3600,
+        refresh_expires_in: 7 * 24 * 60 * 60
+      } });
+    }
+  });
+
+  const firstStatus = source.getAuthStatus();
+  await startupRefreshStarted;
+  let secondSettled = false;
+  const secondStatus = source.getAuthStatus().then((value) => {
+    secondSettled = true;
+    return value;
+  });
+  await Promise.resolve();
+  assert.equal(secondSettled, false);
+  releaseStartupRefresh();
+  const [first, second] = await Promise.all([firstStatus, secondStatus]);
+
+  assert.equal(first.status, "authenticated");
+  assert.equal(second.status, "authenticated");
+  assert.equal(refreshCount, 1);
+  assert.equal(settings.refresh_token, "refresh-2");
+  assert.equal(settings.last_login_activity_at, timestamp);
+
+  const firstActivityAt = settings.last_login_activity_at;
+  timestamp += 30 * 60_000;
+  assert.equal((await source.getCurrentUser()).name, "glare");
+  assert.equal(settings.last_login_activity_at, firstActivityAt);
+
+  timestamp += 6 * day;
+  const restartedSource = createWorkshopTaskSource({
+    readSettings: async () => settings,
+    saveSettings: async (next) => { settings = next; return settings; },
+    now: () => timestamp,
+    fetchImpl: async (url) => {
+      assert.equal(new URL(url).pathname.endsWith("/refresh_token"), true);
+      refreshCount += 1;
+      return jsonResponse({ data: {
+        access_token: `access-${refreshCount + 1}`,
+        refresh_token: `refresh-${refreshCount + 1}`,
+        expires_in: 3600,
+        refresh_expires_in: 7 * 24 * 60 * 60
+      } });
+    }
+  });
+
+  assert.equal((await restartedSource.getAuthStatus()).status, "authenticated");
+  assert.equal(refreshCount, 2);
+  assert.equal(settings.refresh_token, "refresh-3");
+  assert.equal(settings.last_login_activity_at, timestamp);
+});
+
+test("Workshop startup recovery migrates a legacy session without a local activity timestamp", async () => {
+  const timestamp = 30_000_000;
+  let settings = {
+    enabled: true,
+    base_url: "https://workshop.example",
+    auth_mode: "nebula",
+    access_token: "legacy-access",
+    refresh_token: "legacy-refresh",
+    refresh_token_expires_at: timestamp + 60_000
+  };
+  let refreshCount = 0;
+  const source = createWorkshopTaskSource({
+    readSettings: async () => settings,
+    saveSettings: async (next) => { settings = next; return settings; },
+    now: () => timestamp,
+    fetchImpl: async () => {
+      refreshCount += 1;
+      return jsonResponse({ data: { access_token: "migrated-access", refresh_token: "migrated-refresh", refresh_expires_in: 604800 } });
+    }
+  });
+
+  assert.equal((await source.getAuthStatus()).status, "authenticated");
+  assert.equal(refreshCount, 1);
+  assert.equal(settings.last_login_activity_at, timestamp);
+  assert.equal(settings.refresh_token, "migrated-refresh");
+});
+
+test("Workshop startup recovery expires a partial session missing its refresh credential", async () => {
+  const timestamp = 30_000_000;
+  let settings = {
+    enabled: true,
+    base_url: "https://workshop.example",
+    auth_mode: "nebula",
+    auth_state: "authenticated",
+    access_token: "still-valid-access",
+    refresh_token: "",
+    access_token_expires_at: timestamp + 60 * 60_000,
+    last_login_activity_at: timestamp - 60_000
+  };
+  let fetchCalled = false;
+  const source = createWorkshopTaskSource({
+    readSettings: async () => settings,
+    saveSettings: async (next) => { settings = next; return settings; },
+    now: () => timestamp,
+    fetchImpl: async () => {
+      fetchCalled = true;
+      return jsonResponse({});
+    }
+  });
+
+  const authentication = await source.getAuthStatus();
+
+  assert.equal(fetchCalled, false);
+  assert.equal(authentication.status, "expired");
+  assert.equal(authentication.authenticated, false);
+  assert.equal(authentication.can_refresh, false);
+  assert.equal(settings.access_token, "");
+  assert.equal(settings.refresh_token, "");
+  assert.equal(settings.last_login_activity_at, 0);
+});
+
+test("Workshop expires a session only after more than seven days without valid login activity", async () => {
+  const day = 24 * 60 * 60_000;
+  const timestamp = 20 * day;
+  let settings = {
+    enabled: true,
+    base_url: "https://workshop.example",
+    auth_mode: "nebula",
+    access_token: "old-access",
+    refresh_token: "refresh-1",
+    refresh_token_expires_at: timestamp + day,
+    last_login_activity_at: timestamp - 7 * day - 1
+  };
+  let fetchCalled = false;
+  const source = createWorkshopTaskSource({
+    readSettings: async () => settings,
+    saveSettings: async (next) => { settings = next; return settings; },
+    now: () => timestamp,
+    fetchImpl: async () => {
+      fetchCalled = true;
+      return jsonResponse({});
+    }
+  });
+
+  const authentication = await source.getAuthStatus();
+
+  assert.equal(fetchCalled, false);
+  assert.equal(authentication.status, "expired");
+  assert.equal(authentication.can_refresh, false);
+  assert.equal(settings.access_token, "");
+  assert.equal(settings.refresh_token, "");
+  assert.equal(settings.last_login_activity_at, 0);
+});
+
+test("Workshop preserves a recoverable startup session after a transient refresh failure", async () => {
+  const day = 24 * 60 * 60_000;
+  const timestamp = 20 * day;
+  let settings = {
+    enabled: true,
+    base_url: "https://workshop.example",
+    auth_mode: "nebula",
+    access_token: "old-access",
+    refresh_token: "refresh-1",
+    refresh_token_expires_at: timestamp + day,
+    last_login_activity_at: timestamp - 6 * day
+  };
+  const source = createWorkshopTaskSource({
+    readSettings: async () => settings,
+    saveSettings: async (next) => { settings = next; return settings; },
+    now: () => timestamp,
+    fetchImpl: async () => { throw new Error("temporary network outage"); }
+  });
+
+  const authentication = await source.getAuthStatus();
+
+  assert.equal(authentication.status, "authenticated");
+  assert.equal(authentication.can_refresh, true);
+  assert.match(authentication.error, /temporary network outage/);
+  assert.equal(settings.access_token, "old-access");
+  assert.equal(settings.refresh_token, "refresh-1");
+  assert.equal(settings.last_login_activity_at, timestamp - 6 * day);
+});
+
+test("Workshop preserves a recoverable startup session after an authentication service failure", async () => {
+  const day = 24 * 60 * 60_000;
+  const timestamp = 20 * day;
+  let settings = {
+    enabled: true,
+    base_url: "https://workshop.example",
+    auth_mode: "nebula",
+    access_token: "old-access",
+    refresh_token: "refresh-1",
+    refresh_token_expires_at: timestamp + day,
+    last_login_activity_at: timestamp - 6 * day
+  };
+  const source = createWorkshopTaskSource({
+    readSettings: async () => settings,
+    saveSettings: async (next) => { settings = next; return settings; },
+    now: () => timestamp,
+    fetchImpl: async () => jsonResponse({ error: { message: "service temporarily unavailable" } }, 503)
+  });
+
+  const authentication = await source.getAuthStatus();
+
+  assert.equal(authentication.status, "authenticated");
+  assert.match(authentication.error, /temporarily unavailable/);
+  assert.equal(settings.access_token, "old-access");
+  assert.equal(settings.refresh_token, "refresh-1");
+});
+
+test("Workshop clears a startup session explicitly rejected by the authentication server", async () => {
+  const day = 24 * 60 * 60_000;
+  const timestamp = 20 * day;
+  let settings = {
+    enabled: true,
+    base_url: "https://workshop.example",
+    auth_mode: "nebula",
+    access_token: "old-access",
+    refresh_token: "revoked-refresh",
+    refresh_token_expires_at: timestamp + day,
+    last_login_activity_at: timestamp - day
+  };
+  const source = createWorkshopTaskSource({
+    readSettings: async () => settings,
+    saveSettings: async (next) => { settings = next; return settings; },
+    now: () => timestamp,
+    fetchImpl: async () => jsonResponse({ error: { message: "refresh token revoked" } }, 401)
+  });
+
+  const authentication = await source.getAuthStatus();
+
+  assert.equal(authentication.status, "expired");
+  assert.equal(authentication.can_refresh, false);
+  assert.equal(settings.access_token, "");
+  assert.equal(settings.refresh_token, "");
+  assert.equal(settings.last_login_activity_at, 0);
 });
 
 test("Workshop task source refreshes and retries the first 401 exactly once", async () => {

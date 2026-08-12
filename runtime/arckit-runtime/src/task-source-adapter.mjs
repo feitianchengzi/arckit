@@ -13,6 +13,7 @@ export const DEFAULT_WORKSHOP_BASE_URL = "https://api.feitianchengzi.com";
 const TERMINAL_STATES = new Set(["accepted", "cancelled"]);
 const AUTH_STATES = new Set(["logged_out", "authenticated", "refreshing", "expired"]);
 const REFRESH_WINDOW_MS = 5 * 60_000;
+const SESSION_INACTIVITY_WINDOW_MS = 7 * 24 * 60 * 60_000;
 
 export class TaskSourceError extends Error {
   constructor(message, { code = "task_source_error", status = 0, details = null } = {}) {
@@ -33,6 +34,8 @@ export function createWorkshopTaskSource({
 }) {
   let config = normalizeTaskSourceSettings(settings);
   let refreshPromise = null;
+  let startupRecoveryPromise = null;
+  let startupRecoveryAttempted = false;
   let authEpoch = 0;
   let projectExecutorIds = new Map();
 
@@ -90,6 +93,7 @@ export function createWorkshopTaskSource({
     }
     const user = payload?.user && typeof payload.user === "object" ? payload.user : {};
     authEpoch += 1;
+    startupRecoveryAttempted = true;
     await persistConfig(applyNebulaTokens(current, tokens, {
       username: user.username || user.email || user.phone || request.target,
       now: now()
@@ -99,6 +103,7 @@ export function createWorkshopTaskSource({
 
   async function logout() {
     authEpoch += 1;
+    startupRecoveryAttempted = true;
     const current = await loadConfig();
     await persistConfig({
       ...current,
@@ -108,6 +113,7 @@ export function createWorkshopTaskSource({
       token_type: "Bearer",
       access_token_expires_at: 0,
       refresh_token_expires_at: 0,
+      last_login_activity_at: 0,
       user_id: "",
       username: "",
       session_id: "",
@@ -118,7 +124,32 @@ export function createWorkshopTaskSource({
   }
 
   async function getAuthStatus() {
+    if (!startupRecoveryAttempted) {
+      startupRecoveryAttempted = true;
+      startupRecoveryPromise = recoverStartupSession()
+        .finally(() => { startupRecoveryPromise = null; });
+    }
+    if (startupRecoveryPromise) return startupRecoveryPromise;
     const current = await loadConfig();
+    return authProjection(current, { refreshing: Boolean(refreshPromise), now: now() });
+  }
+
+  async function recoverStartupSession() {
+    let current = await loadConfig();
+    if (shouldAttemptStartupRecovery(current)) {
+      try {
+        current = await refreshNebulaToken();
+      } catch (error) {
+        const normalized = normalizeError(error);
+        current = await loadConfig();
+        if (isRetryableRefreshFailure(normalized)) {
+          return authProjection({ ...current, auth_error: normalized.message }, {
+            refreshing: Boolean(refreshPromise),
+            now: now()
+          });
+        }
+      }
+    }
     return authProjection(current, { refreshing: Boolean(refreshPromise), now: now() });
   }
 
@@ -130,7 +161,7 @@ export function createWorkshopTaskSource({
     if (refreshPromise) {
       return refreshPromise;
     }
-    if (!current.refresh_token || refreshTokenExpired(current, now())) {
+    if (!current.refresh_token || refreshTokenExpired(current, now()) || sessionInactive(current, now())) {
       if (current.auth_state === "logged_out") {
         throw new TaskSourceError("请先登录 Workshop。", { code: "unauthenticated" });
       }
@@ -157,12 +188,15 @@ export function createWorkshopTaskSource({
         if (authEpoch !== refreshEpoch) {
           throw new TaskSourceError("Workshop 会话已变化。", { code: "unauthenticated" });
         }
-        await expireSession(current, normalized.message);
-        throw new TaskSourceError(normalized.message || "Workshop 登录已过期，请重新登录。", {
-          code: "unauthenticated",
-          status: normalized.status,
-          details: normalized.details
-        });
+        if (isCredentialRejection(normalized)) {
+          await expireSession(current, normalized.message);
+          throw new TaskSourceError(normalized.message || "Workshop 登录已过期，请重新登录。", {
+            code: "unauthenticated",
+            status: normalized.status,
+            details: normalized.details
+          });
+        }
+        throw normalized;
       } finally {
         refreshPromise = null;
       }
@@ -177,6 +211,7 @@ export function createWorkshopTaskSource({
       refresh_token: "",
       access_token_expires_at: 0,
       refresh_token_expires_at: 0,
+      last_login_activity_at: 0,
       auth_state: "expired",
       auth_error: String(message || "Workshop 登录已过期，请重新登录。")
     });
@@ -185,6 +220,10 @@ export function createWorkshopTaskSource({
   async function request(path, { method = "GET", query = {}, body, expectedVersion = "" } = {}) {
     let current = await loadConfig();
     assertTaskSourceEnabled(current);
+    if (current.auth_mode === "nebula" && sessionInactive(current, now())) {
+      await expireSession(current, "Workshop 登录已超过七天未活动，请重新登录。");
+      throw new TaskSourceError("Workshop 登录已超过七天未活动，请重新登录。", { code: "unauthenticated" });
+    }
     if (current.auth_mode === "nebula" && tokenExpiresSoon(current, now())) {
       current = await refreshNebulaToken();
     }
@@ -324,6 +363,7 @@ export function normalizeTaskSourceSettings(value = {}) {
     token_type: String(value.token_type || "Bearer").trim() || "Bearer",
     access_token_expires_at: finiteTimestamp(value.access_token_expires_at),
     refresh_token_expires_at: finiteTimestamp(value.refresh_token_expires_at),
+    last_login_activity_at: finiteTimestamp(value.last_login_activity_at),
     auth_state: AUTH_STATES.has(value.auth_state) ? value.auth_state : inferAuthState(value),
     auth_error: String(value.auth_error || "").trim(),
     user_id: String(value.user_id || "").trim(),
@@ -337,15 +377,15 @@ export function authProjection(settings, { refreshing = false, now = Date.now() 
   const current = normalizeTaskSourceSettings(settings);
   let status = current.auth_state;
   if (refreshing) status = "refreshing";
-  else if (status !== "expired" && current.auth_mode === "nebula" && current.refresh_token_expires_at && current.refresh_token_expires_at <= now) status = "expired";
+  else if (status !== "expired" && current.auth_mode === "nebula" && (refreshTokenExpired(current, now) || sessionInactive(current, now))) status = "expired";
   else if (status !== "expired" && (current.access_token || current.refresh_token || (current.auth_mode === "headers" && current.user_id))) status = "authenticated";
   else if (status !== "expired") status = "logged_out";
   return {
     status,
     authenticated: status === "authenticated" || status === "refreshing",
     masked_identity: maskIdentity(current.username || current.user_id || ""),
-    can_refresh: Boolean(current.auth_mode === "nebula" && current.refresh_token && !refreshTokenExpired(current, now)),
-    error: status === "expired" ? current.auth_error || "Workshop 登录已过期，请重新登录。" : ""
+    can_refresh: Boolean(current.auth_mode === "nebula" && current.refresh_token && !refreshTokenExpired(current, now) && !sessionInactive(current, now)),
+    error: status === "expired" ? current.auth_error || "Workshop 登录已过期，请重新登录。" : current.auth_error
   };
 }
 
@@ -450,6 +490,7 @@ function applyNebulaTokens(current, tokens, { username, now }) {
     token_type: "Bearer",
     access_token_expires_at: accessExpires,
     refresh_token_expires_at: refreshExpires,
+    last_login_activity_at: now,
     username: String(username || current.username || ""),
     auth_state: "authenticated",
     auth_error: ""
@@ -468,6 +509,25 @@ function tokenExpiresSoon(current, timestamp) {
 
 function refreshTokenExpired(current, timestamp) {
   return Boolean(current.refresh_token_expires_at && current.refresh_token_expires_at <= timestamp);
+}
+
+function sessionInactive(current, timestamp) {
+  return Boolean(current.last_login_activity_at && timestamp - current.last_login_activity_at > SESSION_INACTIVITY_WINDOW_MS);
+}
+
+function shouldAttemptStartupRecovery(current) {
+  return current.auth_mode === "nebula"
+    && current.auth_state !== "logged_out"
+    && current.auth_state !== "expired"
+    && Boolean(current.access_token || current.refresh_token);
+}
+
+function isCredentialRejection(error) {
+  return error?.code === "unauthenticated" || error?.code === "forbidden";
+}
+
+function isRetryableRefreshFailure(error) {
+  return !isCredentialRejection(error);
 }
 
 function assertTaskSourceEnabled(current) {

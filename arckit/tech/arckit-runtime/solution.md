@@ -72,9 +72,11 @@ Electron main 进程创建单个长生命周期 Workshop Authenticated Service�
 - 读取不含 token 的认证状态投影。
 - 退出登录并清除远端身份。
 
-验证码请求发送到 `auth-server/v1/public/send_verification`，固定携带 `purpose=login`。登录请求发送到 `auth-server/v1/public/login`，邮箱使用 `email` 字段，手机号使用 `phone` 字段。登录响应中的 access token、refresh token、相对或绝对过期时间被归一化后写入主进程私有设置。
+验证码请求发送到 `auth-server/v1/public/send_verification`，固定携带 `purpose=login`。登录请求发送到 `auth-server/v1/public/login`，邮箱使用 `email` 字段，手机号使用 `phone` 字段。登录响应中的 access token、refresh token、相对或绝对过期时间被归一化后写入主进程私有设置。设置同时保存最近一次由 Workshop 证明成功的登录活动时间；验证码登录成功、启动会话恢复成功和 refresh 成功会更新该时间，本地页面浏览、普通业务读取、失败请求与离线操作不会更新。
 
-业务请求前，服务重新读取私有设置。NebulaAuth access token 距过期不足五分钟时先刷新；业务请求首次返回 401 时也刷新并重试一次。所有并发刷新共享一个 in-flight Promise，成功后使用新 access token 重放原请求，失败后清除不可用 access token 并返回稳定的 `unauthenticated` 错误。刷新请求发送到 `auth-server/v1/public/refresh_token`，只携带 refresh token。认证服务与 Coordinator 分别维护会话代际；登录或退出使旧代际的在途刷新和同步结果失效，禁止旧响应在退出后恢复 token 或远端快照。
+会话使用滚动七天不活动窗口。应用每次启动恢复时，只要最近一次有效登录活动仍在七天内且存在 refresh token，就调用 `auth-server/v1/public/refresh_token`，即使 access token 尚未临近过期；服务端返回轮换后的 access token、refresh token 及覆盖新七天窗口的过期时间，主进程原子替换旧会话。Runtime 只接受服务端签发的期限，不通过本地时间戳延长签名凭据。连续超过七天没有有效登录活动、refresh token 已过期或认证服务明确判定 token 无效/撤销时，会话不可恢复并进入 `expired`。
+
+业务请求前，服务重新读取私有设置。NebulaAuth access token 距过期不足五分钟时先刷新；业务请求首次返回 401 时也刷新并重试一次。所有并发刷新共享一个 in-flight Promise，成功后使用新 access token 重放原请求。网络错误、超时、服务不可用和其他没有证明凭据失效的刷新失败保留 refresh token、活动时间与会话代际，返回可重试的任务源错误；只有 refresh token 缺失、过期、超过七天不活动窗口或服务端明确返回无效/撤销凭据时才清除会话并返回稳定的 `unauthenticated`。认证服务与 Coordinator 分别维护会话代际；登录或退出使旧代际的在途刷新和同步结果失效，禁止旧响应在退出后恢复 token 或远端快照。
 
 认证状态投影只有 `logged_out`、`authenticated`、`refreshing` 和 `expired`。投影包含脱敏账号标识、是否具备可刷新会话和可解释错误，不包含 access token、refresh token、原始登录响应或精确 token 过期值。
 

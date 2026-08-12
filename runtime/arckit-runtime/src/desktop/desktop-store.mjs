@@ -103,6 +103,7 @@ export function defaultSettings() {
       token_type: "Bearer",
       access_token_expires_at: 0,
       refresh_token_expires_at: 0,
+      last_login_activity_at: 0,
       auth_state: "logged_out",
       auth_error: "",
       user_id: "",
