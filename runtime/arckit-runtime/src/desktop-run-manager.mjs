@@ -113,7 +113,7 @@ export function createDesktopRunManager({
     const controllerInvocation = agentSkillInvocationForPhase(controllerCapabilities, "agent_loop");
     const runtimeCapabilities = capabilitiesForBinding(capabilities, policy, "runtime");
     const trustedEntrypoints = {};
-    for (const entrypoint of ["case_control", "writeback"]) {
+    for (const entrypoint of ["protocol_compatibility", "loop_snapshot", "case_control", "writeback"]) {
       const capability = runtimeCapabilityForEntrypoint(runtimeCapabilities, entrypoint);
       trustedEntrypoints[entrypoint] = resolveCapabilityEntrypoint(capability, entrypoint);
     }
@@ -123,6 +123,8 @@ export function createDesktopRunManager({
       project_path: project.path,
       initialized: initialization.initialized === true,
       repaired: initialization.repaired === true,
+      recovery_required: initialization.recovery_required === true,
+      compatibility: initialization.compatibility || null,
       controller_trigger: controllerInvocation.skill_trigger,
       trusted_entrypoints: trustedEntrypoints
     };

@@ -28,6 +28,8 @@ function createRunActivity(run) {
     artifact_ownership_scan: null,
     round_state: "planned",
     round_state_history: [],
+    round_candidates: null,
+    round_selection: null,
     ledger_stage: null,
     gate_result: null,
     ledger_write_result: null,
@@ -80,6 +82,25 @@ function applyRunEvent(run, { parsed }) {
       upsertMessage(activity, {
         id: `agent:${activity.round_index}:result`, role: "assistant", actor: "agent", actor_label: "Codex Agent", kind: "result",
         content: event.summary || "Agent Loop 已完成。", status: "completed"
+      });
+      break;
+    case "runtime.round_candidates":
+      activity.round_candidates = {
+        snapshot_token: event.snapshot_token || "",
+        candidate_catalog: event.candidate_catalog || { persisted_candidates: [], persisted_obligations: [] }
+      };
+      upsertMessage(activity, {
+        id: `runtime:round-candidates:${event.round_index || "current"}`,
+        role: "system", actor: "runtime", actor_label: "Arckit Runtime", kind: "round",
+        content: candidateCatalogSummary(event), status: "completed"
+      });
+      break;
+    case "runtime.round_selection":
+      activity.round_selection = event.gap_selection || null;
+      upsertMessage(activity, {
+        id: `runtime:round-selection:${event.round_index || "current"}`,
+        role: "system", actor: "runtime", actor_label: "Arckit Runtime", kind: "round",
+        content: gapSelectionSummary(event), status: "completed"
       });
       break;
     case "runtime.context_compaction.started":
@@ -176,6 +197,23 @@ function applyRunEvent(run, { parsed }) {
     case "runtime.ledger_write.completed":
       applyLedgerWrite(activity, event.result);
       break;
+    case "runtime.round_closeout":
+      activity.round_closeout = event.receipt || null;
+      projectStructuredResult(activity, event.receipt, { turnId: activity.turn_id, status: "completed" });
+      upsertMessage(activity, {
+        id: `runtime:round-closeout:${event.round_index || "current"}`,
+        role: "system", actor: "runtime", actor_label: "Arckit Runtime", kind: "round",
+        content: roundCloseoutSummary(event.receipt), status: "completed"
+      });
+      break;
+    case "runtime.fresh_read.completed":
+      activity.fresh_read_receipt = event.receipt || null;
+      upsertMessage(activity, {
+        id: `runtime:fresh-read:${event.round_index || "current"}`,
+        role: "system", actor: "runtime", actor_label: "Arckit Runtime", kind: "ledger",
+        content: freshReadSummary(event.receipt), status: "completed"
+      });
+      break;
     default:
       if (event.type?.includes("error") || event.type?.endsWith(".failed")) activity.error = event.message || event.error || activity.error;
       break;
@@ -207,6 +245,36 @@ function applyLedgerWrite(activity, result) {
     activity.ledger_stage = { ...(activity.ledger_stage || {}), status: "written", writeback_required: false };
     activity.loop_handoff = result.case_transition_result?.case_resolution?.loop_handoff || activity.loop_handoff;
   }
+}
+
+function roundCloseoutSummary(receipt = {}) {
+  const acceptedFacts = receipt.accepted_state_delta?.facts_added?.length || 0;
+  const acceptedGaps = receipt.accepted_state_delta?.gaps_added?.length || 0;
+  const judgments = receipt.invariant_assessment?.judgments || [];
+  const judgmentSummary = judgments.map((item) => `${item.invariant_ref}=${item.disposition}`).join("、") || "none";
+  return `Round ${receipt.round || "?"} 已接受：${receipt.case_id || "Case"} / ${receipt.selected_gap?.id || "Gap"}；facts +${acceptedFacts}，gaps +${acceptedGaps}，invariants ${judgmentSummary}，Project revision ${receipt.resulting_state?.project_revision ?? "?"}。`;
+}
+
+function candidateCatalogSummary(event = {}) {
+  const candidates = event.candidate_catalog?.persisted_candidates || [];
+  const refs = candidates.map((item) => item.ref).filter(Boolean);
+  const token = String(event.snapshot_token || "").slice(0, 12);
+  return `Round ${event.round_index || "?"} persisted candidates (${refs.length})：${refs.join("、") || "none"}；snapshot ${token || "unknown"}。`;
+}
+
+function gapSelectionSummary(event = {}) {
+  const selection = event.gap_selection || {};
+  const considered = (selection.considered || []).map((item) => {
+    const marker = item.disposition === "selected" ? "selected" : item.disposition || "considered";
+    return `${item.ref || "unknown"} ${marker}（${item.reason || "no reason"}）`;
+  });
+  const fresh = selection.fresh_discovery_summary || "no fresh discovery summary";
+  return `Gap 比较：${considered.join("；") || "no trace"}。Fresh discovery：${fresh}。`;
+}
+
+function freshReadSummary(receipt = {}) {
+  const token = String(receipt.snapshot_token || "").slice(0, 12);
+  return `Fresh-read 已确认写回后的 canonical state：Project revision ${receipt.project_revision ?? "?"}，snapshot ${token || "unknown"}。`;
 }
 
 function applyRunCommandResult(run, commandType, result) {

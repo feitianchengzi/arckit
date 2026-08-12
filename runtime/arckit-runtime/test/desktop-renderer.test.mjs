@@ -151,6 +151,30 @@ test("transcript hides empty reasoning and recognizes persisted schema JSON with
   ]);
 });
 
+test("Round Closeout v2 presents trusted invariant judgments", () => {
+  const value = {
+    schema_version: "arckit-round-closeout/v2",
+    status: "accepted",
+    case_id: "CASE-1",
+    round: 2,
+    selected_gap: { id: "GAP-TECH" },
+    resulting_state: { project_revision: 4 },
+    invariant_assessment: {
+      project_revision: 3,
+      judgments: [
+        { invariant_ref: "technical-decisions-remain-explainable", disposition: "threatened" },
+        { invariant_ref: "accepted-facts-are-realized", disposition: "upheld" }
+      ]
+    }
+  };
+  const presentation = structuredResultPresentation({ role: "system", kind: "structured", structured_data: { value } });
+  assert.equal(presentation.title, "Round Closeout");
+  assert.deepEqual(presentation.fields.at(-1), {
+    label: "Invariant judgments",
+    values: ["technical-decisions-remain-explainable: threatened", "accepted-facts-are-realized: upheld"]
+  });
+});
+
 test("desktop main and preload expose bounded automation IPC without a generic network bridge", async () => {
   const [main, preload, source] = await Promise.all([
     readFile(desktopMainPath, "utf8"),

@@ -3,18 +3,39 @@
   "$id": "https://arckit.local/schema/case-transition.schema.json",
   "title": "Arckit Case Transition",
   "type": "object",
-  "required": ["schema_version", "case_id", "case_updated_at", "project_revision", "gap_selection", "selected_gap", "planned_transition", "accepted_state_delta", "project_state_delta", "evidence", "unresolved", "round_outcome", "case_resolution"],
+  "required": ["schema_version", "case_id", "case_updated_at", "project_revision", "gap_selection", "selected_gap", "planned_transition", "accepted_state_delta", "project_state_delta", "invariant_assessment", "evidence", "unresolved", "round_outcome", "case_resolution"],
   "properties": {
-    "schema_version": { "const": "arckit-case-transition/v6" },
+    "schema_version": { "const": "arckit-case-transition/v8" },
     "case_id": { "type": "string", "pattern": "^CASE-[0-9]{8}-[0-9]{3}$" },
     "case_updated_at": { "type": "string", "minLength": 1 },
     "project_revision": { "type": "integer", "minimum": 0 },
     "gap_selection": {
       "type": "object",
-      "required": ["mode", "basis"],
+      "required": ["mode", "basis", "snapshot_token", "selected_ref", "comparison_summary", "fresh_discovery_summary", "considered"],
       "properties": {
         "mode": { "type": "string", "enum": ["candidate", "fresh"] },
-        "basis": { "type": "string", "minLength": 1 }
+        "basis": { "type": "string", "minLength": 1 },
+        "snapshot_token": { "type": "string", "minLength": 1 },
+        "selected_ref": { "type": "string", "minLength": 1 },
+        "comparison_summary": { "type": "string", "minLength": 1 },
+        "fresh_discovery_summary": { "type": "string", "minLength": 1 },
+        "considered": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["ref", "source", "eligibility", "disposition", "priority_basis", "reason"],
+            "properties": {
+              "ref": { "type": "string", "minLength": 1 },
+              "source": { "type": "string", "enum": ["persisted", "fresh"] },
+              "eligibility": { "type": "string", "enum": ["ready", "case_required", "blocked", "ineligible"] },
+              "disposition": { "type": "string", "enum": ["selected", "deferred", "excluded"] },
+              "priority_basis": { "type": "object" },
+              "reason": { "type": "string", "minLength": 1 }
+            },
+            "additionalProperties": false
+          }
+        }
       },
       "additionalProperties": false
     },
@@ -48,6 +69,31 @@
         "project_gap_changes": { "type": "array" },
         "selection_context_change": { "type": ["object", "null"] },
         "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      },
+      "additionalProperties": false
+    },
+    "invariant_assessment": {
+      "type": "object",
+      "required": ["project_revision", "judgments"],
+      "properties": {
+        "project_revision": { "type": "integer", "minimum": 0 },
+        "judgments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["invariant_ref", "disposition", "reason", "fact_refs", "evidence", "gap_refs"],
+            "properties": {
+              "invariant_ref": { "type": "string", "minLength": 1 },
+              "disposition": { "type": "string", "enum": ["not_relevant", "upheld", "threatened", "undetermined"] },
+              "reason": { "type": "string", "minLength": 1 },
+              "fact_refs": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+              "gap_refs": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+            },
+            "additionalProperties": false
+          }
+        }
       },
       "additionalProperties": false
     },

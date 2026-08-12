@@ -21,7 +21,7 @@ User Input
   -> Desktop UI
 ```
 
-Runtime Kernel 是策略中立的自动化内核，不是语义微编排器。一次 Loop 对应同一 Codex thread 中的一个 Agent turn：Agent 选择一个 Case gap、调用必要 skills/tools、执行和验证工作，并返回一个 Case control、Case transition 或 handoff。Runtime 不把这个 turn 再拆成阶段化的多个 Agent invocation。
+Runtime Kernel 是策略中立的自动化内核，不是语义微编排器。一次 Loop 对应同一 Codex thread 中的一个 Agent turn：Agent 用 Project invariants 与 fresh Case facts 发现候选，选择一个 Case gap，调用必要 skills/tools，只执行和验证该 Gap 的单一 acceptance claim，并返回一个 Case control、Case transition 或 handoff。Runtime 不把这个 turn 再拆成阶段化的多个 Agent invocation，也不解释 invariant 或派生事实域路由。
 
 Runtime Kernel 不充当 semantic truth judge。代码不判断产品概念、架构取舍、skill 适用性或业务语义是否“真的正确”；这些语义判断来自当前 Agent、人类或显式委派方。Runtime Kernel 只验证 schema、revision、授权、工作区/路径安全、证据存在性和 ledger transition 合法性，不重做 Agent 的语义 review。
 
@@ -130,7 +130,7 @@ Preload 只暴露产品动作，Renderer 只消费 Automation Snapshot 和 Run a
 
 ### Loop Controller
 
-Loop Controller 先读取 Project State 的 advancement、完整 software definition decisions、software invariants 和全部 active Cases。Project gap 只作为选择/创建 Case 的宏观依据；每个 active Case 的 facts、state impacts 与 `case_resolution.candidate_gaps` 都进入 Controller 上下文，数组顺序不表达优先级。通过 `$using-arckit` 调用的 Agent 每轮从 fresh state 选择唯一 Case，再结合阻塞、风险、信息增益、依赖、用户影响和可验证性选择已有 candidate，或提出并当轮完成一个 fresh Gap。Runtime 不根据关键词、decision/invariant、固定优先级或 skill/path 映射拍板业务 route，也不要求上一轮预排 impacts 或 gap 链。
+Loop Controller 通过 ledger manifest 的 trusted `loop_snapshot` 入口读取 advancement、完整 software definition decisions、software invariants、全部 active Cases、最近 invariant assessments、candidate catalog、revisions 与 snapshot tokens。Project gap 只作为选择/创建 Case 的宏观依据；数组顺序不表达优先级。通过 `$using-arckit` 调用的 Agent 每轮结合 invariants、fresh Case facts 和原生 skills 发现并可见地比较 persisted/fresh candidates，记录 eligibility、priority basis 和 selected/deferred/excluded 理由后选择唯一 Case 与一个 gap。Runtime 不解析 canonical records 复刻候选规则，也不根据关键词、decision/invariant、固定优先级或 skill/path 映射拍板业务 route；上一轮不得通过 impacts、事实域、复合步骤 Gap 或 closeout 预排下一轮路径。
 
 本轮目标必须形成：
 
@@ -172,7 +172,7 @@ Prompt Compiler 为 Agent Loop 生成最小 invocation。首个 turn 包含自�
 
 默认 invocation 以 manifest 声明的自然 `$using-arckit` 文本 trigger 进入 Codex 原生 skill 机制，不额外发送 `skill` input item。其余内容只有 locale、原始待办意图、当前增量、bounded canonical facts、revision、execution authorization 和 compact output contract。Agent 在 turn 内自行读取必要仓库事实、发现其他 skills、执行工具并完成自我审查；Runtime 不拼接 skill 清单、固定 Worker role 或预测式 allowed paths。
 
-Runtime 从 fresh Project/Case records 确定性派生 Agent context digest。Digest 包含 Project revision、software decisions/invariants、advancement/project gaps 和全部 active Cases 的意图、facts、state impacts、open/blocked/ready gaps、questions、handoffs、completion review 摘要与稳定引用。它不包含 raw transcript、模型 reasoning 或未接受 claim；Case schema 不匹配时直接拒绝运行。
+Runtime 从 trusted ledger snapshot receipt 投影 Agent context digest。Receipt 已包含 Project revision、software decisions/invariants、advancement/project gaps、全部 active Cases、candidate catalog、source digests 与 snapshot tokens；Runtime 不再自己读取 canonical JSON、推导 candidates 或重判协议兼容性。Digest 不包含 raw transcript、模型 reasoning 或未接受 claim；snapshot 报告协议不兼容时进入恢复流程，不启动业务 Loop。
 
 `context_digest` 是有界的恢复索引，不是 transcript 摘要。它包含 Project/Case revisions、software decisions/invariants、active Case selection facts、facts/impacts/candidate gaps、最近已接受 round 摘要、未解决问题和 canonical refs；不包含 raw event、完整历史 prompt、模型 reasoning 或未接受 claim。
 
@@ -209,11 +209,12 @@ adapter 的 `close` 只在 session 完成、人工/外部 handoff、失败、int
 执行模式把多个 Loop 保持在一个 Runtime 进程内：
 
 ```text
-fresh read -> one coherent Agent turn -> structural gate
-  -> deterministic ledger write -> fresh read -> next turn
+trusted snapshot -> visible candidate comparison -> one coherent Agent turn
+  -> structural gate -> deterministic ledger write -> round_closeout
+  -> trusted post-commit snapshot -> next turn
 ```
 
-每次 ledger 写回后的下一轮必须从 State Store 重读 Project revision、active Case revisions 和 candidate gaps；内存中的旧 snapshot 与 selected gap 不可跨写回复用，但同一 active Agent thread 继续提供对话连续性。Case 创建也遵循同一规则：可信入口注册新 Case 后，下一 turn 从 fresh state 选择该 Case gap。
+每次 ledger 写回后先把 ledger 生成的独立 closeout 投影给用户，再由 State Store 携带 `post_commit_snapshot_token` 调 trusted `loop_snapshot`；只有 receipt 确认 `observed_after_commit=true` 后才能发起下一轮。内存中的旧 snapshot、writeback candidate 与 selected gap 不可跨写回复用，但同一 active Agent thread 继续提供对话连续性。Case 创建也遵循同一规则：可信入口注册新 Case 后，下一 turn 从 post-commit snapshot 选择该 Case gap。
 
 Runtime 仅在 handoff 明确要求 human responsibility 时标记 `paused_for_human=true`。Agent responsibility 无论是 `auto_bridge` 还是受自动策略允许的 `manual_bridge` 都在当前进程继续。External responsibility 以 `external_wait` 终止当前执行而不伪装人工决策；连续无 ledger 进展达到恢复预算时安全停止。生产性 ledger 写回会重置该计数，因此它不是总墙钟或生产性 Round 上限；长命令自然运行到完成或显式 interrupt。
 
@@ -295,26 +296,27 @@ Ledger Writer 是 Runtime hard gate 与 ledger skill entrypoint 之间的薄适�
 
 Ledger capability 负责将验证后的结果写回：
 
-- `arckit-case-transition/v6`
+- `arckit-case-transition/v8`
+- `arckit-ledger-snapshot/v1` 与 `arckit-round-closeout/v2` receipts
 - development Case record 与 derived candidate gaps/resolution
 - resolved Case 的显式 Project/iteration impact
 - Case、Project、iteration 的 indexes 与 projections
 
 Ledger writeback 是已接受 Case transition 的必经阶段。Desktop 执行型 run 在 Controller 接受 evidence-backed delta 且 `ledger_stage.status=gate_ready` 后运行 gate；即使 Case 仍 unresolved 或下一责任方是 human/external，也可以先安全写入本轮 accepted delta，再停止桥接。
 
-每个 transition 绑定 Case `updated_at` 和本轮观察到的 Project numeric revision，并携带 `gap_selection`。`candidate` 逐字段复现当前候选；`fresh` 必须是未持久化、Agent-owned、依赖已闭合且当轮完成的普通 Gap。Gate 通过 trusted ledger `case_transition` entrypoint 做 canonical validation；revision、candidate snapshot 或 fresh 约束失效时 fail closed。普通 unresolved transition 不改变 Project revision，允许不同 Cases 使用同一观察 revision 独立推进；resolved transition 聚合前必须再次匹配 Project revision。Ledger 通过跨进程 Project lock 原子写 Case、Project、iteration、projections 与 indexes。
+每个 transition 绑定 Case `updated_at`、本轮观察到的 Project numeric revision与 Case-scoped snapshot token，并携带覆盖 persisted/fresh 候选的完整 `gap_selection.considered` 和覆盖当前 Project invariant catalog 的 `invariant_assessment`。`candidate` 逐字段复现 trusted snapshot 候选；`fresh` 必须是未持久化、Agent-owned、依赖已闭合且当轮完成的结果 Gap。Gate 只负责 Runtime envelope、执行授权和路径边界，再通过 trusted ledger `case_transition` entrypoint 做 canonical validation；Runtime 不复制 revision、candidate coverage、invariant relevance 或 fresh-gap 语义。普通 unresolved transition 不改变 Project revision，Case-scoped token 允许不相关 Cases 独立推进；Project 或所选 Case snapshot 变化时 fail closed。Ledger 通过跨进程 Project lock 原子写 Case、Project、iteration、projections 与 indexes，并返回包含 accepted invariant judgments、但不含 next candidate 的 closeout 与 post-commit token。
 
 Ledger Writer 只消费通过 Runtime Validator 的 semantic fields。写入前检查 Case id/gap、planned transition、accepted delta、evidence、round outcome、Case resolution claim 和 Project impact candidate；raw operator task 不能作为 fallback。语义字段含 raw event marker、超长或 transition shape 不完整时，gate 阻止写回。Gate、result builder 与 handoff 不再各自重判 Case 语义；一次拒绝不能同时被其他分支解释为 resolved 并写回。
 
 写回策略按层分工：
 
-- Project State v4 写宏观 checkpoint：dimension 状态、project gaps、active Case refs、不含独占 selection 的 `case_control` 选择依据、last state delta 和 evidence refs。
-- Iteration State v2 写阶段性 Project targets、带 closed Case 的 accepted Project changes、acceptance、blocking Project gaps 和 Case refs；不写 Loop continuation 或同态日志。
-- Case State 写事项级 checkpoint：facts、state impacts、dynamic gaps、content revision、completion review policy/cycles/escalation、open questions、pending handoffs、round records、derived resolution 和 loop handoff。每条 round 可保存 opaque run ref，但不保存 Runtime 宿主绝对路径。
+- Project State v5 写 advancement、software definition decisions、software invariants、project gaps、active Case refs、selection context 和 evidence refs。
+- Iteration State v3 写阶段性 Project targets、accepted Project changes、acceptance、blocking Project gaps 和 Case refs；不写 Loop continuation 或同态日志。
+- Case State 写事项级 checkpoint：facts、state impacts、dynamic gaps、每轮 invariant assessment、content revision、completion review policy/cycles/escalation、open questions、pending handoffs、round records、derived resolution 和 loop handoff。每条 round 可保存 opaque run ref，但不保存 Runtime 宿主绝对路径。
 - Runtime 宿主在目标项目之外管理完整过程证据：runtime result、gate、selected round、activity、raw events 和 transcript。Desktop 使用 Electron userData；ledger 不复制这些记录，且 Case 语义恢复不依赖它们仍然存在。
 - Agent 不直接写 Project/Case State；Agent 提交一个 transition claim，ledger 确定性应用。
 
-当 operator input、现有稳定事实或 Agent 在 turn 内取得的实现/验证证据足以支持 Case transition 时，Agent 直接提交 accepted delta。每次成功写回后对应 Loop 重新读取状态和 revision，再由同一 thread 的下一 turn 独立选择下一个 candidate/fresh gap；`gaps_added` 只承接已发现且仍未解决的工作。不同 Case Loops 可以并行执行，ledger commit 短暂串行；Project aggregation 冲突只使相关 transition 从 fresh state 重规划。自动桥接由实际 ledger 进展与 no-progress streak 共同约束。
+当 operator input、现有稳定事实或 Agent 在 turn 内取得的证据足以支持 selected gap transition 时，Agent 提交 accepted delta 与 invariant assessment。每次成功写回后先展示 canonical round closeout，再用 post-commit token 重新读取状态和 revision；下一 turn 从新 candidate catalog 独立选择 candidate/fresh gap。`gaps_added` 只承接本轮新 facts 暴露且仍未解决的结果，不承接预排步骤，也不在当前 turn 执行。不同 Case Loops 可以并行执行，ledger commit 短暂串行；Project aggregation 冲突只使相关 transition 从 fresh state 重规划。自动桥接由实际 ledger 进展与 no-progress streak 共同约束。
 
 ## M0 实现范围
 

@@ -10,9 +10,11 @@ import { projectTargetRefs, validateProjectStateRecord } from './project-state.m
 import { coreSoftwareInvariantIds, defaultSoftwareInvariants } from './project-invariants.mjs';
 import { validateIterationStateRecord } from './project-iteration.mjs';
 import { withProjectCommitLock } from './project-commit-lock.mjs';
+import { readLedgerSnapshot } from './loop-snapshot.mjs';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const FINDING_KINDS = new Set(['error', 'omission', 'excess']);
+const INVARIANT_DISPOSITIONS = new Set(['not_relevant', 'upheld', 'threatened', 'undetermined']);
 
 function unique(values) { return [...new Set((values || []).filter(Boolean))]; }
 function isObject(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -54,10 +56,10 @@ function validateProjectStateDelta(delta, label, errors) {
 
 export function validateCaseTransition(transition, file = '<transition>') {
   const errors = [];
-  if (transition?.schema_version !== 'arckit-case-transition/v6') return [`${file}: schema_version must be arckit-case-transition/v6`];
+  if (transition?.schema_version !== 'arckit-case-transition/v8') return [`${file}: schema_version must be arckit-case-transition/v8`];
   if (!/^CASE-\d{8}-\d{3}$/.test(transition.case_id || '')) errors.push(`${file}: invalid case_id`);
   if (!transition.case_updated_at || !Number.isInteger(transition.project_revision)) errors.push(`${file}: Case and Project revisions are required`);
-  if (!['candidate', 'fresh'].includes(transition.gap_selection?.mode) || !transition.gap_selection?.basis) errors.push(`${file}: gap_selection is incomplete`);
+  validateGapSelection(transition.gap_selection, `${file}: gap_selection`, errors);
   validateGap(transition.selected_gap, `${file}: selected_gap`, errors, { candidate: true });
   if (!transition.planned_transition?.goal || !transition.planned_transition?.expected_state_change) errors.push(`${file}: planned_transition is incomplete`);
   const delta = transition.accepted_state_delta;
@@ -71,8 +73,67 @@ export function validateCaseTransition(transition, file = '<transition>') {
   if (!Array.isArray(transition.evidence) || transition.evidence.length === 0 || !Array.isArray(transition.unresolved)) errors.push(`${file}: evidence and unresolved are required arrays`);
   if (!['completed', 'partial', 'blocked', 'needs_human', 'external_wait'].includes(transition.round_outcome)) errors.push(`${file}: round_outcome is invalid`);
   if (!['unresolved', 'resolved'].includes(transition.case_resolution?.claimed_status)) errors.push(`${file}: case_resolution.claimed_status is invalid`);
+  validateInvariantAssessment(transition.invariant_assessment, `${file}: invariant_assessment`, errors);
   validateProjectStateDelta(transition.project_state_delta, `${file}: project_state_delta`, errors);
   return errors;
+}
+
+function validateInvariantAssessment(assessment, label, errors) {
+  if (!isObject(assessment) || !Number.isInteger(assessment.project_revision) || !Array.isArray(assessment.judgments)) {
+    errors.push(`${label} is invalid`);
+    return;
+  }
+  if (assessment.judgments.length === 0) errors.push(`${label}.judgments must be non-empty`);
+  const refs = new Set();
+  for (const [index, judgment] of assessment.judgments.entries()) {
+    const itemLabel = `${label}.judgments[${index}]`;
+    if (!isObject(judgment) || !judgment.invariant_ref || !INVARIANT_DISPOSITIONS.has(judgment.disposition) || !judgment.reason || !Array.isArray(judgment.fact_refs) || !Array.isArray(judgment.evidence) || !Array.isArray(judgment.gap_refs)) {
+      errors.push(`${itemLabel} is invalid`);
+      continue;
+    }
+    if (refs.has(judgment.invariant_ref)) errors.push(`${itemLabel}.invariant_ref is duplicated`);
+    refs.add(judgment.invariant_ref);
+    if (judgment.disposition === 'not_relevant' && (judgment.evidence.length || judgment.gap_refs.length)) errors.push(`${itemLabel} not_relevant cannot carry evidence or gaps`);
+    if (judgment.disposition === 'upheld' && (judgment.evidence.length === 0 || judgment.gap_refs.length)) errors.push(`${itemLabel} upheld requires evidence and no gaps`);
+    if (['threatened', 'undetermined'].includes(judgment.disposition) && (judgment.fact_refs.length === 0 || judgment.gap_refs.length === 0)) errors.push(`${itemLabel} ${judgment.disposition} requires facts and open gaps`);
+  }
+}
+
+function validateInvariantAssessmentAgainstState(assessment, project, record) {
+  if (assessment.project_revision !== project.project.revision) throw new Error(`invariant_assessment.project_revision must be current Project revision ${project.project.revision}`);
+  const expected = (project.software_invariants || []).map((item) => item.id);
+  const actual = assessment.judgments.map((item) => item.invariant_ref);
+  const missing = expected.filter((id) => !actual.includes(id));
+  const unknown = actual.filter((id) => !expected.includes(id));
+  if (missing.length || unknown.length || actual.length !== expected.length) {
+    throw new Error(`invariant_assessment must cover the current Project invariant catalog exactly; missing: ${missing.join(', ') || '<none>'}; unknown: ${unknown.join(', ') || '<none>'}`);
+  }
+  const acceptedFacts = new Set((record.facts || []).filter((fact) => fact.status === 'accepted').map((fact) => fact.id));
+  const openGaps = new Set((record.gaps || []).filter((gap) => gap.status === 'open').map((gap) => gap.id));
+  for (const judgment of assessment.judgments) {
+    const badFacts = judgment.fact_refs.filter((id) => !acceptedFacts.has(id));
+    if (badFacts.length) throw new Error(`invariant_assessment ${judgment.invariant_ref} references unknown accepted facts: ${badFacts.join(', ')}`);
+    if (['threatened', 'undetermined'].includes(judgment.disposition)) {
+      const badGaps = judgment.gap_refs.filter((id) => !openGaps.has(id));
+      if (badGaps.length) throw new Error(`invariant_assessment ${judgment.invariant_ref} must bind open Case gaps: ${badGaps.join(', ')}`);
+    }
+  }
+}
+
+function validateGapSelection(selection, label, errors) {
+  if (!isObject(selection)) return errors.push(`${label} must be an object`);
+  if (!['candidate', 'fresh'].includes(selection.mode) || !selection.basis || !selection.snapshot_token || !selection.selected_ref || !selection.comparison_summary || !selection.fresh_discovery_summary) errors.push(`${label} is incomplete`);
+  if (!Array.isArray(selection.considered) || selection.considered.length === 0) return errors.push(`${label}.considered must be a non-empty array`);
+  const refs = new Set();
+  let selectedCount = 0;
+  for (const [index, item] of selection.considered.entries()) {
+    const itemLabel = `${label}.considered[${index}]`;
+    if (!isObject(item) || !item.ref || !['persisted', 'fresh'].includes(item.source) || !['ready', 'case_required', 'blocked', 'ineligible'].includes(item.eligibility) || !['selected', 'deferred', 'excluded'].includes(item.disposition) || !item.reason || !isObject(item.priority_basis)) errors.push(`${itemLabel} is invalid`);
+    if (refs.has(item?.ref)) errors.push(`${itemLabel}.ref is duplicated`);
+    refs.add(item?.ref);
+    if (item?.disposition === 'selected') { selectedCount += 1; if (item.ref !== selection.selected_ref) errors.push(`${itemLabel} selected ref does not match gap_selection.selected_ref`); }
+  }
+  if (selectedCount !== 1) errors.push(`${label}.considered must contain exactly one selected item`);
 }
 
 function validateTargetAgainstProject(impact, project, label) {
@@ -156,7 +217,7 @@ function applyReview(record, result, candidate, timestamp) {
   review.escalation = review.status === 'needs_human' ? { reason: 'review_requires_human', triggered_at_cycle: review.cycle_count, effective_max_cycles: limit, evidence: unique(result.evidence), triggered_at: timestamp } : null;
 }
 
-export function applyCaseTransitionToRecord(record, transition, { timestamp = new Date().toISOString(), runtimeResultRef = '', projectState = null } = {}) {
+export function applyCaseTransitionToRecord(record, transition, { timestamp = new Date().toISOString(), runtimeResultRef = '', projectState = null, invariantProjectState = projectState } = {}) {
   const errors = validateCaseTransition(transition);
   if (errors.length) throw new Error(errors.join('\n'));
   if (record.schema_version !== 'development-case-record/v5') throw new Error(`Unsupported Case State schema: ${record.schema_version || '<missing>'}`);
@@ -212,7 +273,8 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
   if (isReview) applyReview(record, delta.completion_review_result, candidate, timestamp);
   if (contentMutation) { record.content_revision += 1; record.completion_review.status = 'pending'; record.completion_review.reviewed_content_revision = null; }
   if (projectState) for (const [index, impact] of record.state_impacts.entries()) validateTargetAgainstProject(impact, projectState, `state_impacts[${index}]`);
-  record.rounds.push({ round: record.rounds.length + 1, goal: transition.planned_transition.goal, outcome: transition.round_outcome, gap_selection: structuredClone(transition.gap_selection), selected_gap: structuredClone(transition.selected_gap), planned_transition: structuredClone(transition.planned_transition), accepted_state_delta: structuredClone(delta), project_state_delta: structuredClone(transition.project_state_delta), evidence: unique(transition.evidence), runtime_result_ref: runtimeResultRef, occurred_at: timestamp });
+  if (invariantProjectState) validateInvariantAssessmentAgainstState(transition.invariant_assessment, invariantProjectState, record);
+  record.rounds.push({ round: record.rounds.length + 1, transition_schema_version: transition.schema_version, goal: transition.planned_transition.goal, outcome: transition.round_outcome, gap_selection: structuredClone(transition.gap_selection), selected_gap: structuredClone(transition.selected_gap), planned_transition: structuredClone(transition.planned_transition), accepted_state_delta: structuredClone(delta), project_state_delta: structuredClone(transition.project_state_delta), invariant_assessment: structuredClone(transition.invariant_assessment), evidence: unique(transition.evidence), runtime_result_ref: runtimeResultRef, occurred_at: timestamp });
   record.updated_at = timestamp;
   record.case_resolution = auditCaseRecord(record, timestamp);
   if (transition.case_resolution.claimed_status === 'resolved' && record.case_resolution.status !== 'resolved') throw new Error('Claimed resolved is stronger than deterministic Case audit');
@@ -244,6 +306,8 @@ export async function applyCaseTransition({ projectRoot, casePath = '', transiti
 
 async function applyUnlocked({ projectRoot, casePath, transition, runtimeResultRef, dryRun }) {
   const root = path.resolve(projectRoot);
+  const ledgerSnapshot = readLedgerSnapshot(root);
+  validateSelectionAgainstSnapshot(transition, ledgerSnapshot);
   const caseFile = casePath ? path.resolve(root, casePath) : findCasePath(transition.case_id);
   if (!caseFile || !caseFile.startsWith(root + path.sep)) throw new Error(`Case path is missing or outside project root for ${transition.case_id}`);
   const activeCaseRef = path.relative(root, caseFile).replaceAll('\\', '/');
@@ -256,7 +320,7 @@ async function applyUnlocked({ projectRoot, casePath, transition, runtimeResultR
   const projectedProject = structuredClone(project);
   const projectChangedByDelta = applyProjectStateDelta(projectedProject, transition.project_state_delta, timestamp);
   const { text, record } = readCaseRecord(caseFile);
-  const nextCase = applyCaseTransitionToRecord(structuredClone(record), transition, { timestamp, runtimeResultRef, projectState: projectedProject });
+  const nextCase = applyCaseTransitionToRecord(structuredClone(record), transition, { timestamp, runtimeResultRef, projectState: projectedProject, invariantProjectState: project });
   let projectChanged = projectChangedByDelta;
   const closedCaseRef = activeCaseRef.replace('/active/', '/closed/');
   if (nextCase.case_resolution.status === 'resolved') {
@@ -269,7 +333,7 @@ async function applyUnlocked({ projectRoot, casePath, transition, runtimeResultR
   if (projectErrors.length) throw new Error(projectErrors.join('\n'));
   renderCaseRecord(text, nextCase, caseFile);
   runLedger(root, ['development-case.mjs', 'index', '--dry-run', 'true']);
-  if (dryRun) return { schema_version: 'arckit-case-transition-result/v2', applied: false, dry_run: true, case_id: nextCase.id, case_resolution: nextCase.case_resolution, project_state_delta: transition.project_state_delta, changed_files: [] };
+  if (dryRun) return { schema_version: 'arckit-case-transition-result/v3', applied: false, dry_run: true, case_id: nextCase.id, case_resolution: nextCase.case_resolution, project_state_delta: transition.project_state_delta, changed_files: [] };
   const closedFile = path.join(root, closedCaseRef);
   const iterationRef = projectedProject.advancement.active_iteration_ref;
   const transactionFiles = unique([caseFile, closedFile, projectFile, path.join(root, 'arckit/project/STATE.md'), path.join(root, 'arckit/cases/INDEX.md'), iterationRef ? path.join(root, iterationRef) : '', iterationRef ? path.join(root, iterationRef.replace(/\.record\.json$/, '.md')) : '', path.join(root, 'arckit/project/ITERATIONS.md')]);
@@ -292,7 +356,66 @@ async function applyUnlocked({ projectRoot, casePath, transition, runtimeResultR
     for (const snapshot of snapshots) { if (snapshot.existed) { fs.mkdirSync(path.dirname(snapshot.file), { recursive: true }); fs.writeFileSync(snapshot.file, snapshot.content); } else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file); }
     throw error;
   }
-  return { schema_version: 'arckit-case-transition-result/v2', applied: true, dry_run: false, case_path: writtenCaseRef, case_id: nextCase.id, round_outcome: transition.round_outcome, case_resolution: nextCase.case_resolution, project_state_delta: transition.project_state_delta, changed_files: unique(changedFiles) };
+  const postCommitSnapshot = readLedgerSnapshot(root);
+  return {
+    schema_version: 'arckit-case-transition-result/v3',
+    applied: true,
+    dry_run: false,
+    case_path: writtenCaseRef,
+    case_id: nextCase.id,
+    round_outcome: transition.round_outcome,
+    case_resolution: nextCase.case_resolution,
+    project_state_delta: transition.project_state_delta,
+    round_closeout: roundCloseoutReceipt(transition, nextCase, projectedProject, transition.gap_selection.snapshot_token, postCommitSnapshot.snapshot_token, writtenCaseRef),
+    changed_files: unique(changedFiles),
+  };
+}
+
+function validateSelectionAgainstSnapshot(transition, snapshot) {
+  const selection = transition.gap_selection;
+  if (snapshot.state_availability !== 'available') throw new Error('Case transition requires an available canonical ledger snapshot');
+  const expectedSelectionToken = snapshot.selection_tokens?.[transition.case_id];
+  if (selection.snapshot_token !== expectedSelectionToken) throw new Error(`Stale ledger selection snapshot for ${transition.case_id}: expected ${expectedSelectionToken}, received ${selection.snapshot_token}`);
+  const persisted = (snapshot.candidate_catalog?.persisted_candidates || []).filter((item) => !item.case_id || item.case_id === transition.case_id);
+  const considered = new Map(selection.considered.filter((item) => item.source === 'persisted').map((item) => [item.ref, item]));
+  const missing = persisted.map((item) => item.ref).filter((ref) => !considered.has(ref));
+  if (missing.length) throw new Error(`gap_selection did not account for persisted candidates: ${missing.join(', ')}`);
+  const unknownInScope = [...considered.keys()].filter((ref) => (ref.startsWith('project-gap:') || ref.startsWith(`case-gap:${transition.case_id}:`)) && !persisted.some((item) => item.ref === ref));
+  if (unknownInScope.length) throw new Error(`gap_selection references stale persisted candidates: ${unknownInScope.join(', ')}`);
+  const expectedSelectedRef = transition.gap_selection.mode === 'candidate'
+    ? `case-gap:${transition.case_id}:${transition.selected_gap.id}`
+    : `fresh-gap:${transition.case_id}:${transition.selected_gap.id}`;
+  if (selection.selected_ref !== expectedSelectedRef) throw new Error(`gap_selection.selected_ref must be ${expectedSelectedRef}`);
+  const selected = selection.considered.find((item) => item.disposition === 'selected');
+  if (transition.gap_selection.mode === 'candidate' && selected?.source !== 'persisted') throw new Error('candidate gap selection must select a persisted candidate');
+  if (transition.gap_selection.mode === 'fresh' && selected?.source !== 'fresh') throw new Error('fresh gap selection must select a fresh candidate');
+}
+
+function roundCloseoutReceipt(transition, nextCase, projectedProject, priorSelectionToken, postCommitSnapshotToken, caseRef) {
+  return {
+    schema_version: 'arckit-round-closeout/v2',
+    status: 'accepted',
+    case_id: nextCase.id,
+    case_ref: caseRef,
+    round: nextCase.rounds.length,
+    selected_gap: structuredClone(transition.selected_gap),
+    gap_selection: structuredClone(transition.gap_selection),
+    accepted_state_delta: structuredClone(transition.accepted_state_delta),
+    project_state_delta: structuredClone(transition.project_state_delta),
+    invariant_assessment: structuredClone(transition.invariant_assessment),
+    evidence: unique(transition.evidence),
+    resulting_state: {
+      project_revision: projectedProject.project.revision,
+      case_updated_at: nextCase.updated_at,
+      case_content_revision: nextCase.content_revision,
+      case_status: nextCase.case_resolution.status,
+      next_responsibility: nextCase.case_resolution.loop_handoff?.next_responsibility || 'none',
+    },
+    prior_selection_token: priorSelectionToken,
+    post_commit_snapshot_token: postCommitSnapshotToken,
+    next_candidate_projection: null,
+    occurred_at: nextCase.updated_at,
+  };
 }
 
 function aggregateIteration(record, { timestamp, caseRef, activeCaseRef, project, delta, resolved }) {

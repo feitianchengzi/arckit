@@ -43,15 +43,17 @@ Project State 从宏观层面回答三件事：当前怎么推进、这个软件
 
 六条核心不变量独立于具体软件能力和项目决策：
 
-- `observable-behavior-has-durable-expectation`
-- `changed-interactions-remain-recoverable`
-- `changed-visual-language-remains-consistent`
-- `changed-contracts-remain-explainable`
+- `product-expectations-remain-recoverable`
+- `interaction-expectations-remain-recoverable`
+- `visual-language-remains-consistent`
+- `technical-decisions-remain-explainable`
 - `accepted-facts-are-realized`
 - `material-risks-have-credible-evidence`
 
-它们约束被接受的 Case transition 在实际相关时不得破坏可恢复性、一致性、事实实现或风险证据，但不负责生成需求、诊断、设计、代码或测试 Gap，也不形成六个 facet 状态机。核心定义由 `scripts/project-invariants.mjs` 管理；具体需求、Qt/C++、类、模块、文件或一次 Case 发现都不是新 invariant。
+它们为每个具体 Case Loop 提供六个互补的抽象判断责任：产品、交互、视觉和技术四条分别判断对应长期预期或决策是否仍准确、清楚、可恢复；realization 判断现实软件状态是否兑现相关已接受事实；risk 判断重要风险主张是否有可信依据。前四条需要权威长期事实证据，不能只用现实状态或风险证据替代；后两条也不能反过来代替长期预期或决策的明确表达。
+
+Agent 必须从 fresh Case facts 判断 applicability，而不是从计划中的行动或已经完成的 transition 倒推。新事实只要建立、改变、否定、暴露缺失、使既有内容过时、产生歧义或与长期事实冲突，就可能使相应 invariant 相关；没有主动修改某个事实域不等于不相关。Invariant 的语义责任不等于固定 skill、路径、工件或工作类型，Agent 仍结合 Project decisions、事实来源和动态能力决定如何查询、确认或维护；实际相关且未成立的结果由动态 Case Gap 承接。核心定义由 `scripts/project-invariants.mjs` 管理；具体需求、技术栈、模块、文件或一次 Case 发现都不是新 invariant。
 
 ## 生效机制
 
-Runtime 把完整 Project State、active Cases 和相关工程上下文交给同一 Agent。Agent 每轮从具体事实独立判断当前最重要的 Gap；只有当前事实或 transition 对 target 产生实际影响时才记录 decision/invariant impact。每次被接受的 transition 可原子更新 Project decision/invariant/gap；下一轮 fresh-read 后立即使用新结论。因此文档、实现和验证能按事项重要性自由排序，同时保持软件定义清单始终可见。
+Runtime 把完整 Project State、active Cases 和相关工程上下文交给同一 Agent。Agent 每轮从具体事实独立判断当前最重要的 Gap，并在 v8 transition 中对当前全部 invariants 留下显式 assessment；只有当前事实或 transition 对 target 产生实际影响时才记录持久 decision/invariant impact。每次被接受的 transition 可原子更新 Project decision/invariant/gap；下一轮 fresh-read 后重新评估全部 invariants，因此先前已处理的事实域也可以因新事实重开。Runtime 只传输 assessment，不推导 skill、路径或结果。

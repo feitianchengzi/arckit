@@ -110,7 +110,11 @@ Project State 的作用是让项目在跨人、跨 Agent、跨会话、跨时间
 
 软件定义清单由 State 协议明确给出，覆盖产品意图、产品能力、运行表面、体验交互、视觉、身份访问、数据状态、外部集成、反馈支持、商业权益、技术基础、安全隐私、质量验证、交付分发和可观测运营。Agent 结合用户意图和长期事实填写具体 decision；项目通过 State 变化获得个性化，不需要修改通用 Controller skill。
 
-软件不变量固定包含产品预期可恢复、交互预期可恢复、视觉语言一致、技术契约可解释、accepted facts 被真实实现、重要风险具有可信验证六条核心约束。具体需求、技术栈、模块和文件可以成为软件定义 decision 或 Case fact，但不能伪装成不变量。不变量不绑定 skill、路径、实现载体或执行顺序。
+软件不变量固定包含产品预期可恢复、交互预期可恢复、视觉语言一致、技术决策可解释、accepted facts 被真实实现、重要风险具有可信验证六条核心约束。前四条分别维护不同类型的权威长期预期或决策，第五条判断现实软件状态是否兑现这些事实，第六条判断重要风险主张是否有可信依据。长期预期、现实兑现和风险依据是不同证据责任，不能互相替代。
+
+它们既约束被接受的状态变化，也持续指导每个 Case Loop 发现不能静默遗漏的显式判断。Agent 在每轮 fresh-read 后从当前 Case facts 判断是否建立、改变、否定、暴露缺失、使既有长期事实过时、产生歧义或冲突，再结合既有判断和可用 skills 解释实际相关的不变量；是否相关不由本轮计划修改什么倒推。需要建立新结论的事项成为本轮 fresh Gap 候选，而不是在 Case 初始化时预生成事实类别或执行流程。
+
+具体需求、技术栈、模块和文件可以成为软件定义 decision 或 Case fact，但不能伪装成不变量。不变量不绑定 skill、路径、实现载体或执行顺序。同一不变量可以随 Case facts 变化多次产生、关闭或重新打开具体判断；曾经处理过某一事实域不表示后续 Loop 永久不再判断它。
 
 Project gap 只在真实项目级缺口需要跨 Case 跟踪时创建。软件定义 decision 处于 open 不自动等于 gap；stale decision 则必须有 gap 承接。
 
@@ -126,11 +130,13 @@ Case 是围绕一个具体研发事项推进 Project State 的承载单元。
 
 Case 把一个状态缺口、目标状态、边界、证据要求和推进记录聚合到一起。Case 不是普通待办，也不承载所有想法、聊天内容或普通上下文。只有当一个事项需要持续推进、验证、接力、等待、阻塞判断或关闭时，它才成为 case。
 
-Case 对单次研发事项维护已接受 `facts`、事实对相关 Project software decisions/invariants 的 `state_impacts`、动态 `gaps`、open questions、pending handoffs、content revision 和完成态复审。Case 不预置产品、交互、视觉、技术、实现或验证轨道，也不为每类结果维护 applicability、maturity、alignment 或 resolution 状态。
+Case 对单次研发事项维护已接受 `facts`、事实对相关 Project software decisions/invariants 的 `state_impacts`、动态 `gaps`、每轮 invariant-guided 显式判断、open questions、pending handoffs、content revision 和完成态复审。Case 不复制 Project State，不预置产品、交互、视觉、技术、实现或验证轨道，也不在初始化时预测未来需要更新的事实域、skills 或工作顺序。
 
 事实说明当前已经确认什么及其证据。state impact 把事实与一个实际相关的 Project decision/invariant 连接，并表达目标仍被维持、已受威胁或尚无法判断。被威胁或尚无法判断的目标必须由具体 gap 承接；没有实际影响的目标不复制进 Case，也不产生 not-required 工作。
 
-Gap 表达当前真正缺少的一个结果，包括目标、原因、来源事实或 condition、依赖、责任、优先依据和证据要求。诊断、规格维护、交互或视觉定义、技术决策、代码实现、验证和持久上下文维护都可以成为普通 gap，但都不是固定 facet。Controller 根据完整上下文比较阻塞、风险、信息增益、依赖、用户影响和可验证性，动态选择一个 gap；数组顺序和 gap 类型不代表优先级。
+Gap 表达当前真正缺少的一个可独立接受结果，包括目标、原因、来源事实或 condition、依赖、责任、优先依据和证据要求。一个 Gap 只对应一个 acceptance claim；为证明该 claim 所必需的调查、工具和验证可以在同一轮完成，能够独立建立另一事实、决策、定义或实现结果的工作不能并入该 Gap。
+
+诊断、规格维护、交互或视觉定义、技术判断、代码实现、验证和持久上下文维护都可以成为普通 gap，但都不是固定 facet。Controller 在每轮 fresh-read 后用 Project decisions/invariants 指导对 Case facts、已有判断和现有 gaps 的重新理解，动态发现可以新建或重新打开的候选，再比较阻塞、风险、信息增益、依赖、用户影响和可验证性。数组顺序、历史处理记录和 gap 类型不代表优先级。
 
 Project 只使用当前 software-definition State 与 Case facts/state impacts/dynamic gaps 协议。采用 Arckit 的项目必须在自动执行前使 canonical state 符合当前协议；Agent 根据该项目真实需求和已有证据修正，不由 Runtime 或 ledger 保留长期兼容分支。不符合当前协议的 active state 被拒绝进入 Loop。
 
@@ -151,7 +157,7 @@ Case 至少表达：
 - 当前处于规划、执行、验证、等待、人类判断、阻塞还是关闭。
 - 关闭后 Project State 如何变化，或为什么可以无事实变化关闭。
 
-Case 关闭前，全部相关 state impacts 必须有当前事实 revision 的证据，threatened 或 undetermined 影响必须由 gap 承接且最终闭合，所有 open question 与 pending handoff 必须被解决或完成；当前 `content_revision` 还必须获得 clean 完成态复审且没有 open finding。任何被接受的 Gap transition 都可以原子提交与该 Gap 同证据的 Project State delta，不必等待 Case 关闭。
+Case 关闭前，全部相关 state impacts 必须有当前事实 revision 的证据，threatened 或 undetermined 影响必须由 gap 承接且最终闭合；所有已被 fresh facts 暴露为实际相关的 invariant-guided 判断必须有显式结论、证据或仍开放的 gap，不能以未记录等同于不相关；所有 open question 与 pending handoff 必须被解决或完成；当前 `content_revision` 还必须获得 clean 完成态复审且没有 open finding。任何被接受的 Gap transition 都可以原子提交由该 Gap 直接建立且共享证据的 Project State delta，不必等待 Case 关闭。
 
 No-change closure 只在事项被证明重复、无效、过期、不再需要、合并到另一个 case、明确放弃或转移到外部责任方时成立。系统不能把 Agent 停止工作或没有更多输出当成 case 关闭。
 
@@ -172,9 +178,11 @@ Loop 至少表达：
 
 Loop 的核心输出不是 Agent 输出了什么，而是一项 planned Case transition 是否产生并被接受为有证据的 Case delta，以及下一步由谁继续。
 
-默认 Loop 由同一 Agent在一个 turn 内选择并完成一个 selected gap；该 Agent可以原生使用必要 skills/tools，并直接形成可追溯 evidence 与 accepted delta。Runtime 自动待办把所有 gap、验证、修复和 Git closeout 保持在同一个持久 Codex thread 中。每个 transition 必须绑定 Case revision 和本轮观察到的 Project revision。不同 Case 的执行可以并行；canonical ledger commit 按 Project 串行化。未 resolved transition 只校验自己的 Case revision，resolved transition 聚合 Project 时还必须匹配最新 Project revision；冲突后从 fresh state 重新聚合。
+默认 Loop 由同一 Agent在一个 turn 内选择并完成一个 selected gap；该 Agent可以原生使用必要 skills/tools，并直接形成可追溯 evidence 与 accepted delta。selected gap 一旦成立，本轮即进入 transition，不因执行中出现的新事实改做另一个结果。新事实只用于新增或 supersede Case facts、更新 impacts、记录显式判断并暴露后续 gap；后续工作必须等待 closeout 后的 fresh-read 重新比较和选择。
 
-一个 loop 结束时必须分别说明 round outcome、Case resolution claim、Project impact candidate 与 handoff。单轮可以完成而 Case 仍 unresolved；Case 未 resolved 时不更新 Project 维度。Loop 不能因为 Agent 停止输出就被视为完成；完成必须依赖目标满足和证据通过。
+Runtime 自动待办把所有 gap、验证、修复和 Git closeout 保持在同一个持久 Codex thread 中。每个 transition 必须绑定 Case revision 和本轮观察到的 Project revision。不同 Case 的执行可以并行；canonical ledger commit 按 Project 串行化。未 resolved transition 只校验自己的 Case revision，resolved transition 聚合 Project 时还必须匹配最新 Project revision；冲突后从 fresh state 重新聚合。
+
+一个 loop 结束时必须分别说明 round outcome、Case resolution claim、由 selected gap 直接建立的 Project delta 与 handoff。单轮可以完成而 Case 仍 unresolved；Case 未 resolved 不妨碍提交该 Gap 已经明确建立的 Project 结论。Loop 不能因为 Agent 停止输出就被视为完成；完成必须依赖 selected gap 的 acceptance claim 满足和证据通过。
 
 ## 当前阶段
 

@@ -10,6 +10,7 @@ import {
   applyCaseTransitionToRecord,
   validateCaseTransition,
 } from '../../../entry/skills/arckit-development-ledger/scripts/case-transition.mjs';
+import { createProjectStateRecord } from '../../../entry/skills/arckit-development-ledger/scripts/project-state.mjs';
 import { selectNextRound } from '../src/loop-controller.mjs';
 
 test('the ledger accepts only current Case and transition schema versions', () => {
@@ -19,8 +20,8 @@ test('the ledger accepts only current Case and transition schema versions', () =
   assert.throws(() => auditCaseRecord(unsupportedRecord), /expected development-case-record\/v5/);
 
   const unsupportedTransition = { ...transition(record), schema_version: 'unsupported-case-transition' };
-  assert.match(validateCaseTransition(unsupportedTransition).join('\n'), /arckit-case-transition\/v6/);
-  assert.throws(() => applyCaseTransitionToRecord(unsupportedRecord, unsupportedTransition), /arckit-case-transition\/v6/);
+  assert.match(validateCaseTransition(unsupportedTransition).join('\n'), /arckit-case-transition\/v8/);
+  assert.throws(() => applyCaseTransitionToRecord(unsupportedRecord, unsupportedTransition), /arckit-case-transition\/v8/);
 });
 
 test('a selected gap must match the complete fresh candidate snapshot', () => {
@@ -57,6 +58,123 @@ test('one dynamic gap may produce facts and the next gap without any document ch
   assert.equal(next.facts.at(-1).id, 'FACT-ROOT-CAUSE');
   assert.deepEqual(next.case_resolution.candidate_gaps.map((gap) => gap.id), ['GAP-FIX']);
   assert.equal(Object.hasOwn(next, 'facets'), false);
+});
+
+test('a diagnosis Round exposes a Tech-like judgment Gap without completing that second result', () => {
+  const project = createProjectStateRecord({ name: 'Fixture', intent: 'Keep restore contracts explainable.' });
+  const record = caseRecord();
+  const input = transition(record, {
+    facts_added: [{
+      id: 'FACT-CONTRACT', revision: 1, status: 'accepted',
+      statement: 'The diagnosed restore fix changes the durable recovery contract.',
+      basis: 'The source path and persisted state semantics agree.', evidence: ['debug/root-cause.md'],
+    }],
+    gaps_added: [{
+      id: 'GAP-TECH-CONTRACT', status: 'open', goal: 'Decide and record the changed recovery contract.',
+      reason: 'The diagnosis established a stable technical-contract question that is not part of the root-cause claim.',
+      derived_from: ['FACT-CONTRACT'], blocked_by: [],
+      priority_basis: { blocking: 'high', uncertainty: 'medium', risk: 'high', user_impact: 'medium' },
+      responsibility: 'agent', evidence_required: ['Durable technical decision evidence.'], resolution: null,
+    }],
+  });
+  input.invariant_assessment = assessmentFor(project, {
+    'technical-decisions-remain-explainable': {
+      disposition: 'threatened', reason: 'The newly accepted contract fact still needs an explicit technical result.',
+      fact_refs: ['FACT-CONTRACT'], evidence: [], gap_refs: ['GAP-TECH-CONTRACT'],
+    },
+  });
+
+  const next = applyCaseTransitionToRecord(record, input, { projectState: project });
+  assert.equal(next.rounds.length, 1);
+  assert.equal(next.rounds[0].selected_gap.id, 'GAP-DIAGNOSE');
+  assert.equal(next.gaps.find((gap) => gap.id === 'GAP-TECH-CONTRACT').status, 'open');
+  assert.deepEqual(next.case_resolution.candidate_gaps.map((gap) => gap.id), ['GAP-TECH-CONTRACT']);
+});
+
+test('trusted invariant assessment rejects missing, duplicate and stale coverage', () => {
+  const project = createProjectStateRecord({ name: 'Fixture', intent: 'Validate invariant coverage.' });
+  const record = caseRecord();
+  const valid = transition(record);
+  valid.invariant_assessment = assessmentFor(project);
+
+  const missing = structuredClone(valid);
+  missing.invariant_assessment.judgments.pop();
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), missing, { projectState: project }), /cover the current Project invariant catalog exactly/);
+
+  const duplicate = structuredClone(valid);
+  duplicate.invariant_assessment.judgments.push(structuredClone(duplicate.invariant_assessment.judgments[0]));
+  assert.match(validateCaseTransition(duplicate).join('\n'), /duplicated/);
+
+  const stale = structuredClone(valid);
+  stale.invariant_assessment.project_revision += 1;
+  assert.throws(() => applyCaseTransitionToRecord(structuredClone(record), stale, { projectState: project }), /current Project revision/);
+});
+
+test('persisted v8 assessment corruption fails closed before Completion Review', () => {
+  const project = createProjectStateRecord({ name: 'Fixture', intent: 'Fail closed on corrupted assessment history.' });
+  const record = caseRecord();
+  const input = transition(record);
+  input.invariant_assessment = assessmentFor(project);
+  const applied = applyCaseTransitionToRecord(record, input, { projectState: project });
+  assert.match(applied.case_resolution.candidate_gaps[0].id, /completion-review/);
+
+  const empty = structuredClone(applied);
+  empty.rounds.at(-1).invariant_assessment.judgments = [];
+  empty.case_resolution = auditCaseRecord(empty, empty.updated_at);
+  assert.equal(empty.case_resolution.candidate_gaps.some((gap) => gap.id.includes(':completion-review:')), false);
+  assert.match(validateCaseRecord(empty).join('\n'), /invariant_assessment is invalid/);
+
+  const invalidDisposition = structuredClone(applied);
+  const upheld = invalidDisposition.rounds.at(-1).invariant_assessment.judgments[0];
+  upheld.disposition = 'upheld';
+  upheld.evidence = [];
+  invalidDisposition.case_resolution = auditCaseRecord(invalidDisposition, invalidDisposition.updated_at);
+  assert.match(validateCaseRecord(invalidDisposition).join('\n'), /invalid judgment/);
+});
+
+test('later facts can reopen an invariant judgment that an earlier Round upheld', () => {
+  const project = createProjectStateRecord({ name: 'Fixture', intent: 'Reassess contracts after every fact change.' });
+  let record = caseRecord();
+  const first = transition(record);
+  first.invariant_assessment = assessmentFor(project, {
+    'technical-decisions-remain-explainable': {
+      disposition: 'upheld', reason: 'The first diagnosis is fully explained by durable evidence.',
+      fact_refs: ['FACT-BUG'], evidence: ['debug/root-cause.md'], gap_refs: [],
+    },
+  });
+  record = applyCaseTransitionToRecord(record, first, { projectState: project });
+
+  const fresh = {
+    id: 'GAP-FRESH-CONTRACT-DISCOVERY', goal: 'Establish whether a later trace changes the recovery contract.',
+    reason: 'A fresh trace exposed a distinct bounded uncertainty before completion review.',
+    derived_from: ['FACT-BUG', 'trace:later-contract'], blocked_by: ['GAP-DIAGNOSE'],
+    priority_basis: { blocking: 'high', uncertainty: 'high', risk: 'high', user_impact: 'medium' },
+    responsibility: 'agent', evidence_required: ['Focused trace evidence.'],
+  };
+  const second = baseTransition(record, fresh, 'fresh');
+  second.accepted_state_delta.resolved_gap = resolution(fresh.id, 'The later trace establishes a changed contract.');
+  second.accepted_state_delta.facts_added = [{
+    id: 'FACT-LATER-CONTRACT', revision: 1, status: 'accepted', statement: 'The later trace changes the recovery contract.',
+    basis: 'Focused trace evidence.', evidence: ['trace:later-contract'],
+  }];
+  second.accepted_state_delta.gaps_added = [{
+    id: 'GAP-TECH-REOPENED', status: 'open', goal: 'Update the durable technical recovery contract.',
+    reason: 'The later accepted fact invalidates the prior upheld judgment.', derived_from: ['FACT-LATER-CONTRACT'], blocked_by: [],
+    priority_basis: { blocking: 'high', uncertainty: 'low', risk: 'high', user_impact: 'medium' }, responsibility: 'agent',
+    evidence_required: ['Updated durable technical decision.'], resolution: null,
+  }];
+  second.invariant_assessment = assessmentFor(project, {
+    'technical-decisions-remain-explainable': {
+      disposition: 'threatened', reason: 'The later fact reopens the previously upheld contract judgment.',
+      fact_refs: ['FACT-LATER-CONTRACT'], evidence: [], gap_refs: ['GAP-TECH-REOPENED'],
+    },
+  });
+  second.evidence = ['trace:later-contract'];
+  record = applyCaseTransitionToRecord(record, second, { projectState: project });
+
+  assert.equal(record.rounds.at(-2).invariant_assessment.judgments.find((item) => item.invariant_ref === 'technical-decisions-remain-explainable').disposition, 'upheld');
+  assert.equal(record.rounds.at(-1).invariant_assessment.judgments.find((item) => item.invariant_ref === 'technical-decisions-remain-explainable').disposition, 'threatened');
+  assert.deepEqual(record.case_resolution.candidate_gaps.map((gap) => gap.id), ['GAP-TECH-REOPENED']);
 });
 
 test('a fresh gap may be selected and completed without being preplanned by the prior transition', () => {
@@ -196,16 +314,32 @@ function transition(record, delta = {}) {
 
 function baseTransition(record, selected, mode = 'candidate') {
   return {
-    schema_version: 'arckit-case-transition/v6', case_id: record.id, case_updated_at: record.updated_at,
-    project_revision: 0, gap_selection: { mode, basis: mode === 'fresh' ? 'Current evidence makes this new gap the most important current action.' : 'This ledger candidate is the most important current action.' }, selected_gap: structuredClone(selected),
+    schema_version: 'arckit-case-transition/v8', case_id: record.id, case_updated_at: record.updated_at,
+    project_revision: 0, gap_selection: selectionTrace(record, selected, mode), selected_gap: structuredClone(selected),
     planned_transition: { goal: selected.goal, expected_state_change: 'Advance the selected dynamic gap.' },
     accepted_state_delta: {
       resolved_gap: null, facts_added: [], facts_superseded: [], impacts_added: [], impacts_updated: [], gaps_added: [], gaps_cancelled: [],
       resolved_open_questions: [], completed_handoffs: [], completion_review_result: null, resolved_review_findings: [], review_budget_extension: null,
     },
     project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
+    invariant_assessment: assessmentFor(createProjectStateRecord({ name: 'Fixture', intent: 'Validate a bounded transition.' })),
     evidence: ['debug/root-cause.md'], unresolved: ['completion_review'], round_outcome: 'completed',
     case_resolution: { claimed_status: 'unresolved', reason: 'More Case work remains.' },
+  };
+}
+
+function selectionTrace(record, selected, mode) {
+  const persisted = (record.case_resolution?.candidate_gaps || []).map((gap) => ({
+    ref: `case-gap:${record.id}:${gap.id}`, source: 'persisted', eligibility: 'ready',
+    disposition: mode === 'candidate' && gap.id === selected.id ? 'selected' : 'deferred',
+    priority_basis: gap.priority_basis || {}, reason: gap.id === selected.id && mode === 'candidate' ? 'Selected for this bounded round.' : 'A different current action has higher priority.',
+  }));
+  if (mode === 'fresh') persisted.push({ ref: `fresh-gap:${record.id}:${selected.id}`, source: 'fresh', eligibility: 'ready', disposition: 'selected', priority_basis: selected.priority_basis || {}, reason: 'Current-turn evidence makes this fresh gap most important.' });
+  return {
+    mode, basis: mode === 'fresh' ? 'Current evidence makes this new gap the most important current action.' : 'This ledger candidate is the most important current action.',
+    snapshot_token: 'fixture-selection-token', selected_ref: mode === 'fresh' ? `fresh-gap:${record.id}:${selected.id}` : `case-gap:${record.id}:${selected.id}`,
+    comparison_summary: 'Compared every persisted ready candidate with fresh work exposed by current evidence.',
+    fresh_discovery_summary: mode === 'fresh' ? 'One necessary fresh candidate was discovered.' : 'No more important fresh candidate was discovered.', considered: persisted,
   };
 }
 
@@ -217,5 +351,20 @@ function reviewDimensions(implementationCorrectness) {
   return {
     implementation_correctness: implementationCorrectness,
     problem_resolution: 'clean', verification_credibility: 'clean', regression_risk: 'clean', minimality: 'clean',
+  };
+}
+
+function assessmentFor(project, overrides = {}) {
+  return {
+    project_revision: project.project.revision,
+    judgments: project.software_invariants.map((invariant) => ({
+      invariant_ref: invariant.id,
+      disposition: 'not_relevant',
+      reason: 'Current accepted facts do not materially involve this invariant.',
+      fact_refs: [],
+      evidence: [],
+      gap_refs: [],
+      ...(overrides[invariant.id] || {}),
+    })),
   };
 }

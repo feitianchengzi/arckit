@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arckit.local/schema/round-closeout.schema.json",
+  "title": "Arckit Round Closeout Receipt",
+  "type": "object",
+  "required": ["schema_version", "status", "case_id", "case_ref", "round", "selected_gap", "gap_selection", "accepted_state_delta", "project_state_delta", "invariant_assessment", "evidence", "resulting_state", "prior_selection_token", "post_commit_snapshot_token", "next_candidate_projection", "occurred_at"],
+  "properties": {
+    "schema_version": { "const": "arckit-round-closeout/v2" },
+    "status": { "const": "accepted" },
+    "case_id": { "type": "string", "minLength": 1 },
+    "case_ref": { "type": "string", "minLength": 1 },
+    "round": { "type": "integer", "minimum": 1 },
+    "selected_gap": { "type": "object" },
+    "gap_selection": { "type": "object" },
+    "accepted_state_delta": { "type": "object" },
+    "project_state_delta": { "type": "object" },
+    "invariant_assessment": { "type": "object" },
+    "evidence": { "type": "array" },
+    "resulting_state": { "type": "object" },
+    "prior_selection_token": { "type": "string", "minLength": 1 },
+    "post_commit_snapshot_token": { "type": "string", "minLength": 1 },
+    "next_candidate_projection": { "type": "null" },
+    "occurred_at": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

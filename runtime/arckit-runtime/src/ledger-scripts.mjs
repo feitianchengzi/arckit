@@ -8,7 +8,9 @@ import {
 const SCRIPT_ENTRYPOINTS = {
   "project-state.mjs": "project_state",
   "project-iteration.mjs": "project_iteration",
-  "development-case.mjs": "development_case"
+  "development-case.mjs": "development_case",
+  "protocol-compatibility.mjs": "protocol_compatibility",
+  "loop-snapshot.mjs": "loop_snapshot"
 };
 
 export async function runLedgerScript(projectRoot, args, { nodeBin = process.execPath, capability = null } = {}) {

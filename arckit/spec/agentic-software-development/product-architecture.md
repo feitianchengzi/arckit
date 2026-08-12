@@ -86,7 +86,7 @@ Loop 是 case 的推进循环。一个 case 可以经历多个 loop。每个 loo
 
 Project State 不由 loop 直接静默改写。Loop 的输出必须先通过验证、case closeout 与 ledger gate，才能成为 Project State delta；独立 report 还必须先经主 Agent intake。
 
-Project State 和 Case State 的字段定义不是普通配置项。Project State 显式提供 15 项软件能力决策清单，项目在这些 area 中沉淀产品意图、能力、端、交互、视觉、访问、数据、集成、支持、商业、技术、安全、质量、交付和运营结论；协议另行固定产品预期、交互、视觉、技术契约、代码实现和风险验证六条核心软件不变量。Controller 依据 fresh decisions、invariants 和具体 facts 生成当前实际需要的 gap；State 不绑定 skill、路径和流程。
+Project State 和 Case State 的字段定义不是普通配置项。Project State 显式提供 15 项软件能力决策清单，项目在这些 area 中沉淀产品意图、能力、端、交互、视觉、访问、数据、集成、支持、商业、技术、安全、质量、交付和运营结论；协议另行固定产品预期、交互预期、视觉语言、技术决策、现实兑现和风险依据六条核心软件不变量。Controller 依据 fresh decisions、invariants 和具体 facts 生成当前实际需要的 gap；State 不绑定 skill、路径和流程。
 
 Project State、Case State 和 Agent Loop 通过分层上下文保持长期连续性。Project State 是项目级 checkpoint，只保存 advancement、software definition decisions、software invariants 和 evidence，不保存独占 Loop selection。Case State 是事项级 checkpoint，保存当前事项的 facts、targeted impacts、dynamic gaps、content revision、completion review cycles/findings/budget、open questions、pending handoffs、轮次摘要、resolution 和短 loop handoff。Agent Loop 是一次执行过程，只产生 transition/report、runtime result 和原始运行证据，不把完整 prompt、activity、stream delta、ledger result 或 Desktop operator event 写入 Project State 或 Case State。
 

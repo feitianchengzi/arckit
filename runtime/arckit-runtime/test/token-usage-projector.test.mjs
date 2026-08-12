@@ -176,6 +176,40 @@ test("schema-bound Agent output is preserved as structured data beside the forma
   assert.equal(run.activity.messages.some((message) => message.kind === "result" && message.content === result.summary), true);
 });
 
+test("round candidate catalog and Agent comparison trace stay visible without Runtime reprioritizing them", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  applyRunEvent(run, wrapped({
+    type: "runtime.round_candidates",
+    round_index: 2,
+    snapshot_token: "SNAPSHOT-ABCDEF",
+    candidate_catalog: {
+      persisted_candidates: [{ ref: "case-gap:CASE-1:GAP-A" }, { ref: "case-gap:CASE-1:GAP-B" }],
+      persisted_obligations: []
+    }
+  }));
+  applyRunEvent(run, wrapped({
+    type: "runtime.round_selection",
+    round_index: 2,
+    gap_selection: {
+      fresh_discovery_summary: "No fresh candidate outranked the persisted work.",
+      considered: [
+        { ref: "case-gap:CASE-1:GAP-A", disposition: "selected", reason: "Highest regression risk." },
+        { ref: "case-gap:CASE-1:GAP-B", disposition: "deferred", reason: "Still considered; lower immediate risk." }
+      ]
+    }
+  }));
+
+  const candidates = run.activity.messages.find((message) => message.id === "runtime:round-candidates:2");
+  const selection = run.activity.messages.find((message) => message.id === "runtime:round-selection:2");
+  assert.match(candidates.content, /GAP-A/);
+  assert.match(candidates.content, /GAP-B/);
+  assert.match(selection.content, /GAP-A selected/);
+  assert.match(selection.content, /GAP-B deferred/);
+  assert.match(selection.content, /lower immediate risk/);
+  assert.equal(run.activity.round_selection.considered.length, 2);
+});
+
 test("non-command Codex tools update one stable transcript item from started to completed", () => {
   const run = runtimeRun();
   run.activity = createRunActivity(run);

@@ -1,6 +1,5 @@
 import { validateRuntimeResult } from './validator.mjs';
 import { pathToFileURL } from 'node:url';
-import { isDeepStrictEqual } from 'node:util';
 import { loadRuntimeCapabilityForEntrypoint, resolveCapabilityEntrypoint } from './capability-registry.mjs';
 
 export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, projectRoot = '' }) {
@@ -27,33 +26,7 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
   if (isCaseControl) {
     if (snapshot?.projectState?.project?.revision !== caseControlHandoff.expected_project_revision) reasons.push('case_control_handoff is stale for Project State.');
   } else {
-    if (transition?.schema_version !== 'arckit-case-transition/v6') reasons.push('case_transition must use arckit-case-transition/v6.');
-    if (!['candidate', 'fresh'].includes(transition?.gap_selection?.mode) || !transition?.gap_selection?.basis) reasons.push('case_transition.gap_selection is incomplete.');
-    if (!transition?.case_id || !transition?.selected_gap?.id) reasons.push('case_transition must identify a concrete Case gap.');
-    if (!transition?.case_updated_at) reasons.push('case_transition must bind the expected Case updated_at revision.');
-    if (!Number.isInteger(transition?.project_revision)) reasons.push('case_transition must bind the observed Project revision.');
-    if (!transition?.planned_transition?.goal || !transition?.planned_transition?.expected_state_change) reasons.push('case_transition.planned_transition is incomplete.');
-    if (!Array.isArray(transition?.evidence) || transition.evidence.length === 0) reasons.push('case_transition.evidence must be non-empty.');
-    const delta = transition?.accepted_state_delta;
-    if (!delta || !Object.hasOwn(delta, 'resolved_gap') || !Array.isArray(delta.facts_added) || !Array.isArray(delta.impacts_added) || !Array.isArray(delta.impacts_updated) || !Array.isArray(delta.gaps_added)) reasons.push('case_transition.accepted_state_delta is incomplete.');
     if (transition?.round_outcome === 'blocked') reasons.push('A blocked round is not eligible for automatic Case transition writeback.');
-    const projectDelta = transition?.project_state_delta;
-    const changesProject = Boolean(projectDelta && (projectDelta.software_definition_changes?.length || projectDelta.software_invariant_changes?.length || projectDelta.project_gap_changes?.length || projectDelta.selection_context_change));
-    if (changesProject && snapshot?.projectState?.project?.revision !== transition?.project_revision) reasons.push('Project-changing case_transition is stale for Project State.');
-
-    const activeCase = (snapshot?.activeCases || []).find((item) => item.record?.id === transition?.case_id);
-    if (snapshot && !activeCase) reasons.push(`case_transition.case_id is not an active Case: ${transition?.case_id || '<missing>'}`);
-    if (activeCase?.record?.case_resolution?.status === 'resolved') reasons.push(`Case ${transition.case_id} is already resolved.`);
-    if (activeCase && activeCase.record.updated_at !== transition?.case_updated_at) reasons.push(`case_transition is stale for ${transition.case_id}.`);
-    if (activeCase && transition?.gap_selection?.mode === 'candidate') {
-      const activeGap = (activeCase.record.case_resolution?.candidate_gaps || []).find((gap) => gap.id === transition?.selected_gap?.id);
-      if (!activeGap) reasons.push(`case_transition.selected_gap is not an unresolved candidate of ${transition.case_id}.`);
-      else if (!isDeepStrictEqual(activeGap, transition.selected_gap)) reasons.push(`case_transition.selected_gap snapshot is stale for ${transition.case_id}.`);
-    } else if (activeCase && transition?.gap_selection?.mode === 'fresh') {
-      const selected = transition?.selected_gap;
-      if (activeCase.record.gaps.some((gap) => gap.id === selected?.id)) reasons.push(`case_transition.selected_gap is not fresh for ${transition.case_id}.`);
-      if (selected?.responsibility !== 'agent') reasons.push('A fresh selected_gap must be Agent-owned and completed in the current turn.');
-    }
   }
 
   const unsafeChangedFiles = findUnsafeChangedFiles(runtimeResult?.changed_files || []);

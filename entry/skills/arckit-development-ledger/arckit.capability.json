@@ -1,32 +1,46 @@
 {
   "schema_version": "arckit-capability/v1",
   "id": "arckit-development-ledger",
-  "protocol_revision": "software-definition-ledger/v5",
+  "protocol_revision": "software-definition-ledger/v8",
+  "canonical_protocol": {
+    "project": "project-state-record/v5",
+    "case": "development-case-record/v5",
+    "iteration": "iteration-state-record/v3",
+    "transition": "arckit-case-transition/v8",
+    "snapshot": "arckit-ledger-snapshot/v1",
+    "round_closeout": "arckit-round-closeout/v2",
+    "compatibility": "arckit-ledger-compatibility/v1",
+    "reconciliation": "arckit-protocol-reconciliation/v1"
+  },
   "kind": "state_ledger",
   "runtime_role": ["state_reader", "closeout_auditor", "ledger_writer"],
   "binding_targets": ["runtime"],
   "invocation": {
     "type": "runtime_entrypoint",
     "skill_trigger": "$arckit-development-ledger",
-    "phases": ["project_initialization", "case_control", "case_transition", "ledger_writeback"]
+    "phases": ["project_initialization", "ledger_snapshot", "protocol_recovery", "case_control", "case_transition", "ledger_writeback"]
   },
   "runtime_entrypoints": {
     "project_state": "scripts/project-state.mjs",
     "project_iteration": "scripts/project-iteration.mjs",
     "development_case": "scripts/development-case.mjs",
+    "protocol_compatibility": "scripts/protocol-compatibility.mjs",
+    "loop_snapshot": "scripts/loop-snapshot.mjs",
     "case_control": "scripts/runtime-case-control.mjs",
     "case_transition": "scripts/case-transition.mjs",
     "writeback": "scripts/runtime-writeback.mjs"
   },
-  "summary": "Maintains explicit Project software decisions, abstract invariants and advancement state, facts/targeted-impacts/dynamic-gap Case v5 state, Iteration v3 aggregation, and deterministic transition commits.",
+  "summary": "Maintains Project decisions/invariants/advancement, Case facts/impacts/dynamic gaps, Iteration aggregation, and deterministic one-claim transitions with complete invariant assessment.",
   "input_facts": [
     "project_state_record",
     "iteration_state_record",
     "development_case_record",
     "case_transition",
+    "invariant_assessment",
     "case_control_handoff",
     "runtime_result",
-    "merge_result"
+    "merge_result",
+    "protocol_reconciliation"
   ],
   "outputs": [
     "state_audit",
@@ -35,7 +49,11 @@
     "updated_state",
     "updated_case",
     "case_transition_result",
-    "case_control_result"
+    "case_control_result",
+    "protocol_compatibility",
+    "ledger_snapshot",
+    "round_closeout",
+    "protocol_reconciliation_result"
   ],
   "allowed_write_targets": [
     "arckit/project/**",
@@ -49,7 +67,8 @@
   "runtime_notes": [
     "Runtime must resolve and call the trusted entrypoints declared by this capability instead of maintaining copied ledger scripts.",
     "Agent-directed Case creation enters through case_control with semantic initial facts, relevant decision/invariant impacts, and at least one gap; ledger allocates ids and atomically registers the v5 Case.",
-    "Every Case transition uses Case revision binding, Project numeric revision binding, exact candidate-gap matching, and an explicit Project State delta.",
+    "Every Case transition uses a Case-scoped selection token, Case and Project revision binding, complete persisted-candidate accounting, exact selected-gap matching, one acceptance claim, an explicit Project State delta, and complete current invariant assessment.",
+    "The ledger validates invariant catalog coverage, duplicate refs, accepted-fact evidence and open-gap bindings; semantic relevance and skill/artifact routing remain Agent-owned.",
     "Different Cases may execute concurrently; Case, Project, iteration, projections, and indexes commit under one cross-process Project lock with rollback.",
     "Iteration v3 contains only Project targets, per-transition accepted Project changes, acceptance state, and Case refs; Loop continuation is forbidden.",
     "Project audits require the complete protocol-defined software decision checklist, core software invariants, durable evidence, and active Case reference alignment.",
@@ -57,6 +76,8 @@
     "Runtime passes the semantic Case transition object directly; stdin and caller-owned files are CLI transports and volatile paths never become evidence.",
     "Runtime-owned result, activity, event, and transcript records stay outside the target project; Desktop may pass an arckit-runtime://runs/RUN-... opaque reference for Case round traceability.",
     "Case rendering is content-transparent and dry-run preflights Structured Record round trips plus existing Case index inputs.",
-    "Runtime exposes bounded ledger snapshots to the Agent when needed; only trusted Runtime entrypoints may write ledger state."
+    "Direct Agents and Runtime consume the same manifest-declared loop_snapshot receipt; Runtime does not parse canonical record versions or derive candidates independently.",
+    "Successful transition writeback returns an accepted round_closeout with no next candidate, followed by a separately verified post-commit snapshot.",
+    "Protocol incompatibility is detected deterministically and handed to the same Agent for semantic reconciliation; trusted writeback binds source digests and commits all canonical replacements atomically."
   ]
 }

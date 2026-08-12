@@ -40,7 +40,7 @@ Automation Store 以本地项目身份和远端任务 ID 为键保存唯一 `thr
 
 进程重启时，Run Manager 把已持久化 `thread_id` 传给 Runtime；Codex adapter initialize 后先执行 `thread/resume`，再 fresh-read Project/Case State 发起下一 turn。瞬时 resume 失败保持原绑定进入 recovery；只有 Codex 明确确认 thread 永久不存在时，才记录可审计的 `thread_recovery_fallback` 并从 canonical state 创建新的持久 thread。canonical facts 不足时暂停并要求人工介入。
 
-当前 turn 的 fresh digest、revision 与授权覆盖 thread 中冲突的旧事实。首个 turn 携带完整待办意图；后续 turn 只携带任务标识、当前增量、fresh canonical digest/revisions、授权与输出契约，不重复历史 prompt、状态正文或旧报告。每个 turn 独立选择并完成一个 candidate/fresh Case gap。Completion Review 是唯一显式语义自查；Case resolved 后的 Git closeout 仍复用同一 thread，但只允许 commit/no-op，不再验证、编辑或修复。
+当前 turn 的 trusted ledger snapshot receipt、revision、candidate catalog 与授权覆盖 thread 中冲突的旧事实。首个 turn 携带完整待办意图；后续 turn 只携带任务标识、当前增量、fresh snapshot 投影、授权与输出契约，不重复历史 prompt、状态正文或旧报告。每轮启动时 Desktop 展示 persisted catalog；Agent result 到达后展示其 persisted/fresh comparison trace 与 selected gap，Runtime 不重新排序。写回后 Desktop 先展示 ledger `round_closeout`，再展示 post-commit `fresh_read` receipt；Runtime 不自行生成这两者的 canonical 语义。Completion Review 是唯一显式语义自查；Case resolved 后的 Git closeout 仍复用同一 thread，但只允许 commit/no-op，不再验证、编辑或修复。
 
 每次成功 ledger 写回后、下一 gap 前，Coordinator 读取最新请求的 `inputTokens / modelContextWindow`。达到 80% 且上一个 Agent turn 后尚未压缩时，调用同一 thread 的 `thread/compact/start`，等待压缩完成并保存 checkpoint，再继续 fresh-state loop。累计 Token 只用于观测，不触发压缩或停止。
 

@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 18
-Updated: 2026-08-11T05:27:56.752Z
+Revision: 28
+Updated: 2026-08-11T16:52:06.147Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-使每轮 Loop 基于 fresh state 独立判断并推进当前最重要的一个 Gap；software invariants 只约束当前接受的 transition，不生成预设工作清单；Completion Review 成为唯一显式语义自查，Review 后 closeout 不再修改内容。
+Make core software invariants reliably expose affected durable product, interaction, visual, technical, realization, and risk facts from fresh Case evidence without fixed artifact routing.
 
 ## Active Work
 
@@ -30,29 +30,29 @@ Arckit is a state-driven software-development protocol and optional supervised R
 | Decision Area | Status | Revision | Current Decision | Project Gaps |
 | --- | --- | ---: | --- | --- |
 | product_intent_and_scope | settled | 1 | Arckit is a repository-owned software-development handoff protocol and Runtime that lets one Agent and automation hosts advance durable Project/Case state safely. | - |
-| product_capabilities | settled | 1 | Arckit provides Project/Iteration/Case ledgers, dynamic Gap selection, trusted atomic transitions, maintained development skills, and an optional supervised Runtime/Desktop. | GAP-agent-scenario-evaluation |
+| product_capabilities | settled | 3 | Arckit provides Project/Iteration/Case ledgers, fresh-fact-driven invariant-guided dynamic Case Gap discovery, strict single-Gap Rounds, trusted atomic transitions, maintained development skills, and an optional supervised Runtime/Desktop. | GAP-agent-scenario-evaluation |
 | runtime_surfaces | settled | 1 | The software comprises repository-owned skills and Node.js ledger CLIs plus an optional Electron Desktop, Runtime supervisor, and Codex adapter. | - |
-| experience_and_interaction | settled | 2 | Users can invoke using-arckit conversationally; Desktop users select a project/todo, observe one persistent Agent conversation, steer it, and recover persisted runs. | - |
+| experience_and_interaction | settled | 3 | Users can invoke using-arckit conversationally; Desktop users observe the persisted candidate catalog, Agent comparison and exclusion reasons, an independent accepted round closeout, and a verified post-commit fresh-read in one persistent Agent conversation. | - |
 | visual_language | settled | 2 | Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. | - |
 | identity_and_access | settled | 1 | Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints. | - |
-| data_and_state | settled | 2 | Canonical project data is Project v5, Iteration v3 and Case v5 in arckit/; each accepted Loop mutation uses Case Transition v6 with explicit candidate/fresh gap_selection, while Runtime run/session/thread records stay outside the target project and only opaque refs enter the ledger. | GAP-cross-record-audit |
+| data_and_state | settled | 4 | Canonical project data is Project v5, Iteration v3 and Case v5 in arckit/; normal Loop mutation uses Case Transition v8 bound to Ledger Snapshot v1, persists a complete round invariant assessment, produces Round Closeout v2, and requires a verified post-commit snapshot before continuation. Runtime run/session/thread records stay outside the target project and only opaque refs enter the ledger. | GAP-cross-record-audit |
 | external_integrations | settled | 1 | The Runtime integrates with Codex app-server/CLI and optional task sources through explicit adapters; trusted ledger entrypoints remain repository-owned. | GAP-runtime-resilience-and-adapters |
 | feedback_and_support | settled | 1 | Operational feedback is provided through the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization; no separate public support portal is currently required. | - |
 | commercialization_and_entitlement | settled | 1 | Arckit currently has no payment, subscription, trial, quota or commercial feature-entitlement model. | - |
-| technical_foundation | settled | 4 | Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron desktop host, Project State v5, Case v5, candidate/fresh Case Transition v6, and Iteration v3 with trusted atomic transitions. | GAP-runtime-resilience-and-adapters |
+| technical_foundation | settled | 7 | Arckit uses repository-owned Markdown/JSON state, Node.js ESM Ledger and Runtime scripts, an Electron desktop host, Project State v5, Case v5, Case Transition v8, Ledger Snapshot v1, Round Closeout v2 and Iteration v3. The canonical catalog defines four authoritative durable expectation or decision responsibilities plus realization and risk responsibilities; Ledger validates complete assessments while Runtime does not duplicate semantic relevance or routing. | GAP-runtime-resilience-and-adapters |
 | security_privacy_compliance | settled | 1 | Secrets stay outside canonical project state; Runtime enforces login/configured-source boundaries, workspace authorization, sandbox/approval rules and trusted deterministic writes. | GAP-security-real-project-validation |
-| quality_and_validation | settled | 1 | Protocol changes require schema/script validation, cross-record audits, Runtime automated tests, projection checks and risk-proportionate real execution evidence. | GAP-agent-scenario-evaluation, GAP-cross-record-audit |
+| quality_and_validation | settled | 2 | Protocol changes require schema/script validation, cross-record audits, Runtime automated tests, projection checks, direct-Codex no-Case recovery evidence, stale-token checks, read/write/read ordering checks, and risk-proportionate real execution evidence. | GAP-agent-scenario-evaluation, GAP-cross-record-audit |
 | delivery_and_distribution | settled | 1 | Maintained skills are sourced from entry/skills, synchronized to supported application targets through governed installation, and Runtime/Desktop are built and checked from runtime/arckit-runtime. | GAP-delivery-governance |
-| observability_and_operation | settled | 2 | Runtime persists lifecycle, activity, messages and timing outside the target project, supports restart reconciliation, and exposes opaque run refs for canonical traceability. | GAP-runtime-resilience-and-adapters |
+| observability_and_operation | settled | 3 | Runtime persists lifecycle, activity, messages and timing outside the target project, supports restart reconciliation, exposes opaque run refs, and separately projects Ledger candidate catalogs, Agent selection traces, accepted round closeouts, and post-commit fresh-read receipts. | GAP-runtime-resilience-and-adapters |
 
 ## Software Invariants
 
-- observable-behavior-has-durable-expectation: The behavior accepted by this transition has an accurate, unambiguous, and durably recoverable product expectation.
-- changed-interactions-remain-recoverable: The interaction change accepted by this transition is coherent and durably recoverable.
-- changed-visual-language-remains-consistent: The visual change accepted by this transition remains consistent with the project visual language and is durably recoverable.
-- changed-contracts-remain-explainable: The technical contract accepted by this transition is coherent, explainable, and durably recoverable.
-- accepted-facts-are-realized: The implementation accepted by this transition realizes its relevant accepted facts and upheld project decisions and invariants.
-- material-risks-have-credible-evidence: The risk-bearing claims accepted by this transition are supported by credible, repeatable, proportionate evidence.
+- product-expectations-remain-recoverable: Every materially affected product expectation is accurate, unambiguous, and durably recoverable.
+- interaction-expectations-remain-recoverable: Every materially affected interaction expectation is coherent, complete enough to recover its decisions and states, and durably recoverable.
+- visual-language-remains-consistent: Every materially affected visual expectation remains intentional, internally consistent, and durably recoverable.
+- technical-decisions-remain-explainable: Every materially affected technical decision remains coherent, explainable, and durably recoverable, including its rationale and affected relationships.
+- accepted-facts-are-realized: The accepted software state realizes every materially relevant accepted fact and upheld Project decision and invariant.
+- material-risks-have-credible-evidence: Every material risk claim accepted in the Case is supported by credible, repeatable, and proportionate evidence.
 
 ## Read For Precision
 

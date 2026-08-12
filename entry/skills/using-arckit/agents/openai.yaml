@@ -1,25 +1,30 @@
 interface:
   display_name: "Using Arckit"
   short_description: "用同一 Agent 按 Case gap 持续推进软件开发"
-  default_prompt: "使用 $using-arckit 从 fresh Project/Case State 独立选择本轮最重要的 candidate 或 fresh gap，在当前 Agent turn 内自行使用必要 skills/tools 执行并验证，再返回带当轮 Project delta 的 transition 或明确 handoff。不要预排 impacts/gap 链，不要按清单制造流程，也不要直接写 ledger。"
+  default_prompt: "使用 $using-arckit 从 trusted ledger snapshot 和 fresh facts 逐项解释 software invariants，选择当前已接受事实直接支持的最小 Gap；若后续结果依赖本轮才建立的事实或决定，只完成该前置 Gap并在 closeout、fresh-read 后重新选择。"
 policy:
   allow_implicit_invocation: true
   turn_level_only: false
 workflow:
   first_steps:
+    - "取得 manifest-declared trusted snapshot；incompatible 时进入按需协议恢复，不创建维护 Case 或普通 Gap。"
     - "恢复 fresh Project State 和全部 active Cases。"
-    - "选择一个 Case 和一个 candidate gap，或提出并当轮完成一个 fresh gap；无合适 Case 时请求 create_case。"
+    - "用用户可见 selection trace 比较 persisted/fresh candidates；若下游结果依赖尚未接受的实质事实，先选择建立该前置事实的最小 Case Gap。"
     - "在当前 Agent turn 内使用必要 skills/tools 完成一个 gap并收集证据。"
-    - "分离 round、Case resolution、当轮 Project State delta 与 handoff，提交 transition claim。"
+    - "完成当前 Project invariant catalog 的逐项判断，分离 round、Case resolution、当轮 Project State delta 与 handoff，提交单一 transition claim。"
   boundaries:
     - "Runtime 只自动化外部控制、授权、续轮和 trusted ledger 调用，不替代 Agent 语义与工作区执行。"
+    - "协议恢复只恢复 canonical 可读性，不顺带推进产品工作；成功后必须 fresh-read 再继续原始事项。"
     - "不要为了计划、执行或复审阶段制造额外 Agent invocation。"
-    - "每个 Loop 只推进一个 gap；成功写回后 fresh-read，并在同一活动 thread 继续下一 turn。"
+    - "每个 Loop 只接受一个由本轮 fresh state 直接支持的最小 gap claim；不得用本轮新事实继续完成依赖它的下游结果，写回并 fresh-read 后再选择。"
+    - "Invariant applicability 来自 fresh facts 对长期语义的新增、变化、缺失、过时、歧义或冲突，不从 planned transition 或实际编辑对象倒推。"
     - "只在需要人类责任时暂停；长命令和生产性 Round 不构成停止条件。"
-    - "Completion Review 只由 ledger 在普通工作闭合后派生；它不是 fact 或日常文档补齐步骤。"
+    - "Completion Review 只由 ledger 在普通工作闭合后派生；它不是 fact 或常规事实维护步骤。"
     - "Completion Review 是唯一显式语义自查；Case resolved 后只做 Git-only closeout。"
   output:
+    - "protocol reconciliation result or recovery handoff"
     - "selected Case/gap or case_control"
     - "evidence and accepted Case delta"
     - "case_transition or responsibility handoff"
     - "loop-handoff/v2"
+    - "round opening, arckit-round-closeout/v2 with invariant assessment, and fresh-read receipt"

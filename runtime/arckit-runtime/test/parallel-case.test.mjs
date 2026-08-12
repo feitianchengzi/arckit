@@ -25,12 +25,12 @@ test('different active Cases advance concurrently without changing Project selec
     applyCaseTransition({
       projectRoot,
       casePath: first.ref,
-      transition: progressTransition(first.record, projectRevision, 'parallel:first'),
+      transition: progressTransition(first.record, projectRevision, 'parallel:first', initial),
     }),
     applyCaseTransition({
       projectRoot,
       casePath: second.ref,
-      transition: progressTransition(second.record, projectRevision, 'parallel:second'),
+      transition: progressTransition(second.record, projectRevision, 'parallel:second', initial),
     }),
   ]);
 
@@ -48,8 +48,8 @@ test('parallel resolved closeouts keep one Case active and return a recoverable 
   snapshot = await createStateStore(projectRoot).readSnapshot();
   const projectRevision = snapshot.projectState.project.revision;
   const [first, second] = snapshot.activeCases;
-  const firstTransition = cleanReviewTransition(first.record, projectRevision, 'review:first');
-  const staleSecondTransition = cleanReviewTransition(second.record, projectRevision, 'review:second');
+  const firstTransition = cleanReviewTransition(first.record, projectRevision, 'review:first', snapshot);
+  const staleSecondTransition = cleanReviewTransition(second.record, projectRevision, 'review:second', snapshot);
 
   const closeoutResults = await Promise.all([
     applyRuntimeLedgerWriteback({
@@ -69,7 +69,7 @@ test('parallel resolved closeouts keep one Case active and return a recoverable 
   const rejected = closeoutResults.find((result) => !result.written);
   assert.equal(rejected.rejection.recoverable, true);
   assert.equal(rejected.rejection.recovery_action, 'replan_from_fresh_state');
-  assert.match(rejected.rejection.reason, /Stale Project transition/);
+  assert.match(rejected.rejection.reason, /Stale (Project transition|ledger selection snapshot)/);
 
   snapshot = await createStateStore(projectRoot).readSnapshot();
   assert.equal(snapshot.projectState.advancement.active_case_refs.length, 1);
@@ -84,6 +84,7 @@ test('parallel resolved closeouts keep one Case active and return a recoverable 
       remaining.record,
       snapshot.projectState.project.revision,
       'review:remaining:fresh',
+      snapshot,
     ),
   });
   snapshot = await createStateStore(projectRoot).readSnapshot();
@@ -122,14 +123,14 @@ async function projectWithCases(count) {
   return projectRoot;
 }
 
-function progressTransition(record, projectRevision, evidence) {
+function progressTransition(record, projectRevision, evidence, snapshot) {
   const gap = record.case_resolution.candidate_gaps.find((item) => item.id === 'GAP-WORK');
   return {
-    schema_version: 'arckit-case-transition/v6',
+    schema_version: 'arckit-case-transition/v8',
     case_id: record.id,
     case_updated_at: record.updated_at,
     project_revision: projectRevision,
-    gap_selection: { mode: 'candidate', basis: 'This ledger candidate is the most important current action.' },
+    gap_selection: selectionTrace(record, gap, snapshot, 'This ledger candidate is the most important current action.'),
     selected_gap: gap,
     planned_transition: { goal: gap.goal, expected_state_change: 'Open fixture work becomes resolved.' },
     accepted_state_delta: {
@@ -142,6 +143,7 @@ function progressTransition(record, projectRevision, evidence) {
       review_budget_extension: null,
     },
     project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
+    invariant_assessment: invariantAssessment(snapshot.projectState, evidence),
     evidence: [evidence],
     unresolved: ['completion_review'],
     round_outcome: 'completed',
@@ -160,14 +162,14 @@ function makeReviewReady(projectRoot, activeCase) {
   writeCaseRecord(casePath, text, record);
 }
 
-function cleanReviewTransition(record, projectRevision, evidence) {
+function cleanReviewTransition(record, projectRevision, evidence, snapshot) {
   const gap = record.case_resolution.candidate_gaps.find((item) => item.id.includes(':completion-review:'));
   return {
-    schema_version: 'arckit-case-transition/v6',
+    schema_version: 'arckit-case-transition/v8',
     case_id: record.id,
     case_updated_at: record.updated_at,
     project_revision: projectRevision,
-    gap_selection: { mode: 'candidate', basis: 'Completion Review is the only remaining semantic check.' },
+    gap_selection: selectionTrace(record, gap, snapshot, 'Completion Review is the only remaining semantic check.'),
     selected_gap: gap,
     planned_transition: { goal: gap.goal, expected_state_change: 'Record a clean implementation-focused completion review.' },
     accepted_state_delta: {
@@ -186,9 +188,37 @@ function cleanReviewTransition(record, projectRevision, evidence) {
       review_budget_extension: null,
     },
     project_state_delta: { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
+    invariant_assessment: invariantAssessment(snapshot.projectState, evidence),
     evidence: [evidence],
     unresolved: [],
     round_outcome: 'completed',
     case_resolution: { claimed_status: 'resolved', reason: 'The current content revision is clean.' },
+  };
+}
+
+function invariantAssessment(project, evidence) {
+  return {
+    project_revision: project.project.revision,
+    judgments: project.software_invariants.map((invariant) => ({
+      invariant_ref: invariant.id,
+      disposition: 'upheld',
+      reason: 'The isolated fixture transition preserves this invariant.',
+      fact_refs: [],
+      evidence: [evidence],
+      gap_refs: [],
+    })),
+  };
+}
+
+function selectionTrace(record, selected, snapshot, basis) {
+  return {
+    mode: 'candidate', basis, snapshot_token: snapshot.ledgerSnapshot.selection_tokens[record.id],
+    selected_ref: `case-gap:${record.id}:${selected.id}`,
+    comparison_summary: 'Compared every persisted candidate in the selected Case scope.',
+    fresh_discovery_summary: 'No more important fresh candidate was discovered.',
+    considered: (record.case_resolution?.candidate_gaps || []).map((gap) => ({
+      ref: `case-gap:${record.id}:${gap.id}`, source: 'persisted', eligibility: 'ready', disposition: gap.id === selected.id ? 'selected' : 'deferred',
+      priority_basis: gap.priority_basis || {}, reason: gap.id === selected.id ? 'Selected for this round.' : 'Deferred after comparison.',
+    })),
   };
 }

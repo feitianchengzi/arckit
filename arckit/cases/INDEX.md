@@ -59,3 +59,6 @@
 | [CASE-20260810-005](closed/CASE-20260810-005-require-authoritative-task-to-case-binding-provenance.md) | closed | Require authoritative task-to-Case binding provenance | 2026-08-10T17:18:07.967Z |
 | [CASE-20260811-001](closed/CASE-20260811-001-clarify-runtime-agent-transcript-message-presentation.md) | closed | Clarify Runtime Agent transcript message presentation | 2026-08-11T03:16:07.510Z |
 | [CASE-20260811-002](closed/CASE-20260811-002-align-dynamic-gap-loop-and-invariant-semantics.md) | closed | Align dynamic Gap Loop and invariant semantics | 2026-08-11T05:27:56.752Z |
+| [CASE-20260811-003](closed/CASE-20260811-003-unify-verifiable-loop-receipts-across-codex-and-runtime.md) | closed | Unify verifiable Loop receipts across Codex and Runtime | 2026-08-11T10:18:49.525Z |
+| [CASE-20260811-004](closed/CASE-20260811-004-align-invariant-guided-single-gap-case-loops.md) | closed | Align invariant-guided single-Gap Case loops | 2026-08-11T15:14:31.249Z |
+| [CASE-20260811-005](closed/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md) | closed | Clarify software invariant semantic domains and triggers | 2026-08-11T16:52:06.147Z |

@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withProjectCommitLock } from './project-commit-lock.mjs';
+import { readLedgerSnapshot } from './loop-snapshot.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ARTIFACT_TYPES = new Set(['code', 'skill', 'document', 'workflow', 'mixed', 'unknown']);
@@ -101,6 +102,7 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
   }
 
   const selectedCase = readCaseRecord(path.join(root, selectedCaseRef));
+  const postCommitSnapshot = readLedgerSnapshot(root);
   return {
     schema_version: 'arckit-ledger-write/v2',
     written: true,
@@ -116,6 +118,7 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
       case_updated_at: selectedCase.updated_at,
       candidate_gaps: selectedCase.case_resolution?.candidate_gaps || [],
     },
+    post_commit_snapshot_token: postCommitSnapshot.snapshot_token,
     changed_files: [...new Set([
       selectedCaseRef,
       'arckit/project/state.record.json',

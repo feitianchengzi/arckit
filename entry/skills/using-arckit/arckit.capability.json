@@ -1,7 +1,7 @@
 {
   "schema_version": "arckit-capability/v1",
   "id": "using-arckit",
-  "protocol_revision": "software-definition-agent-loop/v8",
+  "protocol_revision": "software-definition-agent-loop/v12",
   "kind": "project_conversation_controller",
   "runtime_role": ["agent_loop", "case_selection", "gap_execution", "closeout"],
   "binding_targets": ["controller"],
@@ -10,7 +10,7 @@
     "skill_trigger": "$using-arckit",
     "phases": ["agent_loop"]
   },
-  "summary": "Runs one coherent Agent turn from explicit Project software decisions, invariants and fresh facts through one selected Case gap, workspace execution, evidence, Project delta, transition claim, and handoff.",
+  "summary": "Runs one coherent Agent turn from explicit Project software decisions, invariants and fresh facts through the smallest causally ready Case gap, workspace execution, evidence, Project delta, transition claim, and handoff.",
   "input_facts": [
     "original_user_input",
     "current_operator_increment",
@@ -21,7 +21,9 @@
     "iteration_state",
     "loop_handoff",
     "agent_context_digest",
-    "execution_authorization"
+    "execution_authorization",
+    "protocol_compatibility",
+    "ledger_snapshot"
   ],
   "outputs": [
     "case_control",
@@ -32,9 +34,14 @@
     "round_outcome",
     "case_resolution",
     "project_state_delta",
+    "invariant_assessment",
     "case_transition",
     "loop_handoff_v2",
-    "agent_loop_result"
+    "agent_loop_result",
+    "protocol_reconciliation_result",
+    "selection_trace",
+    "round_closeout",
+    "fresh_read_receipt"
   ],
   "allowed_write_targets": [],
   "forbidden_decisions": [
@@ -49,10 +56,12 @@
     "The Agent may use native tools and other installed skills inside the same turn; Runtime does not pre-bind a fixed definition/diagnosis skill list or predictive allowed_paths.",
     "Runtime supplies original user intent, current increment, fresh bounded canonical facts, revisions, and execution authorization; these supersede conflicting thread history.",
     "No suitable active Case produces a semantic case_control.create_case with outcome, initial facts, relevant impacts, and at least one dynamic gap; Runtime only binds Project revision and explicit review policy.",
-    "Every Case transition binds the expected Case updated_at, observed numeric Project revision, and complete current candidate gap.",
-    "The Agent evaluates requirements, documentation, code, configuration and tests against explicit Project decisions and invariants, updating relevant durable artifacts during the owning Gap rather than relying on Review.",
+    "Every Case transition binds the selected Case selection token, expected Case updated_at, observed Project revision, complete current candidate, a user-visible comparison trace, and one acceptance claim directly supported by the Round's fresh canonical facts.",
+    "The Agent evaluates every current Project invariant against fresh Case facts and dynamically chosen skills; threatened or undetermined results become explicit Case gaps without preplanning a workflow.",
+    "When a downstream result depends on a material fact or decision not yet accepted at the start of the Round, the prerequisite result is the current Gap; newly established facts may add or reopen future gaps but cannot be consumed for another downstream result until post-closeout fresh-read.",
     "Runtime gates schema, revision, authorization, workspace safety, and ledger legality; it does not semantically re-review the Agent claim.",
-    "Successful ledger writeback requires a fresh state read before the next turn. Human responsibility pauses for operator input; external responsibility remains a recoverable system wait.",
-    "Serial one-gap Loops, productive rounds, and long-running commands have no total wall-clock or productive-round limit; no-progress recovery is separate."
+    "Successful ledger writeback exposes the ledger-produced round closeout before a separately verified post-commit snapshot and the next turn. Human responsibility pauses for operator input; external responsibility remains a recoverable system wait.",
+    "Serial one-gap Loops, productive rounds, and long-running commands have no total wall-clock or productive-round limit; no-progress recovery is separate.",
+    "When canonical state is protocol-incompatible, the same Agent suspends ordinary Case work, performs semantic reconciliation through the trusted ledger entrypoint, then fresh-reads and resumes the original intent."
   ]
 }
