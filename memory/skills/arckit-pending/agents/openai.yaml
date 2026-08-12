@@ -1,0 +1,21 @@
+interface:
+  display_name: "ArcKit Pending"
+  short_description: "手动维护 arckit/pending 中的未决项目上下文"
+  default_prompt: "使用 $arckit-pending 手动查询或维护 arckit/pending/。先确认项目根与操作意图，再从 INDEX 读取最小上下文；变更时区分事实、假设、缺口和风险并同步索引。不要自动捕获普通对话，不替代 active Case，也不接入 Runtime。"
+policy:
+  allow_implicit_invocation: false
+workflow:
+  first_steps:
+    - "确认用户已显式调用本能力，并定位目标项目根目录。"
+    - "判断查询、新增、更新、归档、合并、提升或硬删除意图。"
+    - "先读取 arckit/pending/INDEX.md，再按需读取相关 item。"
+  boundaries:
+    - "只写 arckit/pending/，查询模式不修改文件。"
+    - "不替代 active Case，不写 Project State，不参与 Runtime capability policy。"
+    - "提升、归档和硬删除遵循用户明确意图与确认边界。"
+  output:
+    - "path"
+    - "summary"
+    - "state"
+    - "revisit_when"
+    - "write_status"

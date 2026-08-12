@@ -67,6 +67,7 @@ For example, an authentication architecture note belongs in `definition/skills/`
 
 - Project conversation Controller: `entry/skills/using-arckit/`
 - Development ledger and continuous Project State/Case/Loop state: `entry/skills/arckit-development-ledger/`
+- Explicit manual pending-context maintenance: `memory/skills/arckit-pending/`
 - Product specification: `definition/skills/arckit-spec/`
 - Interaction: `definition/skills/arckit-interaction/`
 - Visual: `definition/skills/arckit-visual/`
@@ -79,7 +80,7 @@ For example, an authentication architecture note belongs in `definition/skills/`
 
 The three `code/skills/` capabilities are distributed from this repository and may be selected natively by the Codex Agent; Runtime does not add them to an `allowed_skills` list or pre-associate them with a gap.
 
-Directories not listed above are reserved capability domains and currently contain no retained Arckit skills. Do not restore a removed skill reference as a dependency; unresolved work stays in the active case or is handed to an external adapter.
+Directories not listed above are reserved capability domains and currently contain no retained Arckit skills. Do not restore a removed skill reference as a dependency. Automated Loop work keeps unresolved context in the active case or hands it to an external adapter; `arckit-pending` is a user-on-demand, explicitly invoked manual workspace and is not a Runtime dependency.
 
 ## Skill Folder Convention
 

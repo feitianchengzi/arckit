@@ -92,6 +92,7 @@ Runtime 的详细行为和命令见 [Arckit Runtime](runtime/arckit-runtime/READ
 状态驱动核心    entry/                         Controller 语义 + canonical ledger
 事实与工程能力  definition/ + engineering/     预期事实维护 + 通用工程诊断
 具体编码能力    code/                          项目技术栈实践 + 专项接入
+手动上下文能力  memory/                        显式按需的 pending 记录与整理
                          ↑
                   ArcForge 管理来源、类型、安装与 drift
 ```
@@ -141,6 +142,8 @@ Arckit 推荐直接使用这些经过验证的能力，形成从状态识别、�
 
 项目级 skill 只应安装到满足适用条件的目标项目；用户级按需 skill 进入 ArcForge catalog，在用户明确调用时再加载，不应长期暴露在每个 Agent 的常驻 skill 列表中。代码审查、发布、运维、商业决策等当前未保留能力仍交给项目工具、用户自选 skill 或明确的 external adapter。
 
+`memory/skills/arckit-pending/` 同样采用用户级按需模式。它只在用户显式调用时维护目标项目的 `arckit/pending/`，不自动接收 Runtime handoff，不替代 active Case，也不进入 Runtime capability policy。
+
 ## 项目中的事实与状态
 
 安装后的 skills 主要维护目标项目中的这些路径：
@@ -167,11 +170,11 @@ Arckit 不适合靠“复制整个仓库到用户 skills 目录”安装，原�
 - **保持完整框架的职责分层**：核心、事实与工程、具体编码能力各自进入合适位置，不因安装方式混在同一个用户级目录中。
 - **把 skill 放到正确位置**：用户常驻、项目常驻和用户按需是三种不同的可用性；ArcForge 会按 `arcforge.skill-project.json` 解析目标，而不是把所有内容都塞进用户级目录。
 - **检查项目适用性**：`arckit-code-swiftui` 只有在目标项目确实包含 SwiftUI / Apple 客户端工作时才应进入项目目录。
-- **提供按需发现**：反馈平台与 OSS 能力保存在用户级 catalog，通过轻量 loader 显式加载，减少常驻上下文和误触发。
+- **提供按需发现**：Pending、反馈平台与 OSS 能力保存在用户级 catalog，通过轻量 loader 显式加载，减少常驻上下文和误触发。
 - **维持来源与应用目标分离**：当前仓库是维护源和 source of truth，Codex、Claude、Cursor 的用户级或项目级目录只是消费副本。
 - **支持安全更新**：安装前可以先看 plan 与 drift，识别缺失、变更、旧副本和覆盖风险；在支持的应用模式中还可以保存来源关系，便于后续复查和重新应用。
 
-推荐安装 `entry/`、`definition/` 与 `engineering/` 下的完整协作能力，让状态驱动内核、预期事实维护和通用工程诊断可以直接闭环工作；`code/` 下的能力再按项目适用性或显式按需调用安装。已经拥有成熟等价能力的团队，可以在保持 Worker packet、evidence、claims、写入边界和 capability manifest 契约的前提下，用自己的 skill 替换对应职责。
+推荐安装 `entry/`、`definition/` 与 `engineering/` 下的完整协作能力，让状态驱动内核、预期事实维护和通用工程诊断可以直接闭环工作；`memory/` 与 `code/` 下的能力再按显式按需或项目适用性使用。已经拥有成熟等价能力的团队，可以在保持 Worker packet、evidence、claims、写入边界和 capability manifest 契约的前提下，用自己的 skill 替换对应职责。
 
 如果还没有安装 ArcForge，请打开 ArcForge 仓库并让 Agent 执行：
 
@@ -179,7 +182,7 @@ Arckit 不适合靠“复制整个仓库到用户 skills 目录”安装，原�
 执行 skills/arcforge-install
 ```
 
-安装完成后，选择 `arckit` 作为统一维护源。仓库根目录的 `arcforge.skill-project.json` 声明每个 skill 的推荐可用性：核心、事实维护与工程协作 skills 为用户级常驻，`arckit-code-swiftui` 为项目级常驻，`arckit-feedback-platform-integration` 与 `oss-controlled-image-access` 为用户级按需。推荐保持以下关系：
+安装完成后，选择 `arckit` 作为统一维护源。仓库根目录的 `arcforge.skill-project.json` 声明每个 skill 的推荐可用性：核心、事实维护与工程协作 skills 为用户级常驻，`arckit-code-swiftui` 为项目级常驻，`arckit-pending`、`arckit-feedback-platform-integration` 与 `oss-controlled-image-access` 为用户级按需。推荐保持以下关系：
 
 ```text
 GitHub / 本地 Skill 项目     维护源与 source of truth
@@ -218,11 +221,12 @@ entry/                         项目对话 Controller 与 development ledger
 definition/                    产品、交互、视觉和技术稳定事实维护
 engineering/                   技术栈无关的工程诊断
 code/                          语言、框架、平台、SDK 与云服务 coding skills
+memory/                        显式按需的项目上下文维护能力
 runtime/arckit-runtime/        Desktop 与状态驱动 Runtime 控制面
 arckit/                        本仓库自身的项目状态、历史材料和验证证据
 ```
 
-`idea/`、`thinking/`、`iteration/`、`memory/`、`media/`、`quality/`、`delivery/` 是预留能力域，目前没有保留的 Arckit skill。历史 `SKILL.md` 文本可能存在于 `arckit/intake/`、`arckit/pending/`、archive、closed Case 或 Runtime evidence 中；它们是项目资料，不是当前 skill source，也不会进入 Runtime capability policy。
+`idea/`、`thinking/`、`iteration/`、`media/`、`quality/`、`delivery/` 是预留能力域，目前没有保留的 Arckit skill。`memory/skills/arckit-pending/` 是用户显式加载的手动上下文维护能力；目标项目里的 `arckit/pending/` 是它维护的项目资料，不是 skill source，也不会进入 Runtime capability policy。archive、closed Case 和 Runtime evidence 中的历史 `SKILL.md` 文本同样不是当前 skill source。
 
 ## Skill 设计与收录原则
 

@@ -31,6 +31,13 @@
       {
         "path": "code/skills/oss-controlled-image-access",
         "mode": "user-on-demand"
+      },
+      {
+        "path": "memory/skills/arckit-pending",
+        "mode": "user-on-demand",
+        "aliases": [
+          "pending"
+        ]
       }
     ]
   }
