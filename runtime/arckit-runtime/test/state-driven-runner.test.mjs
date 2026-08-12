@@ -113,6 +113,58 @@ test("recoverable ledger rejection automatically replans from fresh state", () =
   assert.equal(decision.reason, "fresh_state_replan");
 });
 
+test("writeback-required terminal result cannot complete without an accepted ledger write", () => {
+  const decision = decideSessionContinuation({
+    runtimeResult: {
+      round_result: "done",
+      ledger_stage: { writeback_required: true }
+    },
+    ledgerWriteResult: {
+      written: false,
+      gate: { allowed: false, reasons: ["transition rejected"] }
+    },
+    handoff: terminalHandoff()
+  });
+
+  assert.deepEqual(decision, {
+    continue: false,
+    madeProgress: false,
+    reason: "ledger_write_failed"
+  });
+});
+
+test("rejected terminal ledger write reaches retry limit without Git closeout", async () => {
+  const adapter = closeoutAdapter();
+  const result = await runStateDrivenSession({
+    projectRoot: "/workspace/project",
+    stateStore: { async readSnapshot() { return snapshot(1); } },
+    options: { agentAdapter: adapter, task: "finish", maxNoProgressRounds: 1 },
+    dependencies: {
+      async runRound() {
+        const loop = loopResult(terminalHandoff());
+        loop.agentLoopResult = agentSelectionResult(1);
+        return loop;
+      },
+      async writeRoundLedger() {
+        return {
+          written: false,
+          rejection: {
+            kind: "ledger_gate_rejected",
+            recoverable: true,
+            responsibility: "agent",
+            reason: "transition rejected"
+          },
+          changed_files: []
+        };
+      }
+    }
+  });
+
+  assert.equal(result.stop_reason, "ledger_retry_limit");
+  assert.equal(result.closeout_result, null);
+  assert.deepEqual(adapter.prompts, []);
+});
+
 test("Runtime progress guards can tighten the configured no-progress limit", () => {
   assert.equal(effectiveNoProgressLimit(8, { progress_guard: { no_progress_limit: 2 } }), 2);
   assert.equal(effectiveNoProgressLimit(1, { progress_guard: { no_progress_limit: 2 } }), 1);

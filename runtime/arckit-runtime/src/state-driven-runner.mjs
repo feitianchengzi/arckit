@@ -416,17 +416,24 @@ export function decideSessionContinuation({
   maxNoProgressRounds = 8
 }) {
   const madeProgress = ledgerWriteResult?.written === true;
+  const writebackRequired = runtimeResult?.ledger_stage?.writeback_required === true;
+  if (!madeProgress && ledgerWriteResult?.rejection) {
+    if (noProgressRounds + 1 >= maxNoProgressRounds) {
+      return { continue: false, madeProgress: false, reason: "ledger_retry_limit" };
+    }
+    if (ledgerWriteResult?.rejection?.recoverable === true) {
+      return { continue: true, madeProgress: false, reason: "fresh_state_replan" };
+    }
+    return { continue: false, madeProgress: false, reason: "ledger_write_failed" };
+  }
+  if (writebackRequired && !madeProgress) {
+    return { continue: false, madeProgress: false, reason: "ledger_write_failed" };
+  }
   if (handoff?.human_decision_required === true || handoff?.next_responsibility === "human") {
     return { continue: false, madeProgress, reason: "human_intervention" };
   }
   if (handoff?.next_responsibility === "external" || handoff?.status === "external_wait") {
     return { continue: false, madeProgress, reason: "external_wait" };
-  }
-  if (ledgerWriteResult?.rejection && noProgressRounds + 1 >= maxNoProgressRounds) {
-    return { continue: false, madeProgress: false, reason: "ledger_retry_limit" };
-  }
-  if (ledgerWriteResult?.written === false && ledgerWriteResult?.rejection?.recoverable === true) {
-    return { continue: true, madeProgress: false, reason: "fresh_state_replan" };
   }
   if (ledgerWriteResult?.case_control_result) {
     return { continue: true, madeProgress: true, reason: "case_created" };

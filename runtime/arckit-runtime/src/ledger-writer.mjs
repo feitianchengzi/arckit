@@ -23,6 +23,7 @@ export async function writeLedger({
       written: false,
       dry_run: dryRun,
       gate,
+      rejection: gateRejection(gate, runtimeResult),
       plan: [],
       changed_files: []
     };
@@ -50,4 +51,18 @@ export async function writeLedger({
     dryRun,
     runtimeRecordRef: normalizedRuntimeRecordRef
   });
+}
+
+function gateRejection(gate, runtimeResult) {
+  const transition = runtimeResult?.case_transition || {};
+  const caseControl = runtimeResult?.case_control_handoff || {};
+  return {
+    kind: "ledger_gate_rejected",
+    recoverable: true,
+    responsibility: "agent",
+    reason: gate?.reasons?.filter(Boolean).join("\n") || "The trusted ledger gate rejected this writeback.",
+    case_id: transition.case_id || caseControl.case_id || "",
+    selected_gap_id: transition.selected_gap?.id || "",
+    recovery_action: "replan_from_fresh_state"
+  };
 }

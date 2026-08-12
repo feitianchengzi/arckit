@@ -967,6 +967,16 @@ export function createAutomationCoordinator({
     const handoff = selectEffectiveLoopHandoff({ runtimeResult, activity: event.activity });
     const ledgerRequired = runtimeResult?.ledger_stage?.writeback_required === true;
     const ledgerWritten = event.activity?.ledger_write_result?.parsed?.written === true;
+    const ledgerFailure = ledgerFailureReason({ result: event.result, activity: event.activity });
+    if (ledgerRequired && !ledgerWritten) {
+      await addRecovery({
+        type: "runtime_incomplete",
+        task: active,
+        message: ledgerFailure || "Runtime stopped because the required ledger writeback was not accepted.",
+        actions: ["retry_start", "mark_blocked"]
+      });
+      return;
+    }
     if (handoff.next_responsibility === "human" || handoff.human_decision_required === true) {
       await setAwaitingHuman({ active, runId: event.runId, handoff });
       return;
@@ -995,7 +1005,7 @@ export function createAutomationCoordinator({
       type: "runtime_incomplete",
       task: active,
       message: event.status === "completed"
-        ? handoff.responsibility_reason || "Runtime stopped before the task reached a complete handoff."
+        ? ledgerFailure || handoff.responsibility_reason || "Runtime stopped before the task reached a complete handoff."
         : `Runtime finished with status ${event.status}.`,
       actions: ["retry_start", "mark_blocked"]
     });
@@ -1284,7 +1294,25 @@ export function createAutomationCoordinator({
       || handoff.status === "complete";
     const ledgerRequired = activity.ledger_stage?.writeback_required === true;
     const ledgerWritten = activity.ledger_write_result?.parsed?.written === true;
-    if (!caseComplete || (ledgerRequired && !ledgerWritten)) return null;
+    if (ledgerRequired && !ledgerWritten) {
+      const recoveryExists = store.automation.recovery_items.some((item) => (
+        item.type === "runtime_incomplete"
+        && String(item.task_id) === String(active.task_id)
+        && String(item.run_id) === String(latest.id)
+      ));
+      if (!recoveryExists) {
+        await addRecovery({
+          type: "runtime_incomplete",
+          task: active,
+          message: ledgerFailureReason({ result: latest.result, activity })
+            || handoff.responsibility_reason
+            || "Runtime stopped because the required ledger writeback was not accepted.",
+          actions: ["retry_start", "mark_blocked"]
+        });
+      }
+      return null;
+    }
+    if (!caseComplete) return null;
     if (caseBinding.status !== "bound") {
       await addRecovery({
         type: "case_binding_missing",
@@ -2034,6 +2062,22 @@ export function buildInterventionTask(message) {
 export function extractCaseIdFromRun(run) {
   const binding = extractAuthoritativeCaseBindingFromRun(run);
   return binding.status === "bound" ? binding.case_id : "";
+}
+
+function ledgerFailureReason({ result, activity } = {}) {
+  const ledgers = [
+    activity?.ledger_write_result?.parsed,
+    result?.ledger_write_result
+  ];
+  for (const ledger of ledgers) {
+    const reason = String(ledger?.rejection?.reason || "").trim();
+    if (reason) return reason;
+    const gateReasons = ledger?.gate?.reasons;
+    if (Array.isArray(gateReasons) && gateReasons.some(Boolean)) {
+      return gateReasons.filter(Boolean).join("\n");
+    }
+  }
+  return "";
 }
 
 export function extractAuthoritativeCaseBindingFromRun(run) {

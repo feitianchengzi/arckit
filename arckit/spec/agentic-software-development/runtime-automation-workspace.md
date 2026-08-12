@@ -120,6 +120,8 @@ Runtime 不创建固定 Worker、独立复审或其它 Codex thread，也不以�
 
 Runtime 每次 ledger writeback 后先原样投影 ledger 的 `round_closeout`，再以 receipt 中的 post-commit token 调 manifest 声明的 trusted snapshot entrypoint，从 fresh canonical state 重建当前事实与授权。Runtime 不自行复刻候选、revision 或 fresh-read 判定，writeback 返回的内存 candidate 也不能充当 fresh state。fresh state 不等于 fresh conversation thread：Agent thread 提供语义连续性，canonical state 提供事实权威性；历史中的 selected gap、revision、授权或未接受 claim 不能覆盖 fresh state。
 
+`writeback_required=true` 的 Round 只有在 trusted ledger 返回 `written=true` 后才可采用 ledger-derived handoff、进入完成判断或启动 Git closeout。Gate block、transition preflight 拒绝和 apply 拒绝都产生带具体原因的 Agent-recoverable rejection；Runtime 在同一持久 thread 上从 fresh state 重试，达到无进展上限时进入 Recovery Center，并展示 rejection 原因而不是未被 ledger 接受的成功 handoff 文案。
+
 Persisted candidate 的稳定身份由 `selected_ref`、Gap id、Case revision、Project revision、selection token 与当前 ready 状态共同确认。Agent 可以用自己的语言表达同一 Gap 的目标和原因；这些描述不要求与 snapshot 逐字一致，也不能替代身份与 freshness 校验。Ledger apply 时重新读取当前 canonical candidate，并以 canonical 内容形成 round 和 closeout；真正的 stale snapshot、错误引用、候选不再 ready 或责任变化仍然拒绝。
 
 每个 Loop 仍只推进一个 Case gap，多个 gap 按 fresh ledger state 串行选择。执行效率不通过合并 gap、并行推进同一待办、总墙钟上限、生产性 Round 上限或长命令 watchdog 获得；长时间编译属于 Agent 执行阶段，由执行事件持续投影直至自然完成或收到显式停止请求。

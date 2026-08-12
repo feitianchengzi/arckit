@@ -64,3 +64,4 @@
 | [CASE-20260811-005](closed/CASE-20260811-005-clarify-software-invariant-semantic-domains-and-triggers.md) | closed | Clarify software invariant semantic domains and triggers | 2026-08-11T16:52:06.147Z |
 | [CASE-20260812-001](closed/CASE-20260812-001-runtime.md) | closed | 修复 Runtime 登录状态频繁失效 | 2026-08-12T08:52:29.437Z |
 | [CASE-20260812-002](closed/CASE-20260812-002-runtime.md) | closed | 增强 Runtime 失败恢复的语义容错与用户反馈续跑 | 2026-08-12T10:03:23.445Z |
+| [CASE-20260812-003](closed/CASE-20260812-003-ledger-runtime.md) | closed | 阻止 Ledger 拒写被误判为 Runtime 完成 | 2026-08-12T17:03:56.569Z |

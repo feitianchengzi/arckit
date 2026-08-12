@@ -356,6 +356,100 @@ test("periodic sync preserves operator recovery instead of repeatedly restarting
   coordinator.dispose();
 });
 
+test("detached rejected ledger write surfaces the gate reason instead of a success handoff", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "running" });
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{
+        id: "RUN-OLD",
+        project_id: "local",
+        status: "completed",
+        activity: {
+          ledger_stage: { writeback_required: true },
+          ledger_write_result: {
+            parsed: {
+              written: false,
+              rejection: {
+                kind: "ledger_gate_rejected",
+                recoverable: true,
+                reason: "case_transition: invariant judgment is invalid"
+              }
+            }
+          },
+          loop_handoff: {
+            status: "done",
+            next_responsibility: "none",
+            responsibility_reason: "Case completed successfully."
+          }
+        }
+      }];
+    }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await coordinator.sync({ dispatch: false });
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.active_task.phase, "recovery");
+  assert.equal(store.automation.recovery_items.at(-1).type, "runtime_incomplete");
+  assert.equal(store.automation.recovery_items.at(-1).message, "case_transition: invariant judgment is invalid");
+  const createdAt = store.automation.recovery_items.at(-1).created_at;
+
+  await coordinator.sync({ dispatch: false });
+
+  assert.equal(store.automation.recovery_items.length, 1);
+  assert.equal(store.automation.recovery_items[0].created_at, createdAt);
+  coordinator.dispose();
+});
+
+test("live rejected ledger write takes precedence over an unaccepted human handoff", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "running" });
+  const runManager = fakeRunManager(store, starts);
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await runManager.emitEvent({
+    type: "run.finished",
+    runId: "RUN-OLD",
+    status: "completed",
+    activity: {
+      ledger_write_result: {
+        parsed: {
+          written: false,
+          rejection: {
+            kind: "ledger_gate_rejected",
+            recoverable: true,
+            reason: "case_transition: invariant judgment is invalid"
+          }
+        }
+      },
+      loop_handoff: {
+        status: "awaiting_human",
+        next_responsibility: "human",
+        human_decision_required: true,
+        responsibility_reason: "Case needs a human decision."
+      }
+    },
+    result: {
+      runtime_result: {
+        ledger_stage: { writeback_required: true },
+        loop_handoff: {
+          status: "awaiting_human",
+          next_responsibility: "human",
+          human_decision_required: true,
+          responsibility_reason: "Case needs a human decision."
+        }
+      }
+    }
+  });
+
+  assert.equal(store.automation.active_task.phase, "recovery");
+  assert.equal(store.automation.recovery_items.at(-1).type, "runtime_incomplete");
+  assert.equal(store.automation.recovery_items.at(-1).message, "case_transition: invariant judgment is invalid");
+  coordinator.dispose();
+});
+
 test("CLI handoff does not interrupt Runtime before the Agent establishes a trusted Case binding", async () => {
   const starts = [];
   const controls = [];
@@ -533,6 +627,10 @@ function fakeRunManager(store, starts, overrides = {}) {
   let listener = () => {};
   return {
     onEvent(next) { listener = next; return () => { listener = () => {}; }; },
+    async emitEvent(event) {
+      listener(event);
+      await new Promise((resolve) => setImmediate(resolve));
+    },
     async readDesktopStore() { return structuredClone(store); },
     async updateDesktopStore(updater) { updater(store); return structuredClone(store); },
     async listProjects() { return store.projects; },

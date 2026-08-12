@@ -118,6 +118,8 @@ Case Reader 只在权威绑定已经存在时根据 `case_id` 匹配 Project `ad
 
 Automation Store 把活动任务收尾拆成 `case_status/case_resolved_at`、`closeout_status/closeout_completed_at` 和 `remote_completion_status` 三个持久检查点，并始终保留 `thread_id`。`phase` 只投影当前控制动作，不承担全部完成事实。Coordinator 只能从当前任务 Run 的 trusted ledger write 恢复 `case_id` 及绑定来源；closeout checkpoint 只接受同一 thread 的结构化 success/no-op 结果。
 
+Ledger writer 将 Gate block、transition preflight 拒绝和 apply 拒绝统一投影为 `written=false` 且包含 `rejection.kind/recoverable/responsibility/reason/recovery_action` 的结构化结果。State-driven runner 在 `writeback_required=true` 时先检查 `written=true`，未接受写回不得采用 Agent 的 terminal handoff、不得返回 completed、不得启动 Git-only closeout；可恢复 rejection 继续同 thread fresh-state replan，无进展达到上限后由 Coordinator 以 rejection reason 建立 `runtime_incomplete`。Live `run.finished` 和 detached startup reconciliation 使用同一错误优先级，不能退化为成功 handoff 文案。
+
 启动同步先执行 detached Run、持久 thread binding、权威 Case binding 与 canonical Case 的本地对账，再创建任务源 adapter 或检查认证。该阶段不调用远端 API：已绑定的 active Case resume 同一 thread 继续 loop；已绑定的 closed/resolved Case 若未 closeout 则 resume 同一 thread 执行收尾，已完成 closeout 时进入 `remote_completion_pending`。任务源未配置、未登录、认证失效或不可达都不能跳过或回退该对账。未绑定任务不能因仓库碰巧只有一个可读 Case 而进入收尾；`retry_start` 会清除陈旧的 closeout phase/checkpoint 并启动正常 Runtime，让新的 trusted ledger write 建立绑定。
 
 认证和远端项目/待办快照成功后，Coordinator 再执行允许远端写回的对账。远端完成要求任务已有权威 Case binding，并 fresh-read 到该 Case 的 canonical `closed/resolved` 状态；仅有 `closeout_status=completed`、裸 `case_id` 或 Agent 完成声明都不足以提交 `in_progress -> completed`。成功后清理活动任务。closeout 状态先持久化再尝试远端写回，因此应用退出、401 或网络失败后不会重复 Git 操作。`remote_completion_pending` 不属于 Runtime process ownership，Presence Recovery 不得生成 Runtime 丢失错误。
@@ -147,6 +149,7 @@ session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_
 - CLI 与 Runtime 通过同一持久 thread 和 canonical Case State 接力；关闭终端不推断完成，恢复自动执行前读取 fresh active/closed Case。
 - 任务到 Case 的绑定只接受当前任务 Run 已成功写入的 trusted ledger 结果；缓存字段、Agent 声明、仓库 Case 数量与 CLI 集合差均不能建立绑定，可信结果冲突时进入 recovery。
 - 缺少权威 Case binding 的任务不会启动 Git closeout 或远端完成；远端完成前还必须 fresh-read 到绑定 Case 的 canonical resolved 状态。
+- `writeback_required` 的 Gate/transition 拒绝不会进入 completed 或 Git closeout；live 与 detached recovery 均展示结构化 rejection reason，并保留同 thread 续跑能力。
 - 未登录或认证失效的启动路径仍先读取本地 canonical Case；closed Case 显示为等待远端收尾，不显示 Runtime 仍在执行。
 - closeout completed checkpoint 只能由同一 thread 的结构化 success/no-op 结果形成；认证恢复后只重试远端完成写回，不重复 Git closeout。
 - 最新请求上下文占用达到 80% 时，Runtime 在 gap 间压缩同一 thread 并保存 checkpoint；压缩不创建新 thread。

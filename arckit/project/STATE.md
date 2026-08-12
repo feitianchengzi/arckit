@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 34
-Updated: 2026-08-12T10:03:23.445Z
+Revision: 36
+Updated: 2026-08-12T17:03:56.569Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-优化动态 gap transition 的身份与新鲜度校验，使 Agent 可自然表达而不因说明文本改写被拒；在恢复中心提供“添加反馈并继续”，把用户反馈作为同一持久 Agent thread 的新消息，并在对话页面可见。
+修复 Runtime 在 Case transition 被 trusted ledger Gate 拒绝时仍进入 completed、执行 Git closeout，并在 Desktop recovery 中显示成功 handoff 文案的问题。
 
 ## Active Work
 
