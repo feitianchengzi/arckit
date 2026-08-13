@@ -114,13 +114,13 @@ Runtime 只自动推进“待处理 → 进行中 → 已完成”。评审、�
 
 Runtime 按 Case State 驱动 Agent turn、结构与授权 Gate、ledger writeback。主页面把当前 gap、Agent 进展、工具执行、Case transition、Gate、ledger 和证据摘要投影为可观察状态；Workbench 把同一 Agent thread 的多个 turn 组合为当前待办的一条消息流。
 
-默认每个 Loop 只发起一次 Codex Agent turn。Runtime 向已加载 `$using-arckit` 的 Agent 提供原始待办意图、当前增量、trusted ledger snapshot receipt、candidate catalog、revision 与执行授权；Agent 结合完整 Project decisions/invariants 与 fresh Case facts 发现并比较候选，选择唯一 Case 和一个 gap，自主发现并使用所需 skills 与工具，只完成该 Gap 的 acceptance claim 及必要证据，最后提交一个绑定 snapshot token、比较轨迹和证据的 Case transition。执行中暴露的新事实只进入 Case delta 与后续候选，不授权同一 turn 改做另一个独立结果。`using-arckit` 约束 Agent 如何从 Case gap 开始并形成 closeout，但不把同一个 Agent 强制拆成互相隔离的 Controller 与 Worker 调用。
+默认每个生产性 Loop 只发起一次 Codex Agent turn。Runtime 向已加载 `$using-arckit` 的 Agent 提供原始待办意图、当前增量、trusted ledger snapshot receipt、candidate catalog、revision 与执行授权；Agent 结合完整 Project decisions/invariants 与 fresh Case facts 发现并比较候选，选择唯一 Case 和一个 gap，自主发现并使用所需 skills 与工具，只完成该 Gap 的 acceptance claim 及必要证据，最后提交一个绑定 snapshot token、比较轨迹和证据的 Case transition。执行中暴露的新事实只进入 Case delta 与后续候选，不授权同一 turn 改做另一个独立结果。`using-arckit` 约束 Agent 如何从 Case gap 开始并形成 closeout，但不把同一个 Agent 强制拆成互相隔离的 Controller 与 Worker 调用。结构化 Agent 输出或 trusted Ledger claim 出现可修正校验错误时，Runtime 可在同一生产性 Loop 内发起有限 repair turn；repair 不重复实现工作、不形成新的 acceptance claim，也不计入业务 no-progress rounds。
 
 Runtime 不创建固定 Worker、独立复审或其它 Codex thread，也不以固定 definition skill 集合、预测式 `allowed_paths` 或固定 skill 顺序限制 Agent turn；工作区、sandbox、approval policy、外部权限和 ledger transition 校验仍构成确定性安全边界。
 
 Runtime 每次 ledger writeback 后先原样投影 ledger 的 `round_closeout`，再以 receipt 中的 post-commit token 调 manifest 声明的 trusted snapshot entrypoint，从 fresh canonical state 重建当前事实与授权。Runtime 不自行复刻候选、revision 或 fresh-read 判定，writeback 返回的内存 candidate 也不能充当 fresh state。fresh state 不等于 fresh conversation thread：Agent thread 提供语义连续性，canonical state 提供事实权威性；历史中的 selected gap、revision、授权或未接受 claim 不能覆盖 fresh state。
 
-`writeback_required=true` 的 Round 只有在 trusted ledger 返回 `written=true` 后才可采用 ledger-derived handoff、进入完成判断或启动 Git closeout。Gate block、transition preflight 拒绝和 apply 拒绝都产生带具体原因的 Agent-recoverable rejection；Runtime 在同一持久 thread 上从 fresh state 重试，达到无进展上限时进入 Recovery Center，并展示 rejection 原因而不是未被 ledger 接受的成功 handoff 文案。
+`writeback_required=true` 的 Round 只有在 trusted ledger 返回 `written=true` 后才可采用 ledger-derived handoff、进入完成判断或启动 Git closeout。Agent 输出 Schema 尽可能前置表达 Ledger 的确定性字段组合规则；其余 Runtime validation、Gate block、transition preflight 和 apply 拒绝产生带 issue path、reason 与 repairability 的结构化 rejection。可修正 rejection 在同一持久 thread 上使用 fresh trusted state 和被拒 claim 发起定向 repair，明确 canonical state 尚未写入且不得重复已经完成的实现；repair 使用独立有限预算，成功后继续正常 writeback，预算耗尽或不可修正时才进入 Recovery Center，并展示 rejection 原因而不是未被 ledger 接受的成功 handoff 文案。
 
 Persisted candidate 的稳定身份由 `selected_ref`、Gap id、Case revision、Project revision、selection token 与当前 ready 状态共同确认。Agent 可以用自己的语言表达同一 Gap 的目标和原因；这些描述不要求与 snapshot 逐字一致，也不能替代身份与 freshness 校验。Ledger apply 时重新读取当前 canonical candidate，并以 canonical 内容形成 round 和 closeout；真正的 stale snapshot、错误引用、候选不再 ready 或责任变化仍然拒绝。
 

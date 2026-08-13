@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 36
-Updated: 2026-08-12T17:03:56.569Z
+Revision: 38
+Updated: 2026-08-12T17:37:16.107Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-修复 Runtime 在 Case transition 被 trusted ledger Gate 拒绝时仍进入 completed、执行 Git closeout，并在 Desktop recovery 中显示成功 handoff 文案的问题。
+优化 arckit-runtime：保留 trusted Ledger 严格 fail-closed，同时把可修正的 Runtime result 或 Case transition 校验错误作为结构化反馈交回同一持久 Agent thread 定向修正，避免盲重试后阻塞用户。
 
 ## Active Work
 

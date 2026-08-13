@@ -31,6 +31,17 @@ test("Desktop does not project a blocked no-progress Runtime result as completed
     stop_reason: "completed",
     runtime_result: { round_result: "done", summary: "Completed." }
   }), "");
+  assert.equal(runtimeFailureForCompletedProcess({
+    validation: { valid: true },
+    stop_reason: "agent_repair_limit",
+    runtime_result: { round_result: "done", summary: "Case completed successfully." },
+    ledger_write_result: { rejection: { reason: "case_transition: not_relevant cannot carry evidence" } }
+  }), "case_transition: not_relevant cannot carry evidence");
+  assert.equal(runtimeFailureForCompletedProcess({
+    validation: { valid: false, issues: [{ path: "case_transition", message: "missing invariant assessment" }] },
+    stop_reason: "agent_repair_limit",
+    runtime_result: { round_result: "done", summary: "Case completed successfully." }
+  }), "case_transition: missing invariant assessment");
 });
 
 test("readiness preflight validates repository capabilities without inspecting Codex-installed skills", async () => {
@@ -141,11 +152,13 @@ test("desktop run manager refuses to remove a project with an active state-drive
   try {
     await manager.startRun({
       projectId: "PROJECT-1", taskId: "TASK-1", task: "Keep running", maxNoProgressRounds: 0,
+      maxAgentRepairAttempts: 0,
       runtimeContext: { closeout_only: true, case_id: "CASE-20260809-001" }, dryRun: true
     });
     const contextIndex = calls[0].args.indexOf("--runtime-context");
     assert.deepEqual(JSON.parse(calls[0].args[contextIndex + 1]), { closeout_only: true, case_id: "CASE-20260809-001" });
     assert.equal(calls[0].args[calls[0].args.indexOf("--max-no-progress-rounds") + 1], "1");
+    assert.equal(calls[0].args[calls[0].args.indexOf("--max-agent-repair-attempts") + 1], "0");
     await assert.rejects(manager.removeProject("PROJECT-1"), /Stop the active run/);
   } finally {
     await manager.abortActiveRuns({ graceMs: 0 });

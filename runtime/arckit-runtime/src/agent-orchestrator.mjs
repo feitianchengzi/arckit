@@ -131,6 +131,11 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
       newly_discovered_work_must_wait_for_post_commit_fresh_read: !protocolRecovery,
       complete_project_invariant_assessment_required: !protocolRecovery,
       invariant_assessment_is_semantic_agent_work: true,
+      invariant_judgment_contract: {
+        not_relevant: "reason required; evidence=[]; gap_refs=[]",
+        upheld: "persistent evidence required; gap_refs=[]",
+        threatened_or_undetermined: "accepted fact_refs and open gap_refs required"
+      },
       completion_review_is_only_semantic_self_check: true,
       native_skill_discovery: true,
       ledger_write_forbidden: true,

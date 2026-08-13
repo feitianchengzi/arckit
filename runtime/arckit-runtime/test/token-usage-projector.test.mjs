@@ -252,6 +252,32 @@ test("context compaction is recorded against the source turn on the same thread"
   assert.equal(run.activity.context_compactions[0].compaction_turn_id, "TURN-COMPACT");
 });
 
+test("Agent repair request stays visible as an in-run recovery instead of a terminal failure", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  applyRunEvent(run, wrapped({
+    type: "runtime.agent_repair.requested",
+    round_index: 1,
+    attempt: 1,
+    max_attempts: 2,
+    case_id: "CASE-1",
+    selected_gap_id: "GAP-1",
+    rejection: {
+      kind: "ledger_gate_rejected",
+      reason: "not_relevant cannot carry evidence or gaps",
+      issues: [{ path: "case_transition.invariant_assessment.judgments[2]", message: "not_relevant cannot carry evidence or gaps" }]
+    }
+  }));
+
+  assert.equal(run.activity.phase, "agent-repair");
+  assert.equal(run.activity.agent_repairs.length, 1);
+  assert.equal(run.activity.agent_repairs[0].attempt, 1);
+  assert.match(run.activity.current_step, /Agent repair 1\/2/);
+  const message = run.activity.messages.find((item) => item.id === "runtime:agent-repair:1:1");
+  assert.equal(message.status, "active");
+  assert.equal(message.detail, "not_relevant cannot carry evidence or gaps");
+});
+
 function runtimeRun() {
   return {
     id: "RUN-1",

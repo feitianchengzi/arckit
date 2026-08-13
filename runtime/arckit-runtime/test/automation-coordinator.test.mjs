@@ -450,6 +450,34 @@ test("live rejected ledger write takes precedence over an unaccepted human hando
   coordinator.dispose();
 });
 
+test("exhausted live Agent repair surfaces the validator reason instead of a generic failed status", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "running" });
+  const runManager = fakeRunManager(store, starts);
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await runManager.emitEvent({
+    type: "run.finished",
+    runId: "RUN-OLD",
+    status: "failed",
+    activity: {
+      error: "case_transition.invariant_assessment.judgments[2]: not_relevant cannot carry evidence or gaps"
+    },
+    result: {
+      stop_reason: "agent_repair_limit",
+      next_action: "State-driven Runtime stopped: agent_repair_limit.",
+      runtime_result: {
+        ledger_stage: { writeback_required: true },
+        loop_handoff: { status: "continue", next_responsibility: "agent" }
+      }
+    }
+  });
+
+  assert.equal(store.automation.active_task.phase, "recovery");
+  assert.equal(store.automation.recovery_items.at(-1).message, "case_transition.invariant_assessment.judgments[2]: not_relevant cannot carry evidence or gaps");
+  coordinator.dispose();
+});
+
 test("CLI handoff does not interrupt Runtime before the Agent establishes a trusted Case binding", async () => {
   const starts = [];
   const controls = [];

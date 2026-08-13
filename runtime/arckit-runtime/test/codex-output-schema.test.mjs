@@ -22,6 +22,21 @@ test("every Runtime schema const declares its type", async () => {
   }
 });
 
+test("Agent invariant judgment schema prevents Ledger-invalid disposition combinations", async () => {
+  const schema = JSON.parse(await readFile(join(schemasDir, "agent-loop-result.schema.json"), "utf8"));
+  const variants = schema.$defs.invariant_judgment.anyOf;
+  const notRelevant = variants.find((item) => item.properties.disposition.const === "not_relevant");
+  const upheld = variants.find((item) => item.properties.disposition.const === "upheld");
+  const open = variants.find((item) => item.properties.disposition.enum?.includes("threatened"));
+
+  assert.equal(notRelevant.properties.evidence.maxItems, 0);
+  assert.equal(notRelevant.properties.gap_refs.maxItems, 0);
+  assert.equal(upheld.properties.evidence.minItems, 1);
+  assert.equal(upheld.properties.gap_refs.maxItems, 0);
+  assert.equal(open.properties.fact_refs.minItems, 1);
+  assert.equal(open.properties.gap_refs.minItems, 1);
+});
+
 test("Codex output schema preflight reports the failures rejected by app-server", () => {
   const issues = codexOutputSchemaIssues({
     type: "object",

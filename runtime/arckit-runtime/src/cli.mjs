@@ -144,6 +144,7 @@ function parseRunOptions(args) {
     dryRun: false,
     json: false,
     maxNoProgressRounds: 8,
+    maxAgentRepairAttempts: 2,
     streamEvents: false,
     superviseStdin: false,
     approvalPolicy: "on-request",
@@ -187,6 +188,11 @@ function parseRunOptions(args) {
       options.maxNoProgressRounds = Number(requiredValue(args, ++index, arg));
       if (!Number.isInteger(options.maxNoProgressRounds) || options.maxNoProgressRounds < 1) {
         throw new Error("--max-no-progress-rounds must be a positive integer.");
+      }
+    } else if (arg === "--max-agent-repair-attempts") {
+      options.maxAgentRepairAttempts = Number(requiredValue(args, ++index, arg));
+      if (!Number.isInteger(options.maxAgentRepairAttempts) || options.maxAgentRepairAttempts < 0) {
+        throw new Error("--max-agent-repair-attempts must be a non-negative integer.");
       }
     } else if (arg === "--lifecycle-trace-id") {
       options.lifecycleTraceId = requiredValue(args, ++index, arg);
@@ -357,7 +363,7 @@ function printHelp() {
 
 Usage:
   arckit-runtime init-project [--project <path>] [--name <name>] [--intent <text>]
-  arckit-runtime run [--project <path>] [--task <text>] [--task-id <id>] [--thread-id <id>] [--thread-binding-file <path>] [--runtime-context <json>] [--max-no-progress-rounds <count>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
+  arckit-runtime run [--project <path>] [--task <text>] [--task-id <id>] [--thread-id <id>] [--thread-binding-file <path>] [--runtime-context <json>] [--max-no-progress-rounds <count>] [--max-agent-repair-attempts <count>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
   arckit-runtime run --adapter codex-app-server [--stream-events] [--supervise-stdin]
   arckit-runtime probe-app-server [--project <path>] [--json]
   arckit-runtime analyze-lifecycle --file <events.jsonl>

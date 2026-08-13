@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { decideSessionContinuation, effectiveNoProgressLimit, runStateDrivenSession } from "../src/state-driven-runner.mjs";
+import {
+  buildAgentRepairInstruction,
+  decideSessionContinuation,
+  effectiveAgentRepairLimit,
+  effectiveNoProgressLimit,
+  runStateDrivenSession
+} from "../src/state-driven-runner.mjs";
 
 test("state-driven session fresh-reads after writeback and stays in one adapter process", async () => {
   let reads = 0;
@@ -97,7 +103,7 @@ test("state-driven continuation pauses only for an explicit human handoff", () =
   });
 });
 
-test("recoverable ledger rejection automatically replans from fresh state", () => {
+test("recoverable ledger rejection enters an independent Agent repair budget", () => {
   const decision = decideSessionContinuation({
     runtimeResult: { round_result: "continue" },
     ledgerWriteResult: {
@@ -105,12 +111,122 @@ test("recoverable ledger rejection automatically replans from fresh state", () =
       rejection: { recoverable: true, responsibility: "agent" }
     },
     handoff: agentHandoff(),
-    noProgressRounds: 0,
-    maxNoProgressRounds: 2
+    noProgressRounds: 99,
+    maxNoProgressRounds: 1,
+    agentRepairAttempts: 0,
+    maxAgentRepairAttempts: 2
   });
 
   assert.equal(decision.continue, true);
-  assert.equal(decision.reason, "fresh_state_replan");
+  assert.equal(decision.reason, "agent_repair");
+});
+
+test("Agent repair instruction carries exact issues and forbids repeated implementation", () => {
+  const instruction = JSON.parse(buildAgentRepairInstruction({
+    rejection: {
+      kind: "ledger_gate_rejected",
+      reason: "case_transition: invalid invariant judgment",
+      issues: [{ path: "case_transition.invariant_assessment.judgments[2]", message: "not_relevant cannot carry evidence or gaps" }],
+      recovery_action: "repair_rejected_claim"
+    },
+    loop: { agentLoopResult: agentSelectionResult(1) },
+    attempt: 1,
+    maxAttempts: 2
+  }));
+
+  assert.equal(instruction.schema_version, "arckit-agent-repair-instruction/v1");
+  assert.equal(instruction.canonical_state.write_accepted, false);
+  assert.equal(instruction.rejection.issues[0].path, "case_transition.invariant_assessment.judgments[2]");
+  assert.equal(instruction.repair_contract.do_not_repeat_completed_implementation_work, true);
+  assert.equal(instruction.rejected_agent_output.case_transition.selected_gap.id, "GAP-1");
+});
+
+test("invalid Runtime result is returned to the same Agent and succeeds after a fresh read", async () => {
+  const tasks = [];
+  let reads = 0;
+  let roundCalls = 0;
+  const adapter = closeoutAdapter();
+  const result = await runStateDrivenSession({
+    projectRoot: "/workspace/project",
+    stateStore: { async readSnapshot() { reads += 1; return snapshot(1); } },
+    options: { agentAdapter: adapter, task: "finish", maxAgentRepairAttempts: 1 },
+    dependencies: {
+      async runRound({ options }) {
+        roundCalls += 1;
+        tasks.push(options.task);
+        const loop = loopResult(terminalHandoff());
+        loop.agentLoopResult = agentSelectionResult(1);
+        if (roundCalls === 1) {
+          loop.validation = {
+            valid: false,
+            issues: [{ path: "case_transition.invariant_assessment.judgments[2]", message: "not_relevant cannot carry evidence or gaps" }]
+          };
+        }
+        return loop;
+      },
+      async writeRoundLedger() {
+        return {
+          written: true,
+          changed_files: ["case.md"],
+          case_transition_result: { case_resolution: { loop_handoff: terminalHandoff() } }
+        };
+      }
+    }
+  });
+
+  assert.equal(reads, 2);
+  assert.equal(roundCalls, 2);
+  assert.equal(result.stop_reason, "completed");
+  const repair = JSON.parse(tasks[1]);
+  assert.equal(repair.phase, "repair_rejected_claim");
+  assert.equal(repair.rejection.issues[0].path, "case_transition.invariant_assessment.judgments[2]");
+  assert.equal(repair.canonical_state.write_accepted, false);
+});
+
+test("Ledger rejection reason drives a targeted same-thread repair turn", async () => {
+  const tasks = [];
+  let ledgerCalls = 0;
+  const adapter = closeoutAdapter();
+  const result = await runStateDrivenSession({
+    projectRoot: "/workspace/project",
+    stateStore: { async readSnapshot() { return snapshot(1); } },
+    options: { agentAdapter: adapter, task: "finish", maxAgentRepairAttempts: 1 },
+    dependencies: {
+      async runRound({ options }) {
+        tasks.push(options.task);
+        const loop = loopResult(terminalHandoff());
+        loop.agentLoopResult = agentSelectionResult(1);
+        return loop;
+      },
+      async writeRoundLedger() {
+        ledgerCalls += 1;
+        if (ledgerCalls === 1) {
+          return {
+            written: false,
+            rejection: {
+              kind: "ledger_gate_rejected",
+              recoverable: true,
+              responsibility: "agent",
+              reason: "case_transition: invariant_assessment.judgments[2] not_relevant cannot carry evidence or gaps",
+              issues: [{ path: "case_transition.invariant_assessment.judgments[2]", message: "not_relevant cannot carry evidence or gaps" }],
+              recovery_action: "repair_rejected_claim"
+            },
+            changed_files: []
+          };
+        }
+        return {
+          written: true,
+          changed_files: ["case.md"],
+          case_transition_result: { case_resolution: { loop_handoff: terminalHandoff() } }
+        };
+      }
+    }
+  });
+
+  assert.equal(result.stop_reason, "completed");
+  assert.equal(ledgerCalls, 2);
+  assert.match(tasks[1], /not_relevant cannot carry evidence or gaps/);
+  assert.match(tasks[1], /do_not_repeat_completed_implementation_work/);
 });
 
 test("writeback-required terminal result cannot complete without an accepted ledger write", () => {
@@ -133,14 +249,16 @@ test("writeback-required terminal result cannot complete without an accepted led
   });
 });
 
-test("rejected terminal ledger write reaches retry limit without Git closeout", async () => {
+test("rejected terminal ledger write reaches Agent repair limit without Git closeout", async () => {
   const adapter = closeoutAdapter();
+  let roundCalls = 0;
   const result = await runStateDrivenSession({
     projectRoot: "/workspace/project",
     stateStore: { async readSnapshot() { return snapshot(1); } },
-    options: { agentAdapter: adapter, task: "finish", maxNoProgressRounds: 1 },
+    options: { agentAdapter: adapter, task: "finish", maxNoProgressRounds: 8, maxAgentRepairAttempts: 1 },
     dependencies: {
       async runRound() {
+        roundCalls += 1;
         const loop = loopResult(terminalHandoff());
         loop.agentLoopResult = agentSelectionResult(1);
         return loop;
@@ -160,15 +278,34 @@ test("rejected terminal ledger write reaches retry limit without Git closeout", 
     }
   });
 
-  assert.equal(result.stop_reason, "ledger_retry_limit");
+  assert.equal(result.stop_reason, "agent_repair_limit");
+  assert.equal(roundCalls, 2);
   assert.equal(result.closeout_result, null);
   assert.deepEqual(adapter.prompts, []);
+});
+
+test("non-recoverable ledger rejection remains fail-closed", () => {
+  const decision = decideSessionContinuation({
+    runtimeResult: { round_result: "continue", ledger_stage: { writeback_required: true } },
+    ledgerWriteResult: { written: false, rejection: { recoverable: false, reason: "unsafe write scope" } },
+    handoff: agentHandoff(),
+    agentRepairAttempts: 0,
+    maxAgentRepairAttempts: 2
+  });
+
+  assert.deepEqual(decision, { continue: false, madeProgress: false, reason: "ledger_write_failed" });
 });
 
 test("Runtime progress guards can tighten the configured no-progress limit", () => {
   assert.equal(effectiveNoProgressLimit(8, { progress_guard: { no_progress_limit: 2 } }), 2);
   assert.equal(effectiveNoProgressLimit(1, { progress_guard: { no_progress_limit: 2 } }), 1);
   assert.equal(effectiveNoProgressLimit(8, {}), 8);
+});
+
+test("Agent repair limit is independent and allows an explicit zero budget", () => {
+  assert.equal(effectiveAgentRepairLimit(undefined), 2);
+  assert.equal(effectiveAgentRepairLimit(0), 0);
+  assert.equal(effectiveAgentRepairLimit(3), 3);
 });
 
 test("state-driven results persist semantic events without raw Agent deltas", async () => {

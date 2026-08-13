@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-12T17:03:56.569Z",
-    "revision": 36
+    "updated_at": "2026-08-12T17:37:16.107Z",
+    "revision": 38
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -131,7 +131,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "修复 Runtime 在 Case transition 被 trusted ledger Gate 拒绝时仍进入 completed、执行 Git closeout，并在 Desktop recovery 中显示成功 handoff 文案的问题。",
+      "current_focus": "优化 arckit-runtime：保留 trusted Ledger 严格 fail-closed，同时把可修正的 Runtime result 或 Case transition 校验错误作为结构化反馈交回同一持久 Agent thread 定向修正，避免盲重试后阻塞用户。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",

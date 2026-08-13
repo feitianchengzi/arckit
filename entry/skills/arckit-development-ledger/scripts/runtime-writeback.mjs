@@ -68,6 +68,7 @@ export async function applyRuntimeLedgerWriteback({ projectRoot, runtimeResult, 
 }
 
 function transitionRejectionResult({ gate, dryRun, error, transition }) {
+  const reason = error?.message || String(error);
   return {
     schema_version: 'arckit-ledger-write/v2',
     written: false,
@@ -77,10 +78,11 @@ function transitionRejectionResult({ gate, dryRun, error, transition }) {
       kind: 'case_transition_rejected',
       recoverable: true,
       responsibility: 'agent',
-      reason: error?.message || String(error),
+      reason,
+      issues: [{ path: 'case_transition', message: reason }],
       case_id: transition?.case_id || '',
       selected_gap_id: transition?.selected_gap?.id || '',
-      recovery_action: 'replan_from_fresh_state',
+      recovery_action: /\b(stale|snapshot|revision)\b/i.test(reason) ? 'replan_from_fresh_state' : 'repair_rejected_claim',
     },
     plan: [],
     changed_files: [],

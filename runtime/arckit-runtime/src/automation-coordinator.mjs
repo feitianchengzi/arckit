@@ -968,11 +968,12 @@ export function createAutomationCoordinator({
     const ledgerRequired = runtimeResult?.ledger_stage?.writeback_required === true;
     const ledgerWritten = event.activity?.ledger_write_result?.parsed?.written === true;
     const ledgerFailure = ledgerFailureReason({ result: event.result, activity: event.activity });
+    const runtimeFailure = String(event.activity?.error || event.result?.next_action || "").trim();
     if (ledgerRequired && !ledgerWritten) {
       await addRecovery({
         type: "runtime_incomplete",
         task: active,
-        message: ledgerFailure || "Runtime stopped because the required ledger writeback was not accepted.",
+        message: ledgerFailure || runtimeFailure || "Runtime stopped because the required ledger writeback was not accepted.",
         actions: ["retry_start", "mark_blocked"]
       });
       return;
@@ -1006,7 +1007,7 @@ export function createAutomationCoordinator({
       task: active,
       message: event.status === "completed"
         ? ledgerFailure || handoff.responsibility_reason || "Runtime stopped before the task reached a complete handoff."
-        : `Runtime finished with status ${event.status}.`,
+        : ledgerFailure || runtimeFailure || `Runtime finished with status ${event.status}.`,
       actions: ["retry_start", "mark_blocked"]
     });
   }

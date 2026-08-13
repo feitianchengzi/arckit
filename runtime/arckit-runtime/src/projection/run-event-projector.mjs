@@ -34,6 +34,7 @@ function createRunActivity(run) {
     gate_result: null,
     ledger_write_result: null,
     closeout_result: null,
+    agent_repairs: [],
     context_compactions: [],
     agent_text: "",
     reasoning_text: "",
@@ -111,6 +112,36 @@ function applyRunEvent(run, { parsed }) {
       updateCompaction(activity, event, "completed");
       updateRunActivity(run, { phase: "agent-loop", current_step: "Context compacted; continuing the next gap" });
       break;
+    case "runtime.agent_repair.requested": {
+      const repair = {
+        attempt: Number(event.attempt || 0),
+        max_attempts: Number(event.max_attempts || 0),
+        kind: event.rejection?.kind || "runtime_result_rejected",
+        reason: event.rejection?.reason || "The Runtime rejected the previous Agent result.",
+        issues: event.rejection?.issues || [],
+        case_id: event.case_id || "",
+        selected_gap_id: event.selected_gap_id || "",
+        requested_at: now
+      };
+      activity.agent_repairs ||= [];
+      activity.agent_repairs.push(repair);
+      activity.agent_repairs = activity.agent_repairs.slice(-20);
+      updateRunActivity(run, {
+        phase: "agent-repair",
+        current_step: `Agent repair ${repair.attempt}/${repair.max_attempts}: ${repair.reason}`
+      });
+      upsertMessage(activity, {
+        id: `runtime:agent-repair:${event.round_index || activity.round_index || "current"}:${repair.attempt}`,
+        role: "system",
+        actor: "runtime",
+        actor_label: "Arckit Runtime",
+        kind: "recovery",
+        content: `Trusted validation rejected the previous claim; the same Agent is correcting it (${repair.attempt}/${repair.max_attempts}).`,
+        detail: repair.reason,
+        status: "active"
+      });
+      break;
+    }
     case "codex.thread.start.completed":
     case "codex.thread.resume.completed":
     case "codex.thread.reused":

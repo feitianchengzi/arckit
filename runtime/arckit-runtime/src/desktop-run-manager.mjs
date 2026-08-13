@@ -581,6 +581,7 @@ export function createDesktopRunManager({
       codex_proxy_enabled: Boolean(store.settings?.codex_proxy?.enabled),
       codex_proxy_url: store.settings?.codex_proxy?.enabled ? store.settings?.codex_proxy?.url || "" : "",
       max_no_progress_rounds: positiveInteger(input.maxNoProgressRounds, 8),
+      max_agent_repair_attempts: nonNegativeInteger(input.maxAgentRepairAttempts, 2),
       runtime_context: normalizeRuntimeContext(input.runtimeContext),
       status: "running",
       started_at: new Date().toISOString(),
@@ -618,6 +619,7 @@ export function createDesktopRunManager({
       args.push("--runtime-context", JSON.stringify(run.runtime_context));
     }
     args.push("--max-no-progress-rounds", String(run.max_no_progress_rounds));
+    args.push("--max-agent-repair-attempts", String(run.max_agent_repair_attempts));
     args.push("--runtime-record-ref", runtimeRecordRefForRun(run.id));
     if (run.task_id) args.push("--task-id", run.task_id);
     if (run.thread_id) args.push("--thread-id", run.thread_id);
@@ -1025,6 +1027,11 @@ export function createDesktopRunManager({
     return Number.isFinite(number) ? Math.max(1, Math.floor(number)) : fallback;
   }
 
+  function nonNegativeInteger(value, fallback) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(0, Math.floor(number)) : fallback;
+  }
+
   function normalizeRuntimeContext(value) {
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       return null;
@@ -1144,17 +1151,30 @@ export function createDesktopRunManager({
 
 export function runtimeFailureForCompletedProcess(result) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return "";
-  if (result.validation?.valid === false) {
-    return result.runtime_result?.summary || "Runtime produced an invalid result.";
-  }
   const stopReason = String(result.stop_reason || "");
-  if (["invalid_result", "no_progress_limit", "ledger_retry_limit", "closeout_failed"].includes(stopReason)) {
+  if (stopReason === "agent_repair_limit") {
+    return result.ledger_write_result?.rejection?.reason
+      || formatValidationIssues(result.validation?.issues)
+      || result.next_action
+      || "Runtime exhausted the Agent repair budget without an accepted claim.";
+  }
+  if (result.validation?.valid === false) {
+    return formatValidationIssues(result.validation?.issues)
+      || result.runtime_result?.summary
+      || "Runtime produced an invalid result.";
+  }
+  if (["invalid_result", "no_progress_limit", "ledger_retry_limit", "agent_repair_limit", "closeout_failed"].includes(stopReason)) {
     return result.runtime_result?.summary || result.next_action || `Runtime stopped without completing: ${stopReason}.`;
   }
   if (result.runtime_result?.round_result === "blocked") {
     return result.runtime_result.summary || "Runtime stopped with a blocked result.";
   }
   return "";
+}
+
+function formatValidationIssues(issues) {
+  if (!Array.isArray(issues) || issues.length === 0) return "";
+  return issues.map((issue) => `${issue?.path || "runtime_result"}: ${issue?.message || "Invalid value."}`).join("\n");
 }
 
 function stableTaskKey(value) {

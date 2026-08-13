@@ -179,7 +179,7 @@
 - `待处理 → 进行中` 写回失败时不启动 Runtime。
 - 条件式领取冲突时，候选任务显示“已由其他执行端领取”，刷新队列后继续选择下一项。
 - `待处理 → 进行中` 已成功但 Runtime 启动失败时保留任务与启动意图关联，冻结下一任务并提供重试启动。
-- trusted ledger Gate 或 transition 拒绝时，Runtime 不展示 Case 完成、不启动 Git closeout；可恢复拒绝在同一 Agent thread 上从 fresh state 重试，停止后恢复卡优先展示具体 rejection 原因，不使用未接受的成功 handoff 文案。
+- Runtime result validation、trusted ledger Gate 或 transition 拒绝时，Runtime 不展示 Case 完成、不启动 Git closeout；可修正拒绝先在同一 Agent thread 上进入可见的“Agent repair n/N”状态，向 Agent 提供具体 issue path、reason、被拒 claim 和 fresh canonical state，要求只替换无效 claim 而不重复实现。repair 成功后继续原待办；仅预算耗尽或错误不可修正时进入恢复卡，恢复卡优先展示最终 rejection 原因，不使用未接受的成功 handoff 文案。
 - 已绑定持久 Agent thread 的 Runtime 失败卡展示反馈输入与“添加反馈并继续”；空白反馈不提交。提交成功后原文进入当前待办时间线并打开只读审查，新 Run 继续同一 thread；启动失败则保留输入场景和恢复项。
 - `进行中 → 已完成` 写回失败时保留本地完成证据，冻结下一任务，直到服务器确认。
 - 应用重启时先恢复本地活动任务、关联 Run、canonical Case 和 commit 检查点，再恢复远端认证与任务快照；多个进行中任务触发人工恢复中心。

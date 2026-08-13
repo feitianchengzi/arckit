@@ -11,14 +11,17 @@ test("blocked Runtime gate returns a recoverable Agent rejection", async () => {
 
   assert.equal(result.written, false);
   assert.equal(result.gate.allowed, false);
-  assert.deepEqual(result.rejection, {
-    kind: "ledger_gate_rejected",
-    recoverable: true,
-    responsibility: "agent",
-    reason: result.gate.reasons.join("\n"),
-    case_id: "",
-    selected_gap_id: "",
-    recovery_action: "replan_from_fresh_state"
+  assert.equal(result.rejection.kind, "ledger_gate_rejected");
+  assert.equal(result.rejection.recoverable, true);
+  assert.equal(result.rejection.responsibility, "agent");
+  assert.equal(result.rejection.reason, result.gate.reasons.join("\n"));
+  assert.equal(result.rejection.issues.length, result.gate.reasons.length);
+  assert.deepEqual(result.rejection.issues[0], {
+    path: "schema_version",
+    message: result.gate.reasons[0]
   });
+  assert.equal(result.rejection.case_id, "");
+  assert.equal(result.rejection.selected_gap_id, "");
+  assert.equal(result.rejection.recovery_action, "repair_rejected_claim");
   assert.match(result.rejection.reason, /ledger_stage/);
 });

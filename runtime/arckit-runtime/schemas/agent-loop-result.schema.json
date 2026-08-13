@@ -149,17 +149,47 @@
       "additionalProperties": false
     },
     "invariant_judgment": {
-      "type": "object",
-      "required": ["invariant_ref", "disposition", "reason", "fact_refs", "evidence", "gap_refs"],
-      "properties": {
-        "invariant_ref": { "type": "string" },
-        "disposition": { "type": "string", "enum": ["not_relevant", "upheld", "threatened", "undetermined"] },
-        "reason": { "type": "string" },
-        "fact_refs": { "type": "array", "items": { "type": "string" } },
-        "evidence": { "type": "array", "items": { "type": "string" } },
-        "gap_refs": { "type": "array", "items": { "type": "string" } }
-      },
-      "additionalProperties": false
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["invariant_ref", "disposition", "reason", "fact_refs", "evidence", "gap_refs"],
+          "properties": {
+            "invariant_ref": { "type": "string" },
+            "disposition": { "type": "string", "const": "not_relevant" },
+            "reason": { "type": "string" },
+            "fact_refs": { "type": "array", "items": { "type": "string" } },
+            "evidence": { "type": "array", "items": { "type": "string" }, "maxItems": 0 },
+            "gap_refs": { "type": "array", "items": { "type": "string" }, "maxItems": 0 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["invariant_ref", "disposition", "reason", "fact_refs", "evidence", "gap_refs"],
+          "properties": {
+            "invariant_ref": { "type": "string" },
+            "disposition": { "type": "string", "const": "upheld" },
+            "reason": { "type": "string" },
+            "fact_refs": { "type": "array", "items": { "type": "string" } },
+            "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "gap_refs": { "type": "array", "items": { "type": "string" }, "maxItems": 0 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["invariant_ref", "disposition", "reason", "fact_refs", "evidence", "gap_refs"],
+          "properties": {
+            "invariant_ref": { "type": "string" },
+            "disposition": { "type": "string", "enum": ["threatened", "undetermined"] },
+            "reason": { "type": "string" },
+            "fact_refs": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+            "evidence": { "type": "array", "items": { "type": "string" } },
+            "gap_refs": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "fact": {
       "type": "object",

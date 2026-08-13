@@ -65,3 +65,4 @@
 | [CASE-20260812-001](closed/CASE-20260812-001-runtime.md) | closed | 修复 Runtime 登录状态频繁失效 | 2026-08-12T08:52:29.437Z |
 | [CASE-20260812-002](closed/CASE-20260812-002-runtime.md) | closed | 增强 Runtime 失败恢复的语义容错与用户反馈续跑 | 2026-08-12T10:03:23.445Z |
 | [CASE-20260812-003](closed/CASE-20260812-003-ledger-runtime.md) | closed | 阻止 Ledger 拒写被误判为 Runtime 完成 | 2026-08-12T17:03:56.569Z |
+| [CASE-20260812-004](closed/CASE-20260812-004-runtime-agent-repair-loop.md) | closed | 让可修正的 Runtime 校验拒绝进入 Agent repair loop | 2026-08-12T17:37:16.107Z |

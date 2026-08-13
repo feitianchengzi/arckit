@@ -16,6 +16,9 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
   let nextTask = options.task || "";
   const originalTask = options.originalTask || options.task || "";
   let noProgressRounds = 0;
+  let agentRepairAttempts = 0;
+  let totalAgentRepairAttempts = 0;
+  const maxAgentRepairAttempts = effectiveAgentRepairLimit(options.maxAgentRepairAttempts);
   let finalEnvelope = null;
   let stopReason = "";
   let taskThreadId = String(options.threadId || "");
@@ -263,8 +266,27 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         break;
       }
       if (!validation.valid) {
-        stopReason = "invalid_result";
-        break;
+        const rejection = validationRejection(validation);
+        if (agentRepairAttempts >= maxAgentRepairAttempts) {
+          stopReason = "agent_repair_limit";
+          break;
+        }
+        agentRepairAttempts += 1;
+        totalAgentRepairAttempts += 1;
+        nextTask = buildAgentRepairInstruction({
+          rejection,
+          loop,
+          attempt: agentRepairAttempts,
+          maxAttempts: maxAgentRepairAttempts
+        });
+        emitAgentRepairRequested(options, {
+          roundIndex,
+          attempt: agentRepairAttempts,
+          maxAttempts: maxAgentRepairAttempts,
+          rejection,
+          loop
+        });
+        continue;
       }
 
       const handoff = authoritativeHandoff(loop.runtimeResult, ledgerWriteResult);
@@ -273,7 +295,9 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         ledgerWriteResult,
         handoff,
         noProgressRounds,
-        maxNoProgressRounds: effectiveNoProgressLimit(options.maxNoProgressRounds, handoff)
+        maxNoProgressRounds: effectiveNoProgressLimit(options.maxNoProgressRounds, handoff),
+        agentRepairAttempts,
+        maxAgentRepairAttempts
       });
       if (!decision.continue) {
         stopReason = decision.reason;
@@ -292,7 +316,27 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         break;
       }
 
+      if (decision.reason === "agent_repair") {
+        agentRepairAttempts += 1;
+        totalAgentRepairAttempts += 1;
+        nextTask = buildAgentRepairInstruction({
+          rejection: ledgerWriteResult.rejection,
+          loop,
+          attempt: agentRepairAttempts,
+          maxAttempts: maxAgentRepairAttempts
+        });
+        emitAgentRepairRequested(options, {
+          roundIndex,
+          attempt: agentRepairAttempts,
+          maxAttempts: maxAgentRepairAttempts,
+          rejection: ledgerWriteResult.rejection,
+          loop
+        });
+        continue;
+      }
+
       noProgressRounds = decision.madeProgress ? 0 : noProgressRounds + 1;
+      if (decision.madeProgress) agentRepairAttempts = 0;
       if (decision.madeProgress) {
         const usage = adapter.latestContextUsage?.(taskThreadKey);
         if (usage?.context_utilization >= 0.8 && usage.turn_id && usage.turn_id !== lastCompactedTurnId) {
@@ -342,6 +386,8 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
     runtime_version: "arckit-runtime/v0.3-state-driven",
     session_mode: "state-driven",
     round_count: rounds.length,
+    agent_repair_attempt_count: totalAgentRepairAttempts,
+    max_agent_repair_attempts: maxAgentRepairAttempts,
     session_rounds: rounds,
     thread_id: taskThreadId,
     closeout_result: closeoutResult,
@@ -413,16 +459,19 @@ export function decideSessionContinuation({
   ledgerWriteResult,
   handoff,
   noProgressRounds = 0,
-  maxNoProgressRounds = 8
+  maxNoProgressRounds = 8,
+  agentRepairAttempts = 0,
+  maxAgentRepairAttempts = 2
 }) {
   const madeProgress = ledgerWriteResult?.written === true;
   const writebackRequired = runtimeResult?.ledger_stage?.writeback_required === true;
   if (!madeProgress && ledgerWriteResult?.rejection) {
-    if (noProgressRounds + 1 >= maxNoProgressRounds) {
-      return { continue: false, madeProgress: false, reason: "ledger_retry_limit" };
+    if (ledgerWriteResult?.rejection?.recoverable === true
+      && agentRepairAttempts < maxAgentRepairAttempts) {
+      return { continue: true, madeProgress: false, reason: "agent_repair" };
     }
     if (ledgerWriteResult?.rejection?.recoverable === true) {
-      return { continue: true, madeProgress: false, reason: "fresh_state_replan" };
+      return { continue: false, madeProgress: false, reason: "agent_repair_limit" };
     }
     return { continue: false, madeProgress: false, reason: "ledger_write_failed" };
   }
@@ -456,6 +505,86 @@ export function effectiveNoProgressLimit(configuredLimit, handoff) {
   const configured = Number.isInteger(configuredLimit) && configuredLimit > 0 ? configuredLimit : 8;
   const guardLimit = handoff?.progress_guard?.no_progress_limit;
   return Number.isInteger(guardLimit) && guardLimit > 0 ? Math.min(configured, guardLimit) : configured;
+}
+
+export function effectiveAgentRepairLimit(configuredLimit) {
+  return Number.isInteger(configuredLimit) && configuredLimit >= 0 ? configuredLimit : 2;
+}
+
+export function buildAgentRepairInstruction({ rejection, loop, attempt, maxAttempts }) {
+  const issues = normalizeRepairIssues(rejection);
+  return JSON.stringify({
+    schema_version: "arckit-agent-repair-instruction/v1",
+    phase: "repair_rejected_claim",
+    attempt,
+    max_attempts: maxAttempts,
+    rejection: {
+      kind: String(rejection?.kind || "runtime_result_rejected"),
+      reason: String(rejection?.reason || "The Runtime rejected the previous Agent result."),
+      recovery_action: String(rejection?.recovery_action || "repair_rejected_claim"),
+      issues
+    },
+    rejected_agent_output: loop?.agentLoopResult || null,
+    canonical_state: {
+      write_accepted: false,
+      instruction: "Reload the fresh trusted Project and Case snapshot supplied by this turn before returning a replacement claim."
+    },
+    repair_contract: {
+      same_persistent_thread: true,
+      preserve_acceptance_claim_when_still_current: true,
+      do_not_repeat_completed_implementation_work: true,
+      do_not_silently_change_semantic_dispositions: true,
+      return_complete_replacement_agent_loop_result: true,
+      stale_identity_or_revision_requires_fresh_replan: true,
+      human_decision_required_only_for_genuine_human_responsibility: true
+    }
+  }, null, 2);
+}
+
+function validationRejection(validation) {
+  const issues = (validation?.issues || []).map((issue) => ({
+    path: String(issue?.path || "runtime_result"),
+    message: String(issue?.message || "Invalid Runtime result.")
+  }));
+  return {
+    kind: "runtime_result_validation_rejected",
+    recoverable: true,
+    responsibility: "agent",
+    reason: issues.map((issue) => `${issue.path}: ${issue.message}`).join("\n") || "Runtime result validation failed.",
+    issues,
+    recovery_action: "repair_rejected_claim"
+  };
+}
+
+function normalizeRepairIssues(rejection) {
+  if (Array.isArray(rejection?.issues) && rejection.issues.length > 0) {
+    return rejection.issues.map((issue) => typeof issue === "string"
+      ? { path: "case_transition", message: issue }
+      : {
+        path: String(issue?.path || "case_transition"),
+        message: String(issue?.message || rejection?.reason || "Rejected claim.")
+      });
+  }
+  return [{
+    path: "case_transition",
+    message: String(rejection?.reason || "The trusted Ledger rejected the claim.")
+  }];
+}
+
+function emitAgentRepairRequested(options, { roundIndex, attempt, maxAttempts, rejection, loop }) {
+  emitSessionEvent(options, {
+    type: "runtime.agent_repair.requested",
+    round_index: roundIndex,
+    attempt,
+    max_attempts: maxAttempts,
+    rejection: {
+      kind: String(rejection?.kind || "runtime_result_rejected"),
+      reason: String(rejection?.reason || "The Runtime rejected the previous Agent result."),
+      issues: normalizeRepairIssues(rejection)
+    },
+    case_id: loop?.agentLoopResult?.case_transition?.case_id || "",
+    selected_gap_id: loop?.agentLoopResult?.case_transition?.selected_gap?.id || ""
+  });
 }
 
 function buildRoundEnvelope({
