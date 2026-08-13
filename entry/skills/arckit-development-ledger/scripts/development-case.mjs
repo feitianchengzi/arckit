@@ -283,7 +283,22 @@ function validateCaseRecordV5(record, file = '<record>') {
   }
   if (!Number.isInteger(record.content_revision) || record.content_revision < 0) errors.push(`${file}: content_revision must be a non-negative integer`);
   const review = record.completion_review;
-  if (!review || !REVIEW_STATUSES.has(review.status) || !Number.isInteger(review.policy?.initial_max_cycles) || review.policy.initial_max_cycles < 1 || !Array.isArray(review.cycles) || !Array.isArray(review.findings) || !REVIEW_DIMENSIONS.every((key) => REVIEW_DIMENSION_STATES.has(review.dimensions?.[key]))) errors.push(`${file}: completion_review is invalid`);
+  if (!review || !REVIEW_STATUSES.has(review.status) || !Number.isInteger(review.policy?.initial_max_cycles) || review.policy.initial_max_cycles < 1 || !Number.isInteger(review.additional_cycles_authorized) || review.additional_cycles_authorized < 0 || !Number.isInteger(review.cycle_count) || review.cycle_count < 0 || !Array.isArray(review.cycles) || !Array.isArray(review.findings) || !Array.isArray(review.human_authorizations) || !REVIEW_DIMENSIONS.every((key) => REVIEW_DIMENSION_STATES.has(review.dimensions?.[key]))) errors.push(`${file}: completion_review is invalid`);
+  if (review && Array.isArray(review.human_authorizations)) {
+    let authorizedCycles = 0;
+    for (const [index, authorization] of review.human_authorizations.entries()) {
+      const valid = authorization?.authorized_by === 'human'
+        && Number.isInteger(authorization.additional_cycles) && authorization.additional_cycles > 0
+        && typeof authorization.reason === 'string' && authorization.reason.trim()
+        && Array.isArray(authorization.evidence) && authorization.evidence.length > 0
+        && authorization.evidence.every((item) => typeof item === 'string' && item.trim())
+        && Number.isInteger(authorization.effective_max_cycles) && authorization.effective_max_cycles > 0
+        && typeof authorization.occurred_at === 'string' && authorization.occurred_at;
+      if (!valid) errors.push(`${file}: completion_review.human_authorizations[${index}] is invalid`);
+      else authorizedCycles += authorization.additional_cycles;
+    }
+    if (Number.isInteger(review.additional_cycles_authorized) && authorizedCycles !== review.additional_cycles_authorized) errors.push(`${file}: completion_review.additional_cycles_authorized does not match human authorizations`);
+  }
   if (!record.current_round || !Object.hasOwn(record.current_round, 'selected_gap')) errors.push(`${file}: current_round is invalid`);
   for (const [index, round] of (record.rounds || []).entries()) {
     if (round?.transition_schema_version !== 'arckit-case-transition/v8') continue;

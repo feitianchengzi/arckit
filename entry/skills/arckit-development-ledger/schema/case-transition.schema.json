@@ -56,7 +56,22 @@
         "completed_handoffs": { "type": "array" },
         "completion_review_result": { "type": ["object", "null"] },
         "resolved_review_findings": { "type": "array" },
-        "review_budget_extension": { "type": ["object", "null"] }
+        "review_budget_extension": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["additional_cycles", "authorized_by", "reason", "evidence"],
+              "properties": {
+                "additional_cycles": { "type": "integer", "minimum": 1 },
+                "authorized_by": { "const": "human" },
+                "reason": { "type": "string", "minLength": 1 },
+                "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1 }
+              },
+              "additionalProperties": false
+            },
+            { "type": "null" }
+          ]
+        }
       },
       "additionalProperties": false
     },

@@ -262,6 +262,79 @@ test('completion review findings become ordinary repair gaps and invalidate the 
   assert.equal(repaired.case_resolution.stage, 'review_ready');
 });
 
+test('a human review-budget decision reopens autonomous review without resetting prior cycles', () => {
+  let record = caseRecord({ maxReviewCycles: 1 });
+  record = applyCaseTransitionToRecord(record, transition(record));
+
+  const firstReview = baseTransition(record, record.case_resolution.candidate_gaps[0]);
+  firstReview.accepted_state_delta.completion_review_result = {
+    outcome: 'findings', reviewer: 'agent', reviewed_content_revision: record.content_revision,
+    dimensions: reviewDimensions('findings'),
+    findings: [{
+      id: 'CR-BUDGET', kind: 'omission', statement: 'One bounded case is still uncovered.', responsibility: 'agent',
+      artifact_refs: ['src/restore.mjs'], evidence: ['test:missing-budget-case'],
+    }],
+    evidence: ['test:missing-budget-case'],
+  };
+  record = applyCaseTransitionToRecord(record, firstReview);
+
+  const repairGap = record.case_resolution.candidate_gaps[0];
+  const repair = baseTransition(record, repairGap);
+  repair.accepted_state_delta.resolved_gap = resolution(repairGap.id, 'The missing budget case is now covered.');
+  repair.accepted_state_delta.resolved_review_findings = [{
+    id: 'CR-BUDGET', resolution: 'resolved', reason: 'Focused regression evidence passes.', evidence: ['test:budget-case-pass'],
+  }];
+  repair.evidence = ['test:budget-case-pass'];
+  record = applyCaseTransitionToRecord(record, repair);
+  assert.equal(record.case_resolution.candidate_gaps[0].responsibility, 'human');
+
+  const humanDecision = baseTransition(record, record.case_resolution.candidate_gaps[0]);
+  humanDecision.accepted_state_delta.review_budget_extension = {
+    additional_cycles: 2,
+    authorized_by: 'human',
+    reason: 'Allow two bounded autonomous review cycles.',
+    evidence: ['human-decision:allow-two-review-cycles'],
+  };
+  humanDecision.evidence = ['human-decision:allow-two-review-cycles'];
+  record = applyCaseTransitionToRecord(record, humanDecision);
+
+  assert.equal(record.completion_review.cycle_count, 1);
+  assert.equal(record.completion_review.additional_cycles_authorized, 2);
+  assert.equal(record.completion_review.human_authorizations.length, 1);
+  assert.equal(record.completion_review.human_authorizations[0].effective_max_cycles, 3);
+  assert.equal(record.completion_review.escalation, null);
+  assert.equal(record.case_resolution.stage, 'review_ready');
+  assert.equal(record.case_resolution.candidate_gaps[0].responsibility, 'agent');
+  assert.deepEqual(validateCaseRecord(record), []);
+
+  const finalReview = baseTransition(record, record.case_resolution.candidate_gaps[0]);
+  finalReview.accepted_state_delta.completion_review_result = {
+    outcome: 'clean', reviewer: 'agent', reviewed_content_revision: record.content_revision,
+    dimensions: reviewDimensions('clean'), findings: [], evidence: ['test:final-review-clean'],
+  };
+  finalReview.case_resolution = { claimed_status: 'resolved', reason: 'The authorized final review is clean.' };
+  finalReview.unresolved = [];
+  const closed = applyCaseTransitionToRecord(record, finalReview);
+  assert.equal(closed.completion_review.cycle_count, 2);
+  assert.equal(closed.case_resolution.status, 'resolved');
+});
+
+test('review-budget extensions reject malformed or non-human decisions', () => {
+  let record = caseRecord();
+  const ordinary = transition(record);
+  ordinary.accepted_state_delta.review_budget_extension = {
+    additional_cycles: 1, authorized_by: 'human', reason: 'Not at a human decision.', evidence: ['human-decision:invalid-scope'],
+  };
+  assert.throws(() => applyCaseTransitionToRecord(record, ordinary), /current human completion-review decision/);
+
+  const malformed = transition(record);
+  malformed.accepted_state_delta.review_budget_extension = {
+    additional_cycles: 0, authorized_by: 'agent', reason: '', evidence: [],
+  };
+  assert.match(validateCaseTransition(malformed).join('\n'), /additional_cycles must be a positive integer/);
+  assert.match(validateCaseTransition(malformed).join('\n'), /authorized_by must be human/);
+});
+
 test('human questions pause while external handoffs wait only when no Agent gap is ready', () => {
   const human = caseRecord();
   human.open_questions.push({ id: 'Q-1', question: 'Which policy is authoritative?', owner: 'human', status: 'open', evidence: [] });
@@ -302,10 +375,10 @@ test('Runtime leaves Case identity empty so the Agent can create the first Case'
   assert.match(round.reason, /Agent must create one/);
 });
 
-function caseRecord() {
+function caseRecord({ maxReviewCycles = 3 } = {}) {
   return createDefaultCaseRecord({
     title: 'Restore ordering', artifactType: 'code', intent: 'Fix stale restore behavior', expectedOutcome: 'Newer data is preserved',
-    maxReviewCycles: 3, reviewPolicySource: 'test-policy',
+    maxReviewCycles, reviewPolicySource: 'test-policy',
     initialFacts: [{ id: 'FACT-BUG', revision: 1, status: 'accepted', statement: 'Restore can overwrite newer data.', basis: 'Reproduced report.', evidence: ['debug/reproduction.md'] }],
     initialImpacts: [],
     initialGaps: [{

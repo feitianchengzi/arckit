@@ -1,6 +1,6 @@
 {
   "schema_version": "arckit-case-policy/v1",
   "completion_review": {
-    "max_autonomous_cycles": 3
+    "max_autonomous_cycles": 10
   }
 }

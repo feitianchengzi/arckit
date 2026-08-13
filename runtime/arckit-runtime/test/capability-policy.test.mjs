@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   agentSkillInvocationForPhase,
@@ -21,4 +22,10 @@ test("Runtime policy binds only using-arckit and the trusted ledger", async () =
   const runtime = capabilitiesForBinding(capabilities, policy, "runtime");
   assert.equal(agentSkillInvocationForPhase(agent, "agent_loop").skill_trigger, "$using-arckit");
   assert.equal(runtimeCapabilityForEntrypoint(runtime, "case_transition").id, "arckit-development-ledger");
+});
+
+test("new Cases receive ten autonomous completion-review cycles", async () => {
+  const policy = JSON.parse(await readFile(new URL("../config/case-policy.json", import.meta.url), "utf8"));
+  assert.equal(policy.schema_version, "arckit-case-policy/v1");
+  assert.equal(policy.completion_review.max_autonomous_cycles, 10);
 });

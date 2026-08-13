@@ -211,6 +211,59 @@ test("a Case produced by the task run ledger still resumes resolved closeout", a
   coordinator.dispose();
 });
 
+test("periodic sync resumes the persisted thread when the canonical human gate has been cleared", async () => {
+  const starts = [];
+  const caseId = "CASE-20260812-006";
+  const store = recoveryStore({
+    phase: "awaiting_human",
+    case_id: caseId,
+    case_status: "active",
+    case_binding_source: "runtime_ledger",
+    case_binding_run_id: "RUN-OLD",
+    case_bound_at: "2026-08-12T00:00:00Z"
+  });
+  store.automation.attention_items.push({
+    id: "ATTENTION-t",
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    reason: "The autonomous completion review budget is exhausted.",
+    question: "Authorize more cycles or stop.",
+    created_at: "2026-08-12T00:00:00Z"
+  });
+  const runManager = fakeRunManager(store, starts, {
+    async getProjectCaseState(_projectId, requestedCaseId) {
+      assert.equal(requestedCaseId, caseId);
+      return {
+        location: "active",
+        record: {
+          id: caseId,
+          status: "active",
+          case_resolution: {
+            status: "unresolved",
+            loop_handoff: {
+              status: "continue",
+              next_responsibility: "agent",
+              human_decision_required: false,
+              responsibility_reason: "Continue completion review."
+            }
+          }
+        }
+      };
+    }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await coordinator.sync({ dispatch: false });
+
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].threadId, "THREAD-PERSISTED");
+  assert.equal(starts[0].runtimeContext, null);
+  assert.equal(store.automation.active_task.phase, "running");
+  assert.equal(store.automation.attention_items.length, 0);
+  coordinator.dispose();
+});
+
 test("retry_start clears stale closeout state and starts a normal Runtime", async () => {
   const starts = [];
   const store = recoveryStore({

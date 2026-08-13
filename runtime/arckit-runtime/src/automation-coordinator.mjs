@@ -1416,12 +1416,14 @@ export function createAutomationCoordinator({
       return "human";
     }
 
-    if (allowAgentResume && caseState.location === "active") {
+    const canonicalHumanGateCleared = active.phase === "awaiting_human";
+    if ((allowAgentResume || canonicalHumanGateCleared) && caseState.location === "active") {
       await patchAutomation((automation) => {
         if (automation.active_task?.task_id !== active.task_id) return;
         automation.active_task.case_id = caseId;
         automation.active_task.phase = "starting";
         automation.active_task.cli_handoff_ended_at = now();
+        automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
         automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
       });
       await startRuntimeForActiveTask();

@@ -54,6 +54,18 @@ function validateProjectStateDelta(delta, label, errors) {
   if (hasProjectChanges(delta) && delta.evidence.length === 0) errors.push(`${label}.evidence must be non-empty when Project State changes`);
 }
 
+function validateReviewBudgetExtension(extension, label, errors) {
+  if (extension === null) return;
+  if (!isObject(extension)) {
+    errors.push(`${label} must be an object or null`);
+    return;
+  }
+  if (!Number.isInteger(extension.additional_cycles) || extension.additional_cycles < 1) errors.push(`${label}.additional_cycles must be a positive integer`);
+  if (extension.authorized_by !== 'human') errors.push(`${label}.authorized_by must be human`);
+  if (typeof extension.reason !== 'string' || !extension.reason.trim()) errors.push(`${label}.reason is required`);
+  if (!Array.isArray(extension.evidence) || extension.evidence.length === 0 || extension.evidence.some((item) => typeof item !== 'string' || !item.trim())) errors.push(`${label}.evidence must contain non-empty strings`);
+}
+
 export function validateCaseTransition(transition, file = '<transition>') {
   const errors = [];
   if (transition?.schema_version !== 'arckit-case-transition/v8') return [`${file}: schema_version must be arckit-case-transition/v8`];
@@ -66,6 +78,7 @@ export function validateCaseTransition(transition, file = '<transition>') {
   const arrays = ['facts_added', 'facts_superseded', 'impacts_added', 'impacts_updated', 'gaps_added', 'gaps_cancelled', 'resolved_open_questions', 'completed_handoffs', 'resolved_review_findings'];
   if (!isObject(delta) || !Object.hasOwn(delta, 'resolved_gap') || !Object.hasOwn(delta, 'completion_review_result') || !Object.hasOwn(delta, 'review_budget_extension')) errors.push(`${file}: accepted_state_delta is incomplete`);
   for (const key of arrays) if (!Array.isArray(delta?.[key])) errors.push(`${file}: accepted_state_delta.${key} must be an array`);
+  validateReviewBudgetExtension(delta?.review_budget_extension, `${file}: accepted_state_delta.review_budget_extension`, errors);
   for (const [index, fact] of (delta?.facts_added || []).entries()) if (!fact?.id || !Number.isInteger(fact.revision) || fact.status !== 'accepted' || !fact.statement || !fact.basis || !Array.isArray(fact.evidence) || fact.evidence.length === 0) errors.push(`${file}: facts_added[${index}] is invalid`);
   for (const [index, impact] of [...(delta?.impacts_added || []), ...(delta?.impacts_updated || [])].entries()) validateImpact(impact, `${file}: impact delta[${index}]`, errors);
   for (const [index, gap] of (delta?.gaps_added || []).entries()) validateGap(gap, `${file}: gaps_added[${index}]`, errors);
@@ -217,6 +230,20 @@ function applyReview(record, result, candidate, timestamp) {
   review.escalation = review.status === 'needs_human' ? { reason: 'review_requires_human', triggered_at_cycle: review.cycle_count, effective_max_cycles: limit, evidence: unique(result.evidence), triggered_at: timestamp } : null;
 }
 
+function applyReviewBudgetExtension(record, extension, candidate, timestamp) {
+  if (candidate.responsibility !== 'human' || !candidate.id.endsWith(':completion-review:human-decision')) throw new Error('Review budget extension requires the current human completion-review decision');
+  const review = record.completion_review;
+  review.additional_cycles_authorized += extension.additional_cycles;
+  review.status = 'pending';
+  review.reviewed_content_revision = null;
+  review.escalation = null;
+  review.human_authorizations.push({
+    ...structuredClone(extension),
+    effective_max_cycles: review.policy.initial_max_cycles + review.additional_cycles_authorized,
+    occurred_at: timestamp,
+  });
+}
+
 export function applyCaseTransitionToRecord(record, transition, { timestamp = new Date().toISOString(), runtimeResultRef = '', projectState = null, invariantProjectState = projectState } = {}) {
   const errors = validateCaseTransition(transition);
   if (errors.length) throw new Error(errors.join('\n'));
@@ -230,8 +257,11 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
   const isReview = candidate.id.includes(':completion-review:');
   const questionId = candidate.id.split(':open-question:')[1] || '';
   const handoffId = candidate.id.split(':handoff:')[1] || '';
+  const reviewBudgetExtension = delta.review_budget_extension;
   const contentMutation = Boolean(delta.resolved_gap || delta.facts_added.length || delta.facts_superseded.length || delta.impacts_added.length || delta.impacts_updated.length || delta.gaps_added.length || delta.gaps_cancelled.length || delta.resolved_open_questions.length || delta.completed_handoffs.length || delta.resolved_review_findings.length);
   if (isReview && contentMutation) throw new Error('Completion review cannot be committed with a content mutation');
+  if (reviewBudgetExtension && !isReview) throw new Error('Review budget extension requires the current human completion-review decision');
+  if (reviewBudgetExtension && delta.completion_review_result) throw new Error('Review budget extension and completion review result must be committed in separate rounds');
   if (!isReview && !questionId && !handoffId && delta.resolved_gap?.id !== candidate.id) throw new Error('A normal transition must resolve its selected dynamic gap');
   if (questionId && !delta.resolved_open_questions.includes(questionId)) throw new Error('Selected question must be resolved');
   if (handoffId && !delta.completed_handoffs.includes(handoffId)) throw new Error('Selected handoff must be completed');
@@ -271,7 +301,10 @@ export function applyCaseTransitionToRecord(record, transition, { timestamp = ne
   }
   for (const id of delta.resolved_open_questions) { const item = record.open_questions.find((value) => value.id === id); if (!item) throw new Error(`Unknown question ${id}`); item.status = 'resolved'; }
   for (const id of delta.completed_handoffs) { const item = record.pending_handoffs.find((value) => value.id === id); if (!item) throw new Error(`Unknown handoff ${id}`); item.status = 'completed'; }
-  if (isReview) applyReview(record, delta.completion_review_result, candidate, timestamp);
+  if (isReview) {
+    if (reviewBudgetExtension) applyReviewBudgetExtension(record, reviewBudgetExtension, candidate, timestamp);
+    else applyReview(record, delta.completion_review_result, candidate, timestamp);
+  }
   if (contentMutation) { record.content_revision += 1; record.completion_review.status = 'pending'; record.completion_review.reviewed_content_revision = null; }
   if (projectState) for (const [index, impact] of record.state_impacts.entries()) validateTargetAgainstProject(impact, projectState, `state_impacts[${index}]`);
   if (invariantProjectState) validateInvariantAssessmentAgainstState(transition.invariant_assessment, invariantProjectState, record);
