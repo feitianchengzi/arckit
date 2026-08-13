@@ -4,11 +4,11 @@
 
 `login/interaction.md` 定义应用启动时的认证门禁；`login/default.html` 投影会话恢复、未登录入口、验证码已发送和登录失败。未登录时 Login 是唯一可交互主页面，认证成功后才进入 Automation Command Center，退出登录后返回 Login。
 
-`automation-workspace/interaction.md` 定义登录后的待办自动化交互源；`automation-workspace/default.html` 投影常驻 Automation Command Center，`automation-workspace/authentication.html` 投影设置覆盖层中的已登录账号摘要和失效会话恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理与只读审查工作台。
+`automation-workspace/interaction.md` 定义登录后的普通待办与验收反馈双队列、统一执行仲裁和待办会话交接；`automation-workspace/default.html` 分别投影两条队列、计数与进展，`automation-workspace/authentication.html` 投影设置覆盖层中的账号摘要和失效恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理、历史审查与同待办反馈会话。
 
-`task-browser/interaction.md` 定义七种服务器任务状态的浏览与人工处置；`task-browser/default.html` 是同一策略的灰度线框投影。Command Center 的任务状态导航携带当前项目范围进入 Task Browser，Task Browser 返回时恢复该项目范围，不改变自动队列策略。
+`task-browser/interaction.md` 定义七种服务器任务状态的浏览与人工处置，以及 completed/accepted 右侧详情中的全部验收反馈、进展和 Composer；`task-browser/default.html` 是同一策略的灰度线框投影。提交验收问题创建独立反馈项、复用来源待办会话，不改变来源任务状态。Command Center 的任务状态导航携带当前项目范围进入 Task Browser，反馈队列入口携带反馈与来源待办身份进入同一详情；返回时恢复原项目范围和队列视图。
 
-该页面先消费当前用户可访问的 Workshop 项目，再按项目消费七种任务状态，并把 `待处理 → 进行中 → 已完成` 作为自动执行链路。“所有项目”只聚合这些项目的待办，不构成独立任务来源。项目、任务归属与任务状态由远端任务服务器拥有；本地工作区绑定、自动化参与状态、执行子状态、事件和 ledger 证据由 Arckit Runtime 拥有。
+该页面先消费当前用户可访问的 Workshop 项目，再按项目消费七种任务状态，并把 `待处理 → 进行中 → 已完成` 作为普通待办自动执行链路。“所有项目”只聚合这些项目的待办，不构成独立任务来源。验收反馈是 Desktop Store 拥有的独立工作来源，保留自己的队列状态、Run、Case 和进展；它只引用来源待办，不成为第八种服务器任务状态。项目、任务归属与任务状态由远端任务服务器拥有；本地工作区绑定、自动化参与状态、反馈记录、执行子状态、事件和 ledger 证据由 Arckit Runtime 拥有。
 
 按需 Chat 从 Command Center 的人工关注项或历史运行进入。需要人工输入时，Workbench 使用上下文、统一执行消息流、证据三栏结构；Runtime、Controller、Worker、工具摘要和用户输入不论内部 thread 数量都进入同一时间线。处理完成后返回 Command Center 并恢复当前任务。普通运行审查进入同一 Workbench 的只读模式，不形成常驻 Chat 主页面。
 

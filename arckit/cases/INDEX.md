@@ -67,3 +67,5 @@
 | [CASE-20260812-003](closed/CASE-20260812-003-ledger-runtime.md) | closed | 阻止 Ledger 拒写被误判为 Runtime 完成 | 2026-08-12T17:03:56.569Z |
 | [CASE-20260812-004](closed/CASE-20260812-004-runtime-agent-repair-loop.md) | closed | 让可修正的 Runtime 校验拒绝进入 Agent repair loop | 2026-08-12T17:37:16.107Z |
 | [CASE-20260813-001](closed/CASE-20260813-001-runtime-git-closeout.md) | closed | 改善 Runtime Git closeout 的任务范围引导 | 2026-08-13T07:22:14.910Z |
+| [CASE-20260813-002](closed/CASE-20260813-002-support-post-completion-review-feedback-continuation.md) | closed | Support post-completion review feedback continuation | 2026-08-13T10:57:55.065Z |
+| [CASE-20260813-003](closed/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md) | closed | Restore cumulative Project decision semantics after feedback-lane update | 2026-08-13T11:04:05.093Z |

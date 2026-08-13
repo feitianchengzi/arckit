@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   ),
   updateAutomationTaskState: (input) => ipcRenderer.invoke("arckit:automation-task-state", input),
   submitIntervention: (input) => ipcRenderer.invoke("arckit:automation-intervene", input),
+  submitAcceptanceFeedback: (input) => ipcRenderer.invoke("arckit:automation-acceptance-feedback", input),
   stopAutomationRun: () => ipcRenderer.invoke("arckit:automation-stop"),
   handoffAutomationToCli: () => ipcRenderer.invoke("arckit:automation-handoff-cli"),
   reopenAutomationCli: () => ipcRenderer.invoke("arckit:automation-reopen-cli"),

@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-13T07:22:14.910Z",
-    "revision": 40
+    "updated_at": "2026-08-13T11:04:05.093Z",
+    "revision": 46
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -131,7 +131,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "修复 arckit-runtime 的 Git closeout prompt：向同一 Agent 正向说明本待办产生的实现、测试、文档和 canonical ledger 产物均属于提交范围，同时保留真正无关的既有工作区改动；不引入确定性 commit 内容验证。",
+      "current_focus": "Repair the canonical Project decisions changed by CASE-20260813-002 so the new acceptance-feedback capability is additive and does not erase established ledger, login, recovery, observability, or Project-gap semantics.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -168,15 +168,16 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit provides Project/Iteration/Case ledgers, fresh-fact-driven invariant-guided dynamic Case Gap discovery, strict single-Gap Rounds, trusted atomic transitions, maintained development skills, and an optional supervised Runtime/Desktop.",
-          "reason": "The stable product contract distinguishes six semantic invariant responsibilities and treats missing, stale, ambiguous, or contradicted durable facts as applicability signals without preplanning work types.",
+          "statement": "Arckit provides Project/Iteration/Case ledgers, fresh-fact-driven invariant-guided dynamic Case Gap discovery, strict single-Gap Rounds, trusted atomic transitions, maintained development skills, and an optional supervised Runtime/Desktop with separate ordinary-todo and acceptance-feedback work lanes that continue a source task conversation through new Runs and Cases.",
+          "reason": "The cumulative capability catalog preserves the state-driven protocol and adds human acceptance findings as a first-class recoverable work lane.",
           "evidence": [
             "arckit/spec/agentic-software-development/product-concepts.md",
-            "arckit/spec/agentic-software-development/controller-worker-loop.md"
+            "arckit/spec/agentic-software-development/controller-worker-loop.md",
+            "arckit/spec/agentic-software-development/runtime-automation-workspace.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 3
+          "revision": 5
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -208,16 +209,17 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "Users invoke using-arckit conversationally and observe persisted candidate comparison, accepted round closeout and verified fresh-read in one persistent Agent conversation. Runtime failures with an existing task thread offer retry, direct feedback continuation or blocking; non-empty feedback starts a new Run on the same thread and appears as the user's message in Workbench. Login restoration remains silent while its server-backed rolling seven-day session is renewable, and transient refresh failures retain recoverable state.",
-          "reason": "The affected Runtime recovery journey and its transcript return are now durably specified and implemented without changing established login recovery behavior.",
+          "statement": "Users observe persisted candidate comparison, accepted round closeout and verified fresh-read in one persistent Agent conversation. Runtime recovery accepts direct feedback on the same task session/thread, and renewable login restoration remains silent across transient refresh failure. Automation Overview separately presents ordinary todos and acceptance feedback; completed and accepted task Inspectors show all linked issues and progress and allow new feedback without mutating old results.",
+          "reason": "The main experience cumulatively covers ledger transparency, login and Runtime recovery, and post-completion acceptance feedback.",
           "evidence": [
             "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
             "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/runtime-recovery.html"
+            "arckit/interaction/automation-workspace/runtime-recovery.html",
+            "arckit/interaction/task-browser/interaction.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 5
+          "revision": 7
         },
         "gap_refs": []
       },
@@ -268,14 +270,16 @@
         "evidence_expectation": "Durable data and technical evidence sufficient to recover the state model.",
         "decision": {
           "status": "settled",
-          "statement": "Canonical project data is Project v5, Iteration v3 and Case v5 in arckit/; normal Loop mutation uses Case Transition v8 bound to Ledger Snapshot v1, persists a complete round invariant assessment, produces Round Closeout v2, and requires a verified post-commit snapshot before continuation. Runtime run/session/thread records stay outside the target project and only opaque refs enter the ledger.",
-          "reason": "The ledger owns candidate, invariant coverage, transition, closeout and fresh-read contracts shared by direct Codex and Runtime.",
+          "statement": "Canonical project data is Project v5, Iteration v3 and Case v5 in arckit/; normal Loop mutation uses Case Transition v8 bound to Ledger Snapshot v1, persists complete invariant assessment, produces Round Closeout v2 and requires verified post-commit fresh-read. Runtime run/session/thread and first-class acceptance-feedback records stay outside the target project; each feedback item references immutable source completion facts and starts a new canonical Case.",
+          "reason": "The cumulative data model preserves trusted ledger transitions and external Runtime ownership while adding first-class feedback linkage.",
           "evidence": [
-            "arckit/tech/arckit-runtime/state-condition-ledger-solution.md"
+            "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+            "arckit/tech/arckit-runtime/desktop-execution-solution.md",
+            "entry/skills/arckit-development-ledger/SKILL.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 4
+          "revision": 6
         },
         "gap_refs": [
           "GAP-cross-record-audit"
@@ -310,16 +314,17 @@
         "evidence_expectation": "Durable product and operational evidence sufficient to recover the feedback decision.",
         "decision": {
           "status": "settled",
-          "statement": "Operational feedback is provided through the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization. A Runtime recovery item bound to an existing task thread accepts direct user feedback, continues the same task session/thread and retains that message in Workbench; no separate public support portal is currently required.",
-          "reason": "The Recovery Center is now an explicit feedback entry rather than only a retry/blocking control surface.",
+          "statement": "Operational feedback uses the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization. Recovery feedback continues an interrupted active execution on its task session/thread; acceptance feedback from completed or accepted review creates an independent persisted work item, keeps the source todo terminal, reuses its session/thread and exposes issue progress and solution evidence. No separate public support portal is currently required.",
+          "reason": "The cumulative support boundary distinguishes recovery steering and acceptance findings while retaining operational evidence channels.",
           "evidence": [
             "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+            "arckit/interaction/task-browser/interaction.md",
             "arckit/tech/arckit-runtime/desktop-execution-solution.md",
             "runtime/arckit-runtime/src/automation-coordinator.mjs"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 2
+          "revision": 4
         },
         "gap_refs": []
       },
@@ -349,17 +354,17 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM Ledger and Runtime scripts, an Electron desktop host, Project State v5, Case v5, Case Transition v8, Ledger Snapshot v1, Round Closeout v2 and Iteration v3. Trusted candidate selection separates stable identity/freshness (ref, id, revision, token and readiness) from Agent-authored goal/reason text and persists the re-resolved canonical candidate. Desktop recovery resumes the bound task session and persistent Agent thread for user feedback.",
-          "reason": "The trusted boundary remains deterministic without treating natural-language descriptions as identity fields, and the Desktop continuation path preserves one task conversation.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM Ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Trusted candidate selection separates stable identity/freshness from Agent-authored semantics. Desktop persists ordinary todo and acceptance-feedback lanes separately, reuses one persistent Agent thread per source todo, starts a new Run and Case per feedback item, and uses deterministic arbitration plus workspace/thread leases.",
+          "reason": "The cumulative foundation preserves trusted protocol and selection mechanics while adding the dual-lane execution model.",
           "evidence": [
             "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
+            "arckit/tech/arckit-runtime/solution.md",
             "arckit/tech/arckit-runtime/desktop-execution-solution.md",
-            "entry/skills/arckit-development-ledger/scripts/case-transition.mjs",
-            "runtime/arckit-runtime/src/automation-coordinator.mjs"
+            "entry/skills/arckit-development-ledger/scripts/case-transition.mjs"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 8
+          "revision": 10
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -440,16 +445,18 @@
         "evidence_expectation": "Durable operational evidence sufficient to diagnose and support the software.",
         "decision": {
           "status": "settled",
-          "statement": "Runtime persists lifecycle, activity, messages and timing outside the target project, supports restart reconciliation, exposes opaque run refs, and separately projects Ledger candidate catalogs, Agent selection traces, accepted round closeouts, and post-commit fresh-read receipts.",
-          "reason": "Users can now distinguish prior-round acceptance from next-round state without Runtime inventing canonical semantics.",
+          "statement": "Runtime persists lifecycle, activity, messages and timing outside the target project, supports restart reconciliation and exposes opaque Run refs. It separately projects ledger candidate catalogs, Agent selection traces, accepted round closeouts and post-commit fresh-read receipts, and also presents ordinary todo state separately from acceptance-feedback queue counts, item status, current Run/Case, progress, evidence and blocking responsibility alongside one active execution.",
+          "reason": "The cumulative operations model preserves ledger transparency and adds distinct feedback-lane observability.",
           "evidence": [
             "runtime/arckit-runtime/src/state-driven-runner.mjs",
             "runtime/arckit-runtime/src/projection/run-event-projector.mjs",
-            "runtime/arckit-runtime/src/desktop/transcript-presentation.mjs"
+            "runtime/arckit-runtime/src/desktop/transcript-presentation.mjs",
+            "arckit/interaction/automation-workspace/interaction.md",
+            "arckit/tech/arckit-runtime/desktop-execution-solution.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 3
+          "revision": 5
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"

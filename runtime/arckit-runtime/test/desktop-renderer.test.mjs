@@ -27,12 +27,16 @@ test("desktop primary surface is the project-sourced automation Command Center",
   assert.match(html, /id="projectNavigation"/);
   assert.match(html, /id="statusNavigation"/);
   assert.match(html, /id="queueTable"/);
+  assert.match(html, /id="feedbackQueueTable"/);
   assert.match(html, /id="currentRunPanel"/);
   assert.match(source, /const TASK_STATES = \["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"\]/);
   assert.match(source, /api\.automationSnapshot/);
   assert.match(source, /api\.setAutomationEnabled/);
   assert.match(source, /api\.bindAutomationProject/);
   assert.match(source, /blocked_pending_tasks/);
+  assert.match(source, /acceptance_feedback_queue/);
+  assert.match(source, /api\.submitAcceptanceFeedback/);
+  assert.match(source, /验收问题与进展/);
   assert.match(html, /<strong>自动领取<\/strong>/);
   assert.match(html, /控制是否领取新任务；仅作用于已绑定且已授权的项目，不停止当前任务/);
   assert.match(source, /允许此项目自动领取/);
@@ -191,6 +195,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     "arckit:automation-project-participation",
     "arckit:automation-task-state",
     "arckit:automation-intervene",
+    "arckit:automation-acceptance-feedback",
     "arckit:automation-stop",
     "arckit:automation-handoff-cli",
     "arckit:automation-reopen-cli",

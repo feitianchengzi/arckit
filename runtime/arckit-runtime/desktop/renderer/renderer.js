@@ -73,6 +73,8 @@ const state = {
   workbenchMode: "review",
   workbenchRun: null,
   workbenchCompletion: null,
+  workbenchTask: null,
+  workbenchFeedbackId: "",
   interventionSubmitting: false,
   taskFilter: "",
   refreshing: false
@@ -143,6 +145,10 @@ function wireEvents() {
   els.loginButton.addEventListener("click", () => runAction(login));
   els.logoutButton.addEventListener("click", () => runAction(logout));
   els.viewPendingButton.addEventListener("click", () => openTaskBrowser("pending"));
+  els.feedbackQueueNav.addEventListener("click", () => {
+    showPage("command");
+    els.feedbackQueueCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   els.backToCommandButton.addEventListener("click", () => showPage("command"));
   els.backFromWorkbenchButton.addEventListener("click", () => showPage("command"));
   els.backFromRecoveryButton.addEventListener("click", () => showPage("command"));
@@ -160,14 +166,23 @@ function wireEvents() {
   });
   els.submitInterventionButton.addEventListener("click", () => runAction(async () => {
     const active = state.snapshot.active_task;
-    if (!active) throw new Error("当前没有活动任务。");
+    const sourceTask = state.workbenchTask || (state.workbenchCompletion
+      ? state.snapshot.tasks.find((item) => String(item.id) === String(state.workbenchCompletion.task_id))
+      : null);
+    const acceptanceReview = Boolean(sourceTask && ["completed", "accepted"].includes(sourceTask.state));
+    if (!active && !acceptanceReview) throw new Error("当前没有活动执行。");
     state.interventionSubmitting = true;
     renderWorkbench();
     try {
-      await api.submitIntervention({ taskId: active.task_id, message: els.interventionInput.value });
+      if (acceptanceReview) {
+        const key = globalThis.crypto?.randomUUID?.() || `${sourceTask.id}-${Date.now()}`;
+        await api.submitAcceptanceFeedback({ taskId: sourceTask.id, message: els.interventionInput.value, idempotencyKey: key });
+      } else {
+        await api.submitIntervention({ taskId: active.task_id, message: els.interventionInput.value });
+      }
       els.interventionInput.value = "";
       await refreshSnapshot();
-      showPage("command");
+      if (!acceptanceReview) showPage("command");
     } finally {
       state.interventionSubmitting = false;
       if (state.page === "workbench") renderWorkbench();
@@ -203,6 +218,9 @@ async function refreshSnapshot({ quiet = false } = {}) {
       api.getAuthStatus()
     ]);
     state.snapshot = snapshot;
+    if (state.workbenchTask) {
+      state.workbenchTask = snapshot.tasks.find((task) => String(task.id) === String(state.workbenchTask.id)) || state.workbenchTask;
+    }
     state.authentication = normalizeAuthentication(authentication);
     if (state.selectedProjectId !== "all" && !state.snapshot.projects.some((project) => String(project.id) === state.selectedProjectId)) {
       state.selectedProjectId = "all";
@@ -266,6 +284,7 @@ function renderNavigation() {
   `).join("");
   els.statusNavigation.querySelectorAll("[data-task-state]").forEach((button) => button.addEventListener("click", () => openTaskBrowser(button.dataset.taskState)));
   els.attentionNavCount.textContent = String(snapshot.attention_items.length + snapshot.recovery_items.length);
+  els.feedbackQueueNavCount.textContent = String(snapshot.acceptance_feedback_counts?.open || 0);
   els.sourceHealthText.textContent = sourceStatusLabel(snapshot.source_status);
   els.runtimeHealthText.textContent = snapshot.health?.label || "待命";
   els.titlebarSync.className = `sync-state ${snapshot.source_status === "healthy" ? "healthy" : ["error", "unauthenticated"].includes(snapshot.source_status) ? "error" : ""}`;
@@ -285,6 +304,7 @@ function renderCommandCenter() {
   const scopedProjects = state.selectedProjectId === "all" ? snapshot.projects : snapshot.projects.filter((project) => String(project.id) === state.selectedProjectId);
   const scopedQueue = state.selectedProjectId === "all" ? snapshot.queue : snapshot.queue.filter((task) => String(task.project_id) === state.selectedProjectId);
   const scopedBlockedPending = (snapshot.blocked_pending_tasks || []).filter(scopedTaskFilter);
+  const scopedFeedback = snapshot.acceptance_feedback_queue || [];
   els.commandHeading.textContent = state.selectedProjectId === "all" ? "跨项目自动领取态势" : `${currentProject()?.name || "项目"} 自动领取态势`;
   els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
   els.healthBadge.className = `health-badge ${snapshot.health?.tone === "success" ? "success" : snapshot.health?.tone === "danger" ? "danger" : snapshot.health?.tone === "warning" ? "warning" : ""}`;
@@ -304,13 +324,30 @@ function renderCommandCenter() {
         ? `${recoveryCount} 项需要恢复自动化`
         : "没有待处理事项", attentionCount ? "attention" : ""),
     metric("运行中", runningCount, snapshot.active_task?.phase || "没有活动任务", runningCount ? "running" : ""),
-    metric("待处理队列", scopedQueue.length, scopedQueue[0] ? `下一项 ${scopedQueue[0].id}` : scopedBlockedPending.length ? `${scopedBlockedPending.length} 项尚未启用` : "没有可执行任务", scopedBlockedPending.length ? "attention" : "")
+    metric("普通待办队列", scopedQueue.length, scopedQueue[0] ? `下一项 ${scopedQueue[0].id}` : scopedBlockedPending.length ? `${scopedBlockedPending.length} 项尚未启用` : "没有可执行任务", scopedBlockedPending.length ? "attention" : ""),
+    metric("验收反馈队列", scopedFeedback.length, scopedFeedback.length ? `${snapshot.acceptance_feedback_counts?.queued || 0} queued · ${snapshot.acceptance_feedback_counts?.blocked || 0} blocked` : "没有待处理验收问题", scopedFeedback.length ? "running" : "")
   ].join("");
   renderAttention(scopedBlockedPending);
   renderCurrentRun(scopedBlockedPending);
   renderQueue(scopedQueue, scopedBlockedPending);
+  renderAcceptanceFeedbackQueue(scopedFeedback);
   renderRecentCompletions();
   renderCommandInspector(scopedProjects);
+}
+
+function renderAcceptanceFeedbackQueue(items) {
+  els.feedbackQueueSummary.textContent = `${items.length} 项`;
+  if (!items.length) {
+    els.feedbackQueueTable.innerHTML = `<div class="empty-state">当前范围没有待处理验收反馈。</div>`;
+    return;
+  }
+  els.feedbackQueueTable.innerHTML = `<table class="data-table"><colgroup><col style="width:42px"><col><col style="width:110px"><col style="width:150px"><col style="width:110px"></colgroup><thead><tr><th>#</th><th>问题</th><th>来源待办</th><th>进展</th><th>状态</th></tr></thead><tbody>${items.map((item) => `<tr data-feedback-id="${escapeHtml(item.feedback_id)}" data-feedback-task="${escapeHtml(item.source_task_id)}"><td class="queue-number">${item.queue_position}</td><td class="task-title-cell">${escapeHtml(item.original_feedback)}</td><td>${escapeHtml(item.source_task_id)}</td><td>${escapeHtml(item.progress)}</td><td><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></td></tr>`).join("")}</tbody></table>`;
+  els.feedbackQueueTable.querySelectorAll("[data-feedback-id]").forEach((row) => row.addEventListener("click", () => {
+    const item = items.find((entry) => entry.feedback_id === row.dataset.feedbackId);
+    const task = state.snapshot.tasks.find((entry) => String(entry.id) === String(row.dataset.feedbackTask));
+    if (item?.current_run_id || item?.source_run_id) openWorkbench("review", item.current_run_id || item.source_run_id, { task, feedbackId: item.feedback_id });
+    else openTaskBrowser(task?.state || "completed", task?.id || row.dataset.feedbackTask);
+  }));
 }
 
 function renderAttention(blockedPendingTasks = []) {
@@ -398,7 +435,11 @@ function renderQueue(queue, blockedPendingTasks = []) {
 function renderRecentCompletions() {
   const items = state.snapshot.recent_completions.filter(scopedTaskFilter).slice(0, 5);
   els.recentCompletions.innerHTML = items.length ? items.map((item) => `<button class="completion-item" data-completion-run="${escapeHtml(item.run_id)}" type="button"><span><strong>${escapeHtml(item.title || item.task_id)}</strong><small>${escapeHtml(item.project_id)} · ${formatDateTime(item.completed_at)}</small></span><span class="status-pill completed">已完成</span></button>`).join("") : `<div class="empty-state">暂无由自动化完成的任务。</div>`;
-  els.recentCompletions.querySelectorAll("[data-completion-run]").forEach((button) => button.addEventListener("click", () => openWorkbench("review", button.dataset.completionRun)));
+  els.recentCompletions.querySelectorAll("[data-completion-run]").forEach((button) => button.addEventListener("click", () => {
+    const completion = items.find((item) => item.run_id === button.dataset.completionRun);
+    const task = state.snapshot.tasks.find((item) => String(item.id) === String(completion?.task_id));
+    openWorkbench("review", button.dataset.completionRun, { task });
+  }));
 }
 
 function renderCommandInspector(projects) {
@@ -470,22 +511,37 @@ function renderTaskInspector() {
     els.taskInspector.innerHTML = `<div class="empty-state">选择任务查看详情与允许操作。</div>`;
     return;
   }
+  const feedbackItems = task.acceptance_feedback_items || [];
+  const acceptanceFeedback = ["completed", "accepted"].includes(task.state) ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项独立反馈</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未提交验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提交验收问题</span><textarea id="acceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>来源待办保持${task.state_label}；反馈进入独立队列并复用同一 Agent 对话。</small><button id="submitAcceptanceFeedbackButton" class="primary-button" type="button">提交验收问题</button></label></section>` : "";
   els.taskInspector.innerHTML = `<h2>${escapeHtml(task.title)}</h2><p>${escapeHtml(task.content || "没有补充内容")}</p><span class="status-pill ${task.state}">${escapeHtml(task.state_label)}</span>${factRows([
     ["任务标识", task.id],
     ["所属项目", task.project_name],
     ["本地工作区", task.local_project_path || "未绑定"],
     ["自动执行资格", task.eligible ? `队列第 ${task.queue_position} 项` : task.eligibility_reason || "不适用于当前状态"],
     ["服务器版本", task.version || "未提供"]
-  ])}<div id="taskActions" class="task-actions"></div>`;
+  ])}<div id="taskActions" class="task-actions"></div>${acceptanceFeedback}`;
   const actions = taskActions(task);
   document.getElementById("taskActions").innerHTML = actions.map((action) => `<button class="${action.primary ? "primary-button" : "secondary-button"}" data-task-action="${action.id}" type="button">${action.label}</button>`).join("");
   document.getElementById("taskActions").querySelectorAll("[data-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeTaskAction(task, button.dataset.taskAction))));
+  els.taskInspector.querySelectorAll("[data-task-feedback]").forEach((button) => button.addEventListener("click", () => {
+    const item = feedbackItems.find((entry) => entry.feedback_id === button.dataset.taskFeedback);
+    if (item) openWorkbench("review", item.current_run_id || item.source_run_id, { task, feedbackId: item.feedback_id });
+  }));
+  document.getElementById("submitAcceptanceFeedbackButton")?.addEventListener("click", () => runAction(async () => {
+    const input = document.getElementById("acceptanceFeedbackInput");
+    const message = input.value.trim();
+    if (!message) throw new Error("请先描述验收问题。");
+    const key = globalThis.crypto?.randomUUID?.() || `${task.id}-${Date.now()}`;
+    await api.submitAcceptanceFeedback({ taskId: task.id, message, idempotencyKey: key });
+    input.value = "";
+    await refreshSnapshot();
+  }));
 }
 
 async function executeTaskAction(task, action) {
   if (action === "review") {
     const completion = state.snapshot.recent_completions.find((item) => String(item.task_id) === String(task.id));
-    return openWorkbench("review", completion?.run_id || "");
+    return openWorkbench("review", completion?.run_id || "", { task });
   }
   const transitions = {
     confirm: ["pending", "pending_review"],
@@ -501,11 +557,13 @@ async function executeTaskAction(task, action) {
   await refreshSnapshot();
 }
 
-async function openWorkbench(mode = "review", runId = "") {
+async function openWorkbench(mode = "review", runId = "", context = {}) {
   state.workbenchMode = mode;
   state.workbenchCompletion = runId
     ? state.snapshot.recent_completions.find((item) => item.run_id === runId) || null
     : null;
+  state.workbenchTask = context.task || null;
+  state.workbenchFeedbackId = context.feedbackId || "";
   state.workbenchRun = runId && state.snapshot.active_run?.id !== runId
     ? (await api.listRuns({})).find((run) => run.id === runId) || null
     : null;
@@ -518,7 +576,7 @@ async function openWorkbench(mode = "review", runId = "") {
 async function loadTranscript({ force = false } = {}) {
   const active = state.snapshot.active_task;
   const run = state.workbenchRun || state.snapshot.active_run;
-  const localProjectId = state.workbenchCompletion?.local_project_id || active?.local_project_id || run?.project_id || "";
+  const localProjectId = state.workbenchTask?.local_project_id || state.workbenchCompletion?.local_project_id || active?.local_project_id || run?.project_id || "";
   if (!localProjectId || !run?.session_id) {
     state.transcript = [];
     state.transcriptSessionId = "";
@@ -526,7 +584,7 @@ async function loadTranscript({ force = false } = {}) {
     state.transcriptRuns = [];
     return;
   }
-  const taskId = state.workbenchCompletion?.task_id || active?.task_id || "";
+  const taskId = state.workbenchTask?.id || state.workbenchCompletion?.task_id || active?.task_id || "";
   const sessionKey = `${localProjectId}:${run.session_id}:${taskId}`;
   if (force || state.transcriptSessionId !== sessionKey) {
     const [messages, runs] = await Promise.all([
@@ -561,19 +619,23 @@ async function loadTranscript({ force = false } = {}) {
 function renderWorkbench() {
   const active = state.snapshot.active_task;
   const completion = state.workbenchCompletion;
+  const sourceTask = state.workbenchTask || (completion ? state.snapshot.tasks.find((item) => String(item.id) === String(completion.task_id)) : null);
+  const feedbackItem = sourceTask?.acceptance_feedback_items?.find((item) => item.feedback_id === state.workbenchFeedbackId) || null;
   const run = state.workbenchRun || state.snapshot.active_run;
   const activity = run?.activity || {};
   const attention = state.snapshot.attention_items.find((item) => !active || item.task_id === active.task_id);
-  const taskId = completion?.task_id || active?.task_id || "";
-  const projectId = completion?.project_id || active?.project_id || "";
-  els.workbenchTitle.textContent = completion?.title || active?.task_title || "执行对话审查";
-  els.workbenchMode.className = `status-pill ${state.workbenchMode === "intervention" ? "pending" : "pending_review"}`;
-  els.workbenchMode.textContent = state.workbenchMode === "intervention" ? "人工处理" : "只读审查";
-  els.interventionComposer.classList.toggle("hidden", state.workbenchMode !== "intervention");
-  els.interveneCurrentButton.classList.toggle("hidden", state.workbenchMode === "intervention" || !active || Boolean(completion));
+  const taskId = sourceTask?.id || completion?.task_id || active?.task_id || "";
+  const projectId = sourceTask?.project_id || completion?.project_id || active?.project_id || "";
+  const acceptanceReview = Boolean(sourceTask && ["completed", "accepted"].includes(sourceTask.state));
+  els.workbenchTitle.textContent = sourceTask?.title || completion?.title || active?.task_title || "执行对话审查";
+  els.workbenchMode.className = `status-pill ${state.workbenchMode === "intervention" ? "pending" : acceptanceReview ? "completed" : "pending_review"}`;
+  els.workbenchMode.textContent = state.workbenchMode === "intervention" ? "人工处理" : acceptanceReview ? "验收反馈" : "只读审查";
+  els.interventionComposer.classList.toggle("hidden", state.workbenchMode !== "intervention" && !acceptanceReview);
+  els.interveneCurrentButton.classList.toggle("hidden", state.workbenchMode === "intervention" || !active || Boolean(completion) || acceptanceReview);
   els.interventionInput.disabled = state.interventionSubmitting;
   els.submitInterventionButton.disabled = state.interventionSubmitting;
-  els.submitInterventionButton.textContent = state.interventionSubmitting ? "正在提交…" : "提交并恢复自动化";
+  els.interventionInput.placeholder = acceptanceReview ? "描述新的验收问题…" : "提供授权、事实或决策，并说明恢复条件…";
+  els.submitInterventionButton.textContent = state.interventionSubmitting ? "正在提交…" : acceptanceReview ? "提交验收问题" : "提交并恢复自动化";
   const selectedGap = activity.controller_frame?.selected_gap || null;
   const sourceFacts = activity.artifact_ownership_scan?.source_facts_changed || [];
   const implementationEvidence = activity.artifact_ownership_scan?.implementation_evidence || [];
@@ -592,7 +654,8 @@ function renderWorkbench() {
     ["Task Session", taskSessionId || "未建立"],
     ["远端项目", projectId],
     ["本地工作区", active?.local_project_path || completion?.local_project_id || "已归档"],
-    ["审查范围", completion ? "历史完成 Run · 只读" : state.workbenchMode === "intervention" ? "当前 Run · 人工处理" : "当前 Run · 只读"],
+    ["审查范围", acceptanceReview ? "历史执行只读 · 可新增验收反馈" : completion ? "历史完成 Run · 只读" : state.workbenchMode === "intervention" ? "当前 Run · 人工处理" : "当前 Run · 只读"],
+    ["验收反馈", acceptanceReview ? `${sourceTask.acceptance_feedback_items?.length || 0} 项${feedbackItem ? ` · 当前 ${feedbackItem.feedback_id}` : ""}` : "不适用"],
     ["Selected Gap", selectedGap?.id || "尚未选择"],
     ["已加载事实", `${sourceFacts.length} 项源事实 · ${implementationEvidence.length} 项实现证据`],
     ["执行边界", activity.controller_frame?.round_goal || run?.task || "由当前任务与 Case 限定"],
@@ -611,7 +674,7 @@ function renderWorkbench() {
   els.workbenchEvidence.innerHTML = factRows([
     ["Run", run?.id || "无"],
     ["Run 状态", run?.status || "未启动"],
-    ["远端任务", completion ? "已完成" : active?.phase || "无活动任务"],
+    ["远端任务", sourceTask?.state_label || (completion ? "已完成" : active?.phase || "无活动任务")],
     ["当前步骤", activity.current_step || "无"],
     ["Codex Thread", activity.thread_id || active?.thread_id || "尚未绑定"],
     ["Agent Loop", activity.agent_loop_result?.summary || "尚未收束"],
@@ -954,6 +1017,13 @@ function metric(label, value, description, className) {
   return `<article class="metric-card ${className}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(description)}</small></article>`;
 }
 
+function feedbackTone(status) {
+  if (status === "resolved") return "completed";
+  if (status === "running") return "in_progress";
+  if (["awaiting_human", "blocked"].includes(status)) return "blocked";
+  return "pending_review";
+}
+
 function factRows(rows) {
   return rows.map(([label, value]) => `<div class="fact-row"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? "")}</strong></div>`).join("");
 }
@@ -963,6 +1033,7 @@ function taskActions(task) {
   if (task.state === "pending") return [{ id: "cancel", label: "取消" }];
   if (task.state === "in_progress") return [{ id: "review", label: "查看运行", primary: true }, { id: "block", label: "标记阻塞" }];
   if (task.state === "completed") return [{ id: "review", label: "审查结果" }, { id: "accept", label: "标记已验收", primary: true }];
+  if (task.state === "accepted") return [{ id: "review", label: "查看结果与验收反馈", primary: true }];
   if (task.state === "blocked") return [{ id: "resume", label: "返回待处理", primary: true }, { id: "cancel", label: "取消" }];
   return [];
 }
@@ -1135,7 +1206,11 @@ function emptySnapshot() {
     state_counts: Object.fromEntries(TASK_STATES.map((taskState) => [taskState, 0])),
     tasks: [],
     queue: [],
+    todo_queue: [],
     blocked_pending_tasks: [],
+    acceptance_feedback_queue: [],
+    acceptance_feedback_counts: { queued: 0, running: 0, awaiting_human: 0, blocked: 0, resolved: 0, cancelled: 0, open: 0 },
+    active_execution: null,
     active_task: null,
     active_run: null,
     attention_items: [],

@@ -26,7 +26,7 @@ test("automation desktop renders the confirmed professional shell geometry", {
   assert.equal(measurements.viewCount, 4);
   assert.equal(measurements.activeViewDisplay, "block");
   assert.deepEqual(measurements.hiddenViewDisplays, ["none", "none", "none"]);
-  assert.equal(measurements.metricColumns, 4);
+  assert.equal(measurements.metricColumns, 5);
   assert.equal(measurements.commandColumns, 2);
   assert.equal(measurements.minBodyWidth, "1100px");
 });

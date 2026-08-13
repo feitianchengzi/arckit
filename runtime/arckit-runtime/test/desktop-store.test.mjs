@@ -102,7 +102,7 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     }
   });
 
-  assert.equal(store.version, 8);
+  assert.equal(store.version, 9);
   assert.equal(store.automation.snapshot.source_status, "degraded");
   assert.deepEqual(store.automation.project_bindings, {});
   assert.equal(store.automation.recovery_items[0].responsibility, "operator");
@@ -124,4 +124,54 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     message: "Project tasks unavailable",
     project_id: "12"
   });
+});
+
+test("desktop store preserves acceptance feedback and requeues an orphaned running item", () => {
+  const store = normalizeStore({
+    automation: {
+      acceptance_feedback_items: [{
+        feedback_id: "AF-1",
+        idempotency_key: "KEY-1",
+        original_feedback: "结果仍不正确",
+        status: "running",
+        progress: "Agent 正在处理",
+        source_project_id: "p",
+        source_task_id: "t",
+        source_task_state: "completed",
+        local_project_id: "local",
+        session_id: "SESSION-T",
+        thread_id: "THREAD-T",
+        created_at: "2026-08-13T00:00:00Z"
+      }]
+    }
+  });
+
+  assert.equal(store.automation.acceptance_feedback_items.length, 1);
+  assert.equal(store.automation.acceptance_feedback_items[0].status, "queued");
+  assert.equal(store.automation.acceptance_feedback_items[0].progress, "Runtime 重启后已重新排队");
+  assert.equal(store.automation.acceptance_feedback_items[0].source_task_state, "completed");
+});
+
+test("desktop store retains every historical reference needed by acceptance review", () => {
+  const recentCompletions = Array.from({ length: 520 }, (_, index) => ({
+    task_id: `TASK-${index}`,
+    run_id: `RUN-${index}`,
+    case_id: `CASE-20260813-${String((index % 999) + 1).padStart(3, "0")}`,
+    local_project_id: "local",
+    session_id: `SESSION-${index}`,
+    thread_id: `THREAD-${index}`
+  }));
+  const acceptanceFeedbackItems = recentCompletions.map((item, index) => ({
+    feedback_id: `AF-${index}`,
+    idempotency_key: `KEY-${index}`,
+    original_feedback: `issue ${index}`,
+    status: "resolved",
+    source_task_id: item.task_id
+  }));
+
+  const store = normalizeStore({ automation: { recent_completions: recentCompletions, acceptance_feedback_items: acceptanceFeedbackItems } });
+
+  assert.equal(store.automation.recent_completions.length, 520);
+  assert.equal(store.automation.acceptance_feedback_items.length, 520);
+  assert.equal(store.automation.recent_completions.at(-1).task_id, "TASK-519");
 });

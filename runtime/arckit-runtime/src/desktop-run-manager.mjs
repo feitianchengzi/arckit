@@ -313,7 +313,7 @@ export function createDesktopRunManager({
 
   async function addMessage(projectIdValue, message) {
     const sessionIdValue = message.session_id || "";
-    const entry = {
+    let entry = {
       id: `MSG-${new Date().toISOString().replace(/[-:.]/g, "").replace("T", "-").replace("Z", "Z")}-${Math.random().toString(16).slice(2, 8)}`,
       session_id: "",
       role: message.role || "system",
@@ -321,11 +321,19 @@ export function createDesktopRunManager({
       content: String(message.content || ""),
       run_id: message.run_id || "",
       task_id: String(message.task_id || ""),
+      feedback_id: String(message.feedback_id || ""),
       created_at: new Date().toISOString()
     };
     let selectedSession;
     await updateStore((store) => {
       selectedSession = getSession(store, projectIdValue, sessionIdValue);
+      const existing = entry.feedback_id
+        ? (store.messages[selectedSession.id] || []).find((item) => item.feedback_id === entry.feedback_id)
+        : null;
+      if (existing) {
+        entry = existing;
+        return store;
+      }
       entry.session_id = selectedSession.id;
       store.messages[selectedSession.id] ||= [];
       store.messages[selectedSession.id].push(entry);

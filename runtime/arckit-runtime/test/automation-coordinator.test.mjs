@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  buildAcceptanceFeedbackQueue,
   buildAutomationTask,
   buildQueue,
   createAutomationCoordinator,
   extractAuthoritativeCaseBindingFromRun,
-  isCanonicalCaseResolved
+  isCanonicalCaseResolved,
+  selectNextExecution
 } from "../src/automation-coordinator.mjs";
 
 test("automation task preserves only the remote human-authored intent", () => {
@@ -22,6 +24,232 @@ test("queue remains deterministic and excludes ineligible tasks", () => {
     snapshot: { projects: [{ id: "p" }], errors: [] }
   }, new Map([["p", { id: "p" }]]), new Map([["local", { id: "local", path: "/workspace" }]]));
   assert.deepEqual(queue.map((item) => item.id), ["1", "2"]);
+});
+
+test("acceptance feedback has an independent stable queue and deterministic execution arbitration", () => {
+  const feedbackQueue = buildAcceptanceFeedbackQueue([
+    { feedback_id: "AF-2", source_project_id: "p", source_task_id: "t", status: "queued", ready_at: "2026-08-13T00:00:02Z" },
+    { feedback_id: "AF-1", source_project_id: "p", source_task_id: "t", status: "queued", ready_at: "2026-08-13T00:00:01Z" },
+    { feedback_id: "AF-DONE", source_project_id: "p", source_task_id: "t", status: "resolved", ready_at: "2026-08-13T00:00:00Z" }
+  ]);
+  assert.deepEqual(feedbackQueue.map((item) => item.feedback_id), ["AF-1", "AF-2"]);
+  assert.equal(selectNextExecution([{ id: "TODO-1", created_at: "2026-08-13T00:00:03Z" }], feedbackQueue).kind, "acceptance_feedback");
+  assert.equal(selectNextExecution([{ id: "TODO-1", created_at: "2026-08-12T00:00:00Z" }], feedbackQueue).kind, "todo");
+});
+
+test("acceptance feedback persists idempotently, keeps the source todo completed, and starts on the same thread", async () => {
+  const starts = [];
+  const messages = [];
+  const store = recoveryStore({ execution_kind: "todo" });
+  store.automation.snapshot.source_status = "healthy";
+  store.automation.snapshot.tasks[0].state = "completed";
+  store.automation.active_task = null;
+  store.automation.acceptance_feedback_items = [];
+  store.automation.recent_completions.push({
+    task_id: "t", project_id: "p", title: "todo", run_id: "RUN-OLD", case_id: "CASE-20260813-001",
+    thread_id: "THREAD-PERSISTED", local_project_id: "local", session_id: "SESSION-T", completed_at: "2026-08-13T00:00:00Z"
+  });
+  const runManager = fakeRunManager(store, starts, {
+    async preflightRun() {},
+    async listMessages() { return messages; },
+    async addMessage(_projectId, message) {
+      const entry = { id: `MSG-${messages.length + 1}`, ...message };
+      messages.push(entry);
+      return entry;
+    },
+    async startRun(input) {
+      starts.push(input);
+      return { id: "RUN-FEEDBACK", thread_id: input.threadId, project_id: "local", session_id: input.sessionId };
+    }
+  });
+  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory() { throw new Error("task source must not be mutated"); } });
+
+  await coordinator.submitAcceptanceFeedback({ taskId: "t", message: "结果仍有旧字段", idempotencyKey: "KEY-1" });
+  await coordinator.submitAcceptanceFeedback({ taskId: "t", message: "结果仍有旧字段", idempotencyKey: "KEY-1" });
+
+  assert.equal(store.automation.snapshot.tasks[0].state, "completed");
+  assert.equal(store.automation.acceptance_feedback_items.length, 1);
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].feedback_id, store.automation.acceptance_feedback_items[0].feedback_id);
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].threadId, "THREAD-PERSISTED");
+  assert.equal(starts[0].sessionId, "SESSION-T");
+  assert.equal(starts[0].runtimeContext.kind, "acceptance_feedback");
+  assert.equal(starts[0].runtimeContext.source_run_id, "RUN-OLD");
+  const snapshot = await coordinator.getSnapshot({ state: "completed" });
+  assert.equal(snapshot.acceptance_feedback_queue.length, 1);
+  assert.equal(snapshot.tasks[0].acceptance_feedback_items.length, 1);
+  coordinator.dispose();
+});
+
+test("a queued acceptance feedback item keeps automation health ready when the todo queue is empty", async () => {
+  const store = recoveryStore();
+  store.automation.snapshot.source_status = "healthy";
+  store.automation.snapshot.tasks[0].state = "completed";
+  store.automation.active_task = null;
+  store.automation.acceptance_feedback_items = [{
+    feedback_id: "AF-READY",
+    status: "queued",
+    source_project_id: "p",
+    source_task_id: "t",
+    ready_at: "2026-08-13T00:00:00Z"
+  }];
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, []),
+    taskSourceFactory() { throw new Error("task source must not be contacted"); }
+  });
+
+  const snapshot = await coordinator.getSnapshot();
+
+  assert.equal(snapshot.todo_queue.length, 0);
+  assert.equal(snapshot.acceptance_feedback_queue.length, 1);
+  assert.equal(snapshot.health.state, "ready");
+  coordinator.dispose();
+});
+
+test("acceptance feedback stays in its own queue while another execution owns the lease", async () => {
+  const starts = [];
+  const messages = [];
+  const store = recoveryStore({ execution_kind: "todo" });
+  store.automation.snapshot.source_status = "healthy";
+  store.automation.snapshot.tasks.push({
+    id: "completed-task",
+    project_id: "p",
+    title: "completed todo",
+    state: "completed"
+  });
+  store.automation.acceptance_feedback_items = [];
+  store.automation.recent_completions.push({
+    task_id: "completed-task",
+    project_id: "p",
+    run_id: "RUN-COMPLETED",
+    case_id: "CASE-20260813-002",
+    thread_id: "THREAD-COMPLETED",
+    local_project_id: "local",
+    session_id: "SESSION-COMPLETED",
+    completed_at: "2026-08-13T00:00:00Z"
+  });
+  const runManager = fakeRunManager(store, starts, {
+    async listMessages() { return messages; },
+    async addMessage(_projectId, message) {
+      const entry = { id: "MSG-FEEDBACK", ...message };
+      messages.push(entry);
+      return entry;
+    }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory() { throw new Error("task source must not be contacted"); }
+  });
+
+  await coordinator.submitAcceptanceFeedback({
+    taskId: "completed-task",
+    message: "仍有验收问题",
+    idempotencyKey: "KEY-LEASE"
+  });
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.active_task.task_id, "t");
+  assert.equal(store.automation.acceptance_feedback_items[0].status, "queued");
+  assert.equal(store.automation.acceptance_feedback_items[0].progress, "等待执行租约");
+  assert.equal(store.automation.snapshot.tasks.find((task) => task.id === "completed-task").state, "completed");
+  coordinator.dispose();
+});
+
+test("concurrent conflicting feedback submissions reject the losing payload before writing its message", async () => {
+  const starts = [];
+  const messages = [];
+  const store = recoveryStore();
+  store.automation.snapshot.source_status = "healthy";
+  store.automation.snapshot.tasks[0].state = "completed";
+  store.automation.active_task = null;
+  store.automation.acceptance_feedback_items = [];
+  store.automation.recent_completions.push({
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    case_id: "CASE-20260813-001",
+    thread_id: "THREAD-PERSISTED",
+    local_project_id: "local",
+    session_id: "SESSION-T"
+  });
+  let releaseReads;
+  let initialReads = 0;
+  const bothRead = new Promise((resolve) => { releaseReads = resolve; });
+  const runManager = fakeRunManager(store, starts, {
+    async readDesktopStore() {
+      if (store.automation.acceptance_feedback_items.length === 0 && initialReads < 2) {
+        initialReads += 1;
+        if (initialReads === 2) releaseReads();
+        await bothRead;
+      }
+      return structuredClone(store);
+    },
+    async listMessages() { return messages; },
+    async addMessage(_projectId, message) {
+      const entry = { id: `MSG-${messages.length + 1}`, ...message };
+      messages.push(entry);
+      return entry;
+    },
+    async preflightRun() {},
+    async startRun(input) {
+      starts.push(input);
+      return { id: "RUN-FEEDBACK", thread_id: input.threadId, project_id: "local", session_id: input.sessionId };
+    }
+  });
+  const coordinator = createAutomationCoordinator({ runManager, taskSourceFactory() { throw new Error("unused"); } });
+
+  const results = await Promise.allSettled([
+    coordinator.submitAcceptanceFeedback({ taskId: "t", message: "问题 A", idempotencyKey: "KEY-RACE" }),
+    coordinator.submitAcceptanceFeedback({ taskId: "t", message: "问题 B", idempotencyKey: "KEY-RACE" })
+  ]);
+
+  assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
+  assert.equal(results.filter((result) => result.status === "rejected").length, 1);
+  assert.match(results.find((result) => result.status === "rejected").reason.message, /conflicts/);
+  assert.equal(store.automation.acceptance_feedback_items.length, 1);
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].content, store.automation.acceptance_feedback_items[0].original_feedback);
+  coordinator.dispose();
+});
+
+test("feedback readiness failure preserves an actionable recovery lease", async () => {
+  const store = recoveryStore();
+  store.automation.snapshot.source_status = "healthy";
+  store.automation.snapshot.tasks[0].state = "completed";
+  store.automation.active_task = null;
+  store.automation.acceptance_feedback_items = [];
+  store.automation.recent_completions.push({
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    case_id: "CASE-20260813-001",
+    thread_id: "THREAD-PERSISTED",
+    local_project_id: "local",
+    session_id: "SESSION-T"
+  });
+  const messages = [];
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, [], {
+      async listMessages() { return messages; },
+      async addMessage(_projectId, message) {
+        const entry = { id: "MSG-FEEDBACK", ...message };
+        messages.push(entry);
+        return entry;
+      },
+      async preflightRun() { throw new Error("Codex unavailable"); }
+    }),
+    taskSourceFactory() { throw new Error("unused"); }
+  });
+
+  await coordinator.submitAcceptanceFeedback({ taskId: "t", message: "问题", idempotencyKey: "KEY-PREFLIGHT" });
+
+  assert.equal(store.automation.active_task.execution_kind, "acceptance_feedback");
+  assert.equal(store.automation.active_task.phase, "recovery");
+  assert.equal(store.automation.acceptance_feedback_items[0].status, "blocked");
+  assert.deepEqual(store.automation.recovery_items[0].actions, ["retry_start", "mark_blocked"]);
+  assert.equal(store.automation.recovery_items[0].feedback_id, store.automation.acceptance_feedback_items[0].feedback_id);
+  coordinator.dispose();
 });
 
 test("closed Case recovery resumes the persisted thread for same-thread closeout", async () => {

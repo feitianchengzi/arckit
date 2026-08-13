@@ -29,6 +29,9 @@
 
           <p class="nav-label">TASK STATUS</p>
           <div id="statusNavigation" class="nav-group"></div>
+
+          <p class="nav-label">FEEDBACK</p>
+          <button id="feedbackQueueNav" class="nav-item" type="button"><span>◇</span><strong>验收反馈</strong><em id="feedbackQueueNavCount">0</em></button>
         </nav>
 
         <div class="sidebar-footer">
@@ -68,8 +71,13 @@
                   </section>
 
                   <section class="panel-card queue-card">
-                    <div class="section-title-row"><div><span class="section-icon">≡</span><div><h2>下一队列</h2><p>确定性跨项目串行顺序</p></div></div><button id="viewPendingButton" class="text-button" type="button">查看全部待处理</button></div>
+                    <div class="section-title-row"><div><span class="section-icon">≡</span><div><h2>普通待办队列</h2><p>独立的远端待处理任务队列</p></div></div><button id="viewPendingButton" class="text-button" type="button">查看全部待处理</button></div>
                     <div id="queueTable"></div>
+                  </section>
+
+                  <section id="feedbackQueueCard" class="panel-card queue-card">
+                    <div class="section-title-row"><div><span class="section-icon">◇</span><div><h2>验收反馈队列</h2><p>独立问题、进展、Run 与 Case</p></div></div><span id="feedbackQueueSummary" class="status-pill pending_review">0 项</span></div>
+                    <div id="feedbackQueueTable"></div>
                   </section>
 
                   <section class="panel-card completions-card">

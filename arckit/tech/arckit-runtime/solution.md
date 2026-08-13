@@ -42,6 +42,8 @@ Runtime Kernel 当前由以下确定性阶段组成：
 - Artifact Ownership Map：把 Agent 声明的 changed files 归类为 source fact、projection、runtime log、pending/raw input、implementation evidence 等，提供结构与安全校验，不推断业务正确性。
 - Ledger Stage：当 Agent result 携带可写 Case control/transition 时做 deterministic gate；gate 允许则自动写 ledger，拒绝则从 fresh state 重规划或形成明确 handoff。
 - Task Thread Registry：为每个待办持久化唯一 Codex thread id、所有权租约、最后 turn 与压缩检查点，支持进程重启后恢复同一对话。
+- Acceptance Feedback Lane：把已完成或已验收待办上的人工问题持久化为独立反馈项和队列，复用来源 task thread/session，以新 Run 和新 Case 推进而不改写来源待办或旧 Case。
+- Execution Arbiter：分别读取普通待办与验收反馈的 ready 队首，在单一工作区/thread 执行租约下确定性选择下一项；队列身份、计数和排序保持独立。
 - Context Governor：在一次 gap ledger 写回后读取最新请求的上下文占用；达到 80% 时先压缩同一 thread，再继续下一 gap。
 - Same-thread Closeout：Case resolved 后由同一 Agent thread 完成验证补漏、必要修复和 Git commit/no-op 收尾，成功后才允许远端完成写回。
 
@@ -99,6 +101,8 @@ Adapter 提供以下语义操作：
 Workshop task source 实现沿用 Workshop Desktop 的服务契约：先读取 `/projects` 的独立项目与 `/organizations`，再按 `organization_id` 合并组织项目；组织项目拉取采用有界并发，项目按服务器标识去重。Adapter 从项目成员的 `is_me` 标记或登录用户名解析当前用户的数字 `user_id`，并把它作为 `/tasks` 的 `executor_id` 查询条件；响应归一化后再次按 `executor_id` 等值过滤，因此创建人、未分配和其他执行人的任务不会进入 Automation Snapshot。无法解析项目内当前用户标识时，该项目任务同步关闭而不是退化为全量任务。任务状态由 `/tasks/{task_id}` 更新。认证配置和令牌只保存在主进程设置中，Workshop 专属响应形状不泄漏给 Renderer。
 
 任务状态枚举固定为 `pending_review`、`pending`、`in_progress`、`completed`、`accepted`、`cancelled` 和 `blocked`。未知状态保留原始值用于诊断，但不进入自动队列。
+
+验收反馈不是第八种任务状态。Desktop 以独立反馈记录保存 `queued`、`running`、`awaiting_human`、`blocked`、`resolved` 和 `cancelled` 生命周期；来源 todo 保持 completed 或 accepted。详细持久模型、幂等创建、双队列仲裁和恢复规则由 `desktop-execution-solution.md` 定义。
 
 远端状态更新携带调用方最后读取的版本标识或等价条件。服务端不支持条件更新时，adapter 先读取最新任务并拒绝已变化状态；该检查降低冲突概率，但不能替代服务端原子并发控制，因此该能力在 UI 中标记为弱一致领取。
 
@@ -196,7 +200,7 @@ Codex adapter 的生命周期与一次 state-driven Runtime session 对齐。Run
 
 当前 invocation 是每个 turn 的事实与授权来源。原始待办意图保持稳定，当前增量、Project/Case revisions、candidate gaps、execution authorization 和 output contract 覆盖 thread 中冲突的旧内容；历史讨论不能扩大 sandbox、approval、工作区或 ledger writeback 权限。Runtime 不生成 `allowed_skills`、预测式 `allowed_paths` 或执行角色 workstream。
 
-每个待办只有一个非 ephemeral Codex thread。Desktop 以项目身份与远端任务 id 为键持久化 app-server 返回的 opaque `thread.id`，并在发出首个 `turn/start` 前完成写入；同一时刻只有一个 Runtime/CLI owner 可以持有该 thread lease。进程重启后先 initialize app-server，再 `thread/resume(threadId)`，fresh-read Project/Case State 后从下一 turn 继续，不创建 replacement thread。
+每个待办只有一个非 ephemeral Codex thread。Desktop 以项目身份与远端任务 id 为键持久化 app-server 返回的 opaque `thread.id`，并在发出首个 `turn/start` 前完成写入；同一待办关联的验收反馈 Run 继续复用该 thread，但每个反馈使用新 Case。任何时刻只有一个 Runtime/CLI/feedback owner 可以持有该 thread lease。进程重启后先 initialize app-server，再 `thread/resume(threadId)`，fresh-read Project/Case State 后从下一 turn 继续，不创建 replacement thread。
 
 `thread/resume` 的瞬时失败进入可重试 recovery。只有 app-server 明确确认 thread 永久不存在时，Runtime 才记录 `thread_recovery_fallback` 并从 canonical state 创建、立刻持久化一个新的非 ephemeral thread；若 canonical facts 不足以安全续接则要求人工介入，不能静默丢弃上下文。
 

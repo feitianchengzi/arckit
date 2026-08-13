@@ -41,6 +41,9 @@
                                     <div class="nav-row">
                                         <span class="nav-glyph">!</span><span>需要处理</span><span class="count">0</span>
                                     </div>
+                                    <div class="nav-row">
+                                        <span class="nav-glyph">F</span><span>验收反馈</span><span class="count">3</span>
+                                    </div>
                                 </div>
                                 <div class="nav-group" data-kit="List(projects)">
                                     <div class="nav-label">项目</div>
@@ -90,6 +93,7 @@
                                         <div class="metric-card"><span>需要处理</span><strong>0</strong><small>没有人工 Gate</small></div>
                                         <div class="metric-card"><span>运行中</span><strong>0</strong><small>串行槽位可用</small></div>
                                         <div class="metric-card emphasis"><span>待处理</span><strong>4</strong><small>最高优先级 1 项</small></div>
+                                        <div class="metric-card"><span>验收反馈</span><strong>3</strong><small>2 queued · 1 blocked</small></div>
                                     </div>
                                     <div class="attention-strip quiet">
                                         <div class="run-orb">✓</div>
@@ -102,7 +106,8 @@
                                     <div class="content-grid">
                                         <div class="stack">
                                             <section class="surface"><div class="surface-header"><strong>下一项自动执行</strong><span>队列 #1</span></div><div class="surface-body"><div class="run-identity"><div class="run-orb">01</div><div><strong>升级搜索结果排序策略</strong><small>Project Atlas · 高优先级 · 工作区已绑定</small></div><span class="badge active">准备领取</span></div><div class="stage-strip"><div class="stage-item current"><i class="stage-marker">1</i><strong>确认状态</strong><small>等待写回</small></div><div class="stage-item"><i class="stage-marker">2</i><strong>执行</strong><small>待开始</small></div><div class="stage-item"><i class="stage-marker">3</i><strong>验证</strong><small>待开始</small></div><div class="stage-item"><i class="stage-marker">4</i><strong>收口</strong><small>待开始</small></div></div><div class="current-action"><strong>即将把任务更新为“进行中”</strong><small>服务器确认后才会启动 Controller Plan。</small></div></div></section>
-                                            <section class="surface"><div class="surface-header"><strong>执行队列</strong><span>优先级 → 确认时间 → 稳定 ID</span></div><div class="data-table" data-kit="Table"><div class="table-head"><span>#</span><span>任务</span><span>项目</span><span>资格</span><span>状态</span></div><div class="table-row selected"><i class="priority-mark high"></i><div><strong>升级搜索结果排序策略</strong><small>队列 #1 · P0 · 确认于 10:28</small></div><span>Atlas</span><span>可执行</span><span class="badge active">待处理</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>修复导出文件名规则</strong><small>队列 #2 · P1 · 确认于昨天</small></div><span>Atlas</span><span>可执行</span><span class="badge">待处理</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>接入新的反馈服务</strong><small>暂不进入队列 · 工作区未绑定</small></div><span>Beam</span><span>不可执行</span><span class="badge">待处理</span></div></div></section>
+                                            <section class="surface"><div class="surface-header"><strong>普通待办队列</strong><span>优先级 → 确认时间 → 稳定 ID</span></div><div class="data-table" data-kit="Table"><div class="table-head"><span>#</span><span>任务</span><span>项目</span><span>资格</span><span>状态</span></div><div class="table-row selected"><i class="priority-mark high"></i><div><strong>升级搜索结果排序策略</strong><small>队列 #1 · P0 · 确认于 10:28</small></div><span>Atlas</span><span>可执行</span><span class="badge active">待处理</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>修复导出文件名规则</strong><small>队列 #2 · P1 · 确认于昨天</small></div><span>Atlas</span><span>可执行</span><span class="badge">待处理</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>接入新的反馈服务</strong><small>暂不进入队列 · 工作区未绑定</small></div><span>Beam</span><span>不可执行</span><span class="badge">待处理</span></div></div></section>
+                                            <section class="surface"><div class="surface-header"><strong>验收反馈队列</strong><span>独立队列 · 3 项</span></div><div class="data-table" data-kit="Table"><div class="table-head"><span>#</span><span>验收问题</span><span>来源待办</span><span>进展</span><span>状态</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>完成页无法继续反馈</strong><small>AF-104 · 已创建新 Case</small></div><span>TASK-3092</span><span>等待执行租约</span><span class="badge active">queued</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>验收证据缺少失败截图</strong><small>AF-103 · CASE-20260813-004</small></div><span>TASK-3078</span><span>等待人工补充</span><span class="badge">awaiting human</span></div><div class="table-row"><i class="priority-mark"></i><div><strong>导出结果仍含旧字段</strong><small>AF-099 · 依赖外部数据</small></div><span>TASK-3011</span><span>恢复条件未满足</span><span class="badge">blocked</span></div></div></section>
                                         </div>
                                         <aside class="stack" data-kit="Inspector">
                                             <section class="surface"><div class="surface-header"><strong>项目来源</strong><span>3 个</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">A</span><div><strong>Atlas</strong><small>3 项待处理 · 工作区已绑定</small></div><span class="badge active">允许自动领取</span></div><div class="activity-row"><span class="run-orb">B</span><div><strong>Beam</strong><small>1 项待处理 · 工作区未绑定</small></div><span class="badge">不可执行</span></div><div class="activity-row"><span class="run-orb">L</span><div><strong>Lumen</strong><small>没有待处理任务</small></div><span class="badge">允许自动领取</span></div></div></section>
@@ -115,8 +120,8 @@
                         </div>
                     </div>
                 </div>
-                <div class="component-list"><h3>组件清单</h3><ul><li>桌面应用壳、项目列表与七状态导航</li><li>项目来源摘要与四项核心运行指标</li><li>attention strip</li><li>下一项阶段条与跨项目执行队列表格</li><li>自动领取边界和最近完成 Inspector</li></ul></div>
-                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>自动领取</code> → 控制是否从已授权项目主动领取新任务，不停止当前任务</div><div class="interaction-item"><code>选择项目</code> → 指标、状态数量、队列与历史切换到该项目，不改变自动领取策略</div><div class="interaction-item"><code>选择任务状态</code> → 携带当前项目范围进入 Task Browser</div><div class="interaction-item"><code>暂停领取</code> → 临时停止领取新任务，当前运行继续</div><div class="interaction-item"><code>选择队列任务</code> → 在右侧展示所属项目、资格、边界与历史证据</div><div class="interaction-item"><code>审查</code> → 进入只读 Intervention Workbench</div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>桌面应用壳、项目列表与七状态导航</li><li>项目来源摘要与待办/反馈独立指标</li><li>attention strip</li><li>下一项阶段条、普通待办队列和验收反馈队列</li><li>自动领取边界和最近完成 Inspector</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>自动领取</code> → 控制执行仲裁是否从两条 ready 队列选择新工作，不停止当前执行</div><div class="interaction-item"><code>选择项目</code> → 指标、两条队列与历史切换到该项目，不改变队列策略</div><div class="interaction-item"><code>选择任务状态</code> → 携带当前项目范围进入 Task Browser</div><div class="interaction-item"><code>暂停领取</code> → 临时停止启动新工作，当前运行继续</div><div class="interaction-item"><code>选择普通待办</code> → 展示任务来源、资格和队列位置</div><div class="interaction-item"><code>选择验收反馈</code> → 展示来源待办、独立 Case/Run 和进展，不把反馈转成待办</div><div class="interaction-item"><code>审查</code> → 进入同一待办会话</div></div>
             </div>
         </details>
 

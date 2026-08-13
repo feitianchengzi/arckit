@@ -18,6 +18,18 @@ Automation Store 为活动任务与最近完成项保存 `session_id`。Coordina
 
 Desktop session 与 Codex thread 是不同层级：session 是面向用户的待办 transcript 容器，Codex thread 是 Codex 持久化的连续模型对话。一个待办从首轮、普通 Gap、Completion Review、finding 修复到 Git-only 收尾只有一个 thread；Desktop session 和 Codex thread 都可以跨 Runtime 进程延续，但只有 thread 承担 Agent 上下文连续性。
 
+### Acceptance Feedback Record 与独立队列
+
+Desktop Store 持久化 `acceptance_feedback_items`，它与远端任务 snapshot、普通 pending queue 和 `active_task` 分离。每条记录至少包含稳定 `feedback_id`、原始反馈、创建/更新时间、状态、来源 project/task/completion/run/case、local project、task session、Codex thread、ready 时间、当前 run、新 Case、最近进展、证据摘要、阻塞原因和幂等提交键。状态只允许 `queued`、`running`、`awaiting_human`、`blocked`、`resolved` 和 `cancelled`。
+
+创建流程先以幂等键原子写入反馈记录，再向来源 task session 追加带 `feedback_id` 的 user message。任一步重试都按同一键返回现有记录，不重复消息或 Run。来源任务必须是 completed 或 accepted，并且项目、工作区、session 与 thread 引用完整；创建反馈不调用任务源状态更新。
+
+反馈执行复用来源待办的 task session 和持久 Codex thread，但启动新的 Run。该 Run 的 Runtime context 携带 `kind=acceptance_feedback`、`feedback_id`、source task/run/case/completion refs；fresh `$using-arckit` turn 从反馈原文创建新的 Case，并把新 Case id 回写反馈记录。旧 closed Case 只作为证据引用，不重开、不变更。反馈 Case resolved、Git closeout 完成后，反馈记录进入 resolved；它不触发来源待办的完成写回。
+
+普通待办队列与验收反馈队列各自派生 ready 队首。Coordinator 的 execution arbiter 只在没有活动执行时比较两个队首的 `ready_at`，再以 lane 和稳定 id 打破平局；选中反馈时获取 local project/workspace 与 task thread lease，并把记录原子推进为 running。租约冲突只保留 queued/blocked 进展。当前执行不被抢占，两条队列也不互相改写排序字段。
+
+Automation Snapshot 分别投影 `todo_queue`、`acceptance_feedback_queue`、各自计数和一个统一 `active_execution`。completed/accepted 任务投影 `acceptance_feedback_items` 摘要，Renderer 只消费这些结构化字段，不从 transcript 或 Case 文本反推反馈状态。应用重启从 Store 恢复未终结反馈记录，对 running 记录核对 Run、thread lease 和 Case 后恢复、阻塞或重排队，不能丢弃用户原文。
+
 ### 统一消息投影
 
 Run Projector 把 Runtime、Agent、工具与 operator event 归一为 `desktop-run-message/v1`。消息至少包含稳定 `id`、`role`、`actor`、`actor_label`、`kind`、`content`、`status`、时间、`run_id`，并可携带 `round_index`、`task_id`、`thread_id`、`turn_id` 与 `item_id` 作为诊断归因。schema-bound Agent 输出额外携带 `structured_data`，其中保存原始 schema version、解析后的原值和原始文本。Renderer 只按时间读取消息，不按 Run 建立平行 transcript，并把消息进一步投影为 `loop-status`、`reasoning-disclosure`、`agent-message`、`structured-result`、`tool-activity` 或 `user-message` 六类可见行。
@@ -88,7 +100,7 @@ Preload 继续只暴露任务范围内的查询与动作。Automation Snapshot �
 
 Intervention Workbench 展示当前任务 ID、task session 和 Run 边界，并把 session message 与各 Run 的 projected messages 按时间合并。Workbench 根容器使用受限视口高度和 `min-height: 0` 的三栏 grid；左右栏各自可滚动，中间栏由固定 header、`overflow-y: auto` 的 transcript 和固定 composer 组成，页面根不随 transcript 增长。
 
-Renderer 在刷新前记录 transcript 是否位于底部阈值内。位于阈值内时渲染后滚动到最新；用户主动上滚时保留相对阅读位置并显示回到最新入口。Token Inspector 展示分项汇总、lane 明细、上下文占用和软异常；只读审查不创建消息，人工提交仅写入当前 task session 和当前 Run message projection，并进入当前活动任务的 steer 或 fresh continuation。
+Renderer 在刷新前记录 transcript 是否位于底部阈值内。位于阈值内时渲染后滚动到最新；用户主动上滚时保留相对阅读位置并显示回到最新入口。Token Inspector 展示分项汇总、lane 明细、上下文占用和软异常。普通只读审查不创建消息；活动执行中的人工提交仅写入当前 task session 和当前 Run message projection，并进入当前活动执行的 steer 或 fresh continuation。completed/accepted 结果审查提交验收问题时走幂等反馈创建流程，追加带 `feedback_id` 的来源 task session 用户消息，并等待独立反馈队列启动新 Run。
 
 ## 交互式 Codex CLI 执行权接力
 

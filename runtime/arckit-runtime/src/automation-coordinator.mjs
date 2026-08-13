@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { randomUUID } from "node:crypto";
 import { createWorkshopTaskSource, TASK_STATES, TaskSourceError } from "./task-source-adapter.mjs";
 import { selectEffectiveLoopHandoff } from "./kernel/effective-handoff.mjs";
 import { buildCodexCliHandoffPrompt, createInteractiveCodexCliLauncher } from "./interactive-cli-launcher.mjs";
@@ -68,6 +69,9 @@ export function createAutomationCoordinator({
       .sort(compareQueueTasks)
       .map((task, index) => ({ ...task, queue_position: index + 1 }));
     const blockedPendingTasks = pendingCandidates.filter((task) => !task.eligible);
+    const acceptanceFeedbackQueue = buildAcceptanceFeedbackQueue(automation.acceptance_feedback_items, {
+      selectedProjectId: String(filter.project_id || "all")
+    });
     const activeRun = automation.active_task?.run_id
       ? runs.find((run) => run.id === automation.active_task.run_id) || null
       : null;
@@ -89,7 +93,8 @@ export function createAutomationCoordinator({
         project: projectIndex.get(String(task.project_id)),
         localProject: localIndex.get(automation.project_bindings[String(task.project_id)] || ""),
         queue,
-        pendingCandidates
+        pendingCandidates,
+        acceptanceFeedbackItems: automation.acceptance_feedback_items
       }));
     return {
       generated_at: now(),
@@ -108,7 +113,11 @@ export function createAutomationCoordinator({
         : taskCounts.byProject[selectedProjectId] || emptyStateCounts(),
       tasks,
       queue,
+      todo_queue: queue,
       blocked_pending_tasks: blockedPendingTasks,
+      acceptance_feedback_queue: acceptanceFeedbackQueue,
+      acceptance_feedback_counts: countAcceptanceFeedback(automation.acceptance_feedback_items, selectedProjectId),
+      active_execution: activeTask,
       active_task: activeTask,
       active_run: activeRun,
       attention_items: automation.attention_items,
@@ -129,7 +138,7 @@ export function createAutomationCoordinator({
         projectId: activeTask?.local_project_id || "",
         excludeRunId: activeRun?.id || ""
       }),
-      health: deriveHealth(automation, queue, blockedPendingTasks)
+      health: deriveHealth(automation, queue, blockedPendingTasks, acceptanceFeedbackQueue)
     };
   }
 
@@ -296,6 +305,15 @@ export function createAutomationCoordinator({
         source_status: "logged_out",
         errors: []
       };
+      if (automation.active_task?.execution_kind === "acceptance_feedback") {
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
+        if (item) {
+          item.status = "queued";
+          item.progress = "Workshop 退出后保留，等待重新登录";
+          item.ready_at ||= now();
+          item.updated_at = now();
+        }
+      }
       automation.active_task = null;
       automation.attention_items = [];
       automation.recovery_items = [];
@@ -398,7 +416,8 @@ export function createAutomationCoordinator({
         taskId: active.task_id,
         task: buildInterventionTask(text),
         runtimeContext: {
-          kind: "human_intervention",
+          kind: active.execution_kind === "acceptance_feedback" ? "acceptance_feedback_intervention" : "human_intervention",
+          feedback_id: active.feedback_id || "",
           source_run_id: run?.id || active.run_id || "",
           source_result_ref: run?.result_file || "",
           source_activity_ref: run?.activity_file || "",
@@ -416,10 +435,113 @@ export function createAutomationCoordinator({
         automation.active_task.phase = "running";
         automation.active_task.run_id = nextRun.id;
         automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
+        if (automation.active_task.execution_kind === "acceptance_feedback") {
+          const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
+          if (item) {
+            item.status = "running";
+            item.progress = "已收到人工反馈，Agent 继续处理";
+            item.current_run_id = nextRun.id;
+            item.updated_at = now();
+          }
+        }
       });
     }
     emit("automation.changed", { reason: "intervention-submitted", taskId: active.task_id });
     return getSnapshot();
+  }
+
+  async function submitAcceptanceFeedback({ taskId, message, idempotencyKey = "" }) {
+    const text = String(message || "").trim();
+    const key = String(idempotencyKey || "").trim();
+    if (!text) throw new Error("Acceptance feedback is required.");
+    if (!key) throw new Error("Acceptance feedback idempotency key is required.");
+    const store = await runManager.readDesktopStore();
+    const existing = store.automation.acceptance_feedback_items.find((item) => item.idempotency_key === key);
+    if (existing && (String(existing.source_task_id) !== String(taskId) || existing.original_feedback !== text)) {
+      throw new Error("Acceptance feedback idempotency key conflicts with another submission.");
+    }
+    const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(taskId));
+    if (!task || !["completed", "accepted"].includes(task.state)) {
+      throw new Error("Acceptance feedback requires a completed or accepted source task.");
+    }
+    const completion = [...store.automation.recent_completions]
+      .find((item) => String(item.task_id) === String(task.id));
+    if (!completion?.local_project_id || !completion.session_id || !completion.thread_id) {
+      throw new Error("The source task has no recoverable local project, task session, or persistent Agent thread.");
+    }
+    let sourceCaseId = CASE_ID_PATTERN.test(String(completion.case_id || "")) ? completion.case_id : "";
+    if (!sourceCaseId && completion.run_id) {
+      const runs = await runManager.listRuns({ projectId: completion.local_project_id });
+      const sourceRun = runs.find((run) => run.id === completion.run_id);
+      const binding = extractAuthoritativeCaseBindingFromRun(sourceRun);
+      if (binding.status === "bound") sourceCaseId = binding.case_id;
+    }
+    if (!sourceCaseId) {
+      throw new Error("The source task completion has no authoritative Case binding.");
+    }
+    const timestamp = now();
+    let feedbackId = existing?.feedback_id || `AF-${randomUUID()}`;
+    if (!existing) {
+      await patchAutomation((automation) => {
+        if (automation.acceptance_feedback_items.some((item) => item.idempotency_key === key)) return;
+        automation.acceptance_feedback_items.unshift({
+          feedback_id: feedbackId,
+          idempotency_key: key,
+          message_id: "",
+          original_feedback: text,
+          status: "queued",
+          progress: automation.active_task ? "等待执行租约" : "等待执行",
+          source_project_id: String(task.project_id),
+          source_task_id: String(task.id),
+          source_task_title: task.title || "",
+          source_task_state: task.state,
+          source_completion_at: completion.completed_at || "",
+          source_run_id: completion.run_id || "",
+          source_case_id: sourceCaseId,
+          local_project_id: completion.local_project_id,
+          session_id: completion.session_id,
+          thread_id: completion.thread_id,
+          ready_at: timestamp,
+          current_run_id: "",
+          current_case_id: "",
+          evidence: [],
+          result: "",
+          blocking_reason: "",
+          created_at: timestamp,
+          updated_at: timestamp,
+          resolved_at: ""
+        });
+      });
+    }
+    let current = (await runManager.readDesktopStore()).automation.acceptance_feedback_items.find((item) => item.idempotency_key === key);
+    if (!current || String(current.source_task_id) !== String(task.id) || current.original_feedback !== text) {
+      throw new Error("Acceptance feedback idempotency key conflicts with another submission.");
+    }
+    feedbackId = current.feedback_id;
+    if (!current.message_id) {
+      const messages = typeof runManager.listMessages === "function"
+        ? await runManager.listMessages(current.local_project_id, current.session_id)
+        : [];
+      const entry = messages.find((message) => message.feedback_id === feedbackId) || await runManager.addMessage(current.local_project_id, {
+          session_id: current.session_id,
+          role: "user",
+          kind: "acceptance_feedback",
+          content: text,
+          task_id: current.source_task_id,
+          feedback_id: feedbackId
+        });
+      await patchAutomation((automation) => {
+        const item = automation.acceptance_feedback_items.find((candidate) => candidate.feedback_id === feedbackId);
+        if (!item) return;
+        item.message_id = entry.id;
+        item.updated_at = now();
+      });
+      current = { ...current, message_id: entry.id };
+    }
+    emit("automation.changed", { reason: "acceptance-feedback-submitted", taskId: task.id, feedbackId });
+    await maybeStartNext();
+    return (await getSnapshot()).acceptance_feedback_queue.find((item) => item.feedback_id === feedbackId)
+      || (await runManager.readDesktopStore()).automation.acceptance_feedback_items.find((item) => item.feedback_id === feedbackId);
   }
 
   async function stopCurrent() {
@@ -584,6 +706,15 @@ export function createAutomationCoordinator({
         if (automation.active_task) {
           automation.active_task.phase = "starting";
           automation.active_task.closeout_status = "pending";
+          if (automation.active_task.execution_kind === "acceptance_feedback") {
+            const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
+            if (item) {
+              item.status = "running";
+              item.progress = "正在重试反馈执行";
+              item.blocking_reason = "";
+              item.updated_at = now();
+            }
+          }
         }
       });
       await startRuntimeForActiveTask();
@@ -677,6 +808,24 @@ export function createAutomationCoordinator({
     }
     if (action === "mark_blocked") {
       const taskId = recovery.task_id || store.automation.active_task?.task_id;
+      if (store.automation.active_task?.execution_kind === "acceptance_feedback") {
+        const feedbackId = store.automation.active_task.feedback_id;
+        await patchAutomation((automation) => {
+          const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === feedbackId);
+          if (item) {
+            item.status = "blocked";
+            item.progress = recovery.message || "反馈执行已阻塞";
+            item.blocking_reason = item.progress;
+            item.updated_at = now();
+          }
+          automation.active_task = null;
+          automation.attention_items = automation.attention_items.filter((entry) => entry.feedback_id !== feedbackId);
+          automation.recovery_items = automation.recovery_items.filter((entry) => entry.id !== recoveryId && entry.feedback_id !== feedbackId);
+        });
+        emit("automation.changed", { reason: "acceptance-feedback-blocked", feedbackId, taskId });
+        await maybeStartNext();
+        return getSnapshot();
+      }
       await updateTaskState({ taskId, state: "blocked" });
       await patchAutomation((automation) => {
         automation.active_task = null;
@@ -706,10 +855,15 @@ export function createAutomationCoordinator({
       const localIndex = new Map(store.projects.map((project) => [String(project.id), project]));
       const projectIndex = new Map(automation.snapshot.projects.map((project) => [String(project.id), project]));
       const queue = buildQueue(automation.snapshot.tasks, automation, projectIndex, localIndex);
-      const candidate = queue[0];
-      if (!candidate) {
+      const feedbackQueue = buildAcceptanceFeedbackQueue(automation.acceptance_feedback_items);
+      const selection = selectNextExecution(queue, feedbackQueue);
+      if (!selection) {
         return null;
       }
+      if (selection.kind === "acceptance_feedback") {
+        return startAcceptanceFeedbackExecution(selection.item);
+      }
+      const candidate = selection.item;
       const lifecycleContext = await startTodoLifecycleTrace(candidate);
       const readinessSpan = startTodoLifecycleSpan(lifecycleContext, {
         name: "runtime.readiness_preflight",
@@ -851,6 +1005,76 @@ export function createAutomationCoordinator({
     }
   }
 
+  async function startAcceptanceFeedbackExecution(candidate) {
+    const store = await runManager.readDesktopStore();
+    const current = store.automation.acceptance_feedback_items.find((item) => item.feedback_id === candidate.feedback_id);
+    if (!current || current.status !== "queued") return null;
+    const sourceTask = store.automation.snapshot.tasks.find((task) => String(task.id) === String(current.source_task_id));
+    const project = store.projects.find((item) => String(item.id) === String(current.local_project_id));
+    if (!sourceTask || !["completed", "accepted"].includes(sourceTask.state) || !project
+      || !current.session_id || !current.thread_id || !current.message_id) {
+      await patchAutomation((automation) => {
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === current.feedback_id);
+        if (!item) return;
+        item.status = "blocked";
+        item.progress = "缺少可恢复的来源待办、会话、thread 或用户消息";
+        item.blocking_reason = item.progress;
+        item.updated_at = now();
+      });
+      emit("automation.changed", { reason: "acceptance-feedback-blocked", feedbackId: current.feedback_id });
+      return null;
+    }
+    let leaseEstablished = false;
+    try {
+      await runManager.preflightRun?.({
+        projectId: current.local_project_id,
+        task: current.original_feedback,
+        adapter: "codex-app-server"
+      });
+      await patchAutomation((automation) => {
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === current.feedback_id);
+        if (!item || item.status !== "queued" || automation.active_task) return;
+        item.status = "running";
+        item.progress = "正在启动新 Run";
+        item.updated_at = now();
+        automation.active_task = feedbackActiveExecution(item, project);
+      });
+      const refreshed = await runManager.readDesktopStore();
+      if (refreshed.automation.active_task?.feedback_id !== current.feedback_id) return null;
+      leaseEstablished = true;
+      emit("automation.changed", { reason: "acceptance-feedback-starting", feedbackId: current.feedback_id });
+      return startRuntimeForActiveTask();
+    } catch (error) {
+      if (leaseEstablished) return null;
+      await patchAutomation((automation) => {
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === current.feedback_id);
+        if (!item) return;
+        item.status = "blocked";
+        item.progress = error.message;
+        item.blocking_reason = error.message;
+        item.updated_at = now();
+        if (!automation.active_task) {
+          automation.active_task = feedbackActiveExecution(item, project, { phase: "recovery" });
+        }
+        automation.recovery_items = upsertById(automation.recovery_items, {
+          id: `RECOVERY-feedback-start-failed-${item.feedback_id}`,
+          type: "feedback_start_failed",
+          task_id: item.source_task_id,
+          project_id: item.source_project_id,
+          run_id: item.current_run_id || "",
+          feedback_id: item.feedback_id,
+          message: error.message,
+          freeze_scope: "global",
+          responsibility: "operator",
+          actions: ["retry_start", "mark_blocked"],
+          created_at: now()
+        });
+      });
+      emit("automation.changed", { reason: "acceptance-feedback-start-failed", feedbackId: current.feedback_id });
+      return null;
+    }
+  }
+
   async function startRuntimeForActiveTask() {
     const store = await runManager.readDesktopStore();
     const active = store.automation.active_task;
@@ -877,7 +1101,7 @@ export function createAutomationCoordinator({
     });
     try {
       const session = await ensureTaskSession(active, task);
-      if (!active.started_at) {
+      if (!active.started_at && active.execution_kind !== "acceptance_feedback") {
         await runManager.addMessage(project.id, {
           session_id: session.id,
           role: "user",
@@ -895,9 +1119,17 @@ export function createAutomationCoordinator({
         projectId: project.id,
         sessionId: session.id,
         taskId: active.task_id,
-        task: buildAutomationTask(task),
+        task: active.execution_kind === "acceptance_feedback"
+          ? buildAcceptanceFeedbackTask(store.automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id))
+          : buildAutomationTask(task),
         threadId: active.thread_id || "",
-        runtimeContext: closeoutOnly ? { closeout_only: true, case_id: caseBinding.case_id } : null,
+        runtimeContext: closeoutOnly
+          ? active.execution_kind === "acceptance_feedback"
+            ? { closeout_only: true, case_id: caseBinding.case_id, kind: "acceptance_feedback", feedback_id: active.feedback_id }
+            : { closeout_only: true, case_id: caseBinding.case_id }
+          : active.execution_kind === "acceptance_feedback"
+            ? acceptanceFeedbackRuntimeContext(store.automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id))
+            : null,
         adapter: "codex-app-server",
         approvalPolicy: "on-request",
         continuationPolicy: "automatic",
@@ -910,6 +1142,15 @@ export function createAutomationCoordinator({
         automation.active_task.thread_id = run.thread_id || automation.active_task.thread_id || "";
         automation.active_task.phase = closeoutOnly ? "closeout_running" : "running";
         automation.active_task.started_at = now();
+        if (automation.active_task.execution_kind === "acceptance_feedback") {
+          const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
+          if (item) {
+            item.current_run_id = run.id;
+            item.status = "running";
+            item.progress = closeoutOnly ? "正在完成同线程 Git 收尾" : "Agent 正在处理验收问题";
+            item.updated_at = now();
+          }
+        }
       });
       endTodoLifecycleSpan(lifecycleContext, startSpan, { status: "ok", attributes: { run_id: run.id } });
       emit("automation.changed", { reason: "runtime-started", taskId: active.task_id, runId: run.id });
@@ -949,6 +1190,15 @@ export function createAutomationCoordinator({
       result: event.result
     });
     if (caseBinding.status === "conflict") return;
+    if (active.execution_kind === "acceptance_feedback" && caseBinding.status === "bound") {
+      await patchAutomation((automation) => {
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === active.feedback_id);
+        if (!item) return;
+        item.current_case_id = caseBinding.case_id;
+        item.current_run_id = event.runId;
+        item.updated_at = now();
+      });
+    }
     if (active.cli_handoff_source_run_id === event.runId
       && ["switching_to_cli", "cli_handoff", "recovery"].includes(active.phase)) return;
     if (["closeout_starting", "closeout_running"].includes(active.phase)) {
@@ -994,6 +1244,10 @@ export function createAutomationCoordinator({
         return;
       }
       if (event.result?.closeout_result?.status === "completed") {
+        if (active.execution_kind === "acceptance_feedback") {
+          await finishAcceptanceFeedback(active, event, event.result.closeout_result);
+          return;
+        }
         await markCloseoutCompleted(active, event.runId, event.result.closeout_result);
         const refreshed = await runManager.readDesktopStore();
         if (isRemoteSourceReady(refreshed.automation.snapshot.source_status)) await completeRemoteTask();
@@ -1094,6 +1348,10 @@ export function createAutomationCoordinator({
     }
     const result = event.result?.closeout_result || null;
     if (event.status === "completed" && result?.status === "completed") {
+      if (active.execution_kind === "acceptance_feedback") {
+        await finishAcceptanceFeedback(active, event, result);
+        return;
+      }
       await markCloseoutCompleted(active, event.runId, result);
       const refreshed = await runManager.readDesktopStore();
       if (isRemoteSourceReady(refreshed.automation.snapshot.source_status)) await completeRemoteTask();
@@ -1109,6 +1367,26 @@ export function createAutomationCoordinator({
       message: result?.error || `Same-thread closeout finished with status ${event.status}.`,
       actions: ["retry_closeout", "mark_blocked"]
     });
+  }
+
+  async function finishAcceptanceFeedback(active, event, result) {
+    await patchAutomation((automation) => {
+      const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === active.feedback_id);
+      if (!item) return;
+      item.status = "resolved";
+      item.progress = "验收问题已解决";
+      item.current_run_id = event.runId;
+      item.current_case_id = active.case_id || item.current_case_id;
+      item.result = result?.outcome || "completed";
+      item.evidence = [...new Set([...item.evidence, result?.commit_hash || "", item.current_case_id || ""].filter(Boolean))];
+      item.resolved_at = now();
+      item.updated_at = item.resolved_at;
+      automation.active_task = null;
+      automation.attention_items = automation.attention_items.filter((entry) => entry.feedback_id !== active.feedback_id && entry.task_id !== active.task_id);
+      automation.recovery_items = automation.recovery_items.filter((entry) => entry.feedback_id !== active.feedback_id);
+    });
+    emit("automation.changed", { reason: "acceptance-feedback-resolved", feedbackId: active.feedback_id, taskId: active.task_id });
+    await maybeStartNext();
   }
 
   async function completeRemoteTask({ syncAfter = true } = {}) {
@@ -1206,6 +1484,7 @@ export function createAutomationCoordinator({
           project_id: completed.project_id,
           title: completed.title,
           run_id: active.run_id,
+          case_id: active.case_id || "",
           thread_id: active.thread_id || "",
           local_project_id: active.local_project_id,
           session_id: active.session_id || "",
@@ -1214,7 +1493,6 @@ export function createAutomationCoordinator({
           lifecycle_events_file: active.lifecycle_events_file || "",
           lifecycle_summary_file: active.lifecycle_summary_file || ""
         });
-        automation.recent_completions = automation.recent_completions.slice(0, 30);
         automation.active_task = null;
         automation.attention_items = automation.attention_items.filter((item) => item.task_id !== active.task_id);
         automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
@@ -1280,6 +1558,10 @@ export function createAutomationCoordinator({
       const closeout = result?.closeout_result;
       if (closeout?.status !== "completed") return null;
       await markCloseoutCompleted(active, latest.id, closeout);
+      if (active.execution_kind === "acceptance_feedback") {
+        await finishAcceptanceFeedback(active, { runId: latest.id }, closeout);
+        return "resolved";
+      }
       if (allowRemoteCompletion) return completeRemoteTask({ syncAfter: false });
       return "remote_completion_pending";
     }
@@ -1398,6 +1680,10 @@ export function createAutomationCoordinator({
         automation.recovery_items = automation.recovery_items.filter((item) => item.task_id !== active.task_id);
       });
       if (closeoutCompleted) {
+        if (active.execution_kind === "acceptance_feedback") {
+          await finishAcceptanceFeedback(active, { runId: active.run_id }, { outcome: active.closeout_outcome || "completed", commit_hash: active.closeout_commit_hash || "" });
+          return "resolved";
+        }
         if (allowRemoteCompletion) await completeRemoteTask({ syncAfter: false });
         return allowRemoteCompletion ? "resolved" : "remote_completion_pending";
       }
@@ -1513,10 +1799,20 @@ export function createAutomationCoordinator({
         task_id: automation.active_task.task_id,
         project_id: automation.active_task.project_id,
         run_id: runId,
+        feedback_id: active.feedback_id || "",
         reason: handoff.responsibility_reason || "Runtime requires a human decision.",
         question: handoff.human_gate?.decision_needed || handoff.next_prompt || "Review the Runtime request and provide direction.",
         created_at: now()
       });
+      if (active.execution_kind === "acceptance_feedback") {
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === active.feedback_id);
+        if (item) {
+          item.status = "awaiting_human";
+          item.progress = handoff.responsibility_reason || "等待人工判断";
+          item.current_run_id = runId;
+          item.updated_at = now();
+        }
+      }
     });
     emit("automation.changed", { reason: "awaiting-human", taskId: active.task_id });
   }
@@ -1531,6 +1827,14 @@ export function createAutomationCoordinator({
       automation.active_task.closeout_commit_hash = result?.commit_hash || "";
       automation.active_task.remote_completion_status = "pending";
       automation.active_task.phase = "remote_completion_pending";
+      if (automation.active_task.execution_kind === "acceptance_feedback") {
+        automation.active_task.phase = "feedback_closeout_completed";
+        const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === active.feedback_id);
+        if (item) {
+          item.progress = "Git 收尾已完成";
+          item.updated_at = now();
+        }
+      }
       automation.recovery_items = automation.recovery_items.filter((item) => (
         item.task_id !== active.task_id
         || !["closeout_failed", "closeout_start_failed", "runtime_process_missing"].includes(item.type)
@@ -1544,12 +1848,22 @@ export function createAutomationCoordinator({
       const active = automation.active_task;
       const availableActions = recoveryActionsForItem({ task_id: taskId, actions }, active);
       if (automation.active_task) automation.active_task.phase = "recovery";
+      if (active?.execution_kind === "acceptance_feedback") {
+        const feedback = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === active.feedback_id);
+        if (feedback) {
+          feedback.status = "blocked";
+          feedback.progress = message;
+          feedback.blocking_reason = message;
+          feedback.updated_at = now();
+        }
+      }
       automation.recovery_items = upsertById(automation.recovery_items, {
         id: `RECOVERY-${type}-${taskId}`,
         type,
         task_id: taskId,
         project_id: task?.project_id || "",
         run_id: task?.run_id || "",
+        feedback_id: active?.feedback_id || "",
         message,
         freeze_scope: freezeScope,
         responsibility: "operator",
@@ -1597,7 +1911,12 @@ export function createAutomationCoordinator({
     if (!automation.enabled || !active || automation.attention_items.length > 0) return "not_applicable";
     if (active.run_id && runManager.isRunActive?.(active.run_id)) return "runtime_active";
     const task = automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id));
-    if (!task || task.state !== "in_progress") return "task_not_in_progress";
+    if (active.execution_kind === "acceptance_feedback") {
+      const feedback = automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id);
+      if (!feedback || !["running", "blocked"].includes(feedback.status) || !task || !["completed", "accepted"].includes(task.state)) {
+        return "feedback_not_recoverable";
+      }
+    } else if (!task || task.state !== "in_progress") return "task_not_in_progress";
     const recovery = automation.recovery_items.find((item) => (
       String(item.task_id) === String(active.task_id)
       && ["runtime_incomplete", "runtime_process_missing"].includes(item.type)
@@ -1609,6 +1928,15 @@ export function createAutomationCoordinator({
       if (next.active_task?.task_id !== active.task_id) return;
       next.active_task.phase = "starting";
       next.active_task.closeout_status = "pending";
+      if (next.active_task.execution_kind === "acceptance_feedback") {
+        const feedback = next.acceptance_feedback_items.find((item) => item.feedback_id === next.active_task.feedback_id);
+        if (feedback) {
+          feedback.status = "running";
+          feedback.progress = "应用重启后正在恢复同一反馈执行";
+          feedback.blocking_reason = "";
+          feedback.updated_at = now();
+        }
+      }
     });
     const run = await startRuntimeForActiveTask();
     if (!run) return "start_failed";
@@ -1728,6 +2056,7 @@ export function createAutomationCoordinator({
     setProjectParticipation,
     updateTaskState,
     submitIntervention,
+    submitAcceptanceFeedback,
     stopCurrent,
     handoffToCodexCli,
     reopenCodexCli,
@@ -1780,6 +2109,44 @@ export function compareQueueTasks(left, right) {
     || String(left.id).localeCompare(String(right.id));
 }
 
+export function buildAcceptanceFeedbackQueue(items = [], { selectedProjectId = "all" } = {}) {
+  return items
+    .filter((item) => ["queued", "running", "awaiting_human", "blocked"].includes(item.status))
+    .filter((item) => selectedProjectId === "all" || String(item.source_project_id) === String(selectedProjectId))
+    .sort(compareAcceptanceFeedback)
+    .map((item, index) => ({ ...item, queue_position: index + 1 }));
+}
+
+export function compareAcceptanceFeedback(left, right) {
+  return timestamp(left.ready_at || left.created_at) - timestamp(right.ready_at || right.created_at)
+    || String(left.feedback_id).localeCompare(String(right.feedback_id));
+}
+
+export function selectNextExecution(todoQueue = [], feedbackQueue = []) {
+  const todo = todoQueue[0] || null;
+  const feedback = feedbackQueue.find((item) => item.status === "queued") || null;
+  if (!todo && !feedback) return null;
+  if (!todo) return { kind: "acceptance_feedback", item: feedback };
+  if (!feedback) return { kind: "todo", item: todo };
+  const todoReady = timestamp(todo.state_changed_at || todo.updated_at || todo.created_at);
+  const feedbackReady = timestamp(feedback.ready_at || feedback.created_at);
+  if (feedbackReady < todoReady) return { kind: "acceptance_feedback", item: feedback };
+  if (todoReady < feedbackReady) return { kind: "todo", item: todo };
+  return String(feedback.feedback_id).localeCompare(String(todo.id)) < 0
+    ? { kind: "acceptance_feedback", item: feedback }
+    : { kind: "todo", item: todo };
+}
+
+function countAcceptanceFeedback(items = [], projectId = "all") {
+  const counts = Object.fromEntries(["queued", "running", "awaiting_human", "blocked", "resolved", "cancelled"].map((status) => [status, 0]));
+  for (const item of items) {
+    if (projectId !== "all" && String(item.source_project_id) !== String(projectId)) continue;
+    if (item.status in counts) counts[item.status] += 1;
+  }
+  counts.open = counts.queued + counts.running + counts.awaiting_human + counts.blocked;
+  return counts;
+}
+
 function countTasks(tasks) {
   const all = emptyStateCounts();
   const byProject = {};
@@ -1824,7 +2191,7 @@ function retainAssignedSnapshotTasks(tasks, projectId, executorId) {
     .filter((task) => scalarId(task.executor_id ?? task.raw?.executor_id) === executorId);
 }
 
-function enrichTask(task, { automation, project, localProject, queue, pendingCandidates }) {
+function enrichTask(task, { automation, project, localProject, queue, pendingCandidates, acceptanceFeedbackItems = [] }) {
   const queueItem = queue.find((item) => item.id === task.id);
   const pendingCandidate = pendingCandidates.find((item) => item.id === task.id);
   return {
@@ -1837,11 +2204,14 @@ function enrichTask(task, { automation, project, localProject, queue, pendingCan
     eligible: Boolean(queueItem),
     eligibility_code: pendingCandidate?.eligibility_code || "not_pending",
     eligibility_reason: pendingCandidate?.eligibility_reason || "任务当前不是待处理状态",
-    queue_position: queueItem?.queue_position || null
+    queue_position: queueItem?.queue_position || null,
+    acceptance_feedback_items: acceptanceFeedbackItems
+      .filter((item) => String(item.source_task_id) === String(task.id))
+      .sort((left, right) => timestamp(right.created_at) - timestamp(left.created_at))
   };
 }
 
-function deriveHealth(automation, queue, blockedPendingTasks = []) {
+function deriveHealth(automation, queue, blockedPendingTasks = [], acceptanceFeedbackQueue = []) {
   if (automation.recovery_items.length > 0) return { state: "recovery", label: "需要恢复", tone: "danger" };
   if (automation.attention_items.length > 0) return { state: "attention", label: "等待人工", tone: "warning" };
   if (automation.snapshot.source_status === "logged_out") return { state: "logged_out", label: "Workshop 未登录", tone: "neutral" };
@@ -1851,7 +2221,7 @@ function deriveHealth(automation, queue, blockedPendingTasks = []) {
   if (automation.queue_paused) return { state: "paused", label: "领取已暂停", tone: "neutral" };
   if (automation.active_task) return { state: "running", label: "自动执行中", tone: "accent" };
   if (blockedPendingTasks.length > 0) return { state: "configuration_required", label: "待处理任务尚不可领取", tone: "warning" };
-  if (queue.length === 0) return { state: "idle", label: "队列已清空", tone: "success" };
+  if (queue.length === 0 && acceptanceFeedbackQueue.length === 0) return { state: "idle", label: "队列已清空", tone: "success" };
   return { state: "ready", label: "准备领取", tone: "success" };
 }
 
@@ -1879,6 +2249,24 @@ function reconcileActiveTask(automation) {
       actions: ["retry_sync"],
       created_at: new Date().toISOString()
     });
+    return;
+  }
+  if (active.execution_kind === "acceptance_feedback") {
+    if (!["completed", "accepted"].includes(task.state)) {
+      automation.recovery_items = upsertById(automation.recovery_items, {
+        id: `RECOVERY-feedback-source-change-${active.feedback_id}`,
+        type: "external_state_change",
+        task_id: active.task_id,
+        project_id: active.project_id,
+        run_id: active.run_id,
+        feedback_id: active.feedback_id,
+        message: `The acceptance-feedback source task changed to ${task.state}.`,
+        freeze_scope: "global",
+        responsibility: "operator",
+        actions: ["retry_sync", "accept_server_state"],
+        created_at: new Date().toISOString()
+      });
+    }
     return;
   }
   if (task.state !== "in_progress") {
@@ -2060,6 +2448,49 @@ export function buildAutomationTask(task) {
 
 export function buildInterventionTask(message) {
   return String(message || "").trim();
+}
+
+export function buildAcceptanceFeedbackTask(item = {}) {
+  return String(item.original_feedback || "").trim();
+}
+
+function acceptanceFeedbackRuntimeContext(item = {}) {
+  return {
+    kind: "acceptance_feedback",
+    feedback_id: item.feedback_id || "",
+    source_task_id: item.source_task_id || "",
+    source_run_id: item.source_run_id || "",
+    source_case_id: item.source_case_id || "",
+    source_completion_at: item.source_completion_at || ""
+  };
+}
+
+function feedbackActiveExecution(item, project, { phase = "starting" } = {}) {
+  return {
+    execution_kind: "acceptance_feedback",
+    feedback_id: item.feedback_id,
+    task_id: item.source_task_id,
+    project_id: item.source_project_id,
+    task_title: item.source_task_title,
+    local_project_id: item.local_project_id,
+    local_project_path: project?.path || "",
+    phase,
+    case_id: "",
+    case_status: "unbound",
+    case_resolved_at: "",
+    case_binding_source: "",
+    case_binding_run_id: "",
+    case_bound_at: "",
+    thread_id: item.thread_id,
+    thread_bound_at: item.created_at,
+    closeout_status: "pending",
+    closeout_completed_at: "",
+    remote_completion_status: "pending",
+    run_id: "",
+    session_id: item.session_id,
+    claimed_at: item.created_at,
+    started_at: ""
+  };
 }
 
 export function extractCaseIdFromRun(run) {

@@ -167,6 +167,33 @@ test("desktop run manager refuses to remove a project with an active state-drive
   }
 });
 
+test("desktop run manager atomically deduplicates acceptance feedback messages", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arckit-feedback-message-"));
+  await writeStore(dataDir, dataDir);
+  const manager = createDesktopRunManager({
+    runtimeRoot: dataDir,
+    dataDir,
+    ensureProject: async () => ({ initialized: false, repaired: false })
+  });
+  try {
+    const input = {
+      session_id: "SESSION-1",
+      role: "user",
+      kind: "acceptance_feedback",
+      content: "结果仍不正确",
+      task_id: "TASK-1",
+      feedback_id: "AF-1"
+    };
+    const entries = await Promise.all([manager.addMessage("PROJECT-1", input), manager.addMessage("PROJECT-1", input)]);
+    assert.equal(entries[0].id, entries[1].id);
+    const messages = await manager.listMessages("PROJECT-1", "SESSION-1");
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0].feedback_id, "AF-1");
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("desktop run manager persists semantic messages without duplicating high-frequency deltas", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "arckit-message-stream-"));
   await writeStore(dataDir, dataDir);

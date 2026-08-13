@@ -12,7 +12,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-        version: 8,
+        version: 9,
         projects: [],
         runs: [],
         sessions: {},
@@ -55,7 +55,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
 
 export function normalizeStore(store) {
   const normalized = {
-    version: 8,
+    version: 9,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
@@ -174,6 +174,7 @@ export function defaultAutomationState() {
       errors: []
     },
     active_task: null,
+    acceptance_feedback_items: [],
     attention_items: [],
     recovery_items: [],
     recent_completions: []
@@ -183,6 +184,17 @@ export function defaultAutomationState() {
 export function normalizeAutomationState(value = {}) {
   const defaults = defaultAutomationState();
   const snapshot = value.snapshot && typeof value.snapshot === "object" ? value.snapshot : {};
+  const activeTask = normalizeActiveTask(value.active_task);
+  const feedbackItems = Array.isArray(value.acceptance_feedback_items)
+    ? value.acceptance_feedback_items.map(normalizeAcceptanceFeedbackItem).filter(Boolean)
+    : [];
+  for (const item of feedbackItems) {
+    if (item.status === "running" && (activeTask?.execution_kind !== "acceptance_feedback" || activeTask.feedback_id !== item.feedback_id)) {
+      item.status = "queued";
+      item.progress = "Runtime 重启后已重新排队";
+      item.ready_at ||= item.updated_at || item.created_at;
+    }
+  }
   return {
     enabled: Boolean(value.enabled),
     queue_paused: Boolean(value.queue_paused),
@@ -198,12 +210,13 @@ export function normalizeAutomationState(value = {}) {
         : defaults.snapshot.source_status,
       errors: Array.isArray(snapshot.errors) ? snapshot.errors.map(normalizeAutomationError).slice(0, 50) : []
     },
-    active_task: normalizeActiveTask(value.active_task),
+    active_task: activeTask,
+    acceptance_feedback_items: feedbackItems,
     attention_items: Array.isArray(value.attention_items) ? value.attention_items.slice(0, 50) : [],
     recovery_items: Array.isArray(value.recovery_items)
       ? value.recovery_items.slice(0, 50).map((item) => ({ ...item, responsibility: "operator" }))
       : [],
-    recent_completions: Array.isArray(value.recent_completions) ? value.recent_completions.slice(0, 30) : []
+    recent_completions: Array.isArray(value.recent_completions) ? value.recent_completions : []
   };
 }
 
@@ -215,6 +228,8 @@ function normalizeActiveTask(value) {
   const caseId = String(value.case_id || "");
   return {
     ...value,
+    execution_kind: value.execution_kind === "acceptance_feedback" ? "acceptance_feedback" : "todo",
+    feedback_id: String(value.feedback_id || ""),
     case_id: caseId,
     case_status: caseStatuses.has(value.case_status) ? value.case_status : caseId ? "unknown" : "unbound",
     case_resolved_at: String(value.case_resolved_at || ""),
@@ -231,6 +246,41 @@ function normalizeActiveTask(value) {
     remote_completion_status: remoteCompletionStatuses.has(value.remote_completion_status)
       ? value.remote_completion_status
       : "pending"
+  };
+}
+
+export function normalizeAcceptanceFeedbackItem(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const feedbackId = String(value.feedback_id || "").trim();
+  const taskId = String(value.source_task_id || "").trim();
+  if (!feedbackId || !taskId) return null;
+  const statuses = new Set(["queued", "running", "awaiting_human", "blocked", "resolved", "cancelled"]);
+  return {
+    feedback_id: feedbackId,
+    idempotency_key: String(value.idempotency_key || ""),
+    message_id: String(value.message_id || ""),
+    original_feedback: String(value.original_feedback || ""),
+    status: statuses.has(value.status) ? value.status : "queued",
+    progress: String(value.progress || "等待执行"),
+    source_project_id: String(value.source_project_id || ""),
+    source_task_id: taskId,
+    source_task_title: String(value.source_task_title || ""),
+    source_task_state: ["completed", "accepted"].includes(value.source_task_state) ? value.source_task_state : "completed",
+    source_completion_at: String(value.source_completion_at || ""),
+    source_run_id: String(value.source_run_id || ""),
+    source_case_id: String(value.source_case_id || ""),
+    local_project_id: String(value.local_project_id || ""),
+    session_id: String(value.session_id || ""),
+    thread_id: String(value.thread_id || ""),
+    ready_at: String(value.ready_at || value.created_at || ""),
+    current_run_id: String(value.current_run_id || ""),
+    current_case_id: String(value.current_case_id || ""),
+    evidence: Array.isArray(value.evidence) ? value.evidence.map(String).filter(Boolean).slice(0, 50) : [],
+    result: String(value.result || ""),
+    blocking_reason: String(value.blocking_reason || ""),
+    created_at: String(value.created_at || ""),
+    updated_at: String(value.updated_at || value.created_at || ""),
+    resolved_at: String(value.resolved_at || "")
   };
 }
 
