@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 38
-Updated: 2026-08-12T17:37:16.107Z
+Revision: 40
+Updated: 2026-08-13T07:22:14.910Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-优化 arckit-runtime：保留 trusted Ledger 严格 fail-closed，同时把可修正的 Runtime result 或 Case transition 校验错误作为结构化反馈交回同一持久 Agent thread 定向修正，避免盲重试后阻塞用户。
+修复 arckit-runtime 的 Git closeout prompt：向同一 Agent 正向说明本待办产生的实现、测试、文档和 canonical ledger 产物均属于提交范围，同时保留真正无关的既有工作区改动；不引入确定性 commit 内容验证。
 
 ## Active Work
 

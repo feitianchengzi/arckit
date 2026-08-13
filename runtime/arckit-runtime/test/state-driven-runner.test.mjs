@@ -73,6 +73,13 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   assert.equal(adapter.compacted, 1);
   assert.equal(adapter.prompts.length, 1);
   assert.match(adapter.prompts[0], /Git-only closeout/);
+  assert.match(adapter.prompts[0], /"authoritative_case_id": "CASE-1"/);
+  assert.match(adapter.prompts[0], /"trusted_ledger_changed_files": \[/);
+  assert.match(adapter.prompts[0], /"case\.md"/);
+  assert.match(adapter.prompts[0], /"state\.record\.json"/);
+  assert.match(adapter.prompts[0], /canonical Arckit ledger artifacts/);
+  assert.match(adapter.prompts[0], /strong context, not an exclusive allowlist/);
+  assert.match(adapter.prompts[0], /both related and unrelated hunks/);
   assert.match(adapter.prompts[0], /Do not inspect semantic correctness, run validation, edit files, or repair content/);
   assert.doesNotMatch(adapter.prompts[0], /final proportionate checks|repair issues if necessary/);
   const candidatesIndex = sessionEvents.findIndex((event) => event.type === "runtime.round_candidates");
