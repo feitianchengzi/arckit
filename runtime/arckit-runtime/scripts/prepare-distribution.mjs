@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { execLocalTar } from "./local-tar.mjs";
 
 const execFileAsync = promisify(execFile);
 const runtimeRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -37,7 +38,7 @@ await mkdir(resourcesRoot, { recursive: true });
 const extractRoot = await mkdtemp(path.join(os.tmpdir(), "arckit-provider-"));
 try {
   await validateTar(providerArchive);
-  await execFileAsync("tar", ["-xzf", providerArchive, "-C", extractRoot]);
+  await execLocalTar(providerArchive, ["-xzf"], ["-C", extractRoot]);
   const extractedPackage = path.join(extractRoot, "package");
   await assertNoLinks(extractedPackage);
   await cp(extractedPackage, providerRoot, { recursive: true });
@@ -106,13 +107,13 @@ async function discoverSkillPaths() {
 }
 
 async function validateTar(archive) {
-  const names = (await execFileAsync("tar", ["-tzf", archive])).stdout.split(/\r?\n/).filter(Boolean);
+  const names = (await execLocalTar(archive, ["-tzf"])).stdout.split(/\r?\n/).filter(Boolean);
   if (!names.length) throw new Error("Provider archive is empty.");
   for (const name of names) {
     const normalized = name.replace(/\\/g, "/");
     if (!normalized.startsWith("package/") || normalized.startsWith("/") || normalized.split("/").some((segment) => segment === "..")) throw new Error(`Unsafe provider archive entry: ${name}`);
   }
-  const verbose = (await execFileAsync("tar", ["-tvzf", archive])).stdout.split(/\r?\n/).filter(Boolean);
+  const verbose = (await execLocalTar(archive, ["-tvzf"])).stdout.split(/\r?\n/).filter(Boolean);
   if (verbose.some((line) => !["-", "d"].includes(line.trimStart()[0]))) throw new Error("Provider archive contains links or unsupported entry types.");
 }
 

@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 55
-Updated: 2026-08-14T10:15:56.269Z
+Revision: 57
+Updated: 2026-08-14T11:24:10.528Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Correct Arckit skill availability reporting and make packaged Arckit Runtime reliably discover and launch an installed Codex CLI outside the GUI process PATH.
+Repair Arckit Runtime Windows packaging so the verified ArcForge provider archive can be validated and extracted from a Windows drive-letter path.
 
 ## Active Work
 

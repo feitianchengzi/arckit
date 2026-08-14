@@ -72,3 +72,4 @@
 | [CASE-20260814-001](closed/CASE-20260814-001-windows-arckit-runtime-loop.md) | closed | 诊断并修复 Windows 上的 Arckit Runtime loop 失败 | 2026-08-14T04:03:58.247Z |
 | [CASE-20260814-002](closed/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md) | closed | Build the governed Arckit Runtime installer supply chain | 2026-08-14T06:25:46.308Z |
 | [CASE-20260814-003](closed/CASE-20260814-003-fix-packaged-runtime-readiness-detection.md) | closed | Fix packaged Runtime readiness detection | 2026-08-14T10:15:56.269Z |
+| [CASE-20260814-004](closed/CASE-20260814-004-fix-windows-provider-archive-assembly.md) | closed | Fix Windows provider archive assembly | 2026-08-14T11:24:10.528Z |
