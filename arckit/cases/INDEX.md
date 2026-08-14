@@ -69,3 +69,4 @@
 | [CASE-20260813-001](closed/CASE-20260813-001-runtime-git-closeout.md) | closed | 改善 Runtime Git closeout 的任务范围引导 | 2026-08-13T07:22:14.910Z |
 | [CASE-20260813-002](closed/CASE-20260813-002-support-post-completion-review-feedback-continuation.md) | closed | Support post-completion review feedback continuation | 2026-08-13T10:57:55.065Z |
 | [CASE-20260813-003](closed/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md) | closed | Restore cumulative Project decision semantics after feedback-lane update | 2026-08-13T11:04:05.093Z |
+| [CASE-20260814-001](closed/CASE-20260814-001-windows-arckit-runtime-loop.md) | closed | 诊断并修复 Windows 上的 Arckit Runtime loop 失败 | 2026-08-14T04:03:58.247Z |

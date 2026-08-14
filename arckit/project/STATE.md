@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 46
-Updated: 2026-08-13T11:04:05.093Z
+Revision: 49
+Updated: 2026-08-14T04:03:58.247Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Repair the canonical Project decisions changed by CASE-20260813-002 so the new acceptance-feedback capability is additive and does not erase established ledger, login, recovery, observability, or Project-gap semantics.
+基于代码、跨平台进程启动语义、可重复契约测试和可交付给 Windows 用户的诊断证据，确定 Runtime loop 失败的真实边界；随后仅修改证据指向的 Runtime、ledger entrypoint 或 skill 文件。
 
 ## Active Work
 
@@ -42,7 +42,7 @@ Arckit is a state-driven software-development protocol and optional supervised R
 | technical_foundation | settled | 10 | Arckit uses repository-owned Markdown/JSON state, Node.js ESM Ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Trusted candidate selection separates stable identity/freshness from Agent-authored semantics. Desktop persists ordinary todo and acceptance-feedback lanes separately, reuses one persistent Agent thread per source todo, starts a new Run and Case per feedback item, and uses deterministic arbitration plus workspace/thread leases. | GAP-runtime-resilience-and-adapters |
 | security_privacy_compliance | settled | 1 | Secrets stay outside canonical project state; Runtime enforces login/configured-source boundaries, workspace authorization, sandbox/approval rules and trusted deterministic writes. | GAP-security-real-project-validation |
 | quality_and_validation | settled | 2 | Protocol changes require schema/script validation, cross-record audits, Runtime automated tests, projection checks, direct-Codex no-Case recovery evidence, stale-token checks, read/write/read ordering checks, and risk-proportionate real execution evidence. | GAP-agent-scenario-evaluation, GAP-cross-record-audit |
-| delivery_and_distribution | settled | 1 | Maintained skills are sourced from entry/skills, synchronized to supported application targets through governed installation, and Runtime/Desktop are built and checked from runtime/arckit-runtime. | GAP-delivery-governance |
+| delivery_and_distribution | settled | 2 | Maintained skills are sourced from entry/skills and synchronized to supported application targets through governed installation; Runtime/Desktop are built and checked from runtime/arckit-runtime. Windows is a supported Runtime/Desktop execution target, so executable or command-shim launch, working directories, trusted entrypoint paths and argument boundaries must use platform-safe semantics; native Windows confirmation remains required release evidence. | - |
 | observability_and_operation | settled | 5 | Runtime persists lifecycle, activity, messages and timing outside the target project, supports restart reconciliation and exposes opaque Run refs. It separately projects ledger candidate catalogs, Agent selection traces, accepted round closeouts and post-commit fresh-read receipts, and also presents ordinary todo state separately from acceptance-feedback queue counts, item status, current Run/Case, progress, evidence and blocking responsibility alongside one active execution. | GAP-runtime-resilience-and-adapters |
 
 ## Software Invariants
