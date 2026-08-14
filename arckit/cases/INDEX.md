@@ -74,3 +74,4 @@
 | [CASE-20260814-003](closed/CASE-20260814-003-fix-packaged-runtime-readiness-detection.md) | closed | Fix packaged Runtime readiness detection | 2026-08-14T10:15:56.269Z |
 | [CASE-20260814-004](closed/CASE-20260814-004-fix-windows-provider-archive-assembly.md) | closed | Fix Windows provider archive assembly | 2026-08-14T11:24:10.528Z |
 | [CASE-20260814-005](closed/CASE-20260814-005-fix-windows-provider-extraction-destination.md) | closed | Fix Windows provider extraction destination | 2026-08-14T12:35:13.797Z |
+| [CASE-20260814-006](closed/CASE-20260814-006-prevent-duplicate-release-checksum-assets.md) | closed | Prevent duplicate release checksum assets | 2026-08-14T13:35:55.765Z |

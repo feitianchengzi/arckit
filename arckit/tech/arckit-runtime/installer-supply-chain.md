@@ -193,7 +193,7 @@ validation 成功后才展开所选 matrix。每个 matrix job 从相同 tag che
 
 provider artifact 的 bytes 通过 SHA-256 和 release manifest 校验后写入唯一的临时 extraction root；列表校验、类型校验和解压都以该目录作为 tar 子进程 `cwd`，并只把 archive basename 作为归档参数。tar 不接收 archive 或 extraction destination 的绝对路径，因此 POSIX 与 Windows 保持同一本地文件语义，Windows 盘符不会被解释为远程 `host:archive` 地址或无效的 MSYS 目录。
 
-workflow 不创建 release branch、tag 或 commit，不修改源仓库。`draft-release` 只创建或更新与 `release_tag` 对应的 draft；`tf` 和 `beta` draft 标记为 prerelease，`appstore` draft 不自动 publish。
+workflow 不创建 release branch、tag 或 commit，不修改源仓库。`draft-release` 将各 target checksum 与对应安装包重新验算后合并为唯一且确定排序的 `checksums.txt`，并在写入 GitHub Release 前拒绝任何重复 asset basename；它只创建或更新与 `release_tag` 对应的 draft，重跑使用完整唯一资产集覆盖已有 draft assets。`tf` 和 `beta` draft 标记为 prerelease，`appstore` draft 不自动 publish。
 
 ## 签名边界
 

@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 59
-Updated: 2026-08-14T12:35:13.797Z
+Revision: 61
+Updated: 2026-08-14T13:35:55.765Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Repair the remaining Windows packaging failure by removing the native drive-letter extraction destination from the Git for Windows tar invocation.
+Repair the manually dispatched Runtime release workflow so multi-platform artifacts publish to one draft release without duplicate asset-name failures, then deliver the fix on main and a new TF tag.
 
 ## Active Work
 

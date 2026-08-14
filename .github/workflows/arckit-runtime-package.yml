@@ -308,6 +308,10 @@ jobs:
           pattern: arckit-runtime-*
           path: release-assets
 
+      - name: Prepare unique release assets
+        shell: bash
+        run: node runtime/arckit-runtime/scripts/prepare-release-assets.mjs --root release-assets
+
       - name: Create or update draft without moving the tag
         shell: bash
         env:

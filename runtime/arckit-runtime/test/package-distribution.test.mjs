@@ -110,6 +110,7 @@ test("Runtime package workflow is manual-only and consumes immutable release/pro
   assert.match(workflow, /codesign --verify --deep --strict/);
   assert.match(workflow, /xcrun stapler validate/);
   assert.match(workflow, /spctl --assess --type execute/);
+  assert.match(workflow, /prepare-release-assets\.mjs --root release-assets/);
   assert.match(workflow, /--verify-tag/);
   assert.doesNotMatch(workflow, /git tag|git push/);
 });
