@@ -24,6 +24,7 @@ app.whenReady().then(async () => {
   const codexExecutableResolver = createCodexExecutableResolver();
   runManager = createDesktopRunManager({
     runtimeRoot,
+    runtimeCwd: app.isPackaged ? process.resourcesPath : runtimeRoot,
     dataDir: join(app.getPath("userData"), "runtime"),
     getCodexExecutable: () => codexExecutableResolver.getResolved()
   });

@@ -230,7 +230,7 @@ Windows 的 npm 安装通常暴露 `.cmd`/`.bat` command shim。版本探测不�
 
 同一次成功 probe 的 executable 与必要 `PATH` 前缀由 Desktop 进程持有，并由 Runtime child、Codex app-server 和交互式 CLI handoff 共同复用。Setup 重试会重新解析并替换该结果；未成功 probe 的裸命令不得进入任务执行链路。
 
-Desktop 自身的 Node 脚本不依赖主机 shell 中的 `node`。开发态直接使用当前 Node executable；打包态使用当前 Electron executable 并为 ledger、project initialization、Runtime child 和后台 ledger command 注入 `ELECTRON_RUN_AS_NODE=1`。包内 `app.asar` 脚本保持同一调用边界，因此 GUI 环境无需安装或暴露独立 Node CLI。Runtime CLI 只把该变量当作 Electron 到 Node 的启动引导：入口必须先清除 `ELECTRON_RUN_AS_NODE`，再加载 Runtime CLI 模块，使 Codex 和其他 Runtime 后代进程不会继承 Electron 专用模式。
+Desktop 自身的 Node 脚本不依赖主机 shell 中的 `node`。开发态直接使用当前 Node executable；打包态使用当前 Electron executable 并为 ledger、project initialization、Runtime child 和后台 ledger command 注入 `ELECTRON_RUN_AS_NODE=1`。包内 `app.asar` 脚本路径继续作为 executable argument，但子进程 `cwd` 使用真实的 Electron `resourcesPath`，不把 ASAR 虚拟目录交给操作系统进程创建边界，因此 GUI 环境无需安装或暴露独立 Node CLI。Runtime CLI 只把该变量当作 Electron 到 Node 的启动引导：入口必须先清除 `ELECTRON_RUN_AS_NODE`，再加载 Runtime CLI 模块，使 Codex 和其他 Runtime 后代进程不会继承 Electron 专用模式。
 
 ## 更新、回滚与清理
 

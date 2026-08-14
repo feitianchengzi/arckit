@@ -42,6 +42,7 @@ import {
 
 export function createDesktopRunManager({
   runtimeRoot,
+  runtimeCwd = runtimeRoot,
   dataDir,
   nodeBin = process.env.ARCKIT_NODE_BIN || process.execPath,
   nodeEnv = process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {},
@@ -655,7 +656,7 @@ export function createDesktopRunManager({
     }
 
     const child = spawnProcess(nodeBin, args, {
-      cwd: runtimeRoot,
+      cwd: runtimeCwd,
       stdio: ["pipe", "pipe", "pipe"],
       detached: process.platform !== "win32",
       env: buildRuntimeEnv(prependRuntimePath({
@@ -943,7 +944,7 @@ export function createDesktopRunManager({
   async function runRuntimeCommand(run, args) {
     return new Promise((resolvePromise, rejectPromise) => {
       const child = spawnProcess(nodeBin, [runtimeBin, ...args], {
-        cwd: runtimeRoot,
+        cwd: runtimeCwd,
         stdio: ["ignore", "pipe", "pipe"],
         env: { ...process.env, ...nodeEnv }
       });

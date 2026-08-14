@@ -172,8 +172,11 @@ test("desktop run manager reuses its embedded Node mode for project checks and R
   const children = [];
   const calls = [];
   const projectChecks = [];
+  const packagedResources = "/Applications/Arckit Runtime.app/Contents/Resources";
+  const packagedRuntimeRoot = join(packagedResources, "app.asar");
   const manager = createDesktopRunManager({
-    runtimeRoot: dataDir,
+    runtimeRoot: packagedRuntimeRoot,
+    runtimeCwd: packagedResources,
     dataDir,
     nodeBin: "/Applications/Arckit Runtime.app/Contents/MacOS/arckit-runtime",
     nodeEnv: { ELECTRON_RUN_AS_NODE: "1" },
@@ -192,6 +195,8 @@ test("desktop run manager reuses its embedded Node mode for project checks and R
     assert.equal(projectChecks[0].nodeBin, "/Applications/Arckit Runtime.app/Contents/MacOS/arckit-runtime");
     assert.deepEqual(projectChecks[0].nodeEnv, { ELECTRON_RUN_AS_NODE: "1" });
     assert.equal(calls[0].command, "/Applications/Arckit Runtime.app/Contents/MacOS/arckit-runtime");
+    assert.equal(calls[0].args[0], join(packagedRuntimeRoot, "bin/arckit-runtime.mjs"));
+    assert.equal(calls[0].options.cwd, packagedResources);
     assert.equal(calls[0].options.env.ELECTRON_RUN_AS_NODE, "1");
   } finally {
     await manager.abortActiveRuns({ graceMs: 0 });

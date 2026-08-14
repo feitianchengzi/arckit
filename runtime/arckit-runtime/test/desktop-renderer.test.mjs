@@ -124,6 +124,7 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(preload, /getSetupReadiness/);
   assert.match(preload, /removeManagedSetupPaths/);
   assert.match(main, /setupReadinessPreflight: \(\) => skillProvisioningManager\.assertReady\(\)/);
+  assert.match(main, /runtimeCwd: app\.isPackaged \? process\.resourcesPath : runtimeRoot/);
   assert.match(main, /if \(readiness\.status !== "ready"\)/);
   assert.doesNotMatch(preload, /providerLoader|sourceRoot|execFile|writeFile/);
 });
