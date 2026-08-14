@@ -1,6 +1,6 @@
 ---
 name: arckit-git-branching
-description: 处理 Git 分支规范、release/feature/hotfix 选择、多版本并行、发布线修复回流、tag 出包触发和远端 workflow 失败原因收集。默认由 using-arckit 在判断本轮发布/出包意图应收敛到 Git 契约时路由触发；用户明确点名本 skill、维护本 skill 本身或隔离测试时可直接使用。不负责非 Git 发布实现、平台账号配置或无证据修复。
+description: 当用户明确询问或要求 Git 分支策略/维护、release/feature/hotfix 选择、多版本并行、发布线回流、tag 出包触发或远端 workflow 失败证据时使用。普通 status/add/commit/log/diff 不单独触发；没有显式分支操作授权时必须保持当前分支，不负责非 Git 发布实现、平台账号配置或无证据修复。
 ---
 
 # Arckit Git Branching
@@ -9,24 +9,36 @@ description: 处理 Git 分支规范、release/feature/hotfix 选择、多版本
 
 ## 使用边界
 
+- 默认保持命令执行前的当前分支；不得根据任务规模、风险、发布规范或先前对话自行创建或切换分支。
+- 用户只要求 `status`、`add`、`commit`、`log`、`diff` 或其他非分支操作时，只授权该操作；`git commit` 必须提交到当前分支，不授权创建、切换、合并或删除分支。
+- 创建、切换、合并、删除、回流或 push 分支必须来自用户对该操作和目标分支的显式要求或确认；一种 Git 写操作的授权不能传递为另一种操作的授权。
+- release/tag/出包规则只约束用户明确选择的 release 或 tag 操作，不自动改变普通提交所在分支，也不把“推荐 feature/release”变成执行授权。
 - 只处理 `main`、`feature/*`、`release/*`、`hotfix/*` 的分支策略和合并流向。
 - 只处理 `tf/*`、`beta/*`、`appstore/*` 的 tag 命名、基线选择和 push 触发。
 - TestFlight、App Store 或应用商店发布意图默认只做 Git trigger：推荐基线和 tag，确认后最多创建并 push release 分支或 tag。
 - 禁止把发布意图扩展成本机出包、归档、导出、上传、签名或商店平台操作；不得调用 `xcodebuild`、archive、exportArchive、Organizer、Transporter、altool、App Store Connect 上传/查询、签名或 provisioning 处理，除非用户明确说“不要走 tag，改成本机上传”或等价指令。
 - 找不到 fastlane、CI、Xcode Cloud 或远端 workflow 配置时，只报告远端监听不可见或需要用户确认监听规则；不得 fallback 到本机构建、归档或上传。
-- 写操作前必须检查 Git 状态并等待用户确认。
+- branch/tag 写操作前必须检查 Git 状态，并确认具体操作和目标仍在用户授权范围内。
 - push 后停止，不跟踪远端构建、上传或发布平台状态。
 - 远端失败但缺少具体错误时，只收集失败原因原文，不猜测修复。
 
 ## 模式选择
 
 - `branch-policy`：用户询问分支规范、多版本并行、release/hotfix/feature 选择。
-- `branch-maintenance`：用户要求创建、切换、合并、删除分支，或处理 release/hotfix 回流。
+- `branch-maintenance`：用户明确要求创建、切换、合并、删除或回流某个分支，或明确确认此前推荐的具体分支操作。
 - `recommend-git-trigger`：用户表达发布、出包、测试分发、应用商店发布、内测、公测、正式发布或发布候选意图，但尚未确认 Git 操作。
 - `apply-git-trigger`：用户已确认目标基线和 tag，要求创建/推送分支或 tag。
 - `workflow-failure-evidence`：用户反馈 branch/tag 触发后的远端 workflow 失败、缺少日志、缺少上传历史或不知道失败原因在哪里看。
 
 发布类 prompt 默认先进入 `recommend-git-trigger`，不要展开成平台发布计划。
+
+## 入口授权门禁
+
+1. 先读取当前分支和工作区，只把它们作为事实，不从分支规范推导写操作。
+2. 从用户最新指令提取本轮明确授权的 Git 操作及目标；以前的发布讨论、skill 规则和风险判断都不能补充授权。
+3. 如果没有明确的分支生命周期操作，保持当前分支，不进入 `branch-maintenance`。用户只要求 commit 时，交给普通 Git 提交流程在当前分支完成。
+4. 如果用户只询问策略，进入 `branch-policy` 或 `recommend-git-trigger`，只输出建议；推荐分支不等于获准创建或切换。
+5. 只有分支操作及目标明确时才进入 `branch-maintenance`；目标不明确或实际操作超出确认范围时停止并澄清。
 
 ## Reference 路由
 
@@ -38,6 +50,7 @@ description: 处理 Git 分支规范、release/feature/hotfix 选择、多版本
 ### 分支规范或维护
 
 - 按 reference 的 Branch Policy 和 Merge Policy 输出建议。
+- 执行前复述本轮获准的分支操作和目标；若用户没有显式授权分支变更，报告保持当前分支并停止分支维护。
 - 若涉及 release：必须说明 `release/*` 创建后冻结，不再整体合并 `main`；必要修复通过 cherry-pick/backport 进入 release。
 - 若涉及 hotfix：必须说明它是可选分支；能在活跃 `release/*` 上修复时优先使用 `release/*`。
 
