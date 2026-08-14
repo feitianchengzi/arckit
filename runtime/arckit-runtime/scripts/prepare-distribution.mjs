@@ -37,8 +37,10 @@ await mkdir(resourcesRoot, { recursive: true });
 
 const extractRoot = await mkdtemp(path.join(os.tmpdir(), "arckit-provider-"));
 try {
-  await validateTar(providerArchive);
-  await execLocalTar(providerArchive, ["-xzf"], ["-C", extractRoot]);
+  const stagedProviderArchive = path.join(extractRoot, path.basename(providerArchive));
+  await writeFile(stagedProviderArchive, providerBytes);
+  await validateTar(stagedProviderArchive);
+  await execLocalTar(stagedProviderArchive, ["-xzf"]);
   const extractedPackage = path.join(extractRoot, "package");
   await assertNoLinks(extractedPackage);
   await cp(extractedPackage, providerRoot, { recursive: true });

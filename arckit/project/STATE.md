@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 57
-Updated: 2026-08-14T11:24:10.528Z
+Revision: 59
+Updated: 2026-08-14T12:35:13.797Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Repair Arckit Runtime Windows packaging so the verified ArcForge provider archive can be validated and extracted from a Windows drive-letter path.
+Repair the remaining Windows packaging failure by removing the native drive-letter extraction destination from the Git for Windows tar invocation.
 
 ## Active Work
 

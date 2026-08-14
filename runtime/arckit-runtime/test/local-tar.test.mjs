@@ -12,19 +12,18 @@ test("local tar invocation keeps a Windows drive-letter archive out of tar argum
   assert.deepEqual(invocation.options, { cwd: "D:\\a\\arckit\\arckit\\provider-input" });
 });
 
-test("local tar execution preserves arguments after the archive for extraction", async () => {
-  const archive = path.resolve("fixtures", "provider.tgz");
-  const extractRoot = path.resolve("fixtures", "extract");
+test("local tar execution extracts in the staged archive directory without a destination operand", async () => {
+  const archive = path.resolve("fixtures", "extract", "provider.tgz");
   let observed;
 
-  await execLocalTar(archive, ["-xzf"], ["-C", extractRoot], async (command, args, options) => {
+  await execLocalTar(archive, ["-xzf"], [], async (command, args, options) => {
     observed = { command, args, options };
     return { stdout: "", stderr: "" };
   });
 
   assert.deepEqual(observed, {
     command: "tar",
-    args: ["-xzf", "provider.tgz", "-C", extractRoot],
+    args: ["-xzf", "provider.tgz"],
     options: { cwd: path.dirname(archive) }
   });
 });

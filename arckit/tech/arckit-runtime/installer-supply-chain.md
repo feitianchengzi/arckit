@@ -191,7 +191,7 @@ workflow 首先在 Linux validation job 完成：
 
 validation 成功后才展开所选 matrix。每个 matrix job 从相同 tag checkout、下载同一 provider artifact、验证同一 digest、组装 payload、构建对应安装包并生成 target lock/checksum。`all` 只展开受支持的四个目标，不添加未声明平台。
 
-provider archive 的列表校验、类型校验和解压都以 archive 所在目录作为 tar 子进程 `cwd`，并只把 archive basename 作为归档参数。该调用边界在 POSIX 与 Windows 上保持同一本地文件语义，避免 Windows 盘符中的冒号被 GNU tar 解释为远程 `host:archive` 地址。
+provider artifact 的 bytes 通过 SHA-256 和 release manifest 校验后写入唯一的临时 extraction root；列表校验、类型校验和解压都以该目录作为 tar 子进程 `cwd`，并只把 archive basename 作为归档参数。tar 不接收 archive 或 extraction destination 的绝对路径，因此 POSIX 与 Windows 保持同一本地文件语义，Windows 盘符不会被解释为远程 `host:archive` 地址或无效的 MSYS 目录。
 
 workflow 不创建 release branch、tag 或 commit，不修改源仓库。`draft-release` 只创建或更新与 `release_tag` 对应的 draft；`tf` 和 `beta` draft 标记为 prerelease，`appstore` draft 不自动 publish。
 
