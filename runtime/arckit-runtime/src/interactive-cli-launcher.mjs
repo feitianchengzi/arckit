@@ -15,16 +15,17 @@ export function buildCodexCliHandoffPrompt({ caseId = "", taskTitle = "", taskIn
   ].filter((line, index, lines) => line || (index > 0 && lines[index - 1])).join("\n");
 }
 
-export function buildInteractiveCodexLaunchSpec({ projectPath, threadId, prompt, platform = process.platform, env = process.env } = {}) {
+export function buildInteractiveCodexLaunchSpec({ projectPath, threadId, prompt, codexExecutable = { command: "codex", pathEntries: [] }, platform = process.platform, env = process.env } = {}) {
   const root = String(projectPath || "").trim();
   const initialPrompt = String(prompt || "").trim();
   if (!root) throw new Error("A local project path is required to launch Codex CLI.");
   const persistedThreadId = String(threadId || "").trim();
   if (!persistedThreadId) throw new Error("A persisted Codex thread id is required to launch Codex CLI.");
   if (!initialPrompt) throw new Error("A handoff prompt is required to launch Codex CLI.");
+  const executable = normalizeCodexExecutable(codexExecutable);
+  const posixCommand = buildPosixCodexCommand({ executable, root, persistedThreadId, initialPrompt });
 
   if (platform === "darwin") {
-    const command = `exec codex resume --no-alt-screen -C ${quotePosix(root)} ${quotePosix(persistedThreadId)} ${quotePosix(initialPrompt)}`;
     return {
       command: "osascript",
       args: [
@@ -34,7 +35,7 @@ export function buildInteractiveCodexLaunchSpec({ projectPath, threadId, prompt,
         "-e", "do script (item 1 of argv)",
         "-e", "end tell",
         "-e", "end run",
-        command
+        posixCommand
       ],
       options: { detached: true, stdio: "ignore" },
       wait_for_exit: true
@@ -42,18 +43,17 @@ export function buildInteractiveCodexLaunchSpec({ projectPath, threadId, prompt,
   }
 
   if (platform === "win32") {
-    const script = "$projectPath=$args[0];$threadId=$args[1];$initialPrompt=$args[2];Start-Process -FilePath 'codex' -WorkingDirectory $projectPath -ArgumentList @('resume','--no-alt-screen','-C',$projectPath,$threadId,$initialPrompt)";
+    const script = "$projectPath=$args[0];$threadId=$args[1];$initialPrompt=$args[2];$codexBin=$args[3];Start-Process -FilePath $codexBin -WorkingDirectory $projectPath -ArgumentList @('resume','--no-alt-screen','-C',$projectPath,$threadId,$initialPrompt)";
     return {
       command: "powershell.exe",
-      args: ["-NoProfile", "-Command", script, root, persistedThreadId, initialPrompt],
+      args: ["-NoProfile", "-Command", script, root, persistedThreadId, initialPrompt, executable.command],
       options: { detached: true, stdio: "ignore", windowsHide: false }
     };
   }
 
-  const command = `exec codex resume --no-alt-screen -C ${quotePosix(root)} ${quotePosix(persistedThreadId)} ${quotePosix(initialPrompt)}`;
   return {
     command: String(env.TERMINAL || "x-terminal-emulator"),
-    args: ["-e", "/bin/sh", "-lc", command],
+    args: ["-e", "/bin/sh", "-lc", posixCommand],
     options: { detached: true, stdio: "ignore" }
   };
 }
@@ -61,17 +61,34 @@ export function buildInteractiveCodexLaunchSpec({ projectPath, threadId, prompt,
 export function createInteractiveCodexCliLauncher({
   platform = process.platform,
   env = process.env,
+  getCodexExecutable = () => ({ command: "codex", pathEntries: [] }),
   spawnProcess = spawn
 } = {}) {
   return {
     async launch(input) {
-      const spec = buildInteractiveCodexLaunchSpec({ ...input, platform, env });
+      const spec = buildInteractiveCodexLaunchSpec({ ...input, codexExecutable: getCodexExecutable(), platform, env });
       const child = spawnProcess(spec.command, spec.args, spec.options);
       if (spec.wait_for_exit) await waitForSuccessfulExit(child, spec.command);
       else await waitForSpawn(child);
       child.unref?.();
       return { launched: true, pid: child.pid || null, command: spec.command };
     }
+  };
+}
+
+function buildPosixCodexCommand({ executable, root, persistedThreadId, initialPrompt }) {
+  const pathPrefix = executable.pathEntries.length
+    ? `export PATH=${quotePosix(executable.pathEntries.join(":"))}:$PATH; `
+    : "";
+  return `${pathPrefix}exec ${quotePosix(executable.command)} resume --no-alt-screen -C ${quotePosix(root)} ${quotePosix(persistedThreadId)} ${quotePosix(initialPrompt)}`;
+}
+
+function normalizeCodexExecutable(value) {
+  const command = typeof value === "string" ? value : value?.command;
+  if (!String(command || "").trim()) throw new Error("Codex CLI handoff requires a resolved Codex executable.");
+  return {
+    command: String(command),
+    pathEntries: Array.isArray(value?.pathEntries) ? value.pathEntries.map(String).filter(Boolean) : []
   };
 }
 

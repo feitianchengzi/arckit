@@ -222,6 +222,14 @@ Manager 启动顺序：
 
 Manager 不修改现有 `preflightRun` 的 kernel 语义。Automation Coordinator 在 start 前组合 Setup Readiness 和 Runtime preflight 两个独立结果，避免 Runtime 通过文件扫描推断 Agent native skill discovery。
 
+Codex discoverability 解析一个经过 `--version` 验证的绝对 executable，而不假设 Desktop GUI 进程继承交互式 shell 的 `PATH`。解析顺序覆盖显式配置、当前 `PATH`、常见用户级安装目录以及 NVM/FNM 的版本目录；Node 版本管理器中的 CLI 同时携带其 sibling `bin` 目录作为子进程 `PATH` 前缀，保证 `#!/usr/bin/env node` 启动器可执行。解析失败保持 Setup blocked，不修改系统或用户 `PATH`。
+
+Windows 的 npm 安装通常暴露 `.cmd`/`.bat` command shim。版本探测不得把这类文件直接交给 `execFile`，也不得用拼接用户路径的 shell 字符串；必须通过固定 PowerShell 脚本启动，并仅用结构化环境变量传递 executable 和 JSON 参数。原生 executable 继续使用直接参数边界。
+
+同一次成功 probe 的 executable 与必要 `PATH` 前缀由 Desktop 进程持有，并由 Runtime child、Codex app-server 和交互式 CLI handoff 共同复用。Setup 重试会重新解析并替换该结果；未成功 probe 的裸命令不得进入任务执行链路。
+
+Desktop 自身的 Node 脚本不依赖主机 shell 中的 `node`。开发态直接使用当前 Node executable；打包态使用当前 Electron executable 并为 ledger、project initialization、Runtime child 和后台 ledger command 注入 `ELECTRON_RUN_AS_NODE=1`。包内 `app.asar` 脚本保持同一调用边界，因此 GUI 环境无需安装或暴露独立 Node CLI。Runtime CLI 只把该变量当作 Electron 到 Node 的启动引导：入口必须先清除 `ELECTRON_RUN_AS_NODE`，再加载 Runtime CLI 模块，使 Codex 和其他 Runtime 后代进程不会继承 Electron 专用模式。
+
 ## 更新、回滚与清理
 
 升级是 source switch + governed reapply，不是目录覆盖：

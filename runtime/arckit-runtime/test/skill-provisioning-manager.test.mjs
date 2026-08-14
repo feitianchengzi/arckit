@@ -28,6 +28,15 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
     assert.equal(planned.status, "needs-install");
     assert.equal(planned.plan.items.length, 2);
     assert.deepEqual(planned.plan.deferred_project_skills, ["project-skill"]);
+    assert.deepEqual(planned.plan.availability, {
+      arckit_total: 3,
+      user_ambient: 1,
+      user_on_demand: 1,
+      project_ambient_deferred: 1,
+      other: 0,
+      arcforge_loader_targets: 1
+    });
+    assert.equal(planned.checks.find((item) => item.id === "skills").summary, "共 3 个 Arckit skills：1 个 user-ambient，1 个 user-on-demand，1 个 project-ambient 延后；1 个 ArcForge loader target");
     assert.equal(planned.drift.counts.uncertain, 1);
     assert.equal(planned.can_apply, true);
 

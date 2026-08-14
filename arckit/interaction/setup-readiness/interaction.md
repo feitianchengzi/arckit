@@ -31,7 +31,7 @@ Setup Readiness 是 Desktop 在 Runtime task、Workshop 登录和项目队列之
 
 ### 信息揭示
 
-默认摘要只显示当前 Runtime 版本、Arckit payload、ArcForge provider、Codex 状态、目标数量和整体 readiness。用户展开详情后才显示绝对目标目录、逐 skill availability、文件 drift 和关系记录位置。
+默认摘要显示当前 Runtime 版本、Arckit payload、ArcForge provider、Codex 状态、Arckit skill 总数、user-ambient/user-on-demand/project-ambient deferred 分类数量、独立的 ArcForge loader target 数和整体 readiness。Arckit skill 总数不包含 loader，user-on-demand 不与 user-ambient 合并为“用户 skills”。用户展开详情后才显示绝对目标目录、逐 skill availability、文件 drift 和关系记录位置。
 
 secret、私钥、完整环境变量、Codex credential 和 GitHub token 永不进入页面。签名信息只显示公开证书身份、签名状态和公证状态。
 
@@ -85,6 +85,7 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 
 - 顶部显示 Runtime、Arckit payload、ArcForge provider 和 release intent tag。
 - 中部按 user-ambient、user-on-demand、project-ambient deferred 分组。
+- 摘要先显示 Arckit payload 总数及各 availability 数量，ArcForge on-demand loader 作为独立 target 显示，不计入 Arckit skill 数。
 - 目标摘要显示新增、same、changed、managed-stale、uncertain 数量。
 - 用户必须打开写入目标摘要后才能启用“安装并继续”。
 - 确认动作携带 plan digest；页面显示确认后的写入边界。
@@ -99,7 +100,7 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 ### 已准备完成
 
 - 显示全部关键检查为 passed。
-- 显示已安装 ambient 数、catalog 数和 deferred project skills 数。
+- 显示已安装 user-ambient 数、catalog 中 user-on-demand 数、deferred project-ambient 数和独立 ArcForge loader target 数；四项之和不得作为 Arckit skill 总数。
 - 首次启动由用户点击继续；普通启动可以在短暂停留后自动路由。
 - 用户可以打开安装详情，但不能在完成页面直接删除 skills。
 

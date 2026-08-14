@@ -138,6 +138,68 @@ test("a restarted run loads the persisted task thread binding before spawning Ru
   }
 });
 
+test("desktop run manager forwards the resolved Codex command and execution PATH", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arckit-codex-command-"));
+  await writeStore(dataDir, dataDir);
+  const children = [];
+  const calls = [];
+  const manager = createDesktopRunManager({
+    runtimeRoot: dataDir,
+    dataDir,
+    getCodexExecutable: () => ({ command: "/fixture/nvm/bin/codex", pathEntries: ["/fixture/nvm/bin"] }),
+    spawnProcess(command, args, options) {
+      calls.push({ command, args, options });
+      return fakeChild(children);
+    },
+    ensureProject: async () => ({ initialized: false, repaired: false })
+  });
+
+  try {
+    await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-1", task: "Use Codex", adapter: "codex-app-server" });
+    const codexIndex = calls[0].args.indexOf("--codex-bin");
+    assert.equal(calls[0].args[codexIndex + 1], "/fixture/nvm/bin/codex");
+    assert.equal(calls[0].options.env.PATH.split(":" )[0], "/fixture/nvm/bin");
+  } finally {
+    await manager.abortActiveRuns({ graceMs: 0 });
+    destroyChildren(children);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("desktop run manager reuses its embedded Node mode for project checks and Runtime children", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arckit-embedded-node-"));
+  await writeStore(dataDir, dataDir);
+  const children = [];
+  const calls = [];
+  const projectChecks = [];
+  const manager = createDesktopRunManager({
+    runtimeRoot: dataDir,
+    dataDir,
+    nodeBin: "/Applications/Arckit Runtime.app/Contents/MacOS/arckit-runtime",
+    nodeEnv: { ELECTRON_RUN_AS_NODE: "1" },
+    spawnProcess(command, args, options) {
+      calls.push({ command, args, options });
+      return fakeChild(children);
+    },
+    ensureProject: async (options) => {
+      projectChecks.push(options);
+      return { initialized: false, repaired: false };
+    }
+  });
+
+  try {
+    await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-1", task: "Use embedded Node", dryRun: true });
+    assert.equal(projectChecks[0].nodeBin, "/Applications/Arckit Runtime.app/Contents/MacOS/arckit-runtime");
+    assert.deepEqual(projectChecks[0].nodeEnv, { ELECTRON_RUN_AS_NODE: "1" });
+    assert.equal(calls[0].command, "/Applications/Arckit Runtime.app/Contents/MacOS/arckit-runtime");
+    assert.equal(calls[0].options.env.ELECTRON_RUN_AS_NODE, "1");
+  } finally {
+    await manager.abortActiveRuns({ graceMs: 0 });
+    destroyChildren(children);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("desktop run manager refuses to remove a project with an active state-driven run", async () => {
   const dataDir = await mkdtemp(join(tmpdir(), "arckit-active-project-"));
   await writeStore(dataDir, dataDir);

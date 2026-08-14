@@ -33,15 +33,30 @@ test("macOS launch spec opens interactive codex in Terminal without codex exec",
     projectPath: "/workspace/Project with space",
     threadId: "THREAD-PERSISTED",
     prompt: "$using-arckit\n继续 CASE-20260807-001",
-    platform: "darwin"
+    platform: "darwin",
+    codexExecutable: { command: "/Users/test/.nvm/versions/node/v22/bin/codex", pathEntries: ["/Users/test/.nvm/versions/node/v22/bin"] }
   });
 
   assert.equal(spec.command, "osascript");
-  assert.match(spec.args.at(-1), /codex resume --no-alt-screen -C/);
+  assert.match(spec.args.at(-1), /\.nvm\/versions\/node\/v22\/bin\/codex' resume --no-alt-screen -C/);
+  assert.match(spec.args.at(-1), /export PATH=/);
   assert.match(spec.args.at(-1), /THREAD-PERSISTED/);
   assert.doesNotMatch(spec.args.at(-1), /codex exec/);
   assert.match(spec.args.at(-1), /Project with space/);
   assert.equal(spec.options.detached, true);
+});
+
+test("Windows launch spec passes the resolved Codex executable to Start-Process", () => {
+  const spec = buildInteractiveCodexLaunchSpec({
+    projectPath: "C:\\workspace\\project",
+    threadId: "THREAD-PERSISTED",
+    prompt: "$using-arckit",
+    platform: "win32",
+    codexExecutable: { command: "C:\\Users\\test\\AppData\\Roaming\\npm\\codex.cmd", pathEntries: [] }
+  });
+
+  assert.match(spec.args[2], /Start-Process -FilePath \$codexBin/);
+  assert.equal(spec.args.at(-1), "C:\\Users\\test\\AppData\\Roaming\\npm\\codex.cmd");
 });
 
 test("interactive launcher confirms the macOS terminal request and detaches it", async () => {

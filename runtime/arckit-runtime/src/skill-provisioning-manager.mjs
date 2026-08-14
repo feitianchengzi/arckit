@@ -1,12 +1,10 @@
 import crypto from "node:crypto";
-import { execFile } from "node:child_process";
 import { cp, lstat, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { promisify } from "node:util";
+import { resolveCodexExecutable } from "./codex-executable-resolver.mjs";
 
-const execFileAsync = promisify(execFile);
 const API_VERSION = "arcforge-embedded-provider/v1";
 const SNAPSHOT_VERSION = "arckit-setup-readiness/v1";
 
@@ -21,7 +19,7 @@ export function createSkillProvisioningManager(options = {}) {
   const versionsRoot = path.join(sourceStoreRoot, "versions");
   const previousRoot = path.join(sourceStoreRoot, "previous");
   const providerLoader = options.providerLoader || defaultProviderLoader;
-  const codexProbe = options.codexProbe || defaultCodexProbe;
+  const codexProbe = options.codexProbe || (() => resolveCodexExecutable({ homeDir }));
   const listeners = new Set();
   let operation = Promise.resolve();
   let internalPlan = null;
@@ -361,18 +359,20 @@ function isCleanDrift(drift) {
 
 function publicSnapshot({ status, bundle, providerInfo, source, analyzed, probe }) {
   const plan = source.plan.plan;
+  const availability = availabilityCounts(bundle, plan, source.deferredSkills);
   return {
     status,
     checks: [
       { id: "resources", status: "passed", summary: "distribution lock 与 bundled resources 已验证" },
       { id: "provider", status: "passed", summary: `${providerInfo.apiVersion} · ${providerInfo.providerVersion}` },
-      { id: "skills", status: analyzed.status === "ready" ? "passed" : "pending", summary: `${plan.items.length} 个用户 skills，${source.deferredSkills.length} 个 project skills 延后` },
+      { id: "skills", status: analyzed.status === "ready" ? "passed" : "pending", summary: availabilitySummary(availability) },
       { id: "codex", status: probe.available ? "passed" : "failed", summary: probe.summary }
     ],
     distribution: { runtime_version: bundle.lock.runtime.packageVersion, release_tag: bundle.lock.arckit.releaseTag, payload_digest: bundle.lock.skillPayload.payloadDigest, provider_version: providerInfo.providerVersion },
     plan: {
       digest: source.plan.planDigest,
       profile: plan.profile,
+      availability,
       items: plan.items.map((item) => ({ skill: item.skill, mode: item.effectiveMode, destinations: item.destinations.map((entry) => ({ kind: entry.kind, path: entry.path })) })),
       loader_targets: plan.loaderTargets.map((item) => ({ agent: item.agentId, path: item.path, status: item.status })),
       cleanup: analyzed.cleanup.map((item) => ({ skill: item.skill, path: item.path, reason: item.reason })),
@@ -386,6 +386,29 @@ function publicSnapshot({ status, bundle, providerInfo, source, analyzed, probe 
     progress: null,
     error: probe.available ? null : { code: "CODEX_UNAVAILABLE", stage: "codex-probe", message: probe.summary, rollback_complete: true }
   };
+}
+
+function availabilityCounts(bundle, plan, deferredProjectSkills) {
+  const result = {
+    arckit_total: bundle.payloadManifest.skillPaths.length,
+    user_ambient: 0,
+    user_on_demand: 0,
+    project_ambient_deferred: deferredProjectSkills.length,
+    other: 0,
+    arcforge_loader_targets: plan.loaderTargets.length
+  };
+  for (const item of plan.items) {
+    if (item.effectiveMode === "user-ambient") result.user_ambient += 1;
+    else if (item.effectiveMode === "user-on-demand") result.user_on_demand += 1;
+    else result.other += 1;
+  }
+  return result;
+}
+
+function availabilitySummary(counts) {
+  const modes = `${counts.user_ambient} 个 user-ambient，${counts.user_on_demand} 个 user-on-demand，${counts.project_ambient_deferred} 个 project-ambient 延后`;
+  const other = counts.other ? `，${counts.other} 个其他模式` : "";
+  return `共 ${counts.arckit_total} 个 Arckit skills：${modes}${other}；${counts.arcforge_loader_targets} 个 ArcForge loader target`;
 }
 
 function blockedSnapshot(error, extra = {}) {
@@ -405,5 +428,4 @@ async function readJson(file) { return JSON.parse(await readFile(file, "utf8"));
 function assertProviderApi(provider) { for (const name of ["inspectProvider","createProvisioningPlan","driftProvisioningPlan","applyProvisioningPlan","listProvisioningRelations","removeManagedProvisioning"]) if (typeof provider[name] !== "function") throw setupError("PROVIDER_API_INVALID", `ArcForge provider 缺少 ${name}。`, "provider"); }
 function assertProviderLock(info, locked) { if (info.apiVersion !== API_VERSION || info.apiVersion !== locked.apiVersion || info.providerVersion !== locked.providerVersion || info.buildCommit !== locked.buildCommit) throw setupError("PROVIDER_LOCK_MISMATCH", "ArcForge provider 与 distribution lock 不一致。", "provider"); }
 async function defaultProviderLoader(entrypoint) { return import(pathToFileURL(entrypoint).href); }
-async function defaultCodexProbe() { const { stdout, stderr } = await execFileAsync("codex", ["--version"], { timeout: 10_000 }); return { available: true, summary: (stdout || stderr).trim() || "Codex 可用" }; }
 async function safeCodexProbe(probe) { try { const result = await probe(); return result?.available === false ? { available: false, summary: result.summary || "Codex 不可用" } : { available: true, summary: result?.summary || "Codex 可用" }; } catch (error) { return { available: false, summary: error?.code === "ENOENT" ? "未找到 Codex CLI，请先安装后重新检测。" : `Codex 检测失败：${error.message}` }; } }

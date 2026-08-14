@@ -13,7 +13,7 @@ const SCRIPT_ENTRYPOINTS = {
   "loop-snapshot.mjs": "loop_snapshot"
 };
 
-export async function runLedgerScript(projectRoot, args, { nodeBin = process.execPath, capability = null } = {}) {
+export async function runLedgerScript(projectRoot, args, { nodeBin = process.execPath, nodeEnv = {}, capability = null } = {}) {
   const [script, ...rest] = args;
   const entrypoint = SCRIPT_ENTRYPOINTS[script];
   if (!entrypoint) {
@@ -26,7 +26,8 @@ export async function runLedgerScript(projectRoot, args, { nodeBin = process.exe
   const scriptPath = resolveCapabilityEntrypoint(selectedCapability, entrypoint);
   const result = spawnSync(nodeBin, [scriptPath, ...rest], {
     cwd: projectRoot,
-    encoding: "utf8"
+    encoding: "utf8",
+    env: { ...process.env, ...nodeEnv }
   });
   if (result.status !== 0) {
     throw new Error(`Ledger script failed: ${basename(script)} ${rest.join(" ")}\n${result.stderr || result.stdout}`);

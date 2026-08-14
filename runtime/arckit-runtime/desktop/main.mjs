@@ -3,6 +3,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
+import { createCodexExecutableResolver } from "../src/codex-executable-resolver.mjs";
+import { createInteractiveCodexCliLauncher } from "../src/interactive-cli-launcher.mjs";
 import { createSkillProvisioningManager } from "../src/skill-provisioning-manager.mjs";
 import { createWorkshopTaskSource } from "../src/task-source-adapter.mjs";
 
@@ -19,9 +21,11 @@ let syncTimer;
 let automationStarted = false;
 
 app.whenReady().then(async () => {
+  const codexExecutableResolver = createCodexExecutableResolver();
   runManager = createDesktopRunManager({
     runtimeRoot,
-    dataDir: join(app.getPath("userData"), "runtime")
+    dataDir: join(app.getPath("userData"), "runtime"),
+    getCodexExecutable: () => codexExecutableResolver.getResolved()
   });
   workshopService = createWorkshopTaskSource({
     readSettings: () => runManager.getTaskSourceSettings(),
@@ -30,12 +34,16 @@ app.whenReady().then(async () => {
   const resourcesRoot = app.isPackaged ? process.resourcesPath : join(runtimeRoot, "dist-package", "resources");
   skillProvisioningManager = createSkillProvisioningManager({
     resourcesRoot,
-    dataRoot: app.getPath("userData")
+    dataRoot: app.getPath("userData"),
+    codexProbe: () => codexExecutableResolver.probe()
   });
   automationCoordinator = createAutomationCoordinator({
     runManager,
     taskSourceFactory: () => workshopService,
-    setupReadinessPreflight: () => skillProvisioningManager.assertReady()
+    setupReadinessPreflight: () => skillProvisioningManager.assertReady(),
+    cliLauncher: createInteractiveCodexCliLauncher({
+      getCodexExecutable: () => codexExecutableResolver.getResolved()
+    })
   });
   runManager.onEvent((event) => {
     if (!mainWindow?.isDestroyed()) {

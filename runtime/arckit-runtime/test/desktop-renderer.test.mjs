@@ -242,6 +242,9 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(preload, /resumeAutomationRuntime/);
   assert.match(source, /切换到 Codex CLI/);
   assert.match(source, /Codex CLI 接管/);
+  assert.match(source, /Arckit skills <strong>\$\{availability\.arckit_total\}/);
+  assert.match(source, /user-ambient \$\{availability\.user_ambient\}/);
+  assert.match(source, /ArcForge loader \$\{availability\.arcforge_loader_targets\}/);
   assert.match(source, /添加反馈并继续/);
   assert.match(source, /data-recovery-feedback/);
   assert.match(source, /openWorkbench\("review"\)/);

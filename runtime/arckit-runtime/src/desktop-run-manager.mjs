@@ -43,7 +43,9 @@ import {
 export function createDesktopRunManager({
   runtimeRoot,
   dataDir,
-  nodeBin = process.env.ARCKIT_NODE_BIN || "node",
+  nodeBin = process.env.ARCKIT_NODE_BIN || process.execPath,
+  nodeEnv = process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {},
+  getCodexExecutable = () => ({ command: process.env.ARCKIT_CODEX_BIN || "codex", pathEntries: [] }),
   spawnProcess = spawn,
   ensureProject = ensureArckitProject
 }) {
@@ -72,7 +74,8 @@ export function createDesktopRunManager({
       projectRoot: root,
       projectName: basename(root) || root,
       intent: "Added to Arckit Desktop as a managed software project.",
-      nodeBin
+      nodeBin,
+      nodeEnv
     });
     const project = {
       id: projectId(root),
@@ -105,7 +108,8 @@ export function createDesktopRunManager({
       projectRoot: project.path,
       projectName: project.name,
       intent: task || "Prepare an Arckit Runtime execution.",
-      nodeBin
+      nodeBin,
+      nodeEnv
     });
     const policy = await loadCapabilityPolicy();
     const capabilities = await loadRuntimeCapabilities({ projectRoot: project.path, capabilityPolicy: policy });
@@ -544,11 +548,13 @@ export function createDesktopRunManager({
     if (!project) {
       throw new Error("Select a project before starting a run.");
     }
+    const codexExecutable = input.dryRun ? null : normalizeCodexExecutable(getCodexExecutable());
     const initialization = await ensureProject({
       projectRoot: project.path,
       projectName: project.name,
       intent: input.task || "Start an Arckit Desktop supervised runtime turn.",
-      nodeBin
+      nodeBin,
+      nodeEnv
     });
     if (initialization.initialized || initialization.repaired) {
       emit("project.initialized", { project, initialization });
@@ -642,6 +648,7 @@ export function createDesktopRunManager({
       args.push("--dry-run");
     } else {
       args.push("--adapter", run.adapter, "--supervise-stdin", "--approval-policy", input.approvalPolicy || "on-request");
+      args.push("--codex-bin", codexExecutable.command);
       if (input.model) {
         args.push("--model", input.model);
       }
@@ -651,10 +658,11 @@ export function createDesktopRunManager({
       cwd: runtimeRoot,
       stdio: ["pipe", "pipe", "pipe"],
       detached: process.platform !== "win32",
-      env: buildRuntimeEnv({
+      env: buildRuntimeEnv(prependRuntimePath({
         ...process.env,
+        ...nodeEnv,
         FORCE_COLOR: "0"
-      }, store.settings)
+      }, codexExecutable?.pathEntries), store.settings)
     });
 
     const activeRun = {
@@ -936,7 +944,8 @@ export function createDesktopRunManager({
     return new Promise((resolvePromise, rejectPromise) => {
       const child = spawnProcess(nodeBin, [runtimeBin, ...args], {
         cwd: runtimeRoot,
-        stdio: ["ignore", "pipe", "pipe"]
+        stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, ...nodeEnv }
       });
       let stdout = "";
       let stderr = "";
@@ -1155,6 +1164,21 @@ export function createDesktopRunManager({
     readDesktopStore: readStore,
     updateDesktopStore: updateStore
   };
+}
+
+function normalizeCodexExecutable(value) {
+  const command = typeof value === "string" ? value : value?.command;
+  if (!String(command || "").trim()) throw new Error("Setup Readiness did not provide a resolved Codex executable.");
+  return {
+    command: String(command),
+    pathEntries: Array.isArray(value?.pathEntries) ? value.pathEntries.map(String).filter(Boolean) : []
+  };
+}
+
+function prependRuntimePath(env, entries = []) {
+  if (!entries.length) return env;
+  const key = Object.keys(env).find((candidate) => candidate.toUpperCase() === "PATH") || "PATH";
+  return { ...env, [key]: [...new Set(entries), env[key]].filter(Boolean).join(process.platform === "win32" ? ";" : ":") };
 }
 
 export function runtimeFailureForCompletedProcess(result) {
