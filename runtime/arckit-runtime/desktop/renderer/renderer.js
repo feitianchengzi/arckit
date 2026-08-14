@@ -53,6 +53,9 @@ const RECOVERY_ACTION_LABELS = {
 };
 
 const state = {
+  setup: null,
+  setupBusy: false,
+  setupPlanOpened: false,
   page: "command",
   selectedProjectId: "all",
   selectedState: "pending",
@@ -89,10 +92,16 @@ boot();
 
 async function boot() {
   wireEvents();
-  const [settings, authentication] = await Promise.all([api.getSettings(), api.getAuthStatus()]);
+  const [setup, settings, authentication] = await Promise.all([api.getSetupReadiness(), api.getSettings(), api.getAuthStatus()]);
+  state.setup = setup;
   state.settings = normalizeSettings(settings);
   state.authentication = normalizeAuthentication(authentication);
+  renderSetup();
   await refreshSnapshot();
+  api.onSetupEvent((readiness) => {
+    state.setup = readiness;
+    renderSetup();
+  });
   api.onAutomationEvent(() => scheduleRefresh());
   api.onEvent((event) => {
     if (["run.started", "run.finished", "message.added"].includes(event.type)) {
@@ -106,6 +115,51 @@ async function boot() {
 }
 
 function wireEvents() {
+  els.setupRetryButton.addEventListener("click", () => runAction(async () => {
+    state.setupBusy = true;
+    renderSetup();
+    try {
+      state.setup = await api.checkSetupReadiness();
+      state.setupPlanOpened = false;
+    } finally {
+      state.setupBusy = false;
+      renderSetup();
+    }
+  }));
+  els.setupApplyButton.addEventListener("click", () => runAction(async () => {
+    state.setupBusy = true;
+    renderSetup();
+    try {
+      state.setup = await api.applySetupPlan({ planDigest: state.setup?.plan?.digest });
+    } finally {
+      state.setupBusy = false;
+      renderSetup();
+    }
+  }));
+  els.setupContinueButton.addEventListener("click", () => runAction(async () => {
+    await api.continueFromSetup();
+    els.setupReadiness.classList.add("hidden");
+    await refreshSnapshot();
+  }));
+  els.setupExitButton.addEventListener("click", () => window.close());
+  els.setupPlanDetails.addEventListener("toggle", () => {
+    if (els.setupPlanDetails.open) state.setupPlanOpened = true;
+    renderSetupActions();
+  });
+  els.setupReviewed.addEventListener("change", renderSetupActions);
+  els.setupPlan.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-setup-cleanup]");
+    if (!button) return;
+    runAction(async () => {
+      const paths = state.setup?.plan?.cleanup?.map((item) => item.path) || [];
+      const removal = await api.planSetupRemoval(paths);
+      if (!window.confirm(`将只移除 ${paths.length} 个 ArcForge 已证明的 managed-stale 路径。\n\n确认摘要：${removal.confirmationDigest}`)) return;
+      state.setup = await api.removeManagedSetupPaths({ managedPaths: paths, confirmationDigest: removal.confirmationDigest });
+      state.setupPlanOpened = false;
+      els.setupReviewed.checked = false;
+      renderSetup();
+    });
+  });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
   els.pickProjectButton.addEventListener("click", () => runAction(async () => {
     await api.pickProject();
@@ -204,6 +258,71 @@ function wireEvents() {
     }
   });
 }
+
+function renderSetup() {
+  const setup = state.setup;
+  if (!setup) return;
+  const ready = setup.status === "ready";
+  els.setupReadiness.classList.toggle("hidden", ready && !setup.first_install);
+  if (ready && !setup.first_install) {
+    api.continueFromSetup().catch((error) => console.error("Setup continuation failed:", error));
+  }
+  const labels = {
+    checking: ["正在检查 Arckit 能力", "逐项验证安装包资源和本机目标。"],
+    applying: ["正在准备完整能力", "写入由 ArcForge provider 事务化执行，请保持应用打开。"],
+    ready: ["Arckit 已准备完成", "关键资源、skills drift 与 Codex discoverability 均已通过。"],
+    "needs-install": ["需要安装 Arckit skills", "查看 fresh plan 的目标后确认安装。"],
+    drifted: ["发现 managed-stale 路径", "清理需要独立确认，普通安装不会隐式删除。"],
+    conflict: ["发现需要处理的冲突", "changed 目标或 loader conflict 不会被静默覆盖。"],
+    blocked: ["Setup Readiness 被阻塞", setup.error?.message || "修复后重新检查。"]
+  };
+  const [title, lead] = labels[setup.status] || labels.blocked;
+  els.setupTitle.textContent = title;
+  els.setupLead.textContent = lead;
+  els.setupStatusPill.textContent = setup.status.toUpperCase();
+  els.setupStatusPill.className = `health-badge ${ready ? "success" : ["blocked", "conflict"].includes(setup.status) ? "danger" : "warning"}`;
+  els.setupChecks.innerHTML = (setup.checks || []).map((item) => `<div class="setup-check ${escapeHtml(item.status)}"><span>${item.status === "passed" ? "✓" : item.status === "failed" ? "!" : "…"}</span><div><strong>${escapeHtml(setupCheckLabel(item.id))}</strong><small>${escapeHtml(item.summary)}</small></div></div>`).join("") || `<div class="setup-check pending"><span>…</span><div><strong>准备检查</strong><small>等待 main process 返回状态</small></div></div>`;
+  els.setupDistribution.innerHTML = setup.distribution ? [
+    ["Runtime", setup.distribution.runtime_version], ["Release intent", setup.distribution.release_tag],
+    ["ArcForge provider", setup.distribution.provider_version], ["Payload", shortDigest(setup.distribution.payload_digest)]
+  ].map(([label, value]) => `<div class="fact-row"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("") : `<p class="muted-copy">尚未读取 distribution lock。</p>`;
+  const counts = setup.drift?.counts;
+  els.setupCounts.innerHTML = counts ? `<div><strong>${counts.missing}</strong><span>将新增</span></div><div><strong>${counts.same}</strong><span>已一致</span></div><div><strong>${counts.changed}</strong><span>changed</span></div><div><strong>${counts.managed_stale}</strong><span>stale</span></div>` : "";
+  renderSetupPlan();
+  els.setupErrorPanel.classList.toggle("hidden", !setup.error);
+  els.setupErrorPanel.innerHTML = setup.error ? `<strong>${escapeHtml(setup.error.code)}</strong><p>${escapeHtml(setup.error.message)}</p><small>阶段：${escapeHtml(setup.error.stage)} · 回滚：${setup.error.rollback_complete ? "完整" : "需要人工检查"}</small>` : "";
+  const conflicts = setup.drift?.conflicts || [];
+  els.setupConflictPanel.classList.toggle("hidden", conflicts.length === 0);
+  els.setupConflictPanel.innerHTML = conflicts.length ? `<h2>不会自动覆盖</h2>${conflicts.map((item) => `<div class="setup-path-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}` : "";
+  renderSetupActions();
+}
+
+function renderSetupPlan() {
+  const plan = state.setup?.plan;
+  els.setupPlanDetails.classList.toggle("hidden", !plan);
+  els.setupReviewLabel.classList.toggle("hidden", !state.setup?.can_apply);
+  if (!plan) { els.setupPlan.innerHTML = ""; return; }
+  const groups = Object.groupBy ? Object.groupBy(plan.items, (item) => item.mode || "unclassified") : plan.items.reduce((result, item) => ((result[item.mode || "unclassified"] ||= []).push(item), result), {});
+  const groupHtml = Object.entries(groups).map(([mode, items]) => `<section class="setup-plan-group"><h3>${escapeHtml(mode)} · ${items.length}</h3>${items.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong>${item.destinations.map((destination) => `<code>${escapeHtml(destination.path)}</code>`).join("")}</div>`).join("")}</section>`).join("");
+  const cleanup = plan.cleanup?.length ? `<section class="setup-plan-group warning"><h3>managed-stale · ${plan.cleanup.length}</h3>${plan.cleanup.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}<button data-setup-cleanup class="secondary-button" type="button">单独确认并清理</button></section>` : "";
+  const deferred = plan.deferred_project_skills?.length ? `<section class="setup-plan-group"><h3>project-ambient · 延后</h3><p>${plan.deferred_project_skills.map(escapeHtml).join("、")}</p></section>` : "";
+  els.setupPlan.innerHTML = `<p class="setup-digest">Plan digest <code>${escapeHtml(plan.digest)}</code></p>${groupHtml}${cleanup}${deferred}`;
+}
+
+function renderSetupActions() {
+  const setup = state.setup || {};
+  const applying = state.setupBusy || ["checking", "applying"].includes(setup.status);
+  els.setupRetryButton.disabled = applying;
+  els.setupRetryButton.classList.toggle("hidden", setup.status === "ready");
+  els.setupApplyButton.classList.toggle("hidden", !setup.can_apply);
+  els.setupApplyButton.disabled = applying || !state.setupPlanOpened || !els.setupReviewed.checked;
+  els.setupContinueButton.classList.toggle("hidden", setup.status !== "ready");
+  els.setupContinueButton.disabled = applying;
+  els.setupExitButton.disabled = setup.status === "applying";
+}
+
+function setupCheckLabel(id) { return ({resources:"受信安装资源",provider:"ArcForge provider",skills:"Arckit skills",codex:"Codex discoverability"})[id] || id; }
+function shortDigest(value) { return value ? `${value.slice(0, 10)}…${value.slice(-8)}` : "--"; }
 
 async function refreshSnapshot({ quiet = false } = {}) {
   if (state.refreshing) return;

@@ -109,6 +109,25 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(styles, /\.structured-result-raw pre[^}]+overflow: auto/);
 });
 
+test("Desktop gates automation behind bounded Setup Readiness plan and confirmation IPC", async () => {
+  const [main, preload, source, html, styles] = await Promise.all([
+    readFile(desktopMainPath, "utf8"), readFile(desktopPreloadPath, "utf8"),
+    readFile(rendererPath, "utf8"), readFile(rendererHtmlPath, "utf8"), readFile(rendererStylesPath, "utf8")
+  ]);
+  assert.match(html, /id="setupReadiness"/);
+  assert.match(html, /id="setupReviewed"/);
+  assert.match(html, /查看安装计划与写入目标/);
+  assert.match(styles, /\.setup-readiness/);
+  assert.match(source, /api\.applySetupPlan\(\{ planDigest:/);
+  assert.match(source, /api\.planSetupRemoval/);
+  assert.match(source, /confirmationDigest/);
+  assert.match(preload, /getSetupReadiness/);
+  assert.match(preload, /removeManagedSetupPaths/);
+  assert.match(main, /setupReadinessPreflight: \(\) => skillProvisioningManager\.assertReady\(\)/);
+  assert.match(main, /if \(readiness\.status !== "ready"\)/);
+  assert.doesNotMatch(preload, /providerLoader|sourceRoot|execFile|writeFile/);
+});
+
 test("workbench transcript prioritizes Loop and Agent output while reducing tools to one-line summaries", () => {
   assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "result" }), "agent");
   assert.equal(transcriptMessageType({ role: "assistant", actor: "agent", kind: "status" }), "loop");
@@ -187,6 +206,12 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   ]);
 
   for (const channel of [
+    "arckit:setup-status",
+    "arckit:setup-check",
+    "arckit:setup-apply",
+    "arckit:setup-removal-plan",
+    "arckit:setup-remove",
+    "arckit:setup-continue",
     "arckit:automation-snapshot",
     "arckit:automation-sync",
     "arckit:automation-enabled",

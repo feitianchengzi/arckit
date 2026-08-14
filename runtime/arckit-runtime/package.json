@@ -3,22 +3,32 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Supervised Arckit Desktop runtime for one continuous Codex agent loop.",
+  "license": "MIT",
+  "main": "desktop/main.mjs",
   "bin": {
     "arckit-runtime": "./bin/arckit-runtime.mjs"
   },
   "scripts": {
-    "check": "node --check bin/arckit-runtime.mjs && node --check src/*.mjs && node --check src/kernel/*.mjs && node --check src/projection/*.mjs && node --check src/desktop/*.mjs && node --check adapters/*.mjs && node --check desktop/main.mjs && node --check desktop/preload.cjs && node --check desktop/renderer/renderer.js && node --test test/*.test.mjs",
+    "check": "node --check bin/arckit-runtime.mjs && node --check src/*.mjs && node --check src/kernel/*.mjs && node --check src/projection/*.mjs && node --check src/desktop/*.mjs && node --check adapters/*.mjs && node --check scripts/*.mjs && node --check desktop/main.mjs && node --check desktop/preload.cjs && node --check desktop/renderer/renderer.js && node --test test/*.test.mjs",
     "test": "node --test test/*.test.mjs",
     "test:layout": "ARCKIT_ELECTRON_LAYOUT_TEST=1 node --test test/desktop-sidebar-layout.test.mjs",
     "desktop": "electron desktop/main.mjs",
     "smoke": "node bin/arckit-runtime.mjs run --project ../.. --dry-run --json",
     "probe:app-server": "node bin/arckit-runtime.mjs probe-app-server --project ../.. --json",
-    "gate:smoke": "node bin/arckit-runtime.mjs gate-result --project ../.. --file /tmp/arckit-runtime-smoke.json --json"
+    "gate:smoke": "node bin/arckit-runtime.mjs gate-result --project ../.. --file /tmp/arckit-runtime-smoke.json --json",
+    "package:config": "node scripts/build-package-config.mjs",
+    "smoke:distribution": "node scripts/smoke-distribution.mjs",
+    "package:mac:arm64": "electron-builder --config dist-package/electron-builder.generated.json --mac --arm64 --publish=never",
+    "package:mac:x64": "electron-builder --config dist-package/electron-builder.generated.json --mac --x64 --publish=never",
+    "package:win:x64": "electron-builder --config dist-package/electron-builder.generated.json --win --x64 --publish=never",
+    "package:linux:x64": "electron-builder --config dist-package/electron-builder.generated.json --linux --x64 --publish=never"
   },
   "engines": {
     "node": ">=18"
   },
   "devDependencies": {
-    "electron": "^31.7.7"
+    "electron": "^31.7.7",
+    "electron-builder": "25.1.8"
   }
 }

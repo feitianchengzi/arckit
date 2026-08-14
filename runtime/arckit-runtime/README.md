@@ -125,3 +125,21 @@ Desktop persists active-task checkpoints for Case identity, thread identity, clo
 Lifecycle traces cover readiness, task claim, Agent turns, commands, ledger application, compaction, same-thread closeout, and remote completion. Traces contain bounded identifiers and timings, not prompt text, command arguments, environment values, credentials, or hidden reasoning.
 
 The Workbench shows the bound Codex thread, current Agent Loop result, token/cache totals, context pressure and compactions, command timing, ledger state, and Git closeout result.
+
+## Governed installer packages
+
+The repository workflow `.github/workflows/arckit-runtime-package.yml` is manually dispatched. The operator chooses an existing immutable `tf/vx.x.x-bN`, `beta/vx.x.x-rcN`, or `appstore/vx.x.x` tag, one installer target (or all), the signing gate, an exact ArcForge provider release, and its SHA-256. The workflow validates the selected tag commit, package version, active `release/*` baseline, and higher release lines. It never creates or moves a branch or tag.
+
+Every installer carries three independently verifiable resources outside ASAR:
+
+- trusted Runtime capability manifests and ledger entrypoints;
+- the complete governed Arckit skill payload and its source/content manifest;
+- the exact `arcforge-embedded-provider/v1` package selected by release tag and digest.
+
+On startup, Desktop's main process validates those resources and opens Setup Readiness before Workshop login or task execution when the environment is not ready. It stages the packaged payload into the app data source store, asks the embedded provider for a fresh plan, defers `project-ambient` skills until a concrete project context exists, and installs user-ambient skills plus the on-demand catalog/loader only after the user expands the target summary and confirms the plan digest. Changed managed targets and loader conflicts are never overwritten; `managed-stale` removal uses a separate path-bound confirmation.
+
+Automation task starts have an independent Setup Readiness preflight in addition to the existing Runtime project/capability preflight. A later drift therefore routes back to setup instead of letting the Runtime Kernel infer or repair Codex skill discovery itself.
+
+The embedded `distribution-lock.json` binds those inputs before packaging. Because a file cannot contain its own final digest, each completed installer also has an external `distribution-attestation.json` that binds the installer SHA-256 to the embedded lock digest; the downloadable `checksums.txt` sits beside the installers so its relative filenames verify directly. Actions artifacts are always retained; attaching them to a GitHub Release requires the explicit `draft-release` option and never publishes or mutates an already published release.
+
+For a private ArcForge repository, configure the minimal read-only `ARCFORGE_READ_TOKEN` repository secret. Target signing secrets live in the workflow-selected `internal`, `beta`, or `appstore` GitHub Environment. `required` macOS packaging needs `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD`, and either the base64-encoded `.p8` value in `APPLE_API_KEY` plus its key ID/issuer/team ID or the Apple ID credential set. Required Windows packaging uses electron-builder's Windows-specific `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD`, injected only into the Windows matrix job. `disabled` intentionally produces an unsigned internal artifact, while `auto` records and verifies a signature only when credentials were available.

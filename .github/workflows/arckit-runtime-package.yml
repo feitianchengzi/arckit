@@ -1,0 +1,329 @@
+name: Manual Arckit Runtime Package
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing tf/vx.x.x-bN, beta/vx.x.x-rcN, or appstore/vx.x.x tag
+        required: true
+        type: string
+      target:
+        description: Installer target
+        required: true
+        default: macos-arm64
+        type: choice
+        options: [macos-arm64, macos-x64, windows-x64, linux-x64, all]
+      signing:
+        description: Signing gate
+        required: true
+        default: disabled
+        type: choice
+        options: [disabled, auto, required]
+      publish:
+        description: Actions artifact only or attach to a draft release
+        required: true
+        default: artifact-only
+        type: choice
+        options: [artifact-only, draft-release]
+      arcforge_repository:
+        description: ArcForge GitHub owner/repository
+        required: true
+        default: feitianchengzi/arcforge
+        type: string
+      arcforge_release:
+        description: Exact existing ArcForge provider release tag
+        required: true
+        type: string
+      arcforge_sha256:
+        description: Expected provider .tgz SHA-256
+        required: true
+        type: string
+      allow_main_beta:
+        description: Explicitly accept beta from main when release/vx.x.x does not exist
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arckit-runtime-package-${{ inputs.release_tag }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release and provider inputs
+    runs-on: ubuntu-latest
+    outputs:
+      product_version: ${{ steps.contract.outputs.product_version }}
+      package_version: ${{ steps.contract.outputs.package_version }}
+      channel: ${{ steps.contract.outputs.channel }}
+      commit: ${{ steps.contract.outputs.commit }}
+      matrix: ${{ steps.selection.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+          fetch-depth: 0
+
+      - name: Fetch governed refs
+        run: git fetch origin main 'refs/heads/release/*:refs/remotes/origin/release/*' 'refs/tags/*:refs/tags/*' --force
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: runtime/arckit-runtime/package-lock.json
+
+      - run: npm ci
+        working-directory: runtime/arckit-runtime
+
+      - id: contract
+        name: Validate immutable tag, commit, version, and baseline
+        working-directory: runtime/arckit-runtime
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          ALLOW_MAIN_BETA: ${{ inputs.allow_main_beta }}
+        run: node scripts/validate-release-trigger.mjs --tag "$RELEASE_TAG" --allow-main-beta "$ALLOW_MAIN_BETA" --github-output "$GITHUB_OUTPUT"
+
+      - run: npm run check
+        working-directory: runtime/arckit-runtime
+
+      - id: selection
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in
+            macos-arm64) matrix='[{"name":"macOS Apple Silicon","os":"macos-15","platform":"mac","target":"macos-arm64","script":"package:mac:arm64"}]' ;;
+            macos-x64) matrix='[{"name":"macOS Intel","os":"macos-15-intel","platform":"mac","target":"macos-x64","script":"package:mac:x64"}]' ;;
+            windows-x64) matrix='[{"name":"Windows x64","os":"windows-latest","platform":"win","target":"windows-x64","script":"package:win:x64"}]' ;;
+            linux-x64) matrix='[{"name":"Linux x64","os":"ubuntu-latest","platform":"linux","target":"linux-x64","script":"package:linux:x64"}]' ;;
+            all) matrix='[{"name":"macOS Apple Silicon","os":"macos-15","platform":"mac","target":"macos-arm64","script":"package:mac:arm64"},{"name":"macOS Intel","os":"macos-15-intel","platform":"mac","target":"macos-x64","script":"package:mac:x64"},{"name":"Windows x64","os":"windows-latest","platform":"win","target":"windows-x64","script":"package:win:x64"},{"name":"Linux x64","os":"ubuntu-latest","platform":"linux","target":"linux-x64","script":"package:linux:x64"}]' ;;
+            *) echo "Unsupported target: $TARGET" >&2; exit 1 ;;
+          esac
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+      - name: Download exact ArcForge provider release
+        env:
+          GH_TOKEN: ${{ secrets.ARCFORGE_READ_TOKEN || github.token }}
+          ARCFORGE_REPOSITORY: ${{ inputs.arcforge_repository }}
+          ARCFORGE_RELEASE: ${{ inputs.arcforge_release }}
+        run: |
+          set -euo pipefail
+          mkdir provider-input
+          gh release download "$ARCFORGE_RELEASE" --repo "$ARCFORGE_REPOSITORY" --pattern 'arcforge-provider-*.tgz' --pattern 'arcforge-provider.manifest.json' --dir provider-input
+          test "$(find provider-input -maxdepth 1 -name 'arcforge-provider-*.tgz' -type f | wc -l | tr -d ' ')" = 1
+          test -f provider-input/arcforge-provider.manifest.json
+
+      - name: Verify provider digest before fan-out
+        shell: bash
+        env:
+          EXPECTED_SHA256: ${{ inputs.arcforge_sha256 }}
+        run: |
+          set -euo pipefail
+          archive="$(find provider-input -maxdepth 1 -name 'arcforge-provider-*.tgz' -type f -print -quit)"
+          actual="$(sha256sum "$archive" | awk '{print $1}')"
+          [[ "$EXPECTED_SHA256" =~ ^[a-f0-9]{64}$ ]]
+          [[ "$actual" == "$EXPECTED_SHA256" ]] || { echo "Provider SHA-256 mismatch." >&2; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-arcforge-provider-${{ github.run_id }}
+          path: provider-input/*
+          if-no-files-found: error
+
+  package:
+    name: ${{ matrix.name }}
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.validate.outputs.matrix) }}
+    runs-on: ${{ matrix.os }}
+    environment: ${{ needs.validate.outputs.channel == 'tf' && 'internal' || needs.validate.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: runtime/arckit-runtime/package-lock.json
+
+      - run: npm ci
+        working-directory: runtime/arckit-runtime
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: verified-arcforge-provider-${{ github.run_id }}
+          path: provider-input
+
+      - id: signing
+        name: Enforce operator-selected signing gate
+        shell: bash
+        env:
+          MODE: ${{ inputs.signing }}
+          PLATFORM: ${{ matrix.platform }}
+          MAC_CSC_LINK: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.MAC_CSC_LINK || '' }}
+          MAC_CSC_KEY_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_API_KEY: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_KEY_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
+          WIN_CSC_LINK: ${{ inputs.signing != 'disabled' && matrix.platform == 'win' && secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+        run: |
+          set -euo pipefail
+          notarize=false
+          signing_result=disabled
+          if [[ "$MODE" != disabled ]]; then
+            signing_result=unsigned-allowed
+            if [[ "$PLATFORM" == mac && -n "$MAC_CSC_LINK" && -n "$MAC_CSC_KEY_PASSWORD" ]]; then signing_result=signed; fi
+            if [[ "$PLATFORM" == win && -n "$WIN_CSC_LINK" && -n "$WIN_CSC_KEY_PASSWORD" ]]; then signing_result=signed; fi
+            if [[ "$PLATFORM" == linux ]]; then signing_result=not-applicable; fi
+            if [[ "$PLATFORM" == mac ]] && { [[ -n "$APPLE_API_KEY" && -n "$APPLE_API_KEY_ID" && -n "$APPLE_API_ISSUER" && -n "$APPLE_TEAM_ID" ]] || [[ -n "$APPLE_ID" && -n "$APPLE_APP_SPECIFIC_PASSWORD" && -n "$APPLE_TEAM_ID" ]]; }; then notarize=true; fi
+          fi
+          if [[ "$MODE" == required && "$PLATFORM" == mac && "$signing_result" != signed ]]; then echo 'required macOS signing secrets are missing' >&2; exit 1; fi
+          if [[ "$MODE" == required && "$PLATFORM" == mac && "$notarize" != true ]]; then echo 'required macOS notarization secrets are missing' >&2; exit 1; fi
+          if [[ "$MODE" == required && "$PLATFORM" == win && "$signing_result" != signed ]]; then echo 'required Windows signing secrets are missing' >&2; exit 1; fi
+          echo "notarize=$notarize" >> "$GITHUB_OUTPUT"
+          echo "signing_result=$signing_result" >> "$GITHUB_OUTPUT"
+
+      - name: Assemble verified distribution resources
+        working-directory: runtime/arckit-runtime
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          PROVIDER_SHA256: ${{ inputs.arcforge_sha256 }}
+          PROVIDER_RELEASE: ${{ inputs.arcforge_release }}
+          PROVIDER_REPOSITORY: ${{ inputs.arcforge_repository }}
+          TARGET: ${{ matrix.target }}
+          SIGNING: ${{ inputs.signing }}
+          SOURCE_COMMIT: ${{ needs.validate.outputs.commit }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW: ${{ github.workflow }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          archive="$(find ../../provider-input -maxdepth 1 -name 'arcforge-provider-*.tgz' -type f -print -quit)"
+          node scripts/prepare-distribution.mjs --release-tag "$RELEASE_TAG" --provider-archive "$archive" --provider-manifest ../../provider-input/arcforge-provider.manifest.json --provider-sha256 "$PROVIDER_SHA256" --provider-release "$PROVIDER_RELEASE" --provider-repository "$PROVIDER_REPOSITORY" --target "$TARGET" --signing "$SIGNING" --source-commit "$SOURCE_COMMIT" --repository "$REPOSITORY" --workflow "$WORKFLOW" --run-id "$RUN_ID" --run-attempt "$RUN_ATTEMPT" --source-ref "$SOURCE_REF"
+          node scripts/build-package-config.mjs --signing "$SIGNING" --notarize '${{ steps.signing.outputs.notarize }}' --platform '${{ matrix.platform }}'
+
+      - name: Smoke-test packaged provider and skill payload
+        working-directory: runtime/arckit-runtime
+        run: npm run smoke:distribution
+
+      - name: Build installer
+        working-directory: runtime/arckit-runtime
+        env:
+          CSC_LINK: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ inputs.signing == 'disabled' && 'false' || 'true' }}
+          APPLE_API_KEY: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY || '' }}
+          APPLE_API_KEY_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY_ID || '' }}
+          APPLE_API_ISSUER: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_ISSUER || '' }}
+          APPLE_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
+          WIN_CSC_LINK: ${{ inputs.signing != 'disabled' && matrix.platform == 'win' && secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+        run: npm run ${{ matrix.script }}
+
+      - name: Verify macOS signature
+        if: steps.signing.outputs.signing_result == 'signed' && matrix.platform == 'mac'
+        working-directory: runtime/arckit-runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$(find release -type d -name '*.app' -print -quit)"
+          test -n "$app_path"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+
+      - name: Verify macOS notarization
+        if: steps.signing.outputs.notarize == 'true' && matrix.platform == 'mac'
+        working-directory: runtime/arckit-runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          app_path="$(find release -type d -name '*.app' -print -quit)"
+          test -n "$app_path"
+          xcrun stapler validate "$app_path"
+          spctl --assess --type execute --verbose=2 "$app_path"
+
+      - name: Verify Windows signature
+        if: steps.signing.outputs.signing_result == 'signed' && matrix.platform == 'win'
+        working-directory: runtime/arckit-runtime
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem release -Filter *.exe | Select-Object -First 1
+          $signature = Get-AuthenticodeSignature $installer.FullName
+          if ($signature.Status -ne 'Valid') { throw "Windows signature is $($signature.Status)" }
+
+      - name: Finalize artifact attestations
+        working-directory: runtime/arckit-runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          notarization_result=not-requested
+          if [[ '${{ steps.signing.outputs.notarize }}' == true ]]; then
+            notarization_result=verified-by-platform-gate
+          fi
+          node scripts/finalize-package-artifacts.mjs --signing-result '${{ steps.signing.outputs.signing_result }}' --notarization-result "$notarization_result"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arckit-runtime-${{ matrix.target }}-${{ needs.validate.outputs.package_version }}
+          path: |
+            runtime/arckit-runtime/release/*.dmg
+            runtime/arckit-runtime/release/*.exe
+            runtime/arckit-runtime/release/*.AppImage
+            runtime/arckit-runtime/release/checksums.txt
+            runtime/arckit-runtime/release/attestations/*
+          if-no-files-found: error
+
+  publish:
+    name: Attach installers to draft release
+    needs: [validate, package]
+    if: inputs.publish == 'draft-release' && needs.package.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: arckit-runtime-*
+          path: release-assets
+
+      - name: Create or update draft without moving the tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag }}
+          VERSION: ${{ needs.validate.outputs.product_version }}
+          CHANNEL: ${{ needs.validate.outputs.channel }}
+        run: |
+          set -euo pipefail
+          mapfile -d '' files < <(find release-assets -type f -print0 | sort -z)
+          if [[ "${#files[@]}" -eq 0 ]]; then echo 'No installer assets found.' >&2; exit 1; fi
+          if gh release view "$TAG" --json isDraft --jq .isDraft >/tmp/is-draft 2>/dev/null; then
+            [[ "$(cat /tmp/is-draft)" == true ]] || { echo "Refusing to mutate published release $TAG" >&2; exit 1; }
+            gh release upload "$TAG" "${files[@]}" --clobber
+          else
+            prerelease=()
+            if [[ "$CHANNEL" != appstore ]]; then prerelease=(--prerelease); fi
+            gh release create "$TAG" "${files[@]}" --verify-tag --draft "${prerelease[@]}" --title "Arckit Runtime $VERSION ($CHANNEL)" --generate-notes
+          fi

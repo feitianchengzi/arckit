@@ -70,3 +70,4 @@
 | [CASE-20260813-002](closed/CASE-20260813-002-support-post-completion-review-feedback-continuation.md) | closed | Support post-completion review feedback continuation | 2026-08-13T10:57:55.065Z |
 | [CASE-20260813-003](closed/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md) | closed | Restore cumulative Project decision semantics after feedback-lane update | 2026-08-13T11:04:05.093Z |
 | [CASE-20260814-001](closed/CASE-20260814-001-windows-arckit-runtime-loop.md) | closed | 诊断并修复 Windows 上的 Arckit Runtime loop 失败 | 2026-08-14T04:03:58.247Z |
+| [CASE-20260814-002](closed/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md) | closed | Build the governed Arckit Runtime installer supply chain | 2026-08-14T06:25:46.308Z |

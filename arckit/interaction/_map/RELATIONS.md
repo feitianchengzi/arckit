@@ -2,6 +2,8 @@
 
 ## Automation Workspace
 
+`setup-readiness/interaction.md` 定义应用启动后、Workshop 认证和 Runtime task 之前的本机能力门禁；`setup-readiness/default.html` 投影受信资源检查、skills plan/drift、事务 apply、完成、冲突与阻塞恢复。只有 readiness 为 ready 才继续 Login 或 Automation Workspace；修复成功后重新执行 task preflight，不自动领取远端任务。
+
 `login/interaction.md` 定义应用启动时的认证门禁；`login/default.html` 投影会话恢复、未登录入口、验证码已发送和登录失败。未登录时 Login 是唯一可交互主页面，认证成功后才进入 Automation Command Center，退出登录后返回 Login。
 
 `automation-workspace/interaction.md` 定义登录后的普通待办与验收反馈双队列、统一执行仲裁和待办会话交接；`automation-workspace/default.html` 分别投影两条队列、计数与进展，`automation-workspace/authentication.html` 投影设置覆盖层中的账号摘要和失效恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理、历史审查与同待办反馈会话。
@@ -21,9 +23,11 @@
 
 相关稳定事实：
 
+- `arckit/spec/arckit-runtime-distribution.md`
 - `arckit/spec/agentic-software-development/product-architecture.md`
 - `arckit/spec/agentic-software-development/controller-worker-loop.md`
 - `arckit/tech/arckit-runtime/solution.md`
+- `arckit/tech/arckit-runtime/installer-supply-chain.md`
 - `arckit/tech/arckit-runtime/desktop-execution-solution.md`
 - `runtime/arckit-runtime/desktop/renderer/index.html`
 - `../../hoewo/workshop-desktop/docs/domain.md`

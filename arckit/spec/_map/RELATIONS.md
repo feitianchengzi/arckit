@@ -1,5 +1,11 @@
 # Spec Relations
 
+## Runtime 分发与安装
+
+`arckit-runtime-distribution.md` 定义用户从人工选择的 GitHub 安装包进入 Setup Readiness、离线 skills provisioning、项目级能力、修复、升级和清理的产品行为。它依赖 `agentic-software-development/skill-architecture.md` 的 Agent 原生 skill 边界，并在 Runtime task 启动前衔接 `agentic-software-development/runtime-automation-workspace.md`。
+
+对应技术事实位于 `arckit/tech/arckit-runtime/installer-supply-chain.md`；Runtime 持续执行语义仍由 `arckit/tech/arckit-runtime/solution.md` 定义。
+
 ## Agent 软件研发操作层
 
 阅读顺序是 `problem-background.md`、`solution-principles.md`、`product-concepts.md`、`product-architecture.md`、`skill-architecture.md`、`controller-worker-loop.md`。`loop-engineering-research.md` 是研究输入，按需在修订 loop、runtime 或外部 adapter 相关规格前读取。

@@ -21,6 +21,7 @@ export function createAutomationCoordinator({
   taskSourceFactory = createWorkshopTaskSource,
   now = () => new Date().toISOString(),
   cliLauncher = createInteractiveCodexCliLauncher(),
+  setupReadinessPreflight = async () => ({ ready: true }),
   wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   safeStopTimeoutMs = 8_000
 }) {
@@ -872,6 +873,7 @@ export function createAutomationCoordinator({
         attributes: { task_id: candidate.id, project_id: candidate.project_id }
       });
       try {
+        await setupReadinessPreflight();
         await runManager.preflightRun?.({
           projectId: candidate.local_project_id,
           task: candidate.content || candidate.title || "",
@@ -1026,6 +1028,7 @@ export function createAutomationCoordinator({
     }
     let leaseEstablished = false;
     try {
+      await setupReadinessPreflight();
       await runManager.preflightRun?.({
         projectId: current.local_project_id,
         task: current.original_feedback,

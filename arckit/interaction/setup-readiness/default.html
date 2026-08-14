@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Readiness - 线框图</title>
+    <link rel="stylesheet" href="../wireframe-style.css">
+</head>
+<body>
+    <div class="wireframe-container">
+        <header>
+            <h1>Setup Readiness</h1>
+            <div class="meta-info"><div>View: <code>SetupReadinessView</code></div><div>平台: <strong>Desktop</strong></div><div>原则: <strong>先 drift · 后确认 · 再 apply</strong></div></div>
+        </header>
+
+        <details open>
+            <summary>正在检查</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>应用启动，Setup Readiness 校验受信资源、provider、payload、Codex 和既有安装关系。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack">
+                    <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit · 环境准备</strong><span>检查中</span></div>
+                    <div class="content-area"><div class="page-header"><div><div class="eyebrow">Setup Readiness</div><h2>正在检查完整运行环境</h2><p>不会从网络下载未锁定资源，也不会在检查阶段写入 Agent 目录。</p></div></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>检查项目</strong><span>3 / 6</span></div><div class="surface-body"><div class="timeline-list"><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>Distribution Lock</strong><small>Runtime 0.1.0 · tf/b1</small></div><time>通过</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>Trusted Ledger Resources</strong><small>capabilities 与 scripts digest 一致</small></div><time>通过</time></div><div class="timeline-row done"><i class="timeline-marker"></i><div><strong>ArcForge Provider</strong><small>API v1 · checksum 一致</small></div><time>通过</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>Arckit Skills</strong><small>正在读取 availability 与关系</small></div><time>当前</time></div><div class="timeline-row"><i class="timeline-marker"></i><div><strong>Codex</strong><small>等待 discoverability probe</small></div><time>等待</time></div></div></div></section><aside class="surface"><div class="surface-header"><strong>当前来源</strong><span>离线 payload</span></div><div class="surface-body"><dl class="key-value-list"><dt>Arckit</dt><dd>commit 84f…</dd><dt>ArcForge</dt><dd>v0.2.0</dd><dt>目标</dt><dd>Codex</dd><dt>写入</dt><dd>尚未开始</dd></dl><div class="page-actions"><button class="compact-action">退出</button><button class="compact-action" disabled>继续</button></div></div></aside></div></div>
+                </div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>资源与环境检查时间线</li><li>锁定来源摘要</li><li>禁用的继续动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>全部通过</code> → 进入完成结果</div><div class="interaction-item"><code>需要安装</code> → 进入安装计划</div><div class="interaction-item"><code>冲突或失败</code> → 进入对应恢复状态</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>安装计划</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>必须的 Arckit skills 尚未安装，或新 payload 需要受控升级。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationSplitView">
+                    <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit · 安装计划</strong><span>plan 7f21…</span></div>
+                    <div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>Arckit</strong><small>Runtime Setup</small></div></div><div class="nav-group"><div class="nav-label">可用性</div><div class="nav-row active"><span class="nav-glyph">●</span><span>用户常驻</span><span class="count">8</span></div><div class="nav-row"><span class="nav-glyph">○</span><span>用户按需</span><span class="count">4</span></div><div class="nav-row"><span class="nav-glyph">◇</span><span>项目级延后</span><span class="count">1</span></div></div></aside><section class="workspace-column"><div class="command-bar"><div class="breadcrumbs"><strong>环境准备</strong><span>/</span><span>复核计划</span></div><div class="command-spacer"></div><button class="compact-action">查看完整路径</button></div><div class="page-content"><div class="page-header"><div><div class="eyebrow">Arckit 0.1.0 · ArcForge 0.2.0</div><h2>安装 Arckit Agent 能力</h2><p>将写入 Codex 用户级 skills 与 ArcForge 按需 catalog。</p></div><div class="page-actions"><button class="compact-action">退出</button><button class="compact-action primary">安装并继续</button></div></div><div class="metric-grid"><div class="metric-card emphasis"><span>新增</span><strong>12</strong><small>skills 与 loader</small></div><div class="metric-card"><span>更新</span><strong>0</strong><small>无 changed</small></div><div class="metric-card"><span>不会处理</span><strong>6</strong><small>unrelated</small></div><div class="metric-card"><span>单独清理</span><strong>0</strong><small>managed-stale</small></div></div><section class="surface"><div class="surface-header"><strong>目标与策略</strong><span>确认后 fresh-read</span></div><div class="surface-body"><div class="table-head"><span></span><span>能力</span><span>模式</span><span>状态</span><span>目标</span></div><div class="table-row selected"><span class="priority-mark high"></span><span><strong>using-arckit</strong><small>Agent Loop 入口</small></span><span>常驻</span><span>新增</span><span>Codex</span></div><div class="table-row"><span class="priority-mark"></span><span><strong>arckit-pending</strong><small>显式按需加载</small></span><span>按需</span><span>新增</span><span>Catalog</span></div><div class="table-row"><span class="priority-mark"></span><span><strong>arckit-code-swiftui</strong><small>等待具体项目适用性</small></span><span>项目</span><span>延后</span><span>无写入</span></div></div></section></div></section></div>
+                </div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>availability 导航</li><li>来源与 plan digest</li><li>drift 指标</li><li>目标明细与确认动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>查看完整路径</code> → 展开 source、target 和关系位置</div><div class="interaction-item"><code>安装并继续</code> → 携带 plan digest 请求 main process fresh apply</div><div class="interaction-item"><code>plan 失效</code> → 返回正在检查并重新生成</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>执行中</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>用户确认 fresh plan，main process 开始事务化 apply。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack">
+                    <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit · 正在准备</strong><span>请勿关闭</span></div><div class="content-area"><div class="card"><div class="icon-placeholder">3/6</div><h2>正在应用 Arckit skills</h2><p>目标目录、catalog 和关系记录在一个可回滚事务中更新。</p><div class="progress-bar" data-kit="ProgressView(linear)"><div class="progress-fill p-45"></div></div><div class="stage-strip"><div class="stage-item done"><span class="stage-marker">1</span><strong>来源</strong><small>已验证</small></div><div class="stage-item done"><span class="stage-marker">2</span><strong>目录</strong><small>已写入</small></div><div class="stage-item current"><span class="stage-marker">3</span><strong>Catalog</strong><small>当前</small></div><div class="stage-item"><span class="stage-marker">4</span><strong>Probe</strong><small>等待</small></div></div><div class="current-action"><strong>正在更新按需 catalog</strong><small>如失败，已写入目录会恢复到确认前状态。</small></div></div></div>
+                </div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>事务进度</li><li>阶段 strip</li><li>当前动作与回滚说明</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>关闭应用</code> → main process 完成当前原子阶段或回滚后再退出</div><div class="interaction-item"><code>apply 成功</code> → 执行 post-drift 与 Codex probe</div><div class="interaction-item"><code>apply 失败</code> → 进入阻塞恢复并说明回滚结果</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>已准备完成</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>资源、post-drift 与 Codex discoverability 全部通过。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack">
+                    <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit · 环境准备</strong><span>Ready</span></div><div class="content-area"><div class="card"><div class="icon-placeholder">✓</div><h2>Arckit 已准备完成</h2><p>Runtime trusted resources 与 Codex skills 使用各自受信来源，当前安装关系无 drift。</p><div class="card-grid"><div class="group-box"><div class="group-box-title">用户常驻</div><strong>8 个已安装</strong></div><div class="group-box"><div class="group-box-title">用户按需</div><strong>4 个可加载</strong></div><div class="group-box"><div class="group-box-title">项目级</div><strong>添加项目后判断</strong></div></div><div class="page-actions"><button class="compact-action">查看安装详情</button><button class="compact-action primary">继续使用 Arckit</button></div></div></div>
+                </div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>Ready 结果</li><li>安装分类摘要</li><li>详情与继续动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>继续使用 Arckit</code> → 按 Workshop 会话状态进入 Login 或 Automation Workspace</div><div class="interaction-item"><code>普通启动已 ready</code> → 短暂停留后自动继续</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>冲突检查</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>旧目标存在本地修改、同名 uncertain 目录或 managed-stale 清理候选。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationSplitView">
+                    <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit · 冲突检查</strong><span>不会自动覆盖</span></div><div class="content-area"><div class="attention-strip"><div class="run-orb">!</div><div><strong>2 个目标需要处理</strong><small>当前 source 尚未切换，Runtime task 保持未启动。</small></div><span class="badge">人工处理</span></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>目标差异</strong><span>按来源分类</span></div><div class="surface-body"><div class="list-item"><div class="list-item-text"><div class="list-item-title">using-arckit · changed</div><div class="list-item-subtitle">已受管理，但包含本地修改</div></div><button class="button small">查看 diff</button></div><div class="list-item"><div class="list-item-text"><div class="list-item-title">custom-review · uncertain</div><div class="list-item-subtitle">不属于当前来源，不会处理</div></div><span class="badge">保留</span></div><div class="list-item"><div class="list-item-text"><div class="list-item-title">old-pending · managed-stale</div><div class="list-item-subtitle">历史关系管理过，可单独清理</div></div><button class="button small destructive">选择清理</button></div></div></section><aside class="surface"><div class="surface-header"><strong>恢复动作</strong><span>重新生成 plan</span></div><div class="surface-body"><button class="compact-action">保留本地修改并退出</button> <button class="compact-action">恢复受管理副本</button><div class="current-action"><strong>清理是独立确认</strong><small>不会把 uncertain 目录加入批量删除。</small></div></div></aside></div></div>
+                </div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>changed、uncertain 与 managed-stale 分类</li><li>diff 入口</li><li>恢复、保留和独立清理动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>恢复受管理副本</code> → 生成新的 repair plan，不直接写入</div><div class="interaction-item"><code>选择清理</code> → 打开逐路径 ConfirmationDialog</div><div class="interaction-item"><code>处理完成</code> → 重新检查，不复用旧 digest</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>阻塞恢复</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>资源损坏、Codex 不可用、权限不足、apply 失败或回滚不完整。</div>
+                <div class="wireframe-canvas"><div class="device-frame desktop" data-kit="NavigationStack">
+                    <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>Arckit · 环境准备</strong><span>Blocked</span></div><div class="content-area"><div class="card"><div class="icon-placeholder">!</div><h2>无法完成环境准备</h2><div class="badge">PROVIDER_TARGET_WRITE_FAILED</div><p>Codex skill 目标不可写。已完整回滚，本次没有保留目录变更。</p><dl class="key-value-list"><dt>失败阶段</dt><dd>target directories</dd><dt>影响路径</dt><dd>~/.codex/skills/using-arckit</dd><dt>回滚</dt><dd>完整</dd><dt>Runtime</dt><dd>未启动</dd></dl><div class="page-actions"><button class="compact-action">复制诊断</button><button class="compact-action">退出</button><button class="compact-action primary">重新检查</button></div></div></div>
+                </div></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>稳定错误 code</li><li>失败阶段与影响路径</li><li>回滚结果</li><li>诊断与恢复动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>重新检查</code> → 从 bundled resources 和目标 fresh-read 开始</div><div class="interaction-item"><code>回滚不完整</code> → 禁用重新 apply，列出残留路径与人工修复说明</div><div class="interaction-item"><code>Codex 未登录</code> → 打开登录入口，返回后重新 probe</div></div>
+            </div>
+        </details>
+    </div>
+</body>
+</html>

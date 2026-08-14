@@ -1,8 +1,15 @@
 import { app, BrowserWindow } from "electron";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const fixtureDir = dirname(fileURLToPath(import.meta.url));
+const fixtureUserData = join(tmpdir(), `arckit-layout-${process.pid}`);
+
+app.setName("Arckit Layout Fixture");
+app.setPath("userData", fixtureUserData);
+app.disableHardwareAcceleration();
 
 await app.whenReady();
 
@@ -40,5 +47,6 @@ try {
   process.exitCode = 1;
 } finally {
   window.destroy();
+  await rm(fixtureUserData, { recursive: true, force: true });
   app.exit(process.exitCode || 0);
 }

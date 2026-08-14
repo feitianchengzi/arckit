@@ -1,6 +1,12 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  getSetupReadiness: () => ipcRenderer.invoke("arckit:setup-status"),
+  checkSetupReadiness: () => ipcRenderer.invoke("arckit:setup-check"),
+  applySetupPlan: (input) => ipcRenderer.invoke("arckit:setup-apply", input),
+  planSetupRemoval: (managedPaths) => ipcRenderer.invoke("arckit:setup-removal-plan", managedPaths),
+  removeManagedSetupPaths: (input) => ipcRenderer.invoke("arckit:setup-remove", input),
+  continueFromSetup: () => ipcRenderer.invoke("arckit:setup-continue"),
   pickProject: () => ipcRenderer.invoke("arckit:pick-project"),
   listRuns: (filter) => ipcRenderer.invoke("arckit:list-runs", filter),
   listMessages: (projectId, sessionId) => ipcRenderer.invoke("arckit:list-messages", projectId, sessionId),
@@ -37,5 +43,10 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     const handler = (_event, payload) => listener(payload);
     ipcRenderer.on("arckit:automation-event", handler);
     return () => ipcRenderer.off("arckit:automation-event", handler);
+  },
+  onSetupEvent: (listener) => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on("arckit:setup-event", handler);
+    return () => ipcRenderer.off("arckit:setup-event", handler);
   }
 });

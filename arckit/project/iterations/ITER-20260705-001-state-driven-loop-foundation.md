@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-14T04:03:58.247Z
+Updated: 2026-08-14T06:25:46.308Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,21 +17,20 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.feedback_and_support: settled (arckit/cases/active/CASE-20260813-002-support-post-completion-review-feedback-continuation.md)
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260813-002-support-post-completion-review-feedback-continuation.md)
-- software_decision.observability_and_operation: settled (arckit/cases/active/CASE-20260813-002-support-post-completion-review-feedback-continuation.md)
-- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md)
-- software_decision.data_and_state: settled (arckit/cases/active/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md)
-- software_decision.feedback_and_support: settled (arckit/cases/active/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md)
 - software_decision.observability_and_operation: settled (arckit/cases/active/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md)
 - software_decision.delivery_and_distribution: settled (arckit/cases/active/CASE-20260814-001-windows-arckit-runtime-loop.md)
+- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
+- software_decision.runtime_surfaces: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
+- software_decision.delivery_and_distribution: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
+- project_gap.GAP-delivery-governance: update (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
+- project_gap.GAP-delivery-governance: resolve (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
 
 ## Remaining Project Gaps
 
 - GAP-agent-scenario-evaluation
 - GAP-runtime-resilience-and-adapters
 - GAP-security-real-project-validation
-- GAP-delivery-governance
 - GAP-cross-record-audit

@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-14T04:03:58.247Z",
-    "revision": 49
+    "updated_at": "2026-08-14T06:25:46.308Z",
+    "revision": 53
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -84,27 +84,6 @@
         "candidate_case_ref": ""
       },
       {
-        "id": "GAP-delivery-governance",
-        "goal": "Complete application-target synchronization, drift verification and release acceptance.",
-        "reason": "Maintained skills require installation and drift evidence before this governance revision is accepted.",
-        "affects": [
-          {
-            "kind": "software_decision",
-            "ref": "delivery_and_distribution"
-          },
-          {
-            "kind": "software_invariant",
-            "ref": "accepted-facts-are-realized"
-          }
-        ],
-        "priority_basis": {
-          "risk": "medium",
-          "urgency": "medium"
-        },
-        "dependencies": [],
-        "candidate_case_ref": ""
-      },
-      {
         "id": "GAP-cross-record-audit",
         "goal": "Accept strict Project, Iteration and Case cross-record auditing in real use.",
         "reason": "Schema-valid records can still drift unless durable evidence and cross-record consistency are exercised in real projects.",
@@ -131,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "基于代码、跨平台进程启动语义、可重复契约测试和可交付给 Windows 用户的诊断证据，确定 Runtime loop 失败的真实边界；随后仅修改证据指向的 Runtime、ledger entrypoint 或 skill 文件。",
+      "current_focus": "Implement and validate the governed Arckit Runtime installer supply chain through the active Case, beginning with the stable ArcForge Embedded Provider dependency.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -168,16 +147,15 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit provides Project/Iteration/Case ledgers, fresh-fact-driven invariant-guided dynamic Case Gap discovery, strict single-Gap Rounds, trusted atomic transitions, maintained development skills, and an optional supervised Runtime/Desktop with separate ordinary-todo and acceptance-feedback work lanes that continue a source task conversation through new Runs and Cases.",
-          "reason": "The cumulative capability catalog preserves the state-driven protocol and adds human acceptance findings as a first-class recoverable work lane.",
+          "statement": "Arckit provides Project/Iteration/Case ledgers, fresh-fact-driven invariant-guided dynamic Case Gap discovery, strict single-Gap Rounds, trusted atomic transitions, maintained development skills, an optional supervised Runtime/Desktop with ordinary-todo and acceptance-feedback lanes, and a Setup Readiness surface that establishes governed Codex skills before Runtime execution.",
+          "reason": "The accepted installer contract makes environment readiness and skills provisioning a recoverable product capability without moving it into the Runtime Kernel.",
           "evidence": [
-            "arckit/spec/agentic-software-development/product-concepts.md",
-            "arckit/spec/agentic-software-development/controller-worker-loop.md",
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md"
+            "arckit/spec/arckit-runtime-distribution.md",
+            "arckit/interaction/setup-readiness/interaction.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 5
+          "revision": 6
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -189,16 +167,16 @@
         "decision_expectation": "State which desktop, web, mobile, server, admin, CLI, extension, or other surfaces exist and the responsibility of each.",
         "evidence_expectation": "Durable evidence sufficient to recover the system surfaces and their responsibilities.",
         "decision": {
-          "revision": 1,
           "status": "settled",
-          "statement": "The software comprises repository-owned skills and Node.js ledger CLIs plus an optional Electron Desktop, Runtime supervisor, and Codex adapter.",
-          "reason": "The source tree and architecture specification make these responsibilities explicit.",
+          "statement": "The software comprises repository-owned skills and Node.js ledger CLIs plus an Electron Desktop, Setup Readiness and skill provisioning surface, Runtime supervisor, Codex adapter, and packaged trusted capability resources.",
+          "reason": "Installer delivery introduces an explicit Desktop setup surface and packaged resources while retaining the existing Runtime and Agent boundaries.",
           "evidence": [
-            "arckit/spec/agentic-software-development/product-architecture.md",
-            "arckit/tech/arckit-runtime/solution.md"
+            "arckit/spec/arckit-runtime-distribution.md",
+            "arckit/tech/arckit-runtime/installer-supply-chain.md"
           ],
           "confidence": "high",
-          "resume_condition": ""
+          "resume_condition": "",
+          "revision": 2
         },
         "gap_refs": []
       },
@@ -209,17 +187,16 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "Users observe persisted candidate comparison, accepted round closeout and verified fresh-read in one persistent Agent conversation. Runtime recovery accepts direct feedback on the same task session/thread, and renewable login restoration remains silent across transient refresh failure. Automation Overview separately presents ordinary todos and acceptance feedback; completed and accepted task Inspectors show all linked issues and progress and allow new feedback without mutating old results.",
-          "reason": "The main experience cumulatively covers ledger transparency, login and Runtime recovery, and post-completion acceptance feedback.",
+          "statement": "Application startup first establishes Setup Readiness through resource checks, governed skill plan/drift, explicit confirmation, transactional apply and recoverable conflict states; ready users then continue through session restoration into the Automation Workspace, where persisted candidate comparison, accepted closeout, fresh-read, recovery and acceptance feedback remain in one persistent task conversation.",
+          "reason": "The Setup Readiness interaction is now the explicit task-start prerequisite and composes with the existing login and workspace journeys.",
           "evidence": [
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/runtime-recovery.html",
-            "arckit/interaction/task-browser/interaction.md"
+            "arckit/interaction/setup-readiness/interaction.md",
+            "arckit/interaction/setup-readiness/default.html",
+            "arckit/interaction/_map/RELATIONS.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 7
+          "revision": 8
         },
         "gap_refs": []
       },
@@ -354,17 +331,15 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM Ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Trusted candidate selection separates stable identity/freshness from Agent-authored semantics. Desktop persists ordinary todo and acceptance-feedback lanes separately, reuses one persistent Agent thread per source todo, starts a new Run and Case per feedback item, and uses deterministic arbitration plus workspace/thread leases.",
-          "reason": "The cumulative foundation preserves trusted protocol and selection mechanics while adding the dual-lane execution model.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Runtime packages trusted capabilities separately from an Arckit skill payload and a versioned ArcForge Embedded Provider; Desktop Setup Readiness owns provisioning while the policy-neutral Runtime Kernel continues natural $using-arckit execution.",
+          "reason": "The accepted supply contract adds explicit package-time and first-run components without duplicating Agent or ledger semantics.",
           "evidence": [
-            "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
-            "arckit/tech/arckit-runtime/solution.md",
-            "arckit/tech/arckit-runtime/desktop-execution-solution.md",
-            "entry/skills/arckit-development-ledger/scripts/case-transition.mjs"
+            "arckit/tech/arckit-runtime/installer-supply-chain.md",
+            "arckit/tech/arckit-runtime/solution.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 10
+          "revision": 11
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -423,18 +398,16 @@
         "evidence_expectation": "Durable delivery evidence sufficient to recover and verify the release model.",
         "decision": {
           "status": "settled",
-          "statement": "Maintained skills are sourced from entry/skills and synchronized to supported application targets through governed installation; Runtime/Desktop are built and checked from runtime/arckit-runtime. Windows is a supported Runtime/Desktop execution target, so executable or command-shim launch, working directories, trusted entrypoint paths and argument boundaries must use platform-safe semantics; native Windows confirmation remains required release evidence.",
-          "reason": "The operator explicitly requires Windows operation, and diagnosis established a concrete Runtime process-launch incompatibility without finding a corresponding ledger-skill path defect.",
+          "statement": "Arckit skills are sourced from the repository and synchronized to supported Codex targets through governed availability-aware installation. Runtime/Desktop installers are produced only by manually dispatched GitHub workflows against an existing tf/*, beta/* or appstore/* release-intent tag, bundle locked trusted resources, the Arckit skill payload and an exact ArcForge provider artifact, and support macOS arm64/x64, Windows x64 and Linux x64 with explicit signing and draft-release choices.",
+          "reason": "The operator retains package timing and target authorization while immutable tags, locks, checksums, availability and confirmation preserve distribution governance.",
           "evidence": [
-            "current operator expectation",
-            "runtime/arckit-runtime/src/json-rpc-stdio-client.mjs",
-            "runtime/arckit-runtime/src/capability-registry.mjs",
-            "https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows",
-            "https://learn.chatgpt.com/docs/codex/cli"
+            "arckit/spec/arckit-runtime-distribution.md",
+            "arckit/tech/arckit-runtime/installer-supply-chain.md",
+            "delivery/skills/arckit-git-branching/references/platform-release-triggers.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 2
+          "revision": 3
         },
         "gap_refs": []
       },

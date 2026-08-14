@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
+import { createSkillProvisioningManager } from "../src/skill-provisioning-manager.mjs";
 import { createWorkshopTaskSource } from "../src/task-source-adapter.mjs";
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
@@ -12,8 +13,10 @@ let mainWindow;
 let runManager;
 let automationCoordinator;
 let workshopService;
+let skillProvisioningManager;
 let quitAfterCleanup = false;
 let syncTimer;
+let automationStarted = false;
 
 app.whenReady().then(async () => {
   runManager = createDesktopRunManager({
@@ -24,9 +27,15 @@ app.whenReady().then(async () => {
     readSettings: () => runManager.getTaskSourceSettings(),
     saveSettings: (settings) => runManager.replaceTaskSourceSettings(settings)
   });
+  const resourcesRoot = app.isPackaged ? process.resourcesPath : join(runtimeRoot, "dist-package", "resources");
+  skillProvisioningManager = createSkillProvisioningManager({
+    resourcesRoot,
+    dataRoot: app.getPath("userData")
+  });
   automationCoordinator = createAutomationCoordinator({
     runManager,
-    taskSourceFactory: () => workshopService
+    taskSourceFactory: () => workshopService,
+    setupReadinessPreflight: () => skillProvisioningManager.assertReady()
   });
   runManager.onEvent((event) => {
     if (!mainWindow?.isDestroyed()) {
@@ -38,12 +47,17 @@ app.whenReady().then(async () => {
       mainWindow.webContents.send("arckit:automation-event", event);
     }
   });
+  skillProvisioningManager.onEvent((readiness) => {
+    if (!mainWindow?.isDestroyed()) {
+      mainWindow.webContents.send("arckit:setup-event", readiness);
+    }
+  });
   registerIpc();
   createWindow();
-  automationCoordinator.sync({ resumeRecoverable: true }).catch((error) => console.error("Initial task sync failed:", error));
-  syncTimer = setInterval(() => {
-    automationCoordinator.sync().catch((error) => console.error("Background task sync failed:", error));
-  }, 60_000);
+  const readiness = await skillProvisioningManager.check();
+  if (readiness.status === "ready" && !readiness.first_install) {
+    startAutomation();
+  }
 });
 
 app.on("window-all-closed", () => {
@@ -64,6 +78,7 @@ app.on("before-quit", async (event) => {
       syncTimer = null;
     }
     automationCoordinator?.dispose();
+    await skillProvisioningManager?.waitForIdle();
     await runManager.abortActiveRuns({
       reason: "Arckit Desktop is quitting; active runs were aborted."
     });
@@ -99,6 +114,17 @@ function createWindow() {
 }
 
 function registerIpc() {
+  ipcMain.handle("arckit:setup-status", async () => skillProvisioningManager.getSnapshot());
+  ipcMain.handle("arckit:setup-check", async () => skillProvisioningManager.check());
+  ipcMain.handle("arckit:setup-apply", async (_event, input) => skillProvisioningManager.apply(input));
+  ipcMain.handle("arckit:setup-removal-plan", async (_event, managedPaths) => skillProvisioningManager.planManagedRemoval(managedPaths));
+  ipcMain.handle("arckit:setup-remove", async (_event, input) => skillProvisioningManager.removeManaged(input));
+  ipcMain.handle("arckit:setup-continue", async () => {
+    const readiness = skillProvisioningManager.getSnapshot();
+    if (readiness.status !== "ready") throw new Error("Arckit Setup Readiness is not ready.");
+    startAutomation();
+    return readiness;
+  });
   ipcMain.handle("arckit:pick-project", async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       properties: ["openDirectory"],
@@ -155,4 +181,13 @@ function registerIpc() {
   ipcMain.handle("arckit:automation-reopen-cli", async () => automationCoordinator.reopenCodexCli());
   ipcMain.handle("arckit:automation-resume-runtime", async () => automationCoordinator.resumeRuntimeFromCodexCli());
   ipcMain.handle("arckit:automation-recovery", async (_event, input) => automationCoordinator.resolveRecovery(input));
+}
+
+function startAutomation() {
+  if (automationStarted) return;
+  automationStarted = true;
+  automationCoordinator.sync({ resumeRecoverable: true }).catch((error) => console.error("Initial task sync failed:", error));
+  syncTimer = setInterval(() => {
+    automationCoordinator.sync().catch((error) => console.error("Background task sync failed:", error));
+  }, 60_000);
 }

@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-14T04:03:58.247Z",
+  "updated_at": "2026-08-14T06:25:46.308Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -656,6 +656,91 @@
         "arckit/cases/active/CASE-20260814-001-windows-arckit-runtime-loop.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260814-001-windows-arckit-runtime-loop.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/arckit-runtime-distribution.md",
+        "arckit/interaction/setup-readiness/interaction.md",
+        "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "runtime_surfaces",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/arckit-runtime-distribution.md",
+        "arckit/tech/arckit-runtime/installer-supply-chain.md",
+        "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/interaction/setup-readiness/interaction.md",
+        "arckit/interaction/setup-readiness/default.html",
+        "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arckit-runtime/installer-supply-chain.md",
+        "arckit/tech/arckit-runtime/solution.md",
+        "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "delivery_and_distribution",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/arckit-runtime-distribution.md",
+        "arckit/tech/arckit-runtime/installer-supply-chain.md",
+        "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+    },
+    {
+      "kind": "project_gap",
+      "ref": "GAP-delivery-governance",
+      "outcome": "update",
+      "evidence": [
+        "arckit/spec/arckit-runtime-distribution.md",
+        "arckit/spec/_map/RELATIONS.md",
+        "arckit/interaction/setup-readiness/interaction.md",
+        "arckit/interaction/setup-readiness/default.html",
+        "arckit/tech/arckit-runtime/installer-supply-chain.md",
+        "arckit/tech/_map/RELATIONS.md",
+        "arcforge.skill-project.json",
+        "delivery/skills/arckit-git-branching/references/platform-release-triggers.md",
+        "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+    },
+    {
+      "kind": "project_gap",
+      "ref": "GAP-delivery-governance",
+      "outcome": "resolve",
+      "evidence": [
+        ".github/workflows/arckit-runtime-package.yml",
+        "../arcforge/.github/workflows/package.yml",
+        "runtime/arckit-runtime/scripts/smoke-distribution.mjs",
+        "verification: native macOS x64 DMG passed",
+        "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
     }
   ],
   "acceptance": {
@@ -668,7 +753,6 @@
       "GAP-agent-scenario-evaluation",
       "GAP-runtime-resilience-and-adapters",
       "GAP-security-real-project-validation",
-      "GAP-delivery-governance",
       "GAP-cross-record-audit"
     ]
   },
@@ -697,18 +781,16 @@
     "arckit/cases/closed/CASE-20260813-001-runtime-git-closeout.md",
     "arckit/cases/closed/CASE-20260813-002-support-post-completion-review-feedback-continuation.md",
     "arckit/cases/closed/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md",
-    "arckit/cases/closed/CASE-20260814-001-windows-arckit-runtime-loop.md"
+    "arckit/cases/closed/CASE-20260814-001-windows-arckit-runtime-loop.md",
+    "arckit/cases/closed/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260814-001-windows-arckit-runtime-loop.md",
+    "case_ref": "arckit/cases/closed/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260814-001-windows-arckit-runtime-loop.md",
-      "CASE-20260814-001 content_revision:2 Completion Review clean",
-      "runtime/arckit-runtime/src/json-rpc-stdio-client.mjs",
-      "runtime/arckit-runtime/test/json-rpc-stdio-client.test.mjs"
+      "arckit/cases/closed/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md"
     ],
-    "updated_at": "2026-08-14T04:03:58.247Z"
+    "updated_at": "2026-08-14T06:25:46.308Z"
   }
 }

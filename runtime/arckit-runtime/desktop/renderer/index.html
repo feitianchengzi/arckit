@@ -10,6 +10,36 @@
     <div id="authBootScreen" class="auth-boot-screen" role="status" aria-live="polite">
       <div class="auth-boot-card"><span class="brand-mark">A</span><strong>Arckit Automation</strong><p>正在恢复 Workshop 会话…</p><i aria-hidden="true"></i></div>
     </div>
+    <section id="setupReadiness" class="setup-readiness" aria-labelledby="setupTitle" aria-live="polite">
+      <div class="setup-shell">
+        <header class="setup-header">
+          <div class="setup-brand"><span class="brand-mark">A</span><div><p class="eyebrow">LOCAL CAPABILITY SETUP</p><h1 id="setupTitle" tabindex="-1">正在检查 Arckit 能力</h1></div></div>
+          <span id="setupStatusPill" class="health-badge">CHECKING</span>
+        </header>
+        <div class="setup-grid">
+          <main class="setup-main">
+            <p id="setupLead" class="setup-lead">正在验证安装包资源、ArcForge provider、Arckit skills 与 Codex。</p>
+            <div id="setupChecks" class="setup-checks"></div>
+            <details id="setupPlanDetails" class="setup-plan-details hidden">
+              <summary>查看安装计划与写入目标</summary>
+              <div id="setupPlan"></div>
+            </details>
+            <section id="setupConflictPanel" class="setup-conflict-panel hidden"></section>
+            <section id="setupErrorPanel" class="setup-error-panel hidden"></section>
+          </main>
+          <aside class="setup-summary">
+            <h2>安装包锁定资源</h2>
+            <div id="setupDistribution"></div>
+            <div id="setupCounts" class="setup-counts"></div>
+            <label id="setupReviewLabel" class="setup-review hidden"><input id="setupReviewed" type="checkbox"><span>我已查看写入目标与变更摘要</span></label>
+          </aside>
+        </div>
+        <footer class="setup-actions">
+          <button id="setupExitButton" class="text-button" type="button">退出应用</button>
+          <div><button id="setupRetryButton" class="secondary-button" type="button">重新检查</button><button id="setupApplyButton" class="primary-button hidden" type="button" disabled>安装并继续</button><button id="setupContinueButton" class="primary-button hidden" type="button">继续使用 Arckit</button></div>
+        </footer>
+      </div>
+    </section>
     <div class="desktop-app">
       <header class="titlebar">
         <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>

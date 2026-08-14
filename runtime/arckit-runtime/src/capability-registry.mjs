@@ -1,11 +1,11 @@
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = resolve(here, "../../..");
+const developmentRepositoryRoot = resolve(here, "../../..");
 const defaultPolicyPath = resolve(here, "../config/capability-policy.json");
-const IGNORED_DIRS = new Set([".git", "node_modules", "runtime-results", ".DS_Store"]);
+const IGNORED_DIRS = new Set([".git", "node_modules", "runtime-results", "dist-package", "release", ".DS_Store"]);
 
 export async function loadRuntimeCapabilities(options = {}) {
   const policy = options.capabilityPolicy || await loadCapabilityPolicy(options);
@@ -16,8 +16,11 @@ export async function loadRuntimeCapabilities(options = {}) {
     return filterCapabilities(normalizeCapabilities(options.capabilities), allPolicyCapabilityIds(policy));
   }
 
+  const repositoryCapabilityRoot = options.repositoryCapabilityRoot
+    ? resolve(options.repositoryCapabilityRoot)
+    : await defaultRepositoryCapabilityRoot();
   const roots = unique([
-    repositoryRoot,
+    repositoryCapabilityRoot,
     options.projectRoot ? resolve(options.projectRoot) : ""
   ].filter(Boolean));
   const manifests = [];
@@ -26,7 +29,7 @@ export async function loadRuntimeCapabilities(options = {}) {
   }
   const loaded = [];
   for (const manifestPath of manifests) {
-    const capability = await readCapabilityManifest(manifestPath);
+    const capability = await readCapabilityManifest(manifestPath, repositoryCapabilityRoot);
     if (capability) {
       loaded.push(capability);
     }
@@ -95,9 +98,9 @@ export function resolveCapabilityEntrypoint(capability, entrypoint) {
   return resolvedPath;
 }
 
-export async function loadRuntimeCapabilityForEntrypoint({ projectRoot, entrypoint }) {
+export async function loadRuntimeCapabilityForEntrypoint({ projectRoot, entrypoint, repositoryCapabilityRoot }) {
   const policy = await loadCapabilityPolicy();
-  const capabilities = await loadRuntimeCapabilities({ projectRoot, capabilityPolicy: policy });
+  const capabilities = await loadRuntimeCapabilities({ projectRoot, repositoryCapabilityRoot, capabilityPolicy: policy });
   const runtimeCapabilities = capabilitiesForBinding(capabilities, policy, "runtime");
   return runtimeCapabilityForEntrypoint(runtimeCapabilities, entrypoint);
 }
@@ -136,7 +139,7 @@ async function findCapabilityManifests(root) {
   return results;
 }
 
-async function readCapabilityManifest(manifestPath) {
+async function readCapabilityManifest(manifestPath, repositoryCapabilityRoot) {
   try {
     const parsed = JSON.parse(await readFile(manifestPath, "utf8"));
     if (parsed?.schema_version !== "arckit-capability/v1" || !parsed.id) {
@@ -145,12 +148,31 @@ async function readCapabilityManifest(manifestPath) {
     return {
       ...parsed,
       capability_root: dirname(manifestPath),
-      manifest_path: relative(repositoryRoot, manifestPath) || manifestPath,
-      source: manifestPath.startsWith(repositoryRoot) ? "repository" : "project"
+      manifest_path: relative(repositoryCapabilityRoot, manifestPath) || manifestPath,
+      source: isWithin(repositoryCapabilityRoot, manifestPath) ? "repository" : "project"
     };
   } catch {
     return null;
   }
+}
+
+async function defaultRepositoryCapabilityRoot() {
+  const resourcesPath = typeof process.resourcesPath === "string" ? process.resourcesPath : "";
+  const packagedRoot = resourcesPath ? resolve(resourcesPath, "arckit-runtime", "trusted-capabilities") : "";
+  if (packagedRoot) {
+    try {
+      await access(resolve(packagedRoot, "arckit-development-ledger", "arckit.capability.json"));
+      return packagedRoot;
+    } catch {
+      // Electron development mode has a resourcesPath but uses repository capabilities.
+    }
+  }
+  return developmentRepositoryRoot;
+}
+
+function isWithin(root, candidate) {
+  const relativePath = relative(resolve(root), resolve(candidate));
+  return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith(sep));
 }
 
 function normalizeCapabilities(capabilities = []) {
