@@ -29,6 +29,8 @@ try {
     throw new Error(`Distribution provisioning did not converge to ready: ${applied.error?.message || applied.status}`);
   }
   await access(path.join(homeDir, ".codex", "skills", "distribution-smoke-unrelated", "SKILL.md"));
+  await access(path.join(homeDir, ".codex", "skills", "_arckit_shared", "case-gap-contract.md"));
+  await access(path.join(homeDir, ".codex", "skills", "_arckit_shared", "content-spec.md"));
   const lock = JSON.parse(await readFile(path.join(resourcesRoot, "provisioning", "distribution-lock.json"), "utf8"));
   console.log(JSON.stringify({
     schema_version: "arckit-distribution-smoke/v1",
@@ -42,6 +44,7 @@ try {
     deferred_project_skills: planned.plan.deferred_project_skills,
     post_drift: applied.drift.counts,
     unrelated_skill_preserved: true,
+    shared_skill_assets_installed: true,
     status: "passed"
   }, null, 2));
 } finally {

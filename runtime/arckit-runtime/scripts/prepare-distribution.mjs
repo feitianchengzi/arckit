@@ -51,8 +51,10 @@ const providerManifest = JSON.parse(await readFile(path.join(providerRoot, "arcf
 if (providerManifest.apiVersion !== "arcforge-embedded-provider/v1") throw new Error(`Unsupported provider API: ${providerManifest.apiVersion}`);
 if (providerManifest.providerVersion !== externalProviderManifest.providerVersion || providerManifest.buildCommit !== externalProviderManifest.buildCommit) throw new Error("ArcForge provider internal and release manifests disagree.");
 
-const skillPaths = await discoverSkillPaths();
-for (const relativePath of skillPaths) await cp(path.join(repositoryRoot, relativePath), path.join(payloadRoot, relativePath), { recursive: true });
+const { skillPaths, sharedAssetPaths } = await discoverPayloadPaths();
+for (const relativePath of [...skillPaths, ...sharedAssetPaths]) {
+  await cp(path.join(repositoryRoot, relativePath), path.join(payloadRoot, relativePath), { recursive: true });
+}
 await cp(path.join(repositoryRoot, "arcforge.skill-project.json"), path.join(payloadRoot, "arcforge.skill-project.json"));
 await writeFile(path.join(payloadRoot, "arcforge.config.json"), `${JSON.stringify({
   version: 1,
@@ -66,6 +68,7 @@ const payloadManifest = {
   sourceCommit: options.sourceCommit || await gitCommit(repositoryRoot),
   sourceManifestDigest: sha256(await readFile(path.join(repositoryRoot, "arcforge.skill-project.json"))),
   skillPaths,
+  sharedAssetPaths,
   files: payloadFiles,
   payloadDigest: digestManifest(payloadFiles)
 };
@@ -80,7 +83,7 @@ const lock = {
   runtime: { productVersion: release.productVersion, packageVersion: release.packageVersion, channel: release.channel, buildLabel: release.buildLabel, target: options.target },
   arckit: { repository: options.repository || "feitianchengzi/arckit", releaseTag: options.releaseTag, commit: payloadManifest.sourceCommit },
   trustedCapabilities: { digest: digestManifest(trustedFiles), files: trustedFiles },
-  skillPayload: { profile: payloadManifest.profile, sourceManifestDigest: payloadManifest.sourceManifestDigest, payloadDigest: payloadManifest.payloadDigest, skillCount: skillPaths.length },
+  skillPayload: { profile: payloadManifest.profile, sourceManifestDigest: payloadManifest.sourceManifestDigest, payloadDigest: payloadManifest.payloadDigest, skillCount: skillPaths.length, sharedAssetCount: sharedAssetPaths.length },
   arcforgeProvider: { repository: options.providerRepository || "feitianchengzi/arcforge", releaseTag: options.providerRelease, apiVersion: providerManifest.apiVersion, providerVersion: providerManifest.providerVersion, buildCommit: providerManifest.buildCommit, artifactName: path.basename(providerArchive), sha256: actualProviderSha },
   toolchain: { electron: runtimePackage.devDependencies?.electron ?? "", electronBuilder: runtimePackage.devDependencies?.["electron-builder"] ?? "", node: process.version },
   build: { repository: options.repository || "feitianchengzi/arckit", workflow: options.workflow || "local", runId: options.runId || "local", runAttempt: options.runAttempt || "1", sourceRef: options.sourceRef || options.releaseTag },
@@ -91,21 +94,28 @@ const lockPath = path.join(provisioningRoot, "distribution-lock.json");
 await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
 const resourceFiles = await fileManifest(resourcesRoot, ["provisioning/checksums.txt"]);
 await writeFile(path.join(provisioningRoot, "checksums.txt"), resourceFiles.map((item) => `${item.sha256}  ${item.path}`).join("\n") + "\n");
-console.log(JSON.stringify({ resourcesRoot, lockPath, embeddedLockDigest: sha256(await readFile(lockPath)), payloadDigest: payloadManifest.payloadDigest, skillCount: skillPaths.length }, null, 2));
+console.log(JSON.stringify({ resourcesRoot, lockPath, embeddedLockDigest: sha256(await readFile(lockPath)), payloadDigest: payloadManifest.payloadDigest, skillCount: skillPaths.length, sharedAssetCount: sharedAssetPaths.length }, null, 2));
 
-async function discoverSkillPaths() {
-  const result = [];
+async function discoverPayloadPaths() {
+  const skillPaths = [];
+  const sharedAssetPaths = [];
   for (const domain of await readdir(repositoryRoot, { withFileTypes: true })) {
     if (!domain.isDirectory() || domain.name.startsWith(".") || ["arckit", "runtime", "node_modules"].includes(domain.name)) continue;
     const skillsRoot = path.join(repositoryRoot, domain.name, "skills");
-    for (const skill of await readdir(skillsRoot, { withFileTypes: true }).catch(() => [])) {
-      if (!skill.isDirectory()) continue;
-      const relativePath = path.posix.join(domain.name, "skills", skill.name);
-      try { await readFile(path.join(repositoryRoot, relativePath, "SKILL.md")); result.push(relativePath); } catch { /* not a skill */ }
+    for (const entry of await readdir(skillsRoot, { withFileTypes: true }).catch(() => [])) {
+      if (!entry.isDirectory()) continue;
+      const relativePath = path.posix.join(domain.name, "skills", entry.name);
+      try {
+        await readFile(path.join(repositoryRoot, relativePath, "SKILL.md"));
+        skillPaths.push(relativePath);
+      } catch (error) {
+        if (error?.code !== "ENOENT") throw error;
+        sharedAssetPaths.push(relativePath);
+      }
     }
   }
-  if (!result.includes("entry/skills/using-arckit") || !result.includes("entry/skills/arckit-development-ledger")) throw new Error("Required Runtime skills are absent from the payload.");
-  return result.sort();
+  if (!skillPaths.includes("entry/skills/using-arckit") || !skillPaths.includes("entry/skills/arckit-development-ledger")) throw new Error("Required Runtime skills are absent from the payload.");
+  return { skillPaths: skillPaths.sort(), sharedAssetPaths: sharedAssetPaths.sort() };
 }
 
 async function validateTar(archive) {

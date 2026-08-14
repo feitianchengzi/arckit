@@ -41,8 +41,18 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     const resourcesRoot = path.join(packageBuildRoot, "resources");
     const lockPath = path.join(resourcesRoot, "provisioning", "distribution-lock.json");
     const lock = JSON.parse(await readFile(lockPath, "utf8"));
+    const payloadRoot = path.join(resourcesRoot, "provisioning", "arckit-skills");
+    const payloadManifest = JSON.parse(await readFile(path.join(payloadRoot, "payload.manifest.json"), "utf8"));
     assert.equal(lock.arcforgeProvider.sha256, archiveSha);
     assert.equal(lock.skillPayload.skillCount >= 13, true);
+    assert.deepEqual(payloadManifest.sharedAssetPaths, ["definition/skills/_arckit_shared"]);
+    assert.equal(lock.skillPayload.sharedAssetCount, payloadManifest.sharedAssetPaths.length);
+    assert.equal(payloadManifest.files.some((item) => item.path === "definition/skills/_arckit_shared/case-gap-contract.md"), true);
+    assert.equal(payloadManifest.files.some((item) => item.path === "definition/skills/_arckit_shared/content-spec.md"), true);
+    assert.equal(
+      await readFile(path.join(payloadRoot, "definition", "skills", "_arckit_shared", "case-gap-contract.md"), "utf8"),
+      await readFile(path.join(repositoryRoot, "definition", "skills", "_arckit_shared", "case-gap-contract.md"), "utf8")
+    );
     assert.equal(lock.artifact.sha256, null);
     assert.match(lock.artifact.attestation, /external/);
     const config = JSON.parse(await readFile(path.join(packageBuildRoot, "electron-builder.generated.json"), "utf8"));

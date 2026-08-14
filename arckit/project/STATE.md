@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 61
-Updated: 2026-08-14T13:35:55.765Z
+Revision: 65
+Updated: 2026-08-14T14:31:58.232Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Repair the manually dispatched Runtime release workflow so multi-platform artifacts publish to one draft release without duplicate asset-name failures, then deliver the fix on main and a new TF tag.
+Fix arckit-runtime Desktop skill installation so the installed governed skills include the required _arckit_shared directory.
 
 ## Active Work
 

@@ -75,3 +75,5 @@
 | [CASE-20260814-004](closed/CASE-20260814-004-fix-windows-provider-archive-assembly.md) | closed | Fix Windows provider archive assembly | 2026-08-14T11:24:10.528Z |
 | [CASE-20260814-005](closed/CASE-20260814-005-fix-windows-provider-extraction-destination.md) | closed | Fix Windows provider extraction destination | 2026-08-14T12:35:13.797Z |
 | [CASE-20260814-006](closed/CASE-20260814-006-prevent-duplicate-release-checksum-assets.md) | closed | Prevent duplicate release checksum assets | 2026-08-14T13:35:55.765Z |
+| [CASE-20260814-007](closed/CASE-20260814-007-fix-windows-runtime-executable-spawn-after-todo-claim.md) | closed | Fix Windows runtime executable spawn after todo claim | 2026-08-14T14:23:15.863Z |
+| [CASE-20260814-008](closed/CASE-20260814-008-restore-shared-skill-resources-in-desktop-installation.md) | closed | Restore shared skill resources in Desktop installation | 2026-08-14T14:31:58.232Z |
