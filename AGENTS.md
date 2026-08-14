@@ -68,11 +68,13 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - Project conversation Controller: `entry/skills/using-arckit/`
 - Development ledger and continuous Project State/Case/Loop state: `entry/skills/arckit-development-ledger/`
 - Explicit manual pending-context maintenance: `memory/skills/arckit-pending/`
+- Raw project input intake and faithful extraction: `memory/skills/arckit-intake/`
 - Product specification: `definition/skills/arckit-spec/`
 - Interaction: `definition/skills/arckit-interaction/`
 - Visual: `definition/skills/arckit-visual/`
 - Technical solution: `definition/skills/arckit-tech/`
 - General debug diagnosis and implementation troubleshooting: `engineering/skills/arckit-debug-diagnosis/`
+- Git branching, release lines, and tag-based release triggers: `delivery/skills/arckit-git-branching/`
 - SwiftUI and Apple client coding practice: `code/skills/arckit-code-swiftui/`
 - Feedback platform integration: `code/skills/arckit-feedback-platform-integration/`
 - Alibaba Cloud OSS controlled image access: `code/skills/oss-controlled-image-access/`

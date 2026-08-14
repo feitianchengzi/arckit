@@ -33,6 +33,14 @@
         "mode": "user-on-demand"
       },
       {
+        "path": "delivery/skills/arckit-git-branching",
+        "mode": "user-on-demand"
+      },
+      {
+        "path": "memory/skills/arckit-intake",
+        "mode": "user-on-demand"
+      },
+      {
         "path": "memory/skills/arckit-pending",
         "mode": "user-on-demand",
         "aliases": [
