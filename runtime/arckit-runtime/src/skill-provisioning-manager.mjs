@@ -37,16 +37,16 @@ export function createSkillProvisioningManager(options = {}) {
     for (const listener of listeners) listener(value);
   }
 
-  function setSnapshot(value) {
+  function setSnapshot(value, { emitEvent = true } = {}) {
     snapshot = { ...value, schema_version: SNAPSHOT_VERSION, updated_at: new Date().toISOString() };
-    emit();
+    if (emitEvent) emit();
     return structuredClone(snapshot);
   }
 
-  async function check() {
+  async function check({ quiet = false } = {}) {
     return runExclusive(async () => {
       internalPlan = null;
-      setSnapshot(baseSnapshot("checking"));
+      if (!quiet) setSnapshot(baseSnapshot("checking"));
       try {
         const bundle = await inspectBundle(resourcesRoot);
         const provider = await providerLoader(bundle.providerEntrypoint);
@@ -57,16 +57,20 @@ export function createSkillProvisioningManager(options = {}) {
         const probe = await safeCodexProbe(codexProbe);
         if (source.recoveryOnly) {
           internalPlan = { provider, bundle, source, conflicts: source.upgradeAssessment.items, cleanup: [] };
-          return setSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }));
+          return publishCheckSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }), quiet);
         }
         const analyzed = analyzePlan(source.plan, source.drift, { allowManagedUpdate: Boolean(source.upgrade) });
         internalPlan = { provider, bundle, source, ...analyzed };
         const status = probe.available ? analyzed.status : "blocked";
-        return setSnapshot(publicSnapshot({ status, bundle, providerInfo, source, analyzed, probe }));
+        return publishCheckSnapshot(publicSnapshot({ status, bundle, providerInfo, source, analyzed, probe }), quiet);
       } catch (error) {
-        return setSnapshot(blockedSnapshot(error));
+        return publishCheckSnapshot(blockedSnapshot(error), quiet);
       }
     });
+  }
+
+  function publishCheckSnapshot(value, quiet) {
+    return setSnapshot(value, { emitEvent: !quiet || value.status !== "ready" });
   }
 
   async function apply({ planDigest, cleanupPaths = [] } = {}) {
@@ -186,7 +190,7 @@ export function createSkillProvisioningManager(options = {}) {
   }
 
   async function assertReady() {
-    const current = await check();
+    const current = await check({ quiet: true });
     if (current.status !== "ready") throw setupError("SETUP_NOT_READY", "Arckit skills 尚未达到可运行状态。", "preflight");
     return current;
   }

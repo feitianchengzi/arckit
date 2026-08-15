@@ -866,32 +866,6 @@ export function createAutomationCoordinator({
       }
       const candidate = selection.item;
       const lifecycleContext = await startTodoLifecycleTrace(candidate);
-      const readinessSpan = startTodoLifecycleSpan(lifecycleContext, {
-        name: "runtime.readiness_preflight",
-        category: "desktop",
-        cost_center: "orchestration",
-        attributes: { task_id: candidate.id, project_id: candidate.project_id }
-      });
-      try {
-        await setupReadinessPreflight();
-        await runManager.preflightRun?.({
-          projectId: candidate.local_project_id,
-          task: candidate.content || candidate.title || "",
-          adapter: "codex-app-server"
-        });
-        endTodoLifecycleSpan(lifecycleContext, readinessSpan, { status: "ok" });
-      } catch (error) {
-        endTodoLifecycleSpan(lifecycleContext, readinessSpan, { status: "error", error });
-        await finishTodoLifecycleTrace(lifecycleContext, { status: "error", error });
-        await addRecovery({
-          type: "readiness_failed",
-          task: candidate,
-          message: error.message,
-          actions: ["retry_sync"],
-          freezeScope: "global"
-        });
-        return null;
-      }
       const claimSpan = startTodoLifecycleSpan(lifecycleContext, {
         name: "task_source.claim",
         category: "task_source",
@@ -921,7 +895,38 @@ export function createAutomationCoordinator({
         if (!latest || latest.state !== "pending" || (candidate.version && latest.version && candidate.version !== latest.version)) {
           endTodoLifecycleSpan(lifecycleContext, claimSpan, { status: "cancelled", attributes: { reason: "candidate_changed" } });
           await finishTodoLifecycleTrace(lifecycleContext, { status: "cancelled", attributes: { reason: "candidate_changed" } });
-          scheduleSync("candidate-changed");
+          await patchAutomation((next) => {
+            if (latest) replaceTask(next, latest);
+            else next.snapshot.tasks = next.snapshot.tasks.filter((task) => String(task.id) !== String(candidate.id));
+          });
+          emit("automation.changed", { reason: "candidate-changed", taskId: candidate.id });
+          return null;
+        }
+        const readinessSpan = startTodoLifecycleSpan(lifecycleContext, {
+          name: "runtime.readiness_preflight",
+          category: "desktop",
+          cost_center: "orchestration",
+          attributes: { task_id: candidate.id, project_id: candidate.project_id }
+        });
+        try {
+          await setupReadinessPreflight();
+          await runManager.preflightRun?.({
+            projectId: candidate.local_project_id,
+            task: candidate.content || candidate.title || "",
+            adapter: "codex-app-server"
+          });
+          endTodoLifecycleSpan(lifecycleContext, readinessSpan, { status: "ok" });
+        } catch (error) {
+          endTodoLifecycleSpan(lifecycleContext, readinessSpan, { status: "error", error });
+          endTodoLifecycleSpan(lifecycleContext, claimSpan, { status: "error", error });
+          await finishTodoLifecycleTrace(lifecycleContext, { status: "error", error });
+          await addRecovery({
+            type: "readiness_failed",
+            task: candidate,
+            message: error.message,
+            actions: ["retry_sync"],
+            freezeScope: "global"
+          });
           return null;
         }
         const updateSpan = startTodoLifecycleSpan(lifecycleContext, {
@@ -987,7 +992,13 @@ export function createAutomationCoordinator({
         await finishTodoLifecycleTrace(lifecycleContext, { status: "error", error });
         if (error instanceof TaskSourceError && error.code === "version_conflict") {
           emit("automation.claim-conflict", { taskId: candidate.id });
-          scheduleSync("claim-conflict");
+          await addRecovery({
+            type: "claim_failed",
+            task: candidate,
+            message: error.message,
+            actions: ["retry_sync"],
+            freezeScope: "global"
+          });
           return null;
         }
         await addRecovery({

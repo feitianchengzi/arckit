@@ -9,6 +9,7 @@ import {
   isCanonicalCaseResolved,
   selectNextExecution
 } from "../src/automation-coordinator.mjs";
+import { TaskSourceError } from "../src/task-source-adapter.mjs";
 
 test("automation task preserves only the remote human-authored intent", () => {
   assert.equal(buildAutomationTask({ title: "Fix login", content: "Repair and verify login." }), "Repair and verify login.");
@@ -887,6 +888,76 @@ test("remote completion refuses a bound but unresolved canonical Case", async ()
 
   assert.equal(store.automation.recovery_items.some((item) => item.type === "case_not_resolved"), true);
   assert.notEqual(store.automation.active_task.phase, "completing");
+  coordinator.dispose();
+});
+
+test("a stale queue candidate is refreshed before skills readiness and does not immediately resync", async () => {
+  const store = recoveryStore();
+  store.automation.active_task = null;
+  store.automation.snapshot.tasks[0] = {
+    ...store.automation.snapshot.tasks[0],
+    state: "pending",
+    version: "v1"
+  };
+  let readinessChecks = 0;
+  let listCalls = 0;
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, []),
+    setupReadinessPreflight: async () => { readinessChecks += 1; },
+    taskSourceFactory: () => ({
+      async getAuthStatus() { return { authenticated: true, status: "authenticated" }; },
+      async getCurrentUser() { return { id: "u", name: "tester" }; },
+      async listProjects() { return [{ id: "p", current_user_id: "u" }]; },
+      async listTasks() {
+        listCalls += 1;
+        return [{ ...store.automation.snapshot.tasks[0], version: "v1" }];
+      },
+      async getTask() { return { ...store.automation.snapshot.tasks[0], version: "v2" }; },
+      async updateTask() { throw new Error("stale candidate must not be claimed"); }
+    })
+  });
+
+  await coordinator.sync();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  assert.equal(readinessChecks, 0);
+  assert.equal(listCalls, 1);
+  assert.equal(store.automation.snapshot.tasks[0].version, "v2");
+  coordinator.dispose();
+});
+
+test("a persistent claim version conflict becomes one global recovery instead of repeating skills readiness", async () => {
+  const store = recoveryStore();
+  store.automation.active_task = null;
+  store.automation.snapshot.tasks[0] = {
+    ...store.automation.snapshot.tasks[0],
+    state: "pending",
+    version: "v1"
+  };
+  let readinessChecks = 0;
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, []),
+    setupReadinessPreflight: async () => { readinessChecks += 1; },
+    taskSourceFactory: () => ({
+      async getAuthStatus() { return { authenticated: true, status: "authenticated" }; },
+      async getCurrentUser() { return { id: "u", name: "tester" }; },
+      async listProjects() { return [{ id: "p", current_user_id: "u" }]; },
+      async listTasks() { return [{ ...store.automation.snapshot.tasks[0] }]; },
+      async getTask() { return { ...store.automation.snapshot.tasks[0] }; },
+      async updateTask() {
+        throw new TaskSourceError("Task version changed while claiming it.", { code: "version_conflict" });
+      }
+    })
+  });
+
+  await coordinator.sync();
+  await coordinator.sync();
+
+  assert.equal(readinessChecks, 1);
+  assert.equal(store.automation.recovery_items.length, 1);
+  assert.equal(store.automation.recovery_items[0].type, "claim_failed");
+  assert.equal(store.automation.recovery_items[0].freeze_scope, "global");
+  assert.deepEqual(store.automation.recovery_items[0].actions, ["retry_sync"]);
   coordinator.dispose();
 });
 

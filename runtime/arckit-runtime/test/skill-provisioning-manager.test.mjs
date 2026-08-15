@@ -48,6 +48,13 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
     assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v1\n");
     assert.equal(await readFile(path.join(stateRoot, "catalog", "fixture", "on-demand-skill", "SKILL.md"), "utf8"), "on-demand-v1\n");
 
+    const preflightEvents = [];
+    const unsubscribe = manager.onEvent((event) => preflightEvents.push(event));
+    const preflight = await manager.assertReady();
+    unsubscribe();
+    assert.equal(preflight.status, "ready");
+    assert.deepEqual(preflightEvents, []);
+
     await writeFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "local edit\n");
     const conflict = await manager.check();
     assert.equal(conflict.status, "conflict");
