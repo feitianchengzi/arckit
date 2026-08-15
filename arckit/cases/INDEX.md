@@ -77,3 +77,4 @@
 | [CASE-20260814-006](closed/CASE-20260814-006-prevent-duplicate-release-checksum-assets.md) | closed | Prevent duplicate release checksum assets | 2026-08-14T13:35:55.765Z |
 | [CASE-20260814-007](closed/CASE-20260814-007-fix-windows-runtime-executable-spawn-after-todo-claim.md) | closed | Fix Windows runtime executable spawn after todo claim | 2026-08-14T14:23:15.863Z |
 | [CASE-20260814-008](closed/CASE-20260814-008-restore-shared-skill-resources-in-desktop-installation.md) | closed | Restore shared skill resources in Desktop installation | 2026-08-14T14:31:58.232Z |
+| [CASE-20260815-001](closed/CASE-20260815-001-unify-arcforge-provider-provisioning-semantics.md) | closed | Unify ArcForge provider provisioning semantics | 2026-08-15T05:56:52.686Z |

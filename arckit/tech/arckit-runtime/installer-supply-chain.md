@@ -72,12 +72,28 @@ ArcForge provider 是 ArcForge 仓库独立产出的稳定 GitHub Release artifa
 
 它不包含 ArcForge Desktop UI，不安装 shell shim，不修改 PATH，不启动外部 ArcForge 进程，也不把 ArcForge governance skills 加入 Codex ambient skills。
 
+### 语义复用与能力边界
+
+ArcForge Core 是 skill source 发现与标准化、availability plan、事务化 apply、drift、catalog 和 relation 的唯一语义实现。ArcForge CLI、ArcForge Desktop 与 Embedded Provider 是同一 Core 上的不同适配面；它们不维护平行的扫描、目标解析、复制或漂移规则。
+
+各适配面允许存在以下差异：
+
+- ArcForge CLI/Desktop 可以暴露治理、维护、发布准备和交互能力，Embedded Provider 只暴露 Runtime provisioning 所需的稳定 JSON API；
+- Embedded Provider 作为独立不可变 artifact 发布，Runtime 可以固定到落后于 ArcForge 主干的 provider 版本；
+- provider package 只携带其入口以及入口实际依赖的 `core`、`shared` 和 loader 资源。
+
+已经由 provider capability 声明的重叠能力必须与 Core 保持相同语义。新增能力先进入 Core；只有 Runtime 消费该能力时，provider 才增加输入转换、结果投影和 capability 声明。provider 不复制 Core 算法，Runtime 不复制 provider 或 Core 的安装算法。
+
+Arckit payload manifest 是 Runtime 供应链契约，不进入通用 ArcForge 配置。Embedded Provider 负责把 manifest 中的显式资源声明转换为 Core 的 source 输入；Core 将自动发现和显式声明合并为 canonical source snapshot，并在同一 availability plan 中产出 skills、shared assets、loader 与各自目标。apply 与 drift 只消费该 fresh plan，不重新推导 shared asset 目标。
+
+Runtime 对 manifest、provider plan 和 drift 做完整性交叉校验，并在 provider capability 缺失或声明资源未进入 plan 时 fail closed。Renderer 只投影 provider 返回的 shared asset destinations，不根据用户 home 或 Agent 目录规则构造 fallback 目标。
+
 ## Embedded Provider API
 
 provider 暴露稳定的版本化入口，输入和输出只使用 JSON-compatible values：
 
 - `inspectProvider()`：返回 API version、provider version、build commit 和 loader digest；
-- `createProvisioningPlan(options)`：解析 source/profile/availability/targets/project assessments 和历史关系；
+- `createProvisioningPlan(options)`：解析 source/profile/availability/targets/project assessments、显式 shared assets 和历史关系；
 - `driftProvisioningPlan(options)`：对 fresh plan 比较目录、catalog、policy 和 target extras；
 - `applyProvisioningPlan(options)`：要求 fresh plan digest 与 `confirm=true`，事务化写入目标、catalog 和关系；
 - `listProvisioningRelations(options)`：读取指定 source/consumer 的已保存关系；
@@ -95,7 +111,7 @@ provider 暴露稳定的版本化入口，输入和输出只使用 JSON-compatib
 
 provider 不依赖进程级 `ARCFORGE_HOME` 才能隔离状态。CLI 可以继续用环境变量兼容入口，但 embedded API 以显式 `stateRoot` 为准。
 
-plan 包含稳定 digest，digest 覆盖 source identity、source policy、selected skills、content digests、目标、历史 managed set、loader 和 project assessments。apply 重新扫描 source 与目标；fresh digest 不一致时拒绝写入。
+plan 包含稳定 digest，digest 覆盖 source identity、source policy、selected skills、shared assets、content digests、目标、历史 managed set、loader 和 project assessments。shared asset plan item 包含 source-relative identity、内容 digest 和 Core 解析出的 destinations。apply 重新扫描 source 与目标；fresh digest 不一致时拒绝写入。
 
 ## 应用资源布局
 
@@ -165,6 +181,8 @@ ArcForge 仓库提供人工 workflow：
 7. 仅在操作者显式选择时创建 draft GitHub Release 或向既有 draft 添加 assets。
 
 ArcForge provider release 使用 immutable version asset。Arckit workflow 输入明确的 provider release tag 和 expected SHA-256；禁止下载 `latest`。跨私有仓库读取需要专用最小权限 secret，缺失时属于人工配置责任。
+
+provider manifest 同时声明 API version 与细粒度 capabilities。API version 约束入口兼容性，capability 约束 Runtime 实际依赖的行为；Runtime 构建只接受满足 required capabilities 的精确 artifact。ArcForge 主干新增但 Runtime 尚未使用的能力不要求立即进入 provider，Runtime 采用能力时必须先发布包含该 capability 的 provider，再更新安装包锁定版本。
 
 ## Arckit Runtime GitHub workflow
 
@@ -252,6 +270,8 @@ Desktop 自身的 Node 脚本不依赖主机 shell 中的 `node`。开发态直�
 - target matrix selection 和 artifact naming；
 - deterministic payload 与 lock digest；
 - provider API compatibility 和 checksum rejection；
+- ArcForge Core 与 Embedded Provider 对同一 source 输入产出一致的 canonical provisioning plan；
+- manifest-declared shared assets 进入 Core plan、provider projection、transactional apply、relation 和 drift，并对缺失 capability 或遗漏资源 fail closed；
 - packaged resource root resolution；
 - clean install、existing unrelated skill、changed managed skill、managed-stale、apply rollback；
 - user-ambient、user-on-demand loader/catalog 和 deferred project-ambient；

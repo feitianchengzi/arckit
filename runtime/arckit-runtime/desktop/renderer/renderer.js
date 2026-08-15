@@ -304,11 +304,12 @@ function renderSetupPlan() {
   if (!plan) { els.setupPlan.innerHTML = ""; return; }
   const groups = Object.groupBy ? Object.groupBy(plan.items, (item) => item.mode || "unclassified") : plan.items.reduce((result, item) => ((result[item.mode || "unclassified"] ||= []).push(item), result), {});
   const availability = plan.availability;
-  const availabilityHtml = availability ? `<p class="setup-digest">Arckit skills <strong>${availability.arckit_total}</strong> · user-ambient ${availability.user_ambient} · user-on-demand ${availability.user_on_demand} · project-ambient 延后 ${availability.project_ambient_deferred} · ArcForge loader ${availability.arcforge_loader_targets}</p>` : "";
+  const availabilityHtml = availability ? `<p class="setup-digest">Arckit skills <strong>${availability.arckit_total}</strong> · user-ambient ${availability.user_ambient} · user-on-demand ${availability.user_on_demand} · project-ambient 延后 ${availability.project_ambient_deferred} · shared assets ${availability.shared_assets} · ArcForge loader ${availability.arcforge_loader_targets}</p>` : "";
   const groupHtml = Object.entries(groups).map(([mode, items]) => `<section class="setup-plan-group"><h3>${escapeHtml(mode)} · ${items.length}</h3>${items.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong>${item.destinations.map((destination) => `<code>${escapeHtml(destination.path)}</code>`).join("")}</div>`).join("")}</section>`).join("");
+  const sharedAssets = plan.shared_assets?.length ? `<section class="setup-plan-group"><h3>shared assets · ${plan.shared_assets.length}</h3>${plan.shared_assets.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.name)}</strong>${item.destinations.map((destination) => `<code>${escapeHtml(destination.path)}</code>`).join("")}</div>`).join("")}</section>` : "";
   const cleanup = plan.cleanup?.length ? `<section class="setup-plan-group warning"><h3>managed-stale · ${plan.cleanup.length}</h3>${plan.cleanup.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}<button data-setup-cleanup class="secondary-button" type="button">单独确认并清理</button></section>` : "";
   const deferred = plan.deferred_project_skills?.length ? `<section class="setup-plan-group"><h3>project-ambient · 延后</h3><p>${plan.deferred_project_skills.map(escapeHtml).join("、")}</p></section>` : "";
-  els.setupPlan.innerHTML = `${availabilityHtml}<p class="setup-digest">Plan digest <code>${escapeHtml(plan.digest)}</code></p>${groupHtml}${cleanup}${deferred}`;
+  els.setupPlan.innerHTML = `${availabilityHtml}<p class="setup-digest">Plan digest <code>${escapeHtml(plan.digest)}</code></p>${groupHtml}${sharedAssets}${cleanup}${deferred}`;
 }
 
 function renderSetupActions() {

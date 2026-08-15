@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 65
-Updated: 2026-08-14T14:31:58.232Z
+Revision: 68
+Updated: 2026-08-15T05:56:52.686Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Fix arckit-runtime Desktop skill installation so the installed governed skills include the required _arckit_shared directory.
+Persist the ArcForge Core/provider responsibility boundary and optimize the shared-asset provisioning implementation so Runtime uses the same canonical semantics as ordinary ArcForge.
 
 ## Active Work
 
@@ -38,7 +38,7 @@ Arckit is a state-driven software-development protocol and optional supervised R
 | external_integrations | settled | 2 | The Runtime integrates with Codex app-server/CLI and optional task sources through explicit adapters; trusted ledger entrypoints remain repository-owned. Workshop authentication renewal uses auth-server/v1/public/refresh_token: Runtime sends the current refresh token, atomically accepts server-rotated credentials and expiry values, never locally extends signed credentials, retries transient transport/service failures without clearing a recoverable session, and treats only explicit invalid/revoked responses or local inactivity/expiry boundaries as reauthentication conditions. | GAP-runtime-resilience-and-adapters |
 | feedback_and_support | settled | 4 | Operational feedback uses the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization. Recovery feedback continues an interrupted active execution on its task session/thread; acceptance feedback from completed or accepted review creates an independent persisted work item, keeps the source todo terminal, reuses its session/thread and exposes issue progress and solution evidence. No separate public support portal is currently required. | - |
 | commercialization_and_entitlement | settled | 1 | Arckit currently has no payment, subscription, trial, quota or commercial feature-entitlement model. | - |
-| technical_foundation | settled | 11 | Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Runtime packages trusted capabilities separately from an Arckit skill payload and a versioned ArcForge Embedded Provider; Desktop Setup Readiness owns provisioning while the policy-neutral Runtime Kernel continues natural $using-arckit execution. | GAP-runtime-resilience-and-adapters |
+| technical_foundation | settled | 12 | Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Runtime packages trusted capabilities separately from an Arckit skill payload and a versioned ArcForge Embedded Provider; Desktop Setup Readiness owns provisioning while the policy-neutral Runtime Kernel continues natural $using-arckit execution. ArcForge Core is the sole implementation of overlapping provisioning semantics; CLI, Desktop and Embedded Provider are adapters, and Runtime consumes a capability-gated provider artifact without deriving installation targets. | GAP-runtime-resilience-and-adapters |
 | security_privacy_compliance | settled | 1 | Secrets stay outside canonical project state; Runtime enforces login/configured-source boundaries, workspace authorization, sandbox/approval rules and trusted deterministic writes. | GAP-security-real-project-validation |
 | quality_and_validation | settled | 2 | Protocol changes require schema/script validation, cross-record audits, Runtime automated tests, projection checks, direct-Codex no-Case recovery evidence, stale-token checks, read/write/read ordering checks, and risk-proportionate real execution evidence. | GAP-agent-scenario-evaluation, GAP-cross-record-audit |
 | delivery_and_distribution | settled | 3 | Arckit skills are sourced from the repository and synchronized to supported Codex targets through governed availability-aware installation. Runtime/Desktop installers are produced only by manually dispatched GitHub workflows against an existing tf/*, beta/* or appstore/* release-intent tag, bundle locked trusted resources, the Arckit skill payload and an exact ArcForge provider artifact, and support macOS arm64/x64, Windows x64 and Linux x64 with explicit signing and draft-release choices. | - |

@@ -248,6 +248,7 @@ export function createSkillProvisioningManager(options = {}) {
     const options = provisioningOptions(bundle, skills);
     const plan = await provider.createProvisioningPlan(options);
     const drift = await provider.driftProvisioningPlan(options);
+    assertDeclaredSharedAssetsTracked(bundle, plan, drift);
     return { plan, drift };
   }
 
@@ -357,6 +358,20 @@ function isCleanDrift(drift) {
     && (drift.availabilityPlan?.loaderTargets || []).every((item) => item.status === "same");
 }
 
+function assertDeclaredSharedAssetsTracked(bundle, plan, drift) {
+  const declared = (bundle.payloadManifest.sharedAssetPaths || []).map(normalizePayloadPath);
+  if (!declared.length) return;
+  const planned = new Map((plan.sharedAssets || []).map((item) => [normalizePayloadPath(item.sourcePath), item]));
+  const trackedTargets = new Set((drift.items || []).filter((item) => item.kind === "asset").map((item) => path.resolve(item.targetPath)));
+  const missing = declared.filter((sourcePath) => {
+    const item = planned.get(sourcePath);
+    return !item || !item.destinations.length || item.destinations.some((targetPath) => !trackedTargets.has(path.resolve(targetPath)));
+  });
+  if (missing.length) {
+    throw setupError("SHARED_ASSET_PLAN_MISSING", `ArcForge provider 未将声明的 shared assets 纳入安装计划：${missing.join("、")}`, "plan", { missing });
+  }
+}
+
 function publicSnapshot({ status, bundle, providerInfo, source, analyzed, probe }) {
   const plan = source.plan.plan;
   const availability = availabilityCounts(bundle, plan, source.deferredSkills);
@@ -374,6 +389,11 @@ function publicSnapshot({ status, bundle, providerInfo, source, analyzed, probe 
       profile: plan.profile,
       availability,
       items: plan.items.map((item) => ({ skill: item.skill, mode: item.effectiveMode, destinations: item.destinations.map((entry) => ({ kind: entry.kind, path: entry.path })) })),
+      shared_assets: (source.plan.sharedAssets || []).map((item) => ({
+        name: item.name,
+        source_path: item.sourcePath,
+        destinations: item.destinations.map((targetPath) => ({ kind: "user-agent", path: targetPath }))
+      })),
       loader_targets: plan.loaderTargets.map((item) => ({ agent: item.agentId, path: item.path, status: item.status })),
       cleanup: analyzed.cleanup.map((item) => ({ skill: item.skill, path: item.path, reason: item.reason })),
       deferred_project_skills: source.deferredSkills
@@ -388,12 +408,17 @@ function publicSnapshot({ status, bundle, providerInfo, source, analyzed, probe 
   };
 }
 
+function normalizePayloadPath(value) {
+  return String(value || "").trim().replaceAll("\\", "/").replace(/^\.\//, "");
+}
+
 function availabilityCounts(bundle, plan, deferredProjectSkills) {
   const result = {
     arckit_total: bundle.payloadManifest.skillPaths.length,
     user_ambient: 0,
     user_on_demand: 0,
     project_ambient_deferred: deferredProjectSkills.length,
+    shared_assets: (bundle.payloadManifest.sharedAssetPaths || []).length,
     other: 0,
     arcforge_loader_targets: plan.loaderTargets.length
   };
@@ -408,7 +433,7 @@ function availabilityCounts(bundle, plan, deferredProjectSkills) {
 function availabilitySummary(counts) {
   const modes = `${counts.user_ambient} 个 user-ambient，${counts.user_on_demand} 个 user-on-demand，${counts.project_ambient_deferred} 个 project-ambient 延后`;
   const other = counts.other ? `，${counts.other} 个其他模式` : "";
-  return `共 ${counts.arckit_total} 个 Arckit skills：${modes}${other}；${counts.arcforge_loader_targets} 个 ArcForge loader target`;
+  return `共 ${counts.arckit_total} 个 Arckit skills：${modes}${other}；${counts.shared_assets} 个 shared assets；${counts.arcforge_loader_targets} 个 ArcForge loader target`;
 }
 
 function blockedSnapshot(error, extra = {}) {

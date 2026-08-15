@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-14T14:31:58.232Z
+Updated: 2026-08-15T05:56:52.686Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,7 +17,6 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md)
 - software_decision.observability_and_operation: settled (arckit/cases/active/CASE-20260813-003-restore-cumulative-project-decision-semantics-after-feedback-lan.md)
 - software_decision.delivery_and_distribution: settled (arckit/cases/active/CASE-20260814-001-windows-arckit-runtime-loop.md)
 - software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
@@ -27,6 +26,7 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - software_decision.delivery_and_distribution: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
 - project_gap.GAP-delivery-governance: update (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
 - project_gap.GAP-delivery-governance: resolve (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260815-001-unify-arcforge-provider-provisioning-semantics.md)
 
 ## Remaining Project Gaps
 

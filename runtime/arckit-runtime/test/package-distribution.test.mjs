@@ -19,7 +19,7 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     const packageRoot = path.join(fixture, "package");
     await mkdir(path.join(packageRoot, "dist", "provider"), { recursive: true });
     await mkdir(path.join(packageRoot, "skills", "arcforge-on-demand"), { recursive: true });
-    const internalManifest = { schemaVersion: "arcforge-provider-package/v1", apiVersion: "arcforge-embedded-provider/v1", providerVersion: "0.1.0-tf.b1", buildCommit: "a".repeat(40), releaseTag: "tf/v0.1.0-b1", entrypoint: "dist/provider/index.js", loaderPath: "skills/arcforge-on-demand" };
+    const internalManifest = { schemaVersion: "arcforge-provider-package/v1", apiVersion: "arcforge-embedded-provider/v1", providerVersion: "0.1.0-tf.b1", buildCommit: "a".repeat(40), releaseTag: "tf/v0.1.0-b1", capabilities: ["declared-shared-assets/v1"], entrypoint: "dist/provider/index.js", loaderPath: "skills/arcforge-on-demand" };
     await writeFile(path.join(packageRoot, "arcforge-provider.manifest.json"), `${JSON.stringify(internalManifest)}\n`);
     await writeFile(path.join(packageRoot, "dist", "provider", "index.js"), "export const provider = true;\n");
     await writeFile(path.join(packageRoot, "skills", "arcforge-on-demand", "SKILL.md"), "---\nname: arcforge-on-demand\ndescription: fixture\n---\n");
@@ -29,6 +29,14 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     const archiveSha = sha256(await readFile(archive));
     const externalManifestPath = path.join(fixture, "arcforge-provider.manifest.json");
     await writeFile(externalManifestPath, `${JSON.stringify({ ...internalManifest, artifactName: path.basename(archive), artifactSha256: archiveSha })}\n`);
+
+    const incompatibleManifestPath = path.join(fixture, "arcforge-provider-incompatible.manifest.json");
+    await writeFile(incompatibleManifestPath, `${JSON.stringify({ ...internalManifest, capabilities: [], artifactName: path.basename(archive), artifactSha256: archiveSha })}\n`);
+    await assert.rejects(execFileAsync(process.execPath, [
+      "scripts/prepare-distribution.mjs", "--release-tag", "tf/v0.1.0-b1", "--provider-archive", archive,
+      "--provider-manifest", incompatibleManifestPath, "--provider-sha256", archiveSha, "--provider-release", "tf/v0.1.0-b1",
+      "--target", "macos-arm64", "--signing", "disabled", "--build-root", path.join(fixture, "incompatible-dist-package")
+    ], { cwd: runtimeRoot }), /missing required capabilities/);
 
     const packageBuildRoot = path.join(fixture, "dist-package");
     await execFileAsync(process.execPath, [
@@ -44,6 +52,7 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     const payloadRoot = path.join(resourcesRoot, "provisioning", "arckit-skills");
     const payloadManifest = JSON.parse(await readFile(path.join(payloadRoot, "payload.manifest.json"), "utf8"));
     assert.equal(lock.arcforgeProvider.sha256, archiveSha);
+    assert.deepEqual(lock.arcforgeProvider.capabilities, ["declared-shared-assets/v1"]);
     assert.equal(lock.skillPayload.skillCount >= 13, true);
     assert.deepEqual(payloadManifest.sharedAssetPaths, ["definition/skills/_arckit_shared"]);
     assert.equal(lock.skillPayload.sharedAssetCount, payloadManifest.sharedAssetPaths.length);

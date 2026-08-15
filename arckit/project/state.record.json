@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-14T14:31:58.232Z",
-    "revision": 65
+    "updated_at": "2026-08-15T05:56:52.686Z",
+    "revision": 68
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Fix arckit-runtime Desktop skill installation so the installed governed skills include the required _arckit_shared directory.",
+      "current_focus": "Persist the ArcForge Core/provider responsibility boundary and optimize the shared-asset provisioning implementation so Runtime uses the same canonical semantics as ordinary ArcForge.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -331,15 +331,21 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Runtime packages trusted capabilities separately from an Arckit skill payload and a versioned ArcForge Embedded Provider; Desktop Setup Readiness owns provisioning while the policy-neutral Runtime Kernel continues natural $using-arckit execution.",
-          "reason": "The accepted supply contract adds explicit package-time and first-run components without duplicating Agent or ledger semantics.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Runtime packages trusted capabilities separately from an Arckit skill payload and a versioned ArcForge Embedded Provider; Desktop Setup Readiness owns provisioning while the policy-neutral Runtime Kernel continues natural $using-arckit execution. ArcForge Core is the sole implementation of overlapping provisioning semantics; CLI, Desktop and Embedded Provider are adapters, and Runtime consumes a capability-gated provider artifact without deriving installation targets.",
+          "reason": "The accepted provider boundary distinguishes allowed surface/version differences from forbidden semantic duplication and is now realized by the canonical asset plan and packaged installation path.",
           "evidence": [
             "arckit/tech/arckit-runtime/installer-supply-chain.md",
-            "arckit/tech/arckit-runtime/solution.md"
+            "../arcforge/src/core/skill-availability.ts",
+            "../arcforge/src/provider/index.ts",
+            "runtime/arckit-runtime/src/skill-provisioning-manager.mjs",
+            "verification: ArcForge npm test passed 61 of 61",
+            "verification: Runtime npm run check passed 184, failed 0, skipped 1",
+            "verification: macOS-arm64 distribution smoke installed 1 shared asset and converged with missing 0 changed 0 same 14",
+            "verification: ArcForge npm run check and both repositories git diff --check passed"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 11
+          "revision": 12
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"

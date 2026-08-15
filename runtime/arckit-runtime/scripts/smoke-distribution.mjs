@@ -40,6 +40,7 @@ try {
     arckit_skill_total: planned.plan.availability.arckit_total,
     user_ambient_skills: planned.plan.availability.user_ambient,
     user_on_demand_skills: planned.plan.availability.user_on_demand,
+    shared_assets: planned.plan.availability.shared_assets,
     arcforge_loader_targets: planned.plan.availability.arcforge_loader_targets,
     deferred_project_skills: planned.plan.deferred_project_skills,
     post_drift: applied.drift.counts,

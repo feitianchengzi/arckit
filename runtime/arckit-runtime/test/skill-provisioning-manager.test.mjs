@@ -33,10 +33,11 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
       user_ambient: 1,
       user_on_demand: 1,
       project_ambient_deferred: 1,
+      shared_assets: 0,
       other: 0,
       arcforge_loader_targets: 1
     });
-    assert.equal(planned.checks.find((item) => item.id === "skills").summary, "共 3 个 Arckit skills：1 个 user-ambient，1 个 user-on-demand，1 个 project-ambient 延后；1 个 ArcForge loader target");
+    assert.equal(planned.checks.find((item) => item.id === "skills").summary, "共 3 个 Arckit skills：1 个 user-ambient，1 个 user-on-demand，1 个 project-ambient 延后；0 个 shared assets；1 个 ArcForge loader target");
     assert.equal(planned.drift.counts.uncertain, 1);
     assert.equal(planned.can_apply, true);
 
@@ -128,16 +129,43 @@ test("Setup Readiness blocks tampered resources and preserves a safe plan when C
   }
 });
 
-async function createMinimalBundle(root) {
+test("Setup Readiness blocks a provider plan that omits a manifest-declared shared asset", async () => {
+  const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-shared-plan-"));
+  try {
+    const resourcesRoot = path.join(fixture, "resources");
+    await createMinimalBundle(resourcesRoot, { includeSharedAsset: true });
+    const fake = createFakeProvider();
+    const manager = createSkillProvisioningManager({
+      resourcesRoot,
+      dataRoot: path.join(fixture, "data"),
+      homeDir: path.join(fixture, "home"),
+      stateRoot: path.join(fixture, "state"),
+      providerLoader: async () => fake.provider,
+      codexProbe: async () => ({ available: true, summary: "fixture Codex" })
+    });
+    const blocked = await manager.check();
+    assert.equal(blocked.status, "blocked");
+    assert.equal(blocked.error.code, "SHARED_ASSET_PLAN_MISSING");
+    assert.deepEqual(blocked.error.details.missing, ["definition/skills/_arckit_shared"]);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+async function createMinimalBundle(root, { includeSharedAsset = false } = {}) {
   const payloadRoot = path.join(root, "provisioning", "arckit-skills");
   await mkdir(path.join(payloadRoot, "code", "skills", "ambient-skill"), { recursive: true });
   await writeFile(path.join(payloadRoot, "code", "skills", "ambient-skill", "SKILL.md"), "ambient-v1\n");
+  if (includeSharedAsset) {
+    await mkdir(path.join(payloadRoot, "definition", "skills", "_arckit_shared"), { recursive: true });
+    await writeFile(path.join(payloadRoot, "definition", "skills", "_arckit_shared", "contract.md"), "shared contract\n");
+  }
   const sourceManifest = { version: 1, sourceDir: ".", availability: { defaultMode: "user-ambient", skills: [] } };
   await writeFile(path.join(payloadRoot, "arcforge.skill-project.json"), `${JSON.stringify(sourceManifest)}\n`);
   await writeFile(path.join(payloadRoot, "arcforge.config.json"), `${JSON.stringify({ version: 1, sourceDir: ".", profiles: [{ name: "arckit-runtime", skills: ["*"], targets: ["codex"] }] })}\n`);
   const files = await fileManifest(payloadRoot);
   const payloadDigest = sha256(JSON.stringify(files));
-  const manifest = { schemaVersion: "arckit-skill-payload/v1", profile: "arckit-runtime", sourceCommit: "a".repeat(40), sourceManifestDigest: sha256(`${JSON.stringify(sourceManifest)}\n`), skillPaths: ["code/skills/ambient-skill"], files, payloadDigest };
+  const manifest = { schemaVersion: "arckit-skill-payload/v1", profile: "arckit-runtime", sourceCommit: "a".repeat(40), sourceManifestDigest: sha256(`${JSON.stringify(sourceManifest)}\n`), skillPaths: ["code/skills/ambient-skill"], sharedAssetPaths: includeSharedAsset ? ["definition/skills/_arckit_shared"] : [], files, payloadDigest };
   await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(manifest)}\n`);
   await mkdir(path.join(root, "provisioning", "arcforge-provider", "dist", "provider"), { recursive: true });
   await writeFile(path.join(root, "provisioning", "arcforge-provider", "dist", "provider", "index.js"), "fixture\n");

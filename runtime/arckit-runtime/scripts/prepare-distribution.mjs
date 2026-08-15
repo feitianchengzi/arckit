@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { execLocalTar } from "./local-tar.mjs";
 
 const execFileAsync = promisify(execFile);
+const REQUIRED_PROVIDER_CAPABILITIES = ["declared-shared-assets/v1"];
 const runtimeRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(runtimeRoot, "..", "..");
 const options = parseArgs(process.argv.slice(2));
@@ -25,6 +26,7 @@ if (!safeEqual(actualProviderSha, options.providerSha256)) throw new Error(`ArcF
 const externalProviderManifest = JSON.parse(await readFile(path.resolve(options.providerManifest), "utf8"));
 if (externalProviderManifest.artifactName !== path.basename(providerArchive) || externalProviderManifest.artifactSha256 !== actualProviderSha) throw new Error("ArcForge provider release manifest does not bind the selected archive and digest.");
 if (externalProviderManifest.releaseTag !== options.providerRelease) throw new Error(`ArcForge provider manifest release tag ${externalProviderManifest.releaseTag} does not match ${options.providerRelease}.`);
+assertProviderCapabilities(externalProviderManifest, "release");
 
 const buildRoot = path.resolve(options.buildRoot || path.join(runtimeRoot, "dist-package"));
 const resourcesRoot = path.join(buildRoot, "resources");
@@ -50,6 +52,7 @@ try {
 const providerManifest = JSON.parse(await readFile(path.join(providerRoot, "arcforge-provider.manifest.json"), "utf8"));
 if (providerManifest.apiVersion !== "arcforge-embedded-provider/v1") throw new Error(`Unsupported provider API: ${providerManifest.apiVersion}`);
 if (providerManifest.providerVersion !== externalProviderManifest.providerVersion || providerManifest.buildCommit !== externalProviderManifest.buildCommit) throw new Error("ArcForge provider internal and release manifests disagree.");
+assertProviderCapabilities(providerManifest, "embedded");
 
 const { skillPaths, sharedAssetPaths } = await discoverPayloadPaths();
 for (const relativePath of [...skillPaths, ...sharedAssetPaths]) {
@@ -84,7 +87,7 @@ const lock = {
   arckit: { repository: options.repository || "feitianchengzi/arckit", releaseTag: options.releaseTag, commit: payloadManifest.sourceCommit },
   trustedCapabilities: { digest: digestManifest(trustedFiles), files: trustedFiles },
   skillPayload: { profile: payloadManifest.profile, sourceManifestDigest: payloadManifest.sourceManifestDigest, payloadDigest: payloadManifest.payloadDigest, skillCount: skillPaths.length, sharedAssetCount: sharedAssetPaths.length },
-  arcforgeProvider: { repository: options.providerRepository || "feitianchengzi/arcforge", releaseTag: options.providerRelease, apiVersion: providerManifest.apiVersion, providerVersion: providerManifest.providerVersion, buildCommit: providerManifest.buildCommit, artifactName: path.basename(providerArchive), sha256: actualProviderSha },
+  arcforgeProvider: { repository: options.providerRepository || "feitianchengzi/arcforge", releaseTag: options.providerRelease, apiVersion: providerManifest.apiVersion, providerVersion: providerManifest.providerVersion, buildCommit: providerManifest.buildCommit, capabilities: providerManifest.capabilities, artifactName: path.basename(providerArchive), sha256: actualProviderSha },
   toolchain: { electron: runtimePackage.devDependencies?.electron ?? "", electronBuilder: runtimePackage.devDependencies?.["electron-builder"] ?? "", node: process.version },
   build: { repository: options.repository || "feitianchengzi/arckit", workflow: options.workflow || "local", runId: options.runId || "local", runAttempt: options.runAttempt || "1", sourceRef: options.sourceRef || options.releaseTag },
   signing: { requestedMode: options.signing },
@@ -159,6 +162,11 @@ async function fileManifest(root, excluded = []) {
 }
 
 function digestManifest(files) { return sha256(JSON.stringify(files)); }
+function assertProviderCapabilities(manifest, origin) {
+  const capabilities = new Set(Array.isArray(manifest.capabilities) ? manifest.capabilities : []);
+  const missing = REQUIRED_PROVIDER_CAPABILITIES.filter((capability) => !capabilities.has(capability));
+  if (missing.length) throw new Error(`ArcForge ${origin} provider is missing required capabilities: ${missing.join(", ")}`);
+}
 function sha256(value) { return crypto.createHash("sha256").update(value).digest("hex"); }
 function safeEqual(left, right) { return left.length === right.length && crypto.timingSafeEqual(Buffer.from(left), Buffer.from(right)); }
 async function gitCommit(root) { return (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim(); }

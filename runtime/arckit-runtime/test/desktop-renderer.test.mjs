@@ -245,6 +245,8 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(source, /Codex CLI 接管/);
   assert.match(source, /Arckit skills <strong>\$\{availability\.arckit_total\}/);
   assert.match(source, /user-ambient \$\{availability\.user_ambient\}/);
+  assert.match(source, /shared assets \$\{availability\.shared_assets\}/);
+  assert.match(source, /plan\.shared_assets/);
   assert.match(source, /ArcForge loader \$\{availability\.arcforge_loader_targets\}/);
   assert.match(source, /添加反馈并继续/);
   assert.match(source, /data-recovery-feedback/);
