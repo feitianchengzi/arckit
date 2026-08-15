@@ -126,6 +126,7 @@ function registerIpc() {
   ipcMain.handle("arckit:setup-status", async () => skillProvisioningManager.getSnapshot());
   ipcMain.handle("arckit:setup-check", async () => skillProvisioningManager.check());
   ipcMain.handle("arckit:setup-apply", async (_event, input) => skillProvisioningManager.apply(input));
+  ipcMain.handle("arckit:setup-recover-upgrade", async (_event, input) => skillProvisioningManager.recoverSourceUpgrade(input));
   ipcMain.handle("arckit:setup-removal-plan", async (_event, managedPaths) => skillProvisioningManager.planManagedRemoval(managedPaths));
   ipcMain.handle("arckit:setup-remove", async (_event, input) => skillProvisioningManager.removeManaged(input));
   ipcMain.handle("arckit:setup-continue", async () => {

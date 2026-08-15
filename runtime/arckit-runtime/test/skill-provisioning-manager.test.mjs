@@ -101,7 +101,7 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
     await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(payloadManifest)}\n`);
     await mkdir(path.join(providerRoot, "dist", "provider"), { recursive: true });
     await writeFile(path.join(providerRoot, "dist", "provider", "index.js"), "export const fixture = true;\n");
-    const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/v1.0.0-${packageVersion.endsWith("b2") ? "b2" : "b1"}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: payloadManifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40) } };
+    const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/v1.0.0-${packageVersion.endsWith("b2") ? "b2" : "b1"}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: payloadManifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1"] } };
     await writeFile(path.join(root, "provisioning", "distribution-lock.json"), `${JSON.stringify(lock)}\n`);
     const resourceFiles = await fileManifest(root);
     await writeFile(path.join(root, "provisioning", "checksums.txt"), `${resourceFiles.map((item) => `${item.sha256}  ${item.path}`).join("\n")}\n`);
@@ -152,6 +152,104 @@ test("Setup Readiness blocks a provider plan that omits a manifest-declared shar
   }
 });
 
+test("Setup Readiness classifies the reported missing catalog targets and managed loader update as an actionable source upgrade", async () => {
+  const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-upgrade-repair-"));
+  const resourcesRoot = path.join(fixture, "resources");
+  const dataRoot = path.join(fixture, "data");
+  const homeDir = path.join(fixture, "home");
+  const stateRoot = path.join(fixture, "state");
+  const fake = createFakeProvider();
+  try {
+    await createUpgradeBundle(resourcesRoot, "1.0.0-tf.b1", "ambient-v1\n");
+    const manager = createSkillProvisioningManager({
+      resourcesRoot, dataRoot, homeDir, stateRoot,
+      providerLoader: async () => fake.provider,
+      codexProbe: async () => ({ available: true, summary: "fixture Codex" })
+    });
+    const first = await manager.check();
+    await manager.apply({ planDigest: first.plan.digest });
+    await rm(path.join(stateRoot, "catalog", "fixture", "on-demand-skill"), { recursive: true, force: true });
+    await writeFile(path.join(homeDir, ".codex", "skills", "arcforge-on-demand", "SKILL.md"), "provider loader v2\n");
+    await createUpgradeBundle(resourcesRoot, "1.0.0-tf.b2", "ambient-v2\n");
+
+    const upgrade = await manager.check();
+    assert.equal(upgrade.status, "needs-install");
+    assert.equal(upgrade.can_apply, true);
+    assert.equal(upgrade.write_state, "not_started");
+    assert.equal(upgrade.error, null);
+    assert.equal(upgrade.source_upgrade.can_proceed, true);
+    assert.equal(upgrade.source_upgrade.items.some((item) => item.disposition === "managed-repair" && item.name === "on-demand-skill"), true);
+    assert.equal(upgrade.source_upgrade.items.some((item) => item.disposition === "managed-migration" && item.name === "arcforge-on-demand"), true);
+
+    const applied = await manager.apply({ planDigest: upgrade.plan.digest });
+    assert.equal(applied.status, "ready");
+    assert.equal(applied.write_state, "committed");
+    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v2\n");
+    assert.equal(await readFile(path.join(stateRoot, "catalog", "fixture", "on-demand-skill", "SKILL.md"), "utf8"), "on-demand-v1\n");
+    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "arcforge-on-demand", "SKILL.md"), "utf8"), "loader\n");
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+test("Setup Readiness backs up changed managed content before presenting the fresh upgrade plan", async () => {
+  const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-upgrade-backup-"));
+  const resourcesRoot = path.join(fixture, "resources");
+  const dataRoot = path.join(fixture, "data");
+  const homeDir = path.join(fixture, "home");
+  const stateRoot = path.join(fixture, "state");
+  const fake = createFakeProvider();
+  try {
+    await createUpgradeBundle(resourcesRoot, "1.0.0-tf.b1", "ambient-v1\n");
+    const manager = createSkillProvisioningManager({ resourcesRoot, dataRoot, homeDir, stateRoot, providerLoader: async () => fake.provider, codexProbe: async () => ({ available: true, summary: "fixture Codex" }) });
+    const first = await manager.check();
+    await manager.apply({ planDigest: first.plan.digest });
+    await writeFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "my local customization\n");
+    await createUpgradeBundle(resourcesRoot, "1.0.0-tf.b2", "ambient-v2\n");
+
+    const conflict = await manager.check();
+    assert.equal(conflict.status, "conflict");
+    assert.equal(conflict.can_recover, true);
+    assert.equal(conflict.can_apply, false);
+    assert.equal(conflict.write_state, "not_started");
+    assert.equal(conflict.source_upgrade.items.some((item) => item.disposition === "unverified-managed" && item.name === "ambient-skill"), true);
+
+    const recovered = await manager.recoverSourceUpgrade({ assessmentDigest: conflict.source_upgrade.digest, action: "backup-and-restore" });
+    assert.equal(recovered.status, "needs-install");
+    assert.equal(recovered.write_state, "committed");
+    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v1\n");
+    assert.equal(await readFile(path.join(recovered.recovery_backup.path, "ambient-skill", "SKILL.md"), "utf8"), "my local customization\n");
+    const applied = await manager.apply({ planDigest: recovered.plan.digest });
+    assert.equal(applied.status, "ready");
+    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v2\n");
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
+  }
+});
+
+async function createUpgradeBundle(root, packageVersion, ambientContent) {
+  await rm(root, { recursive: true, force: true });
+  const payloadRoot = path.join(root, "provisioning", "arckit-skills");
+  const providerRoot = path.join(root, "provisioning", "arcforge-provider");
+  for (const [relative, content] of [["code/skills/ambient-skill", ambientContent], ["code/skills/on-demand-skill", "on-demand-v1\n"]]) {
+    await mkdir(path.join(payloadRoot, relative), { recursive: true });
+    await writeFile(path.join(payloadRoot, relative, "SKILL.md"), content);
+  }
+  const sourceManifest = { version: 1, sourceDir: ".", availability: { defaultMode: "user-ambient", skills: [{ path: "code/skills/on-demand-skill", mode: "user-on-demand" }] } };
+  await writeFile(path.join(payloadRoot, "arcforge.skill-project.json"), `${JSON.stringify(sourceManifest)}\n`);
+  await writeFile(path.join(payloadRoot, "arcforge.config.json"), `${JSON.stringify({ version: 1, sourceDir: ".", profiles: [{ name: "arckit-runtime", skills: ["*"], targets: ["codex"] }] })}\n`);
+  const files = await fileManifest(payloadRoot);
+  const payloadDigest = sha256(JSON.stringify(files));
+  const manifest = { schemaVersion: "arckit-skill-payload/v1", profile: "arckit-runtime", sourceCommit: "a".repeat(40), sourceManifestDigest: sha256(`${JSON.stringify(sourceManifest)}\n`), skillPaths: ["code/skills/ambient-skill", "code/skills/on-demand-skill"], files, payloadDigest };
+  await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(manifest)}\n`);
+  await mkdir(path.join(providerRoot, "dist", "provider"), { recursive: true });
+  await writeFile(path.join(providerRoot, "dist", "provider", "index.js"), "fixture\n");
+  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/${packageVersion}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1"] } };
+  await writeFile(path.join(root, "provisioning", "distribution-lock.json"), `${JSON.stringify(lock)}\n`);
+  const resourceFiles = await fileManifest(root);
+  await writeFile(path.join(root, "provisioning", "checksums.txt"), `${resourceFiles.map((item) => `${item.sha256}  ${item.path}`).join("\n")}\n`);
+}
+
 async function createMinimalBundle(root, { includeSharedAsset = false } = {}) {
   const payloadRoot = path.join(root, "provisioning", "arckit-skills");
   await mkdir(path.join(payloadRoot, "code", "skills", "ambient-skill"), { recursive: true });
@@ -169,7 +267,7 @@ async function createMinimalBundle(root, { includeSharedAsset = false } = {}) {
   await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(manifest)}\n`);
   await mkdir(path.join(root, "provisioning", "arcforge-provider", "dist", "provider"), { recursive: true });
   await writeFile(path.join(root, "provisioning", "arcforge-provider", "dist", "provider", "index.js"), "fixture\n");
-  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion: "1.0.0-tf.b1" }, arckit: { releaseTag: "tf/v1.0.0-b1" }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40) } };
+  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion: "1.0.0-tf.b1" }, arckit: { releaseTag: "tf/v1.0.0-b1" }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1"] } };
   await writeFile(path.join(root, "provisioning", "distribution-lock.json"), `${JSON.stringify(lock)}\n`);
   const resourceFiles = await fileManifest(root);
   await writeFile(path.join(root, "provisioning", "checksums.txt"), `${resourceFiles.map((item) => `${item.sha256}  ${item.path}`).join("\n")}\n`);
@@ -179,7 +277,7 @@ function createFakeProvider() {
   const records = [];
   const state = { failApply: false, payloadDigests: new Map() };
   const provider = {
-    async inspectProvider() { return { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), loaderDigest: "c".repeat(64) }; },
+    async inspectProvider() { return { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), loaderDigest: "c".repeat(64), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1"] }; },
     async createProvisioningPlan(options) {
       const payload = JSON.parse(await readFile(path.join(options.sourceRoot, "payload.manifest.json"), "utf8"));
       const sourceManifest = JSON.parse(await readFile(path.join(options.sourceRoot, "arcforge.skill-project.json"), "utf8"));
@@ -193,7 +291,8 @@ function createFakeProvider() {
         items.push({ skill, sourcePath: relative, effectiveMode: mode, policyOrigin: "source", destinations: [{ kind: mode === "user-on-demand" ? "user-catalog" : "user-agent", path: destination }], contentDigest: sha256(await readFile(path.join(options.sourceRoot, relative, "SKILL.md"))) });
       }
       const loaderPath = items.some((item) => item.effectiveMode === "user-on-demand") ? path.join(options.homeDir, ".codex", "skills", "arcforge-on-demand") : "";
-      const loaderTargets = loaderPath ? [{ agentId: "codex", path: loaderPath, status: await sameFile(path.join(loaderPath, "SKILL.md"), "loader\n") ? "same" : "missing", expectedDigest: sha256("loader\n") }] : [];
+      const loaderExists = loaderPath ? await readFile(path.join(loaderPath, "SKILL.md"), "utf8").then(() => true, (error) => error.code === "ENOENT" ? false : Promise.reject(error)) : false;
+      const loaderTargets = loaderPath ? [{ agentId: "codex", path: loaderPath, status: await sameFile(path.join(loaderPath, "SKILL.md"), "loader\n") ? "same" : loaderExists && records.length ? "managed-update" : "missing", expectedDigest: sha256("loader\n"), ...(loaderExists ? { existingDigest: sha256(await readFile(path.join(loaderPath, "SKILL.md"))) } : {}) }] : [];
       const plan = { sourceKey: "fixture", sourceIdentity: options.sourceRoot, profile: options.profile, items, loaderTargets, cleanup: [], diagnostics: [], requiresConfirm: true };
       return { apiVersion: "arcforge-embedded-provider/v1", planDigest: sha256(JSON.stringify(plan)), plan, targetEvidence: [] };
     },
@@ -209,7 +308,7 @@ function createFakeProvider() {
           items.push({ skill: item.skill, kind: "skill", status, sourcePath: path.join(options.sourceRoot, item.sourcePath), targetPath: destination.path });
         }
       }
-      for (const loader of envelope.plan.loaderTargets) items.push({ skill: "arcforge-on-demand", kind: "loader", status: loader.status === "same" ? "same" : "missing", sourcePath: "fixture-loader", targetPath: loader.path });
+      for (const loader of envelope.plan.loaderTargets) items.push({ skill: "arcforge-on-demand", kind: "loader", status: loader.status === "same" ? "same" : loader.status === "managed-update" ? "changed" : "missing", sourcePath: "fixture-loader", targetPath: loader.path });
       const ambientRoot = path.join(options.homeDir, ".codex", "skills");
       const expected = new Set([...envelope.plan.items.flatMap((item) => item.destinations.filter((entry) => entry.kind === "user-agent").map((entry) => path.basename(entry.path))), ...(envelope.plan.loaderTargets.length ? ["arcforge-on-demand"] : [])]);
       const extras = (await readdir(ambientRoot, { withFileTypes: true }).catch(() => [])).filter((item) => item.isDirectory() && !expected.has(item.name)).map((item) => ({ name: item.name, kind: "skill", classification: "uncertain", targetPath: path.join(ambientRoot, item.name), reason: "unmanaged" }));
@@ -227,6 +326,39 @@ function createFakeProvider() {
       return { result: { copied: fresh.plan.items.map((item) => item.skill) }, record };
     },
     async listProvisioningRelations(options) { return records.filter((item) => !options.sourceRoot || item.sourceRoot === options.sourceRoot); },
+    async assessProvisioningUpgrade(options) {
+      const drift = await provider.driftProvisioningPlan(options);
+      const relation = records.find((item) => item.sourceRoot === options.sourceRoot);
+      const managed = new Set(relation?.availabilityItems?.flatMap((item) => item.destinations) || []);
+      if (relation?.availabilityItems?.some((item) => item.mode === "user-on-demand")) managed.add(path.join(options.homeDir, ".codex", "skills", "arcforge-on-demand"));
+      const items = drift.items.filter((item) => item.status !== "same").map((item) => ({
+        disposition: !managed.has(item.targetPath) ? "unmanaged-conflict" : item.status === "missing" ? "managed-repair" : item.kind === "loader" ? "managed-migration" : "unverified-managed",
+        name: item.skill,
+        kind: item.kind,
+        path: item.targetPath,
+        sourcePath: item.sourcePath,
+        observedStatus: item.status,
+        reason: "fixture assessment"
+      }));
+      const blocking = items.filter((item) => ["unmanaged-conflict", "unverified-managed", "local-content-conflict"].includes(item.disposition));
+      const base = { apiVersion: "arcforge-embedded-provider/v1", sourceRoot: options.sourceRoot, relationIds: relation ? [relation.id] : [], items, canProceed: blocking.length === 0, canBackupAndRestore: blocking.length > 0 && blocking.every((item) => item.disposition === "unverified-managed"), writeState: "not_started" };
+      return { ...base, assessmentDigest: sha256(JSON.stringify(base)) };
+    },
+    async recoverProvisioningUpgrade(options) {
+      const assessment = await provider.assessProvisioningUpgrade(options);
+      if (assessment.assessmentDigest !== options.expectedAssessmentDigest) throw new Error("fixture assessment changed");
+      const backupPath = path.join(options.backupRoot, "fixture-backup");
+      const restoredPaths = [];
+      for (const item of assessment.items.filter((entry) => entry.disposition === "unverified-managed")) {
+        const itemBackup = path.join(backupPath, item.name);
+        await mkdir(path.dirname(itemBackup), { recursive: true });
+        await cp(item.path, itemBackup, { recursive: true });
+        await rm(item.path, { recursive: true, force: true });
+        await cp(item.sourcePath, item.path, { recursive: true });
+        restoredPaths.push(item.path);
+      }
+      return { assessment, backupPath, restoredPaths };
+    },
     async removeManagedProvisioning() { throw new Error("not used by fixture"); }
   };
   return Object.assign(state, { provider });

@@ -136,6 +136,21 @@ function wireEvents() {
       renderSetup();
     }
   }));
+  els.setupRecoverButton.addEventListener("click", () => runAction(async () => {
+    const upgrade = state.setup?.source_upgrade;
+    if (!upgrade?.can_backup_and_restore) return;
+    if (!window.confirm("将先把本地修改完整备份，再恢复旧版 managed 内容。恢复完成后仍会显示新版迁移计划，需再次确认才会升级。")) return;
+    state.setupBusy = true;
+    renderSetup();
+    try {
+      state.setup = await api.recoverSetupUpgrade({ assessmentDigest: upgrade.digest, action: "backup-and-restore" });
+      state.setupPlanOpened = false;
+      els.setupReviewed.checked = false;
+    } finally {
+      state.setupBusy = false;
+      renderSetup();
+    }
+  }));
   els.setupContinueButton.addEventListener("click", () => runAction(async () => {
     await api.continueFromSetup();
     els.setupReadiness.classList.add("hidden");
@@ -273,7 +288,7 @@ function renderSetup() {
     ready: ["Arckit 已准备完成", "关键资源、skills drift 与 Codex discoverability 均已通过。"],
     "needs-install": ["需要安装 Arckit skills", "查看 fresh plan 的目标后确认安装。"],
     drifted: ["发现 managed-stale 路径", "清理需要独立确认，普通安装不会隐式删除。"],
-    conflict: ["发现需要处理的冲突", "changed 目标或 loader conflict 不会被静默覆盖。"],
+    conflict: ["需要选择升级恢复方式", "已区分可修复的 managed drift、本地内容修改与未托管冲突。"],
     blocked: ["Setup Readiness 被阻塞", setup.error?.message || "修复后重新检查。"]
   };
   const [title, lead] = labels[setup.status] || labels.blocked;
@@ -290,10 +305,18 @@ function renderSetup() {
   els.setupCounts.innerHTML = counts ? `<div><strong>${counts.missing}</strong><span>将新增</span></div><div><strong>${counts.same}</strong><span>已一致</span></div><div><strong>${counts.changed}</strong><span>changed</span></div><div><strong>${counts.managed_stale}</strong><span>stale</span></div>` : "";
   renderSetupPlan();
   els.setupErrorPanel.classList.toggle("hidden", !setup.error);
-  els.setupErrorPanel.innerHTML = setup.error ? `<strong>${escapeHtml(setup.error.code)}</strong><p>${escapeHtml(setup.error.message)}</p><small>阶段：${escapeHtml(setup.error.stage)} · 回滚：${setup.error.rollback_complete ? "完整" : "需要人工检查"}</small>` : "";
+  const writeSummary = setup.write_state === "not_started" ? "写入：未开始" : setup.write_state === "committed" ? "写入：已完成" : setup.write_state === "rolled_back" ? "写入：已回滚" : setup.write_state === "rollback_incomplete" ? "写入：回滚需人工检查" : "写入：进行中";
+  els.setupErrorPanel.innerHTML = setup.error ? `<strong>${escapeHtml(setup.error.code)}</strong><p>${escapeHtml(setup.error.message)}</p><small>阶段：${escapeHtml(setup.error.stage)} · ${writeSummary}</small>` : "";
+  const upgradeItems = setup.source_upgrade?.items || [];
   const conflicts = setup.drift?.conflicts || [];
-  els.setupConflictPanel.classList.toggle("hidden", conflicts.length === 0);
-  els.setupConflictPanel.innerHTML = conflicts.length ? `<h2>不会自动覆盖</h2>${conflicts.map((item) => `<div class="setup-path-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}` : "";
+  els.setupConflictPanel.classList.toggle("hidden", upgradeItems.length === 0 && conflicts.length === 0 && !setup.recovery_backup);
+  els.setupConflictPanel.innerHTML = upgradeItems.length
+    ? `<h2>升级 drift 分类</h2>${upgradeItems.map((item) => `<div class="setup-path-row"><strong>${escapeHtml(upgradeDispositionLabel(item.disposition))} · ${escapeHtml(item.name)}</strong><code>${escapeHtml(item.path)}</code><small>${escapeHtml(item.reason)}</small>${item.files?.length ? `<ul>${item.files.map((file) => `<li><code>${escapeHtml(file.status)} · ${escapeHtml(file.path)}</code></li>`).join("")}</ul>` : ""}</div>`).join("")}`
+    : conflicts.length
+      ? `<h2>不会自动覆盖</h2>${conflicts.map((item) => `<div class="setup-path-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}`
+      : setup.recovery_backup
+        ? `<h2>本地修改已备份</h2><div class="setup-path-row"><code>${escapeHtml(setup.recovery_backup.path)}</code></div>`
+        : "";
   renderSetupActions();
 }
 
@@ -307,7 +330,7 @@ function renderSetupPlan() {
   const availabilityHtml = availability ? `<p class="setup-digest">Arckit skills <strong>${availability.arckit_total}</strong> · user-ambient ${availability.user_ambient} · user-on-demand ${availability.user_on_demand} · project-ambient 延后 ${availability.project_ambient_deferred} · shared assets ${availability.shared_assets} · ArcForge loader ${availability.arcforge_loader_targets}</p>` : "";
   const groupHtml = Object.entries(groups).map(([mode, items]) => `<section class="setup-plan-group"><h3>${escapeHtml(mode)} · ${items.length}</h3>${items.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong>${item.destinations.map((destination) => `<code>${escapeHtml(destination.path)}</code>`).join("")}</div>`).join("")}</section>`).join("");
   const sharedAssets = plan.shared_assets?.length ? `<section class="setup-plan-group"><h3>shared assets · ${plan.shared_assets.length}</h3>${plan.shared_assets.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.name)}</strong>${item.destinations.map((destination) => `<code>${escapeHtml(destination.path)}</code>`).join("")}</div>`).join("")}</section>` : "";
-  const cleanup = plan.cleanup?.length ? `<section class="setup-plan-group warning"><h3>managed-stale · ${plan.cleanup.length}</h3>${plan.cleanup.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}<button data-setup-cleanup class="secondary-button" type="button">单独确认并清理</button></section>` : "";
+  const cleanup = plan.cleanup?.length ? `<section class="setup-plan-group warning"><h3>managed-stale · ${plan.cleanup.length}</h3>${plan.cleanup.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}${plan.cleanup_included_in_upgrade ? `<p>这些 relationship-proven 旧目标已包含在本次迁移确认中。</p>` : `<button data-setup-cleanup class="secondary-button" type="button">单独确认并清理</button>`}</section>` : "";
   const deferred = plan.deferred_project_skills?.length ? `<section class="setup-plan-group"><h3>project-ambient · 延后</h3><p>${plan.deferred_project_skills.map(escapeHtml).join("、")}</p></section>` : "";
   els.setupPlan.innerHTML = `${availabilityHtml}<p class="setup-digest">Plan digest <code>${escapeHtml(plan.digest)}</code></p>${groupHtml}${sharedAssets}${cleanup}${deferred}`;
 }
@@ -318,10 +341,24 @@ function renderSetupActions() {
   els.setupRetryButton.disabled = applying;
   els.setupRetryButton.classList.toggle("hidden", setup.status === "ready");
   els.setupApplyButton.classList.toggle("hidden", !setup.can_apply);
+  els.setupApplyButton.textContent = setup.source_upgrade?.can_proceed ? "修复缺失并迁移" : "安装并继续";
   els.setupApplyButton.disabled = applying || !state.setupPlanOpened || !els.setupReviewed.checked;
+  els.setupRecoverButton.classList.toggle("hidden", !setup.can_recover);
+  els.setupRecoverButton.disabled = applying;
   els.setupContinueButton.classList.toggle("hidden", setup.status !== "ready");
   els.setupContinueButton.disabled = applying;
+  els.setupExitButton.textContent = setup.source_upgrade && !setup.source_upgrade.can_proceed ? "保留当前内容并退出" : "退出应用";
   els.setupExitButton.disabled = setup.status === "applying";
+}
+
+function upgradeDispositionLabel(value) {
+  return ({
+    "managed-repair": "可修复的 managed 缺失",
+    "managed-migration": "Provider managed 迁移",
+    "local-content-conflict": "本地内容已修改",
+    "unverified-managed": "旧关系缺少内容证据",
+    "unmanaged-conflict": "未托管冲突"
+  })[value] || value;
 }
 
 function setupCheckLabel(id) { return ({resources:"受信安装资源",provider:"ArcForge provider",skills:"Arckit skills",codex:"Codex discoverability"})[id] || id; }

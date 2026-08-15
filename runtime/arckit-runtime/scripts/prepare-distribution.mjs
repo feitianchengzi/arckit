@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { execLocalTar } from "./local-tar.mjs";
 
 const execFileAsync = promisify(execFile);
-const REQUIRED_PROVIDER_CAPABILITIES = ["declared-shared-assets/v1"];
+const REQUIRED_PROVIDER_CAPABILITIES = ["declared-shared-assets/v1", "source-upgrade-recovery/v1"];
 const runtimeRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(runtimeRoot, "..", "..");
 const options = parseArgs(process.argv.slice(2));

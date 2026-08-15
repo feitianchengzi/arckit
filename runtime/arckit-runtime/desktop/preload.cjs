@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   getSetupReadiness: () => ipcRenderer.invoke("arckit:setup-status"),
   checkSetupReadiness: () => ipcRenderer.invoke("arckit:setup-check"),
   applySetupPlan: (input) => ipcRenderer.invoke("arckit:setup-apply", input),
+  recoverSetupUpgrade: (input) => ipcRenderer.invoke("arckit:setup-recover-upgrade", input),
   planSetupRemoval: (managedPaths) => ipcRenderer.invoke("arckit:setup-removal-plan", managedPaths),
   removeManagedSetupPaths: (input) => ipcRenderer.invoke("arckit:setup-remove", input),
   continueFromSetup: () => ipcRenderer.invoke("arckit:setup-continue"),

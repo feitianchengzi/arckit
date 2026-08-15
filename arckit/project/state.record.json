@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-15T05:56:52.686Z",
-    "revision": 68
+    "updated_at": "2026-08-15T11:45:08.176Z",
+    "revision": 71
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Persist the ArcForge Core/provider responsibility boundary and optimize the shared-asset provisioning implementation so Runtime uses the same canonical semantics as ordinary ArcForge.",
+      "current_focus": "Confirm whether SOURCE_UPGRADE_CONFLICT is a valid safety check and make the packaged Setup Readiness flow provide an actionable, safe recovery path instead of only exit or retry.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,15 +147,15 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit provides Project/Iteration/Case ledgers, fresh-fact-driven invariant-guided dynamic Case Gap discovery, strict single-Gap Rounds, trusted atomic transitions, maintained development skills, an optional supervised Runtime/Desktop with ordinary-todo and acceptance-feedback lanes, and a Setup Readiness surface that establishes governed Codex skills before Runtime execution.",
-          "reason": "The accepted installer contract makes environment readiness and skills provisioning a recoverable product capability without moving it into the Runtime Kernel.",
+          "statement": "Arckit provides Project/Iteration/Case ledgers, fresh-fact-driven invariant-guided dynamic Case Gap discovery, strict single-Gap Rounds, trusted atomic transitions, maintained development skills, an optional supervised Runtime/Desktop with ordinary-todo and acceptance-feedback lanes, and a Setup Readiness surface that establishes governed Codex skills before Runtime execution, including typed source-upgrade reconciliation that separates repairable managed drift and provider migrations from user-content and unmanaged conflicts.",
+          "reason": "The accepted recovery contract makes actionable, content-preserving source-upgrade reconciliation part of the Setup Readiness capability rather than an opaque blocked error.",
           "evidence": [
             "arckit/spec/arckit-runtime-distribution.md",
             "arckit/interaction/setup-readiness/interaction.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 6
+          "revision": 7
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -187,16 +187,16 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "Application startup first establishes Setup Readiness through resource checks, governed skill plan/drift, explicit confirmation, transactional apply and recoverable conflict states; ready users then continue through session restoration into the Automation Workspace, where persisted candidate comparison, accepted closeout, fresh-read, recovery and acceptance feedback remain in one persistent task conversation.",
-          "reason": "The Setup Readiness interaction is now the explicit task-start prerequisite and composes with the existing login and workspace journeys.",
+          "statement": "Application startup first establishes Setup Readiness through resource checks, governed skill plan/drift, explicit confirmation, transactional apply and recoverable conflict states. Source upgrades present typed managed repair/migration, local or unverified content conflict and unmanaged conflict states with visible ownership evidence and actions for repair, backup-and-restore, preserve-and-exit or external recovery. Ready users then continue through session restoration into the Automation Workspace, where persisted candidate comparison, accepted closeout, fresh-read, recovery and acceptance feedback remain in one persistent task conversation.",
+          "reason": "The interaction contract now gives every source-upgrade class a risk-appropriate visible action instead of treating check-only drift as an unactionable rollback state.",
           "evidence": [
             "arckit/interaction/setup-readiness/interaction.md",
             "arckit/interaction/setup-readiness/default.html",
-            "arckit/interaction/_map/RELATIONS.md"
+            "arckit/interaction/_map/feature-matrix.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 8
+          "revision": 9
         },
         "gap_refs": []
       },
@@ -331,21 +331,15 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Runtime packages trusted capabilities separately from an Arckit skill payload and a versioned ArcForge Embedded Provider; Desktop Setup Readiness owns provisioning while the policy-neutral Runtime Kernel continues natural $using-arckit execution. ArcForge Core is the sole implementation of overlapping provisioning semantics; CLI, Desktop and Embedded Provider are adapters, and Runtime consumes a capability-gated provider artifact without deriving installation targets.",
-          "reason": "The accepted provider boundary distinguishes allowed surface/version differences from forbidden semantic duplication and is now realized by the canonical asset plan and packaged installation path.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Runtime packages trusted capabilities separately from an Arckit skill payload and a versioned ArcForge Embedded Provider; Desktop Setup Readiness owns provisioning while the policy-neutral Runtime Kernel continues natural $using-arckit execution. ArcForge Core is the sole implementation of overlapping provisioning semantics, including typed source-upgrade assessment, last-applied target evidence, managed repair/migration and transactional backup/restore; CLI, Desktop and Embedded Provider are adapters, and Runtime consumes capability-gated provider artifacts without deriving installation targets or drift classes.",
+          "reason": "The accepted technical contract extends the single-semantic-source boundary to old-relation reconciliation and prevents Runtime from inferring user conflicts from raw drift counts.",
           "evidence": [
             "arckit/tech/arckit-runtime/installer-supply-chain.md",
-            "../arcforge/src/core/skill-availability.ts",
-            "../arcforge/src/provider/index.ts",
-            "runtime/arckit-runtime/src/skill-provisioning-manager.mjs",
-            "verification: ArcForge npm test passed 61 of 61",
-            "verification: Runtime npm run check passed 184, failed 0, skipped 1",
-            "verification: macOS-arm64 distribution smoke installed 1 shared asset and converged with missing 0 changed 0 same 14",
-            "verification: ArcForge npm run check and both repositories git diff --check passed"
+            "arckit/spec/arckit-runtime-distribution.md"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 12
+          "revision": 13
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"

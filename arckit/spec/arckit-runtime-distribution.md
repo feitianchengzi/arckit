@@ -112,12 +112,15 @@ Desktop 展示：
 
 安装新版本 Arckit Runtime 时，Desktop 比较旧维护源、现有目标和新 payload：
 
-1. 先确认现有目标相对旧维护源是否有本地 drift；
-2. 有未确认 drift 时保留旧维护源并停止升级 apply；
-3. 目标干净时原子切换应用管理的维护源；
-4. 对新 payload 重新生成 plan 和 drift；
-5. 用户确认后 apply，并更新同一关系记录；
-6. 成功后保留足以回滚本次切换的上一份来源快照。
+1. 先依据旧关系中的实际目标、最后应用摘要和旧维护源检查现有目标，不使用新 provider 重新计算的目标位置冒充旧目标事实；
+2. 把差异分类为可修复的受管理缺失、provider 管理的路径/策略/loader 迁移、已有内容变化和未受管理同名冲突；
+3. 受管理缺失和能够由关系与摘要证明的 provider 迁移进入待确认 upgrade plan，不作为用户内容冲突阻断；
+4. 已有内容变化在旧 source 保持 current 时展示逐目标/文件差异，用户选择“备份本地内容并恢复受管理副本”或保留当前内容并退出；
+5. 未受管理同名内容始终保留且不进入批量覆盖，用户在外部消除冲突后重新检查；
+6. 处置完成后重新生成 plan，对新 payload 执行 source switch、受管理目标 apply、关系迁移和 post-drift；
+7. 成功后保留足以回滚本次切换的上一份来源快照和本轮用户内容备份引用。
+
+关系记录保存每个受管理目标最后一次成功 apply 的内容摘要、有效目标、availability/policy、provider 能力版本和 shared-loader 所有权证据。旧关系缺少完成安全分类所需的摘要时，现有内容差异进入“未验证的受管理目标”，不得静默覆盖；用户仍可查看差异并明确选择备份后恢复。检查阶段尚未发生写入时，结果显示“未写入”，不显示成 apply 回滚。
 
 “修复”只把当前锁定 payload 重新应用到已确认的受管理目标。它不删除 unrelated 内容，不从远端获取新版本，也不改变 availability 策略。
 
@@ -146,4 +149,6 @@ Desktop 展示：
 - 安装包在无 ArcForge 或 Arckit checkout 的用户环境中包含完整 provisioning 输入。
 - Runtime trusted ledger 使用应用内受信资源；Codex Agent 使用目标目录中按策略安装的 skills；两者不会混用消费副本。
 - 首次安装、drift、修复、升级和清理都展示目标并要求相应确认。
+- source upgrade 能区分受管理缺失、provider 管理迁移、用户内容变化和未受管理冲突；每个非 ready 状态都提供与其风险相符的可执行恢复动作或明确的外部恢复条件。
+- 受管理内容变化只有在逐目标差异可见且用户明确选择备份或放弃本地内容后才能恢复；missing 和可证明的 managed migration 不得被错误标记为用户修改。
 - 构建产物可以追溯到 Runtime commit、Arckit payload commit、ArcForge provider 版本、manifest digest、构建 run 和 release intent tag。

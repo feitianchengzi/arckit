@@ -7,6 +7,7 @@ import { resolveCodexExecutable } from "./codex-executable-resolver.mjs";
 
 const API_VERSION = "arcforge-embedded-provider/v1";
 const SNAPSHOT_VERSION = "arckit-setup-readiness/v1";
+const REQUIRED_PROVIDER_CAPABILITIES = ["declared-shared-assets/v1", "source-upgrade-recovery/v1"];
 
 export function createSkillProvisioningManager(options = {}) {
   const resourcesRoot = path.resolve(requiredPath(options.resourcesRoot, "resourcesRoot"));
@@ -54,6 +55,10 @@ export function createSkillProvisioningManager(options = {}) {
         assertProviderLock(providerInfo, bundle.lock.arcforgeProvider);
         const source = await prepareSourceContext({ bundle, provider });
         const probe = await safeCodexProbe(codexProbe);
+        if (source.recoveryOnly) {
+          internalPlan = { provider, bundle, source, conflicts: source.upgradeAssessment.items, cleanup: [] };
+          return setSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }));
+        }
         const analyzed = analyzePlan(source.plan, source.drift, { allowManagedUpdate: Boolean(source.upgrade) });
         internalPlan = { provider, bundle, source, ...analyzed };
         const status = probe.available ? analyzed.status : "blocked";
@@ -73,11 +78,12 @@ export function createSkillProvisioningManager(options = {}) {
         throw setupError("TARGET_CONFLICT", "存在 changed 或 loader conflict，不能静默覆盖。", "plan");
       }
       const allowedCleanup = new Set(internalPlan.cleanup.map((item) => path.resolve(item.path)));
-      const normalizedCleanup = [...new Set(cleanupPaths.map((item) => path.resolve(item)))];
+      const upgradeCleanup = internalPlan.source.upgrade ? [...allowedCleanup] : [];
+      const normalizedCleanup = [...new Set([...cleanupPaths.map((item) => path.resolve(item)), ...upgradeCleanup])];
       if (normalizedCleanup.some((item) => !allowedCleanup.has(item))) {
         throw setupError("CLEANUP_NOT_IN_PLAN", "清理路径不属于当前 managed-stale 计划。", "plan");
       }
-      setSnapshot({ ...snapshot, status: "applying", can_apply: false, can_continue: false, progress: { stage: "source-staging", completed: [] } });
+      setSnapshot({ ...snapshot, status: "applying", can_apply: false, can_continue: false, write_state: "in_progress", progress: { stage: "source-staging", completed: [] } });
       let upgrade;
       try {
         upgrade = await activateUpgrade(internalPlan.source.upgrade);
@@ -96,18 +102,44 @@ export function createSkillProvisioningManager(options = {}) {
           throw new AggregateError([error, rollbackError], "Skill provisioning failed and source rollback was incomplete.");
         });
         internalPlan = null;
-        setSnapshot(blockedSnapshot(error, { rollback_complete: !(error instanceof AggregateError) }));
+        setSnapshot(blockedSnapshot(error, { rollback_complete: !(error instanceof AggregateError), write_state: error instanceof AggregateError ? "rollback_incomplete" : "rolled_back" }));
         return structuredClone(snapshot);
       }
       internalPlan = null;
       const result = await checkUnlocked();
       if (result.status === "blocked" && result.error?.code === "CODEX_UNAVAILABLE") {
-        return setSnapshot({ ...result, first_install: true });
+        return setSnapshot({ ...result, first_install: true, write_state: "committed" });
       }
       if (result.status !== "ready") {
-        return setSnapshot(blockedSnapshot(setupError("POST_DRIFT_FAILED", "安装后校验未达到 ready。", "post-drift"), { previous: result }));
+        return setSnapshot(blockedSnapshot(setupError("POST_DRIFT_FAILED", "安装后校验未达到 ready。", "post-drift"), { previous: result, write_state: "committed" }));
       }
-      return setSnapshot({ ...result, first_install: true });
+      return setSnapshot({ ...result, first_install: true, write_state: "committed" });
+    });
+  }
+
+  async function recoverSourceUpgrade({ assessmentDigest, action } = {}) {
+    return runExclusive(async () => {
+      const assessment = internalPlan?.source?.upgradeAssessment;
+      if (!internalPlan?.source?.recoveryOnly || !assessment || assessment.assessmentDigest !== assessmentDigest) {
+        throw setupError("ASSESSMENT_STALE", "升级恢复评估已变化，请重新检查。", "source-upgrade");
+      }
+      if (action !== "backup-and-restore") throw setupError("RECOVERY_ACTION_INVALID", "不支持的升级恢复动作。", "source-upgrade");
+      setSnapshot({ ...snapshot, status: "applying", can_recover: false, write_state: "in_progress", progress: { stage: "backup-and-restore", completed: [] } });
+      try {
+        const result = await internalPlan.provider.recoverProvisioningUpgrade({
+          ...provisioningOptions(internalPlan.bundle, internalPlan.source.selectedSkills),
+          expectedAssessmentDigest: assessmentDigest,
+          action,
+          backupRoot: path.join(sourceStoreRoot, "recovery-backups"),
+          confirm: true
+        });
+        internalPlan = null;
+        const next = await checkUnlocked();
+        return setSnapshot({ ...next, recovery_backup: { path: result.backupPath, restored_paths: result.restoredPaths }, write_state: "committed" });
+      } catch (error) {
+        internalPlan = null;
+        return setSnapshot(blockedSnapshot(error, { rollback_complete: !(error instanceof AggregateError), write_state: error instanceof AggregateError ? "rollback_incomplete" : "rolled_back" }));
+      }
     });
   }
 
@@ -120,6 +152,10 @@ export function createSkillProvisioningManager(options = {}) {
       assertProviderLock(providerInfo, bundle.lock.arcforgeProvider);
       const source = await prepareSourceContext({ bundle, provider });
       const probe = await safeCodexProbe(codexProbe);
+      if (source.recoveryOnly) {
+        internalPlan = { provider, bundle, source, conflicts: source.upgradeAssessment.items, cleanup: [] };
+        return setSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }));
+      }
       const analyzed = analyzePlan(source.plan, source.drift, { allowManagedUpdate: Boolean(source.upgrade) });
       internalPlan = { provider, bundle, source, ...analyzed };
       return setSnapshot(publicSnapshot({ status: probe.available ? analyzed.status : "blocked", bundle, providerInfo, source, analyzed, probe }));
@@ -178,15 +214,24 @@ export function createSkillProvisioningManager(options = {}) {
     }
 
     const currentSelected = selectedSkills({ ...bundle, payloadManifest: current.manifest, sourceManifest: await readJson(path.join(currentRoot, "arcforge.skill-project.json")) });
-    const oldDrift = await provider.driftProvisioningPlan(provisioningOptions(bundle, currentSelected));
     const relations = await provider.listProvisioningRelations({ consumerRoot, stateRoot, sourceRoot: currentRoot });
-    if (relations.length && !isCleanDrift(oldDrift)) {
-      throw setupError("SOURCE_UPGRADE_CONFLICT", "旧版本目标存在 drift；保留旧 source，需先处理冲突。", "source-upgrade", { drift: summarizeDrift(oldDrift) });
+    let upgradeAssessment = null;
+    if (relations.length) {
+      upgradeAssessment = await provider.assessProvisioningUpgrade(provisioningOptions(bundle, currentSelected));
+      if (!upgradeAssessment.canProceed) {
+        return {
+          selectedSkills: currentSelected,
+          deferredSkills: deferredSkills(bundle),
+          upgradeAssessment,
+          recoveryOnly: true
+        };
+      }
     }
     const preview = await previewUpgrade(versionRoot, async () => generatePlan(provider, bundle, selectedSkills(bundle)));
     return {
       ...preview, selectedSkills: selectedSkills(bundle), deferredSkills: deferredSkills(bundle),
-      upgrade: { versionRoot, previousDigest: current.manifest.payloadDigest, desiredDigest }
+      upgrade: { versionRoot, previousDigest: current.manifest.payloadDigest, desiredDigest, assessment: upgradeAssessment },
+      upgradeAssessment
     };
   }
 
@@ -253,7 +298,7 @@ export function createSkillProvisioningManager(options = {}) {
   }
 
   return {
-    check, apply, planManagedRemoval, removeManaged, assertReady, waitForIdle, onEvent,
+    check, apply, recoverSourceUpgrade, planManagedRemoval, removeManaged, assertReady, waitForIdle, onEvent,
     getSnapshot: () => structuredClone(snapshot),
     paths: { resourcesRoot, dataRoot, stateRoot, consumerRoot, currentRoot }
   };
@@ -347,15 +392,9 @@ function analyzePlan(envelope, drift, { allowManagedUpdate = false } = {}) {
   const missing = drift.items.filter((item) => item.status === "missing");
   const conflicts = [...(allowManagedUpdate ? [] : changed), ...envelope.plan.loaderTargets.filter((item) => item.status === "conflict")];
   const cleanup = envelope.plan.cleanup || [];
-  const status = conflicts.length ? "conflict" : cleanup.length ? "drifted" : missing.length || changed.length || envelope.plan.loaderTargets.some((item) => item.status !== "same") || drift.policyDrift?.some((item) => item.status !== "same") ? "needs-install" : "ready";
+  const requiresInstall = missing.length || changed.length || envelope.plan.loaderTargets.some((item) => item.status !== "same") || drift.policyDrift?.some((item) => item.status !== "same");
+  const status = conflicts.length ? "conflict" : cleanup.length && !allowManagedUpdate ? "drifted" : cleanup.length || requiresInstall ? "needs-install" : "ready";
   return { status, conflicts, cleanup, counts: { missing: missing.length, changed: changed.length, same: drift.items.filter((item) => item.status === "same").length, managed_stale: cleanup.length, uncertain: (drift.targetExtras || []).filter((item) => item.classification === "uncertain").length } };
-}
-
-function isCleanDrift(drift) {
-  return drift.items.every((item) => item.status === "same")
-    && (drift.policyDrift || []).every((item) => item.status === "same")
-    && !(drift.targetExtras || []).some((item) => item.classification === "managed-stale")
-    && (drift.availabilityPlan?.loaderTargets || []).every((item) => item.status === "same");
 }
 
 function assertDeclaredSharedAssetsTracked(bundle, plan, drift) {
@@ -396,15 +435,70 @@ function publicSnapshot({ status, bundle, providerInfo, source, analyzed, probe 
       })),
       loader_targets: plan.loaderTargets.map((item) => ({ agent: item.agentId, path: item.path, status: item.status })),
       cleanup: analyzed.cleanup.map((item) => ({ skill: item.skill, path: item.path, reason: item.reason })),
+      cleanup_included_in_upgrade: Boolean(source.upgrade),
       deferred_project_skills: source.deferredSkills
     },
     drift: { counts: analyzed.counts, conflicts: analyzed.conflicts.map((item) => ({ skill: item.skill, path: item.targetPath || item.path, status: item.status })), extras: (source.drift.targetExtras || []).map((item) => ({ name: item.name, classification: item.classification, path: item.targetPath })) },
+    source_upgrade: source.upgradeAssessment ? publicUpgradeAssessment(source.upgradeAssessment) : null,
     codex: probe,
     can_apply: analyzed.status === "needs-install",
+    can_recover: false,
     can_continue: status === "ready",
     first_install: source.plan.plan.items.some((item) => item.destinations.some((destination) => source.drift.items.some((driftItem) => driftItem.targetPath === destination.path && driftItem.status === "missing"))),
     progress: null,
+    write_state: "not_started",
     error: probe.available ? null : { code: "CODEX_UNAVAILABLE", stage: "codex-probe", message: probe.summary, rollback_complete: true }
+  };
+}
+
+function sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }) {
+  const assessment = source.upgradeAssessment;
+  const counts = assessment.items.reduce((result, item) => {
+    result[item.disposition] = (result[item.disposition] || 0) + 1;
+    return result;
+  }, {});
+  return {
+    ...baseSnapshot("conflict"),
+    checks: [
+      { id: "resources", status: "passed", summary: "distribution lock 与 bundled resources 已验证" },
+      { id: "provider", status: "passed", summary: `${providerInfo.apiVersion} · ${providerInfo.providerVersion}` },
+      { id: "skills", status: "pending", summary: "已完成升级 drift 分类，等待选择内容保留动作" },
+      { id: "codex", status: probe.available ? "passed" : "failed", summary: probe.summary }
+    ],
+    distribution: { runtime_version: bundle.lock.runtime.packageVersion, release_tag: bundle.lock.arckit.releaseTag, payload_digest: bundle.lock.skillPayload.payloadDigest, provider_version: providerInfo.providerVersion },
+    drift: {
+      counts: {
+        missing: counts["managed-repair"] || 0,
+        changed: (counts["local-content-conflict"] || 0) + (counts["unverified-managed"] || 0) + (counts["managed-migration"] || 0),
+        same: 0,
+        managed_stale: 0,
+        uncertain: counts["unmanaged-conflict"] || 0
+      },
+      conflicts: assessment.items.filter((item) => ["local-content-conflict", "unverified-managed", "unmanaged-conflict"].includes(item.disposition)).map((item) => ({ skill: item.name, path: item.path, status: item.disposition })),
+      extras: []
+    },
+    source_upgrade: publicUpgradeAssessment(assessment),
+    codex: probe,
+    can_recover: assessment.canBackupAndRestore,
+    write_state: "not_started"
+  };
+}
+
+function publicUpgradeAssessment(assessment) {
+  return {
+    digest: assessment.assessmentDigest,
+    can_proceed: assessment.canProceed,
+    can_backup_and_restore: assessment.canBackupAndRestore,
+    write_state: assessment.writeState,
+    items: assessment.items.map((item) => ({
+      disposition: item.disposition,
+      name: item.name,
+      kind: item.kind,
+      path: item.path,
+      status: item.observedStatus,
+      reason: item.reason,
+      files: (item.files || []).map((file) => ({ path: file.path, status: file.status }))
+    }))
   };
 }
 
@@ -438,11 +532,10 @@ function availabilitySummary(counts) {
 
 function blockedSnapshot(error, extra = {}) {
   const normalized = normalizeError(error);
-  return { ...baseSnapshot("blocked"), error: { ...normalized, rollback_complete: extra.rollback_complete ?? true }, previous: extra.previous || null };
+  return { ...baseSnapshot("blocked"), write_state: extra.write_state || "not_started", error: { ...normalized, rollback_complete: extra.rollback_complete ?? true }, previous: extra.previous || null };
 }
 
-function baseSnapshot(status) { return { schema_version: SNAPSHOT_VERSION, status, checks: [], distribution: null, plan: null, drift: null, codex: null, can_apply: false, can_continue: false, first_install: false, progress: null, error: null, updated_at: new Date().toISOString() }; }
-function summarizeDrift(drift) { return { changed: drift.items.filter((item) => item.status === "changed").length, missing: drift.items.filter((item) => item.status === "missing").length, managed_stale: (drift.targetExtras || []).filter((item) => item.classification === "managed-stale").length }; }
+function baseSnapshot(status) { return { schema_version: SNAPSHOT_VERSION, status, checks: [], distribution: null, plan: null, drift: null, source_upgrade: null, codex: null, can_apply: false, can_recover: false, can_continue: false, first_install: false, progress: null, write_state: "not_started", recovery_backup: null, error: null, updated_at: new Date().toISOString() }; }
 function setupError(code, message, stage, details) { const error = new Error(message); error.code = code; error.stage = stage; error.details = details; return error; }
 function normalizeError(error) { if (error instanceof AggregateError) return { code: "ROLLBACK_INCOMPLETE", stage: "rollback", message: error.message, details: error.errors.map((item) => String(item?.message || item)) }; return { code: error?.code || "SETUP_FAILED", stage: error?.stage || "unknown", message: error?.message || String(error), details: error?.details || null }; }
 function requiredPath(value, name) { if (!value || !path.isAbsolute(value)) throw new Error(`${name} must be an explicit absolute path.`); return value; }
@@ -450,7 +543,13 @@ function safeChild(root, relative) { if (!relative || path.isAbsolute(relative) 
 function sha256(value) { return crypto.createHash("sha256").update(value).digest("hex"); }
 function safeDigestEqual(left, right) { return typeof left === "string" && typeof right === "string" && /^[a-f0-9]{64}$/.test(left) && /^[a-f0-9]{64}$/.test(right) && crypto.timingSafeEqual(Buffer.from(left), Buffer.from(right)); }
 async function readJson(file) { return JSON.parse(await readFile(file, "utf8")); }
-function assertProviderApi(provider) { for (const name of ["inspectProvider","createProvisioningPlan","driftProvisioningPlan","applyProvisioningPlan","listProvisioningRelations","removeManagedProvisioning"]) if (typeof provider[name] !== "function") throw setupError("PROVIDER_API_INVALID", `ArcForge provider 缺少 ${name}。`, "provider"); }
-function assertProviderLock(info, locked) { if (info.apiVersion !== API_VERSION || info.apiVersion !== locked.apiVersion || info.providerVersion !== locked.providerVersion || info.buildCommit !== locked.buildCommit) throw setupError("PROVIDER_LOCK_MISMATCH", "ArcForge provider 与 distribution lock 不一致。", "provider"); }
+function assertProviderApi(provider) { for (const name of ["inspectProvider","createProvisioningPlan","driftProvisioningPlan","applyProvisioningPlan","listProvisioningRelations","assessProvisioningUpgrade","recoverProvisioningUpgrade","removeManagedProvisioning"]) if (typeof provider[name] !== "function") throw setupError("PROVIDER_API_INVALID", `ArcForge provider 缺少 ${name}。`, "provider"); }
+function assertProviderLock(info, locked) {
+  if (info.apiVersion !== API_VERSION || info.apiVersion !== locked.apiVersion || info.providerVersion !== locked.providerVersion || info.buildCommit !== locked.buildCommit) throw setupError("PROVIDER_LOCK_MISMATCH", "ArcForge provider 与 distribution lock 不一致。", "provider");
+  const reported = new Set(Array.isArray(info.capabilities) ? info.capabilities : []);
+  const declared = new Set(Array.isArray(locked.capabilities) ? locked.capabilities : []);
+  const missing = REQUIRED_PROVIDER_CAPABILITIES.filter((capability) => !reported.has(capability) || !declared.has(capability));
+  if (missing.length) throw setupError("PROVIDER_CAPABILITY_MISSING", `ArcForge provider 缺少必需能力：${missing.join("、")}`, "provider");
+}
 async function defaultProviderLoader(entrypoint) { return import(pathToFileURL(entrypoint).href); }
 async function safeCodexProbe(probe) { try { const result = await probe(); return result?.available === false ? { available: false, summary: result.summary || "Codex 不可用" } : { available: true, summary: result?.summary || "Codex 可用" }; } catch (error) { return { available: false, summary: error?.code === "ENOENT" ? "未找到 Codex CLI，请先安装后重新检测。" : `Codex 检测失败：${error.message}` }; } }

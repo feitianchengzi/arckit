@@ -116,13 +116,21 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   ]);
   assert.match(html, /id="setupReadiness"/);
   assert.match(html, /id="setupReviewed"/);
+  assert.match(html, /id="setupRecoverButton"/);
   assert.match(html, /查看安装计划与写入目标/);
   assert.match(styles, /\.setup-readiness/);
   assert.match(source, /api\.applySetupPlan\(\{ planDigest:/);
+  assert.match(source, /api\.recoverSetupUpgrade\(\{ assessmentDigest:/);
+  assert.match(html, /备份修改并恢复/);
+  assert.match(source, /写入：未开始/);
+  assert.match(source, /保留当前内容并退出/);
+  assert.match(source, /item\.files\?\.length/);
+  assert.match(source, /file\.status/);
   assert.match(source, /api\.planSetupRemoval/);
   assert.match(source, /confirmationDigest/);
   assert.match(preload, /getSetupReadiness/);
   assert.match(preload, /removeManagedSetupPaths/);
+  assert.match(preload, /recoverSetupUpgrade/);
   assert.match(main, /setupReadinessPreflight: \(\) => skillProvisioningManager\.assertReady\(\)/);
   assert.match(main, /runtimeCwd: app\.isPackaged \? process\.resourcesPath : runtimeRoot/);
   assert.match(main, /if \(readiness\.status !== "ready"\)/);
@@ -210,6 +218,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     "arckit:setup-status",
     "arckit:setup-check",
     "arckit:setup-apply",
+    "arckit:setup-recover-upgrade",
     "arckit:setup-removal-plan",
     "arckit:setup-remove",
     "arckit:setup-continue",

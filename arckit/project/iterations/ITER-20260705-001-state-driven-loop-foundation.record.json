@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-15T05:56:52.686Z",
+  "updated_at": "2026-08-15T11:45:08.176Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -758,6 +758,38 @@
         "arckit/cases/active/CASE-20260815-001-unify-arcforge-provider-provisioning-semantics.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260815-001-unify-arcforge-provider-provisioning-semantics.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/arckit-runtime-distribution.md",
+        "arckit/interaction/setup-readiness/interaction.md",
+        "arckit/cases/active/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/interaction/setup-readiness/interaction.md",
+        "arckit/interaction/setup-readiness/default.html",
+        "arckit/cases/active/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arckit-runtime/installer-supply-chain.md",
+        "arckit/cases/active/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md"
     }
   ],
   "acceptance": {
@@ -806,15 +838,16 @@
     "arckit/cases/closed/CASE-20260814-006-prevent-duplicate-release-checksum-assets.md",
     "arckit/cases/closed/CASE-20260814-007-fix-windows-runtime-executable-spawn-after-todo-claim.md",
     "arckit/cases/closed/CASE-20260814-008-restore-shared-skill-resources-in-desktop-installation.md",
-    "arckit/cases/closed/CASE-20260815-001-unify-arcforge-provider-provisioning-semantics.md"
+    "arckit/cases/closed/CASE-20260815-001-unify-arcforge-provider-provisioning-semantics.md",
+    "arckit/cases/closed/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260815-001-unify-arcforge-provider-provisioning-semantics.md",
+    "case_ref": "arckit/cases/closed/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260815-001-unify-arcforge-provider-provisioning-semantics.md"
+      "arckit/cases/closed/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md"
     ],
-    "updated_at": "2026-08-15T05:56:52.686Z"
+    "updated_at": "2026-08-15T11:45:08.176Z"
   }
 }

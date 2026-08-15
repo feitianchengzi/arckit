@@ -232,13 +232,19 @@ Manager 启动顺序：
 
 1. 校验 distribution lock 与 bundled resources；
 2. 把 payload staging 到 source store；
-3. 读取旧 relation 与目标相对旧 source 的 drift；
-4. 生成新 plan 和 drift；
-5. 把纯数据结果交给 Renderer；
-6. 接收包含 plan digest 的用户确认；
-7. 调用 provider fresh-read/apply；
-8. 重新 drift 并做 Codex discoverability probe；
+3. 由 ArcForge Core/provider 依据旧 relation 的已记录目标、最后应用摘要、旧 source 和 provider capability 生成 typed source-upgrade assessment；
+4. assessment 将目标区分为 `managed-repair`、`managed-migration`、`local-content-conflict`、`unverified-managed` 和 `unmanaged-conflict`，并携带旧/新目标、摘要、文件差异、所有权依据和允许动作；
+5. 生成与 assessment 一致的新 plan 和 drift，把纯数据结果交给 Renderer；
+6. 接收包含 assessment digest、plan digest 和逐类 disposition 的用户确认；
+7. 调用 provider fresh-read，在同一事务中执行 source switch、受管理目标 apply、catalog/loader/关系迁移和已确认备份；
+8. 重新 assessment/drift 并做 Codex discoverability probe；
 9. 状态为 `ready` 后开放 Runtime task start。
+
+ArcForge Core 是 upgrade classification 与迁移语义的唯一实现。Embedded Provider 暴露 capability-gated typed assessment/apply；Runtime 不从 `missing`/`changed` 计数、路径形态或 skill 名称推断分类，也不复制 catalog 或 loader 迁移规则。provider artifact 不具备 Runtime 要求的 source-upgrade reconciliation capability 时，构建和 Setup Readiness 都 fail closed。
+
+关系记录为每个受管理 destination 保存最后成功 apply 的内容摘要、有效 mode/policy、source/provider identity 和 shared-loader 所有权证据。旧记录没有摘要时，Core 只能把仍存在且内容不同的目标标记为 `unverified-managed`；它不能把这种状态自动提升为安全迁移。关系证明的 missing destination 没有可被覆盖的本地内容，归类为 `managed-repair`。provider 造成的目标或策略变化只有在旧目标与最后应用摘要一致、目标缺失，或 shared loader 的受管理更新证据成立时才归类为 `managed-migration`。
+
+`local-content-conflict` 和 `unverified-managed` 的写入动作要求逐目标 disposition。备份并恢复在 source switch 前把现有目录事务化移动到应用数据中的不可变 recovery area，记录内容摘要和可展示引用，再把恢复动作纳入同一 fresh plan；任一步失败恢复原目标、source、catalog 和 relation。`unmanaged-conflict` 永不进入 provider replacement set。检查阶段没有写入时，snapshot 使用 `write_state: not_started`，Renderer 不把它投影为 rollback。
 
 Manager 不修改现有 `preflightRun` 的 kernel 语义。Automation Coordinator 在 start 前组合 Setup Readiness 和 Runtime preflight 两个独立结果，避免 Runtime 通过文件扫描推断 Agent native skill discovery。
 
@@ -254,10 +260,11 @@ Desktop 自身的 Node 脚本不依赖主机 shell 中的 `node`。开发态直�
 
 升级是 source switch + governed reapply，不是目录覆盖：
 
-- 旧目标 drift 非 clean 时不切换 source；
+- 旧目标 assessment 含 `local-content-conflict`、`unverified-managed` 或 `unmanaged-conflict` 且没有有效 disposition 时不切换 source；
+- `managed-repair` 与 `managed-migration` 进入可确认 plan，不被折叠成无动作的 source conflict；
 - 新 source staging 校验失败时删除 staging，不影响 current；
 - current 切换失败时恢复 previous；
-- provider apply 失败时同时回滚目标、catalog 和 relation；
+- provider apply 失败时同时回滚目标、用户内容备份移动、catalog、loader 和 relation；
 - apply 成功并 post-drift clean 后才清理超过保留数量的旧 source；
 - managed-stale 只报告，清理需要具体路径与单独 confirmation digest；
 - app uninstall 不隐式删除外部 Agent 目录。
@@ -275,7 +282,9 @@ Desktop 自身的 Node 脚本不依赖主机 shell 中的 `node`。开发态直�
 - packaged resource root resolution；
 - clean install、existing unrelated skill、changed managed skill、managed-stale、apply rollback；
 - user-ambient、user-on-demand loader/catalog 和 deferred project-ambient；
-- source upgrade pre-drift、atomic switch、repair 和 explicit cleanup；
+- source upgrade 对 missing managed target、provider destination/policy migration、managed loader update、local content change、legacy unverified relation 和 unmanaged conflict 的 typed classification；
+- assessment/plan freshness、逐类 disposition、内容备份、atomic source switch、repair/migration、关系摘要升级和 explicit cleanup；
+- 检查阶段 `write_state: not_started`、apply 回滚完整/不完整和每个非 ready 状态的可执行恢复投影；
 - signing mode gate，不使用真实 secrets；
 - DMG、NSIS 和 AppImage artifact existence smoke checks。
 
