@@ -124,6 +124,8 @@ provider 暴露稳定的版本化入口，输入和输出只使用 JSON-compatib
 - `driftProvisioningPlan(options)`：对 fresh plan 比较目录、catalog、policy 和 target extras；
 - `applyProvisioningPlan(options)`：要求 fresh plan digest 与 `confirm=true`，事务化写入目标、catalog 和关系；
 - `listProvisioningRelations(options)`：读取指定 source/consumer 的已保存关系；
+- `assessProvisioningUpgrade(options)`：按关系所有权、最后应用摘要与 fresh drift 产出 typed 冲突和允许的恢复动作；
+- `recoverProvisioningUpgrade(options)`：要求 fresh assessment digest 与显式确认，执行受管理恢复或带备份的当前 bundle 重装；
 - `removeManagedProvisioning(options)`：只接受显式 managed paths 与 confirmation digest。
 
 所有入口显式接收：
@@ -166,6 +168,8 @@ Resources/
 <Electron userData>/skill-sources/arckit/versions/<payload-digest>/
 <Electron userData>/skill-sources/arckit/previous/<payload-digest>/
 ```
+
+Desktop 在 Electron ready 前把 `userData` 固定为系统 `appData/@arckit/runtime`。ArcOrbit 产品名与 npm package 名不参与该持久身份，因此更名后的应用继续读取既有 Runtime 状态、source store 和 ArcForge consumer relation，不产生平行的 `@arckit/arcorbit` 数据域。
 
 `current` 是 applied relation 的稳定 source root。升级先对旧 `current` 运行 drift；只有目标干净或用户处理完冲突后，才把 staging source 原子替换为新的 `current`。Windows 不依赖 symlink。
 
@@ -279,7 +283,9 @@ ArcForge Core 是 upgrade classification 与迁移语义的唯一实现。Embedd
 
 关系记录为每个受管理 destination 保存最后成功 apply 的内容摘要、有效 mode/policy、source/provider identity 和 shared-loader 所有权证据。旧记录没有摘要时，Core 只能把仍存在且内容不同的目标标记为 `unverified-managed`；它不能把这种状态自动提升为安全迁移。关系证明的 missing destination 没有可被覆盖的本地内容，归类为 `managed-repair`。provider 造成的目标或策略变化只有在旧目标与最后应用摘要一致、目标缺失，或 shared loader 的受管理更新证据成立时才归类为 `managed-migration`。
 
-`local-content-conflict` 和 `unverified-managed` 的写入动作要求逐目标 disposition。备份并恢复在 source switch 前把现有目录事务化移动到应用数据中的不可变 recovery area，记录内容摘要和可展示引用，再把恢复动作纳入同一 fresh plan；任一步失败恢复原目标、source、catalog 和 relation。`unmanaged-conflict` 永不进入 provider replacement set。检查阶段没有写入时，snapshot 使用 `write_state: not_started`，Renderer 不把它投影为 rollback。
+`local-content-conflict` 和 `unverified-managed` 的写入动作要求逐目标 disposition。备份并恢复在 source switch 前把现有目录事务化保存到应用数据中的不可变 recovery area，记录内容摘要和可展示引用，再把恢复动作纳入同一 fresh plan；任一步失败恢复原目标、source、catalog 和 relation。
+
+`unmanaged-conflict` 永不进入普通 apply replacement set。fresh assessment 能为全部阻塞目标证明唯一 bundled source 映射时，provider 额外允许 `backup-and-reinstall`：它先保存每个现有目标，以当前 source store 内容替换冲突目标，再通过 Core 的事务化 apply 写入 catalog、loader 与新的 consumer relation。assessment digest 变化、source 映射缺失、备份失败、目标提交失败或关系提交失败都会 fail closed；覆盖前的内容保持可恢复。Runtime 只选择并转发 provider 声明的动作，不从路径或 `changed` 计数自行提升可覆盖性。检查阶段没有写入时，snapshot 使用 `write_state: not_started`，Renderer 不把它投影为 rollback。
 
 Manager 不修改现有 `preflightRun` 的 kernel 语义。Automation Coordinator 在 start 前组合 Setup Readiness 和 Runtime preflight 两个独立结果，避免 Runtime 通过文件扫描推断 Agent native skill discovery。
 
@@ -296,6 +302,7 @@ Desktop 自身的 Node 脚本不依赖主机 shell 中的 `node`。开发态直�
 升级是 source switch + governed reapply，不是目录覆盖：
 
 - 旧目标 assessment 含 `local-content-conflict`、`unverified-managed` 或 `unmanaged-conflict` 且没有有效 disposition 时不切换 source；
+- ordinary drift 或 consumer relation 缺失产生的 `unmanaged-conflict` 只有在 provider 声明 `backup-and-reinstall` 可用且用户独立确认后才使用当前 bundle 内容；
 - `managed-repair` 与 `managed-migration` 进入可确认 plan，不被折叠成无动作的 source conflict；
 - 新 source staging 校验失败时删除 staging，不影响 current；
 - current 切换失败时恢复 previous；
@@ -319,6 +326,7 @@ Desktop 自身的 Node 脚本不依赖主机 shell 中的 `node`。开发态直�
 - user-ambient、user-on-demand loader/catalog 和 deferred project-ambient；
 - source upgrade 对 missing managed target、provider destination/policy migration、managed loader update、local content change、legacy unverified relation 和 unmanaged conflict 的 typed classification；
 - assessment/plan freshness、逐类 disposition、内容备份、atomic source switch、repair/migration、关系摘要升级和 explicit cleanup；
+- 产品更名后的稳定 Electron userData 身份，以及无 relation 冲突的 stale assessment 拒绝、备份、bundle 重装、关系建立和失败回滚；
 - 检查阶段 `write_state: not_started`、apply 回滚完整/不完整和每个非 ready 状态的可执行恢复投影；
 - signing mode gate，不使用真实 secrets；
 - DMG、NSIS 和 AppImage artifact existence smoke checks。

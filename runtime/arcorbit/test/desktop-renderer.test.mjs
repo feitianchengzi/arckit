@@ -117,11 +117,16 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(html, /id="setupReadiness"/);
   assert.match(html, /id="setupReviewed"/);
   assert.match(html, /id="setupRecoverButton"/);
+  assert.match(html, /id="setupRecoveryGuideButton"/);
   assert.match(html, /查看安装计划与写入目标/);
   assert.match(styles, /\.setup-readiness/);
   assert.match(source, /api\.applySetupPlan\(\{ planDigest:/);
   assert.match(source, /api\.recoverSetupUpgrade\(\{ assessmentDigest:/);
-  assert.match(html, /备份修改并恢复/);
+  assert.match(source, /backup-and-reinstall/);
+  assert.match(source, /备份并按当前应用包重装/);
+  assert.match(source, /建立新的受管理关系/);
+  assert.match(source, /setupRecoveryGuide/);
+  assert.match(source, /navigator\.clipboard\.writeText/);
   assert.match(source, /写入：未开始/);
   assert.match(source, /保留当前内容并退出/);
   assert.match(source, /item\.files\?\.length/);

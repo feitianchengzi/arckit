@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 77
-Updated: 2026-08-17T12:41:29.749Z
+Revision: 79
+Updated: 2026-08-17T15:14:29.006Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Realize the accepted ArcOrbit identity across live source, documentation, UI, package, CLI, repository paths, build workflow and resource layout while preserving declared compatibility identifiers.
+Ensure ArcOrbit Setup Readiness always offers a safe, applicable recovery action when an installed managed skill differs from the bundled payload, including a confirmed bundled-content reinstall fallback.
 
 ## Active Work
 

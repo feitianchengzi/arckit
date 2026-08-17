@@ -7,7 +7,7 @@ import { resolveCodexExecutable } from "./codex-executable-resolver.mjs";
 
 const API_VERSION = "arcforge-embedded-provider/v1";
 const SNAPSHOT_VERSION = "arckit-setup-readiness/v1";
-const REQUIRED_PROVIDER_CAPABILITIES = ["declared-shared-assets/v1", "source-upgrade-recovery/v1"];
+const REQUIRED_PROVIDER_CAPABILITIES = ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1"];
 
 export function createSkillProvisioningManager(options = {}) {
   const resourcesRoot = path.resolve(requiredPath(options.resourcesRoot, "resourcesRoot"));
@@ -60,6 +60,14 @@ export function createSkillProvisioningManager(options = {}) {
           return publishCheckSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }), quiet);
         }
         const analyzed = analyzePlan(source.plan, source.drift, { allowManagedUpdate: Boolean(source.upgrade) });
+        if (analyzed.status === "conflict") {
+          const assessment = await provider.assessProvisioningUpgrade(provisioningOptions(bundle, source.selectedSkills));
+          if (!assessment.canProceed) {
+            const recoverySource = { ...source, upgradeAssessment: assessment, recoveryOnly: true };
+            internalPlan = { provider, bundle, source: recoverySource, conflicts: assessment.items, cleanup: [] };
+            return publishCheckSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source: recoverySource, probe }), quiet);
+          }
+        }
         internalPlan = { provider, bundle, source, ...analyzed };
         const status = probe.available ? analyzed.status : "blocked";
         return publishCheckSnapshot(publicSnapshot({ status, bundle, providerInfo, source, analyzed, probe }), quiet);
@@ -127,8 +135,10 @@ export function createSkillProvisioningManager(options = {}) {
       if (!internalPlan?.source?.recoveryOnly || !assessment || assessment.assessmentDigest !== assessmentDigest) {
         throw setupError("ASSESSMENT_STALE", "升级恢复评估已变化，请重新检查。", "source-upgrade");
       }
-      if (action !== "backup-and-restore") throw setupError("RECOVERY_ACTION_INVALID", "不支持的升级恢复动作。", "source-upgrade");
-      setSnapshot({ ...snapshot, status: "applying", can_recover: false, write_state: "in_progress", progress: { stage: "backup-and-restore", completed: [] } });
+      if (!["backup-and-restore", "backup-and-reinstall"].includes(action)) throw setupError("RECOVERY_ACTION_INVALID", "不支持的恢复动作。", "provisioning-recovery");
+      if (action === "backup-and-restore" && !assessment.canBackupAndRestore) throw setupError("RECOVERY_ACTION_UNAVAILABLE", "当前冲突不能使用 managed 内容恢复。", "provisioning-recovery");
+      if (action === "backup-and-reinstall" && !assessment.canBackupAndReinstall) throw setupError("RECOVERY_ACTION_UNAVAILABLE", "当前冲突不能使用应用包内容重新安装。", "provisioning-recovery");
+      setSnapshot({ ...snapshot, status: "applying", can_recover: false, write_state: "in_progress", progress: { stage: action, completed: [] } });
       try {
         const result = await internalPlan.provider.recoverProvisioningUpgrade({
           ...provisioningOptions(internalPlan.bundle, internalPlan.source.selectedSkills),
@@ -161,6 +171,14 @@ export function createSkillProvisioningManager(options = {}) {
         return setSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }));
       }
       const analyzed = analyzePlan(source.plan, source.drift, { allowManagedUpdate: Boolean(source.upgrade) });
+      if (analyzed.status === "conflict") {
+        const assessment = await provider.assessProvisioningUpgrade(provisioningOptions(bundle, source.selectedSkills));
+        if (!assessment.canProceed) {
+          const recoverySource = { ...source, upgradeAssessment: assessment, recoveryOnly: true };
+          internalPlan = { provider, bundle, source: recoverySource, conflicts: assessment.items, cleanup: [] };
+          return setSnapshot(sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source: recoverySource, probe }));
+        }
+      }
       internalPlan = { provider, bundle, source, ...analyzed };
       return setSnapshot(publicSnapshot({ status: probe.available ? analyzed.status : "blocked", bundle, providerInfo, source, analyzed, probe }));
     } catch (error) {
@@ -466,7 +484,7 @@ function sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }) 
     checks: [
       { id: "resources", status: "passed", summary: "distribution lock 与 bundled resources 已验证" },
       { id: "provider", status: "passed", summary: `${providerInfo.apiVersion} · ${providerInfo.providerVersion}` },
-      { id: "skills", status: "pending", summary: "已完成升级 drift 分类，等待选择内容保留动作" },
+      { id: "skills", status: "pending", summary: "已完成冲突分类，等待选择备份恢复动作" },
       { id: "codex", status: probe.available ? "passed" : "failed", summary: probe.summary }
     ],
     distribution: { runtime_version: bundle.lock.runtime.packageVersion, release_tag: bundle.lock.arckit.releaseTag, payload_digest: bundle.lock.skillPayload.payloadDigest, provider_version: providerInfo.providerVersion },
@@ -483,7 +501,7 @@ function sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }) 
     },
     source_upgrade: publicUpgradeAssessment(assessment),
     codex: probe,
-    can_recover: assessment.canBackupAndRestore,
+    can_recover: assessment.canBackupAndRestore || assessment.canBackupAndReinstall,
     write_state: "not_started"
   };
 }
@@ -491,8 +509,10 @@ function sourceUpgradeRecoverySnapshot({ bundle, providerInfo, source, probe }) 
 function publicUpgradeAssessment(assessment) {
   return {
     digest: assessment.assessmentDigest,
+    recovery_kind: assessment.canBackupAndRestore ? "managed-baseline-restore" : "current-bundle-reinstall",
     can_proceed: assessment.canProceed,
     can_backup_and_restore: assessment.canBackupAndRestore,
+    can_backup_and_reinstall: assessment.canBackupAndReinstall,
     write_state: assessment.writeState,
     items: assessment.items.map((item) => ({
       disposition: item.disposition,

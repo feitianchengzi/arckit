@@ -18,7 +18,7 @@ Setup Readiness 是 Desktop 在 Runtime task、Workshop 登录和项目队列之
 2. 环境已经 ready 时显示短暂成功结果并自动继续。
 3. 需要安装或升级时，页面展示来源、版本、目标、availability 分类和 drift 摘要。
 4. source upgrade 先展示受管理缺失、provider 管理迁移、已有内容变化、未验证受管理目标和未受管理冲突；每项同时显示旧目标、新目标、所有权依据和可用动作。
-5. missing 与可证明的 managed migration 进入 fresh repair/upgrade plan；changed 或未验证的受管理目标由用户查看 diff 后选择备份并恢复或保留并退出。
+5. missing 与可证明的 managed migration 进入 fresh repair/upgrade plan；changed 或未验证的受管理目标由用户查看 diff 后选择备份并恢复或保留并退出；缺少可用关系但具有完整 bundled source 映射的冲突提供“备份并按当前应用包重装”。
 6. 用户确认 fresh plan 后，系统执行事务化 apply，持续展示 source、目录、catalog、关系和 discoverability 阶段。
 7. post-drift 与 Codex probe 成功后，页面开放“继续使用 ArcOrbit”。
 
@@ -27,6 +27,8 @@ Setup Readiness 是 Desktop 在 Runtime task、Workshop 登录和项目队列之
 - 用户可以确认当前 fresh plan、返回检查详情，或退出应用；不存在跳过必须能力并启动 Runtime 的路径。
 - 同名未受管理目录不能使用普通确认继续；missing managed target 和关系可证明的 provider-managed migration 不是本地内容冲突，可以进入明确的 repair/upgrade plan。
 - changed managed target 与缺少最后应用摘要的未验证受管理目标不能静默覆盖。用户可以查看文件差异，选择“备份本地内容并恢复”形成新 plan，或保留当前内容并退出。
+- 未受管理同名目标不能进入普通 apply。provider 能以 fresh assessment 证明冲突目标与当前 bundled source 一一对应时，页面提供独立的“备份并按当前应用包重装”确认；该动作先保存原内容，再以当前应用包为权威来源写入并建立受管理关系。
+- 每个非 ready 状态至少提供一种与当前分类相符的处理手段。无法安全自动处理的错误提供明确的外部恢复条件、受影响路径和重新检查入口，不只留下无结果的重试。
 - `managed-stale` 清理使用独立 confirmation，不和普通 apply 捆绑。
 - project-ambient skills 不在本页面首次安装；添加具体项目后由项目上下文触发单独 plan。
 - 签名或系统信任问题只提供平台恢复入口，不把“忽略风险”伪装成 ready。
@@ -44,7 +46,7 @@ checking
   -> ready -> continue
   -> needs-install -> review-plan -> applying -> ready
   -> drifted -> classify -> review-plan/repair-or-migrate -> applying -> ready
-  -> conflict -> inspect-diff -> backup-and-restore/recover-externally -> recheck
+  -> conflict -> inspect-diff -> backup-and-restore/backup-and-reinstall/recover-externally -> recheck
   -> blocked -> recover/retry -> checking
 ```
 
@@ -69,14 +71,14 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 - source upgrade 前发现受管理目标缺失：保留旧 source，将目标列入 repair/upgrade plan，确认后补齐并迁移关系。
 - source upgrade 前发现关系可证明的 provider 路径、策略或 shared-loader 迁移：展示旧/新目标与所有权依据，纳入受确认的 upgrade plan。
 - source upgrade 前发现已有内容变化或缺少最后应用摘要：保留旧 source，展示文件 diff；“备份本地内容并恢复”先保存可定位的备份，再生成恢复计划，“保留当前内容”不允许进入 Runtime。
-- source upgrade 前发现未受管理同名内容：不提供覆盖动作，显示外部恢复条件并在用户处理后重新检查。
+- 发现未受管理同名内容：普通 apply 保持禁用；当前 bundle 能为每个冲突目标提供确定 source 映射时，显示“备份并按当前应用包重装”，否则显示具体外部恢复条件并在用户处理后重新检查。
 - App 离线：bundled payload 仍可安装；不把网络失败当作首次安装阻塞。
 
 ### 输入输出边界
 
 输入包括 distribution lock 校验结果、provider inspect、source state、plan、drift、Codex probe 和用户确认。页面不接受用户手输任意 source、target 或 shell 命令。
 
-输出包括被确认的 plan digest、typed upgrade disposition、逐目标备份/恢复确认、单独 cleanup confirmation、retry、打开平台恢复入口、复制诊断和继续路由。文件写入只由 Electron main process 的 SkillProvisioningManager 执行。
+输出包括被确认的 plan digest、typed upgrade disposition、逐目标备份/恢复确认、按当前应用包重装确认、单独 cleanup confirmation、retry、打开平台恢复入口、复制诊断和继续路由。文件写入只由 Electron main process 的 SkillProvisioningManager 编排，并由 ArcForge provider 执行 provisioning 事务。
 
 ## 页面状态
 
@@ -115,6 +117,7 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 - 受管理缺失、provider 管理迁移、changed/未验证受管理目标、同名 uncertain 目录和 managed-stale 分组显示。
 - missing 与可证明的 managed migration 提供“查看修复计划”；它们不显示为用户内容变化。
 - changed 或未验证受管理目标提供查看文件 diff、“备份本地内容并恢复”和“保留当前内容并退出”。备份结果显示稳定引用和打开位置。
+- 未受管理冲突具有完整 source 映射时提供“备份并按当前应用包重装”；确认摘要明确说明当前目标会先备份、bundle 内容成为权威内容、成功后建立受管理关系。
 - uncertain 目录不提供批量删除。
 - managed-stale 需要逐路径选择和单独确认。
 - 任何处理动作完成后重新生成 plan，不复用旧确认。
@@ -138,9 +141,10 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 ## 确认与安全
 
 - 安装、修复、升级 apply 使用一次确认，摘要包含 source、profile、目标、changed 和 plan digest。
+- “备份并按当前应用包重装”使用独立确认和 fresh assessment digest，默认焦点为取消；确认失效、备份失败、写入失败或关系提交失败都不允许进入 Runtime。
 - managed-stale 清理使用独立 ConfirmationDialog，列出每个绝对路径。
 - 移除全部 Arckit managed skills 是设置页中的独立流程，不出现在首次安装主路径。
-- 页面不提供“信任所有”“覆盖全部额外目录”或“删除未知 skills”。
+- 页面不提供“信任所有”“无备份覆盖全部额外目录”或“删除未知 skills”。
 
 ## 加载与可访问性
 

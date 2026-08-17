@@ -126,6 +126,10 @@ function wireEvents() {
       renderSetup();
     }
   }));
+  els.setupRecoveryGuideButton.addEventListener("click", () => runAction(async () => {
+    await navigator.clipboard.writeText(setupRecoveryGuide(state.setup));
+    window.alert("恢复说明已复制。请按其中的路径与条件处理后重新检查。");
+  }));
   els.setupApplyButton.addEventListener("click", () => runAction(async () => {
     state.setupBusy = true;
     renderSetup();
@@ -138,12 +142,16 @@ function wireEvents() {
   }));
   els.setupRecoverButton.addEventListener("click", () => runAction(async () => {
     const upgrade = state.setup?.source_upgrade;
-    if (!upgrade?.can_backup_and_restore) return;
-    if (!window.confirm("将先把本地修改完整备份，再恢复旧版 managed 内容。恢复完成后仍会显示新版迁移计划，需再次确认才会升级。")) return;
+    const action = upgrade?.can_backup_and_restore ? "backup-and-restore" : upgrade?.can_backup_and_reinstall ? "backup-and-reinstall" : "";
+    if (!action) return;
+    const confirmation = action === "backup-and-reinstall"
+      ? "将先完整备份当前冲突内容，再以当前 ArcOrbit 应用包中的内容为准重新安装，并建立新的受管理关系。是否继续？"
+      : "将先把本地修改完整备份，再恢复受管理内容。恢复完成后如有新版迁移计划，仍需再次确认。";
+    if (!window.confirm(confirmation)) return;
     state.setupBusy = true;
     renderSetup();
     try {
-      state.setup = await api.recoverSetupUpgrade({ assessmentDigest: upgrade.digest, action: "backup-and-restore" });
+      state.setup = await api.recoverSetupUpgrade({ assessmentDigest: upgrade.digest, action });
       state.setupPlanOpened = false;
       els.setupReviewed.checked = false;
     } finally {
@@ -288,7 +296,7 @@ function renderSetup() {
     ready: ["Arckit 已准备完成", "关键资源、skills drift 与 Codex discoverability 均已通过。"],
     "needs-install": ["需要安装 Arckit skills", "查看 fresh plan 的目标后确认安装。"],
     drifted: ["发现 managed-stale 路径", "清理需要独立确认，普通安装不会隐式删除。"],
-    conflict: ["需要选择升级恢复方式", "已区分可修复的 managed drift、本地内容修改与未托管冲突。"],
+    conflict: ["需要选择冲突恢复方式", "每个阻塞目标都显示其所有权依据与当前可执行的恢复动作。"],
     blocked: ["Setup Readiness 被阻塞", setup.error?.message || "修复后重新检查。"]
   };
   const [title, lead] = labels[setup.status] || labels.blocked;
@@ -311,7 +319,7 @@ function renderSetup() {
   const conflicts = setup.drift?.conflicts || [];
   els.setupConflictPanel.classList.toggle("hidden", upgradeItems.length === 0 && conflicts.length === 0 && !setup.recovery_backup);
   els.setupConflictPanel.innerHTML = upgradeItems.length
-    ? `<h2>升级 drift 分类</h2>${upgradeItems.map((item) => `<div class="setup-path-row"><strong>${escapeHtml(upgradeDispositionLabel(item.disposition))} · ${escapeHtml(item.name)}</strong><code>${escapeHtml(item.path)}</code><small>${escapeHtml(item.reason)}</small>${item.files?.length ? `<ul>${item.files.map((file) => `<li><code>${escapeHtml(file.status)} · ${escapeHtml(file.path)}</code></li>`).join("")}</ul>` : ""}</div>`).join("")}`
+    ? `<h2>冲突与恢复分类</h2>${upgradeItems.map((item) => `<div class="setup-path-row"><strong>${escapeHtml(upgradeDispositionLabel(item.disposition))} · ${escapeHtml(item.name)}</strong><code>${escapeHtml(item.path)}</code><small>${escapeHtml(item.reason)}</small>${item.files?.length ? `<ul>${item.files.map((file) => `<li><code>${escapeHtml(file.status)} · ${escapeHtml(file.path)}</code></li>`).join("")}</ul>` : ""}</div>`).join("")}`
     : conflicts.length
       ? `<h2>不会自动覆盖</h2>${conflicts.map((item) => `<div class="setup-path-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}`
       : setup.recovery_backup
@@ -344,11 +352,28 @@ function renderSetupActions() {
   els.setupApplyButton.textContent = setup.source_upgrade?.can_proceed ? "修复缺失并迁移" : "安装并继续";
   els.setupApplyButton.disabled = applying || !state.setupPlanOpened || !els.setupReviewed.checked;
   els.setupRecoverButton.classList.toggle("hidden", !setup.can_recover);
+  els.setupRecoverButton.textContent = setup.source_upgrade?.can_backup_and_restore ? "备份修改并恢复" : "备份并按当前应用包重装";
   els.setupRecoverButton.disabled = applying;
+  els.setupRecoveryGuideButton.classList.toggle("hidden", !(["conflict", "blocked"].includes(setup.status) && !setup.can_recover));
+  els.setupRecoveryGuideButton.disabled = applying;
   els.setupContinueButton.classList.toggle("hidden", setup.status !== "ready");
   els.setupContinueButton.disabled = applying;
   els.setupExitButton.textContent = setup.source_upgrade && !setup.source_upgrade.can_proceed ? "保留当前内容并退出" : "退出应用";
   els.setupExitButton.disabled = setup.status === "applying";
+}
+
+function setupRecoveryGuide(setup = {}) {
+  const targets = (setup.source_upgrade?.items || setup.drift?.conflicts || [])
+    .map((item) => `${item.disposition || item.status || "conflict"}: ${item.path}${item.reason ? `\n  ${item.reason}` : ""}`)
+    .join("\n");
+  const error = setup.error ? `${setup.error.code}: ${setup.error.message}` : "No setup error code.";
+  return [
+    "ArcOrbit Setup Readiness recovery guide",
+    error,
+    targets || "No target paths were reported.",
+    "Resolve the reported permission, resource, or ownership condition without deleting unrelated skills, then return to ArcOrbit and choose 重新检查。",
+    "If bundled resources are damaged, reinstall the current ArcOrbit application package before rechecking."
+  ].join("\n\n");
 }
 
 function upgradeDispositionLabel(value) {

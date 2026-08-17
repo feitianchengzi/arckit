@@ -59,8 +59,11 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
     const conflict = await manager.check();
     assert.equal(conflict.status, "conflict");
     assert.equal(conflict.can_apply, false);
-    await writeFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "ambient-v1\n");
-    assert.equal((await manager.check()).status, "ready");
+    assert.equal(conflict.can_recover, true);
+    assert.equal(conflict.source_upgrade.can_backup_and_restore, true);
+    const repaired = await manager.recoverSourceUpgrade({ assessmentDigest: conflict.source_upgrade.digest, action: "backup-and-restore" });
+    assert.equal(repaired.status, "ready");
+    assert.equal(await readFile(path.join(repaired.recovery_backup.path, "ambient-skill", "SKILL.md"), "utf8"), "local edit\n");
 
     await writeBundle(resourcesRoot, "1.0.0-tf.b2", "ambient-v2");
     const upgrade = await manager.check();
@@ -108,10 +111,69 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
     await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(payloadManifest)}\n`);
     await mkdir(path.join(providerRoot, "dist", "provider"), { recursive: true });
     await writeFile(path.join(providerRoot, "dist", "provider", "index.js"), "export const fixture = true;\n");
-    const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/v1.0.0-${packageVersion.endsWith("b2") ? "b2" : "b1"}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: payloadManifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1"] } };
+    const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/v1.0.0-${packageVersion.endsWith("b2") ? "b2" : "b1"}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: payloadManifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1"] } };
     await writeFile(path.join(root, "provisioning", "distribution-lock.json"), `${JSON.stringify(lock)}\n`);
     const resourceFiles = await fileManifest(root);
     await writeFile(path.join(root, "provisioning", "checksums.txt"), `${resourceFiles.map((item) => `${item.sha256}  ${item.path}`).join("\n")}\n`);
+  }
+});
+
+test("Setup Readiness backs up and reinstalls current bundled content when a renamed consumer has no relationship", async () => {
+  const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-renamed-consumer-"));
+  const resourcesRoot = path.join(fixture, "resources");
+  const oldDataRoot = path.join(fixture, "old-data");
+  const renamedDataRoot = path.join(fixture, "renamed-data");
+  const homeDir = path.join(fixture, "home");
+  const stateRoot = path.join(fixture, "state");
+  const target = path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md");
+  const fake = createFakeProvider();
+  try {
+    await createMinimalBundle(resourcesRoot);
+    const oldManager = createSkillProvisioningManager({
+      resourcesRoot, dataRoot: oldDataRoot, homeDir, stateRoot,
+      providerLoader: async () => fake.provider,
+      codexProbe: async () => ({ available: true, summary: "fixture Codex" })
+    });
+    const first = await oldManager.check();
+    await oldManager.apply({ planDigest: first.plan.digest });
+    await writeFile(target, "local edit under renamed consumer\n");
+
+    const manager = createSkillProvisioningManager({
+      resourcesRoot, dataRoot: renamedDataRoot, homeDir, stateRoot,
+      providerLoader: async () => fake.provider,
+      codexProbe: async () => ({ available: true, summary: "fixture Codex" })
+    });
+    const conflict = await manager.check();
+    assert.equal(conflict.status, "conflict");
+    assert.equal(conflict.can_recover, true);
+    assert.equal(conflict.source_upgrade.can_backup_and_restore, false);
+    assert.equal(conflict.source_upgrade.can_backup_and_reinstall, true);
+    assert.equal(conflict.source_upgrade.recovery_kind, "current-bundle-reinstall");
+    assert.equal(conflict.source_upgrade.items.some((item) => item.disposition === "unmanaged-conflict" && item.name === "ambient-skill"), true);
+
+    await writeFile(target, "changed after confirmation\n");
+    const stale = await manager.recoverSourceUpgrade({ assessmentDigest: conflict.source_upgrade.digest, action: "backup-and-reinstall" });
+    assert.equal(stale.status, "blocked");
+    assert.match(stale.error.message, /assessment changed/);
+    assert.equal(await readFile(target, "utf8"), "changed after confirmation\n");
+
+    let fresh = await manager.check();
+    fake.failRecoveryAfterReplace = true;
+    const failed = await manager.recoverSourceUpgrade({ assessmentDigest: fresh.source_upgrade.digest, action: "backup-and-reinstall" });
+    assert.equal(failed.status, "blocked");
+    assert.equal(failed.write_state, "rolled_back");
+    assert.equal(await readFile(target, "utf8"), "changed after confirmation\n");
+
+    fake.failRecoveryAfterReplace = false;
+    fresh = await manager.check();
+    const recovered = await manager.recoverSourceUpgrade({ assessmentDigest: fresh.source_upgrade.digest, action: "backup-and-reinstall" });
+    assert.equal(recovered.status, "ready");
+    assert.equal(recovered.write_state, "committed");
+    assert.equal(await readFile(target, "utf8"), "ambient-v1\n");
+    assert.equal(await readFile(path.join(recovered.recovery_backup.path, "ambient-skill", "SKILL.md"), "utf8"), "changed after confirmation\n");
+    assert.equal((await fake.provider.listProvisioningRelations({ consumerRoot: renamedDataRoot, stateRoot, sourceRoot: manager.paths.currentRoot })).length, 1);
+  } finally {
+    await rm(fixture, { recursive: true, force: true });
   }
 });
 
@@ -251,7 +313,7 @@ async function createUpgradeBundle(root, packageVersion, ambientContent) {
   await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(manifest)}\n`);
   await mkdir(path.join(providerRoot, "dist", "provider"), { recursive: true });
   await writeFile(path.join(providerRoot, "dist", "provider", "index.js"), "fixture\n");
-  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/${packageVersion}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1"] } };
+  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/${packageVersion}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1"] } };
   await writeFile(path.join(root, "provisioning", "distribution-lock.json"), `${JSON.stringify(lock)}\n`);
   const resourceFiles = await fileManifest(root);
   await writeFile(path.join(root, "provisioning", "checksums.txt"), `${resourceFiles.map((item) => `${item.sha256}  ${item.path}`).join("\n")}\n`);
@@ -274,7 +336,7 @@ async function createMinimalBundle(root, { includeSharedAsset = false } = {}) {
   await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(manifest)}\n`);
   await mkdir(path.join(root, "provisioning", "arcforge-provider", "dist", "provider"), { recursive: true });
   await writeFile(path.join(root, "provisioning", "arcforge-provider", "dist", "provider", "index.js"), "fixture\n");
-  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion: "1.0.0-tf.b1" }, arckit: { releaseTag: "tf/v1.0.0-b1" }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1"] } };
+  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion: "1.0.0-tf.b1" }, arckit: { releaseTag: "tf/v1.0.0-b1" }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1"] } };
   await writeFile(path.join(root, "provisioning", "distribution-lock.json"), `${JSON.stringify(lock)}\n`);
   const resourceFiles = await fileManifest(root);
   await writeFile(path.join(root, "provisioning", "checksums.txt"), `${resourceFiles.map((item) => `${item.sha256}  ${item.path}`).join("\n")}\n`);
@@ -282,9 +344,9 @@ async function createMinimalBundle(root, { includeSharedAsset = false } = {}) {
 
 function createFakeProvider() {
   const records = [];
-  const state = { failApply: false, payloadDigests: new Map() };
+  const state = { failApply: false, failRecoveryAfterReplace: false, payloadDigests: new Map() };
   const provider = {
-    async inspectProvider() { return { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), loaderDigest: "c".repeat(64), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1"] }; },
+    async inspectProvider() { return { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), loaderDigest: "c".repeat(64), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1"] }; },
     async createProvisioningPlan(options) {
       const payload = JSON.parse(await readFile(path.join(options.sourceRoot, "payload.manifest.json"), "utf8"));
       const sourceManifest = JSON.parse(await readFile(path.join(options.sourceRoot, "arcforge.skill-project.json"), "utf8"));
@@ -347,22 +409,40 @@ function createFakeProvider() {
         observedStatus: item.status,
         reason: "fixture assessment"
       }));
+      for (const item of items) {
+        if (item.observedStatus === "changed") item.observedDigest = sha256(await readFile(path.join(item.path, "SKILL.md")));
+      }
       const blocking = items.filter((item) => ["unmanaged-conflict", "unverified-managed", "local-content-conflict"].includes(item.disposition));
-      const base = { apiVersion: "arcforge-embedded-provider/v1", sourceRoot: options.sourceRoot, relationIds: relation ? [relation.id] : [], items, canProceed: blocking.length === 0, canBackupAndRestore: blocking.length > 0 && blocking.every((item) => item.disposition === "unverified-managed"), writeState: "not_started" };
+      const base = { apiVersion: "arcforge-embedded-provider/v1", sourceRoot: options.sourceRoot, relationIds: relation ? [relation.id] : [], items, canProceed: blocking.length === 0, canBackupAndRestore: blocking.length > 0 && blocking.every((item) => item.disposition === "unverified-managed"), canBackupAndReinstall: blocking.length > 0 && blocking.every((item) => item.sourcePath), writeState: "not_started" };
       return { ...base, assessmentDigest: sha256(JSON.stringify(base)) };
     },
     async recoverProvisioningUpgrade(options) {
       const assessment = await provider.assessProvisioningUpgrade(options);
       if (assessment.assessmentDigest !== options.expectedAssessmentDigest) throw new Error("fixture assessment changed");
+      if (options.action === "backup-and-restore" && !assessment.canBackupAndRestore) throw new Error("fixture managed recovery unavailable");
+      if (options.action === "backup-and-reinstall" && !assessment.canBackupAndReinstall) throw new Error("fixture reinstall recovery unavailable");
       const backupPath = path.join(options.backupRoot, "fixture-backup");
       const restoredPaths = [];
-      for (const item of assessment.items.filter((entry) => entry.disposition === "unverified-managed")) {
+      const originals = [];
+      for (const item of assessment.items.filter((entry) => options.action === "backup-and-reinstall" ? ["unmanaged-conflict", "unverified-managed", "local-content-conflict"].includes(entry.disposition) : entry.disposition === "unverified-managed")) {
         const itemBackup = path.join(backupPath, item.name);
         await mkdir(path.dirname(itemBackup), { recursive: true });
         await cp(item.path, itemBackup, { recursive: true });
+        originals.push({ target: item.path, backup: itemBackup });
         await rm(item.path, { recursive: true, force: true });
         await cp(item.sourcePath, item.path, { recursive: true });
         restoredPaths.push(item.path);
+      }
+      if (state.failRecoveryAfterReplace) {
+        for (const item of originals.reverse()) {
+          await rm(item.target, { recursive: true, force: true });
+          await cp(item.backup, item.target, { recursive: true });
+        }
+        throw new Error("fixture recovery failed after replacement and rolled back");
+      }
+      if (options.action === "backup-and-reinstall") {
+        const fresh = await provider.createProvisioningPlan(options);
+        await provider.applyProvisioningPlan({ ...options, expectedPlanDigest: fresh.planDigest, confirm: true });
       }
       return { assessment, backupPath, restoredPaths };
     },
