@@ -118,11 +118,11 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
   }
 });
 
-test("Setup Readiness backs up and reinstalls current bundled content when a renamed consumer has no relationship", async () => {
+test("Setup Readiness uses only the new ArcOrbit consumer and recovers when it has no relationship", async () => {
   const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-renamed-consumer-"));
   const resourcesRoot = path.join(fixture, "resources");
-  const oldDataRoot = path.join(fixture, "old-data");
-  const renamedDataRoot = path.join(fixture, "renamed-data");
+  const legacyDataRoot = path.join(fixture, "legacy-runtime-data");
+  const arcOrbitDataRoot = path.join(fixture, "arcorbit-data");
   const homeDir = path.join(fixture, "home");
   const stateRoot = path.join(fixture, "state");
   const target = path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md");
@@ -130,19 +130,21 @@ test("Setup Readiness backs up and reinstalls current bundled content when a ren
   try {
     await createMinimalBundle(resourcesRoot);
     const oldManager = createSkillProvisioningManager({
-      resourcesRoot, dataRoot: oldDataRoot, homeDir, stateRoot,
+      resourcesRoot, dataRoot: legacyDataRoot, homeDir, stateRoot,
       providerLoader: async () => fake.provider,
       codexProbe: async () => ({ available: true, summary: "fixture Codex" })
     });
     const first = await oldManager.check();
     await oldManager.apply({ planDigest: first.plan.digest });
     await writeFile(target, "local edit under renamed consumer\n");
+    assert.equal((await fake.provider.listProvisioningRelations({ consumerRoot: legacyDataRoot, stateRoot, sourceRoot: oldManager.paths.currentRoot })).length, 1);
 
     const manager = createSkillProvisioningManager({
-      resourcesRoot, dataRoot: renamedDataRoot, homeDir, stateRoot,
+      resourcesRoot, dataRoot: arcOrbitDataRoot, homeDir, stateRoot,
       providerLoader: async () => fake.provider,
       codexProbe: async () => ({ available: true, summary: "fixture Codex" })
     });
+    assert.equal((await fake.provider.listProvisioningRelations({ consumerRoot: arcOrbitDataRoot, stateRoot, sourceRoot: manager.paths.currentRoot })).length, 0);
     const conflict = await manager.check();
     assert.equal(conflict.status, "conflict");
     assert.equal(conflict.can_recover, true);
@@ -171,7 +173,8 @@ test("Setup Readiness backs up and reinstalls current bundled content when a ren
     assert.equal(recovered.write_state, "committed");
     assert.equal(await readFile(target, "utf8"), "ambient-v1\n");
     assert.equal(await readFile(path.join(recovered.recovery_backup.path, "ambient-skill", "SKILL.md"), "utf8"), "changed after confirmation\n");
-    assert.equal((await fake.provider.listProvisioningRelations({ consumerRoot: renamedDataRoot, stateRoot, sourceRoot: manager.paths.currentRoot })).length, 1);
+    assert.equal((await fake.provider.listProvisioningRelations({ consumerRoot: arcOrbitDataRoot, stateRoot, sourceRoot: manager.paths.currentRoot })).length, 1);
+    assert.equal((await fake.provider.listProvisioningRelations({ consumerRoot: legacyDataRoot, stateRoot, sourceRoot: oldManager.paths.currentRoot })).length, 1);
   } finally {
     await rm(fixture, { recursive: true, force: true });
   }

@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 79
-Updated: 2026-08-17T15:14:29.006Z
+Revision: 81
+Updated: 2026-08-17T15:51:35.610Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Ensure ArcOrbit Setup Readiness always offers a safe, applicable recovery action when an installed managed skill differs from the bundled payload, including a confirmed bundled-content reinstall fallback.
+Remove compatibility with the legacy @arckit/runtime Desktop state and make the canonical @arckit/arcorbit state independently recover existing skill anomalies through explicit safe actions.
 
 ## Active Work
 

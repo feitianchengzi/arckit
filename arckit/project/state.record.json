@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-17T15:14:29.006Z",
-    "revision": 79
+    "updated_at": "2026-08-17T15:51:35.610Z",
+    "revision": 81
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Ensure ArcOrbit Setup Readiness always offers a safe, applicable recovery action when an installed managed skill differs from the bundled payload, including a confirmed bundled-content reinstall fallback.",
+      "current_focus": "Remove compatibility with the legacy @arckit/runtime Desktop state and make the canonical @arckit/arcorbit state independently recover existing skill anomalies through explicit safe actions.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",

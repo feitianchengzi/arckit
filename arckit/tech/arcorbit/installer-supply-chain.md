@@ -169,7 +169,7 @@ Resources/
 <Electron userData>/skill-sources/arckit/previous/<payload-digest>/
 ```
 
-Desktop 在 Electron ready 前把 `userData` 固定为系统 `appData/@arckit/runtime`。ArcOrbit 产品名与 npm package 名不参与该持久身份，因此更名后的应用继续读取既有 Runtime 状态、source store 和 ArcForge consumer relation，不产生平行的 `@arckit/arcorbit` 数据域。
+Desktop 在 Electron ready 前把 `userData` 固定为系统 `appData/@arckit/arcorbit`。该目录是 ArcOrbit 唯一的 Desktop 状态、source store 和 ArcForge consumer relation 身份；应用不读取、迁移或复用 `appData/@arckit/runtime`。新身份没有 relation 且目标已存在时，Setup Readiness 按未受管理冲突处理，并通过 provider 声明的备份与当前 bundle 重装动作建立新的关系。
 
 `current` 是 applied relation 的稳定 source root。升级先对旧 `current` 运行 drift；只有目标干净或用户处理完冲突后，才把 staging source 原子替换为新的 `current`。Windows 不依赖 symlink。
 
@@ -326,7 +326,7 @@ Desktop 自身的 Node 脚本不依赖主机 shell 中的 `node`。开发态直�
 - user-ambient、user-on-demand loader/catalog 和 deferred project-ambient；
 - source upgrade 对 missing managed target、provider destination/policy migration、managed loader update、local content change、legacy unverified relation 和 unmanaged conflict 的 typed classification；
 - assessment/plan freshness、逐类 disposition、内容备份、atomic source switch、repair/migration、关系摘要升级和 explicit cleanup；
-- 产品更名后的稳定 Electron userData 身份，以及无 relation 冲突的 stale assessment 拒绝、备份、bundle 重装、关系建立和失败回滚；
+- ArcOrbit 独立的 `appData/@arckit/arcorbit` Electron userData 身份、不读取旧 Runtime 状态，以及无 relation 冲突的 stale assessment 拒绝、备份、bundle 重装、关系建立和失败回滚；
 - 检查阶段 `write_state: not_started`、apply 回滚完整/不完整和每个非 ready 状态的可执行恢复投影；
 - signing mode gate，不使用真实 secrets；
 - DMG、NSIS 和 AppImage artifact existence smoke checks。

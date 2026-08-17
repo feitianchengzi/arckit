@@ -14,7 +14,7 @@ Setup Readiness 是 Desktop 在 Runtime task、Workshop 登录和项目队列之
 
 ### 主路径
 
-1. 应用启动后自动校验 distribution lock、trusted resources、ArcForge provider、skill payload、Codex 和既有关系。
+1. 应用启动后只从 ArcOrbit 当前数据身份读取 source store 与关系，并自动校验 distribution lock、trusted resources、ArcForge provider、skill payload、Codex 和既有关系；旧 Runtime 数据不参与检查或恢复。
 2. 环境已经 ready 时显示短暂成功结果并自动继续。
 3. 需要安装或升级时，页面展示来源、版本、目标、availability 分类和 drift 摘要。
 4. source upgrade 先展示受管理缺失、provider 管理迁移、已有内容变化、未验证受管理目标和未受管理冲突；每项同时显示旧目标、新目标、所有权依据和可用动作。
@@ -27,7 +27,7 @@ Setup Readiness 是 Desktop 在 Runtime task、Workshop 登录和项目队列之
 - 用户可以确认当前 fresh plan、返回检查详情，或退出应用；不存在跳过必须能力并启动 Runtime 的路径。
 - 同名未受管理目录不能使用普通确认继续；missing managed target 和关系可证明的 provider-managed migration 不是本地内容冲突，可以进入明确的 repair/upgrade plan。
 - changed managed target 与缺少最后应用摘要的未验证受管理目标不能静默覆盖。用户可以查看文件差异，选择“备份本地内容并恢复”形成新 plan，或保留当前内容并退出。
-- 未受管理同名目标不能进入普通 apply。provider 能以 fresh assessment 证明冲突目标与当前 bundled source 一一对应时，页面提供独立的“备份并按当前应用包重装”确认；该动作先保存原内容，再以当前应用包为权威来源写入并建立受管理关系。
+- 未受管理同名目标不能进入普通 apply。ArcOrbit 当前数据身份没有关系时不查询或迁移旧 Runtime 关系；provider 能以 fresh assessment 证明冲突目标与当前 bundled source 一一对应时，页面提供独立的“备份并按当前应用包重装”确认。该动作先保存原内容，再以当前应用包为权威来源写入并建立当前 ArcOrbit 关系。
 - 每个非 ready 状态至少提供一种与当前分类相符的处理手段。无法安全自动处理的错误提供明确的外部恢复条件、受影响路径和重新检查入口，不只留下无结果的重试。
 - `managed-stale` 清理使用独立 confirmation，不和普通 apply 捆绑。
 - project-ambient skills 不在本页面首次安装；添加具体项目后由项目上下文触发单独 plan。

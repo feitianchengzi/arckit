@@ -82,3 +82,4 @@
 | [CASE-20260817-001](closed/CASE-20260817-001-add-a-local-arcforge-provider-and-arckit-runtime-build-script.md) | closed | Add a local ArcForge provider and Arckit Runtime build script | 2026-08-17T08:51:02.854Z |
 | [CASE-20260817-002](closed/CASE-20260817-002-formally-rename-arckit-runtime-to-arcorbit.md) | closed | Formally rename arckit-runtime to ArcOrbit | 2026-08-17T12:41:29.749Z |
 | [CASE-20260817-003](closed/CASE-20260817-003-restore-setup-readiness-recovery-actions-for-changed-managed-ski.md) | closed | Restore Setup Readiness recovery actions for changed managed skills | 2026-08-17T15:14:29.006Z |
+| [CASE-20260817-004](closed/CASE-20260817-004-use-only-arcorbit-state-while-preserving-actionable-skill-recove.md) | closed | Use only ArcOrbit state while preserving actionable skill recovery | 2026-08-17T15:51:35.610Z |

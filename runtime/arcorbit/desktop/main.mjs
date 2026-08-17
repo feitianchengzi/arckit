@@ -7,12 +7,12 @@ import { createCodexExecutableResolver } from "../src/codex-executable-resolver.
 import { createInteractiveCodexCliLauncher } from "../src/interactive-cli-launcher.mjs";
 import { createSkillProvisioningManager } from "../src/skill-provisioning-manager.mjs";
 import { createWorkshopTaskSource } from "../src/task-source-adapter.mjs";
-import { stableArcOrbitUserDataPath } from "../src/desktop-user-data.mjs";
+import { canonicalArcOrbitUserDataPath } from "../src/desktop-user-data.mjs";
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
 
-app.setPath("userData", stableArcOrbitUserDataPath(app.getPath("appData")));
+app.setPath("userData", canonicalArcOrbitUserDataPath(app.getPath("appData")));
 
 let mainWindow;
 let runManager;
