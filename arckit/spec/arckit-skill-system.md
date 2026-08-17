@@ -57,7 +57,7 @@ Arckit 不把技术栈编码、商业优先级、审美批准、发布授权、�
 
 每个保留 skill 通过 `arckit.capability.json` 向 Runtime 暴露最小能力元数据：skill id、kind、runtime role、binding targets、invocation、input facts、outputs、allowed write targets、forbidden decisions 和 runtime notes。确定性 Runtime capability 还可以声明位于 skill 根目录内的 `runtime_entrypoints`。
 
-Runtime 的显式能力策略位于 `runtime/arckit-runtime/config/capability-policy.json`。默认策略只管理 `using-arckit` Agent 入口与 `arckit-development-ledger` trusted Runtime entrypoint。其它 definition、diagnosis 和 code skills 仍是仓库分发能力，由 Codex Agent 在同一 turn 内按原生 skill 机制发现和使用，不需要进入 Runtime `allowed_skills`。
+Runtime 的显式能力策略位于 `runtime/arcorbit/config/capability-policy.json`。默认策略只管理 `using-arckit` Agent 入口与 `arckit-development-ledger` trusted Runtime entrypoint。其它 definition、diagnosis 和 code skills 仍是仓库分发能力，由 Codex Agent 在同一 turn 内按原生 skill 机制发现和使用，不需要进入 Runtime `allowed_skills`。
 
 能力策略属于显式 policy layer，不属于 Runtime kernel 的业务路由。Runtime kernel 不写死每轮 gap、route mode、worker role、skill 序列、预测路径或能力选择启发式。Runtime 用 manifest 声明的自然 `$using-arckit` trigger 启动一个连贯 Agent turn，对初始化和 ledger writeback 使用 `arckit-development-ledger` 的受信任 entrypoint；不显式注入第二份 skill input，也不复制两者的语义实现。Runtime 不建立 Worker registry。
 

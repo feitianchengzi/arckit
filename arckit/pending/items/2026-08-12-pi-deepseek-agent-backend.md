@@ -1,21 +1,21 @@
-# Pi + DeepSeek 作为 Arckit Runtime Agent Backend
+# Pi + DeepSeek 作为 ArcOrbit Agent Backend
 
 ## Status
 
 - State: parked
 - Type: technical
-- Source: 2026-08-12 用户对话与针对 Arckit Runtime、Pi、DeepSeek 官方资料的调研
+- Source: 2026-08-12 用户对话与针对 ArcOrbit、Pi、DeepSeek 官方资料的调研
 - Created: 2026-08-12
 - Updated: 2026-08-12
 - Decision: 记录为候选 Agent Backend，暂不替换 Codex 默认后端，也不承诺实施。
 
 ## Background
 
-Arckit Runtime 当前建立在 Codex Agent 之上，由 Runtime 自动化围绕同一 Codex 对话的状态读取、逐 gap 推进、ledger gate、上下文压缩、人工介入与 Git closeout。讨论提出：是否可以把底层 Codex Agent 换成 Pi Agent Harness 与 DeepSeek 模型组合，以验证 Arckit 是否能够成为独立于单一 Agent/模型的 Project State、Case 与 Loop 协作协议层。
+ArcOrbit 当前建立在 Codex Agent 之上，由 Runtime 自动化围绕同一 Codex 对话的状态读取、逐 gap 推进、ledger gate、上下文压缩、人工介入与 Git closeout。讨论提出：是否可以把底层 Codex Agent 换成 Pi Agent Harness 与 DeepSeek 模型组合，以验证 Arckit 是否能够成为独立于单一 Agent/模型的 Project State、Case 与 Loop 协作协议层。
 
 ## Pending Item
 
-判断并验证 Pi + DeepSeek 是否能够作为 Arckit Runtime 的第二个 Agent Backend，并在满足安全性、会话恢复、结构化结果和执行质量要求后，再决定是否具备替换 Codex 默认后端的条件。
+判断并验证 Pi + DeepSeek 是否能够作为 ArcOrbit 的第二个 Agent Backend，并在满足安全性、会话恢复、结构化结果和执行质量要求后，再决定是否具备替换 Codex 默认后端的条件。
 
 该方向不是单纯切换模型配置，而是同时替换 Agent Harness 与模型：
 
@@ -33,7 +33,7 @@ Arckit Runtime 当前建立在 Codex Agent 之上，由 Runtime 自动化围绕�
 
 ### Accepted Facts
 
-- 当前 Arckit Runtime 依赖一个持久 Codex thread，使用 `thread/resume`、逐 turn 结构化输出、上下文用量、同 thread compaction、operator steer/interrupt 和 same-thread Git closeout。
+- 当前 ArcOrbit 依赖一个持久 Codex thread，使用 `thread/resume`、逐 turn 结构化输出、上下文用量、同 thread compaction、operator steer/interrupt 和 same-thread Git closeout。
 - 当前代码已有 Agent adapter seam，但默认 adapter、thread binding、`codex.*` 事件、Workbench 文案、人工 CLI 接管和部分 coordinator 路径仍然与 Codex 耦合。
 - Pi 提供无头 RPC 与 TypeScript SDK、持久 session、恢复与切换、事件流、steer/follow-up/abort、上下文统计和 compaction。
 - Pi 支持 Agent Skills 标准，能够从配置中加载 Codex skill 目录；显式 skill 调用语法与 Codex 不同。
@@ -67,7 +67,7 @@ Arckit Runtime 当前建立在 Codex Agent 之上，由 Runtime 自动化围绕�
 
 ## Revisit When
 
-- 准备把 Arckit Runtime 从 Codex 专用实现提升为多 Agent Backend 架构时。
+- 准备把 ArcOrbit 从 Codex 专用实现提升为多 Agent Backend 架构时。
 - 出现明确的供应商独立、成本、本地化或模型选择需求时。
 - 已具备可复用的 Arckit Agent conformance/evaluation 场景时。
 - 已确定 Pi 外部 sandbox 与人工审批的可信实现方案时。
@@ -75,13 +75,13 @@ Arckit Runtime 当前建立在 Codex Agent 之上，由 Runtime 自动化围绕�
 
 ## Related Areas
 
-- `runtime/arckit-runtime/src/agent-adapter.mjs`
-- `runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs`
-- `runtime/arckit-runtime/src/agent-orchestrator.mjs`
-- `runtime/arckit-runtime/src/state-driven-runner.mjs`
-- `runtime/arckit-runtime/src/automation-coordinator.mjs`
-- `runtime/arckit-runtime/src/interactive-cli-launcher.mjs`
-- `runtime/arckit-runtime/src/projection/run-event-projector.mjs`
+- `runtime/arcorbit/src/agent-adapter.mjs`
+- `runtime/arcorbit/adapters/codex-app-server-adapter.mjs`
+- `runtime/arcorbit/src/agent-orchestrator.mjs`
+- `runtime/arcorbit/src/state-driven-runner.mjs`
+- `runtime/arcorbit/src/automation-coordinator.mjs`
+- `runtime/arcorbit/src/interactive-cli-launcher.mjs`
+- `runtime/arcorbit/src/projection/run-event-projector.mjs`
 - `entry/skills/using-arckit/`
 - `entry/skills/arckit-development-ledger/`
 

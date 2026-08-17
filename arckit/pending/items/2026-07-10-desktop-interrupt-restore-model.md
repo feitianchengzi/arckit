@@ -11,7 +11,7 @@
 
 ## Background
 
-讨论 Arckit Desktop 退出、底层 `codex app-server` turn 生命周期，以及是否需要提供类似 Codex CLI 的对话恢复体验。
+讨论 ArcOrbit 退出、底层 `codex app-server` turn 生命周期，以及是否需要提供类似 Codex CLI 的对话恢复体验。
 
 当前已实现的保守策略是：Desktop 退出前主动中止 active runs，并将 run 标记为 `aborted`，避免底层 runtime/app-server 失控继续运行。
 
@@ -39,15 +39,15 @@
 - 继续设计 Desktop run/session 生命周期。
 - 用户明确要求 Codex CLI 式 interrupt/continue 体验。
 - 需要处理 Desktop 崩溃、断网、重启后的 active run 恢复。
-- 需要决定是否引入 `arckit-runtime-daemon`。
+- 需要决定是否引入 `arcorbit-daemon`。
 
 ## Related Areas
 
-- `runtime/arckit-runtime/desktop/main.mjs`
-- `runtime/arckit-runtime/src/desktop-run-manager.mjs`
-- `runtime/arckit-runtime/adapters/codex-app-server-adapter.mjs`
-- `runtime/arckit-runtime/src/json-rpc-stdio-client.mjs`
-- `runtime/arckit-runtime/desktop/renderer/renderer.js`
+- `runtime/arcorbit/desktop/main.mjs`
+- `runtime/arcorbit/src/desktop-run-manager.mjs`
+- `runtime/arcorbit/adapters/codex-app-server-adapter.mjs`
+- `runtime/arcorbit/src/json-rpc-stdio-client.mjs`
+- `runtime/arcorbit/desktop/renderer/renderer.js`
 
 ## Notes
 

@@ -926,8 +926,8 @@ MVP 优先完成单团队、单个真实 iOS Product、本地 Agent 执行和 Te
 |---|---|---|
 | Product Studio | Arckit idea/thinking/spec skills、Arcflow、Arc | 创意分析、产品事实、项目/产出物组织和 Web 产品经验 |
 | Work Hub | Workshop Todo、Workshop Feedback、Arcflow Item/Handoff 探索 | 轻量待办体验、反馈转工作、个人队列、运行阻塞和接力 |
-| Developer Workbench | Workshop Desktop、Arckit Runtime Desktop 探索 | 本地项目绑定、Codex app-server、确认页、CLI、受限回写和运行观察 |
-| Automation Runtime | Arckit Runtime、Arckit Controller/Worker Loop、Arcflow 自动执行探索 | ProjectState/Case/Loop、packet/report/gate、运行事件、Agent adapter 和恢复 |
+| Developer Workbench | Workshop Desktop、ArcOrbit Desktop 探索 | 本地项目绑定、Codex app-server、确认页、CLI、受限回写和运行观察 |
+| Automation Runtime | ArcOrbit、Arckit Controller/Worker Loop、Arcflow 自动执行探索 | ProjectState/Case/Loop、packet/report/gate、运行事件、Agent adapter 和恢复 |
 | Delivery Center | Arc、Arckit delivery/code skills、现有 GitHub/TestFlight 实践 | 版本、产出物、发布准备、外部集成和验证清单 |
 | Feedback Hub | Workshop Feedback | SDK、反馈提交、人工处理、转待办、状态同步和已验证的业务闭环 |
 | Capability Hub | Arckit、Arckit-code、ArcForge | Skills、技术栈能力、安装同步、版本、profile 和 drift 治理 |
@@ -939,7 +939,7 @@ MVP 优先完成单团队、单个真实 iOS Product、本地 Agent 执行和 Te
 
 作为研发协作语义、项目事实协议和 Agent skill 体系的主要来源。它的概念进入多个目标产品，尤其是 Product Studio、Workbench、Runtime 和 Capability Hub。
 
-#### Arckit Runtime
+#### ArcOrbit
 
 作为 Automation Runtime 的核心验证来源。后续重点是评估现有 kernel、Desktop 和协议中哪些进入正式运行产品，哪些应归入 Workbench 或平台底座。
 
@@ -1044,7 +1044,7 @@ MVP 优先完成单团队、单个真实 iOS Product、本地 Agent 执行和 Te
   - `arckit/spec/agentic-software-development/product-architecture.md`
   - `arckit/spec/agentic-software-development/controller-worker-loop.md`
   - `arckit/spec/agentic-software-development/skill-architecture.md`
-  - `runtime/arckit-runtime/README.md`
+  - `runtime/arcorbit/README.md`
   - `../../hoewo/arcflow/arckit/spec/arcflow-framework/product-architecture.md`
   - `../../hoewo/workshop-desktop/README.md`
   - `../../hoewo/workshop-desktop/docs/domain.md`
@@ -1115,7 +1115,7 @@ MVP 优先完成单团队、单个真实 iOS Product、本地 Agent 执行和 Te
 ## Related Areas
 
 - `arckit/spec/agentic-software-development/`
-- `runtime/arckit-runtime/`
+- `runtime/arcorbit/`
 - `arckit/pending/`
 
 ## Notes

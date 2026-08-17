@@ -61,10 +61,10 @@ Worker report 只提出 claim。Controller 必须依据持久证据明确接受�
 ## 产品架构
 
 ```text
-Arckit Desktop
+ArcOrbit Desktop
   项目、对话、运行状态、证据、gate 与人工控制
         ↓
-Arckit Runtime
+ArcOrbit Runtime Kernel
   状态恢复、Controller/Worker 调度、确定性 guard 与 ledger writeback
         ↓
 Codex-like Agents
@@ -82,7 +82,7 @@ Project Repository
 - **Codex 类 Agent** 负责语义推理、工作区执行、证据收集和结构化 claims。
 - **Skills** 位于能力底层，声明自己的触发场景、输入、输出、写入边界和禁止决策。
 
-Runtime 的详细行为和命令见 [Arckit Runtime](runtime/arckit-runtime/README.md)。
+Runtime 的详细行为和命令见 [ArcOrbit](runtime/arcorbit/README.md)。
 
 ## 能力分层与可替换边界
 
@@ -128,7 +128,7 @@ Controller 不能绑定给普通 Worker，ledger 也只能由 Runtime 调用其�
 
 Arckit 推荐直接使用这些经过验证的能力，形成从状态识别、稳定事实维护到工程诊断的完整闭环。框架同时保留能力扩展边界：如果用户已经拥有职责等价、同样成熟的规格、设计、架构或诊断 skill，可以把自己的能力接入 Worker 层，而不必改变 Controller 和 ledger 的核心语义。这里的“等价”不是名称相似，而是能够接受有边界的 Worker packet、遵守事实与写入边界，并返回可验证 evidence 和结构化 claims。
 
-当前 Runtime policy 刻意收敛为 7 个受管能力：1 个 Controller、1 个 Runtime ledger 和上述 5 个 Worker，并通过 [capability policy](runtime/arckit-runtime/config/capability-policy.json) 分到互斥执行平面。若要让自动化 Runtime 调用用户自己的等价 Worker，必须显式提供相应 capability manifest 并修改 policy，或者把工作交给明确的 external adapter；只替换已安装目录中的 skill 名称不会自动生效。
+当前 Runtime policy 刻意收敛为 7 个受管能力：1 个 Controller、1 个 Runtime ledger 和上述 5 个 Worker，并通过 [capability policy](runtime/arcorbit/config/capability-policy.json) 分到互斥执行平面。若要让自动化 Runtime 调用用户自己的等价 Worker，必须显式提供相应 capability manifest 并修改 policy，或者把工作交给明确的 external adapter；只替换已安装目录中的 skill 名称不会自动生效。
 
 ### 第三层：`code/` 具体编码与专项接入能力
 
@@ -207,12 +207,12 @@ Runtime 使用同一个 `using-arckit` Agent skill 完成 Controller Plan 和 Co
 快速启动开发版 Desktop：
 
 ```bash
-cd runtime/arckit-runtime
+cd runtime/arcorbit
 npm install
 npm run desktop
 ```
 
-也可以使用 Runtime CLI 初始化项目、预览 Controller frame 或执行自动 Loop；完整命令和 gate 语义见 [Runtime README](runtime/arckit-runtime/README.md#commands)。
+也可以使用 Runtime CLI 初始化项目、预览 Controller frame 或执行自动 Loop；完整命令和 gate 语义见 [Runtime README](runtime/arcorbit/README.md#commands)。
 
 ## 仓库结构
 
@@ -222,7 +222,7 @@ definition/                    产品、交互、视觉和技术稳定事实维�
 engineering/                   技术栈无关的工程诊断
 code/                          语言、框架、平台、SDK 与云服务 coding skills
 memory/                        显式按需的项目上下文维护能力
-runtime/arckit-runtime/        Desktop 与状态驱动 Runtime 控制面
+runtime/arcorbit/        Desktop 与状态驱动 Runtime 控制面
 arckit/                        本仓库自身的项目状态、历史材料和验证证据
 ```
 

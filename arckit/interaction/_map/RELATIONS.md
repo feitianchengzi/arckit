@@ -10,7 +10,7 @@
 
 `task-browser/interaction.md` 定义七种服务器任务状态的浏览与人工处置，以及 completed/accepted 右侧详情中的全部验收反馈、进展和 Composer；`task-browser/default.html` 是同一策略的灰度线框投影。提交验收问题创建独立反馈项、复用来源待办会话，不改变来源任务状态。Command Center 的任务状态导航携带当前项目范围进入 Task Browser，反馈队列入口携带反馈与来源待办身份进入同一详情；返回时恢复原项目范围和队列视图。
 
-该页面先消费当前用户可访问的 Workshop 项目，再按项目消费七种任务状态，并把 `待处理 → 进行中 → 已完成` 作为普通待办自动执行链路。“所有项目”只聚合这些项目的待办，不构成独立任务来源。验收反馈是 Desktop Store 拥有的独立工作来源，保留自己的队列状态、Run、Case 和进展；它只引用来源待办，不成为第八种服务器任务状态。项目、任务归属与任务状态由远端任务服务器拥有；本地工作区绑定、自动化参与状态、反馈记录、执行子状态、事件和 ledger 证据由 Arckit Runtime 拥有。
+该页面先消费当前用户可访问的 Workshop 项目，再按项目消费七种任务状态，并把 `待处理 → 进行中 → 已完成` 作为普通待办自动执行链路。“所有项目”只聚合这些项目的待办，不构成独立任务来源。验收反馈是 Desktop Store 拥有的独立工作来源，保留自己的队列状态、Run、Case 和进展；它只引用来源待办，不成为第八种服务器任务状态。项目、任务归属与任务状态由远端任务服务器拥有；本地工作区绑定、自动化参与状态、反馈记录、执行子状态、事件和 ledger 证据由 ArcOrbit 拥有。
 
 按需 Chat 从 Command Center 的人工关注项或历史运行进入。需要人工输入时，Workbench 使用上下文、统一执行消息流、证据三栏结构；Runtime、Controller、Worker、工具摘要和用户输入不论内部 thread 数量都进入同一时间线。处理完成后返回 Command Center 并恢复当前任务。普通运行审查进入同一 Workbench 的只读模式，不形成常驻 Chat 主页面。
 
@@ -23,12 +23,12 @@
 
 相关稳定事实：
 
-- `arckit/spec/arckit-runtime-distribution.md`
+- `arckit/spec/arcorbit-distribution.md`
 - `arckit/spec/agentic-software-development/product-architecture.md`
 - `arckit/spec/agentic-software-development/controller-worker-loop.md`
-- `arckit/tech/arckit-runtime/solution.md`
-- `arckit/tech/arckit-runtime/installer-supply-chain.md`
-- `arckit/tech/arckit-runtime/desktop-execution-solution.md`
-- `runtime/arckit-runtime/desktop/renderer/index.html`
+- `arckit/tech/arcorbit/solution.md`
+- `arckit/tech/arcorbit/installer-supply-chain.md`
+- `arckit/tech/arcorbit/desktop-execution-solution.md`
+- `runtime/arcorbit/desktop/renderer/index.html`
 - `../../hoewo/workshop-desktop/docs/domain.md`
 - `../../hoewo/workshop-desktop/docs/decisions.md`（D-006、D-018：项目任务源与本地工作区绑定边界）

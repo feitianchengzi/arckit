@@ -1,6 +1,6 @@
 export const RAW_OPERATOR_EVENT_MARKERS = [
   "arckit-desktop-operator-event/v1",
-  "Arckit Desktop operator event."
+  "ArcOrbit operator event."
 ];
 
 export const SEMANTIC_LIMITS = {

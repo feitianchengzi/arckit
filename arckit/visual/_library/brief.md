@@ -1,8 +1,8 @@
-# Runtime Desktop 视觉策略
+# ArcOrbit Desktop 视觉策略
 
 ## 来源依据
 
-用户要求 Runtime Desktop 达到专业桌面平台的表达质量，并明确指定 `arckit/pending/prototypes/desktop-platform` 作为灵感来源。确认的 Automation Command Center、Task Browser、Intervention Workbench 和 Recovery Center 共同限定视觉系统必须支持高密度运行态势、项目与状态导航、按需人工处理和异常恢复。
+用户要求 ArcOrbit Desktop 达到专业桌面平台的表达质量，并明确指定 `arckit/pending/prototypes/desktop-platform` 作为灵感来源。确认的 Automation Command Center、Task Browser、Intervention Workbench 和 Recovery Center 共同限定视觉系统必须支持高密度运行态势、项目与状态导航、按需人工处理和异常恢复。
 
 ## 品牌气质
 

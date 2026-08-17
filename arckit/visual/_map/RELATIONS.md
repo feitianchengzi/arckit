@@ -1,6 +1,6 @@
 # Visual Relations
 
-`_library/brief.md` 是 Runtime Desktop 视觉策略源。
+`_library/brief.md` 是 ArcOrbit Desktop 视觉策略源。
 
 `_library/design-tokens.yaml` 把策略投影为色彩、字体、间距、布局、圆角、阴影和动效变量。
 

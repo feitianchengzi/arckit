@@ -1,0 +1,352 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arckit.local/schema/runtime-result.schema.json",
+  "title": "ArcOrbit Result",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "round_result",
+    "round_outcome",
+    "case_outcome",
+    "project_state_delta",
+    "case_transition",
+    "round_state",
+    "round_state_history",
+    "summary",
+    "changed_files",
+    "artifact_impact_scan",
+    "artifact_ownership_scan",
+    "source_projection_check",
+    "agent_loop_result",
+    "controller_frame",
+    "execution_gate",
+    "executor_binding",
+    "ledger_stage",
+    "validation_evidence",
+    "loop_handoff"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "const": "arckit-runtime-result/v2" },
+    "round_result": {
+      "type": "string",
+      "enum": ["done", "continue", "blocked", "needs_human", "external_wait"]
+    },
+    "round_outcome": {
+      "type": "object",
+      "required": ["status", "reason"],
+      "properties": {
+        "status": { "type": "string", "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "case_outcome": {
+      "type": "object",
+      "required": ["status", "reason", "unresolved"],
+      "properties": {
+        "status": { "type": "string", "enum": ["unresolved", "resolved", "blocked"] },
+        "reason": { "type": "string" },
+        "unresolved": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "project_state_delta": {
+      "type": "object",
+      "required": ["software_definition_changes", "software_invariant_changes", "project_gap_changes", "selection_context_change", "evidence"],
+      "properties": {
+        "software_definition_changes": { "type": "array" },
+        "software_invariant_changes": { "type": "array" },
+        "project_gap_changes": { "type": "array" },
+        "selection_context_change": { "type": ["object", "null"] },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "case_transition": { "type": ["object", "null"] },
+    "case_control_handoff": {
+      "type": "object",
+      "required": ["schema_version", "action", "expected_project_revision", "case_id", "title", "intent", "expected_outcome", "artifact_type", "selection_reason", "initial_facts", "initial_impacts", "initial_gaps", "review_policy"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "arckit-case-control-handoff/v1" },
+        "action": { "type": "string", "const": "create_case" },
+        "expected_project_revision": { "type": "integer", "minimum": 0 },
+        "case_id": { "type": "string" },
+        "title": { "type": "string" },
+        "intent": { "type": "string" },
+        "expected_outcome": { "type": "string" },
+        "artifact_type": { "type": "string", "enum": ["code", "skill", "document", "workflow", "mixed", "unknown"] },
+        "selection_reason": { "type": "string" },
+        "initial_facts": { "type": "array" },
+        "initial_impacts": { "type": "array" },
+        "initial_gaps": { "type": "array" },
+        "review_policy": {
+          "type": "object",
+          "required": ["max_autonomous_cycles", "source"],
+          "properties": {
+            "max_autonomous_cycles": { "type": "integer", "minimum": 1 },
+            "source": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "round_state": {
+      "type": "string",
+      "enum": [
+        "planned",
+        "authorized",
+        "ledger_gate_ready",
+        "ledger_written",
+        "next_round_ready",
+        "blocked",
+        "human_gate_required",
+        "external_wait",
+        "failed"
+      ]
+    },
+    "round_state_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["state", "at", "reason"],
+        "properties": {
+          "state": { "type": "string" },
+          "at": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "summary": { "type": "string" },
+    "changed_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "artifact_impact_scan": {
+      "type": "object",
+      "required": [
+        "project",
+        "intake",
+        "cases",
+        "spec",
+        "interaction",
+        "visual",
+        "tech",
+        "debug",
+        "pending",
+        "handoff"
+      ],
+      "properties": {
+        "project": { "type": "string" },
+        "intake": { "type": "string" },
+        "cases": { "type": "string" },
+        "spec": { "type": "string" },
+        "interaction": { "type": "string" },
+        "visual": { "type": "string" },
+        "tech": { "type": "string" },
+        "debug": { "type": "string" },
+        "pending": { "type": "string" },
+        "handoff": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "artifact_ownership_scan": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "classified",
+        "source_facts_changed",
+        "projection_artifacts_changed",
+        "implementation_evidence",
+        "pending_items",
+        "runtime_logs",
+        "unknown_artifacts"
+      ],
+      "properties": {
+        "schema_version": { "type": "string", "const": "arckit-artifact-ownership-scan/v1" },
+        "classified": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "owner", "kind"],
+            "properties": {
+              "path": { "type": "string" },
+              "owner": { "type": "string" },
+              "kind": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "source_facts_changed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "projection_artifacts_changed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "implementation_evidence": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "pending_items": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "runtime_logs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "unknown_artifacts": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_projection_check": {
+      "type": "object",
+      "required": [
+        "source_facts_changed",
+        "projection_artifacts_changed",
+        "source_unknown",
+        "deferred_projections",
+        "blocked_projections"
+      ],
+      "properties": {
+        "source_facts_changed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "projection_artifacts_changed": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "source_unknown": { "type": "boolean" },
+        "deferred_projections": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "blocked_projections": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "agent_loop_result": { "type": "object" },
+    "controller_frame": { "type": "object" },
+    "execution_gate": { "type": "object" },
+    "executor_binding": { "type": "object" },
+    "ledger_stage": {
+      "type": "object",
+      "required": ["schema_version", "status", "gate_required", "writeback_required", "reason"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "arckit-ledger-stage/v1" },
+        "status": {
+          "type": "string",
+          "enum": ["not_ready", "gate_ready", "gate_blocked", "human_blocked", "blocked", "written"]
+        },
+        "gate_required": { "type": "boolean" },
+        "writeback_required": { "type": "boolean" },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "validation_evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "loop_handoff": {
+      "type": "object",
+      "required": [
+        "version",
+        "status",
+        "next_responsibility",
+        "agent_continuation_available",
+        "human_decision_required",
+        "trigger_mode",
+        "responsibility_reason",
+        "next_prompt",
+        "agent_instruction",
+        "human_gate",
+        "progress_guard"
+      ],
+      "properties": {
+        "version": { "type": "string", "const": "loop-handoff/v2" },
+        "status": {
+          "type": "string",
+          "enum": ["continue", "done", "needs_human", "blocked", "external_wait"]
+        },
+        "next_responsibility": {
+          "type": "string",
+          "enum": ["agent", "human", "external", "none"]
+        },
+        "agent_continuation_available": { "type": "boolean" },
+        "human_decision_required": { "type": "boolean" },
+        "trigger_mode": {
+          "type": "string",
+          "enum": ["manual_bridge", "auto_bridge", "user_decision", "external_wait", "none"]
+        },
+        "responsibility_reason": { "type": "string" },
+        "next_prompt": { "type": "string" },
+        "agent_instruction": {
+          "type": "object",
+          "required": [
+            "goal",
+            "required_context_refs",
+            "required_actions",
+            "required_checks",
+            "stop_condition"
+          ],
+          "properties": {
+            "goal": { "type": "string" },
+            "required_context_refs": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "required_actions": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "required_checks": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "stop_condition": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "human_gate": {
+          "type": "object",
+          "required": ["required", "reason", "decision_needed"],
+          "properties": {
+            "required": { "type": "boolean" },
+            "reason": { "type": "string" },
+            "decision_needed": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "progress_guard": {
+          "type": "object",
+          "required": [
+            "expected_state_change",
+            "actual_state_change",
+            "no_progress_limit",
+            "max_auto_rounds"
+          ],
+          "properties": {
+            "expected_state_change": { "type": "string" },
+            "actual_state_change": { "type": "string" },
+            "no_progress_limit": { "type": "integer", "minimum": 0 },
+            "max_auto_rounds": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

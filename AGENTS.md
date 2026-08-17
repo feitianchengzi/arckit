@@ -78,7 +78,7 @@ For example, an authentication architecture note belongs in `definition/skills/`
 - SwiftUI and Apple client coding practice: `code/skills/arckit-code-swiftui/`
 - Feedback platform integration: `code/skills/arckit-feedback-platform-integration/`
 - Alibaba Cloud OSS controlled image access: `code/skills/oss-controlled-image-access/`
-- Runtime capability binding: `runtime/arckit-runtime/config/capability-policy.json`, which manages only the `using-arckit` Agent entry and `arckit-development-ledger` trusted Runtime entrypoints. Definition, diagnosis, code, quality, and user-installed skills remain available through Codex native skill discovery inside the coherent Agent thread; Runtime does not maintain a Worker registry.
+- Runtime capability binding: `runtime/arcorbit/config/capability-policy.json`, which manages only the `using-arckit` Agent entry and `arckit-development-ledger` trusted Runtime entrypoints. Definition, diagnosis, code, quality, and user-installed skills remain available through Codex native skill discovery inside the coherent Agent thread; Runtime does not maintain a Worker registry.
 
 The three `code/skills/` capabilities are distributed from this repository and may be selected natively by the Codex Agent; Runtime does not add them to an `allowed_skills` list or pre-associate them with a gap.
 

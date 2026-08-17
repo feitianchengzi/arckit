@@ -208,7 +208,7 @@ Feedback
 
 - `arckit/pending/prototypes/desktop-platform/`
 - `arckit/pending/items/2026-07-14-ai-native-software-product-development-platform-blueprint.md`
-- `runtime/arckit-runtime/desktop/`
+- `runtime/arcorbit/desktop/`
 
 ## Notes
 

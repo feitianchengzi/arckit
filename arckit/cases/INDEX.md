@@ -80,3 +80,4 @@
 | [CASE-20260815-001](closed/CASE-20260815-001-unify-arcforge-provider-provisioning-semantics.md) | closed | Unify ArcForge provider provisioning semantics | 2026-08-15T05:56:52.686Z |
 | [CASE-20260815-002](closed/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md) | closed | Repair source upgrade drift conflict recovery | 2026-08-15T11:45:08.176Z |
 | [CASE-20260817-001](closed/CASE-20260817-001-add-a-local-arcforge-provider-and-arckit-runtime-build-script.md) | closed | Add a local ArcForge provider and Arckit Runtime build script | 2026-08-17T08:51:02.854Z |
+| [CASE-20260817-002](closed/CASE-20260817-002-formally-rename-arckit-runtime-to-arcorbit.md) | closed | Formally rename arckit-runtime to ArcOrbit | 2026-08-17T12:41:29.749Z |

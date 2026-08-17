@@ -1,4 +1,4 @@
-# Runtime Desktop 视觉规范约定
+# ArcOrbit Desktop 视觉规范约定
 
 ## 事实边界
 

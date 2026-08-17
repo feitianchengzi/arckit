@@ -754,7 +754,7 @@ Arckit 未来可能出现类似任务板、协作时间线、Agent 活动、审�
 - [产品架构](../../spec/agentic-software-development/product-architecture.md)
 - [Skill 架构](../../spec/agentic-software-development/skill-architecture.md)
 - [Controller Worker Loop](../../spec/agentic-software-development/controller-worker-loop.md)
-- [Arckit Runtime 技术方案](../../tech/arckit-runtime/solution.md)
+- [ArcOrbit 技术方案](../../tech/arcorbit/solution.md)
 - [AI 原生软件产品研发平台候选蓝图](../../pending/items/2026-07-14-ai-native-software-product-development-platform-blueprint.md)
 
 平台蓝图当前仍为 `candidate / process_handoff`。本报告使用它理解 Arckit 的长期产品方向，但不会把其中尚未确认的七个产品单元、领域模型和系统边界表述为已经接受或实现的正式事实。

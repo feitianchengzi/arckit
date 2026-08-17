@@ -10,7 +10,7 @@ Setup Readiness 是 Desktop 在 Runtime task、Workshop 登录和项目队列之
 
 ### 核心任务
 
-用户确认应用将如何准备完整 Arckit Runtime 环境，并在不静默覆盖已有 Agent 资产的前提下完成安装、修复或升级。
+用户确认应用将如何准备完整 ArcOrbit 环境，并在不静默覆盖已有 Agent 资产的前提下完成安装、修复或升级。
 
 ### 主路径
 
@@ -20,7 +20,7 @@ Setup Readiness 是 Desktop 在 Runtime task、Workshop 登录和项目队列之
 4. source upgrade 先展示受管理缺失、provider 管理迁移、已有内容变化、未验证受管理目标和未受管理冲突；每项同时显示旧目标、新目标、所有权依据和可用动作。
 5. missing 与可证明的 managed migration 进入 fresh repair/upgrade plan；changed 或未验证的受管理目标由用户查看 diff 后选择备份并恢复或保留并退出。
 6. 用户确认 fresh plan 后，系统执行事务化 apply，持续展示 source、目录、catalog、关系和 discoverability 阶段。
-7. post-drift 与 Codex probe 成功后，页面开放“继续使用 Arckit”。
+7. post-drift 与 Codex probe 成功后，页面开放“继续使用 ArcOrbit”。
 
 ### 决策点
 

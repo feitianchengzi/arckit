@@ -51,7 +51,7 @@ Runtime 只用 manifest 声明的自然 `$using-arckit` 文本 trigger 启动该
 
 每个 Runtime 可调用能力以 `arckit.capability.json` 声明 id、binding、invocation、输入输出、写入边界和禁止决策。确定性能力可以声明位于 skill 根目录内的 trusted entrypoints。
 
-默认 `runtime/arckit-runtime/config/capability-policy.json` 只包含：
+默认 `runtime/arcorbit/config/capability-policy.json` 只包含：
 
 - Controller binding：`using-arckit`，负责自然 Agent skill trigger。
 - Runtime binding：`arckit-development-ledger`，负责 trusted scripts。
