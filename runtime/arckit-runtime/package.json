@@ -17,6 +17,7 @@
     "smoke": "node bin/arckit-runtime.mjs run --project ../.. --dry-run --json",
     "probe:app-server": "node bin/arckit-runtime.mjs probe-app-server --project ../.. --json",
     "gate:smoke": "node bin/arckit-runtime.mjs gate-result --project ../.. --file /tmp/arckit-runtime-smoke.json --json",
+    "package:local": "node scripts/build-local-distribution.mjs",
     "package:config": "node scripts/build-package-config.mjs",
     "smoke:distribution": "node scripts/smoke-distribution.mjs",
     "package:mac:arm64": "electron-builder --config dist-package/electron-builder.generated.json --mac --arm64 --publish=never",

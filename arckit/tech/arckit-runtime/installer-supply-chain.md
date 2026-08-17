@@ -168,6 +168,14 @@ Runtime product version 来自 release intent tag：
 
 Electron package 的 SemVer prerelease metadata 与 artifact label 表达 channel/build；正式 product version 不由 workflow 自增，也不从历史 GitHub Release 猜测。
 
+## 本地验证构建
+
+本地验证入口由 Runtime 仓库中的 Node.js 脚本提供，并要求 ArcForge 与 Arckit 是可读取的本地 checkout。入口在两个仓库各自的依赖已经安装后，使用同一组受控构建原语完成 ArcForge type check、embedded provider test、provider package、Runtime tests、distribution resource assembly、payload smoke 和当前主机 Electron package。脚本不安装依赖、不访问 release registry，也不修改 release branch 或 tag。
+
+本地 provider 使用 `local.<build-id>` SemVer prerelease、`local/arckit-runtime-<build-id>` release ref、当前 Git commit 和 dirty marker。Runtime lock 使用 `local/v<product-version>-<build-id>` source ref、`channel: local`、`repository: local/*`、`workflow: local-build` 和 `signing: disabled`。`prepare-distribution` 只在本地入口接受这一 metadata lane；受治理的 release-trigger validator 仍只接受既有 `tf/*`、`beta/*` 和 `appstore/*` tag。
+
+本地入口保留 provider manifest、capability、archive SHA-256、safe extraction、payload checksums、trusted capability digest 与 smoke convergence 校验。默认结果是当前主机架构的 unsigned installer；resources-only 模式在完成相同资源组装和 smoke 后停止，使开发态 Desktop 直接读取 `dist-package/resources`。本地产物只用于开发验证，不具备发布授权、签名、公证、GitHub Environment 或 draft release 证据，也不作为 governed release artifact 被上传或引用。
+
 ## ArcForge provider 供应链
 
 ArcForge 仓库提供人工 workflow：

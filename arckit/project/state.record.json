@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-15T11:45:08.176Z",
-    "revision": 71
+    "updated_at": "2026-08-17T08:51:02.854Z",
+    "revision": 74
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Confirm whether SOURCE_UPGRADE_CONFLICT is a valid safety check and make the packaged Setup Readiness flow provide an actionable, safe recovery path instead of only exit or retry.",
+      "current_focus": "Provide a repository-local command that builds the sibling ArcForge provider and arckit-runtime so maintainers can validate Runtime behavior locally.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -331,15 +331,18 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Runtime packages trusted capabilities separately from an Arckit skill payload and a versioned ArcForge Embedded Provider; Desktop Setup Readiness owns provisioning while the policy-neutral Runtime Kernel continues natural $using-arckit execution. ArcForge Core is the sole implementation of overlapping provisioning semantics, including typed source-upgrade assessment, last-applied target evidence, managed repair/migration and transactional backup/restore; CLI, Desktop and Embedded Provider are adapters, and Runtime consumes capability-gated provider artifacts without deriving installation targets or drift classes.",
-          "reason": "The accepted technical contract extends the single-semantic-source boundary to old-relation reconciliation and prevents Runtime from inferring user conflicts from raw drift counts.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state, Node.js ESM ledger and Runtime scripts, an Electron Desktop host, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3. Runtime packages trusted capabilities separately from an Arckit skill payload and a versioned ArcForge Embedded Provider; Desktop Setup Readiness owns provisioning while the policy-neutral Runtime Kernel continues natural $using-arckit execution. ArcForge Core is the sole implementation of overlapping provisioning semantics, including typed source-upgrade assessment, last-applied target evidence, managed repair/migration and transactional backup/restore; CLI, Desktop and Embedded Provider are adapters, and Runtime consumes capability-gated provider artifacts without deriving installation targets or drift classes. Repository-local validation reuses these boundaries through explicit local metadata and unsigned host-native artifacts, and its local refs cannot enter governed release-trigger validation.",
+          "reason": "The accepted local build implementation makes the development-only provider and Runtime assembly lane explicit without duplicating provisioning semantics or weakening release validation.",
           "evidence": [
             "arckit/tech/arckit-runtime/installer-supply-chain.md",
-            "arckit/spec/arckit-runtime-distribution.md"
+            "runtime/arckit-runtime/scripts/build-local-distribution.mjs",
+            "runtime/arckit-runtime/scripts/prepare-distribution.mjs",
+            "runtime/arckit-runtime/test/local-distribution-build.test.mjs",
+            "runtime/arckit-runtime/test/package-distribution.test.mjs"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 13
+          "revision": 14
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -398,16 +401,19 @@
         "evidence_expectation": "Durable delivery evidence sufficient to recover and verify the release model.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit skills are sourced from the repository and synchronized to supported Codex targets through governed availability-aware installation. Runtime/Desktop installers are produced only by manually dispatched GitHub workflows against an existing tf/*, beta/* or appstore/* release-intent tag, bundle locked trusted resources, the Arckit skill payload and an exact ArcForge provider artifact, and support macOS arm64/x64, Windows x64 and Linux x64 with explicit signing and draft-release choices.",
-          "reason": "The operator retains package timing and target authorization while immutable tags, locks, checksums, availability and confirmation preserve distribution governance.",
+          "statement": "Arckit skills are sourced from the repository and synchronized to supported Codex targets through governed availability-aware installation. Governed Runtime/Desktop installers are produced only by manually dispatched GitHub workflows against an existing tf/*, beta/* or appstore/* release-intent tag, bundle locked trusted resources, the Arckit skill payload and an exact ArcForge provider artifact, and support macOS arm64/x64, Windows x64 and Linux x64 with explicit signing and draft-release choices. A separate repository-local validation entrypoint may build current-host unsigned artifacts only when their provider, Runtime metadata, repository identity and workflow are explicitly labeled local; those artifacts carry no release authorization and are never published by the governed workflows.",
+          "reason": "The local build command gives maintainers executable validation evidence while preserving operator-authorized immutable-tag distribution as the only governed release lane.",
           "evidence": [
             "arckit/spec/arckit-runtime-distribution.md",
             "arckit/tech/arckit-runtime/installer-supply-chain.md",
-            "delivery/skills/arckit-git-branching/references/platform-release-triggers.md"
+            "delivery/skills/arckit-git-branching/references/platform-release-triggers.md",
+            "runtime/arckit-runtime/README.md",
+            "runtime/arckit-runtime/scripts/build-local-distribution.mjs",
+            ".github/workflows/arckit-runtime-package.yml"
           ],
           "confidence": "high",
           "resume_condition": "",
-          "revision": 3
+          "revision": 4
         },
         "gap_refs": []
       },

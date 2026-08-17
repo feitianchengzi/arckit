@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-15T11:45:08.176Z
+Updated: 2026-08-17T08:51:02.854Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,8 +17,6 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.runtime_surfaces: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
 - software_decision.delivery_and_distribution: settled (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
 - project_gap.GAP-delivery-governance: update (arckit/cases/active/CASE-20260814-002-build-the-governed-arckit-runtime-installer-supply-chain.md)
@@ -27,6 +25,8 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260815-002-repair-source-upgrade-drift-conflict-recovery.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260817-001-add-a-local-arcforge-provider-and-arckit-runtime-build-script.md)
+- software_decision.delivery_and_distribution: settled (arckit/cases/active/CASE-20260817-001-add-a-local-arcforge-provider-and-arckit-runtime-build-script.md)
 
 ## Remaining Project Gaps
 

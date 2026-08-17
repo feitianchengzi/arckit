@@ -118,6 +118,25 @@ Run verification:
 npm --prefix runtime/arckit-runtime run check
 ```
 
+## Local provider and Runtime build
+
+With `arckit` and `arcforge` checked out as sibling directories and dependencies already installed in both repositories, run this command from the Arckit repository root:
+
+```bash
+npm --prefix runtime/arckit-runtime run package:local
+```
+
+The command validates both repositories, builds `../arcforge`'s embedded provider, binds its local-only version, manifest and SHA-256 into Runtime resources, smoke-tests the packaged provisioning payload, and builds the current host's unsigned installer. Supported hosts are macOS arm64/x64, Windows x64 and Linux x64. Provider artifacts are written to `../arcforge/release/provider-release`; Runtime resources and installers are written to `runtime/arckit-runtime/dist-package` and `runtime/arckit-runtime/release`.
+
+For a faster development loop that prepares and verifies `dist-package/resources` without invoking Electron Builder:
+
+```bash
+npm --prefix runtime/arckit-runtime run package:local -- --resources-only
+npm --prefix runtime/arckit-runtime run desktop
+```
+
+Use `--arcforge-root <path>` when ArcForge is not the sibling checkout, and `--build-id <id>` when a stable local identifier is useful; build IDs follow SemVer prerelease identifier rules. Local outputs are explicitly versioned as `local`, always use signing mode `disabled`, and are development-validation artifacts only. They are not substitutes for immutable-tagged artifacts from the governed manual packaging workflows.
+
 ## Desktop recovery and observability
 
 Desktop persists active-task checkpoints for Case identity, thread identity, closeout state, and remote completion state. Canonical Case state remains in the project ledger; Runtime execution records and thread bindings remain in Desktop-owned data.

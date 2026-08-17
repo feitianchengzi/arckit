@@ -71,6 +71,18 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     assert.equal(config.mac.entitlementsInherit, "build/entitlements.mac.inherit.plist");
     assert.deepEqual(config.extraResources.map((item) => item.to), ["arckit-runtime", "provisioning"]);
 
+    const localBuildRoot = path.join(fixture, "local-dist-package");
+    await execFileAsync(process.execPath, [
+      "scripts/prepare-distribution.mjs", "--release-tag", "local/v0.1.0-dev.1", "--provider-archive", archive,
+      "--provider-manifest", externalManifestPath, "--provider-sha256", archiveSha, "--provider-release", "tf/v0.1.0-b1",
+      "--provider-repository", "local/arcforge", "--target", "macos-arm64", "--signing", "disabled", "--source-commit", "dirty-local-source", "--repository", "local/arckit", "--workflow", "local-build", "--build-root", localBuildRoot
+    ], { cwd: runtimeRoot });
+    const localLock = JSON.parse(await readFile(path.join(localBuildRoot, "resources", "provisioning", "distribution-lock.json"), "utf8"));
+    assert.equal(localLock.runtime.channel, "local");
+    assert.equal(localLock.runtime.packageVersion, "0.1.0-local.dev.1");
+    assert.equal(localLock.build.workflow, "local-build");
+    assert.equal(localLock.signing.requestedMode, "disabled");
+
     await execFileAsync(process.execPath, ["scripts/build-package-config.mjs", "--signing", "required", "--notarize", "true", "--platform", "mac", "--build-root", packageBuildRoot], { cwd: runtimeRoot });
     const requiredMacConfig = JSON.parse(await readFile(path.join(packageBuildRoot, "electron-builder.generated.json"), "utf8"));
     assert.equal(requiredMacConfig.forceCodeSigning, true);
