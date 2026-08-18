@@ -52,8 +52,10 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /成员页不生成项目邀请|为何这里没有项目邀请/);
   assert.match(source, /create_once_no_list_or_revoke/);
   assert.match(html, /AUTOMATION COMMAND CENTER/);
-  assert.match(html, /id="projectNavigation"/);
-  assert.match(html, /id="statusNavigation"/);
+  assert.match(html, /id="productScopeSelect"/);
+  assert.match(html, /id="workStateFilters"/);
+  assert.match(html, /id="acceptanceFeedbackOnlyButton"/);
+  assert.doesNotMatch(html, /TASK STATUS|id="statusNavigation"|id="projectNavigation"/);
   assert.match(html, /id="queueTable"/);
   assert.match(html, /id="feedbackQueueTable"/);
   assert.match(html, /id="currentRunPanel"/);
@@ -78,6 +80,63 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
   assert.doesNotMatch(html, /class="chat-column"|id="chatInput"|>Chats</);
+});
+
+test("ADVANCE owns one top product-set scope while Work and Automation own their local filters", async () => {
+  const [source, html, styles] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererHtmlPath, "utf8"),
+    readFile(rendererStylesPath, "utf8")
+  ]);
+
+  const sidebar = html.slice(html.indexOf('<aside class="sidebar">'), html.indexOf('<main class="app-stage">'));
+  const commandbar = html.slice(html.indexOf('<header class="commandbar">'), html.indexOf('<div class="view-host">'));
+  const workView = html.slice(html.indexOf('id="workView"'), html.indexOf('id="feedbackView"'));
+  const commandView = html.slice(html.indexOf('id="commandView"'), html.indexOf('id="taskView"'));
+  assert.doesNotMatch(sidebar, /TASK STATUS|仅看验收问题|添加本地项目|本地 Runtime|<strong>任务源<\/strong>/);
+  assert.match(commandbar, /id="productSetCluster"/);
+  assert.match(commandbar, /id="worksetSelect"/);
+  assert.match(commandbar, /id="productScopeSelect"/);
+  assert.match(commandbar, /管理当前产品集/);
+  assert.match(workView, /id="workStateFilters"/);
+  assert.match(workView, /class="platform-work-layout"/);
+  assert.match(workView, /id="platformWorkInspector"/);
+  assert.match(commandView, /id="acceptanceFeedbackOnlyButton"/);
+  assert.match(commandView, /仅看验收问题/);
+  assert.match(commandView, /验收问题队列/);
+  assert.doesNotMatch(commandView, /验收反馈/);
+  assert.doesNotMatch(commandView, /AUTOMATION FILTER|id="projectNavigation"/);
+  assert.match(html, /id="accountButton"/);
+  assert.match(html, /id="accountAvatar"/);
+  assert.doesNotMatch(html, /id="sourceHealthButton"|id="runtimeHealthButton"|id="pickProjectButton"/);
+  assert.match(source, /advanceProjectsInActiveWorkset\(\)/);
+  assert.match(source, /active_workset\?\.project_ids/);
+  assert.match(source, /<option value="all">项目集全部/);
+  assert.match(source, /item\.project_id \|\| item\.source_project_id/);
+  assert.match(source, /!projectId && item\.freeze_scope === "global"/);
+  assert.match(source, /activeExecutionMatchesSelectedProject\(snapshot\.active_task\)/);
+  assert.match(source, /const stateCounts = Object\.fromEntries/);
+  assert.match(source, /data-platform-task-select/);
+  assert.match(source, /function renderPlatformWorkInspector\(task\)/);
+  assert.match(source, /automationTask\?\.state === "completed"/);
+  assert.match(source, /该待办已验收，不再接受新的验收问题/);
+  assert.doesNotMatch(html.slice(html.indexOf('id="feedbackView"'), html.indexOf('id="commandView"')), /验收问题队列|验收反馈|acceptanceFeedbackPlatformTable/);
+  assert.match(source, /state\.platform\.feedback_v1 \|\| \[\]\)\.filter\(platformItemMatchesSelectedProject\)\.length/);
+  assert.match(source, /function activeExecutionMatchesSelectedProject\(active\) \{\s+return Boolean\(active\);/);
+  assert.match(source, /snapshot\.recovery_items\.length/);
+  assert.match(source, /state\.acceptanceFeedbackOnly = !state\.acceptanceFeedbackOnly/);
+  assert.match(source, /els\.ordinaryQueueCard\.classList\.toggle\("hidden", state\.acceptanceFeedbackOnly\)/);
+  assert.match(source, /platform\.product_workspaces \|\| \[\]\)\.filter\(platformItemMatchesSelectedProject\)/);
+  assert.match(source, /state\.platform\.tasks\.filter\(platformItemMatchesSelectedProject\)/);
+  assert.match(source, /localProjectId === "__add_local_project__"/);
+  assert.match(source, /const localProject = await api\.pickProject\(\)/);
+  assert.match(source, /await api\.bindAutomationProject\(remoteId, localProjectId\)/);
+  assert.match(source, /platformUser\.name \|\| platformUser\.username/);
+  assert.match(source, /els\.authIdentity\.textContent = authenticated \? currentWorkshopUserName\(\)/);
+  assert.match(styles, /\.product-set-cluster/);
+  assert.match(styles, /\.work-state-filters/);
+  assert.match(styles, /\.filter-toggle/);
+  assert.match(styles, /\.account-avatar/);
 });
 
 test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views", async () => {
@@ -292,7 +351,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(source, /shared assets \$\{availability\.shared_assets\}/);
   assert.match(source, /plan\.shared_assets/);
   assert.match(source, /ArcForge loader \$\{availability\.arcforge_loader_targets\}/);
-  assert.match(source, /添加反馈并继续/);
+  assert.match(source, /补充说明并继续/);
   assert.match(source, /data-recovery-feedback/);
   assert.match(source, /openWorkbench\("review"\)/);
   assert.doesNotMatch(preload, /fetch|httpRequest|requestUrl/);

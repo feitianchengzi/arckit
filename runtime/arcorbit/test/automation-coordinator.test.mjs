@@ -83,6 +83,42 @@ test("acceptance feedback persists idempotently, keeps the source todo completed
   coordinator.dispose();
 });
 
+test("accepted tasks cannot receive new acceptance issues", async () => {
+  const store = recoveryStore();
+  store.automation.snapshot.tasks[0].state = "accepted";
+  store.automation.acceptance_feedback_items = [];
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, []),
+    taskSourceFactory() { throw new Error("task source must not be contacted"); }
+  });
+
+  await assert.rejects(
+    coordinator.submitAcceptanceFeedback({ taskId: "t", message: "不应接受", idempotencyKey: "KEY-ACCEPTED" }),
+    /只有已完成待办可以提出验收问题/
+  );
+  assert.equal(store.automation.acceptance_feedback_items.length, 0);
+  coordinator.dispose();
+});
+
+test("a completed task cannot be accepted while an acceptance issue remains open", async () => {
+  const store = recoveryStore();
+  store.automation.snapshot.tasks[0].state = "completed";
+  store.automation.acceptance_feedback_items = [{
+    feedback_id: "AF-OPEN", source_task_id: "t", source_project_id: "p", status: "queued"
+  }];
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, []),
+    taskSourceFactory() { throw new Error("task source must not be contacted"); }
+  });
+
+  await assert.rejects(
+    coordinator.updateTaskState({ taskId: "t", state: "accepted", expectedState: "completed" }),
+    /仍有未解决的验收问题/
+  );
+  assert.equal(store.automation.snapshot.tasks[0].state, "completed");
+  coordinator.dispose();
+});
+
 test("a queued acceptance feedback item keeps automation health ready when the todo queue is empty", async () => {
   const store = recoveryStore();
   store.automation.snapshot.source_status = "healthy";
@@ -207,7 +243,7 @@ test("concurrent conflicting feedback submissions reject the losing payload befo
 
   assert.equal(results.filter((result) => result.status === "fulfilled").length, 1);
   assert.equal(results.filter((result) => result.status === "rejected").length, 1);
-  assert.match(results.find((result) => result.status === "rejected").reason.message, /conflicts/);
+  assert.match(results.find((result) => result.status === "rejected").reason.message, /冲突/);
   assert.equal(store.automation.acceptance_feedback_items.length, 1);
   assert.equal(messages.length, 1);
   assert.equal(messages[0].content, store.automation.acceptance_feedback_items[0].original_feedback);

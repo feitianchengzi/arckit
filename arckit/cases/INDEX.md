@@ -87,3 +87,5 @@
 | [CASE-20260818-001](closed/CASE-20260818-001-package-and-acceptance-test-arcorbit-platform.md) | closed | Package and acceptance-test ArcOrbit platform | 2026-08-18T03:34:46.884Z |
 | [CASE-20260818-002](closed/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md) | closed | Optimize ArcOrbit organization member and product management | 2026-08-18T09:30:08.707Z |
 | [CASE-20260818-003](closed/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md) | closed | Restore ArcOrbit existing-service boundary | 2026-08-18T09:57:24.729Z |
+| [CASE-20260818-004](closed/CASE-20260818-004-consolidate-arcorbit-automation-filters-and-account-navigation.md) | closed | Consolidate ArcOrbit automation filters and account navigation | 2026-08-18T16:00:36.734Z |
+| [CASE-20260818-005](closed/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md) | closed | Optimize ArcOrbit Work filters and global project scope | 2026-08-18T16:52:30.172Z |

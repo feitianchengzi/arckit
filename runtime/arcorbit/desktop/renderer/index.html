@@ -60,19 +60,10 @@
           <p class="nav-label">PLATFORM</p>
           <button class="nav-item" data-page="organization" type="button"><span>◎</span><strong>Organization</strong><em id="organizationNavCount">0</em></button>
 
-          <p class="nav-label">AUTOMATION FILTER</p>
-          <div id="projectNavigation" class="nav-group"></div>
-
-          <p class="nav-label">TASK STATUS</p>
-          <div id="statusNavigation" class="nav-group"></div>
-
-          <button id="feedbackQueueNav" class="nav-item compact-nav" type="button"><span>◇</span><strong>仅看验收反馈</strong><em>→</em></button>
         </nav>
 
         <div class="sidebar-footer">
-          <button id="sourceHealthButton" class="local-status" type="button"><span>↻</span><strong>任务源</strong><small id="sourceHealthText">未配置</small></button>
-          <button id="runtimeHealthButton" class="local-status" type="button"><span>◇</span><strong>本地 Runtime</strong><small id="runtimeHealthText">待命</small></button>
-          <button id="pickProjectButton" class="profile-button" type="button"><span>＋</span><strong>添加本地项目</strong><small>绑定远端项目</small></button>
+          <button id="accountButton" class="profile-button" type="button"><span id="accountAvatar" class="account-avatar">W</span><strong id="accountName">Workshop 账户</strong><small id="accountStatus">未登录</small></button>
         </div>
       </aside>
 
@@ -80,7 +71,11 @@
         <header class="commandbar">
           <div class="breadcrumbs"><strong id="scopeTitle">所有项目</strong><span id="pageTitle">自动化总览</span></div>
           <div class="commandbar-actions">
-            <label class="workset-control"><span>产品集</span><select id="worksetSelect" aria-label="当前产品集"></select></label><button id="editWorksetButton" class="icon-button" type="button" title="编辑当前产品集">✎</button>
+            <div id="productSetCluster" class="product-set-cluster" aria-label="产品集与观察范围">
+              <label class="workset-control"><span>产品集</span><select id="worksetSelect" aria-label="当前产品集"></select></label>
+              <label class="product-scope-control"><span>查看</span><select id="productScopeSelect" aria-label="产品观察范围"></select></label>
+              <button id="editWorksetButton" class="product-set-manage" type="button" title="管理当前产品集">管理</button>
+            </div>
             <button id="searchButton" class="search-trigger" type="button"><span>搜索任务、项目或 Run</span><kbd>⌘ K</kbd></button>
             <label class="automation-toggle" title="控制是否领取新任务；仅作用于已绑定且已授权的项目，不停止当前任务"><input id="automationEnabled" type="checkbox"><span></span><strong>自动领取</strong></label>
             <button id="syncButton" class="icon-button" type="button" title="同步任务源">↻</button>
@@ -98,18 +93,18 @@
           </section>
 
           <section id="workView" class="app-view" data-page-view="work">
-            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">WORK ACROSS PRODUCTS</p><h1>七状态工作总览</h1><p>完整项目待办用于日常协作；Automation 仍只消费分配给当前用户的待处理项。</p></div><div class="heading-actions"><input id="platformWorkFilter" class="platform-filter" type="search" placeholder="筛选标题、内容或产品"><button id="createTagButton" class="secondary-button" type="button">管理标签</button><button id="createTaskButton" class="primary-button" type="button">创建待办</button></div></div><section class="panel-card"><div id="platformWorkTable"></div></section></div>
+            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">WORK ACROSS PRODUCTS</p><h1>七状态工作总览</h1><p>完整项目待办用于日常协作；Automation 仍只消费分配给当前用户的待处理项。</p></div><div class="heading-actions"><input id="platformWorkFilter" class="platform-filter" type="search" placeholder="筛选标题、内容或产品"><button id="createTagButton" class="secondary-button" type="button">管理标签</button><button id="createTaskButton" class="primary-button" type="button">创建待办</button></div></div><section class="work-state-filter-card" aria-label="待办七状态筛选"><div id="workStateFilters" class="work-state-filters"></div><small id="workStateSummary"></small></section><div class="platform-work-layout"><section class="panel-card"><div id="platformWorkTable"></div></section><aside class="inspector-card task-inspector platform-work-inspector"><div id="platformWorkInspector"></div></aside></div></div>
           </section>
 
           <section id="feedbackView" class="app-view" data-page-view="feedback">
-            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">TWO FEEDBACK LANES</p><h1>用户反馈与验收反馈</h1><p>普通反馈由 Workshop 拥有；验收反馈由 ArcOrbit 独立排队并复用来源待办 thread。</p></div><button id="createFeedbackButton" class="primary-button" type="button">创建普通反馈</button></div><div class="feedback-lanes"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">◌</span><div><h2>普通用户反馈 · V1</h2><p>人工优先级、忽略和关联待办来自真实 data 字段</p></div></div></div><div id="ordinaryFeedbackTable"></div></section><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">◇</span><div><h2>ArcOrbit 验收反馈</h2><p>来源待办保持 completed/accepted</p></div></div></div><div id="acceptanceFeedbackPlatformTable"></div></section></div></div>
+            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">USER FEEDBACK</p><h1>用户反馈</h1><p>Feedback 只承载来自产品用户的问题、建议和沟通；研发验收问题由 Automation 独立处理。</p></div><button id="createFeedbackButton" class="primary-button" type="button">创建用户反馈</button></div><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">◌</span><div><h2>Workshop Feedback · V1</h2><p>人工优先级、忽略和关联待办来自真实 data 字段</p></div></div></div><div id="ordinaryFeedbackTable"></div></section></div>
           </section>
 
           <section id="commandView" class="app-view" data-page-view="command">
             <div class="page page-dashboard">
               <div class="page-heading split-heading">
                 <div><p class="eyebrow">AUTOMATION COMMAND CENTER</p><h1 id="commandHeading">执行态势</h1><p id="commandSummary">同步项目和任务后显示自动化队列。</p></div>
-                <div class="heading-actions"><span id="healthBadge" class="health-badge">任务源未配置</span><button id="queuePauseButton" class="secondary-button" type="button">暂停领取</button></div>
+                <div class="heading-actions"><button id="acceptanceFeedbackOnlyButton" class="filter-toggle" type="button" aria-pressed="false">仅看验收问题</button><span id="healthBadge" class="health-badge">任务源未配置</span><button id="queuePauseButton" class="secondary-button" type="button">暂停领取</button></div>
               </div>
 
               <div id="metricGrid" class="metric-grid"></div>
@@ -122,17 +117,17 @@
                     <div id="currentRunPanel" class="current-run-panel"></div>
                   </section>
 
-                  <section class="panel-card queue-card">
+                  <section id="ordinaryQueueCard" class="panel-card queue-card">
                     <div class="section-title-row"><div><span class="section-icon">≡</span><div><h2>普通待办队列</h2><p>独立的远端待处理任务队列</p></div></div><button id="viewPendingButton" class="text-button" type="button">查看全部待处理</button></div>
                     <div id="queueTable"></div>
                   </section>
 
                   <section id="feedbackQueueCard" class="panel-card queue-card">
-                    <div class="section-title-row"><div><span class="section-icon">◇</span><div><h2>验收反馈队列</h2><p>独立问题、进展、Run 与 Case</p></div></div><span id="feedbackQueueSummary" class="status-pill pending_review">0 项</span></div>
+                    <div class="section-title-row"><div><span class="section-icon">◇</span><div><h2>验收问题队列</h2><p>独立问题、进展、Run 与 Case</p></div></div><span id="feedbackQueueSummary" class="status-pill pending_review">0 项</span></div>
                     <div id="feedbackQueueTable"></div>
                   </section>
 
-                  <section class="panel-card completions-card">
+                  <section id="recentCompletionsCard" class="panel-card completions-card">
                     <div class="section-title-row"><div><span class="section-icon">✓</span><div><h2>最近完成</h2><p>本地证据与远端完成确认</p></div></div></div>
                     <div id="recentCompletions" class="completion-list"></div>
                   </section>

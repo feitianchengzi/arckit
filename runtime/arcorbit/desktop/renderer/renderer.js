@@ -47,7 +47,7 @@ const RECOVERY_ACTION_LABELS = {
   retry_start: "重试同一任务",
   retry_cli_handoff: "重试切换到 CLI",
   retry_complete: "重试完成写回",
-  feedback_continue: "添加反馈并继续",
+  feedback_continue: "补充说明并继续",
   accept_server_state: "接受服务器事实",
   mark_blocked: "标记为已阻塞"
 };
@@ -59,7 +59,9 @@ const state = {
   page: "today",
   selectedProjectId: "all",
   selectedState: "pending",
+  acceptanceFeedbackOnly: false,
   selectedTaskId: "",
+  selectedPlatformTaskId: "",
   snapshot: emptySnapshot(),
   platform: emptyPlatformSnapshot(),
   platformWorkFilter: "",
@@ -193,10 +195,6 @@ function wireEvents() {
     });
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
-  els.pickProjectButton.addEventListener("click", () => runAction(async () => {
-    await api.pickProject();
-    await refreshSnapshot();
-  }));
   els.syncButton.addEventListener("click", () => runAction(async () => {
     await api.syncAutomation();
     await refreshSnapshot();
@@ -210,13 +208,7 @@ function wireEvents() {
     await refreshSnapshot();
   }));
   els.settingsButton.addEventListener("click", () => runAction(() => openSettings({ loginGate: false })));
-  els.sourceHealthButton.addEventListener("click", () => {
-    if (state.snapshot.recovery_items.length > 0) showPage("recovery");
-    else runAction(() => openSettings({ loginGate: false }));
-  });
-  els.runtimeHealthButton.addEventListener("click", () => {
-    if (state.snapshot.active_task) openWorkbench("review");
-  });
+  els.accountButton.addEventListener("click", () => runAction(() => openSettings({ loginGate: false })));
   els.closeSettingsButton.addEventListener("click", closeSettings);
   els.settingsOverlay.addEventListener("click", (event) => {
     if (event.target === els.settingsOverlay) closeSettings();
@@ -230,10 +222,10 @@ function wireEvents() {
   els.sendVerificationButton.addEventListener("click", () => runAction(sendVerification));
   els.loginButton.addEventListener("click", () => runAction(login));
   els.logoutButton.addEventListener("click", () => runAction(logout));
-  els.viewPendingButton.addEventListener("click", () => openTaskBrowser("pending"));
-  els.feedbackQueueNav.addEventListener("click", () => {
-    showPage("command");
-    els.feedbackQueueCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  els.viewPendingButton.addEventListener("click", () => openWorkState("pending"));
+  els.acceptanceFeedbackOnlyButton.addEventListener("click", () => {
+    state.acceptanceFeedbackOnly = !state.acceptanceFeedbackOnly;
+    renderCommandCenter();
   });
   els.backToCommandButton.addEventListener("click", () => showPage("command"));
   els.backFromWorkbenchButton.addEventListener("click", () => showPage("command"));
@@ -255,9 +247,16 @@ function wireEvents() {
     renderPlatformWork();
   });
   els.worksetSelect.addEventListener("change", () => runAction(async () => {
+    state.selectedProjectId = "all";
     await api.setActiveWorkset(els.worksetSelect.value);
     await refreshSnapshot();
   }));
+  els.productScopeSelect.addEventListener("change", () => {
+    state.selectedProjectId = els.productScopeSelect.value;
+    state.selectedTaskId = "";
+    state.selectedPlatformTaskId = "";
+    refreshSnapshot().catch((error) => showToast(error.message));
+  });
   els.editWorksetButton.addEventListener("click", () => runAction(editCurrentWorkset));
   els.createOrganizationButton.addEventListener("click", () => runAction(createOrganization));
   els.joinByCodeButton.addEventListener("click", () => runAction(joinByInvitationCode));
@@ -282,7 +281,7 @@ function wireEvents() {
     const sourceTask = state.workbenchTask || (state.workbenchCompletion
       ? state.snapshot.tasks.find((item) => String(item.id) === String(state.workbenchCompletion.task_id))
       : null);
-    const acceptanceReview = Boolean(sourceTask && ["completed", "accepted"].includes(sourceTask.state));
+    const acceptanceReview = Boolean(sourceTask && sourceTask.state === "completed");
     if (!active && !acceptanceReview) throw new Error("当前没有活动执行。");
     state.interventionSubmitting = true;
     renderWorkbench();
@@ -431,7 +430,7 @@ async function refreshSnapshot({ quiet = false } = {}) {
   state.refreshing = true;
   if (!quiet) renderSyncing(true);
   try {
-    const [snapshot, platform, authentication] = await Promise.all([
+    let [snapshot, platform, authentication] = await Promise.all([
       api.automationSnapshot({
         project_id: state.selectedProjectId,
         state: state.page === "tasks" ? state.selectedState : ""
@@ -439,8 +438,15 @@ async function refreshSnapshot({ quiet = false } = {}) {
       api.platformSnapshot({ sections: ["overview", "organizations", "members", "tasks", "feedback"] }),
       api.getAuthStatus()
     ]);
+    platform ||= emptyPlatformSnapshot();
+    const worksetProjectIds = new Set((platform.active_workset?.project_ids || []).map(String));
+    if (state.selectedProjectId !== "all" && !worksetProjectIds.has(state.selectedProjectId)) {
+      state.selectedProjectId = "all";
+      snapshot = await api.automationSnapshot({ project_id: "all", state: state.page === "tasks" ? state.selectedState : "" });
+      showToast("当前产品已不在产品集中，查看范围已切回项目集全部。");
+    }
     state.snapshot = snapshot;
-    state.platform = platform || emptyPlatformSnapshot();
+    state.platform = platform;
     const scopeIds = new Set((state.platform.organization_scopes || []).map((item) => String(item.id)));
     if ((!state.organizationScopeChosen && scopeIds.size > 0) || !state.organizationScopeId || (state.organizationScopeId !== "personal" && !scopeIds.has(state.organizationScopeId))) {
       state.organizationScopeId = String(state.platform.organization_scopes?.[0]?.id || "personal");
@@ -450,14 +456,12 @@ async function refreshSnapshot({ quiet = false } = {}) {
       state.workbenchTask = snapshot.tasks.find((task) => String(task.id) === String(state.workbenchTask.id)) || state.workbenchTask;
     }
     state.authentication = normalizeAuthentication(authentication);
-    if (state.selectedProjectId !== "all" && !state.snapshot.projects.some((project) => String(project.id) === state.selectedProjectId)) {
-      state.selectedProjectId = "all";
+    const visibleTasks = state.snapshot.tasks.filter(scopedTaskFilter);
+    if (state.selectedTaskId && !visibleTasks.some((task) => String(task.id) === state.selectedTaskId)) {
+      state.selectedTaskId = visibleTasks[0]?.id || "";
     }
-    if (state.selectedTaskId && !state.snapshot.tasks.some((task) => String(task.id) === state.selectedTaskId)) {
-      state.selectedTaskId = state.snapshot.tasks[0]?.id || "";
-    }
-    if (!state.selectedTaskId && state.snapshot.tasks.length > 0) {
-      state.selectedTaskId = state.snapshot.tasks[0].id;
+    if (!state.selectedTaskId && visibleTasks.length > 0) {
+      state.selectedTaskId = visibleTasks[0].id;
     }
     if (state.page === "workbench") await loadTranscript();
     render();
@@ -494,53 +498,38 @@ function render() {
 
 function renderPageVisibility() {
   document.querySelectorAll("[data-page-view]").forEach((view) => view.classList.toggle("is-active", view.dataset.pageView === state.page));
-  document.querySelectorAll("[data-page]").forEach((button) => button.classList.toggle("is-active", button.dataset.page === state.page));
+  const navigationPage = state.page === "tasks" ? "work" : ["workbench", "recovery"].includes(state.page) ? "command" : state.page;
+  document.querySelectorAll("[data-page]").forEach((button) => button.classList.toggle("is-active", button.dataset.page === navigationPage));
 }
 
 function renderNavigation() {
   const snapshot = state.snapshot;
-  const allPending = snapshot.projects.reduce((sum, project) => sum + Number(project.task_counts?.pending || 0), 0);
-  els.projectNavigation.innerHTML = [
-    navProject({ id: "all", name: "所有项目", count: allPending }),
-    ...snapshot.projects.map((project) => navProject({ id: project.id, name: project.name, count: project.task_counts?.pending || 0, warning: !project.eligible }))
-  ].join("");
-  els.projectNavigation.querySelectorAll("[data-project-id]").forEach((button) => button.addEventListener("click", async () => {
-    state.selectedProjectId = button.dataset.projectId;
-    state.selectedTaskId = "";
-    state.page = "command";
-    await refreshSnapshot();
-  }));
-
-  els.statusNavigation.innerHTML = TASK_STATES.map((taskState) => `
-    <button class="nav-item ${state.page === "tasks" && state.selectedState === taskState ? "is-active" : ""}" data-task-state="${taskState}" type="button">
-      <span>${STATE_ICONS[taskState]}</span><strong>${STATE_LABELS[taskState]}</strong><em>${state.snapshot.state_counts?.[taskState] || 0}</em>
-    </button>
-  `).join("");
-  els.statusNavigation.querySelectorAll("[data-task-state]").forEach((button) => button.addEventListener("click", () => openTaskBrowser(button.dataset.taskState)));
-  els.attentionNavCount.textContent = String(snapshot.attention_items.length + snapshot.recovery_items.length);
+  els.attentionNavCount.textContent = String(snapshot.attention_items.filter(scopedTaskFilter).length + snapshot.recovery_items.length);
   els.organizationNavCount.textContent = String((state.platform.organization_scopes || []).length);
-  els.workNavCount.textContent = String(state.platform.tasks.filter((task) => !task.terminal).length);
-  els.automationNavCount.textContent = String(snapshot.queue.length + (snapshot.active_task ? 1 : 0));
-  els.feedbackQueueNavCount.textContent = String(snapshot.acceptance_feedback_counts?.open || 0);
-  els.sourceHealthText.textContent = sourceStatusLabel(snapshot.source_status);
-  els.runtimeHealthText.textContent = snapshot.health?.label || "待命";
+  els.workNavCount.textContent = String(state.platform.tasks.filter((task) => !task.terminal && platformItemMatchesSelectedProject(task)).length);
+  els.automationNavCount.textContent = String(snapshot.queue.filter(scopedTaskFilter).length + (activeExecutionMatchesSelectedProject(snapshot.active_task) ? 1 : 0));
+  els.feedbackQueueNavCount.textContent = String((state.platform.feedback_v1 || []).filter(platformItemMatchesSelectedProject).length);
+  const accountName = currentWorkshopUserName();
+  els.accountName.textContent = accountName;
+  els.accountAvatar.textContent = accountName.slice(0, 1).toUpperCase() || "W";
+  els.accountStatus.textContent = state.authentication.authenticated ? sourceStatusLabel(snapshot.source_status) : "未登录";
   els.titlebarSync.className = `sync-state ${snapshot.source_status === "healthy" ? "healthy" : ["error", "unauthenticated"].includes(snapshot.source_status) ? "error" : ""}`;
   els.titlebarSync.querySelector("span").textContent = snapshot.source_status === "syncing" ? "同步中" : snapshot.synced_at ? `同步于 ${formatTime(snapshot.synced_at)}` : sourceStatusLabel(snapshot.source_status);
 }
 
 function renderCommandBar() {
   const project = currentProject();
-  const platformPages = new Set(["today", "work", "feedback"]);
   const organizationScope = currentOrganizationScope();
   els.scopeTitle.textContent = state.page === "organization"
     ? organizationScope?.name || "个人项目"
-    : platformPages.has(state.page) ? state.platform.active_workset?.name || "当前产品集" : project?.name || "所有项目";
+    : project?.name || state.platform.active_workset?.name || "项目集全部";
   els.pageTitle.textContent = {
     today: "Today", organization: "Organization", work: "Work", feedback: "Feedback",
     command: "Automation", tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心"
   }[state.page] || "ArcOrbit";
   els.automationEnabled.checked = Boolean(state.snapshot.enabled);
   els.automationEnabled.disabled = !state.authentication.authenticated;
+  els.productSetCluster.classList.toggle("hidden", state.page === "organization");
 }
 
 function renderWorkset() {
@@ -550,19 +539,27 @@ function renderWorkset() {
     : `<option value="">等待项目同步</option>`;
   els.worksetSelect.disabled = worksets.length === 0;
   els.editWorksetButton.disabled = worksets.length === 0;
+  const projects = advanceProjectsInActiveWorkset();
+  els.productScopeSelect.innerHTML = [
+    `<option value="all">项目集全部 · ${projects.length}</option>`,
+    ...projects.map((project) => `<option value="${escapeHtml(project.id)}">${escapeHtml(project.name)}</option>`)
+  ].join("");
+  els.productScopeSelect.value = projects.some((project) => String(project.id) === state.selectedProjectId) ? state.selectedProjectId : "all";
+  els.productScopeSelect.disabled = projects.length === 0;
 }
 
 function renderToday() {
   const platform = state.platform;
-  const workspaces = platform.product_workspaces || [];
-  const tasks = platform.tasks || [];
+  const workspaces = (platform.product_workspaces || []).filter(platformItemMatchesSelectedProject);
+  const tasks = (platform.tasks || []).filter(platformItemMatchesSelectedProject);
+  const ordinaryFeedback = (platform.feedback_v1 || []).filter(platformItemMatchesSelectedProject);
   const openTasks = tasks.filter((task) => !task.terminal);
   const attention = [
     ...(platform.automation?.attention_items || []).map((item) => ({ ...item, kind_label: "人工介入" })),
     ...(platform.automation?.recovery_items || []).map((item) => ({ ...item, kind_label: "恢复" })),
     ...tasks.filter((task) => task.state === "blocked").map((task) => ({ ...task, task_id: task.id, kind_label: "待办阻塞", reason: task.content }))
-  ];
-  els.todaySummary.textContent = `${workspaces.length} 个产品同时纳入当前产品集 · ${openTasks.length} 项未结束工作 · ${platform.feedback_v1.length} 条普通反馈。`;
+  ].filter(scopedTaskFilter);
+  els.todaySummary.textContent = `${workspaces.length} 个产品在当前查看范围 · ${openTasks.length} 项未结束工作 · ${ordinaryFeedback.length} 条普通反馈。`;
   els.platformHealthBadge.className = `health-badge ${platform.source_status === "healthy" ? "success" : platform.source_status === "degraded" ? "warning" : "danger"}`;
   els.platformHealthBadge.textContent = platform.source_status === "healthy" ? "平台已同步" : platform.source_status === "degraded" ? "部分数据降级" : sourceStatusLabel(platform.source_status);
   els.platformErrorHost.innerHTML = platform.errors.length
@@ -573,14 +570,15 @@ function renderToday() {
     metric("待推进", tasks.filter((task) => ["pending_review", "pending"].includes(task.state)).length, "完整团队待办，不限当前执行人", ""),
     metric("进行中", tasks.filter((task) => task.state === "in_progress").length, platform.automation?.active_execution ? "ArcOrbit 有 1 个活动执行" : "ArcOrbit 当前待命", "running"),
     metric("需注意", attention.length, attention.length ? "阻塞、人工判断或恢复" : "当前没有异常", attention.length ? "attention" : ""),
-    metric("反馈", platform.feedback_v1.length + Number(platform.automation?.acceptance_feedback_counts?.open || 0), `${platform.feedback_v1.length} 普通 · ${platform.automation?.acceptance_feedback_counts?.open || 0} 验收`, "")
+    metric("用户反馈", ordinaryFeedback.length, ordinaryFeedback.length ? "来自 Workshop Feedback" : "当前没有用户反馈", "")
   ].join("");
   els.todayProductGrid.innerHTML = workspaces.length ? workspaces.map((workspace) => {
     const open = Object.entries(workspace.task_counts || {}).filter(([key]) => !["completed", "accepted", "cancelled"].includes(key)).reduce((sum, [, value]) => sum + Number(value || 0), 0);
     return `<button class="product-card" data-product-work="${escapeHtml(workspace.id)}" type="button"><span class="product-card-head"><i>${escapeHtml(workspace.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(workspace.name)}</strong><small>${escapeHtml(workspace.current_user_role || "member")} · ${workspace.local_project_path ? "已绑定本地项目" : "仅远端"}</small></span></span><span class="product-card-stats"><b>${open}<small>未结束</small></b><b>${workspace.feedback_count}<small>反馈</small></b><b>${workspace.members.length}<small>成员</small></b></span><span class="product-card-foot"><em class="status-pill ${workspace.eligible ? "accepted" : "pending_review"}">${workspace.eligible ? "可自动执行" : workspace.participating ? "待满足执行条件" : "未授权自动领取"}</em><small>打开工作 →</small></span></button>`;
-  }).join("") : `<div class="empty-state platform-empty">当前产品集未选择产品。使用顶部“编辑范围”同时选择一个或多个项目。</div>`;
+  }).join("") : `<div class="empty-state platform-empty">当前产品集未选择产品。使用顶部“管理”选择一个或多个项目。</div>`;
   els.todayProductGrid.querySelectorAll("[data-product-work]").forEach((button) => button.addEventListener("click", () => {
-    state.platformWorkFilter = projectName(button.dataset.productWork).toLowerCase();
+    state.selectedProjectId = button.dataset.productWork;
+    state.platformWorkFilter = "";
     showPage("work");
   }));
   els.todayWorkList.innerHTML = openTasks.length ? `<div class="compact-list">${rankTasks(openTasks).slice(0, 8).map(platformTaskRow).join("")}</div>` : `<div class="empty-state compact">当前产品集没有未结束待办。</div>`;
@@ -680,28 +678,71 @@ function wireOrganizationActions() {
 
 function renderPlatformWork() {
   els.platformWorkFilter.value = state.platformWorkFilter;
-  const tasks = state.platform.tasks.filter((task) => !state.platformWorkFilter || `${task.title} ${task.content} ${task.project_name} ${task.id} ${task.executor_id}`.toLowerCase().includes(state.platformWorkFilter));
-  els.platformWorkTable.innerHTML = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"><col style="width:165px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th><th>管理</th></tr></thead><tbody>${rankTasks(tasks).map((task) => { const canManage = canManagePlatformTask(task); return `<tr><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell">${task.father_id ? `<small class="parent-task-ref">↳ ${escapeHtml(task.father_id)}</small>` : ""}${escapeHtml(task.title)}${task.tags ? `<small class="task-tags">${escapeHtml(Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags)}</small>` : ""}</td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td><td><span class="row-actions">${canManage ? `<button data-platform-task-edit="${escapeHtml(task.id)}" type="button">编辑</button>` : ""}<button data-platform-task-attachment="${escapeHtml(task.id)}" type="button">附件</button>${canManage ? `<button class="danger-action" data-platform-task-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</span></td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">当前产品集或筛选条件下没有待办。</div>`;
+  const scopedTasks = state.platform.tasks.filter(platformItemMatchesSelectedProject);
+  const stateCounts = Object.fromEntries(TASK_STATES.map((taskState) => [taskState, scopedTasks.filter((task) => task.state === taskState).length]));
+  els.workStateFilters.innerHTML = TASK_STATES.map((taskState) => `<button class="work-state-filter ${state.selectedState === taskState ? "is-active" : ""}" data-work-state="${taskState}" type="button" aria-pressed="${state.selectedState === taskState}"><span>${STATE_ICONS[taskState]}</span><strong>${STATE_LABELS[taskState]}</strong><em>${stateCounts[taskState]}</em></button>`).join("");
+  els.workStateSummary.textContent = `${currentProject()?.name || state.platform.active_workset?.name || "当前产品集"} · ${STATE_LABELS[state.selectedState]} ${stateCounts[state.selectedState]} 项`;
+  els.workStateFilters.querySelectorAll("[data-work-state]").forEach((button) => button.addEventListener("click", () => openWorkState(button.dataset.workState)));
+  const tasks = rankTasks(scopedTasks.filter((task) => task.state === state.selectedState && (!state.platformWorkFilter || `${task.title} ${task.content} ${task.project_name} ${task.id} ${task.executor_id}`.toLowerCase().includes(state.platformWorkFilter))));
+  if (!tasks.some((task) => String(task.id) === String(state.selectedPlatformTaskId))) state.selectedPlatformTaskId = String(tasks[0]?.id || "");
+  const selectedTask = tasks.find((task) => String(task.id) === String(state.selectedPlatformTaskId)) || null;
+  els.platformWorkTable.innerHTML = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"><col style="width:165px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th><th>管理</th></tr></thead><tbody>${tasks.map((task) => { const canManage = canManagePlatformTask(task); return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell">${task.father_id ? `<small class="parent-task-ref">↳ ${escapeHtml(task.father_id)}</small>` : ""}${escapeHtml(task.title)}${task.tags ? `<small class="task-tags">${escapeHtml(Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags)}</small>` : ""}</td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td><td><span class="row-actions">${canManage ? `<button data-platform-task-edit="${escapeHtml(task.id)}" type="button">编辑</button>` : ""}<button data-platform-task-attachment="${escapeHtml(task.id)}" type="button">附件</button>${canManage ? `<button class="danger-action" data-platform-task-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</span></td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">当前产品集或筛选条件下没有待办。</div>`;
+  els.platformWorkTable.querySelectorAll("[data-platform-task-select]").forEach((row) => row.addEventListener("click", (event) => {
+    if (event.target.closest("button")) return;
+    state.selectedPlatformTaskId = row.dataset.platformTaskSelect;
+    renderPlatformWork();
+  }));
   els.platformWorkTable.querySelectorAll("[data-platform-task-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editTask(button.dataset.platformTaskEdit))));
   els.platformWorkTable.querySelectorAll("[data-platform-task-attachment]").forEach((button) => button.addEventListener("click", () => runAction(() => manageTaskAttachments(button.dataset.platformTaskAttachment))));
   els.platformWorkTable.querySelectorAll("[data-platform-task-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteTask(button.dataset.platformTaskDelete))));
+  renderPlatformWorkInspector(selectedTask);
+}
+
+function renderPlatformWorkInspector(task) {
+  if (!task) {
+    els.platformWorkInspector.innerHTML = `<div class="empty-state">选择待办查看详情与允许操作。</div>`;
+    return;
+  }
+  const workspace = state.platform.product_workspaces.find((item) => String(item.id) === String(task.project_id));
+  const automationTask = state.snapshot.tasks.find((item) => String(item.id) === String(task.id)) || null;
+  const feedbackItems = automationTask?.acceptance_feedback_items || [];
+  const canManage = canManagePlatformTask(task);
+  const automationActions = automationTask ? taskActions(automationTask) : [];
+  const acceptanceFeedback = automationTask?.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-work-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="workAcceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitWorkAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : automationTask?.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
+  els.platformWorkInspector.innerHTML = `<h2>${escapeHtml(task.title)}</h2><p>${escapeHtml(task.content || "没有补充内容")}</p><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${factRows([
+    ["待办标识", task.id],
+    ["所属产品", task.project_name],
+    ["执行人", task.assignee?.username || task.assignee?.name || task.executor_id || "未分配"],
+    ["优先级", formatPriority(task.priority)],
+    ["父待办", task.father_id || "无"],
+    ["本地工作区", automationTask?.local_project_path || workspace?.local_path || "未绑定"],
+    ["自动执行资格", automationTask ? (automationTask.eligible ? `队列第 ${automationTask.queue_position} 项` : automationTask.eligibility_reason || "不适用于当前状态") : "不在当前用户 Automation 范围"]
+  ])}<div class="task-actions platform-work-management">${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${automationActions.length ? `<div class="task-actions platform-work-automation">${automationActions.map((action) => `<button class="${action.primary ? "primary-button" : "secondary-button"}" data-work-task-action="${action.id}" type="button">${action.label}</button>`).join("")}</div>` : ""}${acceptanceFeedback}`;
+  els.platformWorkInspector.querySelector("[data-work-inspector-edit]")?.addEventListener("click", () => runAction(() => editTask(task.id)));
+  els.platformWorkInspector.querySelector("[data-work-inspector-attachment]")?.addEventListener("click", () => runAction(() => manageTaskAttachments(task.id)));
+  els.platformWorkInspector.querySelector("[data-work-inspector-delete]")?.addEventListener("click", () => runAction(() => deleteTask(task.id)));
+  els.platformWorkInspector.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeTaskAction(automationTask, button.dataset.workTaskAction))));
+  els.platformWorkInspector.querySelectorAll("[data-work-task-feedback]").forEach((button) => button.addEventListener("click", () => {
+    const item = feedbackItems.find((entry) => entry.feedback_id === button.dataset.workTaskFeedback);
+    if (item) openWorkbench("review", item.current_run_id || item.source_run_id, { task: automationTask, feedbackId: item.feedback_id });
+  }));
+  els.platformWorkInspector.querySelector("#submitWorkAcceptanceFeedbackButton")?.addEventListener("click", () => runAction(async () => {
+    const input = els.platformWorkInspector.querySelector("#workAcceptanceFeedbackInput");
+    const message = input.value.trim();
+    if (!message) throw new Error("请先描述验收问题。");
+    const key = globalThis.crypto?.randomUUID?.() || `${task.id}-${Date.now()}`;
+    await api.submitAcceptanceFeedback({ taskId: task.id, message, idempotencyKey: key });
+    input.value = "";
+    await refreshSnapshot();
+  }));
 }
 
 function renderPlatformFeedback() {
-  const ordinary = state.platform.feedback_v1 || [];
-  const acceptance = state.snapshot.acceptance_feedback_queue || [];
+  const ordinary = (state.platform.feedback_v1 || []).filter(platformItemMatchesSelectedProject);
   els.ordinaryFeedbackTable.innerHTML = ordinary.length ? `<table class="data-table feedback-data-table"><colgroup><col style="width:75px"><col><col style="width:105px"><col style="width:70px"><col style="width:85px"><col style="width:155px"></colgroup><thead><tr><th>反馈</th><th>内容</th><th>产品</th><th>优先级</th><th>关联待办</th><th>管理</th></tr></thead><tbody>${ordinary.map((item) => `<tr><td>${escapeHtml(item.short_id || item.id)}</td><td class="task-title-cell">${escapeHtml(item.title || item.content || "未命名反馈")}${item.ignored ? " · 已忽略" : ""}</td><td>${escapeHtml(item.project_name)}</td><td>${escapeHtml(item.priority || "未设置")}</td><td>${escapeHtml(item.linked_task_id || "未关联")}</td><td><span class="row-actions"><button data-feedback-edit="${escapeHtml(item.id)}" type="button">编辑</button><button data-feedback-task="${escapeHtml(item.id)}" type="button">转待办</button>${["owner", "admin"].includes(state.platform.product_workspaces.find((workspace) => String(workspace.id) === String(item.project_id))?.current_user_role) ? `<button class="danger-action" data-feedback-delete="${escapeHtml(item.id)}" type="button">删除</button>` : ""}</span></td></tr>`).join("")}</tbody></table>` : `<div class="empty-state">当前产品集没有普通用户反馈。</div>`;
   els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editFeedback(button.dataset.feedbackEdit))));
   els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-task]").forEach((button) => button.addEventListener("click", () => runAction(() => feedbackToTask(button.dataset.feedbackTask))));
   els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteFeedback(button.dataset.feedbackDelete))));
-  els.acceptanceFeedbackPlatformTable.innerHTML = acceptance.length ? `<div class="compact-list">${acceptance.map((item) => `<button class="compact-row feedback-action" data-platform-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback || item.feedback_id)}</strong><small>${escapeHtml(projectName(item.project_id))} · 来源待办 ${escapeHtml(item.source_task_id)}</small></span><em class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status || "queued")}</em></button>`).join("")}</div>` : `<div class="empty-state">没有待处理的 ArcOrbit 验收反馈。</div>`;
-  els.acceptanceFeedbackPlatformTable.querySelectorAll("[data-platform-feedback]").forEach((button) => button.addEventListener("click", () => {
-    const item = acceptance.find((entry) => String(entry.feedback_id) === button.dataset.platformFeedback);
-    if (!item) return;
-    const task = state.snapshot.tasks.find((entry) => String(entry.id) === String(item.source_task_id));
-    if (item.current_run_id || item.source_run_id) openWorkbench("review", item.current_run_id || item.source_run_id, { task, feedbackId: item.feedback_id });
-    else openTaskBrowser(task?.state || "completed", task?.id || item.source_task_id);
-  }));
   if (state.platform.capabilities.feedback_v2 === "unavailable") {
     els.ordinaryFeedbackTable.insertAdjacentHTML("afterbegin", `<div class="capability-notice"><strong>Feedback V2 尚未接入</strong><span>本页严格使用现有 Workshop Feedback V1 接口，不伪造 V2 能力。</span></div>`);
   }
@@ -756,8 +797,8 @@ async function editCurrentWorkset() {
   if (!activeWorkset) throw new Error("当前没有可更新的产品集。");
   const selected = new Set(activeWorkset.project_ids || []);
   const values = await openPlatformAction({
-    title: `编辑 ${activeWorkset.name}`,
-    lead: "同时选择要在 Today、Work 和 Feedback 展示的产品；不会改变组织治理或 Automation participation。",
+    title: `管理 ${activeWorkset.name}`,
+    lead: "同时选择要在 Today、Work、Automation 和 Feedback 展示的产品；不会改变组织治理或 Automation participation。",
     confirmLabel: "保存推进范围",
     fields: [platformCheckboxGroup("project_ids", "展示产品", (state.platform.projects || []).map((project) => ({ value: project.id, label: project.name, detail: project.organization_id ? organizationName(project.organization_id) : "个人项目", checked: selected.has(String(project.id)) })))]
   });
@@ -904,6 +945,10 @@ async function editTask(taskId) {
     ]
   });
   if (!values) return;
+  const automationTask = state.snapshot.tasks.find((item) => String(item.id) === String(task.id));
+  if (values.state === "accepted" && (automationTask?.acceptance_feedback_items || []).some((item) => !["resolved", "cancelled"].includes(item.status))) {
+    throw new Error("仍有未解决的验收问题，不能标记为已验收。");
+  }
   await executeManagedAction("task.update", { task_id: task.id, ...values }, "待办已更新");
 }
 
@@ -1126,22 +1171,28 @@ function servicePriority(value) { const number = Number(value || 0); return numb
 
 function renderCommandCenter() {
   const snapshot = state.snapshot;
-  const scopedProjects = state.selectedProjectId === "all" ? snapshot.projects : snapshot.projects.filter((project) => String(project.id) === state.selectedProjectId);
-  const scopedQueue = state.selectedProjectId === "all" ? snapshot.queue : snapshot.queue.filter((task) => String(task.project_id) === state.selectedProjectId);
+  const worksetProjects = automationProjectsInActiveWorkset();
+  const scopedProjects = state.selectedProjectId === "all" ? worksetProjects : worksetProjects.filter((project) => String(project.id) === state.selectedProjectId);
+  const scopedQueue = snapshot.queue.filter(scopedTaskFilter);
   const scopedBlockedPending = (snapshot.blocked_pending_tasks || []).filter(scopedTaskFilter);
-  const scopedFeedback = snapshot.acceptance_feedback_queue || [];
-  els.commandHeading.textContent = state.selectedProjectId === "all" ? "跨项目自动领取态势" : `${currentProject()?.name || "项目"} 自动领取态势`;
+  const scopedFeedback = (snapshot.acceptance_feedback_queue || []).filter(scopedTaskFilter);
+  els.commandHeading.textContent = state.selectedProjectId === "all" ? "产品集自动领取态势" : `${currentProject()?.name || "项目"} 自动领取态势`;
   els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
   els.healthBadge.className = `health-badge ${snapshot.health?.tone === "success" ? "success" : snapshot.health?.tone === "danger" ? "danger" : snapshot.health?.tone === "warning" ? "warning" : ""}`;
   els.healthBadge.textContent = snapshot.health?.label || "待命";
   els.queuePauseButton.textContent = snapshot.queue_paused ? "继续领取" : "暂停领取";
   els.queuePauseButton.disabled = !snapshot.enabled;
+  els.acceptanceFeedbackOnlyButton.classList.toggle("is-active", state.acceptanceFeedbackOnly);
+  els.acceptanceFeedbackOnlyButton.setAttribute("aria-pressed", String(state.acceptanceFeedbackOnly));
+  els.acceptanceFeedbackOnlyButton.textContent = state.acceptanceFeedbackOnly ? "显示全部自动化" : "仅看验收问题";
+  els.ordinaryQueueCard.classList.toggle("hidden", state.acceptanceFeedbackOnly);
+  els.recentCompletionsCard.classList.toggle("hidden", state.acceptanceFeedbackOnly);
 
-  const runningCount = snapshot.active_task && (state.selectedProjectId === "all" || String(snapshot.active_task.project_id) === state.selectedProjectId) ? 1 : 0;
+  const runningCount = activeExecutionMatchesSelectedProject(snapshot.active_task) ? 1 : 0;
   const humanAttentionCount = snapshot.attention_items.filter(scopedTaskFilter).length;
-  const recoveryCount = snapshot.recovery_items.filter(scopedTaskFilter).length;
+  const recoveryCount = snapshot.recovery_items.length;
   const attentionCount = humanAttentionCount + recoveryCount;
-  els.metricGrid.innerHTML = [
+  const metrics = [
     metric("自动领取", snapshot.health?.label || "待命", sourceStatusLabel(snapshot.source_status), snapshot.health?.tone === "success" ? "healthy" : ""),
     metric("待处理事项", attentionCount, humanAttentionCount
       ? `${humanAttentionCount} 项需要人工决策`
@@ -1149,10 +1200,12 @@ function renderCommandCenter() {
         ? `${recoveryCount} 项需要恢复自动化`
         : "没有待处理事项", attentionCount ? "attention" : ""),
     metric("运行中", runningCount, snapshot.active_task?.phase || "没有活动任务", runningCount ? "running" : ""),
-    metric("普通待办队列", scopedQueue.length, scopedQueue[0] ? `下一项 ${scopedQueue[0].id}` : scopedBlockedPending.length ? `${scopedBlockedPending.length} 项尚未启用` : "没有可执行任务", scopedBlockedPending.length ? "attention" : ""),
-    metric("验收反馈队列", scopedFeedback.length, scopedFeedback.length ? `${snapshot.acceptance_feedback_counts?.queued || 0} queued · ${snapshot.acceptance_feedback_counts?.blocked || 0} blocked` : "没有待处理验收问题", scopedFeedback.length ? "running" : "")
-  ].join("");
-  renderAttention(scopedBlockedPending);
+    ...(!state.acceptanceFeedbackOnly ? [metric("普通待办队列", scopedQueue.length, scopedQueue[0] ? `下一项 ${scopedQueue[0].id}` : scopedBlockedPending.length ? `${scopedBlockedPending.length} 项尚未启用` : "没有可执行任务", scopedBlockedPending.length ? "attention" : "")] : []),
+    metric("验收问题队列", scopedFeedback.length, scopedFeedback.length ? `${snapshot.acceptance_feedback_counts?.queued || 0} queued · ${snapshot.acceptance_feedback_counts?.blocked || 0} blocked` : "没有待处理验收问题", scopedFeedback.length ? "running" : "")
+  ];
+  els.metricGrid.innerHTML = metrics.join("");
+  els.metricGrid.classList.toggle("acceptance-only", state.acceptanceFeedbackOnly);
+  renderAttention(state.acceptanceFeedbackOnly ? [] : scopedBlockedPending);
   renderCurrentRun(scopedBlockedPending);
   renderQueue(scopedQueue, scopedBlockedPending);
   renderAcceptanceFeedbackQueue(scopedFeedback);
@@ -1163,7 +1216,7 @@ function renderCommandCenter() {
 function renderAcceptanceFeedbackQueue(items) {
   els.feedbackQueueSummary.textContent = `${items.length} 项`;
   if (!items.length) {
-    els.feedbackQueueTable.innerHTML = `<div class="empty-state">当前范围没有待处理验收反馈。</div>`;
+    els.feedbackQueueTable.innerHTML = `<div class="empty-state">当前范围没有待处理验收问题。</div>`;
     return;
   }
   els.feedbackQueueTable.innerHTML = `<table class="data-table"><colgroup><col style="width:42px"><col><col style="width:110px"><col style="width:150px"><col style="width:110px"></colgroup><thead><tr><th>#</th><th>问题</th><th>来源待办</th><th>进展</th><th>状态</th></tr></thead><tbody>${items.map((item) => `<tr data-feedback-id="${escapeHtml(item.feedback_id)}" data-feedback-task="${escapeHtml(item.source_task_id)}"><td class="queue-number">${item.queue_position}</td><td class="task-title-cell">${escapeHtml(item.original_feedback)}</td><td>${escapeHtml(item.source_task_id)}</td><td>${escapeHtml(item.progress)}</td><td><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></td></tr>`).join("")}</tbody></table>`;
@@ -1177,7 +1230,7 @@ function renderAcceptanceFeedbackQueue(items) {
 
 function renderAttention(blockedPendingTasks = []) {
   const attention = state.snapshot.attention_items.find(scopedTaskFilter);
-  const recovery = state.snapshot.recovery_items.find(scopedTaskFilter);
+  const recovery = state.snapshot.recovery_items[0];
   const blocked = blockedPendingTasks.find((task) => task.eligibility_code === "project_not_participating") || blockedPendingTasks[0];
   if (!attention && !recovery && state.snapshot.enabled && blocked) {
     const project = state.snapshot.projects.find((item) => String(item.id) === String(blocked.project_id));
@@ -1210,8 +1263,8 @@ function renderAttention(blockedPendingTasks = []) {
 function renderCurrentRun(blockedPendingTasks = []) {
   const active = state.snapshot.active_task;
   const run = state.snapshot.active_run;
-  if (!active || (state.selectedProjectId !== "all" && String(active.project_id) !== state.selectedProjectId)) {
-    els.currentRunPanel.innerHTML = `<div class="run-empty"><div><strong>没有活动任务</strong><p>${state.snapshot.queue.length ? "自动化将从下一队列领取一项任务。" : blockedPendingTasks.length ? "存在待处理任务，但项目尚未满足自动执行条件。" : "同步后继续监听待处理任务。"}</p></div></div>`;
+  if (!activeExecutionMatchesSelectedProject(active)) {
+    els.currentRunPanel.innerHTML = `<div class="run-empty"><div><strong>没有活动任务</strong><p>${state.snapshot.queue.some(scopedTaskFilter) ? "自动化将从下一队列领取一项任务。" : blockedPendingTasks.length ? "存在待处理任务，但项目尚未满足自动执行条件。" : "同步后继续监听待处理任务。"}</p></div></div>`;
     els.currentRunActions.innerHTML = "";
     return;
   }
@@ -1288,7 +1341,11 @@ function renderCommandInspector(projects) {
     ["并发边界", "单活动任务"]
   ]);
   els.projectBindingList.innerHTML = projects.length ? projects.map((project) => {
-    const options = [`<option value="">未绑定</option>`, ...snapshot.local_projects.map((local) => `<option value="${escapeHtml(local.id)}" ${local.id === project.local_project_id ? "selected" : ""}>${escapeHtml(local.name)}</option>`)].join("");
+    const options = [
+      `<option value="">未绑定</option>`,
+      ...snapshot.local_projects.map((local) => `<option value="${escapeHtml(local.id)}" ${local.id === project.local_project_id ? "selected" : ""}>${escapeHtml(local.name)}</option>`),
+      `<option value="__add_local_project__">＋ 添加本地项目…</option>`
+    ].join("");
     const qualification = !project.local_project_id ? "先绑定工作区" : project.participating ? project.source_status === "healthy" ? "已具备资格" : project.source_status : "尚未允许";
     return `<div class="binding-row" data-binding-project="${escapeHtml(project.id)}"><strong>${escapeHtml(project.name)}</strong><select aria-label="${escapeHtml(project.name)} 本地工作区">${options}</select><label class="participation-row"><input type="checkbox" ${project.participating ? "checked" : ""} ${project.local_project_id ? "" : "disabled"}>允许自动领取 · ${escapeHtml(qualification)}</label></div>`;
   }).join("") : `<div class="empty-state">同步后可绑定远端项目。</div>`;
@@ -1297,7 +1354,14 @@ function renderCommandInspector(projects) {
     const select = row.querySelector("select");
     const checkbox = row.querySelector("input[type=checkbox]");
     select.addEventListener("change", () => runAction(async () => {
-      await api.bindAutomationProject(remoteId, select.value);
+      let localProjectId = select.value;
+      if (localProjectId === "__add_local_project__") {
+        select.value = projects.find((project) => String(project.id) === remoteId)?.local_project_id || "";
+        const localProject = await api.pickProject();
+        if (!localProject) return;
+        localProjectId = localProject.id;
+      }
+      await api.bindAutomationProject(remoteId, localProjectId);
       await refreshSnapshot();
     }));
     checkbox.addEventListener("change", () => runAction(async () => {
@@ -1309,7 +1373,7 @@ function renderCommandInspector(projects) {
 
 function renderTaskBrowser() {
   els.taskBrowserHeading.textContent = STATE_LABELS[state.selectedState];
-  els.taskBrowserSummary.textContent = `${currentProject()?.name || "所有项目"} · ${state.snapshot.tasks.length} 项 · 选择只改变观察范围`;
+  els.taskBrowserSummary.textContent = `${currentProject()?.name || "项目集全部"} · ${state.snapshot.tasks.filter(scopedTaskFilter).length} 项 · 选择只改变观察范围`;
   els.taskSnapshotTime.textContent = state.snapshot.synced_at ? `服务器快照 ${formatDateTime(state.snapshot.synced_at)}` : "尚未同步";
   els.taskFilterInput.value = state.taskFilter;
   renderTaskTable();
@@ -1317,7 +1381,7 @@ function renderTaskBrowser() {
 }
 
 function renderTaskTable() {
-  const tasks = state.snapshot.tasks.filter((task) => !state.taskFilter || `${task.title} ${task.content} ${task.project_name} ${task.id}`.toLowerCase().includes(state.taskFilter));
+  const tasks = state.snapshot.tasks.filter(scopedTaskFilter).filter((task) => !state.taskFilter || `${task.title} ${task.content} ${task.project_name} ${task.id}`.toLowerCase().includes(state.taskFilter));
   if (!tasks.length) {
     els.taskTable.innerHTML = `<div class="empty-state">当前筛选没有${STATE_LABELS[state.selectedState]}任务。</div>`;
     return;
@@ -1337,7 +1401,7 @@ function renderTaskInspector() {
     return;
   }
   const feedbackItems = task.acceptance_feedback_items || [];
-  const acceptanceFeedback = ["completed", "accepted"].includes(task.state) ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项独立反馈</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未提交验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提交验收问题</span><textarea id="acceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>来源待办保持${task.state_label}；反馈进入独立队列并复用同一 Agent 对话。</small><button id="submitAcceptanceFeedbackButton" class="primary-button" type="button">提交验收问题</button></label></section>` : "";
+  const acceptanceFeedback = task.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="acceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : task.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
   els.taskInspector.innerHTML = `<h2>${escapeHtml(task.title)}</h2><p>${escapeHtml(task.content || "没有补充内容")}</p><span class="status-pill ${task.state}">${escapeHtml(task.state_label)}</span>${factRows([
     ["任务标识", task.id],
     ["所属项目", task.project_name],
@@ -1451,10 +1515,10 @@ function renderWorkbench() {
   const attention = state.snapshot.attention_items.find((item) => !active || item.task_id === active.task_id);
   const taskId = sourceTask?.id || completion?.task_id || active?.task_id || "";
   const projectId = sourceTask?.project_id || completion?.project_id || active?.project_id || "";
-  const acceptanceReview = Boolean(sourceTask && ["completed", "accepted"].includes(sourceTask.state));
+  const acceptanceReview = Boolean(sourceTask && sourceTask.state === "completed");
   els.workbenchTitle.textContent = sourceTask?.title || completion?.title || active?.task_title || "执行对话审查";
   els.workbenchMode.className = `status-pill ${state.workbenchMode === "intervention" ? "pending" : acceptanceReview ? "completed" : "pending_review"}`;
-  els.workbenchMode.textContent = state.workbenchMode === "intervention" ? "人工处理" : acceptanceReview ? "验收反馈" : "只读审查";
+  els.workbenchMode.textContent = state.workbenchMode === "intervention" ? "人工处理" : acceptanceReview ? "验收问题" : "只读审查";
   els.interventionComposer.classList.toggle("hidden", state.workbenchMode !== "intervention" && !acceptanceReview);
   els.interveneCurrentButton.classList.toggle("hidden", state.workbenchMode === "intervention" || !active || Boolean(completion) || acceptanceReview);
   els.interventionInput.disabled = state.interventionSubmitting;
@@ -1479,8 +1543,8 @@ function renderWorkbench() {
     ["Task Session", taskSessionId || "未建立"],
     ["远端项目", projectId],
     ["本地工作区", active?.local_project_path || completion?.local_project_id || "已归档"],
-    ["审查范围", acceptanceReview ? "历史执行只读 · 可新增验收反馈" : completion ? "历史完成 Run · 只读" : state.workbenchMode === "intervention" ? "当前 Run · 人工处理" : "当前 Run · 只读"],
-    ["验收反馈", acceptanceReview ? `${sourceTask.acceptance_feedback_items?.length || 0} 项${feedbackItem ? ` · 当前 ${feedbackItem.feedback_id}` : ""}` : "不适用"],
+    ["审查范围", acceptanceReview ? "历史执行只读 · 可提出验收问题" : completion ? "历史完成 Run · 只读" : state.workbenchMode === "intervention" ? "当前 Run · 人工处理" : "当前 Run · 只读"],
+    ["验收问题", acceptanceReview ? `${sourceTask.acceptance_feedback_items?.length || 0} 项${feedbackItem ? ` · 当前 ${feedbackItem.feedback_id}` : ""}` : "不适用"],
     ["Selected Gap", selectedGap?.id || "尚未选择"],
     ["已加载事实", `${sourceFacts.length} 项源事实 · ${implementationEvidence.length} 项实现证据`],
     ["执行边界", activity.controller_frame?.round_goal || run?.task || "由当前任务与 Case 限定"],
@@ -1589,7 +1653,7 @@ function renderRecovery() {
     els.recoveryList.innerHTML = `<div class="panel-card empty-state"><div><strong>没有待恢复事项</strong><p>服务器事实、本地 Runtime 与队列状态一致。</p></div></div>`;
     return;
   }
-  els.recoveryList.innerHTML = items.map((item) => `<article class="recovery-card"><div class="recovery-marker"></div><div class="recovery-body"><h2>${escapeHtml(RECOVERY_LABELS[item.type] || item.type)}</h2><p>${escapeHtml(item.message)}</p><div class="recovery-meta"><span>任务 ${escapeHtml(item.task_id)}</span><span>冻结范围 ${escapeHtml(item.freeze_scope)}</span><span>责任方 ${escapeHtml(item.responsibility === "operator" ? "Runtime 操作员" : item.responsibility)}</span></div>${item.actions.includes("feedback_continue") ? `<div class="recovery-feedback"><label for="feedback-${escapeHtml(item.id)}">补充给 Agent 的反馈</label><textarea id="feedback-${escapeHtml(item.id)}" data-recovery-feedback="${escapeHtml(item.id)}" rows="3" placeholder="补充事实、纠正方向或说明希望 Agent 如何继续…"></textarea><small>反馈会发送到当前任务的同一 Agent 对话，并在对话页面保留。</small></div>` : ""}<div class="recovery-actions">${item.actions.map((action) => `<button class="${action === "mark_blocked" ? "secondary-button" : "primary-button"}" data-recovery-id="${escapeHtml(item.id)}" data-recovery-action="${escapeHtml(action)}" type="button">${escapeHtml(RECOVERY_ACTION_LABELS[action] || action)}</button>`).join("")}</div></div></article>`).join("");
+  els.recoveryList.innerHTML = items.map((item) => `<article class="recovery-card"><div class="recovery-marker"></div><div class="recovery-body"><h2>${escapeHtml(RECOVERY_LABELS[item.type] || item.type)}</h2><p>${escapeHtml(item.message)}</p><div class="recovery-meta"><span>任务 ${escapeHtml(item.task_id)}</span><span>冻结范围 ${escapeHtml(item.freeze_scope)}</span><span>责任方 ${escapeHtml(item.responsibility === "operator" ? "Runtime 操作员" : item.responsibility)}</span></div>${item.actions.includes("feedback_continue") ? `<div class="recovery-feedback"><label for="feedback-${escapeHtml(item.id)}">补充给 Agent 的说明</label><textarea id="feedback-${escapeHtml(item.id)}" data-recovery-feedback="${escapeHtml(item.id)}" rows="3" placeholder="补充事实、纠正方向或说明希望 Agent 如何继续…"></textarea><small>说明会发送到当前任务的同一 Agent 对话，并在对话页面保留。</small></div>` : ""}<div class="recovery-actions">${item.actions.map((action) => `<button class="${action === "mark_blocked" ? "secondary-button" : "primary-button"}" data-recovery-id="${escapeHtml(item.id)}" data-recovery-action="${escapeHtml(action)}" type="button">${escapeHtml(RECOVERY_ACTION_LABELS[action] || action)}</button>`).join("")}</div></div></article>`).join("");
   els.recoveryList.querySelectorAll("[data-recovery-action]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
     const action = button.dataset.recoveryAction;
     if (action === "mark_blocked" && !window.confirm("标记阻塞会更新远端任务状态并释放活动任务。继续吗？")) return;
@@ -1608,6 +1672,13 @@ function openTaskBrowser(taskState = "pending", taskId = "") {
   state.selectedTaskId = taskId;
   state.page = "tasks";
   refreshSnapshot().catch((error) => showToast(error.message));
+}
+
+function openWorkState(taskState = "pending") {
+  state.selectedState = TASK_STATES.includes(taskState) ? taskState : "pending";
+  state.selectedPlatformTaskId = "";
+  state.page = "work";
+  render();
 }
 
 function showPage(page) {
@@ -1702,7 +1773,7 @@ function renderAuthPanel() {
   els.authTarget.placeholder = state.authType === "email" ? "name@example.com" : "+86 13800000000";
   els.authStatusPill.className = `account-status ${auth.status}`;
   els.authStatusPill.textContent = { authenticated: "已登录", refreshing: "刷新中", expired: "登录已过期", logged_out: "未登录" }[auth.status] || "未登录";
-  els.authIdentity.textContent = authenticated ? auth.masked_identity || auth.identity || "Workshop 用户" : expired ? "请重新登录 Workshop" : "登录后同步你的项目和待办";
+  els.authIdentity.textContent = authenticated ? currentWorkshopUserName() : expired ? "请重新登录 Workshop" : "登录后同步你的项目和待办";
   els.authDescription.textContent = authenticated ? "项目和待办将按当前账户同步。" : "验证码和令牌仅由主进程处理。";
   els.authLoginPanel.classList.toggle("hidden", authenticated);
   els.authSessionPanel.classList.toggle("hidden", !authenticated);
@@ -1823,7 +1894,34 @@ async function saveSettings() {
 }
 
 function currentProject() {
-  return state.selectedProjectId === "all" ? null : state.snapshot.projects.find((project) => String(project.id) === state.selectedProjectId) || null;
+  return state.selectedProjectId === "all" ? null
+    : state.platform.projects.find((project) => String(project.id) === state.selectedProjectId)
+      || state.snapshot.projects.find((project) => String(project.id) === state.selectedProjectId)
+      || null;
+}
+
+function automationProjectsInActiveWorkset() {
+  const projectIds = new Set((state.platform.active_workset?.project_ids || []).map(String));
+  return state.snapshot.projects.filter((project) => projectIds.has(String(project.id)));
+}
+
+function advanceProjectsInActiveWorkset() {
+  const projectIds = new Set((state.platform.active_workset?.project_ids || []).map(String));
+  return (state.platform.projects || []).filter((project) => projectIds.has(String(project.id)));
+}
+
+function platformItemMatchesSelectedProject(item) {
+  return state.selectedProjectId === "all" || String(item.project_id || item.id || "") === state.selectedProjectId;
+}
+
+function currentWorkshopUserName() {
+  const platformUser = state.platform.user || {};
+  const auth = state.authentication || {};
+  return platformUser.name || platformUser.username || auth.display_name || auth.masked_identity || auth.identity || "Workshop 账户";
+}
+
+function activeExecutionMatchesSelectedProject(active) {
+  return Boolean(active);
 }
 
 function projectName(projectId) {
@@ -1862,11 +1960,11 @@ function selectedTask() {
 }
 
 function scopedTaskFilter(item) {
-  return state.selectedProjectId === "all" || String(item.project_id) === state.selectedProjectId;
-}
-
-function navProject({ id, name, count, warning = false }) {
-  return `<button class="nav-item ${String(id) === state.selectedProjectId ? "is-active" : ""} ${warning ? "warning" : ""}" data-project-id="${escapeHtml(id)}" type="button"><span>${String(id) === "all" ? "◆" : "◇"}</span><strong>${escapeHtml(name)}</strong><em>${count}</em></button>`;
+  const projectId = String(item.project_id || item.source_project_id || "");
+  if (!projectId && item.freeze_scope === "global") return true;
+  if (state.selectedProjectId !== "all") return projectId === state.selectedProjectId;
+  const projectIds = new Set((state.platform.active_workset?.project_ids || []).map(String));
+  return projectIds.has(projectId);
 }
 
 function metric(label, value, description, className) {
@@ -1888,8 +1986,8 @@ function taskActions(task) {
   if (task.state === "pending_review") return [{ id: "confirm", label: "确认可处理", primary: true }, { id: "cancel", label: "取消" }];
   if (task.state === "pending") return [{ id: "cancel", label: "取消" }];
   if (task.state === "in_progress") return [{ id: "review", label: "查看运行", primary: true }, { id: "block", label: "标记阻塞" }];
-  if (task.state === "completed") return [{ id: "review", label: "审查结果" }, { id: "accept", label: "标记已验收", primary: true }];
-  if (task.state === "accepted") return [{ id: "review", label: "查看结果与验收反馈", primary: true }];
+  if (task.state === "completed") return [{ id: "review", label: "审查结果" }, ...((task.acceptance_feedback_items || []).some((item) => !["resolved", "cancelled"].includes(item.status)) ? [] : [{ id: "accept", label: "标记已验收", primary: true }])];
+  if (task.state === "accepted") return [{ id: "review", label: "查看验收结果", primary: true }];
   if (task.state === "blocked") return [{ id: "resume", label: "返回待处理", primary: true }, { id: "cancel", label: "取消" }];
   return [];
 }
@@ -2099,12 +2197,10 @@ function emptyPlatformSnapshot() {
       queue_paused: false,
       source_status: "logged_out",
       health: { state: "logged_out", label: "等待登录", tone: "neutral" },
-      queue: [],
-      active_execution: null,
-      attention_items: [],
-      recovery_items: [],
-      acceptance_feedback_queue: [],
-      acceptance_feedback_counts: { open: 0 }
+          queue: [],
+          active_execution: null,
+          attention_items: [],
+          recovery_items: []
     },
     capabilities: {
       organizations: "unavailable",

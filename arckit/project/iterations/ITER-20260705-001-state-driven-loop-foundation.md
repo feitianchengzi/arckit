@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-18T09:57:24.729Z
+Updated: 2026-08-18T16:52:30.172Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,8 +17,6 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260817-005-implement-arcorbit-multi-product-development-platform.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260817-005-implement-arcorbit-multi-product-development-platform.md)
 - software_decision.experience_and_interaction: stale (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
 - project_gap.GAP-platform-organization-management: add (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
@@ -27,6 +25,8 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
 - project_gap.GAP-platform-organization-management: resolve (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-004-consolidate-arcorbit-automation-filters-and-account-navigation.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md)
 
 ## Remaining Project Gaps
 

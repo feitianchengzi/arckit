@@ -14,17 +14,17 @@
 - setup-readiness/ 环境准备页面：独立 ArcOrbit 状态检查、skills 安装计划、typed 升级恢复、事务 apply 与阻塞恢复。✅
   - default.html 环境准备线框：检查、计划、执行、完成、typed 升级恢复和失败恢复。✅ (91行)
   - interaction.md 环境准备交互：启动门禁、typed drift 分类、备份恢复、bundle 重装兜底与异常恢复。✅ (154行)
-- platform-workspace/ 多产品平台工作区：以 Workset 同时推进多个产品，并用独立 Organization Center 管理组织、成员与项目全貌。✅
-  - default.html 平台首页线框：Advance/Platform 分组、Today 多产品态势与顶部 Workset 编辑。✅ (5行)
+- platform-workspace/ 多产品平台工作区：以全局顶部产品集范围推进多个产品，并用独立 Organization Center 管理组织、成员与项目全貌。✅
+  - default.html 平台首页线框：Advance/Platform 分组、全局产品范围、项目集管理与账户头像入口。✅ (51行)
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系和项目上下文通用邀请。✅ (7行)
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
-  - interaction.md 平台交互：Workset/治理解耦、组织三级管理、邀请语义、分页与推进页面边界。✅ (109行)
-- automation-workspace/ 自动化指挥中心：项目来源、普通待办与验收反馈双队列、统一执行仲裁、Runtime/交互式 CLI 接力、人工关注与安全恢复。✅
-  - default.html 指挥中心线框：项目列表与范围、待办/反馈独立指标与队列、自动领取、Runtime/CLI 接管、空态与恢复。✅ (291行)
+  - interaction.md 平台交互：全局产品范围/治理解耦、组织三级管理、项目绑定、账户入口与推进页面边界。✅ (115行)
+- automation-workspace/ 自动化指挥中心：全局产品范围、普通待办与验收问题双队列、验收问题筛选、Runtime/CLI 接力与恢复。✅
+  - default.html 指挥中心线框：顶部产品范围、仅看验收问题、项目绑定、双队列、Runtime/CLI 接管与恢复。✅ (299行)
   - authentication.html 账号设置线框：已登录摘要、七天无活动失效恢复与退出。✅ (51行)
   - intervention-workbench.html 介入工作台线框：固定三栏与 Composer、可折叠思考、结构化结果、Agent 正式消息及单行工具活动。✅ (99行)
-  - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、用户反馈续跑、安全停止、外部状态变化与任务源异常。✅ (137行)
-  - interaction.md 自动化指挥中心交互：双队列总览、执行仲裁、同待办验收反馈续跑，以及 Runtime/CLI/反馈接力和消息层级。✅ (367行)
-- task-browser/ 任务浏览页面：浏览七种服务器状态，在 completed/accepted 详情追踪全部验收问题，并执行受控人工处置。✅
-  - default.html 任务浏览线框：待处理、待评审确认、进行中、完成/验收反馈详情、阻塞恢复、取消、空态与版本冲突。✅ (230行)
-  - interaction.md 任务浏览交互：项目与状态筛选、反馈列表与 Composer、Inspector、受控状态操作和并发冲突处理。✅ (183行)
+  - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、用户说明续跑、安全停止、外部状态变化与任务源异常。✅ (137行)
+  - interaction.md 自动化指挥中心交互：全局产品范围、仅看验收问题、账户头像、双队列与 Runtime/CLI 接力。✅ (383行)
+- task-browser/ Work 同屏任务浏览：在 Work 面板以七状态列表和右侧 Inspector 执行任务检查、验收与受控人工处置。✅
+  - default.html Work 任务浏览线框：顶部产品范围、面板内七状态、同屏 Inspector、待评审确认、运行/验收、恢复与冲突。✅ (217行)
+  - interaction.md 任务浏览交互：项目与状态筛选、列表选择、右侧 Inspector、验收问题 Composer、受控状态操作和并发冲突处理。✅ (188行)

@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-18T09:57:24.729Z",
+  "updated_at": "2026-08-18T16:52:30.172Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -1044,6 +1044,31 @@
         "arckit/cases/active/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "User request received 2026-08-18",
+        "arckit/interaction/platform-workspace/interaction.md",
+        "arckit/interaction/automation-workspace/interaction.md",
+        "arckit/cases/active/CASE-20260818-004-consolidate-arcorbit-automation-filters-and-account-navigation.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260818-004-consolidate-arcorbit-automation-filters-and-account-navigation.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "User request received 2026-08-19",
+        "arckit/interaction/platform-workspace/interaction.md",
+        "arckit/interaction/automation-workspace/interaction.md",
+        "arckit/interaction/task-browser/interaction.md",
+        "arckit/cases/active/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md"
     }
   ],
   "acceptance": {
@@ -1101,17 +1126,17 @@
     "arckit/cases/closed/CASE-20260817-005-implement-arcorbit-multi-product-development-platform.md",
     "arckit/cases/closed/CASE-20260818-001-package-and-acceptance-test-arcorbit-platform.md",
     "arckit/cases/closed/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md",
-    "arckit/cases/closed/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md"
+    "arckit/cases/closed/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md",
+    "arckit/cases/closed/CASE-20260818-004-consolidate-arcorbit-automation-filters-and-account-navigation.md",
+    "arckit/cases/closed/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md",
+    "case_ref": "arckit/cases/closed/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md",
-      "CASE-20260818-003 completion review: clean",
-      "Workshop backend git diff origin/main -- handler/project.go handler/project_response_test.go: empty"
+      "arckit/cases/closed/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md"
     ],
-    "updated_at": "2026-08-18T09:57:24.729Z"
+    "updated_at": "2026-08-18T16:52:30.172Z"
   }
 }

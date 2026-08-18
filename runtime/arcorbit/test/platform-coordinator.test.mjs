@@ -50,6 +50,7 @@ test("platform coordinator composes a simultaneous multi-product snapshot withou
   assert.deepEqual(initial.tasks.map((item) => item.project_name), ["Alpha", "Beta"]);
   assert.deepEqual(initial.feedback_v1.map((item) => item.project_name), ["Alpha", "Beta"]);
   assert.deepEqual(initial.tags.map((item) => item.project_name), ["Alpha", "Beta"]);
+  assert.equal("acceptance_feedback_queue" in initial.automation, false);
   assert.deepEqual(initial.organization_members.map((item) => item.organization_id), ["31"]);
   assert.equal(initial.organization_scopes[0].project_visibility, "all_projects");
   assert.deepEqual(initial.organization_scopes[0].projects.map((item) => item.name), ["Alpha", "Beta"]);
@@ -132,14 +133,16 @@ test("organization governance uses role-based project visibility without inherit
 
 test("platform coordinator exposes bounded management actions and omits unsafe direct project-member add", async () => {
   const calls = [];
+  const acceptanceIssues = [{ feedback_id: "AF-OPEN", status: "queued" }];
   const platformSource = new Proxy({
     updateProjectMember: async (projectId, input) => { calls.push(["member.update", projectId, input]); return { ok: true }; },
     createTask: async (input) => { calls.push(["task.create", input]); return { id: 42, state: "pending_review" }; },
+    updateTask: async (taskId, input) => { calls.push(["task.update", taskId, input]); return { id: taskId, ...input }; },
     updateFeedbackV1: async (feedbackId, input) => { calls.push(["feedback.update", feedbackId, input]); return { id: feedbackId }; }
   }, { get: (target, key) => target[key] || (async () => []) });
   const coordinator = createPlatformCoordinator({
     runManager: { readDesktopStore: async () => normalizeStore({}), updateDesktopStore: async () => normalizeStore({}) },
-    automationCoordinator: { getSnapshot: async () => ({ source_status: "healthy", projects: [] }) },
+    automationCoordinator: { getSnapshot: async () => ({ source_status: "healthy", projects: [], tasks: [{ id: "42", acceptance_feedback_items: acceptanceIssues }] }) },
     platformSource
   });
 
@@ -147,5 +150,9 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
   await coordinator.executeAction("feedback.to_task", { feedback_id: 51, project_id: 11, task_content: "Follow up", metadata: { priority: "P1" } });
   assert.deepEqual(calls[0], ["member.update", 11, { project_id: 11, target_user_id: 7, duty: "Design" }]);
   assert.deepEqual(calls[2], ["feedback.update", 51, { data: { priority: "P1", task_id: "42", task_state: "pending_review" } }]);
+  await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /仍有未解决的验收问题/);
+  acceptanceIssues[0].status = "resolved";
+  await coordinator.executeAction("task.update", { task_id: "42", state: "accepted" });
+  assert.deepEqual(calls.at(-1), ["task.update", "42", { task_id: "42", state: "accepted" }]);
   await assert.rejects(coordinator.executeAction("project.member.add", { project_id: 11, target_user_id: 7 }), /Unsupported platform action/);
 });

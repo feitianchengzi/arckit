@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 96
-Updated: 2026-08-18T09:57:24.729Z
+Revision: 105
+Updated: 2026-08-18T16:52:30.172Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Existing-service boundary correction is complete; select future work from fresh Project gaps and user intent.
+Realize and verify the accepted Work, Automation, primary-navigation and shared top product-set interaction in production ArcOrbit.
 
 ## Active Work
 
@@ -31,7 +31,7 @@ Arckit is a state-driven software-development protocol and optional supervised R
 | product_intent_and_scope | settled | 3 | Arckit is the repository-owned development protocol and skill system; ArcOrbit is its supervised Desktop/Runtime product and is expanding into a local-project-anchored, multi-product software-development platform for people who coordinate organization, product, member, todo, AI execution, and feedback work without relying on the Todo or Feedback web clients for daily operation. | - |
 | product_capabilities | settled | 9 | ArcOrbit preserves Setup Readiness, supervised one-thread-per-todo automation, trusted ledger transitions, intervention/recovery and acceptance feedback while providing Desktop composition of Workshop organizations, organization and project membership, personal and organization projects, seven-state todos, ordinary user feedback, local Product Workspaces and a persistent multi-product Workset. Organization governance is complete for the current service boundary through overview, member/project management, truthful role visibility, join-by-code and project-bound one-shot invitations. | GAP-agent-scenario-evaluation |
 | runtime_surfaces | settled | 4 | The software comprises repository-owned Arckit skills and Node.js ledger CLIs plus ArcOrbit, an Electron platform Desktop with Setup Readiness, skill provisioning, a main-process Platform Coordinator, restricted Workshop Platform Adapter, Automation Coordinator, Runtime supervisor, Codex adapter, and packaged trusted capability resources. Workshop web clients remain available administration and source surfaces but are not required for ArcOrbit daily work. | - |
-| experience_and_interaction | settled | 14 | ArcOrbit realizes simultaneous multi-product Today, Work, Automation and Feedback through a persistent global Workset, while platform governance lives in a Workset-independent Organization center. Users choose an organization or Personal Projects scope, then use Overview, Members and Projects; the overview exposes the visible member-by-project relationship, ordinary members see participating projects, owner/admin see the organization-wide project scope, member details do not imply targeted invitations, and project owner/admin create explicitly one-shot project-bound invitations. | - |
+| experience_and_interaction | settled | 16 | ArcOrbit realizes simultaneous multi-product Today, Work, Automation and Feedback through a persistent Workset and a shared top product-set observation scope. Every ADVANCE page can switch between the complete product set and one member product and can open product-set management; this scope never changes execution eligibility. Work owns the seven todo-status filters, Automation owns the acceptance-feedback-only filter, and primary navigation has no TASK STATUS group. Platform governance remains in a Workset-independent Organization center. Users choose an organization or Personal Projects scope, then use Overview, Members and Projects; the overview exposes the visible member-by-project relationship, ordinary members see participating projects, owner/admin see the organization-wide project scope, member details do not imply targeted invitations, and project owner/admin create explicitly one-shot project-bound invitations. Project binding can add a local project in place and continue binding. The global sidebar footer exposes only a user-avatar account entry, with no standalone add-project, local Runtime or task-source entries; the preserved account page uses the Workshop current-user platform display name. | - |
 | visual_language | settled | 2 | Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. | - |
 | identity_and_access | settled | 2 | Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints. Runtime sessions use a server-backed rolling seven-day inactivity window: successful verification login, successful startup session restoration/refresh, or successful token refresh renews the window through rotated server credentials; only more than seven days without such activity, missing or expired credentials, explicit logout, or explicit server rejection/revocation requires login again. | - |
 | data_and_state | settled | 7 | Canonical development state remains in Project/Iteration/Case ledgers and Workshop remains source of truth for account, organization, project, membership, task, attachment, and ordinary-feedback records. ArcOrbit owns Product Workspace bindings from a Workshop Project to a local repository, persistent multi-product workset preferences, Runtime execution/session/thread state, intervention/recovery state, and first-class acceptance-feedback records outside the target repository. | GAP-cross-record-audit |

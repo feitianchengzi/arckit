@@ -153,9 +153,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
         queue: automation.queue,
         active_execution: automation.active_execution,
         attention_items: automation.attention_items,
-        recovery_items: automation.recovery_items,
-        acceptance_feedback_queue: automation.acceptance_feedback_queue,
-        acceptance_feedback_counts: automation.acceptance_feedback_counts
+        recovery_items: automation.recovery_items
       },
       capabilities: {
         organizations: organizationsResult.error ? "degraded" : "available",
@@ -264,7 +262,16 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       "project.member.update": () => platformSource.updateProjectMember(input.project_id, input),
       "project.member.delete": () => platformSource.deleteProjectMember(input.project_id, input),
       "task.create": () => platformSource.createTask(input),
-      "task.update": () => platformSource.updateTask(input.task_id, input),
+      "task.update": async () => {
+        if (input.state === "accepted") {
+          const automation = await automationCoordinator.getSnapshot({});
+          const task = (automation.tasks || []).find((item) => String(item.id) === String(input.task_id));
+          if ((task?.acceptance_feedback_items || []).some((item) => !["resolved", "cancelled"].includes(item.status))) {
+            throw new Error("仍有未解决的验收问题，不能标记为已验收。");
+          }
+        }
+        return platformSource.updateTask(input.task_id, input);
+      },
       "task.delete": () => platformSource.deleteTask(input.task_id),
       "task.attachments.list": () => platformSource.listTaskAttachments(input.task_id),
       "task.attachment.create": () => platformSource.createTaskAttachment(input),

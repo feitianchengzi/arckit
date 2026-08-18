@@ -31,7 +31,7 @@ Workshop 服务继续保存团队共享的组织、项目、成员、待办和�
 1. 组织和产品成员形成协作范围。
 2. 待办承接人工工作和自动化候选工作。
 3. ArcOrbit 在绑定的本地项目中执行待办。
-4. 用户反馈流转为待办，完成态待办可以产生验收反馈。
+4. 用户反馈流转为待办，完成态待办可以产生验收问题。
 5. 执行证据和状态写回同一产品上下文。
 
 Delivery、Capability、ProductIdea 和完整 Product Studio 保留平台扩展位置，但不伪装为第一阶段已实现能力。
@@ -59,7 +59,9 @@ Product Workspace 是 ArcOrbit 的桌面组合对象，不是当前 Workshop 服
 
 用户可以同时选择一个或多个 Product Workspace。
 
-Today、Work 和 Feedback 在同一工作集上聚合，同时保留每条数据的产品归属。Automation 继续覆盖全部已授权项目，Workset 只影响其观察入口，不改变执行资格。
+顶部产品集控件在 Today、Work、Automation 和 Feedback 中保持可用。它同时显示当前工作集名称、产品数量和当前观察范围，并支持在“项目集全部”与工作集内单个产品之间切换；“管理项目集”用于增删工作集成员，范围切换本身不修改工作集。
+
+Today、Work、Automation 和 Feedback 使用同一个顶部观察范围并保留每条数据的产品归属。观察范围只改变当前推进页面的数据投影，不改变自动领取资格、项目成员关系、本地绑定、运行中的任务或持久 Codex thread。
 
 Organization Center 提供完整组织、成员和项目管理入口，不受工作集裁剪。
 
@@ -81,7 +83,7 @@ Organization Center 提供完整组织、成员和项目管理入口，不受工
 | 待办 | `Task` | Workshop 服务 |
 | 评论 | `TaskAttachment` 的 text/file/url 表现 | Workshop 服务与 Web 前端 |
 | 用户反馈 | `Feedback` 及 V2 扩展合约 | Workshop 反馈产品 |
-| 验收反馈 | `acceptance_feedback_items` | ArcOrbit Desktop |
+| 验收问题 | `acceptance_feedback_items` | ArcOrbit Desktop |
 | 执行 | active task、Run、Case、Loop 和 thread 绑定 | ArcOrbit Runtime/Desktop |
 
 平台不创建独立 Team 领域实体。Organization Center 是组织成员池和各产品成员关系的治理投影。
@@ -90,7 +92,7 @@ Organization Center 提供完整组织、成员和项目管理入口，不受工
 
 ### 本地项目
 
-ArcOrbit 支持用户选择一个本地目录并添加为本地项目。
+ArcOrbit 支持用户在 Workshop Project 的项目绑定选择器中选择一个本地目录并添加为本地项目。全局侧栏不提供独立的“添加本地项目”入口。
 
 本地项目 ID 由规范化绝对路径确定，同一路径重复添加更新同一项目记录。
 
@@ -113,6 +115,8 @@ Workshop 会话超过七天没有有效登录活动后失效并要求重新登�
 退出登录遇到活动执行时需要明确确认；确认后先停止当前执行，再清理远端会话投影。
 
 任务源支持 Workshop 登录、Bearer 调试和用户请求头调试三种认证模式。
+
+全局侧栏底部使用当前用户头像作为账号入口，不单列“任务源”或“本地 Runtime”入口。账号页面保留任务源、会话和 Runtime 设置内容；Workshop 账户标题使用 current-user 资料中的平台显示名，不使用本地配置名、认证目标或任务源标签替代。
 
 ### 同步范围
 
@@ -139,6 +143,8 @@ ArcOrbit 当前不是完整待办浏览适配器。未分配给当前用户、�
 每个 Workshop Project 可以绑定一个 ArcOrbit 本地项目。
 
 绑定记录由 Desktop 保存，不回写 Workshop Project。
+
+项目绑定选择器同时列出已有本地项目和“添加本地项目”动作。用户完成目录选择后，新本地项目立即进入同一选择器并可直接完成当前 Workshop Project 的绑定，不需要离开绑定流程。
 
 每个 Workshop Project 还有独立的自动参与开关；新同步项目默认不参与自动领取。
 
@@ -325,23 +331,23 @@ V2 消息附件通过上传策略上传；客户和开发者分别使用受范�
 
 ArcOrbit 接入 V2 前必须对目标环境进行真实 API 合约验证，或把服务端实现纳入同一 Case。
 
-## 两类反馈不得混同
+## 用户反馈与验收问题不得混同
 
 用户反馈来自 Feedback SDK 和 Workshop Feedback 服务，属于产品用户到研发团队的外部问题、建议和沟通。
 
-验收反馈由 ArcOrbit 用户对已完成或已验收待办提交，属于同一研发事项完成后的独立修复输入。
+验收问题由 ArcOrbit 用户对已完成待办提出，属于同一研发事项完成后的独立修复输入。
 
-验收反馈只允许源任务处于 `completed` 或 `accepted`。
+验收问题只允许源任务处于 `completed`。`accepted` 表示业务验收已经通过且当前没有待处理验收问题，不提供新的问题入口。
 
-验收反馈保持源任务终态，不把源任务改回 `pending` 或 `in_progress`。
+验收问题保持源任务为 `completed`，不把源任务改回 `pending` 或 `in_progress`。存在 queued、running、awaiting_human 或 blocked 验收问题时，待办不能进入 `accepted`；全部问题 resolved 或 cancelled 后才允许标记已验收。
 
-每条验收反馈具有独立 ID、状态、进展、Run 和 Case，并复用源待办的本地项目、会话和持久 Codex thread。
+每条验收问题具有独立 ID、状态、进展、Run 和 Case，并复用源待办的本地项目、会话和持久 Codex thread。
 
-验收反馈和普通待办共享一个全局执行租约，通过就绪时间确定下一次执行；验收反馈不形成并发的第二个 active execution。
+验收问题和普通待办共享一个全局执行租约，通过就绪时间确定下一次执行；验收问题不形成并发的第二个 active execution。
 
-验收反馈状态为 queued、running、awaiting_human、blocked、resolved 或 cancelled。
+验收问题状态为 queued、running、awaiting_human、blocked、resolved 或 cancelled。
 
-Workshop 用户反馈和 ArcOrbit 验收反馈在平台中使用不同队列、来源标签和动作，不互相冒充服务端记录。
+Workshop 用户反馈和 ArcOrbit 验收问题在平台中使用不同队列、来源标签和动作，不互相冒充服务端记录。
 
 ## 第一阶段平台能力
 
@@ -365,6 +371,8 @@ Work 提供当前工作集的跨产品待办视图，并支持完整项目待办
 
 Work 至少覆盖创建、查看、筛选、任务树、状态、执行人、优先级、标签、父任务、评论附件和删除。
 
+Work 面板内提供 `pending_review`、`pending`、`in_progress`、`completed`、`accepted`、`cancelled` 和 `blocked` 七种状态筛选。状态筛选与顶部产品集观察范围共同限定列表；它不作为主导航分组，也不改变自动队列顺序。
+
 跨产品视图可以同时显示多个产品，不要求用户先切换到单个产品。
 
 任务创建和编辑始终选择明确产品，并从该产品成员和标签中选择执行人及标签。
@@ -375,7 +383,9 @@ Work 至少覆盖创建、查看、筛选、任务树、状态、执行人、优
 
 Automation 复用 ArcOrbit 当前 Runtime、持久 thread、Case/Loop、Workbench、Recovery 和 closeout 核心。
 
-Automation 在工作集内展示跨产品队列，但全局活动执行和恢复状态不受工作集隐藏。
+Automation 按顶部产品集观察范围展示普通待办与验收问题队列，但全局活动执行和恢复状态不受该范围隐藏。
+
+Automation 面板提供“仅看验收问题”筛选。开启后只展示验收问题队列、对应状态数量和进展，不把验收问题计入普通待办状态，也不改变两类工作的执行仲裁或来源待办终态。
 
 每条候选明确显示远端产品、本地目录、参与授权、执行人、状态和不可执行原因。
 
@@ -385,13 +395,15 @@ Automation 在工作集内展示跨产品队列，但全局活动执行和恢复
 
 Feedback 提供当前工作集的 Workshop 用户反馈列表、详情、附件、受理状态、用户状态、优先级、沟通和转待办入口。
 
+Feedback 只承载来自产品用户的问题、建议和沟通，不展示、不统计也不操作 ArcOrbit 验收问题。
+
 V1 项目按 V1 能力工作，V2 项目只有通过目标环境合约验证后才启用 V2 能力。
 
 反馈转待办由有权限的人确认，并保持 Feedback 与 Task 的产品归属和来源关系。
 
 Feedback 不自动归并、不自动决定是否进入研发，也不声称已有 AI 分析服务。
 
-完成态 Task 的验收反馈仍在 Automation/Task 详情中作为独立 ArcOrbit 队列处理。
+已完成 Task 的验收问题只在 Automation 和 Work Task Inspector 中作为独立 ArcOrbit 队列处理。
 
 ## 权限与数据原则
 
@@ -399,7 +411,7 @@ ArcOrbit Renderer 只调用主进程暴露的有界领域 IPC，不获得通用�
 
 服务端权限是最终权限来源；Desktop 的按钮隐藏和本地角色判断只是交互约束。
 
-工作集、远端本地绑定、自动参与、会话、Run、验收反馈和恢复项属于 Desktop 本地状态。
+工作集、远端本地绑定、自动参与、会话、Run、验收问题和恢复项属于 Desktop 本地状态。
 
 组织、项目、成员、待办、标签、附件和 Workshop 用户反馈属于服务端共享状态。
 
@@ -416,15 +428,16 @@ Project/Case canonical state 属于本地项目仓库；Runtime 运行记录和 
 1. 用户在 ArcOrbit 内完成 Workshop 登录和会话恢复。
 2. 用户无需打开待办 Web 即可管理有权限的组织、产品、成员和待办。
 3. 用户无需打开反馈控制台即可处理目标项目实际支持的反馈流程。
-4. 用户可以建立包含一个或多个产品的本地工作集。
-5. Work、Automation 和 Feedback 同时聚合工作集产品并保留产品归属。
+4. 用户可以建立、管理包含一个或多个产品的本地工作集，并在任意 ADVANCE 页面通过顶部产品集控件快速切换“项目集全部”或单个产品。
+5. Today、Work、Automation 和 Feedback 使用同一个顶部观察范围并保留产品归属，同时不改变全局自动领取资格。
 6. 每个可执行产品绑定一个真实本地目录和 Project State。
 7. 自动化仍保持单活动执行、一个待办一个持久 thread 和 trusted ledger Case 绑定。
 8. Work 的完整浏览范围不被错误收窄为 Automation 的当前执行人任务范围。
-9. 普通用户反馈与 ArcOrbit 验收反馈保持独立对象和队列。
-10. 现有两端不一致的接口不会以成功 UI 掩盖失败，包括条件更新、成员添加权限、任务历史和 V2 服务端合约。
-11. 人工介入、恢复、Setup Readiness 和退出登录活动执行确认保持可用。
-12. 平台新增状态不会修改 Workshop 原始项目、成员和任务语义。
+9. Work 面板承载七种待办状态筛选，主导航不显示 TASK STATUS；Automation 面板承载“仅看验收问题”筛选。
+10. Feedback 只显示 Workshop 用户反馈；ArcOrbit 验收问题只属于 Automation，并与用户反馈保持独立对象、术语和队列。
+11. 现有两端不一致的接口不会以成功 UI 掩盖失败，包括条件更新、成员添加权限、任务历史和 V2 服务端合约。
+12. 人工介入、恢复、Setup Readiness 和退出登录活动执行确认保持可用。
+13. 平台新增状态不会修改 Workshop 原始项目、成员和任务语义。
 
 ## 当前验证基线
 

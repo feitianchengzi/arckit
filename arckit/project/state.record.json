@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-18T09:57:24.729Z",
-    "revision": 96
+    "updated_at": "2026-08-18T16:52:30.172Z",
+    "revision": 105
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Existing-service boundary correction is complete; select future work from fresh Project gaps and user intent.",
+      "current_focus": "Realize and verify the accepted Work, Automation, primary-navigation and shared top product-set interaction in production ArcOrbit.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -189,16 +189,18 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit realizes simultaneous multi-product Today, Work, Automation and Feedback through a persistent global Workset, while platform governance lives in a Workset-independent Organization center. Users choose an organization or Personal Projects scope, then use Overview, Members and Projects; the overview exposes the visible member-by-project relationship, ordinary members see participating projects, owner/admin see the organization-wide project scope, member details do not imply targeted invitations, and project owner/admin create explicitly one-shot project-bound invitations.",
-          "reason": "The confirmed interaction is formalized and implemented in the production Desktop with real Electron coverage.",
+          "statement": "ArcOrbit realizes simultaneous multi-product Today, Work, Automation and Feedback through a persistent Workset and a shared top product-set observation scope. Every ADVANCE page can switch between the complete product set and one member product and can open product-set management; this scope never changes execution eligibility. Work owns the seven todo-status filters, Automation owns the acceptance-feedback-only filter, and primary navigation has no TASK STATUS group. Platform governance remains in a Workset-independent Organization center. Users choose an organization or Personal Projects scope, then use Overview, Members and Projects; the overview exposes the visible member-by-project relationship, ordinary members see participating projects, owner/admin see the organization-wide project scope, member details do not imply targeted invitations, and project owner/admin create explicitly one-shot project-bound invitations. Project binding can add a local project in place and continue binding. The global sidebar footer exposes only a user-avatar account entry, with no standalone add-project, local Runtime or task-source entries; the preserved account page uses the Workshop current-user platform display name.",
+          "reason": "The user explicitly confirmed the Work, Automation, primary-navigation and global product-scope interaction boundaries.",
           "evidence": [
+            "User request received 2026-08-19",
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
             "arckit/interaction/platform-workspace/interaction.md",
-            "runtime/arcorbit/desktop/renderer/renderer.js",
-            "runtime/arcorbit/test/organization-center-electron.test.mjs"
+            "arckit/interaction/automation-workspace/interaction.md",
+            "arckit/interaction/task-browser/interaction.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit only if Workshop organization visibility, project ownership, invitation semantics, or the global Workset boundary changes.",
-          "revision": 14
+          "resume_condition": "Revisit if Workset membership, global ADVANCE observation semantics, panel filter ownership, sidebar information architecture or Workshop current-user identity fields change.",
+          "revision": 16
         },
         "gap_refs": []
       },

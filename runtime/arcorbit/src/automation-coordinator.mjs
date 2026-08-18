@@ -361,6 +361,12 @@ export function createAutomationCoordinator({
     if (expectedState && task.state !== expectedState) {
       throw new Error(`Task ${task.id} is ${task.state}, expected ${expectedState}.`);
     }
+    if (state === "accepted" && store.automation.acceptance_feedback_items.some((item) => (
+      String(item.source_task_id) === String(task.id)
+      && !["resolved", "cancelled"].includes(item.status)
+    ))) {
+      throw new Error("仍有未解决的验收问题，不能标记为已验收。");
+    }
     const source = taskSourceFactory({ settings: store.settings.task_source });
     const project = store.automation.snapshot.projects.find((item) => String(item.id) === String(task.project_id));
     const executorId = requireCurrentExecutorId(project, store.automation.snapshot.user);
@@ -440,7 +446,7 @@ export function createAutomationCoordinator({
           const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
           if (item) {
             item.status = "running";
-            item.progress = "已收到人工反馈，Agent 继续处理";
+            item.progress = "已收到人工说明，Agent 继续处理";
             item.current_run_id = nextRun.id;
             item.updated_at = now();
           }
@@ -454,16 +460,16 @@ export function createAutomationCoordinator({
   async function submitAcceptanceFeedback({ taskId, message, idempotencyKey = "" }) {
     const text = String(message || "").trim();
     const key = String(idempotencyKey || "").trim();
-    if (!text) throw new Error("Acceptance feedback is required.");
-    if (!key) throw new Error("Acceptance feedback idempotency key is required.");
+    if (!text) throw new Error("验收问题不能为空。");
+    if (!key) throw new Error("验收问题缺少幂等标识。");
     const store = await runManager.readDesktopStore();
     const existing = store.automation.acceptance_feedback_items.find((item) => item.idempotency_key === key);
     if (existing && (String(existing.source_task_id) !== String(taskId) || existing.original_feedback !== text)) {
-      throw new Error("Acceptance feedback idempotency key conflicts with another submission.");
+      throw new Error("验收问题幂等标识与另一项提交冲突。");
     }
     const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(taskId));
-    if (!task || !["completed", "accepted"].includes(task.state)) {
-      throw new Error("Acceptance feedback requires a completed or accepted source task.");
+    if (!task || task.state !== "completed") {
+      throw new Error("只有已完成待办可以提出验收问题。");
     }
     const completion = [...store.automation.recent_completions]
       .find((item) => String(item.task_id) === String(task.id));
@@ -516,7 +522,7 @@ export function createAutomationCoordinator({
     }
     let current = (await runManager.readDesktopStore()).automation.acceptance_feedback_items.find((item) => item.idempotency_key === key);
     if (!current || String(current.source_task_id) !== String(task.id) || current.original_feedback !== text) {
-      throw new Error("Acceptance feedback idempotency key conflicts with another submission.");
+      throw new Error("验收问题幂等标识与另一项提交冲突。");
     }
     feedbackId = current.feedback_id;
     if (!current.message_id) {
@@ -711,7 +717,7 @@ export function createAutomationCoordinator({
             const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
             if (item) {
               item.status = "running";
-              item.progress = "正在重试反馈执行";
+              item.progress = "正在重试验收问题执行";
               item.blocking_reason = "";
               item.updated_at = now();
             }
@@ -815,7 +821,7 @@ export function createAutomationCoordinator({
           const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === feedbackId);
           if (item) {
             item.status = "blocked";
-            item.progress = recovery.message || "反馈执行已阻塞";
+            item.progress = recovery.message || "验收问题执行已阻塞";
             item.blocking_reason = item.progress;
             item.updated_at = now();
           }
@@ -1024,7 +1030,7 @@ export function createAutomationCoordinator({
     if (!current || current.status !== "queued") return null;
     const sourceTask = store.automation.snapshot.tasks.find((task) => String(task.id) === String(current.source_task_id));
     const project = store.projects.find((item) => String(item.id) === String(current.local_project_id));
-    if (!sourceTask || !["completed", "accepted"].includes(sourceTask.state) || !project
+    if (!sourceTask || sourceTask.state !== "completed" || !project
       || !current.session_id || !current.thread_id || !current.message_id) {
       await patchAutomation((automation) => {
         const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === current.feedback_id);
@@ -1927,7 +1933,7 @@ export function createAutomationCoordinator({
     const task = automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id));
     if (active.execution_kind === "acceptance_feedback") {
       const feedback = automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id);
-      if (!feedback || !["running", "blocked"].includes(feedback.status) || !task || !["completed", "accepted"].includes(task.state)) {
+      if (!feedback || !["running", "blocked"].includes(feedback.status) || !task || task.state !== "completed") {
         return "feedback_not_recoverable";
       }
     } else if (!task || task.state !== "in_progress") return "task_not_in_progress";
@@ -1946,7 +1952,7 @@ export function createAutomationCoordinator({
         const feedback = next.acceptance_feedback_items.find((item) => item.feedback_id === next.active_task.feedback_id);
         if (feedback) {
           feedback.status = "running";
-          feedback.progress = "应用重启后正在恢复同一反馈执行";
+          feedback.progress = "应用重启后正在恢复同一验收问题执行";
           feedback.blocking_reason = "";
           feedback.updated_at = now();
         }
@@ -2266,7 +2272,7 @@ function reconcileActiveTask(automation) {
     return;
   }
   if (active.execution_kind === "acceptance_feedback") {
-    if (!["completed", "accepted"].includes(task.state)) {
+    if (task.state !== "completed") {
       automation.recovery_items = upsertById(automation.recovery_items, {
         id: `RECOVERY-feedback-source-change-${active.feedback_id}`,
         type: "external_state_change",
@@ -2274,7 +2280,7 @@ function reconcileActiveTask(automation) {
         project_id: active.project_id,
         run_id: active.run_id,
         feedback_id: active.feedback_id,
-        message: `The acceptance-feedback source task changed to ${task.state}.`,
+        message: `验收问题的来源待办已变为 ${task.state}。`,
         freeze_scope: "global",
         responsibility: "operator",
         actions: ["retry_sync", "accept_server_state"],
