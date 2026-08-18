@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-18T16:52:30.172Z",
-    "revision": 105
+    "updated_at": "2026-08-18T18:02:39.627Z",
+    "revision": 107
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Realize and verify the accepted Work, Automation, primary-navigation and shared top product-set interaction in production ArcOrbit.",
+      "current_focus": "Diagnose and fix the ArcOrbit automation defect that repeatedly opens new application windows after a todo enters execution.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",

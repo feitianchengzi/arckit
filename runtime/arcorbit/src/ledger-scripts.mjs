@@ -4,6 +4,7 @@ import {
   loadRuntimeCapabilityForEntrypoint,
   resolveCapabilityEntrypoint
 } from "./capability-registry.mjs";
+import { runtimeNodeChildEnvironment } from "./runtime-process-environment.mjs";
 
 const SCRIPT_ENTRYPOINTS = {
   "project-state.mjs": "project_state",
@@ -13,7 +14,7 @@ const SCRIPT_ENTRYPOINTS = {
   "loop-snapshot.mjs": "loop_snapshot"
 };
 
-export async function runLedgerScript(projectRoot, args, { nodeBin = process.execPath, nodeEnv = {}, capability = null } = {}) {
+export async function runLedgerScript(projectRoot, args, { nodeBin = process.execPath, nodeEnv = runtimeNodeChildEnvironment(), capability = null } = {}) {
   const [script, ...rest] = args;
   const entrypoint = SCRIPT_ENTRYPOINTS[script];
   if (!entrypoint) {

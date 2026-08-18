@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 105
-Updated: 2026-08-18T16:52:30.172Z
+Revision: 107
+Updated: 2026-08-18T18:02:39.627Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Realize and verify the accepted Work, Automation, primary-navigation and shared top product-set interaction in production ArcOrbit.
+Diagnose and fix the ArcOrbit automation defect that repeatedly opens new application windows after a todo enters execution.
 
 ## Active Work
 

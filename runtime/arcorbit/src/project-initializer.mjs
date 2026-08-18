@@ -4,8 +4,9 @@ import { basename, join, resolve } from 'node:path';
 import { runLedgerScript } from './ledger-scripts.mjs';
 import { detectConversationLocale } from './conversation-locale.mjs';
 import { loadRuntimeCapabilityForEntrypoint } from './capability-registry.mjs';
+import { runtimeNodeChildEnvironment } from './runtime-process-environment.mjs';
 
-export async function ensureArckitProject({ projectRoot, projectName = '', intent = '', nodeBin = process.execPath, nodeEnv = {} } = {}) {
+export async function ensureArckitProject({ projectRoot, projectName = '', intent = '', nodeBin = process.execPath, nodeEnv = runtimeNodeChildEnvironment() } = {}) {
   const root = resolve(projectRoot || '.');
   if (!existsSync(root)) throw new Error(`Project path does not exist: ${root}`);
   const locale = detectConversationLocale(intent);

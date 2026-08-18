@@ -39,13 +39,14 @@ import {
   resolveCapabilityEntrypoint,
   runtimeCapabilityForEntrypoint
 } from "./capability-registry.mjs";
+import { runtimeNodeChildEnvironment } from "./runtime-process-environment.mjs";
 
 export function createDesktopRunManager({
   runtimeRoot,
   runtimeCwd = runtimeRoot,
   dataDir,
   nodeBin = process.env.ARCORBIT_NODE_BIN || process.env.ARCKIT_NODE_BIN || process.execPath,
-  nodeEnv = process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {},
+  nodeEnv = runtimeNodeChildEnvironment(),
   getCodexExecutable = () => ({ command: process.env.ARCORBIT_CODEX_BIN || process.env.ARCKIT_CODEX_BIN || "codex", pathEntries: [] }),
   spawnProcess = spawn,
   ensureProject = ensureArckitProject
