@@ -71,6 +71,62 @@ test("Workshop task source fails closed when the current project executor cannot
   );
 });
 
+test("Workshop platform adapter reads organizations, members, full project tasks, and V1 feedback without widening automation tasks", async () => {
+  const source = createWorkshopTaskSource({
+    settings: { enabled: true, base_url: "https://workshop.example", access_token: "secret", username: "glare" },
+    fetchImpl: async (url) => {
+      const target = new URL(url);
+      if (target.pathname.endsWith("/organizations/31/members")) {
+        return jsonResponse({ data: { members: [{ id: 91, user_id: 7, username: "glare", role: "owner", is_me: true }] } });
+      }
+      if (target.pathname.endsWith("/organizations")) {
+        return jsonResponse({ data: { organizations: [{ id: 31, name: "Arckit", creator_id: 7 }] } });
+      }
+      if (target.pathname.endsWith("/projects")) {
+        const organizationId = target.searchParams.get("organization_id");
+        return jsonResponse({ data: { projects: organizationId ? [{
+          id: 12,
+          name: "Runtime",
+          organization_id: 31,
+          members: [
+            { id: 92, user_id: 7, username: "glare", role: "owner", is_me: true, duty: "Engineering" },
+            { id: 93, user_id: 8, username: "teammate", role: "member" }
+          ]
+        }] : [] } });
+      }
+      if (target.pathname.endsWith("/tasks")) {
+        return jsonResponse({ data: { tasks: [
+          { id: 21, project_id: 12, content: "Mine", state: "pending", executor_id: 7 },
+          { id: 22, project_id: 12, content: "Teammate", state: "in_progress", executor_id: 8 }
+        ] } });
+      }
+      if (target.pathname.endsWith("/feedbacks")) {
+        return jsonResponse({ data: { feedbacks: [{
+          id: 51,
+          project_id: 12,
+          short_id: "FB-51",
+          title: "Improve queue",
+          content: "Needs grouping",
+          data: JSON.stringify({ priority: "P1", ignored: false, task_id: 21 })
+        }] } });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    }
+  });
+
+  assert.deepEqual((await source.platform.listOrganizations()).map((item) => item.id), ["31"]);
+  assert.equal((await source.platform.listOrganizationMembers("31"))[0].role, "owner");
+  const members = await source.platform.listProjectMembers("12");
+  assert.deepEqual(members.map((item) => item.user_id), ["7", "8"]);
+  const platformTasks = await source.platform.listProjectTasks("12");
+  assert.deepEqual(platformTasks.map((item) => item.id), ["21", "22"]);
+  const automationTasks = await source.listTasks("12");
+  assert.deepEqual(automationTasks.map((item) => item.id), ["21"]);
+  const feedback = await source.platform.listFeedbackV1("12");
+  assert.equal(feedback[0].priority, "P1");
+  assert.equal(feedback[0].linked_task_id, "21");
+});
+
 test("Workshop task source sends conditional state updates and reports version conflicts", async () => {
   const calls = [];
   const source = createWorkshopTaskSource({

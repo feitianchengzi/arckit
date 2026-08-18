@@ -24,4 +24,6 @@
 
 `agentic-software-development/runtime-automation-workspace.md` 定义 Desktop 如何以任务服务器项目和待办驱动 Runtime loop，是 `controller-worker-loop.md` 在用户任务来源、串行调度、按需人工介入与异常恢复上的产品表面约束；对应交互事实位于 `arckit/interaction/automation-workspace/` 和 `arckit/interaction/task-browser/`。
 
+`agentic-software-development/arcorbit-platform-capabilities.md` 在 `runtime-automation-workspace.md` 的自动执行核心外，定义 ArcOrbit 如何接入 Workshop 的组织、Project、成员、完整待办和用户反馈能力，并用 Desktop 本地 Product Workspace 与多产品工作集形成平台入口。它保留 `product-architecture.md`、`controller-worker-loop.md` 和 `runtime-automation-workspace.md` 的单活动执行、持久 thread、trusted ledger、人工介入与恢复边界，不把服务端协作数据复制为第二个本地真相源。
+
 `agentic-software-development/loop-engineering-research.md` 保存吴恩达三层 loop 与 2026 loop engineering 架构调研结果，是候选输入，不直接作为已确认产品需求。

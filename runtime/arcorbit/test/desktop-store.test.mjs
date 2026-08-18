@@ -102,7 +102,7 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     }
   });
 
-  assert.equal(store.version, 9);
+  assert.equal(store.version, 10);
   assert.equal(store.automation.snapshot.source_status, "degraded");
   assert.deepEqual(store.automation.project_bindings, {});
   assert.equal(store.automation.recovery_items[0].responsibility, "operator");
@@ -124,6 +124,25 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     message: "Project tasks unavailable",
     project_id: "12"
   });
+});
+
+test("desktop store migrates v9 bindings into a local workset without changing automation participation", () => {
+  const store = normalizeStore({
+    version: 9,
+    automation: {
+      project_bindings: { "12": "LOCAL-12", "3": "LOCAL-3" },
+      project_participation: { "12": true, "3": false }
+    }
+  });
+
+  assert.equal(store.version, 10);
+  assert.equal(store.platform.active_workset_id, "WORKSET-DEFAULT");
+  assert.deepEqual(store.platform.worksets[0].project_ids, ["3", "12"]);
+  assert.deepEqual(store.automation.project_participation, { "12": true, "3": false });
+
+  const normalizedAgain = normalizeStore(store);
+  assert.deepEqual(normalizedAgain.platform, store.platform);
+  assert.deepEqual(normalizedAgain.automation.project_participation, store.automation.project_participation);
 });
 
 test("desktop store preserves acceptance feedback and requeues an orphaned running item", () => {

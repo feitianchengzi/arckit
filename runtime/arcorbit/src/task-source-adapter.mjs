@@ -1,3 +1,5 @@
+import { createWorkshopPlatformAdapter } from "./workshop-platform-adapter.mjs";
+
 export const TASK_STATES = Object.freeze([
   "pending_review",
   "pending",
@@ -282,8 +284,32 @@ export function createWorkshopTaskSource({
     return { response, payload: await readPayload(response) };
   }
 
+  async function listProjects() {
+    const current = await loadConfig();
+    const [standalonePayload, organizationsPayload] = await Promise.all([
+      request("/projects", { query: { page_size: 500 } }),
+      request("/organizations", { query: { page_size: 500 } })
+    ]);
+    const organizations = extractList(organizationsPayload, ["organizations", "items"]);
+    const organizationProjectPayloads = await mapWithConcurrency(organizations, 3, (organization) => request("/projects", {
+      query: { organization_id: scalarId(organization.id), page_size: 500 }
+    }));
+    const projects = [
+      ...extractList(standalonePayload, ["projects", "items"]),
+      ...organizationProjectPayloads.flatMap((payload) => extractList(payload, ["projects", "items"]))
+    ];
+    const normalized = dedupeById(projects.map((project) => normalizeProject(project, current.username)).filter(Boolean));
+    projectExecutorIds = new Map(normalized
+      .filter((project) => project.current_user_id)
+      .map((project) => [project.id, project.current_user_id]));
+    return normalized;
+  }
+
+  const platform = createWorkshopPlatformAdapter({ request, listProjects, normalizeTask });
+
   return {
     consistency: "conditional",
+    platform,
     sendVerification,
     loginWithCode,
     logout,
@@ -292,26 +318,7 @@ export function createWorkshopTaskSource({
       const payload = await request("/users");
       return normalizeUser(payload?.user ?? payload);
     },
-    async listProjects() {
-      const current = await loadConfig();
-      const [standalonePayload, organizationsPayload] = await Promise.all([
-        request("/projects", { query: { page_size: 500 } }),
-        request("/organizations", { query: { page_size: 500 } })
-      ]);
-      const organizations = extractList(organizationsPayload, ["organizations", "items"]);
-      const organizationProjectPayloads = await mapWithConcurrency(organizations, 3, (organization) => request("/projects", {
-        query: { organization_id: scalarId(organization.id), page_size: 500 }
-      }));
-      const projects = [
-        ...extractList(standalonePayload, ["projects", "items"]),
-        ...organizationProjectPayloads.flatMap((payload) => extractList(payload, ["projects", "items"]))
-      ];
-      const normalized = dedupeById(projects.map((project) => normalizeProject(project, current.username)).filter(Boolean));
-      projectExecutorIds = new Map(normalized
-        .filter((project) => project.current_user_id)
-        .map((project) => [project.id, project.current_user_id]));
-      return normalized;
-    },
+    listProjects,
     async listTasks(projectId, options = {}) {
       const executorId = requireProjectExecutorId(projectId, options, projectExecutorIds);
       const payload = await request("/tasks", {
@@ -400,6 +407,7 @@ export function normalizeTask(value, fallbackProjectId = "") {
     project_id: projectId,
     title: String(value.title || value.content || value.name || `Task ${id}`).trim(),
     content: String(value.content || value.description || value.title || "").trim(),
+    father_id: scalarId(value.father_id ?? value.fatherId),
     state,
     priority: normalizePriority(value.priority),
     version: String(value.version ?? value.updated_at ?? value.updatedAt ?? value.etag ?? ""),
@@ -409,6 +417,7 @@ export function normalizeTask(value, fallbackProjectId = "") {
     creator_id: scalarId(value.creator_id ?? value.creatorId),
     executor_id: scalarId(value.executor_id ?? value.executorId),
     assignee: value.assignee ?? value.owner ?? null,
+    tags: String(value.tags || ""),
     terminal: TERMINAL_STATES.has(state),
     raw: value
   };

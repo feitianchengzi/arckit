@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArcOrbit · Product Workspace</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="titlebar">
+      <div class="window-controls" aria-hidden="true"><i></i><i></i><i></i></div>
+      <span class="titlebar-name">ArcOrbit</span>
+      <div class="titlebar-status"><span class="live-dot"></span> 本地 Runtime 在线</div>
+    </header>
+
+    <aside class="rail">
+      <div class="brand"><span class="brand-mark">A</span><span>ArcOrbit</span></div>
+
+      <button class="product-switcher workset-switcher" id="productSwitcher" type="button">
+        <span class="avatar-stack"><i>折</i><i>昼</i><i>辰</i></span>
+        <span><strong id="worksetTitle">3 个产品</strong><small>当前工作集 · 点击配置</small></span>
+        <b>⌄</b>
+      </button>
+
+      <nav class="nav" aria-label="平台导航">
+        <p>WORKSET</p>
+        <button class="nav-item active" data-view="today" type="button"><span>⌂</span><strong>Today</strong><em id="todayBadge">3</em></button>
+        <button class="nav-item" data-view="work" type="button"><span>☷</span><strong>Work</strong><em id="workBadge">5</em></button>
+        <button class="nav-item" data-view="automation" type="button"><span>◎</span><strong>Automation</strong><em class="run-badge">RUN</em></button>
+        <button class="nav-item" data-view="feedback" type="button"><span>◇</span><strong>Feedback</strong><em id="feedbackBadge">4</em></button>
+        <p>COLLABORATION</p>
+        <button class="nav-item" data-view="product" type="button"><span>◫</span><strong>Products</strong><em id="productBadge">3</em></button>
+        <button class="nav-item" data-view="team" type="button"><span>♙</span><strong>Team</strong><em id="teamBadge">8</em></button>
+        <p>PLATFORM</p>
+        <button class="nav-item future" data-view="delivery" type="button"><span>△</span><strong>Delivery</strong><small>planned</small></button>
+        <button class="nav-item future" data-view="capability" type="button"><span>⌘</span><strong>Capability</strong><small>planned</small></button>
+      </nav>
+
+      <div class="rail-footer">
+        <button class="source-line" data-view="product" type="button"><span class="source-icon">⌘</span><span><strong id="localScopeTitle">3 个本地项目</strong><small id="localScopePath">均已绑定 · 1 个运行中</small></span><i class="ok-dot"></i></button>
+        <button class="source-line" id="accountButton" type="button"><span class="user-avatar">G</span><span><strong>Glare</strong><small>Workshop 已连接</small></span><i>•••</i></button>
+      </div>
+    </aside>
+
+    <main class="main-stage">
+      <header class="commandbar">
+        <div class="breadcrumbs"><span id="scopeCrumb">3 个产品</span><b>/</b><strong id="crumbTitle">Today</strong></div>
+        <div class="command-actions">
+          <button class="search-button" id="searchButton" type="button"><span>搜索产品内的工作、反馈与运行</span><kbd>⌘ K</kbd></button>
+          <div class="sync-pill"><i></i><span>刚刚已同步</span></div>
+          <button class="icon-button" id="resetButton" type="button" title="重置演示">↺</button>
+          <button class="icon-button" id="settingsButton" type="button" title="设置">⚙</button>
+        </div>
+      </header>
+
+      <div class="view active" id="todayView" data-view-panel="today">
+        <section class="page-heading">
+          <div><p class="eyebrow">TUESDAY · AUG 18</p><h1 id="todayHeading">同时推进 3 个产品</h1><p>当前工作集已经恢复。平台汇总跨产品信号，只把真正需要人的判断抬到你面前。</p></div>
+          <div class="heading-actions"><span class="local-chip" id="workspaceChip"><i></i> 3 workspaces ready</span><button class="primary-button" data-action="new-task" type="button">＋ 新建待办</button></div>
+        </section>
+
+        <section class="portfolio-strip" id="portfolioStrip" aria-label="当前产品工作集"></section>
+
+        <section class="continuity-strip" aria-label="跨产品闭环">
+          <div class="continuity-label"><span>WORKSET CONTINUITY</span><strong>跨产品统一收集与推进</strong></div>
+          <button class="continuity-node" data-view="feedback" type="button"><i class="amber">6</i><span><small>用户反馈</small><strong>2 项待判断</strong></span></button>
+          <b>→</b>
+          <button class="continuity-node" data-view="work" type="button"><i class="blue">5</i><span><small>协作待办</small><strong>2 项可执行</strong></span></button>
+          <b>→</b>
+          <button class="continuity-node active-node" data-view="automation" type="button"><i class="violet pulse">1</i><span><small>本地执行</small><strong>Run 正在进行</strong></span></button>
+          <b>→</b>
+          <button class="continuity-node" data-view="automation" data-automation-tab="evidence" type="button"><i class="green">6</i><span><small>证据与回写</small><strong>等待本轮收束</strong></span></button>
+        </section>
+
+        <div class="today-grid">
+          <div class="today-main">
+            <section class="panel current-case-panel" id="currentCasePanel">
+              <header class="panel-header"><div><span class="section-kicker">CURRENT CASE · 折光</span><h2>首次启动时恢复播放队列</h2></div><span class="status-chip running"><i></i> Codex 执行中</span></header>
+              <div class="case-body">
+                <div class="case-progress">
+                  <div class="case-meta"><span>CASE-20260818-004</span><span>Work #248</span><span>Thread · a7f2…91c</span></div>
+                  <p>Agent 正在根据本地 Project State 修复恢复逻辑，并保持同一个持续线程。</p>
+                  <div class="loop-track"><span class="done">读取事实</span><i></i><span class="done">定位 Gap</span><i></i><span class="current">实现与验证</span><i></i><span>证据收束</span></div>
+                </div>
+                <div class="case-actions"><button class="secondary-button" data-view="automation" type="button">查看执行现场</button><button class="ghost-button" data-action="pause-run" type="button">暂停领取新任务</button></div>
+              </div>
+            </section>
+
+            <section class="panel work-focus">
+              <header class="panel-header"><div><span class="section-kicker">CROSS-PRODUCT PRIORITY</span><h2>接下来最值得处理</h2></div><button class="text-button" data-view="work" type="button">全部待办 →</button></header>
+              <div id="todayTaskList" class="focus-list"></div>
+            </section>
+
+            <section class="panel feedback-focus" id="todaySignalPanel">
+              <header class="panel-header"><div><span class="section-kicker">USER SIGNAL · 折光</span><h2>反馈正在进入产品闭环</h2></div><button class="text-button" data-view="feedback" type="button">反馈工作台 →</button></header>
+              <div class="signal-row">
+                <span class="signal-avatar">林</span>
+                <div class="signal-copy"><div><strong>切到飞行模式后，最近播放列表会清空</strong><span class="priority p1">P1</span></div><p>来自 Feedback SDK · iOS 2.4.0 (310) · 2 个附件</p></div>
+                <span class="status-chip pending">待判断</span>
+                <button class="secondary-button" data-action="open-feedback" data-feedback-id="f-1042" type="button">处理</button>
+              </div>
+            </section>
+          </div>
+
+          <aside class="today-side">
+            <section class="side-panel workspace-health">
+              <header><span>WORKSET HEALTH</span><button data-view="product" type="button">管理</button></header>
+              <div class="workset-health-list" id="worksetHealthList"></div>
+            </section>
+            <section class="side-panel attention-panel">
+              <header><span>NEEDS YOU</span><em>2</em></header>
+              <button data-view="automation" type="button"><i class="warn-icon">!</i><span><strong>验收反馈等待澄清</strong><small>Work #231 · “横屏仍有裁切”</small></span><b>›</b></button>
+              <button data-view="work" type="button"><i class="person-icon">G</i><span><strong>待评审任务需要判断</strong><small>Work #252 · 数据迁移范围</small></span><b>›</b></button>
+            </section>
+            <section class="side-panel boundaries-panel"><header><span>THIS STAGE</span></header><p><b>当前已贯通</b> Product context、Work、Automation、Feedback</p><p class="muted"><b>后续接入</b> Delivery、Capability 与 AI 反馈聚类</p></section>
+          </aside>
+        </div>
+      </div>
+
+      <div class="view" id="productView" data-view-panel="product">
+        <section class="page-heading compact"><div><p class="eyebrow">PRODUCT PORTFOLIO</p><h1>产品与本地项目</h1><p>Workshop 项目承载团队协作；每个产品分别绑定自己的本地仓库和 Project State。</p></div><div class="heading-actions"><button class="secondary-button" id="configureWorksetButton" type="button">配置当前工作集</button><button class="primary-button" id="createProductButton" type="button">＋ 创建产品</button></div></section>
+        <div class="portfolio-layout">
+          <section class="panel product-catalog"><header class="panel-header"><div><span class="section-kicker">FEITIAN STUDIO · 3 PRODUCTS</span><h2>产品目录</h2></div><span class="plain-chip">全部组织项目</span></header><div id="productCatalog" class="product-catalog-grid"></div></section>
+          <section class="panel portfolio-detail" id="productDetail"></section>
+        </div>
+      </div>
+
+      <div class="view" id="teamView" data-view-panel="team">
+        <section class="page-heading compact"><div><p class="eyebrow">ORGANIZATION & TEAM</p><h1>飞天工作室</h1><p>组织成员是共享人才池；产品成员、角色、职责和外部协作者在各产品内独立管理。</p></div><div class="heading-actions"><button class="secondary-button" id="editOrganizationButton" type="button">组织设置</button><button class="primary-button" id="inviteMemberButton" type="button">＋ 邀请成员</button></div></section>
+        <div class="team-metrics"><div><small>组织成员</small><strong>8</strong><span>1 位外部协作者</span></div><div><small>活跃产品</small><strong>3</strong><span>均已绑定本地项目</span></div><div><small>待分配工作</small><strong>2</strong><span class="amber-text">需要负责人</span></div><div><small>本周参与</small><strong>7</strong><span class="green-text">87.5%</span></div></div>
+        <div class="team-layout"><section class="panel org-member-panel"><header class="panel-header"><div><span class="section-kicker">ORGANIZATION MEMBERS</span><h2>成员与角色</h2></div><div class="toolbar"><button id="memberFilterButton" type="button">全部角色</button><button id="memberSearchButton" type="button">搜索成员</button></div></header><div class="member-table-head"><span>成员</span><span>组织角色</span><span>参与产品</span><span>当前负载</span><span></span></div><div id="organizationMembers" class="member-table"></div></section><aside class="panel team-product-panel"><header class="panel-header"><div><span class="section-kicker">PRODUCT MEMBERSHIP</span><h2>按产品查看团队</h2></div></header><div id="teamProductList"></div></aside></div>
+      </div>
+
+      <div class="view" id="workView" data-view-panel="work">
+        <section class="page-heading compact"><div><p class="eyebrow">WORK HUB · CURRENT WORKSET</p><h1>跨产品协作待办</h1><p>统一排序当前工作集中的事项，同时保留产品归属、团队责任和本地执行边界。</p></div><button class="primary-button" data-action="new-task" type="button">＋ 新建待办</button></section>
+        <div class="segmented-row"><div class="segmented" id="workFilters"><button class="active" data-filter="open" type="button">未完成 <em>5</em></button><button data-filter="mine" type="button">分配给我 <em>4</em></button><button data-filter="review" type="button">待评审 <em>1</em></button><button data-filter="done" type="button">已完成</button></div><div class="toolbar"><button type="button">筛选</button><button type="button">排序：优先级</button></div></div>
+        <div class="work-layout">
+          <section class="panel work-table-panel"><div class="table-head"><span>待办</span><span>状态</span><span>执行人</span><span>优先级</span><span>产品</span><span></span></div><div id="workTable" class="work-table"></div></section>
+          <aside class="panel detail-pane" id="taskDetailPane"></aside>
+        </div>
+      </div>
+
+      <div class="view" id="automationView" data-view-panel="automation">
+        <section class="page-heading compact"><div><p class="eyebrow">AUTOMATION RUNTIME · MULTI-PRODUCT QUEUE</p><h1>跨产品执行与人工介入</h1><p>工作集统一排队；当前 Runtime 仍一次执行一个待办，每个待办保持自己的持续 Codex thread。</p></div><div class="heading-actions"><label class="automation-toggle"><input id="autoClaimToggle" type="checkbox" checked><span></span><strong>自动领取</strong></label><button class="secondary-button" data-action="open-recovery" type="button">恢复中心 <em>0</em></button></div></section>
+        <div class="automation-metrics"><div><small>当前运行</small><strong>1</strong><span class="green-text">running</span></div><div><small>普通待办队列</small><strong id="automationQueueCount">2</strong><span>仅 pending</span></div><div><small>验收反馈队列</small><strong>1</strong><span class="amber-text">等待人工</span></div><div><small>本地工作区</small><strong>1</strong><span class="green-text">ready</span></div></div>
+        <div class="automation-layout">
+          <section class="panel run-panel">
+            <header class="run-header"><div><span class="run-orbit"><i></i></span><div><span class="section-kicker">ACTIVE RUN · LOOP 3</span><h2>首次启动时恢复播放队列</h2><p>CASE-20260818-004 · Work #248 · thread a7f2…91c</p></div></div><div><span class="status-chip running"><i></i><b id="runStateLabel">执行中</b></span><button class="secondary-button" id="pauseRunButton" type="button">暂停</button></div></header>
+            <div class="run-tabs" id="runTabs"><button class="active" data-run-tab="activity" type="button">执行现场</button><button data-run-tab="evidence" type="button">证据与状态</button><button data-run-tab="context" type="button">上下文边界</button></div>
+            <div class="run-tab active" data-run-panel="activity">
+              <div class="transcript" id="transcript"><div class="transcript-item agent"><span class="agent-avatar">A</span><div><header><strong>ArcOrbit Agent</strong><time>09:47</time></header><p>我已恢复该待办的持久 thread，并读取 fresh Project State。当前 gap 是冷启动时队列快照晚于播放器状态恢复。</p></div></div><div class="tool-line"><span>✓</span><code>rg "restoreQueue|playerState" PrismPlayer</code><em>12 matches</em></div><div class="transcript-item agent"><span class="agent-avatar">A</span><div><header><strong>ArcOrbit Agent</strong><time>09:49</time></header><p>正在把队列快照恢复前移到播放器协调器初始化之前，并补充离线冷启动回归测试。</p></div></div><div class="tool-line running-tool"><span>↻</span><code>xcodebuild test -scheme PrismPlayer</code><em>running · 01:18</em></div></div>
+              <div class="intervention-box"><div><span class="live-dot"></span><strong>你可以随时补充事实或改变方向</strong><small>消息会进入同一个持续 thread，不会另开“审核 Agent”。</small></div><button class="secondary-button" id="openInterventionButton" type="button">人工介入</button></div>
+            </div>
+            <div class="run-tab" data-run-panel="evidence"><div class="evidence-grid"><div><span class="evidence-icon done">✓</span><strong>代码定位</strong><p>恢复时序问题已由本地源码证据确认。</p><small>Sources/Playback/QueueRestorer.swift</small></div><div><span class="evidence-icon running">↻</span><strong>回归测试</strong><p>3 / 4 通过，离线冷启动用例执行中。</p><small>PrismPlayerTests/QueueRestoreTests.swift</small></div><div><span class="evidence-icon pending">○</span><strong>Ledger transition</strong><p>验证完成后由可信入口确定性写入。</p><small>等待 Run 结果</small></div><div><span class="evidence-icon pending">○</span><strong>远端回写</strong><p>Case resolved 后更新 Work #248 为 completed。</p><small>Workshop task source</small></div></div></div>
+            <div class="run-tab" data-run-panel="context"><div class="context-columns"><div><span>Agent 负责</span><ul><li>读取项目事实与当前 Case</li><li>语义选择 gap、skills 与工具</li><li>编辑、测试、自检与证据声明</li></ul></div><div><span>Runtime 负责</span><ul><li>保持同一 todo 的持久 thread</li><li>自动领取、恢复、compaction 与 trace</li><li>调用 ledger 可信入口并安全回写</li></ul></div><div><span>人负责</span><ul><li>目标与业务判断</li><li>授权、优先级和产品质量</li><li>发布与不可逆决策</li></ul></div></div></div>
+          </section>
+          <aside class="automation-side">
+            <section class="panel queue-panel"><header><div><span class="section-kicker">NEXT</span><h3>普通待办队列</h3></div><span>2</span></header><div id="automationQueue"></div></section>
+            <section class="panel acceptance-panel"><header><div><span class="section-kicker">ACCEPTANCE FEEDBACK</span><h3>完成后的验收反馈</h3></div><span class="amber-count">1</span></header><button id="acceptanceItem" type="button"><span class="warn-icon">!</span><div><strong>横屏播放页仍有裁切</strong><small>来自已完成 Work #231</small><p>独立进入同一任务 Case 的后续处理，不改变旧 Run。</p></div><b>介入 ›</b></button></section>
+          </aside>
+        </div>
+      </div>
+
+      <div class="view" id="feedbackView" data-view-panel="feedback">
+        <section class="page-heading compact"><div><p class="eyebrow">FEEDBACK HUB · CURRENT WORKSET</p><h1>跨产品用户反馈</h1><p>在一个收件箱处理当前工作集的 Feedback SDK 信号，并保留清晰的产品归属。</p></div><div class="heading-actions"><span class="plain-chip">26 条反馈</span><button class="secondary-button" id="refreshFeedbackButton" type="button">↻ 刷新</button></div></section>
+        <div class="feedback-layout">
+          <section class="panel feedback-list-panel"><div class="feedback-toolbar"><div class="segmented" id="feedbackFilters"><button class="active" data-feedback-filter="all" type="button">全部</button><button data-feedback-filter="pending" type="button">待判断 <em>1</em></button><button data-feedback-filter="accepted" type="button">已受理</button><button data-feedback-filter="converted" type="button">已流转</button><button data-feedback-filter="ignored" type="button">已忽略</button></div><input id="feedbackSearch" type="search" placeholder="搜索反馈"></div><div id="feedbackList" class="feedback-list"></div></section>
+          <aside class="panel feedback-detail" id="feedbackDetail"></aside>
+        </div>
+      </div>
+
+      <div class="view future-view" id="deliveryView" data-view-panel="delivery">
+        <div class="future-card"><span class="future-icon">△</span><p class="eyebrow">PLATFORM EXPANSION SLOT</p><h1>Delivery 尚未接入</h1><p>蓝图中的 Build、TestFlight、Release 与回滚会继续使用现有工具，并在这里获得同一产品上下文和证据链。当前原型不伪装它已经实现。</p><div><button class="secondary-button" data-view="today" type="button">返回当前闭环</button><span>目标对象：Build · Release · Environment</span></div></div>
+      </div>
+
+      <div class="view future-view" id="capabilityView" data-view-panel="capability">
+        <div class="future-card"><span class="future-icon">⌘</span><p class="eyebrow">PLATFORM EXPANSION SLOT</p><h1>Capability 尚未产品化</h1><p>Agent 原生发现的 skills、模型和工具仍由 Codex 在持续 thread 中语义选择；未来这里负责可见性、来源和治理，不会变成 Runtime 的固定 Worker 注册表。</p><div><button class="secondary-button" data-view="automation" type="button">查看当前执行边界</button><span>目标对象：Skill · Model · Tool · Policy</span></div></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="overlay hidden" id="modalOverlay">
+    <section class="modal" id="modal" role="dialog" aria-modal="true"></section>
+  </div>
+  <div class="command-palette hidden" id="commandPalette"><div class="palette-box"><header><span>⌕</span><input id="commandInput" type="search" placeholder="搜索 Work、Feedback、Case 或页面"><kbd>esc</kbd></header><div id="commandResults"></div></div></div>
+  <div class="toast hidden" id="toast" role="status"></div>
+  <script src="./app.js"></script>
+</body>
+</html>

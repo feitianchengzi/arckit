@@ -35,6 +35,15 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   reopenAutomationCli: () => ipcRenderer.invoke("arckit:automation-reopen-cli"),
   resumeAutomationRuntime: () => ipcRenderer.invoke("arckit:automation-resume-runtime"),
   resolveAutomationRecovery: (input) => ipcRenderer.invoke("arckit:automation-recovery", input),
+  platformSnapshot: (input) => ipcRenderer.invoke("arckit:platform-snapshot", input),
+  createWorkset: (input) => ipcRenderer.invoke("arckit:platform-workset-create", input),
+  updateWorkset: (input) => ipcRenderer.invoke("arckit:platform-workset-update", input),
+  deleteWorkset: (worksetId) => ipcRenderer.invoke("arckit:platform-workset-delete", worksetId),
+  setActiveWorkset: (worksetId) => ipcRenderer.invoke("arckit:platform-workset-active", worksetId),
+  setWorkspacePreference: (projectId, input) => (
+    ipcRenderer.invoke("arckit:platform-workspace-preference", projectId, input)
+  ),
+  executePlatformAction: (command, input) => ipcRenderer.invoke("arckit:platform-action", command, input),
   onEvent: (listener) => {
     const handler = (_event, payload) => listener(payload);
     ipcRenderer.on("arckit:event", handler);

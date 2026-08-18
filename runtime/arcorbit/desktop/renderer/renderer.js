@@ -56,11 +56,13 @@ const state = {
   setup: null,
   setupBusy: false,
   setupPlanOpened: false,
-  page: "command",
+  page: "today",
   selectedProjectId: "all",
   selectedState: "pending",
   selectedTaskId: "",
   snapshot: emptySnapshot(),
+  platform: emptyPlatformSnapshot(),
+  platformWorkFilter: "",
   settings: defaultSettings(),
   authentication: defaultAuthentication(),
   loginGate: false,
@@ -82,6 +84,8 @@ const state = {
   taskFilter: "",
   refreshing: false
 };
+
+let platformActionResolver = null;
 
 const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map((element) => [element.id, element]));
 let refreshQueued = false;
@@ -241,6 +245,36 @@ function wireEvents() {
     state.taskFilter = els.taskFilterInput.value.trim().toLowerCase();
     renderTaskTable();
   });
+  els.platformWorkFilter.addEventListener("input", () => {
+    state.platformWorkFilter = els.platformWorkFilter.value.trim().toLowerCase();
+    renderPlatformWork();
+  });
+  els.worksetSelect.addEventListener("change", () => runAction(async () => {
+    await api.setActiveWorkset(els.worksetSelect.value);
+    await refreshSnapshot();
+  }));
+  els.saveWorksetButton.addEventListener("click", () => runAction(async () => {
+    const activeWorkset = state.platform.active_workset;
+    if (!activeWorkset) throw new Error("当前没有可更新的产品集。");
+    const projectIds = [...els.productCatalog.querySelectorAll("[data-workset-project]:checked")].map((input) => input.dataset.worksetProject);
+    await api.updateWorkset({ id: activeWorkset.id, project_ids: projectIds });
+    await refreshSnapshot();
+    showToast(`已保存 ${projectIds.length} 个产品；Automation 授权未改变。`);
+  }));
+  els.createProductButton.addEventListener("click", () => runAction(createProduct));
+  els.createOrganizationButton.addEventListener("click", () => runAction(createOrganization));
+  els.createTaskButton.addEventListener("click", () => runAction(createTask));
+  els.createTagButton.addEventListener("click", () => runAction(createTag));
+  els.createFeedbackButton.addEventListener("click", () => runAction(createFeedback));
+  els.closePlatformActionButton.addEventListener("click", () => closePlatformAction(null));
+  els.cancelPlatformActionButton.addEventListener("click", () => closePlatformAction(null));
+  els.platformActionOverlay.addEventListener("click", (event) => {
+    if (event.target === els.platformActionOverlay) closePlatformAction(null);
+  });
+  els.platformActionForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    closePlatformAction(Object.fromEntries(new FormData(els.platformActionForm).entries()));
+  });
   els.submitInterventionButton.addEventListener("click", () => runAction(async () => {
     const active = state.snapshot.active_task;
     const sourceTask = state.workbenchTask || (state.workbenchCompletion
@@ -271,6 +305,7 @@ function wireEvents() {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      closePlatformAction(null);
       closeSettings();
       if (["tasks", "workbench", "recovery"].includes(state.page)) showPage("command");
     }
@@ -394,14 +429,16 @@ async function refreshSnapshot({ quiet = false } = {}) {
   state.refreshing = true;
   if (!quiet) renderSyncing(true);
   try {
-    const [snapshot, authentication] = await Promise.all([
+    const [snapshot, platform, authentication] = await Promise.all([
       api.automationSnapshot({
         project_id: state.selectedProjectId,
         state: state.page === "tasks" ? state.selectedState : ""
       }),
+      api.platformSnapshot({ sections: ["overview", "organizations", "members", "tasks", "feedback"] }),
       api.getAuthStatus()
     ]);
     state.snapshot = snapshot;
+    state.platform = platform || emptyPlatformSnapshot();
     if (state.workbenchTask) {
       state.workbenchTask = snapshot.tasks.find((task) => String(task.id) === String(state.workbenchTask.id)) || state.workbenchTask;
     }
@@ -437,6 +474,12 @@ function render() {
   renderPageVisibility();
   renderNavigation();
   renderCommandBar();
+  renderWorkset();
+  renderToday();
+  renderProducts();
+  renderTeam();
+  renderPlatformWork();
+  renderPlatformFeedback();
   renderCommandCenter();
   renderTaskBrowser();
   renderWorkbench();
@@ -458,6 +501,7 @@ function renderNavigation() {
   els.projectNavigation.querySelectorAll("[data-project-id]").forEach((button) => button.addEventListener("click", async () => {
     state.selectedProjectId = button.dataset.projectId;
     state.selectedTaskId = "";
+    state.page = "command";
     await refreshSnapshot();
   }));
 
@@ -468,6 +512,10 @@ function renderNavigation() {
   `).join("");
   els.statusNavigation.querySelectorAll("[data-task-state]").forEach((button) => button.addEventListener("click", () => openTaskBrowser(button.dataset.taskState)));
   els.attentionNavCount.textContent = String(snapshot.attention_items.length + snapshot.recovery_items.length);
+  els.productNavCount.textContent = String(state.platform.product_workspaces.length);
+  els.teamNavCount.textContent = String(uniqueMembers(state.platform.members).length);
+  els.workNavCount.textContent = String(state.platform.tasks.filter((task) => !task.terminal).length);
+  els.automationNavCount.textContent = String(snapshot.queue.length + (snapshot.active_task ? 1 : 0));
   els.feedbackQueueNavCount.textContent = String(snapshot.acceptance_feedback_counts?.open || 0);
   els.sourceHealthText.textContent = sourceStatusLabel(snapshot.source_status);
   els.runtimeHealthText.textContent = snapshot.health?.label || "待命";
@@ -477,11 +525,477 @@ function renderNavigation() {
 
 function renderCommandBar() {
   const project = currentProject();
-  els.scopeTitle.textContent = project?.name || "所有项目";
-  els.pageTitle.textContent = { command: "自动化总览", tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心" }[state.page];
+  const platformPages = new Set(["today", "products", "team", "work", "feedback"]);
+  els.scopeTitle.textContent = platformPages.has(state.page)
+    ? state.platform.active_workset?.name || "当前产品集"
+    : project?.name || "所有项目";
+  els.pageTitle.textContent = {
+    today: "Today", products: "Products", team: "Team", work: "Work", feedback: "Feedback",
+    command: "Automation", tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心"
+  }[state.page] || "ArcOrbit";
   els.automationEnabled.checked = Boolean(state.snapshot.enabled);
   els.automationEnabled.disabled = !state.authentication.authenticated;
 }
+
+function renderWorkset() {
+  const worksets = state.platform.worksets || [];
+  els.worksetSelect.innerHTML = worksets.length
+    ? worksets.map((workset) => `<option value="${escapeHtml(workset.id)}" ${workset.id === state.platform.active_workset?.id ? "selected" : ""}>${escapeHtml(workset.name)} · ${workset.project_ids.length}</option>`).join("")
+    : `<option value="">等待项目同步</option>`;
+  els.worksetSelect.disabled = worksets.length === 0;
+}
+
+function renderToday() {
+  const platform = state.platform;
+  const workspaces = platform.product_workspaces || [];
+  const tasks = platform.tasks || [];
+  const openTasks = tasks.filter((task) => !task.terminal);
+  const attention = [
+    ...(platform.automation?.attention_items || []).map((item) => ({ ...item, kind_label: "人工介入" })),
+    ...(platform.automation?.recovery_items || []).map((item) => ({ ...item, kind_label: "恢复" })),
+    ...tasks.filter((task) => task.state === "blocked").map((task) => ({ ...task, task_id: task.id, kind_label: "待办阻塞", reason: task.content }))
+  ];
+  els.todaySummary.textContent = `${workspaces.length} 个产品同时纳入当前产品集 · ${openTasks.length} 项未结束工作 · ${platform.feedback_v1.length} 条普通反馈。`;
+  els.platformHealthBadge.className = `health-badge ${platform.source_status === "healthy" ? "success" : platform.source_status === "degraded" ? "warning" : "danger"}`;
+  els.platformHealthBadge.textContent = platform.source_status === "healthy" ? "平台已同步" : platform.source_status === "degraded" ? "部分数据降级" : sourceStatusLabel(platform.source_status);
+  els.platformErrorHost.innerHTML = platform.errors.length
+    ? `<div class="platform-error"><strong>${platform.errors.length} 个数据区段未完成</strong><span>${escapeHtml([...new Set(platform.errors.map((item) => `${item.section}${item.project_id ? ` · ${projectName(item.project_id)}` : ""}`))].join("、"))}</span></div>`
+    : "";
+  els.todayMetricGrid.innerHTML = [
+    metric("当前产品集", workspaces.length, state.platform.active_workset?.name || "尚未创建", "healthy"),
+    metric("待推进", tasks.filter((task) => ["pending_review", "pending"].includes(task.state)).length, "完整团队待办，不限当前执行人", ""),
+    metric("进行中", tasks.filter((task) => task.state === "in_progress").length, platform.automation?.active_execution ? "ArcOrbit 有 1 个活动执行" : "ArcOrbit 当前待命", "running"),
+    metric("需注意", attention.length, attention.length ? "阻塞、人工判断或恢复" : "当前没有异常", attention.length ? "attention" : ""),
+    metric("反馈", platform.feedback_v1.length + Number(platform.automation?.acceptance_feedback_counts?.open || 0), `${platform.feedback_v1.length} 普通 · ${platform.automation?.acceptance_feedback_counts?.open || 0} 验收`, "")
+  ].join("");
+  els.todayProductGrid.innerHTML = workspaces.length ? workspaces.map((workspace) => {
+    const open = Object.entries(workspace.task_counts || {}).filter(([key]) => !["completed", "accepted", "cancelled"].includes(key)).reduce((sum, [, value]) => sum + Number(value || 0), 0);
+    return `<button class="product-card" data-product-work="${escapeHtml(workspace.id)}" type="button"><span class="product-card-head"><i>${escapeHtml(workspace.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(workspace.name)}</strong><small>${escapeHtml(workspace.current_user_role || "member")} · ${workspace.local_project_path ? "已绑定本地项目" : "仅远端"}</small></span></span><span class="product-card-stats"><b>${open}<small>未结束</small></b><b>${workspace.feedback_count}<small>反馈</small></b><b>${workspace.members.length}<small>成员</small></b></span><span class="product-card-foot"><em class="status-pill ${workspace.eligible ? "accepted" : "pending_review"}">${workspace.eligible ? "可自动执行" : workspace.participating ? "待满足执行条件" : "未授权自动领取"}</em><small>打开工作 →</small></span></button>`;
+  }).join("") : `<div class="empty-state platform-empty">当前产品集未选择产品。前往 Products 勾选一个或多个 Workshop 项目。</div>`;
+  els.todayProductGrid.querySelectorAll("[data-product-work]").forEach((button) => button.addEventListener("click", () => {
+    state.platformWorkFilter = projectName(button.dataset.productWork).toLowerCase();
+    showPage("work");
+  }));
+  els.todayWorkList.innerHTML = openTasks.length ? `<div class="compact-list">${rankTasks(openTasks).slice(0, 8).map(platformTaskRow).join("")}</div>` : `<div class="empty-state compact">当前产品集没有未结束待办。</div>`;
+  els.todayAttentionList.innerHTML = attention.length ? `<div class="compact-list">${attention.slice(0, 8).map((item) => `<div class="compact-row attention"><span><strong>${escapeHtml(item.title || item.reason || item.task_id || "需要处理")}</strong><small>${escapeHtml(projectName(item.project_id))} · ${escapeHtml(item.kind_label)}</small></span><em>${escapeHtml(item.task_id || item.id || "")}</em></div>`).join("")}</div>` : `<div class="empty-state compact">当前没有人工介入、恢复或阻塞项。</div>`;
+}
+
+function renderProducts() {
+  const platform = state.platform;
+  const selected = new Set(platform.active_workset?.project_ids || []);
+  els.worksetHeading.textContent = platform.active_workset ? `${platform.active_workset.name} · ${selected.size} 个产品` : "当前产品集";
+  els.saveWorksetButton.disabled = !platform.active_workset;
+  els.productCatalog.innerHTML = platform.projects.length ? platform.projects.map((project) => {
+    const canManage = ["owner", "admin"].includes(project.current_user_role);
+    return `<div class="product-catalog-row"><input type="checkbox" data-workset-project="${escapeHtml(project.id)}" ${selected.has(String(project.id)) ? "checked" : ""} aria-label="在当前产品集显示 ${escapeHtml(project.name)}"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.description || project.git_url || "Workshop 项目")}</small></span></span><span class="product-facts"><em>${escapeHtml(project.current_user_role || "member")}</em><em>${project.local_project_path ? "本地已绑定" : "未绑定本地项目"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span><span class="row-actions">${canManage ? `<button data-product-edit="${escapeHtml(project.id)}" type="button">编辑</button><button data-product-invite="${escapeHtml(project.id)}" type="button">邀请</button>` : ""}${project.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(project.id)}" type="button">删除</button>` : ""}</span></div>`;
+  }).join("") : `<div class="empty-state">登录 Workshop 并同步后显示可加入产品集的项目。</div>`;
+  els.productCatalog.querySelectorAll("[data-product-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editProduct(button.dataset.productEdit))));
+  els.productCatalog.querySelectorAll("[data-product-invite]").forEach((button) => button.addEventListener("click", () => runAction(() => inviteProject(button.dataset.productInvite))));
+  els.productCatalog.querySelectorAll("[data-product-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteProduct(button.dataset.productDelete))));
+}
+
+function renderTeam() {
+  const platform = state.platform;
+  const workspaces = platform.product_workspaces || [];
+  const selectedOrganizationIds = new Set(workspaces.map((item) => String(item.organization_id)).filter(Boolean));
+  const organizations = platform.organizations.filter((item) => selectedOrganizationIds.has(String(item.id)));
+  els.organizationGrid.innerHTML = organizations.length ? organizations.map((organization) => {
+    const members = platform.organization_members.filter((item) => String(item.organization_id) === String(organization.id));
+    const products = workspaces.filter((item) => String(item.organization_id) === String(organization.id));
+    const me = members.find((member) => member.is_me);
+    const canManage = ["owner", "admin"].includes(me?.role);
+    const memberRows = members.map((member) => {
+      const canChangeRole = me?.role === "owner" && member.role !== "owner";
+      const canRemove = member.is_me || (["owner", "admin"].includes(me?.role) && member.role !== "owner");
+      return `<li><span>${escapeHtml(member.username)} · ${escapeHtml(member.role)}${member.is_me ? " · 我" : ""}</span>${canChangeRole || canRemove ? `<span class="row-actions">${canChangeRole ? `<button data-organization-member-edit="${escapeHtml(member.id)}" data-member-organization="${escapeHtml(organization.id)}" type="button">角色</button>` : ""}${canRemove ? `<button class="danger-action" data-organization-member-delete="${escapeHtml(member.id)}" data-member-organization="${escapeHtml(organization.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span>` : ""}</li>`;
+    }).join("");
+    return `<article class="organization-card"><span>ORGANIZATION</span><h2>${escapeHtml(organization.name)}</h2><p>${escapeHtml(organization.description || "Workshop 团队边界")}</p><div><strong>${members.length}<small>组织成员</small></strong><strong>${products.length}<small>当前产品</small></strong></div>${members.length ? `<ul class="organization-member-list">${memberRows}</ul>` : ""}${canManage ? `<span class="row-actions organization-actions"><button data-organization-edit="${escapeHtml(organization.id)}" type="button">编辑</button><button data-organization-invite="${escapeHtml(organization.id)}" type="button">邀请</button>${me.role === "owner" ? `<button class="danger-action" data-organization-delete="${escapeHtml(organization.id)}" type="button">删除</button>` : ""}</span>` : ""}</article>`;
+  }).join("") : `<div class="empty-state platform-empty">当前产品没有可显示的组织信息。</div>`;
+  els.organizationGrid.querySelectorAll("[data-organization-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editOrganization(button.dataset.organizationEdit))));
+  els.organizationGrid.querySelectorAll("[data-organization-invite]").forEach((button) => button.addEventListener("click", () => runAction(() => inviteOrganization(button.dataset.organizationInvite))));
+  els.organizationGrid.querySelectorAll("[data-organization-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteOrganization(button.dataset.organizationDelete))));
+  els.organizationGrid.querySelectorAll("[data-organization-member-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editOrganizationMember(button.dataset.organizationMemberEdit, button.dataset.memberOrganization))));
+  els.organizationGrid.querySelectorAll("[data-organization-member-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteOrganizationMember(button.dataset.organizationMemberDelete, button.dataset.memberOrganization))));
+  const members = [...platform.members].sort((left, right) => Number(right.is_me) - Number(left.is_me) || left.username.localeCompare(right.username, "zh-CN"));
+  els.teamTable.innerHTML = members.length ? `<table class="data-table team-data-table"><colgroup><col style="width:160px"><col><col style="width:110px"><col style="width:140px"><col style="width:145px"></colgroup><thead><tr><th>成员</th><th>产品职责</th><th>角色</th><th>所属产品</th><th>管理</th></tr></thead><tbody>${members.map((member) => {
+    const workspace = platform.product_workspaces.find((item) => String(item.id) === String(member.project_id));
+    const canEdit = workspace?.current_user_role === "owner" && member.role !== "owner";
+    const canRemove = member.is_me || (["owner", "admin"].includes(workspace?.current_user_role) && member.role !== "owner");
+    return `<tr><td><strong>${escapeHtml(member.username)}</strong>${member.is_me ? " · 我" : ""}</td><td>${escapeHtml(member.duty || "未填写职责")}</td><td>${escapeHtml(member.role)}${member.is_external ? " · 外部" : ""}</td><td>${escapeHtml(member.project_name)}</td><td><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(member.project_id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(member.project_id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}${!canEdit && !canRemove ? "—" : ""}</span></td></tr>`;
+  }).join("")}</tbody></table>` : `<div class="empty-state">当前产品集没有可显示的项目成员。</div>`;
+  els.teamTable.querySelectorAll("[data-project-member-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editProjectMember(button.dataset.projectMemberEdit, button.dataset.memberProject))));
+  els.teamTable.querySelectorAll("[data-project-member-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteProjectMember(button.dataset.projectMemberDelete, button.dataset.memberProject))));
+}
+
+function renderPlatformWork() {
+  els.platformWorkFilter.value = state.platformWorkFilter;
+  const tasks = state.platform.tasks.filter((task) => !state.platformWorkFilter || `${task.title} ${task.content} ${task.project_name} ${task.id} ${task.executor_id}`.toLowerCase().includes(state.platformWorkFilter));
+  els.platformWorkTable.innerHTML = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"><col style="width:165px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th><th>管理</th></tr></thead><tbody>${rankTasks(tasks).map((task) => { const canManage = canManagePlatformTask(task); return `<tr><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell">${task.father_id ? `<small class="parent-task-ref">↳ ${escapeHtml(task.father_id)}</small>` : ""}${escapeHtml(task.title)}${task.tags ? `<small class="task-tags">${escapeHtml(Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags)}</small>` : ""}</td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td><td><span class="row-actions">${canManage ? `<button data-platform-task-edit="${escapeHtml(task.id)}" type="button">编辑</button>` : ""}<button data-platform-task-attachment="${escapeHtml(task.id)}" type="button">附件</button>${canManage ? `<button class="danger-action" data-platform-task-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</span></td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">当前产品集或筛选条件下没有待办。</div>`;
+  els.platformWorkTable.querySelectorAll("[data-platform-task-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editTask(button.dataset.platformTaskEdit))));
+  els.platformWorkTable.querySelectorAll("[data-platform-task-attachment]").forEach((button) => button.addEventListener("click", () => runAction(() => manageTaskAttachments(button.dataset.platformTaskAttachment))));
+  els.platformWorkTable.querySelectorAll("[data-platform-task-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteTask(button.dataset.platformTaskDelete))));
+}
+
+function renderPlatformFeedback() {
+  const ordinary = state.platform.feedback_v1 || [];
+  const acceptance = state.snapshot.acceptance_feedback_queue || [];
+  els.ordinaryFeedbackTable.innerHTML = ordinary.length ? `<table class="data-table feedback-data-table"><colgroup><col style="width:75px"><col><col style="width:105px"><col style="width:70px"><col style="width:85px"><col style="width:155px"></colgroup><thead><tr><th>反馈</th><th>内容</th><th>产品</th><th>优先级</th><th>关联待办</th><th>管理</th></tr></thead><tbody>${ordinary.map((item) => `<tr><td>${escapeHtml(item.short_id || item.id)}</td><td class="task-title-cell">${escapeHtml(item.title || item.content || "未命名反馈")}${item.ignored ? " · 已忽略" : ""}</td><td>${escapeHtml(item.project_name)}</td><td>${escapeHtml(item.priority || "未设置")}</td><td>${escapeHtml(item.linked_task_id || "未关联")}</td><td><span class="row-actions"><button data-feedback-edit="${escapeHtml(item.id)}" type="button">编辑</button><button data-feedback-task="${escapeHtml(item.id)}" type="button">转待办</button>${["owner", "admin"].includes(state.platform.product_workspaces.find((workspace) => String(workspace.id) === String(item.project_id))?.current_user_role) ? `<button class="danger-action" data-feedback-delete="${escapeHtml(item.id)}" type="button">删除</button>` : ""}</span></td></tr>`).join("")}</tbody></table>` : `<div class="empty-state">当前产品集没有普通用户反馈。</div>`;
+  els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editFeedback(button.dataset.feedbackEdit))));
+  els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-task]").forEach((button) => button.addEventListener("click", () => runAction(() => feedbackToTask(button.dataset.feedbackTask))));
+  els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteFeedback(button.dataset.feedbackDelete))));
+  els.acceptanceFeedbackPlatformTable.innerHTML = acceptance.length ? `<div class="compact-list">${acceptance.map((item) => `<button class="compact-row feedback-action" data-platform-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback || item.feedback_id)}</strong><small>${escapeHtml(projectName(item.project_id))} · 来源待办 ${escapeHtml(item.source_task_id)}</small></span><em class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status || "queued")}</em></button>`).join("")}</div>` : `<div class="empty-state">没有待处理的 ArcOrbit 验收反馈。</div>`;
+  els.acceptanceFeedbackPlatformTable.querySelectorAll("[data-platform-feedback]").forEach((button) => button.addEventListener("click", () => {
+    const item = acceptance.find((entry) => String(entry.feedback_id) === button.dataset.platformFeedback);
+    if (!item) return;
+    const task = state.snapshot.tasks.find((entry) => String(entry.id) === String(item.source_task_id));
+    if (item.current_run_id || item.source_run_id) openWorkbench("review", item.current_run_id || item.source_run_id, { task, feedbackId: item.feedback_id });
+    else openTaskBrowser(task?.state || "completed", task?.id || item.source_task_id);
+  }));
+  if (state.platform.capabilities.feedback_v2 === "unavailable") {
+    els.ordinaryFeedbackTable.insertAdjacentHTML("afterbegin", `<div class="capability-notice"><strong>Feedback V2 尚未接入</strong><span>本页严格使用现有 Workshop Feedback V1 接口，不伪造 V2 能力。</span></div>`);
+  }
+}
+
+async function createProduct() {
+  const values = await openPlatformAction({
+    title: "创建产品",
+    lead: "创建 Workshop 项目；本地 repository 绑定和 Automation 授权仍由各自入口独立管理。",
+    confirmLabel: "创建产品",
+    fields: [
+      platformField("name", "产品名称", { required: true, placeholder: "例如：虚拟产品 A" }),
+      platformField("git_url", "Git 地址", { placeholder: "可选" }),
+      platformField("organization_id", "所属组织", { type: "select", options: [{ value: "", label: "个人项目" }, ...organizationOptions()] })
+    ]
+  });
+  if (!values) return;
+  await executeManagedAction("project.create", values, "产品已创建");
+}
+
+async function editProduct(projectId) {
+  const project = findProject(projectId);
+  const values = await openPlatformAction({
+    title: `编辑 ${project.name}`,
+    lead: "仅更新 Workshop 项目事实，不改变当前产品集或 Automation 授权。",
+    confirmLabel: "保存",
+    fields: [
+      platformField("name", "产品名称", { required: true, value: project.name }),
+      platformField("git_url", "Git 地址", { value: project.git_url }),
+      platformField("organization_id", "所属组织", { type: "select", value: project.organization_id, options: [{ value: "", label: "个人项目" }, ...organizationOptions()] })
+    ]
+  });
+  if (!values) return;
+  await executeManagedAction("project.update", { project_id: project.id, ...values }, "产品信息已更新");
+}
+
+async function inviteProject(projectId) {
+  const project = findProject(projectId);
+  const values = await openPlatformAction({
+    title: `邀请加入 ${project.name}`,
+    lead: "生成受服务端权限约束的邀请。ArcOrbit 不开放缺少权限校验的“直接添加成员”接口。",
+    confirmLabel: "生成邀请",
+    fields: inviteFields()
+  });
+  if (!values) return;
+  const invitation = await executeManagedAction("project.invite", { project_id: project.id, ...values }, "项目邀请已生成", { refresh: false });
+  showResult("项目邀请", invitation);
+}
+
+async function deleteProduct(projectId) {
+  const project = findProject(projectId);
+  if (!window.confirm(`确定删除产品“${project.name}”吗？该操作由 Workshop 服务执行，可能同时影响成员和待办。`)) return;
+  await executeManagedAction("project.delete", { project_id: project.id }, "产品已删除");
+}
+
+async function createOrganization() {
+  const values = await openPlatformAction({
+    title: "创建组织",
+    lead: "组织承载团队成员和产品归属。",
+    confirmLabel: "创建组织",
+    fields: [platformField("name", "组织名称", { required: true }), platformField("description", "说明", { type: "textarea" })]
+  });
+  if (!values) return;
+  await executeManagedAction("organization.create", values, "组织已创建");
+}
+
+async function editOrganization(organizationId) {
+  const organization = findOrganization(organizationId);
+  const values = await openPlatformAction({
+    title: `编辑 ${organization.name}`,
+    lead: "更新 Workshop 组织的名称与说明。",
+    confirmLabel: "保存",
+    fields: [platformField("name", "组织名称", { required: true, value: organization.name }), platformField("description", "说明", { type: "textarea", value: organization.description })]
+  });
+  if (!values) return;
+  await executeManagedAction("organization.update", { organization_id: organization.id, ...values }, "组织信息已更新");
+}
+
+async function inviteOrganization(organizationId) {
+  const organization = findOrganization(organizationId);
+  const values = await openPlatformAction({ title: `邀请加入 ${organization.name}`, lead: "生成组织邀请；加入动作仍由受邀用户完成。", confirmLabel: "生成邀请", fields: inviteFields() });
+  if (!values) return;
+  const invitation = await executeManagedAction("organization.invite", { organization_id: organization.id, ...values }, "组织邀请已生成", { refresh: false });
+  showResult("组织邀请", invitation);
+}
+
+async function deleteOrganization(organizationId) {
+  const organization = findOrganization(organizationId);
+  if (!window.confirm(`确定删除组织“${organization.name}”吗？请先确认其下产品已妥善处理。`)) return;
+  await executeManagedAction("organization.delete", { organization_id: organization.id }, "组织已删除");
+}
+
+async function editOrganizationMember(memberId, organizationId) {
+  const member = findOrganizationMember(memberId, organizationId);
+  const values = await openPlatformAction({
+    title: `调整 ${member.username} 的组织角色`,
+    lead: "组织角色使用 Workshop 当前支持的 Admin / Member 边界。",
+    confirmLabel: "保存角色",
+    fields: [platformField("role", "组织角色", { type: "select", value: member.role, options: roleOptions() })]
+  });
+  if (!values) return;
+  await executeManagedAction("organization.member.update", { organization_id: organizationId, target_user_id: member.user_id, ...values }, "组织成员角色已更新");
+}
+
+async function deleteOrganizationMember(memberId, organizationId) {
+  const member = findOrganizationMember(memberId, organizationId);
+  if (!window.confirm(`确定将 ${member.username} 从组织中移除吗？`)) return;
+  await executeManagedAction("organization.member.delete", { organization_id: organizationId, target_user_id: member.user_id }, "组织成员已移除");
+}
+
+async function editProjectMember(memberId, projectId) {
+  const member = findProjectMember(memberId, projectId);
+  const values = await openPlatformAction({ title: `管理 ${member.username}`, lead: "Workshop 当前仅允许项目 Owner 维护非 Owner 成员的角色和职责。", confirmLabel: "保存", fields: [platformField("role", "项目角色", { type: "select", value: member.role, options: roleOptions() }), platformField("duty", "产品职责", { value: member.duty })] });
+  if (!values) return;
+  await executeManagedAction("project.member.update", { project_id: projectId, target_user_id: member.user_id, ...values }, "成员信息已更新");
+}
+
+async function deleteProjectMember(memberId, projectId) {
+  const member = findProjectMember(memberId, projectId);
+  if (!window.confirm(`确定将 ${member.username} 从 ${member.project_name} 移除吗？`)) return;
+  await executeManagedAction("project.member.delete", { project_id: projectId, target_user_id: member.user_id }, "项目成员已移除");
+}
+
+async function createTask() {
+  const projects = workspaceOptions();
+  if (!projects.length) throw new Error("当前产品集没有可创建待办的产品。");
+  const values = await openPlatformAction({
+    title: "创建待办",
+    lead: "待办写入 Workshop；是否进入 Automation 仍由分配对象、状态和项目授权共同决定。",
+    confirmLabel: "创建待办",
+    fields: [
+      platformField("project_id", "产品", { type: "select", required: true, options: projects }),
+      platformField("content", "待办内容", { type: "textarea", required: true }),
+      platformField("state", "状态", { type: "select", value: "pending_review", options: taskStateOptions() }),
+      platformField("executor_id", "执行人", { type: "select", options: memberSelectOptions() }),
+      platformField("father_id", "父待办", { type: "select", options: taskSelectOptions() }),
+      platformField("priority", "服务优先级", { type: "number", value: "0", min: 0, help: "Workshop 数值越小优先级越高。" }),
+      platformField("tags", "标签", { placeholder: "按现有 Workshop 格式填写" })
+    ]
+  });
+  if (!values) return;
+  await executeManagedAction("task.create", values, "待办已创建");
+}
+
+async function editTask(taskId) {
+  const task = findPlatformTask(taskId);
+  const values = await openPlatformAction({
+    title: `编辑待办 ${task.id}`,
+    lead: `所属产品：${task.project_name}。父待办、执行人、优先级和标签均使用 Workshop 现有字段。`,
+    confirmLabel: "保存",
+    fields: [
+      platformField("content", "待办内容", { type: "textarea", required: true, value: task.content || task.title }),
+      platformField("state", "状态", { type: "select", value: task.state, options: taskStateOptions() }),
+      platformField("executor_id", "执行人", { type: "select", value: task.executor_id, options: memberSelectOptions(task.project_id) }),
+      platformField("father_id", "父待办", { type: "select", value: task.father_id, options: taskSelectOptions(task.project_id, task.id) }),
+      platformField("priority", "服务优先级", { type: "number", value: servicePriority(task.priority), min: 0, help: "Workshop 数值越小优先级越高。" }),
+      platformField("tags", "标签", { value: task.tags })
+    ]
+  });
+  if (!values) return;
+  await executeManagedAction("task.update", { task_id: task.id, ...values }, "待办已更新");
+}
+
+async function deleteTask(taskId) {
+  const task = findPlatformTask(taskId);
+  if (!window.confirm(`确定删除待办“${task.title}”吗？`)) return;
+  await executeManagedAction("task.delete", { task_id: task.id }, "待办已删除");
+}
+
+async function manageTaskAttachments(taskId) {
+  const task = findPlatformTask(taskId);
+  const attachments = await api.executePlatformAction("task.attachments.list", { task_id: task.id });
+  const userId = String(state.platform.user?.id || "");
+  const role = findWorkspace(task.project_id).current_user_role;
+  const editable = (attachments || []).filter((item) => String(item.creator_id) === userId);
+  const deletable = (attachments || []).filter((item) => String(item.creator_id) === userId || String(task.creator_id) === userId || ["owner", "admin"].includes(role));
+  const operation = await openPlatformAction({
+    title: `待办 ${task.id} 的附件`,
+    lead: `${attachments?.length || 0} 个附件；所有项目成员可新增，只有创建者可改内容，删除还允许待办创建者和项目 admin/owner。`,
+    confirmLabel: "下一步",
+    fields: [platformField("operation", "操作", { type: "select", options: [{ value: "create", label: "新增" }, ...(editable.length ? [{ value: "update", label: "更新我创建的附件" }] : []), ...(deletable.length ? [{ value: "delete", label: "删除有权限的附件" }] : [])] })]
+  });
+  if (!operation) return;
+  if (operation.operation === "create") {
+    const values = await openPlatformAction({ title: "新增附件", confirmLabel: "新增", fields: [platformField("type", "类型", { type: "select", options: ["text", "file", "url"].map((value) => ({ value, label: value })) }), platformField("content", "内容", { type: "textarea", required: true })] });
+    if (values) await executeManagedAction("task.attachment.create", { task_id: task.id, ...values }, "附件已新增");
+    return;
+  }
+  const candidates = operation.operation === "update" ? editable : deletable;
+  const values = await openPlatformAction({
+    title: operation.operation === "update" ? "更新附件" : "删除附件",
+    confirmLabel: operation.operation === "update" ? "保存" : "删除",
+    fields: [platformField("attachment_id", "附件", { type: "select", options: candidates.map((item) => ({ value: item.id, label: `${item.id} · ${item.type} · ${item.content.slice(0, 50)}` })) }), ...(operation.operation === "update" ? [platformField("content", "新内容", { type: "textarea", required: true })] : [])]
+  });
+  if (!values) return;
+  if (operation.operation === "update") await executeManagedAction("task.attachment.update", values, "附件已更新");
+  else await executeManagedAction("task.attachment.delete", values, "附件已删除");
+}
+
+async function createTag() {
+  const tags = state.platform.tags || [];
+  const values = await openPlatformAction({
+    title: "管理标签",
+    lead: "标签归属于单个 Workshop 项目。更新或删除时请选择已有标签。",
+    confirmLabel: "执行",
+    fields: [
+      platformField("operation", "操作", { type: "select", options: [{ value: "create", label: "新增" }, { value: "update", label: "重命名" }, { value: "delete", label: "删除" }] }),
+      platformField("project_id", "产品", { type: "select", options: workspaceOptions() }),
+      platformField("tag_id", "已有标签", { type: "select", options: [{ value: "", label: "新增时无需选择" }, ...tags.map((tag) => ({ value: tag.id, label: `${tag.project_name} · ${tag.name}` }))] }),
+      platformField("name", "标签名称")
+    ]
+  });
+  if (!values) return;
+  if (values.operation === "create") await executeManagedAction("tag.create", values, "标签已创建");
+  else if (values.operation === "update") await executeManagedAction("tag.update", values, "标签已更新");
+  else await executeManagedAction("tag.delete", values, "标签已删除");
+}
+
+async function createFeedback() {
+  const values = await feedbackForm({ title: "创建普通反馈", confirmLabel: "创建反馈" });
+  if (!values) return;
+  await executeManagedAction("feedback.create", feedbackPayload(values), "反馈已创建");
+}
+
+async function editFeedback(feedbackId) {
+  const feedback = findFeedback(feedbackId);
+  const values = await feedbackForm({ title: `编辑反馈 ${feedback.short_id || feedback.id}`, confirmLabel: "保存", feedback });
+  if (!values) return;
+  await executeManagedAction("feedback.update", { feedback_id: feedback.id, ...feedbackPayload(values, feedback.metadata) }, "反馈已更新");
+}
+
+async function feedbackToTask(feedbackId) {
+  const feedback = findFeedback(feedbackId);
+  if (feedback.linked_task_id && !window.confirm(`该反馈已关联待办 ${feedback.linked_task_id}。仍要新建另一个待办吗？`)) return;
+  const values = await openPlatformAction({
+    title: "反馈转待办",
+    lead: "这是现有 Feedback V1 与 Todo 的非事务组合：先创建待办，再把待办 ID 写回反馈 data；若第二步失败会明确保留部分成功信息。",
+    confirmLabel: "创建并关联",
+    fields: [
+      platformField("task_content", "待办内容", { type: "textarea", required: true, value: feedback.title || feedback.content }),
+      platformField("task_state", "初始状态", { type: "select", value: "pending_review", options: taskStateOptions() }),
+      platformField("executor_id", "执行人 ID"),
+      platformField("task_priority", "服务优先级", { type: "number", value: "0", min: 0 }),
+      platformField("task_tags", "标签")
+    ]
+  });
+  if (!values) return;
+  await executeManagedAction("feedback.to_task", { feedback_id: feedback.id, project_id: feedback.project_id, metadata: feedback.metadata, ...values }, "反馈已转为待办并完成关联");
+}
+
+async function deleteFeedback(feedbackId) {
+  const feedback = findFeedback(feedbackId);
+  if (!window.confirm(`确定删除反馈“${feedback.title || feedback.short_id || feedback.id}”吗？`)) return;
+  await executeManagedAction("feedback.delete", { feedback_id: feedback.id }, "反馈已删除");
+}
+
+async function feedbackForm({ title, confirmLabel, feedback = {} }) {
+  return openPlatformAction({
+    title,
+    lead: "使用 Workshop Feedback V1 字段；优先级、忽略态和待办关联保存在 data 元数据中。",
+    confirmLabel,
+    fields: [
+      ...(feedback.id ? [] : [platformField("project_id", "产品", { type: "select", required: true, options: workspaceOptions() })]),
+      platformField("title", "标题", { required: true, value: feedback.title }),
+      platformField("content", "内容", { type: "textarea", required: true, value: feedback.content }),
+      platformField("priority", "优先级", { type: "select", value: feedback.priority, options: [{ value: "", label: "未设置" }, ...["P1", "P2", "P3"].map((value) => ({ value, label: value }))] }),
+      platformField("ignored", "处理状态", { type: "select", value: feedback.ignored ? "true" : "false", options: [{ value: "false", label: "正常" }, { value: "true", label: "已忽略" }] }),
+      platformField("custom_user_id", "外部用户 ID", { value: feedback.custom_user_id }),
+      platformField("user_phone", "联系电话", { value: feedback.user_phone }),
+      platformField("user_email", "联系邮箱", { value: feedback.user_email }),
+      platformField("file", "附件地址", { value: feedback.file })
+    ]
+  });
+}
+
+function feedbackPayload(values, existingMetadata = {}) {
+  const { priority, ignored, ...fields } = values;
+  return { ...fields, data: { ...existingMetadata, priority, ignored: ignored === "true" } };
+}
+
+async function executeManagedAction(command, input, message, { refresh = true } = {}) {
+  try {
+    const result = await api.executePlatformAction(command, input);
+    if (refresh) await refreshSnapshot();
+    showToast(message);
+    return result;
+  } catch (error) {
+    if (error?.partial_result) throw new Error(`${error.message}；待办 ${error.partial_result.task_id} 已创建，但反馈关联失败。`);
+    throw error;
+  }
+}
+
+function openPlatformAction({ title, lead = "", confirmLabel = "确认", fields = [] }) {
+  if (platformActionResolver) closePlatformAction(null);
+  els.platformActionTitle.textContent = title;
+  els.platformActionLead.textContent = lead;
+  els.confirmPlatformActionButton.textContent = confirmLabel;
+  els.platformActionFields.innerHTML = fields.join("");
+  els.platformActionOverlay.classList.remove("hidden");
+  els.platformActionFields.querySelector("input, textarea, select")?.focus();
+  return new Promise((resolve) => { platformActionResolver = resolve; });
+}
+
+function closePlatformAction(value) {
+  if (!platformActionResolver) return;
+  const resolve = platformActionResolver;
+  platformActionResolver = null;
+  els.platformActionOverlay.classList.add("hidden");
+  resolve(value);
+}
+
+function platformField(name, label, { type = "text", value = "", required = false, placeholder = "", options = [], min, help = "" } = {}) {
+  const attrs = `${required ? " required" : ""}${placeholder ? ` placeholder="${escapeHtml(placeholder)}"` : ""}${min !== undefined ? ` min="${escapeHtml(min)}"` : ""}`;
+  const control = type === "textarea"
+    ? `<textarea name="${escapeHtml(name)}" rows="4"${attrs}>${escapeHtml(value)}</textarea>`
+    : type === "select"
+      ? `<select name="${escapeHtml(name)}"${attrs}>${options.map((option) => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value ?? "") ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select>`
+      : `<input name="${escapeHtml(name)}" type="${escapeHtml(type)}" value="${escapeHtml(value)}"${attrs}>`;
+  return `<label class="platform-action-field"><span>${escapeHtml(label)}</span>${control}${help ? `<small>${escapeHtml(help)}</small>` : ""}</label>`;
+}
+
+function inviteFields() {
+  return [
+    platformField("role", "受邀角色", { type: "select", options: roleOptions() }),
+    platformField("expires_in", "有效小时数", { type: "number", value: "0", min: 0, help: "0 表示使用服务端的长期邀请语义。" }),
+    platformField("max_uses", "最多使用次数", { type: "number", value: "1", min: 1 })
+  ];
+}
+
+function roleOptions() { return [{ value: "member", label: "Member" }, { value: "admin", label: "Admin" }]; }
+function taskStateOptions() { return TASK_STATES.map((value) => ({ value, label: STATE_LABELS[value] || value })); }
+function workspaceOptions() { return (state.platform.product_workspaces || []).map((item) => ({ value: item.id, label: item.name })); }
+function organizationOptions() { return (state.platform.organizations || []).map((item) => ({ value: item.id, label: item.name })); }
+function memberSelectOptions(projectId = "") { return [{ value: "", label: "未分配" }, ...(state.platform.members || []).filter((item) => !projectId || String(item.project_id) === String(projectId)).map((item) => ({ value: item.user_id, label: `${item.project_name} · ${item.username}` }))]; }
+function taskSelectOptions(projectId = "", excludedTaskId = "") { return [{ value: "", label: "根待办" }, ...(state.platform.tasks || []).filter((item) => (!projectId || String(item.project_id) === String(projectId)) && String(item.id) !== String(excludedTaskId)).map((item) => ({ value: item.id, label: `${item.project_name} · ${item.id} · ${item.title}` }))]; }
+function findProject(id) { const value = state.platform.projects.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品。"); return value; }
+function findOrganization(id) { const value = state.platform.organizations.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到组织。"); return value; }
+function findOrganizationMember(id, organizationId) { const value = state.platform.organization_members.find((item) => String(item.id) === String(id) && String(item.organization_id) === String(organizationId)); if (!value) throw new Error("未找到组织成员。"); return value; }
+function findWorkspace(id) { const value = state.platform.product_workspaces.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品工作区。"); return value; }
+function findProjectMember(id, projectId) { const value = state.platform.members.find((item) => String(item.id) === String(id) && String(item.project_id) === String(projectId)); if (!value) throw new Error("未找到项目成员。"); return value; }
+function findPlatformTask(id) { const value = state.platform.tasks.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到待办。"); return value; }
+function findFeedback(id) { const value = state.platform.feedback_v1.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到反馈。"); return value; }
+function canManagePlatformTask(task) { const role = findWorkspace(task.project_id).current_user_role; return task.state !== "in_progress" || ["owner", "admin"].includes(role) || String(task.executor_id) === String(state.platform.user?.id || ""); }
+function servicePriority(value) { const number = Number(value || 0); return number > 0 ? Math.max(0, 100 - number) : 0; }
+function showResult(title, value) { window.alert(`${title}\n\n${JSON.stringify(value, null, 2)}`); }
 
 function renderCommandCenter() {
   const snapshot = state.snapshot;
@@ -1185,6 +1699,37 @@ function currentProject() {
   return state.selectedProjectId === "all" ? null : state.snapshot.projects.find((project) => String(project.id) === state.selectedProjectId) || null;
 }
 
+function projectName(projectId) {
+  return state.platform.projects.find((project) => String(project.id) === String(projectId))?.name
+    || state.snapshot.projects.find((project) => String(project.id) === String(projectId))?.name
+    || (projectId ? `Project ${projectId}` : "未知产品");
+}
+
+function rankTasks(tasks) {
+  const stateRank = { blocked: 0, in_progress: 1, pending_review: 2, pending: 3, completed: 4, accepted: 5, cancelled: 6 };
+  return [...tasks].sort((left, right) => (
+    (stateRank[left.state] ?? 9) - (stateRank[right.state] ?? 9)
+    || Number(right.priority || 0) - Number(left.priority || 0)
+    || String(right.updated_at || right.created_at || "").localeCompare(String(left.updated_at || left.created_at || ""))
+  ));
+}
+
+function platformTaskRow(task) {
+  return `<div class="compact-row"><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.project_name)} · ${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</small></span><em class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</em></div>`;
+}
+
+function uniqueMembers(members = []) {
+  const result = new Map();
+  for (const member of members) {
+    const key = `${member.user_id}:${member.role}:${member.duty}:${member.is_external}`;
+    const current = result.get(key) || { ...member, project_names: [] };
+    if (member.project_name && !current.project_names.includes(member.project_name)) current.project_names.push(member.project_name);
+    current.is_me ||= Boolean(member.is_me);
+    result.set(key, current);
+  }
+  return [...result.values()].sort((left, right) => Number(right.is_me) - Number(left.is_me) || left.username.localeCompare(right.username, "zh-CN"));
+}
+
 function selectedTask() {
   return state.snapshot.tasks.find((task) => String(task.id) === String(state.selectedTaskId)) || null;
 }
@@ -1401,5 +1946,46 @@ function emptySnapshot() {
     recovery_items: [],
     recent_completions: [],
     health: { state: "logged_out", label: "等待登录", tone: "neutral" }
+  };
+}
+
+function emptyPlatformSnapshot() {
+  return {
+    generated_at: "",
+    source_status: "logged_out",
+    user: null,
+    worksets: [],
+    active_workset: null,
+    projects: [],
+    organizations: [],
+    organization_members: [],
+    product_workspaces: [],
+    members: [],
+    tasks: [],
+    feedback_v1: [],
+    tags: [],
+    automation: {
+      enabled: false,
+      queue_paused: false,
+      source_status: "logged_out",
+      health: { state: "logged_out", label: "等待登录", tone: "neutral" },
+      queue: [],
+      active_execution: null,
+      attention_items: [],
+      recovery_items: [],
+      acceptance_feedback_queue: [],
+      acceptance_feedback_counts: { open: 0 }
+    },
+    capabilities: {
+      organizations: "unavailable",
+      project_members: "managed_with_permissions_except_direct_add",
+      project_tasks: "read_write",
+      platform_management: "available_with_server_permissions",
+      feedback_v1: "read_write",
+      feedback_v2: "unavailable",
+      direct_add_project_member: "unavailable",
+      task_history: "unavailable"
+    },
+    errors: []
   };
 }

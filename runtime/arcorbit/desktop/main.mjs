@@ -5,6 +5,7 @@ import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
 import { createCodexExecutableResolver } from "../src/codex-executable-resolver.mjs";
 import { createInteractiveCodexCliLauncher } from "../src/interactive-cli-launcher.mjs";
+import { createPlatformCoordinator } from "../src/platform-coordinator.mjs";
 import { createSkillProvisioningManager } from "../src/skill-provisioning-manager.mjs";
 import { createWorkshopTaskSource } from "../src/task-source-adapter.mjs";
 import { canonicalArcOrbitUserDataPath } from "../src/desktop-user-data.mjs";
@@ -17,6 +18,7 @@ app.setPath("userData", canonicalArcOrbitUserDataPath(app.getPath("appData")));
 let mainWindow;
 let runManager;
 let automationCoordinator;
+let platformCoordinator;
 let workshopService;
 let skillProvisioningManager;
 let quitAfterCleanup = false;
@@ -48,6 +50,11 @@ app.whenReady().then(async () => {
     cliLauncher: createInteractiveCodexCliLauncher({
       getCodexExecutable: () => codexExecutableResolver.getResolved()
     })
+  });
+  platformCoordinator = createPlatformCoordinator({
+    runManager,
+    platformSource: workshopService.platform,
+    automationCoordinator
   });
   runManager.onEvent((event) => {
     if (!mainWindow?.isDestroyed()) {
@@ -194,6 +201,15 @@ function registerIpc() {
   ipcMain.handle("arckit:automation-reopen-cli", async () => automationCoordinator.reopenCodexCli());
   ipcMain.handle("arckit:automation-resume-runtime", async () => automationCoordinator.resumeRuntimeFromCodexCli());
   ipcMain.handle("arckit:automation-recovery", async (_event, input) => automationCoordinator.resolveRecovery(input));
+  ipcMain.handle("arckit:platform-snapshot", async (_event, input) => platformCoordinator.getSnapshot(input));
+  ipcMain.handle("arckit:platform-workset-create", async (_event, input) => platformCoordinator.createWorkset(input));
+  ipcMain.handle("arckit:platform-workset-update", async (_event, input) => platformCoordinator.updateWorkset(input));
+  ipcMain.handle("arckit:platform-workset-delete", async (_event, worksetId) => platformCoordinator.deleteWorkset(worksetId));
+  ipcMain.handle("arckit:platform-workset-active", async (_event, worksetId) => platformCoordinator.setActiveWorkset(worksetId));
+  ipcMain.handle("arckit:platform-workspace-preference", async (_event, projectId, input) => (
+    platformCoordinator.setWorkspacePreference(projectId, input)
+  ));
+  ipcMain.handle("arckit:platform-action", async (_event, command, input) => platformCoordinator.executeAction(command, input));
 }
 
 function startAutomation() {

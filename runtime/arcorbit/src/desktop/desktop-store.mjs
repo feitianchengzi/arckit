@@ -12,13 +12,14 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-        version: 9,
+        version: 10,
         projects: [],
         runs: [],
         sessions: {},
         messages: {},
         settings: defaultSettings(),
-        automation: defaultAutomationState()
+        automation: defaultAutomationState(),
+        platform: defaultPlatformState()
       });
     }
   }
@@ -54,14 +55,16 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
 }
 
 export function normalizeStore(store) {
+  const automation = normalizeAutomationState(store.automation || {});
   const normalized = {
-    version: 9,
+    version: 10,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
     messages: store.messages && typeof store.messages === "object" ? store.messages : {},
     settings: normalizeSettings(store.settings || {}),
-    automation: normalizeAutomationState(store.automation || {})
+    automation,
+    platform: normalizePlatformState(store.platform || {}, automation)
   };
   for (const project of normalized.projects) {
     const legacyMessages = Array.isArray(normalized.messages[project.id]) ? normalized.messages[project.id] : null;
@@ -85,6 +88,87 @@ export function normalizeStore(store) {
     return { ...runRecord, session_id: session.id };
   });
   return normalized;
+}
+
+export function defaultPlatformState() {
+  return {
+    active_workset_id: "WORKSET-DEFAULT",
+    worksets: [{
+      id: "WORKSET-DEFAULT",
+      name: "当前产品集",
+      project_ids: [],
+      created_at: "",
+      updated_at: ""
+    }],
+    workspace_preferences: {},
+    feedback_v2: {
+      status: "unavailable",
+      endpoint_origin: "",
+      checked_at: "",
+      features: {},
+      error: ""
+    }
+  };
+}
+
+export function normalizePlatformState(value = {}, automation = defaultAutomationState()) {
+  const defaults = defaultPlatformState();
+  const migratedProjectIds = Object.keys(automation.project_bindings || {}).sort(compareScalarIds);
+  const inputWorksets = Array.isArray(value.worksets) ? value.worksets : [];
+  const worksets = inputWorksets.map(normalizeWorkset).filter(Boolean);
+  if (worksets.length === 0) {
+    worksets.push({
+      ...defaults.worksets[0],
+      project_ids: migratedProjectIds
+    });
+  }
+  const activeId = String(value.active_workset_id || "").trim();
+  const activeWorksetId = worksets.some((workset) => workset.id === activeId)
+    ? activeId
+    : worksets[0].id;
+  const preferences = value.workspace_preferences && typeof value.workspace_preferences === "object" && !Array.isArray(value.workspace_preferences)
+    ? value.workspace_preferences
+    : {};
+  const feedbackV2 = value.feedback_v2 && typeof value.feedback_v2 === "object" && !Array.isArray(value.feedback_v2)
+    ? value.feedback_v2
+    : {};
+  const feedbackStatuses = new Set(["unavailable", "checking", "available", "degraded"]);
+  return {
+    active_workset_id: activeWorksetId,
+    worksets,
+    workspace_preferences: Object.fromEntries(Object.entries(preferences).map(([projectId, preference]) => {
+      const item = preference && typeof preference === "object" && !Array.isArray(preference) ? preference : {};
+      return [String(projectId), {
+        pinned: Boolean(item.pinned),
+        color: safeColorToken(item.color),
+        last_opened_at: String(item.last_opened_at || "")
+      }];
+    })),
+    feedback_v2: {
+      status: feedbackStatuses.has(feedbackV2.status) ? feedbackV2.status : defaults.feedback_v2.status,
+      endpoint_origin: String(feedbackV2.endpoint_origin || ""),
+      checked_at: String(feedbackV2.checked_at || ""),
+      features: booleanMap(feedbackV2.features),
+      error: String(feedbackV2.error || "")
+    }
+  };
+}
+
+export function normalizeWorkset(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const id = String(value.id || "").trim();
+  const name = String(value.name || "").trim().slice(0, 80);
+  if (!id || !name) return null;
+  const projectIds = Array.isArray(value.project_ids)
+    ? [...new Set(value.project_ids.map((item) => String(item || "").trim()).filter(Boolean))]
+    : [];
+  return {
+    id,
+    name,
+    project_ids: projectIds,
+    created_at: String(value.created_at || ""),
+    updated_at: String(value.updated_at || value.created_at || "")
+  };
 }
 
 export function defaultSettings() {
@@ -415,6 +499,15 @@ function booleanMap(value) {
     return {};
   }
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [String(key), Boolean(item)]));
+}
+
+function compareScalarIds(left, right) {
+  return String(left).localeCompare(String(right), undefined, { numeric: true });
+}
+
+function safeColorToken(value) {
+  const text = String(value || "").trim();
+  return /^[a-z0-9-]{1,32}$/i.test(text) ? text : "";
 }
 
 function normalizeAutomationError(value) {

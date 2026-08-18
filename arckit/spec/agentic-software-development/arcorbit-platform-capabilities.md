@@ -1,0 +1,500 @@
+# ArcOrbit 多产品研发平台能力规格
+
+## 文档定位
+
+本文定义 ArcOrbit 从自动化桌面客户端扩展为多产品软件研发平台时的有效产品边界。
+
+平台保留 ArcOrbit、Workshop 待办服务和 Workshop 反馈产品的既有核心行为，在同一桌面入口中组合组织、产品、成员、待办、执行与反馈能力。
+
+本文使用以下状态：
+
+- **已有**：当前给定仓库中存在可定位的运行实现。
+- **可接入**：现有服务或前端已经提供能力，但 ArcOrbit 尚未接入。
+- **平台新增**：经确认的平台目标，当前产品尚未实现。
+- **依赖合约**：客户端已声明合约，但给定服务端仓库不足以证明服务端实现。
+- **不支持**：当前实现明确没有对应能力或只有无效占位。
+
+## 产品边界
+
+### 平台身份
+
+ArcOrbit 是用于开发其他软件产品的本地桌面平台，不是 ArcOrbit 自身的介绍页，也不是待办和反馈网页的启动器。
+
+用户在日常个人工作中通过 ArcOrbit 处理产品、待办、执行和反馈，不需要再登录待办或反馈网页端。
+
+Workshop 服务继续保存团队共享的组织、项目、成员、待办和反馈数据。取消日常 Web 依赖不等于取消服务端协作数据。
+
+本地项目目录是产品研发和 Agent 执行的首要锚点。服务端项目是团队协作记录与同步来源。
+
+平台第一阶段集中贯通以下闭环：
+
+1. 组织和产品成员形成协作范围。
+2. 待办承接人工工作和自动化候选工作。
+3. ArcOrbit 在绑定的本地项目中执行待办。
+4. 用户反馈流转为待办，完成态待办可以产生验收反馈。
+5. 执行证据和状态写回同一产品上下文。
+
+Delivery、Capability、ProductIdea 和完整 Product Studio 保留平台扩展位置，但不伪装为第一阶段已实现能力。
+
+### Product Workspace
+
+Product Workspace 是 ArcOrbit 的桌面组合对象，不是当前 Workshop 服务端新增的数据表。
+
+一个 Product Workspace 至少组合：
+
+- 一个 Workshop Project 标识及其组织、成员和协作数据；
+- 一个 ArcOrbit 本地项目标识和绝对目录；
+- 远端项目到本地项目的绑定；
+- 本地 Project State、Case、Run、会话、证据和持久 Codex thread；
+- 对应项目的待办和反馈投影；
+- Desktop 拥有的参与自动领取设置和展示设置。
+
+平台界面可以把 Workshop Project 呈现为“产品”，但 API、权限和持久标识继续遵守 Workshop Project 合约。
+
+未绑定本地目录的远端产品仍可参与团队协作和待办、反馈管理，但不可进入本地自动执行。
+
+### 多产品工作集
+
+工作集是 Desktop 本地保存的多产品显示范围，不是产品切换会话，也不修改服务端成员或项目状态。
+
+用户可以同时选择一个或多个 Product Workspace。
+
+Today、Work、Automation 和 Feedback 在同一工作集上聚合，同时保留每条数据的产品归属。
+
+Products 和 Team 提供完整组织与产品管理入口，不因工作集隐藏而删除或退出产品。
+
+当前活动执行即使所属产品被移出工作集，仍固定显示在全局执行状态中，直到安全结束或进入恢复。
+
+改变工作集不停止运行、不改变自动参与授权、不改变任务状态，也不重建 Codex thread。
+
+## 名词与现有模型映射
+
+| 平台名词 | 当前事实对象 | 归属 |
+| --- | --- | --- |
+| 组织 | `Organization` | Workshop 服务 |
+| 组织成员 | `OrganizationMember` | Workshop 服务 |
+| 产品 | `Project` 的平台呈现 | Workshop 服务 |
+| 产品成员 | `ProjectMember` | Workshop 服务 |
+| Product Workspace | Workshop Project、本地项目和执行上下文的组合 | ArcOrbit Desktop |
+| 本地项目 | Desktop `projects` 中的目录记录 | ArcOrbit Desktop |
+| 工作集 | 多个 Product Workspace 的本地显示选择 | ArcOrbit Desktop |
+| 待办 | `Task` | Workshop 服务 |
+| 评论 | `TaskAttachment` 的 text/file/url 表现 | Workshop 服务与 Web 前端 |
+| 用户反馈 | `Feedback` 及 V2 扩展合约 | Workshop 反馈产品 |
+| 验收反馈 | `acceptance_feedback_items` | ArcOrbit Desktop |
+| 执行 | active task、Run、Case、Loop 和 thread 绑定 | ArcOrbit Runtime/Desktop |
+
+平台不创建独立 Team 领域实体。“Team”界面是组织成员池和各产品成员关系的协作投影。
+
+## ArcOrbit 既有核心
+
+### 本地项目
+
+ArcOrbit 支持用户选择一个本地目录并添加为本地项目。
+
+本地项目 ID 由规范化绝对路径确定，同一路径重复添加更新同一项目记录。
+
+添加或执行本地项目时，ArcOrbit 检查并初始化所需的 Arckit Project State。
+
+Desktop 保存本地项目、会话、消息、Run 和自动化状态；Project/Case canonical state 继续保存在对应项目仓库中。
+
+存在活动 Run 的本地项目不可移除。
+
+### Workshop 登录与任务源
+
+ArcOrbit 通过主进程处理 Workshop 验证码登录、token 刷新和退出，不向 Renderer 暴露访问 token。
+
+验证码登录支持邮箱和短信目标。
+
+Workshop 会话在访问 token 即将过期时刷新；首次启动支持恢复可刷新会话。
+
+Workshop 会话超过七天没有有效登录活动后失效并要求重新登录。
+
+退出登录遇到活动执行时需要明确确认；确认后先停止当前执行，再清理远端会话投影。
+
+任务源支持 Workshop 登录、Bearer 调试和用户请求头调试三种认证模式。
+
+### 同步范围
+
+ArcOrbit 获取当前用户、当前用户可见的独立项目、组织和组织项目。
+
+ArcOrbit 对项目去重后，只同步能够识别当前用户项目成员 ID 的项目任务。
+
+同步任务限定当前用户为执行者，并覆盖七种 Workshop 任务状态：
+
+- `pending_review`
+- `pending`
+- `in_progress`
+- `completed`
+- `accepted`
+- `cancelled`
+- `blocked`
+
+ArcOrbit 当前不是完整待办浏览适配器。未分配给当前用户、由当前用户创建但由他人执行、以及仅供项目全体查看的任务不进入现有任务源快照。
+
+单个项目同步失败时，任务源可以进入 degraded 状态并保留该项目此前仍分配给当前用户的快照任务。
+
+### 远端与本地绑定
+
+每个 Workshop Project 可以绑定一个 ArcOrbit 本地项目。
+
+绑定记录由 Desktop 保存，不回写 Workshop Project。
+
+每个 Workshop Project 还有独立的自动参与开关；新同步项目默认不参与自动领取。
+
+项目只有同时满足本地绑定、自动参与和无项目级同步错误，才具备自动执行资格。
+
+### 自动执行队列
+
+全局自动领取开关控制是否领取新任务，不停止当前执行。
+
+队列暂停只阻止领取下一项，不中断当前执行。
+
+普通待办只有处于 `pending` 状态才进入自动候选队列。
+
+队列排序先使用转换后的优先级，再使用状态变更或更新时间，最后使用项目和任务 ID 保持确定性。
+
+Workshop 优先级数值以 0 为最高；ArcOrbit 当前将数值转换为越大越优先的内部排序分数。
+
+领取前 ArcOrbit 重新读取候选任务，确认任务仍为 `pending`、仍分配给当前用户且版本未变化。
+
+领取成功后远端任务写为 `in_progress`，再建立本地活动执行。
+
+ArcOrbit 全局同时只允许一个 `active_task`。多产品工作集形成统一候选队列，但不改变单活动执行租约。
+
+### 条件更新边界
+
+ArcOrbit 在任务状态更新时发送 `If-Match`，并把 HTTP 409 或 412 解释为版本冲突。
+
+当前 Workshop 待办 handler 没有读取 `If-Match`，Task 响应也没有独立版本字段；ArcOrbit 实际使用 `updated_at` 作为候选版本。
+
+因此“读取后条件领取”在现有两端之间尚未形成可证明的服务端原子冲突保护。平台不得把此行为呈现为已经可靠的并发领取保证。
+
+并发领取一致性需要通过 Workshop 服务端条件更新合约或等价的原子状态转换补齐，同时保持 ArcOrbit 的失败关闭和恢复语义。
+
+### 一个待办一个持续线程
+
+每个自动待办从第一次 Agent 调用开始绑定一个非临时 Codex thread。
+
+thread ID 在首轮开始前持久化，后续 gap、验证、修复、Completion Review 和 Git closeout 复用同一 thread。
+
+进程或 Desktop 重启后优先恢复已持久化 thread；只有确认持久化 thread 不存在时才允许建立替代 thread。
+
+上下文使用达到阈值时在同一 thread 上执行压缩，不创建 Controller、Worker、Review 或 repair 的额外 thread。
+
+一个待办的 Case 只有通过 trusted ledger 绑定才能成为权威绑定；Runtime 不根据目录中恰好存在的 Case 推断绑定。
+
+远端待办只有在 canonical Case 已解决、同 thread closeout 完成后才进入远端完成写回。
+
+### 人工介入与恢复
+
+Workbench 展示 Agent/Loop 语义消息、简化工具活动、thread、token、压缩、命令、ledger 和 Git closeout 证据。
+
+人工介入把用户补充的事实、授权或决策作为同一 thread 的新一轮输入，并恢复同一待办执行。
+
+CLI handoff 只在已有权威 Case 绑定和持久 thread 时发生，并在同一 thread 中继续。
+
+任务源冲突、外部状态变化、Runtime 丢失、readiness 失败和 closeout 失败进入 Recovery Center。
+
+全局恢复项可以冻结新领取；恢复动作受当前恢复类型约束，不提供通用任意网络或命令桥。
+
+### Setup Readiness
+
+Desktop 在 Workshop 登录和自动执行之前检查安装包资源、ArcForge provider、Arckit skills 和 Codex。
+
+首次安装或受管目标变化需要用户展开写入目标并确认计划摘要。
+
+已变更的受管内容和 loader 冲突不被静默覆盖；清理 stale 受管路径使用独立确认。
+
+Runtime 保持 policy-neutral，只显式绑定自然 `$using-arckit` Agent 入口和 trusted ledger entrypoints。
+
+Runtime 不维护 Worker registry，不内置固定 skill 顺序、业务 gap、角色或预测路径。
+
+## Workshop 待办与团队协作能力
+
+### 身份和组织
+
+Workshop 业务服务依赖网关完成 JWT 或 API Key 认证，并从转发 Header 解析当前用户。
+
+用户具有 UUID、用户名和头像；用户只能通过当前网关身份读取和更新自己。
+
+组织具有名称、描述、创建者和软删除状态。
+
+组织创建者自动成为 owner。
+
+组织成员角色为 owner、admin、member。
+
+任何组织成员可以查看组织成员列表。
+
+owner 和 admin 可以更新组织、邀请成员和删除其他成员。
+
+只有 owner 可以删除组织和修改其他成员的 admin/member 角色。
+
+成员可以自行退出。owner 退出时服务执行所有权交接，避免组织没有 owner。
+
+组织邀请支持目标角色、可选过期时间、最大使用次数、已使用次数和邀请码加入。
+
+### 产品项目
+
+Workshop Project 具有名称、可选 Git URL、可选组织归属、创建者和软删除状态。
+
+项目可以独立存在，也可以归属于组织。
+
+项目创建者自动成为项目 owner。
+
+项目成员角色为 owner、admin、member，并具有可选职责 `duty` 和组织外成员标记 `is_external`。
+
+owner 和 admin 可以更新项目和生成项目邀请；只有 owner 可以删除项目和修改成员 admin/member 角色。
+
+owner 和 admin 可以删除其他项目成员；成员可以自行退出。owner 退出时服务执行所有权交接。
+
+组织 owner/admin 可以查询组织下全部项目。
+
+项目邀请支持角色、可选过期时间、最大使用次数和邀请码加入。
+
+当前服务不提供项目邀请列表和撤销接口；待办前端对此返回空列表或明确不支持。
+
+当前 `POST /projects/:id/members` handler 注释和实现没有验证调用者的项目管理权限。前端只向 owner/admin 展示添加成员能力，但服务端没有形成同等保护。
+
+ArcOrbit 平台不得依赖前端隐藏来宣称成员添加安全；该接口在接入前需要作为服务端权限缺口处理。
+
+### 待办
+
+Task 属于一个 Project，并支持可选父任务、内容、七状态、创建者、可选执行者、完成时间、优先级、标签和软删除。
+
+父任务必须属于同一项目，任务不能成为自己的父任务，父链循环检查上限为 20 层。
+
+任何项目成员可以创建任务、查看项目任务和查看任务树。
+
+任务列表支持状态、创建者、执行者、标签、优先级、时间范围、更新时间和父任务等筛选，并支持分页。
+
+任务树要求开始和结束时间，时间范围不超过 100 天，并补全命中任务的父链与子树。
+
+非 `in_progress` 任务可以由任何项目成员修改内容、状态、执行者、父任务、优先级和标签。
+
+`in_progress` 任务只有当前执行者、项目 admin 或 owner 可以修改。
+
+当前删除 handler 复用同一修改权限：非 `in_progress` 任务可由任何项目成员删除，`in_progress` 任务仅执行者、admin 或 owner 可删除。
+
+进入 `completed` 或 `accepted` 时设置完成时间；离开这两个状态时清除完成时间。
+
+执行者必须是项目成员，执行者字段可以显式清空。
+
+优先级数值以 0 为最高，数值越大优先级越低；待办 Web 当前提供 0、1、2、3 四档显示。
+
+标签既存在项目级 Tag 实体，也存在 Task 的逗号分隔标签字段；平台接入必须兼容这一现状，不能假设任务和标签已经是规范化多对多关系。
+
+### 评论、附件和历史
+
+TaskAttachment 支持 text、file、url 三种类型，待办 Web 把它呈现为任务评论与附件。
+
+任何项目成员可以创建和查看任务附件。
+
+附件只有创建者可以修改内容，附件类型不可修改。
+
+附件创建者、任务创建者、项目 admin 或 owner 可以删除附件。
+
+当前 Workshop 服务没有独立 TaskComment 模型。
+
+待办 Web 声明了任务状态历史读取接口，但 Workshop 服务没有对应路由；404 被前端静默转换为空历史。
+
+平台不得把空历史解释为“任务从未变更”。状态历史在服务端补齐前属于不支持能力。
+
+### 实时和文件
+
+Workshop 服务提供项目 WebSocket 入口，并在任务和反馈变更时发布项目事件。
+
+项目成员可以管理项目标签。
+
+Workshop 服务提供 OSS 临时凭证；任务附件和反馈文件引用继续使用现有受控访问方式。
+
+## Workshop 用户反馈能力
+
+### V1 已有能力
+
+Feedback 属于一个 Workshop Project，包含唯一短 ID、标题、内容、可选自定义用户 ID、手机号、邮箱、文件引用和 `data` JSON 字符串。
+
+项目成员可以创建、读取和更新反馈；项目 admin 或 owner 可以删除反馈。
+
+查询反馈至少提供项目、短 ID、手机号、邮箱或自定义用户 ID 中的一项，并受当前用户项目成员范围约束。
+
+API Key 路径允许 SDK 创建和查询反馈；项目反馈访问 key 由项目 admin 或 owner 管理。
+
+V1 SDK 以 API Key、项目 ID 和稳定 custom user ID 提交反馈，并允许用户查看自己的反馈状态。
+
+V1 的受理状态、用户状态、优先级、转待办 ID 和时间等扩展信息主要编码在 `data` JSON 中，而不是 Feedback 模型的独立列。
+
+反馈控制台兼容多种历史字段和值，并在缺少优先级时默认显示 P2。
+
+V1 控制台支持搜索、筛选、按时间或优先级排序、手动 P1/P2/P3、忽略、删除和人工确认转待办。
+
+V1 转待办通过创建 Task 后把任务 ID 和状态写回 Feedback `data`，不是服务端原子转换。
+
+V1 SDK 中的“AI 分析中”等时间线文案由 `data` 状态投影生成；给定仓库没有可证明的 AI 分析服务。平台不得把这些文案解释为已有 AI 聚类或自动判断能力。
+
+### V2 客户端合约
+
+V2 控制台和 SDK 客户端声明以下能力：
+
+- `triage_status`：pending、accepted、ignored；
+- `customer_status`：submitted、reviewing、developing、released、completed、ignored；
+- 反馈与主任务 ID、任务状态的关联；
+- 客户和开发者消息、system 消息及附件；
+- 未读通知和已读回写；
+- 服务端签发的上传策略和受限附件读取凭证；
+- 忽略反馈；
+- 服务端反馈转待办并返回反馈、任务和关系；
+- 短期 feedback session token；
+- 直接 API Key 模式。
+
+V2 使用按项目灰度开关；通知使用独立灰度开关，不因启用 V2 工作流而自动启用。
+
+V2 session 模式在 401 时请求受信任宿主刷新短期 token，并只自动重试一次。
+
+V2 API Key 模式要求 apiKey、projectId 和 customUserId，并明确承担客户端可提取 API Key 的风险。
+
+V2 消息附件通过上传策略上传；客户和开发者分别使用受范围约束的读取凭证。
+
+给定 `workshop-todo` 仓库没有 V2 路由、模型或 handler，因此本文只接受 V2 为当前客户端合约，不能据此宣称给定服务端仓库已实现 V2。
+
+ArcOrbit 接入 V2 前必须对目标环境进行真实 API 合约验证，或把服务端实现纳入同一 Case。
+
+## 两类反馈不得混同
+
+用户反馈来自 Feedback SDK 和 Workshop Feedback 服务，属于产品用户到研发团队的外部问题、建议和沟通。
+
+验收反馈由 ArcOrbit 用户对已完成或已验收待办提交，属于同一研发事项完成后的独立修复输入。
+
+验收反馈只允许源任务处于 `completed` 或 `accepted`。
+
+验收反馈保持源任务终态，不把源任务改回 `pending` 或 `in_progress`。
+
+每条验收反馈具有独立 ID、状态、进展、Run 和 Case，并复用源待办的本地项目、会话和持久 Codex thread。
+
+验收反馈和普通待办共享一个全局执行租约，通过就绪时间确定下一次执行；验收反馈不形成并发的第二个 active execution。
+
+验收反馈状态为 queued、running、awaiting_human、blocked、resolved 或 cancelled。
+
+Workshop 用户反馈和 ArcOrbit 验收反馈在平台中使用不同队列、来源标签和动作，不互相冒充服务端记录。
+
+## 第一阶段平台能力
+
+### Today
+
+Today 以当前多产品工作集为范围，聚合活动执行、跨产品待办、用户反馈信号和需要人工处理的事项。
+
+Today 不把 AI 表现为独立聊天角色，只显示产品内产生的分析、执行、证据和人工 Gate。
+
+Today 的优先级聚合必须保留原始产品、任务状态、执行人和来源，不产生脱离源对象的新任务副本。
+
+### Products
+
+Products 显示当前用户可见的全部 Workshop Project 及组织归属、成员关系和 Git URL。
+
+Products 同时显示本地项目绑定、Project State readiness、自动参与和活动执行状态。
+
+用户可以创建、更新和删除有权限的 Workshop Project，并绑定或更换本地目录。
+
+创建产品沿用 Workshop Project 创建规则；创建者成为 owner，组织归属可选。
+
+产品详情可以管理 owner/admin/member、duty、外部成员和邀请，但所有操作遵守服务端权限。
+
+### Team
+
+Team 以 Organization 和 OrganizationMember 为真实数据源。
+
+Team 同时投影每位组织成员参与的 Product Project、项目角色、职责和外部成员状态。
+
+用户可以创建和更新有权限的组织、查看成员、生成组织邀请、修改角色、删除成员或自行退出。
+
+Team 不创建额外团队实体，不用本地工作集替代服务端成员关系。
+
+### Work
+
+Work 提供当前工作集的跨产品待办视图，并支持完整项目待办管理。
+
+Work 至少覆盖创建、查看、筛选、任务树、状态、执行人、优先级、标签、父任务、评论附件和删除。
+
+跨产品视图可以同时显示多个产品，不要求用户先切换到单个产品。
+
+任务创建和编辑始终选择明确产品，并从该产品成员和标签中选择执行人及标签。
+
+完整 Work 浏览范围与 Automation 候选范围分离：Work 可显示用户有权查看的项目任务，Automation 仍只领取当前用户执行的 `pending` 任务。
+
+### Automation
+
+Automation 复用 ArcOrbit 当前 Runtime、持久 thread、Case/Loop、Workbench、Recovery 和 closeout 核心。
+
+Automation 在工作集内展示跨产品队列，但全局活动执行和恢复状态不受工作集隐藏。
+
+每条候选明确显示远端产品、本地目录、参与授权、执行人、状态和不可执行原因。
+
+平台扩展不得把 Runtime 改造成固定 Worker 流程，不得预先绑定业务 skill，不得为同一待办创建多个职责 thread。
+
+### Feedback
+
+Feedback 提供当前工作集的 Workshop 用户反馈列表、详情、附件、受理状态、用户状态、优先级、沟通和转待办入口。
+
+V1 项目按 V1 能力工作，V2 项目只有通过目标环境合约验证后才启用 V2 能力。
+
+反馈转待办由有权限的人确认，并保持 Feedback 与 Task 的产品归属和来源关系。
+
+Feedback 不自动归并、不自动决定是否进入研发，也不声称已有 AI 分析服务。
+
+完成态 Task 的验收反馈仍在 Automation/Task 详情中作为独立 ArcOrbit 队列处理。
+
+## 权限与数据原则
+
+ArcOrbit Renderer 只调用主进程暴露的有界领域 IPC，不获得通用网络桥或服务 token。
+
+服务端权限是最终权限来源；Desktop 的按钮隐藏和本地角色判断只是交互约束。
+
+工作集、远端本地绑定、自动参与、会话、Run、验收反馈和恢复项属于 Desktop 本地状态。
+
+组织、项目、成员、待办、标签、附件和 Workshop 用户反馈属于服务端共享状态。
+
+Project/Case canonical state 属于本地项目仓库；Runtime 运行记录和 thread binding 属于 Desktop 数据目录。
+
+平台不得通过复制服务端数据到本地形成第二个可写真相源。
+
+离线时可以展示最近同步投影和本地执行证据，但远端修改动作必须明确失败或排队，不伪装为已同步成功。
+
+## 验收边界
+
+第一阶段平台达到可用状态时满足：
+
+1. 用户在 ArcOrbit 内完成 Workshop 登录和会话恢复。
+2. 用户无需打开待办 Web 即可管理有权限的组织、产品、成员和待办。
+3. 用户无需打开反馈控制台即可处理目标项目实际支持的反馈流程。
+4. 用户可以建立包含一个或多个产品的本地工作集。
+5. Work、Automation 和 Feedback 同时聚合工作集产品并保留产品归属。
+6. 每个可执行产品绑定一个真实本地目录和 Project State。
+7. 自动化仍保持单活动执行、一个待办一个持久 thread 和 trusted ledger Case 绑定。
+8. Work 的完整浏览范围不被错误收窄为 Automation 的当前执行人任务范围。
+9. 普通用户反馈与 ArcOrbit 验收反馈保持独立对象和队列。
+10. 现有两端不一致的接口不会以成功 UI 掩盖失败，包括条件更新、成员添加权限、任务历史和 V2 服务端合约。
+11. 人工介入、恢复、Setup Readiness 和退出登录活动执行确认保持可用。
+12. 平台新增状态不会修改 Workshop 原始项目、成员和任务语义。
+
+## 当前验证基线
+
+ArcOrbit 的 `npm run check` 是 Runtime 和 Desktop 的主要静态与 Node 测试入口。
+
+当前基线全量运行 197 项测试，195 项通过、1 项跳过、1 项在全量并发运行中失败；失败文件单独运行的 10 项全部通过。该结果视为并发或时序稳定性风险，不视为全量通过。
+
+Workshop 待办的 `go test ./...` 当前通过编译，但所有包均显示没有测试文件。API、权限和并发行为缺少自动化回归证明。
+
+待办 Web、反馈 SDK 和反馈控制台均声明 `build:check`。当前检出目录未安装依赖，命令因 `tsc` 不存在而无法进入源码检查；该结果表示验证环境未就绪。
+
+平台实现完成前需要建立可重复安装依赖的 Web 构建验证，并为新增主进程适配器、权限投影、跨产品工作集和服务契约增加自动化测试。
+
+## Source Basis
+- ArcOrbit：`runtime/arcorbit/README.md`、`runtime/arcorbit/src/task-source-adapter.mjs`、`runtime/arcorbit/src/automation-coordinator.mjs`、`runtime/arcorbit/src/desktop/desktop-store.mjs`、`runtime/arcorbit/src/desktop-run-manager.mjs`。
+- ArcOrbit Desktop：`runtime/arcorbit/desktop/main.mjs`、`runtime/arcorbit/desktop/preload.cjs`、`runtime/arcorbit/desktop/renderer/index.html`、`runtime/arcorbit/desktop/renderer/renderer.js`。
+- ArcOrbit 验证：`runtime/arcorbit/test/task-source-adapter.test.mjs`、`runtime/arcorbit/test/automation-coordinator.test.mjs`、`runtime/arcorbit/test/codex-app-server-adapter.test.mjs`。
+- Workshop 服务路由与模型：`../../hoewo/workshop-todo/router/router.go`、`../../hoewo/workshop-todo/models/`。
+- Workshop 服务行为：`../../hoewo/workshop-todo/handler/organization.go`、`../../hoewo/workshop-todo/handler/project.go`、`../../hoewo/workshop-todo/handler/task.go`、`../../hoewo/workshop-todo/handler/feedback.go`。
+- 待办 Web：`../../hoewo/workshop-todo-website/frontend/src/App.tsx`、`../../hoewo/workshop-todo-website/frontend/src/pages/TasksPage.tsx`、`../../hoewo/workshop-todo-website/frontend/src/lib/api/endpoints/`、`../../hoewo/workshop-todo-website/frontend/src/lib/permissions/`。
+- 反馈控制台：`../../hoewo/Workshop-Feedbacks/webapps/feedback-console-web/src/components/features/FeedbackManagementDialog.tsx`、`../../hoewo/Workshop-Feedbacks/webapps/feedback-console-web/src/lib/api/feedbackV2Client.ts`。
+- 反馈 SDK：`../../hoewo/Workshop-Feedbacks/webapps/feedback-sdk-web/src/lib/feedback/api.ts`、`../../hoewo/Workshop-Feedbacks/webapps/feedback-sdk-web/src/lib/feedback/v2.ts`。
+- 产品方向：`arckit/pending/items/2026-07-14-ai-native-desktop-platform-prototype.md`、`arckit/pending/items/2026-07-14-ai-native-software-product-development-platform-blueprint.md`、`arckit/pending/prototypes/arcorbit-platform-next/README.md`。

@@ -51,17 +51,21 @@
         <div class="sidebar-brand"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div>
 
         <nav class="primary-nav" aria-label="主导航">
-          <p class="nav-label">AUTOMATION</p>
-          <button class="nav-item is-active" data-page="command" type="button"><span>◉</span><strong>Command Center</strong><em id="attentionNavCount">0</em></button>
+          <p class="nav-label">PLATFORM</p>
+          <button class="nav-item is-active" data-page="today" type="button"><span>◉</span><strong>Today</strong><em id="attentionNavCount">0</em></button>
+          <button class="nav-item" data-page="products" type="button"><span>▦</span><strong>Products</strong><em id="productNavCount">0</em></button>
+          <button class="nav-item" data-page="team" type="button"><span>◎</span><strong>Team</strong><em id="teamNavCount">0</em></button>
+          <button class="nav-item" data-page="work" type="button"><span>☷</span><strong>Work</strong><em id="workNavCount">0</em></button>
+          <button class="nav-item" data-page="command" type="button"><span>◇</span><strong>Automation</strong><em id="automationNavCount">0</em></button>
+          <button class="nav-item" data-page="feedback" type="button"><span>◌</span><strong>Feedback</strong><em id="feedbackQueueNavCount">0</em></button>
 
-          <p class="nav-label">PROJECTS</p>
+          <p class="nav-label">AUTOMATION FILTER</p>
           <div id="projectNavigation" class="nav-group"></div>
 
           <p class="nav-label">TASK STATUS</p>
           <div id="statusNavigation" class="nav-group"></div>
 
-          <p class="nav-label">FEEDBACK</p>
-          <button id="feedbackQueueNav" class="nav-item" type="button"><span>◇</span><strong>验收反馈</strong><em id="feedbackQueueNavCount">0</em></button>
+          <button id="feedbackQueueNav" class="nav-item compact-nav" type="button"><span>◇</span><strong>仅看验收反馈</strong><em>→</em></button>
         </nav>
 
         <div class="sidebar-footer">
@@ -75,6 +79,7 @@
         <header class="commandbar">
           <div class="breadcrumbs"><strong id="scopeTitle">所有项目</strong><span id="pageTitle">自动化总览</span></div>
           <div class="commandbar-actions">
+            <label class="workset-control"><span>产品集</span><select id="worksetSelect" aria-label="当前产品集"></select></label>
             <button id="searchButton" class="search-trigger" type="button"><span>搜索任务、项目或 Run</span><kbd>⌘ K</kbd></button>
             <label class="automation-toggle" title="控制是否领取新任务；仅作用于已绑定且已授权的项目，不停止当前任务"><input id="automationEnabled" type="checkbox"><span></span><strong>自动领取</strong></label>
             <button id="syncButton" class="icon-button" type="button" title="同步任务源">↻</button>
@@ -83,7 +88,27 @@
         </header>
 
         <div class="view-host">
-          <section id="commandView" class="app-view is-active" data-page-view="command">
+          <section id="todayView" class="app-view is-active" data-page-view="today">
+            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">MULTI-PRODUCT TODAY</p><h1>今天跨哪些产品推进</h1><p id="todaySummary">产品集同步后汇总当前工作、风险与执行。</p></div><span id="platformHealthBadge" class="health-badge">等待同步</span></div><div id="platformErrorHost"></div><div id="todayMetricGrid" class="metric-grid platform-metrics"></div><div id="todayProductGrid" class="product-grid"></div><div class="platform-two-column"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">☷</span><div><h2>跨产品下一步</h2><p>每项保留产品来源和真实服务状态</p></div></div></div><div id="todayWorkList"></div></section><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">!</span><div><h2>需要你处理</h2><p>人工判断、恢复和阻塞</p></div></div></div><div id="todayAttentionList"></div></section></div></div>
+          </section>
+
+          <section id="productsView" class="app-view" data-page-view="products">
+            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">PRODUCT WORKSPACES</p><h1>同时推进的产品</h1><p>勾选决定当前界面同时展示哪些产品；不会改变后台自动领取授权。</p></div><div class="heading-actions"><button id="createProductButton" class="secondary-button" type="button">创建产品</button><button id="saveWorksetButton" class="primary-button" type="button">保存当前产品集</button></div></div><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2 id="worksetHeading">当前产品集</h2><p>Workshop Project + 本地 repository + Automation participation</p></div></div></div><div id="productCatalog" class="product-catalog"></div></section></div>
+          </section>
+
+          <section id="teamView" class="app-view" data-page-view="team">
+            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">TEAM ACROSS PRODUCTS</p><h1>组织、成员与产品职责</h1><p>团队来自 Workshop Organization 与 Project membership，不创建第二套 Team 实体。</p></div><button id="createOrganizationButton" class="primary-button" type="button">创建组织</button></div><div id="organizationGrid" class="organization-grid"></div><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">◎</span><div><h2>当前产品集成员</h2><p>角色、职责、外部成员与产品来源；不使用无权限保护的直接加成员接口</p></div></div></div><div id="teamTable"></div></section></div>
+          </section>
+
+          <section id="workView" class="app-view" data-page-view="work">
+            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">WORK ACROSS PRODUCTS</p><h1>七状态工作总览</h1><p>完整项目待办用于日常协作；Automation 仍只消费分配给当前用户的待处理项。</p></div><div class="heading-actions"><input id="platformWorkFilter" class="platform-filter" type="search" placeholder="筛选标题、内容或产品"><button id="createTagButton" class="secondary-button" type="button">管理标签</button><button id="createTaskButton" class="primary-button" type="button">创建待办</button></div></div><section class="panel-card"><div id="platformWorkTable"></div></section></div>
+          </section>
+
+          <section id="feedbackView" class="app-view" data-page-view="feedback">
+            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">TWO FEEDBACK LANES</p><h1>用户反馈与验收反馈</h1><p>普通反馈由 Workshop 拥有；验收反馈由 ArcOrbit 独立排队并复用来源待办 thread。</p></div><button id="createFeedbackButton" class="primary-button" type="button">创建普通反馈</button></div><div class="feedback-lanes"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">◌</span><div><h2>普通用户反馈 · V1</h2><p>人工优先级、忽略和关联待办来自真实 data 字段</p></div></div></div><div id="ordinaryFeedbackTable"></div></section><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">◇</span><div><h2>ArcOrbit 验收反馈</h2><p>来源待办保持 completed/accepted</p></div></div></div><div id="acceptanceFeedbackPlatformTable"></div></section></div></div>
+          </section>
+
+          <section id="commandView" class="app-view" data-page-view="command">
             <div class="page page-dashboard">
               <div class="page-heading split-heading">
                 <div><p class="eyebrow">AUTOMATION COMMAND CENTER</p><h1 id="commandHeading">执行态势</h1><p id="commandSummary">同步项目和任务后显示自动化队列。</p></div>
@@ -181,6 +206,12 @@
       </section>
     </div>
 
+    <div id="platformActionOverlay" class="modal-overlay hidden">
+      <section class="platform-action-panel" role="dialog" aria-modal="true" aria-labelledby="platformActionTitle">
+        <div class="settings-header"><div><p class="eyebrow">WORKSHOP MANAGEMENT</p><h2 id="platformActionTitle">管理</h2><p id="platformActionLead" class="settings-lead"></p></div><button id="closePlatformActionButton" class="icon-button" type="button" aria-label="关闭">×</button></div>
+        <form id="platformActionForm"><div id="platformActionFields" class="platform-action-fields"></div><div class="settings-actions"><button id="cancelPlatformActionButton" class="secondary-button" type="button">取消</button><button id="confirmPlatformActionButton" class="primary-button" type="submit">确认</button></div></form>
+      </section>
+    </div>
     <div id="toast" class="toast hidden" role="status"></div>
     <script type="module" src="./renderer.js"></script>
   </body>

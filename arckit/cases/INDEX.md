@@ -83,3 +83,5 @@
 | [CASE-20260817-002](closed/CASE-20260817-002-formally-rename-arckit-runtime-to-arcorbit.md) | closed | Formally rename arckit-runtime to ArcOrbit | 2026-08-17T12:41:29.749Z |
 | [CASE-20260817-003](closed/CASE-20260817-003-restore-setup-readiness-recovery-actions-for-changed-managed-ski.md) | closed | Restore Setup Readiness recovery actions for changed managed skills | 2026-08-17T15:14:29.006Z |
 | [CASE-20260817-004](closed/CASE-20260817-004-use-only-arcorbit-state-while-preserving-actionable-skill-recove.md) | closed | Use only ArcOrbit state while preserving actionable skill recovery | 2026-08-17T15:51:35.610Z |
+| [CASE-20260817-005](closed/CASE-20260817-005-implement-arcorbit-multi-product-development-platform.md) | closed | Implement ArcOrbit multi-product development platform | 2026-08-17T20:10:30.815Z |
+| [CASE-20260818-001](closed/CASE-20260818-001-package-and-acceptance-test-arcorbit-platform.md) | closed | Package and acceptance-test ArcOrbit platform | 2026-08-18T03:34:46.884Z |

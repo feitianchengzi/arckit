@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-17T15:51:35.610Z",
-    "revision": 81
+    "updated_at": "2026-08-18T03:34:46.884Z",
+    "revision": 88
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Remove compatibility with the legacy @arckit/runtime Desktop state and make the canonical @arckit/arcorbit state independently recover existing skill anomalies through explicit safe actions.",
+      "current_focus": "Build a current-host ArcOrbit installer and verify the packaged application behavior against the accepted multi-product platform, existing Runtime core, Workshop Todo, and Workshop Feedback boundaries.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -128,16 +128,15 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the intended outcome and scope.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit is a repository-owned software-development handoff protocol and skill system that lets one Agent and automation hosts advance durable Project/Case state safely; ArcOrbit is the formally named supervised Desktop/Runtime product that automates this protocol around a continuous Agent conversation.",
-          "reason": "The explicit rename decision and authoritative identity contract distinguish the protocol product from its supervised automation product.",
+          "statement": "Arckit is the repository-owned development protocol and skill system; ArcOrbit is its supervised Desktop/Runtime product and is expanding into a local-project-anchored, multi-product software-development platform for people who coordinate organization, product, member, todo, AI execution, and feedback work without relying on the Todo or Feedback web clients for daily operation.",
+          "reason": "The user approved the multi-product platform direction while explicitly preserving the existing ArcOrbit, Workshop Todo, and Workshop Feedback cores.",
           "evidence": [
-            "AGENTS.md",
-            "arckit/spec/agentic-software-development/product-architecture.md",
-            "arckit/spec/arckit-runtime-distribution.md"
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+            "arckit/pending/prototypes/arcorbit-platform-next/README.md"
           ],
           "confidence": "high",
-          "resume_condition": "",
-          "revision": 2
+          "resume_condition": "Revisit only if the server ownership boundary or protected ArcOrbit Runtime semantics change.",
+          "revision": 3
         },
         "gap_refs": []
       },
@@ -148,15 +147,15 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit provides Project/Iteration/Case ledgers, fresh-fact-driven invariant-guided dynamic Case Gap discovery, strict single-Gap Rounds, trusted atomic transitions, maintained development skills, an optional supervised Runtime/Desktop with ordinary-todo and acceptance-feedback lanes, and a Setup Readiness surface that establishes governed Codex skills before Runtime execution, including typed source-upgrade reconciliation that separates repairable managed drift and provider migrations from user-content and unmanaged conflicts.",
-          "reason": "The accepted recovery contract makes actionable, content-preserving source-upgrade reconciliation part of the Setup Readiness capability rather than an opaque blocked error.",
+          "statement": "ArcOrbit preserves Setup Readiness, supervised one-thread-per-todo automation, trusted ledger transitions, intervention/recovery, and acceptance feedback while adding Desktop composition of Workshop organizations, projects, memberships, seven-state todos, ordinary user feedback, local Product Workspaces, and a persistent multi-product workset that supports simultaneous coordination rather than forced product switching.",
+          "reason": "The capability set is grounded in existing source behavior; platform additions compose those capabilities without redefining their source-of-truth semantics.",
           "evidence": [
-            "arckit/spec/arckit-runtime-distribution.md",
-            "arckit/interaction/setup-readiness/interaction.md"
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+            "runtime/arcorbit/README.md"
           ],
           "confidence": "high",
-          "resume_condition": "",
-          "revision": 7
+          "resume_condition": "Resolve GAP-PLATFORM-ARCHITECTURE before treating the added platform composition as implemented.",
+          "revision": 8
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -169,15 +168,15 @@
         "evidence_expectation": "Durable evidence sufficient to recover the system surfaces and their responsibilities.",
         "decision": {
           "status": "settled",
-          "statement": "The software comprises repository-owned Arckit skills and Node.js ledger CLIs plus ArcOrbit, an Electron Desktop with Setup Readiness and skill provisioning, a Runtime supervisor, Codex adapter, and packaged trusted capability resources.",
-          "reason": "The naming contract gives the existing supervised surface a distinct recoverable product identity while preserving its responsibilities.",
+          "statement": "The software comprises repository-owned Arckit skills and Node.js ledger CLIs plus ArcOrbit, an Electron platform Desktop with Setup Readiness, skill provisioning, a main-process Platform Coordinator, restricted Workshop Platform Adapter, Automation Coordinator, Runtime supervisor, Codex adapter, and packaged trusted capability resources. Workshop web clients remain available administration and source surfaces but are not required for ArcOrbit daily work.",
+          "reason": "The accepted composition architecture adds a bounded platform plane around the existing execution plane without moving service or Runtime responsibilities into Renderer.",
           "evidence": [
-            "arckit/spec/arckit-runtime-distribution.md",
-            "arckit/tech/arckit-runtime/installer-supply-chain.md"
+            "arckit/tech/arcorbit/platform-composition-solution.md",
+            "arckit/tech/arcorbit/solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "",
-          "revision": 3
+          "resume_condition": "Revisit if a new server, mobile, or externally hosted ArcOrbit surface becomes authoritative.",
+          "revision": 4
         },
         "gap_refs": []
       },
@@ -188,16 +187,17 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "Application startup first establishes Setup Readiness through resource checks, governed skill plan/drift, explicit confirmation, transactional apply and recoverable conflict states. Source upgrades present typed managed repair/migration, local or unverified content conflict and unmanaged conflict states with visible ownership evidence and actions for repair, backup-and-restore, preserve-and-exit or external recovery. Ready users then continue through session restoration into the Automation Workspace, where persisted candidate comparison, accepted closeout, fresh-read, recovery and acceptance feedback remain in one persistent task conversation.",
-          "reason": "The interaction contract now gives every source-upgrade class a risk-appropriate visible action instead of treating check-only drift as an unactionable rollback state.",
+          "statement": "After Setup Readiness and session restoration, users work in one production ArcOrbit platform shell across Today, Products, Team, Work, Automation, and Feedback. A persistent local Workset controls which Workshop products are shown together without changing Automation participation, enabling simultaneous multi-product coordination while preserving product source identity, the complete seven-state team workload, real organization/project membership, separate ordinary versus acceptance feedback, and existing intervention/recovery journeys.",
+          "reason": "The approved AI-era multi-product premise is now realized against the verified Workshop and ArcOrbit implementation boundaries rather than a product-switching prototype.",
           "evidence": [
-            "arckit/interaction/setup-readiness/interaction.md",
-            "arckit/interaction/setup-readiness/default.html",
-            "arckit/interaction/_map/feature-matrix.md"
+            "arckit/interaction/platform-workspace/interaction.md",
+            "runtime/arcorbit/desktop/renderer/index.html",
+            "runtime/arcorbit/desktop/renderer/renderer.js",
+            "runtime/arcorbit/test/desktop-renderer.test.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "",
-          "revision": 9
+          "resume_condition": "Revisit when Workshop safely exposes direct member management, task history, or Feedback V2, or when a new platform surface becomes authoritative.",
+          "revision": 11
         },
         "gap_refs": []
       },
@@ -248,16 +248,15 @@
         "evidence_expectation": "Durable data and technical evidence sufficient to recover the state model.",
         "decision": {
           "status": "settled",
-          "statement": "Canonical project data is Project v5, Iteration v3 and Case v5 in arckit/; normal Loop mutation uses Case Transition v8 bound to Ledger Snapshot v1, persists complete invariant assessment, produces Round Closeout v2 and requires verified post-commit fresh-read. Runtime run/session/thread and first-class acceptance-feedback records stay outside the target project; each feedback item references immutable source completion facts and starts a new canonical Case.",
-          "reason": "The cumulative data model preserves trusted ledger transitions and external Runtime ownership while adding first-class feedback linkage.",
+          "statement": "Canonical development state remains in Project/Iteration/Case ledgers and Workshop remains source of truth for account, organization, project, membership, task, attachment, and ordinary-feedback records. ArcOrbit owns Product Workspace bindings from a Workshop Project to a local repository, persistent multi-product workset preferences, Runtime execution/session/thread state, intervention/recovery state, and first-class acceptance-feedback records outside the target repository.",
+          "reason": "Separating remote domain authority from local composition and Runtime state allows platform expansion without duplicating or replacing existing services.",
           "evidence": [
-            "arckit/tech/arckit-runtime/state-condition-ledger-solution.md",
-            "arckit/tech/arckit-runtime/desktop-execution-solution.md",
-            "entry/skills/arckit-development-ledger/SKILL.md"
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+            "runtime/arcorbit/src/desktop/desktop-store.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "",
-          "revision": 6
+          "resume_condition": "Architecture must specify schema migration and stale/offline behavior before new local state ships.",
+          "revision": 7
         },
         "gap_refs": [
           "GAP-cross-record-audit"
@@ -270,16 +269,15 @@
         "evidence_expectation": "Durable contract evidence sufficient to recover material integration boundaries.",
         "decision": {
           "status": "settled",
-          "statement": "The Runtime integrates with Codex app-server/CLI and optional task sources through explicit adapters; trusted ledger entrypoints remain repository-owned. Workshop authentication renewal uses auth-server/v1/public/refresh_token: Runtime sends the current refresh token, atomically accepts server-rotated credentials and expiry values, never locally extends signed credentials, retries transient transport/service failures without clearing a recoverable session, and treats only explicit invalid/revoked responses or local inactivity/expiry boundaries as reauthentication conditions.",
-          "reason": "Diagnosis established the Workshop refresh boundary and the distinct failure behavior required to support the rolling-seven-day contract safely.",
+          "statement": "ArcOrbit integrates with Codex app-server/CLI and Workshop through explicit main-process adapters; trusted ledger entrypoints remain repository-owned. Workshop authentication preserves server-rotated credentials and the rolling seven-day inactivity contract. The Automation adapter remains executor-scoped, while the separate Platform Adapter reads organization, project, membership, full project task and Feedback V1 domains. Feedback V2 remains disabled until a separately trusted adapter proves capability; missing conditional update, member authorization and task-history service contracts are surfaced as weak consistency or unavailable actions rather than invented behavior.",
+          "reason": "The platform architecture separates execution-safe task access from broader product-domain access and assigns every unproven server capability an explicit fail-closed behavior.",
           "evidence": [
-            "runtime/arckit-runtime/src/task-source-adapter.mjs",
-            "runtime/arckit-runtime/test/task-source-adapter.test.mjs",
-            "arckit/tech/arckit-runtime/solution.md"
+            "arckit/tech/arcorbit/platform-composition-solution.md",
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md"
           ],
           "confidence": "high",
-          "resume_condition": "",
-          "revision": 2
+          "resume_condition": "Revisit when Workshop adds verified conditional update, member authorization, task history, or Feedback V2 server contracts.",
+          "revision": 3
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -332,15 +330,16 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs. ArcOrbit is its Electron Desktop/Runtime host and uses canonical runtime/arcorbit, @arckit/arcorbit, arcorbit CLI/workflow/resource and ArcOrbit artifact identities while preserving the existing Electron appId, Workshop app_id, published arckit-runtime schema ids, arckit-runtime:// run refs and legacy CLI alias. Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2 and Iteration v3 remain unchanged. ArcOrbit packages trusted capabilities separately from an Arckit skill payload and versioned ArcForge Embedded Provider; Desktop Setup Readiness owns provisioning, the policy-neutral Runtime Kernel continues natural $using-arckit execution, and ArcForge Core remains the sole implementation of overlapping provisioning semantics. Repository-local validation uses explicit local metadata and unsigned host-native artifacts that cannot enter governed release-trigger validation.",
-          "reason": "The identity contract changes product and migratable locators while explicitly preserving protocol, external-service and installed-application continuity boundaries.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs; ArcOrbit is its Electron Desktop/Runtime host. The policy-neutral Runtime Kernel, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2, persistent one-thread-per-todo model and trusted capabilities remain unchanged. The platform composition layer adds Desktop Store v10 local worksets and workspace preferences, a main-process Platform Coordinator, restricted Workshop Platform Adapter and typed preload IPC; remote Workshop records are not duplicated as local authority, and Renderer never receives credentials or generic request access.",
+          "reason": "This foundation extends the Desktop product surface through isolated composition components while preserving the protocol, Runtime, source-of-truth, credential, and execution boundaries.",
           "evidence": [
-            "arckit/tech/arckit-runtime/installer-supply-chain.md",
-            "arckit/spec/arckit-runtime-distribution.md"
+            "arckit/tech/arcorbit/platform-composition-solution.md",
+            "arckit/tech/arcorbit/solution.md",
+            "arckit/tech/arcorbit/desktop-execution-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "",
-          "revision": 15
+          "resume_condition": "Revisit if implementation evidence requires changing protected Runtime or remote authority boundaries.",
+          "revision": 16
         },
         "gap_refs": []
       },

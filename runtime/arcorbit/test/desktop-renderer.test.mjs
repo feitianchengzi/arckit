@@ -16,13 +16,40 @@ const rendererStylesPath = new URL("../desktop/renderer/styles.css", import.meta
 const desktopMainPath = new URL("../desktop/main.mjs", import.meta.url);
 const desktopPreloadPath = new URL("../desktop/preload.cjs", import.meta.url);
 
-test("desktop primary surface is the project-sourced automation Command Center", async () => {
+test("desktop primary surface is a simultaneous multi-product platform while preserving Automation", async () => {
   const [source, html, styles] = await Promise.all([
     readFile(rendererPath, "utf8"),
     readFile(rendererHtmlPath, "utf8"),
     readFile(rendererStylesPath, "utf8")
   ]);
 
+  assert.match(html, /MULTI-PRODUCT TODAY/);
+  for (const page of ["today", "products", "team", "work", "command", "feedback"]) {
+    assert.match(html, new RegExp(`data-page="${page}"`));
+  }
+  assert.match(html, /data-page-view="today"/);
+  assert.match(html, /data-page-view="products"/);
+  assert.match(html, /data-page-view="team"/);
+  assert.match(html, /data-page-view="work"/);
+  assert.match(html, /data-page-view="feedback"/);
+  assert.match(html, /id="worksetSelect"/);
+  assert.match(html, /勾选决定当前界面同时展示哪些产品；不会改变后台自动领取授权/);
+  assert.match(source, /page: "today"/);
+  assert.match(source, /api\.platformSnapshot/);
+  assert.match(source, /api\.setActiveWorkset/);
+  assert.match(source, /api\.updateWorkset\(\{ id: activeWorkset\.id, project_ids: projectIds \}\)/);
+  assert.match(html, /id="createProductButton"/);
+  assert.match(html, /id="createOrganizationButton"/);
+  assert.match(html, /id="createTaskButton"/);
+  assert.match(html, /id="createFeedbackButton"/);
+  assert.match(html, /id="platformActionOverlay"/);
+  assert.match(source, /api\.executePlatformAction/);
+  assert.match(source, /"project\.member\.update"/);
+  assert.match(source, /"task\.attachment\.create"/);
+  assert.match(source, /"feedback\.to_task"/);
+  assert.doesNotMatch(source, /project\.member\.add/);
+  const worksetHandler = source.slice(source.indexOf("els.saveWorksetButton.addEventListener"), source.indexOf("els.submitInterventionButton.addEventListener"));
+  assert.doesNotMatch(worksetHandler, /setProjectParticipation|setAutomationEnabled|bindAutomationProject/);
   assert.match(html, /AUTOMATION COMMAND CENTER/);
   assert.match(html, /id="projectNavigation"/);
   assert.match(html, /id="statusNavigation"/);
@@ -46,6 +73,8 @@ test("desktop primary surface is the project-sourced automation Command Center",
   assert.match(source, /phase === "remote_completion_pending"/);
   assert.match(source, /api\.setProjectParticipation\(project\.id, true\)/);
   assert.match(styles, /--sidebar-width: 228px;/);
+  assert.match(styles, /\.product-grid \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
   assert.doesNotMatch(html, /class="chat-column"|id="chatInput"|>Chats</);
 });
@@ -270,6 +299,30 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.doesNotMatch(preload, /addMessage:|createSession:|deleteSession:|addProject:/);
   assert.doesNotMatch(main, /arckit:start-run|arckit:control-run|arckit:gate-run|arckit:write-ledger/);
   assert.doesNotMatch(source, /\bfetch\s*\(/);
+});
+
+test("desktop main and preload expose bounded platform composition IPC without credentials or generic requests", async () => {
+  const [main, preload] = await Promise.all([
+    readFile(desktopMainPath, "utf8"),
+    readFile(desktopPreloadPath, "utf8")
+  ]);
+  for (const channel of [
+    "arckit:platform-snapshot",
+    "arckit:platform-workset-create",
+    "arckit:platform-workset-update",
+    "arckit:platform-workset-delete",
+    "arckit:platform-workset-active",
+    "arckit:platform-workspace-preference"
+  ]) {
+    const pattern = new RegExp(channel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    assert.match(main, pattern);
+    assert.match(preload, pattern);
+  }
+  assert.match(main, /createPlatformCoordinator/);
+  assert.match(preload, /platformSnapshot: \(input\)/);
+  assert.match(preload, /createWorkset: \(input\)/);
+  assert.match(preload, /setActiveWorkset: \(worksetId\)/);
+  assert.doesNotMatch(preload, /access_token|refresh_token|apiKey|sessionToken|genericRequest/);
 });
 
 test("task source settings keep the access token write-only in Renderer", async () => {
