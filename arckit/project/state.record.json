@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-18T18:02:39.627Z",
-    "revision": 107
+    "updated_at": "2026-08-18T19:09:17.283Z",
+    "revision": 112
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Diagnose and fix the ArcOrbit automation defect that repeatedly opens new application windows after a todo enters execution.",
+      "current_focus": "Replace ArcOrbit internal Electron-as-Node process launches with an explicit Runtime host architecture that does not depend on ELECTRON_RUN_AS_NODE.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -333,18 +333,23 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs; ArcOrbit is its Electron Desktop/Runtime host. The policy-neutral Runtime Kernel, persistent one-thread-per-todo model and trusted capabilities remain unchanged. Platform composition uses Desktop Store v10, a main-process Platform Coordinator, restricted Workshop Platform Adapter and typed preload IPC. ArcOrbit consumes existing Workshop services without requiring backend changes: organization-scoped request context supplies known project organization identity, current-member is_external marks external participation, remote Workshop records remain authoritative, and Renderer receives neither credentials nor generic request access.",
-          "reason": "The user requires a strict existing-service boundary, and production evidence confirms ArcOrbit can derive the necessary governance projection entirely in its adapter and coordinator layers.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs; ArcOrbit is its Electron Desktop/Runtime host. The policy-neutral Runtime Kernel, persistent one-thread-per-todo model and trusted capabilities remain unchanged. Platform composition uses Desktop Store v10, a main-process Platform Coordinator, restricted Workshop Platform Adapter and typed preload IPC. ArcOrbit consumes existing Workshop services without requiring backend changes: organization-scoped request context supplies known project organization identity, current-member is_external marks external participation, remote Workshop records remain authoritative, and Renderer receives neither credentials nor generic request access. Packaged ArcOrbit no longer reinterprets its Electron executable as Node: Electron main launches the Runtime with utilityProcess, typed parent-port controls preserve steer/interrupt semantics, trusted ledger orchestration calls manifest-resolved module APIs in process, standalone Codex remains an external executable, and packaging disables the RunAsNode/Node-options/CLI-inspect fuses while enforcing ASAR integrity.",
+          "reason": "The user approved removing the fragile Electron-as-Node boundary; Electron officially recommends utility processes for this use case, and packaged evidence now proves the replacement while preserving the coherent Runtime and existing Workshop boundary.",
           "evidence": [
             "arckit/tech/arcorbit/platform-composition-solution.md",
             "runtime/arcorbit/src/workshop-platform-adapter.mjs",
             "runtime/arcorbit/src/task-source-adapter.mjs",
             "runtime/arcorbit/src/platform-coordinator.mjs",
-            "Workshop backend git diff origin/main -- handler/project.go handler/project_response_test.go: empty"
+            "Workshop backend git diff origin/main -- handler/project.go handler/project_response_test.go: empty",
+            "arckit/tech/arcorbit/installer-supply-chain.md",
+            "arckit/tech/arcorbit/solution.md",
+            "runtime/arcorbit/src/electron-utility-runtime-host.mjs",
+            "entry/skills/arckit-development-ledger/scripts/trusted-ledger-operations.mjs",
+            "runtime/arcorbit/scripts/flip-electron-fuses.cjs"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit only if the user authorizes a Workshop service change or existing service semantics become insufficient.",
-          "revision": 18
+          "resume_condition": "Revisit if Electron utility-process semantics, packaged ASAR execution, the Workshop service boundary, or the trusted ledger module contract materially changes.",
+          "revision": 19
         },
         "gap_refs": []
       },

@@ -295,7 +295,9 @@ Windows 的 npm 安装通常暴露 `.cmd`/`.bat` command shim。版本探测不�
 
 同一次成功 probe 的 executable 与必要 `PATH` 前缀由 Desktop 进程持有，并由 Runtime child、Codex app-server 和交互式 CLI handoff 共同复用。Setup 重试会重新解析并替换该结果；未成功 probe 的裸命令不得进入任务执行链路。
 
-Desktop 自身的 Node 脚本不依赖主机 shell 中的 `node`。开发态直接使用当前 Node executable；打包态使用当前 Electron executable 并为 ledger、project initialization、Runtime child 和后台 ledger command 注入 `ELECTRON_RUN_AS_NODE=1`。包内 `app.asar` 脚本路径继续作为 executable argument，但子进程 `cwd` 使用真实的 Electron `resourcesPath`，不把 ASAR 虚拟目录交给操作系统进程创建边界，因此 GUI 环境无需安装或暴露独立 Node CLI。Runtime CLI 只把该变量当作 Electron 到 Node 的启动引导：入口必须先清除 `ELECTRON_RUN_AS_NODE`，再加载 Runtime CLI 模块，使 Codex 和其他 Runtime 后代进程不会继承 Electron 专用模式。
+Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Electron 应用 executable 重新解释为 Node。开发态 CLI 继续由明确的 standalone Node 启动；Desktop 在 `app.whenReady()` 后使用 Electron `utilityProcess.fork()` 以 `app.asar` 中的 Runtime module 作为入口，stdout/stderr 保留结果与事件流，`process.parentPort` 只接收带 schema 的 steer/interrupt 控制消息，utility environment 会剔除外部遗留的 Electron-to-Node bootstrap 输入。project initialization 与 trusted ledger writeback 在同一受信进程内调用 manifest-resolved module API；trusted entrypoint 不再通过 `process.execPath` 嵌套执行自己的 CLI wrapper。外部 Codex 仍是经过 Setup probe 的独立 executable，并保持自身 stdio/RPC 生命周期。
+
+分发构建在签名前通过 `@electron/fuses` 显式关闭 `RunAsNode`、Node options 与 CLI inspect fuses，并启用 ASAR 完整性与 only-load-from-ASAR 约束。构建验证必须读取实际 packaged fuse wire，证明设置该环境变量也不能把 ArcOrbit executable 转成 Node；同一 packaged-host smoke 必须证明 utility Runtime 可启动、trusted ledger 可完成且不会产生额外 Browser/GPU/Renderer 应用树。该边界使“无意打开新窗口”从每层调用者都要记住的环境约定，变成 Desktop host API、in-process trusted API 和二进制 fuse 共同保证的结构约束。
 
 ## 更新、回滚与清理
 

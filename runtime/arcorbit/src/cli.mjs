@@ -147,6 +147,7 @@ function parseRunOptions(args) {
     maxAgentRepairAttempts: 2,
     streamEvents: false,
     superviseStdin: false,
+    superviseParentPort: false,
     approvalPolicy: "on-request",
     codexBin: "codex"
   };
@@ -168,6 +169,8 @@ function parseRunOptions(args) {
       options.streamEvents = true;
     } else if (arg === "--supervise-stdin") {
       options.superviseStdin = true;
+    } else if (arg === "--supervise-parent-port") {
+      options.superviseParentPort = true;
     } else if (arg === "--approval-policy") {
       options.approvalPolicy = requiredValue(args, ++index, arg);
     } else if (arg === "--model") {
@@ -364,7 +367,7 @@ function printHelp() {
 Usage:
   arcorbit init-project [--project <path>] [--name <name>] [--intent <text>]
   arcorbit run [--project <path>] [--task <text>] [--task-id <id>] [--thread-id <id>] [--thread-binding-file <path>] [--runtime-context <json>] [--max-no-progress-rounds <count>] [--max-agent-repair-attempts <count>] [--runtime-record-ref <arckit-runtime://runs/RUN-...>] [--dry-run] [--json]
-  arcorbit run --adapter codex-app-server [--stream-events] [--supervise-stdin]
+  arcorbit run --adapter codex-app-server [--stream-events] [--supervise-stdin|--supervise-parent-port]
   arcorbit probe-app-server [--project <path>] [--json]
   arcorbit analyze-lifecycle --file <events.jsonl>
   arcorbit validate-result --file <runtime-result.json>
@@ -384,6 +387,7 @@ MVP behavior:
 Codex app-server controls:
   - --stream-events prints normalized runtime events as JSONL on stderr
   - --supervise-stdin accepts "/steer <text>" and "/interrupt" while a turn runs
+  - --supervise-parent-port accepts typed Desktop control messages in an Electron utility process
   - Desktop todo runs persist correlated lifecycle spans and analyze them with analyze-lifecycle
 `);
 }

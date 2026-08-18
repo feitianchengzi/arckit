@@ -90,3 +90,5 @@
 | [CASE-20260818-004](closed/CASE-20260818-004-consolidate-arcorbit-automation-filters-and-account-navigation.md) | closed | Consolidate ArcOrbit automation filters and account navigation | 2026-08-18T16:00:36.734Z |
 | [CASE-20260818-005](closed/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md) | closed | Optimize ArcOrbit Work filters and global project scope | 2026-08-18T16:52:30.172Z |
 | [CASE-20260818-006](closed/CASE-20260818-006-fix-repeated-arcorbit-window-launches-after-todo-execution-start.md) | closed | Fix repeated ArcOrbit window launches after todo execution starts | 2026-08-18T18:02:39.627Z |
+| [CASE-20260818-007](closed/CASE-20260818-007-fix-nested-trusted-ledger-launches-opening-arcorbit-windows.md) | closed | Fix nested trusted-ledger launches opening ArcOrbit windows | 2026-08-18T18:25:06.050Z |
+| [CASE-20260818-008](closed/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md) | closed | Remove ArcOrbit ELECTRON_RUN_AS_NODE dependency | 2026-08-18T19:09:17.283Z |

@@ -166,8 +166,8 @@ test("desktop run manager forwards the resolved Codex command and execution PATH
   }
 });
 
-test("desktop run manager reuses its embedded Node mode for project checks and Runtime children", async () => {
-  const dataDir = await mkdtemp(join(tmpdir(), "arckit-embedded-node-"));
+test("desktop run manager delegates packaged execution to the utility-process host", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arckit-utility-runtime-"));
   await writeStore(dataDir, dataDir);
   const children = [];
   const calls = [];
@@ -178,11 +178,14 @@ test("desktop run manager reuses its embedded Node mode for project checks and R
     runtimeRoot: packagedRuntimeRoot,
     runtimeCwd: packagedResources,
     dataDir,
-    nodeBin: "/Applications/ArcOrbit.app/Contents/MacOS/arcorbit",
-    nodeEnv: { ELECTRON_RUN_AS_NODE: "1" },
-    spawnProcess(command, args, options) {
-      calls.push({ command, args, options });
-      return fakeChild(children);
+    runtimeHost: {
+      controlMode: "parent-port",
+      spawn(modulePath, args, options) {
+        calls.push({ modulePath, args, options });
+        return fakeChild(children);
+      },
+      sendControl() {},
+      terminate() {}
     },
     ensureProject: async (options) => {
       projectChecks.push(options);
@@ -191,13 +194,14 @@ test("desktop run manager reuses its embedded Node mode for project checks and R
   });
 
   try {
-    await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-1", task: "Use embedded Node", dryRun: true });
-    assert.equal(projectChecks[0].nodeBin, "/Applications/ArcOrbit.app/Contents/MacOS/arcorbit");
-    assert.deepEqual(projectChecks[0].nodeEnv, { ELECTRON_RUN_AS_NODE: "1" });
-    assert.equal(calls[0].command, "/Applications/ArcOrbit.app/Contents/MacOS/arcorbit");
-    assert.equal(calls[0].args[0], join(packagedRuntimeRoot, "bin/arcorbit.mjs"));
+    await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-1", task: "Use utility Runtime", adapter: "codex-app-server" });
+    assert.equal(Object.hasOwn(projectChecks[0], "nodeBin"), false);
+    assert.equal(Object.hasOwn(projectChecks[0], "nodeEnv"), false);
+    assert.equal(calls[0].modulePath, join(packagedRuntimeRoot, "bin/arcorbit.mjs"));
+    assert.equal(calls[0].args[0], "run");
+    assert.equal(calls[0].args.includes("--supervise-parent-port"), true);
     assert.equal(calls[0].options.cwd, packagedResources);
-    assert.equal(calls[0].options.env.ELECTRON_RUN_AS_NODE, "1");
+    assert.equal(Object.hasOwn(calls[0].options.env, "ELECTRON_RUN_AS_NODE"), false);
   } finally {
     await manager.abortActiveRuns({ graceMs: 0 });
     destroyChildren(children);

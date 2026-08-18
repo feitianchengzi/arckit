@@ -1,10 +1,9 @@
-import { spawnSync } from "node:child_process";
-import { basename } from "node:path";
+import { dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   loadRuntimeCapabilityForEntrypoint,
   resolveCapabilityEntrypoint
 } from "./capability-registry.mjs";
-import { runtimeNodeChildEnvironment } from "./runtime-process-environment.mjs";
 
 const SCRIPT_ENTRYPOINTS = {
   "project-state.mjs": "project_state",
@@ -14,7 +13,7 @@ const SCRIPT_ENTRYPOINTS = {
   "loop-snapshot.mjs": "loop_snapshot"
 };
 
-export async function runLedgerScript(projectRoot, args, { nodeBin = process.execPath, nodeEnv = runtimeNodeChildEnvironment(), capability = null } = {}) {
+export async function runLedgerScript(projectRoot, args, { capability = null } = {}) {
   const [script, ...rest] = args;
   const entrypoint = SCRIPT_ENTRYPOINTS[script];
   if (!entrypoint) {
@@ -25,17 +24,23 @@ export async function runLedgerScript(projectRoot, args, { nodeBin = process.exe
     entrypoint
   });
   const scriptPath = resolveCapabilityEntrypoint(selectedCapability, entrypoint);
-  const result = spawnSync(nodeBin, [scriptPath, ...rest], {
-    cwd: projectRoot,
-    encoding: "utf8",
-    env: { ...process.env, ...nodeEnv }
-  });
-  if (result.status !== 0) {
-    throw new Error(`Ledger script failed: ${basename(script)} ${rest.join(" ")}\n${result.stderr || result.stdout}`);
+  let stdout;
+  if (script === "protocol-compatibility.mjs" && rest[0] === "probe") {
+    const module = await import(pathToFileURL(scriptPath).href);
+    stdout = `${JSON.stringify(module.probeProtocolCompatibility(projectRoot), null, 2)}\n`;
+  } else if (script === "loop-snapshot.mjs" && rest[0] === "read") {
+    const module = await import(pathToFileURL(scriptPath).href);
+    const afterCommitIndex = rest.indexOf("--after-commit");
+    const afterCommitToken = afterCommitIndex >= 0 ? rest[afterCommitIndex + 1] || "" : "";
+    stdout = `${JSON.stringify(module.readLedgerSnapshot(projectRoot, { afterCommitToken }), null, 2)}\n`;
+  } else {
+    const operationsPath = join(dirname(scriptPath), "trusted-ledger-operations.mjs");
+    const operations = await import(pathToFileURL(operationsPath).href);
+    stdout = operations.executeTrustedLedgerCommand(projectRoot, [script, ...rest]);
   }
   return {
-    stdout: result.stdout,
-    stderr: result.stderr,
-    status: result.status
+    stdout,
+    stderr: "",
+    status: 0
   };
 }

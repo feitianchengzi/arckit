@@ -222,6 +222,9 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         if (effectiveOptions.superviseStdin && !stdinControls) {
           stdinControls = attachStdinControls({ client, getActiveTurn: () => activeTurn });
         }
+        if (effectiveOptions.superviseParentPort && !stdinControls) {
+          stdinControls = attachParentPortControls({ client, getActiveTurn: () => activeTurn });
+        }
 
         const turnStartParams = {
           threadId: state.threadId,
@@ -728,62 +731,59 @@ function normalizeNotification(message) {
 function attachStdinControls({ client, getActiveTurn }) {
   const readline = createInterface({ input: process.stdin, terminal: false });
   readline.on("line", async (line) => {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      return;
-    }
-    const active = getActiveTurn();
-    if (!active) {
-      return;
-    }
-    const { queue, state } = active;
-    try {
-      if (trimmed === "/interrupt") {
-        await waitForActiveTurn(state);
-        const result = await client.request("turn/interrupt", {
-          threadId: state.threadId,
-          turnId: state.turnId
-        });
-        queue.push({
-          type: "runtime.operator.interrupt.sent",
-          thread_id: state.threadId,
-          turn_id: state.turnId,
-          result
-        });
-        return;
-      }
-      if (trimmed.startsWith("/steer ")) {
-        await waitForActiveTurn(state);
-        const text = trimmed.slice("/steer ".length).trim();
-        if (!text) {
-          throw new Error("/steer requires non-empty text.");
-        }
-        const result = await client.request("turn/steer", {
-          threadId: state.threadId,
-          expectedTurnId: state.turnId,
-          input: [{ type: "text", text }]
-        });
-        queue.push({
-          type: "runtime.operator.steer.sent",
-          thread_id: state.threadId,
-          turn_id: state.turnId,
-          text,
-          result
-        });
-        return;
-      }
-      queue.push({
-        type: "runtime.operator.input.ignored",
-        message: "Use /steer <text> or /interrupt."
-      });
-    } catch (error) {
-      queue.push({
-        type: "runtime.operator.command.failed",
-        message: String(error)
-      });
-    }
+    await handleOperatorCommand({ command: line, client, getActiveTurn });
   });
   return readline;
+}
+
+function attachParentPortControls({ client, getActiveTurn }) {
+  const parentPort = process.parentPort;
+  if (!parentPort?.on) throw new Error("--supervise-parent-port requires an Electron utility-process parent port.");
+  const listener = async (event) => {
+    const command = event?.data ?? event;
+    if (command?.schema_version !== "arcorbit-runtime-control/v1") return;
+    await handleOperatorCommand({
+      command: command.type === "steer" ? `/steer ${String(command.message || "").trim()}` : `/${command.type}`,
+      client,
+      getActiveTurn
+    });
+  };
+  parentPort.on("message", listener);
+  return { close: () => parentPort.off?.("message", listener) };
+}
+
+async function handleOperatorCommand({ command, client, getActiveTurn }) {
+  const trimmed = String(command || "").trim();
+  if (!trimmed) return;
+  const active = getActiveTurn();
+  if (!active) return;
+  const { queue, state } = active;
+  try {
+    if (trimmed === "/interrupt") {
+      await waitForActiveTurn(state);
+      const result = await client.request("turn/interrupt", {
+        threadId: state.threadId,
+        turnId: state.turnId
+      });
+      queue.push({ type: "runtime.operator.interrupt.sent", thread_id: state.threadId, turn_id: state.turnId, result });
+      return;
+    }
+    if (trimmed.startsWith("/steer ")) {
+      await waitForActiveTurn(state);
+      const text = trimmed.slice("/steer ".length).trim();
+      if (!text) throw new Error("/steer requires non-empty text.");
+      const result = await client.request("turn/steer", {
+        threadId: state.threadId,
+        expectedTurnId: state.turnId,
+        input: [{ type: "text", text }]
+      });
+      queue.push({ type: "runtime.operator.steer.sent", thread_id: state.threadId, turn_id: state.turnId, text, result });
+      return;
+    }
+    queue.push({ type: "runtime.operator.input.ignored", message: "Use /steer <text> or /interrupt." });
+  } catch (error) {
+    queue.push({ type: "runtime.operator.command.failed", message: String(error) });
+  }
 }
 
 export async function waitForActiveTurn(state, { timeoutMs = 5_000, pollIntervalMs = 10 } = {}) {

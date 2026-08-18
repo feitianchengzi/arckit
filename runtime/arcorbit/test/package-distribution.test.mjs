@@ -79,6 +79,7 @@ test("distribution assembly binds provider, skills, trusted capabilities, config
     assert.equal(config.appId, "com.feitianchengzi.arckit.runtime");
     assert.equal(config.productName, "ArcOrbit");
     assert.equal(config.executableName, "arcorbit");
+    assert.equal(config.afterPack, "scripts/flip-electron-fuses.cjs");
     assert.match(config.artifactName, /^ArcOrbit-/);
     assert.deepEqual(config.extraResources.map((item) => item.to), ["arcorbit", "provisioning"]);
 

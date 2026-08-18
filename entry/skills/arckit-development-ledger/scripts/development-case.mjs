@@ -78,12 +78,12 @@ export function defaultCompletionReview({ maxCycles, source, timestamp }) {
   };
 }
 
-export function createDefaultCaseRecord({ title, artifactType = 'unknown', intent = '', expectedOutcome = '', initialFacts = [], initialImpacts = [], initialGaps = [], maxReviewCycles, reviewPolicySource }) {
+export function createDefaultCaseRecord({ id = '', title, artifactType = 'unknown', intent = '', expectedOutcome = '', initialFacts = [], initialImpacts = [], initialGaps = [], maxReviewCycles, reviewPolicySource }) {
   const timestamp = nowIso();
   if (!Array.isArray(initialGaps) || initialGaps.length === 0) throw new Error('new v5 Case requires at least one semantic initial gap');
   const record = {
     schema_version: 'development-case-record/v5',
-    id: nextCaseId(),
+    id: id || nextCaseId(),
     title,
     status: 'active',
     artifact_type: artifactType,

@@ -39,16 +39,15 @@ import {
   resolveCapabilityEntrypoint,
   runtimeCapabilityForEntrypoint
 } from "./capability-registry.mjs";
-import { runtimeNodeChildEnvironment } from "./runtime-process-environment.mjs";
 
 export function createDesktopRunManager({
   runtimeRoot,
   runtimeCwd = runtimeRoot,
   dataDir,
   nodeBin = process.env.ARCORBIT_NODE_BIN || process.env.ARCKIT_NODE_BIN || process.execPath,
-  nodeEnv = runtimeNodeChildEnvironment(),
   getCodexExecutable = () => ({ command: process.env.ARCORBIT_CODEX_BIN || process.env.ARCKIT_CODEX_BIN || "codex", pathEntries: [] }),
   spawnProcess = spawn,
+  runtimeHost = null,
   ensureProject = ensureArckitProject
 }) {
   const emitter = new EventEmitter();
@@ -58,6 +57,16 @@ export function createDesktopRunManager({
   const activeRuns = new Map();
   const { readStore, updateStore } = createDesktopStore({ dataDir, runsDir, storePath });
   const lifecycleTraces = createLifecycleTraceStore({ rootDir: join(dataDir, "lifecycle-traces") });
+  const host = runtimeHost || {
+    controlMode: "stdin",
+    spawn(modulePath, args, options) {
+      return spawnProcess(nodeBin, [modulePath, ...args], options);
+    },
+    sendControl(child, control) {
+      child.stdin.write(control.type === "steer" ? `/steer ${control.message}\n` : "/interrupt\n");
+    },
+    terminate: terminateChildTree
+  };
 
   async function listProjects() {
     const store = await readStore();
@@ -75,9 +84,7 @@ export function createDesktopRunManager({
     const initialization = await ensureProject({
       projectRoot: root,
       projectName: basename(root) || root,
-      intent: "Added to ArcOrbit as a managed software project.",
-      nodeBin,
-      nodeEnv
+      intent: "Added to ArcOrbit as a managed software project."
     });
     const project = {
       id: projectId(root),
@@ -109,9 +116,7 @@ export function createDesktopRunManager({
     const initialization = await ensureProject({
       projectRoot: project.path,
       projectName: project.name,
-      intent: task || "Prepare an ArcOrbit execution.",
-      nodeBin,
-      nodeEnv
+      intent: task || "Prepare an ArcOrbit execution."
     });
     const policy = await loadCapabilityPolicy();
     const capabilities = await loadRuntimeCapabilities({ projectRoot: project.path, capabilityPolicy: policy });
@@ -554,9 +559,7 @@ export function createDesktopRunManager({
     const initialization = await ensureProject({
       projectRoot: project.path,
       projectName: project.name,
-      intent: input.task || "Start an ArcOrbit supervised runtime turn.",
-      nodeBin,
-      nodeEnv
+      intent: input.task || "Start an ArcOrbit supervised runtime turn."
     });
     if (initialization.initialized || initialization.repaired) {
       emit("project.initialized", { project, initialization });
@@ -627,7 +630,7 @@ export function createDesktopRunManager({
     await appendJsonLine(run.messages_file, messageRecord(run.activity.messages[0]));
     await writeJson(run.activity_file, run.activity);
 
-    const args = [runtimeBin, "run", "--project", project.path, "--json"];
+    const args = ["run", "--project", project.path, "--json"];
     if (run.task) {
       args.push("--task", run.task);
     }
@@ -649,20 +652,19 @@ export function createDesktopRunManager({
     if (input.dryRun) {
       args.push("--dry-run");
     } else {
-      args.push("--adapter", run.adapter, "--supervise-stdin", "--approval-policy", input.approvalPolicy || "on-request");
+      args.push("--adapter", run.adapter, host.controlMode === "parent-port" ? "--supervise-parent-port" : "--supervise-stdin", "--approval-policy", input.approvalPolicy || "on-request");
       args.push("--codex-bin", codexExecutable.command);
       if (input.model) {
         args.push("--model", input.model);
       }
     }
 
-    const child = spawnProcess(nodeBin, args, {
+    const child = host.spawn(runtimeBin, args, {
       cwd: runtimeCwd,
       stdio: ["pipe", "pipe", "pipe"],
       detached: process.platform !== "win32",
       env: buildRuntimeEnv(prependRuntimePath({
         ...process.env,
-        ...nodeEnv,
         FORCE_COLOR: "0"
       }, codexExecutable?.pathEntries), store.settings)
     });
@@ -678,7 +680,7 @@ export function createDesktopRunManager({
       activityEmitTimer: null
     };
     activeRuns.set(runId, activeRun);
-    child.stdin.on("error", () => {
+    child.stdin?.on("error", () => {
       // The runtime may already be exiting when Desktop sends interrupt/abort input.
     });
     emit("run.started", { run });
@@ -817,7 +819,7 @@ export function createDesktopRunManager({
         continue;
       }
       active.aborting = true;
-      sendInterrupt(active.child);
+      sendInterrupt(host, active.child);
       updateRunActivity(active.run, {
         phase: "aborted",
         current_step: reason,
@@ -848,7 +850,7 @@ export function createDesktopRunManager({
       if (!activeRuns.has(runId)) {
         continue;
       }
-      terminateChildTree(active.child, "SIGTERM");
+      host.terminate(active.child, "SIGTERM");
       await finishRun(runId, "aborted", null, reason, active.stdout);
       aborted += 1;
     }
@@ -861,7 +863,7 @@ export function createDesktopRunManager({
       throw new Error(`Run is not active: ${runId}`);
     }
     if (control.type === "interrupt") {
-      active.child.stdin.write("/interrupt\n");
+      host.sendControl(active.child, { type: "interrupt" });
       updateRunActivity(active.run, {
         phase: "interrupting",
         current_step: "Interrupt requested",
@@ -889,7 +891,7 @@ export function createDesktopRunManager({
       if (!message) {
         throw new Error("Steer message is required.");
       }
-      active.child.stdin.write(`/steer ${message}\n`);
+      host.sendControl(active.child, { type: "steer", message });
       updateRunActivity(active.run, {
         phase: "steering",
         current_step: "Steer message sent",
@@ -944,10 +946,10 @@ export function createDesktopRunManager({
 
   async function runRuntimeCommand(run, args) {
     return new Promise((resolvePromise, rejectPromise) => {
-      const child = spawnProcess(nodeBin, [runtimeBin, ...args], {
+      const child = host.spawn(runtimeBin, args, {
         cwd: runtimeCwd,
         stdio: ["ignore", "pipe", "pipe"],
-        env: { ...process.env, ...nodeEnv }
+        env: { ...process.env }
       });
       let stdout = "";
       let stderr = "";
@@ -1249,11 +1251,9 @@ export function buildWriteLedgerCommandArgs(run, { dryRun = false } = {}) {
   return args;
 }
 
-function sendInterrupt(child) {
+function sendInterrupt(host, child) {
   try {
-    if (child?.stdin?.writable) {
-      child.stdin.write("/interrupt\n");
-    }
+    host.sendControl(child, { type: "interrupt" });
   } catch {
     // The process may already be exiting; abort finalization still marks the run.
   }

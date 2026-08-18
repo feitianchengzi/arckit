@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-18T18:02:39.627Z",
+  "updated_at": "2026-08-18T19:09:17.283Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -1069,6 +1069,28 @@
         "arckit/cases/active/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "User confirmation received 2026-08-19",
+        "arckit/tech/arcorbit/installer-supply-chain.md",
+        "arckit/tech/arcorbit/solution.md",
+        "runtime/arcorbit/src/electron-utility-runtime-host.mjs",
+        "runtime/arcorbit/src/desktop-run-manager.mjs",
+        "entry/skills/arckit-development-ledger/scripts/trusted-ledger-operations.mjs",
+        "runtime/arcorbit/scripts/flip-electron-fuses.cjs",
+        "runtime/arcorbit/test/runtime-process-environment.test.mjs",
+        "npm --prefix runtime/arcorbit run check: 211 tests, 209 passed, 2 environment-gated skipped, 0 failed",
+        "Local unsigned macOS x64 package build 20260819113000: succeeded",
+        "Packaged fuse wire verification 2026-08-19: RunAsNode, NodeOptions, and NodeCliInspect disabled; EmbeddedAsarIntegrity and OnlyLoadAppFromAsar enabled",
+        "Packaged utility Runtime smoke 2026-08-19: init-project completed, Project audit passed, no ArcOrbit/NodeService process remained",
+        "Packaged fuse-negative smoke 2026-08-19: explicitly setting ELECTRON_RUN_AS_NODE still launched Desktop utility-host smoke and exited successfully",
+        "arckit/cases/active/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md"
     }
   ],
   "acceptance": {
@@ -1129,15 +1151,17 @@
     "arckit/cases/closed/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md",
     "arckit/cases/closed/CASE-20260818-004-consolidate-arcorbit-automation-filters-and-account-navigation.md",
     "arckit/cases/closed/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md",
-    "arckit/cases/closed/CASE-20260818-006-fix-repeated-arcorbit-window-launches-after-todo-execution-start.md"
+    "arckit/cases/closed/CASE-20260818-006-fix-repeated-arcorbit-window-launches-after-todo-execution-start.md",
+    "arckit/cases/closed/CASE-20260818-007-fix-nested-trusted-ledger-launches-opening-arcorbit-windows.md",
+    "arckit/cases/closed/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260818-006-fix-repeated-arcorbit-window-launches-after-todo-execution-start.md",
+    "case_ref": "arckit/cases/closed/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260818-006-fix-repeated-arcorbit-window-launches-after-todo-execution-start.md"
+      "arckit/cases/closed/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md"
     ],
-    "updated_at": "2026-08-18T18:02:39.627Z"
+    "updated_at": "2026-08-18T19:09:17.283Z"
   }
 }

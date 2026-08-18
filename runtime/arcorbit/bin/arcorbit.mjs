@@ -1,13 +1,16 @@
 #!/usr/bin/env node
-import { sanitizeRuntimeProcessEnvironment } from "../src/runtime-process-environment.mjs";
-
-// Packaged Desktop launches this entrypoint through Electron's embedded Node
-// host. That bootstrap flag must not be inherited by Codex or other children.
-sanitizeRuntimeProcessEnvironment();
 
 const { main } = await import("../src/cli.mjs");
 
-main(process.argv.slice(2)).catch((error) => {
+try {
+  await main(process.argv.slice(2));
+} catch (error) {
   console.error(error?.stack || String(error));
   process.exitCode = 1;
-});
+}
+
+await Promise.all([
+  new Promise((resolve) => process.stdout.write("", resolve)),
+  new Promise((resolve) => process.stderr.write("", resolve))
+]);
+process.exit(process.exitCode || 0);

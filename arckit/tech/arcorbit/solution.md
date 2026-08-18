@@ -360,6 +360,7 @@ CLI 支持：
 - `probe-app-server --project <path> --json`：只做 app-server initialize 握手，不启动模型 turn。
 - `run --adapter codex-app-server --stream-events`：把 normalized runtime events 作为 JSONL 输出到 stderr。
 - `run --adapter codex-app-server --supervise-stdin`：在 turn 运行时接受 `/steer <text>` 和 `/interrupt`。
+- Desktop 使用 Electron utility-process parent port 发送 `arcorbit-runtime-control/v1` typed steer/interrupt；standalone CLI 保留 `--supervise-stdin`，两条 transport 进入同一 app-server 控制语义。
 
 M1 已验证本地 Codex app-server initialize 握手；真实模型 turn 因会消耗模型调用并可能修改仓库，默认留给人工显式触发。
 

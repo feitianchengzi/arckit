@@ -19,6 +19,7 @@ const config = {
   artifactName: `ArcOrbit-${lock.runtime.packageVersion}-${lock.runtime.channel}-${lock.runtime.buildLabel}-${"${os}"}-${"${arch}"}.${"${ext}"}`,
   directories: { output: "release", buildResources: "build" },
   asar: true,
+  afterPack: "scripts/flip-electron-fuses.cjs",
   files: ["package.json", "bin/**/*", "adapters/**/*", "config/**/*", "desktop/**/*", "schemas/**/*", "src/**/*", "README.md"],
   extraResources: [
     { from: path.join(resourcesFrom, "arcorbit"), to: "arcorbit", filter: ["**/*"] },

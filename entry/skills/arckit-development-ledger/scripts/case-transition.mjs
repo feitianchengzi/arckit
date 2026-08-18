@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
@@ -11,8 +10,12 @@ import { coreSoftwareInvariantIds, defaultSoftwareInvariants } from './project-i
 import { validateIterationStateRecord } from './project-iteration.mjs';
 import { withProjectCommitLock } from './project-commit-lock.mjs';
 import { readLedgerSnapshot } from './loop-snapshot.mjs';
-
-const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
+import {
+  renderIterationProjection,
+  renderProjectStateProjection,
+  writeDevelopmentCaseIndex,
+  writeIterationIndex,
+} from './trusted-ledger-operations.mjs';
 const FINDING_KINDS = new Set(['error', 'omission', 'excess']);
 const INVARIANT_DISPOSITIONS = new Set(['not_relevant', 'upheld', 'threatened', 'undetermined']);
 
@@ -366,7 +369,6 @@ async function applyUnlocked({ projectRoot, casePath, transition, runtimeResultR
   const projectErrors = validateProjectStateRecord(projectedProject, projectFile);
   if (projectErrors.length) throw new Error(projectErrors.join('\n'));
   renderCaseRecord(text, nextCase, caseFile);
-  runLedger(root, ['development-case.mjs', 'index', '--dry-run', 'true']);
   if (dryRun) return { schema_version: 'arckit-case-transition-result/v3', applied: false, dry_run: true, case_id: nextCase.id, case_resolution: nextCase.case_resolution, project_state_delta: transition.project_state_delta, changed_files: [] };
   const closedFile = path.join(root, closedCaseRef);
   const iterationRef = projectedProject.advancement.active_iteration_ref;
@@ -377,15 +379,15 @@ async function applyUnlocked({ projectRoot, casePath, transition, runtimeResultR
   try {
     writeCaseRecord(caseFile, text, nextCase); changedFiles.push(activeCaseRef);
     if (nextCase.status === 'closed') { fs.mkdirSync(path.dirname(closedFile), { recursive: true }); fs.renameSync(caseFile, closedFile); writtenCaseRef = closedCaseRef; changedFiles.splice(0, 1, closedCaseRef); }
-    if (projectChanged) { fs.writeFileSync(projectFile, `${JSON.stringify(projectedProject, null, 2)}\n`); runLedger(root, ['project-state.mjs', 'render', 'arckit/project/state.record.json']); changedFiles.push('arckit/project/state.record.json', 'arckit/project/STATE.md'); }
+    if (projectChanged) { fs.writeFileSync(projectFile, `${JSON.stringify(projectedProject, null, 2)}\n`); renderProjectStateProjection(root, 'arckit/project/state.record.json'); changedFiles.push('arckit/project/state.record.json', 'arckit/project/STATE.md'); }
     if (iterationRef && fs.existsSync(path.join(root, iterationRef))) {
       const iteration = JSON.parse(fs.readFileSync(path.join(root, iterationRef), 'utf8'));
       aggregateIteration(iteration, { timestamp, caseRef: writtenCaseRef, activeCaseRef, project: projectedProject, delta: transition.project_state_delta, resolved: nextCase.status === 'closed' });
       const iterationErrors = validateIterationStateRecord(iteration, path.join(root, iterationRef));
       if (iterationErrors.length) throw new Error(iterationErrors.join('\n'));
-      fs.writeFileSync(path.join(root, iterationRef), `${JSON.stringify(iteration, null, 2)}\n`); runLedger(root, ['project-iteration.mjs', 'render', iterationRef]); runLedger(root, ['project-iteration.mjs', 'index']); changedFiles.push(iterationRef, iterationRef.replace(/\.record\.json$/, '.md'), 'arckit/project/ITERATIONS.md');
+      fs.writeFileSync(path.join(root, iterationRef), `${JSON.stringify(iteration, null, 2)}\n`); renderIterationProjection(root, iterationRef); writeIterationIndex(root); changedFiles.push(iterationRef, iterationRef.replace(/\.record\.json$/, '.md'), 'arckit/project/ITERATIONS.md');
     }
-    runLedger(root, ['development-case.mjs', 'index']); changedFiles.push('arckit/cases/INDEX.md');
+    writeDevelopmentCaseIndex(root); changedFiles.push('arckit/cases/INDEX.md');
   } catch (error) {
     for (const snapshot of snapshots) { if (snapshot.existed) { fs.mkdirSync(path.dirname(snapshot.file), { recursive: true }); fs.writeFileSync(snapshot.file, snapshot.content); } else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file); }
     throw error;
@@ -464,12 +466,6 @@ function aggregateIteration(record, { timestamp, caseRef, activeCaseRef, project
   record.accepted_project_changes.push(...changes);
   record.acceptance.remaining_project_gaps = project.advancement.project_gaps.map((gap) => gap.id);
   record.last_case_aggregation = { case_ref: caseRef, project_changes: changes.map(({ kind, ref, outcome }) => ({ kind, ref, outcome })), evidence: unique([caseRef, ...delta.evidence]), updated_at: timestamp };
-}
-
-function runLedger(root, args) {
-  const [script, ...rest] = args;
-  const result = spawnSync(process.execPath, [path.join(scriptsDir, script), ...rest], { cwd: root, encoding: 'utf8' });
-  if (result.status !== 0) throw new Error(`${script} ${rest[0] || ''} failed\n${result.stderr || result.stdout}`);
 }
 
 function parseArgs(argv) {

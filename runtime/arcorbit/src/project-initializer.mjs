@@ -4,9 +4,8 @@ import { basename, join, resolve } from 'node:path';
 import { runLedgerScript } from './ledger-scripts.mjs';
 import { detectConversationLocale } from './conversation-locale.mjs';
 import { loadRuntimeCapabilityForEntrypoint } from './capability-registry.mjs';
-import { runtimeNodeChildEnvironment } from './runtime-process-environment.mjs';
 
-export async function ensureArckitProject({ projectRoot, projectName = '', intent = '', nodeBin = process.execPath, nodeEnv = runtimeNodeChildEnvironment() } = {}) {
+export async function ensureArckitProject({ projectRoot, projectName = '', intent = '' } = {}) {
   const root = resolve(projectRoot || '.');
   if (!existsSync(root)) throw new Error(`Project path does not exist: ${root}`);
   const locale = detectConversationLocale(intent);
@@ -25,13 +24,11 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
       'init',
       '--name', projectName || basename(root) || root,
       '--intent', intent || t(locale, 'Initialize a recoverable Arckit software project.', '初始化一个可恢复的 Arckit 软件项目。'),
-    ], { nodeBin, nodeEnv, capability: projectCapability });
+    ], { capability: projectCapability });
     changedFiles.push('arckit/project/state.record.json', 'arckit/project/STATE.md');
   }
 
   const compatibilityResult = await runLedgerScript(root, ['protocol-compatibility.mjs', 'probe'], {
-    nodeBin,
-    nodeEnv,
     capability: compatibilityCapability,
   });
   const compatibility = JSON.parse(compatibilityResult.stdout);
@@ -50,7 +47,7 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
 
   const state = JSON.parse(await readFile(statePath, 'utf8'));
 
-  await runLedgerScript(root, ['project-state.mjs', 'audit', 'arckit/project/state.record.json'], { nodeBin, nodeEnv, capability: projectCapability });
+  await runLedgerScript(root, ['project-state.mjs', 'audit', 'arckit/project/state.record.json'], { capability: projectCapability });
   for (const activeCaseRef of state.advancement.active_case_refs || []) {
     const casePath = join(root, activeCaseRef);
     const record = parseCaseRecord(await readFile(casePath, 'utf8'), casePath);
@@ -59,7 +56,7 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
       'development-case.mjs',
       'audit',
       activeCaseRef,
-    ], { nodeBin, nodeEnv, capability: caseCapability });
+    ], { capability: caseCapability });
     const derivedResolution = JSON.parse(auditResult.stdout);
     if (!sameCaseResolution(record.case_resolution, derivedResolution)) {
       await runLedgerScript(root, [
@@ -68,12 +65,12 @@ export async function ensureArckitProject({ projectRoot, projectName = '', inten
         activeCaseRef,
         '--write',
         'true',
-      ], { nodeBin, nodeEnv, capability: caseCapability });
+      ], { capability: caseCapability });
       changedFiles.push(activeCaseRef);
       repaired = true;
     }
   }
-  await runLedgerScript(root, ['development-case.mjs', 'index'], { nodeBin, nodeEnv, capability: caseCapability });
+  await runLedgerScript(root, ['development-case.mjs', 'index'], { capability: caseCapability });
   changedFiles.push('arckit/cases/INDEX.md');
   return {
     initialized: changedFiles.length > 0,

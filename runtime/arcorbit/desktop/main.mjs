@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
@@ -9,6 +9,7 @@ import { createPlatformCoordinator } from "../src/platform-coordinator.mjs";
 import { createSkillProvisioningManager } from "../src/skill-provisioning-manager.mjs";
 import { createWorkshopTaskSource } from "../src/task-source-adapter.mjs";
 import { canonicalArcOrbitUserDataPath } from "../src/desktop-user-data.mjs";
+import { createElectronUtilityRuntimeHost } from "../src/electron-utility-runtime-host.mjs";
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
@@ -27,10 +28,16 @@ let automationStarted = false;
 
 app.whenReady().then(async () => {
   const codexExecutableResolver = createCodexExecutableResolver();
+  const runtimeHost = createElectronUtilityRuntimeHost(utilityProcess);
+  if (process.argv.includes("--runtime-host-smoke")) {
+    await runRuntimeHostSmoke(runtimeHost);
+    return;
+  }
   runManager = createDesktopRunManager({
     runtimeRoot,
     runtimeCwd: app.isPackaged ? process.resourcesPath : runtimeRoot,
     dataDir: join(app.getPath("userData"), "runtime"),
+    runtimeHost,
     getCodexExecutable: () => codexExecutableResolver.getResolved()
   });
   workshopService = createWorkshopTaskSource({
@@ -77,7 +84,36 @@ app.whenReady().then(async () => {
   if (readiness.status === "ready" && !readiness.first_install) {
     startAutomation();
   }
+}).catch((error) => {
+  console.error("ArcOrbit startup failed:", error);
+  app.exit(1);
 });
+
+async function runRuntimeHostSmoke(runtimeHost) {
+  const runtimeBin = join(runtimeRoot, "bin/arcorbit.mjs");
+  const projectOptionIndex = process.argv.indexOf("--runtime-host-smoke-project");
+  const projectRoot = projectOptionIndex >= 0 ? process.argv[projectOptionIndex + 1] : "";
+  if (projectOptionIndex >= 0 && !projectRoot) throw new Error("--runtime-host-smoke-project requires a path.");
+  const runtimeArgs = projectRoot
+    ? ["init-project", "--project", projectRoot, "--name", "ArcOrbit Runtime Host Smoke", "--intent", "Verify packaged utility Runtime and trusted ledger APIs."]
+    : ["help"];
+  const child = runtimeHost.spawn(runtimeBin, runtimeArgs, {
+    cwd: app.isPackaged ? process.resourcesPath : runtimeRoot,
+    env: { ...process.env }
+  });
+  let stdout = "";
+  let stderr = "";
+  child.stdout.setEncoding("utf8");
+  child.stderr.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => { stdout += chunk; });
+  child.stderr.on("data", (chunk) => { stderr += chunk; });
+  await new Promise((resolvePromise, rejectPromise) => {
+    child.on("error", rejectPromise);
+    child.on("close", (code) => code === 0 ? resolvePromise() : rejectPromise(new Error(stderr || `Utility Runtime exited with ${code}.`)));
+  });
+  process.stdout.write(`${JSON.stringify({ schema_version: "arcorbit-runtime-host-smoke/v1", status: "passed", command: runtimeArgs[0], runtime_output: stdout.trim() })}\n`);
+  app.quit();
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {

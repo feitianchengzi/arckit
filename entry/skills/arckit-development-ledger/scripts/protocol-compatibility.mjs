@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +9,7 @@ import { parseCaseRecordText, renderCaseRecord, validateCaseRecord } from './dev
 import { renderIteration, validateIterationStateRecord } from './project-iteration.mjs';
 import { withProjectCommitLock } from './project-commit-lock.mjs';
 import { projectTargetRefs, renderProjectState, validateProjectStateRecord } from './project-state.mjs';
+import { writeDevelopmentCaseIndex, writeIterationIndex } from './trusted-ledger-operations.mjs';
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 const schemaDir = path.join(path.dirname(scriptsDir), 'schema');
@@ -364,9 +364,13 @@ function regenerateProjections(root, plan, changedFiles) {
     fs.writeFileSync(iterationProjection, `${renderIteration(renderable, project)}\n`);
     changedFiles.push(relativeRef(root, iterationProjection));
   }
-  runLedger(root, 'development-case.mjs', ['index']);
+  try {
+    writeDevelopmentCaseIndex(root);
+  } catch (error) {
+    throw new Error(`development-case.mjs index failed\n${error.message}`);
+  }
   changedFiles.push('arckit/cases/INDEX.md');
-  runLedger(root, 'project-iteration.mjs', ['index']);
+  writeIterationIndex(root);
   changedFiles.push('arckit/project/ITERATIONS.md');
 }
 
@@ -484,11 +488,6 @@ function restoreSnapshots(snapshots) {
       fs.writeFileSync(snapshot.file, snapshot.content);
     } else if (fs.existsSync(snapshot.file)) fs.unlinkSync(snapshot.file);
   }
-}
-
-function runLedger(root, script, args) {
-  const result = spawnSync(process.execPath, [path.join(scriptsDir, script), ...args], { cwd: root, encoding: 'utf8' });
-  if (result.status !== 0) throw new Error(`${script} ${args[0] || ''} failed\n${result.stderr || result.stdout}`);
 }
 
 function readPlan(input) {

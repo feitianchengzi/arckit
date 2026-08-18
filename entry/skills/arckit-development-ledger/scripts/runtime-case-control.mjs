@@ -1,11 +1,13 @@
 import fs from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { withProjectCommitLock } from './project-commit-lock.mjs';
 import { readLedgerSnapshot } from './loop-snapshot.mjs';
-
-const here = path.dirname(fileURLToPath(import.meta.url));
+import {
+  auditProjectState,
+  createDevelopmentCase,
+  registerProjectCase,
+  writeDevelopmentCaseIndex,
+} from './trusted-ledger-operations.mjs';
 const ARTIFACT_TYPES = new Set(['code', 'skill', 'document', 'workflow', 'mixed', 'unknown']);
 const ACTIONS = new Set(['create_case']);
 
@@ -70,27 +72,21 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
   const activeDir = path.join(root, 'arckit/cases/active');
   const initialActiveFiles = new Set(fs.existsSync(activeDir) ? fs.readdirSync(activeDir) : []);
   try {
-    const created = runScript(root, 'development-case.mjs', [
-      'new',
-      '--title', handoff.title,
-      '--artifact-type', handoff.artifact_type,
-      '--intent', handoff.intent,
-      '--expected-outcome', handoff.expected_outcome,
-      '--initial-facts', JSON.stringify(handoff.initial_facts),
-      '--initial-impacts', JSON.stringify(handoff.initial_impacts),
-      '--initial-gaps', JSON.stringify(handoff.initial_gaps),
-      '--max-review-cycles', String(handoff.review_policy.max_autonomous_cycles),
-      '--review-policy-source', handoff.review_policy.source,
-    ]);
+    const created = { stdout: createDevelopmentCase(root, {
+      title: handoff.title,
+      'artifact-type': handoff.artifact_type,
+      intent: handoff.intent,
+      'expected-outcome': handoff.expected_outcome,
+      'initial-facts': JSON.stringify(handoff.initial_facts),
+      'initial-impacts': JSON.stringify(handoff.initial_impacts),
+      'initial-gaps': JSON.stringify(handoff.initial_gaps),
+      'max-review-cycles': String(handoff.review_policy.max_autonomous_cycles),
+      'review-policy-source': handoff.review_policy.source,
+    }) };
     selectedCaseRef = relativeCaseRef(root, created.stdout.trim().split(/\r?\n/).filter(Boolean).at(-1));
-    runScript(root, 'project-state.mjs', [
-      'register-case',
-      '--case-ref', selectedCaseRef,
-      '--intent', handoff.intent,
-      '--reason', handoff.selection_reason,
-    ]);
-    runScript(root, 'development-case.mjs', ['index']);
-    runScript(root, 'project-state.mjs', ['audit', 'arckit/project/state.record.json']);
+    registerProjectCase(root, { 'case-ref': selectedCaseRef, intent: handoff.intent, reason: handoff.selection_reason });
+    writeDevelopmentCaseIndex(root);
+    auditProjectState(root, 'arckit/project/state.record.json');
   } catch (error) {
     restoreSnapshots(snapshots);
     if (fs.existsSync(activeDir)) {
@@ -129,12 +125,6 @@ async function applyRuntimeCaseControlUnlocked({ root, handoff, gate, dryRun, ru
         : []),
     ])],
   };
-}
-
-function runScript(root, name, args) {
-  const result = spawnSync(process.execPath, [path.join(here, name), ...args], { cwd: root, encoding: 'utf8' });
-  if (result.status !== 0) throw new Error(`${name} ${args[0] || ''} failed\n${result.stderr || result.stdout}`);
-  return result;
 }
 
 function relativeCaseRef(root, absolutePath) {
