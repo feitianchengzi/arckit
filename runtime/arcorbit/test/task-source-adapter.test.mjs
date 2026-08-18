@@ -87,7 +87,6 @@ test("Workshop platform adapter reads organizations, members, full project tasks
         return jsonResponse({ data: { projects: organizationId ? [{
           id: 12,
           name: "Runtime",
-          organization_id: 31,
           members: [
             { id: 92, user_id: 7, username: "glare", role: "owner", is_me: true, duty: "Engineering" },
             { id: 93, user_id: 8, username: "teammate", role: "member" }
@@ -116,6 +115,7 @@ test("Workshop platform adapter reads organizations, members, full project tasks
 
   assert.deepEqual((await source.platform.listOrganizations()).map((item) => item.id), ["31"]);
   assert.equal((await source.platform.listOrganizationMembers("31"))[0].role, "owner");
+  assert.equal((await source.listProjects()).find((project) => project.id === "12").raw.organization_id, "31");
   const members = await source.platform.listProjectMembers("12");
   assert.deepEqual(members.map((item) => item.user_id), ["7", "8"]);
   const platformTasks = await source.platform.listProjectTasks("12");

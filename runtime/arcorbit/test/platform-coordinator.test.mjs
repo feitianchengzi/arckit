@@ -108,7 +108,10 @@ test("organization governance uses role-based project visibility without inherit
           ? [{ id: "11", name: "Selected", organization_id: "31" }, { id: "12", name: "Unselected", organization_id: "31" }]
           : [{ id: "13", name: "Participating only", organization_id: "32" }];
       },
-      listPersonalProjects: async () => [{ id: "21", name: "Personal" }, { id: "22", name: "External", organization_id: "99" }],
+      listPersonalProjects: async () => [
+        { id: "21", name: "Personal", raw: { members: [{ user_id: 7, role: "owner", is_me: true }] } },
+        { id: "22", name: "External", raw: { members: [{ user_id: 7, role: "member", is_me: true, is_external: true }] } }
+      ],
       listProjectMembers: async () => [], listProjectTasks: async () => [], listFeedbackV1: async () => [], listProjectTags: async () => []
     }
   });
@@ -121,6 +124,10 @@ test("organization governance uses role-based project visibility without inherit
     ["32", "participating_projects", ["13"]]
   ]);
   assert.deepEqual(snapshot.personal_projects.map((project) => project.id), ["21", "22"]);
+  assert.deepEqual(snapshot.personal_projects.map((project) => [project.id, project.organization_id, project.external_participation]), [
+    ["21", "", false],
+    ["22", "", true]
+  ]);
 });
 
 test("platform coordinator exposes bounded management actions and omits unsafe direct project-member add", async () => {

@@ -63,7 +63,7 @@ Workshop Platform Adapter 暴露业务语义方法，不暴露 HTTP passthrough�
 - `listOrganizations()`：完整分页读取当前用户加入的组织。
 - `listOrganizationMembers(organizationId)`：完整分页读取组织成员；Coordinator 从 `is_me` 记录派生当前角色。
 - `listOrganizationProjects(organizationId, visibility)`：owner/admin 走 `/organization/projects` 读取全部项目，member 走 `/projects` 读取参与项目；每个响应都补全查询范围中的 `organization_id`。
-- `listPersonalProjects()`：读取无组织与外部参与项目；依赖服务端响应中的 `organization_id` 做确定性分类。
+- `listPersonalProjects()`：使用现有 `/projects?organization_id=0` 读取无组织与外部参与项目；当前成员的 `is_external` 区分外部参与，不要求响应新增组织字段。
 - `listProjects()`：保留给既有 Automation Task Source，返回当前用户参与项目，不作为组织治理的唯一目录。
 - Project 响应内的 `members` 归一化为项目成员投影，包含 `role`、`duty`、`is_external` 和 `is_me`。
 - `listProjectTasks(projectId, filters)`：读取项目完整待办集合，不应用 Automation executor 限制。
@@ -186,7 +186,7 @@ Organization scope 投影包含：
 - 每个项目的成员、当前用户项目角色和三种本地推进连接；
 - 区分组织范围失败的 `errors`，不得用参与项目静默冒充全部项目。
 
-`personal_projects` 包含 `organization_id` 为空的项目和已标注的外部参与项目。项目查询响应必须返回 `organization_id`；Adapter 仍使用查询上下文补全旧服务响应，作为兼容路径。
+`personal_projects` 包含无组织项目和当前成员标记为 `is_external` 的外部参与项目。组织范围查询的 Adapter 使用请求中的 organization id 补全本地投影；现有 Workshop 响应不需要增加 `organization_id`。
 
 ## IPC
 
@@ -340,7 +340,7 @@ Web 仓库 build 只有在依赖安装后才构成源码验证。Workshop Todo �
 
 - Workshop Todo 未实现可证实的 `If-Match` 条件更新，自动领取只能声明弱一致。
 - Project 直接添加成员 handler 未验证 caller role，ArcOrbit 不开放该动作。
-- Workshop 项目查询响应此前缺少 `organization_id`；平台要求该字段并保留查询上下文兼容补全。
+- Workshop 项目查询响应不包含 `organization_id`；平台从组织范围请求上下文补全归属，并从项目成员的 `is_external` 标记识别外部参与，不修改服务端响应契约。
 - Workshop 项目邀请缺少列表和撤销接口，ArcOrbit 只显示创建响应的一次性结果。
 - Task history 缺少服务端实现，ArcOrbit 不展示伪历史。
 - Feedback V2 服务端不在已提供仓库中，默认 capability 为 unavailable。

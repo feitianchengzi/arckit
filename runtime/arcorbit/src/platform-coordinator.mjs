@@ -327,6 +327,7 @@ function buildProductWorkspace({ project, automationProject, preference, detail 
 }
 
 function projectProjection(project, automationProject) {
+  const userMember = currentUserMember(project);
   return {
     id: String(project.id),
     name: String(project.name || ""),
@@ -334,7 +335,8 @@ function projectProjection(project, automationProject) {
     organization_id: String(project.raw?.organization_id || project.organization_id || ""),
     git_url: String(project.raw?.git_url || project.git_url || ""),
     current_user_id: String(project.current_user_id || ""),
-    current_user_role: currentUserRole(project),
+    current_user_role: String(userMember?.role || ""),
+    external_participation: Boolean(userMember?.is_external),
     local_project_id: String(automationProject?.local_project_id || ""),
     local_project_name: String(automationProject?.local_project_name || ""),
     local_project_path: String(automationProject?.local_project_path || ""),
@@ -346,8 +348,12 @@ function projectProjection(project, automationProject) {
 }
 
 function currentUserRole(project) {
+  return String(currentUserMember(project)?.role || "");
+}
+
+function currentUserMember(project) {
   const members = Array.isArray(project.raw?.members) ? project.raw.members : [];
-  return String(members.find((member) => member?.is_me === true)?.role || "");
+  return members.find((member) => member?.is_me === true) || null;
 }
 
 function projectOrganizationId(project) {

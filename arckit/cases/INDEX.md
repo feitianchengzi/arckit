@@ -86,3 +86,4 @@
 | [CASE-20260817-005](closed/CASE-20260817-005-implement-arcorbit-multi-product-development-platform.md) | closed | Implement ArcOrbit multi-product development platform | 2026-08-17T20:10:30.815Z |
 | [CASE-20260818-001](closed/CASE-20260818-001-package-and-acceptance-test-arcorbit-platform.md) | closed | Package and acceptance-test ArcOrbit platform | 2026-08-18T03:34:46.884Z |
 | [CASE-20260818-002](closed/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md) | closed | Optimize ArcOrbit organization member and product management | 2026-08-18T09:30:08.707Z |
+| [CASE-20260818-003](closed/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md) | closed | Restore ArcOrbit existing-service boundary | 2026-08-18T09:57:24.729Z |

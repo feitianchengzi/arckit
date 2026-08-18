@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-18T09:30:08.707Z",
+  "updated_at": "2026-08-18T09:57:24.729Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -1031,6 +1031,19 @@
         "arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "User correction received 2026-08-18",
+        "arckit/tech/arcorbit/platform-composition-solution.md",
+        "runtime/arcorbit/test/task-source-adapter.test.mjs",
+        "Workshop backend revert commit 02e526b",
+        "arckit/cases/active/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md"
     }
   ],
   "acceptance": {
@@ -1087,17 +1100,18 @@
     "arckit/cases/closed/CASE-20260817-004-use-only-arcorbit-state-while-preserving-actionable-skill-recove.md",
     "arckit/cases/closed/CASE-20260817-005-implement-arcorbit-multi-product-development-platform.md",
     "arckit/cases/closed/CASE-20260818-001-package-and-acceptance-test-arcorbit-platform.md",
-    "arckit/cases/closed/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md"
+    "arckit/cases/closed/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md",
+    "arckit/cases/closed/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md",
+    "case_ref": "arckit/cases/closed/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md",
-      "CASE-20260818-002 completion review: clean",
-      "ArcOrbit npm run check: 208 tests, 206 passed, 2 conditional skipped, 0 failed"
+      "arckit/cases/closed/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md",
+      "CASE-20260818-003 completion review: clean",
+      "Workshop backend git diff origin/main -- handler/project.go handler/project_response_test.go: empty"
     ],
-    "updated_at": "2026-08-18T09:30:08.707Z"
+    "updated_at": "2026-08-18T09:57:24.729Z"
   }
 }

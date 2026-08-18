@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-18T09:30:08.707Z",
-    "revision": 93
+    "updated_at": "2026-08-18T09:57:24.729Z",
+    "revision": 96
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Organization-management delivery is complete; select any future work from fresh Project gaps and user intent.",
+      "current_focus": "Existing-service boundary correction is complete; select future work from fresh Project gaps and user intent.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -331,17 +331,18 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs; ArcOrbit is its Electron Desktop/Runtime host. The policy-neutral Runtime Kernel, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2, persistent one-thread-per-todo model and trusted capabilities remain unchanged. Platform composition uses Desktop Store v10 local worksets and workspace preferences, a main-process Platform Coordinator, restricted Workshop Platform Adapter and typed preload IPC; governance loading is independent of Workset, paginates remote collections, preserves explicit organization identity and route-based visibility, and exposes only bounded join, membership, project and one-shot invitation commands. Remote Workshop records remain authoritative and Renderer receives neither credentials nor generic request access.",
-          "reason": "The composition solution and production implementation now cover the confirmed management contracts while preserving protocol, credential, authority and execution boundaries.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs; ArcOrbit is its Electron Desktop/Runtime host. The policy-neutral Runtime Kernel, persistent one-thread-per-todo model and trusted capabilities remain unchanged. Platform composition uses Desktop Store v10, a main-process Platform Coordinator, restricted Workshop Platform Adapter and typed preload IPC. ArcOrbit consumes existing Workshop services without requiring backend changes: organization-scoped request context supplies known project organization identity, current-member is_external marks external participation, remote Workshop records remain authoritative, and Renderer receives neither credentials nor generic request access.",
+          "reason": "The user requires a strict existing-service boundary, and production evidence confirms ArcOrbit can derive the necessary governance projection entirely in its adapter and coordinator layers.",
           "evidence": [
             "arckit/tech/arcorbit/platform-composition-solution.md",
-            "runtime/arcorbit/src/platform-coordinator.mjs",
             "runtime/arcorbit/src/workshop-platform-adapter.mjs",
-            "runtime/arcorbit/src/task-source-adapter.mjs"
+            "runtime/arcorbit/src/task-source-adapter.mjs",
+            "runtime/arcorbit/src/platform-coordinator.mjs",
+            "Workshop backend git diff origin/main -- handler/project.go handler/project_response_test.go: empty"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit if Workshop service contracts or the protected Runtime/remote-authority boundaries change.",
-          "revision": 17
+          "resume_condition": "Revisit only if the user authorizes a Workshop service change or existing service semantics become insufficient.",
+          "revision": 18
         },
         "gap_refs": []
       },

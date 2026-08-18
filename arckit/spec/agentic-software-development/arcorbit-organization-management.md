@@ -43,7 +43,7 @@ ArcOrbit 列出当前用户加入的全部组织，并完整读取每个组织�
 
 Workshop 的历史更新请求仍包含临时 `organization_id` 字段，但 ArcOrbit 不调用该迁移能力。平台不能在没有完整成员、权限和审计迁移规则时允许改变项目组织。
 
-Workshop 项目查询响应必须提供 `organization_id`，使 Desktop 能在分页、外部参与和多组织场景中确定性建立归属。
+ArcOrbit 不要求 Workshop 项目响应新增 `organization_id`。组织范围查询由 Desktop 使用已知的请求组织上下文补全归属；个人与外部参与列表使用当前成员关系中的 `is_external` 区分，不把响应缺失字段当作服务端改造前提。
 
 ## 组织管理
 
