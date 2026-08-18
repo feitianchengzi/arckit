@@ -59,9 +59,9 @@ Product Workspace 是 ArcOrbit 的桌面组合对象，不是当前 Workshop 服
 
 用户可以同时选择一个或多个 Product Workspace。
 
-Today、Work、Automation 和 Feedback 在同一工作集上聚合，同时保留每条数据的产品归属。
+Today、Work 和 Feedback 在同一工作集上聚合，同时保留每条数据的产品归属。Automation 继续覆盖全部已授权项目，Workset 只影响其观察入口，不改变执行资格。
 
-Products 和 Team 提供完整组织与产品管理入口，不因工作集隐藏而删除或退出产品。
+Organization Center 提供完整组织、成员和项目管理入口，不受工作集裁剪。
 
 当前活动执行即使所属产品被移出工作集，仍固定显示在全局执行状态中，直到安全结束或进入恢复。
 
@@ -84,7 +84,7 @@ Products 和 Team 提供完整组织与产品管理入口，不因工作集隐�
 | 验收反馈 | `acceptance_feedback_items` | ArcOrbit Desktop |
 | 执行 | active task、Run、Case、Loop 和 thread 绑定 | ArcOrbit Runtime/Desktop |
 
-平台不创建独立 Team 领域实体。“Team”界面是组织成员池和各产品成员关系的协作投影。
+平台不创建独立 Team 领域实体。Organization Center 是组织成员池和各产品成员关系的治理投影。
 
 ## ArcOrbit 既有核心
 
@@ -212,51 +212,17 @@ Runtime 不维护 Worker registry，不内置固定 skill 顺序、业务 gap、
 
 ## Workshop 待办与团队协作能力
 
-### 身份和组织
+### 身份、组织与项目治理
 
 Workshop 业务服务依赖网关完成 JWT 或 API Key 认证，并从转发 Header 解析当前用户。
 
 用户具有 UUID、用户名和头像；用户只能通过当前网关身份读取和更新自己。
 
-组织具有名称、描述、创建者和软删除状态。
+组织、成员、项目、邀请、加入、权限投影、项目归属与分页的稳定行为由 `arcorbit-organization-management.md` 定义。
 
-组织创建者自动成为 owner。
+平台治理入口不受 Workset 裁剪；项目创建后的组织归属不在 ArcOrbit 中编辑；项目邀请只从项目上下文创建，并保持一次性结果边界。
 
-组织成员角色为 owner、admin、member。
-
-任何组织成员可以查看组织成员列表。
-
-owner 和 admin 可以更新组织、邀请成员和删除其他成员。
-
-只有 owner 可以删除组织和修改其他成员的 admin/member 角色。
-
-成员可以自行退出。owner 退出时服务执行所有权交接，避免组织没有 owner。
-
-组织邀请支持目标角色、可选过期时间、最大使用次数、已使用次数和邀请码加入。
-
-### 产品项目
-
-Workshop Project 具有名称、可选 Git URL、可选组织归属、创建者和软删除状态。
-
-项目可以独立存在，也可以归属于组织。
-
-项目创建者自动成为项目 owner。
-
-项目成员角色为 owner、admin、member，并具有可选职责 `duty` 和组织外成员标记 `is_external`。
-
-owner 和 admin 可以更新项目和生成项目邀请；只有 owner 可以删除项目和修改成员 admin/member 角色。
-
-owner 和 admin 可以删除其他项目成员；成员可以自行退出。owner 退出时服务执行所有权交接。
-
-组织 owner/admin 可以查询组织下全部项目。
-
-项目邀请支持角色、可选过期时间、最大使用次数和邀请码加入。
-
-当前服务不提供项目邀请列表和撤销接口；待办前端对此返回空列表或明确不支持。
-
-当前 `POST /projects/:id/members` handler 注释和实现没有验证调用者的项目管理权限。前端只向 owner/admin 展示添加成员能力，但服务端没有形成同等保护。
-
-ArcOrbit 平台不得依赖前端隐藏来宣称成员添加安全；该接口在接入前需要作为服务端权限缺口处理。
+当前 `POST /projects/:id/members` 缺少 caller 项目管理权限校验，ArcOrbit 不开放该接口。
 
 ### 待办
 
@@ -387,27 +353,11 @@ Today 不把 AI 表现为独立聊天角色，只显示产品内产生的分析�
 
 Today 的优先级聚合必须保留原始产品、任务状态、执行人和来源，不产生脱离源对象的新任务副本。
 
-### Products
+### Organization
 
-Products 显示当前用户可见的全部 Workshop Project 及组织归属、成员关系和 Git URL。
+Organization Center 以组织 → 成员 → 项目形成不受 Workset 裁剪的治理全貌，并提供个人项目同级范围。
 
-Products 同时显示本地项目绑定、Project State readiness、自动参与和活动执行状态。
-
-用户可以创建、更新和删除有权限的 Workshop Project，并绑定或更换本地目录。
-
-创建产品沿用 Workshop Project 创建规则；创建者成为 owner，组织归属可选。
-
-产品详情可以管理 owner/admin/member、duty、外部成员和邀请，但所有操作遵守服务端权限。
-
-### Team
-
-Team 以 Organization 和 OrganizationMember 为真实数据源。
-
-Team 同时投影每位组织成员参与的 Product Project、项目角色、职责和外部成员状态。
-
-用户可以创建和更新有权限的组织、查看成员、生成组织邀请、修改角色、删除成员或自行退出。
-
-Team 不创建额外团队实体，不用本地工作集替代服务端成员关系。
+组织角色决定项目可见范围；成员页只展示已有关系；项目邀请只在项目详情中生成。完整行为见 `arcorbit-organization-management.md`。
 
 ### Work
 

@@ -10,7 +10,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
 
   async function getSnapshot(input = {}) {
     const sections = normalizeSections(input.sections);
-    const [store, automation, organizationsResult, projectsResult] = await Promise.all([
+    const [store, automation, organizationsResult, participatingProjectsResult] = await Promise.all([
       runManager.readDesktopStore(),
       automationCoordinator.getSnapshot({}),
       capture("organizations", () => platformSource.listOrganizations()),
@@ -19,26 +19,79 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     const platform = store.platform;
     const worksetId = String(input.workset_id || platform.active_workset_id || "");
     const activeWorkset = platform.worksets.find((item) => item.id === worksetId) || platform.worksets[0];
-    const projectCatalog = projectsResult.value || [];
-    const selectedIds = new Set(activeWorkset?.project_ids || []);
-    const selectedProjects = projectCatalog.filter((project) => selectedIds.has(String(project.id)));
-    const automationProjects = new Map((automation.projects || []).map((project) => [String(project.id), project]));
-    const errors = [organizationsResult.error, projectsResult.error].filter(Boolean);
-    const selectedOrganizationIds = [...new Set(selectedProjects
-      .map((project) => String(project.raw?.organization_id || project.organization_id || ""))
-      .filter(Boolean))];
-    const organizationMemberResults = sections.has("members")
-      ? await Promise.all(selectedOrganizationIds.map((organizationId) => (
-          capture("organization_members", () => platformSource.listOrganizationMembers(organizationId), organizationId)
-        )))
+    const organizations = organizationsResult.value || [];
+    const errors = [organizationsResult.error, participatingProjectsResult.error].filter(Boolean);
+    const governanceRequested = sections.has("organizations") || sections.has("members") || sections.has("overview");
+    const organizationMemberResults = governanceRequested
+      ? await Promise.all(organizations.map((organization) => {
+          const organizationId = String(organization.id);
+          return capture("organization_members", () => platformSource.listOrganizationMembers(organizationId), organizationId);
+        }))
       : [];
     errors.push(...organizationMemberResults.map((result) => result.error).filter(Boolean));
     const organizationMembers = organizationMemberResults.flatMap((result) => result.value || []);
 
+    const currentOrganizationRoles = new Map(organizations.map((organization) => {
+      const me = organizationMembers.find((member) => String(member.organization_id) === String(organization.id)
+        && (member.is_me || String(member.user_id) === String(automation.user?.id || "")));
+      return [String(organization.id), String(me?.role || "")];
+    }));
+    const organizationProjectResults = governanceRequested
+      ? await Promise.all(organizations.map((organization) => {
+          const organizationId = String(organization.id);
+          const role = currentOrganizationRoles.get(organizationId);
+          const visibility = ["owner", "admin"].includes(role) ? "all_projects" : "participating_projects";
+          const action = typeof platformSource.listOrganizationProjects === "function"
+            ? () => platformSource.listOrganizationProjects(organizationId, { visibility })
+            : () => Promise.resolve((participatingProjectsResult.value || []).filter((project) => projectOrganizationId(project) === organizationId));
+          return capture("organization_projects", action, organizationId).then((result) => ({ ...result, organizationId, visibility }));
+        }))
+      : [];
+    errors.push(...organizationProjectResults.map((result) => result.error).filter(Boolean));
+    const personalProjectsResult = governanceRequested && typeof platformSource.listPersonalProjects === "function"
+      ? await capture("personal_projects", () => platformSource.listPersonalProjects())
+      : { value: (participatingProjectsResult.value || []).filter((project) => !projectOrganizationId(project)), error: null };
+    if (personalProjectsResult.error) errors.push(personalProjectsResult.error);
+
+    const organizationProjects = organizationProjectResults.flatMap((result) => result.value || []);
+    const knownOrganizationIds = new Set(organizations.map((organization) => String(organization.id)));
+    const personalProjects = dedupeProjects([
+      ...(personalProjectsResult.value || []),
+      ...(participatingProjectsResult.value || []).filter((project) => {
+        const organizationId = projectOrganizationId(project);
+        return !organizationId || !knownOrganizationIds.has(organizationId);
+      })
+    ]).filter((project) => {
+      const organizationId = projectOrganizationId(project);
+      return !organizationId || !knownOrganizationIds.has(organizationId);
+    });
+    const projectCatalog = dedupeProjects([
+      ...(participatingProjectsResult.value || []),
+      ...organizationProjects,
+      ...personalProjects
+    ]);
+    const selectedIds = new Set(activeWorkset?.project_ids || []);
+    const selectedProjects = projectCatalog.filter((project) => selectedIds.has(String(project.id)));
+    const automationProjects = new Map((automation.projects || []).map((project) => [String(project.id), project]));
+
+    const governanceProjectMemberResults = governanceRequested
+      ? await Promise.all(projectCatalog.map((project) => {
+          const embedded = embeddedProjectMembers(project);
+          return embedded.length > 0
+            ? Promise.resolve({ value: embedded, error: null, projectId: String(project.id) })
+            : capture("project_members", () => platformSource.listProjectMembers(String(project.id)), String(project.id));
+        }))
+      : [];
+    errors.push(...governanceProjectMemberResults.map((result) => result.error).filter(Boolean));
+    const projectMembers = governanceProjectMemberResults.flatMap((result) => result.value || []);
+
     const detailResults = await Promise.all(selectedProjects.map(async (project) => {
       const projectId = String(project.id);
+      const embeddedMembers = projectMembers.filter((member) => String(member.project_id) === projectId);
       const [members, tasks, feedback, tags] = await Promise.all([
-        sections.has("members") ? capture("members", () => platformSource.listProjectMembers(projectId), projectId) : emptyResult(),
+        sections.has("members")
+          ? embeddedMembers.length > 0 ? Promise.resolve({ value: embeddedMembers, error: null }) : capture("members", () => platformSource.listProjectMembers(projectId), projectId)
+          : emptyResult(),
         sections.has("tasks") || sections.has("overview")
           ? capture("tasks", () => platformSource.listProjectTasks(projectId, input.task_filters || {}), projectId)
           : emptyResult(),
@@ -59,6 +112,21 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       preference: platform.workspace_preferences[String(project.id)] || {},
       detail: details.get(String(project.id))
     }));
+    const organizationScopes = organizations.map((organization) => {
+      const organizationId = String(organization.id);
+      const result = organizationProjectResults.find((item) => item.organizationId === organizationId);
+      const role = currentOrganizationRoles.get(organizationId);
+      const visibility = result?.visibility || (["owner", "admin"].includes(role) ? "all_projects" : "participating_projects");
+      const projects = (result?.value || []).map((project) => projectProjection(project, automationProjects.get(String(project.id))));
+      return {
+        ...organization,
+        current_user_role: role,
+        project_visibility: visibility,
+        members: organizationMembers.filter((member) => String(member.organization_id) === organizationId),
+        projects,
+        degraded: Boolean(result?.error)
+      };
+    });
 
     return {
       generated_at: now(),
@@ -67,9 +135,12 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       worksets: platform.worksets,
       active_workset: activeWorkset || null,
       projects: projectCatalog.map((project) => projectProjection(project, automationProjects.get(String(project.id)))),
-      organizations: sections.has("organizations") || sections.has("overview") ? organizationsResult.value || [] : [],
+      organizations: governanceRequested ? organizations : [],
+      organization_scopes: governanceRequested ? organizationScopes : [],
+      personal_projects: governanceRequested ? personalProjects.map((project) => projectProjection(project, automationProjects.get(String(project.id)))) : [],
       product_workspaces: productWorkspaces,
       organization_members: organizationMembers,
+      project_members: projectMembers.map((member) => ({ ...member, project_name: projectCatalog.find((project) => String(project.id) === String(member.project_id))?.name || "" })),
       members: productWorkspaces.flatMap((workspace) => workspace.members),
       tasks: productWorkspaces.flatMap((workspace) => workspace.tasks),
       feedback_v1: productWorkspaces.flatMap((workspace) => workspace.feedback_v1),
@@ -88,7 +159,9 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       },
       capabilities: {
         organizations: organizationsResult.error ? "degraded" : "available",
+        organization_governance: errors.some((item) => ["organization_members", "organization_projects", "personal_projects"].includes(item.section)) ? "degraded" : "available",
         project_members: "managed_with_permissions_except_direct_add",
+        invitation_lifecycle: "create_once_no_list_or_revoke",
         project_tasks: "read_write",
         platform_management: "available_with_server_permissions",
         feedback_v1: "read_write",
@@ -180,12 +253,14 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       "organization.update": () => platformSource.updateOrganization(input.organization_id, input),
       "organization.delete": () => platformSource.deleteOrganization(input.organization_id),
       "organization.invite": () => platformSource.inviteOrganizationMember(input.organization_id, input),
+      "organization.join": () => platformSource.joinOrganization(input),
       "organization.member.update": () => platformSource.updateOrganizationMemberRole(input.organization_id, input),
       "organization.member.delete": () => platformSource.deleteOrganizationMember(input.organization_id, input),
       "project.create": () => platformSource.createProject(input),
       "project.update": () => platformSource.updateProject(input.project_id, input),
       "project.delete": () => platformSource.deleteProject(input.project_id),
       "project.invite": () => platformSource.inviteProjectMember(input.project_id, input),
+      "project.join": () => platformSource.joinProject(input),
       "project.member.update": () => platformSource.updateProjectMember(input.project_id, input),
       "project.member.delete": () => platformSource.deleteProjectMember(input.project_id, input),
       "task.create": () => platformSource.createTask(input),
@@ -273,6 +348,41 @@ function projectProjection(project, automationProject) {
 function currentUserRole(project) {
   const members = Array.isArray(project.raw?.members) ? project.raw.members : [];
   return String(members.find((member) => member?.is_me === true)?.role || "");
+}
+
+function projectOrganizationId(project) {
+  return String(project?.organization_id || project?.raw?.organization_id || "");
+}
+
+function dedupeProjects(projects) {
+  const values = new Map();
+  for (const project of projects) {
+    const id = String(project?.id || "");
+    if (!id) continue;
+    values.set(id, { ...(values.get(id) || {}), ...project });
+  }
+  return [...values.values()];
+}
+
+function embeddedProjectMembers(project) {
+  const rawMembers = Array.isArray(project?.members) ? project.members : Array.isArray(project?.raw?.members) ? project.raw.members : [];
+  return rawMembers.map((member) => {
+    const userId = String(member?.user_id ?? member?.user?.id ?? "");
+    const id = String(member?.id ?? member?.member_id ?? userId);
+    if (!id || !userId) return null;
+    return {
+      id,
+      user_id: userId,
+      project_id: String(project.id),
+      username: String(member?.username ?? member?.user?.username ?? member?.user?.name ?? `User ${userId}`),
+      avatar: String(member?.avatar ?? member?.user?.avatar ?? ""),
+      role: ["owner", "admin", "member"].includes(member?.role) ? member.role : "member",
+      duty: String(member?.duty || ""),
+      is_external: Boolean(member?.is_external),
+      is_me: Boolean(member?.is_me),
+      created_at: String(member?.created_at || "")
+    };
+  }).filter(Boolean);
 }
 
 function countBy(items, key) {

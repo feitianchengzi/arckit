@@ -23,9 +23,9 @@ test("platform desktop renders the confirmed multi-product shell geometry", {
   assert.equal(measurements.sidebarWidth, 228);
   assert.equal(measurements.titlebarHeight, 35);
   assert.equal(measurements.commandbarHeight, 58);
-  assert.equal(measurements.viewCount, 9);
+  assert.equal(measurements.viewCount, 8);
   assert.equal(measurements.activeViewDisplay, "block");
-  assert.deepEqual(measurements.hiddenViewDisplays, ["none", "none", "none", "none", "none", "none", "none", "none"]);
+  assert.deepEqual(measurements.hiddenViewDisplays, ["none", "none", "none", "none", "none", "none", "none"]);
   assert.equal(measurements.metricColumns, 5);
   assert.equal(measurements.productColumns, 3);
   assert.equal(measurements.platformColumns, 2);

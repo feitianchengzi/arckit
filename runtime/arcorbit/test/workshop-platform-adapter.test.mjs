@@ -39,4 +39,34 @@ test("Workshop platform management validates ids and rejects unsupported owner a
   const adapter = createWorkshopPlatformAdapter({ request: async () => ({}), listProjects: async () => [], normalizeTask: (value) => value });
   assert.throws(() => adapter.createTask({ project_id: "not-an-id", content: "Invalid" }), /Project id is invalid/);
   assert.throws(() => adapter.updateProjectMember("11", { target_user_id: 7, role: "owner" }), /Member role is invalid/);
+  assert.throws(() => adapter.inviteProjectMember("11", { role: "owner" }), /Member role is invalid/);
+});
+
+test("Workshop platform adapter follows service pagination and keeps organization governance bounded", async () => {
+  const calls = [];
+  const adapter = createWorkshopPlatformAdapter({
+    request: async (path, options = {}) => {
+      calls.push({ path, options });
+      if (path === "/organization/projects") {
+        const page = options.query.page;
+        const count = page === 1 ? 200 : 1;
+        return { projects: Array.from({ length: count }, (_, index) => ({ id: (page - 1) * 200 + index + 1, name: `Project ${index}`, members: [] })), total: 201 };
+      }
+      return { ok: true };
+    },
+    listProjects: async () => [],
+    normalizeTask: (value) => value
+  });
+
+  const projects = await adapter.listOrganizationProjects("31", { visibility: "all_projects" });
+  assert.equal(projects.length, 201);
+  assert.equal(projects.every((project) => project.organization_id === "31"), true);
+  assert.deepEqual(calls.slice(0, 2).map((call) => [call.path, call.options.query.page, call.options.query.page_size]), [["/organization/projects", 1, 200], ["/organization/projects", 2, 200]]);
+
+  await adapter.updateProject("11", { name: "Renamed", organization_id: 99 });
+  await adapter.joinOrganization({ invite_code: "ORG-CODE" });
+  await adapter.joinProject({ invite_code: "PROJECT-CODE" });
+  assert.deepEqual(calls[2].options.body, { name: "Renamed" });
+  assert.deepEqual(calls[3], { path: "/organizations/join", options: { method: "POST", body: { invite_code: "ORG-CODE" } } });
+  assert.deepEqual(calls[4], { path: "/projects/join", options: { method: "POST", body: { invite_code: "PROJECT-CODE" } } });
 });

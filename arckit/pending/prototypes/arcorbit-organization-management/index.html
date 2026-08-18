@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+  <title>ArcOrbit · 组织管理中心候选方案</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="prototype-note">候选交互 · 不代表正式实现 <span>CASE-20260818-002</span></div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><i>◇</i><span><strong>ArcOrbit</strong><small>Software Product Platform</small></span></div>
+      <nav>
+        <p>推进</p>
+        <button type="button"><span>◉</span>Today <em>4</em></button>
+        <button type="button"><span>☷</span>Work <em>18</em></button>
+        <button type="button"><span>◇</span>Automation <em>1</em></button>
+        <button type="button"><span>◌</span>Feedback <em>7</em></button>
+        <p>平台</p>
+        <button class="active" type="button"><span>◎</span>Organization</button>
+      </nav>
+      <div class="sidebar-bottom"><span>Workshop 已同步</span><small>本地 Runtime 待命</small></div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div><strong>平台</strong><span>/</span><b>Organization</b></div>
+        <div class="topbar-actions">
+          <button id="worksetButton" class="workset-button" type="button"><small>当前产品集</small><strong id="worksetLabel">核心推进 · 3 个产品</strong><span>⌄</span></button>
+          <button class="icon-button" type="button">⌕</button>
+          <button class="icon-button" type="button">⚙</button>
+        </div>
+      </header>
+
+      <div class="management-shell">
+        <aside class="organization-rail">
+          <header><span>组织</span><button id="createOrganization" type="button">＋</button></header>
+          <div id="organizationList"></div>
+          <button id="joinOrganization" class="join-button" type="button">使用邀请码加入组织</button>
+        </aside>
+
+        <section class="content-stage">
+          <header class="organization-header">
+            <div class="organization-title"><i id="organizationAvatar">飞</i><span><small id="organizationKind">ORGANIZATION</small><h1 id="organizationName">飞天工作室</h1><p id="organizationDescription">面向 AI 原生产品开发的小型多产品团队。</p></span></div>
+            <div class="header-actions"><span id="organizationRole" class="role-pill">Owner</span><button id="organizationMenu" type="button">•••</button></div>
+          </header>
+
+          <nav id="sectionTabs" class="section-tabs">
+            <button class="active" data-section="overview" type="button">组织概览</button>
+            <button data-section="members" type="button">成员 <em id="memberCount">6</em></button>
+            <button data-section="projects" type="button">项目 <em id="projectCount">4</em></button>
+          </nav>
+
+          <div id="scopeNotice" class="scope-notice hidden"></div>
+          <div id="contentHost"></div>
+        </section>
+
+        <aside id="inspector" class="inspector">
+          <div class="empty-inspector"><span>↗</span><strong>选择成员或项目</strong><p>在不离开组织全貌的情况下查看和管理详细关系。</p></div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <div class="modal" role="dialog" aria-modal="true">
+      <header><div><small id="modalKicker">ARCORBIT</small><h2 id="modalTitle">操作</h2></div><button id="closeModal" type="button">×</button></header>
+      <div id="modalBody" class="modal-body"></div>
+      <footer><button id="cancelModal" type="button">取消</button><button id="confirmModal" class="primary" type="button">确认</button></footer>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>

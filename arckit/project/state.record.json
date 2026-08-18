@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-18T03:34:46.884Z",
-    "revision": 88
+    "updated_at": "2026-08-18T09:30:08.707Z",
+    "revision": 93
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "Build a current-host ArcOrbit installer and verify the packaged application behavior against the accepted multi-product platform, existing Runtime core, Workshop Todo, and Workshop Feedback boundaries.",
+      "current_focus": "Organization-management delivery is complete; select any future work from fresh Project gaps and user intent.",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,15 +147,17 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit preserves Setup Readiness, supervised one-thread-per-todo automation, trusted ledger transitions, intervention/recovery, and acceptance feedback while adding Desktop composition of Workshop organizations, projects, memberships, seven-state todos, ordinary user feedback, local Product Workspaces, and a persistent multi-product workset that supports simultaneous coordination rather than forced product switching.",
-          "reason": "The capability set is grounded in existing source behavior; platform additions compose those capabilities without redefining their source-of-truth semantics.",
+          "statement": "ArcOrbit preserves Setup Readiness, supervised one-thread-per-todo automation, trusted ledger transitions, intervention/recovery and acceptance feedback while providing Desktop composition of Workshop organizations, organization and project membership, personal and organization projects, seven-state todos, ordinary user feedback, local Product Workspaces and a persistent multi-product Workset. Organization governance is complete for the current service boundary through overview, member/project management, truthful role visibility, join-by-code and project-bound one-shot invitations.",
+          "reason": "The platform capability set is now backed by formal specifications, production behavior and repeatable verification without redefining Workshop or Runtime authority.",
           "evidence": [
             "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
-            "runtime/arcorbit/README.md"
+            "arckit/spec/agentic-software-development/arcorbit-organization-management.md",
+            "runtime/arcorbit/src/platform-coordinator.mjs",
+            "runtime/arcorbit/test/platform-coordinator.test.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "Resolve GAP-PLATFORM-ARCHITECTURE before treating the added platform composition as implemented.",
-          "revision": 8
+          "resume_condition": "Revisit when Workshop adds invitation history/revoke, safe organization reassignment, or a new authoritative governance capability.",
+          "revision": 9
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -187,17 +189,16 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "After Setup Readiness and session restoration, users work in one production ArcOrbit platform shell across Today, Products, Team, Work, Automation, and Feedback. A persistent local Workset controls which Workshop products are shown together without changing Automation participation, enabling simultaneous multi-product coordination while preserving product source identity, the complete seven-state team workload, real organization/project membership, separate ordinary versus acceptance feedback, and existing intervention/recovery journeys.",
-          "reason": "The approved AI-era multi-product premise is now realized against the verified Workshop and ArcOrbit implementation boundaries rather than a product-switching prototype.",
+          "statement": "ArcOrbit realizes simultaneous multi-product Today, Work, Automation and Feedback through a persistent global Workset, while platform governance lives in a Workset-independent Organization center. Users choose an organization or Personal Projects scope, then use Overview, Members and Projects; the overview exposes the visible member-by-project relationship, ordinary members see participating projects, owner/admin see the organization-wide project scope, member details do not imply targeted invitations, and project owner/admin create explicitly one-shot project-bound invitations.",
+          "reason": "The confirmed interaction is formalized and implemented in the production Desktop with real Electron coverage.",
           "evidence": [
             "arckit/interaction/platform-workspace/interaction.md",
-            "runtime/arcorbit/desktop/renderer/index.html",
             "runtime/arcorbit/desktop/renderer/renderer.js",
-            "runtime/arcorbit/test/desktop-renderer.test.mjs"
+            "runtime/arcorbit/test/organization-center-electron.test.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when Workshop safely exposes direct member management, task history, or Feedback V2, or when a new platform surface becomes authoritative.",
-          "revision": 11
+          "resume_condition": "Revisit only if Workshop organization visibility, project ownership, invitation semantics, or the global Workset boundary changes.",
+          "revision": 14
         },
         "gap_refs": []
       },
@@ -330,16 +331,17 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs; ArcOrbit is its Electron Desktop/Runtime host. The policy-neutral Runtime Kernel, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2, persistent one-thread-per-todo model and trusted capabilities remain unchanged. The platform composition layer adds Desktop Store v10 local worksets and workspace preferences, a main-process Platform Coordinator, restricted Workshop Platform Adapter and typed preload IPC; remote Workshop records are not duplicated as local authority, and Renderer never receives credentials or generic request access.",
-          "reason": "This foundation extends the Desktop product surface through isolated composition components while preserving the protocol, Runtime, source-of-truth, credential, and execution boundaries.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs; ArcOrbit is its Electron Desktop/Runtime host. The policy-neutral Runtime Kernel, Project v5, Case v5, Transition v8, Snapshot v1, Closeout v2, persistent one-thread-per-todo model and trusted capabilities remain unchanged. Platform composition uses Desktop Store v10 local worksets and workspace preferences, a main-process Platform Coordinator, restricted Workshop Platform Adapter and typed preload IPC; governance loading is independent of Workset, paginates remote collections, preserves explicit organization identity and route-based visibility, and exposes only bounded join, membership, project and one-shot invitation commands. Remote Workshop records remain authoritative and Renderer receives neither credentials nor generic request access.",
+          "reason": "The composition solution and production implementation now cover the confirmed management contracts while preserving protocol, credential, authority and execution boundaries.",
           "evidence": [
             "arckit/tech/arcorbit/platform-composition-solution.md",
-            "arckit/tech/arcorbit/solution.md",
-            "arckit/tech/arcorbit/desktop-execution-solution.md"
+            "runtime/arcorbit/src/platform-coordinator.mjs",
+            "runtime/arcorbit/src/workshop-platform-adapter.mjs",
+            "runtime/arcorbit/src/task-source-adapter.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit if implementation evidence requires changing protected Runtime or remote authority boundaries.",
-          "revision": 16
+          "resume_condition": "Revisit if Workshop service contracts or the protected Runtime/remote-authority boundaries change.",
+          "revision": 17
         },
         "gap_refs": []
       },

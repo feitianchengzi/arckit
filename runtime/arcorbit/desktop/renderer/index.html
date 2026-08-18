@@ -51,13 +51,14 @@
         <div class="sidebar-brand"><span class="brand-mark">A</span><strong>ArcOrbit</strong></div>
 
         <nav class="primary-nav" aria-label="主导航">
-          <p class="nav-label">PLATFORM</p>
+          <p class="nav-label">ADVANCE</p>
           <button class="nav-item is-active" data-page="today" type="button"><span>◉</span><strong>Today</strong><em id="attentionNavCount">0</em></button>
-          <button class="nav-item" data-page="products" type="button"><span>▦</span><strong>Products</strong><em id="productNavCount">0</em></button>
-          <button class="nav-item" data-page="team" type="button"><span>◎</span><strong>Team</strong><em id="teamNavCount">0</em></button>
           <button class="nav-item" data-page="work" type="button"><span>☷</span><strong>Work</strong><em id="workNavCount">0</em></button>
           <button class="nav-item" data-page="command" type="button"><span>◇</span><strong>Automation</strong><em id="automationNavCount">0</em></button>
           <button class="nav-item" data-page="feedback" type="button"><span>◌</span><strong>Feedback</strong><em id="feedbackQueueNavCount">0</em></button>
+
+          <p class="nav-label">PLATFORM</p>
+          <button class="nav-item" data-page="organization" type="button"><span>◎</span><strong>Organization</strong><em id="organizationNavCount">0</em></button>
 
           <p class="nav-label">AUTOMATION FILTER</p>
           <div id="projectNavigation" class="nav-group"></div>
@@ -79,7 +80,7 @@
         <header class="commandbar">
           <div class="breadcrumbs"><strong id="scopeTitle">所有项目</strong><span id="pageTitle">自动化总览</span></div>
           <div class="commandbar-actions">
-            <label class="workset-control"><span>产品集</span><select id="worksetSelect" aria-label="当前产品集"></select></label>
+            <label class="workset-control"><span>产品集</span><select id="worksetSelect" aria-label="当前产品集"></select></label><button id="editWorksetButton" class="icon-button" type="button" title="编辑当前产品集">✎</button>
             <button id="searchButton" class="search-trigger" type="button"><span>搜索任务、项目或 Run</span><kbd>⌘ K</kbd></button>
             <label class="automation-toggle" title="控制是否领取新任务；仅作用于已绑定且已授权的项目，不停止当前任务"><input id="automationEnabled" type="checkbox"><span></span><strong>自动领取</strong></label>
             <button id="syncButton" class="icon-button" type="button" title="同步任务源">↻</button>
@@ -92,12 +93,8 @@
             <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">MULTI-PRODUCT TODAY</p><h1>今天跨哪些产品推进</h1><p id="todaySummary">产品集同步后汇总当前工作、风险与执行。</p></div><span id="platformHealthBadge" class="health-badge">等待同步</span></div><div id="platformErrorHost"></div><div id="todayMetricGrid" class="metric-grid platform-metrics"></div><div id="todayProductGrid" class="product-grid"></div><div class="platform-two-column"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">☷</span><div><h2>跨产品下一步</h2><p>每项保留产品来源和真实服务状态</p></div></div></div><div id="todayWorkList"></div></section><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">!</span><div><h2>需要你处理</h2><p>人工判断、恢复和阻塞</p></div></div></div><div id="todayAttentionList"></div></section></div></div>
           </section>
 
-          <section id="productsView" class="app-view" data-page-view="products">
-            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">PRODUCT WORKSPACES</p><h1>同时推进的产品</h1><p>勾选决定当前界面同时展示哪些产品；不会改变后台自动领取授权。</p></div><div class="heading-actions"><button id="createProductButton" class="secondary-button" type="button">创建产品</button><button id="saveWorksetButton" class="primary-button" type="button">保存当前产品集</button></div></div><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2 id="worksetHeading">当前产品集</h2><p>Workshop Project + 本地 repository + Automation participation</p></div></div></div><div id="productCatalog" class="product-catalog"></div></section></div>
-          </section>
-
-          <section id="teamView" class="app-view" data-page-view="team">
-            <div class="page platform-page"><div class="page-heading split-heading"><div><p class="eyebrow">TEAM ACROSS PRODUCTS</p><h1>组织、成员与产品职责</h1><p>团队来自 Workshop Organization 与 Project membership，不创建第二套 Team 实体。</p></div><button id="createOrganizationButton" class="primary-button" type="button">创建组织</button></div><div id="organizationGrid" class="organization-grid"></div><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">◎</span><div><h2>当前产品集成员</h2><p>角色、职责、外部成员与产品来源；不使用无权限保护的直接加成员接口</p></div></div></div><div id="teamTable"></div></section></div>
+          <section id="organizationView" class="app-view" data-page-view="organization">
+            <div class="organization-center"><aside class="organization-scope-panel"><div><p class="eyebrow">GOVERNANCE SCOPE</p><h2>组织与产品</h2><p>不受当前产品集过滤</p></div><div class="organization-scope-actions"><button id="createOrganizationButton" class="secondary-button" type="button">新建组织</button><button id="joinByCodeButton" class="text-button" type="button">使用邀请码加入</button></div><div id="organizationScopeList" class="organization-scope-list"></div></aside><div class="page platform-page organization-main"><div class="page-heading split-heading"><div><p id="organizationEyebrow" class="eyebrow">ORGANIZATION</p><h1 id="organizationHeading">组织治理</h1><p id="organizationSummary">同步后显示组织、成员和项目全貌。</p></div><div id="organizationScopeActions" class="heading-actions"></div></div><div id="organizationTabs" class="organization-tabs"><button class="is-active" data-organization-section="overview" type="button">概览</button><button data-organization-section="members" type="button">成员</button><button data-organization-section="projects" type="button">项目</button></div><div id="organizationContent"></div></div></div>
           </section>
 
           <section id="workView" class="app-view" data-page-view="work">

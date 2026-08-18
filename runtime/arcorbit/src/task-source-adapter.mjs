@@ -14,6 +14,7 @@ export const DEFAULT_WORKSHOP_BASE_URL = "https://api.feitianchengzi.com";
 
 const TERMINAL_STATES = new Set(["accepted", "cancelled"]);
 const AUTH_STATES = new Set(["logged_out", "authenticated", "refreshing", "expired"]);
+const PAGE_SIZE = 200;
 const REFRESH_WINDOW_MS = 5 * 60_000;
 const SESSION_INACTIVITY_WINDOW_MS = 7 * 24 * 60 * 60_000;
 
@@ -286,23 +287,44 @@ export function createWorkshopTaskSource({
 
   async function listProjects() {
     const current = await loadConfig();
-    const [standalonePayload, organizationsPayload] = await Promise.all([
-      request("/projects", { query: { page_size: 500 } }),
-      request("/organizations", { query: { page_size: 500 } })
+    const [standaloneProjects, organizations] = await Promise.all([
+      requestAllPages("/projects", {}, ["projects", "items"]),
+      requestAllPages("/organizations", {}, ["organizations", "items"])
     ]);
-    const organizations = extractList(organizationsPayload, ["organizations", "items"]);
-    const organizationProjectPayloads = await mapWithConcurrency(organizations, 3, (organization) => request("/projects", {
-      query: { organization_id: scalarId(organization.id), page_size: 500 }
-    }));
+    const organizationProjectLists = await mapWithConcurrency(organizations, 3, async (organization) => {
+      const organizationId = scalarId(organization.id);
+      const projects = await requestAllPages("/projects", { organization_id: organizationId }, ["projects", "items"]);
+      return projects.map((project) => ({ ...project, organization_id: scalarId(project.organization_id) || organizationId }));
+    });
     const projects = [
-      ...extractList(standalonePayload, ["projects", "items"]),
-      ...organizationProjectPayloads.flatMap((payload) => extractList(payload, ["projects", "items"]))
+      ...standaloneProjects,
+      ...organizationProjectLists.flat()
     ];
     const normalized = dedupeById(projects.map((project) => normalizeProject(project, current.username)).filter(Boolean));
     projectExecutorIds = new Map(normalized
       .filter((project) => project.current_user_id)
       .map((project) => [project.id, project.current_user_id]));
     return normalized;
+  }
+
+  async function requestAllPages(path, query, keys) {
+    const values = [];
+    const seen = new Set();
+    for (let page = 1; page <= 1000; page += 1) {
+      const payload = await request(path, { query: { ...query, page, page_size: PAGE_SIZE } });
+      const items = extractList(payload, keys);
+      let added = 0;
+      for (const item of items) {
+        const key = scalarId(item?.id) || JSON.stringify(item);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        values.push(item);
+        added += 1;
+      }
+      const total = Number(payload?.total ?? payload?.meta?.total);
+      if ((Number.isFinite(total) && total >= 0 && values.length >= total) || items.length < PAGE_SIZE || added === 0) break;
+    }
+    return values;
   }
 
   const platform = createWorkshopPlatformAdapter({ request, listProjects, normalizeTask });
@@ -321,10 +343,8 @@ export function createWorkshopTaskSource({
     listProjects,
     async listTasks(projectId, options = {}) {
       const executorId = requireProjectExecutorId(projectId, options, projectExecutorIds);
-      const payload = await request("/tasks", {
-        query: { project_id: projectId, executor_id: executorId, state: TASK_STATES, page_size: 500 }
-      });
-      return extractList(payload, ["tasks", "items"])
+      const tasks = await requestAllPages("/tasks", { project_id: projectId, executor_id: executorId, state: TASK_STATES }, ["tasks", "items"]);
+      return tasks
         .map((task) => normalizeTask(task, projectId))
         .filter((task) => task?.executor_id === executorId);
     },
@@ -333,10 +353,8 @@ export function createWorkshopTaskSource({
         throw new TaskSourceError("Project id is required to refresh a task.", { code: "invalid_project" });
       }
       const executorId = requireProjectExecutorId(projectId, options, projectExecutorIds);
-      const payload = await request("/tasks", {
-        query: { project_id: projectId, executor_id: executorId, state: TASK_STATES, page_size: 500 }
-      });
-      return extractList(payload, ["tasks", "items"])
+      const tasks = await requestAllPages("/tasks", { project_id: projectId, executor_id: executorId, state: TASK_STATES }, ["tasks", "items"]);
+      return tasks
         .map((task) => normalizeTask(task, projectId))
         .find((task) => task?.id === String(taskId) && task.executor_id === executorId) || null;
     },

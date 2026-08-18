@@ -46,7 +46,7 @@ Renderer platform shell
 
 Workshop Platform Adapter
   -> Workshop Authenticated Service request boundary
-  -> organizations / projects / members / tasks / feedback V1
+  -> paginated organizations / organization projects / participating projects / members / tasks / feedback V1
   -> optional Feedback V2 external capability
 ```
 
@@ -60,12 +60,14 @@ Workshop Platform Adapter
 
 Workshop Platform Adapter 暴露业务语义方法，不暴露 HTTP passthrough：
 
-- `listOrganizations()`：读取当前用户可访问的组织及当前成员角色。
-- `listOrganizationMembers(organizationId)`：读取组织成员。
-- `listProjects()`：复用现有去重后的独立项目与组织项目读取。
-- `listProjectMembers(projectId)`：读取项目成员及 `role`、`duty`、`is_external`。
+- `listOrganizations()`：完整分页读取当前用户加入的组织。
+- `listOrganizationMembers(organizationId)`：完整分页读取组织成员；Coordinator 从 `is_me` 记录派生当前角色。
+- `listOrganizationProjects(organizationId, visibility)`：owner/admin 走 `/organization/projects` 读取全部项目，member 走 `/projects` 读取参与项目；每个响应都补全查询范围中的 `organization_id`。
+- `listPersonalProjects()`：读取无组织与外部参与项目；依赖服务端响应中的 `organization_id` 做确定性分类。
+- `listProjects()`：保留给既有 Automation Task Source，返回当前用户参与项目，不作为组织治理的唯一目录。
+- Project 响应内的 `members` 归一化为项目成员投影，包含 `role`、`duty`、`is_external` 和 `is_me`。
 - `listProjectTasks(projectId, filters)`：读取项目完整待办集合，不应用 Automation executor 限制。
-- Organization / Project 的 create、update、delete、invite 和受支持的 member role/delete 显式方法。
+- Organization / Project 的 create、update、delete、invite、join 和受支持的 member role/delete 显式方法。Project update allowlist 不包含 `organization_id`。
 - `createTask(input)`：创建待办。
 - `updateTask(taskId, input)`：更新服务端当前支持的字段。
 - `deleteTask(taskId)`：按服务端现有权限执行删除。
@@ -76,7 +78,7 @@ Workshop Platform Adapter 暴露业务语义方法，不暴露 HTTP passthrough�
 - Feedback V1 的 create、update、delete 显式方法；priority、ignored 和 task 关联继续合并在 `data` JSON 中。
 - Coordinator 的 `feedback.to_task`：编排“创建 Task，再把 task id/state 写入 Feedback data”的非原子流程；关联失败的错误必须携带已创建 task id。
 
-第一生产实现不调用没有服务端证据的邀请列表、邀请撤销和任务历史接口。界面不显示伪造的历史时间线，也不把 404 转换为“确实没有历史”。
+所有列表方法使用 `page_size=200` 逐页读取，以响应 `total`/`meta.total` 或短页作为终止条件，并按 ID 去重。第一生产实现不调用没有服务端证据的邀请列表、邀请撤销和任务历史接口。
 
 ### Platform Coordinator
 
@@ -84,7 +86,8 @@ Platform Coordinator 负责组合远端领域投影和本地平台状态。它�
 
 它提供：
 
-- 平台 snapshot 的并发读取、去重和错误分区。
+- 平台 snapshot 的并发读取、完整分页、去重和错误分区。
+- 不受 Workset 影响的组织 scope、个人项目、组织角色和成员×项目关系投影。
 - workset 创建、重命名、项目选择和删除。
 - Product Workspace 本地绑定与 presentation 状态。
 - 组织、成员、项目、待办和反馈的显式命令校验。
@@ -160,7 +163,7 @@ V2 凭据由 main 进程私有认证边界持有，不进入公开设置或 Rend
 - 当前用户的公开身份投影。
 - `worksets`、`active_workset` 和可访问项目目录。
 - 当前 workset 内的 `product_workspaces`。
-- 请求 sections 对应的组织、成员、待办和普通反馈。
+- 请求 sections 对应的组织、组织 scope、个人项目、项目成员、待办和普通反馈。
 - 既有 Automation health、队列、活动 execution、attention、recovery 和验收反馈计数。
 - `capabilities`，明确每项功能是 `available`、`read_only`、`unavailable` 还是 `degraded`。
 - `errors`，每项绑定 section 和 project id，允许部分成功。
@@ -176,6 +179,15 @@ Product Workspace 投影包含：
 
 所有跨产品聚合项必须保留 `project_id` 与 `project_name`，不允许把不同产品的待办、成员或反馈合并成失去来源的同名记录。
 
+Organization scope 投影包含：
+
+- Organization 事实、当前用户组织角色和 `all_projects | participating_projects` 可见性；
+- 完整组织成员与当前可见项目；
+- 每个项目的成员、当前用户项目角色和三种本地推进连接；
+- 区分组织范围失败的 `errors`，不得用参与项目静默冒充全部项目。
+
+`personal_projects` 包含 `organization_id` 为空的项目和已标注的外部参与项目。项目查询响应必须返回 `organization_id`；Adapter 仍使用查询上下文补全旧服务响应，作为兼容路径。
+
 ## IPC
 
 Preload 新增以下产品动作：
@@ -189,7 +201,7 @@ Preload 新增以下产品动作：
 - `setWorkspacePreference(projectId, input)`
 - `executePlatformAction(command, input)`：只接受 Coordinator 内的固定业务命令 allowlist。
 
-当前 allowlist 覆盖 Organization / Project 管理与邀请、受权限约束的成员修改/移除、Task CRUD、TaskAttachment CRUD、Tag CRUD、Feedback V1 CRUD 和 `feedback.to_task`。它明确不包含 `project.member.add`。
+当前 allowlist 覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、TaskAttachment CRUD、Tag CRUD、Feedback V1 CRUD 和 `feedback.to_task`。它明确不包含 `project.member.add` 或项目组织迁移。
 
 IPC 参数使用结构化对象。main 进程通过固定命令 allowlist 与 Adapter 重新验证 id、枚举、长度和允许字段，不接受 Renderer 传入的角色或 capability 作为授权事实；Workshop 服务仍执行最终登录与权限判定。
 
@@ -197,7 +209,7 @@ IPC 参数使用结构化对象。main 进程通过固定命令 allowlist 与 Ad
 
 ## 权限
 
-Workshop 服务是最终授权方。ArcOrbit 只根据已读取角色隐藏或禁用明显不可用动作，并在 main 进程执行同样的保守前置校验。
+Workshop 服务是最终授权方。ArcOrbit Renderer 根据已读取角色隐藏或禁用明显不可用动作；main 进程只接受白名单命令并校验输入形状，不能把 Renderer 传入的角色声明当作授权依据。
 
 已确认的前置规则为：
 
@@ -269,16 +281,17 @@ Store v9 到 v10 的归一化是幂等的：
 
 ## 平台 Shell 投影
 
-Renderer 的顶层导航固定为：
+Renderer 的顶层导航按职责分组：
 
 - Today：当前 workset 的跨产品待处理、风险、活动 execution 和需要人工处理项。
-- Products：Product Workspace 目录、绑定、participation、健康和本地 repository。
-- Team：Organization 与 Project 成员、角色、职责和外部成员。
 - Work：当前 workset 的跨产品七状态待办视图。
 - Automation：既有队列、活动 execution、Workbench、人工介入和恢复。
 - Feedback：普通用户反馈与验收反馈的明确双栏或双标签视图。
+- Organization：不受 workset 裁剪的组织 → 成员 → 项目治理中心，并包含个人项目 scope。
 
-workset 控件是多选集合，不是 product switch。选择一个 project 得到单产品视图，选择多个得到同时展示；后台 Automation 授权不随界面选择改变。
+workset 控件是推进页面的多选集合，不是 product switch。它通过顶部独立覆盖层编辑，不与项目治理列表混合；后台 Automation 授权不随界面选择改变。
+
+Organization 的成员详情只呈现已有关系。项目邀请只从项目详情打开，结果覆盖层显示项目、code/link/role/expiry/max uses，并声明一次性与不可撤销边界。
 
 ## 失败与恢复
 
@@ -286,6 +299,8 @@ workset 控件是多选集合，不是 product switch。选择一个 project 得
 - `partial_sync`：成功 section 正常展示，失败 section 显示项目级重试。
 - `project_removed`：从可访问目录消失的 Project 在 workset 中标记 unavailable；用户确认后可从 workset 移除，本地 repository 不删除。
 - `member_context_missing`：保持只读，不推断 member 权限。
+- `organization_projects_limited`：普通成员明确显示参与项目范围，不标记为失败。
+- `organization_projects_failed`：owner/admin 全量查询失败时标记对应组织降级，不回退后伪装成全量。
 - `task_conflict`：刷新 Task，保留用户未提交编辑草稿，由用户重新确认。
 - `feedback_link_failed`：保留已创建 Task id，只重试 V1 Feedback 关联。
 - `feedback_v2_unavailable`：回退到 V1 能力，不改变 V1 数据。
@@ -308,6 +323,10 @@ workset 控件是多选集合，不是 product switch。选择一个 project 得
 - workset 多选、空集合、单产品、多产品、删除和 active fallback。
 - workset 改变不改变 Automation participation 或候选范围。
 - Platform Adapter 的组织、项目、成员、完整待办和 V1 feedback 归一化。
+- 所有分页列表超过 200 条时继续翻页，且不会重复记录。
+- owner/admin 与 member 的组织项目查询路由、可见性和失败关闭。
+- 成员页不存在项目邀请，项目页邀请带明确项目和一次性生命周期提示。
+- 组织/项目邀请码加入后重新同步；Project update 不发送 `organization_id`。
 - Automation Task Source Adapter 仍只返回当前 executor 待办。
 - main IPC 参数拒绝、未认证、权限保守 gate 和错误投影。
 - V1 convert-to-task 成功、创建失败、关联失败和只重试关联。
@@ -321,6 +340,8 @@ Web 仓库 build 只有在依赖安装后才构成源码验证。Workshop Todo �
 
 - Workshop Todo 未实现可证实的 `If-Match` 条件更新，自动领取只能声明弱一致。
 - Project 直接添加成员 handler 未验证 caller role，ArcOrbit 不开放该动作。
+- Workshop 项目查询响应此前缺少 `organization_id`；平台要求该字段并保留查询上下文兼容补全。
+- Workshop 项目邀请缺少列表和撤销接口，ArcOrbit 只显示创建响应的一次性结果。
 - Task history 缺少服务端实现，ArcOrbit 不展示伪历史。
 - Feedback V2 服务端不在已提供仓库中，默认 capability 为 unavailable。
 - V1 convert-to-task 非原子，需要显式恢复状态。

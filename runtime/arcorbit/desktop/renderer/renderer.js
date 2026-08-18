@@ -63,6 +63,11 @@ const state = {
   snapshot: emptySnapshot(),
   platform: emptyPlatformSnapshot(),
   platformWorkFilter: "",
+  organizationScopeId: "",
+  organizationScopeChosen: false,
+  organizationSection: "overview",
+  selectedOrganizationMemberId: "",
+  selectedOrganizationProjectId: "",
   settings: defaultSettings(),
   authentication: defaultAuthentication(),
   loginGate: false,
@@ -253,16 +258,13 @@ function wireEvents() {
     await api.setActiveWorkset(els.worksetSelect.value);
     await refreshSnapshot();
   }));
-  els.saveWorksetButton.addEventListener("click", () => runAction(async () => {
-    const activeWorkset = state.platform.active_workset;
-    if (!activeWorkset) throw new Error("当前没有可更新的产品集。");
-    const projectIds = [...els.productCatalog.querySelectorAll("[data-workset-project]:checked")].map((input) => input.dataset.worksetProject);
-    await api.updateWorkset({ id: activeWorkset.id, project_ids: projectIds });
-    await refreshSnapshot();
-    showToast(`已保存 ${projectIds.length} 个产品；Automation 授权未改变。`);
-  }));
-  els.createProductButton.addEventListener("click", () => runAction(createProduct));
+  els.editWorksetButton.addEventListener("click", () => runAction(editCurrentWorkset));
   els.createOrganizationButton.addEventListener("click", () => runAction(createOrganization));
+  els.joinByCodeButton.addEventListener("click", () => runAction(joinByInvitationCode));
+  els.organizationTabs.querySelectorAll("[data-organization-section]").forEach((button) => button.addEventListener("click", () => {
+    state.organizationSection = button.dataset.organizationSection;
+    renderOrganization();
+  }));
   els.createTaskButton.addEventListener("click", () => runAction(createTask));
   els.createTagButton.addEventListener("click", () => runAction(createTag));
   els.createFeedbackButton.addEventListener("click", () => runAction(createFeedback));
@@ -273,7 +275,7 @@ function wireEvents() {
   });
   els.platformActionForm.addEventListener("submit", (event) => {
     event.preventDefault();
-    closePlatformAction(Object.fromEntries(new FormData(els.platformActionForm).entries()));
+    closePlatformAction(serializePlatformAction());
   });
   els.submitInterventionButton.addEventListener("click", () => runAction(async () => {
     const active = state.snapshot.active_task;
@@ -439,6 +441,11 @@ async function refreshSnapshot({ quiet = false } = {}) {
     ]);
     state.snapshot = snapshot;
     state.platform = platform || emptyPlatformSnapshot();
+    const scopeIds = new Set((state.platform.organization_scopes || []).map((item) => String(item.id)));
+    if ((!state.organizationScopeChosen && scopeIds.size > 0) || !state.organizationScopeId || (state.organizationScopeId !== "personal" && !scopeIds.has(state.organizationScopeId))) {
+      state.organizationScopeId = String(state.platform.organization_scopes?.[0]?.id || "personal");
+      state.organizationSection = state.organizationScopeId === "personal" ? "projects" : "overview";
+    }
     if (state.workbenchTask) {
       state.workbenchTask = snapshot.tasks.find((task) => String(task.id) === String(state.workbenchTask.id)) || state.workbenchTask;
     }
@@ -476,8 +483,7 @@ function render() {
   renderCommandBar();
   renderWorkset();
   renderToday();
-  renderProducts();
-  renderTeam();
+  renderOrganization();
   renderPlatformWork();
   renderPlatformFeedback();
   renderCommandCenter();
@@ -512,8 +518,7 @@ function renderNavigation() {
   `).join("");
   els.statusNavigation.querySelectorAll("[data-task-state]").forEach((button) => button.addEventListener("click", () => openTaskBrowser(button.dataset.taskState)));
   els.attentionNavCount.textContent = String(snapshot.attention_items.length + snapshot.recovery_items.length);
-  els.productNavCount.textContent = String(state.platform.product_workspaces.length);
-  els.teamNavCount.textContent = String(uniqueMembers(state.platform.members).length);
+  els.organizationNavCount.textContent = String((state.platform.organization_scopes || []).length);
   els.workNavCount.textContent = String(state.platform.tasks.filter((task) => !task.terminal).length);
   els.automationNavCount.textContent = String(snapshot.queue.length + (snapshot.active_task ? 1 : 0));
   els.feedbackQueueNavCount.textContent = String(snapshot.acceptance_feedback_counts?.open || 0);
@@ -525,12 +530,13 @@ function renderNavigation() {
 
 function renderCommandBar() {
   const project = currentProject();
-  const platformPages = new Set(["today", "products", "team", "work", "feedback"]);
-  els.scopeTitle.textContent = platformPages.has(state.page)
-    ? state.platform.active_workset?.name || "当前产品集"
-    : project?.name || "所有项目";
+  const platformPages = new Set(["today", "work", "feedback"]);
+  const organizationScope = currentOrganizationScope();
+  els.scopeTitle.textContent = state.page === "organization"
+    ? organizationScope?.name || "个人项目"
+    : platformPages.has(state.page) ? state.platform.active_workset?.name || "当前产品集" : project?.name || "所有项目";
   els.pageTitle.textContent = {
-    today: "Today", products: "Products", team: "Team", work: "Work", feedback: "Feedback",
+    today: "Today", organization: "Organization", work: "Work", feedback: "Feedback",
     command: "Automation", tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心"
   }[state.page] || "ArcOrbit";
   els.automationEnabled.checked = Boolean(state.snapshot.enabled);
@@ -543,6 +549,7 @@ function renderWorkset() {
     ? worksets.map((workset) => `<option value="${escapeHtml(workset.id)}" ${workset.id === state.platform.active_workset?.id ? "selected" : ""}>${escapeHtml(workset.name)} · ${workset.project_ids.length}</option>`).join("")
     : `<option value="">等待项目同步</option>`;
   els.worksetSelect.disabled = worksets.length === 0;
+  els.editWorksetButton.disabled = worksets.length === 0;
 }
 
 function renderToday() {
@@ -571,7 +578,7 @@ function renderToday() {
   els.todayProductGrid.innerHTML = workspaces.length ? workspaces.map((workspace) => {
     const open = Object.entries(workspace.task_counts || {}).filter(([key]) => !["completed", "accepted", "cancelled"].includes(key)).reduce((sum, [, value]) => sum + Number(value || 0), 0);
     return `<button class="product-card" data-product-work="${escapeHtml(workspace.id)}" type="button"><span class="product-card-head"><i>${escapeHtml(workspace.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(workspace.name)}</strong><small>${escapeHtml(workspace.current_user_role || "member")} · ${workspace.local_project_path ? "已绑定本地项目" : "仅远端"}</small></span></span><span class="product-card-stats"><b>${open}<small>未结束</small></b><b>${workspace.feedback_count}<small>反馈</small></b><b>${workspace.members.length}<small>成员</small></b></span><span class="product-card-foot"><em class="status-pill ${workspace.eligible ? "accepted" : "pending_review"}">${workspace.eligible ? "可自动执行" : workspace.participating ? "待满足执行条件" : "未授权自动领取"}</em><small>打开工作 →</small></span></button>`;
-  }).join("") : `<div class="empty-state platform-empty">当前产品集未选择产品。前往 Products 勾选一个或多个 Workshop 项目。</div>`;
+  }).join("") : `<div class="empty-state platform-empty">当前产品集未选择产品。使用顶部“编辑范围”同时选择一个或多个项目。</div>`;
   els.todayProductGrid.querySelectorAll("[data-product-work]").forEach((button) => button.addEventListener("click", () => {
     state.platformWorkFilter = projectName(button.dataset.productWork).toLowerCase();
     showPage("work");
@@ -580,51 +587,94 @@ function renderToday() {
   els.todayAttentionList.innerHTML = attention.length ? `<div class="compact-list">${attention.slice(0, 8).map((item) => `<div class="compact-row attention"><span><strong>${escapeHtml(item.title || item.reason || item.task_id || "需要处理")}</strong><small>${escapeHtml(projectName(item.project_id))} · ${escapeHtml(item.kind_label)}</small></span><em>${escapeHtml(item.task_id || item.id || "")}</em></div>`).join("")}</div>` : `<div class="empty-state compact">当前没有人工介入、恢复或阻塞项。</div>`;
 }
 
-function renderProducts() {
-  const platform = state.platform;
-  const selected = new Set(platform.active_workset?.project_ids || []);
-  els.worksetHeading.textContent = platform.active_workset ? `${platform.active_workset.name} · ${selected.size} 个产品` : "当前产品集";
-  els.saveWorksetButton.disabled = !platform.active_workset;
-  els.productCatalog.innerHTML = platform.projects.length ? platform.projects.map((project) => {
-    const canManage = ["owner", "admin"].includes(project.current_user_role);
-    return `<div class="product-catalog-row"><input type="checkbox" data-workset-project="${escapeHtml(project.id)}" ${selected.has(String(project.id)) ? "checked" : ""} aria-label="在当前产品集显示 ${escapeHtml(project.name)}"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.description || project.git_url || "Workshop 项目")}</small></span></span><span class="product-facts"><em>${escapeHtml(project.current_user_role || "member")}</em><em>${project.local_project_path ? "本地已绑定" : "未绑定本地项目"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span><span class="row-actions">${canManage ? `<button data-product-edit="${escapeHtml(project.id)}" type="button">编辑</button><button data-product-invite="${escapeHtml(project.id)}" type="button">邀请</button>` : ""}${project.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(project.id)}" type="button">删除</button>` : ""}</span></div>`;
-  }).join("") : `<div class="empty-state">登录 Workshop 并同步后显示可加入产品集的项目。</div>`;
-  els.productCatalog.querySelectorAll("[data-product-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editProduct(button.dataset.productEdit))));
-  els.productCatalog.querySelectorAll("[data-product-invite]").forEach((button) => button.addEventListener("click", () => runAction(() => inviteProject(button.dataset.productInvite))));
-  els.productCatalog.querySelectorAll("[data-product-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteProduct(button.dataset.productDelete))));
+function renderOrganization() {
+  const scopes = state.platform.organization_scopes || [];
+  const scope = currentOrganizationScope();
+  const personal = state.organizationScopeId === "personal" || !scope;
+  const personalProjects = state.platform.personal_projects || [];
+  els.organizationScopeList.innerHTML = [
+    `<button class="organization-scope-item ${personal ? "is-active" : ""}" data-organization-scope="personal" type="button"><span><strong>个人项目</strong><small>个人与外部参与</small></span><em>${personalProjects.length}</em></button>`,
+    ...scopes.map((item) => `<button class="organization-scope-item ${String(item.id) === state.organizationScopeId ? "is-active" : ""}" data-organization-scope="${escapeHtml(item.id)}" type="button"><span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.current_user_role || "只读")} · ${item.project_visibility === "all_projects" ? "全部项目" : "我参与的项目"}</small></span><em>${item.projects.length}</em></button>`)
+  ].join("");
+  els.organizationScopeList.querySelectorAll("[data-organization-scope]").forEach((button) => button.addEventListener("click", () => {
+    state.organizationScopeId = button.dataset.organizationScope;
+    state.organizationScopeChosen = true;
+    state.organizationSection = state.organizationScopeId === "personal" ? "projects" : "overview";
+    state.selectedOrganizationMemberId = "";
+    state.selectedOrganizationProjectId = "";
+    renderOrganization();
+    renderCommandBar();
+  }));
+  els.organizationTabs.querySelectorAll("[data-organization-section]").forEach((button) => {
+    const disabled = personal && button.dataset.organizationSection !== "projects";
+    button.disabled = disabled;
+    button.classList.toggle("is-active", button.dataset.organizationSection === state.organizationSection);
+  });
+  if (personal && state.organizationSection !== "projects") state.organizationSection = "projects";
+
+  els.organizationEyebrow.textContent = personal ? "PERSONAL PROJECTS" : `ORGANIZATION · ${(scope.current_user_role || "READ ONLY").toUpperCase()}`;
+  els.organizationHeading.textContent = personal ? "个人项目" : scope.name;
+  els.organizationSummary.textContent = personal
+    ? `${personalProjects.length} 个无组织或外部参与项目；与组织治理同级，不属于当前 Workset。`
+    : `${scope.members.length} 位成员 · ${scope.projects.length} 个${scope.project_visibility === "all_projects" ? "组织项目" : "我参与的项目"}${scope.degraded ? " · 部分数据降级" : ""}`;
+  const canManageOrganization = !personal && ["owner", "admin"].includes(scope.current_user_role);
+  els.organizationScopeActions.innerHTML = personal
+    ? `<button data-project-create type="button" class="primary-button">创建个人项目</button>`
+    : `${canManageOrganization ? `<button data-organization-edit="${escapeHtml(scope.id)}" type="button" class="secondary-button">编辑组织</button><button data-organization-invite="${escapeHtml(scope.id)}" type="button" class="primary-button">生成组织邀请</button>` : ""}${scope.current_user_role === "owner" ? `<button data-organization-delete="${escapeHtml(scope.id)}" type="button" class="text-button danger-action">删除组织</button>` : ""}<button data-project-create type="button" class="secondary-button">创建组织项目</button>`;
+
+  if (personal || state.organizationSection === "projects") renderOrganizationProjects(scope, personalProjects);
+  else if (state.organizationSection === "members") renderOrganizationMembers(scope);
+  else renderOrganizationOverview(scope);
+  wireOrganizationActions();
 }
 
-function renderTeam() {
-  const platform = state.platform;
-  const workspaces = platform.product_workspaces || [];
-  const selectedOrganizationIds = new Set(workspaces.map((item) => String(item.organization_id)).filter(Boolean));
-  const organizations = platform.organizations.filter((item) => selectedOrganizationIds.has(String(item.id)));
-  els.organizationGrid.innerHTML = organizations.length ? organizations.map((organization) => {
-    const members = platform.organization_members.filter((item) => String(item.organization_id) === String(organization.id));
-    const products = workspaces.filter((item) => String(item.organization_id) === String(organization.id));
-    const me = members.find((member) => member.is_me);
-    const canManage = ["owner", "admin"].includes(me?.role);
-    const memberRows = members.map((member) => {
-      const canChangeRole = me?.role === "owner" && member.role !== "owner";
-      const canRemove = member.is_me || (["owner", "admin"].includes(me?.role) && member.role !== "owner");
-      return `<li><span>${escapeHtml(member.username)} · ${escapeHtml(member.role)}${member.is_me ? " · 我" : ""}</span>${canChangeRole || canRemove ? `<span class="row-actions">${canChangeRole ? `<button data-organization-member-edit="${escapeHtml(member.id)}" data-member-organization="${escapeHtml(organization.id)}" type="button">角色</button>` : ""}${canRemove ? `<button class="danger-action" data-organization-member-delete="${escapeHtml(member.id)}" data-member-organization="${escapeHtml(organization.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span>` : ""}</li>`;
-    }).join("");
-    return `<article class="organization-card"><span>ORGANIZATION</span><h2>${escapeHtml(organization.name)}</h2><p>${escapeHtml(organization.description || "Workshop 团队边界")}</p><div><strong>${members.length}<small>组织成员</small></strong><strong>${products.length}<small>当前产品</small></strong></div>${members.length ? `<ul class="organization-member-list">${memberRows}</ul>` : ""}${canManage ? `<span class="row-actions organization-actions"><button data-organization-edit="${escapeHtml(organization.id)}" type="button">编辑</button><button data-organization-invite="${escapeHtml(organization.id)}" type="button">邀请</button>${me.role === "owner" ? `<button class="danger-action" data-organization-delete="${escapeHtml(organization.id)}" type="button">删除</button>` : ""}</span>` : ""}</article>`;
-  }).join("") : `<div class="empty-state platform-empty">当前产品没有可显示的组织信息。</div>`;
-  els.organizationGrid.querySelectorAll("[data-organization-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editOrganization(button.dataset.organizationEdit))));
-  els.organizationGrid.querySelectorAll("[data-organization-invite]").forEach((button) => button.addEventListener("click", () => runAction(() => inviteOrganization(button.dataset.organizationInvite))));
-  els.organizationGrid.querySelectorAll("[data-organization-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteOrganization(button.dataset.organizationDelete))));
-  els.organizationGrid.querySelectorAll("[data-organization-member-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editOrganizationMember(button.dataset.organizationMemberEdit, button.dataset.memberOrganization))));
-  els.organizationGrid.querySelectorAll("[data-organization-member-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteOrganizationMember(button.dataset.organizationMemberDelete, button.dataset.memberOrganization))));
-  const members = [...platform.members].sort((left, right) => Number(right.is_me) - Number(left.is_me) || left.username.localeCompare(right.username, "zh-CN"));
-  els.teamTable.innerHTML = members.length ? `<table class="data-table team-data-table"><colgroup><col style="width:160px"><col><col style="width:110px"><col style="width:140px"><col style="width:145px"></colgroup><thead><tr><th>成员</th><th>产品职责</th><th>角色</th><th>所属产品</th><th>管理</th></tr></thead><tbody>${members.map((member) => {
-    const workspace = platform.product_workspaces.find((item) => String(item.id) === String(member.project_id));
-    const canEdit = workspace?.current_user_role === "owner" && member.role !== "owner";
-    const canRemove = member.is_me || (["owner", "admin"].includes(workspace?.current_user_role) && member.role !== "owner");
-    return `<tr><td><strong>${escapeHtml(member.username)}</strong>${member.is_me ? " · 我" : ""}</td><td>${escapeHtml(member.duty || "未填写职责")}</td><td>${escapeHtml(member.role)}${member.is_external ? " · 外部" : ""}</td><td>${escapeHtml(member.project_name)}</td><td><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(member.project_id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(member.project_id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}${!canEdit && !canRemove ? "—" : ""}</span></td></tr>`;
-  }).join("")}</tbody></table>` : `<div class="empty-state">当前产品集没有可显示的项目成员。</div>`;
-  els.teamTable.querySelectorAll("[data-project-member-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editProjectMember(button.dataset.projectMemberEdit, button.dataset.memberProject))));
-  els.teamTable.querySelectorAll("[data-project-member-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteProjectMember(button.dataset.projectMemberDelete, button.dataset.memberProject))));
+function renderOrganizationOverview(scope) {
+  const members = scope.members || [];
+  const projects = scope.projects || [];
+  const projectMembers = state.platform.project_members || [];
+  const notice = scope.project_visibility === "all_projects"
+    ? "你可以查看组织全部项目。"
+    : "当前仅显示你参与的项目；组织全部项目只对 owner/admin 开放。";
+  const matrix = projects.length && members.length ? `<div class="organization-matrix-wrap"><table class="data-table organization-matrix"><thead><tr><th>成员</th>${projects.map((project) => `<th><button data-organization-project-open="${escapeHtml(project.id)}" type="button">${escapeHtml(project.name)}</button></th>`).join("")}</tr></thead><tbody>${members.map((member) => `<tr><td><button data-organization-member-open="${escapeHtml(member.id)}" type="button"><strong>${escapeHtml(member.username)}</strong><small>${escapeHtml(member.role)}${member.is_me ? " · 我" : ""}</small></button></td>${projects.map((project) => { const relation = projectMembers.find((item) => String(item.project_id) === String(project.id) && String(item.user_id) === String(member.user_id)); return `<td>${relation ? `<strong>${escapeHtml(relation.role)}</strong><small>${escapeHtml(relation.duty || "未填写职责")}</small>` : "—"}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div>` : `<div class="empty-state">当前范围还没有可组成关系矩阵的成员与项目。</div>`;
+  els.organizationContent.innerHTML = `<div class="metric-grid organization-metrics">${metric("组织成员", members.length, "Workshop OrganizationMember", "healthy")}${metric("可见项目", projects.length, scope.project_visibility === "all_projects" ? "组织全部项目" : "我参与的项目", "")}${metric("当前角色", scope.current_user_role || "只读", notice, "")}</div><div class="capability-notice"><strong>${scope.project_visibility === "all_projects" ? "完整治理范围" : "有限项目范围"}</strong><span>${escapeHtml(notice)}</span></div><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2>成员参与全貌</h2><p>只读关系矩阵；不能在单元格中直接添加成员</p></div></div></div>${matrix}</section>`;
+}
+
+function renderOrganizationMembers(scope) {
+  const members = [...(scope.members || [])].sort((left, right) => Number(right.is_me) - Number(left.is_me) || left.username.localeCompare(right.username, "zh-CN"));
+  const selected = members.find((member) => String(member.id) === state.selectedOrganizationMemberId) || members[0];
+  if (selected) state.selectedOrganizationMemberId = String(selected.id);
+  const relations = selected ? (state.platform.project_members || []).filter((item) => String(item.user_id) === String(selected.user_id) && scope.projects.some((project) => String(project.id) === String(item.project_id))) : [];
+  const canChangeRole = (member) => scope.current_user_role === "owner" && member.role !== "owner";
+  const canRemove = (member) => member.is_me || (["owner", "admin"].includes(scope.current_user_role) && member.role !== "owner");
+  els.organizationContent.innerHTML = `<div class="organization-detail-grid"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">◎</span><div><h2>组织成员</h2><p>先管理组织身份，再查看已有项目关系</p></div></div></div>${members.length ? `<div class="member-directory">${members.map((member) => `<button class="member-directory-row ${String(member.id) === String(selected?.id) ? "is-active" : ""}" data-organization-member-open="${escapeHtml(member.id)}" type="button"><span><strong>${escapeHtml(member.username)}${member.is_me ? " · 我" : ""}</strong><small>${escapeHtml(member.role)} · ${(state.platform.project_members || []).filter((item) => String(item.user_id) === String(member.user_id) && scope.projects.some((project) => String(project.id) === String(item.project_id))).length} 个项目</small></span><em>查看 →</em></button>`).join("")}</div>` : `<div class="empty-state">尚无组织成员。</div>`}</section><aside class="inspector-card organization-inspector">${selected ? `<p class="eyebrow">MEMBER</p><h2>${escapeHtml(selected.username)}</h2><p>${escapeHtml(selected.role)}${selected.is_me ? " · 当前用户" : ""}</p><div class="row-actions">${canChangeRole(selected) ? `<button data-organization-member-edit="${escapeHtml(selected.id)}" data-member-organization="${escapeHtml(scope.id)}" type="button">调整组织角色</button>` : ""}${canRemove(selected) ? `<button class="danger-action" data-organization-member-delete="${escapeHtml(selected.id)}" data-member-organization="${escapeHtml(scope.id)}" type="button">${selected.is_me ? "退出组织" : "移除成员"}</button>` : ""}</div><h3>已有项目关系</h3>${relations.length ? `<div class="compact-list">${relations.map((relation) => `<button class="compact-row" data-organization-project-open="${escapeHtml(relation.project_id)}" type="button"><span><strong>${escapeHtml(relation.project_name)}</strong><small>${escapeHtml(relation.role)} · ${escapeHtml(relation.duty || "未填写职责")}${relation.is_external ? " · 外部成员" : ""}</small></span><em>查看项目 →</em></button>`).join("")}</div>` : `<div class="empty-state compact">在当前可见范围内没有项目关系。</div>`}<div class="capability-notice"><strong>为何这里没有项目邀请？</strong><span>项目邀请是通用凭证，不绑定当前成员。请进入明确的项目详情生成，再由对方自行使用邀请码加入。</span></div>` : `<div class="empty-state">选择一位成员查看详情。</div>`}</aside></div>`;
+}
+
+function renderOrganizationProjects(scope, personalProjects) {
+  const personal = !scope;
+  const projects = personal ? personalProjects : scope.projects || [];
+  const selected = projects.find((project) => String(project.id) === state.selectedOrganizationProjectId) || projects[0];
+  if (selected) state.selectedOrganizationProjectId = String(selected.id);
+  const selectedWorkset = new Set(state.platform.active_workset?.project_ids || []);
+  const members = selected ? (state.platform.project_members || []).filter((member) => String(member.project_id) === String(selected.id)) : [];
+  const canManage = selected && ["owner", "admin"].includes(selected.current_user_role);
+  els.organizationContent.innerHTML = `${!personal && scope.project_visibility !== "all_projects" ? `<div class="capability-notice"><strong>当前显示你参与的项目</strong><span>组织全部项目仅 owner/admin 可见。</span></div>` : ""}<div class="organization-detail-grid"><section class="panel-card"><div class="section-title-row"><div><span class="section-icon">▦</span><div><h2>${personal ? "个人与外部参与项目" : "组织项目"}</h2><p>项目治理不受 Workset 过滤</p></div></div><button data-project-create type="button">创建项目</button></div>${projects.length ? `<div class="project-directory">${projects.map((project) => `<button class="project-directory-row ${String(project.id) === String(selected?.id) ? "is-active" : ""}" data-organization-project-open="${escapeHtml(project.id)}" type="button"><span class="product-identity"><i>${escapeHtml(project.name.slice(0, 1).toUpperCase())}</i><span><strong>${escapeHtml(project.name)}</strong><small>${escapeHtml(project.current_user_role || "只读")} · ${project.local_project_path ? "本地已绑定" : "仅远端"}</small></span></span><span class="product-facts"><em>${selectedWorkset.has(String(project.id)) ? "当前 Workset" : "未展示"}</em><em>${project.participating ? "Automation 已授权" : "Automation 未授权"}</em></span></button>`).join("")}</div>` : `<div class="empty-state">当前范围没有可见项目。</div>`}</section><aside class="inspector-card organization-inspector">${selected ? `<p class="eyebrow">PROJECT · ${escapeHtml(selected.current_user_role || "READ ONLY")}</p><h2>${escapeHtml(selected.name)}</h2><p>${escapeHtml(selected.git_url || "未设置 Git 地址")}</p><div class="project-connection-list"><span><strong>组织归属</strong><small>${personal ? (selected.organization_id ? "外部参与" : "个人项目") : escapeHtml(scope.name)} · 创建后不可在 ArcOrbit 迁移</small></span><span><strong>本地项目</strong><small>${escapeHtml(selected.local_project_path || "尚未绑定")}</small></span><span><strong>推进范围</strong><small>${selectedWorkset.has(String(selected.id)) ? `已在 ${escapeHtml(state.platform.active_workset?.name || "当前产品集")}` : "当前 Workset 不展示"}</small></span><span><strong>Automation</strong><small>${selected.participating ? "已授权自动领取" : "未授权自动领取"}</small></span></div><div class="row-actions project-detail-actions"><button data-project-workset-toggle="${escapeHtml(selected.id)}" type="button">${selectedWorkset.has(String(selected.id)) ? "移出当前 Workset" : "加入当前 Workset"}</button>${canManage ? `<button data-product-edit="${escapeHtml(selected.id)}" type="button">编辑事实</button><button data-product-invite="${escapeHtml(selected.id)}" type="button">生成项目邀请</button>` : ""}${selected.current_user_role === "owner" ? `<button class="danger-action" data-product-delete="${escapeHtml(selected.id)}" type="button">删除项目</button>` : ""}</div><h3>项目成员 · ${members.length}</h3>${members.length ? `<div class="compact-list">${members.map((member) => { const canEdit = selected.current_user_role === "owner" && member.role !== "owner"; const canRemove = member.is_me || (["owner", "admin"].includes(selected.current_user_role) && member.role !== "owner"); return `<div class="compact-row"><span><strong>${escapeHtml(member.username)}${member.is_me ? " · 我" : ""}</strong><small>${escapeHtml(member.role)} · ${escapeHtml(member.duty || "未填写职责")}${member.is_external ? " · 外部" : ""}</small></span><span class="row-actions">${canEdit ? `<button data-project-member-edit="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">角色/职责</button>` : ""}${canRemove ? `<button class="danger-action" data-project-member-delete="${escapeHtml(member.id)}" data-member-project="${escapeHtml(selected.id)}" type="button">${member.is_me ? "退出" : "移除"}</button>` : ""}</span></div>`; }).join("")}</div>` : `<div class="empty-state compact">尚无可显示成员。</div>`}` : `<div class="empty-state">选择一个项目查看详情。</div>`}</aside></div>`;
+}
+
+function wireOrganizationActions() {
+  els.organizationContent.querySelectorAll("[data-organization-member-open]").forEach((button) => button.addEventListener("click", () => { state.selectedOrganizationMemberId = button.dataset.organizationMemberOpen; state.organizationSection = "members"; renderOrganization(); }));
+  els.organizationContent.querySelectorAll("[data-organization-project-open]").forEach((button) => button.addEventListener("click", () => { state.selectedOrganizationProjectId = button.dataset.organizationProjectOpen; state.organizationSection = "projects"; renderOrganization(); }));
+  document.querySelectorAll("[data-project-create]").forEach((button) => button.onclick = () => runAction(createProduct));
+  els.organizationScopeActions.querySelectorAll("[data-organization-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editOrganization(button.dataset.organizationEdit))));
+  els.organizationScopeActions.querySelectorAll("[data-organization-invite]").forEach((button) => button.addEventListener("click", () => runAction(() => inviteOrganization(button.dataset.organizationInvite))));
+  els.organizationScopeActions.querySelectorAll("[data-organization-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteOrganization(button.dataset.organizationDelete))));
+  els.organizationContent.querySelectorAll("[data-product-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editProduct(button.dataset.productEdit))));
+  els.organizationContent.querySelectorAll("[data-product-invite]").forEach((button) => button.addEventListener("click", () => runAction(() => inviteProject(button.dataset.productInvite))));
+  els.organizationContent.querySelectorAll("[data-product-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteProduct(button.dataset.productDelete))));
+  els.organizationContent.querySelectorAll("[data-project-workset-toggle]").forEach((button) => button.addEventListener("click", () => runAction(() => toggleProjectInWorkset(button.dataset.projectWorksetToggle))));
+  els.organizationContent.querySelectorAll("[data-organization-member-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editOrganizationMember(button.dataset.organizationMemberEdit, button.dataset.memberOrganization))));
+  els.organizationContent.querySelectorAll("[data-organization-member-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteOrganizationMember(button.dataset.organizationMemberDelete, button.dataset.memberOrganization))));
+  els.organizationContent.querySelectorAll("[data-project-member-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editProjectMember(button.dataset.projectMemberEdit, button.dataset.memberProject))));
+  els.organizationContent.querySelectorAll("[data-project-member-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteProjectMember(button.dataset.projectMemberDelete, button.dataset.memberProject))));
 }
 
 function renderPlatformWork() {
@@ -657,18 +707,18 @@ function renderPlatformFeedback() {
 }
 
 async function createProduct() {
+  const scope = currentOrganizationScope();
   const values = await openPlatformAction({
-    title: "创建产品",
-    lead: "创建 Workshop 项目；本地 repository 绑定和 Automation 授权仍由各自入口独立管理。",
+    title: scope ? `在 ${scope.name} 创建项目` : "创建个人项目",
+    lead: `组织归属在创建时确定；创建后 ArcOrbit 不提供迁移入口。本地绑定、Workset 和 Automation 授权仍分别管理。`,
     confirmLabel: "创建产品",
     fields: [
       platformField("name", "产品名称", { required: true, placeholder: "例如：虚拟产品 A" }),
-      platformField("git_url", "Git 地址", { placeholder: "可选" }),
-      platformField("organization_id", "所属组织", { type: "select", options: [{ value: "", label: "个人项目" }, ...organizationOptions()] })
+      platformField("git_url", "Git 地址", { placeholder: "可选" })
     ]
   });
   if (!values) return;
-  await executeManagedAction("project.create", values, "产品已创建");
+  await executeManagedAction("project.create", { ...values, ...(scope ? { organization_id: scope.id } : {}) }, "产品已创建");
 }
 
 async function editProduct(projectId) {
@@ -680,7 +730,7 @@ async function editProduct(projectId) {
     fields: [
       platformField("name", "产品名称", { required: true, value: project.name }),
       platformField("git_url", "Git 地址", { value: project.git_url }),
-      platformField("organization_id", "所属组织", { type: "select", value: project.organization_id, options: [{ value: "", label: "个人项目" }, ...organizationOptions()] })
+      platformField("project_scope", "所属范围（只读）", { value: project.organization_id ? currentOrganizationScope()?.name || "组织项目" : "个人项目", readonly: true, help: "项目创建后不在 ArcOrbit 中迁移组织。" })
     ]
   });
   if (!values) return;
@@ -691,13 +741,55 @@ async function inviteProject(projectId) {
   const project = findProject(projectId);
   const values = await openPlatformAction({
     title: `邀请加入 ${project.name}`,
-    lead: "生成受服务端权限约束的邀请。ArcOrbit 不开放缺少权限校验的“直接添加成员”接口。",
+    lead: `目标项目：${project.name}。这是可转发的通用邀请，不绑定当前浏览的成员。`,
     confirmLabel: "生成邀请",
     fields: inviteFields()
   });
   if (!values) return;
   const invitation = await executeManagedAction("project.invite", { project_id: project.id, ...values }, "项目邀请已生成", { refresh: false });
-  showResult("项目邀请", invitation);
+  await showInvitationResult("项目邀请", project.name, invitation);
+}
+
+async function editCurrentWorkset() {
+  const activeWorkset = state.platform.active_workset;
+  if (!activeWorkset) throw new Error("当前没有可更新的产品集。");
+  const selected = new Set(activeWorkset.project_ids || []);
+  const values = await openPlatformAction({
+    title: `编辑 ${activeWorkset.name}`,
+    lead: "同时选择要在 Today、Work 和 Feedback 展示的产品；不会改变组织治理或 Automation participation。",
+    confirmLabel: "保存推进范围",
+    fields: [platformCheckboxGroup("project_ids", "展示产品", (state.platform.projects || []).map((project) => ({ value: project.id, label: project.name, detail: project.organization_id ? organizationName(project.organization_id) : "个人项目", checked: selected.has(String(project.id)) })))]
+  });
+  if (!values) return;
+  const projectIds = Array.isArray(values.project_ids) ? values.project_ids : values.project_ids ? [values.project_ids] : [];
+  await api.updateWorkset({ id: activeWorkset.id, project_ids: projectIds });
+  await refreshSnapshot();
+  showToast(`已保存 ${projectIds.length} 个产品；Automation 授权未改变。`);
+}
+
+async function toggleProjectInWorkset(projectId) {
+  const activeWorkset = state.platform.active_workset;
+  if (!activeWorkset) throw new Error("当前没有可更新的产品集。");
+  const projectIds = new Set(activeWorkset.project_ids || []);
+  if (projectIds.has(String(projectId))) projectIds.delete(String(projectId));
+  else projectIds.add(String(projectId));
+  await api.updateWorkset({ id: activeWorkset.id, project_ids: [...projectIds] });
+  await refreshSnapshot();
+  showToast("当前产品集已更新；Automation 授权未改变。");
+}
+
+async function joinByInvitationCode() {
+  const values = await openPlatformAction({
+    title: "使用邀请码加入",
+    lead: "加入动作由当前登录用户发起；成功后重新同步组织和项目事实。",
+    confirmLabel: "加入",
+    fields: [
+      platformField("kind", "邀请类型", { type: "select", options: [{ value: "organization", label: "组织邀请" }, { value: "project", label: "项目邀请" }] }),
+      platformField("invite_code", "邀请码", { required: true, placeholder: "输入收到的邀请码" })
+    ]
+  });
+  if (!values) return;
+  await executeManagedAction(values.kind === "organization" ? "organization.join" : "project.join", { invite_code: values.invite_code }, "已加入，正在刷新治理范围");
 }
 
 async function deleteProduct(projectId) {
@@ -731,10 +823,10 @@ async function editOrganization(organizationId) {
 
 async function inviteOrganization(organizationId) {
   const organization = findOrganization(organizationId);
-  const values = await openPlatformAction({ title: `邀请加入 ${organization.name}`, lead: "生成组织邀请；加入动作仍由受邀用户完成。", confirmLabel: "生成邀请", fields: inviteFields() });
+  const values = await openPlatformAction({ title: `邀请加入 ${organization.name}`, lead: `目标组织：${organization.name}。生成通用邀请；加入动作由接收者完成。`, confirmLabel: "生成邀请", fields: inviteFields() });
   if (!values) return;
   const invitation = await executeManagedAction("organization.invite", { organization_id: organization.id, ...values }, "组织邀请已生成", { refresh: false });
-  showResult("组织邀请", invitation);
+  await showInvitationResult("组织邀请", organization.name, invitation);
 }
 
 async function deleteOrganization(organizationId) {
@@ -962,14 +1054,47 @@ function closePlatformAction(value) {
   resolve(value);
 }
 
-function platformField(name, label, { type = "text", value = "", required = false, placeholder = "", options = [], min, help = "" } = {}) {
-  const attrs = `${required ? " required" : ""}${placeholder ? ` placeholder="${escapeHtml(placeholder)}"` : ""}${min !== undefined ? ` min="${escapeHtml(min)}"` : ""}`;
+function serializePlatformAction() {
+  const data = new FormData(els.platformActionForm);
+  const values = Object.fromEntries(data.entries());
+  els.platformActionForm.querySelectorAll("[data-multiple-field]").forEach((container) => {
+    values[container.dataset.multipleField] = data.getAll(container.dataset.multipleField);
+  });
+  return values;
+}
+
+function platformField(name, label, { type = "text", value = "", required = false, readonly = false, placeholder = "", options = [], min, help = "" } = {}) {
+  const attrs = `${required ? " required" : ""}${readonly ? " readonly" : ""}${placeholder ? ` placeholder="${escapeHtml(placeholder)}"` : ""}${min !== undefined ? ` min="${escapeHtml(min)}"` : ""}`;
   const control = type === "textarea"
     ? `<textarea name="${escapeHtml(name)}" rows="4"${attrs}>${escapeHtml(value)}</textarea>`
     : type === "select"
       ? `<select name="${escapeHtml(name)}"${attrs}>${options.map((option) => `<option value="${escapeHtml(option.value)}" ${String(option.value) === String(value ?? "") ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select>`
       : `<input name="${escapeHtml(name)}" type="${escapeHtml(type)}" value="${escapeHtml(value)}"${attrs}>`;
   return `<label class="platform-action-field"><span>${escapeHtml(label)}</span>${control}${help ? `<small>${escapeHtml(help)}</small>` : ""}</label>`;
+}
+
+function platformCheckboxGroup(name, label, options) {
+  return `<fieldset class="platform-action-field platform-checkbox-group" data-multiple-field="${escapeHtml(name)}"><legend>${escapeHtml(label)}</legend>${options.length ? options.map((option) => `<label><input name="${escapeHtml(name)}" type="checkbox" value="${escapeHtml(option.value)}" ${option.checked ? "checked" : ""}><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.detail || "")}</small></span></label>`).join("") : `<div class="empty-state compact">尚无可访问项目。</div>`}</fieldset>`;
+}
+
+async function showInvitationResult(kind, targetName, value) {
+  const invitation = value?.invitation && typeof value.invitation === "object" ? value.invitation : value || {};
+  const code = String(invitation.invite_code || invitation.code || "");
+  const link = String(invitation.invite_link || invitation.link || "");
+  const role = String(invitation.role || "member");
+  const expiresAt = String(invitation.expires_at || invitation.expired_at || "长期有效");
+  const maxUses = String(invitation.max_uses ?? "1");
+  const promise = openPlatformAction({
+    title: `${kind}已生成 · ${targetName}`,
+    lead: "这是创建响应的一次性结果。当前 Workshop 不支持邀请历史、再次查看或撤销。",
+    confirmLabel: "我已保存，关闭",
+    fields: [`<section class="invitation-result"><div><span>邀请码</span><strong>${escapeHtml(code || "服务未返回")}</strong>${code ? `<button data-copy-invitation="${escapeHtml(code)}" type="button">复制邀请码</button>` : ""}</div>${link ? `<div><span>邀请链接</span><code>${escapeHtml(link)}</code><button data-copy-invitation="${escapeHtml(link)}" type="button">复制链接</button></div>` : ""}<dl><div><dt>目标</dt><dd>${escapeHtml(targetName)}</dd></div><div><dt>角色</dt><dd>${escapeHtml(role)}</dd></div><div><dt>到期</dt><dd>${escapeHtml(expiresAt)}</dd></div><div><dt>使用上限</dt><dd>${escapeHtml(maxUses)}</dd></div></dl><p>邀请不绑定某位成员。请立即复制并通过合适渠道自行转发；接收者需在自己的会话中使用邀请码加入。</p></section>`]
+  });
+  els.platformActionFields.querySelectorAll("[data-copy-invitation]").forEach((button) => button.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(button.dataset.copyInvitation);
+    showToast("已复制邀请信息。");
+  }));
+  await promise;
 }
 
 function inviteFields() {
@@ -987,15 +1112,16 @@ function organizationOptions() { return (state.platform.organizations || []).map
 function memberSelectOptions(projectId = "") { return [{ value: "", label: "未分配" }, ...(state.platform.members || []).filter((item) => !projectId || String(item.project_id) === String(projectId)).map((item) => ({ value: item.user_id, label: `${item.project_name} · ${item.username}` }))]; }
 function taskSelectOptions(projectId = "", excludedTaskId = "") { return [{ value: "", label: "根待办" }, ...(state.platform.tasks || []).filter((item) => (!projectId || String(item.project_id) === String(projectId)) && String(item.id) !== String(excludedTaskId)).map((item) => ({ value: item.id, label: `${item.project_name} · ${item.id} · ${item.title}` }))]; }
 function findProject(id) { const value = state.platform.projects.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品。"); return value; }
+function currentOrganizationScope() { return (state.platform.organization_scopes || []).find((item) => String(item.id) === String(state.organizationScopeId)) || null; }
+function organizationName(id) { return (state.platform.organization_scopes || []).find((item) => String(item.id) === String(id))?.name || "组织项目"; }
 function findOrganization(id) { const value = state.platform.organizations.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到组织。"); return value; }
 function findOrganizationMember(id, organizationId) { const value = state.platform.organization_members.find((item) => String(item.id) === String(id) && String(item.organization_id) === String(organizationId)); if (!value) throw new Error("未找到组织成员。"); return value; }
 function findWorkspace(id) { const value = state.platform.product_workspaces.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品工作区。"); return value; }
-function findProjectMember(id, projectId) { const value = state.platform.members.find((item) => String(item.id) === String(id) && String(item.project_id) === String(projectId)); if (!value) throw new Error("未找到项目成员。"); return value; }
+function findProjectMember(id, projectId) { const value = (state.platform.project_members || []).find((item) => String(item.id) === String(id) && String(item.project_id) === String(projectId)); if (!value) throw new Error("未找到项目成员。"); return value; }
 function findPlatformTask(id) { const value = state.platform.tasks.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到待办。"); return value; }
 function findFeedback(id) { const value = state.platform.feedback_v1.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到反馈。"); return value; }
 function canManagePlatformTask(task) { const role = findWorkspace(task.project_id).current_user_role; return task.state !== "in_progress" || ["owner", "admin"].includes(role) || String(task.executor_id) === String(state.platform.user?.id || ""); }
 function servicePriority(value) { const number = Number(value || 0); return number > 0 ? Math.max(0, 100 - number) : 0; }
-function showResult(title, value) { window.alert(`${title}\n\n${JSON.stringify(value, null, 2)}`); }
 
 function renderCommandCenter() {
   const snapshot = state.snapshot;
@@ -1958,7 +2084,10 @@ function emptyPlatformSnapshot() {
     active_workset: null,
     projects: [],
     organizations: [],
+    organization_scopes: [],
+    personal_projects: [],
     organization_members: [],
+    project_members: [],
     product_workspaces: [],
     members: [],
     tasks: [],
@@ -1978,7 +2107,9 @@ function emptyPlatformSnapshot() {
     },
     capabilities: {
       organizations: "unavailable",
+      organization_governance: "unavailable",
       project_members: "managed_with_permissions_except_direct_add",
+      invitation_lifecycle: "create_once_no_list_or_revoke",
       project_tasks: "read_write",
       platform_management: "available_with_server_permissions",
       feedback_v1: "read_write",

@@ -2,11 +2,11 @@
 
 ## Platform Workspace
 
-`platform-workspace/interaction.md` 定义登录后的平台一级信息架构：Today、Products、Team、Work、Automation、Feedback。`platform-workspace/default.html` 投影本地持久 Workset 下的多产品 Today 和 Products 多选；`collaboration-views.html` 投影真实团队、完整团队待办和两条反馈通道；`states.html` 投影同步、空集、部分失败及 Automation 人工介入/恢复交接。
+`platform-workspace/interaction.md` 定义登录后的两组一级信息架构：Advance 下的 Today、Work、Automation、Feedback，以及 Platform 下不受 Workset 裁剪的 Organization。`default.html` 投影多产品推进壳；`collaboration-views.html` 投影组织概览、成员已有关系和项目上下文邀请；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
 
 Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md` 与 `arckit/tech/arcorbit/platform-composition-solution.md`。Product Workspace 组合 Workshop Project 与 ArcOrbit 本地 repository binding、participation 和偏好；Workset 只控制同时展示范围，不能改变 Automation participation 或全局单活动执行。
 
-Team 复用 Workshop Organization、OrganizationMember 和 Project Member；Work 读取产品的完整七状态团队待办；普通反馈读取 Workshop Feedback V1。现有直接加成员授权、Feedback V2 与待办历史能力未成立时保持 unavailable。ArcOrbit acceptance feedback、Run、Case、Workbench、Recovery 与执行仲裁仍由 `automation-workspace/interaction.md` 和 `task-browser/interaction.md` 定义，不在平台首页复制第二套控制器。
+Organization Center 复用 Workshop Organization、OrganizationMember 和 Project Member，并由组织角色决定全部项目或参与项目可见性。成员页不生成项目邀请；项目页只生成一次性通用邀请。Work 读取完整七状态团队待办；普通反馈读取 Workshop Feedback V1。现有直接加成员授权、邀请列表/撤销、Feedback V2 与待办历史能力未成立时保持 unavailable。
 
 生产映射为 `runtime/arcorbit/src/platform-coordinator.mjs`、`runtime/arcorbit/src/workshop-platform-adapter.mjs`、`runtime/arcorbit/src/desktop/desktop-store.mjs` 与 `runtime/arcorbit/desktop/renderer/`。
 

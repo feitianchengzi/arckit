@@ -1,5 +1,6 @@
 const PROJECT_ROLES = new Set(["owner", "admin", "member"]);
 const TASK_STATES = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
+const PAGE_SIZE = 200;
 
 export function createWorkshopPlatformAdapter({ request, listProjects, normalizeTask }) {
   if (typeof request !== "function" || typeof listProjects !== "function" || typeof normalizeTask !== "function") {
@@ -8,24 +9,44 @@ export function createWorkshopPlatformAdapter({ request, listProjects, normalize
 
   return {
     async listOrganizations() {
-      const payload = await request("/organizations", { query: { page_size: 500 } });
-      return extractList(payload, ["organizations", "items"])
-        .map(normalizeOrganization)
-        .filter(Boolean);
+      return listAllPages(request, "/organizations", {}, ["organizations", "items"], normalizeOrganization);
     },
 
     async listOrganizationMembers(organizationId) {
       const id = requiredId(organizationId, "Organization");
-      const payload = await request(`/organizations/${encodeURIComponent(id)}/members`, {
-        query: { page_size: 500 }
-      });
-      return extractList(payload, ["members", "items"])
-        .map((member) => normalizeMember(member, { organizationId: id }))
-        .filter(Boolean);
+      return listAllPages(
+        request,
+        `/organizations/${encodeURIComponent(id)}/members`,
+        {},
+        ["members", "items"],
+        (member) => normalizeMember(member, { organizationId: id })
+      );
     },
 
     async listProjects() {
       return listProjects();
+    },
+
+    async listOrganizationProjects(organizationId, { visibility = "participating_projects" } = {}) {
+      const id = requiredId(organizationId, "Organization");
+      const path = visibility === "all_projects" ? "/organization/projects" : "/projects";
+      return listAllPages(
+        request,
+        path,
+        { organization_id: id },
+        ["projects", "items"],
+        (project) => normalizePlatformProject(project, id)
+      );
+    },
+
+    async listPersonalProjects() {
+      return listAllPages(
+        request,
+        "/projects",
+        { organization_id: 0 },
+        ["projects", "items"],
+        (project) => normalizePlatformProject(project)
+      );
     },
 
     async listProjectMembers(projectId) {
@@ -41,39 +62,30 @@ export function createWorkshopPlatformAdapter({ request, listProjects, normalize
       const id = requiredId(projectId, "Project");
       const query = {
         project_id: id,
-        state: normalizedStates(filters.states),
-        page_size: 500
+        state: normalizedStates(filters.states)
       };
       if (filters.search_key) query.search_key = String(filters.search_key).trim().slice(0, 200);
       if (filters.executor_id) query.executor_id = requiredId(filters.executor_id, "Executor");
       if (filters.creator_id) query.creator_id = requiredId(filters.creator_id, "Creator");
-      const payload = await request("/tasks", { query });
-      return extractList(payload, ["tasks", "items"])
-        .map((task) => normalizeTask(task, id))
-        .filter(Boolean);
+      return listAllPages(request, "/tasks", query, ["tasks", "items"], (task) => normalizeTask(task, id));
     },
 
     async listFeedbackV1(projectId, filters = {}) {
       const id = requiredId(projectId, "Project");
-      const query = { project_id: id, page_size: 500 };
+      const query = { project_id: id };
       if (filters.short_id) query.short_id = String(filters.short_id).trim().slice(0, 100);
       if (filters.custom_user_id) query.custom_user_id = String(filters.custom_user_id).trim().slice(0, 200);
-      const payload = await request("/feedbacks", { query });
-      return extractList(payload, ["feedbacks", "items"])
-        .map((feedback) => normalizeFeedbackV1(feedback, id))
-        .filter(Boolean);
+      return listAllPages(request, "/feedbacks", query, ["feedbacks", "items"], (feedback) => normalizeFeedbackV1(feedback, id));
     },
 
     async listProjectTags(projectId) {
       const id = requiredId(projectId, "Project");
-      const payload = await request(`/projects/${encodeURIComponent(id)}/tags`, { query: { page_size: 500 } });
-      return extractList(payload, ["tags", "items"]).map((tag) => normalizeTag(tag, id)).filter(Boolean);
+      return listAllPages(request, `/projects/${encodeURIComponent(id)}/tags`, {}, ["tags", "items"], (tag) => normalizeTag(tag, id));
     },
 
     async listTaskAttachments(taskId) {
       const id = requiredId(taskId, "Task");
-      const payload = await request("/tasks/attachments", { query: { task_id: id, page_size: 500 } });
-      return extractList(payload, ["attachments", "items"]).map(normalizeAttachment).filter(Boolean);
+      return listAllPages(request, "/tasks/attachments", { task_id: id }, ["attachments", "items"], normalizeAttachment);
     },
 
     createOrganization(input = {}) {
@@ -88,6 +100,9 @@ export function createWorkshopPlatformAdapter({ request, listProjects, normalize
     inviteOrganizationMember(organizationId, input = {}) {
       return request(`/organizations/${encodeURIComponent(requiredId(organizationId, "Organization"))}/invitations`, { method: "POST", body: inviteBody(input) });
     },
+    joinOrganization(input = {}) {
+      return request("/organizations/join", { method: "POST", body: { invite_code: requiredText(input.invite_code, "Invitation code", 200) } });
+    },
     updateOrganizationMemberRole(organizationId, input = {}) {
       return request(`/organizations/${encodeURIComponent(requiredId(organizationId, "Organization"))}/members/role`, { method: "PUT", body: { target_user_id: numericId(input.target_user_id, "Target user"), role: memberRole(input.role, false) } });
     },
@@ -99,13 +114,16 @@ export function createWorkshopPlatformAdapter({ request, listProjects, normalize
       return request("/projects", { method: "POST", body: compact({ name: requiredText(input.name, "Project name", 120), git_url: optionalText(input.git_url, 1000), organization_id: optionalNumericId(input.organization_id, "Organization") }) });
     },
     updateProject(projectId, input = {}) {
-      return request(`/projects/${encodeURIComponent(requiredId(projectId, "Project"))}`, { method: "PUT", body: compact({ name: optionalProvidedText(input, "name", 120), git_url: optionalProvidedText(input, "git_url", 1000), organization_id: optionalProvidedNumericId(input, "organization_id", "Organization") }) });
+      return request(`/projects/${encodeURIComponent(requiredId(projectId, "Project"))}`, { method: "PUT", body: compact({ name: optionalProvidedText(input, "name", 120), git_url: optionalProvidedText(input, "git_url", 1000) }) });
     },
     deleteProject(projectId) {
       return request(`/projects/${encodeURIComponent(requiredId(projectId, "Project"))}`, { method: "DELETE" });
     },
     inviteProjectMember(projectId, input = {}) {
       return request(`/projects/${encodeURIComponent(requiredId(projectId, "Project"))}/invitations`, { method: "POST", body: inviteBody(input) });
+    },
+    joinProject(input = {}) {
+      return request("/projects/join", { method: "POST", body: { invite_code: requiredText(input.invite_code, "Invitation code", 200) } });
     },
     updateProjectMember(projectId, input = {}) {
       return request(`/projects/${encodeURIComponent(requiredId(projectId, "Project"))}/members/role`, { method: "PUT", body: compact({ target_user_id: numericId(input.target_user_id, "Target user"), role: input.role === undefined ? undefined : memberRole(input.role, false), duty: input.duty === undefined ? undefined : optionalText(input.duty, 500) }) });
@@ -191,6 +209,26 @@ export function normalizeMember(value, { organizationId = "", projectId = "" } =
   };
 }
 
+export function normalizePlatformProject(value, fallbackOrganizationId = "") {
+  if (!value || typeof value !== "object") return null;
+  const id = scalarId(value.id ?? value.project_id);
+  if (!id) return null;
+  const organizationId = scalarId(value.organization_id) || String(fallbackOrganizationId || "");
+  const rawMembers = Array.isArray(value.members) ? value.members : [];
+  return {
+    id,
+    name: String(value.name || `Project ${id}`).trim(),
+    description: String(value.description || "").trim(),
+    organization_id: organizationId,
+    git_url: String(value.git_url || "").trim(),
+    creator_id: scalarId(value.creator_id),
+    created_at: String(value.created_at || ""),
+    updated_at: String(value.updated_at || ""),
+    members: rawMembers.map((member) => normalizeMember(member, { projectId: id })).filter(Boolean),
+    raw: { ...value, ...(organizationId ? { organization_id: organizationId } : {}) }
+  };
+}
+
 export function normalizeFeedbackV1(value, fallbackProjectId = "") {
   if (!value || typeof value !== "object") return null;
   const id = scalarId(value.id ?? value.feedback_id);
@@ -260,7 +298,7 @@ function feedbackBody(input, { creating }) {
 }
 
 function inviteBody(input) {
-  return { role: memberRole(input.role || "member", true), expires_in: boundedInteger(input.expires_in, 0, 24 * 365, 0), max_uses: boundedInteger(input.max_uses, 1, 10000, 1) };
+  return { role: memberRole(input.role || "member", false), expires_in: boundedInteger(input.expires_in, 0, 24 * 365, 0), max_uses: boundedInteger(input.max_uses, 1, 10000, 1) };
 }
 
 function memberRole(value, allowOwner) {
@@ -298,10 +336,6 @@ function numericId(value, label) {
 
 function optionalNumericId(value, label) {
   return value === undefined || value === null || value === "" ? undefined : numericId(value, label);
-}
-
-function optionalProvidedNumericId(input, key, label) {
-  return Object.hasOwn(input, key) ? optionalNumericId(input[key], label) : undefined;
 }
 
 function optionalNullableNumericId(input, key, label) {
@@ -348,6 +382,33 @@ function extractList(payload, keys) {
   if (Array.isArray(payload)) return payload;
   for (const key of keys) if (Array.isArray(payload?.[key])) return payload[key];
   return [];
+}
+
+async function listAllPages(request, path, baseQuery, keys, normalize) {
+  const values = [];
+  const seen = new Set();
+  for (let page = 1; page <= 1000; page += 1) {
+    const payload = await request(path, { query: { ...baseQuery, page, page_size: PAGE_SIZE } });
+    const pageValues = extractList(payload, keys);
+    let added = 0;
+    for (const raw of pageValues) {
+      const value = normalize(raw);
+      if (!value) continue;
+      const key = scalarId(value.id) || JSON.stringify(value);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      values.push(value);
+      added += 1;
+    }
+    const total = paginationTotal(payload);
+    if ((Number.isFinite(total) && values.length >= total) || pageValues.length < PAGE_SIZE || added === 0) break;
+  }
+  return values;
+}
+
+function paginationTotal(payload) {
+  const value = Number(payload?.total ?? payload?.meta?.total);
+  return Number.isFinite(value) && value >= 0 ? value : Number.NaN;
 }
 
 function requiredId(value, label) {

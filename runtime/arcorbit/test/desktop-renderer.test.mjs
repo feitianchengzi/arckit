@@ -24,21 +24,20 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   ]);
 
   assert.match(html, /MULTI-PRODUCT TODAY/);
-  for (const page of ["today", "products", "team", "work", "command", "feedback"]) {
+  for (const page of ["today", "organization", "work", "command", "feedback"]) {
     assert.match(html, new RegExp(`data-page="${page}"`));
   }
   assert.match(html, /data-page-view="today"/);
-  assert.match(html, /data-page-view="products"/);
-  assert.match(html, /data-page-view="team"/);
+  assert.match(html, /data-page-view="organization"/);
   assert.match(html, /data-page-view="work"/);
   assert.match(html, /data-page-view="feedback"/);
   assert.match(html, /id="worksetSelect"/);
-  assert.match(html, /勾选决定当前界面同时展示哪些产品；不会改变后台自动领取授权/);
+  assert.match(html, /不受当前产品集过滤/);
   assert.match(source, /page: "today"/);
   assert.match(source, /api\.platformSnapshot/);
   assert.match(source, /api\.setActiveWorkset/);
   assert.match(source, /api\.updateWorkset\(\{ id: activeWorkset\.id, project_ids: projectIds \}\)/);
-  assert.match(html, /id="createProductButton"/);
+  assert.match(html, /id="editWorksetButton"/);
   assert.match(html, /id="createOrganizationButton"/);
   assert.match(html, /id="createTaskButton"/);
   assert.match(html, /id="createFeedbackButton"/);
@@ -48,8 +47,10 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /"task\.attachment\.create"/);
   assert.match(source, /"feedback\.to_task"/);
   assert.doesNotMatch(source, /project\.member\.add/);
-  const worksetHandler = source.slice(source.indexOf("els.saveWorksetButton.addEventListener"), source.indexOf("els.submitInterventionButton.addEventListener"));
+  const worksetHandler = source.slice(source.indexOf("async function editCurrentWorkset"), source.indexOf("async function toggleProjectInWorkset"));
   assert.doesNotMatch(worksetHandler, /setProjectParticipation|setAutomationEnabled|bindAutomationProject/);
+  assert.match(source, /成员页不生成项目邀请|为何这里没有项目邀请/);
+  assert.match(source, /create_once_no_list_or_revoke/);
   assert.match(html, /AUTOMATION COMMAND CENTER/);
   assert.match(html, /id="projectNavigation"/);
   assert.match(html, /id="statusNavigation"/);
