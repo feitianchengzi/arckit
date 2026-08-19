@@ -93,3 +93,4 @@
 | [CASE-20260818-007](closed/CASE-20260818-007-fix-nested-trusted-ledger-launches-opening-arcorbit-windows.md) | closed | Fix nested trusted-ledger launches opening ArcOrbit windows | 2026-08-18T18:25:06.050Z |
 | [CASE-20260818-008](closed/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md) | closed | Remove ArcOrbit ELECTRON_RUN_AS_NODE dependency | 2026-08-18T19:09:17.283Z |
 | [CASE-20260819-001](closed/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md) | closed | Diagnose packaged ArcOrbit blank first screen | 2026-08-19T01:22:18.570Z |
+| [CASE-20260819-002](closed/CASE-20260819-002-default-new-arcorbit-todos-to-the-selected-product.md) | closed | Default new ArcOrbit todos to the selected product | 2026-08-19T03:17:31.223Z |

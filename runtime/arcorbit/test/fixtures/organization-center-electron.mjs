@@ -44,6 +44,18 @@ app.whenReady().then(async () => {
       const feedbackQueueNavCount = document.querySelector('#feedbackQueueNavCount').textContent;
       const attentionNavCount = document.querySelector('#attentionNavCount').textContent;
       click('[data-page="work"]'); await wait();
+      document.querySelector('#productScopeSelect').value = '12';
+      document.querySelector('#productScopeSelect').dispatchEvent(new Event('change', { bubbles: true })); await wait();
+      click('#createTaskButton'); await wait();
+      const selectedProductTaskDefault = document.querySelector('[name="project_id"]').value;
+      click('#cancelPlatformActionButton'); await wait();
+      document.querySelector('#productScopeSelect').value = 'all';
+      document.querySelector('#productScopeSelect').dispatchEvent(new Event('change', { bubbles: true })); await wait();
+      click('#createTaskButton'); await wait();
+      const allProductsTaskDefault = document.querySelector('[name="project_id"]').value;
+      click('#cancelPlatformActionButton'); await wait();
+      document.querySelector('#productScopeSelect').value = '11';
+      document.querySelector('#productScopeSelect').dispatchEvent(new Event('change', { bubbles: true })); await wait();
       const workStateIds = [...document.querySelectorAll('#workStateFilters [data-work-state]')].map((item) => item.dataset.workState);
       const pendingStatusCount = document.querySelector('[data-work-state="pending"] em').textContent;
       const scopePersistedInWork = document.querySelector('#productScopeSelect').value;
@@ -92,7 +104,7 @@ app.whenReady().then(async () => {
       document.querySelector('[name="kind"]').value = 'project';
       document.querySelector('[name="invite_code"]').value = 'JOIN-CODE';
       document.querySelector('#platformActionForm').requestSubmit(); await wait();
-      return { accountName, authIdentity, productScopeProjectIds, automationBindingProjectIds, automationFeedbackIds, hasGlobalRecoveryAction, currentRunText, ordinaryQueueInitiallyVisible, acceptanceOnlyPressed, ordinaryQueueHidden, feedbackQueueVisible, workStateIds, pendingStatusCount, scopePersistedInWork, workInspectorTitle, workInspectorText, selectedWorkRows, completedHasAcceptanceComposer, completedInspectorText, acceptedHasAcceptanceComposer, acceptedInspectorText, todayProductIds, ordinaryFeedbackIds, scopePersistedInFeedback, automationNavCount, feedbackQueueNavCount, attentionNavCount, hasAddLocalOption, initialHeading, matrixRows, memberText, memberProjectHasInvite, inviteFormTitle, inviteResultTitle, inviteResultLead, inviteResultText, editHasOrganizationMutation, editScopeIsReadonly, worksetChoices, calls: await window.arckitDesktop.getTestCalls() };
+      return { accountName, authIdentity, productScopeProjectIds, automationBindingProjectIds, automationFeedbackIds, hasGlobalRecoveryAction, currentRunText, ordinaryQueueInitiallyVisible, acceptanceOnlyPressed, ordinaryQueueHidden, feedbackQueueVisible, selectedProductTaskDefault, allProductsTaskDefault, workStateIds, pendingStatusCount, scopePersistedInWork, workInspectorTitle, workInspectorText, selectedWorkRows, completedHasAcceptanceComposer, completedInspectorText, acceptedHasAcceptanceComposer, acceptedInspectorText, todayProductIds, ordinaryFeedbackIds, scopePersistedInFeedback, automationNavCount, feedbackQueueNavCount, attentionNavCount, hasAddLocalOption, initialHeading, matrixRows, memberText, memberProjectHasInvite, inviteFormTitle, inviteResultTitle, inviteResultLead, inviteResultText, editHasOrganizationMutation, editScopeIsReadonly, worksetChoices, calls: await window.arckitDesktop.getTestCalls() };
     })()`);
     process.stdout.write(`${JSON.stringify({ ...result, errors })}\n`);
   } finally {

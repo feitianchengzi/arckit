@@ -911,12 +911,13 @@ async function deleteProjectMember(memberId, projectId) {
 async function createTask() {
   const projects = workspaceOptions();
   if (!projects.length) throw new Error("当前产品集没有可创建待办的产品。");
+  const defaultProjectId = taskCreationDefaultProjectId(projects);
   const values = await openPlatformAction({
     title: "创建待办",
     lead: "待办写入 Workshop；是否进入 Automation 仍由分配对象、状态和项目授权共同决定。",
     confirmLabel: "创建待办",
     fields: [
-      platformField("project_id", "产品", { type: "select", required: true, options: projects }),
+      platformField("project_id", "产品", { type: "select", required: true, value: defaultProjectId, options: projects }),
       platformField("content", "待办内容", { type: "textarea", required: true }),
       platformField("state", "状态", { type: "select", value: "pending_review", options: taskStateOptions() }),
       platformField("executor_id", "执行人", { type: "select", options: memberSelectOptions() }),
@@ -1154,6 +1155,11 @@ function inviteFields() {
 function roleOptions() { return [{ value: "member", label: "Member" }, { value: "admin", label: "Admin" }]; }
 function taskStateOptions() { return TASK_STATES.map((value) => ({ value, label: STATE_LABELS[value] || value })); }
 function workspaceOptions() { return (state.platform.product_workspaces || []).map((item) => ({ value: item.id, label: item.name })); }
+function taskCreationDefaultProjectId(projects) {
+  return projects.some((project) => String(project.value) === String(state.selectedProjectId))
+    ? state.selectedProjectId
+    : projects[0]?.value || "";
+}
 function organizationOptions() { return (state.platform.organizations || []).map((item) => ({ value: item.id, label: item.name })); }
 function memberSelectOptions(projectId = "") { return [{ value: "", label: "未分配" }, ...(state.platform.members || []).filter((item) => !projectId || String(item.project_id) === String(projectId)).map((item) => ({ value: item.user_id, label: `${item.project_name} · ${item.username}` }))]; }
 function taskSelectOptions(projectId = "", excludedTaskId = "") { return [{ value: "", label: "根待办" }, ...(state.platform.tasks || []).filter((item) => (!projectId || String(item.project_id) === String(projectId)) && String(item.id) !== String(excludedTaskId)).map((item) => ({ value: item.id, label: `${item.project_name} · ${item.id} · ${item.title}` }))]; }

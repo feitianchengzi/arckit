@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 115
-Updated: 2026-08-19T01:22:18.570Z
+Revision: 117
+Updated: 2026-08-19T03:17:31.223Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Diagnose and repair the packaged ArcOrbit startup regression that shows a blank initial window.
+让 ArcOrbit 在顶部产品观察范围为某个特定产品时，打开“创建待办”对话框便默认选中该产品。
 
 ## Active Work
 

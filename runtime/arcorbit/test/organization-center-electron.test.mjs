@@ -27,6 +27,8 @@ test("production Organization Center keeps governance independent and invitation
   assert.equal(result.acceptanceOnlyPressed, "true");
   assert.equal(result.ordinaryQueueHidden, true);
   assert.equal(result.feedbackQueueVisible, true);
+  assert.equal(result.selectedProductTaskDefault, "12");
+  assert.equal(result.allProductsTaskDefault, "11");
   assert.deepEqual(result.workStateIds, ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"]);
   assert.equal(result.pendingStatusCount, "1");
   assert.equal(result.scopePersistedInWork, "11");

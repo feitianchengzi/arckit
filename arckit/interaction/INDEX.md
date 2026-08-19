@@ -18,7 +18,7 @@
   - default.html 平台首页线框：Advance/Platform 分组、全局产品范围、项目集管理与账户头像入口。✅ (51行)
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系和项目上下文通用邀请。✅ (7行)
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
-  - interaction.md 平台交互：全局产品范围/治理解耦、组织三级管理、项目绑定、账户入口与推进页面边界。✅ (115行)
+  - interaction.md 平台交互：全局产品范围/治理解耦、组织三级管理、项目绑定、账户入口与推进页面边界。✅ (121行)
 - automation-workspace/ 自动化指挥中心：全局产品范围、普通待办与验收问题双队列、验收问题筛选、Runtime/CLI 接力与恢复。✅
   - default.html 指挥中心线框：顶部产品范围、仅看验收问题、项目绑定、双队列、Runtime/CLI 接管与恢复。✅ (299行)
   - authentication.html 账号设置线框：已登录摘要、七天无活动失效恢复与退出。✅ (51行)
