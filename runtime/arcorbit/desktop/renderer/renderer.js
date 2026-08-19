@@ -71,6 +71,7 @@ const state = {
   selectedOrganizationMemberId: "",
   selectedOrganizationProjectId: "",
   settings: defaultSettings(),
+  productFeedback: defaultProductFeedbackStatus(),
   authentication: defaultAuthentication(),
   loginGate: false,
   authType: "email",
@@ -103,12 +104,23 @@ boot();
 
 async function boot() {
   wireEvents();
-  const [setup, settings, authentication] = await Promise.all([api.getSetupReadiness(), api.getSettings(), api.getAuthStatus()]);
+  const [setup, settings, authentication, productFeedback] = await Promise.all([api.getSetupReadiness(), api.getSettings(), api.getAuthStatus(), api.getProductFeedbackStatus()]);
   state.setup = setup;
   state.settings = normalizeSettings(settings);
   state.authentication = normalizeAuthentication(authentication);
+  state.productFeedback = normalizeProductFeedbackStatus(productFeedback);
   renderSetup();
   await refreshSnapshot();
+  api.onProductFeedbackUnread((count) => {
+    state.productFeedback.unread_count = Math.max(0, Math.trunc(Number(count) || 0));
+    renderProductFeedbackTrigger();
+  });
+  api.refreshProductFeedbackUnread().then((result) => {
+    if (Number.isFinite(Number(result?.unread_count))) {
+      state.productFeedback.unread_count = Math.max(0, Math.trunc(Number(result.unread_count) || 0));
+      renderProductFeedbackTrigger();
+    }
+  }).catch(() => {});
   api.onSetupEvent((readiness) => {
     state.setup = readiness;
     renderSetup();
@@ -199,6 +211,7 @@ function wireEvents() {
     await api.syncAutomation();
     await refreshSnapshot();
   }));
+  els.productFeedbackButton.addEventListener("click", () => runAction(openProductFeedback));
   els.automationEnabled.addEventListener("change", () => runAction(async () => {
     await api.setAutomationEnabled(els.automationEnabled.checked);
     await refreshSnapshot();
@@ -530,6 +543,16 @@ function renderCommandBar() {
   els.automationEnabled.checked = Boolean(state.snapshot.enabled);
   els.automationEnabled.disabled = !state.authentication.authenticated;
   els.productSetCluster.classList.toggle("hidden", state.page === "organization");
+  renderProductFeedbackTrigger();
+}
+
+function renderProductFeedbackTrigger() {
+  const count = state.authentication.authenticated && state.productFeedback.configured
+    ? Math.max(0, Math.trunc(Number(state.productFeedback.unread_count) || 0))
+    : 0;
+  els.productFeedbackUnreadBadge.textContent = count > 99 ? "99+" : String(count);
+  els.productFeedbackUnreadBadge.classList.toggle("hidden", count === 0);
+  els.productFeedbackUnreadBadge.setAttribute("aria-label", `${count} 条未读反馈`);
 }
 
 function renderWorkset() {
@@ -1899,6 +1922,17 @@ async function saveSettings() {
       : "设置已保存，但任务同步未完成。");
 }
 
+async function openProductFeedback() {
+  const result = await api.openProductFeedback("submit");
+  if (result.status === "opened") return;
+  if (result.status === "requires_auth") {
+    await openSettings({ loginGate: true });
+    setAuthFeedback("登录 Workshop 后即可使用 ArcOrbit 产品反馈。", true);
+    return;
+  }
+  showToast("ArcOrbit 产品反馈暂不可用，请稍后重试。", true);
+}
+
 function currentProject() {
   return state.selectedProjectId === "all" ? null
     : state.platform.projects.find((project) => String(project.id) === state.selectedProjectId)
@@ -2142,6 +2176,30 @@ function defaultSettings() {
   return {
     codex_proxy: { enabled: false, url: "http://127.0.0.1:7890" },
     task_source: { enabled: true, base_url: "https://api.feitianchengzi.com", service_name: "workshop", auth_mode: "nebula", access_token_configured: false, user_id: "", username: "", app_id: "arckit-runtime", session_id: "" }
+  };
+}
+
+function normalizeProductFeedbackStatus(value = {}) {
+  const defaults = defaultProductFeedbackStatus();
+  return {
+    ...defaults,
+    ...value,
+    configured: Boolean(value.configured),
+    notifications_enabled: Boolean(value.notifications_enabled),
+    unread_count: Math.max(0, Math.trunc(Number(value.unread_count) || 0))
+  };
+}
+
+function defaultProductFeedbackStatus() {
+  return {
+    integration_mode: "sdk-webview",
+    sdk_auth_mode: "apiKey",
+    notifications_enabled: true,
+    credential_strategy: "bundled-static",
+    configured: true,
+    project_id: 107,
+    unread_count: 0,
+    updated_at: ""
   };
 }
 

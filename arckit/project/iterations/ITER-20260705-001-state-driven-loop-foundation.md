@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-19T03:17:31.223Z
+Updated: 2026-08-19T19:14:41.484Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,16 +17,16 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
-- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
-- project_gap.GAP-platform-organization-management: resolve (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260818-003-restore-arcorbit-existing-service-boundary.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-004-consolidate-arcorbit-automation-filters-and-account-navigation.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md)
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md)
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md)
+- software_decision.security_privacy_compliance: settled (arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md)
+- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md)
+- software_decision.data_and_state: settled (arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md)
+- software_decision.feedback_and_support: settled (arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md)
+- software_decision.data_and_state: settled (arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md)
+- software_decision.security_privacy_compliance: settled (arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260819-005-arcorbit.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260819-005-arcorbit.md)
 
 ## Remaining Project Gaps
 

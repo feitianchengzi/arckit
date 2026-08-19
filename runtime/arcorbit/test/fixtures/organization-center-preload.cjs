@@ -69,10 +69,16 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   getSetupReadiness: async () => ({ status: "ready", first_install: false, checks: [], distribution: {}, counts: {} }),
   continueFromSetup: noOp,
   getSettings: async () => ({ task_source: { enabled: true, auth_mode: "nebula" }, codex_proxy: {} }),
+  getProductFeedbackStatus: async () => ({
+    integration_mode: "sdk-webview", sdk_auth_mode: "apiKey", notifications_enabled: true,
+    credential_strategy: "bundled-static", configured: true, project_id: 107, unread_count: 0
+  }),
+  openProductFeedback: async () => ({ status: "opened", mode: "submit" }),
+  refreshProductFeedbackUnread: async () => ({ status: "ready", unread_count: 0 }),
   getAuthStatus: async () => ({ status: "authenticated", authenticated: true, identity: "glare@example.test", masked_identity: "g***@example.test" }),
   automationSnapshot: async () => automation,
   platformSnapshot: async () => platform,
-  onSetupEvent: () => () => {}, onAutomationEvent: () => () => {}, onEvent: () => () => {},
+  onSetupEvent: () => () => {}, onAutomationEvent: () => () => {}, onEvent: () => () => {}, onProductFeedbackUnread: () => () => {},
   setActiveWorkset: noOp, syncAutomation: noOp, setAutomationEnabled: noOp, setQueuePaused: noOp,
   updateWorkset: async (input) => { calls.push(["updateWorkset", input]); platform.active_workset.project_ids = input.project_ids; return input; },
   executePlatformAction: async (command, input) => {

@@ -71,6 +71,81 @@ test("Workshop task source fails closed when the current project executor cannot
   );
 });
 
+test("Workshop task source recovers the stable current-user id from the accepted Nebula access token", async () => {
+  const accessToken = testJwt({ token_type: "access", user_id: 7, sub: "7", username: "glare" });
+  const source = createWorkshopTaskSource({
+    settings: {
+      enabled: true,
+      base_url: "https://workshop.example",
+      service_name: "workshop",
+      auth_mode: "nebula",
+      access_token: accessToken,
+      refresh_token: "refresh-1"
+    },
+    fetchImpl: async (url) => {
+      assert.equal(new URL(url).pathname.endsWith("/users"), true);
+      return jsonResponse({ data: { user: { username: "glare", avatar: "avatar.png" } } });
+    }
+  });
+
+  const user = await source.getCurrentUser();
+  assert.equal(user.id, "7");
+  assert.equal(user.name, "glare");
+  assert.deepEqual(user.raw, { username: "glare", avatar: "avatar.png" });
+});
+
+test("Workshop task source rejects conflicting or malformed Nebula identity claims", async () => {
+  const createSource = (accessToken) => createWorkshopTaskSource({
+    settings: {
+      enabled: true,
+      base_url: "https://workshop.example",
+      service_name: "workshop",
+      auth_mode: "nebula",
+      access_token: accessToken,
+      refresh_token: "refresh-1"
+    },
+    fetchImpl: async () => jsonResponse({ data: { user: { username: "glare" } } })
+  });
+
+  assert.equal((await createSource(testJwt({ token_type: "access", user_id: 7, sub: "8" })).getCurrentUser()).id, "");
+  assert.equal((await createSource("not-a-jwt").getCurrentUser()).id, "");
+  assert.equal((await createSource(testJwt({ token_type: "refresh", user_id: 7, sub: "7" })).getCurrentUser()).id, "");
+});
+
+test("Workshop task source rejects a current-user response completed after logout", async () => {
+  let settings = {
+    enabled: true,
+    base_url: "https://workshop.example",
+    service_name: "workshop",
+    auth_mode: "nebula",
+    access_token: testJwt({ token_type: "access", user_id: 7, sub: "7" }),
+    refresh_token: "refresh-1"
+  };
+  let releaseUserRequest;
+  let markUserRequestStarted;
+  const userRequestStarted = new Promise((resolve) => { markUserRequestStarted = resolve; });
+  const source = createWorkshopTaskSource({
+    readSettings: async () => settings,
+    saveSettings: async (next) => { settings = next; return settings; },
+    fetchImpl: async (url) => {
+      assert.equal(new URL(url).pathname.endsWith("/users"), true);
+      markUserRequestStarted();
+      await new Promise((resolve) => { releaseUserRequest = resolve; });
+      return jsonResponse({ data: { user: { username: "glare" } } });
+    }
+  });
+
+  const currentUser = source.getCurrentUser();
+  await userRequestStarted;
+  await source.logout();
+  releaseUserRequest();
+
+  await assert.rejects(
+    currentUser,
+    (error) => error instanceof TaskSourceError && error.code === "unauthenticated"
+  );
+});
+
 test("Workshop platform adapter reads organizations, members, full project tasks, and V1 feedback without widening automation tasks", async () => {
   const source = createWorkshopTaskSource({
     settings: { enabled: true, base_url: "https://workshop.example", access_token: "secret", username: "glare" },
@@ -630,4 +705,9 @@ function jsonResponse(payload, status = 200) {
     status,
     headers: { "content-type": "application/json" }
   });
+}
+
+function testJwt(payload) {
+  const encode = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+  return `${encode({ alg: "RS256", typ: "JWT" })}.${encode(payload)}.test-signature`;
 }

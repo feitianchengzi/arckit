@@ -8,3 +8,4 @@
   - state-condition-ledger-solution.md Software Definition Ledger：定义 Project/Case 边界、stable candidate identity、fresh-fact invariant assessment、Transition v8 与 Closeout v2。✅ (263行)
   - desktop-execution-solution.md Desktop 执行方案：定义 task session、独立验收反馈记录与队列、执行租约、持久 thread/Case binding、恢复和消息投影。✅ (169行)
   - platform-composition-solution.md 平台组合方案：定义独立组织治理、多产品 workset、完整分页、Workshop 领域适配、平台 IPC、双反馈线与 v10 迁移。✅ (350行)
+  - product-feedback-integration.md 产品反馈 SDK：定义 Project 107、受限 Electron WebContents、SDK 文档身份、草稿保持、Workshop 稳定身份和未读角标。✅ (67行)

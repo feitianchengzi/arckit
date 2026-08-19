@@ -337,8 +337,21 @@ export function createWorkshopTaskSource({
     logout,
     getAuthStatus,
     async getCurrentUser() {
+      const requestEpoch = authEpoch;
       const payload = await request("/users");
-      return normalizeUser(payload?.user ?? payload);
+      if (authEpoch !== requestEpoch) {
+        throw new TaskSourceError("Workshop 会话已变化。", { code: "unauthenticated" });
+      }
+      const user = normalizeUser(payload?.user ?? payload);
+      if (!user || user.id) return user;
+      const current = await loadConfig();
+      if (authEpoch !== requestEpoch) {
+        throw new TaskSourceError("Workshop 会话已变化。", { code: "unauthenticated" });
+      }
+      const sessionUserId = current.auth_mode === "nebula"
+        ? nebulaAccessTokenUserId(current.access_token)
+        : current.auth_mode === "headers" ? scalarId(current.user_id) : "";
+      return sessionUserId ? { ...user, id: sessionUserId } : user;
     },
     listProjects,
     async listTasks(projectId, options = {}) {
@@ -475,6 +488,22 @@ function normalizeUser(value) {
     name: String(value.name || value.username || value.email || value.phone || "Current user").trim(),
     raw: value
   };
+}
+
+function nebulaAccessTokenUserId(value) {
+  const parts = String(value || "").split(".");
+  if (parts.length !== 3 || !parts[1]) return "";
+  let claims;
+  try {
+    claims = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+  } catch {
+    return "";
+  }
+  if (!claims || typeof claims !== "object" || claims.token_type !== "access") return "";
+  const userId = scalarId(claims.user_id);
+  const subject = scalarId(claims.sub);
+  if (!userId || (subject && subject !== userId)) return "";
+  return userId;
 }
 
 function normalizeVerificationRequest(value = {}) {

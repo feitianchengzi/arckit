@@ -13,6 +13,9 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   listMessages: (projectId, sessionId) => ipcRenderer.invoke("arckit:list-messages", projectId, sessionId),
   getSettings: () => ipcRenderer.invoke("arckit:get-settings"),
   updateSettings: (input) => ipcRenderer.invoke("arckit:update-settings", input),
+  getProductFeedbackStatus: () => ipcRenderer.invoke("arckit:product-feedback-status"),
+  openProductFeedback: (mode) => ipcRenderer.invoke("arckit:product-feedback-open", mode),
+  refreshProductFeedbackUnread: () => ipcRenderer.invoke("arckit:product-feedback-refresh-unread"),
   getAuthStatus: () => ipcRenderer.invoke("arckit:auth-status"),
   sendAuthVerification: (input) => ipcRenderer.invoke("arckit:auth-send-verification", input),
   loginWithCode: (input) => ipcRenderer.invoke("arckit:auth-login", input),
@@ -44,6 +47,11 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     ipcRenderer.invoke("arckit:platform-workspace-preference", projectId, input)
   ),
   executePlatformAction: (command, input) => ipcRenderer.invoke("arckit:platform-action", command, input),
+  onProductFeedbackUnread: (listener) => {
+    const handler = (_event, count) => listener(count);
+    ipcRenderer.on("arckit:product-feedback-unread", handler);
+    return () => ipcRenderer.off("arckit:product-feedback-unread", handler);
+  },
   onEvent: (listener) => {
     const handler = (_event, payload) => listener(payload);
     ipcRenderer.on("arckit:event", handler);

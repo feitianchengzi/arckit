@@ -24,7 +24,7 @@
 
 `agentic-software-development/runtime-automation-workspace.md` 定义 Desktop 如何以任务服务器项目和待办驱动 Runtime loop，是 `controller-worker-loop.md` 在用户任务来源、串行调度、按需人工介入与异常恢复上的产品表面约束；对应交互事实位于 `arckit/interaction/automation-workspace/` 和 `arckit/interaction/task-browser/`。
 
-`agentic-software-development/arcorbit-platform-capabilities.md` 在 `runtime-automation-workspace.md` 的自动执行核心外，定义 ArcOrbit 如何接入 Workshop 的组织、Project、成员、完整待办和用户反馈能力，并用 Desktop 本地 Product Workspace 与多产品工作集形成平台入口。它保留 `product-architecture.md`、`controller-worker-loop.md` 和 `runtime-automation-workspace.md` 的单活动执行、持久 thread、trusted ledger、人工介入与恢复边界，不把服务端协作数据复制为第二个本地真相源。
+`agentic-software-development/arcorbit-platform-capabilities.md` 在 `runtime-automation-workspace.md` 的自动执行核心外，定义 ArcOrbit 如何接入 Workshop 的组织、Project、成员、完整待办和用户反馈能力，并用 Desktop 本地 Product Workspace 与多产品工作集形成平台入口。它还定义与 Workset Feedback、验收问题相互独立的 ArcOrbit 产品反馈中心；对应交互事实位于 `arckit/interaction/product-feedback-center/`，技术边界位于 `arckit/tech/arcorbit/product-feedback-integration.md`。它保留 `product-architecture.md`、`controller-worker-loop.md` 和 `runtime-automation-workspace.md` 的单活动执行、持久 thread、trusted ledger、人工介入与恢复边界，不把服务端协作数据复制为第二个本地真相源。
 
 `agentic-software-development/arcorbit-organization-management.md` 从平台能力规格拆出组织治理的稳定行为，定义 Organization Center 不受 Workset 裁剪、角色决定项目可见性、成员页只展示已有关系、项目上下文通用邀请与邀请码加入。对应交互事实位于 `arckit/interaction/platform-workspace/`，技术实现位于 `arckit/tech/arcorbit/platform-composition-solution.md`。
 

@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-19T03:17:31.223Z",
-    "revision": 117
+    "updated_at": "2026-08-19T19:14:41.484Z",
+    "revision": 129
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "让 ArcOrbit 在顶部产品观察范围为某个特定产品时，打开“创建待办”对话框便默认选中该产品。",
+      "current_focus": "ArcOrbit 产品反馈输入清空问题已完成根因修复、真实环境验证和 implementation-focused completion review；当前 Case 可关闭。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,21 +147,19 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit preserves Setup Readiness, supervised one-thread-per-todo automation, trusted ledger transitions, intervention/recovery and acceptance feedback while providing Desktop composition of Workshop organizations, organization and project membership, personal and organization projects, seven-state todos, ordinary user feedback, local Product Workspaces and a persistent multi-product Workset. Organization governance is complete for the current service boundary through overview, member/project management, truthful role visibility, join-by-code and project-bound one-shot invitations.",
-          "reason": "The platform capability set is now backed by formal specifications, production behavior and repeatable verification without redefining Workshop or Runtime authority.",
+          "statement": "ArcOrbit preserves Setup Readiness, supervised one-thread-per-todo automation, trusted ledger transitions, intervention/recovery and acceptance feedback while providing Desktop composition of Workshop organizations, organization and project membership, personal and organization projects, seven-state todos, ordinary user feedback, local Product Workspaces and a persistent multi-product Workset. Organization governance is complete for the current service boundary through overview, member/project management, truthful role visibility, join-by-code and project-bound one-shot invitations. ArcOrbit 还提供与 Workset Feedback 和验收问题独立的自身产品反馈中心，固定服务于 Feedback Project 107，支持提交反馈、查看当前用户反馈，并在唯一入口显示 SDK 未读数量角标。",
+          "reason": "用户明确指定 Project ID 107 并要求开启未读角标，稳定规格和生产实现已经兑现。",
           "evidence": [
+            "User supplied Project ID 107 and requested unread badge on 2026-08-19; credential content intentionally excluded",
             "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
-            "arckit/spec/agentic-software-development/arcorbit-organization-management.md",
-            "runtime/arcorbit/src/platform-coordinator.mjs",
-            "runtime/arcorbit/test/platform-coordinator.test.mjs"
+            "arckit/interaction/product-feedback-center/interaction.md",
+            "arckit/tech/arcorbit/product-feedback-integration.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when Workshop adds invitation history/revoke, safe organization reassignment, or a new authoritative governance capability.",
-          "revision": 9
+          "resume_condition": "当产品反馈范围、目标项目、通知能力或与 Workshop Feedback 的边界变化时重审。",
+          "revision": 11
         },
-        "gap_refs": [
-          "GAP-agent-scenario-evaluation"
-        ]
+        "gap_refs": []
       },
       {
         "id": "runtime_surfaces",
@@ -189,18 +187,18 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit realizes simultaneous multi-product Today, Work, Automation and Feedback through a persistent Workset and a shared top product-set observation scope. Every ADVANCE page can switch between the complete product set and one member product and can open product-set management; this scope never changes execution eligibility. Work owns the seven todo-status filters, Automation owns the acceptance-feedback-only filter, and primary navigation has no TASK STATUS group. Platform governance remains in a Workset-independent Organization center. Users choose an organization or Personal Projects scope, then use Overview, Members and Projects; the overview exposes the visible member-by-project relationship, ordinary members see participating projects, owner/admin see the organization-wide project scope, member details do not imply targeted invitations, and project owner/admin create explicitly one-shot project-bound invitations. Project binding can add a local project in place and continue binding. The global sidebar footer exposes only a user-avatar account entry, with no standalone add-project, local Runtime or task-source entries; the preserved account page uses the Workshop current-user platform display name.",
-          "reason": "The user explicitly confirmed the Work, Automation, primary-navigation and global product-scope interaction boundaries.",
+          "statement": "ArcOrbit realizes simultaneous multi-product Today, Work, Automation and Feedback through a persistent Workset and a shared top product-set observation scope. Every ADVANCE page can switch between the complete product set and one member product and can open product-set management; this scope never changes execution eligibility. Work owns the seven todo-status filters, Automation owns the acceptance-feedback-only filter, and primary navigation has no TASK STATUS group. Platform governance remains in a Workset-independent Organization center. Users choose an organization or Personal Projects scope, then use Overview, Members and Projects; the overview exposes the visible member-by-project relationship, ordinary members see participating projects, owner/admin see the organization-wide project scope, member details do not imply targeted invitations, and project owner/admin create explicitly one-shot project-bound invitations. Project binding can add a local project in place and continue binding. The global sidebar footer exposes only a user-avatar account entry, with no standalone add-project, local Runtime or task-source entries; the preserved account page uses the Workshop current-user platform display name. 顶部命令栏提供唯一的“产品反馈”入口，登录用户无需配置即可向内置 Project 107 提交反馈并在同一窗口查看自己的反馈；入口按 1-99、99+ 显示未读，零未读隐藏，退出账户清零；未登录或 SDK 失败时提供脱敏恢复。产品反馈中心在 submit/status 路由和后台未读刷新期间复用同一健康 SDK 文档；后台刷新不重载页面、不打断输入或清空进行中正文，身份切换、关闭或显式重试结束旧草稿上下文。",
+          "reason": "已确认并修复后台未读刷新误重载 SDK 文档的问题，稳定交互源、线框投影和真实 Electron 行为现在一致。",
           "evidence": [
-            "User request received 2026-08-19",
-            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
-            "arckit/interaction/platform-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/interaction/task-browser/interaction.md"
+            "arckit/interaction/product-feedback-center/interaction.md",
+            "arckit/interaction/product-feedback-center/default.html",
+            "runtime/arcorbit/src/product-feedback-window.mjs",
+            "runtime/arcorbit/test/product-feedback-window.test.mjs",
+            "Real Electron preservation verification 2026-08-20."
           ],
           "confidence": "high",
-          "resume_condition": "Revisit if Workset membership, global ADVANCE observation semantics, panel filter ownership, sidebar information architecture or Workshop current-user identity fields change.",
-          "revision": 16
+          "resume_condition": "当入口位置、草稿生命周期、配置责任、角标语义、模式切换或恢复责任变化时重审。",
+          "revision": 20
         },
         "gap_refs": []
       },
@@ -231,16 +229,17 @@
         "evidence_expectation": "Durable product and technical evidence sufficient to recover access decisions.",
         "decision": {
           "status": "settled",
-          "statement": "Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints. Runtime sessions use a server-backed rolling seven-day inactivity window: successful verification login, successful startup session restoration/refresh, or successful token refresh renews the window through rotated server credentials; only more than seven days without such activity, missing or expired credentials, explicit logout, or explicit server rejection/revocation requires login again.",
-          "reason": "The operator established the rolling-seven-day outcome, and diagnosis separated valid activity, server credential rotation, local persistence and revocation boundaries.",
+          "statement": "Authentication is required only for configured execution/task sources; authorization remains bounded by user approval, workspace scope, sandbox and trusted entrypoints. Runtime sessions use a server-backed rolling seven-day inactivity window: successful verification login, successful startup session restoration/refresh, or successful token refresh renews the window through rotated server credentials; only more than seven days without such activity, missing or expired credentials, explicit logout, or explicit server rejection/revocation requires login again. ArcOrbit 产品反馈要求有效 Workshop 登录，并以服务端 current-user 的不可变业务 ID 作为反馈身份；退出或切换账户会关闭旧反馈上下文。",
+          "reason": "反馈归属必须稳定且不能使用邮箱、手机号、昵称或 Renderer 可编辑身份。",
           "evidence": [
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/login/interaction.md",
-            "arckit/tech/arckit-runtime/solution.md"
+            "User request received 2026-08-19",
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+            "arckit/interaction/product-feedback-center/interaction.md",
+            "arckit/tech/arcorbit/product-feedback-integration.md"
           ],
           "confidence": "high",
-          "resume_condition": "",
-          "revision": 2
+          "resume_condition": "当支持游客反馈或反馈身份迁移时重审。",
+          "revision": 3
         },
         "gap_refs": []
       },
@@ -251,19 +250,18 @@
         "evidence_expectation": "Durable data and technical evidence sufficient to recover the state model.",
         "decision": {
           "status": "settled",
-          "statement": "Canonical development state remains in Project/Iteration/Case ledgers and Workshop remains source of truth for account, organization, project, membership, task, attachment, and ordinary-feedback records. ArcOrbit owns Product Workspace bindings from a Workshop Project to a local repository, persistent multi-product workset preferences, Runtime execution/session/thread state, intervention/recovery state, and first-class acceptance-feedback records outside the target repository.",
-          "reason": "Separating remote domain authority from local composition and Runtime state allows platform expansion without duplicating or replacing existing services.",
+          "statement": "Canonical development state remains in Project/Iteration/Case ledgers and Workshop remains source of truth for account, organization, project, membership, task, attachment, and ordinary-feedback records. ArcOrbit owns Product Workspace bindings from a Workshop Project to a local repository, persistent multi-product workset preferences, Runtime execution/session/thread state, intervention/recovery state, and first-class acceptance-feedback records outside the target repository. 产品反馈 Project ID 107 和项目专用 API Key 都是 ArcOrbit 产品代码常量并进入打包产物，不写入 userData；未读数量是运行期瞬时 UI 状态，反馈正文、消息和状态仍由 Feedback 平台拥有。",
+          "reason": "用户选择 bundled-static 凭据并移除 safeStorage 状态。",
           "evidence": [
             "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
-            "runtime/arcorbit/src/desktop/desktop-store.mjs"
+            "arckit/tech/arcorbit/product-feedback-integration.md",
+            "runtime/arcorbit/src/product-feedback-service.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "Architecture must specify schema migration and stale/offline behavior before new local state ships.",
-          "revision": 7
+          "resume_condition": "当目标 Project、凭据分发、未读持久化或服务端 Session 模式变化时重审。",
+          "revision": 10
         },
-        "gap_refs": [
-          "GAP-cross-record-audit"
-        ]
+        "gap_refs": []
       },
       {
         "id": "external_integrations",
@@ -272,19 +270,19 @@
         "evidence_expectation": "Durable contract evidence sufficient to recover material integration boundaries.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit integrates with Codex app-server/CLI and Workshop through explicit main-process adapters; trusted ledger entrypoints remain repository-owned. Workshop authentication preserves server-rotated credentials and the rolling seven-day inactivity contract. The Automation adapter remains executor-scoped, while the separate Platform Adapter reads organization, project, membership, full project task and Feedback V1 domains. Feedback V2 remains disabled until a separately trusted adapter proves capability; missing conditional update, member authorization and task-history service contracts are surfaced as weak consistency or unavailable actions rather than invented behavior.",
-          "reason": "The platform architecture separates execution-safe task access from broader product-domain access and assigns every unproven server capability an explicit fail-closed behavior.",
+          "statement": "ArcOrbit integrates with Codex app-server/CLI and Workshop through explicit main-process adapters; trusted ledger entrypoints remain repository-owned. Workshop authentication preserves server-rotated credentials and the rolling seven-day inactivity contract. The Automation adapter remains executor-scoped, while the separate Platform Adapter reads organization, project, membership, full project task and Feedback V1 domains. Feedback V2 remains disabled until a separately trusted adapter proves capability; missing conditional update, member authorization and task-history service contracts are surfaced as weak consistency or unavailable actions rather than invented behavior. ArcOrbit 自身产品反馈独立使用 Feedback SDK WebView V2 的 API Key 直连契约；它不启用 Platform Feedback V2 管理 adapter，也不推断未确认的宿主 Session endpoint。",
+          "reason": "目标 skill 的版本化 SDK 契约与现有 Workshop Platform Adapter 边界要求两类 V2 能力保持独立。",
           "evidence": [
-            "arckit/tech/arcorbit/platform-composition-solution.md",
-            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md"
+            "User request received 2026-08-19",
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+            "arckit/interaction/product-feedback-center/interaction.md",
+            "arckit/tech/arcorbit/product-feedback-integration.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when Workshop adds verified conditional update, member authorization, task history, or Feedback V2 server contracts.",
-          "revision": 3
+          "resume_condition": "当宿主 Session endpoint 或原生 API 获得完整平台契约时重审。",
+          "revision": 4
         },
-        "gap_refs": [
-          "GAP-runtime-resilience-and-adapters"
-        ]
+        "gap_refs": []
       },
       {
         "id": "feedback_and_support",
@@ -293,17 +291,17 @@
         "evidence_expectation": "Durable product and operational evidence sufficient to recover the feedback decision.",
         "decision": {
           "status": "settled",
-          "statement": "Operational feedback uses the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization. Recovery feedback continues an interrupted active execution on its task session/thread; acceptance feedback from completed or accepted review creates an independent persisted work item, keeps the source todo terminal, reuses its session/thread and exposes issue progress and solution evidence. No separate public support portal is currently required.",
-          "reason": "The cumulative support boundary distinguishes recovery steering and acceptance findings while retaining operational evidence channels.",
+          "statement": "Operational feedback uses the persistent Agent conversation, Runtime activity/events, diagnostics and task-source synchronization. Recovery feedback continues an interrupted active execution on its task session/thread; acceptance feedback from completed or accepted review creates an independent persisted work item, keeps the source todo terminal, reuses its session/thread and exposes issue progress and solution evidence. No separate public support portal is currently required. ArcOrbit 同时提供自身产品反馈中心：一个入口内向固定 Feedback Project 107 提交反馈、查看当前用户反馈并显示 SDK 未读数量角标；它使用 Feedback SDK V2，与 Runtime 恢复反馈、验收问题和 Workset 普通用户反馈相互独立。",
+          "reason": "用户明确要求独立产品内反馈和未读角标，稳定规格、交互与生产实现已经兑现。",
           "evidence": [
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/task-browser/interaction.md",
-            "arckit/tech/arckit-runtime/desktop-execution-solution.md",
-            "runtime/arckit-runtime/src/automation-coordinator.mjs"
+            "User supplied Project ID 107 and requested unread badge on 2026-08-19; credential content intentionally excluded",
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+            "arckit/interaction/product-feedback-center/interaction.md",
+            "arckit/tech/arcorbit/product-feedback-integration.md"
           ],
           "confidence": "high",
-          "resume_condition": "",
-          "revision": 4
+          "resume_condition": "当反馈处理责任、公开支持入口、目标项目、未读通知或身份模式变化时重审。",
+          "revision": 6
         },
         "gap_refs": []
       },
@@ -333,20 +331,17 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs; ArcOrbit is its Electron Desktop/Runtime host. The policy-neutral Runtime Kernel, persistent one-thread-per-todo model and trusted capabilities remain unchanged. Platform composition uses Desktop Store v10, a main-process Platform Coordinator, restricted Workshop Platform Adapter and typed preload IPC. ArcOrbit consumes existing Workshop services without requiring backend changes: organization-scoped request context supplies known project organization identity, current-member is_external marks external participation, remote Workshop records remain authoritative, and Renderer receives neither credentials nor generic request access. Packaged ArcOrbit no longer reinterprets its Electron executable as Node: Electron main launches the Runtime with utilityProcess, typed parent-port controls preserve steer/interrupt semantics, trusted ledger orchestration calls manifest-resolved module APIs in process, standalone Codex remains an external executable, and packaging disables the RunAsNode/Node-options/CLI-inspect fuses while enforcing ASAR integrity. The current BrowserWindow Renderer loads from a file:// entry inside app.asar, so its File Protocol privilege fuse remains enabled and is verified independently from the disabled Node-mode fuses.",
-          "reason": "Packaged diagnostic evidence proves the File Protocol fuse is required by the retained loadFile Renderer contract and is independent of Electron-as-Node; the corrected package verifies both UI loading and Node-mode hardening.",
+          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs; ArcOrbit is its Electron Desktop/Runtime host. The policy-neutral Runtime Kernel, persistent one-thread-per-todo model and trusted capabilities remain unchanged. Platform composition uses Desktop Store v10, a main-process Platform Coordinator, restricted Workshop Platform Adapter and typed preload IPC. ArcOrbit consumes existing Workshop services without requiring backend changes: organization-scoped request context supplies known project organization identity, current-member is_external marks external participation, remote Workshop records remain authoritative, and Renderer receives neither credentials nor generic request access. Packaged ArcOrbit no longer reinterprets its Electron executable as Node: Electron main launches the Runtime with utilityProcess, typed parent-port controls preserve steer/interrupt semantics, trusted ledger orchestration calls manifest-resolved module APIs in process, standalone Codex remains an external executable, and packaging disables the RunAsNode/Node-options/CLI-inspect fuses while enforcing ASAR integrity. The current BrowserWindow Renderer loads from a file:// entry inside app.asar, so its File Protocol privilege fuse remains enabled and is verified independently from the disabled Node-mode fuses. 产品反馈由 Electron main process 管理受限子 BrowserWindow 与独立 SDK WebContents；主 file:// Renderer 不直接嵌入生产跨域 iframe，也不获得 SDK 凭据或通用远端访问。产品反馈 SDK 文档身份由固定 HTTPS origin、/sdk-v2 路径空间和 embed=web 共同确定；已配置文档在 submit/status 路由和未读刷新期间不执行 loadURL 或重复 configure，配置/身份变化、无效文档与显式 retry 才重新加载固定入口。",
+          "reason": "SDK 使用 history route 表达 submit/status，宿主必须按文档身份而非固定入口 URL 判断健康状态，才能同时保持草稿、未读和安全边界。",
           "evidence": [
-            "arckit/tech/arcorbit/installer-supply-chain.md",
-            "runtime/arcorbit/scripts/flip-electron-fuses.cjs",
-            "runtime/arcorbit/desktop/main.mjs",
-            "runtime/arcorbit/test/package-distribution.test.mjs",
-            "Packaged Renderer smoke: title ArcOrbit, preload API true, setup surface true, stylesheet count 1",
-            "Packaged Runtime negative smoke passed with ELECTRON_RUN_AS_NODE=1",
-            "Packaged fuse wire: RunAsNode disabled and GrantFileProtocolExtraPrivileges enabled"
+            "arckit/tech/arcorbit/product-feedback-integration.md",
+            "runtime/arcorbit/src/product-feedback-window.mjs",
+            "runtime/arcorbit/test/product-feedback-window.test.mjs",
+            "Real Electron preservation verification 2026-08-20."
           ],
           "confidence": "high",
-          "resume_condition": "Revisit if ArcOrbit replaces file:// loadFile with a custom protocol, Electron utility-process semantics change, packaged ASAR execution changes, or the trusted ledger module contract materially changes.",
-          "revision": 20
+          "resume_condition": "当 Renderer origin、Electron WebContents API、Feedback SDK loader/route 契约或反馈身份配置变化时重审。",
+          "revision": 22
         },
         "gap_refs": []
       },
@@ -356,20 +351,20 @@
         "decision_expectation": "State sensitive data, credentials, trust boundaries, threats, privacy expectations, and applicable compliance requirements.",
         "evidence_expectation": "Durable risk and technical evidence sufficient to recover the governing protections.",
         "decision": {
-          "revision": 1,
           "status": "settled",
-          "statement": "Secrets stay outside canonical project state; Runtime enforces login/configured-source boundaries, workspace authorization, sandbox/approval rules and trusted deterministic writes.",
-          "reason": "Security and authorization constraints are explicit in repository and Runtime contracts.",
+          "statement": "Runtime 和 Workshop 服务凭据保持在受控存储与边界内；ArcOrbit 产品反馈是用户明确接受的例外：Project 107 的项目专用 API Key 作为 bundled-static 常量进入源码与安装包，客户端持有者可提取，因此必须保持最小权限、项目专用和可轮换。该 Key 不进入 URL、Renderer snapshot、IPC、日志或报告；轮换需要修改代码、重新构建发布并按升级节奏撤销旧 Key。",
+          "reason": "用户明确选择无配置静态 Key 分发，安全决定必须如实表达而不能继续宣称 secret-store。",
           "evidence": [
-            "AGENTS.md",
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md"
+            "User explicitly requested bundled code credential and no configuration UI on 2026-08-19; credential content intentionally omitted from ledger",
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+            "arckit/tech/arcorbit/product-feedback-integration.md",
+            "runtime/arcorbit/src/product-feedback-service.mjs"
           ],
           "confidence": "high",
-          "resume_condition": ""
+          "resume_condition": "当反馈认证改为宿主 Session、Key 权限/分发或客户端发布策略变化时重审。",
+          "revision": 3
         },
-        "gap_refs": [
-          "GAP-security-real-project-validation"
-        ]
+        "gap_refs": []
       },
       {
         "id": "quality_and_validation",

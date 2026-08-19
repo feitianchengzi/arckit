@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, utilityProcess } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, utilityProcess, WebContentsView } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
@@ -10,6 +10,8 @@ import { createSkillProvisioningManager } from "../src/skill-provisioning-manage
 import { createWorkshopTaskSource } from "../src/task-source-adapter.mjs";
 import { canonicalArcOrbitUserDataPath } from "../src/desktop-user-data.mjs";
 import { createElectronUtilityRuntimeHost } from "../src/electron-utility-runtime-host.mjs";
+import { createProductFeedbackService } from "../src/product-feedback-service.mjs";
+import { createProductFeedbackSurface } from "../src/product-feedback-window.mjs";
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
@@ -22,8 +24,10 @@ let automationCoordinator;
 let platformCoordinator;
 let workshopService;
 let skillProvisioningManager;
+let productFeedbackService;
 let quitAfterCleanup = false;
 let syncTimer;
+let productFeedbackUnreadTimer;
 let automationStarted = false;
 
 app.whenReady().then(async () => {
@@ -43,6 +47,22 @@ app.whenReady().then(async () => {
   workshopService = createWorkshopTaskSource({
     readSettings: () => runManager.getTaskSourceSettings(),
     saveSettings: (settings) => runManager.replaceTaskSourceSettings(settings)
+  });
+  const productFeedbackSurface = createProductFeedbackSurface({
+    BrowserWindow,
+    WebContentsView,
+    shellFile: join(desktopDir, "product-feedback/index.html"),
+    shellPreload: join(desktopDir, "product-feedback/preload.cjs"),
+    getParentWindow: () => mainWindow,
+    onUnreadCount: (count) => productFeedbackService?.acceptUnreadCount(count)
+  });
+  productFeedbackService = createProductFeedbackService({
+    getAuthStatus: () => workshopService.getAuthStatus(),
+    getCurrentUser: () => workshopService.getCurrentUser(),
+    surface: productFeedbackSurface
+  });
+  productFeedbackService.onUnreadCount((count) => {
+    if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("arckit:product-feedback-unread", count);
   });
   const resourcesRoot = app.isPackaged ? process.resourcesPath : join(runtimeRoot, "dist-package", "resources");
   skillProvisioningManager = createSkillProvisioningManager({
@@ -85,6 +105,7 @@ app.whenReady().then(async () => {
     await runRendererLoadSmoke();
     return;
   }
+  startProductFeedbackUnreadSync();
   const readiness = await skillProvisioningManager.check();
   if (readiness.status === "ready" && !readiness.first_install) {
     startAutomation();
@@ -137,7 +158,12 @@ app.on("before-quit", async (event) => {
       clearInterval(syncTimer);
       syncTimer = null;
     }
+    if (productFeedbackUnreadTimer) {
+      clearInterval(productFeedbackUnreadTimer);
+      productFeedbackUnreadTimer = null;
+    }
     automationCoordinator?.dispose();
+    productFeedbackService?.close();
     await skillProvisioningManager?.waitForIdle();
     await runManager.abortActiveRuns({
       reason: "ArcOrbit is quitting; active runs were aborted."
@@ -219,11 +245,18 @@ function registerIpc() {
   ipcMain.handle("arckit:list-messages", async (_event, projectId, sessionId) => runManager.listMessages(projectId, sessionId));
   ipcMain.handle("arckit:get-settings", async () => runManager.getSettings());
   ipcMain.handle("arckit:update-settings", async (_event, input) => runManager.updateSettings(input));
+  ipcMain.handle("arckit:product-feedback-status", async () => productFeedbackService.getStatus());
+  ipcMain.handle("arckit:product-feedback-open", async (_event, mode) => productFeedbackService.open(mode));
+  ipcMain.handle("arckit:product-feedback-refresh-unread", async () => productFeedbackService.refreshUnread());
+  ipcMain.handle("arckit:product-feedback-mode", async (_event, mode) => productFeedbackService.switchMode(mode));
+  ipcMain.handle("arckit:product-feedback-retry", async () => productFeedbackService.retry());
+  ipcMain.handle("arckit:product-feedback-close", async () => productFeedbackService.close());
   ipcMain.handle("arckit:auth-status", async () => workshopService.getAuthStatus());
   ipcMain.handle("arckit:auth-send-verification", async (_event, input) => workshopService.sendVerification(input));
   ipcMain.handle("arckit:auth-login", async (_event, input) => {
     const authentication = await workshopService.loginWithCode(input);
     await automationCoordinator.sync();
+    productFeedbackService.refreshUnread().catch(() => {});
     return authentication;
   });
   ipcMain.handle("arckit:auth-logout", async (_event, input = {}) => {
@@ -239,6 +272,7 @@ function registerIpc() {
       await automationCoordinator.stopCurrent();
     }
     const authentication = await workshopService.logout();
+    productFeedbackService.resetSession();
     await automationCoordinator.clearRemoteSession();
     return { requires_confirmation: false, authentication };
   });
@@ -277,5 +311,13 @@ function startAutomation() {
   automationCoordinator.sync({ resumeRecoverable: true }).catch((error) => console.error("Initial task sync failed:", error));
   syncTimer = setInterval(() => {
     automationCoordinator.sync().catch((error) => console.error("Background task sync failed:", error));
+  }, 60_000);
+}
+
+function startProductFeedbackUnreadSync() {
+  if (productFeedbackUnreadTimer) return;
+  productFeedbackService.refreshUnread().catch(() => {});
+  productFeedbackUnreadTimer = setInterval(() => {
+    productFeedbackService.refreshUnread().catch(() => {});
   }, 60_000);
 }

@@ -385,6 +385,35 @@ test("desktop main and preload expose bounded platform composition IPC without c
   assert.doesNotMatch(preload, /access_token|refresh_token|apiKey|sessionToken|genericRequest/);
 });
 
+test("ArcOrbit exposes one authenticated in-product feedback entry without user configuration", async () => {
+  const [main, preload, source, html] = await Promise.all([
+    readFile(desktopMainPath, "utf8"),
+    readFile(desktopPreloadPath, "utf8"),
+    readFile(rendererPath, "utf8"),
+    readFile(rendererHtmlPath, "utf8")
+  ]);
+  assert.match(html, /id="productFeedbackButton"/);
+  assert.match(html, /id="productFeedbackUnreadBadge"/);
+  assert.doesNotMatch(html, /productFeedbackSettings|productFeedbackProjectId|productFeedbackApiKey/);
+  assert.match(source, /api\.openProductFeedback\("submit"\)/);
+  assert.match(source, /api\.refreshProductFeedbackUnread\(\)/);
+  assert.match(source, /api\.onProductFeedbackUnread/);
+  assert.match(source, /登录 Workshop 后即可使用 ArcOrbit 产品反馈/);
+  assert.doesNotMatch(source, /saveProductFeedbackConfig|clearProductFeedbackConfig|留空保留现有 Key/);
+  for (const channel of [
+    "arckit:product-feedback-status",
+    "arckit:product-feedback-open",
+    "arckit:product-feedback-refresh-unread"
+  ]) {
+    const pattern = new RegExp(channel.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    assert.match(main, pattern);
+    assert.match(preload, pattern);
+  }
+  assert.doesNotMatch(`${main}\n${preload}`, /product-feedback-save|product-feedback-clear|product-feedback-console/);
+  assert.doesNotMatch(preload, /apiKey|customUserId/);
+  assert.doesNotMatch(preload, /fetch|httpRequest|executeJavaScript|loadURL/);
+});
+
 test("task source settings keep the access token write-only in Renderer", async () => {
   const [source, html] = await Promise.all([
     readFile(rendererPath, "utf8"),

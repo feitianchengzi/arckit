@@ -10,6 +10,14 @@ Organization Center 复用 Workshop Organization、OrganizationMember 和 Projec
 
 生产映射为 `runtime/arcorbit/src/platform-coordinator.mjs`、`runtime/arcorbit/src/workshop-platform-adapter.mjs`、`runtime/arcorbit/src/desktop/desktop-store.mjs` 与 `runtime/arcorbit/desktop/renderer/`。
 
+## Product Feedback Center
+
+`product-feedback-center/interaction.md` 定义 ArcOrbit 自身产品反馈的唯一全局入口、同窗“提交反馈 / 我的反馈”模式、账户门禁、内置配置和脱敏恢复；`default.html` 投影 SDK 加载、可用内容、需要登录和 SDK 失败四类状态。
+
+该页面消费 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md` 的产品反馈能力和 `arckit/tech/arcorbit/product-feedback-integration.md` 的 Electron、内置凭据与身份边界。它不消费顶部产品观察范围，不进入 Workshop Feedback V1 管理页，也不创建 ArcOrbit 验收问题。
+
+生产映射为 `runtime/arcorbit/desktop/renderer/` 的唯一入口与未读角标、`runtime/arcorbit/desktop/product-feedback/` 的本地窗口壳，以及 `runtime/arcorbit/src/product-feedback-window.mjs` 的同窗模式和脱敏恢复状态。
+
 ## Automation Workspace
 
 `setup-readiness/interaction.md` 定义应用启动后、Workshop 认证和 Runtime task 之前的本机能力门禁；`setup-readiness/default.html` 投影受信资源检查、skills plan/drift、事务 apply、完成、冲突与阻塞恢复。只有 readiness 为 ready 才继续 Login 或 Automation Workspace；修复成功后重新执行 task preflight，不自动领取远端任务。

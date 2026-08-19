@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-19T03:17:31.223Z",
+  "updated_at": "2026-08-19T19:14:41.484Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -1104,6 +1104,204 @@
         "arckit/cases/active/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "User request received 2026-08-19",
+        "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "User request received 2026-08-19",
+        "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "identity_and_access",
+      "outcome": "settled",
+      "evidence": [
+        "User request received 2026-08-19",
+        "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "data_and_state",
+      "outcome": "settled",
+      "evidence": [
+        "User request received 2026-08-19",
+        "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "external_integrations",
+      "outcome": "settled",
+      "evidence": [
+        "User request received 2026-08-19",
+        "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "feedback_and_support",
+      "outcome": "settled",
+      "evidence": [
+        "User request received 2026-08-19",
+        "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "User request received 2026-08-19",
+        "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "security_privacy_compliance",
+      "outcome": "settled",
+      "evidence": [
+        "User request received 2026-08-19",
+        "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "product_capabilities",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+        "runtime/arcorbit/src/product-feedback-service.mjs",
+        "runtime/arcorbit/desktop/renderer/renderer.js",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/interaction/product-feedback-center/interaction.md",
+        "arckit/interaction/product-feedback-center/default.html",
+        "runtime/arcorbit/desktop/renderer/renderer.js",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "data_and_state",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "runtime/arcorbit/src/product-feedback-service.mjs",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "feedback_and_support",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+        "arckit/interaction/product-feedback-center/interaction.md",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/interaction/product-feedback-center/interaction.md",
+        "runtime/arcorbit/desktop/renderer/index.html",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "data_and_state",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "runtime/arcorbit/src/product-feedback-service.mjs",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "security_privacy_compliance",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "runtime/arcorbit/src/product-feedback-service.mjs",
+        "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/interaction/product-feedback-center/interaction.md",
+        "arckit/interaction/product-feedback-center/default.html",
+        "FACT-product-feedback-draft-preservation-realized",
+        "arckit/cases/active/CASE-20260819-005-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-005-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/product-feedback-integration.md",
+        "FACT-product-feedback-draft-preservation-realized",
+        "arckit/cases/active/CASE-20260819-005-arcorbit.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-005-arcorbit.md"
     }
   ],
   "acceptance": {
@@ -1168,15 +1366,22 @@
     "arckit/cases/closed/CASE-20260818-007-fix-nested-trusted-ledger-launches-opening-arcorbit-windows.md",
     "arckit/cases/closed/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md",
     "arckit/cases/closed/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md",
-    "arckit/cases/closed/CASE-20260819-002-default-new-arcorbit-todos-to-the-selected-product.md"
+    "arckit/cases/closed/CASE-20260819-002-default-new-arcorbit-todos-to-the-selected-product.md",
+    "arckit/cases/closed/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md",
+    "arckit/cases/closed/CASE-20260819-004-diagnose-arcorbit-product-feedback-popup-mismatch.md",
+    "arckit/cases/closed/CASE-20260819-005-arcorbit.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260819-002-default-new-arcorbit-todos-to-the-selected-product.md",
+    "case_ref": "arckit/cases/closed/CASE-20260819-005-arcorbit.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260819-002-default-new-arcorbit-todos-to-the-selected-product.md"
+      "arckit/cases/closed/CASE-20260819-005-arcorbit.md",
+      "CASE-20260819-005 content revision 2 completion review outcome: clean.",
+      "Fresh focused tests: 9 passed, 0 failed.",
+      "Fresh npm run check: 224 tests, 222 passed, 2 skipped, 0 failed.",
+      "Accepted real Electron draft-preservation verification 2026-08-20."
     ],
-    "updated_at": "2026-08-19T03:17:31.223Z"
+    "updated_at": "2026-08-19T19:14:41.484Z"
   }
 }
