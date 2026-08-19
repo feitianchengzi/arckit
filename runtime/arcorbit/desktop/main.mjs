@@ -79,7 +79,12 @@ app.whenReady().then(async () => {
     }
   });
   registerIpc();
-  createWindow();
+  const rendererLoadSmoke = process.argv.includes("--renderer-load-smoke");
+  await createWindow({ show: !rendererLoadSmoke });
+  if (rendererLoadSmoke) {
+    await runRendererLoadSmoke();
+    return;
+  }
   const readiness = await skillProvisioningManager.check();
   if (readiness.status === "ready" && !readiness.first_install) {
     startAutomation();
@@ -146,12 +151,15 @@ app.on("before-quit", async (event) => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+    createWindow().catch((error) => {
+      console.error("ArcOrbit window restoration failed:", error);
+    });
   }
 });
 
-function createWindow() {
+async function createWindow({ show = true } = {}) {
   mainWindow = new BrowserWindow({
+    show,
     width: 1280,
     height: 820,
     minWidth: 1040,
@@ -165,7 +173,22 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadFile(join(desktopDir, "renderer/index.html"));
+  const rendererEntry = join(desktopDir, "renderer/index.html");
+  await mainWindow.loadFile(rendererEntry);
+}
+
+async function runRendererLoadSmoke() {
+  const snapshot = await mainWindow.webContents.executeJavaScript(`({
+    title: document.title,
+    preload_api: Boolean(window.arckitDesktop?.getSetupReadiness),
+    setup_surface: Boolean(document.getElementById("setupReadiness")),
+    stylesheet_count: document.styleSheets.length
+  })`);
+  if (snapshot.title !== "ArcOrbit" || !snapshot.preload_api || !snapshot.setup_surface || snapshot.stylesheet_count < 1) {
+    throw new Error(`Packaged Renderer load smoke failed: ${JSON.stringify(snapshot)}`);
+  }
+  process.stdout.write(`${JSON.stringify({ schema_version: "arcorbit-renderer-load-smoke/v1", status: "passed", ...snapshot })}\n`);
+  app.quit();
 }
 
 function registerIpc() {

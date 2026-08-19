@@ -297,7 +297,7 @@ Windows 的 npm 安装通常暴露 `.cmd`/`.bat` command shim。版本探测不�
 
 Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Electron 应用 executable 重新解释为 Node。开发态 CLI 继续由明确的 standalone Node 启动；Desktop 在 `app.whenReady()` 后使用 Electron `utilityProcess.fork()` 以 `app.asar` 中的 Runtime module 作为入口，stdout/stderr 保留结果与事件流，`process.parentPort` 只接收带 schema 的 steer/interrupt 控制消息，utility environment 会剔除外部遗留的 Electron-to-Node bootstrap 输入。project initialization 与 trusted ledger writeback 在同一受信进程内调用 manifest-resolved module API；trusted entrypoint 不再通过 `process.execPath` 嵌套执行自己的 CLI wrapper。外部 Codex 仍是经过 Setup probe 的独立 executable，并保持自身 stdio/RPC 生命周期。
 
-分发构建在签名前通过 `@electron/fuses` 显式关闭 `RunAsNode`、Node options 与 CLI inspect fuses，并启用 ASAR 完整性与 only-load-from-ASAR 约束。构建验证必须读取实际 packaged fuse wire，证明设置该环境变量也不能把 ArcOrbit executable 转成 Node；同一 packaged-host smoke 必须证明 utility Runtime 可启动、trusted ledger 可完成且不会产生额外 Browser/GPU/Renderer 应用树。该边界使“无意打开新窗口”从每层调用者都要记住的环境约定，变成 Desktop host API、in-process trusted API 和二进制 fuse 共同保证的结构约束。
+分发构建在签名前通过 `@electron/fuses` 显式关闭 `RunAsNode`、Node options 与 CLI inspect fuses，并启用 ASAR 完整性与 only-load-from-ASAR 约束。Desktop Renderer 仍由 `BrowserWindow.loadFile()` 从 `app.asar` 的 `file://` 入口加载，因此 `GrantFileProtocolExtraPrivileges` 保持启用；该权限只维持包内页面及其本地模块和样式的加载契约，不允许把 Electron executable 解释为 Node。构建验证必须读取实际 packaged fuse wire，证明设置该环境变量也不能把 ArcOrbit executable 转成 Node；packaged smoke 同时证明 Renderer 首屏资源、utility Runtime 与 trusted ledger 均可加载，且不会产生额外 Browser/GPU/Renderer 应用树。该边界使“无意打开新窗口”从每层调用者都要记住的环境约定，变成 Desktop host API、in-process trusted API 和二进制 fuse 共同保证的结构约束。
 
 ## 更新、回滚与清理
 

@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-18T19:09:17.283Z",
+  "updated_at": "2026-08-19T01:22:18.570Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -1091,6 +1091,19 @@
         "arckit/cases/active/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/installer-supply-chain.md",
+        "runtime/arcorbit/scripts/flip-electron-fuses.cjs",
+        "Packaged Renderer smoke: title ArcOrbit, preload API true, setup surface true, stylesheet count 1",
+        "Packaged fuse wire: RunAsNode disabled and GrantFileProtocolExtraPrivileges enabled",
+        "arckit/cases/active/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md"
     }
   ],
   "acceptance": {
@@ -1153,15 +1166,16 @@
     "arckit/cases/closed/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md",
     "arckit/cases/closed/CASE-20260818-006-fix-repeated-arcorbit-window-launches-after-todo-execution-start.md",
     "arckit/cases/closed/CASE-20260818-007-fix-nested-trusted-ledger-launches-opening-arcorbit-windows.md",
-    "arckit/cases/closed/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md"
+    "arckit/cases/closed/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md",
+    "arckit/cases/closed/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md",
+    "case_ref": "arckit/cases/closed/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md"
+      "arckit/cases/closed/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md"
     ],
-    "updated_at": "2026-08-18T19:09:17.283Z"
+    "updated_at": "2026-08-19T01:22:18.570Z"
   }
 }

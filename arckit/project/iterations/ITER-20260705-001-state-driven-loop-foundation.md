@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-18T19:09:17.283Z
+Updated: 2026-08-19T01:22:18.570Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,7 +17,6 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- project_gap.GAP-platform-organization-management: add (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
 - software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260818-002-optimize-arcorbit-organization-member-and-product-management.md)
@@ -27,6 +26,7 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-004-consolidate-arcorbit-automation-filters-and-account-navigation.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260818-005-optimize-arcorbit-work-filters-and-global-project-scope.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260818-008-remove-arcorbit-electron-run-as-node-dependency.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260819-001-diagnose-packaged-arcorbit-blank-first-screen.md)
 
 ## Remaining Project Gaps
 

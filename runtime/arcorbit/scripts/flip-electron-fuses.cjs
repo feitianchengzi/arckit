@@ -21,7 +21,7 @@ module.exports = async function flipArcOrbitFuses(context) {
     [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
     [FuseV1Options.OnlyLoadAppFromAsar]: true,
     [FuseV1Options.LoadBrowserProcessSpecificV8Snapshot]: false,
-    [FuseV1Options.GrantFileProtocolExtraPrivileges]: false
+    [FuseV1Options.GrantFileProtocolExtraPrivileges]: true
   });
 
   const wire = await getCurrentFuseWire(executablePath);
@@ -30,7 +30,8 @@ module.exports = async function flipArcOrbitFuses(context) {
     [FuseV1Options.EnableNodeOptionsEnvironmentVariable, FUSE_DISABLED],
     [FuseV1Options.EnableNodeCliInspectArguments, FUSE_DISABLED],
     [FuseV1Options.EnableEmbeddedAsarIntegrityValidation, FUSE_ENABLED],
-    [FuseV1Options.OnlyLoadAppFromAsar, FUSE_ENABLED]
+    [FuseV1Options.OnlyLoadAppFromAsar, FUSE_ENABLED],
+    [FuseV1Options.GrantFileProtocolExtraPrivileges, FUSE_ENABLED]
   ]);
   for (const [fuse, state] of expected) {
     if (wire[fuse] !== state) throw new Error(`ArcOrbit packaged fuse ${FuseV1Options[fuse]} was not written as expected.`);
