@@ -1,6 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, utilityProcess, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell, utilityProcess, WebContentsView } from "electron";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
 import { createCodexExecutableResolver } from "../src/codex-executable-resolver.mjs";
@@ -12,6 +12,8 @@ import { canonicalArcOrbitUserDataPath } from "../src/desktop-user-data.mjs";
 import { createElectronUtilityRuntimeHost } from "../src/electron-utility-runtime-host.mjs";
 import { createProductFeedbackService } from "../src/product-feedback-service.mjs";
 import { createProductFeedbackSurface } from "../src/product-feedback-window.mjs";
+import { requireFeedbackAttachmentUrl } from "../src/feedback-attachment-url.mjs";
+import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-boundary.mjs";
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
@@ -200,6 +202,8 @@ async function createWindow({ show = true } = {}) {
   });
 
   const rendererEntry = join(desktopDir, "renderer/index.html");
+  const rendererUrl = pathToFileURL(rendererEntry).href;
+  installMainWindowNavigationBoundary(mainWindow.webContents, rendererUrl);
   await mainWindow.loadFile(rendererEntry);
 }
 
@@ -303,6 +307,12 @@ function registerIpc() {
     platformCoordinator.setWorkspacePreference(projectId, input)
   ));
   ipcMain.handle("arckit:platform-action", async (_event, command, input) => platformCoordinator.executeAction(command, input));
+  ipcMain.handle("arckit:feedback-attachment-open", async (event, value) => {
+    if (event.sender !== mainWindow?.webContents) throw new Error("Feedback attachments can only be opened from the main ArcOrbit window.");
+    const url = requireFeedbackAttachmentUrl(value);
+    await shell.openExternal(url);
+    return { opened: true };
+  });
 }
 
 function startAutomation() {

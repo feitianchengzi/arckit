@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     ipcRenderer.invoke("arckit:platform-workspace-preference", projectId, input)
   ),
   executePlatformAction: (command, input) => ipcRenderer.invoke("arckit:platform-action", command, input),
+  openFeedbackAttachment: (value) => ipcRenderer.invoke("arckit:feedback-attachment-open", value),
   onProductFeedbackUnread: (listener) => {
     const handler = (_event, count) => listener(count);
     ipcRenderer.on("arckit:product-feedback-unread", handler);

@@ -42,8 +42,23 @@ test("production Organization Center keeps governance independent and invitation
   assert.match(result.acceptedInspectorText, /验收通过/);
   assert.match(result.acceptedInspectorText, /不再接受新的验收问题/);
   assert.deepEqual(result.todayProductIds, ["11"]);
-  assert.deepEqual(result.ordinaryFeedbackIds, ["F-11"]);
+  assert.deepEqual(result.ordinaryFeedbackIds, ["F-11", "F-11-LINKED"]);
   assert.equal(result.scopePersistedInFeedback, "11");
+  assert.equal(result.feedbackHasCreateButton, false);
+  assert.equal(result.feedbackHasVersionText, false);
+  assert.match(result.feedbackInspectorText, /Visible in the selected product/);
+  assert.match(result.feedbackInspectorText, /customer-11/);
+  assert.match(result.feedbackInspectorText, /13800000011/);
+  assert.match(result.feedbackInspectorText, /customer11@example\.test/);
+  assert.match(result.feedbackInspectorText, /查看用户附件/);
+  assert.equal(result.calls.some(([command, value]) => command === "openFeedbackAttachment"
+    && value === "https://example.test/feedback/F-11.png"), true);
+  assert.equal(result.selectedFeedbackRows, 1);
+  assert.deepEqual(result.searchedFeedbackIds, ["F-11"]);
+  assert.deepEqual(result.convertedFeedbackIds, ["F-11-LINKED"]);
+  assert.equal(result.linkedFeedbackHasTaskAction, false);
+  assert.deepEqual(result.oldestFeedbackIds, ["F-11-LINKED", "F-11"]);
+  assert.deepEqual(result.feedbackActionLabels, ["忽略", "刷新", "转为待办", "删除"]);
   assert.equal(result.feedbackTaskContent, "Visible in the selected product");
   assert.deepEqual(result.feedbackExecutorOptions, [
     { value: "", label: "未分配" },
@@ -54,8 +69,14 @@ test("production Organization Center keeps governance independent and invitation
     && input.feedback_id === "F-11"
     && input.task_content === "Visible in the selected product"
     && input.executor_id === "8"), true);
+  assert.equal(result.calls.some(([command, input]) => command === "feedback.update"
+    && input.feedback_id === "F-11"
+    && input.data.priority === "P2"), true);
+  assert.equal(result.calls.some(([command, input]) => command === "feedback.update"
+    && input.feedback_id === "F-11"
+    && input.data.ignored === true), true);
   assert.equal(result.automationNavCount, "1");
-  assert.equal(result.feedbackQueueNavCount, "1");
+  assert.equal(result.feedbackQueueNavCount, "2");
   assert.equal(result.attentionNavCount, "1");
   assert.equal(result.hasAddLocalOption, true);
   assert.equal(result.calls.some(([command, input]) => command === "bindAutomationProject" && input.remoteId === "12" && input.localId === "local-new"), true);

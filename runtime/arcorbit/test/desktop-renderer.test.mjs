@@ -40,7 +40,18 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(html, /id="editWorksetButton"/);
   assert.match(html, /id="createOrganizationButton"/);
   assert.match(html, /id="createTaskButton"/);
-  assert.match(html, /id="createFeedbackButton"/);
+  assert.doesNotMatch(html, /id="createFeedbackButton"|创建用户反馈|Workshop Feedback · V1|Feedback V2/);
+  for (const id of ["feedbackSearchInput", "feedbackStateFilter", "feedbackSortSelect", "feedbackRefreshButton", "ordinaryFeedbackTable", "feedbackInspector"]) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  assert.match(html, /class="feedback-workbench-layout"/);
+  assert.match(source, /function renderFeedbackInspector\(feedback\)/);
+  assert.match(source, /api\.openFeedbackAttachment\(feedback\.file\)/);
+  assert.doesNotMatch(source, /href="\$\{escapeHtml\(feedback\.file\)\}"|target="_blank"/);
+  assert.match(source, /function updateFeedbackPriority|async function updateFeedbackPriority/);
+  assert.match(source, /async function ignoreFeedback/);
+  assert.doesNotMatch(source, /async function createFeedback|async function editFeedback|data-feedback-edit/);
+  assert.match(styles, /\.feedback-workbench-layout \{ display: grid; grid-template-columns: minmax\(300px, \.72fr\) minmax\(440px, 1\.28fr\)/);
   assert.match(html, /id="platformActionOverlay"/);
   assert.match(source, /api\.executePlatformAction/);
   assert.match(source, /"project\.member\.update"/);
@@ -49,7 +60,9 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   const feedbackToTaskHandler = source.slice(source.indexOf("async function feedbackToTask"), source.indexOf("async function deleteFeedback"));
   assert.match(feedbackToTaskHandler, /platformField\("task_content", "待办内容", \{ type: "textarea", required: true, value: feedback\.content \}\)/);
   assert.match(feedbackToTaskHandler, /platformField\("executor_id", "执行人", \{ type: "select", options: memberSelectOptions\(feedback\.project_id\) \}\)/);
+  assert.match(feedbackToTaskHandler, /if \(feedback\.linked_task_id\) throw new Error/);
   assert.doesNotMatch(feedbackToTaskHandler, /feedback\.title \|\| feedback\.content|执行人 ID/);
+  assert.doesNotMatch(feedbackToTaskHandler, /仍要新建另一个待办|Feedback V1/);
   assert.match(source, /function memberSelectOptions\(projectId = ""\).*value: item\.user_id, label: `\$\{item\.project_name\} · \$\{item\.username\}`/);
   assert.doesNotMatch(source, /project\.member\.add/);
   const worksetHandler = source.slice(source.indexOf("async function editCurrentWorkset"), source.indexOf("async function toggleProjectInWorkset"));
@@ -85,6 +98,18 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
   assert.doesNotMatch(html, /class="chat-column"|id="chatInput"|>Chats</);
+});
+
+test("Desktop opens feedback attachments through a bounded main-process HTTPS capability", async () => {
+  const [main, preload] = await Promise.all([
+    readFile(desktopMainPath, "utf8"),
+    readFile(desktopPreloadPath, "utf8")
+  ]);
+  assert.match(preload, /openFeedbackAttachment: \(value\) => ipcRenderer\.invoke\("arckit:feedback-attachment-open", value\)/);
+  assert.match(main, /requireFeedbackAttachmentUrl\(value\)/);
+  assert.match(main, /event\.sender !== mainWindow\?\.webContents/);
+  assert.match(main, /await shell\.openExternal\(url\)/);
+  assert.match(main, /installMainWindowNavigationBoundary\(mainWindow\.webContents, rendererUrl\)/);
 });
 
 test("ADVANCE owns one top product-set scope while Work and Automation own their local filters", async () => {

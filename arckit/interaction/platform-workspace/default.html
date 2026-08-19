@@ -47,20 +47,55 @@
             </div>
         </details>
         <details>
-            <summary>Feedback · 使用完整正文转待办</summary>
+            <summary>Feedback · 开发者处理工作台</summary>
             <div class="state-content">
-                <div class="state-description"><strong>触发条件：</strong>用户在 Workshop Feedback V1 列表中选择一条反馈并触发“转待办”。</div>
+                <div class="state-description"><strong>触发条件：</strong>开发者进入 Feedback；系统按顶部产品范围加载反馈并自动选择首条。</div>
                 <div class="wireframe-canvas">
                     <div class="device-frame desktop">
-                        <div class="desktop-titlebar"><strong>ArcOrbit · Feedback</strong><span>ArcOrbit · FB11</span></div>
+                        <div class="desktop-titlebar"><strong>ArcOrbit · Feedback</strong><span>项目集全部 · 18 条反馈</span></div>
                         <div class="page-content">
-                            <section class="surface"><div class="surface-header"><strong>用户反馈</strong><span>Workshop Feedback V1</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">F</span><div><strong>播放列表在离线恢复后顺序错误</strong><small>完整正文与反馈所属项目保持可见</small></div><button class="compact-action primary">转待办</button></div></div></section>
+                            <div class="page-header"><div><div class="eyebrow">USER FEEDBACK</div><h2>处理用户反馈</h2><p>查看用户提交，判断优先级并流转到研发待办。</p></div></div>
+                            <section class="surface"><div class="surface-body"><div class="page-actions"><input aria-label="搜索反馈" placeholder="搜索正文、编号或用户"><select aria-label="处理状态"><option>全部状态</option><option>待处理</option><option>已流转</option><option>已忽略</option></select><select aria-label="排序"><option>最新</option><option>最早</option><option>优先级</option></select></div></div></section>
+                            <div class="split-h">
+                                <section class="surface split-v"><div class="surface-header"><strong>反馈列表</strong><span>18 条</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">F</span><div><strong>离线恢复后播放顺序错误</strong><small>ArcOrbit · P1 · 待处理</small></div></div><div class="activity-row"><span class="run-orb">F</span><div><strong>希望支持批量导出</strong><small>Workshop Todo · P2 · 已流转</small></div></div><div class="activity-row"><span class="run-orb">F</span><div><strong>登录状态偶尔失效</strong><small>Feedback Portal · P2 · 已忽略</small></div></div></div></section>
+                                <aside class="surface split-v"><div class="surface-header"><strong>#FB11 · 离线恢复后播放顺序错误</strong><span>2026-08-20 10:24</span></div><div class="surface-body"><div class="page-actions"><select aria-label="反馈优先级"><option>P1 · 高</option><option>P2 · 中</option><option>P3 · 低</option></select><button class="compact-action">忽略</button><button class="compact-action primary">转待办</button><button class="compact-action">删除</button></div><p><strong>用户</strong> user-1042 · user@example.com</p><p>离线恢复播放列表时，最近三首歌曲的顺序与退出前不一致，并且重复出现第一首。</p><div class="card"><div class="card-title">附件</div><p>recovery-order.png</p></div></div></aside>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>正文、编号与用户搜索</li><li>处理状态筛选和时间/优先级排序</li><li>左侧反馈列表与稳定选择态</li><li>右侧完整详情、附件和开发者处理动作</li><li>不包含创建反馈、编辑反馈和协议版本信息</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>选择列表项</code> → 只更新右侧详情，不离开页面</div><div class="interaction-item"><code>搜索 / 筛选 / 排序</code> → 保留仍有效的选择，否则选中首条</div><div class="interaction-item"><code>已关联反馈</code> → 展示待办 ID，移除重复转待办入口</div><div class="interaction-item"><code>删除</code> → 仅有权限时可用，并要求明确确认</div></div>
+            </div>
+        </details>
+        <details>
+            <summary>Feedback · 转待办确认</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>开发者在右侧详情中对未关联反馈触发“转待办”。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="desktop-titlebar"><strong>ArcOrbit · Feedback</strong><span>#FB11</span></div>
+                        <div class="page-content">
+                            <section class="surface"><div class="surface-header"><strong>反馈详情</strong><span>待处理 · P1</span></div><div class="surface-body"><p>离线恢复播放列表时，最近三首歌曲的顺序与退出前不一致，并且重复出现第一首。</p></div></section>
                             <div class="modal-overlay" data-kit="Sheet"><div class="modal-content" data-label="反馈转待办"><h3>反馈转待办</h3><p>待办内容默认保留完整反馈正文；执行人仅从反馈所属项目成员中选择。</p><label>待办内容<textarea aria-label="待办内容">离线恢复播放列表时，最近三首歌曲的顺序与退出前不一致，并且重复出现第一首。</textarea></label><label>执行人<select aria-label="执行人"><option>未分配</option><option>Glare</option><option>Lin</option></select></label><div class="page-actions"><button class="compact-action">取消</button><button class="compact-action primary">创建并关联</button></div></div></div>
                         </div>
                     </div>
                 </div>
                 <div class="component-list"><h3>组件清单</h3><ul><li>完整反馈正文预填的待办内容输入框</li><li>反馈所属项目的成员名称选择器</li><li>未分配选项、初始状态、优先级与标签</li><li>创建并关联确认动作</li></ul></div>
-                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>转待办</code> → 以反馈完整正文打开确认 Sheet</div><div class="interaction-item"><code>执行人</code> → 只显示该反馈所属项目的成员名称，提交对应 user_id</div><div class="interaction-item"><code>未分配</code> → 保持空执行人，不要求手填内部 ID</div></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>转待办</code> → 以反馈完整正文打开确认 Sheet</div><div class="interaction-item"><code>执行人</code> → 只显示该反馈所属项目的成员名称，提交对应 user_id</div><div class="interaction-item"><code>未分配</code> → 保持空执行人，不要求手填内部 ID</div><div class="interaction-item"><code>关联失败</code> → 返回已创建 task id，不伪装为全部失败</div></div>
+            </div>
+        </details>
+        <details>
+            <summary>Feedback · 空状态与加载失败恢复</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>当前产品范围没有反馈、筛选无结果或反馈列表读取失败。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="desktop-titlebar"><strong>ArcOrbit · Feedback</strong><span>项目集全部</span></div>
+                        <div class="page-content"><div class="page-header"><div><div class="eyebrow">USER FEEDBACK</div><h2>处理用户反馈</h2></div></div><div class="split-h"><section class="surface split-v"><div class="surface-header"><strong>反馈列表</strong><span>加载失败</span></div><div class="surface-body"><div class="card"><div class="card-title">无法获取反馈列表</div><p>请检查网络或账户权限后重试。</p><button class="compact-action primary">重试</button></div></div></section><aside class="surface split-v"><div class="surface-header"><strong>反馈详情</strong><span>未选择</span></div><div class="surface-body"><p>列表恢复后选择一条反馈查看详情。</p></div></aside></div></div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>双栏加载骨架</li><li>当前范围无反馈与筛选无结果空状态</li><li>列表错误说明与重试动作</li><li>未选择详情占位</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>重试</code> → 保留搜索、筛选和排序，重新读取服务端反馈</div><div class="interaction-item"><code>动作失败</code> → 保留当前选择和详情，就地显示真实错误</div><div class="interaction-item"><code>筛选无结果</code> → 允许清除筛选，不提供创建反馈入口</div></div>
             </div>
         </details>
     </div>

@@ -57,8 +57,9 @@ const platform = {
     { id: "W-12", project_id: "12", project_name: "Workshop Todo", title: "Other project work", content: "Must be filtered", state: "pending", terminal: false, priority: 2, executor_id: "8", assignee: { id: "8", username: "Lin" }, tags: [] }
   ],
   feedback_v1: [
-    { id: "F-11", short_id: "FB11", project_id: "11", project_name: "ArcOrbit", title: "Scoped feedback", content: "Visible in the selected product", priority: "P1", ignored: false, linked_task_id: "", metadata: {} },
-    { id: "F-12", short_id: "FB12", project_id: "12", project_name: "Workshop Todo", title: "Other feedback", content: "Must be filtered", priority: "P2", ignored: false, linked_task_id: "", metadata: {} }
+    { id: "F-11", short_id: "FB11", project_id: "11", project_name: "ArcOrbit", title: "Scoped feedback", content: "Visible in the selected product", priority: "P1", ignored: false, linked_task_id: "", custom_user_id: "customer-11", user_phone: "13800000011", user_email: "customer11@example.test", file: "https://example.test/feedback/F-11.png", created_at: "2026-08-19T10:00:00Z", updated_at: "2026-08-19T10:00:00Z", metadata: {} },
+    { id: "F-11-LINKED", short_id: "FB10", project_id: "11", project_name: "ArcOrbit", title: "Already linked feedback", content: "Continue from the existing todo", priority: "P2", ignored: false, linked_task_id: "W-11", linked_task_state: "pending", custom_user_id: "customer-linked", user_phone: "", user_email: "", file: "", created_at: "2026-08-18T10:00:00Z", updated_at: "2026-08-18T10:00:00Z", metadata: { task_id: "W-11", task_state: "pending" } },
+    { id: "F-12", short_id: "FB12", project_id: "12", project_name: "Workshop Todo", title: "Other feedback", content: "Must be filtered", priority: "P2", ignored: false, linked_task_id: "", created_at: "2026-08-19T08:00:00Z", updated_at: "2026-08-19T08:00:00Z", metadata: {} }
   ], tags: [],
   automation: { ...automation, acceptance_feedback_counts: { open: 0 } },
   capabilities: { organizations: "available", organization_governance: "available", project_members: "managed_with_permissions_except_direct_add", invitation_lifecycle: "create_once_no_list_or_revoke", feedback_v1: "read_write", feedback_v2: "unavailable" }, errors: []
@@ -86,6 +87,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     if (command.endsWith(".invite")) return { invite_code: "ABCD1234", invite_link: "https://example.test/invite/ABCD1234", role: input.role, expires_at: "2026-08-19T00:00:00Z", max_uses: Number(input.max_uses), used_count: 0 };
     return { ok: true };
   },
+  openFeedbackAttachment: async (value) => { calls.push(["openFeedbackAttachment", value]); return { opened: true }; },
   getTestCalls: async () => calls,
   pickProject: async () => ({ id: "local-new", name: "New Local", path: "/repo/new-local" }),
   setProjectParticipation: noOp,

@@ -28,6 +28,14 @@ const STATE_ICONS = {
   cancelled: "×",
   blocked: "!"
 };
+const FEEDBACK_STATE_LABELS = {
+  pending: "待处理",
+  accepted: "已确认",
+  in_progress: "开发中",
+  completed: "已完成",
+  converted: "已转待办",
+  ignored: "已忽略"
+};
 const RECOVERY_LABELS = {
   claim_failed: "领取任务失败",
   start_failed: "Runtime 启动失败",
@@ -62,9 +70,13 @@ const state = {
   acceptanceFeedbackOnly: false,
   selectedTaskId: "",
   selectedPlatformTaskId: "",
+  selectedFeedbackId: "",
   snapshot: emptySnapshot(),
   platform: emptyPlatformSnapshot(),
   platformWorkFilter: "",
+  feedbackFilter: "",
+  feedbackState: "all",
+  feedbackSort: "newest",
   organizationScopeId: "",
   organizationScopeChosen: false,
   organizationSection: "overview",
@@ -268,6 +280,7 @@ function wireEvents() {
     state.selectedProjectId = els.productScopeSelect.value;
     state.selectedTaskId = "";
     state.selectedPlatformTaskId = "";
+    state.selectedFeedbackId = "";
     refreshSnapshot().catch((error) => showToast(error.message));
   });
   els.editWorksetButton.addEventListener("click", () => runAction(editCurrentWorkset));
@@ -279,7 +292,19 @@ function wireEvents() {
   }));
   els.createTaskButton.addEventListener("click", () => runAction(createTask));
   els.createTagButton.addEventListener("click", () => runAction(createTag));
-  els.createFeedbackButton.addEventListener("click", () => runAction(createFeedback));
+  els.feedbackSearchInput.addEventListener("input", () => {
+    state.feedbackFilter = els.feedbackSearchInput.value.trim().toLowerCase();
+    renderPlatformFeedback();
+  });
+  els.feedbackStateFilter.addEventListener("change", () => {
+    state.feedbackState = els.feedbackStateFilter.value;
+    renderPlatformFeedback();
+  });
+  els.feedbackSortSelect.addEventListener("change", () => {
+    state.feedbackSort = els.feedbackSortSelect.value;
+    renderPlatformFeedback();
+  });
+  els.feedbackRefreshButton.addEventListener("click", () => runAction(refreshSnapshot));
   els.closePlatformActionButton.addEventListener("click", () => closePlatformAction(null));
   els.cancelPlatformActionButton.addEventListener("click", () => closePlatformAction(null));
   els.platformActionOverlay.addEventListener("click", (event) => {
@@ -761,14 +786,82 @@ function renderPlatformWorkInspector(task) {
 }
 
 function renderPlatformFeedback() {
-  const ordinary = (state.platform.feedback_v1 || []).filter(platformItemMatchesSelectedProject);
-  els.ordinaryFeedbackTable.innerHTML = ordinary.length ? `<table class="data-table feedback-data-table"><colgroup><col style="width:75px"><col><col style="width:105px"><col style="width:70px"><col style="width:85px"><col style="width:155px"></colgroup><thead><tr><th>反馈</th><th>内容</th><th>产品</th><th>优先级</th><th>关联待办</th><th>管理</th></tr></thead><tbody>${ordinary.map((item) => `<tr><td>${escapeHtml(item.short_id || item.id)}</td><td class="task-title-cell">${escapeHtml(item.title || item.content || "未命名反馈")}${item.ignored ? " · 已忽略" : ""}</td><td>${escapeHtml(item.project_name)}</td><td>${escapeHtml(item.priority || "未设置")}</td><td>${escapeHtml(item.linked_task_id || "未关联")}</td><td><span class="row-actions"><button data-feedback-edit="${escapeHtml(item.id)}" type="button">编辑</button><button data-feedback-task="${escapeHtml(item.id)}" type="button">转待办</button>${["owner", "admin"].includes(state.platform.product_workspaces.find((workspace) => String(workspace.id) === String(item.project_id))?.current_user_role) ? `<button class="danger-action" data-feedback-delete="${escapeHtml(item.id)}" type="button">删除</button>` : ""}</span></td></tr>`).join("")}</tbody></table>` : `<div class="empty-state">当前产品集没有普通用户反馈。</div>`;
-  els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editFeedback(button.dataset.feedbackEdit))));
-  els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-task]").forEach((button) => button.addEventListener("click", () => runAction(() => feedbackToTask(button.dataset.feedbackTask))));
-  els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteFeedback(button.dataset.feedbackDelete))));
-  if (state.platform.capabilities.feedback_v2 === "unavailable") {
-    els.ordinaryFeedbackTable.insertAdjacentHTML("afterbegin", `<div class="capability-notice"><strong>Feedback V2 尚未接入</strong><span>本页严格使用现有 Workshop Feedback V1 接口，不伪造 V2 能力。</span></div>`);
+  els.feedbackSearchInput.value = state.feedbackFilter;
+  els.feedbackStateFilter.value = state.feedbackState;
+  els.feedbackSortSelect.value = state.feedbackSort;
+  const scoped = (state.platform.feedback_v1 || []).filter(platformItemMatchesSelectedProject);
+  const filtered = scoped.filter((item) => {
+    const haystack = [item.short_id, item.title, item.content, item.custom_user_id, item.user_phone, item.user_email, item.project_name].join(" ").toLowerCase();
+    return (!state.feedbackFilter || haystack.includes(state.feedbackFilter))
+      && (state.feedbackState === "all" || feedbackProcessingState(item) === state.feedbackState);
+  });
+  const ordinary = [...filtered].sort(compareFeedbackItems);
+  if (!ordinary.some((item) => String(item.id) === String(state.selectedFeedbackId))) state.selectedFeedbackId = String(ordinary[0]?.id || "");
+  const selected = ordinary.find((item) => String(item.id) === String(state.selectedFeedbackId)) || null;
+  els.feedbackListSummary.textContent = filtered.length === scoped.length ? `${scoped.length} 条` : `${filtered.length} / ${scoped.length} 条`;
+  els.ordinaryFeedbackTable.innerHTML = ordinary.length ? ordinary.map((item) => {
+    const processingState = feedbackProcessingState(item);
+    return `<button class="feedback-list-item ${String(item.id) === state.selectedFeedbackId ? "is-active" : ""}" data-feedback-select="${escapeHtml(item.id)}" type="button"><span class="feedback-list-copy"><strong>${escapeHtml(item.title || feedbackExcerpt(item.content) || "未命名反馈")}</strong><small>${escapeHtml(item.short_id || item.id)} · ${escapeHtml(item.project_name || "未知产品")}</small></span><span class="feedback-list-meta"><em class="feedback-priority ${item.priority ? "has-priority" : ""}">${escapeHtml(item.priority || "未定级")}</em><span class="status-pill ${escapeHtml(processingState)}">${escapeHtml(FEEDBACK_STATE_LABELS[processingState])}</span><time>${escapeHtml(formatFeedbackDate(item.created_at || item.updated_at))}</time></span></button>`;
+  }).join("") : `<div class="empty-state">${scoped.length ? "没有符合搜索或筛选条件的反馈。" : "当前产品集没有用户反馈。"}</div>`;
+  els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-select]").forEach((button) => button.addEventListener("click", () => {
+    state.selectedFeedbackId = button.dataset.feedbackSelect;
+    renderPlatformFeedback();
+  }));
+  renderFeedbackInspector(selected);
+}
+
+function renderFeedbackInspector(feedback) {
+  if (!feedback) {
+    els.feedbackInspector.innerHTML = `<div class="empty-panel"><strong>选择一条反馈</strong><p>右侧将显示不可编辑的用户反馈事实和可用处理动作。</p></div>`;
+    return;
   }
+  const workspace = state.platform.product_workspaces.find((item) => String(item.id) === String(feedback.project_id));
+  const canDelete = ["owner", "admin"].includes(workspace?.current_user_role);
+  const processingState = feedbackProcessingState(feedback);
+  const attachment = feedback.file ? `<button class="feedback-attachment" data-feedback-attachment type="button">查看用户附件</button>` : `<span class="muted-copy">没有附件</span>`;
+  els.feedbackInspector.innerHTML = `<div class="feedback-inspector-header"><div><p class="eyebrow">${escapeHtml(feedback.short_id || feedback.id)}</p><h2>${escapeHtml(feedback.title || "用户反馈")}</h2><p>${escapeHtml(feedback.project_name || "未知产品")}</p></div><span class="status-pill ${escapeHtml(processingState)}">${escapeHtml(FEEDBACK_STATE_LABELS[processingState])}</span></div><div class="feedback-processing-actions"><label><span>优先级</span><select data-feedback-priority="${escapeHtml(feedback.id)}"><option value="">未设置</option>${["P1", "P2", "P3"].map((value) => `<option value="${value}" ${feedback.priority === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>${!feedback.ignored && !feedback.linked_task_id ? `<button class="secondary-button" data-feedback-ignore="${escapeHtml(feedback.id)}" type="button">忽略</button>` : ""}<button class="secondary-button" data-feedback-refresh type="button">刷新</button>${!feedback.linked_task_id ? `<button class="primary-button" data-feedback-task="${escapeHtml(feedback.id)}" type="button">转为待办</button>` : ""}${canDelete ? `<button class="secondary-button danger-action" data-feedback-delete="${escapeHtml(feedback.id)}" type="button">删除</button>` : ""}</div><section class="feedback-content-card"><h3>反馈原文</h3><p>${escapeHtml(feedback.content || "用户没有提供正文。")}</p>${attachment}</section>${factRows([
+    ["反馈标识", feedback.id],
+    ["所属产品", feedback.project_name || feedback.project_id],
+    ["用户 ID", feedback.custom_user_id || "未提供"],
+    ["联系电话", feedback.user_phone || "未提供"],
+    ["联系邮箱", feedback.user_email || "未提供"],
+    ["提交时间", formatFeedbackDate(feedback.created_at)],
+    ["最近更新", formatFeedbackDate(feedback.updated_at)],
+    ["关联待办", feedback.linked_task_id ? `${feedback.linked_task_id}${feedback.linked_task_state ? ` · ${STATE_LABELS[feedback.linked_task_state] || feedback.linked_task_state}` : ""}` : "未关联"]
+  ])}`;
+  els.feedbackInspector.querySelector("[data-feedback-priority]")?.addEventListener("change", (event) => runAction(() => updateFeedbackPriority(feedback.id, event.currentTarget.value)));
+  els.feedbackInspector.querySelector("[data-feedback-ignore]")?.addEventListener("click", () => runAction(() => ignoreFeedback(feedback.id)));
+  els.feedbackInspector.querySelector("[data-feedback-refresh]")?.addEventListener("click", () => runAction(refreshSnapshot));
+  els.feedbackInspector.querySelector("[data-feedback-task]")?.addEventListener("click", () => runAction(() => feedbackToTask(feedback.id)));
+  els.feedbackInspector.querySelector("[data-feedback-delete]")?.addEventListener("click", () => runAction(() => deleteFeedback(feedback.id)));
+  els.feedbackInspector.querySelector("[data-feedback-attachment]")?.addEventListener("click", () => runAction(() => api.openFeedbackAttachment(feedback.file)));
+}
+
+function feedbackProcessingState(feedback) {
+  if (feedback.linked_task_id) return "converted";
+  if (feedback.ignored) return "ignored";
+  const explicit = String(feedback.metadata?.feedback_state || feedback.metadata?.status || "").toLowerCase();
+  return Object.hasOwn(FEEDBACK_STATE_LABELS, explicit) ? explicit : "pending";
+}
+
+function compareFeedbackItems(left, right) {
+  const leftTime = Date.parse(left.created_at || left.updated_at || "") || 0;
+  const rightTime = Date.parse(right.created_at || right.updated_at || "") || 0;
+  if (state.feedbackSort === "oldest") return leftTime - rightTime || String(left.id).localeCompare(String(right.id));
+  if (state.feedbackSort === "priority") {
+    const priorityRank = { P1: 1, P2: 2, P3: 3 };
+    return (priorityRank[left.priority] || 4) - (priorityRank[right.priority] || 4) || rightTime - leftTime || String(left.id).localeCompare(String(right.id));
+  }
+  return rightTime - leftTime || String(left.id).localeCompare(String(right.id));
+}
+
+function feedbackExcerpt(value) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  return text.length > 54 ? `${text.slice(0, 54)}…` : text;
+}
+
+function formatFeedbackDate(value) {
+  return value ? formatTime(value) : "未知";
 }
 
 async function createProduct() {
@@ -1031,25 +1124,22 @@ async function createTag() {
   else await executeManagedAction("tag.delete", values, "标签已删除");
 }
 
-async function createFeedback() {
-  const values = await feedbackForm({ title: "创建普通反馈", confirmLabel: "创建反馈" });
-  if (!values) return;
-  await executeManagedAction("feedback.create", feedbackPayload(values), "反馈已创建");
+async function updateFeedbackPriority(feedbackId, priority) {
+  const feedback = findFeedback(feedbackId);
+  await executeManagedAction("feedback.update", { feedback_id: feedback.id, data: { ...feedback.metadata, priority } }, "反馈优先级已更新");
 }
 
-async function editFeedback(feedbackId) {
+async function ignoreFeedback(feedbackId) {
   const feedback = findFeedback(feedbackId);
-  const values = await feedbackForm({ title: `编辑反馈 ${feedback.short_id || feedback.id}`, confirmLabel: "保存", feedback });
-  if (!values) return;
-  await executeManagedAction("feedback.update", { feedback_id: feedback.id, ...feedbackPayload(values, feedback.metadata) }, "反馈已更新");
+  await executeManagedAction("feedback.update", { feedback_id: feedback.id, data: { ...feedback.metadata, ignored: true } }, "反馈已忽略");
 }
 
 async function feedbackToTask(feedbackId) {
   const feedback = findFeedback(feedbackId);
-  if (feedback.linked_task_id && !window.confirm(`该反馈已关联待办 ${feedback.linked_task_id}。仍要新建另一个待办吗？`)) return;
+  if (feedback.linked_task_id) throw new Error(`该反馈已关联待办 ${feedback.linked_task_id}，请在 Work 中继续处理。`);
   const values = await openPlatformAction({
     title: "反馈转待办",
-    lead: "这是现有 Feedback V1 与 Todo 的非事务组合：先创建待办，再把待办 ID 写回反馈 data；若第二步失败会明确保留部分成功信息。",
+    lead: "先创建待办，再保存反馈与待办的关联；若关联保存失败，会明确保留已经创建的待办信息。",
     confirmLabel: "创建并关联",
     fields: [
       platformField("task_content", "待办内容", { type: "textarea", required: true, value: feedback.content }),
@@ -1067,30 +1157,6 @@ async function deleteFeedback(feedbackId) {
   const feedback = findFeedback(feedbackId);
   if (!window.confirm(`确定删除反馈“${feedback.title || feedback.short_id || feedback.id}”吗？`)) return;
   await executeManagedAction("feedback.delete", { feedback_id: feedback.id }, "反馈已删除");
-}
-
-async function feedbackForm({ title, confirmLabel, feedback = {} }) {
-  return openPlatformAction({
-    title,
-    lead: "使用 Workshop Feedback V1 字段；优先级、忽略态和待办关联保存在 data 元数据中。",
-    confirmLabel,
-    fields: [
-      ...(feedback.id ? [] : [platformField("project_id", "产品", { type: "select", required: true, options: workspaceOptions() })]),
-      platformField("title", "标题", { required: true, value: feedback.title }),
-      platformField("content", "内容", { type: "textarea", required: true, value: feedback.content }),
-      platformField("priority", "优先级", { type: "select", value: feedback.priority, options: [{ value: "", label: "未设置" }, ...["P1", "P2", "P3"].map((value) => ({ value, label: value }))] }),
-      platformField("ignored", "处理状态", { type: "select", value: feedback.ignored ? "true" : "false", options: [{ value: "false", label: "正常" }, { value: "true", label: "已忽略" }] }),
-      platformField("custom_user_id", "外部用户 ID", { value: feedback.custom_user_id }),
-      platformField("user_phone", "联系电话", { value: feedback.user_phone }),
-      platformField("user_email", "联系邮箱", { value: feedback.user_email }),
-      platformField("file", "附件地址", { value: feedback.file })
-    ]
-  });
-}
-
-function feedbackPayload(values, existingMetadata = {}) {
-  const { priority, ignored, ...fields } = values;
-  return { ...fields, data: { ...existingMetadata, priority, ignored: ignored === "true" } };
 }
 
 async function executeManagedAction(command, input, message, { refresh = true } = {}) {

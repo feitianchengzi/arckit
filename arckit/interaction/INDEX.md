@@ -14,11 +14,11 @@
 - setup-readiness/ 环境准备页面：独立 ArcOrbit 状态检查、skills 安装计划、typed 升级恢复、事务 apply 与阻塞恢复。✅
   - default.html 环境准备线框：检查、计划、执行、完成、typed 升级恢复和失败恢复。✅ (91行)
   - interaction.md 环境准备交互：启动门禁、typed drift 分类、备份恢复、bundle 重装兜底与异常恢复。✅ (154行)
-- platform-workspace/ 多产品平台工作区：以全局顶部产品集范围推进多个产品，并用独立 Organization Center 管理组织、成员与项目全貌。✅
-  - default.html 平台首页线框：Advance/Platform 分组、全局产品范围、Feedback 完整正文转待办与项目成员选择。✅ (68行)
+- platform-workspace/ 多产品平台工作区：以全局顶部产品集范围推进多个产品，并用 Feedback 开发者工作台和独立 Organization Center 完成研发协作。✅
+  - default.html 平台首页线框：Advance/Platform 分组、全局产品范围、Feedback 双栏详情与转待办恢复状态。✅ (103行)
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系和项目上下文通用邀请。✅ (7行)
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
-  - interaction.md 平台交互：全局产品范围/治理解耦、组织三级管理、Feedback 转待办、项目绑定与推进页面边界。✅ (122行)
+  - interaction.md 平台交互：全局产品范围/治理解耦、组织三级管理、Feedback 开发者处理工作台与推进页面边界。✅ (135行)
 - product-feedback-center/ ArcOrbit 产品反馈中心：在受限 SDK 窗口内提交产品反馈、查看我的反馈并从未配置或加载失败中恢复。✅
   - default.html 产品反馈中心线框：SDK 加载、可用内容、账户/配置恢复和 SDK 失败恢复。✅ (54行)
   - interaction.md 产品反馈中心交互：单一入口、同窗模式切换、草稿保持、Project 107、未读角标和脱敏恢复。✅ (88行)
