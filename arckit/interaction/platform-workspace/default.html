@@ -46,6 +46,23 @@
                 <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>项目集全部</code> → 在当前 ADVANCE 页面聚合产品集；可切换为集合内单个产品</div><div class="interaction-item"><code>管理项目集</code> → 多选产品，只更新本地 Workset</div><div class="interaction-item"><code>Organization</code> → 打开不受 Workset 裁剪的治理中心</div><div class="interaction-item"><code>Workshop 账户头像</code> → 打开保留任务源、会话和 Runtime 设置的账号页面</div></div>
             </div>
         </details>
+        <details>
+            <summary>Feedback · 使用完整正文转待办</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>用户在 Workshop Feedback V1 列表中选择一条反馈并触发“转待办”。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="desktop-titlebar"><strong>ArcOrbit · Feedback</strong><span>ArcOrbit · FB11</span></div>
+                        <div class="page-content">
+                            <section class="surface"><div class="surface-header"><strong>用户反馈</strong><span>Workshop Feedback V1</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">F</span><div><strong>播放列表在离线恢复后顺序错误</strong><small>完整正文与反馈所属项目保持可见</small></div><button class="compact-action primary">转待办</button></div></div></section>
+                            <div class="modal-overlay" data-kit="Sheet"><div class="modal-content" data-label="反馈转待办"><h3>反馈转待办</h3><p>待办内容默认保留完整反馈正文；执行人仅从反馈所属项目成员中选择。</p><label>待办内容<textarea aria-label="待办内容">离线恢复播放列表时，最近三首歌曲的顺序与退出前不一致，并且重复出现第一首。</textarea></label><label>执行人<select aria-label="执行人"><option>未分配</option><option>Glare</option><option>Lin</option></select></label><div class="page-actions"><button class="compact-action">取消</button><button class="compact-action primary">创建并关联</button></div></div></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>完整反馈正文预填的待办内容输入框</li><li>反馈所属项目的成员名称选择器</li><li>未分配选项、初始状态、优先级与标签</li><li>创建并关联确认动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>转待办</code> → 以反馈完整正文打开确认 Sheet</div><div class="interaction-item"><code>执行人</code> → 只显示该反馈所属项目的成员名称，提交对应 user_id</div><div class="interaction-item"><code>未分配</code> → 保持空执行人，不要求手填内部 ID</div></div>
+            </div>
+        </details>
     </div>
 </body>
 </html>

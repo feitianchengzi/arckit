@@ -44,6 +44,16 @@ test("production Organization Center keeps governance independent and invitation
   assert.deepEqual(result.todayProductIds, ["11"]);
   assert.deepEqual(result.ordinaryFeedbackIds, ["F-11"]);
   assert.equal(result.scopePersistedInFeedback, "11");
+  assert.equal(result.feedbackTaskContent, "Visible in the selected product");
+  assert.deepEqual(result.feedbackExecutorOptions, [
+    { value: "", label: "未分配" },
+    { value: "7", label: "ArcOrbit · Glare" },
+    { value: "8", label: "ArcOrbit · Lin" }
+  ]);
+  assert.equal(result.calls.some(([command, input]) => command === "feedback.to_task"
+    && input.feedback_id === "F-11"
+    && input.task_content === "Visible in the selected product"
+    && input.executor_id === "8"), true);
   assert.equal(result.automationNavCount, "1");
   assert.equal(result.feedbackQueueNavCount, "1");
   assert.equal(result.attentionNavCount, "1");

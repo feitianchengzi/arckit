@@ -2,7 +2,7 @@
 
 ## Platform Workspace
 
-`platform-workspace/interaction.md` 定义登录后的两组一级信息架构：Advance 下的 Today、Work、Automation、Feedback，以及 Platform 下不受 Workset 裁剪的 Organization。`default.html` 投影多产品推进壳；`collaboration-views.html` 投影组织概览、成员已有关系和项目上下文邀请；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
+`platform-workspace/interaction.md` 定义登录后的两组一级信息架构：Advance 下的 Today、Work、Automation、Feedback，以及 Platform 下不受 Workset 裁剪的 Organization。`default.html` 投影多产品推进壳和 Feedback 完整正文转待办、项目成员选择；`collaboration-views.html` 投影组织概览、成员已有关系和项目上下文邀请；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
 
 Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md` 与 `arckit/tech/arcorbit/platform-composition-solution.md`。Product Workspace 组合 Workshop Project 与 ArcOrbit 本地 repository binding、participation 和偏好；Workset 只控制同时展示范围，不能改变 Automation participation 或全局单活动执行。
 

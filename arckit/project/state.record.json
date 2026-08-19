@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-19T19:14:41.484Z",
-    "revision": 129
+    "updated_at": "2026-08-19T19:28:08.295Z",
+    "revision": 132
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "ArcOrbit 产品反馈输入清空问题已完成根因修复、真实环境验证和 implementation-focused completion review；当前 Case 可关闭。",
+      "current_focus": "ArcOrbit Feedback 转待办面板的完整正文与项目成员选择已完成实现和验证，等待 implementation-focused completion review。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -187,18 +187,18 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit realizes simultaneous multi-product Today, Work, Automation and Feedback through a persistent Workset and a shared top product-set observation scope. Every ADVANCE page can switch between the complete product set and one member product and can open product-set management; this scope never changes execution eligibility. Work owns the seven todo-status filters, Automation owns the acceptance-feedback-only filter, and primary navigation has no TASK STATUS group. Platform governance remains in a Workset-independent Organization center. Users choose an organization or Personal Projects scope, then use Overview, Members and Projects; the overview exposes the visible member-by-project relationship, ordinary members see participating projects, owner/admin see the organization-wide project scope, member details do not imply targeted invitations, and project owner/admin create explicitly one-shot project-bound invitations. Project binding can add a local project in place and continue binding. The global sidebar footer exposes only a user-avatar account entry, with no standalone add-project, local Runtime or task-source entries; the preserved account page uses the Workshop current-user platform display name. 顶部命令栏提供唯一的“产品反馈”入口，登录用户无需配置即可向内置 Project 107 提交反馈并在同一窗口查看自己的反馈；入口按 1-99、99+ 显示未读，零未读隐藏，退出账户清零；未登录或 SDK 失败时提供脱敏恢复。产品反馈中心在 submit/status 路由和后台未读刷新期间复用同一健康 SDK 文档；后台刷新不重载页面、不打断输入或清空进行中正文，身份切换、关闭或显式重试结束旧草稿上下文。",
-          "reason": "已确认并修复后台未读刷新误重载 SDK 文档的问题，稳定交互源、线框投影和真实 Electron 行为现在一致。",
+          "statement": "ArcOrbit realizes simultaneous multi-product Today, Work, Automation and Feedback through a persistent Workset and a shared top product-set observation scope. Every ADVANCE page can switch between the complete product set and one member product and can open product-set management; this scope never changes execution eligibility. Work owns the seven todo-status filters, Automation owns the acceptance-feedback-only filter, and primary navigation has no TASK STATUS group. Platform governance remains in a Workset-independent Organization center. Users choose an organization or Personal Projects scope, then use Overview, Members and Projects; the overview exposes the visible member-by-project relationship, ordinary members see participating projects, owner/admin see the organization-wide project scope, member details do not imply targeted invitations, and project owner/admin create explicitly one-shot project-bound invitations. Project binding can add a local project in place and continue binding. The global sidebar footer exposes only a user-avatar account entry, with no standalone add-project, local Runtime or task-source entries; the preserved account page uses the Workshop current-user platform display name. Workshop Feedback V1 转待办面板以完整 feedback.content 预填待办内容，并只展示反馈所属项目的成员名称；选择成员时提交其 user_id，且允许保持未分配。顶部命令栏提供唯一的“产品反馈”入口，登录用户无需配置即可向内置 Project 107 提交反馈并在同一窗口查看自己的反馈；入口按 1-99、99+ 显示未读，零未读隐藏，退出账户清零；未登录或 SDK 失败时提供脱敏恢复。产品反馈中心在 submit/status 路由和后台未读刷新期间复用同一健康 SDK 文档；后台刷新不重载页面、不打断输入或清空进行中正文，身份切换、关闭或显式重试结束旧草稿上下文。",
+          "reason": "用户明确要求 Feedback 转待办保留完整正文并以成员名称选择执行人；稳定交互源、生产实现和真实 Electron 回归现已一致兑现。",
           "evidence": [
-            "arckit/interaction/product-feedback-center/interaction.md",
-            "arckit/interaction/product-feedback-center/default.html",
-            "runtime/arcorbit/src/product-feedback-window.mjs",
-            "runtime/arcorbit/test/product-feedback-window.test.mjs",
-            "Real Electron preservation verification 2026-08-20."
+            "arckit/interaction/platform-workspace/interaction.md",
+            "arckit/interaction/platform-workspace/default.html",
+            "runtime/arcorbit/desktop/renderer/renderer.js",
+            "runtime/arcorbit/test/organization-center-electron.test.mjs",
+            "Real Electron regression 2026-08-20"
           ],
           "confidence": "high",
-          "resume_condition": "当入口位置、草稿生命周期、配置责任、角标语义、模式切换或恢复责任变化时重审。",
-          "revision": 20
+          "resume_condition": "当 Feedback V1 转待办的内容映射、成员选择范围、未分配语义、user_id 载荷或两步关联契约变化时重审。",
+          "revision": 21
         },
         "gap_refs": []
       },

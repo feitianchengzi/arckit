@@ -46,6 +46,11 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(source, /"project\.member\.update"/);
   assert.match(source, /"task\.attachment\.create"/);
   assert.match(source, /"feedback\.to_task"/);
+  const feedbackToTaskHandler = source.slice(source.indexOf("async function feedbackToTask"), source.indexOf("async function deleteFeedback"));
+  assert.match(feedbackToTaskHandler, /platformField\("task_content", "待办内容", \{ type: "textarea", required: true, value: feedback\.content \}\)/);
+  assert.match(feedbackToTaskHandler, /platformField\("executor_id", "执行人", \{ type: "select", options: memberSelectOptions\(feedback\.project_id\) \}\)/);
+  assert.doesNotMatch(feedbackToTaskHandler, /feedback\.title \|\| feedback\.content|执行人 ID/);
+  assert.match(source, /function memberSelectOptions\(projectId = ""\).*value: item\.user_id, label: `\$\{item\.project_name\} · \$\{item\.username\}`/);
   assert.doesNotMatch(source, /project\.member\.add/);
   const worksetHandler = source.slice(source.indexOf("async function editCurrentWorkset"), source.indexOf("async function toggleProjectInWorkset"));
   assert.doesNotMatch(worksetHandler, /setProjectParticipation|setAutomationEnabled|bindAutomationProject/);

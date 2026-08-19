@@ -147,8 +147,9 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
   });
 
   await coordinator.executeAction("project.member.update", { project_id: 11, target_user_id: 7, duty: "Design" });
-  await coordinator.executeAction("feedback.to_task", { feedback_id: 51, project_id: 11, task_content: "Follow up", metadata: { priority: "P1" } });
+  await coordinator.executeAction("feedback.to_task", { feedback_id: 51, project_id: 11, task_content: "Follow up", executor_id: 8, metadata: { priority: "P1" } });
   assert.deepEqual(calls[0], ["member.update", 11, { project_id: 11, target_user_id: 7, duty: "Design" }]);
+  assert.deepEqual(calls[1], ["task.create", { project_id: 11, content: "Follow up", state: "pending_review", executor_id: 8, priority: undefined, tags: undefined }]);
   assert.deepEqual(calls[2], ["feedback.update", 51, { data: { priority: "P1", task_id: "42", task_state: "pending_review" } }]);
   await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /仍有未解决的验收问题/);
   acceptanceIssues[0].status = "resolved";

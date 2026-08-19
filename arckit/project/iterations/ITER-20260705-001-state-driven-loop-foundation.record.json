@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-19T19:14:41.484Z",
+  "updated_at": "2026-08-19T19:28:08.295Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -1302,6 +1302,19 @@
         "arckit/cases/active/CASE-20260819-005-arcorbit.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260819-005-arcorbit.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "experience_and_interaction",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/interaction/platform-workspace/interaction.md",
+        "arckit/interaction/platform-workspace/default.html",
+        "runtime/arcorbit/desktop/renderer/renderer.js",
+        "Real Electron regression: full content, project-scoped member names, and executor_id verified",
+        "arckit/cases/active/CASE-20260819-006-arcorbit-feedback.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260819-006-arcorbit-feedback.md"
     }
   ],
   "acceptance": {
@@ -1369,19 +1382,16 @@
     "arckit/cases/closed/CASE-20260819-002-default-new-arcorbit-todos-to-the-selected-product.md",
     "arckit/cases/closed/CASE-20260819-003-integrate-product-feedback-sdk-into-arcorbit.md",
     "arckit/cases/closed/CASE-20260819-004-diagnose-arcorbit-product-feedback-popup-mismatch.md",
-    "arckit/cases/closed/CASE-20260819-005-arcorbit.md"
+    "arckit/cases/closed/CASE-20260819-005-arcorbit.md",
+    "arckit/cases/closed/CASE-20260819-006-arcorbit-feedback.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260819-005-arcorbit.md",
+    "case_ref": "arckit/cases/closed/CASE-20260819-006-arcorbit-feedback.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260819-005-arcorbit.md",
-      "CASE-20260819-005 content revision 2 completion review outcome: clean.",
-      "Fresh focused tests: 9 passed, 0 failed.",
-      "Fresh npm run check: 224 tests, 222 passed, 2 skipped, 0 failed.",
-      "Accepted real Electron draft-preservation verification 2026-08-20."
+      "arckit/cases/closed/CASE-20260819-006-arcorbit-feedback.md"
     ],
-    "updated_at": "2026-08-19T19:14:41.484Z"
+    "updated_at": "2026-08-19T19:28:08.295Z"
   }
 }

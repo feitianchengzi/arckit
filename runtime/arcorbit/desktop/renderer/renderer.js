@@ -1052,9 +1052,9 @@ async function feedbackToTask(feedbackId) {
     lead: "这是现有 Feedback V1 与 Todo 的非事务组合：先创建待办，再把待办 ID 写回反馈 data；若第二步失败会明确保留部分成功信息。",
     confirmLabel: "创建并关联",
     fields: [
-      platformField("task_content", "待办内容", { type: "textarea", required: true, value: feedback.title || feedback.content }),
+      platformField("task_content", "待办内容", { type: "textarea", required: true, value: feedback.content }),
       platformField("task_state", "初始状态", { type: "select", value: "pending_review", options: taskStateOptions() }),
-      platformField("executor_id", "执行人 ID"),
+      platformField("executor_id", "执行人", { type: "select", options: memberSelectOptions(feedback.project_id) }),
       platformField("task_priority", "服务优先级", { type: "number", value: "0", min: 0 }),
       platformField("task_tags", "标签")
     ]
