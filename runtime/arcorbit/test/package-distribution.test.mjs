@@ -153,7 +153,14 @@ test("Runtime package workflow is manual-only and consumes immutable release/pro
   assert.match(workflow, /environment:.*internal/);
   assert.match(workflow, /npm run smoke:distribution/);
   assert.match(workflow, /WIN_CSC_LINK:.*matrix\.platform == 'win'/);
-  assert.match(workflow, /APPLE_API_KEY:.*matrix\.platform == 'mac'/);
+  assert.match(workflow, /signing:[\s\S]*?default: required/);
+  assert.match(workflow, /APPLE_API_KEY_BASE64:.*secrets\.APPLE_API_KEY_BASE64/);
+  assert.match(workflow, /base64 --decode > "\$api_key_path"/);
+  assert.match(workflow, /echo "APPLE_API_KEY=\$api_key_path" >> "\$GITHUB_ENV"/);
+  assert.match(workflow, /secrets\.APPLE_API_KEY_BASE64 == '' && secrets\.APPLE_ID/);
+  assert.doesNotMatch(workflow, /APPLE_API_KEY:.*secrets\.APPLE_API_KEY/);
+  assert.match(workflow, /notarization_auth=api-key/);
+  assert.match(workflow, /macOS notarization authentication: \$notarization_auth/);
   assert.match(workflow, /codesign --verify --deep --strict/);
   assert.match(workflow, /xcrun stapler validate/);
   assert.match(workflow, /spctl --assess --type execute/);
