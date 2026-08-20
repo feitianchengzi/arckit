@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>ArcOrbit Chat Workspace</title><link rel="stylesheet" href="../wireframe-style.css"></head>
+<body><div class="wireframe-container"><header><h1>Chat Workspace</h1><div class="meta-info"><div>入口: <strong>Personal / Chat</strong></div><div>阶段: <strong>计划展示</strong></div></div></header>
+<details open><summary>自由问答与形态确认</summary><div class="state-content">
+<div class="state-description"><strong>触发条件：</strong>用户进入 Chat，围绕尚未正式立项的问题与 Agent 自由讨论。</div>
+<div class="wireframe-canvas"><div class="device-frame desktop"><div class="desktop-titlebar"><strong>ArcOrbit · Chat</strong><span>产品上下文 · ArcOrbit</span></div><div class="split-h">
+<aside class="sidebar"><div class="sidebar-section">最近对话</div><div class="list-item"><div class="list-item-text"><div class="list-item-title">上线后如何组织反馈？</div><div class="list-item-subtitle">刚刚 · 未形成事项</div></div></div><div class="list-item"><div class="list-item-text"><div class="list-item-title">Windows 发布风险</div><div class="list-item-subtitle">昨天 · 已建议 Work</div></div></div></aside>
+<section class="split-v"><div class="content-area"><div class="card"><div class="card-title">你</div><p>我们下一阶段应该先做行业模板，还是先补发布监控？</p></div><div class="card"><div class="card-title">Agent</div><p>当前 ArcOrbit 已有 release-intent、打包验证和 Runtime 事件基础；行业模板仍需要先明确 State 与 Skills 的替换边界。可以先把两条方向整理成 Idea，再决定是否进入 Work。</p></div><div class="group-box"><div class="group-box-title">仍待确认</div><p>目标用户、监控来源、行业 profile 的首个试点范围。</p></div></div><div class="toolbar"><button class="button small">继续讨论</button><div class="toolbar-spacer"></div><span class="badge">示意动作</span><button class="button small">转为 Idea</button><button class="button primary small">创建 Work</button></div></section>
+</div></div></div>
+<div class="component-list"><h3>组件清单</h3><ul><li>最近对话</li><li>可选产品上下文</li><li>用户与 Agent 正文</li><li>待确认事实</li><li>目标形态动作</li></ul></div>
+<div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>继续讨论</code> → 保持自由 Chat</div><div class="interaction-item"><code>转为 Idea / 创建 Work</code> → 预览来源与目标，不执行真实写入</div></div>
+</div></details></div></body></html>

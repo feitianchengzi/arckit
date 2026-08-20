@@ -100,3 +100,6 @@
 | [CASE-20260819-006](closed/CASE-20260819-006-arcorbit-feedback.md) | closed | 修复 ArcOrbit Feedback 转待办面板的内容与执行人选择 | 2026-08-19T19:28:08.295Z |
 | [CASE-20260819-007](closed/CASE-20260819-007-arcorbit-feedback.md) | closed | 重新定位 ArcOrbit Feedback 开发者处理工作台 | 2026-08-19T20:02:38.503Z |
 | [CASE-20260820-001](closed/CASE-20260820-001-work.md) | closed | 修复 Work 右侧待办面板滚动边界 | 2026-08-20T03:17:27.576Z |
+| [CASE-20260820-002](closed/CASE-20260820-002-arcorbit.md) | closed | 建立 ArcOrbit 全工作循环入口与计划展示页面 | 2026-08-20T05:57:49.128Z |
+| [CASE-20260820-003](closed/CASE-20260820-003-arcorbit-state-skills.md) | closed | 合并 ArcOrbit State 与 Skills 为软件工程模型页面 | 2026-08-20T08:00:41.033Z |
+| [CASE-20260820-004](closed/CASE-20260820-004-engineering-domain-profile.md) | closed | 让 Engineering 成为可管理和替换的 Domain Profile | 2026-08-20T09:09:31.283Z |

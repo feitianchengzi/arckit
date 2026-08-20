@@ -34,7 +34,7 @@ Workshop 服务继续保存团队共享的组织、项目、成员、待办和�
 4. 用户反馈流转为待办，完成态待办可以产生验收问题。
 5. 执行证据和状态写回同一产品上下文。
 
-Delivery、Capability、ProductIdea 和完整 Product Studio 保留平台扩展位置，但不伪装为第一阶段已实现能力。
+Chat、Idea、Release、Operations 和 Engineering 的计划工作空间及其展示边界由 `arcorbit-planned-workspaces.md` 定义；Engineering 以可管理 Domain Profile 组合 State Model、预期/现状/诊断能力映射与生命周期解释，不展示 entry skills。当前编辑、比较和 Apply 控件不伪装为第一阶段已接入的真实保存、安装或应用能力。
 
 ### Product Workspace
 

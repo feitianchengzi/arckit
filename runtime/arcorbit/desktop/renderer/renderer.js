@@ -558,16 +558,18 @@ function renderNavigation() {
 function renderCommandBar() {
   const project = currentProject();
   const organizationScope = currentOrganizationScope();
-  els.scopeTitle.textContent = state.page === "organization"
+  const organizationCapabilityPage = ["organization", "engineering"].includes(state.page);
+  els.scopeTitle.textContent = organizationCapabilityPage
     ? organizationScope?.name || "个人项目"
     : project?.name || state.platform.active_workset?.name || "项目集全部";
   els.pageTitle.textContent = {
-    today: "Today", organization: "Organization", work: "Work", feedback: "Feedback",
-    command: "Automation", tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心"
+    today: "Today", chat: "Chat", idea: "Idea", organization: "Organization", engineering: "Engineering",
+    work: "Work", feedback: "Feedback", command: "Automation", release: "Release", operations: "Operations",
+    tasks: STATE_LABELS[state.selectedState], workbench: "人工介入", recovery: "恢复中心"
   }[state.page] || "ArcOrbit";
   els.automationEnabled.checked = Boolean(state.snapshot.enabled);
   els.automationEnabled.disabled = !state.authentication.authenticated;
-  els.productSetCluster.classList.toggle("hidden", state.page === "organization");
+  els.productSetCluster.classList.toggle("hidden", organizationCapabilityPage);
   renderProductFeedbackTrigger();
 }
 

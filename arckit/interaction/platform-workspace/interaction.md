@@ -2,7 +2,7 @@
 
 ## 产品定位
 
-ArcOrbit 是在本地项目上开发多个软件产品的平台。Today、Work、Automation 和 Feedback 负责跨产品推进；Organization Center 负责组织、成员和产品的静态治理全貌。用户不需要为了日常研发再登录 Workshop 待办或反馈网页，但 Workshop 仍拥有共享业务事实。
+ArcOrbit 是在本地项目上开发多个软件产品的平台。Today 与 Chat 承接个人即时协作；Idea、Work、Automation、Release、Operations 和 Feedback 表达产品全生命周期；Organization 与 Engineering 分别表达组织治理和当前领域模型。用户不需要为了日常研发再登录 Workshop 待办或反馈网页，但 Workshop 仍拥有共享业务事实。
 
 ## 事实边界
 
@@ -26,14 +26,19 @@ ArcOrbit 是在本地项目上开发多个软件产品的平台。Today、Work�
 
 ## 应用壳
 
-左侧导航分为两个职责组：
+左侧导航分为三个职责组：
 
-- `ADVANCE`：Today、Work、Automation、Feedback，使用当前 Workset 聚合多个产品；
-- `PLATFORM`：Organization，不受 Workset 过滤。
+- `PERSONAL`：Today、Chat；Today 使用当前 Workset，Chat 可以选择产品上下文但保持自由讨论边界；
+- `PRODUCT LIFECYCLE`：Idea、Work、Automation、Release、Operations、Feedback；Work、Automation 与 Feedback 保留真实平台行为，Idea、Release 与 Operations 是计划展示页；
+- `ORGANIZATION`：Organization、Engineering；Organization 保留真实治理行为，Engineering 是管理 State Model、Capability Mapping 与 Lifecycle Mapping 的 Domain Profile 计划工作台。
 
-顶部产品集控件始终显示当前集合名称、产品数量和观察范围。用户可以在“项目集全部”与集合内单个产品之间快速切换，并通过“管理项目集”打开成员管理覆盖层；Today、Work、Automation 和 Feedback 共享该选择。Organization 页面 breadcrumb 显示当前组织或“个人项目”，不用产品集名称冒充组织范围。
+英文界面统一显示 `Release` 与 `Operations`，中文说明分别使用“发布”和“运营”。入口顺序固定为 Today、Chat；Idea、Work、Automation、Release、Operations、Feedback；Organization、Engineering。
 
-左侧主导航只展示 `ADVANCE` 与 `PLATFORM` 下的产品级页面，不展示 `TASK STATUS` 或七状态条目。七状态筛选属于 Work 面板，“仅看验收问题”属于 Automation 面板。
+计划展示页使用现有 Project、Task、Feedback、Run、Project State、Case、Loop、definition/code/diagnosis skill contract 和 release workflow 事实构成可信示例，并显式标记没有真实接入的动作。展示页不写入 Workshop、canonical ledger、Runtime 或外部市场与监控平台。
+
+顶部产品集控件始终显示当前集合名称、产品数量和观察范围。用户可以在“项目集全部”与集合内单个产品之间快速切换，并通过“管理项目集”打开成员管理覆盖层；Today、Idea、Work、Automation、Release、Operations 和 Feedback 共享该选择，Chat 可选择是否携带该上下文。Organization 与 Engineering 使用组织能力范围，不用产品集名称冒充组织范围。
+
+左侧主导航不展示 `TASK STATUS` 或七状态条目。七状态筛选属于 Work 面板，“仅看验收问题”属于 Automation 面板。
 
 全局侧栏底部只保留当前用户头像作为账号入口。侧栏不提供独立的“添加本地项目”“本地 Runtime”或“任务源”入口；头像打开既有账号页面，页面继续承载任务源、会话和 Runtime 设置，并以 Workshop current-user 的平台显示名标识当前账户。
 
@@ -87,6 +92,12 @@ ArcOrbit 是在本地项目上开发多个软件产品的平台。Today、Work�
 ### Today
 
 Today 按顶部产品集观察范围聚合 Product Workspace、完整待办、普通反馈和 Automation 投影。产品卡保留项目来源、团队规模、本地绑定和执行资格；打开卡片把全局范围切换到该产品并进入 Work。
+
+### Chat、Idea、Release、Operations 与 Engineering
+
+五个新增入口各自打开独立稳定页签。Chat 展示自由问答与经确认后的形态建议；Idea 展示创意、团队讨论与正式项目转换；Release 展示发版准备和线上监控；Operations 展示对外市场动作；Engineering 展示 Profile Library 和编辑器，用户可以在计划层选择、复制、编辑、比较和 Apply Domain Profile。Profile 把 Project/Case 的领域 State 定义、预期/现状/诊断能力映射以及同一生命周期的领域解释作为一组替换；通用 Loop Kernel 与产品流程保持稳定。
+
+这些页面的详细交互策略分别位于 `../chat-workspace/`、`../idea-workspace/`、`../release-workspace/`、`../operations-workspace/` 和 `../engineering-profile/`。所有写入或转换动作在当前阶段均为计划展示，不产生真实副作用。
 
 ### Work
 

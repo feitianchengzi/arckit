@@ -2,9 +2,15 @@
 
 ## Platform Workspace
 
-`platform-workspace/interaction.md` 定义登录后的两组一级信息架构：Advance 下的 Today、Work、Automation、Feedback，以及 Platform 下不受 Workset 裁剪的 Organization。`default.html` 投影多产品推进壳和 Feedback 完整正文转待办、项目成员选择；`collaboration-views.html` 投影组织概览、成员已有关系和项目上下文邀请；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
+`platform-workspace/interaction.md` 定义登录后的三组一级信息架构：Personal 下的 Today、Chat；Product Lifecycle 下的 Idea、Work、Automation、Release、Operations、Feedback；Organization 下的 Organization、Engineering。`default.html` 投影分组后的多产品推进壳和 Feedback 完整正文转待办、项目成员选择；`collaboration-views.html` 投影组织概览、成员已有关系和项目上下文邀请；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
 
-Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md` 与 `arckit/tech/arcorbit/platform-composition-solution.md`。Product Workspace 组合 Workshop Project 与 ArcOrbit 本地 repository binding、participation 和偏好；Workset 只控制同时展示范围，不能改变 Automation participation 或全局单活动执行。
+Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md`、`arcorbit-planned-workspaces.md` 与 `arckit/tech/arcorbit/platform-composition-solution.md`。Product Workspace 组合 Workshop Project 与 ArcOrbit 本地 repository binding、participation 和偏好；Workset 只控制同时展示范围，不能改变 Automation participation 或全局单活动执行。
+
+## Planned Workspaces
+
+`chat-workspace/` 定义自由 Agent 问答和显式形态确认；`idea-workspace/` 定义创意探索、团队讨论与正式项目转换预览；`release-workspace/` 定义发版准备和上线监控计划；`operations-workspace/` 定义外部市场动作和效果信号回流；`engineering-profile/` 把 Project/Case State 的软件工程定义与维护预期事实、实现现状和问题定位的领域 Skills 组合为一个 Domain Profile，并明确排除 entry skills。
+
+五个页面共同消费 `arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md`。它们只使用当前真实 Project、Task、Feedback、Run、ledger、代码/配置/测试/运行证据和 release workflow 事实组织展示，不建立新的服务端、Runtime、发布、监控、市场或 registry 写入合约。Chat 和 Idea 的转换、Release 的发布、Operations 的外部动作，以及 Engineering 的 Profile 编辑、比较与 Apply 均保持计划动作。
 
 Organization Center 复用 Workshop Organization、OrganizationMember 和 Project Member，并由组织角色决定全部项目或参与项目可见性。成员页不生成项目邀请；项目页只生成一次性通用邀请。Work 读取完整七状态团队待办；普通反馈读取 Workshop Feedback V1。现有直接加成员授权、邀请列表/撤销、Feedback V2 与待办历史能力未成立时保持 unavailable。
 

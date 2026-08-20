@@ -100,6 +100,76 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.doesNotMatch(html, /class="chat-column"|id="chatInput"|>Chats</);
 });
 
+test("desktop presents the planned lifecycle and manageable domain profiles without wiring side effects", async () => {
+  const [source, html, styles] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererHtmlPath, "utf8"),
+    readFile(rendererStylesPath, "utf8")
+  ]);
+
+  const sidebar = html.slice(html.indexOf('<nav class="primary-nav"'), html.indexOf('</nav>'));
+  const orderedLabels = [
+    "PERSONAL", "Today", "Chat",
+    "PRODUCT LIFECYCLE", "Idea", "Work", "Automation", "Release", "Operations", "Feedback",
+    "ORGANIZATION", "Organization", "Engineering"
+  ];
+  let cursor = -1;
+  for (const label of orderedLabels) {
+    const next = sidebar.indexOf(label, cursor + 1);
+    assert.ok(next > cursor, `${label} should appear in the planned navigation order`);
+    cursor = next;
+  }
+  for (const page of ["chat", "idea", "release", "operations", "engineering"]) {
+    assert.match(sidebar, new RegExp(`data-page="${page}"`));
+    assert.match(html, new RegExp(`data-page-view="${page}"`));
+  }
+  assert.match(html, /PERSONAL · OPEN AGENT CHAT/);
+  assert.match(html, /自由问答不自动成为正式事项/);
+  assert.match(html, /PRODUCT LIFECYCLE · IDEA/);
+  assert.match(html, /PRODUCT LIFECYCLE · RELEASE/);
+  assert.match(html, /Release 是“发布”的统一英文入口/);
+  assert.match(html, /PRODUCT LIFECYCLE · OPERATIONS/);
+  assert.match(html, /Operations 是“运营”的统一英文入口/);
+  assert.match(html, /ORGANIZATION · DOMAIN PROFILE MANAGEMENT/);
+  assert.match(html, /领域模型与能力管理/);
+  assert.match(html, /MANAGEMENT PREVIEW · 无真实写入/);
+  assert.match(html, /Domain Profiles/);
+  assert.match(html, /Software Engineering/);
+  assert.match(html, /Campaign Operations/);
+  assert.match(html, /Research Program/);
+  assert.match(html, /State Model/);
+  assert.match(html, /Project State · Software Definition/);
+  assert.match(html, /Case State · Engineering Mapping/);
+  assert.match(html, /Capability Mapping/);
+  assert.match(html, /预期事实/);
+  assert.match(html, /实现现状/);
+  assert.match(html, /问题定位/);
+  assert.match(html, /Lifecycle Mapping/);
+  assert.match(html, /Change Preview/);
+  assert.match(html, /Review &amp; Apply/);
+  assert.match(html, /Stable operating model/);
+  assert.match(html, /Idea[\s\S]*Work[\s\S]*Automation[\s\S]*Release[\s\S]*Operations[\s\S]*Feedback/);
+  assert.match(html, /LOOP KERNEL · 保持不变/);
+  assert.match(html, /Entry capabilities 不进入 Profile/);
+  assert.doesNotMatch(sidebar, /data-page="state"|data-page="skills"/);
+  assert.doesNotMatch(html, /data-page-view="state"|data-page-view="skills"/);
+  assert.doesNotMatch(html, /using-arckit|arckit-development-ledger|Trusted entrypoints/);
+  assert.match(html, /PLAN VIEW · 无真实写入/);
+  assert.match(html, /PLAN VIEW · 不授权发版/);
+  assert.match(html, /PLAN VIEW · 不调用外部平台/);
+  assert.doesNotMatch(html, /data-plan-action|id="chatInput"|id="createIdeaButton"|id="publishReleaseButton"/);
+  assert.match(source, /\["organization", "engineering"\]\.includes\(state\.page\)/);
+  assert.match(source, /chat: "Chat", idea: "Idea"/);
+  assert.match(source, /release: "Release", operations: "Operations"/);
+  assert.match(source, /engineering: "Engineering"/);
+  assert.match(styles, /\.planning-three-column/);
+  assert.match(styles, /\.planning-boundary/);
+  assert.match(styles, /\.profile-management-grid/);
+  assert.match(styles, /\.profile-capability-grid/);
+  assert.match(styles, /\.profile-lifecycle/);
+  assert.doesNotMatch(source, /applyDomainProfile|saveDomainProfile|installDomainSkill/);
+});
+
 test("Desktop opens feedback attachments through a bounded main-process HTTPS capability", async () => {
   const [main, preload] = await Promise.all([
     readFile(desktopMainPath, "utf8"),
