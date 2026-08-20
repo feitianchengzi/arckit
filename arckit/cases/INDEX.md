@@ -99,3 +99,4 @@
 | [CASE-20260819-005](closed/CASE-20260819-005-arcorbit.md) | closed | 诊断并修复 ArcOrbit 产品反馈输入被清空 | 2026-08-19T19:14:41.484Z |
 | [CASE-20260819-006](closed/CASE-20260819-006-arcorbit-feedback.md) | closed | 修复 ArcOrbit Feedback 转待办面板的内容与执行人选择 | 2026-08-19T19:28:08.295Z |
 | [CASE-20260819-007](closed/CASE-20260819-007-arcorbit-feedback.md) | closed | 重新定位 ArcOrbit Feedback 开发者处理工作台 | 2026-08-19T20:02:38.503Z |
+| [CASE-20260820-001](closed/CASE-20260820-001-work.md) | closed | 修复 Work 右侧待办面板滚动边界 | 2026-08-20T03:17:27.576Z |

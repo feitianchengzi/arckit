@@ -7,4 +7,4 @@
 | `platform-workspace/` | ✅ | 通过本地 Workset 同时推进多个产品，并在不受 Workset 裁剪的 Organization Center 中逐层管理组织、成员和项目 | 多产品 Today、Workset 多选、组织概览、成员已有关系、项目详情与通用邀请、Feedback 完整正文转待办与项目成员选择、邀请码加入、有限可见范围、部分失败、Automation/Workbench/Recovery 交接 |
 | `product-feedback-center/` | ✅ | 在 ArcOrbit 内向固定 Project 107 提交反馈、查看当前账户反馈并感知未读变化 | 未读角标、SDK 加载、提交反馈、我的反馈、需要登录、SDK 失败恢复 |
 | `automation-workspace/` | ✅ | 登录后分别观察普通待办与验收问题队列，由统一执行仲裁器串行启动 ready 队首；当前 Case 可在 Runtime 与交互式 Codex CLI 之间显式交接，并保留待办级消息、用量与异常观察 | 已登录账号摘要、会话失效；双队列总览、问题等待/运行/待人工/阻塞；项目范围切换、自动执行、CLI 接管、人工介入、完成续接、写回失败；领取冲突、启动失败、安全停止、用量诊断 |
-| `task-browser/` | ✅ | 在 Work 内以七状态列表和同屏右侧 Inspector 浏览任务；completed 可提出验收问题，accepted 只显示验收通过，并执行有权限的人工状态处置 | 待处理列表与 Inspector、待评审确认、进行中任务、已完成问题详情与 Composer、已验收只读结果、已阻塞恢复、取消确认、当前范围为空、同步或版本冲突 |
+| `task-browser/` | ✅ | 在 Work 内以七状态列表和同屏右侧 Inspector 浏览任务；列表与 Inspector 在固定页面框架内独立纵向滚动；completed 可提出验收问题，accepted 只显示验收通过，并执行有权限的人工状态处置 | 待处理列表与 Inspector、待评审确认、进行中任务、已完成问题详情与 Composer、已验收只读结果、已阻塞恢复、取消确认、当前范围为空、同步或版本冲突 |

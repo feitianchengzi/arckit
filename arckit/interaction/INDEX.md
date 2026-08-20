@@ -30,4 +30,4 @@
   - interaction.md 自动化指挥中心交互：全局产品范围、仅看验收问题、账户头像、双队列与 Runtime/CLI 接力。✅ (383行)
 - task-browser/ Work 同屏任务浏览：在 Work 面板以七状态列表和右侧 Inspector 执行任务检查、验收与受控人工处置。✅
   - default.html Work 任务浏览线框：顶部产品范围、面板内七状态、同屏 Inspector、待评审确认、运行/验收、恢复与冲突。✅ (217行)
-  - interaction.md 任务浏览交互：项目与状态筛选、列表选择、右侧 Inspector、验收问题 Composer、受控状态操作和并发冲突处理。✅ (188行)
+  - interaction.md 任务浏览交互：项目与状态筛选、列表选择、面板内独立滚动、右侧 Inspector、验收问题 Composer、受控状态操作和并发冲突处理。✅ (189行)

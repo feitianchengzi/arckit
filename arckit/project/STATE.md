@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 138
-Updated: 2026-08-19T20:02:38.503Z
+Revision: 140
+Updated: 2026-08-20T03:17:27.576Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-CASE-20260819-007 已通过 content revision 3 Completion Review，ArcOrbit Feedback 开发者处理工作台 Case 完成。
+让 ArcOrbit Work 页面右侧待办面板在自身范围内纵向滚动，避免待办内容驱动整个页面滚动。
 
 ## Active Work
 

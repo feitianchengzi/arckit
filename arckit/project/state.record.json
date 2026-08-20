@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-19T20:02:38.503Z",
-    "revision": 138
+    "updated_at": "2026-08-20T03:17:27.576Z",
+    "revision": 140
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "CASE-20260819-007 已通过 content revision 3 Completion Review，ArcOrbit Feedback 开发者处理工作台 Case 完成。",
+      "current_focus": "让 ArcOrbit Work 页面右侧待办面板在自身范围内纵向滚动，避免待办内容驱动整个页面滚动。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",

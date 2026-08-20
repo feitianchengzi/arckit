@@ -399,7 +399,10 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .participation-row { display: flex; align-items: center; gap: 7px; color: var(--ink-500); font-size: 9px; }
 
 .browser-grid { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; }
-.platform-work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: start; min-width: 0; }
+#workView.is-active { overflow: hidden; }
+#workView > .platform-page { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%; min-height: 0; }
+.platform-work-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; align-items: stretch; min-width: 0; min-height: 0; overflow: hidden; }
+.platform-work-layout > .panel-card, .platform-work-inspector { height: 100%; min-height: 0; margin-bottom: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .platform-work-inspector { border: 1px solid var(--ink-150); border-radius: var(--radius-md); background: #fff; box-shadow: var(--shadow-sm); }
 .feedback-page { min-width: 0; }
 .feedback-toolbar { display: grid; grid-template-columns: minmax(220px, 1fr) 150px 140px auto; gap: 10px; align-items: end; padding: 12px 14px; }
@@ -437,6 +440,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .browser-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 8px 12px; border-bottom: 1px solid var(--ink-150); color: var(--ink-500); font-size: 9px; }
 .browser-toolbar input { width: 240px; height: 31px; padding: 0 10px; border: 1px solid var(--ink-200); border-radius: 7px; background: var(--ink-50); }
 .task-inspector { position: sticky; top: 16px; min-height: 360px; }
+.platform-work-inspector { position: static; }
 .task-inspector h2 { margin: 0 0 5px; font-size: 15px; }
 .task-inspector > div > p { color: var(--ink-500); font-size: 10px; }
 .acceptance-feedback-panel { display: grid; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--ink-150); }

@@ -167,6 +167,10 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   assert.match(styles, /\.work-state-filters/);
   assert.match(styles, /\.filter-toggle/);
   assert.match(styles, /\.account-avatar/);
+  assert.match(styles, /#workView\.is-active \{ overflow: hidden; \}/);
+  assert.match(styles, /#workView > \.platform-page[^}]+grid-template-rows: auto auto minmax\(0, 1fr\)[^}]+height: 100%[^}]+min-height: 0/);
+  assert.match(styles, /\.platform-work-layout[^}]+align-items: stretch[^}]+min-height: 0[^}]+overflow: hidden/);
+  assert.match(styles, /\.platform-work-layout > \.panel-card, \.platform-work-inspector[^}]+overflow-y: auto[^}]+overscroll-behavior: contain[^}]+scrollbar-gutter: stable/);
 });
 
 test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views", async () => {
