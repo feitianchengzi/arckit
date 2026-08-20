@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -10,8 +11,33 @@ import { promisify } from "node:util";
 import { loadRuntimeCapabilities, resolveCapabilityEntrypoint } from "../src/capability-registry.mjs";
 
 const execFileAsync = promisify(execFile);
+const require = createRequire(import.meta.url);
 const runtimeRoot = fileURLToPath(new URL("..", import.meta.url));
 const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
+const { resolvePackagedExecutablePath } = require("../scripts/flip-electron-fuses.cjs");
+
+test("fuse hook resolves each electron-builder packaged executable without assuming a Windows-only packager field", () => {
+  assert.equal(resolvePackagedExecutablePath({
+    appOutDir: path.join("release", "win-unpacked"),
+    electronPlatformName: "win32",
+    packager: { appInfo: { productFilename: "arcorbit" } }
+  }), path.join("release", "win-unpacked", "arcorbit.exe"));
+  assert.equal(resolvePackagedExecutablePath({
+    appOutDir: path.join("release", "linux-unpacked"),
+    electronPlatformName: "linux",
+    packager: { executableName: "arcorbit", appInfo: { productFilename: "ArcOrbit" } }
+  }), path.join("release", "linux-unpacked", "arcorbit"));
+  assert.equal(resolvePackagedExecutablePath({
+    appOutDir: path.join("release", "mac"),
+    electronPlatformName: "darwin",
+    packager: { appInfo: { productFilename: "ArcOrbit" } }
+  }), path.join("release", "mac", "ArcOrbit.app"));
+  assert.throws(() => resolvePackagedExecutablePath({
+    appOutDir: "release",
+    electronPlatformName: "freebsd",
+    packager: { appInfo: { productFilename: "ArcOrbit" } }
+  }), /Unsupported Electron platform/);
+});
 
 test("package exposes the ArcOrbit identity and the legacy CLI alias through one entrypoint", async () => {
   const manifest = JSON.parse(await readFile(path.join(runtimeRoot, "package.json"), "utf8"));

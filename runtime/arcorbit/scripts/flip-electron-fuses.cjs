@@ -5,10 +5,7 @@ const FUSE_DISABLED = "0".charCodeAt(0);
 const FUSE_ENABLED = "1".charCodeAt(0);
 
 module.exports = async function flipArcOrbitFuses(context) {
-  const executableName = context.packager.executableName;
-  const executablePath = context.electronPlatformName === "darwin"
-    ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
-    : path.join(context.appOutDir, context.electronPlatformName === "win32" ? `${executableName}.exe` : executableName);
+  const executablePath = resolvePackagedExecutablePath(context);
 
   await flipFuses(executablePath, {
     version: FuseVersion.V1,
@@ -37,3 +34,13 @@ module.exports = async function flipArcOrbitFuses(context) {
     if (wire[fuse] !== state) throw new Error(`ArcOrbit packaged fuse ${FuseV1Options[fuse]} was not written as expected.`);
   }
 };
+
+function resolvePackagedExecutablePath(context) {
+  const { appOutDir, electronPlatformName, packager } = context;
+  if (electronPlatformName === "darwin") return path.join(appOutDir, `${packager.appInfo.productFilename}.app`);
+  if (electronPlatformName === "win32") return path.join(appOutDir, `${packager.appInfo.productFilename}.exe`);
+  if (electronPlatformName === "linux") return path.join(appOutDir, packager.executableName);
+  throw new Error(`Unsupported Electron platform for ArcOrbit fuse configuration: ${electronPlatformName}`);
+}
+
+module.exports.resolvePackagedExecutablePath = resolvePackagedExecutablePath;
