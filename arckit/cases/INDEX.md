@@ -103,3 +103,4 @@
 | [CASE-20260820-002](closed/CASE-20260820-002-arcorbit.md) | closed | 建立 ArcOrbit 全工作循环入口与计划展示页面 | 2026-08-20T05:57:49.128Z |
 | [CASE-20260820-003](closed/CASE-20260820-003-arcorbit-state-skills.md) | closed | 合并 ArcOrbit State 与 Skills 为软件工程模型页面 | 2026-08-20T08:00:41.033Z |
 | [CASE-20260820-004](closed/CASE-20260820-004-engineering-domain-profile.md) | closed | 让 Engineering 成为可管理和替换的 Domain Profile | 2026-08-20T09:09:31.283Z |
+| [CASE-20260820-005](closed/CASE-20260820-005-windows-arcorbit-ledger.md) | closed | 修复 Windows ArcOrbit 项目绑定时 ledger 模块解析失败 | 2026-08-20T15:26:39.083Z |

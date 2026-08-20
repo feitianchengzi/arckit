@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 149
-Updated: 2026-08-20T09:09:31.283Z
+Revision: 151
+Updated: 2026-08-20T15:26:39.083Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-以可管理 Domain Profile 替换 State Model、领域能力和阶段解释，让相同 Loop Kernel 与产品生命周期适配不同团队和行业。
+恢复 Windows 安装版 ArcOrbit 的项目目录绑定能力，并确保 trusted ledger capability 的解析符合打包运行时边界。
 
 ## Active Work
 

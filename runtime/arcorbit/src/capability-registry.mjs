@@ -1,4 +1,5 @@
 import { access, readdir, readFile } from "node:fs/promises";
+import path from "node:path";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -149,7 +150,7 @@ async function readCapabilityManifest(manifestPath, repositoryCapabilityRoot) {
       ...parsed,
       capability_root: dirname(manifestPath),
       manifest_path: relative(repositoryCapabilityRoot, manifestPath) || manifestPath,
-      source: isWithin(repositoryCapabilityRoot, manifestPath) ? "repository" : "project"
+      source: isPathWithin(repositoryCapabilityRoot, manifestPath) ? "repository" : "project"
     };
   } catch {
     return null;
@@ -177,9 +178,13 @@ export async function resolvePackagedCapabilityRoot(resourcesPath, { accessFile 
   return null;
 }
 
-function isWithin(root, candidate) {
-  const relativePath = relative(resolve(root), resolve(candidate));
-  return relativePath === "" || (!relativePath.startsWith("..") && !relativePath.startsWith(sep));
+export function isPathWithin(root, candidate, pathApi = path) {
+  const relativePath = pathApi.relative(pathApi.resolve(root), pathApi.resolve(candidate));
+  return relativePath === "" || (
+    !pathApi.isAbsolute(relativePath)
+      && relativePath !== ".."
+      && !relativePath.startsWith(`..${pathApi.sep}`)
+  );
 }
 
 function normalizeCapabilities(capabilities = []) {
