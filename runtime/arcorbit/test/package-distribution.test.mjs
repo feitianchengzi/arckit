@@ -152,7 +152,7 @@ test("Runtime package workflow is manual-only and consumes immutable release/pro
   assert.match(workflow, /macos-15-intel/);
   assert.match(workflow, /environment:.*internal/);
   assert.match(workflow, /npm run smoke:distribution/);
-  assert.match(workflow, /WIN_CSC_LINK:.*matrix\.platform == 'win'/);
+  assert.match(workflow, /macOS signing\/notarization gate; Windows and Linux remain unsigned/);
   assert.match(workflow, /signing:[\s\S]*?default: required/);
   assert.match(workflow, /APPLE_API_KEY_BASE64:.*secrets\.APPLE_API_KEY_BASE64/);
   assert.match(workflow, /base64 --decode > "\$api_key_path"/);
@@ -161,6 +161,10 @@ test("Runtime package workflow is manual-only and consumes immutable release/pro
   assert.doesNotMatch(workflow, /APPLE_API_KEY:.*secrets\.APPLE_API_KEY/);
   assert.match(workflow, /notarization_auth=api-key/);
   assert.match(workflow, /macOS notarization authentication: \$notarization_auth/);
+  assert.match(workflow, /effective_signing=disabled/);
+  assert.match(workflow, /SIGNING: \$\{\{ steps\.signing\.outputs\.effective_signing \}\}/);
+  assert.doesNotMatch(workflow, /required Windows signing secrets are missing/);
+  assert.doesNotMatch(workflow, /WIN_CSC_LINK/);
   assert.match(workflow, /codesign --verify --deep --strict/);
   assert.match(workflow, /xcrun stapler validate/);
   assert.match(workflow, /spctl --assess --type execute/);

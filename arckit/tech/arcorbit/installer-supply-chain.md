@@ -257,9 +257,8 @@ workflow 不创建 release branch、tag 或 commit，不修改源仓库。`draft
 GitHub Environments 分离 internal、beta 和 appstore secrets。matrix job 只注入当前目标需要的 secrets：
 
 - macOS Developer ID、以 `APPLE_API_KEY_BASE64` CI secret 注入并在 `RUNNER_TEMP` 解码为 owner-only `.p8` 临时文件的 notarization Team API key，或 Apple ID app-specific password；API key 存在时不向构建步骤注入 Apple ID credentials，避免底层工具优先选择个人账号认证；
-- Windows code-signing certificate 或受支持的远程 signing provider credentials。
 
-workflow 根据渠道选择 `internal`、`beta` 或 `appstore` GitHub Environment，并只在 Windows matrix 中注入 electron-builder 的 `WIN_CSC_LINK`/`WIN_CSC_KEY_PASSWORD`。`disabled` 不使用 signing secrets。`auto` 只有在构建后平台验签通过时才记录 `signed`；`required` 在构建前检查目标所需配置，并在签名或公证结果缺失时失败。Linux checksum 不被称为代码签名。
+workflow 根据渠道选择 `internal`、`beta` 或 `appstore` GitHub Environment。`signing` gate 只控制 macOS：`disabled` 不使用 signing secrets，`auto` 只有在构建后验签通过时才记录 `signed`，`required` 在构建前检查 Developer ID 签名和 notarization 配置并在结果缺失时失败。Windows 与 Linux matrix 使用 effective `disabled` signing mode，不注入代码签名 secrets，并把产物记录为 unsigned 或 not-applicable；Linux checksum 不被称为代码签名。
 
 日志、lock 和 provenance 只保存 secret 名称是否配置、签名结果、证书公开标识和公证结果，不保存 secret value、私钥路径或完整环境。
 

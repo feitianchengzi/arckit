@@ -14,7 +14,7 @@ on:
         type: choice
         options: [macos-arm64, macos-x64, windows-x64, linux-x64, all]
       signing:
-        description: Signing gate
+        description: macOS signing/notarization gate; Windows and Linux remain unsigned
         required: true
         default: required
         type: choice
@@ -192,18 +192,16 @@ jobs:
           APPLE_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY_BASE64 == '' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY_BASE64 == '' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
-          WIN_CSC_LINK: ${{ inputs.signing != 'disabled' && matrix.platform == 'win' && secrets.WIN_CSC_LINK || '' }}
-          WIN_CSC_KEY_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
         run: |
           set -euo pipefail
           notarize=false
           notarization_auth=none
           signing_result=disabled
-          if [[ "$MODE" != disabled ]]; then
-            signing_result=unsigned-allowed
+          effective_signing=disabled
+          if [[ "$PLATFORM" == mac ]]; then
+            effective_signing="$MODE"
+            if [[ "$MODE" != disabled ]]; then signing_result=unsigned-allowed; fi
             if [[ "$PLATFORM" == mac && -n "$MAC_CSC_LINK" && -n "$MAC_CSC_KEY_PASSWORD" ]]; then signing_result=signed; fi
-            if [[ "$PLATFORM" == win && -n "$WIN_CSC_LINK" && -n "$WIN_CSC_KEY_PASSWORD" ]]; then signing_result=signed; fi
-            if [[ "$PLATFORM" == linux ]]; then signing_result=not-applicable; fi
             if [[ "$PLATFORM" == mac && -n "${APPLE_API_KEY:-}" && -n "$APPLE_API_KEY_ID" && -n "$APPLE_API_ISSUER" && -n "$APPLE_TEAM_ID" ]]; then
               notarize=true
               notarization_auth=api-key
@@ -211,13 +209,15 @@ jobs:
               notarize=true
               notarization_auth=apple-id
             fi
+          elif [[ "$PLATFORM" == linux ]]; then
+            signing_result=not-applicable
           fi
           if [[ "$MODE" == required && "$PLATFORM" == mac && "$signing_result" != signed ]]; then echo 'required macOS signing secrets are missing' >&2; exit 1; fi
           if [[ "$MODE" == required && "$PLATFORM" == mac && "$notarize" != true ]]; then echo 'required macOS notarization secrets are missing' >&2; exit 1; fi
-          if [[ "$MODE" == required && "$PLATFORM" == win && "$signing_result" != signed ]]; then echo 'required Windows signing secrets are missing' >&2; exit 1; fi
           echo "notarize=$notarize" >> "$GITHUB_OUTPUT"
           echo "signing_result=$signing_result" >> "$GITHUB_OUTPUT"
           echo "notarization_auth=$notarization_auth" >> "$GITHUB_OUTPUT"
+          echo "effective_signing=$effective_signing" >> "$GITHUB_OUTPUT"
           if [[ "$PLATFORM" == mac ]]; then
             echo "macOS notarization authentication: $notarization_auth"
           fi
@@ -231,7 +231,7 @@ jobs:
           PROVIDER_RELEASE: ${{ inputs.arcforge_release }}
           PROVIDER_REPOSITORY: ${{ inputs.arcforge_repository }}
           TARGET: ${{ matrix.target }}
-          SIGNING: ${{ inputs.signing }}
+          SIGNING: ${{ steps.signing.outputs.effective_signing }}
           SOURCE_COMMIT: ${{ needs.validate.outputs.commit }}
           REPOSITORY: ${{ github.repository }}
           WORKFLOW: ${{ github.workflow }}
@@ -253,14 +253,12 @@ jobs:
         env:
           CSC_LINK: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.MAC_CSC_LINK || '' }}
           CSC_KEY_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ inputs.signing == 'disabled' && 'false' || 'true' }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ steps.signing.outputs.effective_signing == 'disabled' && 'false' || 'true' }}
           APPLE_API_KEY_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY_ID || '' }}
           APPLE_API_ISSUER: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_ISSUER || '' }}
           APPLE_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY_BASE64 == '' && secrets.APPLE_ID || '' }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_API_KEY_BASE64 == '' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ inputs.signing != 'disabled' && matrix.platform == 'mac' && secrets.APPLE_TEAM_ID || '' }}
-          WIN_CSC_LINK: ${{ inputs.signing != 'disabled' && matrix.platform == 'win' && secrets.WIN_CSC_LINK || '' }}
-          WIN_CSC_KEY_PASSWORD: ${{ inputs.signing != 'disabled' && matrix.platform == 'win' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
         run: npm run ${{ matrix.script }}
 
       - name: Verify macOS signature
