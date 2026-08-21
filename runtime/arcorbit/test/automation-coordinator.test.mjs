@@ -7,6 +7,7 @@ import {
   createAutomationCoordinator,
   extractAuthoritativeCaseBindingFromRun,
   isCanonicalCaseResolved,
+  selectTaskCloseoutResult,
   selectNextExecution
 } from "../src/automation-coordinator.mjs";
 import { TaskSourceError } from "../src/task-source-adapter.mjs";
@@ -408,6 +409,119 @@ test("canonical completion requires a consistently closed and resolved Case", ()
     ...resolved,
     record: { ...resolved.record, case_resolution: { status: "unresolved" } }
   }), false);
+});
+
+test("closeout result recovery prefers the Runtime envelope and safely falls back to typed Run activity", () => {
+  const envelopeResult = closeoutResult({ summary: "envelope" });
+  const projectedResult = closeoutResult({ summary: "projected" });
+  const messageResult = closeoutResult({ summary: "message" });
+
+  assert.equal(selectTaskCloseoutResult({
+    result: { closeout_result: envelopeResult },
+    activity: {
+      closeout_result: projectedResult,
+      messages: [{ structured_data: { value: messageResult } }]
+    }
+  }), envelopeResult);
+  assert.equal(selectTaskCloseoutResult({
+    activity: { closeout_result: projectedResult, messages: [] }
+  }), projectedResult);
+  assert.equal(selectTaskCloseoutResult({
+    activity: {
+      messages: [
+        { structured_data: { value: closeoutResult({ summary: "older" }) } },
+        { structured_data: { value: messageResult } }
+      ]
+    }
+  }), messageResult);
+});
+
+test("closeout result recovery rejects untyped or malformed structured messages", () => {
+  assert.equal(selectTaskCloseoutResult({
+    activity: {
+      messages: [
+        { structured_data: { value: { ...closeoutResult(), schema_version: "arckit-agent-loop-result/v1" } } },
+        { structured_data: { value: { ...closeoutResult(), evidence: "not-an-array" } } },
+        { content: JSON.stringify(closeoutResult()) }
+      ]
+    }
+  }), null);
+});
+
+test("live same-thread closeout recovers a completed result from the typed activity message", async () => {
+  const store = recoveryStore({
+    phase: "closeout_running",
+    case_id: "CASE-20260810-005",
+    case_status: "resolved",
+    case_binding_source: "runtime_ledger",
+    case_binding_run_id: "RUN-BOUND",
+    case_bound_at: "2026-08-10T00:00:00Z",
+    closeout_status: "running"
+  });
+  const runManager = fakeRunManager(store, []);
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await runManager.emitEvent({
+    type: "run.finished",
+    runId: "RUN-OLD",
+    status: "completed",
+    result: null,
+    activity: {
+      messages: [{
+        kind: "structured",
+        structured_data: {
+          schema_version: "arckit-task-closeout-result/v1",
+          value: closeoutResult({ summary: "Recovered from activity" })
+        }
+      }]
+    }
+  });
+
+  assert.equal(store.automation.active_task.closeout_status, "completed");
+  assert.equal(store.automation.active_task.phase, "remote_completion_pending");
+  assert.equal(store.automation.active_task.closeout_outcome, "no_changes");
+  assert.equal(store.automation.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
+test("detached same-thread closeout recovers a completed result when result.json is missing", async () => {
+  const recovered = closeoutResult({ summary: "Recovered after restart" });
+  const store = recoveryStore({
+    phase: "closeout_running",
+    case_id: "CASE-20260810-005",
+    case_status: "resolved",
+    case_binding_source: "runtime_ledger",
+    case_binding_run_id: "RUN-BOUND",
+    case_bound_at: "2026-08-10T00:00:00Z",
+    closeout_status: "running"
+  });
+  const runManager = fakeRunManager(store, [], {
+    async listRuns() {
+      return [{
+        id: "RUN-OLD",
+        project_id: "local",
+        status: "completed",
+        activity: {
+          messages: [{
+            kind: "structured",
+            structured_data: {
+              schema_version: recovered.schema_version,
+              value: recovered
+            }
+          }]
+        }
+      }];
+    },
+    async readRunResult() { return null; }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await coordinator.sync({ dispatch: false });
+
+  assert.equal(store.automation.active_task.closeout_status, "completed");
+  assert.equal(store.automation.active_task.phase, "remote_completion_pending");
+  assert.equal(store.automation.recovery_items.length, 0);
+  coordinator.dispose();
 });
 
 test("conflicting trusted ledger Case identifiers enter recovery", async () => {
@@ -1022,6 +1136,19 @@ function recoveryStore(overrides = {}) {
       },
       attention_items: [], recovery_items: [], recent_completions: []
     }
+  };
+}
+
+function closeoutResult(overrides = {}) {
+  return {
+    schema_version: "arckit-task-closeout-result/v1",
+    status: "completed",
+    outcome: "no_changes",
+    summary: "Closeout completed.",
+    evidence: [],
+    commit_hash: "",
+    error: "",
+    ...overrides
   };
 }
 

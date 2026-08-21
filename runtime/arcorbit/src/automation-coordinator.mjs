@@ -1366,7 +1366,7 @@ export function createAutomationCoordinator({
       });
       return;
     }
-    const result = event.result?.closeout_result || null;
+    const result = selectTaskCloseoutResult(event);
     if (event.status === "completed" && result?.status === "completed") {
       if (active.execution_kind === "acceptance_feedback") {
         await finishAcceptanceFeedback(active, event, result);
@@ -1575,7 +1575,7 @@ export function createAutomationCoordinator({
         return null;
       }
       const result = await runManager.readRunResult?.(latest.id).catch(() => null);
-      const closeout = result?.closeout_result;
+      const closeout = selectTaskCloseoutResult({ result, activity: latest.activity });
       if (closeout?.status !== "completed") return null;
       await markCloseoutCompleted(active, latest.id, closeout);
       if (active.execution_kind === "acceptance_feedback") {
@@ -2516,6 +2516,28 @@ function feedbackActiveExecution(item, project, { phase = "starting" } = {}) {
 export function extractCaseIdFromRun(run) {
   const binding = extractAuthoritativeCaseBindingFromRun(run);
   return binding.status === "bound" ? binding.case_id : "";
+}
+
+export function selectTaskCloseoutResult({ result, activity } = {}) {
+  const candidates = [
+    result?.closeout_result,
+    activity?.closeout_result,
+    ...[...(activity?.messages || [])]
+      .reverse()
+      .map((message) => message?.structured_data?.value)
+  ];
+  return candidates.find(isTaskCloseoutResult) || null;
+}
+
+function isTaskCloseoutResult(value) {
+  return value?.schema_version === "arckit-task-closeout-result/v1"
+    && ["completed", "needs_human", "failed"].includes(value.status)
+    && ["committed", "no_changes", "none"].includes(value.outcome)
+    && typeof value.summary === "string"
+    && Array.isArray(value.evidence)
+    && value.evidence.every((item) => typeof item === "string")
+    && typeof value.commit_hash === "string"
+    && typeof value.error === "string";
 }
 
 function ledgerFailureReason({ result, activity } = {}) {
