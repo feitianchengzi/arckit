@@ -21,6 +21,7 @@ test("Workshop platform management uses the existing bounded service routes and 
   await adapter.inviteProjectMember("11", { role: "member", expires_in: 24, max_uses: 2 });
   await adapter.updateProjectMember("11", { target_user_id: 7, role: "admin", duty: "Engineering" });
   await adapter.createTask({ project_id: 11, content: "Ship platform", state: "pending_review", executor_id: 7, father_id: 20, priority: 0, tags: "desktop" });
+  await adapter.updateTask("21", { priority: null });
   await adapter.createTaskAttachment({ task_id: 21, type: "url", content: "https://example.test/spec" });
   await adapter.createTag("11", { name: "platform" });
   await adapter.createFeedbackV1({ project_id: 11, title: "Feedback", content: "Detail", data: { priority: "P1", ignored: false } });
@@ -29,9 +30,10 @@ test("Workshop platform management uses the existing bounded service routes and 
   assert.deepEqual(calls[3], { path: "/projects/11/invitations", options: { method: "POST", body: { role: "member", expires_in: 24, max_uses: 2 } } });
   assert.deepEqual(calls[4], { path: "/projects/11/members/role", options: { method: "PUT", body: { target_user_id: 7, role: "admin", duty: "Engineering" } } });
   assert.deepEqual(calls[5].options.body, { project_id: 11, content: "Ship platform", state: "pending_review", executor_id: 7, father_id: 20, priority: 0, tags: "desktop" });
-  assert.deepEqual(calls[6], { path: "/tasks/attachments", options: { method: "POST", body: { task_id: 21, type: "url", content: "https://example.test/spec" } } });
-  assert.deepEqual(calls[7], { path: "/projects/11/tags", options: { method: "POST", body: { project_id: 11, name: "platform" } } });
-  assert.deepEqual(calls[8].options.body, { project_id: 11, title: "Feedback", content: "Detail", data: JSON.stringify({ priority: "P1", ignored: false }) });
+  assert.deepEqual(calls[6], { path: "/tasks/21", options: { method: "PUT", body: { priority: null } } });
+  assert.deepEqual(calls[7], { path: "/tasks/attachments", options: { method: "POST", body: { task_id: 21, type: "url", content: "https://example.test/spec" } } });
+  assert.deepEqual(calls[8], { path: "/projects/11/tags", options: { method: "POST", body: { project_id: 11, name: "platform" } } });
+  assert.deepEqual(calls[9].options.body, { project_id: 11, title: "Feedback", content: "Detail", data: JSON.stringify({ priority: "P1", ignored: false }) });
   assert.equal("addProjectMember" in adapter, false);
 });
 

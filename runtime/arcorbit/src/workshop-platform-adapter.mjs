@@ -345,6 +345,7 @@ function optionalNullableNumericId(input, key, label) {
 
 function optionalProvidedNumber(input, key, min, max) {
   if (!Object.hasOwn(input, key) || input[key] === "") return undefined;
+  if (input[key] === null) return null;
   const value = Number(input[key]);
   if (!Number.isFinite(value) || value < min || value > max) throw new TypeError(`${key} is invalid.`);
   return value;

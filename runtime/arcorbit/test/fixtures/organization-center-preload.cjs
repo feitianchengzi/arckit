@@ -41,6 +41,11 @@ const projectMembers = [
   { id: "102", user_id: "8", project_id: "11", project_name: "ArcOrbit", username: "Lin", role: "member", duty: "反馈运营", is_me: false },
   { id: "103", user_id: "8", project_id: "12", project_name: "Workshop Todo", username: "Lin", role: "owner", duty: "产品", is_me: false }
 ];
+const tags = [
+  { id: "201", project_id: "11", project_name: "ArcOrbit", name: "[Bug](#ffff0000)" },
+  { id: "202", project_id: "11", project_name: "ArcOrbit", name: "[Desktop](#ff6b7280)" },
+  { id: "203", project_id: "12", project_name: "Workshop Todo", name: "[Docs](#ff2563eb)" }
+];
 const platform = {
   generated_at: "2026-08-18T00:00:00Z", source_status: "healthy", user: { id: "7", name: "Glare" },
   worksets: [{ id: "WORKSET-DEFAULT", name: "核心推进", project_ids: ["11", "12"] }],
@@ -48,19 +53,19 @@ const platform = {
   projects, organizations: [{ id: "31", name: "飞天橙子", description: "产品组织" }],
   organization_scopes: [{ id: "31", name: "飞天橙子", description: "产品组织", current_user_role: "owner", project_visibility: "all_projects", members, projects: projects.slice(0, 2), degraded: false }],
   personal_projects: [projects[2]], organization_members: members, project_members: projectMembers,
-  product_workspaces: projects.slice(0, 2).map((project) => ({ ...project, preference: {}, task_counts: {}, feedback_count: 0, members: projectMembers.filter((member) => member.project_id === project.id), tasks: [], feedback_v1: [], tags: [] })),
+  product_workspaces: projects.slice(0, 2).map((project) => ({ ...project, preference: {}, task_counts: {}, feedback_count: 0, members: projectMembers.filter((member) => member.project_id === project.id), tasks: [], feedback_v1: [], tags: tags.filter((tag) => tag.project_id === project.id) })),
   members: projectMembers,
   tasks: [
-    { id: "W-11", project_id: "11", project_name: "ArcOrbit", title: "Scoped pending work", content: "Verify Work state scope", state: "pending", terminal: false, priority: 1, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: [] },
-    { id: "W-COMPLETED", project_id: "11", project_name: "ArcOrbit", title: "Completed work", content: "Ready for acceptance check", state: "completed", terminal: true, priority: 1, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: [] },
-    { id: "W-ACCEPTED", project_id: "11", project_name: "ArcOrbit", title: "Accepted work", content: "Already accepted", state: "accepted", terminal: true, priority: 1, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: [] },
-    { id: "W-12", project_id: "12", project_name: "Workshop Todo", title: "Other project work", content: "Must be filtered", state: "pending", terminal: false, priority: 2, executor_id: "8", assignee: { id: "8", username: "Lin" }, tags: [] }
+    { id: "W-11", project_id: "11", project_name: "ArcOrbit", title: "Scoped pending work", content: "Verify Work state scope", state: "pending", terminal: false, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "201" },
+    { id: "W-COMPLETED", project_id: "11", project_name: "ArcOrbit", title: "Completed work", content: "Ready for acceptance check", state: "completed", terminal: true, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "" },
+    { id: "W-ACCEPTED", project_id: "11", project_name: "ArcOrbit", title: "Accepted work", content: "Already accepted", state: "accepted", terminal: true, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "" },
+    { id: "W-12", project_id: "12", project_name: "Workshop Todo", title: "Other project work", content: "Must be filtered", state: "pending", terminal: false, priority: 98, raw: { priority: 2 }, executor_id: "8", assignee: { id: "8", username: "Lin" }, tags: "203" }
   ],
   feedback_v1: [
     { id: "F-11", short_id: "FB11", project_id: "11", project_name: "ArcOrbit", title: "Scoped feedback", content: "Visible in the selected product", priority: "P1", ignored: false, linked_task_id: "", custom_user_id: "customer-11", user_phone: "13800000011", user_email: "customer11@example.test", file: "https://example.test/feedback/F-11.png", created_at: "2026-08-19T10:00:00Z", updated_at: "2026-08-19T10:00:00Z", metadata: {} },
     { id: "F-11-LINKED", short_id: "FB10", project_id: "11", project_name: "ArcOrbit", title: "Already linked feedback", content: "Continue from the existing todo", priority: "P2", ignored: false, linked_task_id: "W-11", linked_task_state: "pending", custom_user_id: "customer-linked", user_phone: "", user_email: "", file: "", created_at: "2026-08-18T10:00:00Z", updated_at: "2026-08-18T10:00:00Z", metadata: { task_id: "W-11", task_state: "pending" } },
     { id: "F-12", short_id: "FB12", project_id: "12", project_name: "Workshop Todo", title: "Other feedback", content: "Must be filtered", priority: "P2", ignored: false, linked_task_id: "", created_at: "2026-08-19T08:00:00Z", updated_at: "2026-08-19T08:00:00Z", metadata: {} }
-  ], tags: [],
+  ], tags,
   automation: { ...automation, acceptance_feedback_counts: { open: 0 } },
   capabilities: { organizations: "available", organization_governance: "available", project_members: "managed_with_permissions_except_direct_add", invitation_lifecycle: "create_once_no_list_or_revoke", feedback_v1: "read_write", feedback_v2: "unavailable" }, errors: []
 };
@@ -85,6 +90,21 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   executePlatformAction: async (command, input) => {
     calls.push([command, input]);
     if (command.endsWith(".invite")) return { invite_code: "ABCD1234", invite_link: "https://example.test/invite/ABCD1234", role: input.role, expires_at: "2026-08-19T00:00:00Z", max_uses: Number(input.max_uses), used_count: 0 };
+    if (command === "tag.create") {
+      const tag = { id: String(204 + tags.length), project_id: String(input.project_id), project_name: projects.find((project) => project.id === String(input.project_id))?.name || "", name: input.name };
+      tags.push(tag);
+      return tag;
+    }
+    if (command === "tag.update") {
+      const tag = tags.find((item) => item.id === String(input.tag_id));
+      if (tag) tag.name = input.name;
+      return tag || {};
+    }
+    if (command === "tag.delete") {
+      const index = tags.findIndex((item) => item.id === String(input.tag_id));
+      if (index >= 0) tags.splice(index, 1);
+      return { deleted: index >= 0 };
+    }
     return { ok: true };
   },
   openFeedbackAttachment: async (value) => { calls.push(["openFeedbackAttachment", value]); return { opened: true }; },
@@ -93,7 +113,8 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   setProjectParticipation: noOp,
   bindAutomationProject: async (remoteId, localId) => { calls.push(["bindAutomationProject", { remoteId, localId }]); return {}; },
   listRuns: async () => [], listMessages: async () => [],
-  checkSetupReadiness: noOp, applySetupPlan: noOp, recoverSetupUpgrade: noOp, planSetupRemoval: noOp, removeManagedSetupPaths: noOp,
+  checkSetupReadiness: async () => ({ status: "ready", first_install: false, checks: [], distribution: {}, counts: {} }),
+  applySetupPlan: noOp, recoverSetupUpgrade: noOp, planSetupRemoval: noOp, removeManagedSetupPaths: noOp,
   submitAcceptanceFeedback: noOp, submitIntervention: noOp, resolveAutomationRecovery: noOp, updateAutomationTaskState: noOp,
   handoffAutomationToCli: noOp, reopenAutomationCli: noOp, resumeAutomationRuntime: noOp, stopAutomationRun: noOp,
   sendAuthVerification: noOp, loginWithCode: noOp, logoutAuth: noOp, updateSettings: noOp

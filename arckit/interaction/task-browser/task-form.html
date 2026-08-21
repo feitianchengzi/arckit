@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Work 待办表单 - 线框图</title>
+    <link rel="stylesheet" href="../wireframe-style.css">
+</head>
+<body>
+    <div class="wireframe-container">
+        <header><h1>Work · 创建与编辑待办</h1><div class="meta-info"><div>Subview: <code>TaskForm</code></div><div>展示: <strong>Sheet</strong></div><div>归属: <strong>Task Browser</strong></div></div></header>
+
+        <details open>
+            <summary>创建待办 · 产品联动字段</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>用户在 Work 标题区选择“创建待办”；当前顶部范围是 Atlas，Atlas 成为默认产品。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="desktop-titlebar"><strong>ArcOrbit · Work</strong><span>Atlas / 待处理</span></div>
+                        <div class="surface"><div class="surface-header"><strong>待处理任务</strong><button class="compact-action primary">创建待办</button></div><div class="surface-body"><p>列表与 Inspector 保持在 Sheet 背后，不改变当前产品和状态范围。</p></div></div>
+                        <div class="modal-overlay" data-kit="Sheet"><div class="modal-content" data-label="创建待办"><h3>创建待办</h3><p>待办写入 Workshop；产品决定成员、父待办和标签候选。</p><div class="form-grid"><label>产品<select><option>Atlas</option><option>Beam</option></select></label><label>状态<select><option>待评审</option></select></label><label>执行人<select><option>未分配</option><option>Glare</option><option>Lin</option></select></label><label>父待办<select><option>根待办</option><option>TASK-3108 · 升级搜索排序</option></select></label><label>优先级<select><option>无优先级</option><option>最高 · 紧急且重要</option><option>高 · 优先处理</option><option>中 · 正常处理</option><option>低 · 可以延后</option></select></label><label>待办内容<textarea>补齐搜索回归样例</textarea></label></div><section class="surface"><div class="surface-header"><strong>Atlas 标签</strong><span>保存标签 ID</span></div><div class="surface-body"><label><input type="checkbox" checked> Bug</label> <label><input type="checkbox"> Desktop</label><div class="form-grid"><label>新标签名称<input value="Regression"></label><label>颜色<input value="灰度占位"></label></div><button class="compact-action">创建并选中</button></div></section><div class="page-actions"><button class="compact-action">取消</button><button class="compact-action primary">创建待办</button></div></div></div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>创建待办 Sheet 与始终可见的产品选择器</li><li>产品限定的执行人、父待办和标签候选</li><li>语义优先级 Picker、标签多选和创建入口</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>切换产品</code> → 清除旧产品关联选择并替换成员、父待办和标签</div><div class="interaction-item"><code>创建并选中</code> → 标签服务确认后刷新 Atlas 标签并保持待办草稿</div></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>编辑待办 · 标签生命周期</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>用户对 Atlas 的 TASK-3108 选择“编辑”；产品固定，用户就地编辑或删除标签。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop">
+                        <div class="desktop-titlebar"><strong>ArcOrbit · Work</strong><span>Atlas / TASK-3108</span></div>
+                        <div class="modal-overlay" data-kit="Sheet"><div class="modal-content" data-label="编辑待办"><h3>编辑待办 TASK-3108</h3><p>所属产品：Atlas。成员、父待办和标签均固定来自 Atlas。</p><div class="form-grid"><label>执行人<select><option>Glare</option><option>Lin</option><option>未分配</option></select></label><label>优先级<select><option>高 · 优先处理</option><option>最高 · 紧急且重要</option><option>中 · 正常处理</option><option>低 · 可以延后</option><option>无优先级</option></select></label></div><section class="surface"><div class="surface-header"><strong>标签</strong><span>Bug 已选</span></div><div class="surface-body"><div class="list-row"><label><input type="checkbox" checked> Bug</label><span><button class="compact-action">编辑</button><button class="compact-action">删除</button></span></div><div class="form-grid"><label>标签名称<input value="Bug"></label><label>颜色<input value="灰度占位"></label></div><div class="page-actions"><button class="compact-action">取消编辑</button><button class="compact-action primary">保存标签</button></div></div></section><div class="page-actions"><button class="compact-action">取消</button><button class="compact-action primary">保存待办</button></div></div></div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>所属产品说明与产品限定字段</li><li>标签多选、名称/颜色就地编辑</li><li>删除标签 ConfirmationDialog 入口与保存待办动作</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>保存标签</code> → 服务器确认后刷新标签显示，待办已选 ID 保持</div><div class="interaction-item"><code>删除</code> → 明确确认后删除项目标签并从待办选择中移除</div></div>
+            </div>
+        </details>
+    </div>
+</body>
+</html>

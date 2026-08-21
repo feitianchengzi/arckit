@@ -12,11 +12,14 @@ app.disableHardwareAcceleration();
 app.whenReady().then(async () => {
   const errors = [];
   const window = new BrowserWindow({ show: false, width: 1440, height: 900, webPreferences: { preload: join(fixtureDir, "organization-center-preload.cjs"), contextIsolation: true, sandbox: false } });
-  window.webContents.on("console-message", (_event, level, message) => { if (level >= 2) errors.push(message); });
+  window.webContents.on("console-message", (_event, level, message, lineNumber, sourceId) => { if (level >= 2) errors.push(`${message} @ ${sourceId}:${lineNumber}`); });
   try {
     await window.loadFile(join(fixtureDir, "../../desktop/renderer/index.html"));
     await new Promise((resolve) => setTimeout(resolve, 250));
     const result = await window.webContents.executeJavaScript(`(async () => {
+      const rendererErrors = [];
+      const originalConsoleError = console.error;
+      console.error = (value) => { rendererErrors.push(value?.stack || String(value)); originalConsoleError(value?.stack || value); };
       const click = (selector) => document.querySelector(selector).click();
       const wait = () => new Promise((resolve) => setTimeout(resolve, 60));
       const accountName = document.querySelector('#accountName').textContent;
@@ -48,7 +51,31 @@ app.whenReady().then(async () => {
       document.querySelector('#productScopeSelect').dispatchEvent(new Event('change', { bubbles: true })); await wait();
       click('#createTaskButton'); await wait();
       const selectedProductTaskDefault = document.querySelector('[name="project_id"]').value;
-      click('#cancelPlatformActionButton'); await wait();
+      const selectedProductExecutorOptions = [...document.querySelectorAll('[name="executor_id"] option')].map((item) => ({ value: item.value, label: item.textContent }));
+      const selectedProductTagLabels = [...document.querySelectorAll('[data-task-tag-row] label span')].map((item) => item.textContent);
+      const priorityOptionLabels = [...document.querySelectorAll('[name="priority"] option')].map((item) => item.textContent);
+      document.querySelector('[name="project_id"]').value = '11';
+      document.querySelector('[name="project_id"]').dispatchEvent(new Event('change', { bubbles: true })); await wait();
+      const switchedProductExecutorOptions = [...document.querySelectorAll('[name="executor_id"] option')].map((item) => ({ value: item.value, label: item.textContent }));
+      const switchedProductParentIds = [...document.querySelectorAll('[name="father_id"] option')].map((item) => item.value);
+      const switchedProductTagLabels = [...document.querySelectorAll('[data-task-tag-row] label span')].map((item) => item.textContent);
+      document.querySelector('[data-task-tag-new-name]').value = 'Feature';
+      document.querySelector('[data-task-tag-new-color]').value = '#10b981';
+      click('[data-task-tag-create]'); await wait(); await wait();
+      const createdTagRow = [...document.querySelectorAll('[data-task-tag-row]')].find((item) => item.textContent.includes('Feature'));
+      const createdTaskTagId = createdTagRow?.dataset.taskTagRow || '';
+      click('[data-task-tag-edit="' + createdTaskTagId + '"]');
+      document.querySelector('[data-task-tag-edit-name]').value = 'Feature updated';
+      click('[data-task-tag-save]'); await wait(); await wait();
+      const editedTaskTagVisible = [...document.querySelectorAll('[data-task-tag-row]')].some((item) => item.textContent.includes('Feature updated'));
+      window.confirm = () => true;
+      click('[data-task-tag-delete="' + createdTaskTagId + '"]'); await wait(); await wait();
+      const deletedTaskTagAbsent = ![...document.querySelectorAll('[data-task-tag-row]')].some((item) => item.dataset.taskTagRow === createdTaskTagId);
+      document.querySelector('[name="content"]').value = 'Create with scoped fields';
+      document.querySelector('[name="executor_id"]').value = '8';
+      document.querySelector('[name="priority"]').value = '1';
+      document.querySelector('[name="tag_ids"][value="201"]').checked = true;
+      document.querySelector('#platformActionForm').requestSubmit(); await wait();
       document.querySelector('#productScopeSelect').value = 'all';
       document.querySelector('#productScopeSelect').dispatchEvent(new Event('change', { bubbles: true })); await wait();
       click('#createTaskButton'); await wait();
@@ -62,6 +89,13 @@ app.whenReady().then(async () => {
       const workInspectorTitle = document.querySelector('#platformWorkInspector h2').textContent;
       const workInspectorText = document.querySelector('#platformWorkInspector').textContent;
       const selectedWorkRows = document.querySelectorAll('#platformWorkTable tr.selected').length;
+      click('[data-platform-task-edit="W-11"]'); await wait();
+      const editExecutorOptions = [...document.querySelectorAll('[name="executor_id"] option')].map((item) => ({ value: item.value, label: item.textContent }));
+      const editPriorityValue = document.querySelector('[name="priority"]').value;
+      const editSelectedTagIds = [...document.querySelectorAll('[name="tag_ids"]:checked')].map((item) => item.value);
+      document.querySelector('[name="priority"]').value = '';
+      document.querySelector('[name="tag_ids"][value="202"]').checked = true;
+      document.querySelector('#platformActionForm').requestSubmit(); await wait();
       click('[data-work-state="completed"]'); await wait();
       const completedHasAcceptanceComposer = Boolean(document.querySelector('#workAcceptanceFeedbackInput'));
       const completedInspectorText = document.querySelector('#platformWorkInspector').textContent;
@@ -135,7 +169,7 @@ app.whenReady().then(async () => {
       document.querySelector('[name="kind"]').value = 'project';
       document.querySelector('[name="invite_code"]').value = 'JOIN-CODE';
       document.querySelector('#platformActionForm').requestSubmit(); await wait();
-      return { accountName, authIdentity, productScopeProjectIds, automationBindingProjectIds, automationFeedbackIds, hasGlobalRecoveryAction, currentRunText, ordinaryQueueInitiallyVisible, acceptanceOnlyPressed, ordinaryQueueHidden, feedbackQueueVisible, selectedProductTaskDefault, allProductsTaskDefault, workStateIds, pendingStatusCount, scopePersistedInWork, workInspectorTitle, workInspectorText, selectedWorkRows, completedHasAcceptanceComposer, completedInspectorText, acceptedHasAcceptanceComposer, acceptedInspectorText, todayProductIds, ordinaryFeedbackIds, scopePersistedInFeedback, feedbackHasCreateButton, feedbackHasVersionText, feedbackInspectorText, selectedFeedbackRows, searchedFeedbackIds, convertedFeedbackIds, linkedFeedbackHasTaskAction, oldestFeedbackIds, feedbackActionLabels, feedbackTaskContent, feedbackExecutorOptions, automationNavCount, feedbackQueueNavCount, attentionNavCount, hasAddLocalOption, initialHeading, matrixRows, memberText, memberProjectHasInvite, inviteFormTitle, inviteResultTitle, inviteResultLead, inviteResultText, editHasOrganizationMutation, editScopeIsReadonly, worksetChoices, calls: await window.arckitDesktop.getTestCalls() };
+      return { accountName, authIdentity, productScopeProjectIds, automationBindingProjectIds, automationFeedbackIds, hasGlobalRecoveryAction, currentRunText, ordinaryQueueInitiallyVisible, acceptanceOnlyPressed, ordinaryQueueHidden, feedbackQueueVisible, selectedProductTaskDefault, selectedProductExecutorOptions, selectedProductTagLabels, priorityOptionLabels, switchedProductExecutorOptions, switchedProductParentIds, switchedProductTagLabels, createdTaskTagId, editedTaskTagVisible, deletedTaskTagAbsent, allProductsTaskDefault, workStateIds, pendingStatusCount, scopePersistedInWork, workInspectorTitle, workInspectorText, selectedWorkRows, editExecutorOptions, editPriorityValue, editSelectedTagIds, completedHasAcceptanceComposer, completedInspectorText, acceptedHasAcceptanceComposer, acceptedInspectorText, todayProductIds, ordinaryFeedbackIds, scopePersistedInFeedback, feedbackHasCreateButton, feedbackHasVersionText, feedbackInspectorText, selectedFeedbackRows, searchedFeedbackIds, convertedFeedbackIds, linkedFeedbackHasTaskAction, oldestFeedbackIds, feedbackActionLabels, feedbackTaskContent, feedbackExecutorOptions, automationNavCount, feedbackQueueNavCount, attentionNavCount, hasAddLocalOption, initialHeading, matrixRows, memberText, memberProjectHasInvite, inviteFormTitle, inviteResultTitle, inviteResultLead, inviteResultText, editHasOrganizationMutation, editScopeIsReadonly, worksetChoices, rendererErrors, calls: await window.arckitDesktop.getTestCalls() };
     })()`);
     process.stdout.write(`${JSON.stringify({ ...result, errors })}\n`);
   } finally {

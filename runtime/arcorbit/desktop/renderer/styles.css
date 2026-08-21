@@ -249,10 +249,22 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .organization-member-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12px; color: var(--ink-600); }
 .platform-action-panel { width: min(620px, calc(100vw - 48px)); max-height: calc(100vh - 56px); overflow: auto; border: 1px solid var(--ink-200); border-radius: 16px; background: var(--paper); box-shadow: 0 22px 64px rgb(20 19 32 / 24%); padding: 20px; }
 .platform-action-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+.task-project-fields { display: contents; }
 .platform-action-field { display: grid; align-content: start; gap: 6px; color: var(--ink-700); font-size: 12px; font-weight: 650; }
 .platform-action-field:has(textarea) { grid-column: 1 / -1; }
 .platform-action-field input, .platform-action-field select, .platform-action-field textarea { width: 100%; border: 1px solid var(--ink-200); border-radius: 8px; background: white; color: var(--ink-900); padding: 9px 10px; font: inherit; font-weight: 450; box-sizing: border-box; }
 .platform-action-field small, .parent-task-ref, .task-tags { display: block; color: var(--ink-500); font-size: 11px; font-weight: 450; }
+.task-tag-field { grid-column: 1 / -1; margin: 0; padding: 12px; border: 1px solid var(--ink-150); border-radius: 10px; }
+.task-tag-field legend { padding: 0 5px; }
+.task-tag-list { display: grid; gap: 6px; }
+.task-tag-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 34px; padding: 5px 7px; border-radius: 7px; background: var(--ink-50); }
+.task-tag-row > label { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 550; }
+.task-tag-row input[type="checkbox"] { width: 15px; height: 15px; padding: 0; }
+.task-tag-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: var(--task-tag-color, var(--ink-400)); }
+.task-tag-create, .task-tag-editor { display: grid; grid-template-columns: minmax(0, 1fr) 42px auto; gap: 7px; align-items: center; }
+.task-tag-create { margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--ink-150); }
+.task-tag-editor { flex: 1; }
+.task-tag-create input[type="color"], .task-tag-editor input[type="color"] { height: 34px; padding: 3px; }
 .parent-task-ref { margin-bottom: 2px; color: var(--violet-600); }
 .task-tags { margin-top: 3px; }
 .product-identity { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: center; min-width: 0; }

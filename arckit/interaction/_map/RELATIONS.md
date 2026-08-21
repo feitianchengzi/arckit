@@ -32,7 +32,7 @@ Organization Center 复用 Workshop Organization、OrganizationMember 和 Projec
 
 `automation-workspace/interaction.md` 定义登录后的普通待办与验收问题双队列、统一执行仲裁和待办会话交接；`automation-workspace/default.html` 分别投影两条队列、计数与进展，`automation-workspace/authentication.html` 投影设置覆盖层中的账号摘要和失效恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理、历史审查与同待办问题会话。
 
-`task-browser/interaction.md` 定义 Work 面板内七种服务器任务状态的同屏列表、右侧 Inspector 与人工处置。completed Inspector 展示验收问题、进展和 Composer；accepted Inspector 只显示验收通过，不允许提出新问题。`task-browser/default.html` 是同一策略的灰度线框投影。提出验收问题会创建独立问题项并复用来源待办会话，来源任务保持 completed；存在未解决问题时不能标记为 accepted。Work 的状态筛选在同页替换列表与 Inspector；Automation 的“查看全部待处理”携带当前产品范围进入 Work，验收问题入口携带问题与来源待办身份进入详情。Feedback 页面只消费 Workshop 用户反馈。
+`task-browser/interaction.md` 定义 Work 面板内产品限定的待办创建/编辑、七种服务器任务状态的同屏列表、右侧 Inspector 与人工处置。`task-browser/task-form.html` 投影产品联动成员/父待办/标签、语义优先级和标签生命周期管理；`task-browser/default.html` 投影列表、Inspector 与状态处置。completed Inspector 展示验收问题、进展和 Composer；accepted Inspector 只显示验收通过，不允许提出新问题。提出验收问题会创建独立问题项并复用来源待办会话，来源任务保持 completed；存在未解决问题时不能标记为 accepted。Work 的状态筛选在同页替换列表与 Inspector；Automation 的“查看全部待处理”携带当前产品范围进入 Work，验收问题入口携带问题与来源待办身份进入详情。Feedback 页面只消费 Workshop 用户反馈。
 
 该页面先消费当前用户可访问的 Workshop 项目，再按项目消费七种任务状态，并把 `待处理 → 进行中 → 已完成` 作为普通待办自动执行链路。“所有项目”只聚合这些项目的待办，不构成独立任务来源。验收问题是 Desktop Store 拥有的独立工作来源，保留自己的队列状态、Run、Case 和进展；它只引用来源待办，不成为第八种服务器任务状态。项目、任务归属与任务状态由远端任务服务器拥有；本地工作区绑定、自动化参与状态、反馈记录、执行子状态、事件和 ledger 证据由 ArcOrbit 拥有。
 

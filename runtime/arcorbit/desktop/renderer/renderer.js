@@ -1032,7 +1032,7 @@ async function createTask() {
   const projects = workspaceOptions();
   if (!projects.length) throw new Error("当前产品集没有可创建待办的产品。");
   const defaultProjectId = taskCreationDefaultProjectId(projects);
-  const values = await openPlatformAction({
+  const action = openPlatformAction({
     title: "创建待办",
     lead: "待办写入 Workshop；是否进入 Automation 仍由分配对象、状态和项目授权共同决定。",
     confirmLabel: "创建待办",
@@ -1040,31 +1040,31 @@ async function createTask() {
       platformField("project_id", "产品", { type: "select", required: true, value: defaultProjectId, options: projects }),
       platformField("content", "待办内容", { type: "textarea", required: true }),
       platformField("state", "状态", { type: "select", value: "pending_review", options: taskStateOptions() }),
-      platformField("executor_id", "执行人", { type: "select", options: memberSelectOptions() }),
-      platformField("father_id", "父待办", { type: "select", options: taskSelectOptions() }),
-      platformField("priority", "服务优先级", { type: "number", value: "0", min: 0, help: "Workshop 数值越小优先级越高。" }),
-      platformField("tags", "标签", { placeholder: "按现有 Workshop 格式填写" })
+      taskProjectFields(defaultProjectId),
+      platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions(), help: "最高优先处理；无优先级表示创建时不设置该字段。" })
     ]
   });
+  bindTaskFormProjectScope(defaultProjectId);
+  const values = normalizeTaskFormValues(await action);
   if (!values) return;
   await executeManagedAction("task.create", values, "待办已创建");
 }
 
 async function editTask(taskId) {
   const task = findPlatformTask(taskId);
-  const values = await openPlatformAction({
+  const action = openPlatformAction({
     title: `编辑待办 ${task.id}`,
-    lead: `所属产品：${task.project_name}。父待办、执行人、优先级和标签均使用 Workshop 现有字段。`,
+    lead: `所属产品：${task.project_name}。执行人、父待办和标签只使用该产品当前可用的数据。`,
     confirmLabel: "保存",
     fields: [
       platformField("content", "待办内容", { type: "textarea", required: true, value: task.content || task.title }),
       platformField("state", "状态", { type: "select", value: task.state, options: taskStateOptions() }),
-      platformField("executor_id", "执行人", { type: "select", value: task.executor_id, options: memberSelectOptions(task.project_id) }),
-      platformField("father_id", "父待办", { type: "select", value: task.father_id, options: taskSelectOptions(task.project_id, task.id) }),
-      platformField("priority", "服务优先级", { type: "number", value: servicePriority(task.priority), min: 0, help: "Workshop 数值越小优先级越高。" }),
-      platformField("tags", "标签", { value: task.tags })
+      taskProjectFields(task.project_id, { executorId: task.executor_id, fatherId: task.father_id, excludedTaskId: task.id, tags: task.tags }),
+      platformField("priority", "优先级", { type: "select", value: workshopTaskPriority(task), options: taskPriorityOptions(), help: "最高优先处理；无优先级保留服务端未设置语义。" })
     ]
   });
+  bindTaskTagManager(task.project_id);
+  const values = normalizeTaskFormValues(await action, { emptyPriority: "null" });
   if (!values) return;
   const automationTask = state.snapshot.tasks.find((item) => String(item.id) === String(task.id));
   if (values.state === "accepted" && (automationTask?.acceptance_feedback_items || []).some((item) => !["resolved", "cancelled"].includes(item.status))) {
@@ -1217,6 +1217,139 @@ function platformCheckboxGroup(name, label, options) {
   return `<fieldset class="platform-action-field platform-checkbox-group" data-multiple-field="${escapeHtml(name)}"><legend>${escapeHtml(label)}</legend>${options.length ? options.map((option) => `<label><input name="${escapeHtml(name)}" type="checkbox" value="${escapeHtml(option.value)}" ${option.checked ? "checked" : ""}><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.detail || "")}</small></span></label>`).join("") : `<div class="empty-state compact">尚无可访问项目。</div>`}</fieldset>`;
 }
 
+function taskProjectFields(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "" } = {}) {
+  return `<div class="task-project-fields" data-task-project-fields data-project-id="${escapeHtml(projectId)}">${taskProjectFieldControls(projectId, { executorId, fatherId, excludedTaskId, tags })}</div>`;
+}
+
+function taskProjectFieldControls(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "" } = {}) {
+  return [
+    platformField("executor_id", "执行人", { type: "select", value: executorId, options: memberSelectOptions(projectId) }),
+    platformField("father_id", "父待办", { type: "select", value: fatherId, options: taskSelectOptions(projectId, excludedTaskId) }),
+    taskTagField(projectId, tags)
+  ].join("");
+}
+
+function bindTaskFormProjectScope(defaultProjectId) {
+  const projectSelect = els.platformActionForm.querySelector('[name="project_id"]');
+  if (!projectSelect) return;
+  const renderProjectFields = (projectId) => {
+    const host = els.platformActionForm.querySelector("[data-task-project-fields]");
+    if (!host) return;
+    host.dataset.projectId = projectId;
+    host.innerHTML = taskProjectFieldControls(projectId);
+    bindTaskTagManager(projectId);
+  };
+  projectSelect.addEventListener("change", () => renderProjectFields(projectSelect.value));
+  bindTaskTagManager(defaultProjectId);
+}
+
+function normalizeTaskFormValues(values, { emptyPriority = "omit" } = {}) {
+  if (!values) return null;
+  const normalized = { ...values, tags: (Array.isArray(values.tag_ids) ? values.tag_ids : []).join(",") };
+  delete normalized.tag_ids;
+  if (normalized.priority === "") {
+    if (emptyPriority === "null") normalized.priority = null;
+    else delete normalized.priority;
+  }
+  return normalized;
+}
+
+function taskTagField(projectId, currentTags = "") {
+  const selected = new Set(Array.isArray(currentTags) ? currentTags.map(String) : parseTaskTagIds(currentTags));
+  const tags = projectTags(projectId);
+  const rows = tags.length
+    ? tags.map((tag) => {
+        const definition = parseWorkshopTag(tag.name);
+        return `<div class="task-tag-row" data-task-tag-row="${escapeHtml(tag.id)}"><label><input name="tag_ids" type="checkbox" value="${escapeHtml(tag.id)}" ${selected.has(String(tag.id)) ? "checked" : ""}><i class="task-tag-dot" style="--task-tag-color:${escapeHtml(definition.cssColor)}"></i><span>${escapeHtml(definition.displayName)}</span></label><span class="row-actions"><button data-task-tag-edit="${escapeHtml(tag.id)}" type="button">编辑</button><button class="danger-action" data-task-tag-delete="${escapeHtml(tag.id)}" type="button">删除</button></span></div>`;
+      }).join("")
+    : `<div class="empty-state compact">该产品还没有标签，可在下方直接创建。</div>`;
+  return `<fieldset class="platform-action-field task-tag-field" data-task-tag-field data-multiple-field="tag_ids" data-project-id="${escapeHtml(projectId)}"><legend>标签</legend><div class="task-tag-list">${rows}</div><div class="task-tag-create"><input data-task-tag-new-name type="text" placeholder="新标签名称" aria-label="新标签名称"><input data-task-tag-new-color type="color" value="#6b7280" aria-label="新标签颜色"><button class="secondary-button" data-task-tag-create type="button">创建并选中</button></div><small>标签属于当前产品；待办保存标签 ID，名称和颜色由 Workshop 标签实体管理。</small></fieldset>`;
+}
+
+function bindTaskTagManager(projectId) {
+  const field = els.platformActionForm.querySelector("[data-task-tag-field]");
+  if (!field || String(field.dataset.projectId) !== String(projectId)) return;
+  field.querySelector("[data-task-tag-create]")?.addEventListener("click", () => runAction(() => createTaskFormTag(projectId)));
+  field.querySelectorAll("[data-task-tag-edit]").forEach((button) => button.addEventListener("click", () => showTaskTagEditor(projectId, button.dataset.taskTagEdit)));
+  field.querySelectorAll("[data-task-tag-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteTaskFormTag(projectId, button.dataset.taskTagDelete))));
+}
+
+async function createTaskFormTag(projectId) {
+  const field = els.platformActionForm.querySelector("[data-task-tag-field]");
+  const input = field?.querySelector("[data-task-tag-new-name]");
+  const colorInput = field?.querySelector("[data-task-tag-new-color]");
+  const displayName = String(input?.value || "").trim();
+  if (!displayName) throw new Error("请输入新标签名称。");
+  const selected = selectedTaskTagIds();
+  const name = buildWorkshopTagName(displayName, colorInput?.value || "#6b7280");
+  const created = await executeManagedAction("tag.create", { project_id: projectId, name }, "标签已创建");
+  const createdId = String(created?.id || created?.tag?.id || projectTags(projectId).find((tag) => tag.name === name)?.id || "");
+  if (createdId) selected.push(createdId);
+  renderTaskTagField(projectId, selected);
+}
+
+function showTaskTagEditor(projectId, tagId) {
+  const tag = projectTags(projectId).find((item) => String(item.id) === String(tagId));
+  const row = [...els.platformActionForm.querySelectorAll("[data-task-tag-row]")].find((item) => String(item.dataset.taskTagRow) === String(tagId));
+  if (!tag || !row) return;
+  const definition = parseWorkshopTag(tag.name);
+  row.innerHTML = `<div class="task-tag-editor"><input data-task-tag-edit-name type="text" value="${escapeHtml(definition.displayName)}" aria-label="标签名称"><input data-task-tag-edit-color type="color" value="${escapeHtml(definition.cssColor)}" aria-label="标签颜色"></div><span class="row-actions"><button data-task-tag-save type="button">保存</button><button data-task-tag-cancel type="button">取消</button></span>`;
+  row.querySelector("[data-task-tag-save]").addEventListener("click", () => runAction(() => updateTaskFormTag(projectId, tagId, row)));
+  row.querySelector("[data-task-tag-cancel]").addEventListener("click", () => renderTaskTagField(projectId, selectedTaskTagIds()));
+  row.querySelector("[data-task-tag-edit-name]")?.focus();
+}
+
+async function updateTaskFormTag(projectId, tagId, row) {
+  const displayName = String(row.querySelector("[data-task-tag-edit-name]")?.value || "").trim();
+  const color = row.querySelector("[data-task-tag-edit-color]")?.value || "#6b7280";
+  if (!displayName) throw new Error("标签名称不能为空。");
+  const selected = selectedTaskTagIds();
+  await executeManagedAction("tag.update", { tag_id: tagId, name: buildWorkshopTagName(displayName, color) }, "标签已更新");
+  renderTaskTagField(projectId, selected);
+}
+
+async function deleteTaskFormTag(projectId, tagId) {
+  const tag = projectTags(projectId).find((item) => String(item.id) === String(tagId));
+  if (!tag || !window.confirm(`确定删除标签“${parseWorkshopTag(tag.name).displayName}”吗？`)) return;
+  const selected = selectedTaskTagIds().filter((id) => String(id) !== String(tagId));
+  await executeManagedAction("tag.delete", { tag_id: tagId }, "标签已删除");
+  renderTaskTagField(projectId, selected);
+}
+
+function renderTaskTagField(projectId, selectedIds) {
+  const current = els.platformActionForm.querySelector("[data-task-tag-field]");
+  if (!current) return;
+  current.outerHTML = taskTagField(projectId, selectedIds);
+  bindTaskTagManager(projectId);
+}
+
+function selectedTaskTagIds() {
+  return [...els.platformActionForm.querySelectorAll('[name="tag_ids"]:checked')].map((input) => String(input.value));
+}
+
+function projectTags(projectId) {
+  return (state.platform.tags || []).filter((tag) => String(tag.project_id) === String(projectId));
+}
+
+function parseTaskTagIds(value) {
+  return String(value || "").split(",").map((id) => id.trim()).filter(Boolean);
+}
+
+function parseWorkshopTag(value) {
+  const name = String(value || "").trim();
+  const match = name.match(/^\[([^\]]+)\]\(#([0-9a-f]{8})\)$/i);
+  if (!match) return { displayName: name || "未命名标签", cssColor: "#6b7280" };
+  return { displayName: match[1], cssColor: `#${match[2].slice(2)}` };
+}
+
+function buildWorkshopTagName(displayName, color) {
+  const name = String(displayName || "").trim();
+  if (!name || /[\[\]]/.test(name)) throw new Error("标签名称不能为空且不能包含方括号。");
+  const hex = String(color || "").replace("#", "").toLowerCase();
+  if (!/^[0-9a-f]{6}$/.test(hex)) throw new Error("标签颜色必须是有效的六位十六进制颜色。");
+  return `[${name}](#ff${hex})`;
+}
+
 async function showInvitationResult(kind, targetName, value) {
   const invitation = value?.invitation && typeof value.invitation === "object" ? value.invitation : value || {};
   const code = String(invitation.invite_code || invitation.code || "");
@@ -1247,6 +1380,7 @@ function inviteFields() {
 
 function roleOptions() { return [{ value: "member", label: "Member" }, { value: "admin", label: "Admin" }]; }
 function taskStateOptions() { return TASK_STATES.map((value) => ({ value, label: STATE_LABELS[value] || value })); }
+function taskPriorityOptions() { return [{ value: "", label: "无优先级" }, { value: "0", label: "最高 · 紧急且重要" }, { value: "1", label: "高 · 优先处理" }, { value: "2", label: "中 · 正常处理" }, { value: "3", label: "低 · 可以延后" }]; }
 function workspaceOptions() { return (state.platform.product_workspaces || []).map((item) => ({ value: item.id, label: item.name })); }
 function taskCreationDefaultProjectId(projects) {
   return projects.some((project) => String(project.value) === String(state.selectedProjectId))
@@ -1254,8 +1388,8 @@ function taskCreationDefaultProjectId(projects) {
     : projects[0]?.value || "";
 }
 function organizationOptions() { return (state.platform.organizations || []).map((item) => ({ value: item.id, label: item.name })); }
-function memberSelectOptions(projectId = "") { return [{ value: "", label: "未分配" }, ...(state.platform.members || []).filter((item) => !projectId || String(item.project_id) === String(projectId)).map((item) => ({ value: item.user_id, label: `${item.project_name} · ${item.username}` }))]; }
-function taskSelectOptions(projectId = "", excludedTaskId = "") { return [{ value: "", label: "根待办" }, ...(state.platform.tasks || []).filter((item) => (!projectId || String(item.project_id) === String(projectId)) && String(item.id) !== String(excludedTaskId)).map((item) => ({ value: item.id, label: `${item.project_name} · ${item.id} · ${item.title}` }))]; }
+function memberSelectOptions(projectId = "") { return [{ value: "", label: "未分配" }, ...(state.platform.members || []).filter((item) => !projectId || String(item.project_id) === String(projectId)).map((item) => ({ value: item.user_id, label: item.username || item.user?.username || `成员 ${item.user_id}` }))]; }
+function taskSelectOptions(projectId = "", excludedTaskId = "") { return [{ value: "", label: "根待办" }, ...(state.platform.tasks || []).filter((item) => (!projectId || String(item.project_id) === String(projectId)) && String(item.id) !== String(excludedTaskId)).map((item) => ({ value: item.id, label: `${projectId ? "" : `${item.project_name} · `}${item.id} · ${item.title}` }))]; }
 function findProject(id) { const value = state.platform.projects.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品。"); return value; }
 function currentOrganizationScope() { return (state.platform.organization_scopes || []).find((item) => String(item.id) === String(state.organizationScopeId)) || null; }
 function organizationName(id) { return (state.platform.organization_scopes || []).find((item) => String(item.id) === String(id))?.name || "组织项目"; }
@@ -1267,6 +1401,12 @@ function findPlatformTask(id) { const value = state.platform.tasks.find((item) =
 function findFeedback(id) { const value = state.platform.feedback_v1.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到反馈。"); return value; }
 function canManagePlatformTask(task) { const role = findWorkspace(task.project_id).current_user_role; return task.state !== "in_progress" || ["owner", "admin"].includes(role) || String(task.executor_id) === String(state.platform.user?.id || ""); }
 function servicePriority(value) { const number = Number(value || 0); return number > 0 ? Math.max(0, 100 - number) : 0; }
+function workshopTaskPriority(task) {
+  const raw = task?.raw?.priority;
+  if (raw === null || raw === undefined || raw === "") return "";
+  const number = Number(raw);
+  return Number.isFinite(number) ? String(number) : String(servicePriority(task?.priority));
+}
 
 function renderCommandCenter() {
   const snapshot = state.snapshot;
