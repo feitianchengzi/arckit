@@ -915,7 +915,7 @@ export function createAutomationCoordinator({
           attributes: { task_id: candidate.id, project_id: candidate.project_id }
         });
         try {
-          await setupReadinessPreflight();
+          await setupReadinessPreflight(candidate.local_project_path);
           await runManager.preflightRun?.({
             projectId: candidate.local_project_id,
             task: candidate.content || candidate.title || "",
@@ -1045,7 +1045,7 @@ export function createAutomationCoordinator({
     }
     let leaseEstablished = false;
     try {
-      await setupReadinessPreflight();
+      await setupReadinessPreflight(project.path);
       await runManager.preflightRun?.({
         projectId: current.local_project_id,
         task: current.original_feedback,

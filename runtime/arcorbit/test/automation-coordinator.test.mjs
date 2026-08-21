@@ -971,9 +971,10 @@ test("a persistent claim version conflict becomes one global recovery instead of
     version: "v1"
   };
   let readinessChecks = 0;
+  const readinessRoots = [];
   const coordinator = createAutomationCoordinator({
     runManager: fakeRunManager(store, []),
-    setupReadinessPreflight: async () => { readinessChecks += 1; },
+    setupReadinessPreflight: async (projectRoot) => { readinessChecks += 1; readinessRoots.push(projectRoot); },
     taskSourceFactory: () => ({
       async getAuthStatus() { return { authenticated: true, status: "authenticated" }; },
       async getCurrentUser() { return { id: "u", name: "tester" }; },
@@ -990,6 +991,7 @@ test("a persistent claim version conflict becomes one global recovery instead of
   await coordinator.sync();
 
   assert.equal(readinessChecks, 1);
+  assert.deepEqual(readinessRoots, ["/workspace"]);
   assert.equal(store.automation.recovery_items.length, 1);
   assert.equal(store.automation.recovery_items[0].type, "claim_failed");
   assert.equal(store.automation.recovery_items[0].freeze_scope, "global");

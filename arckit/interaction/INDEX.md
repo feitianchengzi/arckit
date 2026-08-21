@@ -11,9 +11,9 @@
 - login/ 登录页面：七天滚动会话恢复、临时错误保活与不可绕过的 Workshop 验证码登录门禁。✅
   - default.html 登录线框：会话恢复、未登录入口、验证码已发送和登录失败。✅ (65行)
   - interaction.md 登录交互：七天会话续期、启动路由、验证码反馈与失败恢复。✅ (134行)
-- setup-readiness/ 环境准备页面：独立 ArcOrbit 状态检查、skills 安装计划、typed 升级恢复、事务 apply 与阻塞恢复。✅
-  - default.html 环境准备线框：检查、计划、执行、完成、typed 升级恢复和失败恢复。✅ (91行)
-  - interaction.md 环境准备交互：启动门禁、typed drift 分类、备份恢复、bundle 重装兜底与异常恢复。✅ (154行)
+- setup-readiness/ 环境准备页面：全局资源检查、关联项目 skills 计划、用户级迁移、事务 apply 与阻塞恢复。✅
+  - default.html 环境准备线框：全局检查、项目计划、执行、完成、typed 升级迁移和失败恢复。✅ (91行)
+  - interaction.md 环境准备交互：项目绑定门禁、项目 target、用户级 managed 迁移、备份恢复与异常恢复。✅ (165行)
 - platform-workspace/ 多产品平台工作区：以三组主导航连接个人协作、产品全生命周期和组织能力，并保留真实 Workset、Feedback 与 Organization 行为。✅
   - default.html 平台首页线框：Personal/Product Lifecycle/Organization 分组、全局产品范围、Feedback 双栏详情与转待办恢复状态。✅ (109行)
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系和项目上下文通用邀请。✅ (7行)

@@ -4,7 +4,7 @@
 
 `arcorbit/solution.md` 定义 Runtime Kernel 与 Automation Supervisor 的运行期职责。
 
-`arcorbit/installer-supply-chain.md` 定义安装包构建、受信资源打包、ArcForge embedded provider、Desktop Setup Readiness 和 Agent skills 消费目标；它在 task start 前向 `arcorbit/solution.md` 提供已满足的本机运行前提。
+`arcorbit/installer-supply-chain.md` 定义安装包构建、受信资源打包、ArcForge embedded provider、Product Workspace 项目 targets、用户级 managed 迁移和 Desktop Setup Readiness；它在 task start 前向 `arcorbit/solution.md` 提供当前关联项目已满足的运行前提。
 
 `arcorbit/state-condition-ledger-solution.md` 定义安装包中 trusted ledger resources 的语义契约。安装供应链只校验、定位和打包这些资源，不复制其写回逻辑。
 

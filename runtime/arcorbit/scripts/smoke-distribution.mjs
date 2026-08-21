@@ -10,6 +10,7 @@ const resourcesRoot = path.resolve(options.resourcesRoot || path.join(runtimeRoo
 const fixture = await mkdtemp(path.join(os.tmpdir(), "arckit-distribution-smoke-"));
 try {
   const homeDir = path.join(fixture, "home");
+  const projectRoot = path.join(fixture, "project");
   const unrelated = path.join(homeDir, ".codex", "skills", "distribution-smoke-unrelated");
   await mkdir(unrelated, { recursive: true });
   await writeFile(path.join(unrelated, "SKILL.md"), "---\nname: distribution-smoke-unrelated\ndescription: Must remain untouched.\n---\n");
@@ -20,7 +21,7 @@ try {
     stateRoot: path.join(fixture, "arcforge"),
     codexProbe: async () => ({ available: true, summary: "CI packaging probe" })
   });
-  const planned = await manager.check();
+  const planned = await manager.check({ projectRoot });
   if (planned.status !== "needs-install" || !planned.can_apply || !planned.plan?.digest) {
     throw new Error(`Expected a safe fresh install plan, received ${planned.status}: ${planned.error?.message || "no error"}`);
   }
@@ -29,8 +30,8 @@ try {
     throw new Error(`Distribution provisioning did not converge to ready: ${applied.error?.message || applied.status}`);
   }
   await access(path.join(homeDir, ".codex", "skills", "distribution-smoke-unrelated", "SKILL.md"));
-  await access(path.join(homeDir, ".codex", "skills", "_arckit_shared", "case-gap-contract.md"));
-  await access(path.join(homeDir, ".codex", "skills", "_arckit_shared", "content-spec.md"));
+  await access(path.join(projectRoot, ".codex", "skills", "_arckit_shared", "case-gap-contract.md"));
+  await access(path.join(projectRoot, ".codex", "skills", "_arckit_shared", "content-spec.md"));
   const lock = JSON.parse(await readFile(path.join(resourcesRoot, "provisioning", "distribution-lock.json"), "utf8"));
   console.log(JSON.stringify({
     schema_version: "arckit-distribution-smoke/v1",

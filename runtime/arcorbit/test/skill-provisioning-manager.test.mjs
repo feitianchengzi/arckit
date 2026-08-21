@@ -12,6 +12,7 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
   const dataRoot = path.join(fixture, "data");
   const homeDir = path.join(fixture, "home");
   const stateRoot = path.join(fixture, "arcforge");
+  const projectRoot = path.join(fixture, "project");
   const fake = createFakeProvider();
   try {
     await writeBundle(resourcesRoot, "1.0.0-tf.b1", "ambient-v1");
@@ -24,7 +25,12 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
       codexProbe: async () => ({ available: true, summary: "fixture Codex" })
     });
 
-    const planned = await manager.check();
+    const global = await manager.check();
+    assert.equal(global.status, "ready");
+    assert.equal(global.scope, "global");
+    assert.equal(global.plan, null);
+    await assert.rejects(manager.assertReady(), (error) => error.code === "PROJECT_REQUIRED");
+    const planned = await manager.check({ projectRoot });
     assert.equal(planned.status, "needs-install");
     assert.equal(planned.plan.items.length, 2);
     assert.deepEqual(planned.plan.deferred_project_skills, ["project-skill"]);
@@ -38,25 +44,26 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
       arcforge_loader_targets: 1
     });
     assert.equal(planned.checks.find((item) => item.id === "skills").summary, "共 3 个 Arckit skills：1 个 user-ambient，1 个 user-on-demand，1 个 project-ambient 延后；0 个 shared assets；1 个 ArcForge loader target");
-    assert.equal(planned.drift.counts.uncertain, 1);
+    assert.equal(planned.drift.counts.uncertain, 0);
     assert.equal(planned.can_apply, true);
 
     const installed = await manager.apply({ planDigest: planned.plan.digest });
     assert.equal(installed.status, "ready");
     assert.equal(installed.first_install, true);
     assert.equal(await readFile(path.join(unrelated, "SKILL.md"), "utf8"), "unrelated\n");
-    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v1\n");
+    assert.equal(await readFile(path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v1\n");
+    await assert.rejects(readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md")), { code: "ENOENT" });
     assert.equal(await readFile(path.join(stateRoot, "catalog", "fixture", "on-demand-skill", "SKILL.md"), "utf8"), "on-demand-v1\n");
 
     const preflightEvents = [];
     const unsubscribe = manager.onEvent((event) => preflightEvents.push(event));
-    const preflight = await manager.assertReady();
+    const preflight = await manager.assertReady(projectRoot);
     unsubscribe();
     assert.equal(preflight.status, "ready");
     assert.deepEqual(preflightEvents, []);
 
-    await writeFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "local edit\n");
-    const conflict = await manager.check();
+    await writeFile(path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "local edit\n");
+    const conflict = await manager.check({ projectRoot });
     assert.equal(conflict.status, "conflict");
     assert.equal(conflict.can_apply, false);
     assert.equal(conflict.can_recover, true);
@@ -66,7 +73,7 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
     assert.equal(await readFile(path.join(repaired.recovery_backup.path, "ambient-skill", "SKILL.md"), "utf8"), "local edit\n");
 
     await writeBundle(resourcesRoot, "1.0.0-tf.b2", "ambient-v2");
-    const upgrade = await manager.check();
+    const upgrade = await manager.check({ projectRoot });
     assert.equal(upgrade.status, "needs-install");
     assert.equal(upgrade.drift.counts.changed, 1);
     fake.failApply = true;
@@ -75,14 +82,33 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
     assert.equal(failed.error.rollback_complete, true);
     const currentManifest = JSON.parse(await readFile(path.join(dataRoot, "skill-sources", "arckit", "current", "payload.manifest.json"), "utf8"));
     assert.equal(currentManifest.payloadDigest, fake.payloadDigests.get("1.0.0-tf.b1"));
-    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v1\n");
+    assert.equal(await readFile(path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v1\n");
 
     fake.failApply = false;
-    const retry = await manager.check();
+    const retry = await manager.check({ projectRoot });
     const upgraded = await manager.apply({ planDigest: retry.plan.digest });
     assert.equal(upgraded.status, "ready");
-    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v2\n");
+    assert.equal(await readFile(path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v2\n");
     assert.equal(await readFile(path.join(dataRoot, "skill-sources", "arckit", "previous", fake.payloadDigests.get("1.0.0-tf.b1"), "code", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v1\n");
+    const secondProjectRoot = path.join(fixture, "second-project");
+    const expanded = await manager.check({ projectRoot: [projectRoot, secondProjectRoot] });
+    assert.equal(expanded.status, "needs-install");
+    assert.deepEqual(expanded.plan.project_roots, [projectRoot, secondProjectRoot].sort());
+    const expandedApplied = await manager.apply({ planDigest: expanded.plan.digest });
+    assert.equal(expandedApplied.status, "ready");
+    assert.equal(await readFile(path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v2\n");
+    assert.equal(await readFile(path.join(secondProjectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v2\n");
+    const assessed = await manager.check({
+      projectRoot: [projectRoot, secondProjectRoot],
+      projectAssessments: [{ skill: "project-skill", status: "suitable" }]
+    });
+    assert.equal(assessed.status, "needs-install");
+    assert.deepEqual(assessed.plan.deferred_project_skills, []);
+    assert.equal(assessed.plan.items.some((item) => item.skill === "project-skill" && item.destinations.length === 2), true);
+    const assessedApplied = await manager.apply({ planDigest: assessed.plan.digest });
+    assert.equal(assessedApplied.status, "ready");
+    assert.equal(await readFile(path.join(projectRoot, ".codex", "skills", "project-skill", "SKILL.md"), "utf8"), "project-only\n");
+    assert.equal(await readFile(path.join(secondProjectRoot, ".codex", "skills", "project-skill", "SKILL.md"), "utf8"), "project-only\n");
   } finally {
     await rm(fixture, { recursive: true, force: true });
   }
@@ -111,7 +137,7 @@ test("Setup Readiness installs governed skills, preserves unrelated skills, dete
     await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(payloadManifest)}\n`);
     await mkdir(path.join(providerRoot, "dist", "provider"), { recursive: true });
     await writeFile(path.join(providerRoot, "dist", "provider", "index.js"), "export const fixture = true;\n");
-    const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/v1.0.0-${packageVersion.endsWith("b2") ? "b2" : "b1"}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: payloadManifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1"] } };
+    const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/v1.0.0-${packageVersion.endsWith("b2") ? "b2" : "b1"}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: payloadManifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1", "project-only-provisioning/v1"] } };
     await writeFile(path.join(root, "provisioning", "distribution-lock.json"), `${JSON.stringify(lock)}\n`);
     const resourceFiles = await fileManifest(root);
     await writeFile(path.join(root, "provisioning", "checksums.txt"), `${resourceFiles.map((item) => `${item.sha256}  ${item.path}`).join("\n")}\n`);
@@ -125,7 +151,8 @@ test("Setup Readiness uses only the new ArcOrbit consumer and recovers when it h
   const arcOrbitDataRoot = path.join(fixture, "arcorbit-data");
   const homeDir = path.join(fixture, "home");
   const stateRoot = path.join(fixture, "state");
-  const target = path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md");
+  const projectRoot = path.join(fixture, "project");
+  const target = path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md");
   const fake = createFakeProvider();
   try {
     await createMinimalBundle(resourcesRoot);
@@ -134,7 +161,7 @@ test("Setup Readiness uses only the new ArcOrbit consumer and recovers when it h
       providerLoader: async () => fake.provider,
       codexProbe: async () => ({ available: true, summary: "fixture Codex" })
     });
-    const first = await oldManager.check();
+    const first = await oldManager.check({ projectRoot });
     await oldManager.apply({ planDigest: first.plan.digest });
     await writeFile(target, "local edit under renamed consumer\n");
     assert.equal((await fake.provider.listProvisioningRelations({ consumerRoot: legacyDataRoot, stateRoot, sourceRoot: oldManager.paths.currentRoot })).length, 1);
@@ -145,7 +172,7 @@ test("Setup Readiness uses only the new ArcOrbit consumer and recovers when it h
       codexProbe: async () => ({ available: true, summary: "fixture Codex" })
     });
     assert.equal((await fake.provider.listProvisioningRelations({ consumerRoot: arcOrbitDataRoot, stateRoot, sourceRoot: manager.paths.currentRoot })).length, 0);
-    const conflict = await manager.check();
+    const conflict = await manager.check({ projectRoot });
     assert.equal(conflict.status, "conflict");
     assert.equal(conflict.can_recover, true);
     assert.equal(conflict.source_upgrade.can_backup_and_restore, false);
@@ -159,7 +186,7 @@ test("Setup Readiness uses only the new ArcOrbit consumer and recovers when it h
     assert.match(stale.error.message, /assessment changed/);
     assert.equal(await readFile(target, "utf8"), "changed after confirmation\n");
 
-    let fresh = await manager.check();
+    let fresh = await manager.check({ projectRoot });
     fake.failRecoveryAfterReplace = true;
     const failed = await manager.recoverSourceUpgrade({ assessmentDigest: fresh.source_upgrade.digest, action: "backup-and-reinstall" });
     assert.equal(failed.status, "blocked");
@@ -167,7 +194,7 @@ test("Setup Readiness uses only the new ArcOrbit consumer and recovers when it h
     assert.equal(await readFile(target, "utf8"), "changed after confirmation\n");
 
     fake.failRecoveryAfterReplace = false;
-    fresh = await manager.check();
+    fresh = await manager.check({ projectRoot });
     const recovered = await manager.recoverSourceUpgrade({ assessmentDigest: fresh.source_upgrade.digest, action: "backup-and-reinstall" });
     assert.equal(recovered.status, "ready");
     assert.equal(recovered.write_state, "committed");
@@ -184,15 +211,16 @@ test("Setup Readiness blocks tampered resources and preserves a safe plan when C
   const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-blocked-"));
   try {
     const resourcesRoot = path.join(fixture, "resources");
+    const projectRoot = path.join(fixture, "project");
     await createMinimalBundle(resourcesRoot);
     const fake = createFakeProvider();
     const manager = createSkillProvisioningManager({ resourcesRoot, dataRoot: path.join(fixture, "data"), homeDir: path.join(fixture, "home"), stateRoot: path.join(fixture, "state"), providerLoader: async () => fake.provider, codexProbe: async () => ({ available: false, summary: "Codex missing" }) });
-    const blocked = await manager.check();
+    const blocked = await manager.check({ projectRoot });
     assert.equal(blocked.status, "blocked");
     assert.equal(blocked.error.code, "CODEX_UNAVAILABLE");
     assert.equal(blocked.can_apply, true);
     await writeFile(path.join(resourcesRoot, "provisioning", "arckit-skills", "code", "skills", "ambient-skill", "SKILL.md"), "tampered\n");
-    const tampered = await manager.check();
+    const tampered = await manager.check({ projectRoot });
     assert.equal(tampered.status, "blocked");
     assert.equal(tampered.error.code, "RESOURCE_DIGEST_MISMATCH");
     assert.equal(tampered.can_apply, false);
@@ -205,6 +233,7 @@ test("Setup Readiness blocks a provider plan that omits a manifest-declared shar
   const fixture = await mkdtemp(path.join(tmpdir(), "arckit-setup-shared-plan-"));
   try {
     const resourcesRoot = path.join(fixture, "resources");
+    const projectRoot = path.join(fixture, "project");
     await createMinimalBundle(resourcesRoot, { includeSharedAsset: true });
     const fake = createFakeProvider();
     const manager = createSkillProvisioningManager({
@@ -215,7 +244,7 @@ test("Setup Readiness blocks a provider plan that omits a manifest-declared shar
       providerLoader: async () => fake.provider,
       codexProbe: async () => ({ available: true, summary: "fixture Codex" })
     });
-    const blocked = await manager.check();
+    const blocked = await manager.check({ projectRoot });
     assert.equal(blocked.status, "blocked");
     assert.equal(blocked.error.code, "SHARED_ASSET_PLAN_MISSING");
     assert.deepEqual(blocked.error.details.missing, ["definition/skills/_arckit_shared"]);
@@ -230,6 +259,7 @@ test("Setup Readiness classifies the reported missing catalog targets and manage
   const dataRoot = path.join(fixture, "data");
   const homeDir = path.join(fixture, "home");
   const stateRoot = path.join(fixture, "state");
+  const projectRoot = path.join(fixture, "project");
   const fake = createFakeProvider();
   try {
     await createUpgradeBundle(resourcesRoot, "1.0.0-tf.b1", "ambient-v1\n");
@@ -238,13 +268,13 @@ test("Setup Readiness classifies the reported missing catalog targets and manage
       providerLoader: async () => fake.provider,
       codexProbe: async () => ({ available: true, summary: "fixture Codex" })
     });
-    const first = await manager.check();
+    const first = await manager.check({ projectRoot });
     await manager.apply({ planDigest: first.plan.digest });
     await rm(path.join(stateRoot, "catalog", "fixture", "on-demand-skill"), { recursive: true, force: true });
-    await writeFile(path.join(homeDir, ".codex", "skills", "arcforge-on-demand", "SKILL.md"), "provider loader v2\n");
+    await writeFile(path.join(projectRoot, ".codex", "skills", "arcforge-on-demand", "SKILL.md"), "provider loader v2\n");
     await createUpgradeBundle(resourcesRoot, "1.0.0-tf.b2", "ambient-v2\n");
 
-    const upgrade = await manager.check();
+    const upgrade = await manager.check({ projectRoot });
     assert.equal(upgrade.status, "needs-install");
     assert.equal(upgrade.can_apply, true);
     assert.equal(upgrade.write_state, "not_started");
@@ -256,9 +286,9 @@ test("Setup Readiness classifies the reported missing catalog targets and manage
     const applied = await manager.apply({ planDigest: upgrade.plan.digest });
     assert.equal(applied.status, "ready");
     assert.equal(applied.write_state, "committed");
-    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v2\n");
+    assert.equal(await readFile(path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v2\n");
     assert.equal(await readFile(path.join(stateRoot, "catalog", "fixture", "on-demand-skill", "SKILL.md"), "utf8"), "on-demand-v1\n");
-    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "arcforge-on-demand", "SKILL.md"), "utf8"), "loader\n");
+    assert.equal(await readFile(path.join(projectRoot, ".codex", "skills", "arcforge-on-demand", "SKILL.md"), "utf8"), "loader\n");
   } finally {
     await rm(fixture, { recursive: true, force: true });
   }
@@ -270,16 +300,17 @@ test("Setup Readiness backs up changed managed content before presenting the fre
   const dataRoot = path.join(fixture, "data");
   const homeDir = path.join(fixture, "home");
   const stateRoot = path.join(fixture, "state");
+  const projectRoot = path.join(fixture, "project");
   const fake = createFakeProvider();
   try {
     await createUpgradeBundle(resourcesRoot, "1.0.0-tf.b1", "ambient-v1\n");
     const manager = createSkillProvisioningManager({ resourcesRoot, dataRoot, homeDir, stateRoot, providerLoader: async () => fake.provider, codexProbe: async () => ({ available: true, summary: "fixture Codex" }) });
-    const first = await manager.check();
+    const first = await manager.check({ projectRoot });
     await manager.apply({ planDigest: first.plan.digest });
-    await writeFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "my local customization\n");
+    await writeFile(path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "my local customization\n");
     await createUpgradeBundle(resourcesRoot, "1.0.0-tf.b2", "ambient-v2\n");
 
-    const conflict = await manager.check();
+    const conflict = await manager.check({ projectRoot });
     assert.equal(conflict.status, "conflict");
     assert.equal(conflict.can_recover, true);
     assert.equal(conflict.can_apply, false);
@@ -289,11 +320,11 @@ test("Setup Readiness backs up changed managed content before presenting the fre
     const recovered = await manager.recoverSourceUpgrade({ assessmentDigest: conflict.source_upgrade.digest, action: "backup-and-restore" });
     assert.equal(recovered.status, "needs-install");
     assert.equal(recovered.write_state, "committed");
-    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v1\n");
+    assert.equal(await readFile(path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v1\n");
     assert.equal(await readFile(path.join(recovered.recovery_backup.path, "ambient-skill", "SKILL.md"), "utf8"), "my local customization\n");
     const applied = await manager.apply({ planDigest: recovered.plan.digest });
     assert.equal(applied.status, "ready");
-    assert.equal(await readFile(path.join(homeDir, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v2\n");
+    assert.equal(await readFile(path.join(projectRoot, ".codex", "skills", "ambient-skill", "SKILL.md"), "utf8"), "ambient-v2\n");
   } finally {
     await rm(fixture, { recursive: true, force: true });
   }
@@ -316,7 +347,7 @@ async function createUpgradeBundle(root, packageVersion, ambientContent) {
   await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(manifest)}\n`);
   await mkdir(path.join(providerRoot, "dist", "provider"), { recursive: true });
   await writeFile(path.join(providerRoot, "dist", "provider", "index.js"), "fixture\n");
-  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/${packageVersion}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1"] } };
+  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion }, arckit: { releaseTag: `tf/${packageVersion}` }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1", "project-only-provisioning/v1"] } };
   await writeFile(path.join(root, "provisioning", "distribution-lock.json"), `${JSON.stringify(lock)}\n`);
   const resourceFiles = await fileManifest(root);
   await writeFile(path.join(root, "provisioning", "checksums.txt"), `${resourceFiles.map((item) => `${item.sha256}  ${item.path}`).join("\n")}\n`);
@@ -339,7 +370,7 @@ async function createMinimalBundle(root, { includeSharedAsset = false } = {}) {
   await writeFile(path.join(payloadRoot, "payload.manifest.json"), `${JSON.stringify(manifest)}\n`);
   await mkdir(path.join(root, "provisioning", "arcforge-provider", "dist", "provider"), { recursive: true });
   await writeFile(path.join(root, "provisioning", "arcforge-provider", "dist", "provider", "index.js"), "fixture\n");
-  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion: "1.0.0-tf.b1" }, arckit: { releaseTag: "tf/v1.0.0-b1" }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1"] } };
+  const lock = { schemaVersion: "arckit-runtime-distribution/v1", runtime: { packageVersion: "1.0.0-tf.b1" }, arckit: { releaseTag: "tf/v1.0.0-b1" }, skillPayload: { profile: "arckit-runtime", payloadDigest, sourceManifestDigest: manifest.sourceManifestDigest }, arcforgeProvider: { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1", "project-only-provisioning/v1"] } };
   await writeFile(path.join(root, "provisioning", "distribution-lock.json"), `${JSON.stringify(lock)}\n`);
   const resourceFiles = await fileManifest(root);
   await writeFile(path.join(root, "provisioning", "checksums.txt"), `${resourceFiles.map((item) => `${item.sha256}  ${item.path}`).join("\n")}\n`);
@@ -349,8 +380,11 @@ function createFakeProvider() {
   const records = [];
   const state = { failApply: false, failRecoveryAfterReplace: false, payloadDigests: new Map() };
   const provider = {
-    async inspectProvider() { return { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), loaderDigest: "c".repeat(64), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1"] }; },
+    async inspectProvider() { return { apiVersion: "arcforge-embedded-provider/v1", providerVersion: "1.0.0", buildCommit: "b".repeat(40), loaderDigest: "c".repeat(64), capabilities: ["declared-shared-assets/v1", "source-upgrade-recovery/v1", "conflict-reinstall-recovery/v1", "project-only-provisioning/v1"] }; },
     async createProvisioningPlan(options) {
+      assert.equal(options.destinationPolicy, "project-only");
+      assert.equal(options.projectTargetDirs.length > 0, true);
+      const projectRoots = options.projectTargetDirs.map((item) => path.resolve(item));
       const payload = JSON.parse(await readFile(path.join(options.sourceRoot, "payload.manifest.json"), "utf8"));
       const sourceManifest = JSON.parse(await readFile(path.join(options.sourceRoot, "arcforge.skill-project.json"), "utf8"));
       const modeByPath = new Map((sourceManifest.availability.skills || []).map((item) => [item.path, item.mode]));
@@ -359,13 +393,19 @@ function createFakeProvider() {
         const skill = path.basename(relative);
         if (!options.skills.includes(skill)) continue;
         const mode = modeByPath.get(relative) || sourceManifest.availability.defaultMode;
-        const destination = mode === "user-on-demand" ? path.join(options.stateRoot, "catalog", "fixture", skill) : path.join(options.homeDir, ".codex", "skills", skill);
-        items.push({ skill, sourcePath: relative, effectiveMode: mode, policyOrigin: "source", destinations: [{ kind: mode === "user-on-demand" ? "user-catalog" : "user-agent", path: destination }], contentDigest: sha256(await readFile(path.join(options.sourceRoot, relative, "SKILL.md"))) });
+        const destinations = mode === "user-on-demand"
+          ? [{ kind: "user-catalog", path: path.join(options.stateRoot, "catalog", "fixture", skill) }]
+          : projectRoots.map((projectRoot) => ({ kind: "project-agent", projectRoot, path: path.join(projectRoot, ".codex", "skills", skill) }));
+        items.push({ skill, sourcePath: relative, effectiveMode: mode, policyOrigin: "source", destinations, contentDigest: sha256(await readFile(path.join(options.sourceRoot, relative, "SKILL.md"))) });
       }
-      const loaderPath = items.some((item) => item.effectiveMode === "user-on-demand") ? path.join(options.homeDir, ".codex", "skills", "arcforge-on-demand") : "";
-      const loaderExists = loaderPath ? await readFile(path.join(loaderPath, "SKILL.md"), "utf8").then(() => true, (error) => error.code === "ENOENT" ? false : Promise.reject(error)) : false;
-      const loaderTargets = loaderPath ? [{ agentId: "codex", path: loaderPath, status: await sameFile(path.join(loaderPath, "SKILL.md"), "loader\n") ? "same" : loaderExists && records.length ? "managed-update" : "missing", expectedDigest: sha256("loader\n"), ...(loaderExists ? { existingDigest: sha256(await readFile(path.join(loaderPath, "SKILL.md"))) } : {}) }] : [];
-      const plan = { sourceKey: "fixture", sourceIdentity: options.sourceRoot, profile: options.profile, items, loaderTargets, cleanup: [], diagnostics: [], requiresConfirm: true };
+      const loaderTargets = items.some((item) => item.effectiveMode === "user-on-demand")
+        ? await Promise.all(projectRoots.map(async (projectRoot) => {
+          const loaderPath = path.join(projectRoot, ".codex", "skills", "arcforge-on-demand");
+          const loaderExists = await readFile(path.join(loaderPath, "SKILL.md"), "utf8").then(() => true, (error) => error.code === "ENOENT" ? false : Promise.reject(error));
+          return { agentId: "codex", projectRoot, path: loaderPath, status: await sameFile(path.join(loaderPath, "SKILL.md"), "loader\n") ? "same" : loaderExists && records.length ? "managed-update" : "missing", expectedDigest: sha256("loader\n"), ...(loaderExists ? { existingDigest: sha256(await readFile(path.join(loaderPath, "SKILL.md"))) } : {}) };
+        }))
+        : [];
+      const plan = { sourceKey: "fixture", sourceIdentity: options.sourceRoot, profile: options.profile, destinationPolicy: "project-only", items, loaderTargets, cleanup: [], diagnostics: [], requiresConfirm: true };
       return { apiVersion: "arcforge-embedded-provider/v1", planDigest: sha256(JSON.stringify(plan)), plan, targetEvidence: [] };
     },
     async driftProvisioningPlan(options) {
@@ -381,8 +421,8 @@ function createFakeProvider() {
         }
       }
       for (const loader of envelope.plan.loaderTargets) items.push({ skill: "arcforge-on-demand", kind: "loader", status: loader.status === "same" ? "same" : loader.status === "managed-update" ? "changed" : "missing", sourcePath: "fixture-loader", targetPath: loader.path });
-      const ambientRoot = path.join(options.homeDir, ".codex", "skills");
-      const expected = new Set([...envelope.plan.items.flatMap((item) => item.destinations.filter((entry) => entry.kind === "user-agent").map((entry) => path.basename(entry.path))), ...(envelope.plan.loaderTargets.length ? ["arcforge-on-demand"] : [])]);
+      const ambientRoot = path.join(options.projectTargetDirs[0], ".codex", "skills");
+      const expected = new Set([...envelope.plan.items.flatMap((item) => item.destinations.filter((entry) => entry.kind === "project-agent").map((entry) => path.basename(entry.path))), ...(envelope.plan.loaderTargets.length ? ["arcforge-on-demand"] : [])]);
       const extras = (await readdir(ambientRoot, { withFileTypes: true }).catch(() => [])).filter((item) => item.isDirectory() && !expected.has(item.name)).map((item) => ({ name: item.name, kind: "skill", classification: "uncertain", targetPath: path.join(ambientRoot, item.name), reason: "unmanaged" }));
       return { profile: options.profile, targetDir: "", items, targetExtras: extras, policyDrift: envelope.plan.items.map((item) => ({ skill: item.skill, status: relation ? "same" : "changed", currentMode: item.effectiveMode, currentPaths: item.destinations.map((entry) => entry.path), reason: relation ? "same" : "new" })), availabilityPlan: envelope.plan };
     },
@@ -393,7 +433,14 @@ function createFakeProvider() {
       for (const item of fresh.plan.items) for (const destination of item.destinations) { await rm(destination.path, { recursive: true, force: true }); await cp(path.join(options.sourceRoot, item.sourcePath), destination.path, { recursive: true }); }
       for (const loader of fresh.plan.loaderTargets) { await mkdir(loader.path, { recursive: true }); await writeFile(path.join(loader.path, "SKILL.md"), "loader\n"); }
       const index = records.findIndex((item) => item.sourceRoot === options.sourceRoot);
-      const record = { id: "fixture-relation", sourceRoot: options.sourceRoot, profile: options.profile, targetDir: "", skills: fresh.plan.items.map((item) => item.skill), managedSkillNames: fresh.plan.items.map((item) => item.skill), availabilityItems: fresh.plan.items.map((item) => ({ skill: item.skill, mode: item.effectiveMode, policyOrigin: "source", destinations: item.destinations.map((entry) => entry.path) })), updatedAt: new Date().toISOString() };
+      const record = {
+        id: "fixture-relation", sourceRoot: options.sourceRoot, profile: options.profile, targetDir: "",
+        skills: fresh.plan.items.map((item) => item.skill), managedSkillNames: fresh.plan.items.map((item) => item.skill),
+        availabilityItems: fresh.plan.items.map((item) => ({ skill: item.skill, mode: item.effectiveMode, policyOrigin: "source", destinations: item.destinations.map((entry) => entry.path) })),
+        availabilityContext: { agentTargetIds: ["codex"], projectTargetDirs: [...options.projectTargetDirs], destinationPolicy: options.destinationPolicy, homeDir: options.homeDir },
+        provisioningEvidence: { targets: fresh.plan.loaderTargets.map((item) => ({ kind: "loader", path: item.path })) },
+        updatedAt: new Date().toISOString()
+      };
       if (index >= 0) records[index] = record; else records.push(record);
       return { result: { copied: fresh.plan.items.map((item) => item.skill) }, record };
     },
@@ -402,7 +449,7 @@ function createFakeProvider() {
       const drift = await provider.driftProvisioningPlan(options);
       const relation = records.find((item) => item.sourceRoot === options.sourceRoot);
       const managed = new Set(relation?.availabilityItems?.flatMap((item) => item.destinations) || []);
-      if (relation?.availabilityItems?.some((item) => item.mode === "user-on-demand")) managed.add(path.join(options.homeDir, ".codex", "skills", "arcforge-on-demand"));
+      for (const item of relation?.provisioningEvidence?.targets || []) managed.add(item.path);
       const items = drift.items.filter((item) => item.status !== "same").map((item) => ({
         disposition: !managed.has(item.targetPath) ? "unmanaged-conflict" : item.status === "missing" ? "managed-repair" : item.kind === "loader" ? "managed-migration" : "unverified-managed",
         name: item.skill,

@@ -2,7 +2,7 @@
 
 ## 页面定位
 
-Setup Readiness 是 Desktop 在 Runtime task、Workshop 登录和项目队列之前呈现的本机能力准备页面。它只在受信资源、Codex 或 Arckit skills 尚未达到可运行状态时成为主路由；全部检查通过后，应用继续进入 Login 或 Automation Workspace。
+Setup Readiness 是 Desktop 的全局资源与项目能力准备页面。应用进入普通工作区前完成全局检查；用户绑定 Product Workspace 或启动 Runtime task 时，页面为对应本地项目检查 Arckit skills。它只在受信资源、Codex 或当前项目能力尚未达到可运行状态时成为主路由；当前检查通过后，应用继续原路由或恢复原 task start intent。
 
 页面不承担 GitHub 出包、ArcForge 治理编辑或 Runtime task 执行。它只展示当前安装包锁定的资源、目标目录、plan/drift、需要的确认和可恢复结果。
 
@@ -10,17 +10,18 @@ Setup Readiness 是 Desktop 在 Runtime task、Workshop 登录和项目队列之
 
 ### 核心任务
 
-用户确认应用将如何准备完整 ArcOrbit 环境，并在不静默覆盖已有 Agent 资产的前提下完成安装、修复或升级。
+用户确认应用将如何为明确关联的本地项目准备 ArcOrbit Agent 能力，并在不写入 Codex 用户级 skill 目录、不静默覆盖已有 Agent 资产的前提下完成安装、迁移、修复或升级。
 
 ### 主路径
 
-1. 应用启动后只从 ArcOrbit 当前数据身份读取 source store 与关系，并自动校验 distribution lock、trusted resources、ArcForge provider、skill payload、Codex 和既有关系；旧 Runtime 数据不参与检查或恢复。
-2. 环境已经 ready 时显示短暂成功结果并自动继续。
-3. 需要安装或升级时，页面展示来源、版本、目标、availability 分类和 drift 摘要。
-4. source upgrade 先展示受管理缺失、provider 管理迁移、已有内容变化、未验证受管理目标和未受管理冲突；每项同时显示旧目标、新目标、所有权依据和可用动作。
-5. missing 与可证明的 managed migration 进入 fresh repair/upgrade plan；changed 或未验证的受管理目标由用户查看 diff 后选择备份并恢复或保留并退出；缺少可用关系但具有完整 bundled source 映射的冲突提供“备份并按当前应用包重装”。
-6. 用户确认 fresh plan 后，系统执行事务化 apply，持续展示 source、目录、catalog、关系和 discoverability 阶段。
-7. post-drift 与 Codex probe 成功后，页面开放“继续使用 ArcOrbit”。
+1. 应用启动后只从 ArcOrbit 当前数据身份读取 source store 与关系，并自动校验 distribution lock、trusted resources、ArcForge provider、skill payload 和 Codex；全局检查不写任意 Agent skill 目录，旧 Runtime 数据不参与检查或恢复。
+2. 全局环境 ready 时显示短暂成功结果并继续 Login 或工作区；没有项目绑定时不把任意项目声明为 skills ready。
+3. 用户新增或改变 Product Workspace 本地绑定，或 task start 检测到项目 readiness 失效时，页面锁定该 Product Workspace 和规范化项目根，读取对应关系、项目适用性与 drift。
+4. 需要安装或升级时，页面展示来源、版本、项目身份、`<project-root>/.codex/skills` 目标、source availability 的项目解释和 drift 摘要。
+5. source upgrade 和用户级迁移先展示受管理缺失、provider 管理迁移、已有内容变化、未验证受管理目标和未受管理冲突；每项同时显示旧目标、新项目目标、所有权依据和可用动作。
+6. missing 与可证明的 managed migration 进入 fresh repair/upgrade plan；changed 或未验证的受管理目标由用户查看 diff 后选择备份并恢复或保留并退出；缺少可用关系但具有完整 bundled source 映射的冲突提供“备份并按当前应用包重装”。
+7. 用户确认 fresh plan 后，系统执行事务化 apply，持续展示 source、项目目录、按需 catalog、项目 loader、关系和 discoverability 阶段。
+8. 项目 post-drift、用户级 managed target 迁移检查与 Codex project discoverability probe 成功后，页面开放“继续”或“恢复任务”。
 
 ### 决策点
 
@@ -30,12 +31,14 @@ Setup Readiness 是 Desktop 在 Runtime task、Workshop 登录和项目队列之
 - 未受管理同名目标不能进入普通 apply。ArcOrbit 当前数据身份没有关系时不查询或迁移旧 Runtime 关系；provider 能以 fresh assessment 证明冲突目标与当前 bundled source 一一对应时，页面提供独立的“备份并按当前应用包重装”确认。该动作先保存原内容，再以当前应用包为权威来源写入并建立当前 ArcOrbit 关系。
 - 每个非 ready 状态至少提供一种与当前分类相符的处理手段。无法安全自动处理的错误提供明确的外部恢复条件、受影响路径和重新检查入口，不只留下无结果的重试。
 - `managed-stale` 清理使用独立 confirmation，不和普通 apply 捆绑。
-- project-ambient skills 不在本页面首次安装；添加具体项目后由项目上下文触发单独 plan。
+- ArcOrbit 不向 `~/.codex/skills` 安装 bundled skill 或 `arcforge-on-demand` loader。source user-ambient 在关联项目中解释为默认项目常驻，source project-ambient 仍要求适用性判断；user-on-demand catalog 是非 Codex 发现的控制面，loader 只安装到当前项目。
+- 没有明确 Product Workspace 绑定时不生成 skill apply plan；页面不允许手输任意目标目录。
+- 旧版受管理用户级 target 只有在关系所有权可证明、具体路径可见且用户确认 disposition 后才迁移或移除；用户保留冲突内容时，相关项目不能显示 scope-clean ready。
 - 签名或系统信任问题只提供平台恢复入口，不把“忽略风险”伪装成 ready。
 
 ### 信息揭示
 
-默认摘要显示当前 Runtime 版本、Arckit payload、ArcForge provider、Codex 状态、Arckit skill 总数、user-ambient/user-on-demand/project-ambient deferred 分类数量、独立的 ArcForge loader target 数和整体 readiness。Arckit skill 总数不包含 loader，user-on-demand 不与 user-ambient 合并为“用户 skills”。用户展开详情后才显示绝对目标目录、逐 skill availability、文件 drift 和关系记录位置。
+默认摘要显示当前 Runtime 版本、Arckit payload、ArcForge provider、Codex 状态、当前 Product Workspace、项目路径、Arckit skill 总数、项目默认常驻/项目适用/按需分类数量、项目级 ArcForge loader target 数和整体 readiness。Arckit skill 总数不包含 loader，user-on-demand catalog 不与项目常驻 skills 合并。用户展开详情后才显示项目绝对目标目录、旧用户级 managed paths、逐 skill availability、文件 drift 和关系记录位置。
 
 secret、私钥、完整环境变量、Codex credential 和 GitHub token 永不进入页面。签名信息只显示公开证书身份、签名状态和公证状态。
 
@@ -43,7 +46,10 @@ secret、私钥、完整环境变量、Codex credential 和 GitHub token 永不�
 
 ```text
 checking
-  -> ready -> continue
+  -> global-ready -> continue
+  -> needs-project -> bind-project
+project-checking
+  -> ready -> continue/resume-task
   -> needs-install -> review-plan -> applying -> ready
   -> drifted -> classify -> review-plan/repair-or-migrate -> applying -> ready
   -> conflict -> inspect-diff -> backup-and-restore/backup-and-reinstall/recover-externally -> recheck
@@ -56,6 +62,7 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 
 - 检查阶段逐项显示 pending、passed 或 failed，不用单一无限 loading 覆盖所有工作。
 - plan 阶段将“将新增”“将更新”“不会处理”和“需单独确认清理”分开。
+- plan 始终显示当前项目根、项目级 Codex target 和是否包含旧用户级 managed target 迁移；不会只显示抽象的 Codex 用户目标。
 - upgrade assessment 将“受管理缺失”“provider 管理迁移”“本地内容变化”“未验证受管理目标”和“未受管理冲突”分开，不把汇总计数当作用户修改证据。
 - 执行阶段显示事务阶段和最近完成项，不展示 provider 原始 JSON。
 - 完成结果明确区分 resources 校验、skills post-drift 和 Codex discoverability。
@@ -70,13 +77,14 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 - provider apply 回滚不完整：列出残留路径，禁止继续 Runtime，提供复制诊断。
 - source upgrade 前发现受管理目标缺失：保留旧 source，将目标列入 repair/upgrade plan，确认后补齐并迁移关系。
 - source upgrade 前发现关系可证明的 provider 路径、策略或 shared-loader 迁移：展示旧/新目标与所有权依据，纳入受确认的 upgrade plan。
+- 发现旧版 ArcOrbit 关系管理的用户级 skill 或 loader：同时展示用户级旧目标、每个关联项目的新目标与备份/移除动作；只有事务成功且用户级 managed target 已按 disposition 收束后，项目进入 scope-clean ready。
 - source upgrade 前发现已有内容变化或缺少最后应用摘要：保留旧 source，展示文件 diff；“备份本地内容并恢复”先保存可定位的备份，再生成恢复计划，“保留当前内容”不允许进入 Runtime。
 - 发现未受管理同名内容：普通 apply 保持禁用；当前 bundle 能为每个冲突目标提供确定 source 映射时，显示“备份并按当前应用包重装”，否则显示具体外部恢复条件并在用户处理后重新检查。
 - App 离线：bundled payload 仍可安装；不把网络失败当作首次安装阻塞。
 
 ### 输入输出边界
 
-输入包括 distribution lock 校验结果、provider inspect、source state、plan、drift、Codex probe 和用户确认。页面不接受用户手输任意 source、target 或 shell 命令。
+输入包括 distribution lock 校验结果、provider inspect、source state、Product Workspace、本地项目根、project applicability assessment、plan、drift、Codex probe 和用户确认。页面不接受用户手输任意 source、target 或 shell 命令。
 
 输出包括被确认的 plan digest、typed upgrade disposition、逐目标备份/恢复确认、按当前应用包重装确认、单独 cleanup confirmation、retry、打开平台恢复入口、复制诊断和继续路由。文件写入只由 Electron main process 的 SkillProvisioningManager 编排，并由 ArcForge provider 执行 provisioning 事务。
 
@@ -92,23 +100,26 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 ### 安装计划
 
 - 顶部显示 Runtime、Arckit payload、ArcForge provider 和 release intent tag。
-- 中部按 user-ambient、user-on-demand、project-ambient deferred 分组。
-- 摘要先显示 Arckit payload 总数及各 availability 数量，ArcForge on-demand loader 作为独立 target 显示，不计入 Arckit skill 数。
+- 顶部同时显示当前 Product Workspace、本地项目名称和规范化绝对路径；没有项目时只显示绑定入口，不显示 apply。
+- 中部按项目默认常驻、项目适用、用户按需 catalog 与项目 loader 分组。
+- 摘要先显示 Arckit payload 总数及各项目应用数量，ArcForge on-demand loader 作为项目级独立 target 显示，不计入 Arckit skill 数。
 - 目标摘要显示新增、same、changed、managed-stale、uncertain 数量。
+- 如果包含旧用户级关系，单列将迁移、将备份、保留不处理和需要独立确认移除的绝对路径。
 - 用户必须打开写入目标摘要后才能启用“安装并继续”。
 - 确认动作携带 plan digest；页面显示确认后的写入边界。
 
 ### 执行中
 
 - 页面锁定返回和重复提交动作。
-- 阶段顺序为 source staging、target directories、catalog、relationship、post-drift、Codex probe。
+- 阶段顺序为 source staging、project target directories、catalog、project loader、relationship、user-target migration、post-drift、Codex probe。
 - 应用退出请求先交给 main process 完成当前事务或回滚。
 - 执行结果到达前不把 Runtime 标记 ready。
 
 ### 已准备完成
 
 - 显示全部关键检查为 passed。
-- 显示已安装 user-ambient 数、catalog 中 user-on-demand 数、deferred project-ambient 数和独立 ArcForge loader target 数；四项之和不得作为 Arckit skill 总数。
+- 显示当前项目已安装的默认常驻数、适用项目 skill 数、catalog 中 user-on-demand 数和项目级 ArcForge loader target 数；四项之和不得作为 Arckit skill 总数。
+- 完成结果明确显示“Codex 用户级写入：无”，并列出当前项目 target；旧用户级 managed targets 尚未收束时不显示完成。
 - 首次启动由用户点击继续；普通启动可以在短暂停留后自动路由。
 - 用户可以打开安装详情，但不能在完成页面直接删除 skills。
 
@@ -132,15 +143,15 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 
 ## 导航
 
-- 应用启动且 Setup Readiness 非 ready：进入本页，隐藏 Login 和 Automation Workspace 的主操作。
-- ready 且 Workshop 认证未知：进入 Login 会话恢复。
-- ready 且 Workshop 会话有效：进入 Automation Workspace。
+- 应用启动且全局 Setup Readiness 非 ready：进入本页，隐藏 Login 和 Automation Workspace 的主操作。
+- 全局 ready 且 Workshop 认证未知：进入 Login 会话恢复；全局 ready 不代表任何项目 skills ready。
+- Workshop 会话有效：进入 Automation Workspace；绑定或执行具体项目时再检查该项目 readiness。
 - 设置页的“Arckit 能力”入口可以再次打开本页的只读状态；选择修复后才进入可写 plan。
-- Runtime task start 检测到 readiness 失效时返回本页，并保留原 task start intent，修复成功后重新执行 preflight，不自动领取远端任务。
+- Runtime task start 检测到对应项目 readiness 失效时返回本页，锁定原 Product Workspace 并保留 task start intent；修复成功后重新执行 preflight，不自动领取其它远端任务。
 
 ## 确认与安全
 
-- 安装、修复、升级 apply 使用一次确认，摘要包含 source、profile、目标、changed 和 plan digest。
+- 安装、修复、升级 apply 使用一次确认，摘要包含 source、profile、Product Workspace、项目绝对目标、旧用户级迁移、changed 和 plan digest。
 - “备份并按当前应用包重装”使用独立确认和 fresh assessment digest，默认焦点为取消；确认失效、备份失败、写入失败或关系提交失败都不允许进入 Runtime。
 - managed-stale 清理使用独立 ConfirmationDialog，列出每个绝对路径。
 - 移除全部 Arckit managed skills 是设置页中的独立流程，不出现在首次安装主路径。

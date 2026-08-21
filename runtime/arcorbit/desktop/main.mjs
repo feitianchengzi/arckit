@@ -14,6 +14,7 @@ import { createProductFeedbackService } from "../src/product-feedback-service.mj
 import { createProductFeedbackSurface } from "../src/product-feedback-window.mjs";
 import { requireFeedbackAttachmentUrl } from "../src/feedback-attachment-url.mjs";
 import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-boundary.mjs";
+import { checkDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
@@ -75,7 +76,10 @@ app.whenReady().then(async () => {
   automationCoordinator = createAutomationCoordinator({
     runManager,
     taskSourceFactory: () => workshopService,
-    setupReadinessPreflight: () => skillProvisioningManager.assertReady(),
+    setupReadinessPreflight: async (projectRoot) => {
+      const store = await runManager.readDesktopStore();
+      return skillProvisioningManager.assertReady(projectRoot, [], store.projects.map((item) => item.path).filter(Boolean));
+    },
     cliLauncher: createInteractiveCodexCliLauncher({
       getCodexExecutable: () => codexExecutableResolver.getResolved()
     })
@@ -223,7 +227,11 @@ async function runRendererLoadSmoke() {
 
 function registerIpc() {
   ipcMain.handle("arckit:setup-status", async () => skillProvisioningManager.getSnapshot());
-  ipcMain.handle("arckit:setup-check", async () => skillProvisioningManager.check());
+  ipcMain.handle("arckit:setup-check", async (_event, input) => checkDesktopSetupReadiness({
+    input,
+    readDesktopStore: () => runManager.readDesktopStore(),
+    check: (setupInput) => skillProvisioningManager.check(setupInput)
+  }));
   ipcMain.handle("arckit:setup-apply", async (_event, input) => skillProvisioningManager.apply(input));
   ipcMain.handle("arckit:setup-recover-upgrade", async (_event, input) => skillProvisioningManager.recoverSourceUpgrade(input));
   ipcMain.handle("arckit:setup-removal-plan", async (_event, managedPaths) => skillProvisioningManager.planManagedRemoval(managedPaths));

@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("arckitDesktop", {
   getSetupReadiness: () => ipcRenderer.invoke("arckit:setup-status"),
-  checkSetupReadiness: () => ipcRenderer.invoke("arckit:setup-check"),
+  checkSetupReadiness: (input) => ipcRenderer.invoke("arckit:setup-check", input),
   applySetupPlan: (input) => ipcRenderer.invoke("arckit:setup-apply", input),
   recoverSetupUpgrade: (input) => ipcRenderer.invoke("arckit:setup-recover-upgrade", input),
   planSetupRemoval: (managedPaths) => ipcRenderer.invoke("arckit:setup-removal-plan", managedPaths),

@@ -54,8 +54,9 @@ manual GitHub workflow_dispatch
 
 installed Desktop
   -> Setup Readiness / SkillProvisioningManager
+  -> Product Workspace local-project binding
   -> ArcForge Embedded Provider
-  -> Codex user/project targets + ~/.arcforge catalog/relations
+  -> <project-root>/.codex/skills + ~/.arcforge catalog/relations
 
 Runtime Kernel
   -> packaged trusted entrypoints
@@ -85,7 +86,7 @@ skill payload 是 Arckit tag 对应 commit 的只读快照，包含：
 - profile 引用的共享 assets；
 - payload manifest、逐目录 digest 和 source commit。
 
-payload 不是已安装目录。Desktop 首次运行把它复制到应用数据目录的版本化 source store，再由 ArcForge provider 应用到消费目标。
+payload 不是已安装目录。Desktop 首次运行把它复制到应用数据目录的版本化 source store；只有 Product Workspace 提供规范化本地项目根后，ArcForge provider 才把选中能力应用到该项目的消费目标。
 
 ### ArcForge Embedded Provider
 
@@ -111,7 +112,7 @@ ArcForge Core 是 skill source 发现与标准化、availability plan、事务�
 
 已经由 provider capability 声明的重叠能力必须与 Core 保持相同语义。新增能力先进入 Core；只有 Runtime 消费该能力时，provider 才增加输入转换、结果投影和 capability 声明。provider 不复制 Core 算法，Runtime 不复制 provider 或 Core 的安装算法。
 
-Arckit payload manifest 是 Runtime 供应链契约，不进入通用 ArcForge 配置。Embedded Provider 负责把 manifest 中的显式资源声明转换为 Core 的 source 输入；Core 将自动发现和显式声明合并为 canonical source snapshot，并在同一 availability plan 中产出 skills、shared assets、loader 与各自目标。apply 与 drift 只消费该 fresh plan，不重新推导 shared asset 目标。
+Arckit payload manifest 是 Runtime 供应链契约，不进入通用 ArcForge 配置。Embedded Provider 负责把 manifest 中的显式资源声明转换为 Core 的 source 输入；Core 将自动发现和显式声明合并为 canonical source snapshot，并在同一 availability plan 中产出 skills、shared assets、loader 与各自目标。ArcOrbit 通过 invocation override 把 source `user-ambient` 解释为当前关联项目的默认常驻能力，把 `project-ambient` 交给 project assessment，并把 on-demand loader 的 Agent target 限制到当前项目；它不修改维护源 manifest。apply 与 drift 只消费该 fresh plan，不重新推导 target 或 shared asset 目标。
 
 Runtime 对 manifest、provider plan 和 drift 做完整性交叉校验，并在 provider capability 缺失或声明资源未进入 plan 时 fail closed。Renderer 只投影 provider 返回的 shared asset destinations，不根据用户 home 或 Agent 目录规则构造 fallback 目标。
 
@@ -133,14 +134,16 @@ provider 暴露稳定的版本化入口，输入和输出只使用 JSON-compatib
 - `sourceRoot`：应用管理的本地维护源；
 - `consumerRoot`：关系记录归属 root；
 - `stateRoot`：ArcForge 状态根，默认由 Desktop 解析为用户标准 ArcForge home；
-- `homeDir`：Agent 用户级目标与 catalog 的用户 home；
-- `agentTargetIds` 和可选 `projectTargetDirs`；
+- `homeDir`：ArcForge catalog 所在用户 home；ArcOrbit 不把它作为 Codex ambient target；
+- `agentTargetIds=["codex"]` 和非空 `projectTargetDirs`；每个目录都来自 Product Workspace 的规范化本地项目根；
 - profile、skills selection、project assessments 和 invocation overrides；
 - `cacheDir`：只在明确允许远程来源时使用，安装包默认离线来源不使用远程 cache。
 
-provider 不依赖进程级 `ARCFORGE_HOME` 才能隔离状态。CLI 可以继续用环境变量兼容入口，但 embedded API 以显式 `stateRoot` 为准。
+provider 不依赖进程级 `ARCFORGE_HOME` 才能隔离状态。CLI 可以继续用环境变量兼容入口，但 embedded API 以显式 `stateRoot` 为准。ArcOrbit 的项目 plan 缺少 `projectTargetDirs` 时返回 `needs-project`，不能回退到 `homeDir/.codex/skills`。
 
 plan 包含稳定 digest，digest 覆盖 source identity、source policy、selected skills、shared assets、content digests、目标、历史 managed set、loader 和 project assessments。shared asset plan item 包含 source-relative identity、内容 digest 和 Core 解析出的 destinations。apply 重新扫描 source 与目标；fresh digest 不一致时拒绝写入。
+
+同一规范化项目根只形成一组有效 relation。多个 Workshop Project 绑定同一本地项目时共享该 relation；不同项目各自保存 target、assessment、managed set 与 drift。`consumerRoot` 始终是 ArcOrbit userData，关系状态仍写入显式 `stateRoot`，两者都不是应用目标。Renderer 只接收 provider 返回的项目 target，不拼接 `.codex/skills` fallback。
 
 ## 应用资源布局
 
@@ -168,6 +171,16 @@ Resources/
 <Electron userData>/skill-sources/arckit/versions/<payload-digest>/
 <Electron userData>/skill-sources/arckit/previous/<payload-digest>/
 ```
+
+Codex 消费目录使用：
+
+```text
+<Product Workspace project root>/.codex/skills/<skill>/
+<Product Workspace project root>/.codex/skills/_arckit_shared/
+<Product Workspace project root>/.codex/skills/arcforge-on-demand/
+```
+
+ArcOrbit 不向 `<user-home>/.codex/skills/` 写入 bundled Arckit skill、shared asset 或 loader。`user-on-demand` 内容可以存在于 ArcForge catalog；catalog 是 provider 的控制面状态，不属于 Codex ambient discovery target，只有项目目录中的 loader 能在该项目上下文解析它。
 
 Desktop 在 Electron ready 前把 `userData` 固定为系统 `appData/@arckit/arcorbit`。该目录是 ArcOrbit 唯一的 Desktop 状态、source store 和 ArcForge consumer relation 身份；应用不读取、迁移或复用 `appData/@arckit/runtime`。新身份没有 relation 且目标已存在时，Setup Readiness 按未受管理冲突处理，并通过 provider 声明的备份与当前 bundle 重装动作建立新的关系。
 
@@ -266,27 +279,32 @@ workflow 根据渠道选择 `internal`、`beta` 或 `appstore` GitHub Environmen
 
 Desktop 新增独立 `SkillProvisioningManager`，由 Electron main process 持有文件系统写权限。Renderer 只通过窄 IPC 请求 status、plan、apply、repair 和 remove；preload 不暴露任意路径执行或 provider module handle。
 
-Manager 启动顺序：
+Manager 分为全局资源检查和项目准备。全局检查校验 bundle、provider、source store 与 Codex executable，不生成 Agent apply plan。项目准备只接受 Automation/Product Workspace Coordinator 已解析的项目 id、规范化绝对根路径和绑定证据。
+
+项目准备顺序：
 
 1. 校验 distribution lock 与 bundled resources；
 2. 把 payload staging 到 source store；
-3. 由 ArcForge Core/provider 依据旧 relation 的已记录目标、最后应用摘要、旧 source 和 provider capability 生成 typed source-upgrade assessment；
-4. assessment 将目标区分为 `managed-repair`、`managed-migration`、`local-content-conflict`、`unverified-managed` 和 `unmanaged-conflict`，并携带旧/新目标、摘要、文件差异、所有权依据和允许动作；
-5. 生成与 assessment 一致的新 plan 和 drift，把纯数据结果交给 Renderer；
-6. 接收包含 assessment digest、plan digest 和逐类 disposition 的用户确认；
-7. 调用 provider fresh-read，在同一事务中执行 source switch、受管理目标 apply、catalog/loader/关系迁移和已确认备份；
-8. 重新 assessment/drift 并做 Codex discoverability probe；
-9. 状态为 `ready` 后开放 Runtime task start。
+3. 校验 Product Workspace 绑定与本地项目根，向 provider 传入 `projectTargetDirs`、完整 skill selection、project assessments 和 ArcOrbit project-only invocation override；
+4. 由 ArcForge Core/provider 依据旧 relation 的已记录目标、最后应用摘要、旧 source 和 provider capability 生成 typed source-upgrade assessment；旧版用户级 managed targets 与新的项目 target 同时进入 assessment；
+5. assessment 将目标区分为 `managed-repair`、`managed-migration`、`local-content-conflict`、`unverified-managed` 和 `unmanaged-conflict`，并携带旧/新目标、摘要、文件差异、所有权依据和允许动作；
+6. 生成与 assessment 一致的新项目 plan 和 drift，把纯数据结果交给 Renderer；
+7. 接收包含项目根、assessment digest、plan digest 和逐类 disposition 的用户确认；
+8. 调用 provider fresh-read，在同一事务中执行 source switch、项目目标 apply、catalog、项目 loader、关系迁移、旧用户级 managed target 处置和已确认备份；
+9. 重新 assessment/drift，并以项目根启动 Codex discoverability probe；
+10. 项目状态为 `ready` 且不存在未处置的旧用户级 managed target 后，开放该项目的 Runtime task start。
 
 ArcForge Core 是 upgrade classification 与迁移语义的唯一实现。Embedded Provider 暴露 capability-gated typed assessment/apply；Runtime 不从 `missing`/`changed` 计数、路径形态或 skill 名称推断分类，也不复制 catalog 或 loader 迁移规则。provider artifact 不具备 Runtime 要求的 source-upgrade reconciliation capability 时，构建和 Setup Readiness 都 fail closed。
 
-关系记录为每个受管理 destination 保存最后成功 apply 的内容摘要、有效 mode/policy、source/provider identity 和 shared-loader 所有权证据。旧记录没有摘要时，Core 只能把仍存在且内容不同的目标标记为 `unverified-managed`；它不能把这种状态自动提升为安全迁移。关系证明的 missing destination 没有可被覆盖的本地内容，归类为 `managed-repair`。provider 造成的目标或策略变化只有在旧目标与最后应用摘要一致、目标缺失，或 shared loader 的受管理更新证据成立时才归类为 `managed-migration`。
+关系记录为每个项目根和受管理 destination 保存最后成功 apply 的内容摘要、有效 mode/policy、project assessment、source/provider identity 和 shared-loader 所有权证据。旧记录没有摘要时，Core 只能把仍存在且内容不同的目标标记为 `unverified-managed`；它不能把这种状态自动提升为安全迁移。关系证明的 missing destination 没有可被覆盖的本地内容，归类为 `managed-repair`。provider 造成的用户级到项目级目标变化、策略变化或 shared loader 迁移，只有在旧目标与最后应用摘要一致、目标缺失，或 shared loader 的受管理更新证据成立时才归类为 `managed-migration`。
 
 `local-content-conflict` 和 `unverified-managed` 的写入动作要求逐目标 disposition。备份并恢复在 source switch 前把现有目录事务化保存到应用数据中的不可变 recovery area，记录内容摘要和可展示引用，再把恢复动作纳入同一 fresh plan；任一步失败恢复原目标、source、catalog 和 relation。
 
+旧版关系能够证明所有权的 `<user-home>/.codex/skills/<managed-name>` 和用户级 loader 进入用户目标迁移集合。项目副本写入与旧用户目标移除属于同一事务；内容变化先备份，用户选择保留时不删除，也不把项目投影为 `scope-clean ready`。没有关系所有权证据的用户级目录只报告为 `uncertain` 或 `unrelated`，永不进入移除集合。解除绑定或删除本地项目记录只把 relation 标为未关联；项目目标清理由用户查看绝对路径后独立确认。
+
 `unmanaged-conflict` 永不进入普通 apply replacement set。fresh assessment 能为全部阻塞目标证明唯一 bundled source 映射时，provider 额外允许 `backup-and-reinstall`：它先保存每个现有目标，以当前 source store 内容替换冲突目标，再通过 Core 的事务化 apply 写入 catalog、loader 与新的 consumer relation。assessment digest 变化、source 映射缺失、备份失败、目标提交失败或关系提交失败都会 fail closed；覆盖前的内容保持可恢复。Runtime 只选择并转发 provider 声明的动作，不从路径或 `changed` 计数自行提升可覆盖性。检查阶段没有写入时，snapshot 使用 `write_state: not_started`，Renderer 不把它投影为 rollback。
 
-Manager 不修改现有 `preflightRun` 的 kernel 语义。Automation Coordinator 在 start 前组合 Setup Readiness 和 Runtime preflight 两个独立结果，避免 Runtime 通过文件扫描推断 Agent native skill discovery。
+Manager 不修改现有 `preflightRun` 的 kernel 语义。Automation Coordinator 在 start 前用 task 的本地项目绑定请求对应项目 readiness，再组合 Setup Readiness 和 Runtime preflight 两个独立结果，避免 Runtime 通过文件扫描推断 Agent native skill discovery。
 
 Codex discoverability 解析一个经过 `--version` 验证的绝对 executable，而不假设 Desktop GUI 进程继承交互式 shell 的 `PATH`。解析顺序覆盖显式配置、当前 `PATH`、常见用户级安装目录以及 NVM/FNM 的版本目录；Node 版本管理器中的 CLI 同时携带其 sibling `bin` 目录作为子进程 `PATH` 前缀，保证 `#!/usr/bin/env node` 启动器可执行。解析失败保持 Setup blocked，不修改系统或用户 `PATH`。
 
@@ -305,11 +323,13 @@ Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Ele
 - 旧目标 assessment 含 `local-content-conflict`、`unverified-managed` 或 `unmanaged-conflict` 且没有有效 disposition 时不切换 source；
 - ordinary drift 或 consumer relation 缺失产生的 `unmanaged-conflict` 只有在 provider 声明 `backup-and-reinstall` 可用且用户独立确认后才使用当前 bundle 内容；
 - `managed-repair` 与 `managed-migration` 进入可确认 plan，不被折叠成无动作的 source conflict；
+- 用户级到项目级的受管理迁移只有在至少一个明确项目 target、旧目标所有权和 disposition 同时存在时执行，不产生临时用户级 fallback；
 - 新 source staging 校验失败时删除 staging，不影响 current；
 - current 切换失败时恢复 previous；
-- provider apply 失败时同时回滚目标、用户内容备份移动、catalog、loader 和 relation；
+- provider apply 失败时同时回滚项目目标、旧用户目标、用户内容备份移动、catalog、项目 loader 和 relation；
 - apply 成功并 post-drift clean 后才清理超过保留数量的旧 source；
 - managed-stale 只报告，清理需要具体路径与单独 confirmation digest；
+- 解除 Product Workspace 绑定不隐式删除项目 Agent 目录；
 - app uninstall 不隐式删除外部 Agent 目录。
 
 ## 可验证性
@@ -324,7 +344,10 @@ Desktop 自身的 Node 工作不依赖主机 shell 中的 `node`，也不把 Ele
 - manifest-declared shared assets 进入 Core plan、provider projection、transactional apply、relation 和 drift，并对缺失 capability 或遗漏资源 fail closed；
 - packaged resource root resolution；
 - clean install、existing unrelated skill、changed managed skill、managed-stale、apply rollback；
-- user-ambient、user-on-demand loader/catalog 和 deferred project-ambient；
+- source user-ambient 到项目常驻 override、project-ambient assessment、user-on-demand catalog 与项目 loader；
+- 无项目根时 `needs-project` 且不写用户级目录、多个项目独立 relation、同根绑定去重与项目路径变化；
+- clean project install、项目 target drift、项目级 shared assets 和以项目 cwd 执行的 Codex discoverability；
+- 旧用户级 managed skills/loader 到项目 target 的 typed migration、内容备份、用户保留阻断 scope-clean ready，以及 unrelated 用户目录保持不变；
 - source upgrade 对 missing managed target、provider destination/policy migration、managed loader update、local content change、legacy unverified relation 和 unmanaged conflict 的 typed classification；
 - assessment/plan freshness、逐类 disposition、内容备份、atomic source switch、repair/migration、关系摘要升级和 explicit cleanup；
 - ArcOrbit 独立的 `appData/@arckit/arcorbit` Electron userData 身份、不读取旧 Runtime 状态，以及无 relation 冲突的 stale assessment 拒绝、备份、bundle 重装、关系建立和失败回滚；

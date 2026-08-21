@@ -2,7 +2,7 @@
 
 | Path | Status | Summary |
 |---|---|---|
-| `arcorbit-distribution.md` | ⚪ | Runtime 分发与安装，定义人工 release intent、跨平台安装包、离线 skills provisioning、typed drift 修复迁移、签名和可追溯验收。 |
+| `arcorbit-distribution.md` | 🟡 | Runtime 分发与安装，定义人工 release intent、跨平台安装包、仅关联项目可发现的离线 skills provisioning、用户级 managed target 迁移、签名和可追溯验收。 |
 | `agentic-software-development/problem-background.md` | ⚪ | 问题背景，定义 AI 时代软件研发变化、Agent 采用动因、AI 能力演进、prompt 局限、Agent 限制和根问题。 |
 | `agentic-software-development/solution-principles.md` | ⚪ | 解决思路，从背景推导协作组织、语义材料、表达清晰度非主轴、阶段区分、产物角色、多事实源、低承诺沉淀、场景化预期评测和工作方式演化原则。 |
 | `agentic-software-development/product-concepts.md` | ⚪ | 产品概念，定义无独占 selection 的 Project State、可并行的 Case Loops、双 revision transition、人、Agent、Skill、事实和评测集。 |

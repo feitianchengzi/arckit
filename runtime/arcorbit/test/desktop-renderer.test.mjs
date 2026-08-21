@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import test from "node:test";
 import {
   isTranscriptMessageVisible,
@@ -9,6 +10,7 @@ import {
   summarizeToolActivity,
   transcriptMessageType
 } from "../src/desktop/transcript-presentation.mjs";
+import { checkDesktopSetupReadiness, desktopSetupCheckInput } from "../src/desktop-setup-readiness-context.mjs";
 
 const rendererPath = new URL("../desktop/renderer/renderer.js", import.meta.url);
 const rendererHtmlPath = new URL("../desktop/renderer/index.html", import.meta.url);
@@ -329,10 +331,71 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(preload, /getSetupReadiness/);
   assert.match(preload, /removeManagedSetupPaths/);
   assert.match(preload, /recoverSetupUpgrade/);
-  assert.match(main, /setupReadinessPreflight: \(\) => skillProvisioningManager\.assertReady\(\)/);
+  assert.match(preload, /checkSetupReadiness: \(input\) => ipcRenderer\.invoke\("arckit:setup-check", input\)/);
+  assert.match(main, /setupReadinessPreflight: async \(projectRoot\)/);
+  assert.match(main, /skillProvisioningManager\.assertReady\(projectRoot, \[\], store\.projects\.map/);
+  assert.match(main, /checkDesktopSetupReadiness\(\{/);
+  assert.match(source, /api\.checkSetupReadiness\(projectId \? \{ projectId \} : undefined\)/);
+  assert.match(source, /setupRetryButton\.addEventListener[\s\S]+await checkSetupReadinessForSelection\(\)/);
+  assert.match(source, /await api\.bindAutomationProject\(remoteId, localProjectId\);[\s\S]+await checkSetupReadinessForSelection\(localProjectId\)/);
+  assert.match(source, /productScopeSelect\.addEventListener\("change"[\s\S]+await checkSetupReadinessForSelection\(\)/);
+  assert.match(source, /plan\.project_roots/);
+  assert.match(source, /plan\.loader_targets/);
   assert.match(main, /runtimeCwd: app\.isPackaged \? process\.resourcesPath : runtimeRoot/);
   assert.match(main, /if \(readiness\.status !== "ready"\)/);
   assert.doesNotMatch(preload, /providerLoader|sourceRoot|execFile|writeFile/);
+});
+
+test("Desktop resolves project-scoped Setup checks from the trusted local workspace store", () => {
+  const store = {
+    projects: [
+      { id: "LOCAL-B", path: "./fixtures/project-b" },
+      { id: "LOCAL-A", path: "./fixtures/project-a" }
+    ]
+  };
+
+  assert.equal(desktopSetupCheckInput(store), undefined);
+  assert.deepEqual(desktopSetupCheckInput(store, { projectId: "LOCAL-A" }), {
+    projectRoot: [
+      resolve("./fixtures/project-a"),
+      resolve("./fixtures/project-b")
+    ].sort()
+  });
+  store.projects[1].path = "./fixtures/project-a-moved";
+  assert.deepEqual(desktopSetupCheckInput(store, { projectId: "LOCAL-A" }).projectRoot, [
+    resolve("./fixtures/project-a-moved"),
+    resolve("./fixtures/project-b")
+  ].sort());
+  assert.throws(
+    () => desktopSetupCheckInput(store, { projectId: "UNKNOWN" }),
+    /Unknown local Product Workspace/
+  );
+});
+
+test("Desktop Setup IPC behavior preserves global checks and sends fresh associated roots for a selected project", async () => {
+  let storeReads = 0;
+  const checkedInputs = [];
+  const store = { projects: [
+    { id: "LOCAL-A", path: "./fixtures/project-a" },
+    { id: "LOCAL-B", path: "./fixtures/project-b" }
+  ] };
+  const dependencies = {
+    readDesktopStore: async () => { storeReads += 1; return store; },
+    check: async (input) => { checkedInputs.push(input); return { status: "ready", input }; }
+  };
+
+  await checkDesktopSetupReadiness(dependencies);
+  assert.equal(storeReads, 0);
+  assert.equal(checkedInputs[0], undefined);
+
+  const scoped = await checkDesktopSetupReadiness({ ...dependencies, input: { projectId: "LOCAL-A" } });
+  assert.equal(storeReads, 1);
+  assert.deepEqual(scoped.input.projectRoot, [resolve("./fixtures/project-a"), resolve("./fixtures/project-b")].sort());
+
+  store.projects[0].path = "./fixtures/project-a-moved";
+  const moved = await checkDesktopSetupReadiness({ ...dependencies, input: { projectId: "LOCAL-A" } });
+  assert.equal(storeReads, 2);
+  assert.deepEqual(moved.input.projectRoot, [resolve("./fixtures/project-a-moved"), resolve("./fixtures/project-b")].sort());
 });
 
 test("workbench transcript prioritizes Loop and Agent output while reducing tools to one-line summaries", () => {

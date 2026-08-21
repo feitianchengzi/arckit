@@ -154,8 +154,7 @@ function wireEvents() {
     state.setupBusy = true;
     renderSetup();
     try {
-      state.setup = await api.checkSetupReadiness();
-      state.setupPlanOpened = false;
+      await checkSetupReadinessForSelection();
     } finally {
       state.setupBusy = false;
       renderSetup();
@@ -276,13 +275,14 @@ function wireEvents() {
     await api.setActiveWorkset(els.worksetSelect.value);
     await refreshSnapshot();
   }));
-  els.productScopeSelect.addEventListener("change", () => {
+  els.productScopeSelect.addEventListener("change", () => runAction(async () => {
     state.selectedProjectId = els.productScopeSelect.value;
     state.selectedTaskId = "";
     state.selectedPlatformTaskId = "";
     state.selectedFeedbackId = "";
-    refreshSnapshot().catch((error) => showToast(error.message));
-  });
+    await refreshSnapshot();
+    await checkSetupReadinessForSelection();
+  }));
   els.editWorksetButton.addEventListener("click", () => runAction(editCurrentWorkset));
   els.createOrganizationButton.addEventListener("click", () => runAction(createOrganization));
   els.joinByCodeButton.addEventListener("click", () => runAction(joinByInvitationCode));
@@ -410,11 +410,13 @@ function renderSetupPlan() {
   const groups = Object.groupBy ? Object.groupBy(plan.items, (item) => item.mode || "unclassified") : plan.items.reduce((result, item) => ((result[item.mode || "unclassified"] ||= []).push(item), result), {});
   const availability = plan.availability;
   const availabilityHtml = availability ? `<p class="setup-digest">Arckit skills <strong>${availability.arckit_total}</strong> · user-ambient ${availability.user_ambient} · user-on-demand ${availability.user_on_demand} · project-ambient 延后 ${availability.project_ambient_deferred} · shared assets ${availability.shared_assets} · ArcForge loader ${availability.arcforge_loader_targets}</p>` : "";
+  const projectRoots = plan.project_roots?.length ? `<section class="setup-plan-group"><h3>Product Workspace projects · ${plan.project_roots.length}</h3>${plan.project_roots.map((projectRoot) => `<div class="setup-skill-row"><strong>项目目标</strong><code>${escapeHtml(projectRoot)}</code></div>`).join("")}</section>` : "";
   const groupHtml = Object.entries(groups).map(([mode, items]) => `<section class="setup-plan-group"><h3>${escapeHtml(mode)} · ${items.length}</h3>${items.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong>${item.destinations.map((destination) => `<code>${escapeHtml(destination.path)}</code>`).join("")}</div>`).join("")}</section>`).join("");
   const sharedAssets = plan.shared_assets?.length ? `<section class="setup-plan-group"><h3>shared assets · ${plan.shared_assets.length}</h3>${plan.shared_assets.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.name)}</strong>${item.destinations.map((destination) => `<code>${escapeHtml(destination.path)}</code>`).join("")}</div>`).join("")}</section>` : "";
+  const loaderTargets = plan.loader_targets?.length ? `<section class="setup-plan-group"><h3>on-demand loader · ${plan.loader_targets.length}</h3>${plan.loader_targets.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.agent)} · ${escapeHtml(item.status)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}</section>` : "";
   const cleanup = plan.cleanup?.length ? `<section class="setup-plan-group warning"><h3>managed-stale · ${plan.cleanup.length}</h3>${plan.cleanup.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}${plan.cleanup_included_in_upgrade ? `<p>这些 relationship-proven 旧目标已包含在本次迁移确认中。</p>` : `<button data-setup-cleanup class="secondary-button" type="button">单独确认并清理</button>`}</section>` : "";
   const deferred = plan.deferred_project_skills?.length ? `<section class="setup-plan-group"><h3>project-ambient · 延后</h3><p>${plan.deferred_project_skills.map(escapeHtml).join("、")}</p></section>` : "";
-  els.setupPlan.innerHTML = `${availabilityHtml}<p class="setup-digest">Plan digest <code>${escapeHtml(plan.digest)}</code></p>${groupHtml}${sharedAssets}${cleanup}${deferred}`;
+  els.setupPlan.innerHTML = `${availabilityHtml}<p class="setup-digest">Plan digest <code>${escapeHtml(plan.digest)}</code></p>${projectRoots}${groupHtml}${sharedAssets}${loaderTargets}${cleanup}${deferred}`;
 }
 
 function renderSetupActions() {
@@ -1460,6 +1462,7 @@ function renderCommandInspector(projects) {
       }
       await api.bindAutomationProject(remoteId, localProjectId);
       await refreshSnapshot();
+      await checkSetupReadinessForSelection(localProjectId);
     }));
     checkbox.addEventListener("change", () => runAction(async () => {
       await api.setProjectParticipation(remoteId, checkbox.checked);
@@ -2006,6 +2009,18 @@ function currentProject() {
     : state.platform.projects.find((project) => String(project.id) === state.selectedProjectId)
       || state.snapshot.projects.find((project) => String(project.id) === state.selectedProjectId)
       || null;
+}
+
+function selectedSetupProjectId() {
+  return String(currentProject()?.local_project_id || "");
+}
+
+async function checkSetupReadinessForSelection(projectId = selectedSetupProjectId()) {
+  state.setup = await api.checkSetupReadiness(projectId ? { projectId } : undefined);
+  state.setupPlanOpened = false;
+  els.setupReviewed.checked = false;
+  renderSetup();
+  return state.setup;
 }
 
 function automationProjectsInActiveWorkset() {

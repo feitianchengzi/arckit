@@ -2,7 +2,7 @@
 
 ## Runtime 分发与安装
 
-`arcorbit-distribution.md` 定义用户从人工选择的 GitHub 安装包进入 Setup Readiness、离线 skills provisioning、项目级能力、修复、升级和清理的产品行为。它依赖 `agentic-software-development/skill-architecture.md` 的 Agent 原生 skill 边界，并在 Runtime task 启动前衔接 `agentic-software-development/runtime-automation-workspace.md`。
+`arcorbit-distribution.md` 定义用户从人工选择的 GitHub 安装包进入全局资源检查、Product Workspace 项目级 skills provisioning、旧用户级 managed target 迁移、修复、升级和清理的产品行为。它依赖 `agentic-software-development/skill-architecture.md` 的 Agent 原生 skill 边界和 `arcorbit-platform-capabilities.md` 的本地项目绑定，并在 Runtime task 启动前衔接 `agentic-software-development/runtime-automation-workspace.md`。
 
 对应技术事实位于 `arckit/tech/arcorbit/installer-supply-chain.md`；Runtime 持续执行语义仍由 `arckit/tech/arcorbit/solution.md` 定义。
 
