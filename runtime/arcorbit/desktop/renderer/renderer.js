@@ -63,6 +63,9 @@ const RECOVERY_ACTION_LABELS = {
 const state = {
   setup: null,
   setupBusy: false,
+  setupActionError: "",
+  setupCleanupPlanDigest: "",
+  setupCleanupPaths: [],
   setupPlanOpened: false,
   page: "today",
   selectedProjectId: "all",
@@ -136,6 +139,7 @@ async function boot() {
   }).catch(() => {});
   api.onSetupEvent((readiness) => {
     state.setup = readiness;
+    state.setupActionError = "";
     renderSetup();
   });
   api.onAutomationEvent(() => scheduleRefresh());
@@ -152,6 +156,7 @@ async function boot() {
 
 function wireEvents() {
   els.setupRetryButton.addEventListener("click", () => runAction(async () => {
+    state.setupActionError = "";
     state.setupBusy = true;
     renderSetup();
     try {
@@ -166,6 +171,7 @@ function wireEvents() {
     window.alert("恢复说明已复制。请按其中的路径与条件处理后重新检查。");
   }));
   els.setupApplyButton.addEventListener("click", () => runAction(async () => {
+    state.setupActionError = "";
     state.setupBusy = true;
     renderSetup();
     try {
@@ -183,6 +189,7 @@ function wireEvents() {
       ? "将先完整备份当前冲突内容，再以当前 ArcOrbit 应用包中的内容为准重新安装，并建立新的受管理关系。是否继续？"
       : "将先把本地修改完整备份，再恢复受管理内容。恢复完成后如有新版迁移计划，仍需再次确认。";
     if (!window.confirm(confirmation)) return;
+    state.setupActionError = "";
     state.setupBusy = true;
     renderSetup();
     try {
@@ -205,18 +212,44 @@ function wireEvents() {
     renderSetupActions();
   });
   els.setupReviewed.addEventListener("change", renderSetupActions);
-  els.setupPlan.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-setup-cleanup]");
-    if (!button) return;
+  els.setupCleanupButton.addEventListener("click", () => {
     runAction(async () => {
-      const paths = state.setup?.plan?.cleanup?.map((item) => item.path) || [];
-      const removal = await api.planSetupRemoval(paths);
-      if (!window.confirm(`将只移除 ${paths.length} 个 ArcForge 已证明的 managed-stale 路径。\n\n确认摘要：${removal.confirmationDigest}`)) return;
-      state.setup = await api.removeManagedSetupPaths({ managedPaths: paths, confirmationDigest: removal.confirmationDigest });
-      state.setupPlanOpened = false;
-      els.setupReviewed.checked = false;
+      const selected = new Set(state.setupCleanupPaths);
+      const paths = (state.setup?.plan?.cleanup || []).map((item) => item.path).filter((item) => selected.has(item));
+      if (!paths.length) return;
+      state.setupActionError = "";
+      state.setupBusy = true;
       renderSetup();
+      try {
+        const removal = await api.planSetupRemoval(paths);
+        if (!window.confirm(`将只移除以下 ${paths.length} 个 ArcForge 已证明的 managed-stale 路径：\n\n${paths.join("\n")}\n\n确认摘要：${removal.confirmationDigest}`)) return;
+        state.setup = await api.removeManagedSetupPaths({ managedPaths: paths, confirmationDigest: removal.confirmationDigest });
+        resetSetupCleanupSelection();
+        state.setupPlanOpened = false;
+        els.setupReviewed.checked = false;
+      } finally {
+        state.setupBusy = false;
+        renderSetup();
+      }
     });
+  });
+  els.setupCleanupPanel.addEventListener("change", (event) => {
+    if (event.target === els.setupCleanupSelectAll) {
+      state.setupCleanupPaths = event.target.checked ? (state.setup?.plan?.cleanup || []).map((item) => item.path) : [];
+      renderSetupCleanup();
+      renderSetupActions();
+      return;
+    }
+    const checkbox = event.target.closest("[data-setup-cleanup-path]");
+    if (!checkbox) return;
+    const item = state.setup?.plan?.cleanup?.[Number(checkbox.dataset.setupCleanupPath)];
+    if (!item) return;
+    const selected = new Set(state.setupCleanupPaths);
+    if (checkbox.checked) selected.add(item.path);
+    else selected.delete(item.path);
+    state.setupCleanupPaths = [...selected];
+    renderSetupCleanup();
+    renderSetupActions();
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
   els.syncButton.addEventListener("click", () => runAction(syncAutomationNow));
@@ -384,10 +417,12 @@ function renderSetup() {
   ].map(([label, value]) => `<div class="fact-row"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("") : `<p class="muted-copy">尚未读取 distribution lock。</p>`;
   const counts = setup.drift?.counts;
   els.setupCounts.innerHTML = counts ? `<div><strong>${counts.missing}</strong><span>将新增</span></div><div><strong>${counts.same}</strong><span>已一致</span></div><div><strong>${counts.changed}</strong><span>changed</span></div><div><strong>${counts.managed_stale}</strong><span>stale</span></div>` : "";
+  renderSetupCleanup();
   renderSetupPlan();
-  els.setupErrorPanel.classList.toggle("hidden", !setup.error);
+  const setupError = setup.error || (state.setupActionError ? { code: "SETUP_ACTION_FAILED", stage: "setup-action", message: state.setupActionError } : null);
+  els.setupErrorPanel.classList.toggle("hidden", !setupError);
   const writeSummary = setup.write_state === "not_started" ? "写入：未开始" : setup.write_state === "committed" ? "写入：已完成" : setup.write_state === "rolled_back" ? "写入：已回滚" : setup.write_state === "rollback_incomplete" ? "写入：回滚需人工检查" : "写入：进行中";
-  els.setupErrorPanel.innerHTML = setup.error ? `<strong>${escapeHtml(setup.error.code)}</strong><p>${escapeHtml(setup.error.message)}</p><small>阶段：${escapeHtml(setup.error.stage)} · ${writeSummary}</small>` : "";
+  els.setupErrorPanel.innerHTML = setupError ? `<strong>${escapeHtml(setupError.code)}</strong><p>${escapeHtml(setupError.message)}</p><small>阶段：${escapeHtml(setupError.stage)} · ${writeSummary}</small>` : "";
   const upgradeItems = setup.source_upgrade?.items || [];
   const conflicts = setup.drift?.conflicts || [];
   els.setupConflictPanel.classList.toggle("hidden", upgradeItems.length === 0 && conflicts.length === 0 && !setup.recovery_backup);
@@ -403,6 +438,7 @@ function renderSetup() {
 
 function renderSetupPlan() {
   const plan = state.setup?.plan;
+  syncSetupCleanupSelection(plan);
   els.setupPlanDetails.classList.toggle("hidden", !plan);
   els.setupReviewLabel.classList.toggle("hidden", !state.setup?.can_apply);
   if (!plan) { els.setupPlan.innerHTML = ""; return; }
@@ -413,9 +449,33 @@ function renderSetupPlan() {
   const groupHtml = Object.entries(groups).map(([mode, items]) => `<section class="setup-plan-group"><h3>${escapeHtml(mode)} · ${items.length}</h3>${items.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong>${item.destinations.map((destination) => `<code>${escapeHtml(destination.path)}</code>`).join("")}</div>`).join("")}</section>`).join("");
   const sharedAssets = plan.shared_assets?.length ? `<section class="setup-plan-group"><h3>shared assets · ${plan.shared_assets.length}</h3>${plan.shared_assets.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.name)}</strong>${item.destinations.map((destination) => `<code>${escapeHtml(destination.path)}</code>`).join("")}</div>`).join("")}</section>` : "";
   const loaderTargets = plan.loader_targets?.length ? `<section class="setup-plan-group"><h3>on-demand loader · ${plan.loader_targets.length}</h3>${plan.loader_targets.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.agent)} · ${escapeHtml(item.status)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}</section>` : "";
-  const cleanup = plan.cleanup?.length ? `<section class="setup-plan-group warning"><h3>managed-stale · ${plan.cleanup.length}</h3>${plan.cleanup.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("")}${plan.cleanup_included_in_upgrade ? `<p>这些 relationship-proven 旧目标已包含在本次迁移确认中。</p>` : `<button data-setup-cleanup class="secondary-button" type="button">单独确认并清理</button>`}</section>` : "";
+  const cleanupItems = plan.cleanup?.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code></div>`).join("") || "";
+  const cleanup = plan.cleanup?.length ? `<section class="setup-plan-group warning"><h3>managed-stale · ${plan.cleanup.length}</h3>${cleanupItems}<p>${plan.cleanup_included_in_upgrade ? "这些 relationship-proven 旧目标已包含在本次迁移确认中。" : "清理选择与确认位于页面主区；这里仅保留计划依据。"}</p></section>` : "";
   const deferred = plan.deferred_project_skills?.length ? `<section class="setup-plan-group"><h3>project-ambient · 延后</h3><p>${plan.deferred_project_skills.map(escapeHtml).join("、")}</p></section>` : "";
   els.setupPlan.innerHTML = `${availabilityHtml}<p class="setup-digest">Plan digest <code>${escapeHtml(plan.digest)}</code></p>${projectRoots}${groupHtml}${sharedAssets}${loaderTargets}${cleanup}${deferred}`;
+}
+
+function renderSetupCleanup() {
+  const plan = state.setup?.plan;
+  syncSetupCleanupSelection(plan);
+  const cleanup = plan?.cleanup || [];
+  const visible = state.setup?.status === "drifted" && cleanup.length > 0 && !plan.cleanup_included_in_upgrade;
+  els.setupCleanupPanel.classList.toggle("hidden", !visible);
+  if (!visible) {
+    els.setupCleanupList.innerHTML = "";
+    els.setupCleanupCount.textContent = "0 / 0";
+    els.setupCleanupSelectAll.checked = false;
+    els.setupCleanupSelectAll.indeterminate = false;
+    return;
+  }
+  const allowed = new Set(cleanup.map((item) => item.path));
+  state.setupCleanupPaths = state.setupCleanupPaths.filter((item) => allowed.has(item));
+  const selected = new Set(state.setupCleanupPaths);
+  els.setupCleanupList.innerHTML = cleanup.map((item, index) => `<label class="setup-cleanup-row"><input data-setup-cleanup-path="${index}" type="checkbox" ${selected.has(item.path) ? "checked" : ""} ${state.setupBusy ? "disabled" : ""}><span><strong>${escapeHtml(item.skill)}</strong><code>${escapeHtml(item.path)}</code><small>${escapeHtml(item.reason || "relationship-proven managed-stale")}</small></span></label>`).join("");
+  els.setupCleanupCount.textContent = `${selected.size} / ${cleanup.length}`;
+  els.setupCleanupSelectAll.checked = selected.size === cleanup.length;
+  els.setupCleanupSelectAll.indeterminate = selected.size > 0 && selected.size < cleanup.length;
+  els.setupCleanupSelectAll.disabled = state.setupBusy;
 }
 
 function renderSetupActions() {
@@ -429,6 +489,10 @@ function renderSetupActions() {
   els.setupRecoverButton.classList.toggle("hidden", !setup.can_recover);
   els.setupRecoverButton.textContent = setup.source_upgrade?.can_backup_and_restore ? "备份修改并恢复" : "备份并按当前应用包重装";
   els.setupRecoverButton.disabled = applying;
+  const cleanupAvailable = setup.status === "drifted" && setup.plan?.cleanup?.length > 0 && !setup.plan.cleanup_included_in_upgrade;
+  els.setupCleanupButton.classList.toggle("hidden", !cleanupAvailable);
+  els.setupCleanupButton.textContent = `确认并清理所选（${state.setupCleanupPaths.length}）`;
+  els.setupCleanupButton.disabled = applying || state.setupCleanupPaths.length === 0;
   els.setupRecoveryGuideButton.classList.toggle("hidden", !(["conflict", "blocked"].includes(setup.status) && !setup.can_recover));
   els.setupRecoveryGuideButton.disabled = applying;
   els.setupContinueButton.classList.toggle("hidden", setup.status !== "ready");
@@ -2156,11 +2220,25 @@ function selectedSetupProjectId() {
 }
 
 async function checkSetupReadinessForSelection(projectId = selectedSetupProjectId()) {
+  state.setupActionError = "";
+  resetSetupCleanupSelection();
   state.setup = await api.checkSetupReadiness(projectId ? { projectId } : undefined);
   state.setupPlanOpened = false;
   els.setupReviewed.checked = false;
   renderSetup();
   return state.setup;
+}
+
+function resetSetupCleanupSelection() {
+  state.setupCleanupPlanDigest = "";
+  state.setupCleanupPaths = [];
+}
+
+function syncSetupCleanupSelection(plan) {
+  const digest = String(plan?.digest || "");
+  if (state.setupCleanupPlanDigest === digest) return;
+  state.setupCleanupPlanDigest = digest;
+  state.setupCleanupPaths = [];
 }
 
 function automationProjectsInActiveWorkset() {
@@ -2398,6 +2476,10 @@ async function runAction(action) {
     await action();
   } catch (error) {
     console.error(error);
+    if (!els.setupReadiness.classList.contains("hidden")) {
+      state.setupActionError = error?.message || String(error);
+      renderSetup();
+    }
     if (!els.settingsOverlay.classList.contains("hidden")) setAuthFeedback(error?.message || String(error), true);
     showToast(error?.message || String(error));
   }

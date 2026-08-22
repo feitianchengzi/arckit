@@ -19,6 +19,12 @@
         <div class="setup-grid">
           <main class="setup-main">
             <p id="setupLead" class="setup-lead">正在验证安装包资源、ArcForge provider、Arckit skills 与 Codex。</p>
+            <section id="setupCleanupPanel" class="setup-cleanup-panel hidden" aria-labelledby="setupCleanupTitle">
+              <div class="setup-cleanup-header"><div><h2 id="setupCleanupTitle">选择要清理的用户级旧路径</h2><p>仅列出 ArcForge 已证明属于当前关系的 managed-stale 路径；默认不选择。</p></div><span id="setupCleanupCount">0 / 0</span></div>
+              <label class="setup-cleanup-select-all"><input id="setupCleanupSelectAll" type="checkbox"><span>全选已证明路径</span></label>
+              <div id="setupCleanupList" class="setup-cleanup-list"></div>
+              <small class="setup-cleanup-hint">清理前会再次显示准确路径与确认摘要；不会处理未知或无关目录。</small>
+            </section>
             <div id="setupChecks" class="setup-checks"></div>
             <details id="setupPlanDetails" class="setup-plan-details hidden">
               <summary>查看安装计划与写入目标</summary>
@@ -36,7 +42,7 @@
         </div>
         <footer class="setup-actions">
           <button id="setupExitButton" class="text-button" type="button">退出应用</button>
-          <div><button id="setupRecoveryGuideButton" class="secondary-button hidden" type="button">复制恢复说明</button><button id="setupRetryButton" class="secondary-button" type="button">重新检查</button><button id="setupRecoverButton" class="secondary-button hidden" type="button">备份并恢复</button><button id="setupApplyButton" class="primary-button hidden" type="button" disabled>安装并继续</button><button id="setupContinueButton" class="primary-button hidden" type="button">继续使用 ArcOrbit</button></div>
+          <div><button id="setupRecoveryGuideButton" class="secondary-button hidden" type="button">复制恢复说明</button><button id="setupRetryButton" class="secondary-button" type="button">重新检查</button><button id="setupRecoverButton" class="secondary-button hidden" type="button">备份并恢复</button><button id="setupCleanupButton" class="primary-button hidden" type="button" disabled>确认并清理所选（0）</button><button id="setupApplyButton" class="primary-button hidden" type="button" disabled>安装并继续</button><button id="setupContinueButton" class="primary-button hidden" type="button">继续使用 ArcOrbit</button></div>
         </footer>
       </div>
     </section>

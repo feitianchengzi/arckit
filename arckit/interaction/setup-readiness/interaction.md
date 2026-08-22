@@ -20,8 +20,9 @@ Setup Readiness 是 Desktop 的全局资源与项目能力准备页面。应用�
 4. 需要安装或升级时，页面展示来源、版本、项目身份、`<project-root>/.codex/skills` 目标、source availability 的项目解释和 drift 摘要。
 5. source upgrade 和用户级迁移先展示受管理缺失、provider 管理迁移、已有内容变化、未验证受管理目标和未受管理冲突；每项同时显示旧目标、新项目目标、所有权依据和可用动作。
 6. missing 与可证明的 managed migration 进入 fresh repair/upgrade plan；changed 或未验证的受管理目标由用户查看 diff 后选择备份并恢复或保留并退出；缺少可用关系但具有完整 bundled source 映射的冲突提供“备份并按当前应用包重装”。
-7. 用户确认 fresh plan 后，系统执行事务化 apply，持续展示 source、项目目录、按需 catalog、项目 loader、关系和 discoverability 阶段。
-8. 项目 post-drift、用户级 managed target 迁移检查与 Codex project discoverability probe 成功后，页面开放“继续”或“恢复任务”。
+7. 仅存在 `managed-stale` 时，页面不要求用户先展开安装计划；主区直接显示全部关系可证明的旧路径、逐路径选择和默认未选择的全选控件，底部固定显示“确认并清理所选”主动作。独立确认列出最终绝对路径与 confirmation digest。
+8. 用户确认 fresh plan 或 cleanup confirmation 后，系统执行事务化 apply 或 removal，持续展示 source、项目目录、按需 catalog、项目 loader、关系和 discoverability 阶段。
+9. 项目 post-drift、用户级 managed target 迁移检查与 Codex project discoverability probe 成功后，页面开放“继续”或“恢复任务”。
 
 ### 决策点
 
@@ -30,7 +31,7 @@ Setup Readiness 是 Desktop 的全局资源与项目能力准备页面。应用�
 - changed managed target 与缺少最后应用摘要的未验证受管理目标不能静默覆盖。用户可以查看文件差异，选择“备份本地内容并恢复”形成新 plan，或保留当前内容并退出。
 - 未受管理同名目标不能进入普通 apply。ArcOrbit 当前数据身份没有关系时不查询或迁移旧 Runtime 关系；provider 能以 fresh assessment 证明冲突目标与当前 bundled source 一一对应时，页面提供独立的“备份并按当前应用包重装”确认。该动作先保存原内容，再以当前应用包为权威来源写入并建立当前 ArcOrbit 关系。
 - 每个非 ready 状态至少提供一种与当前分类相符的处理手段。无法安全自动处理的错误提供明确的外部恢复条件、受影响路径和重新检查入口，不只留下无结果的重试。
-- `managed-stale` 清理使用独立 confirmation，不和普通 apply 捆绑。
+- `managed-stale` 清理使用独立 confirmation，不和普通 apply 捆绑。`drifted` 页面直接展示可选路径和固定清理主动作，不把唯一恢复入口放入折叠详情。
 - ArcOrbit 不向 `~/.codex/skills` 安装 bundled skill 或 `arcforge-on-demand` loader。source user-ambient 在关联项目中解释为默认项目常驻，source project-ambient 仍要求适用性判断；user-on-demand catalog 是非 Codex 发现的控制面，loader 只安装到当前项目。
 - 没有明确 Product Workspace 绑定时不生成 skill apply plan；页面不允许手输任意目标目录。
 - 旧版受管理用户级 target 只有在关系所有权可证明、具体路径可见且用户确认 disposition 后才迁移或移除；用户保留冲突内容时，相关项目不能显示 scope-clean ready。
@@ -38,7 +39,7 @@ Setup Readiness 是 Desktop 的全局资源与项目能力准备页面。应用�
 
 ### 信息揭示
 
-默认摘要显示当前 Runtime 版本、Arckit payload、ArcForge provider、Codex 状态、当前 Product Workspace、项目路径、Arckit skill 总数、项目默认常驻/项目适用/按需分类数量、项目级 ArcForge loader target 数和整体 readiness。Arckit skill 总数不包含 loader，user-on-demand catalog 不与项目常驻 skills 合并。用户展开详情后才显示项目绝对目标目录、旧用户级 managed paths、逐 skill availability、文件 drift 和关系记录位置。
+默认摘要显示当前 Runtime 版本、Arckit payload、ArcForge provider、Codex 状态、当前 Product Workspace、项目路径、Arckit skill 总数、项目默认常驻/项目适用/按需分类数量、项目级 ArcForge loader target 数和整体 readiness。Arckit skill 总数不包含 loader，user-on-demand catalog 不与项目常驻 skills 合并。`drifted` 状态立即揭示旧用户级 managed-stale 绝对路径、选择状态和清理动作；用户展开详情后查看项目绝对目标目录、逐 skill availability、文件 drift、plan digest 和关系记录位置。
 
 secret、私钥、完整环境变量、Codex credential 和 GitHub token 永不进入页面。签名信息只显示公开证书身份、签名状态和公证状态。
 
@@ -51,7 +52,7 @@ checking
 project-checking
   -> ready -> continue/resume-task
   -> needs-install -> review-plan -> applying -> ready
-  -> drifted -> classify -> review-plan/repair-or-migrate -> applying -> ready
+  -> drifted -> select-managed-stale -> confirm-removal -> removing -> recheck -> ready
   -> conflict -> inspect-diff -> backup-and-restore/backup-and-reinstall/recover-externally -> recheck
   -> blocked -> recover/retry -> checking
 ```
@@ -62,6 +63,7 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 
 - 检查阶段逐项显示 pending、passed 或 failed，不用单一无限 loading 覆盖所有工作。
 - plan 阶段将“将新增”“将更新”“不会处理”和“需单独确认清理”分开。
+- drifted 阶段在首屏显示 managed-stale 路径、所有权说明、已选数量和固定清理按钮；默认不选择任何路径，部分选择和全选状态明确可见。
 - plan 始终显示当前项目根、项目级 Codex target 和是否包含旧用户级 managed target 迁移；不会只显示抽象的 Codex 用户目标。
 - upgrade assessment 将“受管理缺失”“provider 管理迁移”“本地内容变化”“未验证受管理目标”和“未受管理冲突”分开，不把汇总计数当作用户修改证据。
 - 执行阶段显示事务阶段和最近完成项，不展示 provider 原始 JSON。
@@ -123,14 +125,23 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 - 首次启动由用户点击继续；普通启动可以在短暂停留后自动路由。
 - 用户可以打开安装详情，但不能在完成页面直接删除 skills。
 
+### Managed-stale 清理
+
+- 页面标题直接说明发现 managed-stale 路径，主区在检查摘要之前显示关系可证明的旧用户级绝对路径。
+- 每个路径使用独立复选框；默认全部未选择。“全选已证明路径”只改变当前可见集合，不能扩展 provider 证明边界。
+- 底部固定动作显示“确认并清理所选（N）”；未选择路径、正在请求 removal plan 或正在删除时保持禁用。
+- “查看完整计划与写入目标”保留为辅助详情，展示 source、项目 targets、plan digest 和 cleanup 依据，但不承载唯一清理入口。
+- 独立 ConfirmationDialog 列出最终选择的每个绝对路径与 confirmation digest，并把取消放在确认动作之前。
+- removal plan 或删除失败时，错误在当前页面持久显示；用户可以调整选择后重试，不丢失当前选择。
+- 删除完成后重新检查，不复用旧 confirmation digest；仍有未选 stale 路径时继续停留在本状态。
+
 ### 冲突检查
 
-- 受管理缺失、provider 管理迁移、changed/未验证受管理目标、同名 uncertain 目录和 managed-stale 分组显示。
+- 受管理缺失、provider 管理迁移、changed/未验证受管理目标和同名 uncertain 目录分组显示；只有 managed-stale 时进入独立清理状态。
 - missing 与可证明的 managed migration 提供“查看修复计划”；它们不显示为用户内容变化。
 - changed 或未验证受管理目标提供查看文件 diff、“备份本地内容并恢复”和“保留当前内容并退出”。备份结果显示稳定引用和打开位置。
 - 未受管理冲突具有完整 source 映射时提供“备份并按当前应用包重装”；确认摘要明确说明当前目标会先备份、bundle 内容成为权威内容、成功后建立受管理关系。
 - uncertain 目录不提供批量删除。
-- managed-stale 需要逐路径选择和单独确认。
 - 任何处理动作完成后重新生成 plan，不复用旧确认。
 
 ### 阻塞恢复
@@ -153,7 +164,7 @@ plan 展示后如果 source、target、policy、关系或内容 digest 改变，
 
 - 安装、修复、升级 apply 使用一次确认，摘要包含 source、profile、Product Workspace、项目绝对目标、旧用户级迁移、changed 和 plan digest。
 - “备份并按当前应用包重装”使用独立确认和 fresh assessment digest，默认焦点为取消；确认失效、备份失败、写入失败或关系提交失败都不允许进入 Runtime。
-- managed-stale 清理使用独立 ConfirmationDialog，列出每个绝对路径。
+- managed-stale 清理使用独立 ConfirmationDialog，列出每个绝对路径；触发按钮和选择列表在 drifted 页面首屏直接可见。
 - 移除全部 Arckit managed skills 是设置页中的独立流程，不出现在首次安装主路径。
 - 页面不提供“信任所有”“无备份覆盖全部额外目录”或“删除未知 skills”。
 

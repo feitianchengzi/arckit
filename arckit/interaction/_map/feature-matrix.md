@@ -3,7 +3,7 @@
 | Page | Status | Core task | Projected states |
 |---|---|---|---|
 | `login/` | ✅ | 启动时恢复 Workshop 会话；未登录时通过不可绕过的验证码门禁建立当前用户项目来源 | 会话恢复、未登录入口、验证码已发送、登录失败 |
-| `setup-readiness/` | ✅ | 先校验全局受信资源，再为明确关联项目区分 managed repair/migration 与内容冲突，并完成项目级安装、用户级迁移或备份恢复 | 全局检查、项目安装计划、执行中、项目已准备、升级迁移、阻塞恢复 |
+| `setup-readiness/` | ✅ | 先校验全局受信资源，再为明确关联项目区分 managed repair/migration、managed-stale 与内容冲突，并完成项目级安装、用户级迁移、直接可选清理或备份恢复 | 全局检查、项目安装计划、managed-stale 直接清理、执行中、项目已准备、升级迁移、阻塞恢复 |
 | `platform-workspace/` | ✅ | 通过三组主导航连接个人协作、产品全生命周期和组织能力，并保留 Workset、Feedback 与 Organization 的真实平台行为 | Personal/Product Lifecycle/Organization 导航、多产品 Today、Workset 多选、组织概览、Feedback 转待办、有限范围与部分失败 |
 | `chat-workspace/` | ✅ | 在尚未确定正式形态时与 Agent 自由问答，并在用户确认后预览 Idea 或 Work 转换 | 新对话、产品上下文、问答正文、待确认事实、形态转换预览 |
 | `idea-workspace/` | ✅ | 探索和讨论产品创意，比较问题、用户、证据与风险，并在确认后预览正式项目转换 | 探索中、讨论中、已确认、团队观点、开始项目预览 |

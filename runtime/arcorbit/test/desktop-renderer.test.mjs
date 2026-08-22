@@ -330,6 +330,10 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(html, /id="setupReviewed"/);
   assert.match(html, /id="setupRecoverButton"/);
   assert.match(html, /id="setupRecoveryGuideButton"/);
+  assert.match(html, /id="setupCleanupPanel"/);
+  assert.match(html, /id="setupCleanupSelectAll"/);
+  assert.match(html, /id="setupCleanupButton"/);
+  assert.match(html, /setupCleanupPanel[\s\S]+id="setupChecks"/);
   assert.match(html, /查看安装计划与写入目标/);
   assert.match(styles, /\.setup-readiness/);
   assert.match(source, /api\.applySetupPlan\(\{ planDigest:/);
@@ -345,6 +349,15 @@ test("Desktop gates automation behind bounded Setup Readiness plan and confirmat
   assert.match(source, /file\.status/);
   assert.match(source, /api\.planSetupRemoval/);
   assert.match(source, /confirmationDigest/);
+  assert.match(source, /data-setup-cleanup-path/);
+  assert.match(source, /function renderSetupCleanup\(\)/);
+  assert.match(source, /setupCleanupSelectAll/);
+  assert.match(source, /确认并清理所选/);
+  assert.match(source, /filter\(\(item\) => selected\.has\(item\)\)/);
+  assert.match(source, /SETUP_ACTION_FAILED/);
+  assert.match(styles, /\.setup-cleanup-row/);
+  assert.match(styles, /\.setup-cleanup-panel/);
+  assert.match(styles, /\.toast[^}]+z-index: 1200/);
   assert.match(preload, /getSetupReadiness/);
   assert.match(preload, /removeManagedSetupPaths/);
   assert.match(preload, /recoverSetupUpgrade/);
