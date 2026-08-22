@@ -135,6 +135,10 @@ export function createWorkshopRealtimeAdapter({
       await onInvalidate(connection.projectId, { reason: "initial_snapshot", event_types: ["system.connected"] });
       refreshed = true;
       cursor = latest;
+    } else if (cursor > latest) {
+      await onInvalidate(connection.projectId, { reason: "cursor_ahead", event_types: ["system.resync_required"] });
+      refreshed = true;
+      cursor = latest;
     } else {
       try {
         let hasMore = true;
@@ -335,7 +339,7 @@ function realtimeMode(connected) {
   if (Number(connected?.schema_version) === 1 && hasLatest && Number.isSafeInteger(latest) && latest >= 0) {
     return REALTIME_MODE_RESUMABLE;
   }
-  if (connected?.schema_version === undefined || connected?.schema_version === null) {
+  if ((connected?.schema_version === undefined || connected?.schema_version === null) && !hasLatest) {
     return REALTIME_MODE_LEGACY;
   }
   throw new Error(`Unsupported Workshop realtime schema: ${String(connected.schema_version)}`);

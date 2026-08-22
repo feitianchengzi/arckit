@@ -84,6 +84,34 @@ test("realtime adapter converts an expired cursor into a current-state refresh",
   adapter.stop();
 });
 
+test("realtime adapter resets a persisted cursor ahead of the server baseline", async () => {
+  FakeWebSocket.instances = [];
+  const invalidations = [];
+  const states = new Map([["9", { cursor: 99 }]]);
+  let replayCalls = 0;
+  const adapter = createWorkshopRealtimeAdapter({
+    WebSocketImpl: FakeWebSocket,
+    taskSource: {
+      async realtimeConnection() { return { url: "wss://workshop.test/ws", protocols: [], headers: {} }; },
+      async listProjectEvents() { replayCalls += 1; return { events: [], next_after_id: 88, has_more: false }; }
+    },
+    readProjectState: async () => states.get("9"),
+    writeProjectState: async (_projectId, update) => states.set("9", { ...states.get("9"), ...update }),
+    onInvalidate: async (_projectId, details) => invalidations.push(details)
+  });
+  await adapter.updateProjects(["9"]);
+  await new Promise((resolve) => setImmediate(resolve));
+  const socket = FakeWebSocket.instances[0];
+  socket.emit("open");
+  socket.message({ schema_version: 1, event: "system.connected", project_id: 9, data: { latest_event_id: 88 } });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(invalidations[0].reason, "cursor_ahead");
+  assert.equal(states.get("9").cursor, 88);
+  assert.equal(replayCalls, 0);
+  adapter.stop();
+});
+
 test("realtime adapter reconnects before the websocket credential expires", async () => {
   FakeWebSocket.instances = [];
   const timers = [];
@@ -163,5 +191,33 @@ test("realtime adapter treats an old Workshop handshake as legacy and refreshes 
   assert.equal(writes.at(-1).mode, "legacy");
   assert.equal(writes.at(-1).state, "connected");
   assert.equal(adapter.isDegraded(), false);
+  adapter.stop();
+});
+
+test("realtime adapter rejects an ambiguous unversioned handshake that advertises a cursor", async () => {
+  FakeWebSocket.instances = [];
+  const writes = [];
+  let cursorReads = 0;
+  const adapter = createWorkshopRealtimeAdapter({
+    WebSocketImpl: FakeWebSocket,
+    taskSource: {
+      async realtimeConnection() { return { url: "wss://workshop.test/ws", protocols: [], headers: {} }; },
+      async listProjectEvents() { throw new Error("must not replay an ambiguous handshake"); }
+    },
+    readProjectState: async () => { cursorReads += 1; return { cursor: 77 }; },
+    writeProjectState: async (_projectId, update) => writes.push(update),
+    onInvalidate: async () => {}
+  });
+
+  await adapter.updateProjects(["12"]);
+  await new Promise((resolve) => setImmediate(resolve));
+  const socket = FakeWebSocket.instances[0];
+  socket.emit("open");
+  socket.message({ event: "system.connected", project_id: 12, data: { latest_event_id: 88 } });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(cursorReads, 0);
+  assert.equal(socket.closed, true);
+  assert.equal(writes.some((update) => update.state === "degraded"), true);
   adapter.stop();
 });

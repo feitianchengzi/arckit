@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 163
-Updated: 2026-08-22T08:41:26.667Z
+Revision: 167
+Updated: 2026-08-22T12:12:07.767Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-允许 ArcOrbit 客户端先于 Workshop 新服务升级：旧服务无事件 ID 通知仍能驱动刷新，不保留每 60 秒轮询；应用启动、WebSocket 重连、网络恢复、系统唤醒和用户主动操作可收敛当前事实，保留 15 分钟全量对账，并在执行前确认远端任务状态且绝不越过 awaiting_human。
+补齐 Workshop 服务发布脚本对无 Docker HEALTHCHECK 的旧生产镜像的回滚确认，使候选发布失败后能够验证已恢复服务，而不是产生误导性的人工介入提示。
 
 ## Active Work
 
