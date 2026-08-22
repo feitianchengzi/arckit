@@ -6,7 +6,12 @@ import { useEffect, useRef, useState } from 'react'
 import { getAuthInfo } from '@/lib/utils/tokenManager'
 import { useAuthStore } from '@/store/authStore'
 import { apiClient } from '@/lib/api/client'
-import { consumeAcknowledgedPrefix, isCursorExpiredCode, orderedEventsAfterCursor } from '@/lib/realtime/projectEventStream'
+import {
+  consumeAcknowledgedPrefix,
+  isCursorExpiredCode,
+  orderedEventsAfterCursor,
+  planProjectRealtimeRecovery,
+} from '@/lib/realtime/projectEventStream'
 
 export interface ProjectSocketEvent {
   id?: number
@@ -32,11 +37,6 @@ export interface UseProjectWebSocketOptions {
 
 type ConnectionStatus = 'idle' | 'connecting' | 'recovering' | 'connected' | 'disconnected'
 
-interface ConnectedData {
-  earliest_event_id?: number
-  latest_event_id?: number
-}
-
 interface ReplayData {
   events: ProjectSocketEvent[]
   earliest_event_id: number
@@ -56,6 +56,14 @@ const readCursor = (projectId: string) => {
 const writeCursor = (projectId: string, cursor: number) => {
   if (Number.isSafeInteger(cursor) && cursor > readCursor(projectId)) {
     window.localStorage.setItem(cursorKey(projectId), String(cursor))
+  }
+}
+
+const replaceCursor = (projectId: string, cursor: number) => {
+  if (Number.isSafeInteger(cursor) && cursor > 0) {
+    window.localStorage.setItem(cursorKey(projectId), String(cursor))
+  } else {
+    window.localStorage.removeItem(cursorKey(projectId))
   }
 }
 
@@ -155,6 +163,7 @@ export function useProjectWebSocket({ projectId, enabled = true, onEvent }: UseP
         }, refreshDelay)
         let recovering = true
         let recoveryStarted = false
+        let realtimeMode: 'unknown' | 'legacy' | 'resumable' = 'unknown'
         const buffered: ProjectSocketEvent[] = []
         const acknowledgements: Array<{ id: number; complete: boolean }> = []
         const deliveries = new Map<number, Promise<void>>()
@@ -183,18 +192,40 @@ export function useProjectWebSocket({ projectId, enabled = true, onEvent }: UseP
           return delivery
         }
 
+        const deliverLegacy = (payload: ProjectSocketEvent): Promise<void> =>
+          Promise.resolve().then(() => onEventRef.current?.(payload))
+
         const replayFromCursor = async (connected: ProjectSocketEvent) => {
           if (recoveryStarted) return
           recoveryStarted = true
           setStatus('recovering')
-          const bounds = (connected.data || {}) as ConnectedData
-          const latestAtConnect = Number(bounds.latest_event_id || 0)
-          let cursor = readCursor(projectId)
+          const recovery = planProjectRealtimeRecovery(connected, () => readCursor(projectId))
+          realtimeMode = recovery.mode
 
-          if (!cursor) {
+          if (recovery.mode === 'legacy') {
+            await deliverLegacy({ event: 'system.resync_required', project_id: Number(projectId), data: { reason: 'legacy_snapshot' } })
+            if (cancelled || generation !== connectionGeneration) return
+            recovering = false
+            for (const payload of buffered) await deliverLegacy(payload)
+            buffered.length = 0
+            if (cancelled || generation !== connectionGeneration) return
+            await deliverLegacy(connected)
+            if (cancelled || generation !== connectionGeneration) return
+            setStatus('connected')
+            return
+          }
+
+          const latestAtConnect = recovery.latestEventId
+          let cursor = recovery.cursor
+
+          if (recovery.action === 'initial_snapshot') {
             await deliver({ event: 'system.resync_required', project_id: Number(projectId), data: { reason: 'initial_snapshot' } })
             if (cancelled || generation !== connectionGeneration) return
-            writeCursor(projectId, latestAtConnect)
+            replaceCursor(projectId, latestAtConnect)
+          } else if (recovery.action === 'cursor_ahead') {
+            await deliver({ event: 'system.resync_required', project_id: Number(projectId), data: { reason: 'cursor_ahead' } })
+            if (cancelled || generation !== connectionGeneration) return
+            replaceCursor(projectId, latestAtConnect)
           } else {
             try {
               let hasMore = true
@@ -211,7 +242,7 @@ export function useProjectWebSocket({ projectId, enabled = true, onEvent }: UseP
               if (isCursorExpiredCode(error?.response?.data?.code)) {
                 await deliver({ event: 'system.resync_required', project_id: Number(projectId), data: { reason: 'cursor_expired' } })
                 if (cancelled || generation !== connectionGeneration) return
-                writeCursor(projectId, latestAtConnect)
+                replaceCursor(projectId, latestAtConnect)
               } else {
                 throw error
               }
@@ -246,7 +277,8 @@ export function useProjectWebSocket({ projectId, enabled = true, onEvent }: UseP
             }
             if (recovering) buffered.push(payload)
             else {
-              deliver(payload).catch((error) => {
+              const delivery = realtimeMode === 'legacy' ? deliverLegacy(payload) : deliver(payload)
+              delivery.catch((error) => {
                 console.warn('⚠️ WebSocket 刷新失败:', error)
                 setStatus('disconnected')
                 ws.close()

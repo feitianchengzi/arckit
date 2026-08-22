@@ -37,8 +37,8 @@ rm -rf node_modules/.vite
 echo -e "\n${YELLOW}🔍 检查环境变量...${NC}"
 if [ -f ".env" ]; then
     echo -e "${GREEN}   ✓ 找到 .env${NC}"
-    echo -e "${YELLOW}   环境变量预览：${NC}"
-    cat .env | grep -v "^#" | grep -v "^$" | sed 's/^/     /'
+    echo -e "${YELLOW}   已配置变量（值已隐藏）：${NC}"
+    awk -F= '/^[A-Za-z_][A-Za-z0-9_]*=/{print "     " $1 "=<configured>"}' .env
 elif [ -f ".env.local" ]; then
     echo -e "${YELLOW}   ⚠️  未找到 .env，将使用 .env.local${NC}"
 else
@@ -312,4 +312,3 @@ echo -e "${YELLOW}📝 注意事项：${NC}"
 echo -e "   • Base Path 配置为 ${BLUE}/${NC}，文件上传到 OSS 根目录"
 echo -e "   • 必须设置 OSS 的 404 页面为 ${BLUE}index.html${NC} 以支持客户端路由"
 echo -e "   • 确认环境变量（API 地址）配置正确"
-

@@ -5,11 +5,54 @@ export interface CursorEvent {
 export interface ProjectEventIdentity extends CursorEvent {
   event?: string
   schema_version?: number
+  data?: unknown
 }
 
 export interface CursorAcknowledgement {
   id: number
   complete: boolean
+}
+
+export type ProjectRealtimeHandshake =
+  | { mode: 'legacy'; latestEventId: 0 }
+  | { mode: 'resumable'; latestEventId: number }
+
+export type ProjectRealtimeRecoveryStart =
+  | { mode: 'legacy'; action: 'legacy_snapshot'; latestEventId: 0; cursor: 0 }
+  | { mode: 'resumable'; action: 'initial_snapshot' | 'cursor_ahead' | 'replay'; latestEventId: number; cursor: number }
+
+export function classifyProjectRealtimeHandshake(payload: ProjectEventIdentity): ProjectRealtimeHandshake {
+  const data = payload?.data
+  const hasData = data !== null && typeof data === 'object'
+  const hasLatest = hasData && Object.prototype.hasOwnProperty.call(data, 'latest_event_id')
+  const latest = Number(hasData ? (data as { latest_event_id?: unknown }).latest_event_id : undefined)
+
+  if (payload?.schema_version === 1 && hasLatest && Number.isSafeInteger(latest) && latest >= 0) {
+    return { mode: 'resumable', latestEventId: latest }
+  }
+  if ((payload?.schema_version === undefined || payload?.schema_version === null) && !hasLatest) {
+    return { mode: 'legacy', latestEventId: 0 }
+  }
+  throw new Error(`Unsupported Workshop realtime handshake: ${String(payload?.schema_version)}`)
+}
+
+export function planProjectRealtimeRecovery(
+  payload: ProjectEventIdentity,
+  readPersistedCursor: () => number,
+): ProjectRealtimeRecoveryStart {
+  const handshake = classifyProjectRealtimeHandshake(payload)
+  if (handshake.mode === 'legacy') {
+    return { mode: 'legacy', action: 'legacy_snapshot', latestEventId: 0, cursor: 0 }
+  }
+
+  const value = Number(readPersistedCursor())
+  const cursor = Number.isSafeInteger(value) && value > 0 ? value : 0
+  const action = cursor === 0
+    ? 'initial_snapshot'
+    : cursor > handshake.latestEventId
+      ? 'cursor_ahead'
+      : 'replay'
+  return { ...handshake, action, cursor }
 }
 
 export function orderedEventsAfterCursor<T extends CursorEvent>(cursor: number, events: T[]): T[] {

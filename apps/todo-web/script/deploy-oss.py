@@ -76,76 +76,64 @@ def load_env_config():
         'dist_dir': frontend_dir / 'dist'
     }
 
-def clear_directory(bucket, prefix):
-    """清空 OSS 指定目录下的所有文件"""
-    prefix_path = f"{prefix}/" if prefix else ""
-    print_colored(f"\n🗑️  清空 OSS 目录: {prefix_path or '根目录'}", Colors.YELLOW)
-    
-    deleted_count = 0
-    try:
-        # 列举目录下的所有文件
-        for obj in oss2.ObjectIterator(bucket, prefix=prefix_path):
-            try:
-                bucket.delete_object(obj.key)
-                deleted_count += 1
-                print_colored(f"  ✓ 删除: {obj.key}", Colors.GREEN)
-            except Exception as e:
-                print_colored(f"  ⚠️  删除失败 {obj.key}: {e}", Colors.YELLOW)
-        
-        if deleted_count == 0:
-            print_colored(f"  ℹ️  目录 {prefix_path or '根目录'} 为空，无需删除", Colors.BLUE)
-        else:
-            print_colored(f"✓ 已删除 {deleted_count} 个文件", Colors.GREEN)
-    except Exception as e:
-        print_colored(f"❌ 清空目录失败: {e}", Colors.RED)
-        raise
+def cache_headers(relative_path):
+    """按发布角色返回缓存策略。"""
+    normalized = relative_path.as_posix()
+    if normalized == 'index.html':
+        return {'Cache-Control': 'no-cache, max-age=0, must-revalidate'}
+    if normalized.startswith('assets/'):
+        return {'Cache-Control': 'public, max-age=31536000, immutable'}
+    return {'Cache-Control': 'public, max-age=300'}
+
+
+def build_upload_plan(local_path, prefix):
+    """生成 assets 优先、index.html 最后的确定性上传计划。"""
+    prefix_path = f"{prefix.strip('/')}/" if prefix else ""
+    files = [path for path in local_path.rglob('*') if path.is_file()]
+
+    def priority(path):
+        relative = path.relative_to(local_path).as_posix()
+        if relative.startswith('assets/'):
+            return (0, relative)
+        if relative == 'index.html':
+            return (2, relative)
+        return (1, relative)
+
+    plan = []
+    for local_file in sorted(files, key=priority):
+        relative = local_file.relative_to(local_path)
+        key = f"{prefix_path}{relative.as_posix()}"
+        plan.append((local_file, key, cache_headers(relative)))
+    return plan
 
 def upload_files(bucket, local_path, prefix):
     """上传本地目录下的所有文件到 OSS"""
-    prefix_path = f"{prefix}/" if prefix else ""
-    print_colored(f"\n📤 上传文件到 OSS: {prefix_path or '根目录'}", Colors.YELLOW)
+    target = f"{prefix.strip('/')}/" if prefix else "根目录"
+    print_colored(f"\n📤 上传文件到 OSS: {target}", Colors.YELLOW)
     
     if not local_path.exists() or not local_path.is_dir():
         print_colored(f"❌ 目录不存在: {local_path}", Colors.RED)
         raise FileNotFoundError(f"目录不存在: {local_path}")
     
     uploaded_count = 0
-    failed_count = 0
     total_size = 0
-    
-    # 遍历本地文件并上传
-    for root, dirs, files in os.walk(local_path):
-        for file in files:
-            local_file = Path(root) / file
-            # 计算相对路径
-            rel_path = local_file.relative_to(local_path)
-            # 构建 OSS 中的 key
-            key = f"{prefix_path}{rel_path}".replace('\\', '/')  # Windows 路径兼容
-            
-            try:
-                # 获取文件大小
-                file_size = local_file.stat().st_size
-                total_size += file_size
-                
-                # 上传文件
-                bucket.put_object_from_file(key, str(local_file))
-                uploaded_count += 1
-                
-                # 格式化文件大小
-                size_str = format_size(file_size)
-                print_colored(f"  ✓ 上传: {key} ({size_str})", Colors.GREEN)
-            except Exception as e:
-                failed_count += 1
-                print_colored(f"  ❌ 上传失败 {key}: {e}", Colors.RED)
+
+    # 不清理旧对象：旧 index 或浏览器缓存仍可能引用上一版本的 hashed assets。
+    # 任一资源失败都会在上传 index.html 前终止，因此旧入口保持可用。
+    for local_file, key, headers in build_upload_plan(local_path, prefix):
+        try:
+            file_size = local_file.stat().st_size
+            bucket.put_object_from_file(key, str(local_file), headers=headers)
+            uploaded_count += 1
+            total_size += file_size
+            print_colored(f"  ✓ 上传: {key} ({format_size(file_size)})", Colors.GREEN)
+        except Exception as e:
+            print_colored(f"  ❌ 上传失败 {key}: {e}", Colors.RED)
+            raise RuntimeError(f"OSS 上传失败: {key}") from e
     
     print_colored(f"\n✓ 上传完成:", Colors.GREEN)
     print_colored(f"  - 成功: {uploaded_count} 个文件", Colors.GREEN)
-    if failed_count > 0:
-        print_colored(f"  - 失败: {failed_count} 个文件", Colors.RED)
     print_colored(f"  - 总大小: {format_size(total_size)}", Colors.GREEN)
-    
-    if failed_count > 0:
-        sys.exit(1)
 
 def format_size(size_bytes):
     """格式化文件大小"""
@@ -196,14 +184,7 @@ def main():
         print_colored("请检查 .env 文件中的配置是否正确", Colors.YELLOW)
         sys.exit(1)
     
-    # 清空目录
-    try:
-        clear_directory(bucket, config['prefix'])
-    except Exception as e:
-        print_colored(f"❌ 清空目录失败: {e}", Colors.RED)
-        sys.exit(1)
-    
-    # 上传文件
+    # 资源先行、入口最后的原子发布；保留旧 hashed assets 兼容缓存中的旧入口。
     try:
         upload_files(bucket, dist_dir, config['prefix'])
     except Exception as e:
