@@ -372,20 +372,11 @@ function wireEvents() {
       if (state.page === "workbench") renderWorkbench();
     }
   }));
-  els.searchButton.addEventListener("click", () => {
-    openTaskBrowser(state.selectedState || "pending");
-    els.taskFilterInput.focus();
-  });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       closePlatformAction(null);
       closeSettings();
       if (["tasks", "workbench", "recovery"].includes(state.page)) showPage("command");
-    }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-      event.preventDefault();
-      openTaskBrowser(state.selectedState || "pending");
-      els.taskFilterInput.focus();
     }
   });
 }

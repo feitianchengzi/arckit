@@ -38,7 +38,7 @@
   - default.html 产品反馈中心线框：SDK 加载、可用内容、账户/配置恢复和 SDK 失败恢复。✅ (54行)
   - interaction.md 产品反馈中心交互：单一入口、同窗模式切换、草稿保持、Project 107、未读角标和脱敏恢复。✅ (88行)
 - automation-workspace/ 自动化指挥中心：可靠实时同步、普通待办与验收问题双队列、人工 Gate、Runtime/CLI 接力与恢复。✅
-  - default.html 指挥中心线框：顶部产品范围、现代补取、旧服务兼容、立即同步、双队列、人工等待、Runtime/CLI 接管与恢复。✅ (314行)
+  - default.html 指挥中心线框：顶部产品范围、现代补取、旧服务兼容、立即同步、双队列、人工等待、Runtime/CLI 接管与恢复。✅ (313行)
   - authentication.html 账号设置线框：已登录摘要、七天无活动失效恢复与退出。✅ (51行)
   - intervention-workbench.html 介入工作台线框：固定三栏与 Composer、可折叠思考、结构化结果、Agent 正式消息及单行工具活动。✅ (99行)
   - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、用户说明续跑、安全停止、外部状态变化与任务源异常。✅ (137行)

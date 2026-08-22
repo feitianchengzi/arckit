@@ -438,6 +438,11 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   ]);
 
   assert.match(html, /data-page-view="tasks"/);
+  assert.doesNotMatch(html, /id="searchButton"|搜索任务、项目或 Run/);
+  assert.doesNotMatch(styles, /\.search-trigger/);
+  assert.doesNotMatch(source, /els\.searchButton|event\.key\.toLowerCase\(\) === "k"/);
+  assert.match(source, /data-feedback-task[\s\S]*else openTaskBrowser\(task\?\.state \|\| "completed", task\?\.id \|\| row\.dataset\.feedbackTask\)/);
+  assert.match(source, /data-queue-task[\s\S]*openTaskBrowser\("pending", row\.dataset\.queueTask\)/);
   assert.match(html, /INTERVENTION WORKBENCH/);
   assert.match(html, /data-page-view="workbench"/);
   assert.match(html, /AUTOMATION RECOVERY CENTER/);
