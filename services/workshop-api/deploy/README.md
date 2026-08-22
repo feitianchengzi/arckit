@@ -13,6 +13,7 @@ deploy/
 ├── prod/                             # 生产环境
 │   ├── docker-compose.prod.yml      # Docker Compose 配置
 │   ├── deploy.sh                    # 生产环境部署脚本
+│   ├── remote-deploy.sh             # 远端迁移、健康切换与失败回滚
 │   ├── .env.workshop.production     # 生产环境配置（不提交 Git）
 │   └── env.workshop.production.example # 配置示例
 └── Dockerfile                        # Docker 镜像构建文件
@@ -59,9 +60,13 @@ deploy/
 - 本地构建 Docker 镜像
 - 保存镜像为 tar 文件
 - 上传镜像和配置文件到服务器
-- 在服务器上加载镜像并运行
+- 在不停止旧实例的前提下加载镜像并执行幂等数据库迁移
+- 切换服务容器并等待 Docker readiness 健康检查；回滚到尚无 Docker `HEALTHCHECK` 的旧镜像时，兼容使用容器内公开 HTTP health
+- 新实例失败时自动把镜像标签和容器恢复到上一版本
 
 生产环境只维护一个配置文件：`deploy/prod/.env.workshop.production`。部署脚本会从这个文件读取服务器 SSH、部署目录、镜像信息等部署参数；上传到服务器的应用环境文件会自动过滤这些部署专用变量，只保留服务运行所需环境变量。
+
+生产环境示例默认 `DB_AUTO_MIGRATE=false`。`remote-deploy.sh` 会在停止旧容器之前以候选镜像执行 `./todo migrate`；迁移是 additive 且幂等，旧镜像可继续使用迁移后的 schema。普通服务启动仍会验证实时事件必需的表、列和索引，schema 不完整时不会接收流量。
 
 **部署脚本选项**：
 - `--skip-build`：跳过本地构建，使用现有镜像

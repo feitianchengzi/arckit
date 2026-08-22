@@ -6,13 +6,14 @@ name: workshop
 
 services:
   todo-service:
-    image: todo-service:latest  # 使用已构建的镜像
+    image: ${IMAGE_NAME:-todo-service}:${IMAGE_TAG:-latest}
     container_name: todo-service
     env_file:
       - .env.workshop.production  # 从 .env.workshop.production 文件加载所有环境变量
     ports:
       - "${PORT:-8081}:${PORT:-8081}"
     restart: unless-stopped
+    stop_grace_period: 20s
     networks:
       - workshop
     deploy:

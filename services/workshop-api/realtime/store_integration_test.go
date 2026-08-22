@@ -75,11 +75,16 @@ func TestPostgresNotificationReachesTwoBrokerInstances(t *testing.T) {
 	hubB.Join(12, clientB)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go NewBroker(db, dsn, hubA).Run(ctx)
-	go NewBroker(db, dsn, hubB).Run(ctx)
-	// LISTEN has no externally visible ready acknowledgement; this bounded wait
-	// lets both dedicated connections subscribe before the committed mutation.
-	time.Sleep(300 * time.Millisecond)
+	brokerA, brokerB := NewBroker(db, dsn, hubA), NewBroker(db, dsn, hubB)
+	if err := brokerA.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := brokerB.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !brokerA.Ready() || !brokerB.Ready() {
+		t.Fatal("broker start returned before both listeners were ready")
+	}
 
 	store := NewStore(db)
 	if err := db.Transaction(func(tx *gorm.DB) error {
@@ -180,5 +185,21 @@ func TestPostgresReplayExpiresPersistedCursorWhenRetentionLogIsEmpty(t *testing.
 	store := NewStore(db)
 	if _, _, _, err := store.Replay(12, 42, 100); !errors.Is(err, ErrCursorExpired) {
 		t.Fatalf("expected empty retained log to expire a persisted cursor, got %v", err)
+	}
+}
+
+func TestPostgresReplayExpiresCursorAheadOfProjectLog(t *testing.T) {
+	db, _ := integrationDB(t)
+	store := NewStore(db)
+	var committed Event
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		var err error
+		committed, err = store.Append(tx, NewEvent(12, Actor{ID: 7}, "task.created", map[string]any{"task_id": 1}))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, _, err := store.Replay(12, committed.ID+100, 100); !errors.Is(err, ErrCursorExpired) {
+		t.Fatalf("expected future cursor to expire, got %v", err)
 	}
 }

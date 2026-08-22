@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -19,6 +20,7 @@ type Broker struct {
 	hub    *Hub
 	dsn    string
 	lastID uint64
+	ready  atomic.Bool
 }
 
 func NewBroker(db *gorm.DB, dsn string, hub *Hub) *Broker {
@@ -27,28 +29,72 @@ func NewBroker(db *gorm.DB, dsn string, hub *Hub) *Broker {
 
 func (b *Broker) Store() *Store { return b.store }
 
+const brokerConnectTimeout = 15 * time.Second
+
+// Start establishes LISTEN and the initial event baseline before returning.
+// Callers may safely open their HTTP listener only after Start succeeds.
+func (b *Broker) Start(ctx context.Context) error {
+	conn, err := b.openListener(ctx, true)
+	if err != nil {
+		return err
+	}
+	b.ready.Store(true)
+	go b.run(ctx, conn)
+	go b.runCleanup(ctx)
+	return nil
+}
+
+func (b *Broker) Ready() bool { return b.ready.Load() }
+
+// Run preserves the previous self-retrying entrypoint for embedded callers.
+// Production startup uses Start so readiness failures stop the service.
 func (b *Broker) Run(ctx context.Context) {
 	backoff := time.Second
-	go b.runCleanup(ctx)
 	for ctx.Err() == nil {
-		if b.lastID == 0 {
-			if latest, err := b.store.LatestID(); err == nil {
-				b.lastID = latest
-			}
-		}
-		connected, err := b.listen(ctx)
-		if err != nil && !errors.Is(err, context.Canceled) {
-			log.Printf("project event listener disconnected: %v", err)
+		if err := b.Start(ctx); err == nil {
+			return
+		} else if !errors.Is(err, context.Canceled) {
+			log.Printf("project event listener startup failed: %v", err)
 		}
 		select {
 		case <-ctx.Done():
 			return
 		case <-time.After(backoff):
 		}
-		if connected {
-			backoff = time.Second
-		} else if backoff < 30*time.Second {
+		if backoff < 30*time.Second {
 			backoff *= 2
+		}
+	}
+}
+
+func (b *Broker) run(ctx context.Context, conn *pgx.Conn) {
+	backoff := time.Second
+	for ctx.Err() == nil {
+		err := b.consume(ctx, conn)
+		_ = conn.Close(context.Background())
+		b.ready.Store(false)
+		if err != nil && !errors.Is(err, context.Canceled) {
+			log.Printf("project event listener disconnected: %v", err)
+		}
+		for ctx.Err() == nil {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(backoff):
+			}
+			var reconnectErr error
+			conn, reconnectErr = b.openListener(ctx, false)
+			if reconnectErr == nil {
+				b.ready.Store(true)
+				backoff = time.Second
+				break
+			}
+			if !errors.Is(reconnectErr, context.Canceled) {
+				log.Printf("project event listener reconnect failed: %v", reconnectErr)
+			}
+			if backoff < 30*time.Second {
+				backoff *= 2
+			}
 		}
 	}
 }
@@ -71,22 +117,36 @@ func (b *Broker) runCleanup(ctx context.Context) {
 	}
 }
 
-func (b *Broker) listen(ctx context.Context) (bool, error) {
-	conn, err := pgx.Connect(ctx, b.dsn)
+func (b *Broker) openListener(ctx context.Context, initialize bool) (*pgx.Conn, error) {
+	connectCtx, cancel := context.WithTimeout(ctx, brokerConnectTimeout)
+	defer cancel()
+	conn, err := pgx.Connect(connectCtx, b.dsn)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	defer conn.Close(context.Background())
-	if _, err := conn.Exec(ctx, "LISTEN "+notifyChannel); err != nil {
-		return false, err
+	if _, err := conn.Exec(connectCtx, "LISTEN "+notifyChannel); err != nil {
+		_ = conn.Close(context.Background())
+		return nil, err
 	}
-	if err := b.catchUp(); err != nil {
-		return true, err
+	if initialize {
+		latest, err := b.store.LatestID()
+		if err != nil {
+			_ = conn.Close(context.Background())
+			return nil, err
+		}
+		b.lastID = latest
+	} else if err := b.catchUp(); err != nil {
+		_ = conn.Close(context.Background())
+		return nil, err
 	}
+	return conn, nil
+}
+
+func (b *Broker) consume(ctx context.Context, conn *pgx.Conn) error {
 	for {
 		notification, err := conn.WaitForNotification(ctx)
 		if err != nil {
-			return true, err
+			return err
 		}
 		id, err := strconv.ParseUint(notification.Payload, 10, 64)
 		if err != nil {
@@ -97,7 +157,7 @@ func (b *Broker) listen(ctx context.Context) (bool, error) {
 			continue
 		}
 		if err := b.catchUp(); err != nil {
-			return true, err
+			return err
 		}
 	}
 }

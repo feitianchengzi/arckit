@@ -6,18 +6,38 @@ import (
 	"os"
 
 	"todo/database"
+	"todo/handler"
 	"todo/realtime"
 	"todo/router"
 )
 
 func main() {
-	// 初始化数据库连接
-	if err := database.InitDB(); err != nil {
-		log.Fatal("数据库初始化失败:", err)
+	migrationOnly := len(os.Args) == 2 && os.Args[1] == "migrate"
+	if len(os.Args) > 1 && !migrationOnly {
+		log.Fatalf("未知命令 %q；支持的命令：migrate", os.Args[1])
 	}
+
+	// 初始化数据库连接
+	var initErr error
+	if migrationOnly {
+		initErr = database.InitDBForMigration()
+	} else {
+		initErr = database.InitDB()
+	}
+	if initErr != nil {
+		log.Fatal("数据库初始化失败:", initErr)
+	}
+	if migrationOnly {
+		log.Println("数据库迁移与运行时 schema 验证成功")
+		return
+	}
+
 	realtime.ConfigureStore(database.GetDB())
 	broker := realtime.NewBroker(database.GetDB(), database.ConnectionString(), realtime.DefaultHub)
-	go broker.Run(context.Background())
+	if err := broker.Start(context.Background()); err != nil {
+		log.Fatal("实时事件 Broker 初始化失败:", err)
+	}
+	handler.ConfigureHealthReadiness(broker.Ready)
 
 	// 从环境变量读取端口，如果不存在则报错退出
 	port := os.Getenv("PORT")

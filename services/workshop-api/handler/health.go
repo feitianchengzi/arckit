@@ -17,6 +17,19 @@ type HealthResponse struct {
 	Service   string    `json:"service"`
 }
 
+var healthReadiness = func() bool { return true }
+
+// ConfigureHealthReadiness binds the process-level readiness dependency before
+// the HTTP server starts. Passing nil restores the compatibility default used
+// by isolated handler tests and embedded consumers.
+func ConfigureHealthReadiness(check func() bool) {
+	if check == nil {
+		healthReadiness = func() bool { return true }
+		return
+	}
+	healthReadiness = check
+}
+
 // HealthCheck 健康检查接口处理函数
 // 网关路由: GET /todo-service/v1/public/health
 // 认证级别: public (无需认证)
@@ -27,11 +40,18 @@ func HealthCheck(c *gin.Context) {
 		serviceName = "todo"
 	}
 
+	ready := healthReadiness()
+	status := "ok"
+	statusCode := http.StatusOK
+	if !ready {
+		status = "unavailable"
+		statusCode = http.StatusServiceUnavailable
+	}
 	healthResp := HealthResponse{
-		Status:    "ok",
+		Status:    status,
 		Timestamp: time.Now(),
 		Service:   serviceName,
 	}
 
-	c.JSON(http.StatusOK, response.NewSuccessResponse(healthResp))
+	c.JSON(statusCode, response.NewSuccessResponse(healthResp))
 }

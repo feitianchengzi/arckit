@@ -43,6 +43,17 @@ func getEnvDuration(key string, def time.Duration) time.Duration {
 
 // InitDB 初始化数据库连接
 func InitDB() error {
+	return initDB(false)
+}
+
+// InitDBForMigration connects, runs the complete idempotent schema migration,
+// and validates the runtime-required event schema even when automatic
+// migration is disabled for normal service startup.
+func InitDBForMigration() error {
+	return initDB(true)
+}
+
+func initDB(forceMigration bool) error {
 	// 从环境变量读取数据库配置
 	host := os.Getenv("DB_HOST")
 	if host == "" {
@@ -113,29 +124,60 @@ func InitDB() error {
 
 	autoMigrateRaw := strings.ToLower(strings.TrimSpace(os.Getenv("DB_AUTO_MIGRATE")))
 	autoMigrate := autoMigrateRaw == "" || autoMigrateRaw == "true" || autoMigrateRaw == "1" || autoMigrateRaw == "yes"
-	if autoMigrate {
-		// 自动迁移（创建表结构）
-		err = DB.AutoMigrate(
-			&models.User{},
-			&models.Organization{},
-			&models.OrganizationMember{},
-			&models.OrganizationInvitation{},
-			&models.Project{},
-			&models.ProjectMember{},
-			&models.ProjectInvitation{},
-			&models.Task{},
-			&models.Tag{},
-			&models.TaskAttachment{},
-			&models.Feedback{},
-			&models.ProjectFeedbackAccessKey{},
-			&models.ProjectEvent{},
-		)
-		if err != nil {
+	if autoMigrate || forceMigration {
+		if err = Migrate(DB); err != nil {
 			return fmt.Errorf("failed to auto migrate: %w", err)
 		}
 		log.Println("Database connected and migrated successfully with correct cascade delete constraints")
 	} else {
 		log.Println("Database connected successfully (auto migrate disabled)")
+	}
+	if err := ValidateRuntimeSchema(DB); err != nil {
+		return fmt.Errorf("database runtime schema is not ready: %w", err)
+	}
+	return nil
+}
+
+// Migrate applies the complete idempotent schema contract. It is exported so
+// deployment automation can run migrations before replacing a serving binary.
+func Migrate(db *gorm.DB) error {
+	if db == nil {
+		return gorm.ErrInvalidDB
+	}
+	return db.AutoMigrate(
+		&models.User{},
+		&models.Organization{},
+		&models.OrganizationMember{},
+		&models.OrganizationInvitation{},
+		&models.Project{},
+		&models.ProjectMember{},
+		&models.ProjectInvitation{},
+		&models.Task{},
+		&models.Tag{},
+		&models.TaskAttachment{},
+		&models.Feedback{},
+		&models.ProjectFeedbackAccessKey{},
+		&models.ProjectEvent{},
+	)
+}
+
+// ValidateRuntimeSchema fails closed when the durable event contract required
+// by every project mutation is unavailable.
+func ValidateRuntimeSchema(db *gorm.DB) error {
+	if db == nil {
+		return gorm.ErrInvalidDB
+	}
+	migrator := db.Migrator()
+	if !migrator.HasTable(&models.ProjectEvent{}) {
+		return fmt.Errorf("required table project_events is missing; run the migrate command before starting the service")
+	}
+	for _, column := range []string{"id", "schema_version", "project_id", "event", "data", "created_at"} {
+		if !migrator.HasColumn(&models.ProjectEvent{}, column) {
+			return fmt.Errorf("required project_events column %s is missing; run the migrate command before starting the service", column)
+		}
+	}
+	if !migrator.HasIndex(&models.ProjectEvent{}, "idx_project_events_project_cursor") {
+		return fmt.Errorf("required project event cursor index is missing; run the migrate command before starting the service")
 	}
 	return nil
 }

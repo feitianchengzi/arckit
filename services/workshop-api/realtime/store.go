@@ -109,10 +109,11 @@ func (s *Store) Bounds(projectID uint) (earliest, latest uint64, err error) {
 	return result.Earliest, result.Latest, err
 }
 
-func (s *Store) globalEarliestID() (uint64, error) {
-	var earliest uint64
-	err := s.db.Model(&models.ProjectEvent{}).Select("COALESCE(MIN(id), 0)").Scan(&earliest).Error
-	return earliest, err
+func (s *Store) globalBounds() (earliest, latest uint64, err error) {
+	var result struct{ Earliest, Latest uint64 }
+	err = s.db.Model(&models.ProjectEvent{}).
+		Select("COALESCE(MIN(id), 0) AS earliest, COALESCE(MAX(id), 0) AS latest").Scan(&result).Error
+	return result.Earliest, result.Latest, err
 }
 
 func (s *Store) Replay(projectID uint, afterID uint64, limit int) ([]Event, uint64, uint64, error) {
@@ -126,14 +127,14 @@ func (s *Store) Replay(projectID uint, afterID uint64, limit int) ([]Event, uint
 	if err != nil {
 		return nil, 0, 0, err
 	}
-	globalEarliest, err := s.globalEarliestID()
+	globalEarliest, globalLatest, err := s.globalBounds()
 	if err != nil {
 		return nil, earliest, latest, err
 	}
 	// Event IDs are global. A lower project-specific earliest ID can merely mean
 	// that intervening events belonged to other projects, so expiry is judged
 	// against the retained global log watermark.
-	if afterID > 0 && (globalEarliest == 0 || (globalEarliest > 1 && afterID < globalEarliest-1)) {
+	if afterID > 0 && (globalLatest == 0 || afterID > globalLatest || (globalEarliest > 1 && afterID < globalEarliest-1)) {
 		return nil, earliest, latest, ErrCursorExpired
 	}
 	var rows []models.ProjectEvent
