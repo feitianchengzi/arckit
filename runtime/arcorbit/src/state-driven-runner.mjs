@@ -672,8 +672,7 @@ function compactPersistedEvents(events = []) {
 
 function requiresLedgerWrite(runtimeResult) {
   return runtimeResult?.ledger_stage?.status === "gate_ready"
-    && runtimeResult?.ledger_stage?.writeback_required === true
-    && ["done", "continue"].includes(runtimeResult?.round_result);
+    && runtimeResult?.ledger_stage?.writeback_required === true;
 }
 
 function authoritativeHandoff(runtimeResult, ledgerWriteResult) {

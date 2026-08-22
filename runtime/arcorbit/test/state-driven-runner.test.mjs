@@ -90,6 +90,59 @@ test("state-driven session fresh-reads after writeback and stays in one adapter 
   assert.ok(candidatesIndex >= 0 && candidatesIndex < selectionIndex && selectionIndex < closeoutIndex && closeoutIndex < freshReadIndex && freshReadIndex < nextRoundIndex);
 });
 
+for (const scenario of [
+  {
+    name: "external wait",
+    roundResult: "external_wait",
+    handoff: externalHandoff(),
+    stopReason: "external_wait",
+    pausedForHuman: false,
+    nextAction: "Wait for the required external result."
+  },
+  {
+    name: "human intervention",
+    roundResult: "needs_human",
+    handoff: humanHandoff(),
+    stopReason: "human_intervention",
+    pausedForHuman: true,
+    nextAction: "Choose one option."
+  }
+]) {
+  test(`state-driven session writes a completed transition before ${scenario.name}`, async () => {
+    let ledgerCalls = 0;
+    const adapter = closeoutAdapter();
+    const result = await runStateDrivenSession({
+      projectRoot: "/workspace/project",
+      stateStore: { async readSnapshot() { return snapshot(1); } },
+      options: { agentAdapter: adapter, task: "finish" },
+      dependencies: {
+        async runRound() {
+          const loop = loopResult(scenario.handoff);
+          loop.runtimeResult.round_result = scenario.roundResult;
+          loop.agentLoopResult = agentSelectionResult(1);
+          return loop;
+        },
+        async writeRoundLedger() {
+          ledgerCalls += 1;
+          return {
+            written: true,
+            changed_files: ["case.md"],
+            case_transition_result: { case_resolution: { loop_handoff: scenario.handoff } }
+          };
+        }
+      }
+    });
+
+    assert.equal(ledgerCalls, 1);
+    assert.equal(result.ledger_write_result.written, true);
+    assert.equal(result.session_rounds[0].ledger_written, true);
+    assert.equal(result.stop_reason, scenario.stopReason);
+    assert.equal(result.paused_for_human, scenario.pausedForHuman);
+    assert.equal(result.next_action, scenario.nextAction);
+    assert.deepEqual(adapter.prompts, []);
+  });
+}
+
 test("state-driven continuation pauses only for an explicit human handoff", () => {
   const decision = decideSessionContinuation({
     runtimeResult: { round_result: "continue" },
@@ -469,5 +522,27 @@ function terminalHandoff() {
     agent_continuation_available: false,
     trigger_mode: "none",
     next_prompt: ""
+  };
+}
+
+function externalHandoff() {
+  return {
+    status: "external_wait",
+    next_responsibility: "external",
+    human_decision_required: false,
+    agent_continuation_available: false,
+    trigger_mode: "external_wait",
+    next_prompt: ""
+  };
+}
+
+function humanHandoff() {
+  return {
+    status: "needs_human",
+    next_responsibility: "human",
+    human_decision_required: true,
+    agent_continuation_available: false,
+    trigger_mode: "user_decision",
+    next_prompt: "Choose one option."
   };
 }
