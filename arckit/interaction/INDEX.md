@@ -37,13 +37,13 @@
 - product-feedback-center/ ArcOrbit 产品反馈中心：在受限 SDK 窗口内提交产品反馈、查看我的反馈并从未配置或加载失败中恢复。✅
   - default.html 产品反馈中心线框：SDK 加载、可用内容、账户/配置恢复和 SDK 失败恢复。✅ (54行)
   - interaction.md 产品反馈中心交互：单一入口、同窗模式切换、草稿保持、Project 107、未读角标和脱敏恢复。✅ (88行)
-- automation-workspace/ 自动化指挥中心：全局产品范围、普通待办与验收问题双队列、验收问题筛选、Runtime/CLI 接力与恢复。✅
-  - default.html 指挥中心线框：顶部产品范围、仅看验收问题、项目绑定、双队列、Runtime/CLI 接管与恢复。✅ (299行)
+- automation-workspace/ 自动化指挥中心：可靠实时同步、普通待办与验收问题双队列、人工 Gate、Runtime/CLI 接力与恢复。✅
+  - default.html 指挥中心线框：顶部产品范围、现代补取、旧服务兼容、立即同步、双队列、人工等待、Runtime/CLI 接管与恢复。✅ (314行)
   - authentication.html 账号设置线框：已登录摘要、七天无活动失效恢复与退出。✅ (51行)
   - intervention-workbench.html 介入工作台线框：固定三栏与 Composer、可折叠思考、结构化结果、Agent 正式消息及单行工具活动。✅ (99行)
   - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、用户说明续跑、安全停止、外部状态变化与任务源异常。✅ (137行)
-  - interaction.md 自动化指挥中心交互：全局产品范围、仅看验收问题、账户头像、双队列与 Runtime/CLI 接力。✅ (383行)
-- task-browser/ Work 同屏任务浏览：在 Work 面板以七状态列表和右侧 Inspector 执行任务检查、验收与受控人工处置。✅
+  - interaction.md 自动化指挥中心交互：现代游标恢复、旧服务无 ID 通知、立即同步、全局产品范围、双队列、人工 Gate 与 Runtime/CLI 接力。✅ (399行)
+- task-browser/ Work 同屏任务浏览：创建和编辑产品限定待办，并以七状态列表和右侧 Inspector 执行检查、验收与受控人工处置。✅
   - default.html Work 任务浏览线框：顶部产品范围、面板内七状态、同屏 Inspector、待评审确认、运行/验收、恢复与冲突。✅ (217行)
   - task-form.html 待办表单子视图：产品联动成员/父待办/标签、语义优先级和标签生命周期管理。✅ (45行)
   - interaction.md 任务浏览交互：产品限定创建/编辑、语义优先级、标签管理、同屏 Inspector、验收问题与受控状态操作。✅ (218行)

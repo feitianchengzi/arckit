@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, utilityProcess, WebContentsView } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, powerMonitor, shell, utilityProcess, WebContentsView } from "electron";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
@@ -15,6 +15,7 @@ import { createProductFeedbackSurface } from "../src/product-feedback-window.mjs
 import { requireFeedbackAttachmentUrl } from "../src/feedback-attachment-url.mjs";
 import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-boundary.mjs";
 import { checkDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
+import { createWorkshopRealtimeAdapter } from "../src/workshop-realtime-adapter.mjs";
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
@@ -28,8 +29,10 @@ let platformCoordinator;
 let workshopService;
 let skillProvisioningManager;
 let productFeedbackService;
+let workshopRealtimeAdapter;
 let quitAfterCleanup = false;
 let syncTimer;
+let realtimeSubscriptionTimer;
 let productFeedbackUnreadTimer;
 let automationStarted = false;
 
@@ -84,6 +87,20 @@ app.whenReady().then(async () => {
       getCodexExecutable: () => codexExecutableResolver.getResolved()
     })
   });
+  workshopRealtimeAdapter = createWorkshopRealtimeAdapter({
+    taskSource: workshopService,
+    readProjectState: (projectId) => automationCoordinator.getRealtimeProjectState(projectId),
+    writeProjectState: (projectId, update) => automationCoordinator.updateRealtimeProjectState(projectId, update),
+    onInvalidate: async (projectId, { event_types: eventTypes = [] } = {}) => {
+      const taskOnly = eventTypes.length > 0 && eventTypes.every((event) => event.startsWith("task.") || event.startsWith("task_attachment."));
+      if (taskOnly) await automationCoordinator.refreshProject(projectId, { dispatch: false });
+      else await automationCoordinator.sync({ dispatch: false });
+      await automationCoordinator.maybeStartNext();
+    }
+  });
+  workshopRealtimeAdapter.onEvent((event) => {
+    if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("arckit:automation-event", { type: "automation.realtime", ...event });
+  });
   platformCoordinator = createPlatformCoordinator({
     runManager,
     platformSource: workshopService.platform,
@@ -98,6 +115,7 @@ app.whenReady().then(async () => {
     if (!mainWindow?.isDestroyed()) {
       mainWindow.webContents.send("arckit:automation-event", event);
     }
+    scheduleRealtimeSubscriptions();
   });
   skillProvisioningManager.onEvent((readiness) => {
     if (!mainWindow?.isDestroyed()) {
@@ -164,6 +182,12 @@ app.on("before-quit", async (event) => {
       clearInterval(syncTimer);
       syncTimer = null;
     }
+    if (realtimeSubscriptionTimer) {
+      clearTimeout(realtimeSubscriptionTimer);
+      realtimeSubscriptionTimer = null;
+    }
+    workshopRealtimeAdapter?.stop();
+    powerMonitor.removeListener("resume", handleSystemResume);
     if (productFeedbackUnreadTimer) {
       clearInterval(productFeedbackUnreadTimer);
       productFeedbackUnreadTimer = null;
@@ -289,7 +313,12 @@ function registerIpc() {
     return { requires_confirmation: false, authentication };
   });
   ipcMain.handle("arckit:automation-snapshot", async (_event, filter) => automationCoordinator.getSnapshot(filter));
-  ipcMain.handle("arckit:automation-sync", async () => automationCoordinator.sync());
+  ipcMain.handle("arckit:automation-sync", async () => {
+    await automationCoordinator.sync({ dispatch: false });
+    await reconcileRealtimeSubscriptions();
+    await automationCoordinator.maybeStartNext();
+    return automationCoordinator.getSnapshot();
+  });
   ipcMain.handle("arckit:automation-enabled", async (_event, enabled) => automationCoordinator.setEnabled(enabled));
   ipcMain.handle("arckit:automation-pause", async (_event, paused) => automationCoordinator.setQueuePaused(paused));
   ipcMain.handle("arckit:automation-bind-project", async (_event, remoteProjectId, localProjectId) => (
@@ -326,10 +355,38 @@ function registerIpc() {
 function startAutomation() {
   if (automationStarted) return;
   automationStarted = true;
-  automationCoordinator.sync({ resumeRecoverable: true }).catch((error) => console.error("Initial task sync failed:", error));
+  automationCoordinator.sync({ resumeRecoverable: true, dispatch: false })
+    .then(async () => {
+      await reconcileRealtimeSubscriptions();
+      await automationCoordinator.maybeStartNext();
+    })
+    .catch((error) => console.error("Initial task sync failed:", error));
   syncTimer = setInterval(() => {
-    automationCoordinator.sync().catch((error) => console.error("Background task sync failed:", error));
-  }, 60_000);
+    automationCoordinator.sync({ dispatch: true })
+      .then(() => reconcileRealtimeSubscriptions())
+      .catch((error) => console.error("Periodic reconciliation failed:", error));
+  }, 15 * 60_000);
+  powerMonitor.on("resume", handleSystemResume);
+}
+
+function scheduleRealtimeSubscriptions() {
+  if (!automationStarted || realtimeSubscriptionTimer) return;
+  realtimeSubscriptionTimer = setTimeout(() => {
+    realtimeSubscriptionTimer = null;
+    reconcileRealtimeSubscriptions().catch((error) => console.error("Realtime subscription reconciliation failed:", error));
+  }, 0);
+}
+
+async function reconcileRealtimeSubscriptions() {
+  const projectIds = await automationCoordinator.realtimeProjectIds();
+  await workshopRealtimeAdapter.updateProjects(projectIds);
+}
+
+function handleSystemResume() {
+  workshopRealtimeAdapter?.reconnectAll();
+  automationCoordinator?.sync({ dispatch: true })
+    .then(() => reconcileRealtimeSubscriptions())
+    .catch((error) => console.error("Resume reconciliation failed:", error));
 }
 
 function startProductFeedbackUnreadSync() {

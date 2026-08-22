@@ -22,7 +22,7 @@
 
 `agentic-software-development/controller-worker-loop.md` 定义人类直接使用 Codex 与 Desktop Runtime 如何复用同一连贯 Agent Loop，并规定 invariant-guided 候选发现、单 acceptance claim Gap、trusted snapshot、round closeout、post-commit fresh-read 和 ledger 写回门禁。
 
-`agentic-software-development/runtime-automation-workspace.md` 定义 Desktop 如何以任务服务器项目和待办驱动 Runtime loop，是 `controller-worker-loop.md` 在用户任务来源、串行调度、按需人工介入与异常恢复上的产品表面约束；对应交互事实位于 `arckit/interaction/automation-workspace/` 和 `arckit/interaction/task-browser/`。
+`agentic-software-development/runtime-automation-workspace.md` 定义 Desktop 如何以任务服务器项目和待办驱动 Runtime loop，是 `controller-worker-loop.md` 在用户任务来源、可靠实时同步、串行调度、按需人工介入与异常恢复上的产品表面约束；对应交互事实位于 `arckit/interaction/automation-workspace/` 和 `arckit/interaction/task-browser/`，可靠事件与恢复技术契约位于 `arckit/tech/arcorbit/realtime-synchronization-solution.md`。
 
 `agentic-software-development/arcorbit-platform-capabilities.md` 在 `runtime-automation-workspace.md` 的自动执行核心外，定义 ArcOrbit 如何接入 Workshop 的组织、Project、成员、完整待办和用户反馈能力，并用 Desktop 本地 Product Workspace 与多产品工作集形成平台入口。它还定义与 Workset Feedback、验收问题相互独立的 ArcOrbit 产品反馈中心；对应交互事实位于 `arckit/interaction/product-feedback-center/`，技术边界位于 `arckit/tech/arcorbit/product-feedback-integration.md`。它保留 `product-architecture.md`、`controller-worker-loop.md` 和 `runtime-automation-workspace.md` 的单活动执行、持久 thread、trusted ledger、人工介入与恢复边界，不把服务端协作数据复制为第二个本地真相源。
 

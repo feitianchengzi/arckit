@@ -10,7 +10,15 @@ try {
 }
 
 await Promise.all([
-  new Promise((resolve) => process.stdout.write("", resolve)),
-  new Promise((resolve) => process.stderr.write("", resolve))
+  closeOutput(process.stdout),
+  closeOutput(process.stderr)
 ]);
 process.exit(process.exitCode || 0);
+
+function closeOutput(stream) {
+  if (!stream?.writable || stream.writableEnded || stream.destroyed) return Promise.resolve();
+  return new Promise((resolve) => {
+    stream.once("error", resolve);
+    stream.end(resolve);
+  });
+}

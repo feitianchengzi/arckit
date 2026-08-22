@@ -12,7 +12,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-        version: 10,
+		version: 11,
         projects: [],
         runs: [],
         sessions: {},
@@ -57,7 +57,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
 export function normalizeStore(store) {
   const automation = normalizeAutomationState(store.automation || {});
   const normalized = {
-    version: 10,
+	version: 11,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
@@ -249,6 +249,12 @@ export function defaultAutomationState() {
     queue_paused: false,
     project_bindings: {},
     project_participation: {},
+	realtime: {
+	  status: "idle",
+	  mode: "unknown",
+	  last_refreshed_at: "",
+	  projects: {}
+	},
     snapshot: {
       user: null,
       projects: [],
@@ -284,6 +290,7 @@ export function normalizeAutomationState(value = {}) {
     queue_paused: Boolean(value.queue_paused),
     project_bindings: stringMap(value.project_bindings),
     project_participation: booleanMap(value.project_participation),
+	realtime: normalizeRealtimeState(value.realtime),
     snapshot: {
       user: snapshot.user && typeof snapshot.user === "object" ? snapshot.user : null,
       projects: Array.isArray(snapshot.projects) ? snapshot.projects : [],
@@ -302,6 +309,37 @@ export function normalizeAutomationState(value = {}) {
       : [],
     recent_completions: Array.isArray(value.recent_completions) ? value.recent_completions : []
   };
+}
+
+function normalizeRealtimeState(value = {}) {
+	const statuses = new Set(["idle", "connecting", "recovering", "connected", "reconnecting", "degraded"]);
+	const modes = new Set(["unknown", "resumable", "legacy"]);
+	const projects = value?.projects && typeof value.projects === "object" && !Array.isArray(value.projects)
+		? value.projects
+		: {};
+	const normalizedProjects = Object.fromEntries(Object.entries(projects).map(([projectId, item]) => {
+		const current = item && typeof item === "object" && !Array.isArray(item) ? item : {};
+		return [String(projectId), {
+			state: statuses.has(current.state) ? current.state : "idle",
+			mode: modes.has(current.mode) ? current.mode : "unknown",
+			cursor: Number.isSafeInteger(Number(current.cursor)) && Number(current.cursor) > 0 ? Number(current.cursor) : 0,
+			last_event_at: String(current.last_event_at || ""),
+			last_refreshed_at: String(current.last_refreshed_at || ""),
+			updated_at: String(current.updated_at || ""),
+			error: String(current.error || "")
+		}];
+	}));
+	const states = Object.values(normalizedProjects).map((item) => item.state).filter((state) => state !== "idle");
+	const status = states.length === 0 ? "idle"
+		: states.every((state) => state === "connected") ? "connected"
+			: states.some((state) => state === "degraded") ? "degraded"
+				: states.some((state) => state === "reconnecting") ? "reconnecting"
+					: states.some((state) => state === "recovering") ? "recovering" : "connecting";
+	const activeProjects = Object.values(normalizedProjects).filter((item) => item.state !== "idle");
+	const activeModes = [...new Set(activeProjects.map((item) => item.mode).filter((mode) => mode !== "unknown"))];
+	const mode = activeModes.length === 0 ? "unknown" : activeModes.length === 1 ? activeModes[0] : "mixed";
+	const lastRefreshedAt = activeProjects.map((item) => item.last_refreshed_at).filter(Boolean).sort().at(-1) || "";
+	return { status, mode, last_refreshed_at: lastRefreshedAt, projects: normalizedProjects };
 }
 
 function normalizeActiveTask(value) {

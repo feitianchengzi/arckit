@@ -1,4 +1,5 @@
 import { dirname, resolve } from "node:path";
+import { writeFileSync } from "node:fs";
 import { mkdir, rename, writeFile } from "node:fs/promises";
 import { createStateStore } from "./state-store.mjs";
 import { probeCodexAppServer } from "../adapters/codex-app-server-adapter.mjs";
@@ -22,7 +23,7 @@ export async function main(argv) {
     const options = parseRunOptions(argv.slice(1));
     const result = await run(options);
     if (options.json) {
-      console.log(JSON.stringify(result, null, 2));
+      writeFileSync(1, `${JSON.stringify(result, null, 2)}\n`);
     } else {
       printRunSummary(result);
     }

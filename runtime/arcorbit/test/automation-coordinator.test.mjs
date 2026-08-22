@@ -590,7 +590,7 @@ test("a Case produced by the task run ledger still resumes resolved closeout", a
   coordinator.dispose();
 });
 
-test("periodic sync resumes the persisted thread when the canonical human gate has been cleared", async () => {
+test("periodic sync preserves a Run human gate even when canonical Case handoff is older", async () => {
   const starts = [];
   const caseId = "CASE-20260812-006";
   const store = recoveryStore({
@@ -635,11 +635,87 @@ test("periodic sync resumes the persisted thread when the canonical human gate h
 
   await coordinator.sync({ dispatch: false });
 
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.active_task.phase, "awaiting_human");
+  assert.equal(store.automation.attention_items.length, 1);
+
+  await coordinator.submitIntervention({ taskId: "t", message: "授权继续处理。" });
+
   assert.equal(starts.length, 1);
-  assert.equal(starts[0].threadId, "THREAD-PERSISTED");
-  assert.equal(starts[0].runtimeContext, null);
+  assert.equal(starts[0].runtimeContext.kind, "human_intervention");
   assert.equal(store.automation.active_task.phase, "running");
   assert.equal(store.automation.attention_items.length, 0);
+  coordinator.dispose();
+});
+
+test("realtime project refresh preserves an unconfirmed human gate and does not dispatch", async () => {
+  const starts = [];
+  const caseId = "CASE-20260812-006";
+  const store = recoveryStore({
+    phase: "awaiting_human",
+    case_id: caseId,
+    case_status: "active",
+    case_binding_source: "runtime_ledger",
+    case_binding_run_id: "RUN-OLD",
+    case_bound_at: "2026-08-12T00:00:00Z"
+  });
+  store.automation.snapshot.source_status = "healthy";
+  store.automation.snapshot.user = { id: "u" };
+  store.automation.snapshot.projects = [{ id: "p", current_user_id: "u" }];
+  store.automation.attention_items.push({
+    id: "ATTENTION-t", task_id: "t", project_id: "p", run_id: "RUN-OLD",
+    reason: "Human confirmation required.", question: "Continue?", created_at: "2026-08-12T00:00:00Z"
+  });
+  const runManager = fakeRunManager(store, starts, {
+    async getProjectCaseState() {
+      return {
+        location: "active",
+        record: {
+          id: caseId,
+          status: "active",
+          case_resolution: {
+            status: "unresolved",
+            loop_handoff: { status: "continue", next_responsibility: "agent", human_decision_required: false }
+          }
+        }
+      };
+    }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: () => ({
+      async listTasks() { return structuredClone(store.automation.snapshot.tasks); }
+    })
+  });
+
+  await coordinator.refreshProject("p", { dispatch: false });
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.active_task.phase, "awaiting_human");
+  assert.equal(store.automation.attention_items.length, 1);
+  coordinator.dispose();
+});
+
+test("an in-flight realtime refresh cannot restore data after logout", async () => {
+  const store = recoveryStore();
+  store.automation.snapshot.source_status = "healthy";
+  store.automation.snapshot.user = { id: "u" };
+  store.automation.snapshot.projects = [{ id: "p", current_user_id: "u" }];
+  let releaseRefresh;
+  const pendingTasks = new Promise((resolve) => { releaseRefresh = resolve; });
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, []),
+    taskSourceFactory: () => ({ async listTasks() { return pendingTasks; } })
+  });
+
+  const refresh = coordinator.refreshProject("p", { dispatch: false });
+  await new Promise((resolve) => setImmediate(resolve));
+  await coordinator.clearRemoteSession();
+  releaseRefresh([{ id: "late", project_id: "p", state: "pending" }]);
+  await refresh;
+
+  assert.equal(store.automation.snapshot.source_status, "logged_out");
+  assert.deepEqual(store.automation.snapshot.tasks, []);
   coordinator.dispose();
 });
 
@@ -755,6 +831,60 @@ test("initial Desktop sync resumes one recoverable in-progress task on its persi
   assert.equal(starts[0].runtimeContext, null);
   assert.equal(store.automation.active_task.phase, "running");
   assert.equal(store.automation.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
+test("initial Desktop sync restores a persisted Agent human handoff instead of retrying it", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "recovery" });
+  store.automation.recovery_items.push({
+    id: "RECOVERY-runtime-incomplete-t",
+    type: "runtime_incomplete",
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    actions: ["retry_start", "mark_blocked"]
+  });
+  const agentResult = {
+    schema_version: "arckit-agent-loop-result/v1",
+    action: "handoff",
+    summary: "等待跨工作区授权。",
+    handoff: {
+      next_responsibility: "human",
+      reason: "修改相邻 Provider 仓库需要明确授权。",
+      next_prompt: "请确认是否授权修改 Provider 仓库。",
+      human_decision_required: true
+    }
+  };
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{
+        id: "RUN-OLD",
+        project_id: "local",
+        status: "completed",
+        activity: {
+          messages: [{
+            kind: "structured",
+            structured_data: { schema_version: agentResult.schema_version, value: agentResult }
+          }]
+        }
+      }];
+    },
+    async getProjectCaseState() { return null; }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: healthyTaskSourceFactory(store)
+  });
+
+  await coordinator.sync({ dispatch: false, resumeRecoverable: true });
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.active_task.phase, "awaiting_human");
+  assert.equal(store.automation.recovery_items.length, 0);
+  assert.equal(store.automation.attention_items.length, 1);
+  assert.equal(store.automation.attention_items[0].reason, "修改相邻 Provider 仓库需要明确授权。");
+  assert.equal(store.automation.attention_items[0].question, "请确认是否授权修改 Provider 仓库。");
   coordinator.dispose();
 });
 

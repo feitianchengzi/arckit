@@ -105,3 +105,6 @@
 | [CASE-20260820-004](closed/CASE-20260820-004-engineering-domain-profile.md) | closed | 让 Engineering 成为可管理和替换的 Domain Profile | 2026-08-20T09:09:31.283Z |
 | [CASE-20260820-005](closed/CASE-20260820-005-windows-arcorbit-ledger.md) | closed | 修复 Windows ArcOrbit 项目绑定时 ledger 模块解析失败 | 2026-08-20T15:26:39.083Z |
 | [CASE-20260821-001](closed/CASE-20260821-001-arcorbit-arckit-skills.md) | closed | ArcOrbit 内置 Arckit skills 改为项目级安装 | 2026-08-21T17:20:24.499Z |
+| [CASE-20260821-002](closed/CASE-20260821-002-arcorbit-workshop.md) | closed | ArcOrbit 与 Workshop 可靠实时同步 | 2026-08-21T18:15:41.174Z |
+| [CASE-20260821-003](closed/CASE-20260821-003-arcorbit.md) | closed | ArcOrbit 待办创建与编辑能力对齐 | 2026-08-21T18:12:29.064Z |
+| [CASE-20260822-001](closed/CASE-20260822-001-workshop-arcorbit.md) | closed | 兼容旧 Workshop 服务的 ArcOrbit 实时同步 | 2026-08-22T08:41:26.667Z |

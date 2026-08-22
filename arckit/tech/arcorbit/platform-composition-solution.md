@@ -40,7 +40,7 @@ Renderer platform shell
   -> restricted preload API
     -> Platform Coordinator
       -> Workshop Platform Adapter
-      -> Desktop Store v10
+      -> Desktop Store v11
       -> existing Automation Coordinator snapshot/commands
       -> existing Desktop Run Manager
 
@@ -268,7 +268,7 @@ Automation 的任务领取继续使用现有 expected version 语义。当前 Wo
 
 ## 迁移
 
-Store v9 到 v10 的归一化是幂等的：
+Store v9 到 v10 的平台组合归一化保持幂等；v11 在 automation snapshot 增加兼容的项目级 realtime 状态与 confirmed cursor：
 
 1. 保留 `projects`、`runs`、`sessions`、`messages`、`settings` 和 `automation` 原值。
 2. 创建一个默认 workset。
@@ -277,7 +277,7 @@ Store v9 到 v10 的归一化是幂等的：
 5. 初始化 `feedback_v2.status=unavailable`。
 6. 写回时统一输出 version 10。
 
-迁移不改变 participation，不启动同步，不调用远端服务，也不删除未知项目 binding。归一化测试覆盖 v9、空 store、重复 project id、缺失 platform 和已存在 v10 的重复读取。
+迁移不改变 participation，不启动同步，不调用远端服务，也不删除未知项目 binding。归一化测试覆盖 v9、空 store、重复 project id、缺失 platform、v10 到 v11 和已存在 v11 的重复读取。
 
 ## 平台 Shell 投影
 
@@ -319,7 +319,7 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 
 实现验证至少覆盖：
 
-- Store v9 到 v10 迁移及重复归一化。
+- Store v9 到 v11 迁移及重复归一化。
 - workset 多选、空集合、单产品、多产品、删除和 active fallback。
 - workset 改变不改变 Automation participation 或候选范围。
 - Platform Adapter 的组织、项目、成员、完整待办和 V1 feedback 归一化。

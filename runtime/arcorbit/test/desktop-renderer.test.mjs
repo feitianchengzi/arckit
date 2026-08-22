@@ -486,10 +486,11 @@ test("Round Closeout v2 presents trusted invariant judgments", () => {
 });
 
 test("desktop main and preload expose bounded automation IPC without a generic network bridge", async () => {
-  const [main, preload, source] = await Promise.all([
+  const [main, preload, source, html] = await Promise.all([
     readFile(desktopMainPath, "utf8"),
     readFile(desktopPreloadPath, "utf8"),
-    readFile(rendererPath, "utf8")
+    readFile(rendererPath, "utf8"),
+    readFile(rendererHtmlPath, "utf8")
   ]);
 
   for (const channel of [
@@ -538,6 +539,10 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(source, /补充说明并继续/);
   assert.match(source, /data-recovery-feedback/);
   assert.match(source, /openWorkbench\("review"\)/);
+  assert.match(html, /id="automationRefreshButton"[^>]*>立即同步<\/button>/);
+  assert.match(source, /automationRefreshButton\.addEventListener\("click", \(\) => runAction\(syncAutomationNow\)\)/);
+  assert.match(main, /syncTimer = setInterval[\s\S]+15 \* 60_000/);
+  assert.doesNotMatch(main, /fallbackSyncTimer/);
   assert.doesNotMatch(preload, /fetch|httpRequest|requestUrl/);
   assert.doesNotMatch(preload, /startRun:|controlRun:|gateRun:|writeLedger:/);
   assert.doesNotMatch(preload, /addMessage:|createSession:|deleteSession:|addProject:/);

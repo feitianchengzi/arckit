@@ -102,7 +102,8 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     }
   });
 
-  assert.equal(store.version, 10);
+  assert.equal(store.version, 11);
+  assert.deepEqual(store.automation.realtime, { status: "idle", mode: "unknown", last_refreshed_at: "", projects: {} });
   assert.equal(store.automation.snapshot.source_status, "degraded");
   assert.deepEqual(store.automation.project_bindings, {});
   assert.equal(store.automation.recovery_items[0].responsibility, "operator");
@@ -126,6 +127,32 @@ test("desktop store upgrades automation state and keeps task source tokens out o
   });
 });
 
+test("desktop store preserves realtime diagnostics and ignores idle subscriptions in aggregate health", () => {
+  const store = normalizeStore({
+    automation: {
+      realtime: {
+        projects: {
+          old: { state: "idle", cursor: 7 },
+          current: {
+            state: "connected",
+            mode: "legacy",
+            cursor: 42,
+            last_event_at: "2026-08-22T00:00:00.000Z",
+            last_refreshed_at: "2026-08-22T00:00:01.000Z"
+          }
+        }
+      }
+    }
+  });
+
+  assert.equal(store.automation.realtime.status, "connected");
+  assert.equal(store.automation.realtime.mode, "legacy");
+  assert.equal(store.automation.realtime.last_refreshed_at, "2026-08-22T00:00:01.000Z");
+  assert.equal(store.automation.realtime.projects.current.cursor, 42);
+  assert.equal(store.automation.realtime.projects.current.last_event_at, "2026-08-22T00:00:00.000Z");
+  assert.equal(store.automation.realtime.projects.current.last_refreshed_at, "2026-08-22T00:00:01.000Z");
+});
+
 test("desktop store migrates v9 bindings into a local workset without changing automation participation", () => {
   const store = normalizeStore({
     version: 9,
@@ -135,7 +162,7 @@ test("desktop store migrates v9 bindings into a local workset without changing a
     }
   });
 
-  assert.equal(store.version, 10);
+  assert.equal(store.version, 11);
   assert.equal(store.platform.active_workset_id, "WORKSET-DEFAULT");
   assert.deepEqual(store.platform.worksets[0].project_ids, ["3", "12"]);
   assert.deepEqual(store.automation.project_participation, { "12": true, "3": false });

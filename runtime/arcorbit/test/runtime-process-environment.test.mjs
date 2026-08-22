@@ -54,3 +54,12 @@ test("Runtime and trusted ledger production paths do not bootstrap Electron as N
     }
   }
 });
+
+test("Runtime entrypoint closes output pipes before its required utility-process exit", async () => {
+  const source = await readFile(new URL("../bin/arcorbit.mjs", import.meta.url), "utf8");
+
+  assert.match(source, /closeOutput\(process\.stdout\)/);
+  assert.match(source, /closeOutput\(process\.stderr\)/);
+  assert.match(source, /stream\.end\(resolve\)/);
+  assert.doesNotMatch(source, /process\.stdout\.write\(""/);
+});

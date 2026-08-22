@@ -30,7 +30,7 @@ Organization Center 复用 Workshop Organization、OrganizationMember 和 Projec
 
 `login/interaction.md` 定义应用启动时的认证门禁；`login/default.html` 投影会话恢复、未登录入口、验证码已发送和登录失败。未登录时 Login 是唯一可交互主页面，认证成功后才进入 Automation Command Center，退出登录后返回 Login。
 
-`automation-workspace/interaction.md` 定义登录后的普通待办与验收问题双队列、统一执行仲裁和待办会话交接；`automation-workspace/default.html` 分别投影两条队列、计数与进展，`automation-workspace/authentication.html` 投影设置覆盖层中的账号摘要和失效恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理、历史审查与同待办问题会话。
+`automation-workspace/interaction.md` 定义登录后的持久事件唤醒、游标补取、降级对账、人工 Gate、普通待办与验收问题双队列、统一执行仲裁和待办会话交接；`automation-workspace/default.html` 投影实时/补取/降级状态、两条队列、计数与进展，`automation-workspace/authentication.html` 投影设置覆盖层中的账号摘要和失效恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理、历史审查与同待办问题会话。
 
 `task-browser/interaction.md` 定义 Work 面板内产品限定的待办创建/编辑、七种服务器任务状态的同屏列表、右侧 Inspector 与人工处置。`task-browser/task-form.html` 投影产品联动成员/父待办/标签、语义优先级和标签生命周期管理；`task-browser/default.html` 投影列表、Inspector 与状态处置。completed Inspector 展示验收问题、进展和 Composer；accepted Inspector 只显示验收通过，不允许提出新问题。提出验收问题会创建独立问题项并复用来源待办会话，来源任务保持 completed；存在未解决问题时不能标记为 accepted。Work 的状态筛选在同页替换列表与 Inspector；Automation 的“查看全部待处理”携带当前产品范围进入 Work，验收问题入口携带问题与来源待办身份进入详情。Feedback 页面只消费 Workshop 用户反馈。
 
@@ -51,6 +51,7 @@ Organization Center 复用 Workshop Organization、OrganizationMember 和 Projec
 - `arckit/spec/agentic-software-development/product-architecture.md`
 - `arckit/spec/agentic-software-development/controller-worker-loop.md`
 - `arckit/tech/arcorbit/solution.md`
+- `arckit/tech/arcorbit/realtime-synchronization-solution.md`
 - `arckit/tech/arcorbit/installer-supply-chain.md`
 - `arckit/tech/arcorbit/desktop-execution-solution.md`
 - `runtime/arcorbit/desktop/renderer/index.html`

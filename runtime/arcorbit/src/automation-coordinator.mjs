@@ -27,6 +27,7 @@ export function createAutomationCoordinator({
 }) {
   const emitter = new EventEmitter();
   let syncPromise = null;
+	const projectRefreshPromises = new Map();
   let dispatchPromise = null;
   let remoteSessionEpoch = 0;
   let runEventQueue = Promise.resolve();
@@ -103,6 +104,7 @@ export function createAutomationCoordinator({
       queue_paused: automation.queue_paused,
       source_status: automation.snapshot.source_status,
       source_errors: automation.snapshot.errors,
+	  realtime: automation.realtime,
       synced_at: automation.snapshot.synced_at,
       user: automation.snapshot.user,
       local_projects: localProjects,
@@ -270,6 +272,100 @@ export function createAutomationCoordinator({
     }
   }
 
+	async function refreshProject(projectId, { dispatch = true } = {}) {
+		const remoteId = requiredId(projectId, "Remote project");
+		if (syncPromise) return syncPromise;
+		if (projectRefreshPromises.has(remoteId)) return projectRefreshPromises.get(remoteId);
+		const promise = (async () => {
+			const refreshEpoch = remoteSessionEpoch;
+			const store = await runManager.readDesktopStore();
+			const project = store.automation.snapshot.projects.find((item) => String(item.id) === remoteId);
+			const user = store.automation.snapshot.user;
+			if (!project || !user) return sync({ dispatch });
+			const source = taskSourceFactory({ settings: store.settings.task_source });
+			const executorId = currentExecutorId(project, user);
+			if (!executorId) return sync({ dispatch });
+			try {
+				const tasks = await source.listTasks(remoteId, { executorId });
+				if (refreshEpoch !== remoteSessionEpoch) return getSnapshot({ project_id: remoteId });
+				const latestStore = await runManager.readDesktopStore();
+				const latestProject = latestStore.automation.snapshot.projects.find((item) => String(item.id) === remoteId);
+				if (!latestProject || currentExecutorId(latestProject, latestStore.automation.snapshot.user) !== executorId) {
+					return sync({ dispatch });
+				}
+				await patchAutomation((automation) => {
+					automation.snapshot.tasks = [
+						...automation.snapshot.tasks.filter((task) => String(task.project_id) !== remoteId),
+						...tasks
+					];
+					automation.snapshot.errors = automation.snapshot.errors.filter((error) => String(error.project_id || "") !== remoteId);
+					automation.snapshot.source_status = automation.snapshot.errors.length ? "degraded" : "healthy";
+					automation.snapshot.synced_at = now();
+					reconcileActiveTask(automation);
+					reconcileUnassociatedInProgress(automation, now());
+				});
+				await reconcileDetachedRunCompletion({ allowRemoteCompletion: true });
+				await reconcileCanonicalCaseState({ allowRemoteCompletion: true });
+				await stopRuntimeForExternalChange();
+				await reconcileRuntimePresence();
+				emit("automation.changed", { reason: "project-refresh", projectId: remoteId });
+				if (dispatch) await maybeStartNext();
+				return getSnapshot({ project_id: remoteId });
+			} catch (error) {
+				if (refreshEpoch !== remoteSessionEpoch) return getSnapshot({ project_id: remoteId });
+				await patchAutomation((automation) => {
+					automation.snapshot.errors = [
+						...automation.snapshot.errors.filter((item) => String(item.project_id || "") !== remoteId),
+						errorRecord(error, remoteId)
+					];
+					automation.snapshot.source_status = "degraded";
+				});
+				emit("automation.changed", { reason: "project-refresh-failed", projectId: remoteId });
+				throw error;
+			}
+		})();
+		projectRefreshPromises.set(remoteId, promise);
+		try {
+			return await promise;
+		} finally {
+			projectRefreshPromises.delete(remoteId);
+		}
+	}
+
+	async function getRealtimeProjectState(projectId) {
+		const store = await runManager.readDesktopStore();
+		return store.automation.realtime.projects[String(projectId)] || {};
+	}
+
+	async function updateRealtimeProjectState(projectId, update) {
+		const remoteId = String(projectId);
+		await patchAutomation((automation) => {
+			automation.realtime.projects[remoteId] = {
+				...(automation.realtime.projects[remoteId] || {}),
+				...update
+			};
+			const activeProjects = Object.values(automation.realtime.projects).filter((item) => item.state !== "idle");
+			const states = activeProjects.map((item) => item.state);
+			automation.realtime.status = states.length === 0 ? "idle"
+				: states.every((state) => state === "connected") ? "connected"
+					: states.some((state) => state === "degraded") ? "degraded"
+						: states.some((state) => state === "reconnecting") ? "reconnecting"
+							: states.some((state) => state === "recovering") ? "recovering" : "connecting";
+			const modes = [...new Set(activeProjects.map((item) => item.mode).filter((mode) => mode && mode !== "unknown"))];
+			automation.realtime.mode = modes.length === 0 ? "unknown" : modes.length === 1 ? modes[0] : "mixed";
+			automation.realtime.last_refreshed_at = activeProjects.map((item) => item.last_refreshed_at).filter(Boolean).sort().at(-1) || "";
+		});
+		emit("automation.realtime", { projectId: remoteId, ...update });
+	}
+
+	async function realtimeProjectIds() {
+		const store = await runManager.readDesktopStore();
+		const activeProjectId = String(store.automation.active_task?.project_id || "");
+		return store.automation.snapshot.projects
+			.map((project) => String(project.id))
+			.filter((projectId) => store.automation.project_participation[projectId] === true || projectId === activeProjectId);
+	}
+
   async function setEnabled(enabled) {
     await patchAutomation((automation) => {
       automation.enabled = Boolean(enabled);
@@ -306,6 +402,7 @@ export function createAutomationCoordinator({
         source_status: "logged_out",
         errors: []
       };
+	  automation.realtime = { status: "idle", mode: "unknown", last_refreshed_at: "", projects: {} };
       if (automation.active_task?.execution_kind === "acceptance_feedback") {
         const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
         if (item) {
@@ -1722,8 +1819,10 @@ export function createAutomationCoordinator({
       return "human";
     }
 
-    const canonicalHumanGateCleared = active.phase === "awaiting_human";
-    if ((allowAgentResume || canonicalHumanGateCleared) && caseState.location === "active") {
+    // A human handoff can be newer than canonical Case state because handoff-only
+    // turns do not write the ledger. Only an explicit operator-owned resume path
+    // may clear awaiting_human; periodic reconciliation must remain fail-closed.
+    if (allowAgentResume && caseState.location === "active") {
       await patchAutomation((automation) => {
         if (automation.active_task?.task_id !== active.task_id) return;
         automation.active_task.case_id = caseId;
@@ -2069,6 +2168,10 @@ export function createAutomationCoordinator({
     },
     getSnapshot,
     sync,
+	refreshProject,
+	getRealtimeProjectState,
+	updateRealtimeProjectState,
+	realtimeProjectIds,
     setEnabled,
     setQueuePaused,
     clearRemoteSession,

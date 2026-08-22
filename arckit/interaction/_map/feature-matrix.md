@@ -11,5 +11,5 @@
 | `operations-workspace/` | ✅ | 组织对外市场动作、渠道内容和效果信号，并把发现回流到产品生命周期 | 待发布、进行中、已复盘、示意信号、Idea/Work/Feedback 回流 |
 | `engineering-profile/` | ✅ | 选择、编辑、比较和应用由 State Model、Capability Mapping 与 Lifecycle Mapping 组成的 Domain Profile | Profile Library、草稿编辑、跨行业比较、兼容性检查、Apply 确认、稳定 Loop Kernel |
 | `product-feedback-center/` | ✅ | 在 ArcOrbit 内向固定 Project 107 提交反馈、查看当前账户反馈并感知未读变化 | 未读角标、SDK 加载、提交反馈、我的反馈、需要登录、SDK 失败恢复 |
-| `automation-workspace/` | ✅ | 登录后分别观察普通待办与验收问题队列，由统一执行仲裁器串行启动 ready 队首；当前 Case 可在 Runtime 与交互式 Codex CLI 之间显式交接，并保留待办级消息、用量与异常观察 | 已登录账号摘要、会话失效；双队列总览、问题等待/运行/待人工/阻塞；项目范围切换、自动执行、CLI 接管、人工介入、完成续接、写回失败；领取冲突、启动失败、安全停止、用量诊断 |
-| `task-browser/` | ✅ | 在 Work 内以七状态列表和同屏右侧 Inspector 浏览任务；列表与 Inspector 在固定页面框架内独立纵向滚动；completed 可提出验收问题，accepted 只显示验收通过，并执行有权限的人工状态处置 | 待处理列表与 Inspector、待评审确认、进行中任务、已完成问题详情与 Composer、已验收只读结果、已阻塞恢复、取消确认、当前范围为空、同步或版本冲突 |
+| `automation-workspace/` | ✅ | 登录后通过持久事件和 REST 确认实时同步项目任务，分别观察普通待办与验收问题队列，由统一执行仲裁器串行启动 ready 队首；人工 Gate 在重连和对账中保持等待 | 实时/补取/降级/游标过期、双队列总览、问题等待/运行/待人工/阻塞、项目范围切换、自动执行、CLI 接管、人工介入、完成续接、写回失败、领取冲突与用量诊断 |
+| `task-browser/` | ✅ | 在 Work 内创建和编辑产品限定待办，并以七状态列表和同屏右侧 Inspector 浏览任务；成员、父待办和标签随产品联动，优先级使用语义档位，标签支持选择和生命周期管理 | 创建/编辑 Sheet、产品成员/父待办/标签联动、语义优先级、标签创建编辑删除、待处理列表与 Inspector、待评审确认、运行/验收、阻塞恢复、取消确认、空态与冲突 |

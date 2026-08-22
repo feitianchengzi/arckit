@@ -221,6 +221,44 @@ test("Workshop task source sends conditional state updates and reports version c
   assert.equal(calls[0].options.body, JSON.stringify({ state: "in_progress" }));
 });
 
+test("Workshop realtime connection and replay stay behind the authenticated task-source boundary", async () => {
+  const calls = [];
+  const source = createWorkshopTaskSource({
+    settings: {
+      enabled: true,
+      base_url: "https://workshop.example",
+      service_name: "workshop",
+      auth_mode: "bearer",
+      access_token: "secret"
+    },
+    fetchImpl: async (url, options) => {
+      calls.push({ url: String(url), options });
+      return jsonResponse({ data: { events: [{ id: 8, event: "task.updated", project_id: 12 }], next_after_id: 8, has_more: false } });
+    }
+  });
+
+  const connection = await source.realtimeConnection("12");
+  assert.equal(connection.url, "wss://workshop.example/workshop/v1/user/projects/12/ws");
+  assert.deepEqual(connection.protocols, ["workshop-ws", "nebula-auth.secret"]);
+  assert.equal(connection.headers.Authorization, "Bearer secret");
+  const replay = await source.listProjectEvents("12", { afterId: 7, limit: 50 });
+  assert.equal(replay.events[0].id, 8);
+  const replayUrl = new URL(calls[0].url);
+  assert.equal(replayUrl.pathname, "/workshop/v1/user/projects/12/events");
+  assert.equal(replayUrl.searchParams.get("after_id"), "7");
+});
+
+test("Workshop replay exposes an expired cursor as a stable adapter error", async () => {
+  const source = createWorkshopTaskSource({
+    settings: { enabled: true, base_url: "https://workshop.example", access_token: "secret" },
+    fetchImpl: async () => jsonResponse({ code: "EVENT_CURSOR_EXPIRED", error: { message: "expired" } }, 410)
+  });
+  await assert.rejects(
+    source.listProjectEvents("12", { afterId: 7 }),
+    (error) => error instanceof TaskSourceError && error.code === "cursor_expired"
+  );
+});
+
 test("Workshop task source rejects a state update response reassigned to another executor", async () => {
   const source = createWorkshopTaskSource({
     settings: { enabled: true, base_url: "https://workshop.example", access_token: "token" },

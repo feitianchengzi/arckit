@@ -253,6 +253,32 @@ export function createWorkshopTaskSource({
     return result.payload?.data ?? result.payload;
   }
 
+  async function realtimeConnection(projectId) {
+    let current = await loadConfig();
+    assertTaskSourceEnabled(current);
+    if (current.auth_mode === "nebula" && sessionInactive(current, now())) {
+      await expireSession(current, "Workshop 登录已超过七天未活动，请重新登录。");
+      throw new TaskSourceError("Workshop 登录已超过七天未活动，请重新登录。", { code: "unauthenticated" });
+    }
+    if (current.auth_mode === "nebula" && tokenExpiresSoon(current, now())) {
+      current = await refreshNebulaToken();
+    }
+    assertAuthenticated(current);
+    const httpUrl = buildBusinessUrl(current, `/projects/${encodeURIComponent(projectId)}/ws`, {});
+    httpUrl.protocol = httpUrl.protocol === "https:" ? "wss:" : "ws:";
+    const bearer = ["nebula", "bearer"].includes(current.auth_mode) && current.access_token
+      ? `${current.token_type || "Bearer"} ${current.access_token}`
+      : "";
+    return {
+      url: httpUrl.toString(),
+      protocols: current.access_token ? ["workshop-ws", `nebula-auth.${current.access_token}`] : ["workshop-ws"],
+      accessTokenExpiresAt: current.access_token_expires_at,
+      headers: current.auth_mode === "headers"
+        ? buildHeaders(current, false, "")
+        : bearer ? { Authorization: bearer } : {}
+    };
+  }
+
   async function publicRequest(current, serviceName, path, { method = "POST", body } = {}) {
     const result = await fetchJson(buildServiceUrl(current, serviceName, "public", path), {
       method,
@@ -336,6 +362,12 @@ export function createWorkshopTaskSource({
     loginWithCode,
     logout,
     getAuthStatus,
+	realtimeConnection,
+	async listProjectEvents(projectId, { afterId = 0, limit = 500 } = {}) {
+		return request(`/projects/${encodeURIComponent(projectId)}/events`, {
+			query: { after_id: afterId, limit }
+		});
+	},
     async getCurrentUser() {
       const requestEpoch = authEpoch;
       const payload = await request("/users");
@@ -650,7 +682,7 @@ function isSuccessfulResponse(response, payload) {
 
 function responseError(payload, status) {
   return new TaskSourceError(extractErrorMessage(payload, status), {
-    code: statusCode(status),
+	code: payload?.code === "EVENT_CURSOR_EXPIRED" ? "cursor_expired" : statusCode(status),
     status,
     details: payload
   });

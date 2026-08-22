@@ -102,7 +102,8 @@ const state = {
   workbenchFeedbackId: "",
   interventionSubmitting: false,
   taskFilter: "",
-  refreshing: false
+  refreshing: false,
+  manualSyncing: false
 };
 
 let platformActionResolver = null;
@@ -218,10 +219,8 @@ function wireEvents() {
     });
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
-  els.syncButton.addEventListener("click", () => runAction(async () => {
-    await api.syncAutomation();
-    await refreshSnapshot();
-  }));
+  els.syncButton.addEventListener("click", () => runAction(syncAutomationNow));
+  els.automationRefreshButton.addEventListener("click", () => runAction(syncAutomationNow));
   els.productFeedbackButton.addEventListener("click", () => runAction(openProductFeedback));
   els.automationEnabled.addEventListener("change", () => runAction(async () => {
     await api.setAutomationEnabled(els.automationEnabled.checked);
@@ -1416,7 +1415,7 @@ function renderCommandCenter() {
   const scopedBlockedPending = (snapshot.blocked_pending_tasks || []).filter(scopedTaskFilter);
   const scopedFeedback = (snapshot.acceptance_feedback_queue || []).filter(scopedTaskFilter);
   els.commandHeading.textContent = state.selectedProjectId === "all" ? "产品集自动领取态势" : `${currentProject()?.name || "项目"} 自动领取态势`;
-  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
+  els.commandSummary.textContent = `${scopedProjects.length} 个项目 · ${scopedProjects.filter((project) => project.participating).length} 个允许自动领取 · ${scopedProjects.filter((project) => project.eligible).length} 个具备执行资格 · ${realtimeStatusLabel(snapshot.realtime)} · 最近同步 ${snapshot.synced_at ? formatTime(snapshot.synced_at) : "尚未完成"}`;
   els.healthBadge.className = `health-badge ${snapshot.health?.tone === "success" ? "success" : snapshot.health?.tone === "danger" ? "danger" : snapshot.health?.tone === "warning" ? "warning" : ""}`;
   els.healthBadge.textContent = snapshot.health?.label || "待命";
   els.queuePauseButton.textContent = snapshot.queue_paused ? "继续领取" : "暂停领取";
@@ -1563,6 +1562,7 @@ function renderCommandInspector(projects) {
   const snapshot = state.snapshot;
   els.projectSourceSummary.innerHTML = factRows([
     ["任务源", sourceStatusLabel(snapshot.source_status)],
+    ["实时连接", realtimeStatusLabel(snapshot.realtime)],
     ["认证用户", snapshot.user?.name || "未确认"],
     ["远端项目", String(projects.length)],
     ["最近同步", snapshot.synced_at ? formatDateTime(snapshot.synced_at) : "尚未同步"]
@@ -2315,6 +2315,21 @@ function sourceStatusLabel(value) {
   }[value] || "未知";
 }
 
+function realtimeStatusLabel(value = {}) {
+  const status = typeof value === "string" ? value : value?.status;
+  const mode = typeof value === "object" ? value?.mode : "unknown";
+  if (status === "connected" && mode === "legacy") return "实时兼容连接";
+  if (status === "connected" && mode === "mixed") return "实时混合连接";
+  return {
+    idle: "实时未订阅",
+    connecting: "实时连接中",
+    recovering: mode === "legacy" ? "兼容同步中" : "实时补取中",
+    connected: "实时已连接",
+    reconnecting: "实时重连中",
+    degraded: "实时连接异常 · 可立即同步"
+  }[status] || "实时未订阅";
+}
+
 function formatPriority(value) {
   const number = Number(value || 0);
   if (number >= 100) return "P0";
@@ -2357,8 +2372,25 @@ function formatDuration(value) {
 }
 
 function renderSyncing(active) {
-  els.syncButton.disabled = active || !state.authentication.authenticated;
-  els.syncButton.textContent = active ? "…" : "↻";
+  const busy = active || state.manualSyncing;
+  els.syncButton.disabled = busy || !state.authentication.authenticated;
+  els.syncButton.textContent = busy ? "…" : "↻";
+  els.automationRefreshButton.disabled = busy || !state.authentication.authenticated;
+  els.automationRefreshButton.textContent = busy ? "同步中…" : "立即同步";
+}
+
+async function syncAutomationNow() {
+  if (state.manualSyncing || !state.authentication.authenticated) return;
+  state.manualSyncing = true;
+  renderSyncing(false);
+  try {
+    await api.syncAutomation();
+    await refreshSnapshot({ quiet: true });
+    showToast("Workshop 当前状态已同步。");
+  } finally {
+    state.manualSyncing = false;
+    renderSyncing(false);
+  }
 }
 
 async function runAction(action) {
@@ -2440,6 +2472,7 @@ function emptySnapshot() {
     queue_paused: false,
     source_status: "logged_out",
     source_errors: [],
+    realtime: { status: "idle", mode: "unknown", last_refreshed_at: "", projects: {} },
     synced_at: "",
     user: null,
     local_projects: [],
