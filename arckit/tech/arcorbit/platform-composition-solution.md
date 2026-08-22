@@ -66,13 +66,17 @@ Workshop Platform Adapter 暴露业务语义方法，不暴露 HTTP passthrough�
 - `listPersonalProjects()`：使用现有 `/projects?organization_id=0` 读取无组织与外部参与项目；当前成员的 `is_external` 区分外部参与，不要求响应新增组织字段。
 - `listProjects()`：保留给既有 Automation Task Source，返回当前用户参与项目，不作为组织治理的唯一目录。
 - Project 响应内的 `members` 归一化为项目成员投影，包含 `role`、`duty`、`is_external` 和 `is_me`。
-- `listProjectTasks(projectId, filters)`：读取项目完整待办集合，不应用 Automation executor 限制。
+- `listProjectTasks(projectId, filters)`：读取项目完整待办集合，不应用 Automation executor 限制；filters 支持多值状态、创建人、执行人、标签、优先级、创建日期、增量更新时间、关键字和父任务。
+- `listProjectTaskTree(projectId, filters)`：使用 Workshop `/tasks/tree` 读取命中任务并补全其父链和子树；请求显式携带起止时间且跨度不超过 100 天。
 - Organization / Project 的 create、update、delete、invite、join 和受支持的 member role/delete 显式方法。Project update allowlist 不包含 `organization_id`。
 - `createTask(input)`：创建待办。
 - `updateTask(taskId, input)`：更新服务端当前支持的字段。
 - `deleteTask(taskId)`：按服务端现有权限执行删除。
-- `listTaskAttachments(taskId)`：读取作为评论/附件使用的记录。
+- `listTaskAttachments(taskId)`：读取作为评论/附件使用的记录，保留 `text | file | url`、创建者和时间字段；Renderer 只在受限评论格式内解释正文。
 - TaskAttachment 的 create、update、delete 显式方法。
+- TaskAttachment 文本资源兼容 `{ text, imageKeys, fileKeys }` 与 `[image](key)` / `[file](key)` 两种既有编码；无法解析的历史记录保持安全纯文本。
+- TaskAttachment 图片和文件上传通过受认证 `/oss/credentials` 获取短期 STS，并只写入返回 `root_path` 下的 `attachments/comment/image` 或 `attachments/comment/file`；Adapter 只返回持久 object key 和非凭据元数据。
+- TaskAttachment 资源访问先重新读取目标任务的附件记录并确认 object key 属于该记录，再使用短期 STS 生成 HTTPS 签名 URL。文件 URL 只交给 main 进程的系统打开动作；图片由 main 进程限制类型和大小后转换为 data URL 供当前 Renderer 预览。
 - Project Tag 的 list、create、update、delete 显式方法；Task 的逗号分隔 `tags` 字段保持原样。
 - `listFeedbackV1(projectId, filters)`：读取普通用户反馈 V1。
 - Feedback V1 的 create、update、delete 显式方法；priority、ignored 和 task 关联继续合并在 `data` JSON 中。
@@ -154,7 +158,7 @@ V2 凭据由 main 进程私有认证边界持有，不进入公开设置或 Rend
 
 - `workset_id`：缺省使用 `active_workset_id`。
 - `sections`：`overview | organizations | members | tasks | feedback` 的显式集合。
-- `task_filters`：状态、执行人、创建人和关键字。
+- `task_filters`：多值状态、执行人、创建人、标签、优先级、创建日期、增量更新时间、关键字和父任务；Work 的层级模式返回命中总数以及父链/子树补全结果。
 - `feedback_filters`：V1 优先级、忽略状态和关键字。
 
 返回值包含：
@@ -200,8 +204,10 @@ Preload 新增以下产品动作：
 - `setActiveWorkset(worksetId)`
 - `setWorkspacePreference(projectId, input)`
 - `executePlatformAction(command, input)`：只接受 Coordinator 内的固定业务命令 allowlist。
+- `pickWorkTaskAttachment(input)`：只允许主窗口通过系统文件选择器选择单个图片或文件，并在 main 进程完成大小、类型、任务可见性与受限 OSS 上传。
+- `previewWorkTaskAttachment(input)` / `openWorkTaskAttachment(input)`：以 task id、attachment id 和 object key 共同定位已持久化资源；前者返回受限图片 data URL，后者由 main 进程打开短期下载 URL。
 
-当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、TaskAttachment CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、专用忽略和原子转待办。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add` 或项目组织迁移。
+当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、专用忽略和原子转待办。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
 
 IPC 参数使用结构化对象。main 进程通过固定命令 allowlist 与 Adapter 重新验证 id、枚举、长度和允许字段，不接受 Renderer 传入的角色或 capability 作为授权事实；Workshop 服务仍执行最终登录与权限判定。
 
@@ -312,6 +318,7 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 ## 安全
 
 - Renderer 不能访问 Workshop token、V2 session token、API key、任意 URL fetch 或文件系统通用写接口。
+- Renderer 不接收 TaskAttachment STS 凭据或签名下载 URL；它只能通过主窗口绑定的图片预览、文件打开和显式文件选择能力操作已经验证的任务资源。
 - 本地 repository path 只来自既有目录选择和 Run Manager 项目记录。
 - Project id、Task id、Feedback id 和 member id 在 main 进程归一化并限制为标量字符串。
 - 普通反馈正文、附件名和 Task content 作为不可信文本渲染，不进入 `innerHTML`。
@@ -326,6 +333,9 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - workset 多选、空集合、单产品、多产品、删除和 active fallback。
 - workset 改变不改变 Automation participation 或候选范围。
 - Platform Adapter 的组织、项目、成员、完整待办和 V1 feedback 归一化。
+- Work Task 查询的多值筛选序列化、100 天日期边界、树结果父链/子树补全和命中总数区分。
+- Task 创建、子任务创建、父任务调整/清空、循环拒绝、级联删除确认和跨产品候选隔离。
+- TaskAttachment 评论/附件的 JSON/标记双格式解析、URL 类型显式打开、图片预览、文件下载、评论资源上传、object key 归属校验、STS 根目录限制、创建者更新权限、任务创建者或管理角色删除权限和历史纯文本兼容。
 - 所有分页列表超过 200 条时继续翻页，且不会重复记录。
 - owner/admin 与 member 的组织项目查询路由、可见性和失败关闭。
 - 成员页不存在项目邀请，项目页邀请带明确项目和一次性生命周期提示。

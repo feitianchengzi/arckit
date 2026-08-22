@@ -119,6 +119,11 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(html, /id="currentRunPanel"/);
   assert.match(source, /const TASK_STATES = \["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"\]/);
   assert.match(source, /api\.automationSnapshot/);
+  assert.match(source, /invalidateTaskAttachmentCaches\(state, \{ clearPending: identityChanged \}\)/);
+  assert.match(source, /taskAttachmentIdentityKey\(\{ platform: state\.platform, authentication: state\.authentication \}\)/);
+  assert.match(source, /state\.platform = emptyPlatformSnapshot\(\);[\s\S]+state\.selectedPlatformTaskId = "";[\s\S]+invalidateTaskAttachmentCaches\(state, \{ clearPending: true \}\)/);
+  assert.match(source, /captureTaskAttachmentRequest\(state\)[\s\S]+task\.attachments\.list[\s\S]+isTaskAttachmentRequestCurrent\(state, request\)/);
+  assert.match(source, /captureTaskAttachmentRequest\(state, \{ identityOnly: true \}\)[\s\S]+pickWorkTaskAttachment[\s\S]+isTaskAttachmentRequestCurrent\(state, request\)/);
   assert.match(source, /api\.setAutomationEnabled/);
   assert.match(source, /api\.bindAutomationProject/);
   assert.match(source, /blocked_pending_tasks/);
@@ -428,6 +433,87 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   assert.match(styles, /#workView > \.platform-page[^}]+grid-template-rows: auto auto minmax\(0, 1fr\)[^}]+height: 100%[^}]+min-height: 0/);
   assert.match(styles, /\.platform-work-layout[^}]+align-items: stretch[^}]+min-height: 0[^}]+overflow: hidden/);
   assert.match(styles, /\.platform-work-layout > \.panel-card, \.platform-work-inspector[^}]+overflow-y: auto[^}]+overscroll-behavior: contain[^}]+scrollbar-gutter: stable/);
+});
+
+test("Work exposes server filters, task hierarchy, complete detail, subtasks and TaskAttachment collaboration", async () => {
+  const [source, html, styles] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererHtmlPath, "utf8"),
+    readFile(rendererStylesPath, "utf8")
+  ]);
+  const workView = html.slice(html.indexOf('id="workView"'), html.indexOf('id="feedbackView"'));
+  for (const id of ["workCreatorFilter", "workExecutorFilter", "workTagFilter", "workPriorityFilter", "workStartDateFilter", "workEndDateFilter", "openTaskReferenceButton", "resetWorkFiltersButton"]) {
+    assert.match(workView, new RegExp(`id="${id}"`));
+  }
+  assert.match(source, /task_filters: state\.page === "work" \? platformTaskFilters\(\) : \{\}/);
+  assert.match(source, /tree: true/);
+  assert.match(source, /states: \[state\.selectedState\]/);
+  assert.doesNotMatch(source.match(/function platformTaskFilters\(\) \{[\s\S]*?\n\}/)?.[0] || "", /states: TASK_STATES/);
+  assert.match(source, /scopedWorkspaces\.reduce\(\(sum, workspace\) => sum \+ Number\(workspace\.task_counts\?\.\[taskState\] \|\| 0\), 0\)/);
+  assert.match(source, /hasTreeSummary \? matchedTotal : stateCounts\[state\.selectedState\]/);
+  assert.match(source, /Number\.isInteger\(task\.tree_depth\)\) \? scopedTasks : rankTasks\(stateTasks\)/);
+  assert.match(source, /task\.tree_depth/);
+  assert.match(source, /data-work-inspector-subtask/);
+  assert.match(source, /executeManagedAction\("task\.subtask\.create"/);
+  assert.match(source, /executeManagedAction\("task\.reparent"/);
+  assert.match(source, /function taskAttachmentPanel\(task\)/);
+  assert.match(source, /task\.attachment\.create.*type: "text"/s);
+  assert.match(source, /String\(item\.creator_id\) === userId/);
+  assert.match(source, /\["owner", "admin"\]\.includes\(role\)/);
+  assert.match(source, /data-task-attachment-retry/);
+  assert.match(source, /renderRestrictedMarkdown\(task\.content\)/);
+  assert.match(source, /api\.openWorkExternalLink\(button\.dataset\.taskMarkdownExternalLink\)/);
+  for (const field of ["创建人", "执行人", "父待办", "优先级", "标签", "创建时间", "更新时间", "完成时间"]) assert.match(source, new RegExp(`\\["${field}"`));
+  assert.match(source, /data-work-inspector-copy-reference/);
+  assert.match(source, /import \{ renderRestrictedMarkdown, resolveWorkTaskReference, workTaskReference, workTaskReferenceSelection \} from "\.\/restricted-markdown\.mjs"/);
+  assert.match(source, /navigator\.clipboard\.writeText\(workTaskReference\(task\)\)/);
+  assert.match(source, /resolveWorkTaskReference\(reference, platform\)/);
+  assert.match(source, /task_filters: \{ tree: false, states: TASK_STATES \}/);
+  assert.match(source, /Object\.assign\(state, workTaskReferenceSelection\(target\)\)/);
+  assert.match(source, /Automation 管理中的状态只可通过受控动作变更/);
+  assert.match(styles, /\.work-filter-panel/);
+  assert.match(styles, /\.task-comment-timeline/);
+  assert.match(styles, /\.task-markdown-detail/);
+  assert.match(styles, /\.task-markdown-detail blockquote/);
+  assert.match(styles, /\.task-markdown-link[^}]+cursor: pointer/);
+});
+
+test("Work opens allowed Markdown links through a bounded main-process capability", async () => {
+  const [main, preload] = await Promise.all([
+    readFile(desktopMainPath, "utf8"),
+    readFile(desktopPreloadPath, "utf8")
+  ]);
+  assert.match(preload, /openWorkExternalLink: \(value\) => ipcRenderer\.invoke\("arckit:work-external-link-open", value\)/);
+  assert.match(main, /ipcMain\.handle\("arckit:work-external-link-open"/);
+  assert.match(main, /assertMainRenderer\(event\)/);
+  assert.match(main, /requireWorkExternalLinkUrl\(value\)/);
+  assert.match(main, /await shell\.openExternal\(url\)/);
+});
+
+test("desktop renders and composes type-preserving TaskAttachment resources through bounded IPC", async () => {
+  const [source, preload, main, styles] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(desktopPreloadPath, "utf8"),
+    readFile(desktopMainPath, "utf8"),
+    readFile(rendererStylesPath, "utf8")
+  ]);
+  assert.match(source, /parseTaskAttachmentContent\(item\)/);
+  assert.match(source, /buildTaskCommentContent\(/);
+  assert.match(source, /data-task-comment-add-image/);
+  assert.match(source, /data-task-comment-add-file/);
+  assert.match(source, /api\.previewWorkTaskAttachment\(input\)/);
+  assert.match(source, /api\.openWorkTaskAttachment\(taskAttachmentResourceInput\(button\)\)/);
+  assert.doesNotMatch(source, /options: \["text", "file", "url"\]/);
+  assert.match(preload, /pickWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-pick", input\)/);
+  assert.match(preload, /previewWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-preview", input\)/);
+  assert.match(preload, /openWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-open", input\)/);
+  assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-pick"/);
+  assert.match(main, /platformCoordinator\.uploadTaskAttachmentResource/);
+  assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-preview"/);
+  assert.match(main, /platformCoordinator\.getTaskAttachmentResourceUrl/);
+  assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-open"/);
+  assert.match(styles, /\.task-comment-images/);
+  assert.match(styles, /\.task-comment-pending-resources/);
 });
 
 test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views", async () => {

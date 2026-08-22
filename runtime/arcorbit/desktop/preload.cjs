@@ -59,6 +59,10 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   convertFeedbackV2ToTask: (input) => invokeFeedbackV2("arckit:feedback-v2-convert", input),
   openFeedbackV2Attachment: (input) => invokeFeedbackV2("arckit:feedback-v2-attachment-open", input),
   openFeedbackAttachment: (value) => ipcRenderer.invoke("arckit:feedback-attachment-open", value),
+  openWorkExternalLink: (value) => ipcRenderer.invoke("arckit:work-external-link-open", value),
+  pickWorkTaskAttachment: (input) => ipcRenderer.invoke("arckit:work-task-attachment-pick", input),
+  previewWorkTaskAttachment: (input) => ipcRenderer.invoke("arckit:work-task-attachment-preview", input),
+  openWorkTaskAttachment: (input) => ipcRenderer.invoke("arckit:work-task-attachment-open", input),
   onProductFeedbackUnread: (listener) => {
     const handler = (_event, count) => listener(count);
     ipcRenderer.on("arckit:product-feedback-unread", handler);

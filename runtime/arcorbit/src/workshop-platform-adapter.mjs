@@ -10,7 +10,9 @@ export function createWorkshopPlatformAdapter({
   feedbackV2ProjectIds = "",
   feedbackV2NotificationProjectIds = "",
   uploadWithPolicy,
-  signAttachmentUrl
+  signAttachmentUrl,
+  uploadTaskResource,
+  signTaskResourceUrl
 }) {
   if (typeof request !== "function" || typeof listProjects !== "function" || typeof normalizeTask !== "function") {
     throw new TypeError("Workshop platform adapter requires bounded request, project, and task functions.");
@@ -82,14 +84,25 @@ export function createWorkshopPlatformAdapter({
 
     async listProjectTasks(projectId, filters = {}) {
       const id = requiredId(projectId, "Project");
-      const query = {
-        project_id: id,
-        state: normalizedStates(filters.states)
-      };
-      if (filters.search_key) query.search_key = String(filters.search_key).trim().slice(0, 200);
-      if (filters.executor_id) query.executor_id = requiredId(filters.executor_id, "Executor");
-      if (filters.creator_id) query.creator_id = requiredId(filters.creator_id, "Creator");
+      const query = taskQuery(id, filters);
       return listAllPages(request, "/tasks", query, ["tasks", "items"], (task) => normalizeTask(task, id));
+    },
+
+    async listProjectTaskTree(projectId, filters = {}) {
+      const id = requiredId(projectId, "Project");
+      const query = taskQuery(id, filters, { tree: true });
+      const payload = await request("/tasks/tree", { query });
+      const roots = extractList(payload, ["tasks", "items"])
+        .map((task) => normalizeTaskTree(task, id, normalizeTask))
+        .filter(Boolean);
+      const flattened = flattenTaskTree(roots);
+      const serviceMatchedTotal = paginationTotal(payload);
+      return {
+        tasks: roots,
+        flattened,
+        total: finiteCount(payload?.expanded_total ?? payload?.tree_total, flattened.length),
+        matched_total: finiteCount(payload?.matched_total ?? payload?.matched_count, Number.isFinite(serviceMatchedTotal) ? serviceMatchedTotal : flattened.filter((task) => task.tree_matched !== false).length)
+      };
     },
 
     async listFeedbackV1(projectId, filters = {}) {
@@ -226,6 +239,18 @@ export function createWorkshopPlatformAdapter({
     async listTaskAttachments(taskId) {
       const id = requiredId(taskId, "Task");
       return listAllPages(request, "/tasks/attachments", { task_id: id }, ["attachments", "items"], normalizeAttachment);
+    },
+
+    async uploadTaskAttachmentResource(input = {}) {
+      if (typeof uploadTaskResource !== "function") throw new Error("TaskAttachment resource upload is unavailable.");
+      const credentials = await request("/oss/credentials");
+      return uploadTaskResource({ credentials, kind: input.kind, file: input.file });
+    },
+
+    async getTaskAttachmentResourceUrl(objectKey, { download = false } = {}) {
+      if (typeof signTaskResourceUrl !== "function") throw new Error("TaskAttachment resource access is unavailable.");
+      const credentials = await request("/oss/credentials");
+      return signTaskResourceUrl({ objectKey, credentials, download: Boolean(download) });
     },
 
     createOrganization(input = {}) {
@@ -628,6 +653,73 @@ function normalizedStates(value) {
   if (!Array.isArray(value) || value.length === 0) return TASK_STATES;
   const states = [...new Set(value.map(String).filter((state) => TASK_STATES.includes(state)))];
   return states.length > 0 ? states : TASK_STATES;
+}
+
+function taskQuery(projectId, filters = {}, { tree = false } = {}) {
+  const query = compact({
+    project_id: projectId,
+    state: commaValues(normalizedStates(filters.states), (value) => taskState(value)),
+    creator_id: commaValues(filters.creator_ids ?? filters.creator_id, (value) => numericId(value, "Creator")),
+    executor_id: commaValues(filters.executor_ids ?? filters.executor_id, (value) => numericId(value, "Executor")),
+    tags: commaValues(filters.tag_ids ?? filters.tags, (value) => numericId(value, "Tag")),
+    priority: commaValues(filters.priorities ?? filters.priority, (value) => boundedInteger(value, 0, 100000, 0)),
+    start_time: optionalDate(filters.start_time, "Start time"),
+    end_time: optionalDate(filters.end_time, "End time", { endOfDay: true }),
+    updated_after: optionalDate(filters.updated_after, "Updated after"),
+    father_id: optionalNumericId(filters.father_id, "Parent task"),
+    search_key: filters.search_key ? String(filters.search_key).trim().slice(0, 200) : undefined
+  });
+  if (tree) validateTreeDateRange(query.start_time, query.end_time);
+  return query;
+}
+
+function commaValues(value, normalize) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const values = Array.isArray(value) ? value : String(value).split(",");
+  const normalized = [...new Set(values.map((item) => String(item).trim()).filter(Boolean).map(normalize))];
+  return normalized.length ? normalized.join(",") : undefined;
+}
+
+function optionalDate(value, label, { endOfDay = false } = {}) {
+  if (value === undefined || value === null || value === "") return undefined;
+  const text = String(value).trim();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(text)
+    ? new Date(`${text}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`)
+    : new Date(value);
+  if (Number.isNaN(date.getTime())) throw new TypeError(`${label} is invalid.`);
+  return date.toISOString();
+}
+
+function validateTreeDateRange(startTime, endTime) {
+  if (!startTime || !endTime) throw new TypeError("Task tree requires start_time and end_time.");
+  const start = new Date(startTime).getTime();
+  const end = new Date(endTime).getTime();
+  if (start > end) throw new TypeError("Task tree date range is invalid.");
+  if (end - start > 100 * 24 * 60 * 60 * 1000) throw new TypeError("Task tree date range cannot exceed 100 days.");
+}
+
+function normalizeTaskTree(value, projectId, normalize, depth = 0, ancestors = []) {
+  const task = normalize(value, projectId);
+  if (!task) return null;
+  const children = (Array.isArray(value.children) ? value.children : [])
+    .map((child) => normalizeTaskTree(child, projectId, normalize, depth + 1, [...ancestors, task.id]))
+    .filter(Boolean);
+  return {
+    ...task,
+    tree_depth: depth,
+    tree_ancestor_ids: ancestors,
+    tree_matched: value.matched === undefined && value.is_match === undefined ? true : Boolean(value.matched ?? value.is_match),
+    children
+  };
+}
+
+function flattenTaskTree(tasks) {
+  return tasks.flatMap((task) => [{ ...task, children: undefined }, ...flattenTaskTree(task.children || [])]);
+}
+
+function finiteCount(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : fallback;
 }
 
 function extractList(payload, keys) {

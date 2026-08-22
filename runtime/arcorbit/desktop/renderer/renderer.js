@@ -6,6 +6,20 @@ import {
   summarizeToolActivity,
   transcriptMessageType
 } from "../../src/desktop/transcript-presentation.mjs";
+import { renderRestrictedMarkdown, resolveWorkTaskReference, workTaskReference, workTaskReferenceSelection } from "./restricted-markdown.mjs";
+import {
+  buildTaskCommentContent,
+  normalizeTaskAttachmentUrl,
+  parseTaskAttachmentContent,
+  taskAttachmentFileName,
+  taskCommentTextToMarkdown
+} from "../../src/work-task-attachment-content.mjs";
+import {
+  captureTaskAttachmentRequest,
+  invalidateTaskAttachmentCaches,
+  isTaskAttachmentRequestCurrent,
+  taskAttachmentIdentityKey
+} from "../../src/work-task-attachment-cache.mjs";
 
 const api = window.arckitDesktop;
 
@@ -77,6 +91,12 @@ const state = {
   snapshot: emptySnapshot(),
   platform: emptyPlatformSnapshot(),
   platformWorkFilter: "",
+  platformWorkFilters: defaultWorkFilters(),
+  platformTaskAttachments: {},
+  pendingTaskCommentResources: {},
+  platformTaskAttachmentPreviews: {},
+  taskAttachmentCacheEpoch: 0,
+  taskAttachmentIdentityEpoch: 0,
   feedbackFilter: "",
   feedbackState: "all",
   feedbackSort: "newest",
@@ -117,6 +137,7 @@ const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map
 let refreshQueued = false;
 let toastTimer;
 let verificationTimer;
+let workFilterTimer;
 
 boot();
 
@@ -302,7 +323,16 @@ function wireEvents() {
   });
   els.platformWorkFilter.addEventListener("input", () => {
     state.platformWorkFilter = els.platformWorkFilter.value.trim().toLowerCase();
-    renderPlatformWork();
+    scheduleWorkFilterRefresh();
+  });
+  [els.workCreatorFilter, els.workExecutorFilter, els.workTagFilter, els.workPriorityFilter, els.workStartDateFilter, els.workEndDateFilter].forEach((element) => element.addEventListener("change", () => {
+    readWorkFiltersFromControls();
+    scheduleWorkFilterRefresh(0);
+  }));
+  els.resetWorkFiltersButton.addEventListener("click", () => {
+    state.platformWorkFilter = "";
+    state.platformWorkFilters = defaultWorkFilters();
+    scheduleWorkFilterRefresh(0);
   });
   els.worksetSelect.addEventListener("change", () => runAction(async () => {
     state.selectedProjectId = "all";
@@ -326,6 +356,7 @@ function wireEvents() {
   }));
   els.createTaskButton.addEventListener("click", () => runAction(createTask));
   els.createTagButton.addEventListener("click", () => runAction(createTag));
+  els.openTaskReferenceButton.addEventListener("click", () => runAction(openWorkTaskReference));
   els.feedbackSearchInput.addEventListener("input", () => {
     state.feedbackFilter = els.feedbackSearchInput.value.trim().toLowerCase();
     renderPlatformFeedback();
@@ -531,16 +562,23 @@ async function refreshSnapshot({ quiet = false } = {}) {
         project_id: state.selectedProjectId,
         state: state.page === "tasks" ? state.selectedState : ""
       }),
-      api.platformSnapshot({ sections: ["overview", "organizations", "members", "tasks", "feedback"] }),
+      api.platformSnapshot({
+        sections: ["overview", "organizations", "members", "tasks", "feedback"],
+        task_filters: state.page === "work" ? platformTaskFilters() : {}
+      }),
       api.getAuthStatus()
     ]);
     platform ||= emptyPlatformSnapshot();
+    authentication = normalizeAuthentication(authentication);
+    const identityChanged = taskAttachmentIdentityKey({ platform: state.platform, authentication: state.authentication })
+      !== taskAttachmentIdentityKey({ platform, authentication });
     const worksetProjectIds = new Set((platform.active_workset?.project_ids || []).map(String));
     if (state.selectedProjectId !== "all" && !worksetProjectIds.has(state.selectedProjectId)) {
       state.selectedProjectId = "all";
       snapshot = await api.automationSnapshot({ project_id: "all", state: state.page === "tasks" ? state.selectedState : "" });
       showToast("当前产品已不在产品集中，查看范围已切回项目集全部。");
     }
+    invalidateTaskAttachmentCaches(state, { clearPending: identityChanged });
     state.snapshot = snapshot;
     state.platform = platform;
     const scopeIds = new Set((state.platform.organization_scopes || []).map((item) => String(item.id)));
@@ -551,7 +589,7 @@ async function refreshSnapshot({ quiet = false } = {}) {
     if (state.workbenchTask) {
       state.workbenchTask = snapshot.tasks.find((task) => String(task.id) === String(state.workbenchTask.id)) || state.workbenchTask;
     }
-    state.authentication = normalizeAuthentication(authentication);
+    state.authentication = authentication;
     const visibleTasks = state.snapshot.tasks.filter(scopedTaskFilter);
     if (state.selectedTaskId && !visibleTasks.some((task) => String(task.id) === state.selectedTaskId)) {
       state.selectedTaskId = visibleTasks[0]?.id || "";
@@ -575,6 +613,53 @@ function scheduleRefresh(delay = 80) {
     refreshQueued = false;
     await refreshSnapshot({ quiet: true }).catch((error) => showToast(error.message));
   }, delay);
+}
+
+function scheduleWorkFilterRefresh(delay = 280) {
+  window.clearTimeout(workFilterTimer);
+  workFilterTimer = window.setTimeout(() => {
+    state.selectedPlatformTaskId = "";
+    refreshSnapshot().catch((error) => showToast(error.message));
+  }, delay);
+}
+
+function defaultWorkFilters() {
+  const end = new Date();
+  const start = new Date(end.getTime() - 99 * 24 * 60 * 60 * 1000);
+  return {
+    creator_ids: [], executor_ids: [], tag_ids: [], priorities: [],
+    start_time: dateInputValue(start), end_time: dateInputValue(end)
+  };
+}
+
+function dateInputValue(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+function selectedValues(element) {
+  return [...element.selectedOptions].map((option) => option.value).filter(Boolean);
+}
+
+function readWorkFiltersFromControls() {
+  state.platformWorkFilters = {
+    creator_ids: selectedValues(els.workCreatorFilter),
+    executor_ids: selectedValues(els.workExecutorFilter),
+    tag_ids: selectedValues(els.workTagFilter),
+    priorities: selectedValues(els.workPriorityFilter),
+    start_time: els.workStartDateFilter.value,
+    end_time: els.workEndDateFilter.value
+  };
+}
+
+function platformTaskFilters() {
+  return {
+    tree: true,
+    states: [state.selectedState],
+    search_key: state.platformWorkFilter,
+    ...state.platformWorkFilters
+  };
 }
 
 function render() {
@@ -786,15 +871,22 @@ function wireOrganizationActions() {
 
 function renderPlatformWork() {
   els.platformWorkFilter.value = state.platformWorkFilter;
+  renderWorkFilterControls();
   const scopedTasks = state.platform.tasks.filter(platformItemMatchesSelectedProject);
-  const stateCounts = Object.fromEntries(TASK_STATES.map((taskState) => [taskState, scopedTasks.filter((task) => task.state === taskState).length]));
+  const scopedWorkspaces = (state.platform.product_workspaces || []).filter(platformItemMatchesSelectedProject);
+  const stateCounts = Object.fromEntries(TASK_STATES.map((taskState) => [taskState, scopedWorkspaces.reduce((sum, workspace) => sum + Number(workspace.task_counts?.[taskState] || 0), 0)]));
   els.workStateFilters.innerHTML = TASK_STATES.map((taskState) => `<button class="work-state-filter ${state.selectedState === taskState ? "is-active" : ""}" data-work-state="${taskState}" type="button" aria-pressed="${state.selectedState === taskState}"><span>${STATE_ICONS[taskState]}</span><strong>${STATE_LABELS[taskState]}</strong><em>${stateCounts[taskState]}</em></button>`).join("");
-  els.workStateSummary.textContent = `${currentProject()?.name || state.platform.active_workset?.name || "当前产品集"} · ${STATE_LABELS[state.selectedState]} ${stateCounts[state.selectedState]} 项`;
+  const treeSummaries = (state.platform.task_trees || []).filter(platformItemMatchesSelectedProject);
+  const matchedTotal = treeSummaries.reduce((sum, item) => sum + Number(item.matched_total || 0), 0);
+  const completedTotal = treeSummaries.reduce((sum, item) => sum + Number(item.total || 0), 0);
+  const hasTreeSummary = treeSummaries.length > 0;
+  els.workStateSummary.textContent = `${currentProject()?.name || state.platform.active_workset?.name || "当前产品集"} · 命中 ${hasTreeSummary ? matchedTotal : stateCounts[state.selectedState]} / 补全树 ${hasTreeSummary ? completedTotal : scopedTasks.length} · ${STATE_LABELS[state.selectedState]} ${stateCounts[state.selectedState]} 项`;
   els.workStateFilters.querySelectorAll("[data-work-state]").forEach((button) => button.addEventListener("click", () => openWorkState(button.dataset.workState)));
-  const tasks = rankTasks(scopedTasks.filter((task) => task.state === state.selectedState && (!state.platformWorkFilter || `${task.title} ${task.content} ${task.project_name} ${task.id} ${task.executor_id}`.toLowerCase().includes(state.platformWorkFilter))));
+  const stateTasks = scopedTasks.filter((task) => task.state === state.selectedState);
+  const tasks = scopedTasks.some((task) => Number.isInteger(task.tree_depth)) ? scopedTasks : rankTasks(stateTasks);
   if (!tasks.some((task) => String(task.id) === String(state.selectedPlatformTaskId))) state.selectedPlatformTaskId = String(tasks[0]?.id || "");
   const selectedTask = tasks.find((task) => String(task.id) === String(state.selectedPlatformTaskId)) || null;
-  els.platformWorkTable.innerHTML = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"><col style="width:165px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th><th>管理</th></tr></thead><tbody>${tasks.map((task) => { const canManage = canManagePlatformTask(task); return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell">${task.father_id ? `<small class="parent-task-ref">↳ ${escapeHtml(task.father_id)}</small>` : ""}${escapeHtml(task.title)}${task.tags ? `<small class="task-tags">${escapeHtml(Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags)}</small>` : ""}</td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td><td><span class="row-actions">${canManage ? `<button data-platform-task-edit="${escapeHtml(task.id)}" type="button">编辑</button>` : ""}<button data-platform-task-attachment="${escapeHtml(task.id)}" type="button">附件</button>${canManage ? `<button class="danger-action" data-platform-task-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</span></td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">当前产品集或筛选条件下没有待办。</div>`;
+  els.platformWorkTable.innerHTML = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"><col style="width:165px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th><th>管理</th></tr></thead><tbody>${tasks.map((task) => { const canManage = canManagePlatformTask(task); const depth = Math.max(0, Number(task.tree_depth || 0)); const lineageOnly = task.state !== state.selectedState || task.tree_matched === false; return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""} ${lineageOnly ? "tree-lineage" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell" style="--task-tree-depth:${depth}"><span class="task-tree-title">${depth ? "↳ " : ""}${escapeHtml(task.title)}</span>${lineageOnly ? `<small class="parent-task-ref">用于补全层级</small>` : ""}${task.tags ? `<small class="task-tags">${escapeHtml(Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags)}</small>` : ""}</td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td><td><span class="row-actions">${canManage ? `<button data-platform-task-edit="${escapeHtml(task.id)}" type="button">编辑</button>` : ""}<button data-platform-task-attachment="${escapeHtml(task.id)}" type="button">评论/附件</button>${canManage ? `<button class="danger-action" data-platform-task-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</span></td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">当前产品集或筛选条件下没有待办。</div>`;
   els.platformWorkTable.querySelectorAll("[data-platform-task-select]").forEach((row) => row.addEventListener("click", (event) => {
     if (event.target.closest("button")) return;
     state.selectedPlatformTaskId = row.dataset.platformTaskSelect;
@@ -804,6 +896,27 @@ function renderPlatformWork() {
   els.platformWorkTable.querySelectorAll("[data-platform-task-attachment]").forEach((button) => button.addEventListener("click", () => runAction(() => manageTaskAttachments(button.dataset.platformTaskAttachment))));
   els.platformWorkTable.querySelectorAll("[data-platform-task-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteTask(button.dataset.platformTaskDelete))));
   renderPlatformWorkInspector(selectedTask);
+}
+
+function renderWorkFilterControls() {
+  const selectedProjectIds = new Set((state.selectedProjectId === "all" ? state.platform.active_workset?.project_ids || [] : [state.selectedProjectId]).map(String));
+  const members = (state.platform.members || []).filter((item) => selectedProjectIds.has(String(item.project_id)));
+  const uniqueMembers = [...new Map(members.map((item) => [String(item.user_id), item])).values()];
+  const memberOptions = uniqueMembers.map((item) => ({ value: item.user_id, label: item.username || `成员 ${item.user_id}` }));
+  const tags = (state.platform.tags || []).filter((item) => selectedProjectIds.has(String(item.project_id)));
+  setMultiSelectOptions(els.workCreatorFilter, memberOptions, state.platformWorkFilters.creator_ids);
+  setMultiSelectOptions(els.workExecutorFilter, memberOptions, state.platformWorkFilters.executor_ids);
+  setMultiSelectOptions(els.workTagFilter, tags.map((item) => ({ value: item.id, label: `${item.project_name || "产品"} · ${parseWorkshopTag(item.name).displayName}` })), state.platformWorkFilters.tag_ids);
+  setMultiSelectOptions(els.workPriorityFilter, [
+    { value: "0", label: "最高" }, { value: "1", label: "高" }, { value: "2", label: "中" }, { value: "3", label: "低" }
+  ], state.platformWorkFilters.priorities);
+  els.workStartDateFilter.value = state.platformWorkFilters.start_time;
+  els.workEndDateFilter.value = state.platformWorkFilters.end_time;
+}
+
+function setMultiSelectOptions(element, options, selectedValues) {
+  const selected = new Set((selectedValues || []).map(String));
+  element.innerHTML = options.map((option) => `<option value="${escapeHtml(option.value)}" ${selected.has(String(option.value)) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
 }
 
 function renderPlatformWorkInspector(task) {
@@ -817,19 +930,36 @@ function renderPlatformWorkInspector(task) {
   const canManage = canManagePlatformTask(task);
   const automationActions = automationTask ? taskActions(automationTask) : [];
   const acceptanceFeedback = automationTask?.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-work-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="workAcceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitWorkAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : automationTask?.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
-  els.platformWorkInspector.innerHTML = `<h2>${escapeHtml(task.title)}</h2><p>${escapeHtml(task.content || "没有补充内容")}</p><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${factRows([
+  els.platformWorkInspector.innerHTML = `<h2>${escapeHtml(task.title)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${factRows([
     ["待办标识", task.id],
     ["所属产品", task.project_name],
+    ["创建人", taskCreatorName(task)],
     ["执行人", task.assignee?.username || task.assignee?.name || task.executor_id || "未分配"],
     ["优先级", formatPriority(task.priority)],
+    ["标签", taskTagNames(task)],
     ["父待办", task.father_id || "无"],
+    ["创建时间", formatDateTime(task.created_at)],
+    ["更新时间", formatDateTime(task.updated_at)],
+    ["完成时间", task.completion_at ? formatDateTime(task.completion_at) : "未完成"],
     ["本地工作区", automationTask?.local_project_path || workspace?.local_path || "未绑定"],
     ["自动执行资格", automationTask ? (automationTask.eligible ? `队列第 ${automationTask.queue_position} 项` : automationTask.eligibility_reason || "不适用于当前状态") : "不在当前用户 Automation 范围"]
-  ])}<div class="task-actions platform-work-management">${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${automationActions.length ? `<div class="task-actions platform-work-automation">${automationActions.map((action) => `<button class="${action.primary ? "primary-button" : "secondary-button"}" data-work-task-action="${action.id}" type="button">${action.label}</button>`).join("")}</div>` : ""}${acceptanceFeedback}`;
+  ])}<div class="task-actions platform-work-management"><button class="secondary-button" data-work-inspector-copy-reference="${escapeHtml(task.id)}" type="button">复制任务引用</button>${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button><button class="secondary-button" data-work-inspector-subtask="${escapeHtml(task.id)}" type="button">创建子待办</button><button class="secondary-button" data-work-inspector-reparent="${escapeHtml(task.id)}" type="button">调整父待办</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">管理附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${taskAttachmentPanel(task)}${automationActions.length ? `<div class="task-actions platform-work-automation">${automationActions.map((action) => `<button class="${action.primary ? "primary-button" : "secondary-button"}" data-work-task-action="${action.id}" type="button">${action.label}</button>`).join("")}</div>` : ""}${acceptanceFeedback}`;
+  els.platformWorkInspector.querySelector("[data-work-inspector-copy-reference]")?.addEventListener("click", () => runAction(() => copyWorkTaskReference(task)));
+  els.platformWorkInspector.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
   els.platformWorkInspector.querySelector("[data-work-inspector-edit]")?.addEventListener("click", () => runAction(() => editTask(task.id)));
+  els.platformWorkInspector.querySelector("[data-work-inspector-subtask]")?.addEventListener("click", () => runAction(() => createSubtask(task.id)));
+  els.platformWorkInspector.querySelector("[data-work-inspector-reparent]")?.addEventListener("click", () => runAction(() => reparentTask(task.id)));
   els.platformWorkInspector.querySelector("[data-work-inspector-attachment]")?.addEventListener("click", () => runAction(() => manageTaskAttachments(task.id)));
+  els.platformWorkInspector.querySelector("[data-task-attachment-retry]")?.addEventListener("click", () => loadTaskAttachments(task.id));
   els.platformWorkInspector.querySelector("[data-work-inspector-delete]")?.addEventListener("click", () => runAction(() => deleteTask(task.id)));
   els.platformWorkInspector.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeTaskAction(automationTask, button.dataset.workTaskAction))));
+  els.platformWorkInspector.querySelector("[data-task-comment-submit]")?.addEventListener("click", () => runAction(() => createTaskComment(task.id)));
+  els.platformWorkInspector.querySelector("[data-task-comment-add-link]")?.addEventListener("click", () => runAction(() => addTaskCommentLink(task.id)));
+  els.platformWorkInspector.querySelector("[data-task-comment-add-image]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "image")));
+  els.platformWorkInspector.querySelector("[data-task-comment-add-file]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "file")));
+  els.platformWorkInspector.querySelectorAll("[data-task-comment-resource-remove]").forEach((button) => button.addEventListener("click", () => removeTaskCommentResource(task.id, button.dataset.taskCommentResourceRemove)));
+  els.platformWorkInspector.querySelectorAll("[data-task-attachment-image]").forEach((button) => button.addEventListener("click", () => runAction(() => previewTaskAttachment(button))));
+  els.platformWorkInspector.querySelectorAll("[data-task-attachment-file]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkTaskAttachment(taskAttachmentResourceInput(button)))));
   els.platformWorkInspector.querySelectorAll("[data-work-task-feedback]").forEach((button) => button.addEventListener("click", () => {
     const item = feedbackItems.find((entry) => entry.feedback_id === button.dataset.workTaskFeedback);
     if (item) openWorkbench("review", item.current_run_id || item.source_run_id, { task: automationTask, feedbackId: item.feedback_id });
@@ -843,6 +973,170 @@ function renderPlatformWorkInspector(task) {
     input.value = "";
     await refreshSnapshot();
   }));
+  if (!state.platformTaskAttachments[String(task.id)]) loadTaskAttachments(task.id);
+}
+
+function taskCreatorName(task) {
+  if (task.creator?.username || task.creator?.name) return task.creator.username || task.creator.name;
+  const member = (state.platform.members || []).find((item) => String(item.project_id) === String(task.project_id) && String(item.user_id) === String(task.creator_id));
+  return member?.username || member?.name || task.creator_id || "未知";
+}
+
+function taskTagNames(task) {
+  const values = Array.isArray(task.tags) ? task.tags : String(task.tags || "").split(",");
+  const projectTags = (state.platform.tags || []).filter((item) => String(item.project_id) === String(task.project_id));
+  const names = values.map((value) => String(value).trim()).filter(Boolean).map((value) => {
+    const tag = projectTags.find((item) => String(item.id) === value);
+    return parseWorkshopTag(tag?.name || value).displayName;
+  });
+  return names.length ? names.join("、") : "无";
+}
+
+async function copyWorkTaskReference(task) {
+  await navigator.clipboard.writeText(workTaskReference(task));
+  showToast("任务引用已复制，可恢复同一产品和待办上下文。");
+}
+
+async function openWorkTaskReference() {
+  const reference = window.prompt("粘贴 ArcOrbit 任务引用");
+  if (reference === null) return;
+  const platform = await api.platformSnapshot({
+    sections: ["tasks"],
+    task_filters: { tree: false, states: TASK_STATES }
+  });
+  const target = resolveWorkTaskReference(reference, platform);
+  const createdDate = dateInputValue(target.created_at);
+  const previous = {
+    page: state.page,
+    selectedProjectId: state.selectedProjectId,
+    selectedState: state.selectedState,
+    selectedPlatformTaskId: state.selectedPlatformTaskId,
+    platformWorkFilter: state.platformWorkFilter,
+    platformWorkFilters: state.platformWorkFilters
+  };
+  try {
+    Object.assign(state, workTaskReferenceSelection(target));
+    state.platformWorkFilter = "";
+    state.platformWorkFilters = {
+      ...defaultWorkFilters(),
+      ...(createdDate ? { start_time: createdDate, end_time: createdDate } : {})
+    };
+    await refreshSnapshot();
+    const restored = state.platform.tasks.some((task) => String(task.project_id) === target.project_id && String(task.id) === target.task_id);
+    if (!restored) throw new Error("引用待办已不可见，请刷新后重试。");
+    showToast(`已恢复 ${projectName(target.project_id)} 的待办 ${target.task_id}。`);
+  } catch (error) {
+    Object.assign(state, previous);
+    await refreshSnapshot({ quiet: true }).catch(() => render());
+    throw error;
+  }
+}
+
+function taskAttachmentPanel(task) {
+  const record = state.platformTaskAttachments[String(task.id)];
+  if (!record || record.status === "loading") return `<section class="task-comment-panel"><h3>评论与附件</h3><div class="empty-state compact">正在载入时间线…</div></section>`;
+  if (record.status === "error") return `<section class="task-comment-panel"><h3>评论与附件</h3><div class="platform-error"><span>${escapeHtml(record.error)}</span></div><button class="secondary-button" data-task-attachment-retry="${escapeHtml(task.id)}" type="button">重试</button></section>`;
+  const items = [...record.items].sort((left, right) => String(left.created_at).localeCompare(String(right.created_at)));
+  const pending = state.pendingTaskCommentResources[String(task.id)] || [];
+  return `<section class="task-comment-panel"><div class="section-title-row"><div><h3>评论与附件</h3><p>${items.length} 条 TaskAttachment 记录</p></div></div><div class="task-comment-timeline">${items.length ? items.map((item) => taskAttachmentItem(task, item)).join("") : `<div class="empty-state compact">还没有评论或附件。</div>`}</div><label class="task-comment-composer"><span>新增评论</span><textarea data-task-comment-input rows="3" placeholder="记录进展、问题或协作说明；链接、图片和文件会保留其类型…"></textarea>${pending.length ? `<div class="task-comment-pending-resources">${pending.map((resource, index) => `<span>${resource.kind === "image" ? "图片" : "文件"} · ${escapeHtml(resource.file_name || taskAttachmentFileName(resource.object_key))}<button type="button" data-task-comment-resource-remove="${index}" aria-label="移除资源">×</button></span>`).join("")}</div>` : ""}<div class="task-comment-composer-actions"><span><button class="secondary-button" data-task-comment-add-link type="button">添加链接</button><button class="secondary-button" data-task-comment-add-image type="button">添加图片</button><button class="secondary-button" data-task-comment-add-file type="button">添加文件</button></span><button class="primary-button" data-task-comment-submit type="button">发表评论</button></div></label></section>`;
+}
+
+function taskAttachmentItem(task, item) {
+  let parsed;
+  try {
+    parsed = parseTaskAttachmentContent(item);
+  } catch {
+    return `<article class="task-comment-item text"><header><strong>无法解析的记录</strong><time>${escapeHtml(formatTime(item.created_at || item.updated_at))}</time></header><p>${escapeHtml(item.content)}</p></article>`;
+  }
+  const resourceInput = (key) => `data-task-id="${escapeHtml(task.id)}" data-attachment-id="${escapeHtml(item.id)}" data-object-key="${escapeHtml(key)}"`;
+  const images = parsed.images.map((key) => {
+    const preview = state.platformTaskAttachmentPreviews[taskAttachmentPreviewKey(task.id, item.id, key)];
+    return preview
+      ? `<button class="task-comment-image is-loaded" type="button" data-task-attachment-image ${resourceInput(key)} title="重新载入图片预览"><img src="${escapeHtml(preview)}" alt="${escapeHtml(taskAttachmentFileName(key))}"></button>`
+      : `<button class="task-comment-image" type="button" data-task-attachment-image ${resourceInput(key)}>预览图片 · ${escapeHtml(taskAttachmentFileName(key))}</button>`;
+  }).join("");
+  const files = parsed.files.map((key) => `<button class="task-comment-file" type="button" data-task-attachment-file ${resourceInput(key)}>下载文件 · ${escapeHtml(taskAttachmentFileName(key))}</button>`).join("");
+  const body = parsed.text ? `<div class="task-comment-body task-markdown">${renderRestrictedMarkdown(taskCommentTextToMarkdown(parsed.text))}</div>` : "";
+  const url = parsed.external_url ? `<button class="task-markdown-link task-comment-url" type="button" data-task-markdown-external-link="${escapeHtml(parsed.external_url)}">${escapeHtml(parsed.external_url)}</button>` : "";
+  return `<article class="task-comment-item ${escapeHtml(parsed.type)}"><header><strong>${escapeHtml(taskAttachmentCreatorName(task, item))} · ${parsed.type === "text" ? "评论" : parsed.type === "url" ? "链接" : "文件"}</strong><time>${escapeHtml(formatTime(item.created_at || item.updated_at))}</time></header>${images ? `<div class="task-comment-images">${images}</div>` : ""}${body}${url}${files ? `<div class="task-comment-files">${files}</div>` : ""}</article>`;
+}
+
+function taskAttachmentCreatorName(task, item) {
+  const member = (state.platform.members || []).find((entry) => String(entry.project_id) === String(task.project_id) && String(entry.user_id) === String(item.creator_id));
+  return member?.username || member?.name || (String(item.creator_id) === String(state.platform.user?.id || "") ? "我" : `成员 ${item.creator_id || "未知"}`);
+}
+
+async function loadTaskAttachments(taskId) {
+  const key = String(taskId);
+  const request = captureTaskAttachmentRequest(state);
+  state.platformTaskAttachments[key] = { status: "loading", items: [], error: "" };
+  try {
+    const items = await api.executePlatformAction("task.attachments.list", { task_id: taskId });
+    if (!isTaskAttachmentRequestCurrent(state, request)) return;
+    state.platformTaskAttachments[key] = { status: "loaded", items: items || [], error: "" };
+  } catch (error) {
+    if (!isTaskAttachmentRequestCurrent(state, request)) return;
+    state.platformTaskAttachments[key] = { status: "error", items: [], error: error?.message || String(error) };
+  }
+  if (String(state.selectedPlatformTaskId) === key) renderPlatformWorkInspector(findPlatformTask(key));
+}
+
+async function createTaskComment(taskId) {
+  const request = captureTaskAttachmentRequest(state, { identityOnly: true });
+  const input = els.platformWorkInspector.querySelector("[data-task-comment-input]");
+  const pending = state.pendingTaskCommentResources[String(taskId)] || [];
+  const content = buildTaskCommentContent({
+    text: String(input?.value || ""),
+    images: pending.filter((item) => item.kind === "image").map((item) => item.object_key),
+    files: pending.filter((item) => item.kind === "file").map((item) => item.object_key)
+  });
+  await executeManagedAction("task.attachment.create", { task_id: taskId, type: "text", content }, "评论已发表", { refresh: false });
+  if (!isTaskAttachmentRequestCurrent(state, request)) return;
+  delete state.pendingTaskCommentResources[String(taskId)];
+  delete state.platformTaskAttachments[String(taskId)];
+  await loadTaskAttachments(taskId);
+}
+
+async function addTaskCommentLink(taskId) {
+  const input = els.platformWorkInspector.querySelector("[data-task-comment-input]");
+  const value = window.prompt("输入要添加的 http、https 或 mailto 链接：", "https://");
+  if (value === null) return;
+  const url = normalizeTaskAttachmentUrl(value);
+  const label = window.prompt("链接显示名称（可留空）：", "")?.trim() || url;
+  input.value = `${input.value.trim()}${input.value.trim() ? " " : ""}[link](${url}|${label.replace(/[|)]/g, "")})`;
+  input.focus();
+}
+
+async function pickTaskCommentResource(task, kind) {
+  const request = captureTaskAttachmentRequest(state, { identityOnly: true });
+  const resource = await api.pickWorkTaskAttachment({ project_id: task.project_id, task_id: task.id, kind });
+  if (!resource || !isTaskAttachmentRequestCurrent(state, request)) return;
+  const key = String(task.id);
+  state.pendingTaskCommentResources[key] = [...(state.pendingTaskCommentResources[key] || []), resource];
+  renderPlatformWorkInspector(task);
+}
+
+function removeTaskCommentResource(taskId, index) {
+  const key = String(taskId);
+  state.pendingTaskCommentResources[key] = (state.pendingTaskCommentResources[key] || []).filter((_item, itemIndex) => itemIndex !== Number(index));
+  renderPlatformWorkInspector(findPlatformTask(taskId));
+}
+
+async function previewTaskAttachment(button) {
+  const input = taskAttachmentResourceInput(button);
+  const request = captureTaskAttachmentRequest(state);
+  const result = await api.previewWorkTaskAttachment(input);
+  if (!isTaskAttachmentRequestCurrent(state, request)) return;
+  state.platformTaskAttachmentPreviews[taskAttachmentPreviewKey(input.task_id, input.attachment_id, input.object_key)] = result.data_url;
+  renderPlatformWorkInspector(findPlatformTask(input.task_id));
+}
+
+function taskAttachmentResourceInput(button) {
+  return { task_id: button.dataset.taskId, attachment_id: button.dataset.attachmentId, object_key: button.dataset.objectKey };
+}
+
+function taskAttachmentPreviewKey(taskId, attachmentId, objectKey) {
+  return `${taskId}:${attachmentId}:${objectKey}`;
 }
 
 function renderPlatformFeedback() {
@@ -1218,7 +1512,6 @@ async function createTask() {
     fields: [
       platformField("project_id", "产品", { type: "select", required: true, value: defaultProjectId, options: projects }),
       platformField("content", "待办内容", { type: "textarea", required: true }),
-      platformField("state", "状态", { type: "select", value: "pending_review", options: taskStateOptions() }),
       taskProjectFields(defaultProjectId),
       platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions(), help: "最高优先处理；无优先级表示创建时不设置该字段。" })
     ]
@@ -1231,25 +1524,53 @@ async function createTask() {
 
 async function editTask(taskId) {
   const task = findPlatformTask(taskId);
+  const automationTask = state.snapshot.tasks.find((item) => String(item.id) === String(task.id));
   const action = openPlatformAction({
     title: `编辑待办 ${task.id}`,
     lead: `所属产品：${task.project_name}。执行人、父待办和标签只使用该产品当前可用的数据。`,
     confirmLabel: "保存",
     fields: [
       platformField("content", "待办内容", { type: "textarea", required: true, value: task.content || task.title }),
-      platformField("state", "状态", { type: "select", value: task.state, options: taskStateOptions() }),
-      taskProjectFields(task.project_id, { executorId: task.executor_id, fatherId: task.father_id, excludedTaskId: task.id, tags: task.tags }),
+      ...(automationTask ? [] : [platformField("state", "状态", { type: "select", value: task.state, options: taskStateOptions(), help: "Automation 管理中的状态只可通过受控动作变更。" })]),
+      taskProjectFields(task.project_id, { executorId: task.executor_id, excludedTaskId: task.id, tags: task.tags, includeFather: false }),
       platformField("priority", "优先级", { type: "select", value: workshopTaskPriority(task), options: taskPriorityOptions(), help: "最高优先处理；无优先级保留服务端未设置语义。" })
     ]
   });
   bindTaskTagManager(task.project_id);
   const values = normalizeTaskFormValues(await action, { emptyPriority: "null" });
   if (!values) return;
-  const automationTask = state.snapshot.tasks.find((item) => String(item.id) === String(task.id));
   if (values.state === "accepted" && (automationTask?.acceptance_feedback_items || []).some((item) => !["resolved", "cancelled"].includes(item.status))) {
     throw new Error("仍有未解决的验收问题，不能标记为已验收。");
   }
   await executeManagedAction("task.update", { task_id: task.id, ...values }, "待办已更新");
+}
+
+async function createSubtask(taskId) {
+  const parent = findPlatformTask(taskId);
+  const values = normalizeTaskFormValues(await openPlatformAction({
+    title: `创建 ${parent.id} 的子待办`,
+    lead: `子待办保留在 ${parent.project_name}，初始状态固定为待评审。`,
+    confirmLabel: "创建子待办",
+    fields: [
+      platformField("content", "待办内容", { type: "textarea", required: true }),
+      taskProjectFields(parent.project_id, { includeFather: false }),
+      platformField("priority", "优先级", { type: "select", value: "", options: taskPriorityOptions() })
+    ]
+  }));
+  if (!values) return;
+  await executeManagedAction("task.subtask.create", { ...values, project_id: parent.project_id, father_id: parent.id }, "子待办已创建");
+}
+
+async function reparentTask(taskId) {
+  const task = findPlatformTask(taskId);
+  const values = await openPlatformAction({
+    title: `调整待办 ${task.id} 的父待办`,
+    lead: "ArcOrbit 会先检查同产品归属与循环关系，Workshop 服务端仍作最终校验。",
+    confirmLabel: "保存父待办",
+    fields: [platformField("father_id", "父待办", { type: "select", value: task.father_id, options: taskSelectOptions(task.project_id, task.id) })]
+  });
+  if (!values) return;
+  await executeManagedAction("task.reparent", { task_id: task.id, project_id: task.project_id, father_id: values.father_id || null }, "父待办已更新");
 }
 
 async function deleteTask(taskId) {
@@ -1263,29 +1584,55 @@ async function manageTaskAttachments(taskId) {
   const attachments = await api.executePlatformAction("task.attachments.list", { task_id: task.id });
   const userId = String(state.platform.user?.id || "");
   const role = findWorkspace(task.project_id).current_user_role;
-  const editable = (attachments || []).filter((item) => String(item.creator_id) === userId);
+  const editable = (attachments || []).filter((item) => String(item.creator_id) === userId && ["text", "url"].includes(item.type));
   const deletable = (attachments || []).filter((item) => String(item.creator_id) === userId || String(task.creator_id) === userId || ["owner", "admin"].includes(role));
-  const operation = await openPlatformAction({
-    title: `待办 ${task.id} 的附件`,
-    lead: `${attachments?.length || 0} 个附件；所有项目成员可新增，只有创建者可改内容，删除还允许待办创建者和项目 admin/owner。`,
-    confirmLabel: "下一步",
-    fields: [platformField("operation", "操作", { type: "select", options: [{ value: "create", label: "新增" }, ...(editable.length ? [{ value: "update", label: "更新我创建的附件" }] : []), ...(deletable.length ? [{ value: "delete", label: "删除有权限的附件" }] : [])] })]
-  });
-  if (!operation) return;
-  if (operation.operation === "create") {
-    const values = await openPlatformAction({ title: "新增附件", confirmLabel: "新增", fields: [platformField("type", "类型", { type: "select", options: ["text", "file", "url"].map((value) => ({ value, label: value })) }), platformField("content", "内容", { type: "textarea", required: true })] });
-    if (values) await executeManagedAction("task.attachment.create", { task_id: task.id, ...values }, "附件已新增");
+  if (editable.length === 0 && deletable.length === 0) {
+    showToast("新评论和资源可在 Inspector 中添加；当前记录没有可管理操作。");
     return;
   }
-  const candidates = operation.operation === "update" ? editable : deletable;
-  const values = await openPlatformAction({
-    title: operation.operation === "update" ? "更新附件" : "删除附件",
-    confirmLabel: operation.operation === "update" ? "保存" : "删除",
-    fields: [platformField("attachment_id", "附件", { type: "select", options: candidates.map((item) => ({ value: item.id, label: `${item.id} · ${item.type} · ${item.content.slice(0, 50)}` })) }), ...(operation.operation === "update" ? [platformField("content", "新内容", { type: "textarea", required: true })] : [])]
+  const operation = await openPlatformAction({
+    title: `待办 ${task.id} 的附件`,
+    lead: `${attachments?.length || 0} 条记录；新评论、链接、图片和文件请使用 Inspector 的类型化评论编辑器。创建者可改文本或链接，删除还允许待办创建者和项目 admin/owner。`,
+    confirmLabel: "下一步",
+    fields: [platformField("operation", "操作", { type: "select", options: [...(editable.length ? [{ value: "update", label: "更新我创建的文本或链接" }] : []), ...(deletable.length ? [{ value: "delete", label: "删除有权限的记录" }] : [])] })]
   });
-  if (!values) return;
-  if (operation.operation === "update") await executeManagedAction("task.attachment.update", values, "附件已更新");
-  else await executeManagedAction("task.attachment.delete", values, "附件已删除");
+  if (!operation) return;
+  const candidates = operation.operation === "update" ? editable : deletable;
+  const selection = await openPlatformAction({
+    title: operation.operation === "update" ? "选择要编辑的评论或链接" : "选择要删除的记录",
+    confirmLabel: "下一步",
+    fields: [platformField("attachment_id", "记录", { type: "select", options: candidates.map((item) => ({ value: item.id, label: taskAttachmentSummary(item) })) })]
+  });
+  if (!selection) return;
+  if (operation.operation === "update") {
+    const attachment = editable.find((item) => String(item.id) === String(selection.attachment_id));
+    if (!attachment) throw new Error("未找到可编辑的评论记录。");
+    const parsed = parseTaskAttachmentContent(attachment);
+    const edit = await openPlatformAction({
+      title: attachment.type === "url" ? "编辑链接" : "编辑评论",
+      confirmLabel: "保存",
+      fields: [platformField("content", attachment.type === "url" ? "链接地址" : "评论正文", { type: "textarea", required: true, value: attachment.type === "url" ? parsed.external_url : parsed.text })]
+    });
+    if (!edit) return;
+    const content = attachment.type === "url"
+      ? normalizeTaskAttachmentUrl(edit.content)
+      : buildTaskCommentContent({ text: edit.content, images: parsed.images, files: parsed.files });
+    await executeManagedAction("task.attachment.update", { attachment_id: attachment.id, content }, "评论记录已更新");
+  } else {
+    await executeManagedAction("task.attachment.delete", selection, "评论记录已删除");
+  }
+  delete state.platformTaskAttachments[String(task.id)];
+  await loadTaskAttachments(task.id);
+}
+
+function taskAttachmentSummary(item) {
+  try {
+    const parsed = parseTaskAttachmentContent(item);
+    const summary = parsed.text || parsed.external_url || parsed.files[0] || parsed.images[0] || "空记录";
+    return `${item.id} · ${item.type} · ${summary.slice(0, 50)}`;
+  } catch {
+    return `${item.id} · ${item.type} · 无法解析`;
+  }
 }
 
 async function createTag() {
@@ -1484,14 +1831,14 @@ function platformCheckboxGroup(name, label, options) {
   return `<fieldset class="platform-action-field platform-checkbox-group" data-multiple-field="${escapeHtml(name)}"><legend>${escapeHtml(label)}</legend>${options.length ? options.map((option) => `<label><input name="${escapeHtml(name)}" type="checkbox" value="${escapeHtml(option.value)}" ${option.checked ? "checked" : ""}><span><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.detail || "")}</small></span></label>`).join("") : `<div class="empty-state compact">尚无可访问项目。</div>`}</fieldset>`;
 }
 
-function taskProjectFields(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "" } = {}) {
-  return `<div class="task-project-fields" data-task-project-fields data-project-id="${escapeHtml(projectId)}">${taskProjectFieldControls(projectId, { executorId, fatherId, excludedTaskId, tags })}</div>`;
+function taskProjectFields(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "", includeFather = true } = {}) {
+  return `<div class="task-project-fields" data-task-project-fields data-project-id="${escapeHtml(projectId)}">${taskProjectFieldControls(projectId, { executorId, fatherId, excludedTaskId, tags, includeFather })}</div>`;
 }
 
-function taskProjectFieldControls(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "" } = {}) {
+function taskProjectFieldControls(projectId, { executorId = "", fatherId = "", excludedTaskId = "", tags = "", includeFather = true } = {}) {
   return [
     platformField("executor_id", "执行人", { type: "select", value: executorId, options: memberSelectOptions(projectId) }),
-    platformField("father_id", "父待办", { type: "select", value: fatherId, options: taskSelectOptions(projectId, excludedTaskId) }),
+    ...(includeFather ? [platformField("father_id", "父待办", { type: "select", value: fatherId, options: taskSelectOptions(projectId, excludedTaskId) })] : []),
     taskTagField(projectId, tags)
   ].join("");
 }
@@ -2186,12 +2533,12 @@ function openWorkState(taskState = "pending") {
   state.selectedState = TASK_STATES.includes(taskState) ? taskState : "pending";
   state.selectedPlatformTaskId = "";
   state.page = "work";
-  render();
+  refreshSnapshot().catch((error) => showToast(error.message));
 }
 
 function showPage(page) {
   state.page = page;
-  if (page === "tasks") {
+  if (["tasks", "work"].includes(page)) {
     refreshSnapshot().catch((error) => showToast(error.message));
     return;
   }
@@ -2347,6 +2694,9 @@ async function logout() {
     state.authentication = normalizeAuthentication(result.authentication);
     state.settings = normalizeSettings(await api.getSettings());
     state.snapshot = emptySnapshot();
+    state.platform = emptyPlatformSnapshot();
+    state.selectedPlatformTaskId = "";
+    invalidateTaskAttachmentCaches(state, { clearPending: true });
     renderSettingsForm();
     render();
     showLoginGate();
@@ -2796,6 +3146,7 @@ function emptyPlatformSnapshot() {
     product_workspaces: [],
     members: [],
     tasks: [],
+    task_trees: [],
     feedback_v1: [],
     tags: [],
     automation: {

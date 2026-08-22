@@ -385,9 +385,7 @@ Organization Center 以组织 → 成员 → 项目形成不受 Workset 裁剪�
 
 ### Work
 
-Work 提供当前工作集的跨产品待办视图，并支持完整项目待办管理。
-
-Work 至少覆盖创建、查看、筛选、任务树、状态、执行人、优先级、标签、父任务、评论附件和删除。
+Work 提供当前工作集的跨产品待办视图，并支持完整项目待办管理。日常任务发现、多维筛选、任务树与子任务、完整详情、评论附件、任务字段维护和受控状态处置由 `arcorbit-work-management.md` 定义。
 
 Work 面板内提供 `pending_review`、`pending`、`in_progress`、`completed`、`accepted`、`cancelled` 和 `blocked` 七种状态筛选。状态筛选与顶部产品集观察范围共同限定列表；它不作为主导航分组，也不改变自动队列顺序。
 
@@ -486,7 +484,7 @@ Workshop 待办的 `go test ./...` 当前通过编译，但所有包均显示没
 - ArcOrbit 验证：`runtime/arcorbit/test/task-source-adapter.test.mjs`、`runtime/arcorbit/test/automation-coordinator.test.mjs`、`runtime/arcorbit/test/codex-app-server-adapter.test.mjs`。
 - Workshop 服务路由与模型：`../../hoewo/workshop-todo/router/router.go`、`../../hoewo/workshop-todo/models/`。
 - Workshop 服务行为：`../../hoewo/workshop-todo/handler/organization.go`、`../../hoewo/workshop-todo/handler/project.go`、`../../hoewo/workshop-todo/handler/task.go`、`../../hoewo/workshop-todo/handler/feedback.go`。
-- 待办 Web：`../../hoewo/workshop-todo-website/frontend/src/App.tsx`、`../../hoewo/workshop-todo-website/frontend/src/pages/TasksPage.tsx`、`../../hoewo/workshop-todo-website/frontend/src/lib/api/endpoints/`、`../../hoewo/workshop-todo-website/frontend/src/lib/permissions/`。
+- 待办 Web：`../../hoewo/workshop-todo-website/frontend/src/App.tsx`、`../../hoewo/workshop-todo-website/frontend/src/pages/ProjectDetailPage.tsx`、`../../hoewo/workshop-todo-website/frontend/src/components/features/TaskDetailContent.tsx`、`../../hoewo/workshop-todo-website/frontend/src/lib/api/endpoints/`、`../../hoewo/workshop-todo-website/frontend/src/lib/permissions/`。
 - 反馈控制台：`../../hoewo/Workshop-Feedbacks/webapps/feedback-console-web/src/components/features/FeedbackManagementDialog.tsx`、`../../hoewo/Workshop-Feedbacks/webapps/feedback-console-web/src/lib/api/feedbackV2Client.ts`。
 - 反馈 SDK：`../../hoewo/Workshop-Feedbacks/webapps/feedback-sdk-web/src/lib/feedback/api.ts`、`../../hoewo/Workshop-Feedbacks/webapps/feedback-sdk-web/src/lib/feedback/v2.ts`。
 - 产品方向：`arckit/pending/items/2026-07-14-ai-native-desktop-platform-prototype.md`、`arckit/pending/items/2026-07-14-ai-native-software-product-development-platform-blueprint.md`、`arckit/pending/prototypes/arcorbit-platform-next/README.md`。

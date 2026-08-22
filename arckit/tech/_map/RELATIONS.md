@@ -24,6 +24,8 @@
 
 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md` 对应 `arcorbit/platform-composition-solution.md`，定义多产品平台能力、Workshop 事实边界、团队/待办/反馈行为与受保护核心。
 
+`arckit/spec/agentic-software-development/arcorbit-work-management.md` 对应 `arcorbit/platform-composition-solution.md` 的 Work Task 查询、任务树、父子关系、评论附件、受限 mutation 和缓存刷新契约，并由 `arckit/interaction/task-browser/` 投影为同屏日常待办页面。
+
 同一产品规格中的 ArcOrbit 产品反馈中心对应 `arcorbit/product-feedback-integration.md` 与 `arckit/interaction/product-feedback-center/`，不对应 Workset Feedback 管理或验收问题执行。
 
 `arckit/spec/agentic-software-development/arcorbit-organization-management.md` 对应同一平台组合方案中的组织治理、分页、项目归属、成员关系与邀请加入契约。

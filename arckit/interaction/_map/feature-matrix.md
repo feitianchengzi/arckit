@@ -12,4 +12,4 @@
 | `engineering-profile/` | ✅ | 选择、编辑、比较和应用由 State Model、Capability Mapping 与 Lifecycle Mapping 组成的 Domain Profile | Profile Library、草稿编辑、跨行业比较、兼容性检查、Apply 确认、稳定 Loop Kernel |
 | `product-feedback-center/` | ✅ | 在 ArcOrbit 内向固定 Project 107 提交反馈、查看当前账户反馈并感知未读变化 | 未读角标、SDK 加载、提交反馈、我的反馈、需要登录、SDK 失败恢复 |
 | `automation-workspace/` | ✅ | 登录后通过持久事件和 REST 确认实时同步项目任务，分别观察普通待办与验收问题队列，由统一执行仲裁器串行启动 ready 队首；人工 Gate 在重连和对账中保持等待 | 实时/补取/降级/游标过期、双队列总览、问题等待/运行/待人工/阻塞、项目范围切换、自动执行、CLI 接管、人工介入、完成续接、写回失败、领取冲突与用量诊断 |
-| `task-browser/` | ✅ | 在 Work 内创建和编辑产品限定待办，并以七状态列表和同屏右侧 Inspector 浏览任务；成员、父待办和标签随产品联动，优先级使用语义档位，标签支持选择和生命周期管理 | 创建/编辑 Sheet、产品成员/父待办/标签联动、语义优先级、标签创建编辑删除、待处理列表与 Inspector、待评审确认、运行/验收、阻塞恢复、取消确认、空态与冲突 |
+| `task-browser/` | ✅ | 在 Work 内用多维服务端筛选和父子任务树处理完整项目待办，并在同屏 Inspector 完成详情、评论附件、产品限定维护、验收与受控状态操作 | 多维筛选、任务树、完整详情、评论附件、创建/编辑 Sheet、标签生命周期、待评审确认、运行/验收、阻塞恢复、取消确认、空态与冲突 |

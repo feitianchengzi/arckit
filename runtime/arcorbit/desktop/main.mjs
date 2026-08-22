@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, powerMonitor, shell, utilityProcess, WebContentsView } from "electron";
 import { dirname, join } from "node:path";
+import { readFile, stat } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
@@ -13,6 +14,8 @@ import { createElectronUtilityRuntimeHost } from "../src/electron-utility-runtim
 import { createProductFeedbackService } from "../src/product-feedback-service.mjs";
 import { createProductFeedbackSurface } from "../src/product-feedback-window.mjs";
 import { requireFeedbackAttachmentUrl } from "../src/feedback-attachment-url.mjs";
+import { requireWorkExternalLinkUrl } from "../src/work-external-link.mjs";
+import { WORK_TASK_FILE_MAX_BYTES, WORK_TASK_IMAGE_MAX_BYTES, requireTrustedResourceUrl } from "../src/work-task-attachment-resource.mjs";
 import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-boundary.mjs";
 import { checkDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
 import { createWorkshopRealtimeAdapter } from "../src/workshop-realtime-adapter.mjs";
@@ -389,10 +392,69 @@ function registerIpc() {
     await shell.openExternal(url);
     return { opened: true };
   });
+  ipcMain.handle("arckit:work-external-link-open", async (event, value) => {
+    assertMainRenderer(event);
+    const url = requireWorkExternalLinkUrl(value);
+    await shell.openExternal(url);
+    return { opened: true };
+  });
+  ipcMain.handle("arckit:work-task-attachment-pick", async (event, input) => {
+    assertMainRenderer(event);
+    const kind = input?.kind === "image" ? "image" : input?.kind === "file" ? "file" : "";
+    if (!kind) throw new TypeError("评论资源类型无效。");
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: kind === "image" ? "选择评论图片" : "选择评论文件",
+      properties: ["openFile"],
+      ...(kind === "image" ? { filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp"] }] } : {})
+    });
+    if (result.canceled || result.filePaths.length !== 1) return null;
+    const filePath = result.filePaths[0];
+    const fileInfo = await stat(filePath);
+    const maxBytes = kind === "image" ? WORK_TASK_IMAGE_MAX_BYTES : WORK_TASK_FILE_MAX_BYTES;
+    if (!fileInfo.isFile() || fileInfo.size <= 0 || fileInfo.size > maxBytes) throw new Error(`所选${kind === "image" ? "图片" : "文件"}大小超出限制。`);
+    const fileName = filePath.split(/[\\/]/).pop() || "attachment";
+    const mimeType = workAttachmentMimeType(fileName, kind);
+    const bytes = new Uint8Array(await readFile(filePath));
+    return platformCoordinator.uploadTaskAttachmentResource({
+      project_id: input?.project_id,
+      task_id: input?.task_id,
+      kind,
+      file: { file_name: fileName, mime_type: mimeType, size: bytes.byteLength, bytes }
+    });
+  });
+  ipcMain.handle("arckit:work-task-attachment-preview", async (event, input) => {
+    assertMainRenderer(event);
+    const url = requireTrustedResourceUrl(await platformCoordinator.getTaskAttachmentResourceUrl({ ...input, download: false }));
+    const response = await fetch(url);
+    requireTrustedResourceUrl(response.url);
+    const declaredType = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+    const contentType = ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(declaredType) ? declaredType : workAttachmentMimeType(input?.object_key, "image");
+    const announcedSize = Number(response.headers.get("content-length") || 0);
+    if (!response.ok || announcedSize > WORK_TASK_IMAGE_MAX_BYTES) throw new Error("评论图片预览不可用。");
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength === 0 || bytes.byteLength > WORK_TASK_IMAGE_MAX_BYTES) throw new Error("评论图片预览大小无效。");
+    return { data_url: `data:${contentType};base64,${Buffer.from(bytes).toString("base64")}` };
+  });
+  ipcMain.handle("arckit:work-task-attachment-open", async (event, input) => {
+    assertMainRenderer(event);
+    const url = requireTrustedResourceUrl(await platformCoordinator.getTaskAttachmentResourceUrl({ ...input, download: true }));
+    await shell.openExternal(url);
+    return { opened: true };
+  });
 }
 
 function assertMainRenderer(event) {
-  if (event.sender !== mainWindow?.webContents) throw new Error("Feedback actions can only be invoked from the main ArcOrbit window.");
+  if (event.sender !== mainWindow?.webContents) throw new Error("Main-window actions can only be invoked from the main ArcOrbit window.");
+}
+
+function workAttachmentMimeType(fileName, kind) {
+  const extension = String(fileName || "").split(".").pop()?.toLowerCase();
+  const imageTypes = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp" };
+  if (kind === "image") {
+    if (!imageTypes[extension]) throw new TypeError("仅支持 PNG、JPEG、GIF 或 WebP 评论图片。");
+    return imageTypes[extension];
+  }
+  return { pdf: "application/pdf", txt: "text/plain", md: "text/markdown", json: "application/json", zip: "application/zip" }[extension] || "application/octet-stream";
 }
 
 function startAutomation() {

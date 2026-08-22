@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { normalizeWorkset } from "./desktop/desktop-store.mjs";
+import { taskAttachmentHasObjectKey } from "./work-task-attachment-content.mjs";
 
 const SECTION_NAMES = new Set(["overview", "organizations", "members", "tasks", "feedback", "tags"]);
+const TASK_STATES = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
 
 export function createPlatformCoordinator({ runManager, platformSource, automationCoordinator, now = () => new Date().toISOString() }) {
   if (!runManager || !platformSource || !automationCoordinator) {
@@ -136,12 +138,19 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     const detailResults = await Promise.all(selectedProjects.map(async (project) => {
       const projectId = String(project.id);
       const embeddedMembers = projectMembers.filter((member) => String(member.project_id) === projectId);
-      const [members, tasks, feedback, tags] = await Promise.all([
+      const taskFilters = input.task_filters || {};
+      const treeRequested = Boolean(taskFilters.tree && typeof platformSource.listProjectTaskTree === "function");
+      const [members, tasks, taskCountSource, feedback, tags] = await Promise.all([
         sections.has("members")
           ? embeddedMembers.length > 0 ? Promise.resolve({ value: embeddedMembers, error: null }) : capture("members", () => platformSource.listProjectMembers(projectId), projectId)
           : emptyResult(),
         sections.has("tasks") || sections.has("overview")
-          ? capture("tasks", () => platformSource.listProjectTasks(projectId, input.task_filters || {}), projectId)
+          ? capture("tasks", () => treeRequested
+            ? platformSource.listProjectTaskTree(projectId, taskFilters)
+            : platformSource.listProjectTasks(projectId, taskFilters), projectId)
+          : emptyResult(),
+        sections.has("tasks") && treeRequested
+          ? capture("task_counts", () => platformSource.listProjectTasks(projectId, { ...taskFilters, tree: false, states: TASK_STATES }), projectId)
           : emptyResult(),
         sections.has("feedback") || sections.has("overview")
           ? loadFeedback(projectId, input.feedback_filters || {})
@@ -150,8 +159,18 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
           ? capture("tags", () => platformSource.listProjectTags(projectId), projectId)
           : emptyResult()
       ]);
-      errors.push(...[members.error, tasks.error, feedback.error, tags.error].filter(Boolean));
-      return { projectId, members: members.value || [], tasks: tasks.value || [], feedback: feedback.value || [], feedbackManagement: feedback.management || unavailableFeedbackManagement(projectId), tags: tags.value || [] };
+      errors.push(...[members.error, tasks.error, taskCountSource.error, feedback.error, tags.error].filter(Boolean));
+      const taskValue = tasks.value || [];
+      return {
+        projectId,
+        members: members.value || [],
+        tasks: Array.isArray(taskValue) ? taskValue : taskValue.flattened || [],
+        taskTree: Array.isArray(taskValue) ? null : taskValue,
+        taskCounts: treeRequested && Array.isArray(taskCountSource.value) ? countBy(taskCountSource.value, "state") : null,
+        feedback: feedback.value || [],
+        feedbackManagement: feedback.management || unavailableFeedbackManagement(projectId),
+        tags: tags.value || []
+      };
     }));
     const details = new Map(detailResults.map((item) => [item.projectId, item]));
     const productWorkspaces = selectedProjects.map((project) => buildProductWorkspace({
@@ -191,6 +210,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       project_members: projectMembers.map((member) => ({ ...member, project_name: projectCatalog.find((project) => String(project.id) === String(member.project_id))?.name || "" })),
       members: productWorkspaces.flatMap((workspace) => workspace.members),
       tasks: productWorkspaces.flatMap((workspace) => workspace.tasks),
+      task_trees: productWorkspaces.map((workspace) => workspace.task_tree).filter(Boolean),
       feedback_v1: productWorkspaces.flatMap((workspace) => workspace.feedback_v1),
       tags: productWorkspaces.flatMap((workspace) => workspace.tags),
       automation: {
@@ -309,13 +329,28 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       "project.join": () => platformSource.joinProject(input),
       "project.member.update": () => platformSource.updateProjectMember(input.project_id, input),
       "project.member.delete": () => platformSource.deleteProjectMember(input.project_id, input),
-      "task.create": () => platformSource.createTask(input),
+      "task.create": () => platformSource.createTask({ ...input, state: "pending_review" }),
+      "task.subtask.create": async () => {
+        const projectId = requiredText(input.project_id, "Project id", 120);
+        const parentId = requiredText(input.father_id, "Parent task id", 120);
+        const tasks = await platformSource.listProjectTasks(projectId);
+        if (!(tasks || []).some((task) => String(task.id) === parentId)) throw new Error("父待办不属于当前产品。");
+        return platformSource.createTask({ ...input, project_id: projectId, state: "pending_review", father_id: parentId });
+      },
+      "task.reparent": async () => {
+        const projectId = requiredText(input.project_id, "Project id", 120);
+        const taskId = requiredText(input.task_id, "Task id", 120);
+        const parentId = input.father_id === undefined || input.father_id === null || input.father_id === "" ? "" : requiredText(input.father_id, "Parent task id", 120);
+        const tasks = await platformSource.listProjectTasks(projectId);
+        validateTaskParentChange(tasks, taskId, parentId);
+        return platformSource.updateTask(taskId, { father_id: parentId || null });
+      },
       "task.update": async () => {
-        if (input.state === "accepted") {
+        if (input.state !== undefined) {
           const automation = await automationCoordinator.getSnapshot({});
           const task = (automation.tasks || []).find((item) => String(item.id) === String(input.task_id));
-          if ((task?.acceptance_feedback_items || []).some((item) => !["resolved", "cancelled"].includes(item.status))) {
-            throw new Error("仍有未解决的验收问题，不能标记为已验收。");
+          if (task) {
+            throw new Error("Automation 管理中的待办状态只能通过受控 Automation 动作变更。");
           }
         }
         return platformSource.updateTask(input.task_id, input);
@@ -436,6 +471,23 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     return runFeedbackV2Action(input.project_id, "attachments", () => platformSource.getFeedbackV2AttachmentUrl(input.project_id, input));
   }
 
+  async function uploadTaskAttachmentResource(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    const taskId = requiredText(input.task_id, "Task id", 120);
+    const tasks = await platformSource.listProjectTasks(projectId);
+    if (!(tasks || []).some((task) => String(task.id) === taskId)) throw new Error("待办不属于当前产品或当前账户不可见。");
+    return platformSource.uploadTaskAttachmentResource({ kind: input.kind, file: input.file });
+  }
+
+  async function getTaskAttachmentResourceUrl(input = {}) {
+    const taskId = requiredText(input.task_id, "Task id", 120);
+    const attachmentId = requiredText(input.attachment_id, "Attachment id", 120);
+    const attachments = await platformSource.listTaskAttachments(taskId);
+    const attachment = (attachments || []).find((item) => String(item.id) === attachmentId);
+    if (!attachment || !taskAttachmentHasObjectKey(attachment, input.object_key)) throw new Error("评论资源不属于该待办记录。");
+    return platformSource.getTaskAttachmentResourceUrl(input.object_key, { download: Boolean(input.download) });
+  }
+
   async function runFeedbackV2Action(projectId, feature, action) {
     const id = requiredText(projectId, "Project id", 120);
     if (!feedbackV2Enabled(id)) throw Object.assign(new Error("该项目未启用开发者反馈管理。"), { code: "feedback_v2_unavailable" });
@@ -483,7 +535,9 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     updateFeedbackV2,
     deleteFeedbackV2,
     convertFeedbackV2ToTask,
-    getFeedbackV2AttachmentUrl
+    getFeedbackV2AttachmentUrl,
+    uploadTaskAttachmentResource,
+    getTaskAttachmentResourceUrl
   };
 }
 
@@ -508,11 +562,17 @@ function buildProductWorkspace({ project, automationProject, preference, detail 
   return {
     ...projectProjection(project, automationProject),
     preference,
-    task_counts: countBy(tasks, "state"),
+    task_counts: detail.taskCounts || countBy(tasks, "state"),
     feedback_count: feedback.length,
     feedback_management: detail.feedbackManagement || unavailableFeedbackManagement(projectId),
     members,
     tasks,
+    task_tree: detail.taskTree ? {
+      project_id: projectId,
+      total: Number.isFinite(detail.taskTree.total) ? detail.taskTree.total : tasks.length,
+      matched_total: Number.isFinite(detail.taskTree.matched_total) ? detail.taskTree.matched_total : tasks.filter((task) => task.tree_matched !== false).length,
+      tasks: (detail.taskTree.tasks || []).map((item) => ({ ...item, project_id: projectId, project_name: project.name }))
+    } : null,
     feedback_v1: feedback,
     tags: (detail.tags || []).map((item) => ({ ...item, project_id: projectId, project_name: project.name }))
   };
@@ -614,6 +674,21 @@ function countBy(items, key) {
   const counts = {};
   for (const item of items) counts[item[key]] = (counts[item[key]] || 0) + 1;
   return counts;
+}
+
+function validateTaskParentChange(tasks, taskId, parentId) {
+  const byId = new Map((tasks || []).map((task) => [String(task.id), task]));
+  if (!byId.has(taskId)) throw new Error("待办不属于当前产品。");
+  if (!parentId) return;
+  if (!byId.has(parentId)) throw new Error("父待办不属于当前产品。");
+  if (parentId === taskId) throw new Error("待办不能成为自己的父待办。");
+  const seen = new Set([taskId]);
+  let cursor = parentId;
+  while (cursor) {
+    if (seen.has(cursor)) throw new Error("父待办关系不能形成循环。");
+    seen.add(cursor);
+    cursor = String(byId.get(cursor)?.father_id || "");
+  }
 }
 
 async function capture(section, action, projectId = "") {

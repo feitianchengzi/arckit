@@ -1,6 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkshopTaskSource, TaskSourceError } from "../src/task-source-adapter.mjs";
+import { createWorkshopTaskSource, normalizeTask, TaskSourceError } from "../src/task-source-adapter.mjs";
+
+test("Workshop task normalization preserves complete detail metadata", () => {
+  const task = normalizeTask({
+    id: 21,
+    project_id: 11,
+    content: "Ship Work detail",
+    state: "completed",
+    creator_id: 7,
+    executor_id: 8,
+    creator: { id: 7, username: "glare" },
+    executor: { id: 8, username: "lin" },
+    tags: "3,4",
+    created_at: "2026-08-20T01:00:00Z",
+    updated_at: "2026-08-21T02:00:00Z",
+    completion_at: "2026-08-21T03:00:00Z"
+  });
+
+  assert.equal(task.creator.username, "glare");
+  assert.equal(task.assignee.username, "lin");
+  assert.equal(task.completion_at, "2026-08-21T03:00:00Z");
+  assert.equal(task.created_at, "2026-08-20T01:00:00Z");
+  assert.equal(task.updated_at, "2026-08-21T02:00:00Z");
+  assert.equal(task.tags, "3,4");
+});
 
 test("Workshop task source reads the current user, project-owned tasks, and all seven states", async () => {
   const calls = [];

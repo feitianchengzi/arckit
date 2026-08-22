@@ -89,6 +89,53 @@ test("platform coordinator preserves partial product results and exposes section
   assert.deepEqual(snapshot.errors.map((item) => [item.section, item.project_id, item.code]), [["tasks", "12", "network_error"]]);
 });
 
+test("platform coordinator projects task-tree lineage and matched counts without flattening away hierarchy metadata", async () => {
+  const treeCalls = [];
+  const countCalls = [];
+  const coordinator = createPlatformCoordinator({
+    runManager: { readDesktopStore: async () => normalizeStore({ platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["11"] }], active_workset_id: "WORKSET-DEFAULT" } }), updateDesktopStore: async () => {} },
+    automationCoordinator: { getSnapshot: async () => ({ source_status: "healthy", projects: [], queue: [], attention_items: [], recovery_items: [] }) },
+    platformSource: new Proxy({
+      listProjects: async () => [{ id: "11", name: "Alpha" }],
+      listProjectTaskTree: async (projectId, filters) => {
+        treeCalls.push([projectId, filters]);
+        return { tasks: [{ id: "21", tree_depth: 0, children: [] }], flattened: [{ id: "21", tree_depth: 0, tree_matched: false }, { id: "22", tree_depth: 1, tree_matched: true }], total: 2, matched_total: 1 };
+      },
+      listProjectTasks: async (projectId, filters) => {
+        countCalls.push([projectId, filters]);
+        return [{ id: "22", state: "pending" }, { id: "23", state: "blocked" }];
+      }
+    }, { get: (target, key) => target[key] || (async () => []) })
+  });
+  const filters = { tree: true, states: ["pending"], start_time: "2026-05-16", end_time: "2026-08-23" };
+  const snapshot = await coordinator.getSnapshot({ sections: ["tasks"], task_filters: filters });
+  assert.deepEqual(treeCalls, [["11", filters]]);
+  assert.deepEqual(countCalls, [["11", { ...filters, tree: false, states: ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"] }]]);
+  assert.deepEqual(snapshot.tasks.map((task) => [task.id, task.project_name, task.tree_depth]), [["21", "Alpha", 0], ["22", "Alpha", 1]]);
+  assert.deepEqual(snapshot.task_trees.map((tree) => [tree.project_id, tree.total, tree.matched_total]), [["11", 2, 1]]);
+  assert.deepEqual(snapshot.product_workspaces[0].task_counts, { pending: 1, blocked: 1 });
+});
+
+test("platform coordinator binds TaskAttachment upload and access to a visible task and persisted record", async () => {
+  const calls = [];
+  const platformSource = new Proxy({
+    listProjectTasks: async () => [{ id: "21", project_id: "11" }],
+    listTaskAttachments: async () => [{ id: "31", task_id: "21", type: "text", content: "[image](workshop/a.png) [file](workshop/a.pdf)" }],
+    uploadTaskAttachmentResource: async (input) => { calls.push(["upload", input]); return { object_key: "workshop/new.png" }; },
+    getTaskAttachmentResourceUrl: async (key, options) => { calls.push(["url", key, options]); return `https://oss.example.test/${key}`; }
+  }, { get: (target, key) => target[key] || (async () => []) });
+  const coordinator = createPlatformCoordinator({
+    runManager: { readDesktopStore: async () => normalizeStore({}), updateDesktopStore: async () => {} },
+    automationCoordinator: { getSnapshot: async () => ({ projects: [], queue: [], attention_items: [], recovery_items: [] }) },
+    platformSource
+  });
+  assert.deepEqual(await coordinator.uploadTaskAttachmentResource({ project_id: "11", task_id: "21", kind: "image", file: { size: 3 } }), { object_key: "workshop/new.png" });
+  assert.equal(await coordinator.getTaskAttachmentResourceUrl({ task_id: "21", attachment_id: "31", object_key: "workshop/a.pdf", download: true }), "https://oss.example.test/workshop/a.pdf");
+  await assert.rejects(coordinator.getTaskAttachmentResourceUrl({ task_id: "21", attachment_id: "31", object_key: "workshop/other.pdf" }), /不属于/);
+  await assert.rejects(coordinator.uploadTaskAttachmentResource({ project_id: "11", task_id: "99", kind: "file", file: {} }), /不可见/);
+  assert.equal(calls.length, 2);
+});
+
 test("organization governance uses role-based project visibility without inheriting Workset scope", async () => {
   const visibilityCalls = [];
   const coordinator = createPlatformCoordinator({
@@ -138,6 +185,7 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
     updateProjectMember: async (projectId, input) => { calls.push(["member.update", projectId, input]); return { ok: true }; },
     createTask: async (input) => { calls.push(["task.create", input]); return { id: 42, state: "pending_review" }; },
     updateTask: async (taskId, input) => { calls.push(["task.update", taskId, input]); return { id: taskId, ...input }; },
+    listProjectTasks: async () => [{ id: "42", father_id: "" }, { id: "43", father_id: "42" }, { id: "44", father_id: "43" }],
     updateFeedbackV1: async (feedbackId, input) => { calls.push(["feedback.update", feedbackId, input]); return { id: feedbackId }; }
   }, { get: (target, key) => target[key] || (async () => []) });
   const coordinator = createPlatformCoordinator({
@@ -165,10 +213,14 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
     }
   );
   assert.equal(Number.isNaN(Date.parse(calls[2][2].data.converted_at)), false);
-  await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /仍有未解决的验收问题/);
+  await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /只能通过受控 Automation 动作/);
   acceptanceIssues[0].status = "resolved";
-  await coordinator.executeAction("task.update", { task_id: "42", state: "accepted" });
-  assert.deepEqual(calls.at(-1), ["task.update", "42", { task_id: "42", state: "accepted" }]);
+  await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /只能通过受控 Automation 动作/);
+  await coordinator.executeAction("task.subtask.create", { project_id: "11", father_id: "42", content: "Child", state: "accepted" });
+  assert.deepEqual(calls.at(-1), ["task.create", { project_id: "11", father_id: "42", content: "Child", state: "pending_review" }]);
+  await coordinator.executeAction("task.reparent", { project_id: "11", task_id: "44", father_id: "42" });
+  assert.deepEqual(calls.at(-1), ["task.update", "44", { father_id: "42" }]);
+  await assert.rejects(coordinator.executeAction("task.reparent", { project_id: "11", task_id: "42", father_id: "44" }), /不能形成循环/);
   await assert.rejects(coordinator.executeAction("project.member.add", { project_id: 11, target_user_id: 7 }), /Unsupported platform action/);
 });
 

@@ -103,11 +103,63 @@ test("Workshop platform management uses the existing bounded service routes and 
   assert.equal("addProjectMember" in adapter, false);
 });
 
+test("Workshop platform adapter keeps TaskAttachment OSS credentials behind bounded resource methods", async () => {
+  const calls = [];
+  const adapter = createWorkshopPlatformAdapter({
+    request: async (path) => {
+      calls.push(path);
+      if (path === "/oss/credentials") return { root_path: "/workshop", access_key_id: "id" };
+      return {};
+    },
+    listProjects: async () => [],
+    normalizeTask: (value) => value,
+    uploadTaskResource: async ({ credentials, kind, file }) => ({ object_key: `${credentials.root_path}/${kind}/${file.file_name}` }),
+    signTaskResourceUrl: ({ objectKey, credentials, download }) => `https://oss.example.test/${objectKey}?id=${credentials.access_key_id}&download=${download}`
+  });
+  assert.deepEqual(await adapter.uploadTaskAttachmentResource({ kind: "file", file: { file_name: "log.txt" } }), { object_key: "/workshop/file/log.txt" });
+  assert.equal(await adapter.getTaskAttachmentResourceUrl("workshop/file/log.txt", { download: true }), "https://oss.example.test/workshop/file/log.txt?id=id&download=true");
+  assert.deepEqual(calls, ["/oss/credentials", "/oss/credentials"]);
+});
+
 test("Workshop platform management validates ids and rejects unsupported owner assignment", async () => {
   const adapter = createWorkshopPlatformAdapter({ request: async () => ({}), listProjects: async () => [], normalizeTask: (value) => value });
   assert.throws(() => adapter.createTask({ project_id: "not-an-id", content: "Invalid" }), /Project id is invalid/);
   assert.throws(() => adapter.updateProjectMember("11", { target_user_id: 7, role: "owner" }), /Member role is invalid/);
   assert.throws(() => adapter.inviteProjectMember("11", { role: "owner" }), /Member role is invalid/);
+});
+
+test("Workshop task queries serialize multi-value filters and normalize the bounded task tree", async () => {
+  const calls = [];
+  const adapter = createWorkshopPlatformAdapter({
+    request: async (path, options = {}) => {
+      calls.push({ path, options });
+      if (path === "/tasks/tree") return {
+        total: 1,
+        tasks: [{ id: 21, project_id: 11, content: "Parent", matched: false, children: [{ id: 22, project_id: 11, father_id: 21, content: "Child", matched: true }] }]
+      };
+      return { tasks: [{ id: 22, project_id: 11, content: "Child" }], total: 1 };
+    },
+    listProjects: async () => [],
+    normalizeTask: (value) => ({ ...value, id: String(value.id), project_id: String(value.project_id), father_id: value.father_id ? String(value.father_id) : "" })
+  });
+
+  await adapter.listProjectTasks("11", {
+    states: ["pending", "blocked"], creator_ids: [7, 8], executor_ids: [9], tag_ids: [3, 4], priorities: [0, 2], search_key: " release "
+  });
+  assert.deepEqual(calls[0], {
+    path: "/tasks",
+    options: { query: { project_id: "11", state: "pending,blocked", creator_id: "7,8", executor_id: "9", tags: "3,4", priority: "0,2", search_key: "release", page: 1, page_size: 200 } }
+  });
+
+  const tree = await adapter.listProjectTaskTree("11", { states: ["pending"], start_time: "2026-05-16", end_time: "2026-08-23" });
+  assert.equal(calls[1].path, "/tasks/tree");
+  assert.equal(calls[1].options.query.state, "pending");
+  assert.equal(calls[1].options.query.start_time, "2026-05-16T00:00:00.000Z");
+  assert.equal(calls[1].options.query.end_time, "2026-08-23T23:59:59.999Z");
+  assert.equal(tree.total, 2);
+  assert.equal(tree.matched_total, 1);
+  assert.deepEqual(tree.flattened.map((task) => [task.id, task.tree_depth, task.tree_matched]), [["21", 0, false], ["22", 1, true]]);
+  await assert.rejects(adapter.listProjectTaskTree("11", { start_time: "2026-01-01", end_time: "2026-08-23" }), /cannot exceed 100 days/);
 });
 
 test("Workshop platform adapter normalizes historical Feedback V1 processing fields", () => {

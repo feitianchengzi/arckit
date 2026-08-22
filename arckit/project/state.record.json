@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-22T21:17:46.533Z",
-    "revision": 174
+    "updated_at": "2026-08-22T23:23:27.164Z",
+    "revision": 178
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "移除顶部“搜索任务、项目或 Run”搜索框及其专属交互，同时识别并保留被自动化队列、反馈关联任务等其他业务复用的任务浏览能力。",
+      "current_focus": "ArcOrbit Work 核心日常待办能力已进入生产实现并通过自动化回归；Case 等待基于 fresh state 的后续推进。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,31 +147,19 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit preserves Setup Readiness, supervised one-thread-per-todo automation, trusted ledger transitions, intervention/recovery and acceptance feedback while providing Desktop composition of Workshop organizations, organization and project membership, personal and organization projects, seven-state todos, ordinary user feedback, local Product Workspaces and a persistent multi-product Workset. Workset Feedback remains the developer processing workspace and ArcOrbit retains its independent Product 107 feedback center. ArcOrbit also presents planning-only Chat, Idea, Release, Operations and Engineering workspaces. Engineering demonstrates management of versioned Domain Profiles: a profile combines Project/Case domain State definitions, expected/actual/diagnosis capability mappings and lifecycle-stage interpretations; users can browse templates, create or duplicate drafts, edit mappings, compare changes and review an apply plan so different teams or industries can reuse the same Loop Kernel and product lifecycle. Entry skills remain part of the shared Loop Kernel and are excluded from profiles. No new backend, persistence, skill installation, profile application, Runtime, monitoring, market-platform or registry integration is claimed. Automation discovers Workshop task changes through project WebSocket notifications and confirms them through REST. Modern services use event IDs, cursor replay and cursor-expiry recovery; legacy services use no-ID notifications while online and refresh current state on every reconnect without reading, writing or replaying a cursor. ArcOrbit performs startup, system-resume and network-recovery synchronization, a 15-minute global reconciliation and user-triggered immediate synchronization, but no minute-level fallback polling. Every task is re-read before conditional claim, and no transport or synchronization activity is approval to leave awaiting_human.",
-          "reason": "The accepted compatibility strategy is now implemented without weakening modern replay or the human Gate.",
+          "statement": "ArcOrbit preserves Setup Readiness, supervised one-thread-per-todo automation, trusted ledger transitions, intervention/recovery and acceptance feedback while providing Desktop composition of Workshop organizations, organization and project membership, personal and organization projects, seven-state todos, ordinary user feedback, local Product Workspaces and a persistent multi-product Workset. Workset Feedback remains the developer processing workspace and ArcOrbit retains its independent Product 107 feedback center. ArcOrbit also presents planning-only Chat, Idea, Release, Operations and Engineering workspaces. Engineering demonstrates management of versioned Domain Profiles: a profile combines Project/Case domain State definitions, expected/actual/diagnosis capability mappings and lifecycle-stage interpretations; users can browse templates, create or duplicate drafts, edit mappings, compare changes and review an apply plan so different teams or industries can reuse the same Loop Kernel and product lifecycle. Entry skills remain part of the shared Loop Kernel and are excluded from profiles. No new backend, persistence, skill installation, profile application, Runtime, monitoring, market-platform or registry integration is claimed. Automation discovers Workshop task changes through project WebSocket notifications and confirms them through REST. Modern services use event IDs, cursor replay and cursor-expiry recovery; legacy services use no-ID notifications while online and refresh current state on every reconnect without reading, writing or replaying a cursor. ArcOrbit performs startup, system-resume and network-recovery synchronization, a 15-minute global reconciliation and user-triggered immediate synchronization, but no minute-level fallback polling. Every task is re-read before conditional claim, and no transport or synchronization activity is approval to leave awaiting_human. Work replaces Workshop Todo web for daily task handling by adding server-backed multi-dimensional filtering, an explainable parent/child task tree and subtask operations, complete task detail, and TaskAttachment comment/attachment collaboration to its existing seven-state CRUD, assignment, priority, tag, attachment, Automation and acceptance capabilities. Markdown export, an unimplemented server Task-history route, and Organization governance are not core Work parity gates.",
+          "reason": "对 Workshop Todo 网页端、服务端和 ArcOrbit 当前实现的源码审计建立了日常替代网页版所需的核心能力边界，并已形成稳定规格。",
           "evidence": [
-            "Current operator input, 2026-08-20",
-            "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
-            "Current operator input, 2026-08-22",
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/tech/arcorbit/realtime-synchronization-solution.md",
-            "arckit/interaction/automation-workspace/default.html",
-            "runtime/arcorbit/src/workshop-realtime-adapter.mjs",
-            "runtime/arcorbit/desktop/main.mjs",
-            "runtime/arcorbit/desktop/renderer/index.html",
-            "runtime/arcorbit/desktop/renderer/renderer.js",
-            "runtime/arcorbit/src/automation-coordinator.mjs",
-            "runtime/arcorbit/src/desktop/desktop-store.mjs",
-            "runtime/arcorbit/test/workshop-realtime-adapter.test.mjs",
-            "runtime/arcorbit/test/automation-coordinator.test.mjs",
-            "runtime/arcorbit/test/desktop-renderer.test.mjs",
-            "Verification: npm run check — 250 tests, 248 passed, 2 environment-gated skips, 0 failed, 2026-08-22",
-            "Verification: local macOS x64 installer build and arckit-distribution-smoke/v1 passed, build 20260822083310"
+            "Current operator input, 2026-08-23",
+            "arckit/spec/agentic-software-development/arcorbit-work-management.md",
+            "/Users/Glare/Library/Developer/ModularProgram/hoewo/workshop-todo-website/frontend/src/pages/ProjectDetailPage.tsx",
+            "/Users/Glare/Library/Developer/ModularProgram/hoewo/workshop-todo/handler/task.go",
+            "runtime/arcorbit/src/workshop-platform-adapter.mjs",
+            "runtime/arcorbit/desktop/renderer/renderer.js"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when the Workshop realtime contract, synchronization cadence, source-of-truth boundary, or human Gate semantics change.",
-          "revision": 17
+          "resume_condition": "Revisit when Workshop Task or TaskAttachment contracts, Work daily parity scope, or protected Automation and human-Gate responsibilities change.",
+          "revision": 18
         },
         "gap_refs": []
       },
@@ -201,20 +189,17 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit uses three primary navigation groups: Personal contains Today and Chat; Product Lifecycle contains Idea, Work, Automation, Release, Operations and Feedback; Organization contains Organization and Engineering. English UI consistently uses Release and Operations, while Chinese descriptions use 发布 and 运营. Existing Workset, Work, Automation, Feedback, Organization, account, product-feedback and execution semantics remain authoritative. The five new pages are independent planning presentations built from current project facts. Engineering is a Domain Profile management preview with a Profile Library, draft metadata, State Model editor, Capability Mapping, Lifecycle Mapping, cross-industry change preview and Review & Apply confirmation. Profile changes replace domain State semantics and skills together while the shared Loop Kernel and Idea-to-Feedback lifecycle remain stable; all controls are non-persistent demonstrations. Setup Readiness separates global resource readiness from per-Product Workspace project readiness: binding or task start opens a project-scoped plan, all Codex-discoverable bundled skills and loaders target that project, legacy managed user targets receive visible backup/migration dispositions, and no user-level Codex target is offered. Automation shows realtime, reconnecting, degraded and legacy-compatible states plus a visible immediate-sync action. Modern reconnect performs cursor recovery before current-state refresh; legacy reconnect directly refreshes current state and never presents a stale cursor as continuity. Connection errors retain the last snapshot and do not start minute polling, while an awaiting-human item remains paused until the user explicitly resumes it. The top command bar does not provide global task, project or Run search and does not bind ⌘/Ctrl+K to Task Browser; shared task browsing remains available through Work state, Automation queue and Feedback-linked task context.",
-          "reason": "当前操作人要求移除全局搜索入口，同时明确保护其他业务复用；实现与稳定交互事实现已按共享 Task Browser 边界兑现。",
+          "statement": "ArcOrbit uses three primary navigation groups: Personal contains Today and Chat; Product Lifecycle contains Idea, Work, Automation, Release, Operations and Feedback; Organization contains Organization and Engineering. English UI consistently uses Release and Operations, while Chinese descriptions use 发布 and 运营. Existing Workset, Work, Automation, Feedback, Organization, account, product-feedback and execution semantics remain authoritative. The five new pages are independent planning presentations built from current project facts. Engineering is a Domain Profile management preview with a Profile Library, draft metadata, State Model editor, Capability Mapping, Lifecycle Mapping, cross-industry change preview and Review & Apply confirmation. Profile changes replace domain State semantics and skills together while the shared Loop Kernel and Idea-to-Feedback lifecycle remain stable; all controls are non-persistent demonstrations. Setup Readiness separates global resource readiness from per-Product Workspace project readiness: binding or task start opens a project-scoped plan, all Codex-discoverable bundled skills and loaders target that project, legacy managed user targets receive visible backup/migration dispositions, and no user-level Codex target is offered. Automation shows realtime, reconnecting, degraded and legacy-compatible states plus a visible immediate-sync action. Modern reconnect performs cursor recovery before current-state refresh; legacy reconnect directly refreshes current state and never presents a stale cursor as continuity. Connection errors retain the last snapshot and do not start minute polling, while an awaiting-human item remains paused until the user explicitly resumes it. The top command bar does not provide global task, project or Run search and does not bind ⌘/Ctrl+K to Task Browser; shared task browsing remains available through Work state, Automation queue and Feedback-linked task context. Within Work, users combine the top product scope with server-side status, creator, executor, tag, priority, creation-date and content filters; results appear as a parent/child tree with explicit matched versus lineage-completion counts. The same view supports subtask creation and safe reparenting, complete Markdown task detail, TaskAttachment comments and attachments, and recoverable errors. Generic task editing never releases awaiting_human or replaces controlled Automation, Runtime, acceptance-feedback or Feedback journeys.",
+          "reason": "稳定交互文档和灰度线框现在完整表达 Work 的筛选、层级、详情、协作、恢复和保护边界。",
           "evidence": [
             "Current operator input, 2026-08-23",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/default.html",
-            "runtime/arcorbit/desktop/renderer/index.html",
-            "runtime/arcorbit/desktop/renderer/renderer.js",
-            "runtime/arcorbit/test/desktop-renderer.test.mjs",
-            "Verification: npm run check — 268 tests, 265 passed, 3 environment-gated skips, 0 failed"
+            "arckit/interaction/task-browser/interaction.md",
+            "arckit/interaction/task-browser/daily-work.html",
+            "arckit/interaction/task-browser/default.html"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit if ArcOrbit reintroduces a global search surface or changes the contextual Task Browser entry model.",
-          "revision": 29
+          "resume_condition": "Revisit if Work daily task journeys, contextual Task Browser entry, TaskAttachment presentation, or Automation and human-Gate boundaries change.",
+          "revision": 30
         },
         "gap_refs": []
       },
@@ -420,39 +405,18 @@
         "evidence_expectation": "Durable validation evidence proportionate to the identified risks.",
         "decision": {
           "status": "settled",
-          "statement": "Protocol changes require schema/script validation, cross-record audits, Runtime automated tests, projection checks, direct-Codex no-Case recovery evidence, stale-token checks, read/write/read ordering checks, and risk-proportionate real execution evidence. Reliable synchronization requires transaction/event atomicity, ordering/replay, cross-instance wakeup, authorization revocation, slow-consumer, reconnect/deduplication, cursor-expiry, targeted refresh, legacy no-ID notification and reconnect-current-state tests, proof that no minute fallback timer exists, pre-claim remote confirmation, awaiting_human regressions and a real-link smoke check when available.",
-          "reason": "The risk boundary changed from polling recovery to lifecycle recovery, explicit synchronization and legacy protocol regression coverage.",
+          "statement": "Protocol changes require schema/script validation, cross-record audits, Runtime automated tests, projection checks, direct-Codex no-Case recovery evidence, stale-token checks, read/write/read ordering checks, and risk-proportionate real execution evidence. Reliable synchronization requires transaction/event atomicity, ordering/replay, cross-instance wakeup, authorization revocation, slow-consumer, reconnect/deduplication, cursor-expiry, targeted refresh, legacy no-ID notification and reconnect-current-state tests, proof that no minute fallback timer exists, pre-claim remote confirmation, awaiting_human regressions and a real-link smoke check when available. Work core parity additionally requires adapter, coordinator, typed IPC and Renderer coverage for multi-value filter serialization, complete result counts, the 100-day task-tree date boundary, parent-lineage and subtree completion, subtask creation and circular-parent rejection, TaskAttachment parsing and permissions, cross-product isolation, controlled state actions, conflict recovery and the awaiting_human Gate.",
+          "reason": "新增日常 Work 能力跨越远端查询、层级数据、权限 mutation 和受控执行边界，必须以与风险相称的跨层回归证据验收。",
           "evidence": [
-            "runtime/arckit-runtime/test/protocol-compatibility.test.mjs",
-            "runtime/arckit-runtime/test/state-condition-case.test.mjs",
-            "runtime/arckit-runtime/test/state-driven-runner.test.mjs",
-            "runtime/arckit-runtime/test/parallel-case.test.mjs",
-            "npm --prefix runtime/arckit-runtime run check: 113 tests, 112 passed, 1 environment-gated skip",
-            "Current operator input, 2026-08-22",
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/tech/arcorbit/realtime-synchronization-solution.md",
-            "arckit/interaction/automation-workspace/default.html",
-            "runtime/arcorbit/src/workshop-realtime-adapter.mjs",
-            "runtime/arcorbit/desktop/main.mjs",
-            "runtime/arcorbit/desktop/renderer/index.html",
-            "runtime/arcorbit/desktop/renderer/renderer.js",
-            "runtime/arcorbit/src/automation-coordinator.mjs",
-            "runtime/arcorbit/src/desktop/desktop-store.mjs",
-            "runtime/arcorbit/test/workshop-realtime-adapter.test.mjs",
-            "runtime/arcorbit/test/automation-coordinator.test.mjs",
-            "runtime/arcorbit/test/desktop-renderer.test.mjs",
-            "Verification: npm run check — 250 tests, 248 passed, 2 environment-gated skips, 0 failed, 2026-08-22",
-            "Verification: local macOS x64 installer build and arckit-distribution-smoke/v1 passed, build 20260822083310"
+            "arckit/spec/agentic-software-development/arcorbit-work-management.md",
+            "arckit/tech/arcorbit/platform-composition-solution.md",
+            "/Users/Glare/Library/Developer/ModularProgram/hoewo/workshop-todo/handler/task.go"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when the Workshop realtime contract, synchronization cadence, source-of-truth boundary, or human Gate semantics change.",
-          "revision": 4
+          "resume_condition": "Revisit when Workshop task query, tree, attachment permissions, ArcOrbit state-action boundaries or Work acceptance risks change.",
+          "revision": 5
         },
-        "gap_refs": [
-          "GAP-agent-scenario-evaluation",
-          "GAP-cross-record-audit"
-        ]
+        "gap_refs": []
       },
       {
         "id": "delivery_and_distribution",

@@ -1,5 +1,6 @@
 import { createWorkshopPlatformAdapter } from "./workshop-platform-adapter.mjs";
 import { signFeedbackAttachmentUrl, uploadFeedbackAttachmentWithPolicy } from "./feedback-v2-attachment-access.mjs";
+import { signWorkTaskAttachmentUrl, uploadWorkTaskAttachmentResource } from "./work-task-attachment-resource.mjs";
 
 export const TASK_STATES = Object.freeze([
   "pending_review",
@@ -372,7 +373,9 @@ export function createWorkshopTaskSource({
     feedbackV2ProjectIds,
     feedbackV2NotificationProjectIds,
     uploadWithPolicy: (policy, file) => uploadFeedbackAttachmentWithPolicy(fetchImpl, policy, file),
-    signAttachmentUrl: signFeedbackAttachmentUrl
+    signAttachmentUrl: signFeedbackAttachmentUrl,
+    uploadTaskResource: uploadWorkTaskAttachmentResource,
+    signTaskResourceUrl: signWorkTaskAttachmentUrl
   });
 
   return {
@@ -497,9 +500,11 @@ export function normalizeTask(value, fallbackProjectId = "") {
     state_changed_at: String(value.state_changed_at ?? value.stateChangedAt ?? value.updated_at ?? value.updatedAt ?? ""),
     created_at: String(value.created_at ?? value.createdAt ?? ""),
     updated_at: String(value.updated_at ?? value.updatedAt ?? ""),
+    completion_at: String(value.completion_at ?? value.completionAt ?? ""),
     creator_id: scalarId(value.creator_id ?? value.creatorId),
     executor_id: scalarId(value.executor_id ?? value.executorId),
-    assignee: value.assignee ?? value.owner ?? null,
+    creator: value.creator ?? null,
+    assignee: value.assignee ?? value.executor ?? value.owner ?? null,
     tags: String(value.tags || ""),
     terminal: TERMINAL_STATES.has(state),
     raw: value

@@ -112,3 +112,4 @@
 | [CASE-20260822-003](closed/CASE-20260822-003-development-case.md) | closed | 兼容旧镜像回滚健康确认 | 2026-08-22T12:12:07.767Z |
 | [CASE-20260822-004](closed/CASE-20260822-004-arcorbit-feedback.md) | closed | 补齐 ArcOrbit Feedback 日常处理能力 | 2026-08-22T21:06:33.115Z |
 | [CASE-20260822-005](closed/CASE-20260822-005-arcorbit.md) | closed | 移除 ArcOrbit 顶部全局搜索入口 | 2026-08-22T21:17:46.533Z |
+| [CASE-20260822-006](closed/CASE-20260822-006-arcorbit-work.md) | closed | 补齐 ArcOrbit Work 待办平台核心功能 | 2026-08-22T23:23:27.164Z |
