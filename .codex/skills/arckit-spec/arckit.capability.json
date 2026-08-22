@@ -1,0 +1,32 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-spec",
+  "kind": "result_fact_source",
+  "runtime_role": ["fact_source_maintenance"],
+  "binding_targets": ["agent"],
+  "summary": "Maintains stable product behavior, rules, feature specs, and acceptance criteria.",
+  "input_facts": [
+    "relevant_product_facts",
+    "accepted_decision",
+    "validated_scenario",
+    "dynamic_case_gap"
+  ],
+  "outputs": [
+    "spec_update",
+    "spec_audit",
+    "acceptance_criteria",
+    "fact_result"
+  ],
+  "allowed_write_targets": [
+    "arckit/spec/**"
+  ],
+  "forbidden_decisions": [
+    "implementation_only_as_requirement",
+    "unconfirmed_assumption_as_fact",
+    "visual_or_technical_fact_ownership"
+  ],
+  "runtime_notes": [
+    "The Agent invokes managed-case mode only when the current dynamic gap needs product facts; the skill returns an evidence-backed fact_result and standalone mode remains available.",
+    "Only use for stable product expectation facts; keep unknowns in the active Case and never claim Case resolution."
+  ]
+}

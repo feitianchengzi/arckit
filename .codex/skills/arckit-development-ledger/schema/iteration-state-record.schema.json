@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://arckit.local/schema/iteration-state-record.schema.json",
+  "title": "Arckit Iteration State Record",
+  "type": "object",
+  "required": ["schema_version", "id", "title", "status", "created_at", "updated_at", "iteration_goal", "project_state_ref", "targets", "accepted_project_changes", "acceptance", "blocking_project_gaps", "active_case_refs", "closed_case_refs", "close_condition", "last_case_aggregation"],
+  "properties": {
+    "schema_version": { "const": "iteration-state-record/v3" },
+    "id": { "type": "string", "pattern": "^ITER-[0-9]{8}-[0-9]{3}$" },
+    "title": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "enum": ["planned", "active", "blocked", "closed"] },
+    "created_at": { "type": "string", "minLength": 1 },
+    "updated_at": { "type": "string", "minLength": 1 },
+    "iteration_goal": { "type": "string" },
+    "project_state_ref": { "type": "string", "minLength": 1 },
+    "targets": { "type": "array", "items": { "$ref": "#/$defs/target" } },
+    "accepted_project_changes": { "type": "array", "items": { "$ref": "#/$defs/change" } },
+    "acceptance": {
+      "type": "object",
+      "required": ["status", "evidence", "remaining_project_gaps"],
+      "properties": {
+        "status": { "type": "string", "enum": ["working", "verified", "accepted", "blocked"] },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "remaining_project_gaps": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "blocking_project_gaps": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "active_case_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "closed_case_refs": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "close_condition": { "type": "string" },
+    "last_case_aggregation": {
+      "type": "object",
+      "required": ["case_ref", "project_changes", "evidence", "updated_at"],
+      "properties": {
+        "case_ref": { "type": "string" },
+        "project_changes": { "type": "array", "items": { "$ref": "#/$defs/change_summary" } },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "updated_at": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "target": {
+      "type": "object",
+      "required": ["kind", "ref", "expected", "reason"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["software_decision", "software_invariant", "project_gap"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "expected": { "type": "string", "minLength": 1 },
+        "reason": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "change": {
+      "type": "object",
+      "required": ["kind", "ref", "outcome", "evidence", "case_ref"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["software_decision", "software_invariant", "project_gap"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "outcome": { "type": "string", "minLength": 1 },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 }, "minItems": 1, "uniqueItems": true },
+        "case_ref": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "change_summary": {
+      "type": "object",
+      "required": ["kind", "ref", "outcome"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["software_decision", "software_invariant", "project_gap"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "outcome": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

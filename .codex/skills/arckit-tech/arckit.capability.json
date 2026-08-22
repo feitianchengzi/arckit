@@ -1,0 +1,32 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-tech",
+  "kind": "result_fact_source",
+  "runtime_role": ["fact_source_maintenance"],
+  "binding_targets": ["agent"],
+  "summary": "Maintains stable technical solutions, architecture boundaries, data models, and API contracts.",
+  "input_facts": [
+    "relevant_technical_facts",
+    "implementation_evidence",
+    "validated_constraint",
+    "dynamic_case_gap"
+  ],
+  "outputs": [
+    "tech_update",
+    "tech_audit",
+    "technical_contract",
+    "fact_result"
+  ],
+  "allowed_write_targets": [
+    "arckit/tech/**"
+  ],
+  "forbidden_decisions": [
+    "unconfirmed_tradeoff_as_fact",
+    "product_requirement_final",
+    "release_authorization"
+  ],
+  "runtime_notes": [
+    "The Agent invokes managed-case mode only when the current dynamic gap needs technical facts; the skill returns an evidence-backed fact_result and standalone mode remains available.",
+    "Use only for stable technical facts; keep unresolved tradeoffs in the active Case and never claim Case resolution."
+  ]
+}

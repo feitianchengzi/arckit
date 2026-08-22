@@ -1,0 +1,32 @@
+{
+  "schema_version": "arckit-capability/v1",
+  "id": "arckit-visual",
+  "kind": "result_fact_source",
+  "runtime_role": ["fact_source_maintenance"],
+  "binding_targets": ["agent"],
+  "summary": "Maintains stable visual strategy, design tokens, themes, and component visual specifications.",
+  "input_facts": [
+    "relevant_visual_facts",
+    "existing_visual_strategy",
+    "human_visual_decision",
+    "dynamic_case_gap"
+  ],
+  "outputs": [
+    "visual_update",
+    "visual_audit",
+    "visual_acceptance_criteria",
+    "fact_result"
+  ],
+  "allowed_write_targets": [
+    "arckit/visual/**"
+  ],
+  "forbidden_decisions": [
+    "brand_direction_without_human_basis",
+    "aesthetic_approval",
+    "product_or_technical_fact_ownership"
+  ],
+  "runtime_notes": [
+    "The Agent invokes managed-case mode only when the current dynamic gap needs visual facts; the skill returns an evidence-backed fact_result and standalone mode remains available.",
+    "Use only when visual direction has an explicit human or stable fact basis; otherwise return needs_human and never claim Case resolution."
+  ]
+}

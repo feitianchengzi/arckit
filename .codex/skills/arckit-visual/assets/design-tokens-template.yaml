@@ -1,0 +1,101 @@
+# Design Tokens — {{PROJECT_NAME}}
+# 本文件是 Design System 的规格定义，实际代码在目标平台源码中实现。
+# 修改此文件后需同步更新对应的代码实现。
+
+metadata:
+  project: "{{PROJECT_NAME}}"
+  last_updated: "{{DATE}}"
+  brief: "./brief.md"      # 品牌方向与视觉策略文档
+
+# ─── 颜色系统 ───
+colors:
+  # 品牌主色
+  accent:
+    light: "#6366F1"
+    dark: "#818CF8"
+
+  # 背景色
+  background:
+    primary:
+      light: "#FFFFFF"
+      dark: "#0F172A"
+    secondary:
+      light: "#F8FAFC"
+      dark: "#1E293B"
+    tertiary:
+      light: "#F1F5F9"
+      dark: "#334155"
+
+  # 文字色
+  text:
+    primary:
+      light: "#0F172A"
+      dark: "#F8FAFC"
+    secondary:
+      light: "#64748B"
+      dark: "#94A3B8"
+    tertiary:
+      light: "#94A3B8"
+      dark: "#64748B"
+
+  # 语义色
+  destructive:
+    light: "#EF4444"
+    dark: "#F87171"
+  success:
+    light: "#22C55E"
+    dark: "#4ADE80"
+  warning:
+    light: "#F59E0B"
+    dark: "#FBBF24"
+
+  # 边框/分隔线
+  separator:
+    light: "#E2E8F0"
+    dark: "#334155"
+
+# ─── 字体系统 ───
+typography:
+  large_title:  { size: 34, weight: bold }
+  title_1:      { size: 28, weight: bold }
+  title_2:      { size: 22, weight: bold }
+  title_3:      { size: 20, weight: semibold }
+  headline:     { size: 17, weight: semibold }
+  body:         { size: 17, weight: regular }
+  callout:      { size: 16, weight: regular }
+  subheadline:  { size: 15, weight: regular }
+  footnote:     { size: 13, weight: regular }
+  caption_1:    { size: 12, weight: regular }
+  caption_2:    { size: 11, weight: regular }
+  # 代码字体
+  code:         { size: 14, weight: regular, family: "SF Mono" }
+
+# ─── 间距系统 ───
+spacing:
+  xxs: 2
+  xs: 4
+  sm: 8
+  md: 16
+  lg: 24
+  xl: 32
+  xxl: 48
+
+# ─── 圆角 ───
+corner_radius:
+  small: 4
+  medium: 8
+  large: 12
+  extra_large: 16
+
+# ─── 阴影 ───
+shadows:
+  small:  { color: "rgba(0,0,0,0.06)", x: 0, y: 1, blur: 3 }
+  medium: { color: "rgba(0,0,0,0.08)", x: 0, y: 2, blur: 8 }
+  large:  { color: "rgba(0,0,0,0.12)", x: 0, y: 4, blur: 16 }
+
+# ─── 动效 ───
+animation:
+  fast:     { duration_ms: 150, easing: "easeOut" }
+  normal:   { duration_ms: 250, easing: "easeInOut" }
+  slow:     { duration_ms: 350, easing: "easeInOut" }
+  spring:   { response: 0.3, damping: 0.7 }
