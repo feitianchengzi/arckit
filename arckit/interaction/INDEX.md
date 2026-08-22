@@ -15,10 +15,10 @@
   - default.html 环境准备线框：全局检查、项目计划、managed-stale 首屏选择与确认、执行、完成、typed 升级迁移和失败恢复。✅ (115行)
   - interaction.md 环境准备交互：项目绑定门禁、项目 target、用户级 managed 迁移、直接可选清理、备份恢复与异常恢复。✅ (176行)
 - platform-workspace/ 多产品平台工作区：以三组主导航连接个人协作、产品全生命周期和组织能力，并保留真实 Workset、Feedback 与 Organization 行为。✅
-  - default.html 平台首页线框：Personal/Product Lifecycle/Organization 分组、全局产品范围、Feedback 双栏详情与转待办恢复状态。✅ (109行)
+  - default.html 平台首页线框：三组导航、全局产品范围、Feedback 双栏、开发者消息/附件/未读和转待办恢复状态。✅ (142行)
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系和项目上下文通用邀请。✅ (7行)
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
-  - interaction.md 平台交互：三组导航、计划展示边界、全局产品范围/治理解耦、组织三级管理与 Feedback 开发者工作台。✅ (146行)
+  - interaction.md 平台交互：三组导航、产品范围/治理解耦、组织三级管理与 Feedback 开发者消息、附件、未读和流转。✅ (153行)
 - chat-workspace/ Chat 页面：自由 Agent 问答、可选产品上下文和确认后的 Idea/Work 形态预览。✅
   - default.html Chat 线框：最近对话、Agent 正文、待确认事实与目标形态动作。✅ (13行)
   - interaction.md Chat 交互：自由讨论、显式确认、形态转换预览与 Automation thread 边界。✅ (36行)

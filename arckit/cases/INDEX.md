@@ -110,3 +110,4 @@
 | [CASE-20260822-001](closed/CASE-20260822-001-workshop-arcorbit.md) | closed | 兼容旧 Workshop 服务的 ArcOrbit 实时同步 | 2026-08-22T08:41:26.667Z |
 | [CASE-20260822-002](closed/CASE-20260822-002-workshop.md) | closed | 收口 Workshop 实时升级与部署安全 | 2026-08-22T10:11:06.636Z |
 | [CASE-20260822-003](closed/CASE-20260822-003-development-case.md) | closed | 兼容旧镜像回滚健康确认 | 2026-08-22T12:12:07.767Z |
+| [CASE-20260822-004](closed/CASE-20260822-004-arcorbit-feedback.md) | closed | 补齐 ArcOrbit Feedback 日常处理能力 | 2026-08-22T21:06:33.115Z |

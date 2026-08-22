@@ -1,4 +1,7 @@
 const { contextBridge, ipcRenderer } = require("electron");
+const { unwrapFeedbackV2Ipc } = require("./feedback-v2-ipc.cjs");
+
+const invokeFeedbackV2 = (channel, input) => ipcRenderer.invoke(channel, input).then(unwrapFeedbackV2Ipc);
 
 contextBridge.exposeInMainWorld("arckitDesktop", {
   getSetupReadiness: () => ipcRenderer.invoke("arckit:setup-status"),
@@ -47,6 +50,14 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     ipcRenderer.invoke("arckit:platform-workspace-preference", projectId, input)
   ),
   executePlatformAction: (command, input) => ipcRenderer.invoke("arckit:platform-action", command, input),
+  getFeedbackV2Messages: (input) => invokeFeedbackV2("arckit:feedback-v2-messages", input),
+  sendFeedbackV2Reply: (input) => invokeFeedbackV2("arckit:feedback-v2-reply", input),
+  markFeedbackV2Read: (input) => invokeFeedbackV2("arckit:feedback-v2-read", input),
+  ignoreFeedbackV2: (input) => invokeFeedbackV2("arckit:feedback-v2-ignore", input),
+  updateFeedbackV2: (input) => invokeFeedbackV2("arckit:feedback-v2-update", input),
+  deleteFeedbackV2: (input) => invokeFeedbackV2("arckit:feedback-v2-delete", input),
+  convertFeedbackV2ToTask: (input) => invokeFeedbackV2("arckit:feedback-v2-convert", input),
+  openFeedbackV2Attachment: (input) => invokeFeedbackV2("arckit:feedback-v2-attachment-open", input),
   openFeedbackAttachment: (value) => ipcRenderer.invoke("arckit:feedback-attachment-open", value),
   onProductFeedbackUnread: (listener) => {
     const handler = (_event, count) => listener(count);

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import vm from "node:vm";
 import test from "node:test";
 import {
   isTranscriptMessageVisible,
@@ -11,6 +12,9 @@ import {
   transcriptMessageType
 } from "../src/desktop/transcript-presentation.mjs";
 import { checkDesktopSetupReadiness, desktopSetupCheckInput } from "../src/desktop-setup-readiness-context.mjs";
+import feedbackV2Ipc from "../desktop/feedback-v2-ipc.cjs";
+
+const { settleFeedbackV2Ipc, unwrapFeedbackV2Ipc } = feedbackV2Ipc;
 
 const rendererPath = new URL("../desktop/renderer/renderer.js", import.meta.url);
 const rendererHtmlPath = new URL("../desktop/renderer/index.html", import.meta.url);
@@ -48,9 +52,17 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   }
   assert.match(html, /class="feedback-workbench-layout"/);
   assert.match(source, /function renderFeedbackInspector\(feedback\)/);
+  assert.match(source, /feedbackLinkRecoveries: \{\}/);
+  assert.match(source, /class="feedback-link-recovery"[\s\S]*data-feedback-link-retry[\s\S]*仅重试关联/);
+  assert.match(styles, /\.feedback-link-recovery \{/);
   assert.match(source, /api\.openFeedbackAttachment\(feedback\.file\)/);
   assert.doesNotMatch(source, /href="\$\{escapeHtml\(feedback\.file\)\}"|target="_blank"/);
   assert.match(source, /function updateFeedbackPriority|async function updateFeedbackPriority/);
+  assert.match(source, /const priorityAction = feedback\.linked_task_id[\s\S]*feedback-priority-readonly[\s\S]*data-feedback-priority/);
+  assert.match(styles, /\.feedback-priority-readonly \{/);
+  const feedbackPriorityHandler = source.slice(source.indexOf("async function updateFeedbackPriority"), source.indexOf("async function ignoreFeedback"));
+  assert.match(feedbackPriorityHandler, /if \(feedback\.linked_task_id\) throw new Error/);
+  assert.match(feedbackPriorityHandler, /\["P1", "P2", "P3"\]\.includes\(priority\)/);
   assert.match(source, /async function ignoreFeedback/);
   assert.doesNotMatch(source, /async function createFeedback|async function editFeedback|data-feedback-edit/);
   assert.match(styles, /\.feedback-workbench-layout \{ display: grid; grid-template-columns: minmax\(300px, \.72fr\) minmax\(440px, 1\.28fr\)/);
@@ -63,8 +75,17 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(feedbackToTaskHandler, /platformField\("task_content", "待办内容", \{ type: "textarea", required: true, value: feedback\.content \}\)/);
   assert.match(feedbackToTaskHandler, /platformField\("executor_id", "执行人", \{ type: "select", options: memberSelectOptions\(feedback\.project_id\) \}\)/);
   assert.match(feedbackToTaskHandler, /if \(feedback\.linked_task_id\) throw new Error/);
+  assert.match(feedbackToTaskHandler, /error\?\.partial_result\?\.task_id/);
+  assert.match(feedbackToTaskHandler, /state\.feedbackLinkRecoveries\[String\(feedback\.id\)\]/);
   assert.doesNotMatch(feedbackToTaskHandler, /feedback\.title \|\| feedback\.content|执行人 ID/);
   assert.doesNotMatch(feedbackToTaskHandler, /仍要新建另一个待办|Feedback V1/);
+  const feedbackLinkRetryHandler = source.slice(source.indexOf("async function retryFeedbackTaskLink"), source.indexOf("async function deleteFeedback"));
+  assert.match(feedbackLinkRetryHandler, /"feedback\.link_task"/);
+  assert.match(feedbackLinkRetryHandler, /task_id: recovery\.task_id/);
+  assert.doesNotMatch(feedbackLinkRetryHandler, /feedback\.to_task|task\.create/);
+  const managedActionHandler = source.slice(source.indexOf("async function executeManagedAction"), source.indexOf("function openPlatformAction"));
+  assert.match(managedActionHandler, /result\?\.status === "partial"/);
+  assert.match(managedActionHandler, /partialError\.partial_result = result\.partial_result/);
   assert.match(source, /function memberSelectOptions\(projectId = ""\).*filter\(\(item\) => !projectId \|\| String\(item\.project_id\) === String\(projectId\)\).*label: item\.username/);
   assert.doesNotMatch(source, /label: `\$\{item\.project_name\} · \$\{item\.username\}`/);
   const createTaskHandler = source.slice(source.indexOf("async function createTask"), source.indexOf("async function editTask"));
@@ -199,6 +220,153 @@ test("Desktop opens feedback attachments through a bounded main-process HTTPS ca
   assert.match(main, /event\.sender !== mainWindow\?\.webContents/);
   assert.match(main, /await shell\.openExternal\(url\)/);
   assert.match(main, /installMainWindowNavigationBoundary\(mainWindow\.webContents, rendererUrl\)/);
+});
+
+test("Desktop keeps developer Feedback V2 conversation behind dedicated typed IPC", async () => {
+  const [main, preload, source, styles] = await Promise.all([
+    readFile(desktopMainPath, "utf8"),
+    readFile(desktopPreloadPath, "utf8"),
+    readFile(rendererPath, "utf8"),
+    readFile(rendererStylesPath, "utf8")
+  ]);
+  for (const channel of [
+    "arckit:feedback-v2-messages",
+    "arckit:feedback-v2-reply",
+    "arckit:feedback-v2-read",
+    "arckit:feedback-v2-ignore",
+    "arckit:feedback-v2-update",
+    "arckit:feedback-v2-delete",
+    "arckit:feedback-v2-convert",
+    "arckit:feedback-v2-attachment-open"
+  ]) {
+    assert.match(main, new RegExp(channel));
+    assert.match(preload, new RegExp(channel));
+  }
+  assert.match(source, /api\.getFeedbackV2Messages/);
+  assert.match(source, /api\.sendFeedbackV2Reply/);
+  assert.match(source, /api\.markFeedbackV2Read/);
+  assert.match(main, /settleFeedbackV2Ipc/);
+  assert.match(preload, /unwrapFeedbackV2Ipc/);
+  assert.match(source, /state\.feedbackConversations\[String\(feedback\.id\)\]/);
+  assert.match(source, /draft: current\?\.draft \|\| ""/);
+  assert.match(source, /data-feedback-message-attachment/);
+  assert.match(styles, /\.feedback-conversation/);
+  assert.doesNotMatch(preload, /fetch|httpRequest|feedbackV2Request|apiKey|Authorization/);
+  assert.doesNotMatch(source, /Project 107|FEEDBACK_API_KEY/);
+});
+
+test("Feedback V2 typed IPC preserves status and Renderer executes 401 and 404 recovery", async () => {
+  const envelope401 = await settleFeedbackV2Ipc(async () => {
+    throw Object.assign(new Error("expired"), { code: "unauthenticated", status: 401 });
+  });
+  assert.deepEqual(envelope401, {
+    version: "feedback-v2-ipc-result/v1",
+    ok: false,
+    error: { code: "unauthenticated", status: 401, message: "expired" }
+  });
+  assert.throws(() => unwrapFeedbackV2Ipc(envelope401), (error) => error.code === "unauthenticated" && error.status === 401);
+
+  const source = await readFile(rendererPath, "utf8");
+  const start = source.indexOf("async function runFeedbackV2Request");
+  const end = source.indexOf("\nasync function executeManagedAction", start);
+  const recoverySource = source.slice(start, end);
+  const calls = { auth: 0, gate: 0, refresh: 0 };
+  const context = {
+    state: {},
+    api: { getAuthStatus: async () => { calls.auth += 1; return { status: "expired", authenticated: false }; } },
+    normalizeAuthentication: (value) => value,
+    showLoginGate: () => { calls.gate += 1; },
+    refreshSnapshot: async () => { calls.refresh += 1; }
+  };
+  vm.runInNewContext(`${recoverySource}\nglobalThis.runFeedbackV2Request = runFeedbackV2Request;`, context);
+
+  await assert.rejects(context.runFeedbackV2Request(async () => unwrapFeedbackV2Ipc(envelope401)), /expired/);
+  assert.deepEqual(calls, { auth: 1, gate: 1, refresh: 0 });
+
+  const envelope404 = await settleFeedbackV2Ipc(async () => {
+    throw Object.assign(new Error("missing"), { code: "not_found", status: 404 });
+  });
+  await assert.rejects(context.runFeedbackV2Request(async () => unwrapFeedbackV2Ipc(envelope404)), /missing/);
+  assert.deepEqual(calls, { auth: 1, gate: 1, refresh: 1 });
+});
+
+test("Feedback V2 read state respects notification capability and refreshes visible unread projection", async () => {
+  const source = await readFile(rendererPath, "utf8");
+  const listStart = source.indexOf("function renderPlatformFeedback");
+  const listEnd = source.indexOf("\nfunction renderFeedbackInspector", listStart);
+  const workspaceStart = source.indexOf("function feedbackWorkspace");
+  const workspaceEnd = source.indexOf("\nfunction renderFeedbackConversation", workspaceStart);
+  const loadStart = source.indexOf("async function loadFeedbackConversation");
+  const loadEnd = source.indexOf("\nasync function sendFeedbackReply", loadStart);
+  const readStateSource = `${source.slice(listStart, listEnd)}\n${source.slice(workspaceStart, workspaceEnd)}\n${source.slice(loadStart, loadEnd)}`;
+  const calls = { messages: 0, markRead: 0, renders: 0 };
+  const workspace = {
+    id: 7,
+    feedback_management: {
+      features: { mark_read: false },
+      unread_count: 3,
+      unread_feedback_ids: ["51", "52"]
+    }
+  };
+  const context = {
+    state: {
+      platform: {
+        product_workspaces: [workspace],
+        feedback_v1: [{ id: 51, project_id: 7, title: "Needs attention" }]
+      },
+      feedbackConversations: {},
+      selectedFeedbackId: "51",
+      feedbackFilter: "",
+      feedbackState: "all",
+      feedbackSort: "newest"
+    },
+    els: {
+      feedbackSearchInput: { value: "" },
+      feedbackStateFilter: { value: "" },
+      feedbackSortSelect: { value: "" },
+      feedbackListSummary: { textContent: "stale summary" },
+      ordinaryFeedbackTable: {
+        innerHTML: "stale list",
+        querySelectorAll: () => []
+      }
+    },
+    api: {
+      getFeedbackV2Messages: async () => { calls.messages += 1; return [{ id: "message-1" }]; },
+      markFeedbackV2Read: async () => { calls.markRead += 1; return { marked_count: 2 }; }
+    },
+    runFeedbackV2Request: async (operation) => operation(),
+    renderFeedbackInspector: () => { calls.renders += 1; },
+    platformItemMatchesSelectedProject: () => true,
+    feedbackProcessingState: () => "pending",
+    compareFeedbackItems: () => 0,
+    escapeHtml: (value) => String(value ?? ""),
+    feedbackExcerpt: (value) => String(value ?? ""),
+    formatFeedbackDate: () => "today",
+    FEEDBACK_STATE_LABELS: { pending: "待处理" }
+  };
+  vm.runInNewContext(`${readStateSource}\nglobalThis.loadFeedbackConversation = loadFeedbackConversation;`, context);
+  const feedback = { id: 51, project_id: 7 };
+
+  await context.loadFeedbackConversation(feedback);
+  assert.equal(calls.messages, 1);
+  assert.equal(calls.markRead, 0);
+  assert.equal(context.state.feedbackConversations["51"].readError, "");
+  assert.equal(workspace.feedback_management.unread_count, 3);
+  assert.deepEqual(workspace.feedback_management.unread_feedback_ids, ["51", "52"]);
+  assert.equal(context.els.feedbackListSummary.textContent, "stale summary");
+  assert.equal(context.els.ordinaryFeedbackTable.innerHTML, "stale list");
+
+  workspace.feedback_management.features.mark_read = true;
+  delete context.state.feedbackConversations["51"];
+  await context.loadFeedbackConversation(feedback);
+  assert.equal(calls.messages, 2);
+  assert.equal(calls.markRead, 1);
+  assert.equal(context.state.feedbackConversations["51"].readError, "");
+  assert.equal(workspace.feedback_management.unread_count, 1);
+  assert.deepEqual(workspace.feedback_management.unread_feedback_ids, ["52"]);
+  assert.equal(context.els.feedbackListSummary.textContent, "1 条 · 1 未读");
+  assert.doesNotMatch(context.els.ordinaryFeedbackTable.innerHTML, /feedback-unread-dot/);
+  assert.equal(calls.renders, 4);
 });
 
 test("ADVANCE owns one top product-set scope while Work and Automation own their local filters", async () => {

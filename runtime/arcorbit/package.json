@@ -35,6 +35,7 @@
     "electron-builder": "25.1.8"
   },
   "dependencies": {
+    "ali-oss": "^6.23.0",
     "ws": "^8.18.3"
   }
 }

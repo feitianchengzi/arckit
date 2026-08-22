@@ -80,6 +80,8 @@ const state = {
   feedbackFilter: "",
   feedbackState: "all",
   feedbackSort: "newest",
+  feedbackLinkRecoveries: {},
+  feedbackConversations: {},
   organizationScopeId: "",
   organizationScopeChosen: false,
   organizationSection: "overview",
@@ -865,10 +867,13 @@ function renderPlatformFeedback() {
   const ordinary = [...filtered].sort(compareFeedbackItems);
   if (!ordinary.some((item) => String(item.id) === String(state.selectedFeedbackId))) state.selectedFeedbackId = String(ordinary[0]?.id || "");
   const selected = ordinary.find((item) => String(item.id) === String(state.selectedFeedbackId)) || null;
-  els.feedbackListSummary.textContent = filtered.length === scoped.length ? `${scoped.length} 条` : `${filtered.length} / ${scoped.length} 条`;
+  const managementUnread = (state.platform.product_workspaces || []).filter(platformItemMatchesSelectedProject).reduce((total, workspace) => total + Number(workspace.feedback_management?.unread_count || 0), 0);
+  els.feedbackListSummary.textContent = `${filtered.length === scoped.length ? `${scoped.length} 条` : `${filtered.length} / ${scoped.length} 条`}${managementUnread ? ` · ${managementUnread} 未读` : ""}`;
   els.ordinaryFeedbackTable.innerHTML = ordinary.length ? ordinary.map((item) => {
     const processingState = feedbackProcessingState(item);
-    return `<button class="feedback-list-item ${String(item.id) === state.selectedFeedbackId ? "is-active" : ""}" data-feedback-select="${escapeHtml(item.id)}" type="button"><span class="feedback-list-copy"><strong>${escapeHtml(item.title || feedbackExcerpt(item.content) || "未命名反馈")}</strong><small>${escapeHtml(item.short_id || item.id)} · ${escapeHtml(item.project_name || "未知产品")}</small></span><span class="feedback-list-meta"><em class="feedback-priority ${item.priority ? "has-priority" : ""}">${escapeHtml(item.priority || "未定级")}</em><span class="status-pill ${escapeHtml(processingState)}">${escapeHtml(FEEDBACK_STATE_LABELS[processingState])}</span><time>${escapeHtml(formatFeedbackDate(item.created_at || item.updated_at))}</time></span></button>`;
+    const workspace = feedbackWorkspace(item);
+    const unread = workspace?.feedback_management?.unread_feedback_ids?.map(String).includes(String(item.id));
+    return `<button class="feedback-list-item ${String(item.id) === state.selectedFeedbackId ? "is-active" : ""}" data-feedback-select="${escapeHtml(item.id)}" type="button"><span class="feedback-list-copy"><strong>${unread ? `<i class="feedback-unread-dot" aria-label="有未读回复"></i>` : ""}${escapeHtml(item.title || feedbackExcerpt(item.content) || "未命名反馈")}</strong><small>${escapeHtml(item.short_id || item.id)} · ${escapeHtml(item.project_name || "未知产品")}</small></span><span class="feedback-list-meta"><em class="feedback-priority ${item.priority ? "has-priority" : ""}">${escapeHtml(item.priority || "未定级")}</em><span class="status-pill ${escapeHtml(processingState)}">${escapeHtml(FEEDBACK_STATE_LABELS[processingState])}</span><time>${escapeHtml(formatFeedbackDate(item.created_at || item.updated_at))}</time></span></button>`;
   }).join("") : `<div class="empty-state">${scoped.length ? "没有符合搜索或筛选条件的反馈。" : "当前产品集没有用户反馈。"}</div>`;
   els.ordinaryFeedbackTable.querySelectorAll("[data-feedback-select]").forEach((button) => button.addEventListener("click", () => {
     state.selectedFeedbackId = button.dataset.feedbackSelect;
@@ -883,10 +888,20 @@ function renderFeedbackInspector(feedback) {
     return;
   }
   const workspace = state.platform.product_workspaces.find((item) => String(item.id) === String(feedback.project_id));
+  const feedbackManagement = workspace?.feedback_management || { status: "unavailable", features: {}, errors: {} };
+  const useV2 = feedback.feedback_source === "v2" && ["available", "degraded"].includes(feedbackManagement.status);
   const canDelete = ["owner", "admin"].includes(workspace?.current_user_role);
+  if (feedback.linked_task_id) delete state.feedbackLinkRecoveries[String(feedback.id)];
+  const linkRecovery = state.feedbackLinkRecoveries[String(feedback.id)] || null;
   const processingState = feedbackProcessingState(feedback);
   const attachment = feedback.file ? `<button class="feedback-attachment" data-feedback-attachment type="button">查看用户附件</button>` : `<span class="muted-copy">没有附件</span>`;
-  els.feedbackInspector.innerHTML = `<div class="feedback-inspector-header"><div><p class="eyebrow">${escapeHtml(feedback.short_id || feedback.id)}</p><h2>${escapeHtml(feedback.title || "用户反馈")}</h2><p>${escapeHtml(feedback.project_name || "未知产品")}</p></div><span class="status-pill ${escapeHtml(processingState)}">${escapeHtml(FEEDBACK_STATE_LABELS[processingState])}</span></div><div class="feedback-processing-actions"><label><span>优先级</span><select data-feedback-priority="${escapeHtml(feedback.id)}"><option value="">未设置</option>${["P1", "P2", "P3"].map((value) => `<option value="${value}" ${feedback.priority === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>${!feedback.ignored && !feedback.linked_task_id ? `<button class="secondary-button" data-feedback-ignore="${escapeHtml(feedback.id)}" type="button">忽略</button>` : ""}<button class="secondary-button" data-feedback-refresh type="button">刷新</button>${!feedback.linked_task_id ? `<button class="primary-button" data-feedback-task="${escapeHtml(feedback.id)}" type="button">转为待办</button>` : ""}${canDelete ? `<button class="secondary-button danger-action" data-feedback-delete="${escapeHtml(feedback.id)}" type="button">删除</button>` : ""}</div><section class="feedback-content-card"><h3>反馈原文</h3><p>${escapeHtml(feedback.content || "用户没有提供正文。")}</p>${attachment}</section>${factRows([
+  const priorityAction = feedback.linked_task_id
+    ? `<div class="feedback-priority-readonly"><span>优先级</span><strong>${escapeHtml(feedback.priority || "P2")}</strong><small>已转为待办，请在 Work 中继续调整。</small></div>`
+    : `<label><span>优先级</span><select data-feedback-priority="${escapeHtml(feedback.id)}">${["P1", "P2", "P3"].map((value) => `<option value="${value}" ${feedback.priority === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>`;
+  const recoveryNotice = linkRecovery && !feedback.linked_task_id
+    ? `<div class="feedback-link-recovery"><span><strong>待办 ${escapeHtml(linkRecovery.task_id)} 已创建，但尚未关联</strong><small>重试只会保存当前反馈与该待办的关联，不会创建新待办。</small></span><button class="primary-button" data-feedback-link-retry type="button">仅重试关联</button></div>`
+    : "";
+  els.feedbackInspector.innerHTML = `<div class="feedback-inspector-header"><div><p class="eyebrow">${escapeHtml(feedback.short_id || feedback.id)}</p><h2>${escapeHtml(feedback.title || "用户反馈")}</h2><p>${escapeHtml(feedback.project_name || "未知产品")}</p></div><span class="status-pill ${escapeHtml(processingState)}">${escapeHtml(FEEDBACK_STATE_LABELS[processingState])}</span></div>${recoveryNotice}<div class="feedback-processing-actions">${priorityAction}${!feedback.ignored && !feedback.linked_task_id ? `<button class="secondary-button" data-feedback-ignore="${escapeHtml(feedback.id)}" type="button">忽略</button>` : ""}<button class="secondary-button" data-feedback-refresh type="button">刷新</button>${!feedback.linked_task_id && !linkRecovery ? `<button class="primary-button" data-feedback-task="${escapeHtml(feedback.id)}" type="button">转为待办</button>` : ""}${canDelete ? `<button class="secondary-button danger-action" data-feedback-delete="${escapeHtml(feedback.id)}" type="button">删除</button>` : ""}</div><section class="feedback-content-card"><h3>反馈原文</h3><p>${escapeHtml(feedback.content || "用户没有提供正文。")}</p>${attachment}</section>${factRows([
     ["反馈标识", feedback.id],
     ["所属产品", feedback.project_name || feedback.project_id],
     ["用户 ID", feedback.custom_user_id || "未提供"],
@@ -895,19 +910,129 @@ function renderFeedbackInspector(feedback) {
     ["提交时间", formatFeedbackDate(feedback.created_at)],
     ["最近更新", formatFeedbackDate(feedback.updated_at)],
     ["关联待办", feedback.linked_task_id ? `${feedback.linked_task_id}${feedback.linked_task_state ? ` · ${STATE_LABELS[feedback.linked_task_state] || feedback.linked_task_state}` : ""}` : "未关联"]
-  ])}`;
+  ])}${useV2 ? renderFeedbackConversation(feedback, feedbackManagement) : ""}`;
   els.feedbackInspector.querySelector("[data-feedback-priority]")?.addEventListener("change", (event) => runAction(() => updateFeedbackPriority(feedback.id, event.currentTarget.value)));
   els.feedbackInspector.querySelector("[data-feedback-ignore]")?.addEventListener("click", () => runAction(() => ignoreFeedback(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-refresh]")?.addEventListener("click", () => runAction(refreshSnapshot));
   els.feedbackInspector.querySelector("[data-feedback-task]")?.addEventListener("click", () => runAction(() => feedbackToTask(feedback.id)));
+  els.feedbackInspector.querySelector("[data-feedback-link-retry]")?.addEventListener("click", () => runAction(() => retryFeedbackTaskLink(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-delete]")?.addEventListener("click", () => runAction(() => deleteFeedback(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-attachment]")?.addEventListener("click", () => runAction(() => api.openFeedbackAttachment(feedback.file)));
+  wireFeedbackConversation(feedback, feedbackManagement);
+  if (useV2 && !state.feedbackConversations[String(feedback.id)]) void loadFeedbackConversation(feedback);
+}
+
+function feedbackWorkspace(feedback) {
+  return (state.platform.product_workspaces || []).find((item) => String(item.id) === String(feedback.project_id));
+}
+
+function applyFeedbackReadState(feedback, result) {
+  const management = feedbackWorkspace(feedback)?.feedback_management;
+  if (!management) return;
+  const feedbackId = String(feedback.id);
+  const markedCount = Math.max(0, Math.trunc(Number(result?.marked_count) || 0));
+  management.unread_count = Math.max(0, Math.trunc(Number(management.unread_count) || 0) - markedCount);
+  management.unread_feedback_ids = (management.unread_feedback_ids || []).map(String).filter((id) => id !== feedbackId);
+}
+
+function renderFeedbackConversation(feedback, management) {
+  const conversation = state.feedbackConversations[String(feedback.id)] || { loading: true, messages: [], error: "", readError: "", draft: "", file: null, sending: false };
+  const messages = conversation.messages || [];
+  const error = conversation.error ? `<div class="feedback-conversation-error"><span>${escapeHtml(conversation.error)}</span><button data-feedback-messages-retry type="button">重试</button></div>` : "";
+  const readError = conversation.readError ? `<small class="feedback-read-error">消息已加载，但未读状态保存失败；可稍后重试。</small>` : "";
+  const timeline = conversation.loading
+    ? `<div class="feedback-conversation-loading">正在读取沟通记录…</div>`
+    : messages.length
+      ? `<div class="feedback-message-list">${messages.map((message) => `<article class="feedback-message ${escapeHtml(message.sender_type)}"><header><strong>${message.sender_type === "customer" ? "用户" : message.sender_type === "developer" ? "开发者" : "系统"}</strong><time>${escapeHtml(formatFeedbackDate(message.created_at))}</time></header>${message.content ? `<p>${escapeHtml(message.content)}</p>` : ""}${(message.attachments || []).length ? `<div class="feedback-message-attachments">${message.attachments.map((attachment) => `<button data-feedback-message-attachment data-attachment-id="${escapeHtml(attachment.id)}" data-object-key="${escapeHtml(attachment.object_key)}" type="button">${escapeHtml(attachment.file_name || attachment.object_key || "查看附件")}</button>`).join("")}</div>` : ""}</article>`).join("")}</div>`
+      : `<div class="empty-state compact">尚无沟通记录。</div>`;
+  return `<section class="feedback-conversation" aria-label="反馈沟通"><div class="section-title-row"><div><span class="section-icon">✦</span><div><h3>沟通记录</h3><p>${management.unread_count ? `${management.unread_count} 条未读` : "用户、开发者与系统消息"}</p></div></div></div>${error}${readError}${timeline}<div class="feedback-reply-composer"><textarea data-feedback-reply rows="3" placeholder="回复用户，失败时会保留草稿">${escapeHtml(conversation.draft || "")}</textarea><label><span>回复附件</span><input data-feedback-reply-file type="file" ${conversation.sending ? "disabled" : ""}><small>${conversation.file ? escapeHtml(conversation.file.name) : "可选，最大 25 MB"}</small></label><button class="primary-button" data-feedback-reply-send type="button" ${conversation.sending ? "disabled" : ""}>${conversation.sending ? "发送中…" : "发送回复"}</button></div></section>`;
+}
+
+function wireFeedbackConversation(feedback, management) {
+  const id = String(feedback.id);
+  const conversation = state.feedbackConversations[id];
+  if (!conversation && feedback.feedback_source !== "v2") return;
+  els.feedbackInspector.querySelector("[data-feedback-messages-retry]")?.addEventListener("click", () => runAction(() => loadFeedbackConversation(feedback, { force: true })));
+  els.feedbackInspector.querySelector("[data-feedback-reply]")?.addEventListener("input", (event) => {
+    (state.feedbackConversations[id] ||= { messages: [] }).draft = event.currentTarget.value;
+  });
+  els.feedbackInspector.querySelector("[data-feedback-reply-file]")?.addEventListener("change", (event) => {
+    (state.feedbackConversations[id] ||= { messages: [] }).file = event.currentTarget.files?.[0] || null;
+    renderFeedbackInspector(feedback);
+  });
+  els.feedbackInspector.querySelector("[data-feedback-reply-send]")?.addEventListener("click", () => runAction(() => sendFeedbackReply(feedback)));
+  els.feedbackInspector.querySelectorAll("[data-feedback-message-attachment]").forEach((button) => button.addEventListener("click", () => {
+    void runAction(() => runFeedbackV2Request(() => api.openFeedbackV2Attachment({
+      project_id: feedback.project_id,
+      feedback_id: feedback.id,
+      attachment_id: button.dataset.attachmentId,
+      object_key: button.dataset.objectKey
+    })));
+  }));
+}
+
+async function loadFeedbackConversation(feedback, { force = false } = {}) {
+  const id = String(feedback.id);
+  const current = state.feedbackConversations[id];
+  if (current?.loading && !force) return;
+  let refreshFeedbackList = false;
+  state.feedbackConversations[id] = { messages: current?.messages || [], draft: current?.draft || "", file: current?.file || null, loading: true, sending: false, error: "", readError: current?.readError || "" };
+  renderFeedbackInspector(feedback);
+  try {
+    const messages = await runFeedbackV2Request(() => api.getFeedbackV2Messages({ project_id: feedback.project_id, feedback_id: feedback.id }));
+    state.feedbackConversations[id] = { ...state.feedbackConversations[id], messages: Array.isArray(messages) ? messages : [], loading: false, error: "" };
+    const management = feedbackWorkspace(feedback)?.feedback_management;
+    if (management?.features?.mark_read === true) {
+      try {
+        const result = await runFeedbackV2Request(() => api.markFeedbackV2Read({ project_id: feedback.project_id, feedback_id: feedback.id }));
+        applyFeedbackReadState(feedback, result);
+        refreshFeedbackList = true;
+        state.feedbackConversations[id].readError = "";
+      } catch (error) {
+        state.feedbackConversations[id].readError = error?.message || "已读回写失败";
+      }
+    } else {
+      state.feedbackConversations[id].readError = "";
+    }
+  } catch (error) {
+    state.feedbackConversations[id] = { ...state.feedbackConversations[id], loading: false, error: error?.message || "加载消息失败" };
+  }
+  if (refreshFeedbackList) renderPlatformFeedback();
+  else if (String(state.selectedFeedbackId) === id) renderFeedbackInspector(feedback);
+}
+
+async function sendFeedbackReply(feedback) {
+  const id = String(feedback.id);
+  const conversation = state.feedbackConversations[id] || { messages: [], draft: "", file: null };
+  const content = String(conversation.draft || "").trim();
+  if (!content && !conversation.file) throw new Error("请输入回复内容或选择附件。");
+  conversation.sending = true;
+  conversation.error = "";
+  renderFeedbackInspector(feedback);
+  try {
+    let file;
+    if (conversation.file) {
+      const bytes = await conversation.file.arrayBuffer();
+      file = { file_name: conversation.file.name, mime_type: conversation.file.type, size: conversation.file.size, bytes };
+    }
+    const message = await runFeedbackV2Request(() => api.sendFeedbackV2Reply({ project_id: feedback.project_id, feedback_id: feedback.id, content, file }));
+    conversation.messages = [...(conversation.messages || []), message];
+    conversation.draft = "";
+    conversation.file = null;
+  } catch (error) {
+    conversation.error = error?.message || "发送回复失败";
+    throw error;
+  } finally {
+    conversation.sending = false;
+    state.feedbackConversations[id] = conversation;
+    if (String(state.selectedFeedbackId) === id) renderFeedbackInspector(feedback);
+  }
 }
 
 function feedbackProcessingState(feedback) {
   if (feedback.linked_task_id) return "converted";
   if (feedback.ignored) return "ignored";
-  const explicit = String(feedback.metadata?.feedback_state || feedback.metadata?.status || "").toLowerCase();
+  const explicit = String(feedback.processing_state || feedback.metadata?.feedback_state || feedback.metadata?.status || "").toLowerCase();
   return Object.hasOwn(FEEDBACK_STATE_LABELS, explicit) ? explicit : "pending";
 }
 
@@ -1193,11 +1318,25 @@ async function createTag() {
 
 async function updateFeedbackPriority(feedbackId, priority) {
   const feedback = findFeedback(feedbackId);
+  if (feedback.linked_task_id) throw new Error(`该反馈已关联待办 ${feedback.linked_task_id}，请在 Work 中调整优先级。`);
+  if (!["P1", "P2", "P3"].includes(priority)) throw new Error("反馈优先级无效。");
+  if (feedback.feedback_source === "v2") {
+    await runFeedbackV2Request(() => api.updateFeedbackV2({ project_id: feedback.project_id, feedback_id: feedback.id, data: { ...feedback.metadata, priority } }));
+    await refreshSnapshot();
+    showToast("反馈优先级已更新");
+    return;
+  }
   await executeManagedAction("feedback.update", { feedback_id: feedback.id, data: { ...feedback.metadata, priority } }, "反馈优先级已更新");
 }
 
 async function ignoreFeedback(feedbackId) {
   const feedback = findFeedback(feedbackId);
+  if (feedback.feedback_source === "v2") {
+    await runFeedbackV2Request(() => api.ignoreFeedbackV2({ project_id: feedback.project_id, feedback_id: feedback.id }));
+    await refreshSnapshot();
+    showToast("反馈已忽略");
+    return;
+  }
   await executeManagedAction("feedback.update", { feedback_id: feedback.id, data: { ...feedback.metadata, ignored: true } }, "反馈已忽略");
 }
 
@@ -1206,8 +1345,8 @@ async function feedbackToTask(feedbackId) {
   if (feedback.linked_task_id) throw new Error(`该反馈已关联待办 ${feedback.linked_task_id}，请在 Work 中继续处理。`);
   const values = await openPlatformAction({
     title: "反馈转待办",
-    lead: "先创建待办，再保存反馈与待办的关联；若关联保存失败，会明确保留已经创建的待办信息。",
-    confirmLabel: "创建并关联",
+    lead: feedback.feedback_source === "v2" ? "由 Workshop 服务原子创建待办并关联反馈；失败时不会在 ArcOrbit 侧补做第二次创建。" : "先创建待办，再保存反馈与待办的关联；若关联保存失败，会明确保留已经创建的待办信息。",
+    confirmLabel: feedback.feedback_source === "v2" ? "原子转为待办" : "创建并关联",
     fields: [
       platformField("task_content", "待办内容", { type: "textarea", required: true, value: feedback.content }),
       platformField("task_state", "初始状态", { type: "select", value: "pending_review", options: taskStateOptions() }),
@@ -1217,23 +1356,97 @@ async function feedbackToTask(feedbackId) {
     ]
   });
   if (!values) return;
-  await executeManagedAction("feedback.to_task", { feedback_id: feedback.id, project_id: feedback.project_id, metadata: feedback.metadata, ...values }, "反馈已转为待办并完成关联");
+  if (feedback.feedback_source === "v2") {
+    await runFeedbackV2Request(() => api.convertFeedbackV2ToTask({
+      project_id: feedback.project_id,
+      feedback_id: feedback.id,
+      content: values.task_content,
+      state: values.task_state,
+      executor_id: values.executor_id,
+      priority: values.task_priority,
+      tags: values.task_tags
+    }));
+    await refreshSnapshot();
+    showToast("反馈已原子转为待办");
+    return;
+  }
+  try {
+    await executeManagedAction("feedback.to_task", { feedback_id: feedback.id, project_id: feedback.project_id, metadata: feedback.metadata, ...values }, "反馈已转为待办并完成关联");
+  } catch (error) {
+    if (!error?.partial_result?.task_id) throw error;
+    state.feedbackLinkRecoveries[String(feedback.id)] = {
+      task_id: String(error.partial_result.task_id),
+      task_state: String(error.partial_result.task_state || values.task_state || "pending_review")
+    };
+    renderPlatformFeedback();
+    throw new Error(`待办 ${error.partial_result.task_id} 已创建，但反馈关联失败；请使用“仅重试关联”。`);
+  }
+}
+
+async function retryFeedbackTaskLink(feedbackId) {
+  const feedback = findFeedback(feedbackId);
+  const recovery = state.feedbackLinkRecoveries[String(feedback.id)];
+  if (!recovery?.task_id) throw new Error("没有可恢复的反馈关联。请刷新后重试。");
+  await executeManagedAction("feedback.link_task", {
+    feedback_id: feedback.id,
+    project_id: feedback.project_id,
+    task_id: recovery.task_id,
+    task_state: recovery.task_state
+  }, `反馈已关联待办 ${recovery.task_id}`);
+  delete state.feedbackLinkRecoveries[String(feedback.id)];
 }
 
 async function deleteFeedback(feedbackId) {
   const feedback = findFeedback(feedbackId);
   if (!window.confirm(`确定删除反馈“${feedback.title || feedback.short_id || feedback.id}”吗？`)) return;
+  if (feedback.feedback_source === "v2") {
+    await runFeedbackV2Request(() => api.deleteFeedbackV2({ project_id: feedback.project_id, feedback_id: feedback.id }));
+    await refreshSnapshot();
+    showToast("反馈已删除");
+    return;
+  }
   await executeManagedAction("feedback.delete", { feedback_id: feedback.id }, "反馈已删除");
+}
+
+async function runFeedbackV2Request(action) {
+  try {
+    return await action();
+  } catch (error) {
+    const status = Number(error?.status || error?.details?.status || 0);
+    if (status === 401 || error?.code === "unauthenticated") {
+      try {
+        state.authentication = normalizeAuthentication(await api.getAuthStatus());
+      } catch {
+        state.authentication = normalizeAuthentication({ status: "expired", authenticated: false, error: error?.message || "Workshop 登录已失效。" });
+      }
+      showLoginGate();
+    } else if (status === 404 || error?.code === "not_found") {
+      await refreshSnapshot({ quiet: true }).catch(() => {});
+    }
+    throw error;
+  }
 }
 
 async function executeManagedAction(command, input, message, { refresh = true } = {}) {
   try {
     const result = await api.executePlatformAction(command, input);
+    if (result?.status === "partial" && result.partial_result) {
+      const partialError = new Error(result.error?.message || "平台操作只完成了一部分。");
+      partialError.code = result.error?.code || "platform_action_partial";
+      partialError.partial_result = result.partial_result;
+      if (refresh) {
+        try {
+          await refreshSnapshot();
+        } catch (refreshError) {
+          partialError.message = `${partialError.message} 当前状态刷新失败：${refreshError?.message || String(refreshError)}`;
+        }
+      }
+      throw partialError;
+    }
     if (refresh) await refreshSnapshot();
     showToast(message);
     return result;
   } catch (error) {
-    if (error?.partial_result) throw new Error(`${error.message}；待办 ${error.partial_result.task_id} 已创建，但反馈关联失败。`);
     throw error;
   }
 }

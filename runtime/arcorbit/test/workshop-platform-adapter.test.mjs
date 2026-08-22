@@ -1,6 +1,72 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkshopPlatformAdapter } from "../src/workshop-platform-adapter.mjs";
+import { createWorkshopPlatformAdapter, normalizeFeedbackV1, normalizeFeedbackV2 } from "../src/workshop-platform-adapter.mjs";
+
+test("Workshop platform adapter keeps Feedback V2 in fixed project-scoped routes", async () => {
+  const calls = [];
+  const uploads = [];
+  const adapter = createWorkshopPlatformAdapter({
+    request: async () => ({}),
+    requestV2: async (path, options = {}) => {
+      calls.push({ path, options });
+      if (path === "/feedbacks") return { feedbacks: [{ id: 51, project_id: 11, triage_status: "accepted", customer_status: "developing", task_id: 42, data: "{}" }] };
+      if (path.endsWith("/messages") && !options.method) return { messages: [{ id: 71, feedback_id: 51, project_id: 11, sender_type: "customer", content: "Need help", attachments: [{ id: 91, type: "file", object_key: "feedback/51/log.txt", url: "https://oss.example.test/feedback/51/log.txt", file_name: "log.txt" }] }] };
+      if (path === "/feedback-notifications") return { notifications: [{ id: 81, project_id: 11, feedback_id: 51, sender_type: "customer" }], unread_count: 1 };
+      if (path.endsWith("/upload-policies")) return { object_key: "feedback/51/log.txt", upload_url: "https://oss.example.test", fields: { key: "feedback/51/log.txt" } };
+      if (path.includes("/oss/credentials")) return { access_key_id: "id" };
+      return { id: 72, feedback_id: 51, project_id: 11, sender_type: "developer", content: options.body?.content || "", attachments: options.body?.attachments || [] };
+    },
+    listProjects: async () => [],
+    normalizeTask: (value) => value,
+    feedbackV2ProjectIds: "11",
+    feedbackV2NotificationProjectIds: "11",
+    uploadWithPolicy: async (policy, file) => uploads.push({ policy, file }),
+    signAttachmentUrl: ({ objectKey, credentials }) => `https://oss.example.test/${objectKey}?id=${credentials.access_key_id}`
+  });
+
+  assert.equal(adapter.isFeedbackV2ProjectEnabled(11), true);
+  assert.equal(adapter.isFeedbackV2ProjectEnabled(12), false);
+  const feedback = await adapter.listFeedbackV2(11);
+  assert.equal(feedback[0].feedback_source, "v2");
+  assert.equal(feedback[0].linked_task_id, "42");
+  assert.equal(feedback[0].customer_status, "developing");
+  const listedMessage = (await adapter.listFeedbackV2Messages(11, 51))[0];
+  assert.equal(listedMessage.sender_type, "customer");
+  assert.deepEqual(listedMessage.attachments[0], {
+    id: "91",
+    type: "file",
+    object_key: "feedback/51/log.txt",
+    file_name: "log.txt",
+    mime_type: "",
+    size: 0
+  });
+  assert.equal("url" in listedMessage.attachments[0], false);
+  assert.equal((await adapter.listFeedbackV2Notifications(11)).unread_count, 1);
+  await adapter.markFeedbackV2NotificationsRead(11, { feedback_id: 51 });
+  const attachment = await adapter.uploadFeedbackV2DeveloperAttachment(11, {
+    feedback_id: 51,
+    file: { file_name: "log.txt", mime_type: "text/plain", size: 3, bytes: new Uint8Array([1, 2, 3]) }
+  });
+  assert.equal(attachment.object_key, "feedback/51/log.txt");
+  assert.equal(uploads.length, 1);
+  const message = await adapter.createFeedbackV2DeveloperMessage(11, { feedback_id: 51, content: "Fixed", attachments: [attachment] });
+  assert.equal(message.sender_type, "developer");
+  assert.equal(await adapter.getFeedbackV2AttachmentUrl(11, { feedback_id: 51, attachment_id: 91, object_key: "feedback/51/log.txt" }), "https://oss.example.test/feedback/51/log.txt?id=id");
+  await adapter.ignoreFeedbackV2(11, 51);
+  await adapter.convertFeedbackV2ToTask(11, { feedback_id: 51, content: "Follow up", state: "pending_review", executor_id: 7 });
+  assert.equal(calls.some((call) => call.path === "/feedbacks/51/ignore" && call.options.method === "POST"), true);
+  assert.equal(calls.some((call) => call.path === "/feedbacks/51/convert-to-task" && call.options.body.executor_id === 7), true);
+  await assert.rejects(adapter.listFeedbackV2(12), /not enabled/);
+  await assert.rejects(adapter.createFeedbackV2DeveloperMessage(11, { feedback_id: 51, content: "", attachments: [] }), /requires text or an attachment/);
+});
+
+test("Feedback V2 normalization preserves V1 compatibility and explicit statuses", () => {
+  const value = normalizeFeedbackV2({ id: 51, project_id: 11, triage_status: "ignored", customer_status: "released", data: "{}" });
+  assert.equal(value.processing_state, "ignored");
+  assert.equal(value.ignored, true);
+  assert.equal(value.customer_status, "released");
+  assert.equal(value.priority, "P2");
+});
 
 test("Workshop platform management uses the existing bounded service routes and fields", async () => {
   const calls = [];
@@ -42,6 +108,39 @@ test("Workshop platform management validates ids and rejects unsupported owner a
   assert.throws(() => adapter.createTask({ project_id: "not-an-id", content: "Invalid" }), /Project id is invalid/);
   assert.throws(() => adapter.updateProjectMember("11", { target_user_id: 7, role: "owner" }), /Member role is invalid/);
   assert.throws(() => adapter.inviteProjectMember("11", { role: "owner" }), /Member role is invalid/);
+});
+
+test("Workshop platform adapter normalizes historical Feedback V1 processing fields", () => {
+  const converted = normalizeFeedbackV1({
+    id: 51,
+    project_id: 11,
+    task_id: 42,
+    task_state: "in_progress",
+    triage_status: "accepted",
+    data: JSON.stringify({ feedback_state: "待处理", ai_priority: "1" })
+  });
+  assert.equal(converted.linked_task_id, "42");
+  assert.equal(converted.linked_task_state, "in_progress");
+  assert.equal(converted.processing_state, "converted");
+  assert.equal(converted.priority, "P1");
+
+  const legacy = normalizeFeedbackV1({
+    id: 52,
+    project_id: 11,
+    data: JSON.stringify({ converted_task_id: 43, task_state: "completed", priority_level: 3 })
+  });
+  assert.equal(legacy.linked_task_id, "43");
+  assert.equal(legacy.processing_state, "converted");
+  assert.equal(legacy.priority, "P3");
+
+  const ignored = normalizeFeedbackV1({ id: 53, project_id: 11, triage_status: "ignored", data: "{}" });
+  assert.equal(ignored.ignored, true);
+  assert.equal(ignored.processing_state, "ignored");
+  assert.equal(ignored.priority, "P2");
+
+  const developing = normalizeFeedbackV1({ id: 54, project_id: 11, status: "developing", data: "{}" });
+  assert.equal(developing.processing_state, "in_progress");
+  assert.equal(developing.priority, "P2");
 });
 
 test("Workshop platform adapter follows service pagination and keeps organization governance bounded", async () => {

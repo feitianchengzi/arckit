@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-22T12:12:07.767Z",
-    "revision": 167
+    "updated_at": "2026-08-22T21:06:33.115Z",
+    "revision": 171
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "补齐 Workshop 服务发布脚本对无 Docker HEALTHCHECK 的旧生产镜像的回滚确认，使候选发布失败后能够验证已恢复服务，而不是产生误导性的人工介入提示。",
+      "current_focus": "参考 ../../hoewo/Workshop-Feedbacks 的反馈管理前端与实际服务契约，补齐 ArcOrbit Feedback 页面核心工作流，使用户能够在 ArcOrbit 内完成日常反馈处理而无需依赖网页版。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -313,33 +313,19 @@
         "evidence_expectation": "Durable contract evidence sufficient to recover material integration boundaries.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit integrates with Codex app-server/CLI and Workshop through explicit main-process adapters; trusted ledger entrypoints remain repository-owned. Workshop authentication preserves server-rotated credentials and the rolling seven-day inactivity contract. The Automation adapter remains executor-scoped, while the separate Platform Adapter reads organization, project, membership, full project task and Feedback V1 domains. Feedback V2 remains disabled until a separately trusted adapter proves capability; missing conditional update, member authorization and task-history service contracts are surfaced as weak consistency or unavailable actions rather than invented behavior. ArcOrbit 自身产品反馈独立使用 Feedback SDK WebView V2 的 API Key 直连契约；它不启用 Platform Feedback V2 管理 adapter，也不推断未确认的宿主 Session endpoint。 The Workshop integration accepts both the versioned project WebSocket plus authorized cursor replay API and the previous no-ID WebSocket notification contract. Modern connections catch up and deduplicate by event ID and handle cursor expiry by full refresh; legacy connections treat notifications as invalidations and refresh current state on connect. ArcOrbit uses 15-minute reconciliation and explicit immediate sync instead of disconnected minute polling.",
-          "reason": "The client-first rollout requires one bounded adapter contract for both deployed Workshop generations.",
+          "statement": "ArcOrbit integrates with Codex app-server/CLI and Workshop through explicit main-process adapters; trusted ledger entrypoints remain repository-owned. Workshop authentication preserves server-rotated credentials and the rolling seven-day inactivity contract. The Automation adapter remains executor-scoped, while the separate Platform Adapter reads organization, project, membership, full project task and Feedback domains. The developer-side Feedback V2 management contract is implemented through a separately restricted Platform Adapter with authenticated fixed V2 routes, project flags, per-action fail-closed degradation, controlled message attachments, notifications/read state, dedicated ignore and atomic task conversion; it requires no real-environment prevalidation. ArcOrbit 自身产品反馈独立使用 Feedback SDK WebView V2 的 API Key 直连契约；它不启用或替代 Workset Feedback V2 管理 adapter，也不推断未确认的宿主 Session endpoint。 The Workshop integration accepts both the versioned project WebSocket plus authorized cursor replay API and the previous no-ID WebSocket notification contract. Modern connections catch up and deduplicate by event ID and handle cursor expiry by full refresh; legacy connections treat notifications as invalidations and refresh current state on connect. ArcOrbit uses 15-minute reconciliation and explicit immediate sync instead of disconnected minute polling.",
+          "reason": "已接受的前端 V2 管理契约现已在受限 Platform Adapter、Coordinator、typed IPC 和 Renderer 中实现并通过完整检查。",
           "evidence": [
-            "User request received 2026-08-19",
-            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
-            "arckit/interaction/product-feedback-center/interaction.md",
-            "arckit/tech/arcorbit/product-feedback-integration.md",
-            "Current operator input, 2026-08-22",
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/tech/arcorbit/realtime-synchronization-solution.md",
-            "arckit/interaction/automation-workspace/default.html",
-            "runtime/arcorbit/src/workshop-realtime-adapter.mjs",
-            "runtime/arcorbit/desktop/main.mjs",
-            "runtime/arcorbit/desktop/renderer/index.html",
+            "FACT-feedback-v2-management-realized",
+            "runtime/arcorbit/src/workshop-platform-adapter.mjs",
+            "runtime/arcorbit/src/platform-coordinator.mjs",
+            "runtime/arcorbit/desktop/preload.cjs",
             "runtime/arcorbit/desktop/renderer/renderer.js",
-            "runtime/arcorbit/src/automation-coordinator.mjs",
-            "runtime/arcorbit/src/desktop/desktop-store.mjs",
-            "runtime/arcorbit/test/workshop-realtime-adapter.test.mjs",
-            "runtime/arcorbit/test/automation-coordinator.test.mjs",
-            "runtime/arcorbit/test/desktop-renderer.test.mjs",
-            "Verification: npm run check — 250 tests, 248 passed, 2 environment-gated skips, 0 failed, 2026-08-22",
-            "Verification: local macOS x64 installer build and arckit-distribution-smoke/v1 passed, build 20260822083310"
+            "arckit/tech/arcorbit/platform-composition-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when the Workshop realtime contract, synchronization cadence, source-of-truth boundary, or human Gate semantics change.",
-          "revision": 6
+          "resume_condition": "Revisit when the Workshop-Feedbacks frontend contract, project rollout flags, Workshop authentication boundary, attachment credential model, or developer-management failure semantics change.",
+          "revision": 8
         },
         "gap_refs": []
       },

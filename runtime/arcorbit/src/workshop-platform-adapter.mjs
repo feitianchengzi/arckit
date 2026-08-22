@@ -2,12 +2,34 @@ const PROJECT_ROLES = new Set(["owner", "admin", "member"]);
 const TASK_STATES = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
 const PAGE_SIZE = 200;
 
-export function createWorkshopPlatformAdapter({ request, listProjects, normalizeTask }) {
+export function createWorkshopPlatformAdapter({
+  request,
+  requestV2,
+  listProjects,
+  normalizeTask,
+  feedbackV2ProjectIds = "",
+  feedbackV2NotificationProjectIds = "",
+  uploadWithPolicy,
+  signAttachmentUrl
+}) {
   if (typeof request !== "function" || typeof listProjects !== "function" || typeof normalizeTask !== "function") {
     throw new TypeError("Workshop platform adapter requires bounded request, project, and task functions.");
   }
 
+  const v2Projects = projectMatcher(feedbackV2ProjectIds);
+  const v2NotificationProjects = projectMatcher(feedbackV2NotificationProjectIds);
+  const v2Request = typeof requestV2 === "function" ? requestV2 : unavailableFeedbackV2;
+
   return {
+    isFeedbackV2ProjectEnabled(projectId) {
+      return v2Projects(requiredId(projectId, "Project"));
+    },
+
+    isFeedbackV2NotificationsProjectEnabled(projectId) {
+      const id = requiredId(projectId, "Project");
+      return v2Projects(id) && v2NotificationProjects(id);
+    },
+
     async listOrganizations() {
       return listAllPages(request, "/organizations", {}, ["organizations", "items"], normalizeOrganization);
     },
@@ -76,6 +98,124 @@ export function createWorkshopPlatformAdapter({ request, listProjects, normalize
       if (filters.short_id) query.short_id = String(filters.short_id).trim().slice(0, 100);
       if (filters.custom_user_id) query.custom_user_id = String(filters.custom_user_id).trim().slice(0, 200);
       return listAllPages(request, "/feedbacks", query, ["feedbacks", "items"], (feedback) => normalizeFeedbackV1(feedback, id));
+    },
+
+    async listFeedbackV2(projectId, filters = {}) {
+      const id = enabledV2Project(projectId, v2Projects);
+      const query = { project_id: id };
+      if (filters.short_id) query.short_id = String(filters.short_id).trim().slice(0, 100);
+      if (filters.custom_user_id) query.custom_user_id = String(filters.custom_user_id).trim().slice(0, 200);
+      return listAllPages(v2Request, "/feedbacks", query, ["feedbacks", "items"], (feedback) => normalizeFeedbackV2(feedback, id));
+    },
+
+    async listFeedbackV2Messages(projectId, feedbackId) {
+      enabledV2Project(projectId, v2Projects);
+      const id = requiredId(feedbackId, "Feedback");
+      return listAllPages(v2Request, `/feedbacks/${encodeURIComponent(id)}/messages`, {}, ["messages", "items"], normalizeFeedbackV2Message, 100);
+    },
+
+    async listFeedbackV2Notifications(projectId, input = {}) {
+      const id = enabledV2Project(projectId, v2Projects);
+      if (!v2NotificationProjects(id)) return { notifications: [], unread_count: 0, available: false };
+      const payload = await v2Request("/feedback-notifications", {
+        query: compact({
+          project_id: numericId(id, "Project"),
+          feedback_id: optionalNumericId(input.feedback_id, "Feedback"),
+          unread_only: input.unread_only === undefined ? undefined : Boolean(input.unread_only),
+          page: 1,
+          page_size: 100
+        })
+      });
+      const result = payload && typeof payload === "object" ? payload : {};
+      const notifications = extractList(result, ["notifications", "items"]).map(normalizeFeedbackV2Notification).filter(Boolean);
+      return { notifications, unread_count: boundedInteger(result.unread_count, 0, Number.MAX_SAFE_INTEGER, 0), available: true };
+    },
+
+    async markFeedbackV2NotificationsRead(projectId, input = {}) {
+      const id = enabledV2Project(projectId, v2Projects);
+      if (!v2NotificationProjects(id)) throw feedbackV2Unavailable("Feedback V2 notifications are not enabled for this project.");
+      const payload = await v2Request("/feedback-notifications/read", {
+        method: "POST",
+        body: compact({
+          project_id: numericId(id, "Project"),
+          feedback_id: optionalNumericId(input.feedback_id, "Feedback"),
+          notification_ids: optionalNumericIds(input.notification_ids, "Notification")
+        })
+      });
+      return { marked_count: boundedInteger(payload?.marked_count, 0, Number.MAX_SAFE_INTEGER, 0) };
+    },
+
+    async createFeedbackV2DeveloperMessage(projectId, input = {}) {
+      enabledV2Project(projectId, v2Projects);
+      const feedbackId = requiredId(input.feedback_id, "Feedback");
+      const attachments = normalizeOutgoingFeedbackAttachments(input.attachments);
+      const content = optionalText(input.content, 10000);
+      if (!content && attachments.length === 0) throw new TypeError("Feedback reply requires text or an attachment.");
+      const payload = await v2Request(`/feedbacks/${encodeURIComponent(feedbackId)}/messages`, {
+        method: "POST",
+        body: { content, metadata: { source: "arcorbit-workset-feedback" }, attachments }
+      });
+      return normalizeFeedbackV2Message(payload?.message ?? payload);
+    },
+
+    async uploadFeedbackV2DeveloperAttachment(projectId, input = {}) {
+      enabledV2Project(projectId, v2Projects);
+      if (typeof uploadWithPolicy !== "function") throw feedbackV2Unavailable("Feedback attachment upload is unavailable.");
+      const feedbackId = requiredId(input.feedback_id, "Feedback");
+      const file = normalizeUploadFile(input.file);
+      const type = file.mime_type.startsWith("image/") ? "image" : "file";
+      const policy = await v2Request(`/feedbacks/${encodeURIComponent(feedbackId)}/upload-policies`, {
+        method: "POST",
+        body: { type, file_name: file.file_name, mime_type: file.mime_type, size: file.size }
+      });
+      if (!policy?.object_key || !policy?.upload_url || !policy?.fields) throw new Error("Feedback upload policy is incomplete.");
+      await uploadWithPolicy(policy, file);
+      return { type, object_key: String(policy.object_key), file_name: file.file_name, mime_type: file.mime_type, size: file.size };
+    },
+
+    async getFeedbackV2AttachmentUrl(projectId, input = {}) {
+      enabledV2Project(projectId, v2Projects);
+      if (typeof signAttachmentUrl !== "function") throw feedbackV2Unavailable("Feedback attachment access is unavailable.");
+      const feedbackId = requiredId(input.feedback_id, "Feedback");
+      const attachmentId = requiredId(input.attachment_id, "Attachment");
+      const objectKey = requiredText(input.object_key, "Attachment object key", 2000).replace(/^\/+/, "");
+      const credentials = await v2Request(`/feedbacks/${encodeURIComponent(feedbackId)}/attachments/${encodeURIComponent(attachmentId)}/oss/credentials`);
+      return signAttachmentUrl({ objectKey, credentials });
+    },
+
+    async ignoreFeedbackV2(projectId, feedbackId) {
+      enabledV2Project(projectId, v2Projects);
+      const id = requiredId(feedbackId, "Feedback");
+      const payload = await v2Request(`/feedbacks/${encodeURIComponent(id)}/ignore`, { method: "POST" });
+      return normalizeFeedbackV2(payload?.feedback ?? payload, projectId);
+    },
+
+    async updateFeedbackV2(projectId, feedbackId, input = {}) {
+      enabledV2Project(projectId, v2Projects);
+      const id = requiredId(feedbackId, "Feedback");
+      const payload = await v2Request(`/feedbacks/${encodeURIComponent(id)}`, { method: "PUT", body: feedbackBody(input, { creating: false }) });
+      return normalizeFeedbackV2(payload?.feedback ?? payload, projectId);
+    },
+
+    async deleteFeedbackV2(projectId, feedbackId) {
+      enabledV2Project(projectId, v2Projects);
+      return v2Request(`/feedbacks/${encodeURIComponent(requiredId(feedbackId, "Feedback"))}`, { method: "DELETE" });
+    },
+
+    async convertFeedbackV2ToTask(projectId, input = {}) {
+      enabledV2Project(projectId, v2Projects);
+      const feedbackId = requiredId(input.feedback_id, "Feedback");
+      return v2Request(`/feedbacks/${encodeURIComponent(feedbackId)}/convert-to-task`, {
+        method: "POST",
+        body: compact({
+          content: optionalProvidedText(input, "content", 10000),
+          state: input.state === undefined ? undefined : taskState(input.state),
+          executor_id: optionalNumericId(input.executor_id, "Executor"),
+          father_id: optionalNumericId(input.father_id, "Parent task"),
+          priority: optionalProvidedNumber(input, "priority", 0, 100000),
+          tags: optionalProvidedText(input, "tags", 1000)
+        })
+      });
     },
 
     async listProjectTags(projectId) {
@@ -235,6 +375,8 @@ export function normalizeFeedbackV1(value, fallbackProjectId = "") {
   const projectId = scalarId(value.project_id) || String(fallbackProjectId);
   if (!id || !projectId) return null;
   const metadata = parseFeedbackData(value.data);
+  const linkedTaskId = scalarId(value.task_id) || scalarId(metadata.task_id) || scalarId(metadata.converted_task_id);
+  const processingState = normalizeFeedbackProcessingState(value, metadata, linkedTaskId);
   return {
     id,
     project_id: projectId,
@@ -247,13 +389,116 @@ export function normalizeFeedbackV1(value, fallbackProjectId = "") {
     file: String(value.file || ""),
     data: String(value.data || ""),
     metadata,
-    priority: ["P1", "P2", "P3"].includes(metadata.priority) ? metadata.priority : "",
-    ignored: metadata.ignored === true,
-    linked_task_id: scalarId(metadata.task_id),
-    linked_task_state: String(metadata.task_state || ""),
+    priority: normalizeFeedbackPriority(metadata),
+    ignored: metadata.ignored === true || processingState === "ignored",
+    processing_state: processingState,
+    triage_status: normalizeFeedbackTriageStatus(value.triage_status),
+    linked_task_id: linkedTaskId,
+    linked_task_state: String(value.task_state || metadata.task_state || ""),
     created_at: String(value.created_at || ""),
     updated_at: String(value.updated_at || "")
   };
+}
+
+export function normalizeFeedbackV2(value, fallbackProjectId = "") {
+  const normalized = normalizeFeedbackV1(value, fallbackProjectId);
+  if (!normalized) return null;
+  const triageStatus = normalizeFeedbackTriageStatus(value.triage_status);
+  const customerStatus = String(value.customer_status || "").trim().toLowerCase();
+  return {
+    ...normalized,
+    feedback_source: "v2",
+    triage_status: triageStatus,
+    customer_status: ["submitted", "reviewing", "developing", "released", "completed", "ignored"].includes(customerStatus) ? customerStatus : "",
+    ignored: normalized.ignored || triageStatus === "ignored"
+  };
+}
+
+export function normalizeFeedbackV2Message(value) {
+  if (!value || typeof value !== "object") return null;
+  const id = scalarId(value.id ?? value.message_id);
+  const feedbackId = scalarId(value.feedback_id);
+  if (!id || !feedbackId) return null;
+  const senderType = ["customer", "developer", "system"].includes(value.sender_type) ? value.sender_type : "system";
+  return {
+    id,
+    feedback_id: feedbackId,
+    project_id: scalarId(value.project_id),
+    sender_type: senderType,
+    message_type: String(value.message_type || "text"),
+    content: String(value.content || ""),
+    attachments: Array.isArray(value.attachments) ? value.attachments.map(normalizeFeedbackV2Attachment).filter(Boolean) : [],
+    created_at: String(value.created_at || ""),
+    updated_at: String(value.updated_at || "")
+  };
+}
+
+function normalizeFeedbackV2Attachment(value) {
+  if (!value || typeof value !== "object") return null;
+  const type = ["image", "file", "url"].includes(value.type) ? value.type : "file";
+  return {
+    id: scalarId(value.id),
+    type,
+    object_key: String(value.object_key || ""),
+    file_name: String(value.file_name || "").slice(0, 500),
+    mime_type: String(value.mime_type || "").slice(0, 200),
+    size: boundedInteger(value.size, 0, 100 * 1024 * 1024, 0)
+  };
+}
+
+function normalizeFeedbackV2Notification(value) {
+  if (!value || typeof value !== "object") return null;
+  const id = scalarId(value.id);
+  const feedbackId = scalarId(value.feedback_id);
+  if (!id || !feedbackId) return null;
+  return {
+    id,
+    project_id: scalarId(value.project_id),
+    feedback_id: feedbackId,
+    feedback_short_id: String(value.feedback_short_id || ""),
+    feedback_title: String(value.feedback_title || ""),
+    message_preview: String(value.message_preview || "").slice(0, 500),
+    sender_type: ["customer", "developer", "system"].includes(value.sender_type) ? value.sender_type : "system",
+    type: String(value.type || ""),
+    created_at: String(value.created_at || ""),
+    read_at: String(value.read_at || "")
+  };
+}
+
+function normalizeFeedbackPriority(metadata) {
+  const rawValue = metadata.priority ?? metadata.ai_priority ?? metadata.priority_level;
+  const text = String(rawValue ?? "").trim();
+  const named = text.toUpperCase();
+  if (["P1", "P2", "P3"].includes(named)) return named;
+  if (text) {
+    const numeric = Number(text);
+    if (Number.isFinite(numeric)) {
+      if (numeric <= 1) return "P1";
+      if (numeric === 2) return "P2";
+      return "P3";
+    }
+  }
+  return "P2";
+}
+
+function normalizeFeedbackProcessingState(value, metadata, linkedTaskId) {
+  if (linkedTaskId) return "converted";
+  const triageStatus = normalizeFeedbackTriageStatus(value.triage_status);
+  if (triageStatus === "ignored") return "ignored";
+  const rawState = String(metadata.feedback_state || metadata.state || value.status || metadata.status || "").trim().toLowerCase();
+  if (["pending", "accepted", "in_progress", "completed", "ignored", "converted"].includes(rawState)) return rawState;
+  if (["开发中", "developing", "processing", "inprogress"].includes(rawState)) return "in_progress";
+  if (["完成", "已完成", "done", "finished", "released"].includes(rawState)) return "completed";
+  if (["已确认", "confirmed", "reviewing"].includes(rawState)) return "accepted";
+  if (["已忽略", "rejected"].includes(rawState)) return "ignored";
+  if (["待处理", "todo", "submitted", "analyzing"].includes(rawState)) return "pending";
+  if (["已流转", "flowed"].includes(rawState)) return "converted";
+  return triageStatus === "accepted" ? "accepted" : "pending";
+}
+
+function normalizeFeedbackTriageStatus(value) {
+  const status = String(value || "").trim().toLowerCase();
+  return ["pending", "accepted", "ignored"].includes(status) ? status : "";
 }
 
 function normalizeTag(value, fallbackProjectId = "") {
@@ -338,6 +583,12 @@ function optionalNumericId(value, label) {
   return value === undefined || value === null || value === "" ? undefined : numericId(value, label);
 }
 
+function optionalNumericIds(value, label) {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length > 500) throw new TypeError(`${label} ids are invalid.`);
+  return value.map((item) => numericId(item, label));
+}
+
 function optionalNullableNumericId(input, key, label) {
   if (!Object.hasOwn(input, key)) return undefined;
   return input[key] === null || input[key] === "" ? null : numericId(input[key], label);
@@ -385,11 +636,11 @@ function extractList(payload, keys) {
   return [];
 }
 
-async function listAllPages(request, path, baseQuery, keys, normalize) {
+async function listAllPages(request, path, baseQuery, keys, normalize, pageSize = PAGE_SIZE) {
   const values = [];
   const seen = new Set();
   for (let page = 1; page <= 1000; page += 1) {
-    const payload = await request(path, { query: { ...baseQuery, page, page_size: PAGE_SIZE } });
+    const payload = await request(path, { query: { ...baseQuery, page, page_size: pageSize } });
     const pageValues = extractList(payload, keys);
     let added = 0;
     for (const raw of pageValues) {
@@ -402,7 +653,7 @@ async function listAllPages(request, path, baseQuery, keys, normalize) {
       added += 1;
     }
     const total = paginationTotal(payload);
-    if ((Number.isFinite(total) && values.length >= total) || pageValues.length < PAGE_SIZE || added === 0) break;
+    if ((Number.isFinite(total) && values.length >= total) || pageValues.length < pageSize || added === 0) break;
   }
   return values;
 }
@@ -422,4 +673,55 @@ function scalarId(value) {
   if (value === undefined || value === null) return "";
   const text = String(value).trim();
   return text && text !== "0" ? text : "";
+}
+
+function projectMatcher(value) {
+  if (value === "*") return () => true;
+  const values = Array.isArray(value) ? value : String(value || "").split(",");
+  const ids = new Set(values.map(scalarId).filter(Boolean));
+  return (projectId) => ids.has(String(projectId));
+}
+
+function enabledV2Project(projectId, matcher) {
+  const id = requiredId(projectId, "Project");
+  if (!matcher(id)) throw feedbackV2Unavailable("Feedback V2 is not enabled for this project.");
+  return id;
+}
+
+function unavailableFeedbackV2() {
+  throw feedbackV2Unavailable("Feedback V2 adapter is unavailable.");
+}
+
+function feedbackV2Unavailable(message) {
+  return Object.assign(new Error(message), { code: "feedback_v2_unavailable" });
+}
+
+function normalizeOutgoingFeedbackAttachments(value) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 10) throw new TypeError("Feedback attachments are invalid.");
+  return value.map((attachment) => {
+    if (!attachment || typeof attachment !== "object" || Array.isArray(attachment)) throw new TypeError("Feedback attachment is invalid.");
+    const type = ["image", "file"].includes(attachment.type) ? attachment.type : "file";
+    return {
+      type,
+      object_key: requiredText(attachment.object_key, "Attachment object key", 2000).replace(/^\/+/, ""),
+      file_name: requiredText(attachment.file_name, "Attachment file name", 500),
+      mime_type: requiredText(attachment.mime_type, "Attachment MIME type", 200),
+      size: boundedInteger(attachment.size, 1, 25 * 1024 * 1024, 0)
+    };
+  });
+}
+
+function normalizeUploadFile(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Feedback attachment file is required.");
+  const bytes = value.bytes instanceof Uint8Array ? value.bytes : value.bytes instanceof ArrayBuffer ? new Uint8Array(value.bytes) : null;
+  if (!bytes || bytes.byteLength === 0 || bytes.byteLength > 25 * 1024 * 1024) throw new TypeError("Feedback attachment bytes are invalid.");
+  const size = boundedInteger(value.size, 1, 25 * 1024 * 1024, bytes.byteLength);
+  if (size !== bytes.byteLength) throw new TypeError("Feedback attachment size does not match its bytes.");
+  return {
+    file_name: requiredText(value.file_name, "Attachment file name", 500),
+    mime_type: requiredText(value.mime_type, "Attachment MIME type", 200).toLowerCase(),
+    size,
+    bytes
+  };
 }

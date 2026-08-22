@@ -136,13 +136,13 @@ WorkspacePreference 以远端 Project id 为键，字段为：
 
 ### FeedbackV2Configuration
 
-Feedback V2 默认状态是 `unavailable`。只有安装包或受信设置显式提供 V2 adapter 配置，并完成一次能力验证后，状态才可进入 `available`。
+Feedback V2 默认状态是 `unavailable`。安装包或受信设置显式提供开发者管理 V2 adapter 配置后，状态可以进入 `available`；Workshop Feedback 控制台的 `feedbackV2Client`、项目开关和开发者会话组件是该 adapter 的采用契约，不要求在实现或启用前另行完成真实环境 API 验证。首次实际请求的路由、认证、权限或响应错误使对应能力进入 `degraded`，不会被包装为成功。
 
 字段为：
 
 - `status`：`unavailable | checking | available | degraded`。
 - `endpoint_origin`：只保存已校验 origin，不保存 session token 或 API key。
-- `checked_at`：最后能力验证时间。
+- `checked_at`：最后一次成功的受限 V2 领域请求时间。
 - `features`：消息、附件、通知、已读标记和 convert-to-task 的布尔能力投影。
 - `error`：脱敏的可恢复错误。
 
@@ -201,7 +201,7 @@ Preload 新增以下产品动作：
 - `setWorkspacePreference(projectId, input)`
 - `executePlatformAction(command, input)`：只接受 Coordinator 内的固定业务命令 allowlist。
 
-当前 allowlist 覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、TaskAttachment CRUD、Tag CRUD、Feedback V1 CRUD 和 `feedback.to_task`。它明确不包含 `project.member.add` 或项目组织迁移。
+当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、TaskAttachment CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、专用忽略和原子转待办。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add` 或项目组织迁移。
 
 IPC 参数使用结构化对象。main 进程通过固定命令 allowlist 与 Adapter 重新验证 id、枚举、长度和允许字段，不接受 Renderer 传入的角色或 capability 作为授权事实；Workshop 服务仍执行最终登录与权限判定。
 
@@ -229,7 +229,7 @@ Workshop 服务是最终授权方。ArcOrbit Renderer 根据已读取角色隐�
 
 平台保持两条互不替代的反馈线：
 
-- 普通用户反馈来自 Workshop Feedback V1 或已验证的 V2 服务，服务端拥有记录。
+- 普通用户反馈来自 Workshop Feedback V1 或采用前端客户端合约的 V2 服务，服务端拥有记录。
 - 验收反馈来自 ArcOrbit 对 completed/accepted 自动待办的本地记录，复用来源 thread，以新 Run 和新 Case 执行。
 
 V1 的 `priority` 是人工 P1/P2/P3；AI-looking status 只是 `data` JSON 的 UI 投影，不得标记为 AI 服务结论。
@@ -241,7 +241,9 @@ V1 convert-to-task 是可恢复但非原子的客户端编排：
 3. 第二步失败时返回 `task_created_feedback_link_failed`，包含新 Task id，并提供“重试关联”动作。
 4. 重试只更新 Feedback，不重复创建 Task。
 
-V2 客户端契约的 triage status、customer status、消息、附件、通知和 convert-to-task 只有 capability 为 `available` 时进入 Renderer。V2 不可用时继续展示 V1，不生成兼容性假数据。
+V2 客户端契约的 triage status、customer status、消息、回复附件、通知/已读、专用忽略和原子 convert-to-task 只有项目开关启用且 capability 为 `available` 时进入 Renderer。该契约直接来自 Workshop Feedback 控制台前端，不以真实环境预验证作为实现门禁。请求失败时对应 capability 进入 `degraded`；已取得的 V1 或 V2 列表、详情和消息保持可见，不生成兼容性假数据。
+
+开发者管理 V2 复用 Workshop 登录身份和 main 进程认证边界，不调用 ArcOrbit 产品反馈中心的 SDK WebView、Project 107 或 bundled API Key。两条集成不共享窗口、凭据、未读状态或命令入口。
 
 ## 一致性与 Mutation
 
@@ -303,7 +305,8 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - `organization_projects_failed`：owner/admin 全量查询失败时标记对应组织降级，不回退后伪装成全量。
 - `task_conflict`：刷新 Task，保留用户未提交编辑草稿，由用户重新确认。
 - `feedback_link_failed`：保留已创建 Task id，只重试 V1 Feedback 关联。
-- `feedback_v2_unavailable`：回退到 V1 能力，不改变 V1 数据。
+- `feedback_v2_unavailable`：项目未启用或 adapter 未配置时继续使用 V1 能力，不改变 V1 数据。
+- `feedback_v2_degraded`：消息、附件、通知、忽略或原子转待办请求失败时只降级对应动作，保留已取得事实并返回脱敏错误。
 - `automation_recovery`：继续由既有 Coordinator actions 处理，Platform Coordinator 不复制恢复动作。
 
 ## 安全
@@ -330,7 +333,9 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - Automation Task Source Adapter 仍只返回当前 executor 待办。
 - main IPC 参数拒绝、未认证、权限保守 gate 和错误投影。
 - V1 convert-to-task 成功、创建失败、关联失败和只重试关联。
-- V2 unavailable 时不渲染 V2-only 动作。
+- V2 项目开关与 capability 门禁；未启用时不渲染 V2-only 动作。
+- V2 消息读取与回复、附件上传策略与受限读取、通知已读、专用忽略和原子转待办的成功、权限拒绝、对象不存在及网络失败。
+- V2 某一动作失败时保留已加载列表、详情、消息与回复草稿，且 Renderer 无法传入 URL、header、token 或 API key。
 - 平台 partial sync 不阻断健康项目和既有 Automation。
 - 既有单全局 execution、persistent thread、双队列和 closeout 测试全部通过。
 
@@ -343,8 +348,8 @@ Web 仓库 build 只有在依赖安装后才构成源码验证。Workshop Todo �
 - Workshop 项目查询响应不包含 `organization_id`；平台从组织范围请求上下文补全归属，并从项目成员的 `is_external` 标记识别外部参与，不修改服务端响应契约。
 - Workshop 项目邀请缺少列表和撤销接口，ArcOrbit 只显示创建响应的一次性结果。
 - Task history 缺少服务端实现，ArcOrbit 不展示伪历史。
-- Feedback V2 服务端不在已提供仓库中，默认 capability 为 unavailable。
+- Feedback V2 服务端不在已提供仓库中；Workshop Feedback 控制台前端请求形状是 ArcOrbit 采用的开发者管理契约，真实环境预验证不是实现门禁，运行时错误由 capability 降级和失败关闭表达。
 - V1 convert-to-task 非原子，需要显式恢复状态。
 - Web 前端验证环境缺少已安装 TypeScript 工具链，不能把未运行 build 视为通过。
 
-这些缺口不改变 ArcOrbit Runtime Kernel。它们由 Platform Adapter capability、错误投影和受限动作隔离，直到对应服务以可验证契约补齐。
+这些缺口不改变 ArcOrbit Runtime Kernel。它们由 Platform Adapter capability、错误投影和受限动作隔离；开发者管理 V2 的实现依据已采用的前端客户端契约，服务错误不扩宽 Renderer 或凭据边界。

@@ -202,6 +202,67 @@ test("Workshop platform adapter reads organizations, members, full project tasks
   assert.equal(feedback[0].linked_task_id, "21");
 });
 
+test("Workshop task source routes Feedback V2 through the authenticated fixed user namespace", async () => {
+  const calls = [];
+  const source = createWorkshopTaskSource({
+    settings: {
+      enabled: true,
+      base_url: "https://workshop.example",
+      service_name: "workshop",
+      auth_mode: "bearer",
+      access_token: "secret"
+    },
+    feedbackV2ProjectIds: "11",
+    feedbackV2NotificationProjectIds: "11",
+    fetchImpl: async (url, options) => {
+      calls.push({ url: String(url), options });
+      return jsonResponse({ data: { feedbacks: [{ id: 51, project_id: 11, data: "{}" }] } });
+    }
+  });
+
+  const feedback = await source.platform.listFeedbackV2("11");
+  assert.equal(feedback[0].feedback_source, "v2");
+  const target = new URL(calls[0].url);
+  assert.equal(target.pathname, "/workshop/v2/user/feedbacks");
+  assert.equal(target.searchParams.get("project_id"), "11");
+  assert.equal(calls[0].options.headers.Authorization, "Bearer secret");
+  assert.equal(calls[0].options.body, undefined);
+});
+
+test("Workshop task source keeps Feedback V2 disabled by default and requires explicit rollout", () => {
+  const previousProjectIds = process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS;
+  const previousNotificationProjectIds = process.env.ARCORBIT_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS;
+  delete process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS;
+  delete process.env.ARCORBIT_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS;
+
+  try {
+    const settings = {
+      enabled: true,
+      base_url: "https://workshop.example",
+      service_name: "workshop",
+      auth_mode: "bearer",
+      access_token: "secret"
+    };
+    const disabled = createWorkshopTaskSource({ settings, fetchImpl: async () => jsonResponse({}) });
+    const enabled = createWorkshopTaskSource({
+      settings,
+      feedbackV2ProjectIds: "*",
+      feedbackV2NotificationProjectIds: "*",
+      fetchImpl: async () => jsonResponse({})
+    });
+
+    assert.equal(disabled.platform.isFeedbackV2ProjectEnabled("11"), false);
+    assert.equal(disabled.platform.isFeedbackV2NotificationsProjectEnabled("11"), false);
+    assert.equal(enabled.platform.isFeedbackV2ProjectEnabled("11"), true);
+    assert.equal(enabled.platform.isFeedbackV2NotificationsProjectEnabled("11"), true);
+  } finally {
+    if (previousProjectIds === undefined) delete process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS;
+    else process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS = previousProjectIds;
+    if (previousNotificationProjectIds === undefined) delete process.env.ARCORBIT_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS;
+    else process.env.ARCORBIT_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS = previousNotificationProjectIds;
+  }
+});
+
 test("Workshop task source sends conditional state updates and reports version conflicts", async () => {
   const calls = [];
   const source = createWorkshopTaskSource({

@@ -150,10 +150,163 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
   await coordinator.executeAction("feedback.to_task", { feedback_id: 51, project_id: 11, task_content: "Follow up", executor_id: 8, metadata: { priority: "P1" } });
   assert.deepEqual(calls[0], ["member.update", 11, { project_id: 11, target_user_id: 7, duty: "Design" }]);
   assert.deepEqual(calls[1], ["task.create", { project_id: 11, content: "Follow up", state: "pending_review", executor_id: 8, priority: undefined, tags: undefined }]);
-  assert.deepEqual(calls[2], ["feedback.update", 51, { data: { priority: "P1", task_id: "42", task_state: "pending_review" } }]);
+  assert.equal(calls[2][0], "feedback.update");
+  assert.equal(calls[2][1], 51);
+  assert.deepEqual(
+    { ...calls[2][2].data, converted_at: "<dynamic>" },
+    {
+      priority: "P1",
+      feedback_state: "converted",
+      status: "developing",
+      task_id: "42",
+      converted_task_id: "42",
+      converted_at: "<dynamic>",
+      task_state: "pending_review"
+    }
+  );
+  assert.equal(Number.isNaN(Date.parse(calls[2][2].data.converted_at)), false);
   await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /仍有未解决的验收问题/);
   acceptanceIssues[0].status = "resolved";
   await coordinator.executeAction("task.update", { task_id: "42", state: "accepted" });
   assert.deepEqual(calls.at(-1), ["task.update", "42", { task_id: "42", state: "accepted" }]);
   await assert.rejects(coordinator.executeAction("project.member.add", { project_id: 11, target_user_id: 7 }), /Unsupported platform action/);
+});
+
+test("feedback association recovery reuses the created task and never creates another task", async () => {
+  const calls = [];
+  let associationFailuresRemaining = 2;
+  let linkedTaskId = "";
+  const platformSource = new Proxy({
+    createTask: async (input) => { calls.push(["task.create", input]); return { id: 42, state: "pending_review" }; },
+    listProjectTasks: async (projectId) => { calls.push(["task.list", projectId]); return [{ id: "42", project_id: String(projectId), state: "pending_review" }]; },
+    listFeedbackV1: async (projectId) => { calls.push(["feedback.list", projectId]); return [{ id: "51", project_id: String(projectId), metadata: { priority: "P1" }, linked_task_id: linkedTaskId }]; },
+    updateFeedbackV1: async (feedbackId, input) => {
+      calls.push(["feedback.update", feedbackId, input]);
+      if (associationFailuresRemaining > 0) {
+        associationFailuresRemaining -= 1;
+        throw new Error("temporary feedback update failure");
+      }
+      linkedTaskId = String(input.data.task_id);
+      return { id: String(feedbackId), project_id: "11", linked_task_id: String(input.data.task_id), metadata: input.data };
+    }
+  }, { get: (target, key) => target[key] || (async () => []) });
+  const coordinator = createPlatformCoordinator({
+    runManager: { readDesktopStore: async () => normalizeStore({}), updateDesktopStore: async () => normalizeStore({}) },
+    automationCoordinator: { getSnapshot: async () => ({ source_status: "healthy", projects: [], tasks: [] }) },
+    platformSource
+  });
+
+  const partial = await coordinator.executeAction("feedback.to_task", {
+    feedback_id: 51,
+    project_id: 11,
+    task_content: "Follow up",
+    metadata: { priority: "P1" }
+  });
+  assert.equal(partial.status, "partial");
+  assert.deepEqual(partial.partial_result, { status: "task_created_feedback_link_failed", task_id: "42", task_state: "pending_review" });
+
+  await assert.rejects(
+    coordinator.executeAction("feedback.link_task", { feedback_id: 51, project_id: 11, task_id: 42 }),
+    /temporary feedback update failure/
+  );
+  const recovered = await coordinator.executeAction("feedback.link_task", { feedback_id: 51, project_id: 11, task_id: 42 });
+  assert.equal(recovered.status, "completed");
+  assert.equal(recovered.already_linked, false);
+  assert.equal(calls.filter(([kind]) => kind === "task.create").length, 1);
+  assert.equal(calls.filter(([kind]) => kind === "feedback.update").length, 3);
+  assert.equal(recovered.feedback.linked_task_id, "42");
+  const idempotent = await coordinator.executeAction("feedback.link_task", { feedback_id: 51, project_id: 11, task_id: 42 });
+  assert.equal(idempotent.already_linked, true);
+  assert.equal(calls.filter(([kind]) => kind === "feedback.update").length, 3);
+
+  linkedTaskId = "43";
+  await assert.rejects(
+    coordinator.executeAction("feedback.link_task", { feedback_id: 51, project_id: 11, task_id: 42 }),
+    /already linked to task 43/
+  );
+  linkedTaskId = "";
+
+  await assert.rejects(
+    coordinator.executeAction("feedback.link_task", { feedback_id: 51, project_id: 11, task_id: 404 }),
+    /Task 404 is not available/
+  );
+  await assert.rejects(
+    coordinator.executeAction("feedback.link_task", { feedback_id: 404, project_id: 11, task_id: 42 }),
+    /Feedback 404 is not available/
+  );
+  await assert.rejects(
+    coordinator.executeAction("feedback.link_task", { feedback_id: "", project_id: 11, task_id: 42 }),
+    /Feedback id is invalid/
+  );
+  assert.equal(calls.filter(([kind]) => kind === "task.create").length, 1);
+});
+
+test("platform coordinator exposes project-gated Feedback V2 facts and dedicated actions", async () => {
+  let store = normalizeStore({ platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "V2", project_ids: ["11", "12"] }] } });
+  const calls = [];
+  const platformSource = new Proxy({
+    isFeedbackV2ProjectEnabled: (id) => String(id) === "11",
+    isFeedbackV2NotificationsProjectEnabled: (id) => String(id) === "11",
+    listOrganizations: async () => [],
+    listProjects: async () => [{ id: "11", name: "V2" }, { id: "12", name: "V1" }],
+    listFeedbackV2: async () => [{ id: "51", project_id: "11", feedback_source: "v2", title: "Conversation" }],
+    listFeedbackV2Notifications: async () => ({ notifications: [{ id: "81", feedback_id: "51" }], unread_count: 1 }),
+    listFeedbackV1: async (id) => String(id) === "12" ? [{ id: "52", project_id: "12", title: "Legacy" }] : [],
+    listFeedbackV2Messages: async (projectId, feedbackId) => { calls.push(["messages", projectId, feedbackId]); return [{ id: "71" }]; },
+    uploadFeedbackV2DeveloperAttachment: async (_projectId, input) => ({ type: "file", object_key: "feedback/log.txt", file_name: input.file.file_name, mime_type: input.file.mime_type, size: input.file.size }),
+    createFeedbackV2DeveloperMessage: async (projectId, input) => { calls.push(["reply", projectId, input]); return { id: "72", ...input }; },
+    markFeedbackV2NotificationsRead: async (projectId, input) => { calls.push(["read", projectId, input]); return { marked_count: 1 }; },
+    ignoreFeedbackV2: async (projectId, feedbackId) => { calls.push(["ignore", projectId, feedbackId]); return { id: feedbackId }; },
+    convertFeedbackV2ToTask: async (projectId, input) => { calls.push(["convert", projectId, input]); return { task: { id: 42 } }; },
+    getFeedbackV2AttachmentUrl: async (projectId, input) => { calls.push(["attachment", projectId, input]); return "https://oss.example.test/file"; }
+  }, { get: (target, key) => target[key] || (async () => []) });
+  const coordinator = createPlatformCoordinator({
+    runManager: {
+      readDesktopStore: async () => store,
+      updateDesktopStore: async (updater) => { store = normalizeStore(await updater(store) || store); return store; }
+    },
+    automationCoordinator: { getSnapshot: async () => ({ source_status: "healthy", projects: [], queue: [], attention_items: [], recovery_items: [] }) },
+    platformSource,
+    now: () => "2026-08-23T00:00:00.000Z"
+  });
+
+  const snapshot = await coordinator.getSnapshot({ sections: ["feedback"] });
+  assert.deepEqual(snapshot.feedback_v1.map((item) => item.id), ["51", "52"]);
+  assert.equal(snapshot.product_workspaces[0].feedback_management.status, "available");
+  assert.equal(snapshot.product_workspaces[0].feedback_management.unread_count, 1);
+  assert.deepEqual(snapshot.product_workspaces[0].feedback_management.unread_feedback_ids, ["51"]);
+  assert.equal(snapshot.product_workspaces[1].feedback_management.status, "unavailable");
+  assert.equal(snapshot.capabilities.feedback_v2, "available");
+
+  await coordinator.getFeedbackV2Messages({ project_id: 11, feedback_id: 51 });
+  await coordinator.sendFeedbackV2Reply({ project_id: 11, feedback_id: 51, content: "Fixed", file: { file_name: "log.txt", mime_type: "text/plain", size: 1, bytes: new Uint8Array([1]) } });
+  await coordinator.markFeedbackV2Read({ project_id: 11, feedback_id: 51 });
+  await coordinator.ignoreFeedbackV2({ project_id: 11, feedback_id: 51 });
+  await coordinator.convertFeedbackV2ToTask({ project_id: 11, feedback_id: 51, content: "Task" });
+  assert.equal(await coordinator.getFeedbackV2AttachmentUrl({ project_id: 11, feedback_id: 51, attachment_id: 91, object_key: "feedback/log.txt" }), "https://oss.example.test/file");
+  assert.deepEqual(calls.map(([kind]) => kind), ["messages", "reply", "read", "ignore", "convert", "attachment"]);
+  assert.equal(calls[1][2].attachments[0].object_key, "feedback/log.txt");
+  await assert.rejects(coordinator.getFeedbackV2Messages({ project_id: 12, feedback_id: 52 }), /未启用/);
+});
+
+test("Feedback V2 action failures degrade only that feature and preserve loaded facts", async () => {
+  let store = normalizeStore({ platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "V2", project_ids: ["11"] }] } });
+  const coordinator = createPlatformCoordinator({
+    runManager: { readDesktopStore: async () => store, updateDesktopStore: async (updater) => { store = normalizeStore(await updater(store) || store); return store; } },
+    automationCoordinator: { getSnapshot: async () => ({ source_status: "healthy", projects: [], queue: [], attention_items: [], recovery_items: [] }) },
+    platformSource: new Proxy({
+      isFeedbackV2ProjectEnabled: () => true,
+      isFeedbackV2NotificationsProjectEnabled: () => false,
+      listOrganizations: async () => [],
+      listProjects: async () => [{ id: "11", name: "V2" }],
+      listFeedbackV2: async () => [{ id: "51", project_id: "11", feedback_source: "v2", title: "Loaded" }],
+      listFeedbackV2Messages: async () => { throw Object.assign(new Error("forbidden"), { code: "forbidden", status: 403 }); }
+    }, { get: (target, key) => target[key] || (async () => []) })
+  });
+  await coordinator.getSnapshot({ sections: ["feedback"] });
+  await assert.rejects(coordinator.getFeedbackV2Messages({ project_id: 11, feedback_id: 51 }), /forbidden/);
+  const after = await coordinator.getSnapshot({ sections: ["feedback"] });
+  assert.equal(after.feedback_v1[0].title, "Loaded");
+  assert.equal(after.product_workspaces[0].feedback_management.features.messages, false);
+  assert.equal(after.product_workspaces[0].feedback_management.errors.messages.status, 403);
 });

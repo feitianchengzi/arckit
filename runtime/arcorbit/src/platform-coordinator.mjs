@@ -7,6 +7,54 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
   if (!runManager || !platformSource || !automationCoordinator) {
     throw new TypeError("Platform coordinator requires run manager, platform source, and automation coordinator.");
   }
+  const feedbackV2Health = new Map();
+
+  function feedbackV2Enabled(projectId) {
+    return typeof platformSource.isFeedbackV2ProjectEnabled === "function" && platformSource.isFeedbackV2ProjectEnabled(projectId);
+  }
+
+  function feedbackV2NotificationsEnabled(projectId) {
+    return typeof platformSource.isFeedbackV2NotificationsProjectEnabled === "function" && platformSource.isFeedbackV2NotificationsProjectEnabled(projectId);
+  }
+
+  async function loadFeedback(projectId, filters) {
+    if (!feedbackV2Enabled(projectId) || typeof platformSource.listFeedbackV2 !== "function") {
+      const result = await capture("feedback", () => platformSource.listFeedbackV1(projectId, filters), projectId);
+      return { ...result, management: unavailableFeedbackManagement(projectId) };
+    }
+    const v2 = await capture("feedback_v2", () => platformSource.listFeedbackV2(projectId, filters), projectId);
+    if (v2.value) {
+      let notificationResult = { value: { notifications: [], unread_count: 0, available: false }, error: null };
+      if (feedbackV2NotificationsEnabled(projectId) && typeof platformSource.listFeedbackV2Notifications === "function") {
+        notificationResult = await capture("feedback_v2_notifications", () => platformSource.listFeedbackV2Notifications(projectId, { unread_only: true }), projectId);
+      }
+      const current = feedbackV2Health.get(String(projectId));
+      const baselineFeatures = {
+        messages: true,
+        attachments: true,
+        notifications: feedbackV2NotificationsEnabled(projectId) && !notificationResult.error,
+        mark_read: feedbackV2NotificationsEnabled(projectId) && !notificationResult.error,
+        ignore: true,
+        convert_to_task: true
+      };
+      const management = updateFeedbackV2Health(projectId, "snapshot", notificationResult.error ? "degraded" : "available", notificationResult.error, {
+        ...baselineFeatures,
+        ...(current?.features || {})
+      });
+      return {
+        value: v2.value,
+        error: notificationResult.error,
+        management: {
+          ...management,
+          unread_count: Number(notificationResult.value?.unread_count || 0),
+          unread_feedback_ids: [...new Set((notificationResult.value?.notifications || []).map((item) => String(item.feedback_id)).filter(Boolean))]
+        }
+      };
+    }
+    const fallback = await capture("feedback", () => platformSource.listFeedbackV1(projectId, filters), projectId);
+    const management = updateFeedbackV2Health(projectId, "snapshot", "degraded", v2.error, {});
+    return { value: fallback.value, error: fallback.error || v2.error, management };
+  }
 
   async function getSnapshot(input = {}) {
     const sections = normalizeSections(input.sections);
@@ -96,14 +144,14 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
           ? capture("tasks", () => platformSource.listProjectTasks(projectId, input.task_filters || {}), projectId)
           : emptyResult(),
         sections.has("feedback") || sections.has("overview")
-          ? capture("feedback", () => platformSource.listFeedbackV1(projectId, input.feedback_filters || {}), projectId)
+          ? loadFeedback(projectId, input.feedback_filters || {})
           : emptyResult(),
         sections.has("tags") || sections.has("tasks") || sections.has("overview")
           ? capture("tags", () => platformSource.listProjectTags(projectId), projectId)
           : emptyResult()
       ]);
       errors.push(...[members.error, tasks.error, feedback.error, tags.error].filter(Boolean));
-      return { projectId, members: members.value || [], tasks: tasks.value || [], feedback: feedback.value || [], tags: tags.value || [] };
+      return { projectId, members: members.value || [], tasks: tasks.value || [], feedback: feedback.value || [], feedbackManagement: feedback.management || unavailableFeedbackManagement(projectId), tags: tags.value || [] };
     }));
     const details = new Map(detailResults.map((item) => [item.projectId, item]));
     const productWorkspaces = selectedProjects.map((project) => buildProductWorkspace({
@@ -163,7 +211,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
         project_tasks: "read_write",
         platform_management: "available_with_server_permissions",
         feedback_v1: "read_write",
-        feedback_v2: platform.feedback_v2.status === "available" ? "available" : "unavailable",
+        feedback_v2: aggregateFeedbackV2Capability(productWorkspaces),
         direct_add_project_member: "unavailable",
         task_history: "unavailable",
         task_claim_consistency: "weak_claim_consistency"
@@ -283,6 +331,29 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       "feedback.create": () => platformSource.createFeedbackV1(input),
       "feedback.update": () => platformSource.updateFeedbackV1(input.feedback_id, input),
       "feedback.delete": () => platformSource.deleteFeedbackV1(input.feedback_id),
+      "feedback.link_task": async () => {
+        const projectId = requiredText(input.project_id, "Project id", 120);
+        const feedbackId = requiredText(input.feedback_id, "Feedback id", 120);
+        const taskId = requiredText(input.task_id, "Task id", 120);
+        const [tasks, feedbackItems] = await Promise.all([
+          platformSource.listProjectTasks(projectId),
+          platformSource.listFeedbackV1(projectId)
+        ]);
+        const task = (tasks || []).find((item) => String(item.id) === taskId);
+        if (!task) throw new Error(`Task ${taskId} is not available in project ${projectId}.`);
+        const currentFeedback = (feedbackItems || []).find((item) => String(item.id) === feedbackId);
+        if (!currentFeedback) throw new Error(`Feedback ${feedbackId} is not available in project ${projectId}.`);
+        if (currentFeedback.linked_task_id && String(currentFeedback.linked_task_id) !== taskId) {
+          throw new Error(`Feedback ${feedbackId} is already linked to task ${currentFeedback.linked_task_id}.`);
+        }
+        if (String(currentFeedback.linked_task_id || "") === taskId) {
+          return { status: "completed", task, feedback: currentFeedback, already_linked: true };
+        }
+        const feedback = await platformSource.updateFeedbackV1(feedbackId, {
+          data: feedbackTaskLinkData(currentFeedback.metadata, taskId, task.state || input.task_state)
+        });
+        return { status: "completed", task, feedback, already_linked: false };
+      },
       "feedback.to_task": async () => {
         const task = await platformSource.createTask({
           project_id: input.project_id,
@@ -297,14 +368,22 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
         const metadata = input.metadata && typeof input.metadata === "object" && !Array.isArray(input.metadata) ? input.metadata : {};
         try {
           const feedback = await platformSource.updateFeedbackV1(input.feedback_id, {
-            data: { ...metadata, task_id: taskId, task_state: String(task.state || input.task_state || "pending_review") }
+            data: feedbackTaskLinkData(metadata, taskId, task.state || input.task_state)
           });
           return { status: "completed", task, feedback };
         } catch (error) {
-          const partialError = new Error(`${String(error?.message || "Feedback association failed")} Task ${taskId} was created, but the feedback link was not saved.`);
-          partialError.code = String(error?.code || "feedback_link_failed_after_task_creation");
-          partialError.partial_result = { status: "task_created_feedback_link_failed", task_id: taskId };
-          throw partialError;
+          return {
+            status: "partial",
+            error: {
+              code: String(error?.code || "feedback_link_failed_after_task_creation"),
+              message: `${String(error?.message || "Feedback association failed")} Task ${taskId} was created, but the feedback link was not saved.`
+            },
+            partial_result: {
+              status: "task_created_feedback_link_failed",
+              task_id: taskId,
+              task_state: String(task.state || input.task_state || "pending_review")
+            }
+          };
         }
       }
     };
@@ -313,7 +392,112 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     return handler();
   }
 
-  return { getSnapshot, createWorkset, updateWorkset, deleteWorkset, setActiveWorkset, setWorkspacePreference, executeAction };
+  async function getFeedbackV2Messages(input = {}) {
+    return runFeedbackV2Action(input.project_id, "messages", () => platformSource.listFeedbackV2Messages(input.project_id, input.feedback_id));
+  }
+
+  async function sendFeedbackV2Reply(input = {}) {
+    return runFeedbackV2Action(input.project_id, "messages", async () => {
+      const attachments = input.file
+        ? [await platformSource.uploadFeedbackV2DeveloperAttachment(input.project_id, { feedback_id: input.feedback_id, file: input.file })]
+        : [];
+      return platformSource.createFeedbackV2DeveloperMessage(input.project_id, {
+        feedback_id: input.feedback_id,
+        content: input.content,
+        attachments
+      });
+    });
+  }
+
+  async function markFeedbackV2Read(input = {}) {
+    return runFeedbackV2Action(input.project_id, "mark_read", () => platformSource.markFeedbackV2NotificationsRead(input.project_id, {
+      feedback_id: input.feedback_id,
+      notification_ids: input.notification_ids
+    }));
+  }
+
+  async function ignoreFeedbackV2(input = {}) {
+    return runFeedbackV2Action(input.project_id, "ignore", () => platformSource.ignoreFeedbackV2(input.project_id, input.feedback_id));
+  }
+
+  async function updateFeedbackV2(input = {}) {
+    return runFeedbackV2Action(input.project_id, "update", () => platformSource.updateFeedbackV2(input.project_id, input.feedback_id, input));
+  }
+
+  async function deleteFeedbackV2(input = {}) {
+    return runFeedbackV2Action(input.project_id, "delete", () => platformSource.deleteFeedbackV2(input.project_id, input.feedback_id));
+  }
+
+  async function convertFeedbackV2ToTask(input = {}) {
+    return runFeedbackV2Action(input.project_id, "convert_to_task", () => platformSource.convertFeedbackV2ToTask(input.project_id, input));
+  }
+
+  async function getFeedbackV2AttachmentUrl(input = {}) {
+    return runFeedbackV2Action(input.project_id, "attachments", () => platformSource.getFeedbackV2AttachmentUrl(input.project_id, input));
+  }
+
+  async function runFeedbackV2Action(projectId, feature, action) {
+    const id = requiredText(projectId, "Project id", 120);
+    if (!feedbackV2Enabled(id)) throw Object.assign(new Error("该项目未启用开发者反馈管理。"), { code: "feedback_v2_unavailable" });
+    try {
+      const result = await action();
+      updateFeedbackV2Health(id, feature, "available", null, { [feature]: true });
+      return result;
+    } catch (error) {
+      updateFeedbackV2Health(id, feature, "degraded", error, { [feature]: false });
+      throw error;
+    }
+  }
+
+  function updateFeedbackV2Health(projectId, feature, status, error, features = {}) {
+    const id = String(projectId);
+    const current = feedbackV2Health.get(id) || unavailableFeedbackManagement(id);
+    const errors = {
+      ...current.errors,
+      [feature]: error ? safePlatformError(error) : ""
+    };
+    const nextStatus = Object.values(errors).some(Boolean) ? "degraded" : status;
+    const next = {
+      ...current,
+      status: nextStatus,
+      checked_at: nextStatus === "available" ? now() : current.checked_at,
+      features: { ...current.features, ...features },
+      errors
+    };
+    feedbackV2Health.set(id, next);
+    return next;
+  }
+
+  return {
+    getSnapshot,
+    createWorkset,
+    updateWorkset,
+    deleteWorkset,
+    setActiveWorkset,
+    setWorkspacePreference,
+    executeAction,
+    getFeedbackV2Messages,
+    sendFeedbackV2Reply,
+    markFeedbackV2Read,
+    ignoreFeedbackV2,
+    updateFeedbackV2,
+    deleteFeedbackV2,
+    convertFeedbackV2ToTask,
+    getFeedbackV2AttachmentUrl
+  };
+}
+
+function feedbackTaskLinkData(metadata, taskId, taskState) {
+  const current = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
+  return {
+    ...current,
+    feedback_state: "converted",
+    status: "developing",
+    task_id: taskId,
+    converted_task_id: taskId,
+    converted_at: new Date().toISOString(),
+    task_state: String(taskState || "pending_review")
+  };
 }
 
 function buildProductWorkspace({ project, automationProject, preference, detail = {} }) {
@@ -326,10 +510,38 @@ function buildProductWorkspace({ project, automationProject, preference, detail 
     preference,
     task_counts: countBy(tasks, "state"),
     feedback_count: feedback.length,
+    feedback_management: detail.feedbackManagement || unavailableFeedbackManagement(projectId),
     members,
     tasks,
     feedback_v1: feedback,
     tags: (detail.tags || []).map((item) => ({ ...item, project_id: projectId, project_name: project.name }))
+  };
+}
+
+function unavailableFeedbackManagement(projectId) {
+  return {
+    project_id: String(projectId),
+    status: "unavailable",
+    checked_at: "",
+    unread_count: 0,
+    unread_feedback_ids: [],
+    features: {},
+    errors: {}
+  };
+}
+
+function aggregateFeedbackV2Capability(workspaces) {
+  const statuses = (workspaces || []).map((workspace) => workspace.feedback_management?.status);
+  if (statuses.includes("available")) return "available";
+  if (statuses.includes("degraded")) return "degraded";
+  return "unavailable";
+}
+
+function safePlatformError(error) {
+  return {
+    code: String(error?.code || "platform_source_error"),
+    status: Number(error?.status || 0),
+    message: String(error?.message || "Platform source error").slice(0, 500)
   };
 }
 

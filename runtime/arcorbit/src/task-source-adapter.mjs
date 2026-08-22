@@ -1,4 +1,5 @@
 import { createWorkshopPlatformAdapter } from "./workshop-platform-adapter.mjs";
+import { signFeedbackAttachmentUrl, uploadFeedbackAttachmentWithPolicy } from "./feedback-v2-attachment-access.mjs";
 
 export const TASK_STATES = Object.freeze([
   "pending_review",
@@ -33,7 +34,9 @@ export function createWorkshopTaskSource({
   readSettings,
   saveSettings,
   fetchImpl = globalThis.fetch,
-  now = () => Date.now()
+  now = () => Date.now(),
+  feedbackV2ProjectIds = process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS || "",
+  feedbackV2NotificationProjectIds = process.env.ARCORBIT_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS || ""
 }) {
   let config = normalizeTaskSourceSettings(settings);
   let refreshPromise = null;
@@ -220,7 +223,15 @@ export function createWorkshopTaskSource({
     });
   }
 
-  async function request(path, { method = "GET", query = {}, body, expectedVersion = "" } = {}) {
+  async function request(path, options = {}) {
+    return versionedRequest("v1", path, options);
+  }
+
+  async function requestV2(path, options = {}) {
+    return versionedRequest("v2", path, options);
+  }
+
+  async function versionedRequest(version, path, { method = "GET", query = {}, body, expectedVersion = "" } = {}) {
     let current = await loadConfig();
     assertTaskSourceEnabled(current);
     if (current.auth_mode === "nebula" && sessionInactive(current, now())) {
@@ -231,14 +242,14 @@ export function createWorkshopTaskSource({
       current = await refreshNebulaToken();
     }
     assertAuthenticated(current);
-    let result = await fetchJson(buildBusinessUrl(current, path, query), {
+    let result = await fetchJson(buildBusinessUrl(current, path, query, version), {
       method,
       headers: buildHeaders(current, body !== undefined, expectedVersion),
       body
     });
     if (result.response.status === 401 && current.auth_mode === "nebula" && current.refresh_token) {
       current = await refreshNebulaToken();
-      result = await fetchJson(buildBusinessUrl(current, path, query), {
+      result = await fetchJson(buildBusinessUrl(current, path, query, version), {
         method,
         headers: buildHeaders(current, body !== undefined, expectedVersion),
         body
@@ -353,7 +364,16 @@ export function createWorkshopTaskSource({
     return values;
   }
 
-  const platform = createWorkshopPlatformAdapter({ request, listProjects, normalizeTask });
+  const platform = createWorkshopPlatformAdapter({
+    request,
+    requestV2,
+    listProjects,
+    normalizeTask,
+    feedbackV2ProjectIds,
+    feedbackV2NotificationProjectIds,
+    uploadWithPolicy: (policy, file) => uploadFeedbackAttachmentWithPolicy(fetchImpl, policy, file),
+    signAttachmentUrl: signFeedbackAttachmentUrl
+  });
 
   return {
     consistency: "conditional",
@@ -633,8 +653,8 @@ function assertAuthenticated(current) {
   }
 }
 
-function buildBusinessUrl(current, path, query) {
-  const url = buildServiceUrl(current, current.service_name, "user", path);
+function buildBusinessUrl(current, path, query, version = "v1") {
+  const url = buildServiceUrl(current, current.service_name, "user", path, version);
   for (const [key, value] of Object.entries(query || {})) {
     if (value === undefined || value === "") continue;
     if (Array.isArray(value)) {
@@ -646,9 +666,10 @@ function buildBusinessUrl(current, path, query) {
   return url;
 }
 
-function buildServiceUrl(current, serviceName, authLevel, path) {
+function buildServiceUrl(current, serviceName, authLevel, path, version = "v1") {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return new URL(`${current.base_url}/${serviceName}/v1/${authLevel}${normalizedPath}`);
+  if (!/^v[12]$/.test(version)) throw new TaskSourceError("Unsupported Workshop API version.", { code: "invalid_version" });
+  return new URL(`${current.base_url}/${serviceName}/${version}/${authLevel}${normalizedPath}`);
 }
 
 function buildHeaders(current, hasBody, expectedVersion) {

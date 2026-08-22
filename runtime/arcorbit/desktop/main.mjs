@@ -16,6 +16,9 @@ import { requireFeedbackAttachmentUrl } from "../src/feedback-attachment-url.mjs
 import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-boundary.mjs";
 import { checkDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
 import { createWorkshopRealtimeAdapter } from "../src/workshop-realtime-adapter.mjs";
+import feedbackV2Ipc from "./feedback-v2-ipc.cjs";
+
+const { settleFeedbackV2Ipc } = feedbackV2Ipc;
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
@@ -344,12 +347,52 @@ function registerIpc() {
     platformCoordinator.setWorkspacePreference(projectId, input)
   ));
   ipcMain.handle("arckit:platform-action", async (_event, command, input) => platformCoordinator.executeAction(command, input));
+  ipcMain.handle("arckit:feedback-v2-messages", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.getFeedbackV2Messages(input));
+  });
+  ipcMain.handle("arckit:feedback-v2-reply", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.sendFeedbackV2Reply(input));
+  });
+  ipcMain.handle("arckit:feedback-v2-read", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.markFeedbackV2Read(input));
+  });
+  ipcMain.handle("arckit:feedback-v2-ignore", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.ignoreFeedbackV2(input));
+  });
+  ipcMain.handle("arckit:feedback-v2-update", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.updateFeedbackV2(input));
+  });
+  ipcMain.handle("arckit:feedback-v2-delete", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.deleteFeedbackV2(input));
+  });
+  ipcMain.handle("arckit:feedback-v2-convert", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(() => platformCoordinator.convertFeedbackV2ToTask(input));
+  });
+  ipcMain.handle("arckit:feedback-v2-attachment-open", async (event, input) => {
+    assertMainRenderer(event);
+    return settleFeedbackV2Ipc(async () => {
+      const url = requireFeedbackAttachmentUrl(await platformCoordinator.getFeedbackV2AttachmentUrl(input));
+      await shell.openExternal(url);
+      return { opened: true };
+    });
+  });
   ipcMain.handle("arckit:feedback-attachment-open", async (event, value) => {
-    if (event.sender !== mainWindow?.webContents) throw new Error("Feedback attachments can only be opened from the main ArcOrbit window.");
+    assertMainRenderer(event);
     const url = requireFeedbackAttachmentUrl(value);
     await shell.openExternal(url);
     return { opened: true };
   });
+}
+
+function assertMainRenderer(event) {
+  if (event.sender !== mainWindow?.webContents) throw new Error("Feedback actions can only be invoked from the main ArcOrbit window.");
 }
 
 function startAutomation() {
