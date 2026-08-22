@@ -17,6 +17,7 @@ import { argbToCssColor } from '@/lib/utils/tagUtils'
 import { useProject, useDeleteProject, useUpdateProject, useProjectMembers } from '@/hooks/useProjects'
 import { useTaskList, useUpdateTaskStatus } from '@/hooks/useTasks'
 import { useProjectWebSocket, type ProjectSocketEvent } from '@/hooks/useProjectWebSocket'
+import { requiresFullProjectInvalidation } from '@/lib/realtime/projectEventStream'
 import { tasksApi } from '@/lib/api/endpoints/tasks'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/authStore'
@@ -316,26 +317,11 @@ export default function ProjectDetailPage() {
     invitations: false,
   })
   const realtimeTimerRef = useRef<number | null>(null)
+  const realtimeWaitersRef = useRef<Array<{ resolve: () => void; reject: (error: unknown) => void }>>([])
   const localStatusUpdateExpiresRef = useRef<Map<number, number>>(new Map())
 
-  const flushRealtimeRefresh = useCallback(() => {
+  const flushRealtimeRefresh = useCallback(async () => {
     const pending = realtimePendingRef.current
-    if (pending.tasks) {
-      queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'tasks'] })
-    }
-    if (pending.members) {
-      queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'members'] })
-    }
-    if (pending.project) {
-      queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam] })
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
-    }
-    if (pending.invitations) {
-      queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'invitations'] })
-    }
-    if (pending.tags) {
-      loadProjectTags(projectIdParam).catch(console.error)
-    }
     realtimePendingRef.current = {
       tasks: false,
       tags: false,
@@ -343,6 +329,24 @@ export default function ProjectDetailPage() {
       project: false,
       invitations: false,
     }
+    const refreshes: Promise<unknown>[] = []
+    if (pending.tasks) {
+      refreshes.push(queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'tasks'] }, { throwOnError: true }))
+    }
+    if (pending.members) {
+      refreshes.push(queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'members'] }, { throwOnError: true }))
+    }
+    if (pending.project) {
+      refreshes.push(queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam] }, { throwOnError: true }))
+      refreshes.push(queryClient.invalidateQueries({ queryKey: ['projects'] }, { throwOnError: true }))
+    }
+    if (pending.invitations) {
+      refreshes.push(queryClient.invalidateQueries({ queryKey: ['projects', projectIdParam, 'invitations'] }, { throwOnError: true }))
+    }
+    if (pending.tags) {
+      refreshes.push(loadProjectTags(projectIdParam))
+    }
+    await Promise.all(refreshes)
   }, [projectIdParam, queryClient, loadProjectTags])
 
   const scheduleRealtimeRefresh = useCallback(
@@ -350,11 +354,21 @@ export default function ProjectDetailPage() {
       targets.forEach((target) => {
         realtimePendingRef.current[target] = true
       })
-      if (realtimeTimerRef.current !== null) return
-      realtimeTimerRef.current = window.setTimeout(() => {
+      const completion = new Promise<void>((resolve, reject) => {
+        realtimeWaitersRef.current.push({ resolve, reject })
+      })
+      if (realtimeTimerRef.current !== null) return completion
+      realtimeTimerRef.current = window.setTimeout(async () => {
         realtimeTimerRef.current = null
-        flushRealtimeRefresh()
+        const waiters = realtimeWaitersRef.current.splice(0)
+        try {
+          await flushRealtimeRefresh()
+          waiters.forEach(({ resolve }) => resolve())
+        } catch (error) {
+          waiters.forEach(({ reject }) => reject(error))
+        }
       }, 300)
+      return completion
     },
     [flushRealtimeRefresh]
   )
@@ -384,6 +398,8 @@ export default function ProjectDetailPage() {
       if (realtimeTimerRef.current !== null) {
         window.clearTimeout(realtimeTimerRef.current)
       }
+      const cancellation = new Error('Realtime refresh cancelled before acknowledgement')
+      realtimeWaitersRef.current.splice(0).forEach(({ reject }) => reject(cancellation))
     }
   }, [])
 
@@ -394,6 +410,10 @@ export default function ProjectDetailPage() {
 
       const eventName = payload.event
       const targets: Array<keyof typeof realtimePendingRef.current> = []
+
+      if (requiresFullProjectInvalidation(payload)) {
+        targets.push('tasks', 'tags', 'members', 'project', 'invitations')
+      }
 
       if (eventName.startsWith('task.') || eventName.startsWith('task_attachment.')) {
         if (!eventName.startsWith('task.') || !shouldSuppressTaskRefresh(payload)) {
@@ -414,7 +434,7 @@ export default function ProjectDetailPage() {
       }
 
       if (targets.length > 0) {
-        scheduleRealtimeRefresh([...new Set(targets)])
+        return scheduleRealtimeRefresh([...new Set(targets)])
       }
     },
     [projectId, scheduleRealtimeRefresh, shouldSuppressTaskRefresh]
