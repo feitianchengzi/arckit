@@ -222,6 +222,7 @@ func CreateFeedback(c *gin.Context) {
 		Data:         req.Data,
 	}
 
+	var resp FeedbackResponse
 	if err := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&feedback).Error; err != nil {
 			if isUniqueViolation(err, "uniq_feedback_short_id") {
@@ -234,7 +235,8 @@ func CreateFeedback(c *gin.Context) {
 				return err
 			}
 		}
-		return nil
+		resp = buildFeedbackResponse(feedback)
+		return recordProjectEvent(c, tx, feedback.ProjectID, userID, "feedback.created", resp)
 	}); err != nil {
 		if errors.Is(err, errFeedbackShortIDExists) {
 			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "短ID已存在", nil))
@@ -244,8 +246,6 @@ func CreateFeedback(c *gin.Context) {
 		return
 	}
 
-	resp := buildFeedbackResponse(feedback)
-	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -386,7 +386,17 @@ func UpdateFeedback(c *gin.Context) {
 		return
 	}
 
-	if err := db.Model(&feedback).Updates(updates).Error; err != nil {
+	var resp FeedbackResponse
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&feedback).Updates(updates).Error; err != nil {
+			return err
+		}
+		if err := tx.First(&feedback, feedback.ID).Error; err != nil {
+			return err
+		}
+		resp = buildFeedbackResponse(feedback)
+		return recordProjectEvent(c, tx, feedback.ProjectID, userID, "feedback.updated", resp)
+	}); err != nil {
 		if isUniqueViolation(err, "uniq_feedback_short_id") {
 			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "短ID已存在", nil))
 			return
@@ -395,13 +405,6 @@ func UpdateFeedback(c *gin.Context) {
 		return
 	}
 
-	if err := db.First(&feedback, feedback.ID).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackQueryFailed, "查询更新后的反馈失败: "+err.Error(), nil))
-		return
-	}
-
-	resp := buildFeedbackResponse(feedback)
-	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.updated", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
@@ -457,17 +460,21 @@ func DeleteFeedback(c *gin.Context) {
 		return
 	}
 
-	deletedAt := time.Now()
-	if err := db.Delete(&feedback).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackDeleteFailed, "删除反馈失败: "+err.Error(), nil))
-		return
-	}
-
+	deletedAt := time.Now().UTC()
 	data := gin.H{
 		"feedback_id": feedback.ID,
 		"deleted_at":  deletedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
-	notifyProjectEvent(c, db, feedback.ProjectID, userID, "feedback.deleted", data)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&feedback).Error; err != nil {
+			return err
+		}
+		return recordProjectEvent(c, tx, feedback.ProjectID, userID, "feedback.deleted", data)
+	}); err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeFeedbackDeleteFailed, "删除反馈失败: "+err.Error(), nil))
+		return
+	}
+
 	c.JSON(http.StatusOK, response.NewSuccessResponse(data))
 }
 

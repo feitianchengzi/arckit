@@ -15,6 +15,7 @@ import (
 )
 
 var DB *gorm.DB
+var connectionString string
 
 func getEnvInt(key string, def int) int {
 	raw := os.Getenv(key)
@@ -71,6 +72,7 @@ func InitDB() error {
 	// 构建 DSN
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, password, dbname, sslmode)
+	connectionString = dsn
 
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
@@ -126,6 +128,7 @@ func InitDB() error {
 			&models.TaskAttachment{},
 			&models.Feedback{},
 			&models.ProjectFeedbackAccessKey{},
+			&models.ProjectEvent{},
 		)
 		if err != nil {
 			return fmt.Errorf("failed to auto migrate: %w", err)
@@ -141,3 +144,7 @@ func InitDB() error {
 func GetDB() *gorm.DB {
 	return DB
 }
+
+// ConnectionString returns the configured PostgreSQL DSN for dedicated
+// LISTEN connections. It must never be logged because it contains credentials.
+func ConnectionString() string { return connectionString }

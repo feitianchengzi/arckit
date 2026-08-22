@@ -146,33 +146,24 @@ func CreateTask(c *gin.Context) {
 		task.CompletionAt = &now
 	}
 
-	if err := db.Create(&task).Error; err != nil {
+	var resp CreateTaskResponse
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&task).Error; err != nil {
+			return err
+		}
+		var completionAt *string
+		if task.CompletionAt != nil {
+			completionAtStr := task.CompletionAt.Format("2006-01-02T15:04:05Z07:00")
+			completionAt = &completionAtStr
+		}
+		resp = CreateTaskResponse{ID: task.ID, ProjectID: task.ProjectID, FatherID: task.FatherID, Content: task.Content, State: task.State, CreatorID: task.CreatorID, ExecutorID: task.ExecutorID, Priority: task.Priority, Tags: task.Tags, CreatedAt: task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"), UpdatedAt: task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"), CompletionAt: completionAt}
+		return recordProjectEvent(c, tx, task.ProjectID, userID, "task.created", resp)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskCreateFailed, "创建任务失败: "+err.Error(), nil))
 		return
 	}
 
 	// 10. 返回成功响应
-	var completionAt *string
-	if task.CompletionAt != nil {
-		completionAtStr := task.CompletionAt.Format("2006-01-02T15:04:05Z07:00")
-		completionAt = &completionAtStr
-	}
-
-	resp := CreateTaskResponse{
-		ID:           task.ID,
-		ProjectID:    task.ProjectID,
-		FatherID:     task.FatherID,
-		Content:      task.Content,
-		State:        task.State,
-		CreatorID:    task.CreatorID,
-		ExecutorID:   task.ExecutorID,
-		Priority:     task.Priority,
-		Tags:         task.Tags,
-		CreatedAt:    task.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		CompletionAt: completionAt,
-	}
-	notifyProjectEvent(c, db, task.ProjectID, userID, "task.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -275,11 +266,12 @@ type UpdateTaskRequest struct {
 	Tags          *string `json:"tags,omitempty"`        // 标签（可选，用逗号分割）
 	executorIDSet bool    `json:"-"`                     // 内部标志：executor_id是否在JSON中被显式设置
 	fatherIDSet   bool    `json:"-"`                     // 内部标志：father_id是否在JSON中被显式设置
+	prioritySet   bool    `json:"-"`                     // 内部标志：priority是否在JSON中被显式设置
 }
 
-// UnmarshalJSON 自定义JSON反序列化，用于检测字段是否被显式设置
+// UnmarshalJSON 自定义JSON反序列化，用于检测可清空字段是否被显式设置
 func (r *UpdateTaskRequest) UnmarshalJSON(data []byte) error {
-	// 检查原始JSON中是否包含father_id字段
+	// 检查原始JSON中是否包含可清空字段
 	var raw map[string]json.RawMessage
 	if err := json.Unmarshal(data, &raw); err == nil {
 		if _, exists := raw["executor_id"]; exists {
@@ -287,6 +279,9 @@ func (r *UpdateTaskRequest) UnmarshalJSON(data []byte) error {
 		}
 		if _, exists := raw["father_id"]; exists {
 			r.fatherIDSet = true
+		}
+		if _, exists := raw["priority"]; exists {
+			r.prioritySet = true
 		}
 	}
 
@@ -478,8 +473,13 @@ func UpdateTask(c *gin.Context) {
 			updates["father_id"] = nil
 		}
 	}
-	if req.Priority != nil {
-		updates["priority"] = *req.Priority
+	if req.prioritySet {
+		if req.Priority != nil {
+			updates["priority"] = *req.Priority
+		} else {
+			// 显式设置为null，清空priority
+			updates["priority"] = nil
+		}
 	}
 	if req.Tags != nil {
 		updates["tags"] = *req.Tags
@@ -491,12 +491,18 @@ func UpdateTask(c *gin.Context) {
 	}
 
 	if len(updates) > 0 {
-		if err := db.Model(&task).Updates(updates).Error; err != nil {
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Model(&task).Updates(updates).Error; err != nil {
+				return err
+			}
+			if err := tx.First(&task, task.ID).Error; err != nil {
+				return err
+			}
+			return recordProjectEvent(c, tx, task.ProjectID, userID, "task.updated", gin.H{"task_id": task.ID})
+		}); err != nil {
 			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskUpdateFailed, "更新任务失败: "+err.Error(), nil))
 			return
 		}
-		// 重新查询任务以获取最新数据
-		db.First(&task, task.ID)
 	}
 
 	// 11. 返回成功响应
@@ -520,7 +526,6 @@ func UpdateTask(c *gin.Context) {
 		UpdatedAt:    task.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		CompletionAt: completionAt,
 	}
-	notifyProjectEvent(c, db, task.ProjectID, userID, "task.updated", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
@@ -1295,8 +1300,7 @@ func DeleteTask(c *gin.Context) {
 		if err := tx.Delete(&task).Error; err != nil {
 			return err
 		}
-
-		return nil
+		return recordProjectEvent(c, tx, task.ProjectID, userID, "task.deleted", gin.H{"task_id": taskID, "deleted_at": deletedAt.Format("2006-01-02T15:04:05Z07:00")})
 	})
 
 	if err != nil {
@@ -1309,7 +1313,6 @@ func DeleteTask(c *gin.Context) {
 		TaskID:    taskID,
 		DeletedAt: deletedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
-	notifyProjectEvent(c, db, task.ProjectID, userID, "task.deleted", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
@@ -1395,22 +1398,27 @@ func CreateTaskAttachment(c *gin.Context) {
 		Content:   req.Content,
 	}
 
-	if err := db.Create(&attachment).Error; err != nil {
+	var resp CreateTaskAttachmentResponse
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&attachment).Error; err != nil {
+			return err
+		}
+		resp = CreateTaskAttachmentResponse{
+			ID:        attachment.ID,
+			TaskID:    attachment.TaskID,
+			CreatorID: attachment.CreatorID,
+			Type:      attachment.Type,
+			Content:   attachment.Content,
+			CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt: attachment.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+		return recordProjectEvent(c, tx, task.ProjectID, userID, "task_attachment.created", resp)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentCreateFailed, "创建附件失败: "+err.Error(), nil))
 		return
 	}
 
 	// 8. 返回成功响应
-	resp := CreateTaskAttachmentResponse{
-		ID:        attachment.ID,
-		TaskID:    attachment.TaskID,
-		CreatorID: attachment.CreatorID,
-		Type:      attachment.Type,
-		Content:   attachment.Content,
-		CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: attachment.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	}
-	notifyProjectEvent(c, db, task.ProjectID, userID, "task_attachment.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -1618,6 +1626,11 @@ func UpdateTaskAttachment(c *gin.Context) {
 		c.JSON(http.StatusForbidden, response.NewErrorResponse(response.CodeTaskNoPermission, "只有创建者可以修改此附件", nil))
 		return
 	}
+	var task models.Task
+	if err := db.Select("project_id").First(&task, attachment.TaskID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
+		return
+	}
 
 	// 7. 更新附件字段（只允许更新content，type不可更新）
 	updates := make(map[string]interface{})
@@ -1630,24 +1643,30 @@ func UpdateTaskAttachment(c *gin.Context) {
 		return
 	}
 
-	if err := db.Model(&attachment).Updates(updates).Error; err != nil {
+	var resp UpdateTaskAttachmentResponse
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&attachment).Updates(updates).Error; err != nil {
+			return err
+		}
+		if err := tx.First(&attachment, attachment.ID).Error; err != nil {
+			return err
+		}
+		resp = UpdateTaskAttachmentResponse{
+			ID:        attachment.ID,
+			TaskID:    attachment.TaskID,
+			CreatorID: attachment.CreatorID,
+			Type:      attachment.Type,
+			Content:   attachment.Content,
+			CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt: attachment.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+		return recordProjectEvent(c, tx, task.ProjectID, userID, "task_attachment.updated", resp)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentUpdateFailed, "更新附件失败: "+err.Error(), nil))
 		return
 	}
-	// 重新查询附件以获取最新数据
-	db.First(&attachment, attachment.ID)
 
 	// 8. 返回成功响应
-	resp := UpdateTaskAttachmentResponse{
-		ID:        attachment.ID,
-		TaskID:    attachment.TaskID,
-		CreatorID: attachment.CreatorID,
-		Type:      attachment.Type,
-		Content:   attachment.Content,
-		CreatedAt: attachment.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: attachment.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	}
-	notifyProjectEventByTaskID(c, db, attachment.TaskID, userID, "task_attachment.updated", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
@@ -1686,20 +1705,19 @@ func DeleteTaskAttachment(c *gin.Context) {
 		return
 	}
 
+	var task models.Task
+	if err := db.Select("project_id").First(&task, attachment.TaskID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, "任务不存在", nil))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
+		return
+	}
+
 	// 5. 验证权限：创建者可以删除，或者项目的管理者和所有者也可以删除
 	if attachment.CreatorID != userID {
 		// 如果不是创建者，检查是否是项目的管理员或所有者
-		// 先查询任务以获取项目ID
-		var task models.Task
-		if err := db.First(&task, attachment.TaskID).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				c.JSON(http.StatusNotFound, response.NewErrorResponse(response.CodeTaskNotFound, "任务不存在", nil))
-				return
-			}
-			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskQueryFailed, "查询任务失败: "+err.Error(), nil))
-			return
-		}
-
 		// 查询用户在项目中的角色
 		var member models.ProjectMember
 		if err := db.Where("project_id = ? AND user_id = ?", task.ProjectID, userID).First(&member).Error; err != nil {
@@ -1719,16 +1737,20 @@ func DeleteTaskAttachment(c *gin.Context) {
 	}
 
 	// 7. 删除附件（软删除）
-	if err := db.Delete(&attachment).Error; err != nil {
+	data := map[string]interface{}{
+		"id":         attachment.ID,
+		"deleted_at": time.Now().UTC().Format("2006-01-02T15:04:05Z07:00"),
+	}
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&attachment).Error; err != nil {
+			return err
+		}
+		return recordProjectEvent(c, tx, task.ProjectID, userID, "task_attachment.deleted", data)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTaskAttachmentDeleteFailed, "删除附件失败: "+err.Error(), nil))
 		return
 	}
 
 	// 8. 返回成功响应
-	data := map[string]interface{}{
-		"id":         attachment.ID,
-		"deleted_at": time.Now().Format("2006-01-02T15:04:05Z07:00"),
-	}
-	notifyProjectEventByTaskID(c, db, attachment.TaskID, userID, "task_attachment.deleted", data)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(data))
 }

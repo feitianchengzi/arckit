@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
 	"todo/database"
+	"todo/realtime"
 	"todo/router"
 )
 
@@ -13,6 +15,9 @@ func main() {
 	if err := database.InitDB(); err != nil {
 		log.Fatal("数据库初始化失败:", err)
 	}
+	realtime.ConfigureStore(database.GetDB())
+	broker := realtime.NewBroker(database.GetDB(), database.ConnectionString(), realtime.DefaultHub)
+	go broker.Run(context.Background())
 
 	// 从环境变量读取端口，如果不存在则报错退出
 	port := os.Getenv("PORT")

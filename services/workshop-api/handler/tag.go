@@ -209,7 +209,21 @@ func CreateTag(c *gin.Context) {
 		ProjectID: uint(projectID),
 		Name:      req.Name,
 	}
-	if err := db.Create(&tag).Error; err != nil {
+	var tagResponse TagResponse
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&tag).Error; err != nil {
+			return err
+		}
+		tagResponse = TagResponse{
+			ID:        tag.ID,
+			ProjectID: tag.ProjectID,
+			Name:      tag.Name,
+			CreatedAt: tag.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt: tag.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			DeletedAt: nil,
+		}
+		return recordProjectEvent(c, tx, tag.ProjectID, userID, "tag.created", tagResponse)
+	}); err != nil {
 		if isUniqueViolation(err, "uniq_project_tag") {
 			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "该标签名称已存在", nil))
 			return
@@ -219,16 +233,6 @@ func CreateTag(c *gin.Context) {
 	}
 
 	// 9. 返回创建的标签
-	tagResponse := TagResponse{
-		ID:        tag.ID,
-		ProjectID: tag.ProjectID,
-		Name:      tag.Name,
-		CreatedAt: tag.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: tag.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		DeletedAt: nil,
-	}
-
-	notifyProjectEvent(c, db, tag.ProjectID, userID, "tag.created", tagResponse)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(tagResponse))
 }
 
@@ -299,7 +303,21 @@ func UpdateTag(c *gin.Context) {
 
 	// 8. 更新标签
 	tag.Name = req.Name
-	if err := db.Save(&tag).Error; err != nil {
+	var tagResponse TagResponse
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Save(&tag).Error; err != nil {
+			return err
+		}
+		tagResponse = TagResponse{
+			ID:        tag.ID,
+			ProjectID: tag.ProjectID,
+			Name:      tag.Name,
+			CreatedAt: tag.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			UpdatedAt: tag.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+			DeletedAt: nil,
+		}
+		return recordProjectEvent(c, tx, tag.ProjectID, userID, "tag.updated", tagResponse)
+	}); err != nil {
 		if isUniqueViolation(err, "uniq_project_tag") {
 			c.JSON(http.StatusBadRequest, response.NewErrorResponse(response.CodeBadRequest, "该标签名称已存在", nil))
 			return
@@ -315,16 +333,7 @@ func UpdateTag(c *gin.Context) {
 		deletedAt = &deletedAtStr
 	}
 
-	tagResponse := TagResponse{
-		ID:        tag.ID,
-		ProjectID: tag.ProjectID,
-		Name:      tag.Name,
-		CreatedAt: tag.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt: tag.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		DeletedAt: deletedAt,
-	}
-
-	notifyProjectEvent(c, db, tag.ProjectID, userID, "tag.updated", tagResponse)
+	tagResponse.DeletedAt = deletedAt
 	c.JSON(http.StatusOK, response.NewSuccessResponse(tagResponse))
 }
 
@@ -377,13 +386,16 @@ func DeleteTag(c *gin.Context) {
 	}
 
 	// 6. 删除标签
-	if err := db.Delete(&tag).Error; err != nil {
+	data := gin.H{"id": tag.ID}
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Delete(&tag).Error; err != nil {
+			return err
+		}
+		return recordProjectEvent(c, tx, tag.ProjectID, userID, "tag.deleted", data)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeTagDeleteFailed, "删除标签失败: "+err.Error(), nil))
 		return
 	}
 
-	notifyProjectEvent(c, db, tag.ProjectID, userID, "tag.deleted", gin.H{
-		"id": tag.ID,
-	})
 	c.JSON(http.StatusOK, response.NewSuccessResponse(nil))
 }

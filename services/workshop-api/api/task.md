@@ -237,7 +237,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tasks/$TASK_ID" \
 | state | string | 否 | 任务状态 |
 | executor_id | uint | 否 | 执行者用户ID（必须是项目成员；显式传null清空，不传则不更新） |
 | father_id | uint | 否 | 父任务ID（显式传 null 清空，不传不更新） |
-| priority | int | 否 | 优先级（可选，0为最高，数值越大优先级越低） |
+| priority | int | 否 | 优先级（0为最高；显式传 `null` 清空，不传则不更新） |
 | tags | string | 否 | 标签（可选，用逗号分割） |
 
 **响应示例** (`200 OK`):
@@ -266,6 +266,7 @@ curl -X PUT "https://api.feitianchengzi.com/workshop/v1/user/tasks/$TASK_ID" \
 **特殊说明**:
 - `executor_id` 显式传 `null` 表示清空执行者；不传则保持不变
 - `father_id` 显式传 `null` 表示清空父任务；不传则保持不变
+- `priority` 显式传 `null` 表示清空优先级；不传则保持不变
 - 当状态变为 `completed` 时，自动设置完成时间
 - 当状态从 `completed` 变为其他状态时，自动清除完成时间
 - 父任务必须属于同一项目

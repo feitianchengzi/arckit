@@ -58,11 +58,12 @@ func NewSuccessResponseWithMeta(data interface{}, meta Meta) SuccessResponse {
 // 错误代码常量定义
 const (
 	// 通用错误
-	CodeBadRequest    = "BAD_REQUEST"
-	CodeUnauthorized  = "UNAUTHORIZED"
-	CodeForbidden     = "FORBIDDEN"
-	CodeNotFound      = "NOT_FOUND"
-	CodeInternalError = "INTERNAL_ERROR"
+	CodeBadRequest         = "BAD_REQUEST"
+	CodeUnauthorized       = "UNAUTHORIZED"
+	CodeForbidden          = "FORBIDDEN"
+	CodeNotFound           = "NOT_FOUND"
+	CodeInternalError      = "INTERNAL_ERROR"
+	CodeEventCursorExpired = "EVENT_CURSOR_EXPIRED"
 
 	// 用户相关错误
 	CodeUserNotFound      = "USER_NOT_FOUND"

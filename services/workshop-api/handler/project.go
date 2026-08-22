@@ -28,21 +28,21 @@ func strPtrVal(p *string) string {
 // CreateProjectRequest 创建项目请求结构
 type CreateProjectRequest struct {
 	Name           string `json:"name" binding:"required"`   // 项目名称（必填）
-	GitURL         string `json:"git_url,omitempty"`          // Git地址（可选）
+	GitURL         string `json:"git_url,omitempty"`         // Git地址（可选）
 	OrganizationID *uint  `json:"organization_id,omitempty"` // 组织ID（可选）
 }
 
 // ProjectMemberResponse 项目成员响应结构
 type ProjectMemberResponse struct {
-	ID         uint    `json:"id"`          // 成员关系ID
-	UserID     uint    `json:"user_id"`     // 用户ID
-	Role       string  `json:"role"`        // 角色
+	ID         uint    `json:"id"`             // 成员关系ID
+	UserID     uint    `json:"user_id"`        // 用户ID
+	Role       string  `json:"role"`           // 角色
 	Duty       *string `json:"duty,omitempty"` // 职能/职责描述
-	Username   string  `json:"username"`    // 用户名
-	Avatar     string  `json:"avatar"`      // 头像地址
-	CreatedAt  string  `json:"created_at"`  // 加入时间
-	IsMe       bool    `json:"is_me"`       // 是否是当前用户自己
-	IsExternal bool    `json:"is_external"` // 是否为组织外部成员
+	Username   string  `json:"username"`       // 用户名
+	Avatar     string  `json:"avatar"`         // 头像地址
+	CreatedAt  string  `json:"created_at"`     // 加入时间
+	IsMe       bool    `json:"is_me"`          // 是否是当前用户自己
+	IsExternal bool    `json:"is_external"`    // 是否为组织外部成员
 }
 
 // CreateProjectResponse 创建项目响应结构
@@ -131,8 +131,7 @@ func CreateProject(c *gin.Context) {
 		if err := tx.Create(&member).Error; err != nil {
 			return err
 		}
-
-		return nil
+		return recordProjectEvent(c, tx, project.ID, userID, "project.created", gin.H{"project_id": project.ID})
 	})
 
 	if err != nil {
@@ -171,7 +170,6 @@ func CreateProject(c *gin.Context) {
 		CreatorID: project.CreatorID,
 		Members:   memberResponses,
 	}
-	notifyProjectEvent(c, db, project.ID, userID, "project.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -501,7 +499,12 @@ func UpdateProject(c *gin.Context) {
 	}
 
 	// 10. 更新项目信息
-	if err := db.Model(&project).Updates(updates).Error; err != nil {
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&project).Updates(updates).Error; err != nil {
+			return err
+		}
+		return recordProjectEvent(c, tx, project.ID, userID, "project.updated", gin.H{"project_id": project.ID})
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectUpdateFailed, "更新项目失败: "+err.Error(), nil))
 		return
 	}
@@ -545,7 +548,6 @@ func UpdateProject(c *gin.Context) {
 		UpdatedAt: project.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		Members:   memberResponses,
 	}
-	notifyProjectEvent(c, db, project.ID, userID, "project.updated", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }
 
@@ -657,7 +659,13 @@ func AddProjectMember(c *gin.Context) {
 		UserID:    orgMember.UserID,
 		Role:      models.ProjectRoleMember,
 	}
-	if err := db.Create(&newMember).Error; err != nil {
+	actorID, _ := middleware.GetUserID(c)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&newMember).Error; err != nil {
+			return err
+		}
+		return recordProjectEvent(c, tx, project.ID, actorID, "project_member.created", gin.H{"user_id": newMember.UserID})
+	}); err != nil {
 		if isUniqueViolation(err, "uniq_project_user") {
 			// 并发场景下可能已被添加，返回幂等成功
 			var existing models.ProjectMember
@@ -690,8 +698,6 @@ func AddProjectMember(c *gin.Context) {
 		CreatedAt:  newMember.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		IsExternal: newMember.IsExternal,
 	}
-	actorID, _ := middleware.GetUserID(c)
-	notifyProjectEvent(c, db, project.ID, actorID, "project_member.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -821,26 +827,30 @@ func InviteProjectMember(c *gin.Context) {
 		UsedCount:  0,
 	}
 
-	if err := db.Create(&invitation).Error; err != nil {
+	var inviteResp InviteProjectMemberResponse
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&invitation).Error; err != nil {
+			return err
+		}
+		inviteResp = InviteProjectMemberResponse{
+			InviteCode: inviteCode,
+			InviteLink: buildInviteLink(inviteCode),
+			Role:       role,
+			MaxUses:    invitation.MaxUses,
+			UsedCount:  invitation.UsedCount,
+			CreatedAt:  invitation.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		}
+		if expiresAt != nil {
+			inviteResp.ExpiresAt = expiresAt.Format("2006-01-02T15:04:05Z07:00")
+		}
+		return recordProjectEvent(c, tx, project.ID, userID, "project_invitation.created", inviteResp)
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectCreateFailed, "创建邀请失败: "+err.Error(), nil))
 		return
 	}
 
 	// 14. 构建响应
-	inviteResp := InviteProjectMemberResponse{
-		InviteCode: inviteCode,
-		InviteLink: buildInviteLink(inviteCode),
-		Role:       role,
-		MaxUses:    invitation.MaxUses,
-		UsedCount:  invitation.UsedCount,
-		CreatedAt:  invitation.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-	}
-	if expiresAt != nil {
-		inviteResp.ExpiresAt = expiresAt.Format("2006-01-02T15:04:05Z07:00")
-	}
-
 	// 15. 返回成功响应
-	notifyProjectEvent(c, db, project.ID, userID, "project_invitation.created", inviteResp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(inviteResp))
 }
 
@@ -975,8 +985,7 @@ func JoinProject(c *gin.Context) {
 		if updateResult.RowsAffected == 0 {
 			return errProjectInviteUsed
 		}
-
-		return nil
+		return recordProjectEvent(c, tx, project.ID, userID, "project_member.created", gin.H{"user_id": newMember.UserID})
 	})
 
 	if err != nil {
@@ -1007,7 +1016,6 @@ func JoinProject(c *gin.Context) {
 		CreatedAt:   newMember.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		IsExternal:  newMember.IsExternal,
 	}
-	notifyProjectEvent(c, db, project.ID, userID, "project_member.created", resp)
 	c.JSON(http.StatusCreated, response.NewSuccessResponse(resp))
 }
 
@@ -1110,7 +1118,7 @@ func DeleteProject(c *gin.Context) {
 		if err := tx.Delete(&project).Error; err != nil {
 			return err
 		}
-		return nil
+		return recordProjectEvent(c, tx, project.ID, userID, "project.deleted", gin.H{"project_id": project.ID})
 	})
 
 	if err != nil {
@@ -1122,7 +1130,6 @@ func DeleteProject(c *gin.Context) {
 	data := gin.H{
 		"message": "项目删除成功",
 	}
-	notifyProjectEvent(c, db, project.ID, userID, "project.deleted", data)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(data))
 }
 
@@ -1140,14 +1147,14 @@ type UpdateProjectMemberRoleRequest struct {
 
 // UpdateProjectMemberRoleResponse 更新项目成员角色响应结构
 type UpdateProjectMemberRoleResponse struct {
-	ID        uint    `json:"id"`         // 成员关系ID
-	ProjectID uint    `json:"project_id"` // 项目ID
-	UserID    uint    `json:"user_id"`    // 用户ID
-	Role      string  `json:"role"`       // 角色
+	ID        uint    `json:"id"`             // 成员关系ID
+	ProjectID uint    `json:"project_id"`     // 项目ID
+	UserID    uint    `json:"user_id"`        // 用户ID
+	Role      string  `json:"role"`           // 角色
 	Duty      *string `json:"duty,omitempty"` // 职能/职责描述
-	Username  string  `json:"username"`   // 用户名
-	Avatar    string  `json:"avatar"`     // 头像
-	UpdatedAt string  `json:"updated_at"` // 更新时间
+	Username  string  `json:"username"`       // 用户名
+	Avatar    string  `json:"avatar"`         // 头像
+	UpdatedAt string  `json:"updated_at"`     // 更新时间
 }
 
 // DeleteProjectMember 删除项目成员
@@ -1285,7 +1292,7 @@ func DeleteProjectMember(c *gin.Context) {
 				return err
 			}
 
-			return nil
+			return recordProjectEvent(c, tx, project.ID, currentUserID, "project_member.deleted", gin.H{"user_id": targetMember.UserID})
 		})
 
 		if err != nil {
@@ -1298,7 +1305,12 @@ func DeleteProjectMember(c *gin.Context) {
 		}
 	} else {
 		// 9. 删除非所有者成员
-		if err := db.Delete(&targetMember).Error; err != nil {
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Delete(&targetMember).Error; err != nil {
+				return err
+			}
+			return recordProjectEvent(c, tx, project.ID, currentUserID, "project_member.deleted", gin.H{"user_id": targetMember.UserID})
+		}); err != nil {
 			c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectUpdateFailed, "删除项目成员失败: "+err.Error(), nil))
 			return
 		}
@@ -1307,8 +1319,8 @@ func DeleteProjectMember(c *gin.Context) {
 	// 10. 返回成功响应
 	data := gin.H{
 		"message": "项目成员删除成功",
+		"user_id": req.TargetUserID,
 	}
-	notifyProjectEvent(c, db, project.ID, currentUserID, "project_member.deleted", data)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(data))
 }
 
@@ -1580,7 +1592,12 @@ func UpdateProjectMemberRole(c *gin.Context) {
 	}
 
 	// 12. 更新成员信息
-	if err := db.Model(&targetMember).Updates(updates).Error; err != nil {
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&targetMember).Updates(updates).Error; err != nil {
+			return err
+		}
+		return recordProjectEvent(c, tx, project.ID, currentUserID, "project_member.updated", gin.H{"user_id": targetMember.UserID})
+	}); err != nil {
 		c.JSON(http.StatusInternalServerError, response.NewErrorResponse(response.CodeProjectUpdateFailed, "更新成员信息失败: "+err.Error(), nil))
 		return
 	}
@@ -1602,6 +1619,5 @@ func UpdateProjectMemberRole(c *gin.Context) {
 		Avatar:    targetMember.User.Avatar,
 		UpdatedAt: targetMember.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
-	notifyProjectEvent(c, db, project.ID, currentUserID, "project_member.updated", resp)
 	c.JSON(http.StatusOK, response.NewSuccessResponse(resp))
 }

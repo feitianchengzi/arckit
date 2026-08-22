@@ -22,7 +22,7 @@
 
 **认证级别**: `user`（需要JWT认证）
 
-**描述**: 连接项目房间，接收该项目内的变更事件（C/U/D）。
+**描述**: 连接项目房间，接收该项目内的变更事件（C/U/D）。WebSocket 是失效通知通道，REST 资源仍是真值来源。
 
 **权限**: 仅项目成员可连接。
 
@@ -48,8 +48,12 @@ const ws = new WebSocket(
 **事件格式**:
 ```json
 {
+  "id": 1842,
+  "schema_version": 1,
   "event": "task.created",
   "project_id": 12,
+  "entity": "task",
+  "subject_id": "41",
   "actor": {
     "id": 1,
     "username": "alice",
@@ -63,7 +67,17 @@ const ws = new WebSocket(
 ```
 
 **系统事件**:
-- `system.connected` - 连接成功（服务端发出的握手确认）
+- `system.connected` - 连接成功；`data.earliest_event_id` 与 `data.latest_event_id` 给出当前项目的保留边界。
+
+**断线恢复**:
+
+连接方应持久化最后一个完成 REST 刷新的事件 `id`。重连收到 `system.connected` 后，先调用：
+
+`GET /workshop/v1/user/projects/:id/events?after_id=<cursor>&limit=500`
+
+响应中的 `events` 按全局单调递增 `id` 排序，并包含 `next_after_id`、`has_more`、`earliest_event_id` 和 `latest_event_id`。重放期间先缓存 WebSocket 实时事件，重放结束后按 `id` 去重合并。只有对应 REST 刷新成功后才能推进本地 cursor。
+
+事件默认保留 30 天。若 cursor 早于服务端保留边界，接口返回 `410` 与 `EVENT_CURSOR_EXPIRED`，客户端必须完成一次全量 REST 刷新，再将 cursor 推进到连接时的 `latest_event_id`。
 
 **常见变更事件**（只推变更类事件，不推查询事件）:
 - `project.created` / `project.updated` / `project.deleted`
@@ -76,6 +90,8 @@ const ws = new WebSocket(
 **错误说明**:
 - 非项目成员连接会返回 `403`。
 - 连接采用标准 WebSocket Ping/Pong 心跳，断线后建议客户端自动重连。
+- 服务端使用有界发送队列；慢消费者会被主动断开并通过上述重放接口恢复。
+- 项目删除或成员权限被移除后，相关连接会在收到最终失效事件后关闭。
 
 ---
 

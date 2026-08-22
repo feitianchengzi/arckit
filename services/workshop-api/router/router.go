@@ -120,6 +120,7 @@ func getCORSConfig() cors.Config {
 func registerBusinessRoutes(group *gin.RouterGroup) {
 	group.GET("/header-info", handler.GetHeaderInfo)
 	group.GET("/projects/:id/ws", handler.ConnectProjectWebsocket)
+	group.GET("/projects/:id/events", handler.GetProjectEvents)
 	group.POST("/users", handler.CreateUser)                                           // 根据网关UUID创建用户
 	group.GET("/users", handler.GetUser)                                               // 根据Header中的UUID查询用户
 	group.PUT("/users", handler.UpdateUser)                                            // 更新用户信息

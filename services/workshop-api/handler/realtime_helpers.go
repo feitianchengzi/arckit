@@ -30,21 +30,11 @@ func buildActor(c *gin.Context, db *gorm.DB, userID uint) realtime.Actor {
 	return actor
 }
 
-func notifyProjectEvent(c *gin.Context, db *gorm.DB, projectID uint, actorID uint, event string, data any) {
-	if projectID == 0 || event == "" {
-		return
-	}
-	actor := buildActor(c, db, actorID)
-	realtime.NotifyProject(projectID, actor, event, data)
-}
-
-func notifyProjectEventByTaskID(c *gin.Context, db *gorm.DB, taskID uint, actorID uint, event string, data any) {
-	if db == nil || taskID == 0 {
-		return
-	}
-	var task models.Task
-	if err := db.Select("project_id").First(&task, taskID).Error; err != nil {
-		return
-	}
-	notifyProjectEvent(c, db, task.ProjectID, actorID, event, data)
+// recordProjectEvent writes the event on the supplied transaction. Mutation
+// handlers use this before commit so domain state and its invalidation event
+// cannot become visible independently.
+func recordProjectEvent(c *gin.Context, tx *gorm.DB, projectID uint, actorID uint, event string, data any) error {
+	actor := buildActor(c, tx, actorID)
+	_, err := realtime.RecordProject(tx, projectID, actor, event, data)
+	return err
 }
