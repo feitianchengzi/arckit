@@ -1,13 +1,16 @@
 export function selectEffectiveLoopHandoff({ runtimeResult = null, activity = null } = {}) {
+  const acceptedLedgerHandoff = activity?.ledger_write_result?.parsed?.written === true
+    ? activity.ledger_write_result.parsed.case_transition_result?.case_resolution?.loop_handoff
+    : null;
   // A completed schema-bound Agent message is persisted before the Runtime
   // emits its derived result. It is therefore the recovery source when a
   // process exits after item/completed but before the final event tail drains.
   const candidates = [
+    acceptedLedgerHandoff,
     runtimeResult?.loop_handoff,
-    agentLoopHandoff(activity?.agent_loop_result),
-    latestPersistedAgentLoopHandoff(activity?.messages),
     activity?.loop_handoff,
-    activity?.ledger_write_result?.parsed?.case_transition_result?.case_resolution?.loop_handoff
+    agentLoopHandoff(activity?.agent_loop_result),
+    latestPersistedAgentLoopHandoff(activity?.messages)
   ];
   return candidates.find(isLoopHandoff) || {};
 }

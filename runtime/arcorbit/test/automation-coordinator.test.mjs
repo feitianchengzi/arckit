@@ -1012,6 +1012,70 @@ test("live rejected ledger write takes precedence over an unaccepted human hando
   coordinator.dispose();
 });
 
+test("live accepted ledger handoff overrides a stale pre-commit Runtime handoff", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "running" });
+  const runManager = fakeRunManager(store, starts);
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await runManager.emitEvent({
+    type: "run.finished",
+    runId: "RUN-OLD",
+    status: "completed",
+    activity: {
+      ledger_write_result: {
+        parsed: {
+          written: true,
+          case_transition_result: {
+            case_id: "CASE-20260823-001",
+            case_resolution: {
+              loop_handoff: {
+                version: "loop-handoff/v2",
+                status: "needs_human",
+                next_responsibility: "human",
+                agent_continuation_available: false,
+                human_decision_required: true,
+                trigger_mode: "user_decision",
+                responsibility_reason: "The review budget is exhausted.",
+                next_prompt: "",
+                human_gate: {
+                  required: true,
+                  reason: "The review budget is exhausted.",
+                  decision_needed: "Choose how to continue review."
+                }
+              }
+            }
+          }
+        }
+      },
+      loop_handoff: {
+        status: "continue",
+        next_responsibility: "agent",
+        human_decision_required: false,
+        responsibility_reason: "Wait for Runtime to commit this transition."
+      }
+    },
+    result: {
+      runtime_result: {
+        ledger_stage: { writeback_required: true },
+        loop_handoff: {
+          status: "continue",
+          next_responsibility: "agent",
+          human_decision_required: false,
+          responsibility_reason: "Wait for Runtime to commit this transition."
+        }
+      }
+    }
+  });
+
+  assert.equal(store.automation.active_task.phase, "awaiting_human");
+  assert.equal(store.automation.recovery_items.length, 0);
+  assert.equal(store.automation.attention_items.length, 1);
+  assert.equal(store.automation.attention_items[0].reason, "The review budget is exhausted.");
+  assert.equal(store.automation.attention_items[0].question, "Choose how to continue review.");
+  coordinator.dispose();
+});
+
 test("exhausted live Agent repair surfaces the validator reason instead of a generic failed status", async () => {
   const starts = [];
   const store = recoveryStore({ phase: "running" });
