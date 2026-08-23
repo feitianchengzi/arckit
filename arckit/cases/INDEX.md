@@ -114,3 +114,4 @@
 | [CASE-20260822-005](closed/CASE-20260822-005-arcorbit.md) | closed | 移除 ArcOrbit 顶部全局搜索入口 | 2026-08-22T21:17:46.533Z |
 | [CASE-20260822-006](closed/CASE-20260822-006-arcorbit-work.md) | closed | 补齐 ArcOrbit Work 待办平台核心功能 | 2026-08-22T23:23:27.164Z |
 | [CASE-20260822-007](closed/CASE-20260822-007-arcorbit-codex-chat.md) | closed | ArcOrbit 真实 Codex Chat | 2026-08-23T09:24:54.182Z |
+| [CASE-20260823-001](closed/CASE-20260823-001-development-case.md) | closed | 诊断并修复恢复中心输入框焦点与草稿丢失 | 2026-08-23T09:53:11.805Z |

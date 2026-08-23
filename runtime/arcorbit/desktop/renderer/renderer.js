@@ -369,6 +369,11 @@ function wireEvents() {
     state.acceptanceFeedbackOnly = !state.acceptanceFeedbackOnly;
     renderCommandCenter();
   });
+  els.recoveryList.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-recovery-action]");
+    if (!button || !els.recoveryList.contains(button)) return;
+    runAction(() => resolveRecoveryAction(button));
+  });
   els.backToCommandButton.addEventListener("click", () => showPage("command"));
   els.backFromWorkbenchButton.addEventListener("click", () => showPage("command"));
   els.backFromRecoveryButton.addEventListener("click", () => showPage("command"));
@@ -2738,18 +2743,81 @@ function renderRecovery() {
     els.recoveryList.innerHTML = `<div class="panel-card empty-state"><div><strong>没有待恢复事项</strong><p>服务器事实、本地 Runtime 与队列状态一致。</p></div></div>`;
     return;
   }
-  els.recoveryList.innerHTML = items.map((item) => `<article class="recovery-card"><div class="recovery-marker"></div><div class="recovery-body"><h2>${escapeHtml(RECOVERY_LABELS[item.type] || item.type)}</h2><p>${escapeHtml(item.message)}</p><div class="recovery-meta"><span>任务 ${escapeHtml(item.task_id)}</span><span>冻结范围 ${escapeHtml(item.freeze_scope)}</span><span>责任方 ${escapeHtml(item.responsibility === "operator" ? "Runtime 操作员" : item.responsibility)}</span></div>${item.actions.includes("feedback_continue") ? `<div class="recovery-feedback"><label for="feedback-${escapeHtml(item.id)}">补充给 Agent 的说明</label><textarea id="feedback-${escapeHtml(item.id)}" data-recovery-feedback="${escapeHtml(item.id)}" rows="3" placeholder="补充事实、纠正方向或说明希望 Agent 如何继续…"></textarea><small>说明会发送到当前任务的同一 Agent 对话，并在对话页面保留。</small></div>` : ""}<div class="recovery-actions">${item.actions.map((action) => `<button class="${action === "mark_blocked" ? "secondary-button" : "primary-button"}" data-recovery-id="${escapeHtml(item.id)}" data-recovery-action="${escapeHtml(action)}" type="button">${escapeHtml(RECOVERY_ACTION_LABELS[action] || action)}</button>`).join("")}</div></div></article>`).join("");
-  els.recoveryList.querySelectorAll("[data-recovery-action]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
-    const action = button.dataset.recoveryAction;
-    if (action === "mark_blocked" && !window.confirm("标记阻塞会更新远端任务状态并释放活动任务。继续吗？")) return;
-    const feedback = action === "feedback_continue"
-      ? els.recoveryList.querySelector(`[data-recovery-feedback="${CSS.escape(button.dataset.recoveryId)}"]`)?.value || ""
-      : "";
-    await api.resolveAutomationRecovery({ recoveryId: button.dataset.recoveryId, action, message: feedback });
-    await refreshSnapshot();
-    if (action === "feedback_continue") await openWorkbench("review");
-    else if (!state.snapshot.recovery_items.length) showPage("command");
-  })));
+  const existingCards = new Map(
+    [...els.recoveryList.querySelectorAll(":scope > [data-recovery-item]")]
+      .map((card) => [card.dataset.recoveryItem, card])
+  );
+  items.forEach((item, index) => {
+    const itemId = String(item.id);
+    const card = existingCards.get(itemId) || createRecoveryCard(itemId);
+    updateRecoveryCard(card, item);
+    const currentCard = els.recoveryList.children[index];
+    if (currentCard !== card) els.recoveryList.insertBefore(card, currentCard || null);
+    existingCards.delete(itemId);
+  });
+  existingCards.forEach((card) => card.remove());
+  [...els.recoveryList.children].slice(items.length).forEach((child) => child.remove());
+}
+
+function createRecoveryCard(itemId) {
+  const card = document.createElement("article");
+  card.className = "recovery-card";
+  card.dataset.recoveryItem = itemId;
+  card.innerHTML = `<div class="recovery-marker"></div><div class="recovery-body"><h2></h2><p></p><div class="recovery-meta"><span></span><span></span><span></span></div><div class="recovery-actions"></div></div>`;
+  return card;
+}
+
+function updateRecoveryCard(card, item) {
+  const itemId = String(item.id);
+  const body = card.querySelector(".recovery-body");
+  const meta = card.querySelectorAll(".recovery-meta span");
+  card.dataset.recoveryItem = itemId;
+  body.querySelector("h2").textContent = RECOVERY_LABELS[item.type] || item.type;
+  body.querySelector(":scope > p").textContent = item.message;
+  meta[0].textContent = `任务 ${item.task_id}`;
+  meta[1].textContent = `冻结范围 ${item.freeze_scope}`;
+  meta[2].textContent = `责任方 ${item.responsibility === "operator" ? "Runtime 操作员" : item.responsibility}`;
+
+  let feedback = body.querySelector(":scope > .recovery-feedback");
+  if (item.actions.includes("feedback_continue")) {
+    if (!feedback) {
+      feedback = document.createElement("div");
+      feedback.className = "recovery-feedback";
+      feedback.innerHTML = `<label>补充给 Agent 的说明</label><textarea rows="3" placeholder="补充事实、纠正方向或说明希望 Agent 如何继续…"></textarea><small>说明会发送到当前任务的同一 Agent 对话，并在对话页面保留。</small>`;
+      body.insertBefore(feedback, body.querySelector(":scope > .recovery-actions"));
+    }
+    const textarea = feedback.querySelector("textarea");
+    const inputId = `feedback-${itemId}`;
+    feedback.querySelector("label").htmlFor = inputId;
+    textarea.id = inputId;
+    textarea.dataset.recoveryFeedback = itemId;
+  } else {
+    feedback?.remove();
+  }
+
+  const actions = body.querySelector(":scope > .recovery-actions");
+  const buttons = item.actions.map((action) => {
+    const button = document.createElement("button");
+    button.className = action === "mark_blocked" ? "secondary-button" : "primary-button";
+    button.dataset.recoveryId = itemId;
+    button.dataset.recoveryAction = action;
+    button.type = "button";
+    button.textContent = RECOVERY_ACTION_LABELS[action] || action;
+    return button;
+  });
+  actions.replaceChildren(...buttons);
+}
+
+async function resolveRecoveryAction(button) {
+  const action = button.dataset.recoveryAction;
+  if (action === "mark_blocked" && !window.confirm("标记阻塞会更新远端任务状态并释放活动任务。继续吗？")) return;
+  const feedback = action === "feedback_continue"
+    ? els.recoveryList.querySelector(`[data-recovery-feedback="${CSS.escape(button.dataset.recoveryId)}"]`)?.value || ""
+    : "";
+  await api.resolveAutomationRecovery({ recoveryId: button.dataset.recoveryId, action, message: feedback });
+  await refreshSnapshot();
+  if (action === "feedback_continue") await openWorkbench("review");
+  else if (!state.snapshot.recovery_items.length) showPage("command");
 }
 
 function openTaskBrowser(taskState = "pending", taskId = "") {

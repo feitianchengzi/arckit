@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 182
-Updated: 2026-08-23T09:24:54.182Z
+Revision: 184
+Updated: 2026-08-23T09:53:11.805Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-将 ArcOrbit Chat 从计划展示升级为架构完整、可持续演进的真实 Codex 自由对话能力，同时保持与 Automation 待办执行会话的清晰隔离。
+定位 ArcOrbit 自动化页面阻塞恢复中心在输入期间自动失焦并清空内容的真实执行路径，以证据约束必要修复。
 
 ## Active Work
 

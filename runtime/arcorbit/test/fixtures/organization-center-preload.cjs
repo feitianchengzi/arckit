@@ -1,6 +1,7 @@
 const { contextBridge } = require("electron");
 
 const calls = [];
+const automationListeners = new Set();
 const automation = {
   enabled: false, queue_paused: false, source_status: "healthy", synced_at: "2026-08-18T00:00:00Z",
   user: { id: "7", name: "Glare" },
@@ -53,7 +54,16 @@ const platform = {
   projects, organizations: [{ id: "31", name: "飞天橙子", description: "产品组织" }],
   organization_scopes: [{ id: "31", name: "飞天橙子", description: "产品组织", current_user_role: "owner", project_visibility: "all_projects", members, projects: projects.slice(0, 2), degraded: false }],
   personal_projects: [projects[2]], organization_members: members, project_members: projectMembers,
-  product_workspaces: projects.slice(0, 2).map((project) => ({ ...project, preference: {}, task_counts: {}, feedback_count: 0, members: projectMembers.filter((member) => member.project_id === project.id), tasks: [], feedback_v1: [], tags: tags.filter((tag) => tag.project_id === project.id) })),
+  product_workspaces: projects.slice(0, 2).map((project) => ({
+    ...project,
+    preference: {},
+    task_counts: project.id === "11" ? { pending: 1, completed: 1, accepted: 1 } : { pending: 1 },
+    feedback_count: 0,
+    members: projectMembers.filter((member) => member.project_id === project.id),
+    tasks: [],
+    feedback_v1: [],
+    tags: tags.filter((tag) => tag.project_id === project.id)
+  })),
   members: projectMembers,
   tasks: [
     { id: "W-11", project_id: "11", project_name: "ArcOrbit", title: "Scoped pending work", content: "Verify Work state scope", state: "pending", terminal: false, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "201" },
@@ -82,13 +92,19 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   openProductFeedback: async () => ({ status: "opened", mode: "submit" }),
   refreshProductFeedbackUnread: async () => ({ status: "ready", unread_count: 0 }),
   getAuthStatus: async () => ({ status: "authenticated", authenticated: true, identity: "glare@example.test", masked_identity: "g***@example.test" }),
+  chatSnapshot: async () => ({ generated_at: "", projects: [], sessions: [], selected_session_id: "", messages: [], draft: { project_id: "", text: "" } }),
+  createChat: noOp, selectChat: noOp, deleteChat: noOp, renameChat: noOp,
+  interruptChat: noOp, decideChatApproval: noOp, sendChatMessage: noOp,
   automationSnapshot: async () => automation,
   platformSnapshot: async () => platform,
-  onSetupEvent: () => () => {}, onAutomationEvent: () => () => {}, onEvent: () => () => {}, onProductFeedbackUnread: () => () => {},
+  onSetupEvent: () => () => {},
+  onAutomationEvent: (listener) => { automationListeners.add(listener); return () => automationListeners.delete(listener); },
+  onEvent: () => () => {}, onChatEvent: () => () => {}, onProductFeedbackUnread: () => () => {},
   setActiveWorkset: noOp, syncAutomation: noOp, setAutomationEnabled: noOp, setQueuePaused: noOp,
   updateWorkset: async (input) => { calls.push(["updateWorkset", input]); platform.active_workset.project_ids = input.project_ids; return input; },
   executePlatformAction: async (command, input) => {
     calls.push([command, input]);
+    if (command === "task.attachments.list") return [];
     if (command.endsWith(".invite")) return { invite_code: "ABCD1234", invite_link: "https://example.test/invite/ABCD1234", role: input.role, expires_at: "2026-08-19T00:00:00Z", max_uses: Number(input.max_uses), used_count: 0 };
     if (command === "tag.create") {
       const tag = { id: String(204 + tags.length), project_id: String(input.project_id), project_name: projects.find((project) => project.id === String(input.project_id))?.name || "", name: input.name };
@@ -115,7 +131,13 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   listRuns: async () => [], listMessages: async () => [],
   checkSetupReadiness: async () => ({ status: "ready", first_install: false, checks: [], distribution: {}, counts: {} }),
   applySetupPlan: noOp, recoverSetupUpgrade: noOp, planSetupRemoval: noOp, removeManagedSetupPaths: noOp,
-  submitAcceptanceFeedback: noOp, submitIntervention: noOp, resolveAutomationRecovery: noOp, updateAutomationTaskState: noOp,
+  submitAcceptanceFeedback: noOp, submitIntervention: noOp,
+  resolveAutomationRecovery: async (input) => { calls.push(["resolveAutomationRecovery", input]); return {}; },
+  updateAutomationTaskState: noOp,
   handoffAutomationToCli: noOp, reopenAutomationCli: noOp, resumeAutomationRuntime: noOp, stopAutomationRun: noOp,
-  sendAuthVerification: noOp, loginWithCode: noOp, logoutAuth: noOp, updateSettings: noOp
+  sendAuthVerification: noOp, loginWithCode: noOp, logoutAuth: noOp, updateSettings: noOp,
+  setTestRecoveryItems: async (items) => { automation.recovery_items = items; },
+  emitTestAutomationEvent: async (event = { type: "automation.changed" }) => {
+    for (const listener of automationListeners) listener(event);
+  }
 });
