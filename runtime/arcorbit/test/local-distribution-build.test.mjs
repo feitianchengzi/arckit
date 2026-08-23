@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createLocalBuildPlan,
   isCurrentLocalArtifact,
+  packagedRendererSmokeExecutable,
   parseArgs,
   resolveHostBuild
 } from "../scripts/build-local-distribution.mjs";
@@ -22,6 +23,22 @@ test("local Runtime build selects only supported host-native package targets", (
     target: "linux-x64", platform: "linux", packageScript: "package:linux:x64", artifactExtension: ".AppImage", artifactSuffix: "-linux-x64.AppImage"
   });
   assert.throws(() => resolveHostBuild("linux", "arm64"), /Unsupported local Runtime build host/);
+});
+
+test("local build resolves the unpacked application used by the post-package Renderer smoke", () => {
+  assert.equal(
+    packagedRendererSmokeExecutable("/workspace/release", "mac"),
+    path.resolve("/workspace/release/mac/arcorbit.app/Contents/MacOS/arcorbit")
+  );
+  assert.equal(
+    packagedRendererSmokeExecutable("/workspace/release", "win"),
+    path.resolve("/workspace/release/win-unpacked/arcorbit.exe")
+  );
+  assert.equal(
+    packagedRendererSmokeExecutable("/workspace/release", "linux"),
+    path.resolve("/workspace/release/linux-unpacked/arcorbit")
+  );
+  assert.throws(() => packagedRendererSmokeExecutable("/workspace/release", "freebsd"), /Unsupported packaged Renderer smoke platform/);
 });
 
 test("local build plan marks provider and Runtime metadata as local and unsigned", () => {

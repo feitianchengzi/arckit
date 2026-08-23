@@ -150,6 +150,8 @@ Preload 只暴露 Automation 与 Chat 各自的类型化查询和动作。Automa
 
 Renderer 使用单一 Chat 状态协调边界拥有本地 snapshot projection、当前 owner identity、Composer 草稿、失败重试身份、发送提交状态、owner epoch 和草稿持久化队列。页面级全局状态不保存这些字段的平行副本；DOM handler 只读取协调器投影并发出语义命令，不选择异步 freshness 原语、snapshot preservation flags 或持久化时序。
 
+页面导航与 snapshot freshness 解耦。进入或重新进入 Chat 时 Renderer 先以协调器当前投影同步渲染 Chat 壳，再启动 owner-preserving background refresh；协调器公开有界的 refreshing/error 投影供页面显示同步状态。fresh 响应继续受 owner epoch 和 session identity 约束，失败只更新同步错误并保留当前会话、消息与草稿，不阻塞路由也不恢复上一个页面。
+
 Owner identity 是以下互斥状态之一：
 
 - `session owner`：包含已验证的 Chat `session_id` 及其固定 Product Workspace。

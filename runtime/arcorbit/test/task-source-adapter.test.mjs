@@ -253,7 +253,7 @@ test("Workshop task source routes Feedback V2 through the authenticated fixed us
   assert.equal(calls[0].options.body, undefined);
 });
 
-test("Workshop task source keeps Feedback V2 disabled by default and requires explicit rollout", () => {
+test("Workshop task source probes Feedback V2 for every project by default and permits explicit narrowing", () => {
   const previousProjectIds = process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS;
   const previousNotificationProjectIds = process.env.ARCORBIT_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS;
   delete process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS;
@@ -267,18 +267,19 @@ test("Workshop task source keeps Feedback V2 disabled by default and requires ex
       auth_mode: "bearer",
       access_token: "secret"
     };
-    const disabled = createWorkshopTaskSource({ settings, fetchImpl: async () => jsonResponse({}) });
-    const enabled = createWorkshopTaskSource({
+    const defaultProbe = createWorkshopTaskSource({ settings, fetchImpl: async () => jsonResponse({}) });
+    const narrowed = createWorkshopTaskSource({
       settings,
-      feedbackV2ProjectIds: "*",
-      feedbackV2NotificationProjectIds: "*",
+      feedbackV2ProjectIds: "12",
+      feedbackV2NotificationProjectIds: "12",
       fetchImpl: async () => jsonResponse({})
     });
 
-    assert.equal(disabled.platform.isFeedbackV2ProjectEnabled("11"), false);
-    assert.equal(disabled.platform.isFeedbackV2NotificationsProjectEnabled("11"), false);
-    assert.equal(enabled.platform.isFeedbackV2ProjectEnabled("11"), true);
-    assert.equal(enabled.platform.isFeedbackV2NotificationsProjectEnabled("11"), true);
+    assert.equal(defaultProbe.platform.isFeedbackV2ProjectEnabled("11"), true);
+    assert.equal(defaultProbe.platform.isFeedbackV2NotificationsProjectEnabled("11"), true);
+    assert.equal(narrowed.platform.isFeedbackV2ProjectEnabled("11"), false);
+    assert.equal(narrowed.platform.isFeedbackV2NotificationsProjectEnabled("11"), false);
+    assert.equal(narrowed.platform.isFeedbackV2ProjectEnabled("12"), true);
   } finally {
     if (previousProjectIds === undefined) delete process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS;
     else process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS = previousProjectIds;

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { execFile } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { access, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -90,6 +91,14 @@ export function isCurrentLocalArtifact(name, plan) {
   return name.includes(marker) && name.endsWith(plan.host.artifactSuffix);
 }
 
+export function packagedRendererSmokeExecutable(releaseRoot, platform) {
+  const root = path.resolve(releaseRoot);
+  if (platform === "mac") return path.join(root, "mac", "arcorbit.app", "Contents", "MacOS", "arcorbit");
+  if (platform === "win") return path.join(root, "win-unpacked", "arcorbit.exe");
+  if (platform === "linux") return path.join(root, "linux-unpacked", "arcorbit");
+  throw new Error(`Unsupported packaged Renderer smoke platform: ${platform || "<missing>"}.`);
+}
+
 export async function runLocalBuild(options = {}) {
   const arcforgeDirectory = path.resolve(options.arcforgeRoot || path.resolve(repositoryRoot, "..", "arcforge"));
   const runtimePackage = await readPackage(runtimeRoot, "@arckit/arcorbit");
@@ -150,6 +159,7 @@ export async function runLocalBuild(options = {}) {
   let runtimeArtifacts = [];
   if (!plan.resourcesOnly) {
     await run(npm, ["run", plan.host.packageScript], runtimeRoot);
+    await runPackagedRendererSmoke(plan);
     runtimeArtifacts = (await readdir(plan.runtime.releaseRoot, { withFileTypes: true }))
       .filter((entry) => entry.isFile() && isCurrentLocalArtifact(entry.name, plan))
       .map((entry) => path.join(plan.runtime.releaseRoot, entry.name))
@@ -221,6 +231,26 @@ async function run(executable, args, cwd) {
   const { stdout, stderr } = await execFileAsync(executable, args, { cwd, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
   if (stdout) process.stdout.write(stdout);
   if (stderr) process.stderr.write(stderr);
+}
+
+async function runPackagedRendererSmoke(plan) {
+  const executable = packagedRendererSmokeExecutable(plan.runtime.releaseRoot, plan.host.platform);
+  await access(executable);
+  const userData = await mkdtemp(path.join(os.tmpdir(), "arcorbit-packaged-renderer-smoke-"));
+  try {
+    process.stdout.write(`[local-build] packaged Renderer smoke: ${executable}\n`);
+    const { stdout, stderr } = await execFileAsync(executable, ["--renderer-load-smoke"], {
+      cwd: runtimeRoot,
+      encoding: "utf8",
+      env: { ...process.env, ARCORBIT_RENDERER_SMOKE_USER_DATA: userData },
+      maxBuffer: 1024 * 1024,
+      timeout: 20_000
+    });
+    if (stdout) process.stdout.write(stdout);
+    if (stderr) process.stderr.write(stderr);
+  } finally {
+    await rm(userData, { recursive: true, force: true });
+  }
 }
 
 function assertProviderOutput(plan, manifest, actualSha256) {

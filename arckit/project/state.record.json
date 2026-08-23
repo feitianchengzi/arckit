@@ -5,12 +5,14 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-23T09:53:11.805Z",
-    "revision": 184
+    "updated_at": "2026-08-23T15:08:41.685Z",
+    "revision": 188
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
-    "active_case_refs": [],
+    "active_case_refs": [
+      "arckit/cases/active/CASE-20260823-003-work.md"
+    ],
     "project_gaps": [
       {
         "id": "GAP-agent-scenario-evaluation",
@@ -110,7 +112,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "定位 ArcOrbit 自动化页面阻塞恢复中心在输入期间自动失焦并清空内容的真实执行路径，以证据约束必要修复。",
+      "current_focus": "让 Work 待办详情中的评论图片默认加载，并通过独立窗口提供常用图片浏览操作。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,16 +149,19 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保留 Setup Readiness、受监督的一待办一 thread Automation、trusted ledger transition、介入/恢复、验收反馈、Workshop 平台组合、Work 日常管理与产品反馈能力。Personal / Chat 升级为绑定本地 Product Workspace 的真实 Codex 自由对话，支持持久会话、固定 thread、流式消息、工具与审批状态、停止、失败/重启恢复、重命名和安全删除；Chat 不创建或转换 Idea、Work、Task、Case、ledger 或 Automation Run。Idea、Release、Operations 和 Engineering 继续作为 planning-only 工作空间。既有 Workshop realtime、Work、Feedback、Organization、Domain Profile、Automation human Gate 和分发边界保持不变。",
-          "reason": "用户明确要求真实 Codex Chat，并要求优先保证成熟会话体验、架构完整性以及不转换其他对象的范围边界。",
+          "statement": "ArcOrbit 保留 Setup Readiness、受监督的一待办一 thread Automation、trusted ledger transition、介入/恢复、验收反馈、Workshop 平台组合、Work 日常管理与产品反馈能力。Personal / Chat 升级为绑定本地 Product Workspace 的真实 Codex 自由对话，支持持久会话、固定 thread、流式消息、工具与审批状态、停止、失败/重启恢复、重命名和安全删除；Chat 不创建或转换 Idea、Work、Task、Case、ledger 或 Automation Run。Idea、Release、Operations 和 Engineering 继续作为 planning-only 工作空间。既有 Workshop realtime、Work、Feedback、Organization、Domain Profile、Automation human Gate 和分发边界保持不变。 Work 使用弹出式多维筛选与单行无按钮列表，完整动作归于 Inspector。Feedback 使用单行列表，并默认逐项目探测 Workshop 双向会话能力，真实不可用时回退 V1。",
+          "reason": "Current operator correction and both Feedback web clients establish the missing daily capability.",
           "evidence": [
             "Current operator input, 2026-08-23",
             "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
-            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md"
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+            "arckit/spec/agentic-software-development/arcorbit-work-management.md",
+            "/Users/Glare/Library/Developer/ModularProgram/hoewo/Workshop-Feedbacks/webapps/feedback-sdk-web/src/components/sdk/FeedbackConversationPanel.tsx",
+            "/Users/Glare/Library/Developer/ModularProgram/hoewo/Workshop-Feedbacks/webapps/feedback-console-web/src/components/features/FeedbackConversationPanel.tsx"
           ],
           "confidence": "high",
-          "resume_condition": "当 Chat 支持附件、语音、共享、跨设备同步、分支、模型管理或向其他产品对象转换时重审。",
-          "revision": 19
+          "resume_condition": "Revisit when Work action ownership or Workshop Feedback conversation capabilities materially change.",
+          "revision": 20
         },
         "gap_refs": []
       },
@@ -186,18 +191,21 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保持 Personal、Product Lifecycle、Organization 三组导航和既有 Work、Automation、Feedback、Organization、Setup、账户及产品反馈语义。Personal / Chat 使用会话列表、独立 transcript 和 Composer：首条非空消息才创建会话；会话固定绑定一个本地 Product Workspace 和 Codex thread；支持选择、重命名、删除、跨页面后台运行和重启恢复。消息以稳定 item 流式更新，支持 Markdown、代码复制、折叠非空 reasoning、单行工具状态、用户审批和智能自动滚动。starting、running、waiting approval 状态均可停止；interrupt 保留部分回答，继续操作会在同一 thread 启动新 turn。删除活动会话先等待 interrupt 终态，失败时不部分删除。没有可用本地工作区时允许保留草稿但禁止发送，并提供配置恢复入口。Chat 不调用 state-driven Runtime，不转换其他对象；Automation task thread、human Gate 和介入工作台保持独立。Idea、Release、Operations 和 Engineering 继续呈现计划交互。",
-          "reason": "真实 Agent 对话需要可恢复的完整会话和运行状态，而不是启用现有静态 Composer。",
+          "statement": "ArcOrbit 保持 Personal、Product Lifecycle、Organization 三组导航和既有 Work、Automation、Feedback、Organization、Setup、账户及产品反馈语义。Personal / Chat 使用会话列表、独立 transcript 和 Composer：首条非空消息才创建会话；会话固定绑定一个本地 Product Workspace 和 Codex thread；支持选择、重命名、删除、跨页面后台运行和重启恢复。消息以稳定 item 流式更新，支持 Markdown、代码复制、折叠非空 reasoning、单行工具状态、用户审批和智能自动滚动。starting、running、waiting approval 状态均可停止；interrupt 保留部分回答，继续操作会在同一 thread 启动新 turn。删除活动会话先等待 interrupt 终态，失败时不部分删除。没有可用本地工作区时允许保留草稿但禁止发送，并提供配置恢复入口。Chat 不调用 state-driven Runtime，不转换其他对象；Automation task thread、human Gate 和介入工作台保持独立。Idea、Release、Operations 和 Engineering 继续呈现计划交互。 Chat 返回页面时先用缓存会话和 transcript 立即切换，再后台刷新并显示同步或失败状态；Work 横排筛选使用弹出菜单且列表单行无按钮；Feedback 列表单行，详情承载完整会话和动作。",
+          "reason": "The explicit operator journey is now captured in synchronized interaction artifacts.",
           "evidence": [
             "Current operator input, 2026-08-23",
             "arckit/interaction/chat-workspace/interaction.md",
             "arckit/interaction/chat-workspace/default.html",
             "arckit/interaction/platform-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/interaction.md"
+            "arckit/interaction/automation-workspace/interaction.md",
+            "arckit/interaction/task-browser/interaction.md",
+            "arckit/interaction/task-browser/daily-work.html",
+            "arckit/interaction/platform-workspace/default.html"
           ],
           "confidence": "high",
-          "resume_condition": "当 Chat 引入新的输入媒介、协作共享、会话分支、跨设备状态或对象转换时重审。",
-          "revision": 31
+          "resume_condition": "Revisit when Chat navigation caching, Work Inspector ownership, or Feedback conversation interaction changes.",
+          "revision": 32
         },
         "gap_refs": []
       },
@@ -268,16 +276,21 @@
         "evidence_expectation": "Durable contract evidence sufficient to recover material integration boundaries.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 继续通过显式 main-process adapters 集成 Codex app-server/CLI、Workshop 和 Feedback，并保持 Renderer 无凭据、无通用请求能力。真实 Chat 使用可复用的 Codex Conversation 基础层处理 app-server initialize、persistent thread start/resume、turn start/interrupt、streamed items、token usage 和 approval request；ChatCoordinator 直接提交用户文本，不设置 Agent Loop output schema，也不调用 state-driven Runtime、trusted ledger 或 Automation Coordinator。Workshop realtime、Platform Adapter、Automation adapter、Feedback V2 和产品反馈 SDK 的既有契约与恢复行为保持不变。",
-          "reason": "Chat 需要复用 Codex 协议原语，但必须在 main process 中与 Automation 的语义 orchestration 和 thread ownership 隔离。",
+          "statement": "ArcOrbit 继续通过显式 main-process adapters 集成 Codex app-server/CLI、Workshop 和 Feedback，并保持 Renderer 无凭据、无通用请求能力。真实 Chat 使用可复用的 Codex Conversation 基础层处理 app-server initialize、persistent thread start/resume、turn start/interrupt、streamed items、token usage 和 approval request；ChatCoordinator 直接提交用户文本，不设置 Agent Loop output schema，也不调用 state-driven Runtime、trusted ledger 或 Automation Coordinator。Workshop realtime、Platform Adapter、Automation adapter、Feedback V2 和产品反馈 SDK 的既有契约与恢复行为保持不变。 Workshop Feedback SDK 用户端和 Console 开发者端共同定义双向 V2 消息域；ArcOrbit 对 Workset 项目默认探测开发者能力，列表失败回退 V1，单项失败仅降级对应动作，不用安装包 allowlist 隐藏能力。",
+          "reason": "Direct web and ArcOrbit source show that capability gating, not absence of service capability, is the issue.",
           "evidence": [
             "arckit/tech/arcorbit/desktop-execution-solution.md",
             "runtime/arcorbit/src/codex-app-server-adapter.mjs",
-            "[Official Codex app-server integration documentation](https://developers.openai.com/codex/app-server)"
+            "[Official Codex app-server integration documentation](https://developers.openai.com/codex/app-server)",
+            "arckit/tech/arcorbit/platform-composition-solution.md",
+            "/Users/Glare/Library/Developer/ModularProgram/hoewo/Workshop-Feedbacks/webapps/feedback-sdk-web/src/components/sdk/FeedbackConversationPanel.tsx",
+            "/Users/Glare/Library/Developer/ModularProgram/hoewo/Workshop-Feedbacks/webapps/feedback-console-web/src/components/features/FeedbackConversationPanel.tsx",
+            "/Users/Glare/Library/Developer/ModularProgram/hoewo/Workshop-Feedbacks/webapps/feedback-console-web/src/lib/api/feedbackV2Client.ts",
+            "runtime/arcorbit/src/task-source-adapter.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "当 Codex app-server thread、turn、approval 或 transport 契约变化，或 Chat 引入其他模型服务时重审。",
-          "revision": 9
+          "resume_condition": "Revisit when Workshop Feedback identity, routes, messages, attachments, notifications, or fallback contracts change.",
+          "revision": 10
         },
         "gap_refs": []
       },

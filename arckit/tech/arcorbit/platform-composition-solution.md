@@ -47,7 +47,7 @@ Renderer platform shell
 Workshop Platform Adapter
   -> Workshop Authenticated Service request boundary
   -> paginated organizations / organization projects / participating projects / members / tasks / feedback V1
-  -> optional Feedback V2 external capability
+  -> capability-probed Feedback V2 developer workflow with per-project V1 fallback
 ```
 
 ### Workshop Authenticated Service
@@ -140,7 +140,7 @@ WorkspacePreference 以远端 Project id 为键，字段为：
 
 ### FeedbackV2Configuration
 
-Feedback V2 默认状态是 `unavailable`。安装包或受信设置显式提供开发者管理 V2 adapter 配置后，状态可以进入 `available`；Workshop Feedback 控制台的 `feedbackV2Client`、项目开关和开发者会话组件是该 adapter 的采用契约，不要求在实现或启用前另行完成真实环境 API 验证。首次实际请求的路由、认证、权限或响应错误使对应能力进入 `degraded`，不会被包装为成功。
+Feedback V2 在每个当前 Workset Project 上通过 Workshop 登录身份和固定 V2 user feedback 领域请求探测。Workshop Feedback SDK 的用户会话组件与 Console 的开发者会话组件共同证明消息、附件和通知是同一双向沟通域；ArcOrbit 承担开发者侧，不交换 SDK 用户 session，也不持有用户侧 API Key。V2 列表读取成功使项目进入 `available`；真实路由、认证、权限或响应错误使该项目进入 `degraded` 并回退 V1 列表，不使用安装包环境 project allowlist 决定产品能力是否出现。
 
 字段为：
 
@@ -205,7 +205,9 @@ Preload 新增以下产品动作：
 - `setWorkspacePreference(projectId, input)`
 - `executePlatformAction(command, input)`：只接受 Coordinator 内的固定业务命令 allowlist。
 - `pickWorkTaskAttachment(input)`：只允许主窗口通过系统文件选择器选择单个图片或文件，并在 main 进程完成大小、类型、任务可见性与受限 OSS 上传。
-- `previewWorkTaskAttachment(input)` / `openWorkTaskAttachment(input)`：以 task id、attachment id 和 object key 共同定位已持久化资源；前者返回受限图片 data URL，后者由 main 进程打开短期下载 URL。
+- `previewWorkTaskAttachment(input)` / `openWorkTaskAttachment(input)`：以 task id、attachment id 和 object key 共同定位已持久化资源；前者为评论时间线的自动图片加载返回受限 data URL，后者由 main 进程打开非图片文件的短期下载 URL。
+- `openWorkTaskImageViewer(input)`：只接受同一资源三元组。main 进程重新验证记录归属、受信 URL、响应类型和大小后创建或聚焦独立图片窗口；Renderer 不能提交 data URL、任意 URL 或本地路径作为图片来源。
+- 图片窗口使用独立静态 Renderer 和最小 preload，启用 context isolation、sandbox、禁用 Node integration 与任意导航。缩放、适合窗口、实际大小、旋转、平移和重置只改变窗口内视图状态；另存为通过仅对受管图片窗口开放的 main-process 保存动作写入用户明确选择的位置。
 
 当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、专用忽略和原子转待办。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
 
@@ -247,7 +249,7 @@ V1 convert-to-task 是可恢复但非原子的客户端编排：
 3. 第二步失败时返回 `task_created_feedback_link_failed`，包含新 Task id，并提供“重试关联”动作。
 4. 重试只更新 Feedback，不重复创建 Task。
 
-V2 客户端契约的 triage status、customer status、消息、回复附件、通知/已读、专用忽略和原子 convert-to-task 只有项目开关启用且 capability 为 `available` 时进入 Renderer。该契约直接来自 Workshop Feedback 控制台前端，不以真实环境预验证作为实现门禁。请求失败时对应 capability 进入 `degraded`；已取得的 V1 或 V2 列表、详情和消息保持可见，不生成兼容性假数据。
+V2 客户端契约的 triage status、customer status、消息、回复附件、通知/已读、专用忽略和原子 convert-to-task 在项目 capability 探测为 `available` 时进入 Renderer。该契约直接来自 Workshop Feedback SDK 用户端与 Console 开发者端，不以真实环境预验证或安装包环境开关作为实现门禁。请求失败时对应 capability 进入 `degraded`；已取得的 V1 或 V2 列表、详情和消息保持可见，不生成兼容性假数据。
 
 开发者管理 V2 复用 Workshop 登录身份和 main 进程认证边界，不调用 ArcOrbit 产品反馈中心的 SDK WebView、Project 107 或 bundled API Key。两条集成不共享窗口、凭据、未读状态或命令入口。
 
@@ -311,14 +313,15 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - `organization_projects_failed`：owner/admin 全量查询失败时标记对应组织降级，不回退后伪装成全量。
 - `task_conflict`：刷新 Task，保留用户未提交编辑草稿，由用户重新确认。
 - `feedback_link_failed`：保留已创建 Task id，只重试 V1 Feedback 关联。
-- `feedback_v2_unavailable`：项目未启用或 adapter 未配置时继续使用 V1 能力，不改变 V1 数据。
-- `feedback_v2_degraded`：消息、附件、通知、忽略或原子转待办请求失败时只降级对应动作，保留已取得事实并返回脱敏错误。
+- `feedback_v2_unavailable`：受限 V2 adapter 本身不可构造时继续使用 V1 能力，不改变 V1 数据。
+- `feedback_v2_degraded`：某项目 V2 列表真实失败时回退该项目 V1；消息、附件、通知、忽略或原子转待办请求失败时只降级对应动作，保留已取得事实并返回脱敏错误。通知失败不关闭消息读取和回复。
 - `automation_recovery`：继续由既有 Coordinator actions 处理，Platform Coordinator 不复制恢复动作。
 
 ## 安全
 
 - Renderer 不能访问 Workshop token、V2 session token、API key、任意 URL fetch 或文件系统通用写接口。
 - Renderer 不接收 TaskAttachment STS 凭据或签名下载 URL；它只能通过主窗口绑定的图片预览、文件打开和显式文件选择能力操作已经验证的任务资源。
+- 评论图片自动加载使用有上限的并发队列并绑定任务、附件缓存代际与登录身份；任务或身份变化后返回的旧响应不能写入当前 Inspector。独立图片窗口只接收 main 进程已经验证且受大小限制的图片字节和安全文件名，不能导航外部页面或获得通用文件写权限。
 - 本地 repository path 只来自既有目录选择和 Run Manager 项目记录。
 - Project id、Task id、Feedback id 和 member id 在 main 进程归一化并限制为标量字符串。
 - 普通反馈正文、附件名和 Task content 作为不可信文本渲染，不进入 `innerHTML`。
@@ -335,7 +338,7 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - Platform Adapter 的组织、项目、成员、完整待办和 V1 feedback 归一化。
 - Work Task 查询的多值筛选序列化、100 天日期边界、树结果父链/子树补全和命中总数区分。
 - Task 创建、子任务创建、父任务调整/清空、循环拒绝、级联删除确认和跨产品候选隔离。
-- TaskAttachment 评论/附件的 JSON/标记双格式解析、URL 类型显式打开、图片预览、文件下载、评论资源上传、object key 归属校验、STS 根目录限制、创建者更新权限、任务创建者或管理角色删除权限和历史纯文本兼容。
+- TaskAttachment 评论/附件的 JSON/标记双格式解析、URL 类型显式打开、图片默认并发加载、逐图失败重试、独立窗口打开、缩放/适配/实际大小/旋转/平移/重置、另存为取消与失败、文件下载、评论资源上传、object key 归属校验、STS 根目录限制、创建者更新权限、任务创建者或管理角色删除权限和历史纯文本兼容。
 - 所有分页列表超过 200 条时继续翻页，且不会重复记录。
 - owner/admin 与 member 的组织项目查询路由、可见性和失败关闭。
 - 成员页不存在项目邀请，项目页邀请带明确项目和一次性生命周期提示。
@@ -343,7 +346,7 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - Automation Task Source Adapter 仍只返回当前 executor 待办。
 - main IPC 参数拒绝、未认证、权限保守 gate 和错误投影。
 - V1 convert-to-task 成功、创建失败、关联失败和只重试关联。
-- V2 项目开关与 capability 门禁；未启用时不渲染 V2-only 动作。
+- V2 每项目探测、成功采用与 V1 fallback；列表失败时不渲染 V2-only 动作，通知失败时仍保留消息和回复。
 - V2 消息读取与回复、附件上传策略与受限读取、通知已读、专用忽略和原子转待办的成功、权限拒绝、对象不存在及网络失败。
 - V2 某一动作失败时保留已加载列表、详情、消息与回复草稿，且 Renderer 无法传入 URL、header、token 或 API key。
 - 平台 partial sync 不阻断健康项目和既有 Automation。
@@ -358,8 +361,8 @@ Web 仓库 build 只有在依赖安装后才构成源码验证。Workshop Todo �
 - Workshop 项目查询响应不包含 `organization_id`；平台从组织范围请求上下文补全归属，并从项目成员的 `is_external` 标记识别外部参与，不修改服务端响应契约。
 - Workshop 项目邀请缺少列表和撤销接口，ArcOrbit 只显示创建响应的一次性结果。
 - Task history 缺少服务端实现，ArcOrbit 不展示伪历史。
-- Feedback V2 服务端不在已提供仓库中；Workshop Feedback 控制台前端请求形状是 ArcOrbit 采用的开发者管理契约，真实环境预验证不是实现门禁，运行时错误由 capability 降级和失败关闭表达。
+- Feedback V2 服务端实现仓库不在当前本地源码集合中；Workshop Feedback SDK 用户会话、Console 开发者会话和两端 V2 client 共同构成 ArcOrbit 采用的双向沟通契约，具体项目是否可用由受限运行时探测、capability 降级和失败关闭表达。
 - V1 convert-to-task 非原子，需要显式恢复状态。
 - Web 前端验证环境缺少已安装 TypeScript 工具链，不能把未运行 build 视为通过。
 
-这些缺口不改变 ArcOrbit Runtime Kernel。它们由 Platform Adapter capability、错误投影和受限动作隔离；开发者管理 V2 的实现依据已采用的前端客户端契约，服务错误不扩宽 Renderer 或凭据边界。
+这些缺口不改变 ArcOrbit Runtime Kernel。它们由 Platform Adapter capability、每项目 V2 探测、错误投影和受限动作隔离；开发者管理 V2 的实现依据已采用的双端客户端契约，服务错误不扩宽 Renderer 或凭据边界。

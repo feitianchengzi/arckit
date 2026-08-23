@@ -6,6 +6,7 @@
 
 | ID | Status | Title | Selected Gap | Updated |
 | --- | --- | --- | --- | --- |
+| [CASE-20260823-003](active/CASE-20260823-003-work.md) | active | 完善 Work 评论图片加载与独立浏览 | none | 2026-08-23T15:08:41.681Z |
 
 ## Closed Cases
 
@@ -115,3 +116,4 @@
 | [CASE-20260822-006](closed/CASE-20260822-006-arcorbit-work.md) | closed | 补齐 ArcOrbit Work 待办平台核心功能 | 2026-08-22T23:23:27.164Z |
 | [CASE-20260822-007](closed/CASE-20260822-007-arcorbit-codex-chat.md) | closed | ArcOrbit 真实 Codex Chat | 2026-08-23T09:24:54.182Z |
 | [CASE-20260823-001](closed/CASE-20260823-001-development-case.md) | closed | 诊断并修复恢复中心输入框焦点与草稿丢失 | 2026-08-23T09:53:11.805Z |
+| [CASE-20260823-002](closed/CASE-20260823-002-arcorbit-chat-work-feedback.md) | closed | 优化 ArcOrbit Chat、Work 与 Feedback 日常交互 | 2026-08-23T15:04:50.960Z |

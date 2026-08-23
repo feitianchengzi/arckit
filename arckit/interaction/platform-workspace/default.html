@@ -63,20 +63,20 @@
                             <div class="page-header"><div><div class="eyebrow">USER FEEDBACK</div><h2>处理用户反馈</h2><p>查看用户提交，判断优先级并流转到研发待办。</p></div></div>
                             <section class="surface"><div class="surface-body"><div class="page-actions"><input aria-label="搜索反馈" placeholder="搜索正文、编号或用户"><select aria-label="处理状态"><option>全部状态</option><option>待处理</option><option>已流转</option><option>已忽略</option></select><select aria-label="排序"><option>最新</option><option>最早</option><option>优先级</option></select></div></div></section>
                             <div class="split-h">
-                                <section class="surface split-v"><div class="surface-header"><strong>反馈列表</strong><span>18 条</span></div><div class="surface-body"><div class="activity-row"><span class="run-orb">F</span><div><strong>离线恢复后播放顺序错误</strong><small>ArcOrbit · P1 · 待处理</small></div></div><div class="activity-row"><span class="run-orb">F</span><div><strong>希望支持批量导出</strong><small>Workshop Todo · P2 · 已流转</small></div></div><div class="activity-row"><span class="run-orb">F</span><div><strong>登录状态偶尔失效</strong><small>Feedback Portal · P2 · 已忽略</small></div></div></div></section>
+                                <section class="surface split-v"><div class="surface-header"><strong>反馈列表</strong><span>18 条</span></div><div class="surface-body"><div class="activity-row"><span>●</span><strong>离线恢复后播放顺序错误 · ArcOrbit · P1 · 待处理 · 10:24</strong></div><div class="activity-row"><span>F</span><strong>希望支持批量导出 · Workshop Todo · P2 · 已流转 · 昨天</strong></div><div class="activity-row"><span>F</span><strong>登录状态偶尔失效 · Feedback Portal · P2 · 已忽略 · 周一</strong></div></div></section>
                                 <aside class="surface split-v"><div class="surface-header"><strong>#FB11 · 离线恢复后播放顺序错误</strong><span>2026-08-20 10:24</span></div><div class="surface-body"><div class="page-actions"><select aria-label="反馈优先级"><option>P1 · 高</option><option>P2 · 中</option><option>P3 · 低</option></select><button class="compact-action">忽略</button><button class="compact-action primary">转待办</button><button class="compact-action">删除</button></div><p><strong>用户</strong> user-1042 · user@example.com</p><p>离线恢复播放列表时，最近三首歌曲的顺序与退出前不一致，并且重复出现第一首。</p><div class="card"><div class="card-title">附件</div><p>recovery-order.png</p></div></div></aside>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="component-list"><h3>组件清单</h3><ul><li>正文、编号与用户搜索</li><li>处理状态筛选和时间/优先级排序</li><li>左侧反馈列表与稳定选择态</li><li>右侧完整详情、附件和开发者处理动作</li><li>不包含创建反馈、编辑反馈和协议版本信息</li></ul></div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>正文、编号与用户搜索</li><li>处理状态筛选和时间/优先级排序</li><li>单行反馈列表与稳定选择态</li><li>右侧完整详情、附件和开发者处理动作</li><li>不包含创建反馈、编辑反馈和协议版本信息</li></ul></div>
                 <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>选择列表项</code> → 只更新右侧详情，不离开页面</div><div class="interaction-item"><code>搜索 / 筛选 / 排序</code> → 保留仍有效的选择，否则选中首条</div><div class="interaction-item"><code>已关联反馈</code> → 展示待办 ID，移除重复转待办入口</div><div class="interaction-item"><code>删除</code> → 仅有权限时可用，并要求明确确认</div></div>
             </div>
         </details>
         <details>
             <summary>Feedback · 消息、附件与未读处理</summary>
             <div class="state-content">
-                <div class="state-description"><strong>触发条件：</strong>当前项目启用开发者反馈管理能力，开发者选择一条含未读用户更新的反馈。</div>
+                <div class="state-description"><strong>触发条件：</strong>当前项目的受限 V2 开发者能力探测成功，开发者选择一条含未读用户更新的反馈。</div>
                 <div class="wireframe-canvas">
                     <div class="device-frame desktop">
                         <div class="desktop-titlebar"><strong>ArcOrbit · Feedback</strong><span>未读 3</span></div>

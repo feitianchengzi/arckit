@@ -36,8 +36,8 @@ export function createWorkshopTaskSource({
   saveSettings,
   fetchImpl = globalThis.fetch,
   now = () => Date.now(),
-  feedbackV2ProjectIds = process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS || "",
-  feedbackV2NotificationProjectIds = process.env.ARCORBIT_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS || ""
+  feedbackV2ProjectIds = process.env.ARCORBIT_FEEDBACK_V2_PROJECT_IDS || "*",
+  feedbackV2NotificationProjectIds = process.env.ARCORBIT_FEEDBACK_V2_NOTIFICATION_PROJECT_IDS || "*"
 }) {
   let config = normalizeTaskSourceSettings(settings);
   let refreshPromise = null;

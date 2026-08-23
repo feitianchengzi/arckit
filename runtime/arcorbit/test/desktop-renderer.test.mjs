@@ -419,6 +419,43 @@ test("Chat retry identity is owned by the current failed-session transition", as
   assert.equal(payloads[0].client_request_id, "REQUEST-RETRY");
 });
 
+test("Chat refresh exposes progress immediately and only the latest refresh may project", async () => {
+  const releases = [];
+  const coordinator = createCoordinator(chatApi({
+    chatSnapshot: () => new Promise((resolveRefresh) => releases.push(resolveRefresh))
+  }));
+  await coordinator.initialize(chatSnapshot({
+    selected: "CHAT-A",
+    sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }],
+    messages: [{ id: "CACHED" }]
+  }));
+
+  const oldRefresh = coordinator.refresh();
+  assert.equal(coordinator.getState().refreshing, true);
+  assert.deepEqual(coordinator.getState().snapshot.messages.map((message) => message.id), ["CACHED"]);
+  const latestRefresh = coordinator.refresh();
+  releases[1](chatSnapshot({ selected: "CHAT-A", sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }], messages: [{ id: "LATEST" }] }));
+  await latestRefresh;
+  assert.equal(coordinator.getState().refreshing, false);
+  releases[0](chatSnapshot({ selected: "CHAT-A", sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }], messages: [{ id: "STALE" }] }));
+  await oldRefresh;
+
+  assert.deepEqual(coordinator.getState().snapshot.messages.map((message) => message.id), ["LATEST"]);
+  assert.equal(coordinator.getState().refreshing, false);
+});
+
+test("Chat navigation renders the cached page before starting its background refresh", async () => {
+  const source = await readFile(rendererPath, "utf8");
+  const start = source.indexOf("function showPage(page)");
+  const end = source.indexOf("\nasync function openSettings", start);
+  const chatBranch = source.slice(start, end);
+
+  assert.ok(chatBranch.indexOf("renderPageVisibility();") < chatBranch.indexOf("refreshChat()"));
+  assert.ok(chatBranch.indexOf("renderChat();") < chatBranch.indexOf("refreshChat()"));
+  assert.match(source, /chat\.refreshing \? " · 正在同步"/);
+  assert.match(source, /setAttribute\("aria-busy", String\(chat\.refreshing\)\)/);
+});
+
 test("Chat Renderer delegates all owner, epoch, projection, retry, send and persistence transitions", async () => {
   const source = await readFile(rendererPath, "utf8");
 
@@ -716,6 +753,24 @@ test("Feedback V2 typed IPC preserves status and Renderer executes 401 and 404 r
   assert.deepEqual(calls, { auth: 1, gate: 1, refresh: 1 });
 });
 
+test("Feedback list keeps every feedback on one compact visual row", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererStylesPath, "utf8")
+  ]);
+  const renderStart = source.indexOf("function renderPlatformFeedback()");
+  const renderEnd = source.indexOf("\nfunction renderFeedbackInspector", renderStart);
+  const listSource = source.slice(renderStart, renderEnd);
+
+  assert.match(listSource, /feedback-list-copy/);
+  assert.match(listSource, /feedback-list-meta/);
+  assert.match(styles, /\.feedback-list-item \{[^}]*align-items: center;[^}]*min-height: 40px;/);
+  assert.match(styles, /\.feedback-list-copy \{[^}]*display: flex;[^}]*white-space: nowrap;/);
+  assert.match(styles, /\.feedback-list-meta \{[^}]*display: flex;[^}]*white-space: nowrap;/);
+  assert.doesNotMatch(styles, /\.feedback-list-copy \{[^}]*display: grid/);
+  assert.doesNotMatch(styles, /\.feedback-list-meta \{[^}]*display: grid/);
+});
+
 test("Feedback V2 read state respects notification capability and refreshes visible unread projection", async () => {
   const source = await readFile(rendererPath, "utf8");
   const listStart = source.indexOf("function renderPlatformFeedback");
@@ -866,6 +921,8 @@ test("Work exposes server filters, task hierarchy, complete detail, subtasks and
   for (const id of ["workCreatorFilter", "workExecutorFilter", "workTagFilter", "workPriorityFilter", "workStartDateFilter", "workEndDateFilter", "openTaskReferenceButton", "resetWorkFiltersButton"]) {
     assert.match(workView, new RegExp(`id="${id}"`));
   }
+  assert.match(workView, /data-work-filter-menu/);
+  assert.doesNotMatch(workView, /<select id="work(?:Creator|Executor|Tag|Priority)Filter" multiple/);
   assert.match(source, /task_filters: state\.page === "work" \? platformTaskFilters\(\) : \{\}/);
   assert.match(source, /tree: true/);
   assert.match(source, /states: \[state\.selectedState\]/);
@@ -886,6 +943,11 @@ test("Work exposes server filters, task hierarchy, complete detail, subtasks and
   assert.match(source, /api\.openWorkExternalLink\(button\.dataset\.taskMarkdownExternalLink\)/);
   for (const field of ["创建人", "执行人", "父待办", "优先级", "标签", "创建时间", "更新时间", "完成时间"]) assert.match(source, new RegExp(`\\["${field}"`));
   assert.match(source, /data-work-inspector-copy-reference/);
+  for (const action of ["edit", "subtask", "reparent", "attachment", "delete"]) assert.match(source, new RegExp(`data-work-inspector-${action}`));
+  const workListSource = source.slice(source.indexOf("function renderPlatformWork()"), source.indexOf("\nfunction renderWorkFilterControls"));
+  assert.doesNotMatch(workListSource, /data-platform-task-(?:edit|attachment|delete)/);
+  assert.doesNotMatch(workListSource, /<th>管理<\/th>/);
+  assert.doesNotMatch(workListSource, /parent-task-ref|task-tags/);
   assert.match(source, /import \{ renderRestrictedMarkdown, resolveWorkTaskReference, workTaskReference, workTaskReferenceSelection \} from "\.\/restricted-markdown\.mjs"/);
   assert.match(source, /navigator\.clipboard\.writeText\(workTaskReference\(task\)\)/);
   assert.match(source, /resolveWorkTaskReference\(reference, platform\)/);
@@ -893,6 +955,8 @@ test("Work exposes server filters, task hierarchy, complete detail, subtasks and
   assert.match(source, /Object\.assign\(state, workTaskReferenceSelection\(target\)\)/);
   assert.match(source, /Automation 管理中的状态只可通过受控动作变更/);
   assert.match(styles, /\.work-filter-panel/);
+  assert.match(styles, /\.work-filter-popover \{[^}]*position: absolute/);
+  assert.match(styles, /\.platform-work-table td \{[^}]*height: 40px;[^}]*white-space: nowrap/);
   assert.match(styles, /\.task-comment-timeline/);
   assert.match(styles, /\.task-markdown-detail/);
   assert.match(styles, /\.task-markdown-detail blockquote/);
@@ -1231,6 +1295,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.match(preload, /interruptChat: \(input\)/);
   assert.match(preload, /decideChatApproval: \(input\)/);
   assert.match(preload, /onChatEvent: \(listener\)/);
+  assert.doesNotMatch(preload, /require\(["']\.\//, "sandboxed preload must remain self-contained");
   assert.match(preload, /sendAuthVerification: \(input\)/);
   assert.match(preload, /loginWithCode: \(input\)/);
   assert.match(preload, /logoutAuth: \(input\)/);

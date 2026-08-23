@@ -28,10 +28,12 @@ export function createChatStateCoordinator({
     draft: "",
     retry_client_request_id: "",
     sending: false,
+    refreshing: false,
     error: ""
   };
   let ownerEpoch = 0;
   let sendEpoch = 0;
+  let refreshEpoch = 0;
   let draftRevision = 0;
   let pendingDraft = null;
   let draftTimer = null;
@@ -236,18 +238,23 @@ export function createChatStateCoordinator({
   async function refresh({ quiet = false, resetOwner = false } = {}) {
     const epoch = resetOwner ? beginOwnerTransition() : observeOwner();
     const sessionId = resetOwner ? null : value.owner.session_id;
+    const currentRefresh = ++refreshEpoch;
+    value = { ...value, refreshing: true, ...(!quiet ? { error: "" } : {}) };
     try {
       const snapshot = await api.chatSnapshot({ session_id: value.owner.session_id || "" });
-      adoptSnapshot(snapshot, {
-        epoch,
-        strategy: resetOwner ? "authoritative" : "preserve-owner",
-        sessionId
-      });
-      if (!quiet && isCurrent(epoch, sessionId)) value = { ...value, error: "" };
+      if (currentRefresh === refreshEpoch) {
+        adoptSnapshot(snapshot, {
+          epoch,
+          strategy: resetOwner ? "authoritative" : "preserve-owner",
+          sessionId
+        });
+      }
       return snapshot;
     } catch (error) {
-      if (!quiet && isCurrent(epoch, sessionId)) value = { ...value, error: errorMessage(error) };
+      if (!quiet && currentRefresh === refreshEpoch && isCurrent(epoch, sessionId)) value = { ...value, error: errorMessage(error) };
       throw error;
+    } finally {
+      if (currentRefresh === refreshEpoch) value = { ...value, refreshing: false };
     }
   }
 

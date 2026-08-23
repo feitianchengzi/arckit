@@ -395,8 +395,17 @@ function wireEvents() {
   });
   [els.workCreatorFilter, els.workExecutorFilter, els.workTagFilter, els.workPriorityFilter, els.workStartDateFilter, els.workEndDateFilter].forEach((element) => element.addEventListener("change", () => {
     readWorkFiltersFromControls();
+    renderWorkFilterSummaries();
     scheduleWorkFilterRefresh(0);
   }));
+  document.querySelectorAll("[data-work-filter-menu]").forEach((menu) => menu.addEventListener("toggle", () => {
+    if (!menu.open) return;
+    document.querySelectorAll("[data-work-filter-menu]").forEach((other) => { if (other !== menu) other.open = false; });
+  }));
+  document.addEventListener("click", (event) => {
+    if (event.target.closest("[data-work-filter-menu]")) return;
+    document.querySelectorAll("[data-work-filter-menu][open]").forEach((menu) => { menu.open = false; });
+  });
   els.resetWorkFiltersButton.addEventListener("click", () => {
     state.platformWorkFilter = "";
     state.platformWorkFilters = defaultWorkFilters();
@@ -707,7 +716,7 @@ function dateInputValue(value) {
 }
 
 function selectedValues(element) {
-  return [...element.selectedOptions].map((option) => option.value).filter(Boolean);
+  return [...element.querySelectorAll('input[type="checkbox"]:checked')].map((input) => input.value).filter(Boolean);
 }
 
 function readWorkFiltersFromControls() {
@@ -731,12 +740,12 @@ function platformTaskFilters() {
 }
 
 async function refreshChat({ quiet = false, resetOwner = false } = {}) {
+  const request = chatStateCoordinator.refresh({ quiet, resetOwner });
+  renderChat();
   try {
-    await chatStateCoordinator.refresh({ quiet, resetOwner });
+    return await request;
+  } finally {
     renderChat();
-  } catch (error) {
-    if (!quiet) renderChat();
-    throw error;
   }
 }
 
@@ -774,8 +783,10 @@ function renderChat() {
   els.chatWorkspaceLabel.textContent = project?.name ? `LOCAL WORKSPACE · ${project.name}` : "选择本地工作区";
   els.chatTitle.textContent = session?.title || "新对话";
   els.chatStatusText.textContent = session
-    ? `${chatStatusLabel(session.status)}${session.error ? ` · ${session.error}` : ""}`
-    : project ? "发送第一条消息后创建持久会话和 Codex thread。" : "先在 Workset 中配置一个本地 Product Workspace。";
+    ? `${chatStatusLabel(session.status)}${chat.refreshing ? " · 正在同步" : ""}${session.error ? ` · ${session.error}` : ""}`
+    : chat.refreshing ? "正在同步最新会话…"
+      : project ? "发送第一条消息后创建持久会话和 Codex thread。" : "先在 Workset 中配置一个本地 Product Workspace。";
+  els.chatTranscript.setAttribute("aria-busy", String(chat.refreshing));
   els.renameChatButton.disabled = !session;
   els.deleteChatButton.disabled = !session;
   els.chatErrorHost.innerHTML = chat.error || session?.error
@@ -1121,15 +1132,11 @@ function renderPlatformWork() {
   const tasks = scopedTasks.some((task) => Number.isInteger(task.tree_depth)) ? scopedTasks : rankTasks(stateTasks);
   if (!tasks.some((task) => String(task.id) === String(state.selectedPlatformTaskId))) state.selectedPlatformTaskId = String(tasks[0]?.id || "");
   const selectedTask = tasks.find((task) => String(task.id) === String(state.selectedPlatformTaskId)) || null;
-  els.platformWorkTable.innerHTML = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"><col style="width:165px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th><th>管理</th></tr></thead><tbody>${tasks.map((task) => { const canManage = canManagePlatformTask(task); const depth = Math.max(0, Number(task.tree_depth || 0)); const lineageOnly = task.state !== state.selectedState || task.tree_matched === false; return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""} ${lineageOnly ? "tree-lineage" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell" style="--task-tree-depth:${depth}"><span class="task-tree-title">${depth ? "↳ " : ""}${escapeHtml(task.title)}</span>${lineageOnly ? `<small class="parent-task-ref">用于补全层级</small>` : ""}${task.tags ? `<small class="task-tags">${escapeHtml(Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags)}</small>` : ""}</td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td><td><span class="row-actions">${canManage ? `<button data-platform-task-edit="${escapeHtml(task.id)}" type="button">编辑</button>` : ""}<button data-platform-task-attachment="${escapeHtml(task.id)}" type="button">评论/附件</button>${canManage ? `<button class="danger-action" data-platform-task-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</span></td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">当前产品集或筛选条件下没有待办。</div>`;
-  els.platformWorkTable.querySelectorAll("[data-platform-task-select]").forEach((row) => row.addEventListener("click", (event) => {
-    if (event.target.closest("button")) return;
+  els.platformWorkTable.innerHTML = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th></tr></thead><tbody>${tasks.map((task) => { const depth = Math.max(0, Number(task.tree_depth || 0)); const lineageOnly = task.state !== state.selectedState || task.tree_matched === false; const rowContext = [lineageOnly ? "用于补全层级" : "", task.tags ? `标签：${Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags}` : ""].filter(Boolean).join(" · "); return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""} ${lineageOnly ? "tree-lineage" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell" style="--task-tree-depth:${depth}" title="${escapeHtml(rowContext)}"><span class="task-tree-title">${depth ? "↳ " : ""}${escapeHtml(task.title)}</span></td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">当前产品集或筛选条件下没有待办。</div>`;
+  els.platformWorkTable.querySelectorAll("[data-platform-task-select]").forEach((row) => row.addEventListener("click", () => {
     state.selectedPlatformTaskId = row.dataset.platformTaskSelect;
     renderPlatformWork();
   }));
-  els.platformWorkTable.querySelectorAll("[data-platform-task-edit]").forEach((button) => button.addEventListener("click", () => runAction(() => editTask(button.dataset.platformTaskEdit))));
-  els.platformWorkTable.querySelectorAll("[data-platform-task-attachment]").forEach((button) => button.addEventListener("click", () => runAction(() => manageTaskAttachments(button.dataset.platformTaskAttachment))));
-  els.platformWorkTable.querySelectorAll("[data-platform-task-delete]").forEach((button) => button.addEventListener("click", () => runAction(() => deleteTask(button.dataset.platformTaskDelete))));
   renderPlatformWorkInspector(selectedTask);
 }
 
@@ -1147,11 +1154,26 @@ function renderWorkFilterControls() {
   ], state.platformWorkFilters.priorities);
   els.workStartDateFilter.value = state.platformWorkFilters.start_time;
   els.workEndDateFilter.value = state.platformWorkFilters.end_time;
+  renderWorkFilterSummaries();
 }
 
 function setMultiSelectOptions(element, options, selectedValues) {
   const selected = new Set((selectedValues || []).map(String));
-  element.innerHTML = options.map((option) => `<option value="${escapeHtml(option.value)}" ${selected.has(String(option.value)) ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
+  element.innerHTML = options.length
+    ? options.map((option) => `<label class="work-filter-option"><input type="checkbox" value="${escapeHtml(option.value)}" ${selected.has(String(option.value)) ? "checked" : ""}><span>${escapeHtml(option.label)}</span></label>`).join("")
+    : `<span class="work-filter-empty">当前范围没有可选项</span>`;
+}
+
+function renderWorkFilterSummaries() {
+  [els.workCreatorFilter, els.workExecutorFilter, els.workTagFilter, els.workPriorityFilter].forEach((element) => {
+    const selected = [...element.querySelectorAll('input[type="checkbox"]:checked')];
+    const summary = element.closest("[data-work-filter-menu]")?.querySelector("[data-work-filter-summary]");
+    if (summary) summary.textContent = selected.length === 0 ? "全部" : selected.length === 1 ? selected[0].nextElementSibling?.textContent || "1 项" : `${selected.length} 项`;
+  });
+  const dateSummary = els.workStartDateFilter.closest("[data-work-filter-menu]")?.querySelector("[data-work-date-summary]");
+  if (dateSummary) dateSummary.textContent = els.workStartDateFilter.value || els.workEndDateFilter.value
+    ? `${els.workStartDateFilter.value || "不限"} → ${els.workEndDateFilter.value || "不限"}`
+    : "不限";
 }
 
 function renderPlatformWorkInspector(task) {
@@ -2837,7 +2859,11 @@ function openWorkState(taskState = "pending") {
 function showPage(page) {
   state.page = page;
   if (page === "chat") {
-    refreshChat({ quiet: true }).catch((error) => showToast(error.message));
+    renderPageVisibility();
+    renderNavigation();
+    renderCommandBar();
+    renderChat();
+    refreshChat().catch((error) => showToast(error.message));
     return;
   }
   if (["tasks", "work"].includes(page)) {

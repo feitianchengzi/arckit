@@ -21,7 +21,7 @@
   - interaction.md 平台交互：三组导航、产品范围/治理解耦、组织三级管理与 Feedback 开发者消息、附件、未读和流转。✅ (153行)
 - chat-workspace/ Chat 页面：本地项目自由 Codex 对话、持久会话、流式消息、停止、删除与失败恢复。✅
   - default.html Chat 线框：新对话、生成/停止、权限、中断恢复、删除确认和工作区阻塞。✅ (48行)
-  - interaction.md Chat 交互：session/thread 生命周期、消息体验、Composer、运行状态、删除和 Automation 隔离。✅ (110行)
+  - interaction.md Chat 交互：session/thread 生命周期、返回页面即时回显与后台刷新、Composer、运行状态、删除和 Automation 隔离。✅ (111行)
 - idea-workspace/ Idea 页面：创意探索、团队讨论、证据与风险比较，以及确认后的正式项目转换预览。✅
   - default.html Idea 线框：创意漏斗、详情、团队观点与开始项目动作。✅ (14行)
   - interaction.md Idea 交互：探索/讨论/确认状态、团队观点和项目转换边界。✅ (35行)
@@ -45,6 +45,6 @@
   - interaction.md 自动化指挥中心交互：现代游标恢复、旧服务无 ID 通知、立即同步、全局产品范围、双队列、人工 Gate 与 Runtime/CLI 接力。✅ (399行)
 - task-browser/ Work 同屏任务浏览：创建和编辑产品限定待办，并以七状态列表和右侧 Inspector 执行检查、验收与受控人工处置。✅
   - default.html Work 任务浏览线框：顶部产品范围、面板内七状态、同屏 Inspector、待评审确认、运行/验收、恢复与冲突。✅ (217行)
-  - daily-work.html Work 日常管理子视图：多维服务端筛选、父子任务树、完整详情与评论附件。✅ (45行)
+  - daily-work.html Work 日常管理子视图：弹出菜单筛选、单行父子任务树、评论图片自动加载与独立浏览窗口。✅ (60行)
   - task-form.html 待办表单子视图：产品联动成员/父待办/标签、语义优先级和标签生命周期管理。✅ (45行)
-  - interaction.md 任务浏览交互：多维筛选、任务树、详情评论、产品限定维护、验收问题与受控状态操作。✅ (244行)
+  - interaction.md 任务浏览交互：弹出菜单筛选、单行任务树、评论图片独立浏览、产品限定维护、验收问题与受控状态操作。✅ (260行)

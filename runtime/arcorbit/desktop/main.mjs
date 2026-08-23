@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, powerMonitor, shell, utilityProcess, WebContentsView } from "electron";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
@@ -26,8 +26,15 @@ const { settleFeedbackV2Ipc } = feedbackV2Ipc;
 
 const desktopDir = dirname(fileURLToPath(import.meta.url));
 const runtimeRoot = dirname(desktopDir);
+const rendererLoadSmoke = process.argv.includes("--renderer-load-smoke");
+const rendererSmokeUserData = String(process.env.ARCORBIT_RENDERER_SMOKE_USER_DATA || "").trim();
 
-app.setPath("userData", canonicalArcOrbitUserDataPath(app.getPath("appData")));
+if (rendererLoadSmoke && rendererSmokeUserData) {
+  if (!isAbsolute(rendererSmokeUserData)) throw new Error("ARCORBIT_RENDERER_SMOKE_USER_DATA must be an absolute path.");
+  app.setPath("userData", resolve(rendererSmokeUserData));
+} else {
+  app.setPath("userData", canonicalArcOrbitUserDataPath(app.getPath("appData")));
+}
 
 let mainWindow;
 let runManager;
@@ -142,7 +149,6 @@ app.whenReady().then(async () => {
     }
   });
   registerIpc();
-  const rendererLoadSmoke = process.argv.includes("--renderer-load-smoke");
   await createWindow({ show: !rendererLoadSmoke });
   if (rendererLoadSmoke) {
     await runRendererLoadSmoke();
