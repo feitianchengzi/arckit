@@ -14,7 +14,7 @@
   - runtime-automation-workspace.md Runtime 自动化工作区：定义新旧 Workshop 实时兼容、显式同步、普通待办与验收问题双队列、同待办 thread 续跑、人工 Gate 和执行仲裁。🟡 (303行)
   - arcorbit-platform-capabilities.md ArcOrbit 多产品研发平台：定义全局产品集范围、Work/Automation 筛选、Feedback 开发者消息/附件/未读/流转工作台和独立 ArcOrbit 产品反馈中心。🟡 (490行)
   - arcorbit-work-management.md ArcOrbit Work 待办管理：定义多维筛选、任务树与子任务、完整详情、评论附件和 Automation 安全边界。🟡 (90行)
-  - arcorbit-planned-workspaces.md ArcOrbit 计划工作空间：定义 Chat、Idea、Release、Operations 与可管理 Domain Profile 的职责、生命周期关系和展示边界。⚪ (159行)
+  - arcorbit-planned-workspaces.md ArcOrbit Chat 与计划工作空间：定义真实 Codex Chat 的会话/停止/恢复边界，以及 Idea、Release、Operations 和 Domain Profile 计划职责。🟡 (186行)
   - arcorbit-organization-management.md ArcOrbit 组织治理：定义组织范围、成员关系、项目可见性、邀请加入、分页和推进连接的稳定行为。🟢 (155行)
   - loop-engineering-research.md Loop Engineering 研究输入：保存吴恩达三层 loop、2026 loop 工程架构、Arckit 对应关系和开放问题。⚪ (132行)
 - all-integration-strategy.md all 候选 Skill 整合策略草案：历史迁移记录，保留 all 角色型研发流水线 skill 包的早期拆解和归并思路，不作为当前路由依据。⚪ (902行)

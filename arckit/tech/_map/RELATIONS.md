@@ -8,7 +8,7 @@
 
 `arcorbit/state-condition-ledger-solution.md` 定义安装包中 trusted ledger resources 的语义契约。安装供应链只校验、定位和打包这些资源，不复制其写回逻辑。
 
-`arcorbit/desktop-execution-solution.md` 定义安装完成后的 Desktop session 与执行模型。Setup Readiness 是其前置 gate，不进入 task session、Case Loop 或 execution lease。
+`arcorbit/desktop-execution-solution.md` 定义安装完成后的自由 Chat、Automation Desktop session 与共享 Codex Conversation 层。Setup Readiness 是两类 session 的项目级前置 gate，不进入 Chat transcript、task session、Case Loop 或 execution lease。
 
 `arcorbit/platform-composition-solution.md` 定义 Workshop 组织/项目/成员/待办/普通反馈与 ArcOrbit 本地 Product Workspace、独立 Organization Center、多产品 workset 和既有 Automation execution plane 的组合边界；它只消费 `arcorbit/desktop-execution-solution.md` 的公开投影和命令，不改变 Runtime Kernel。
 
@@ -23,6 +23,8 @@
 `arckit/spec/agentic-software-development/runtime-automation-workspace.md` 对应 `arcorbit/solution.md`、`arcorbit/desktop-execution-solution.md` 与 `arcorbit/realtime-synchronization-solution.md`，定义 task-driven Runtime 工作区、实时任务发现、降级恢复和人工 Gate 行为。
 
 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md` 对应 `arcorbit/platform-composition-solution.md`，定义多产品平台能力、Workshop 事实边界、团队/待办/反馈行为与受保护核心。
+
+`arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md` 中的真实 Chat 对应 `arcorbit/desktop-execution-solution.md` 与 `arckit/interaction/chat-workspace/`，复用 Codex transport 与中性消息投影，但不复用 state-driven Runtime、Automation lease、Case 或 ledger；同一规格中的 Idea、Release、Operations 和 Engineering 保持计划展示。
 
 `arckit/spec/agentic-software-development/arcorbit-work-management.md` 对应 `arcorbit/platform-composition-solution.md` 的 Work Task 查询、任务树、父子关系、评论附件、受限 mutation 和缓存刷新契约，并由 `arckit/interaction/task-browser/` 投影为同屏日常待办页面。
 

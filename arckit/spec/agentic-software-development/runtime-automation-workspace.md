@@ -2,7 +2,7 @@
 
 ## 功能定位
 
-ArcOrbit Desktop 是以项目待办和验收问题为两条独立工作来源的自动化执行工作区。用户在主页面观察当前用户可访问的项目、项目产生的待办、跨项目待办执行队列、验收问题队列、活动 Runtime、人工事项与完成证据；Chat 仅在人工审查执行过程、提出验收问题或 Runtime 明确需要人工输入时按需出现。
+ArcOrbit Desktop 是以项目待办和验收问题为两条独立工作来源的自动化执行工作区。用户在主页面观察当前用户可访问的项目、项目产生的待办、跨项目待办执行队列、验收问题队列、活动 Runtime、人工事项与完成证据；任务对话只在审查执行过程、提出验收问题或 Runtime 明确需要人工输入时通过 Intervention Workbench 按需出现。Personal / Chat 的自由会话不进入本工作区。
 
 该工作区承担任务服务器与本地 ArcOrbit 之间的控制面职责。任务服务器拥有项目、任务归属和任务生命周期事实；Runtime 拥有本地工作区绑定、自动化参与状态、单任务执行状态、Agent turn 生命周期、事件和 ledger 证据。
 
@@ -189,7 +189,7 @@ Git closeout turn 启动或执行失败时，远端任务保持进行中，系�
 
 ## 人工介入
 
-Runtime 只有在缺少授权、稳定事实、产品判断或其他必须由人类提供的输入时创建人工事项。系统在 Command Center、任务列表和桌面通知中提示人工事项，但不自动打开 Chat。
+Runtime 只有在缺少授权、稳定事实、产品判断或其他必须由人类提供的输入时创建人工事项。系统在 Command Center、任务列表和桌面通知中提示人工事项，但不自动打开 Intervention Workbench 或 Personal / Chat。
 
 只有 `next_responsibility=human`、`human_decision_required=true` 或等价的 user-decision handoff 才属于人工事项。Agent 可继续的 handoff、自动续轮失败和服务器/本地状态差异分别属于 Agent continuation 或 Recovery Center，不得仅因需要 Runtime 操作而标记为人工决策。
 
@@ -231,7 +231,7 @@ Command Center 首屏回答当前项目范围、系统是否健康、正在执�
 
 七种任务状态是 Task Browser 的导航入口，用于浏览和人工处置；它们不在主页面直接替换当前运行与队列态势。项目选择只改变观察范围。
 
-Chat 不作为常驻主导航。当前运行、历史完成项和人工事项提供“查看对话”或“处理”入口，按需打开 Intervention Workbench。
+任务执行对话不作为 Automation 常驻区域。当前运行、历史完成项和人工事项提供“查看对话”或“处理”入口，按需打开 Intervention Workbench；Personal / Chat 是独立自由对话页签，不承接任务执行。
 
 ## Token 用量与上下文治理
 
@@ -273,7 +273,7 @@ Renderer 不持有任务服务器凭证，也不直接请求任意远端 API。�
 - 存在 queued、running、awaiting_human 或 blocked 验收问题时，待办不能标记为已验收；全部问题 resolved 或 cancelled 后才允许进入 accepted。
 - 领取冲突不会启动重复 Runtime，完成写回未确认时不会领取下一任务。
 - 待处理任务在服务器确认进行中后启动 Runtime，在 Runtime 与 ledger 收束且服务器确认后变为已完成。
-- Runtime 需要人工输入时，主页面给出明确提示但不自动打开 Chat；用户提交后能够恢复同一任务。
+- Runtime 需要人工输入时，主页面给出明确提示但不自动打开 Intervention Workbench 或 Personal / Chat；用户在对应 Workbench 提交后能够恢复同一任务。
 - Runtime 失败且已有持久 Agent thread 时，Recovery Center 可以直接提交非空用户说明并继续；说明在同一待办对话中可见，且不会因恢复动作创建新 thread。
 - 当前任务可以安全切换到用户可见且可输入的交互式 Codex CLI；CLI 从同一 Case State 和待办意图继续，且不会与原 Runtime run 并发执行。
 - CLI 接管期间关闭终端不会被视为任务完成；Runtime 返回后从 fresh Case State 判断继续自动执行、等待人工或在同一 task thread 进入 commit 与远端完成写回。

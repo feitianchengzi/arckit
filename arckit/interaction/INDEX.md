@@ -19,9 +19,9 @@
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系和项目上下文通用邀请。✅ (7行)
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
   - interaction.md 平台交互：三组导航、产品范围/治理解耦、组织三级管理与 Feedback 开发者消息、附件、未读和流转。✅ (153行)
-- chat-workspace/ Chat 页面：自由 Agent 问答、可选产品上下文和确认后的 Idea/Work 形态预览。✅
-  - default.html Chat 线框：最近对话、Agent 正文、待确认事实与目标形态动作。✅ (13行)
-  - interaction.md Chat 交互：自由讨论、显式确认、形态转换预览与 Automation thread 边界。✅ (36行)
+- chat-workspace/ Chat 页面：本地项目自由 Codex 对话、持久会话、流式消息、停止、删除与失败恢复。✅
+  - default.html Chat 线框：新对话、生成/停止、权限、中断恢复、删除确认和工作区阻塞。✅ (48行)
+  - interaction.md Chat 交互：session/thread 生命周期、消息体验、Composer、运行状态、删除和 Automation 隔离。✅ (110行)
 - idea-workspace/ Idea 页面：创意探索、团队讨论、证据与风险比较，以及确认后的正式项目转换预览。✅
   - default.html Idea 线框：创意漏斗、详情、团队观点与开始项目动作。✅ (14行)
   - interaction.md Idea 交互：探索/讨论/确认状态、团队观点和项目转换边界。✅ (35行)

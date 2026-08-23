@@ -292,6 +292,17 @@ export function createCodexAppServerAdapter(adapterOptions = {}) {
         }
       }
     },
+    async interrupt() {
+      if (!activeTurn || !client) throw new Error("No active Codex turn is available.");
+      await waitForActiveTurn(activeTurn.state);
+      const { state, queue } = activeTurn;
+      const result = await client.request("turn/interrupt", {
+        threadId: state.threadId,
+        turnId: state.turnId
+      });
+      queue.push({ type: "codex.turn.interrupt.sent", thread_id: state.threadId, turn_id: state.turnId });
+      return { thread_id: state.threadId, turn_id: state.turnId, result };
+    },
     close() {
       stdinControls?.close();
       stdinControls = null;
@@ -383,7 +394,7 @@ function isMissingThreadError(error) {
   return /thread/.test(text) && /(not found|unknown|missing|404)/.test(text);
 }
 
-function handleServerRequest({ message, queue, options, activeCommands, commandItems }) {
+async function handleServerRequest({ message, queue, options, activeCommands, commandItems }) {
   queue.push({
     type: `codex.server_request.${message.method.replaceAll("/", ".")}`,
     method: message.method,
@@ -396,7 +407,7 @@ function handleServerRequest({ message, queue, options, activeCommands, commandI
       return { currentTimeAt: Math.floor(Date.now() / 1000) };
     case "item/commandExecution/requestApproval": {
       if ((options.approvalPolicy || "on-request") === "never") {
-        return modernApprovalDecision(options);
+        return modernApprovalDecision(options, message);
       }
       const duplicate = registerCommandApproval(message.params, activeCommands, commandItems);
       if (duplicate) {
@@ -413,7 +424,7 @@ function handleServerRequest({ message, queue, options, activeCommands, commandI
           decision: "decline"
         };
       }
-      return modernApprovalDecision(options);
+      return modernApprovalDecision(options, message);
     }
     case "execCommandApproval": {
       const duplicate = registerCommandApproval(message.params, activeCommands, commandItems);
@@ -426,18 +437,18 @@ function handleServerRequest({ message, queue, options, activeCommands, commandI
           }
         };
       }
-      return legacyApprovalDecision(options);
+      return legacyApprovalDecision(options, message);
     }
     case "item/fileChange/requestApproval":
-      return modernApprovalDecision(options);
+      return modernApprovalDecision(options, message);
     case "applyPatchApproval":
-      return legacyApprovalDecision(options);
+      return legacyApprovalDecision(options, message);
     case "item/tool/requestUserInput":
       return { answers: {} };
     case "mcpServer/elicitation/request":
       return { action: "decline", content: null };
     case "item/permissions/requestApproval":
-      return permissionDecision(options, message.params);
+      return permissionDecision(options, message);
     default:
       throw new Error(`Unhandled server request: ${message.method}`);
   }
@@ -471,27 +482,33 @@ function canonicalCommand(command) {
     .trim();
 }
 
-function modernApprovalDecision(options) {
+async function requestApproval(options, message) {
   const policy = options.approvalPolicy || "on-request";
-  if (policy === "never") {
-    return { decision: "decline" };
-  }
-  return { decision: "accept" };
+  if (policy === "never") return false;
+  if (typeof options.approvalProvider !== "function") return true;
+  const decision = await options.approvalProvider({
+    request_id: String(message.id || ""),
+    method: String(message.method || ""),
+    params: message.params || {}
+  });
+  return decision === true || decision?.decision === "accept" || decision?.approved === true;
 }
 
-function legacyApprovalDecision(options) {
-  const policy = options.approvalPolicy || "on-request";
-  if (policy === "never") {
-    return { decision: { denied: { rejection: "ArcOrbit approval policy denied the request." } } };
-  }
-  return { decision: "approved" };
+async function modernApprovalDecision(options, message) {
+  return { decision: await requestApproval(options, message) ? "accept" : "decline" };
 }
 
-function permissionDecision(options, params = {}) {
-  const policy = options.approvalPolicy || "on-request";
+async function legacyApprovalDecision(options, message) {
+  if (await requestApproval(options, message)) return { decision: "approved" };
+  return { decision: { denied: { rejection: "ArcOrbit approval policy denied the request." } } };
+}
+
+async function permissionDecision(options, message) {
+  const params = message.params || {};
   const requested = params?.permissions && typeof params.permissions === "object" ? params.permissions : {};
+  const approved = await requestApproval(options, message);
   return {
-    permissions: policy === "never" ? {} : {
+    permissions: !approved ? {} : {
       ...(Object.hasOwn(requested, "fileSystem") ? { fileSystem: requested.fileSystem } : {}),
       ...(Object.hasOwn(requested, "network") ? { network: requested.network } : {})
     },
@@ -533,7 +550,8 @@ function createClient(projectRoot, options) {
     command: options.codexBin || "codex",
     args: ["app-server", "--stdio"],
     cwd: projectRoot,
-    stderr: "inherit"
+    stderr: "inherit",
+    env: options.env || process.env
   });
 }
 
@@ -807,6 +825,13 @@ function readId(value) {
 }
 
 function parseStructuredOutput({ text, completionParams, resultKind, error }) {
+  if (resultKind === "chat") {
+    return {
+      type: "codex.chat.completed",
+      text: String(text || ""),
+      error: error ? codexErrorMessage(error) : ""
+    };
+  }
   if (resultKind === "task-closeout-result") {
     if (error) return {
       type: "runtime.task_closeout_result",

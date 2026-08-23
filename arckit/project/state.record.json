@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-22T23:23:27.164Z",
-    "revision": 178
+    "updated_at": "2026-08-23T09:24:54.182Z",
+    "revision": 182
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "ArcOrbit Work 核心日常待办能力已进入生产实现并通过自动化回归；Case 等待基于 fresh state 的后续推进。",
+      "current_focus": "将 ArcOrbit Chat 从计划展示升级为架构完整、可持续演进的真实 Codex 自由对话能力，同时保持与 Automation 待办执行会话的清晰隔离。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,19 +147,16 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit preserves Setup Readiness, supervised one-thread-per-todo automation, trusted ledger transitions, intervention/recovery and acceptance feedback while providing Desktop composition of Workshop organizations, organization and project membership, personal and organization projects, seven-state todos, ordinary user feedback, local Product Workspaces and a persistent multi-product Workset. Workset Feedback remains the developer processing workspace and ArcOrbit retains its independent Product 107 feedback center. ArcOrbit also presents planning-only Chat, Idea, Release, Operations and Engineering workspaces. Engineering demonstrates management of versioned Domain Profiles: a profile combines Project/Case domain State definitions, expected/actual/diagnosis capability mappings and lifecycle-stage interpretations; users can browse templates, create or duplicate drafts, edit mappings, compare changes and review an apply plan so different teams or industries can reuse the same Loop Kernel and product lifecycle. Entry skills remain part of the shared Loop Kernel and are excluded from profiles. No new backend, persistence, skill installation, profile application, Runtime, monitoring, market-platform or registry integration is claimed. Automation discovers Workshop task changes through project WebSocket notifications and confirms them through REST. Modern services use event IDs, cursor replay and cursor-expiry recovery; legacy services use no-ID notifications while online and refresh current state on every reconnect without reading, writing or replaying a cursor. ArcOrbit performs startup, system-resume and network-recovery synchronization, a 15-minute global reconciliation and user-triggered immediate synchronization, but no minute-level fallback polling. Every task is re-read before conditional claim, and no transport or synchronization activity is approval to leave awaiting_human. Work replaces Workshop Todo web for daily task handling by adding server-backed multi-dimensional filtering, an explainable parent/child task tree and subtask operations, complete task detail, and TaskAttachment comment/attachment collaboration to its existing seven-state CRUD, assignment, priority, tag, attachment, Automation and acceptance capabilities. Markdown export, an unimplemented server Task-history route, and Organization governance are not core Work parity gates.",
-          "reason": "对 Workshop Todo 网页端、服务端和 ArcOrbit 当前实现的源码审计建立了日常替代网页版所需的核心能力边界，并已形成稳定规格。",
+          "statement": "ArcOrbit 保留 Setup Readiness、受监督的一待办一 thread Automation、trusted ledger transition、介入/恢复、验收反馈、Workshop 平台组合、Work 日常管理与产品反馈能力。Personal / Chat 升级为绑定本地 Product Workspace 的真实 Codex 自由对话，支持持久会话、固定 thread、流式消息、工具与审批状态、停止、失败/重启恢复、重命名和安全删除；Chat 不创建或转换 Idea、Work、Task、Case、ledger 或 Automation Run。Idea、Release、Operations 和 Engineering 继续作为 planning-only 工作空间。既有 Workshop realtime、Work、Feedback、Organization、Domain Profile、Automation human Gate 和分发边界保持不变。",
+          "reason": "用户明确要求真实 Codex Chat，并要求优先保证成熟会话体验、架构完整性以及不转换其他对象的范围边界。",
           "evidence": [
             "Current operator input, 2026-08-23",
-            "arckit/spec/agentic-software-development/arcorbit-work-management.md",
-            "/Users/Glare/Library/Developer/ModularProgram/hoewo/workshop-todo-website/frontend/src/pages/ProjectDetailPage.tsx",
-            "/Users/Glare/Library/Developer/ModularProgram/hoewo/workshop-todo/handler/task.go",
-            "runtime/arcorbit/src/workshop-platform-adapter.mjs",
-            "runtime/arcorbit/desktop/renderer/renderer.js"
+            "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
+            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when Workshop Task or TaskAttachment contracts, Work daily parity scope, or protected Automation and human-Gate responsibilities change.",
-          "revision": 18
+          "resume_condition": "当 Chat 支持附件、语音、共享、跨设备同步、分支、模型管理或向其他产品对象转换时重审。",
+          "revision": 19
         },
         "gap_refs": []
       },
@@ -189,17 +186,18 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit uses three primary navigation groups: Personal contains Today and Chat; Product Lifecycle contains Idea, Work, Automation, Release, Operations and Feedback; Organization contains Organization and Engineering. English UI consistently uses Release and Operations, while Chinese descriptions use 发布 and 运营. Existing Workset, Work, Automation, Feedback, Organization, account, product-feedback and execution semantics remain authoritative. The five new pages are independent planning presentations built from current project facts. Engineering is a Domain Profile management preview with a Profile Library, draft metadata, State Model editor, Capability Mapping, Lifecycle Mapping, cross-industry change preview and Review & Apply confirmation. Profile changes replace domain State semantics and skills together while the shared Loop Kernel and Idea-to-Feedback lifecycle remain stable; all controls are non-persistent demonstrations. Setup Readiness separates global resource readiness from per-Product Workspace project readiness: binding or task start opens a project-scoped plan, all Codex-discoverable bundled skills and loaders target that project, legacy managed user targets receive visible backup/migration dispositions, and no user-level Codex target is offered. Automation shows realtime, reconnecting, degraded and legacy-compatible states plus a visible immediate-sync action. Modern reconnect performs cursor recovery before current-state refresh; legacy reconnect directly refreshes current state and never presents a stale cursor as continuity. Connection errors retain the last snapshot and do not start minute polling, while an awaiting-human item remains paused until the user explicitly resumes it. The top command bar does not provide global task, project or Run search and does not bind ⌘/Ctrl+K to Task Browser; shared task browsing remains available through Work state, Automation queue and Feedback-linked task context. Within Work, users combine the top product scope with server-side status, creator, executor, tag, priority, creation-date and content filters; results appear as a parent/child tree with explicit matched versus lineage-completion counts. The same view supports subtask creation and safe reparenting, complete Markdown task detail, TaskAttachment comments and attachments, and recoverable errors. Generic task editing never releases awaiting_human or replaces controlled Automation, Runtime, acceptance-feedback or Feedback journeys.",
-          "reason": "稳定交互文档和灰度线框现在完整表达 Work 的筛选、层级、详情、协作、恢复和保护边界。",
+          "statement": "ArcOrbit 保持 Personal、Product Lifecycle、Organization 三组导航和既有 Work、Automation、Feedback、Organization、Setup、账户及产品反馈语义。Personal / Chat 使用会话列表、独立 transcript 和 Composer：首条非空消息才创建会话；会话固定绑定一个本地 Product Workspace 和 Codex thread；支持选择、重命名、删除、跨页面后台运行和重启恢复。消息以稳定 item 流式更新，支持 Markdown、代码复制、折叠非空 reasoning、单行工具状态、用户审批和智能自动滚动。starting、running、waiting approval 状态均可停止；interrupt 保留部分回答，继续操作会在同一 thread 启动新 turn。删除活动会话先等待 interrupt 终态，失败时不部分删除。没有可用本地工作区时允许保留草稿但禁止发送，并提供配置恢复入口。Chat 不调用 state-driven Runtime，不转换其他对象；Automation task thread、human Gate 和介入工作台保持独立。Idea、Release、Operations 和 Engineering 继续呈现计划交互。",
+          "reason": "真实 Agent 对话需要可恢复的完整会话和运行状态，而不是启用现有静态 Composer。",
           "evidence": [
             "Current operator input, 2026-08-23",
-            "arckit/interaction/task-browser/interaction.md",
-            "arckit/interaction/task-browser/daily-work.html",
-            "arckit/interaction/task-browser/default.html"
+            "arckit/interaction/chat-workspace/interaction.md",
+            "arckit/interaction/chat-workspace/default.html",
+            "arckit/interaction/platform-workspace/interaction.md",
+            "arckit/interaction/automation-workspace/interaction.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit if Work daily task journeys, contextual Task Browser entry, TaskAttachment presentation, or Automation and human-Gate boundaries change.",
-          "revision": 30
+          "resume_condition": "当 Chat 引入新的输入媒介、协作共享、会话分支、跨设备状态或对象转换时重审。",
+          "revision": 31
         },
         "gap_refs": []
       },
@@ -251,31 +249,15 @@
         "evidence_expectation": "Durable data and technical evidence sufficient to recover the state model.",
         "decision": {
           "status": "settled",
-          "statement": "Canonical development state remains in Project/Iteration/Case ledgers and Workshop remains source of truth for account, organization, project, membership, task, attachment, and ordinary-feedback records. ArcOrbit owns Product Workspace bindings from a Workshop Project to a local repository, persistent multi-product workset preferences, Runtime execution/session/thread state, intervention/recovery state, and first-class acceptance-feedback records outside the target repository. 产品反馈 Project ID 107 和项目专用 API Key 都是 ArcOrbit 产品代码常量并进入打包产物，不写入 userData；未读数量是运行期瞬时 UI 状态，反馈正文、消息和状态仍由 Feedback 平台拥有。ArcOrbit also owns the locked bundled-skill source store and consumer identity; ArcForge relation state records one effective project target set per normalized local project root, while the user catalog remains a non-Codex-discovery control-plane store rather than an Agent installation target. Workshop owns durable project event rows and global cursors in PostgreSQL; delivery is an invalidation channel while REST remains canonical. ArcOrbit owns per-project connection mode and health, and owns consumed cursors only for resumable modern subscriptions. Legacy subscriptions neither read nor write cursors and re-establish truth through current-state REST refresh.",
-          "reason": "Cursor ownership must distinguish modern resumable subscriptions from legacy no-ID notification subscriptions.",
+          "statement": "Canonical development state 继续位于 Project/Iteration/Case ledger，Workshop 继续拥有账户、组织、项目、成员、任务、附件和普通反馈真相；ArcOrbit 继续拥有 Product Workspace 绑定、Workset、Runtime execution/session/thread、介入恢复、验收反馈、realtime cursor 和 bundled-skill control-plane state。ArcOrbit 还拥有本地 Chat session、消息、Composer 草稿、选中状态、Product Workspace/规范化项目根归属、Codex thread binding、turn/item 引用和最近运行/恢复状态。Chat 数据不写入 Workshop 或 ledger，不与 Automation task session 合并。删除会话仅移除 ArcOrbit 本地记录和恢复能力，不声明擦除 Codex 可能保留的底层 thread；活动删除必须先完成 interrupt，任一步失败均不得部分删除。",
+          "reason": "真实 Chat 引入了独立于 Workshop、ledger 和 Automation 的本地持久会话对象及恢复生命周期。",
           "evidence": [
-            "arckit/spec/arcorbit-distribution.md",
-            "arckit/tech/arcorbit/installer-supply-chain.md",
-            "Current operator input, 2026-08-22",
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/tech/arcorbit/realtime-synchronization-solution.md",
-            "arckit/interaction/automation-workspace/default.html",
-            "runtime/arcorbit/src/workshop-realtime-adapter.mjs",
-            "runtime/arcorbit/desktop/main.mjs",
-            "runtime/arcorbit/desktop/renderer/index.html",
-            "runtime/arcorbit/desktop/renderer/renderer.js",
-            "runtime/arcorbit/src/automation-coordinator.mjs",
-            "runtime/arcorbit/src/desktop/desktop-store.mjs",
-            "runtime/arcorbit/test/workshop-realtime-adapter.test.mjs",
-            "runtime/arcorbit/test/automation-coordinator.test.mjs",
-            "runtime/arcorbit/test/desktop-renderer.test.mjs",
-            "Verification: npm run check — 250 tests, 248 passed, 2 environment-gated skips, 0 failed, 2026-08-22",
-            "Verification: local macOS x64 installer build and arckit-distribution-smoke/v1 passed, build 20260822083310"
+            "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
+            "arckit/tech/arcorbit/desktop-execution-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when the Workshop realtime contract, synchronization cadence, source-of-truth boundary, or human Gate semantics change.",
-          "revision": 13
+          "resume_condition": "当 Chat 引入远端同步、共享、底层 thread 删除保证或跨设备所有权时重审。",
+          "revision": 14
         },
         "gap_refs": []
       },
@@ -286,19 +268,16 @@
         "evidence_expectation": "Durable contract evidence sufficient to recover material integration boundaries.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit integrates with Codex app-server/CLI and Workshop through explicit main-process adapters; trusted ledger entrypoints remain repository-owned. Workshop authentication preserves server-rotated credentials and the rolling seven-day inactivity contract. The Automation adapter remains executor-scoped, while the separate Platform Adapter reads organization, project, membership, full project task and Feedback domains. The developer-side Feedback V2 management contract is implemented through a separately restricted Platform Adapter with authenticated fixed V2 routes, project flags, per-action fail-closed degradation, controlled message attachments, notifications/read state, dedicated ignore and atomic task conversion; it requires no real-environment prevalidation. ArcOrbit 自身产品反馈独立使用 Feedback SDK WebView V2 的 API Key 直连契约；它不启用或替代 Workset Feedback V2 管理 adapter，也不推断未确认的宿主 Session endpoint。 The Workshop integration accepts both the versioned project WebSocket plus authorized cursor replay API and the previous no-ID WebSocket notification contract. Modern connections catch up and deduplicate by event ID and handle cursor expiry by full refresh; legacy connections treat notifications as invalidations and refresh current state on connect. ArcOrbit uses 15-minute reconciliation and explicit immediate sync instead of disconnected minute polling.",
-          "reason": "已接受的前端 V2 管理契约现已在受限 Platform Adapter、Coordinator、typed IPC 和 Renderer 中实现并通过完整检查。",
+          "statement": "ArcOrbit 继续通过显式 main-process adapters 集成 Codex app-server/CLI、Workshop 和 Feedback，并保持 Renderer 无凭据、无通用请求能力。真实 Chat 使用可复用的 Codex Conversation 基础层处理 app-server initialize、persistent thread start/resume、turn start/interrupt、streamed items、token usage 和 approval request；ChatCoordinator 直接提交用户文本，不设置 Agent Loop output schema，也不调用 state-driven Runtime、trusted ledger 或 Automation Coordinator。Workshop realtime、Platform Adapter、Automation adapter、Feedback V2 和产品反馈 SDK 的既有契约与恢复行为保持不变。",
+          "reason": "Chat 需要复用 Codex 协议原语，但必须在 main process 中与 Automation 的语义 orchestration 和 thread ownership 隔离。",
           "evidence": [
-            "FACT-feedback-v2-management-realized",
-            "runtime/arcorbit/src/workshop-platform-adapter.mjs",
-            "runtime/arcorbit/src/platform-coordinator.mjs",
-            "runtime/arcorbit/desktop/preload.cjs",
-            "runtime/arcorbit/desktop/renderer/renderer.js",
-            "arckit/tech/arcorbit/platform-composition-solution.md"
+            "arckit/tech/arcorbit/desktop-execution-solution.md",
+            "runtime/arcorbit/src/codex-app-server-adapter.mjs",
+            "[Official Codex app-server integration documentation](https://developers.openai.com/codex/app-server)"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when the Workshop-Feedbacks frontend contract, project rollout flags, Workshop authentication boundary, attachment credential model, or developer-management failure semantics change.",
-          "revision": 8
+          "resume_condition": "当 Codex app-server thread、turn、approval 或 transport 契约变化，或 Chat 引入其他模型服务时重审。",
+          "revision": 9
         },
         "gap_refs": []
       },
@@ -349,31 +328,19 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit uses repository-owned Markdown/JSON state and Node.js ESM ledger CLIs; ArcOrbit is its Electron Desktop/Runtime host. The policy-neutral Runtime Kernel, persistent one-thread-per-todo model and trusted capabilities remain unchanged. Platform composition uses Desktop Store v11, a main-process Platform Coordinator, restricted Workshop Platform Adapter and typed preload IPC. ArcOrbit consumes Workshop through explicit service contracts and may evolve the backend when an accepted integration contract requires it: organization-scoped request context supplies known project organization identity, current-member is_external marks external participation, remote Workshop records remain authoritative, and Renderer receives neither credentials nor generic request access. Packaged ArcOrbit no longer reinterprets its Electron executable as Node: Electron main launches the Runtime with utilityProcess, typed parent-port controls preserve steer/interrupt semantics, trusted ledger orchestration calls manifest-resolved module APIs in process, standalone Codex remains an external executable, and packaging disables the RunAsNode/Node-options/CLI-inspect fuses while enforcing ASAR integrity. The current BrowserWindow Renderer loads from a file:// entry inside app.asar, so its File Protocol privilege fuse remains enabled and is verified independently from the disabled Node-mode fuses. 产品反馈由 Electron main process 管理受限子 BrowserWindow 与独立 SDK WebContents；主 file:// Renderer 不直接嵌入生产跨域 iframe，也不获得 SDK 凭据或通用远端访问。产品反馈 SDK 文档身份由固定 HTTPS origin、/sdk-v2 路径空间和 embed=web 共同确定；已配置文档在 submit/status 路由和未读刷新期间不执行 loadURL 或重复 configure，配置/身份变化、无效文档与显式 retry 才重新加载固定入口。Skill provisioning separates a global bundle/provider/Codex check from per-Product Workspace readiness. The main-process manager passes non-empty projectTargetDirs, project assessments and an ArcOrbit project-only availability override to the embedded provider; bundled skills, shared assets and the on-demand loader target only the normalized project root, while the ArcForge catalog and relation state remain control-plane data. Legacy managed user targets migrate transactionally with ownership evidence, explicit dispositions and rollback; Runtime preflight remains policy-neutral and only consumes the resulting per-project readiness. Workshop persists modern project events in PostgreSQL in the same transaction as domain mutations, serializes event IDs through commit, and uses LISTEN/NOTIFY only for post-commit cross-instance wakeup; each instance catches up by cursor and isolates slow consumers. Website and modern ArcOrbit subscriptions recover by project cursor and invalidate REST-backed state. ArcOrbit's main-process Realtime Adapter explicitly negotiates resumable or legacy mode; legacy mode refreshes on connect and accepts no-ID invalidations without cursor access. Synchronization remains separate from execution arbitration, has no degraded minute-polling timer, and cannot resume a human gate.",
-          "reason": "The main-process adapter now negotiates protocol mode and removes the obsolete degraded polling timer.",
+          "statement": "Arckit 继续使用 repository-owned Markdown/JSON state 与 Node.js ESM ledger CLI；ArcOrbit 继续作为 Electron Desktop/Runtime host，并保留 policy-neutral Runtime Kernel、persistent one-thread-per-todo、Platform Coordinator、restricted Workshop adapters、utilityProcess Runtime、trusted in-process ledger entrypoints、project-only skill provisioning、Feedback SDK WebContents 和现代/旧版 realtime 协议边界。真实 Chat 的 accepted architecture 在 main process 增加独立 ChatCoordinator 和 kind=chat Store ownership，并从现有 Codex adapter 中抽取可复用 Conversation 层：app-server client、persistent thread start/resume、turn start/interrupt、通用事件 projector、token usage 和异步 approval provider。State-driven Runtime 只在该基础层之上保留 using-arckit、Agent Loop schema、fresh ledger snapshot、Gap Loop、Automation lease 和 closeout 语义，Chat 不复用这些语义。每个活动 Chat session 拥有与其固定项目根对应的 adapter owner；不同 Chat session 和 Automation owner 不共享活动 turn 或 lease。typed Chat IPC 只提供 snapshot/create/select/rename/delete/send/interrupt/approvalDecision；select 只持久化经 main process 验证的 Chat session 选择，不改变 draft、thread 或 session updated_at。Renderer 不能提供任意 cwd、thread id、Codex method、文件权限或 shell command。",
+          "reason": "持久选中状态属于已接受的本地 Chat ownership；专用 select mutation 在不扩大 Renderer 权限的前提下补全重启恢复路径。",
           "evidence": [
-            "arckit/tech/arcorbit/realtime-synchronization-solution.md",
-            "arckit/tech/arcorbit/platform-composition-solution.md",
-            "runtime/arcorbit/src/desktop/desktop-store.mjs",
-            "runtime/arcorbit/src/workshop-realtime-adapter.mjs",
-            "/Users/Glare/Library/Developer/ModularProgram/hoewo/workshop-todo/realtime/store.go",
-            "Current operator input, 2026-08-22",
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/default.html",
+            "arckit/tech/arcorbit/desktop-execution-solution.md",
+            "runtime/arcorbit/src/chat-coordinator.mjs",
             "runtime/arcorbit/desktop/main.mjs",
-            "runtime/arcorbit/desktop/renderer/index.html",
-            "runtime/arcorbit/desktop/renderer/renderer.js",
-            "runtime/arcorbit/src/automation-coordinator.mjs",
-            "runtime/arcorbit/test/workshop-realtime-adapter.test.mjs",
-            "runtime/arcorbit/test/automation-coordinator.test.mjs",
-            "runtime/arcorbit/test/desktop-renderer.test.mjs",
-            "Verification: npm run check — 250 tests, 248 passed, 2 environment-gated skips, 0 failed, 2026-08-22",
-            "Verification: local macOS x64 installer build and arckit-distribution-smoke/v1 passed, build 20260822083310"
+            "runtime/arcorbit/desktop/preload.cjs",
+            "runtime/arcorbit/test/chat-coordinator.test.mjs",
+            "runtime/arcorbit/test/desktop-renderer.test.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when the Workshop realtime contract, synchronization cadence, source-of-truth boundary, or human Gate semantics change.",
-          "revision": 26
+          "resume_condition": "当 app-server concurrency、thread ownership、approval contract、Store ownership、Chat selection ownership 或 Runtime/Chat 隔离模型变化时重审。",
+          "revision": 28
         },
         "gap_refs": []
       },
@@ -384,17 +351,16 @@
         "evidence_expectation": "Durable risk and technical evidence sufficient to recover the governing protections.",
         "decision": {
           "status": "settled",
-          "statement": "Runtime 和 Workshop 服务凭据保持在受控存储与边界内；ArcOrbit 产品反馈是用户明确接受的例外：Project 107 的项目专用 API Key 作为 bundled-static 常量进入源码与安装包，客户端持有者可提取，因此必须保持最小权限、项目专用和可轮换。该 Key 不进入 URL、Renderer snapshot、IPC、日志或报告；轮换需要修改代码、重新构建发布并按升级节奏撤销旧 Key。",
-          "reason": "用户明确选择无配置静态 Key 分发，安全决定必须如实表达而不能继续宣称 secret-store。",
+          "statement": "Runtime 与 Workshop 服务凭据继续保持在受控存储和 main-process 边界内；ArcOrbit 产品反馈 bundled-static Project 107 API Key 例外及其最小权限、可轮换、不得进入 URL/Renderer/IPC/log 的规则保持不变。真实 Chat 的 Renderer 只能使用类型化 IPC，不能选择任意 cwd/thread/method、读取 raw JSON-RPC、获得 Codex 进程或文件系统通用权限。Codex command、file change 和 permissions request 必须通过异步受限 approvalProvider 返回；窗口关闭、超时、session/request 不匹配或用户拒绝均 fail closed。Chat session/thread ownership 与 Automation task session/thread/lease 双向隔离。",
+          "reason": "自由 Chat 可触发本地 Agent 操作，必须在启用生产输入前明确审批、工作区和 ownership 安全边界。",
           "evidence": [
-            "User explicitly requested bundled code credential and no configuration UI on 2026-08-19; credential content intentionally omitted from ledger",
-            "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
-            "arckit/tech/arcorbit/product-feedback-integration.md",
-            "runtime/arcorbit/src/product-feedback-service.mjs"
+            "arckit/tech/arcorbit/desktop-execution-solution.md",
+            "arckit/interaction/chat-workspace/interaction.md",
+            "runtime/arcorbit/src/codex-app-server-adapter.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "当反馈认证改为宿主 Session、Key 权限/分发或客户端发布策略变化时重审。",
-          "revision": 3
+          "resume_condition": "当 Chat 获得新的网络、文件、凭据、远端同步、共享或自动批准能力时重审。",
+          "revision": 4
         },
         "gap_refs": []
       },
@@ -405,16 +371,16 @@
         "evidence_expectation": "Durable validation evidence proportionate to the identified risks.",
         "decision": {
           "status": "settled",
-          "statement": "Protocol changes require schema/script validation, cross-record audits, Runtime automated tests, projection checks, direct-Codex no-Case recovery evidence, stale-token checks, read/write/read ordering checks, and risk-proportionate real execution evidence. Reliable synchronization requires transaction/event atomicity, ordering/replay, cross-instance wakeup, authorization revocation, slow-consumer, reconnect/deduplication, cursor-expiry, targeted refresh, legacy no-ID notification and reconnect-current-state tests, proof that no minute fallback timer exists, pre-claim remote confirmation, awaiting_human regressions and a real-link smoke check when available. Work core parity additionally requires adapter, coordinator, typed IPC and Renderer coverage for multi-value filter serialization, complete result counts, the 100-day task-tree date boundary, parent-lineage and subtree completion, subtask creation and circular-parent rejection, TaskAttachment parsing and permissions, cross-product isolation, controlled state actions, conflict recovery and the awaiting_human Gate.",
-          "reason": "新增日常 Work 能力跨越远端查询、层级数据、权限 mutation 和受控执行边界，必须以与风险相称的跨层回归证据验收。",
+          "statement": "既有协议、Runtime、realtime、Work 和安全验证义务保持不变。真实 Chat 还必须以 adapter、Store、Coordinator、typed main/preload IPC、Renderer 和真实 app-server smoke 的跨层证据证明：首条消息幂等创建 session/thread；连续 turn resume 同一 thread；不同 Chat/Automation owner 隔离；稳定 item streaming、Markdown、reasoning/tool 投影和智能滚动正确；starting/running/waiting approval 均可 interrupt；部分输出和重启恢复不重复请求；活动删除先 interrupt 且无部分删除；审批异步并 fail closed；Renderer 无法覆盖 cwd/thread/method/command；Chat 不触发 using-arckit、ledger、Workshop mutation、Automation lease 或 human Gate。",
+          "reason": "真实 Agent Chat 跨越本地持久化、长运行进程、权限审批和多会话并发，必须用与风险相称的跨层及真实协议证据验收。",
           "evidence": [
-            "arckit/spec/agentic-software-development/arcorbit-work-management.md",
-            "arckit/tech/arcorbit/platform-composition-solution.md",
-            "/Users/Glare/Library/Developer/ModularProgram/hoewo/workshop-todo/handler/task.go"
+            "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
+            "arckit/interaction/chat-workspace/interaction.md",
+            "arckit/tech/arcorbit/desktop-execution-solution.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when Workshop task query, tree, attachment permissions, ArcOrbit state-action boundaries or Work acceptance risks change.",
-          "revision": 5
+          "resume_condition": "当 Chat 扩展输入类型、并发模型、远端同步、共享、模型选择或对象转换时重审。",
+          "revision": 6
         },
         "gap_refs": []
       },

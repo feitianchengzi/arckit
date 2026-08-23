@@ -64,6 +64,8 @@ function renderBlock(block) {
   if (/^\u0000ARCBLOCKCODE\d+Z\u0000$/.test(block)) return `<p>${block}</p>`;
 
   const lines = block.split("\n");
+  const table = renderTable(lines);
+  if (table) return table;
   const heading = lines.length === 1 && lines[0].match(/^(#{1,4})\s+(.+)$/);
   if (heading) {
     const level = heading[1].length + 1;
@@ -80,6 +82,21 @@ function renderBlock(block) {
     return `<blockquote>${lines.map((line) => renderInline(line.replace(/^\s*>\s?/, ""))).join("<br>")}</blockquote>`;
   }
   return `<p>${lines.map(renderInline).join("<br>")}</p>`;
+}
+
+function renderTable(lines) {
+  if (lines.length < 2 || !lines[0].includes("|") || !lines[1].includes("|")) return "";
+  const rows = lines.map(tableCells);
+  if (!rows[0].length || rows[1].length !== rows[0].length || !rows[1].every((cell) => /^:?-{3,}:?$/.test(cell))) return "";
+  if (rows.slice(2).some((row) => row.length !== rows[0].length)) return "";
+  const head = `<thead><tr>${rows[0].map((cell) => `<th>${renderInline(cell)}</th>`).join("")}</tr></thead>`;
+  const body = rows.length > 2 ? `<tbody>${rows.slice(2).map((row) => `<tr>${row.map((cell) => `<td>${renderInline(cell)}</td>`).join("")}</tr>`).join("")}</tbody>` : "";
+  return `<table>${head}${body}</table>`;
+}
+
+function tableCells(line) {
+  const trimmed = String(line || "").trim().replace(/^\|/, "").replace(/\|$/, "");
+  return trimmed.split("|").map((cell) => cell.trim());
 }
 
 function renderInline(value) {

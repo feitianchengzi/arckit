@@ -13,20 +13,432 @@ import {
 } from "../src/desktop/transcript-presentation.mjs";
 import { checkDesktopSetupReadiness, desktopSetupCheckInput } from "../src/desktop-setup-readiness-context.mjs";
 import feedbackV2Ipc from "../desktop/feedback-v2-ipc.cjs";
+import { createChatStateCoordinator } from "../desktop/renderer/chat-state-coordinator.mjs";
 
 const { settleFeedbackV2Ipc, unwrapFeedbackV2Ipc } = feedbackV2Ipc;
 
 const rendererPath = new URL("../desktop/renderer/renderer.js", import.meta.url);
+const chatStateCoordinatorPath = new URL("../desktop/renderer/chat-state-coordinator.mjs", import.meta.url);
 const rendererHtmlPath = new URL("../desktop/renderer/index.html", import.meta.url);
 const rendererStylesPath = new URL("../desktop/renderer/styles.css", import.meta.url);
 const desktopMainPath = new URL("../desktop/main.mjs", import.meta.url);
 const desktopPreloadPath = new URL("../desktop/preload.cjs", import.meta.url);
 
+function chatSnapshot({ selected = "", project = "PROJECT-A", sessions = [], messages = [], draft = "" } = {}) {
+  return {
+    selected_session_id: selected,
+    projects: [{ id: "PROJECT-A", name: "A" }, { id: "PROJECT-B", name: "B" }],
+    sessions,
+    messages,
+    draft: { project_id: project, text: draft }
+  };
+}
+
+function chatApi(overrides = {}) {
+  const snapshot = chatSnapshot();
+  return {
+    createChat: async () => snapshot,
+    selectChat: async () => snapshot,
+    deleteChat: async () => ({ snapshot }),
+    renameChat: async () => snapshot,
+    interruptChat: async () => snapshot,
+    decideChatApproval: async () => snapshot,
+    sendChatMessage: async () => snapshot,
+    chatSnapshot: async () => snapshot,
+    ...overrides
+  };
+}
+
+function createCoordinator(api, options = {}) {
+  let request = 0;
+  return createChatStateCoordinator({
+    api,
+    normalizeSnapshot: (value = {}) => ({
+      selected_session_id: String(value.selected_session_id || ""),
+      projects: value.projects || [],
+      sessions: value.sessions || [],
+      messages: value.messages || [],
+      draft: value.draft || { project_id: "", text: "" }
+    }),
+    createRequestId: () => `REQUEST-${++request}`,
+    ...options
+  });
+}
+
+test("Chat state coordinator captures draft ownership and flushes before selection changes", async () => {
+  const calls = [];
+  const timers = [];
+  const coordinator = createCoordinator(chatApi({
+    createChat: async (payload) => {
+      calls.push(payload);
+      return chatSnapshot({ selected: payload.session_id, project: payload.project_id, draft: payload.text });
+    },
+    selectChat: async ({ session_id: sessionId }) => chatSnapshot({
+      selected: sessionId,
+      sessions: [{ id: sessionId, project_id: "PROJECT-B" }]
+    })
+  }), {
+    setTimer: (callback) => { timers.push(callback); return timers.length; },
+    clearTimer: () => {}
+  });
+
+  await coordinator.initialize(chatSnapshot({
+    selected: "CHAT-A",
+    sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }]
+  }));
+  coordinator.setDraft("draft A");
+  await coordinator.selectSession("CHAT-B");
+
+  assert.deepEqual(calls, [
+    { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A" }
+  ]);
+  assert.equal(coordinator.getState().owner.session_id, "CHAT-B");
+});
+
+test("Chat state coordinator serializes captured draft owners without applying persistence responses", async () => {
+  const calls = [];
+  const releases = [];
+  const timers = [];
+  const coordinator = createCoordinator(chatApi({
+    createChat: (payload) => new Promise((resolvePersist) => {
+      calls.push(payload);
+      releases.push(resolvePersist);
+    })
+  }), {
+    setTimer: (callback) => { timers.push(callback); return timers.length; },
+    clearTimer: () => {}
+  });
+
+  await coordinator.initialize(chatSnapshot({
+    selected: "CHAT-A",
+    sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }]
+  }));
+  coordinator.setDraft("old");
+  timers.shift()();
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+  await coordinator.initialize(chatSnapshot({
+    selected: "CHAT-B",
+    sessions: [{ id: "CHAT-B", project_id: "PROJECT-B" }]
+  }));
+  coordinator.setDraft("new");
+  const flushed = coordinator.flushDraft();
+
+  assert.deepEqual(calls, [{ session_id: "CHAT-A", project_id: "PROJECT-A", text: "old" }]);
+  releases.shift()({ selected_session_id: "CHAT-A" });
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+  assert.deepEqual(calls, [
+    { session_id: "CHAT-A", project_id: "PROJECT-A", text: "old" },
+    { session_id: "CHAT-B", project_id: "PROJECT-B", text: "new" }
+  ]);
+  releases.shift()({ selected_session_id: "CHAT-B" });
+  await flushed;
+  assert.equal(coordinator.getState().owner.session_id, "CHAT-B");
+});
+
+test("Chat session selection flushes the old draft before persisting and applying the target", async () => {
+  const order = [];
+  const snapshot = chatSnapshot({ selected: "CHAT-B", sessions: [{ id: "CHAT-B", project_id: "PROJECT-B" }], draft: "draft B" });
+  const coordinator = createCoordinator(chatApi({
+    async createChat(payload) { order.push(["flush", payload]); return chatSnapshot(); },
+    async selectChat(input) { order.push(["select", input]); return snapshot; }
+  }));
+  await coordinator.initialize(chatSnapshot({ selected: "CHAT-A", sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }] }));
+  coordinator.setDraft("draft A");
+  await coordinator.selectSession("CHAT-B");
+  assert.deepEqual(order, [
+    ["flush", { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A" }],
+    ["select", { session_id: "CHAT-B" }]
+  ]);
+  assert.equal(coordinator.getState().draft, "draft B");
+});
+
+test("Chat session selection ignores a stale response that completes after the latest intent", async () => {
+  const calls = [];
+  const releases = new Map();
+  const coordinator = createCoordinator(chatApi({
+    selectChat: ({ session_id: sessionId }) => new Promise((resolveSelect) => {
+      calls.push(sessionId);
+      releases.set(sessionId, resolveSelect);
+    })
+  }));
+
+  const first = coordinator.selectSession("CHAT-B");
+  const latest = coordinator.selectSession("CHAT-C");
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+  assert.deepEqual(calls, ["CHAT-B", "CHAT-C"]);
+
+  releases.get("CHAT-C")(chatSnapshot({ selected: "CHAT-C", sessions: [{ id: "CHAT-C", project_id: "PROJECT-A" }] }));
+  await latest;
+  releases.get("CHAT-B")(chatSnapshot({ selected: "CHAT-B", sessions: [{ id: "CHAT-B", project_id: "PROJECT-A" }] }));
+  await first;
+
+  assert.equal(coordinator.getState().owner.session_id, "CHAT-C");
+});
+
+test("Chat session response is invalidated by a later new-draft intent", async () => {
+  let releaseSelection;
+  const coordinator = createCoordinator(chatApi({
+    selectChat: () => new Promise((resolveSelect) => { releaseSelection = resolveSelect; }),
+    createChat: async ({ project_id: projectId }) => chatSnapshot({ project: projectId })
+  }));
+
+  const pending = coordinator.selectSession("CHAT-B");
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+  await coordinator.newDraft("PROJECT-B");
+  releaseSelection(chatSnapshot({ selected: "CHAT-B", sessions: [{ id: "CHAT-B", project_id: "PROJECT-A" }] }));
+  await pending;
+
+  assert.deepEqual(coordinator.getState().owner, { session_id: "", project_id: "PROJECT-B" });
+});
+
+test("Chat new-draft response preserves and persists Composer input typed while its request is pending", async () => {
+  const persisted = [];
+  let releaseTransition;
+  const coordinator = createCoordinator(chatApi({
+    createChat: (payload) => {
+      persisted.push(payload);
+      if (persisted.length === 1) return new Promise((resolveTransition) => { releaseTransition = resolveTransition; });
+      return Promise.resolve(chatSnapshot({ project: payload.project_id, draft: payload.text }));
+    }
+  }), {
+    setTimer: () => 1,
+    clearTimer: () => {}
+  });
+  await coordinator.initialize(chatSnapshot({ project: "PROJECT-A", draft: "old draft" }));
+
+  const transition = coordinator.newDraft("PROJECT-B");
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+  coordinator.setDraft("typed while new-chat request is pending");
+  releaseTransition(chatSnapshot({ project: "PROJECT-B", draft: "" }));
+  await transition;
+  await coordinator.flushDraft();
+
+  assert.deepEqual(coordinator.getState().owner, { session_id: "", project_id: "PROJECT-B" });
+  assert.equal(coordinator.getState().draft, "typed while new-chat request is pending");
+  assert.deepEqual(persisted.at(-1), {
+    session_id: "",
+    project_id: "PROJECT-B",
+    text: "typed while new-chat request is pending"
+  });
+});
+
+test("Chat workspace response preserves and persists newer Composer input for the new draft owner", async () => {
+  const persisted = [];
+  let releaseTransition;
+  const coordinator = createCoordinator(chatApi({
+    createChat: (payload) => {
+      persisted.push(payload);
+      if (persisted.length === 1) return new Promise((resolveTransition) => { releaseTransition = resolveTransition; });
+      return Promise.resolve(chatSnapshot({ project: payload.project_id, draft: payload.text }));
+    }
+  }), {
+    setTimer: () => 1,
+    clearTimer: () => {}
+  });
+  await coordinator.initialize(chatSnapshot({ project: "PROJECT-A", draft: "old draft" }));
+
+  const transition = coordinator.changeDraftWorkspace("PROJECT-B");
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+  coordinator.setDraft("typed while workspace request is pending");
+  releaseTransition(chatSnapshot({ project: "PROJECT-B", draft: "old draft" }));
+  await transition;
+  await coordinator.flushDraft();
+
+  assert.deepEqual(coordinator.getState().owner, { session_id: "", project_id: "PROJECT-B" });
+  assert.equal(coordinator.getState().draft, "typed while workspace request is pending");
+  assert.deepEqual(persisted.at(-1), {
+    session_id: "",
+    project_id: "PROJECT-B",
+    text: "typed while workspace request is pending"
+  });
+});
+
+test("Chat owner intents keep first send on the latest visible workspace and reject the older workspace response", async () => {
+  const payloads = [];
+  let releaseWorkspace;
+  let releaseSend;
+  const coordinator = createCoordinator(chatApi({
+    createChat: ({ project_id: projectId, text }) => new Promise((resolveWorkspace) => {
+      assert.equal(text, "message");
+      releaseWorkspace = resolveWorkspace;
+    }),
+    sendChatMessage: (payload) => new Promise((resolveSend) => {
+      payloads.push(payload);
+      releaseSend = resolveSend;
+    })
+  }));
+  await coordinator.initialize(chatSnapshot({ project: "PROJECT-A", draft: "message" }));
+  const workspace = coordinator.changeDraftWorkspace("PROJECT-B");
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+  const send = coordinator.send();
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+
+  releaseSend(chatSnapshot({ selected: "CHAT-B", sessions: [{ id: "CHAT-B", project_id: "PROJECT-B" }] }));
+  await send;
+  releaseWorkspace(chatSnapshot({ project: "PROJECT-B", draft: "message" }));
+  await workspace;
+
+  assert.equal(payloads[0].project_id, "PROJECT-B");
+  assert.equal(coordinator.getState().owner.session_id, "CHAT-B");
+});
+
+test("Chat background refresh cannot roll back a newer draft-workspace transition", async () => {
+  let releaseRefresh;
+  let releaseWorkspace;
+  const coordinator = createCoordinator(chatApi({
+    chatSnapshot: () => new Promise((resolveRefresh) => { releaseRefresh = resolveRefresh; }),
+    createChat: () => new Promise((resolveWorkspace) => { releaseWorkspace = resolveWorkspace; })
+  }));
+  await coordinator.initialize(chatSnapshot({ project: "PROJECT-A", draft: "draft" }));
+
+  const refresh = coordinator.refresh({ quiet: true });
+  const workspace = coordinator.changeDraftWorkspace("PROJECT-B");
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+  releaseRefresh(chatSnapshot({ project: "PROJECT-A", draft: "stale" }));
+  await refresh;
+  assert.deepEqual(coordinator.getState().owner, { session_id: "", project_id: "PROJECT-B" });
+  assert.equal(coordinator.getState().draft, "draft");
+
+  releaseWorkspace(chatSnapshot({ project: "PROJECT-B", draft: "draft" }));
+  await workspace;
+});
+
+test("Chat first send adopts the new session without losing or misowning an in-flight draft", async () => {
+  const calls = [];
+  const timers = [];
+  let releaseSend;
+  const coordinator = createCoordinator(chatApi({
+    createChat: async (payload) => {
+      calls.push(payload);
+      return chatSnapshot({ selected: payload.session_id, project: payload.project_id, draft: payload.text });
+    },
+    sendChatMessage: () => new Promise((resolveSend) => { releaseSend = resolveSend; })
+  }), {
+    setTimer: (callback) => { timers.push(callback); return timers.length; },
+    clearTimer: () => {}
+  });
+
+  await coordinator.initialize(chatSnapshot({ project: "PROJECT-A", draft: "accepted message" }));
+  const sending = coordinator.send();
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+  coordinator.setDraft("next message");
+  releaseSend(chatSnapshot({
+    selected: "CHAT-A",
+    sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }]
+  }));
+  await sending;
+
+  assert.deepEqual(coordinator.getState().owner, { session_id: "CHAT-A", project_id: "PROJECT-A" });
+  assert.equal(coordinator.getState().draft, "next message");
+  assert.deepEqual(calls, [{
+    session_id: "CHAT-A",
+    project_id: "PROJECT-A",
+    text: "next message"
+  }]);
+});
+
+test("Chat send does not clear newer Composer input while the accepted draft is still flushing", async () => {
+  const persisted = [];
+  const timers = [];
+  let releaseOldDraft;
+  let releaseSend;
+  const coordinator = createCoordinator(chatApi({
+    createChat: (payload) => {
+      persisted.push(payload);
+      if (persisted.length === 1) return new Promise((resolvePersist) => { releaseOldDraft = resolvePersist; });
+      return Promise.resolve(chatSnapshot({ selected: payload.session_id, project: payload.project_id, draft: payload.text }));
+    },
+    sendChatMessage: () => new Promise((resolveSend) => { releaseSend = resolveSend; })
+  }), {
+    setTimer: (callback) => { timers.push(callback); return timers.length; },
+    clearTimer: () => {}
+  });
+  await coordinator.initialize(chatSnapshot({ project: "PROJECT-A" }));
+  coordinator.setDraft("accepted message");
+  timers.shift()();
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+
+  const sending = coordinator.send();
+  coordinator.setDraft("next message");
+  releaseOldDraft(chatSnapshot({ project: "PROJECT-A", draft: "accepted message" }));
+  await new Promise((resolveImmediate) => setImmediate(resolveImmediate));
+  releaseSend(chatSnapshot({ selected: "CHAT-A", sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }] }));
+  await sending;
+
+  assert.equal(coordinator.getState().draft, "next message");
+  assert.deepEqual(persisted.at(-1), { session_id: "CHAT-A", project_id: "PROJECT-A", text: "next message" });
+});
+
+test("Chat session mutation response cannot project the old transcript after a later selection", async () => {
+  let releaseRename;
+  const coordinator = createCoordinator(chatApi({
+    renameChat: () => new Promise((resolveRename) => { releaseRename = resolveRename; }),
+    selectChat: async ({ session_id: sessionId }) => chatSnapshot({
+      selected: sessionId,
+      sessions: [{ id: sessionId, project_id: "PROJECT-B" }],
+      messages: [{ id: "B-MSG" }]
+    })
+  }));
+  await coordinator.initialize(chatSnapshot({
+    selected: "CHAT-A",
+    sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }],
+    messages: [{ id: "A-OLD" }]
+  }));
+
+  const rename = coordinator.renameCurrentSession("A renamed");
+  await coordinator.selectSession("CHAT-B");
+  releaseRename(chatSnapshot({
+    selected: "CHAT-A",
+    sessions: [{ id: "CHAT-A", project_id: "PROJECT-A" }],
+    messages: [{ id: "A-MSG" }]
+  }));
+  await rename;
+
+  assert.equal(coordinator.getState().owner.session_id, "CHAT-B");
+  assert.deepEqual(coordinator.getState().snapshot.messages.map((message) => message.id), ["B-MSG"]);
+});
+
+test("Chat retry identity is owned by the current failed-session transition", async () => {
+  const payloads = [];
+  const coordinator = createCoordinator(chatApi({
+    sendChatMessage: async (payload) => {
+      payloads.push(payload);
+      return chatSnapshot({
+        selected: "CHAT-A",
+        sessions: [{ id: "CHAT-A", project_id: "PROJECT-A", retry_client_request_id: "REQUEST-RETRY" }]
+      });
+    }
+  }));
+  await coordinator.initialize(chatSnapshot({
+    selected: "CHAT-A",
+    sessions: [{ id: "CHAT-A", project_id: "PROJECT-A", retry_client_request_id: "REQUEST-RETRY" }],
+    messages: [{ role: "user", kind: "text", content: "retry me" }]
+  }));
+  coordinator.prepareRetry();
+  await coordinator.send();
+  assert.equal(payloads[0].client_request_id, "REQUEST-RETRY");
+});
+
+test("Chat Renderer delegates all owner, epoch, projection, retry, send and persistence transitions", async () => {
+  const source = await readFile(rendererPath, "utf8");
+
+  for (const method of [
+    "newDraft", "changeDraftWorkspace", "selectSession", "deleteCurrentSession",
+    "renameCurrentSession", "interruptCurrentSession", "decideApproval", "refresh",
+    "setDraft", "prepareRetry", "send"
+  ]) {
+    assert.match(source, new RegExp(`chatStateCoordinator\\.${method}\\(`));
+  }
+  assert.doesNotMatch(source, /state\.chat(?:SelectedSessionId|DraftProjectId|Draft|RetryClientRequestId|Sending|Error|\b)/);
+  assert.doesNotMatch(source, /keepSelection|preserveDraftOnSelectionAdoption|\.begin\(\)|\.observe\(\)|\.invalidate\(\)/);
+});
+
 test("desktop primary surface is a simultaneous multi-product platform while preserving Automation", async () => {
-  const [source, html, styles] = await Promise.all([
+  const [source, html, styles, chatCoordinatorSource] = await Promise.all([
     readFile(rendererPath, "utf8"),
     readFile(rendererHtmlPath, "utf8"),
-    readFile(rendererStylesPath, "utf8")
+    readFile(rendererStylesPath, "utf8"),
+    readFile(chatStateCoordinatorPath, "utf8")
   ]);
 
   assert.match(html, /MULTI-PRODUCT TODAY/);
@@ -142,10 +554,19 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   assert.match(styles, /\.product-grid \{ display: grid; grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.platform-two-column, \.feedback-lanes \{ display: grid;/);
   assert.match(styles, /\.command-grid \{ display: grid; grid-template-columns: minmax\(0, 1fr\) 298px;/);
-  assert.doesNotMatch(html, /class="chat-column"|id="chatInput"|>Chats</);
+  assert.match(html, /PERSONAL · CODEX CHAT/);
+  for (const id of ["chatProjectSelect", "chatSessionList", "chatTranscript", "chatInput", "chatStopButton", "chatSendButton"]) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  assert.match(source, /api\.chatSnapshot/);
+  assert.match(chatCoordinatorSource, /api\.selectChat/);
+  assert.match(chatCoordinatorSource, /api\.sendChatMessage/);
+  assert.match(chatCoordinatorSource, /api\.interruptChat/);
+  assert.match(chatCoordinatorSource, /api\.decideChatApproval/);
+  assert.match(styles, /\.chat-workspace \{/);
 });
 
-test("desktop presents the planned lifecycle and manageable domain profiles without wiring side effects", async () => {
+test("desktop keeps the remaining lifecycle previews inert while Chat is a real isolated Codex surface", async () => {
   const [source, html, styles] = await Promise.all([
     readFile(rendererPath, "utf8"),
     readFile(rendererHtmlPath, "utf8"),
@@ -168,8 +589,8 @@ test("desktop presents the planned lifecycle and manageable domain profiles with
     assert.match(sidebar, new RegExp(`data-page="${page}"`));
     assert.match(html, new RegExp(`data-page-view="${page}"`));
   }
-  assert.match(html, /PERSONAL · OPEN AGENT CHAT/);
-  assert.match(html, /自由问答不自动成为正式事项/);
+  assert.match(html, /PERSONAL · CODEX CHAT/);
+  assert.match(html, /Chat 不创建待办、Idea、Case 或 Automation Run/);
   assert.match(html, /PRODUCT LIFECYCLE · IDEA/);
   assert.match(html, /PRODUCT LIFECYCLE · RELEASE/);
   assert.match(html, /Release 是“发布”的统一英文入口/);
@@ -199,10 +620,10 @@ test("desktop presents the planned lifecycle and manageable domain profiles with
   assert.doesNotMatch(sidebar, /data-page="state"|data-page="skills"/);
   assert.doesNotMatch(html, /data-page-view="state"|data-page-view="skills"/);
   assert.doesNotMatch(html, /using-arckit|arckit-development-ledger|Trusted entrypoints/);
-  assert.match(html, /PLAN VIEW · 无真实写入/);
+  assert.match(html, /PLAN VIEW · 不创建 Project/);
   assert.match(html, /PLAN VIEW · 不授权发版/);
   assert.match(html, /PLAN VIEW · 不调用外部平台/);
-  assert.doesNotMatch(html, /data-plan-action|id="chatInput"|id="createIdeaButton"|id="publishReleaseButton"/);
+  assert.doesNotMatch(html, /data-plan-action|id="createIdeaButton"|id="publishReleaseButton"/);
   assert.match(source, /\["organization", "engineering"\]\.includes\(state\.page\)/);
   assert.match(source, /chat: "Chat", idea: "Idea"/);
   assert.match(source, /release: "Release", operations: "Operations"/);
@@ -773,6 +1194,14 @@ test("desktop main and preload expose bounded automation IPC without a generic n
     "arckit:setup-removal-plan",
     "arckit:setup-remove",
     "arckit:setup-continue",
+    "arckit:chat-snapshot",
+    "arckit:chat-create",
+    "arckit:chat-select",
+    "arckit:chat-rename",
+    "arckit:chat-delete",
+    "arckit:chat-send",
+    "arckit:chat-interrupt",
+    "arckit:chat-approval-decision",
     "arckit:automation-snapshot",
     "arckit:automation-sync",
     "arckit:automation-enabled",
@@ -796,6 +1225,12 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   }
   assert.match(preload, /automationSnapshot: \(filter\)/);
   assert.match(preload, /onAutomationEvent: \(listener\)/);
+  assert.match(preload, /chatSnapshot: \(input\)/);
+  assert.match(preload, /selectChat: \(input\)/);
+  assert.match(preload, /sendChatMessage: \(input\)/);
+  assert.match(preload, /interruptChat: \(input\)/);
+  assert.match(preload, /decideChatApproval: \(input\)/);
+  assert.match(preload, /onChatEvent: \(listener\)/);
   assert.match(preload, /sendAuthVerification: \(input\)/);
   assert.match(preload, /loginWithCode: \(input\)/);
   assert.match(preload, /logoutAuth: \(input\)/);
@@ -818,6 +1253,7 @@ test("desktop main and preload expose bounded automation IPC without a generic n
   assert.doesNotMatch(preload, /fetch|httpRequest|requestUrl/);
   assert.doesNotMatch(preload, /startRun:|controlRun:|gateRun:|writeLedger:/);
   assert.doesNotMatch(preload, /addMessage:|createSession:|deleteSession:|addProject:/);
+  assert.doesNotMatch(preload, /threadId:|projectRoot:|cwd:|codexMethod:|shellCommand:/);
   assert.doesNotMatch(main, /arckit:start-run|arckit:control-run|arckit:gate-run|arckit:write-ledger/);
   assert.doesNotMatch(source, /\bfetch\s*\(/);
 });

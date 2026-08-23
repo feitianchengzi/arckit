@@ -102,7 +102,7 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     }
   });
 
-  assert.equal(store.version, 11);
+  assert.equal(store.version, 12);
   assert.deepEqual(store.automation.realtime, { status: "idle", mode: "unknown", last_refreshed_at: "", projects: {} });
   assert.equal(store.automation.snapshot.source_status, "degraded");
   assert.deepEqual(store.automation.project_bindings, {});
@@ -162,7 +162,7 @@ test("desktop store migrates v9 bindings into a local workset without changing a
     }
   });
 
-  assert.equal(store.version, 11);
+  assert.equal(store.version, 12);
   assert.equal(store.platform.active_workset_id, "WORKSET-DEFAULT");
   assert.deepEqual(store.platform.worksets[0].project_ids, ["3", "12"]);
   assert.deepEqual(store.automation.project_participation, { "12": true, "3": false });
@@ -170,6 +170,27 @@ test("desktop store migrates v9 bindings into a local workset without changing a
   const normalizedAgain = normalizeStore(store);
   assert.deepEqual(normalizedAgain.platform, store.platform);
   assert.deepEqual(normalizedAgain.automation.project_participation, store.automation.project_participation);
+});
+
+test("desktop store migrates a missing Chat selection without replacing an explicit new-chat selection", () => {
+  const sessions = {
+    "PROJECT-1": [
+      {
+        id: "CHAT-A", project_id: "PROJECT-1", kind: "chat", status: "completed",
+        created_at: "2026-08-23T00:00:00Z", updated_at: "2026-08-23T00:00:01Z"
+      },
+      {
+        id: "CHAT-B", project_id: "PROJECT-1", kind: "chat", status: "completed",
+        created_at: "2026-08-23T00:00:02Z", updated_at: "2026-08-23T00:00:03Z"
+      }
+    ]
+  };
+
+  const migrated = normalizeStore({ version: 11, sessions });
+  const explicitNewChat = normalizeStore({ version: 12, sessions, chat: { selected_session_id: "" } });
+
+  assert.equal(migrated.chat.selected_session_id, "CHAT-B");
+  assert.equal(explicitNewChat.chat.selected_session_id, "");
 });
 
 test("desktop store preserves acceptance feedback and requeues an orphaned running item", () => {

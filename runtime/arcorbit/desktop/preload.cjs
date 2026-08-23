@@ -14,6 +14,14 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   pickProject: () => ipcRenderer.invoke("arckit:pick-project"),
   listRuns: (filter) => ipcRenderer.invoke("arckit:list-runs", filter),
   listMessages: (projectId, sessionId) => ipcRenderer.invoke("arckit:list-messages", projectId, sessionId),
+  chatSnapshot: (input) => ipcRenderer.invoke("arckit:chat-snapshot", input),
+  createChat: (input) => ipcRenderer.invoke("arckit:chat-create", input),
+  selectChat: (input) => ipcRenderer.invoke("arckit:chat-select", input),
+  renameChat: (input) => ipcRenderer.invoke("arckit:chat-rename", input),
+  deleteChat: (input) => ipcRenderer.invoke("arckit:chat-delete", input),
+  sendChatMessage: (input) => ipcRenderer.invoke("arckit:chat-send", input),
+  interruptChat: (input) => ipcRenderer.invoke("arckit:chat-interrupt", input),
+  decideChatApproval: (input) => ipcRenderer.invoke("arckit:chat-approval-decision", input),
   getSettings: () => ipcRenderer.invoke("arckit:get-settings"),
   updateSettings: (input) => ipcRenderer.invoke("arckit:update-settings", input),
   getProductFeedbackStatus: () => ipcRenderer.invoke("arckit:product-feedback-status"),
@@ -77,6 +85,11 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     const handler = (_event, payload) => listener(payload);
     ipcRenderer.on("arckit:automation-event", handler);
     return () => ipcRenderer.off("arckit:automation-event", handler);
+  },
+  onChatEvent: (listener) => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on("arckit:chat-event", handler);
+    return () => ipcRenderer.off("arckit:chat-event", handler);
   },
   onSetupEvent: (listener) => {
     const handler = (_event, payload) => listener(payload);

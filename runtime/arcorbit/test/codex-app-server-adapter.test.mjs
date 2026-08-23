@@ -118,6 +118,41 @@ test("permission approvals return the granted profile shape required by app-serv
   });
 });
 
+test("a Chat approval provider can fail closed instead of inheriting Runtime auto-accept", async () => {
+  const client = new PermissionClient();
+  const requests = [];
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  await collect(adapter.runTurn({
+    projectRoot: "/workspace/project",
+    prompt: "request permissions",
+    options: {
+      resultKind: "chat",
+      threadKey: "chat:SESSION-1",
+      approvalProvider: async (request) => { requests.push(request); return false; }
+    }
+  }));
+  adapter.close();
+
+  assert.equal(requests[0].method, "item/permissions/requestApproval");
+  assert.deepEqual(client.permissionDecision, { permissions: {}, scope: "turn" });
+});
+
+test("direct adapter interrupt targets the active Chat turn", async () => {
+  const client = new InterruptClient();
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  const collecting = collect(adapter.runTurn({
+    projectRoot: "/workspace/project", prompt: "keep working",
+    options: { resultKind: "chat", threadKey: "chat:SESSION-1" }
+  }));
+  await client.turnStarted;
+  const interruption = await adapter.interrupt();
+  await collecting;
+  adapter.close();
+
+  assert.equal(interruption.thread_id, "THREAD-1");
+  assert.equal(client.requests.some(({ method }) => method === "turn/interrupt"), true);
+});
+
 test("terminal app-server errors reject an Agent turn instead of creating a retry handoff", async () => {
   const client = new TerminalErrorClient();
   const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
@@ -138,6 +173,24 @@ test("terminal app-server errors reject an Agent turn instead of creating a retr
   );
   adapter.close();
   assert.equal(client.requests.filter(({ method }) => method === "turn/start").length, 1);
+});
+
+test("retryable app-server errors retain retry metadata and allow a Chat turn to complete", async () => {
+  const client = new RetryableErrorClient();
+  const adapter = createCodexAppServerAdapter({ clientFactory: () => client });
+  const events = await collect(adapter.runTurn({
+    projectRoot: "/workspace/project",
+    prompt: "recover",
+    options: { resultKind: "chat", threadKey: "chat:SESSION-1" }
+  }));
+  adapter.close();
+
+  const retryableError = events.find(({ type }) => type === "codex.error");
+  const completion = events.find(({ type }) => type === "codex.chat.completed");
+  assert.equal(retryableError.params.willRetry, true);
+  assert.equal(retryableError.params.error.message, "temporary outage");
+  assert.equal(completion.text, "recovered answer");
+  assert.equal(completion.error, "");
 });
 
 test("operator control waits for turn/started after turn/start returns", async () => {
@@ -276,6 +329,32 @@ class PermissionClient extends FakeClient {
   }
 }
 
+class InterruptClient extends FakeClient {
+  constructor() {
+    super();
+    this.turnStarted = new Promise((resolve) => { this.resolveTurnStarted = resolve; });
+  }
+
+  async request(method, params) {
+    if (method === "turn/interrupt") {
+      this.requests.push({ method, params });
+      queueMicrotask(() => this.emit("turn/completed", {
+        threadId: params.threadId,
+        turn: { id: params.turnId, status: "interrupted" }
+      }));
+      return {};
+    }
+    if (method !== "turn/start") return super.request(method, params);
+    this.requests.push({ method, params });
+    const turn = { id: `TURN-${++this.turnCount}` };
+    queueMicrotask(() => {
+      this.emit("turn/started", { threadId: params.threadId, turn });
+      this.resolveTurnStarted();
+    });
+    return { turn };
+  }
+}
+
 class TerminalErrorClient extends FakeClient {
   async request(method, params) {
     if (method !== "turn/start") return super.request(method, params);
@@ -295,6 +374,22 @@ class TerminalErrorClient extends FakeClient {
         }
       });
       this.emit("turn/completed", { threadId: params.threadId, turn });
+    });
+    return { turn };
+  }
+}
+
+class RetryableErrorClient extends FakeClient {
+  async request(method, params) {
+    if (method !== "turn/start") return super.request(method, params);
+    this.requests.push({ method, params });
+    const turn = { id: `TURN-${++this.turnCount}` };
+    queueMicrotask(() => {
+      this.emit("turn/started", { threadId: params.threadId, turn });
+      this.emit("error", { willRetry: true, error: { message: "temporary outage" } });
+      this.emit("item/agentMessage/delta", { itemId: "ITEM-RECOVERED", delta: "recovered answer" });
+      this.emit("item/completed", { item: { id: "ITEM-RECOVERED", type: "agentMessage", text: "recovered answer" } });
+      this.emit("turn/completed", { threadId: params.threadId, turn: { ...turn, status: "completed" } });
     });
     return { turn };
   }

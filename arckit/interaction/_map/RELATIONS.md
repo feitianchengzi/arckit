@@ -6,11 +6,11 @@
 
 Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md`、`arcorbit-planned-workspaces.md` 与 `arckit/tech/arcorbit/platform-composition-solution.md`。Product Workspace 组合 Workshop Project 与 ArcOrbit 本地 repository binding、participation 和偏好；Workset 只控制同时展示范围，不能改变 Automation participation 或全局单活动执行。
 
-## Planned Workspaces
+## Chat and Planned Workspaces
 
-`chat-workspace/` 定义自由 Agent 问答和显式形态确认；`idea-workspace/` 定义创意探索、团队讨论与正式项目转换预览；`release-workspace/` 定义发版准备和上线监控计划；`operations-workspace/` 定义外部市场动作和效果信号回流；`engineering-profile/` 把 Project/Case State 的软件工程定义与维护预期事实、实现现状和问题定位的领域 Skills 组合为一个 Domain Profile，并明确排除 entry skills。
+`chat-workspace/` 定义绑定本地 Product Workspace 的真实 Codex 自由对话、session/thread 生命周期、流式消息、停止、权限、删除和失败恢复；`idea-workspace/` 定义创意探索、团队讨论与正式项目转换预览；`release-workspace/` 定义发版准备和上线监控计划；`operations-workspace/` 定义外部市场动作和效果信号回流；`engineering-profile/` 把 Project/Case State 的软件工程定义与维护预期事实、实现现状和问题定位的领域 Skills 组合为一个 Domain Profile，并明确排除 entry skills。
 
-五个页面共同消费 `arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md`。它们只使用当前真实 Project、Task、Feedback、Run、ledger、代码/配置/测试/运行证据和 release workflow 事实组织展示，不建立新的服务端、Runtime、发布、监控、市场或 registry 写入合约。Chat 和 Idea 的转换、Release 的发布、Operations 的外部动作，以及 Engineering 的 Profile 编辑、比较与 Apply 均保持计划动作。
+五个页面共同消费 `arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md`。Chat 通过 `arckit/tech/arcorbit/desktop-execution-solution.md` 复用 Codex transport 与中性消息投影，同时隔离 state-driven Runtime、Automation lease 和 ledger；它不提供 Idea/Work 转换。其余页面只使用当前真实 Project、Task、Feedback、Run、ledger、代码/配置/测试/运行证据和 release workflow 事实组织展示，不建立新的服务端、发布、监控、市场或 registry 写入合约；Idea 的转换、Release 的发布、Operations 的外部动作和 Engineering 的 Profile 管理保持计划动作。
 
 Organization Center 复用 Workshop Organization、OrganizationMember 和 Project Member，并由组织角色决定全部项目或参与项目可见性。成员页不生成项目邀请；项目页只生成一次性通用邀请。Work 读取完整七状态团队待办；普通反馈读取 Workshop Feedback V1。现有直接加成员授权、邀请列表/撤销、Feedback V2 与待办历史能力未成立时保持 unavailable。
 
@@ -36,7 +36,7 @@ Organization Center 复用 Workshop Organization、OrganizationMember 和 Projec
 
 该页面先消费当前用户可访问的 Workshop 项目，再按项目消费七种任务状态，并把 `待处理 → 进行中 → 已完成` 作为普通待办自动执行链路。“所有项目”只聚合这些项目的待办，不构成独立任务来源。验收问题是 Desktop Store 拥有的独立工作来源，保留自己的队列状态、Run、Case 和进展；它只引用来源待办，不成为第八种服务器任务状态。项目、任务归属与任务状态由远端任务服务器拥有；本地工作区绑定、自动化参与状态、反馈记录、执行子状态、事件和 ledger 证据由 ArcOrbit 拥有。
 
-按需 Chat 从 Command Center 的人工关注项或历史运行进入。需要人工输入时，Workbench 使用上下文、统一执行消息流、证据三栏结构；Runtime、Controller、Worker、工具摘要和用户输入不论内部 thread 数量都进入同一时间线。处理完成后返回 Command Center 并恢复当前任务。普通运行审查进入同一 Workbench 的只读模式，不形成常驻 Chat 主页面。
+Intervention Workbench 从 Command Center 的人工关注项或历史运行按需进入。需要人工输入时，Workbench 使用上下文、统一执行消息流、证据三栏结构；Runtime、Agent、工具摘要和用户输入进入同一任务时间线。处理完成后返回 Command Center 并恢复当前任务。普通运行审查进入同一 Workbench 的只读模式；它不读取或写入 Personal / Chat 的自由会话。
 
 `automation-workspace/runtime-recovery.html` 是 Command Center 的恢复子视图，承接条件式领取冲突、任务已进行中但 Runtime 启动失败、主动安全停止、活动任务外部状态变化、多个进行中任务、任务源完整性异常和会话失效。恢复完成后返回原运行或队列，不通过 Task Browser 静默改写 Runtime。
 

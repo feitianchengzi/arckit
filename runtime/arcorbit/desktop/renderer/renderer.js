@@ -20,6 +20,7 @@ import {
   isTaskAttachmentRequestCurrent,
   taskAttachmentIdentityKey
 } from "../../src/work-task-attachment-cache.mjs";
+import { createChatStateCoordinator } from "./chat-state-coordinator.mjs";
 
 const api = window.arckitDesktop;
 
@@ -115,6 +116,7 @@ const state = {
   verificationCooldown: 0,
   authBusy: { verification: false, login: false, logout: false },
   authFeedback: { message: "", error: false },
+  chatFollowingLatest: true,
   transcript: [],
   transcriptSessionId: "",
   transcriptSessionMessages: [],
@@ -138,16 +140,30 @@ let refreshQueued = false;
 let toastTimer;
 let verificationTimer;
 let workFilterTimer;
+const chatStateCoordinator = createChatStateCoordinator({
+  api,
+  normalizeSnapshot: normalizeChatSnapshot,
+  createRequestId: () => window.crypto?.randomUUID?.() || `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  setTimer: window.setTimeout.bind(window),
+  clearTimer: window.clearTimeout.bind(window)
+});
+
+function chatState() {
+  return chatStateCoordinator.getState();
+}
 
 boot();
 
 async function boot() {
   wireEvents();
-  const [setup, settings, authentication, productFeedback] = await Promise.all([api.getSetupReadiness(), api.getSettings(), api.getAuthStatus(), api.getProductFeedbackStatus()]);
+  const [setup, settings, authentication, productFeedback, chat] = await Promise.all([
+    api.getSetupReadiness(), api.getSettings(), api.getAuthStatus(), api.getProductFeedbackStatus(), api.chatSnapshot({})
+  ]);
   state.setup = setup;
   state.settings = normalizeSettings(settings);
   state.authentication = normalizeAuthentication(authentication);
   state.productFeedback = normalizeProductFeedbackStatus(productFeedback);
+  await chatStateCoordinator.initialize(chat);
   renderSetup();
   await refreshSnapshot();
   api.onProductFeedbackUnread((count) => {
@@ -166,6 +182,10 @@ async function boot() {
     renderSetup();
   });
   api.onAutomationEvent(() => scheduleRefresh());
+  api.onChatEvent((event) => {
+    if (event?.type === "chat.draft.changed") return;
+    refreshChat({ quiet: true }).catch(() => {});
+  });
   api.onEvent((event) => {
     if (["run.started", "run.finished", "message.added"].includes(event.type)) {
       state.transcriptSessionId = "";
@@ -275,6 +295,49 @@ function wireEvents() {
     renderSetupActions();
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
+  els.newChatButton.addEventListener("click", () => runAction(async () => {
+    const projectId = selectedChatProject()?.id || "";
+    await chatStateCoordinator.newDraft(projectId);
+    renderChat();
+    els.chatInput.focus();
+  }));
+  els.chatProjectSelect.addEventListener("change", () => runAction(async () => {
+    const projectId = els.chatProjectSelect.value;
+    await chatStateCoordinator.changeDraftWorkspace(projectId);
+    renderChat();
+  }));
+  els.renameChatButton.addEventListener("click", () => runAction(async () => {
+    const session = selectedChatSession();
+    if (!session) return;
+    const title = window.prompt("重命名对话", session.title);
+    if (title === null || !title.trim()) return;
+    await chatStateCoordinator.renameCurrentSession(title.trim());
+    renderChat();
+  }));
+  els.deleteChatButton.addEventListener("click", () => runAction(async () => {
+    const session = selectedChatSession();
+    if (!session || !window.confirm(`删除“${session.title}”？活动回答会先安全停止。本操作只删除 ArcOrbit 本地会话与恢复记录。`)) return;
+    await chatStateCoordinator.deleteCurrentSession();
+    renderChat();
+  }));
+  els.chatInput.addEventListener("input", () => {
+    chatStateCoordinator.setDraft(els.chatInput.value);
+    renderChatComposer();
+  });
+  els.chatInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
+    event.preventDefault();
+    runAction(sendChat);
+  });
+  els.chatSendButton.addEventListener("click", () => runAction(sendChat));
+  els.chatStopButton.addEventListener("click", () => runAction(async () => {
+    const session = selectedChatSession();
+    if (!session) return;
+    await chatStateCoordinator.interruptCurrentSession();
+    renderChat();
+  }));
+  els.chatTranscript.addEventListener("scroll", handleChatScroll, { passive: true });
+  els.chatJumpLatestButton.addEventListener("click", () => scrollChatToLatest({ behavior: "smooth" }));
   els.syncButton.addEventListener("click", () => runAction(syncAutomationNow));
   els.automationRefreshButton.addEventListener("click", () => runAction(syncAutomationNow));
   els.productFeedbackButton.addEventListener("click", () => runAction(openProductFeedback));
@@ -662,12 +725,179 @@ function platformTaskFilters() {
   };
 }
 
+async function refreshChat({ quiet = false, resetOwner = false } = {}) {
+  try {
+    await chatStateCoordinator.refresh({ quiet, resetOwner });
+    renderChat();
+  } catch (error) {
+    if (!quiet) renderChat();
+    throw error;
+  }
+}
+
+function selectedChatSession() {
+  const chat = chatState();
+  return chat.snapshot.sessions.find((session) => session.id === chat.owner.session_id) || null;
+}
+
+function selectedChatProject() {
+  const chat = chatState();
+  const session = selectedChatSession();
+  const projectId = session?.project_id || chat.owner.project_id || chat.snapshot.draft.project_id || chat.snapshot.projects[0]?.id || "";
+  return chat.snapshot.projects.find((project) => project.id === projectId) || null;
+}
+
+function renderChat() {
+  if (!els.chatTranscript) return;
+  const chat = chatState();
+  const session = selectedChatSession();
+  const project = selectedChatProject();
+  const following = state.chatFollowingLatest;
+  els.chatProjectSelect.innerHTML = chat.snapshot.projects.length
+    ? chat.snapshot.projects.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === project?.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")
+    : `<option value="">尚无本地 Product Workspace</option>`;
+  els.chatProjectSelect.disabled = Boolean(session) || chat.snapshot.projects.length === 0;
+  els.newChatButton.disabled = chat.snapshot.projects.length === 0;
+  els.chatSessionList.innerHTML = chat.snapshot.sessions.length
+    ? chat.snapshot.sessions.map((item) => `<button class="chat-session ${item.id === chat.owner.session_id ? "is-active" : ""}" data-chat-session-id="${escapeHtml(item.id)}" type="button"><strong>${escapeHtml(item.title)}</strong><span class="chat-session-status ${escapeHtml(item.status)}" aria-label="${escapeHtml(chatStatusLabel(item.status))}"></span><small>${escapeHtml(chatStatusLabel(item.status))} · ${escapeHtml(formatDateTime(item.updated_at))}</small></button>`).join("")
+    : `<div class="chat-empty-list">还没有对话。发送第一条消息时才会创建会话。</div>`;
+  els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
+    await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
+    state.chatFollowingLatest = true;
+    renderChat();
+  })));
+  els.chatWorkspaceLabel.textContent = project?.name ? `LOCAL WORKSPACE · ${project.name}` : "选择本地工作区";
+  els.chatTitle.textContent = session?.title || "新对话";
+  els.chatStatusText.textContent = session
+    ? `${chatStatusLabel(session.status)}${session.error ? ` · ${session.error}` : ""}`
+    : project ? "发送第一条消息后创建持久会话和 Codex thread。" : "先在 Workset 中配置一个本地 Product Workspace。";
+  els.renameChatButton.disabled = !session;
+  els.deleteChatButton.disabled = !session;
+  els.chatErrorHost.innerHTML = chat.error || session?.error
+    ? `<div class="chat-error" role="alert"><span>${escapeHtml(chat.error || session.error)}</span>${session?.status === "failed" ? `<button class="secondary-button" data-chat-retry-last type="button">编辑后重试</button>` : ""}</div>`
+    : "";
+  els.chatTranscript.innerHTML = session
+    ? (chat.snapshot.messages.length ? chat.snapshot.messages.map(renderChatMessage).join("") : `<div class="chat-empty"><strong>开始这段对话</strong><p>向 Codex 提问，或说明希望它在 ${escapeHtml(project?.name || "当前项目")} 中完成什么。</p></div>`)
+    : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "会话与 Automation、Case 和待办执行完全隔离；停止回答后可在同一 thread 继续。" : "Chat 只允许绑定已配置的本地 Product Workspace，Renderer 不能指定任意目录。"}</p>${project ? "" : `<button class="primary-button" data-chat-add-workspace type="button">添加本地项目</button>`}</div>`;
+  els.chatTranscript.querySelectorAll("[data-chat-approval]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
+    const message = chat.snapshot.messages.find((item) => item.approval_request_id === button.dataset.chatApproval);
+    if (!message || !chat.owner.session_id) return;
+    await chatStateCoordinator.decideApproval(message.approval_request_id, button.dataset.chatApprovalDecision);
+    renderChat();
+  })));
+  els.chatTranscript.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
+  els.chatTranscript.querySelectorAll("[data-chat-copy-code]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
+    const code = button.closest(".chat-code-block")?.querySelector("code")?.textContent || "";
+    await navigator.clipboard.writeText(code);
+    button.textContent = "已复制";
+    window.setTimeout(() => { button.textContent = "复制"; }, 1200);
+  })));
+  els.chatErrorHost.querySelector("[data-chat-retry-last]")?.addEventListener("click", () => {
+    chatStateCoordinator.prepareRetry();
+    renderChatComposer();
+    els.chatInput.focus();
+  });
+  els.chatTranscript.querySelector("[data-chat-add-workspace]")?.addEventListener("click", () => runAction(async () => {
+    const localProject = await api.pickProject();
+    if (!localProject) return;
+    await checkSetupReadinessForSelection(localProject.id);
+    await refreshSnapshot({ quiet: true });
+    await refreshChat({ quiet: true, resetOwner: true });
+  }));
+  renderChatComposer();
+  requestAnimationFrame(() => {
+    if (following) scrollChatToLatest({ behavior: "auto" });
+    else updateChatJumpLatest();
+  });
+}
+
+function renderChatMessage(message) {
+  const time = formatTime(message.updated_at || message.created_at);
+  if (message.kind === "reasoning") {
+    return message.content.trim() ? `<details class="chat-reasoning"><summary>思考过程 · ${escapeHtml(time)}</summary><div>${escapeHtml(message.content)}</div></details>` : "";
+  }
+  if (message.kind === "tool") {
+    const glyph = message.status === "failed" ? "!" : message.status === "running" ? "◌" : "✓";
+    return `<div class="chat-tool"><span>${glyph}</span><span>${escapeHtml(message.content || "使用工具")}</span><small>${escapeHtml(chatMessageStatusLabel(message.status))}</small></div>`;
+  }
+  if (message.kind === "approval") {
+    return `<section class="chat-approval"><p><strong>Codex 请求批准</strong><br>${escapeHtml(message.content)}</p>${message.status === "pending" ? `<div class="chat-approval-actions"><button class="primary-button" data-chat-approval="${escapeHtml(message.approval_request_id)}" data-chat-approval-decision="accept" type="button">允许本次操作</button><button class="secondary-button" data-chat-approval="${escapeHtml(message.approval_request_id)}" data-chat-approval-decision="decline" type="button">拒绝</button></div>` : `<small>${message.status === "completed" ? "已允许" : "已拒绝或已失效"}</small>`}</section>`;
+  }
+  if (message.kind === "error") return `<div class="chat-error" role="alert">${escapeHtml(message.content)}</div>`;
+  const user = message.role === "user";
+  const content = user
+    ? escapeHtml(message.content).replaceAll("\n", "<br>")
+    : message.content ? renderChatMarkdown(message.content) : `<span class="chat-streaming-cursor">▍</span>`;
+  return `<article class="chat-message ${user ? "user" : "assistant"}"><div class="chat-message-meta"><strong>${user ? "你" : "Codex"}</strong><span>${escapeHtml(time)}</span>${message.status === "interrupted" ? "<span>已停止</span>" : ""}</div><div class="chat-message-content">${content}</div></article>`;
+}
+
+function renderChatMarkdown(value) {
+  return renderRestrictedMarkdown(value)
+    .replaceAll("<pre>", `<div class="chat-code-block"><button data-chat-copy-code type="button">复制</button><pre>`)
+    .replaceAll("</pre>", "</pre></div>");
+}
+
+function renderChatComposer() {
+  const chat = chatState();
+  const session = selectedChatSession();
+  const project = selectedChatProject();
+  const active = isChatActive(session?.status);
+  if (els.chatInput.value !== chat.draft) els.chatInput.value = chat.draft;
+  els.chatInput.disabled = !project;
+  els.chatInput.placeholder = project ? "向 Codex 提问或说明希望它在当前项目中完成什么…" : "先配置本地 Product Workspace…";
+  els.chatSendButton.disabled = !project || active || chat.sending || !chat.draft.trim();
+  els.chatSendButton.classList.toggle("hidden", active);
+  els.chatStopButton.classList.toggle("hidden", !active);
+  els.chatStopButton.disabled = session?.status === "interrupting";
+  els.chatComposerHint.textContent = active
+    ? session?.status === "waiting_approval" ? "Codex 正在等待你的审批；也可以随时停止。" : "回答进行中；停止后保留已有内容，可在同一 thread 继续。"
+    : "Enter 发送 · Shift+Enter 换行";
+}
+
+async function sendChat() {
+  try {
+    renderChatComposer();
+    await chatStateCoordinator.send();
+  } finally {
+    renderChat();
+  }
+}
+
+function isChatActive(status) {
+  return ["starting", "running", "waiting_approval", "interrupting"].includes(status);
+}
+
+function chatStatusLabel(status) {
+  return ({ starting: "正在启动", running: "Codex 正在回答", waiting_approval: "等待审批", interrupting: "正在停止", completed: "已完成", interrupted: "已停止", failed: "失败" })[status] || "就绪";
+}
+
+function chatMessageStatusLabel(status) {
+  return ({ running: "进行中", completed: "完成", interrupted: "已停止", failed: "失败" })[status] || status;
+}
+
+function handleChatScroll() {
+  const { scrollTop, scrollHeight, clientHeight } = els.chatTranscript;
+  state.chatFollowingLatest = scrollHeight - scrollTop - clientHeight < 72;
+  updateChatJumpLatest();
+}
+
+function updateChatJumpLatest() {
+  els.chatJumpLatestButton.classList.toggle("hidden", state.chatFollowingLatest);
+}
+
+function scrollChatToLatest({ behavior = "auto" } = {}) {
+  state.chatFollowingLatest = true;
+  els.chatTranscript.scrollTo({ top: els.chatTranscript.scrollHeight, behavior });
+  updateChatJumpLatest();
+}
+
 function render() {
   renderPageVisibility();
   renderNavigation();
   renderCommandBar();
   renderWorkset();
   renderToday();
+  renderChat();
   renderOrganization();
   renderPlatformWork();
   renderPlatformFeedback();
@@ -2538,6 +2768,10 @@ function openWorkState(taskState = "pending") {
 
 function showPage(page) {
   state.page = page;
+  if (page === "chat") {
+    refreshChat({ quiet: true }).catch((error) => showToast(error.message));
+    return;
+  }
   if (["tasks", "work"].includes(page)) {
     refreshSnapshot().catch((error) => showToast(error.message));
     return;
@@ -3100,6 +3334,40 @@ function normalizeAuthentication(value = {}) {
 
 function defaultAuthentication() {
   return { status: "logged_out", authenticated: false, identity: "", masked_identity: "", can_refresh: false, error: "" };
+}
+
+function normalizeChatSnapshot(value = {}) {
+  const defaults = emptyChatSnapshot();
+  return {
+    generated_at: String(value.generated_at || ""),
+    projects: Array.isArray(value.projects) ? value.projects.map((project) => ({ id: String(project.id || ""), name: String(project.name || "未命名项目") })).filter((project) => project.id) : [],
+    sessions: Array.isArray(value.sessions) ? value.sessions.map((session) => ({
+      id: String(session.id || ""),
+      project_id: String(session.project_id || ""),
+      title: String(session.title || "新对话"),
+      status: String(session.status || "completed"),
+      error: String(session.error || ""),
+      retry_client_request_id: String(session.retry_client_request_id || ""),
+      created_at: String(session.created_at || ""),
+      updated_at: String(session.updated_at || session.created_at || "")
+    })).filter((session) => session.id) : [],
+    selected_session_id: String(value.selected_session_id || ""),
+    messages: Array.isArray(value.messages) ? value.messages.map((message) => ({
+      id: String(message.id || ""),
+      role: String(message.role || "system"),
+      kind: String(message.kind || "text"),
+      content: String(message.content || ""),
+      status: String(message.status || "completed"),
+      approval_request_id: String(message.approval_request_id || ""),
+      created_at: String(message.created_at || ""),
+      updated_at: String(message.updated_at || message.created_at || "")
+    })) : [],
+    draft: { ...defaults.draft, ...(value.draft || {}), project_id: String(value.draft?.project_id || ""), text: String(value.draft?.text || "") }
+  };
+}
+
+function emptyChatSnapshot() {
+  return { generated_at: "", projects: [], sessions: [], selected_session_id: "", messages: [], draft: { project_id: "", text: "" } };
 }
 
 function emptySnapshot() {

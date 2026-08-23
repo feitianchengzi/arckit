@@ -4,7 +4,7 @@
 
 ### 核心任务
 
-用户在 Automation Command Center 中沿用顶部产品集的全局观察范围，查看普通待办队列、验收问题队列、自动化吞吐、当前运行和需要人工判断的事项，并可用“仅看验收问题”聚焦独立问题工作。系统按项目拉取待办形成跨项目待办队列，并只从已完成待办的结果审查接收独立验收问题；Chat 仅在审查执行过程、提出验收问题或处理人工中断时进入独立的 Intervention Workbench。
+用户在 Automation Command Center 中沿用顶部产品集的全局观察范围，查看普通待办队列、验收问题队列、自动化吞吐、当前运行和需要人工判断的事项，并可用“仅看验收问题”聚焦独立问题工作。系统按项目拉取待办形成跨项目待办队列，并只从已完成待办的结果审查接收独立验收问题；任务消息仅在审查执行过程、提出验收问题或处理人工中断时进入独立的 Intervention Workbench。Personal / Chat 的自由会话不参与 Automation。
 
 Command Center 以 Workshop 实时事件及时发现参与项目变化，并以项目级 REST 刷新确认事实。用户能够区分现代实时、补取、旧服务兼容连接、连接异常和认证失效状态；连接恢复自动补取现代服务事件或刷新旧服务当前态，不要求用户确认，也不会越过正在等待的人工事项。
 
@@ -70,7 +70,7 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 - 验收问题队列和普通待办队列在信息架构、计数、筛选和排序上彼此独立；执行器是否空闲只影响问题项何时从 queued 进入 running，不改变它属于哪条队列。
 - “仅看验收问题”只隐藏普通待办指标、列表和普通最近完成投影，保留全局当前运行与恢复状态；它不把验收问题计入待办状态，也不改变两条队列的排序和共享执行租约。
 - 一个验收问题项显示稳定标识、来源待办、问题摘要、状态、当前 Case/Run、最近进展和阻塞/人工责任。多个问题项按创建时间分别展示，不合并为待办的一条备注。
-- 每个远端待办拥有独立的 Workbench 会话。对话区只加载该待办的初始 Run、续接、人工介入和收束消息；项目默认 Chat、其他待办以及归属不明的历史消息不得混入。
+- 每个远端待办拥有独立的 Workbench 会话。对话区只加载该待办的初始 Run、续接、人工介入和收束消息；Personal / Chat session、其他待办以及归属不明的历史消息不得混入。
 - 同一待办的续接保持在同一 Workbench 会话和持久 Codex thread 中；fresh Case State 校正事实与授权，Run 或 turn 切换不创建新的待办对话。
 - Workbench 以待办消息流为唯一主时间线。Runtime、Controller、Controller Review、Worker Agent、工具和用户通过消息来源标签区分，不按 Codex thread、Worker thread 或 JSON 事件类型拆成多个对话区。
 - 计划、命令、文件变更、验证和 ledger 结果以有界摘要消息进入时间线；原始 JSON envelope、逐 token 文本 delta、逐字符 reasoning delta 和连续命令输出不直接呈现为普通用户消息。
@@ -201,7 +201,7 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 - token 后台刷新不打断用户；临时网络或服务错误保留可恢复会话并显示同步恢复，只有超过七天无活动、凭据缺失/过期或服务端明确拒绝时才显示认证失效提示。
 - 自动领取成功后，页面摘要、指标、当前运行和任务行同步变化。
 - 自动领取开启但候选被项目条件阻止时，健康状态、attention strip、队列空态和任务 Inspector 显示同一个资格原因；用户完成项目授权或绑定后立即重新计算队列。
-- 人工事项通过 attention strip、侧栏数量、任务行和桌面通知共同提示，但不自动打开 Chat。
+- 人工事项通过 attention strip、侧栏数量、任务行和桌面通知共同提示，但不自动打开 Intervention Workbench 或 Personal / Chat。
 - 用户提交人工处理后，原文立即作为“你”的消息进入当前时间线，Workbench 显示“正在交给 Controller”，确认 Runtime 接受后返回 Command Center。
 - 拉取失败保留最近一次成功列表并标记数据时间；用户可重试同步。
 - `待处理 → 进行中` 写回失败时不启动 Runtime。
@@ -230,7 +230,7 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 - `authentication.html` 投影 Automation Workspace 账号设置覆盖层的已登录与会话失效状态。
 - `intervention-workbench.html` 投影人工处理模式与只读审查模式。
 - `runtime-recovery.html` 投影领取冲突、Runtime 启动失败、补充说明并继续、停止当前运行、外部状态变化、多个进行中任务、任务源完整性异常和任务源会话失效。
-- 三个投影保持同一任务上下文和返回路径；Chat 不成为主导航常驻入口。
+- 三个投影保持同一任务上下文和返回路径；Intervention Workbench 不成为 Automation 主导航常驻区域，Personal / Chat 保持独立入口。
 
 ## 页面状态
 
@@ -267,7 +267,7 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 ### 进入方式
 
 - 应用启动先进入 Login 会话恢复状态；已认证时进入 Automation Command Center，未登录时留在 Login。
-- 桌面通知打开对应 attention item，不直接打开可输入 Chat。
+- 桌面通知打开对应 attention item，不直接打开 Intervention Workbench 或 Personal / Chat。
 - 顶部产品集控件切换所有 ADVANCE 页面的观察范围；Automation 面板不重复提供项目范围选择器。
 
 ### 页面内导航

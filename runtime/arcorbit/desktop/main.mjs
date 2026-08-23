@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { readFile, stat } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
+import { createChatCoordinator } from "../src/chat-coordinator.mjs";
 import { createAutomationCoordinator } from "../src/automation-coordinator.mjs";
 import { createCodexExecutableResolver } from "../src/codex-executable-resolver.mjs";
 import { createInteractiveCodexCliLauncher } from "../src/interactive-cli-launcher.mjs";
@@ -31,6 +32,7 @@ app.setPath("userData", canonicalArcOrbitUserDataPath(app.getPath("appData")));
 let mainWindow;
 let runManager;
 let automationCoordinator;
+let chatCoordinator;
 let platformCoordinator;
 let workshopService;
 let skillProvisioningManager;
@@ -81,6 +83,17 @@ app.whenReady().then(async () => {
     resourcesRoot,
     dataRoot: app.getPath("userData"),
     codexProbe: () => codexExecutableResolver.probe()
+  });
+  chatCoordinator = createChatCoordinator({
+    runManager,
+    getCodexExecutable: () => codexExecutableResolver.getResolved(),
+    setupReadinessPreflight: async (projectRoot) => {
+      const store = await runManager.readDesktopStore();
+      return skillProvisioningManager.assertReady(projectRoot, [], store.projects.map((item) => item.path).filter(Boolean));
+    }
+  });
+  chatCoordinator.onEvent((event) => {
+    if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("arckit:chat-event", event);
   });
   automationCoordinator = createAutomationCoordinator({
     runManager,
@@ -199,6 +212,7 @@ app.on("before-quit", async (event) => {
       productFeedbackUnreadTimer = null;
     }
     automationCoordinator?.dispose();
+    await chatCoordinator?.close();
     productFeedbackService?.close();
     await skillProvisioningManager?.waitForIdle();
     await runManager.abortActiveRuns({
@@ -285,6 +299,38 @@ function registerIpc() {
 
   ipcMain.handle("arckit:list-runs", async (_event, filter) => runManager.listRuns(filter));
   ipcMain.handle("arckit:list-messages", async (_event, projectId, sessionId) => runManager.listMessages(projectId, sessionId));
+  ipcMain.handle("arckit:chat-snapshot", async (event, input) => {
+    assertMainRenderer(event);
+    return chatCoordinator.getSnapshot(input);
+  });
+  ipcMain.handle("arckit:chat-create", async (event, input) => {
+    assertMainRenderer(event);
+    return chatCoordinator.createDraft(input);
+  });
+  ipcMain.handle("arckit:chat-select", async (event, input) => {
+    assertMainRenderer(event);
+    return chatCoordinator.select(input);
+  });
+  ipcMain.handle("arckit:chat-rename", async (event, input) => {
+    assertMainRenderer(event);
+    return chatCoordinator.rename(input);
+  });
+  ipcMain.handle("arckit:chat-delete", async (event, input) => {
+    assertMainRenderer(event);
+    return chatCoordinator.delete(input);
+  });
+  ipcMain.handle("arckit:chat-send", async (event, input) => {
+    assertMainRenderer(event);
+    return chatCoordinator.send(input);
+  });
+  ipcMain.handle("arckit:chat-interrupt", async (event, input) => {
+    assertMainRenderer(event);
+    return chatCoordinator.interrupt(input);
+  });
+  ipcMain.handle("arckit:chat-approval-decision", async (event, input) => {
+    assertMainRenderer(event);
+    return chatCoordinator.decideApproval(input);
+  });
   ipcMain.handle("arckit:get-settings", async () => runManager.getSettings());
   ipcMain.handle("arckit:update-settings", async (_event, input) => runManager.updateSettings(input));
   ipcMain.handle("arckit:product-feedback-status", async () => productFeedbackService.getStatus());

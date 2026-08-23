@@ -12,14 +12,15 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-		version: 11,
+        version: 12,
         projects: [],
         runs: [],
         sessions: {},
         messages: {},
         settings: defaultSettings(),
         automation: defaultAutomationState(),
-        platform: defaultPlatformState()
+        platform: defaultPlatformState(),
+        chat: defaultChatState()
       });
     }
   }
@@ -56,16 +57,24 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
 
 export function normalizeStore(store) {
   const automation = normalizeAutomationState(store.automation || {});
+  const hasPersistedChatSelection = Boolean(store.chat)
+    && Object.prototype.hasOwnProperty.call(store.chat, "selected_session_id");
   const normalized = {
-	version: 11,
+    version: 12,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
     messages: store.messages && typeof store.messages === "object" ? store.messages : {},
     settings: normalizeSettings(store.settings || {}),
     automation,
-    platform: normalizePlatformState(store.platform || {}, automation)
+    platform: normalizePlatformState(store.platform || {}, automation),
+    chat: normalizeChatState(store.chat || {})
   };
+  for (const [projectIdValue, sessions] of Object.entries(normalized.sessions)) {
+    normalized.sessions[projectIdValue] = Array.isArray(sessions)
+      ? sessions.map((session) => normalizeDesktopSession(session, projectIdValue)).filter(Boolean)
+      : [];
+  }
   for (const project of normalized.projects) {
     const legacyMessages = Array.isArray(normalized.messages[project.id]) ? normalized.messages[project.id] : null;
     if (legacyMessages) {
@@ -78,6 +87,11 @@ export function normalizeStore(store) {
     } else {
       ensureProjectSession(normalized, project.id);
     }
+  }
+  if (!hasPersistedChatSelection) {
+    normalized.chat.selected_session_id = Object.values(normalized.sessions).flat()
+      .filter((session) => session.kind === "chat")
+      .sort((left, right) => String(right.updated_at).localeCompare(String(left.updated_at)))[0]?.id || "";
   }
   normalized.runs = normalized.runs.map((run) => {
     const { activity: _activity, ...runRecord } = run || {};
@@ -108,6 +122,47 @@ export function defaultPlatformState() {
       features: {},
       error: ""
     }
+  };
+}
+
+export function defaultChatState() {
+  return {
+    selected_session_id: "",
+    draft: { project_id: "", text: "", updated_at: "" }
+  };
+}
+
+export function normalizeChatState(value = {}) {
+  const draft = value.draft && typeof value.draft === "object" && !Array.isArray(value.draft) ? value.draft : {};
+  return {
+    selected_session_id: String(value.selected_session_id || ""),
+    draft: {
+      project_id: String(draft.project_id || ""),
+      text: String(draft.text || "").slice(0, 100_000),
+      updated_at: String(draft.updated_at || "")
+    }
+  };
+}
+
+function normalizeDesktopSession(value, projectIdValue) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || !value.id) return null;
+  const kind = value.kind === "chat" ? "chat" : value.kind === "automation-task" ? "automation-task" : "legacy";
+  const activeStatuses = new Set(["starting", "running", "waiting_approval", "interrupting"]);
+  const status = [...activeStatuses, "draft", "completed", "interrupted", "failed"].includes(value.status) ? value.status : "completed";
+  return {
+    ...value,
+    id: String(value.id),
+    project_id: String(value.project_id || projectIdValue),
+    kind,
+    title: String(value.title || (kind === "chat" ? "New chat" : "Automation")),
+    thread_id: String(value.thread_id || ""),
+    turn_id: String(value.turn_id || ""),
+    retry_client_request_id: kind === "chat" ? String(value.retry_client_request_id || "") : "",
+    status,
+    error: String(value.error || ""),
+    draft: String(value.draft || "").slice(0, 100_000),
+    created_at: String(value.created_at || ""),
+    updated_at: String(value.updated_at || value.created_at || "")
   };
 }
 
@@ -428,7 +483,8 @@ export function ensureProjectSession(store, projectIdValue) {
     const session = {
       id: `SESSION-${projectIdValue}-default`,
       project_id: projectIdValue,
-      title: "Default chat",
+      title: "Automation",
+      kind: "automation-task",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -471,6 +527,15 @@ export function deleteProjectSession(store, projectIdValue, sessionIdValue) {
   store.sessions[projectIdValue] = sessions.filter((item) => item.id !== sessionIdValue);
   delete store.messages?.[sessionIdValue];
   return session;
+}
+
+export function findSessionById(store, sessionIdValue) {
+  const id = String(sessionIdValue || "");
+  for (const [projectIdValue, sessions] of Object.entries(store.sessions || {})) {
+    const session = (sessions || []).find((item) => item.id === id);
+    if (session) return { project_id: projectIdValue, session };
+  }
+  return null;
 }
 
 export function projectId(projectPath) {

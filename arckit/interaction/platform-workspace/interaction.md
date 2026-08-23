@@ -98,9 +98,9 @@ Today 按顶部产品集观察范围聚合 Product Workspace、完整待办、�
 
 ### Chat、Idea、Release、Operations 与 Engineering
 
-五个新增入口各自打开独立稳定页签。Chat 展示自由问答与经确认后的形态建议；Idea 展示创意、团队讨论与正式项目转换；Release 展示发版准备和线上监控；Operations 展示对外市场动作；Engineering 展示 Profile Library 和编辑器，用户可以在计划层选择、复制、编辑、比较和 Apply Domain Profile。Profile 把 Project/Case 的领域 State 定义、预期/现状/诊断能力映射以及同一生命周期的领域解释作为一组替换；通用 Loop Kernel 与产品流程保持稳定。
+五个入口各自打开独立稳定页签。Chat 提供绑定单个本地 Product Workspace 的真实 Codex 自由对话，并保持与 Automation 及产品对象转换隔离；Idea 展示创意、团队讨论与正式项目转换；Release 展示发版准备和线上监控；Operations 展示对外市场动作；Engineering 展示 Profile Library 和编辑器，用户可以在计划层选择、复制、编辑、比较和 Apply Domain Profile。Profile 把 Project/Case 的领域 State 定义、预期/现状/诊断能力映射以及同一生命周期的领域解释作为一组替换；通用 Loop Kernel 与产品流程保持稳定。
 
-这些页面的详细交互策略分别位于 `../chat-workspace/`、`../idea-workspace/`、`../release-workspace/`、`../operations-workspace/` 和 `../engineering-profile/`。所有写入或转换动作在当前阶段均为计划展示，不产生真实副作用。
+这些页面的详细交互策略分别位于 `../chat-workspace/`、`../idea-workspace/`、`../release-workspace/`、`../operations-workspace/` 和 `../engineering-profile/`。Chat 的会话、消息、停止与恢复是真实本地行为；Chat 不转换其他对象。其余页面的写入或转换动作保持计划展示，不产生真实副作用。
 
 ### Work
 

@@ -41,6 +41,10 @@ test("restricted Work markdown renders useful structure without executable HTML"
 - first
 - second
 
+| State | Meaning |
+| --- | --- |
+| running | streaming |
+
 \u0060\u0060\u0060js
 <script>alert(1)</script>
 \u0060\u0060\u0060`);
@@ -49,6 +53,7 @@ test("restricted Work markdown renders useful structure without executable HTML"
   assert.match(html, /<strong>strong<\/strong>/);
   assert.match(html, /<code>inline<\/code>/);
   assert.match(html, /<ul><li>first<\/li><li>second<\/li><\/ul>/);
+  assert.match(html, /<table><thead><tr><th>State<\/th><th>Meaning<\/th><\/tr><\/thead><tbody><tr><td>running<\/td><td>streaming<\/td><\/tr><\/tbody><\/table>/);
   assert.match(html, /class="task-markdown-link"/);
   assert.match(html, /type="button"/);
   assert.match(html, /data-task-markdown-external-link="https:\/\/example\.test\/path"/);

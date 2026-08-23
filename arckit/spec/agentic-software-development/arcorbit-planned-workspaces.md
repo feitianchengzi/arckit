@@ -1,10 +1,10 @@
-# ArcOrbit 计划工作空间能力规格
+# ArcOrbit Chat 与计划工作空间能力规格
 
 ## 文档定位
 
-本文定义 ArcOrbit 用于团队计划对齐的 Chat、Idea、Release、Operations 和 Engineering 工作空间，以及它们与现有 Today、Work、Automation、Feedback 和 Organization 的关系。
+本文定义 ArcOrbit 的真实 Chat，以及用于团队计划对齐的 Idea、Release、Operations 和 Engineering 工作空间，并说明它们与现有 Today、Work、Automation、Feedback 和 Organization 的关系。
 
-这些工作空间当前是产品方向的可交互展示面。计划展示不等于真实接入：页面使用 ArcOrbit 已有的项目、待办、反馈、Run、Project State、Case、Loop、definition/code/diagnosis skill contract 和发布工作流事实组织示意内容，但不因此宣称新的服务端、市场平台、监控平台或 Agent 执行能力已经接入。
+Chat 是由 Codex app-server 驱动的本地项目自由对话工作空间。Idea、Release、Operations 和 Engineering 是产品方向的可交互展示面；它们使用 ArcOrbit 已有的项目、待办、反馈、Run、Project State、Case、Loop、definition/code/diagnosis skill contract 和发布工作流事实组织示意内容，但不因此宣称新的服务端、市场平台、监控平台或 Agent 执行能力已经接入。
 
 ## 主导航信息架构
 
@@ -16,40 +16,64 @@
 
 中文语义分别为“个人”“产品全生命周期”“组织能力”。`发布` 在英文界面中显示为 `Release`，`运营` 显示为 `Operations`；同一界面不混用中英文入口名。
 
-Today 仍是跨产品的今日推进摘要。Chat 位于 Today 下方，表达尚未固化为产品事项的自由协作。
+Today 仍是跨产品的今日推进摘要。Chat 位于 Today 下方，提供不依赖待办或 Case 的本地项目自由协作。
 
 Idea 位于 Work 上方，作为产品全生命周期的起点。Work、Automation 和 Feedback 保留既有真实能力；Release 和 Operations 位于 Automation 与 Feedback 之间，表达研发完成后的发布与外部运营阶段。
 
 Organization 保留组织治理职责。Engineering 位于其下方，是 Domain Profile 的管理入口。当前 Software Engineering Profile 把软件工程 State 定义、领域 Skills 与生命周期解释组合为一份可编辑配置；团队通过建立、复制、替换和应用 Profile，让同一套 Loop Kernel 与产品生命周期适配不同团队、行业或领域。
 
-## 统一展示边界
+## 统一工作空间边界
 
-所有新增页面都满足以下边界：
+所有页面都满足以下边界：
 
-- 页面标题、摘要、卡片、状态、时间线和动作可以使用可信的计划示例，帮助团队讨论目标形态。
-- 示例优先来自 ArcOrbit 当前真实对象与约束，不虚构已接入的远端接口、权限或自动化结果。
-- 未建立真实写入合约的动作以“计划动作”“示意”或不可用状态表达，不产生远端记录、Runtime Run、Project State transition 或发布授权。
-- 从 Chat 或 Idea 转入其他形态表示产品计划中的显式确认关系，不等于当前已经完成跨域持久化。
+- Chat 只以明确选择的本地 Product Workspace 为 Codex 工作目录；没有可用本地工作区时保留草稿，但不启动对话。
+- Chat 会话、消息、Codex thread 绑定和运行状态由 ArcOrbit 本地持久化，不写入 Workshop、Project State、Case 或 Automation queue。
+- Chat 中的工具和文件操作继续受 Codex sandbox、workspace roots 与 approval policy 约束；Renderer 不获得 Codex 进程、凭据、文件系统或通用 RPC 权限。
+- Idea、Release、Operations 和 Engineering 的标题、摘要、卡片、状态、时间线和动作可以使用可信的计划示例，帮助团队讨论目标形态。
+- 计划示例优先来自 ArcOrbit 当前真实对象与约束，不虚构已接入的远端接口、权限或自动化结果。
+- 未建立真实写入合约的计划动作以“计划动作”“示意”或不可用状态表达，不产生远端记录、Runtime Run、Project State transition 或发布授权。
+- Chat 与 Idea、Work 等正式形态之间没有转换、关联或来源写入；自由对话只保留为独立 Chat 会话。
 - Work、Automation、Feedback、Organization 和产品反馈中心的既有真实行为不因这些计划页面而改变。
-- 顶部产品集观察范围可以为计划页面提供上下文，但不得改变自动领取资格、成员关系、状态真相源或发布授权。
+- 顶部产品范围为 Chat 选择本地 Product Workspace，并可为其他计划页面提供上下文；它不得改变自动领取资格、成员关系、状态真相源或发布授权。
 
 ## Chat
 
 ### 目标
 
-Chat 是自由度最高的 Agent 协作入口，用于尚未确定应该进入哪一种正式工作形态的问题、解释、探索和讨论。
+Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在不创建待办、Case 或 Automation Run 的前提下完成提问、解释、探索、讨论和明确请求的 Agent 操作。
 
-### 主要内容
+### 会话能力
 
-- 当前对话和历史对话摘要；
-- 可选的产品集或单产品上下文；
-- Agent 对问题的正文回答、相关事实和建议的后续形态；
-- 将已确认结论转为 Idea、Work 或其他明确形态的计划动作；
-- “尚未确认”的显式状态，防止自由讨论被误认为正式项目事实。
+- Chat 左栏按最近活动时间展示当前用户的本地会话，并支持新建、选择、重命名和删除。
+- 新会话在用户提交第一条非空消息时落盘；未发送的空白新会话只保留一个临时草稿，不污染历史列表。
+- 每个会话在首个 turn 前固定绑定一个 Product Workspace、本地项目根和持久 Codex thread。切换产品会创建新会话，不把既有 thread 迁移到另一个工作目录。
+- 会话保留标题、创建与更新时间、工作区引用、thread 绑定、消息记录、草稿和最近运行状态。标题默认取第一条用户消息的有界摘要，并允许用户修改。
+- 删除会话前显示确认；活动 turn 先 interrupt 并等待进入终态，再移除 ArcOrbit 的本地会话、消息和 thread 绑定。删除不声明擦除 Codex 自身可能保留的底层 thread 数据。
+- 应用重启后恢复会话列表、消息、草稿和 thread 绑定；重启前仍在生成的 turn 以“已中断”恢复，不自动继续执行。
+
+### 消息与运行能力
+
+- Composer 接受多行文本，支持输入法组合，`Enter` 发送、`Shift+Enter` 换行；空白内容和重复提交不启动 turn。
+- 用户消息在提交成功后立即进入 transcript；Agent 正文以稳定消息 ID 流式更新，不为每个 delta 创建新消息。
+- Assistant 正文支持段落、列表、引用、链接、代码块与复制。reasoning 默认折叠；工具调用以单行活动展示开始、进行中、完成或失败，不把完整 stdout、stderr、文件正文或 raw protocol payload 填入普通消息。
+- 生成期间 Composer 保留草稿编辑能力，并提供明确的停止按钮。停止调用当前 Codex turn 的 interrupt，保留已显示的部分回答并标记“已中断”；再次继续会启动同一 thread 的新 turn，不伪装成恢复原 turn。
+- 一个会话同一时间只有一个活动 turn；不同 Chat 会话的执行所有权彼此隔离，也不占用或解除 Automation 的任务执行 lease。
+- 用户切换会话或页面不会隐式中断活动 turn；对应会话在列表中显示运行状态，返回后继续接收同一 turn 的投影。
+- transcript 位于底部阈值内时自动跟随新内容；用户上滚后保持阅读位置并显示“回到最新”。
+- app-server 初始化、thread resume、turn start、权限请求、运行失败和进程退出均产生可恢复状态。可重试错误保留用户输入、部分消息与 thread 绑定；只有 Codex 明确确认 thread 不存在时才创建替代 thread，并显示恢复记录。
+
+### 工作区与权限
+
+- 首次发送前必须选择已绑定本地目录且 Setup Readiness 可用的 Product Workspace。不存在可用工作区时页面说明阻塞原因，并提供前往工作区配置的恢复入口。
+- Product Workspace 决定 Codex 的 `cwd`、workspace root、project skill discovery 和文件权限边界；会话消息不会自动注入整个 Workset、Workshop 任务或 ledger state。
+- Chat 直接使用 Codex 自由对话 prompt，不触发 `$using-arckit`，不要求 `arckit-agent-loop-result/v1`，也不调用 trusted ledger entrypoint。
+- Codex 发起需要批准的文件、命令或网络操作时，沿用 app-server 的用户 approval request；拒绝只影响该操作或 turn，不改变 Workshop 与 Automation 状态。
 
 ### 边界
 
-Chat 不替代一个待办一个持久 thread 的 Automation 对话，也不把普通问答自动写入 Project State、Case 或 Workshop Task。用户确认后才进入后续形态；当前展示页不执行真实转换。
+Chat 不替代一个待办一个持久 thread 的 Automation 对话，也不复用 Automation task session、task thread binding、Case、Run、队列或 human Gate。普通问答和 Agent 操作不自动写入 Project State、Case、Workshop Task、Idea 或其他正式对象。Chat 不提供任何“转为 Idea”“创建 Work”或类似转换动作。
+
+Chat 不提供附件、语音、共享链接、跨设备同步、会话分支或模型管理；它使用 ArcOrbit 当前配置的 Codex 能力，集中保证文本自由对话及其会话、消息、停止和恢复体验。
 
 ## Idea
 
@@ -134,7 +158,7 @@ Engineering 中的编辑对象是 Domain Profile 草稿，不是直接修改当�
 
 计划关系遵守显式确认原则：
 
-1. Chat 中的自由讨论可以在用户确认后形成 Idea 或 Work。
+1. Chat 保持独立自由对话，不自动进入产品生命周期对象。
 2. Idea 经团队确认后形成正式 Project，并进入 Work。
 3. Work 保存可执行待办，Automation 在受控本地项目与 Runtime 边界内执行。
 4. Release 汇总候选变更、验证、发布准备与上线观察。
@@ -142,15 +166,18 @@ Engineering 中的编辑对象是 Domain Profile 草稿，不是直接修改当�
 6. Feedback 保持用户反馈处理工作台职责，为产品生命周期提供外部输入。
 7. Organization 描述谁在协作；Engineering 管理这些团队使用哪一份 Domain Profile，以及该 Profile 如何定义 State、映射能力并解释同一生命周期。
 
-任何跨入口转换都要求用户看见来源、目标形态和确认动作。没有真实合约时，页面只展示目标关系，不伪造转换结果。
+Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户看见来源、目标形态和确认动作。Chat 当前不参与这些转换关系。
 
 ## 验收口径
 
 - 左侧导航完整显示三个职责组和十项入口，顺序与本文一致。
 - `Release` 与 `Operations` 在英文界面使用英文，在中文说明中分别对应“发布”和“运营”。
-- 五个新增入口都可以打开独立页面，并展示符合本规格的示意内容。
-- 页面明确区分真实项目事实、计划示例和未接入动作。
-- Chat 展示自由问答与确认后转换；Idea 展示探索、讨论与确认后建项目。
+- 五个入口都可以打开独立页面；Chat 提供真实 Codex 对话，其余四个页面展示符合本规格的计划内容。
+- 页面明确区分真实 Chat 状态、真实项目事实、计划示例和未接入动作。
+- Chat 支持工作区绑定、新建/切换/重命名/删除会话、持久 thread、流式消息、工具活动、停止、重试、错误恢复和重启恢复。
+- Chat 停止后保留部分回答并以新 turn 继续；删除活动会话先完成 interrupt，且不会误删其他会话。
+- Chat 不调用 state-driven Runtime、trusted ledger、Workshop mutation 或其他对象转换；Automation task session 与 thread 不进入 Chat 列表。
+- Idea 展示探索、讨论与确认后建项目。
 - Release 同时覆盖发版准备与线上监控；Operations 覆盖对外市场化动作。
 - Engineering 提供 Profile Library、State Model 编辑、Capability Mapping、Lifecycle Mapping、变更预览与 Apply 确认的完整管理示意。
 - Engineering 支持把 State 定义与领域 Skills 作为一组替换，并显示 Software Engineering 以外的团队或行业 Profile 示例。

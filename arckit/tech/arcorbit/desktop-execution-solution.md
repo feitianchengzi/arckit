@@ -1,8 +1,8 @@
-# ArcOrbit Desktop 待办执行与用量可观测性方案
+# ArcOrbit Desktop Codex 会话、待办执行与用量可观测性方案
 
 ## 定位
 
-Desktop Execution Plane 负责把一个远端待办绑定到一个可恢复的本地执行会话，并把 Runtime 过程投影为可审查的 transcript、耗时与 Token 用量。它不判断 Case 语义，不以固定 Token 总量或总轮次终止研发事项；停止与续接仍由 Runtime handoff、状态进展、人工决策和安全控制决定。
+Desktop Execution Plane 负责承载自由 Chat 与受监督待办执行共用的 Codex transport、持久 thread、消息投影和安全控制。Automation 把远端待办绑定到可恢复的本地执行会话，并把 Runtime 过程投影为可审查的 transcript、耗时与 Token 用量；Chat 在独立 session 中直接运行自由 Codex turn。共享 transport 不判断 Case 语义，不以固定 Token 总量或总轮次终止研发事项；Runtime 的停止与续接仍由 handoff、状态进展、人工决策和安全控制决定。
 
 ## 待办执行会话
 
@@ -12,11 +12,57 @@ Automation Store 为活动任务与最近完成项保存 `session_id`。Coordina
 - 会话类型 `automation-task` 和任务标题。
 - 创建时间与最后活动时间。
 
-一个远端待办的初始 Runtime、自动续轮、跨进程恢复、人工介入和 Git 收尾共用该 `session_id`。不同远端待办不共用 session；项目默认 Chat 只服务人工普通对话，不作为自动化任务缺失归属时的兜底。
+一个远端待办的初始 Runtime、自动续轮、跨进程恢复、人工介入和 Git 收尾共用该 `session_id`。不同远端待办不共用 session；Personal / Chat 的自由会话只服务人工普通对话，不作为自动化任务缺失归属时的兜底。
 
 消息记录携带 `session_id`、`task_id` 和可选 `run_id`。Workbench 只根据活动任务或最近完成项的 `session_id` 读取消息；session 不存在或归属与任务不符时返回空 transcript 和可诊断错误，不读取项目首个 session。最近完成项保存最终 `run_id`、持久 `thread_id` 与 `session_id`，历史审查打开同一待办的完整执行链。
 
 Desktop session 与 Codex thread 是不同层级：session 是面向用户的待办 transcript 容器，Codex thread 是 Codex 持久化的连续模型对话。一个待办从首轮、普通 Gap、Completion Review、finding 修复到 Git-only 收尾只有一个 thread；Desktop session 和 Codex thread 都可以跨 Runtime 进程延续，但只有 thread 承担 Agent 上下文连续性。
+
+## 自由 Chat 会话
+
+自由 Chat 使用 `kind=chat` 的独立 Desktop session。每个 session 在首条消息提交时固定写入 `local_project_id`、Product Workspace 引用、规范化项目根、标题、创建/更新时间和非 ephemeral `thread_id`；它不携带 `task_id`、`feedback_id`、Case binding、Runtime context、task thread lease 或 Automation lane。一个 Chat session 只绑定一个工作区，改变工作区必须创建新 session。
+
+Store 对 Chat 持久化以下状态：
+
+- session metadata、Codex thread binding、最近 turn id 与 `draft/running/waiting_approval/interrupting/completed/interrupted/failed` 状态。
+- transcript 消息、Composer 草稿、选中会话和每会话滚动锚点。
+- 启动、恢复、失败与 thread recovery 诊断摘要；不持久化逐 token delta 或完整命令输出。
+- 首条消息的幂等提交键，以及每次 turn 的稳定 request id，防止 Renderer 重试产生重复消息或 turn。
+
+`ensureProjectSession` 不再为任意项目制造会进入 Chat 列表的默认 session。Automation Coordinator 显式创建 `automation-task` session；Chat Coordinator 只列出 `kind=chat` 且归属完整的 session。旧的无 `kind` 默认会话保持不可见，除非迁移证据能证明其确属自由 Chat；不能依据“项目第一个 session”推断归属。
+
+应用启动恢复 session、消息、草稿和 thread binding。Store 中处于活动状态但 main process 没有对应活跃 turn 的记录原子改为 `interrupted`，原因标记为应用退出或进程丢失；系统不自动重放用户输入。下一条消息先执行 `thread/resume`。瞬时 resume 失败保留原绑定进入可重试恢复；只有 app-server 明确确认 thread 永久不存在时才建立替代 thread，并保存原 thread id、替代 id 与原因。
+
+删除 Chat session 使用单一 main-process mutation。非活动 session 删除其本地 metadata、消息、草稿、turn refs 和 thread binding；活动 session 先发出 `turn/interrupt` 并等待 completed/interrupted/failed 终态，再执行同一删除。interrupt 或 Store mutation 失败时不删除任何本地部分。当前 app-server adapter 没有已验证的 thread 删除契约，因此删除只声明移除 ArcOrbit 本地记录与恢复能力，不声明擦除 Codex 自身持久化数据。
+
+## 共享 Codex Conversation 层
+
+`codex-app-server-adapter` 的通用职责形成可复用的 Codex Conversation 层：
+
+- 启动并 initialize app-server stdio client，绑定规范化 project root。
+- 以 `thread/start(ephemeral=false)`、`thread/resume` 和 `turn/start` 管理 thread/turn 生命周期，并在首个 turn 前通过 `onThreadBound` 持久化 thread id。
+- 归一化 Agent message、reasoning、tool、file change、command、token usage、error、turn started/completed 与 thread recovery 事件。
+- 以 `turn/interrupt` 停止当前 turn，并对活动 turn、client close 与进程异常给出可恢复终态。
+- 处理 command single-flight、workspace roots、sandbox、approval policy 和用户 approval request。
+
+Runtime 与 Chat 复用上述 transport 和基础事件，不复用语义 orchestration。State-driven Runtime 继续在其上叠加 `$using-arckit` prompt、`arckit-agent-loop-result/v1` output schema、Project/Case fresh snapshot、trusted ledger、Gap Loop、Automation lease 和 closeout。Chat Coordinator 直接提交用户文本，不设置 Agent Loop output schema，不调用 state-driven runner、Agent orchestrator、trusted ledger 或 Automation Coordinator。
+
+现有 adapter 实例只支持一个活动 turn 并固定绑定一个 project root。Chat Coordinator 因此按活动 Chat session 懒创建 adapter owner；同一 session 串行 turn，不同 session 与不同项目使用独立 owner。owner 空闲或应用退出时可以关闭 app-server client，下一次通过持久 `thread_id` resume。Chat owner 不占用 Automation 的 task/thread lease，Automation owner 也不能向 Chat session 写消息或控制 turn。
+
+通用事件先进入 `Codex Transcript Projector`。该 projector 只产生用户消息、Agent 正文、非空折叠 reasoning、工具活动、权限请求、错误、interrupt 与 token usage 等中性消息。Runtime Projector 在中性消息之上增加 Loop status、structured Agent result、ledger closeout 和 task control 语义；Chat 只消费中性投影。任何一方都不从另一方的 transcript 反推 session 类型、Case 或执行状态。
+
+现有 approval handler 在 `on-request` 下直接接受请求，不满足 Chat 的用户可见审批语义。共享 Conversation 层使用异步 `approvalProvider` 把命令、文件变更和 permissions request 投影给 main-process Chat Coordinator；Coordinator 通过 request id 等待受限 Renderer 决定并返回 app-server 所需响应。窗口关闭、超时、session 不匹配或 Renderer 拒绝均 fail closed。Automation 可以继续使用自己的受监督 approval provider，但不能复用 Chat 的待决审批。
+
+## Chat turn 数据流
+
+1. Renderer 通过类型化 IPC 提交 `session_id + client_request_id + text`；main process 校验 session、工作区、空白输入、重复键和同 session 活动 turn。
+2. Chat Coordinator 原子保存用户消息与 turn request，再创建或恢复对应 adapter owner。
+3. `onThreadBound` 在 `turn/start` 前把 thread id 写入同一 session；持久化失败时不开始 turn。
+4. app-server 事件经通用 projector 更新内存投影，并只在语义消息边界、人工控制、错误和 turn 终态持久化。
+5. main process 向 Renderer 发送有界 `chat.changed` 通知；Renderer 随后读取 session snapshot，不直接消费 raw JSON-RPC。
+6. turn completed/interrupted/failed 后，Coordinator 持久化终态并释放该 session 的活动 owner；下一个用户输入复用同一 thread。
+
+Chat 消息采用与 Run message 相同的稳定角色、actor、kind、content、status 和时间字段，但归属键为 `session_id/thread_id/turn_id/item_id`，不伪造 `run_id/task_id/round_index`。流式 delta 更新同一 item；应用异常时允许丢失尚未形成语义边界的瞬时字符，但保留已提交用户消息、thread binding 和最后持久消息。
 
 ### Acceptance Feedback Record 与独立队列
 
@@ -96,7 +142,30 @@ Runtime 保存可解释、非阻断的 `usage_warnings`。首批检测包括：
 
 ## Desktop IPC 与 Renderer
 
-Preload 继续只暴露任务范围内的查询与动作。Automation Snapshot 的活动任务和最近完成项携带 `session_id`；Run activity 携带 `token_usage` 与 `usage_warnings`。Renderer 不自行解析 raw JSONL 或估算 Token。
+Preload 只暴露 Automation 与 Chat 各自的类型化查询和动作。Automation Snapshot 的活动任务和最近完成项携带 `session_id`；Run activity 携带 `token_usage` 与 `usage_warnings`。Chat IPC 只包含 `snapshot/create/select/rename/delete/send/interrupt/approvalDecision`；`select` 只持久化已验证 Chat session 的 `selected_session_id`，不改变草稿、thread 或 session `updated_at`，使最后选择可在重启后恢复。每个 mutation 都要求明确 `session_id` 和适用的 request id；Renderer 不能传入 cwd、thread id、Codex executable、任意 method 或 shell command。main process 从已验证 Product Workspace 解析项目根和权限边界。Renderer 不自行解析 raw JSONL、Codex JSON-RPC 或本地 Store，也不估算 Token。
+
+`chat.snapshot` 只返回 `kind=chat` 的 session、可见消息、草稿、活动状态和脱敏诊断摘要。`chat.changed` 是失效通知而不是状态真相；Renderer 收到后重新读取 snapshot。Chat 与 Automation 使用不同 IPC namespace 和 ownership checks，Chat 的 session id 不能传给 Automation control，Automation task session 也不能传给 Chat mutation。
+
+### Renderer Chat 状态协调
+
+Renderer 使用单一 Chat 状态协调边界拥有本地 snapshot projection、当前 owner identity、Composer 草稿、失败重试身份、发送提交状态、owner epoch 和草稿持久化队列。页面级全局状态不保存这些字段的平行副本；DOM handler 只读取协调器投影并发出语义命令，不选择异步 freshness 原语、snapshot preservation flags 或持久化时序。
+
+Owner identity 是以下互斥状态之一：
+
+- `session owner`：包含已验证的 Chat `session_id` 及其固定 Product Workspace。
+- `draft workspace owner`：`session_id` 为空，并包含首条发送将绑定的 Product Workspace。
+
+选择会话、新建对话、切换草稿工作区、删除会话和首条发送属于 owner-changing transition。每次 transition 创建新的 owner epoch；只有同一 epoch 的响应可以采用 snapshot。重命名、停止、审批、已有会话发送和 background refresh 属于 session-scoped observation；响应还必须匹配发起时的 session owner，不能把旧 session transcript、状态、标题或错误投影到后续选择。
+
+Snapshot adoption 由 transition 类型确定，而不是由调用点传入通用 flags：
+
+- authoritative adoption 用于启动恢复、显式选择、删除结果和重置 owner 的刷新。
+- owner-preserving adoption 用于 background refresh 与 session-scoped mutation，保留当前 owner 和 Composer 草稿。
+- first-send adoption 接受新建 session owner，同时保留 IPC 在途期间输入的下一条草稿。
+
+Composer 输入在协调边界内捕获输入时的 owner，并进入串行 debounce 队列。Owner-changing transition 在调用 main-process mutation 前 flush 已捕获的旧 owner 草稿；首发建立 session 后，非空在途草稿在同一 transition 内重新绑定并 flush 到新 session。持久化响应不参与 Renderer 投影，不能覆盖较新的 owner 或草稿。
+
+Renderer Chat transition 的模型级测试以倒序完成覆盖会话选择、草稿工作区、background refresh、session mutation、首发 owner adoption、在途输入与 retry identity。测试同时验证调用点只使用语义命令，且不存在并行 Chat owner/draft 状态或调用点 preservation flags。
 
 Intervention Workbench 展示当前任务 ID、task session 和 Run 边界，并把 session message 与各 Run 的 projected messages 按时间合并。Workbench 根容器使用受限视口高度和 `min-height: 0` 的三栏 grid；左右栏各自可滚动，中间栏由固定 header、`overflow-y: auto` 的 transcript 和固定 composer 组成，页面根不随 transcript 增长。
 
@@ -140,12 +209,24 @@ Agent output Schema 使用 disposition 判别联合前置约束 invariant judgme
 
 ## 恢复
 
+Chat session 或 thread 创建成功但首个 turn 启动失败时保留本地用户消息、幂等键和 thread binding；用户重试复用同一 session/thread，不重复首条消息。活动 Chat 在应用退出时先 interrupt；下次启动把缺少活跃 owner 的非终态 turn 标记为 interrupted，不自动继续。Chat 恢复、删除或停止都不读取、写入或释放 Automation task lease、remote task state、Case 或 human Gate。
+
 session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_start` 必须复用它。任务完成后 session、thread id 与消息留作审查；删除项目时沿用项目级清理规则。退出登录只清除远端身份与快照，不删除本地 task session、thread binding、Run activity 或用量历史。
 
 绑定活动任务与持久 `thread_id` 的 Runtime 恢复项同时提供 `feedback_continue`。Coordinator 要求非空用户原文，校验 recovery、active task、task session 和 thread 归属一致，再用该原文作为新 Run 的唯一 task 内容 resume 同一 thread；新 Run 关联来源 recovery、失败 Run、result 与 activity refs。Run 成功建立后，原文以 `role=user`、`kind=recovery_feedback` 写入同一 Desktop session，恢复项才移除；启动失败时恢复项和 recovery phase 保留。Workbench 合并 session 用户消息与所有同 session Run 投影，因此反馈在提交后立即作为“你”的消息出现在当前待办对话，而不创建新对话或覆盖 canonical Case facts。
 
 ## 验收口径
 
+- 新建自由 Chat 在首条非空消息前不产生空 session；首条消息只创建一个 `kind=chat` session、一个持久 thread 和一个可见用户消息。
+- Chat session 固定绑定一个 Product Workspace 和规范化项目根；切换工作区创建新 session，Renderer 不能覆盖 cwd 或 thread id。
+- 同一 Chat session 的连续消息 resume 同一 thread，活动 turn 期间第二个 send 被拒绝；不同 Chat session 和 Automation owner 不共享 adapter ownership 或 lease。
+- Chat 不设置 Agent Loop output schema，不触发 `$using-arckit`、trusted ledger、Workshop mutation、Case 或 Automation Run。
+- Agent 正文、reasoning、工具与权限状态按稳定 item 更新；raw JSON-RPC、完整 stdout/stderr 与文件正文不进入普通 transcript。
+- 用户可在 starting、running 或 waiting approval 状态停止；interrupt 后保留部分输出并标记 interrupted，下一次继续是同 thread 的新 turn。
+- 会话切换和页面切换不隐式停止 turn；应用重启把丢失 owner 的非终态 Chat 标记为 interrupted，不重复用户请求。
+- 删除非活动 Chat 只移除目标 session 的本地状态；删除活动 Chat 先完成 interrupt，任一步失败都不产生部分删除，并明确不承诺擦除 Codex 底层 thread。
+- Chat approval request 通过异步、受限、fail-closed provider 返回；Renderer 关闭、超时或 session/request 不匹配均拒绝，不自动批准。
+- Chat IPC 不能接收任意 cwd、thread id、Codex method、命令或文件路径权限；Automation session id 不能通过 Chat mutation，反向同样拒绝。
 - 两个连续远端待办在同一项目中获得不同 `session_id`，Workbench transcript 不交叉。
 - 同一待办的 intervention、continuation、普通 Gap、Completion Review、finding 修复和 Git-only closeout 保持同一 Desktop session 与 Codex thread。
 - 已绑定持久 thread 的 Runtime 失败项可接收非空用户反馈；反馈启动同 thread 的新 Run、保留来源 refs，并在同一 Workbench transcript 中显示，失败时不提前移除恢复项。
