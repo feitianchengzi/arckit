@@ -139,21 +139,36 @@ components:
     accessibility:
       requirement: 状态同时显示图标、文本和说明；错误紧邻表单；账号可脱敏但 token 永不显示
 
-  WorkbenchTranscript:
-    role: 在固定 Workbench 壳层中以 Agent 正式输出为主，并以可折叠 reasoning、结构化结果和单行工具活动保真展示执行对话
+  ConversationSurface:
+    role: 为 Chat 与 Automation Workbench 提供唯一共享的消息渲染、浏览和滚动视觉层级
     variants:
+      chat: { surface: "{colors.paper}", composer: fixed, transcript_scroll: independent }
       review: { surface: "{colors.paper}", composer: hidden, transcript_scroll: independent }
       intervention: { surface: "{colors.paper}", composer: fixed, transcript_scroll: independent }
-      loop_status: { surface: "{colors.ink.50}", border: "{colors.ink.150}", typography: "{typography.caption}" }
       reasoning_disclosure: { surface: transparent, foreground: "{colors.ink.600}", border: "{colors.ink.150}", typography: "{typography.body}", completed: collapsed }
       agent_message: { surface: transparent, foreground: "{colors.ink.900}", typography: "{typography.conversation}" }
-      structured_result: { surface: "{colors.ink.50}", foreground: "{colors.ink.700}", border: "{colors.ink.150}", typography: "{typography.caption}", raw_payload: nested_disclosure }
       tool_activity: { surface: transparent, foreground: "{colors.ink.600}", typography: "{typography.caption}", overflow: ellipsis }
+      approval_activity: { surface: "{colors.warning.soft}", foreground: "{colors.ink.900}", border: "{colors.warning.base}", typography: "{typography.caption}" }
       user_message: { surface: "{colors.accent.faint}", border: "{colors.accent.soft}", typography: "{typography.conversation}" }
     sizes:
       shell: { min_height: 0, left_pane: stable, center: flexible, inspector: "{layout.inspector_width}" }
       readable: { max_content_width: 760, message_padding: "{spacing.7}", tool_row_height: 30, typography: "{typography.conversation}" }
-    states: [loading, review, intervention, reasoning_streaming, reasoning_collapsed, structured_collapsed, structured_expanded, streaming, following_latest, history_position, submitting, accepted, error]
-    token_refs: [colors.paper, colors.ink.50, colors.ink.150, colors.ink.600, colors.ink.900, colors.accent.faint, colors.accent.soft, typography.caption, typography.conversation]
+    states: [loading, chat, review, intervention, reasoning_streaming, reasoning_collapsed, approval_waiting, streaming, following_latest, history_position, submitting, accepted, error]
+    token_refs: [colors.paper, colors.ink.150, colors.ink.600, colors.ink.900, colors.accent.faint, colors.accent.soft, colors.warning.soft, colors.warning.base, typography.caption, typography.conversation]
     accessibility:
-      requirement: reasoning 与结构化结果使用原生可聚焦展开控件并提供可读标题；空 reasoning 不产生控件；原始 JSON 使用预格式化文本且可滚动；Loop 与工具状态同时使用图标和文字；工具目标溢出时保留可访问全称；阅读历史时新消息不强制改变滚动位置
+      requirement: reasoning 使用原生可聚焦展开控件并提供可读标题；空 reasoning 不产生控件；工具与权限状态同时使用图标和文字；工具目标溢出时保留可访问全称；阅读历史时新消息不强制改变滚动位置
+
+  AutomationExecutionOverview:
+    role: 在 Workbench 侧栏一次展示完整执行时间、Gap 总数、逐 Gap 工作与 Automation 专属证据
+    variants:
+      summary: { surface: "{colors.ink.50}", foreground: "{colors.ink.900}", border: "{colors.ink.150}" }
+      gap_completed: { indicator: "{colors.success.base}", foreground: "{colors.ink.700}" }
+      gap_active: { indicator: "{colors.accent.base}", foreground: "{colors.ink.900}" }
+      gap_waiting: { indicator: "{colors.warning.base}", foreground: "{colors.warning.strong}" }
+      gap_failed: { indicator: "{colors.danger.base}", foreground: "{colors.danger.base}" }
+    sizes:
+      compact: { row_min_height: 44, gap: "{spacing.3}", typography: "{typography.caption}" }
+    states: [loading, running, awaiting_human, completed, interrupted, failed]
+    token_refs: [colors.ink.50, colors.ink.150, colors.ink.700, colors.ink.900, colors.success.base, colors.accent.base, colors.warning.base, colors.warning.strong, colors.danger.base, typography.caption]
+    accessibility:
+      requirement: 完整时间、轮数与每个 Gap 状态均显示文本；颜色和图标不作为唯一信息；Gap 列表可键盘浏览并定位关联 Agent 消息

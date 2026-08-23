@@ -210,6 +210,43 @@ test("round candidate catalog and Agent comparison trace stay visible without Ru
   assert.equal(run.activity.round_selection.considered.length, 2);
 });
 
+test("Run Activity retains a structured per-gap overview outside the capped transcript", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  applyRunEvent(run, wrapped({ type: "runtime.session_round.started", round_index: 2 }));
+  applyRunEvent(run, wrapped({
+    type: "runtime.round_selection",
+    round_index: 2,
+    case_id: "CASE-1",
+    selected_gap: { id: "GAP-A", goal: "Unify the conversation surface" },
+    gap_selection: { selected_ref: "case-gap:CASE-1:GAP-A", comparison_summary: "Highest user impact" }
+  }));
+  applyRunEvent(run, wrapped({ type: "runtime.agent_loop.completed", round_index: 2, case_id: "CASE-1", summary: "Implemented shared rendering and tests." }));
+  applyRunEvent(run, wrapped({
+    type: "runtime.round_closeout",
+    round_index: 2,
+    receipt: {
+      status: "accepted", case_id: "CASE-1", selected_gap: { id: "GAP-A", goal: "Unify the conversation surface" }, occurred_at: "2026-08-23T08:15:00.000Z",
+      accepted_state_delta: { resolved_gap: { outcome: "Shared surface verified." } }, resulting_state: { project_revision: 9 }
+    }
+  }));
+
+  assert.equal(run.activity.gap_rounds.length, 1);
+  assert.deepEqual(run.activity.gap_rounds[0], {
+    round_index: 2,
+    case_id: "CASE-1",
+    selected_gap_id: "GAP-A",
+    goal: "Unify the conversation surface",
+    selection_summary: "Highest user impact",
+    work_summary: "Implemented shared rendering and tests.",
+    outcome: "Shared surface verified.",
+    status: "accepted",
+    started_at: run.activity.gap_rounds[0].started_at,
+    finished_at: "2026-08-23T08:15:00.000Z",
+    project_revision: 9
+  });
+});
+
 test("non-command Codex tools update one stable transcript item from started to completed", () => {
   const run = runtimeRun();
   run.activity = createRunActivity(run);

@@ -6,12 +6,23 @@ export function transcriptMessageType(message = {}) {
   const role = String(message.role || "").toLowerCase();
   const actor = String(message.actor || "").toLowerCase();
   const kind = String(message.kind || "").toLowerCase();
+  if (kind === "approval") return "approval";
+  if (kind === "error" && !["runtime", "system"].includes(actor)) return "error";
   if (role === "user" || actor === "operator" || actor === "user") return "user";
   if (role === "tool" || actor === "tool" || TOOL_KINDS.has(kind)) return "tool";
   if (role === "system" || actor === "runtime" || actor === "system" || LOOP_KINDS.has(kind)) return "loop";
   if (kind === "reasoning") return "reasoning";
   if (kind === "structured" || readStructuredValue(message)) return "structured";
   return "agent";
+}
+
+export function isConversationSurfaceMessageVisible(message = {}) {
+  const type = transcriptMessageType(message);
+  if (type === "reasoning") return Boolean(String(message.content || "").trim());
+  if (type === "approval" || type === "error" || type === "tool") return true;
+  if (!["user", "agent"].includes(type)) return false;
+  if (["closeout", "recovery"].includes(String(message.kind || "").toLowerCase())) return false;
+  return Boolean(String(message.content || "").trim()) || ["streaming", "started", "running", "in_progress"].includes(String(message.status || "").toLowerCase());
 }
 
 export function isTranscriptMessageVisible(message = {}) {

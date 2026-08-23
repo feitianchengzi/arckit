@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import vm from "node:vm";
 import test from "node:test";
 import {
+  isConversationSurfaceMessageVisible,
   isTranscriptMessageVisible,
   statusGlyph,
   structuredResultPresentation,
@@ -11,6 +12,7 @@ import {
   summarizeToolActivity,
   transcriptMessageType
 } from "../src/desktop/transcript-presentation.mjs";
+import { copyConversationCode, renderConversationSurfaceMessage } from "../desktop/renderer/conversation-surface.mjs";
 import { checkDesktopSetupReadiness, desktopSetupCheckInput } from "../src/desktop-setup-readiness-context.mjs";
 import feedbackV2Ipc from "../desktop/feedback-v2-ipc.cjs";
 import { createChatStateCoordinator } from "../desktop/renderer/chat-state-coordinator.mjs";
@@ -23,6 +25,8 @@ const rendererHtmlPath = new URL("../desktop/renderer/index.html", import.meta.u
 const rendererStylesPath = new URL("../desktop/renderer/styles.css", import.meta.url);
 const desktopMainPath = new URL("../desktop/main.mjs", import.meta.url);
 const desktopPreloadPath = new URL("../desktop/preload.cjs", import.meta.url);
+const imageViewerRendererPath = new URL("../desktop/image-viewer/renderer.js", import.meta.url);
+const conversationSurfacePath = new URL("../desktop/renderer/conversation-surface.mjs", import.meta.url);
 
 function chatSnapshot({ selected = "", project = "PROJECT-A", sessions = [], messages = [], draft = "" } = {}) {
   return {
@@ -93,6 +97,49 @@ test("Chat state coordinator captures draft ownership and flushes before selecti
     { session_id: "CHAT-A", project_id: "PROJECT-A", text: "draft A" }
   ]);
   assert.equal(coordinator.getState().owner.session_id, "CHAT-B");
+});
+
+test("Chat and Automation common messages use the same Conversation Surface presentation", () => {
+  const markdown = renderConversationSurfaceMessage({
+    role: "assistant",
+    actor_label: "Codex Agent",
+    kind: "message",
+    content: "Result with `code`.",
+    status: "completed",
+    created_at: "2026-08-23T08:00:00.000Z"
+  }, { formatTime: () => "16:00" });
+  assert.match(markdown, /chat-message assistant/);
+  assert.match(markdown, /<code>code<\/code>/);
+  assert.match(markdown, /Codex Agent/);
+
+  assert.equal(isConversationSurfaceMessageVisible({ role: "system", actor: "runtime", kind: "round", content: "Round 1" }), false);
+  assert.equal(isConversationSurfaceMessageVisible({ role: "assistant", kind: "structured", structured_data: { schema_version: "arckit-round-closeout/v2", value: { schema_version: "arckit-round-closeout/v2" } } }), false);
+  assert.equal(isConversationSurfaceMessageVisible({ role: "tool", kind: "command", content: "npm test" }), true);
+  assert.equal(isConversationSurfaceMessageVisible({ role: "assistant", kind: "reasoning", content: "Inspecting" }), true);
+});
+
+test("Conversation Surface code copy exposes rejection to the shared action boundary", async () => {
+  const button = {
+    textContent: "复制",
+    closest() { return { querySelector() { return { textContent: "const shared = true;" }; } }; }
+  };
+  await assert.rejects(
+    copyConversationCode(button, { clipboard: { async writeText() { throw new Error("Clipboard denied"); } } }),
+    /Clipboard denied/
+  );
+  assert.equal(button.textContent, "复制");
+
+  let copied = "";
+  const timers = [];
+  await copyConversationCode(button, {
+    clipboard: { async writeText(value) { copied = value; } },
+    setTimer: (callback, delay) => timers.push({ callback, delay })
+  });
+  assert.equal(copied, "const shared = true;");
+  assert.equal(button.textContent, "已复制");
+  assert.equal(timers[0].delay, 1200);
+  timers[0].callback();
+  assert.equal(button.textContent, "复制");
 });
 
 test("Chat state coordinator serializes captured draft owners without applying persistence responses", async () => {
@@ -468,6 +515,33 @@ test("Chat Renderer delegates all owner, epoch, projection, retry, send and pers
   }
   assert.doesNotMatch(source, /state\.chat(?:SelectedSessionId|DraftProjectId|Draft|RetryClientRequestId|Sending|Error|\b)/);
   assert.doesNotMatch(source, /keepSelection|preserveDraftOnSelectionAdoption|\.begin\(\)|\.observe\(\)|\.invalidate\(\)/);
+});
+
+test("Chat project selector remains available while a persisted session is selected", async () => {
+  const source = await readFile(rendererPath, "utf8");
+
+  assert.match(source, /els\.chatProjectSelect\.disabled = chat\.snapshot\.projects\.length === 0;/);
+  assert.doesNotMatch(source, /els\.chatProjectSelect\.disabled = Boolean\(session\)/);
+  assert.match(source, /chatStateCoordinator\.changeDraftWorkspace\(projectId\)/);
+});
+
+test("Work navigation renders cached content before a task-only background refresh", async () => {
+  const source = await readFile(rendererPath, "utf8");
+  const workBranch = source.slice(source.indexOf('if (page === "work")'), source.indexOf('if (page === "tasks")'));
+
+  assert.ok(workBranch.indexOf("renderPageVisibility();") < workBranch.indexOf('refreshSnapshot({ surface: "work" })'));
+  assert.match(source, /workSurface \? Promise\.resolve\(state\.snapshot\) : api\.automationSnapshot/);
+  assert.match(source, /sections: workSurface \? \["tasks"\] : \["overview", "organizations", "members", "tasks", "feedback"\]/);
+  assert.match(source, /mergeWorkPlatformSnapshot\(state\.platform, platform\)/);
+  assert.match(source, /if \(workSurface && state\.page === "work"\) renderWorkSurface\(\)/);
+});
+
+test("Work assigns intrinsic rows to controls and the remaining height to the task list", async () => {
+  const styles = await readFile(rendererStylesPath, "utf8");
+
+  assert.match(styles, /#workView > \.platform-page \{[^}]*grid-template-rows: auto auto auto minmax\(0, 1fr\)/);
+  assert.match(styles, /\.platform-work-layout \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
+  assert.match(styles, /\.platform-work-layout > \.panel-card, \.platform-work-inspector \{[^}]*min-height: 0;[^}]*overflow-y: auto;/);
 });
 
 test("desktop primary surface is a simultaneous multi-product platform while preserving Automation", async () => {
@@ -906,7 +980,7 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   assert.match(styles, /\.filter-toggle/);
   assert.match(styles, /\.account-avatar/);
   assert.match(styles, /#workView\.is-active \{ overflow: hidden; \}/);
-  assert.match(styles, /#workView > \.platform-page[^}]+grid-template-rows: auto auto minmax\(0, 1fr\)[^}]+height: 100%[^}]+min-height: 0/);
+  assert.match(styles, /#workView > \.platform-page[^}]+grid-template-rows: auto auto auto minmax\(0, 1fr\)[^}]+height: 100%[^}]+min-height: 0/);
   assert.match(styles, /\.platform-work-layout[^}]+align-items: stretch[^}]+min-height: 0[^}]+overflow: hidden/);
   assert.match(styles, /\.platform-work-layout > \.panel-card, \.platform-work-inspector[^}]+overflow-y: auto[^}]+overscroll-behavior: contain[^}]+scrollbar-gutter: stable/);
 });
@@ -986,26 +1060,39 @@ test("desktop renders and composes type-preserving TaskAttachment resources thro
   assert.match(source, /buildTaskCommentContent\(/);
   assert.match(source, /data-task-comment-add-image/);
   assert.match(source, /data-task-comment-add-file/);
-  assert.match(source, /api\.previewWorkTaskAttachment\(input\)/);
+  assert.match(source, /api\.previewWorkTaskAttachment\(job\.input\)/);
+  assert.match(source, /TASK_ATTACHMENT_PREVIEW_CONCURRENCY = 3/);
+  assert.match(source, /loadMissingTaskAttachmentPreviews\(task\)/);
+  assert.match(source, /api\.openWorkTaskImageViewer\(taskAttachmentResourceInput\(button\)\)/);
+  assert.match(source, /data-task-attachment-image-retry/);
   assert.match(source, /api\.openWorkTaskAttachment\(taskAttachmentResourceInput\(button\)\)/);
   assert.doesNotMatch(source, /options: \["text", "file", "url"\]/);
   assert.match(preload, /pickWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-pick", input\)/);
   assert.match(preload, /previewWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-preview", input\)/);
+  assert.match(preload, /openWorkTaskImageViewer: \(input\) => ipcRenderer\.invoke\("arckit:work-task-image-viewer-open", input\)/);
   assert.match(preload, /openWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-open", input\)/);
   assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-pick"/);
   assert.match(main, /platformCoordinator\.uploadTaskAttachmentResource/);
   assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-preview"/);
   assert.match(main, /platformCoordinator\.getTaskAttachmentResourceUrl/);
+  assert.match(main, /createWorkTaskImageViewer/);
+  assert.match(main, /ipcMain\.handle\("arckit:work-task-image-viewer-open"/);
+  assert.match(main, /ipcMain\.handle\("arckit:work-task-image-viewer-save"/);
+  assert.match(main, /ipcMain\.handle\("arckit:work-task-image-viewer-retry"/);
+  const viewerRenderer = await readFile(imageViewerRendererPath, "utf8");
+  assert.match(viewerRenderer, /state\.status === "loading"[\s\S]*clearDisplayedImage\(\)/);
+  assert.match(viewerRenderer, /els\.image\.removeAttribute\("src"\)/);
   assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-open"/);
   assert.match(styles, /\.task-comment-images/);
   assert.match(styles, /\.task-comment-pending-resources/);
 });
 
 test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as closed-loop views", async () => {
-  const [source, html, styles] = await Promise.all([
+  const [source, html, styles, conversationSurface] = await Promise.all([
     readFile(rendererPath, "utf8"),
     readFile(rendererHtmlPath, "utf8"),
-    readFile(rendererStylesPath, "utf8")
+    readFile(rendererStylesPath, "utf8"),
+    readFile(conversationSurfacePath, "utf8")
   ]);
 
   assert.match(html, /data-page-view="tasks"/);
@@ -1043,23 +1130,30 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /context_compactions/);
   assert.match(source, /Git 收尾/);
   assert.match(source, /activity\?\.messages/);
-  assert.match(source, /renderConversationMessage/);
+  assert.equal((source.match(/createConversationSurface\(\{/g) || []).length, 2);
+  assert.equal((source.match(/performAction: runAction/g) || []).length, 2);
+  assert.match(source, /chatConversationSurface\.render/);
+  assert.match(source, /workbenchConversationSurface\.render/);
+  assert.match(conversationSurface, /renderConversationSurfaceMessage/);
   assert.match(source, /run\.activity_changed/);
   assert.match(source, /artifact_paths\?\.messages_file/);
   assert.doesNotMatch(source, /renderRunPlan\(activity\)|renderExecutionEvidence\(activity\)|raw_events/);
   assert.match(source, /artifact_ownership_scan\?\.implementation_evidence/);
+  assert.equal((html.match(/class="conversation-surface chat-transcript"/g) || []).length, 2);
   assert.match(html, /class="transcript-scroll-area"/);
   assert.match(html, /id="jumpToLatestButton"/);
-  assert.match(source, /transcriptFollowingLatest/);
-  assert.match(source, /isTranscriptNearBottom/);
+  assert.doesNotMatch(source, /transcriptFollowingLatest|chatFollowingLatest/);
+  assert.match(conversationSurface, /isNearBottom/);
   assert.match(source, /renderLoopStatus/);
   assert.match(source, /renderToolActivity/);
-  assert.match(source, /renderReasoningDisclosure/);
   assert.match(source, /renderStructuredResult/);
   assert.match(styles, /#workbenchView\.is-active \{ overflow: hidden; \}/);
   assert.match(styles, /\.workbench-layout[^}]+height: 100%[^}]+overflow: hidden/);
   assert.match(styles, /\.workbench-context, \.workbench-evidence[^}]+overflow-y: auto/);
-  assert.match(styles, /\.transcript-list[^}]+overflow-y: auto/);
+  assert.match(styles, /\.conversation-surface[^}]+overflow-y: auto/);
+  assert.match(source, /完整执行总览/);
+  assert.match(source, /gap_round_count/);
+  assert.match(source, /renderAutomationPanelActivity/);
   assert.match(styles, /\.tool-activity-summary[^}]+text-overflow: ellipsis[^}]+white-space: nowrap/);
   assert.match(styles, /\.reasoning-disclosure/);
   assert.match(styles, /\.structured-result-raw pre[^}]+overflow: auto/);

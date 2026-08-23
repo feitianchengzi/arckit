@@ -112,7 +112,7 @@
               <main class="chat-main">
                 <header class="chat-header"><div><p id="chatWorkspaceLabel" class="eyebrow">选择本地工作区</p><h2 id="chatTitle">新对话</h2><p id="chatStatusText">发送第一条消息后创建持久会话和 Codex thread。</p></div><div class="chat-header-actions"><button id="renameChatButton" class="text-button" type="button">重命名</button><button id="deleteChatButton" class="text-button danger" type="button">删除</button></div></header>
                 <div id="chatErrorHost"></div>
-                <div id="chatTranscript" class="chat-transcript" aria-live="polite" aria-label="Chat 消息"></div>
+                <div id="chatTranscript" class="conversation-surface chat-transcript" aria-live="polite" aria-label="Chat 消息"></div>
                 <button id="chatJumpLatestButton" class="chat-jump-latest hidden" type="button">回到最新 ↓</button>
                 <footer class="chat-composer"><textarea id="chatInput" rows="3" placeholder="向 Codex 提问或说明希望它在当前项目中完成什么…"></textarea><div class="chat-composer-foot"><small id="chatComposerHint">Enter 发送 · Shift+Enter 换行</small><button id="chatStopButton" class="secondary-button hidden" type="button">■ 停止</button><button id="chatSendButton" class="primary-button" type="button">发送</button></div></footer>
               </main>
@@ -213,9 +213,9 @@
 
           <section id="workbenchView" class="app-view" data-page-view="workbench">
             <div class="workbench-layout">
-              <aside class="workbench-context"><button id="backFromWorkbenchButton" class="text-button" type="button">← 返回自动化</button><div id="workbenchContext"></div></aside>
-              <section class="workbench-transcript"><div class="workbench-heading"><div><p class="eyebrow">INTERVENTION WORKBENCH</p><h1 id="workbenchTitle">人工介入</h1></div><div class="workbench-mode-actions"><button id="interveneCurrentButton" class="secondary-button hidden" type="button">介入当前运行</button><span id="workbenchMode" class="status-pill pending_review">只读审查</span></div></div><div class="transcript-scroll-area"><div id="transcriptList" class="transcript-list"></div><button id="jumpToLatestButton" class="jump-to-latest hidden" type="button">回到最新 ↓</button></div><div id="interventionComposer" class="intervention-composer hidden"><textarea id="interventionInput" rows="4" placeholder="提供授权、事实或决策，并说明恢复条件…"></textarea><button id="submitInterventionButton" class="primary-button" type="button">提交并恢复自动化</button></div></section>
-              <aside class="workbench-evidence"><h3>Runtime 与证据</h3><div id="workbenchEvidence"></div></aside>
+              <aside class="workbench-context"><button id="backFromWorkbenchButton" class="text-button" type="button">← 返回自动化</button><div class="workbench-side-controls"><span id="workbenchMode" class="status-pill pending_review">只读审查</span><button id="interveneCurrentButton" class="secondary-button hidden" type="button">介入当前运行</button></div><div id="workbenchContext"></div></aside>
+              <section class="workbench-transcript"><div class="workbench-heading"><div><p class="eyebrow">INTERVENTION WORKBENCH</p><h1 id="workbenchTitle">人工介入</h1></div></div><div class="transcript-scroll-area"><div id="transcriptList" class="conversation-surface chat-transcript" aria-live="polite" aria-label="Automation 对话消息"></div><button id="jumpToLatestButton" class="chat-jump-latest hidden" type="button">回到最新 ↓</button></div><div id="interventionComposer" class="intervention-composer hidden"><textarea id="interventionInput" rows="4" placeholder="提供授权、事实或决策，并说明恢复条件…"></textarea><button id="submitInterventionButton" class="primary-button" type="button">提交并恢复自动化</button></div></section>
+              <aside class="workbench-evidence"><h3>执行全貌与证据</h3><div id="workbenchEvidence"></div></aside>
             </div>
           </section>
 

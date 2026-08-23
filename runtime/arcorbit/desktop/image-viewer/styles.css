@@ -1,0 +1,20 @@
+:root { color-scheme: light; font: 13px/1.4 Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; background: #eef0f4; color: #171a21; }
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.viewer-toolbar { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 8px 12px; border-bottom: 1px solid #d5d8df; background: #fff; }
+.viewer-toolbar strong { min-width: 120px; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-actions { display: flex; flex: 1; justify-content: center; gap: 6px; }
+button { min-height: 30px; padding: 0 10px; border: 1px solid #c9cdd6; border-radius: 6px; color: #363b47; background: #fff; cursor: pointer; }
+button:hover { border-color: #9c91d9; background: #f7f5ff; }
+button:focus-visible { outline: 2px solid rgba(104, 85, 190, .35); outline-offset: 1px; }
+button.primary { border-color: #6855be; color: #fff; background: #6855be; }
+#zoomValue { min-width: 44px; color: #626978; text-align: right; font-variant-numeric: tabular-nums; }
+.viewer-viewport { position: relative; display: grid; place-items: center; min-width: 0; min-height: 0; overflow: hidden; background-color: #e4e6eb; background-image: linear-gradient(45deg, #daddE4 25%, transparent 25%), linear-gradient(-45deg, #daddE4 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #daddE4 75%), linear-gradient(-45deg, transparent 75%, #daddE4 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0; cursor: default; }
+.viewer-viewport.can-pan { cursor: grab; }
+.viewer-viewport.is-panning { cursor: grabbing; }
+.viewer-viewport img { max-width: none; max-height: none; transform-origin: center; user-select: none; will-change: transform; box-shadow: 0 10px 32px rgba(25, 29, 38, .2); }
+.viewer-status { max-width: 420px; padding: 12px 16px; border: 1px solid #c9cdd6; border-radius: 8px; color: #626978; background: rgba(255, 255, 255, .92); text-align: center; }
+.viewer-status button { display: block; margin: 10px auto 0; }
+.viewer-status.error { color: #8a2930; border-color: #d9a9ad; }
+footer { min-height: 30px; padding: 6px 12px; border-top: 1px solid #d5d8df; color: #626978; background: #fff; text-align: center; font-size: 11px; }

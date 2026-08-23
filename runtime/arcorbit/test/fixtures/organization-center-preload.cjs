@@ -2,6 +2,8 @@ const { contextBridge } = require("electron");
 
 const calls = [];
 const automationListeners = new Set();
+let platformSnapshotDelayMs = 0;
+let platformSnapshotFailure = "";
 const automation = {
   enabled: false, queue_paused: false, source_status: "healthy", synced_at: "2026-08-18T00:00:00Z",
   user: { id: "7", name: "Glare" },
@@ -96,7 +98,17 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   createChat: noOp, selectChat: noOp, deleteChat: noOp, renameChat: noOp,
   interruptChat: noOp, decideChatApproval: noOp, sendChatMessage: noOp,
   automationSnapshot: async () => automation,
-  platformSnapshot: async () => platform,
+  platformSnapshot: async (input) => {
+    calls.push(["platformSnapshot", input]);
+    const delayMs = platformSnapshotDelayMs;
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (platformSnapshotFailure) {
+      const message = platformSnapshotFailure;
+      platformSnapshotFailure = "";
+      throw new Error(message);
+    }
+    return platform;
+  },
   onSetupEvent: () => () => {},
   onAutomationEvent: (listener) => { automationListeners.add(listener); return () => automationListeners.delete(listener); },
   onEvent: () => () => {}, onChatEvent: () => () => {}, onProductFeedbackUnread: () => () => {},
@@ -125,6 +137,16 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   openFeedbackAttachment: async (value) => { calls.push(["openFeedbackAttachment", value]); return { opened: true }; },
   getTestCalls: async () => calls,
+  setTestPlatformSnapshotDelay: async (value) => { platformSnapshotDelayMs = Math.max(0, Number(value) || 0); },
+  failNextTestPlatformSnapshot: async (message) => { platformSnapshotFailure = String(message || "Platform snapshot failed"); },
+  setTestPlatformTasks: async (tasks) => {
+    platform.tasks = Array.isArray(tasks) ? tasks : [];
+    platform.product_workspaces = platform.product_workspaces.map((workspace) => {
+      const workspaceTasks = platform.tasks.filter((task) => String(task.project_id) === String(workspace.id));
+      const taskCounts = workspaceTasks.reduce((counts, task) => ({ ...counts, [task.state]: Number(counts[task.state] || 0) + 1 }), {});
+      return { ...workspace, task_counts: taskCounts };
+    });
+  },
   pickProject: async () => ({ id: "local-new", name: "New Local", path: "/repo/new-local" }),
   setProjectParticipation: noOp,
   bindAutomationProject: async (remoteId, localId) => { calls.push(["bindAutomationProject", { remoteId, localId }]); return {}; },

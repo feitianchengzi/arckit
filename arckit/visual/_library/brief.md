@@ -14,7 +14,7 @@
 
 活动对象通过左侧细描边、浅色底和语义标签共同突出。层级主要依靠背景面、分隔线、字体权重和空间组织，阴影不承担常规卡片分层。
 
-Intervention Workbench 的消息层级以 Agent 正式正文为视觉主角，使用舒适行高和有限内容宽度；state-driven loop 状态使用低对比、横向紧凑的辅助提示；非空 reasoning 使用可折叠的次级文本面，完成后默认收起；schema-bound 输出使用可折叠的结构化结果面；工具活动使用最轻的一行列表样式。思考过程、结构化结果和工具活动不形成与 Agent 正文同等体量的气泡或卡片，空 reasoning 和原始 JSON 不在主消息面产生空占位或大块高对比内容。
+Chat 与 Intervention Workbench 共用一个 Conversation Surface。消息层级以 Agent 正式正文为视觉主角，使用舒适行高和有限内容宽度；非空 reasoning 使用可折叠的次级文本面，完成后默认收起；工具与权限活动使用最轻的一行列表样式。Automation 专属的 state-driven loop 状态、schema-bound 输出、完整执行时间和逐 gap 全貌位于左右面板，不在 Conversation Surface 中形成平行视觉分支。空 reasoning 和原始 JSON 不在主消息面产生空占位或大块高对比内容。
 
 独立 Login 与会话恢复状态属于亮色工作区，不延展深色侧栏或标题栏。认证画布使用中性浅灰承载低对比紫色光晕，白色账号面板保持输入焦点；深色墨色只用于文字和小面积标识，不形成全页背景。
 
@@ -38,7 +38,7 @@ Intervention Workbench 的消息层级以 Agent 正式正文为视觉主角，�
 
 任务表是主数据组件，行选择不改变队列语义。当前运行使用阶段条、状态点和有限事件摘要表达进度。人工事项使用浅琥珀背景和明确主动作；恢复事项使用浅红或浅琥珀背景，并展示事实差异和责任方。
 
-WorkbenchTranscript 使用六类明确层级：LoopStatus 是中性或语义色的细边界提示，ReasoningDisclosure 是默认收起的次级过程文本，AgentMessage 是无多余装饰的主要阅读内容，StructuredResult 是展示 schema 与原始字段的低强调查看器，ToolActivity 是单行图标、动词、目标与结果，UserMessage 使用轻量区分的输入表面。Composer 以顶部分隔线固定在消息列底部，不通过重阴影覆盖内容。
+ConversationSurface 使用五类共享层级：ReasoningDisclosure 是默认收起的次级过程文本，AgentMessage 是无多余装饰的主要阅读内容，ToolActivity 与 ApprovalActivity 是单行图标、动词、目标、状态和有界动作，UserMessage 使用轻量区分的输入表面。Composer 以顶部分隔线固定在消息列底部，不通过重阴影覆盖内容。AutomationExecutionOverview 在侧栏内使用紧凑指标与纵向 gap 列表承载完整时间、轮数、目标、工作摘要和结果，不与对话正文争夺层级。
 
 ## 状态表达
 

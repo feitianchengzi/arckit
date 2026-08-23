@@ -30,6 +30,7 @@ function createRunActivity(run) {
     round_state_history: [],
     round_candidates: null,
     round_selection: null,
+    gap_rounds: [],
     ledger_stage: null,
     gate_result: null,
     ledger_write_result: null,
@@ -64,6 +65,7 @@ function applyRunEvent(run, { parsed }) {
   switch (event.type) {
     case "runtime.session_round.started":
       activity.round_index = Number(event.round_index || activity.round_index || 0);
+      updateGapRound(activity, event, { status: "running", started_at: now });
       updateRunActivity(run, { phase: "agent-loop", current_step: `Starting gap round ${activity.round_index}` });
       break;
     case "runtime.agent_loop.started":
@@ -80,6 +82,10 @@ function applyRunEvent(run, { parsed }) {
         summary: event.summary || "",
         case_id: event.case_id || ""
       };
+      updateGapRound(activity, event, {
+        case_id: event.case_id || "",
+        work_summary: event.summary || "Agent Loop 已完成。",
+      });
       upsertMessage(activity, {
         id: `agent:${activity.round_index}:result`, role: "assistant", actor: "agent", actor_label: "Codex Agent", kind: "result",
         content: event.summary || "Agent Loop 已完成。", status: "completed"
@@ -98,6 +104,11 @@ function applyRunEvent(run, { parsed }) {
       break;
     case "runtime.round_selection":
       activity.round_selection = event.gap_selection || null;
+      updateGapRound(activity, event, {
+        case_id: event.case_id || "",
+        selected_gap: event.selected_gap || null,
+        gap_selection: event.gap_selection || null,
+      });
       upsertMessage(activity, {
         id: `runtime:round-selection:${event.round_index || "current"}`,
         role: "system", actor: "runtime", actor_label: "ArcOrbit", kind: "round",
@@ -230,6 +241,15 @@ function applyRunEvent(run, { parsed }) {
       break;
     case "runtime.round_closeout":
       activity.round_closeout = event.receipt || null;
+      updateGapRound(activity, event, {
+        case_id: event.receipt?.case_id || "",
+        selected_gap: event.receipt?.selected_gap || null,
+        gap_selection: event.receipt?.gap_selection || null,
+        status: event.receipt?.status || "completed",
+        outcome: gapRoundOutcome(event.receipt),
+        finished_at: event.receipt?.occurred_at || now,
+        project_revision: event.receipt?.resulting_state?.project_revision ?? null,
+      });
       projectStructuredResult(activity, event.receipt, { turnId: activity.turn_id, status: "completed" });
       upsertMessage(activity, {
         id: `runtime:round-closeout:${event.round_index || "current"}`,
@@ -268,6 +288,54 @@ function applyRuntimeResult(activity, result, validation) {
   activity.case_id = result.case_transition?.case_id || result.case_control_handoff?.case_id || activity.case_id;
   activity.validation_valid = validation?.valid ?? activity.validation_valid;
   activity.current_step = result.summary || activity.current_step;
+}
+
+function updateGapRound(activity, event = {}, patch = {}) {
+  activity.gap_rounds ||= [];
+  const roundIndex = Number(event.round_index || activity.round_index || 0);
+  if (!roundIndex) return null;
+  let round = activity.gap_rounds.find((item) => item.round_index === roundIndex);
+  if (!round) {
+    round = {
+      round_index: roundIndex,
+      case_id: "",
+      selected_gap_id: "",
+      goal: "",
+      selection_summary: "",
+      work_summary: "",
+      outcome: "",
+      status: "running",
+      started_at: patch.started_at || new Date().toISOString(),
+      finished_at: "",
+      project_revision: null,
+    };
+    activity.gap_rounds.push(round);
+  }
+  const selectedGap = patch.selected_gap;
+  const selection = patch.gap_selection;
+  if (patch.case_id) round.case_id = patch.case_id;
+  if (selectedGap?.id) round.selected_gap_id = selectedGap.id;
+  if (selectedGap?.goal) round.goal = selectedGap.goal;
+  if (selection) {
+    round.selection_summary = selection.comparison_summary || selection.basis || selection.fresh_discovery_summary || round.selection_summary;
+    if (!round.selected_gap_id) round.selected_gap_id = selectedGapId(selection);
+  }
+  for (const key of ["work_summary", "outcome", "status", "started_at", "finished_at", "project_revision"]) {
+    if (patch[key] !== undefined && patch[key] !== "") round[key] = patch[key];
+  }
+  activity.gap_rounds.sort((left, right) => left.round_index - right.round_index);
+  return round;
+}
+
+function selectedGapId(selection = {}) {
+  const ref = selection.selected_ref || (selection.considered || []).find((item) => item.disposition === "selected")?.ref || "";
+  return String(ref).split(":").at(-1) || "";
+}
+
+function gapRoundOutcome(receipt = {}) {
+  return receipt.accepted_state_delta?.resolved_gap?.outcome
+    || receipt.case_resolution?.reason
+    || `${receipt.selected_gap?.id || "Gap"} closeout accepted.`;
 }
 
 function applyLedgerWrite(activity, result) {
@@ -369,6 +437,12 @@ function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage
   activity.error = errorMessage || activity.error;
   activity.exit_code = exitCode;
   activity.finished_at = new Date().toISOString();
+  for (const round of activity.gap_rounds || []) {
+    if (round.finished_at) continue;
+    round.status = status;
+    round.finished_at = activity.finished_at;
+    if (!round.outcome) round.outcome = errorMessage || activity.current_step;
+  }
   if (parsedResult?.runtime_result) applyRuntimeResult(activity, parsedResult.runtime_result, parsedResult.validation);
   if (parsedResult?.closeout_result) activity.closeout_result = parsedResult.closeout_result;
   upsertMessage(activity, {

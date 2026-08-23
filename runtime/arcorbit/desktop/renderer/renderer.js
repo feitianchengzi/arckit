@@ -1,4 +1,5 @@
 import {
+  isConversationSurfaceMessageVisible,
   isTranscriptMessageVisible,
   statusGlyph,
   structuredResultPresentation,
@@ -7,6 +8,8 @@ import {
   transcriptMessageType
 } from "../../src/desktop/transcript-presentation.mjs";
 import { renderRestrictedMarkdown, resolveWorkTaskReference, workTaskReference, workTaskReferenceSelection } from "./restricted-markdown.mjs";
+import { summarizeAutomationExecution } from "../../src/desktop/automation-execution-summary.mjs";
+import { createConversationSurface } from "./conversation-surface.mjs";
 import {
   buildTaskCommentContent,
   normalizeTaskAttachmentUrl,
@@ -116,12 +119,10 @@ const state = {
   verificationCooldown: 0,
   authBusy: { verification: false, login: false, logout: false },
   authFeedback: { message: "", error: false },
-  chatFollowingLatest: true,
   transcript: [],
   transcriptSessionId: "",
   transcriptSessionMessages: [],
   transcriptRuns: [],
-  transcriptFollowingLatest: true,
   workbenchMode: "review",
   workbenchRun: null,
   workbenchCompletion: null,
@@ -140,12 +141,34 @@ let refreshQueued = false;
 let toastTimer;
 let verificationTimer;
 let workFilterTimer;
+const taskAttachmentPreviewQueue = [];
+let activeTaskAttachmentPreviews = 0;
+const TASK_ATTACHMENT_PREVIEW_CONCURRENCY = 3;
 const chatStateCoordinator = createChatStateCoordinator({
   api,
   normalizeSnapshot: normalizeChatSnapshot,
   createRequestId: () => window.crypto?.randomUUID?.() || `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   setTimer: window.setTimeout.bind(window),
   clearTimer: window.clearTimeout.bind(window)
+});
+const chatConversationSurface = createConversationSurface({
+  element: els.chatTranscript,
+  jumpButton: els.chatJumpLatestButton,
+  formatTime,
+  onApproval: (message, decision) => runAction(async () => {
+    if (!chatState().owner.session_id) return;
+    await chatStateCoordinator.decideApproval(message.approval_request_id, decision);
+    renderChat();
+  }),
+  onExternalLink: (url) => runAction(() => api.openWorkExternalLink(url)),
+  performAction: runAction,
+});
+const workbenchConversationSurface = createConversationSurface({
+  element: els.transcriptList,
+  jumpButton: els.jumpToLatestButton,
+  formatTime,
+  onExternalLink: (url) => runAction(() => api.openWorkExternalLink(url)),
+  performAction: runAction,
 });
 
 function chatState() {
@@ -336,8 +359,6 @@ function wireEvents() {
     await chatStateCoordinator.interruptCurrentSession();
     renderChat();
   }));
-  els.chatTranscript.addEventListener("scroll", handleChatScroll, { passive: true });
-  els.chatJumpLatestButton.addEventListener("click", () => scrollChatToLatest({ behavior: "smooth" }));
   els.syncButton.addEventListener("click", () => runAction(syncAutomationNow));
   els.automationRefreshButton.addEventListener("click", () => runAction(syncAutomationNow));
   els.productFeedbackButton.addEventListener("click", () => runAction(openProductFeedback));
@@ -383,8 +404,6 @@ function wireEvents() {
     renderWorkbench();
     els.interventionInput.focus();
   });
-  els.transcriptList.addEventListener("scroll", handleTranscriptScroll, { passive: true });
-  els.jumpToLatestButton.addEventListener("click", () => scrollTranscriptToLatest({ behavior: "smooth" }));
   els.taskFilterInput.addEventListener("input", () => {
     state.taskFilter = els.taskFilterInput.value.trim().toLowerCase();
     renderTaskTable();
@@ -629,23 +648,25 @@ function upgradeDispositionLabel(value) {
 function setupCheckLabel(id) { return ({resources:"受信安装资源",provider:"ArcForge provider",skills:"Arckit skills",codex:"Codex discoverability"})[id] || id; }
 function shortDigest(value) { return value ? `${value.slice(0, 10)}…${value.slice(-8)}` : "--"; }
 
-async function refreshSnapshot({ quiet = false } = {}) {
+async function refreshSnapshot({ quiet = false, surface = "all" } = {}) {
   if (state.refreshing) return;
+  const workSurface = surface === "work";
   state.refreshing = true;
   if (!quiet) renderSyncing(true);
   try {
     let [snapshot, platform, authentication] = await Promise.all([
-      api.automationSnapshot({
+      workSurface ? Promise.resolve(state.snapshot) : api.automationSnapshot({
         project_id: state.selectedProjectId,
         state: state.page === "tasks" ? state.selectedState : ""
       }),
       api.platformSnapshot({
-        sections: ["overview", "organizations", "members", "tasks", "feedback"],
+        sections: workSurface ? ["tasks"] : ["overview", "organizations", "members", "tasks", "feedback"],
         task_filters: state.page === "work" ? platformTaskFilters() : {}
       }),
-      api.getAuthStatus()
+      workSurface ? Promise.resolve(state.authentication) : api.getAuthStatus()
     ]);
     platform ||= emptyPlatformSnapshot();
+    if (workSurface) platform = mergeWorkPlatformSnapshot(state.platform, platform);
     authentication = normalizeAuthentication(authentication);
     const identityChanged = taskAttachmentIdentityKey({ platform: state.platform, authentication: state.authentication })
       !== taskAttachmentIdentityKey({ platform, authentication });
@@ -675,12 +696,44 @@ async function refreshSnapshot({ quiet = false } = {}) {
       state.selectedTaskId = visibleTasks[0].id;
     }
     if (state.page === "workbench") await loadTranscript();
-    render();
+    if (workSurface && state.page === "work") renderWorkSurface();
+    else render();
     routeAuthentication();
   } finally {
     state.refreshing = false;
     renderSyncing(false);
   }
+}
+
+function mergeWorkPlatformSnapshot(current, incoming) {
+  const previousWorkspaces = new Map((current.product_workspaces || []).map((workspace) => [String(workspace.id), workspace]));
+  const productWorkspaces = (incoming.product_workspaces || []).map((workspace) => {
+    const previous = previousWorkspaces.get(String(workspace.id)) || {};
+    return {
+      ...previous,
+      ...workspace,
+      members: previous.members || [],
+      feedback_v1: previous.feedback_v1 || [],
+      feedback_count: previous.feedback_count ?? workspace.feedback_count ?? 0,
+      feedback_management: previous.feedback_management || workspace.feedback_management
+    };
+  });
+  const retainedErrors = (current.errors || []).filter((item) => !["tasks", "task_counts", "tags"].includes(item.section));
+  return {
+    ...current,
+    generated_at: incoming.generated_at,
+    source_status: incoming.source_status,
+    user: incoming.user,
+    worksets: incoming.worksets,
+    active_workset: incoming.active_workset,
+    projects: incoming.projects,
+    product_workspaces: productWorkspaces,
+    tasks: incoming.tasks,
+    task_trees: incoming.task_trees,
+    tags: incoming.tags,
+    automation: incoming.automation,
+    errors: [...retainedErrors, ...(incoming.errors || [])]
+  };
 }
 
 function scheduleRefresh(delay = 80) {
@@ -766,18 +819,17 @@ function renderChat() {
   const chat = chatState();
   const session = selectedChatSession();
   const project = selectedChatProject();
-  const following = state.chatFollowingLatest;
   els.chatProjectSelect.innerHTML = chat.snapshot.projects.length
     ? chat.snapshot.projects.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === project?.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")
     : `<option value="">尚无本地 Product Workspace</option>`;
-  els.chatProjectSelect.disabled = Boolean(session) || chat.snapshot.projects.length === 0;
+  els.chatProjectSelect.disabled = chat.snapshot.projects.length === 0;
   els.newChatButton.disabled = chat.snapshot.projects.length === 0;
   els.chatSessionList.innerHTML = chat.snapshot.sessions.length
     ? chat.snapshot.sessions.map((item) => `<button class="chat-session ${item.id === chat.owner.session_id ? "is-active" : ""}" data-chat-session-id="${escapeHtml(item.id)}" type="button"><strong>${escapeHtml(item.title)}</strong><span class="chat-session-status ${escapeHtml(item.status)}" aria-label="${escapeHtml(chatStatusLabel(item.status))}"></span><small>${escapeHtml(chatStatusLabel(item.status))} · ${escapeHtml(formatDateTime(item.updated_at))}</small></button>`).join("")
     : `<div class="chat-empty-list">还没有对话。发送第一条消息时才会创建会话。</div>`;
   els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
     await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
-    state.chatFollowingLatest = true;
+    chatConversationSurface.followLatest();
     renderChat();
   })));
   els.chatWorkspaceLabel.textContent = project?.name ? `LOCAL WORKSPACE · ${project.name}` : "选择本地工作区";
@@ -792,22 +844,12 @@ function renderChat() {
   els.chatErrorHost.innerHTML = chat.error || session?.error
     ? `<div class="chat-error" role="alert"><span>${escapeHtml(chat.error || session.error)}</span>${session?.status === "failed" ? `<button class="secondary-button" data-chat-retry-last type="button">编辑后重试</button>` : ""}</div>`
     : "";
-  els.chatTranscript.innerHTML = session
-    ? (chat.snapshot.messages.length ? chat.snapshot.messages.map(renderChatMessage).join("") : `<div class="chat-empty"><strong>开始这段对话</strong><p>向 Codex 提问，或说明希望它在 ${escapeHtml(project?.name || "当前项目")} 中完成什么。</p></div>`)
-    : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "会话与 Automation、Case 和待办执行完全隔离；停止回答后可在同一 thread 继续。" : "Chat 只允许绑定已配置的本地 Product Workspace，Renderer 不能指定任意目录。"}</p>${project ? "" : `<button class="primary-button" data-chat-add-workspace type="button">添加本地项目</button>`}</div>`;
-  els.chatTranscript.querySelectorAll("[data-chat-approval]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
-    const message = chat.snapshot.messages.find((item) => item.approval_request_id === button.dataset.chatApproval);
-    if (!message || !chat.owner.session_id) return;
-    await chatStateCoordinator.decideApproval(message.approval_request_id, button.dataset.chatApprovalDecision);
-    renderChat();
-  })));
-  els.chatTranscript.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
-  els.chatTranscript.querySelectorAll("[data-chat-copy-code]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
-    const code = button.closest(".chat-code-block")?.querySelector("code")?.textContent || "";
-    await navigator.clipboard.writeText(code);
-    button.textContent = "已复制";
-    window.setTimeout(() => { button.textContent = "复制"; }, 1200);
-  })));
+  chatConversationSurface.render({
+    messages: session ? chat.snapshot.messages : [],
+    emptyHtml: session
+      ? `<div class="chat-empty"><strong>开始这段对话</strong><p>向 Codex 提问，或说明希望它在 ${escapeHtml(project?.name || "当前项目")} 中完成什么。</p></div>`
+      : `<div class="chat-empty"><strong>${project ? "开始新的自由对话" : "需要本地工作区"}</strong><p>${project ? "会话与 Automation、Case 和待办执行完全隔离；停止回答后可在同一 thread 继续。" : "Chat 只允许绑定已配置的本地 Product Workspace，Renderer 不能指定任意目录。"}</p>${project ? "" : `<button class="primary-button" data-chat-add-workspace type="button">添加本地项目</button>`}</div>`,
+  });
   els.chatErrorHost.querySelector("[data-chat-retry-last]")?.addEventListener("click", () => {
     chatStateCoordinator.prepareRetry();
     renderChatComposer();
@@ -821,36 +863,6 @@ function renderChat() {
     await refreshChat({ quiet: true, resetOwner: true });
   }));
   renderChatComposer();
-  requestAnimationFrame(() => {
-    if (following) scrollChatToLatest({ behavior: "auto" });
-    else updateChatJumpLatest();
-  });
-}
-
-function renderChatMessage(message) {
-  const time = formatTime(message.updated_at || message.created_at);
-  if (message.kind === "reasoning") {
-    return message.content.trim() ? `<details class="chat-reasoning"><summary>思考过程 · ${escapeHtml(time)}</summary><div>${escapeHtml(message.content)}</div></details>` : "";
-  }
-  if (message.kind === "tool") {
-    const glyph = message.status === "failed" ? "!" : message.status === "running" ? "◌" : "✓";
-    return `<div class="chat-tool"><span>${glyph}</span><span>${escapeHtml(message.content || "使用工具")}</span><small>${escapeHtml(chatMessageStatusLabel(message.status))}</small></div>`;
-  }
-  if (message.kind === "approval") {
-    return `<section class="chat-approval"><p><strong>Codex 请求批准</strong><br>${escapeHtml(message.content)}</p>${message.status === "pending" ? `<div class="chat-approval-actions"><button class="primary-button" data-chat-approval="${escapeHtml(message.approval_request_id)}" data-chat-approval-decision="accept" type="button">允许本次操作</button><button class="secondary-button" data-chat-approval="${escapeHtml(message.approval_request_id)}" data-chat-approval-decision="decline" type="button">拒绝</button></div>` : `<small>${message.status === "completed" ? "已允许" : "已拒绝或已失效"}</small>`}</section>`;
-  }
-  if (message.kind === "error") return `<div class="chat-error" role="alert">${escapeHtml(message.content)}</div>`;
-  const user = message.role === "user";
-  const content = user
-    ? escapeHtml(message.content).replaceAll("\n", "<br>")
-    : message.content ? renderChatMarkdown(message.content) : `<span class="chat-streaming-cursor">▍</span>`;
-  return `<article class="chat-message ${user ? "user" : "assistant"}"><div class="chat-message-meta"><strong>${user ? "你" : "Codex"}</strong><span>${escapeHtml(time)}</span>${message.status === "interrupted" ? "<span>已停止</span>" : ""}</div><div class="chat-message-content">${content}</div></article>`;
-}
-
-function renderChatMarkdown(value) {
-  return renderRestrictedMarkdown(value)
-    .replaceAll("<pre>", `<div class="chat-code-block"><button data-chat-copy-code type="button">复制</button><pre>`)
-    .replaceAll("</pre>", "</pre></div>");
 }
 
 function renderChatComposer() {
@@ -887,26 +899,6 @@ function chatStatusLabel(status) {
   return ({ starting: "正在启动", running: "Codex 正在回答", waiting_approval: "等待审批", interrupting: "正在停止", completed: "已完成", interrupted: "已停止", failed: "失败" })[status] || "就绪";
 }
 
-function chatMessageStatusLabel(status) {
-  return ({ running: "进行中", completed: "完成", interrupted: "已停止", failed: "失败" })[status] || status;
-}
-
-function handleChatScroll() {
-  const { scrollTop, scrollHeight, clientHeight } = els.chatTranscript;
-  state.chatFollowingLatest = scrollHeight - scrollTop - clientHeight < 72;
-  updateChatJumpLatest();
-}
-
-function updateChatJumpLatest() {
-  els.chatJumpLatestButton.classList.toggle("hidden", state.chatFollowingLatest);
-}
-
-function scrollChatToLatest({ behavior = "auto" } = {}) {
-  state.chatFollowingLatest = true;
-  els.chatTranscript.scrollTo({ top: els.chatTranscript.scrollHeight, behavior });
-  updateChatJumpLatest();
-}
-
 function render() {
   renderPageVisibility();
   renderNavigation();
@@ -921,6 +913,14 @@ function render() {
   renderTaskBrowser();
   renderWorkbench();
   renderRecovery();
+}
+
+function renderWorkSurface() {
+  renderPageVisibility();
+  renderNavigation();
+  renderCommandBar();
+  renderWorkset();
+  renderPlatformWork();
 }
 
 function renderPageVisibility() {
@@ -1215,7 +1215,8 @@ function renderPlatformWorkInspector(task) {
   els.platformWorkInspector.querySelector("[data-task-comment-add-image]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "image")));
   els.platformWorkInspector.querySelector("[data-task-comment-add-file]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "file")));
   els.platformWorkInspector.querySelectorAll("[data-task-comment-resource-remove]").forEach((button) => button.addEventListener("click", () => removeTaskCommentResource(task.id, button.dataset.taskCommentResourceRemove)));
-  els.platformWorkInspector.querySelectorAll("[data-task-attachment-image]").forEach((button) => button.addEventListener("click", () => runAction(() => previewTaskAttachment(button))));
+  els.platformWorkInspector.querySelectorAll("[data-task-attachment-image]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkTaskImageViewer(taskAttachmentResourceInput(button)))));
+  els.platformWorkInspector.querySelectorAll("[data-task-attachment-image-retry]").forEach((button) => button.addEventListener("click", () => queueTaskAttachmentPreview(taskAttachmentResourceInput(button), { force: true })));
   els.platformWorkInspector.querySelectorAll("[data-task-attachment-file]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkTaskAttachment(taskAttachmentResourceInput(button)))));
   els.platformWorkInspector.querySelectorAll("[data-work-task-feedback]").forEach((button) => button.addEventListener("click", () => {
     const item = feedbackItems.find((entry) => entry.feedback_id === button.dataset.workTaskFeedback);
@@ -1231,6 +1232,7 @@ function renderPlatformWorkInspector(task) {
     await refreshSnapshot();
   }));
   if (!state.platformTaskAttachments[String(task.id)]) loadTaskAttachments(task.id);
+  else loadMissingTaskAttachmentPreviews(task);
 }
 
 function taskCreatorName(task) {
@@ -1308,9 +1310,9 @@ function taskAttachmentItem(task, item) {
   const resourceInput = (key) => `data-task-id="${escapeHtml(task.id)}" data-attachment-id="${escapeHtml(item.id)}" data-object-key="${escapeHtml(key)}"`;
   const images = parsed.images.map((key) => {
     const preview = state.platformTaskAttachmentPreviews[taskAttachmentPreviewKey(task.id, item.id, key)];
-    return preview
-      ? `<button class="task-comment-image is-loaded" type="button" data-task-attachment-image ${resourceInput(key)} title="重新载入图片预览"><img src="${escapeHtml(preview)}" alt="${escapeHtml(taskAttachmentFileName(key))}"></button>`
-      : `<button class="task-comment-image" type="button" data-task-attachment-image ${resourceInput(key)}>预览图片 · ${escapeHtml(taskAttachmentFileName(key))}</button>`;
+    if (preview?.status === "loaded") return `<button class="task-comment-image is-loaded" type="button" data-task-attachment-image ${resourceInput(key)} title="在独立窗口中浏览"><img src="${escapeHtml(preview.data_url)}" alt="${escapeHtml(taskAttachmentFileName(key))}"></button>`;
+    if (preview?.status === "error") return `<button class="task-comment-image is-error" type="button" data-task-attachment-image-retry ${resourceInput(key)}>加载失败 · 重试<br><small>${escapeHtml(preview.error)}</small></button>`;
+    return `<div class="task-comment-image is-loading" role="status">正在加载图片 · ${escapeHtml(taskAttachmentFileName(key))}</div>`;
   }).join("");
   const files = parsed.files.map((key) => `<button class="task-comment-file" type="button" data-task-attachment-file ${resourceInput(key)}>下载文件 · ${escapeHtml(taskAttachmentFileName(key))}</button>`).join("");
   const body = parsed.text ? `<div class="task-comment-body task-markdown">${renderRestrictedMarkdown(taskCommentTextToMarkdown(parsed.text))}</div>` : "";
@@ -1379,13 +1381,46 @@ function removeTaskCommentResource(taskId, index) {
   renderPlatformWorkInspector(findPlatformTask(taskId));
 }
 
-async function previewTaskAttachment(button) {
-  const input = taskAttachmentResourceInput(button);
-  const request = captureTaskAttachmentRequest(state);
-  const result = await api.previewWorkTaskAttachment(input);
-  if (!isTaskAttachmentRequestCurrent(state, request)) return;
-  state.platformTaskAttachmentPreviews[taskAttachmentPreviewKey(input.task_id, input.attachment_id, input.object_key)] = result.data_url;
-  renderPlatformWorkInspector(findPlatformTask(input.task_id));
+function loadMissingTaskAttachmentPreviews(task) {
+  const record = state.platformTaskAttachments[String(task.id)];
+  if (record?.status !== "loaded") return;
+  for (const item of record.items || []) {
+    let parsed;
+    try { parsed = parseTaskAttachmentContent(item); } catch { continue; }
+    for (const objectKey of parsed.images) {
+      queueTaskAttachmentPreview({ task_id: task.id, attachment_id: item.id, object_key: objectKey });
+    }
+  }
+}
+
+function queueTaskAttachmentPreview(input, { force = false } = {}) {
+  const key = taskAttachmentPreviewKey(input.task_id, input.attachment_id, input.object_key);
+  const existing = state.platformTaskAttachmentPreviews[key];
+  if (!force && ["loading", "loaded"].includes(existing?.status)) return;
+  state.platformTaskAttachmentPreviews[key] = { status: "loading", data_url: "", error: "" };
+  taskAttachmentPreviewQueue.push({ input, key, request: captureTaskAttachmentRequest(state) });
+  if (String(state.selectedPlatformTaskId) === String(input.task_id)) renderPlatformWorkInspector(findPlatformTask(input.task_id));
+  pumpTaskAttachmentPreviewQueue();
+}
+
+function pumpTaskAttachmentPreviewQueue() {
+  while (activeTaskAttachmentPreviews < TASK_ATTACHMENT_PREVIEW_CONCURRENCY && taskAttachmentPreviewQueue.length > 0) {
+    const job = taskAttachmentPreviewQueue.shift();
+    activeTaskAttachmentPreviews += 1;
+    api.previewWorkTaskAttachment(job.input).then((result) => {
+      if (!isTaskAttachmentRequestCurrent(state, job.request)) return;
+      state.platformTaskAttachmentPreviews[job.key] = { status: "loaded", data_url: result.data_url, error: "" };
+    }).catch((error) => {
+      if (!isTaskAttachmentRequestCurrent(state, job.request)) return;
+      state.platformTaskAttachmentPreviews[job.key] = { status: "error", data_url: "", error: error?.message || "评论图片不可用。" };
+    }).finally(() => {
+      activeTaskAttachmentPreviews -= 1;
+      if (isTaskAttachmentRequestCurrent(state, job.request) && String(state.selectedPlatformTaskId) === String(job.input.task_id)) {
+        renderPlatformWorkInspector(findPlatformTask(job.input.task_id));
+      }
+      pumpTaskAttachmentPreviewQueue();
+    });
+  }
 }
 
 function taskAttachmentResourceInput(button) {
@@ -2569,7 +2604,7 @@ async function openWorkbench(mode = "review", runId = "", context = {}) {
     ? (await api.listRuns({})).find((run) => run.id === runId) || null
     : null;
   state.transcriptSessionId = "";
-  state.transcriptFollowingLatest = true;
+  workbenchConversationSurface.followLatest();
   await loadTranscript({ force: true });
   showPage("workbench");
 }
@@ -2600,7 +2635,9 @@ async function loadTranscript({ force = false } = {}) {
   if (currentRunIndex >= 0) state.transcriptRuns[currentRunIndex] = run;
   else state.transcriptRuns.push(run);
   const projectedMessages = state.transcriptRuns.flatMap((item) => (
-    Array.isArray(item.activity?.messages) ? item.activity.messages : []
+    Array.isArray(item.activity?.messages)
+      ? item.activity.messages.map((message) => ({ ...message, run_id: message.run_id || item.id }))
+      : []
   ));
   const sessionMessages = projectedMessages.length
     ? state.transcriptSessionMessages.filter((message) => message.role === "user")
@@ -2650,6 +2687,7 @@ function renderWorkbench() {
   const performance = activity.performance || {};
   const slowestCommand = [...(performance.commands || [])].sort((left, right) => Number(right.duration_ms || 0) - Number(left.duration_ms || 0))[0] || null;
   const usageBaseline = state.snapshot.usage_baseline || {};
+  const executionSummary = summarizeAutomationExecution(state.transcriptRuns.length ? state.transcriptRuns : run ? [run] : []);
   els.workbenchContext.innerHTML = taskId ? factRows([
     ["任务", taskId],
     ["Task Session", taskSessionId || "未建立"],
@@ -2663,16 +2701,12 @@ function renderWorkbench() {
     ["人工请求", completion ? "不适用" : attention?.reason || "无"],
     ["恢复条件", completion ? "只读审查不改变任务状态" : attention?.question || "返回自动化观察"]
   ]) : `<div class="empty-state">没有可审查的任务上下文。</div>`;
-  const messages = state.transcript.length
-    ? state.transcript.map(renderConversationMessage).join("")
-    : `<div class="empty-state compact">当前没有已加载的对话。Chat 仅在 Runtime 产生 transcript 后出现。</div>`;
-  const previousScrollTop = els.transcriptList.scrollTop;
-  const shouldFollowLatest = state.transcriptFollowingLatest || isTranscriptNearBottom();
-  els.transcriptList.innerHTML = messages;
-  if (shouldFollowLatest) scrollTranscriptToLatest();
-  else els.transcriptList.scrollTop = previousScrollTop;
-  updateJumpToLatestButton();
-  els.workbenchEvidence.innerHTML = factRows([
+  workbenchConversationSurface.render({
+    messages: state.transcript,
+    emptyHtml: `<div class="chat-empty"><strong>当前没有已加载的对话</strong><p>Runtime 产生用户、Agent、reasoning 或 tool 消息后会显示在这里；Automation 轮次与结构化结果保留在右栏。</p></div>`,
+  });
+  const automationMessages = state.transcript.filter((message) => !isConversationSurfaceMessageVisible(message));
+  els.workbenchEvidence.innerHTML = `${renderAutomationExecutionOverview(executionSummary)}<section class="workbench-evidence-section"><h4>当前 Run 与证据</h4>${factRows([
     ["Run", run?.id || "无"],
     ["Run 状态", run?.status || "未启动"],
     ["远端任务", sourceTask?.state_label || (completion ? "已完成" : active?.phase || "无活动任务")],
@@ -2697,24 +2731,7 @@ function renderWorkbench() {
     ["Git 收尾", activity.closeout_result?.status === "completed" ? activity.closeout_result?.outcome || "已完成" : activity.closeout_result?.status || "未开始"],
     ["影响", `${activity.artifact_ownership_scan?.classified?.length || 0} 个已分类 artifact`],
     ["执行消息", `${activity.messages?.length || 0} 条 · ${activity.artifact_paths?.messages_file ? "已归档" : "未归档"}`]
-  ]);
-}
-
-function renderConversationMessage(message) {
-  const type = transcriptMessageType(message);
-  if (type === "tool") return renderToolActivity(message);
-  if (type === "loop") return renderLoopStatus(message);
-  if (type === "reasoning") return renderReasoningDisclosure(message);
-  if (type === "structured") return renderStructuredResult(message);
-  const label = type === "user" ? "你" : message.actor_label || "Agent";
-  const status = message.status || "completed";
-  return `<article class="message ${type}-message status-${escapeHtml(status)}"><div class="message-head"><span><b>${escapeHtml(label)}</b>${message.kind ? `<em>${escapeHtml(message.kind)}</em>` : ""}</span><time>${formatTime(message.updated_at || message.created_at)}</time></div><p>${escapeHtml(message.content)}</p></article>`;
-}
-
-function renderReasoningDisclosure(message) {
-  const status = message.status || "completed";
-  const streaming = ["streaming", "started", "running", "in_progress"].includes(status);
-  return `<details class="reasoning-disclosure status-${escapeHtml(status)}"${streaming ? " open" : ""}><summary><span><span class="activity-glyph" aria-hidden="true">${statusGlyph(status)}</span><b>${streaming ? "思考中" : "思考过程"}</b></span><time>${formatTime(message.updated_at || message.created_at)}</time></summary><div class="reasoning-content">${escapeHtml(message.content)}</div></details>`;
+  ])}</section>${renderAutomationPanelActivity(automationMessages)}`;
 }
 
 function renderStructuredResult(message) {
@@ -2740,23 +2757,24 @@ function renderToolActivity(message) {
   return `<article class="tool-activity status-${escapeHtml(status)}" title="${escapeHtml(summary)}"><span class="activity-glyph" aria-hidden="true">${statusGlyph(status)}</span><span class="tool-activity-label">Tool</span><span class="tool-activity-summary">${escapeHtml(summary)}</span><time>${formatTime(message.updated_at || message.created_at)}</time></article>`;
 }
 
-function isTranscriptNearBottom() {
-  return els.transcriptList.scrollHeight - els.transcriptList.scrollTop - els.transcriptList.clientHeight < 72;
+function renderAutomationExecutionOverview(summary) {
+  const timeRange = summary.started_at
+    ? `${formatDateTime(summary.started_at)} → ${summary.finished_at ? formatDateTime(summary.finished_at) : "执行中"}`
+    : "尚无执行记录";
+  const rounds = summary.gap_rounds.length
+    ? summary.gap_rounds.map((round, index) => `<article class="gap-round-card status-${escapeHtml(round.status)}"><div class="gap-round-head"><span>GAP ${index + 1}</span><strong>${escapeHtml(round.selected_gap_id || `Round ${round.round_index || index + 1}`)}</strong><em>${escapeHtml(round.status)}</em></div><dl><div><dt>目标</dt><dd>${escapeHtml(round.goal || round.selection_summary || "本轮目标未记录")}</dd></div><div><dt>完成的工作</dt><dd>${escapeHtml(round.work_summary || "正在执行或旧版 Activity 未记录工作摘要")}</dd></div><div><dt>结果</dt><dd>${escapeHtml(round.outcome || "尚未 closeout")}</dd></div></dl><small>${escapeHtml(round.case_id || "Case 未记录")} · ${escapeHtml(round.started_at ? formatDateTime(round.started_at) : "开始时间未知")}${round.finished_at ? ` → ${escapeHtml(formatDateTime(round.finished_at))}` : ""}</small></article>`).join("")
+    : `<div class="automation-overview-empty">尚未进入 gap round。</div>`;
+  return `<section class="automation-execution-overview"><div class="automation-overview-title"><div><span>完整执行总览</span><strong>${summary.active ? "执行中" : "已收束"}</strong></div><em>${summary.gap_round_count} 轮 GAP</em></div><div class="automation-time-summary"><strong>${escapeHtml(formatDuration(summary.duration_ms))}</strong><small>${escapeHtml(timeRange)} · ${summary.run_count} 个 Run</small></div>${summary.complete_projection ? "" : `<p class="automation-projection-note">旧版 Run 仅能恢复最后一轮摘要；新 Run 会完整记录每轮 gap。</p>`}<div class="gap-round-list">${rounds}</div></section>`;
 }
 
-function handleTranscriptScroll() {
-  state.transcriptFollowingLatest = isTranscriptNearBottom();
-  updateJumpToLatestButton();
-}
-
-function scrollTranscriptToLatest({ behavior = "auto" } = {}) {
-  state.transcriptFollowingLatest = true;
-  els.transcriptList.scrollTo({ top: els.transcriptList.scrollHeight, behavior });
-  updateJumpToLatestButton();
-}
-
-function updateJumpToLatestButton() {
-  els.jumpToLatestButton.classList.toggle("hidden", state.transcriptFollowingLatest || isTranscriptNearBottom());
+function renderAutomationPanelActivity(messages) {
+  if (!messages.length) return `<section class="workbench-evidence-section"><h4>Automation 事件与结构化结果</h4><div class="automation-overview-empty">尚无面板专属事件。</div></section>`;
+  return `<section class="workbench-evidence-section automation-panel-activity"><h4>Automation 事件与结构化结果</h4>${messages.map((message) => {
+    const type = transcriptMessageType(message);
+    if (type === "structured") return renderStructuredResult(message);
+    if (type === "loop") return renderLoopStatus(message);
+    return renderToolActivity(message);
+  }).join("")}</section>`;
 }
 
 function renderRecovery() {
@@ -2866,7 +2884,15 @@ function showPage(page) {
     refreshChat().catch((error) => showToast(error.message));
     return;
   }
-  if (["tasks", "work"].includes(page)) {
+  if (page === "work") {
+    renderPageVisibility();
+    renderNavigation();
+    renderCommandBar();
+    renderWorkset();
+    refreshSnapshot({ surface: "work" }).catch((error) => showToast(error.message));
+    return;
+  }
+  if (page === "tasks") {
     refreshSnapshot().catch((error) => showToast(error.message));
     return;
   }
@@ -3328,7 +3354,11 @@ function formatDuration(value) {
   const seconds = Math.round(milliseconds / 1000);
   if (seconds < 60) return `${seconds}s`;
   const minutes = Math.floor(seconds / 60);
-  return `${minutes}m ${seconds % 60}s`;
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ${hours % 24}h ${minutes % 60}m`;
 }
 
 function renderSyncing(active) {

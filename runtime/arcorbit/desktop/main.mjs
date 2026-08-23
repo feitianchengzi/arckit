@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, powerMonitor, shell, utilityProcess, WebContentsView } from "electron";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, stat, writeFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createDesktopRunManager } from "../src/desktop-run-manager.mjs";
 import { createChatCoordinator } from "../src/chat-coordinator.mjs";
@@ -17,6 +17,7 @@ import { createProductFeedbackSurface } from "../src/product-feedback-window.mjs
 import { requireFeedbackAttachmentUrl } from "../src/feedback-attachment-url.mjs";
 import { requireWorkExternalLinkUrl } from "../src/work-external-link.mjs";
 import { WORK_TASK_FILE_MAX_BYTES, WORK_TASK_IMAGE_MAX_BYTES, requireTrustedResourceUrl } from "../src/work-task-attachment-resource.mjs";
+import { createWorkTaskImageViewer } from "../src/work-task-image-viewer.mjs";
 import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-boundary.mjs";
 import { checkDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
 import { createWorkshopRealtimeAdapter } from "../src/workshop-realtime-adapter.mjs";
@@ -44,6 +45,7 @@ let platformCoordinator;
 let workshopService;
 let skillProvisioningManager;
 let productFeedbackService;
+let workTaskImageViewer;
 let workshopRealtimeAdapter;
 let quitAfterCleanup = false;
 let syncTimer;
@@ -131,6 +133,15 @@ app.whenReady().then(async () => {
     runManager,
     platformSource: workshopService.platform,
     automationCoordinator
+  });
+  workTaskImageViewer = createWorkTaskImageViewer({
+    BrowserWindow,
+    dialog,
+    writeFile,
+    shellFile: join(desktopDir, "image-viewer/index.html"),
+    preloadFile: join(desktopDir, "image-viewer/preload.cjs"),
+    loadImage: loadWorkTaskImage,
+    getParentWindow: () => mainWindow
   });
   runManager.onEvent((event) => {
     if (!mainWindow?.isDestroyed()) {
@@ -220,6 +231,7 @@ app.on("before-quit", async (event) => {
     automationCoordinator?.dispose();
     await chatCoordinator?.close();
     productFeedbackService?.close();
+    workTaskImageViewer?.close();
     await skillProvisioningManager?.waitForIdle();
     await runManager.abortActiveRuns({
       reason: "ArcOrbit is quitting; active runs were aborted."
@@ -476,16 +488,20 @@ function registerIpc() {
   });
   ipcMain.handle("arckit:work-task-attachment-preview", async (event, input) => {
     assertMainRenderer(event);
-    const url = requireTrustedResourceUrl(await platformCoordinator.getTaskAttachmentResourceUrl({ ...input, download: false }));
-    const response = await fetch(url);
-    requireTrustedResourceUrl(response.url);
-    const declaredType = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-    const contentType = ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(declaredType) ? declaredType : workAttachmentMimeType(input?.object_key, "image");
-    const announcedSize = Number(response.headers.get("content-length") || 0);
-    if (!response.ok || announcedSize > WORK_TASK_IMAGE_MAX_BYTES) throw new Error("评论图片预览不可用。");
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength === 0 || bytes.byteLength > WORK_TASK_IMAGE_MAX_BYTES) throw new Error("评论图片预览大小无效。");
-    return { data_url: `data:${contentType};base64,${Buffer.from(bytes).toString("base64")}` };
+    const image = await loadWorkTaskImage(input);
+    return { data_url: image.data_url };
+  });
+  ipcMain.handle("arckit:work-task-image-viewer-open", async (event, input) => {
+    assertMainRenderer(event);
+    return workTaskImageViewer.open(input);
+  });
+  ipcMain.handle("arckit:work-task-image-viewer-save", async (event) => {
+    if (!workTaskImageViewer.owns(event.sender)) throw new Error("Image save is only available from the managed ArcOrbit image viewer.");
+    return workTaskImageViewer.save(event.sender);
+  });
+  ipcMain.handle("arckit:work-task-image-viewer-retry", async (event) => {
+    if (!workTaskImageViewer.owns(event.sender)) throw new Error("Image retry is only available from the managed ArcOrbit image viewer.");
+    return workTaskImageViewer.retry(event.sender);
   });
   ipcMain.handle("arckit:work-task-attachment-open", async (event, input) => {
     assertMainRenderer(event);
@@ -493,6 +509,24 @@ function registerIpc() {
     await shell.openExternal(url);
     return { opened: true };
   });
+}
+
+async function loadWorkTaskImage(input) {
+  const url = requireTrustedResourceUrl(await platformCoordinator.getTaskAttachmentResourceUrl({ ...input, download: false }));
+  const response = await fetch(url);
+  requireTrustedResourceUrl(response.url);
+  const declaredType = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
+  const contentType = ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(declaredType) ? declaredType : workAttachmentMimeType(input?.object_key, "image");
+  const announcedSize = Number(response.headers.get("content-length") || 0);
+  if (!response.ok || announcedSize > WORK_TASK_IMAGE_MAX_BYTES) throw new Error("评论图片预览不可用。");
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.byteLength === 0 || bytes.byteLength > WORK_TASK_IMAGE_MAX_BYTES) throw new Error("评论图片预览大小无效。");
+  return {
+    bytes,
+    content_type: contentType,
+    file_name: String(input?.object_key || "comment-image").split(/[\\/]/).pop() || "comment-image",
+    data_url: `data:${contentType};base64,${Buffer.from(bytes).toString("base64")}`
+  };
 }
 
 function assertMainRenderer(event) {

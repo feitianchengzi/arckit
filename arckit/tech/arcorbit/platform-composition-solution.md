@@ -276,6 +276,8 @@ Automation 的任务领取继续使用现有 expected version 语义。当前 Wo
 
 平台 snapshot 的部分 section 失败不冻结 Automation。只有既有 Automation Coordinator 的 recovery/attention 或任务源身份错误影响自动 execution。
 
+Renderer 从主导航进入 Work 时采用 cache-first：先激活已在内存中的 Work 投影，再以 `sections=["tasks"]` 在后台刷新任务树、计数与标签。后台结果只合并 Work 所有的任务分区和公共快照元数据，保留组织、成员与 Feedback 的最近成功分区；刷新完成时只重渲染应用壳和 Work，不重建隐藏页面。显式全局刷新、定时同步和 mutation 后刷新仍可读取完整 sections。
+
 ## 迁移
 
 Store v9 到 v10 的平台组合归一化保持幂等；v11 在 automation snapshot 增加兼容的项目级 realtime 状态与 confirmed cursor：

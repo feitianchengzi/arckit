@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src data:; style-src 'self'; script-src 'self'">
+  <title>评论图片 · ArcOrbit</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="viewer-toolbar" aria-label="图片操作">
+    <strong id="fileName">评论图片</strong>
+    <div class="viewer-actions">
+      <button data-action="zoom-out" type="button" title="缩小（-）">−</button>
+      <button data-action="zoom-in" type="button" title="放大（+）">＋</button>
+      <button data-action="fit" type="button" title="适合窗口（0）">适合窗口</button>
+      <button data-action="actual" type="button" title="实际大小（1）">实际大小</button>
+      <button data-action="rotate-left" type="button" title="左旋（Shift+R）">左旋</button>
+      <button data-action="rotate-right" type="button" title="右旋（R）">右旋</button>
+      <button data-action="reset" type="button" title="重置变换">重置</button>
+      <button class="primary" data-action="save" type="button" title="另存为（⌘/Ctrl+S）">另存为</button>
+    </div>
+    <span id="zoomValue" aria-live="polite">100%</span>
+  </header>
+  <main id="viewport" class="viewer-viewport" tabindex="0" aria-label="图片画布">
+    <div id="status" class="viewer-status"><span id="statusMessage">正在载入图片…</span><button id="retryButton" type="button" hidden>重试</button></div>
+    <img id="image" alt="" draggable="false" hidden>
+  </main>
+  <footer>滚轮或触控板缩放 · 放大后拖拽平移 · 0 适合窗口 · 1 实际大小 · R 旋转 · Esc 关闭</footer>
+  <script type="module" src="renderer.js"></script>
+</body>
+</html>

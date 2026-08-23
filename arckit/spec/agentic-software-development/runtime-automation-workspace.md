@@ -72,13 +72,15 @@ access token 在到期前五分钟刷新；业务请求收到未认证响应时�
 
 ### 执行消息流
 
-待办执行会话提供一条按发生时间排序的消息流。消息流的主要内容是 state-driven loop 的可理解状态和 Agent 自然语言输出；人工输入保持明确区分，工具活动作为次级单行记录。内部 Codex turn 和 round 只作为归因元数据，不把消息拆成多个面向用户的对话。
+待办执行会话提供一条按发生时间排序的消息流。消息列表与 Personal / Chat 使用同一个 Conversation Surface：消息 DOM、Markdown、代码复制、非空 reasoning 折叠、工具与权限状态、流式更新、智能自动滚动、阅读位置保持和“回到最新”行为完全一致。两处不各自维护消息渲染或浏览分支；任一共享体验优化同时作用于 Chat 与 Automation Workbench。
 
-消息流只包含用户可以理解和采取行动的语义信息。每轮开始先展示 snapshot 中的 persisted candidate catalog；Agent result 到达后原样展示其 persisted/fresh comparison trace 与 selected gap，不由 Runtime 重新排序。transition 写回后展示 ledger 生成的独立 `round_closeout`，再展示带 post-commit token 证明的 `fresh_read`。阶段变化、handoff 和 Case 收束继续以紧凑状态提示表达；Agent 使用目标、进展、判断和证据表达工作内容。每个工具调用只呈现一行状态、动作、目标和可选结果摘要；读取操作只显示文件路径，命令操作只显示命令意图与成功、失败或进行中状态。文件正文、完整 diff、stdout/stderr、原始工具参数、JSON envelope、逐 token 文本 delta和逐字符 reasoning delta不作为消息正文持久化或渲染。
+消息流只承载用户与 Agent 的对话内容，以及 Chat 同样支持的 reasoning、工具和权限消息。Automation 专属的 candidate catalog、gap selection、round closeout、fresh-read、Case/ledger 状态、执行阶段、证据、用量和恢复控制进入左右信息面板，不在中间列表建立 Automation 专用消息布局。Agent 正式输出仍按对话正文显示；每个工具调用只呈现一行状态、动作、目标和可选结果摘要。文件正文、完整 diff、stdout/stderr、原始工具参数、JSON envelope、逐 token 文本 delta和逐字符 reasoning delta不作为消息正文持久化或渲染。
 
 流式内容更新当前消息；相同消息的增量不会持续创建新记录或 DOM 节点。用于 Token、耗时、错误和恢复判断的结构化投影继续保留在 Run activity 与证据 Inspector 中，不要求用户阅读原始事件日志。
 
-Workbench 保持窗口壳、左右信息栏和底部输入区稳定，只有中间消息列表垂直滚动。用户位于列表底部时新消息自动跟随；用户向上审查历史后保持阅读位置，并提供返回最新消息的明确动作。普通只读审查不提供运行控制输入；只有 completed 结果审查提供独立验收问题 Composer，它只创建问题项，不修改旧运行；accepted 结果审查保持只读。两种模式使用相同的固定壳层和消息滚动边界。
+Workbench 保持窗口壳、左右信息栏和底部输入区稳定，只有中间共享 Conversation Surface 垂直滚动。左栏承载任务、人工请求、执行边界、恢复条件和当前控制状态；右栏承载完整执行时间、累计 gap 轮数、逐 gap 目标/工作/结果、当前阶段、Token、验证、Gate、ledger、Git 收尾和证据动作。逐 gap 全貌覆盖同一 task session 的全部 Runtime runs，并按 round 顺序展示 selected gap、Agent 工作摘要、accepted closeout 或未收束状态；用户无需从 transcript 逐条拼接执行历史。
+
+进行中的完整执行时间从 task session 首次 Runtime 开始持续计时，终态后固定为首次开始到最终结束的墙钟时长；它不以模型耗时与命令耗时相加替代。累计 gap 轮数只统计实际启动的 state-driven rounds，不把 Chat turn、人工输入、Agent repair、context compaction 或 Git-only closeout误计为 gap。普通只读审查不提供运行控制输入；只有 completed 结果审查提供独立验收问题 Composer，它只创建问题项，不修改旧运行；accepted 结果审查保持只读。三种模式使用同一个共享消息组件和滚动边界。
 
 ### 人工事项
 
@@ -195,6 +197,8 @@ Runtime 只有在缺少授权、稳定事实、产品判断或其他必须由人
 
 用户进入 Intervention Workbench 后可以查看当前任务、人工请求、已加载事实、统一执行消息、证据和影响范围。计划、工具调用、验证和 ledger 结果作为来源明确的消息摘要进入同一时间线。人工处理模式提供输入能力；只读审查模式不提供输入能力。
 
+中间 Conversation Surface 只显示与 Chat 相同的对话型消息。candidate、gap、round、ledger、验证与执行总览在左右面板保持完整可见；从面板选择某个 gap 可以定位其关联 Agent 消息，但不会改变或复制消息内容。
+
 Workbench 展示的对话只属于当前待办会话。每条消息保留 task、run 和 continuation 链归属；无法确认归属的历史项目消息不进入当前待办 transcript。
 
 用户提交处理说明后，输入原文作为 steer 或 fresh continuation 的唯一人类内容，并被锁定直到 Controller 接受或返回可解释错误。Runtime 不在输入前后拼接任务标识、恢复命令或 Case 工作流说明。Controller 接受后，Runtime 恢复当前任务，界面返回自动化主页面。
@@ -279,9 +283,10 @@ Renderer 不持有任务服务器凭证，也不直接请求任意远端 API。�
 - CLI 接管期间关闭终端不会被视为任务完成；Runtime 返回后从 fresh Case State 判断继续自动执行、等待人工或在同一 task thread 进入 commit 与远端完成写回。
 - 用户能够以只读方式审查当前或历史对话，并通过显式操作进入可输入的人工介入模式。
 - 每个自动待办拥有独立 transcript；当前或历史待办页面不会出现同项目其他待办的消息，不同待办也不会复用 Codex thread。
-- 同一待办中的 Runtime、Agent、工具摘要和人工输入组成一条按时间排序的消息流；界面不要求用户理解 turn 层级，也不把原始 JSON 或 delta 当作消息展示。
-- Workbench 的左右栏、会话标题和底部输入区不会随消息数量增长而离开视口；中间消息列表可以独立上下滚动，用户上滚后不会被新消息强制拉回底部。
-- Round/gap/writeback/handoff 等 Loop 状态和 Agent 输出构成消息流的主要信息层级；每个工具调用只占一行，读取文件、执行命令、编辑和验证均不把原始内容或连续输出铺进消息正文。
+- 同一待办中的 Agent、工具摘要和人工输入组成一条按时间排序的消息流；界面不要求用户理解 turn 层级，也不把原始 JSON 或 delta 当作消息展示。
+- Workbench 的消息列表完全复用 Chat Conversation Surface；左右栏、会话标题和底部输入区不会随消息数量增长而离开视口，中间消息可以独立上下滚动，用户上滚后不会被新消息强制拉回底部。
+- Automation 专属的 Round/gap/writeback/handoff、完整执行时间、累计 gap 轮数和逐 gap 工作全貌位于左右面板；消息列表保留 Chat 同样支持的 Agent、用户、reasoning、工具和权限层级。
+- Workbench 覆盖同一 task session 的全部 Runtime runs：进行中时持续显示首次开始至当前的墙钟时间，终态后固定最终时长；累计轮数只统计实际启动的 gap rounds；每个 gap 显示目标、实际工作摘要、结果和 accepted closeout 或未收束状态。
 - 高频 agent、reasoning 和命令输出 delta 只更新内存中的当前消息；持久化和 Renderer 更新以语义消息或有界合并为单位，长运行不会按 delta 数量线性扩大日志和 DOM。
 - 每个 Agent turn 都携带可从 fresh Project/Case State 重建的紧凑上下文摘要；进程重启同时恢复持久 thread 并以 canonical facts 校正历史。
 - 同一自动待办从执行、验证、修复到 Git commit 只使用一个持久 Codex thread，并按 gap 发起多个 turn；进程恢复不更换 thread。

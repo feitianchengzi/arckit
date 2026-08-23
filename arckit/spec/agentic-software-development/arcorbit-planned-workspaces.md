@@ -54,6 +54,7 @@ Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在�
 
 ### 消息与运行能力
 
+- Chat 是 ArcOrbit Conversation Surface 的体验基准。Automation Intervention Workbench 直接使用同一个消息列表、Markdown/代码复制、reasoning、工具/权限状态、流式更新、滚动锚点和“回到最新”实现；共享只发生在无业务语义的对话呈现层，不合并两类 session、thread、Composer 权限或控制状态。
 - Composer 接受多行文本，支持输入法组合，`Enter` 发送、`Shift+Enter` 换行；空白内容和重复提交不启动 turn。
 - 用户消息在提交成功后立即进入 transcript；Agent 正文以稳定消息 ID 流式更新，不为每个 delta 创建新消息。
 - Assistant 正文支持段落、列表、引用、链接、代码块与复制。reasoning 默认折叠；工具调用以单行活动展示开始、进行中、完成或失败，不把完整 stdout、stderr、文件正文或 raw protocol payload 填入普通消息。
@@ -73,6 +74,8 @@ Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在�
 ### 边界
 
 Chat 不替代一个待办一个持久 thread 的 Automation 对话，也不复用 Automation task session、task thread binding、Case、Run、队列或 human Gate。普通问答和 Agent 操作不自动写入 Project State、Case、Workshop Task、Idea 或其他正式对象。Chat 不提供任何“转为 Idea”“创建 Work”或类似转换动作。
+
+Chat 与 Automation 共享 Conversation Surface 不表示共享消息数据或执行能力。Automation 专属的 gap、round、ledger、证据、耗时、用量、恢复和提交能力只存在于 Automation 左右面板；Chat 不读取也不显示这些对象。
 
 Chat 不提供附件、语音、共享链接、跨设备同步、会话分支或模型管理；它使用 ArcOrbit 当前配置的 Codex 能力，集中保证文本自由对话及其会话、消息、停止和恢复体验。
 
@@ -176,6 +179,7 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 - 五个入口都可以打开独立页面；Chat 提供真实 Codex 对话，其余四个页面展示符合本规格的计划内容。
 - 页面明确区分真实 Chat 状态、真实项目事实、计划示例和未接入动作。
 - Chat 支持工作区绑定、新建/切换/重命名/删除会话、持久 thread、流式消息、工具活动、停止、重试、错误恢复和重启恢复。
+- Chat 与 Automation Intervention 的消息列表由同一 Conversation Surface 呈现；对 Markdown、代码复制、reasoning、工具/权限状态、流式消息和滚动行为的修改不需要在两处重复实现或验收。
 - Chat 停止后保留部分回答并以新 turn 继续；删除活动会话先完成 interrupt，且不会误删其他会话。
 - Chat 不调用 state-driven Runtime、trusted ledger、Workshop mutation 或其他对象转换；Automation task session 与 thread 不进入 Chat 列表。
 - Idea 展示探索、讨论与确认后建项目。

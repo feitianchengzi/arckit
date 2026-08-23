@@ -4,7 +4,7 @@
 
 ### 核心任务
 
-用户在 Automation Command Center 中沿用顶部产品集的全局观察范围，查看普通待办队列、验收问题队列、自动化吞吐、当前运行和需要人工判断的事项，并可用“仅看验收问题”聚焦独立问题工作。系统按项目拉取待办形成跨项目待办队列，并只从已完成待办的结果审查接收独立验收问题；任务消息仅在审查执行过程、提出验收问题或处理人工中断时进入独立的 Intervention Workbench。Personal / Chat 的自由会话不参与 Automation。
+用户在 Automation Command Center 中沿用顶部产品集的全局观察范围，查看普通待办队列、验收问题队列、自动化吞吐、当前运行和需要人工判断的事项，并可用“仅看验收问题”聚焦独立问题工作。系统按项目拉取待办形成跨项目待办队列，并只从已完成待办的结果审查接收独立验收问题；任务消息仅在审查执行过程、提出验收问题或处理人工中断时进入独立的 Intervention Workbench。Personal / Chat 的自由会话不参与 Automation 数据或控制，但两处消息列表使用同一个 Conversation Surface。
 
 Command Center 以 Workshop 实时事件及时发现参与项目变化，并以项目级 REST 刷新确认事实。用户能够区分现代实时、补取、旧服务兼容连接、连接异常和认证失效状态；连接恢复自动补取现代服务事件或刷新旧服务当前态，不要求用户确认，也不会越过正在等待的人工事项。
 
@@ -16,9 +16,9 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 4. 用户快速判断系统是否健康、正在做什么、下一项是什么、是否需要本人处理。主页面在首屏完成这些回答，不要求用户先选择任务。
 5. 用户开启顶部“自动领取”总闸。系统从已经绑定工作区且明确允许自动领取的项目中领取一项待处理任务，更新为进行中，执行 Runtime loop，完成后更新为已完成并领取下一项。
 6. Runtime 需要授权、补充事实或产品判断。Command Center 把人工事项提升到首要关注区；用户进入 Intervention Workbench，处理后返回自动化主页面。
-7. 用户主动审查某个任务的执行消息与证据。Intervention Workbench 以只读审查模式打开，Runtime、Controller、Worker、工具摘要和人工输入在同一时间线中呈现；用户显式选择介入后才出现可提交输入。
+7. 用户主动审查某个任务的执行消息与证据。Intervention Workbench 以只读审查模式打开，中间区域使用与 Chat 完全相同的消息浏览体验呈现 Agent、工具摘要和人工输入；Automation 的 Runtime、Round、Gap、ledger 与证据全貌固定在左右面板，用户显式选择介入后才出现可提交输入。
 8. 项目、待办、状态写回或 Runtime 收束失败。系统保留已知事实与本地证据，冻结受影响的领取范围，并明确展示恢复责任和下一动作；已有持久 Agent 对话时，用户可以在恢复卡直接补充说明并继续。
-9. 用户判断某次运行是否存在不合理的 Token 或时间消耗。Workbench 按当前待办的 Run、round、turn 和执行 lane 展示逻辑总量、缓存输入、非缓存输入、输出、上下文增长与耗时，并把重复命令、无状态进展的上下文膨胀等异常作为可审查提示，而不是自动终止条件。
+9. 用户判断某次执行是否完整或存在不合理消耗。Workbench 一次展示 task session 从首次 Runtime 启动到当前或最终终态的完整墙钟时间、实际 gap 轮数和每个 gap 的目标/工作/结果，并继续提供 Run、round、turn 的 Token 构成、上下文增长与耗时；重复命令和无状态进展的上下文膨胀只形成可审查提示，不自动终止。
 10. 用户从已完成任务的右侧详情面板查看全部验收问题、状态和最近进展，选择某一项进入其同一待办对话，或提出新的非空验收问题；已验收任务只显示验收通过。
 11. Workshop 实时连接中断或应用从休眠恢复。Command Center 保留最近快照并显示“正在补取”“实时兼容连接”或“可立即同步”；系统自动重连，用户也可主动同步，只有认证失效或事实无法确认时才要求进一步处置。
 12. Command Center 用独立区块展示普通待办队列与验收问题队列；用户可以分别查看 ready、running、awaiting human 和 blocked 数量，不会把验收问题计入待处理任务。
@@ -72,10 +72,10 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 - 一个验收问题项显示稳定标识、来源待办、问题摘要、状态、当前 Case/Run、最近进展和阻塞/人工责任。多个问题项按创建时间分别展示，不合并为待办的一条备注。
 - 每个远端待办拥有独立的 Workbench 会话。对话区只加载该待办的初始 Run、续接、人工介入和收束消息；Personal / Chat session、其他待办以及归属不明的历史消息不得混入。
 - 同一待办的续接保持在同一 Workbench 会话和持久 Codex thread 中；fresh Case State 校正事实与授权，Run 或 turn 切换不创建新的待办对话。
-- Workbench 以待办消息流为唯一主时间线。Runtime、Controller、Controller Review、Worker Agent、工具和用户通过消息来源标签区分，不按 Codex thread、Worker thread 或 JSON 事件类型拆成多个对话区。
-- 计划、命令、文件变更、验证和 ledger 结果以有界摘要消息进入时间线；原始 JSON envelope、逐 token 文本 delta、逐字符 reasoning delta 和连续命令输出不直接呈现为普通用户消息。
+- Workbench 中间区域直接复用 Chat Conversation Surface。消息 DOM、Markdown、代码复制、reasoning、工具/权限状态、流式更新、滚动锚点和“回到最新”只有一份实现；两处不建立平行的消息渲染与浏览分支。
+- Conversation Surface 只承载用户、Agent、reasoning、工具和权限消息。candidate、Round、gap、writeback、fresh-read、handoff、结构化结果、验证和 ledger 结果进入左右面板；原始 JSON envelope、逐 token 文本 delta、逐字符 reasoning delta 和连续命令输出不直接呈现为普通用户消息。
 - Workbench 的窗口壳、左右信息栏和底部输入区保持固定；只有中间消息列表沿垂直方向滚动。左右信息栏内容超出时在各自区域独立滚动，不推动输入区离开窗口。
-- 消息流以 state-driven loop 状态和 Agent 自然语言输出为主。Round 开始、selected gap、执行阶段、transition 写回、等待人工和 Case 收束使用低噪声状态提示；Agent 的进度说明、判断与最终结果使用主要消息样式。
+- 左右面板以 state-driven loop 状态为主，按实际 round 顺序展示 selected gap、Agent 工作摘要、transition/closeout 结果、等待人工和 Case 收束；Agent 的自然语言进度、判断与最终结果继续使用共享 Conversation Surface 的主要消息样式。
 - Codex reasoning 只有形成非空可读文本时才进入时间线。流式 reasoning 保持展开并原位更新；完成后默认收起为“思考过程”，用户可以按需展开原文。空数组、空字符串和仅空白 reasoning 不产生占位行。
 - Agent 受输出 schema 约束时，Runtime 把 Codex 返回的结构化 payload 识别为结构化结果，不把序列化 JSON 当作 Agent 正文气泡。Agent Loop 或收尾事件提供的自然语言 summary 作为正式 Agent 消息；结构化结果以低强调专用查看器保留 schema、关键字段和可展开原始数据，字段值保持 Codex 原值。
 - 每次工具调用只占一行，展示状态、动作和目标，例如“读取 renderer.js”“运行 164 项测试”“更新 styles.css”；文件内容、命令 stdout/stderr、原始参数和协议载荷不进入主消息正文，需要诊断时从证据入口查看。
@@ -124,16 +124,16 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 
 #### Intervention Workbench
 
-- 左侧固定当前任务、人工请求、执行边界和已加载事实。
-- 中间由固定会话标题、独立滚动的消息列表和固定底部输入区组成；消息增长不改变窗口整体高度，也不带动左右栏或 Composer 滚出视口。
-- 消息列表按“Loop 状态提示 → 可折叠思考过程 → Agent 正式输出 → 结构化结果查看器 → 单行工具活动 → 用户输入”组织视觉层级；状态提示、思考过程、结构化查看器和工具活动不使用与 Agent 正文同等体量的消息卡片。
-- 右侧展示 Runtime 阶段、证据、Token 用量、软异常、影响与返回自动化动作。
+- 左侧固定当前任务、人工请求、执行边界、已加载事实和当前控制状态。
+- 中间直接挂载与 Chat 相同的 Conversation Surface，并使用相同的消息、Markdown、代码复制、reasoning、工具/权限、滚动和“回到最新”行为；消息增长不改变窗口整体高度，也不带动左右栏或 Composer 滚出视口。
+- 中间消息列表按“可折叠思考过程 → Agent 正式输出 → 单行工具/权限活动 → 用户输入”组织共享层级，不插入 Automation 专属 Round、gap、ledger 或结构化结果布局。
+- 右侧顶部一次展示完整执行时间与累计 gap 轮数；其下按 round 顺序展示每个 gap 的目标、实际工作摘要、结果和 accepted/未收束状态，并保留 Runtime 阶段、证据、Token 用量、软异常、影响与返回自动化动作。
 - 普通只读审查隐藏运行控制输入；人工处理模式显示输入区与“提交并恢复自动化”。只有 completed 结果审查显示独立验收问题 Composer；accepted 结果审查保持只读并显示验收通过。
 - 对话顶部固定展示当前远端任务 ID、task session 和 Run/续接范围，使用户能够确认所见 transcript 不包含其他待办。
 - 消息来源标签只解释“谁产生了这条信息”，thread、turn、round 和 task id 保留为诊断元数据，不成为用户浏览消息的前置层级。
 - 工具行使用一致的单行结构：状态图标、动词、目标简称和可选结果摘要。读取类只显示文件路径；命令类只显示命令意图与结果；超过一行的输出只能进入按需证据视图。
 - 思考过程使用原始 reasoning 文本，不用 Runtime 生成摘要替代；结构化查看器按 schema 展示原始字段值，并提供二级“查看原始 JSON”，不复制或重写 Agent 的正式自然语言消息。
-- Token 用量摘要先区分逻辑总量、缓存输入、非缓存输入和输出，再按 Controller、Builder、Verifier、Commit lane 下钻到 round 与 turn；缓存命中不与非缓存输入合并成单一成本数字。
+- Token 用量摘要先区分逻辑总量、缓存输入、非缓存输入和输出，再按 run、round 与 turn 下钻；缓存命中不与非缓存输入合并成单一成本数字。
 
 ### 状态流
 
@@ -322,14 +322,14 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 
 - 人工请求固定展示原因、决策问题、影响范围和恢复条件。
 - Workbench 打开时必须携带当前任务的 session 归属；归属不明的消息默认隐藏并进入数据异常证据，不回退加载项目默认会话。
-- 同一待办的初始执行、续接、人工输入、恢复与收束按时间合并展示，并在每段 Run 或 continuation 边界显示分隔标记。
-- state-driven loop 的 Round、gap、阶段、writeback 与 handoff 变化呈现为紧凑状态行；Agent 的进度说明、判断和最终结果呈现为主要内容消息，用户输入保持独立对齐。
+- 同一待办的初始执行、续接、人工输入、恢复与收束按时间合并；Run 或 continuation 归因保留在左右面板，不向共享消息列表插入专用分隔组件。
+- state-driven loop 的 Round、gap、阶段、writeback 与 handoff 变化进入左右面板的逐 gap 执行全貌；Agent 的进度说明、判断和最终结果呈现为共享对话主要内容，用户输入保持独立对齐。
 - 非空 reasoning 在生成期间展开并原位更新，完成后默认收起且可展开；没有可读文本的 reasoning 不进入消息列表。
-- `arckit-agent-loop-result/v1`、`arckit-task-closeout-result/v1` 等 schema-bound 输出进入专用结构化查看器。查看器显示 schema 和原始关键字段，原始 JSON 保留在二级展开区；对应 Runtime 语义事件的自然语言 summary 单独作为 Agent 正式消息。
+- `arckit-agent-loop-result/v1`、`arckit-task-closeout-result/v1` 等 schema-bound 输出进入右侧执行详情查看器。查看器显示 schema 和原始关键字段，原始 JSON 保留在二级展开区；对应 Runtime 语义事件的自然语言 summary 仍作为 Agent 正式消息。
 - 每个工具调用呈现为一条不换行的活动行。读取文件时只显示“读取 + 相对路径”；搜索、编辑、构建和测试只显示动词、目标及成功/失败摘要，不渲染文件正文、完整 diff、stdout/stderr 或原始 tool payload。
 - 流式 Agent 输出更新当前消息，不为每个 delta 新建 DOM 节点；工具活动只在 started/completed/failed 状态变化时更新同一行。
 - 消息列表与页面壳分离滚动。用户位于底部附近时保持最新消息可见；用户主动上滚后停止自动跟随并显示回到底部入口。
-- 用量 Inspector 默认展示当前 Run 总览；用户可按 lane、round 和 turn 展开，查看 Token 构成、上下文占用、模型耗时、命令等待和工具调用次数。
+- 执行 Inspector 默认展示完整墙钟时间、累计 gap 轮数和逐 gap 列表，再展示当前 Run 用量；用户可按 run、round 和 turn 展开 Token 构成、上下文占用、模型耗时、命令等待和工具调用次数。
 - 当检测到重复命令、长命令期间的模型轮询、上下文持续增长但 Case State 无进展、Worker 目标变化仍复用 thread 或 Review 引用失败时，Inspector 显示可解释的软异常和证据链接；提示本身不暂停 Runtime。
 - 用户提交后输入区锁定，直到 Controller 接受或返回错误。
 - 用户不提交而返回时，任务保持等待人工，串行队列继续冻结。
@@ -392,8 +392,8 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 | 项目切换 | 顶部产品集先更新全局范围标题，再刷新 Automation 的该项目指标、待办和历史 |
 | 仅看验收问题 | 保留活动执行与恢复状态，就地切换普通待办投影和验收问题投影，不重新同步项目 |
 | 状态更新 | 锁定当前任务动作，不阻塞查看其他内容 |
-| Runtime 事件 | 在内存中合并高频 delta，并按有界刷新节奏更新当前 Agent 消息、非空 reasoning、结构化结果查看器、Loop 状态行、单行工具活动、命令等待与 Token 用量；同一 thread 的累计快照只取最新值聚合，避免重复计数 |
+| Runtime 事件 | 在内存中合并高频 delta，并按有界刷新节奏更新共享 Conversation Surface 的 Agent/reasoning/工具/权限消息，以及左右面板的结构化结果、Loop 状态、逐 gap 全貌、命令等待与 Token 用量；同一 thread 的累计快照只取最新值聚合，避免重复计数 |
 | CLI 接管同步 | 只读取绑定 Case 的 canonical active/closed 状态；不轮询或解析终端 transcript，不以终端进程退出推断完成 |
 | 远端任务状态 | 活动任务持续核对版本，终止性变化立即进入恢复状态；领取前重新读取远端任务并确认执行人、状态和版本 |
-| Workbench 对话 | 先确认当前待办的 task session，再载入该待办跨 Run、round、turn 和 thread 聚合后的消息流；主时间线只保留 Loop 状态、非空可折叠 reasoning、Agent 正式输出、专用结构化结果、用户输入和单行工具摘要，不读取项目默认会话，也不把原始 delta、文件正文或命令输出作为普通界面消息 |
-| Workbench 用量 | 先显示当前 Run 的分项总览，再按需加载 lane、round 与 turn 明细和软异常证据 |
+| Workbench 对话 | 先确认当前待办的 task session，再把该待办跨 Run 和 turn 聚合后的用户、Agent、reasoning、工具与权限消息交给 Chat 同一 Conversation Surface；不读取项目默认会话，也不把 Automation 专属状态、原始 delta、文件正文或命令输出作为普通消息 |
+| Workbench 执行全貌 | 同步聚合同一 task session 全部 Runtime runs 的首次开始、最终结束、实际 round、selected gap、Agent summary 和 trusted closeout；右栏先显示完整墙钟时间、累计 gap 数与逐 gap 结果，再按需加载 Run、round、turn 用量和软异常证据 |

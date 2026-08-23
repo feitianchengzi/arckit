@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-23T15:04:50.960Z
+Updated: 2026-08-23T17:09:42.976Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,16 +17,16 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260822-007-arcorbit-codex-chat.md)
-- software_decision.data_and_state: settled (arckit/cases/active/CASE-20260822-007-arcorbit-codex-chat.md)
-- software_decision.external_integrations: settled (arckit/cases/active/CASE-20260822-007-arcorbit-codex-chat.md)
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260822-007-arcorbit-codex-chat.md)
-- software_decision.security_privacy_compliance: settled (arckit/cases/active/CASE-20260822-007-arcorbit-codex-chat.md)
-- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260822-007-arcorbit-codex-chat.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260822-007-arcorbit-codex-chat.md)
 - software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260823-002-arcorbit-chat-work-feedback.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260823-002-arcorbit-chat-work-feedback.md)
 - software_decision.external_integrations: settled (arckit/cases/active/CASE-20260823-002-arcorbit-chat-work-feedback.md)
+- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260823-003-work.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260823-003-work.md)
+- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260823-004-unify-automation-intervention-conversation-with-chat.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260823-004-unify-automation-intervention-conversation-with-chat.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260823-004-unify-automation-intervention-conversation-with-chat.md)
+- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260823-004-unify-automation-intervention-conversation-with-chat.md)
 
 ## Remaining Project Gaps
 

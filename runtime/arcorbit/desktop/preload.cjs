@@ -95,6 +95,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   openWorkExternalLink: (value) => ipcRenderer.invoke("arckit:work-external-link-open", value),
   pickWorkTaskAttachment: (input) => ipcRenderer.invoke("arckit:work-task-attachment-pick", input),
   previewWorkTaskAttachment: (input) => ipcRenderer.invoke("arckit:work-task-attachment-preview", input),
+  openWorkTaskImageViewer: (input) => ipcRenderer.invoke("arckit:work-task-image-viewer-open", input),
   openWorkTaskAttachment: (input) => ipcRenderer.invoke("arckit:work-task-attachment-open", input),
   onProductFeedbackUnread: (listener) => {
     const handler = (_event, count) => listener(count);

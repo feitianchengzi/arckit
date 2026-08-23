@@ -49,7 +49,9 @@ Runtime 与 Chat 复用上述 transport 和基础事件，不复用语义 orches
 
 现有 adapter 实例只支持一个活动 turn 并固定绑定一个 project root。Chat Coordinator 因此按活动 Chat session 懒创建 adapter owner；同一 session 串行 turn，不同 session 与不同项目使用独立 owner。owner 空闲或应用退出时可以关闭 app-server client，下一次通过持久 `thread_id` resume。Chat owner 不占用 Automation 的 task/thread lease，Automation owner 也不能向 Chat session 写消息或控制 turn。
 
-通用事件先进入 `Codex Transcript Projector`。该 projector 只产生用户消息、Agent 正文、非空折叠 reasoning、工具活动、权限请求、错误、interrupt 与 token usage 等中性消息。Runtime Projector 在中性消息之上增加 Loop status、structured Agent result、ledger closeout 和 task control 语义；Chat 只消费中性投影。任何一方都不从另一方的 transcript 反推 session 类型、Case 或执行状态。
+通用事件先进入 `Codex Transcript Projector`。该 projector 只产生用户消息、Agent 正文、非空折叠 reasoning、工具活动、权限请求、错误、interrupt 与 token usage 等中性消息。Renderer 的 `Conversation Surface` 是这些中性消息唯一的 DOM、Markdown、代码复制、reasoning、工具/权限、流式更新、滚动锚点和“回到最新”实现；Chat 与 Automation Workbench 只提供各自的消息集合、Composer policy 与受限动作 handler，不实现第二套 message renderer 或 scroll controller。
+
+Runtime Projector 在中性消息之外维护 Loop status、structured Agent result、ledger closeout、fresh-read 和 task control 语义。Automation Workbench 把这些 Runtime 专属投影交给左右面板，不送入 Conversation Surface；Chat 不消费它们。任何一方都不从另一方的 transcript 反推 session 类型、Case 或执行状态，共享呈现组件也不拥有 Automation lease、Chat owner、session 查询或 IPC 权限。
 
 现有 approval handler 在 `on-request` 下直接接受请求，不满足 Chat 的用户可见审批语义。共享 Conversation 层使用异步 `approvalProvider` 把命令、文件变更和 permissions request 投影给 main-process Chat Coordinator；Coordinator 通过 request id 等待受限 Renderer 决定并返回 app-server 所需响应。窗口关闭、超时、session 不匹配或 Renderer 拒绝均 fail closed。Automation 可以继续使用自己的受监督 approval provider，但不能复用 Chat 的待决审批。
 
@@ -85,6 +87,21 @@ Run Projector 把 Runtime、Agent、工具与 operator event 归一为 `desktop-
 Agent message delta 若形成带 `schema_version` 的 JSON 对象，Projector 将其识别为 structured result，并在完成时同时保存解析对象和未经改写的原始文本；该文本不再作为普通 Agent message。`arckit-agent-loop-result/v1` 和 `arckit-task-closeout-result/v1` 的 Runtime 语义事件仍以其原始 `summary` 字段产生独立正式 Agent 消息。Renderer 的 schema viewer 只选择并标注原始字段值以建立可扫描层级，未知 schema 使用通用树与原始数据展开，不生成替代 summary，也不修改上游 payload。
 
 Renderer 的工具摘要是展示投影，不修改上游消息、Agent 上下文或 Runtime 证据。读取类从结构化 action 或命令中提取相对文件路径并显示“读取 <path>”；编辑、搜索、构建和测试显示稳定动词、目标及完成状态。无法可靠分类时显示工具名和有界目标，不回退渲染完整 `content`、`detail`、aggregated output 或协议 payload。
+
+Conversation Surface 接受统一的 presentation message 列表。Chat 的 message kind 直接进入该列表；Automation 在进入组件前只保留 `user`、`agent`、`reasoning`、`tool`、`approval` 与 `error`，并把 `loop`、`structured`、candidate、round receipt 与 task control 放入侧栏 projection。过滤基于结构化 kind/type，不解析自然语言正文。共享组件负责同一套事件绑定和浏览状态，consumer 只通过显式 callback 处理 copy、approval、external link、retry 和 jump-to-latest。
+
+### Automation 执行全貌投影
+
+Run Activity 保存 append-only 的 `gap_rounds` 摘要。`runtime.session_round.started` 以 `run_id + round_index` 建立一轮并记录开始时间；`runtime.round_selection` 写入 selected gap id、goal 与 comparison summary；`runtime.agent_loop.completed` 写入 Agent 自然语言工作摘要；`runtime.round_closeout` 写入 trusted accepted status、accepted outcome、Case/Project revision 与结束时间。未收到 closeout 的 round 保持 running、awaiting_human、interrupted 或 failed，不由 Renderer 猜测 accepted。
+
+Workbench 以 task session 内全部 Runtime runs 的结构化 activity 生成一个只读 `AutomationExecutionSummary`：
+
+- `started_at` 取该 task session 最早 Runtime run 的开始时间；活动执行的 `ended_at` 为空并以当前时间持续计算，最终状态取最后一个终态 run 的结束时间。
+- `elapsed_ms` 是 `started_at → now/ended_at` 的墙钟时间，不使用模型、命令或各 Run duration 求和替代。
+- `gap_count` 等于稳定去重后的 `gap_rounds` 数量；repair、compaction、人工输入、Chat turn 与 Git-only closeout 不创建 gap round。
+- `gaps` 按 run 开始时间与 round index 排序，显示 stable key、Gap id/goal、Agent 工作摘要、当前状态和 trusted closeout 结果，并保留定位关联 Agent 消息所需的 run/round/turn refs。
+
+该摘要只读取结构化 Run Activity，不解析 transcript 文案或 ledger Markdown。旧 activity 没有 `gap_rounds` 时允许从同一 activity 中仍保留的结构化 round selection/closeout message payload 做一次兼容投影；无法确认的字段显示“未记录”，不得用当前 selected gap 伪造历史轮次。
 
 ### 轻量持久化与刷新
 
@@ -127,7 +144,7 @@ Automation Snapshot 从同一本地项目最近 20 个已完成 Runtime Run 计�
 
 ## 时间投影
 
-Projector 记录每个 round、模型 turn 和 command item 的开始、结束与持续时间。Run activity 汇总模型 turn 累计耗时与 command 累计耗时，并保留最慢命令的命令、工作目录、lane 和 turn；进行中的命令保持无结束时间，Workbench 以活动状态持续展示。该投影用于区分模型思考、工具执行和外部构建等待，不通过额外模型调用轮询进度。
+Projector 记录每个 round、模型 turn 和 command item 的开始、结束与持续时间。Run activity 汇总模型 turn 累计耗时与 command 累计耗时，并保留最慢命令的命令、工作目录、lane 和 turn；进行中的命令保持无结束时间，Workbench 以活动状态持续展示。Workbench 另以 task session 首次开始和最终结束计算完整墙钟时间，避免把模型/命令累计耗时误作用户等待的完整执行时间。该投影用于区分整体等待、模型思考、工具执行和外部构建等待，不通过额外模型调用轮询进度。
 
 ## 软异常
 
@@ -239,7 +256,9 @@ session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_
 - Round、turn 与 command 耗时可重算，Workbench 能指出最慢活动而不重复启动命令。
 - Workbench 区分缓存输入、非缓存输入和输出，并展示上下文窗口占用。
 - Workbench 的页面根、左右栏和 Composer 不随 transcript 增长；只有中间消息列表滚动，用户阅读历史时新消息不会强制改变位置。
-- Renderer 将 Agent 正式输出作为主要信息，把 Loop 状态、非空可折叠 reasoning、专用结构化结果和每个 tool item 的原位单行活动作为次级信息；空 reasoning 不产生消息，文件正文、完整 diff、stdout/stderr 与 raw payload 不进入普通消息正文，但原始结构化 payload 保真进入查看器并继续保留在上游上下文或诊断证据中。
+- Chat 与 Automation Workbench 由同一个 Conversation Surface 渲染 Agent、用户、reasoning、tool、approval 和 error 消息，并共用 Markdown、代码复制、事件绑定、流式更新与滚动控制；源码中不存在第二套 Automation message renderer。
+- Renderer 将 Agent 正式输出作为共享消息主要信息，把非空可折叠 reasoning 和每个 tool/approval item 的原位单行活动作为次级信息；Loop、Gap、ledger 与结构化结果进入 Automation 左右面板。空 reasoning 不产生消息，文件正文、完整 diff、stdout/stderr 与 raw payload 不进入普通消息正文，但原始结构化 payload 保真进入侧栏查看器并继续保留在上游上下文或诊断证据中。
+- Workbench 从同一 task session 全部 Runtime runs 的结构化 `gap_rounds` 生成完整执行时间、准确 gap 总数和逐 gap 目标/工作/结果；进行中时持续计时，终态后固定，不解析消息文案猜测历史。
 - 任意用量警告都不会自动设置 Token 总上限、硬总轮次或终止 Case。
 - 当前 Runtime 可以在确认安全停止后打开用户可见且可输入的交互式 Codex CLI；两者不会并发拥有同一活动任务的执行权。
 - 首次 Runtime 不预选 Case；Agent 语义选择现有 Case 或通过 trusted ledger 创建新 Case，未形成权威绑定时 CLI handoff 不会中断 Runtime。
