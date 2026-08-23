@@ -105,12 +105,11 @@
             <div class="chat-workspace">
               <aside class="chat-sidebar">
                 <div class="chat-sidebar-head"><div><p class="eyebrow">PERSONAL · CODEX CHAT</p><h1>自由对话</h1></div><button id="newChatButton" class="primary-button compact" type="button">＋ 新对话</button></div>
-                <label class="chat-workspace-picker"><span>本地 Product Workspace</span><select id="chatProjectSelect" aria-label="Chat 工作区"></select></label>
                 <div id="chatSessionList" class="chat-session-list" aria-label="对话列表"></div>
                 <div class="chat-sidebar-boundary"><strong>独立对话边界</strong><p>Chat 不创建待办、Idea、Case 或 Automation Run，也不读取任务执行 thread。</p></div>
               </aside>
               <main class="chat-main">
-                <header class="chat-header"><div><p id="chatWorkspaceLabel" class="eyebrow">选择本地工作区</p><h2 id="chatTitle">新对话</h2><p id="chatStatusText">发送第一条消息后创建持久会话和 Codex thread。</p></div><div class="chat-header-actions"><button id="renameChatButton" class="text-button" type="button">重命名</button><button id="deleteChatButton" class="text-button danger" type="button">删除</button></div></header>
+                <header class="chat-header"><div class="chat-header-copy"><p id="chatWorkspaceLabel" class="eyebrow">选择本地工作区</p><h2 id="chatTitle">新对话</h2><p id="chatStatusText">发送第一条消息后创建持久会话和 Codex thread。</p></div><div class="chat-header-controls"><label class="chat-workspace-picker chat-header-workspace-picker"><span id="chatWorkspacePickerLabel">新对话属于</span><select id="chatProjectSelect" aria-label="Chat 工作区"></select></label><div class="chat-header-actions"><button id="renameChatButton" class="text-button" type="button">重命名</button><button id="deleteChatButton" class="text-button danger" type="button">删除</button></div></div></header>
                 <div id="chatErrorHost"></div>
                 <div id="chatTranscript" class="conversation-surface chat-transcript" aria-live="polite" aria-label="Chat 消息"></div>
                 <button id="chatJumpLatestButton" class="chat-jump-latest hidden" type="button">回到最新 ↓</button>

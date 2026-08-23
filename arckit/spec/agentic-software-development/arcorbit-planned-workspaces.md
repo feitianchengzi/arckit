@@ -26,7 +26,7 @@ Organization 保留组织治理职责。Engineering 位于其下方，是 Domain
 
 所有页面都满足以下边界：
 
-- Chat 只以明确选择的本地 Product Workspace 为 Codex 工作目录；没有可用本地工作区时保留草稿，但不启动对话。
+- Chat 会话列表直接按本地 Product Workspace 分组，不要求先选择项目；新对话在首条消息发送前显式显示并允许切换目标工作区。没有可用本地工作区时保留草稿，但不启动对话。
 - Chat 会话、消息、Codex thread 绑定和运行状态由 ArcOrbit 本地持久化，不写入 Workshop、Project State、Case 或 Automation queue。
 - Chat 中的工具和文件操作继续受 Codex sandbox、workspace roots 与 approval policy 约束；Renderer 不获得 Codex 进程、凭据、文件系统或通用 RPC 权限。
 - Idea、Release、Operations 和 Engineering 的标题、摘要、卡片、状态、时间线和动作可以使用可信的计划示例，帮助团队讨论目标形态。
@@ -34,7 +34,7 @@ Organization 保留组织治理职责。Engineering 位于其下方，是 Domain
 - 未建立真实写入合约的计划动作以“计划动作”“示意”或不可用状态表达，不产生远端记录、Runtime Run、Project State transition 或发布授权。
 - Chat 与 Idea、Work 等正式形态之间没有转换、关联或来源写入；自由对话只保留为独立 Chat 会话。
 - Work、Automation、Feedback、Organization 和产品反馈中心的既有真实行为不因这些计划页面而改变。
-- 顶部产品范围为 Chat 选择本地 Product Workspace，并可为其他计划页面提供上下文；它不得改变自动领取资格、成员关系、状态真相源或发布授权。
+- 顶部产品范围可以为其他计划页面提供上下文，但不筛选 Chat 会话或替 Chat 决定新会话工作区；它不得改变自动领取资格、成员关系、状态真相源或发布授权。
 
 ## Chat
 
@@ -44,8 +44,10 @@ Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在�
 
 ### 会话能力
 
-- Chat 左栏按最近活动时间展示当前用户的本地会话，并支持新建、选择、重命名和删除。
+- Chat 左栏直接按 Product Workspace 分组展示当前用户的本地会话，并支持新建、选择、重命名和删除。项目组按组内最新活动时间排序，组内会话按 `updated_at` 倒序排列。
+- 每个项目组默认最多显示最近 10 个会话；总数超过 10 时，组底部提供项目专属的历史会话入口，用户可在原组内查看完整列表并收起。展开、收起和浏览历史不改变当前会话或后台 turn。
 - 新会话在用户提交第一条非空消息时落盘；未发送的空白新会话只保留一个临时草稿，不污染历史列表。
+- 临时新会话在标题区和 Composer 边界摘要中显式显示目标 Product Workspace。目标默认取当前会话所属的可用工作区，没有当前会话时取最近成功使用的可用工作区；用户可在首条消息发送前快速切换，切换保留草稿且不创建 session 或 thread。
 - 每个会话在首个 turn 前固定绑定一个 Product Workspace、本地项目根和持久 Codex thread。切换产品会创建新会话，不把既有 thread 迁移到另一个工作目录。
 - 会话保留标题、创建与更新时间、工作区引用、thread 绑定、消息记录、草稿和最近运行状态。标题默认取第一条用户消息的有界摘要，并允许用户修改。
 - 删除会话前显示确认；活动 turn 先 interrupt 并等待进入终态，再移除 ArcOrbit 的本地会话、消息和 thread 绑定。删除不声明擦除 Codex 自身可能保留的底层 thread 数据。
@@ -66,7 +68,7 @@ Chat 是面向本地 Product Workspace 的自由 Codex 对话入口。用户在�
 
 ### 工作区与权限
 
-- 首次发送前必须选择已绑定本地目录且 Setup Readiness 可用的 Product Workspace。不存在可用工作区时页面说明阻塞原因，并提供前往工作区配置的恢复入口。
+- 首次发送前必须在新会话内确认一个已绑定本地目录且 Setup Readiness 可用的 Product Workspace；即使只有一个可用工作区，页面也持续显示其归属。不存在可用工作区时页面说明阻塞原因，并提供前往工作区配置的恢复入口。
 - Product Workspace 决定 Codex 的 `cwd`、workspace root、project skill discovery 和文件权限边界；会话消息不会自动注入整个 Workset、Workshop 任务或 ledger state。
 - Chat 直接使用 Codex 自由对话 prompt，不触发 `$using-arckit`，不要求 `arckit-agent-loop-result/v1`，也不调用 trusted ledger entrypoint。
 - Codex 发起需要批准的文件、命令或网络操作时，沿用 app-server 的用户 approval request；拒绝只影响该操作或 turn，不改变 Workshop 与 Automation 状态。
@@ -178,6 +180,8 @@ Idea、Work、Release、Operations 与 Feedback 的跨入口关系要求用户�
 - `Release` 与 `Operations` 在英文界面使用英文，在中文说明中分别对应“发布”和“运营”。
 - 五个入口都可以打开独立页面；Chat 提供真实 Codex 对话，其余四个页面展示符合本规格的计划内容。
 - 页面明确区分真实 Chat 状态、真实项目事实、计划示例和未接入动作。
+- Chat 会话列表不依赖预先选择项目，直接按 Product Workspace 分组；每组默认最多显示最近 10 个会话，超出时可从组底部查看并收起完整历史。
+- Chat 新对话在首条消息发送前显式显示目标 Product Workspace，允许保留草稿快速切换；发送后项目归属固定，不能迁移既有 thread。
 - Chat 支持工作区绑定、新建/切换/重命名/删除会话、持久 thread、流式消息、工具活动、停止、重试、错误恢复和重启恢复。
 - Chat 与 Automation Intervention 的消息列表由同一 Conversation Surface 呈现；对 Markdown、代码复制、reasoning、工具/权限状态、流式消息和滚动行为的修改不需要在两处重复实现或验收。
 - Chat 停止后保留部分回答并以新 turn 继续；删除活动会话先完成 interrupt，且不会误删其他会话。

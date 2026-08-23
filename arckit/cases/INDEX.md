@@ -119,3 +119,4 @@
 | [CASE-20260823-003](closed/CASE-20260823-003-work.md) | closed | 完善 Work 评论图片加载与独立浏览 | 2026-08-23T15:38:58.728Z |
 | [CASE-20260823-004](closed/CASE-20260823-004-unify-automation-intervention-conversation-with-chat.md) | closed | Unify Automation intervention conversation with Chat | 2026-08-23T15:51:56.156Z |
 | [CASE-20260823-005](closed/CASE-20260823-005-restore-arcorbit-chat-project-switching-and-work-responsiveness.md) | closed | Restore ArcOrbit Chat project switching and Work responsiveness | 2026-08-23T17:09:42.976Z |
+| [CASE-20260823-006](closed/CASE-20260823-006-arcorbit-chat.md) | closed | 优化 ArcOrbit Chat 的项目分组与新会话归属交互 | 2026-08-23T21:44:44.962Z |

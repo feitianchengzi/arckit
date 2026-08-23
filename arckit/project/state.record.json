@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-23T17:09:42.976Z",
-    "revision": 195
+    "updated_at": "2026-08-23T21:44:44.962Z",
+    "revision": 198
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "修复 Chat 项目切换入口失效，并优化 Work 入口卡顿与状态按钮遮挡问题。",
+      "current_focus": "让用户无需预先选择项目即可按项目浏览 Chat 会话，并在新建会话时清楚确认和快速切换目标项目。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,16 +147,16 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保留 Setup Readiness、受监督的一待办一 thread Automation、trusted ledger transition、介入/恢复、验收反馈、Workshop 平台组合、Work 日常管理与产品反馈能力。Personal / Chat 升级为绑定本地 Product Workspace 的真实 Codex 自由对话，支持持久会话、固定 thread、流式消息、工具与审批状态、停止、失败/重启恢复、重命名和安全删除；Chat 不创建或转换 Idea、Work、Task、Case、ledger 或 Automation Run。Idea、Release、Operations 和 Engineering 继续作为 planning-only 工作空间。既有 Workshop realtime、Work、Feedback、Organization、Domain Profile、Automation human Gate 和分发边界保持不变。Work 使用弹出式多维筛选与单行无按钮列表，完整动作归于 Inspector；评论图片随时间线默认加载，点击后进入具备缩放、适配、实际大小、旋转、平移、重置和另存为的独立窗口。Feedback 使用单行列表，并默认逐项目探测 Workshop 双向会话能力，真实不可用时回退 V1。 Automation 人工介入的消息列表直接复用 Chat Conversation Surface；Automation 的 gap/round、ledger、证据、恢复和执行控制能力保持完整并归入左右面板，执行总览提供完整墙钟时间、累计 gap 轮数及逐 gap 的目标、工作和结果。",
-          "reason": "The operator requires Chat-equivalent conversation quality without reducing Automation execution capability, plus a complete side-panel execution overview.",
+          "statement": "ArcOrbit 保留 Setup Readiness、受监督的一待办一 thread Automation、trusted ledger transition、介入/恢复、验收反馈、Workshop 平台组合、Work 日常管理与产品反馈能力。Personal / Chat 升级为绑定本地 Product Workspace 的真实 Codex 自由对话，支持持久会话、固定 thread、流式消息、工具与审批状态、停止、失败/重启恢复、重命名和安全删除；会话列表直接按 Product Workspace 分组，每个项目默认展示最近 10 个会话并提供项目历史入口，新对话在首条消息前显式显示并允许切换目标工作区；Chat 不创建或转换 Idea、Work、Task、Case、ledger 或 Automation Run。Idea、Release、Operations 和 Engineering 继续作为 planning-only 工作空间。既有 Workshop realtime、Work、Feedback、Organization、Domain Profile、Automation human Gate 和分发边界保持不变。Work 使用弹出式多维筛选与单行无按钮列表，完整动作归于 Inspector；评论图片随时间线默认加载，点击后进入具备缩放、适配、实际大小、旋转、平移、重置和另存为的独立窗口。Feedback 使用单行列表，并默认逐项目探测 Workshop 双向会话能力，真实不可用时回退 V1。Automation 人工介入的消息列表直接复用 Chat Conversation Surface；Automation 的 gap/round、ledger、证据、恢复和执行控制能力保持完整并归入左右面板，执行总览提供完整墙钟时间、累计 gap 轮数及逐 gap 的目标、工作和结果。",
+          "reason": "操作者明确要求 Chat 无需预先选择项目即可分组浏览，并在新建时清楚确认和快速切换项目；稳定产品规格已经具体化该能力且保留既有 Chat 隔离边界。",
           "evidence": [
-            "Current operator input, 2026-08-23",
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md"
+            "Current operator input, 2026-08-24",
+            "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
+            "arckit/interaction/chat-workspace/interaction.md"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when shared Conversation Surface scope or Automation execution-summary semantics change.",
-          "revision": 22
+          "resume_condition": "当 Chat 分组容量、历史浏览模式、新会话默认项目或远端同步能力变化时重审。",
+          "revision": 23
         },
         "gap_refs": []
       },
@@ -186,16 +186,16 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保持 Personal、Product Lifecycle、Organization 三组导航和既有 Work、Automation、Feedback、Organization、Setup、账户及产品反馈语义。Personal / Chat 使用会话列表、独立 transcript 和 Composer：首条非空消息才创建会话；会话固定绑定一个本地 Product Workspace 和 Codex thread；支持选择、重命名、删除、跨页面后台运行和重启恢复。消息以稳定 item 流式更新，支持 Markdown、代码复制、折叠非空 reasoning、单行工具状态、用户审批和智能自动滚动。starting、running、waiting approval 状态均可停止；interrupt 保留部分回答，继续操作会在同一 thread 启动新 turn。删除活动会话先等待 interrupt 终态，失败时不部分删除。没有可用本地工作区时允许保留草稿但禁止发送，并提供配置恢复入口。Chat 不调用 state-driven Runtime，不转换其他对象；Automation task thread、human Gate、Composer 与执行控制保持独立，但人工介入中间消息区直接复用 Chat Conversation Surface。Idea、Release、Operations 和 Engineering 继续呈现计划交互。Chat 返回页面时先用缓存会话和 transcript 立即切换，再后台刷新并显示同步或失败状态；Work 横排筛选使用弹出菜单且列表单行无按钮，评论图片自动加载且在独立窗口完成常用查看操作，单图失败不阻塞时间线；Feedback 列表单行，详情承载完整会话和动作。 Automation 左栏承载任务、项目、边界、当前选择和介入控制；右栏承载完整执行墙钟时间、累计 gap 轮数、逐 gap 目标/工作/结果，以及 Run、token、Gate、ledger、Git、证据和结构化结果。Automation 专属 loop/round/ledger 事件不进入中间对话流。",
-          "reason": "The synchronized interaction source establishes direct shared conversation behavior and complete panel-owned Automation context.",
+          "statement": "ArcOrbit 保持 Personal、Product Lifecycle、Organization 三组导航和既有 Work、Automation、Feedback、Organization、Setup、账户及产品反馈语义。Personal / Chat 使用按 Product Workspace 分组的会话列表、独立 transcript 和 Composer：页面无需预先选择项目，每个项目默认显示最近 10 个会话并在超出时从组底部展开完整历史；新对话在首条非空消息前显式显示目标工作区，默认取当前会话或最近成功使用的可用工作区，允许保留草稿快速切换，发送后会话固定绑定该本地 Product Workspace 和 Codex thread。支持选择、重命名、删除、跨页面后台运行和重启恢复。消息以稳定 item 流式更新，支持 Markdown、代码复制、折叠非空 reasoning、单行工具状态、用户审批和智能自动滚动。starting、running、waiting approval 状态均可停止；interrupt 保留部分回答，继续操作会在同一 thread 启动新 turn。删除活动会话先等待 interrupt 终态，失败时不部分删除。没有可用本地工作区时允许保留草稿但禁止发送，并提供配置恢复入口。Chat 不调用 state-driven Runtime，不转换其他对象；Automation task thread、human Gate、Composer 与执行控制保持独立，但人工介入中间消息区直接复用 Chat Conversation Surface。Idea、Release、Operations 和 Engineering 继续呈现计划交互。Chat 返回页面时先用缓存会话和 transcript 立即切换，再后台刷新并显示同步或失败状态；Work 横排筛选使用弹出菜单且列表单行无按钮，评论图片自动加载且在独立窗口完成常用查看操作，单图失败不阻塞时间线；Feedback 列表单行，详情承载完整会话和动作。Automation 左栏承载任务、项目、边界、当前选择和介入控制；右栏承载完整执行墙钟时间、累计 gap 轮数、逐 gap 目标/工作/结果，以及 Run、token、Gate、ledger、Git、证据和结构化结果。Automation 专属 loop/round/ledger 事件不进入中间对话流。",
+          "reason": "稳定交互源和线框现已明确分组、历史列表、新会话归属及恢复语义，同时保留固定 workspace/thread 和安全边界。",
           "evidence": [
-            "Current operator input, 2026-08-23",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/intervention-workbench.html"
+            "Current operator input, 2026-08-24",
+            "arckit/interaction/chat-workspace/interaction.md",
+            "arckit/interaction/chat-workspace/default.html"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when Chat conversation behavior or Automation panel information architecture changes.",
-          "revision": 34
+          "resume_condition": "当 Chat 分组、历史浏览、新会话工作区选择、Conversation Surface 或 Automation 面板信息架构变化时重审。",
+          "revision": 35
         },
         "gap_refs": []
       },
@@ -371,15 +371,16 @@
         "evidence_expectation": "Durable validation evidence proportionate to the identified risks.",
         "decision": {
           "status": "settled",
-          "statement": "既有协议、Runtime、realtime、Work 和安全验证义务保持不变。真实 Chat 还必须以 adapter、Store、Coordinator、typed main/preload IPC、Renderer 和真实 app-server smoke 的跨层证据证明：首条消息幂等创建 session/thread；连续 turn resume 同一 thread；不同 Chat/Automation owner 隔离；稳定 item streaming、Markdown、reasoning/tool 投影和智能滚动正确；starting/running/waiting approval 均可 interrupt；部分输出和重启恢复不重复请求；活动删除先 interrupt 且无部分删除；审批异步并 fail closed；Renderer 无法覆盖 cwd/thread/method/command；Chat 不触发 using-arckit、ledger、Workshop mutation、Automation lease 或 human Gate。 Automation 介入还必须证明 Chat 与 Automation 使用同一 Conversation Surface 实现和一致的 Markdown、reasoning、tool、approval/error、复制、外链与智能滚动行为；结构化跨 Run 汇总必须覆盖完整墙钟时间、累计 gap 轮数、逐 gap 目标/工作/结果、进行中和旧 Activity 兼容，并回归 Gate、恢复、ledger、Git、证据和执行控制未降级。",
-          "reason": "The reuse and no-regression claims require direct cross-surface and structured-summary evidence.",
+          "statement": "既有协议、Runtime、realtime、Work 和安全验证义务保持不变。真实 Chat 还必须以 adapter、Store、Coordinator、typed main/preload IPC、Renderer 和真实 app-server smoke 的跨层证据证明：首条消息幂等创建 session/thread；连续 turn resume 同一 thread；不同 Chat/Automation owner 隔离；稳定 item streaming、Markdown、reasoning/tool 投影和智能滚动正确；starting/running/waiting approval 均可 interrupt；部分输出和重启恢复不重复请求；活动删除先 interrupt 且无部分删除；审批异步并 fail closed；Renderer 无法覆盖 cwd/thread/method/command；Chat 不触发 using-arckit、ledger、Workshop mutation、Automation lease 或 human Gate。Chat 会话导航还必须证明：会话不受全局项目范围过滤并按 Product Workspace 确定分组；每组默认最多 10 条且仅在超出时出现对应历史入口；展开/收起不改变选择、草稿或后台 turn；新对话持续显示目标工作区，首次发送前切换保留草稿且不创建 session/thread，发送后不能迁移既有 thread/cwd。Automation 介入还必须证明 Chat 与 Automation 使用同一 Conversation Surface 实现和一致的 Markdown、reasoning、tool、approval/error、复制、外链与智能滚动行为；结构化跨 Run 汇总必须覆盖完整墙钟时间、累计 gap 轮数、逐 gap 目标/工作/结果、进行中和旧 Activity 兼容，并回归 Gate、恢复、ledger、Git、证据和执行控制未降级。",
+          "reason": "新的项目分组与草稿项目切换改变了 Chat 导航和 owner 边界，需要明确可重复的实现及回归验收证据。",
           "evidence": [
-            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
-            "arckit/tech/arcorbit/desktop-execution-solution.md"
+            "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
+            "arckit/interaction/chat-workspace/interaction.md",
+            "runtime/arcorbit/desktop/renderer/renderer.js"
           ],
           "confidence": "high",
-          "resume_condition": "Revisit when Conversation Surface message types or Automation execution-summary fields change.",
-          "revision": 7
+          "resume_condition": "当 Chat 分组容量、历史状态、草稿 owner、Conversation Surface 消息类型或 Automation 执行摘要字段变化时重审。",
+          "revision": 8
         },
         "gap_refs": []
       },

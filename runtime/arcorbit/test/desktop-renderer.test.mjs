@@ -517,12 +517,35 @@ test("Chat Renderer delegates all owner, epoch, projection, retry, send and pers
   assert.doesNotMatch(source, /keepSelection|preserveDraftOnSelectionAdoption|\.begin\(\)|\.observe\(\)|\.invalidate\(\)/);
 });
 
-test("Chat project selector remains available while a persisted session is selected", async () => {
-  const source = await readFile(rendererPath, "utf8");
+test("Chat project selector changes only the new draft owner and persisted session ownership stays fixed", async () => {
+  const [source, html] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererHtmlPath, "utf8")
+  ]);
 
-  assert.match(source, /els\.chatProjectSelect\.disabled = chat\.snapshot\.projects\.length === 0;/);
-  assert.doesNotMatch(source, /els\.chatProjectSelect\.disabled = Boolean\(session\)/);
+  assert.match(source, /els\.chatProjectSelect\.disabled = Boolean\(session\) \|\| chat\.snapshot\.projects\.length === 0;/);
   assert.match(source, /chatStateCoordinator\.changeDraftWorkspace\(projectId\)/);
+  assert.match(source, /const projectId = defaultChatDraftProject\(\)\?\.id \|\| ""/);
+  assert.match(source, /if \(session\) return chat\.snapshot\.projects\.find\(\(project\) => project\.id === session\.project_id\) \|\| null/);
+  assert.match(source, /session\.project_id\)}（不可用）/);
+  assert.match(source, /els\.chatWorkspacePickerLabel\.textContent = session \? "固定归属" : "新对话属于"/);
+  assert.match(html, /id="chatWorkspacePickerLabel">新对话属于/);
+  assert.ok(html.indexOf('id="chatProjectSelect"') > html.indexOf('<header class="chat-header">'));
+});
+
+test("Chat Renderer groups all snapshot sessions by Product Workspace with bounded inline history", async () => {
+  const [source, styles] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererStylesPath, "utf8")
+  ]);
+
+  assert.match(source, /groupChatSessions\(\{ sessions: chat\.snapshot\.sessions, projects: chat\.snapshot\.projects \}\)/);
+  assert.match(source, /limit: CHAT_SESSION_PREVIEW_LIMIT/);
+  assert.match(source, /查看历史会话（其余 \$\{visibility\.hidden_count\} 个）/);
+  assert.match(source, /data-chat-history-project-id/);
+  assert.match(source, /visibility\.selected_requires_history/);
+  assert.match(styles, /\.chat-project-group \{/);
+  assert.match(styles, /\.chat-history-toggle \{/);
 });
 
 test("Work navigation renders cached content before a task-only background refresh", async () => {

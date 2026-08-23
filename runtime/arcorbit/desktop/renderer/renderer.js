@@ -24,6 +24,7 @@ import {
   taskAttachmentIdentityKey
 } from "../../src/work-task-attachment-cache.mjs";
 import { createChatStateCoordinator } from "./chat-state-coordinator.mjs";
+import { CHAT_SESSION_PREVIEW_LIMIT, chatSessionVisibility, groupChatSessions } from "./chat-session-groups.mjs";
 
 const api = window.arckitDesktop;
 
@@ -144,6 +145,7 @@ let workFilterTimer;
 const taskAttachmentPreviewQueue = [];
 let activeTaskAttachmentPreviews = 0;
 const TASK_ATTACHMENT_PREVIEW_CONCURRENCY = 3;
+const expandedChatProjectIds = new Set();
 const chatStateCoordinator = createChatStateCoordinator({
   api,
   normalizeSnapshot: normalizeChatSnapshot,
@@ -319,7 +321,7 @@ function wireEvents() {
   });
   document.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => showPage(button.dataset.page)));
   els.newChatButton.addEventListener("click", () => runAction(async () => {
-    const projectId = selectedChatProject()?.id || "";
+    const projectId = defaultChatDraftProject()?.id || "";
     await chatStateCoordinator.newDraft(projectId);
     renderChat();
     els.chatInput.focus();
@@ -810,8 +812,41 @@ function selectedChatSession() {
 function selectedChatProject() {
   const chat = chatState();
   const session = selectedChatSession();
-  const projectId = session?.project_id || chat.owner.project_id || chat.snapshot.draft.project_id || chat.snapshot.projects[0]?.id || "";
-  return chat.snapshot.projects.find((project) => project.id === projectId) || null;
+  if (session) return chat.snapshot.projects.find((project) => project.id === session.project_id) || null;
+  const candidateIds = [chat.owner.project_id, chat.snapshot.draft.project_id, chat.snapshot.projects[0]?.id];
+  return candidateIds.map((projectId) => chat.snapshot.projects.find((project) => project.id === projectId)).find(Boolean) || null;
+}
+
+function defaultChatDraftProject() {
+  const chat = chatState();
+  const session = selectedChatSession();
+  const candidateIds = [session?.project_id, chat.snapshot.draft.project_id, chat.owner.project_id, chat.snapshot.projects[0]?.id];
+  return candidateIds.map((projectId) => chat.snapshot.projects.find((project) => project.id === projectId)).find(Boolean) || null;
+}
+
+function renderChatSession(item, selectedSessionId) {
+  return `<button class="chat-session ${item.id === selectedSessionId ? "is-active" : ""}" data-chat-session-id="${escapeHtml(item.id)}" type="button"><strong>${escapeHtml(item.title)}</strong><span class="chat-session-status ${escapeHtml(item.status)}" aria-label="${escapeHtml(chatStatusLabel(item.status))}"></span><small>${escapeHtml(chatStatusLabel(item.status))} · ${escapeHtml(formatDateTime(item.updated_at))}</small></button>`;
+}
+
+function renderChatSessionGroups(chat) {
+  const groups = groupChatSessions({ sessions: chat.snapshot.sessions, projects: chat.snapshot.projects });
+  const currentProjectIds = new Set(groups.map((group) => group.project_id));
+  for (const projectId of expandedChatProjectIds) {
+    if (!currentProjectIds.has(projectId)) expandedChatProjectIds.delete(projectId);
+  }
+  return groups.map((group) => {
+    const visibility = chatSessionVisibility(group, {
+      expanded: expandedChatProjectIds.has(group.project_id),
+      selectedSessionId: chat.owner.session_id,
+      limit: CHAT_SESSION_PREVIEW_LIMIT
+    });
+    if (visibility.selected_requires_history) expandedChatProjectIds.add(group.project_id);
+    const unavailable = group.available ? "" : `<span class="chat-project-unavailable">不可用</span>`;
+    const historyControl = visibility.hidden_count
+      ? `<button class="chat-history-toggle" data-chat-history-project-id="${escapeHtml(group.project_id)}" type="button" aria-expanded="${visibility.expanded}" ${visibility.selected_requires_history ? "disabled title=\"当前会话位于历史中\"" : ""}>${visibility.expanded ? "收起历史会话" : `查看历史会话（其余 ${visibility.hidden_count} 个）`}</button>`
+      : "";
+    return `<section class="chat-project-group" data-chat-project-group="${escapeHtml(group.project_id)}"><div class="chat-project-group-head"><strong>${escapeHtml(group.project_name)}</strong><span>${group.sessions.length} 个会话</span>${unavailable}</div><div class="chat-project-sessions">${visibility.sessions.map((item) => renderChatSession(item, chat.owner.session_id)).join("")}</div>${historyControl}</section>`;
+  }).join("");
 }
 
 function renderChat() {
@@ -819,20 +854,32 @@ function renderChat() {
   const chat = chatState();
   const session = selectedChatSession();
   const project = selectedChatProject();
-  els.chatProjectSelect.innerHTML = chat.snapshot.projects.length
-    ? chat.snapshot.projects.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === project?.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")
+  const unavailableSessionProjectOption = session && !project
+    ? `<option value="${escapeHtml(session.project_id)}" selected>${escapeHtml(session.project_id)}（不可用）</option>`
+    : "";
+  els.chatProjectSelect.innerHTML = chat.snapshot.projects.length || unavailableSessionProjectOption
+    ? unavailableSessionProjectOption + chat.snapshot.projects.map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === project?.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")
     : `<option value="">尚无本地 Product Workspace</option>`;
-  els.chatProjectSelect.disabled = chat.snapshot.projects.length === 0;
+  els.chatProjectSelect.disabled = Boolean(session) || chat.snapshot.projects.length === 0;
+  els.chatWorkspacePickerLabel.textContent = session ? "固定归属" : "新对话属于";
   els.newChatButton.disabled = chat.snapshot.projects.length === 0;
   els.chatSessionList.innerHTML = chat.snapshot.sessions.length
-    ? chat.snapshot.sessions.map((item) => `<button class="chat-session ${item.id === chat.owner.session_id ? "is-active" : ""}" data-chat-session-id="${escapeHtml(item.id)}" type="button"><strong>${escapeHtml(item.title)}</strong><span class="chat-session-status ${escapeHtml(item.status)}" aria-label="${escapeHtml(chatStatusLabel(item.status))}"></span><small>${escapeHtml(chatStatusLabel(item.status))} · ${escapeHtml(formatDateTime(item.updated_at))}</small></button>`).join("")
+    ? renderChatSessionGroups(chat)
     : `<div class="chat-empty-list">还没有对话。发送第一条消息时才会创建会话。</div>`;
   els.chatSessionList.querySelectorAll("[data-chat-session-id]").forEach((button) => button.addEventListener("click", () => runAction(async () => {
     await chatStateCoordinator.selectSession(button.dataset.chatSessionId);
     chatConversationSurface.followLatest();
     renderChat();
   })));
-  els.chatWorkspaceLabel.textContent = project?.name ? `LOCAL WORKSPACE · ${project.name}` : "选择本地工作区";
+  els.chatSessionList.querySelectorAll("[data-chat-history-project-id]").forEach((button) => button.addEventListener("click", () => {
+    const projectId = button.dataset.chatHistoryProjectId;
+    if (expandedChatProjectIds.has(projectId)) expandedChatProjectIds.delete(projectId);
+    else expandedChatProjectIds.add(projectId);
+    renderChat();
+  }));
+  els.chatWorkspaceLabel.textContent = project?.name
+    ? `LOCAL WORKSPACE · ${project.name}`
+    : session?.project_id ? `LOCAL WORKSPACE · ${session.project_id} · 不可用` : "选择本地工作区";
   els.chatTitle.textContent = session?.title || "新对话";
   els.chatStatusText.textContent = session
     ? `${chatStatusLabel(session.status)}${chat.refreshing ? " · 正在同步" : ""}${session.error ? ` · ${session.error}` : ""}`
