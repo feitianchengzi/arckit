@@ -1,10 +1,10 @@
 # 优化 ArcOrbit Work 状态列表切换性能
 
 Case: CASE-20260823-007
-Status: active
+Status: closed
 Artifact Type: code
 Selected Gap: none
-Updated: 2026-08-24T05:45:19.979Z
+Updated: 2026-08-24T05:54:41.808Z
 
 ## User Intent
 
@@ -17,10 +17,10 @@ Updated: 2026-08-24T05:45:19.979Z
   "schema_version": "development-case-record/v5",
   "id": "CASE-20260823-007",
   "title": "优化 ArcOrbit Work 状态列表切换性能",
-  "status": "active",
+  "status": "closed",
   "artifact_type": "code",
   "created_at": "2026-08-23T21:46:41.163Z",
-  "updated_at": "2026-08-24T05:45:19.979Z",
+  "updated_at": "2026-08-24T05:54:41.808Z",
   "user_intent": "定位 ArcOrbit Work 页面通过待办状态切换列表时明显卡顿的真实瓶颈，并在已验证的架构边界内完成可持续的性能优化。",
   "expected_outcome": "状态列表切换达到可信的交互性能，修复基于可复现测量和明确的数据、状态与渲染责任边界，不引入临时旁路、重复状态源或破坏现有 Work 行为。",
   "project_state_ref": "arckit/project/state.record.json",
@@ -134,6 +134,21 @@ Updated: 2026-08-24T05:45:19.979Z
         "Pre-fix isolated reproduction: cached_version=old",
         "Post-fix isolated reproduction: cached_version=new",
         "Verification: npm run check — 363 tests, 357 passed, 6 skipped, 0 failed"
+      ]
+    },
+    {
+      "id": "FACT-20260823-007-008",
+      "revision": 1,
+      "status": "accepted",
+      "statement": "Work query-state 现为每个 begin 请求绑定当前缓存 epoch。clear 会提升 epoch、清空缓存和 per-key generation 元数据；清理前请求随后完成时仍被识别为结构匹配响应，但不能写入缓存、成为当前投影或让后续同键请求命中清理前数据。不同键后台缓存与同键较新 generation 优先语义保持不变。",
+      "basis": "生产实现的 epoch 校验、修复后隔离复现、纯状态单元测试及真实 Electron Workset clear 路径共同证明该生命周期边界。",
+      "evidence": [
+        "runtime/arcorbit/desktop/renderer/work-query-state.mjs:29-70",
+        "runtime/arcorbit/test/work-query-state.test.mjs:44-55",
+        "runtime/arcorbit/test/fixtures/work-status-switch-performance-electron.mjs:79-95",
+        "runtime/arcorbit/test/work-status-switch-performance-electron.test.mjs:27-32",
+        "Post-fix isolated reproduction: cached_version=null",
+        "Verification: npm run check — 365 tests, 359 passed, 6 skipped, 0 failed"
       ]
     }
   ],
@@ -278,6 +293,76 @@ Updated: 2026-08-24T05:45:19.979Z
         "Post-fix isolated reproduction: cached_version=new",
         "Electron same-key cache assertion passed"
       ]
+    },
+    {
+      "id": "IMPACT-20260823-007-009",
+      "fact_id": "FACT-20260823-007-008",
+      "fact_revision": 1,
+      "target": {
+        "kind": "software_decision",
+        "ref": "experience_and_interaction",
+        "revision": 36
+      },
+      "effect": "upheld",
+      "reason": "Workset 或身份上下文清理后，旧在途请求不能让后续同键访问显示清理前数据，保持匹配缓存或明确加载态的交互语义。",
+      "gap_ids": [],
+      "evidence": [
+        "runtime/arcorbit/desktop/renderer/work-query-state.mjs:43-70",
+        "Electron clear lifecycle assertion: stale_visible=false, row_count=0, loading_visible=true"
+      ]
+    },
+    {
+      "id": "IMPACT-20260823-007-010",
+      "fact_id": "FACT-20260823-007-008",
+      "fact_revision": 1,
+      "target": {
+        "kind": "software_decision",
+        "ref": "technical_foundation",
+        "revision": 31
+      },
+      "effect": "upheld",
+      "reason": "缓存失效由 query-state 内显式 epoch 管理，保持 query-owned、有界 SWR、typed IPC 与 Workshop source-of-truth 架构边界。",
+      "gap_ids": [],
+      "evidence": [
+        "runtime/arcorbit/desktop/renderer/work-query-state.mjs:26-86",
+        "Project decision: technical_foundation@31"
+      ]
+    },
+    {
+      "id": "IMPACT-20260823-007-011",
+      "fact_id": "FACT-20260823-007-008",
+      "fact_revision": 1,
+      "target": {
+        "kind": "software_decision",
+        "ref": "quality_and_validation",
+        "revision": 9
+      },
+      "effect": "upheld",
+      "reason": "新增测试覆盖此前遗漏的 clear 与在途响应顺序，并保持同键竞态、状态切换性能、Work 导航和全量回归通过。",
+      "gap_ids": [],
+      "evidence": [
+        "runtime/arcorbit/test/work-query-state.test.mjs:44-55",
+        "runtime/arcorbit/test/fixtures/work-status-switch-performance-electron.mjs:79-95",
+        "runtime/arcorbit/test/work-status-switch-performance-electron.test.mjs:29",
+        "Verification: npm run check — 365 tests, 359 passed, 6 skipped, 0 failed"
+      ]
+    },
+    {
+      "id": "IMPACT-20260823-007-012",
+      "fact_id": "FACT-20260823-007-008",
+      "fact_revision": 1,
+      "target": {
+        "kind": "software_invariant",
+        "ref": "accepted-facts-are-realized",
+        "revision": null
+      },
+      "effect": "upheld",
+      "reason": "Completion Review 揭示的缓存失效缺口已在生产 query-state 路径修复，并由隔离复现与真实 Renderer 生命周期场景直接证明。",
+      "gap_ids": [],
+      "evidence": [
+        "Post-fix isolated reproduction: cached_version=null",
+        "Electron clear lifecycle assertion passed"
+      ]
     }
   ],
   "gaps": [
@@ -408,7 +493,7 @@ Updated: 2026-08-24T05:45:19.979Z
     },
     {
       "id": "CASE-20260823-007:review-finding:FINDING-20260823-007-002",
-      "status": "open",
+      "status": "resolved",
       "goal": "Resolve review finding: Work query-state 的 clear() 会提升全局 generation 并清空 cache 与 cachedGenerations，但 accept() 只比较被清空后的 per-key cached generation。清理前发出的请求若在 clear 后完成，仍会重新写入缓存；再次使用相同查询键时会得到清理前数据。Renderer 在 Workset 切换、登录和退出时调用 clear，因此该竞态可破坏身份或上下文切换后的缓存失效。现有测试未覆盖 clear 与在途响应的顺序。",
       "reason": "error found by completion review",
       "derived_from": [
@@ -432,25 +517,41 @@ Updated: 2026-08-24T05:45:19.979Z
         "runtime/arcorbit/test/work-query-state.test.mjs:18-42 — 覆盖有界缓存、不同键竞态与同键乱序，但未覆盖 clear 后的在途响应",
         "Focused verification: 59 passed, 0 failed, confirming the current suite does not detect this lifecycle race"
       ],
-      "resolution": null
+      "resolution": {
+        "id": "CASE-20260823-007:review-finding:FINDING-20260823-007-002",
+        "status": "resolved",
+        "outcome": "Work query-state 现在为每次请求绑定缓存 epoch；clear 提升 epoch 并清空缓存，清理前响应即使随后正常完成，也不能重新写入缓存或成为当前投影。",
+        "reason": "修复位于 query-owned 缓存生命周期边界，直接约束根因，不改变 typed IPC、Workshop source-of-truth、不同键后台缓存或同键 generation 顺序语义。",
+        "evidence": [
+          "runtime/arcorbit/desktop/renderer/work-query-state.mjs:26-86",
+          "runtime/arcorbit/test/work-query-state.test.mjs:44-55",
+          "Post-fix isolated reproduction: {\"accepted\":true,\"current\":false,\"cached_version\":null}",
+          "Electron clear lifecycle assertion: {\"stale_visible\":false,\"row_count\":0,\"loading_visible\":true}",
+          "Verification: focused unit and cross-layer suite — 60 passed, 0 failed",
+          "Verification: Electron Work status performance regression — 1 passed, 0 failed",
+          "Verification: Electron Work navigation regression — 1 passed, 0 failed",
+          "Verification: npm run check — 365 tests, 359 passed, 6 environment-gated skips, 0 failed"
+        ],
+        "occurred_at": "2026-08-24T05:51:54.610Z"
+      }
     }
   ],
-  "content_revision": 3,
+  "content_revision": 4,
   "completion_review": {
-    "status": "findings_open",
+    "status": "clean",
     "policy": {
       "initial_max_cycles": 10,
       "source": "runtime/arcorbit/config/case-policy.json",
       "snapshotted_at": "2026-08-23T21:46:41.163Z"
     },
     "additional_cycles_authorized": 0,
-    "cycle_count": 2,
-    "reviewed_content_revision": 3,
+    "cycle_count": 3,
+    "reviewed_content_revision": 4,
     "dimensions": {
-      "implementation_correctness": "findings",
-      "problem_resolution": "findings",
-      "verification_credibility": "findings",
-      "regression_risk": "findings",
+      "implementation_correctness": "clean",
+      "problem_resolution": "clean",
+      "verification_credibility": "clean",
+      "regression_risk": "clean",
       "minimality": "clean"
     },
     "findings": [],
@@ -503,6 +604,34 @@ Updated: 2026-08-24T05:45:19.979Z
           "git diff --check passed; no implementation files changed during this review"
         ],
         "occurred_at": "2026-08-24T05:45:19.979Z"
+      },
+      {
+        "cycle": 3,
+        "autonomous_cycle": 3,
+        "reviewer": "agent",
+        "outcome": "clean",
+        "content_revision": 4,
+        "dimensions": {
+          "implementation_correctness": "clean",
+          "problem_resolution": "clean",
+          "verification_credibility": "clean",
+          "regression_risk": "clean",
+          "minimality": "clean"
+        },
+        "finding_ids": [],
+        "evidence": [
+          "Completion Review bound to CASE-20260823-007 content revision 4",
+          "Production query-state epoch, per-key generation, cache invalidation and Renderer acceptance paths inspected",
+          "Dedicated Work query IPC, PlatformCoordinator query boundary and bounded Renderer projection remain consistent with accepted facts",
+          "Focused unit and cross-layer review rerun: 60 passed, 0 failed",
+          "Accepted Electron evidence: immediate selection 1.8ms; 1000-row first interactive window 6.3ms; 80 rendered rows",
+          "Accepted same-key regression evidence: cached_version=new",
+          "Accepted clear lifecycle evidence: cached_version=null; stale_visible=false; row_count=0; loading_visible=true",
+          "Accepted Electron Work status and Work navigation regressions passed",
+          "Accepted full ArcOrbit check: 365 tests, 359 passed, 6 environment-gated skips, 0 failed",
+          "git diff --check passed; reviewed files contain no ARC_DEBUG, console.time, console.timeEnd or debugger markers"
+        ],
+        "occurred_at": "2026-08-24T05:54:41.808Z"
       }
     ],
     "evidence": [
@@ -514,7 +643,17 @@ Updated: 2026-08-24T05:45:19.979Z
       "Isolated clear/in-flight response sequence reproduced deterministically",
       "Focused verification: node --test test/work-query-state.test.mjs test/platform-coordinator.test.mjs test/desktop-renderer.test.mjs — 59 passed, 0 failed",
       "Accepted baseline: npm run check — 363 tests, 357 passed, 6 environment-gated skips, 0 failed",
-      "git diff --check passed; no implementation files changed during this review"
+      "git diff --check passed; no implementation files changed during this review",
+      "Completion Review bound to CASE-20260823-007 content revision 4",
+      "Production query-state epoch, per-key generation, cache invalidation and Renderer acceptance paths inspected",
+      "Dedicated Work query IPC, PlatformCoordinator query boundary and bounded Renderer projection remain consistent with accepted facts",
+      "Focused unit and cross-layer review rerun: 60 passed, 0 failed",
+      "Accepted Electron evidence: immediate selection 1.8ms; 1000-row first interactive window 6.3ms; 80 rendered rows",
+      "Accepted same-key regression evidence: cached_version=new",
+      "Accepted clear lifecycle evidence: cached_version=null; stale_visible=false; row_count=0; loading_visible=true",
+      "Accepted Electron Work status and Work navigation regressions passed",
+      "Accepted full ArcOrbit check: 365 tests, 359 passed, 6 environment-gated skips, 0 failed",
+      "git diff --check passed; reviewed files contain no ARC_DEBUG, console.time, console.timeEnd or debugger markers"
     ],
     "escalation": null,
     "human_authorizations": []
@@ -2169,23 +2308,88 @@ Updated: 2026-08-24T05:45:19.979Z
       ],
       "runtime_result_ref": "arckit-runtime://runs/RUN-20260824-054408709Z",
       "occurred_at": "2026-08-24T05:45:19.979Z"
-    }
-  ],
-  "case_resolution": {
-    "status": "unresolved",
-    "stage": "working",
-    "satisfied": [
-      "GAP-WORK-STATUS-SWITCH-PERFORMANCE-DIAGNOSIS",
-      "GAP-20260823-007-001",
-      "CASE-20260823-007:review-finding:FINDING-20260823-007-001"
-    ],
-    "remaining": [
-      "CASE-20260823-007:review-finding:FINDING-20260823-007-002"
-    ],
-    "blocked": [],
-    "reason": "1 Case obligation(s) remain.",
-    "candidate_gaps": [
-      {
+    },
+    {
+      "round": 6,
+      "transition_schema_version": "arckit-case-transition/v8",
+      "goal": "在 Work query-state 缓存所有权边界加入 clear epoch，使清理前请求永久失去缓存写入与当前投影资格，并补齐单元和真实 Electron 生命周期回归。",
+      "outcome": "completed",
+      "gap_selection": {
+        "mode": "candidate",
+        "basis": "当前 Case review finding 是唯一 ready 候选，直接阻塞 Case 关闭，并可能让 Workset、登录或退出前的在途响应污染清理后的上下文缓存；四个 Project gaps 均需独立 Case。",
+        "snapshot_token": "d55dc6c18510970c98ab907c8efd693ffad57b0f8b18713a0dcb5e7656e7e9d1",
+        "selected_ref": "case-gap:CASE-20260823-007:CASE-20260823-007:review-finding:FINDING-20260823-007-002",
+        "comparison_summary": "选择唯一 ready、blocking high、risk high 的 Case gap；其余四项均为 case_required，延期至独立 Case。",
+        "fresh_discovery_summary": "工作区检查未发现改变本轮修复对象或验收边界的新 Gap。",
+        "considered": [
+          {
+            "ref": "project-gap:GAP-agent-scenario-evaluation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "blocking": "不阻塞当前 Case 修复。",
+              "uncertainty": "高。",
+              "risk": "高。",
+              "user_impact": "属于跨场景协议验证，不是当前 Work 缓存竞态。"
+            },
+            "reason": "需要独立 Case，且当前 review finding 更直接阻塞用户事项关闭。"
+          },
+          {
+            "ref": "project-gap:GAP-runtime-resilience-and-adapters",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "blocking": "不阻塞当前 Case 修复。",
+              "uncertainty": "中。",
+              "risk": "高。",
+              "user_impact": "与当前 Work query-state 生命周期竞态无直接依赖。"
+            },
+            "reason": "需要独立 Case。"
+          },
+          {
+            "ref": "project-gap:GAP-security-real-project-validation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "blocking": "不阻塞当前 Case 修复。",
+              "uncertainty": "中。",
+              "risk": "高。",
+              "user_impact": "需要真实权限项目，超出当前 Case。"
+            },
+            "reason": "需要独立 Case。"
+          },
+          {
+            "ref": "project-gap:GAP-cross-record-audit",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "blocking": "不阻塞当前 Case 修复。",
+              "uncertainty": "中。",
+              "risk": "高。",
+              "user_impact": "属于跨记录审计，不是 Work 缓存实现问题。"
+            },
+            "reason": "需要独立 Case。"
+          },
+          {
+            "ref": "case-gap:CASE-20260823-007:CASE-20260823-007:review-finding:FINDING-20260823-007-002",
+            "source": "persisted",
+            "eligibility": "ready",
+            "disposition": "selected",
+            "priority_basis": {
+              "blocking": "高；阻止 Completion Review clean closeout。",
+              "uncertainty": "低；代码时序和确定性复现完全匹配。",
+              "risk": "高；可破坏 Workset 或身份切换后的缓存失效。",
+              "user_impact": "可能短暂展示清理前上下文的陈旧 Work 数据。"
+            },
+            "reason": "唯一 ready 候选，根因已被确定性复现，修复边界明确且可直接验证。"
+          }
+        ]
+      },
+      "selected_gap": {
         "id": "CASE-20260823-007:review-finding:FINDING-20260823-007-002",
         "responsibility": "agent",
         "goal": "Resolve review finding: Work query-state 的 clear() 会提升全局 generation 并清空 cache 与 cachedGenerations，但 accept() 只比较被清空后的 per-key cached generation。清理前发出的请求若在 clear 后完成，仍会重新写入缓存；再次使用相同查询键时会得到清理前数据。Renderer 在 Workset 切换、登录和退出时调用 clear，因此该竞态可破坏身份或上下文切换后的缓存失效。现有测试未覆盖 clear 与在途响应的顺序。",
@@ -2212,24 +2416,526 @@ Updated: 2026-08-24T05:45:19.979Z
           "runtime/arcorbit/test/work-query-state.test.mjs:18-42 — 覆盖有界缓存、不同键竞态与同键乱序，但未覆盖 clear 后的在途响应",
           "Focused verification: 59 passed, 0 failed, confirming the current suite does not detect this lifecycle race"
         ]
-      }
+      },
+      "planned_transition": {
+        "goal": "在 Work query-state 缓存所有权边界加入 clear epoch，使清理前请求永久失去缓存写入与当前投影资格，并补齐单元和真实 Electron 生命周期回归。",
+        "expected_state_change": "review finding 被解决；Workset、登录或退出触发 clear 后，在途旧响应不能重新填充 SWR 缓存，同时保留不同键后台缓存和同键 generation 新鲜度语义。"
+      },
+      "accepted_state_delta": {
+        "resolved_gap": {
+          "id": "CASE-20260823-007:review-finding:FINDING-20260823-007-002",
+          "status": "resolved",
+          "outcome": "Work query-state 现在为每次请求绑定缓存 epoch；clear 提升 epoch 并清空缓存，清理前响应即使随后正常完成，也不能重新写入缓存或成为当前投影。",
+          "reason": "修复位于 query-owned 缓存生命周期边界，直接约束根因，不改变 typed IPC、Workshop source-of-truth、不同键后台缓存或同键 generation 顺序语义。",
+          "evidence": [
+            "runtime/arcorbit/desktop/renderer/work-query-state.mjs:26-86",
+            "runtime/arcorbit/test/work-query-state.test.mjs:44-55",
+            "Post-fix isolated reproduction: {\"accepted\":true,\"current\":false,\"cached_version\":null}",
+            "Electron clear lifecycle assertion: {\"stale_visible\":false,\"row_count\":0,\"loading_visible\":true}",
+            "Verification: focused unit and cross-layer suite — 60 passed, 0 failed",
+            "Verification: Electron Work status performance regression — 1 passed, 0 failed",
+            "Verification: Electron Work navigation regression — 1 passed, 0 failed",
+            "Verification: npm run check — 365 tests, 359 passed, 6 environment-gated skips, 0 failed"
+          ]
+        },
+        "facts_added": [
+          {
+            "id": "FACT-20260823-007-008",
+            "revision": 1,
+            "status": "accepted",
+            "statement": "Work query-state 现为每个 begin 请求绑定当前缓存 epoch。clear 会提升 epoch、清空缓存和 per-key generation 元数据；清理前请求随后完成时仍被识别为结构匹配响应，但不能写入缓存、成为当前投影或让后续同键请求命中清理前数据。不同键后台缓存与同键较新 generation 优先语义保持不变。",
+            "basis": "生产实现的 epoch 校验、修复后隔离复现、纯状态单元测试及真实 Electron Workset clear 路径共同证明该生命周期边界。",
+            "evidence": [
+              "runtime/arcorbit/desktop/renderer/work-query-state.mjs:29-70",
+              "runtime/arcorbit/test/work-query-state.test.mjs:44-55",
+              "runtime/arcorbit/test/fixtures/work-status-switch-performance-electron.mjs:79-95",
+              "runtime/arcorbit/test/work-status-switch-performance-electron.test.mjs:27-32",
+              "Post-fix isolated reproduction: cached_version=null",
+              "Verification: npm run check — 365 tests, 359 passed, 6 skipped, 0 failed"
+            ]
+          }
+        ],
+        "facts_superseded": [],
+        "impacts_added": [
+          {
+            "id": "IMPACT-20260823-007-009",
+            "fact_id": "FACT-20260823-007-008",
+            "fact_revision": 1,
+            "target": {
+              "kind": "software_decision",
+              "ref": "experience_and_interaction",
+              "revision": 36
+            },
+            "effect": "upheld",
+            "reason": "Workset 或身份上下文清理后，旧在途请求不能让后续同键访问显示清理前数据，保持匹配缓存或明确加载态的交互语义。",
+            "gap_ids": [],
+            "evidence": [
+              "runtime/arcorbit/desktop/renderer/work-query-state.mjs:43-70",
+              "Electron clear lifecycle assertion: stale_visible=false, row_count=0, loading_visible=true"
+            ]
+          },
+          {
+            "id": "IMPACT-20260823-007-010",
+            "fact_id": "FACT-20260823-007-008",
+            "fact_revision": 1,
+            "target": {
+              "kind": "software_decision",
+              "ref": "technical_foundation",
+              "revision": 31
+            },
+            "effect": "upheld",
+            "reason": "缓存失效由 query-state 内显式 epoch 管理，保持 query-owned、有界 SWR、typed IPC 与 Workshop source-of-truth 架构边界。",
+            "gap_ids": [],
+            "evidence": [
+              "runtime/arcorbit/desktop/renderer/work-query-state.mjs:26-86",
+              "Project decision: technical_foundation@31"
+            ]
+          },
+          {
+            "id": "IMPACT-20260823-007-011",
+            "fact_id": "FACT-20260823-007-008",
+            "fact_revision": 1,
+            "target": {
+              "kind": "software_decision",
+              "ref": "quality_and_validation",
+              "revision": 9
+            },
+            "effect": "upheld",
+            "reason": "新增测试覆盖此前遗漏的 clear 与在途响应顺序，并保持同键竞态、状态切换性能、Work 导航和全量回归通过。",
+            "gap_ids": [],
+            "evidence": [
+              "runtime/arcorbit/test/work-query-state.test.mjs:44-55",
+              "runtime/arcorbit/test/fixtures/work-status-switch-performance-electron.mjs:79-95",
+              "runtime/arcorbit/test/work-status-switch-performance-electron.test.mjs:29",
+              "Verification: npm run check — 365 tests, 359 passed, 6 skipped, 0 failed"
+            ]
+          },
+          {
+            "id": "IMPACT-20260823-007-012",
+            "fact_id": "FACT-20260823-007-008",
+            "fact_revision": 1,
+            "target": {
+              "kind": "software_invariant",
+              "ref": "accepted-facts-are-realized",
+              "revision": null
+            },
+            "effect": "upheld",
+            "reason": "Completion Review 揭示的缓存失效缺口已在生产 query-state 路径修复，并由隔离复现与真实 Renderer 生命周期场景直接证明。",
+            "gap_ids": [],
+            "evidence": [
+              "Post-fix isolated reproduction: cached_version=null",
+              "Electron clear lifecycle assertion passed"
+            ]
+          }
+        ],
+        "impacts_updated": [],
+        "gaps_added": [],
+        "gaps_cancelled": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": null,
+        "resolved_review_findings": [
+          "FINDING-20260823-007-002"
+        ],
+        "review_budget_extension": null
+      },
+      "project_state_delta": {
+        "software_definition_changes": [],
+        "software_invariant_changes": [],
+        "project_gap_changes": [],
+        "selection_context_change": null,
+        "evidence": [
+          "现有 experience_and_interaction、technical_foundation 与 quality_and_validation 决策已完整表达本轮修复边界，无需改变 Project State。"
+        ]
+      },
+      "invariant_assessment": {
+        "project_revision": 203,
+        "judgments": [
+          {
+            "invariant_ref": "product-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "本轮修复缓存清理生命周期竞态，没有改变产品能力、业务规则或成功口径。",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "interaction-expectations-remain-recoverable",
+            "disposition": "upheld",
+            "reason": "clear 后旧响应不能恢复清理前数据；即时选择、匹配缓存或加载态及后台刷新语义仍可恢复且由生产实现和 Electron 证据支持。",
+            "fact_refs": [
+              "FACT-20260823-007-008",
+              "FACT-20260823-007-005",
+              "FACT-20260823-007-007"
+            ],
+            "evidence": [
+              "Project decision: experience_and_interaction@36",
+              "runtime/arcorbit/desktop/renderer/work-query-state.mjs:43-70",
+              "Electron clear lifecycle assertion: stale_visible=false, row_count=0, loading_visible=true"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "visual-language-remains-consistent",
+            "disposition": "not_relevant",
+            "reason": "修复和测试未改变视觉语言、Design Token、布局或组件外观。",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "technical-decisions-remain-explainable",
+            "disposition": "upheld",
+            "reason": "缓存 epoch 明确归属 query-state，且未改变 Renderer/main-process、typed IPC、缓存容量或 Workshop 真相源边界。",
+            "fact_refs": [
+              "FACT-20260823-007-008",
+              "FACT-20260823-007-005",
+              "FACT-20260823-007-007"
+            ],
+            "evidence": [
+              "Project decision: technical_foundation@31",
+              "runtime/arcorbit/desktop/renderer/work-query-state.mjs:26-86"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "accepted-facts-are-realized",
+            "disposition": "upheld",
+            "reason": "既有 Work 性能和缓存新鲜度事实继续成立，且 clear/in-flight 缺口已由生产 epoch 防护及直接运行证据消除。",
+            "fact_refs": [
+              "FACT-20260823-007-008",
+              "FACT-20260823-007-005",
+              "FACT-20260823-007-006",
+              "FACT-20260823-007-007"
+            ],
+            "evidence": [
+              "Post-fix isolated reproduction: cached_version=null",
+              "Electron Work status performance and clear lifecycle regression passed",
+              "Electron Work navigation regression passed"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "material-risks-have-credible-evidence",
+            "disposition": "upheld",
+            "reason": "clear 生命周期竞态由修复前后确定性复现、纯状态测试、真实 Electron 路径和全量回归覆盖；风险控制主张限定于已识别的缓存清理顺序。",
+            "fact_refs": [
+              "FACT-20260823-007-008"
+            ],
+            "evidence": [
+              "runtime/arcorbit/test/work-query-state.test.mjs:44-55",
+              "runtime/arcorbit/test/fixtures/work-status-switch-performance-electron.mjs:79-95",
+              "Verification: focused suite — 60 passed, 0 failed",
+              "Verification: Electron regressions — 2 passed, 0 failed",
+              "Verification: npm run check — 365 tests, 359 passed, 6 environment-gated skips, 0 failed",
+              "git diff --check passed; no ARC_DEBUG, console.time, console.timeEnd or debugger markers remain"
+            ],
+            "gap_refs": []
+          }
+        ]
+      },
+      "evidence": [
+        "Selected ready review finding reproduced before repair",
+        "Cache epoch guard implemented at the query-state ownership boundary",
+        "Post-fix isolated reproduction returned cached_version=null",
+        "Focused unit and cross-layer suite: 60 passed, 0 failed",
+        "Electron Work status performance and clear lifecycle regression: 1 passed, 0 failed",
+        "Electron Work navigation regression: 1 passed, 0 failed",
+        "Full ArcOrbit check: 365 tests, 359 passed, 6 environment-gated skips, 0 failed",
+        "git diff --check passed and temporary-debug marker search was clean"
+      ],
+      "runtime_result_ref": "arckit-runtime://runs/RUN-20260824-054408709Z",
+      "occurred_at": "2026-08-24T05:51:54.610Z"
+    },
+    {
+      "round": 7,
+      "transition_schema_version": "arckit-case-transition/v8",
+      "goal": "对 content revision 4 的 Work 查询优化、同键缓存新鲜度修复和 clear epoch 修复执行最终五维 Completion Review。",
+      "outcome": "completed",
+      "gap_selection": {
+        "mode": "candidate",
+        "basis": "当前 Case 的所有普通 Gap 与 state impact 均已关闭；completion-review:3 是唯一 ready 候选并直接阻塞 Case 关闭。四个 Project gaps 均需独立 Case，不能在本 Case 中推进。",
+        "snapshot_token": "5cb0ed419193b80dabb64e890bdc8dc40bdcb5672bfd81e6cf56bebdf7918ffd",
+        "selected_ref": "case-gap:CASE-20260823-007:CASE-20260823-007:completion-review:3",
+        "comparison_summary": "选择唯一 ready、blocking high、risk high 的 Completion Review；其余四项均为 case_required，延期至独立 Case。",
+        "fresh_discovery_summary": "对 content revision 4 的生产实现、查询生命周期、Renderer/Coordinator 边界和验证证据复核后，未发现新的实现错误、遗漏或多余变更。",
+        "considered": [
+          {
+            "ref": "project-gap:GAP-agent-scenario-evaluation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "blocking": "不阻塞当前 Case 的最终审查。",
+              "uncertainty": "高。",
+              "risk": "高。",
+              "user_impact": "属于跨场景协议验证，不是当前 Work 性能事项。"
+            },
+            "reason": "需要独立 Case。"
+          },
+          {
+            "ref": "project-gap:GAP-runtime-resilience-and-adapters",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "blocking": "不阻塞当前 Case 的最终审查。",
+              "uncertainty": "中。",
+              "risk": "高。",
+              "user_impact": "与当前 Work query-state 验收无直接依赖。"
+            },
+            "reason": "需要独立 Case。"
+          },
+          {
+            "ref": "project-gap:GAP-security-real-project-validation",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "blocking": "不阻塞当前 Case 的最终审查。",
+              "uncertainty": "中。",
+              "risk": "高。",
+              "user_impact": "需要真实权限项目，超出当前 Case。"
+            },
+            "reason": "需要独立 Case。"
+          },
+          {
+            "ref": "project-gap:GAP-cross-record-audit",
+            "source": "persisted",
+            "eligibility": "case_required",
+            "disposition": "deferred",
+            "priority_basis": {
+              "blocking": "不阻塞当前 Case 的最终审查。",
+              "uncertainty": "中。",
+              "risk": "高。",
+              "user_impact": "属于跨记录审计，不是 Work 查询实现问题。"
+            },
+            "reason": "需要独立 Case。"
+          },
+          {
+            "ref": "case-gap:CASE-20260823-007:CASE-20260823-007:completion-review:3",
+            "source": "persisted",
+            "eligibility": "ready",
+            "disposition": "selected",
+            "priority_basis": {
+              "blocking": "高；直接阻止 Case clean closeout。",
+              "uncertainty": "低；实现、修复与验证边界已完整持久化。",
+              "risk": "高；需确认性能优化和两项竞态修复整体无遗漏或回归。",
+              "user_impact": "高；Work 状态切换是高频核心操作。"
+            },
+            "reason": "唯一 ready 候选；应对 content revision 4 执行最终五维审查。"
+          }
+        ]
+      },
+      "selected_gap": {
+        "id": "CASE-20260823-007:completion-review:3",
+        "responsibility": "agent",
+        "goal": "Review the completed implementation for correctness, real problem resolution, verification credibility, regression risk, and minimality.",
+        "reason": "All ordinary Case gaps and state impacts are closed.",
+        "derived_from": [
+          "case_result",
+          "content_revision:4"
+        ],
+        "blocked_by": [],
+        "priority_basis": {
+          "blocking": "high",
+          "uncertainty": "low",
+          "risk": "high",
+          "user_impact": "high"
+        },
+        "evidence_required": [
+          "review evidence for all five completion dimensions"
+        ]
+      },
+      "planned_transition": {
+        "goal": "对 content revision 4 的 Work 查询优化、同键缓存新鲜度修复和 clear epoch 修复执行最终五维 Completion Review。",
+        "expected_state_change": "若五个审查维度均无 finding，则记录 clean Completion Review 并允许 CASE-20260823-007 关闭。"
+      },
+      "accepted_state_delta": {
+        "resolved_gap": null,
+        "facts_added": [],
+        "facts_superseded": [],
+        "impacts_added": [],
+        "impacts_updated": [],
+        "gaps_added": [],
+        "gaps_cancelled": [],
+        "resolved_open_questions": [],
+        "completed_handoffs": [],
+        "completion_review_result": {
+          "outcome": "clean",
+          "reviewer": "agent",
+          "dimensions": {
+            "implementation_correctness": "clean",
+            "problem_resolution": "clean",
+            "verification_credibility": "clean",
+            "regression_risk": "clean",
+            "minimality": "clean"
+          },
+          "findings": [],
+          "evidence": [
+            "Completion Review bound to CASE-20260823-007 content revision 4",
+            "Production query-state epoch, per-key generation, cache invalidation and Renderer acceptance paths inspected",
+            "Dedicated Work query IPC, PlatformCoordinator query boundary and bounded Renderer projection remain consistent with accepted facts",
+            "Focused unit and cross-layer review rerun: 60 passed, 0 failed",
+            "Accepted Electron evidence: immediate selection 1.8ms; 1000-row first interactive window 6.3ms; 80 rendered rows",
+            "Accepted same-key regression evidence: cached_version=new",
+            "Accepted clear lifecycle evidence: cached_version=null; stale_visible=false; row_count=0; loading_visible=true",
+            "Accepted Electron Work status and Work navigation regressions passed",
+            "Accepted full ArcOrbit check: 365 tests, 359 passed, 6 environment-gated skips, 0 failed",
+            "git diff --check passed; reviewed files contain no ARC_DEBUG, console.time, console.timeEnd or debugger markers"
+          ],
+          "reviewed_content_revision": 4
+        },
+        "resolved_review_findings": [],
+        "review_budget_extension": null
+      },
+      "project_state_delta": {
+        "software_definition_changes": [],
+        "software_invariant_changes": [],
+        "project_gap_changes": [],
+        "selection_context_change": null,
+        "evidence": [
+          "最终审查确认现有 experience_and_interaction、technical_foundation 与 quality_and_validation 决策继续准确表达已实现边界，无需改变 Project State。"
+        ]
+      },
+      "invariant_assessment": {
+        "project_revision": 203,
+        "judgments": [
+          {
+            "invariant_ref": "product-expectations-remain-recoverable",
+            "disposition": "not_relevant",
+            "reason": "最终审查未建立或改变产品能力、业务规则、范围或成功口径。",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "interaction-expectations-remain-recoverable",
+            "disposition": "upheld",
+            "reason": "即时选择、匹配缓存或明确加载态、后台刷新、同键新鲜度和上下文清理语义均由持久决策、accepted facts 与真实 Electron 证据支持。",
+            "fact_refs": [
+              "FACT-20260823-007-005",
+              "FACT-20260823-007-006",
+              "FACT-20260823-007-007",
+              "FACT-20260823-007-008"
+            ],
+            "evidence": [
+              "Project decision: experience_and_interaction@36",
+              "runtime/arcorbit/desktop/renderer/renderer.js:736-882,1257-1293,3026-3032",
+              "Electron measurements: immediate=1.8ms; first_interactive_1000=6.3ms; rendered_rows=80",
+              "Electron clear lifecycle assertion: stale_visible=false, row_count=0, loading_visible=true"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "visual-language-remains-consistent",
+            "disposition": "not_relevant",
+            "reason": "实现和最终审查未建立或改变视觉语言、Design Token、布局或组件外观规则。",
+            "fact_refs": [],
+            "evidence": [],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "technical-decisions-remain-explainable",
+            "disposition": "upheld",
+            "reason": "专用 typed IPC、query-owned 投影、有界 SWR、per-key generation、clear epoch、树感知窗口和 Workshop 真相源边界保持清晰、最小且可恢复。",
+            "fact_refs": [
+              "FACT-20260823-007-005",
+              "FACT-20260823-007-007",
+              "FACT-20260823-007-008"
+            ],
+            "evidence": [
+              "Project decision: technical_foundation@31",
+              "runtime/arcorbit/desktop/renderer/work-query-state.mjs:26-86",
+              "runtime/arcorbit/src/platform-coordinator.mjs:243-328",
+              "runtime/arcorbit/desktop/main.mjs:409",
+              "runtime/arcorbit/desktop/preload.cjs:78"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "accepted-facts-are-realized",
+            "disposition": "upheld",
+            "reason": "生产实现及直接运行证据实现了已接受的查询边界、交互性能、有界渲染、同键新鲜度和 clear 生命周期事实。",
+            "fact_refs": [
+              "FACT-20260823-007-005",
+              "FACT-20260823-007-006",
+              "FACT-20260823-007-007",
+              "FACT-20260823-007-008"
+            ],
+            "evidence": [
+              "runtime/arcorbit/desktop/renderer/work-query-state.mjs:26-86",
+              "Controlled Electron: immediate=1.8ms; first_interactive_1000=6.3ms; rendered_rows=80",
+              "Post-fix same-key reproduction: cached_version=new",
+              "Post-fix clear reproduction: cached_version=null",
+              "Focused review rerun: 60 passed, 0 failed"
+            ],
+            "gap_refs": []
+          },
+          {
+            "invariant_ref": "material-risks-have-credible-evidence",
+            "disposition": "upheld",
+            "reason": "性能、线性渲染、跨键与同键乱序、clear/in-flight 生命周期及既有 Work 行为均有可重复且与风险范围相称的单元、跨层、Electron 和全量回归证据。",
+            "fact_refs": [
+              "FACT-20260823-007-006",
+              "FACT-20260823-007-007",
+              "FACT-20260823-007-008"
+            ],
+            "evidence": [
+              "runtime/arcorbit/test/work-query-state.test.mjs:18-55",
+              "runtime/arcorbit/test/fixtures/work-status-switch-performance-electron.mjs:54-95",
+              "Focused review rerun: 60 passed, 0 failed",
+              "Electron Work status performance and lifecycle regression passed",
+              "Electron Work navigation regression passed",
+              "Full ArcOrbit check: 365 tests, 359 passed, 6 environment-gated skips, 0 failed",
+              "git diff --check passed and temporary-debug marker search was clean"
+            ],
+            "gap_refs": []
+          }
+        ]
+      },
+      "evidence": [
+        "Selected the only ready Completion Review candidate from the fresh post-commit snapshot",
+        "Reviewed CASE-20260823-007 content revision 4 across all five required dimensions",
+        "Inspected production Work query state, Renderer projection and PlatformCoordinator boundary",
+        "Focused unit and cross-layer rerun: 60 passed, 0 failed",
+        "Accepted Electron and full-suite evidence covers performance, freshness, clear lifecycle and navigation",
+        "No implementation files changed during the review round",
+        "No review findings discovered"
+      ],
+      "runtime_result_ref": "arckit-runtime://runs/RUN-20260824-054408709Z",
+      "occurred_at": "2026-08-24T05:54:41.808Z"
+    }
+  ],
+  "case_resolution": {
+    "status": "resolved",
+    "stage": "resolved",
+    "satisfied": [
+      "GAP-WORK-STATUS-SWITCH-PERFORMANCE-DIAGNOSIS",
+      "GAP-20260823-007-001",
+      "CASE-20260823-007:review-finding:FINDING-20260823-007-001",
+      "CASE-20260823-007:review-finding:FINDING-20260823-007-002"
     ],
+    "remaining": [],
+    "blocked": [],
+    "reason": "All dynamic gaps and state impacts are closed and the current implementation passed completion review.",
+    "candidate_gaps": [],
     "loop_handoff": {
       "version": "loop-handoff/v2",
-      "status": "continue",
-      "next_responsibility": "agent",
-      "agent_continuation_available": true,
+      "status": "done",
+      "next_responsibility": "none",
+      "agent_continuation_available": false,
       "human_decision_required": false,
-      "trigger_mode": "automatic",
-      "responsibility_reason": "error found by completion review",
-      "next_prompt": "Continue CASE-20260823-007: compare the ready dynamic gaps and advance one evidence-backed transition.",
+      "trigger_mode": "none",
+      "responsibility_reason": "The current Case revision passed completion review.",
+      "next_prompt": "",
       "human_gate": {
         "required": false,
         "reason": "",
         "decision_needed": ""
       }
     },
-    "updated_at": "2026-08-24T05:45:19.979Z"
+    "updated_at": "2026-08-24T05:54:41.808Z"
   }
 }
 ```

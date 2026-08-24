@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 203
-Updated: 2026-08-24T03:59:24.809Z
+Revision: 204
+Updated: 2026-08-24T05:54:41.808Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -15,7 +15,7 @@ Canonical Record: state.record.json
 
 ## Active Work
 
-- Active cases: 1
+- Active cases: 0
 - Project gaps: 4
 - GAP-agent-scenario-evaluation: Validate dynamic gap selection in isolated real software scenarios.
 - GAP-runtime-resilience-and-adapters: Strengthen Runtime timeout, transcript compaction and required adapter boundaries.
@@ -57,4 +57,3 @@ Arckit is a state-driven software-development protocol and optional supervised R
 
 - state.record.json
 - arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json
-- arckit/cases/active/CASE-20260823-007-arcorbit-work.md

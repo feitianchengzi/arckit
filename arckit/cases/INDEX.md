@@ -6,7 +6,6 @@
 
 | ID | Status | Title | Selected Gap | Updated |
 | --- | --- | --- | --- | --- |
-| [CASE-20260823-007](active/CASE-20260823-007-arcorbit-work.md) | active | 优化 ArcOrbit Work 状态列表切换性能 | none | 2026-08-24T05:45:19.979Z |
 
 ## Closed Cases
 
@@ -121,4 +120,5 @@
 | [CASE-20260823-004](closed/CASE-20260823-004-unify-automation-intervention-conversation-with-chat.md) | closed | Unify Automation intervention conversation with Chat | 2026-08-23T15:51:56.156Z |
 | [CASE-20260823-005](closed/CASE-20260823-005-restore-arcorbit-chat-project-switching-and-work-responsiveness.md) | closed | Restore ArcOrbit Chat project switching and Work responsiveness | 2026-08-23T17:09:42.976Z |
 | [CASE-20260823-006](closed/CASE-20260823-006-arcorbit-chat.md) | closed | 优化 ArcOrbit Chat 的项目分组与新会话归属交互 | 2026-08-23T21:44:44.962Z |
+| [CASE-20260823-007](closed/CASE-20260823-007-arcorbit-work.md) | closed | 优化 ArcOrbit Work 状态列表切换性能 | 2026-08-24T05:54:41.808Z |
 | [CASE-20260824-001](closed/CASE-20260824-001-arcorbit-agent-ledger.md) | closed | 治理 ArcOrbit Agent 语义输出与 Ledger 提交边界 | 2026-08-24T03:38:58.350Z |
