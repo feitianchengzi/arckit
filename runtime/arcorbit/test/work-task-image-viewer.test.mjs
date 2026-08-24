@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
-import { createWorkTaskImageViewer } from "../src/work-task-image-viewer.mjs";
+import { createImageViewer } from "../src/work-task-image-viewer.mjs";
 
 test("managed image viewer isolates navigation, receives validated bytes, and saves only from its own window", async () => {
   const windows = [];
@@ -28,7 +28,7 @@ test("managed image viewer isolates navigation, receives validated bytes, and sa
     isDestroyed() { return this.destroyed; }
     close() { this.destroyed = true; this.emit("closed"); }
   }
-  const viewer = createWorkTaskImageViewer({
+  const viewer = createImageViewer({
     BrowserWindow: FakeBrowserWindow,
     dialog: { showSaveDialog: async () => ({ canceled: false, filePath: "/tmp/saved.png" }) },
     writeFile: async (file, bytes) => writes.push([file, [...bytes]]),
@@ -49,6 +49,7 @@ test("managed image viewer isolates navigation, receives validated bytes, and sa
   window.webContents.emit("will-navigate", { preventDefault: () => { navigationPrevented = true; } });
   assert.equal(navigationPrevented, true);
   assert.equal(window.visible, true);
+  assert.equal(window.webContents.messages.at(-1)[0], "arckit:image-viewer-state");
   assert.match(window.webContents.messages.at(-1)[1].data_url, /^data:image\/png/);
 
   await assert.rejects(() => viewer.save({}), /managed ArcOrbit image viewer/);
@@ -71,7 +72,7 @@ test("canceling image Save As is not an error", async () => {
     setTitle() {}
     isDestroyed() { return false; }
   }
-  const viewer = createWorkTaskImageViewer({
+  const viewer = createImageViewer({
     BrowserWindow: FakeWindow,
     dialog: { showSaveDialog: async () => ({ canceled: true }) },
     writeFile: async () => assert.fail("writeFile should not run"),
@@ -94,7 +95,7 @@ test("a managed viewer can retry a failed image load without exposing the input 
     setTitle() {}
     isDestroyed() { return false; }
   }
-  const viewer = createWorkTaskImageViewer({
+  const viewer = createImageViewer({
     BrowserWindow: FakeWindow,
     dialog: {},
     writeFile: async () => {},

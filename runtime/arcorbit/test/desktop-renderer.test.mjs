@@ -862,11 +862,34 @@ test("Feedback list keeps every feedback on one compact visual row", async () =>
 
   assert.match(listSource, /feedback-list-copy/);
   assert.match(listSource, /feedback-list-meta/);
+  assert.match(styles, /\.feedback-list \{[^}]*align-content: start;/);
   assert.match(styles, /\.feedback-list-item \{[^}]*align-items: center;[^}]*min-height: 40px;/);
   assert.match(styles, /\.feedback-list-copy \{[^}]*display: flex;[^}]*white-space: nowrap;/);
   assert.match(styles, /\.feedback-list-meta \{[^}]*display: flex;[^}]*white-space: nowrap;/);
   assert.doesNotMatch(styles, /\.feedback-list-copy \{[^}]*display: grid/);
   assert.doesNotMatch(styles, /\.feedback-list-meta \{[^}]*display: grid/);
+});
+
+test("Feedback detail scrolls internally and image attachments reuse the managed image viewer", async () => {
+  const [source, styles, preload, main] = await Promise.all([
+    readFile(rendererPath, "utf8"),
+    readFile(rendererStylesPath, "utf8"),
+    readFile(desktopPreloadPath, "utf8"),
+    readFile(desktopMainPath, "utf8")
+  ]);
+  assert.match(source, /feedback-inspector-scroll/);
+  assert.match(styles, /\.feedback-inspector \{[^}]*overflow: hidden/);
+  assert.match(styles, /\.feedback-inspector-scroll \{[^}]*overflow-y: auto;[^}]*overscroll-behavior: contain/);
+  assert.match(source, /feedbackResourceIsImage\(attachment\)[\s\S]*renderFeedbackImage/);
+  assert.match(source, /api\.previewImage\(job\.input\)/);
+  assert.match(source, /api\.openImageViewer\(state\.feedbackImageInputs/);
+  assert.match(preload, /previewImage: \(input\) => ipcRenderer\.invoke\("arckit:image-preview", input\)/);
+  assert.match(preload, /openImageViewer: \(input\) => ipcRenderer\.invoke\("arckit:image-viewer-open", input\)/);
+  assert.match(main, /createImageViewer/);
+  assert.match(main, /input\.source === "feedback-file"/);
+  assert.match(main, /input\.source === "feedback-v2"/);
+  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-open"/);
+  assert.match(styles, /\.feedback-image-preview\.is-loaded img/);
 });
 
 test("Feedback V2 read state respects notification capability and refreshes visible unread projection", async () => {
@@ -1088,22 +1111,22 @@ test("desktop renders and composes type-preserving TaskAttachment resources thro
   assert.match(source, /api\.previewWorkTaskAttachment\(job\.input\)/);
   assert.match(source, /TASK_ATTACHMENT_PREVIEW_CONCURRENCY = 3/);
   assert.match(source, /loadMissingTaskAttachmentPreviews\(task\)/);
-  assert.match(source, /api\.openWorkTaskImageViewer\(taskAttachmentResourceInput\(button\)\)/);
+  assert.match(source, /api\.openImageViewer\(taskAttachmentResourceInput\(button\)\)/);
   assert.match(source, /data-task-attachment-image-retry/);
   assert.match(source, /api\.openWorkTaskAttachment\(taskAttachmentResourceInput\(button\)\)/);
   assert.doesNotMatch(source, /options: \["text", "file", "url"\]/);
   assert.match(preload, /pickWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-pick", input\)/);
   assert.match(preload, /previewWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-preview", input\)/);
-  assert.match(preload, /openWorkTaskImageViewer: \(input\) => ipcRenderer\.invoke\("arckit:work-task-image-viewer-open", input\)/);
+  assert.match(preload, /openImageViewer: \(input\) => ipcRenderer\.invoke\("arckit:image-viewer-open", input\)/);
   assert.match(preload, /openWorkTaskAttachment: \(input\) => ipcRenderer\.invoke\("arckit:work-task-attachment-open", input\)/);
   assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-pick"/);
   assert.match(main, /platformCoordinator\.uploadTaskAttachmentResource/);
   assert.match(main, /ipcMain\.handle\("arckit:work-task-attachment-preview"/);
   assert.match(main, /platformCoordinator\.getTaskAttachmentResourceUrl/);
-  assert.match(main, /createWorkTaskImageViewer/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-task-image-viewer-open"/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-task-image-viewer-save"/);
-  assert.match(main, /ipcMain\.handle\("arckit:work-task-image-viewer-retry"/);
+  assert.match(main, /createImageViewer/);
+  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-open"/);
+  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-save"/);
+  assert.match(main, /ipcMain\.handle\("arckit:image-viewer-retry"/);
   const viewerRenderer = await readFile(imageViewerRendererPath, "utf8");
   assert.match(viewerRenderer, /state\.status === "loading"[\s\S]*clearDisplayedImage\(\)/);
   assert.match(viewerRenderer, /els\.image\.removeAttribute\("src"\)/);

@@ -1,6 +1,6 @@
 import { basename, extname } from "node:path";
 
-export function createWorkTaskImageViewer({ BrowserWindow, dialog, writeFile, shellFile, preloadFile, loadImage, getParentWindow = () => null }) {
+export function createImageViewer({ BrowserWindow, dialog, writeFile, shellFile, preloadFile, loadImage, getParentWindow = () => null }) {
   let window = null;
   let ready = false;
   let generation = 0;
@@ -13,7 +13,7 @@ export function createWorkTaskImageViewer({ BrowserWindow, dialog, writeFile, sh
     const requestGeneration = ++generation;
     ensureWindow();
     currentImage = null;
-    state = { status: "loading", file_name: safeFileName(input?.object_key) };
+    state = { status: "loading", file_name: safeFileName(input?.file_name || input?.object_key) };
     sendState();
     window.show();
     window.focus();
@@ -33,7 +33,7 @@ export function createWorkTaskImageViewer({ BrowserWindow, dialog, writeFile, sh
     } catch (error) {
       if (requestGeneration !== generation || !window || window.isDestroyed()) return { opened: false, stale: true };
       currentImage = null;
-      state = { status: "error", file_name: safeFileName(input?.object_key), message: publicImageError(error) };
+      state = { status: "error", file_name: safeFileName(input?.file_name || input?.object_key), message: publicImageError(error) };
       sendState();
       throw error;
     }
@@ -41,16 +41,16 @@ export function createWorkTaskImageViewer({ BrowserWindow, dialog, writeFile, sh
 
   async function retry(sender) {
     assertViewerSender(sender);
-    if (!currentInput) throw new Error("当前没有可重试的评论图片。");
+    if (!currentInput) throw new Error("当前没有可重试的图片。");
     return open(currentInput);
   }
 
   async function save(sender) {
     assertViewerSender(sender);
-    if (!currentImage?.bytes) throw new Error("当前没有可保存的评论图片。");
+    if (!currentImage?.bytes) throw new Error("当前没有可保存的图片。");
     const extension = extname(currentImage.file_name).replace(/^\./, "");
     const result = await dialog.showSaveDialog(window, {
-      title: "另存评论图片",
+      title: "另存图片",
       defaultPath: currentImage.file_name,
       ...(extension ? { filters: [{ name: "Image", extensions: [extension] }] } : {})
     });
@@ -78,7 +78,7 @@ export function createWorkTaskImageViewer({ BrowserWindow, dialog, writeFile, sh
       minWidth: 560,
       minHeight: 420,
       show: false,
-      title: "评论图片 · ArcOrbit",
+      title: "图片 · ArcOrbit",
       backgroundColor: "#eef0f4",
       webPreferences: { preload: preloadFile, contextIsolation: true, nodeIntegration: false, sandbox: true }
     });
@@ -100,11 +100,11 @@ export function createWorkTaskImageViewer({ BrowserWindow, dialog, writeFile, sh
   }
 
   function sendState() {
-    if (ready && window && !window.isDestroyed()) window.webContents.send("arckit:work-task-image-viewer-state", state);
+    if (ready && window && !window.isDestroyed()) window.webContents.send("arckit:image-viewer-state", state);
   }
 
   function assertViewerSender(sender) {
-    if (!owns(sender)) throw new Error("Image save is only available from the managed ArcOrbit image viewer.");
+    if (!owns(sender)) throw new Error("Image actions are only available from the managed ArcOrbit image viewer.");
   }
 
   return { open, retry, save, owns, close };
@@ -118,6 +118,6 @@ function safeFileName(value) {
 }
 
 function publicImageError(error) {
-  const message = String(error?.message || "评论图片不可用。");
+  const message = String(error?.message || "图片不可用。");
   return message.slice(0, 500);
 }

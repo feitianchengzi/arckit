@@ -122,3 +122,4 @@
 | [CASE-20260823-006](closed/CASE-20260823-006-arcorbit-chat.md) | closed | 优化 ArcOrbit Chat 的项目分组与新会话归属交互 | 2026-08-23T21:44:44.962Z |
 | [CASE-20260823-007](closed/CASE-20260823-007-arcorbit-work.md) | closed | 优化 ArcOrbit Work 状态列表切换性能 | 2026-08-24T05:54:41.808Z |
 | [CASE-20260824-001](closed/CASE-20260824-001-arcorbit-agent-ledger.md) | closed | 治理 ArcOrbit Agent 语义输出与 Ledger 提交边界 | 2026-08-24T03:38:58.350Z |
+| [CASE-20260824-002](closed/CASE-20260824-002-arcorbit-feedback.md) | closed | 优化 ArcOrbit Feedback 列表、详情滚动与图片体验 | 2026-08-24T08:03:36.461Z |

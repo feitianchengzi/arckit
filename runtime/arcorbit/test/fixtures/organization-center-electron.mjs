@@ -110,11 +110,17 @@ app.whenReady().then(async () => {
       const feedbackHasCreateButton = Boolean(document.querySelector('#createFeedbackButton'));
       const feedbackHasVersionText = /Feedback V1|Feedback V2|Workshop Feedback · V1/.test(document.querySelector('#feedbackView').textContent);
       const feedbackInspectorText = document.querySelector('#feedbackInspector').textContent;
-      click('[data-feedback-attachment]'); await wait();
+      const feedbackImageLoaded = Boolean(document.querySelector('[data-feedback-image] img[src^="data:image/png"]'));
+      const feedbackInspectorScroll = document.querySelector('#feedbackInspector .feedback-inspector-scroll');
+      feedbackInspectorScroll.style.height = '120px';
+      const feedbackDetailScrollsInternally = getComputedStyle(feedbackInspectorScroll).overflowY === 'auto' && feedbackInspectorScroll.scrollHeight > feedbackInspectorScroll.clientHeight;
+      feedbackInspectorScroll.style.removeProperty('height');
+      click('[data-feedback-image]'); await wait();
       const selectedFeedbackRows = document.querySelectorAll('#ordinaryFeedbackTable .feedback-list-item.is-active').length;
       document.querySelector('#feedbackSearchInput').value = 'customer-11';
       document.querySelector('#feedbackSearchInput').dispatchEvent(new Event('input', { bubbles: true })); await wait();
       const searchedFeedbackIds = [...document.querySelectorAll('#ordinaryFeedbackTable [data-feedback-select]')].map((item) => item.dataset.feedbackSelect);
+      const singleFeedbackRowHeight = Math.round(document.querySelector('#ordinaryFeedbackTable .feedback-list-item').getBoundingClientRect().height);
       document.querySelector('#feedbackSearchInput').value = '';
       document.querySelector('#feedbackSearchInput').dispatchEvent(new Event('input', { bubbles: true })); await wait();
       document.querySelector('#feedbackStateFilter').value = 'converted';
@@ -169,7 +175,7 @@ app.whenReady().then(async () => {
       document.querySelector('[name="kind"]').value = 'project';
       document.querySelector('[name="invite_code"]').value = 'JOIN-CODE';
       document.querySelector('#platformActionForm').requestSubmit(); await wait();
-      return { accountName, authIdentity, productScopeProjectIds, automationBindingProjectIds, automationFeedbackIds, hasGlobalRecoveryAction, currentRunText, ordinaryQueueInitiallyVisible, acceptanceOnlyPressed, ordinaryQueueHidden, feedbackQueueVisible, selectedProductTaskDefault, selectedProductExecutorOptions, selectedProductTagLabels, priorityOptionLabels, switchedProductExecutorOptions, switchedProductParentIds, switchedProductTagLabels, createdTaskTagId, editedTaskTagVisible, deletedTaskTagAbsent, allProductsTaskDefault, workStateIds, pendingStatusCount, scopePersistedInWork, workInspectorTitle, workInspectorText, selectedWorkRows, editExecutorOptions, editPriorityValue, editSelectedTagIds, completedHasAcceptanceComposer, completedInspectorText, acceptedHasAcceptanceComposer, acceptedInspectorText, todayProductIds, ordinaryFeedbackIds, scopePersistedInFeedback, feedbackHasCreateButton, feedbackHasVersionText, feedbackInspectorText, selectedFeedbackRows, searchedFeedbackIds, convertedFeedbackIds, linkedFeedbackHasTaskAction, oldestFeedbackIds, feedbackActionLabels, feedbackTaskContent, feedbackExecutorOptions, automationNavCount, feedbackQueueNavCount, attentionNavCount, hasAddLocalOption, initialHeading, matrixRows, memberText, memberProjectHasInvite, inviteFormTitle, inviteResultTitle, inviteResultLead, inviteResultText, editHasOrganizationMutation, editScopeIsReadonly, worksetChoices, rendererErrors, calls: await window.arckitDesktop.getTestCalls() };
+      return { accountName, authIdentity, productScopeProjectIds, automationBindingProjectIds, automationFeedbackIds, hasGlobalRecoveryAction, currentRunText, ordinaryQueueInitiallyVisible, acceptanceOnlyPressed, ordinaryQueueHidden, feedbackQueueVisible, selectedProductTaskDefault, selectedProductExecutorOptions, selectedProductTagLabels, priorityOptionLabels, switchedProductExecutorOptions, switchedProductParentIds, switchedProductTagLabels, createdTaskTagId, editedTaskTagVisible, deletedTaskTagAbsent, allProductsTaskDefault, workStateIds, pendingStatusCount, scopePersistedInWork, workInspectorTitle, workInspectorText, selectedWorkRows, editExecutorOptions, editPriorityValue, editSelectedTagIds, completedHasAcceptanceComposer, completedInspectorText, acceptedHasAcceptanceComposer, acceptedInspectorText, todayProductIds, ordinaryFeedbackIds, scopePersistedInFeedback, feedbackHasCreateButton, feedbackHasVersionText, feedbackInspectorText, feedbackImageLoaded, feedbackDetailScrollsInternally, singleFeedbackRowHeight, selectedFeedbackRows, searchedFeedbackIds, convertedFeedbackIds, linkedFeedbackHasTaskAction, oldestFeedbackIds, feedbackActionLabels, feedbackTaskContent, feedbackExecutorOptions, automationNavCount, feedbackQueueNavCount, attentionNavCount, hasAddLocalOption, initialHeading, matrixRows, memberText, memberProjectHasInvite, inviteFormTitle, inviteResultTitle, inviteResultLead, inviteResultText, editHasOrganizationMutation, editScopeIsReadonly, worksetChoices, rendererErrors, calls: await window.arckitDesktop.getTestCalls() };
     })()`);
     process.stdout.write(`${JSON.stringify({ ...result, errors })}\n`);
   } finally {

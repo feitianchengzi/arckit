@@ -110,6 +110,8 @@ const state = {
   feedbackSort: "newest",
   feedbackLinkRecoveries: {},
   feedbackConversations: {},
+  feedbackImagePreviews: {},
+  feedbackImageInputs: {},
   organizationScopeId: "",
   organizationScopeChosen: false,
   organizationSection: "overview",
@@ -148,6 +150,9 @@ let workFilterTimer;
 const taskAttachmentPreviewQueue = [];
 let activeTaskAttachmentPreviews = 0;
 const TASK_ATTACHMENT_PREVIEW_CONCURRENCY = 3;
+const feedbackImagePreviewQueue = [];
+let activeFeedbackImagePreviews = 0;
+const FEEDBACK_IMAGE_PREVIEW_CONCURRENCY = 3;
 const expandedChatProjectIds = new Set();
 const workQueryState = createWorkQueryState({ cacheLimit: 12 });
 const WORK_QUERY_WINDOW_SIZE = 80;
@@ -1366,7 +1371,7 @@ function renderPlatformWorkInspector(task) {
   els.platformWorkInspector.querySelector("[data-task-comment-add-image]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "image")));
   els.platformWorkInspector.querySelector("[data-task-comment-add-file]")?.addEventListener("click", () => runAction(() => pickTaskCommentResource(task, "file")));
   els.platformWorkInspector.querySelectorAll("[data-task-comment-resource-remove]").forEach((button) => button.addEventListener("click", () => removeTaskCommentResource(task.id, button.dataset.taskCommentResourceRemove)));
-  els.platformWorkInspector.querySelectorAll("[data-task-attachment-image]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkTaskImageViewer(taskAttachmentResourceInput(button)))));
+  els.platformWorkInspector.querySelectorAll("[data-task-attachment-image]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openImageViewer(taskAttachmentResourceInput(button)))));
   els.platformWorkInspector.querySelectorAll("[data-task-attachment-image-retry]").forEach((button) => button.addEventListener("click", () => queueTaskAttachmentPreview(taskAttachmentResourceInput(button), { force: true })));
   els.platformWorkInspector.querySelectorAll("[data-task-attachment-file]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkTaskAttachment(taskAttachmentResourceInput(button)))));
   els.platformWorkInspector.querySelectorAll("[data-work-task-feedback]").forEach((button) => button.addEventListener("click", () => {
@@ -1575,7 +1580,7 @@ function pumpTaskAttachmentPreviewQueue() {
 }
 
 function taskAttachmentResourceInput(button) {
-  return { task_id: button.dataset.taskId, attachment_id: button.dataset.attachmentId, object_key: button.dataset.objectKey };
+  return { source: "work-task", task_id: button.dataset.taskId, attachment_id: button.dataset.attachmentId, object_key: button.dataset.objectKey };
 }
 
 function taskAttachmentPreviewKey(taskId, attachmentId, objectKey) {
@@ -1611,8 +1616,10 @@ function renderPlatformFeedback() {
 }
 
 function renderFeedbackInspector(feedback) {
+  const currentScroll = els.feedbackInspector.querySelector(".feedback-inspector-scroll");
+  const previousScrollTop = feedback && currentScroll?.dataset.feedbackId === String(feedback.id) ? currentScroll.scrollTop : 0;
   if (!feedback) {
-    els.feedbackInspector.innerHTML = `<div class="empty-panel"><strong>选择一条反馈</strong><p>右侧将显示不可编辑的用户反馈事实和可用处理动作。</p></div>`;
+    els.feedbackInspector.innerHTML = `<div class="feedback-inspector-scroll"><div class="empty-panel"><strong>选择一条反馈</strong><p>右侧将显示不可编辑的用户反馈事实和可用处理动作。</p></div></div>`;
     return;
   }
   const workspace = state.platform.product_workspaces.find((item) => String(item.id) === String(feedback.project_id));
@@ -1622,14 +1629,14 @@ function renderFeedbackInspector(feedback) {
   if (feedback.linked_task_id) delete state.feedbackLinkRecoveries[String(feedback.id)];
   const linkRecovery = state.feedbackLinkRecoveries[String(feedback.id)] || null;
   const processingState = feedbackProcessingState(feedback);
-  const attachment = feedback.file ? `<button class="feedback-attachment" data-feedback-attachment type="button">查看用户附件</button>` : `<span class="muted-copy">没有附件</span>`;
+  const attachment = feedback.file ? renderFeedbackFile(feedback) : `<span class="muted-copy">没有附件</span>`;
   const priorityAction = feedback.linked_task_id
     ? `<div class="feedback-priority-readonly"><span>优先级</span><strong>${escapeHtml(feedback.priority || "P2")}</strong><small>已转为待办，请在 Work 中继续调整。</small></div>`
     : `<label><span>优先级</span><select data-feedback-priority="${escapeHtml(feedback.id)}">${["P1", "P2", "P3"].map((value) => `<option value="${value}" ${feedback.priority === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>`;
   const recoveryNotice = linkRecovery && !feedback.linked_task_id
     ? `<div class="feedback-link-recovery"><span><strong>待办 ${escapeHtml(linkRecovery.task_id)} 已创建，但尚未关联</strong><small>重试只会保存当前反馈与该待办的关联，不会创建新待办。</small></span><button class="primary-button" data-feedback-link-retry type="button">仅重试关联</button></div>`
     : "";
-  els.feedbackInspector.innerHTML = `<div class="feedback-inspector-header"><div><p class="eyebrow">${escapeHtml(feedback.short_id || feedback.id)}</p><h2>${escapeHtml(feedback.title || "用户反馈")}</h2><p>${escapeHtml(feedback.project_name || "未知产品")}</p></div><span class="status-pill ${escapeHtml(processingState)}">${escapeHtml(FEEDBACK_STATE_LABELS[processingState])}</span></div>${recoveryNotice}<div class="feedback-processing-actions">${priorityAction}${!feedback.ignored && !feedback.linked_task_id ? `<button class="secondary-button" data-feedback-ignore="${escapeHtml(feedback.id)}" type="button">忽略</button>` : ""}<button class="secondary-button" data-feedback-refresh type="button">刷新</button>${!feedback.linked_task_id && !linkRecovery ? `<button class="primary-button" data-feedback-task="${escapeHtml(feedback.id)}" type="button">转为待办</button>` : ""}${canDelete ? `<button class="secondary-button danger-action" data-feedback-delete="${escapeHtml(feedback.id)}" type="button">删除</button>` : ""}</div><section class="feedback-content-card"><h3>反馈原文</h3><p>${escapeHtml(feedback.content || "用户没有提供正文。")}</p>${attachment}</section>${factRows([
+  els.feedbackInspector.innerHTML = `<div class="feedback-inspector-scroll" data-feedback-id="${escapeHtml(feedback.id)}"><div class="feedback-inspector-header"><div><p class="eyebrow">${escapeHtml(feedback.short_id || feedback.id)}</p><h2>${escapeHtml(feedback.title || "用户反馈")}</h2><p>${escapeHtml(feedback.project_name || "未知产品")}</p></div><span class="status-pill ${escapeHtml(processingState)}">${escapeHtml(FEEDBACK_STATE_LABELS[processingState])}</span></div>${recoveryNotice}<div class="feedback-processing-actions">${priorityAction}${!feedback.ignored && !feedback.linked_task_id ? `<button class="secondary-button" data-feedback-ignore="${escapeHtml(feedback.id)}" type="button">忽略</button>` : ""}<button class="secondary-button" data-feedback-refresh type="button">刷新</button>${!feedback.linked_task_id && !linkRecovery ? `<button class="primary-button" data-feedback-task="${escapeHtml(feedback.id)}" type="button">转为待办</button>` : ""}${canDelete ? `<button class="secondary-button danger-action" data-feedback-delete="${escapeHtml(feedback.id)}" type="button">删除</button>` : ""}</div><section class="feedback-content-card"><h3>反馈原文</h3><p>${escapeHtml(feedback.content || "用户没有提供正文。")}</p>${attachment}</section>${factRows([
     ["反馈标识", feedback.id],
     ["所属产品", feedback.project_name || feedback.project_id],
     ["用户 ID", feedback.custom_user_id || "未提供"],
@@ -1638,16 +1645,52 @@ function renderFeedbackInspector(feedback) {
     ["提交时间", formatFeedbackDate(feedback.created_at)],
     ["最近更新", formatFeedbackDate(feedback.updated_at)],
     ["关联待办", feedback.linked_task_id ? `${feedback.linked_task_id}${feedback.linked_task_state ? ` · ${STATE_LABELS[feedback.linked_task_state] || feedback.linked_task_state}` : ""}` : "未关联"]
-  ])}${useV2 ? renderFeedbackConversation(feedback, feedbackManagement) : ""}`;
+  ])}${useV2 ? renderFeedbackConversation(feedback, feedbackManagement) : ""}</div>`;
   els.feedbackInspector.querySelector("[data-feedback-priority]")?.addEventListener("change", (event) => runAction(() => updateFeedbackPriority(feedback.id, event.currentTarget.value)));
   els.feedbackInspector.querySelector("[data-feedback-ignore]")?.addEventListener("click", () => runAction(() => ignoreFeedback(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-refresh]")?.addEventListener("click", () => runAction(refreshSnapshot));
   els.feedbackInspector.querySelector("[data-feedback-task]")?.addEventListener("click", () => runAction(() => feedbackToTask(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-link-retry]")?.addEventListener("click", () => runAction(() => retryFeedbackTaskLink(feedback.id)));
   els.feedbackInspector.querySelector("[data-feedback-delete]")?.addEventListener("click", () => runAction(() => deleteFeedback(feedback.id)));
-  els.feedbackInspector.querySelector("[data-feedback-attachment]")?.addEventListener("click", () => runAction(() => api.openFeedbackAttachment(feedback.file)));
+  wireFeedbackImages(feedback);
   wireFeedbackConversation(feedback, feedbackManagement);
+  els.feedbackInspector.querySelector(".feedback-inspector-scroll").scrollTop = previousScrollTop;
   if (useV2 && !state.feedbackConversations[String(feedback.id)]) void loadFeedbackConversation(feedback);
+}
+
+function renderFeedbackFile(feedback) {
+  if (!feedbackResourceIsImage({ file_name: feedbackFileName(feedback.file), url: feedback.file })) {
+    return `<button class="feedback-attachment" data-feedback-attachment type="button">查看用户附件</button>`;
+  }
+  return renderFeedbackImage({
+    source: "feedback-file",
+    project_id: feedback.project_id,
+    feedback_id: feedback.id,
+    feedback_source: feedback.feedback_source || "v1",
+    file_name: feedbackFileName(feedback.file),
+    resource_version: feedback.updated_at || feedback.file
+  });
+}
+
+function renderFeedbackImage(input) {
+  const key = feedbackImagePreviewKey(input);
+  state.feedbackImageInputs[key] = input;
+  const preview = state.feedbackImagePreviews[key];
+  if (!preview) queueFeedbackImagePreview(input);
+  if (preview?.status === "loaded") return `<button class="feedback-image-preview is-loaded" data-feedback-image="${escapeHtml(key)}" type="button" title="在独立窗口中浏览"><img src="${escapeHtml(preview.data_url)}" alt="${escapeHtml(input.file_name || "反馈图片")}"></button>`;
+  if (preview?.status === "error") return `<button class="feedback-image-preview is-error" data-feedback-image-retry="${escapeHtml(key)}" type="button">加载失败 · 重试<br><small>${escapeHtml(preview.error)}</small></button>`;
+  return `<div class="feedback-image-preview is-loading" role="status">正在加载图片 · ${escapeHtml(input.file_name || "反馈图片")}</div>`;
+}
+
+function wireFeedbackImages(feedback) {
+  els.feedbackInspector.querySelector("[data-feedback-attachment]")?.addEventListener("click", () => runAction(() => api.openFeedbackAttachment(feedback.file)));
+  els.feedbackInspector.querySelectorAll("[data-feedback-image]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openImageViewer(state.feedbackImageInputs[button.dataset.feedbackImage]))));
+  els.feedbackInspector.querySelectorAll("[data-feedback-image-retry]").forEach((button) => button.addEventListener("click", () => {
+    const input = state.feedbackImageInputs[button.dataset.feedbackImageRetry];
+    if (!input) return;
+    queueFeedbackImagePreview(input, { force: true });
+    renderFeedbackInspector(feedback);
+  }));
 }
 
 function feedbackWorkspace(feedback) {
@@ -1671,7 +1714,7 @@ function renderFeedbackConversation(feedback, management) {
   const timeline = conversation.loading
     ? `<div class="feedback-conversation-loading">正在读取沟通记录…</div>`
     : messages.length
-      ? `<div class="feedback-message-list">${messages.map((message) => `<article class="feedback-message ${escapeHtml(message.sender_type)}"><header><strong>${message.sender_type === "customer" ? "用户" : message.sender_type === "developer" ? "开发者" : "系统"}</strong><time>${escapeHtml(formatFeedbackDate(message.created_at))}</time></header>${message.content ? `<p>${escapeHtml(message.content)}</p>` : ""}${(message.attachments || []).length ? `<div class="feedback-message-attachments">${message.attachments.map((attachment) => `<button data-feedback-message-attachment data-attachment-id="${escapeHtml(attachment.id)}" data-object-key="${escapeHtml(attachment.object_key)}" type="button">${escapeHtml(attachment.file_name || attachment.object_key || "查看附件")}</button>`).join("")}</div>` : ""}</article>`).join("")}</div>`
+      ? `<div class="feedback-message-list">${messages.map((message) => `<article class="feedback-message ${escapeHtml(message.sender_type)}"><header><strong>${message.sender_type === "customer" ? "用户" : message.sender_type === "developer" ? "开发者" : "系统"}</strong><time>${escapeHtml(formatFeedbackDate(message.created_at))}</time></header>${message.content ? `<p>${escapeHtml(message.content)}</p>` : ""}${(message.attachments || []).length ? `<div class="feedback-message-attachments">${message.attachments.map((attachment) => feedbackResourceIsImage(attachment) ? renderFeedbackImage({ source: "feedback-v2", project_id: feedback.project_id, feedback_id: feedback.id, attachment_id: attachment.id, object_key: attachment.object_key, file_name: attachment.file_name || feedbackFileName(attachment.object_key), mime_type: attachment.mime_type, resource_version: attachment.id || attachment.object_key }) : `<button data-feedback-message-attachment data-attachment-id="${escapeHtml(attachment.id)}" data-object-key="${escapeHtml(attachment.object_key)}" type="button">${escapeHtml(attachment.file_name || attachment.object_key || "查看附件")}</button>`).join("")}</div>` : ""}</article>`).join("")}</div>`
       : `<div class="empty-state compact">尚无沟通记录。</div>`;
   return `<section class="feedback-conversation" aria-label="反馈沟通"><div class="section-title-row"><div><span class="section-icon">✦</span><div><h3>沟通记录</h3><p>${management.unread_count ? `${management.unread_count} 条未读` : "用户、开发者与系统消息"}</p></div></div></div>${error}${readError}${timeline}<div class="feedback-reply-composer"><textarea data-feedback-reply rows="3" placeholder="回复用户，失败时会保留草稿">${escapeHtml(conversation.draft || "")}</textarea><label><span>回复附件</span><input data-feedback-reply-file type="file" ${conversation.sending ? "disabled" : ""}><small>${conversation.file ? escapeHtml(conversation.file.name) : "可选，最大 25 MB"}</small></label><button class="primary-button" data-feedback-reply-send type="button" ${conversation.sending ? "disabled" : ""}>${conversation.sending ? "发送中…" : "发送回复"}</button></div></section>`;
 }
@@ -1697,6 +1740,53 @@ function wireFeedbackConversation(feedback, management) {
       object_key: button.dataset.objectKey
     })));
   }));
+}
+
+function feedbackResourceIsImage(value = {}) {
+  if (value.type === "image" || String(value.mime_type || "").toLowerCase().startsWith("image/")) return true;
+  return /\.(png|jpe?g|gif|webp)(?:$|[?#])/i.test(String(value.file_name || value.object_key || value.url || ""));
+}
+
+function feedbackFileName(value) {
+  try {
+    const path = new URL(String(value || "")).pathname;
+    return decodeURIComponent(path.split("/").pop() || "feedback-image");
+  } catch {
+    return String(value || "feedback-image").split(/[\\/]/).pop() || "feedback-image";
+  }
+}
+
+function feedbackImagePreviewKey(input) {
+  return [input.source, input.project_id, input.feedback_id, input.attachment_id, input.object_key, input.file_name, input.resource_version].map((value) => String(value || "")).join(":");
+}
+
+function queueFeedbackImagePreview(input, { force = false } = {}) {
+  const key = feedbackImagePreviewKey(input);
+  const existing = state.feedbackImagePreviews[key];
+  if (!force && ["loading", "loaded"].includes(existing?.status)) return;
+  state.feedbackImageInputs[key] = input;
+  state.feedbackImagePreviews[key] = { status: "loading", data_url: "", error: "" };
+  feedbackImagePreviewQueue.push({ input, key });
+  pumpFeedbackImagePreviewQueue();
+}
+
+function pumpFeedbackImagePreviewQueue() {
+  while (activeFeedbackImagePreviews < FEEDBACK_IMAGE_PREVIEW_CONCURRENCY && feedbackImagePreviewQueue.length > 0) {
+    const job = feedbackImagePreviewQueue.shift();
+    activeFeedbackImagePreviews += 1;
+    api.previewImage(job.input).then((result) => {
+      state.feedbackImagePreviews[job.key] = { status: "loaded", data_url: result.data_url, error: "" };
+    }).catch((error) => {
+      state.feedbackImagePreviews[job.key] = { status: "error", data_url: "", error: error?.message || "反馈图片不可用。" };
+    }).finally(() => {
+      activeFeedbackImagePreviews -= 1;
+      if (String(state.selectedFeedbackId) === String(job.input.feedback_id)) {
+        const feedback = (state.platform.feedback_v1 || []).find((item) => String(item.id) === String(job.input.feedback_id));
+        if (feedback) renderFeedbackInspector(feedback);
+      }
+      pumpFeedbackImagePreviewQueue();
+    });
+  }
 }
 
 async function loadFeedbackConversation(feedback, { force = false } = {}) {

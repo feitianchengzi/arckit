@@ -206,7 +206,7 @@ Preload 新增以下产品动作：
 - `executePlatformAction(command, input)`：只接受 Coordinator 内的固定业务命令 allowlist。
 - `pickWorkTaskAttachment(input)`：只允许主窗口通过系统文件选择器选择单个图片或文件，并在 main 进程完成大小、类型、任务可见性与受限 OSS 上传。
 - `previewWorkTaskAttachment(input)` / `openWorkTaskAttachment(input)`：以 task id、attachment id 和 object key 共同定位已持久化资源；前者为评论时间线的自动图片加载返回受限 data URL，后者由 main 进程打开非图片文件的短期下载 URL。
-- `openWorkTaskImageViewer(input)`：只接受同一资源三元组。main 进程重新验证记录归属、受信 URL、响应类型和大小后创建或聚焦独立图片窗口；Renderer 不能提交 data URL、任意 URL 或本地路径作为图片来源。
+- `previewImage(input)` / `openImageViewer(input)`：只接受 `work-task`、`feedback-file` 或 `feedback-v2` 来源及其领域身份。main 进程重新验证记录归属、受信 URL、响应类型和大小；前者返回受限 data URL，后者创建或聚焦 Work 与 Feedback 共用的独立图片窗口。Renderer 不能提交 data URL、任意下载 URL 或本地路径作为图片来源。
 - 图片窗口使用独立静态 Renderer 和最小 preload，启用 context isolation、sandbox、禁用 Node integration 与任意导航。缩放、适合窗口、实际大小、旋转、平移和重置只改变窗口内视图状态；另存为通过仅对受管图片窗口开放的 main-process 保存动作写入用户明确选择的位置。
 
 当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、专用忽略和原子转待办。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
@@ -300,6 +300,10 @@ Renderer 的顶层导航按职责分组：
 - Automation：既有队列、活动 execution、Workbench、人工介入和恢复。
 - Feedback：普通用户反馈与验收反馈的明确双栏或双标签视图。
 - Organization：不受 workset 裁剪的组织 → 成员 → 项目治理中心，并包含个人项目 scope。
+
+Feedback 工作台的左右栏拥有独立滚动所有权：列表网格只按内容生成单行 track，不把剩余高度分配给少量结果；详情卡片包含固定高度的内部滚动容器，异步消息与图片更新保留当前详情阅读位置。Renderer 根据规范化 attachment type、MIME type 或受支持扩展名识别图片，并通过类型化图片 IPC 提交 project、feedback、attachment 与 object key 等领域身份，不提交任意下载 URL。
+
+main process 的图片资源加载器按 `work-task | feedback-file | feedback-v2` 来源分派。Work 图片继续由 TaskAttachment 归属校验取得资源地址；Feedback 原文附件先由 Platform Coordinator 重新读取当前项目反馈并校验反馈归属，V2 消息附件继续通过固定 Feedback V2 领域动作取得地址。所有地址和重定向均再次验证为受信资源或无凭据 HTTPS，响应限制为 PNG、JPEG、GIF、WebP 和既定图片大小上限。默认预览只向 Renderer 返回受限 data URL；Work 与 Feedback 点击后复用同一个 sandboxed managed image viewer BrowserWindow，另存为、重试、缩放、适配、实际大小、旋转和平移能力不在各业务页面重复实现。
 
 workset 控件是推进页面的多选集合，不是 product switch。它通过顶部独立覆盖层编辑，不与项目治理列表混合；后台 Automation 授权不随界面选择改变。
 

@@ -39,7 +39,7 @@ test("platform coordinator composes a simultaneous multi-product snapshot withou
     listPersonalProjects: async () => [],
     listProjectMembers: async (projectId) => [{ id: `M-${projectId}`, user_id: "7", role: "owner" }],
     listProjectTasks: async (projectId) => [{ id: `T-${projectId}`, project_id: projectId, state: "pending" }],
-    listFeedbackV1: async (projectId) => [{ id: `F-${projectId}`, project_id: projectId, title: "Feedback" }],
+    listFeedbackV1: async (projectId) => [{ id: `F-${projectId}`, project_id: projectId, title: "Feedback", file: `https://example.test/${projectId}/screen.png` }],
     listProjectTags: async (projectId) => [{ id: `TAG-${projectId}`, project_id: projectId, name: "platform" }]
   };
   const coordinator = createPlatformCoordinator({ runManager, automationCoordinator, platformSource, now: () => "2026-08-18T00:00:00.000Z" });
@@ -54,6 +54,8 @@ test("platform coordinator composes a simultaneous multi-product snapshot withou
   assert.deepEqual(initial.organization_members.map((item) => item.organization_id), ["31"]);
   assert.equal(initial.organization_scopes[0].project_visibility, "all_projects");
   assert.deepEqual(initial.organization_scopes[0].projects.map((item) => item.name), ["Alpha", "Beta"]);
+  assert.equal(await coordinator.getFeedbackAttachmentUrl({ project_id: "11", feedback_id: "F-11", feedback_source: "v1" }), "https://example.test/11/screen.png");
+  await assert.rejects(() => coordinator.getFeedbackAttachmentUrl({ project_id: "11", feedback_id: "F-unknown", feedback_source: "v1" }), /不属于当前反馈记录/);
 
   await coordinator.updateWorkset({ id: "WORKSET-DEFAULT", project_ids: ["12"] });
   assert.deepEqual(store.platform.worksets[0].project_ids, ["12"]);

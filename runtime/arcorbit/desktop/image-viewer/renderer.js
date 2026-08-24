@@ -34,7 +34,7 @@ els.viewport.addEventListener("pointerup", endPan);
 els.viewport.addEventListener("pointercancel", endPan);
 
 function renderState(state = {}) {
-  els.fileName.textContent = state.file_name || "评论图片";
+  els.fileName.textContent = state.file_name || "图片";
   if (state.status === "loading") {
     clearDisplayedImage();
     showStatus("正在载入图片…");
@@ -42,7 +42,7 @@ function renderState(state = {}) {
   }
   if (state.status === "error") {
     clearDisplayedImage();
-    showStatus(state.message || "评论图片不可用。", true, 0, true);
+    showStatus(state.message || "图片不可用。", true, 0, true);
     return;
   }
   if (state.status !== "ready" || !String(state.data_url || "").startsWith("data:image/")) return;
@@ -55,7 +55,7 @@ function renderState(state = {}) {
     els.viewport.focus();
   };
   els.image.onerror = () => showStatus("图片解码失败，请重试。", true, 0, true);
-  els.image.alt = state.file_name || "评论图片";
+  els.image.alt = state.file_name || "图片";
   els.image.src = state.data_url;
 }
 
@@ -115,7 +115,7 @@ async function retryImage() {
   try {
     await api.retry();
   } catch (error) {
-    showStatus(error?.message || "评论图片仍不可用。", true, 0, true);
+    showStatus(error?.message || "图片仍不可用。", true, 0, true);
   }
 }
 

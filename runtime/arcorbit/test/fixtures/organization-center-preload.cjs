@@ -5,6 +5,8 @@ const automationListeners = new Set();
 let workQueryDelayMs = 0;
 let workQueryFailure = "";
 let workQueryScenarios = [];
+const feedbackV2ImageTest = process.env.ARCORBIT_ELECTRON_FEEDBACK_V2_TEST === "1";
+let failedFeedbackV2ImagePreview = false;
 const automation = {
   enabled: false, queue_paused: false, source_status: "healthy", synced_at: "2026-08-18T00:00:00Z",
   user: { id: "7", name: "Glare" },
@@ -65,6 +67,9 @@ const platform = {
     members: projectMembers.filter((member) => member.project_id === project.id),
     tasks: [],
     feedback_v1: [],
+    feedback_management: feedbackV2ImageTest && project.id === "11"
+      ? { status: "available", features: { messages: true, mark_read: true }, errors: {}, unread_count: 1, unread_feedback_ids: ["F-11-V2"] }
+      : { status: "unavailable", features: {}, errors: {}, unread_count: 0, unread_feedback_ids: [] },
     tags: tags.filter((tag) => tag.project_id === project.id)
   })),
   members: projectMembers,
@@ -75,12 +80,13 @@ const platform = {
     { id: "W-12", project_id: "12", project_name: "Workshop Todo", title: "Other project work", content: "Must be filtered", state: "pending", terminal: false, priority: 98, raw: { priority: 2 }, executor_id: "8", assignee: { id: "8", username: "Lin" }, tags: "203" }
   ],
   feedback_v1: [
+    ...(feedbackV2ImageTest ? [{ id: "F-11-V2", short_id: "FB12", project_id: "11", project_name: "ArcOrbit", feedback_source: "v2", title: "V2 conversation feedback", content: "Validate bilateral message images", priority: "P2", ignored: false, linked_task_id: "", custom_user_id: "v2-customer", user_phone: "", user_email: "", file: "", created_at: "2026-08-20T10:00:00Z", updated_at: "2026-08-20T10:00:00Z", metadata: {} }] : []),
     { id: "F-11", short_id: "FB11", project_id: "11", project_name: "ArcOrbit", title: "Scoped feedback", content: "Visible in the selected product", priority: "P1", ignored: false, linked_task_id: "", custom_user_id: "customer-11", user_phone: "13800000011", user_email: "customer11@example.test", file: "https://example.test/feedback/F-11.png", created_at: "2026-08-19T10:00:00Z", updated_at: "2026-08-19T10:00:00Z", metadata: {} },
     { id: "F-11-LINKED", short_id: "FB10", project_id: "11", project_name: "ArcOrbit", title: "Already linked feedback", content: "Continue from the existing todo", priority: "P2", ignored: false, linked_task_id: "W-11", linked_task_state: "pending", custom_user_id: "customer-linked", user_phone: "", user_email: "", file: "", created_at: "2026-08-18T10:00:00Z", updated_at: "2026-08-18T10:00:00Z", metadata: { task_id: "W-11", task_state: "pending" } },
     { id: "F-12", short_id: "FB12", project_id: "12", project_name: "Workshop Todo", title: "Other feedback", content: "Must be filtered", priority: "P2", ignored: false, linked_task_id: "", created_at: "2026-08-19T08:00:00Z", updated_at: "2026-08-19T08:00:00Z", metadata: {} }
   ], tags,
   automation: { ...automation, acceptance_feedback_counts: { open: 0 } },
-  capabilities: { organizations: "available", organization_governance: "available", project_members: "managed_with_permissions_except_direct_add", invitation_lifecycle: "create_once_no_list_or_revoke", feedback_v1: "read_write", feedback_v2: "unavailable" }, errors: []
+  capabilities: { organizations: "available", organization_governance: "available", project_members: "managed_with_permissions_except_direct_add", invitation_lifecycle: "create_once_no_list_or_revoke", feedback_v1: "read_write", feedback_v2: feedbackV2ImageTest ? "available" : "unavailable" }, errors: []
 };
 
 const noOp = async () => ({});
@@ -149,6 +155,14 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   onAutomationEvent: (listener) => { automationListeners.add(listener); return () => automationListeners.delete(listener); },
   onEvent: () => () => {}, onChatEvent: () => () => {}, onProductFeedbackUnread: () => () => {},
   setActiveWorkset: noOp, syncAutomation: noOp, setAutomationEnabled: noOp, setQueuePaused: noOp,
+  getFeedbackV2Messages: async (input) => {
+    calls.push(["getFeedbackV2Messages", input]);
+    return [{
+      id: "M-F-11-V2-1", sender_type: "customer", content: "V2 message with a screenshot", created_at: "2026-08-20T10:05:00Z",
+      attachments: [{ id: "A-F-11-V2-1", type: "image", object_key: "feedback/F-11-V2/reply.png", file_name: "reply.png", mime_type: "image/png" }]
+    }];
+  },
+  markFeedbackV2Read: async (input) => { calls.push(["markFeedbackV2Read", input]); return { marked_count: 1 }; },
   updateWorkset: async (input) => { calls.push(["updateWorkset", input]); platform.active_workset.project_ids = input.project_ids; return input; },
   executePlatformAction: async (command, input) => {
     calls.push([command, input]);
@@ -171,6 +185,15 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     }
     return { ok: true };
   },
+  previewImage: async (input) => {
+    calls.push(["previewImage", input]);
+    if (feedbackV2ImageTest && input.source === "feedback-v2" && !failedFeedbackV2ImagePreview) {
+      failedFeedbackV2ImagePreview = true;
+      throw new Error("Fixture V2 image preview failed once");
+    }
+    return { data_url: "data:image/png;base64,AQID" };
+  },
+  openImageViewer: async (input) => { calls.push(["openImageViewer", input]); return { opened: true }; },
   openFeedbackAttachment: async (value) => { calls.push(["openFeedbackAttachment", value]); return { opened: true }; },
   getTestCalls: async () => calls,
   setTestPlatformSnapshotDelay: async (value) => { workQueryDelayMs = Math.max(0, Number(value) || 0); },

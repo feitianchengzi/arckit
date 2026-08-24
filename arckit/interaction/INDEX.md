@@ -18,7 +18,7 @@
   - default.html 平台首页线框：三组导航、全局产品范围、Feedback 双栏、开发者消息/附件/未读和转待办恢复状态。✅ (142行)
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系和项目上下文通用邀请。✅ (7行)
   - states.html 平台状态线框：Workset 多选、普通成员有限范围、邀请码加入和部分失败。✅ (6行)
-  - interaction.md 平台交互：三组导航、产品范围/治理解耦、组织三级管理与 Feedback 开发者消息、附件、未读和流转。✅ (153行)
+  - interaction.md 平台交互：三组导航、产品范围/治理解耦、组织三级管理与 Feedback 单行列表、内部滚动、共享图片查看和流转。✅ (157行)
 - chat-workspace/ Chat 页面：按项目分组浏览最近与历史会话，并在显式项目归属下进行本地 Codex 对话。✅
   - default.html Chat 线框：项目分组、每组最近 10 条与历史入口、新对话项目切换、生成/停止、权限和失败恢复。✅ (55行)
   - interaction.md Chat 交互：项目分组排序、历史展开、新会话归属、session/thread 生命周期、Composer、恢复和 Automation 隔离。✅ (120行)

@@ -560,6 +560,17 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     return runFeedbackV2Action(input.project_id, "attachments", () => platformSource.getFeedbackV2AttachmentUrl(input.project_id, input));
   }
 
+  async function getFeedbackAttachmentUrl(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    const feedbackId = requiredText(input.feedback_id, "Feedback id", 120);
+    const useV2 = input.feedback_source === "v2" && feedbackV2Enabled(projectId) && typeof platformSource.listFeedbackV2 === "function";
+    const feedback = (await (useV2 ? platformSource.listFeedbackV2(projectId) : platformSource.listFeedbackV1(projectId)))
+      .find((item) => String(item.id) === feedbackId);
+    const url = String(feedback?.file || "").trim();
+    if (!url) throw new Error("图片不属于当前反馈记录。");
+    return url;
+  }
+
   async function uploadTaskAttachmentResource(input = {}) {
     const projectId = requiredText(input.project_id, "Project id", 120);
     const taskId = requiredText(input.task_id, "Task id", 120);
@@ -625,6 +636,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     updateFeedbackV2,
     deleteFeedbackV2,
     convertFeedbackV2ToTask,
+    getFeedbackAttachmentUrl,
     getFeedbackV2AttachmentUrl,
     uploadTaskAttachmentResource,
     getTaskAttachmentResourceUrl

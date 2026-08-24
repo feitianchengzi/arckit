@@ -62,9 +62,13 @@ test("production Organization Center keeps governance independent and invitation
   assert.match(result.feedbackInspectorText, /customer-11/);
   assert.match(result.feedbackInspectorText, /13800000011/);
   assert.match(result.feedbackInspectorText, /customer11@example\.test/);
-  assert.match(result.feedbackInspectorText, /查看用户附件/);
-  assert.equal(result.calls.some(([command, value]) => command === "openFeedbackAttachment"
-    && value === "https://example.test/feedback/F-11.png"), true);
+  assert.equal(result.feedbackImageLoaded, true);
+  assert.equal(result.feedbackDetailScrollsInternally, true);
+  assert.equal(result.singleFeedbackRowHeight, 40);
+  assert.equal(result.calls.some(([command, input]) => command === "previewImage"
+    && input.source === "feedback-file" && input.feedback_id === "F-11"), true);
+  assert.equal(result.calls.some(([command, input]) => command === "openImageViewer"
+    && input.source === "feedback-file" && input.feedback_id === "F-11"), true);
   assert.equal(result.selectedFeedbackRows, 1);
   assert.deepEqual(result.searchedFeedbackIds, ["F-11"]);
   assert.deepEqual(result.convertedFeedbackIds, ["F-11-LINKED"]);

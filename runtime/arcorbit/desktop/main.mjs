@@ -17,7 +17,7 @@ import { createProductFeedbackSurface } from "../src/product-feedback-window.mjs
 import { requireFeedbackAttachmentUrl } from "../src/feedback-attachment-url.mjs";
 import { requireWorkExternalLinkUrl } from "../src/work-external-link.mjs";
 import { WORK_TASK_FILE_MAX_BYTES, WORK_TASK_IMAGE_MAX_BYTES, requireTrustedResourceUrl } from "../src/work-task-attachment-resource.mjs";
-import { createWorkTaskImageViewer } from "../src/work-task-image-viewer.mjs";
+import { createImageViewer } from "../src/work-task-image-viewer.mjs";
 import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-boundary.mjs";
 import { checkDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
 import { createWorkshopRealtimeAdapter } from "../src/workshop-realtime-adapter.mjs";
@@ -45,7 +45,7 @@ let platformCoordinator;
 let workshopService;
 let skillProvisioningManager;
 let productFeedbackService;
-let workTaskImageViewer;
+let imageViewer;
 let workshopRealtimeAdapter;
 let quitAfterCleanup = false;
 let syncTimer;
@@ -134,13 +134,13 @@ app.whenReady().then(async () => {
     platformSource: workshopService.platform,
     automationCoordinator
   });
-  workTaskImageViewer = createWorkTaskImageViewer({
+  imageViewer = createImageViewer({
     BrowserWindow,
     dialog,
     writeFile,
     shellFile: join(desktopDir, "image-viewer/index.html"),
     preloadFile: join(desktopDir, "image-viewer/preload.cjs"),
-    loadImage: loadWorkTaskImage,
+    loadImage: loadImageResource,
     getParentWindow: () => mainWindow
   });
   runManager.onEvent((event) => {
@@ -231,7 +231,7 @@ app.on("before-quit", async (event) => {
     automationCoordinator?.dispose();
     await chatCoordinator?.close();
     productFeedbackService?.close();
-    workTaskImageViewer?.close();
+    imageViewer?.close();
     await skillProvisioningManager?.waitForIdle();
     await runManager.abortActiveRuns({
       reason: "ArcOrbit is quitting; active runs were aborted."
@@ -489,20 +489,25 @@ function registerIpc() {
   });
   ipcMain.handle("arckit:work-task-attachment-preview", async (event, input) => {
     assertMainRenderer(event);
-    const image = await loadWorkTaskImage(input);
+    const image = await loadImageResource({ ...input, source: "work-task" });
     return { data_url: image.data_url };
   });
-  ipcMain.handle("arckit:work-task-image-viewer-open", async (event, input) => {
+  ipcMain.handle("arckit:image-preview", async (event, input) => {
     assertMainRenderer(event);
-    return workTaskImageViewer.open(input);
+    const image = await loadImageResource(input);
+    return { data_url: image.data_url };
   });
-  ipcMain.handle("arckit:work-task-image-viewer-save", async (event) => {
-    if (!workTaskImageViewer.owns(event.sender)) throw new Error("Image save is only available from the managed ArcOrbit image viewer.");
-    return workTaskImageViewer.save(event.sender);
+  ipcMain.handle("arckit:image-viewer-open", async (event, input) => {
+    assertMainRenderer(event);
+    return imageViewer.open(input);
   });
-  ipcMain.handle("arckit:work-task-image-viewer-retry", async (event) => {
-    if (!workTaskImageViewer.owns(event.sender)) throw new Error("Image retry is only available from the managed ArcOrbit image viewer.");
-    return workTaskImageViewer.retry(event.sender);
+  ipcMain.handle("arckit:image-viewer-save", async (event) => {
+    if (!imageViewer.owns(event.sender)) throw new Error("Image save is only available from the managed ArcOrbit image viewer.");
+    return imageViewer.save(event.sender);
+  });
+  ipcMain.handle("arckit:image-viewer-retry", async (event) => {
+    if (!imageViewer.owns(event.sender)) throw new Error("Image retry is only available from the managed ArcOrbit image viewer.");
+    return imageViewer.retry(event.sender);
   });
   ipcMain.handle("arckit:work-task-attachment-open", async (event, input) => {
     assertMainRenderer(event);
@@ -512,20 +517,36 @@ function registerIpc() {
   });
 }
 
-async function loadWorkTaskImage(input) {
-  const url = requireTrustedResourceUrl(await platformCoordinator.getTaskAttachmentResourceUrl({ ...input, download: false }));
+async function loadImageResource(input = {}) {
+  let url;
+  let validateUrl;
+  if (input.source === "work-task") {
+    url = requireTrustedResourceUrl(await platformCoordinator.getTaskAttachmentResourceUrl({ ...input, download: false }));
+    validateUrl = requireTrustedResourceUrl;
+  } else if (input.source === "feedback-v2") {
+    url = requireFeedbackAttachmentUrl(await platformCoordinator.getFeedbackV2AttachmentUrl(input));
+    validateUrl = requireFeedbackAttachmentUrl;
+  } else if (input.source === "feedback-file") {
+    url = requireFeedbackAttachmentUrl(await platformCoordinator.getFeedbackAttachmentUrl(input));
+    validateUrl = requireFeedbackAttachmentUrl;
+  } else {
+    throw new TypeError("图片资源来源无效。");
+  }
   const response = await fetch(url);
-  requireTrustedResourceUrl(response.url);
+  validateUrl(response.url);
   const declaredType = String(response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
-  const contentType = ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(declaredType) ? declaredType : workAttachmentMimeType(input?.object_key, "image");
+  const fileName = String(input.file_name || input.object_key || "image").split(/[\\/]/).pop() || "image";
+  const allowedTypes = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+  if (declaredType && !allowedTypes.includes(declaredType)) throw new Error("图片响应类型无效。");
+  const contentType = declaredType || workAttachmentMimeType(fileName, "image");
   const announcedSize = Number(response.headers.get("content-length") || 0);
-  if (!response.ok || announcedSize > WORK_TASK_IMAGE_MAX_BYTES) throw new Error("评论图片预览不可用。");
+  if (!response.ok || announcedSize > WORK_TASK_IMAGE_MAX_BYTES) throw new Error("图片预览不可用。");
   const bytes = new Uint8Array(await response.arrayBuffer());
-  if (bytes.byteLength === 0 || bytes.byteLength > WORK_TASK_IMAGE_MAX_BYTES) throw new Error("评论图片预览大小无效。");
+  if (bytes.byteLength === 0 || bytes.byteLength > WORK_TASK_IMAGE_MAX_BYTES) throw new Error("图片预览大小无效。");
   return {
     bytes,
     content_type: contentType,
-    file_name: String(input?.object_key || "comment-image").split(/[\\/]/).pop() || "comment-image",
+    file_name: fileName,
     data_url: `data:${contentType};base64,${Buffer.from(bytes).toString("base64")}`
   };
 }
