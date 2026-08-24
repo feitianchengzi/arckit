@@ -10,7 +10,7 @@ test("Electron fixtures disable the Chromium sandbox only on Linux CI", () => {
     ["--no-sandbox", fixturePath]
   );
   assert.deepEqual(
-    electronFixtureArguments(fixturePath, { platform: "linux", ci: undefined }),
+    electronFixtureArguments(fixturePath, { platform: "linux", ci: "false" }),
     [fixturePath]
   );
   assert.deepEqual(
