@@ -5,6 +5,7 @@ const automationListeners = new Set();
 let workQueryDelayMs = 0;
 let workQueryFailure = "";
 let workQueryScenarios = [];
+let createdTaskSequence = 0;
 const feedbackV2ImageTest = process.env.ARCORBIT_ELECTRON_FEEDBACK_V2_TEST === "1";
 let failedFeedbackV2ImagePreview = false;
 const automation = {
@@ -154,7 +155,9 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   onSetupEvent: () => () => {},
   onAutomationEvent: (listener) => { automationListeners.add(listener); return () => automationListeners.delete(listener); },
   onEvent: () => () => {}, onChatEvent: () => () => {}, onProductFeedbackUnread: () => () => {},
-  setActiveWorkset: noOp, syncAutomation: noOp, setAutomationEnabled: noOp, setQueuePaused: noOp,
+  setActiveWorkset: noOp,
+  syncAutomation: async () => { calls.push(["syncAutomation", {}]); return automation; },
+  setAutomationEnabled: noOp, setQueuePaused: noOp,
   getFeedbackV2Messages: async (input) => {
     calls.push(["getFeedbackV2Messages", input]);
     return [{
@@ -167,6 +170,41 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   executePlatformAction: async (command, input) => {
     calls.push([command, input]);
     if (command === "task.attachments.list") return [];
+    if (command === "task.create") {
+      const projectId = String(input.project_id);
+      const project = projects.find((item) => item.id === projectId);
+      const member = projectMembers.find((item) => item.project_id === projectId && String(item.user_id) === String(input.executor_id));
+      const task = {
+        id: `W-LOCAL-${++createdTaskSequence}`,
+        project_id: projectId,
+        project_name: project?.name || `Project ${projectId}`,
+        content: input.content,
+        state: "pending_review",
+        terminal: false,
+        priority: 0,
+        raw: { priority: input.priority },
+        executor_id: String(input.executor_id || ""),
+        assignee: member ? { id: String(member.user_id), username: member.username } : null,
+        tags: input.tags || "",
+        created_at: "2026-08-24T12:00:00Z",
+        updated_at: "2026-08-24T12:00:00Z"
+      };
+      platform.tasks.push(task);
+      const workspace = platform.product_workspaces.find((item) => String(item.id) === projectId);
+      if (workspace) workspace.task_counts.pending_review = Number(workspace.task_counts.pending_review || 0) + 1;
+      if (String(input.executor_id) === String(automation.user.id)) {
+        automation.tasks.push({
+          ...task,
+          state_label: "待评审",
+          local_project_path: "/repo/arcorbit",
+          eligible: false,
+          eligibility_reason: "任务当前不是待处理状态",
+          acceptance_feedback_items: []
+        });
+        for (const listener of automationListeners) listener({ type: "automation.changed", reason: "project-refresh", projectId });
+      }
+      return task;
+    }
     if (command.endsWith(".invite")) return { invite_code: "ABCD1234", invite_link: "https://example.test/invite/ABCD1234", role: input.role, expires_at: "2026-08-19T00:00:00Z", max_uses: Number(input.max_uses), used_count: 0 };
     if (command === "tag.create") {
       const tag = { id: String(204 + tags.length), project_id: String(input.project_id), project_name: projects.find((project) => project.id === String(input.project_id))?.name || "", name: input.name };

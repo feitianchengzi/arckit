@@ -418,13 +418,13 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       "project.join": () => platformSource.joinProject(input),
       "project.member.update": () => platformSource.updateProjectMember(input.project_id, input),
       "project.member.delete": () => platformSource.deleteProjectMember(input.project_id, input),
-      "task.create": () => platformSource.createTask({ ...input, state: "pending_review" }),
+      "task.create": () => createPendingReviewTask(input),
       "task.subtask.create": async () => {
         const projectId = requiredText(input.project_id, "Project id", 120);
         const parentId = requiredText(input.father_id, "Parent task id", 120);
         const tasks = await platformSource.listProjectTasks(projectId);
         if (!(tasks || []).some((task) => String(task.id) === parentId)) throw new Error("父待办不属于当前产品。");
-        return platformSource.createTask({ ...input, project_id: projectId, state: "pending_review", father_id: parentId });
+        return createPendingReviewTask({ ...input, project_id: projectId, father_id: parentId });
       },
       "task.reparent": async () => {
         const projectId = requiredText(input.project_id, "Project id", 120);
@@ -514,6 +514,18 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     const handler = handlers[action];
     if (!handler) throw new TypeError(`Unsupported platform action: ${action}`);
     return handler();
+  }
+
+  async function createPendingReviewTask(input = {}) {
+    const projectId = requiredText(input.project_id, "Project id", 120);
+    const task = await platformSource.createTask({ ...input, project_id: projectId, state: "pending_review" });
+    try {
+      await automationCoordinator.refreshProject(projectId, { dispatch: false });
+    } catch {
+      // The task already exists remotely. refreshProject records and emits its degraded state;
+      // do not turn a successful create into a retryable error that could duplicate the task.
+    }
+    return task;
   }
 
   async function getFeedbackV2Messages(input = {}) {

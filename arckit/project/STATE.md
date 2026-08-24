@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 214
-Updated: 2026-08-24T12:51:59.665Z
+Revision: 216
+Updated: 2026-08-24T13:10:03.881Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-让服务端待办只保存一个完整文本字段；所有标题场景均由该文本生成单行、限长并带省略号的展示文本，内容场景继续展示完整文本及换行。
+让 ArcOrbit Work 页面中新建的待评审待办无需手动同步即可立即执行“确认可处理”或“取消”，同时保持 Automation 的受控状态变更边界。
 
 ## Active Work
 

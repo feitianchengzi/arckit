@@ -235,6 +235,7 @@ test("organization governance uses role-based project visibility without inherit
 
 test("platform coordinator exposes bounded management actions and omits unsafe direct project-member add", async () => {
   const calls = [];
+  const automationRefreshes = [];
   const acceptanceIssues = [{ feedback_id: "AF-OPEN", status: "queued" }];
   const platformSource = new Proxy({
     updateProjectMember: async (projectId, input) => { calls.push(["member.update", projectId, input]); return { ok: true }; },
@@ -245,7 +246,10 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
   }, { get: (target, key) => target[key] || (async () => []) });
   const coordinator = createPlatformCoordinator({
     runManager: { readDesktopStore: async () => normalizeStore({}), updateDesktopStore: async () => normalizeStore({}) },
-    automationCoordinator: { getSnapshot: async () => ({ source_status: "healthy", projects: [], tasks: [{ id: "42", acceptance_feedback_items: acceptanceIssues }] }) },
+    automationCoordinator: {
+      getSnapshot: async () => ({ source_status: "healthy", projects: [], tasks: [{ id: "42", acceptance_feedback_items: acceptanceIssues }] }),
+      refreshProject: async (projectId, options) => { automationRefreshes.push([projectId, options]); return {}; }
+    },
     platformSource
   });
 
@@ -268,15 +272,38 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
     }
   );
   assert.equal(Number.isNaN(Date.parse(calls[2][2].data.converted_at)), false);
+  const created = await coordinator.executeAction("task.create", { project_id: "11", content: "Local pending review", executor_id: 7, state: "accepted" });
+  assert.equal(created.state, "pending_review");
+  assert.deepEqual(calls.at(-1), ["task.create", { project_id: "11", content: "Local pending review", executor_id: 7, state: "pending_review" }]);
+  assert.deepEqual(automationRefreshes, [["11", { dispatch: false }]]);
   await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /只能通过受控 Automation 动作/);
   acceptanceIssues[0].status = "resolved";
   await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /只能通过受控 Automation 动作/);
   await coordinator.executeAction("task.subtask.create", { project_id: "11", father_id: "42", content: "Child", state: "accepted" });
   assert.deepEqual(calls.at(-1), ["task.create", { project_id: "11", father_id: "42", content: "Child", state: "pending_review" }]);
+  assert.deepEqual(automationRefreshes, [["11", { dispatch: false }], ["11", { dispatch: false }]]);
   await coordinator.executeAction("task.reparent", { project_id: "11", task_id: "44", father_id: "42" });
   assert.deepEqual(calls.at(-1), ["task.update", "44", { father_id: "42" }]);
   await assert.rejects(coordinator.executeAction("task.reparent", { project_id: "11", task_id: "42", father_id: "44" }), /不能形成循环/);
   await assert.rejects(coordinator.executeAction("project.member.add", { project_id: 11, target_user_id: 7 }), /Unsupported platform action/);
+});
+
+test("successful task creation is not reported as failed when the immediate Automation refresh degrades", async () => {
+  const coordinator = createPlatformCoordinator({
+    runManager: { readDesktopStore: async () => normalizeStore({}), updateDesktopStore: async () => normalizeStore({}) },
+    automationCoordinator: {
+      getSnapshot: async () => ({ source_status: "healthy", projects: [], tasks: [] }),
+      refreshProject: async () => { throw new Error("controlled refresh failure"); }
+    },
+    platformSource: new Proxy({
+      createTask: async (input) => ({ id: "NEW-1", ...input })
+    }, { get: (target, key) => target[key] || (async () => []) })
+  });
+
+  assert.deepEqual(
+    await coordinator.executeAction("task.create", { project_id: "11", content: "Created once" }),
+    { id: "NEW-1", project_id: "11", content: "Created once", state: "pending_review" }
+  );
 });
 
 test("feedback association recovery reuses the created task and never creates another task", async () => {
