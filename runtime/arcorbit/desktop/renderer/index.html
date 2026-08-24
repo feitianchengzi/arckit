@@ -7,6 +7,24 @@
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body class="auth-pending">
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="icon-today" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"></circle><circle cx="12" cy="12" r="2"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3"></path></symbol>
+      <symbol id="icon-chat" viewBox="0 0 24 24"><path d="M5 5.5h14v10H9l-4 3v-13Z"></path><path d="M8 9h8M8 12h5"></path></symbol>
+      <symbol id="icon-idea" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"></path><path d="M8.5 15.5A7 7 0 1 1 15.5 15.5c-1 .7-1.5 1.4-1.5 2.5h-4c0-1.1-.5-1.8-1.5-2.5Z"></path></symbol>
+      <symbol id="icon-work" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"></path><circle cx="7" cy="6" r="1"></circle><circle cx="7" cy="12" r="1"></circle><circle cx="7" cy="18" r="1"></circle></symbol>
+      <symbol id="icon-automation" viewBox="0 0 24 24"><path d="M7 4h10l3 8-3 8H7l-3-8 3-8Z"></path><circle cx="12" cy="12" r="3"></circle></symbol>
+      <symbol id="icon-release" viewBox="0 0 24 24"><path d="M12 20V5M7 10l5-5 5 5"></path><path d="M5 20h14"></path></symbol>
+      <symbol id="icon-operations" viewBox="0 0 24 24"><path d="M4 18 9 13l4 3 7-9"></path><path d="M15 7h5v5"></path></symbol>
+      <symbol id="icon-feedback" viewBox="0 0 24 24"><path d="M5 5h14v11H9l-4 3V5Z"></path><path d="M8 9h8M8 12h6"></path></symbol>
+      <symbol id="icon-organization" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3"></circle><circle cx="17" cy="9" r="2.5"></circle><path d="M3 20c.4-4 2.1-6 5-6s4.6 2 5 6M14 20c.2-2.7 1.3-4.2 3.4-4.2 2 0 3.2 1.4 3.6 4.2"></path></symbol>
+      <symbol id="icon-engineering" viewBox="0 0 24 24"><path d="m8 6-4 6 4 6M16 6l4 6-4 6M14 4l-4 16"></path></symbol>
+      <symbol id="icon-sync" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"></path><path d="M6.2 8A7 7 0 0 1 18.8 7M17.8 16A7 7 0 0 1 5.2 17"></path></symbol>
+      <symbol id="icon-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M18.4 5.6 17 7M7 17l-1.4 1.4"></path></symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+      <symbol id="icon-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"></rect></symbol>
+      <symbol id="icon-alert" viewBox="0 0 24 24"><path d="M12 4 3.5 19h17L12 4Z"></path><path d="M12 9v4M12 16h.01"></path></symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"></path></symbol>
+    </svg>
     <div id="authBootScreen" class="auth-boot-screen" role="status" aria-live="polite">
       <div class="auth-boot-card"><span class="brand-mark">A</span><strong>ArcOrbit</strong><p>正在恢复 Workshop 会话…</p><i aria-hidden="true"></i></div>
     </div>
@@ -58,20 +76,20 @@
 
         <nav class="primary-nav" aria-label="主导航">
           <p class="nav-label">PERSONAL</p>
-          <button class="nav-item is-active" data-page="today" type="button"><span>◉</span><strong>Today</strong><em id="attentionNavCount">0</em></button>
-          <button class="nav-item" data-page="chat" type="button"><span>◫</span><strong>Chat</strong><em>Codex</em></button>
+          <button class="nav-item is-active" data-page="today" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-today"></use></svg><strong>Today</strong><em id="attentionNavCount">0</em></button>
+          <button class="nav-item" data-page="chat" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-chat"></use></svg><strong>Chat</strong><em>Codex</em></button>
 
           <p class="nav-label">PRODUCT LIFECYCLE</p>
-          <button class="nav-item" data-page="idea" type="button"><span>✦</span><strong>Idea</strong><em>6</em></button>
-          <button class="nav-item" data-page="work" type="button"><span>☷</span><strong>Work</strong><em id="workNavCount">0</em></button>
-          <button class="nav-item" data-page="command" type="button"><span>◇</span><strong>Automation</strong><em id="automationNavCount">0</em></button>
-          <button class="nav-item" data-page="release" type="button"><span>↑</span><strong>Release</strong><em>2</em></button>
-          <button class="nav-item" data-page="operations" type="button"><span>↗</span><strong>Operations</strong><em>5</em></button>
-          <button class="nav-item" data-page="feedback" type="button"><span>◌</span><strong>Feedback</strong><em id="feedbackQueueNavCount">0</em></button>
+          <button class="nav-item" data-page="idea" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-idea"></use></svg><strong>Idea</strong><em>6</em></button>
+          <button class="nav-item" data-page="work" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-work"></use></svg><strong>Work</strong><em id="workNavCount">0</em></button>
+          <button class="nav-item" data-page="command" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-automation"></use></svg><strong>Automation</strong><em id="automationNavCount">0</em></button>
+          <button class="nav-item" data-page="release" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-release"></use></svg><strong>Release</strong><em>2</em></button>
+          <button class="nav-item" data-page="operations" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-operations"></use></svg><strong>Operations</strong><em>5</em></button>
+          <button class="nav-item" data-page="feedback" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-feedback"></use></svg><strong>Feedback</strong><em id="feedbackQueueNavCount">0</em></button>
 
           <p class="nav-label">ORGANIZATION</p>
-          <button class="nav-item" data-page="organization" type="button"><span>◎</span><strong>Organization</strong><em id="organizationNavCount">0</em></button>
-          <button class="nav-item" data-page="engineering" type="button"><span>⎔</span><strong>Engineering</strong><em>8</em></button>
+          <button class="nav-item" data-page="organization" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-organization"></use></svg><strong>Organization</strong><em id="organizationNavCount">0</em></button>
+          <button class="nav-item" data-page="engineering" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-engineering"></use></svg><strong>Engineering</strong><em>8</em></button>
 
         </nav>
 
@@ -90,9 +108,9 @@
               <button id="editWorksetButton" class="product-set-manage" type="button" title="管理当前产品集">管理</button>
             </div>
             <label class="automation-toggle" title="控制是否领取新任务；仅作用于已绑定且已授权的项目，不停止当前任务"><input id="automationEnabled" type="checkbox"><span></span><strong>自动领取</strong></label>
-            <button id="productFeedbackButton" class="product-feedback-trigger" type="button" title="给 ArcOrbit 提反馈"><span>◌</span><strong>产品反馈</strong><em id="productFeedbackUnreadBadge" class="product-feedback-unread hidden" aria-label="未读反馈">0</em></button>
-            <button id="syncButton" class="icon-button" type="button" title="同步任务源">↻</button>
-            <button id="settingsButton" class="icon-button" type="button" title="设置">⚙</button>
+            <button id="productFeedbackButton" class="product-feedback-trigger" type="button" title="给 ArcOrbit 提反馈"><svg class="ui-icon" aria-hidden="true"><use href="#icon-feedback"></use></svg><strong>产品反馈</strong><em id="productFeedbackUnreadBadge" class="product-feedback-unread hidden" aria-label="未读反馈">0</em></button>
+            <button id="syncButton" class="icon-button" type="button" title="同步任务源" aria-label="同步任务源"><svg class="ui-icon" aria-hidden="true"><use href="#icon-sync"></use></svg></button>
+            <button id="settingsButton" class="icon-button" type="button" title="设置" aria-label="设置"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg></button>
           </div>
         </header>
 
@@ -104,7 +122,7 @@
           <section id="chatView" class="app-view" data-page-view="chat">
             <div class="chat-workspace">
               <aside class="chat-sidebar">
-                <div class="chat-sidebar-head"><div><p class="eyebrow">PERSONAL · CODEX CHAT</p><h1>自由对话</h1></div><button id="newChatButton" class="primary-button compact" type="button">＋ 新对话</button></div>
+                <div class="chat-sidebar-head"><div><p class="eyebrow">PERSONAL · CODEX CHAT</p><h1>自由对话</h1></div><button id="newChatButton" class="primary-button compact" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg>新对话</button></div>
                 <div id="chatSessionList" class="chat-session-list" aria-label="对话列表"></div>
                 <div class="chat-sidebar-boundary"><strong>独立对话边界</strong><p>Chat 不创建待办、Idea、Case 或 Automation Run，也不读取任务执行 thread。</p></div>
               </aside>
@@ -113,7 +131,7 @@
                 <div id="chatErrorHost"></div>
                 <div id="chatTranscript" class="conversation-surface chat-transcript" aria-live="polite" aria-label="Chat 消息"></div>
                 <button id="chatJumpLatestButton" class="chat-jump-latest hidden" type="button">回到最新 ↓</button>
-                <footer class="chat-composer"><textarea id="chatInput" rows="3" placeholder="向 Codex 提问或说明希望它在当前项目中完成什么…"></textarea><div class="chat-composer-foot"><small id="chatComposerHint">Enter 发送 · Shift+Enter 换行</small><button id="chatStopButton" class="secondary-button hidden" type="button">■ 停止</button><button id="chatSendButton" class="primary-button" type="button">发送</button></div></footer>
+                <footer class="chat-composer"><textarea id="chatInput" rows="3" placeholder="向 Codex 提问或说明希望它在当前项目中完成什么…"></textarea><div class="chat-composer-foot"><small id="chatComposerHint">Enter 发送 · Shift+Enter 换行</small><button id="chatStopButton" class="secondary-button hidden" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-stop"></use></svg>停止</button><button id="chatSendButton" class="primary-button" type="button">发送</button></div></footer>
               </main>
             </div>
           </section>

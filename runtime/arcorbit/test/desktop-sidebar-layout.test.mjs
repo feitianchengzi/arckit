@@ -20,9 +20,9 @@ test("platform desktop renders the confirmed multi-product shell geometry", {
   });
   const measurements = JSON.parse(stdout.trim());
 
-  assert.equal(measurements.sidebarWidth, 228);
-  assert.equal(measurements.titlebarHeight, 35);
-  assert.equal(measurements.commandbarHeight, 58);
+  assert.equal(measurements.sidebarWidth, 244);
+  assert.equal(measurements.titlebarHeight, 40);
+  assert.equal(measurements.commandbarHeight, 64);
   assert.equal(measurements.viewCount, 8);
   assert.equal(measurements.activeViewDisplay, "block");
   assert.deepEqual(measurements.hiddenViewDisplays, ["none", "none", "none", "none", "none", "none", "none"]);

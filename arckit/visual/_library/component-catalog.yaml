@@ -1,6 +1,6 @@
 metadata:
   project: ArcOrbit Desktop
-  last_updated: "2026-08-11"
+  last_updated: "2026-08-24"
   tokens: ./design-tokens.yaml
 
 components:
@@ -21,12 +21,28 @@ components:
       selected: { foreground: "{colors.paper}", background: "rgba(112,106,242,.17)", indicator: "{colors.accent.hover}" }
       attention: { foreground: "{colors.warning.soft}", badge: "{colors.warning.base}" }
     sizes:
-      compact: { height: 34, padding_x: "{spacing.4}", typography: "{typography.label}" }
+      compact: { height: "{layout.control_height}", padding_x: "{spacing.4}", typography: "{typography.label}" }
     states: [default, hover, selected, disabled, attention]
     token_refs: [colors.accent.hover, colors.warning.base, typography.label, corner_radius.small]
+    accessibility:
+      requirement: 当前项同时使用文字、选中表面和指示条；每项可聚焦并以 Enter 或 Space 激活
+
+  Icon:
+    role: 以统一轮廓矢量图形表达操作、对象和状态，不使用字符或 Emoji 替代生产图标
+    variants:
+      action: { foreground: "{colors.ink.600}", canvas: 16 }
+      navigation: { foreground: currentColor, canvas: 18 }
+      semantic: { foreground: currentColor, canvas: 16 }
+    sizes:
+      compact: { canvas: 16, container: "{layout.compact_control_height}" }
+      standard: { canvas: 18, container: "{layout.control_height}" }
+    states: [default, hover, active, focus, disabled]
+    token_refs: [colors.ink.600, layout.compact_control_height, layout.control_height]
+    accessibility:
+      requirement: 装饰图标对辅助技术隐藏；独立图标操作提供可访问名称和悬停提示
 
   MetricCard:
-    role: 在首屏提供自动化健康、人工事项、运行中和待处理数量
+    role: 仅在两个以上可比较指标直接支持当前判断时提供态势摘要，不作为页面默认容器
     variants:
       neutral: { surface: "{colors.paper}", value: "{colors.ink.900}" }
       running: { surface: "{colors.accent.faint}", value: "{colors.accent.strong}" }
@@ -48,7 +64,7 @@ components:
       cancelled: { foreground: "{colors.danger.base}", background: "{colors.danger.soft}" }
       blocked: { foreground: "{colors.warning.strong}", background: "{colors.warning.soft}", border: "{colors.warning.base}" }
     sizes:
-      compact: { height: 20, padding_x: "{spacing.3}", typography: "{typography.micro}" }
+      compact: { height: 24, padding_x: "{spacing.3}", typography: "{typography.caption}" }
     states: [default, stale, conflict]
     token_refs: [colors.ink.100, colors.warning.soft, colors.accent.soft, colors.success.soft, colors.accepted.soft, colors.danger.soft]
     accessibility:
@@ -60,9 +76,12 @@ components:
       queue: { header: "{colors.ink.50}", current_indicator: "{colors.accent.base}" }
       browser: { header: "{colors.ink.50}", selected: "{colors.accent.faint}" }
     sizes:
-      dense: { row_height: 42, header_height: 34, cell_padding_x: "{spacing.4}" }
+      dense: { row_height: "{layout.compact_row_height}", header_height: "{layout.control_height}", cell_padding_x: "{spacing.4}", typography: "{typography.body}" }
+      standard: { row_height: "{layout.row_height}", header_height: "{layout.control_height}", cell_padding_x: "{spacing.5}", typography: "{typography.body}" }
     states: [loading, ready, empty, selected, stale, conflict, disabled]
     token_refs: [colors.ink.50, colors.ink.150, colors.accent.base, colors.accent.faint, typography.caption]
+    accessibility:
+      requirement: 可选行进入 Tab 顺序并支持 Enter 与 Space；选中、加载、冲突和禁用状态同时提供文本或可访问名称
 
   RuntimeStage:
     role: 投影同步、Controller、Worker、Gate 与写回的可理解阶段
@@ -106,8 +125,8 @@ components:
       ghost: { foreground: "{colors.accent.strong}", background: transparent, border: transparent }
       destructive: { foreground: "{colors.paper}", background: "{colors.danger.base}", border: "{colors.danger.base}" }
     sizes:
-      compact: { height: 30, padding_x: "{spacing.4}", typography: "{typography.label}" }
-      standard: { height: 36, padding_x: "{spacing.5}", typography: "{typography.label}" }
+      compact: { height: "{layout.compact_control_height}", padding_x: "{spacing.4}", typography: "{typography.label}" }
+      standard: { height: 38, padding_x: "{spacing.5}", typography: "{typography.label}" }
     states: [default, hover, active, focus, disabled, busy]
     token_refs: [colors.accent.base, colors.danger.base, colors.ink.200, corner_radius.small, animation.fast]
     accessibility:
@@ -133,7 +152,7 @@ components:
       authenticated: { surface: "{colors.success.soft}", status: "{colors.success.base}", primary_action: "{colors.info.base}" }
       expired: { surface: "{colors.danger.soft}", status: "{colors.danger.base}", primary_action: "{colors.accent.base}" }
     sizes:
-      standard: { width: 560, padding: "{spacing.7}", field_height: 36, gap: "{spacing.5}" }
+      standard: { width: 560, padding: "{spacing.7}", field_height: 38, gap: "{spacing.5}" }
     states: [logged_out, sending_code, verification_sent, signing_in, authenticated, refreshing, expired, signing_out]
     token_refs: [colors.paper, colors.info.soft, colors.success.soft, colors.danger.soft, colors.accent.base, typography.body, corner_radius.medium, shadows.large]
     accessibility:
@@ -152,7 +171,7 @@ components:
       user_message: { surface: "{colors.accent.faint}", border: "{colors.accent.soft}", typography: "{typography.conversation}" }
     sizes:
       shell: { min_height: 0, left_pane: stable, center: flexible, inspector: "{layout.inspector_width}" }
-      readable: { max_content_width: 760, message_padding: "{spacing.7}", tool_row_height: 30, typography: "{typography.conversation}" }
+      readable: { max_content_width: 760, message_padding: "{spacing.7}", tool_row_height: "{layout.compact_control_height}", typography: "{typography.conversation}" }
     states: [loading, chat, review, intervention, reasoning_streaming, reasoning_collapsed, approval_waiting, streaming, following_latest, history_position, submitting, accepted, error]
     token_refs: [colors.paper, colors.ink.150, colors.ink.600, colors.ink.900, colors.accent.faint, colors.accent.soft, colors.warning.soft, colors.warning.base, typography.caption, typography.conversation]
     accessibility:
@@ -167,7 +186,7 @@ components:
       gap_waiting: { indicator: "{colors.warning.base}", foreground: "{colors.warning.strong}" }
       gap_failed: { indicator: "{colors.danger.base}", foreground: "{colors.danger.base}" }
     sizes:
-      compact: { row_min_height: 44, gap: "{spacing.3}", typography: "{typography.caption}" }
+      compact: { row_min_height: "{layout.row_height}", gap: "{spacing.3}", typography: "{typography.caption}" }
     states: [loading, running, awaiting_human, completed, interrupted, failed]
     token_refs: [colors.ink.50, colors.ink.150, colors.ink.700, colors.ink.900, colors.success.base, colors.accent.base, colors.warning.base, colors.warning.strong, colors.danger.base, typography.caption]
     accessibility:

@@ -80,6 +80,17 @@ const RECOVERY_ACTION_LABELS = {
   mark_blocked: "标记为已阻塞"
 };
 
+function wireSelectableRow(row, { selected = false } = {}) {
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  row.setAttribute("aria-selected", String(selected));
+  row.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    row.click();
+  });
+}
+
 const state = {
   setup: null,
   setupBusy: false,
@@ -431,7 +442,11 @@ function wireEvents() {
     const row = event.target.closest("[data-platform-task-select]");
     if (row && els.platformWorkTable.contains(row)) {
       state.selectedPlatformTaskId = row.dataset.platformTaskSelect;
-      els.platformWorkTable.querySelectorAll("[data-platform-task-select]").forEach((item) => item.classList.toggle("selected", item === row));
+      els.platformWorkTable.querySelectorAll("[data-platform-task-select]").forEach((item) => {
+        const selected = item === row;
+        item.classList.toggle("selected", selected);
+        item.setAttribute("aria-selected", String(selected));
+      });
       renderPlatformWorkInspector(findPlatformTask(state.selectedPlatformTaskId));
       return;
     }
@@ -1283,6 +1298,9 @@ function renderPlatformWork() {
   const nextOffset = Number(windowInfo.offset || 0) + Number(windowInfo.returned || 0);
   const pager = Number(windowInfo.total || 0) > 0 ? `<div class="work-query-pager"><span>显示 ${Number(windowInfo.offset || 0) + 1}–${Number(windowInfo.offset || 0) + Number(windowInfo.returned || 0)} / ${Number(windowInfo.total || 0)}</span><div><button type="button" data-work-query-offset="${previousOffset}" ${Number(windowInfo.offset || 0) === 0 ? "disabled" : ""}>上一页</button><button type="button" data-work-query-offset="${nextOffset}" ${windowInfo.has_more ? "" : "disabled"}>下一页</button></div></div>` : "";
   els.platformWorkTable.innerHTML = `${table}${pager}`;
+  els.platformWorkTable.querySelectorAll("[data-platform-task-select]").forEach((row) => wireSelectableRow(row, {
+    selected: String(row.dataset.platformTaskSelect) === String(state.selectedPlatformTaskId)
+  }));
   renderPlatformWorkInspector(selectedTask);
 }
 
@@ -2611,12 +2629,15 @@ function renderAcceptanceFeedbackQueue(items) {
     return;
   }
   els.feedbackQueueTable.innerHTML = `<table class="data-table"><colgroup><col style="width:42px"><col><col style="width:110px"><col style="width:150px"><col style="width:110px"></colgroup><thead><tr><th>#</th><th>问题</th><th>来源待办</th><th>进展</th><th>状态</th></tr></thead><tbody>${items.map((item) => `<tr data-feedback-id="${escapeHtml(item.feedback_id)}" data-feedback-task="${escapeHtml(item.source_task_id)}"><td class="queue-number">${item.queue_position}</td><td class="task-title-cell">${escapeHtml(item.original_feedback)}</td><td>${escapeHtml(item.source_task_id)}</td><td>${escapeHtml(item.progress)}</td><td><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></td></tr>`).join("")}</tbody></table>`;
-  els.feedbackQueueTable.querySelectorAll("[data-feedback-id]").forEach((row) => row.addEventListener("click", () => {
-    const item = items.find((entry) => entry.feedback_id === row.dataset.feedbackId);
-    const task = state.snapshot.tasks.find((entry) => String(entry.id) === String(row.dataset.feedbackTask));
-    if (item?.current_run_id || item?.source_run_id) openWorkbench("review", item.current_run_id || item.source_run_id, { task, feedbackId: item.feedback_id });
-    else openTaskBrowser(task?.state || "completed", task?.id || row.dataset.feedbackTask);
-  }));
+  els.feedbackQueueTable.querySelectorAll("[data-feedback-id]").forEach((row) => {
+    wireSelectableRow(row);
+    row.addEventListener("click", () => {
+      const item = items.find((entry) => entry.feedback_id === row.dataset.feedbackId);
+      const task = state.snapshot.tasks.find((entry) => String(entry.id) === String(row.dataset.feedbackTask));
+      if (item?.current_run_id || item?.source_run_id) openWorkbench("review", item.current_run_id || item.source_run_id, { task, feedbackId: item.feedback_id });
+      else openTaskBrowser(task?.state || "completed", task?.id || row.dataset.feedbackTask);
+    });
+  });
 }
 
 function renderAttention(blockedPendingTasks = []) {
@@ -2698,7 +2719,10 @@ function renderQueue(queue, blockedPendingTasks = []) {
     return;
   }
   els.queueTable.innerHTML = `<table class="data-table"><colgroup><col style="width:42px"><col><col style="width:130px"><col style="width:76px"><col style="width:100px"></colgroup><thead><tr><th>#</th><th>任务</th><th>项目</th><th>优先级</th><th>状态</th></tr></thead><tbody>${queue.slice(0, 8).map((task) => `<tr data-queue-task="${escapeHtml(task.id)}"><td class="queue-number">${task.queue_position}</td><td class="task-title-cell">${escapeHtml(task.title)}</td><td>${escapeHtml(task.project_name)}</td><td>${formatPriority(task.priority)}</td><td><span class="status-pill pending">待处理</span></td></tr>`).join("")}</tbody></table>`;
-  els.queueTable.querySelectorAll("[data-queue-task]").forEach((row) => row.addEventListener("click", () => openTaskBrowser("pending", row.dataset.queueTask)));
+  els.queueTable.querySelectorAll("[data-queue-task]").forEach((row) => {
+    wireSelectableRow(row);
+    row.addEventListener("click", () => openTaskBrowser("pending", row.dataset.queueTask));
+  });
 }
 
 function renderRecentCompletions() {
@@ -2780,11 +2804,14 @@ function renderTaskTable() {
     return;
   }
   els.taskTable.innerHTML = `<table class="data-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:96px"><col style="width:86px"></colgroup><thead><tr><th>任务</th><th>内容</th><th>项目</th><th>更新时间</th><th>状态</th></tr></thead><tbody>${tasks.map((task) => `<tr class="${String(task.id) === String(state.selectedTaskId) ? "selected" : ""}" data-task-id="${escapeHtml(task.id)}"><td>${escapeHtml(task.id)}</td><td class="task-title-cell">${escapeHtml(task.title)}</td><td>${escapeHtml(task.project_name)}</td><td>${formatTime(task.updated_at || task.state_changed_at)}</td><td><span class="status-pill ${task.state}">${escapeHtml(task.state_label)}</span></td></tr>`).join("")}</tbody></table>`;
-  els.taskTable.querySelectorAll("[data-task-id]").forEach((row) => row.addEventListener("click", () => {
-    state.selectedTaskId = row.dataset.taskId;
-    renderTaskTable();
-    renderTaskInspector();
-  }));
+  els.taskTable.querySelectorAll("[data-task-id]").forEach((row) => {
+    wireSelectableRow(row, { selected: String(row.dataset.taskId) === String(state.selectedTaskId) });
+    row.addEventListener("click", () => {
+      state.selectedTaskId = row.dataset.taskId;
+      renderTaskTable();
+      renderTaskInspector();
+    });
+  });
 }
 
 function renderTaskInspector() {

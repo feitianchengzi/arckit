@@ -123,3 +123,4 @@
 | [CASE-20260823-007](closed/CASE-20260823-007-arcorbit-work.md) | closed | 优化 ArcOrbit Work 状态列表切换性能 | 2026-08-24T05:54:41.808Z |
 | [CASE-20260824-001](closed/CASE-20260824-001-arcorbit-agent-ledger.md) | closed | 治理 ArcOrbit Agent 语义输出与 Ledger 提交边界 | 2026-08-24T03:38:58.350Z |
 | [CASE-20260824-002](closed/CASE-20260824-002-arcorbit-feedback.md) | closed | 优化 ArcOrbit Feedback 列表、详情滚动与图片体验 | 2026-08-24T08:03:36.461Z |
+| [CASE-20260824-003](closed/CASE-20260824-003-arcorbit.md) | closed | ArcOrbit 整体交互与视觉品质升级 | 2026-08-24T09:05:52.245Z |

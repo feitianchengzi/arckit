@@ -1,6 +1,6 @@
 metadata:
   project: ArcOrbit Desktop
-  last_updated: "2026-08-02"
+  last_updated: "2026-08-24"
   brief: ./brief.md
 
 colors:
@@ -9,9 +9,9 @@ colors:
     "900": { value: "#121722", description: 主侧栏背景和最深正文 }
     "800": { value: "#1D2431", description: 深色控件悬停面 }
     "700": { value: "#313A49", description: 强次级文字 }
-    "600": { value: "#4B5567", description: 次级文字 }
-    "500": { value: "#687386", description: 辅助说明 }
-    "400": { value: "#8D97A8", description: 弱提示文字 }
+    "600": { value: "#465267", description: 次级文字，在浅色表面保持正文级对比度 }
+    "500": { value: "#566174", description: 辅助说明，在浅色表面保持正文级对比度 }
+    "400": { value: "#687386", description: 弱提示文字，只用于非关键辅助信息并保持可读对比度 }
     "300": { value: "#B6BDC8", description: 强边界 }
     "200": { value: "#D7DCE4", description: 控件边界 }
     "150": { value: "#E4E7EC", description: 常规分隔线 }
@@ -46,14 +46,14 @@ typography:
   family:
     interface: { value: "Inter, -apple-system, BlinkMacSystemFont, SF Pro Display, PingFang SC, sans-serif", description: 界面默认字体 }
     mono: { value: "SFMono-Regular, Consolas, monospace", description: 标识符、时间和命令字体 }
-  display: { size: 29, line_height: 34, weight: 750, description: 页面主标题 }
-  title: { size: 18, line_height: 24, weight: 700, description: 主要区块标题 }
-  heading: { size: 14, line_height: 20, weight: 700, description: 卡片与 Inspector 标题 }
-  body: { size: 13, line_height: 20, weight: 450, description: 数据型正文 }
-  conversation: { size: 14, line_height: 22, weight: 450, description: 人工对话与长说明 }
-  label: { size: 11, line_height: 16, weight: 700, description: 按钮、导航和状态标签 }
-  caption: { size: 10, line_height: 15, weight: 550, description: 辅助状态与元数据 }
-  micro: { size: 8, line_height: 12, weight: 750, description: 计数和紧凑标识 }
+  display: { size: 28, line_height: 34, weight: 750, description: 页面主标题，与正文形成克制层级 }
+  title: { size: 20, line_height: 28, weight: 700, description: 主要区块标题 }
+  heading: { size: 16, line_height: 22, weight: 700, description: 卡片与 Inspector 标题 }
+  body: { size: 14, line_height: 22, weight: 450, description: 页面、表格和表单正文 }
+  conversation: { size: 15, line_height: 24, weight: 450, description: 人工对话与长说明 }
+  label: { size: 13, line_height: 18, weight: 650, description: 按钮、导航、字段和状态标签 }
+  caption: { size: 12, line_height: 18, weight: 550, description: 辅助状态、时间与元数据 }
+  micro: { size: 11, line_height: 16, weight: 700, description: 短计数和非关键紧凑标识，不承载句子或操作含义 }
 
 spacing:
   "1": { value: 2, description: 状态点和微调 }
@@ -70,6 +70,10 @@ layout:
   titlebar_height: { value: 35, description: 原生窗口标题栏高度 }
   commandbar_height: { value: 58, description: 顶部命令栏高度 }
   inspector_width: { value: 312, description: 运行边界和证据检查器宽度 }
+  compact_control_height: { value: 32, description: 仅图标工具和极紧凑辅助控件的最小高度 }
+  control_height: { value: 36, description: 常规按钮、输入框和选择控件的最小高度 }
+  compact_row_height: { value: 40, description: 高频数据行的最小高度 }
+  row_height: { value: 44, description: 标准可操作列表行高度 }
   min_window_width: { value: 1100, description: 桌面布局最小宽度 }
   min_window_height: { value: 720, description: 桌面布局最小高度 }
 

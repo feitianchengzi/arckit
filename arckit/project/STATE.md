@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 207
-Updated: 2026-08-24T08:03:36.461Z
+Revision: 209
+Updated: 2026-08-24T09:05:52.245Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-使 Feedback 列表保持稳定单行高度，详情内容在自身区域滚动，并让反馈及沟通图片默认加载且复用待办图片查看能力。
+在不改变任何既有页面内容、业务功能和信息语义的前提下，系统提升 ArcOrbit Desktop 的可读性、交互一致性、视觉层级与正式产品质感；明确解决多处字号偏小的问题，并由 Agent 基于实际界面审计识别其他必要优化。
 
 ## Active Work
 
