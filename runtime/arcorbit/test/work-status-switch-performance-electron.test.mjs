@@ -26,6 +26,7 @@ test("Work status switching is immediate, generation-safe and windowed for 1000 
   assert.equal(result.switch_calls.some((name) => /automation|auth|organization|member|feedback/i.test(name)), false);
   assert.deepEqual(result.rapid, { pending_pressed: true, accepted_visible: false, pending_visible: true });
   assert.deepEqual(result.same_key_cache, { new_visible: true, old_visible: false, loading_visible: true });
+  assert.deepEqual(result.clear_cache, { stale_visible: false, row_count: 0, loading_visible: true });
   assert.ok(result.scale.first_interactive_ms < 80, `1000-row first interactive frame took ${result.scale.first_interactive_ms}ms`);
   assert.equal(result.scale.rendered_rows, 80);
   assert.match(result.scale.pager_text, /1–80 \/ 1000/);

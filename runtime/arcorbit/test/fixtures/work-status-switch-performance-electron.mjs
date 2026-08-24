@@ -76,6 +76,24 @@ app.whenReady().then(async () => {
       };
       await wait(130);
 
+      await window.arckitDesktop.queueTestPlatformWorkQueries([
+        { delay_ms: 120, tasks: [sameKeyTask('Pre-clear stale')] }
+      ]);
+      click('[data-work-state="pending"]');
+      await wait(5);
+      document.querySelector('#worksetSelect').dispatchEvent(new Event('change'));
+      await wait(140);
+      await window.arckitDesktop.queueTestPlatformWorkQueries([
+        { delay_ms: 120, tasks: [sameKeyTask('Post-clear latest')] }
+      ]);
+      click('[data-work-state="pending"]');
+      const clearCache = {
+        stale_visible: [...document.querySelectorAll('#platformWorkTable tbody tr')].some((row) => row.textContent.includes('Pre-clear stale')),
+        row_count: document.querySelectorAll('#platformWorkTable tbody tr').length,
+        loading_visible: document.querySelector('#workStateSummary').textContent.includes('后台刷新')
+      };
+      await wait(130);
+
       const manyTasks = Array.from({ length: 1000 }, (_, index) => ({
         id: 'SCALE-' + index, project_id: '11', project_name: 'ArcOrbit', title: 'Scale task ' + index,
         content: 'Windowed renderer', state: 'pending_review', terminal: false, priority: 1000 - index,
@@ -91,7 +109,7 @@ app.whenReady().then(async () => {
         rendered_rows: document.querySelectorAll('#platformWorkTable tbody tr').length,
         pager_text: document.querySelector('.work-query-pager')?.textContent || ''
       };
-      return { immediate, completed_visible: completedVisible, switch_calls: switchCalls, rapid, same_key_cache: sameKeyCache, scale };
+      return { immediate, completed_visible: completedVisible, switch_calls: switchCalls, rapid, same_key_cache: sameKeyCache, clear_cache: clearCache, scale };
     })()`);
     await new Promise((resolveWrite) => process.stdout.write(`${JSON.stringify(result)}\n`, resolveWrite));
   } finally {

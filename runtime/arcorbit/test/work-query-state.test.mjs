@@ -40,3 +40,16 @@ test("Work query state does not let an older same-key response overwrite a newer
 
   assert.equal(state.begin({ state: "pending" }).cached.version, "new");
 });
+
+test("Work query state does not let a pre-clear response repopulate an invalidated cache", () => {
+  const state = createWorkQueryState();
+  const beforeClear = state.begin({ state: "pending" });
+
+  state.clear();
+  assert.deepEqual(state.accept(beforeClear, { query_key: beforeClear.key, version: "pre-clear" }), { current: false, accepted: true });
+
+  const afterClear = state.begin({ state: "pending" });
+  assert.equal(afterClear.cached, null);
+  assert.deepEqual(state.accept(afterClear, { query_key: afterClear.key, version: "post-clear" }), { current: true, accepted: true });
+  assert.equal(state.begin({ state: "pending" }).cached.version, "post-clear");
+});

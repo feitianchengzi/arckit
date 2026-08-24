@@ -26,6 +26,7 @@ export function workQueryKey(input = {}) {
 export function createWorkQueryState({ cacheLimit = DEFAULT_CACHE_LIMIT } = {}) {
   const cache = new Map();
   const cachedGenerations = new Map();
+  let epoch = 0;
   let generation = 0;
   let currentKey = "";
 
@@ -36,25 +37,25 @@ export function createWorkQueryState({ cacheLimit = DEFAULT_CACHE_LIMIT } = {}) 
     currentKey = key;
     const cached = cache.get(key) || null;
     if (cached) touch(key, cached);
-    return { generation, key, query, cached };
+    return { epoch, generation, key, query, cached };
   }
 
   function accept(request, value) {
     if (!request || value?.query_key !== request.key) return { current: false, accepted: false };
     const cachedGeneration = cachedGenerations.get(request.key) || 0;
-    if (request.generation >= cachedGeneration) {
+    if (request.epoch === epoch && request.generation >= cachedGeneration) {
       touch(request.key, value);
       cachedGenerations.set(request.key, request.generation);
       trim();
     }
     return {
-      current: request.generation === generation && request.key === currentKey,
+      current: request.epoch === epoch && request.generation === generation && request.key === currentKey,
       accepted: true
     };
   }
 
   function isCurrent(request) {
-    return Boolean(request && request.generation === generation && request.key === currentKey);
+    return Boolean(request && request.epoch === epoch && request.generation === generation && request.key === currentKey);
   }
 
   function get(key) {
@@ -64,6 +65,7 @@ export function createWorkQueryState({ cacheLimit = DEFAULT_CACHE_LIMIT } = {}) 
   function clear() {
     cache.clear();
     cachedGenerations.clear();
+    epoch += 1;
     generation += 1;
     currentKey = "";
   }
