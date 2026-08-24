@@ -1,7 +1,58 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeStore } from "../src/desktop/desktop-store.mjs";
-import { createPlatformCoordinator } from "../src/platform-coordinator.mjs";
+import { createPlatformCoordinator as createProductionPlatformCoordinator } from "../src/platform-coordinator.mjs";
+
+function createPlatformCoordinator(options) {
+  return createProductionPlatformCoordinator({
+    ...options,
+    workSync: options.workSync || fixtureWorkSync(options.platformSource)
+  });
+}
+
+function fixtureWorkSync(platformSource) {
+  return {
+    async getSnapshot() {
+      const projects = await platformSource.listProjects();
+      const results = await Promise.all(projects.map(async (project) => {
+        try {
+          const taskValue = await platformSource.listProjectTasks(project.id, {});
+          return {
+            project,
+            tasks: Array.isArray(taskValue) ? taskValue : taskValue.flattened || [],
+            tags: await platformSource.listProjectTags(project.id),
+            error: null
+          };
+        } catch (error) {
+          return { project, tasks: [], tags: [], error };
+        }
+      }));
+      return {
+        user: null,
+        project_catalog: projects,
+        projects,
+        tasks: results.flatMap((item) => item.tasks.map((task) => ({ ...task, project_id: String(task.project_id || item.project.id) }))),
+        tags: results.flatMap((item) => item.tags.map((tag) => ({ ...tag, project_id: String(tag.project_id || item.project.id) }))),
+        source_status: results.some((item) => item.error) ? "degraded" : "healthy",
+        errors: results.filter((item) => item.error).map((item) => ({
+          project_id: String(item.project.id), code: String(item.error.code || "platform_source_error"), status: 0, message: item.error.message
+        }))
+      };
+    },
+    async reconcile() {},
+    async createTask(input) { return platformSource.createTask(input); },
+    async updateTask(taskId, input) { return platformSource.updateTask(taskId, input); },
+    async updateTaskState({ taskId, state }) { return platformSource.updateTask(taskId, { state }); },
+    async deleteTask(taskId) { return platformSource.deleteTask(taskId); }
+  };
+}
+
+function staticWorkSync({ projects, tasks, tags = [], source_status = "healthy", errors = [] }) {
+  return {
+    async getSnapshot() { return { user: null, project_catalog: projects, projects, tasks, tags, source_status, errors }; },
+    async reconcile() {}
+  };
+}
 
 test("platform coordinator composes a simultaneous multi-product snapshot without changing automation participation", async () => {
   let store = normalizeStore({
@@ -92,11 +143,15 @@ test("platform coordinator preserves partial product results and exposes section
 });
 
 test("platform coordinator projects task-tree lineage and matched counts without flattening away hierarchy metadata", async () => {
-  const treeCalls = [];
-  const countCalls = [];
+  const tasks = [
+    { id: "21", project_id: "11", state: "pending", father_id: "", created_at: "2026-06-01" },
+    { id: "22", project_id: "11", state: "pending", father_id: "21", created_at: "2026-06-02" },
+    { id: "23", project_id: "11", state: "blocked", father_id: "", created_at: "2026-06-03" }
+  ];
   const coordinator = createPlatformCoordinator({
     runManager: { readDesktopStore: async () => normalizeStore({ platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["11"] }], active_workset_id: "WORKSET-DEFAULT" } }), updateDesktopStore: async () => {} },
     automationCoordinator: { getSnapshot: async () => ({ source_status: "healthy", projects: [], queue: [], attention_items: [], recovery_items: [] }) },
+    workSync: staticWorkSync({ projects: [{ id: "11", name: "Alpha" }], tasks }),
     platformSource: new Proxy({
       listProjects: async () => [{ id: "11", name: "Alpha" }],
       listProjectTaskTree: async (projectId, filters) => {
@@ -111,19 +166,21 @@ test("platform coordinator projects task-tree lineage and matched counts without
   });
   const filters = { tree: true, states: ["pending"], start_time: "2026-05-16", end_time: "2026-08-23" };
   const snapshot = await coordinator.getSnapshot({ sections: ["tasks"], task_filters: filters });
-  assert.deepEqual(treeCalls, [["11", filters]]);
-  assert.deepEqual(countCalls, [["11", { ...filters, tree: false, states: ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"] }]]);
   assert.deepEqual(snapshot.tasks.map((task) => [task.id, task.project_name, task.tree_depth]), [["21", "Alpha", 0], ["22", "Alpha", 1]]);
-  assert.deepEqual(snapshot.task_trees.map((tree) => [tree.project_id, tree.total, tree.matched_total]), [["11", 2, 1]]);
-  assert.deepEqual(snapshot.product_workspaces[0].task_counts, { pending: 1, blocked: 1 });
+  assert.deepEqual(snapshot.task_trees.map((tree) => [tree.project_id, tree.total, tree.matched_total]), [["11", 2, 2]]);
+  assert.deepEqual(snapshot.product_workspaces[0].task_counts, { pending: 2, blocked: 1 });
 });
 
 test("dedicated Work query excludes unrelated snapshots and returns a bounded task window", async () => {
   const calls = [];
-  const tasks = Array.from({ length: 1000 }, (_, index) => ({ id: String(index + 1), state: "pending", tree_depth: 0, tree_matched: true }));
+  const tasks = Array.from({ length: 1000 }, (_, index) => ({
+    id: String(index + 1), project_id: "11", state: "pending", content: `desktop ${index}`,
+    creator_id: "7", executor_id: "8", tags: "TAG-1", priority: 1, created_at: "2026-06-01"
+  }));
   const coordinator = createPlatformCoordinator({
     runManager: { readDesktopStore: async () => normalizeStore({ platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["11"] }], active_workset_id: "WORKSET-DEFAULT" } }), updateDesktopStore: async () => {} },
     automationCoordinator: { getSnapshot: async () => { throw new Error("Automation must not participate in Work query"); } },
+    workSync: staticWorkSync({ projects: [{ id: "11", name: "Alpha" }], tasks, tags: [{ id: "TAG-1", project_id: "11", name: "Desktop" }] }),
     platformSource: {
       listProjects: async () => { calls.push("projects"); return [{ id: "11", name: "Alpha" }]; },
       listProjectTaskTree: async (_projectId, filters) => { calls.push(["tasks", filters]); return { tasks: [], flattened: tasks, total: 1000, matched_total: 1000 }; },
@@ -146,13 +203,17 @@ test("dedicated Work query excludes unrelated snapshots and returns a bounded ta
   assert.deepEqual(result.window, { offset: 0, limit: 80, returned: 80, total: 1000, has_more: true });
   assert.equal(result.product_workspaces[0].task_counts.pending, 1000);
   assert.equal(result.product_workspaces[0].task_tree.tasks.length, 0);
-  assert.deepEqual(calls, ["projects", ["tasks", { tree: true, states: ["pending"], search_key: "desktop", creator_ids: ["7"], executor_ids: ["8"], tag_ids: ["TAG-1"], priorities: ["1"], start_time: "2026-01-01", end_time: "2026-08-24" }], "tags"]);
+  assert.deepEqual(calls, []);
 });
 
 test("dedicated Work query retains ancestor lineage around a matched window", async () => {
   const coordinator = createPlatformCoordinator({
     runManager: { readDesktopStore: async () => normalizeStore({ platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["11"] }], active_workset_id: "WORKSET-DEFAULT" } }), updateDesktopStore: async () => {} },
     automationCoordinator: { getSnapshot: async () => { throw new Error("Automation must not participate in Work query"); } },
+    workSync: staticWorkSync({ projects: [{ id: "11", name: "Alpha" }], tasks: [
+      { id: "ROOT", project_id: "11", state: "completed", father_id: "" },
+      { id: "CHILD", project_id: "11", state: "pending", father_id: "ROOT" }
+    ] }),
     platformSource: {
       listProjects: async () => [{ id: "11", name: "Alpha" }],
       listProjectTaskTree: async () => ({
@@ -174,6 +235,7 @@ test("dedicated Work query retains ancestor lineage around a matched window", as
 test("platform coordinator binds TaskAttachment upload and access to a visible task and persisted record", async () => {
   const calls = [];
   const platformSource = new Proxy({
+    listProjects: async () => [{ id: "11", name: "Alpha" }],
     listProjectTasks: async () => [{ id: "21", project_id: "11" }],
     listTaskAttachments: async () => [{ id: "31", task_id: "21", type: "text", content: "[image](workshop/a.png) [file](workshop/a.pdf)" }],
     uploadTaskAttachmentResource: async (input) => { calls.push(["upload", input]); return { object_key: "workshop/new.png" }; },
@@ -238,6 +300,7 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
   const automationRefreshes = [];
   const acceptanceIssues = [{ feedback_id: "AF-OPEN", status: "queued" }];
   const platformSource = new Proxy({
+    listProjects: async () => [{ id: "11", name: "Alpha" }],
     updateProjectMember: async (projectId, input) => { calls.push(["member.update", projectId, input]); return { ok: true }; },
     createTask: async (input) => { calls.push(["task.create", input]); return { id: 42, state: "pending_review" }; },
     updateTask: async (taskId, input) => { calls.push(["task.update", taskId, input]); return { id: taskId, ...input }; },
@@ -275,13 +338,13 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
   const created = await coordinator.executeAction("task.create", { project_id: "11", content: "Local pending review", executor_id: 7, state: "accepted" });
   assert.equal(created.state, "pending_review");
   assert.deepEqual(calls.at(-1), ["task.create", { project_id: "11", content: "Local pending review", executor_id: 7, state: "pending_review" }]);
-  assert.deepEqual(automationRefreshes, [["11", { dispatch: false }]]);
+  assert.deepEqual(automationRefreshes, []);
   await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /只能通过受控 Automation 动作/);
   acceptanceIssues[0].status = "resolved";
   await assert.rejects(coordinator.executeAction("task.update", { task_id: "42", state: "accepted" }), /只能通过受控 Automation 动作/);
   await coordinator.executeAction("task.subtask.create", { project_id: "11", father_id: "42", content: "Child", state: "accepted" });
   assert.deepEqual(calls.at(-1), ["task.create", { project_id: "11", father_id: "42", content: "Child", state: "pending_review" }]);
-  assert.deepEqual(automationRefreshes, [["11", { dispatch: false }], ["11", { dispatch: false }]]);
+  assert.deepEqual(automationRefreshes, []);
   await coordinator.executeAction("task.reparent", { project_id: "11", task_id: "44", father_id: "42" });
   assert.deepEqual(calls.at(-1), ["task.update", "44", { father_id: "42" }]);
   await assert.rejects(coordinator.executeAction("task.reparent", { project_id: "11", task_id: "42", father_id: "44" }), /不能形成循环/);
@@ -311,6 +374,7 @@ test("feedback association recovery reuses the created task and never creates an
   let associationFailuresRemaining = 2;
   let linkedTaskId = "";
   const platformSource = new Proxy({
+    listProjects: async () => [{ id: "11", name: "Alpha" }],
     createTask: async (input) => { calls.push(["task.create", input]); return { id: 42, state: "pending_review" }; },
     listProjectTasks: async (projectId) => { calls.push(["task.list", projectId]); return [{ id: "42", project_id: String(projectId), state: "pending_review" }]; },
     listFeedbackV1: async (projectId) => { calls.push(["feedback.list", projectId]); return [{ id: "51", project_id: String(projectId), metadata: { priority: "P1" }, linked_task_id: linkedTaskId }]; },

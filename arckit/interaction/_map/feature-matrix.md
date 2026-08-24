@@ -4,12 +4,12 @@
 |---|---|---|---|
 | `login/` | ✅ | 启动时恢复 Workshop 会话；未登录时通过不可绕过的验证码门禁建立当前用户项目来源 | 会话恢复、未登录入口、验证码已发送、登录失败 |
 | `setup-readiness/` | ✅ | 先校验全局受信资源，再为明确关联项目区分 managed repair/migration、managed-stale 与内容冲突，并完成项目级安装、用户级迁移、直接可选清理或备份恢复 | 全局检查、项目安装计划、managed-stale 直接清理、执行中、项目已准备、升级迁移、阻塞恢复 |
-| `platform-workspace/` | ✅ | 通过三组主导航连接个人协作、产品全生命周期和组织能力，并保留 Workset、Feedback 与 Organization 的真实平台行为 | Personal/Product Lifecycle/Organization 导航、多产品 Today、Workset 多选、组织概览、Feedback 转待办与仅重试关联、有限范围与部分失败 |
+| `platform-workspace/` | ✅ | 通过三组主导航连接个人协作、产品全生命周期和组织能力，并让 Feedback 以单行控制轨及占满剩余高度的列表/详情工作台承载真实处理行为 | Personal/Product Lifecycle/Organization 导航、多产品 Today、Workset 多选、组织概览、Feedback 主工作台与窄窗口收敛、转待办与仅重试关联、有限范围与部分失败 |
 | `chat-workspace/` | ✅ | 按 Product Workspace 分组浏览最近与历史会话，并在首条消息前显式确认或切换新会话项目归属 | 项目分组、每组最近 10 条、历史展开/收起、新对话项目切换、流式消息、工具/权限、停止、中断/失败恢复、删除确认、工作区阻塞 |
 | `idea-workspace/` | ✅ | 探索和讨论产品创意，比较问题、用户、证据与风险，并在确认后预览正式项目转换 | 探索中、讨论中、已确认、团队观点、开始项目预览 |
 | `release-workspace/` | ✅ | 对齐候选版本、发布门禁、跨平台产物与上线健康，不替代人工发版授权 | 准备中、验证与签名、release-intent、上线观察、回退关注 |
 | `operations-workspace/` | ✅ | 组织对外市场动作、渠道内容和效果信号，并把发现回流到产品生命周期 | 待发布、进行中、已复盘、示意信号、Idea/Work/Feedback 回流 |
 | `engineering-profile/` | ✅ | 选择、编辑、比较和应用由 State Model、Capability Mapping 与 Lifecycle Mapping 组成的 Domain Profile | Profile Library、草稿编辑、跨行业比较、兼容性检查、Apply 确认、稳定 Loop Kernel |
 | `product-feedback-center/` | ✅ | 在 ArcOrbit 内向固定 Project 107 提交反馈、查看当前账户反馈并感知未读变化 | 未读角标、SDK 加载、提交反馈、我的反馈、需要登录、SDK 失败恢复 |
-| `automation-workspace/` | ✅ | 登录后通过持久事件和 REST 确认实时同步项目任务，分别观察普通待办与验收问题队列，由统一执行仲裁器串行启动 ready 队首；人工 Gate 在重连和对账中保持等待 | 实时/补取/降级/游标过期、双队列总览、问题等待/运行/待人工/阻塞、项目范围切换、自动执行、CLI 接管、人工介入、完成续接、写回失败、领取冲突与用量诊断 |
-| `task-browser/` | ✅ | 在 Work 内用多维服务端筛选和父子任务树处理完整项目待办，并在同屏 Inspector 完成详情、评论附件、产品限定维护、验收与受控状态操作 | 多维筛选、任务树、完整详情、评论附件、创建/编辑 Sheet、标签生命周期、待评审确认、运行/验收、阻塞恢复、取消确认、空态与冲突 |
+| `automation-workspace/` | ✅ | 登录后只消费 Work 发布的本地待办状态，分别观察普通待办与验收问题队列，由统一执行仲裁器串行提交 ready 队首动作；人工 Gate 在 Work 重连和对账中保持等待 | Work 同步健康摘要、双队列总览、问题等待/运行/待人工/阻塞、项目范围切换、自动执行、CLI 接管、人工介入、完成续接、Work 动作失败、领取冲突与用量诊断 |
+| `task-browser/` | ✅ | 在 Work 的单行控制轨中组合状态、搜索与本地多维筛选，并用 Work-owned 同步和占满剩余高度的任务树/Inspector 完成详情、评论附件、产品限定维护、验收与受控状态操作 | 本地查询、Work Sync、单行控制轨与窄窗口收敛、多维筛选、任务树、完整详情、评论附件、创建/编辑 Sheet、标签生命周期、待评审确认、运行/验收、阻塞恢复、取消确认、空态与冲突 |

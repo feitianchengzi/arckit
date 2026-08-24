@@ -102,7 +102,7 @@ Desktop 保存本地项目、会话、消息、Run 和自动化状态；Project/
 
 存在活动 Run 的本地项目不可移除。
 
-### Workshop 登录与任务源
+### Workshop 登录与 Work Sync
 
 ArcOrbit 通过主进程处理 Workshop 验证码登录、token 刷新和退出，不向 Renderer 暴露访问 token。
 
@@ -114,17 +114,17 @@ Workshop 会话超过七天没有有效登录活动后失效并要求重新登�
 
 退出登录遇到活动执行时需要明确确认；确认后先停止当前执行，再清理远端会话投影。
 
-任务源支持 Workshop 登录、Bearer 调试和用户请求头调试三种认证模式。
+Work Sync 的受控远端 Adapter 支持 Workshop 登录、Bearer 调试和用户请求头调试三种认证模式；Renderer 与 Automation 都不接触凭证或构造远端请求。
 
-全局侧栏底部使用当前用户头像作为账号入口，不单列“任务源”或“本地 Runtime”入口。账号页面保留任务源、会话和 Runtime 设置内容；Workshop 账户标题使用 current-user 资料中的平台显示名，不使用本地配置名、认证目标或任务源标签替代。
+全局侧栏底部使用当前用户头像作为账号入口，不单列“Work Sync”或“本地 Runtime”入口。账号页面保留 Workshop 连接、会话和 Runtime 设置内容；Workshop 账户标题使用 current-user 资料中的平台显示名，不使用本地配置名或认证目标替代。
 
-### 同步范围
+### Work 同步范围
 
 ArcOrbit 获取当前用户、当前用户可见的独立项目、组织和组织项目。
 
-ArcOrbit 对项目去重后，只同步能够识别当前用户项目成员 ID 的项目任务。
+Work Sync 对项目去重后，按登录身份和项目维护完整的本地 Task Projection；active Workset 项目、允许 Automation 参与的项目和当前活动任务项目组成同步需求并集。
 
-同步任务限定当前用户为执行者，并覆盖七种 Workshop 任务状态：
+Task Projection 覆盖有权查看的项目任务及七种 Workshop 任务状态：
 
 - `pending_review`
 - `pending`
@@ -134,9 +134,9 @@ ArcOrbit 对项目去重后，只同步能够识别当前用户项目成员 ID �
 - `cancelled`
 - `blocked`
 
-ArcOrbit 当前不是完整待办浏览适配器。未分配给当前用户、由当前用户创建但由他人执行、以及仅供项目全体查看的任务不进入现有任务源快照。
+Work 从完整项目投影展示有权查看的任务；Automation 只消费 Work Sync 从同一投影发布的当前用户执行候选，不拥有独立 Task Source 或远端快照。
 
-单个项目同步失败时，任务源可以进入 degraded 状态并保留该项目此前仍分配给当前用户的快照任务。
+单个项目同步失败时，Work Sync 可以把项目标记为 degraded 并保留 UI 最近成功投影；只有完成当前登录代际初始对账且权限仍有效的本地任务状态可以发布给 Automation。
 
 ### 远端与本地绑定
 
@@ -162,7 +162,7 @@ ArcOrbit 当前不是完整待办浏览适配器。未分配给当前用户、�
 
 Workshop 优先级数值以 0 为最高；ArcOrbit 当前将数值转换为越大越优先的内部排序分数。
 
-领取前 ArcOrbit 重新读取候选任务，确认任务仍为 `pending`、仍分配给当前用户且版本未变化。
+领取时 Automation 向 Work Sync 提交候选动作；Work Sync 使用本地投影的确认版本处理必要的重读、条件式更新与冲突，只有发布本地 `in_progress` 后 Automation 才启动 Runtime。
 
 领取成功后远端任务写为 `in_progress`，再建立本地活动执行。
 
@@ -200,7 +200,7 @@ Workbench 展示 Agent/Loop 语义消息、简化工具活动、thread、token�
 
 CLI handoff 只在已有权威 Case 绑定和持久 thread 时发生，并在同一 thread 中继续。
 
-任务源冲突、外部状态变化、Runtime 丢失、readiness 失败和 closeout 失败进入 Recovery Center。
+Work Sync 冲突、外部状态变化、Runtime 丢失、readiness 失败和 closeout 失败进入 Recovery Center。
 
 全局恢复项可以冻结新领取；恢复动作受当前恢复类型约束，不提供通用任意网络或命令桥。
 
@@ -275,6 +275,8 @@ TaskAttachment 支持 text、file、url 三种类型，待办 Web 把它呈现�
 ### 实时和文件
 
 Workshop 服务提供项目 WebSocket 入口，并在任务和反馈变更时发布项目事件。
+
+Work Sync 独占待办 WebSocket、事件游标、REST 对账和任务 mutation；WebSocket 只触发失效，服务器确认结果写入本地 Task Projection 后，Work 与 Automation 才观察到新的任务状态。
 
 项目成员可以管理项目标签。
 
@@ -441,7 +443,7 @@ ArcOrbit Renderer 只调用主进程暴露的有界领域 IPC，不获得通用�
 
 Project/Case canonical state 属于本地项目仓库；Runtime 运行记录和 thread binding 属于 Desktop 数据目录。
 
-平台不得通过复制服务端数据到本地形成第二个可写真相源。
+平台不得通过复制服务端数据到本地形成第二个可写真相源。Work Sync 的 Task Projection 是服务器确认状态的只读本地投影，所有任务修改仍必须进入 Work Sync 并由 Workshop 确认。
 
 离线时可以展示最近同步投影和本地执行证据，但远端修改动作必须明确失败或排队，不伪装为已同步成功。
 
@@ -468,6 +470,8 @@ Project/Case canonical state 属于本地项目仓库；Runtime 运行记录和 
 17. Feedback 以左侧列表和右侧详情组成开发者处理工作台；页面没有创建反馈、编辑反馈原文或协议版本信息。
 18. Feedback 支持搜索、处理状态筛选、时间/优先级排序和稳定选择；项目探测到开发者管理能力时还支持用户/开发者/系统消息、回复附件、未读与已读、专用忽略和原子转待办，失败能力独立降级且不影响已取得的反馈事实。
 19. Feedback 只有一条结果时仍保持单行列表高度；详情在自身区域滚动；原文和沟通图片默认加载，点击后与 Work 共用支持缩放、适配、实际大小、旋转、平移、重置和另存为的独立图片窗口。
+20. Work 切换七状态、搜索、筛选或分页只查询本地 Task Projection，不发起 Workshop 请求或显示由该切换触发的后台刷新；远端同步、订阅、对账和 mutation 全部由 Work Sync 负责。
+21. Automation 不拥有 Workshop Task Source、Realtime Adapter、REST 或远端确认，只依赖 Work Sync 发布的本地待办状态，并把任务状态动作提交给 Work。
 
 ## 当前验证基线
 

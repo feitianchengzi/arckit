@@ -34,7 +34,7 @@ app.whenReady().then(async () => {
         completed_pressed: document.querySelector('[data-work-state="completed"]').getAttribute('aria-pressed') === 'true',
         pending_pressed: document.querySelector('[data-work-state="pending"]').getAttribute('aria-pressed') === 'true',
         row_count: document.querySelectorAll('#platformWorkTable tbody tr').length,
-        loading_visible: document.querySelector('#workStateSummary').textContent.includes('后台刷新')
+        loading_visible: document.querySelector('#workStateSummary').textContent.includes('本地查询中')
       };
       await wait(280);
       const completedVisible = [...document.querySelectorAll('#platformWorkTable tbody tr')].some((row) => row.textContent.includes('Completed work'));
@@ -72,7 +72,7 @@ app.whenReady().then(async () => {
       const sameKeyCache = {
         new_visible: [...document.querySelectorAll('#platformWorkTable tbody tr')].some((row) => row.textContent.includes('Same-key new')),
         old_visible: [...document.querySelectorAll('#platformWorkTable tbody tr')].some((row) => row.textContent.includes('Same-key old')),
-        loading_visible: document.querySelector('#workStateSummary').textContent.includes('后台刷新')
+        loading_visible: document.querySelector('#workStateSummary').textContent.includes('本地查询中')
       };
       await wait(130);
 
@@ -90,7 +90,7 @@ app.whenReady().then(async () => {
       const clearCache = {
         stale_visible: [...document.querySelectorAll('#platformWorkTable tbody tr')].some((row) => row.textContent.includes('Pre-clear stale')),
         row_count: document.querySelectorAll('#platformWorkTable tbody tr').length,
-        loading_visible: document.querySelector('#workStateSummary').textContent.includes('后台刷新')
+        loading_visible: document.querySelector('#workStateSummary').textContent.includes('本地查询中')
       };
       await wait(130);
 

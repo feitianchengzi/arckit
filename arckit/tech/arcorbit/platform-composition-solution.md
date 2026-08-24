@@ -31,7 +31,7 @@ Workshop Project 继续是服务端项目事实。ArcOrbit 不创建第二种 Pr
 - ledger snapshot、Case binding、Transition、Completion Review 和 closeout 继续走 trusted entrypoint。
 - 验收反馈继续留在本地独立记录中，不写入 Workshop 普通反馈表，也不改写已完成或已验收来源待办。
 
-平台读取“全部与我相关的待办”或项目完整待办列表时使用独立的领域查询，不扩宽 Automation Task Source Adapter 的 executor 过滤。
+Work Sync 读取项目完整待办并维护本地 Task Projection Store；“全部与我相关的待办”和 Automation 当前 executor 子集都从该投影派生，不存在 Automation 独占的远端 Task Source 查询。
 
 ## 组件
 
@@ -64,7 +64,7 @@ Workshop Platform Adapter 暴露业务语义方法，不暴露 HTTP passthrough�
 - `listOrganizationMembers(organizationId)`：完整分页读取组织成员；Coordinator 从 `is_me` 记录派生当前角色。
 - `listOrganizationProjects(organizationId, visibility)`：owner/admin 走 `/organization/projects` 读取全部项目，member 走 `/projects` 读取参与项目；每个响应都补全查询范围中的 `organization_id`。
 - `listPersonalProjects()`：使用现有 `/projects?organization_id=0` 读取无组织与外部参与项目；当前成员的 `is_external` 区分外部参与，不要求响应新增组织字段。
-- `listProjects()`：保留给既有 Automation Task Source，返回当前用户参与项目，不作为组织治理的唯一目录。
+- `listProjects()`：供 Work Sync 计算可访问项目与同步需求，返回当前用户参与项目，不作为组织治理的唯一目录。
 - Project 响应内的 `members` 归一化为项目成员投影，包含 `role`、`duty`、`is_external` 和 `is_me`。
 - `listProjectTasks(projectId, filters)`：读取项目完整待办集合，不应用 Automation executor 限制；filters 支持多值状态、创建人、执行人、标签、优先级、创建日期、增量更新时间、关键字和父任务。
 - `listProjectTaskTree(projectId, filters)`：使用 Workshop `/tasks/tree` 读取命中任务并补全其父链和子树；请求显式携带起止时间且跨度不超过 100 天。
@@ -98,11 +98,11 @@ Platform Coordinator 负责组合远端领域投影和本地平台状态。它�
 - 与 Automation Coordinator snapshot 的只读合并。
 - 对 Platform mutation 完成后的定向刷新。
 
-Platform Coordinator 不持久化完整组织、成员、待办或普通反馈镜像。远端响应保存在当前进程的有界缓存中；应用重启、登录身份代际变化或显式刷新会重新读取权威服务。
+Platform Coordinator 不持久化完整组织、成员或普通反馈镜像。待办例外由 main-process Work Sync 独占：它把服务端确认结果保存为按登录代际和项目分区的本地 Task Projection Store，供 Work 与 Automation 共同消费。组织、成员和反馈远端响应仍保存在当前进程的有界缓存中。
 
 ### Task 文本投影契约
 
-Workshop Task 的权威文本只有 `content`。Workshop Platform Adapter 和 Automation Task Source Adapter 不创造第二个可编辑 `title` 字段；创建、更新、搜索、Agent operator input 与服务端写回始终使用完整 `content`，并保持正文内部换行。
+Workshop Task 的权威文本只有 `content`。Workshop Platform Adapter、Work Sync 和 Automation 本地消费者不创造第二个可编辑 `title` 字段；创建、更新、搜索、Agent operator input 与服务端写回始终使用完整 `content`，并保持正文内部换行。
 
 ArcOrbit 在共享任务归一化边界生成 `display_title`：先对输入执行首尾空白移除，再把一个或多个 Unicode 空白折叠为单个半角空格；随后按 Unicode extended grapheme cluster 分段。结果少于或等于 64 个 grapheme clusters 时原样返回，超过时保留前 63 个并追加单字符 `…`，使最终投影最多为 64 个 grapheme clusters，且不拆分组合字符、emoji sequence 或代理对。
 
@@ -112,7 +112,7 @@ Work Inspector 与 Automation Task Inspector 只渲染一次完整 `content`。�
 
 ## 本地状态
 
-Desktop Store 升级为 version 10，新增顶层 `platform`：
+Desktop Store version 13 的顶层 `platform` 同时保存平台配置和 Work-owned task sync：
 
 ```text
 platform
@@ -120,6 +120,7 @@ platform
   worksets: Workset[]
   workspace_preferences: map<remote_project_id, WorkspacePreference>
   feedback_v2: FeedbackV2Configuration
+  task_sync: WorkTaskSyncState
 ```
 
 ### Workset
@@ -147,6 +148,12 @@ WorkspacePreference 以远端 Project id 为键，字段为：
 - `last_opened_at`：最后打开时间。
 
 本地 repository binding 和 automation participation 继续使用既有 `automation.project_bindings` 与 `automation.project_participation`，不复制到 `platform`。
+
+### WorkTaskSyncState
+
+`task_sync` 是 Work Sync 的持久本地投影，不是 Renderer 查询缓存。它按登录 session epoch 和 project id 保存七状态 Task、父子关系、版本、标签引用、confirmed cursor、同步代际与最近确认时间。active Workset 项目始终进入观察需求；Automation participation 项目和当前活动任务项目进入后台执行需求。三者的并集由 Work Sync 订阅和对账，Automation 只提供本地需求身份，不接触 transport。
+
+UI 可以保留 stale 投影用于只读恢复，但 Automation 只消费 Work Sync 在当前登录代际完成初始对账后发布的任务状态。账户切换、退出、权限撤销和项目删除会清除对应 Automation 可见投影；本地 workset、repository binding、Run 与 thread 按各自生命周期保留。
 
 ### FeedbackV2Configuration
 
@@ -177,7 +184,7 @@ V2 凭据由 main 进程私有认证边界持有，不进入公开设置或 Rend
 - 当前用户的公开身份投影。
 - `worksets`、`active_workset` 和可访问项目目录。
 - 当前 workset 内的 `product_workspaces`。
-- 请求 sections 对应的组织、组织 scope、个人项目、项目成员、待办和普通反馈。
+- 请求 sections 对应的组织、组织 scope、个人项目、项目成员和普通反馈；待办 section 从 Work Sync 的本地 Task Projection Store 派生，不由该读取临时访问 Workshop。
 - 既有 Automation health、队列、活动 execution、attention、recovery 和验收反馈计数。
 - `capabilities`，明确每项功能是 `available`、`read_only`、`unavailable` 还是 `degraded`。
 - `errors`，每项绑定 section 和 project id，允许部分成功。
@@ -223,7 +230,7 @@ Preload 新增以下产品动作：
 
 IPC 参数使用结构化对象。main 进程通过固定命令 allowlist 与 Adapter 重新验证 id、枚举、长度和允许字段，不接受 Renderer 传入的角色或 capability 作为授权事实；Workshop 服务仍执行最终登录与权限判定。
 
-现有 Automation IPC 保持原名和行为。平台 shell 调用 `updateAutomationTaskState` 时仍受当前 executor、最新远端状态和既有 Coordinator 校验约束；普通项目管理待办更新走 Platform Adapter，不伪装成 Automation 命令。
+Automation IPC 保持执行控制语义，但任务状态命令在 main process 转交 Work Sync。平台 shell 和 Automation 提交的状态动作都受当前 executor、本地预期状态和 Work Sync mutation 结果约束；普通项目管理待办更新与 Automation 生命周期动作共用 Work Sync 的服务端写入和本地投影提交边界，不伪装成彼此的产品命令。
 
 ## 权限
 
@@ -265,11 +272,11 @@ V2 客户端契约的 triage status、customer status、消息、回复附件、
 
 ## 一致性与 Mutation
 
-远端读取采用每个 section 独立的请求代际。后返回的旧代际响应不得覆盖当前登录身份或较新的显式刷新结果。
+组织、成员和反馈远端读取采用每个 section 独立的请求代际。待办同步采用 Work Sync 的登录、连接和项目代际；后返回的旧代际响应不得覆盖当前身份或较新的本地 Task 投影。
 
-Automation 的任务领取继续使用现有 expected version 语义。当前 Workshop 服务没有证据支持 `If-Match` 原子条件更新，因此 capability 标记为 `weak_claim_consistency`；Adapter 在 mutation 前重新读取并拒绝状态、executor 或 version 已变化的 Task。
+任务状态 mutation 统一进入 Work Sync。当前 Workshop 服务没有证据支持 `If-Match` 原子条件更新，因此 capability 标记为 `weak_claim_consistency`；Work Sync 负责调用受控 Adapter、处理冲突和必要对账，并只在服务端成功后提交本地任务状态。Automation 不读取或确认远端版本，只等待 Work Sync 发布本地状态结果。
 
-平台普通 Task mutation 不声称原子乐观锁。成功响应替换相应缓存项；409、412、404、401、403 和 transport error 分别投影为 conflict、not_found、unauthenticated、forbidden 和 retryable_service_error。
+平台普通 Task mutation 不声称原子乐观锁。成功响应由 Work Sync 对账并提交相应本地投影；409、412、404、401、403 和 transport error 分别投影为 conflict、not_found、unauthenticated、forbidden 和 retryable_service_error，且不推进本地任务状态。
 
 所有 destructive command 必须带明确目标 id。删除 Task 前 Renderer 请求确认，main 再读取当前 Task 和 Project member 上下文；服务端拒绝保持权威，不在本地移除记录。
 
@@ -279,27 +286,26 @@ Automation 的任务领取继续使用现有 expected version 语义。当前 Wo
 
 - 登录、退出、token 明确失效时清空。
 - 组织/项目目录显式刷新后替换完整目录。
-- Task、成员和 Feedback 以 project id 分区。
-- mutation 成功后只使受影响分区失效并重读。
-- transport failure 保留最近一次成功的内存投影并标记 `stale`，不写入 Desktop Store。
-- 应用重启后不把旧远端数据当作离线权威数据。
+- 成员和 Feedback 以 project id 分区；Task 由 Work Sync 的持久项目投影管理。
+- Task mutation 由 Work Sync 在服务端成功后定向对账并原子提交本地投影；其他 mutation 只使受影响缓存分区失效并重读。
+- 组织、成员和 Feedback 的 transport failure 保留最近一次成功的内存投影并标记 `stale`，不写入 Desktop Store。
+- 应用重启后，Work Sync 可以恢复 Task UI 投影，但必须完成当前身份初始对账后才向 Automation 发布；其他旧远端数据不成为离线权威。
 
-平台 snapshot 的部分 section 失败不冻结 Automation。只有既有 Automation Coordinator 的 recovery/attention 或任务源身份错误影响自动 execution。
+平台组织、成员或 Feedback section 失败不冻结 Automation。Work Sync 无法建立当前身份的可信本地任务状态时，不向 Automation 发布对应项目候选；Automation 不自行访问远端补偿。
 
-Renderer 从主导航进入 Work 时采用 cache-first：先激活已在内存中的 Work 投影，再以 `sections=["tasks"]` 在后台刷新任务树、计数与标签。后台结果只合并 Work 所有的任务分区和公共快照元数据，保留组织、成员与 Feedback 的最近成功分区；刷新完成时只重渲染应用壳和 Work，不重建隐藏页面。显式全局刷新、定时同步和 mutation 后刷新仍可读取完整 sections。
+Renderer 从主导航进入 Work 时直接激活本地 Task Projection Store。七状态切换、搜索、多维筛选、日期和分页/窗口选择只生成本地查询，不发起 Workshop 请求；无本地数据时展示 Work Sync 的初始化或恢复状态。WebSocket 失效、显式刷新、生命周期恢复、周期对账和 mutation 成功由 Work Sync 触发受控远端读取，完成后只发布受影响的本地项目 revision；Renderer 依据 revision 更新 Work，不重建隐藏页面。
 
 ## 迁移
 
-Store v9 到 v10 的平台组合归一化保持幂等；v11 在 automation snapshot 增加兼容的项目级 realtime 状态与 confirmed cursor：
+Desktop Store v13 把待办同步所有权归入 `platform.task_sync`，并保持既有平台组合迁移幂等：
 
 1. 保留 `projects`、`runs`、`sessions`、`messages`、`settings` 和 `automation` 原值。
-2. 创建一个默认 workset。
-3. 默认 workset 的 `project_ids` 取 `automation.project_bindings` 的键，按远端 id 稳定排序。
-4. 初始化空 `workspace_preferences`。
-5. 初始化 `feedback_v2.status=unavailable`。
-6. 写回时统一输出 version 10。
+2. 已有 `automation.snapshot.tasks` 按 project id 迁入 `platform.task_sync.projects`，但在当前身份初始对账前只允许 UI stale 恢复，不发布为 Automation 候选。
+3. 已有 `automation.realtime.projects` 的连接模式、cursor 和时间投影迁入对应 `platform.task_sync.projects`；Automation 只保留执行控制、participation、binding、active task、feedback、attention 和 recovery。
+4. 缺失 platform 时创建默认 workset；其 `project_ids` 取 `automation.project_bindings` 的键并稳定排序，同时初始化空 `workspace_preferences`、`feedback_v2.status=unavailable` 和 `task_sync`。
+5. 重复迁移不复制任务、不回退 cursor、不改变 participation，也不发起远端请求。
 
-迁移不改变 participation，不启动同步，不调用远端服务，也不删除未知项目 binding。归一化测试覆盖 v9、空 store、重复 project id、缺失 platform、v10 到 v11 和已存在 v11 的重复读取。
+迁移不改变 participation，不启动同步，不调用远端服务，也不删除未知项目 binding。归一化测试覆盖 v9-v12、空 store、重复 project id、缺失 platform、旧 Automation snapshot/realtime 和已存在 v13 的重复读取。
 
 ## 平台 Shell 投影
 
@@ -361,7 +367,7 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - owner/admin 与 member 的组织项目查询路由、可见性和失败关闭。
 - 成员页不存在项目邀请，项目页邀请带明确项目和一次性生命周期提示。
 - 组织/项目邀请码加入后重新同步；Project update 不发送 `organization_id`。
-- Automation Task Source Adapter 仍只返回当前 executor 待办。
+- Work Sync 完整项目投影与 Automation 当前 executor 本地子集保持同源，Automation 无远端 Task Source Adapter。
 - main IPC 参数拒绝、未认证、权限保守 gate 和错误投影。
 - V1 convert-to-task 成功、创建失败、关联失败和只重试关联。
 - V2 每项目探测、成功采用与 V1 fallback；列表失败时不渲染 V2-only 动作，通知失败时仍保留消息和回复。

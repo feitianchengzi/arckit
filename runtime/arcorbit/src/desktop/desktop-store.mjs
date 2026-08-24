@@ -13,7 +13,7 @@ export function createDesktopStore({ dataDir, runsDir, storePath }) {
     await mkdir(runsDir, { recursive: true });
     if (!existsSync(storePath)) {
       await writeJson(storePath, {
-        version: 12,
+        version: 13,
         projects: [],
         runs: [],
         sessions: {},
@@ -61,14 +61,14 @@ export function normalizeStore(store) {
   const hasPersistedChatSelection = Boolean(store.chat)
     && Object.prototype.hasOwnProperty.call(store.chat, "selected_session_id");
   const normalized = {
-    version: 12,
+    version: 13,
     projects: Array.isArray(store.projects) ? store.projects : [],
     runs: Array.isArray(store.runs) ? store.runs : [],
     sessions: store.sessions && typeof store.sessions === "object" ? store.sessions : {},
     messages: store.messages && typeof store.messages === "object" ? store.messages : {},
     settings: normalizeSettings(store.settings || {}),
     automation,
-    platform: normalizePlatformState(store.platform || {}, automation),
+    platform: normalizePlatformState(store.platform || {}, automation, store.automation || {}),
     chat: normalizeChatState(store.chat || {})
   };
   for (const [projectIdValue, sessions] of Object.entries(normalized.sessions)) {
@@ -116,6 +116,7 @@ export function defaultPlatformState() {
       updated_at: ""
     }],
     workspace_preferences: {},
+    task_sync: defaultTaskSyncState(),
     feedback_v2: {
       status: "unavailable",
       endpoint_origin: "",
@@ -177,7 +178,7 @@ function normalizeAutomationSessionTitle(value) {
     : taskDisplayTitle(title, "Automation");
 }
 
-export function normalizePlatformState(value = {}, automation = defaultAutomationState()) {
+export function normalizePlatformState(value = {}, automation = defaultAutomationState(), legacyAutomation = automation) {
   const defaults = defaultPlatformState();
   const migratedProjectIds = Object.keys(automation.project_bindings || {}).sort(compareScalarIds);
   const inputWorksets = Array.isArray(value.worksets) ? value.worksets : [];
@@ -210,6 +211,7 @@ export function normalizePlatformState(value = {}, automation = defaultAutomatio
         last_opened_at: String(item.last_opened_at || "")
       }];
     })),
+    task_sync: normalizeTaskSyncState(value.task_sync, legacyAutomation),
     feedback_v2: {
       status: feedbackStatuses.has(feedbackV2.status) ? feedbackV2.status : defaults.feedback_v2.status,
       endpoint_origin: String(feedbackV2.endpoint_origin || ""),
@@ -217,6 +219,97 @@ export function normalizePlatformState(value = {}, automation = defaultAutomatio
       features: booleanMap(feedbackV2.features),
       error: String(feedbackV2.error || "")
     }
+  };
+}
+
+export function defaultTaskSyncState() {
+  return {
+    session_epoch: 0,
+    identity_key: "",
+    user: null,
+    project_catalog: [],
+    projects: {},
+    source_status: "logged_out",
+    last_reconciled_at: "",
+    errors: []
+  };
+}
+
+export function normalizeTaskSyncState(value = {}, legacyAutomation = {}) {
+  const current = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const legacySnapshot = legacyAutomation?.snapshot && typeof legacyAutomation.snapshot === "object"
+    ? legacyAutomation.snapshot
+    : {};
+  const legacyRealtime = legacyAutomation?.realtime?.projects && typeof legacyAutomation.realtime.projects === "object"
+    ? legacyAutomation.realtime.projects
+    : {};
+  const inputProjects = current.projects && typeof current.projects === "object" && !Array.isArray(current.projects)
+    ? current.projects
+    : {};
+  const legacyProjectIndex = new Map((legacySnapshot.projects || [])
+    .filter((project) => project?.id !== undefined)
+    .map((project) => [String(project.id), project]));
+  for (const projectId of Object.keys(legacyRealtime)) {
+    if (!legacyProjectIndex.has(String(projectId))) legacyProjectIndex.set(String(projectId), { id: String(projectId), name: String(projectId) });
+  }
+  for (const task of legacySnapshot.tasks || []) {
+    const projectId = String(task?.project_id || "");
+    if (projectId && !legacyProjectIndex.has(projectId)) legacyProjectIndex.set(projectId, { id: projectId, name: projectId });
+  }
+  const migratedProjects = Object.fromEntries([...legacyProjectIndex.entries()].map(([projectId, project]) => {
+    return [projectId, {
+      project,
+      tasks: (legacySnapshot.tasks || []).filter((task) => String(task?.project_id || "") === projectId),
+      tags: [],
+      trusted: false,
+      revision: 0,
+      synced_at: String(legacySnapshot.synced_at || ""),
+      ...(legacyRealtime[projectId] || {})
+    }];
+  }).filter(Boolean));
+  const projects = Object.fromEntries(Object.entries({ ...migratedProjects, ...inputProjects }).map(([projectId, item]) => {
+    const project = item && typeof item === "object" && !Array.isArray(item) ? item : {};
+    return [String(projectId), normalizeTaskSyncProject(project, projectId)];
+  }));
+  const projectCatalogInput = Array.isArray(current.project_catalog) && current.project_catalog.length > 0
+    ? current.project_catalog
+    : Array.isArray(legacySnapshot.projects) ? legacySnapshot.projects : [];
+  const sourceStatuses = new Set(["logged_out", "unconfigured", "syncing", "healthy", "degraded", "unauthenticated", "error"]);
+  return {
+    session_epoch: nonNegativeInteger(current.session_epoch),
+    identity_key: String(current.identity_key || ""),
+    user: current.user && typeof current.user === "object" ? current.user : legacySnapshot.user || null,
+    project_catalog: projectCatalogInput.filter((project) => project && typeof project === "object" && project.id !== undefined),
+    projects,
+    source_status: sourceStatuses.has(current.source_status)
+      ? current.source_status
+      : sourceStatuses.has(legacySnapshot.source_status) ? legacySnapshot.source_status : "logged_out",
+    last_reconciled_at: String(current.last_reconciled_at || legacySnapshot.synced_at || ""),
+    errors: Array.isArray(current.errors)
+      ? current.errors.map(normalizeAutomationError).slice(0, 50)
+      : Array.isArray(legacySnapshot.errors) ? legacySnapshot.errors.map(normalizeAutomationError).slice(0, 50) : []
+  };
+}
+
+function normalizeTaskSyncProject(value, projectId) {
+  const statuses = new Set(["idle", "connecting", "recovering", "connected", "reconnecting", "degraded"]);
+  const modes = new Set(["unknown", "resumable", "legacy"]);
+  return {
+    project: value.project && typeof value.project === "object"
+      ? value.project
+      : { id: String(projectId), name: String(projectId) },
+    tasks: Array.isArray(value.tasks) ? value.tasks.map(normalizeStoredTask).filter(Boolean) : [],
+    tags: Array.isArray(value.tags) ? value.tags.filter((tag) => tag && typeof tag === "object") : [],
+    trusted: Boolean(value.trusted),
+    revision: nonNegativeInteger(value.revision),
+    synced_at: String(value.synced_at || value.last_refreshed_at || ""),
+    state: statuses.has(value.state) ? value.state : "idle",
+    mode: modes.has(value.mode) ? value.mode : "unknown",
+    cursor: positiveSafeInteger(value.cursor),
+    last_event_at: String(value.last_event_at || ""),
+    last_refreshed_at: String(value.last_refreshed_at || value.synced_at || ""),
+    updated_at: String(value.updated_at || ""),
+    error: String(value.error || "")
   };
 }
 
@@ -315,20 +408,6 @@ export function defaultAutomationState() {
     queue_paused: false,
     project_bindings: {},
     project_participation: {},
-	realtime: {
-	  status: "idle",
-	  mode: "unknown",
-	  last_refreshed_at: "",
-	  projects: {}
-	},
-    snapshot: {
-      user: null,
-      projects: [],
-      tasks: [],
-      synced_at: "",
-      source_status: "logged_out",
-      errors: []
-    },
     active_task: null,
     acceptance_feedback_items: [],
     attention_items: [],
@@ -338,8 +417,6 @@ export function defaultAutomationState() {
 }
 
 export function normalizeAutomationState(value = {}) {
-  const defaults = defaultAutomationState();
-  const snapshot = value.snapshot && typeof value.snapshot === "object" ? value.snapshot : {};
   const activeTask = normalizeActiveTask(value.active_task);
   const feedbackItems = Array.isArray(value.acceptance_feedback_items)
     ? value.acceptance_feedback_items.map(normalizeAcceptanceFeedbackItem).filter(Boolean)
@@ -356,17 +433,6 @@ export function normalizeAutomationState(value = {}) {
     queue_paused: Boolean(value.queue_paused),
     project_bindings: stringMap(value.project_bindings),
     project_participation: booleanMap(value.project_participation),
-	realtime: normalizeRealtimeState(value.realtime),
-    snapshot: {
-      user: snapshot.user && typeof snapshot.user === "object" ? snapshot.user : null,
-      projects: Array.isArray(snapshot.projects) ? snapshot.projects : [],
-      tasks: Array.isArray(snapshot.tasks) ? snapshot.tasks.map(normalizeStoredTask).filter(Boolean) : [],
-      synced_at: String(snapshot.synced_at || ""),
-      source_status: ["logged_out", "unconfigured", "syncing", "healthy", "degraded", "unauthenticated", "error"].includes(snapshot.source_status)
-        ? snapshot.source_status
-        : defaults.snapshot.source_status,
-      errors: Array.isArray(snapshot.errors) ? snapshot.errors.map(normalizeAutomationError).slice(0, 50) : []
-    },
     active_task: activeTask,
     acceptance_feedback_items: feedbackItems,
     attention_items: Array.isArray(value.attention_items) ? value.attention_items.slice(0, 50) : [],
@@ -392,37 +458,6 @@ function normalizeStoredTask(value) {
     title: displayTitle,
     content
   };
-}
-
-function normalizeRealtimeState(value = {}) {
-	const statuses = new Set(["idle", "connecting", "recovering", "connected", "reconnecting", "degraded"]);
-	const modes = new Set(["unknown", "resumable", "legacy"]);
-	const projects = value?.projects && typeof value.projects === "object" && !Array.isArray(value.projects)
-		? value.projects
-		: {};
-	const normalizedProjects = Object.fromEntries(Object.entries(projects).map(([projectId, item]) => {
-		const current = item && typeof item === "object" && !Array.isArray(item) ? item : {};
-		return [String(projectId), {
-			state: statuses.has(current.state) ? current.state : "idle",
-			mode: modes.has(current.mode) ? current.mode : "unknown",
-			cursor: Number.isSafeInteger(Number(current.cursor)) && Number(current.cursor) > 0 ? Number(current.cursor) : 0,
-			last_event_at: String(current.last_event_at || ""),
-			last_refreshed_at: String(current.last_refreshed_at || ""),
-			updated_at: String(current.updated_at || ""),
-			error: String(current.error || "")
-		}];
-	}));
-	const states = Object.values(normalizedProjects).map((item) => item.state).filter((state) => state !== "idle");
-	const status = states.length === 0 ? "idle"
-		: states.every((state) => state === "connected") ? "connected"
-			: states.some((state) => state === "degraded") ? "degraded"
-				: states.some((state) => state === "reconnecting") ? "reconnecting"
-					: states.some((state) => state === "recovering") ? "recovering" : "connecting";
-	const activeProjects = Object.values(normalizedProjects).filter((item) => item.state !== "idle");
-	const activeModes = [...new Set(activeProjects.map((item) => item.mode).filter((mode) => mode !== "unknown"))];
-	const mode = activeModes.length === 0 ? "unknown" : activeModes.length === 1 ? activeModes[0] : "mixed";
-	const lastRefreshedAt = activeProjects.map((item) => item.last_refreshed_at).filter(Boolean).sort().at(-1) || "";
-	return { status, mode, last_refreshed_at: lastRefreshedAt, projects: normalizedProjects };
 }
 
 function normalizeActiveTask(value) {
@@ -640,6 +675,16 @@ function compareScalarIds(left, right) {
 function safeColorToken(value) {
   const text = String(value || "").trim();
   return /^[a-z0-9-]{1,32}$/i.test(text) ? text : "";
+}
+
+function nonNegativeInteger(value) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number >= 0 ? number : 0;
+}
+
+function positiveSafeInteger(value) {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : 0;
 }
 
 function normalizeAutomationError(value) {

@@ -102,9 +102,10 @@ test("desktop store upgrades automation state and keeps task source tokens out o
     }
   });
 
-  assert.equal(store.version, 12);
-  assert.deepEqual(store.automation.realtime, { status: "idle", mode: "unknown", last_refreshed_at: "", projects: {} });
-  assert.equal(store.automation.snapshot.source_status, "degraded");
+  assert.equal(store.version, 13);
+  assert.equal("realtime" in store.automation, false);
+  assert.equal("snapshot" in store.automation, false);
+  assert.equal(store.platform.task_sync.source_status, "degraded");
   assert.deepEqual(store.automation.project_bindings, {});
   assert.equal(store.automation.recovery_items[0].responsibility, "operator");
   const visible = publicSettings(store.settings);
@@ -119,7 +120,7 @@ test("desktop store upgrades automation state and keeps task source tokens out o
   assert.equal(visible.task_source.username, "");
   assert.doesNotMatch(JSON.stringify(visible), /top-secret|refresh-secret|glare@example\.com/);
   assert.equal(visible.task_source.base_url, "https://workshop.example");
-  assert.deepEqual(store.automation.snapshot.errors[0], {
+  assert.deepEqual(store.platform.task_sync.errors[0], {
     code: "request_failed",
     status: 500,
     message: "Project tasks unavailable",
@@ -142,8 +143,8 @@ test("desktop store bounds historical task labels without changing task content"
     }
   });
 
-  assert.equal(store.automation.snapshot.tasks[0].content, content);
-  assert.equal(store.automation.snapshot.tasks[0].title.endsWith("…"), true);
+  assert.equal(store.platform.task_sync.projects.p.tasks[0].content, content);
+  assert.equal(store.platform.task_sync.projects.p.tasks[0].title.endsWith("…"), true);
   assert.equal(store.automation.active_task.task_title.endsWith("…"), true);
   assert.equal(store.automation.acceptance_feedback_items[0].source_task_title.endsWith("…"), true);
   assert.equal(store.automation.recent_completions[0].title.endsWith("…"), true);
@@ -169,12 +170,11 @@ test("desktop store preserves realtime diagnostics and ignores idle subscription
     }
   });
 
-  assert.equal(store.automation.realtime.status, "connected");
-  assert.equal(store.automation.realtime.mode, "legacy");
-  assert.equal(store.automation.realtime.last_refreshed_at, "2026-08-22T00:00:01.000Z");
-  assert.equal(store.automation.realtime.projects.current.cursor, 42);
-  assert.equal(store.automation.realtime.projects.current.last_event_at, "2026-08-22T00:00:00.000Z");
-  assert.equal(store.automation.realtime.projects.current.last_refreshed_at, "2026-08-22T00:00:01.000Z");
+  assert.equal(store.platform.task_sync.projects.old.state, "idle");
+  assert.equal(store.platform.task_sync.projects.current.mode, "legacy");
+  assert.equal(store.platform.task_sync.projects.current.cursor, 42);
+  assert.equal(store.platform.task_sync.projects.current.last_event_at, "2026-08-22T00:00:00.000Z");
+  assert.equal(store.platform.task_sync.projects.current.last_refreshed_at, "2026-08-22T00:00:01.000Z");
 });
 
 test("desktop store migrates v9 bindings into a local workset without changing automation participation", () => {
@@ -186,7 +186,7 @@ test("desktop store migrates v9 bindings into a local workset without changing a
     }
   });
 
-  assert.equal(store.version, 12);
+  assert.equal(store.version, 13);
   assert.equal(store.platform.active_workset_id, "WORKSET-DEFAULT");
   assert.deepEqual(store.platform.worksets[0].project_ids, ["3", "12"]);
   assert.deepEqual(store.automation.project_participation, { "12": true, "3": false });

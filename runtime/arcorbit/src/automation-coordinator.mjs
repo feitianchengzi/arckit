@@ -1,9 +1,9 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
-import { createWorkshopTaskSource, TASK_STATES, TaskSourceError } from "./task-source-adapter.mjs";
 import { selectEffectiveLoopHandoff } from "./kernel/effective-handoff.mjs";
 import { buildCodexCliHandoffPrompt, createInteractiveCodexCliLauncher } from "./interactive-cli-launcher.mjs";
 import { taskDisplayTitle } from "./task-display-title.mjs";
+import { snapshotFromStore } from "./work-sync-coordinator.mjs";
 
 const STATE_LABELS = Object.freeze({
   pending_review: "待评审",
@@ -16,21 +16,21 @@ const STATE_LABELS = Object.freeze({
 });
 const CASE_ID_PATTERN = /^CASE-\d{8}-\d{3}$/;
 const AUTHORITATIVE_CASE_BINDING_SOURCE = "runtime_ledger";
+const TASK_STATES = Object.freeze(["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"]);
 
 export function createAutomationCoordinator({
   runManager,
-  taskSourceFactory = createWorkshopTaskSource,
+  workSync,
   now = () => new Date().toISOString(),
   cliLauncher = createInteractiveCodexCliLauncher(),
   setupReadinessPreflight = async () => ({ ready: true }),
   wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)),
   safeStopTimeoutMs = 8_000
 }) {
+  workSync ||= createStoreBackedTaskStateBoundary(runManager);
   const emitter = new EventEmitter();
   let syncPromise = null;
-	const projectRefreshPromises = new Map();
   let dispatchPromise = null;
-  let remoteSessionEpoch = 0;
   let runEventQueue = Promise.resolve();
 
   const unsubscribeRunManager = runManager.onEvent((event) => {
@@ -41,7 +41,7 @@ export function createAutomationCoordinator({
 
   async function getSnapshot(filter = {}) {
     const [store, localProjects, runs] = await Promise.all([
-      runManager.readDesktopStore(),
+      readStore(),
       runManager.listProjects(),
       listRunSummaries(runManager)
     ]);
@@ -149,124 +149,12 @@ export function createAutomationCoordinator({
   }
 
   async function sync({ dispatch = true, resumeRecoverable = false } = {}) {
-    if (syncPromise) {
-      return syncPromise;
-    }
+    if (syncPromise) return syncPromise;
     syncPromise = (async () => {
-      const syncEpoch = remoteSessionEpoch;
-      await patchAutomation((automation) => {
-        automation.snapshot.source_status = "syncing";
-        automation.snapshot.errors = [];
-      });
-      emit("automation.syncing", {});
+      await workSync.reconcile({ dispatch: false, reason: "automation-request" });
       await reconcileDetachedRunCompletion({ allowRemoteCompletion: false });
       await reconcileCanonicalCaseState({ allowRemoteCompletion: false });
-      const store = await runManager.readDesktopStore();
-      let taskSource;
-      try {
-        taskSource = taskSourceFactory({ settings: store.settings.task_source });
-      } catch (error) {
-        await patchAutomation((automation) => {
-          automation.snapshot.source_status = error.code === "unconfigured" ? "unconfigured" : "error";
-          automation.snapshot.errors = [errorRecord(error)];
-        });
-        emit("automation.changed", { reason: "sync-unavailable" });
-        return getSnapshot();
-      }
-
-      if (typeof taskSource.getAuthStatus === "function") {
-        const authentication = await taskSource.getAuthStatus();
-        if (syncEpoch !== remoteSessionEpoch) return getSnapshot();
-        if (!authentication.authenticated) {
-          await patchAutomation((automation) => {
-            if (authentication.status === "expired") {
-              automation.snapshot.source_status = "unauthenticated";
-              automation.snapshot.errors = [{ code: "unauthenticated", message: authentication.error || "Workshop 登录已过期，请重新登录。" }];
-            } else {
-              automation.snapshot = {
-                user: null,
-                projects: [],
-                tasks: [],
-                synced_at: "",
-                source_status: "logged_out",
-                errors: []
-              };
-            }
-          });
-          emit("automation.changed", { reason: "sync-requires-login" });
-          return getSnapshot();
-        }
-      }
-
-      try {
-        const [user, projects] = await Promise.all([
-          taskSource.getCurrentUser(),
-          taskSource.listProjects()
-        ]);
-        const taskResults = await mapWithConcurrency(projects, 4, async (project) => {
-          const executorId = currentExecutorId(project, user);
-          try {
-            if (!executorId) {
-              throw new TaskSourceError("Cannot identify the current Workshop user in this project.", {
-                code: "current_user_unresolved"
-              });
-            }
-            return {
-              project,
-              executorId,
-              tasks: await taskSource.listTasks(project.id, { executorId }),
-              error: null
-            };
-          } catch (error) {
-            return { project, executorId, tasks: [], error };
-          }
-        });
-        const errors = taskResults
-          .filter((result) => result.error)
-          .map((result) => errorRecord(result.error, result.project.id));
-        const tasks = taskResults.flatMap((result) => result.error
-          ? retainAssignedSnapshotTasks(store.automation.snapshot.tasks, result.project.id, result.executorId)
-          : result.tasks);
-        if (syncEpoch !== remoteSessionEpoch) return getSnapshot();
-        await patchAutomation((automation) => {
-          automation.snapshot = {
-            user,
-            projects,
-            tasks,
-            synced_at: now(),
-            source_status: errors.length > 0 ? "degraded" : "healthy",
-            errors
-          };
-          for (const project of projects) {
-            const id = String(project.id);
-            if (!(id in automation.project_participation)) {
-              automation.project_participation[id] = false;
-            }
-          }
-          reconcileActiveTask(automation);
-          reconcileUnassociatedInProgress(automation, now());
-        });
-        await reconcileDetachedRunCompletion({ allowRemoteCompletion: true });
-        await reconcileCanonicalCaseState({ allowRemoteCompletion: true });
-        await stopRuntimeForExternalChange();
-        await reconcileRuntimePresence();
-        if (resumeRecoverable) {
-          await resumeRecoverableTaskOnStartup();
-        }
-        emit("automation.changed", { reason: "sync-complete" });
-        if (dispatch) {
-          await maybeStartNext();
-        }
-        return getSnapshot();
-      } catch (error) {
-        if (syncEpoch !== remoteSessionEpoch) return getSnapshot();
-        await patchAutomation((automation) => {
-          automation.snapshot.source_status = error.code === "unauthenticated" ? "unauthenticated" : "error";
-          automation.snapshot.errors = [errorRecord(error)];
-        });
-        emit("automation.changed", { reason: "sync-failed" });
-        return getSnapshot();
-      }
+      return handleTaskProjectionChanged({ type: "work.changed", reason: "automation-sync", dispatch, resumeRecoverable });
     })();
     try {
       return await syncPromise;
@@ -277,97 +165,28 @@ export function createAutomationCoordinator({
 
 	async function refreshProject(projectId, { dispatch = true } = {}) {
 		const remoteId = requiredId(projectId, "Remote project");
-		if (syncPromise) return syncPromise;
-		if (projectRefreshPromises.has(remoteId)) return projectRefreshPromises.get(remoteId);
-		const promise = (async () => {
-			const refreshEpoch = remoteSessionEpoch;
-			const store = await runManager.readDesktopStore();
-			const project = store.automation.snapshot.projects.find((item) => String(item.id) === remoteId);
-			const user = store.automation.snapshot.user;
-			if (!project || !user) return sync({ dispatch });
-			const source = taskSourceFactory({ settings: store.settings.task_source });
-			const executorId = currentExecutorId(project, user);
-			if (!executorId) return sync({ dispatch });
-			try {
-				const tasks = await source.listTasks(remoteId, { executorId });
-				if (refreshEpoch !== remoteSessionEpoch) return getSnapshot({ project_id: remoteId });
-				const latestStore = await runManager.readDesktopStore();
-				const latestProject = latestStore.automation.snapshot.projects.find((item) => String(item.id) === remoteId);
-				if (!latestProject || currentExecutorId(latestProject, latestStore.automation.snapshot.user) !== executorId) {
-					return sync({ dispatch });
-				}
-				await patchAutomation((automation) => {
-					automation.snapshot.tasks = [
-						...automation.snapshot.tasks.filter((task) => String(task.project_id) !== remoteId),
-						...tasks
-					];
-					automation.snapshot.errors = automation.snapshot.errors.filter((error) => String(error.project_id || "") !== remoteId);
-					automation.snapshot.source_status = automation.snapshot.errors.length ? "degraded" : "healthy";
-					automation.snapshot.synced_at = now();
-					reconcileActiveTask(automation);
-					reconcileUnassociatedInProgress(automation, now());
-				});
-				await reconcileDetachedRunCompletion({ allowRemoteCompletion: true });
-				await reconcileCanonicalCaseState({ allowRemoteCompletion: true });
-				await stopRuntimeForExternalChange();
-				await reconcileRuntimePresence();
-				emit("automation.changed", { reason: "project-refresh", projectId: remoteId });
-				if (dispatch) await maybeStartNext();
-				return getSnapshot({ project_id: remoteId });
-			} catch (error) {
-				if (refreshEpoch !== remoteSessionEpoch) return getSnapshot({ project_id: remoteId });
-				await patchAutomation((automation) => {
-					automation.snapshot.errors = [
-						...automation.snapshot.errors.filter((item) => String(item.project_id || "") !== remoteId),
-						errorRecord(error, remoteId)
-					];
-					automation.snapshot.source_status = "degraded";
-				});
-				emit("automation.changed", { reason: "project-refresh-failed", projectId: remoteId });
-				throw error;
-			}
-		})();
-		projectRefreshPromises.set(remoteId, promise);
-		try {
-			return await promise;
-		} finally {
-			projectRefreshPromises.delete(remoteId);
-		}
+		await workSync.refreshProject(remoteId, { reason: "automation-request" });
+		return handleTaskProjectionChanged({ type: "work.changed", reason: "project-refresh", projectId: remoteId, dispatch });
 	}
 
-	async function getRealtimeProjectState(projectId) {
-		const store = await runManager.readDesktopStore();
-		return store.automation.realtime.projects[String(projectId)] || {};
-	}
-
-	async function updateRealtimeProjectState(projectId, update) {
-		const remoteId = String(projectId);
-		await patchAutomation((automation) => {
-			automation.realtime.projects[remoteId] = {
-				...(automation.realtime.projects[remoteId] || {}),
-				...update
-			};
-			const activeProjects = Object.values(automation.realtime.projects).filter((item) => item.state !== "idle");
-			const states = activeProjects.map((item) => item.state);
-			automation.realtime.status = states.length === 0 ? "idle"
-				: states.every((state) => state === "connected") ? "connected"
-					: states.some((state) => state === "degraded") ? "degraded"
-						: states.some((state) => state === "reconnecting") ? "reconnecting"
-							: states.some((state) => state === "recovering") ? "recovering" : "connecting";
-			const modes = [...new Set(activeProjects.map((item) => item.mode).filter((mode) => mode && mode !== "unknown"))];
-			automation.realtime.mode = modes.length === 0 ? "unknown" : modes.length === 1 ? modes[0] : "mixed";
-			automation.realtime.last_refreshed_at = activeProjects.map((item) => item.last_refreshed_at).filter(Boolean).sort().at(-1) || "";
-		});
-		emit("automation.realtime", { projectId: remoteId, ...update });
-	}
-
-	async function realtimeProjectIds() {
-		const store = await runManager.readDesktopStore();
-		const activeProjectId = String(store.automation.active_task?.project_id || "");
-		return store.automation.snapshot.projects
-			.map((project) => String(project.id))
-			.filter((projectId) => store.automation.project_participation[projectId] === true || projectId === activeProjectId);
-	}
+  async function handleTaskProjectionChanged({ reason = "local-task-state", dispatch = true, resumeRecoverable = false } = {}) {
+    await patchAutomation((automation) => {
+      for (const project of automation.snapshot.projects) {
+        const id = String(project.id);
+        if (!(id in automation.project_participation)) automation.project_participation[id] = false;
+      }
+      reconcileActiveTask(automation);
+      reconcileUnassociatedInProgress(automation, now());
+    });
+    await reconcileDetachedRunCompletion({ allowRemoteCompletion: true });
+    await reconcileCanonicalCaseState({ allowRemoteCompletion: true });
+    await stopRuntimeForExternalChange();
+    await reconcileRuntimePresence();
+    if (resumeRecoverable) await resumeRecoverableTaskOnStartup();
+    emit("automation.changed", { reason });
+    if (dispatch) await maybeStartNext();
+    return getSnapshot();
+  }
 
   async function setEnabled(enabled) {
     await patchAutomation((automation) => {
@@ -393,19 +212,9 @@ export function createAutomationCoordinator({
   }
 
   async function clearRemoteSession() {
-    remoteSessionEpoch += 1;
     await patchAutomation((automation) => {
       automation.enabled = false;
       automation.queue_paused = false;
-      automation.snapshot = {
-        user: null,
-        projects: [],
-        tasks: [],
-        synced_at: "",
-        source_status: "logged_out",
-        errors: []
-      };
-	  automation.realtime = { status: "idle", mode: "unknown", last_refreshed_at: "", projects: {} };
       if (automation.active_task?.execution_kind === "acceptance_feedback") {
         const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
         if (item) {
@@ -445,6 +254,7 @@ export function createAutomationCoordinator({
       automation.project_participation[remoteId] = Boolean(participating);
     });
     emit("automation.changed", { reason: "project-participation", projectId: remoteId });
+    await workSync.reconcile({ dispatch: false, reason: "automation-participation" });
     await maybeStartNext();
     return getSnapshot({ project_id: remoteId });
   }
@@ -453,7 +263,7 @@ export function createAutomationCoordinator({
     if (!TASK_STATES.includes(state)) {
       throw new Error(`Unsupported task state: ${state}`);
     }
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(taskId));
     if (!task) {
       throw new Error(`Unknown task: ${taskId}`);
@@ -467,24 +277,9 @@ export function createAutomationCoordinator({
     ))) {
       throw new Error("仍有未解决的验收问题，不能标记为已验收。");
     }
-    const source = taskSourceFactory({ settings: store.settings.task_source });
-    const project = store.automation.snapshot.projects.find((item) => String(item.id) === String(task.project_id));
-    const executorId = requireCurrentExecutorId(project, store.automation.snapshot.user);
-    const latest = await source.getTask(task.id, task.project_id, { executorId });
-    if (!latest) {
-      scheduleSync("task-reassigned");
-      throw new TaskSourceError("Task is no longer assigned to the current user.", { code: "not_assigned" });
-    }
-    const updated = await source.updateTask({
-      taskId: task.id,
-      projectId: task.project_id,
-      executorId,
-      state,
-      expectedVersion: latest.version
-    });
-    await patchAutomation((automation) => replaceTask(automation, updated));
+    const updated = await workSync.updateTaskState({ taskId: task.id, state, expectedState: expectedState || task.state });
     emit("automation.changed", { reason: "task-state", taskId: task.id, state });
-    await sync();
+    await handleTaskProjectionChanged({ reason: "task-state", dispatch: true });
     return updated;
   }
 
@@ -493,7 +288,7 @@ export function createAutomationCoordinator({
     if (!text) {
       throw new Error("Intervention message is required.");
     }
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active || String(active.task_id) !== String(taskId)) {
       throw new Error("The selected task is not the active task.");
@@ -561,7 +356,7 @@ export function createAutomationCoordinator({
     const key = String(idempotencyKey || "").trim();
     if (!text) throw new Error("验收问题不能为空。");
     if (!key) throw new Error("验收问题缺少幂等标识。");
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const existing = store.automation.acceptance_feedback_items.find((item) => item.idempotency_key === key);
     if (existing && (String(existing.source_task_id) !== String(taskId) || existing.original_feedback !== text)) {
       throw new Error("验收问题幂等标识与另一项提交冲突。");
@@ -618,7 +413,7 @@ export function createAutomationCoordinator({
         });
       });
     }
-    let current = (await runManager.readDesktopStore()).automation.acceptance_feedback_items.find((item) => item.idempotency_key === key);
+    let current = (await readStore()).automation.acceptance_feedback_items.find((item) => item.idempotency_key === key);
     if (!current || String(current.source_task_id) !== String(task.id) || current.original_feedback !== text) {
       throw new Error("验收问题幂等标识与另一项提交冲突。");
     }
@@ -646,11 +441,11 @@ export function createAutomationCoordinator({
     emit("automation.changed", { reason: "acceptance-feedback-submitted", taskId: task.id, feedbackId });
     await maybeStartNext();
     return (await getSnapshot()).acceptance_feedback_queue.find((item) => item.feedback_id === feedbackId)
-      || (await runManager.readDesktopStore()).automation.acceptance_feedback_items.find((item) => item.feedback_id === feedbackId);
+      || (await readStore()).automation.acceptance_feedback_items.find((item) => item.feedback_id === feedbackId);
   }
 
   async function stopCurrent() {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active?.run_id) {
       throw new Error("No active Runtime to stop.");
@@ -666,7 +461,7 @@ export function createAutomationCoordinator({
   }
 
   async function handoffToCodexCli() {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active) throw new Error("No active task to hand off to Codex CLI.");
     if (["closeout_running", "completing", "awaiting_human"].includes(active.phase)) {
@@ -712,7 +507,7 @@ export function createAutomationCoordinator({
   }
 
   async function reopenCodexCli() {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active || active.phase !== "cli_handoff") {
       throw new Error("The active task is not currently handed off to Codex CLI.");
@@ -731,7 +526,7 @@ export function createAutomationCoordinator({
   }
 
   async function resumeRuntimeFromCodexCli() {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active || !["cli_handoff", "recovery"].includes(active.phase)) {
       throw new Error("No Codex CLI handoff is available to return to Runtime.");
@@ -744,7 +539,7 @@ export function createAutomationCoordinator({
   }
 
   async function launchCodexCliForActiveTask(active) {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const current = store.automation.active_task;
     if (!current || current.task_id !== active.task_id) throw new Error("The active task changed during CLI handoff.");
     const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(current.task_id));
@@ -790,7 +585,7 @@ export function createAutomationCoordinator({
   }
 
   async function resolveRecovery({ recoveryId, action, message = "" }) {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const recovery = store.automation.recovery_items.find((item) => item.id === recoveryId);
     if (!recovery) {
       throw new Error(`Unknown recovery item: ${recoveryId}`);
@@ -944,7 +739,7 @@ export function createAutomationCoordinator({
       return dispatchPromise;
     }
     dispatchPromise = (async () => {
-      const store = await runManager.readDesktopStore();
+      const store = await readStore();
       const automation = store.automation;
       if (!automation.enabled
         || automation.queue_paused
@@ -968,41 +763,12 @@ export function createAutomationCoordinator({
       const candidate = selection.item;
       const lifecycleContext = await startTodoLifecycleTrace(candidate);
       const claimSpan = startTodoLifecycleSpan(lifecycleContext, {
-        name: "task_source.claim",
-        category: "task_source",
+        name: "work_sync.claim",
+        category: "work_sync",
         cost_center: "external",
         attributes: { task_id: candidate.id, project_id: candidate.project_id }
       });
-      const taskSource = taskSourceFactory({ settings: store.settings.task_source });
       try {
-        const executorId = requireCurrentExecutorId(
-          projectIndex.get(String(candidate.project_id)),
-          automation.snapshot.user
-        );
-        const readSpan = startTodoLifecycleSpan(lifecycleContext, {
-          parent_span_id: claimSpan?.span_id,
-          name: "task_source.get_candidate",
-          category: "task_source",
-          cost_center: "external"
-        });
-        let latest;
-        try {
-          latest = await taskSource.getTask(candidate.id, candidate.project_id, { executorId });
-          endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "ok" });
-        } catch (error) {
-          endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "error", error });
-          throw error;
-        }
-        if (!latest || latest.state !== "pending" || (candidate.version && latest.version && candidate.version !== latest.version)) {
-          endTodoLifecycleSpan(lifecycleContext, claimSpan, { status: "cancelled", attributes: { reason: "candidate_changed" } });
-          await finishTodoLifecycleTrace(lifecycleContext, { status: "cancelled", attributes: { reason: "candidate_changed" } });
-          await patchAutomation((next) => {
-            if (latest) replaceTask(next, latest);
-            else next.snapshot.tasks = next.snapshot.tasks.filter((task) => String(task.id) !== String(candidate.id));
-          });
-          emit("automation.changed", { reason: "candidate-changed", taskId: candidate.id });
-          return null;
-        }
         const readinessSpan = startTodoLifecycleSpan(lifecycleContext, {
           name: "runtime.readiness_preflight",
           category: "desktop",
@@ -1032,26 +798,19 @@ export function createAutomationCoordinator({
         }
         const updateSpan = startTodoLifecycleSpan(lifecycleContext, {
           parent_span_id: claimSpan?.span_id,
-          name: "task_source.mark_in_progress",
-          category: "task_source",
+          name: "work_sync.mark_in_progress",
+          category: "work_sync",
           cost_center: "external"
         });
         let claimed;
         try {
-          claimed = await taskSource.updateTask({
-            taskId: candidate.id,
-            projectId: candidate.project_id,
-            executorId,
-            state: "in_progress",
-            expectedVersion: latest.version
-          });
+          claimed = await workSync.updateTaskState({ taskId: candidate.id, state: "in_progress", expectedState: "pending" });
           endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "ok" });
         } catch (error) {
           endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "error", error });
           throw error;
         }
         await patchAutomation((next) => {
-          replaceTask(next, claimed);
           next.active_task = {
             task_id: claimed.id,
             project_id: claimed.project_id,
@@ -1091,7 +850,7 @@ export function createAutomationCoordinator({
       } catch (error) {
         endTodoLifecycleSpan(lifecycleContext, claimSpan, { status: "error", error });
         await finishTodoLifecycleTrace(lifecycleContext, { status: "error", error });
-        if (error instanceof TaskSourceError && error.code === "version_conflict") {
+        if (["version_conflict", "conflict", "not_found"].includes(error?.code)) {
           emit("automation.claim-conflict", { taskId: candidate.id });
           await addRecovery({
             type: "claim_failed",
@@ -1120,7 +879,7 @@ export function createAutomationCoordinator({
   }
 
   async function startAcceptanceFeedbackExecution(candidate) {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const current = store.automation.acceptance_feedback_items.find((item) => item.feedback_id === candidate.feedback_id);
     if (!current || current.status !== "queued") return null;
     const sourceTask = store.automation.snapshot.tasks.find((task) => String(task.id) === String(current.source_task_id));
@@ -1154,7 +913,7 @@ export function createAutomationCoordinator({
         item.updated_at = now();
         automation.active_task = feedbackActiveExecution(item, project);
       });
-      const refreshed = await runManager.readDesktopStore();
+      const refreshed = await readStore();
       if (refreshed.automation.active_task?.feedback_id !== current.feedback_id) return null;
       leaseEstablished = true;
       emit("automation.changed", { reason: "acceptance-feedback-starting", feedbackId: current.feedback_id });
@@ -1191,7 +950,7 @@ export function createAutomationCoordinator({
   }
 
   async function startRuntimeForActiveTask() {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active) {
       return null;
@@ -1286,7 +1045,7 @@ export function createAutomationCoordinator({
     if (event.type !== "run.finished") {
       return;
     }
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active || active.run_id !== event.runId) {
       return;
@@ -1364,7 +1123,7 @@ export function createAutomationCoordinator({
           return;
         }
         await markCloseoutCompleted(active, event.runId, event.result.closeout_result);
-        const refreshed = await runManager.readDesktopStore();
+        const refreshed = await readStore();
         if (isRemoteSourceReady(refreshed.automation.snapshot.source_status)) await completeRemoteTask();
       } else {
         await startSameThreadCloseout();
@@ -1382,7 +1141,7 @@ export function createAutomationCoordinator({
   }
 
   async function startSameThreadCloseout() {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active) return null;
     if (active.closeout_status === "completed") return null;
@@ -1468,7 +1227,7 @@ export function createAutomationCoordinator({
         return;
       }
       await markCloseoutCompleted(active, event.runId, result);
-      const refreshed = await runManager.readDesktopStore();
+      const refreshed = await readStore();
       if (isRemoteSourceReady(refreshed.automation.snapshot.source_status)) await completeRemoteTask();
       else emit("automation.changed", { reason: "remote-completion-pending", taskId: active.task_id });
       return;
@@ -1505,7 +1264,7 @@ export function createAutomationCoordinator({
   }
 
   async function completeRemoteTask({ syncAfter = true } = {}) {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active) return null;
     const caseBinding = persistedCaseBinding(active);
@@ -1537,12 +1296,11 @@ export function createAutomationCoordinator({
     }
     const lifecycleContext = lifecycleContextFromActive(active);
     const completionSpan = startTodoLifecycleSpan(lifecycleContext, {
-      name: "task_source.complete",
-      category: "task_source",
+      name: "work_sync.complete",
+      category: "work_sync",
       cost_center: "external",
       attributes: { task_id: active.task_id, project_id: active.project_id }
     });
-    const task = store.automation.snapshot.tasks.find((item) => item.id === active.task_id);
     await patchAutomation((automation) => {
       if (automation.active_task) {
         automation.active_task.phase = "completing";
@@ -1550,50 +1308,21 @@ export function createAutomationCoordinator({
       }
     });
     try {
-      const source = taskSourceFactory({ settings: store.settings.task_source });
-      const project = store.automation.snapshot.projects.find((item) => String(item.id) === String(active.project_id));
-      const executorId = requireCurrentExecutorId(project, store.automation.snapshot.user);
-      const readSpan = startTodoLifecycleSpan(lifecycleContext, {
-        parent_span_id: completionSpan?.span_id,
-        name: "task_source.get_for_completion",
-        category: "task_source",
-        cost_center: "external"
-      });
-      let latest;
-      try {
-        latest = await source.getTask(active.task_id, active.project_id, { executorId });
-        endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "ok" });
-      } catch (error) {
-        endTodoLifecycleSpan(lifecycleContext, readSpan, { status: "error", error });
-        throw error;
-      }
-      if (!latest || latest.state !== "in_progress") {
-        throw new TaskSourceError("Task is no longer assigned to the current user or is no longer in progress.", {
-          code: "not_assigned"
-        });
-      }
       const updateSpan = startTodoLifecycleSpan(lifecycleContext, {
         parent_span_id: completionSpan?.span_id,
-        name: "task_source.mark_completed",
-        category: "task_source",
+        name: "work_sync.mark_completed",
+        category: "work_sync",
         cost_center: "external"
       });
       let completed;
       try {
-        completed = await source.updateTask({
-          taskId: active.task_id,
-          projectId: active.project_id,
-          executorId,
-          state: "completed",
-          expectedVersion: latest.version || task?.version || active.server_version
-        });
+        completed = await workSync.updateTaskState({ taskId: active.task_id, state: "completed", expectedState: "in_progress" });
         endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "ok" });
       } catch (error) {
         endTodoLifecycleSpan(lifecycleContext, updateSpan, { status: "error", error });
         throw error;
       }
       await patchAutomation((automation) => {
-        replaceTask(automation, completed);
         automation.recent_completions.unshift({
           task_id: completed.id,
           project_id: completed.project_id,
@@ -1646,7 +1375,7 @@ export function createAutomationCoordinator({
   }
 
   async function reconcileDetachedRunCompletion({ allowRemoteCompletion = true } = {}) {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (["switching_to_cli", "cli_handoff"].includes(active?.phase)) return null;
     if (!active?.run_id || runManager.isRunActive?.(active.run_id)) return null;
@@ -1731,7 +1460,7 @@ export function createAutomationCoordinator({
 
   async function reconcileCanonicalCaseState({ allowAgentResume = false, requireCase = false, allowRemoteCompletion = true } = {}) {
     if (typeof runManager.getProjectCaseState !== "function") return "unsupported";
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active || ["closeout_running", "completing"].includes(active.phase)) return "not_applicable";
     if (active.phase === "switching_to_cli") return "handoff_in_progress";
@@ -1996,7 +1725,7 @@ export function createAutomationCoordinator({
   }
 
   async function reconcileRuntimePresence() {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active || ["starting", "continuing", "switching_to_cli", "cli_handoff", "awaiting_human", "remote_completion_pending", "completing", "recovery"].includes(active.phase)) return;
     if (active.run_id && runManager.isRunActive?.(active.run_id)) return;
@@ -2020,7 +1749,7 @@ export function createAutomationCoordinator({
   }
 
   async function resumeRecoverableTaskOnStartup() {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const automation = store.automation;
     const active = automation.active_task;
     if (!automation.enabled || !active || automation.attention_items.length > 0) return "not_applicable";
@@ -2065,7 +1794,7 @@ export function createAutomationCoordinator({
   }
 
   async function stopRuntimeForExternalChange() {
-    const store = await runManager.readDesktopStore();
+    const store = await readStore();
     const active = store.automation.active_task;
     if (!active) return;
     const recovery = store.automation.recovery_items.find((item) => (
@@ -2094,9 +1823,15 @@ export function createAutomationCoordinator({
 
   async function patchAutomation(mutator) {
     return runManager.updateDesktopStore((store) => {
+      workSync.attachLocalProjection(store);
       mutator(store.automation, store);
       return store;
     });
+  }
+
+  async function readStore() {
+    const store = await runManager.readDesktopStore();
+    return workSync.attachLocalProjection(store);
   }
 
   function emit(type, payload) {
@@ -2165,9 +1900,7 @@ export function createAutomationCoordinator({
     getSnapshot,
     sync,
 	refreshProject,
-	getRealtimeProjectState,
-	updateRealtimeProjectState,
-	realtimeProjectIds,
+    handleTaskProjectionChanged,
     setEnabled,
     setQueuePaused,
     clearRemoteSession,
@@ -2216,7 +1949,7 @@ export function buildPendingCandidates(tasks, automation, projectIndex, localInd
           ? "project_unbound"
           : automation.project_participation[remoteId] !== true
             ? "project_not_participating"
-            : projectError ? "task_source_error" : "eligible"
+            : projectError ? "work_sync_error" : "eligible"
       };
     });
 }
@@ -2283,33 +2016,6 @@ function emptyStateCounts() {
   return Object.fromEntries(TASK_STATES.map((state) => [state, 0]));
 }
 
-function currentExecutorId(project, user) {
-  const direct = scalarId(project?.current_user_id ?? project?.currentUserId);
-  if (direct) return direct;
-  const members = Array.isArray(project?.raw?.members)
-    ? project.raw.members
-    : Array.isArray(project?.members) ? project.members : [];
-  const currentMember = members.find((member) => member?.is_me === true)
-    || members.find((member) => user?.name && String(member?.username || "") === String(user.name));
-  return scalarId(currentMember?.user_id ?? user?.id);
-}
-
-function requireCurrentExecutorId(project, user) {
-  const executorId = currentExecutorId(project, user);
-  if (!executorId) {
-    throw new TaskSourceError("Cannot identify the current Workshop user in this project.", {
-      code: "current_user_unresolved"
-    });
-  }
-  return executorId;
-}
-
-function retainAssignedSnapshotTasks(tasks, projectId, executorId) {
-  if (!executorId) return [];
-  return tasks.filter((task) => String(task.project_id) === String(projectId))
-    .filter((task) => scalarId(task.executor_id ?? task.raw?.executor_id) === executorId);
-}
-
 function enrichTask(task, { automation, project, localProject, queue, pendingCandidates, acceptanceFeedbackItems = [] }) {
   const queueItem = queue.find((item) => item.id === task.id);
   const pendingCandidate = pendingCandidates.find((item) => item.id === task.id);
@@ -2342,13 +2048,6 @@ function deriveHealth(automation, queue, blockedPendingTasks = [], acceptanceFee
   if (blockedPendingTasks.length > 0) return { state: "configuration_required", label: "待处理任务尚不可领取", tone: "warning" };
   if (queue.length === 0 && acceptanceFeedbackQueue.length === 0) return { state: "idle", label: "队列已清空", tone: "success" };
   return { state: "ready", label: "准备领取", tone: "success" };
-}
-
-function replaceTask(automation, task) {
-  if (!task) return;
-  const index = automation.snapshot.tasks.findIndex((item) => item.id === task.id);
-  if (index >= 0) automation.snapshot.tasks[index] = task;
-  else automation.snapshot.tasks.push(task);
 }
 
 function reconcileActiveTask(automation) {
@@ -2481,32 +2180,47 @@ function recoveryActionsForItem(item, active) {
   return actions;
 }
 
-async function mapWithConcurrency(items, limit, mapper) {
-  const results = new Array(items.length);
-  let cursor = 0;
-  const runners = Array.from({ length: Math.min(Math.max(limit, 1), items.length) }, async () => {
-    while (cursor < items.length) {
-      const index = cursor++;
-      results[index] = await mapper(items[index], index);
-    }
-  });
-  await Promise.all(runners);
-  return results;
-}
-
-function errorRecord(error, projectId = "") {
-  return {
-    code: error?.code || "task_source_error",
-    status: Number(error?.status || 0),
-    message: error?.message || String(error),
-    project_id: String(projectId || "")
-  };
-}
-
 function requiredId(value, label) {
   const id = String(value || "").trim();
   if (!id) throw new Error(`${label} id is required.`);
   return id;
+}
+
+function createStoreBackedTaskStateBoundary(runManager) {
+  function attachLocalProjection(store) {
+    if (store.automation?.snapshot) return store;
+    const projection = snapshotFromStore(store, { automationOnly: true });
+    store.automation.snapshot = {
+      user: projection.user,
+      projects: projection.projects,
+      tasks: projection.tasks,
+      synced_at: projection.synced_at,
+      source_status: projection.source_status,
+      errors: projection.errors
+    };
+    store.automation.realtime = projection.realtime;
+    return store;
+  }
+  return {
+    attachLocalProjection,
+    async reconcile() { return attachLocalProjection(await runManager.readDesktopStore()).automation.snapshot; },
+    async refreshProject() { return attachLocalProjection(await runManager.readDesktopStore()).automation.snapshot; },
+    async updateTaskState({ taskId, state, expectedState = "" }) {
+      let updated = null;
+      await runManager.updateDesktopStore((store) => {
+        attachLocalProjection(store);
+        const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(taskId));
+        if (!task) throw Object.assign(new Error(`Unknown local task: ${taskId}`), { code: "not_found" });
+        if (expectedState && task.state !== expectedState) {
+          throw Object.assign(new Error(`Task ${task.id} is ${task.state}, expected ${expectedState}.`), { code: "conflict" });
+        }
+        task.state = state;
+        updated = structuredClone(task);
+        return store;
+      });
+      return updated;
+    }
+  };
 }
 
 function scalarId(value) {

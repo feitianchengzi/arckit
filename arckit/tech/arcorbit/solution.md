@@ -65,7 +65,7 @@ State Store 读取目标项目的 Arckit 状态入口：
 
 ### Workshop Authenticated Service
 
-Electron main 进程创建单个长生命周期 Workshop Authenticated Service，并把它同时作为认证服务和 Task Source Adapter 使用。该实例通过 Desktop Run Manager 的私有设置接口按请求读取最新会话，并通过同一接口持久化 token 轮换；Renderer、Worker 和 Runtime 子进程不能获得该私有接口。
+Electron main 进程创建单个长生命周期 Workshop Authenticated Service，并把它作为认证服务和 Work Sync 的远端 Adapter 使用。该实例通过 Desktop Run Manager 的私有设置接口按请求读取最新会话，并通过同一接口持久化 token 轮换；Renderer、Automation、Worker 和 Runtime 子进程不能获得该私有接口。
 
 认证服务固定提供以下有界操作：
 
@@ -84,11 +84,11 @@ Electron main 进程创建单个长生命周期 Workshop Authenticated Service�
 
 默认连接配置是正式 Workshop 服务根地址、`workshop` 业务服务和 `nebula` 认证模式。旧 store 的手填 bearer/debug headers 配置继续可被高级连接设置读取，但普通登录成功后切换为 `nebula`。
 
-退出登录先停止新的远端请求并清除 access token、refresh token、过期时间和远端用户字段。Coordinator 随后清除远端项目/任务快照、attention/recovery 中的身份依赖项和自动领取资格；本地项目、工作区绑定、run history、transcript 与 Codex proxy 设置不受影响。存在活动任务时，main 进程要求显式确认并先请求安全停止，避免退出后失去任务状态写回能力。
+退出登录先停止新的远端请求并清除 access token、refresh token、过期时间和远端用户字段。Work Sync 随后关闭项目连接并清除当前身份的本地 Task Projection；Automation 清除 attention/recovery 中的身份依赖项和自动领取资格。本地项目、工作区绑定、run history、transcript 与 Codex proxy 设置不受影响。存在活动任务时，main 进程要求显式确认并先请求安全停止，避免退出后失去任务状态写回能力。
 
 ### Task Source Adapter
 
-Task Source Adapter 是远端项目与任务服务器的唯一访问边界。Renderer 和 Runtime worker 不持有服务凭证，也不直接构造远端请求。Electron main 进程创建 adapter，并通过受限 IPC 暴露投影和显式命令。
+Task Source Adapter 是远端项目与任务服务器的唯一访问边界，并且只由 main-process Work Sync 使用。Renderer、Automation Coordinator 和 Runtime worker 不持有服务凭证，也不直接构造远端请求。Work Sync 通过本地 Task Projection Store 向 Work 与 Automation 发布状态，并通过受控本地命令接收任务动作。
 
 Adapter 提供以下语义操作：
 
@@ -98,15 +98,15 @@ Adapter 提供以下语义操作：
 - 基于任务最新版本条件式更新状态。
 - 区分未认证、无权限、版本冲突、服务不可用和无效响应。
 
-Workshop task source 实现沿用 Workshop Desktop 的服务契约：先读取 `/projects` 的独立项目与 `/organizations`，再按 `organization_id` 合并组织项目；组织项目拉取采用有界并发，项目按服务器标识去重。Adapter 从项目成员的 `is_me` 标记或登录用户名解析当前用户的数字 `user_id`，并把它作为 `/tasks` 的 `executor_id` 查询条件；响应归一化后再次按 `executor_id` 等值过滤，因此创建人、未分配和其他执行人的任务不会进入 Automation Snapshot。无法解析项目内当前用户标识时，该项目任务同步关闭而不是退化为全量任务。任务状态由 `/tasks/{task_id}` 更新。认证配置和令牌只保存在主进程设置中，Workshop 专属响应形状不泄漏给 Renderer。
+Workshop task source 实现沿用 Workshop Desktop 的服务契约：先读取 `/projects` 的独立项目与 `/organizations`，再按 `organization_id` 合并组织项目；组织项目拉取采用有界并发，项目按服务器标识去重。Work Sync 为 Work 投影读取项目内可访问任务，并从项目成员的 `is_me` 标记或登录用户名解析当前用户数字 `user_id`，从同一项目投影派生 Automation 可消费的执行人子集。无法解析项目内当前用户标识时，不向 Automation 发布该项目候选，但 Work 保持权限允许的只读投影。任务状态由 `/tasks/{task_id}` 更新。认证配置和令牌只保存在主进程设置中，Workshop 专属响应形状不泄漏给 Renderer 或 Automation。
 
 任务状态枚举固定为 `pending_review`、`pending`、`in_progress`、`completed`、`accepted`、`cancelled` 和 `blocked`。未知状态保留原始值用于诊断，但不进入自动队列。
 
 验收反馈不是第八种任务状态。Desktop 以独立反馈记录保存 `queued`、`running`、`awaiting_human`、`blocked`、`resolved` 和 `cancelled` 生命周期；来源 todo 保持 completed 或 accepted。详细持久模型、幂等创建、双队列仲裁和恢复规则由 `desktop-execution-solution.md` 定义。
 
-远端状态更新携带调用方最后读取的版本标识或等价条件。服务端不支持条件更新时，adapter 先读取最新任务并拒绝已变化状态；该检查降低冲突概率，但不能替代服务端原子并发控制，因此该能力在 UI 中标记为弱一致领取。
+远端状态更新由 Work Sync 携带本地投影最后确认的版本标识或等价条件。服务端不支持条件更新时，Work Sync 通过 Adapter 处理必要的重读和冲突，并只在服务端成功后提交新的本地任务状态；该能力在 UI 中标记为弱一致领取。Automation 不执行远端重读或条件更新。
 
-Coordinator 在远端领取前调用 Desktop Run Manager readiness preflight。Preflight 只读检查本地绑定、canonical state、Runtime capability policy、repository capability manifest 与 trusted ledger entrypoints；它不推导 Codex skill 安装路径，不读取安装版 `SKILL.md`，也不比较 skill 版本或目录漂移。全部通过后才读取任务最新版本并提交 `pending -> in_progress`。Preflight 失败产生 `readiness_failed` recovery，远端任务保持 pending。领取后的启动失败仍按 `start_failed` 恢复，因为远端状态已经合法变为 in_progress。
+Coordinator 在提交本地领取意图前调用 Desktop Run Manager readiness preflight。Preflight 只读检查本地绑定、canonical state、Runtime capability policy、repository capability manifest 与 trusted ledger entrypoints；它不推导 Codex skill 安装路径，不读取安装版 `SKILL.md`，也不比较 skill 版本或目录漂移。全部通过后，Coordinator 请求 Work Sync 执行 `pending -> in_progress`，并只在本地 Task Projection Store 发布 `in_progress` 后启动 Runtime。Preflight 失败产生 `readiness_failed` recovery且本地任务保持 pending；Work Sync mutation 成功后的启动失败仍按 `start_failed` 恢复。
 
 ### Desktop Execution Plane
 
@@ -128,7 +128,7 @@ Recovery 状态是持久化的一致性差异，不是只存在于 Renderer 的�
 
 Coordinator 启动时先对齐本地活动关联、Desktop Run Manager 的活动 run 与服务器进行中任务。三者一致时恢复观察或执行；无法确定唯一活动任务时进入 multiple active tasks recovery。
 
-Coordinator 只消费 Adapter 返回的当前执行人任务。项目级同步失败时，旧快照仅保留能够由 `executor_id` 证明仍属于当前用户的任务；身份无法解析时不保留该项目任务。领取、人工状态变更和完成写回前均以项目内当前用户标识重新读取任务，任务已改派或不再处于预期状态时停止写回并触发重新同步或恢复流程。
+Coordinator 只消费 Work Sync 从本地 Task Projection Store 发布的当前执行人任务。项目级同步失败、身份无法解析或权限撤销时，Work Sync 停止向 Automation 发布受影响项目候选并保留可诊断状态。领取、人工状态变更和完成写回都作为本地意图提交 Work Sync；任务已改派、状态冲突或服务端拒绝时，Work Sync 保持原本地任务状态并发布恢复结果，Coordinator 不自行重读远端。
 
 ### Desktop IPC 与 Renderer
 

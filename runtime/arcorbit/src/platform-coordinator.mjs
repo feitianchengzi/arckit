@@ -5,9 +5,9 @@ import { taskAttachmentHasObjectKey } from "./work-task-attachment-content.mjs";
 const SECTION_NAMES = new Set(["overview", "organizations", "members", "tasks", "feedback", "tags"]);
 const TASK_STATES = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
 
-export function createPlatformCoordinator({ runManager, platformSource, automationCoordinator, now = () => new Date().toISOString() }) {
-  if (!runManager || !platformSource || !automationCoordinator) {
-    throw new TypeError("Platform coordinator requires run manager, platform source, and automation coordinator.");
+export function createPlatformCoordinator({ runManager, platformSource, workSync, automationCoordinator, now = () => new Date().toISOString() }) {
+  if (!runManager || !platformSource || !workSync || !automationCoordinator) {
+    throw new TypeError("Platform coordinator requires run manager, platform source, Work Sync, and automation coordinator.");
   }
   const feedbackV2Health = new Map();
 
@@ -60,9 +60,10 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
 
   async function getSnapshot(input = {}) {
     const sections = normalizeSections(input.sections);
-    const [store, automation, organizationsResult, participatingProjectsResult] = await Promise.all([
+    const [store, automation, workProjection, organizationsResult, participatingProjectsResult] = await Promise.all([
       runManager.readDesktopStore(),
       automationCoordinator.getSnapshot({}),
+      workSync.getSnapshot(),
       capture("organizations", () => platformSource.listOrganizations()),
       capture("projects", () => platformSource.listProjects())
     ]);
@@ -71,6 +72,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     const activeWorkset = platform.worksets.find((item) => item.id === worksetId) || platform.worksets[0];
     const organizations = organizationsResult.value || [];
     const errors = [organizationsResult.error, participatingProjectsResult.error].filter(Boolean);
+    errors.push(...(workProjection.errors || []).map((error) => ({ section: "tasks", ...error })));
     const governanceRequested = sections.has("organizations") || sections.has("members") || sections.has("overview");
     const organizationMemberResults = governanceRequested
       ? await Promise.all(organizations.map((organization) => {
@@ -139,24 +141,22 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       const projectId = String(project.id);
       const embeddedMembers = projectMembers.filter((member) => String(member.project_id) === projectId);
       const taskFilters = input.task_filters || {};
-      const treeRequested = Boolean(taskFilters.tree && typeof platformSource.listProjectTaskTree === "function");
+      const treeRequested = Boolean(taskFilters.tree);
       const [members, tasks, taskCountSource, feedback, tags] = await Promise.all([
         sections.has("members")
           ? embeddedMembers.length > 0 ? Promise.resolve({ value: embeddedMembers, error: null }) : capture("members", () => platformSource.listProjectMembers(projectId), projectId)
           : emptyResult(),
         sections.has("tasks") || sections.has("overview")
-          ? capture("tasks", () => treeRequested
-            ? platformSource.listProjectTaskTree(projectId, taskFilters)
-            : platformSource.listProjectTasks(projectId, taskFilters), projectId)
+          ? localTaskResult(workProjection, projectId, taskFilters, { tree: treeRequested })
           : emptyResult(),
         sections.has("tasks") && treeRequested
-          ? capture("task_counts", () => platformSource.listProjectTasks(projectId, { ...taskFilters, tree: false, states: TASK_STATES }), projectId)
+          ? localTaskResult(workProjection, projectId, { states: TASK_STATES }, { tree: false })
           : emptyResult(),
         sections.has("feedback") || sections.has("overview")
           ? loadFeedback(projectId, input.feedback_filters || {})
           : emptyResult(),
         sections.has("tags") || sections.has("tasks") || sections.has("overview")
-          ? capture("tags", () => platformSource.listProjectTags(projectId), projectId)
+          ? Promise.resolve({ value: workProjection.tags.filter((tag) => String(tag.project_id) === projectId), error: null })
           : emptyResult()
       ]);
       errors.push(...[members.error, tasks.error, taskCountSource.error, feedback.error, tags.error].filter(Boolean));
@@ -245,16 +245,16 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     const taskState = TASK_STATES.includes(String(input.state)) ? String(input.state) : "pending";
     const offset = Math.max(0, Math.trunc(Number(input.offset) || 0));
     const limit = Math.min(200, Math.max(1, Math.trunc(Number(input.limit) || 80)));
-    const [store, projectsResult] = await Promise.all([
+    const [store, workProjection] = await Promise.all([
       runManager.readDesktopStore(),
-      capture("projects", () => platformSource.listProjects())
+      workSync.getSnapshot()
     ]);
     const platform = store.platform;
     const worksetId = String(input.workset_id || platform.active_workset_id || "");
     const activeWorkset = platform.worksets.find((item) => item.id === worksetId) || platform.worksets[0] || null;
     const selectedIds = new Set(activeWorkset?.project_ids || []);
     const requestedProjectId = String(input.project_id || "all");
-    const selectedProjects = (projectsResult.value || []).filter((project) => (
+    const selectedProjects = (workProjection.project_catalog || []).filter((project) => (
       selectedIds.has(String(project.id)) && (requestedProjectId === "all" || String(project.id) === requestedProjectId)
     ));
     const taskFilters = {
@@ -268,16 +268,10 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       start_time: String(input.start_time || "").slice(0, 40),
       end_time: String(input.end_time || "").slice(0, 40)
     };
-    const errors = [projectsResult.error].filter(Boolean);
-    const detailResults = await Promise.all(selectedProjects.map(async (project) => {
+    const errors = [...(workProjection.errors || [])];
+    const detailResults = selectedProjects.map((project) => {
       const projectId = String(project.id);
-      const [tasks, tags] = await Promise.all([
-        capture("tasks", () => typeof platformSource.listProjectTaskTree === "function"
-          ? platformSource.listProjectTaskTree(projectId, taskFilters)
-          : platformSource.listProjectTasks(projectId, { ...taskFilters, tree: false }), projectId),
-        capture("tags", () => platformSource.listProjectTags(projectId), projectId)
-      ]);
-      errors.push(...[tasks.error, tags.error].filter(Boolean));
+      const tasks = localTaskResult(workProjection, projectId, taskFilters, { tree: true });
       const taskValue = tasks.value || [];
       const flattened = Array.isArray(taskValue) ? taskValue : taskValue.flattened || [];
       const matchedTotal = Array.isArray(taskValue)
@@ -288,9 +282,9 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
         tasks: flattened,
         taskTree: Array.isArray(taskValue) ? null : taskValue,
         taskCounts: { [taskState]: matchedTotal },
-        tags: tags.value || []
+        tags: workProjection.tags.filter((tag) => String(tag.project_id) === projectId)
       };
-    }));
+    });
     const allTasks = detailResults.flatMap((detail) => detail.tasks.map((task) => ({
       ...task,
       project_id: String(detail.project.id),
@@ -317,7 +311,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       schema_version: "arcorbit-work-query/v1",
       query_key: queryKey,
       generated_at: now(),
-      source_status: errors.length > 0 ? "degraded" : "healthy",
+      source_status: workProjection.source_status,
       active_workset: activeWorkset,
       projects: selectedProjects.map((project) => projectProjection(project)),
       product_workspaces: productWorkspaces,
@@ -343,6 +337,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       store.platform.active_workset_id = workset.id;
       return store;
     });
+    await workSync.reconcile({ dispatch: false, reason: "workset-created" });
     return workset;
   }
 
@@ -361,6 +356,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       store.platform.worksets[index] = updated;
       return store;
     });
+    await workSync.reconcile({ dispatch: false, reason: "workset-updated" });
     return updated;
   }
 
@@ -374,6 +370,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       if (store.platform.active_workset_id === id) store.platform.active_workset_id = store.platform.worksets[0].id;
       return store;
     });
+    await workSync.reconcile({ dispatch: false, reason: "workset-deleted" });
     return { id, deleted: true };
   }
 
@@ -384,6 +381,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       store.platform.active_workset_id = id;
       return store;
     });
+    await workSync.reconcile({ dispatch: false, reason: "workset-activated" });
     return { id };
   }
 
@@ -422,7 +420,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
       "task.subtask.create": async () => {
         const projectId = requiredText(input.project_id, "Project id", 120);
         const parentId = requiredText(input.father_id, "Parent task id", 120);
-        const tasks = await platformSource.listProjectTasks(projectId);
+        const tasks = (await workSync.getSnapshot()).tasks.filter((task) => String(task.project_id) === projectId);
         if (!(tasks || []).some((task) => String(task.id) === parentId)) throw new Error("父待办不属于当前产品。");
         return createPendingReviewTask({ ...input, project_id: projectId, father_id: parentId });
       },
@@ -430,9 +428,9 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
         const projectId = requiredText(input.project_id, "Project id", 120);
         const taskId = requiredText(input.task_id, "Task id", 120);
         const parentId = input.father_id === undefined || input.father_id === null || input.father_id === "" ? "" : requiredText(input.father_id, "Parent task id", 120);
-        const tasks = await platformSource.listProjectTasks(projectId);
+        const tasks = (await workSync.getSnapshot()).tasks.filter((task) => String(task.project_id) === projectId);
         validateTaskParentChange(tasks, taskId, parentId);
-        return platformSource.updateTask(taskId, { father_id: parentId || null });
+        return workSync.updateTask(taskId, { father_id: parentId || null });
       },
       "task.update": async () => {
         if (input.state !== undefined) {
@@ -442,9 +440,12 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
             throw new Error("Automation 管理中的待办状态只能通过受控 Automation 动作变更。");
           }
         }
-        return platformSource.updateTask(input.task_id, input);
+        if (input.state !== undefined) {
+          return workSync.updateTaskState({ taskId: input.task_id, state: input.state, expectedState: input.expected_state || "" });
+        }
+        return workSync.updateTask(input.task_id, input);
       },
-      "task.delete": () => platformSource.deleteTask(input.task_id),
+      "task.delete": () => workSync.deleteTask(input.task_id),
       "task.attachments.list": () => platformSource.listTaskAttachments(input.task_id),
       "task.attachment.create": () => platformSource.createTaskAttachment(input),
       "task.attachment.update": () => platformSource.updateTaskAttachment(input.attachment_id, input),
@@ -460,7 +461,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
         const feedbackId = requiredText(input.feedback_id, "Feedback id", 120);
         const taskId = requiredText(input.task_id, "Task id", 120);
         const [tasks, feedbackItems] = await Promise.all([
-          platformSource.listProjectTasks(projectId),
+          workSync.getSnapshot().then((projection) => projection.tasks.filter((task) => String(task.project_id) === projectId)),
           platformSource.listFeedbackV1(projectId)
         ]);
         const task = (tasks || []).find((item) => String(item.id) === taskId);
@@ -479,7 +480,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
         return { status: "completed", task, feedback, already_linked: false };
       },
       "feedback.to_task": async () => {
-        const task = await platformSource.createTask({
+        const task = await workSync.createTask({
           project_id: input.project_id,
           content: input.task_content || input.title || input.content,
           state: input.task_state || "pending_review",
@@ -518,14 +519,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
 
   async function createPendingReviewTask(input = {}) {
     const projectId = requiredText(input.project_id, "Project id", 120);
-    const task = await platformSource.createTask({ ...input, project_id: projectId, state: "pending_review" });
-    try {
-      await automationCoordinator.refreshProject(projectId, { dispatch: false });
-    } catch {
-      // The task already exists remotely. refreshProject records and emits its degraded state;
-      // do not turn a successful create into a retryable error that could duplicate the task.
-    }
-    return task;
+    return workSync.createTask({ ...input, project_id: projectId, state: "pending_review" });
   }
 
   async function getFeedbackV2Messages(input = {}) {
@@ -586,7 +580,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
   async function uploadTaskAttachmentResource(input = {}) {
     const projectId = requiredText(input.project_id, "Project id", 120);
     const taskId = requiredText(input.task_id, "Task id", 120);
-    const tasks = await platformSource.listProjectTasks(projectId);
+    const tasks = (await workSync.getSnapshot()).tasks.filter((task) => String(task.project_id) === projectId);
     if (!(tasks || []).some((task) => String(task.id) === taskId)) throw new Error("待办不属于当前产品或当前账户不可见。");
     return platformSource.uploadTaskAttachmentResource({ kind: input.kind, file: input.file });
   }
@@ -788,6 +782,82 @@ function countBy(items, key) {
   const counts = {};
   for (const item of items) counts[item[key]] = (counts[item[key]] || 0) + 1;
   return counts;
+}
+
+function localTaskResult(projection, projectId, filters = {}, { tree = false } = {}) {
+  const all = (projection.tasks || []).filter((task) => String(task.project_id) === String(projectId));
+  const matched = all.filter((task) => matchesLocalTask(task, filters));
+  if (!tree) return { value: matched, error: null };
+  const byId = new Map(all.map((task) => [String(task.id), task]));
+  const included = new Set(matched.map((task) => String(task.id)));
+  for (const task of matched) {
+    let parentId = String(task.father_id || "");
+    const seen = new Set();
+    while (parentId && byId.has(parentId) && !seen.has(parentId)) {
+      included.add(parentId);
+      seen.add(parentId);
+      parentId = String(byId.get(parentId)?.father_id || "");
+    }
+  }
+  const flattened = all.filter((task) => included.has(String(task.id))).map((task) => {
+    const ancestors = taskAncestors(task, byId);
+    return {
+      ...task,
+      tree_depth: ancestors.length,
+      tree_ancestor_ids: ancestors,
+      tree_matched: matched.some((item) => String(item.id) === String(task.id))
+    };
+  });
+  return {
+    value: {
+      tasks: flattened.filter((task) => !task.father_id || !included.has(String(task.father_id))),
+      flattened,
+      total: flattened.length,
+      matched_total: matched.length
+    },
+    error: null
+  };
+}
+
+function matchesLocalTask(task, filters) {
+  const states = boundedValues(filters.states);
+  if (states.length > 0 && !states.includes(String(task.state))) return false;
+  const search = String(filters.search_key || "").trim().toLocaleLowerCase();
+  if (search && !String(task.content || "").toLocaleLowerCase().includes(search)) return false;
+  if (!matchesBoundedValue(task.creator_id, filters.creator_ids)) return false;
+  if (!matchesBoundedValue(task.executor_id, filters.executor_ids)) return false;
+  if (!matchesBoundedValue(task.priority, filters.priorities)) return false;
+  const selectedTags = boundedValues(filters.tag_ids);
+  if (selectedTags.length > 0) {
+    const taskTags = Array.isArray(task.tags)
+      ? task.tags.map((tag) => String(tag?.id ?? tag))
+      : String(task.tags || "").split(",").map((tag) => tag.trim()).filter(Boolean);
+    if (!selectedTags.some((tag) => taskTags.includes(tag))) return false;
+  }
+  const createdAt = Date.parse(task.created_at || "");
+  const start = Date.parse(filters.start_time || "");
+  const endText = String(filters.end_time || "");
+  const end = endText ? Date.parse(endText.length <= 10 ? `${endText}T23:59:59.999Z` : endText) : Number.NaN;
+  if (Number.isFinite(start) && (!Number.isFinite(createdAt) || createdAt < start)) return false;
+  if (Number.isFinite(end) && (!Number.isFinite(createdAt) || createdAt > end)) return false;
+  return true;
+}
+
+function matchesBoundedValue(value, selected) {
+  const values = boundedValues(selected);
+  return values.length === 0 || values.includes(String(value ?? ""));
+}
+
+function taskAncestors(task, byId) {
+  const ancestors = [];
+  const seen = new Set();
+  let parentId = String(task.father_id || "");
+  while (parentId && byId.has(parentId) && !seen.has(parentId)) {
+    ancestors.unshift(parentId);
+    seen.add(parentId);
+    parentId = String(byId.get(parentId)?.father_id || "");
+  }
+  return ancestors;
 }
 
 function validateTaskParentChange(tasks, taskId, parentId) {

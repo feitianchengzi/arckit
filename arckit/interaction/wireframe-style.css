@@ -361,6 +361,16 @@ details[open] summary { background: var(--gray-1); color: var(--white); }
 }
 .compact-action.primary { border-color: var(--gray-1); color: var(--white); background: var(--gray-1); }
 .page-content { padding: var(--lg); overflow: auto; }
+.page-content:has(> .command-bar) {
+    display: grid; grid-template-rows: 42px minmax(0, 1fr); gap: var(--md);
+    min-height: 540px; overflow: hidden;
+}
+.workspace-column > .page-content:has(> .command-bar) { min-height: 0; }
+.page-content:has(> .command-bar) > .command-bar { min-width: 0; overflow: hidden; }
+.page-content:has(> .command-bar) > .command-bar .command-search { flex: 1 1 150px; }
+.page-content:has(> .command-bar) > :is(.split-h, .content-grid) { min-height: 0; align-items: stretch; }
+.page-content:has(> .command-bar) > :is(.split-h, .content-grid) > .split-v { min-height: 0; }
+.page-content:has(> .command-bar) > :is(.split-h, .content-grid) > .split-v > .surface-body { flex: 1; min-height: 0; overflow: auto; }
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--lg); margin-bottom: var(--md); }
 .page-header .eyebrow { color: var(--gray-3); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
 .page-header h2 { margin: 2px 0 3px; color: var(--gray-0); font-size: 1.35rem; }

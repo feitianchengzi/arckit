@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   logoutAuth: (input) => ipcRenderer.invoke("arckit:auth-logout", input),
   automationSnapshot: (filter) => ipcRenderer.invoke("arckit:automation-snapshot", filter),
   syncAutomation: () => ipcRenderer.invoke("arckit:automation-sync"),
+  syncWork: () => ipcRenderer.invoke("arckit:work-sync"),
   setAutomationEnabled: (enabled) => ipcRenderer.invoke("arckit:automation-enabled", enabled),
   setQueuePaused: (paused) => ipcRenderer.invoke("arckit:automation-pause", paused),
   bindAutomationProject: (remoteProjectId, localProjectId) => (
@@ -113,6 +114,11 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     const handler = (_event, payload) => listener(payload);
     ipcRenderer.on("arckit:automation-event", handler);
     return () => ipcRenderer.off("arckit:automation-event", handler);
+  },
+  onWorkSyncEvent: (listener) => {
+    const handler = (_event, payload) => listener(payload);
+    ipcRenderer.on("arckit:work-sync-event", handler);
+    return () => ipcRenderer.off("arckit:work-sync-event", handler);
   },
   onChatEvent: (listener) => {
     const handler = (_event, payload) => listener(payload);

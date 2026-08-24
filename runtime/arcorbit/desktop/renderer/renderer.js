@@ -235,6 +235,7 @@ async function boot() {
     renderSetup();
   });
   api.onAutomationEvent(() => scheduleRefresh());
+  api.onWorkSyncEvent(() => scheduleRefresh());
   api.onChatEvent((event) => {
     if (event?.type === "chat.draft.changed") return;
     refreshChat({ quiet: true }).catch(() => {});
@@ -449,6 +450,7 @@ function wireEvents() {
     state.platformWorkFilter = els.platformWorkFilter.value.trim().toLowerCase();
     scheduleWorkFilterRefresh();
   });
+  els.workStateSelect.addEventListener("change", () => openWorkState(els.workStateSelect.value));
   els.platformWorkTable.addEventListener("click", (event) => {
     const row = event.target.closest("[data-platform-task-select]");
     if (row && els.platformWorkTable.contains(row)) {
@@ -774,7 +776,6 @@ async function refreshWorkQuery({ quiet = false } = {}) {
     error: ""
   };
   if (state.page === "work") renderWorkSurface();
-  if (!quiet && !request.cached) renderSyncing(true);
   try {
     const projection = await api.platformWorkQuery({ query_key: request.key, ...request.query });
     const result = workQueryState.accept(request, projection);
@@ -794,8 +795,6 @@ async function refreshWorkQuery({ quiet = false } = {}) {
       if (state.page === "work") renderWorkSurface();
     }
     throw error;
-  } finally {
-    if (!quiet && workQueryState.isCurrent(request)) renderSyncing(false);
   }
 }
 
@@ -1331,11 +1330,12 @@ function renderPlatformWork() {
   const scopedTasks = (projection.tasks || []).filter(platformItemMatchesSelectedProject);
   const stateCounts = workStateCounts(projection);
   els.workStateFilters.innerHTML = TASK_STATES.map((taskState) => `<button class="work-state-filter ${state.selectedState === taskState ? "is-active" : ""}" data-work-state="${taskState}" type="button" aria-pressed="${state.selectedState === taskState}"><span>${STATE_ICONS[taskState]}</span><strong>${STATE_LABELS[taskState]}</strong><em>${stateCounts[taskState]}</em></button>`).join("");
+  els.workStateSelect.innerHTML = TASK_STATES.map((taskState) => `<option value="${taskState}" ${state.selectedState === taskState ? "selected" : ""}>${STATE_LABELS[taskState]} · ${stateCounts[taskState]}</option>`).join("");
   const treeSummaries = (projection.task_trees || []).filter(platformItemMatchesSelectedProject);
   const matchedTotal = treeSummaries.reduce((sum, item) => sum + Number(item.matched_total || 0), 0);
   const completedTotal = treeSummaries.reduce((sum, item) => sum + Number(item.total || 0), 0);
   const hasTreeSummary = treeSummaries.length > 0;
-  const queryStatus = state.workQuery.loading ? " · 后台刷新" : state.workQuery.error ? " · 刷新失败，保留匹配缓存" : "";
+  const queryStatus = state.workQuery.loading ? " · 本地查询中" : state.workQuery.error ? " · 本地查询失败，保留匹配结果" : "";
   els.workStateSummary.textContent = `${currentProject()?.name || state.platform.active_workset?.name || "当前产品集"} · 命中 ${hasTreeSummary ? matchedTotal : stateCounts[state.selectedState]} / 补全树 ${hasTreeSummary ? completedTotal : projection.window?.total || scopedTasks.length} · ${STATE_LABELS[state.selectedState]} ${stateCounts[state.selectedState]} 项${queryStatus}`;
   els.workStateFilters.querySelectorAll("[data-work-state]").forEach((button) => button.addEventListener("click", () => openWorkState(button.dataset.workState)));
   const stateTasks = scopedTasks.filter((task) => task.state === state.selectedState);
@@ -1389,15 +1389,11 @@ function setMultiSelectOptions(element, options, selectedValues) {
 }
 
 function renderWorkFilterSummaries() {
-  [els.workCreatorFilter, els.workExecutorFilter, els.workTagFilter, els.workPriorityFilter].forEach((element) => {
-    const selected = [...element.querySelectorAll('input[type="checkbox"]:checked')];
-    const summary = element.closest("[data-work-filter-menu]")?.querySelector("[data-work-filter-summary]");
-    if (summary) summary.textContent = selected.length === 0 ? "全部" : selected.length === 1 ? selected[0].nextElementSibling?.textContent || "1 项" : `${selected.length} 项`;
-  });
-  const dateSummary = els.workStartDateFilter.closest("[data-work-filter-menu]")?.querySelector("[data-work-date-summary]");
-  if (dateSummary) dateSummary.textContent = els.workStartDateFilter.value || els.workEndDateFilter.value
-    ? `${els.workStartDateFilter.value || "不限"} → ${els.workEndDateFilter.value || "不限"}`
-    : "不限";
+  const selectedCount = [els.workCreatorFilter, els.workExecutorFilter, els.workTagFilter, els.workPriorityFilter]
+    .reduce((total, element) => total + element.querySelectorAll('input[type="checkbox"]:checked').length, 0);
+  const dateCount = Number(Boolean(els.workStartDateFilter.value)) + Number(Boolean(els.workEndDateFilter.value));
+  const total = selectedCount + dateCount;
+  els.workFilterSummary.textContent = total ? `${total} 项` : "全部";
 }
 
 function renderPlatformWorkInspector(task) {
@@ -3414,7 +3410,7 @@ async function saveSettings() {
   }));
   state.authentication = normalizeAuthentication(await api.getAuthStatus());
   closeSettings();
-  await api.syncAutomation();
+  await api.syncWork();
   await refreshSnapshot();
   showToast(!state.authentication.authenticated
     ? "设置已保存，请登录 Workshop 后同步。"
@@ -3712,7 +3708,7 @@ async function syncAutomationNow() {
   state.manualSyncing = true;
   renderSyncing(false);
   try {
-    await api.syncAutomation();
+    await api.syncWork();
     await refreshSnapshot({ quiet: true });
     showToast("Workshop 当前状态已同步。");
   } finally {

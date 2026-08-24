@@ -4,11 +4,12 @@
 
 Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。用户在 Work 中完成任务发现、分解、协作、状态处置和结果验收，不需要为了常规待办操作返回 Workshop Todo 网页端。
 
-本规格定义 Work 的完整日常能力边界。Automation 仍负责自动领取、Runtime、持久 Agent thread、人工 Gate 和恢复；Work 不复制这些职责，也不把界面筛选当作执行授权。
+本规格定义 Work 的完整日常能力边界。Work 同时负责 Workshop 待办的远端同步和本地可信投影；Automation 只依赖该本地投影，并负责自动领取决策、Runtime、持久 Agent thread、人工 Gate 和执行恢复。Work 不复制 Automation 的执行职责，也不把界面筛选当作执行授权。
 
 ## 权威数据与范围
 
 - Workshop Project、ProjectMember、Task、Project Tag 和 TaskAttachment 是远端权威记录。
+- Work Sync 是 Workshop 待办同步的唯一客户端所有者，维护按登录身份和项目分区的本地 Task Projection。Work 页面查询和 Automation 候选都从该投影派生，不各自建立远端任务快照。
 - Workshop Task 只以一个完整 `content` 字段保存待办正文，不存在独立标题事实。ArcOrbit 不向 Workshop 写入 `title`，也不把本地展示标题回写成第二个服务端字段。
 - ArcOrbit 从完整正文生成只读展示标题：先去除首尾空白并把连续 Unicode 空白折叠为一个半角空格，再按 Unicode grapheme cluster 计数；结果不超过 64 个 grapheme clusters，超限时保留前 63 个并追加单字符省略号 `…`。完整正文不因标题生成而改变。
 - 展示标题只用于列表行、队列、当前运行、人工介入页顶部、确认对话以及 session/CLI 的可读标签。它不是可编辑业务字段；历史运行可以保存生成时的展示标题快照，但该快照不参与任务读取、搜索、编辑或服务端写回。
@@ -23,7 +24,7 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 1. 用户在当前产品集全部项目或一个明确产品中进入 Work。
 2. 用户可以组合七状态、创建人、执行人、标签、优先级、创建日期范围和关键字筛选，并可一次清除页面内筛选。
 3. 创建人、执行人、标签、优先级和日期范围使用紧凑触发器打开弹出菜单；收起时显示当前选择摘要或数量，不以常驻多选列表占用纵向空间。
-4. 关键字匹配服务端 Task content；筛选结果数量来自同一查询事实，不用仅加载到 Renderer 的局部数据冒充完整结果。
+4. 关键字匹配本地 Task Projection 中的完整 Task content；筛选结果数量、七状态计数和层级补全都来自同一完整项目投影，不用 Renderer 当前可见窗口冒充完整结果。
 5. 七状态计数与当前产品范围一致。待处理状态可以附加 Automation 队列资格和真实队列序号，但显示排序不改变队列。
 6. 日期范围遵守 Workshop Task Tree 的最多 100 天查询约束；页面提供明确默认范围和可见的范围调整，不静默截断结果。
 
@@ -60,16 +61,19 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 
 ## 同步、冲突与恢复
 
-- Workshop REST 是任务事实源，项目 WebSocket 只触发定向失效和刷新。
-- 创建、编辑、评论、标签、父子关系或状态操作成功后，Work 定向刷新对应项目数据并保持仍有效的筛选与任务选择。
+- Workshop 是服务端任务事实源；Work Sync 独占项目 WebSocket、事件游标、REST 对账和受控 mutation，并把服务器确认结果原子写入本地 Task Projection。
+- Work 页面切换七状态、搜索、筛选、日期或分页只改变本地查询，不发起 Workshop 请求，也不显示“正在后台刷新”作为该交互的结果。
+- active Workset 项目、允许 Automation 参与的项目和当前活动任务项目共同形成 Work Sync 的订阅与对账范围。Automation 只提供本地项目需求，不创建连接、不推进游标、不读取 REST。
+- WebSocket 与补取事件只使项目投影失效；Work Sync 合并失效后执行必要的 REST 对账。创建、编辑、评论、标签、父子关系或状态操作也统一提交给 Work Sync，并只在服务器确认成功后发布新的本地状态。
 - 401、403、404、409/412 和传输错误分别呈现认证、权限、对象消失、冲突和可重试服务错误；失败动作不在本地伪造成功。
-- 刷新失败时可以保留最近成功结果并明确标记过期，但过期数据不参与 Automation 领取判断。
+- 同步失败时可以保留最近成功结果并明确标记过期；Automation 只消费 Work Sync 已完成当前登录代际初始对账且仍具备权限的本地任务状态。
 - 评论图片自动加载或独立窗口打开失败时，保留评论正文和已成功图片，在对应图片位置显示脱敏错误与重试；另存为取消不视为错误，写入失败时浏览窗口保持打开。
-- 登录身份变化会清空远端任务与评论缓存；Workset、本地绑定、Run 和 thread 按各自既有生命周期保留。
+- 登录身份变化、退出、权限撤销或项目删除会清除对应可信任务投影和 Automation 可见状态；Workset、本地绑定、Run 和 thread 按各自既有生命周期保留。
 
 ## 与 Automation 和 Feedback 的边界
 
-- Work 显示有权查看的完整项目任务；Automation Task Source 继续只消费当前用户执行的候选任务。
+- Work 显示有权查看的完整项目任务；Automation 不拥有 Task Source，只消费 Work Sync 从同一本地投影发布的当前用户候选状态。
+- Automation 的领取、阻塞、完成、取消和验收动作提交给 Work Sync。Work Sync 负责服务器同步；Automation 只在观察到 Work 发布的目标本地状态后推进执行生命周期。
 - Work 可以展示 Automation 资格、当前 Run、恢复入口和 completed 任务的验收问题，但不创建第二套任务状态。
 - 提出验收问题保持来源任务 `completed`，问题进入 ArcOrbit 独立队列并复用来源 thread；存在未解决问题时不能标记 `accepted`。
 - Workshop 普通用户反馈仍由 Feedback 页面处理；Feedback 转成的 Task 在 Work 中按普通任务继续管理。
@@ -83,14 +87,14 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 
 ## 验收口径
 
-1. 用户可以在一个 Work 页面内通过弹出菜单组合产品范围和全部任务筛选，查看完整结果数量并清除筛选。
+1. 用户可以在一个 Work 页面内通过弹出菜单组合产品范围和全部任务筛选，查看完整结果数量并清除筛选；切换状态或筛选只读取本地 Task Projection，不请求 Workshop。
 2. 筛选结果以单行、无操作按钮的可展开任务树呈现；每个任务标题把换行与连续空白折叠为空格，并在 64 个 Unicode grapheme clusters 内以 `…` 结束超长文本；用户从 Inspector 创建子任务、调整父任务且不能形成循环。
 3. 用户可在同屏详情中只阅读一次保留原始换行的完整内容和关键元数据，不在其上方重复展示同源标题；评论图片默认加载并可在独立窗口完成缩放、适配、实际大小、旋转、平移、重置和另存为，图片失败不阻塞其余时间线。
 4. 用户可完成评论/附件的新增及有权限的维护。
 5. 用户可完成任务 CRUD、执行人、优先级、标签和受控状态操作，所有成功结果均来自 Workshop 确认。
-6. Work 与 Automation 共享任务事实但不共享职责：筛选不授权执行，通用编辑不释放人工 Gate，验收问题不改写来源任务终态。
+6. Work 与 Automation 共享 Work Sync 发布的本地任务事实但不共享职责：Work 独占远端同步，Automation 只依赖本地状态；筛选不授权执行，通用编辑不释放人工 Gate，验收问题不改写来源任务终态。
 7. 权限变化、冲突、对象消失和网络失败均保留可恢复状态，不以本地乐观结果覆盖服务器事实。
-8. Adapter、Coordinator、typed IPC、主窗口 Renderer 和独立图片浏览窗口自动化测试覆盖标题在 63/64/65 grapheme 边界的省略行为、换行与 Unicode 组合字符、详情去重、Automation 标题消费面、筛选序列化、任务树、父子循环防护、评论权限、图片默认加载与操作、跨产品隔离、状态边界和失败恢复。
+8. Adapter、Work Sync、Automation Coordinator、typed IPC、主窗口 Renderer 和独立图片浏览窗口自动化测试覆盖本地状态/筛选查询不发起 Workshop 请求、Automation 没有远端任务依赖、标题在 63/64/65 grapheme 边界的省略行为、换行与 Unicode 组合字符、详情去重、任务树、父子循环防护、评论权限、图片默认加载与操作、跨产品隔离、状态边界和失败恢复。
 
 ## Source Basis
 

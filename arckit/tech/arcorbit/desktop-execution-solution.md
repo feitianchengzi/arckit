@@ -2,11 +2,11 @@
 
 ## 定位
 
-Desktop Execution Plane 负责承载自由 Chat 与受监督待办执行共用的 Codex transport、持久 thread、消息投影和安全控制。Automation 把远端待办绑定到可恢复的本地执行会话，并把 Runtime 过程投影为可审查的 transcript、耗时与 Token 用量；Chat 在独立 session 中直接运行自由 Codex turn。共享 transport 不判断 Case 语义，不以固定 Token 总量或总轮次终止研发事项；Runtime 的停止与续接仍由 handoff、状态进展、人工决策和安全控制决定。
+Desktop Execution Plane 负责承载自由 Chat 与受监督待办执行共用的 Codex transport、持久 thread、消息投影和安全控制。Automation 把 Work Sync 发布的本地待办状态绑定到可恢复的执行会话，并把 Runtime 过程投影为可审查的 transcript、耗时与 Token 用量；Chat 在独立 session 中直接运行自由 Codex turn。共享 transport 不判断 Case 语义，不以固定 Token 总量或总轮次终止研发事项；Runtime 的停止与续接仍由 handoff、状态进展、人工决策和安全控制决定。
 
 ## 待办执行会话
 
-Automation Store 为活动任务与最近完成项保存 `session_id`。Coordinator 在远端任务确认 `in_progress` 后、首次 Runtime 启动前创建专属 session，并写入：
+Automation Store 为活动任务与最近完成项保存 `session_id`。Coordinator 在 Work Sync 的本地 Task Projection 发布 `in_progress` 后、首次 Runtime 启动前创建专属 session，并写入：
 
 - 本地项目 ID、远端项目 ID 与远端任务 ID。
 - 会话类型 `automation-task` 和任务标题。
@@ -255,7 +255,7 @@ Automation Coordinator 从 task session 的 append-only accepted ledger receipts
 
 启动同步先执行 detached Run、持久 thread binding、权威 Case binding 与 canonical Case 的本地对账，再创建任务源 adapter 或检查认证。该阶段不调用远端 API：已绑定的 active Case resume 同一 thread 继续 loop；已绑定的 closed/resolved Case 若未 closeout 则 resume 同一 thread 执行收尾，已完成 closeout 时进入 `remote_completion_pending`。任务源未配置、未登录、认证失效或不可达都不能跳过或回退该对账。未绑定任务不能因仓库碰巧只有一个可读 Case 而进入收尾；`retry_start` 会清除陈旧的 closeout phase/checkpoint 并启动正常 Runtime，让新的 trusted ledger write 建立绑定。
 
-认证和远端项目/待办快照成功后，Coordinator 再执行允许远端写回的对账。远端完成要求任务已有权威 Case binding，并 fresh-read 到该 Case 的 canonical `closed/resolved` 状态；仅有 `closeout_status=completed`、裸 `case_id` 或 Agent 完成声明都不足以提交 `in_progress -> completed`。成功后清理活动任务。closeout 状态先持久化再尝试远端写回，因此应用退出、401 或网络失败后不会重复 Git 操作。`remote_completion_pending` 不属于 Runtime process ownership，Presence Recovery 不得生成 Runtime 丢失错误。
+认证和 Work Sync 本地 Task Projection 就绪后，Coordinator 再执行允许任务状态动作的对账。完成要求任务已有权威 Case binding，并 fresh-read 到该 Case 的 canonical `closed/resolved` 状态；仅有 `closeout_status=completed`、裸 `case_id` 或 Agent 完成声明都不足以向 Work Sync 提交 `in_progress -> completed`。Work Sync 发布本地 `completed` 后清理活动任务。closeout 状态先持久化再提交 Work Sync，因此应用退出、401 或网络失败后不会重复 Git 操作。`remote_completion_pending` 不属于 Runtime process ownership，Presence Recovery 不得生成 Runtime 丢失错误。
 
 ## 恢复
 

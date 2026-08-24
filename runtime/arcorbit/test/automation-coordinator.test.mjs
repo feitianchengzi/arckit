@@ -11,7 +11,6 @@ import {
   selectTaskCloseoutResult,
   selectNextExecution
 } from "../src/automation-coordinator.mjs";
-import { TaskSourceError } from "../src/task-source-adapter.mjs";
 
 const automationCoordinatorPath = new URL("../src/automation-coordinator.mjs", import.meta.url);
 
@@ -622,8 +621,8 @@ test("detached same-thread closeout recovers a completed result when result.json
 
   await coordinator.sync({ dispatch: false });
 
-  assert.equal(store.automation.active_task.closeout_status, "completed");
-  assert.equal(store.automation.active_task.phase, "remote_completion_pending");
+  assert.equal(store.automation.active_task, null);
+  assert.equal(store.automation.recent_completions[0].task_id, "t");
   assert.equal(store.automation.recovery_items.length, 0);
   coordinator.dispose();
 });
@@ -836,27 +835,10 @@ test("realtime project refresh preserves an unconfirmed human gate and does not 
   coordinator.dispose();
 });
 
-test("an in-flight realtime refresh cannot restore data after logout", async () => {
-  const store = recoveryStore();
-  store.automation.snapshot.source_status = "healthy";
-  store.automation.snapshot.user = { id: "u" };
-  store.automation.snapshot.projects = [{ id: "p", current_user_id: "u" }];
-  let releaseRefresh;
-  const pendingTasks = new Promise((resolve) => { releaseRefresh = resolve; });
-  const coordinator = createAutomationCoordinator({
-    runManager: fakeRunManager(store, []),
-    taskSourceFactory: () => ({ async listTasks() { return pendingTasks; } })
-  });
-
-  const refresh = coordinator.refreshProject("p", { dispatch: false });
-  await new Promise((resolve) => setImmediate(resolve));
-  await coordinator.clearRemoteSession();
-  releaseRefresh([{ id: "late", project_id: "p", state: "pending" }]);
-  await refresh;
-
-  assert.equal(store.automation.snapshot.source_status, "logged_out");
-  assert.deepEqual(store.automation.snapshot.tasks, []);
-  coordinator.dispose();
+test("Automation source has no Workshop transport or remote task-read dependency", async () => {
+  const source = await readFile(automationCoordinatorPath, "utf8");
+  assert.doesNotMatch(source, /createWorkshopTaskSource|workshop-realtime-adapter|\.getTask\(|\.listTasks\(|\.updateTask\(/);
+  assert.match(source, /workSync\.updateTaskState/);
 });
 
 test("retry_start clears stale closeout state and starts a normal Runtime", async () => {
@@ -1375,44 +1357,33 @@ test("remote completion refuses a bound but unresolved canonical Case", async ()
   coordinator.dispose();
 });
 
-test("a stale queue candidate is refreshed before skills readiness and does not immediately resync", async () => {
+test("a local pending candidate reaches readiness and submits one state action to Work", async () => {
   const store = recoveryStore();
   store.automation.active_task = null;
+  store.automation.snapshot.source_status = "healthy";
   store.automation.snapshot.tasks[0] = {
     ...store.automation.snapshot.tasks[0],
     state: "pending",
     version: "v1"
   };
   let readinessChecks = 0;
-  let listCalls = 0;
   const coordinator = createAutomationCoordinator({
     runManager: fakeRunManager(store, []),
-    setupReadinessPreflight: async () => { readinessChecks += 1; },
-    taskSourceFactory: () => ({
-      async getAuthStatus() { return { authenticated: true, status: "authenticated" }; },
-      async getCurrentUser() { return { id: "u", name: "tester" }; },
-      async listProjects() { return [{ id: "p", current_user_id: "u" }]; },
-      async listTasks() {
-        listCalls += 1;
-        return [{ ...store.automation.snapshot.tasks[0], version: "v1" }];
-      },
-      async getTask() { return { ...store.automation.snapshot.tasks[0], version: "v2" }; },
-      async updateTask() { throw new Error("stale candidate must not be claimed"); }
-    })
+    setupReadinessPreflight: async () => { readinessChecks += 1; }
   });
 
   await coordinator.sync();
   await new Promise((resolve) => setTimeout(resolve, 20));
 
-  assert.equal(readinessChecks, 0);
-  assert.equal(listCalls, 1);
-  assert.equal(store.automation.snapshot.tasks[0].version, "v2");
+  assert.equal(readinessChecks, 1);
+  assert.equal(store.automation.snapshot.tasks[0].state, "in_progress");
   coordinator.dispose();
 });
 
 test("a persistent claim version conflict becomes one global recovery instead of repeating skills readiness", async () => {
   const store = recoveryStore();
   store.automation.active_task = null;
+  store.automation.snapshot.source_status = "healthy";
   store.automation.snapshot.tasks[0] = {
     ...store.automation.snapshot.tasks[0],
     state: "pending",
@@ -1423,16 +1394,13 @@ test("a persistent claim version conflict becomes one global recovery instead of
   const coordinator = createAutomationCoordinator({
     runManager: fakeRunManager(store, []),
     setupReadinessPreflight: async (projectRoot) => { readinessChecks += 1; readinessRoots.push(projectRoot); },
-    taskSourceFactory: () => ({
-      async getAuthStatus() { return { authenticated: true, status: "authenticated" }; },
-      async getCurrentUser() { return { id: "u", name: "tester" }; },
-      async listProjects() { return [{ id: "p", current_user_id: "u" }]; },
-      async listTasks() { return [{ ...store.automation.snapshot.tasks[0] }]; },
-      async getTask() { return { ...store.automation.snapshot.tasks[0] }; },
-      async updateTask() {
-        throw new TaskSourceError("Task version changed while claiming it.", { code: "version_conflict" });
+    workSync: {
+      attachLocalProjection(current) { return current; },
+      async reconcile() {},
+      async updateTaskState() {
+        throw Object.assign(new Error("Task version changed while claiming it."), { code: "version_conflict" });
       }
-    })
+    }
   });
 
   await coordinator.sync();

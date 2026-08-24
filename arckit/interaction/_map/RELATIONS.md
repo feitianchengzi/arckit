@@ -2,7 +2,7 @@
 
 ## Platform Workspace
 
-`platform-workspace/interaction.md` 定义登录后的三组一级信息架构：Personal 下的 Today、Chat；Product Lifecycle 下的 Idea、Work、Automation、Release、Operations、Feedback；Organization 下的 Organization、Engineering。`default.html` 投影分组后的多产品推进壳和 Feedback 完整正文转待办、项目成员选择；`collaboration-views.html` 投影组织概览、成员已有关系和项目上下文邀请；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
+`platform-workspace/interaction.md` 定义登录后的三组一级信息架构：Personal 下的 Today、Chat；Product Lifecycle 下的 Idea、Work、Automation、Release、Operations、Feedback；Organization 下的 Organization、Engineering。它与 `task-browser/interaction.md` 共同约束 Work/Feedback 的主工作区骨架：全局产品栏之后只保留一条页面控制轨，列表与详情取得剩余高度并独立滚动。`default.html` 投影分组后的多产品推进壳、Feedback 主工作台和完整正文转待办、项目成员选择；`collaboration-views.html` 投影组织概览、成员已有关系和项目上下文邀请；`states.html` 投影 Workset 编辑、普通成员有限范围、邀请码加入和部分失败。
 
 Platform Workspace 消费 `arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md`、`arcorbit-planned-workspaces.md` 与 `arckit/tech/arcorbit/platform-composition-solution.md`。Product Workspace 组合 Workshop Project 与 ArcOrbit 本地 repository binding、participation 和偏好；Workset 只控制同时展示范围，不能改变 Automation participation 或全局单活动执行。
 
@@ -30,15 +30,15 @@ Organization Center 复用 Workshop Organization、OrganizationMember 和 Projec
 
 `login/interaction.md` 定义应用启动时的认证门禁；`login/default.html` 投影会话恢复、未登录入口、验证码已发送和登录失败。未登录时 Login 是唯一可交互主页面，认证成功后才进入 Automation Command Center，退出登录后返回 Login。
 
-`automation-workspace/interaction.md` 定义登录后的持久事件唤醒、游标补取、降级对账、人工 Gate、普通待办与验收问题双队列、统一执行仲裁和待办会话交接；`automation-workspace/default.html` 投影实时/补取/降级状态、两条队列、计数与进展，`automation-workspace/authentication.html` 投影设置覆盖层中的账号摘要和失效恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理、历史审查与同待办问题会话。
+`automation-workspace/interaction.md` 定义 Automation 只消费 Work Sync 发布的本地待办状态，并维护人工 Gate、普通待办与验收问题双队列、统一执行仲裁和待办会话交接；`automation-workspace/default.html` 只投影 Work 的实时/补取/降级健康摘要及 Automation 自己的两条队列、计数与进展，`automation-workspace/authentication.html` 投影设置覆盖层中的账号摘要和失效恢复，`automation-workspace/intervention-workbench.html` 投影按需进入的人工处理、历史审查与同待办问题会话。
 
-`task-browser/interaction.md` 定义 Work 面板内多维服务端筛选、父子任务树、完整详情、评论附件、产品限定待办维护、七种服务器任务状态和人工处置。`task-browser/daily-work.html` 投影筛选、树、父子关系、详情和评论，`task-browser/task-form.html` 投影产品联动成员/父待办/标签、语义优先级和标签生命周期管理，`task-browser/default.html` 投影列表、Inspector 与状态处置。completed Inspector 展示验收问题、进展和 Composer；accepted Inspector 只显示验收通过，不允许提出新问题。提出验收问题会创建独立问题项并复用来源待办会话，来源任务保持 completed；存在未解决问题时不能标记为 accepted。Work 的筛选在同页替换任务树与 Inspector；Automation 的“查看全部待处理”携带当前产品范围进入 Work，验收问题入口携带问题与来源待办身份进入详情。Feedback 页面只消费 Workshop 用户反馈。
+`task-browser/interaction.md` 定义 Work 面板内本地状态/搜索/筛选控制轨、Work-owned 同步、占满剩余高度的父子任务树与 Inspector、完整详情、评论附件、产品限定待办维护、七种服务器任务状态和人工处置。`task-browser/daily-work.html` 投影不触发远端请求的本地查询、独立滚动的树与 Inspector、父子关系、详情和评论，`task-browser/task-form.html` 投影产品联动成员/父待办/标签、语义优先级和标签生命周期管理，`task-browser/default.html` 投影列表、Inspector 与状态处置。completed Inspector 展示验收问题、进展和 Composer；accepted Inspector 只显示验收通过，不允许提出新问题。提出验收问题会创建独立问题项并复用来源待办会话，来源任务保持 completed；存在未解决问题时不能标记为 accepted。Work 的本地筛选在同页替换任务树与 Inspector；Automation 的“查看全部待处理”携带当前产品范围进入 Work，验收问题入口携带问题与来源待办身份进入详情。Feedback 页面只消费 Workshop 用户反馈。
 
-该页面先消费当前用户可访问的 Workshop 项目，再按项目消费七种任务状态，并把 `待处理 → 进行中 → 已完成` 作为普通待办自动执行链路。“所有项目”只聚合这些项目的待办，不构成独立任务来源。验收问题是 Desktop Store 拥有的独立工作来源，保留自己的队列状态、Run、Case 和进展；它只引用来源待办，不成为第八种服务器任务状态。项目、任务归属与任务状态由远端任务服务器拥有；本地工作区绑定、自动化参与状态、反馈记录、执行子状态、事件和 ledger 证据由 ArcOrbit 拥有。
+Work Sync 先维护当前用户可访问项目的七状态本地 Task Projection，再把当前执行人候选发布给 Automation；`待处理 → 进行中 → 已完成` 动作由 Automation 提交给 Work，Automation 只在本地状态变化后推进执行。“所有项目”只聚合这些项目的待办，不构成独立任务来源。验收问题是 Desktop Store 拥有的独立工作来源，保留自己的队列状态、Run、Case 和进展；它只引用来源待办，不成为第八种服务器任务状态。项目、任务归属与任务状态由远端任务服务器拥有；Work Task Projection、工作区绑定、自动化参与状态、反馈记录、执行子状态、事件和 ledger 证据由 ArcOrbit 拥有。
 
 Intervention Workbench 从 Command Center 的人工关注项或历史运行按需进入。需要人工输入时，Workbench 使用上下文、统一执行消息流、证据三栏结构；Runtime、Agent、工具摘要和用户输入进入同一任务时间线。处理完成后返回 Command Center 并恢复当前任务。普通运行审查进入同一 Workbench 的只读模式；它不读取或写入 Personal / Chat 的自由会话。
 
-`automation-workspace/runtime-recovery.html` 是 Command Center 的恢复子视图，承接条件式领取冲突、任务已进行中但 Runtime 启动失败、主动安全停止、活动任务外部状态变化、多个进行中任务、任务源完整性异常和会话失效。恢复完成后返回原运行或队列，不通过 Task Browser 静默改写 Runtime。
+`automation-workspace/runtime-recovery.html` 是 Command Center 的恢复子视图，承接 Work Sync 领取冲突、任务本地状态已进行中但 Runtime 启动失败、主动安全停止、活动任务外部变化、多个进行中任务、Work 投影完整性异常和会话失效。恢复完成后返回原运行或队列，不通过 Automation 直接访问 Workshop 或静默改写 Runtime。
 
 交互模式参考：
 

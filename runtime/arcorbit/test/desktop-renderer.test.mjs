@@ -559,6 +559,8 @@ test("Work navigation renders immediately before starting its dedicated query re
   assert.match(queryRefresh, /api\.platformWorkQuery\(\{ query_key: request\.key, \.\.\.request\.query \}\)/);
   assert.match(queryRefresh, /request\.cached \|\| emptyWorkQueryProjection/);
   assert.doesNotMatch(queryRefresh, /automationSnapshot|getAuthStatus|platformSnapshot/);
+  assert.doesNotMatch(queryRefresh, /renderSyncing\(true\)|syncWork/);
+  assert.doesNotMatch(source, /后台刷新/);
 });
 
 test("Automation activity invalidation refreshes only the visible Run surface", async () => {
@@ -575,12 +577,17 @@ test("Automation activity invalidation refreshes only the visible Run surface", 
   assert.doesNotMatch(activityRefresh, /platformSnapshot|getAuthStatus|render\(\)|routeAuthentication/);
 });
 
-test("Work assigns intrinsic rows to controls and the remaining height to the task list", async () => {
-  const styles = await readFile(rendererStylesPath, "utf8");
+test("Work and Feedback assign one control row and all remaining height to their split workbench", async () => {
+  const [html, styles] = await Promise.all([readFile(rendererHtmlPath, "utf8"), readFile(rendererStylesPath, "utf8")]);
 
-  assert.match(styles, /#workView > \.platform-page \{[^}]*grid-template-rows: auto auto auto minmax\(0, 1fr\)/);
+  assert.match(html, /class="panel-card primary-control-rail work-control-rail"/);
+  assert.match(html, /class="panel-card primary-control-rail feedback-toolbar"/);
+  assert.match(styles, /\.primary-workspace-page \{[^}]*grid-template-rows: 44px minmax\(0, 1fr\);[^}]*height: 100%;[^}]*min-height: 0;/);
   assert.match(styles, /\.platform-work-layout \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
-  assert.match(styles, /\.platform-work-layout > \.panel-card, \.platform-work-inspector \{[^}]*min-height: 0;[^}]*overflow-y: auto;/);
+  assert.match(styles, /\.platform-work-layout > \.panel-card, \.platform-work-inspector \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
+  assert.match(styles, /\.workspace-pane-scroll \{[^}]*min-height: 0;[^}]*overflow-y: auto;/);
+  assert.match(styles, /\.feedback-workbench-layout \{[^}]*min-height: 0;[^}]*overflow: hidden;/);
+  assert.doesNotMatch(styles, /\.feedback-(?:list|inspector)[^{]*\{[^}]*(?:calc\(100vh|max-height: 760px)/);
 });
 
 test("desktop primary surface is a simultaneous multi-product platform while preserving Automation", async () => {
@@ -1049,13 +1056,13 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   assert.match(styles, /\.work-state-filters/);
   assert.match(styles, /\.filter-toggle/);
   assert.match(styles, /\.account-avatar/);
-  assert.match(styles, /#workView\.is-active \{ overflow: hidden; \}/);
-  assert.match(styles, /#workView > \.platform-page[^}]+grid-template-rows: auto auto auto minmax\(0, 1fr\)[^}]+height: 100%[^}]+min-height: 0/);
+  assert.match(styles, /#workView\.is-active, #feedbackView\.is-active \{ overflow: hidden; \}/);
+  assert.match(styles, /\.primary-workspace-page[^}]+grid-template-rows: 44px minmax\(0, 1fr\)[^}]+height: 100%[^}]+min-height: 0/);
   assert.match(styles, /\.platform-work-layout[^}]+align-items: stretch[^}]+min-height: 0[^}]+overflow: hidden/);
-  assert.match(styles, /\.platform-work-layout > \.panel-card, \.platform-work-inspector[^}]+overflow-y: auto[^}]+overscroll-behavior: contain[^}]+scrollbar-gutter: stable/);
+  assert.match(styles, /\.workspace-pane-scroll[^}]+overflow-y: auto[^}]+overscroll-behavior: contain[^}]+scrollbar-gutter: stable/);
 });
 
-test("Work exposes server filters, task hierarchy, complete detail, subtasks and TaskAttachment collaboration", async () => {
+test("Work exposes local-projection filters, task hierarchy, complete detail, subtasks and TaskAttachment collaboration", async () => {
   const [source, html, styles] = await Promise.all([
     readFile(rendererPath, "utf8"),
     readFile(rendererHtmlPath, "utf8"),
@@ -1099,7 +1106,9 @@ test("Work exposes server filters, task hierarchy, complete detail, subtasks and
   assert.match(source, /task_filters: \{ tree: false, states: TASK_STATES \}/);
   assert.match(source, /Object\.assign\(state, workTaskReferenceSelection\(target\)\)/);
   assert.match(source, /Automation 管理中的状态只可通过受控动作变更/);
-  assert.match(styles, /\.work-filter-panel/);
+  assert.match(styles, /\.work-filter-groups/);
+  assert.match(html, /id="workFilterSummary"/);
+  assert.match(html, /id="workStateSelect"/);
   assert.match(styles, /\.work-filter-popover \{[^}]*position: absolute/);
   assert.match(styles, /\.platform-work-table td \{[^}]*height: 40px;[^}]*white-space: nowrap/);
   assert.match(styles, /\.task-comment-timeline/);

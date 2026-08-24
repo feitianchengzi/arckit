@@ -21,6 +21,7 @@ import { createImageViewer } from "../src/work-task-image-viewer.mjs";
 import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-boundary.mjs";
 import { checkDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
 import { createWorkshopRealtimeAdapter } from "../src/workshop-realtime-adapter.mjs";
+import { createWorkSyncCoordinator } from "../src/work-sync-coordinator.mjs";
 import feedbackV2Ipc from "./feedback-v2-ipc.cjs";
 
 const { settleFeedbackV2Ipc } = feedbackV2Ipc;
@@ -47,6 +48,7 @@ let skillProvisioningManager;
 let productFeedbackService;
 let imageViewer;
 let workshopRealtimeAdapter;
+let workSyncCoordinator;
 let quitAfterCleanup = false;
 let syncTimer;
 let realtimeSubscriptionTimer;
@@ -70,6 +72,11 @@ app.whenReady().then(async () => {
   workshopService = createWorkshopTaskSource({
     readSettings: () => runManager.getTaskSourceSettings(),
     saveSettings: (settings) => runManager.replaceTaskSourceSettings(settings)
+  });
+  workSyncCoordinator = createWorkSyncCoordinator({
+    runManager,
+    taskSource: workshopService,
+    platformSource: workshopService.platform
   });
   const productFeedbackSurface = createProductFeedbackSurface({
     BrowserWindow,
@@ -106,7 +113,7 @@ app.whenReady().then(async () => {
   });
   automationCoordinator = createAutomationCoordinator({
     runManager,
-    taskSourceFactory: () => workshopService,
+    workSync: workSyncCoordinator,
     setupReadinessPreflight: async (projectRoot) => {
       const store = await runManager.readDesktopStore();
       return skillProvisioningManager.assertReady(projectRoot, [], store.projects.map((item) => item.path).filter(Boolean));
@@ -117,21 +124,19 @@ app.whenReady().then(async () => {
   });
   workshopRealtimeAdapter = createWorkshopRealtimeAdapter({
     taskSource: workshopService,
-    readProjectState: (projectId) => automationCoordinator.getRealtimeProjectState(projectId),
-    writeProjectState: (projectId, update) => automationCoordinator.updateRealtimeProjectState(projectId, update),
+    readProjectState: (projectId) => workSyncCoordinator.getRealtimeProjectState(projectId),
+    writeProjectState: (projectId, update) => workSyncCoordinator.updateRealtimeProjectState(projectId, update),
     onInvalidate: async (projectId, { event_types: eventTypes = [] } = {}) => {
-      const taskOnly = eventTypes.length > 0 && eventTypes.every((event) => event.startsWith("task.") || event.startsWith("task_attachment."));
-      if (taskOnly) await automationCoordinator.refreshProject(projectId, { dispatch: false });
-      else await automationCoordinator.sync({ dispatch: false });
-      await automationCoordinator.maybeStartNext();
+      await workSyncCoordinator.invalidateProject(projectId, { event_types: eventTypes });
     }
   });
   workshopRealtimeAdapter.onEvent((event) => {
-    if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("arckit:automation-event", { type: "automation.realtime", ...event });
+    if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("arckit:work-sync-event", { type: "work.sync", ...event });
   });
   platformCoordinator = createPlatformCoordinator({
     runManager,
     platformSource: workshopService.platform,
+    workSync: workSyncCoordinator,
     automationCoordinator
   });
   imageViewer = createImageViewer({
@@ -151,6 +156,13 @@ app.whenReady().then(async () => {
   automationCoordinator.onEvent((event) => {
     if (!mainWindow?.isDestroyed()) {
       mainWindow.webContents.send("arckit:automation-event", event);
+    }
+    scheduleRealtimeSubscriptions();
+  });
+  workSyncCoordinator.onEvent((event) => {
+    if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("arckit:work-sync-event", event);
+    if (event.type === "work.changed") {
+      automationCoordinator.handleTaskProjectionChanged(event).catch((error) => console.error("Automation local projection handling failed:", error));
     }
     scheduleRealtimeSubscriptions();
   });
@@ -362,7 +374,7 @@ function registerIpc() {
   ipcMain.handle("arckit:auth-send-verification", async (_event, input) => workshopService.sendVerification(input));
   ipcMain.handle("arckit:auth-login", async (_event, input) => {
     const authentication = await workshopService.loginWithCode(input);
-    await automationCoordinator.sync();
+    await workSyncCoordinator.reconcile({ reason: "login" });
     productFeedbackService.refreshUnread().catch(() => {});
     return authentication;
   });
@@ -380,16 +392,18 @@ function registerIpc() {
     }
     const authentication = await workshopService.logout();
     productFeedbackService.resetSession();
+    await workSyncCoordinator.clearSession();
     await automationCoordinator.clearRemoteSession();
     return { requires_confirmation: false, authentication };
   });
   ipcMain.handle("arckit:automation-snapshot", async (_event, filter) => automationCoordinator.getSnapshot(filter));
   ipcMain.handle("arckit:automation-sync", async () => {
-    await automationCoordinator.sync({ dispatch: false });
+    await workSyncCoordinator.reconcile({ dispatch: false, reason: "explicit-sync" });
     await reconcileRealtimeSubscriptions();
     await automationCoordinator.maybeStartNext();
     return automationCoordinator.getSnapshot();
   });
+  ipcMain.handle("arckit:work-sync", async () => workSyncCoordinator.reconcile({ reason: "explicit-work-sync" }));
   ipcMain.handle("arckit:automation-enabled", async (_event, enabled) => automationCoordinator.setEnabled(enabled));
   ipcMain.handle("arckit:automation-pause", async (_event, paused) => automationCoordinator.setQueuePaused(paused));
   ipcMain.handle("arckit:automation-bind-project", async (_event, remoteProjectId, localProjectId) => (
@@ -569,14 +583,15 @@ function workAttachmentMimeType(fileName, kind) {
 function startAutomation() {
   if (automationStarted) return;
   automationStarted = true;
-  automationCoordinator.sync({ resumeRecoverable: true, dispatch: false })
+  workSyncCoordinator.reconcile({ dispatch: false, reason: "startup" })
     .then(async () => {
+      await automationCoordinator.handleTaskProjectionChanged({ type: "work.changed", reason: "startup", resumeRecoverable: true });
       await reconcileRealtimeSubscriptions();
       await automationCoordinator.maybeStartNext();
     })
     .catch((error) => console.error("Initial task sync failed:", error));
   syncTimer = setInterval(() => {
-    automationCoordinator.sync({ dispatch: true })
+    workSyncCoordinator.reconcile({ dispatch: true, reason: "periodic-reconciliation" })
       .then(() => reconcileRealtimeSubscriptions())
       .catch((error) => console.error("Periodic reconciliation failed:", error));
   }, 15 * 60_000);
@@ -592,13 +607,13 @@ function scheduleRealtimeSubscriptions() {
 }
 
 async function reconcileRealtimeSubscriptions() {
-  const projectIds = await automationCoordinator.realtimeProjectIds();
+  const projectIds = await workSyncCoordinator.realtimeProjectIds();
   await workshopRealtimeAdapter.updateProjects(projectIds);
 }
 
 function handleSystemResume() {
   workshopRealtimeAdapter?.reconnectAll();
-  automationCoordinator?.sync({ dispatch: true })
+  workSyncCoordinator?.reconcile({ dispatch: true, reason: "system-resume" })
     .then(() => reconcileRealtimeSubscriptions())
     .catch((error) => console.error("Resume reconciliation failed:", error));
 }

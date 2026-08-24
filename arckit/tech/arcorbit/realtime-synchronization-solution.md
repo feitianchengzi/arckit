@@ -2,9 +2,9 @@
 
 ## 定位
 
-Workshop 继续拥有项目、成员和任务事实，ArcOrbit 继续通过主进程 Adapter 消费这些事实。可靠实时同步在两者之间增加持久变更日志、提交后通知、项目级实时连接和可恢复游标，使 WebSocket 成为低延迟唤醒通道，使 REST 读取成为状态确认通道，使周期对账成为异常补偿通道。ArcOrbit 同时兼容升级前只有无 ID 通知的 Workshop：在线通知负责唤醒刷新，断线重连以后直接读取当前态，不补历史通知。
+Workshop 继续拥有项目、成员和任务的服务端事实。ArcOrbit 的 Work Sync 是 Workshop 待办同步的唯一客户端所有者：它通过主进程 Adapter 消费持久变更日志、项目级实时连接、REST 当前态和受控 mutation，并把确认结果原子写入本地可信待办投影。WebSocket 是低延迟唤醒通道，REST 是 Work Sync 的状态确认通道，周期对账是异常补偿通道；Work 页面和 Automation 都不直接访问 Workshop。
 
-该方案不把实时 transport 放入 Runtime Kernel。Runtime Kernel 不解析 Workshop 事件、不选择项目、不推导任务资格，也不从事件恢复人工 Gate。Workshop Realtime Adapter 与 Automation Coordinator 位于 Electron main 进程，Renderer 只消费连接健康和同步投影。
+该方案不把实时 transport 放入 Runtime Kernel 或 Automation Coordinator。Work Sync、Workshop Realtime Adapter 与本地 Task Projection Store 位于 Electron main 进程；Runtime Kernel 不解析 Workshop 事件、不选择同步项目、不读取远端任务，也不从事件恢复人工 Gate。Automation 只消费 Work Sync 发布的本地任务状态变化，并把任务状态动作提交回 Work Sync。Renderer 只消费本地投影和连接健康，不持有凭据或通用网络能力。
 
 ## 一致性目标
 
@@ -12,7 +12,7 @@ Workshop 继续拥有项目、成员和任务事实，ArcOrbit 继续通过主�
 - 领域写入与事件记录位于同一数据库事务；不存在领域事实已提交但事件记录永久缺失的成功路径。
 - 多个 Workshop 服务实例通过共享 PostgreSQL 事件表和提交后通知观察同一事件流。
 - WebSocket 断线、服务实例重启和客户端休眠不会要求依赖瞬时内存消息恢复状态。
-- ArcOrbit 对重复、乱序和连接边界竞态保持幂等，并通过 REST 确认最终任务状态。
+- Work Sync 对重复、乱序和连接边界竞态保持幂等，并通过 REST 或受控 mutation 响应确认服务端任务状态后更新本地投影。
 - 项目成员权限撤销会终止该成员继续接收对应项目事件的资格。
 - 实时同步、增量补取和周期对账均不能解除 `awaiting_human`。
 
@@ -59,9 +59,17 @@ Website 保留项目页面的一项目一连接模型。页面在 `system.connec
 
 Website 不把事件 payload 直接写入 Query cache。连接重建会先完成补取或全量失效，再恢复 `connected` 状态，避免断线期间变化永久停留在旧页面。Website 在读取本地 cursor 前先分类握手：旧握手直接进入 `legacy` 且整个连接代际都不读写 cursor；现代本地 cursor 高于握手 `latest_event_id` 时提交 `cursor_ahead` 全量失效，并把 checkpoint 精确重置到当前服务端基线。显式版本未知、版本 1 缺失 latest 或无版本却携带 latest 的歧义握手都关闭式断开。
 
-## ArcOrbit Realtime Adapter
+## ArcOrbit Work Sync 与 Realtime Adapter
 
-Electron main 进程的 Workshop Authenticated Service 向 Realtime Adapter 提供受控的连接凭据和 token 刷新结果，不向 Renderer 暴露 token。Adapter 管理参与自动化项目以及当前活动任务项目的 WebSocket 集合，并在项目参与、活动任务、登录代际或项目权限变化时确定性调整订阅。
+Electron main 进程的 Workshop Authenticated Service 向 Work Sync 和 Realtime Adapter 提供受控连接凭据与 token 刷新结果，不向 Renderer 或 Automation 暴露 token。Work Sync 独占同步范围计算、连接管理、REST 对账、任务 mutation 和本地投影提交；Realtime Adapter 只管理连接、游标、补取和失效信号，不调用 Automation。
+
+同步项目集合是以下本地需求的并集：
+
+- 当前 active Workset 中由 Work 页面观察的全部可访问项目；
+- `automation.project_participation=true` 的项目；
+- 当前活动任务所属项目。
+
+Workset 切换只改变第一组观察范围，不取消 Automation 已授权项目的后台同步资格。Automation participation 和 active task 只作为 Work Sync 的本地需求输入，Automation 不创建连接、不读取 REST，也不推进游标。登录代际、项目权限或需求集合变化时，Work Sync 确定性增删项目连接并清理失去资格的本地投影。
 
 每个项目保存：
 
@@ -71,37 +79,43 @@ Electron main 进程的 Workshop Authenticated Service 向 Realtime Adapter 提�
 - 最近事件时间、最近项目刷新时间和最近错误；
 - 当前连接代际，用于拒绝退出或换号前的晚到消息。
 
-连接成功后 Adapter 先检查 `system.connected`。握手包含受支持的 `schema_version` 与安全整数 `latest_event_id` 时进入 `resumable`：读取边界并补取 `(confirmed_id, latest_event_id]`，同时缓冲新到达的实时事件；若 confirmed cursor 高于连接基线，Adapter 先提交 `cursor_ahead` 当前态刷新并把 cursor 重置到基线。补取完成后把缓冲与历史事件按 ID 合并、去重并顺序交付。只有对应项目的 REST 刷新成功后才推进持久 confirmed cursor；WebSocket 收到事件本身不能推进 checkpoint。
+连接成功后 Adapter 先检查 `system.connected`。握手包含受支持的 `schema_version` 与安全整数 `latest_event_id` 时进入 `resumable`：读取边界并补取 `(confirmed_id, latest_event_id]`，同时缓冲新到达的实时事件；若 confirmed cursor 高于连接基线，Adapter 向 Work Sync 提交 `cursor_ahead` 项目失效并把 cursor 重置到基线。补取完成后把缓冲与历史事件按 ID 合并、去重并顺序交付。只有 Work Sync 完成对应项目 REST 对账并原子提交本地投影后才推进持久 confirmed cursor；WebSocket 收到事件本身不能推进 checkpoint。
 
 握手缺少 `schema_version` 和 `latest_event_id` 时进入 `legacy`：Adapter 不读取或写入 cursor，不调用事件补取接口，连接建立后先提交 `legacy_snapshot` 失效信号，随后接受无 ID 领域通知并逐项提交失效信号。旧连接断开期间的通知无需保留；重连时的 REST 当前态刷新建立新的正确基线。握手携带未知显式版本时失败关闭，不能静默降级为旧协议。
 
-token 刷新、登录、退出和账户切换都会轮换连接代际。连接在 access token 到期前主动重建，重连采用指数退避，最大间隔三十秒。应用休眠、网络离线和主进程退出会关闭连接；恢复后先重连补取，再声明 `connected`。
+token 刷新、登录、退出和账户切换都会轮换连接代际。连接在 access token 到期前主动重建，重连采用指数退避，最大间隔三十秒。应用休眠、网络离线和主进程退出会关闭连接；恢复后先重连补取，由 Work Sync 对账并提交本地投影，再声明 `connected`。
+
+## 本地 Task Projection Store
+
+Work Sync 按登录 session epoch 和 project id 维护唯一的本地 Task Projection Store。每个项目保存可访问的七状态任务、父子关系、版本、执行人、标签引用、最近确认时间、confirmed cursor 和同步代际。投影写入以项目为原子边界；旧登录代际、旧连接代际或早于当前项目 revision 的结果不得覆盖较新投影。
+
+Work 页面所有状态、搜索、成员、标签、优先级、日期和分页/窗口选择都从本地投影派生。切换状态或筛选只改变本地查询键，不触发 REST。没有对应本地数据时，页面显示由 Work Sync 管理的初始化或恢复状态；显式刷新只向 Work Sync 请求对账，不由 Renderer 构造远端查询。
+
+WebSocket 事件、补取事件和本地成功 mutation 只向 Work Sync 提交项目或实体失效。Work Sync 在 300 毫秒窗口内合并同项目失效，读取必要的 Workshop 当前态并原子替换本地项目投影。事件 payload 只用于身份、诊断和失效范围，不直接写入 Task Projection Store。
+
+Task Projection Store 可以保留 UI 最近成功数据并标记 stale，但只把已经完成当前登录代际初始对账、且未被权限撤销的任务发布到 Automation 消费投影。登录退出、账户切换、项目权限撤销和项目删除会关闭连接并清除对应 Automation 可见的本地任务状态；UI 缓存不得越过身份代际继续显示为可信状态。
 
 ## Automation Coordinator
 
-Coordinator 将现有单体 `sync()` 分离为三个可组合职责：
+Automation Coordinator 不拥有 Workshop Task Source、Realtime Adapter、REST 对账、项目游标或远端任务快照。它订阅 Work Sync 发布的本地任务状态变化，从当前执行人、participation、七状态和本地执行控制中派生候选队列，再在无活动冲突、无 recovery、无人工 Gate 且自动化资格成立时调用 `maybeStartNext()`。
 
-1. 全局目录对账读取当前用户、组织和项目，重算订阅范围。
-2. 项目事实刷新只读取指定项目、当前执行人的七状态任务，并原子替换该项目快照。
-3. 执行仲裁只在快照连续、无活动冲突、无 recovery、无人工 Gate且自动化资格成立时调用 `maybeStartNext()`。
+Automation 的领取、阻塞、完成、取消和验收状态动作都提交给 Work Sync。Work Sync 调用受控 Workshop mutation，并只在服务端成功响应及必要对账完成后提交新的本地任务状态。服务端拒绝、冲突、权限变化或传输失败保持原本地任务状态，同时向 Automation 发布结构化失败或 recovery；Automation 不直接调用 `getTask()`、`listTasks()` 或 `updateTask()`，也不以远端响应作为自己的控制输入。
 
-Realtime Adapter 只提交项目失效信号。Coordinator 按项目在 300 毫秒内合并信号，调用项目事实刷新，然后显式请求执行仲裁。项目或成员事件请求全局目录对账；任务和附件事件只刷新对应项目。并发刷新共享同一项目 Promise，旧登录代际或旧项目 revision 的结果不能覆盖新快照。
+Automation 只有在观察到 Work Sync 已发布的目标本地状态后才创建、继续或收束 Runtime。例如领取请求成功后，Work Sync 发布 `pending -> in_progress`，Automation 才启动任务；完成请求失败时，本地状态不进入 `completed`，Automation 保持 recovery。该边界使所有远端一致性责任集中在 Work，而 Automation 的决定可由单一本地状态流复现。
 
-全局全量对账固定为十五分钟；应用启动、系统唤醒和网络恢复立即对账，`legacy` 重连由 Adapter 立即触发项目级当前态刷新。订阅断开时只自动重连，不创建一分钟或其他分钟级降级计时器。Renderer 的显式“立即同步”通过受控 `automation-sync` IPC 触发全局同步、订阅重算和一次执行仲裁，作为用户感知异常时的主动恢复入口。
-
-执行仲裁在领取前调用 `getTask()` 读取远端最新任务，确认执行人、待处理状态和候选版本仍匹配，随后才使用该版本执行条件式 `updateTask()`。实时通知、本地队列或十五分钟对账都不能绕过这次领取前确认。
+全局目录与项目任务对账固定由 Work Sync 每十五分钟执行；应用启动、系统唤醒、网络恢复和 `legacy` 重连立即请求 Work Sync 对账。订阅断开时只自动重连，不创建一分钟或其他分钟级降级计时器。显式“立即同步”动作调用受控 `work-sync` 边界；Automation 页面可以展示或触发这一动作，但不能拥有其网络实现。
 
 ## 人工 Gate 与恢复边界
 
 `awaiting_human` 是本地活动执行的关闭式控制状态。以下动作只能更新远端快照、连接健康或 recovery，不能清除该状态：
 
-- WebSocket 实时事件；
+- Work Sync 发布的本地任务状态变化；
 - 事件补取与游标推进；
-- 项目刷新或全局对账；
+- Work Sync 项目刷新或全局对账；
 - 应用启动恢复、休眠恢复和网络恢复；
-- Workshop 任务状态未发生冲突的重复读取。
+- Work Sync 发布的无状态变化重复确认。
 
-只有显式 intervention command 可以提交用户输入并把 `allowAgentResume` 设为真。若远端任务在人工等待期间被取消、改派、阻塞或权限撤销，系统进入外部变化 recovery 并安全停止 Runtime；它不会把该变化解释为用户确认。
+只有显式 intervention command 可以提交用户输入并把 `allowAgentResume` 设为真。若 Work Sync 在人工等待期间发布任务被取消、改派、阻塞或权限撤销的本地状态变化，Automation 进入外部变化 recovery 并安全停止 Runtime；它不会把该变化解释为用户确认。
 
 ## 部署与回滚
 
@@ -111,9 +125,9 @@ Website OSS 发布不清空目标 prefix，也不在发布成功后立即删除�
 
 ## 可观察性
 
-Automation snapshot 暴露聚合连接健康、聚合订阅模式、各项目连接状态、现代模式游标、最近事件、最近项目刷新、最近全量对账和当前错误。Renderer 不接收 token、原始 WebSocket headers 或任意网络访问能力。
+Work Sync snapshot 暴露聚合连接健康、聚合订阅模式、各项目连接状态、现代模式游标、最近事件、最近项目刷新、最近全量对账和当前错误。Automation snapshot 只引用必要的本地同步摘要和任务状态，不拥有这些字段。Renderer 不接收 token、原始 WebSocket headers 或任意网络访问能力。
 
-连接状态和恢复过程通过 `automation.realtime` 结构化事件及 Desktop Store 项目状态记录，至少包括连接状态、`resumable` / `legacy` 模式、现代模式 confirmed cursor、最近事件时间、最近项目刷新时间和错误。Renderer 将旧服务显示为“实时兼容连接”，将异常状态显示为“可立即同步”。这些诊断不进入 Agent conversation，也不作为 ledger 事实源。
+连接状态和恢复过程通过 `work.sync` 结构化事件及 Desktop Store 项目状态记录，至少包括连接状态、`resumable` / `legacy` 模式、现代模式 confirmed cursor、最近事件时间、最近项目刷新时间和错误。Renderer 将旧服务显示为“实时兼容连接”，将异常状态显示为“可立即同步”。这些诊断不进入 Agent conversation，也不作为 ledger 事实源。
 
 ## 验证边界
 
@@ -124,9 +138,10 @@ Automation snapshot 暴露聚合连接健康、聚合订阅模式、各项目连
 - WebSocket 测试覆盖成员握手、心跳、慢客户端关闭、成员撤销和项目删除。
 - 补取接口覆盖顺序、分页、重复请求、无权限、低水位过期、未来游标过期，以及跨项目合法全局游标不被误判。
 - Website 测试覆盖断线期间事件、重连补取、重复/乱序事件、过期及未来游标全量失效、旧握手分类与旧模式读取 cursor 前短路。
-- ArcOrbit 测试覆盖订阅调整、退避、token 代际、项目去抖刷新、现代 cursor checkpoint、未来 cursor 重置、旧握手识别、歧义握手关闭、无 ID 通知刷新以及旧模式不读写 cursor。
-- Desktop main 与 Renderer 验证不存在一分钟同步计时器，十五分钟对账、生命周期同步和显式“立即同步”入口可用。
-- Automation 测试证明领取前会重新读取任务并拒绝状态或版本已经变化的本地候选。
-- Automation 测试证明实时事件、重连、全量对账和启动恢复都不能解除 `awaiting_human`，只有显式 intervention 能继续同一任务。
-- 真实链路验收至少包含一次 Workshop mutation、WebSocket 通知、ArcOrbit 项目刷新和待办资格变化，并保留可诊断事件证据。
+- ArcOrbit 测试覆盖 Workset 与 Automation 本地需求并集的订阅调整、退避、token 代际、项目去抖刷新、现代 cursor checkpoint、未来 cursor 重置、旧握手识别、歧义握手关闭、无 ID 通知刷新以及旧模式不读写 cursor。
+- Work 测试证明七状态和多维筛选只读取本地 Task Projection Store，切换查询不调用 Workshop；WebSocket 失效、显式刷新和周期对账才触发受控远端读取。
+- Desktop main 与 Renderer 验证不存在一分钟同步计时器，Work-owned 十五分钟对账、生命周期同步和显式“立即同步”入口可用。
+- Automation 测试证明 Coordinator 没有 Workshop Task Source 或 Realtime Adapter 依赖，只响应 Work 发布的本地状态变化，并把状态动作提交给 Work。
+- Automation 测试证明本地状态变化、重连、全量对账和启动恢复都不能解除 `awaiting_human`，只有显式 intervention 能继续同一任务。
+- 真实链路验收至少包含一次 Workshop mutation、WebSocket 通知、Work Sync 本地投影提交、Automation 候选变化和失败不推进本地状态，并保留可诊断事件证据。
 - 部署验证覆盖迁移失败不停止旧容器、候选容器 unhealthy 自动恢复旧镜像、无 Docker health 元数据的旧镜像通过公开 HTTP health 确认恢复，以及 OSS 资源上传失败不替换入口、成功时入口严格最后上传。
