@@ -6,7 +6,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import test from "node:test";
-import { buildWriteLedgerCommandArgs, createDesktopRunManager, runtimeFailureForCompletedProcess } from "../src/desktop-run-manager.mjs";
+import {
+  buildWriteLedgerCommandArgs,
+  createDesktopRunManager,
+  projectRunSummary,
+  runtimeFailureForCompletedProcess
+} from "../src/desktop-run-manager.mjs";
 
 test("Desktop ledger commands reference the userData run without copying it into the project", () => {
   const args = buildWriteLedgerCommandArgs({
@@ -42,6 +47,80 @@ test("Desktop does not project a blocked no-progress Runtime result as completed
     stop_reason: "agent_repair_limit",
     runtime_result: { round_result: "done", summary: "Case completed successfully." }
   }), "case_transition: missing invariant assessment");
+});
+
+test("run summary projection keeps control metrics without transcript or activity payloads", () => {
+  const summary = projectRunSummary({
+    status: "completed",
+    started_at: "2026-08-24T00:00:00Z",
+    finished_at: "2026-08-24T00:01:00Z"
+  }, {
+    updated_at: "2026-08-24T00:01:00Z",
+    messages: [{ id: "ONE", content: "large transcript content" }, { id: "TWO" }],
+    token_usage: { summary: {
+      logical_total_tokens: 1200,
+      cached_input_tokens: 600,
+      uncached_input_tokens: 400,
+      output_tokens: 200
+    } },
+    performance: { model_time_ms: 900, command_time_ms: 300, commands: [{ output: "large output" }] }
+  });
+
+  assert.deepEqual(summary, {
+    schema_version: "desktop-run-summary/v1",
+    status: "completed",
+    started_at: "2026-08-24T00:00:00Z",
+    finished_at: "2026-08-24T00:01:00Z",
+    updated_at: "2026-08-24T00:01:00Z",
+    message_count: 2,
+    token_usage: {
+      logical_total_tokens: 1200,
+      cached_input_tokens: 600,
+      uncached_input_tokens: 400,
+      output_tokens: 200
+    },
+    performance: { model_time_ms: 900, command_time_ms: 300 }
+  });
+  assert.equal("messages" in summary, false);
+  assert.equal("activity" in summary, false);
+});
+
+test("legacy run summary warmup reads bounded activity only and persists the summary index", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arckit-run-summary-warmup-"));
+  await writeStore(dataDir, dataDir);
+  const activityFile = join(dataDir, "legacy-activity.json");
+  const messagesFile = join(dataDir, "messages-must-not-be-read");
+  await writeFile(activityFile, `${JSON.stringify({
+    messages: [{ id: "SUMMARY-SOURCE" }],
+    token_usage: { summary: { logical_total_tokens: 900, cached_input_tokens: 400, uncached_input_tokens: 350, output_tokens: 150 } },
+    performance: { model_time_ms: 700, command_time_ms: 200 }
+  })}\n`, "utf8");
+  await mkdir(messagesFile);
+  const storeFile = join(dataDir, "desktop-store.json");
+  const store = JSON.parse(await readFile(storeFile, "utf8"));
+  store.runs = [{
+    id: "RUN-LEGACY",
+    project_id: "PROJECT-1",
+    session_id: "SESSION-1",
+    entry_capability: "runtime",
+    status: "completed",
+    started_at: "2026-08-24T00:00:00Z",
+    finished_at: "2026-08-24T00:01:00Z",
+    activity_file: activityFile,
+    messages_file: messagesFile
+  }];
+  await writeFile(storeFile, `${JSON.stringify(store, null, 2)}\n`, "utf8");
+  const manager = createDesktopRunManager({ runtimeRoot: dataDir, dataDir });
+
+  try {
+    const result = await manager.warmRunSummaryIndex({ limit: 1 });
+    const [summary] = await manager.listRunSummaries({ projectId: "PROJECT-1" });
+    assert.deepEqual(result, { backfilled: 1, scanned: 1, error: "" });
+    assert.equal(summary.run_summary.token_usage.logical_total_tokens, 900);
+    assert.equal(summary.run_summary.message_count, 1);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
 });
 
 test("readiness preflight validates repository capabilities without inspecting Codex-installed skills", async () => {

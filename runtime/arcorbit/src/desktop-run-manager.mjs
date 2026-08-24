@@ -161,21 +161,75 @@ export function createDesktopRunManager({
 
   async function listRuns(filter = {}) {
     const store = await readStore();
-    const projectFilter = filter.projectId || filter.project_id || "";
-    const sessionFilter = filter.sessionId || filter.session_id || "";
-    const runs = store.runs.filter((run) => {
-      if (projectFilter && run.project_id !== projectFilter) {
-        return false;
-      }
-      if (sessionFilter && run.session_id !== sessionFilter) {
-        return false;
-      }
-      return true;
-    });
+    const runs = filterRuns(store.runs, filter);
     return Promise.all(runs.map(async (run) => ({
       ...run,
       activity: await loadRunActivity(run)
     })));
+  }
+
+  async function listRunSummaries(filter = {}) {
+    const store = await readStore();
+    return filterRuns(store.runs, filter).map((run) => {
+      const active = activeRuns.get(run.id)?.run;
+      return {
+        ...run,
+        run_summary: projectRunSummary(active || run, active?.activity, run.run_summary)
+      };
+    });
+  }
+
+  async function getRun(runId) {
+    const store = await readStore();
+    const run = store.runs.find((item) => item.id === runId);
+    if (!run) return null;
+    return {
+      ...run,
+      activity: await loadRunActivity(run)
+    };
+  }
+
+  async function warmRunSummaryIndex({ limit = 20 } = {}) {
+    const target = positiveInteger(limit, 20);
+    let store;
+    try {
+      store = await readStore();
+    } catch (error) {
+      return { backfilled: 0, scanned: 0, error: error.message };
+    }
+    const candidates = store.runs.filter((run) => (
+      run.status === "completed"
+      && (run.entry_capability || "runtime") === "runtime"
+      && run.run_summary?.schema_version !== "desktop-run-summary/v1"
+    ));
+    const summaries = new Map();
+    let scanned = 0;
+    for (const run of candidates) {
+      if (summaries.size >= target) break;
+      scanned += 1;
+      await new Promise((resolvePromise) => setImmediate(resolvePromise));
+      if (!run.activity_file || !existsSync(run.activity_file)) continue;
+      try {
+        const activity = JSON.parse(await readFile(run.activity_file, "utf8"));
+        summaries.set(run.id, projectRunSummary(run, activity));
+      } catch {
+        // Legacy or interrupted activity remains available through the explicit detail path.
+      }
+    }
+    if (summaries.size === 0) return { backfilled: 0, scanned, error: "" };
+    try {
+      await updateStore((draft) => {
+        for (const run of draft.runs) {
+          if (run.run_summary?.schema_version === "desktop-run-summary/v1") continue;
+          const summary = summaries.get(run.id);
+          if (summary) run.run_summary = summary;
+        }
+        return draft;
+      });
+      return { backfilled: summaries.size, scanned, error: "" };
+    } catch (error) {
+      return { backfilled: 0, scanned, error: error.message };
+    }
   }
 
   async function readRunResult(runId) {
@@ -623,7 +677,10 @@ export function createDesktopRunManager({
 
     await updateStore((draft) => {
       getSession(draft, project.id, run.session_id).updated_at = run.started_at;
-      draft.runs.unshift(storedRunRecord(run));
+      draft.runs.unshift(storedRunRecord({
+        ...run,
+        run_summary: projectRunSummary(run, run.activity)
+      }));
       draft.runs = draft.runs.slice(0, 100);
       return draft;
     });
@@ -800,7 +857,8 @@ export function createDesktopRunManager({
           finished_at: run.finished_at,
           exit_code: run.exit_code,
           validation_valid: run.validation_valid,
-          round_result: run.round_result
+          round_result: run.round_result,
+          run_summary: projectRunSummary(run, run.activity)
         });
       }
       return store;
@@ -1071,7 +1129,10 @@ export function createDesktopRunManager({
       run.activity = await loadRunActivity(run);
       applyRunCommandResult(run, commandType, result);
       updatedRun = { ...run };
-      store.runs[index] = storedRunRecord(run);
+      store.runs[index] = storedRunRecord({
+        ...run,
+        run_summary: projectRunSummary(run, run.activity, run.run_summary)
+      });
       return store;
     });
     if (updatedRun?.activity_file) {
@@ -1134,6 +1195,9 @@ export function createDesktopRunManager({
     listProjectCaseStates,
     getProjectCaseState,
     listRuns,
+    listRunSummaries,
+    getRun,
+    warmRunSummaryIndex,
     readRunResult,
     getTaskThreadBinding,
     isRunActive(runId) {
@@ -1167,6 +1231,41 @@ export function createDesktopRunManager({
     },
     readDesktopStore: readStore,
     updateDesktopStore: updateStore
+  };
+}
+
+function filterRuns(runs, filter = {}) {
+  const projectFilter = filter.projectId || filter.project_id || "";
+  const sessionFilter = filter.sessionId || filter.session_id || "";
+  return runs.filter((run) => {
+    if (projectFilter && run.project_id !== projectFilter) return false;
+    if (sessionFilter && run.session_id !== sessionFilter) return false;
+    return true;
+  });
+}
+
+export function projectRunSummary(run = {}, activity = null, persisted = null) {
+  const tokenUsage = activity?.token_usage?.summary || persisted?.token_usage || {};
+  const performance = activity?.performance || persisted?.performance || {};
+  return {
+    schema_version: "desktop-run-summary/v1",
+    status: String(run.status || persisted?.status || ""),
+    started_at: String(run.started_at || persisted?.started_at || ""),
+    finished_at: String(run.finished_at || persisted?.finished_at || ""),
+    updated_at: String(activity?.updated_at || run.finished_at || run.started_at || persisted?.updated_at || ""),
+    message_count: Array.isArray(activity?.messages)
+      ? activity.messages.length
+      : Number(persisted?.message_count || 0),
+    token_usage: {
+      logical_total_tokens: Number(tokenUsage.logical_total_tokens || 0),
+      cached_input_tokens: Number(tokenUsage.cached_input_tokens || 0),
+      uncached_input_tokens: Number(tokenUsage.uncached_input_tokens || 0),
+      output_tokens: Number(tokenUsage.output_tokens || 0)
+    },
+    performance: {
+      model_time_ms: Number(performance.model_time_ms || 0),
+      command_time_ms: Number(performance.command_time_ms || 0)
+    }
   };
 }
 

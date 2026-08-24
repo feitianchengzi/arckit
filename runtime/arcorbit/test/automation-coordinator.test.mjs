@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   buildAcceptanceFeedbackQueue,
@@ -11,6 +12,8 @@ import {
   selectNextExecution
 } from "../src/automation-coordinator.mjs";
 import { TaskSourceError } from "../src/task-source-adapter.mjs";
+
+const automationCoordinatorPath = new URL("../src/automation-coordinator.mjs", import.meta.url);
 
 test("automation task preserves only the remote human-authored intent", () => {
   assert.equal(buildAutomationTask({ title: "Fix login", content: "Repair and verify login." }), "Repair and verify login.");
@@ -27,6 +30,71 @@ test("queue remains deterministic and excludes ineligible tasks", () => {
     snapshot: { projects: [{ id: "p" }], errors: [] }
   }, new Map([["p", { id: "p" }]]), new Map([["local", { id: "local", path: "/workspace" }]]));
   assert.deepEqual(queue.map((item) => item.id), ["1", "2"]);
+});
+
+test("automation snapshot reads bounded run summaries and only hydrates the active run", async () => {
+  const store = recoveryStore({ phase: "running" });
+  const calls = { summaries: 0, details: 0, hydratedLists: 0 };
+  const runManager = fakeRunManager(store, [], {
+    async listRunSummaries() {
+      calls.summaries += 1;
+      return [{
+        id: "RUN-OLD",
+        project_id: "local",
+        status: "completed",
+        run_summary: {
+          token_usage: {
+            logical_total_tokens: 1200,
+            cached_input_tokens: 600,
+            uncached_input_tokens: 400,
+            output_tokens: 200
+          },
+          performance: { model_time_ms: 900, command_time_ms: 300 }
+        }
+      }, {
+        id: "RUN-HISTORY",
+        project_id: "local",
+        status: "completed",
+        run_summary: {
+          token_usage: {
+            logical_total_tokens: 800,
+            cached_input_tokens: 300,
+            uncached_input_tokens: 350,
+            output_tokens: 150
+          },
+          performance: { model_time_ms: 700, command_time_ms: 200 }
+        }
+      }];
+    },
+    async getRun(runId) {
+      calls.details += 1;
+      assert.equal(runId, "RUN-OLD");
+      return { id: runId, project_id: "local", status: "running", activity: { messages: [{ id: "LIVE" }] } };
+    },
+    async listRuns() {
+      calls.hydratedLists += 1;
+      throw new Error("Automation snapshot must not hydrate historical Run activity.");
+    }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  const snapshot = await coordinator.getSnapshot();
+
+  assert.equal(snapshot.active_run.activity.messages[0].id, "LIVE");
+  assert.equal(snapshot.usage_baseline.sample_size, 1);
+  assert.equal(snapshot.usage_baseline.logical_total_tokens, 800);
+  assert.deepEqual(calls, { summaries: 1, details: 1, hydratedLists: 0 });
+  coordinator.dispose();
+});
+
+test("automation control and recovery code uses run-id detail instead of project history hydration", async () => {
+  const source = await readFile(automationCoordinatorPath, "utf8");
+  const controlCode = source.slice(0, source.indexOf("async function listRunSummaries"));
+  const detailHelper = source.slice(source.indexOf("async function getRunDetail"), source.indexOf("\nfunction runUsageSummary"));
+
+  assert.doesNotMatch(controlCode, /runManager\.listRuns/);
+  assert.match(detailHelper, /runManager\.getRun\(runId\)/);
+  assert.match(detailHelper, /projectId \? \{ projectId \} : \{\}/);
 });
 
 test("acceptance feedback has an independent stable queue and deterministic execution arbitration", () => {

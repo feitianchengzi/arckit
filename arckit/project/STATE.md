@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 219
-Updated: 2026-08-24T13:35:21.529Z
+Revision: 223
+Updated: 2026-08-24T14:37:52.307Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-修复 ArcOrbit Work 页面待办状态工具条随右侧项目、命中数、补全树、状态计数或刷新状态变化而发生的宽高抖动。
+把 Automation 流式执行热路径从全量 Run 历史反序列化和全局刷新中解耦，同时完整保留 Kernel Loop、单待办单 thread、Gap、ledger、closeout、恢复与执行控制语义。
 
 ## Active Work
 

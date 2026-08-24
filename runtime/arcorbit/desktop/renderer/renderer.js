@@ -161,6 +161,7 @@ let platformActionResolver = null;
 
 const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map((element) => [element.id, element]));
 let refreshQueued = false;
+let activityRefreshQueued = false;
 let toastTimer;
 let verificationTimer;
 let workFilterTimer;
@@ -242,8 +243,12 @@ async function boot() {
     if (["run.started", "run.finished", "message.added"].includes(event.type)) {
       state.transcriptSessionId = "";
     }
-    if (["run.started", "run.finished", "run.activity_changed", "run.command_result", "message.added"].includes(event.type)) {
-      scheduleRefresh(event.type === "run.activity_changed" ? 120 : 0);
+    if (event.type === "run.activity_changed") {
+      scheduleActivityRefresh(event.runId, 120);
+      return;
+    }
+    if (["run.started", "run.finished", "run.command_result", "message.added"].includes(event.type)) {
+      scheduleRefresh(0);
     }
   });
   window.setInterval(() => {
@@ -833,6 +838,45 @@ function scheduleRefresh(delay = 80) {
     const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
     await refresh.catch((error) => showToast(error.message));
   }, delay);
+}
+
+function scheduleActivityRefresh(runId, delay = 120) {
+  if (!activityRunIsVisible(runId) || activityRefreshQueued) return;
+  activityRefreshQueued = true;
+  window.setTimeout(async () => {
+    activityRefreshQueued = false;
+    if (!activityRunIsVisible(runId)) return;
+    if (state.refreshing) {
+      scheduleActivityRefresh(runId, 80);
+      return;
+    }
+    await refreshVisibleAutomationActivity(runId).catch((error) => showToast(error.message));
+  }, delay);
+}
+
+function activityRunIsVisible(runId) {
+  if (!runId || !["command", "workbench"].includes(state.page)) return false;
+  const visibleRun = state.page === "workbench"
+    ? state.workbenchRun || state.snapshot.active_run
+    : state.snapshot.active_run;
+  return String(visibleRun?.id || "") === String(runId);
+}
+
+async function refreshVisibleAutomationActivity(runId) {
+  if (!activityRunIsVisible(runId)) return;
+  const page = state.page;
+  const snapshot = await api.automationSnapshot({
+    project_id: state.selectedProjectId,
+    state: ""
+  });
+  if (state.page !== page || !activityRunIsVisible(runId)) return;
+  state.snapshot = snapshot;
+  if (page === "workbench") {
+    await loadTranscript();
+    if (state.page === page && activityRunIsVisible(runId)) renderWorkbench();
+    return;
+  }
+  renderCommandCenter();
 }
 
 function scheduleWorkFilterRefresh(delay = 280) {

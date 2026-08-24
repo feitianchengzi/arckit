@@ -160,6 +160,7 @@ app.whenReady().then(async () => {
     }
   });
   registerIpc();
+  await runManager.warmRunSummaryIndex({ limit: 20 });
   await createWindow({ show: !rendererLoadSmoke });
   if (rendererLoadSmoke) {
     await runRendererLoadSmoke();

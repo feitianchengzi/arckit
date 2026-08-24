@@ -561,6 +561,20 @@ test("Work navigation renders immediately before starting its dedicated query re
   assert.doesNotMatch(queryRefresh, /automationSnapshot|getAuthStatus|platformSnapshot/);
 });
 
+test("Automation activity invalidation refreshes only the visible Run surface", async () => {
+  const source = await readFile(rendererPath, "utf8");
+  const eventBranch = source.slice(source.indexOf('if (event.type === "run.activity_changed")'), source.indexOf("window.setInterval"));
+  const activityRefresh = source.slice(source.indexOf("async function refreshVisibleAutomationActivity"), source.indexOf("\nfunction scheduleWorkFilterRefresh"));
+
+  assert.match(eventBranch, /scheduleActivityRefresh\(event\.runId, 120\)/);
+  assert.doesNotMatch(eventBranch, /scheduleRefresh\(event\.type === "run\.activity_changed"/);
+  assert.match(activityRefresh, /api\.automationSnapshot/);
+  assert.match(activityRefresh, /activityRunIsVisible\(runId\)/);
+  assert.match(activityRefresh, /renderCommandCenter\(\)/);
+  assert.match(activityRefresh, /renderWorkbench\(\)/);
+  assert.doesNotMatch(activityRefresh, /platformSnapshot|getAuthStatus|render\(\)|routeAuthentication/);
+});
+
 test("Work assigns intrinsic rows to controls and the remaining height to the task list", async () => {
   const styles = await readFile(rendererStylesPath, "utf8");
 

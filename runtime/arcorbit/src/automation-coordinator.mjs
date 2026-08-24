@@ -43,7 +43,7 @@ export function createAutomationCoordinator({
     const [store, localProjects, runs] = await Promise.all([
       runManager.readDesktopStore(),
       runManager.listProjects(),
-      runManager.listRuns({})
+      listRunSummaries(runManager)
     ]);
     const automation = store.automation;
     const taskCounts = countTasks(automation.snapshot.tasks);
@@ -76,7 +76,7 @@ export function createAutomationCoordinator({
       selectedProjectId: String(filter.project_id || "all")
     });
     const activeRun = automation.active_task?.run_id
-      ? runs.find((run) => run.id === automation.active_task.run_id) || null
+      ? await getRunDetail(runManager, runs, automation.active_task.run_id)
       : null;
     const activeTask = automation.active_task
       ? {
@@ -498,8 +498,7 @@ export function createAutomationCoordinator({
     if (!active || String(active.task_id) !== String(taskId)) {
       throw new Error("The selected task is not the active task.");
     }
-    const runs = await runManager.listRuns({ projectId: active.local_project_id });
-    const run = runs.find((item) => item.id === active.run_id);
+    const run = await getRunDetail(runManager, [], active.run_id, { projectId: active.local_project_id });
     const attention = store.automation.attention_items.find((item) => String(item.task_id) === String(active.task_id));
     if (run?.status === "running") {
       await runManager.controlRun(run.id, { type: "steer", message: text });
@@ -578,8 +577,7 @@ export function createAutomationCoordinator({
     }
     let sourceCaseId = CASE_ID_PATTERN.test(String(completion.case_id || "")) ? completion.case_id : "";
     if (!sourceCaseId && completion.run_id) {
-      const runs = await runManager.listRuns({ projectId: completion.local_project_id });
-      const sourceRun = runs.find((run) => run.id === completion.run_id);
+      const sourceRun = await getRunDetail(runManager, [], completion.run_id, { projectId: completion.local_project_id });
       const binding = extractAuthoritativeCaseBindingFromRun(sourceRun);
       if (binding.status === "bound") sourceCaseId = binding.case_id;
     }
@@ -676,8 +674,7 @@ export function createAutomationCoordinator({
     }
     if (active.phase === "cli_handoff") return reopenCodexCli();
 
-    const runs = await runManager.listRuns({ projectId: active.local_project_id });
-    const sourceRun = runs.find((run) => run.id === active.run_id) || null;
+    const sourceRun = await getRunDetail(runManager, [], active.run_id, { projectId: active.local_project_id });
     const caseBinding = await resolveTaskCaseBinding(active, sourceRun);
     if (caseBinding.status === "conflict") {
       throw new Error("Codex CLI handoff was refused because authoritative Case bindings conflict.");
@@ -754,8 +751,7 @@ export function createAutomationCoordinator({
     const project = store.projects.find((item) => item.id === current.local_project_id);
     if (!task || !project?.path) throw new Error("The local project binding or remote task snapshot is missing.");
 
-    const runs = await runManager.listRuns({ projectId: current.local_project_id });
-    const sourceRun = runs.find((run) => run.id === current.run_id) || null;
+    const sourceRun = await getRunDetail(runManager, [], current.run_id, { projectId: current.local_project_id });
     const caseBinding = await resolveTaskCaseBinding(current, sourceRun);
     if (caseBinding.status === "conflict") {
       throw new Error("Codex CLI handoff was refused because authoritative Case bindings conflict.");
@@ -841,8 +837,7 @@ export function createAutomationCoordinator({
       const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(active.task_id));
       if (!project || !task) throw new Error("The recovery task or its local project binding is missing.");
       const session = await ensureTaskSession(active, task);
-      const runs = await runManager.listRuns({ projectId: active.local_project_id });
-      const sourceRun = runs.find((item) => item.id === (recovery.run_id || active.run_id)) || null;
+      const sourceRun = await getRunDetail(runManager, [], recovery.run_id || active.run_id, { projectId: active.local_project_id });
       await patchAutomation((automation) => {
         if (automation.active_task?.task_id === active.task_id) automation.active_task.phase = "starting";
       });
@@ -1656,8 +1651,7 @@ export function createAutomationCoordinator({
     if (["switching_to_cli", "cli_handoff"].includes(active?.phase)) return null;
     if (!active?.run_id || runManager.isRunActive?.(active.run_id)) return null;
 
-    const runs = await runManager.listRuns({ projectId: active.local_project_id });
-    const latest = runs.find((run) => run.id === active.run_id) || null;
+    const latest = await getRunDetail(runManager, [], active.run_id, { projectId: active.local_project_id });
     if (!latest) return null;
 
     const caseBinding = await resolveTaskCaseBinding(active, latest);
@@ -1743,8 +1737,7 @@ export function createAutomationCoordinator({
     if (active.phase === "switching_to_cli") return "handoff_in_progress";
     if (active.run_id && runManager.isRunActive?.(active.run_id) && active.phase !== "cli_handoff") return "runtime_active";
 
-    const runs = await runManager.listRuns({ projectId: active.local_project_id });
-    const run = runs.find((item) => item.id === active.run_id) || null;
+    const run = await getRunDetail(runManager, [], active.run_id, { projectId: active.local_project_id });
     const caseBinding = await resolveTaskCaseBinding(active, run);
     if (caseBinding.status === "conflict") return "conflict";
     if (caseBinding.status !== "bound") {
@@ -2733,19 +2726,45 @@ export function buildUsageBaseline(runs, { projectId = "", excludeRunId = "" } =
     && (!projectId || run.project_id === projectId)
     && (run.entry_capability || "runtime") === "runtime"
     && run.status === "completed"
-    && Number(run.activity?.token_usage?.summary?.logical_total_tokens || 0) > 0
+    && Number(runUsageSummary(run).logical_total_tokens || 0) > 0
   )).slice(0, 20);
   return {
     schema_version: "runtime-usage-baseline/v1",
     kind: "runtime_history_median",
     sample_size: samples.length,
-    logical_total_tokens: median(samples.map((run) => run.activity.token_usage.summary.logical_total_tokens)),
-    cached_input_tokens: median(samples.map((run) => run.activity.token_usage.summary.cached_input_tokens)),
-    uncached_input_tokens: median(samples.map((run) => run.activity.token_usage.summary.uncached_input_tokens)),
-    output_tokens: median(samples.map((run) => run.activity.token_usage.summary.output_tokens)),
-    model_time_ms: median(samples.map((run) => run.activity?.performance?.model_time_ms || 0)),
-    command_time_ms: median(samples.map((run) => run.activity?.performance?.command_time_ms || 0))
+    logical_total_tokens: median(samples.map((run) => runUsageSummary(run).logical_total_tokens)),
+    cached_input_tokens: median(samples.map((run) => runUsageSummary(run).cached_input_tokens)),
+    uncached_input_tokens: median(samples.map((run) => runUsageSummary(run).uncached_input_tokens)),
+    output_tokens: median(samples.map((run) => runUsageSummary(run).output_tokens)),
+    model_time_ms: median(samples.map((run) => runPerformanceSummary(run).model_time_ms || 0)),
+    command_time_ms: median(samples.map((run) => runPerformanceSummary(run).command_time_ms || 0))
   };
+}
+
+async function listRunSummaries(runManager) {
+  if (typeof runManager.listRunSummaries === "function") {
+    return runManager.listRunSummaries({});
+  }
+  return runManager.listRuns({});
+}
+
+async function getRunDetail(runManager, summaries, runId, { projectId = "" } = {}) {
+  if (!runId) return null;
+  if (typeof runManager.getRun === "function") {
+    return runManager.getRun(runId);
+  }
+  const projected = summaries.find((run) => run.id === runId) || null;
+  if (projected?.activity || typeof runManager.listRuns !== "function") return projected;
+  const runs = await runManager.listRuns(projectId ? { projectId } : {});
+  return runs.find((run) => run.id === runId) || projected;
+}
+
+function runUsageSummary(run) {
+  return run?.run_summary?.token_usage || run?.activity?.token_usage?.summary || {};
+}
+
+function runPerformanceSummary(run) {
+  return run?.run_summary?.performance || run?.activity?.performance || {};
 }
 
 function median(values) {

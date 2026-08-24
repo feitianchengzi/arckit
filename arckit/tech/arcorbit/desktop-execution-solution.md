@@ -109,6 +109,19 @@ Workbench 以 task session 内全部 Runtime runs 的结构化 activity 生成�
 
 Desktop 仍实时解析 Runtime stderr 以维护内存中的 activity、Token、耗时与控制状态，但 IPC 只发送合并后的 activity-changed 通知。Renderer 按有界节奏拉取最新快照，单次 delta 不触发独立 IPC、磁盘 append 或 DOM 节点。Run 结束、错误、人工控制和语义消息完成时立即刷出必要记录；进程异常时允许丢失尚未形成语义边界的瞬时 delta，不影响 canonical Case/ledger 恢复。
 
+`run.activity_changed` 是携带 `run_id` 的局部 invalidation，不是全局应用失效信号。Renderer 只在 Automation Command Center 正显示该 active run，或 Workbench 正显示同一个 run 时合并处理；其他页面和不相关的历史 Workbench 直接忽略。可见命中只调用 Automation Snapshot，不能联带 Platform Snapshot、认证状态、Work 查询或 Chat 查询；响应只更新 Automation state，并分别调用 `renderCommandCenter` 或 `renderWorkbench`。全局 `render()`、隐藏页面 DOM 和 route authentication 不参与 activity 节奏。Run started/finished、人工消息、command result 和 Automation 状态变更仍走完整一致性刷新，因为这些事件可能改变导航、队列、恢复或跨页面状态。
+
+Run 查询采用 summary/detail 分层，raw evidence 与控制面读模型不能共享全量加载路径：
+
+- `RunSummaryProjection` 随 Run 创建、完成和 ledger command result 更新，持久化状态、起止时间、消息数量、Token 汇总及模型/命令耗时；它不包含 messages、timeline、controller frame、结构化结果、命令输出或完整 activity。
+- Automation Control Snapshot、最近完成项关联与 usage baseline 只读取 Run metadata 和 `RunSummaryProjection`。该查询不打开历史 `activity.json` 或 `messages.jsonl`，成本只随有界 summary 数量增长。
+- 活动执行按稳定 `run_id` 单独读取 `ActiveRunProjection`。正常流式运行直接返回内存 activity；重启恢复至多读取该一个 Run 的持久 activity/detail，不扫描其他 Run。
+- Automation Coordinator 的人工介入、验收反馈来源绑定、CLI handoff、recovery feedback、detached completion、canonical Case 对账和 same-thread closeout 都通过稳定 `run_id` 读取单个 Run detail。项目级 hydrated `listRuns` 不属于控制路径；它只保留为旧 adapter 的兼容 fallback 和 Renderer 显式历史 transcript 查询。
+- Workbench 历史审查和 task session transcript 是显式 detail 查询，按目标 run/session 加载 activity 与消息；打开一个历史对象不能隐式水合所有 Run。
+- 旧 Store 中没有 summary 的已完成 Runtime Run 在窗口创建前执行一次有界 warmup。warmup 最多读取最近 20 个 `activity.json`，逐项让出事件循环，不读取 `messages.jsonl`，并一次写回 summary index；单个损坏旧 activity 只缺失该样本，不阻止 Desktop 启动或 detail 恢复。
+
+`RunSummaryProjection` 是可重建的查询投影，不是 Runtime Kernel 状态或 canonical ledger。summary 缺失、warmup 失败或 UI 未读取 detail 都不能改变 task/thread lease、单 active execution、Gap Loop、trusted ledger、fresh-read、human Gate、恢复、same-thread closeout 或远端完成判定。Kernel 控制路径继续使用权威 Store、Run detail、Runtime result 与 Project/Case State；查询优化不得从 summary 推断 Case、handoff 或完成状态。
+
 ## Codex Thread 边界
 
 Automation Store 以本地项目身份和远端任务 ID 为键保存唯一 `thread_id`、绑定状态、最后 turn、最后压缩检查点与更新时间。首次 `thread/start` 使用非 ephemeral 模式；Desktop 必须在首个 `turn/start` 前持久化返回的 id。Run Manager 为活动任务持有单 owner lease，阻止 Runtime、CLI 或重复恢复并发使用同一 thread。
@@ -277,6 +290,10 @@ session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_
 - Chat 与 Automation Workbench 由同一个 Conversation Surface 渲染 Agent、用户、reasoning、tool、approval 和 error 消息，并共用 Markdown、代码复制、事件绑定、流式更新与滚动控制；源码中不存在第二套 Automation message renderer。
 - Renderer 将 Agent 正式输出作为共享消息主要信息，把非空可折叠 reasoning 和每个 tool/approval item 的原位单行活动作为次级信息；Loop、Gap、ledger 与结构化结果进入 Automation 左右面板。空 reasoning 不产生消息，文件正文、完整 diff、stdout/stderr 与 raw payload 不进入普通消息正文，但原始结构化 payload 保真进入侧栏查看器并继续保留在上游上下文或诊断证据中。
 - Workbench 从同一 task session 全部 Runtime runs 的结构化 `gap_rounds` 生成完整执行时间、准确 gap 总数和逐 gap 目标/工作/结果；进行中时持续计时，终态后固定，不解析消息文案猜测历史。
+- Automation Control Snapshot 不读取历史 Run 的 `activity.json` 或 `messages.jsonl`；活动执行至多水合一个 Run，usage baseline 从 `RunSummaryProjection` 读取最近 20 个有效样本。
+- 旧 Run summary warmup 有明确 20 项上限且不读取 transcript；warmup 前后 task/thread、Gap、ledger、Gate、恢复与 closeout 结果一致。
+- `run.activity_changed` 在隐藏页面或非目标 Run 上不发起查询；可见命中只读取 Automation Snapshot 并重绘 Command Center 或 Workbench，不调用 Platform、认证、Chat、Work query 或全局 render。
+- Automation 的介入、恢复、CLI 接力、Case 对账、detached completion 与 closeout 按 `run_id` 水合至多一个 detail，不通过项目级历史列表寻找目标 Run。
 - 任意用量警告都不会自动设置 Token 总上限、硬总轮次或终止 Case。
 - 当前 Runtime 可以在确认安全停止后打开用户可见且可输入的交互式 Codex CLI；两者不会并发拥有同一活动任务的执行权。
 - 首次 Runtime 不预选 Case；Agent 语义选择现有 Case 或通过 trusted ledger 创建新 Case，未形成权威绑定时 CLI handoff 不会中断 Runtime。
