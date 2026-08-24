@@ -1,6 +1,9 @@
 # Local raw candidate package. The preserved copy lives under arckit/intake/.
 /all/
 
+# Project-local Codex configuration and installed skills
+/.codex/
+
 # Generated Python artifacts
 __pycache__/
 *.py[cod]

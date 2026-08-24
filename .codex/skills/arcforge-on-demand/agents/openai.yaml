@@ -1,5 +1,0 @@
-interface:
-  display_name: "ArcForge On Demand"
-  short_description: "显式调用后由 Agent 语义选择，再从 ArcForge catalog 校验并加载一个 skill。"
-  default_prompt: >-
-    使用 $arcforge-on-demand 处理用户的显式按需调用。明确名称走 exact resolve；任意任务意图先调用 `arcforge catalog list`，由 Agent 根据 name、version、status 和 summary 最小 metadata 做语义选择，不得把完整 prompt 当作硬 query，再用选中的 qualifiedName exact resolve。只加载一个 status=ready 且经路径和内容 digest 校验的 skill；conflict 候选必须回到 ArcForge 显式治理，无唯一合适候选时说明或请用户澄清，不执行安装、权限提升或治理写入。
