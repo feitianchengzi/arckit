@@ -32,6 +32,27 @@ export function isTranscriptMessageVisible(message = {}) {
   return type === "tool" || Boolean(String(message.content || "").trim());
 }
 
+export function mergeAutomationTranscript({ sessionMessages = [], runs = [], taskId = "" } = {}) {
+  const projectedMessages = runs.flatMap((run) => (
+    Array.isArray(run.activity?.messages)
+      ? run.activity.messages.map((message) => ({ ...message, run_id: message.run_id || run.id }))
+      : []
+  ));
+  const persistedMessages = projectedMessages.length
+    ? sessionMessages.filter((message) => message.role === "user")
+    : sessionMessages;
+  const byId = new Map();
+  for (const message of [...persistedMessages, ...projectedMessages]) {
+    if (message.task_id && String(message.task_id) !== String(taskId)) continue;
+    byId.set(`${message.run_id || "session"}:${message.id}`, message);
+  }
+  return [...byId.values()]
+    .filter(isTranscriptMessageVisible)
+    .sort((left, right) => (
+      String(left.created_at || left.updated_at || "").localeCompare(String(right.created_at || right.updated_at || ""))
+    ));
+}
+
 export function structuredResultPresentation(message = {}) {
   const value = readStructuredValue(message);
   const schemaVersion = String(message.structured_data?.schema_version || value?.schema_version || "");

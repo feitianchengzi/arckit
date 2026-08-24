@@ -23,6 +23,7 @@ import {
   addRunMessage,
   applyRunCommandResult,
   applyRunEvent,
+  boundRunMessages,
   createRunActivity,
   finalizeRunActivity,
   normalizeCommandResult,
@@ -240,9 +241,8 @@ export function createDesktopRunManager({
         // Ignore an incomplete trailing record left by a process interruption.
       }
     }
-    activity.messages = [...latest.values()]
-      .sort((left, right) => String(left.created_at || "").localeCompare(String(right.created_at || "")))
-      .slice(-200);
+    activity.messages = boundRunMessages([...latest.values()]
+      .sort((left, right) => String(left.created_at || "").localeCompare(String(right.created_at || ""))));
     return activity;
   }
 

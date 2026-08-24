@@ -124,3 +124,4 @@
 | [CASE-20260824-001](closed/CASE-20260824-001-arcorbit-agent-ledger.md) | closed | 治理 ArcOrbit Agent 语义输出与 Ledger 提交边界 | 2026-08-24T03:38:58.350Z |
 | [CASE-20260824-002](closed/CASE-20260824-002-arcorbit-feedback.md) | closed | 优化 ArcOrbit Feedback 列表、详情滚动与图片体验 | 2026-08-24T08:03:36.461Z |
 | [CASE-20260824-003](closed/CASE-20260824-003-arcorbit.md) | closed | ArcOrbit 整体交互与视觉品质升级 | 2026-08-24T09:05:52.245Z |
+| [CASE-20260824-004](closed/CASE-20260824-004-automation-chat-agent.md) | closed | 统一 Automation 与 Chat 的 Agent 消息体验 | 2026-08-24T10:51:13.623Z |

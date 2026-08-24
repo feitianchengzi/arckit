@@ -1,6 +1,6 @@
 import {
   isConversationSurfaceMessageVisible,
-  isTranscriptMessageVisible,
+  mergeAutomationTranscript,
   statusGlyph,
   structuredResultPresentation,
   summarizeLoopStatus,
@@ -2907,24 +2907,11 @@ async function loadTranscript({ force = false } = {}) {
   const currentRunIndex = state.transcriptRuns.findIndex((item) => item.id === run.id);
   if (currentRunIndex >= 0) state.transcriptRuns[currentRunIndex] = run;
   else state.transcriptRuns.push(run);
-  const projectedMessages = state.transcriptRuns.flatMap((item) => (
-    Array.isArray(item.activity?.messages)
-      ? item.activity.messages.map((message) => ({ ...message, run_id: message.run_id || item.id }))
-      : []
-  ));
-  const sessionMessages = projectedMessages.length
-    ? state.transcriptSessionMessages.filter((message) => message.role === "user")
-    : state.transcriptSessionMessages;
-  const byId = new Map();
-  for (const message of [...sessionMessages, ...projectedMessages]) {
-    if (message.task_id && String(message.task_id) !== String(taskId)) continue;
-    byId.set(`${message.run_id || "session"}:${message.id}`, message);
-  }
-  state.transcript = [...byId.values()]
-    .filter(isTranscriptMessageVisible)
-    .sort((left, right) => (
-      String(left.created_at || left.updated_at || "").localeCompare(String(right.created_at || right.updated_at || ""))
-    ));
+  state.transcript = mergeAutomationTranscript({
+    sessionMessages: state.transcriptSessionMessages,
+    runs: state.transcriptRuns,
+    taskId
+  });
 }
 
 function renderWorkbench() {

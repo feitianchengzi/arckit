@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   isConversationSurfaceMessageVisible,
   isTranscriptMessageVisible,
+  mergeAutomationTranscript,
   statusGlyph,
   structuredResultPresentation,
   summarizeLoopStatus,
@@ -1180,7 +1181,7 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /上下文压缩/);
   assert.match(source, /context_compactions/);
   assert.match(source, /Git 收尾/);
-  assert.match(source, /activity\?\.messages/);
+  assert.match(source, /mergeAutomationTranscript/);
   assert.equal((source.match(/createConversationSurface\(\{/g) || []).length, 2);
   assert.equal((source.match(/performAction: runAction/g) || []).length, 2);
   assert.match(source, /chatConversationSurface\.render/);
@@ -1361,6 +1362,58 @@ test("transcript hides empty reasoning and recognizes persisted schema JSON with
     { label: "Gap", values: ["GAP-1"] },
     { label: "Risks", values: ["Visual smoke test pending."] }
   ]);
+});
+
+test("Automation transcript preserves Agent items across intervention, failed recovery Runs and historical review", () => {
+  const taskId = "TASK-1";
+  const message = (value) => ({ status: "completed", task_id: taskId, ...value });
+  const run = (id, status, messages) => ({ id, task_id: taskId, status, activity: { messages } });
+  const sessionMessages = [
+    message({ id: "USER-1", role: "user", content: "Start the Automation task.", created_at: "2026-08-24T00:00:00Z" }),
+    message({ id: "USER-2", role: "user", content: "Continue after the failed Run.", created_at: "2026-08-24T00:02:00Z" }),
+    message({ id: "OTHER", role: "user", task_id: "TASK-2", content: "Another task.", created_at: "2026-08-24T00:00:00Z" })
+  ];
+  const runs = [
+    run("RUN-FAILED", "failed", [
+      message({ id: "agent:item:SHARED", role: "assistant", actor: "agent", kind: "message", item_id: "SHARED", content: "I found the failure boundary.", created_at: "2026-08-24T00:01:00Z" }),
+      message({ id: "tool:item:CMD-1", role: "tool", actor: "tool", kind: "command", item_id: "CMD-1", content: "npm test", status: "failed", created_at: "2026-08-24T00:01:30Z" })
+    ]),
+    run("RUN-RECOVERED", "completed", [
+      message({ id: "agent:item:SHARED", role: "assistant", actor: "agent", kind: "message", item_id: "SHARED", content: "The recovery Run keeps its own Agent item.", created_at: "2026-08-24T00:03:00Z" }),
+      message({ id: "agent:item:RESULT", role: "assistant", actor: "agent", kind: "message", item_id: "RESULT", content: "The recovered execution is complete.", created_at: "2026-08-24T00:04:00Z" }),
+      message({
+        id: "agent:item:STRUCTURED", role: "assistant", actor: "agent", kind: "structured", item_id: "STRUCTURED", content: "", created_at: "2026-08-24T00:05:00Z",
+        structured_data: { schema_version: "arckit-agent-loop-result/v2", value: { schema_version: "arckit-agent-loop-result/v2", action: "handoff", summary: "done" } }
+      })
+    ])
+  ];
+
+  const live = mergeAutomationTranscript({ sessionMessages, runs, taskId });
+  const historical = mergeAutomationTranscript({ sessionMessages: structuredClone(sessionMessages), runs: structuredClone(runs), taskId });
+  assert.deepEqual(historical, live);
+  assert.deepEqual(live.map((item) => item.id), ["USER-1", "agent:item:SHARED", "tool:item:CMD-1", "USER-2", "agent:item:SHARED", "agent:item:RESULT", "agent:item:STRUCTURED"]);
+  assert.deepEqual(live.filter((item) => item.item_id === "SHARED").map((item) => item.run_id), ["RUN-FAILED", "RUN-RECOVERED"]);
+  assert.equal(live.some((item) => item.id === "OTHER"), false);
+  assert.equal(live.at(-1).kind, "structured");
+
+  const chatFixture = [
+    { role: "user", kind: "text", content: "Start the Chat task." },
+    { role: "assistant", kind: "text", content: "I found the boundary." },
+    { role: "tool", kind: "tool", content: "npm test" },
+    { role: "assistant", kind: "text", content: "The execution is complete." }
+  ];
+  const automationFixture = [
+    live.find((item) => item.id === "USER-1"),
+    live.find((item) => item.id === "agent:item:SHARED"),
+    live.find((item) => item.id === "tool:item:CMD-1"),
+    live.find((item) => item.id === "agent:item:RESULT")
+  ];
+  assert.deepEqual(
+    automationFixture.map(transcriptMessageType),
+    chatFixture.map(transcriptMessageType)
+  );
+  assert.equal(automationFixture.every(isConversationSurfaceMessageVisible), true);
+  assert.equal(chatFixture.every(isConversationSurfaceMessageVisible), true);
 });
 
 test("Round Closeout v2 presents trusted invariant judgments", () => {

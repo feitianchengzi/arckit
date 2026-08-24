@@ -1,4 +1,5 @@
 const VISIBLE_TOOL_ITEM_TYPES = new Set(["commandExecution", "toolCall", "webSearch", "fileChange"]);
+const MAX_NON_AGENT_RUN_MESSAGES = 200;
 
 function createRunActivity(run) {
   const timestamp = run.started_at || new Date().toISOString();
@@ -192,12 +193,18 @@ function applyRunEvent(run, { parsed }) {
       break;
     case "codex.agent_message.delta":
       activity.agent_text = appendLimited(activity.agent_text, event.text || "", 256_000);
-      projectAgentOutput(activity, {
-        text: activity.agent_text,
-        itemId: event.item_id || "",
-        turnId: event.turn_id || activity.turn_id,
-        status: "streaming"
-      });
+      {
+        const itemId = event.item_id || "";
+        const turnId = event.turn_id || activity.turn_id;
+        const id = agentOutputMessageId(activity, itemId, turnId);
+        const existing = activity.messages.find((message) => message.id === id);
+        projectAgentOutput(activity, {
+          text: appendLimited(existing?.content, event.text || "", 256_000),
+          itemId,
+          turnId,
+          status: "streaming"
+        });
+      }
       break;
     case "codex.reasoning.delta": {
       const delta = String(event.text || "");
@@ -271,7 +278,7 @@ function applyRunEvent(run, { parsed }) {
       break;
   }
   activity.timeline = activity.timeline.slice(-200);
-  activity.messages = activity.messages.slice(-200);
+  activity.messages = boundRunMessages(activity.messages);
   return activity;
 }
 
@@ -457,9 +464,22 @@ function normalizeRunMessage(message) {
     id: String(message.id || `message:${Date.now()}`), role: message.role || "system", actor: message.actor || "runtime",
     actor_label: message.actor_label || "Runtime", kind: message.kind || "status", content: String(message.content || ""),
     detail: String(message.detail || ""), status: message.status || "completed", created_at: message.created_at || now,
-    updated_at: now, revision: Number(message.revision || 1), item_id: String(message.item_id || ""),
+    updated_at: now, revision: Number(message.revision || 1),
+    run_id: String(message.run_id || ""), task_id: String(message.task_id || ""),
+    thread_id: String(message.thread_id || ""), turn_id: String(message.turn_id || ""),
+    round_index: Number(message.round_index || 0), item_id: String(message.item_id || ""),
     structured_data: normalizeStructuredData(message.structured_data)
   };
+}
+
+function boundRunMessages(messages, nonAgentLimit = MAX_NON_AGENT_RUN_MESSAGES) {
+  let remainingNonAgent = nonAgentLimit;
+  return [...messages].reverse().filter((message) => {
+    if (message.role === "assistant" || message.actor === "agent") return true;
+    if (remainingNonAgent <= 0) return false;
+    remainingNonAgent -= 1;
+    return true;
+  }).reverse();
 }
 
 function finalizeRunActivity(run, { status, exitCode, parsedResult, errorMessage }) {
@@ -564,7 +584,9 @@ function projectCompletedItem(activity, event) {
     }
   }
   if (item.type === "agentMessage") {
-    const text = String(item.text || activity.agent_text || "");
+    const id = agentOutputMessageId(activity, item.id, event.turn_id || activity.turn_id);
+    const existing = activity.messages.find((message) => message.id === id);
+    const text = String(item.text || existing?.content || activity.agent_text || "");
     activity.agent_text = text;
     projectAgentOutput(activity, {
       text,
@@ -585,21 +607,27 @@ function projectCompletedItem(activity, event) {
 function projectAgentOutput(activity, { text, itemId = "", turnId = "", status = "streaming" }) {
   const structuredData = structuredDataFromText(text, { allowPartial: status === "streaming" });
   upsertMessage(activity, {
-    id: agentOutputMessageId(activity, turnId), role: "assistant", actor: "agent", actor_label: "Codex Agent",
+    id: agentOutputMessageId(activity, itemId, turnId), role: "assistant", actor: "agent", actor_label: "Codex Agent",
     kind: structuredData ? "structured" : "message", content: structuredData ? "" : text, status,
-    item_id: itemId, structured_data: structuredData
+    ...messageAttribution(activity, { itemId, turnId }), structured_data: structuredData
   });
 }
 
 function projectStructuredResult(activity, value, { turnId = "", status = "completed" } = {}) {
-  const id = agentOutputMessageId(activity, turnId);
-  const existing = activity.messages.find((message) => message.id === id);
+  const schemaVersion = String(value?.schema_version || "");
+  const existing = [...activity.messages].reverse().find((message) => (
+    message.kind === "structured"
+    && String(message.structured_data?.schema_version || "") === schemaVersion
+    && (!turnId || !message.turn_id || message.turn_id === turnId)
+  ));
+  const id = existing?.id || structuredResultMessageId(activity, schemaVersion, turnId);
   const existingRaw = completeStructuredRaw(existing?.structured_data?.raw, value?.schema_version);
   const structuredData = structuredDataFromValue(value, existingRaw);
   if (!structuredData) return;
   upsertMessage(activity, {
     id, role: "assistant", actor: "agent", actor_label: "Codex Agent",
-    kind: "structured", content: "", status, structured_data: structuredData
+    kind: "structured", content: "", status,
+    ...messageAttribution(activity, { itemId: existing?.item_id || "", turnId }), structured_data: structuredData
   });
 }
 
@@ -614,8 +642,25 @@ function completeStructuredRaw(raw, schemaVersion) {
   }
 }
 
-function agentOutputMessageId(activity, turnId = "") {
+function agentOutputMessageId(activity, itemId = "", turnId = "") {
+  if (itemId) return `agent:item:${itemId}`;
   return `agent:${turnId || activity.turn_id || activity.round_index}:output`;
+}
+
+function structuredResultMessageId(activity, schemaVersion = "", turnId = "") {
+  const schemaKey = String(schemaVersion || "result").replace(/[^a-zA-Z0-9._-]+/g, "-");
+  return `agent:structured:${turnId || activity.turn_id || activity.round_index}:${schemaKey}`;
+}
+
+function messageAttribution(activity, { itemId = "", turnId = "" } = {}) {
+  return {
+    run_id: activity.run_id || "",
+    task_id: activity.task_id || "",
+    thread_id: activity.thread_id || "",
+    turn_id: turnId || activity.turn_id || "",
+    round_index: Number(activity.round_index || 0),
+    item_id: itemId || ""
+  };
 }
 
 function reasoningMessageId(activity, itemId = "") {
@@ -722,6 +767,7 @@ export {
   addRunMessage,
   applyRunCommandResult,
   applyRunEvent,
+  boundRunMessages,
   createRunActivity,
   finalizeRunActivity,
   normalizeCommandResult,

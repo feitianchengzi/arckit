@@ -114,6 +114,22 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
     conversation_locale: options.conversationLocale || round.conversation_locale || "en",
     original_user_input: firstTurn ? options.originalTask || options.task || "" : "",
     current_instruction: options.task || "",
+    conversation_contract: {
+      user_visible_commentary: {
+        required: true,
+        message_channel: "commentary",
+        item_identity: "Preserve every commentary message as its own Codex agentMessage item; do not merge commentary by turn.",
+        cadence: "When tools are needed, explain the immediate goal before the first tool call and add concise updates at meaningful phase boundaries, after material findings or decisions, and before the structured final result.",
+        content: "State user-readable progress, discoveries, judgments, decision basis, and the next action. Write original analysis summaries rather than fixed Runtime status text."
+      },
+      final_result: {
+        channel: "final",
+        output_schema_required: true,
+        separation: "Return the schema-bound Agent Loop result as the final machine contract; do not paste its JSON into commentary."
+      },
+      reasoning_visibility: "Do not expose hidden chain-of-thought. A reasoning message is displayable only when Codex provides a non-empty reasoning summary; reasoning token counts alone are not displayable text.",
+      automation_projection: "Loop, Case, Gap, ledger, validation, receipts, and structured JSON belong to Automation side panels, while user, Agent commentary/result, non-empty reasoning summaries, tools, approvals, and errors belong to the conversation timeline."
+    },
     canonical_context: createControllerContextDigest({ snapshot, loopFrame }),
     execution_authorization: {
       status: loopFrame.execution_gate.status,

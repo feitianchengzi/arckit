@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 209
-Updated: 2026-08-24T09:05:52.245Z
+Revision: 211
+Updated: 2026-08-24T10:51:13.623Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-在不改变任何既有页面内容、业务功能和信息语义的前提下，系统提升 ArcOrbit Desktop 的可读性、交互一致性、视觉层级与正式产品质感；明确解决多处字号偏小的问题，并由 Agent 基于实际界面审计识别其他必要优化。
+在保留 Agent Loop 结构化输出契约及 Automation 侧栏机器信息的同时，让 Automation 人工介入时间线生成、投影、持久化并按原始 item 独立保留面向用户的 Agent 进度、判断和结果消息。
 
 ## Active Work
 

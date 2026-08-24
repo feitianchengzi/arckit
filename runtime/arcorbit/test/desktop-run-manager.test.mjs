@@ -299,6 +299,59 @@ test("desktop run manager persists semantic messages without duplicating high-fr
   }
 });
 
+test("desktop run manager restores distinct Automation Agent items after restart", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "arckit-agent-item-stream-"));
+  await writeStore(dataDir, dataDir);
+  const children = [];
+  const manager = createDesktopRunManager({
+    runtimeRoot: dataDir,
+    dataDir,
+    spawnProcess() { return fakeChild(children); },
+    ensureProject: async () => ({ initialized: false, repaired: false })
+  });
+  try {
+    const run = await manager.startRun({
+      projectId: "PROJECT-1",
+      sessionId: "SESSION-1",
+      taskId: "TASK-1",
+      task: "Persist Agent commentary",
+      dryRun: true
+    });
+    const child = children[0];
+    child.stderr.write(`${JSON.stringify({ event: {
+      type: "codex.turn.started", thread_id: "THREAD-1", turn_id: "TURN-1"
+    } })}\n`);
+    writeAgentItem(child, "COMMENTARY-1", "I am checking the persisted Automation transcript.");
+    child.stderr.write(`${JSON.stringify({ event: {
+      type: "codex.item.completed", thread_id: "THREAD-1", turn_id: "TURN-1",
+      params: { item: { id: "CMD-1", type: "commandExecution", command: "npm test", exitCode: 0 } }
+    } })}\n`);
+    writeAgentItem(child, "COMMENTARY-2", "The item identities remain independent after the tool call.");
+    await new Promise((resolve) => setTimeout(resolve, 240));
+
+    const persisted = (await readFile(run.messages_file, "utf8")).trim().split(/\r?\n/).map(JSON.parse);
+    assert.deepEqual(
+      persisted.filter((record) => record.message.kind === "message").map((record) => record.message.item_id),
+      ["COMMENTARY-1", "COMMENTARY-2"]
+    );
+
+    await manager.abortActiveRuns({ graceMs: 0 });
+    const reloadedManager = createDesktopRunManager({
+      runtimeRoot: dataDir,
+      dataDir,
+      ensureProject: async () => ({ initialized: false, repaired: false })
+    });
+    const [reloadedRun] = await reloadedManager.listRuns({ projectId: "PROJECT-1", sessionId: "SESSION-1" });
+    const commentary = reloadedRun.activity.messages.filter((message) => message.kind === "message");
+    assert.deepEqual(commentary.map((message) => message.item_id), ["COMMENTARY-1", "COMMENTARY-2"]);
+    assert.equal(commentary.every((message) => message.thread_id === "THREAD-1" && message.turn_id === "TURN-1"), true);
+  } finally {
+    await manager.abortActiveRuns({ graceMs: 0 });
+    destroyChildren(children);
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
 async function writeStore(dataDir, projectDir) {
   await writeFile(join(dataDir, "desktop-store.json"), `${JSON.stringify({
     version: 9,
@@ -324,6 +377,22 @@ function fakeChild(children) {
   child.signalCode = null;
   children.push(child);
   return child;
+}
+
+function writeAgentItem(child, itemId, text) {
+  child.stderr.write(`${JSON.stringify({ event: {
+    type: "codex.agent_message.delta",
+    thread_id: "THREAD-1",
+    turn_id: "TURN-1",
+    item_id: itemId,
+    text
+  } })}\n`);
+  child.stderr.write(`${JSON.stringify({ event: {
+    type: "codex.item.completed",
+    thread_id: "THREAD-1",
+    turn_id: "TURN-1",
+    params: { item: { id: itemId, type: "agentMessage", text } }
+  } })}\n`);
 }
 
 function destroyChildren(children) {

@@ -110,6 +110,7 @@ test("default execution accepts candidate and current-turn fresh gaps from one c
   assert.equal(calls.length, 1);
   assert.equal(calls[0].options.threadKey, "agent-loop:TASK-1");
   assert.equal(calls[0].options.resultKind, "agent-loop-result");
+  assert.equal(calls[0].options.outputSchema.properties.schema_version.const, "arckit-agent-loop-result/v2");
   assert.equal("skillInputs" in calls[0].options, false);
   assert.ok(calls[0].prompt.startsWith("$using-arckit\n"));
   assert.match(calls[0].prompt, /"execute_in_current_turn": true/);
@@ -118,6 +119,11 @@ test("default execution accepts candidate and current-turn fresh gaps from one c
   assert.equal(invocation.canonical_context.ledger_snapshot.selection_tokens[caseId], "fixture-selection-token");
   assert.equal(invocation.execution_authorization.trusted_ledger_snapshot.snapshot_token, "fixture-global-snapshot");
   assert.equal(invocation.execution_authorization.trusted_ledger_snapshot.selection_tokens[caseId], "fixture-selection-token");
+  assert.equal(invocation.conversation_contract.user_visible_commentary.required, true);
+  assert.equal(invocation.conversation_contract.user_visible_commentary.message_channel, "commentary");
+  assert.equal(invocation.conversation_contract.final_result.output_schema_required, true);
+  assert.match(invocation.conversation_contract.final_result.separation, /do not paste its JSON into commentary/i);
+  assert.match(invocation.conversation_contract.reasoning_visibility, /reasoning token counts alone are not displayable text/i);
   assert.equal("agentTasks" in result, false);
   assert.equal("agentReports" in result, false);
   assert.equal("mergeResult" in result, false);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyRunEvent, createRunActivity } from "../src/projection/run-event-projector.mjs";
+import { applyRunEvent, boundRunMessages, createRunActivity } from "../src/projection/run-event-projector.mjs";
 
 test("one persistent thread keeps cumulative usage while each turn uses its own delta", () => {
   const run = runtimeRun();
@@ -134,6 +134,78 @@ test("reasoning projection omits empty summaries and completes non-empty Codex t
   assert.equal(completed.content, "Checked the projector.");
   assert.equal(completed.status, "completed");
   assert.equal(run.activity.messages.filter((message) => message.item_id === "REASON-1").length, 1);
+});
+
+test("Automation preserves each Agent commentary item beside tools and the schema-bound result", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  applyRunEvent(run, wrapped({ type: "codex.turn.started", thread_id: "THREAD-1", turn_id: "TURN-1" }));
+
+  projectAgentItem(run, {
+    id: "COMMENTARY-1",
+    text: "I am tracing how Automation projects Codex message items."
+  });
+  applyRunEvent(run, wrapped({
+    type: "codex.item.completed",
+    params: { item: { id: "CMD-1", type: "commandExecution", command: "npm test", exitCode: 0 } }
+  }));
+  projectAgentItem(run, {
+    id: "COMMENTARY-2",
+    text: "The projector uses a turn-level key, so I will change it to item identity."
+  });
+
+  const result = {
+    schema_version: "arckit-agent-loop-result/v2",
+    action: "handoff",
+    summary: "The bounded result remains machine-readable.",
+    case_control: null,
+    case_command: null,
+    changed_files: [],
+    artifact_impacts: [],
+    risks: [],
+    unknowns: [],
+    handoff: { next_responsibility: "none", reason: "done", next_prompt: "", human_decision_required: false }
+  };
+  projectAgentItem(run, { id: "STRUCTURED-1", text: JSON.stringify(result) });
+  applyRunEvent(run, wrapped({ type: "runtime.agent_loop_result", turn_id: "TURN-1", result }));
+
+  const commentary = run.activity.messages.filter((message) => message.kind === "message");
+  assert.deepEqual(commentary.map((message) => message.item_id), ["COMMENTARY-1", "COMMENTARY-2"]);
+  assert.deepEqual(commentary.map((message) => message.content), [
+    "I am tracing how Automation projects Codex message items.",
+    "The projector uses a turn-level key, so I will change it to item identity."
+  ]);
+  assert.equal(new Set(commentary.map((message) => message.id)).size, 2);
+  assert.equal(commentary.every((message) => message.thread_id === "THREAD-1" && message.turn_id === "TURN-1"), true);
+  assert.equal(run.activity.messages.some((message) => message.role === "tool" && message.item_id === "CMD-1"), true);
+  const structured = run.activity.messages.filter((message) => message.kind === "structured");
+  assert.equal(structured.length, 1);
+  assert.equal(structured[0].item_id, "STRUCTURED-1");
+  assert.equal(structured[0].content, "");
+  assert.deepEqual(structured[0].structured_data.value, result);
+});
+
+test("reasoning token usage alone does not create a displayable reasoning message", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  applyRunEvent(run, wrapped(usageEvent({
+    turnId: "TURN-1",
+    total: counts(120, 100, 40, 20, 12),
+    last: counts(120, 100, 40, 20, 12)
+  })));
+  assert.equal(run.activity.token_usage.summary.reasoning_output_tokens, 12);
+  assert.equal(run.activity.messages.some((message) => message.kind === "reasoning"), false);
+});
+
+test("bounded tool history never evicts independently persisted Agent items", () => {
+  const messages = [
+    { id: "COMMENTARY-1", role: "assistant", actor: "agent" },
+    ...Array.from({ length: 250 }, (_, index) => ({ id: `TOOL-${index}`, role: "tool", actor: "tool" })),
+    { id: "COMMENTARY-2", role: "assistant", actor: "agent" }
+  ];
+  const bounded = boundRunMessages(messages);
+  assert.deepEqual(bounded.filter((message) => message.role === "assistant").map((message) => message.id), ["COMMENTARY-1", "COMMENTARY-2"]);
+  assert.equal(bounded.filter((message) => message.role === "tool").length, 200);
 });
 
 test("schema-bound Agent output is preserved as structured data beside the formal summary", () => {
@@ -340,6 +412,22 @@ test("accepted ledger receipts remain append-only when a later write fails", () 
   applyRunEvent(run, wrapped({ type: "runtime.ledger_write.completed", round_index: 1, result: accepted }));
   assert.equal(run.activity.ledger_write_receipts.length, 1);
 });
+
+function projectAgentItem(run, { id, text }) {
+  applyRunEvent(run, wrapped({
+    type: "codex.agent_message.delta",
+    thread_id: "THREAD-1",
+    turn_id: "TURN-1",
+    item_id: id,
+    text
+  }));
+  applyRunEvent(run, wrapped({
+    type: "codex.item.completed",
+    thread_id: "THREAD-1",
+    turn_id: "TURN-1",
+    params: { item: { id, type: "agentMessage", text } }
+  }));
+}
 
 function runtimeRun() {
   return {
