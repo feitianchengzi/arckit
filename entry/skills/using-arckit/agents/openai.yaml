@@ -20,6 +20,7 @@ workflow:
     - "Invariant applicability 来自 fresh facts 对长期语义的新增、变化、缺失、过时、歧义或冲突，不从 planned transition 或实际编辑对象倒推。"
     - "只在需要人类责任时暂停；长命令和生产性 Round 不构成停止条件。"
     - "Completion Review 只由 ledger 在普通工作闭合后派生；它不是 fact 或常规事实维护步骤。"
+    - "选择 Completion Review 时只提交 review result 或独立 human budget authorization；resolve_selected_gap 必须为 null，Case 内容变化留给 finding 派生后的普通 Gap。"
     - "Completion Review 是唯一显式语义自查；Case resolved 后只做 Git-only closeout。"
   output:
     - "protocol reconciliation result or recovery handoff"

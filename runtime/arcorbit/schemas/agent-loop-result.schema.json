@@ -70,7 +70,10 @@
       "type": "object",
       "required": ["resolve_selected_gap", "facts_added", "facts_superseded", "impacts_added", "impacts_updated", "gaps_added", "gaps_cancelled", "resolved_open_questions", "completed_handoffs", "completion_review_result", "resolved_review_findings", "review_budget_extension"],
       "properties": {
-        "resolve_selected_gap": { "anyOf": [{ "$ref": "#/$defs/semantic_resolution" }, { "type": "null" }] },
+        "resolve_selected_gap": {
+          "description": "Resolution claim for a selected ordinary Case Gap. Must be null for a Completion Review candidate, which is completed only by completion_review_result or an independent review_budget_extension.",
+          "anyOf": [{ "$ref": "#/$defs/semantic_resolution" }, { "type": "null" }]
+        },
         "facts_added": { "type": "array", "items": { "$ref": "#/$defs/semantic_fact" } },
         "facts_superseded": { "type": "array", "items": { "$ref": "#/$defs/semantic_fact_supersession" } },
         "impacts_added": { "type": "array", "items": { "$ref": "#/$defs/semantic_impact" } },
@@ -79,7 +82,10 @@
         "gaps_cancelled": { "type": "array", "items": { "$ref": "#/$defs/semantic_gap_cancellation" } },
         "resolved_open_questions": { "type": "array", "items": { "type": "string" } },
         "completed_handoffs": { "type": "array", "items": { "type": "string" } },
-        "completion_review_result": { "anyOf": [{ "$ref": "#/$defs/semantic_completion_review_result" }, { "type": "null" }] },
+        "completion_review_result": {
+          "description": "The only completion claim for a selected Completion Review candidate. It must be null for ordinary Case Gaps and cannot be combined with Case content mutations or review_budget_extension.",
+          "anyOf": [{ "$ref": "#/$defs/semantic_completion_review_result" }, { "type": "null" }]
+        },
         "resolved_review_findings": { "type": "array", "items": { "type": "string" } },
         "review_budget_extension": { "anyOf": [{ "$ref": "#/$defs/review_budget_extension" }, { "type": "null" }] }
       },
@@ -211,14 +217,28 @@
       "additionalProperties": false
     },
     "semantic_project_gap_change": {
-      "type": "object",
-      "required": ["action", "ref", "gap", "reason", "evidence"],
-      "properties": {
-        "action": { "type": "string", "enum": ["add", "update", "resolve"] }, "ref": { "type": "string" },
-        "gap": { "anyOf": [{ "$ref": "#/$defs/semantic_project_gap" }, { "type": "null" }] },
-        "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
-      },
-      "additionalProperties": false
+      "anyOf": [
+        {
+          "type": "object",
+          "required": ["action", "ref", "gap", "reason", "evidence"],
+          "properties": {
+            "action": { "type": "string", "enum": ["add", "update"] }, "ref": { "type": "string" },
+            "gap": { "$ref": "#/$defs/semantic_project_gap" },
+            "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["action", "ref", "gap", "reason", "evidence"],
+          "properties": {
+            "action": { "type": "string", "const": "resolve" }, "ref": { "type": "string" },
+            "gap": { "type": "null" },
+            "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+          },
+          "additionalProperties": false
+        }
+      ]
     },
     "semantic_project_gap": {
       "type": "object",
@@ -239,16 +259,7 @@
       "additionalProperties": false
     },
     "semantic_invariant_judgment": {
-      "type": "object",
-      "required": ["invariant_ref", "disposition", "reason", "fact_refs", "evidence", "gap_refs"],
-      "properties": {
-        "invariant_ref": { "type": "string" },
-        "disposition": { "type": "string", "enum": ["not_relevant", "upheld", "threatened", "undetermined"] },
-        "reason": { "type": "string" }, "fact_refs": { "type": "array", "items": { "type": "string" } },
-        "evidence": { "type": "array", "items": { "type": "string" } },
-        "gap_refs": { "type": "array", "items": { "type": "string" } }
-      },
-      "additionalProperties": false
+      "$ref": "#/$defs/invariant_judgment"
     },
     "case_control": {
       "type": "object",

@@ -19,6 +19,7 @@ description: "在 Arckit 项目中持续推进真实软件开发事项。依据 
 - 本轮新发现的事实可以证明 selected Gap，并可写入 Case、暴露、重开或新增后续 Gap；不得再消费这些新事实去完成其他下游结果。当前 Gap transition 接受后即结束。
 - 持久事实是否需要维护由当前 Gap、Project decisions/invariants 和现实证据共同决定，并在最合适的 Gap 中自然发生，而不是靠最终 Review 常规补齐。
 - Completion Review 是唯一显式语义自查，只在普通工作闭合后检查实施正确性、问题是否真实解决、验证可信度、回归风险与最小性。普通 Gap 的证据收集和确定性校验不是额外 Review 阶段。
+- Completion Review candidate 只由 review result 或独立 human budget authorization 完成，不使用普通 Gap 的 resolution，也不携带 Case 内容变化；findings 由 Ledger 派生为下一轮普通修复 Gap。
 - Agent 不直接手改 ledger；只向 trusted entrypoint 提交 Case control、Case transition 或 handoff。
 - 每轮只接受 ledger capability 产出的 `arckit-ledger-snapshot/v1`。Runtime 未提供时，Agent 从已安装的 `arckit-development-ledger` manifest 解析同一个 `loop_snapshot` entrypoint 并自行调用；普通文件读取和 writeback 返回值都不能冒充 fresh snapshot。
 
