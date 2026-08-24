@@ -6,7 +6,7 @@
 
 | ID | Status | Title | Selected Gap | Updated |
 | --- | --- | --- | --- | --- |
-| [CASE-20260823-007](active/CASE-20260823-007-arcorbit-work.md) | active | 优化 ArcOrbit Work 状态列表切换性能 | none | 2026-08-23T21:46:41.163Z |
+| [CASE-20260823-007](active/CASE-20260823-007-arcorbit-work.md) | active | 优化 ArcOrbit Work 状态列表切换性能 | none | 2026-08-24T05:45:19.979Z |
 
 ## Closed Cases
 

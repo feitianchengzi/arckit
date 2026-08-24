@@ -116,6 +116,59 @@ test("platform coordinator projects task-tree lineage and matched counts without
   assert.deepEqual(snapshot.product_workspaces[0].task_counts, { pending: 1, blocked: 1 });
 });
 
+test("dedicated Work query excludes unrelated snapshots and returns a bounded task window", async () => {
+  const calls = [];
+  const tasks = Array.from({ length: 1000 }, (_, index) => ({ id: String(index + 1), state: "pending", tree_depth: 0, tree_matched: true }));
+  const coordinator = createPlatformCoordinator({
+    runManager: { readDesktopStore: async () => normalizeStore({ platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["11"] }], active_workset_id: "WORKSET-DEFAULT" } }), updateDesktopStore: async () => {} },
+    automationCoordinator: { getSnapshot: async () => { throw new Error("Automation must not participate in Work query"); } },
+    platformSource: {
+      listProjects: async () => { calls.push("projects"); return [{ id: "11", name: "Alpha" }]; },
+      listProjectTaskTree: async (_projectId, filters) => { calls.push(["tasks", filters]); return { tasks: [], flattened: tasks, total: 1000, matched_total: 1000 }; },
+      listProjectTags: async () => { calls.push("tags"); return [{ id: "TAG-1", name: "Desktop" }]; },
+      listOrganizations: async () => { throw new Error("Organizations must not participate in Work query"); },
+      listOrganizationMembers: async () => { throw new Error("Members must not participate in Work query"); },
+      listFeedbackV1: async () => { throw new Error("Feedback must not participate in Work query"); }
+    }
+  });
+
+  const result = await coordinator.queryWork({
+    query_key: "complete-query-key", workset_id: "WORKSET-DEFAULT", project_id: "all", state: "pending",
+    creator_ids: ["7"], executor_ids: ["8"], tag_ids: ["TAG-1"], priorities: ["1"],
+    search_key: "desktop", start_time: "2026-01-01", end_time: "2026-08-24", offset: 0, limit: 80
+  });
+
+  assert.equal(result.schema_version, "arcorbit-work-query/v1");
+  assert.equal(result.query_key, "complete-query-key");
+  assert.equal(result.tasks.length, 80);
+  assert.deepEqual(result.window, { offset: 0, limit: 80, returned: 80, total: 1000, has_more: true });
+  assert.equal(result.product_workspaces[0].task_counts.pending, 1000);
+  assert.equal(result.product_workspaces[0].task_tree.tasks.length, 0);
+  assert.deepEqual(calls, ["projects", ["tasks", { tree: true, states: ["pending"], search_key: "desktop", creator_ids: ["7"], executor_ids: ["8"], tag_ids: ["TAG-1"], priorities: ["1"], start_time: "2026-01-01", end_time: "2026-08-24" }], "tags"]);
+});
+
+test("dedicated Work query retains ancestor lineage around a matched window", async () => {
+  const coordinator = createPlatformCoordinator({
+    runManager: { readDesktopStore: async () => normalizeStore({ platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["11"] }], active_workset_id: "WORKSET-DEFAULT" } }), updateDesktopStore: async () => {} },
+    automationCoordinator: { getSnapshot: async () => { throw new Error("Automation must not participate in Work query"); } },
+    platformSource: {
+      listProjects: async () => [{ id: "11", name: "Alpha" }],
+      listProjectTaskTree: async () => ({
+        tasks: [], total: 2, matched_total: 1,
+        flattened: [
+          { id: "ROOT", state: "completed", tree_depth: 0, tree_matched: false, tree_ancestor_ids: [] },
+          { id: "CHILD", state: "pending", tree_depth: 1, tree_matched: true, tree_ancestor_ids: ["ROOT"] }
+        ]
+      }),
+      listProjectTags: async () => []
+    }
+  });
+
+  const result = await coordinator.queryWork({ query_key: "tree-query", state: "pending", offset: 0, limit: 1 });
+  assert.deepEqual(result.tasks.map((task) => task.id), ["ROOT", "CHILD"]);
+  assert.deepEqual(result.window, { offset: 0, limit: 1, returned: 1, total: 1, has_more: false });
+});
+
 test("platform coordinator binds TaskAttachment upload and access to a visible task and persisted record", async () => {
   const calls = [];
   const platformSource = new Proxy({

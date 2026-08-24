@@ -312,6 +312,9 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .platform-work-table td { height: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .platform-work-table .task-title-cell { max-width: 0; }
 .platform-work-table .task-tree-title { display: block; padding-left: calc(var(--task-tree-depth, 0) * 15px); overflow: hidden; font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
+.work-query-pager { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--ink-150); background: rgba(255, 255, 255, .96); color: var(--ink-600); font-size: 12px; backdrop-filter: blur(8px); }
+.work-query-pager > div { display: flex; gap: 8px; }
+.work-query-pager button { min-height: 30px; padding: 4px 10px; }
 .capability-notice { display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 8px 13px; border-bottom: 1px solid var(--ink-150); color: var(--ink-500); background: var(--ink-50); font-size: 8px; }
 .capability-notice strong { color: var(--ink-700); white-space: nowrap; }
 .organization-center { display: grid; grid-template-columns: 228px minmax(0, 1fr); min-height: 100%; }

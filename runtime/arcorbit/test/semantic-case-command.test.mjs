@@ -110,6 +110,47 @@ test('Semantic Completion Review uses the Agent-facing review contract', async (
   assert.deepEqual(validateSemanticCaseCommand(command), []);
 });
 
+test('Semantic materialization allocates a new finding identity across Completion Review cycles', async () => {
+  const projectRoot = await fixtureProject();
+  const snapshot = readLedgerSnapshot(projectRoot);
+  const active = snapshot.canonical.active_cases[0];
+  const caseKey = active.record.id.replace(/^CASE-/, '');
+  const priorFindingId = `FINDING-${caseKey}-001`;
+  active.record.completion_review.cycles.push({
+    cycle: 1, autonomous_cycle: 1, reviewer: 'agent', outcome: 'findings', content_revision: 1,
+    dimensions: {
+      implementation_correctness: 'findings', problem_resolution: 'findings', verification_credibility: 'findings',
+      regression_risk: 'findings', minimality: 'clean',
+    },
+    finding_ids: [priorFindingId], evidence: ['fixture:first-review'], occurred_at: '2026-08-24T00:00:00.000Z',
+  });
+  active.record.gaps.push({
+    id: `${active.record.id}:review-finding:${priorFindingId}`, status: 'resolved',
+    goal: 'Resolve the first finding.', reason: 'The first review found an error.',
+    derived_from: ['completion_review', 'content_revision:1'], blocked_by: [],
+    priority_basis: { blocking: 'high', risk: 'high' }, responsibility: 'agent',
+    evidence_required: ['fixture:first-review'],
+    resolution: { id: `${active.record.id}:review-finding:${priorFindingId}`, status: 'resolved', outcome: 'Fixed.', reason: 'Verified.', evidence: ['fixture:first-fix'], occurred_at: '2026-08-24T00:01:00.000Z' },
+  });
+  const command = semanticCommand(snapshot, active.record);
+  command.claim.completion_review_result = {
+    outcome: 'findings', reviewer: 'agent',
+    dimensions: {
+      implementation_correctness: 'findings', problem_resolution: 'findings', verification_credibility: 'findings',
+      regression_risk: 'findings', minimality: 'clean',
+    },
+    findings: [{
+      ref: 'local:review-finding:second-defect', kind: 'error', statement: 'A distinct second defect exists.',
+      responsibility: 'agent', artifact_refs: ['fixture:source'], evidence: ['fixture:second-review'],
+    }],
+    evidence: ['fixture:second-review'],
+  };
+
+  const materialized = materializeSemanticCaseCommand({ command, snapshot });
+  assert.equal(materialized.canonical_id_mapping['local:review-finding:second-defect'], `FINDING-${caseKey}-002`);
+  assert.equal(materialized.transition.accepted_state_delta.completion_review_result.findings[0].id, `FINDING-${caseKey}-002`);
+});
+
 async function fixtureProject() {
   const projectRoot = await mkdtemp(join(tmpdir(), 'arckit-semantic-command-'));
   await ensureArckitProject({ projectRoot, projectName: 'Semantic Command Fixture', intent: 'Exercise deterministic materialization.' });

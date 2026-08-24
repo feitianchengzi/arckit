@@ -240,6 +240,95 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
     };
   }
 
+  async function queryWork(input = {}) {
+    const queryKey = requiredText(input.query_key, "Work query key", 4000);
+    const taskState = TASK_STATES.includes(String(input.state)) ? String(input.state) : "pending";
+    const offset = Math.max(0, Math.trunc(Number(input.offset) || 0));
+    const limit = Math.min(200, Math.max(1, Math.trunc(Number(input.limit) || 80)));
+    const [store, projectsResult] = await Promise.all([
+      runManager.readDesktopStore(),
+      capture("projects", () => platformSource.listProjects())
+    ]);
+    const platform = store.platform;
+    const worksetId = String(input.workset_id || platform.active_workset_id || "");
+    const activeWorkset = platform.worksets.find((item) => item.id === worksetId) || platform.worksets[0] || null;
+    const selectedIds = new Set(activeWorkset?.project_ids || []);
+    const requestedProjectId = String(input.project_id || "all");
+    const selectedProjects = (projectsResult.value || []).filter((project) => (
+      selectedIds.has(String(project.id)) && (requestedProjectId === "all" || String(project.id) === requestedProjectId)
+    ));
+    const taskFilters = {
+      tree: true,
+      states: [taskState],
+      search_key: String(input.search_key || "").trim().slice(0, 200),
+      creator_ids: boundedValues(input.creator_ids),
+      executor_ids: boundedValues(input.executor_ids),
+      tag_ids: boundedValues(input.tag_ids),
+      priorities: boundedValues(input.priorities),
+      start_time: String(input.start_time || "").slice(0, 40),
+      end_time: String(input.end_time || "").slice(0, 40)
+    };
+    const errors = [projectsResult.error].filter(Boolean);
+    const detailResults = await Promise.all(selectedProjects.map(async (project) => {
+      const projectId = String(project.id);
+      const [tasks, tags] = await Promise.all([
+        capture("tasks", () => typeof platformSource.listProjectTaskTree === "function"
+          ? platformSource.listProjectTaskTree(projectId, taskFilters)
+          : platformSource.listProjectTasks(projectId, { ...taskFilters, tree: false }), projectId),
+        capture("tags", () => platformSource.listProjectTags(projectId), projectId)
+      ]);
+      errors.push(...[tasks.error, tags.error].filter(Boolean));
+      const taskValue = tasks.value || [];
+      const flattened = Array.isArray(taskValue) ? taskValue : taskValue.flattened || [];
+      const matchedTotal = Array.isArray(taskValue)
+        ? flattened.filter((task) => task.state === taskState).length
+        : Number(taskValue.matched_total || 0);
+      return {
+        project,
+        tasks: flattened,
+        taskTree: Array.isArray(taskValue) ? null : taskValue,
+        taskCounts: { [taskState]: matchedTotal },
+        tags: tags.value || []
+      };
+    }));
+    const allTasks = detailResults.flatMap((detail) => detail.tasks.map((task) => ({
+      ...task,
+      project_id: String(detail.project.id),
+      project_name: String(detail.project.name || "")
+    })));
+    const matchedTasks = allTasks.filter((task) => task.tree_matched !== false && task.state === taskState);
+    const matchedWindow = matchedTasks.slice(offset, offset + limit);
+    const visibleTaskIds = new Set(matchedWindow.flatMap((task) => [
+      `${task.project_id}:${task.id}`,
+      ...(task.tree_ancestor_ids || []).map((id) => `${task.project_id}:${id}`)
+    ]));
+    const windowTasks = allTasks.filter((task) => visibleTaskIds.has(`${task.project_id}:${task.id}`));
+    const productWorkspaces = detailResults.map((detail) => buildProductWorkspace({
+      project: detail.project,
+      preference: platform.workspace_preferences[String(detail.project.id)] || {},
+      detail: {
+        tasks: detail.tasks.filter((task) => visibleTaskIds.has(`${detail.project.id}:${task.id}`)),
+        taskTree: detail.taskTree ? { ...detail.taskTree, tasks: [] } : null,
+        taskCounts: detail.taskCounts,
+        tags: detail.tags
+      }
+    }));
+    return {
+      schema_version: "arcorbit-work-query/v1",
+      query_key: queryKey,
+      generated_at: now(),
+      source_status: errors.length > 0 ? "degraded" : "healthy",
+      active_workset: activeWorkset,
+      projects: selectedProjects.map((project) => projectProjection(project)),
+      product_workspaces: productWorkspaces,
+      tasks: windowTasks,
+      task_trees: productWorkspaces.map((workspace) => workspace.task_tree).filter(Boolean),
+      tags: productWorkspaces.flatMap((workspace) => workspace.tags),
+      window: { offset, limit, returned: matchedWindow.length, total: matchedTasks.length, has_more: offset + matchedWindow.length < matchedTasks.length },
+      errors
+    };
+  }
+
   async function createWorkset(input = {}) {
     const timestamp = now();
     const workset = requireWorkset({
@@ -522,6 +611,7 @@ export function createPlatformCoordinator({ runManager, platformSource, automati
 
   return {
     getSnapshot,
+    queryWork,
     createWorkset,
     updateWorkset,
     deleteWorkset,
@@ -732,6 +822,10 @@ function requiredText(value, label, maxLength) {
   const text = String(value || "").trim();
   if (!text || text.length > maxLength) throw new TypeError(`${label} is invalid.`);
   return text;
+}
+
+function boundedValues(values) {
+  return [...new Set((Array.isArray(values) ? values : []).map((value) => String(value).trim()).filter(Boolean))].slice(0, 100);
 }
 
 function safeColor(value) {

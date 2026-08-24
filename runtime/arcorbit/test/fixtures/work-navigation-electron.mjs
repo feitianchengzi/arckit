@@ -32,7 +32,7 @@ app.whenReady().then(async () => {
       const immediateActive = document.querySelector('#workView').classList.contains('is-active');
       const clickDurationMs = Number((performance.now() - startedAt).toFixed(2));
       await wait(300);
-      const workRefreshSections = (await window.arckitDesktop.getTestCalls()).filter(([command]) => command === 'platformSnapshot').at(-1)?.[1]?.sections || [];
+      const workQueryCall = (await window.arckitDesktop.getTestCalls()).filter(([command]) => command === 'platformWorkQuery').at(-1)?.[1] || {};
       await window.arckitDesktop.setTestPlatformSnapshotDelay(0);
       click('[data-page="today"]');
       await window.arckitDesktop.failNextTestPlatformSnapshot('Controlled Work refresh failure');
@@ -87,7 +87,8 @@ app.whenReady().then(async () => {
       return {
         immediate_active: immediateActive,
         click_duration_ms: clickDurationMs,
-        work_refresh_sections: workRefreshSections,
+        work_query_state: workQueryCall.state,
+        work_query_has_complete_key: typeof workQueryCall.query_key === 'string' && workQueryCall.query_key.includes('creator_ids') && workQueryCall.query_key.includes('start_time'),
         failure_immediate_active: failureImmediateActive,
         cached_rows_after_failure: cachedRowsAfterFailure,
         failure_toast_visible: failureToastVisible,

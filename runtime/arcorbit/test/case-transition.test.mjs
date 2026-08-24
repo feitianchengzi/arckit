@@ -260,6 +260,27 @@ test('completion review findings become ordinary repair gaps and invalidate the 
   assert.equal(repaired.completion_review.status, 'pending');
   assert.equal(repaired.completion_review.reviewed_content_revision, null);
   assert.equal(repaired.case_resolution.stage, 'review_ready');
+
+  const repeatedIdReview = baseTransition(structuredClone(repaired), repaired.case_resolution.candidate_gaps[0]);
+  repeatedIdReview.accepted_state_delta.completion_review_result = {
+    outcome: 'findings', reviewer: 'agent', reviewed_content_revision: repaired.content_revision,
+    dimensions: reviewDimensions('findings'),
+    findings: [{
+      id: 'CR-1', kind: 'error', statement: 'A different defect must not reuse a prior finding identity.', responsibility: 'agent',
+      artifact_refs: ['src/restore.mjs'], evidence: ['test:second-review-collision'],
+    }],
+    evidence: ['test:second-review-collision'],
+  };
+  assert.throws(
+    () => applyCaseTransitionToRecord(structuredClone(repaired), repeatedIdReview),
+    /Completion review finding id already exists: CR-1/,
+  );
+
+  const secondReview = structuredClone(repeatedIdReview);
+  secondReview.accepted_state_delta.completion_review_result.findings[0].id = 'CR-2';
+  const rereviewed = applyCaseTransitionToRecord(repaired, secondReview);
+  assert.equal(rereviewed.gaps.filter((gap) => gap.id.includes(':review-finding:')).length, 2);
+  assert.match(rereviewed.case_resolution.candidate_gaps[0].id, /review-finding:CR-2$/);
 });
 
 test('a human review-budget decision reopens autonomous review without resetting prior cycles', () => {

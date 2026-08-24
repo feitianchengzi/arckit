@@ -25,6 +25,7 @@ import {
 } from "../../src/work-task-attachment-cache.mjs";
 import { createChatStateCoordinator } from "./chat-state-coordinator.mjs";
 import { CHAT_SESSION_PREVIEW_LIMIT, chatSessionVisibility, groupChatSessions } from "./chat-session-groups.mjs";
+import { createWorkQueryState, normalizeWorkQuery, workQueryKey } from "./work-query-state.mjs";
 
 const api = window.arckitDesktop;
 
@@ -97,6 +98,8 @@ const state = {
   platform: emptyPlatformSnapshot(),
   platformWorkFilter: "",
   platformWorkFilters: defaultWorkFilters(),
+  workQuery: { key: "", projection: null, loading: false, error: "" },
+  workQueryOffset: 0,
   platformTaskAttachments: {},
   pendingTaskCommentResources: {},
   platformTaskAttachmentPreviews: {},
@@ -146,6 +149,8 @@ const taskAttachmentPreviewQueue = [];
 let activeTaskAttachmentPreviews = 0;
 const TASK_ATTACHMENT_PREVIEW_CONCURRENCY = 3;
 const expandedChatProjectIds = new Set();
+const workQueryState = createWorkQueryState({ cacheLimit: 12 });
+const WORK_QUERY_WINDOW_SIZE = 80;
 const chatStateCoordinator = createChatStateCoordinator({
   api,
   normalizeSnapshot: normalizeChatSnapshot,
@@ -219,7 +224,10 @@ async function boot() {
       scheduleRefresh(event.type === "run.activity_changed" ? 120 : 0);
     }
   });
-  window.setInterval(() => refreshSnapshot({ quiet: true }), 30_000);
+  window.setInterval(() => {
+    const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
+    refresh.catch(() => {});
+  }, 30_000);
 }
 
 function wireEvents() {
@@ -414,6 +422,20 @@ function wireEvents() {
     state.platformWorkFilter = els.platformWorkFilter.value.trim().toLowerCase();
     scheduleWorkFilterRefresh();
   });
+  els.platformWorkTable.addEventListener("click", (event) => {
+    const row = event.target.closest("[data-platform-task-select]");
+    if (row && els.platformWorkTable.contains(row)) {
+      state.selectedPlatformTaskId = row.dataset.platformTaskSelect;
+      els.platformWorkTable.querySelectorAll("[data-platform-task-select]").forEach((item) => item.classList.toggle("selected", item === row));
+      renderPlatformWorkInspector(findPlatformTask(state.selectedPlatformTaskId));
+      return;
+    }
+    const pageButton = event.target.closest("[data-work-query-offset]");
+    if (!pageButton || !els.platformWorkTable.contains(pageButton)) return;
+    state.workQueryOffset = Math.max(0, Number(pageButton.dataset.workQueryOffset) || 0);
+    state.selectedPlatformTaskId = "";
+    refreshWorkQuery().catch((error) => showToast(error.message));
+  });
   [els.workCreatorFilter, els.workExecutorFilter, els.workTagFilter, els.workPriorityFilter, els.workStartDateFilter, els.workEndDateFilter].forEach((element) => element.addEventListener("change", () => {
     readWorkFiltersFromControls();
     renderWorkFilterSummaries();
@@ -434,6 +456,8 @@ function wireEvents() {
   });
   els.worksetSelect.addEventListener("change", () => runAction(async () => {
     state.selectedProjectId = "all";
+    workQueryState.clear();
+    state.workQuery = { key: "", projection: null, loading: false, error: "" };
     await api.setActiveWorkset(els.worksetSelect.value);
     await refreshSnapshot();
   }));
@@ -442,7 +466,9 @@ function wireEvents() {
     state.selectedTaskId = "";
     state.selectedPlatformTaskId = "";
     state.selectedFeedbackId = "";
-    await refreshSnapshot();
+    state.workQueryOffset = 0;
+    if (state.page === "work") await refreshWorkQuery();
+    else await refreshSnapshot();
     await checkSetupReadinessForSelection();
   }));
   els.editWorksetButton.addEventListener("click", () => runAction(editCurrentWorkset));
@@ -707,6 +733,41 @@ async function refreshSnapshot({ quiet = false, surface = "all" } = {}) {
   }
 }
 
+async function refreshWorkQuery({ quiet = false } = {}) {
+  const input = currentWorkQueryInput();
+  const request = workQueryState.begin(input);
+  state.workQuery = {
+    key: request.key,
+    projection: request.cached || emptyWorkQueryProjection(request.key, request.query),
+    loading: true,
+    error: ""
+  };
+  if (state.page === "work") renderWorkSurface();
+  if (!quiet && !request.cached) renderSyncing(true);
+  try {
+    const projection = await api.platformWorkQuery({ query_key: request.key, ...request.query });
+    const result = workQueryState.accept(request, projection);
+    if (!result.accepted) throw new Error("Work 查询返回了不匹配的 query key。");
+    if (!result.current) return projection;
+    state.workQuery = { key: request.key, projection, loading: false, error: "" };
+    if (state.page === "work") renderWorkSurface();
+    return projection;
+  } catch (error) {
+    if (workQueryState.isCurrent(request)) {
+      state.workQuery = {
+        key: request.key,
+        projection: request.cached || emptyWorkQueryProjection(request.key, request.query),
+        loading: false,
+        error: String(error?.message || "Work 查询失败")
+      };
+      if (state.page === "work") renderWorkSurface();
+    }
+    throw error;
+  } finally {
+    if (!quiet && workQueryState.isCurrent(request)) renderSyncing(false);
+  }
+}
+
 function mergeWorkPlatformSnapshot(current, incoming) {
   const previousWorkspaces = new Map((current.product_workspaces || []).map((workspace) => [String(workspace.id), workspace]));
   const productWorkspaces = (incoming.product_workspaces || []).map((workspace) => {
@@ -743,7 +804,8 @@ function scheduleRefresh(delay = 80) {
   refreshQueued = true;
   window.setTimeout(async () => {
     refreshQueued = false;
-    await refreshSnapshot({ quiet: true }).catch((error) => showToast(error.message));
+    const refresh = state.page === "work" ? refreshWorkQuery({ quiet: true }) : refreshSnapshot({ quiet: true });
+    await refresh.catch((error) => showToast(error.message));
   }, delay);
 }
 
@@ -751,7 +813,8 @@ function scheduleWorkFilterRefresh(delay = 280) {
   window.clearTimeout(workFilterTimer);
   workFilterTimer = window.setTimeout(() => {
     state.selectedPlatformTaskId = "";
-    refreshSnapshot().catch((error) => showToast(error.message));
+    state.workQueryOffset = 0;
+    refreshWorkQuery().catch((error) => showToast(error.message));
   }, delay);
 }
 
@@ -791,6 +854,35 @@ function platformTaskFilters() {
     states: [state.selectedState],
     search_key: state.platformWorkFilter,
     ...state.platformWorkFilters
+  };
+}
+
+function currentWorkQueryInput() {
+  return {
+    workset_id: state.platform.active_workset?.id || "",
+    project_id: state.selectedProjectId,
+    state: state.selectedState,
+    search_key: state.platformWorkFilter,
+    filters: state.platformWorkFilters,
+    offset: state.workQueryOffset,
+    limit: WORK_QUERY_WINDOW_SIZE
+  };
+}
+
+function emptyWorkQueryProjection(key = "", query = normalizeWorkQuery({})) {
+  return {
+    schema_version: "arcorbit-work-query/v1",
+    query_key: key || workQueryKey(query),
+    generated_at: "",
+    source_status: "loading",
+    active_workset: state.platform.active_workset,
+    projects: [],
+    product_workspaces: [],
+    tasks: [],
+    task_trees: [],
+    tags: [],
+    window: { offset: query.offset || 0, limit: query.limit || WORK_QUERY_WINDOW_SIZE, returned: 0, total: 0, has_more: false },
+    errors: []
   };
 }
 
@@ -1165,26 +1257,37 @@ function wireOrganizationActions() {
 function renderPlatformWork() {
   els.platformWorkFilter.value = state.platformWorkFilter;
   renderWorkFilterControls();
-  const scopedTasks = state.platform.tasks.filter(platformItemMatchesSelectedProject);
-  const scopedWorkspaces = (state.platform.product_workspaces || []).filter(platformItemMatchesSelectedProject);
-  const stateCounts = Object.fromEntries(TASK_STATES.map((taskState) => [taskState, scopedWorkspaces.reduce((sum, workspace) => sum + Number(workspace.task_counts?.[taskState] || 0), 0)]));
+  const projection = state.workQuery.projection || emptyWorkQueryProjection();
+  const scopedTasks = (projection.tasks || []).filter(platformItemMatchesSelectedProject);
+  const stateCounts = workStateCounts(projection);
   els.workStateFilters.innerHTML = TASK_STATES.map((taskState) => `<button class="work-state-filter ${state.selectedState === taskState ? "is-active" : ""}" data-work-state="${taskState}" type="button" aria-pressed="${state.selectedState === taskState}"><span>${STATE_ICONS[taskState]}</span><strong>${STATE_LABELS[taskState]}</strong><em>${stateCounts[taskState]}</em></button>`).join("");
-  const treeSummaries = (state.platform.task_trees || []).filter(platformItemMatchesSelectedProject);
+  const treeSummaries = (projection.task_trees || []).filter(platformItemMatchesSelectedProject);
   const matchedTotal = treeSummaries.reduce((sum, item) => sum + Number(item.matched_total || 0), 0);
   const completedTotal = treeSummaries.reduce((sum, item) => sum + Number(item.total || 0), 0);
   const hasTreeSummary = treeSummaries.length > 0;
-  els.workStateSummary.textContent = `${currentProject()?.name || state.platform.active_workset?.name || "当前产品集"} · 命中 ${hasTreeSummary ? matchedTotal : stateCounts[state.selectedState]} / 补全树 ${hasTreeSummary ? completedTotal : scopedTasks.length} · ${STATE_LABELS[state.selectedState]} ${stateCounts[state.selectedState]} 项`;
+  const queryStatus = state.workQuery.loading ? " · 后台刷新" : state.workQuery.error ? " · 刷新失败，保留匹配缓存" : "";
+  els.workStateSummary.textContent = `${currentProject()?.name || state.platform.active_workset?.name || "当前产品集"} · 命中 ${hasTreeSummary ? matchedTotal : stateCounts[state.selectedState]} / 补全树 ${hasTreeSummary ? completedTotal : projection.window?.total || scopedTasks.length} · ${STATE_LABELS[state.selectedState]} ${stateCounts[state.selectedState]} 项${queryStatus}`;
   els.workStateFilters.querySelectorAll("[data-work-state]").forEach((button) => button.addEventListener("click", () => openWorkState(button.dataset.workState)));
   const stateTasks = scopedTasks.filter((task) => task.state === state.selectedState);
   const tasks = scopedTasks.some((task) => Number.isInteger(task.tree_depth)) ? scopedTasks : rankTasks(stateTasks);
   if (!tasks.some((task) => String(task.id) === String(state.selectedPlatformTaskId))) state.selectedPlatformTaskId = String(tasks[0]?.id || "");
   const selectedTask = tasks.find((task) => String(task.id) === String(state.selectedPlatformTaskId)) || null;
-  els.platformWorkTable.innerHTML = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th></tr></thead><tbody>${tasks.map((task) => { const depth = Math.max(0, Number(task.tree_depth || 0)); const lineageOnly = task.state !== state.selectedState || task.tree_matched === false; const rowContext = [lineageOnly ? "用于补全层级" : "", task.tags ? `标签：${Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags}` : ""].filter(Boolean).join(" · "); return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""} ${lineageOnly ? "tree-lineage" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell" style="--task-tree-depth:${depth}" title="${escapeHtml(rowContext)}"><span class="task-tree-title">${depth ? "↳ " : ""}${escapeHtml(task.title)}</span></td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">当前产品集或筛选条件下没有待办。</div>`;
-  els.platformWorkTable.querySelectorAll("[data-platform-task-select]").forEach((row) => row.addEventListener("click", () => {
-    state.selectedPlatformTaskId = row.dataset.platformTaskSelect;
-    renderPlatformWork();
-  }));
+  const table = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th></tr></thead><tbody>${tasks.map((task) => { const depth = Math.max(0, Number(task.tree_depth || 0)); const lineageOnly = task.state !== state.selectedState || task.tree_matched === false; const rowContext = [lineageOnly ? "用于补全层级" : "", task.tags ? `标签：${Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags}` : ""].filter(Boolean).join(" · "); return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""} ${lineageOnly ? "tree-lineage" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell" style="--task-tree-depth:${depth}" title="${escapeHtml(rowContext)}"><span class="task-tree-title">${depth ? "↳ " : ""}${escapeHtml(task.title)}</span></td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">${state.workQuery.loading ? "正在载入与当前查询匹配的待办…" : state.workQuery.error ? `加载失败：${escapeHtml(state.workQuery.error)}` : "当前产品集或筛选条件下没有待办。"}</div>`;
+  const windowInfo = projection.window || { offset: 0, returned: tasks.length, total: tasks.length, has_more: false };
+  const previousOffset = Math.max(0, Number(windowInfo.offset || 0) - WORK_QUERY_WINDOW_SIZE);
+  const nextOffset = Number(windowInfo.offset || 0) + Number(windowInfo.returned || 0);
+  const pager = Number(windowInfo.total || 0) > 0 ? `<div class="work-query-pager"><span>显示 ${Number(windowInfo.offset || 0) + 1}–${Number(windowInfo.offset || 0) + Number(windowInfo.returned || 0)} / ${Number(windowInfo.total || 0)}</span><div><button type="button" data-work-query-offset="${previousOffset}" ${Number(windowInfo.offset || 0) === 0 ? "disabled" : ""}>上一页</button><button type="button" data-work-query-offset="${nextOffset}" ${windowInfo.has_more ? "" : "disabled"}>下一页</button></div></div>` : "";
+  els.platformWorkTable.innerHTML = `${table}${pager}`;
   renderPlatformWorkInspector(selectedTask);
+}
+
+function workStateCounts(projection) {
+  const baseline = Object.fromEntries(TASK_STATES.map((taskState) => [taskState, (state.platform.product_workspaces || []).filter(platformItemMatchesSelectedProject).reduce((sum, workspace) => sum + Number(workspace.task_counts?.[taskState] || 0), 0)]));
+  for (const taskState of TASK_STATES) {
+    const projected = (projection.product_workspaces || []).filter(platformItemMatchesSelectedProject).reduce((sum, workspace) => sum + Number(workspace.task_counts?.[taskState] || 0), 0);
+    if (projected > 0 || taskState === state.selectedState) baseline[taskState] = projected;
+  }
+  return baseline;
 }
 
 function renderWorkFilterControls() {
@@ -1192,7 +1295,8 @@ function renderWorkFilterControls() {
   const members = (state.platform.members || []).filter((item) => selectedProjectIds.has(String(item.project_id)));
   const uniqueMembers = [...new Map(members.map((item) => [String(item.user_id), item])).values()];
   const memberOptions = uniqueMembers.map((item) => ({ value: item.user_id, label: item.username || `成员 ${item.user_id}` }));
-  const tags = (state.platform.tags || []).filter((item) => selectedProjectIds.has(String(item.project_id)));
+  const queryTags = state.workQuery.projection?.tags || [];
+  const tags = (queryTags.length > 0 ? queryTags : state.platform.tags || []).filter((item) => selectedProjectIds.has(String(item.project_id)));
   setMultiSelectOptions(els.workCreatorFilter, memberOptions, state.platformWorkFilters.creator_ids);
   setMultiSelectOptions(els.workExecutorFilter, memberOptions, state.platformWorkFilters.executor_ids);
   setMultiSelectOptions(els.workTagFilter, tags.map((item) => ({ value: item.id, label: `${item.project_name || "产品"} · ${parseWorkshopTag(item.name).displayName}` })), state.platformWorkFilters.tag_ids);
@@ -2350,7 +2454,12 @@ function findOrganization(id) { const value = state.platform.organizations.find(
 function findOrganizationMember(id, organizationId) { const value = state.platform.organization_members.find((item) => String(item.id) === String(id) && String(item.organization_id) === String(organizationId)); if (!value) throw new Error("未找到组织成员。"); return value; }
 function findWorkspace(id) { const value = state.platform.product_workspaces.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品工作区。"); return value; }
 function findProjectMember(id, projectId) { const value = (state.platform.project_members || []).find((item) => String(item.id) === String(id) && String(item.project_id) === String(projectId)); if (!value) throw new Error("未找到项目成员。"); return value; }
-function findPlatformTask(id) { const value = state.platform.tasks.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到待办。"); return value; }
+function findPlatformTask(id) {
+  const value = (state.workQuery.projection?.tasks || []).find((item) => String(item.id) === String(id))
+    || state.platform.tasks.find((item) => String(item.id) === String(id));
+  if (!value) throw new Error("未找到待办。");
+  return value;
+}
 function findFeedback(id) { const value = state.platform.feedback_v1.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到反馈。"); return value; }
 function canManagePlatformTask(task) { const role = findWorkspace(task.project_id).current_user_role; return task.state !== "in_progress" || ["owner", "admin"].includes(role) || String(task.executor_id) === String(state.platform.user?.id || ""); }
 function servicePriority(value) { const number = Number(value || 0); return number > 0 ? Math.max(0, 100 - number) : 0; }
@@ -2917,8 +3026,9 @@ function openTaskBrowser(taskState = "pending", taskId = "") {
 function openWorkState(taskState = "pending") {
   state.selectedState = TASK_STATES.includes(taskState) ? taskState : "pending";
   state.selectedPlatformTaskId = "";
+  state.workQueryOffset = 0;
   state.page = "work";
-  refreshSnapshot().catch((error) => showToast(error.message));
+  refreshWorkQuery().catch((error) => showToast(error.message));
 }
 
 function showPage(page) {
@@ -2936,7 +3046,8 @@ function showPage(page) {
     renderNavigation();
     renderCommandBar();
     renderWorkset();
-    refreshSnapshot({ surface: "work" }).catch((error) => showToast(error.message));
+    state.workQueryOffset = 0;
+    refreshWorkQuery().catch((error) => showToast(error.message));
     return;
   }
   if (page === "tasks") {
@@ -3069,6 +3180,8 @@ async function login() {
       code: els.authCode.value
     }));
     state.settings = normalizeSettings(await api.getSettings());
+    workQueryState.clear();
+    state.workQuery = { key: "", projection: null, loading: false, error: "" };
     els.authCode.value = "";
     await refreshSnapshot();
     closeSettings({ force: true });
@@ -3096,6 +3209,8 @@ async function logout() {
     state.settings = normalizeSettings(await api.getSettings());
     state.snapshot = emptySnapshot();
     state.platform = emptyPlatformSnapshot();
+    workQueryState.clear();
+    state.workQuery = { key: "", projection: null, loading: false, error: "" };
     state.selectedPlatformTaskId = "";
     invalidateTaskAttachmentCaches(state, { clearPending: true });
     renderSettingsForm();

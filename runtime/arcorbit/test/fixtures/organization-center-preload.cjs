@@ -2,8 +2,9 @@ const { contextBridge } = require("electron");
 
 const calls = [];
 const automationListeners = new Set();
-let platformSnapshotDelayMs = 0;
-let platformSnapshotFailure = "";
+let workQueryDelayMs = 0;
+let workQueryFailure = "";
+let workQueryScenarios = [];
 const automation = {
   enabled: false, queue_paused: false, source_status: "healthy", synced_at: "2026-08-18T00:00:00Z",
   user: { id: "7", name: "Glare" },
@@ -100,14 +101,49 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   automationSnapshot: async () => automation,
   platformSnapshot: async (input) => {
     calls.push(["platformSnapshot", input]);
-    const delayMs = platformSnapshotDelayMs;
+    return platform;
+  },
+  platformWorkQuery: async (input) => {
+    calls.push(["platformWorkQuery", input]);
+    const scenario = workQueryScenarios.shift() || null;
+    const delayMs = scenario ? scenario.delay_ms : workQueryDelayMs;
+    const sourceTasks = scenario ? scenario.tasks : platform.tasks;
     if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
-    if (platformSnapshotFailure) {
-      const message = platformSnapshotFailure;
-      platformSnapshotFailure = "";
+    if (workQueryFailure) {
+      const message = workQueryFailure;
+      workQueryFailure = "";
       throw new Error(message);
     }
-    return platform;
+    const selected = sourceTasks.filter((task) => (
+      (input.project_id === "all" || String(task.project_id) === String(input.project_id))
+      && (task.state === input.state)
+      && (!input.search_key || `${task.title} ${task.content}`.toLowerCase().includes(String(input.search_key).toLowerCase()))
+    ));
+    const offset = Math.max(0, Number(input.offset) || 0);
+    const limit = Math.max(1, Number(input.limit) || 80);
+    const tasks = selected.slice(offset, offset + limit);
+    const taskTrees = platform.product_workspaces
+      .filter((workspace) => input.project_id === "all" || String(workspace.id) === String(input.project_id))
+      .map((workspace) => {
+        const matches = selected.filter((task) => String(task.project_id) === String(workspace.id));
+        return { project_id: String(workspace.id), total: matches.length, matched_total: matches.length, tasks: [] };
+      });
+    return {
+      schema_version: "arcorbit-work-query/v1",
+      query_key: input.query_key,
+      generated_at: new Date().toISOString(),
+      source_status: "healthy",
+      active_workset: platform.active_workset,
+      projects: platform.projects.filter((project) => input.project_id === "all" || String(project.id) === String(input.project_id)),
+      product_workspaces: platform.product_workspaces
+        .filter((workspace) => input.project_id === "all" || String(workspace.id) === String(input.project_id))
+        .map((workspace) => ({ ...workspace, tasks: tasks.filter((task) => String(task.project_id) === String(workspace.id)), task_counts: { ...workspace.task_counts, [input.state]: selected.filter((task) => String(task.project_id) === String(workspace.id)).length }, task_tree: taskTrees.find((tree) => tree.project_id === String(workspace.id)) || null })),
+      tasks,
+      task_trees: taskTrees,
+      tags: platform.tags.filter((tag) => input.project_id === "all" || String(tag.project_id) === String(input.project_id)),
+      window: { offset, limit, returned: tasks.length, total: selected.length, has_more: offset + tasks.length < selected.length },
+      errors: []
+    };
   },
   onSetupEvent: () => () => {},
   onAutomationEvent: (listener) => { automationListeners.add(listener); return () => automationListeners.delete(listener); },
@@ -137,8 +173,14 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   openFeedbackAttachment: async (value) => { calls.push(["openFeedbackAttachment", value]); return { opened: true }; },
   getTestCalls: async () => calls,
-  setTestPlatformSnapshotDelay: async (value) => { platformSnapshotDelayMs = Math.max(0, Number(value) || 0); },
-  failNextTestPlatformSnapshot: async (message) => { platformSnapshotFailure = String(message || "Platform snapshot failed"); },
+  setTestPlatformSnapshotDelay: async (value) => { workQueryDelayMs = Math.max(0, Number(value) || 0); },
+  queueTestPlatformWorkQueries: async (scenarios) => {
+    workQueryScenarios = (Array.isArray(scenarios) ? scenarios : []).map((scenario) => ({
+      delay_ms: Math.max(0, Number(scenario?.delay_ms) || 0),
+      tasks: Array.isArray(scenario?.tasks) ? scenario.tasks : []
+    }));
+  },
+  failNextTestPlatformSnapshot: async (message) => { workQueryFailure = String(message || "Work query failed"); },
   setTestPlatformTasks: async (tasks) => {
     platform.tasks = Array.isArray(tasks) ? tasks : [];
     platform.product_workspaces = platform.product_workspaces.map((workspace) => {

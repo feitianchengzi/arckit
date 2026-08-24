@@ -203,6 +203,11 @@ function applyProjectStateDelta(record, delta, timestamp) {
       record.software_invariants.splice(index, 1);
     }
   }
+  for (const area of record.software_definition.decision_areas) {
+    area.gap_refs = unique(record.advancement.project_gaps
+      .filter((gap) => gap.affects.some((target) => target.kind === 'software_decision' && target.ref === area.id))
+      .map((gap) => gap.id));
+  }
   if (delta.selection_context_change) record.advancement.selection_context = { ...record.advancement.selection_context, ...structuredClone(delta.selection_context_change) };
   record.project.revision += 1;
   record.project.updated_at = timestamp;
@@ -216,12 +221,18 @@ function applyReview(record, result, candidate, timestamp) {
   if ((result.outcome === 'clean') === hasFindings) throw new Error('Completion review outcome and findings disagree');
   const review = record.completion_review;
   const limit = review.policy.initial_max_cycles + review.additional_cycles_authorized;
+  const historicalFindingIds = new Set(review.cycles.flatMap((cycle) => cycle.finding_ids || []));
+  const submittedFindingIds = new Set();
+  for (const finding of result.findings) {
+    if (!finding?.id || !FINDING_KINDS.has(finding.kind) || !finding.statement || !['agent', 'human', 'external'].includes(finding.responsibility) || !Array.isArray(finding.artifact_refs) || !Array.isArray(finding.evidence) || finding.evidence.length === 0) throw new Error(`Invalid completion review finding: ${finding?.id || '<missing>'}`);
+    if (historicalFindingIds.has(finding.id) || submittedFindingIds.has(finding.id)) throw new Error(`Completion review finding id already exists: ${finding.id}`);
+    submittedFindingIds.add(finding.id);
+  }
   if (result.reviewer === 'agent') {
     if (review.cycle_count >= limit) throw new Error('Autonomous completion review budget is exhausted');
     review.cycle_count += 1;
   }
   for (const finding of result.findings) {
-    if (!finding?.id || !FINDING_KINDS.has(finding.kind) || !finding.statement || !['agent', 'human', 'external'].includes(finding.responsibility) || !Array.isArray(finding.artifact_refs) || !Array.isArray(finding.evidence) || finding.evidence.length === 0) throw new Error(`Invalid completion review finding: ${finding?.id || '<missing>'}`);
     const gapId = `${record.id}:review-finding:${finding.id}`;
     record.gaps.push({ id: gapId, status: 'open', goal: `Resolve review finding: ${finding.statement}`, reason: `${finding.kind} found by completion review`, derived_from: ['completion_review', `content_revision:${record.content_revision}`], blocked_by: [], priority_basis: { blocking: 'high', risk: 'high' }, responsibility: finding.responsibility, evidence_required: unique([...finding.artifact_refs, ...finding.evidence]), resolution: null });
   }
@@ -339,6 +350,10 @@ function selectTransitionGap(record, transition) {
 export async function applyCaseTransition({ projectRoot, casePath = '', transition, runtimeResultRef = '', dryRun = false }) {
   if (dryRun) return applyUnlocked({ projectRoot, casePath, transition, runtimeResultRef, dryRun });
   return withProjectCommitLock(projectRoot, () => applyUnlocked({ projectRoot, casePath, transition, runtimeResultRef, dryRun: false }));
+}
+
+export async function applyCaseTransitionUnlocked({ projectRoot, casePath = '', transition, runtimeResultRef = '', dryRun = false }) {
+  return applyUnlocked({ projectRoot, casePath, transition, runtimeResultRef, dryRun });
 }
 
 async function applyUnlocked({ projectRoot, casePath, transition, runtimeResultRef, dryRun }) {

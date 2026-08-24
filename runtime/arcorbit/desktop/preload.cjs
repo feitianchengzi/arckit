@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   resumeAutomationRuntime: () => ipcRenderer.invoke("arckit:automation-resume-runtime"),
   resolveAutomationRecovery: (input) => ipcRenderer.invoke("arckit:automation-recovery", input),
   platformSnapshot: (input) => ipcRenderer.invoke("arckit:platform-snapshot", input),
+  platformWorkQuery: (input) => ipcRenderer.invoke("arckit:platform-work-query", input),
   createWorkset: (input) => ipcRenderer.invoke("arckit:platform-workset-create", input),
   updateWorkset: (input) => ipcRenderer.invoke("arckit:platform-workset-update", input),
   deleteWorkset: (worksetId) => ipcRenderer.invoke("arckit:platform-workset-delete", worksetId),

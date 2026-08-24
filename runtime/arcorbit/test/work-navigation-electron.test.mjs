@@ -18,7 +18,8 @@ test("Work navigation is cache-first under slow and failed task refreshes", {
 
   assert.equal(result.immediate_active, true);
   assert.ok(result.click_duration_ms < 80, `Work navigation click took ${result.click_duration_ms}ms`);
-  assert.deepEqual(result.work_refresh_sections, ["tasks"]);
+  assert.equal(result.work_query_state, "pending");
+  assert.equal(result.work_query_has_complete_key, true);
   assert.equal(result.failure_immediate_active, true);
   assert.ok(result.cached_rows_after_failure > 0);
   assert.equal(result.failure_toast_visible, true);

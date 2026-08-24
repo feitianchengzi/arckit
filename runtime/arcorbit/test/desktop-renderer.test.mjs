@@ -548,15 +548,16 @@ test("Chat Renderer groups all snapshot sessions by Product Workspace with bound
   assert.match(styles, /\.chat-history-toggle \{/);
 });
 
-test("Work navigation renders cached content before a task-only background refresh", async () => {
+test("Work navigation renders immediately before starting its dedicated query refresh", async () => {
   const source = await readFile(rendererPath, "utf8");
   const workBranch = source.slice(source.indexOf('if (page === "work")'), source.indexOf('if (page === "tasks")'));
+  const queryRefresh = source.slice(source.indexOf("async function refreshWorkQuery"), source.indexOf("\nfunction mergeWorkPlatformSnapshot"));
 
-  assert.ok(workBranch.indexOf("renderPageVisibility();") < workBranch.indexOf('refreshSnapshot({ surface: "work" })'));
-  assert.match(source, /workSurface \? Promise\.resolve\(state\.snapshot\) : api\.automationSnapshot/);
-  assert.match(source, /sections: workSurface \? \["tasks"\] : \["overview", "organizations", "members", "tasks", "feedback"\]/);
-  assert.match(source, /mergeWorkPlatformSnapshot\(state\.platform, platform\)/);
-  assert.match(source, /if \(workSurface && state\.page === "work"\) renderWorkSurface\(\)/);
+  assert.ok(workBranch.indexOf("renderPageVisibility();") < workBranch.indexOf("refreshWorkQuery()"));
+  assert.match(queryRefresh, /workQueryState\.begin\(input\)/);
+  assert.match(queryRefresh, /api\.platformWorkQuery\(\{ query_key: request\.key, \.\.\.request\.query \}\)/);
+  assert.match(queryRefresh, /request\.cached \|\| emptyWorkQueryProjection/);
+  assert.doesNotMatch(queryRefresh, /automationSnapshot|getAuthStatus|platformSnapshot/);
 });
 
 test("Work assigns intrinsic rows to controls and the remaining height to the task list", async () => {
@@ -980,7 +981,7 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   assert.match(source, /item\.project_id \|\| item\.source_project_id/);
   assert.match(source, /!projectId && item\.freeze_scope === "global"/);
   assert.match(source, /activeExecutionMatchesSelectedProject\(snapshot\.active_task\)/);
-  assert.match(source, /const stateCounts = Object\.fromEntries/);
+  assert.match(source, /const stateCounts = workStateCounts\(projection\)/);
   assert.match(source, /data-platform-task-select/);
   assert.match(source, /function renderPlatformWorkInspector\(task\)/);
   assert.match(source, /automationTask\?\.state === "completed"/);
@@ -992,7 +993,7 @@ test("ADVANCE owns one top product-set scope while Work and Automation own their
   assert.match(source, /state\.acceptanceFeedbackOnly = !state\.acceptanceFeedbackOnly/);
   assert.match(source, /els\.ordinaryQueueCard\.classList\.toggle\("hidden", state\.acceptanceFeedbackOnly\)/);
   assert.match(source, /platform\.product_workspaces \|\| \[\]\)\.filter\(platformItemMatchesSelectedProject\)/);
-  assert.match(source, /state\.platform\.tasks\.filter\(platformItemMatchesSelectedProject\)/);
+  assert.match(source, /projection\.tasks \|\| \[\]\)\.filter\(platformItemMatchesSelectedProject\)/);
   assert.match(source, /localProjectId === "__add_local_project__"/);
   assert.match(source, /const localProject = await api\.pickProject\(\)/);
   assert.match(source, /await api\.bindAutomationProject\(remoteId, localProjectId\)/);
@@ -1024,7 +1025,8 @@ test("Work exposes server filters, task hierarchy, complete detail, subtasks and
   assert.match(source, /tree: true/);
   assert.match(source, /states: \[state\.selectedState\]/);
   assert.doesNotMatch(source.match(/function platformTaskFilters\(\) \{[\s\S]*?\n\}/)?.[0] || "", /states: TASK_STATES/);
-  assert.match(source, /scopedWorkspaces\.reduce\(\(sum, workspace\) => sum \+ Number\(workspace\.task_counts\?\.\[taskState\] \|\| 0\), 0\)/);
+  assert.match(source, /function workStateCounts\(projection\)/);
+  assert.match(source, /projection\.product_workspaces \|\| \[\]/);
   assert.match(source, /hasTreeSummary \? matchedTotal : stateCounts\[state\.selectedState\]/);
   assert.match(source, /Number\.isInteger\(task\.tree_depth\)\) \? scopedTasks : rankTasks\(stateTasks\)/);
   assert.match(source, /task\.tree_depth/);
@@ -1447,6 +1449,7 @@ test("desktop main and preload expose bounded platform composition IPC without c
   ]);
   for (const channel of [
     "arckit:platform-snapshot",
+    "arckit:platform-work-query",
     "arckit:platform-workset-create",
     "arckit:platform-workset-update",
     "arckit:platform-workset-delete",
@@ -1459,6 +1462,7 @@ test("desktop main and preload expose bounded platform composition IPC without c
   }
   assert.match(main, /createPlatformCoordinator/);
   assert.match(preload, /platformSnapshot: \(input\)/);
+  assert.match(preload, /platformWorkQuery: \(input\)/);
   assert.match(preload, /createWorkset: \(input\)/);
   assert.match(preload, /setActiveWorkset: \(worksetId\)/);
   assert.doesNotMatch(preload, /access_token|refresh_token|apiKey|sessionToken|genericRequest/);
