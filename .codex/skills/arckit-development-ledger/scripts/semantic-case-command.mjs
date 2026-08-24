@@ -62,6 +62,7 @@ export function materializeSemanticCaseCommand({ command, snapshot }) {
     : selectedPersistedGap({ command, snapshot, record, issues });
   const expectedSelectedRef = fresh ? command.fresh_gap.ref : `case-gap:${record.id}:${selectedGap?.id || ''}`;
   issue(command.selection.selected_ref === expectedSelectedRef, 'case_command.selection.selected_ref', `must be ${expectedSelectedRef}`, issues);
+  validateClaimForSelectedGap(command.claim, selectedGap, issues);
 
   const gapSelection = materializeSelection(command.selection, { refs, record, selectedGap, fresh, issues });
   const projectStateDelta = materializeProjectClaim(command.project_claim, { refs, project, record, issues });
@@ -334,6 +335,25 @@ function validateClaim(claim, path, issues) {
   issue(claim.completion_review_result === null || object(claim.completion_review_result), `${path}.completion_review_result`, 'must be object or null', issues);
   if (object(claim.completion_review_result)) validateCompletionReview(claim.completion_review_result, `${path}.completion_review_result`, issues);
   issue(claim.review_budget_extension === null || object(claim.review_budget_extension), `${path}.review_budget_extension`, 'must be object or null', issues);
+}
+
+function validateClaimForSelectedGap(claim, selectedGap, issues) {
+  if (!object(claim) || !selectedGap?.id) return;
+  const isReview = selectedGap.id.includes(':completion-review:');
+  if (!isReview) {
+    issue(claim.completion_review_result === null, 'case_command.claim.completion_review_result', 'requires a selected Completion Review candidate', issues);
+    issue(claim.review_budget_extension === null, 'case_command.claim.review_budget_extension', 'requires a selected Completion Review candidate', issues);
+    return;
+  }
+
+  issue(claim.resolve_selected_gap === null, 'case_command.claim.resolve_selected_gap', 'must be null because a Completion Review candidate is completed only by completion_review_result', issues);
+  for (const key of ['facts_added', 'facts_superseded', 'impacts_added', 'impacts_updated', 'gaps_added', 'gaps_cancelled', 'resolved_open_questions', 'completed_handoffs', 'resolved_review_findings']) {
+    issue(Array.isArray(claim[key]) && claim[key].length === 0, `case_command.claim.${key}`, 'must be empty for a Completion Review', issues);
+  }
+  const hasReviewResult = object(claim.completion_review_result);
+  const hasBudgetExtension = object(claim.review_budget_extension);
+  issue(hasReviewResult || hasBudgetExtension, 'case_command.claim', 'must contain a completion_review_result or review_budget_extension', issues);
+  issue(!(hasReviewResult && hasBudgetExtension), 'case_command.claim', 'must not combine completion_review_result with review_budget_extension', issues);
 }
 
 function validateCompletionReview(review, path, issues) {
