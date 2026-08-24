@@ -218,9 +218,27 @@ Case Reader 只在权威绑定已经存在时根据 `case_id` 匹配 Project `ad
 
 Automation Store 把活动任务收尾拆成 `case_status/case_resolved_at`、`closeout_status/closeout_completed_at` 和 `remote_completion_status` 三个持久检查点，并始终保留 `thread_id`。`phase` 只投影当前控制动作，不承担全部完成事实。Coordinator 只能从当前任务 Run 的 trusted ledger write 恢复 `case_id` 及绑定来源；closeout checkpoint 只接受同一 thread 的结构化 success/no-op 结果。
 
-Agent output Schema 使用 disposition 判别联合前置约束 invariant judgment 的字段组合，例如 `not_relevant` 要求空 `evidence/gap_refs`，`upheld` 要求非空 evidence，`threatened/undetermined` 要求 fact 与 open-gap refs。Runtime validator、Ledger Gate、transition preflight 和 apply 拒绝统一投影为包含 `kind/recoverable/responsibility/reason/issues/recovery_action` 的结构化结果。State-driven runner 在 `writeback_required=true` 时先检查 `written=true`，未接受写回不得采用 Agent 的 terminal handoff、不得返回 completed、不得启动 Git-only closeout。
+### Agent 语义命令与 Ledger 确定性物化
 
-可修正 rejection 进入 `arckit-agent-repair-instruction/v1`：同一 persistent Agent thread 的下一 turn 同时获得 issue paths、被拒 Agent output、`write_accepted=false`、fresh trusted snapshot 和修正约束。Agent 必须返回完整 replacement result，不重复已经完成的实现，不由 Runtime 静默删除 evidence 或替换语义 disposition；snapshot/revision 已过期时从 fresh state 重新规划。`max_agent_repair_attempts` 默认 2，独立于业务 `no_progress_rounds`，因此协议表单修正不会被误算为 Gap 无进展。Desktop 将其投影为非终态的 `Agent repair n/N`；预算耗尽得到 `agent_repair_limit`，不可修正错误保持 fail-closed，随后 Coordinator 才以 rejection reason 建立 `runtime_incomplete`。Live `run.finished` 和 detached startup reconciliation 使用同一错误优先级，不能退化为成功 handoff 文案。
+Agent Loop 的状态输出是 `Semantic Case Command`，不是 `development-case-record` 或内部 Case Transition 的存储补丁。Agent 根据当前操作者输入、fresh snapshot、完整候选比较、实现与验证证据完成所有业务判断，并显式声明：选择哪个候选、接受或取代哪些事实、解决或新增什么 Gap、哪些 Project 决策或不变量受到何种影响、每项判断的理由与证据。事实陈述、Gap 目标、影响方向、invariant disposition 和是否更新某个 Project 决策都属于 Agent 语义，Runtime 与 Ledger 不补写、不改写，也不从自然语言猜测。
+
+命令使用 snapshot token、canonical candidate ref、既有稳定 ref 和仅在当前命令内有效的 local handle 表达语义关系。新事实、新 Gap、新影响和其他新增实体使用 local handle 相互引用；Agent 不分配 canonical id，不填写内容 revision，不复制 selected Gap，不预测 Project 决策更新后的 revision，也不维护同一关系的反向存储字段。Agent 仍完整评估当前 invariant catalog，并为每个 judgment 提供 disposition、理由、证据以及显式事实/Gap 关系；local handle 只替代机械身份，不替代语义关系。
+
+`arckit-development-ledger` 的 manifest-declared trusted entrypoint 在 Project commit lock 内完成唯一的 `Command Materializer`。Materializer 只执行以下确定性工作：验证 snapshot/candidate freshness；校验 stable ref 与 local handle 可解析且作用域正确；分配无冲突 canonical id 和 revision；从 canonical state 读取当前 Project/Case revision；把 Agent 已声明的单向权威关系展开为反向索引；把命令编译成内部完整 Case Transition；对完整 projected Project/Case/Iteration 执行交叉校验；最后原子提交或不写入。Materializer 不根据 statement、reason、文件内容或字段缺失选择业务 target、effect、disposition、Gap 责任或下一步工作。
+
+内部 Case Transition 保留为 Ledger 的 canonical commit protocol 和直接 Agent 的可信入口，但不再作为 ArcOrbit Agent output schema。Runtime 只做传输、shape validation、artifact ownership 扫描和结果投影，不持有第二份命令到 Transition 的转换规则。Command Materializer 返回 accepted command receipt、内部 transition receipt、canonical id mapping、round closeout 与 post-commit snapshot token；这些 receipt 是 append-only Run 事实，latest activity 只是投影，不能覆盖先前成功 receipt。
+
+拒绝按责任边界分类，而不是统一消耗 Agent repair：
+
+- `claim_invalid` 表示 Agent 显式语义主张自相矛盾、引用不存在或缺少语义关系；返回一次完整 preflight 的全部 issue paths，同一 thread 修正完整命令并计入 repair budget。
+- `snapshot_stale` 表示 snapshot、candidate 或 canonical revision 已变化；丢弃旧物化结果，fresh-read 后重新规划，不计入 claim repair budget。
+- `protocol_incompatible` 表示 canonical protocol 无法由当前 Ledger 解释；进入 trusted reconciliation，不要求 Agent 伪造普通 Case 命令。
+- `materialization_failed` 表示 handle 分配、关系投影或内部 Transition 编译违反 Materializer 自身保证；责任属于 Ledger/Runtime，fail closed 且不得要求 Agent 猜测存储字段修复。
+- `infrastructure_failed` 表示进程、I/O、锁或 adapter 失败；保留 canonical state 与已接受 receipt，进入 Runtime recovery。
+
+只有 `claim_invalid` 进入 `arckit-agent-repair-instruction/v1`。同一 persistent Agent thread 的下一 turn 获得全部 issue paths、被拒语义命令、`write_accepted=false`、fresh trusted snapshot 和修正约束；已完成实现不重复执行。Runtime 不静默删除 evidence、改变 effect/disposition、选择替代 target 或构造缺失关系。State-driven runner 在 `writeback_required=true` 时只接受 `written=true`；未接受写回不得采用 Agent 的 terminal handoff、不得返回 completed、不得启动 Git-only closeout。
+
+Automation Coordinator 从 task session 的 append-only accepted ledger receipts 建立 Case binding。每个成功 case-control 或 case-command receipt 立即成为可恢复事实；后续 repair、失败 round 或 latest activity 更新不得使它消失。多个 accepted receipts 指向同一 Case 时保持绑定，指向不同 Case 时进入 `case_binding_conflict`，Coordinator 不按时间或数量猜测。
 
 启动同步先执行 detached Run、持久 thread binding、权威 Case binding 与 canonical Case 的本地对账，再创建任务源 adapter 或检查认证。该阶段不调用远端 API：已绑定的 active Case resume 同一 thread 继续 loop；已绑定的 closed/resolved Case 若未 closeout 则 resume 同一 thread 执行收尾，已完成 closeout 时进入 `remote_completion_pending`。任务源未配置、未登录、认证失效或不可达都不能跳过或回退该对账。未绑定任务不能因仓库碰巧只有一个可读 Case 而进入收尾；`retry_start` 会清除陈旧的 closeout phase/checkpoint 并启动正常 Runtime，让新的 trusted ledger write 建立绑定。
 
@@ -264,6 +282,10 @@ session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_
 - 首次 Runtime 不预选 Case；Agent 语义选择现有 Case 或通过 trusted ledger 创建新 Case，未形成权威绑定时 CLI handoff 不会中断 Runtime。
 - CLI 与 Runtime 通过同一持久 thread 和 canonical Case State 接力；关闭终端不推断完成，恢复自动执行前读取 fresh active/closed Case。
 - 任务到 Case 的绑定只接受当前任务 Run 已成功写入的 trusted ledger 结果；缓存字段、Agent 声明、仓库 Case 数量与 CLI 集合差均不能建立绑定，可信结果冲突时进入 recovery。
+- Agent output 只携带语义命令、stable refs 与 command-local handles；canonical id、revision、selected Gap 副本、反向关系和内部 Transition 由 trusted Ledger 确定性物化，Runtime 不复制物化逻辑。
+- 相同语义命令在相同 snapshot 上产生相同作用域解析和 projected validation 结果；Materializer 不读取自然语言来选择 target、effect、disposition、责任或后续 Gap。
+- claim、stale、protocol、materialization 和 infrastructure rejection 按责任分类；只有 `claim_invalid` 消耗 Agent repair budget，单次 preflight 返回全部可定位问题。
+- accepted ledger receipts 在 task session 内追加保存；后续失败或 latest activity 投影不会清除成功 Case binding 证据。
 - 缺少权威 Case binding 的任务不会启动 Git closeout 或远端完成；远端完成前还必须 fresh-read 到绑定 Case 的 canonical resolved 状态。
 - `writeback_required` 的 validation/Gate/transition 拒绝不会进入 completed 或 Git closeout；可修正错误先进入同-thread Agent repair，live 与 detached recovery 只处理 repair 预算耗尽或不可修正的最终失败，并展示结构化 rejection reason。
 - 未登录或认证失效的启动路径仍先读取本地 canonical Case；closed Case 显示为等待远端收尾，不显示 Runtime 仍在执行。

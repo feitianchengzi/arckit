@@ -82,14 +82,14 @@ async function runCoherentAgentLoop({ projectRoot, snapshot, round, compiledProm
     if (options.streamEvents) console.error(JSON.stringify({ event }));
     if (event.type === "runtime.agent_loop_result") agentLoopResult = normalizeAgentLoopResult(event.result);
   }
-  if (!agentLoopResult) agentLoopResult = invalidAgentLoopResult("Codex Agent completed without returning arckit-agent-loop-result/v1.");
+  if (!agentLoopResult) agentLoopResult = invalidAgentLoopResult("Codex Agent completed without returning arckit-agent-loop-result/v2.");
   const issue = agentLoopResultFailureReason(agentLoopResult, snapshot);
   if (issue) agentLoopResult = invalidAgentLoopResult(issue);
   emit(events, {
     type: "runtime.agent_loop.completed",
     action: agentLoopResult.action,
     summary: agentLoopResult.summary,
-    case_id: agentLoopResult.case_transition?.case_id || ""
+    case_id: agentLoopResult.case_command?.case_id || agentLoopResult.case_transition?.case_id || ""
   }, options);
   const runtimeResult = await createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, round, snapshot, compiledPrompt });
   const validation = validateRuntimeResult(runtimeResult);
@@ -136,6 +136,12 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
         upheld: "persistent evidence required; gap_refs=[]",
         threatened_or_undetermined: "accepted fact_refs and open gap_refs required"
       },
+      semantic_case_command_contract: {
+        agent_owns: ["fact and gap meaning", "impact target and effect", "Project decision intent", "invariant disposition and explicit relations"],
+        ledger_owns: ["canonical ids", "Case and Project revisions", "selected candidate rehydration", "reverse relation projection", "internal transition", "atomic commit receipt"],
+        typed_refs: ["local:fact:<handle>", "local:gap:<handle>", "local:impact:<handle>", "case:fact:<id>", "case:gap:<id>", "case:impact:<id>", "project:decision:<id>", "project:invariant:<id>", "project:project-gap:<id>", "system:<source>"],
+        forbidden_agent_bookkeeping: ["new canonical ids", "fact or decision revisions", "Case updated_at", "selected Gap copies", "decision gap_refs reverse indexes", "arckit-case-transition/v8"]
+      },
       completion_review_is_only_semantic_self_check: true,
       native_skill_discovery: true,
       ledger_write_forbidden: true,
@@ -147,7 +153,7 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
       persisted_candidate_comparison_required: !protocolRecovery,
       round_closeout_is_ledger_receipt: true,
       post_write_snapshot_required: true,
-      valid_actions: protocolRecovery ? ["handoff"] : ["case_control", "case_transition", "handoff"]
+      valid_actions: protocolRecovery ? ["handoff"] : ["case_control", "case_command", "handoff"]
     }
   }, null, 2)].join("\n");
 }
@@ -381,6 +387,7 @@ function normalizeAgentLoopResult(value) {
     action: value.action,
     summary: String(value.summary || ""),
     case_control: objectOrNull(value.case_control),
+    case_command: objectOrNull(value.case_command),
     case_transition: value.case_transition ? {
       ...value.case_transition,
       accepted_state_delta: normalizeAcceptedDelta(value.case_transition.accepted_state_delta)
@@ -399,26 +406,30 @@ function normalizeAgentLoopResult(value) {
 }
 
 function agentLoopResultFailureReason(result, snapshot) {
-  if (result?.schema_version !== "arckit-agent-loop-result/v1") return "Agent Loop returned an unsupported schema version.";
+  if (!["arckit-agent-loop-result/v1", "arckit-agent-loop-result/v2"].includes(result?.schema_version)) return "Agent Loop returned an unsupported schema version.";
   if (!result.summary) return "Agent Loop result requires a summary.";
-  if (!["case_control", "case_transition", "handoff"].includes(result.action)) return "Agent Loop result action is invalid.";
+  if (!["case_control", "case_command", "case_transition", "handoff"].includes(result.action)) return "Agent Loop result action is invalid.";
   if (snapshot?.compatibility?.status === "incompatible" && result.action !== "handoff") {
     return "Protocol-incompatible canonical state forbids ordinary Case control and transitions; reconcile through the trusted ledger entrypoint first.";
   }
-  if (result.action === "case_control" && (!result.case_control || result.case_transition || result.case_control.action !== "create_case")) return "case_control action is incomplete.";
+  if (result.action === "case_control" && (!result.case_control || result.case_command || result.case_transition || result.case_control.action !== "create_case")) return "case_control action is incomplete.";
+  if (result.action === "case_command") {
+    if (!result.case_command || result.case_control || result.case_transition) return "case_command action is incomplete.";
+    if (!Array.isArray(result.case_command.evidence) || result.case_command.evidence.length === 0) return "Agent Loop semantic command requires evidence.";
+  }
   if (result.action === "case_transition") {
     if (!result.case_transition || result.case_control) return "case_transition action is incomplete.";
     const transition = result.case_transition;
     if (!Array.isArray(transition.evidence) || transition.evidence.length === 0) return "Agent Loop transition requires evidence.";
   }
-  if (result.action === "handoff" && (result.case_control || result.case_transition)) return "handoff action cannot include Case payloads.";
+  if (result.action === "handoff" && (result.case_control || result.case_command || result.case_transition)) return "handoff action cannot include Case payloads.";
   if (result.handoff.human_decision_required && result.handoff.next_responsibility !== "human") return "human_decision_required requires human responsibility.";
   return "";
 }
 
 function invalidAgentLoopResult(reason) {
   return {
-    schema_version: "arckit-agent-loop-result/v1", action: "handoff", summary: reason, case_control: null, case_transition: null,
+    schema_version: "arckit-agent-loop-result/v2", action: "handoff", summary: reason, case_control: null, case_command: null, case_transition: null,
     changed_files: [], artifact_impacts: [], risks: [reason], unknowns: [],
     handoff: { next_responsibility: "agent", reason, next_prompt: "Retry from fresh canonical state.", human_decision_required: false }
   };
@@ -439,12 +450,15 @@ async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, ro
     result.validation_evidence = ["runtime/arcorbit/schemas/agent-loop-result.schema.json"];
     return result;
   }
+  const command = agentLoopResult.case_command;
   const transition = agentLoopResult.case_transition;
   const ownership = buildArtifactOwnershipScan(agentLoopResult.changed_files);
   const handoff = agentLoopResult.handoff;
-  const transitionReady = agentLoopResult.action === "case_transition" && transition?.round_outcome !== "blocked";
-  const caseStatus = transition?.case_resolution?.claimed_status || "blocked";
-  const responsibility = caseStatus === "resolved" ? "none" : handoff.next_responsibility;
+  const transitionReady = (agentLoopResult.action === "case_command" && command?.round_outcome !== "blocked") || (agentLoopResult.action === "case_transition" && transition?.round_outcome !== "blocked");
+  const caseStatus = transition?.case_resolution?.claimed_status || (command ? "unresolved" : "blocked");
+  const responsibility = transition?.case_resolution?.claimed_status === "resolved"
+    ? "none"
+    : command && handoff.next_responsibility === "none" ? "agent" : handoff.next_responsibility;
   const roundResult = caseStatus === "resolved" ? "done" : responsibility === "human" ? "needs_human" : responsibility === "external" ? "external_wait" : agentLoopResult.action === "handoff" ? "blocked" : "continue";
   if (transition) {
     loopFrame.case_id = transition.case_id;
@@ -453,6 +467,14 @@ async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, ro
     loopFrame.selected_gap = { ...transition.selected_gap, scope: "case", case_id: transition.case_id };
     loopFrame.round_goal = transition.planned_transition?.goal || agentLoopResult.summary;
     loopFrame.controller_frame.case_id = transition.case_id;
+    loopFrame.controller_frame.round_goal = loopFrame.round_goal;
+  }
+  if (command) {
+    const selected = semanticSelectedGap(command, snapshot);
+    loopFrame.case_id = command.case_id;
+    loopFrame.selected_gap = { ...selected, scope: "case", case_id: command.case_id };
+    loopFrame.round_goal = command.planned_transition?.goal || agentLoopResult.summary;
+    loopFrame.controller_frame.case_id = command.case_id;
     loopFrame.controller_frame.round_goal = loopFrame.round_goal;
   }
   const status = responsibility === "none" ? "done" : responsibility === "human" ? "needs_human" : responsibility === "external" ? "external_wait" : "continue";
@@ -469,18 +491,18 @@ async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, ro
     },
     human_gate: { required: responsibility === "human", reason: responsibility === "human" ? handoff.reason : "", decision_needed: responsibility === "human" ? handoff.next_prompt : "" },
     progress_guard: {
-      expected_state_change: transition?.planned_transition?.expected_state_change || handoff.next_prompt || "Fresh-state recovery",
-      actual_state_change: transitionReady ? "Agent submitted a Case transition pending deterministic ledger writeback." : "",
+      expected_state_change: command?.planned_transition?.expected_state_change || transition?.planned_transition?.expected_state_change || handoff.next_prompt || "Fresh-state recovery",
+      actual_state_change: transitionReady ? (command ? "Agent submitted a semantic Case command pending trusted Ledger materialization." : "Agent submitted a Case transition pending deterministic ledger writeback.") : "",
       no_progress_limit: 2, max_auto_rounds: Number.isInteger(round.max_auto_rounds) ? round.max_auto_rounds : 8
     }
   };
   return {
     schema_version: "arckit-runtime-result/v2",
     round_result: roundResult,
-    round_outcome: { status: transition?.round_outcome || (responsibility === "human" ? "needs_human" : responsibility === "external" ? "external_wait" : "blocked"), reason: agentLoopResult.summary },
-    case_outcome: { status: caseStatus, reason: transition?.case_resolution?.reason || handoff.reason, unresolved: transition?.unresolved || [] },
+    round_outcome: { status: command?.round_outcome || transition?.round_outcome || (responsibility === "human" ? "needs_human" : responsibility === "external" ? "external_wait" : "blocked"), reason: agentLoopResult.summary },
+    case_outcome: { status: caseStatus, reason: transition?.case_resolution?.reason || handoff.reason, unresolved: command?.unresolved || transition?.unresolved || [] },
     project_state_delta: transition?.project_state_delta || { software_definition_changes: [], software_invariant_changes: [], project_gap_changes: [], selection_context_change: null, evidence: [] },
-    case_transition: transition || null,
+    case_command: command || null, case_transition: transition || null,
     round_state: transitionReady ? "ledger_gate_ready" : responsibility === "human" ? "human_gate_required" : responsibility === "external" ? "external_wait" : "blocked",
     round_state_history: [], summary: agentLoopResult.summary, changed_files: agentLoopResult.changed_files,
     artifact_impact_scan: createArtifactImpactScan(ownership), artifact_ownership_scan: ownership,
@@ -493,9 +515,9 @@ async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, ro
     ledger_stage: {
       schema_version: "arckit-ledger-stage/v1", status: transitionReady ? "gate_ready" : responsibility === "human" ? "human_blocked" : "blocked",
       gate_required: transitionReady, writeback_required: transitionReady,
-      reason: transitionReady ? "Agent submitted an evidence-backed Case transition for deterministic ledger application." : handoff.reason
+      reason: transitionReady ? (command ? "Agent submitted an evidence-backed semantic Case command for trusted Ledger materialization." : "Agent submitted an evidence-backed Case transition for deterministic ledger application.") : handoff.reason
     },
-    validation_evidence: unique(["runtime/arcorbit/schemas/agent-loop-result.schema.json", ...(transition?.evidence || [])]),
+    validation_evidence: unique(["runtime/arcorbit/schemas/agent-loop-result.schema.json", ...(command?.evidence || transition?.evidence || [])]),
     loop_handoff: loopHandoff
   };
 }
@@ -503,9 +525,17 @@ async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, ro
 function agentLoopProjection(result) {
   return {
     schema_version: "arckit-agent-loop-projection/v1", action: result.action, summary: result.summary,
-    case_id: result.case_transition?.case_id || "", selected_gap_id: result.case_transition?.selected_gap?.id || "",
+    case_id: result.case_command?.case_id || result.case_transition?.case_id || "",
+    selected_gap_id: result.case_command?.selection?.selected_ref || result.case_transition?.selected_gap?.id || "",
     risks: result.risks, unknowns: result.unknowns
   };
+}
+
+function semanticSelectedGap(command, snapshot) {
+  if (command.fresh_gap) return { ...command.fresh_gap, id: command.fresh_gap.ref };
+  const candidates = snapshot?.candidateCatalog?.persisted_candidates || snapshot?.ledgerSnapshot?.candidate_catalog?.persisted_candidates || [];
+  const selected = candidates.find((item) => item.ref === command.selection?.selected_ref);
+  return selected?.gap || { id: command.selection?.selected_ref || "", responsibility: "agent", goal: command.planned_transition?.goal || "", reason: command.selection?.basis || "", derived_from: [], blocked_by: [], priority_basis: {}, evidence_required: [] };
 }
 
 function normalizeAcceptedDelta(delta) {

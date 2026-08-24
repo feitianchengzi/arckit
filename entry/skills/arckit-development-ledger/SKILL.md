@@ -15,6 +15,7 @@ description: "维护 Arckit Project/Iteration/Case canonical state、协议兼�
 - Iteration `iteration-state-record/v3`：阶段 targets、逐轮接受的 Project changes 与 Case refs。
 - Case `development-case-record/v5`：facts、state impacts、dynamic gaps、问题、handoff、content revision 与 completion review。
 - Snapshot `arckit-ledger-snapshot/v1`：兼容性、canonical source digests、Project/Case revisions、Case-scoped selection tokens 与 persisted candidate catalog。
+- Semantic Command `arckit-semantic-case-command/v1`：ArcOrbit Agent 的 snapshot-bound 语义主张，只携带显式 typed refs、command-local handles、事实/Gap/影响/Project/invariant 判断与证据，不携带 canonical bookkeeping。
 - Transition `arckit-case-transition/v8`：绑定 snapshot 的完整 Gap 比较、单一验收主张、Case/Project delta 与当前 Project invariant catalog 的完整 assessment。
 - Closeout `arckit-round-closeout/v2`：实际接受的 delta、invariant assessment、结果 revisions 和 post-commit token，不投影下一 candidate。
 
@@ -43,7 +44,7 @@ description: "维护 Arckit Project/Iteration/Case canonical state、协议兼�
 - 每轮只接受 selected Gap 的一个验收主张；新事实可以新增或重开后续 Gap，但不得在同一 Round 执行这些后续结果。
 - `invariant_assessment` 对 observed Project revision 的全部 invariants 恰好判断一次。`not_relevant` 需要理由，`upheld` 需要持久证据，`threatened/undetermined` 需要 accepted facts 和写回后仍 open 的 Case gaps。Ledger 不判断语义相关性或路由 artifact/skill。
 - `project_state_delta` 可在任何被接受的 Gap transition 中更新软件定义决策、不变量、Project gaps 或 selection context，不必等待 Case resolved。
-- Project decision 更新检查 observed revision 并递增 revision；Case impacts 必须引用提交后的当前 revision。
+- Semantic Command Materializer 只按显式 typed refs/local handles 分配 canonical id、读取并递增 revision、重建 selected Gap、展开 Project Gap 的反向 decision index，并编译内部 v8；不得从 statement/reason/evidence 猜 target、effect、disposition、responsibility 或下一 Gap。Direct v8 的 Project decision 更新仍检查 observed revision；Case impacts 必须引用提交后的当前 revision。
 - 内容变化提升 `content_revision` 并使旧 clean Review 失效；clean Review 与内容变化分轮提交。Completion Review 是唯一显式语义自查；普通 Gap 的 evidence requirements 与 ledger validation 只是完成证据和确定性协议校验。
 - 正式 apply 在 Project lock 内 fresh-read，并原子写入 Case、Project、Iteration、投影与索引；任一步失败全部回滚。
 - Apply 成功由 ledger 生成 round closeout；Host 必须先展示 closeout，再以 post-commit token 调用 `loop_snapshot`。Runtime 和直接 Agent 都不得从 writeback 结果推断下一 Gap。

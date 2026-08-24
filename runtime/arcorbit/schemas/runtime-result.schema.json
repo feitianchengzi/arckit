@@ -62,6 +62,7 @@
       },
       "additionalProperties": false
     },
+    "case_command": { "type": ["object", "null"] },
     "case_transition": { "type": ["object", "null"] },
     "case_control_handoff": {
       "type": "object",

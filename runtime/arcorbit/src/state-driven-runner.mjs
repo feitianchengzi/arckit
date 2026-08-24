@@ -148,13 +148,13 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
       });
       taskThreadId = adapter.threadId?.(taskThreadKey) || taskThreadId;
       const validation = loop.validation || validateRuntimeResult(loop.runtimeResult);
-      const gapSelection = loop.agentLoopResult?.case_transition?.gap_selection;
+      const gapSelection = agentGapSelection(loop.agentLoopResult);
       if (gapSelection) {
         emitSessionEvent(options, {
           type: "runtime.round_selection",
           round_index: roundIndex,
-          case_id: loop.agentLoopResult.case_transition.case_id || "",
-          selected_gap: loop.agentLoopResult.case_transition.selected_gap || null,
+          case_id: agentCaseId(loop.agentLoopResult),
+          selected_gap: agentSelectedGap(loop.agentLoopResult, loop.loopFrame),
           gap_selection: gapSelection
         });
       }
@@ -192,11 +192,13 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
             dry_run: false,
             gate: null,
             rejection: {
-              kind: "ledger_write_failed",
+              kind: "infrastructure_failed",
               recoverable: true,
-              responsibility: "agent",
+              responsibility: "runtime",
               reason: error?.message || String(error),
-              recovery_action: "replan_from_fresh_state"
+              issues: [{ path: "ledger_write", message: error?.message || String(error) }],
+              recovery_action: "runtime_recovery",
+              counts_toward_agent_repair: false
             },
             plan: [],
             changed_files: []
@@ -225,7 +227,8 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         if (ledgerWriteResult?.written === true) {
           authoritativeCaseId = String(
             ledgerWriteResult?.case_control_result?.case_id
-            || loop.agentLoopResult?.case_transition?.case_id
+            || ledgerWriteResult?.case_transition_result?.case_id
+            || agentCaseId(loop.agentLoopResult)
             || authoritativeCaseId
           ).trim();
           for (const file of normalizeCloseoutFileRefs(ledgerWriteResult.changed_files)) {
@@ -254,8 +257,8 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         agent_loop_result: loop.agentLoopResult ? {
           action: loop.agentLoopResult.action,
           summary: loop.agentLoopResult.summary,
-          case_id: loop.agentLoopResult.case_transition?.case_id || "",
-          selected_gap_id: loop.agentLoopResult.case_transition?.selected_gap?.id || ""
+          case_id: agentCaseId(loop.agentLoopResult),
+          selected_gap_id: agentSelectedGapRef(loop.agentLoopResult)
         } : null,
         round_result: loop.runtimeResult?.round_result || "",
         validation_valid: validation.valid,
@@ -349,6 +352,21 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
           maxAttempts: maxAgentRepairAttempts,
           rejection: ledgerWriteResult.rejection,
           loop
+        });
+        continue;
+      }
+
+      if (decision.reason === "fresh_replan") {
+        noProgressRounds += 1;
+        prefetchedSnapshot = await stateStore.readSnapshot();
+        nextTask = buildFreshReplanInstruction({
+          rejection: ledgerWriteResult.rejection,
+          loop
+        });
+        emitSessionEvent(options, {
+          type: "runtime.fresh_replan.requested",
+          round_index: roundIndex,
+          rejection: ledgerWriteResult.rejection
         });
         continue;
       }
@@ -502,12 +520,28 @@ export function decideSessionContinuation({
   const madeProgress = ledgerWriteResult?.written === true;
   const writebackRequired = runtimeResult?.ledger_stage?.writeback_required === true;
   if (!madeProgress && ledgerWriteResult?.rejection) {
-    if (ledgerWriteResult?.rejection?.recoverable === true
+    const rejectionKind = classifyRejection(ledgerWriteResult.rejection);
+    if (rejectionKind === "snapshot_stale") {
+      if (noProgressRounds + 1 >= maxNoProgressRounds) {
+        return { continue: false, madeProgress: false, reason: "snapshot_stale_limit" };
+      }
+      return { continue: true, madeProgress: false, reason: "fresh_replan" };
+    }
+    if (rejectionKind === "claim_invalid"
       && agentRepairAttempts < maxAgentRepairAttempts) {
       return { continue: true, madeProgress: false, reason: "agent_repair" };
     }
-    if (ledgerWriteResult?.rejection?.recoverable === true) {
+    if (rejectionKind === "claim_invalid") {
       return { continue: false, madeProgress: false, reason: "agent_repair_limit" };
+    }
+    if (rejectionKind === "protocol_incompatible") {
+      return { continue: false, madeProgress: false, reason: "protocol_incompatible" };
+    }
+    if (rejectionKind === "materialization_failed") {
+      return { continue: false, madeProgress: false, reason: "materialization_failed" };
+    }
+    if (rejectionKind === "infrastructure_failed") {
+      return { continue: false, madeProgress: false, reason: "infrastructure_recovery" };
     }
     return { continue: false, madeProgress: false, reason: "ledger_write_failed" };
   }
@@ -535,6 +569,14 @@ export function decideSessionContinuation({
     return { continue: false, madeProgress, reason: "completed" };
   }
   return { continue: false, madeProgress, reason: "terminal_runtime_result" };
+}
+
+function classifyRejection(rejection) {
+  const kind = String(rejection?.kind || "");
+  if (["claim_invalid", "snapshot_stale", "protocol_incompatible", "materialization_failed", "infrastructure_failed"].includes(kind)) return kind;
+  if (rejection?.recovery_action === "repair_rejected_claim" && rejection?.responsibility === "agent") return "claim_invalid";
+  if (rejection?.recovery_action === "replan_from_fresh_state") return "snapshot_stale";
+  return kind;
 }
 
 export function effectiveNoProgressLimit(configuredLimit, handoff) {
@@ -577,6 +619,30 @@ export function buildAgentRepairInstruction({ rejection, loop, attempt, maxAttem
   }, null, 2);
 }
 
+export function buildFreshReplanInstruction({ rejection, loop }) {
+  return JSON.stringify({
+    schema_version: "arckit-agent-fresh-replan-instruction/v1",
+    phase: "replan_from_fresh_state",
+    rejection: {
+      kind: "snapshot_stale",
+      reason: String(rejection?.reason || "The semantic command was based on stale canonical state."),
+      issues: normalizeRepairIssues(rejection)
+    },
+    rejected_agent_output: loop?.agentLoopResult || null,
+    canonical_state: {
+      write_accepted: false,
+      instruction: "Use the fresh trusted snapshot supplied by this turn and select or replan the current semantic work."
+    },
+    replan_contract: {
+      same_persistent_thread: true,
+      does_not_consume_agent_repair_budget: true,
+      do_not_repeat_completed_implementation_work: true,
+      do_not_copy_stale_identity_or_revision: true,
+      return_complete_replacement_agent_loop_result: true
+    }
+  }, null, 2);
+}
+
 function validationRejection(validation) {
   const issues = (validation?.issues || []).map((issue) => ({
     path: String(issue?.path || "runtime_result"),
@@ -595,14 +661,14 @@ function validationRejection(validation) {
 function normalizeRepairIssues(rejection) {
   if (Array.isArray(rejection?.issues) && rejection.issues.length > 0) {
     return rejection.issues.map((issue) => typeof issue === "string"
-      ? { path: "case_transition", message: issue }
+      ? { path: "case_command", message: issue }
       : {
-        path: String(issue?.path || "case_transition"),
+        path: String(issue?.path || "case_command"),
         message: String(issue?.message || rejection?.reason || "Rejected claim.")
       });
   }
   return [{
-    path: "case_transition",
+    path: "case_command",
     message: String(rejection?.reason || "The trusted Ledger rejected the claim.")
   }];
 }
@@ -618,8 +684,8 @@ function emitAgentRepairRequested(options, { roundIndex, attempt, maxAttempts, r
       reason: String(rejection?.reason || "The Runtime rejected the previous Agent result."),
       issues: normalizeRepairIssues(rejection)
     },
-    case_id: loop?.agentLoopResult?.case_transition?.case_id || "",
-    selected_gap_id: loop?.agentLoopResult?.case_transition?.selected_gap?.id || ""
+    case_id: agentCaseId(loop?.agentLoopResult),
+    selected_gap_id: agentSelectedGapRef(loop?.agentLoopResult)
   });
 }
 
@@ -647,8 +713,8 @@ function buildRoundEnvelope({
       schema_version: loop.agentLoopResult.schema_version,
       action: loop.agentLoopResult.action,
       summary: loop.agentLoopResult.summary,
-      case_id: loop.agentLoopResult.case_transition?.case_id || "",
-      selected_gap_id: loop.agentLoopResult.case_transition?.selected_gap?.id || ""
+      case_id: agentCaseId(loop.agentLoopResult),
+      selected_gap_id: agentSelectedGapRef(loop.agentLoopResult)
     } : null,
     events: compactPersistedEvents(loop.events),
     runtime_result: loop.runtimeResult,
@@ -668,6 +734,22 @@ function compactPersistedEvents(events = []) {
     .map((event) => event?.type === "runtime.result"
       ? { type: event.type, validation: event.validation || null }
       : event);
+}
+
+function agentCaseId(result) {
+  return result?.case_command?.case_id || result?.case_transition?.case_id || "";
+}
+
+function agentSelectedGapRef(result) {
+  return result?.case_command?.selection?.selected_ref || result?.case_transition?.selected_gap?.id || "";
+}
+
+function agentGapSelection(result) {
+  return result?.case_command?.selection || result?.case_transition?.gap_selection || null;
+}
+
+function agentSelectedGap(result, loopFrame) {
+  return result?.case_transition?.selected_gap || loopFrame?.selected_gap || null;
 }
 
 function requiresLedgerWrite(runtimeResult) {

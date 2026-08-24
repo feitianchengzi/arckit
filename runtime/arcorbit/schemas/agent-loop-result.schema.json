@@ -3,13 +3,13 @@
   "$id": "https://arckit.local/schema/agent-loop-result.schema.json",
   "title": "Arckit Coherent Agent Loop Result",
   "type": "object",
-  "required": ["schema_version", "action", "summary", "case_control", "case_transition", "changed_files", "artifact_impacts", "risks", "unknowns", "handoff"],
+  "required": ["schema_version", "action", "summary", "case_control", "case_command", "changed_files", "artifact_impacts", "risks", "unknowns", "handoff"],
   "properties": {
-    "schema_version": { "type": "string", "const": "arckit-agent-loop-result/v1" },
-    "action": { "type": "string", "enum": ["case_control", "case_transition", "handoff"] },
+    "schema_version": { "type": "string", "const": "arckit-agent-loop-result/v2" },
+    "action": { "type": "string", "enum": ["case_control", "case_command", "handoff"] },
     "summary": { "type": "string" },
     "case_control": { "anyOf": [{ "$ref": "#/$defs/case_control" }, { "type": "null" }] },
-    "case_transition": { "anyOf": [{ "$ref": "#/$defs/case_transition" }, { "type": "null" }] },
+    "case_command": { "anyOf": [{ "$ref": "#/$defs/semantic_case_command" }, { "type": "null" }] },
     "changed_files": { "type": "array", "items": { "type": "string" } },
     "artifact_impacts": { "type": "array", "items": { "$ref": "#/$defs/artifact_impact" } },
     "risks": { "type": "array", "items": { "type": "string" } },
@@ -17,6 +17,239 @@
     "handoff": { "$ref": "#/$defs/handoff" }
   },
   "$defs": {
+    "semantic_case_command": {
+      "type": "object",
+      "required": ["schema_version", "case_id", "selection", "planned_transition", "fresh_gap", "claim", "project_claim", "invariant_assessment", "evidence", "unresolved", "round_outcome"],
+      "properties": {
+        "schema_version": { "type": "string", "const": "arckit-semantic-case-command/v1" },
+        "case_id": { "type": "string" },
+        "selection": { "$ref": "#/$defs/semantic_selection" },
+        "planned_transition": {
+          "type": "object",
+          "required": ["goal", "expected_state_change"],
+          "properties": { "goal": { "type": "string" }, "expected_state_change": { "type": "string" } },
+          "additionalProperties": false
+        },
+        "fresh_gap": { "anyOf": [{ "$ref": "#/$defs/semantic_gap" }, { "type": "null" }] },
+        "claim": { "$ref": "#/$defs/semantic_claim" },
+        "project_claim": { "$ref": "#/$defs/semantic_project_claim" },
+        "invariant_assessment": { "$ref": "#/$defs/semantic_invariant_assessment" },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "unresolved": { "type": "array", "items": { "type": "string" } },
+        "round_outcome": { "type": "string", "enum": ["completed", "partial", "blocked", "needs_human", "external_wait"] }
+      },
+      "additionalProperties": false
+    },
+    "semantic_selection": {
+      "type": "object",
+      "required": ["basis", "snapshot_token", "selected_ref", "comparison_summary", "fresh_discovery_summary", "considered"],
+      "properties": {
+        "basis": { "type": "string" },
+        "snapshot_token": { "type": "string" },
+        "selected_ref": { "type": "string" },
+        "comparison_summary": { "type": "string" },
+        "fresh_discovery_summary": { "type": "string" },
+        "considered": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/semantic_considered_candidate" } }
+      },
+      "additionalProperties": false
+    },
+    "semantic_considered_candidate": {
+      "type": "object",
+      "required": ["ref", "source", "eligibility", "disposition", "priority_basis", "reason"],
+      "properties": {
+        "ref": { "type": "string" },
+        "source": { "type": "string", "enum": ["persisted", "fresh"] },
+        "eligibility": { "type": "string", "enum": ["ready", "case_required", "blocked", "ineligible"] },
+        "disposition": { "type": "string", "enum": ["selected", "deferred", "excluded"] },
+        "priority_basis": { "$ref": "#/$defs/priority_basis" },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "semantic_claim": {
+      "type": "object",
+      "required": ["resolve_selected_gap", "facts_added", "facts_superseded", "impacts_added", "impacts_updated", "gaps_added", "gaps_cancelled", "resolved_open_questions", "completed_handoffs", "completion_review_result", "resolved_review_findings", "review_budget_extension"],
+      "properties": {
+        "resolve_selected_gap": { "anyOf": [{ "$ref": "#/$defs/semantic_resolution" }, { "type": "null" }] },
+        "facts_added": { "type": "array", "items": { "$ref": "#/$defs/semantic_fact" } },
+        "facts_superseded": { "type": "array", "items": { "$ref": "#/$defs/semantic_fact_supersession" } },
+        "impacts_added": { "type": "array", "items": { "$ref": "#/$defs/semantic_impact" } },
+        "impacts_updated": { "type": "array", "items": { "$ref": "#/$defs/semantic_impact" } },
+        "gaps_added": { "type": "array", "items": { "$ref": "#/$defs/semantic_gap" } },
+        "gaps_cancelled": { "type": "array", "items": { "$ref": "#/$defs/semantic_gap_cancellation" } },
+        "resolved_open_questions": { "type": "array", "items": { "type": "string" } },
+        "completed_handoffs": { "type": "array", "items": { "type": "string" } },
+        "completion_review_result": { "anyOf": [{ "$ref": "#/$defs/semantic_completion_review_result" }, { "type": "null" }] },
+        "resolved_review_findings": { "type": "array", "items": { "type": "string" } },
+        "review_budget_extension": { "anyOf": [{ "$ref": "#/$defs/review_budget_extension" }, { "type": "null" }] }
+      },
+      "additionalProperties": false
+    },
+    "semantic_resolution": {
+      "type": "object",
+      "required": ["outcome", "reason", "evidence"],
+      "properties": {
+        "outcome": { "type": "string" }, "reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "semantic_fact": {
+      "type": "object",
+      "required": ["ref", "statement", "basis", "evidence"],
+      "properties": {
+        "ref": { "type": "string" }, "statement": { "type": "string" }, "basis": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "semantic_fact_supersession": {
+      "type": "object",
+      "required": ["fact_ref", "reason", "evidence"],
+      "properties": {
+        "fact_ref": { "type": "string" }, "reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "semantic_impact": {
+      "type": "object",
+      "required": ["ref", "fact_ref", "target_ref", "effect", "reason", "gap_refs", "evidence"],
+      "properties": {
+        "ref": { "type": "string" }, "fact_ref": { "type": "string" }, "target_ref": { "type": "string" },
+        "effect": { "type": "string", "enum": ["upheld", "threatened", "undetermined"] },
+        "reason": { "type": "string" }, "gap_refs": { "type": "array", "items": { "type": "string" } },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "semantic_gap": {
+      "type": "object",
+      "required": ["ref", "goal", "reason", "derived_from", "blocked_by", "priority_basis", "responsibility", "evidence_required"],
+      "properties": {
+        "ref": { "type": "string" }, "goal": { "type": "string" }, "reason": { "type": "string" },
+        "derived_from": { "type": "array", "items": { "type": "string" } },
+        "blocked_by": { "type": "array", "items": { "type": "string" } },
+        "priority_basis": { "$ref": "#/$defs/priority_basis" },
+        "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
+        "evidence_required": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "semantic_gap_cancellation": {
+      "type": "object",
+      "required": ["gap_ref", "outcome", "reason", "evidence"],
+      "properties": {
+        "gap_ref": { "type": "string" }, "outcome": { "type": "string" }, "reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "semantic_completion_review_result": {
+      "type": "object",
+      "required": ["outcome", "reviewer", "dimensions", "findings", "evidence"],
+      "properties": {
+        "outcome": { "type": "string", "enum": ["clean", "findings", "needs_human"] },
+        "reviewer": { "type": "string", "enum": ["agent", "human"] },
+        "dimensions": { "$ref": "#/$defs/review_dimensions" },
+        "findings": { "type": "array", "items": { "$ref": "#/$defs/semantic_review_finding" } },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "semantic_review_finding": {
+      "type": "object",
+      "required": ["ref", "kind", "statement", "responsibility", "artifact_refs", "evidence"],
+      "properties": {
+        "ref": { "type": "string" },
+        "kind": { "type": "string", "enum": ["error", "omission", "excess"] },
+        "statement": { "type": "string" },
+        "responsibility": { "type": "string", "enum": ["agent", "human", "external"] },
+        "artifact_refs": { "type": "array", "items": { "type": "string" } },
+        "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "semantic_project_claim": {
+      "type": "object",
+      "required": ["decision_changes", "invariant_changes", "project_gap_changes", "selection_context_change", "evidence"],
+      "properties": {
+        "decision_changes": { "type": "array", "items": { "$ref": "#/$defs/semantic_decision_change" } },
+        "invariant_changes": { "type": "array", "items": { "$ref": "#/$defs/semantic_invariant_change" } },
+        "project_gap_changes": { "type": "array", "items": { "$ref": "#/$defs/semantic_project_gap_change" } },
+        "selection_context_change": { "anyOf": [{ "$ref": "#/$defs/selection_context" }, { "type": "null" }] },
+        "evidence": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "semantic_decision_change": {
+      "type": "object",
+      "required": ["area_ref", "set_decision", "reason", "evidence"],
+      "properties": {
+        "area_ref": { "type": "string" }, "set_decision": { "$ref": "#/$defs/software_decision" },
+        "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "semantic_invariant_change": {
+      "type": "object",
+      "required": ["action", "ref", "definition", "reason", "evidence"],
+      "properties": {
+        "action": { "type": "string", "enum": ["add", "update", "retire", "sync_core"] }, "ref": { "type": "string" },
+        "definition": { "$ref": "#/$defs/semantic_invariant_definition" },
+        "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "semantic_invariant_definition": {
+      "type": "object",
+      "required": ["applies_when", "must_hold", "evidence_expectation", "priority"],
+      "properties": {
+        "applies_when": { "type": "string" }, "must_hold": { "type": "string" }, "evidence_expectation": { "type": "string" },
+        "priority": { "type": "string", "enum": ["required", "recommended", "informational"] }
+      },
+      "additionalProperties": false
+    },
+    "semantic_project_gap_change": {
+      "type": "object",
+      "required": ["action", "ref", "gap", "reason", "evidence"],
+      "properties": {
+        "action": { "type": "string", "enum": ["add", "update", "resolve"] }, "ref": { "type": "string" },
+        "gap": { "anyOf": [{ "$ref": "#/$defs/semantic_project_gap" }, { "type": "null" }] },
+        "reason": { "type": "string" }, "evidence": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    "semantic_project_gap": {
+      "type": "object",
+      "required": ["goal", "reason", "affects", "priority_basis", "dependencies", "candidate_case_ref"],
+      "properties": {
+        "goal": { "type": "string" }, "reason": { "type": "string" },
+        "affects": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "priority_basis": { "$ref": "#/$defs/priority_basis" },
+        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "candidate_case_ref": { "type": "string", "enum": ["", "case:current"] }
+      },
+      "additionalProperties": false
+    },
+    "semantic_invariant_assessment": {
+      "type": "object",
+      "required": ["judgments"],
+      "properties": { "judgments": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/semantic_invariant_judgment" } } },
+      "additionalProperties": false
+    },
+    "semantic_invariant_judgment": {
+      "type": "object",
+      "required": ["invariant_ref", "disposition", "reason", "fact_refs", "evidence", "gap_refs"],
+      "properties": {
+        "invariant_ref": { "type": "string" },
+        "disposition": { "type": "string", "enum": ["not_relevant", "upheld", "threatened", "undetermined"] },
+        "reason": { "type": "string" }, "fact_refs": { "type": "array", "items": { "type": "string" } },
+        "evidence": { "type": "array", "items": { "type": "string" } },
+        "gap_refs": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
     "case_control": {
       "type": "object",
       "required": ["action", "title", "intent", "expected_outcome", "artifact_type", "selection_reason", "initial_facts", "initial_impacts", "initial_gaps"],

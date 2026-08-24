@@ -7,17 +7,20 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
   const reasons = validation.issues.map((issue) => `${issue.path}: ${issue.message}`);
   const warnings = [];
   const transition = runtimeResult?.case_transition;
+  const command = runtimeResult?.case_command;
   const caseControlHandoff = runtimeResult?.case_control_handoff;
   const isCaseControl = Boolean(caseControlHandoff && typeof caseControlHandoff === 'object' && !Array.isArray(caseControlHandoff));
   const root = projectRoot || snapshot?.projectRoot || '';
   if (root) {
-    const entrypointName = isCaseControl ? 'case_control' : 'case_transition';
+    const entrypointName = isCaseControl ? 'case_control' : command ? 'writeback' : 'case_transition';
     const capability = await loadRuntimeCapabilityForEntrypoint({ projectRoot: root, entrypoint: entrypointName });
     const entrypoint = await import(pathToFileURL(resolveCapabilityEntrypoint(capability, entrypointName)).href);
     const entrypointIssues = isCaseControl
       ? entrypoint.validateCaseControlHandoff(caseControlHandoff, 'case_control_handoff')
-      : entrypoint.validateCaseTransition(transition, 'case_transition');
-    for (const issue of entrypointIssues) reasons.push(issue);
+      : command
+        ? entrypoint.validateSemanticCaseCommand(command, 'case_command')
+        : entrypoint.validateCaseTransition(transition, 'case_transition');
+    for (const issue of entrypointIssues) reasons.push(typeof issue === 'string' ? issue : `${issue.path}: ${issue.message}`);
   }
 
   if (runtimeResult?.ledger_stage?.status !== 'gate_ready' || runtimeResult?.ledger_stage?.writeback_required !== true) {
@@ -26,7 +29,7 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
   if (isCaseControl) {
     if (snapshot?.projectState?.project?.revision !== caseControlHandoff.expected_project_revision) reasons.push('case_control_handoff is stale for Project State.');
   } else {
-    if (transition?.round_outcome === 'blocked') reasons.push('A blocked round is not eligible for automatic Case transition writeback.');
+    if ((command?.round_outcome || transition?.round_outcome) === 'blocked') reasons.push('A blocked round is not eligible for automatic Case writeback.');
   }
 
   const unsafeChangedFiles = findUnsafeChangedFiles(runtimeResult?.changed_files || []);
@@ -47,10 +50,10 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
     write_scope: reasons.length === 0
       ? isCaseControl
         ? ['case_creation_or_selection', 'project_case_binding', 'indexes_and_projections']
-        : ['case_transition', 'resolved_case_project_aggregation', 'indexes_and_projections']
+        : [command ? 'semantic_case_command' : 'case_transition', 'resolved_case_project_aggregation', 'indexes_and_projections']
       : [],
     validation,
-    case_id: isCaseControl ? caseControlHandoff.case_id || '' : transition?.case_id || '',
+    case_id: isCaseControl ? caseControlHandoff.case_id || '' : command?.case_id || transition?.case_id || '',
   };
 }
 

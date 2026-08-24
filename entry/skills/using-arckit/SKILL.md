@@ -57,7 +57,7 @@ Invariant 不规定工作类型、skill、路径或执行顺序，也不等于�
 
 ### 5. 提交 Transition
 
-按 [references/closeout-handoff.md](references/closeout-handoff.md) 提交 `arckit-case-transition/v8`：snapshot-bound selection trace、完整 selected gap、Case/Project delta、覆盖当前 Project invariant catalog 的 `invariant_assessment`、证据、round outcome 与 Case claim。软件定义决策在被真正澄清的当轮就进入 Project State。
+Host 声明 `arckit-semantic-case-command/v1` output 时，读取 [references/semantic-command-handoff.md](references/semantic-command-handoff.md)，提交 snapshot-bound 语义命令：Agent 显式声明候选比较、事实、Gap、影响、Project decision/invariant 判断及其关系，使用 typed stable refs 与 command-local handles，不生成 canonical id/revision、selected Gap 副本、反向索引或内部 Transition。Trusted Ledger 独占确定性物化和原子提交。Direct Agent 未获得该 output contract 时，按 [references/closeout-handoff.md](references/closeout-handoff.md) 使用 canonical `arckit-case-transition/v8` 入口。两种 transport 都只承载同一个 Agent 语义主张；软件定义决策在被真正澄清的当轮就进入 Project State。
 
 ### 6. 自动续轮
 
@@ -68,6 +68,6 @@ Ledger 写回成功后，先向用户展示其 `arckit-round-closeout/v2`：实�
 - 协议不一致时：trusted reconciliation 结果、保真声明、剩余不确定性和 fresh-read handoff
 - selected Case 和动态 Gap，或完整 `case_control.create_case`
 - 本轮使用的决策、事实、invariants、skills/tools 与 evidence 摘要
-- `arckit-case-transition/v8` 或明确 handoff
+- Host-bound `arckit-semantic-case-command/v1`、direct `arckit-case-transition/v8`，或明确 handoff
 - 用户可见的 round opening、accepted round closeout 与 post-write fresh-read receipt
 - `round_outcome`、`case_resolution`、`project_state_delta`、`loop-handoff/v2`

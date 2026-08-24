@@ -315,6 +315,32 @@ test("Agent repair request stays visible as an in-run recovery instead of a term
   assert.equal(message.detail, "not_relevant cannot carry evidence or gaps");
 });
 
+test("accepted ledger receipts remain append-only when a later write fails", () => {
+  const run = runtimeRun();
+  run.activity = createRunActivity(run);
+  const accepted = {
+    written: true,
+    post_commit_snapshot_token: "TOKEN-1",
+    case_control_result: { case_id: "CASE-20260824-001" }
+  };
+  applyRunEvent(run, wrapped({
+    type: "runtime.ledger_write.completed",
+    round_index: 1,
+    result: accepted
+  }));
+  applyRunEvent(run, wrapped({
+    type: "runtime.ledger_write.completed",
+    round_index: 2,
+    result: { written: false, rejection: { kind: "claim_invalid", reason: "invalid claim" } }
+  }));
+
+  assert.equal(run.activity.ledger_write_result.parsed.written, false);
+  assert.equal(run.activity.ledger_write_receipts.length, 1);
+  assert.equal(run.activity.ledger_write_receipts[0].parsed.case_control_result.case_id, "CASE-20260824-001");
+  applyRunEvent(run, wrapped({ type: "runtime.ledger_write.completed", round_index: 1, result: accepted }));
+  assert.equal(run.activity.ledger_write_receipts.length, 1);
+});
+
 function runtimeRun() {
   return {
     id: "RUN-1",

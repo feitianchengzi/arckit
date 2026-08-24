@@ -49,7 +49,7 @@ export function selectNextRound(snapshot, options = {}) {
       stop_condition: safeSemanticText(selectionContext.stop_condition || '', { maxLength: SEMANTIC_LIMITS.reason }),
     },
     conversation_locale: options.conversationLocale || 'en',
-    required_outputs: ['case_transition', 'round_outcome', 'case_outcome', 'project_state_delta', 'loop_handoff'],
+    required_outputs: ['case_command', 'round_outcome', 'case_outcome', 'loop_handoff'],
     required_context_refs: compact([
       snapshot.paths.projectState,
       snapshot.paths.stateBrief,

@@ -16,7 +16,7 @@ export function selectEffectiveLoopHandoff({ runtimeResult = null, activity = nu
 }
 
 export function agentLoopHandoff(result) {
-  if (result?.schema_version !== "arckit-agent-loop-result/v1" || !result.handoff) return null;
+  if (!["arckit-agent-loop-result/v1", "arckit-agent-loop-result/v2"].includes(result?.schema_version) || !result.handoff) return null;
   const source = result.handoff;
   const responsibility = String(source.next_responsibility || "");
   if (!responsibility) return null;
@@ -46,7 +46,7 @@ function latestPersistedAgentLoopHandoff(messages) {
   if (!Array.isArray(messages)) return null;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const structured = messages[index]?.structured_data;
-    if (structured?.schema_version !== "arckit-agent-loop-result/v1") continue;
+    if (!["arckit-agent-loop-result/v1", "arckit-agent-loop-result/v2"].includes(structured?.schema_version)) continue;
     const handoff = agentLoopHandoff(structured.value);
     if (handoff) return handoff;
   }

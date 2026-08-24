@@ -37,10 +37,10 @@ export function structuredResultPresentation(message = {}) {
   const schemaVersion = String(message.structured_data?.schema_version || value?.schema_version || "");
   const raw = String(message.structured_data?.raw || message.content || (value ? JSON.stringify(value, null, 2) : ""));
   const fields = [];
-  if (schemaVersion === "arckit-agent-loop-result/v1") {
+  if (["arckit-agent-loop-result/v1", "arckit-agent-loop-result/v2"].includes(schemaVersion)) {
     pushField(fields, "Action", value?.action);
-    pushField(fields, "Case", value?.case_transition?.case_id || value?.case_id);
-    pushField(fields, "Gap", value?.case_transition?.selected_gap?.id || value?.selected_gap_id);
+    pushField(fields, "Case", value?.case_command?.case_id || value?.case_transition?.case_id || value?.case_id);
+    pushField(fields, "Gap", value?.case_command?.selection?.selected_ref || value?.case_transition?.selected_gap?.id || value?.selected_gap_id);
     pushField(fields, "Risks", value?.risks);
     pushField(fields, "Unknowns", value?.unknowns);
   } else if (schemaVersion === "arckit-task-closeout-result/v1") {
@@ -130,7 +130,7 @@ function readStructuredValue(message) {
 }
 
 function structuredResultTitle(schemaVersion) {
-  if (schemaVersion === "arckit-agent-loop-result/v1") return "Agent Loop 结果";
+  if (["arckit-agent-loop-result/v1", "arckit-agent-loop-result/v2"].includes(schemaVersion)) return "Agent Loop 结果";
   if (schemaVersion === "arckit-task-closeout-result/v1") return "任务收尾结果";
   if (schemaVersion === "arckit-round-closeout/v2") return "Round Closeout";
   return "结构化结果";

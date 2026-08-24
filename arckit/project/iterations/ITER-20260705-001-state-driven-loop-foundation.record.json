@@ -4,7 +4,7 @@
   "title": "State-driven loop foundation",
   "status": "active",
   "created_at": "2026-07-05T15:29:32.273Z",
-  "updated_at": "2026-08-23T21:44:44.962Z",
+  "updated_at": "2026-08-24T03:38:58.350Z",
   "iteration_goal": "将 Arckit 状态机制升级为由显式 Project 软件定义、独立软件不变量、Case facts/impacts 和动态 Gap 共同驱动的软件项目控制面。",
   "project_state_ref": "arckit/project/state.record.json",
   "targets": [
@@ -2018,6 +2018,16 @@
         "arckit/cases/active/CASE-20260823-006-arcorbit-chat.md"
       ],
       "case_ref": "arckit/cases/active/CASE-20260823-006-arcorbit-chat.md"
+    },
+    {
+      "kind": "software_decision",
+      "ref": "technical_foundation",
+      "outcome": "settled",
+      "evidence": [
+        "arckit/tech/arcorbit/desktop-execution-solution.md",
+        "arckit/cases/active/CASE-20260824-001-arcorbit-agent-ledger.md"
+      ],
+      "case_ref": "arckit/cases/active/CASE-20260824-001-arcorbit-agent-ledger.md"
     }
   ],
   "acceptance": {
@@ -2034,7 +2044,9 @@
     ]
   },
   "blocking_project_gaps": [],
-  "active_case_refs": [],
+  "active_case_refs": [
+    "arckit/cases/active/CASE-20260823-007-arcorbit-work.md"
+  ],
   "closed_case_refs": [
     "arckit/cases/closed/CASE-20260707-002-implement-arckit-runtime-mvp.md",
     "arckit/cases/closed/CASE-20260726-004-govern-project-and-iteration-state-to-strict-new-boundaries.md",
@@ -2108,24 +2120,16 @@
     "arckit/cases/closed/CASE-20260823-003-work.md",
     "arckit/cases/closed/CASE-20260823-004-unify-automation-intervention-conversation-with-chat.md",
     "arckit/cases/closed/CASE-20260823-005-restore-arcorbit-chat-project-switching-and-work-responsiveness.md",
-    "arckit/cases/closed/CASE-20260823-006-arcorbit-chat.md"
+    "arckit/cases/closed/CASE-20260823-006-arcorbit-chat.md",
+    "arckit/cases/closed/CASE-20260824-001-arcorbit-agent-ledger.md"
   ],
   "close_condition": "当显式软件定义 State、动态 Gap、原子 transition 和真实场景证据形成可信闭环后关闭本迭代。",
   "last_case_aggregation": {
-    "case_ref": "arckit/cases/closed/CASE-20260823-006-arcorbit-chat.md",
+    "case_ref": "arckit/cases/closed/CASE-20260824-001-arcorbit-agent-ledger.md",
     "project_changes": [],
     "evidence": [
-      "arckit/cases/closed/CASE-20260823-006-arcorbit-chat.md",
-      "arckit/spec/agentic-software-development/arcorbit-planned-workspaces.md",
-      "arckit/interaction/chat-workspace/interaction.md",
-      "runtime/arcorbit/desktop/renderer/chat-session-groups.mjs",
-      "runtime/arcorbit/desktop/renderer/index.html",
-      "runtime/arcorbit/desktop/renderer/renderer.js",
-      "runtime/arcorbit/desktop/renderer/styles.css",
-      "runtime/arcorbit/test/chat-session-groups.test.mjs",
-      "runtime/arcorbit/test/desktop-renderer.test.mjs",
-      "runtime/arcorbit/test/chat-coordinator.test.mjs"
+      "arckit/cases/closed/CASE-20260824-001-arcorbit-agent-ledger.md"
     ],
-    "updated_at": "2026-08-23T21:44:44.962Z"
+    "updated_at": "2026-08-24T03:38:58.350Z"
   }
 }

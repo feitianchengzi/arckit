@@ -2661,6 +2661,10 @@ function ledgerFailureReason({ result, activity } = {}) {
 
 export function extractAuthoritativeCaseBindingFromRun(run) {
   const ledgers = [
+    ...((run?.activity?.ledger_write_receipts || []).map((receipt, index) => ({
+      value: receipt?.parsed,
+      source: `activity.ledger_write_receipts[${index}]`
+    }))),
     { value: run?.activity?.ledger_write_result?.parsed, source: "activity.ledger_write_result" },
     { value: run?.result?.ledger_write_result, source: "result.ledger_write_result" }
   ].filter(({ value }) => value?.written === true);
@@ -2668,10 +2672,14 @@ export function extractAuthoritativeCaseBindingFromRun(run) {
   for (const ledger of ledgers) {
     for (const value of [
       ledger.value.case_control_result?.case_id,
-      ledger.value.case_transition_result?.case_id
+      ledger.value.case_transition_result?.case_id,
+      ledger.value.command_receipt?.case_id
     ]) {
       const caseId = String(value || "").trim();
-      if (CASE_ID_PATTERN.test(caseId)) observations.push({ case_id: caseId, evidence: ledger.source });
+      if (CASE_ID_PATTERN.test(caseId)
+        && !observations.some((item) => item.case_id === caseId && item.evidence === ledger.source)) {
+        observations.push({ case_id: caseId, evidence: ledger.source });
+      }
     }
   }
   const caseIds = [...new Set(observations.map((item) => item.case_id))];

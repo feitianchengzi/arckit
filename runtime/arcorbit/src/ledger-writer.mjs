@@ -55,26 +55,29 @@ export async function writeLedger({
 
 function gateRejection(gate, runtimeResult) {
   const transition = runtimeResult?.case_transition || {};
+  const command = runtimeResult?.case_command || {};
   const caseControl = runtimeResult?.case_control_handoff || {};
   const issues = (gate?.reasons || []).filter(Boolean).map((reason) => ({
     path: gateIssuePath(reason),
     message: String(reason)
   }));
+  const stale = gateRecoveryAction(gate?.reasons) === "replan_from_fresh_state";
   return {
-    kind: "ledger_gate_rejected",
+    kind: stale ? "snapshot_stale" : "claim_invalid",
     recoverable: true,
     responsibility: "agent",
     reason: gate?.reasons?.filter(Boolean).join("\n") || "The trusted ledger gate rejected this writeback.",
     issues,
-    case_id: transition.case_id || caseControl.case_id || "",
-    selected_gap_id: transition.selected_gap?.id || "",
-    recovery_action: gateRecoveryAction(gate?.reasons)
+    case_id: command.case_id || transition.case_id || caseControl.case_id || "",
+    selected_gap_id: command.selection?.selected_ref || transition.selected_gap?.id || "",
+    recovery_action: stale ? "replan_from_fresh_state" : "repair_rejected_claim",
+    counts_toward_agent_repair: !stale
   };
 }
 
 function gateIssuePath(reason) {
   const match = String(reason || "").match(/^([a-zA-Z0-9_.\[\]-]+):/);
-  return match?.[1] || "case_transition";
+  return match?.[1] || "case_command";
 }
 
 function gateRecoveryAction(reasons = []) {

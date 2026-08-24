@@ -397,6 +397,41 @@ test("only a trusted ledger write can establish a Case binding", () => {
   });
 });
 
+test("an earlier accepted receipt keeps Case binding after the latest ledger write fails", () => {
+  const binding = extractAuthoritativeCaseBindingFromRun({
+    id: "RUN-CURRENT",
+    activity: {
+      ledger_write_receipts: [{
+        parsed: { written: true, case_control_result: { case_id: "CASE-20260810-005" } }
+      }],
+      ledger_write_result: {
+        parsed: { written: false, rejection: { kind: "claim_invalid", reason: "later claim failed" } }
+      }
+    }
+  });
+
+  assert.equal(binding.status, "bound");
+  assert.equal(binding.case_id, "CASE-20260810-005");
+  assert.deepEqual(binding.observations, [{
+    case_id: "CASE-20260810-005",
+    evidence: "activity.ledger_write_receipts[0]"
+  }]);
+});
+
+test("accepted receipts for different Cases produce an explicit binding conflict", () => {
+  const binding = extractAuthoritativeCaseBindingFromRun({
+    id: "RUN-CURRENT",
+    activity: {
+      ledger_write_receipts: [
+        { parsed: { written: true, case_control_result: { case_id: "CASE-20260810-005" } } },
+        { parsed: { written: true, command_receipt: { case_id: "CASE-20260810-006" } } }
+      ]
+    }
+  });
+  assert.equal(binding.status, "conflict");
+  assert.deepEqual(binding.case_ids, ["CASE-20260810-005", "CASE-20260810-006"]);
+});
+
 test("canonical completion requires a consistently closed and resolved Case", () => {
   const resolved = {
     location: "closed",
@@ -585,6 +620,42 @@ test("a Case produced by the task run ledger still resumes resolved closeout", a
   assert.equal(store.automation.active_task.case_id, "CASE-20260810-005");
   assert.equal(store.automation.active_task.case_binding_source, "runtime_ledger");
   assert.equal(store.automation.active_task.case_binding_run_id, "RUN-OLD");
+  assert.equal(starts.length, 1);
+  assert.deepEqual(starts[0].runtimeContext, { closeout_only: true, case_id: "CASE-20260810-005" });
+  coordinator.dispose();
+});
+
+test("detached startup recovers an earlier accepted Case receipt after a later failed write", async () => {
+  const starts = [];
+  const store = recoveryStore();
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{
+        id: "RUN-OLD", project_id: "local", status: "failed",
+        activity: {
+          ledger_write_receipts: [{
+            parsed: { written: true, case_control_result: { case_id: "CASE-20260810-005" } }
+          }],
+          ledger_write_result: {
+            parsed: { written: false, rejection: { kind: "claim_invalid", reason: "later transition rejected" } }
+          }
+        }
+      }];
+    },
+    async getProjectCaseState(_projectId, caseId) {
+      assert.equal(caseId, "CASE-20260810-005");
+      return {
+        location: "closed",
+        record: { id: caseId, status: "closed", updated_at: "2026-08-10T00:00:00Z", case_resolution: { status: "resolved" } }
+      };
+    }
+  });
+  const coordinator = unconfiguredCoordinator(runManager);
+
+  await coordinator.sync({ dispatch: false });
+
+  assert.equal(store.automation.active_task.case_id, "CASE-20260810-005");
+  assert.equal(store.automation.active_task.case_binding_source, "runtime_ledger");
   assert.equal(starts.length, 1);
   assert.deepEqual(starts[0].runtimeContext, { closeout_only: true, case_id: "CASE-20260810-005" });
   coordinator.dispose();

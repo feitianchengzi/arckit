@@ -25,6 +25,6 @@ workflow:
     - "protocol reconciliation result or recovery handoff"
     - "selected Case/gap or case_control"
     - "evidence and accepted Case delta"
-    - "case_transition or responsibility handoff"
+    - "host-bound semantic Case command, direct canonical transition, or responsibility handoff"
     - "loop-handoff/v2"
     - "round opening, arckit-round-closeout/v2 with invariant assessment, and fresh-read receipt"

@@ -203,6 +203,11 @@ function applyProjectStateDelta(record, delta, timestamp) {
       record.software_invariants.splice(index, 1);
     }
   }
+  for (const area of record.software_definition.decision_areas) {
+    area.gap_refs = unique(record.advancement.project_gaps
+      .filter((gap) => gap.affects.some((target) => target.kind === 'software_decision' && target.ref === area.id))
+      .map((gap) => gap.id));
+  }
   if (delta.selection_context_change) record.advancement.selection_context = { ...record.advancement.selection_context, ...structuredClone(delta.selection_context_change) };
   record.project.revision += 1;
   record.project.updated_at = timestamp;
@@ -339,6 +344,10 @@ function selectTransitionGap(record, transition) {
 export async function applyCaseTransition({ projectRoot, casePath = '', transition, runtimeResultRef = '', dryRun = false }) {
   if (dryRun) return applyUnlocked({ projectRoot, casePath, transition, runtimeResultRef, dryRun });
   return withProjectCommitLock(projectRoot, () => applyUnlocked({ projectRoot, casePath, transition, runtimeResultRef, dryRun: false }));
+}
+
+export async function applyCaseTransitionUnlocked({ projectRoot, casePath = '', transition, runtimeResultRef = '', dryRun = false }) {
+  return applyUnlocked({ projectRoot, casePath, transition, runtimeResultRef, dryRun });
 }
 
 async function applyUnlocked({ projectRoot, casePath, transition, runtimeResultRef, dryRun }) {

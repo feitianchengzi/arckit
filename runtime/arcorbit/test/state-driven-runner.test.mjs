@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildAgentRepairInstruction,
+  buildFreshReplanInstruction,
   decideSessionContinuation,
   effectiveAgentRepairLimit,
   effectiveNoProgressLimit,
@@ -168,7 +169,7 @@ test("recoverable ledger rejection enters an independent Agent repair budget", (
     runtimeResult: { round_result: "continue" },
     ledgerWriteResult: {
       written: false,
-      rejection: { recoverable: true, responsibility: "agent" }
+      rejection: { kind: "claim_invalid", recoverable: true, responsibility: "agent" }
     },
     handoff: agentHandoff(),
     noProgressRounds: 99,
@@ -264,7 +265,7 @@ test("Ledger rejection reason drives a targeted same-thread repair turn", async 
           return {
             written: false,
             rejection: {
-              kind: "ledger_gate_rejected",
+              kind: "claim_invalid",
               recoverable: true,
               responsibility: "agent",
               reason: "case_transition: invariant_assessment.judgments[2] not_relevant cannot carry evidence or gaps",
@@ -327,7 +328,7 @@ test("rejected terminal ledger write reaches Agent repair limit without Git clos
         return {
           written: false,
           rejection: {
-            kind: "ledger_gate_rejected",
+            kind: "claim_invalid",
             recoverable: true,
             responsibility: "agent",
             reason: "transition rejected"
@@ -342,6 +343,89 @@ test("rejected terminal ledger write reaches Agent repair limit without Git clos
   assert.equal(roundCalls, 2);
   assert.equal(result.closeout_result, null);
   assert.deepEqual(adapter.prompts, []);
+});
+
+test("snapshot stale fresh-reads and replans without consuming Agent repair budget", async () => {
+  const tasks = [];
+  let reads = 0;
+  let ledgerCalls = 0;
+  const adapter = closeoutAdapter();
+  const events = [];
+  const result = await runStateDrivenSession({
+    projectRoot: "/workspace/project",
+    stateStore: { async readSnapshot() { reads += 1; return snapshot(reads); } },
+    options: { agentAdapter: adapter, task: "finish", maxAgentRepairAttempts: 0, onEvent(event) { events.push(event); } },
+    dependencies: {
+      async runRound({ options }) {
+        tasks.push(options.task);
+        const loop = loopResult(terminalHandoff());
+        loop.agentLoopResult = agentSelectionResult(tasks.length);
+        return loop;
+      },
+      async writeRoundLedger() {
+        ledgerCalls += 1;
+        if (ledgerCalls === 1) return {
+          written: false,
+          rejection: {
+            kind: "snapshot_stale", recoverable: true, responsibility: "agent",
+            reason: "selection token is stale", recovery_action: "replan_from_fresh_state",
+            counts_toward_agent_repair: false
+          },
+          changed_files: []
+        };
+        return { written: true, changed_files: ["case.md"], case_transition_result: { case_resolution: { loop_handoff: terminalHandoff() } } };
+      }
+    }
+  });
+
+  assert.equal(result.stop_reason, "completed");
+  assert.equal(result.agent_repair_attempt_count, 0);
+  assert.equal(reads, 2);
+  const replan = JSON.parse(tasks[1]);
+  assert.equal(replan.phase, "replan_from_fresh_state");
+  assert.equal(replan.replan_contract.does_not_consume_agent_repair_budget, true);
+  assert.equal(events.some((event) => event.type === "runtime.agent_repair.requested"), false);
+  assert.equal(events.some((event) => event.type === "runtime.fresh_replan.requested"), true);
+});
+
+test("infrastructure rejection enters Runtime recovery without Agent repair", () => {
+  const decision = decideSessionContinuation({
+    runtimeResult: { round_result: "continue", ledger_stage: { writeback_required: true } },
+    ledgerWriteResult: {
+      written: false,
+      rejection: { kind: "infrastructure_failed", recoverable: true, responsibility: "runtime", recovery_action: "runtime_recovery" }
+    },
+    handoff: agentHandoff(),
+    agentRepairAttempts: 0,
+    maxAgentRepairAttempts: 2
+  });
+  assert.deepEqual(decision, { continue: false, madeProgress: false, reason: "infrastructure_recovery" });
+});
+
+test("repeated stale snapshots remain bounded by the no-progress guard", () => {
+  const decision = decideSessionContinuation({
+    runtimeResult: { round_result: "continue", ledger_stage: { writeback_required: true } },
+    ledgerWriteResult: {
+      written: false,
+      rejection: { kind: "snapshot_stale", recoverable: true, responsibility: "agent", recovery_action: "replan_from_fresh_state" }
+    },
+    handoff: agentHandoff(),
+    noProgressRounds: 1,
+    maxNoProgressRounds: 2,
+    agentRepairAttempts: 0,
+    maxAgentRepairAttempts: 0
+  });
+  assert.deepEqual(decision, { continue: false, madeProgress: false, reason: "snapshot_stale_limit" });
+});
+
+test("fresh replan instruction preserves rejected output without presenting a claim repair", () => {
+  const instruction = JSON.parse(buildFreshReplanInstruction({
+    rejection: { kind: "snapshot_stale", reason: "snapshot changed", issues: [] },
+    loop: { agentLoopResult: agentSelectionResult(1) }
+  }));
+  assert.equal(instruction.schema_version, "arckit-agent-fresh-replan-instruction/v1");
+  assert.equal(instruction.canonical_state.write_accepted, false);
+  assert.equal(instruction.replan_contract.does_not_consume_agent_repair_budget, true);
 });
 
 test("non-recoverable ledger rejection remains fail-closed", () => {

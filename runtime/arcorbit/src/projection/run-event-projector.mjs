@@ -34,6 +34,7 @@ function createRunActivity(run) {
     ledger_stage: null,
     gate_result: null,
     ledger_write_result: null,
+    ledger_write_receipts: [],
     closeout_result: null,
     agent_repairs: [],
     context_compactions: [],
@@ -237,7 +238,7 @@ function applyRunEvent(run, { parsed }) {
       applyRuntimeResult(activity, event.result, event.validation);
       break;
     case "runtime.ledger_write.completed":
-      applyLedgerWrite(activity, event.result);
+      applyLedgerWrite(activity, event.result, event);
       break;
     case "runtime.round_closeout":
       activity.round_closeout = event.receipt || null;
@@ -285,7 +286,7 @@ function applyRuntimeResult(activity, result, validation) {
   activity.artifact_ownership_scan = result.artifact_ownership_scan || activity.artifact_ownership_scan;
   activity.ledger_stage = result.ledger_stage || activity.ledger_stage;
   activity.loop_handoff = result.loop_handoff || activity.loop_handoff;
-  activity.case_id = result.case_transition?.case_id || result.case_control_handoff?.case_id || activity.case_id;
+  activity.case_id = result.case_command?.case_id || result.case_transition?.case_id || result.case_control_handoff?.case_id || activity.case_id;
   activity.validation_valid = validation?.valid ?? activity.validation_valid;
   activity.current_step = result.summary || activity.current_step;
 }
@@ -338,9 +339,13 @@ function gapRoundOutcome(receipt = {}) {
     || `${receipt.selected_gap?.id || "Gap"} closeout accepted.`;
 }
 
-function applyLedgerWrite(activity, result) {
+function applyLedgerWrite(activity, result, event = {}) {
   activity.ledger_write_result = { parsed: result || null };
   if (result?.written) {
+    appendAcceptedLedgerReceipt(activity, result, {
+      roundIndex: event.round_index,
+      acceptedAt: event.occurred_at
+    });
     activity.ledger_stage = { ...(activity.ledger_stage || {}), status: "written", writeback_required: false };
     activity.loop_handoff = result.case_transition_result?.case_resolution?.loop_handoff || activity.loop_handoff;
   }
@@ -384,12 +389,42 @@ function applyRunCommandResult(run, commandType, result) {
   if (commandType === "write-ledger") {
     activity.ledger_write_result = normalized;
     if (normalized.parsed?.written) {
+      appendAcceptedLedgerReceipt(activity, normalized.parsed);
       activity.ledger_stage = { ...(activity.ledger_stage || {}), status: "written", writeback_required: false };
       activity.loop_handoff = normalized.parsed.case_transition_result?.case_resolution?.loop_handoff || activity.loop_handoff;
     }
   }
   activity.updated_at = new Date().toISOString();
   return activity;
+}
+
+function appendAcceptedLedgerReceipt(activity, result, { roundIndex = 0, acceptedAt = "" } = {}) {
+  if (result?.written !== true) return;
+  activity.ledger_write_receipts ||= [];
+  const receipt = {
+    schema_version: "desktop-accepted-ledger-receipt/v1",
+    receipt_id: acceptedLedgerReceiptId(result),
+    round_index: Number(roundIndex || result?.round_closeout?.round || 0),
+    accepted_at: acceptedAt || result?.round_closeout?.occurred_at || new Date().toISOString(),
+    parsed: structuredClone(result)
+  };
+  if (!activity.ledger_write_receipts.some((item) => item.receipt_id === receipt.receipt_id)) {
+    activity.ledger_write_receipts.push(receipt);
+  }
+}
+
+function acceptedLedgerReceiptId(result) {
+  const caseId = result?.command_receipt?.case_id
+    || result?.case_control_result?.case_id
+    || result?.case_transition_result?.case_id
+    || "unknown-case";
+  const kind = result?.case_control_result ? "case-control" : result?.command_receipt ? "semantic-command" : "case-transition";
+  const commit = result?.post_commit_snapshot_token
+    || result?.round_closeout?.post_commit_snapshot_token
+    || result?.round_closeout?.occurred_at
+    || result?.runtime_result_ref
+    || "unknown-commit";
+  return `${kind}:${caseId}:${commit}`;
 }
 
 function updateRunActivity(run, patch = {}) {

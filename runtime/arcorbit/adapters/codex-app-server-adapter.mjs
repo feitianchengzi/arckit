@@ -847,7 +847,7 @@ function parseStructuredOutput({ text, completionParams, resultKind, error }) {
     if (error) {
       return {
         type: "runtime.agent_loop_result",
-        result: createInvalidAgentLoopResult(`Codex Agent failed before returning arckit-agent-loop-result/v1: ${codexErrorMessage(error)}`)
+        result: createInvalidAgentLoopResult(`Codex Agent failed before returning arckit-agent-loop-result/v2: ${codexErrorMessage(error)}`)
       };
     }
     try {
@@ -858,7 +858,7 @@ function parseStructuredOutput({ text, completionParams, resultKind, error }) {
     } catch (error) {
       return {
         type: "runtime.agent_loop_result",
-        result: createInvalidAgentLoopResult(`Codex Agent did not return valid arckit-agent-loop-result/v1 JSON: ${error.message}`)
+        result: createInvalidAgentLoopResult(`Codex Agent did not return valid arckit-agent-loop-result/v2 JSON: ${error.message}`)
       };
     }
   }
@@ -922,11 +922,11 @@ function parseJsonFromText(text) {
 
 function createInvalidAgentLoopResult(summary) {
   return {
-    schema_version: "arckit-agent-loop-result/v1",
+    schema_version: "arckit-agent-loop-result/v2",
     action: "handoff",
     summary,
     case_control: null,
-    case_transition: null,
+    case_command: null,
     changed_files: [],
     artifact_impacts: [],
     risks: [summary],
@@ -954,7 +954,7 @@ function codexErrorMessage(error) {
 }
 
 function createTerminalCodexTurnError(error) {
-  const failure = new Error(`Codex Agent turn failed before returning arckit-agent-loop-result/v1: ${codexErrorMessage(error)}`);
+  const failure = new Error(`Codex Agent turn failed before returning arckit-agent-loop-result/v2: ${codexErrorMessage(error)}`);
   failure.name = "CodexTurnError";
   failure.code = codexErrorCode(error) || "codex_turn_failed";
   failure.retryable = false;

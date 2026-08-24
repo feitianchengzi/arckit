@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { writeLedger } from "../src/ledger-writer.mjs";
 
-test("blocked Runtime gate returns a recoverable Agent rejection", async () => {
+test("blocked Runtime gate returns a classified claim rejection", async () => {
   const result = await writeLedger({
     projectRoot: "",
     runtimeResult: {},
@@ -11,7 +11,7 @@ test("blocked Runtime gate returns a recoverable Agent rejection", async () => {
 
   assert.equal(result.written, false);
   assert.equal(result.gate.allowed, false);
-  assert.equal(result.rejection.kind, "ledger_gate_rejected");
+  assert.equal(result.rejection.kind, "claim_invalid");
   assert.equal(result.rejection.recoverable, true);
   assert.equal(result.rejection.responsibility, "agent");
   assert.equal(result.rejection.reason, result.gate.reasons.join("\n"));
@@ -23,5 +23,6 @@ test("blocked Runtime gate returns a recoverable Agent rejection", async () => {
   assert.equal(result.rejection.case_id, "");
   assert.equal(result.rejection.selected_gap_id, "");
   assert.equal(result.rejection.recovery_action, "repair_rejected_claim");
+  assert.equal(result.rejection.counts_toward_agent_repair, true);
   assert.match(result.rejection.reason, /ledger_stage/);
 });

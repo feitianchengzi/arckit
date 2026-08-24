@@ -17,6 +17,7 @@ export function validateRuntimeResult(result) {
   const issues = [];
   const caseControlHandoff = result?.case_control_handoff;
   const isCaseControl = Boolean(caseControlHandoff && typeof caseControlHandoff === "object" && !Array.isArray(caseControlHandoff));
+  const hasCaseCommand = Boolean(result?.case_command && typeof result.case_command === "object" && !Array.isArray(result.case_command));
   const hasCaseTransition = Boolean(result?.case_transition && typeof result.case_transition === "object" && !Array.isArray(result.case_transition));
 
   requireObject(result, "result", issues);
@@ -37,10 +38,14 @@ export function validateRuntimeResult(result) {
   if (isCaseControl) {
     validateCaseControlHandoff(caseControlHandoff, issues);
     if (result?.case_transition !== null) issues.push({ path: "case_transition", message: "Case control writeback must not include a Case transition." });
+    if (hasCaseCommand) issues.push({ path: "case_command", message: "Case control writeback must not include a semantic Case command." });
+  } else if (hasCaseCommand) {
+    requireObject(result?.case_command, "case_command", issues);
+    if (result?.case_transition !== null) issues.push({ path: "case_transition", message: "Semantic command writeback must not expose an internal Case transition." });
   } else if (hasCaseTransition) {
     requireObject(result?.case_transition, "case_transition", issues);
   } else if (result?.ledger_stage?.writeback_required === true || result?.ledger_stage?.status === "gate_ready") {
-    issues.push({ path: "case_transition", message: "Ledger-ready results require a Case transition." });
+    issues.push({ path: "case_command", message: "Ledger-ready results require a semantic Case command or legacy Case transition." });
   }
   requireEnum(result?.round_state, [
     "planned",
