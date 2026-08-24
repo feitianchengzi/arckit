@@ -14,6 +14,7 @@ import { TaskSourceError } from "../src/task-source-adapter.mjs";
 
 test("automation task preserves only the remote human-authored intent", () => {
   assert.equal(buildAutomationTask({ title: "Fix login", content: "Repair and verify login." }), "Repair and verify login.");
+  assert.equal(buildAutomationTask({ title: "display title", content: "  Repair\nexactly.  " }), "  Repair\nexactly.  ");
 });
 
 test("queue remains deterministic and excludes ineligible tasks", () => {

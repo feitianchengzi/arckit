@@ -69,6 +69,13 @@ app.whenReady().then(async () => {
       await new Promise((resolve) => setTimeout(resolve, 120));
       const rows = [...document.querySelectorAll("tr[data-platform-task-select]")];
       const targetRow = rows[1] || rows[0];
+      const longTaskRow = document.querySelector('tr[data-platform-task-select="W-11"] .task-tree-title');
+      const workDisplayTitle = longTaskRow?.textContent || "";
+      const workInspectorTitle = document.querySelector('#platformWorkInspector h2')?.textContent || "";
+      const workInspectorContent = document.querySelector('#platformWorkInspector .task-markdown-detail')?.textContent || "";
+      const currentRunTitle = document.querySelector('#currentRunPanel h3');
+      const currentRunDisplayTitle = currentRunTitle?.textContent || "";
+      const currentRunSingleLine = Boolean(currentRunTitle && currentRunTitle.scrollHeight <= currentRunTitle.clientHeight + 1);
       const before = targetRow?.getAttribute("aria-selected");
       targetRow?.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
       const keyboardSelectionChanged = Boolean(targetRow && before !== "true" && targetRow.getAttribute("aria-selected") === "true");
@@ -91,6 +98,11 @@ app.whenReady().then(async () => {
         control_violation_details: controlViolationDetails,
         checkbox_violation_details: checkboxViolationDetails,
         keyboard_selection_changed: keyboardSelectionChanged,
+        work_display_title: workDisplayTitle,
+        work_inspector_title: workInspectorTitle,
+        work_inspector_content: workInspectorContent,
+        current_run_display_title: currentRunDisplayTitle,
+        current_run_single_line: currentRunSingleLine,
         core_navigation_vector_icons: navigation.filter((item) => item.querySelector("svg.ui-icon use")).length,
         core_navigation_text_icons: navigation.filter((item) => [...item.childNodes].some((node) => node.nodeType === Node.ELEMENT_NODE && node.matches("span") && node.textContent.trim())).length,
         table_font_px: Number.parseFloat(getComputedStyle(tableCell).fontSize),

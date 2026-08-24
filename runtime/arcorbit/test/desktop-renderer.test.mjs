@@ -1169,6 +1169,13 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /api\.listMessages\(localProjectId, run\.session_id\)/);
   assert.match(source, /message\.task_id/);
   assert.match(source, /Task Session/);
+  assert.match(source, /import \{ taskDisplayTitle \} from "\.\.\/\.\.\/src\/task-display-title\.mjs"/);
+  assert.match(source, /platformWorkInspector\.innerHTML = `<h2>待办 \$\{escapeHtml\(task\.id\)\}<\/h2><article class="task-markdown-detail">\$\{renderRestrictedMarkdown\(task\.content\)\}/);
+  assert.match(source, /taskInspector\.innerHTML = `<h2>待办 \$\{escapeHtml\(task\.id\)\}<\/h2><p>\$\{escapeHtml\(task\.content/);
+  assert.doesNotMatch(source, /taskInspector\.innerHTML = `<h2>\$\{escapeHtml\(task\.title\)\}/);
+  assert.doesNotMatch(source, /`\$\{task\.title\} \$\{task\.content\} \$\{task\.project_name\}/);
+  assert.match(styles, /\.run-heading h3 \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
+  assert.match(styles, /\.workbench-heading h1 \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/);
   assert.match(source, /Token 逻辑总量/);
   assert.match(source, /cached_input_tokens/);
   assert.match(source, /uncached_input_tokens/);

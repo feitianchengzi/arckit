@@ -315,12 +315,14 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 - 指标卡可过滤关联任务，但不改变自动化策略。
 - attention strip 始终位于当前运行和队列之前。
 - 当前运行只展示四个可理解阶段、当前动作和最近三条语义消息；细粒度事件不进入主页面。
+- 队列行、当前运行、attention item、最近完成项和确认对话使用同一个待办展示标题：正文连续空白折叠为一个空格，最多 64 个 Unicode grapheme clusters，超限时以前 63 个加 `…` 呈现。标题保持单行，完整正文不进入这些紧凑区域。
 - 队列表格先固定当前进行中任务，再按优先级降序、确认时间升序、项目 ID 和任务 ID 排序。
 - 最近完成项只展示结果摘要与审查入口，不自动打开对话。
 
 ### Intervention Workbench
 
 - 人工请求固定展示原因、决策问题、影响范围和恢复条件。
+- Workbench 顶部只显示当前待办的统一展示标题，并以任务 ID、session 和 Run 作为独立元数据；标题保持单行和固定高度，超长正文不会撑高工具栏。左侧上下文可展示一次保留换行的完整待办正文，不在顶部或任务 Inspector 再复制同源正文。
 - Workbench 打开时必须携带当前任务的 session 归属；归属不明的消息默认隐藏并进入数据异常证据，不回退加载项目默认会话。
 - 同一待办的初始执行、续接、人工输入、恢复与收束按时间合并；Run 或 continuation 归因保留在左右面板，不向共享消息列表插入专用分隔组件。
 - state-driven loop 的 Round、gap、阶段、writeback 与 handoff 变化进入左右面板的逐 gap 执行全貌；Agent 的进度说明、判断和最终结果呈现为共享对话主要内容，用户输入保持独立对齐。
@@ -396,4 +398,5 @@ Command Center 以 Workshop 实时事件及时发现参与项目变化，并以�
 | CLI 接管同步 | 只读取绑定 Case 的 canonical active/closed 状态；不轮询或解析终端 transcript，不以终端进程退出推断完成 |
 | 远端任务状态 | 活动任务持续核对版本，终止性变化立即进入恢复状态；领取前重新读取远端任务并确认执行人、状态和版本 |
 | Workbench 对话 | 先确认当前待办的 task session，再把该待办跨 Run 和 turn 聚合后的用户、Agent、reasoning、工具与权限消息交给 Chat 同一 Conversation Surface；不读取项目默认会话，也不把 Automation 专属状态、原始 delta、文件正文或命令输出作为普通消息 |
+| 待办标题 | 从当前完整正文生成统一的 64-grapheme 单行展示标题；历史 session 只读标签可保留生成时快照，活动任务、顶部标题和确认对话不得把快照当作正文或写回服务端 |
 | Workbench 执行全貌 | 同步聚合同一 task session 全部 Runtime runs 的首次开始、最终结束、实际 round、selected gap、Agent summary 和 trusted closeout；右栏先显示完整墙钟时间、累计 gap 数与逐 gap 结果，再按需加载 Run、round、turn 用量和软异常证据 |

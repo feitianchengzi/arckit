@@ -28,6 +28,17 @@ test("Codex CLI handoff prompt refuses an unbound task", () => {
   );
 });
 
+test("Codex CLI handoff uses the bounded single-line task label", () => {
+  const prompt = buildCodexCliHandoffPrompt({
+    caseId: "CASE-20260807-001",
+    taskTitle: `第一行\n${"👩‍💻".repeat(65)}`
+  });
+  const label = prompt.split("\n").find((line) => line.startsWith("待办：")).slice(3);
+  assert.equal(label.includes("\n"), false);
+  assert.equal(label.endsWith("…"), true);
+  assert.equal([...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(label)].length, 64);
+});
+
 test("macOS launch spec opens interactive codex in Terminal without codex exec", () => {
   const spec = buildInteractiveCodexLaunchSpec({
     projectPath: "/workspace/Project with space",

@@ -38,6 +38,8 @@ Chat 与 Intervention Workbench 共用一个 Conversation Surface。消息层级
 
 任务表是主数据组件，行选择不改变队列语义。当前运行使用阶段条、状态点和有限事件摘要表达进度。人工事项使用浅琥珀背景和明确主动作；恢复事项使用浅红或浅琥珀背景，并展示事实差异和责任方。
 
+待办在列表、队列、当前运行、人工事项和 Workbench 顶部等识别区域使用同一个单行展示标题。标题最多承载 64 个 Unicode grapheme clusters，超限时以 `…` 结束，容器保持单行和稳定高度；完整正文只在详情或任务上下文正文区展示一次并保留换行，不与同源标题上下重复形成双重内容层级。
+
 ConversationSurface 使用五类共享层级：ReasoningDisclosure 是默认收起的次级过程文本，AgentMessage 是无多余装饰的主要阅读内容，ToolActivity 与 ApprovalActivity 是单行图标、动词、目标、状态和有界动作，UserMessage 使用轻量区分的输入表面。Composer 以顶部分隔线固定在消息列底部，不通过重阴影覆盖内容。AutomationExecutionOverview 在侧栏内使用紧凑指标与纵向 gap 列表承载完整时间、轮数、目标、工作摘要和结果，不与对话正文争夺层级。
 
 ## 状态表达

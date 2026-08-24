@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { createWorkshopTaskSource, TASK_STATES, TaskSourceError } from "./task-source-adapter.mjs";
 import { selectEffectiveLoopHandoff } from "./kernel/effective-handoff.mjs";
 import { buildCodexCliHandoffPrompt, createInteractiveCodexCliLauncher } from "./interactive-cli-launcher.mjs";
+import { taskDisplayTitle } from "./task-display-title.mjs";
 
 const STATE_LABELS = Object.freeze({
   pending_review: "待评审",
@@ -80,6 +81,7 @@ export function createAutomationCoordinator({
     const activeTask = automation.active_task
       ? {
           ...automation.active_task,
+          task_title: taskDisplayTitle(automation.active_task.task_title, automation.active_task.task_id),
           local_project_path: automation.active_task.local_project_path
             || localIndex.get(automation.active_task.local_project_id)?.path
             || ""
@@ -132,6 +134,7 @@ export function createAutomationCoordinator({
         const run = runs.find((candidate) => candidate.id === item.run_id) || null;
         return {
           ...item,
+          title: taskDisplayTitle(item.title, item.task_id),
           local_project_id: item.local_project_id || run?.project_id || "",
           session_id: item.session_id || run?.session_id || "",
           run_status: run?.status || ""
@@ -597,7 +600,7 @@ export function createAutomationCoordinator({
           progress: automation.active_task ? "等待执行租约" : "等待执行",
           source_project_id: String(task.project_id),
           source_task_id: String(task.id),
-          source_task_title: task.title || "",
+          source_task_title: taskDisplayTitle(task.content, task.title || task.id),
           source_task_state: task.state,
           source_completion_at: completion.completed_at || "",
           source_run_id: completion.run_id || "",
@@ -763,7 +766,7 @@ export function createAutomationCoordinator({
     const caseId = caseBinding.case_id;
     const prompt = buildCodexCliHandoffPrompt({
       caseId,
-      taskTitle: task.title || current.task_title,
+      taskTitle: taskDisplayTitle(task.content, task.title || current.task_title || current.task_id),
       taskIntent: buildAutomationTask(task)
     });
     if (!current.thread_id) throw new Error("The active task has no persisted Codex thread to resume in CLI.");
@@ -1015,7 +1018,7 @@ export function createAutomationCoordinator({
           await setupReadinessPreflight(candidate.local_project_path);
           await runManager.preflightRun?.({
             projectId: candidate.local_project_id,
-            task: candidate.content || candidate.title || "",
+            task: buildAutomationTask(candidate),
             adapter: "codex-app-server"
           });
           endTodoLifecycleSpan(lifecycleContext, readinessSpan, { status: "ok" });
@@ -1057,7 +1060,7 @@ export function createAutomationCoordinator({
           next.active_task = {
             task_id: claimed.id,
             project_id: claimed.project_id,
-            task_title: claimed.title,
+            task_title: taskDisplayTitle(claimed.content, claimed.title || claimed.id),
             local_project_id: candidate.local_project_id,
             local_project_path: candidate.local_project_path,
             server_version: claimed.version,
@@ -1223,7 +1226,7 @@ export function createAutomationCoordinator({
           session_id: session.id,
           role: "user",
           kind: "automation-task",
-          content: task.content || task.title,
+          content: task.content ?? task.title ?? "",
           task_id: active.task_id
         });
       }
@@ -1599,7 +1602,7 @@ export function createAutomationCoordinator({
         automation.recent_completions.unshift({
           task_id: completed.id,
           project_id: completed.project_id,
-          title: completed.title,
+          title: taskDisplayTitle(completed.content, completed.title || completed.id),
           run_id: active.run_id,
           case_id: active.case_id || "",
           thread_id: active.thread_id || "",
@@ -1850,7 +1853,7 @@ export function createAutomationCoordinator({
       return existing;
     }
     const session = await runManager.createSession(active.local_project_id, {
-      title: `待办 · ${task?.title || active.task_title || active.task_id}`,
+      title: `待办 · ${taskDisplayTitle(task?.content, task?.title || active.task_title || active.task_id)}`,
       kind: "automation-task",
       task_id: active.task_id,
       remote_project_id: active.project_id
@@ -2443,7 +2446,7 @@ function reconcileUnassociatedInProgress(automation, occurredAt) {
   automation.active_task = {
     task_id: task.id,
     project_id: projectId,
-    task_title: task.title,
+    task_title: taskDisplayTitle(task.content, task.title || task.id),
     local_project_id: automation.project_bindings[projectId],
     local_project_path: "",
     server_version: task.version,
@@ -2566,7 +2569,7 @@ function timestamp(value) {
 }
 
 export function buildAutomationTask(task) {
-  return String(task?.content || task?.title || "").trim();
+  return String(task?.content ?? task?.title ?? "");
 }
 
 export function buildInterventionTask(message) {
@@ -2594,7 +2597,7 @@ function feedbackActiveExecution(item, project, { phase = "starting" } = {}) {
     feedback_id: item.feedback_id,
     task_id: item.source_task_id,
     project_id: item.source_project_id,
-    task_title: item.source_task_title,
+    task_title: taskDisplayTitle(item.source_task_title, item.source_task_id),
     local_project_id: item.local_project_id,
     local_project_path: project?.path || "",
     phase,

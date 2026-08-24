@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { authProjection, DEFAULT_WORKSHOP_BASE_URL, normalizeTaskSourceSettings } from "../task-source-adapter.mjs";
+import { taskDisplayTitle } from "../task-display-title.mjs";
 
 export function createDesktopStore({ dataDir, runsDir, storePath }) {
   let storeQueue = Promise.resolve();
@@ -154,7 +155,9 @@ function normalizeDesktopSession(value, projectIdValue) {
     id: String(value.id),
     project_id: String(value.project_id || projectIdValue),
     kind,
-    title: String(value.title || (kind === "chat" ? "New chat" : "Automation")),
+    title: kind === "automation-task"
+      ? normalizeAutomationSessionTitle(value.title)
+      : String(value.title || (kind === "chat" ? "New chat" : "Automation")),
     thread_id: String(value.thread_id || ""),
     turn_id: String(value.turn_id || ""),
     retry_client_request_id: kind === "chat" ? String(value.retry_client_request_id || "") : "",
@@ -164,6 +167,14 @@ function normalizeDesktopSession(value, projectIdValue) {
     created_at: String(value.created_at || ""),
     updated_at: String(value.updated_at || value.created_at || "")
   };
+}
+
+function normalizeAutomationSessionTitle(value) {
+  const title = String(value || "Automation");
+  const prefix = "待办 · ";
+  return title.startsWith(prefix)
+    ? `${prefix}${taskDisplayTitle(title.slice(prefix.length), "Automation")}`
+    : taskDisplayTitle(title, "Automation");
 }
 
 export function normalizePlatformState(value = {}, automation = defaultAutomationState()) {
@@ -349,7 +360,7 @@ export function normalizeAutomationState(value = {}) {
     snapshot: {
       user: snapshot.user && typeof snapshot.user === "object" ? snapshot.user : null,
       projects: Array.isArray(snapshot.projects) ? snapshot.projects : [],
-      tasks: Array.isArray(snapshot.tasks) ? snapshot.tasks : [],
+      tasks: Array.isArray(snapshot.tasks) ? snapshot.tasks.map(normalizeStoredTask).filter(Boolean) : [],
       synced_at: String(snapshot.synced_at || ""),
       source_status: ["logged_out", "unconfigured", "syncing", "healthy", "degraded", "unauthenticated", "error"].includes(snapshot.source_status)
         ? snapshot.source_status
@@ -362,7 +373,24 @@ export function normalizeAutomationState(value = {}) {
     recovery_items: Array.isArray(value.recovery_items)
       ? value.recovery_items.slice(0, 50).map((item) => ({ ...item, responsibility: "operator" }))
       : [],
-    recent_completions: Array.isArray(value.recent_completions) ? value.recent_completions : []
+    recent_completions: Array.isArray(value.recent_completions)
+      ? value.recent_completions.map((item) => ({
+          ...item,
+          title: taskDisplayTitle(item?.title, item?.task_id)
+        }))
+      : []
+  };
+}
+
+function normalizeStoredTask(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const content = String(value.content ?? value.title ?? "");
+  const displayTitle = taskDisplayTitle(content, value.title || value.id);
+  return {
+    ...value,
+    display_title: displayTitle,
+    title: displayTitle,
+    content
   };
 }
 
@@ -405,6 +433,7 @@ function normalizeActiveTask(value) {
   const caseId = String(value.case_id || "");
   return {
     ...value,
+    task_title: taskDisplayTitle(value.task_title, value.task_id),
     execution_kind: value.execution_kind === "acceptance_feedback" ? "acceptance_feedback" : "todo",
     feedback_id: String(value.feedback_id || ""),
     case_id: caseId,
@@ -441,7 +470,7 @@ export function normalizeAcceptanceFeedbackItem(value) {
     progress: String(value.progress || "等待执行"),
     source_project_id: String(value.source_project_id || ""),
     source_task_id: taskId,
-    source_task_title: String(value.source_task_title || ""),
+    source_task_title: taskDisplayTitle(value.source_task_title, taskId),
     source_task_state: ["completed", "accepted"].includes(value.source_task_state) ? value.source_task_state : "completed",
     source_completion_at: String(value.source_completion_at || ""),
     source_run_id: String(value.source_run_id || ""),

@@ -1,6 +1,7 @@
 import { createWorkshopPlatformAdapter } from "./workshop-platform-adapter.mjs";
 import { signFeedbackAttachmentUrl, uploadFeedbackAttachmentWithPolicy } from "./feedback-v2-attachment-access.mjs";
 import { signWorkTaskAttachmentUrl, uploadWorkTaskAttachmentResource } from "./work-task-attachment-resource.mjs";
+import { taskDisplayTitle } from "./task-display-title.mjs";
 
 export const TASK_STATES = Object.freeze([
   "pending_review",
@@ -488,11 +489,14 @@ export function normalizeTask(value, fallbackProjectId = "") {
   const projectId = scalarId(value.project_id ?? value.projectId ?? fallbackProjectId);
   if (!id || !projectId) return null;
   const state = TASK_STATES.includes(value.state) ? value.state : String(value.state || "unknown");
+  const content = String(value.content ?? value.description ?? value.title ?? "");
+  const displayTitle = taskDisplayTitle(content, value.name || `Task ${id}`);
   return {
     id,
     project_id: projectId,
-    title: String(value.title || value.content || value.name || `Task ${id}`).trim(),
-    content: String(value.content || value.description || value.title || "").trim(),
+    display_title: displayTitle,
+    title: displayTitle,
+    content,
     father_id: scalarId(value.father_id ?? value.fatherId),
     state,
     priority: normalizePriority(value.priority),

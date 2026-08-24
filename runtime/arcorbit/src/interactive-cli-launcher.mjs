@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { taskDisplayTitle } from "./task-display-title.mjs";
 
 export function buildCodexCliHandoffPrompt({ caseId = "", taskTitle = "", taskIntent = "" } = {}) {
   if (!/^CASE-\d{8}-\d{3}$/.test(String(caseId))) {
@@ -9,7 +10,7 @@ export function buildCodexCliHandoffPrompt({ caseId = "", taskTitle = "", taskIn
     "",
     "你正在从 ArcOrbit 接管一个进行中的待办。",
     `当前已绑定 Case：${caseId}。先读取该 Case 的 fresh canonical state，再继续推进。`,
-    taskTitle ? `待办：${taskTitle}` : "",
+    taskTitle ? `待办：${taskDisplayTitle(taskTitle)}` : "",
     "自动执行 state-driven loop 直到 Case 完成，仅在确实需要人工介入时暂停。",
     "继续使用当前对话上下文，并以 fresh Project/Case State 和稳定事实源覆盖冲突的旧事实。"
   ].filter((line, index, lines) => line || (index > 0 && lines[index - 1])).join("\n");

@@ -42,11 +42,11 @@
 - automation-workspace/ 自动化指挥中心：可靠实时同步、普通待办与验收问题双队列、人工 Gate、Runtime/CLI 接力与恢复。✅
   - default.html 指挥中心线框：顶部产品范围、现代补取、旧服务兼容、立即同步、双队列、人工等待、Runtime/CLI 接管与恢复。✅ (313行)
   - authentication.html 账号设置线框：已登录摘要、七天无活动失效恢复与退出。✅ (51行)
-  - intervention-workbench.html 介入工作台线框：Chat 共享消息面、固定三栏与 Composer、完整时间及逐 Gap 执行全貌。✅ (98行)
+  - intervention-workbench.html 介入工作台线框：单行有界待办标题、Chat 共享消息面、固定三栏与 Composer、完整时间及逐 Gap 执行全貌。✅ (99行)
   - runtime-recovery.html 恢复中心线框：领取冲突、启动失败、用户说明续跑、安全停止、外部状态变化与任务源异常。✅ (137行)
-  - interaction.md 自动化指挥中心交互：现代游标恢复、旧服务无 ID 通知、立即同步、全局产品范围、双队列、人工 Gate 与 Runtime/CLI 接力。✅ (399行)
+  - interaction.md 自动化指挥中心交互：统一待办展示标题、现代游标恢复、双队列、人工 Gate 与 Runtime/CLI 接力。✅ (402行)
 - task-browser/ Work 同屏任务浏览：创建和编辑产品限定待办，并以七状态列表和右侧 Inspector 执行检查、验收与受控人工处置。✅
   - default.html Work 任务浏览线框：顶部产品范围、面板内七状态、同屏 Inspector、待评审确认、运行/验收、恢复与冲突。✅ (217行)
   - daily-work.html Work 日常管理子视图：弹出菜单筛选、单行父子任务树、评论图片自动加载与独立浏览窗口。✅ (60行)
   - task-form.html 待办表单子视图：产品联动成员/父待办/标签、语义优先级和标签生命周期管理。✅ (45行)
-  - interaction.md 任务浏览交互：弹出菜单筛选、单行任务树、评论图片独立浏览、产品限定维护、验收问题与受控状态操作。✅ (261行)
+  - interaction.md 任务浏览交互：统一待办展示标题、详情正文去重、弹出菜单筛选、单行任务树、评论图片独立浏览与受控状态操作。✅ (264行)

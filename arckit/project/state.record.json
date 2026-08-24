@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-24T10:51:13.623Z",
-    "revision": 211
+    "updated_at": "2026-08-24T12:51:59.665Z",
+    "revision": 214
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "在保留 Agent Loop 结构化输出契约及 Automation 侧栏机器信息的同时，让 Automation 人工介入时间线生成、投影、持久化并按原始 item 独立保留面向用户的 Agent 进度、判断和结果消息。",
+      "current_focus": "让服务端待办只保存一个完整文本字段；所有标题场景均由该文本生成单行、限长并带省略号的展示文本，内容场景继续展示完整文本及换行。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -147,17 +147,19 @@
         "evidence_expectation": "Durable product evidence sufficient to recover the capability decisions.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保留 Setup Readiness、受监督的一待办一 thread Automation、trusted ledger transition、介入/恢复、验收反馈、Workshop 平台组合、Work 日常管理与产品反馈能力。Personal / Chat 升级为绑定本地 Product Workspace 的真实 Codex 自由对话，支持持久会话、固定 thread、流式消息、工具与审批状态、停止、失败/重启恢复、重命名和安全删除；会话列表直接按 Product Workspace 分组，每个项目默认展示最近 10 个会话并提供项目历史入口，新对话在首条消息前显式显示并允许切换目标工作区；Chat 不创建或转换 Idea、Work、Task、Case、ledger 或 Automation Run。Idea、Release、Operations 和 Engineering 继续作为 planning-only 工作空间。既有 Workshop realtime、Work、Feedback、Organization、Domain Profile、Automation human Gate 和分发边界保持不变。Work 使用弹出式多维筛选与单行无按钮列表，完整动作归于 Inspector；评论图片随时间线默认加载，点击后进入具备缩放、适配、实际大小、旋转、平移、重置和另存为的独立窗口。Feedback 使用不会随结果数量拉伸的单行列表，详情在独立内部区域滚动；反馈原文与沟通图片默认加载、支持局部失败重试，并与 Work 共用具备缩放、适配、实际大小、旋转、平移、重置和另存为的受控独立图片窗口；Feedback 默认逐项目探测 Workshop 双向会话能力，真实不可用时回退 V1。Automation 人工介入的消息列表直接复用 Chat Conversation Surface；Automation 的 gap/round、ledger、证据、恢复和执行控制能力保持完整并归入左右面板，执行总览提供完整墙钟时间、累计 gap 轮数及逐 gap 的目标、工作和结果。",
-          "reason": "操作者明确补充了 Feedback 列表、滚动和图片体验，生产实现及长期规格已兑现该要求。",
+          "statement": "ArcOrbit 保留 Setup Readiness、受监督的一待办一 thread Automation、trusted ledger transition、介入/恢复、验收反馈、Workshop 平台组合、Work 日常管理与产品反馈能力。Personal / Chat 升级为绑定本地 Product Workspace 的真实 Codex 自由对话，支持持久会话、固定 thread、流式消息、工具与审批状态、停止、失败/重启恢复、重命名和安全删除；会话列表直接按 Product Workspace 分组，每个项目默认展示最近 10 个会话并提供项目历史入口，新对话在首条消息前显式显示并允许切换目标工作区；Chat 不创建或转换 Idea、Work、Task、Case、ledger 或 Automation Run。Idea、Release、Operations 和 Engineering 继续作为 planning-only 工作空间。既有 Workshop realtime、Work、Feedback、Organization、Domain Profile、Automation human Gate 和分发边界保持不变。Work 使用弹出式多维筛选与单行无按钮列表，完整动作归于 Inspector；评论图片随时间线默认加载，点击后进入具备缩放、适配、实际大小、旋转、平移、重置和另存为的独立窗口。Feedback 使用不会随结果数量拉伸的单行列表，详情在独立内部区域滚动；反馈原文与沟通图片默认加载、支持局部失败重试，并与 Work 共用具备缩放、适配、实际大小、旋转、平移、重置和另存为的受控独立图片窗口；Feedback 默认逐项目探测 Workshop 双向会话能力，真实不可用时回退 V1。Automation 人工介入的消息列表直接复用 Chat Conversation Surface；Automation 的 gap/round、ledger、证据、恢复和执行控制能力保持完整并归入左右面板，执行总览提供完整墙钟时间、累计 gap 轮数及逐 gap 的目标、工作和结果。Workshop Task 只保存一个完整 `content`；ArcOrbit 在所有标题场景统一生成最多 64 个 Unicode grapheme clusters、超限以 `…` 结束的单行展示标题，详情只展示一次保留换行的完整正文。",
+          "reason": "保留既有能力决定，并接受本轮已持久化的待办单字段、统一展示标题和详情去重产品契约。",
           "evidence": [
             "Current operator input, 2026-08-24",
             "arckit/spec/agentic-software-development/arcorbit-platform-capabilities.md",
+            "arckit/spec/agentic-software-development/arcorbit-work-management.md",
+            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
             "runtime/arcorbit/desktop/renderer/renderer.js",
             "runtime/arcorbit/src/work-task-image-viewer.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "当 Feedback 列表密度、详情滚动所有权、图片资源来源或共享查看器能力变化时重审。",
-          "revision": 24
+          "resume_condition": "当待办服务端文本模型、展示标题长度/Unicode 规则、详情内容所有权、Feedback 体验或 Automation 标题消费面变化时重审。",
+          "revision": 25
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation"
@@ -189,18 +191,23 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保持 Personal、Product Lifecycle、Organization 三组导航和既有 Work、Automation、Feedback、Organization、Setup、账户及产品反馈语义。Personal / Chat 使用按 Product Workspace 分组的会话列表、独立 transcript 和 Composer：页面无需预先选择项目，每个项目默认显示最近 10 个会话并在超出时从组底部展开完整历史；新对话在首条非空消息前显式显示目标工作区，默认取当前会话或最近成功使用的可用工作区，允许保留草稿快速切换，发送后会话固定绑定该本地 Product Workspace 和 Codex thread。支持选择、重命名、删除、跨页面后台运行和重启恢复。消息以稳定 item 流式更新，支持 Markdown、代码复制、折叠非空 reasoning、单行工具状态、用户审批和智能自动滚动。starting、running、waiting approval 状态均可停止；interrupt 保留部分回答，继续操作会在同一 thread 启动新 turn。删除活动会话先等待 interrupt 终态，失败时不部分删除。没有可用本地工作区时允许保留草稿但禁止发送，并提供配置恢复入口。Chat 不调用 state-driven Runtime，不转换其他对象；Automation task thread、human Gate、Composer 与执行控制保持独立，但人工介入中间消息区直接复用 Chat Conversation Surface。Idea、Release、Operations 和 Engineering 继续呈现计划交互。Chat 返回页面时先用缓存会话和 transcript 立即切换，再后台刷新并显示同步或失败状态；Work 横排筛选使用弹出菜单且列表单行无按钮，评论图片自动加载且在独立窗口完成常用查看操作，单图失败不阻塞时间线；Feedback 列表中的每条记录保持固定单行高度且不因记录较少而拉伸，详情由右栏内部滚动容器承载且滚动不改变列表位置，反馈原文和双向沟通图片默认加载，单图失败不阻塞详情并可就地重试，点击图片后与 Work 共用受控独立窗口。Automation 左栏承载任务、项目、边界、当前选择和介入控制；右栏承载完整执行墙钟时间、累计 gap 轮数、逐 gap 目标/工作/结果，以及 Run、token、Gate、ledger、Git、证据和结构化结果。Automation 专属 loop/round/ledger 事件不进入中间对话流。Work 待办状态切换必须立即确认新的选中状态，并显示与完整查询键匹配的缓存结果或明确加载态；远端刷新在后台执行，旧请求不得覆盖较新的选择，Automation、认证、组织、成员与 Feedback 刷新不得阻塞该交互，大列表不得通过同步整表重建阻塞 Renderer。",
-          "reason": "本轮修复明确了 Feedback 列表、详情和图片之间的交互所有权及失败恢复语义。",
+          "statement": "ArcOrbit 保持 Personal、Product Lifecycle、Organization 三组导航和既有 Work、Automation、Feedback、Organization、Setup、账户及产品反馈语义。Personal / Chat 使用按 Product Workspace 分组的会话列表、独立 transcript 和 Composer：页面无需预先选择项目，每个项目默认显示最近 10 个会话并在超出时从组底部展开完整历史；新对话在首条非空消息前显式显示目标工作区，默认取当前会话或最近成功使用的可用工作区，允许保留草稿快速切换，发送后会话固定绑定该本地 Product Workspace 和 Codex thread。支持选择、重命名、删除、跨页面后台运行和重启恢复。消息以稳定 item 流式更新，支持 Markdown、代码复制、折叠非空 reasoning、单行工具状态、用户审批和智能自动滚动。starting、running、waiting approval 状态均可停止；interrupt 保留部分回答，继续操作会在同一 thread 启动新 turn。删除活动会话先等待 interrupt 终态，失败时不部分删除。没有可用本地工作区时允许保留草稿但禁止发送，并提供配置恢复入口。Chat 不调用 state-driven Runtime，不转换其他对象；Automation task thread、human Gate、Composer 与执行控制保持独立，但人工介入中间消息区直接复用 Chat Conversation Surface。Idea、Release、Operations 和 Engineering 继续呈现计划交互。Chat 返回页面时先用缓存会话和 transcript 立即切换，再后台刷新并显示同步或失败状态；Work 横排筛选使用弹出菜单且列表单行无按钮，评论图片自动加载且在独立窗口完成常用查看操作，单图失败不阻塞时间线；Feedback 列表中的每条记录保持固定单行高度且不因记录较少而拉伸，详情由右栏内部滚动容器承载且滚动不改变列表位置，反馈原文和双向沟通图片默认加载，单图失败不阻塞详情并可就地重试，点击图片后与 Work 共用受控独立窗口。Automation 左栏承载任务、项目、边界、当前选择和介入控制；右栏承载完整执行墙钟时间、累计 gap 轮数、逐 gap 目标/工作/结果，以及 Run、token、Gate、ledger、Git、证据和结构化结果。Automation 专属 loop/round/ledger 事件不进入中间对话流。Work 待办状态切换必须立即确认新的选中状态，并显示与完整查询键匹配的缓存结果或明确加载态；远端刷新在后台执行，旧请求不得覆盖较新的选择，Automation、认证、组织、成员与 Feedback 刷新不得阻塞该交互，大列表不得通过同步整表重建阻塞 Renderer。待办列表、队列、当前运行、确认对话和 Intervention Workbench 顶部统一显示折叠空白且最多 64 个 Unicode grapheme clusters 的单行标题；Work 与 Automation 详情只展示一次保留换行的完整正文，Workbench 顶部保持固定高度。",
+          "reason": "保留既有交互决定，并接受本轮 Task Browser 与 Automation Workbench 的统一标题、正文去重及单行高度规则。",
           "evidence": [
             "Current operator input, 2026-08-24",
             "arckit/interaction/platform-workspace/interaction.md",
             "arckit/interaction/platform-workspace/default.html",
+            "arckit/interaction/task-browser/interaction.md",
+            "arckit/interaction/task-browser/daily-work.html",
+            "arckit/interaction/automation-workspace/interaction.md",
+            "arckit/interaction/automation-workspace/default.html",
+            "arckit/interaction/automation-workspace/intervention-workbench.html",
             "runtime/arcorbit/desktop/renderer/styles.css",
             "runtime/arcorbit/desktop/renderer/renderer.js"
           ],
           "confidence": "high",
-          "resume_condition": "当 Feedback 列表布局、详情区域、附件加载或图片窗口交互变化时重审。",
-          "revision": 37
+          "resume_condition": "当待办标题归一化、详情正文所有权、Automation 顶部布局、Feedback 列表/图片或 Work 查询交互变化时重审。",
+          "revision": 38
         },
         "gap_refs": []
       },
@@ -340,17 +347,19 @@
         "evidence_expectation": "Durable technical evidence sufficient to recover the engineering foundation.",
         "decision": {
           "status": "settled",
-          "statement": "Arckit 继续使用 repository-owned Markdown/JSON state 与 Node.js ESM ledger CLI；ArcOrbit 继续作为 Electron Desktop/Runtime host，并保留 policy-neutral Runtime Kernel、persistent one-thread-per-todo、Platform Coordinator、restricted Workshop adapters、utilityProcess Runtime、trusted in-process ledger entrypoints、project-only skill provisioning、Feedback SDK WebContents 和现代/旧版 realtime 协议边界。真实 Chat 的 accepted architecture 在 main process 增加独立 ChatCoordinator 和 kind=chat Store ownership，并从现有 Codex adapter 中抽取可复用 Conversation 层：app-server client、persistent thread start/resume、turn start/interrupt、通用事件 projector、token usage 和异步 approval provider。State-driven Runtime 只在该基础层之上保留 using-arckit、Agent Loop schema、fresh ledger snapshot、Gap Loop、Automation lease 和 closeout 语义，Chat 不复用这些语义。每个活动 Chat session 拥有与其固定项目根对应的 adapter owner；不同 Chat session 和 Automation owner 不共享活动 turn 或 lease。typed Chat IPC 只提供 snapshot/create/select/rename/delete/send/interrupt/approvalDecision；select 只持久化经 main process 验证的 Chat session 选择，不改变 draft、thread 或 session updated_at。Renderer 不能提供任意 cwd、thread id、Codex method、文件权限或 shell command。Chat 与 Automation Renderer 共享单一 Conversation Surface 模块和 scroll-follow/event-binding 行为，消费者仅提供规范化消息、Composer policy 与回调；Automation 专属类型由左右面板消费。Run Activity 以结构化 gap_rounds 持久化 round selection/closeout/work summary，任务级执行总览跨 transcript Runs 聚合，不解析被截断的消息文本。ArcOrbit Automation Agent 只输出绑定 fresh snapshot 的 Semantic Case Command；Agent 显式决定事实、Gap、影响、Project decision 与 invariant judgment 的业务语义，trusted Ledger Command Materializer 在 commit lock 内确定性分配身份与 revision、解析 local handle、展开反向关系、编译内部 Transition、完整校验 projected state 并原子提交，Runtime 不复制物化规则。Work 任务浏览采用独立的 query-owned 读投影：Renderer 以 Workset、项目范围、状态、搜索、多维筛选与日期组成稳定查询键，保存有界 stale-while-revalidate 缓存和请求代际；main-process Platform Coordinator 只提供该查询所需的分页或窗口化任务树、状态计数与标签元数据，不通过通用全量 snapshot 把 Automation、认证、组织、成员或 Feedback 串入状态切换。Renderer 使用分页或虚拟化与事件委托约束大列表同步 DOM 成本；Workshop 始终是任务真相源，查询缓存不成为第二真相源。",
-          "reason": "诊断同时证明协调层请求扇出和 Renderer 整表重建，需要在既有主进程信任边界内建立专用 Work 查询架构，同时保留 Semantic Case Command 与 Ledger Materializer 的现行责任分层。",
+          "statement": "Arckit 继续使用 repository-owned Markdown/JSON state 与 Node.js ESM ledger CLI；ArcOrbit 继续作为 Electron Desktop/Runtime host，并保留 policy-neutral Runtime Kernel、persistent one-thread-per-todo、Platform Coordinator、restricted Workshop adapters、utilityProcess Runtime、trusted in-process ledger entrypoints、project-only skill provisioning、Feedback SDK WebContents 和现代/旧版 realtime 协议边界。真实 Chat 的 accepted architecture 在 main process 增加独立 ChatCoordinator 和 kind=chat Store ownership，并从现有 Codex adapter 中抽取可复用 Conversation 层：app-server client、persistent thread start/resume、turn start/interrupt、通用事件 projector、token usage 和异步 approval provider。State-driven Runtime 只在该基础层之上保留 using-arckit、Agent Loop schema、fresh ledger snapshot、Gap Loop、Automation lease 和 closeout 语义，Chat 不复用这些语义。每个活动 Chat session 拥有与其固定项目根对应的 adapter owner；不同 Chat session 和 Automation owner 不共享活动 turn 或 lease。typed Chat IPC 只提供 snapshot/create/select/rename/delete/send/interrupt/approvalDecision；select 只持久化经 main process 验证的 Chat session 选择，不改变 draft、thread 或 session updated_at。Renderer 不能提供任意 cwd、thread id、Codex method、文件权限或 shell command。Chat 与 Automation Renderer 共享单一 Conversation Surface 模块和 scroll-follow/event-binding 行为，消费者仅提供规范化消息、Composer policy 与回调；Automation 专属类型由左右面板消费。Run Activity 以结构化 gap_rounds 持久化 round selection/closeout/work summary，任务级执行总览跨 transcript Runs 聚合，不解析被截断的消息文本。ArcOrbit Automation Agent 只输出绑定 fresh snapshot 的 Semantic Case Command；Agent 显式决定事实、Gap、影响、Project decision 与 invariant judgment 的业务语义，trusted Ledger Command Materializer 在 commit lock 内确定性分配身份与 revision、解析 local handle、展开反向关系、编译内部 Transition、完整校验 projected state 并原子提交，Runtime 不复制物化规则。Work 任务浏览采用独立的 query-owned 读投影：Renderer 以 Workset、项目范围、状态、搜索、多维筛选与日期组成稳定查询键，保存有界 stale-while-revalidate 缓存和请求代际；main-process Platform Coordinator 只提供该查询所需的分页或窗口化任务树、状态计数与标签元数据，不通过通用全量 snapshot 把 Automation、认证、组织、成员或 Feedback 串入状态切换。Renderer 使用分页或虚拟化与事件委托约束大列表同步 DOM 成本；Workshop 始终是任务真相源，查询缓存不成为第二真相源。Workshop Task 的唯一文本事实是完整 `content`；ArcOrbit 在共享归一化边界生成最多 64 个 Unicode extended grapheme clusters 的 `display_title`，超限取前 63 个并追加 `…`。该值只服务 Work/Automation/session/Activity/CLI 展示，可保存历史只读快照但不参与搜索、Agent intent、mutation 或服务端写回。",
+          "reason": "保留既有技术基础，并接受本轮明确的共享 Task 文本投影、Unicode 计数和派生持久化边界。",
           "evidence": [
             "runtime/arcorbit/desktop/renderer/renderer.js:653-735,1165-1187",
             "runtime/arcorbit/src/platform-coordinator.mjs:61-174",
             "runtime/arcorbit/src/workshop-platform-adapter.mjs:85-100",
-            "Controlled Electron latency and scale measurements, 2026-08-24"
+            "Controlled Electron latency and scale measurements, 2026-08-24",
+            "arckit/tech/arcorbit/platform-composition-solution.md",
+            "arckit/spec/agentic-software-development/arcorbit-work-management.md"
           ],
           "confidence": "high",
-          "resume_condition": "当 Work 查询 source-of-truth、查询键、缓存所有权、分页或虚拟化、Platform IPC 边界，或 Semantic Case Command/Materializer 责任发生变化时重审。",
-          "revision": 31
+          "resume_condition": "当 Work 查询边界、Task 文本 source-of-truth、标题 Unicode/长度规则、派生快照所有权、Platform IPC 或 Semantic Case Command/Materializer 责任变化时重审。",
+          "revision": 32
         },
         "gap_refs": [
           "GAP-runtime-resilience-and-adapters"
@@ -385,16 +394,20 @@
         "evidence_expectation": "Durable validation evidence proportionate to the identified risks.",
         "decision": {
           "status": "settled",
-          "statement": "既有协议、Runtime、realtime、Work 和安全验证义务保持不变。真实 Chat 还必须以 adapter、Store、Coordinator、typed main/preload IPC、Renderer 和真实 app-server smoke 的跨层证据证明：首条消息幂等创建 session/thread；连续 turn resume 同一 thread；不同 Chat/Automation owner 隔离；稳定 item streaming、Markdown、reasoning/tool 投影和智能滚动正确；starting/running/waiting approval 均可 interrupt；部分输出和重启恢复不重复请求；活动删除先 interrupt 且无部分删除；审批异步并 fail closed；Renderer 无法覆盖 cwd/thread/method/command；Chat 不触发 using-arckit、ledger、Workshop mutation、Automation lease 或 human Gate。Chat 会话导航还必须证明：会话不受全局项目范围过滤并按 Product Workspace 确定分组；每组默认最多 10 条且仅在超出时出现对应历史入口；展开/收起不改变选择、草稿或后台 turn；新对话持续显示目标工作区，首次发送前切换保留草稿且不创建 session/thread，发送后不能迁移既有 thread/cwd。Automation 介入还必须证明 Chat 与 Automation 使用同一 Conversation Surface 实现和一致的 Markdown、reasoning、tool、approval/error、复制、外链与智能滚动行为；结构化跨 Run 汇总必须覆盖完整墙钟时间、累计 gap 轮数、逐 gap 目标/工作/结果、进行中和旧 Activity 兼容，并回归 Gate、恢复、ledger、Git、证据和执行控制未降级。Work 状态切换还必须用受控延迟和大列表 Electron 场景证明：选中反馈不等待远端；查询只触发 Work 所需数据；缓存键和请求代际阻止陈旧覆盖；1000 行规模不会同步创建或替换全部行节点；任务树、计数、选择、Inspector、筛选和失败恢复不回归。",
-          "reason": "现有 Work 导航测试未覆盖状态切换的远端等待与大列表线性重绘风险。",
+          "statement": "既有协议、Runtime、realtime、Work 和安全验证义务保持不变。真实 Chat 还必须以 adapter、Store、Coordinator、typed main/preload IPC、Renderer 和真实 app-server smoke 的跨层证据证明：首条消息幂等创建 session/thread；连续 turn resume 同一 thread；不同 Chat/Automation owner 隔离；稳定 item streaming、Markdown、reasoning/tool 投影和智能滚动正确；starting/running/waiting approval 均可 interrupt；部分输出和重启恢复不重复请求；活动删除先 interrupt 且无部分删除；审批异步并 fail closed；Renderer 无法覆盖 cwd/thread/method/command；Chat 不触发 using-arckit、ledger、Workshop mutation、Automation lease 或 human Gate。Chat 会话导航还必须证明：会话不受全局项目范围过滤并按 Product Workspace 确定分组；每组默认最多 10 条且仅在超出时出现对应历史入口；展开/收起不改变选择、草稿或后台 turn；新对话持续显示目标工作区，首次发送前切换保留草稿且不创建 session/thread，发送后不能迁移既有 thread/cwd。Automation 介入还必须证明 Chat 与 Automation 使用同一 Conversation Surface 实现和一致的 Markdown、reasoning、tool、approval/error、复制、外链与智能滚动行为；结构化跨 Run 汇总必须覆盖完整墙钟时间、累计 gap 轮数、逐 gap 目标/工作/结果、进行中和旧 Activity 兼容，并回归 Gate、恢复、ledger、Git、证据和执行控制未降级。Work 状态切换还必须用受控延迟和大列表 Electron 场景证明：选中反馈不等待远端；查询只触发 Work 所需数据；缓存键和请求代际阻止陈旧覆盖；1000 行规模不会同步创建或替换全部行节点；任务树、计数、选择、Inspector、筛选和失败恢复不回归。待办文本验证还必须跨 adapter、Automation Store/Coordinator、Renderer 与 Electron 证明：连续空白折叠；63/64/65 grapheme 边界；组合字符、代理对和 ZWJ emoji 不被拆分；超限只追加一个 `…`；完整 content 在 Agent intent、搜索和 mutation 中保真；历史标题快照不成为领域事实；Work/Automation 详情不重复；当前运行和 Workbench 顶部保持单行有界。",
+          "reason": "保留既有验证义务，并接受本轮形成的统一待办文本投影跨层验收矩阵。",
           "evidence": [
             "runtime/arcorbit/test/work-navigation-electron.test.mjs",
             "Controlled Electron latency and scale measurements, 2026-08-24",
-            "runtime/arcorbit/desktop/renderer/renderer.js:1165-1187"
+            "runtime/arcorbit/desktop/renderer/renderer.js:1165-1187",
+            "arckit/spec/agentic-software-development/arcorbit-work-management.md",
+            "arckit/spec/agentic-software-development/runtime-automation-workspace.md",
+            "arckit/tech/arcorbit/platform-composition-solution.md",
+            "Verification: Intl.Segmenter contract check passed for 63/64/65 grapheme boundaries, ZWJ emoji, and whitespace folding"
           ],
           "confidence": "high",
-          "resume_condition": "当 Work 查询协议、缓存新鲜度或列表渲染策略变化时重审。",
-          "revision": 9
+          "resume_condition": "当 Work 查询协议、标题归一化算法、Unicode 分段能力、展示消费面、缓存新鲜度或列表渲染策略变化时重审。",
+          "revision": 10
         },
         "gap_refs": [
           "GAP-agent-scenario-evaluation",

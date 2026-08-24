@@ -42,6 +42,8 @@ access token 在到期前五分钟刷新；业务请求收到未认证响应时�
 
 待办始终归属于一个有效项目，并保留服务器任务标识、执行人标识、版本、状态、优先级和进入当前状态的时间。执行人不是当前用户、缺少有效项目归属、无访问权限或无法确认服务器版本的待办不进入工作区快照与自动执行队列。
 
+待办正文只有一个远端 `content` 事实。Automation 把完整正文作为 Agent operator input，并从同一正文生成只读展示标题：连续 Unicode 空白折叠为一个半角空格，首尾空白移除，超过 64 个 Unicode grapheme clusters 时取前 63 个并追加 `…`。队列、当前运行、Intervention Workbench 顶部、确认对话和 session/CLI 标签统一消费该展示标题；正文、搜索和写回始终消费完整 `content`。
+
 ### 自动化队列
 
 自动化队列由所有参与自动化且具备本地工作区绑定的项目产生。队列只包含执行人是当前用户、服务器状态为待处理且当前版本已确认的任务。
@@ -65,6 +67,8 @@ access token 在到期前五分钟刷新；业务请求收到未认证响应时�
 ### 待办执行会话
 
 每个远端待办拥有独立的 Desktop 执行会话和唯一持久 Codex thread。该会话聚合待办正文、首次 Runtime run、同一待办的自动续轮、人工输入、恢复 run、Git closeout 结果和最终完成摘要，不包含同项目其他待办的消息或执行摘要。
+
+执行会话可以保存创建时的展示标题快照以保持历史标签稳定，但该快照只用于展示，不成为可编辑任务字段，也不覆盖后续读取到的 Workshop `content`。活动任务和新投影始终从当前完整正文重新生成展示标题。
 
 同一待办的 fresh continuation 继续写入该待办会话。不中断的自动执行默认复用该待办的同一 Codex thread，通过多个 turn 保持与人类直接在单个 Codex 对话中工作的连续性；当前 operator input、fresh Case State、revision 和授权始终覆盖 thread 中冲突的旧事实。不同待办不得共享 Codex thread。进程退出、显式接力或恢复时允许从 fresh canonical state 建立新 thread，但不能把旧 transcript 当作恢复所必需的事实源。
 
@@ -278,6 +282,7 @@ Renderer 不持有任务服务器凭证，也不直接请求任意远端 API。�
 - 领取冲突不会启动重复 Runtime，完成写回未确认时不会领取下一任务。
 - 待处理任务在服务器确认进行中后启动 Runtime，在 Runtime 与 ledger 收束且服务器确认后变为已完成。
 - Runtime 需要人工输入时，主页面给出明确提示但不自动打开 Intervention Workbench 或 Personal / Chat；用户在对应 Workbench 提交后能够恢复同一任务。
+- Command Center 队列、当前运行、Intervention Workbench 顶部、确认对话和 session/CLI 标签使用同一个 64-grapheme 展示标题投影；Workbench 顶部保持单行且不被完整正文撑高，完整正文只在任务详情或上下文正文区域展示一次并保留换行。
 - Runtime 失败且已有持久 Agent thread 时，Recovery Center 可以直接提交非空用户说明并继续；说明在同一待办对话中可见，且不会因恢复动作创建新 thread。
 - 当前任务可以安全切换到用户可见且可输入的交互式 Codex CLI；CLI 从同一 Case State 和待办意图继续，且不会与原 Runtime run 并发执行。
 - CLI 接管期间关闭终端不会被视为任务完成；Runtime 返回后从 fresh Case State 判断继续自动执行、等待人工或在同一 task thread 进入 commit 与远端完成写回。
@@ -288,6 +293,7 @@ Renderer 不持有任务服务器凭证，也不直接请求任意远端 API。�
 - Automation 专属的 Round/gap/writeback/handoff、完整执行时间、累计 gap 轮数和逐 gap 工作全貌位于左右面板；消息列表保留 Chat 同样支持的 Agent、用户、reasoning、工具和权限层级。
 - Workbench 覆盖同一 task session 的全部 Runtime runs：进行中时持续显示首次开始至当前的墙钟时间，终态后固定最终时长；累计轮数只统计实际启动的 gap rounds；每个 gap 显示目标、实际工作摘要、结果和 accepted closeout 或未收束状态。
 - 高频 agent、reasoning 和命令输出 delta 只更新内存中的当前消息；持久化和 Renderer 更新以语义消息或有界合并为单位，长运行不会按 delta 数量线性扩大日志和 DOM。
+- 自动化测试覆盖展示标题的空白折叠、63/64/65 grapheme 边界、组合字符与 emoji 不被拆分、单字符省略号、历史 session 标签快照、完整 operator input 保真，以及 Workbench 顶部单行高度和任务详情不重复。
 - 每个 Agent turn 都携带可从 fresh Project/Case State 重建的紧凑上下文摘要；进程重启同时恢复持久 thread 并以 canonical facts 校正历史。
 - 同一自动待办从执行、验证、修复到 Git commit 只使用一个持久 Codex thread，并按 gap 发起多个 turn；进程恢复不更换 thread。
 - 默认一个 Agent turn 能够依据 bounded canonical facts 完成 Case/gap 选择、必要 skill/tool 工作、自我审查和结构化 transition；Runtime 不要求固定 Plan/Worker/Review 三段调用。

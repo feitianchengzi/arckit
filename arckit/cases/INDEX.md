@@ -125,3 +125,4 @@
 | [CASE-20260824-002](closed/CASE-20260824-002-arcorbit-feedback.md) | closed | 优化 ArcOrbit Feedback 列表、详情滚动与图片体验 | 2026-08-24T08:03:36.461Z |
 | [CASE-20260824-003](closed/CASE-20260824-003-arcorbit.md) | closed | ArcOrbit 整体交互与视觉品质升级 | 2026-08-24T09:05:52.245Z |
 | [CASE-20260824-004](closed/CASE-20260824-004-automation-chat-agent.md) | closed | 统一 Automation 与 Chat 的 Agent 消息体验 | 2026-08-24T10:51:13.623Z |
+| [CASE-20260824-005](closed/CASE-20260824-005-arcorbit.md) | closed | 统一 Arcorbit 待办标题与内容语义 | 2026-08-24T12:51:59.665Z |

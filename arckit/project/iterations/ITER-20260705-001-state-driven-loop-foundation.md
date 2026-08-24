@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-24T10:51:13.623Z
+Updated: 2026-08-24T12:51:59.665Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,16 +17,16 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260823-004-unify-automation-intervention-conversation-with-chat.md)
-- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260823-006-arcorbit-chat.md)
-- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260823-006-arcorbit-chat.md)
-- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260823-006-arcorbit-chat.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260824-001-arcorbit-agent-ledger.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260823-007-arcorbit-work.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260823-007-arcorbit-work.md)
 - software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260823-007-arcorbit-work.md)
 - software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260824-002-arcorbit-feedback.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260824-002-arcorbit-feedback.md)
+- software_decision.product_capabilities: settled (arckit/cases/active/CASE-20260824-005-arcorbit.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260824-005-arcorbit.md)
+- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260824-005-arcorbit.md)
+- software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260824-005-arcorbit.md)
 
 ## Remaining Project Gaps
 

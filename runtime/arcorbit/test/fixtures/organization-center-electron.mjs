@@ -89,7 +89,7 @@ app.whenReady().then(async () => {
       const workInspectorTitle = document.querySelector('#platformWorkInspector h2').textContent;
       const workInspectorText = document.querySelector('#platformWorkInspector').textContent;
       const selectedWorkRows = document.querySelectorAll('#platformWorkTable tr.selected').length;
-      click('[data-platform-task-edit="W-11"]'); await wait();
+      click('[data-work-inspector-edit="W-11"]'); await wait();
       const editExecutorOptions = [...document.querySelectorAll('[name="executor_id"] option')].map((item) => ({ value: item.value, label: item.textContent }));
       const editPriorityValue = document.querySelector('[name="priority"]').value;
       const editSelectedTagIds = [...document.querySelectorAll('[name="tag_ids"]:checked')].map((item) => item.value);

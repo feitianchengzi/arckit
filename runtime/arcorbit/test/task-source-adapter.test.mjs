@@ -26,6 +26,17 @@ test("Workshop task normalization preserves complete detail metadata", () => {
   assert.equal(task.tags, "3,4");
 });
 
+test("Workshop task normalization keeps content lossless and derives one bounded display title", () => {
+  const content = `  第一行\n\t${"👨‍👩‍👧‍👦".repeat(65)}  `;
+  const task = normalizeTask({ id: 21, project_id: 11, content, state: "pending" });
+
+  assert.equal(task.content, content);
+  assert.equal(task.title, task.display_title);
+  assert.equal(task.title.startsWith("第一行 "), true);
+  assert.equal(task.title.endsWith("…"), true);
+  assert.equal([...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(task.title)].length, 64);
+});
+
 test("Workshop task source reads the current user, project-owned tasks, and all seven states", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {

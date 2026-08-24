@@ -127,6 +127,30 @@ test("desktop store upgrades automation state and keeps task source tokens out o
   });
 });
 
+test("desktop store bounds historical task labels without changing task content", () => {
+  const content = `  keep\n${"👩‍💻".repeat(65)}  `;
+  const legacyTitle = `legacy\n${"👩‍💻".repeat(65)}`;
+  const store = normalizeStore({
+    sessions: {
+      local: [{ id: "SESSION-T", project_id: "local", kind: "automation-task", title: `待办 · ${legacyTitle}` }]
+    },
+    automation: {
+      snapshot: { tasks: [{ id: "t", project_id: "p", content, title: legacyTitle }] },
+      active_task: { task_id: "t", task_title: legacyTitle },
+      acceptance_feedback_items: [{ feedback_id: "AF-1", source_task_id: "t", source_task_title: legacyTitle }],
+      recent_completions: [{ task_id: "t", title: legacyTitle }]
+    }
+  });
+
+  assert.equal(store.automation.snapshot.tasks[0].content, content);
+  assert.equal(store.automation.snapshot.tasks[0].title.endsWith("…"), true);
+  assert.equal(store.automation.active_task.task_title.endsWith("…"), true);
+  assert.equal(store.automation.acceptance_feedback_items[0].source_task_title.endsWith("…"), true);
+  assert.equal(store.automation.recent_completions[0].title.endsWith("…"), true);
+  assert.equal(store.sessions.local[0].title.startsWith("待办 · legacy "), true);
+  assert.equal(store.sessions.local[0].title.endsWith("…"), true);
+});
+
 test("desktop store preserves realtime diagnostics and ignores idle subscriptions in aggregate health", () => {
   const store = normalizeStore({
     automation: {

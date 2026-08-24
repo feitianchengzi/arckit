@@ -41,7 +41,7 @@ test("production Organization Center keeps governance independent and invitation
   assert.deepEqual(result.workStateIds, ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"]);
   assert.equal(result.pendingStatusCount, "1");
   assert.equal(result.scopePersistedInWork, "11");
-  assert.equal(result.workInspectorTitle, "Scoped pending work");
+  assert.equal(result.workInspectorTitle, "待办 W-11");
   assert.match(result.workInspectorText, /Verify Work state scope/);
   assert.match(result.workInspectorText, /不在当前用户 Automation 范围/);
   assert.equal(result.selectedWorkRows, 1);

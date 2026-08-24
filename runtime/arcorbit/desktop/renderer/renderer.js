@@ -26,6 +26,7 @@ import {
 import { createChatStateCoordinator } from "./chat-state-coordinator.mjs";
 import { CHAT_SESSION_PREVIEW_LIMIT, chatSessionVisibility, groupChatSessions } from "./chat-session-groups.mjs";
 import { createWorkQueryState, normalizeWorkQuery, workQueryKey } from "./work-query-state.mjs";
+import { taskDisplayTitle } from "../../src/task-display-title.mjs";
 
 const api = window.arckitDesktop;
 
@@ -79,6 +80,11 @@ const RECOVERY_ACTION_LABELS = {
   accept_server_state: "接受服务器事实",
   mark_blocked: "标记为已阻塞"
 };
+
+function displayTaskTitle(task, fallback = "") {
+  if (!task || typeof task !== "object") return taskDisplayTitle(task, fallback);
+  return taskDisplayTitle(task.content ?? task.display_title ?? task.title, fallback || task.id);
+}
 
 function wireSelectableRow(row, { selected = false } = {}) {
   row.tabIndex = 0;
@@ -1292,7 +1298,7 @@ function renderPlatformWork() {
   const tasks = scopedTasks.some((task) => Number.isInteger(task.tree_depth)) ? scopedTasks : rankTasks(stateTasks);
   if (!tasks.some((task) => String(task.id) === String(state.selectedPlatformTaskId))) state.selectedPlatformTaskId = String(tasks[0]?.id || "");
   const selectedTask = tasks.find((task) => String(task.id) === String(state.selectedPlatformTaskId)) || null;
-  const table = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th></tr></thead><tbody>${tasks.map((task) => { const depth = Math.max(0, Number(task.tree_depth || 0)); const lineageOnly = task.state !== state.selectedState || task.tree_matched === false; const rowContext = [lineageOnly ? "用于补全层级" : "", task.tags ? `标签：${Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags}` : ""].filter(Boolean).join(" · "); return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""} ${lineageOnly ? "tree-lineage" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell" style="--task-tree-depth:${depth}" title="${escapeHtml(rowContext)}"><span class="task-tree-title">${depth ? "↳ " : ""}${escapeHtml(task.title)}</span></td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">${state.workQuery.loading ? "正在载入与当前查询匹配的待办…" : state.workQuery.error ? `加载失败：${escapeHtml(state.workQuery.error)}` : "当前产品集或筛选条件下没有待办。"}</div>`;
+  const table = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th></tr></thead><tbody>${tasks.map((task) => { const depth = Math.max(0, Number(task.tree_depth || 0)); const lineageOnly = task.state !== state.selectedState || task.tree_matched === false; const rowContext = [lineageOnly ? "用于补全层级" : "", task.tags ? `标签：${Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags}` : ""].filter(Boolean).join(" · "); return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""} ${lineageOnly ? "tree-lineage" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell" style="--task-tree-depth:${depth}" title="${escapeHtml(rowContext)}"><span class="task-tree-title">${depth ? "↳ " : ""}${escapeHtml(displayTaskTitle(task))}</span></td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">${state.workQuery.loading ? "正在载入与当前查询匹配的待办…" : state.workQuery.error ? `加载失败：${escapeHtml(state.workQuery.error)}` : "当前产品集或筛选条件下没有待办。"}</div>`;
   const windowInfo = projection.window || { offset: 0, returned: tasks.length, total: tasks.length, has_more: false };
   const previousOffset = Math.max(0, Number(windowInfo.offset || 0) - WORK_QUERY_WINDOW_SIZE);
   const nextOffset = Number(windowInfo.offset || 0) + Number(windowInfo.returned || 0);
@@ -1361,7 +1367,7 @@ function renderPlatformWorkInspector(task) {
   const canManage = canManagePlatformTask(task);
   const automationActions = automationTask ? taskActions(automationTask) : [];
   const acceptanceFeedback = automationTask?.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-work-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="workAcceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitWorkAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : automationTask?.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
-  els.platformWorkInspector.innerHTML = `<h2>${escapeHtml(task.title)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${factRows([
+  els.platformWorkInspector.innerHTML = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${factRows([
     ["待办标识", task.id],
     ["所属产品", task.project_name],
     ["创建人", taskCreatorName(task)],
@@ -2081,7 +2087,7 @@ async function editTask(taskId) {
     lead: `所属产品：${task.project_name}。执行人、父待办和标签只使用该产品当前可用的数据。`,
     confirmLabel: "保存",
     fields: [
-      platformField("content", "待办内容", { type: "textarea", required: true, value: task.content || task.title }),
+      platformField("content", "待办内容", { type: "textarea", required: true, value: task.content ?? "" }),
       ...(automationTask ? [] : [platformField("state", "状态", { type: "select", value: task.state, options: taskStateOptions(), help: "Automation 管理中的状态只可通过受控动作变更。" })]),
       taskProjectFields(task.project_id, { executorId: task.executor_id, excludedTaskId: task.id, tags: task.tags, includeFather: false }),
       platformField("priority", "优先级", { type: "select", value: workshopTaskPriority(task), options: taskPriorityOptions(), help: "最高优先处理；无优先级保留服务端未设置语义。" })
@@ -2126,7 +2132,7 @@ async function reparentTask(taskId) {
 
 async function deleteTask(taskId) {
   const task = findPlatformTask(taskId);
-  if (!window.confirm(`确定删除待办“${task.title}”吗？`)) return;
+  if (!window.confirm(`确定删除待办“${displayTaskTitle(task)}”吗？`)) return;
   await executeManagedAction("task.delete", { task_id: task.id }, "待办已删除");
 }
 
@@ -2682,7 +2688,7 @@ function renderCurrentRun(blockedPendingTasks = []) {
   }
   const phases = runtimeStages(active.phase, run);
   const executionRef = active.case_id || active.run_id || "等待 Runtime 启动";
-  els.currentRunPanel.innerHTML = `<div class="run-heading"><div><h3>${escapeHtml(active.task_title || active.task_id)}</h3><p>${escapeHtml(active.project_id)} · ${escapeHtml(executionRef)}</p></div><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(active.phase))}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>`;
+  els.currentRunPanel.innerHTML = `<div class="run-heading"><div><h3>${escapeHtml(taskDisplayTitle(active.task_title, active.task_id))}</h3><p>${escapeHtml(active.project_id)} · ${escapeHtml(executionRef)}</p></div><span class="status-pill in_progress">${escapeHtml(automationPhaseLabel(active.phase))}</span></div><div class="stage-grid">${phases.map((phase) => `<div class="stage-item ${phase.state}">${escapeHtml(phase.label)}</div>`).join("")}</div>`;
   if (active.phase === "cli_handoff") {
     els.currentRunActions.innerHTML = `<button id="reviewRunButton" class="text-button" type="button">查看对话</button><button id="reopenCliButton" class="text-button" type="button">重新打开终端</button><button id="resumeRuntimeButton" class="primary-button" type="button">恢复自动执行</button>`;
   } else if (active.phase === "switching_to_cli") {
@@ -2718,7 +2724,7 @@ function renderQueue(queue, blockedPendingTasks = []) {
     els.queueTable.innerHTML = `<div class="empty-state">${blockedPendingTasks.length ? `${blockedPendingTasks.length} 项待处理被项目执行条件阻止，请先完成上方提示。` : "当前范围没有符合资格的待处理任务。"}</div>`;
     return;
   }
-  els.queueTable.innerHTML = `<table class="data-table"><colgroup><col style="width:42px"><col><col style="width:130px"><col style="width:76px"><col style="width:100px"></colgroup><thead><tr><th>#</th><th>任务</th><th>项目</th><th>优先级</th><th>状态</th></tr></thead><tbody>${queue.slice(0, 8).map((task) => `<tr data-queue-task="${escapeHtml(task.id)}"><td class="queue-number">${task.queue_position}</td><td class="task-title-cell">${escapeHtml(task.title)}</td><td>${escapeHtml(task.project_name)}</td><td>${formatPriority(task.priority)}</td><td><span class="status-pill pending">待处理</span></td></tr>`).join("")}</tbody></table>`;
+  els.queueTable.innerHTML = `<table class="data-table"><colgroup><col style="width:42px"><col><col style="width:130px"><col style="width:76px"><col style="width:100px"></colgroup><thead><tr><th>#</th><th>任务</th><th>项目</th><th>优先级</th><th>状态</th></tr></thead><tbody>${queue.slice(0, 8).map((task) => `<tr data-queue-task="${escapeHtml(task.id)}"><td class="queue-number">${task.queue_position}</td><td class="task-title-cell">${escapeHtml(displayTaskTitle(task))}</td><td>${escapeHtml(task.project_name)}</td><td>${formatPriority(task.priority)}</td><td><span class="status-pill pending">待处理</span></td></tr>`).join("")}</tbody></table>`;
   els.queueTable.querySelectorAll("[data-queue-task]").forEach((row) => {
     wireSelectableRow(row);
     row.addEventListener("click", () => openTaskBrowser("pending", row.dataset.queueTask));
@@ -2727,7 +2733,7 @@ function renderQueue(queue, blockedPendingTasks = []) {
 
 function renderRecentCompletions() {
   const items = state.snapshot.recent_completions.filter(scopedTaskFilter).slice(0, 5);
-  els.recentCompletions.innerHTML = items.length ? items.map((item) => `<button class="completion-item" data-completion-run="${escapeHtml(item.run_id)}" type="button"><span><strong>${escapeHtml(item.title || item.task_id)}</strong><small>${escapeHtml(item.project_id)} · ${formatDateTime(item.completed_at)}</small></span><span class="status-pill completed">已完成</span></button>`).join("") : `<div class="empty-state">暂无由自动化完成的任务。</div>`;
+  els.recentCompletions.innerHTML = items.length ? items.map((item) => `<button class="completion-item" data-completion-run="${escapeHtml(item.run_id)}" type="button"><span><strong>${escapeHtml(taskDisplayTitle(item.title, item.task_id))}</strong><small>${escapeHtml(item.project_id)} · ${formatDateTime(item.completed_at)}</small></span><span class="status-pill completed">已完成</span></button>`).join("") : `<div class="empty-state">暂无由自动化完成的任务。</div>`;
   els.recentCompletions.querySelectorAll("[data-completion-run]").forEach((button) => button.addEventListener("click", () => {
     const completion = items.find((item) => item.run_id === button.dataset.completionRun);
     const task = state.snapshot.tasks.find((item) => String(item.id) === String(completion?.task_id));
@@ -2798,12 +2804,12 @@ function renderTaskBrowser() {
 }
 
 function renderTaskTable() {
-  const tasks = state.snapshot.tasks.filter(scopedTaskFilter).filter((task) => !state.taskFilter || `${task.title} ${task.content} ${task.project_name} ${task.id}`.toLowerCase().includes(state.taskFilter));
+  const tasks = state.snapshot.tasks.filter(scopedTaskFilter).filter((task) => !state.taskFilter || `${task.content} ${task.project_name} ${task.id}`.toLowerCase().includes(state.taskFilter));
   if (!tasks.length) {
     els.taskTable.innerHTML = `<div class="empty-state">当前筛选没有${STATE_LABELS[state.selectedState]}任务。</div>`;
     return;
   }
-  els.taskTable.innerHTML = `<table class="data-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:96px"><col style="width:86px"></colgroup><thead><tr><th>任务</th><th>内容</th><th>项目</th><th>更新时间</th><th>状态</th></tr></thead><tbody>${tasks.map((task) => `<tr class="${String(task.id) === String(state.selectedTaskId) ? "selected" : ""}" data-task-id="${escapeHtml(task.id)}"><td>${escapeHtml(task.id)}</td><td class="task-title-cell">${escapeHtml(task.title)}</td><td>${escapeHtml(task.project_name)}</td><td>${formatTime(task.updated_at || task.state_changed_at)}</td><td><span class="status-pill ${task.state}">${escapeHtml(task.state_label)}</span></td></tr>`).join("")}</tbody></table>`;
+  els.taskTable.innerHTML = `<table class="data-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:96px"><col style="width:86px"></colgroup><thead><tr><th>任务</th><th>内容</th><th>项目</th><th>更新时间</th><th>状态</th></tr></thead><tbody>${tasks.map((task) => `<tr class="${String(task.id) === String(state.selectedTaskId) ? "selected" : ""}" data-task-id="${escapeHtml(task.id)}"><td>${escapeHtml(task.id)}</td><td class="task-title-cell">${escapeHtml(displayTaskTitle(task))}</td><td>${escapeHtml(task.project_name)}</td><td>${formatTime(task.updated_at || task.state_changed_at)}</td><td><span class="status-pill ${task.state}">${escapeHtml(task.state_label)}</span></td></tr>`).join("")}</tbody></table>`;
   els.taskTable.querySelectorAll("[data-task-id]").forEach((row) => {
     wireSelectableRow(row, { selected: String(row.dataset.taskId) === String(state.selectedTaskId) });
     row.addEventListener("click", () => {
@@ -2822,7 +2828,7 @@ function renderTaskInspector() {
   }
   const feedbackItems = task.acceptance_feedback_items || [];
   const acceptanceFeedback = task.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="acceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : task.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
-  els.taskInspector.innerHTML = `<h2>${escapeHtml(task.title)}</h2><p>${escapeHtml(task.content || "没有补充内容")}</p><span class="status-pill ${task.state}">${escapeHtml(task.state_label)}</span>${factRows([
+  els.taskInspector.innerHTML = `<h2>待办 ${escapeHtml(task.id)}</h2><p>${escapeHtml(task.content || "没有补充内容")}</p><span class="status-pill ${task.state}">${escapeHtml(task.state_label)}</span>${factRows([
     ["任务标识", task.id],
     ["所属项目", task.project_name],
     ["本地工作区", task.local_project_path || "未绑定"],
@@ -2925,7 +2931,9 @@ function renderWorkbench() {
   const taskId = sourceTask?.id || completion?.task_id || active?.task_id || "";
   const projectId = sourceTask?.project_id || completion?.project_id || active?.project_id || "";
   const acceptanceReview = Boolean(sourceTask && sourceTask.state === "completed");
-  els.workbenchTitle.textContent = sourceTask?.title || completion?.title || active?.task_title || "执行对话审查";
+  els.workbenchTitle.textContent = sourceTask
+    ? displayTaskTitle(sourceTask)
+    : taskDisplayTitle(completion?.title || active?.task_title, "执行对话审查");
   els.workbenchMode.className = `status-pill ${state.workbenchMode === "intervention" ? "pending" : acceptanceReview ? "completed" : "pending_review"}`;
   els.workbenchMode.textContent = state.workbenchMode === "intervention" ? "人工处理" : acceptanceReview ? "验收问题" : "只读审查";
   els.interventionComposer.classList.toggle("hidden", state.workbenchMode !== "intervention" && !acceptanceReview);
@@ -3305,7 +3313,7 @@ async function logout() {
   try {
     let result = await api.logoutAuth({ confirm_active_task: false });
     if (result.requires_confirmation) {
-      const taskName = result.active_task?.task_title || result.active_task?.task_id || "当前任务";
+      const taskName = taskDisplayTitle(result.active_task?.task_title, result.active_task?.task_id || "当前任务");
       if (!window.confirm(`退出会安全停止“${taskName}”并清空远端项目快照，继续吗？`)) return;
       result = await api.logoutAuth({ confirm_active_task: true });
     }
@@ -3455,7 +3463,7 @@ function rankTasks(tasks) {
 }
 
 function platformTaskRow(task) {
-  return `<div class="compact-row"><span><strong>${escapeHtml(task.title)}</strong><small>${escapeHtml(task.project_name)} · ${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</small></span><em class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</em></div>`;
+  return `<div class="compact-row"><span><strong>${escapeHtml(displayTaskTitle(task))}</strong><small>${escapeHtml(task.project_name)} · ${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</small></span><em class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</em></div>`;
 }
 
 function uniqueMembers(members = []) {

@@ -21,8 +21,8 @@ const automation = {
     { id: "W-ACCEPTED", project_id: "11", project_name: "ArcOrbit", title: "Accepted work", content: "Already accepted", state: "accepted", state_label: "已验收", acceptance_feedback_items: [], eligible: false }
   ], queue: [], todo_queue: [],
   blocked_pending_tasks: [], state_counts: { pending: 2 },
-  active_execution: { task_id: "T-21", project_id: "21", task_title: "Outside Workset active execution", phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" },
-  active_task: { task_id: "T-21", project_id: "21", task_title: "Outside Workset active execution", phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" },
+  active_execution: { task_id: "T-21", project_id: "21", task_title: `Outside Workset active execution\n${"👩‍💻".repeat(65)}`, phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" },
+  active_task: { task_id: "T-21", project_id: "21", task_title: `Outside Workset active execution\n${"👩‍💻".repeat(65)}`, phase: "remote_completion_pending", case_id: "CASE-OUTSIDE", run_id: "RUN-OUTSIDE" },
   active_run: null,
   attention_items: [],
   recovery_items: [{ id: "RECOVERY-global", type: "multiple_active_tasks", task_id: "multiple", project_id: "", message: "Global recovery remains visible", freeze_scope: "global", responsibility: "operator", actions: ["retry_sync"] }],
@@ -74,7 +74,7 @@ const platform = {
   })),
   members: projectMembers,
   tasks: [
-    { id: "W-11", project_id: "11", project_name: "ArcOrbit", title: "Scoped pending work", content: "Verify Work state scope", state: "pending", terminal: false, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "201" },
+    { id: "W-11", project_id: "11", project_name: "ArcOrbit", title: "legacy unbounded task title", content: `Verify Work state scope\n${"👩‍💻".repeat(65)}`, state: "pending", terminal: false, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "201" },
     { id: "W-COMPLETED", project_id: "11", project_name: "ArcOrbit", title: "Completed work", content: "Ready for acceptance check", state: "completed", terminal: true, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "" },
     { id: "W-ACCEPTED", project_id: "11", project_name: "ArcOrbit", title: "Accepted work", content: "Already accepted", state: "accepted", terminal: true, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "" },
     { id: "W-12", project_id: "12", project_name: "Workshop Todo", title: "Other project work", content: "Must be filtered", state: "pending", terminal: false, priority: 98, raw: { priority: 2 }, executor_id: "8", assignee: { id: "8", username: "Lin" }, tags: "203" }

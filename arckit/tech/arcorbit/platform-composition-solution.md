@@ -100,6 +100,16 @@ Platform Coordinator 负责组合远端领域投影和本地平台状态。它�
 
 Platform Coordinator 不持久化完整组织、成员、待办或普通反馈镜像。远端响应保存在当前进程的有界缓存中；应用重启、登录身份代际变化或显式刷新会重新读取权威服务。
 
+### Task 文本投影契约
+
+Workshop Task 的权威文本只有 `content`。Workshop Platform Adapter 和 Automation Task Source Adapter 不创造第二个可编辑 `title` 字段；创建、更新、搜索、Agent operator input 与服务端写回始终使用完整 `content`，并保持正文内部换行。
+
+ArcOrbit 在共享任务归一化边界生成 `display_title`：先对输入执行首尾空白移除，再把一个或多个 Unicode 空白折叠为单个半角空格；随后按 Unicode extended grapheme cluster 分段。结果少于或等于 64 个 grapheme clusters 时原样返回，超过时保留前 63 个并追加单字符 `…`，使最终投影最多为 64 个 grapheme clusters，且不拆分组合字符、emoji sequence 或代理对。
+
+`display_title` 是派生展示值，不参与领域 mutation。Work 列表、父任务候选、Automation 队列、当前运行、Intervention Workbench 顶部、确认对话、验收问题来源标签和 CLI handoff 统一消费这一投影。Automation active task、session 和历史 Activity 可以保存创建时的 `display_title` 快照以维持历史可读性，但必须同时保留 task identity；该快照不得覆盖 fresh `content`、成为任务搜索输入或回写 Workshop。活动投影在拿到 fresh Task 时重新计算。
+
+Work Inspector 与 Automation Task Inspector 只渲染一次完整 `content`。它们使用 task id、project 和 status 作为详情头部身份，不在正文上方再渲染同源 `display_title`。Intervention Workbench 顶部只使用 `display_title`，完整正文放在左侧任务上下文或显式详情区域。
+
 ## 本地状态
 
 Desktop Store 升级为 version 10，新增顶层 `platform`：
@@ -342,6 +352,8 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - workset 多选、空集合、单产品、多产品、删除和 active fallback。
 - workset 改变不改变 Automation participation 或候选范围。
 - Platform Adapter 的组织、项目、成员、完整待办和 V1 feedback 归一化。
+- Task 文本投影覆盖连续空白折叠、63/64/65 grapheme 边界、组合附加符、ZWJ emoji 与代理对、单字符省略号和空白异常输入；完整 `content` 在 Agent intent、搜索和 mutation 中保持不变。
+- Work 与 Automation 消费面覆盖列表、父任务候选、队列、当前运行、Workbench 顶部、确认对话、session/Activity/CLI 标签、详情只显示一次完整正文，以及历史展示快照不成为服务端或搜索事实。
 - Work Task 查询的多值筛选序列化、100 天日期边界、树结果父链/子树补全和命中总数区分。
 - Task 创建、子任务创建、父任务调整/清空、循环拒绝、级联删除确认和跨产品候选隔离。
 - TaskAttachment 评论/附件的 JSON/标记双格式解析、URL 类型显式打开、图片默认并发加载、逐图失败重试、独立窗口打开、缩放/适配/实际大小/旋转/平移/重置、另存为取消与失败、文件下载、评论资源上传、object key 归属校验、STS 根目录限制、创建者更新权限、任务创建者或管理角色删除权限和历史纯文本兼容。
