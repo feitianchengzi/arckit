@@ -173,6 +173,7 @@ test("Runtime package workflow is manual-only and consumes immutable release/pro
   assert.match(workflow, /arcforge_release:/);
   assert.match(workflow, /arcforge_sha256:/);
   assert.match(workflow, /validate-release-trigger\.mjs/);
+  assert.match(workflow, /xvfb-run --auto-servernum npm run check/);
   assert.match(workflow, /gh release download/);
   assert.match(workflow, /"os":"macos-15","platform":"mac","target":"macos-arm64"/);
   assert.match(workflow, /macos-15-intel/);

@@ -87,7 +87,8 @@ jobs:
           ALLOW_MAIN_BETA: ${{ inputs.allow_main_beta }}
         run: node scripts/validate-release-trigger.mjs --tag "$RELEASE_TAG" --allow-main-beta "$ALLOW_MAIN_BETA" --github-output "$GITHUB_OUTPUT"
 
-      - run: npm run check
+      - name: Run checks with a virtual display
+        run: xvfb-run --auto-servernum npm run check
         working-directory: runtime/arcorbit
 
       - id: selection
