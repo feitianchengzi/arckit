@@ -60,6 +60,44 @@ app.whenReady().then(async () => {
           list_overflow_y: getComputedStyle(list).overflowY
         };
       };
+      const statusToolbarGeometry = () => {
+        const toolbar = document.querySelector('.work-state-filter-card');
+        const filters = document.querySelector('.work-state-filters');
+        const summary = document.querySelector('#workStateSummary');
+        const toolbarRect = toolbar.getBoundingClientRect();
+        const filtersRect = filters.getBoundingClientRect();
+        const summaryRect = summary.getBoundingClientRect();
+        const summaryStyle = getComputedStyle(summary);
+        return {
+          toolbar_width: Number(toolbarRect.width.toFixed(2)),
+          toolbar_height: Number(toolbarRect.height.toFixed(2)),
+          filters_width: Number(filtersRect.width.toFixed(2)),
+          filters_overflow: filters.scrollWidth > filters.clientWidth,
+          buttons_within_filters: [...filters.querySelectorAll('button')].every((button) => {
+            const buttonRect = button.getBoundingClientRect();
+            return buttonRect.left >= filtersRect.left - 0.5 && buttonRect.right <= filtersRect.right + 0.5;
+          }),
+          summary_width: Number(summaryRect.width.toFixed(2)),
+          summary_overflow: summaryStyle.overflow,
+          summary_text_overflow: summaryStyle.textOverflow,
+          summary_white_space: summaryStyle.whiteSpace,
+          summary_clipped: summary.scrollWidth > summary.clientWidth
+        };
+      };
+      const measureStatusToolbarVariants = () => {
+        const summary = document.querySelector('#workStateSummary');
+        const originalText = summary.textContent;
+        const variants = [
+          'Arc研发平台 · 命中 0 / 补全树 0 · 待评审 0 项',
+          'Arc研发平台 · 命中 128 / 补全树 356 · 已完成 128 项 · 后台刷新',
+          '一个名称明显更长的本地产品工作区用于验证摘要文本截断'.repeat(4) + ' · 命中 9999 / 补全树 12000 · 已阻塞 888 项 · 刷新失败，保留匹配缓存'
+        ].map((text) => {
+          summary.textContent = text;
+          return statusToolbarGeometry();
+        });
+        summary.textContent = originalText;
+        return variants;
+      };
       const manyTasks = Array.from({ length: 80 }, (_, index) => ({
         id: 'LAYOUT-' + index,
         project_id: '11',
@@ -84,6 +122,7 @@ app.whenReady().then(async () => {
       click('[data-page="work"]');
       await wait(50);
       const emptyLayout = layoutGeometry();
+      const desktopStatusToolbar = measureStatusToolbarVariants();
       return {
         immediate_active: immediateActive,
         click_duration_ms: clickDurationMs,
@@ -93,9 +132,53 @@ app.whenReady().then(async () => {
         cached_rows_after_failure: cachedRowsAfterFailure,
         failure_toast_visible: failureToastVisible,
         populated_layout: populatedLayout,
-        empty_layout: emptyLayout
+        empty_layout: emptyLayout,
+        desktop_status_toolbar: desktopStatusToolbar
       };
     })()`);
+    const measureStatusToolbarAtCurrentWidth = () => window.webContents.executeJavaScript(`(() => {
+      const toolbar = document.querySelector('.work-state-filter-card');
+      const filters = document.querySelector('.work-state-filters');
+      const summary = document.querySelector('#workStateSummary');
+      const originalText = summary.textContent;
+      const variants = [
+        'Arc研发平台 · 命中 0 / 补全树 0 · 待评审 0 项',
+        'Arc研发平台 · 命中 128 / 补全树 356 · 已完成 128 项 · 后台刷新',
+        '一个名称明显更长的本地产品工作区用于验证摘要文本截断'.repeat(4) + ' · 命中 9999 / 补全树 12000 · 已阻塞 888 项 · 刷新失败，保留匹配缓存'
+      ].map((text) => {
+        summary.textContent = text;
+        const toolbarRect = toolbar.getBoundingClientRect();
+        const filtersRect = filters.getBoundingClientRect();
+        const summaryRect = summary.getBoundingClientRect();
+        const summaryStyle = getComputedStyle(summary);
+        return {
+          toolbar_width: Number(toolbarRect.width.toFixed(2)),
+          toolbar_height: Number(toolbarRect.height.toFixed(2)),
+          filters_width: Number(filtersRect.width.toFixed(2)),
+          filters_overflow: filters.scrollWidth > filters.clientWidth,
+          buttons_within_filters: [...filters.querySelectorAll('button')].every((button) => {
+            const buttonRect = button.getBoundingClientRect();
+            return buttonRect.left >= filtersRect.left - 0.5 && buttonRect.right <= filtersRect.right + 0.5;
+          }),
+          summary_width: Number(summaryRect.width.toFixed(2)),
+          summary_overflow: summaryStyle.overflow,
+          summary_text_overflow: summaryStyle.textOverflow,
+          summary_white_space: summaryStyle.whiteSpace,
+          summary_clipped: summary.scrollWidth > summary.clientWidth
+        };
+      });
+      summary.textContent = originalText;
+      return variants;
+    })()`);
+    result.intermediate_status_toolbars = [];
+    for (const width of [1280, 1181]) {
+      window.setSize(width, 900);
+      await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+      result.intermediate_status_toolbars.push({ width, variants: await measureStatusToolbarAtCurrentWidth() });
+    }
+    window.setSize(1100, 900);
+    await new Promise((resolveWait) => setTimeout(resolveWait, 50));
+    result.responsive_status_toolbar = await measureStatusToolbarAtCurrentWidth();
     await new Promise((resolveWrite) => process.stdout.write(`${JSON.stringify(result)}\n`, resolveWrite));
   } finally {
     window.destroy();

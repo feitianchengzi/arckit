@@ -8,6 +8,24 @@ import test from "node:test";
 const execFileAsync = promisify(execFile);
 const fixturePath = fileURLToPath(new URL("./fixtures/work-navigation-electron.mjs", import.meta.url));
 
+function assertStableStatusToolbarGeometry(variants) {
+  const [baseline, ...updates] = variants;
+  assert.equal(baseline.summary_overflow, "hidden");
+  assert.equal(baseline.summary_text_overflow, "ellipsis");
+  assert.equal(baseline.summary_white_space, "nowrap");
+  for (const geometry of variants) {
+    assert.equal(geometry.filters_overflow, false);
+    assert.equal(geometry.buttons_within_filters, true);
+  }
+  for (const geometry of updates) {
+    assert.ok(Math.abs(geometry.toolbar_width - baseline.toolbar_width) < 0.5);
+    assert.ok(Math.abs(geometry.toolbar_height - baseline.toolbar_height) < 0.5);
+    assert.ok(Math.abs(geometry.filters_width - baseline.filters_width) < 0.5);
+    assert.ok(Math.abs(geometry.summary_width - baseline.summary_width) < 0.5);
+  }
+  assert.equal(variants.at(-1).summary_clipped, true);
+}
+
 test("Work navigation is cache-first under slow and failed task refreshes", {
   skip: process.env.ARCORBIT_ELECTRON_WORK_NAVIGATION_TEST !== "1" && "set ARCORBIT_ELECTRON_WORK_NAVIGATION_TEST=1 to run the Electron Work navigation regression"
 }, async () => {
@@ -36,4 +54,9 @@ test("Work navigation is cache-first under slow and failed task refreshes", {
   assert.equal(result.empty_layout.list_scrolls, false);
   assert.ok(Math.abs(result.populated_layout.status_height - result.empty_layout.status_height) < 0.5);
   assert.ok(Math.abs(result.populated_layout.list_height - result.empty_layout.list_height) < 0.5);
+  assertStableStatusToolbarGeometry(result.desktop_status_toolbar);
+  for (const measurement of result.intermediate_status_toolbars) {
+    assertStableStatusToolbarGeometry(measurement.variants);
+  }
+  assertStableStatusToolbarGeometry(result.responsive_status_toolbar);
 });

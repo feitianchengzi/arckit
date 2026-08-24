@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-24T13:10:03.881Z",
-    "revision": 216
+    "updated_at": "2026-08-24T13:35:21.529Z",
+    "revision": 219
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "让 ArcOrbit Work 页面中新建的待评审待办无需手动同步即可立即执行“确认可处理”或“取消”，同时保持 Automation 的受控状态变更边界。",
+      "current_focus": "修复 ArcOrbit Work 页面待办状态工具条随右侧项目、命中数、补全树、状态计数或刷新状态变化而发生的宽高抖动。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -191,23 +191,19 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保持 Personal、Product Lifecycle、Organization 三组导航和既有 Work、Automation、Feedback、Organization、Setup、账户及产品反馈语义。Personal / Chat 使用按 Product Workspace 分组的会话列表、独立 transcript 和 Composer：页面无需预先选择项目，每个项目默认显示最近 10 个会话并在超出时从组底部展开完整历史；新对话在首条非空消息前显式显示目标工作区，默认取当前会话或最近成功使用的可用工作区，允许保留草稿快速切换，发送后会话固定绑定该本地 Product Workspace 和 Codex thread。支持选择、重命名、删除、跨页面后台运行和重启恢复。消息以稳定 item 流式更新，支持 Markdown、代码复制、折叠非空 reasoning、单行工具状态、用户审批和智能自动滚动。starting、running、waiting approval 状态均可停止；interrupt 保留部分回答，继续操作会在同一 thread 启动新 turn。删除活动会话先等待 interrupt 终态，失败时不部分删除。没有可用本地工作区时允许保留草稿但禁止发送，并提供配置恢复入口。Chat 不调用 state-driven Runtime，不转换其他对象；Automation task thread、human Gate、Composer 与执行控制保持独立，但人工介入中间消息区直接复用 Chat Conversation Surface。Idea、Release、Operations 和 Engineering 继续呈现计划交互。Chat 返回页面时先用缓存会话和 transcript 立即切换，再后台刷新并显示同步或失败状态；Work 横排筛选使用弹出菜单且列表单行无按钮，评论图片自动加载且在独立窗口完成常用查看操作，单图失败不阻塞时间线；Feedback 列表中的每条记录保持固定单行高度且不因记录较少而拉伸，详情由右栏内部滚动容器承载且滚动不改变列表位置，反馈原文和双向沟通图片默认加载，单图失败不阻塞详情并可就地重试，点击图片后与 Work 共用受控独立窗口。Automation 左栏承载任务、项目、边界、当前选择和介入控制；右栏承载完整执行墙钟时间、累计 gap 轮数、逐 gap 目标/工作/结果，以及 Run、token、Gate、ledger、Git、证据和结构化结果。Automation 专属 loop/round/ledger 事件不进入中间对话流。Work 待办状态切换必须立即确认新的选中状态，并显示与完整查询键匹配的缓存结果或明确加载态；远端刷新在后台执行，旧请求不得覆盖较新的选择，Automation、认证、组织、成员与 Feedback 刷新不得阻塞该交互，大列表不得通过同步整表重建阻塞 Renderer。待办列表、队列、当前运行、确认对话和 Intervention Workbench 顶部统一显示折叠空白且最多 64 个 Unicode grapheme clusters 的单行标题；Work 与 Automation 详情只展示一次保留换行的完整正文，Workbench 顶部保持固定高度。",
-          "reason": "保留既有交互决定，并接受本轮 Task Browser 与 Automation Workbench 的统一标题、正文去重及单行高度规则。",
+          "statement": "ArcOrbit 保持 Personal、Product Lifecycle、Organization 三组导航和既有 Work、Automation、Feedback、Organization、Setup、账户及产品反馈语义。Personal / Chat 使用按 Product Workspace 分组的会话列表、独立 transcript 和 Composer：页面无需预先选择项目，每个项目默认显示最近 10 个会话并在超出时从组底部展开完整历史；新对话在首条非空消息前显式显示目标工作区，默认取当前会话或最近成功使用的可用工作区，允许保留草稿快速切换，发送后会话固定绑定该本地 Product Workspace 和 Codex thread。支持选择、重命名、删除、跨页面后台运行和重启恢复。消息以稳定 item 流式更新，支持 Markdown、代码复制、折叠非空 reasoning、单行工具状态、用户审批和智能自动滚动。starting、running、waiting approval 状态均可停止；interrupt 保留部分回答，继续操作会在同一 thread 启动新 turn。删除活动会话先等待 interrupt 终态，失败时不部分删除。没有可用本地工作区时允许保留草稿但禁止发送，并提供配置恢复入口。Chat 不调用 state-driven Runtime，不转换其他对象；Automation task thread、human Gate、Composer 与执行控制保持独立，但人工介入中间消息区直接复用 Chat Conversation Surface。Idea、Release、Operations 和 Engineering 继续呈现计划交互。Chat 返回页面时先用缓存会话和 transcript 立即切换，再后台刷新并显示同步或失败状态；Work 横排筛选使用弹出菜单且列表单行无按钮，评论图片自动加载且在独立窗口完成常用查看操作，单图失败不阻塞时间线；Feedback 列表中的每条记录保持固定单行高度且不因记录较少而拉伸，详情由右栏内部滚动容器承载且滚动不改变列表位置，反馈原文和双向沟通图片默认加载，单图失败不阻塞详情并可就地重试，点击图片后与 Work 共用受控独立窗口。Automation 左栏承载任务、项目、边界、当前选择和介入控制；右栏承载完整执行墙钟时间、累计 gap 轮数、逐 gap 目标/工作/结果，以及 Run、token、Gate、ledger、Git、证据和结构化结果。Automation 专属 loop/round/ledger 事件不进入中间对话流。Work 待办状态切换必须立即确认新的选中状态，并显示与完整查询键匹配的缓存结果或明确加载态；远端刷新在后台执行，旧请求不得覆盖较新的选择，Automation、认证、组织、成员与 Feedback 刷新不得阻塞该交互，大列表不得通过同步整表重建阻塞 Renderer。Work 七状态工具条使用不受右侧项目名、命中数、补全树数量、状态计数和刷新提示变化影响的稳定几何；动态摘要限制在固定单行区域并在超出时省略，常规与响应式布局均不因内容变化改变工具条宽高或状态按钮区宽度。待办列表、队列、当前运行、确认对话和 Intervention Workbench 顶部统一显示折叠空白且最多 64 个 Unicode grapheme clusters 的单行标题；Work 与 Automation 详情只展示一次保留换行的完整正文，Workbench 顶部保持固定高度。",
+          "reason": "保留既有交互决定，并接受用户明确提出且已由交互规范、生产 CSS 和 Electron 几何测试兑现的 Work 状态工具条稳定性契约。",
           "evidence": [
             "Current operator input, 2026-08-24",
-            "arckit/interaction/platform-workspace/interaction.md",
-            "arckit/interaction/platform-workspace/default.html",
             "arckit/interaction/task-browser/interaction.md",
-            "arckit/interaction/task-browser/daily-work.html",
-            "arckit/interaction/automation-workspace/interaction.md",
-            "arckit/interaction/automation-workspace/default.html",
-            "arckit/interaction/automation-workspace/intervention-workbench.html",
             "runtime/arcorbit/desktop/renderer/styles.css",
-            "runtime/arcorbit/desktop/renderer/renderer.js"
+            "runtime/arcorbit/test/work-navigation-electron.test.mjs",
+            "arckit/interaction/platform-workspace/interaction.md",
+            "arckit/interaction/automation-workspace/interaction.md"
           ],
           "confidence": "high",
-          "resume_condition": "当待办标题归一化、详情正文所有权、Automation 顶部布局、Feedback 列表/图片或 Work 查询交互变化时重审。",
-          "revision": 38
+          "resume_condition": "当待办标题归一化、详情正文所有权、Automation 顶部布局、Feedback 列表/图片、Work 查询交互或七状态工具条几何与摘要容纳策略变化时重审。",
+          "revision": 39
         },
         "gap_refs": []
       },

@@ -2,7 +2,7 @@
 
 Iteration: ITER-20260705-001
 Status: active
-Updated: 2026-08-24T13:10:03.881Z
+Updated: 2026-08-24T13:35:21.529Z
 Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Goal
@@ -17,7 +17,6 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 
 ## Accepted Project Changes
 
-- software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260824-001-arcorbit-agent-ledger.md)
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260823-007-arcorbit-work.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260823-007-arcorbit-work.md)
 - software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260823-007-arcorbit-work.md)
@@ -27,6 +26,7 @@ Canonical Record: ITER-20260705-001-state-driven-loop-foundation.record.json
 - software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260824-005-arcorbit.md)
 - software_decision.technical_foundation: settled (arckit/cases/active/CASE-20260824-005-arcorbit.md)
 - software_decision.quality_and_validation: settled (arckit/cases/active/CASE-20260824-005-arcorbit.md)
+- software_decision.experience_and_interaction: settled (arckit/cases/active/CASE-20260824-007-work.md)
 
 ## Remaining Project Gaps
 
