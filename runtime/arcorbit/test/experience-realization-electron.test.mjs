@@ -3,11 +3,12 @@ import { execFile } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import electron from "electron";
+import { electronFixtureArguments } from "./electron-fixture-launch.mjs";
 
 const execFileAsync = promisify(execFile);
 const fixturePath = fileURLToPath(new URL("./fixtures/experience-realization-electron.mjs", import.meta.url));
 
-const { stdout } = await execFileAsync(electron, [fixturePath], {
+const { stdout } = await execFileAsync(electron, electronFixtureArguments(fixturePath), {
   timeout: 25_000,
   maxBuffer: 1024 * 1024
 });
@@ -23,4 +24,3 @@ assert.equal(result.core_navigation_vector_icons, 10);
 assert.equal(result.core_navigation_text_icons, 0);
 assert.equal(result.table_font_px, 14);
 assert.equal(result.conversation_font_px, 15);
-
