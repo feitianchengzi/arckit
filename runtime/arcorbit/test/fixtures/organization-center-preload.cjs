@@ -46,6 +46,7 @@ const members = [
 const projectMembers = [
   { id: "101", user_id: "7", project_id: "11", project_name: "ArcOrbit", username: "Glare", role: "owner", duty: "产品与实现", is_me: true },
   { id: "102", user_id: "8", project_id: "11", project_name: "ArcOrbit", username: "Lin", role: "member", duty: "反馈运营", is_me: false },
+  { id: "104", user_id: "9", project_id: "11", project_name: "ArcOrbit", username: "", role: "member", duty: "姓名缺失回归", is_me: false },
   { id: "103", user_id: "8", project_id: "12", project_name: "Workshop Todo", username: "Lin", role: "owner", duty: "产品", is_me: false }
 ];
 const tags = [
@@ -63,7 +64,7 @@ const platform = {
   product_workspaces: projects.slice(0, 2).map((project) => ({
     ...project,
     preference: {},
-    task_counts: project.id === "11" ? { pending: 1, completed: 1, accepted: 1 } : { pending: 1 },
+    task_counts: project.id === "11" ? { pending: 4, completed: 1, accepted: 1 } : { pending: 1 },
     feedback_count: 0,
     members: projectMembers.filter((member) => member.project_id === project.id),
     tasks: [],
@@ -75,7 +76,10 @@ const platform = {
   })),
   members: projectMembers,
   tasks: [
-    { id: "W-11", project_id: "11", project_name: "ArcOrbit", title: "legacy unbounded task title", content: `Verify Work state scope\n${"👩‍💻".repeat(65)}`, state: "pending", terminal: false, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "201" },
+    { id: "W-11", project_id: "11", project_name: "ArcOrbit", title: "legacy unbounded task title", content: `Verify Work state scope\n${"👩‍💻".repeat(65)}`, state: "pending", terminal: false, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: null, tags: "201" },
+    { id: "W-NAMELESS", project_id: "11", project_name: "ArcOrbit", title: "Member without a name", content: "Resolve a project member without exposing the id", state: "pending", terminal: false, priority: 97, raw: { priority: 1 }, executor_id: "9", assignee: null, tags: "" },
+    { id: "W-UNKNOWN", project_id: "11", project_name: "ArcOrbit", title: "Unknown executor", content: "Keep an unresolved executor id internal", state: "pending", terminal: false, priority: 96, raw: { priority: 1 }, executor_id: "999", assignee: null, tags: "" },
+    { id: "W-UNASSIGNED", project_id: "11", project_name: "ArcOrbit", title: "Unassigned task", content: "Show the unassigned state", state: "pending", terminal: false, priority: 95, raw: { priority: 1 }, executor_id: "", assignee: null, tags: "" },
     { id: "W-COMPLETED", project_id: "11", project_name: "ArcOrbit", title: "Completed work", content: "Ready for acceptance check", state: "completed", terminal: true, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "" },
     { id: "W-ACCEPTED", project_id: "11", project_name: "ArcOrbit", title: "Accepted work", content: "Already accepted", state: "accepted", terminal: true, priority: 99, raw: { priority: 1 }, executor_id: "7", assignee: { id: "7", username: "Glare" }, tags: "" },
     { id: "W-12", project_id: "12", project_name: "Workshop Todo", title: "Other project work", content: "Must be filtered", state: "pending", terminal: false, priority: 98, raw: { priority: 2 }, executor_id: "8", assignee: { id: "8", username: "Lin" }, tags: "203" }

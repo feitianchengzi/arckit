@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkshopPlatformAdapter, normalizeFeedbackV1, normalizeFeedbackV2 } from "../src/workshop-platform-adapter.mjs";
+import { createWorkshopPlatformAdapter, normalizeFeedbackV1, normalizeFeedbackV2, normalizeMember } from "../src/workshop-platform-adapter.mjs";
+
+test("Workshop member normalization never invents an id-shaped username", () => {
+  assert.equal(normalizeMember({ id: 91, user_id: 7, username: "Glare" }, { projectId: 11 }).username, "Glare");
+  assert.equal(normalizeMember({ id: 92, user_id: 8 }, { projectId: 11 }).username, "");
+});
 
 test("Workshop platform adapter keeps Feedback V2 in fixed project-scoped routes", async () => {
   const calls = [];

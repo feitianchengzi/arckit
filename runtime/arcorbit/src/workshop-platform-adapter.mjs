@@ -364,7 +364,7 @@ export function normalizeMember(value, { organizationId = "", projectId = "" } =
     user_id: userId,
     organization_id: scalarId(value.organization_id) || String(organizationId),
     project_id: scalarId(value.project_id) || String(projectId),
-    username: String(value.username ?? value.user?.username ?? value.user?.name ?? `User ${userId}`).trim(),
+    username: String(value.username ?? value.user?.username ?? value.user?.name ?? "").trim(),
     avatar: String(value.avatar ?? value.user?.avatar ?? ""),
     role,
     duty: String(value.duty || ""),

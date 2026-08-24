@@ -8,6 +8,30 @@ import test from "node:test";
 const execFileAsync = promisify(execFile);
 const fixturePath = fileURLToPath(new URL("./fixtures/organization-center-electron.mjs", import.meta.url));
 
+test("production todo surfaces resolve executor names without exposing ids", {
+  skip: process.env.ARCORBIT_ELECTRON_TODO_EXECUTOR_NAME_TEST !== "1" && "set ARCORBIT_ELECTRON_TODO_EXECUTOR_NAME_TEST=1 to run the focused Electron regression"
+}, async () => {
+  const env = { ...process.env, ELECTRON_DISABLE_SECURITY_WARNINGS: "true" };
+  delete env.ELECTRON_RUN_AS_NODE;
+  const { stdout } = await execFileAsync(electron, [fixturePath], { env, timeout: 20_000, maxBuffer: 1024 * 1024 });
+  const result = JSON.parse(stdout.trim());
+
+  assert.equal(result.workInspectorExecutor, "Glare");
+  assert.deepEqual(result.workExecutorCells, [
+    { id: "W-11", label: "Glare" },
+    { id: "W-NAMELESS", label: "执行人姓名不可用" },
+    { id: "W-UNKNOWN", label: "执行人姓名不可用" },
+    { id: "W-UNASSIGNED", label: "未分配" }
+  ]);
+  assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · Glare"), true);
+  assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · 执行人姓名不可用"), true);
+  assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · 未分配"), true);
+  assert.equal(result.switchedProductExecutorOptions.find((item) => item.value === "9")?.label, "成员姓名不可用");
+  assert.equal(result.feedbackExecutorOptions.find((item) => item.value === "9")?.label, "成员姓名不可用");
+  assert.deepEqual(result.rendererErrors, []);
+  assert.deepEqual(result.errors, []);
+});
+
 test("production Organization Center keeps governance independent and invitations project-bound", {
   skip: process.env.ARCORBIT_ELECTRON_ORGANIZATION_TEST !== "1" && "set ARCORBIT_ELECTRON_ORGANIZATION_TEST=1 to run the interactive Electron regression"
 }, async () => {
@@ -31,21 +55,28 @@ test("production Organization Center keeps governance independent and invitation
   assert.deepEqual(result.selectedProductExecutorOptions, [{ value: "", label: "未分配" }, { value: "8", label: "Lin" }]);
   assert.deepEqual(result.selectedProductTagLabels, ["Docs"]);
   assert.deepEqual(result.priorityOptionLabels, ["无优先级", "最高 · 紧急且重要", "高 · 优先处理", "中 · 正常处理", "低 · 可以延后"]);
-  assert.deepEqual(result.switchedProductExecutorOptions, [{ value: "", label: "未分配" }, { value: "7", label: "Glare" }, { value: "8", label: "Lin" }]);
-  assert.deepEqual(result.switchedProductParentIds, ["", "W-11", "W-COMPLETED", "W-ACCEPTED"]);
+  assert.deepEqual(result.switchedProductExecutorOptions, [{ value: "", label: "未分配" }, { value: "7", label: "Glare" }, { value: "8", label: "Lin" }, { value: "9", label: "成员姓名不可用" }]);
+  assert.deepEqual(result.switchedProductParentIds, ["", "W-11", "W-NAMELESS", "W-UNKNOWN", "W-UNASSIGNED", "W-COMPLETED", "W-ACCEPTED"]);
   assert.deepEqual(result.switchedProductTagLabels, ["Bug", "Desktop"]);
   assert.notEqual(result.createdTaskTagId, "");
   assert.equal(result.editedTaskTagVisible, true);
   assert.equal(result.deletedTaskTagAbsent, true);
   assert.equal(result.allProductsTaskDefault, "11");
   assert.deepEqual(result.workStateIds, ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"]);
-  assert.equal(result.pendingStatusCount, "1");
+  assert.equal(result.pendingStatusCount, "4");
   assert.equal(result.scopePersistedInWork, "11");
   assert.equal(result.workInspectorTitle, "待办 W-11");
   assert.match(result.workInspectorText, /Verify Work state scope/);
   assert.match(result.workInspectorText, /不在当前用户 Automation 范围/);
+  assert.equal(result.workInspectorExecutor, "Glare");
+  assert.deepEqual(result.workExecutorCells, [
+    { id: "W-11", label: "Glare" },
+    { id: "W-NAMELESS", label: "执行人姓名不可用" },
+    { id: "W-UNKNOWN", label: "执行人姓名不可用" },
+    { id: "W-UNASSIGNED", label: "未分配" }
+  ]);
   assert.equal(result.selectedWorkRows, 1);
-  assert.deepEqual(result.editExecutorOptions, [{ value: "", label: "未分配" }, { value: "7", label: "Glare" }, { value: "8", label: "Lin" }]);
+  assert.deepEqual(result.editExecutorOptions, [{ value: "", label: "未分配" }, { value: "7", label: "Glare" }, { value: "8", label: "Lin" }, { value: "9", label: "成员姓名不可用" }]);
   assert.equal(result.editPriorityValue, "1");
   assert.deepEqual(result.editSelectedTagIds, ["201"]);
   assert.equal(result.completedHasAcceptanceComposer, true);
@@ -54,6 +85,9 @@ test("production Organization Center keeps governance independent and invitation
   assert.match(result.acceptedInspectorText, /验收通过/);
   assert.match(result.acceptedInspectorText, /不再接受新的验收问题/);
   assert.deepEqual(result.todayProductIds, ["11"]);
+  assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · Glare"), true);
+  assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · 执行人姓名不可用"), true);
+  assert.equal(result.todayTaskMeta.some((value) => value === "ArcOrbit · 未分配"), true);
   assert.deepEqual(result.ordinaryFeedbackIds, ["F-11", "F-11-LINKED"]);
   assert.equal(result.scopePersistedInFeedback, "11");
   assert.equal(result.feedbackHasCreateButton, false);
@@ -79,7 +113,8 @@ test("production Organization Center keeps governance independent and invitation
   assert.deepEqual(result.feedbackExecutorOptions, [
     { value: "", label: "未分配" },
     { value: "7", label: "Glare" },
-    { value: "8", label: "Lin" }
+    { value: "8", label: "Lin" },
+    { value: "9", label: "成员姓名不可用" }
   ]);
   assert.equal(result.calls.some(([command, input]) => command === "task.create"
     && input.project_id === "11"

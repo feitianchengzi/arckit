@@ -634,8 +634,13 @@ test("desktop primary surface is a simultaneous multi-product platform while pre
   const managedActionHandler = source.slice(source.indexOf("async function executeManagedAction"), source.indexOf("function openPlatformAction"));
   assert.match(managedActionHandler, /result\?\.status === "partial"/);
   assert.match(managedActionHandler, /partialError\.partial_result = result\.partial_result/);
-  assert.match(source, /function memberSelectOptions\(projectId = ""\).*filter\(\(item\) => !projectId \|\| String\(item\.project_id\) === String\(projectId\)\).*label: item\.username/);
+  assert.match(source, /function memberSelectOptions\(projectId = ""\).*filter\(\(item\) => !projectId \|\| String\(item\.project_id\) === String\(projectId\)\).*label: memberName\(item\)/);
   assert.doesNotMatch(source, /label: `\$\{item\.project_name\} · \$\{item\.username\}`/);
+  assert.match(source, /function taskExecutorName\(task\)/);
+  assert.match(source, /String\(item\.project_id \|\| ""\) === projectId && String\(item\.user_id \|\| ""\) === executorId/);
+  assert.match(source, /personName\(member\) \|\| "执行人姓名不可用"/);
+  assert.doesNotMatch(source, /task\.assignee\?\.username \|\| task\.assignee\?\.name \|\| task\.executor_id/);
+  assert.doesNotMatch(source, /`成员 \$\{item\.user_id\}`/);
   const createTaskHandler = source.slice(source.indexOf("async function createTask"), source.indexOf("async function editTask"));
   const editTaskHandler = source.slice(source.indexOf("async function editTask"), source.indexOf("async function deleteTask"));
   assert.match(createTaskHandler, /taskProjectFields\(defaultProjectId\)/);

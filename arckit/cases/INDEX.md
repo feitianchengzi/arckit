@@ -128,3 +128,4 @@
 | [CASE-20260824-005](closed/CASE-20260824-005-arcorbit.md) | closed | 统一 Arcorbit 待办标题与内容语义 | 2026-08-24T12:51:59.665Z |
 | [CASE-20260824-006](closed/CASE-20260824-006-work.md) | closed | 修复本地新建待办的 Work 详情动作空窗 | 2026-08-24T13:10:03.881Z |
 | [CASE-20260824-007](closed/CASE-20260824-007-work.md) | closed | 固定 Work 待办状态工具条尺寸 | 2026-08-24T13:35:21.529Z |
+| [CASE-20260824-008](closed/CASE-20260824-008-development-case.md) | closed | 统一待办执行人姓名显示 | 2026-08-24T13:56:33.832Z |

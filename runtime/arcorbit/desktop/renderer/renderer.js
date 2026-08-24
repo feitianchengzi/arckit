@@ -1298,7 +1298,7 @@ function renderPlatformWork() {
   const tasks = scopedTasks.some((task) => Number.isInteger(task.tree_depth)) ? scopedTasks : rankTasks(stateTasks);
   if (!tasks.some((task) => String(task.id) === String(state.selectedPlatformTaskId))) state.selectedPlatformTaskId = String(tasks[0]?.id || "");
   const selectedTask = tasks.find((task) => String(task.id) === String(state.selectedPlatformTaskId)) || null;
-  const table = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th></tr></thead><tbody>${tasks.map((task) => { const depth = Math.max(0, Number(task.tree_depth || 0)); const lineageOnly = task.state !== state.selectedState || task.tree_matched === false; const rowContext = [lineageOnly ? "用于补全层级" : "", task.tags ? `标签：${Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags}` : ""].filter(Boolean).join(" · "); return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""} ${lineageOnly ? "tree-lineage" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell" style="--task-tree-depth:${depth}" title="${escapeHtml(rowContext)}"><span class="task-tree-title">${depth ? "↳ " : ""}${escapeHtml(displayTaskTitle(task))}</span></td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">${state.workQuery.loading ? "正在载入与当前查询匹配的待办…" : state.workQuery.error ? `加载失败：${escapeHtml(state.workQuery.error)}` : "当前产品集或筛选条件下没有待办。"}</div>`;
+  const table = tasks.length ? `<table class="data-table platform-work-table"><colgroup><col style="width:90px"><col><col style="width:130px"><col style="width:92px"><col style="width:72px"><col style="width:100px"></colgroup><thead><tr><th>待办</th><th>内容</th><th>产品</th><th>状态</th><th>优先级</th><th>执行人</th></tr></thead><tbody>${tasks.map((task) => { const depth = Math.max(0, Number(task.tree_depth || 0)); const lineageOnly = task.state !== state.selectedState || task.tree_matched === false; const rowContext = [lineageOnly ? "用于补全层级" : "", task.tags ? `标签：${Array.isArray(task.tags) ? task.tags.join(" · ") : task.tags}` : ""].filter(Boolean).join(" · "); return `<tr class="${String(task.id) === state.selectedPlatformTaskId ? "selected" : ""} ${lineageOnly ? "tree-lineage" : ""}" data-platform-task-select="${escapeHtml(task.id)}"><td class="queue-number">${escapeHtml(task.id)}</td><td class="task-title-cell" style="--task-tree-depth:${depth}" title="${escapeHtml(rowContext)}"><span class="task-tree-title">${depth ? "↳ " : ""}${escapeHtml(displayTaskTitle(task))}</span></td><td>${escapeHtml(task.project_name)}</td><td><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span></td><td>${escapeHtml(formatPriority(task.priority))}</td><td>${escapeHtml(taskExecutorName(task))}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty-state">${state.workQuery.loading ? "正在载入与当前查询匹配的待办…" : state.workQuery.error ? `加载失败：${escapeHtml(state.workQuery.error)}` : "当前产品集或筛选条件下没有待办。"}</div>`;
   const windowInfo = projection.window || { offset: 0, returned: tasks.length, total: tasks.length, has_more: false };
   const previousOffset = Math.max(0, Number(windowInfo.offset || 0) - WORK_QUERY_WINDOW_SIZE);
   const nextOffset = Number(windowInfo.offset || 0) + Number(windowInfo.returned || 0);
@@ -1323,7 +1323,7 @@ function renderWorkFilterControls() {
   const selectedProjectIds = new Set((state.selectedProjectId === "all" ? state.platform.active_workset?.project_ids || [] : [state.selectedProjectId]).map(String));
   const members = (state.platform.members || []).filter((item) => selectedProjectIds.has(String(item.project_id)));
   const uniqueMembers = [...new Map(members.map((item) => [String(item.user_id), item])).values()];
-  const memberOptions = uniqueMembers.map((item) => ({ value: item.user_id, label: item.username || `成员 ${item.user_id}` }));
+  const memberOptions = uniqueMembers.map((item) => ({ value: item.user_id, label: memberName(item) }));
   const queryTags = state.workQuery.projection?.tags || [];
   const tags = (queryTags.length > 0 ? queryTags : state.platform.tags || []).filter((item) => selectedProjectIds.has(String(item.project_id)));
   setMultiSelectOptions(els.workCreatorFilter, memberOptions, state.platformWorkFilters.creator_ids);
@@ -1371,7 +1371,7 @@ function renderPlatformWorkInspector(task) {
     ["待办标识", task.id],
     ["所属产品", task.project_name],
     ["创建人", taskCreatorName(task)],
-    ["执行人", task.assignee?.username || task.assignee?.name || task.executor_id || "未分配"],
+    ["执行人", taskExecutorName(task)],
     ["优先级", formatPriority(task.priority)],
     ["标签", taskTagNames(task)],
     ["父待办", task.father_id || "无"],
@@ -2559,7 +2559,7 @@ function taskCreationDefaultProjectId(projects) {
     : projects[0]?.value || "";
 }
 function organizationOptions() { return (state.platform.organizations || []).map((item) => ({ value: item.id, label: item.name })); }
-function memberSelectOptions(projectId = "") { return [{ value: "", label: "未分配" }, ...(state.platform.members || []).filter((item) => !projectId || String(item.project_id) === String(projectId)).map((item) => ({ value: item.user_id, label: item.username || item.user?.username || `成员 ${item.user_id}` }))]; }
+function memberSelectOptions(projectId = "") { return [{ value: "", label: "未分配" }, ...(state.platform.members || []).filter((item) => !projectId || String(item.project_id) === String(projectId)).map((item) => ({ value: item.user_id, label: memberName(item) }))]; }
 function taskSelectOptions(projectId = "", excludedTaskId = "") { return [{ value: "", label: "根待办" }, ...(state.platform.tasks || []).filter((item) => (!projectId || String(item.project_id) === String(projectId)) && String(item.id) !== String(excludedTaskId)).map((item) => ({ value: item.id, label: `${projectId ? "" : `${item.project_name} · `}${item.id} · ${item.title}` }))]; }
 function findProject(id) { const value = state.platform.projects.find((item) => String(item.id) === String(id)); if (!value) throw new Error("未找到产品。"); return value; }
 function currentOrganizationScope() { return (state.platform.organization_scopes || []).find((item) => String(item.id) === String(state.organizationScopeId)) || null; }
@@ -3463,7 +3463,27 @@ function rankTasks(tasks) {
 }
 
 function platformTaskRow(task) {
-  return `<div class="compact-row"><span><strong>${escapeHtml(displayTaskTitle(task))}</strong><small>${escapeHtml(task.project_name)} · ${escapeHtml(task.assignee?.username || task.assignee?.name || task.executor_id || "未分配")}</small></span><em class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</em></div>`;
+  return `<div class="compact-row"><span><strong>${escapeHtml(displayTaskTitle(task))}</strong><small>${escapeHtml(task.project_name)} · ${escapeHtml(taskExecutorName(task))}</small></span><em class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</em></div>`;
+}
+
+function personName(value) {
+  if (typeof value === "string") return value.trim();
+  return String(value?.username || value?.name || value?.user?.username || value?.user?.name || "").trim();
+}
+
+function memberName(member) {
+  return personName(member) || "成员姓名不可用";
+}
+
+function taskExecutorName(task) {
+  const embeddedName = personName(task?.assignee);
+  if (embeddedName) return embeddedName;
+  const executorId = String(task?.executor_id || "").trim();
+  if (!executorId) return "未分配";
+  const projectId = String(task?.project_id || "");
+  const member = [...(state.platform.members || []), ...(state.platform.project_members || [])]
+    .find((item) => String(item.project_id || "") === projectId && String(item.user_id || "") === executorId);
+  return personName(member) || "执行人姓名不可用";
 }
 
 function uniqueMembers(members = []) {
