@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 236
-Updated: 2026-08-25T08:22:01.846Z
+Revision: 238
+Updated: 2026-08-25T10:42:42.557Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Upgrade ArcOrbit Automation so independent local project workspaces can execute concurrently while each workspace executes its todos and acceptance feedback serially.
+定位并修复 ArcOrbit Work 页面后台刷新触发待办详情重新渲染、导致评论或验收问题输入内容丢失的问题。
 
 ## Active Work
 

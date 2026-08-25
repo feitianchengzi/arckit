@@ -165,6 +165,7 @@ let activityRefreshQueued = false;
 let toastTimer;
 let verificationTimer;
 let workFilterTimer;
+let platformWorkInspectorRender = { taskId: "", html: "" };
 const taskAttachmentPreviewQueue = [];
 let activeTaskAttachmentPreviews = 0;
 const TASK_ATTACHMENT_PREVIEW_CONCURRENCY = 3;
@@ -1398,7 +1399,7 @@ function renderWorkFilterSummaries() {
 
 function renderPlatformWorkInspector(task) {
   if (!task) {
-    els.platformWorkInspector.innerHTML = `<div class="empty-state">选择待办查看详情与允许操作。</div>`;
+    updatePlatformWorkInspector("", `<div class="empty-state">选择待办查看详情与允许操作。</div>`);
     return;
   }
   const workspace = state.platform.product_workspaces.find((item) => String(item.id) === String(task.project_id));
@@ -1407,7 +1408,7 @@ function renderPlatformWorkInspector(task) {
   const canManage = canManagePlatformTask(task);
   const automationActions = automationTask ? taskActions(automationTask) : [];
   const acceptanceFeedback = automationTask?.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-work-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="workAcceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitWorkAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : automationTask?.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
-  els.platformWorkInspector.innerHTML = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${factRows([
+  const inspectorHtml = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${factRows([
     ["待办标识", task.id],
     ["所属产品", task.project_name],
     ["创建人", taskCreatorName(task)],
@@ -1421,6 +1422,11 @@ function renderPlatformWorkInspector(task) {
     ["本地工作区", automationTask?.local_project_path || workspace?.local_path || "未绑定"],
     ["自动执行资格", automationTask ? (automationTask.eligible ? `队列第 ${automationTask.queue_position} 项` : automationTask.eligibility_reason || "不适用于当前状态") : "不在当前用户 Automation 范围"]
   ])}<div class="task-actions platform-work-management"><button class="secondary-button" data-work-inspector-copy-reference="${escapeHtml(task.id)}" type="button">复制任务引用</button>${canManage ? `<button class="secondary-button" data-work-inspector-edit="${escapeHtml(task.id)}" type="button">编辑</button><button class="secondary-button" data-work-inspector-subtask="${escapeHtml(task.id)}" type="button">创建子待办</button><button class="secondary-button" data-work-inspector-reparent="${escapeHtml(task.id)}" type="button">调整父待办</button>` : ""}<button class="secondary-button" data-work-inspector-attachment="${escapeHtml(task.id)}" type="button">管理附件</button>${canManage ? `<button class="secondary-button danger-action" data-work-inspector-delete="${escapeHtml(task.id)}" type="button">删除</button>` : ""}</div>${taskAttachmentPanel(task)}${automationActions.length ? `<div class="task-actions platform-work-automation">${automationActions.map((action) => `<button class="${action.primary ? "primary-button" : "secondary-button"}" data-work-task-action="${action.id}" type="button">${action.label}</button>`).join("")}</div>` : ""}${acceptanceFeedback}`;
+  if (!updatePlatformWorkInspector(String(task.id), inspectorHtml)) {
+    if (!state.platformTaskAttachments[String(task.id)]) loadTaskAttachments(task.id);
+    else loadMissingTaskAttachmentPreviews(task);
+    return;
+  }
   els.platformWorkInspector.querySelector("[data-work-inspector-copy-reference]")?.addEventListener("click", () => runAction(() => copyWorkTaskReference(task)));
   els.platformWorkInspector.querySelectorAll("[data-task-markdown-external-link]").forEach((button) => button.addEventListener("click", () => runAction(() => api.openWorkExternalLink(button.dataset.taskMarkdownExternalLink))));
   els.platformWorkInspector.querySelector("[data-work-inspector-edit]")?.addEventListener("click", () => runAction(() => editTask(task.id)));
@@ -1453,6 +1459,24 @@ function renderPlatformWorkInspector(task) {
   }));
   if (!state.platformTaskAttachments[String(task.id)]) loadTaskAttachments(task.id);
   else loadMissingTaskAttachmentPreviews(task);
+}
+
+function updatePlatformWorkInspector(taskId, html) {
+  const sameTask = platformWorkInspectorRender.taskId === taskId;
+  if (sameTask && platformWorkInspectorRender.html === html) return false;
+  const preservedEditors = sameTask
+    ? ["[data-task-comment-input]", "#workAcceptanceFeedbackInput"]
+      .map((selector) => [selector, els.platformWorkInspector.querySelector(selector)])
+      .filter(([, editor]) => editor)
+    : [];
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  for (const [selector, editor] of preservedEditors) {
+    template.content.querySelector(selector)?.replaceWith(editor);
+  }
+  els.platformWorkInspector.replaceChildren(template.content);
+  platformWorkInspectorRender = { taskId, html };
+  return true;
 }
 
 function taskCreatorName(task) {
@@ -1571,6 +1595,7 @@ async function createTaskComment(taskId) {
   });
   await executeManagedAction("task.attachment.create", { task_id: taskId, type: "text", content }, "评论已发表", { refresh: false });
   if (!isTaskAttachmentRequestCurrent(state, request)) return;
+  if (input) input.value = "";
   delete state.pendingTaskCommentResources[String(taskId)];
   delete state.platformTaskAttachments[String(taskId)];
   await loadTaskAttachments(taskId);

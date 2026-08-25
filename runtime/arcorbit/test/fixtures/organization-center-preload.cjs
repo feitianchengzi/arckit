@@ -2,6 +2,11 @@ const { contextBridge } = require("electron");
 
 const calls = [];
 const automationListeners = new Set();
+const workSyncListeners = new Set();
+const workDetailRefreshTest = process.env.ARCORBIT_WORK_DETAIL_REFRESH_FIXTURE === "1";
+const taskAttachments = workDetailRefreshTest ? {
+  "W-11": [{ id: "TA-W-11-1", task_id: "W-11", creator_id: "7", type: "text", content: "[image](work/W-11/progress.png) Preview update", created_at: "2026-08-25T10:00:00Z" }]
+} : {};
 let workQueryDelayMs = 0;
 let workQueryFailure = "";
 let workQueryScenarios = [];
@@ -158,6 +163,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   onSetupEvent: () => () => {},
   onAutomationEvent: (listener) => { automationListeners.add(listener); return () => automationListeners.delete(listener); },
+  onWorkSyncEvent: (listener) => { workSyncListeners.add(listener); return () => workSyncListeners.delete(listener); },
   onEvent: () => () => {}, onChatEvent: () => () => {}, onProductFeedbackUnread: () => () => {},
   setActiveWorkset: noOp,
   syncAutomation: async () => { calls.push(["syncAutomation", {}]); return automation; },
@@ -173,7 +179,8 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   updateWorkset: async (input) => { calls.push(["updateWorkset", input]); platform.active_workset.project_ids = input.project_ids; return input; },
   executePlatformAction: async (command, input) => {
     calls.push([command, input]);
-    if (command === "task.attachments.list") return [];
+    if (command === "task.attachments.list") return taskAttachments[String(input.task_id)] || [];
+    if (command === "task.attachment.create") return { id: `TA-${String(input.task_id)}-NEW`, task_id: String(input.task_id), creator_id: "7", type: input.type, content: input.content };
     if (command === "task.create") {
       const projectId = String(input.project_id);
       const project = projects.find((item) => item.id === projectId);
@@ -237,6 +244,14 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   openImageViewer: async (input) => { calls.push(["openImageViewer", input]); return { opened: true }; },
   openFeedbackAttachment: async (value) => { calls.push(["openFeedbackAttachment", value]); return { opened: true }; },
+  previewWorkTaskAttachment: async (input) => {
+    calls.push(["previewWorkTaskAttachment", input]);
+    if (workDetailRefreshTest) await new Promise((resolve) => setTimeout(resolve, 500));
+    return { data_url: "data:image/png;base64,AQID" };
+  },
+  pickWorkTaskAttachment: async () => null,
+  openWorkTaskAttachment: async (input) => { calls.push(["openWorkTaskAttachment", input]); return { opened: true }; },
+  openWorkExternalLink: async (value) => { calls.push(["openWorkExternalLink", value]); return { opened: true }; },
   getTestCalls: async () => calls,
   setTestPlatformSnapshotDelay: async (value) => { workQueryDelayMs = Math.max(0, Number(value) || 0); },
   queueTestPlatformWorkQueries: async (scenarios) => {
@@ -268,5 +283,8 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   setTestRecoveryItems: async (items) => { automation.recovery_items = items; },
   emitTestAutomationEvent: async (event = { type: "automation.changed" }) => {
     for (const listener of automationListeners) listener(event);
+  },
+  emitTestWorkSyncEvent: async (event = { type: "work-sync.changed" }) => {
+    for (const listener of workSyncListeners) listener(event);
   }
 });

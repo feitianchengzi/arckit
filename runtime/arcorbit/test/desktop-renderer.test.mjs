@@ -1090,6 +1090,10 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.match(source, /executeManagedAction\("task\.subtask\.create"/);
   assert.match(source, /executeManagedAction\("task\.reparent"/);
   assert.match(source, /function taskAttachmentPanel\(task\)/);
+  assert.match(source, /function updatePlatformWorkInspector\(taskId, html\)/);
+  assert.match(source, /platformWorkInspectorRender\.html === html/);
+  assert.match(source, /template\.content\.querySelector\(selector\)\?\.replaceWith\(editor\)/);
+  assert.doesNotMatch(source, /work(?:Comment|Acceptance)Draft/);
   assert.match(source, /task\.attachment\.create.*type: "text"/s);
   assert.match(source, /String\(item\.creator_id\) === userId/);
   assert.match(source, /\["owner", "admin"\]\.includes\(role\)/);
@@ -1201,7 +1205,7 @@ test("desktop exposes Task Browser, on-demand Workbench, and Recovery Center as 
   assert.match(source, /message\.task_id/);
   assert.match(source, /Task Session/);
   assert.match(source, /import \{ taskDisplayTitle \} from "\.\.\/\.\.\/src\/task-display-title\.mjs"/);
-  assert.match(source, /platformWorkInspector\.innerHTML = `<h2>待办 \$\{escapeHtml\(task\.id\)\}<\/h2><article class="task-markdown-detail">\$\{renderRestrictedMarkdown\(task\.content\)\}/);
+  assert.match(source, /const inspectorHtml = `<h2>待办 \$\{escapeHtml\(task\.id\)\}<\/h2><article class="task-markdown-detail">\$\{renderRestrictedMarkdown\(task\.content\)\}/);
   assert.match(source, /taskInspector\.innerHTML = `<h2>待办 \$\{escapeHtml\(task\.id\)\}<\/h2><p>\$\{escapeHtml\(task\.content/);
   assert.doesNotMatch(source, /taskInspector\.innerHTML = `<h2>\$\{escapeHtml\(task\.title\)\}/);
   assert.doesNotMatch(source, /`\$\{task\.title\} \$\{task\.content\} \$\{task\.project_name\}/);

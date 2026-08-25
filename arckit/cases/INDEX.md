@@ -134,3 +134,4 @@
 | [CASE-20260824-011](closed/CASE-20260824-011-work-owned-task-synchronization.md) | closed | Work-owned task synchronization | 2026-08-24T17:42:50.643Z |
 | [CASE-20260825-001](closed/CASE-20260825-001-restore-arcorbit-automation-after-abrupt-process-loss.md) | closed | Restore ArcOrbit automation after abrupt process loss | 2026-08-25T02:23:19.097Z |
 | [CASE-20260825-002](closed/CASE-20260825-002-enable-concurrent-arcorbit-automation-across-projects.md) | closed | Enable concurrent ArcOrbit automation across projects | 2026-08-25T08:22:01.846Z |
+| [CASE-20260825-003](closed/CASE-20260825-003-work.md) | closed | 修复 Work 待办详情刷新导致输入草稿丢失 | 2026-08-25T10:42:42.557Z |
