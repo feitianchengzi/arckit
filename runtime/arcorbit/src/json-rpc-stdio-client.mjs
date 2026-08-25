@@ -7,7 +7,7 @@ const WINDOWS_COMMAND_EXTENSIONS = new Set([".bat", ".cmd"]);
 const WINDOWS_POWERSHELL_SCRIPT = [
   "$ErrorActionPreference = 'Stop'",
   "$rpcCommand = $env:ARCKIT_JSON_RPC_COMMAND",
-  "[string[]] $rpcArgs = @(ConvertFrom-Json -InputObject $env:ARCKIT_JSON_RPC_ARGS)",
+  "$rpcArgs = ConvertFrom-Json -InputObject $env:ARCKIT_JSON_RPC_ARGS",
   "& $rpcCommand @rpcArgs",
   "exit $LASTEXITCODE"
 ].join("; ");
@@ -81,7 +81,7 @@ export function resolveWindowsCommand(command, { env = process.env, isFile = def
 
 function windowsCommandCandidates(command, extensions) {
   if (pathWin32.extname(command)) return [command];
-  return [command, ...extensions.map((extension) => `${command}${extension}`)];
+  return [...extensions.map((extension) => `${command}${extension}`), command];
 }
 
 function windowsExecutableExtensions(env) {
