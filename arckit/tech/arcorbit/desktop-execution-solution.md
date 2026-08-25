@@ -263,6 +263,12 @@ Chat session 或 thread 创建成功但首个 turn 启动失败时保留本地�
 
 session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_start` 必须复用它。任务完成后 session、thread id 与消息留作审查；删除项目时沿用项目级清理规则。退出登录只清除远端身份与快照，不删除本地 task session、thread binding、Run activity 或用量历史。
 
+Automation 启动恢复以持久 `active_task`、Work Sync 本地任务状态、Run Manager 的实时 ownership、task thread binding 和 canonical Case checkpoint 的组合为权威事实。`phase` 与 `recovery_items` 是可重建的控制投影，不能单独决定任务是否可恢复。活动任务仍为 `in_progress`、没有存活 Run、没有 attention 或其他要求人工处理的恢复项，并且 phase 表明执行在 `starting`、`running`、`continuing` 或 `recovery` 中被中断时，Coordinator 确定性重建 `runtime_process_missing`，再以原 task session 和持久 thread 启动替代 Run。
+
+恢复标记是启动事务的持久意图：Coordinator 在替代 Run 的 `run_id`、`thread_id` 和运行 phase 写入 Automation Store 前不移除它；替代 Run 绑定成功时在同一次 Store mutation 中消费标记。启动失败时，同一次失败收束把临时标记替换成唯一可操作的 `start_failed`，保留同 thread 重试与人工反馈入口。应用在上述任意检查点再次退出后，下一次启动仍能从持久状态重建或继续同一恢复动作。
+
+恢复路径先检查当前 Run ownership，存活 Run 继续拥有任务时不得创建替代 Run。任务存在 attention、Case binding 冲突、CLI handoff、远端状态漂移或其他持久恢复决策时，启动同步保留该决策并停止自动恢复；不能用重建的通用进程丢失项覆盖或绕过更具体的人工处置边界。
+
 绑定活动任务与持久 `thread_id` 的 Runtime 恢复项同时提供 `feedback_continue`。Coordinator 要求非空用户原文，校验 recovery、active task、task session 和 thread 归属一致，再用该原文作为新 Run 的唯一 task 内容 resume 同一 thread；新 Run 关联来源 recovery、失败 Run、result 与 activity refs。Run 成功建立后，原文以 `role=user`、`kind=recovery_feedback` 写入同一 Desktop session，恢复项才移除；启动失败时恢复项和 recovery phase 保留。Workbench 合并 session 用户消息与所有同 session Run 投影，因此反馈在提交后立即作为“你”的消息出现在当前待办对话，而不创建新对话或覆盖 canonical Case facts。
 
 ## 验收口径
@@ -280,6 +286,8 @@ session 或 thread 创建成功但 Runtime 启动失败时保留绑定，`retry_
 - 两个连续远端待办在同一项目中获得不同 `session_id`，Workbench transcript 不交叉。
 - 同一待办的 intervention、continuation、普通 Gap、Completion Review、finding 修复和 Git-only closeout 保持同一 Desktop session 与 Codex thread。
 - 已绑定持久 thread 的 Runtime 失败项可接收非空用户反馈；反馈启动同 thread 的新 Run、保留来源 refs，并在同一 Workbench transcript 中显示，失败时不提前移除恢复项。
+- 电脑断电或 Desktop 进程异常退出后，仍为 `in_progress` 且没有存活 Run 的活动任务会从持久事实重建恢复项，并以原 task session 和 thread 启动替代 Run；缺失 `recovery_items` 不会让任务永久停滞。
+- 恢复标记只在替代 Run 绑定成功的同一次 Store mutation 中消费；启动失败保留唯一可操作恢复项，存活 Run 或需要人工处理的恢复决策都不会被自动恢复绕过。
 - thread id 在首个 turn 前持久化；进程重启和 Runtime Run 切换都 resume 同一 thread。
 - 不同待办不共享 Codex thread；同一待办不会创建 Controller、Worker、Review 或 commit thread。
 - 同一 `cwd + command` 的并发请求只批准一个进程，并留下可审查软异常。

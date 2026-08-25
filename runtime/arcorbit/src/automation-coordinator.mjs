@@ -599,7 +599,6 @@ export function createAutomationCoordinator({
       return sync();
     }
     if (action === "retry_start") {
-      await removeRecovery(recoveryId);
       await patchAutomation((automation) => {
         if (automation.active_task) {
           automation.active_task.phase = "starting";
@@ -615,7 +614,7 @@ export function createAutomationCoordinator({
           }
         }
       });
-      await startRuntimeForActiveTask();
+      await startRuntimeForActiveTask({ recoveryId });
       return getSnapshot();
     }
     if (action === "feedback_continue") {
@@ -949,7 +948,7 @@ export function createAutomationCoordinator({
     }
   }
 
-  async function startRuntimeForActiveTask() {
+  async function startRuntimeForActiveTask({ recoveryId = "" } = {}) {
     const store = await readStore();
     const active = store.automation.active_task;
     if (!active) {
@@ -962,7 +961,8 @@ export function createAutomationCoordinator({
         type: "start_failed",
         task: active,
         message: "The local project binding or remote task snapshot is missing.",
-        actions: ["retry_sync", "mark_blocked"]
+        actions: ["retry_sync", "mark_blocked"],
+        replaceRecoveryIds: recoveryId ? [recoveryId] : []
       });
       return null;
     }
@@ -1016,6 +1016,9 @@ export function createAutomationCoordinator({
         automation.active_task.thread_id = run.thread_id || automation.active_task.thread_id || "";
         automation.active_task.phase = closeoutOnly ? "closeout_running" : "running";
         automation.active_task.started_at = now();
+        if (recoveryId) {
+          automation.recovery_items = automation.recovery_items.filter((item) => item.id !== recoveryId);
+        }
         if (automation.active_task.execution_kind === "acceptance_feedback") {
           const item = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === automation.active_task.feedback_id);
           if (item) {
@@ -1035,7 +1038,8 @@ export function createAutomationCoordinator({
         type: "start_failed",
         task: active,
         message: error.message,
-        actions: ["retry_start", "mark_blocked"]
+        actions: ["retry_start", "mark_blocked"],
+        replaceRecoveryIds: recoveryId ? [recoveryId] : []
       });
       return null;
     }
@@ -1686,11 +1690,12 @@ export function createAutomationCoordinator({
     });
   }
 
-  async function addRecovery({ type, task, message, actions, freezeScope = "global" }) {
+  async function addRecovery({ type, task, message, actions, freezeScope = "global", replaceRecoveryIds = [] }) {
     await patchAutomation((automation) => {
       const taskId = task?.task_id || task?.id || "unknown";
       const active = automation.active_task;
       const availableActions = recoveryActionsForItem({ task_id: taskId, actions }, active);
+      const replacedIds = new Set(replaceRecoveryIds.map(String));
       if (automation.active_task) automation.active_task.phase = "recovery";
       if (active?.execution_kind === "acceptance_feedback") {
         const feedback = automation.acceptance_feedback_items.find((entry) => entry.feedback_id === active.feedback_id);
@@ -1701,7 +1706,7 @@ export function createAutomationCoordinator({
           feedback.updated_at = now();
         }
       }
-      automation.recovery_items = upsertById(automation.recovery_items, {
+      automation.recovery_items = upsertById(automation.recovery_items.filter((item) => !replacedIds.has(String(item.id))), {
         id: `RECOVERY-${type}-${taskId}`,
         type,
         task_id: taskId,
@@ -1749,8 +1754,8 @@ export function createAutomationCoordinator({
   }
 
   async function resumeRecoverableTaskOnStartup() {
-    const store = await readStore();
-    const automation = store.automation;
+    let store = await readStore();
+    let automation = store.automation;
     const active = automation.active_task;
     if (!automation.enabled || !active || automation.attention_items.length > 0) return "not_applicable";
     if (active.run_id && runManager.isRunActive?.(active.run_id)) return "runtime_active";
@@ -1761,13 +1766,33 @@ export function createAutomationCoordinator({
         return "feedback_not_recoverable";
       }
     } else if (!task || task.state !== "in_progress") return "task_not_in_progress";
-    const recovery = automation.recovery_items.find((item) => (
+    let recovery = automation.recovery_items.find((item) => (
       String(item.task_id) === String(active.task_id)
       && ["runtime_incomplete", "runtime_process_missing"].includes(item.type)
       && recoveryActionsForItem(item, active).includes("retry_start")
     ));
-    if (!recovery) return "recovery_not_safe";
-    await removeRecovery(recovery.id);
+    if (!recovery) {
+      const associatedRecoveries = automation.recovery_items.filter((item) => String(item.task_id) === String(active.task_id));
+      if (associatedRecoveries.length > 0 || !startupPhaseCanReconstructRecovery(active.phase)) {
+        return "recovery_not_safe";
+      }
+      await addRecovery({
+        type: "runtime_process_missing",
+        task: active,
+        message: active.run_id
+          ? "Startup reconstructed recovery because the persisted active task has no attached Runtime process."
+          : "Startup reconstructed recovery because the server task is in progress but no Runtime run is attached locally.",
+        actions: ["retry_start", "mark_blocked"]
+      });
+      store = await readStore();
+      automation = store.automation;
+      recovery = automation.recovery_items.find((item) => (
+        String(item.task_id) === String(active.task_id)
+        && item.type === "runtime_process_missing"
+        && recoveryActionsForItem(item, automation.active_task).includes("retry_start")
+      ));
+      if (!recovery) return "recovery_not_safe";
+    }
     await patchAutomation((next) => {
       if (next.active_task?.task_id !== active.task_id) return;
       next.active_task.phase = "starting";
@@ -1782,7 +1807,7 @@ export function createAutomationCoordinator({
         }
       }
     });
-    const run = await startRuntimeForActiveTask();
+    const run = await startRuntimeForActiveTask({ recoveryId: recovery.id });
     if (!run) return "start_failed";
     emit("automation.changed", {
       reason: "startup-recovery-resumed",
@@ -2178,6 +2203,10 @@ function recoveryActionsForItem(item, active) {
   }
   actions.splice(Math.max(0, actions.indexOf("mark_blocked")), 0, "feedback_continue");
   return actions;
+}
+
+function startupPhaseCanReconstructRecovery(phase) {
+  return ["starting", "running", "continuing", "recovery"].includes(String(phase || ""));
 }
 
 function requiredId(value, label) {

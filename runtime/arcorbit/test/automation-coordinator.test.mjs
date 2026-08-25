@@ -956,6 +956,144 @@ test("initial Desktop sync resumes one recoverable in-progress task on its persi
   coordinator.dispose();
 });
 
+test("startup recovery keeps its durable marker until the replacement Run is bound", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "recovery" });
+  store.automation.recovery_items.push({
+    id: "RECOVERY-runtime-incomplete-t",
+    type: "runtime_incomplete",
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    actions: ["retry_start", "mark_blocked"]
+  });
+  let markerPresentAtStart = false;
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{ id: "RUN-OLD", project_id: "local", status: "aborted", activity: {} }];
+    },
+    async getProjectCaseState() { return null; },
+    async startRun(input) {
+      markerPresentAtStart = store.automation.recovery_items.some((item) => item.id === "RECOVERY-runtime-incomplete-t");
+      starts.push(input);
+      return { id: "RUN-RECOVERED", thread_id: input.threadId, project_id: "local", session_id: input.sessionId };
+    }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: healthyTaskSourceFactory(store)
+  });
+
+  await coordinator.sync({ dispatch: false, resumeRecoverable: true });
+
+  assert.equal(markerPresentAtStart, true);
+  assert.equal(store.automation.active_task.run_id, "RUN-RECOVERED");
+  assert.equal(store.automation.active_task.phase, "running");
+  assert.equal(store.automation.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
+test("initial Desktop sync reconstructs recovery after power loss leaves an orphaned recovery phase", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "recovery" });
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{ id: "RUN-OLD", project_id: "local", status: "aborted", activity: {} }];
+    },
+    async getProjectCaseState() { return null; }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: healthyTaskSourceFactory(store)
+  });
+
+  await coordinator.sync({ dispatch: false, resumeRecoverable: true });
+
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].threadId, "THREAD-PERSISTED");
+  assert.equal(store.automation.active_task.phase, "running");
+  assert.equal(store.automation.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
+test("startup recovery never creates a duplicate Run while the persisted Run is still attached", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "recovery" });
+  const runManager = fakeRunManager(store, starts, {
+    isRunActive(runId) { return runId === "RUN-OLD"; },
+    async getProjectCaseState() { return null; }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: healthyTaskSourceFactory(store)
+  });
+
+  await coordinator.sync({ dispatch: false, resumeRecoverable: true });
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.recovery_items.length, 0);
+  coordinator.dispose();
+});
+
+test("startup recovery does not bypass a persisted operator recovery decision", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "recovery" });
+  store.automation.recovery_items.push({
+    id: "RECOVERY-case-binding-conflict-t",
+    type: "case_binding_conflict",
+    task_id: "t",
+    project_id: "p",
+    run_id: "RUN-OLD",
+    actions: ["retry_start", "mark_blocked"]
+  });
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{ id: "RUN-OLD", project_id: "local", status: "aborted", activity: {} }];
+    },
+    async getProjectCaseState() { return null; }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: healthyTaskSourceFactory(store)
+  });
+
+  await coordinator.sync({ dispatch: false, resumeRecoverable: true });
+
+  assert.equal(starts.length, 0);
+  assert.equal(store.automation.recovery_items.length, 1);
+  assert.equal(store.automation.recovery_items[0].type, "case_binding_conflict");
+  coordinator.dispose();
+});
+
+test("failed reconstructed startup leaves one actionable recovery item", async () => {
+  const starts = [];
+  const store = recoveryStore({ phase: "recovery" });
+  const runManager = fakeRunManager(store, starts, {
+    async listRuns() {
+      return [{ id: "RUN-OLD", project_id: "local", status: "aborted", activity: {} }];
+    },
+    async getProjectCaseState() { return null; },
+    async startRun(input) {
+      starts.push(input);
+      throw new Error("Codex app-server is temporarily unavailable.");
+    }
+  });
+  const coordinator = createAutomationCoordinator({
+    runManager,
+    taskSourceFactory: healthyTaskSourceFactory(store)
+  });
+
+  await coordinator.sync({ dispatch: false, resumeRecoverable: true });
+
+  assert.equal(starts.length, 1);
+  assert.equal(store.automation.active_task.phase, "recovery");
+  assert.equal(store.automation.recovery_items.length, 1);
+  assert.equal(store.automation.recovery_items[0].type, "start_failed");
+  assert.match(store.automation.recovery_items[0].message, /temporarily unavailable/);
+  assert.deepEqual(store.automation.recovery_items[0].actions, ["retry_start", "feedback_continue", "mark_blocked"]);
+  coordinator.dispose();
+});
+
 test("initial Desktop sync restores a persisted Agent human handoff instead of retrying it", async () => {
   const starts = [];
   const store = recoveryStore({ phase: "recovery" });

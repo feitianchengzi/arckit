@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 230
-Updated: 2026-08-24T17:42:50.643Z
+Revision: 232
+Updated: 2026-08-25T02:23:19.097Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-Make Work the sole owner of Workshop task synchronization and make Automation depend only on Work-maintained local task state.
+Diagnose and correct ArcOrbit automation recovery when power loss or process termination interrupts an active Runtime.
 
 ## Active Work
 

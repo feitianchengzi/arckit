@@ -132,3 +132,4 @@
 | [CASE-20260824-009](closed/CASE-20260824-009-arcorbit-automation.md) | closed | 建立 ArcOrbit 有界运行投影并消除 Automation 历史扫描 | 2026-08-24T14:37:52.307Z |
 | [CASE-20260824-010](closed/CASE-20260824-010-work-feedback.md) | closed | 优化 Work 与 Feedback 主工作区布局 | 2026-08-24T16:55:22.649Z |
 | [CASE-20260824-011](closed/CASE-20260824-011-work-owned-task-synchronization.md) | closed | Work-owned task synchronization | 2026-08-24T17:42:50.643Z |
+| [CASE-20260825-001](closed/CASE-20260825-001-restore-arcorbit-automation-after-abrupt-process-loss.md) | closed | Restore ArcOrbit automation after abrupt process loss | 2026-08-25T02:23:19.097Z |
