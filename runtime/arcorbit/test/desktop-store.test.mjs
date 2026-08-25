@@ -180,6 +180,32 @@ test("desktop store preserves realtime diagnostics and ignores idle subscription
   assert.equal(store.platform.task_sync.projects.current.last_refreshed_at, "2026-08-22T00:00:01.000Z");
 });
 
+test("desktop store preserves bounded task replacement recovery state across restart normalization", () => {
+  const store = normalizeStore({
+    platform: {
+      task_sync: {
+        task_replacements: {
+          "1:T-1": {
+            id: "1:T-1",
+            status: "source_delete_failed",
+            source_task_id: "T-1",
+            source_project_id: "1",
+            target_task_id: "T-2",
+            target_project_id: "2",
+            error: "x".repeat(2000),
+            created_at: "2026-08-25T00:00:00.000Z"
+          },
+          invalid: { source_task_id: "missing-target" }
+        }
+      }
+    }
+  });
+
+  assert.deepEqual(Object.keys(store.platform.task_sync.task_replacements), ["1:T-1"]);
+  assert.equal(store.platform.task_sync.task_replacements["1:T-1"].status, "source_delete_failed");
+  assert.equal(store.platform.task_sync.task_replacements["1:T-1"].error.length, 1000);
+});
+
 test("desktop store migrates v9 bindings into a local workset without changing automation participation", () => {
   const store = normalizeStore({
     version: 9,

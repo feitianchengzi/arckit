@@ -213,6 +213,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       task_trees: productWorkspaces.map((workspace) => workspace.task_tree).filter(Boolean),
       feedback_v1: productWorkspaces.flatMap((workspace) => workspace.feedback_v1),
       tags: productWorkspaces.flatMap((workspace) => workspace.tags),
+      task_replacements: workProjection.task_replacements || [],
       automation: {
         enabled: automation.enabled,
         queue_paused: automation.queue_paused,
@@ -229,6 +230,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
         project_members: "managed_with_permissions_except_direct_add",
         invitation_lifecycle: "create_once_no_list_or_revoke",
         project_tasks: "read_write",
+        task_project_replacement: "create_then_delete_with_recovery",
         platform_management: "available_with_server_permissions",
         feedback_v1: "read_write",
         feedback_v2: aggregateFeedbackV2Capability(productWorkspaces),
@@ -318,6 +320,7 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
       tasks: windowTasks,
       task_trees: productWorkspaces.map((workspace) => workspace.task_tree).filter(Boolean),
       tags: productWorkspaces.flatMap((workspace) => workspace.tags),
+      task_replacements: workProjection.task_replacements || [],
       window: { offset, limit, returned: matchedWindow.length, total: matchedTasks.length, has_more: offset + matchedWindow.length < matchedTasks.length },
       errors
     };
@@ -439,6 +442,9 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
         }
         return workSync.updateTask(taskId, changes, { expectedState });
       },
+      "task.replace_project": () => replaceWorkTaskProject(input),
+      "task.replace_project.retry_delete": () => workSync.retryTaskProjectReplacement({ replacement_id: input.replacement_id }),
+      "task.replace_project.keep_both": () => workSync.keepTaskProjectReplacement({ replacement_id: input.replacement_id }),
       "task.delete": () => workSync.deleteTask(input.task_id),
       "task.attachments.list": () => platformSource.listTaskAttachments(input.task_id),
       "task.attachment.create": () => platformSource.createTaskAttachment(input),
@@ -516,6 +522,38 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     const state = input.state || "pending_review";
     if (!TASK_STATES.includes(state)) throw new TypeError(`Unsupported task state: ${state}`);
     return workSync.createTask({ ...input, project_id: projectId, state });
+  }
+
+  async function replaceWorkTaskProject(input = {}) {
+    const sourceTaskId = requiredText(input.source_task_id, "Source task id", 120);
+    const targetProjectId = requiredText(input.target_project_id, "Target project id", 120);
+    const [store, projection] = await Promise.all([runManager.readDesktopStore(), workSync.getSnapshot()]);
+    const sourceTask = projection.tasks.find((task) => String(task.id) === sourceTaskId);
+    if (!sourceTask) throw new Error(`Unknown source task: ${sourceTaskId}`);
+    if (String(sourceTask.project_id) === targetProjectId) throw new Error("目标产品必须不同于当前产品。");
+    const activeWorkset = store.platform.worksets.find((item) => item.id === store.platform.active_workset_id) || store.platform.worksets[0];
+    if (!(activeWorkset?.project_ids || []).map(String).includes(targetProjectId)) {
+      throw new Error("目标产品不在当前产品集中。");
+    }
+    if (!(projection.project_catalog || []).some((project) => String(project.id) === targetProjectId)) {
+      throw new Error("目标产品当前不可写或已不可用。");
+    }
+    const state = input.state === undefined ? sourceTask.state : input.state;
+    if (!TASK_STATES.includes(state)) throw new TypeError(`Unsupported task state: ${state}`);
+    if (input.father_id) {
+      const parent = projection.tasks.find((task) => String(task.id) === String(input.father_id) && String(task.project_id) === targetProjectId);
+      if (!parent) throw new Error("父待办不属于目标产品。");
+    }
+    return workSync.replaceTaskProject({
+      source_task_id: sourceTaskId,
+      target_project_id: targetProjectId,
+      content: input.content === undefined ? sourceTask.content : input.content,
+      state,
+      priority: input.priority,
+      executor_id: input.executor_id,
+      father_id: input.father_id,
+      tags: input.tags
+    });
   }
 
   async function getFeedbackV2Messages(input = {}) {

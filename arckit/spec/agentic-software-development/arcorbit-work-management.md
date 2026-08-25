@@ -15,7 +15,7 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 - 展示标题只用于列表行、队列、当前运行、人工介入页顶部、确认对话以及 session/CLI 的可读标签。它不是可编辑业务字段；历史运行可以保存生成时的展示标题快照，但该快照不参与任务读取、搜索、编辑或服务端写回。
 - ArcOrbit Product Workspace 提供远端 Project 与本地 repository、Automation participation 和执行上下文的组合投影。
 - 顶部产品集范围限定当前可见项目；Work 页面内筛选继续限定任务结果。两类筛选都不改变项目成员关系、Automation participation、任务状态或队列顺序。
-- 跨产品结果始终保留 `project_id` 和产品名称。创建与编辑操作始终绑定一个明确产品。
+- 跨产品结果始终保留 `project_id` 和产品名称。创建与编辑操作始终绑定一个明确产品；编辑允许把既有待办转移到当前产品集中另一个有写入权限的产品。
 
 ## 核心使用旅程
 
@@ -53,11 +53,13 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 ### 创建、编辑与状态处置
 
 - 创建待办要求内容和产品，支持执行人、父任务、优先级和标签；表单提供完整七状态选择并默认 `pending_review`，用户可以在提交前改为任一受支持状态。
-- 编辑固定任务所属产品，候选成员、父任务和标签不得跨产品混用。
+- 编辑表单显示当前产品并允许切换目标产品。切换后立即清空旧产品的执行人、父待办和标签选择，只展示目标产品候选；正文、状态和优先级保持草稿值。
+- 产品归属变更使用受控替换：先在目标产品创建新 Task，服务器确认后再删除源 Task。新 Task 复制正文、状态和优先级，并使用用户为目标产品重新选择的执行人、父待办和标签；它获得新的 Task id、创建者和时间字段，不复制源 Task 的评论/附件、ArcOrbit Run/thread 或详情引用。
+- 编辑 Sheet 在提交产品归属变更前明确说明新 Task 身份和不会复制的内容，并要求用户确认。普通字段编辑仍更新原 Task，不触发替换。
 - 编辑表单和同屏 Inspector 都提供完整七状态选择。Automation 是否可见、是否正在消费或是否存在验收问题，不隐藏状态字段，也不成为 Work 状态 mutation 的客户端许可条件。
 - 优先级使用“最高、高、中、低、无优先级”语义档位，对应 Workshop `0、1、2、3、null`。
 - 标签属于单个 Project；表单支持选择、创建、重命名、调整颜色和确认删除，并在标签操作后保持仍有效的任务草稿。
-- 创建、编辑和 Inspector 状态更新都通过受限 Platform Coordinator 交给 Work Sync；正文与状态同次编辑使用一次 Workshop mutation，避免先后写入产生部分成功。确认可处理、打开运行、恢复、取消和验收等上下文动作仍可作为快捷入口，但不是允许修改状态的唯一入口。
+- 创建、编辑和 Inspector 状态更新都通过受限 Platform Coordinator 交给 Work Sync。普通编辑使用一次 Workshop update mutation；产品归属变更由 Work Sync 串行编排目标创建和源删除，并分别接受 Workshop 权限与字段校验。确认可处理、打开运行、恢复、取消和验收等上下文动作仍可作为快捷入口，但不是允许修改状态的唯一入口。
 - `in_progress` 任务的修改只向 executor、project admin 或 owner 开放；其余状态遵守 Workshop 当前成员规则。Renderer 只做保守提示，服务端响应是最终事实。
 
 ## 同步、冲突与恢复
@@ -66,6 +68,8 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 - Work 页面切换七状态、搜索、筛选、日期或分页只改变本地查询，不发起 Workshop 请求，也不显示“正在后台刷新”作为该交互的结果。
 - active Workset 项目、允许 Automation 参与的项目和当前活动任务项目共同形成 Work Sync 的订阅与对账范围。Automation 只提供本地项目需求，不创建连接、不推进游标、不读取 REST。
 - WebSocket 与补取事件只使项目投影失效；Work Sync 合并失效后执行必要的 REST 对账。创建、编辑、评论、标签、父子关系或状态操作也统一提交给 Work Sync，并只在服务器确认成功后发布新的本地状态。
+- 产品归属变更先创建目标 Task；创建失败时源 Task 保持不变并保留编辑草稿。目标创建成功后才删除源 Task；删除成功后 Work Sync 对源和目标项目分别对账，并发布新的 Task id。
+- 目标创建成功但源删除失败时，两个 Task 都作为服务器事实保留。Work 显示新旧 Task id 和分步结果，允许用户重试删除源 Task 或保留两份；不得删除新 Task、伪造回滚或把操作显示为完整成功。
 - 401、403、404、409/412 和传输错误分别呈现认证、权限、对象消失、冲突和可重试服务错误；失败动作不在本地伪造成功。
 - 同步失败时可以保留最近成功结果并明确标记过期；Automation 只消费 Work Sync 已完成当前登录代际初始对账且仍具备权限的本地任务状态。
 - 评论图片自动加载或独立窗口打开失败时，保留评论正文和已成功图片，在对应图片位置显示脱敏错误与重试；另存为取消不视为错误，写入失败时浏览窗口保持打开。
@@ -75,7 +79,7 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 
 - Work 显示有权查看的完整项目任务；Automation 不拥有 Task Source，只消费 Work Sync 从同一本地投影发布的当前用户候选状态。
 - Automation 的领取、阻塞、完成、取消和验收动作提交给 Work Sync。Work Sync 负责服务器同步；Automation 只在观察到 Work 发布的目标本地状态后推进执行生命周期。
-- 用户在 Work 修改活动待办状态时不需要 Automation 预先授权。Work Sync 发布服务器确认状态后，Automation 将其作为外部事实消费：重新计算候选与终态；若活动 Runtime 与新状态冲突，则安全停止对应 execution 并进入可恢复的外部变化状态，且不把该变化解释为人工 Gate 回复。
+- 用户在 Work 修改活动待办状态或产品归属时不需要 Automation 预先授权。源 Task 删除确认后，Automation 将其作为外部事实消费并安全停止对应 execution；目标产品的新 Task 没有继承的 Runtime、thread 或 Gate，只能按普通新任务重新进入候选。该变化不解释为人工 Gate 回复，也不影响其他健康 lane。
 - Work 可以展示 Automation 资格、当前 Run、恢复入口和 completed 任务的验收问题，但不创建第二套任务状态。
 - 提出验收问题保持来源任务 `completed`，问题进入 ArcOrbit 独立队列并复用来源 thread；上下文“验收通过”快捷动作可要求问题先解决，但 Work 的通用状态编辑仍由 Workshop 权限、版本冲突和服务端确认决定，Automation 负责消费结果并对账问题执行。
 - Workshop 普通用户反馈仍由 Feedback 页面处理；Feedback 转成的 Task 在 Work 中按普通任务继续管理。
@@ -93,10 +97,10 @@ Work 是 ArcOrbit 内承接 Workshop 团队待办日常处理的产品页面。�
 2. 筛选结果以单行、无操作按钮的可展开任务树呈现；每个任务标题把换行与连续空白折叠为空格，并在 64 个 Unicode grapheme clusters 内以 `…` 结束超长文本；用户从 Inspector 创建子任务、调整父任务且不能形成循环。
 3. 用户可在同屏详情中只阅读一次保留原始换行的完整内容和关键元数据，不在其上方重复展示同源标题；评论图片默认加载并可在独立窗口完成缩放、适配、实际大小、旋转、平移、重置和另存为，图片失败不阻塞其余时间线。
 4. 用户可完成评论/附件的新增及有权限的维护。
-5. 用户可在新建、编辑和 Inspector 详情三个入口选择或修改完整七状态；Automation 可见性、活动 execution 和验收问题不隐藏或拒绝该输入，所有成功结果均来自 Workshop 确认。
+5. 用户可在新建、编辑和 Inspector 详情三个入口选择或修改完整七状态，并可在编辑待办时把内容复制到当前产品集中另一个可写产品、再删除源 Task；切换产品会清空旧产品关联字段，Sheet 明确提示新 Task id 以及评论、附件、Run/thread 和详情引用不会迁移。Automation 可见性、活动 execution 和验收问题不隐藏或拒绝该输入，所有分步结果均来自 Workshop 确认。
 6. Work 与 Automation 共享 Work Sync 发布的本地任务事实但不共享职责：Work 独占远端 mutation 与同步，Automation 只消费确认后的本地状态并对活动 execution、队列、Gate、验收问题和终态进行对账；筛选不授权执行，状态变化不释放人工 Gate。
 7. 权限变化、冲突、对象消失和网络失败均保留可恢复状态，不以本地乐观结果覆盖服务器事实。
-8. Adapter、Work Sync、Automation Coordinator、typed IPC、主窗口 Renderer 和独立图片浏览窗口自动化测试覆盖三入口七状态编辑、组合字段/状态单次 mutation、冲突不乐观覆盖、Automation 外部状态变化安全停止与恢复、本地状态/筛选查询不发起 Workshop 请求、Automation 没有远端任务依赖、标题边界、详情去重、任务树、评论与图片操作及跨产品隔离。
+8. Adapter、Work Sync、Automation Coordinator、typed IPC、主窗口 Renderer 和独立图片浏览窗口自动化测试覆盖三入口七状态编辑、编辑待办跨产品受控替换、产品限定字段清空、目标创建失败不删除源 Task、源删除失败保留双 Task 并可恢复、新 Task 不继承评论附件和执行关联、Automation 对源删除安全停止、本地状态/筛选查询不发起 Workshop 请求、Automation 没有远端任务依赖、标题边界、详情去重、任务树、评论与图片操作及跨产品隔离。
 
 ## Source Basis
 

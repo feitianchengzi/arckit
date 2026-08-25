@@ -138,3 +138,4 @@
 | [CASE-20260825-004](closed/CASE-20260825-004-chat.md) | closed | 诊断并修复 Chat 流式回答时消息列表底部抖动 | 2026-08-25T10:58:21.371Z |
 | [CASE-20260825-005](closed/CASE-20260825-005-work-automation.md) | closed | 解除 Work 待办状态的 Automation 修改限制 | 2026-08-25T11:24:37.416Z |
 | [CASE-20260825-006](closed/CASE-20260825-006-local-capability-setup.md) | closed | 改善 Local Capability Setup 新人安装引导 | 2026-08-25T11:51:46.039Z |
+| [CASE-20260825-007](closed/CASE-20260825-007-development-case.md) | closed | 支持编辑待办时切换产品 | 2026-08-25T13:13:49.731Z |

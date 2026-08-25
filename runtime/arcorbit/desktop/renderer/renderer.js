@@ -159,6 +159,9 @@ const state = {
 };
 
 let platformActionResolver = null;
+let platformActionSubmitter = null;
+let platformActionBusy = false;
+let platformActionDisabledControls = new Map();
 
 const els = Object.fromEntries(Array.from(document.querySelectorAll("[id]")).map((element) => [element.id, element]));
 let refreshQueued = false;
@@ -531,6 +534,10 @@ function wireEvents() {
   });
   els.platformActionForm.addEventListener("submit", (event) => {
     event.preventDefault();
+    if (platformActionSubmitter) {
+      submitManagedPlatformAction();
+      return;
+    }
     closePlatformAction(serializePlatformAction());
   });
   els.submitInterventionButton.addEventListener("click", () => runAction(async () => {
@@ -846,6 +853,7 @@ function mergeWorkPlatformSnapshot(current, incoming) {
     tasks: incoming.tasks,
     task_trees: incoming.task_trees,
     tags: incoming.tags,
+    task_replacements: incoming.task_replacements || [],
     automation: incoming.automation,
     errors: [...retainedErrors, ...(incoming.errors || [])]
   };
@@ -1428,11 +1436,17 @@ function renderPlatformWorkInspector(task) {
   const feedbackItems = automationTask?.acceptance_feedback_items || [];
   const canManage = canManagePlatformTask(task);
   const automationActions = automationTask ? taskActions(automationTask).filter((action) => action.id === "review") : [];
+  const replacement = (state.platform.task_replacements || []).find((item) => (
+    String(item.source_task_id) === String(task.id) || String(item.target_task_id) === String(task.id)
+  ));
+  const replacementRecovery = replacement
+    ? `<div class="feedback-link-recovery task-replacement-recovery"><span><strong>目标待办 ${escapeHtml(replacement.target_task_id)} 已创建，源待办 ${escapeHtml(replacement.source_task_id)} 尚未删除</strong><small>${escapeHtml(replacement.error || "可以安全重试删除源待办，或明确保留两条待办。重试不会再次创建目标待办。")}</small></span><span class="task-replacement-recovery-actions"><button class="primary-button" data-task-replacement-retry="${escapeHtml(replacement.id)}" type="button">重试删除源待办</button><button class="secondary-button" data-task-replacement-keep="${escapeHtml(replacement.id)}" type="button">保留两者</button></span></div>`
+    : "";
   const statusEditor = canManage
     ? `<div class="work-task-status-editor"><label><span>状态</span><select data-work-inspector-state>${taskStateOptions().map((option) => `<option value="${escapeHtml(option.value)}" ${option.value === task.state ? "selected" : ""}>${escapeHtml(option.label)}</option>`).join("")}</select></label><button class="secondary-button" data-work-inspector-state-save="${escapeHtml(task.id)}" type="button">更新状态</button><small>由 Work Sync 提交并等待服务器确认；Automation 只消费确认后的状态。</small></div>`
     : "";
   const acceptanceFeedback = automationTask?.state === "completed" ? `<section class="acceptance-feedback-panel"><div class="section-title-row"><div><h3>验收问题与进展</h3><p>${feedbackItems.length} 项验收问题</p></div></div><div class="acceptance-feedback-list">${feedbackItems.length ? feedbackItems.map((item) => `<button class="acceptance-feedback-item" data-work-task-feedback="${escapeHtml(item.feedback_id)}" type="button"><span><strong>${escapeHtml(item.original_feedback)}</strong><small>${escapeHtml(item.feedback_id)} · ${escapeHtml(item.progress)}</small></span><span class="status-pill ${feedbackTone(item.status)}">${escapeHtml(item.status)}</span></button>`).join("") : `<div class="empty-state compact">尚未发现验收问题。</div>`}</div><label class="acceptance-feedback-composer"><span>提出验收问题</span><textarea id="workAcceptanceFeedbackInput" rows="3" placeholder="描述验收中发现的问题…"></textarea><small>待办保持已完成；问题进入 Automation 独立队列并复用同一 Agent 对话。</small><button id="submitWorkAcceptanceFeedbackButton" class="primary-button" type="button">提出验收问题</button></label></section>` : automationTask?.state === "accepted" ? `<section class="acceptance-feedback-panel acceptance-clear"><div class="section-title-row"><div><h3>验收通过</h3><p>当前没有待处理的验收问题</p></div></div><div class="empty-state compact">该待办已验收，不再接受新的验收问题。</div></section>` : "";
-  const inspectorHtml = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${statusEditor}${factRows([
+  const inspectorHtml = `<h2>待办 ${escapeHtml(task.id)}</h2><article class="task-markdown-detail">${renderRestrictedMarkdown(task.content)}</article><span class="status-pill ${escapeHtml(task.state)}">${escapeHtml(STATE_LABELS[task.state] || task.state)}</span>${replacementRecovery}${statusEditor}${factRows([
     ["待办标识", task.id],
     ["所属产品", task.project_name],
     ["创建人", taskCreatorName(task)],
@@ -1460,6 +1474,8 @@ function renderPlatformWorkInspector(task) {
   els.platformWorkInspector.querySelector("[data-work-inspector-attachment]")?.addEventListener("click", () => runAction(() => manageTaskAttachments(task.id)));
   els.platformWorkInspector.querySelector("[data-task-attachment-retry]")?.addEventListener("click", () => loadTaskAttachments(task.id));
   els.platformWorkInspector.querySelector("[data-work-inspector-delete]")?.addEventListener("click", () => runAction(() => deleteTask(task.id)));
+  els.platformWorkInspector.querySelector("[data-task-replacement-retry]")?.addEventListener("click", (event) => runAction(() => retryTaskProjectReplacement(event.currentTarget.dataset.taskReplacementRetry)));
+  els.platformWorkInspector.querySelector("[data-task-replacement-keep]")?.addEventListener("click", (event) => runAction(() => keepTaskProjectReplacement(event.currentTarget.dataset.taskReplacementKeep)));
   els.platformWorkInspector.querySelectorAll("[data-work-task-action]").forEach((button) => button.addEventListener("click", () => runAction(() => executeTaskAction(automationTask, button.dataset.workTaskAction))));
   els.platformWorkInspector.querySelector("[data-task-comment-submit]")?.addEventListener("click", () => runAction(() => createTaskComment(task.id)));
   els.platformWorkInspector.querySelector("[data-task-comment-add-link]")?.addEventListener("click", () => runAction(() => addTaskCommentLink(task.id)));
@@ -2172,21 +2188,64 @@ async function createTask() {
 
 async function editTask(taskId) {
   const task = findPlatformTask(taskId);
+  const projects = workspaceOptions();
   const action = openPlatformAction({
     title: `编辑待办 ${task.id}`,
-    lead: `所属产品：${task.project_name}。执行人、父待办和标签只使用该产品当前可用的数据。`,
+    lead: "切换产品会先创建新待办，确认成功后再删除旧待办。新待办获得新 ID；评论、附件和 Automation 执行关系不会迁移。",
     confirmLabel: "保存",
     fields: [
+      platformField("project_id", "产品", { type: "select", required: true, value: task.project_id, options: projects }),
       platformField("content", "待办内容", { type: "textarea", required: true, value: task.content ?? "" }),
       platformField("state", "状态", { type: "select", value: task.state, options: taskStateOptions(), help: "Automation 归属不限制 Work 修改状态；保存后由 Work Sync 等待服务器确认。" }),
-      taskProjectFields(task.project_id, { executorId: task.executor_id, excludedTaskId: task.id, tags: task.tags, includeFather: false }),
+      taskProjectFields(task.project_id, { executorId: task.executor_id, fatherId: task.father_id, excludedTaskId: task.id, tags: task.tags }),
       platformField("priority", "优先级", { type: "select", value: workshopTaskPriority(task), options: taskPriorityOptions(), help: "最高优先处理；无优先级保留服务端未设置语义。" })
-    ]
+    ],
+    onSubmit: (values) => submitTaskEdit(task, values)
   });
-  bindTaskTagManager(task.project_id);
-  const values = normalizeTaskFormValues(await action, { emptyPriority: "null" });
-  if (!values) return;
-  await executeManagedAction("task.update", { task_id: task.id, expected_state: task.state, ...values }, "待办已更新");
+  bindTaskFormProjectScope(task.project_id, {
+    executorId: task.executor_id,
+    fatherId: task.father_id,
+    excludedTaskId: task.id,
+    tags: task.tags
+  });
+  await action;
+}
+
+async function submitTaskEdit(task, rawValues) {
+  const values = normalizeTaskFormValues(rawValues, { emptyPriority: "null" });
+  const targetProjectId = String(values.project_id || "");
+  if (targetProjectId !== String(task.project_id)) {
+    if (!window.confirm("切换产品会创建一条新待办并删除旧待办。新 ID 不继承评论、附件、Run、thread、Gate 或验收问题。确定继续吗？")) {
+      clearPlatformActionStatus();
+      return { keepOpen: true };
+    }
+    const { project_id: _projectId, ...replacementValues } = values;
+    try {
+      const result = await executeManagedAction("task.replace_project", {
+        source_task_id: task.id,
+        target_project_id: targetProjectId,
+        ...replacementValues
+      }, "新待办已创建，旧待办已删除", { tolerateRefreshFailure: true });
+      await selectTaskReplacementTarget(result, targetProjectId);
+      return { close: true };
+    } catch (error) {
+      if (!error?.partial_result?.replacement_id) throw error;
+      showTaskReplacementRecoveryInSheet(error.partial_result, error?.message || "目标待办已创建，但源待办尚未删除。");
+      return { keepOpen: true };
+    }
+  }
+  const { project_id: _projectId, ...updateValues } = values;
+  await executeManagedAction("task.update", { task_id: task.id, expected_state: task.state, ...updateValues }, "待办已更新");
+  return { close: true };
+}
+
+async function retryTaskProjectReplacement(replacementId) {
+  await executeManagedAction("task.replace_project.retry_delete", { replacement_id: replacementId }, "源待办已删除，产品切换完成");
+}
+
+async function keepTaskProjectReplacement(replacementId) {
+  if (!window.confirm("确定保留源待办和目标待办吗？确认后 ArcOrbit 将关闭本次恢复事项，不再自动删除源待办。")) return;
+  await executeManagedAction("task.replace_project.keep_both", { replacement_id: replacementId }, "已保留两条待办");
 }
 
 async function createSubtask(taskId) {
@@ -2423,7 +2482,7 @@ async function runFeedbackV2Request(action) {
   }
 }
 
-async function executeManagedAction(command, input, message, { refresh = true } = {}) {
+async function executeManagedAction(command, input, message, { refresh = true, tolerateRefreshFailure = false } = {}) {
   try {
     const result = await api.executePlatformAction(command, input);
     if (result?.status === "partial" && result.partial_result) {
@@ -2439,7 +2498,15 @@ async function executeManagedAction(command, input, message, { refresh = true } 
       }
       throw partialError;
     }
-    if (refresh) await refreshSnapshot();
+    if (refresh) {
+      try {
+        await refreshSnapshot();
+      } catch (refreshError) {
+        if (!tolerateRefreshFailure) throw refreshError;
+        showToast(`${message}，但当前视图刷新失败：${refreshError?.message || String(refreshError)}`);
+        return result;
+      }
+    }
     showToast(message);
     return result;
   } catch (error) {
@@ -2447,23 +2514,115 @@ async function executeManagedAction(command, input, message, { refresh = true } 
   }
 }
 
-function openPlatformAction({ title, lead = "", confirmLabel = "确认", fields = [] }) {
+function openPlatformAction({ title, lead = "", confirmLabel = "确认", fields = [], onSubmit = null }) {
   if (platformActionResolver) closePlatformAction(null);
   els.platformActionTitle.textContent = title;
   els.platformActionLead.textContent = lead;
   els.confirmPlatformActionButton.textContent = confirmLabel;
   els.platformActionFields.innerHTML = fields.join("");
+  platformActionSubmitter = typeof onSubmit === "function" ? onSubmit : null;
+  platformActionBusy = false;
+  platformActionDisabledControls = new Map();
+  clearPlatformActionStatus();
+  setPlatformActionBusy(false);
   els.platformActionOverlay.classList.remove("hidden");
   els.platformActionFields.querySelector("input, textarea, select")?.focus();
   return new Promise((resolve) => { platformActionResolver = resolve; });
 }
 
 function closePlatformAction(value) {
-  if (!platformActionResolver) return;
+  if (!platformActionResolver || platformActionBusy) return;
   const resolve = platformActionResolver;
   platformActionResolver = null;
+  platformActionSubmitter = null;
+  clearPlatformActionStatus();
   els.platformActionOverlay.classList.add("hidden");
   resolve(value);
+}
+
+async function submitManagedPlatformAction() {
+  if (!platformActionSubmitter || platformActionBusy) return;
+  const submitter = platformActionSubmitter;
+  const values = serializePlatformAction();
+  setPlatformActionStatus("正在提交并等待 Workshop 确认…", "pending");
+  setPlatformActionBusy(true);
+  try {
+    const result = await submitter(values);
+    setPlatformActionBusy(false);
+    if (!result?.keepOpen) closePlatformAction(null);
+  } catch (error) {
+    setPlatformActionBusy(false);
+    setPlatformActionStatus(error?.message || String(error), "error");
+  }
+}
+
+function setPlatformActionBusy(busy) {
+  platformActionBusy = Boolean(busy);
+  const controls = [
+    ...els.platformActionForm.querySelectorAll("input, textarea, select, button"),
+    ...els.platformActionStatus.querySelectorAll("button"),
+    els.closePlatformActionButton
+  ];
+  if (platformActionBusy) {
+    platformActionDisabledControls = new Map(controls.map((control) => [control, control.disabled]));
+    controls.forEach((control) => { control.disabled = true; });
+    els.platformActionForm.setAttribute("aria-busy", "true");
+    return;
+  }
+  for (const control of controls) control.disabled = platformActionDisabledControls.get(control) || false;
+  platformActionDisabledControls = new Map();
+  els.platformActionForm.removeAttribute("aria-busy");
+}
+
+function setPlatformActionStatus(message, tone = "info", { html = false } = {}) {
+  if (html) els.platformActionStatus.innerHTML = String(message || "");
+  else els.platformActionStatus.textContent = String(message || "");
+  els.platformActionStatus.dataset.tone = tone;
+  els.platformActionStatus.classList.toggle("hidden", !message);
+}
+
+function clearPlatformActionStatus() {
+  setPlatformActionStatus("");
+}
+
+function showTaskReplacementRecoveryInSheet(partial, message) {
+  setPlatformActionStatus(`<span><strong>目标待办 ${escapeHtml(partial.target_task_id)} 已创建，源待办 ${escapeHtml(partial.source_task_id)} 尚未删除</strong><small>${escapeHtml(message)} 重试不会再次创建目标待办。</small></span><span class="task-replacement-recovery-actions"><button class="primary-button" data-platform-task-replacement-retry="${escapeHtml(partial.replacement_id)}" type="button">重试删除源待办</button><button class="secondary-button" data-platform-task-replacement-keep="${escapeHtml(partial.replacement_id)}" type="button">保留两者</button></span>`, "warning", { html: true });
+  els.platformActionStatus.querySelector("[data-platform-task-replacement-retry]")?.addEventListener("click", () => runTaskReplacementSheetRecovery(async () => {
+    const result = await executeManagedAction("task.replace_project.retry_delete", { replacement_id: partial.replacement_id }, "源待办已删除，产品切换完成", { tolerateRefreshFailure: true });
+    await selectTaskReplacementTarget(result, partial.target_project_id, partial.target_task_id);
+  }));
+  els.platformActionStatus.querySelector("[data-platform-task-replacement-keep]")?.addEventListener("click", () => runTaskReplacementSheetRecovery(async () => {
+    if (!window.confirm("确定保留源待办和目标待办吗？确认后 ArcOrbit 将关闭本次恢复事项，不再自动删除源待办。")) return false;
+    const result = await executeManagedAction("task.replace_project.keep_both", { replacement_id: partial.replacement_id }, "已保留两条待办", { tolerateRefreshFailure: true });
+    await selectTaskReplacementTarget(result, partial.target_project_id, partial.target_task_id);
+    return true;
+  }));
+}
+
+async function runTaskReplacementSheetRecovery(action) {
+  if (platformActionBusy) return;
+  setPlatformActionBusy(true);
+  try {
+    const completed = await action();
+    setPlatformActionBusy(false);
+    if (completed !== false) closePlatformAction(null);
+  } catch (error) {
+    setPlatformActionBusy(false);
+    if (error?.partial_result?.replacement_id) {
+      showTaskReplacementRecoveryInSheet(error.partial_result, error?.message || "目标待办已创建，但源待办尚未删除。");
+    } else {
+      setPlatformActionStatus(error?.message || String(error), "error");
+    }
+  }
+}
+
+async function selectTaskReplacementTarget(result, fallbackProjectId = "", fallbackTaskId = "") {
+  const targetProjectId = String(result?.target_project_id || fallbackProjectId || "");
+  const targetTaskId = String(result?.target_task_id || fallbackTaskId || "");
+  if (!targetProjectId || !targetTaskId) return;
+  state.selectedProjectId = targetProjectId;
+  state.selectedPlatformTaskId = targetTaskId;
+  await refreshWorkQuery().catch((error) => showToast(`产品切换已完成，但目标待办刷新失败：${error?.message || String(error)}`));
 }
 
 function serializePlatformAction() {
@@ -2501,7 +2660,7 @@ function taskProjectFieldControls(projectId, { executorId = "", fatherId = "", e
   ].join("");
 }
 
-function bindTaskFormProjectScope(defaultProjectId) {
+function bindTaskFormProjectScope(defaultProjectId, initial = {}) {
   const projectSelect = els.platformActionForm.querySelector('[name="project_id"]');
   if (!projectSelect) return;
   const renderProjectFields = (projectId) => {
@@ -2512,6 +2671,8 @@ function bindTaskFormProjectScope(defaultProjectId) {
     bindTaskTagManager(projectId);
   };
   projectSelect.addEventListener("change", () => renderProjectFields(projectSelect.value));
+  const host = els.platformActionForm.querySelector("[data-task-project-fields]");
+  if (host) host.innerHTML = taskProjectFieldControls(defaultProjectId, initial);
   bindTaskTagManager(defaultProjectId);
 }
 
@@ -3957,6 +4118,7 @@ function emptyPlatformSnapshot() {
     members: [],
     tasks: [],
     task_trees: [],
+    task_replacements: [],
     feedback_v1: [],
     tags: [],
     automation: {

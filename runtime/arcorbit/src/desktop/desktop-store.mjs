@@ -229,6 +229,7 @@ export function defaultTaskSyncState() {
     user: null,
     project_catalog: [],
     projects: {},
+    task_replacements: {},
     source_status: "logged_out",
     last_reconciled_at: "",
     errors: []
@@ -275,12 +276,21 @@ export function normalizeTaskSyncState(value = {}, legacyAutomation = {}) {
     ? current.project_catalog
     : Array.isArray(legacySnapshot.projects) ? legacySnapshot.projects : [];
   const sourceStatuses = new Set(["logged_out", "unconfigured", "syncing", "healthy", "degraded", "unauthenticated", "error"]);
+  const replacementInput = current.task_replacements && typeof current.task_replacements === "object" && !Array.isArray(current.task_replacements)
+    ? current.task_replacements
+    : {};
   return {
     session_epoch: nonNegativeInteger(current.session_epoch),
     identity_key: String(current.identity_key || ""),
     user: current.user && typeof current.user === "object" ? current.user : legacySnapshot.user || null,
     project_catalog: projectCatalogInput.filter((project) => project && typeof project === "object" && project.id !== undefined),
     projects,
+    task_replacements: Object.fromEntries(Object.entries(replacementInput)
+      .map(([key, replacement]) => {
+        const normalized = normalizeTaskReplacement(replacement, key);
+        return normalized ? [normalized.id, normalized] : null;
+      })
+      .filter(Boolean)),
     source_status: sourceStatuses.has(current.source_status)
       ? current.source_status
       : sourceStatuses.has(legacySnapshot.source_status) ? legacySnapshot.source_status : "logged_out",
@@ -288,6 +298,28 @@ export function normalizeTaskSyncState(value = {}, legacyAutomation = {}) {
     errors: Array.isArray(current.errors)
       ? current.errors.map(normalizeAutomationError).slice(0, 50)
       : Array.isArray(legacySnapshot.errors) ? legacySnapshot.errors.map(normalizeAutomationError).slice(0, 50) : []
+  };
+}
+
+function normalizeTaskReplacement(value, fallbackId) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const sourceTaskId = String(value.source_task_id || "").trim();
+  const sourceProjectId = String(value.source_project_id || "").trim();
+  const targetTaskId = String(value.target_task_id || "").trim();
+  const targetProjectId = String(value.target_project_id || "").trim();
+  if (!sourceTaskId || !sourceProjectId || !targetTaskId || !targetProjectId) return null;
+  const id = String(value.id || fallbackId || `${sourceProjectId}:${sourceTaskId}`).trim();
+  const status = value.status === "source_delete_failed" ? "source_delete_failed" : "source_delete_pending";
+  return {
+    id,
+    status,
+    source_task_id: sourceTaskId,
+    source_project_id: sourceProjectId,
+    target_task_id: targetTaskId,
+    target_project_id: targetProjectId,
+    error: String(value.error || "").slice(0, 1000),
+    created_at: String(value.created_at || ""),
+    updated_at: String(value.updated_at || value.created_at || "")
   };
 }
 

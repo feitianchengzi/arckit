@@ -210,6 +210,30 @@ test("Automation consumes a Work-confirmed external state change and safely stop
   coordinator.dispose();
 });
 
+test("Automation safely stops the source execution when Work replaces it with a new task identity", async () => {
+  const store = recoveryStore({ phase: "running" });
+  const controls = [];
+  const coordinator = createAutomationCoordinator({
+    runManager: fakeRunManager(store, [], {
+      isRunActive(runId) { return runId === "RUN-OLD"; },
+      async controlRun(runId, input) { controls.push({ runId, input }); }
+    })
+  });
+  store.automation.snapshot.tasks = [{
+    id: "target-task", project_id: "target-project", state: "pending", content: "replacement", executor_id: "7"
+  }];
+
+  await coordinator.handleTaskProjectionChanged({ reason: "task-replacement-completed", dispatch: false });
+
+  assert.deepEqual(controls, [{ runId: "RUN-OLD", input: { type: "interrupt" } }]);
+  const recovery = store.automation.recovery_items.find((item) => item.type === "task_missing");
+  assert.equal(recovery.task_id, "t");
+  assert.equal(store.automation.active_executions.local.task_id, "t");
+  assert.notEqual(store.automation.active_executions.local.task_id, "target-task");
+  assert.equal(store.automation.active_executions.local.phase, "recovery");
+  coordinator.dispose();
+});
+
 test("a queued acceptance feedback item keeps automation health ready when the todo queue is empty", async () => {
   const store = recoveryStore();
   store.automation.snapshot.source_status = "healthy";

@@ -205,6 +205,103 @@ export function createWorkSyncCoordinator({
     return findLocalTask(await runManager.readDesktopStore(), created?.id ?? created?.task_id) || created;
   }
 
+  async function replaceTaskProject(input = {}) {
+    const store = await runManager.readDesktopStore();
+    const sourceTask = findLocalTask(store, input.source_task_id);
+    if (!sourceTask) throw new TaskSourceError(`Unknown local task: ${input.source_task_id}`, { code: "not_found" });
+    const targetProjectId = requiredId(input.target_project_id, "Target project");
+    if (String(sourceTask.project_id) === targetProjectId) {
+      throw new TaskSourceError("The replacement target must be a different project.", { code: "conflict" });
+    }
+    const replacementId = taskReplacementId(sourceTask.project_id, sourceTask.id);
+    const existing = store.platform.task_sync.task_replacements?.[replacementId];
+    if (existing) return partialTaskReplacement(existing);
+
+    const createInput = replacementCreateInput(input, sourceTask, targetProjectId);
+    const targetTask = await createTask(createInput);
+    const targetTaskId = String(targetTask?.id || targetTask?.task_id || "").trim();
+    if (!targetTaskId) throw new TaskSourceError("Workshop created a replacement task without returning its id.", { code: "invalid_response" });
+    const replacement = {
+      id: replacementId,
+      status: "source_delete_pending",
+      source_task_id: String(sourceTask.id),
+      source_project_id: String(sourceTask.project_id),
+      target_task_id: targetTaskId,
+      target_project_id: targetProjectId,
+      error: "",
+      created_at: now(),
+      updated_at: now()
+    };
+    await patchTaskSync((sync) => { sync.task_replacements[replacementId] = replacement; });
+    emit("work.changed", {
+      reason: "task-replacement-target-confirmed",
+      projectIds: [String(sourceTask.project_id), targetProjectId],
+      sourceTaskId: String(sourceTask.id),
+      targetTaskId
+    });
+    return deleteReplacementSource(replacementId);
+  }
+
+  async function retryTaskProjectReplacement(input = {}) {
+    const replacementId = requiredId(input.replacement_id, "Task replacement");
+    return deleteReplacementSource(replacementId);
+  }
+
+  async function keepTaskProjectReplacement(input = {}) {
+    const replacementId = requiredId(input.replacement_id, "Task replacement");
+    let replacement;
+    await patchTaskSync((sync) => {
+      replacement = sync.task_replacements[replacementId];
+      if (!replacement) throw new TaskSourceError(`Unknown task replacement: ${replacementId}`, { code: "not_found" });
+      delete sync.task_replacements[replacementId];
+    });
+    emit("work.changed", {
+      reason: "task-replacement-kept-both",
+      projectIds: [replacement.source_project_id, replacement.target_project_id],
+      sourceTaskId: replacement.source_task_id,
+      targetTaskId: replacement.target_task_id
+    });
+    return { ...replacement, status: "completed", outcome: "kept_both" };
+  }
+
+  async function deleteReplacementSource(replacementId) {
+    const store = await runManager.readDesktopStore();
+    const replacement = store.platform.task_sync.task_replacements?.[replacementId];
+    if (!replacement) throw new TaskSourceError(`Unknown task replacement: ${replacementId}`, { code: "not_found" });
+    const sourceTask = findLocalTask(store, replacement.source_task_id);
+    if (!sourceTask) {
+      await clearTaskReplacement(replacementId, replacement, "task-replacement-source-already-absent");
+      return { ...replacement, status: "completed", outcome: "source_already_absent" };
+    }
+    try {
+      await deleteTask(sourceTask.id);
+      await clearTaskReplacement(replacementId, replacement, "task-replacement-completed");
+      return { ...replacement, status: "completed", outcome: "source_deleted" };
+    } catch (error) {
+      const message = String(error?.message || error);
+      const failed = { ...replacement, status: "source_delete_failed", error: message, updated_at: now() };
+      await patchTaskSync((sync) => { sync.task_replacements[replacementId] = failed; });
+      emit("work.error", {
+        reason: "task-replacement-source-delete",
+        projectId: replacement.source_project_id,
+        sourceTaskId: replacement.source_task_id,
+        targetTaskId: replacement.target_task_id,
+        message
+      });
+      return partialTaskReplacement(failed, error);
+    }
+  }
+
+  async function clearTaskReplacement(replacementId, replacement, reason) {
+    await patchTaskSync((sync) => { delete sync.task_replacements[replacementId]; });
+    emit("work.changed", {
+      reason,
+      projectIds: [replacement.source_project_id, replacement.target_project_id],
+      sourceTaskId: replacement.source_task_id,
+      targetTaskId: replacement.target_task_id
+    });
+  }
+
   async function updateTask(taskId, input = {}, { expectedState = "" } = {}) {
     if (input.state !== undefined && !TASK_STATES.includes(input.state)) {
       throw new TypeError(`Unsupported task state: ${input.state}`);
@@ -245,9 +342,14 @@ export function createWorkSyncCoordinator({
     const store = await runManager.readDesktopStore();
     const task = findLocalTask(store, taskId);
     if (!task) throw new TaskSourceError(`Unknown local task: ${taskId}`, { code: "not_found" });
-    const response = await platformSource.deleteTask(task.id);
-    await refreshProject(task.project_id, { reason: "task-deleted" });
-    return response;
+    try {
+      const response = await platformSource.deleteTask(task.id);
+      await refreshProject(task.project_id, { reason: "task-deleted" });
+      return response;
+    } catch (error) {
+      await recordMutationFailure(task.project_id, error);
+      throw error;
+    }
   }
 
   async function clearSession() {
@@ -356,6 +458,9 @@ export function createWorkSyncCoordinator({
     invalidateProject,
     updateTaskState,
     createTask,
+    replaceTaskProject,
+    retryTaskProjectReplacement,
+    keepTaskProjectReplacement,
     updateTask,
     deleteTask,
     clearSession,
@@ -379,6 +484,7 @@ export function snapshotFromStore(store, { automationOnly = false } = {}) {
     user: sync.user || null,
     projects,
     project_catalog: sync.project_catalog || [],
+    task_replacements: Object.values(sync.task_replacements || {}),
     tasks,
     tags: records.flatMap((item) => item.tags || []),
     synced_at: String(sync.last_reconciled_at || records.map((item) => item.synced_at).filter(Boolean).sort().at(-1) || ""),
@@ -437,9 +543,44 @@ function clearTaskSyncIdentity(sync, status) {
   sync.user = null;
   sync.project_catalog = [];
   sync.projects = {};
+  sync.task_replacements = {};
   sync.source_status = status;
   sync.last_reconciled_at = "";
   sync.errors = [];
+}
+
+function taskReplacementId(projectId, taskId) {
+  return `${String(projectId)}:${String(taskId)}`;
+}
+
+function replacementCreateInput(input, sourceTask, targetProjectId) {
+  const output = {
+    project_id: targetProjectId,
+    content: input.content === undefined ? sourceTask.content : input.content,
+    state: input.state === undefined ? sourceTask.state : input.state
+  };
+  for (const key of ["priority", "executor_id", "father_id", "tags"]) {
+    if (input[key] !== undefined) output[key] = input[key];
+  }
+  return output;
+}
+
+function partialTaskReplacement(replacement, error = null) {
+  return {
+    status: "partial",
+    error: {
+      code: String(error?.code || "source_delete_failed_after_target_creation"),
+      message: String(error?.message || replacement.error || `Target task ${replacement.target_task_id} was created, but source task ${replacement.source_task_id} was not deleted.`)
+    },
+    partial_result: {
+      status: "target_created_source_delete_pending",
+      replacement_id: replacement.id,
+      source_task_id: replacement.source_task_id,
+      source_project_id: replacement.source_project_id,
+      target_task_id: replacement.target_task_id,
+      target_project_id: replacement.target_project_id
+    }
+  };
 }
 
 function isCurrentExecutorTask(task, project, user) {

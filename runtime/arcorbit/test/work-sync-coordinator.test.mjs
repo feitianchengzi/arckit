@@ -171,6 +171,157 @@ test("a successful remote create is not reported as failed when Work reconciliat
   assert.equal(state.store.platform.task_sync.source_status, "degraded");
 });
 
+test("task product replacement confirms the target before deleting the source and copies only approved fields", async () => {
+  const state = createState(replacementStore());
+  const calls = [];
+  const remote = {
+    "1": [{ ...state.store.platform.task_sync.projects["1"].tasks[0] }],
+    "2": []
+  };
+  const platformSource = {
+    async listProjectTasks(projectId) { return remote[String(projectId)].map((task) => ({ ...task })); },
+    async listProjectTags() { return []; },
+    async createTask(input) {
+      calls.push(["create", { ...input }]);
+      const task = { id: "T-2", project_id: "2", content: input.content, state: input.state, priority: input.priority, executor_id: input.executor_id, father_id: input.father_id, tags: input.tags };
+      remote["2"].push(task);
+      return task;
+    },
+    async deleteTask(taskId) {
+      calls.push(["delete", String(taskId)]);
+      remote["1"] = remote["1"].filter((task) => String(task.id) !== String(taskId));
+      return { id: String(taskId), deleted: true };
+    }
+  };
+  const coordinator = createWorkSyncCoordinator({
+    runManager: state.runManager,
+    taskSource: authenticatedTaskSource(replacementProjects(), platformSource),
+    platformSource,
+    now: () => "2026-08-25T12:00:00.000Z"
+  });
+
+  const result = await coordinator.replaceTaskProject({
+    source_task_id: "T-1",
+    target_project_id: "2",
+    content: "copied body",
+    state: "completed",
+    priority: "2",
+    executor_id: "9",
+    father_id: "P-2",
+    tags: "TAG-2",
+    attachments: ["must-not-copy"],
+    thread_id: "must-not-copy"
+  });
+
+  assert.equal(result.status, "completed");
+  assert.equal(result.outcome, "source_deleted");
+  assert.deepEqual(calls, [
+    ["create", { project_id: "2", content: "copied body", state: "completed", priority: "2", executor_id: "9", father_id: "P-2", tags: "TAG-2" }],
+    ["delete", "T-1"]
+  ]);
+  assert.equal(state.store.platform.task_sync.projects["1"].tasks.some((task) => task.id === "T-1"), false);
+  assert.equal(state.store.platform.task_sync.projects["2"].tasks.some((task) => task.id === "T-2"), true);
+  assert.deepEqual(state.store.platform.task_sync.task_replacements, {});
+});
+
+test("task product replacement never deletes the source when target creation fails", async () => {
+  const state = createState(replacementStore());
+  let deleteCalls = 0;
+  const platformSource = {
+    async listProjectTasks(projectId) { return state.store.platform.task_sync.projects[String(projectId)].tasks; },
+    async listProjectTags() { return []; },
+    async createTask() { throw new Error("target create failed"); },
+    async deleteTask() { deleteCalls += 1; }
+  };
+  const coordinator = createWorkSyncCoordinator({
+    runManager: state.runManager,
+    taskSource: authenticatedTaskSource(replacementProjects(), platformSource),
+    platformSource
+  });
+
+  await assert.rejects(coordinator.replaceTaskProject({ source_task_id: "T-1", target_project_id: "2" }), /target create failed/);
+
+  assert.equal(deleteCalls, 0);
+  assert.equal(state.store.platform.task_sync.projects["1"].tasks.some((task) => task.id === "T-1"), true);
+  assert.deepEqual(state.store.platform.task_sync.task_replacements, {});
+});
+
+test("task product replacement persists a delete failure and retries without creating another target", async () => {
+  const state = createState(replacementStore());
+  let createCalls = 0;
+  let deleteCalls = 0;
+  let allowDelete = false;
+  const remote = {
+    "1": [{ ...state.store.platform.task_sync.projects["1"].tasks[0] }],
+    "2": []
+  };
+  const platformSource = {
+    async listProjectTasks(projectId) { return remote[String(projectId)].map((task) => ({ ...task })); },
+    async listProjectTags() { return []; },
+    async createTask(input) {
+      createCalls += 1;
+      const task = { id: "T-2", project_id: "2", content: input.content, state: input.state };
+      remote["2"].push(task);
+      return task;
+    },
+    async deleteTask(taskId) {
+      deleteCalls += 1;
+      if (!allowDelete) throw Object.assign(new Error("source delete failed"), { code: "network_error" });
+      remote["1"] = remote["1"].filter((task) => String(task.id) !== String(taskId));
+      return { id: String(taskId), deleted: true };
+    }
+  };
+  let coordinator = createWorkSyncCoordinator({
+    runManager: state.runManager,
+    taskSource: authenticatedTaskSource(replacementProjects(), platformSource),
+    platformSource
+  });
+
+  const partial = await coordinator.replaceTaskProject({ source_task_id: "T-1", target_project_id: "2" });
+  assert.equal(partial.status, "partial");
+  assert.equal(partial.partial_result.target_task_id, "T-2");
+  assert.equal(createCalls, 1);
+  assert.equal(state.store.platform.task_sync.task_replacements["1:T-1"].status, "source_delete_failed");
+
+  coordinator = createWorkSyncCoordinator({
+    runManager: state.runManager,
+    taskSource: authenticatedTaskSource(replacementProjects(), platformSource),
+    platformSource
+  });
+  assert.equal((await coordinator.replaceTaskProject({ source_task_id: "T-1", target_project_id: "2" })).status, "partial");
+  assert.equal(createCalls, 1);
+  allowDelete = true;
+  const recovered = await coordinator.retryTaskProjectReplacement({ replacement_id: "1:T-1" });
+
+  assert.equal(recovered.status, "completed");
+  assert.equal(createCalls, 1);
+  assert.equal(deleteCalls, 2);
+  assert.deepEqual(state.store.platform.task_sync.task_replacements, {});
+});
+
+test("task product replacement can explicitly keep both confirmed tasks", async () => {
+  const state = createState(replacementStore());
+  state.store.platform.task_sync.task_replacements["1:T-1"] = {
+    id: "1:T-1", status: "source_delete_failed", source_task_id: "T-1", source_project_id: "1",
+    target_task_id: "T-2", target_project_id: "2", error: "offline"
+  };
+  const platformSource = {
+    async listProjectTasks(projectId) { return state.store.platform.task_sync.projects[String(projectId)].tasks; },
+    async listProjectTags() { return []; }
+  };
+  const coordinator = createWorkSyncCoordinator({
+    runManager: state.runManager,
+    taskSource: authenticatedTaskSource(replacementProjects(), platformSource),
+    platformSource
+  });
+
+  const result = await coordinator.keepTaskProjectReplacement({ replacement_id: "1:T-1" });
+
+  assert.equal(result.outcome, "kept_both");
+  assert.deepEqual(state.store.platform.task_sync.task_replacements, {});
+  assert.equal(state.store.platform.task_sync.projects["1"].tasks.some((task) => task.id === "T-1"), true);
+});
+
 test("a late reconciliation result cannot restore a cleared Work identity", async () => {
   const state = createState({
     platform: { active_workset_id: "WORKSET-DEFAULT", worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["1"] }] }
@@ -213,6 +364,32 @@ function preloadedStore(task) {
             tasks: [{ id: "T-1", project_id: "1", executor_id: "7", content: "todo", ...task }],
             tags: [], trusted: true, revision: 1
           }
+        }
+      }
+    }
+  };
+}
+
+function replacementProjects() {
+  return [
+    { id: "1", name: "Source", current_user_id: "7" },
+    { id: "2", name: "Target", current_user_id: "7" }
+  ];
+}
+
+function replacementStore() {
+  return {
+    platform: {
+      active_workset_id: "WORKSET-DEFAULT",
+      worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["1", "2"] }],
+      task_sync: {
+        identity_key: "7",
+        user: { id: "7" },
+        project_catalog: replacementProjects(),
+        source_status: "healthy",
+        projects: {
+          "1": { project: replacementProjects()[0], tasks: [{ id: "T-1", project_id: "1", executor_id: "7", content: "source body", state: "pending", comments: ["not copied"] }], tags: [], trusted: true, revision: 1 },
+          "2": { project: replacementProjects()[1], tasks: [], tags: [], trusted: true, revision: 1 }
         }
       }
     }

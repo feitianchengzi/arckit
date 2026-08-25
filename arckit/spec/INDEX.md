@@ -13,7 +13,7 @@
   - controller-worker-loop.md Agent Loop：定义 invariant-guided 候选发现、单 claim Gap 边界、trusted closeout、post-commit fresh-read 与同 thread 自动续轮。⚪ (128行)
   - runtime-automation-workspace.md Runtime 自动化工作区：定义 Work 本地状态驱动、workspace lane 并行、项目内双队列串行、同待办 thread 与 lane-scoped Gate/恢复。🟡 (314行)
   - arcorbit-platform-capabilities.md ArcOrbit 多产品研发平台：定义 Work-owned 同步、本地 Task Projection、全局产品集、Feedback 双向会话与独立产品反馈中心。🟡 (497行)
-  - arcorbit-work-management.md ArcOrbit Work 待办管理：定义本地状态查询、Work-owned 同步、三入口七状态自由修改、任务树、Inspector、评论图片及 Automation 消费边界。🟡 (106行)
+  - arcorbit-work-management.md ArcOrbit Work 待办管理：定义本地状态查询、Work-owned 同步、三入口七状态自由修改、编辑待办跨产品受控替换及 Automation 消费边界。🟡 (110行)
   - arcorbit-planned-workspaces.md ArcOrbit Chat 与计划工作空间：定义按项目分组的真实 Codex Chat、新会话项目归属、共享 Conversation Surface 边界及计划工作空间职责。🟡 (195行)
   - arcorbit-organization-management.md ArcOrbit 组织治理：定义组织范围、成员关系、项目可见性、邀请加入、分页和推进连接的稳定行为。🟢 (155行)
   - loop-engineering-research.md Loop Engineering 研究输入：保存吴恩达三层 loop、2026 loop 工程架构、Arckit 对应关系和开放问题。⚪ (132行)

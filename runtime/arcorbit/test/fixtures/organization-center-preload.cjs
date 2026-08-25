@@ -11,6 +11,7 @@ let workQueryDelayMs = 0;
 let workQueryFailure = "";
 let workQueryScenarios = [];
 let createdTaskSequence = 0;
+let taskReplacementScenario = "success";
 const feedbackV2ImageTest = process.env.ARCORBIT_ELECTRON_FEEDBACK_V2_TEST === "1";
 let failedFeedbackV2ImagePreview = false;
 const automation = {
@@ -181,6 +182,30 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
     calls.push([command, input]);
     if (command === "task.attachments.list") return taskAttachments[String(input.task_id)] || [];
     if (command === "task.attachment.create") return { id: `TA-${String(input.task_id)}-NEW`, task_id: String(input.task_id), creator_id: "7", type: input.type, content: input.content };
+    if (command === "task.replace_project") {
+      if (taskReplacementScenario === "create_failure") throw new Error("Fixture target create failed");
+      if (taskReplacementScenario === "delete_failure") {
+        return {
+          status: "partial",
+          error: { code: "source_delete_failed", message: "Fixture source delete failed" },
+          partial_result: {
+            status: "source_delete_failed",
+            replacement_id: "11:W-11",
+            source_task_id: "W-11",
+            source_project_id: "11",
+            target_task_id: "W-12-NEW",
+            target_project_id: "12"
+          }
+        };
+      }
+      return { status: "completed", source_task_id: "W-11", source_project_id: "11", target_task_id: "W-12-NEW", target_project_id: "12" };
+    }
+    if (command === "task.replace_project.retry_delete") {
+      return { status: "completed", outcome: "source_deleted", source_task_id: "W-11", source_project_id: "11", target_task_id: "W-12-NEW", target_project_id: "12" };
+    }
+    if (command === "task.replace_project.keep_both") {
+      return { status: "completed", outcome: "kept_both", source_task_id: "W-11", source_project_id: "11", target_task_id: "W-12-NEW", target_project_id: "12" };
+    }
     if (command === "task.create") {
       const projectId = String(input.project_id);
       const project = projects.find((item) => item.id === projectId);
@@ -253,6 +278,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   openWorkTaskAttachment: async (input) => { calls.push(["openWorkTaskAttachment", input]); return { opened: true }; },
   openWorkExternalLink: async (value) => { calls.push(["openWorkExternalLink", value]); return { opened: true }; },
   getTestCalls: async () => calls,
+  setTestTaskReplacementScenario: async (value) => { taskReplacementScenario = String(value || "success"); },
   setTestPlatformSnapshotDelay: async (value) => { workQueryDelayMs = Math.max(0, Number(value) || 0); },
   queueTestPlatformWorkQueries: async (scenarios) => {
     workQueryScenarios = (Array.isArray(scenarios) ? scenarios : []).map((scenario) => ({

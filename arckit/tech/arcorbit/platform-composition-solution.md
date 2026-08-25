@@ -226,7 +226,7 @@ Preload 新增以下产品动作：
 - `previewImage(input)` / `openImageViewer(input)`：只接受 `work-task`、`feedback-file` 或 `feedback-v2` 来源及其领域身份。main 进程重新验证记录归属、受信 URL、响应类型和大小；前者返回受限 data URL，后者创建或聚焦 Work 与 Feedback 共用的独立图片窗口。Renderer 不能提交 data URL、任意下载 URL 或本地路径作为图片来源。
 - 图片窗口使用独立静态 Renderer 和最小 preload，启用 context isolation、sandbox、禁用 Node integration 与任意导航。缩放、适合窗口、实际大小、旋转、平移和重置只改变窗口内视图状态；另存为通过仅对受管图片窗口开放的 main-process 保存动作写入用户明确选择的位置。
 
-当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、专用忽略和原子转待办。Task create 与 update 接受显式七状态；Platform Coordinator 校验枚举并转交 Work Sync，不查询 Automation snapshot 来授权或拒绝。正文与状态的同次编辑形成一个受控 `updateTask` mutation，并携带本地预期状态用于冲突检测。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
+当前平台命令边界覆盖 Organization / Project 管理、邀请、邀请码加入、受权限约束的成员修改/移除、Task CRUD、Task 父子关系、TaskAttachment 评论/附件 CRUD、Tag CRUD、Feedback V1 CRUD、`feedback.to_task`，以及开发者管理 V2 的消息读取/回复、回复附件上传策略/受限读取、通知读取/已读、专用忽略和原子转待办。Task create 与 update 接受显式七状态；Platform Coordinator 还提供受限的 `replaceTaskProject` 领域动作，由 Work Sync 使用既有 `createTask` 和 `deleteTask` 完成跨产品受控替换。Renderer 只能提交源 Task id、目标产品和目标产品限定字段，不能选择调用顺序或注入服务端拥有字段。每一项 V2 命令都是固定领域动作，不接受 Renderer 传入 URL、header 或凭据。边界明确不包含 `project.member.add`、项目组织迁移或不存在的 Task history。
 
 IPC 参数使用结构化对象。main 进程通过固定命令 allowlist 与 Adapter 重新验证 id、枚举、长度和允许字段，不接受 Renderer 传入的角色或 capability 作为授权事实；Workshop 服务仍执行最终登录与权限判定。
 
@@ -277,6 +277,12 @@ V2 客户端契约的 triage status、customer status、消息、回复附件、
 任务状态 mutation 统一进入 Work Sync。当前 Workshop 服务没有证据支持 `If-Match` 原子条件更新，因此 capability 标记为 `weak_claim_consistency`；Work Sync 负责调用受控 Adapter、处理冲突和必要对账，并只在服务端成功后提交本地任务状态。Automation 不读取或确认远端版本，只等待 Work Sync 发布本地状态结果。
 
 平台普通 Task mutation 不声称原子乐观锁。成功响应由 Work Sync 对账并提交相应本地投影；409、412、404、401、403 和 transport error 分别投影为 conflict、not_found、unauthenticated、forbidden 和 retryable_service_error，且不推进本地任务状态。
+
+产品归属变更是 Work Sync 拥有的两阶段受控替换，不声明跨请求原子性。第一阶段重新读取源 Task，复制 `content`、`state` 和 `priority`，合并用户为目标产品重新选择的 executor、father 和 tags，并调用 `createTask(target_project_id)`。新 Task 使用服务端生成的 id、creator 和时间字段，不复制 TaskAttachment、ArcOrbit Run/session/thread、Gate、验收问题或旧详情引用。
+
+只有目标创建得到服务器确认后，Work Sync 才以明确的源 Task id 调用 `deleteTask`。目标创建失败使源 Task 和本地可信投影保持不变；源删除失败则保留服务端已经存在的两个 Task，并持久化 `target_created_source_delete_failed` 恢复记录，包含 source task id、target task id、两个 project id 和脱敏错误。恢复动作只允许重试删除源 Task 或接受保留两份，不能自动删除目标 Task 冒充回滚。
+
+两个步骤各自通过既有项目事件或定向 REST 对账进入 Task Projection。完整成功后 Work Sync 发布同时包含 source/target task id 与 project id 的 `work.changed`；源删除确认使 Automation 对旧 Task execution 创建 lane-scoped external change recovery 并安全 interrupt。目标 Task 没有继承执行控制状态，按普通新任务重新参与目标 workspace lane。
 
 所有 destructive command 必须带明确目标 id。删除 Task 前 Renderer 请求确认，main 再读取当前 Task 和 Project member 上下文；服务端拒绝保持权威，不在本地移除记录。
 
@@ -334,6 +340,7 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - `organization_projects_limited`：普通成员明确显示参与项目范围，不标记为失败。
 - `organization_projects_failed`：owner/admin 全量查询失败时标记对应组织降级，不回退后伪装成全量。
 - `task_conflict`：刷新 Task，保留用户未提交编辑草稿，由用户重新确认。
+- `task_project_replace_partial`：目标 Task 已创建但源删除失败；保留两个服务器事实和恢复记录，只允许重试源删除或确认保留两份。
 - `feedback_link_failed`：保留已创建 Task id，只重试 V1 Feedback 关联。
 - `feedback_v2_unavailable`：受限 V2 adapter 本身不可构造时继续使用 V1 能力，不改变 V1 数据。
 - `feedback_v2_degraded`：某项目 V2 列表真实失败时回退该项目 V1；消息、附件、通知、忽略或原子转待办请求失败时只降级对应动作，保留已取得事实并返回脱敏错误。通知失败不关闭消息读取和回复。
@@ -362,6 +369,7 @@ Organization 的成员详情只呈现已有关系。项目邀请只从项目详�
 - Work 与 Automation 消费面覆盖列表、父任务候选、队列、当前运行、Workbench 顶部、确认对话、session/Activity/CLI 标签、详情只显示一次完整正文，以及历史展示快照不成为服务端或搜索事实。
 - Work Task 查询的多值筛选序列化、100 天日期边界、树结果父链/子树补全和命中总数区分。
 - Task 创建、子任务创建、父任务调整/清空、循环拒绝、级联删除确认和跨产品候选隔离。
+- Task 产品归属替换覆盖目标创建先于源删除、目标字段校验、新 Task 身份、评论附件与 Run/thread 不迁移、创建失败不删除源 Task、删除失败保留双 Task 和恢复记录、两个项目对账及活动 execution 外部变化恢复。
 - TaskAttachment 评论/附件的 JSON/标记双格式解析、URL 类型显式打开、图片默认并发加载、逐图失败重试、独立窗口打开、缩放/适配/实际大小/旋转/平移/重置、另存为取消与失败、文件下载、评论资源上传、object key 归属校验、STS 根目录限制、创建者更新权限、任务创建者或管理角色删除权限和历史纯文本兼容。
 - 所有分页列表超过 200 条时继续翻页，且不会重复记录。
 - owner/admin 与 member 的组织项目查询路由、可见性和失败关闭。
@@ -380,6 +388,7 @@ Web 仓库 build 只有在依赖安装后才构成源码验证。Workshop Todo �
 
 ## 已知外部契约缺口
 
+- Workshop Todo 当前 `UpdateTaskRequest` 不接受 `project_id`，ArcOrbit 因而使用既有 Task create/delete 契约完成产品归属替换；该流程不保留 Task 身份、评论附件或执行关联，也不能提供跨请求原子回滚。
 - Workshop Todo 未实现可证实的 `If-Match` 条件更新，自动领取只能声明弱一致。
 - Project 直接添加成员 handler 未验证 caller role，ArcOrbit 不开放该动作。
 - Workshop 项目查询响应不包含 `organization_id`；平台从组织范围请求上下文补全归属，并从项目成员的 `is_external` 标记识别外部参与，不修改服务端响应契约。

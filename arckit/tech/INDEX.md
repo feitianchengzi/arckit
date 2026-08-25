@@ -7,6 +7,6 @@
   - installer-supply-chain.md ArcOrbit 安装包供应链：定义项目级 provider targets、用户级 managed 迁移、bundle 恢复、utility Runtime host、Renderer fuse 和回滚。✅ (358行)
   - state-condition-ledger-solution.md Software Definition Ledger：定义 Project/Case 边界、stable candidate identity、fresh-fact invariant assessment、Transition v8 与 Closeout v2。✅ (263行)
   - desktop-execution-solution.md Desktop Codex 会话与执行方案：定义 workspace lane 并行、项目内单执行租约、共享 Conversation Surface、Run 投影与断电恢复。✅ (325行)
-  - platform-composition-solution.md 平台组合方案：定义统一 Task 投影、多产品 workset、Work 三入口状态 mutation、本地投影、受控图片窗口与平台 IPC。✅ (392行)
-  - realtime-synchronization-solution.md 可靠实时同步：定义项目游标补取、Work-owned WebSocket/REST/mutation、状态确认发布、Automation 外部变化消费与 Gate 隔离。✅ (152行)
+  - platform-composition-solution.md 平台组合方案：定义统一 Task 投影、待办跨产品先复制后删除、分步恢复、受控图片窗口与平台 IPC。✅ (401行)
+  - realtime-synchronization-solution.md 可靠实时同步：定义项目游标补取、Work-owned WebSocket/REST/mutation、跨产品替换对账、Automation 外部变化消费与 Gate 隔离。✅ (155行)
   - product-feedback-integration.md 产品反馈 SDK：定义 Project 107、受限 Electron WebContents、SDK 文档身份、草稿保持、Workshop 稳定身份和未读角标。✅ (67行)

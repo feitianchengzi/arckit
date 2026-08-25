@@ -286,6 +286,12 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .organization-member-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: var(--type-body); color: var(--ink-600); }
 .platform-action-panel { width: min(620px, calc(100vw - 48px)); max-height: calc(100vh - 56px); overflow: auto; border: 1px solid var(--ink-200); border-radius: 16px; background: var(--paper); box-shadow: 0 22px 64px rgb(20 19 32 / 24%); padding: 20px; }
 .platform-action-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
+.platform-action-status { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin: 16px 0 0; padding: 12px 14px; border: 1px solid var(--ink-200); border-radius: 12px; background: var(--ink-50); }
+.platform-action-status > span:first-child { display: grid; gap: 4px; }
+.platform-action-status small { color: var(--ink-600); }
+.platform-action-status[data-tone="pending"] { border-color: var(--violet-400); }
+.platform-action-status[data-tone="warning"] { border-color: var(--amber-600); }
+.platform-action-status[data-tone="error"] { border-color: var(--red-600); color: var(--red-600); }
 .task-project-fields { display: contents; }
 .platform-action-field { display: grid; align-content: start; gap: 6px; color: var(--ink-700); font-size: var(--type-body); font-weight: 650; }
 .platform-action-field:has(textarea) { grid-column: 1 / -1; }
@@ -744,6 +750,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .feedback-link-recovery span { display: grid; gap: 3px; }
 .feedback-link-recovery strong { color: var(--ink-900); font-size: var(--type-label); }
 .feedback-link-recovery small { color: var(--ink-600); font-size: var(--type-caption); }
+.task-replacement-recovery { align-items: flex-start; }
+.task-replacement-recovery-actions { display: flex !important; flex: 0 0 auto; gap: 8px !important; }
 .feedback-priority-readonly { display: grid; min-width: 150px; gap: 2px; padding: 6px 9px; border: 1px solid var(--ink-150); border-radius: 7px; background: var(--ink-50); }
 .feedback-priority-readonly span, .feedback-priority-readonly small { color: var(--ink-500); font-size: var(--type-micro); }
 .feedback-priority-readonly strong { color: var(--ink-800); font-size: var(--type-label); }

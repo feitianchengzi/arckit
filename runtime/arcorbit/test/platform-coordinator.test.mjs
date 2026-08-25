@@ -41,6 +41,9 @@ function fixtureWorkSync(platformSource) {
     },
     async reconcile() {},
     async createTask(input) { return platformSource.createTask(input); },
+    async replaceTaskProject(input) { return platformSource.replaceTaskProject(input); },
+    async retryTaskProjectReplacement(input) { return platformSource.retryTaskProjectReplacement(input); },
+    async keepTaskProjectReplacement(input) { return platformSource.keepTaskProjectReplacement(input); },
     async updateTask(taskId, input) { return platformSource.updateTask(taskId, input); },
     async updateTaskState({ taskId, state }) { return platformSource.updateTask(taskId, { state }); },
     async deleteTask(taskId) { return platformSource.deleteTask(taskId); }
@@ -350,6 +353,57 @@ test("platform coordinator exposes bounded management actions and omits unsafe d
   assert.deepEqual(calls.at(-1), ["task.update", "44", { father_id: "42" }]);
   await assert.rejects(coordinator.executeAction("task.reparent", { project_id: "11", task_id: "42", father_id: "44" }), /不能形成循环/);
   await assert.rejects(coordinator.executeAction("project.member.add", { project_id: 11, target_user_id: 7 }), /Unsupported platform action/);
+});
+
+test("platform coordinator restricts task project replacement to the active Workset and typed recovery actions", async () => {
+  const calls = [];
+  const store = normalizeStore({
+    platform: {
+      active_workset_id: "WORKSET-DEFAULT",
+      worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["11", "12"] }]
+    }
+  });
+  const workSync = {
+    async getSnapshot() {
+      return {
+        project_catalog: [{ id: "11", name: "Source" }, { id: "12", name: "Target" }, { id: "13", name: "Outside" }],
+        tasks: [
+          { id: "T-1", project_id: "11", content: "source", state: "pending" },
+          { id: "P-12", project_id: "12", content: "parent", state: "pending" }
+        ],
+        tags: [], errors: [], source_status: "healthy", task_replacements: []
+      };
+    },
+    async replaceTaskProject(input) { calls.push(["replace", input]); return { status: "completed" }; },
+    async retryTaskProjectReplacement(input) { calls.push(["retry", input]); return { status: "completed" }; },
+    async keepTaskProjectReplacement(input) { calls.push(["keep", input]); return { status: "completed" }; }
+  };
+  const coordinator = createProductionPlatformCoordinator({
+    runManager: { readDesktopStore: async () => store, updateDesktopStore: async () => store },
+    platformSource: {},
+    workSync,
+    automationCoordinator: { getSnapshot: async () => ({ source_status: "healthy", projects: [], tasks: [], queue: [], attention_items: [], recovery_items: [], health: {} }) }
+  });
+
+  await coordinator.executeAction("task.replace_project", {
+    source_task_id: "T-1", target_project_id: "12", content: "edited", state: "completed", father_id: "P-12", attachments: ["not-forwarded"]
+  });
+  await coordinator.executeAction("task.replace_project.retry_delete", { replacement_id: "11:T-1" });
+  await coordinator.executeAction("task.replace_project.keep_both", { replacement_id: "11:T-1" });
+
+  assert.deepEqual(calls, [
+    ["replace", { source_task_id: "T-1", target_project_id: "12", content: "edited", state: "completed", priority: undefined, executor_id: undefined, father_id: "P-12", tags: undefined }],
+    ["retry", { replacement_id: "11:T-1" }],
+    ["keep", { replacement_id: "11:T-1" }]
+  ]);
+  await assert.rejects(
+    coordinator.executeAction("task.replace_project", { source_task_id: "T-1", target_project_id: "13" }),
+    /不在当前产品集/
+  );
+  await assert.rejects(
+    coordinator.executeAction("task.replace_project", { source_task_id: "T-1", target_project_id: "12", father_id: "T-1" }),
+    /父待办不属于目标产品/
+  );
 });
 
 test("successful task creation is not reported as failed when the immediate Automation refresh degrades", async () => {
