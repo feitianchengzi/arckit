@@ -27,6 +27,7 @@ import { createChatStateCoordinator } from "./chat-state-coordinator.mjs";
 import { CHAT_SESSION_PREVIEW_LIMIT, chatSessionVisibility, groupChatSessions } from "./chat-session-groups.mjs";
 import { createWorkQueryState, normalizeWorkQuery, workQueryKey } from "./work-query-state.mjs";
 import { taskDisplayTitle } from "../../src/task-display-title.mjs";
+import { initializeWindowControls } from "./window-controls.mjs";
 
 const api = window.arckitDesktop;
 
@@ -206,6 +207,15 @@ const workbenchConversationSurface = createConversationSurface({
   performAction: runAction,
 });
 
+initializeWindowControls({
+  api,
+  closeButton: els.windowCloseButton,
+  minimizeButton: els.windowMinimizeButton,
+  maximizeButton: els.windowMaximizeButton,
+  dragRegion: els.titlebarDrag,
+  onError: (error) => showToast(error.message || "窗口控制失败")
+});
+
 function chatState() {
   return chatStateCoordinator.getState();
 }
@@ -313,7 +323,7 @@ function wireEvents() {
     els.setupReadiness.classList.add("hidden");
     await refreshSnapshot();
   }));
-  els.setupExitButton.addEventListener("click", () => window.close());
+  els.setupExitButton.addEventListener("click", () => runAction(() => api.closeWindow()));
   els.setupReviewed.addEventListener("change", () => {
     if (els.setupReviewed.checked) state.setupReviewPlanChanged = false;
     renderSetupActions();

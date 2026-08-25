@@ -29,6 +29,10 @@ function httpStatus(value) {
 const invokeFeedbackV2 = (channel, input) => ipcRenderer.invoke(channel, input).then(unwrapFeedbackV2Ipc);
 
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  getWindowState: () => ipcRenderer.invoke("arckit:window-state"),
+  minimizeWindow: () => ipcRenderer.invoke("arckit:window-minimize"),
+  toggleMaximizeWindow: () => ipcRenderer.invoke("arckit:window-toggle-maximize"),
+  closeWindow: () => ipcRenderer.invoke("arckit:window-close"),
   getSetupReadiness: () => ipcRenderer.invoke("arckit:setup-status"),
   checkSetupReadiness: (input) => ipcRenderer.invoke("arckit:setup-check", input),
   applySetupPlan: (input) => ipcRenderer.invoke("arckit:setup-apply", input),
@@ -101,6 +105,11 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   pickWorkTaskAttachment: (input) => ipcRenderer.invoke("arckit:work-task-attachment-pick", input),
   previewWorkTaskAttachment: (input) => ipcRenderer.invoke("arckit:work-task-attachment-preview", input),
   openWorkTaskAttachment: (input) => ipcRenderer.invoke("arckit:work-task-attachment-open", input),
+  onWindowState: (listener) => {
+    const handler = (_event, state) => listener(state);
+    ipcRenderer.on("arckit:window-state-changed", handler);
+    return () => ipcRenderer.off("arckit:window-state-changed", handler);
+  },
   onProductFeedbackUnread: (listener) => {
     const handler = (_event, count) => listener(count);
     ipcRenderer.on("arckit:product-feedback-unread", handler);

@@ -22,6 +22,7 @@ import { installMainWindowNavigationBoundary } from "../src/desktop-navigation-b
 import { checkDesktopSetupReadiness } from "../src/desktop-setup-readiness-context.mjs";
 import { createWorkshopRealtimeAdapter } from "../src/workshop-realtime-adapter.mjs";
 import { createWorkSyncCoordinator } from "../src/work-sync-coordinator.mjs";
+import { mainWindowState, observeMainWindowState, performMainWindowAction } from "../src/main-window-controls.mjs";
 import feedbackV2Ipc from "./feedback-v2-ipc.cjs";
 
 const { settleFeedbackV2Ipc } = feedbackV2Ipc;
@@ -54,6 +55,7 @@ let syncTimer;
 let realtimeSubscriptionTimer;
 let productFeedbackUnreadTimer;
 let automationStarted = false;
+let stopObservingMainWindowState = () => {};
 
 app.whenReady().then(async () => {
   const codexExecutableResolver = createCodexExecutableResolver();
@@ -267,6 +269,7 @@ app.on("activate", () => {
 async function createWindow({ show = true } = {}) {
   mainWindow = new BrowserWindow({
     show,
+    frame: false,
     width: 1280,
     height: 820,
     minWidth: 1040,
@@ -283,6 +286,15 @@ async function createWindow({ show = true } = {}) {
   const rendererEntry = join(desktopDir, "renderer/index.html");
   const rendererUrl = pathToFileURL(rendererEntry).href;
   installMainWindowNavigationBoundary(mainWindow.webContents, rendererUrl);
+  stopObservingMainWindowState();
+  stopObservingMainWindowState = observeMainWindowState(mainWindow, (state) => {
+    if (!mainWindow?.isDestroyed()) mainWindow.webContents.send("arckit:window-state-changed", state);
+  });
+  mainWindow.once("closed", () => {
+    stopObservingMainWindowState();
+    stopObservingMainWindowState = () => {};
+    mainWindow = null;
+  });
   await mainWindow.loadFile(rendererEntry);
 }
 
@@ -301,6 +313,22 @@ async function runRendererLoadSmoke() {
 }
 
 function registerIpc() {
+  ipcMain.handle("arckit:window-state", async (event) => {
+    assertMainRenderer(event);
+    return mainWindowState(mainWindow);
+  });
+  ipcMain.handle("arckit:window-minimize", async (event) => {
+    assertMainRenderer(event);
+    return performMainWindowAction(mainWindow, "minimize");
+  });
+  ipcMain.handle("arckit:window-toggle-maximize", async (event) => {
+    assertMainRenderer(event);
+    return performMainWindowAction(mainWindow, "toggle-maximize");
+  });
+  ipcMain.handle("arckit:window-close", async (event) => {
+    assertMainRenderer(event);
+    return performMainWindowAction(mainWindow, "close");
+  });
   ipcMain.handle("arckit:setup-status", async () => skillProvisioningManager.getSnapshot());
   ipcMain.handle("arckit:setup-check", async (_event, input) => checkDesktopSetupReadiness({
     input,

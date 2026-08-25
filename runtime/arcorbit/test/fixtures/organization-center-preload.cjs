@@ -103,6 +103,11 @@ const platform = {
 
 const noOp = async () => ({});
 contextBridge.exposeInMainWorld("arckitDesktop", {
+  getWindowState: async () => ({ maximized: false, minimized: false }),
+  minimizeWindow: noOp,
+  toggleMaximizeWindow: async () => ({ maximized: false, minimized: false }),
+  closeWindow: noOp,
+  onWindowState: () => () => {},
   getSetupReadiness: async () => ({ status: "ready", first_install: false, checks: [], distribution: {}, counts: {} }),
   continueFromSetup: noOp,
   getSettings: async () => ({ task_source: { enabled: true, auth_mode: "nebula" }, codex_proxy: {} }),

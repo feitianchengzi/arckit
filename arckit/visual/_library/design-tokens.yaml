@@ -1,6 +1,6 @@
 metadata:
   project: ArcOrbit Desktop
-  last_updated: "2026-08-24"
+  last_updated: "2026-08-25"
   brief: ./brief.md
 
 colors:
@@ -67,7 +67,7 @@ spacing:
 
 layout:
   sidebar_width: { value: 228, description: 项目与状态主导航宽度 }
-  titlebar_height: { value: 35, description: 原生窗口标题栏高度 }
+  titlebar_height: { value: 40, description: 应用自绘窗口标题栏高度，容纳真实窗口控制和拖动区域 }
   commandbar_height: { value: 58, description: 顶部命令栏高度 }
   inspector_width: { value: 312, description: 运行边界和证据检查器宽度 }
   compact_control_height: { value: 32, description: 仅图标工具和极紧凑辅助控件的最小高度 }

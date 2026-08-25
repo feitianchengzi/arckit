@@ -73,8 +73,12 @@
     </section>
     <div class="desktop-app">
       <header class="titlebar">
-        <div class="window-dots" aria-hidden="true"><i></i><i></i><i></i></div>
-        <div class="titlebar-drag">ArcOrbit</div>
+        <div class="window-controls" role="group" aria-label="窗口控制">
+          <button id="windowCloseButton" class="window-control close" type="button" aria-label="关闭窗口" title="关闭窗口"><i aria-hidden="true"></i></button>
+          <button id="windowMinimizeButton" class="window-control minimize" type="button" aria-label="最小化窗口" title="最小化窗口"><i aria-hidden="true"></i></button>
+          <button id="windowMaximizeButton" class="window-control maximize" type="button" aria-label="最大化窗口" title="最大化窗口"><i aria-hidden="true"></i></button>
+        </div>
+        <div id="titlebarDrag" class="titlebar-drag">ArcOrbit</div>
         <div id="titlebarSync" class="sync-state"><i></i><span>准备同步</span></div>
       </header>
 

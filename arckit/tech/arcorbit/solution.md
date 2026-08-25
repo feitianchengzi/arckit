@@ -132,6 +132,8 @@ Coordinator 只消费 Work Sync 从本地 Task Projection Store 发布的当前�
 
 Preload 只暴露产品动作，Renderer 只消费 Automation Snapshot 和 Run activity。认证、任务状态与 Runtime 写操作继续在 main 进程重新校验；待办 transcript 和用量投影遵循 `desktop-execution-solution.md`。
 
+主 BrowserWindow 使用 `frame: false`，窗口外框完全由 ArcOrbit Renderer 标题栏表达，不与系统标题栏叠加。窗口仍保留原生 resize/move 能力；标题栏空白区域是 drag region，关闭、最小化和最大化/还原控件是 `no-drag` 交互区。Preload 只暴露 `state`、`minimize`、`toggle-maximize` 和 `close` 四类窗口产品动作，main process 校验调用方确为当前主窗口后才操作 BrowserWindow。main process 监听 maximize、unmaximize、minimize、restore 与 fullscreen 变化并向 Renderer 投影有界状态，使按钮名称和视觉状态与系统快捷键产生的窗口状态保持一致；Renderer 不获得 BrowserWindow 对象、通用 Electron API 或任意窗口命令。
+
 ### Loop Controller
 
 Loop Controller 通过 ledger manifest 的 trusted `loop_snapshot` 入口读取 advancement、完整 software definition decisions、software invariants、全部 active Cases、最近 invariant assessments、candidate catalog、revisions 与 snapshot tokens。Project gap 只作为选择/创建 Case 的宏观依据；数组顺序不表达优先级。通过 `$using-arckit` 调用的 Agent 每轮结合 invariants、fresh Case facts 和原生 skills 发现并可见地比较 persisted/fresh candidates，记录 eligibility、priority basis 和 selected/deferred/excluded 理由后选择唯一 Case 与一个 gap。Runtime 不解析 canonical records 复刻候选规则，也不根据关键词、decision/invariant、固定优先级或 skill/path 映射拍板业务 route；上一轮不得通过 impacts、事实域、复合步骤 Gap 或 closeout 预排下一轮路径。

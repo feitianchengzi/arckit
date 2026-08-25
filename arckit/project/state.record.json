@@ -5,8 +5,8 @@
     "status": "active",
     "intent": "治理 Arckit skill 体系，使其同时支撑 Codex 类人机协作和自动化平台的软件开发接力协议。",
     "created_at": "2026-07-05T13:32:43.579Z",
-    "updated_at": "2026-08-25T14:42:33.137Z",
-    "revision": 251
+    "updated_at": "2026-08-25T15:34:08.946Z",
+    "revision": 254
   },
   "advancement": {
     "active_iteration_ref": "arckit/project/iterations/ITER-20260705-001-state-driven-loop-foundation.record.json",
@@ -110,7 +110,7 @@
       }
     ],
     "selection_context": {
-      "current_focus": "将 Work 待办状态数量改为不占按钮标题空间的角标，并确保所有入口计数只由本地 Task Projection 派生且随本地刷新同步更新。",
+      "current_focus": "移除 ArcOrbit 主窗口的系统标题栏，仅保留应用标题栏，并让应用内最小化、最大化/还原和关闭按钮真实控制当前窗口。",
       "project_priorities": [
         "Keep skills generic while Project State owns the concrete software-definition checklist and decisions.",
         "Let one Agent select dynamic gaps from all current facts without facet workflows.",
@@ -188,16 +188,18 @@
         "evidence_expectation": "Durable interaction evidence sufficient to understand and verify affected journeys.",
         "decision": {
           "status": "settled",
-          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization 导航与 Work、Automation、Feedback、Chat 等交互语义。Work 编辑 Sheet 显示当前产品集内可写产品；切换产品时清空旧产品限定的执行人、父待办和标签选择，并保留正文、状态及优先级草稿。确认界面明确说明将创建新 Task、删除旧 Task、生成新 id，且评论、附件和执行关系不会迁移。提交先创建目标 Task，确认成功后才删除源 Task；创建失败保留源 Task 和草稿，删除失败则显示源、目标 Task及可恢复状态，允许重试删除或明确保留两者。源删除确认后 Automation 安全停止旧 execution；目标 Task 不继承旧 execution。",
-          "reason": "让用户清楚理解替换行为和数据边界，并能从两次独立 mutation 的部分成功中恢复。",
+          "statement": "ArcOrbit 保持既有 Personal、Product Lifecycle、Organization 导航与 Work、Automation、Feedback、Chat 等交互语义。Work 编辑 Sheet 显示当前产品集内可写产品；切换产品时清空旧产品限定的执行人、父待办和标签选择，并保留正文、状态及优先级草稿。确认界面明确说明将创建新 Task、删除旧 Task、生成新 id，且评论、附件和执行关系不会迁移。提交先创建目标 Task，确认成功后才删除源 Task；创建失败保留源 Task和草稿，删除失败则显示源、目标 Task 及可恢复状态，允许重试删除或明确保留两者。源删除确认后 Automation 安全停止旧 execution；目标 Task 不继承旧 execution。ArcOrbit 主窗口只使用应用自定义标题栏；标题区域支持拖动和双击最大化/还原，原生边缘缩放继续可用，应用内最小化、最大化/还原和关闭按钮必须真实控制当前窗口、保持可聚焦，并同步反映当前窗口状态。",
+          "reason": "当前用户要求、持久交互约定和生产实现共同澄清了跨页面主窗口 chrome 的稳定交互规则。",
           "evidence": [
             "Current operator input, 2026-08-25",
             "arckit/interaction/task-browser/interaction.md",
-            "arckit/interaction/task-browser/task-form.html"
+            "arckit/interaction/CONVENTIONS.md",
+            "runtime/arcorbit/desktop/renderer/window-controls.mjs",
+            "runtime/arcorbit/test/main-window-controls-electron.test.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "当确认内容、复制范围、部分成功恢复动作或 Automation 外部变化反馈改变时重审。",
-          "revision": 45
+          "resume_condition": "当确认内容、复制范围、部分成功恢复动作、Automation 外部变化反馈，或主窗口标题栏、拖拽、缩放与窗口控制语义改变时重审。",
+          "revision": 46
         },
         "gap_refs": []
       },
@@ -208,16 +210,19 @@
         "evidence_expectation": "Durable visual evidence sufficient to recover the project visual language.",
         "decision": {
           "status": "settled",
-          "statement": "Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native.",
-          "reason": "The maintained visual brief and token library define the Desktop presentation language, while the shipped renderer stylesheet is its executable surface.",
+          "statement": "Visual requirements apply to the Desktop workspace and follow its durable visual specification; CLI and ledger surfaces remain text-native. ArcOrbit 主窗口使用单一 40px 应用自绘深色标题栏，提供 32px 命中区的红、黄、绿窗口控件及清晰的 hover、active、focus 和最大化状态反馈，不再叠加系统标题栏。",
+          "reason": "持久视觉 brief、tokens、AppShell catalog、preview 与生产样式已经共同定义并实现单一应用标题栏。",
           "evidence": [
             "arckit/visual/_library/brief.md",
             "arckit/visual/_library/design-tokens.yaml",
-            "runtime/arckit-runtime/desktop/renderer/styles.css"
+            "arckit/visual/_library/component-catalog.yaml",
+            "arckit/visual/_library/style-preview.html",
+            "runtime/arcorbit/desktop/renderer/styles.css",
+            "runtime/arcorbit/test/main-window-controls-electron.test.mjs"
           ],
           "confidence": "high",
-          "resume_condition": "",
-          "revision": 2
+          "resume_condition": "当平台 chrome 策略、标题栏高度、窗口控件布局或状态反馈改变时重审。",
+          "revision": 3
         },
         "gap_refs": []
       },

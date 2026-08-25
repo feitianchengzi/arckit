@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>ArcOrbit Window Controls Fixture</title></head>
+<body>
+  <header>
+    <button id="windowCloseButton" type="button" aria-label="关闭窗口"></button>
+    <button id="windowMinimizeButton" type="button" aria-label="最小化窗口"></button>
+    <button id="windowMaximizeButton" type="button" aria-label="最大化窗口"></button>
+    <div id="titlebarDrag">ArcOrbit</div>
+  </header>
+  <script type="module">
+    import { initializeWindowControls } from "../../desktop/renderer/window-controls.mjs";
+    initializeWindowControls({
+      api: window.arckitDesktop,
+      closeButton: document.getElementById("windowCloseButton"),
+      minimizeButton: document.getElementById("windowMinimizeButton"),
+      maximizeButton: document.getElementById("windowMaximizeButton"),
+      dragRegion: document.getElementById("titlebarDrag"),
+      onError: (error) => { document.documentElement.dataset.error = error.message; }
+    });
+    document.documentElement.dataset.ready = "true";
+  </script>
+</body>
+</html>
