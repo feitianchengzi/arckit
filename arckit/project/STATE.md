@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 243
-Updated: 2026-08-25T11:24:37.416Z
+Revision: 245
+Updated: 2026-08-25T11:51:46.039Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-让用户在 ArcOrbit Work 的新建、编辑和详情场景中自由选择或修改待办七状态；Automation 只消费 Work Sync 发布的状态变化，不决定状态是否允许修改。
+消除安装计划展开、确认勾选与“安装并继续”按钮之间的隐式依赖，让首次使用者明确知道下一步、未满足条件和操作结果。
 
 ## Active Work
 

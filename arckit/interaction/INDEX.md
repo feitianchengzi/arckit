@@ -13,9 +13,9 @@
 - login/ 登录页面：七天滚动会话恢复、临时错误保活与不可绕过的 Workshop 验证码登录门禁。✅
   - default.html 登录线框：会话恢复、未登录入口、验证码已发送和登录失败。✅ (65行)
   - interaction.md 登录交互：七天会话续期、启动路由、验证码反馈与失败恢复。✅ (134行)
-- setup-readiness/ 环境准备页面：全局资源检查、关联项目 skills 计划、用户级迁移、managed-stale 直接清理、事务 apply 与阻塞恢复。✅
-  - default.html 环境准备线框：全局检查、项目计划、managed-stale 首屏选择与确认、执行、完成、typed 升级迁移和失败恢复。✅ (115行)
-  - interaction.md 环境准备交互：项目绑定门禁、项目 target、用户级 managed 迁移、直接可选清理、备份恢复与异常恢复。✅ (176行)
+- setup-readiness/ 环境准备页面：全局资源检查、默认可见的项目写入确认、用户级迁移、managed-stale 直接清理、事务 apply 与阻塞恢复。✅
+  - default.html 环境准备线框：全局检查、可见写入摘要与单一确认、managed-stale 首屏选择与确认、执行、完成、typed 升级迁移和失败恢复。✅ (115行)
+  - interaction.md 环境准备交互：项目绑定门禁、默认可见的项目 target、单一确认门槛、用户级 managed 迁移、直接可选清理、备份恢复与异常恢复。✅ (183行)
 - platform-workspace/ 多产品平台工作区：以三组主导航连接个人协作、产品全生命周期和组织能力，并保留真实 Workset、主工作台式 Feedback 与 Organization 行为。✅
   - default.html 平台首页线框：三组导航、全局产品范围、Feedback 单行控制轨、窄窗口收敛、剩余高度双栏和转待办恢复状态。✅ (160行)
   - collaboration-views.html 治理线框：组织概览矩阵、成员已有关系和项目上下文通用邀请。✅ (7行)

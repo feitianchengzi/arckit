@@ -3,7 +3,7 @@
 | Page | Status | Core task | Projected states |
 |---|---|---|---|
 | `login/` | ✅ | 启动时恢复 Workshop 会话；未登录时通过不可绕过的验证码门禁建立当前用户项目来源 | 会话恢复、未登录入口、验证码已发送、登录失败 |
-| `setup-readiness/` | ✅ | 先校验全局受信资源，再为明确关联项目区分 managed repair/migration、managed-stale 与内容冲突，并完成项目级安装、用户级迁移、直接可选清理或备份恢复 | 全局检查、项目安装计划、managed-stale 直接清理、执行中、项目已准备、升级迁移、阻塞恢复 |
+| `setup-readiness/` | ✅ | 先校验全局受信资源，再以默认可见的项目写入摘要和单一显式确认引导安装，并为关联项目区分 managed repair/migration、managed-stale 与内容冲突 | 全局检查、可见写入摘要与确认、项目安装计划、managed-stale 直接清理、执行中、项目已准备、升级迁移、阻塞恢复 |
 | `platform-workspace/` | ✅ | 通过三组主导航连接个人协作、产品全生命周期和组织能力，并让 Feedback 以单行控制轨及占满剩余高度的列表/详情工作台承载真实处理行为 | Personal/Product Lifecycle/Organization 导航、多产品 Today、Workset 多选、组织概览、Feedback 主工作台与窄窗口收敛、转待办与仅重试关联、有限范围与部分失败 |
 | `chat-workspace/` | ✅ | 按 Product Workspace 分组浏览最近与历史会话，并在首条消息前显式确认或切换新会话项目归属 | 项目分组、每组最近 10 条、历史展开/收起、新对话项目切换、流式消息、工具/权限、停止、中断/失败恢复、删除确认、工作区阻塞 |
 | `idea-workspace/` | ✅ | 探索和讨论产品创意，比较问题、用户、证据与风险，并在确认后预览正式项目转换 | 探索中、讨论中、已确认、团队观点、开始项目预览 |

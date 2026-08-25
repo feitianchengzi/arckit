@@ -4,6 +4,7 @@ const staleSkillPath = "/fixture/.codex/skills/using-arckit";
 const staleLoaderPath = "/fixture/.codex/skills/arcforge-on-demand";
 const calls = [];
 let removalPlanAttempts = 0;
+let setupListener = null;
 
 const drifted = {
   status: "drifted",
@@ -44,6 +45,41 @@ const ready = {
   can_continue: true
 };
 
+function installPlan(digest, { changed = 0 } = {}) {
+  return {
+    ...drifted,
+    status: "needs-install",
+    first_install: true,
+    checks: drifted.checks.map((item) => item.id === "skills" ? { ...item, summary: "fixture install required" } : item),
+    plan: {
+      digest,
+      profile: "default",
+      scope: "project",
+      project_roots: ["/fixture/project"],
+      availability: {
+        arckit_total: 1,
+        user_ambient: 0,
+        user_on_demand: 0,
+        project_ambient_deferred: 0,
+        shared_assets: 0,
+        arcforge_loader_targets: 1
+      },
+      items: [{ skill: "using-arckit", mode: "project-ambient", destinations: [{ kind: "project-agent", path: "/fixture/project/.codex/skills/using-arckit" }] }],
+      shared_assets: [],
+      loader_targets: [{ agent: "codex", path: "/fixture/project/.codex/skills/arcforge-on-demand", status: "missing" }],
+      cleanup: [],
+      cleanup_included_in_upgrade: false,
+      deferred_project_skills: []
+    },
+    drift: { counts: { missing: 1, same: 0, changed, managed_stale: 0, uncertain: 0 }, conflicts: [], extras: [] },
+    can_apply: true,
+    can_continue: false
+  };
+}
+
+const needsInstall = installPlan("plan-install-a");
+const updatedInstall = installPlan("plan-install-b", { changed: 1 });
+
 const automation = {
   enabled: false, queue_paused: false, source_status: "healthy", synced_at: "", user: null,
   local_projects: [], projects: [], tasks: [], queue: [], todo_queue: [], blocked_pending_tasks: [],
@@ -71,17 +107,28 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
   },
   removeManagedSetupPaths: async (input) => { calls.push(["remove", input]); return ready; },
   continueFromSetup: noOp,
-  applySetupPlan: noOp,
+  applySetupPlan: async (input) => { calls.push(["apply", input]); return ready; },
   recoverSetupUpgrade: noOp,
   getSettings: async () => ({ task_source: {}, codex_proxy: {} }),
   getProductFeedbackStatus: async () => ({ configured: false, unread_count: 0 }),
   refreshProductFeedbackUnread: async () => ({ unread_count: 0 }),
   getAuthStatus: async () => ({ status: "logged_out", authenticated: false }),
+  chatSnapshot: async () => ({ generated_at: "", projects: [], sessions: [], selected_session_id: "", messages: [], draft: { project_id: "", text: "" } }),
+  createChat: noOp, selectChat: noOp, deleteChat: noOp, renameChat: noOp,
+  interruptChat: noOp, decideChatApproval: noOp, sendChatMessage: noOp,
   automationSnapshot: async () => automation,
   platformSnapshot: async () => platform,
+  platformWorkQuery: async () => ({ schema_version: "arcorbit-work-query/v1", query_key: "", generated_at: "", source_status: "healthy", active_workset: null, projects: [], product_workspaces: [], tasks: [], task_trees: [], tags: [], window: { offset: 0, limit: 80, returned: 0, total: 0, has_more: false }, errors: [] }),
   getTestCalls: async () => calls,
-  onSetupEvent: () => () => {},
+  emitSetupScenario: async (scenario) => {
+    const next = scenario === "needs-install" ? needsInstall : scenario === "updated-install" ? updatedInstall : drifted;
+    setupListener?.(next);
+    return next;
+  },
+  onSetupEvent: (listener) => { setupListener = listener; return () => { setupListener = null; }; },
   onAutomationEvent: () => () => {},
+  onWorkSyncEvent: () => () => {},
+  onChatEvent: () => () => {},
   onEvent: () => () => {},
   onProductFeedbackUnread: () => () => {},
   listRuns: async () => [],

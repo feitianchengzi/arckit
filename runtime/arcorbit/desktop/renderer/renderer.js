@@ -103,7 +103,8 @@ const state = {
   setupActionError: "",
   setupCleanupPlanDigest: "",
   setupCleanupPaths: [],
-  setupPlanOpened: false,
+  setupReviewPlanDigest: "",
+  setupReviewPlanChanged: false,
   page: "today",
   selectedProjectId: "all",
   selectedState: "pending",
@@ -299,8 +300,6 @@ function wireEvents() {
     renderSetup();
     try {
       state.setup = await api.recoverSetupUpgrade({ assessmentDigest: upgrade.digest, action });
-      state.setupPlanOpened = false;
-      els.setupReviewed.checked = false;
     } finally {
       state.setupBusy = false;
       renderSetup();
@@ -312,11 +311,10 @@ function wireEvents() {
     await refreshSnapshot();
   }));
   els.setupExitButton.addEventListener("click", () => window.close());
-  els.setupPlanDetails.addEventListener("toggle", () => {
-    if (els.setupPlanDetails.open) state.setupPlanOpened = true;
+  els.setupReviewed.addEventListener("change", () => {
+    if (els.setupReviewed.checked) state.setupReviewPlanChanged = false;
     renderSetupActions();
   });
-  els.setupReviewed.addEventListener("change", renderSetupActions);
   els.setupCleanupButton.addEventListener("click", () => {
     runAction(async () => {
       const selected = new Set(state.setupCleanupPaths);
@@ -330,8 +328,6 @@ function wireEvents() {
         if (!window.confirm(`将只移除以下 ${paths.length} 个 ArcForge 已证明的 managed-stale 路径：\n\n${paths.join("\n")}\n\n确认摘要：${removal.confirmationDigest}`)) return;
         state.setup = await api.removeManagedSetupPaths({ managedPaths: paths, confirmationDigest: removal.confirmationDigest });
         resetSetupCleanupSelection();
-        state.setupPlanOpened = false;
-        els.setupReviewed.checked = false;
       } finally {
         state.setupBusy = false;
         renderSetup();
@@ -598,7 +594,7 @@ function renderSetup() {
     ["ArcForge provider", setup.distribution.provider_version], ["Payload", shortDigest(setup.distribution.payload_digest)]
   ].map(([label, value]) => `<div class="fact-row"><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></div>`).join("") : `<p class="muted-copy">尚未读取 distribution lock。</p>`;
   const counts = setup.drift?.counts;
-  els.setupCounts.innerHTML = counts ? `<div><strong>${counts.missing}</strong><span>将新增</span></div><div><strong>${counts.same}</strong><span>已一致</span></div><div><strong>${counts.changed}</strong><span>changed</span></div><div><strong>${counts.managed_stale}</strong><span>stale</span></div>` : "";
+  els.setupCounts.innerHTML = counts ? `<div><strong>${Number(counts.missing || 0)}</strong><span>将新增</span></div><div><strong>${Number(counts.same || 0)}</strong><span>已一致</span></div><div><strong>${Number(counts.changed || 0)}</strong><span>changed</span></div><div><strong>${Number(counts.managed_stale || 0)}</strong><span>stale</span></div><div><strong>${Number(counts.uncertain || 0)}</strong><span>uncertain</span></div>` : "";
   renderSetupCleanup();
   renderSetupPlan();
   const setupError = setup.error || (state.setupActionError ? { code: "SETUP_ACTION_FAILED", stage: "setup-action", message: state.setupActionError } : null);
@@ -621,11 +617,28 @@ function renderSetup() {
 function renderSetupPlan() {
   const plan = state.setup?.plan;
   syncSetupCleanupSelection(plan);
+  syncSetupReview(plan);
+  els.setupPlanSummary.classList.toggle("hidden", !plan);
   els.setupPlanDetails.classList.toggle("hidden", !plan);
-  els.setupReviewLabel.classList.toggle("hidden", !state.setup?.can_apply);
-  if (!plan) { els.setupPlan.innerHTML = ""; return; }
+  els.setupReviewRegion.classList.toggle("hidden", !state.setup?.can_apply || !plan);
+  if (!plan) {
+    els.setupPlanSummaryBody.innerHTML = "";
+    els.setupPlan.innerHTML = "";
+    return;
+  }
   const groups = Object.groupBy ? Object.groupBy(plan.items, (item) => item.mode || "unclassified") : plan.items.reduce((result, item) => ((result[item.mode || "unclassified"] ||= []).push(item), result), {});
   const availability = plan.availability;
+  const counts = state.setup?.drift?.counts || {};
+  const projectRootItems = plan.project_roots?.length
+    ? plan.project_roots.map((projectRoot) => `<code>${escapeHtml(projectRoot)}</code>`).join("")
+    : `<span>尚未绑定可写 Product Workspace 项目</span>`;
+  const userBoundary = plan.scope === "project"
+    ? plan.cleanup_included_in_upgrade
+      ? `不会安装新的用户级 skill；仅按当前 plan 迁移或收束 ${Number(plan.cleanup?.length || 0)} 个旧 managed target`
+      : "无；只写入绑定的 Product Workspace 项目，不安装到 Codex 用户级 skill 目录"
+    : "以当前 plan 显示的目标为准";
+  const changeSummary = `新增 ${Number(counts.missing || 0)} · 已一致 ${Number(counts.same || 0)} · changed ${Number(counts.changed || 0)} · managed-stale ${Number(counts.managed_stale || 0)} · uncertain ${Number(counts.uncertain || 0)}`;
+  els.setupPlanSummaryBody.innerHTML = `<div class="setup-plan-summary-row"><strong>项目绝对目标</strong><span class="setup-plan-summary-targets">${projectRootItems}</span></div><div class="setup-plan-summary-row"><strong>Codex 用户级写入</strong><span>${escapeHtml(userBoundary)}</span></div><div class="setup-plan-summary-row"><strong>变更分类</strong><span>${escapeHtml(changeSummary)}</span></div>`;
   const availabilityHtml = availability ? `<p class="setup-digest">Arckit skills <strong>${availability.arckit_total}</strong> · user-ambient ${availability.user_ambient} · user-on-demand ${availability.user_on_demand} · project-ambient 延后 ${availability.project_ambient_deferred} · shared assets ${availability.shared_assets} · ArcForge loader ${availability.arcforge_loader_targets}</p>` : "";
   const projectRoots = plan.project_roots?.length ? `<section class="setup-plan-group"><h3>Product Workspace projects · ${plan.project_roots.length}</h3>${plan.project_roots.map((projectRoot) => `<div class="setup-skill-row"><strong>项目目标</strong><code>${escapeHtml(projectRoot)}</code></div>`).join("")}</section>` : "";
   const groupHtml = Object.entries(groups).map(([mode, items]) => `<section class="setup-plan-group"><h3>${escapeHtml(mode)} · ${items.length}</h3>${items.map((item) => `<div class="setup-skill-row"><strong>${escapeHtml(item.skill)}</strong>${item.destinations.map((destination) => `<code>${escapeHtml(destination.path)}</code>`).join("")}</div>`).join("")}</section>`).join("");
@@ -667,7 +680,15 @@ function renderSetupActions() {
   els.setupRetryButton.classList.toggle("hidden", setup.status === "ready");
   els.setupApplyButton.classList.toggle("hidden", !setup.can_apply);
   els.setupApplyButton.textContent = setup.source_upgrade?.can_proceed ? "修复缺失并迁移" : "安装并继续";
-  els.setupApplyButton.disabled = applying || !state.setupPlanOpened || !els.setupReviewed.checked;
+  els.setupApplyButton.disabled = applying || !els.setupReviewed.checked;
+  els.setupReviewed.disabled = applying;
+  const reviewed = els.setupReviewed.checked;
+  els.setupReviewHint.textContent = state.setupReviewPlanChanged
+    ? "安装计划已更新，请重新确认上方写入目标与变更摘要。"
+    : reviewed
+      ? "已确认当前写入边界；可以安装并继续。"
+      : "请先确认上方写入目标与变更摘要；无需展开完整安装明细。";
+  els.setupReviewHint.classList.toggle("is-confirmed", reviewed);
   els.setupRecoverButton.classList.toggle("hidden", !setup.can_recover);
   els.setupRecoverButton.textContent = setup.source_upgrade?.can_backup_and_restore ? "备份修改并恢复" : "备份并按当前应用包重装";
   els.setupRecoverButton.disabled = applying;
@@ -3495,8 +3516,6 @@ async function checkSetupReadinessForSelection(projectId = selectedSetupProjectI
   state.setupActionError = "";
   resetSetupCleanupSelection();
   state.setup = await api.checkSetupReadiness(projectId ? { projectId } : undefined);
-  state.setupPlanOpened = false;
-  els.setupReviewed.checked = false;
   renderSetup();
   return state.setup;
 }
@@ -3511,6 +3530,18 @@ function syncSetupCleanupSelection(plan) {
   if (state.setupCleanupPlanDigest === digest) return;
   state.setupCleanupPlanDigest = digest;
   state.setupCleanupPaths = [];
+}
+
+function syncSetupReview(plan) {
+  const digest = String(plan?.digest || "");
+  if (state.setupReviewPlanDigest === digest) return;
+  const previousDigest = state.setupReviewPlanDigest;
+  state.setupReviewPlanDigest = digest;
+  state.setupReviewPlanChanged = Boolean(previousDigest && digest);
+  els.setupReviewed.checked = false;
+  if (state.setupReviewPlanChanged) {
+    window.requestAnimationFrame(() => els.setupPlanSummary.focus());
+  }
 }
 
 function automationProjectsInActiveWorkset() {

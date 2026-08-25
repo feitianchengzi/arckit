@@ -44,8 +44,12 @@
               <small class="setup-cleanup-hint">清理前会再次显示准确路径与确认摘要；不会处理未知或无关目录。</small>
             </section>
             <div id="setupChecks" class="setup-checks"></div>
+            <section id="setupPlanSummary" class="setup-plan-summary hidden" aria-labelledby="setupPlanSummaryTitle" tabindex="-1">
+              <div class="setup-plan-summary-header"><h2 id="setupPlanSummaryTitle">写入目标与变更摘要</h2><span>默认可见</span></div>
+              <div id="setupPlanSummaryBody" class="setup-plan-summary-body"></div>
+            </section>
             <details id="setupPlanDetails" class="setup-plan-details hidden">
-              <summary>查看安装计划与写入目标</summary>
+              <summary>查看完整安装明细（可选）</summary>
               <div id="setupPlan"></div>
             </details>
             <section id="setupConflictPanel" class="setup-conflict-panel hidden"></section>
@@ -55,7 +59,10 @@
             <h2>安装包锁定资源</h2>
             <div id="setupDistribution"></div>
             <div id="setupCounts" class="setup-counts"></div>
-            <label id="setupReviewLabel" class="setup-review hidden"><input id="setupReviewed" type="checkbox"><span>我已查看写入目标与变更摘要</span></label>
+            <div id="setupReviewRegion" class="setup-review-region hidden">
+              <label id="setupReviewLabel" class="setup-review"><input id="setupReviewed" type="checkbox" aria-describedby="setupReviewHint"><span>我已查看写入目标与变更摘要</span></label>
+              <p id="setupReviewHint" class="setup-review-hint" role="status" aria-live="polite">请先确认上方写入目标与变更摘要；无需展开完整安装明细。</p>
+            </div>
           </aside>
         </div>
         <footer class="setup-actions">

@@ -27,6 +27,36 @@ app.whenReady().then(async () => {
       console.error = () => {};
       window.confirm = () => true;
       const wait = () => new Promise((resolve) => setTimeout(resolve, 120));
+      await window.arckitDesktop.emitSetupScenario('needs-install');
+      await wait();
+      const planSummary = document.querySelector('#setupPlanSummary');
+      const planSummaryVisible = !planSummary.classList.contains('hidden');
+      const planSummaryText = planSummary.textContent;
+      const review = document.querySelector('#setupReviewed');
+      const applyButton = document.querySelector('#setupApplyButton');
+      const planDetailsForApply = document.querySelector('#setupPlanDetails');
+      const initialApplyDisabled = applyButton.disabled;
+      review.checked = true;
+      review.dispatchEvent(new Event('change', { bubbles: true }));
+      const enabledWithoutDetails = !applyButton.disabled && !planDetailsForApply.open;
+      planDetailsForApply.open = true;
+      await wait();
+      const enabledWithDetailsOpen = !applyButton.disabled;
+      planDetailsForApply.open = false;
+      await wait();
+      const enabledAfterDetailsClose = !applyButton.disabled;
+      await window.arckitDesktop.emitSetupScenario('updated-install');
+      await wait();
+      const resetAfterPlanUpdate = !review.checked && applyButton.disabled;
+      const planUpdateHint = document.querySelector('#setupReviewHint').textContent;
+      const focusedAfterPlanUpdate = document.activeElement?.id;
+      review.checked = true;
+      review.dispatchEvent(new Event('change', { bubbles: true }));
+      const confirmedHint = document.querySelector('#setupReviewHint').textContent;
+      applyButton.click();
+      await wait();
+      await window.arckitDesktop.emitSetupScenario('drifted');
+      await wait();
       const cleanupPanel = document.querySelector('#setupCleanupPanel');
       const planDetails = document.querySelector('#setupPlanDetails');
       const initialButton = document.querySelector('#setupCleanupButton');
@@ -53,6 +83,16 @@ app.whenReady().then(async () => {
       await wait();
       const calls = await window.arckitDesktop.getTestCalls();
       return {
+        planSummaryVisible,
+        planSummaryText,
+        initialApplyDisabled,
+        enabledWithoutDetails,
+        enabledWithDetailsOpen,
+        enabledAfterDetailsClose,
+        resetAfterPlanUpdate,
+        planUpdateHint,
+        focusedAfterPlanUpdate,
+        confirmedHint,
         initialDisabled,
         cleanupPanelVisible,
         cleanupBeforeChecks: Boolean(cleanupPanel.compareDocumentPosition(document.querySelector('#setupChecks')) & Node.DOCUMENT_POSITION_FOLLOWING),
