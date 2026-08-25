@@ -148,6 +148,10 @@ Runtime 每次 ledger writeback 后先原样投影 ledger 的 `round_closeout`�
 
 `writeback_required=true` 的 Round 只有在 trusted ledger 返回 `written=true` 后才可采用 ledger-derived handoff、进入完成判断或启动 Git closeout。Agent 输出 Schema 尽可能前置表达 Ledger 的确定性字段组合规则；其余 Runtime validation、Gate block、transition preflight 和 apply 拒绝产生带 issue path、reason 与 repairability 的结构化 rejection。可修正 rejection 在同一持久 thread 上使用 fresh trusted state 和被拒 claim 发起定向 repair，明确 canonical state 尚未写入且不得重复已经完成的实现；repair 使用独立有限预算，成功后继续正常 writeback，预算耗尽或不可修正时才进入 Recovery Center，并展示 rejection 原因而不是未被 ledger 接受的成功 handoff 文案。
 
+当当前待办已被一个既有 Case 完整覆盖时，Agent 可以提交类型化 `bind_closed_case`，而不是创建重复 Case。该主张必须指向唯一 canonical Case，并携带当前 `updated_at`、Case 源文件 SHA-256、语义覆盖理由和证据引用；trusted ledger 只在 Project commit lock 内确认目标恰为 `closed + resolved` 且所有身份材料仍新鲜后，返回幂等 `written=true` 绑定收据。自然语言提到 Case、仓库中只有一个 Case、旧 Run 缓存或未经接受的 Agent 完成声明都不能替代该收据。
+
+任意 terminal Agent handoff 在没有权威 `case_id` 时统一停在 `case_binding_required`：不得返回 completed、不得启动 Git closeout、不得写回远端完成。收束顺序固定为“accepted ledger receipt 追加进 Run activity → Desktop 持久化 task-to-Case 投影 → Git closeout checkpoint → Work Sync 完成写回”；应用在任一点退出后按已持久收据幂等恢复，不回滚已接受绑定，也不重复 closeout。
+
 Persisted candidate 的稳定身份由 `selected_ref`、Gap id、Case revision、Project revision、selection token 与当前 ready 状态共同确认。Agent 可以用自己的语言表达同一 Gap 的目标和原因；这些描述不要求与 snapshot 逐字一致，也不能替代身份与 freshness 校验。Ledger apply 时重新读取当前 canonical candidate，并以 canonical 内容形成 round 和 closeout；真正的 stale snapshot、错误引用、候选不再 ready 或责任变化仍然拒绝。
 
 每个 Loop 仍只推进一个 Case gap，多个 gap 按 fresh ledger state 串行选择。执行效率不通过合并 gap、并行推进同一待办、总墙钟上限、生产性 Round 上限或长命令 watchdog 获得；长时间编译属于 Agent 执行阶段，由执行事件持续投影直至自然完成或收到显式停止请求。
@@ -186,6 +190,8 @@ Runtime 重新打开、同步或由用户选择恢复自动执行时，必须重
 “待处理 → 进行中”动作提交给 Work Sync 后，Automation 只有观察到本地状态变为进行中才启动 Runtime。Work Sync 返回失败且本地状态未变化时 Runtime 不启动；本地状态已为进行中但 Runtime 启动失败时，系统保存启动意图并冻结队列，首要恢复动作是重试启动同一任务。
 
 Runtime 执行失败时，系统保留 run、消息、结构化 activity 和 ledger 证据，并根据可恢复性提供重试、补充说明并继续、人工介入或标记阻塞。系统不依赖完整原始 delta transcript 恢复控制状态，不自动取消任务，也不静默回退到待处理。
+
+Runtime 已给出 terminal 结果但缺少权威 Case 绑定时，Recovery Center 不再把通用“重试同一任务”作为唯一恢复方式，而是提供“复用已有 Case”“作为新事项继续”“补充说明并继续”和“标记为已阻塞”。“复用已有 Case”要求同一 Agent thread fresh-read canonical state 并只在精确覆盖成立时提交 `bind_closed_case`；“作为新事项继续”明确要求创建独立 Case。两者都保留原待办正文、session、thread 与失败 Run 证据，直到新 Run 已绑定后才消费恢复项。
 
 “补充说明并继续”只在恢复项绑定当前活动任务、待办级 session 和持久 Agent thread 时出现。用户必须输入非空说明；系统把原文作为新的用户消息发送给同一 Agent thread，以 fresh canonical state 启动新的 Runtime Run，并关联来源 recovery 与失败 Run 证据。新 Run 建立后说明保存在同一待办 transcript、恢复项移除并打开对话审查；启动失败时保留原恢复项。说明是新的 operator input，不会直接覆盖 canonical Case State，Agent 必须通过正常 transition 接受其中可成立的事实。
 
@@ -281,6 +287,8 @@ Renderer 与 Automation 不持有任务服务器凭证，也不直接请求任�
 - 存在 queued、running、awaiting_human 或 blocked 验收问题时，待办不能标记为已验收；全部问题 resolved 或 cancelled 后才允许进入 accepted。
 - 领取冲突不会启动重复 Runtime，完成写回未确认时同一 lane 不会领取下一任务，其他健康 lane 可以继续。
 - 待处理任务在服务器确认进行中后启动 Runtime，在 Runtime 与 ledger 收束且服务器确认后变为已完成。
+- 当前待办可以通过 trusted ledger 的类型化 `bind_closed_case` 收据复用一个精确匹配的 closed/resolved Case；收据校验 Case 唯一身份、当前 `updated_at`、SHA-256、覆盖理由和证据，重复请求不修改 canonical Case。
+- terminal Agent handoff 缺少权威 Case 绑定时返回 `case_binding_required`，不会进入 completed、Git closeout 或远端完成；恢复中心明确提供复用已有 Case、作为新事项继续、补充说明和标记阻塞。
 - Runtime 需要人工输入时，主页面给出明确提示但不自动打开 Intervention Workbench 或 Personal / Chat；用户在对应 Workbench 提交后能够恢复同一任务。
 - Command Center 队列、当前运行、Intervention Workbench 顶部、确认对话和 session/CLI 标签使用同一个 64-grapheme 展示标题投影；Workbench 顶部保持单行且不被完整正文撑高，完整正文只在任务详情或上下文正文区域展示一次并保留换行。
 - Runtime 失败且已有持久 Agent thread 时，Recovery Center 可以直接提交非空用户说明并继续；说明在同一待办对话中可见，且不会因恢复动作创建新 thread。

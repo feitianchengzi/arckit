@@ -164,6 +164,55 @@ test("state-driven continuation pauses only for an explicit human handoff", () =
   });
 });
 
+test("terminal Agent result without an authoritative Case binding stops before closeout", async () => {
+  const adapter = closeoutAdapter();
+  const result = await runStateDrivenSession({
+    projectRoot: "/workspace/project",
+    stateStore: { async readSnapshot() { return snapshot(1); } },
+    options: { agentAdapter: adapter, task: "finish" },
+    dependencies: {
+      async runRound() {
+        const loop = loopResult(terminalHandoff());
+        loop.runtimeResult.ledger_stage.writeback_required = false;
+        return loop;
+      },
+      async writeRoundLedger() { return { written: false, changed_files: [] }; }
+    }
+  });
+
+  assert.equal(result.stop_reason, "case_binding_required");
+  assert.match(result.next_action, /trusted closed Case reuse receipt or create and advance a new Case/);
+  assert.equal(result.closeout_result, null);
+  assert.deepEqual(adapter.prompts, []);
+});
+
+test("trusted closed Case reuse receipt establishes binding and permits closeout", async () => {
+  const adapter = closeoutAdapter();
+  const result = await runStateDrivenSession({
+    projectRoot: "/workspace/project",
+    stateStore: { async readSnapshot() { return snapshot(1); } },
+    options: { agentAdapter: adapter, task: "finish" },
+    dependencies: {
+      async runRound() { return loopResult(terminalHandoff()); },
+      async writeRoundLedger() {
+        return {
+          written: true,
+          changed_files: [],
+          case_control_result: {
+            action: "bind_closed_case",
+            binding_kind: "completed_case_reuse",
+            case_id: "CASE-1"
+          }
+        };
+      }
+    }
+  });
+
+  assert.equal(result.stop_reason, "completed");
+  assert.equal(adapter.prompts.length, 1);
+  assert.match(adapter.prompts[0], /"authoritative_case_id": "CASE-1"/);
+});
+
 test("recoverable ledger rejection enters an independent Agent repair budget", () => {
   const decision = decideSessionContinuation({
     runtimeResult: { round_result: "continue" },

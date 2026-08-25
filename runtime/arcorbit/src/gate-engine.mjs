@@ -49,7 +49,9 @@ export async function evaluateRuntimeGates({ runtimeResult, snapshot = null, pro
     warnings,
     write_scope: reasons.length === 0
       ? isCaseControl
-        ? ['case_creation_or_selection', 'project_case_binding', 'indexes_and_projections']
+        ? caseControlHandoff.action === 'bind_closed_case'
+          ? ['closed_case_validation', 'task_case_binding_receipt']
+          : ['case_creation_or_selection', 'project_case_binding', 'indexes_and_projections']
         : [command ? 'semantic_case_command' : 'case_transition', 'resolved_case_project_aggregation', 'indexes_and_projections']
       : [],
     validation,

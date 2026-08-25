@@ -158,6 +158,11 @@ export function compileCoherentAgentLoopPrompt({ snapshot, loopFrame, round, opt
         typed_refs: ["local:fact:<handle>", "local:gap:<handle>", "local:impact:<handle>", "case:fact:<id>", "case:gap:<id>", "case:impact:<id>", "project:decision:<id>", "project:invariant:<id>", "project:project-gap:<id>", "system:<source>"],
         forbidden_agent_bookkeeping: ["new canonical ids", "fact or decision revisions", "Case updated_at", "selected Gap copies", "decision gap_refs reverse indexes", "arckit-case-transition/v8"]
       },
+      case_control_contract: {
+        create_case: "Use only when the todo needs a new bounded Case.",
+        bind_closed_case: "Use only when one exact canonical Case is already closed and resolved and fully covers the current todo. Supply its current updated_at, SHA-256 source digest, a semantic coverage reason, and evidence refs. Natural-language mentions are never authoritative bindings.",
+        forbidden: ["reporting completion without a trusted binding receipt", "creating a duplicate Case when exact closed Case coverage is proven", "inferring a binding from assistant prose"]
+      },
       completion_review_is_only_semantic_self_check: true,
       native_skill_discovery: true,
       ledger_write_forbidden: true,
@@ -428,7 +433,7 @@ function agentLoopResultFailureReason(result, snapshot) {
   if (snapshot?.compatibility?.status === "incompatible" && result.action !== "handoff") {
     return "Protocol-incompatible canonical state forbids ordinary Case control and transitions; reconcile through the trusted ledger entrypoint first.";
   }
-  if (result.action === "case_control" && (!result.case_control || result.case_command || result.case_transition || result.case_control.action !== "create_case")) return "case_control action is incomplete.";
+  if (result.action === "case_control" && (!result.case_control || result.case_command || result.case_transition || !["create_case", "bind_closed_case"].includes(result.case_control.action))) return "case_control action is incomplete.";
   if (result.action === "case_command") {
     if (!result.case_command || result.case_control || result.case_transition) return "case_command action is incomplete.";
     if (!Array.isArray(result.case_command.evidence) || result.case_command.evidence.length === 0) return "Agent Loop semantic command requires evidence.";
@@ -454,11 +459,26 @@ function invalidAgentLoopResult(reason) {
 async function createRuntimeResultFromAgentLoop({ agentLoopResult, loopFrame, round, snapshot, compiledPrompt }) {
   if (agentLoopResult.action === "case_control") {
     const control = agentLoopResult.case_control;
+    const reusesClosedCase = control.action === "bind_closed_case";
+    const goal = reusesClosedCase ? control.coverage_reason : control.intent;
     const controllerPlan = {
-      execution_plan: { plane: "runtime", runtime_actions: [{ type: "case_control", ...control, case_id: "" }] },
-      planned_transition: { goal: control.intent, expected_state_change: "No suitable active Case -> registered Case" },
-      continuation_intent: { goal: control.intent, state_transition: "Case unregistered -> Case registered", next_prompt: agentLoopResult.handoff.next_prompt || "Reload fresh state." }
+      execution_plan: { plane: "runtime", runtime_actions: [{ type: "case_control", ...control, case_id: reusesClosedCase ? control.case_id : "" }] },
+      planned_transition: {
+        goal,
+        expected_state_change: reusesClosedCase ? "Todo unbound -> bound to closed resolved Case" : "No suitable active Case -> registered Case"
+      },
+      continuation_intent: {
+        goal,
+        state_transition: reusesClosedCase ? "Todo unbound -> authoritative closed Case binding" : "Case unregistered -> Case registered",
+        next_prompt: reusesClosedCase ? "" : agentLoopResult.handoff.next_prompt || "Reload fresh state."
+      }
     };
+    if (reusesClosedCase) {
+      loopFrame.case_id = control.case_id;
+      loopFrame.case_updated_at = control.expected_case_updated_at;
+      loopFrame.controller_frame.case_id = control.case_id;
+      loopFrame.controller_frame.round_goal = goal;
+    }
     loopFrame.controller_frame.controller_plan = controllerPlan;
     const result = await createCaseControlRuntimeResult({ controllerPlan, loopFrame, round, snapshot, compiledPrompt, roundState: { state: "authorized", history: [] } });
     result.summary = agentLoopResult.summary;

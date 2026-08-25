@@ -213,6 +213,10 @@ Automation Coordinator 为每个活动执行持久化可选 `case_id`、`case_bi
 
 `run.case_id`、activity 或 Controller frame 中的缓存字段、未经 ledger 接受的 Agent result、仓库里“唯一/最新/唯一可读”的 Case，以及 CLI 前后 Case 集合差都不是绑定证据。旧 Store 中只有裸 `case_id` 而没有绑定来源的记录按未绑定处理，并在对账时清除。一个任务 Run 若出现多个互相冲突的 trusted ledger Case ID，Coordinator 进入 `case_binding_conflict` recovery，不自行挑选其中任何一个。
 
+Case control 支持两种互斥语义：`create_case` 创建并注册新的 active Case；`bind_closed_case` 为当前待办复用一个已完整覆盖工作的 closed Case。后者由 Agent 提供精确 `case_id`、observed `updated_at`、Case 源文件 SHA-256、coverage reason 与 evidence refs；trusted entrypoint 在 Project commit lock 内只查找该显式 ID，要求唯一文件、`status=closed`、`case_resolution.status=resolved`、时间戳和 digest 全部匹配。验证成功不修改 canonical Case，而是返回 `written=true`、`binding_kind=completed_case_reuse`、`changed_files=[]` 的幂等 case-control receipt；任何 stale、active、unresolved、缺失、歧义或 digest mismatch 均 fail closed。
+
+State-driven runner 维护 `authoritativeCaseId`，仅从 Runtime context 或 accepted ledger receipt 更新。`round_result=done` / `next_responsibility=none` 若仍无该身份，stop reason 固定为 `case_binding_required`，且不调用 same-thread closeout。复用收据写入 Run activity 后才允许返回 completed；Automation 再从 append-only receipts 投影 `case_binding_source=runtime_ledger`。因此持久顺序为 receipt activity → task binding projection → closeout checkpoint → Work Sync completion，启动 detached reconciliation 可从第一步重建后续步骤。
+
 首次 Runtime 启动不携带预选 `case_id`。Agent 根据待办意图、fresh Project State 和全部 active Cases 语义选择现有 Case；没有合适 Case 时通过 trusted ledger 创建独立 Case。Runtime 只观察被 ledger 接受的结果。CLI 是已建立身份后的执行权接力通道：权威绑定尚未形成时，Desktop 拒绝 CLI handoff 且不 interrupt 当前 Runtime，待 Agent 完成首个 trusted ledger checkpoint 后再允许切换。
 
 已绑定任务的 `handoffToCodexCli` 采用串行控制：先向当前 Runtime run 发送 interrupt，再等待 Desktop Run Manager 释放 thread lease；停止超时则进入恢复状态且不启动 CLI。停止成功后，主进程通过平台终端启动器打开新终端，工作目录固定为绑定项目，并执行交互式 `codex resume <thread_id>`。启动器以参数数组和平台级转义生成命令，不经 Renderer shell；Renderer 只调用有界 IPC。
@@ -256,6 +260,8 @@ Agent Loop 的状态输出是 `Semantic Case Command`，不是 `development-case
 只有 `claim_invalid` 进入 `arckit-agent-repair-instruction/v1`。同一 persistent Agent thread 的下一 turn 获得全部 issue paths、被拒语义命令、`write_accepted=false`、fresh trusted snapshot 和修正约束；已完成实现不重复执行。Runtime 不静默删除 evidence、改变 effect/disposition、选择替代 target 或构造缺失关系。State-driven runner 在 `writeback_required=true` 时只接受 `written=true`；未接受写回不得采用 Agent 的 terminal handoff、不得返回 completed、不得启动 Git-only closeout。
 
 Automation Coordinator 从 task session 的 append-only accepted ledger receipts 建立 Case binding。每个成功 case-control 或 case-command receipt 立即成为可恢复事实；后续 repair、失败 round 或 latest activity 更新不得使它消失。多个 accepted receipts 指向同一 Case 时保持绑定，指向不同 Case 时进入 `case_binding_conflict`，Coordinator 不按时间或数量猜测。
+
+`case_binding_required` 投影为专门 recovery，而不是通用成功或无界重试。Renderer 暴露 `retry_case_reuse`、`retry_as_new_case`、`feedback_continue` 和 `mark_blocked`；前两者复用持久 task session/thread，并把恢复约束作为新 Run 的 operator task suffix。复用路径只授权 Agent 提交 fresh `bind_closed_case`，新事项路径只授权创建独立 Case，Coordinator 本身不从标题、文本或仓库结构决定等价性。
 
 启动同步先执行 detached Run、持久 thread binding、权威 Case binding 与 canonical Case 的本地对账，再创建任务源 adapter 或检查认证。该阶段不调用远端 API：已绑定的 active Case resume 同一 thread 继续 loop；已绑定的 closed/resolved Case 若未 closeout 则 resume 同一 thread 执行收尾，已完成 closeout 时进入 `remote_completion_pending`。任务源未配置、未登录、认证失效或不可达都不能跳过或回退该对账。未绑定任务不能因仓库碰巧只有一个可读 Case 而进入收尾；`retry_start` 会清除陈旧的 closeout phase/checkpoint 并启动正常 Runtime，让新的 trusted ledger write 建立绑定。
 

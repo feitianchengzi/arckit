@@ -1120,6 +1120,23 @@ function createLaneAutomationCoordinator({
       await startRuntimeForActiveTask({ recoveryId });
       return getSnapshot();
     }
+    if (["retry_case_reuse", "retry_as_new_case"].includes(action)) {
+      const active = store.automation.active_task;
+      const task = store.automation.snapshot.tasks.find((item) => String(item.id) === String(recovery.task_id));
+      if (!active || String(active.task_id) !== String(recovery.task_id) || !task) {
+        throw new Error("The Case binding recovery item is not bound to the active task.");
+      }
+      await patchAutomation((automation) => {
+        if (automation.active_task?.task_id !== active.task_id) return;
+        automation.active_task.phase = "starting";
+        automation.active_task.closeout_status = "pending";
+      });
+      await startRuntimeForActiveTask({
+        recoveryId,
+        taskOverride: buildCaseBindingRecoveryTask(task, action === "retry_case_reuse" ? "reuse" : "new_case")
+      });
+      return getSnapshot();
+    }
     if (action === "feedback_continue") {
       const text = String(message || "").trim();
       if (!text) throw new Error("Recovery feedback is required.");
@@ -1451,7 +1468,7 @@ function createLaneAutomationCoordinator({
     }
   }
 
-  async function startRuntimeForActiveTask({ recoveryId = "" } = {}) {
+  async function startRuntimeForActiveTask({ recoveryId = "", taskOverride = "" } = {}) {
     const store = await readStore();
     const active = store.automation.active_task;
     if (!active) {
@@ -1498,7 +1515,7 @@ function createLaneAutomationCoordinator({
         taskId: active.task_id,
         task: active.execution_kind === "acceptance_feedback"
           ? buildAcceptanceFeedbackTask(store.automation.acceptance_feedback_items.find((item) => item.feedback_id === active.feedback_id))
-          : buildAutomationTask(task),
+          : taskOverride || buildAutomationTask(task),
         threadId: active.thread_id || "",
         runtimeContext: closeoutOnly
           ? active.execution_kind === "acceptance_feedback"
@@ -1588,7 +1605,7 @@ function createLaneAutomationCoordinator({
           type: "case_binding_missing",
           task: active,
           message: "A closeout result was ignored because this task has no authoritative Case binding.",
-          actions: ["retry_start", "mark_blocked"]
+          actions: caseBindingRecoveryActions()
         });
         return;
       }
@@ -1620,7 +1637,7 @@ function createLaneAutomationCoordinator({
           type: "case_binding_missing",
           task: active,
           message: "Runtime reported completion without an authoritative task-to-Case binding from a trusted ledger write.",
-          actions: ["retry_start", "mark_blocked"]
+          actions: caseBindingRecoveryActions()
         });
         return;
       }
@@ -1658,7 +1675,7 @@ function createLaneAutomationCoordinator({
         type: "case_binding_missing",
         task: active,
         message: "Git closeout was refused because this task has no authoritative Case binding.",
-        actions: ["retry_start", "mark_blocked"]
+        actions: caseBindingRecoveryActions()
       });
       return null;
     }
@@ -1723,7 +1740,7 @@ function createLaneAutomationCoordinator({
         type: "case_binding_missing",
         task: active,
         message: "A closeout result cannot complete the task without an authoritative Case binding.",
-        actions: ["retry_start", "mark_blocked"]
+        actions: caseBindingRecoveryActions()
       });
       return;
     }
@@ -1780,7 +1797,7 @@ function createLaneAutomationCoordinator({
         type: "case_binding_missing",
         task: active,
         message: "Remote completion was refused because this task has no authoritative Case binding.",
-        actions: ["retry_start", "mark_blocked"]
+        actions: caseBindingRecoveryActions()
       });
       return null;
     }
@@ -1900,7 +1917,7 @@ function createLaneAutomationCoordinator({
           type: "case_binding_missing",
           task: active,
           message: "Detached closeout completion was ignored because this task has no authoritative Case binding.",
-          actions: ["retry_start", "mark_blocked"]
+          actions: caseBindingRecoveryActions()
         });
         return null;
       }
@@ -1951,7 +1968,7 @@ function createLaneAutomationCoordinator({
         type: "case_binding_missing",
         task: active,
         message: "Detached Runtime completion has no authoritative task-to-Case binding; closeout was not started.",
-        actions: ["retry_start", "mark_blocked"]
+        actions: caseBindingRecoveryActions()
       });
       return null;
     }
@@ -2697,16 +2714,26 @@ function upsertById(items, item) {
 }
 
 function recoveryActionsForItem(item, active) {
-  const actions = [...(item?.actions || [])];
+  // Normalize persisted recovery items from runtimes that predate the typed
+  // Case-binding recovery choices. This makes an already-blocked task
+  // recoverable immediately after upgrade instead of retaining retry_start.
+  const actions = item?.type === "case_binding_missing"
+    ? caseBindingRecoveryActions()
+    : [...(item?.actions || [])];
+  const canRestart = ["retry_start", "retry_case_reuse", "retry_as_new_case"].some((action) => actions.includes(action));
   if (!active
     || String(active.task_id) !== String(item?.task_id)
     || !active.thread_id
-    || !actions.includes("retry_start")
+    || !canRestart
     || actions.includes("feedback_continue")) {
     return actions;
   }
   actions.splice(Math.max(0, actions.indexOf("mark_blocked")), 0, "feedback_continue");
   return actions;
+}
+
+function caseBindingRecoveryActions() {
+  return ["retry_case_reuse", "retry_as_new_case", "mark_blocked"];
 }
 
 function startupPhaseCanReconstructRecovery(phase) {
@@ -2810,6 +2837,14 @@ function timestamp(value) {
 
 export function buildAutomationTask(task) {
   return String(task?.content ?? task?.title ?? "");
+}
+
+export function buildCaseBindingRecoveryTask(task, mode) {
+  const original = buildAutomationTask(task);
+  if (mode === "reuse") {
+    return `${original}\n\nRecovery instruction: The previous Run reached a terminal result without an authoritative task-to-Case binding. Re-read fresh canonical state. Submit bind_closed_case only if one exact canonical Case is closed, resolved, and fully covers this todo; include its current updated_at, SHA-256 source digest, semantic coverage reason, and evidence refs. Otherwise return a human handoff. Do not create a duplicate Case or report completion from prose.`;
+  }
+  return `${original}\n\nRecovery instruction: Treat this todo as distinct work. Re-read fresh canonical state and submit create_case for a new bounded Case. Do not reuse an already closed Case or report completion before a trusted binding receipt exists.`;
 }
 
 export function buildInterventionTask(message) {

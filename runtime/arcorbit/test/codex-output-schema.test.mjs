@@ -48,6 +48,18 @@ test("Agent Project-gap change schema binds content to its action", async () => 
   assert.equal(resolution.properties.gap.type, "null");
 });
 
+test("Case control schema uses supported mutually exclusive anyOf branches", async () => {
+  const schema = JSON.parse(await readFile(join(schemasDir, "agent-loop-result.schema.json"), "utf8"));
+  const variants = schema.$defs.case_control.anyOf;
+  assert.deepEqual(variants, [
+    { $ref: "#/$defs/create_case_control" },
+    { $ref: "#/$defs/bind_closed_case_control" }
+  ]);
+  assert.equal(schema.$defs.create_case_control.properties.action.const, "create_case");
+  assert.equal(schema.$defs.bind_closed_case_control.properties.action.const, "bind_closed_case");
+  assert.equal(Object.hasOwn(schema.$defs.case_control, "oneOf"), false);
+});
+
 test("Codex output schema preflight reports the failures rejected by app-server", () => {
   const issues = codexOutputSchemaIssues({
     type: "object",
@@ -56,9 +68,10 @@ test("Codex output schema preflight reports the failures rejected by app-server"
       status: { enum: ["ok", "failed"] },
       values: { type: "array" },
       payload: { type: "object", properties: { value: { type: "string" } }, additionalProperties: true },
-      nullable_payload: { type: ["object", "null"] }
+      nullable_payload: { type: ["object", "null"] },
+      unsupported_choice: { oneOf: [{ type: "string" }, { type: "null" }] }
     },
-    required: ["schema_version", "values"],
+    required: ["schema_version", "values", "unsupported_choice"],
     additionalProperties: false
   });
   assert.ok(issues.some((issue) => issue.includes("const or enum without an explicit type")));
@@ -66,6 +79,7 @@ test("Codex output schema preflight reports the failures rejected by app-server"
   assert.ok(issues.some((issue) => issue.includes("additionalProperties to false")));
   assert.ok(issues.some((issue) => issue.includes("payload.properties.value must be listed in required")));
   assert.ok(issues.some((issue) => issue.includes("nullable_payload is an object without explicit properties")));
+  assert.ok(issues.some((issue) => issue.includes("uses oneOf")));
 });
 
 function findUntypedConsts(value, path = "$") {

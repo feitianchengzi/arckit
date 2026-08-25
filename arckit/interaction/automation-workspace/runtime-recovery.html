@@ -88,6 +88,21 @@
             </div>
         </details>
 
+        <details open>
+            <summary>任务缺少可信 Case 绑定</summary>
+            <div class="state-content">
+                <div class="state-description"><strong>触发条件：</strong>Agent 已返回 terminal handoff，但当前任务 Run 没有 accepted task-to-Case ledger receipt；系统拒绝 completed 和 Git closeout。</div>
+                <div class="wireframe-canvas">
+                    <div class="device-frame desktop" data-kit="NavigationSplitView">
+                        <div class="desktop-titlebar"><div class="window-controls"><i></i><i></i><i></i></div><strong>ArcOrbit · Recovery Center</strong><span>需要确认任务对应的 Case</span></div>
+                        <div class="workspace-shell"><aside class="app-sidebar"><div class="app-identity"><div class="app-mark">A</div><div><strong>ArcOrbit</strong><small>Automation Runtime</small></div></div><div class="nav-group"><div class="nav-label">需要处理</div><div class="nav-row active"><span class="nav-glyph">!</span><span>Case 绑定</span><span class="count">1</span></div></div><div class="sidebar-status"><strong>任务保持进行中</strong><div class="status-line"><i class="status-dot"></i><span>尚未进入收尾</span></div></div></aside><section class="workspace-column"><div class="command-bar"><button class="compact-action">← 自动化总览</button><div class="breadcrumbs"><strong>恢复中心</strong><span>/</span><span>TASK-3112</span></div></div><div class="page-content"><div class="attention-strip"><div class="run-orb">!</div><div><strong>完成声明缺少可信 Case 绑定</strong><small>不会从 Agent 文本、唯一 Case 或旧 Run 缓存推断身份。</small></div><span class="badge">case_binding_required</span></div><div class="content-grid"><section class="surface"><div class="surface-header"><strong>选择恢复路径</strong><span>同一 Agent thread</span></div><div class="surface-body"><div class="current-action"><strong>已有 Case 已完整覆盖？</strong><small>fresh-read 后由 trusted ledger 校验唯一 closed/resolved Case、updated_at 与 SHA-256。</small></div><div class="page-actions"><button class="compact-action primary">复用已有 Case</button><button class="compact-action">作为新事项继续</button></div><div class="page-actions"><button class="compact-action">补充说明并继续</button><button class="compact-action">标记为已阻塞</button></div></div></section><aside class="surface"><div class="surface-header"><strong>安全断言</strong><span>Fail closed</span></div><div class="surface-body"><dl class="key-value-list"><dt>远端任务</dt><dd>保持进行中</dd><dt>Git closeout</dt><dd>未启动</dd><dt>Agent thread</dt><dd>保持原绑定</dd><dt>恢复证据</dt><dd>RUN activity 已保留</dd></dl></div></aside></div></div></section></div>
+                    </div>
+                </div>
+                <div class="component-list"><h3>组件清单</h3><ul><li>case_binding_required 原因与安全断言</li><li>复用已有 Case、作为新事项继续、补充说明与标记阻塞动作</li><li>同一 task session / Agent thread 与来源 Run 证据</li></ul></div>
+                <div class="interactions"><h3>交互行为</h3><div class="interaction-item"><code>复用已有 Case</code> → 同 thread fresh-read；仅精确覆盖成立时提交类型化 bind_closed_case</div><div class="interaction-item"><code>作为新事项继续</code> → 同 thread 创建独立 Case，不复用旧完成声明</div><div class="interaction-item"><code>应用退出</code> → 从 append-only accepted receipt 恢复绑定，不重复 Case 或 closeout</div></div>
+            </div>
+        </details>
+
         <details>
             <summary>Work Sync 投影完整性异常</summary>
             <div class="state-content">

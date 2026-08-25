@@ -142,22 +142,33 @@ export function validateRuntimeResult(result) {
 
 function validateCaseControlHandoff(handoff, issues) {
   requireEqual(handoff.schema_version, "arckit-case-control-handoff/v1", "case_control_handoff.schema_version", issues);
-  requireEqual(handoff.action, "create_case", "case_control_handoff.action", issues);
+  requireEnum(handoff.action, ["create_case", "bind_closed_case"], "case_control_handoff.action", issues);
   requireInteger(handoff.expected_project_revision, "case_control_handoff.expected_project_revision", issues);
   requireString(handoff.case_id, "case_control_handoff.case_id", issues);
-  requireString(handoff.title, "case_control_handoff.title", issues);
-  requireString(handoff.intent, "case_control_handoff.intent", issues);
-  requireString(handoff.expected_outcome, "case_control_handoff.expected_outcome", issues);
-  requireEnum(handoff.artifact_type, ["code", "skill", "document", "workflow", "mixed", "unknown"], "case_control_handoff.artifact_type", issues);
-  requireString(handoff.selection_reason, "case_control_handoff.selection_reason", issues);
-  requireArray(handoff.initial_facts, "case_control_handoff.initial_facts", issues);
-  requireArray(handoff.initial_impacts, "case_control_handoff.initial_impacts", issues);
-  requireArray(handoff.initial_gaps, "case_control_handoff.initial_gaps", issues);
-  requireObject(handoff.review_policy, "case_control_handoff.review_policy", issues);
-  requireInteger(handoff.review_policy?.max_autonomous_cycles, "case_control_handoff.review_policy.max_autonomous_cycles", issues);
-  requireString(handoff.review_policy?.source, "case_control_handoff.review_policy.source", issues);
-  if (handoff.action === "create_case" && (!handoff.title || !handoff.intent || !handoff.expected_outcome || !handoff.selection_reason || handoff.initial_facts?.length === 0 || handoff.initial_gaps?.length === 0)) {
-    issues.push({ path: "case_control_handoff", message: "create_case requires intent, outcome, semantic facts, and at least one gap." });
+  if (handoff.action === "create_case") {
+    requireString(handoff.title, "case_control_handoff.title", issues);
+    requireString(handoff.intent, "case_control_handoff.intent", issues);
+    requireString(handoff.expected_outcome, "case_control_handoff.expected_outcome", issues);
+    requireEnum(handoff.artifact_type, ["code", "skill", "document", "workflow", "mixed", "unknown"], "case_control_handoff.artifact_type", issues);
+    requireString(handoff.selection_reason, "case_control_handoff.selection_reason", issues);
+    requireArray(handoff.initial_facts, "case_control_handoff.initial_facts", issues);
+    requireArray(handoff.initial_impacts, "case_control_handoff.initial_impacts", issues);
+    requireArray(handoff.initial_gaps, "case_control_handoff.initial_gaps", issues);
+    requireObject(handoff.review_policy, "case_control_handoff.review_policy", issues);
+    requireInteger(handoff.review_policy?.max_autonomous_cycles, "case_control_handoff.review_policy.max_autonomous_cycles", issues);
+    requireString(handoff.review_policy?.source, "case_control_handoff.review_policy.source", issues);
+    if (!handoff.title || !handoff.intent || !handoff.expected_outcome || !handoff.selection_reason || handoff.initial_facts?.length === 0 || handoff.initial_gaps?.length === 0) {
+      issues.push({ path: "case_control_handoff", message: "create_case requires intent, outcome, semantic facts, and at least one gap." });
+    }
+  }
+  if (handoff.action === "bind_closed_case") {
+    requireString(handoff.expected_case_updated_at, "case_control_handoff.expected_case_updated_at", issues);
+    requireString(handoff.case_source_digest, "case_control_handoff.case_source_digest", issues);
+    requireString(handoff.coverage_reason, "case_control_handoff.coverage_reason", issues);
+    requireArray(handoff.coverage_evidence, "case_control_handoff.coverage_evidence", issues);
+    if (!handoff.case_id || !handoff.expected_case_updated_at || !/^[a-f0-9]{64}$/.test(handoff.case_source_digest || "") || !handoff.coverage_reason || handoff.coverage_evidence?.length === 0) {
+      issues.push({ path: "case_control_handoff", message: "bind_closed_case requires an exact Case identity, fresh updated_at, SHA-256 digest, reason, and evidence." });
+    }
   }
 }
 

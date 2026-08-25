@@ -262,6 +262,12 @@
       "$ref": "#/$defs/invariant_judgment"
     },
     "case_control": {
+      "anyOf": [
+        { "$ref": "#/$defs/create_case_control" },
+        { "$ref": "#/$defs/bind_closed_case_control" }
+      ]
+    },
+    "create_case_control": {
       "type": "object",
       "required": ["action", "title", "intent", "expected_outcome", "artifact_type", "selection_reason", "initial_facts", "initial_impacts", "initial_gaps"],
       "properties": {
@@ -274,6 +280,19 @@
         "initial_facts": { "type": "array", "items": { "$ref": "#/$defs/fact" } },
         "initial_impacts": { "type": "array", "items": { "$ref": "#/$defs/impact" } },
         "initial_gaps": { "type": "array", "items": { "$ref": "#/$defs/gap" } }
+      },
+      "additionalProperties": false
+    },
+    "bind_closed_case_control": {
+      "type": "object",
+      "required": ["action", "case_id", "expected_case_updated_at", "case_source_digest", "coverage_reason", "coverage_evidence"],
+      "properties": {
+        "action": { "type": "string", "const": "bind_closed_case" },
+        "case_id": { "type": "string", "minLength": 1 },
+        "expected_case_updated_at": { "type": "string", "minLength": 1 },
+        "case_source_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "coverage_reason": { "type": "string", "minLength": 1 },
+        "coverage_evidence": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
       },
       "additionalProperties": false
     },

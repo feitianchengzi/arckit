@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildAcceptanceFeedbackQueue,
   buildAutomationTask,
+  buildCaseBindingRecoveryTask,
   buildQueue,
   createAutomationCoordinator,
   extractAuthoritativeCaseBindingFromRun,
@@ -17,6 +18,17 @@ const automationCoordinatorPath = new URL("../src/automation-coordinator.mjs", i
 test("automation task preserves only the remote human-authored intent", () => {
   assert.equal(buildAutomationTask({ title: "Fix login", content: "Repair and verify login." }), "Repair and verify login.");
   assert.equal(buildAutomationTask({ title: "display title", content: "  Repair\nexactly.  " }), "  Repair\nexactly.  ");
+});
+
+test("Case binding recovery prompts preserve intent and select one explicit protocol path", () => {
+  const task = { content: "finish the exact todo" };
+  const reuse = buildCaseBindingRecoveryTask(task, "reuse");
+  const newCase = buildCaseBindingRecoveryTask(task, "new_case");
+  assert.match(reuse, /^finish the exact todo/);
+  assert.match(reuse, /Submit bind_closed_case only if one exact canonical Case is closed, resolved/);
+  assert.match(reuse, /SHA-256 source digest/);
+  assert.match(newCase, /^finish the exact todo/);
+  assert.match(newCase, /submit create_case for a new bounded Case/);
 });
 
 test("queue remains deterministic and excludes ineligible tasks", () => {
@@ -918,6 +930,38 @@ test("retry_start clears stale closeout state and starts a normal Runtime", asyn
   coordinator.dispose();
 });
 
+for (const scenario of [
+  { action: "retry_case_reuse", expected: /Submit bind_closed_case only if one exact canonical Case/ },
+  { action: "retry_as_new_case", expected: /submit create_case for a new bounded Case/ }
+]) {
+  test(`${scenario.action} resumes the persisted thread with a targeted Case binding instruction`, async () => {
+    const starts = [];
+    const store = recoveryStore({ phase: "recovery" });
+    store.automation.recovery_items.push({
+      id: "RECOVERY-case-binding-t",
+      type: "case_binding_missing",
+      task_id: "t",
+      project_id: "p",
+      run_id: "RUN-OLD",
+      // Simulate a recovery item persisted by the pre-migration runtime.
+      actions: ["retry_start", "mark_blocked"]
+    });
+    const coordinator = unconfiguredCoordinator(fakeRunManager(store, starts));
+
+    const before = (await coordinator.getSnapshot()).recovery_items.find((item) => item.id === "RECOVERY-case-binding-t");
+    assert.deepEqual(before.actions, ["retry_case_reuse", "retry_as_new_case", "feedback_continue", "mark_blocked"]);
+
+    await coordinator.resolveRecovery({ recoveryId: "RECOVERY-case-binding-t", action: scenario.action });
+
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0].threadId, "THREAD-PERSISTED");
+    assert.match(starts[0].task, scenario.expected);
+    assert.equal(store.automation.active_task.closeout_status, "pending");
+    assert.equal(store.automation.recovery_items.length, 0);
+    coordinator.dispose();
+  });
+}
+
 test("recovery feedback continues the same Agent thread and persists the user message", async () => {
   const starts = [];
   const messages = [];
@@ -1494,7 +1538,8 @@ test("remote completion refuses an unbound task before contacting the task sourc
     action: "retry_complete"
   });
 
-  assert.equal(store.automation.recovery_items.some((item) => item.type === "case_binding_missing"), true);
+  const recovery = (await coordinator.getSnapshot()).recovery_items.find((item) => item.type === "case_binding_missing");
+  assert.deepEqual(recovery.actions, ["retry_case_reuse", "retry_as_new_case", "feedback_continue", "mark_blocked"]);
   assert.notEqual(store.automation.active_task.phase, "completing");
   coordinator.dispose();
 });

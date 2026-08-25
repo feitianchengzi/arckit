@@ -51,6 +51,8 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 - 每个项目独立展示 Work Sync 本地投影状态、本地工作区绑定和“允许自动领取”状态。只有当前登录代际投影可用、工作区已绑定且项目允许自动领取时，其待处理任务才有执行资格。
 - 跨项目队列先按服务器优先级从高到低，再按确认进入待处理的时间从早到晚，最后按项目 ID 与任务 ID 稳定排序。同步引起的顺序变化只影响下一次领取，不改变当前运行。
 - 待评审任务不进入自动队列。用户或任务服务器将其确认为待处理后，任务才获得自动执行资格。
+
+资格不足时，Automation 不只展示“无可执行任务”，而是从现有事实选择首个可修复原因：本地目录、Setup Readiness、项目授权、任务状态/执行人、全局总闸或队列暂停。页面说明该原因影响多少候选，并在当前用户有权限时提供拥有者动作；动作成功后留在 Automation 原范围重新计算。待评审任务提供“查看并确认”，项目连接提供“选择本地目录”或“允许此项目”，全局总闸提供“开始自动执行”。无权限时显示所需角色与责任方，不渲染必然失败的主按钮。
 - 待处理是唯一允许自动领取的新任务状态。进行中任务只用于所属 workspace lane 的活动执行或重启恢复；不同 lane 可以并行，同一 lane 不与新工作并行。
 - 顶部“自动领取”是全局领取总闸。关闭时系统继续同步和展示，但不领取新任务；它不替代项目级授权，也不停止任何已活动执行。
 - 项目级“允许自动领取”定义全局总闸覆盖的项目范围。选择项目、绑定工作区和开启全局总闸均不隐式改变该授权。
@@ -178,6 +180,8 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 
 `Recovery Center 输入说明 → 校验当前 task session 与持久 thread → 启动同 thread 新 Run → 打开 Workbench 并显示“你”的说明`
 
+`terminal handoff 缺少可信 Case 绑定 → Recovery Center → 复用已有 Case / 作为新事项继续 / 补充说明并继续 / 标记阻塞 → 同 thread 建立 trusted receipt 后进入收尾`
+
 `自动执行中 → 服务器状态外部变化 → 安全停止 → Recovery Center → 对齐后恢复队列`
 
 `Command Center 待命 → 无可执行任务 → 保持监听或查看待评审`
@@ -213,6 +217,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 - Work Sync 返回条件式领取冲突时，候选任务保持原本地状态并显示恢复原因；Automation 从后续本地状态重新计算队列。
 - `待处理 → 进行中` 已成功但 Runtime 启动失败时保留任务与启动意图关联，冻结下一任务并提供重试启动。
 - Runtime result validation、trusted ledger Gate 或 transition 拒绝时，Runtime 不展示 Case 完成、不启动 Git closeout；可修正拒绝先在同一 Agent thread 上进入可见的“Agent repair n/N”状态，向 Agent 提供具体 issue path、reason、被拒 claim 和 fresh canonical state，要求只替换无效 claim 而不重复实现。repair 成功后继续原待办；仅预算耗尽或错误不可修正时进入恢复卡，恢复卡优先展示最终 rejection 原因，不使用未接受的成功 handoff 文案。
+- Runtime 已返回 terminal handoff、但 Run activity 没有 accepted task-to-Case receipt 时，恢复卡显示“需要确认任务对应的 Case”，且不投影完成或 closeout。卡片提供“复用已有 Case”“作为新事项继续”“补充说明并继续”和“标记为已阻塞”；前两项恢复当前 task session 与持久 Agent thread，分别要求 fresh-read 后提交精确 closed/resolved Case 的类型化复用主张，或创建独立 Case。替代 Run 建立后才消费原恢复项。
 - 已绑定持久 Agent thread 的 Runtime 失败卡展示说明输入与“补充说明并继续”；空白说明不提交。提交成功后原文进入当前待办时间线并打开只读审查，新 Run 继续同一 thread；启动失败则保留输入场景和恢复项。
 - Work Sync 未发布 `completed` 时保留本地完成证据并冻结下一任务，直到 Work 完成服务器同步。
 - 应用重启时先逐 lane 恢复本地活动执行、关联 Run、canonical Case 和 commit 检查点，再等待 Work Sync 恢复本地 Task Projection；只有同一 lane 出现多个进行中任务或无法解析 lane 身份时才触发人工恢复中心。
@@ -235,6 +240,7 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 - `authentication.html` 投影 Automation Workspace 账号设置覆盖层的已登录与会话失效状态。
 - `intervention-workbench.html` 投影人工处理模式与只读审查模式。
 - `runtime-recovery.html` 投影领取冲突、Runtime 启动失败、补充说明并继续、停止当前运行、外部状态变化、同一 lane 多个进行中任务、Work Sync 投影完整性异常和会话失效。
+- `eligibility-guidance.html` 投影缺本地目录、待评审、全局总闸关闭与无权限责任交接，并保持与 Today、Organization 和 Work 的原因一致。
 - 三个投影保持同一任务上下文和返回路径；Intervention Workbench 不成为 Automation 主导航常驻区域，Personal / Chat 保持独立入口。
 
 ## 页面状态
@@ -252,7 +258,9 @@ Command Center 把规范化本地 Product Workspace 作为执行 lane。每条 l
 | Codex CLI 接管 | Runtime 已安全停止且交互式终端已打开 | 当前 Case、执行权提示、Button | 在 CLI 参与或恢复自动执行 |
 | 人工介入入口 | Runtime 声明 requires_human | attention strip、Inspector | 进入 Intervention Workbench |
 | 完成并续接 | ledger 和远端完成写回成功 | stage strip、Table | 观察下一项领取 |
+| Case 绑定待确认 | terminal handoff 无 accepted task-to-Case receipt | Recovery Center、绑定说明、四个定向动作 | 复用已有 Case、作为新事项继续、补充说明或标记阻塞 |
 | 无可执行任务 | 没有进行中或待处理任务 | ContentUnavailableView | 查看待评审或刷新 |
+| 资格原因就地引导 | 存在候选但当前不可领取 | attention strip、原因摘要、上下文动作 | 修复当前首要原因 |
 | 异常恢复 | 同步或状态写回不确定 | Alert、Inspector | 重试或查看本地证据 |
 | 人工处理模式 | 用户处理人工请求 | NavigationSplitView、TextEditor | 提交并恢复自动化 |
 | 只读审查模式 | 用户查看历史或当前执行消息 | NavigationSplitView、ScrollView | 返回或显式介入 |

@@ -22,6 +22,9 @@ function visitSchema(schema, path, issues) {
   if ((Object.hasOwn(schema, "const") || Object.hasOwn(schema, "enum")) && !Object.hasOwn(schema, "type")) {
     issues.push(`${path} uses const or enum without an explicit type.`);
   }
+  if (Array.isArray(schema.oneOf)) {
+    issues.push(`${path} uses oneOf, which Codex strict output schemas do not permit; use supported anyOf branches instead.`);
+  }
 
   const types = new Set(Array.isArray(schema.type) ? schema.type : [schema.type].filter(Boolean));
   if (types.has("object")) {

@@ -316,7 +316,8 @@ export async function runStateDrivenSession({ projectRoot, stateStore, options =
         noProgressRounds,
         maxNoProgressRounds: effectiveNoProgressLimit(options.maxNoProgressRounds, handoff),
         agentRepairAttempts,
-        maxAgentRepairAttempts
+        maxAgentRepairAttempts,
+        authoritativeCaseId
       });
       if (!decision.continue) {
         stopReason = decision.reason;
@@ -515,7 +516,8 @@ export function decideSessionContinuation({
   noProgressRounds = 0,
   maxNoProgressRounds = 8,
   agentRepairAttempts = 0,
-  maxAgentRepairAttempts = 2
+  maxAgentRepairAttempts = 2,
+  authoritativeCaseId = ""
 }) {
   const madeProgress = ledgerWriteResult?.written === true;
   const writebackRequired = runtimeResult?.ledger_stage?.writeback_required === true;
@@ -555,6 +557,9 @@ export function decideSessionContinuation({
     return { continue: false, madeProgress, reason: "external_wait" };
   }
   if (ledgerWriteResult?.case_control_result) {
+    if (ledgerWriteResult.case_control_result.action === "bind_closed_case") {
+      return { continue: false, madeProgress: true, reason: "completed" };
+    }
     return { continue: true, madeProgress: true, reason: "case_created" };
   }
   if (handoff?.next_responsibility === "agent"
@@ -566,6 +571,9 @@ export function decideSessionContinuation({
     return { continue: true, madeProgress, reason: "agent_continuation" };
   }
   if (runtimeResult?.round_result === "done" || handoff?.next_responsibility === "none") {
+    if (!String(authoritativeCaseId || "").trim()) {
+      return { continue: false, madeProgress, reason: "case_binding_required" };
+    }
     return { continue: false, madeProgress, reason: "completed" };
   }
   return { continue: false, madeProgress, reason: "terminal_runtime_result" };
@@ -784,6 +792,7 @@ function freshReadProjection(receipt) {
 
 function nextActionForStopReason(stopReason, envelope) {
   if (stopReason === "completed") return "State-driven Runtime session completed.";
+  if (stopReason === "case_binding_required") return "Bind this todo through a trusted closed Case reuse receipt or create and advance a new Case before completion.";
   if (stopReason === "human_intervention") {
     return envelope.runtime_result?.loop_handoff?.next_prompt || "Wait for the required human decision.";
   }
