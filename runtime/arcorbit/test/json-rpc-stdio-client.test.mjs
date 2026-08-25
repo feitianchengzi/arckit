@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { EventEmitter } from "node:events";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { PassThrough } from "node:stream";
 import test from "node:test";
+import { promisify } from "node:util";
 import {
   buildJsonRpcSpawnSpec,
   JsonRpcStdioClient,
   resolveWindowsCommand
 } from "../src/json-rpc-stdio-client.mjs";
+
+const execFileAsync = promisify(execFile);
 
 test("non-Windows JSON-RPC commands keep direct argument boundaries", () => {
   const spec = buildJsonRpcSpawnSpec({
@@ -60,6 +67,35 @@ test("Windows npm command shims use a static PowerShell command and structured e
   assert.equal(spec.args.includes(command), false);
   assert.equal(spec.args.some((value) => value.includes("value&with")), false);
   assert.match(spec.args.at(-1), /ConvertFrom-Json/);
+  assert.doesNotMatch(spec.args.at(-1), /\[string\[\]\]/);
+});
+
+test("Windows PowerShell 5.1 preserves npm app-server argument boundaries", { skip: process.platform !== "win32" }, async () => {
+  const fixtureRoot = await mkdtemp(path.join(tmpdir(), "arcorbit-json-rpc-shim-"));
+  const command = path.join(fixtureRoot, "fixture command.cmd");
+  const captureScript = path.join(fixtureRoot, "capture.mjs");
+  const args = ["app-server", "--stdio", "value with spaces"];
+  try {
+    await writeFile(captureScript, "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n", "utf8");
+    await writeFile(command, `@ECHO OFF\r\n"${process.execPath}" "${captureScript}" %*\r\n`, "utf8");
+    const spec = buildJsonRpcSpawnSpec({
+      command,
+      args,
+      cwd: fixtureRoot,
+      platform: "win32",
+      env: { ...process.env, SystemRoot: process.env.SystemRoot },
+      isFile: (candidate) => candidate === command
+    });
+
+    const { stdout } = await execFileAsync(spec.command, spec.args, {
+      cwd: spec.options.cwd,
+      env: spec.options.env,
+      windowsHide: spec.options.windowsHide
+    });
+    assert.deepEqual(JSON.parse(stdout), args);
+  } finally {
+    await rm(fixtureRoot, { recursive: true, force: true });
+  }
 });
 
 test("the default Windows codex command resolves an npm shim through PATH", () => {

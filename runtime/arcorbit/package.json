@@ -11,8 +11,8 @@
     "arckit-runtime": "./bin/arcorbit.mjs"
   },
   "scripts": {
-    "check": "node --check bin/arcorbit.mjs && node --check src/*.mjs && node --check src/kernel/*.mjs && node --check src/projection/*.mjs && node --check src/desktop/*.mjs && node --check adapters/*.mjs && node --check scripts/*.mjs && node --check desktop/main.mjs && node --check desktop/preload.cjs && node --check desktop/renderer/renderer.js && node --check desktop/product-feedback/preload.cjs && node --check desktop/product-feedback/renderer.js && node --check desktop/image-viewer/preload.cjs && node --check desktop/image-viewer/renderer.js && node --check desktop/image-viewer/state.mjs && node --test test/*.test.mjs",
-    "test": "node --test test/*.test.mjs",
+    "check": "node scripts/check-syntax.mjs && node scripts/run-tests.mjs",
+    "test": "node scripts/run-tests.mjs",
     "test:layout": "ARCORBIT_ELECTRON_LAYOUT_TEST=1 node --test test/desktop-sidebar-layout.test.mjs",
     "desktop": "electron desktop/main.mjs",
     "smoke": "node bin/arcorbit.mjs run --project ../.. --dry-run --json",

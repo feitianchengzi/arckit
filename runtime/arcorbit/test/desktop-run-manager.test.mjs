@@ -158,7 +158,8 @@ test("desktop run manager forwards the resolved Codex command and execution PATH
     await manager.startRun({ projectId: "PROJECT-1", taskId: "TASK-1", task: "Use Codex", adapter: "codex-app-server" });
     const codexIndex = calls[0].args.indexOf("--codex-bin");
     assert.equal(calls[0].args[codexIndex + 1], "/fixture/nvm/bin/codex");
-    assert.equal(calls[0].options.env.PATH.split(":" )[0], "/fixture/nvm/bin");
+    const pathKey = Object.keys(calls[0].options.env).find((key) => key.toUpperCase() === "PATH");
+    assert.equal(calls[0].options.env[pathKey].split(process.platform === "win32" ? ";" : ":")[0], "/fixture/nvm/bin");
   } finally {
     await manager.abortActiveRuns({ graceMs: 0 });
     destroyChildren(children);

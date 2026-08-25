@@ -45,6 +45,14 @@ Store 对 Chat 持久化以下状态：
 - 以 `turn/interrupt` 停止当前 turn，并对活动 turn、client close 与进程异常给出可恢复终态。
 - 处理 command single-flight、workspace roots、sandbox、approval policy 和用户 approval request。
 
+### Windows Codex executable 边界
+
+Windows Desktop 对 Codex executable 使用单一、可验证的解析结果。显式 `ARCORBIT_CODEX_BIN` 优先，其后是 `PATH` 中的原生 `codex.exe` 或 npm `codex.cmd`、`%APPDATA%\npm\codex.cmd`，最后是 Codex Desktop 在 `%LOCALAPPDATA%\OpenAI\Codex\bin` 准备的 versioned per-user runtime 和无版本 fallback。每个候选必须先通过 `--version`；不可访问的商店 package 目录、缺失文件和启动失败候选只形成诊断，不得被保存成 ready binding。
+
+`codex.exe` 直接启动。`.cmd` 通过 Windows PowerShell 5.1 可执行的静态脚本启动，命令路径与参数数组分别经环境变量传递；JSON 数组必须保持为 PowerShell object array，不能先通过 array subexpression 强制转换成单个字符串。App Server 的 `app-server` 与 `--stdio` 因而保持两个 argv。Setup Readiness 与实际 Chat/Automation 共用同一 resolver，避免版本检测成功而 JSON-RPC 启动失败。
+
+仅安装 Codex Desktop、未安装独立 CLI 时，ArcOrbit 可以复用已经落到用户可访问本地目录且通过版本探测的 Desktop runtime。该 fallback 是对已验证本机布局的兼容层，不把 OpenAI 未承诺的固定路径当成协议；找不到可运行候选时必须保持 `CODEX_UNAVAILABLE`，不得扫描后直接执行访问受限的 `Program Files\WindowsApps` binary，也不得在 Runtime 内静默安装 CLI。
+
 Runtime 与 Chat 复用上述 transport 和基础事件，不复用语义 orchestration。State-driven Runtime 继续在其上叠加 `$using-arckit` prompt、`arckit-agent-loop-result/v1` output schema、Project/Case fresh snapshot、trusted ledger、Gap Loop、Automation lease 和 closeout。Chat Coordinator 直接提交用户文本，不设置 Agent Loop output schema，不调用 state-driven runner、Agent orchestrator、trusted ledger 或 Automation Coordinator。
 
 现有 adapter 实例只支持一个活动 turn 并固定绑定一个 project root。Chat Coordinator 因此按活动 Chat session 懒创建 adapter owner；同一 session 串行 turn，不同 session 与不同项目使用独立 owner。owner 空闲或应用退出时可以关闭 app-server client，下一次通过持久 `thread_id` resume。Chat owner 不占用 Automation 的 task/thread lease，Automation owner 也不能向 Chat session 写消息或控制 turn。
