@@ -37,7 +37,7 @@ app.whenReady().then(async () => {
         loading_visible: document.querySelector('#workStateSummary').textContent.includes('本地查询中')
       };
       await wait(280);
-      const completedVisible = [...document.querySelectorAll('#platformWorkTable tbody tr')].some((row) => row.textContent.includes('Completed work'));
+      const completedVisible = [...document.querySelectorAll('#platformWorkTable tbody tr')].some((row) => row.textContent.includes('Ready for acceptance check'));
       const switchCalls = (await window.arckitDesktop.getTestCalls()).slice(callsBeforeSwitch).map(([name]) => name);
 
       await window.arckitDesktop.setTestPlatformSnapshotDelay(120);
@@ -48,12 +48,12 @@ app.whenReady().then(async () => {
       const rapid = {
         pending_pressed: document.querySelector('[data-work-state="pending"]').getAttribute('aria-pressed') === 'true',
         accepted_visible: [...document.querySelectorAll('#platformWorkTable tbody tr')].some((row) => row.textContent.includes('Accepted work')),
-        pending_visible: [...document.querySelectorAll('#platformWorkTable tbody tr')].some((row) => row.textContent.includes('Scoped pending work'))
+        pending_visible: [...document.querySelectorAll('#platformWorkTable tbody tr')].some((row) => row.textContent.includes('Verify Work state scope'))
       };
 
       const sameKeyTask = (title) => ({
         id: 'SAME-KEY', project_id: '11', project_name: 'ArcOrbit', title,
-        content: 'Same-key cache generation', state: 'pending', terminal: false, priority: 99,
+        content: title, state: 'pending', terminal: false, priority: 99,
         raw: { priority: 1 }, executor_id: '7', assignee: { id: '7', username: 'Glare' }, tags: ''
       });
       await window.arckitDesktop.queueTestPlatformWorkQueries([
@@ -107,9 +107,18 @@ app.whenReady().then(async () => {
       const scale = {
         first_interactive_ms: Number((performance.now() - scaleStarted).toFixed(2)),
         rendered_rows: document.querySelectorAll('#platformWorkTable tbody tr').length,
-        pager_text: document.querySelector('.work-query-pager')?.textContent || ''
+        pager_text: document.querySelector('.work-query-pager')?.textContent || '',
+        stale_pending_cleared: document.querySelector('[data-work-state="pending"] em').textContent === '0',
+        badge_position: getComputedStyle(document.querySelector('[data-work-state="pending_review"] em')).position
       };
-      return { immediate, completed_visible: completedVisible, switch_calls: switchCalls, rapid, same_key_cache: sameKeyCache, clear_cache: clearCache, scale };
+      await window.arckitDesktop.setTestPlatformTasks(manyTasks.slice(0, 1));
+      await window.arckitDesktop.emitTestWorkSyncEvent();
+      await wait(120);
+      const localRefresh = {
+        pending_review: document.querySelector('[data-work-state="pending_review"] em').textContent,
+        completed: document.querySelector('[data-work-state="completed"] em').textContent
+      };
+      return { immediate, completed_visible: completedVisible, switch_calls: switchCalls, rapid, same_key_cache: sameKeyCache, clear_cache: clearCache, scale, local_refresh: localRefresh };
     })()`);
     await new Promise((resolveWrite) => process.stdout.write(`${JSON.stringify(result)}\n`, resolveWrite));
   } finally {

@@ -30,4 +30,7 @@ test("Work status switching is immediate, generation-safe and windowed for 1000 
   assert.ok(result.scale.first_interactive_ms < 80, `1000-row first interactive frame took ${result.scale.first_interactive_ms}ms`);
   assert.equal(result.scale.rendered_rows, 80);
   assert.match(result.scale.pager_text, /1–80 \/ 1000/);
+  assert.equal(result.scale.stale_pending_cleared, true);
+  assert.equal(result.scale.badge_position, "absolute");
+  assert.deepEqual(result.local_refresh, { pending_review: "1", completed: "0" });
 });

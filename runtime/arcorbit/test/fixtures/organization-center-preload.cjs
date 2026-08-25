@@ -3,6 +3,7 @@ const { contextBridge } = require("electron");
 const calls = [];
 const automationListeners = new Set();
 const workSyncListeners = new Set();
+const taskStates = ["pending_review", "pending", "in_progress", "completed", "accepted", "cancelled", "blocked"];
 const workDetailRefreshTest = process.env.ARCORBIT_WORK_DETAIL_REFRESH_FIXTURE === "1";
 const taskAttachments = workDetailRefreshTest ? {
   "W-11": [{ id: "TA-W-11-1", task_id: "W-11", creator_id: "7", type: "text", content: "[image](work/W-11/progress.png) Preview update", created_at: "2026-08-25T10:00:00Z" }]
@@ -131,11 +132,11 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
       workQueryFailure = "";
       throw new Error(message);
     }
-    const selected = sourceTasks.filter((task) => (
+    const scoped = sourceTasks.filter((task) => (
       (input.project_id === "all" || String(task.project_id) === String(input.project_id))
-      && (task.state === input.state)
       && (!input.search_key || `${task.title} ${task.content}`.toLowerCase().includes(String(input.search_key).toLowerCase()))
     ));
+    const selected = scoped.filter((task) => task.state === input.state);
     const offset = Math.max(0, Number(input.offset) || 0);
     const limit = Math.max(1, Number(input.limit) || 80);
     const tasks = selected.slice(offset, offset + limit);
@@ -154,7 +155,7 @@ contextBridge.exposeInMainWorld("arckitDesktop", {
       projects: platform.projects.filter((project) => input.project_id === "all" || String(project.id) === String(input.project_id)),
       product_workspaces: platform.product_workspaces
         .filter((workspace) => input.project_id === "all" || String(workspace.id) === String(input.project_id))
-        .map((workspace) => ({ ...workspace, tasks: tasks.filter((task) => String(task.project_id) === String(workspace.id)), task_counts: { ...workspace.task_counts, [input.state]: selected.filter((task) => String(task.project_id) === String(workspace.id)).length }, task_tree: taskTrees.find((tree) => tree.project_id === String(workspace.id)) || null })),
+        .map((workspace) => ({ ...workspace, tasks: tasks.filter((task) => String(task.project_id) === String(workspace.id)), task_counts: Object.fromEntries(taskStates.map((state) => [state, scoped.filter((task) => String(task.project_id) === String(workspace.id) && task.state === state).length])), task_tree: taskTrees.find((tree) => tree.project_id === String(workspace.id)) || null })),
       tasks,
       task_trees: taskTrees,
       tags: platform.tags.filter((tag) => input.project_id === "all" || String(tag.project_id) === String(input.project_id)),

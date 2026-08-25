@@ -274,16 +274,14 @@ export function createPlatformCoordinator({ runManager, platformSource, workSync
     const detailResults = selectedProjects.map((project) => {
       const projectId = String(project.id);
       const tasks = localTaskResult(workProjection, projectId, taskFilters, { tree: true });
+      const countedTasks = localTaskResult(workProjection, projectId, { ...taskFilters, states: TASK_STATES }, { tree: false }).value || [];
       const taskValue = tasks.value || [];
       const flattened = Array.isArray(taskValue) ? taskValue : taskValue.flattened || [];
-      const matchedTotal = Array.isArray(taskValue)
-        ? flattened.filter((task) => task.state === taskState).length
-        : Number(taskValue.matched_total || 0);
       return {
         project,
         tasks: flattened,
         taskTree: Array.isArray(taskValue) ? null : taskValue,
-        taskCounts: { [taskState]: matchedTotal },
+        taskCounts: Object.fromEntries(TASK_STATES.map((state) => [state, countedTasks.filter((task) => task.state === state).length])),
         tags: workProjection.tags.filter((tag) => String(tag.project_id) === projectId)
       };
     });

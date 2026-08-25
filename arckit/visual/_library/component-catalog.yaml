@@ -1,6 +1,6 @@
 metadata:
   project: ArcOrbit Desktop
-  last_updated: "2026-08-24"
+  last_updated: "2026-08-25"
   tokens: ./design-tokens.yaml
 
 components:
@@ -20,12 +20,13 @@ components:
       default: { foreground: "rgba(255,255,255,.54)", background: transparent }
       selected: { foreground: "{colors.paper}", background: "rgba(112,106,242,.17)", indicator: "{colors.accent.hover}" }
       attention: { foreground: "{colors.warning.soft}", badge: "{colors.warning.base}" }
+      status_filter: { foreground: "{colors.ink.600}", background: "{colors.ink.50}", badge: "{colors.accent.soft}", badge_position: overlay_top_right }
     sizes:
       compact: { height: "{layout.control_height}", padding_x: "{spacing.4}", typography: "{typography.label}" }
     states: [default, hover, selected, disabled, attention]
     token_refs: [colors.accent.hover, colors.warning.base, typography.label, corner_radius.small]
     accessibility:
-      requirement: 当前项同时使用文字、选中表面和指示条；每项可聚焦并以 Enter 或 Space 激活
+      requirement: 当前项同时使用文字、选中表面和指示条；状态数量以不占标题布局空间的右上角角标呈现且包含在可访问名称中；每项可聚焦并以 Enter 或 Space 激活
 
   Icon:
     role: 以统一轮廓矢量图形表达操作、对象和状态，不使用字符或 Emoji 替代生产图标

@@ -139,3 +139,4 @@
 | [CASE-20260825-005](closed/CASE-20260825-005-work-automation.md) | closed | 解除 Work 待办状态的 Automation 修改限制 | 2026-08-25T11:24:37.416Z |
 | [CASE-20260825-006](closed/CASE-20260825-006-local-capability-setup.md) | closed | 改善 Local Capability Setup 新人安装引导 | 2026-08-25T11:51:46.039Z |
 | [CASE-20260825-007](closed/CASE-20260825-007-development-case.md) | closed | 支持编辑待办时切换产品 | 2026-08-25T13:13:49.731Z |
+| [CASE-20260825-008](closed/CASE-20260825-008-work.md) | closed | 修复 Work 状态工具条计数展示与本地一致性 | 2026-08-25T14:42:33.137Z |

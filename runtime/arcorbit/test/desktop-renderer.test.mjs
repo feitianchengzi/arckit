@@ -1182,6 +1182,11 @@ test("Work exposes local-projection filters, task hierarchy, complete detail, su
   assert.doesNotMatch(source.match(/function platformTaskFilters\(\) \{[\s\S]*?\n\}/)?.[0] || "", /states: TASK_STATES/);
   assert.match(source, /function workStateCounts\(projection\)/);
   assert.match(source, /projection\.product_workspaces \|\| \[\]/);
+  const countProjection = source.match(/function workStateCounts\(projection\) \{[\s\S]*?\n\}/)?.[0] || "";
+  assert.doesNotMatch(countProjection, /state\.platform/);
+  assert.match(source, /aria-label="\$\{STATE_LABELS\[taskState\]\}，\$\{stateCounts\[taskState\]\} 项"/);
+  assert.match(styles, /\.work-state-filter \{[^}]+position: relative[^}]+grid-template-columns: 15px minmax\(0, 1fr\)/);
+  assert.match(styles, /\.work-state-filter em \{[^}]+position: absolute[^}]+top: -6px[^}]+right: -5px/);
   assert.match(source, /hasTreeSummary \? matchedTotal : stateCounts\[state\.selectedState\]/);
   assert.match(source, /Number\.isInteger\(task\.tree_depth\)\) \? scopedTasks : rankTasks\(stateTasks\)/);
   assert.match(source, /task\.tree_depth/);

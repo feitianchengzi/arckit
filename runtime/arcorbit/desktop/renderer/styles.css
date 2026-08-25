@@ -416,11 +416,11 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .attention-copy p { margin: 2px 0 0; color: var(--amber-700); font-size: var(--type-label); }
 
 .work-state-filters { display: grid; grid-template-columns: repeat(7, minmax(92px, 1fr)); min-width: 0; gap: 6px; }
-.work-state-filter { display: grid; grid-template-columns: 15px minmax(0, 1fr) auto; align-items: center; gap: 5px; min-height: 32px; padding: 0 8px; border: 1px solid var(--ink-150); border-radius: 7px; color: var(--ink-600); background: var(--ink-50); font-size: var(--type-caption); text-align: left; }
+.work-state-filter { position: relative; display: grid; grid-template-columns: 15px minmax(0, 1fr); align-items: center; gap: 5px; min-height: 32px; padding: 0 8px; border: 1px solid var(--ink-150); border-radius: 7px; color: var(--ink-600); background: var(--ink-50); font-size: var(--type-caption); text-align: left; }
 .work-state-filter:hover { border-color: var(--violet-300); color: var(--ink-900); }
 .work-state-filter.is-active { border-color: var(--violet-400); color: var(--violet-700); background: var(--violet-50); box-shadow: inset 2px 0 var(--violet-500); }
 .work-state-filter strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.work-state-filter em { min-width: 17px; padding: 1px 5px; border-radius: 9px; color: var(--violet-700); background: var(--violet-100); font-size: var(--type-micro); font-style: normal; text-align: center; }
+.work-state-filter em { position: absolute; top: -6px; right: -5px; z-index: 1; min-width: 17px; padding: 1px 5px; border: 1px solid var(--paper); border-radius: 9px; color: var(--violet-700); background: var(--violet-100); font-size: var(--type-micro); font-style: normal; line-height: 16px; text-align: center; }
 .work-state-compact { display: none; }
 .filter-toggle { min-height: 30px; padding: 0 10px; border: 1px solid var(--ink-200); border-radius: 999px; color: var(--ink-600); background: #fff; font-size: var(--type-caption); font-weight: 800; }
 .filter-toggle:hover, .filter-toggle.is-active { border-color: var(--violet-400); color: var(--violet-700); background: var(--violet-50); }

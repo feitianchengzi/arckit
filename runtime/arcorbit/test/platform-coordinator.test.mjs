@@ -209,6 +209,30 @@ test("dedicated Work query excludes unrelated snapshots and returns a bounded ta
   assert.deepEqual(calls, []);
 });
 
+test("dedicated Work query derives all status counts from one local projection and the same non-state filters", async () => {
+  const tasks = [
+    { id: "P-1", project_id: "11", state: "pending", content: "desktop pending", creator_id: "7" },
+    { id: "P-2", project_id: "11", state: "pending", content: "other pending", creator_id: "7" },
+    { id: "C-1", project_id: "11", state: "completed", content: "desktop completed", creator_id: "7" },
+    { id: "B-1", project_id: "11", state: "blocked", content: "desktop blocked", creator_id: "8" }
+  ];
+  const coordinator = createPlatformCoordinator({
+    runManager: { readDesktopStore: async () => normalizeStore({ platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["11"] }], active_workset_id: "WORKSET-DEFAULT" } }), updateDesktopStore: async () => {} },
+    automationCoordinator: { getSnapshot: async () => { throw new Error("Automation must not participate in Work query"); } },
+    workSync: staticWorkSync({ projects: [{ id: "11", name: "Alpha" }], tasks }),
+    platformSource: new Proxy({}, { get: () => async () => { throw new Error("Workshop must not participate in Work query"); } })
+  });
+
+  const result = await coordinator.queryWork({
+    query_key: "all-status-counts", state: "pending", search_key: "desktop", creator_ids: ["7"]
+  });
+
+  assert.deepEqual(result.product_workspaces[0].task_counts, {
+    pending_review: 0, pending: 1, in_progress: 0, completed: 1, accepted: 0, cancelled: 0, blocked: 0
+  });
+  assert.deepEqual(result.tasks.map((task) => task.id), ["P-1"]);
+});
+
 test("dedicated Work query retains ancestor lineage around a matched window", async () => {
   const coordinator = createPlatformCoordinator({
     runManager: { readDesktopStore: async () => normalizeStore({ platform: { worksets: [{ id: "WORKSET-DEFAULT", name: "Main", project_ids: ["11"] }], active_workset_id: "WORKSET-DEFAULT" } }), updateDesktopStore: async () => {} },

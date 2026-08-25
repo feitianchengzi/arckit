@@ -1,8 +1,8 @@
 # Arckit Skill Repository Project State
 
 Status: active
-Revision: 249
-Updated: 2026-08-25T13:13:49.731Z
+Revision: 251
+Updated: 2026-08-25T14:42:33.137Z
 Canonical Record: state.record.json
 
 ## Project Intent
@@ -11,7 +11,7 @@ Canonical Record: state.record.json
 
 ## Current Focus
 
-让 ArcOrbit Work 的编辑待办页面允许用户纠正待办所属产品，降低多项目并行时创建到错误位置后无法自助修正的风险。
+将 Work 待办状态数量改为不占按钮标题空间的角标，并确保所有入口计数只由本地 Task Projection 派生且随本地刷新同步更新。
 
 ## Active Work
 

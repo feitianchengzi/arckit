@@ -1359,7 +1359,7 @@ function renderPlatformWork() {
   const projection = state.workQuery.projection || emptyWorkQueryProjection();
   const scopedTasks = (projection.tasks || []).filter(platformItemMatchesSelectedProject);
   const stateCounts = workStateCounts(projection);
-  els.workStateFilters.innerHTML = TASK_STATES.map((taskState) => `<button class="work-state-filter ${state.selectedState === taskState ? "is-active" : ""}" data-work-state="${taskState}" type="button" aria-pressed="${state.selectedState === taskState}"><span>${STATE_ICONS[taskState]}</span><strong>${STATE_LABELS[taskState]}</strong><em>${stateCounts[taskState]}</em></button>`).join("");
+  els.workStateFilters.innerHTML = TASK_STATES.map((taskState) => `<button class="work-state-filter ${state.selectedState === taskState ? "is-active" : ""}" data-work-state="${taskState}" type="button" aria-label="${STATE_LABELS[taskState]}，${stateCounts[taskState]} 项" aria-pressed="${state.selectedState === taskState}"><span>${STATE_ICONS[taskState]}</span><strong>${STATE_LABELS[taskState]}</strong><em aria-hidden="true">${stateCounts[taskState]}</em></button>`).join("");
   els.workStateSelect.innerHTML = TASK_STATES.map((taskState) => `<option value="${taskState}" ${state.selectedState === taskState ? "selected" : ""}>${STATE_LABELS[taskState]} · ${stateCounts[taskState]}</option>`).join("");
   const treeSummaries = (projection.task_trees || []).filter(platformItemMatchesSelectedProject);
   const matchedTotal = treeSummaries.reduce((sum, item) => sum + Number(item.matched_total || 0), 0);
@@ -1385,12 +1385,11 @@ function renderPlatformWork() {
 }
 
 function workStateCounts(projection) {
-  const baseline = Object.fromEntries(TASK_STATES.map((taskState) => [taskState, (state.platform.product_workspaces || []).filter(platformItemMatchesSelectedProject).reduce((sum, workspace) => sum + Number(workspace.task_counts?.[taskState] || 0), 0)]));
-  for (const taskState of TASK_STATES) {
-    const projected = (projection.product_workspaces || []).filter(platformItemMatchesSelectedProject).reduce((sum, workspace) => sum + Number(workspace.task_counts?.[taskState] || 0), 0);
-    if (projected > 0 || taskState === state.selectedState) baseline[taskState] = projected;
-  }
-  return baseline;
+  const workspaces = (projection.product_workspaces || []).filter(platformItemMatchesSelectedProject);
+  return Object.fromEntries(TASK_STATES.map((taskState) => [
+    taskState,
+    workspaces.reduce((sum, workspace) => sum + Number(workspace.task_counts?.[taskState] || 0), 0)
+  ]));
 }
 
 function renderWorkFilterControls() {
